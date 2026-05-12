@@ -62,6 +62,68 @@ summary: 'Task 3 已完成资产中心 API、版本历史、OpenAPI 契约生成
 
 ---
 
+# Task 4 质量退回修复验证报告
+
+生成时间：2026-05-13 01:45:00 Asia/Shanghai
+
+## 1. 需求字段完整性
+
+- **目标**：修复 Scene Packet 证据链接和连续性记录读取范围，保证 active asset 全量可追溯，并增强预算裁剪测试。
+- **范围**：`apps/api/app/domains/scene_packets/service.py`、`apps/api/tests/test_scene_packet.py`、`.codex/operations-log.md`、`.codex/verification-report.md`。
+- **交付物**：服务层过滤与 fallback 修复、回归测试、操作日志、本地验证报告。
+- **审查要点**：证据只来自当前场景或全局记录；缺证 active asset 自动生成 fallback evidence；连续性记录只来自当前章节或全局记录；预算裁剪统计与保留片段一致。
+
+## 2. 原始意图覆盖
+
+- 已在 `_load_evidence_links` 中加入 `EvidenceLink.scene_id == scene_id OR EvidenceLink.scene_id IS NULL` 过滤。
+- 已为没有显式证据的 active asset 生成 `evidence_type="asset_snapshot"`、`source_ref="asset:<id>"` 的 fallback evidence。
+- 已保持 `packet["证据链接"]` 与顶层 `evidence_links` 使用同一数据源，并新增测试校验一致性。
+- 已按 `ContinuityRecord.payload.chapter_id` 过滤连续性记录，缺少 `chapter_id` 的记录作为全局记录保留。
+- 已增强预算裁剪测试，覆盖长片段剔除、短片段按输入顺序保留、`retrieval_tokens` 与保留片段一致、硬约束预算不足仍保留。
+
+## 3. 本地验证记录
+
+1. `cd apps/api; uv run pytest tests/test_scene_packet.py -q`
+   - 结果：退出码 0，`5 passed in 1.64s`。
+2. `cd apps/api; uv run pytest tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`
+   - 结果：退出码 0，`24 passed in 6.33s`。
+3. `cd apps/api; uv run python -m compileall app tests`
+   - 结果：退出码 0，`app` 与 `tests` 编译通过。
+4. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
+   - 结果：退出码 0，OpenAPI 契约生成成功，生成后共享契约文件无内容差异。
+
+## 4. 技术维度评分
+
+- **代码质量**：28/30。修复集中在服务层私有函数，未引入额外架构；fallback evidence 复用既有响应模型。
+- **测试覆盖**：30/30。覆盖质量退回列出的证据隔离、fallback 覆盖、证据一致性、预算裁剪和多章节连续性隔离。
+- **规范遵循**：19/20。文档、测试说明和日志均使用简体中文；Context7 已查询 SQLAlchemy OR 与 NULL 条件写法。本机缺少 `gh`，开源搜索记录为失败并已写入操作日志。
+
+## 5. 战略维度评分
+
+- **需求匹配**：30/30。逐项覆盖质量退回阻塞项和重要项。
+- **架构一致**：28/30。沿用现有 SQLAlchemy service、Pydantic schema 和 pytest TestClient 模式。
+- **风险评估**：19/20。连续性记录目前先按作品读取再按章节内存过滤；当前数据规模与修复范围可接受，后续可在需要时改为数据库 JSON 条件。
+
+## 6. 审查清单
+
+- 需求字段完整性：通过。
+- 原始意图覆盖：通过。
+- 交付物映射：代码、测试、操作日志、验证报告均已映射。
+- 依赖与风险评估：已覆盖 SQLAlchemy OR/NULL 查询、fallback 数据结构、预算统计和 chapter_id 过滤风险。
+- 审查结论留痕：本报告已记录时间戳、验证命令、评分与建议。
+
+## 7. 综合结论
+
+```Scoring
+score: 94
+```
+
+建议：通过。
+
+summary: 'Task 4 质量退回修复已收敛 EvidenceLink 与 ContinuityRecord 范围，补齐 active asset fallback evidence，并通过指定 pytest、compileall 与 OpenAPI 生成验证。'
+
+---
+
 # Task 3 质量退回修复验证报告
 
 生成时间：2026-05-13 00:00:00 Asia/Shanghai

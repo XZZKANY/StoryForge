@@ -496,3 +496,58 @@
 
 - 计划暂存 Task 4 代码、测试、OpenAPI 契约、`apps/api/app/main.py`、`.codex/operations-log.md` 和 `.codex/verification-report.md`。
 - 明确不暂存 `.superpowers/`、`docs/superpowers/specs/`、历史上下文草稿和其他代理未跟踪文件。
+
+## 编码前检查 - Task 4 质量退回修复
+
+时间：2026-05-13 01:33:26
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-task-4-quality-fix.md`
+□ 将使用以下可复用组件：
+
+- `EvidenceLinkRead`: `apps/api/app/domains/scene_packets/schemas.py` - 保持证据响应结构兼容
+- `_estimate_tokens`: `apps/api/app/domains/scene_packets/service.py` - 验证预算统计一致性
+- `approve_chapter`: `apps/api/tests/test_scene_packet.py` - 复用连续性记录测试夹具
+
+□ 将遵循命名约定：Python 使用 snake_case，pytest 使用 `test_` 前缀。
+□ 将遵循代码风格：简体中文文档字符串、四空格缩进、长行括号换行、UTF-8 无 BOM。
+□ 确认不重复造轮子，证明：已检查 `scene_packets/service.py`、`continuity/service.py`、`test_scene_packet.py`、`test_assets_api.py`，现有函数可直接扩展。
+□ 外部检索记录：Context7 查询 SQLAlchemy `or_` 与 `is_(None)`；`gh search_code` 因本机缺少 gh 命令失败，未影响本地代码证据。
+
+## 编码中监控 - Task 4 质量退回修复
+
+时间：2026-05-13 01:33:26
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：继续使用 `EvidenceLinkRead`、`BudgetStatistics`、`_estimate_tokens` 规则和现有 pytest 夹具。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `_filter_continuity_records_for_chapter`、`_expected_tokens` 均沿用 snake_case。
+
+□ 代码风格是否一致？
+✅ 是：新增说明、测试描述和断言意图均使用简体中文，长导入和长断言已换行。
+
+## 编码后声明 - Task 4 质量退回修复
+
+时间：2026-05-13 01:33:26
+
+### 1. 复用了以下既有组件
+
+- `EvidenceLinkRead`: 用于显式证据与 fallback evidence 的统一响应结构。
+- `BudgetStatistics`: 用于验证检索片段裁剪后的 token 统计。
+- `approve_chapter`: 用于复用章节连续性记录创建流程。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增私有辅助函数以下划线开头并使用 snake_case。
+- 代码风格：保持领域服务小函数拆分，测试继续通过 TestClient 走 API。
+- 文件组织：服务逻辑仍在 `apps/api/app/domains/scene_packets/service.py`，回归测试仍在 `apps/api/tests/test_scene_packet.py`。
+
+### 3. 对比了以下相似实现
+
+- `_load_active_assets`: 修复沿用 active asset 请求顺序生成 fallback 证据。
+- `_build_packet`: 继续由同一 evidence_links 列表生成顶层字段和 packet 内字段。
+- `approve_chapter`: 新增过滤按 `payload.chapter_id` 兼容现有连续性写入结构。
+
+### 4. 未重复造轮子的证明
+
+- 检查了 `apps/api/app/domains/scene_packets/service.py`、`apps/api/app/domains/continuity/service.py`、`apps/api/tests/test_scene_packet.py`、`apps/api/tests/test_assets_api.py`，确认只需扩展现有服务与测试，不新增重复模块。
