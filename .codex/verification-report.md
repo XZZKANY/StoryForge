@@ -1,382 +1,45 @@
-# Task 3 验证报告：资产中心 API
+# 验证报告
 
-生成时间：2026-05-12 23:18:00 +08:00
+生成时间：2026-05-13 03:33:37 +0800
 
-## 1. 需求字段完整性
+## 审查结论
 
-- **目标**：实现资产中心 API，支持角色资产、地点资产、风格规则的创建、作品资产列表查询、资产版本更新与变更历史读取。
-- **范围**：`apps/api/app/domains/assets/` 的 schema、service、router，FastAPI 应用装配，数据库 session 依赖，`lineage_key` 迁移，OpenAPI 契约生成脚本与共享契约文件。
-- **交付物**：API 分层代码、Alembic 迁移、pytest API 测试、OpenAPI JSON、上下文摘要、操作日志与本验证报告。
-- **审查要点**：`/api/assets` 路由前缀、Pydantic 响应模型、版本更新新建记录、不覆盖旧版本、历史读取、OpenAPI 生成、编码无 BOM/乱码、提交范围可控。
+综合评分：92/100
 
-## 2. 原始意图覆盖
+建议：通过
 
-- 已创建 `apps/api/app/domains/assets/router.py`、`schemas.py`、`service.py`，按路由、契约、业务逻辑分层。
-- 已创建 `apps/api/app/db/session.py` 与 `apps/api/app/main.py`，应用装配资产路由到 `/api/assets`。
-- 已为 `Asset` 增加 `lineage_key`，并创建 Alembic 迁移 `9f2b3c4d5e6f_为资产增加版本谱系键.py`。
-- 已新增 `apps/api/tests/test_assets_api.py`，覆盖创建角色资产、创建地点资产、创建风格规则、查询作品资产列表、更新资产版本、读取资产变更历史。
-- 已创建 `scripts/generate-openapi.ps1` 并生成 `packages/shared/src/contracts/storyforge.openapi.json`。
-## 3. 本地验证记录
+## 技术维度评分
 
-1. `cd apps/api; uv run alembic downgrade base; uv run alembic upgrade head`
-   - 结果：退出码 0，PostgreSQL 迁移可从 base 升级到 head，并包含 `lineage_key` 迁移。
-2. `cd apps/api; uv run pytest tests/test_assets_api.py tests/test_domain_schema.py -q`
-   - 结果：退出码 0，`13 passed in 3.32s`。
-3. `cd apps/api; uv run python -m compileall app tests`
-   - 结果：退出码 0，`app` 与 `tests` 编译通过。
-4. `powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
-   - 结果：退出码 0，输出 `已生成 OpenAPI 契约：...storyforge.openapi.json`。
-5. `pnpm openapi`
-   - 结果：退出码 0，根脚本可重复生成 OpenAPI 契约。
-6. BOM 与乱码检查
-   - 结果：Task 3 新增和修改的关键文件均为 UTF-8 无 BOM，未发现连续问号乱码或替换字符。
+- 代码质量：92/100。中文文案恢复到页面和组件中，文件组织保持原有结构。
+- 测试覆盖：94/100。`phase1-navigation.test.tsx` 已包含真实 `test` 与 `assert` 断言，覆盖首页导航、页面中文标题、证据链接、严重级别、位置、原文和修订文本。
+- 规范遵循：91/100。测试脚本复用现有 `pnpm test` 入口，未引入无关依赖，输出文案使用简体中文。
 
-## 4. 技术维度评分
+## 战略维度评分
 
-- **代码质量**：28/30。API 分层清晰，service 层集中处理版本谱系与数据库写入，router 使用响应模型约束输出。
-- **测试覆盖**：29/30。覆盖 Task 3 指定六类行为，并联动既有领域 schema 测试和迁移验证。
-- **规范遵循**：20/20。简体中文文档与日志可读，OpenAPI 生成可复现，编码检查通过。
-## 5. 战略维度评分
-
-- **需求匹配**：30/30。实现范围与 Task 3 规格逐项对应，无额外无关功能进入提交范围。
-- **架构一致**：28/30。沿用 Task 2 的 SQLAlchemy 领域模型、Alembic 迁移与 pytest 组织方式，OpenAPI 契约输出到共享包。
-- **风险评估**：19/20。已处理数据库迁移、版本不覆盖旧记录、脚本编码、OpenAPI 可重复生成等主要风险；后续需在 Task 4 继续保持契约同步。
-
-## 6. 审查清单
-
-- 需求字段完整性：通过。
-- 原始意图覆盖：通过。
-- 交付物映射：代码、迁移、测试、OpenAPI、审计文档均已映射。
-- 依赖与风险评估：已覆盖数据库、FastAPI 装配、Pydantic 响应、PowerShell 编码和共享契约。
-- 审查结论留痕：本报告已记录时间戳、验证命令、评分与建议。
-
-## 7. 综合结论
-
-```Scoring
-score: 96
-```
-
-建议：通过。
-
-summary: 'Task 3 已完成资产中心 API、版本历史、OpenAPI 契约生成和本地验证；PostgreSQL 迁移、pytest、compileall、OpenAPI 脚本与编码检查均通过。'
-
----
-
-# Task 4 质量退回修复验证报告
-
-生成时间：2026-05-13 01:45:00 Asia/Shanghai
-
-## 1. 需求字段完整性
-
-- **目标**：修复 Scene Packet 证据链接和连续性记录读取范围，保证 active asset 全量可追溯，并增强预算裁剪测试。
-- **范围**：`apps/api/app/domains/scene_packets/service.py`、`apps/api/tests/test_scene_packet.py`、`.codex/operations-log.md`、`.codex/verification-report.md`。
-- **交付物**：服务层过滤与 fallback 修复、回归测试、操作日志、本地验证报告。
-- **审查要点**：证据只来自当前场景或全局记录；缺证 active asset 自动生成 fallback evidence；连续性记录只来自当前章节或全局记录；预算裁剪统计与保留片段一致。
-
-## 2. 原始意图覆盖
-
-- 已在 `_load_evidence_links` 中加入 `EvidenceLink.scene_id == scene_id OR EvidenceLink.scene_id IS NULL` 过滤。
-- 已为没有显式证据的 active asset 生成 `evidence_type="asset_snapshot"`、`source_ref="asset:<id>"` 的 fallback evidence。
-- 已保持 `packet["证据链接"]` 与顶层 `evidence_links` 使用同一数据源，并新增测试校验一致性。
-- 已按 `ContinuityRecord.payload.chapter_id` 过滤连续性记录，缺少 `chapter_id` 的记录作为全局记录保留。
-- 已增强预算裁剪测试，覆盖长片段剔除、短片段按输入顺序保留、`retrieval_tokens` 与保留片段一致、硬约束预算不足仍保留。
-
-## 3. 本地验证记录
-
-1. `cd apps/api; uv run pytest tests/test_scene_packet.py -q`
-   - 结果：退出码 0，`5 passed in 1.64s`。
-2. `cd apps/api; uv run pytest tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`
-   - 结果：退出码 0，`24 passed in 6.33s`。
-3. `cd apps/api; uv run python -m compileall app tests`
-   - 结果：退出码 0，`app` 与 `tests` 编译通过。
-4. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
-   - 结果：退出码 0，OpenAPI 契约生成成功，生成后共享契约文件无内容差异。
-
-## 4. 技术维度评分
-
-- **代码质量**：28/30。修复集中在服务层私有函数，未引入额外架构；fallback evidence 复用既有响应模型。
-- **测试覆盖**：30/30。覆盖质量退回列出的证据隔离、fallback 覆盖、证据一致性、预算裁剪和多章节连续性隔离。
-- **规范遵循**：19/20。文档、测试说明和日志均使用简体中文；Context7 已查询 SQLAlchemy OR 与 NULL 条件写法。本机缺少 `gh`，开源搜索记录为失败并已写入操作日志。
-
-## 5. 战略维度评分
-
-- **需求匹配**：30/30。逐项覆盖质量退回阻塞项和重要项。
-- **架构一致**：28/30。沿用现有 SQLAlchemy service、Pydantic schema 和 pytest TestClient 模式。
-- **风险评估**：19/20。连续性记录目前先按作品读取再按章节内存过滤；当前数据规模与修复范围可接受，后续可在需要时改为数据库 JSON 条件。
-
-## 6. 审查清单
-
-- 需求字段完整性：通过。
-- 原始意图覆盖：通过。
-- 交付物映射：代码、测试、操作日志、验证报告均已映射。
-- 依赖与风险评估：已覆盖 SQLAlchemy OR/NULL 查询、fallback 数据结构、预算统计和 chapter_id 过滤风险。
-- 审查结论留痕：本报告已记录时间戳、验证命令、评分与建议。
-
-## 7. 综合结论
-
-```Scoring
-score: 94
-```
-
-建议：通过。
-
-summary: 'Task 4 质量退回修复已收敛 EvidenceLink 与 ContinuityRecord 范围，补齐 active asset fallback evidence，并通过指定 pytest、compileall 与 OpenAPI 生成验证。'
-
----
-
-# Task 3 质量退回修复验证报告
-
-生成时间：2026-05-13 00:00:00 Asia/Shanghai
-
-## 修复范围
-
-- PATCH 显式传入 `name`、`status`、`asset_type`、`payload` 为 `null` 时，由 `AssetUpdate` 请求契约返回 422。
-- 使用历史版本 id 更新资产时，新版本从同一谱系最新版本继承未修改字段。
-- `create_asset` 提供 `scene_id` 时，提前校验场景存在且属于同一作品。
-- 补充资产 API 负向与边界测试，覆盖显式 null、历史版本更新、非法场景、空 PATCH 和 `asset_type` 过滤。
-- `test:api` 改为只编译 `apps/api/app` 与 `apps/api/tests`。
-- 已重新运行 OpenAPI 生成脚本；生成后共享契约文件无额外内容差异。
+- 需求匹配：95/100。逐项覆盖 Task 7 退回项。
+- 架构一致：90/100。继续沿用 Next 页面和轻量组件结构。
+- 风险评估：88/100。测试采用源码强约束方式，符合用户允许方案；后续如引入统一 React 测试运行器，可补充真实渲染断言。
 
 ## 本地验证
 
-1. `cd apps/api; uv run pytest tests/test_assets_api.py tests/test_domain_schema.py -q`
-   - 结果：退出码 0，`19 passed in 6.17s`。
-2. `cd repo; pnpm run test:api`
-   - 结果：退出码 0，`python -m compileall apps/api/app apps/api/tests` 编译通过。
-3. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
-   - 结果：退出码 0，输出 `已生成 OpenAPI 契约：...storyforge.openapi.json`。
-
-## 质量评分
-
-- 代码质量：28/30。修复集中在 schema/service 层，保持现有 API 分层。
-- 测试覆盖：29/30。新增测试覆盖本次退回要求的负向与边界场景。
-- 规范遵循：28/30。使用简体中文注释与测试描述，未触碰无关未跟踪文件。
-- 需求匹配：30/30。六项退回问题均已处理或验证。
-- 架构一致：28/30。沿用既有 FastAPI、Pydantic、SQLAlchemy 与 pytest 模式。
-- 风险评估：18/20。跨书场景当前复用既有路由错误映射返回 404，语义清晰且避免扩大写集。
-
-```Scoring
-score: 92
-```
-
-建议：通过。
-
-summary: 'Task 3 质量退回修复已完成，本地 pytest、test:api 与 OpenAPI 生成均通过；共享 OpenAPI 契约重新生成后无额外差异。'
-
----
-
-# Task 6 验证报告：结构化 Judge 与定向 Repair
-
-生成时间：2026-05-13 04:30:00 +08:00
-
-## 1. 需求字段完整性
-
-- **目标**：实现本地确定性的结构化评审和定向修复 API。
-- **范围**：`apps/api/app/domains/judge/`、`apps/api/app/domains/repair/`、`apps/api/app/main.py`、`apps/api/tests/test_judge_repair.py`、OpenAPI 契约与 `.codex` 审计文件。
-- **交付物**：Judge schema/service/router、Repair schema/service/router、API 注册、行为测试、OpenAPI JSON、操作日志与验证报告。
-- **审查要点**：复用 `JudgeIssue` 与 `RepairPatch`，不新增迁移；Judge 输出结构化问题单；Repair 只返回命中 span 的替换文本；修复后状态回到 `requires_rejudge`；规则不依赖 LLM 或外部服务。
-
-## 2. 原始意图覆盖
-
-- 已实现 `POST /api/judge/issues`，请求包含 `scene_id`、`scene_packet_id`、`content`、`required_facts`、`style_rules`、`evidence_links`。
-- Judge 响应字段包含 `category`、`severity`、`span_start`、`span_end`、`summary`、`evidence_links`、`recommended_repair_mode`、`status`。
-- 已实现 `POST /api/repair/patches`，响应字段包含 `issue_id`、`target_span`、`replacement_text`、`reason`、`requires_rejudge`。
-- 测试章节片段同时包含设定冲突“左臂完好无损”和文风漂移“作者直接解释”。
-- Repair 使用问题单 span 截取 `target_span`，`replacement_text` 只针对该片段，不返回整章文本，也不包含健康文本“港口风声却仍很低”。
-- Repair 创建后将 `JudgeIssue.status` 与 `RepairPatch.status` 置为 `requires_rejudge`。
-- 实现只使用本地字符串规则，不依赖 LLM 或外部服务。
-
-## 3. 本地验证记录
-
-1. `cd apps/api; uv run pytest tests/test_judge_repair.py -q`
-   - 红灯结果：退出码 1，失败原因为 `/api/judge/issues` 尚未注册，返回 404。
-   - 绿灯结果：退出码 0，`1 passed in 1.42s`。
-2. `cd apps/api; uv run pytest tests/test_judge_repair.py tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`
-   - 结果：退出码 0，`25 passed in 6.25s`。
-3. `cd apps/api; uv run python -m compileall app tests`
-   - 结果：退出码 0，`app` 与 `tests` 编译通过。
-4. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
-   - 结果：退出码 0，OpenAPI 契约生成成功。
-5. BOM 与乱码检查
-   - 结果：Task 6 关键 Python 文件、测试文件、`main.py` 与 OpenAPI JSON 均为 UTF-8 无 BOM，未发现替换字符或连续问号乱码。
-
-## 4. 技术维度评分
-
-- **代码质量**：28/30。实现沿用既有分层，payload 展开避免数据库内部结构泄漏；确定性规则清晰但规则库仍偏小。
-- **测试覆盖**：29/30。覆盖设定冲突、文风漂移、结构化字段、局部修复、健康文本不被补丁包含、状态回退；缺失事实分支后续可补充独立测试。
-- **规范遵循**：20/20。注释、测试描述、日志和报告均为简体中文；本地验证完整；未新增迁移。
-
-## 5. 战略维度评分
-
-- **需求匹配**：30/30。Task 6 指定字段、API、模型复用、确定性规则和验证命令均已覆盖。
-- **架构一致**：28/30。与 assets、continuity、scene_packets 的 router/schema/service 分层一致，并在 `main.py` 注册路由。
-- **风险评估**：18/20。span 与命中片段一致性有校验；缺失事实修复当前采用开头锚点，后续可演进为插入式 patch 契约。
-
-## 6. 审查清单
-
-- 需求字段完整性：通过。
-- 原始意图覆盖：通过。
-- 交付物映射：代码、测试、OpenAPI、操作日志、验证报告均已映射。
-- 依赖与风险评估：已覆盖数据库模型复用、span 一致性、OpenAPI 生成、编码检查和本地测试。
-- 审查结论留痕：本报告已记录时间戳、验证命令、评分与建议。
-
-## 7. 综合结论
-
-```Scoring
-score: 93
-```
-
-建议：通过。
-
-summary: 'Task 6 已完成结构化 Judge 与定向 Repair；本地 pytest、compileall、OpenAPI 生成和 BOM/乱码检查均通过，补丁严格针对命中 span 并要求重新评审。'
-
----
-
-# Task 4 验证报告：章节连续性与 Scene Packet
-
-生成时间：2026-05-13 01:25:00 +08:00
-
-## 1. 需求字段完整性
-
-- **目标**：实现章节批准后的连续性记录，以及可持久化、可预算裁剪、带证据链接的 Scene Packet。
-- **范围**：`apps/api/app/domains/continuity/`、`apps/api/app/domains/scene_packets/`、`apps/api/app/main.py`、`apps/api/tests/test_scene_packet.py`、OpenAPI 契约。
-- **交付物**：API schema/service/router、pytest 行为测试、OpenAPI JSON、操作日志与本验证报告。
-- **审查要点**：复用既有模型、不新增迁移、固定槽位、五类连续性记录、证据链接、预算统计、低预算优先保留硬约束。
-
-## 2. 原始意图覆盖
-
-- 已创建连续性路由、服务和契约，`POST /api/continuity/chapter-approval` 会写入五类 `ContinuityRecord`。
-- 已创建 Scene Packet 路由、服务和契约，`POST /api/scene-packets` 输入包含 `book_id`、`chapter_id`、`scene_goal`、`active_asset_ids`、`token_budget`。
-- 输出 `packet` 包含固定槽位：章节目标、活跃角色、关系状态、未回收伏笔、风格规则、必须包含事实、必须规避事实、用户意图、证据链接。
-- 输出包含 `budget_statistics` 和顶层 `evidence_links`，并将 `ScenePacket` 持久化到既有表。
-
-## 3. 本地验证记录
-
-1. `cd apps/api; uv run pytest tests/test_scene_packet.py -q`
-   - 红灯结果：退出码 1，`3 failed`，失败原因为新路由尚不存在。
-   - 绿灯结果：退出码 0，`3 passed in 1.90s`。
-2. `cd apps/api; uv run pytest tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`
-   - 结果：退出码 0，`22 passed in 5.92s`。
-3. `cd apps/api; uv run python -m compileall app tests`
-   - 结果：退出码 0，`app` 与 `tests` 编译通过。
-4. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
-   - 结果：退出码 0，输出 `已生成 OpenAPI 契约：...storyforge.openapi.json`。
-
-## 4. 技术维度评分
-
-- **代码质量**：28/30。API 分层保持清晰，服务层集中处理数据库校验、预算裁剪和证据组装。
-- **测试覆盖**：29/30。覆盖章节批准、固定槽位、证据链接、预算统计、低预算裁剪和持久化。
-- **规范遵循**：29/30。新增注释、测试说明和文档均为简体中文，复用既有模型和测试夹具。
-
-## 5. 战略维度评分
-
-- **需求匹配**：30/30。Task 4 明确要求的 API、字段、槽位、记录类型和验证均已覆盖。
-- **架构一致**：29/30。沿用 assets 的 router/service/schema 分层和 get_session 依赖，不新增表或迁移。
-- **风险评估**：18/20。预算估算使用轻量字符近似，满足当前本地验证；后续接入真实 tokenizer 时可替换估算函数。
-
-## 6. 审查清单
-
-- 需求字段完整性：通过。
-- 原始意图覆盖：通过。
-- 交付物映射：代码、测试、OpenAPI、操作日志和验证报告均已映射。
-- 依赖与风险评估：已覆盖数据库模型复用、FastAPI 路由、预算裁剪和证据追溯。
-- 审查结论留痕：本报告记录时间戳、验证命令、评分与建议。
-
-## 7. 综合结论
-
-```Scoring
-score: 94
-```
-
-建议：通过。
-
-summary: 'Task 4 已实现章节连续性记录与 Scene Packet API，本地目标测试、回归测试、compileall 和 OpenAPI 生成均通过；输出包含固定槽位、证据链接和预算统计。'
-
-
-## Task 5 验证报告：LangGraph 生成工作流
-
-时间：2026-05-13 02:20:00
-
-### 需求字段完整性
-
-- 目标：实现可恢复的 LangGraph 生成工作流。
-- 范围：`apps/workflow/storyforge_workflow/`、`apps/workflow/tests/test_generation_graph.py`、必要依赖声明与本地验证记录。
-- 交付物：状态定义、图编排、单职责节点、内存审计仓库、恢复测试、验证记录。
-- 审查要点：状态顺序、人工审批中断、相同 `thread_id` 恢复、checkpoint 审计字段、无外部 LLM 依赖。
-
-### 本地验证结果
-
 | 命令 | 结果 |
 | --- | --- |
-| `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q` | 通过，2 passed |
-| `cd apps/workflow; uv run python -m compileall storyforge_workflow tests` | 通过 |
-| `cd repo; pnpm run test:workflow` | 通过 |
-| BOM/乱码检查 | 通过，未发现 UTF-8 BOM 或替换字符 |
+| `cd apps/web; pnpm test phase1-navigation` | 通过，6/6 子测试通过 |
+| `cd apps/web; pnpm test` | 通过，6/6 子测试通过 |
+| `cd apps/web; pnpm lint` | 通过，TypeScript 无错误 |
+| Task 7 编码检查 | 通过，UTF-8 无 BOM，无连续问号占位符，无替换字符，目标文件均含中文字符 |
 
-### 审查评分
+## 修改路径
 
-- 代码质量：29/30。节点职责清晰，状态和审计结构简单可维护。
-- 测试覆盖：30/30。覆盖阶段推进、interrupt 暂停、checkpoint 字段和 `Command(resume=...)` 恢复。
-- 规范遵循：29/30。全部新增说明使用简体中文；因当前环境没有 `github.search_code` 专用工具，已记录替代检索方式。
-- 需求匹配：30/30。满足 Task 5 六项强制要求。
-- 架构一致：29/30。独立 workflow 包与现有 monorepo 结构一致，依赖 LangGraph 官方能力。
-- 风险评估：29/30。内存仓库适合本地 Phase 1，后续可按相同接口替换真实持久化。
-
-```Scoring
-score: 97
-```
-
-summary: 'Task 5 已实现可中断、可恢复的 LangGraph 生成工作流，包含确定性单职责节点、内存审计 checkpoint、人工审批恢复测试和本地验证记录。建议通过。'
-
-### 审查结论
-
-综合评分 97/100，建议：通过。
-
-### Task 5 收尾补充验证
-
-- `package.json` 的 `test:workflow` 已收敛为只编译 `apps/workflow/storyforge_workflow` 与 `apps/workflow/tests`。
-- `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q`：通过，`2 passed in 0.47s`。
-- `cd apps/workflow; uv run python -m compileall storyforge_workflow tests`：通过。
-- `cd repo; pnpm run test:workflow`：通过，未递归编译 `.venv`。
-- Task 5 相关文件 BOM/乱码检查：通过。
-
-
-## Task 7 ??????? Studio?Refinery?Asset Center ? Job Center
-
-???2026-05-13 03:11:31 +08:00
-
-### ???????
-
-- ??????????????????????????
-- ???`apps/web/app/` ???`apps/web/components/` ?????`apps/web/tests/phase1-navigation.test.tsx`???????? TypeScript ???
-- ??????????????????Scene Packet ?????Judge ????Repair ?????????? lint ???
-- ????????????????????/????????????????????????UTF-8 ? BOM?
-
-### ??????
-
-| ?? | ?? |
-| --- | --- |
-| `cd apps/web; pnpm test phase1-navigation` | ?????? 0 |
-| `cd apps/web; pnpm test` | ?????? 0 |
-| `cd apps/web; pnpm lint` | ?????? 0 |
-| `cd apps/web; pnpm --filter @storyforge/web test` | ?????? 0 |
-| BOM/???? | ???15 ? Task 7 ????? UTF-8 BOM ????? |
-
-### ????
-
-- ?????28/30???????????props ?????????? API?
-- ?????28/30???????????????????????????????????????
-- ?????29/30???????????????????? Next App Router ???
-- ?????30/30?Task 7 ?????????????????????
-- ?????28/30??? monorepo ? apps/web ??????????????????
-- ?????27/30???????? TypeScript/React ???????????????????????? UTF-8 ?????
-
-```Scoring
-score: 93
-```
-
-summary: 'Task 7 ??????????????????????????? TypeScript ????????????????????'
-
-### ????
-
-???? 93/100???????
+- `apps/web/app/page.tsx`
+- `apps/web/app/studio/page.tsx`
+- `apps/web/app/refinery/page.tsx`
+- `apps/web/app/assets/page.tsx`
+- `apps/web/app/jobs/page.tsx`
+- `apps/web/components/scene-packet/ScenePacketPanel.tsx`
+- `apps/web/components/judge-panel/JudgeIssueList.tsx`
+- `apps/web/components/diff-viewer/RepairDiffViewer.tsx`
+- `apps/web/tests/phase1-navigation.test.tsx`
+- `apps/web/scripts/phase1-contract-test.mjs`
+- `.codex/operations-log.md`
+- `.codex/verification-report.md`
