@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "node -e \"JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('前端包配置检查通过。')\""
+    "test": "node scripts/phase1-contract-test.mjs",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@storyforge/shared": "workspace:*",
@@ -15,6 +16,9 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@types/node": "^25.7.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "typescript": "5.8.3"
   }
 }
