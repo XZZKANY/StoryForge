@@ -165,6 +165,73 @@ summary: 'Task 3 质量退回修复已完成，本地 pytest、test:api 与 Open
 
 ---
 
+# Task 6 验证报告：结构化 Judge 与定向 Repair
+
+生成时间：2026-05-13 04:30:00 +08:00
+
+## 1. 需求字段完整性
+
+- **目标**：实现本地确定性的结构化评审和定向修复 API。
+- **范围**：`apps/api/app/domains/judge/`、`apps/api/app/domains/repair/`、`apps/api/app/main.py`、`apps/api/tests/test_judge_repair.py`、OpenAPI 契约与 `.codex` 审计文件。
+- **交付物**：Judge schema/service/router、Repair schema/service/router、API 注册、行为测试、OpenAPI JSON、操作日志与验证报告。
+- **审查要点**：复用 `JudgeIssue` 与 `RepairPatch`，不新增迁移；Judge 输出结构化问题单；Repair 只返回命中 span 的替换文本；修复后状态回到 `requires_rejudge`；规则不依赖 LLM 或外部服务。
+
+## 2. 原始意图覆盖
+
+- 已实现 `POST /api/judge/issues`，请求包含 `scene_id`、`scene_packet_id`、`content`、`required_facts`、`style_rules`、`evidence_links`。
+- Judge 响应字段包含 `category`、`severity`、`span_start`、`span_end`、`summary`、`evidence_links`、`recommended_repair_mode`、`status`。
+- 已实现 `POST /api/repair/patches`，响应字段包含 `issue_id`、`target_span`、`replacement_text`、`reason`、`requires_rejudge`。
+- 测试章节片段同时包含设定冲突“左臂完好无损”和文风漂移“作者直接解释”。
+- Repair 使用问题单 span 截取 `target_span`，`replacement_text` 只针对该片段，不返回整章文本，也不包含健康文本“港口风声却仍很低”。
+- Repair 创建后将 `JudgeIssue.status` 与 `RepairPatch.status` 置为 `requires_rejudge`。
+- 实现只使用本地字符串规则，不依赖 LLM 或外部服务。
+
+## 3. 本地验证记录
+
+1. `cd apps/api; uv run pytest tests/test_judge_repair.py -q`
+   - 红灯结果：退出码 1，失败原因为 `/api/judge/issues` 尚未注册，返回 404。
+   - 绿灯结果：退出码 0，`1 passed in 1.42s`。
+2. `cd apps/api; uv run pytest tests/test_judge_repair.py tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`
+   - 结果：退出码 0，`25 passed in 6.25s`。
+3. `cd apps/api; uv run python -m compileall app tests`
+   - 结果：退出码 0，`app` 与 `tests` 编译通过。
+4. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
+   - 结果：退出码 0，OpenAPI 契约生成成功。
+5. BOM 与乱码检查
+   - 结果：Task 6 关键 Python 文件、测试文件、`main.py` 与 OpenAPI JSON 均为 UTF-8 无 BOM，未发现替换字符或连续问号乱码。
+
+## 4. 技术维度评分
+
+- **代码质量**：28/30。实现沿用既有分层，payload 展开避免数据库内部结构泄漏；确定性规则清晰但规则库仍偏小。
+- **测试覆盖**：29/30。覆盖设定冲突、文风漂移、结构化字段、局部修复、健康文本不被补丁包含、状态回退；缺失事实分支后续可补充独立测试。
+- **规范遵循**：20/20。注释、测试描述、日志和报告均为简体中文；本地验证完整；未新增迁移。
+
+## 5. 战略维度评分
+
+- **需求匹配**：30/30。Task 6 指定字段、API、模型复用、确定性规则和验证命令均已覆盖。
+- **架构一致**：28/30。与 assets、continuity、scene_packets 的 router/schema/service 分层一致，并在 `main.py` 注册路由。
+- **风险评估**：18/20。span 与命中片段一致性有校验；缺失事实修复当前采用开头锚点，后续可演进为插入式 patch 契约。
+
+## 6. 审查清单
+
+- 需求字段完整性：通过。
+- 原始意图覆盖：通过。
+- 交付物映射：代码、测试、OpenAPI、操作日志、验证报告均已映射。
+- 依赖与风险评估：已覆盖数据库模型复用、span 一致性、OpenAPI 生成、编码检查和本地测试。
+- 审查结论留痕：本报告已记录时间戳、验证命令、评分与建议。
+
+## 7. 综合结论
+
+```Scoring
+score: 93
+```
+
+建议：通过。
+
+summary: 'Task 6 已完成结构化 Judge 与定向 Repair；本地 pytest、compileall、OpenAPI 生成和 BOM/乱码检查均通过，补丁严格针对命中 span 并要求重新评审。'
+
+---
+
 # Task 4 验证报告：章节连续性与 Scene Packet
 
 生成时间：2026-05-13 01:25:00 +08:00

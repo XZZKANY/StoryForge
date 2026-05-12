@@ -425,6 +425,225 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "JudgeIssueCreate": {
+        "description": "结构化评审请求，正文与上下文约束都由调用方显式传入。",
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "evidence_links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence Links",
+            "type": "array"
+          },
+          "required_facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Facts",
+            "type": "array"
+          },
+          "scene_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "scene_packet_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Packet Id"
+          },
+          "style_rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Style Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scene_id",
+          "content"
+        ],
+        "title": "JudgeIssueCreate",
+        "type": "object"
+      },
+      "JudgeIssueRead": {
+        "description": "评审问题单响应契约，对外暴露结构化定位和修复建议。",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence Links",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "recommended_repair_mode": {
+            "title": "Recommended Repair Mode",
+            "type": "string"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "scene_packet_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Packet Id"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "span_end": {
+            "title": "Span End",
+            "type": "integer"
+          },
+          "span_start": {
+            "title": "Span Start",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scene_id",
+          "scene_packet_id",
+          "category",
+          "severity",
+          "span_start",
+          "span_end",
+          "summary",
+          "evidence_links",
+          "recommended_repair_mode",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "JudgeIssueRead",
+        "type": "object"
+      },
+      "RepairPatchCreate": {
+        "description": "请求定向修复某一条评审问题单。",
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "issue_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Issue Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "issue_id",
+          "content"
+        ],
+        "title": "RepairPatchCreate",
+        "type": "object"
+      },
+      "RepairPatchRead": {
+        "description": "定向修复响应只描述命中片段及替换文本，不返回整章正文。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "issue_id": {
+            "title": "Issue Id",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "replacement_text": {
+            "title": "Replacement Text",
+            "type": "string"
+          },
+          "requires_rejudge": {
+            "title": "Requires Rejudge",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_span": {
+            "title": "Target Span",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "issue_id",
+          "target_span",
+          "replacement_text",
+          "reason",
+          "requires_rejudge",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RepairPatchRead",
+        "type": "object"
+      },
       "ScenePacketCreate": {
         "description": "组装场景上下文包所需的显式输入。",
         "properties": {
@@ -832,6 +1051,94 @@
         "summary": "Approve Chapter Endpoint",
         "tags": [
           "章节连续性"
+        ]
+      }
+    },
+    "/api/judge/issues": {
+      "post": {
+        "description": "对章节片段执行本地确定性评审，返回结构化问题单。",
+        "operationId": "create_judge_issues_endpoint_api_judge_issues_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JudgeIssueCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JudgeIssueRead"
+                  },
+                  "title": "Response Create Judge Issues Endpoint Api Judge Issues Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Judge Issues Endpoint",
+        "tags": [
+          "结构化评审"
+        ]
+      }
+    },
+    "/api/repair/patches": {
+      "post": {
+        "description": "根据结构化问题单生成局部替换补丁，修复后必须重新评审。",
+        "operationId": "create_repair_patch_endpoint_api_repair_patches_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepairPatchCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairPatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Repair Patch Endpoint",
+        "tags": [
+          "定向修复"
         ]
       }
     },
