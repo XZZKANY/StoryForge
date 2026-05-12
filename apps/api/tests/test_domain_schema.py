@@ -108,3 +108,31 @@ def test_core_status_and_payload_columns() -> None:
     assert "patch" in RepairPatch.__table__.columns
     assert "progress" in JobRun.__table__.columns
     assert "evidence_type" in EvidenceLink.__table__.columns
+
+
+def test_domain_modules_configure_mappers_independently() -> None:
+    import subprocess
+    import sys
+
+    modules = [
+        "app.domains.books.models",
+        "app.domains.assets.models",
+        "app.domains.continuity.models",
+        "app.domains.judge.models",
+        "app.domains.jobs.models",
+    ]
+
+    for module_name in modules:
+        script = (
+            "from sqlalchemy.orm import configure_mappers\n"
+            f"__import__({module_name!r})\n"
+            "configure_mappers()\n"
+            f"print('已完成独立映射配置: {module_name}')\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert module_name in completed.stdout

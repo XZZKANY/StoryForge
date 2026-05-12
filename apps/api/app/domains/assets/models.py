@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class Asset(IdMixin, TimestampMixin, VersionMixin, Base):
-    """??????????????????????????????"""
+    """创作资产真相源，覆盖设定、剧情、风格和草稿谱系等结构化内容。"""
 
     __tablename__ = "assets"
 
@@ -30,7 +30,7 @@ class Asset(IdMixin, TimestampMixin, VersionMixin, Base):
 
 
 class EvidenceLink(IdMixin, TimestampMixin, Base):
-    """????????????????????????????"""
+    """记录文本与资产、任务之间的证据关系，支撑后续解释和追溯。"""
 
     __tablename__ = "evidence_links"
 
@@ -44,3 +44,8 @@ class EvidenceLink(IdMixin, TimestampMixin, Base):
     asset: Mapped[Asset] = relationship(back_populates="evidence_links")
     scene: Mapped[Scene | None] = relationship(back_populates="evidence_links")
     job_run: Mapped[JobRun | None] = relationship(back_populates="evidence_links")
+
+
+# 单独导入资产领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
+from app.domains import books as _books_domain  # noqa: E402,F401
+from app.domains import jobs as _jobs_domain  # noqa: E402,F401

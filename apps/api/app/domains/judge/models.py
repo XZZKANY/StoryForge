@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class JudgeIssue(IdMixin, TimestampMixin, Base):
-    """???????????????????????????"""
+    """结构化评审问题单，标记一致性、文风和可读性等失败原因。"""
 
     __tablename__ = "judge_issues"
 
@@ -34,7 +34,7 @@ class JudgeIssue(IdMixin, TimestampMixin, Base):
 
 
 class RepairPatch(IdMixin, TimestampMixin, VersionMixin, Base):
-    """???????????????????????????"""
+    """定向修复补丁只绑定失败片段，保留修复意图和可审查差异。"""
 
     __tablename__ = "repair_patches"
 
@@ -48,3 +48,9 @@ class RepairPatch(IdMixin, TimestampMixin, VersionMixin, Base):
     judge_issue: Mapped[JudgeIssue] = relationship(back_populates="repair_patches")
     scene: Mapped[Scene] = relationship(back_populates="repair_patches")
     job_run: Mapped[JobRun | None] = relationship(back_populates="repair_patches")
+
+
+# 单独导入评审领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
+from app.domains import books as _books_domain  # noqa: E402,F401
+from app.domains import continuity as _continuity_domain  # noqa: E402,F401
+from app.domains import jobs as _jobs_domain  # noqa: E402,F401

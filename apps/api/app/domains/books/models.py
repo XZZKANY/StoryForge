@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class Book(IdMixin, TimestampMixin, Base):
-    """??????????????????????????"""
+    """长篇作品的根实体，承载章节、资产和长任务的业务归属。"""
 
     __tablename__ = "books"
 
@@ -30,7 +30,7 @@ class Book(IdMixin, TimestampMixin, Base):
 
 
 class Chapter(IdMixin, TimestampMixin, Base):
-    """?????????????????????????"""
+    """章节实体记录书内顺序和生成进度，是场景列表的父级。"""
 
     __tablename__ = "chapters"
 
@@ -45,7 +45,7 @@ class Chapter(IdMixin, TimestampMixin, Base):
 
 
 class Scene(IdMixin, TimestampMixin, Base):
-    """??????????????????????????????"""
+    """场景是真相源写作粒度，连接正文、检索包、评审问题和修复补丁。"""
 
     __tablename__ = "scenes"
 
@@ -63,3 +63,10 @@ class Scene(IdMixin, TimestampMixin, Base):
     repair_patches: Mapped[list[RepairPatch]] = relationship(back_populates="scene")
     evidence_links: Mapped[list[EvidenceLink]] = relationship(back_populates="scene")
     job_runs: Mapped[list[JobRun]] = relationship(back_populates="scene")
+
+
+# SQLAlchemy 的字符串关系解析依赖类注册表；单独导入本模块时也要注册相关领域模型。
+from app.domains import assets as _assets_domain  # noqa: E402,F401
+from app.domains import continuity as _continuity_domain  # noqa: E402,F401
+from app.domains import jobs as _jobs_domain  # noqa: E402,F401
+from app.domains import judge as _judge_domain  # noqa: E402,F401

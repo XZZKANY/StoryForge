@@ -300,24 +300,9 @@
 - 不删除、不回滚无关未跟踪文件，避免破坏先前规划和用户工作。
 - 通过精确暂存 Task 1 文件控制提交范围，只纳入 scripts/verify-local.ps1、Task 1 三份 .codex 文件和计划文件去 BOM 变更。
 - 提交前必须检查 git diff --cached --name-only，确认暂存区不包含 .superpowers、docs/superpowers/specs 或非 Task 1 的 .codex 文件。
-
-
-## Task 2 编码前检查 - 后端领域模型与数据库迁移
-
-时间：2026-05-12 18:59:00 +08:00
-
-- 已查阅上下文摘要文件：`.codex/context-summary-task-2.md`
-- 将使用以下可复用组件：
-  - `apps/api/pyproject.toml`：补齐后端验证依赖。
-  - `scripts/verify-local.ps1`：复用项目级环境检查。
-  - `docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md`：作为 Task 2 规格来源。
-- 将遵循命名约定：Python 包与文件使用 `snake_case`，模型类使用 `PascalCase`。
-- 将遵循代码风格：SQLAlchemy 2.0 类型标注式映射，测试与文档使用简体中文。
-- 确认不重复造轮子：当前 `apps/api` 仅有 `pyproject.toml`，未发现既有模型、迁移或测试实现。
-
 ## Task 2：后端领域模型与数据库迁移
 
-时间：2026-05-12 19:08:00 +08:00
+时间：2026-05-12 20:45:00 +08:00
 
 ### 研究与检索记录
 
@@ -325,16 +310,8 @@
 - 已读取 `.codex/context-summary-task-2.md`、工程计划 Task 2 第156-205行、设计规格第131-210行、第240-340行、第419-427行。
 - 已检查 `apps/api/pyproject.toml`、`apps/workflow/pyproject.toml`、`package.json`、`scripts/verify-local.ps1`、`docker-compose.yml` 与 `.env.example`。
 - 已使用 Context7 查询 SQLAlchemy 2.0 与 Alembic 官方文档：采用 `DeclarativeBase`、`Mapped`、`mapped_column`、`relationship`，Alembic `env.py` 使用 `target_metadata = Base.metadata`。
-- 已通过 desktop-commander 搜索 `DeclarativeBase`，项目内无既有 SQLAlchemy 模型；搜索 `pytest` 只发现工程计划和 pyproject 配置。
-- 当前会话没有 `github.search_code` 工具；未执行 GitHub 代码搜索，使用项目内计划/规格和 Context7 官方文档作为可追溯依据。
-
-### 编码前检查 - Task 2 后端领域模型
-
-- 已查阅上下文摘要文件：`.codex/context-summary-task-2.md`。
-- 将使用以下可复用组件：`apps/api/pyproject.toml` 依赖入口、`docker-compose.yml` PostgreSQL 配置、`.env.example` 数据库连接、Task 2 计划验收契约。
-- 将遵循命名约定：Python 包和字段使用 `snake_case`，SQLAlchemy 实体类使用 `PascalCase`。
-- 将遵循代码风格：SQLAlchemy 2.0 显式类型映射，测试使用 pytest，文档和日志使用简体中文。
-- 确认不重复造轮子：`apps/api` 当前仅有 `pyproject.toml`，无 `app/`、`tests/`、`alembic/` 既有实现。
+- 已通过搜索确认 `apps/api` 初始状态没有既有 SQLAlchemy 模型、迁移或测试实现。
+- 当前会话没有 `github.search_code` 工具；未执行 GitHub 代码搜索，使用项目内计划、规格和 Context7 官方文档作为可追溯依据。
 
 ### TDD 失败阶段
 
@@ -342,61 +319,62 @@
 - 已执行 `cd apps/api; uv run pytest tests/test_domain_schema.py -q`。
 - 结果：失败，退出码 1；失败原因是 `ModuleNotFoundError: No module named 'app'`，符合模型尚未实现阶段预期。
 
+### PostgreSQL 端口冲突复核与修复
 
-## Task 2 ????? PostgreSQL ??
+- 容器内 Unix socket 验证成功：`docker exec storyforge-postgres psql -U storyforge -d storyforge -c "select current_user, current_database();"`。
+- 容器内 TCP + 密码验证成功：`docker exec -e PGPASSWORD=storyforge storyforge-postgres psql -h 127.0.0.1 -U storyforge -d storyforge ...`。
+- 宿主机 `127.0.0.1:5432` 连接失败，`netstat` 显示 `5432` 同时被 `com.docker.backend` 与本地 `postgres` 监听，确认端口冲突。
+- 已将 `docker-compose.yml` 的 PostgreSQL 宿主端口改为 `55432:5432`，并同步 `.env.example`、`apps/api/alembic.ini`、`apps/api/alembic/env.py`。
+- `apps/api/storyforge.sqlite3` 是临时排障产物，不符合最终验证要求，已删除且未提交。
 
-???2026-05-12 19:45:00 +08:00
+### QUALITY_REJECTED 退回记录
 
-### ????
+时间：2026-05-12 20:45:00 +08:00
 
-- ??? Unix socket ?????`docker exec storyforge-postgres psql -U storyforge -d storyforge -c "select current_user, current_database();"`?
-- ??? TCP + ???????`docker exec -e PGPASSWORD=storyforge storyforge-postgres psql -h 127.0.0.1 -U storyforge -d storyforge ...`?
-- ??? `127.0.0.1:5432` ?????`netstat` ?? `5432` ??? `com.docker.backend` ??? `postgres` ??????????
-- `apps/api/storyforge.sqlite3` ??????????? Task 2 ????????????????
+- 退回项 1：Task 2 Python docstring 与 `.codex` 文档出现连续问号乱码，无法审计。
+- 退回项 2：单独导入 `app.domains.assets.models` 后执行 `configure_mappers()` 失败，错误为关系目标类 `Book` 未注册。
+- 根因：中文写入阶段发生编码降级，导致非 ASCII 字符被替换成问号；SQLAlchemy 字符串 relationship 依赖类注册表，单领域模块导入时未加载其他关系目标模型。
+- 修复策略：重写 Task 2 相关中文 docstring 与审计文档为 UTF-8 无 BOM；在领域模型文件末尾预加载关系目标领域模块；新增 subprocess 测试逐个导入领域模块并执行 `configure_mappers()`。
 
-### ????
+### 最新验证命令与结果
 
-- ? `docker-compose.yml` ? PostgreSQL ????? `5432:5432` ?? `55432:5432`?
-- ? `.env.example`?`apps/api/alembic.ini`?`apps/api/alembic/env.py` ??????? `postgresql+psycopg://storyforge:storyforge@127.0.0.1:55432/storyforge`?
-- ???? `docker compose up -d postgres`??????????
-- `docker port storyforge-postgres` ?? `5432/tcp -> 0.0.0.0:55432` ? `5432/tcp -> [::]:55432`?
-- ??? SQLAlchemy ?? `127.0.0.1:55432` ????? `current_user=storyforge, current_database=storyforge`?
+- `cd apps/api; uv run alembic downgrade base; uv run alembic upgrade head`：退出码 0，PostgreSQL 迁移可回退并重新升级。
+- `cd apps/api; uv run pytest tests/test_domain_schema.py -q`：退出码 0，全部测试通过。
+- `cd apps/api; uv run python -m compileall app tests`：退出码 0，`app` 与 `tests` 编译通过。
+- 单领域独立导入 `configure_mappers()`：books、assets、continuity、judge、jobs 五个模块均通过。
+- 乱码扫描：Task 2 Python 文件与 `.codex` 文档无连续问号乱码、无替换字符，UTF-8 无 BOM，CJK 字符数合理。
 
-### ????? - Task 2 ??????
+### 编码后声明 - Task 2 后端领域模型
 
-- ???????????????????? `pyproject.toml`?Docker PostgreSQL ???`.env.example`?Context7 ?? SQLAlchemy/Alembic ???
-- ??????????????????? `snake_case`?????? `PascalCase`??????? snake_case?
-- ????????????? SQLAlchemy 2.0 ??????? pytest schema ?????
-- ????????? SQLite ??????SQLite ????????????????
+#### 1. 复用了以下既有组件
 
-### ?????????
+- `apps/api/pyproject.toml`：作为后端依赖入口，加入 Alembic 与 pytest。
+- `docker-compose.yml`：作为 PostgreSQL 本地真相源容器配置，仅修正宿主端口冲突。
+- `.env.example`：作为本地连接配置说明，改为可复现 PostgreSQL 连接串。
+- Task 2 工程计划与中文规格：作为实体、关系、迁移和验证契约来源。
 
-- `cd apps/api; uv run alembic upgrade head`???? 0??? `Context impl PostgresqlImpl`???? `71dfabf6badf`?
-- `cd apps/api; uv run pytest tests/test_domain_schema.py -q`???? 0?`6 passed`?
-- `cd apps/api; uv run python -m compileall app tests`???? 0?`app` ? `tests` ?????
+#### 2. 遵循了以下项目约定
 
-### ????? - Task 2 ??????
+- 命名约定：Python 文件和字段为 `snake_case`，模型类为 `PascalCase`，表名为领域复数名。
+- 代码风格：SQLAlchemy 2.0 类型映射、显式 relationship、pytest 函数式测试。
+- 文件组织：数据库基础能力位于 `app/db`，领域模型位于 `app/domains/<domain>`，Alembic 位于 `apps/api/alembic`。
 
-#### 1. ?????????
+#### 3. 对比了以下相似实现
 
-- `apps/api/pyproject.toml`???????????? Alembic ? pytest?
-- `docker-compose.yml`??? PostgreSQL ????????????????????
-- `.env.example`????????????????? PostgreSQL ????
-- Task 2 ????????????????????????????
+- Task 2 计划：完整落实失败测试、模型、迁移、验证和提交范围。
+- 设计规格真相源章节：将 Book Graph、Evidence Links、Scene Packet、Judge/Repair、Job Center 映射为 Phase 1 表。
+- Context7 官方文档：使用 `DeclarativeBase`、`Mapped`、`mapped_column`、`relationship` 和 `target_metadata`。
 
-#### 2. ?????????
+#### 4. 未重复造轮子的证明
 
-- ?????Python ?????? `snake_case`????? `PascalCase`??????????
-- ?????SQLAlchemy 2.0 ??????? relationship?pytest ??????
-- ?????????????? `app/db`??????? `app/domains/<domain>`?Alembic ?? `apps/api/alembic`?
+- 检查 `apps/api` 初始状态仅有 `pyproject.toml`，无既有 `app/`、`tests/`、`alembic/`。
+- 搜索 `DeclarativeBase` 未发现项目内模型实现，因此新增统一 Base 与领域模型是必要动作。
 
-#### 3. ?????????
+### Task 2 质量修复最终收尾
 
-- Task 2 ??????????????????????????
-- ??????????? Book Graph?Evidence Links?Scene Packet?Judge/Repair?Job Center ??? Phase 1 ??
-- Context7 ??????? `DeclarativeBase`?`Mapped`?`mapped_column`?`relationship` ? `target_metadata`?
+时间：2026-05-12 21:46:14 +08:00
 
-#### 4. ?????????
-
-- ?? `apps/api` ?????? `pyproject.toml`???? `app/`?`tests/`?`alembic/`?
-- ?? `DeclarativeBase` ????????????????? Base ???????????
+- 接续修复：将 `apps/api/app/db/__init__.py` 与 `apps/api/app/domains/__init__.py` 的包级 docstring 改为可读简体中文。
+- 质量退回闭环：确认退回原因包括中文乱码不可读与 SQLAlchemy relationship 单模块导入风险；修复策略为 UTF-8 中文重写、关系目标模块预加载与独立 mapper 配置测试。
+- 本地验证结果：Alembic 降级到 base 后升级到 head 成功；领域 schema 测试 7 项通过；`app` 与 `tests` 编译通过；books、assets、continuity、judge、jobs 五个 models 模块单独导入并执行 `configure_mappers()` 均成功。
+- 乱码复扫：Task 2 Python 文件与指定 `.codex` 文档无连续问号乱码、无替换字符。
