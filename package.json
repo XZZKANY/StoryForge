@@ -8,7 +8,7 @@
     "test": "pnpm run test:web && pnpm run test:api && pnpm run test:workflow",
     "test:web": "pnpm --filter @storyforge/web test && pnpm --filter @storyforge/shared test",
     "test:api": "python -m compileall apps/api/app apps/api/tests",
-    "test:workflow": "python -m compileall apps/workflow",
+    "test:workflow": "python -m compileall apps/workflow/storyforge_workflow apps/workflow/tests",
     "e2e": "pnpm run verify",
     "openapi": "powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1"
   }

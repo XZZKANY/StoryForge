@@ -551,3 +551,73 @@
 ### 4. 未重复造轮子的证明
 
 - 检查了 `apps/api/app/domains/scene_packets/service.py`、`apps/api/app/domains/continuity/service.py`、`apps/api/tests/test_scene_packet.py`、`apps/api/tests/test_assets_api.py`，确认只需扩展现有服务与测试，不新增重复模块。
+
+
+## 编码前检查 - Task 5 LangGraph 生成工作流
+
+时间：2026-05-13 02:05:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-task-5.md`
+□ 已查阅规格来源：`docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md:323-375`
+□ 已分析至少 3 个相似实现：`apps/api/tests/test_scene_packet.py`、`apps/api/tests/test_domain_schema.py`、`apps/api/tests/test_assets_api.py`
+□ 将使用以下可复用组件：
+
+- LangGraph `StateGraph`、`START`、`END`：用于工作流编排。
+- LangGraph `InMemorySaver`：用于本地 checkpoint。
+- LangGraph `interrupt` 和 `Command(resume=...)`：用于人工审批暂停与恢复。
+- pytest fixture/断言风格：沿用 `apps/api/tests/*` 的本地可重复测试模式。
+
+□ 将遵循命名约定：Python 模块与函数使用 snake_case，类名使用 PascalCase，测试函数使用 `test_` 前缀。
+□ 将遵循代码风格：简体中文文档字符串、四空格缩进、确定性本地测试、UTF-8 无 BOM。
+□ 确认不重复造轮子，证明：`apps/workflow` 原先仅有 `pyproject.toml`，不存在已有工作流源码；本任务复用 LangGraph 官方能力。
+□ 外部检索记录：Context7 查询 LangGraph interrupt/checkpointer/Command 文档；网页搜索 GitHub 示例用于补充，当前环境无 `github.search_code` 专用工具可调用。
+
+## 编码后声明 - Task 5 LangGraph 生成工作流
+
+时间：2026-05-13 02:18:00
+
+### 1. 复用了以下既有组件
+
+- LangGraph `StateGraph`：用于声明生成阶段有向图。
+- LangGraph `InMemorySaver`：用于本地可恢复 checkpoint。
+- LangGraph `interrupt`：用于人工审批点暂停。
+- LangGraph `Command(resume=...)`：用于同一 `thread_id` 恢复。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 Python 文件均使用 snake_case，测试使用 `test_generation_graph.py`。
+- 代码风格：节点函数保持单一职责，测试说明和注释均为简体中文。
+- 文件组织：工作流源码位于 `apps/workflow/storyforge_workflow/`，节点位于 `nodes/`，测试位于 `apps/workflow/tests/`。
+
+### 3. 对比了以下相似实现
+
+- `apps/api/tests/test_scene_packet.py`：沿用本地确定性输入与中文测试说明。
+- `apps/api/tests/test_domain_schema.py`：沿用直接导入模块并验证结构契约的方式。
+- `apps/api/tests/test_assets_api.py`：沿用独立测试数据、不依赖外部服务的验证策略。
+
+### 4. 未重复造轮子的证明
+
+- 检查了 `apps/workflow` 目录，原先无工作流源码；本任务新增独立包。
+- 使用 LangGraph 原生 interrupt/checkpointer，而非自研中断恢复机制。
+- `apps/workflow/pyproject.toml` 增加 `pytest>=8.0.0` 是为了让 `uv run pytest` 使用项目虚拟环境并加载 LangGraph 依赖。
+
+### 5. 本地验证记录
+
+- `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q`：通过，2 passed。
+- `cd apps/workflow; uv run python -m compileall storyforge_workflow tests`：通过。
+- `cd repo; pnpm run test:workflow`：通过。
+- BOM/乱码检查：通过，未发现 UTF-8 BOM 或替换字符。
+
+## Task 5 收尾补充 - 2026-05-13 02:35:00 +08:00
+
+### 补充修正
+
+- `pnpm run test:workflow` 原脚本会递归编译 `apps/workflow/.venv`，验证噪声过大。
+- 已将根脚本收敛为 `python -m compileall apps/workflow/storyforge_workflow apps/workflow/tests`，只覆盖项目源码与测试。
+
+### 重新验证计划
+
+- `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q`
+- `cd apps/workflow; uv run python -m compileall storyforge_workflow tests`
+- `cd repo; pnpm run test:workflow`
+- BOM/乱码检查
