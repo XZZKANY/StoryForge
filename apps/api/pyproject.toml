@@ -1,0 +1,16 @@
+[project]
+name = "storyforge-api"
+version = "0.1.0"
+description = "StoryForge 应用 API 服务"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi[standard]>=0.115.0",
+  "pydantic>=2.10.0",
+  "sqlalchemy>=2.0.0",
+  "psycopg[binary]>=3.2.0",
+  "redis>=5.2.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
