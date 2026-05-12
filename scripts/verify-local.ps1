@@ -70,7 +70,6 @@ Test-CommandAvailable -CommandName "python" -DisplayName "Python"
 Test-CommandAvailable -CommandName "docker" -DisplayName "Docker"
 
 Test-RequiredPath "docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md"
-Test-RequiredPath "docs/superpowers/specs/2026-05-12-dual-mode-ai-novel-platform-design.zh-CN.md"
 Test-RequiredPath "package.json"
 Test-RequiredPath "pnpm-workspace.yaml"
 Test-RequiredPath "docker-compose.yml"

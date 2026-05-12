@@ -224,3 +224,34 @@
 
 - 只允许暂存工程骨架、验证脚本、pnpm-lock.yaml 和 Task 1 三个 .codex 审计文件。
 - 不暂存既有 docs/、.superpowers/ 目录，也不暂存历史 .codex/context-summary-外部优秀方案吸收.md、.codex/context-summary-工程计划.md、.codex/context-summary-根据-agents-修改计划.md 等非 Task 1 文件。
+
+## Task 1 规格审查退回修复
+
+时间：2026-05-12 17:30:28 +08:00
+
+### SPEC_REJECTED 阻塞项
+
+- 阻塞项 1：提交 9609d15b1c7e0e6742eb9de53da9242b3d9369d3 的干净检出未包含计划文件，导致 scripts/verify-local.ps1 的计划文件检查无法通过。
+- 阻塞项 2：scripts/verify-local.ps1 额外检查了 docs/superpowers/specs/2026-05-12-dual-mode-ai-novel-platform-design.zh-CN.md，该检查不属于 Task 1 验证脚本规格，且 specs 文件未纳入工程骨架提交。
+
+### 修复策略
+
+- 保留对 docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md 的检查，因为 Task 1 明确要求验证脚本检查计划文件存在性。
+- 移除对 specs 文件的硬性检查，使验证脚本不依赖规格外文件。
+- 将计划文件作为 Task 1 自验证所需事实源纳入修复提交。
+- 采用追加中文修复提交，不 amend 已被审查引用的旧提交，保留审查轨迹。
+
+### 重新验证计划
+
+- 运行 powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1。
+- 运行 pnpm verify。
+- 提交后用 git cat-file -e HEAD:docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md 确认提交包含计划文件。
+- 提交后用 git show HEAD:scripts/verify-local.ps1 确认脚本不再包含 specs 文件路径。
+
+## Task 1 规格退回修复验证结果
+
+时间：2026-05-12 17:31:46 +08:00
+
+- 已执行 powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1，退出码 0。
+- 已执行 pnpm verify，退出码 0。
+- 验证输出确认脚本只检查计划文件、工程骨架文件、PostgreSQL 容器和 Redis 容器，不再检查 specs 文件。
