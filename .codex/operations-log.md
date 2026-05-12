@@ -378,3 +378,64 @@
 - 质量退回闭环：确认退回原因包括中文乱码不可读与 SQLAlchemy relationship 单模块导入风险；修复策略为 UTF-8 中文重写、关系目标模块预加载与独立 mapper 配置测试。
 - 本地验证结果：Alembic 降级到 base 后升级到 head 成功；领域 schema 测试 7 项通过；`app` 与 `tests` 编译通过；books、assets、continuity、judge、jobs 五个 models 模块单独导入并执行 `configure_mappers()` 均成功。
 - 乱码复扫：Task 2 Python 文件与指定 `.codex` 文档无连续问号乱码、无替换字符。
+
+
+## Task 3 编码前检查 - 资产中心 API
+
+时间：2026-05-12 22:05:00 +08:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-task-3.md`
+- 将使用以下可复用组件：
+  - `apps/api/app/domains/assets/models.py`：资产 ORM 模型。
+  - `apps/api/app/domains/books/models.py`：作品根实体。
+  - `apps/api/tests/test_domain_schema.py`：pytest 测试风格参考。
+  - `apps/api/alembic/env.py`：PostgreSQL 连接配置参考。
+- 将遵循命名约定：Python 文件使用 `snake_case`，Pydantic schema 和服务类使用 `PascalCase`。
+- 将遵循代码风格：FastAPI `APIRouter` + Pydantic `response_model` + SQLAlchemy Session 分层。
+- 确认不重复造轮子：当前没有 `app/main.py`、资产 router、schema、service 或 OpenAPI 生成脚本。
+
+## 编码前检查 - Task 3 资产中心 API
+
+时间：2026-05-12 22:15:31 +08:00
+
+□ 已查阅上下文摘要文件：.codex/context-summary-task-3.md
+□ 已读取指定文件：D:\StoryForge\AGENTS.md、计划第 209-265 行、pps/api/app/domains/assets/models.py、pps/api/app/domains/books/models.py、pps/api/tests/test_domain_schema.py
+□ 将使用以下可复用组件：
+
+- pps/api/app/db/base.py: 复用 Base、IdMixin、TimestampMixin、VersionMixin
+- pps/api/app/domains/assets/models.py: 复用并扩展 Asset 作为版本历史真相源
+- pps/api/app/domains/books/models.py: 复用 Book 校验资产归属
+- pps/api/tests/test_domain_schema.py: 复用 pytest 风格、导入约定和 ORM 元数据断言模式
+- pps/api/alembic/env.py: 复用 Base.metadata 迁移聚合方式
+□ 将遵循命名约定：Python 文件、函数、变量使用 snake_case；模型和 schema 使用 PascalCase。
+□ 将遵循代码风格：rom __future__ import annotations、类型标注、简体中文文档字符串和错误提示。
+□ 确认不重复造轮子：已搜索 router/session/create_engine/测试文件，项目内尚无 API router、main 或 session 依赖可复用；Context7 查询尝试失败，沿用项目依赖版本和既有上下文摘要中的官方文档结论；本会话无 github.search_code 可调用工具，已以项目内实现模式替代。
+## Task 3 验证与收尾 - 2026-05-12 23:18:00 +08:00
+
+### 编码后声明 - 资产中心 API
+
+1. 复用了以下既有组件：
+   - `apps/api/app/db/base.py`：复用 SQLAlchemy `Base` 与通用 mixin。
+   - `apps/api/app/domains/assets/models.py`：复用 `Asset` 作为资产真相源，仅补充版本谱系字段。
+   - `apps/api/alembic/versions/71dfabf6badf_创建_phase_1_领域模型.py`：沿用 Alembic 迁移组织方式。
+   - `apps/api/tests/test_domain_schema.py`：沿用 pytest 与数据库迁移验证习惯。
+2. 遵循了以下项目约定：
+   - FastAPI 路由集中在领域 `router.py`，业务写入集中在 `service.py`，请求响应契约集中在 `schemas.py`。
+   - Python 注释与文档使用简体中文，代码标识符保持英文命名。
+   - 破坏性演进通过 Alembic 新迁移表达，不对旧模型做隐式兼容。
+3. 对比了以下相似实现：
+   - 领域模型沿用 `books`、`continuity`、`judge` 的 SQLAlchemy 2.0 mapped_column 与 relationship 风格。
+   - 测试组织沿用既有 `tests/test_domain_schema.py` 的 pytest 断言方式。
+   - 迁移脚本沿用 Task 2 生成的 Alembic revision/down_revision 结构。
+### 本地验证结果
+
+- `cd apps/api; uv run alembic downgrade base; uv run alembic upgrade head`：退出码 0，迁移可回放。
+- `cd apps/api; uv run pytest tests/test_assets_api.py tests/test_domain_schema.py -q`：退出码 0，`13 passed in 3.32s`。
+- `cd apps/api; uv run python -m compileall app tests`：退出码 0。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`：退出码 0，OpenAPI 契约生成成功。
+- `pnpm openapi`：退出码 0，根脚本生成成功。
+- BOM 与乱码扫描：Task 3 文件均无 BOM，无连续问号乱码，无替换字符。
+
+### 提交范围控制
+
+本次仅计划暂存 Task 3 相关文件：资产 API 代码、迁移、测试、OpenAPI 脚本与契约、`package.json`、`.codex/context-summary-task-3.md`、`.codex/operations-log.md`、`.codex/verification-report.md`。明确排除 `.superpowers/`、`docs/superpowers/specs/` 与历史上下文草稿。

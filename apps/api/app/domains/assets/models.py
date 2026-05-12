@@ -20,6 +20,7 @@ class Asset(IdMixin, TimestampMixin, VersionMixin, Base):
     book_id: Mapped[int] = mapped_column(ForeignKey("books.id", ondelete="CASCADE"), index=True, nullable=False)
     scene_id: Mapped[int | None] = mapped_column(ForeignKey("scenes.id", ondelete="SET NULL"), index=True)
     asset_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    lineage_key: Mapped[str] = mapped_column(String(80), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="active", server_default="active")
     payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
