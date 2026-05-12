@@ -59,3 +59,44 @@ score: 96
 建议：通过。
 
 summary: 'Task 3 已完成资产中心 API、版本历史、OpenAPI 契约生成和本地验证；PostgreSQL 迁移、pytest、compileall、OpenAPI 脚本与编码检查均通过。'
+
+---
+
+# Task 3 质量退回修复验证报告
+
+生成时间：2026-05-13 00:00:00 Asia/Shanghai
+
+## 修复范围
+
+- PATCH 显式传入 `name`、`status`、`asset_type`、`payload` 为 `null` 时，由 `AssetUpdate` 请求契约返回 422。
+- 使用历史版本 id 更新资产时，新版本从同一谱系最新版本继承未修改字段。
+- `create_asset` 提供 `scene_id` 时，提前校验场景存在且属于同一作品。
+- 补充资产 API 负向与边界测试，覆盖显式 null、历史版本更新、非法场景、空 PATCH 和 `asset_type` 过滤。
+- `test:api` 改为只编译 `apps/api/app` 与 `apps/api/tests`。
+- 已重新运行 OpenAPI 生成脚本；生成后共享契约文件无额外内容差异。
+
+## 本地验证
+
+1. `cd apps/api; uv run pytest tests/test_assets_api.py tests/test_domain_schema.py -q`
+   - 结果：退出码 0，`19 passed in 6.17s`。
+2. `cd repo; pnpm run test:api`
+   - 结果：退出码 0，`python -m compileall apps/api/app apps/api/tests` 编译通过。
+3. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
+   - 结果：退出码 0，输出 `已生成 OpenAPI 契约：...storyforge.openapi.json`。
+
+## 质量评分
+
+- 代码质量：28/30。修复集中在 schema/service 层，保持现有 API 分层。
+- 测试覆盖：29/30。新增测试覆盖本次退回要求的负向与边界场景。
+- 规范遵循：28/30。使用简体中文注释与测试描述，未触碰无关未跟踪文件。
+- 需求匹配：30/30。六项退回问题均已处理或验证。
+- 架构一致：28/30。沿用既有 FastAPI、Pydantic、SQLAlchemy 与 pytest 模式。
+- 风险评估：18/20。跨书场景当前复用既有路由错误映射返回 404，语义清晰且避免扩大写集。
+
+```Scoring
+score: 92
+```
+
+建议：通过。
+
+summary: 'Task 3 质量退回修复已完成，本地 pytest、test:api 与 OpenAPI 生成均通过；共享 OpenAPI 契约重新生成后无额外差异。'

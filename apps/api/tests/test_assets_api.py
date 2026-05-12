@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401
 from app.db.base import Base
 from app.db.session import get_session
-from app.domains.books.models import Book
+from app.domains.books.models import Book, Chapter, Scene
 from app.main import app
 
 
@@ -74,6 +74,20 @@ def create_asset(client: TestClient, book_id: int, asset_type: str, name: str, p
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def create_scene(session_factory: sessionmaker[Session], book_id: int, title: str = "启航") -> int:
+    """创建属于指定作品的章节和场景，供资产场景归属校验使用。"""
+
+    with session_factory() as session:
+        chapter = Chapter(book_id=book_id, ordinal=1, title=f"{title}章", status="draft", summary=None)
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title=title, status="planned", content=None)
+        session.add(scene)
+        session.commit()
+        session.refresh(scene)
+        return scene.id
 
 
 def test_create_character_asset(client: TestClient, book_id: int) -> None:
@@ -184,3 +198,109 @@ def test_read_asset_change_history(client: TestClient, book_id: int) -> None:
         "克制、具画面感、少用解释",
     ]
     assert len({item["id"] for item in history}) == 3
+
+
+def test_patch_rejects_explicit_null_core_fields(client: TestClient, book_id: int) -> None:
+    """显式传入 null 的核心字段必须由请求契约拒绝，不能落到数据库异常。"""
+
+    original = create_asset(client, book_id, "character", "林岚", {"阶段": "初始"})
+
+    for field_name in ("name", "status", "asset_type", "payload"):
+        response = client.patch(f"/api/assets/{original['id']}", json={field_name: None})
+
+        assert response.status_code == 422, response.text
+        assert "不允许显式传入 null" in response.text
+
+
+def test_update_from_historical_version_inherits_latest_fields(client: TestClient, book_id: int) -> None:
+    """使用历史版本 id 更新时，新版本必须从谱系最新版本继承未改字段。"""
+
+    original = create_asset(client, book_id, "character", "林岚", {"阶段": "初始"})
+    second_response = client.patch(
+        f"/api/assets/{original['id']}",
+        json={"name": "林岚·觉醒", "payload": {"阶段": "觉醒"}},
+    )
+    assert second_response.status_code == 200, second_response.text
+
+    third_response = client.patch(f"/api/assets/{original['id']}", json={"status": "archived"})
+
+    assert third_response.status_code == 200, third_response.text
+    third = third_response.json()
+    assert third["version"] == 3
+    assert third["name"] == "林岚·觉醒"
+    assert third["payload"] == {"阶段": "觉醒"}
+    assert third["status"] == "archived"
+
+
+def test_create_asset_rejects_scene_from_other_book(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    book_id: int,
+) -> None:
+    """创建资产时 scene_id 必须存在且归属同一作品。"""
+
+    with session_factory() as session:
+        other_book = Book(title="边境纪事", status="draft", premise="另一条故事线。")
+        session.add(other_book)
+        session.commit()
+        session.refresh(other_book)
+        other_book_id = other_book.id
+    other_scene_id = create_scene(session_factory, other_book_id, "边境")
+
+    response = client.post(
+        "/api/assets",
+        json={
+            "book_id": book_id,
+            "scene_id": other_scene_id,
+            "asset_type": "location",
+            "name": "灯塔港",
+            "payload": {"地貌": "轨道港"},
+        },
+    )
+
+    assert response.status_code == 404, response.text
+    assert response.json()["detail"] == "场景不存在或不属于该作品，无法创建资产。"
+
+
+def test_create_asset_rejects_missing_scene(client: TestClient, book_id: int) -> None:
+    """不存在的 scene_id 必须得到清晰响应，避免依赖外键异常。"""
+
+    response = client.post(
+        "/api/assets",
+        json={
+            "book_id": book_id,
+            "scene_id": 999999,
+            "asset_type": "location",
+            "name": "灯塔港",
+            "payload": {"地貌": "轨道港"},
+        },
+    )
+
+    assert response.status_code == 404, response.text
+    assert response.json()["detail"] == "场景不存在或不属于该作品，无法创建资产。"
+
+
+def test_patch_rejects_empty_payload(client: TestClient, book_id: int) -> None:
+    """空 PATCH 不会创建无意义版本。"""
+
+    original = create_asset(client, book_id, "character", "林岚", {"阶段": "初始"})
+
+    response = client.patch(f"/api/assets/{original['id']}", json={})
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "资产更新内容不能为空。"
+
+
+def test_list_assets_filters_by_asset_type(client: TestClient, book_id: int) -> None:
+    """asset_type 查询参数只返回匹配类型的最新资产。"""
+
+    character = create_asset(client, book_id, "character", "林岚", {"阶段": "初始"})
+    create_asset(client, book_id, "location", "灯塔港", {"地貌": "轨道港"})
+
+    response = client.get(f"/api/assets?book_id={book_id}&asset_type=character")
+
+    assert response.status_code == 200, response.text
+    assets = response.json()
+    assert len(assets) == 1
+    assert assets[0]["id"] == character["id"]
+    assert assets[0]["asset_type"] == "character"
