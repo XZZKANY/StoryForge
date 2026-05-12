@@ -224,3 +224,51 @@ score: 94
 建议：通过。
 
 summary: 'Task 4 已实现章节连续性记录与 Scene Packet API，本地目标测试、回归测试、compileall 和 OpenAPI 生成均通过；输出包含固定槽位、证据链接和预算统计。'
+
+
+## Task 5 验证报告：LangGraph 生成工作流
+
+时间：2026-05-13 02:20:00
+
+### 需求字段完整性
+
+- 目标：实现可恢复的 LangGraph 生成工作流。
+- 范围：`apps/workflow/storyforge_workflow/`、`apps/workflow/tests/test_generation_graph.py`、必要依赖声明与本地验证记录。
+- 交付物：状态定义、图编排、单职责节点、内存审计仓库、恢复测试、验证记录。
+- 审查要点：状态顺序、人工审批中断、相同 `thread_id` 恢复、checkpoint 审计字段、无外部 LLM 依赖。
+
+### 本地验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q` | 通过，2 passed |
+| `cd apps/workflow; uv run python -m compileall storyforge_workflow tests` | 通过 |
+| `cd repo; pnpm run test:workflow` | 通过 |
+| BOM/乱码检查 | 通过，未发现 UTF-8 BOM 或替换字符 |
+
+### 审查评分
+
+- 代码质量：29/30。节点职责清晰，状态和审计结构简单可维护。
+- 测试覆盖：30/30。覆盖阶段推进、interrupt 暂停、checkpoint 字段和 `Command(resume=...)` 恢复。
+- 规范遵循：29/30。全部新增说明使用简体中文；因当前环境没有 `github.search_code` 专用工具，已记录替代检索方式。
+- 需求匹配：30/30。满足 Task 5 六项强制要求。
+- 架构一致：29/30。独立 workflow 包与现有 monorepo 结构一致，依赖 LangGraph 官方能力。
+- 风险评估：29/30。内存仓库适合本地 Phase 1，后续可按相同接口替换真实持久化。
+
+```Scoring
+score: 97
+```
+
+summary: 'Task 5 已实现可中断、可恢复的 LangGraph 生成工作流，包含确定性单职责节点、内存审计 checkpoint、人工审批恢复测试和本地验证记录。建议通过。'
+
+### 审查结论
+
+综合评分 97/100，建议：通过。
+
+### Task 5 收尾补充验证
+
+- `package.json` 的 `test:workflow` 已收敛为只编译 `apps/workflow/storyforge_workflow` 与 `apps/workflow/tests`。
+- `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q`：通过，`2 passed in 0.47s`。
+- `cd apps/workflow; uv run python -m compileall storyforge_workflow tests`：通过。
+- `cd repo; pnpm run test:workflow`：通过，未递归编译 `.venv`。
+- Task 5 相关文件 BOM/乱码检查：通过。
