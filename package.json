@@ -1,0 +1,15 @@
+{
+  "name": "storyforge",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "verify": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1",
+    "test": "pnpm run test:web && pnpm run test:api && pnpm run test:workflow",
+    "test:web": "pnpm --filter @storyforge/web test && pnpm --filter @storyforge/shared test",
+    "test:api": "python -m compileall apps/api",
+    "test:workflow": "python -m compileall apps/workflow",
+    "e2e": "pnpm run verify",
+    "openapi": "python -c \"import pathlib; assert pathlib.Path('apps/api/pyproject.toml').exists(); print('OpenAPI 生成前置配置检查通过。')\""
+  }
+}

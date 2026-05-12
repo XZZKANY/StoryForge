@@ -1,0 +1,15 @@
+[project]
+name = "storyforge-workflow"
+version = "0.1.0"
+description = "StoryForge 创作工作流运行时"
+requires-python = ">=3.11"
+dependencies = [
+  "langgraph>=0.2.0",
+  "pydantic>=2.10.0",
+  "redis>=5.2.0",
+  "psycopg[binary]>=3.2.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

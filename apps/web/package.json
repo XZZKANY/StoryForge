@@ -1,0 +1,20 @@
+{
+  "name": "@storyforge/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "test": "node -e \"JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('前端包配置检查通过。')\""
+  },
+  "dependencies": {
+    "@storyforge/shared": "workspace:*",
+    "next": "15.3.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3"
+  }
+}
