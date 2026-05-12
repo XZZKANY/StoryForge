@@ -1,4 +1,4 @@
-﻿# StoryForge Phase 1 工程实施计划 Implementation Plan
+# StoryForge Phase 1 工程实施计划 Implementation Plan
 
 > **面向代理执行者：** 实施本计划时必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 逐任务执行。每个任务使用复选框跟踪，执行前必须重新生成 `.codex/context-summary-[任务名].md`。
 

@@ -170,7 +170,7 @@
 - 已读取 D:/StoryForge/AGENTS.md，确认简体中文、.codex 记录、本地验证和 sequential-thinking → shrimp-task-manager → 执行顺序要求。
 - 已读取计划文件 Task 1 第87-152行，确认需创建文件、验证脚本检查项、docker-compose 服务和提交要求。
 - 已读取设计规格架构概览第109-120行，确认“B 为核，C 为壳”和三层架构。
-- 已检索目标目录，未发现既有 package.json、docker-compose、erify-local 实现。
+- 已检索目标目录，未发现既有 package.json、docker-compose、verify-local 实现。
 - 已检索测试文件，当前没有 *.spec.* 或 *.test.* 文件；本任务以本地验证脚本建立基线。
 - 已使用 Context7 查询 pnpm、pgvector、FastAPI 官方文档要点。
 - github.search_code 工具在当前可用工具列表中不存在，无法调用；替代为本地计划、规格和 Context7 官方文档交叉验证。
@@ -179,14 +179,14 @@
 
 - 已查阅上下文摘要文件：.codex/context-summary-task-1.md。
 - 将使用以下可复用组件：计划文件 Task 1 验收清单、设计规格技术基线、Context7 官方文档要点。
-- 将遵循命名约定：pps/web、pps/api、pps/workflow、packages/shared 和 @storyforge/* 包名。
+- 将遵循命名约定：apps/web、apps/api、apps/workflow、packages/shared 和 @storyforge/* 包名。
 - 将遵循代码风格：JSON/YAML/TOML 结构化配置，PowerShell 用户可见输出为简体中文。
 - 确认不重复造轮子：目标目录无既有工程骨架实现，本任务创建缺失基线。
 
 ### 实施记录
 
 - 已初始化 D:/StoryForge/1-renovel-ai-ai-rag-tavern 的 git 仓库。
-- 已创建或更新缺失骨架文件：package.json、pnpm-workspace.yaml、.gitignore、.env.example、docker-compose.yml、scripts/verify-local.ps1、pps/web/package.json、pps/api/pyproject.toml、pps/workflow/pyproject.toml、packages/shared/package.json。
+- 已创建或更新缺失骨架文件：package.json、pnpm-workspace.yaml、.gitignore、.env.example、docker-compose.yml、scripts/verify-local.ps1、apps/web/package.json、apps/api/pyproject.toml、apps/workflow/pyproject.toml、packages/shared/package.json。
 - 已保留既有 docs、.superpowers 和历史 .codex 文件；仅新增/更新本任务 .codex/context-summary-task-1.md，并追加本日志。
 
 ### 编码后声明 - 工程骨架
@@ -194,7 +194,7 @@
 1. 复用了以下既有组件：计划文件验收清单用于文件与验证范围；设计规格用于技术栈和目录边界；Context7 官方文档用于 pnpm workspace、pgvector 镜像和 FastAPI 标准依赖。
 2. 遵循了以下项目约定：所有文档与脚本输出为简体中文；工作文件写入项目本地 .codex/；目录与包名符合 monorepo 组织方式。
 3. 对比了以下相似实现：计划文件 Task 1、设计规格架构概览、设计规格技术选型。差异是本任务将文档要求落地为可运行验证基线。
-4. 未重复造轮子的证明：检索目标目录未发现既有 package.json、docker-compose.yml、erify-local.ps1，因此新增工程骨架是必要动作。
+4. 未重复造轮子的证明：检索目标目录未发现既有 package.json、docker-compose.yml、verify-local.ps1，因此新增工程骨架是必要动作。
 
 ## Task 1 验证记录
 
@@ -255,3 +255,48 @@
 - 已执行 powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1，退出码 0。
 - 已执行 pnpm verify，退出码 0。
 - 验证输出确认脚本只检查计划文件、工程骨架文件、PostgreSQL 容器和 Redis 容器，不再检查 specs 文件。
+
+## Task 1 QUALITY_REJECTED 子代理修复
+
+时间：2026-05-12 18:10:00 +08:00
+
+### 根因
+
+- verification-report.md 上一版正文仍含非法 ASCII 控制字符，导致 apps、requires-python、verify-local.ps1、fastapi[standard] 等文本被破坏。
+- 上一版报告声称三份 Task 1 .codex 文件已清理完成，但报告自身仍包含 BEL、CR、VT、FF 等损坏字符，结论与真实文件状态不一致。
+- scripts/verify-local.ps1 当前已包含 Python 候选门禁逻辑，本轮复核确认候选包含 python、python3、py -3.12、py -3.11，并会输出实际通过命令与版本。
+
+### 修复
+
+- 重写 .codex/verification-report.md 的损坏段落，恢复正常路径和依赖文本。
+- 保持 docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md 语义不变，仅复核其 UTF-8 无 BOM 状态。
+- 不触碰 .superpowers、docs/superpowers/specs 或历史 .codex/context-summary-* 非 Task 1 文件。
+- 未执行 git reset、git checkout --、暂存或提交。
+
+### 验证命令与结果
+
+- 控制字符扫描：扫描 .codex/context-summary-task-1.md、.codex/operations-log.md、.codex/verification-report.md，允许 Tab、LF、CR；退出码 0，三份文件 bad_count 均为 0。
+- 计划文档编码扫描：docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md；退出码 0，bom=False，utf8=True。首次扫描命令因 Python f-string 反斜杠写法错误退出码 1，已修正命令后重跑通过。
+- powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1：退出码 0；python 与 python3 均为 3.10.11 被跳过，py -3.12 -> Python 3.12.4 通过，PostgreSQL 与 Redis 容器正在运行。
+- pnpm verify：退出码 0；内部调用 verify-local 并得到同样 Python 门禁结果。
+- pnpm test：退出码 0；前端包配置、共享包配置、apps/api compileall、apps/workflow compileall 均完成。
+- docker compose config --quiet：退出码 0，无额外输出。
+
+### 仍有风险
+
+- 当前 pnpm test 的 compileall 子命令使用 PATH 中的 python，实际为 Python 3.10.11；本轮未改动测试脚本，因为任务范围只要求 verify-local 增加 Python >=3.11 门禁。verify-local 与 pnpm verify 已确保本地验证基线能发现 Python 版本不达标问题。
+
+## Task 1 QUALITY_REJECTED 规格复审记录
+
+时间：2026-05-12 18:18:00 +08:00
+
+### SPEC_REJECTED 结论
+
+- 规格审查子代理确认脚本门禁、控制字符清理、计划文件 UTF-8 无 BOM、verification-report 正文一致性和验证记录均已满足。
+- 唯一退回点是当前工作区仍存在无关未跟踪文件，包括 .superpowers、docs/superpowers/specs 和非 Task 1 的 .codex/context-summary-* 文件。
+
+### 处理策略
+
+- 不删除、不回滚无关未跟踪文件，避免破坏先前规划和用户工作。
+- 通过精确暂存 Task 1 文件控制提交范围，只纳入 scripts/verify-local.ps1、Task 1 三份 .codex 文件和计划文件去 BOM 变更。
+- 提交前必须检查 git diff --cached --name-only，确认暂存区不包含 .superpowers、docs/superpowers/specs 或非 Task 1 的 .codex 文件。
