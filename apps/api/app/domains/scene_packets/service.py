@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
-from app.domains.scene_packets.schemas import BudgetStatistics, EvidenceLinkRead, ScenePacketCreate, ScenePacketRead
+from app.domains.scene_packets.schemas import (
+    BudgetStatistics,
+    EvidenceLinkRead,
+    ScenePacketCreate,
+    ScenePacketRead,
+)
 
 
 class ScenePacketInputError(ValueError):
@@ -36,6 +41,7 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
         .where(ContinuityRecord.book_id == payload.book_id, ContinuityRecord.status == "active")
         .order_by(ContinuityRecord.id)
     ).all()
+    continuity_records = _filter_continuity_records_for_chapter(continuity_records, payload.chapter_id)
     evidence_links = _load_evidence_links(session, scene.id, assets)
     packet, budget_statistics = _build_packet(payload, chapter, assets, continuity_records, evidence_links)
 
@@ -75,27 +81,46 @@ def _load_evidence_links(session: Session, scene_id: int, assets: list[Asset]) -
     asset_ids = [asset.id for asset in assets]
     links = session.scalars(
         select(EvidenceLink)
-        .where(EvidenceLink.asset_id.in_(asset_ids))
+        .where(
+            EvidenceLink.asset_id.in_(asset_ids),
+            or_(EvidenceLink.scene_id == scene_id, EvidenceLink.scene_id.is_(None)),
+        )
         .order_by(EvidenceLink.id)
     ).all()
-    if links:
-        return [
-            EvidenceLinkRead(
-                asset_id=link.asset_id,
-                evidence_type=link.evidence_type,
-                source_ref=link.source_ref,
-                rationale=link.rationale,
-            )
-            for link in links
-        ]
-    return [
+
+    evidence_links = [
+        EvidenceLinkRead(
+            asset_id=link.asset_id,
+            evidence_type=link.evidence_type,
+            source_ref=link.source_ref,
+            rationale=link.rationale,
+        )
+        for link in links
+    ]
+    linked_asset_ids = {link.asset_id for link in evidence_links}
+    evidence_links.extend(
         EvidenceLinkRead(
             asset_id=asset.id,
-            evidence_type="asset",
-            source_ref=f"asset://{asset.asset_type}/{asset.id}#v{asset.version}",
+            evidence_type="asset_snapshot",
+            source_ref=f"asset:{asset.id}",
             rationale=f"资产 {asset.name} 被显式加入本次 Scene Packet。",
         )
         for asset in assets
+        if asset.id not in linked_asset_ids
+    )
+    return evidence_links
+
+
+def _filter_continuity_records_for_chapter(
+    records: list[ContinuityRecord],
+    chapter_id: int,
+) -> list[ContinuityRecord]:
+    """仅保留当前章节连续性，以及未绑定章节的全局连续性。"""
+
+    return [
+        record
+        for record in records
+        if record.payload.get("chapter_id") in (None, chapter_id)
     ]
 
 
@@ -127,7 +152,11 @@ def _build_packet(
         "章节摘要": chapter.summary,
     }
     reserved_tokens = _estimate_tokens(packet)
-    snippets, retrieval_tokens, truncated = _fit_retrieval_snippets(payload.retrieval_snippets, payload.token_budget, reserved_tokens)
+    snippets, retrieval_tokens, truncated = _fit_retrieval_snippets(
+        payload.retrieval_snippets,
+        payload.token_budget,
+        reserved_tokens,
+    )
     packet["检索片段"] = snippets
     used_tokens = reserved_tokens + retrieval_tokens
     statistics = BudgetStatistics(
@@ -150,6 +179,7 @@ def _style_rule(asset: Asset) -> dict[str, Any]:
     """风格规则槽位优先展示规则文本，同时保留来源资产。"""
 
     return {"id": asset.id, "name": asset.name, "rule": asset.payload.get("规则", asset.payload)}
+
 
 def _relationship_states(assets: list[Asset]) -> list[dict[str, Any]]:
     """从角色资产载荷中提取关系状态。"""
@@ -192,7 +222,11 @@ def _continuity_constraints(records: list[ContinuityRecord]) -> list[Any]:
     return values
 
 
-def _fit_retrieval_snippets(snippets: list[str], token_budget: int, reserved_tokens: int) -> tuple[list[str], int, bool]:
+def _fit_retrieval_snippets(
+    snippets: list[str],
+    token_budget: int,
+    reserved_tokens: int,
+) -> tuple[list[str], int, bool]:
     """只在剩余预算允许时加入检索片段，避免覆盖硬约束。"""
 
     remaining = max(token_budget - reserved_tokens, 0)
