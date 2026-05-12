@@ -439,3 +439,22 @@
 ### 提交范围控制
 
 本次仅计划暂存 Task 3 相关文件：资产 API 代码、迁移、测试、OpenAPI 脚本与契约、`package.json`、`.codex/context-summary-task-3.md`、`.codex/operations-log.md`、`.codex/verification-report.md`。明确排除 `.superpowers/`、`docs/superpowers/specs/` 与历史上下文草稿。
+
+## Task 3 质量审查退回修复 - 2026-05-13 00:05:00 +08:00
+
+### 修复内容
+
+- `AssetUpdate` 增加显式 `null` 拒绝规则，避免非空核心字段落入数据库异常。
+- `update_asset` 改为先定位同一 `lineage_key` 的最新版本，再继承未修改字段并创建下一版本。
+- `create_asset` 增加 `scene_id` 存在性与同作品归属校验，避免外键异常和跨作品关联。
+- `tests/test_assets_api.py` 补充显式 null、历史版本更新、非法场景、空 PATCH 和 `asset_type` 过滤测试。
+- `package.json` 的 `test:api` 收敛为 `python -m compileall apps/api/app apps/api/tests`，不再递归编译 `.venv`。
+
+### 重新验证
+
+- `cd apps/api; uv run pytest tests/test_assets_api.py tests/test_domain_schema.py -q`：退出码 0，`19 passed in 6.34s`。
+- `cd apps/api; uv run python -m compileall app tests`：退出码 0。
+- `pnpm run test:api`：退出码 0，仅编译 `apps/api/app` 与 `apps/api/tests`。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`：退出码 0。
+- `pnpm openapi`：退出码 0。
+- BOM 与乱码扫描：本次修改文件均无 BOM、无连续问号乱码、无替换字符。

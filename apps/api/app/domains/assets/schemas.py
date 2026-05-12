@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AssetCreate(BaseModel):
@@ -25,6 +25,20 @@ class AssetUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     status: str | None = Field(default=None, min_length=1, max_length=50)
     payload: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def reject_required_field_nulls(self) -> "AssetUpdate":
+        """显式清空核心字段会破坏版本契约，必须在入库前拒绝。"""
+
+        null_fields = [
+            field_name
+            for field_name in ("asset_type", "name", "status", "payload")
+            if field_name in self.model_fields_set and getattr(self, field_name) is None
+        ]
+        if null_fields:
+            fields = "、".join(null_fields)
+            raise ValueError(f"字段 {fields} 不允许显式传入 null。")
+        return self
 
 
 class AssetRead(BaseModel):

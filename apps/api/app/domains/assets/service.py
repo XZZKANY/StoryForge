@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.assets.models import Asset
 from app.domains.assets.schemas import AssetCreate, AssetUpdate
-from app.domains.books.models import Book
+from app.domains.books.models import Book, Chapter, Scene
 
 
 class AssetNotFoundError(ValueError):
@@ -28,6 +28,15 @@ def create_asset(session: Session, payload: AssetCreate) -> Asset:
 
     if session.get(Book, payload.book_id) is None:
         raise BookNotFoundError("作品不存在，无法创建资产。")
+
+    if payload.scene_id is not None:
+        scene_id = session.scalar(
+            select(Scene.id)
+            .join(Chapter, Scene.chapter_id == Chapter.id)
+            .where(Scene.id == payload.scene_id, Chapter.book_id == payload.book_id)
+        )
+        if scene_id is None:
+            raise BookNotFoundError("场景不存在或不属于该作品，无法创建资产。")
 
     asset = Asset(
         book_id=payload.book_id,
@@ -80,19 +89,22 @@ def update_asset(session: Session, asset_id: int, payload: AssetUpdate) -> Asset
     if not changes:
         raise EmptyAssetUpdateError("资产更新内容不能为空。")
 
-    latest_version = session.scalar(
-        select(func.max(Asset.version)).where(Asset.lineage_key == source_asset.lineage_key)
-    )
-    next_version = int(latest_version or source_asset.version) + 1
+    latest_asset = session.scalars(
+        select(Asset)
+        .where(Asset.lineage_key == source_asset.lineage_key)
+        .order_by(Asset.version.desc(), Asset.id.desc())
+        .limit(1)
+    ).one()
+    next_version = latest_asset.version + 1
 
     new_asset = Asset(
-        book_id=source_asset.book_id,
-        scene_id=changes.get("scene_id", source_asset.scene_id),
-        asset_type=changes.get("asset_type", source_asset.asset_type),
-        lineage_key=source_asset.lineage_key,
-        name=changes.get("name", source_asset.name),
-        status=changes.get("status", source_asset.status),
-        payload=changes.get("payload", source_asset.payload),
+        book_id=latest_asset.book_id,
+        scene_id=changes.get("scene_id", latest_asset.scene_id),
+        asset_type=changes.get("asset_type", latest_asset.asset_type),
+        lineage_key=latest_asset.lineage_key,
+        name=changes.get("name", latest_asset.name),
+        status=changes.get("status", latest_asset.status),
+        payload=changes.get("payload", latest_asset.payload),
         version=next_version,
     )
     session.add(new_asset)
