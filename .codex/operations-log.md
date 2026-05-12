@@ -198,6 +198,81 @@
 
 ## Task 1 验证记录
 
+---
+
+## Task 6：结构化 Judge 与定向 Repair
+
+时间：2026-05-13 04:20:00 +08:00
+
+### 研究与检索记录
+
+- 已读取 `.codex/context-summary-task-6.md`，确认 Task 6 需复用 `JudgeIssue` 与 `RepairPatch`，并通过 payload 展开 API 契约字段。
+- 已读取 `docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md` 中 Task 6 范围，确认需要 Judge、Repair、测试、OpenAPI、路由注册和本地验证。
+- 已分析 3 个以上既有实现模式：
+  - `apps/api/app/domains/assets/router.py`：路由层只处理协议、依赖注入和异常到 HTTP 响应的转换。
+  - `apps/api/app/domains/assets/service.py`：服务层负责模型校验、写库、提交和刷新。
+  - `apps/api/app/domains/scene_packets/service.py`：跨实体归属校验与结构化响应装配。
+  - `apps/api/tests/test_scene_packet.py`：SQLite 内存库、`TestClient`、`get_session` 覆盖和中文行为测试。
+- 已使用 Context7 查询 FastAPI `response_model` 与 `APIRouter` 相关官方文档，确认响应模型用于验证、过滤和 OpenAPI 文档生成。
+- 当前会话没有 `github.search_code` 工具，无法执行开源代码搜索；已记录工具限制。
+- `desktop-commander.read_file` 在本环境只返回文件元数据，已先尝试使用；正文读取改用 PowerShell `Get-Content` 作为只读后备。
+
+### 编码前检查 - 结构化 Judge 与定向 Repair
+
+- 已查阅上下文摘要文件：`.codex/context-summary-task-6.md`。
+- 将使用以下可复用组件：
+  - `app.domains.judge.models.JudgeIssue`：持久化结构化问题单，不新增迁移。
+  - `app.domains.judge.models.RepairPatch`：持久化定向修复补丁，不新增迁移。
+  - `app.db.session.get_session`：沿用 API 路由数据库依赖。
+  - `Scene` 与 `ScenePacket`：校验评审目标和上下文包归属。
+- 将遵循命名约定：Python 模块、函数和字段使用既有 snake_case；API 路由前缀使用 `/api/judge` 与 `/api/repair`。
+- 将遵循代码风格：router/schema/service 分层，用户可见说明、注释、测试描述和日志均为简体中文。
+- 确认不重复造轮子：目标仓库已有模型和数据库基础设施，Task 6 仅新增协议层和确定性规则服务。
+
+### 实施记录
+
+- 已新增 `apps/api/app/domains/judge/schemas.py`、`service.py`、`router.py`，实现 `POST /api/judge/issues`。
+- 已新增 `apps/api/app/domains/repair/__init__.py`、`schemas.py`、`service.py`、`router.py`，实现 `POST /api/repair/patches`。
+- 已修改 `apps/api/app/main.py` 注册结构化评审与定向修复路由。
+- 已新增 `apps/api/tests/test_judge_repair.py`，测试片段同时包含“左臂完好无损”设定冲突和“作者直接解释”文风漂移。
+- 已重新生成 `packages/shared/src/contracts/storyforge.openapi.json`。
+- 首次红灯验证：`uv run pytest tests/test_judge_repair.py -q` 返回 404，证明新增测试先于实现暴露缺失路由。
+
+### 编码中监控
+
+- 是否使用摘要中列出的可复用组件：是，复用 `JudgeIssue`、`RepairPatch`、`Scene`、`ScenePacket`、`get_session` 和既有测试夹具模式。
+- 命名是否符合项目约定：是，新增模块和函数均沿用 snake_case，响应字段按规格输出。
+- 代码风格是否一致：是，沿用 FastAPI router/schema/service 分层和服务异常转 HTTPException 模式。
+- 偏离说明：缺失事实的修复采用开头锚点的确定性替换策略，当前测试重点覆盖规格明确要求的设定冲突与文风漂移。
+
+### 编码后声明 - 结构化 Judge 与定向 Repair
+
+#### 1. 复用了以下既有组件
+
+- `JudgeIssue`：用于保存 `issue_type`、`severity`、`status`、`description` 与结构化 payload。
+- `RepairPatch`：用于保存 `target_span`、`replacement_text`、`requires_rejudge` 与修复理由。
+- `Scene` 与 `ScenePacket`：用于校验请求引用的场景和上下文包。
+- `get_session` 与既有 pytest 内存数据库夹具：用于本地可重复 API 验证。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：Python 标识符使用 snake_case，响应字段严格使用规格给定字段。
+- 代码风格：保持 router/schema/service 分层，业务规则不写入路由层。
+- 文件组织：Task 6 审计内容写入项目本地 `.codex/`，未修改无关未跟踪文件。
+
+#### 3. 对比了以下相似实现
+
+- `assets/router.py`：异常转换和 `response_model` 模式一致。
+- `assets/service.py`：数据库写入、提交和刷新模式一致。
+- `scene_packets/service.py`：跨实体归属校验模式一致。
+- `test_scene_packet.py`：测试夹具和中文行为断言模式一致。
+
+#### 4. 未重复造轮子的证明
+
+- 已检查 `apps/api/app/domains/judge/models.py`，确认模型已存在，未新增迁移。
+- 已检查 `apps/api/app/domains` 现有分层，确认没有既有 Judge/Repair API 实现。
+- 已检查 `apps/api/tests`，确认没有结构化评审和定向修复测试，新增 `test_judge_repair.py` 为必要覆盖。
+
 时间：2026-05-12 17:06:35 +08:00
 
 - 已执行 git -C D:/StoryForge/1-renovel-ai-ai-rag-tavern status --short --branch，仓库已初始化但尚无提交。
