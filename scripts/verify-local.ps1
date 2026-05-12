@@ -27,6 +27,46 @@ function Test-CommandAvailable {
     }
 }
 
+function Test-PythonRuntime {
+    $Candidates = @(
+        @{ Executable = "python"; Arguments = @(); DisplayName = "python" },
+        @{ Executable = "python3"; Arguments = @(); DisplayName = "python3" },
+        @{ Executable = "py"; Arguments = @("-3.12"); DisplayName = "py -3.12" },
+        @{ Executable = "py"; Arguments = @("-3.11"); DisplayName = "py -3.11" }
+    )
+
+    foreach ($Candidate in $Candidates) {
+        $Executable = $Candidate.Executable
+        $Arguments = $Candidate.Arguments
+        $DisplayName = $Candidate.DisplayName
+
+        if (-not (Get-Command $Executable -ErrorAction SilentlyContinue)) {
+            continue
+        }
+
+        $Output = & $Executable @Arguments --version 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            continue
+        }
+
+        if ($Output -match "Python\s+(\d+)\.(\d+)\.(\d+)") {
+            $Major = [int]$Matches[1]
+            $Minor = [int]$Matches[2]
+            $Patch = [int]$Matches[3]
+            $VersionText = "$Major.$Minor.$Patch"
+
+            if (($Major -gt 3) -or (($Major -eq 3) -and ($Minor -ge 11))) {
+                Write-Ok "Python 运行时满足要求：$DisplayName -> Python $VersionText。"
+                return
+            }
+
+            Write-Host "[跳过] $DisplayName -> Python $VersionText，低于项目要求的 Python 3.11。" -ForegroundColor Yellow
+        }
+    }
+
+    Write-Fail "未找到 Python 3.11 或更高版本。请安装 Python 3.11+，或确认 py -3.12 / py -3.11 可用。"
+}
+
 function Test-RequiredPath {
     param([string]$RelativePath)
 
@@ -66,7 +106,7 @@ Write-Host "开始执行 StoryForge 本地验证。" -ForegroundColor Cyan
 
 Test-CommandAvailable -CommandName "node" -DisplayName "Node.js"
 Test-CommandAvailable -CommandName "pnpm" -DisplayName "pnpm"
-Test-CommandAvailable -CommandName "python" -DisplayName "Python"
+Test-PythonRuntime
 Test-CommandAvailable -CommandName "docker" -DisplayName "Docker"
 
 Test-RequiredPath "docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md"
