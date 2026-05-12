@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class JobRun(IdMixin, TimestampMixin, Base):
-    """?????????????????????????????"""
+    """任务中心运行记录保存长任务进度、重试上下文和断点续跑状态。"""
 
     __tablename__ = "job_runs"
 
@@ -32,3 +32,10 @@ class JobRun(IdMixin, TimestampMixin, Base):
     judge_issues: Mapped[list[JudgeIssue]] = relationship(back_populates="job_run")
     repair_patches: Mapped[list[RepairPatch]] = relationship(back_populates="job_run")
     evidence_links: Mapped[list[EvidenceLink]] = relationship(back_populates="job_run")
+
+
+# 单独导入任务领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
+from app.domains import assets as _assets_domain  # noqa: E402,F401
+from app.domains import books as _books_domain  # noqa: E402,F401
+from app.domains import continuity as _continuity_domain  # noqa: E402,F401
+from app.domains import judge as _judge_domain  # noqa: E402,F401

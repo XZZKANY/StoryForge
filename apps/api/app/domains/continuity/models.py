@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class ContinuityRecord(IdMixin, TimestampMixin, VersionMixin, Base):
-    """?????????????????????????????"""
+    """连续性记录保存设定、剧情和风格状态，供生成与精修共同回写。"""
 
     __tablename__ = "continuity_records"
 
@@ -30,7 +30,7 @@ class ContinuityRecord(IdMixin, TimestampMixin, VersionMixin, Base):
 
 
 class ScenePacket(IdMixin, TimestampMixin, VersionMixin, Base):
-    """????????????????????????????????"""
+    """场景检索包固定生成输入槽位，避免向量检索结果直接成为业务真相源。"""
 
     __tablename__ = "scene_packets"
 
@@ -43,3 +43,9 @@ class ScenePacket(IdMixin, TimestampMixin, VersionMixin, Base):
     scene: Mapped[Scene] = relationship(back_populates="scene_packets")
     job_run: Mapped[JobRun | None] = relationship(back_populates="scene_packets")
     judge_issues: Mapped[list[JudgeIssue]] = relationship(back_populates="scene_packet")
+
+
+# 单独导入连续性领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
+from app.domains import books as _books_domain  # noqa: E402,F401
+from app.domains import jobs as _jobs_domain  # noqa: E402,F401
+from app.domains import judge as _judge_domain  # noqa: E402,F401
