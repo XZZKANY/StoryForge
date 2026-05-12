@@ -458,3 +458,41 @@
 - `powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`：退出码 0。
 - `pnpm openapi`：退出码 0。
 - BOM 与乱码扫描：本次修改文件均无 BOM、无连续问号乱码、无替换字符。
+
+## Task 4：章节连续性与 Scene Packet
+
+时间：2026-05-13 01:20:00 +08:00
+
+### 编码前检查 - Task 4
+
+- 已查阅上下文摘要文件：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/context-summary-task-4.md`。
+- 已读取计划规格：`docs/superpowers/plans/2026-05-12-storyforge-phase1-engineering-plan.md` 的 Task 4 段落。
+- 已分析至少三个现有模式：`apps/api/app/domains/assets/router.py`、`apps/api/app/domains/assets/service.py`、`apps/api/tests/test_assets_api.py`。
+- 将使用以下可复用组件：`ContinuityRecord`、`ScenePacket`、`Asset`、`EvidenceLink`、`Book/Chapter/Scene`、`get_session`、TestClient 依赖覆盖夹具。
+- 将遵循命名约定：领域目录使用 snake_case，schema/service/router 分层，Pydantic 类使用 PascalCase。
+- 确认不重复造轮子：项目内此前只有资产 API 分层，没有连续性或 Scene Packet 路由与服务。
+
+### TDD 红灯记录
+
+- 已创建 `apps/api/tests/test_scene_packet.py`。
+- 已执行 `cd apps/api; uv run pytest tests/test_scene_packet.py -q`。
+- 结果：退出码 1，`3 failed`，失败原因为 `/api/continuity/chapter-approval` 返回 `404 Not Found`，符合路由尚未实现的预期。
+
+### 实现记录
+
+- 新增 `apps/api/app/domains/continuity/schemas.py`、`service.py`、`router.py`，章节批准接口写入上一章摘要、角色状态变化、伏笔变化、风格漂移、下一章继承约束五类记录。
+- 新增 `apps/api/app/domains/scene_packets/schemas.py`、`service.py`、`router.py`，Scene Packet 组装先读取章节、场景、结构化资产、连续性记录和证据链接，再按预算加入检索片段。
+- 修改 `apps/api/app/main.py` 注册连续性与场景上下文包路由。
+- 预算裁剪策略：硬约束、活跃角色、关系状态、风格规则、用户意图和证据链接先进入固定槽位；检索片段只使用剩余预算，预算不足时标记 `truncated=true`。
+
+### 本地验证结果
+
+- `cd apps/api; uv run pytest tests/test_scene_packet.py -q`：退出码 0，`3 passed in 1.90s`。
+- `cd apps/api; uv run pytest tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`：退出码 0，`22 passed in 5.92s`。
+- `cd apps/api; uv run python -m compileall app tests`：退出码 0。
+- `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`：退出码 0，OpenAPI 契约已生成。
+
+### 提交范围控制
+
+- 计划暂存 Task 4 代码、测试、OpenAPI 契约、`apps/api/app/main.py`、`.codex/operations-log.md` 和 `.codex/verification-report.md`。
+- 明确不暂存 `.superpowers/`、`docs/superpowers/specs/`、历史上下文草稿和其他代理未跟踪文件。
