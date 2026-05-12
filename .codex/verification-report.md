@@ -100,3 +100,65 @@ score: 92
 建议：通过。
 
 summary: 'Task 3 质量退回修复已完成，本地 pytest、test:api 与 OpenAPI 生成均通过；共享 OpenAPI 契约重新生成后无额外差异。'
+
+---
+
+# Task 4 验证报告：章节连续性与 Scene Packet
+
+生成时间：2026-05-13 01:25:00 +08:00
+
+## 1. 需求字段完整性
+
+- **目标**：实现章节批准后的连续性记录，以及可持久化、可预算裁剪、带证据链接的 Scene Packet。
+- **范围**：`apps/api/app/domains/continuity/`、`apps/api/app/domains/scene_packets/`、`apps/api/app/main.py`、`apps/api/tests/test_scene_packet.py`、OpenAPI 契约。
+- **交付物**：API schema/service/router、pytest 行为测试、OpenAPI JSON、操作日志与本验证报告。
+- **审查要点**：复用既有模型、不新增迁移、固定槽位、五类连续性记录、证据链接、预算统计、低预算优先保留硬约束。
+
+## 2. 原始意图覆盖
+
+- 已创建连续性路由、服务和契约，`POST /api/continuity/chapter-approval` 会写入五类 `ContinuityRecord`。
+- 已创建 Scene Packet 路由、服务和契约，`POST /api/scene-packets` 输入包含 `book_id`、`chapter_id`、`scene_goal`、`active_asset_ids`、`token_budget`。
+- 输出 `packet` 包含固定槽位：章节目标、活跃角色、关系状态、未回收伏笔、风格规则、必须包含事实、必须规避事实、用户意图、证据链接。
+- 输出包含 `budget_statistics` 和顶层 `evidence_links`，并将 `ScenePacket` 持久化到既有表。
+
+## 3. 本地验证记录
+
+1. `cd apps/api; uv run pytest tests/test_scene_packet.py -q`
+   - 红灯结果：退出码 1，`3 failed`，失败原因为新路由尚不存在。
+   - 绿灯结果：退出码 0，`3 passed in 1.90s`。
+2. `cd apps/api; uv run pytest tests/test_scene_packet.py tests/test_assets_api.py tests/test_domain_schema.py -q`
+   - 结果：退出码 0，`22 passed in 5.92s`。
+3. `cd apps/api; uv run python -m compileall app tests`
+   - 结果：退出码 0，`app` 与 `tests` 编译通过。
+4. `cd repo; powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1`
+   - 结果：退出码 0，输出 `已生成 OpenAPI 契约：...storyforge.openapi.json`。
+
+## 4. 技术维度评分
+
+- **代码质量**：28/30。API 分层保持清晰，服务层集中处理数据库校验、预算裁剪和证据组装。
+- **测试覆盖**：29/30。覆盖章节批准、固定槽位、证据链接、预算统计、低预算裁剪和持久化。
+- **规范遵循**：29/30。新增注释、测试说明和文档均为简体中文，复用既有模型和测试夹具。
+
+## 5. 战略维度评分
+
+- **需求匹配**：30/30。Task 4 明确要求的 API、字段、槽位、记录类型和验证均已覆盖。
+- **架构一致**：29/30。沿用 assets 的 router/service/schema 分层和 get_session 依赖，不新增表或迁移。
+- **风险评估**：18/20。预算估算使用轻量字符近似，满足当前本地验证；后续接入真实 tokenizer 时可替换估算函数。
+
+## 6. 审查清单
+
+- 需求字段完整性：通过。
+- 原始意图覆盖：通过。
+- 交付物映射：代码、测试、OpenAPI、操作日志和验证报告均已映射。
+- 依赖与风险评估：已覆盖数据库模型复用、FastAPI 路由、预算裁剪和证据追溯。
+- 审查结论留痕：本报告记录时间戳、验证命令、评分与建议。
+
+## 7. 综合结论
+
+```Scoring
+score: 94
+```
+
+建议：通过。
+
+summary: 'Task 4 已实现章节连续性记录与 Scene Packet API，本地目标测试、回归测试、compileall 和 OpenAPI 生成均通过；输出包含固定槽位、证据链接和预算统计。'

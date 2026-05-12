@@ -198,6 +198,220 @@
         "title": "AssetUpdate",
         "type": "object"
       },
+      "BudgetStatistics": {
+        "description": "预算统计说明上下文包是否发生检索片段裁剪。",
+        "properties": {
+          "reserved_tokens": {
+            "title": "Reserved Tokens",
+            "type": "integer"
+          },
+          "retrieval_tokens": {
+            "title": "Retrieval Tokens",
+            "type": "integer"
+          },
+          "token_budget": {
+            "title": "Token Budget",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "used_tokens": {
+            "title": "Used Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "token_budget",
+          "used_tokens",
+          "reserved_tokens",
+          "retrieval_tokens",
+          "truncated"
+        ],
+        "title": "BudgetStatistics",
+        "type": "object"
+      },
+      "ChapterApprovalCreate": {
+        "description": "章节批准时回写下一章需要继承的连续性事实。",
+        "properties": {
+          "chapter_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "character_state_changes": {
+            "additionalProperties": true,
+            "title": "Character State Changes",
+            "type": "object"
+          },
+          "foreshadowing_changes": {
+            "additionalProperties": true,
+            "title": "Foreshadowing Changes",
+            "type": "object"
+          },
+          "next_chapter_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next Chapter Constraints",
+            "type": "array"
+          },
+          "previous_chapter_summary": {
+            "minLength": 1,
+            "title": "Previous Chapter Summary",
+            "type": "string"
+          },
+          "style_drift": {
+            "minLength": 1,
+            "title": "Style Drift",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "previous_chapter_summary",
+          "style_drift"
+        ],
+        "title": "ChapterApprovalCreate",
+        "type": "object"
+      },
+      "ChapterApprovalRead": {
+        "description": "章节批准响应包含本次写入的连续性记录集合。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter_id": {
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/ContinuityRecordRead"
+            },
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "book_id",
+          "record_count",
+          "records"
+        ],
+        "title": "ChapterApprovalRead",
+        "type": "object"
+      },
+      "ContinuityRecordRead": {
+        "description": "连续性记录响应契约，保持数据库真相源可追溯。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "record_type": {
+            "title": "Record Type",
+            "type": "string"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "book_id",
+          "scene_id",
+          "record_type",
+          "subject",
+          "status",
+          "payload",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ContinuityRecordRead",
+        "type": "object"
+      },
+      "EvidenceLinkRead": {
+        "description": "证据链接响应用于追溯上下文来源。",
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "integer"
+          },
+          "evidence_type": {
+            "title": "Evidence Type",
+            "type": "string"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source_ref": {
+            "title": "Source Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "evidence_type",
+          "source_ref"
+        ],
+        "title": "EvidenceLinkRead",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -209,6 +423,120 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ScenePacketCreate": {
+        "description": "组装场景上下文包所需的显式输入。",
+        "properties": {
+          "active_asset_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Active Asset Ids",
+            "type": "array"
+          },
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "retrieval_snippets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Retrieval Snippets",
+            "type": "array"
+          },
+          "scene_goal": {
+            "minLength": 1,
+            "title": "Scene Goal",
+            "type": "string"
+          },
+          "token_budget": {
+            "exclusiveMinimum": 0.0,
+            "title": "Token Budget",
+            "type": "integer"
+          },
+          "user_intent": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "User Intent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book_id",
+          "chapter_id",
+          "scene_goal",
+          "active_asset_ids",
+          "token_budget"
+        ],
+        "title": "ScenePacketCreate",
+        "type": "object"
+      },
+      "ScenePacketRead": {
+        "description": "Scene Packet 响应契约，固定槽位保存在 packet 字段中。",
+        "properties": {
+          "budget_statistics": {
+            "$ref": "#/components/schemas/BudgetStatistics"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_links": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceLinkRead"
+            },
+            "title": "Evidence Links",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "packet": {
+            "additionalProperties": true,
+            "title": "Packet",
+            "type": "object"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "scene_id",
+          "status",
+          "packet",
+          "budget_statistics",
+          "evidence_links",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ScenePacketRead",
         "type": "object"
       },
       "ValidationError": {
@@ -462,6 +790,90 @@
         "summary": "Read Asset History Endpoint",
         "tags": [
           "资产中心"
+        ]
+      }
+    },
+    "/api/continuity/chapter-approval": {
+      "post": {
+        "description": "记录章节批准后的摘要、状态变化、伏笔变化和继承约束。",
+        "operationId": "approve_chapter_endpoint_api_continuity_chapter_approval_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChapterApprovalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterApprovalRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Chapter Endpoint",
+        "tags": [
+          "章节连续性"
+        ]
+      }
+    },
+    "/api/scene-packets": {
+      "post": {
+        "description": "为章节首个场景组装固定槽位 Scene Packet 并持久化。",
+        "operationId": "create_scene_packet_endpoint_api_scene_packets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenePacketCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenePacketRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Scene Packet Endpoint",
+        "tags": [
+          "场景上下文包"
         ]
       }
     }
