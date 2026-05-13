@@ -9,6 +9,7 @@ const apiTests = {
   judgeRepair: readFileSync('apps/api/tests/test_judge_repair.py', 'utf8'),
   approvalWriteback: readFileSync('apps/api/tests/test_approval_writeback.py', 'utf8'),
   exports: readFileSync('apps/api/tests/test_exports.py', 'utf8'),
+  phase1ClosedLoopApi: readFileSync('apps/api/tests/test_phase1_closed_loop_api.py', 'utf8'),
 };
 
 function assertOperation(path, method, tag) {
@@ -24,7 +25,7 @@ function assertSourceEvidence(source, markers) {
   }
 }
 
-test('第一阶段闭环 OpenAPI 暴露关键端点', () => {
+test('第一阶段契约检查确认 OpenAPI 暴露关键端点', () => {
   assert.equal(openapi.info?.title, 'StoryForge API');
   assertOperation('/api/assets', 'post', '资产中心');
   assertOperation('/api/assets', 'get', '资产中心');
@@ -36,7 +37,7 @@ test('第一阶段闭环 OpenAPI 暴露关键端点', () => {
   assertOperation('/api/books/{book_id}/exports/epub', 'get', '作品导出');
 });
 
-test('资产与 Scene Packet 覆盖创建作品、创建角色和风格资产、生成第一章上下文', () => {
+test('契约检查保留资产与 Scene Packet 关键字段，真实链路由 API pytest 执行', () => {
   assertSourceEvidence(apiTests.scenePacket, [
     'Book(',
     'Chapter(',
@@ -77,20 +78,20 @@ test('Judge 与 Repair 契约覆盖结构化问题单和定向修复补丁', () 
   assert.ok(repairSchema.properties.replacement_text, 'Repair 响应必须包含 replacement_text');
 });
 
-test('批准回写和下一章继承上一章状态形成连续性闭环', () => {
-  assertSourceEvidence(apiTests.approvalWriteback, [
+test('契约检查标记批准回写服务边界和下一章继承证据', () => {
+  assertSourceEvidence(apiTests.phase1ClosedLoopApi, [
+    'test_phase1_closed_loop_api_with_writeback_service_boundary',
     'approve_chapter_writeback',
-    'ContinuityRecord',
-    'approved_content',
-    'chapter_version',
-    'asset_diff',
-    'approval_writeback',
+    'Phase 1 边界',
+    'next_chapter_id',
+    '/api/books/{phase1_story',
   ]);
 
-  assertSourceEvidence(apiTests.scenePacket, [
+  assertSourceEvidence(apiTests.phase1ClosedLoopApi, [
     '林岚必须隐藏伤势',
-    'previous_chapter_summary',
-    'next_chapter_constraints',
+    '灯塔信号仍需保留',
+    'exports/markdown',
+    'exports/epub',
   ]);
 
   const approvalSchema = openapi.components.schemas.ChapterApprovalCreate;
@@ -98,7 +99,7 @@ test('批准回写和下一章继承上一章状态形成连续性闭环', () =>
   assert.ok(approvalSchema.properties.character_state_changes, '批准请求必须允许写入角色状态变化');
 });
 
-test('导出链路只输出已批准正文并覆盖 Markdown 与 EPUB', () => {
+test('契约检查确认导出链路只输出已批准正文并覆盖 Markdown 与 EPUB', () => {
   assertSourceEvidence(apiTests.exports, [
     'exports/markdown',
     'exports/epub',
@@ -115,3 +116,4 @@ test('导出链路只输出已批准正文并覆盖 Markdown 与 EPUB', () => {
   assert.ok(markdown.responses['200'], 'Markdown 导出必须提供 200 响应');
   assert.ok(epub.responses['200'], 'EPUB 导出必须提供 200 响应');
 });
+

@@ -16,17 +16,29 @@ try {
     runnableFiles.push(outputFile);
   }
 
-  const child = spawn(process.execPath, ['--test', ...runnableFiles], {
-    cwd: process.cwd(),
-    stdio: 'inherit',
-    shell: false,
-  });
-
-  const exitCode = await new Promise((resolve) => {
-    child.on('close', resolve);
-  });
-
-  process.exitCode = exitCode ?? 1;
+  const contractExitCode = await runCommand(process.execPath, ['--test', ...runnableFiles], process.cwd());
+  if (contractExitCode !== 0) {
+    process.exitCode = contractExitCode;
+  } else {
+    process.exitCode = await runCommand(
+      'uv',
+      ['run', 'pytest', 'tests/test_phase1_closed_loop_api.py', '-q'],
+      join(process.cwd(), 'apps/api'),
+    );
+  }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
+}
+
+function runCommand(command, args, cwd) {
+  const child = spawn(command, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32' && command === 'uv',
+  });
+
+  return new Promise((resolve) => {
+    child.on('error', () => resolve(1));
+    child.on('close', (code) => resolve(code ?? 1));
+  });
 }
