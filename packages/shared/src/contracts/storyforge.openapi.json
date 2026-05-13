@@ -758,6 +758,395 @@
         "title": "ScenePacketRead",
         "type": "object"
       },
+      "SeriesBookAttach": {
+        "description": "把作品加入系列时的顺序和继承策略。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "inheritance_policy": {
+            "default": "inherit_active",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Inheritance Policy",
+            "type": "string"
+          },
+          "ordinal": {
+            "exclusiveMinimum": 0.0,
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "book_id",
+          "ordinal"
+        ],
+        "title": "SeriesBookAttach",
+        "type": "object"
+      },
+      "SeriesBookRead": {
+        "description": "系列作品关联响应契约。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "inheritance_policy": {
+            "title": "Inheritance Policy",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "book_id",
+          "ordinal",
+          "inheritance_policy",
+          "payload",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeriesBookRead",
+        "type": "object"
+      },
+      "SeriesCreate": {
+        "description": "创建系列时提供的根信息。",
+        "properties": {
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "premise": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premise"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "SeriesCreate",
+        "type": "object"
+      },
+      "SeriesMemorySnapshotCreate": {
+        "description": "创建系列级记忆快照，快照来源仍需追溯到结构化事实。",
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "series_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "snapshot_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Snapshot Type",
+            "type": "string"
+          },
+          "source_continuity_record_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Continuity Record Id"
+          },
+          "subject": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "series_id",
+          "snapshot_type",
+          "subject"
+        ],
+        "title": "SeriesMemorySnapshotCreate",
+        "type": "object"
+      },
+      "SeriesMemorySnapshotRead": {
+        "description": "系列记忆快照响应契约。",
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Run Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "snapshot_type": {
+            "title": "Snapshot Type",
+            "type": "string"
+          },
+          "source_continuity_record_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Continuity Record Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "book_id",
+          "source_continuity_record_id",
+          "job_run_id",
+          "snapshot_type",
+          "subject",
+          "status",
+          "payload",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeriesMemorySnapshotRead",
+        "type": "object"
+      },
+      "SeriesMemorySummaryRead": {
+        "description": "系列记忆摘要聚合系列、作品、记忆快照和世界观条目。",
+        "properties": {
+          "books": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesSummaryBook"
+            },
+            "title": "Books",
+            "type": "array"
+          },
+          "latest_memory_snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesMemorySnapshotRead"
+            },
+            "title": "Latest Memory Snapshots",
+            "type": "array"
+          },
+          "series": {
+            "$ref": "#/components/schemas/SeriesRead"
+          },
+          "worldbuilding_entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Worldbuilding Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "series",
+          "books",
+          "latest_memory_snapshots",
+          "worldbuilding_entries"
+        ],
+        "title": "SeriesMemorySummaryRead",
+        "type": "object"
+      },
+      "SeriesRead": {
+        "description": "系列响应契约，附带当前记忆快照数量。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "premise": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premise"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "versioned_memory_count": {
+            "default": 0,
+            "title": "Versioned Memory Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "premise",
+          "payload",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeriesRead",
+        "type": "object"
+      },
+      "SeriesSummaryBook": {
+        "description": "系列记忆摘要中的作品条目。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "inheritance_policy": {
+            "title": "Inheritance Policy",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "book_id",
+          "ordinal",
+          "inheritance_policy"
+        ],
+        "title": "SeriesSummaryBook",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -796,6 +1185,85 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WorldbuildingEntryCreate": {
+        "description": "创建世界观条目时提供的结构化内容。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "entry_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "book_id",
+          "entry_type",
+          "name"
+        ],
+        "title": "WorldbuildingEntryCreate",
+        "type": "object"
+      },
+      "WorldbuildingEntryUpdate": {
+        "description": "更新世界观条目会沿用资产谱系并创建新版本。",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "WorldbuildingEntryUpdate",
         "type": "object"
       }
     }
@@ -1263,6 +1731,338 @@
         "summary": "Create Scene Packet Endpoint",
         "tags": [
           "场景上下文包"
+        ]
+      }
+    },
+    "/api/series": {
+      "post": {
+        "description": "创建系列根实体。",
+        "operationId": "create_series_endpoint_api_series_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Series Endpoint",
+        "tags": [
+          "系列记忆"
+        ]
+      }
+    },
+    "/api/series/{series_id}/books": {
+      "post": {
+        "description": "把已有作品加入系列。",
+        "operationId": "attach_book_endpoint_api_series__series_id__books_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "title": "Series Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesBookAttach"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesBookRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Book Endpoint",
+        "tags": [
+          "系列记忆"
+        ]
+      }
+    },
+    "/api/series/{series_id}/memory-snapshots": {
+      "post": {
+        "description": "创建系列级记忆快照。",
+        "operationId": "create_memory_snapshot_endpoint_api_series__series_id__memory_snapshots_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "title": "Series Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesMemorySnapshotCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesMemorySnapshotRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Memory Snapshot Endpoint",
+        "tags": [
+          "系列记忆"
+        ]
+      }
+    },
+    "/api/series/{series_id}/memory-summary": {
+      "get": {
+        "description": "读取系列记忆摘要。",
+        "operationId": "read_memory_summary_endpoint_api_series__series_id__memory_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "title": "Series Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesMemorySummaryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Memory Summary Endpoint",
+        "tags": [
+          "系列记忆"
+        ]
+      }
+    },
+    "/api/worldbuilding/entries": {
+      "get": {
+        "description": "列出指定作品下世界观条目的最新版本。",
+        "operationId": "list_worldbuilding_entries_endpoint_api_worldbuilding_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Book Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssetRead"
+                  },
+                  "title": "Response List Worldbuilding Entries Endpoint Api Worldbuilding Entries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Worldbuilding Entries Endpoint",
+        "tags": [
+          "世界观中心"
+        ]
+      },
+      "post": {
+        "description": "创建世界观中心条目。",
+        "operationId": "create_worldbuilding_entry_endpoint_api_worldbuilding_entries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorldbuildingEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Worldbuilding Entry Endpoint",
+        "tags": [
+          "世界观中心"
+        ]
+      }
+    },
+    "/api/worldbuilding/entries/{asset_id}": {
+      "patch": {
+        "description": "更新世界观条目并创建新版本。",
+        "operationId": "update_worldbuilding_entry_endpoint_api_worldbuilding_entries__asset_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorldbuildingEntryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Worldbuilding Entry Endpoint",
+        "tags": [
+          "世界观中心"
         ]
       }
     }
