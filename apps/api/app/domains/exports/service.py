@@ -31,6 +31,11 @@ def build_markdown_export(session: Session, book_id: int) -> str:
 
     book, scenes = _load_export_source(session, book_id)
     lines = [f"# {book.title}", ""]
+    chapter_scene_counts: dict[tuple[int, str], int] = {}
+    for scene in scenes:
+        chapter_key = (scene.chapter_ordinal, scene.chapter_title)
+        chapter_scene_counts[chapter_key] = chapter_scene_counts.get(chapter_key, 0) + 1
+
     current_chapter: tuple[int, str] | None = None
     for scene in scenes:
         chapter_key = (scene.chapter_ordinal, scene.chapter_title)
@@ -40,7 +45,7 @@ def build_markdown_export(session: Session, book_id: int) -> str:
             lines.append(f"## 第 {scene.chapter_ordinal} 章 {scene.chapter_title}")
             lines.append("")
             current_chapter = chapter_key
-        if len([item for item in scenes if item.chapter_ordinal == scene.chapter_ordinal]) > 1:
+        if chapter_scene_counts[chapter_key] > 1:
             lines.append(f"### {scene.scene_title}")
             lines.append("")
         lines.append(scene.content.strip())
