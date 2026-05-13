@@ -257,4 +257,3 @@ def _create_scene_packet(
     )
     assert response.status_code == 201, response.text
     return response.json()
-
