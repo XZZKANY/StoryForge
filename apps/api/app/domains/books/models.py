@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.domains.continuity.models import ContinuityRecord, ScenePacket
     from app.domains.jobs.models import JobRun
     from app.domains.judge.models import JudgeIssue, RepairPatch
+    from app.domains.series.models import SeriesBook, SeriesMemorySnapshot, StylePackApplication
 
 
 class Book(IdMixin, TimestampMixin, Base):
@@ -27,6 +28,9 @@ class Book(IdMixin, TimestampMixin, Base):
     assets: Mapped[list[Asset]] = relationship(back_populates="book")
     continuity_records: Mapped[list[ContinuityRecord]] = relationship(back_populates="book")
     job_runs: Mapped[list[JobRun]] = relationship(back_populates="book")
+    series_links: Mapped[list[SeriesBook]] = relationship(back_populates="book")
+    series_memory_snapshots: Mapped[list[SeriesMemorySnapshot]] = relationship(back_populates="book")
+    style_pack_applications: Mapped[list[StylePackApplication]] = relationship(back_populates="book")
 
 
 class Chapter(IdMixin, TimestampMixin, Base):
@@ -70,3 +74,4 @@ from app.domains import assets as _assets_domain  # noqa: E402,F401
 from app.domains import continuity as _continuity_domain  # noqa: E402,F401
 from app.domains import jobs as _jobs_domain  # noqa: E402,F401
 from app.domains import judge as _judge_domain  # noqa: E402,F401
+from app.domains import series as _series_domain  # noqa: E402,F401

@@ -6,6 +6,7 @@ from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
+from app.domains.series.models import Series, SeriesBook, SeriesMemorySnapshot, StylePackApplication
 
 __all__ = [
     "Base",
@@ -19,4 +20,8 @@ __all__ = [
     "RepairPatch",
     "JobRun",
     "EvidenceLink",
+    "Series",
+    "SeriesBook",
+    "SeriesMemorySnapshot",
+    "StylePackApplication",
 ]

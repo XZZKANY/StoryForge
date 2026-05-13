@@ -24,7 +24,8 @@ def upgrade() -> None:
 
     op.add_column("assets", sa.Column("lineage_key", sa.String(length=80), nullable=True))
     op.execute("UPDATE assets SET lineage_key = 'asset-' || id WHERE lineage_key IS NULL")
-    op.alter_column("assets", "lineage_key", nullable=False)
+    with op.batch_alter_table("assets") as batch_op:
+        batch_op.alter_column("lineage_key", existing_type=sa.String(length=80), nullable=False)
     op.create_index(op.f("ix_assets_lineage_key"), "assets", ["lineage_key"], unique=False)
 
 
