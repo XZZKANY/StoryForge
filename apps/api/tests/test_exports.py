@@ -104,3 +104,104 @@ def test_epub_export_creates_minimal_valid_zip_with_approved_body(
     assert "灯塔余烬" in content
     assert "旧伤" in content
     assert str(approved_story["approved_content"]) in content
+
+
+def test_markdown_export_returns_404_when_book_missing(client: TestClient) -> None:
+    """作品不存在时导出返回 404。"""
+
+    response = client.get("/api/books/9999/exports/markdown")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "作品不存在，无法导出。"
+
+
+def test_markdown_export_returns_404_when_no_approved_body(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """作品没有已批准正文时导出返回 404。"""
+
+    with session_factory() as session:
+        book = Book(title="空白草稿", status="draft", premise="尚未批准。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=1, title="草稿章", status="draft", summary="未批准。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="草稿场景", status="draft", content="草稿正文")
+        session.add(scene)
+        session.commit()
+        book_id = book.id
+
+    response = client.get(f"/api/books/{book_id}/exports/markdown")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "作品没有可导出的已批准正文。"
+
+
+def test_markdown_export_filters_unapproved_chapters_and_scenes(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """未批准章节和未批准场景不会出现在导出内容中。"""
+
+    with session_factory() as session:
+        book = Book(title="过滤测试", status="draft", premise="验证导出过滤。")
+        session.add(book)
+        session.flush()
+        approved_chapter = Chapter(book_id=book.id, ordinal=1, title="可导出章", status="approved", summary="已批准。")
+        draft_chapter = Chapter(book_id=book.id, ordinal=2, title="未批准章", status="draft", summary="未批准。")
+        session.add_all([approved_chapter, draft_chapter])
+        session.flush()
+        session.add_all(
+            [
+                Scene(chapter_id=approved_chapter.id, ordinal=1, title="已批准场景", status="approved", content="应该导出的正文"),
+                Scene(chapter_id=approved_chapter.id, ordinal=2, title="未批准场景", status="draft", content="不应导出的场景正文"),
+                Scene(chapter_id=draft_chapter.id, ordinal=1, title="章节未批准场景", status="approved", content="不应导出的章节正文"),
+            ]
+        )
+        session.commit()
+        book_id = book.id
+
+    response = client.get(f"/api/books/{book_id}/exports/markdown")
+
+    assert response.status_code == 200, response.text
+    assert "应该导出的正文" in response.text
+    assert "不应导出的场景正文" not in response.text
+    assert "不应导出的章节正文" not in response.text
+    assert "未批准章" not in response.text
+
+
+def test_markdown_export_orders_chapters_and_scenes_by_ordinal(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """多章节多场景按章节序号和场景序号稳定排序。"""
+
+    with session_factory() as session:
+        book = Book(title="排序测试", status="draft", premise="验证导出排序。")
+        session.add(book)
+        session.flush()
+        chapter_two = Chapter(book_id=book.id, ordinal=2, title="第二章", status="approved", summary="后导出。")
+        chapter_one = Chapter(book_id=book.id, ordinal=1, title="第一章", status="approved", summary="先导出。")
+        session.add_all([chapter_two, chapter_one])
+        session.flush()
+        session.add_all(
+            [
+                Scene(chapter_id=chapter_two.id, ordinal=2, title="第二章第二场", status="approved", content="四号正文"),
+                Scene(chapter_id=chapter_one.id, ordinal=2, title="第一章第二场", status="approved", content="二号正文"),
+                Scene(chapter_id=chapter_two.id, ordinal=1, title="第二章第一场", status="approved", content="三号正文"),
+                Scene(chapter_id=chapter_one.id, ordinal=1, title="第一章第一场", status="approved", content="一号正文"),
+            ]
+        )
+        session.commit()
+        book_id = book.id
+
+    response = client.get(f"/api/books/{book_id}/exports/markdown")
+
+    assert response.status_code == 200, response.text
+    ordered_markers = ["## 第 1 章 第一章", "一号正文", "二号正文", "## 第 2 章 第二章", "三号正文", "四号正文"]
+    positions = [response.text.index(marker) for marker in ordered_markers]
+    assert positions == sorted(positions)
+    assert response.text.index("### 第一章第一场") < response.text.index("### 第一章第二场")
+    assert response.text.index("### 第二章第一场") < response.text.index("### 第二章第二场")

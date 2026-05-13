@@ -120,3 +120,113 @@ def test_approval_writeback_creates_version_diff_continuity_and_evidence(
     assert records[0].payload["approved_content"] == approved_text
     assert records[0].payload["final_asset_id"] == final_asset.id
     assert records[0].payload["diff_asset_id"] == diff_asset.id
+
+
+def _assert_approval_writeback_state_clean(
+    session: Session,
+    approval_context: dict[str, int],
+    expected_asset_count: int,
+) -> None:
+    """确认失败回写没有污染正文、状态和追踪记录。"""
+
+    scene = session.get(Scene, approval_context["scene_id"])
+    chapter = session.get(Chapter, approval_context["chapter_id"])
+    draft_asset = session.get(Asset, approval_context["draft_asset_id"])
+    assets = session.scalars(select(Asset).order_by(Asset.id)).all()
+    links = session.scalars(select(EvidenceLink).order_by(EvidenceLink.id)).all()
+    records = session.scalars(select(ContinuityRecord).order_by(ContinuityRecord.id)).all()
+
+    assert scene is not None
+    assert scene.status == "draft"
+    assert scene.content == "旧版本正文"
+    assert chapter is not None
+    assert chapter.status == "draft"
+    assert draft_asset is not None
+    assert draft_asset.status == "draft"
+    assert len(assets) == expected_asset_count
+    assert all(asset.asset_type == "chapter_draft" for asset in assets)
+    assert links == []
+    assert records == []
+
+
+def test_approval_writeback_rolls_back_when_source_asset_missing(
+    session_factory: sessionmaker[Session],
+    approval_context: dict[str, int],
+) -> None:
+    """来源资产不存在时抛出错误，并且不留下任何部分写入。"""
+
+    from app.domains.books.lineage_service import (
+        ChapterWritebackApproval,
+        ChapterWritebackError,
+        approve_chapter_writeback,
+    )
+
+    with session_factory() as session:
+        expected_asset_count = len(session.scalars(select(Asset)).all())
+        missing_asset_id = approval_context["draft_asset_id"] + 999
+
+        with pytest.raises(ChapterWritebackError):
+            approve_chapter_writeback(
+                session,
+                ChapterWritebackApproval(
+                    book_id=approval_context["book_id"],
+                    chapter_id=approval_context["chapter_id"],
+                    approved_content="不应写入的批准正文",
+                    diff_summary="不应写入的差异摘要",
+                    approved_by="测试审批员",
+                    source_asset_ids=[missing_asset_id],
+                ),
+            )
+
+        _assert_approval_writeback_state_clean(session, approval_context, expected_asset_count)
+
+
+def test_approval_writeback_rolls_back_when_source_asset_belongs_to_other_book(
+    session_factory: sessionmaker[Session],
+    approval_context: dict[str, int],
+) -> None:
+    """来源资产属于其他作品时抛出错误，并且不污染当前作品与跨作品资产。"""
+
+    from app.domains.books.lineage_service import (
+        ChapterWritebackApproval,
+        ChapterWritebackError,
+        approve_chapter_writeback,
+    )
+
+    with session_factory() as session:
+        other_book = Book(title="远岸回声", status="draft", premise="另一部作品。")
+        session.add(other_book)
+        session.flush()
+        other_asset = Asset(
+            book_id=other_book.id,
+            scene_id=None,
+            asset_type="chapter_draft",
+            lineage_key="other-book-draft",
+            name="其他作品草稿",
+            status="draft",
+            payload={"content": "其他作品正文"},
+            version=1,
+        )
+        session.add(other_asset)
+        session.commit()
+        expected_asset_count = len(session.scalars(select(Asset)).all())
+        other_asset_id = other_asset.id
+
+        with pytest.raises(ChapterWritebackError):
+            approve_chapter_writeback(
+                session,
+                ChapterWritebackApproval(
+                    book_id=approval_context["book_id"],
+                    chapter_id=approval_context["chapter_id"],
+                    approved_content="不应写入的批准正文",
+                    diff_summary="不应写入的差异摘要",
+                    approved_by="测试审批员",
+                    source_asset_ids=[other_asset_id],
+                ),
+            )
+
+        _assert_approval_writeback_state_clean(session, approval_context, expected_asset_count)
+        refreshed_other_asset = session.get(Asset, other_asset_id)
+        assert refreshed_other_asset is not None
+        assert refreshed_other_asset.status == "draft"
+        assert refreshed_other_asset.payload == {"content": "其他作品正文"}
