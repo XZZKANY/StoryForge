@@ -1012,6 +1012,88 @@
         ]
       }
     },
+    "/api/books/{book_id}/exports/epub": {
+      "get": {
+        "description": "导出作品已批准章节正文为最小 EPUB。",
+        "operationId": "export_book_epub_api_books__book_id__exports_epub_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Book Epub",
+        "tags": [
+          "作品导出"
+        ]
+      }
+    },
+    "/api/books/{book_id}/exports/markdown": {
+      "get": {
+        "description": "导出作品已批准章节正文为 Markdown。",
+        "operationId": "export_book_markdown_api_books__book_id__exports_markdown_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Book Markdown",
+        "tags": [
+          "作品导出"
+        ]
+      }
+    },
     "/api/continuity/chapter-approval": {
       "post": {
         "description": "记录章节批准后的摘要、状态变化、伏笔变化和继承约束。",
