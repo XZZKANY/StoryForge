@@ -377,6 +377,73 @@
         "title": "ContinuityRecordRead",
         "type": "object"
       },
+      "EffectiveStyleRulesRead": {
+        "description": "合并后的风格规则响应。",
+        "properties": {
+          "banned_phrases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Banned Phrases",
+            "type": "array"
+          },
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "preferred_patterns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Preferred Patterns",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "style_pack_asset_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Style Pack Asset Ids",
+            "type": "array"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "required": [
+          "book_id",
+          "scene_id",
+          "style_pack_asset_ids",
+          "rules"
+        ],
+        "title": "EffectiveStyleRulesRead",
+        "type": "object"
+      },
       "EvidenceLinkRead": {
         "description": "证据链接响应用于追溯上下文来源。",
         "properties": {
@@ -1145,6 +1212,217 @@
           "inheritance_policy"
         ],
         "title": "SeriesSummaryBook",
+        "type": "object"
+      },
+      "StylePackApplicationRead": {
+        "description": "风格包应用响应契约。",
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "style_pack_asset_id": {
+            "title": "Style Pack Asset Id",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "style_pack_asset_id",
+          "series_id",
+          "book_id",
+          "scene_id",
+          "status",
+          "payload",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "StylePackApplicationRead",
+        "type": "object"
+      },
+      "StylePackApplyCreate": {
+        "description": "把风格包应用到系列、作品或场景。",
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "style_pack_asset_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Style Pack Asset Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "style_pack_asset_id"
+        ],
+        "title": "StylePackApplyCreate",
+        "type": "object"
+      },
+      "StylePackCreate": {
+        "description": "创建可复用风格包。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "book_id",
+          "name"
+        ],
+        "title": "StylePackCreate",
+        "type": "object"
+      },
+      "StylePackUpdate": {
+        "description": "更新风格包会创建新资产版本。",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "StylePackUpdate",
         "type": "object"
       },
       "ValidationError": {
@@ -1922,6 +2200,215 @@
         "summary": "Read Memory Summary Endpoint",
         "tags": [
           "系列记忆"
+        ]
+      }
+    },
+    "/api/style-packs": {
+      "post": {
+        "description": "创建可复用风格包。",
+        "operationId": "create_style_pack_endpoint_api_style_packs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePackCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Style Pack Endpoint",
+        "tags": [
+          "风格包"
+        ]
+      }
+    },
+    "/api/style-packs/effective-rules": {
+      "get": {
+        "description": "读取作品或场景生效的风格规则。",
+        "operationId": "read_effective_style_rules_endpoint_api_style_packs_effective_rules_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Book Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scene_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scene Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveStyleRulesRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Effective Style Rules Endpoint",
+        "tags": [
+          "风格包"
+        ]
+      }
+    },
+    "/api/style-packs/{asset_id}": {
+      "patch": {
+        "description": "更新风格包并创建新版本。",
+        "operationId": "update_style_pack_endpoint_api_style_packs__asset_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePackUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Style Pack Endpoint",
+        "tags": [
+          "风格包"
+        ]
+      }
+    },
+    "/api/style-packs/{asset_id}/applications": {
+      "post": {
+        "description": "把风格包应用到系列、作品或场景。",
+        "operationId": "apply_style_pack_endpoint_api_style_packs__asset_id__applications_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePackApplyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StylePackApplicationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Style Pack Endpoint",
+        "tags": [
+          "风格包"
         ]
       }
     },
