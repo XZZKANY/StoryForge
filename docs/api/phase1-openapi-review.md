@@ -1,10 +1,10 @@
 # Phase 1 OpenAPI 闭环审查
 
-生成时间：2026-05-13 11:55:00 +08:00
+生成时间：2026-05-13 00:00:00 +08:00
 
 ## 审查范围
 
-本审查基于 `packages/shared/src/contracts/storyforge.openapi.json`，用于确认 StoryForge 第一阶段闭环所需 API 已暴露给前端和本地契约测试。当前仓库没有 Playwright 依赖，且既有前端测试采用 Node 原生测试执行契约检查，因此 Task 9 采用 Node/TypeScript 契约式 e2e，避免为闭环验收新增浏览器重依赖。
+本审查基于 `packages/shared/src/contracts/storyforge.openapi.json`、`tests/e2e/phase1-closed-loop.spec.ts` 和 `apps/api/tests/test_phase1_closed_loop_api.py`。Task 9 规格修复后，`pnpm e2e` 不再只做静态字符串契约检查，而是执行“Node/TypeScript OpenAPI 契约检查 + FastAPI TestClient 真实 API 闭环 pytest”。
 
 ## 关键端点与用途
 
@@ -23,14 +23,21 @@
 
 ## 闭环覆盖结论
 
-- 创建作品、章节和场景目前由 API 测试夹具直接写入 `Book`、`Chapter`、`Scene` 模型，作为本地契约式 e2e 的稳定前置状态。
-- 角色资产和风格资产通过资产模型与 `/api/assets` OpenAPI 契约共同验证，`Scene Packet` 测试证明这些资产会进入上下文包。
-- Judge 与 Repair 端点均在 OpenAPI 中暴露，并由 `apps/api/tests/test_judge_repair.py` 验证结构化问题单和定向修复补丁。
-- 批准回写由 `apps/api/tests/test_approval_writeback.py` 验证最终正文、资产谱系、差异资产、证据链接和连续性记录。
-- 下一章继承由 `apps/api/tests/test_scene_packet.py` 验证批准产生的 `next_chapter_constraints` 会进入后续 Scene Packet 的“必须包含事实”。
-- 导出链路由 `apps/api/tests/test_exports.py` 验证 Markdown 与 EPUB 只包含已批准内容，并按章节和场景序号排序。
+- `tests/e2e/phase1-closed-loop.spec.ts` 只负责 OpenAPI 与测试证据契约检查，避免再声称静态检查等同完整闭环。
+- `apps/api/tests/test_phase1_closed_loop_api.py` 使用 FastAPI `TestClient` 和 SQLite 内存库执行真实 HTTP API 链路。
+- 作品、章节和场景因当前缺少创建路由，按规格由测试夹具直接写入 `Book`、`Chapter`、`Scene`。
+- 角色资产和风格资产通过 `POST /api/assets` 创建，并进入 `POST /api/scene-packets` 生成的上下文包。
+- 连续性通过 `POST /api/continuity/chapter-approval` 写入，下一章继承通过后续 `POST /api/scene-packets` 验证。
+- Judge 与 Repair 通过 `POST /api/judge/issues` 和 `POST /api/repair/patches` 生成结构化问题单和定向补丁。
+- 批准回写当前无 HTTP 路由，测试显式调用 `approve_chapter_writeback` 服务，并在测试名中标注这是 Phase 1 回写服务边界。
+- Markdown 与 EPUB 导出通过真实 `GET /api/books/{book_id}/exports/markdown` 和 `GET /api/books/{book_id}/exports/epub` 验证。
+
+## 验证记录
+
+- `uv run pytest tests/test_phase1_closed_loop_api.py -q`：通过，`1 passed`。
+- `pnpm e2e`：由 `scripts/run-e2e.mjs` 先执行 Node 契约检查，再进入 `apps/api` 执行上述 pytest。
 
 ## 风险与后续
 
-- OpenAPI 对 FastAPI 原始 `Response` 导出端点的媒体类型描述仍较弱，目前通过 API 测试验证真实 `content-type`；后续可补充 `responses` 元数据提升契约表达。
-- 当前闭环 e2e 是契约式本地验收，不启动浏览器；如后续引入 Playwright，应保留本测试作为快速回归，再补充真实页面流程。
+- OpenAPI 对 FastAPI 原始 `Response` 导出端点的媒体类型描述仍较弱，目前通过真实 API 测试验证响应头；后续可补充 `responses` 元数据提升契约表达。
+- 批准回写缺少 HTTP 路由，当前验收明确落在服务层边界；后续新增路由时应把 pytest 中的服务调用替换为 HTTP API 调用。
