@@ -16,3 +16,5 @@ playwright-report/
 minio-data/
 postgres-data/
 redis-data/
+.superpowers/
+*.tsbuildinfo
