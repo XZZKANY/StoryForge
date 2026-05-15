@@ -198,6 +198,146 @@
         "title": "AssetUpdate",
         "type": "object"
       },
+      "BatchRefineryItemCreate": {
+        "description": "批量精修中的单个场景输入。",
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "evidence_links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence Links",
+            "type": "array"
+          },
+          "required_facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Facts",
+            "type": "array"
+          },
+          "scene_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "scene_packet_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Packet Id"
+          },
+          "style_rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Style Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scene_id",
+          "content"
+        ],
+        "title": "BatchRefineryItemCreate",
+        "type": "object"
+      },
+      "BatchRefineryRunCreate": {
+        "description": "批量精修请求，当前阶段立即在本地同步执行。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchRefineryItemCreate"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "book_id",
+          "items"
+        ],
+        "title": "BatchRefineryRunCreate",
+        "type": "object"
+      },
+      "BatchRefineryRunRead": {
+        "description": "批量精修运行记录响应。",
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "progress": {
+            "additionalProperties": true,
+            "title": "Progress",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "book_id",
+          "status",
+          "progress",
+          "error_message",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BatchRefineryRunRead",
+        "type": "object"
+      },
       "BudgetStatistics": {
         "description": "预算统计说明上下文包是否发生检索片段裁剪。",
         "properties": {
@@ -758,6 +898,342 @@
         "title": "ScenePacketRead",
         "type": "object"
       },
+      "SeriesCreate": {
+        "description": "创建系列根实体的输入契约。",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "SeriesCreate",
+        "type": "object"
+      },
+      "SeriesMemoryCreate": {
+        "description": "创建系列记忆首版本的输入契约。",
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesMemoryEvidenceCreate"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "memory_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Memory Type",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_type",
+          "subject"
+        ],
+        "title": "SeriesMemoryCreate",
+        "type": "object"
+      },
+      "SeriesMemoryEvidenceCreate": {
+        "description": "创建系列记忆时附带的来源证据。",
+        "properties": {
+          "evidence_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Evidence Type",
+            "type": "string"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source_ref": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Source Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_type",
+          "source_ref"
+        ],
+        "title": "SeriesMemoryEvidenceCreate",
+        "type": "object"
+      },
+      "SeriesMemoryEvidenceRead": {
+        "description": "系列记忆证据响应契约。",
+        "properties": {
+          "evidence_type": {
+            "title": "Evidence Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source_ref": {
+            "title": "Source Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "evidence_type",
+          "source_ref",
+          "rationale"
+        ],
+        "title": "SeriesMemoryEvidenceRead",
+        "type": "object"
+      },
+      "SeriesMemoryRead": {
+        "description": "系列记忆响应契约，包含证据与版本号。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesMemoryEvidenceRead"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lineage_key": {
+            "title": "Lineage Key",
+            "type": "string"
+          },
+          "memory_type": {
+            "title": "Memory Type",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "series_id": {
+            "title": "Series Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "series_id",
+          "memory_type",
+          "lineage_key",
+          "subject",
+          "status",
+          "payload",
+          "version",
+          "evidence",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeriesMemoryRead",
+        "type": "object"
+      },
+      "SeriesMemoryUpdate": {
+        "description": "更新系列记忆会产生新版本，未提供字段沿用上一版本。",
+        "properties": {
+          "evidence": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SeriesMemoryEvidenceCreate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "memory_type": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Type"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "title": "SeriesMemoryUpdate",
+        "type": "object"
+      },
+      "SeriesRead": {
+        "description": "系列根实体响应契约。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SeriesRead",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -796,6 +1272,181 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WorldbuildingCenterRead": {
+        "description": "完整世界观中心聚合响应。",
+        "properties": {
+          "chapter_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Chapter Constraints",
+            "type": "array"
+          },
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Characters",
+            "type": "array"
+          },
+          "cross_book_constraints": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingMemoryRead"
+            },
+            "title": "Cross Book Constraints",
+            "type": "array"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Organizations",
+            "type": "array"
+          },
+          "series": {
+            "$ref": "#/components/schemas/WorldbuildingSeriesRead"
+          },
+          "unresolved_foreshadowing": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Unresolved Foreshadowing",
+            "type": "array"
+          },
+          "world_rules": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingMemoryRead"
+            },
+            "title": "World Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "series",
+          "characters",
+          "locations",
+          "organizations",
+          "world_rules",
+          "unresolved_foreshadowing",
+          "cross_book_constraints",
+          "chapter_constraints"
+        ],
+        "title": "WorldbuildingCenterRead",
+        "type": "object"
+      },
+      "WorldbuildingItemRead": {
+        "description": "世界观中心统一条目，保留来源和结构化载荷。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "source",
+          "payload"
+        ],
+        "title": "WorldbuildingItemRead",
+        "type": "object"
+      },
+      "WorldbuildingMemoryRead": {
+        "description": "来自系列级记忆的世界规则或跨书约束。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "type",
+          "source",
+          "payload"
+        ],
+        "title": "WorldbuildingMemoryRead",
+        "type": "object"
+      },
+      "WorldbuildingSeriesRead": {
+        "description": "世界观中心中的系列摘要。",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "description"
+        ],
+        "title": "WorldbuildingSeriesRead",
         "type": "object"
       }
     }
@@ -1009,6 +1660,91 @@
         "summary": "Read Asset History Endpoint",
         "tags": [
           "资产中心"
+        ]
+      }
+    },
+    "/api/batch-refinery/runs": {
+      "post": {
+        "description": "同步执行批量精修，并返回 JobRun 进度明细。",
+        "operationId": "create_batch_refinery_run_api_batch_refinery_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRefineryRunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchRefineryRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Batch Refinery Run",
+        "tags": [
+          "批量精修"
+        ]
+      }
+    },
+    "/api/batch-refinery/runs/{job_id}": {
+      "get": {
+        "description": "读取批量精修 JobRun 明细，供恢复和重试前检查。",
+        "operationId": "read_batch_refinery_run_api_batch_refinery_runs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchRefineryRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Batch Refinery Run",
+        "tags": [
+          "批量精修"
         ]
       }
     },
@@ -1263,6 +1999,325 @@
         "summary": "Create Scene Packet Endpoint",
         "tags": [
           "场景上下文包"
+        ]
+      }
+    },
+    "/api/series": {
+      "post": {
+        "description": "创建承载跨书记忆的系列根实体。",
+        "operationId": "create_series_endpoint_api_series_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Series Endpoint",
+        "tags": [
+          "系列级记忆"
+        ]
+      }
+    },
+    "/api/series/memories/{memory_id}": {
+      "patch": {
+        "description": "更新系列级记忆并创建新版本。",
+        "operationId": "update_series_memory_endpoint_api_series_memories__memory_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "memory_id",
+            "required": true,
+            "schema": {
+              "title": "Memory Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesMemoryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesMemoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Series Memory Endpoint",
+        "tags": [
+          "系列级记忆"
+        ]
+      }
+    },
+    "/api/series/memories/{memory_id}/history": {
+      "get": {
+        "description": "读取同一系列记忆谱系的全部版本历史。",
+        "operationId": "read_series_memory_history_endpoint_api_series_memories__memory_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "memory_id",
+            "required": true,
+            "schema": {
+              "title": "Memory Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeriesMemoryRead"
+                  },
+                  "title": "Response Read Series Memory History Endpoint Api Series Memories  Memory Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Series Memory History Endpoint",
+        "tags": [
+          "系列级记忆"
+        ]
+      }
+    },
+    "/api/series/{series_id}/memories": {
+      "get": {
+        "description": "读取指定系列下每条记忆谱系的最新版本。",
+        "operationId": "list_series_memories_endpoint_api_series__series_id__memories_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "title": "Series Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "memory_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Memory Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeriesMemoryRead"
+                  },
+                  "title": "Response List Series Memories Endpoint Api Series  Series Id  Memories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Series Memories Endpoint",
+        "tags": [
+          "系列级记忆"
+        ]
+      },
+      "post": {
+        "description": "创建系列级记忆首版本。",
+        "operationId": "create_series_memory_endpoint_api_series__series_id__memories_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "title": "Series Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesMemoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesMemoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Series Memory Endpoint",
+        "tags": [
+          "系列级记忆"
+        ]
+      }
+    },
+    "/api/worldbuilding/center": {
+      "get": {
+        "description": "读取系列与作品范围下的世界观中心聚合结果。",
+        "operationId": "read_worldbuilding_center_endpoint_api_worldbuilding_center_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Series Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldbuildingCenterRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Worldbuilding Center Endpoint",
+        "tags": [
+          "世界观中心"
         ]
       }
     }

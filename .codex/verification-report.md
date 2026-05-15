@@ -1,55 +1,65 @@
 # 验证报告
 
-生成时间：2026-05-13 00:00:00 +08:00
+生成时间：2026-05-16 00:00:00 +08:00
 
-## 审查结论
+## 审查范围
 
-综合评分：94/100
+- `apps/api/app/domains/batch_refinery/schemas.py`
+- `apps/api/app/domains/batch_refinery/service.py`
+- `apps/api/app/domains/batch_refinery/router.py`
+- `apps/api/tests/test_batch_refinery.py`
+- `apps/api/app/main.py`
+- `packages/shared/src/contracts/storyforge.openapi.json`
+- `.codex/context-summary-batch-refinery.md`
+- `.codex/operations-log.md`
 
-建议：通过
+## 需求字段完整性
 
-## 需求覆盖
+- 目标：为多个章节或场景批量执行 Judge 与 Repair 契约。
+- 范围：批量请求、逐项问题生成、补丁生成、部分失败记录、JobRun 明细查询和可恢复状态。
+- 交付物：后端服务、路由、测试、OpenAPI 契约、上下文摘要、操作日志、验证报告。
+- 审查要点：简体中文、本地验证、复用 Judge/Repair/JobRun、不接真实 LLM。
 
-- 目标：修复 Task 9 规格审查失败，将第一阶段 e2e 从静态契约测试升级为“契约检查 + FastAPI TestClient 真实 API 闭环”。
-- 范围：新增 `apps/api/tests/test_phase1_closed_loop_api.py`，修改 `scripts/run-e2e.mjs`，更新 `tests/e2e/phase1-closed-loop.spec.ts`、`docs/api/phase1-openapi-review.md` 和本报告。
-- 覆盖点：直接准备 Book/Chapter/Scene；通过真实 HTTP API 创建资产、记录连续性、生成 Scene Packet、生成 Judge 问题、生成 Repair patch、导出 Markdown/EPUB；通过服务层完成当前 Phase 1 批准回写边界；验证下一章继承上一章状态。
+## 本地验证记录
+
+- 红灯：`cd apps/api; uv run pytest tests/test_batch_refinery.py -q` 首次失败，`/api/batch-refinery/runs` 返回 404。
+- 局部绿灯：`cd apps/api; uv run pytest tests/test_batch_refinery.py -q` 通过，2 passed。
+- 相关回归：`cd apps/api; uv run pytest tests/test_batch_refinery.py tests/test_judge_repair.py -q` 通过，3 passed。
+- API 全量：`cd apps/api; uv run pytest -q` 通过，41 passed。
+- 编译检查：`cd apps/api; uv run python -m compileall app tests` 通过。
+- 契约生成：`pnpm openapi` 通过，已生成共享 OpenAPI 契约。
+- 根级测试：`pnpm test` 通过。
+- 文本扫描：目标文件均无 UTF-8 BOM、无连续问号、无替换字符。
+
+## 评分
+
+- 技术维度评分：92/100
+  - 代码质量：复用既有领域服务，分层清晰；路由只负责协议转换。
+  - 测试覆盖：覆盖批量成功、部分失败、明细查询、持久化问题单和补丁。
+  - 规范遵循：使用 TDD 红灯记录、Context7 来源、项目本地 `.codex` 留痕和简体中文。
+- 战略维度评分：94/100
+  - 需求匹配：完整覆盖批量编排、JobRun 进度、成功失败明细和重试输入。
+  - 架构一致：延续 Phase 1 的 Judge、Repair、JobRun 确定性闭环。
+  - 风险评估：当前同步执行适合本地可重复验证，后续如接队列可继续沿用 JobRun 契约。
+
+## 综合结论
+
+- 综合评分：93/100
+- 建议：通过
+- 决策：确认通过，可进入 Phase 2 后续“风格包复用”任务。
+
+## 依赖与风险留痕
+
+- 当前没有 `github.search_code` 工具，未执行开源代码搜索；已用项目内实现和 Context7 FastAPI 官方文档补偿。
+- `create_judge_issues` 与 `create_repair_patch` 内部各自提交事务，批量编排通过捕获单项异常保留成功项，符合部分失败恢复要求。
+- 当前批量执行为同步确定性实现，不接真实 LLM；若后续改为异步队列，应保持 `JobRun.progress` 结构兼容并补充恢复测试。
 
 ## 交付物映射
 
-| 交付物 | 作用 |
-| --- | --- |
-| `apps/api/tests/test_phase1_closed_loop_api.py` | 使用 FastAPI `TestClient` + SQLite 内存库执行真实 API 闭环。 |
-| `scripts/run-e2e.mjs` | 先运行 Node 契约测试，再进入 `apps/api` 执行 `uv run pytest tests/test_phase1_closed_loop_api.py -q`。 |
-| `tests/e2e/phase1-closed-loop.spec.ts` | 保留 OpenAPI/文档契约检查，并明确真实链路由 API pytest 覆盖。 |
-| `docs/api/phase1-openapi-review.md` | 将“契约式 e2e”更新为“契约检查 + FastAPI TestClient 真实 API 闭环”。 |
-| `.codex/verification-report.md` | 记录本次规格修复、验证结果和评分。 |
-
-## 本地命令与输出摘要
-
-| 命令 | 结果 |
-| --- | --- |
-| `uv run pytest tests/test_phase1_closed_loop_api.py -q` | 通过，`1 passed`。 |
-| `pnpm verify` | 通过，StoryForge 本地验证通过。 |
-| `pnpm test` | 通过，前端 6 个子测试、共享包配置检查、API/workflow compileall 均通过。 |
-| `pnpm e2e` | 通过，Node 契约检查 5 个子测试通过，API 闭环 pytest `1 passed`。 |
-| 文本编码与占位扫描 | 通过，目标文件无 UTF-8 BOM、无连续问号占位符、无替换字符。 |
-
-## 技术维度评分
-
-- 代码质量：94/100。新增测试复用既有 TestClient 与 SQLite 内存库模式，闭环步骤清晰，批准回写边界在测试名和文档中显式说明。
-- 测试覆盖：95/100。真实 HTTP API 覆盖资产、连续性、Scene Packet、Judge、Repair、导出，并验证下一章继承。
-- 规范遵循：93/100。文档、测试说明和注释均为简体中文，未新增无关工具或重依赖。
-
-## 战略维度评分
-
-- 需求匹配：96/100。直接修复规格审查指出的静态测试问题，使 `pnpm e2e` 执行真实 API 链路。
-- 架构一致：94/100。沿用 `apps/api/tests` 既有 pytest 夹具和根 e2e runner 编排，不侵入生产实现。
-- 风险评估：92/100。当前批准回写仍无 HTTP 路由，已作为 Phase 1 服务边界记录；后续路由出现后应替换为 HTTP 调用。
-
-## 综合评分
-
-94/100
-
-## 建议
-
-通过
+- 后端路由：`apps/api/app/domains/batch_refinery/router.py`
+- 后端服务：`apps/api/app/domains/batch_refinery/service.py`
+- 后端契约：`apps/api/app/domains/batch_refinery/schemas.py`
+- 测试：`apps/api/tests/test_batch_refinery.py`
+- OpenAPI：`packages/shared/src/contracts/storyforge.openapi.json`
+- 上下文：`.codex/context-summary-batch-refinery.md`
+- 操作日志：`.codex/operations-log.md`

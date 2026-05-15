@@ -21,6 +21,11 @@ const workspaces = [
     title: "Job Center 任务中心",
     description: "追踪长任务状态，并回到对应工作区继续处理。",
   },
+  {
+    href: "/world",
+    title: "World Center 世界观中心",
+    description: "查看系列级记忆、世界规则、未回收伏笔和跨书约束。",
+  },
 ];
 
 export default function HomePage() {
