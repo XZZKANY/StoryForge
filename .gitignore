@@ -18,3 +18,5 @@ postgres-data/
 redis-data/
 .superpowers/
 *.tsbuildinfo
+# 本地缓存
+.cache/
