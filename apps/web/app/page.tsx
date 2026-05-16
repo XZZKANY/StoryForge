@@ -26,6 +26,11 @@ const workspaces = [
     title: "World Center 世界观中心",
     description: "查看系列级记忆、世界规则、未回收伏笔和跨书约束。",
   },
+  {
+    href: "/quality",
+    title: "Quality Dashboard 质量看板",
+    description: "聚合开放问题、修复采纳率、任务成功率和系列记忆覆盖。",
+  },
 ];
 
 export default function HomePage() {

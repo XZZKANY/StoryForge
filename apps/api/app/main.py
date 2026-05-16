@@ -7,8 +7,10 @@ from app.domains.batch_refinery.router import router as batch_refinery_router
 from app.domains.continuity.router import router as continuity_router
 from app.domains.exports.router import router as exports_router
 from app.domains.judge.router import router as judge_router
+from app.domains.quality.router import router as quality_router
 from app.domains.repair.router import router as repair_router
 from app.domains.scene_packets.router import router as scene_packets_router
+from app.domains.style_packs.router import router as style_packs_router
 from app.domains.series.router import router as series_router
 from app.domains.worldbuilding.router import router as worldbuilding_router
 
@@ -18,7 +20,9 @@ app.include_router(batch_refinery_router)
 app.include_router(continuity_router)
 app.include_router(exports_router)
 app.include_router(judge_router)
+app.include_router(quality_router)
 app.include_router(repair_router)
 app.include_router(scene_packets_router)
+app.include_router(style_packs_router)
 app.include_router(series_router)
 app.include_router(worldbuilding_router)

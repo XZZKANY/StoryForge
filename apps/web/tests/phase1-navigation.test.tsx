@@ -27,6 +27,7 @@ const task7Files = [
   "app/assets/page.tsx",
   "app/jobs/page.tsx",
   "app/world/page.tsx",
+  "app/quality/page.tsx",
   "components/scene-packet/ScenePacketPanel.tsx",
   "components/judge-panel/JudgeIssueList.tsx",
   "components/diff-viewer/RepairDiffViewer.tsx",
@@ -42,10 +43,10 @@ test("Task 7 文件使用真实简体中文且没有损坏占位符", () => {
 
 test("首页导航可以进入 Studio、Refinery、Asset Center 和 Job Center", () => {
   const homePage = assertCleanChineseContract("app/page.tsx");
-  assertIncludesAll(homePage, ["/studio", "/refinery", "/assets", "/jobs", "/world"], "首页导航链接");
+  assertIncludesAll(homePage, ["/studio", "/refinery", "/assets", "/jobs", "/world", "/quality"], "首页导航链接");
   assertIncludesAll(
     homePage,
-    ["Studio 创作工作台", "Refinery 修订工坊", "Asset Center 素材中心", "Job Center 任务中心", "World Center 世界观中心"],
+    ["Studio 创作工作台", "Refinery 修订工坊", "Asset Center 素材中心", "Job Center 任务中心", "World Center 世界观中心", "Quality Dashboard 质量看板"],
     "首页导航标题",
   );
 });
@@ -57,6 +58,7 @@ test("每个工作台页面都有明确中文标题", () => {
     ["app/assets/page.tsx", ["Asset Center 素材中心", "素材清单", "章节计划"]],
     ["app/jobs/page.tsx", ["Job Center 任务中心", "任务状态", "继续处理"]],
     ["app/world/page.tsx", ["World Center 世界观中心", "角色与关系", "世界规则", "未回收伏笔", "跨书约束"]],
+    ["app/quality/page.tsx", ["Quality Dashboard 质量看板", "开放问题", "修复采纳率", "任务成功率", "系列记忆覆盖"]],
   ] satisfies Array<readonly [string, readonly string[]]>;
 
   for (const [path, values] of routeContracts) {
