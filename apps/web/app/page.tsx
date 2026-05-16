@@ -27,6 +27,31 @@ const workspaces = [
     description: "查看系列级记忆、世界规则、未回收伏笔和跨书约束。",
   },
   {
+    href: "/workspace",
+    title: "Workspace Hub 团队工作区",
+    description: "管理成员席位、作品归属和第三阶段平台外壳。",
+  },
+  {
+    href: "/collaboration",
+    title: "Collaboration 协作审批",
+    description: "查看评论时间线、审批请求和协作事件。",
+  },
+  {
+    href: "/commercial",
+    title: "Commercial Controls 商业化控制",
+    description: "查看套餐额度、席位上限与任务使用情况。",
+  },
+  {
+    href: "/analytics",
+    title: "Analytics Center 分析扩展",
+    description: "跟踪审批通过率、修复采纳率和事件流统计。",
+  },
+  {
+    href: "/providers",
+    title: "Provider Gateway 模型接入层",
+    description: "统一管理 LLM、Embedding 和 Reranker 提供方。",
+  },
+  {
     href: "/quality",
     title: "Quality Dashboard 质量看板",
     description: "聚合开放问题、修复采纳率、任务成功率和系列记忆覆盖。",

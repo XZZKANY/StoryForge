@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.domains.continuity.models import ContinuityRecord, ScenePacket
     from app.domains.jobs.models import JobRun
     from app.domains.judge.models import JudgeIssue, RepairPatch
+    from app.domains.workspaces.models import Workspace
 
 
 class Book(IdMixin, TimestampMixin, Base):
@@ -22,7 +23,9 @@ class Book(IdMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft", server_default="draft")
     premise: Mapped[str | None] = mapped_column(Text)
+    workspace_id: Mapped[int | None] = mapped_column(ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
 
+    workspace: Mapped[Workspace | None] = relationship(back_populates="books")
     chapters: Mapped[list[Chapter]] = relationship(back_populates="book", cascade="all, delete-orphan")
     assets: Mapped[list[Asset]] = relationship(back_populates="book")
     continuity_records: Mapped[list[ContinuityRecord]] = relationship(back_populates="book")
@@ -70,3 +73,4 @@ from app.domains import assets as _assets_domain  # noqa: E402,F401
 from app.domains import continuity as _continuity_domain  # noqa: E402,F401
 from app.domains import jobs as _jobs_domain  # noqa: E402,F401
 from app.domains import judge as _judge_domain  # noqa: E402,F401
+from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401

@@ -1,6 +1,201 @@
 {
   "components": {
     "schemas": {
+      "AnalyticsFailureCategoryRead": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "issue_type": {
+            "title": "Issue Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_type",
+          "count"
+        ],
+        "title": "AnalyticsFailureCategoryRead",
+        "type": "object"
+      },
+      "ApprovalDecisionCreate": {
+        "properties": {
+          "decision": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Decision",
+            "type": "string"
+          },
+          "member_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Member Id",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "member_id",
+          "decision"
+        ],
+        "title": "ApprovalDecisionCreate",
+        "type": "object"
+      },
+      "ApprovalDecisionRead": {
+        "properties": {
+          "approval_request_id": {
+            "title": "Approval Request Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_id": {
+            "title": "Member Id",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "approval_request_id",
+          "member_id",
+          "decision",
+          "note",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ApprovalDecisionRead",
+        "type": "object"
+      },
+      "ApprovalRequestCreate": {
+        "properties": {
+          "requester_member_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Requester Member Id",
+            "type": "integer"
+          },
+          "reviewer_member_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Reviewer Member Id",
+            "type": "integer"
+          },
+          "scene_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "workspace_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "scene_id",
+          "requester_member_id",
+          "reviewer_member_id",
+          "summary"
+        ],
+        "title": "ApprovalRequestCreate",
+        "type": "object"
+      },
+      "ApprovalRequestRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "requester_member_id": {
+            "title": "Requester Member Id",
+            "type": "integer"
+          },
+          "reviewer_member_id": {
+            "title": "Reviewer Member Id",
+            "type": "integer"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "scene_id",
+          "requester_member_id",
+          "reviewer_member_id",
+          "status",
+          "summary",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ApprovalRequestRead",
+        "type": "object"
+      },
       "AssetCreate": {
         "description": "创建资产时由调用方提供的业务载荷。",
         "properties": {
@@ -448,6 +643,98 @@
         "title": "ChapterApprovalRead",
         "type": "object"
       },
+      "CollaborationTimelineItem": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "item_id": {
+            "title": "Item Id",
+            "type": "integer"
+          },
+          "item_type": {
+            "title": "Item Type",
+            "type": "string"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_type",
+          "item_id",
+          "scene_id",
+          "status",
+          "summary",
+          "created_at"
+        ],
+        "title": "CollaborationTimelineItem",
+        "type": "object"
+      },
+      "CommercialSummaryRead": {
+        "properties": {
+          "active_member_count": {
+            "title": "Active Member Count",
+            "type": "integer"
+          },
+          "current_job_count": {
+            "title": "Current Job Count",
+            "type": "integer"
+          },
+          "current_token_estimate": {
+            "title": "Current Token Estimate",
+            "type": "integer"
+          },
+          "monthly_job_limit": {
+            "title": "Monthly Job Limit",
+            "type": "integer"
+          },
+          "monthly_token_limit": {
+            "title": "Monthly Token Limit",
+            "type": "integer"
+          },
+          "seat_limit": {
+            "title": "Seat Limit",
+            "type": "integer"
+          },
+          "status_summary": {
+            "title": "Status Summary",
+            "type": "string"
+          },
+          "within_limits": {
+            "title": "Within Limits",
+            "type": "boolean"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "seat_limit",
+          "active_member_count",
+          "monthly_job_limit",
+          "current_job_count",
+          "monthly_token_limit",
+          "current_token_estimate",
+          "within_limits",
+          "status_summary"
+        ],
+        "title": "CommercialSummaryRead",
+        "type": "object"
+      },
       "ContinuityRecordRead": {
         "description": "连续性记录响应契约，保持数据库真相源可追溯。",
         "properties": {
@@ -515,6 +802,157 @@
           "updated_at"
         ],
         "title": "ContinuityRecordRead",
+        "type": "object"
+      },
+      "EventLogRead": {
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "book_id",
+          "scene_id",
+          "member_id",
+          "event_type",
+          "source",
+          "payload",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "EventLogRead",
+        "type": "object"
+      },
+      "EventRecordCreate": {
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "event_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Event Type",
+            "type": "string"
+          },
+          "member_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "source": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "workspace_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "event_type",
+          "source"
+        ],
+        "title": "EventRecordCreate",
         "type": "object"
       },
       "EvidenceLinkRead": {
@@ -705,6 +1143,183 @@
           "updated_at"
         ],
         "title": "JudgeIssueRead",
+        "type": "object"
+      },
+      "ProviderConfigCreate": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "credential_ref": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Ref"
+          },
+          "model_aliases": {
+            "additionalProperties": true,
+            "title": "Model Aliases",
+            "type": "object"
+          },
+          "priority": {
+            "default": 100,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "provider_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "provider_name"
+        ],
+        "title": "ProviderConfigCreate",
+        "type": "object"
+      },
+      "ProviderConfigRead": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credential_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Ref"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "model_aliases": {
+            "additionalProperties": true,
+            "title": "Model Aliases",
+            "type": "object"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "provider_name",
+          "status",
+          "priority",
+          "capabilities",
+          "model_aliases",
+          "credential_ref",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProviderConfigRead",
+        "type": "object"
+      },
+      "ProviderResolutionRead": {
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "model_aliases": {
+            "additionalProperties": true,
+            "title": "Model Aliases",
+            "type": "object"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "integer"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "resolution_summary": {
+            "title": "Resolution Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id",
+          "provider_name",
+          "capability",
+          "model_aliases",
+          "resolution_summary"
+        ],
+        "title": "ProviderResolutionRead",
         "type": "object"
       },
       "QualityDashboardRead": {
@@ -1449,6 +2064,7 @@
         "required": [
           "id",
           "book_id",
+          "scene_id",
           "asset_type",
           "lineage_key",
           "name",
@@ -1567,6 +2183,7 @@
         "required": [
           "id",
           "book_id",
+          "scene_id",
           "asset_type",
           "lineage_key",
           "name",
@@ -1617,6 +2234,425 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkspaceAnalyticsRead": {
+        "properties": {
+          "active_member_count": {
+            "title": "Active Member Count",
+            "type": "integer"
+          },
+          "active_provider_count": {
+            "title": "Active Provider Count",
+            "type": "integer"
+          },
+          "analytics_summary": {
+            "title": "Analytics Summary",
+            "type": "string"
+          },
+          "approval_pass_rate": {
+            "title": "Approval Pass Rate",
+            "type": "number"
+          },
+          "comment_count": {
+            "title": "Comment Count",
+            "type": "integer"
+          },
+          "failure_categories": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsFailureCategoryRead"
+            },
+            "title": "Failure Categories",
+            "type": "array"
+          },
+          "job_success_rate": {
+            "title": "Job Success Rate",
+            "type": "number"
+          },
+          "pending_approval_count": {
+            "title": "Pending Approval Count",
+            "type": "integer"
+          },
+          "recent_event_count": {
+            "title": "Recent Event Count",
+            "type": "integer"
+          },
+          "repair_acceptance_rate": {
+            "title": "Repair Acceptance Rate",
+            "type": "number"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "active_member_count",
+          "comment_count",
+          "pending_approval_count",
+          "approval_pass_rate",
+          "repair_acceptance_rate",
+          "job_success_rate",
+          "recent_event_count",
+          "active_provider_count",
+          "failure_categories",
+          "analytics_summary"
+        ],
+        "title": "WorkspaceAnalyticsRead",
+        "type": "object"
+      },
+      "WorkspaceCommentCreate": {
+        "properties": {
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "member_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Member Id",
+            "type": "integer"
+          },
+          "scene_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "scene_id",
+          "member_id",
+          "body"
+        ],
+        "title": "WorkspaceCommentCreate",
+        "type": "object"
+      },
+      "WorkspaceCommentRead": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_id": {
+            "title": "Member Id",
+            "type": "integer"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "scene_id",
+          "member_id",
+          "body",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkspaceCommentRead",
+        "type": "object"
+      },
+      "WorkspaceCreate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "seat_limit": {
+            "default": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Seat Limit",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "WorkspaceCreate",
+        "type": "object"
+      },
+      "WorkspaceMemberCreate": {
+        "properties": {
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "role": {
+            "default": "editor",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "WorkspaceMemberCreate",
+        "type": "object"
+      },
+      "WorkspaceMemberRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "display_name",
+          "role",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkspaceMemberRead",
+        "type": "object"
+      },
+      "WorkspaceRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "seat_limit": {
+            "title": "Seat Limit",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "status",
+          "description",
+          "seat_limit",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkspaceRead",
+        "type": "object"
+      },
+      "WorkspaceSubscriptionCreate": {
+        "properties": {
+          "monthly_job_limit": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Monthly Job Limit",
+            "type": "integer"
+          },
+          "monthly_price": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Monthly Price",
+            "type": "number"
+          },
+          "monthly_token_limit": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Monthly Token Limit",
+            "type": "integer"
+          },
+          "plan_code": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Plan Code",
+            "type": "string"
+          },
+          "seat_limit": {
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Seat Limit",
+            "type": "integer"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_code",
+          "seat_limit"
+        ],
+        "title": "WorkspaceSubscriptionCreate",
+        "type": "object"
+      },
+      "WorkspaceSubscriptionRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "monthly_job_limit": {
+            "title": "Monthly Job Limit",
+            "type": "integer"
+          },
+          "monthly_price": {
+            "title": "Monthly Price",
+            "type": "number"
+          },
+          "monthly_token_limit": {
+            "title": "Monthly Token Limit",
+            "type": "integer"
+          },
+          "plan_code": {
+            "title": "Plan Code",
+            "type": "string"
+          },
+          "seat_limit": {
+            "title": "Seat Limit",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "plan_code",
+          "status",
+          "seat_limit",
+          "monthly_job_limit",
+          "monthly_token_limit",
+          "monthly_price",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkspaceSubscriptionRead",
         "type": "object"
       },
       "WorldbuildingCenterRead": {
@@ -1802,6 +2838,48 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/analytics/workspaces/{workspace_id}/dashboard": {
+      "get": {
+        "operationId": "read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceAnalyticsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Workspace Analytics Endpoint",
+        "tags": [
+          "分析扩展"
+        ]
+      }
+    },
     "/api/assets": {
       "get": {
         "description": "查询指定作品下每条资产谱系的最新版本列表。",
@@ -2175,6 +3253,280 @@
         ]
       }
     },
+    "/api/collaboration/approvals": {
+      "post": {
+        "operationId": "create_approval_request_endpoint_api_collaboration_approvals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Approval Request Endpoint",
+        "tags": [
+          "协作审批"
+        ]
+      }
+    },
+    "/api/collaboration/approvals/{approval_request_id}/decisions": {
+      "post": {
+        "operationId": "create_approval_decision_endpoint_api_collaboration_approvals__approval_request_id__decisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_request_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Request Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDecisionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Approval Decision Endpoint",
+        "tags": [
+          "协作审批"
+        ]
+      }
+    },
+    "/api/collaboration/comments": {
+      "post": {
+        "operationId": "create_comment_endpoint_api_collaboration_comments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceCommentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceCommentRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Comment Endpoint",
+        "tags": [
+          "协作审批"
+        ]
+      }
+    },
+    "/api/collaboration/scenes/{scene_id}/timeline": {
+      "get": {
+        "operationId": "read_scene_timeline_endpoint_api_collaboration_scenes__scene_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollaborationTimelineItem"
+                  },
+                  "title": "Response Read Scene Timeline Endpoint Api Collaboration Scenes  Scene Id  Timeline Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Scene Timeline Endpoint",
+        "tags": [
+          "协作审批"
+        ]
+      }
+    },
+    "/api/commercial/workspaces/{workspace_id}/policy": {
+      "post": {
+        "operationId": "upsert_workspace_policy_endpoint_api_commercial_workspaces__workspace_id__policy_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceSubscriptionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSubscriptionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Workspace Policy Endpoint",
+        "tags": [
+          "商业化控制"
+        ]
+      }
+    },
+    "/api/commercial/workspaces/{workspace_id}/summary": {
+      "get": {
+        "operationId": "read_workspace_commercial_summary_endpoint_api_commercial_workspaces__workspace_id__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommercialSummaryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Workspace Commercial Summary Endpoint",
+        "tags": [
+          "商业化控制"
+        ]
+      }
+    },
     "/api/continuity/chapter-approval": {
       "post": {
         "description": "记录章节批准后的摘要、状态变化、伏笔变化和继承约束。",
@@ -2214,6 +3566,93 @@
         "summary": "Approve Chapter Endpoint",
         "tags": [
           "章节连续性"
+        ]
+      }
+    },
+    "/api/events": {
+      "post": {
+        "operationId": "create_event_endpoint_api_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventRecordCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventLogRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Event Endpoint",
+        "tags": [
+          "事件流"
+        ]
+      }
+    },
+    "/api/events/workspaces/{workspace_id}": {
+      "get": {
+        "operationId": "list_workspace_events_endpoint_api_events_workspaces__workspace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EventLogRead"
+                  },
+                  "title": "Response List Workspace Events Endpoint Api Events Workspaces  Workspace Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Workspace Events Endpoint",
+        "tags": [
+          "事件流"
         ]
       }
     },
@@ -2263,8 +3702,162 @@
         ]
       }
     },
+    "/api/provider-gateway/providers": {
+      "get": {
+        "operationId": "list_provider_configs_endpoint_api_provider_gateway_providers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderConfigRead"
+                  },
+                  "title": "Response List Provider Configs Endpoint Api Provider Gateway Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Provider Configs Endpoint",
+        "tags": [
+          "模型接入层"
+        ]
+      },
+      "post": {
+        "operationId": "create_provider_config_endpoint_api_provider_gateway_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderConfigCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConfigRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Provider Config Endpoint",
+        "tags": [
+          "模型接入层"
+        ]
+      }
+    },
+    "/api/provider-gateway/resolve": {
+      "get": {
+        "operationId": "resolve_provider_endpoint_api_provider_gateway_resolve_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "capability",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Capability",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderResolutionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Provider Endpoint",
+        "tags": [
+          "模型接入层"
+        ]
+      }
+    },
     "/api/quality/dashboard": {
       "get": {
+        "description": "读取指定作品或系列范围下的质量看板。",
         "operationId": "read_quality_dashboard_api_quality_dashboard_get",
         "parameters": [
           {
@@ -2274,7 +3867,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0.0,
+                  "exclusiveMinimum": 0,
                   "type": "integer"
                 },
                 {
@@ -2291,7 +3884,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0.0,
+                  "exclusiveMinimum": 0,
                   "type": "integer"
                 },
                 {
@@ -2314,6 +3907,13 @@
             "description": "Successful Response"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
             "description": "Validation Error"
           }
         },
@@ -2667,6 +4267,7 @@
     },
     "/api/style-packs": {
       "get": {
+        "description": "读取作品下最新风格包列表。",
         "operationId": "list_style_packs_endpoint_api_style_packs_get",
         "parameters": [
           {
@@ -2674,7 +4275,7 @@
             "name": "book_id",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0.0,
+              "exclusiveMinimum": 0,
               "title": "Book Id",
               "type": "integer"
             }
@@ -2688,6 +4289,7 @@
                   "items": {
                     "$ref": "#/components/schemas/StylePackRead"
                   },
+                  "title": "Response List Style Packs Endpoint Api Style Packs Get",
                   "type": "array"
                 }
               }
@@ -2695,6 +4297,13 @@
             "description": "Successful Response"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
             "description": "Validation Error"
           }
         },
@@ -2704,6 +4313,7 @@
         ]
       },
       "post": {
+        "description": "创建风格包首版本。",
         "operationId": "create_style_pack_endpoint_api_style_packs_post",
         "requestBody": {
           "content": {
@@ -2727,6 +4337,13 @@
             "description": "Successful Response"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
             "description": "Validation Error"
           }
         },
@@ -2738,6 +4355,7 @@
     },
     "/api/style-packs/{asset_id}": {
       "patch": {
+        "description": "更新风格包并创建新版本。",
         "operationId": "update_style_pack_endpoint_api_style_packs__asset_id__patch",
         "parameters": [
           {
@@ -2772,6 +4390,13 @@
             "description": "Successful Response"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
             "description": "Validation Error"
           }
         },
@@ -2783,6 +4408,7 @@
     },
     "/api/style-packs/{asset_id}/apply": {
       "post": {
+        "description": "把风格包复制为作品级 style_rule 资产。",
         "operationId": "apply_style_pack_endpoint_api_style_packs__asset_id__apply_post",
         "parameters": [
           {
@@ -2817,12 +4443,179 @@
             "description": "Successful Response"
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
             "description": "Validation Error"
           }
         },
         "summary": "Apply Style Pack Endpoint",
         "tags": [
           "风格包"
+        ]
+      }
+    },
+    "/api/workspaces": {
+      "get": {
+        "operationId": "list_workspaces_endpoint_api_workspaces_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceRead"
+                  },
+                  "title": "Response List Workspaces Endpoint Api Workspaces Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Workspaces Endpoint",
+        "tags": [
+          "团队工作区"
+        ]
+      },
+      "post": {
+        "operationId": "create_workspace_endpoint_api_workspaces_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Workspace Endpoint",
+        "tags": [
+          "团队工作区"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/members": {
+      "get": {
+        "operationId": "list_workspace_members_endpoint_api_workspaces__workspace_id__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceMemberRead"
+                  },
+                  "title": "Response List Workspace Members Endpoint Api Workspaces  Workspace Id  Members Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Workspace Members Endpoint",
+        "tags": [
+          "团队工作区"
+        ]
+      },
+      "post": {
+        "operationId": "create_workspace_member_endpoint_api_workspaces__workspace_id__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceMemberCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceMemberRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Workspace Member Endpoint",
+        "tags": [
+          "团队工作区"
         ]
       }
     },

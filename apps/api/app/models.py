@@ -7,6 +7,11 @@ from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.series.models import Series, SeriesMemory, SeriesMemoryEvidence
+from app.domains.workspaces.models import Workspace, WorkspaceMember
+from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
+from app.domains.commercial.models import WorkspaceSubscription
+from app.domains.events.models import EventLog
+from app.domains.provider_gateway.models import ProviderConfig
 
 __all__ = [
     "Base",
@@ -23,4 +28,12 @@ __all__ = [
     "Series",
     "SeriesMemory",
     "SeriesMemoryEvidence",
+    "Workspace",
+    "WorkspaceMember",
+    "WorkspaceComment",
+    "ApprovalRequest",
+    "ApprovalDecision",
+    "WorkspaceSubscription",
+    "EventLog",
+    "ProviderConfig",
 ]
