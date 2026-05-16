@@ -707,6 +707,79 @@
         "title": "JudgeIssueRead",
         "type": "object"
       },
+      "QualityDashboardRead": {
+        "description": "质量看板聚合响应。",
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "job_success_rate": {
+            "title": "Job Success Rate",
+            "type": "number"
+          },
+          "job_success_summary": {
+            "title": "Job Success Summary",
+            "type": "string"
+          },
+          "open_issue_count": {
+            "title": "Open Issue Count",
+            "type": "integer"
+          },
+          "open_issue_summary": {
+            "title": "Open Issue Summary",
+            "type": "string"
+          },
+          "repair_acceptance_rate": {
+            "title": "Repair Acceptance Rate",
+            "type": "number"
+          },
+          "repair_acceptance_summary": {
+            "title": "Repair Acceptance Summary",
+            "type": "string"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "series_memory_count": {
+            "title": "Series Memory Count",
+            "type": "integer"
+          },
+          "series_memory_summary": {
+            "title": "Series Memory Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book_id",
+          "series_id",
+          "open_issue_count",
+          "repair_acceptance_rate",
+          "job_success_rate",
+          "series_memory_count",
+          "open_issue_summary",
+          "repair_acceptance_summary",
+          "job_success_summary",
+          "series_memory_summary"
+        ],
+        "title": "QualityDashboardRead",
+        "type": "object"
+      },
       "RepairPatchCreate": {
         "description": "请求定向修复某一条评审问题单。",
         "properties": {
@@ -1232,6 +1305,278 @@
           "updated_at"
         ],
         "title": "SeriesRead",
+        "type": "object"
+      },
+      "StylePackApplyCreate": {
+        "description": "把风格包应用到作品，生成 style_rule 资产。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book_id"
+        ],
+        "title": "StylePackApplyCreate",
+        "type": "object"
+      },
+      "StylePackCreate": {
+        "description": "创建风格包首版本。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "default": "active",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book_id",
+          "name"
+        ],
+        "title": "StylePackCreate",
+        "type": "object"
+      },
+      "StylePackRead": {
+        "description": "风格包响应契约。",
+        "properties": {
+          "asset_type": {
+            "title": "Asset Type",
+            "type": "string"
+          },
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lineage_key": {
+            "title": "Lineage Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "book_id",
+          "asset_type",
+          "lineage_key",
+          "name",
+          "status",
+          "payload",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "StylePackRead",
+        "type": "object"
+      },
+      "StylePackUpdate": {
+        "description": "更新风格包会产生新版本。",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "StylePackUpdate",
+        "type": "object"
+      },
+      "StyleRuleRead": {
+        "description": "应用风格包后生成的作品级风格规则资产。",
+        "properties": {
+          "asset_type": {
+            "title": "Asset Type",
+            "type": "string"
+          },
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lineage_key": {
+            "title": "Lineage Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "scene_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "book_id",
+          "asset_type",
+          "lineage_key",
+          "name",
+          "status",
+          "payload",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "StyleRuleRead",
         "type": "object"
       },
       "ValidationError": {
@@ -1918,6 +2263,66 @@
         ]
       }
     },
+    "/api/quality/dashboard": {
+      "get": {
+        "operationId": "read_quality_dashboard_api_quality_dashboard_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "series_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Series Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityDashboardRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Quality Dashboard",
+        "tags": [
+          "质量看板"
+        ]
+      }
+    },
     "/api/repair/patches": {
       "post": {
         "description": "根据结构化问题单生成局部替换补丁，修复后必须重新评审。",
@@ -2257,6 +2662,167 @@
         "summary": "Create Series Memory Endpoint",
         "tags": [
           "系列级记忆"
+        ]
+      }
+    },
+    "/api/style-packs": {
+      "get": {
+        "operationId": "list_style_packs_endpoint_api_style_packs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0.0,
+              "title": "Book Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StylePackRead"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Style Packs Endpoint",
+        "tags": [
+          "风格包"
+        ]
+      },
+      "post": {
+        "operationId": "create_style_pack_endpoint_api_style_packs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePackCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StylePackRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Style Pack Endpoint",
+        "tags": [
+          "风格包"
+        ]
+      }
+    },
+    "/api/style-packs/{asset_id}": {
+      "patch": {
+        "operationId": "update_style_pack_endpoint_api_style_packs__asset_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePackUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StylePackRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Style Pack Endpoint",
+        "tags": [
+          "风格包"
+        ]
+      }
+    },
+    "/api/style-packs/{asset_id}/apply": {
+      "post": {
+        "operationId": "apply_style_pack_endpoint_api_style_packs__asset_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StylePackApplyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StyleRuleRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Style Pack Endpoint",
+        "tags": [
+          "风格包"
         ]
       }
     },
