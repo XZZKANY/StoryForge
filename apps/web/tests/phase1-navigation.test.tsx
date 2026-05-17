@@ -33,6 +33,10 @@ const uiContractFiles = [
   "app/commercial/page.tsx",
   "app/providers/page.tsx",
   "app/analytics/page.tsx",
+  "app/retrieval/page.tsx",
+  "app/runs/page.tsx",
+  "app/artifacts/page.tsx",
+  "app/evaluations/page.tsx",
   "components/scene-packet/ScenePacketPanel.tsx",
   "components/judge-panel/JudgeIssueList.tsx",
   "components/diff-viewer/RepairDiffViewer.tsx",
@@ -67,6 +71,10 @@ test("首页导航覆盖 Phase 1、Phase 2 和 Phase 3 工作台入口", () => {
       "Commercial Controls 商业化控制",
       "Analytics Center 分析扩展",
       "Provider Gateway 模型接入层",
+      "Retrieval Center 检索中心",
+      "Run Center 运行日志中心",
+      "Artifact Center 制品中心",
+      "Evaluation Lab 评测实验面板",
     ],
     "首页导航标题",
   );
@@ -85,6 +93,10 @@ test("每个工作台页面都有明确中文标题和核心能力说明", () =>
     ["app/commercial/page.tsx", ["Commercial Controls 商业化控制", "席位上限", "任务额度", "Token 额度", "套餐状态"]],
     ["app/providers/page.tsx", ["Provider Gateway 模型接入层", "LLM", "Embedding", "Reranker", "图片生成或封面生成能力"]],
     ["app/analytics/page.tsx", ["Analytics Center 分析扩展", "审批通过率", "修复采纳率", "任务成功率", "Judge 失败类别", "事件流统计"]],
+    ["app/retrieval/page.tsx", ["Retrieval Center 检索中心", "资料库", "Embedding 刷新任务", "检索命中与重排", "Scene Packet 检索证据"]],
+    ["app/runs/page.tsx", ["Run Center 运行日志中心", "模型运行日志", "Provider 解析结果", "Prompt Pack 来源", "任务恢复入口"]],
+    ["app/artifacts/page.tsx", ["Artifact Center 制品中心", "导出物", "上传资料", "工作流快照", "评测报告"]],
+    ["app/evaluations/page.tsx", ["Evaluation Lab 评测实验面板", "一致性错误率", "修复成功率", "用户接受率", "未回收 open loop"]],
   ] satisfies Array<readonly [string, readonly string[]]>;
 
   for (const [path, values] of routeContracts) {

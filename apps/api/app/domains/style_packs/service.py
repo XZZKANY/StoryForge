@@ -112,7 +112,7 @@ def apply_style_pack(session: Session, asset_id: int, payload: StylePackApplyCre
             raise StylePackInputError("场景不存在或不属于该作品，无法应用风格包。")
 
     style_payload = {key: style_pack.payload.get(key) for key in STYLE_RULE_KEYS if key in style_pack.payload}
-    style_payload["style_pack_id"] = asset_id
+    style_payload["style_pack_id"] = style_pack.id
     style_payload["style_pack_lineage_key"] = style_pack.lineage_key
     applied_asset = Asset(
         book_id=payload.book_id,

@@ -8,6 +8,8 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.domains.artifacts.schemas import ArtifactCreate
+from app.domains.artifacts.service import create_artifact
 from app.domains.books.models import Book, Chapter, Scene
 
 
@@ -50,7 +52,22 @@ def build_markdown_export(session: Session, book_id: int) -> str:
             lines.append("")
         lines.append(scene.content.strip())
         lines.append("")
-    return "\n".join(lines).strip() + "\n"
+    content = "\n".join(lines).strip() + "\n"
+    create_artifact(
+        session,
+        ArtifactCreate(
+            workspace_id=book.workspace_id,
+            book_id=book.id,
+            artifact_type="export",
+            lineage_key=f"book:{book.id}:markdown-export",
+            name=f"{book.title} Markdown 导出",
+            storage_uri=f"memory://exports/books/{book.id}/markdown",
+            mime_type="text/markdown",
+            size_bytes=len(content.encode('utf-8')),
+            payload={"format": "markdown"},
+        ),
+    )
+    return content
 
 def build_epub_export(session: Session, book_id: int) -> bytes:
     """生成最小有效 EPUB 文件，Phase 1 不引入额外依赖。"""
@@ -74,7 +91,22 @@ def build_epub_export(session: Session, book_id: int) -> bytes:
         )
         epub.writestr("OEBPS/content.xhtml", xhtml, compress_type=ZIP_DEFLATED)
         epub.writestr("OEBPS/content.opf", opf, compress_type=ZIP_DEFLATED)
-    return buffer.getvalue()
+    output = buffer.getvalue()
+    create_artifact(
+        session,
+        ArtifactCreate(
+            workspace_id=book.workspace_id,
+            book_id=book.id,
+            artifact_type="export",
+            lineage_key=f"book:{book.id}:epub-export",
+            name=f"{book.title} EPUB 导出",
+            storage_uri=f"memory://exports/books/{book.id}/epub",
+            mime_type="application/epub+zip",
+            size_bytes=len(output),
+            payload={"format": "epub"},
+        ),
+    )
+    return output
 
 
 def _load_export_source(session: Session, book_id: int) -> tuple[Book, list[ApprovedScene]]:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.domains.books.models import Chapter, Scene
+from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.quality.schemas import QualityDashboardQuery, QualityDashboardRead
@@ -17,6 +17,8 @@ class QualityDashboardInputError(ValueError):
 def build_quality_dashboard(session: Session, query: QualityDashboardQuery) -> QualityDashboardRead:
     """聚合指定作品或系列范围下的质量指标。"""
 
+    if query.book_id is not None and session.get(Book, query.book_id) is None:
+        raise QualityDashboardInputError("作品不存在，无法读取质量看板。")
     if query.series_id is not None and session.get(Series, query.series_id) is None:
         raise QualityDashboardInputError("系列不存在，无法读取质量看板。")
 

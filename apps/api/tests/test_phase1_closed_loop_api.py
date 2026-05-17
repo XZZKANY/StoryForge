@@ -15,7 +15,6 @@ from app.db.base import Base
 from app.db.session import get_session
 from app.domains.books.lineage_service import ChapterWritebackApproval, approve_chapter_writeback
 from app.domains.books.models import Book, Chapter, Scene
-from app.domains.continuity.models import ContinuityRecord
 from app.domains.judge.models import RepairPatch
 from app.main import app
 
@@ -171,17 +170,6 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
             ),
         )
         stored_patch = session.scalars(select(RepairPatch)).one()
-        global_record = ContinuityRecord(
-            book_id=phase1_story["book_id"],
-            scene_id=None,
-            record_type="next_chapter_constraints",
-            subject="批准回写后的下一章继承约束",
-            status="active",
-            payload={"value": ["林岚必须隐藏伤势", "灯塔信号仍需保留"]},
-            version=1,
-        )
-        session.add(global_record)
-        session.commit()
     assert writeback.chapter_id == phase1_story["chapter_id"]
     assert stored_patch.status == "requires_rejudge"
 
@@ -194,6 +182,7 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
     )
     assert "林岚必须隐藏伤势" in next_packet["packet"]["必须包含事实"]
     assert "灯塔信号仍需保留" in next_packet["packet"]["必须包含事实"]
+    assert "林岚抵达灯塔港。" in next_packet["packet"]["上一章摘要"]
 
     markdown_response = client.get(f"/api/books/{phase1_story['book_id']}/exports/markdown")
     assert markdown_response.status_code == 200, markdown_response.text

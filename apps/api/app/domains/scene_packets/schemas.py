@@ -25,6 +25,8 @@ class EvidenceLinkRead(BaseModel):
     evidence_type: str
     source_ref: str
     rationale: str | None = None
+    score: float | None = None
+    rank: int | None = None
 
 
 class BudgetStatistics(BaseModel):

@@ -116,7 +116,7 @@ def test_style_pack_versioning_apply_and_scene_packet_integration(
     assert apply_response.status_code == 201, apply_response.text
     applied_asset = apply_response.json()
     assert applied_asset["asset_type"] == "style_rule"
-    assert applied_asset["payload"]["style_pack_id"] == style_pack["id"]
+    assert applied_asset["payload"]["style_pack_id"] == updated["id"]
     assert applied_asset["payload"]["规则"] == "保持克制而具画面感"
 
     packet_response = client.post(

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
+from app.domains.retrieval.schemas import RetrievalSearchCreate
+from app.domains.retrieval.service import search_retrieval
 from app.domains.scene_packets.schemas import (
     BudgetStatistics,
     EvidenceLinkRead,
@@ -43,7 +45,34 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
     ).all()
     continuity_records = _filter_continuity_records_for_chapter(continuity_records, payload.chapter_id)
     evidence_links = _load_evidence_links(session, scene.id, assets)
+    retrieval_hits = []
+    if not payload.retrieval_snippets:
+        retrieval_query = _build_retrieval_query(payload, chapter, assets, continuity_records)
+        retrieval_hits = search_retrieval(
+            session,
+            RetrievalSearchCreate(
+                query=retrieval_query,
+                book_id=payload.book_id,
+                limit=3,
+            ),
+        )
+        payload = payload.model_copy(update={"retrieval_snippets": [hit.excerpt for hit in retrieval_hits]})
+        evidence_links.extend(
+            [
+                EvidenceLinkRead(
+                    asset_id=0,
+                    evidence_type="retrieval_hit",
+                    source_ref=hit.source_ref,
+                    rationale=f"检索命中 #{hit.rank}：{hit.title}",
+                    score=hit.score,
+                    rank=hit.rank,
+                )
+                for hit in retrieval_hits
+            ]
+        )
     packet, budget_statistics = _build_packet(payload, chapter, assets, continuity_records, evidence_links)
+    if retrieval_hits:
+        packet["检索命中"] = [hit.model_dump() for hit in retrieval_hits]
 
     scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet=packet, version=1)
     session.add(scene_packet)
@@ -241,6 +270,26 @@ def _fit_retrieval_snippets(
         else:
             truncated = True
     return selected, used, truncated
+
+
+def _build_retrieval_query(
+    payload: ScenePacketCreate,
+    chapter: Chapter,
+    assets: list[Asset],
+    continuity_records: list[ContinuityRecord],
+) -> str:
+    """组合场景目标、用户意图、章节摘要和硬约束，生成更稳定的检索查询。"""
+
+    include_facts = _collect_payload_values(assets, "必须包含事实") + _continuity_constraints(continuity_records)
+    segments = [
+        payload.scene_goal,
+        payload.user_intent,
+        chapter.title,
+        chapter.summary or "",
+        *[str(value) for value in include_facts],
+    ]
+    normalized = [segment.strip() for segment in segments if str(segment).strip()]
+    return " ".join(normalized)
 
 
 def _estimate_tokens(value: Any) -> int:
