@@ -56,6 +56,26 @@ const workspaces = [
     title: "Quality Dashboard 质量看板",
     description: "聚合开放问题、修复采纳率、任务成功率和系列记忆覆盖。",
   },
+  {
+    href: "/retrieval",
+    title: "Retrieval Center 检索中心",
+    description: "管理资料库、Embedding 刷新任务、检索命中与 Scene Packet 检索证据。",
+  },
+  {
+    href: "/runs",
+    title: "Run Center 运行日志中心",
+    description: "查看模型运行日志、Provider 解析结果与任务恢复入口。",
+  },
+  {
+    href: "/artifacts",
+    title: "Artifact Center 制品中心",
+    description: "统一管理导出物、上传资料、工作流快照和评测报告。",
+  },
+  {
+    href: "/evaluations",
+    title: "Evaluation Lab 评测实验面板",
+    description: "运行评测基准、观察一致性和修复质量指标。",
+  },
 ];
 
 export default function HomePage() {

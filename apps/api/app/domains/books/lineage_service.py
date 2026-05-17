@@ -133,6 +133,14 @@ def approve_chapter_writeback(session: Session, payload: ChapterWritebackApprova
         session.add(continuity_record)
         session.flush()
 
+        _propagate_continuity_to_next_chapter(
+            session=session,
+            book=book,
+            chapter=chapter,
+            approved_by=payload.approved_by,
+            fallback_summary=payload.diff_summary,
+        )
+
         result = ChapterWritebackResult(
             chapter_id=chapter.id,
             scene_id=scene.id,
@@ -172,3 +180,80 @@ def _next_asset_version(session: Session, lineage_key: str) -> int:
 
     latest_version = session.scalar(select(func.max(Asset.version)).where(Asset.lineage_key == lineage_key))
     return int(latest_version or 0) + 1
+
+
+def _propagate_continuity_to_next_chapter(
+    session: Session,
+    book: Book,
+    chapter: Chapter,
+    approved_by: str,
+    fallback_summary: str,
+) -> None:
+    """把当前章节批准后的连续性事实投递给下一章，形成自动继承链。"""
+
+    next_chapter = session.scalars(
+        select(Chapter)
+        .where(Chapter.book_id == book.id, Chapter.ordinal > chapter.ordinal)
+        .order_by(Chapter.ordinal, Chapter.id)
+        .limit(1)
+    ).first()
+    if next_chapter is None:
+        return
+
+    next_scene = session.scalars(
+        select(Scene).where(Scene.chapter_id == next_chapter.id).order_by(Scene.ordinal, Scene.id).limit(1)
+    ).first()
+    next_scene_id = next_scene.id if next_scene is not None else None
+
+    current_records = session.scalars(
+        select(ContinuityRecord)
+        .where(
+            ContinuityRecord.book_id == book.id,
+            ContinuityRecord.status == "active",
+            ContinuityRecord.record_type.in_(
+                [
+                    "character_state_changes",
+                    "foreshadowing_changes",
+                    "style_drift",
+                    "next_chapter_constraints",
+                ]
+            ),
+        )
+        .order_by(ContinuityRecord.id)
+    ).all()
+    current_records = [record for record in current_records if record.payload.get("chapter_id") == chapter.id]
+
+    propagated_records = [
+        ContinuityRecord(
+            book_id=book.id,
+            scene_id=next_scene_id,
+            record_type="previous_chapter_summary",
+            subject="上一章摘要",
+            status="active",
+            payload={
+                "value": chapter.summary or fallback_summary,
+                "chapter_id": next_chapter.id,
+                "source_chapter_id": chapter.id,
+                "approved_by": approved_by,
+            },
+            version=1,
+        )
+    ]
+    propagated_records.extend(
+        ContinuityRecord(
+            book_id=book.id,
+            scene_id=next_scene_id,
+            record_type=record.record_type,
+            subject=record.subject,
+            status="active",
+            payload={
+                "value": record.payload.get("value"),
+                "chapter_id": next_chapter.id,
+                "source_chapter_id": chapter.id,
+                "approved_by": approved_by,
+            },
+            version=1,
+        )
+        for record in current_records
+    )
+    session.add_all(propagated_records)

@@ -136,3 +136,11 @@ def test_quality_dashboard_requires_at_least_one_scope(client: TestClient) -> No
     response = client.get("/api/quality/dashboard")
     assert response.status_code == 400
     assert "book_id 或 series_id" in response.json()["detail"]
+
+
+def test_quality_dashboard_returns_not_found_for_unknown_book(client: TestClient) -> None:
+    """质量看板引用不存在作品时返回 404，避免把错误范围误报为零指标。"""
+
+    response = client.get("/api/quality/dashboard", params={"book_id": 999})
+    assert response.status_code == 404
+    assert "作品不存在" in response.json()["detail"]

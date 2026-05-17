@@ -41,10 +41,12 @@ def approval_context(session_factory: sessionmaker[Session]) -> dict[str, int]:
         session.add(book)
         session.flush()
         chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="draft", summary="林岚抵达港口。")
-        session.add(chapter)
+        next_chapter = Chapter(book_id=book.id, ordinal=2, title="余波", status="draft", summary="舰队离开灯塔港。")
+        session.add_all([chapter, next_chapter])
         session.flush()
         scene = Scene(chapter_id=chapter.id, ordinal=1, title="港口谈判", status="draft", content="旧版本正文")
-        session.add(scene)
+        next_scene = Scene(chapter_id=next_chapter.id, ordinal=1, title="远航复盘", status="draft", content=None)
+        session.add_all([scene, next_scene])
         session.flush()
         draft_asset = Asset(
             book_id=book.id,
@@ -62,6 +64,8 @@ def approval_context(session_factory: sessionmaker[Session]) -> dict[str, int]:
             "book_id": book.id,
             "chapter_id": chapter.id,
             "scene_id": scene.id,
+            "next_chapter_id": next_chapter.id,
+            "next_scene_id": next_scene.id,
             "draft_asset_id": draft_asset.id,
         }
 
@@ -70,12 +74,25 @@ def test_approval_writeback_creates_version_diff_continuity_and_evidence(
     session_factory: sessionmaker[Session],
     approval_context: dict[str, int],
 ) -> None:
-    """用户批准修复后，回写正文并一次性创建谱系、差异、连续性和证据记录。"""
+    """用户批准修复后，回写正文并把连续性自动投递到下一章。"""
 
     from app.domains.books.lineage_service import ChapterWritebackApproval, approve_chapter_writeback
+    from app.domains.continuity.schemas import ChapterApprovalCreate
+    from app.domains.continuity.service import approve_chapter
 
     approved_text = "林岚按住仍在发疼的左臂，克制地完成港口谈判。"
     with session_factory() as session:
+        approve_chapter(
+            session,
+            ChapterApprovalCreate(
+                chapter_id=approval_context["chapter_id"],
+                previous_chapter_summary="林岚发现灯塔信号异常。",
+                character_state_changes={"林岚": "左臂受伤但继续谈判"},
+                foreshadowing_changes={"失真的灯塔信号": "仍未回收"},
+                style_drift="保持克制，避免解释性旁白。",
+                next_chapter_constraints=["林岚必须隐藏伤势", "灯塔信号仍需保留"],
+            ),
+        )
         result = approve_chapter_writeback(
             session,
             ChapterWritebackApproval(
@@ -115,11 +132,25 @@ def test_approval_writeback_creates_version_diff_continuity_and_evidence(
     assert links[0].scene_id == approval_context["scene_id"]
     assert links[0].evidence_type == "approval_writeback"
     assert links[0].source_ref == f"chapter:{approval_context['chapter_id']}:approved"
-    assert len(records) == 1
-    assert records[0].record_type == "chapter_approval"
-    assert records[0].payload["approved_content"] == approved_text
-    assert records[0].payload["final_asset_id"] == final_asset.id
-    assert records[0].payload["diff_asset_id"] == diff_asset.id
+    chapter_approval_record = next(record for record in records if record.record_type == "chapter_approval")
+    assert chapter_approval_record.payload["approved_content"] == approved_text
+    assert chapter_approval_record.payload["final_asset_id"] == final_asset.id
+    assert chapter_approval_record.payload["diff_asset_id"] == diff_asset.id
+    propagated_summary = next(
+        record
+        for record in records
+        if record.record_type == "previous_chapter_summary"
+        and record.payload.get("chapter_id") == approval_context["next_chapter_id"]
+    )
+    assert propagated_summary.scene_id == approval_context["next_scene_id"]
+    assert propagated_summary.payload["value"] == "林岚抵达港口。"
+    propagated_constraints = next(
+        record
+        for record in records
+        if record.record_type == "next_chapter_constraints"
+        and record.payload.get("chapter_id") == approval_context["next_chapter_id"]
+    )
+    assert propagated_constraints.payload["value"] == ["林岚必须隐藏伤势", "灯塔信号仍需保留"]
 
 
 def _assert_approval_writeback_state_clean(

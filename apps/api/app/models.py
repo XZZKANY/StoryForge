@@ -12,6 +12,11 @@ from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, 
 from app.domains.commercial.models import WorkspaceSubscription
 from app.domains.events.models import EventLog
 from app.domains.provider_gateway.models import ProviderConfig
+from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
+from app.domains.prompt_packs.models import PromptPack
+from app.domains.model_runs.models import ModelRun
+from app.domains.artifacts.models import Artifact
+from app.domains.evaluations.models import EvaluationCase, EvaluationRun
 
 __all__ = [
     "Base",
@@ -36,4 +41,12 @@ __all__ = [
     "WorkspaceSubscription",
     "EventLog",
     "ProviderConfig",
+    "RetrievalSource",
+    "RetrievalChunk",
+    "RetrievalRefreshRun",
+    "PromptPack",
+    "ModelRun",
+    "Artifact",
+    "EvaluationCase",
+    "EvaluationRun",
 ]

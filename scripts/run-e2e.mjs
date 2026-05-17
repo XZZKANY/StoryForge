@@ -7,6 +7,7 @@ const defaultTests = [
   'tests/e2e/phase1-closed-loop.spec.ts',
   'tests/e2e/phase2-contract.spec.ts',
   'tests/e2e/phase3-contract.spec.ts',
+  'tests/e2e/phase4-contract.spec.ts',
 ];
 const httpPytestTargets = [
   'tests/test_phase1_closed_loop_api.py',
@@ -20,8 +21,20 @@ const httpPytestTargets = [
   'tests/test_commercial_controls.py',
   'tests/test_provider_gateway.py',
   'tests/test_phase3_analytics.py',
+  'tests/test_retrieval_index.py',
+  'tests/test_scene_packet_retrieval_upgrade.py',
+  'tests/test_prompt_packs.py',
+  'tests/test_model_runs.py',
+  'tests/test_artifacts.py',
+  'tests/test_evaluations.py',
+  'tests/test_job_runtime_bridge.py',
 ];
-const fallbackPytestTargets = ['tests/test_phase3_service_acceptance.py'];
+const fallbackPytestTargets = [
+  'tests/test_phase1_service_acceptance.py',
+  'tests/test_phase2_service_acceptance.py',
+  'tests/test_phase3_service_acceptance.py',
+  'tests/test_phase4_service_acceptance.py',
+];
 const HTTP_TESTCLIENT_PROBE = `
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -41,6 +54,8 @@ const testFiles = requestedTests.length > 0 ? requestedTests : defaultTests;
 const tempDir = await mkdtemp(join(tmpdir(), 'storyforge-e2e-'));
 
 try {
+  await refreshOpenApiContract(process.cwd());
+
   const runnableFiles = [];
   for (const testFile of testFiles) {
     const outputFile = join(tempDir, `${basename(testFile, '.ts')}.mjs`);
@@ -52,10 +67,43 @@ try {
   if (contractExitCode !== 0) {
     process.exitCode = contractExitCode;
   } else {
-    process.exitCode = await runApiVerification(join(process.cwd(), 'apps/api'));
+    const apiExitCode = await runApiVerification(join(process.cwd(), 'apps/api'));
+    if (apiExitCode !== 0) {
+      process.exitCode = apiExitCode;
+    } else {
+      process.exitCode = await runWorkflowVerification(join(process.cwd(), 'apps/workflow'));
+    }
   }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
+}
+
+async function refreshOpenApiContract(root) {
+  const pythonCommand = resolvePythonCommand();
+  if (!pythonCommand) {
+    console.warn('未找到 uv、python3 或 python，跳过 OpenAPI 契约刷新，沿用现有快照。');
+    return;
+  }
+
+  const outputPath = join(root, 'packages/shared/src/contracts/storyforge.openapi.json');
+  const pythonCode = `
+import json
+from pathlib import Path
+from app.main import app
+
+output_path = Path(${JSON.stringify(outputPath)})
+output_path.parent.mkdir(parents=True, exist_ok=True)
+output_path.write_text(
+    json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n",
+    encoding="utf-8",
+)
+print(f"已刷新 OpenAPI 契约：{output_path}")
+`.trim();
+  const args = pythonCommand === 'uv' ? ['run', 'python', '-c', pythonCode] : ['-c', pythonCode];
+  const exitCode = await runCommand(pythonCommand, args, join(root, 'apps/api'));
+  if (exitCode !== 0) {
+    console.warn('OpenAPI 契约刷新失败，将继续使用仓库中的现有快照。');
+  }
 }
 
 async function runApiVerification(cwd) {
@@ -70,12 +118,26 @@ async function runApiVerification(cwd) {
     return runPythonCommand(pythonCommand, ['-m', 'pytest', ...httpPytestTargets, '-q'], cwd);
   }
 
-  console.warn('检测到当前环境无法稳定执行 FastAPI HTTP pytest，改为运行补偿验证：compileall + Phase 3 服务层验收。');
+  console.warn('检测到当前环境无法稳定执行 FastAPI HTTP pytest，改为运行补偿验证：compileall + Phase 1/2/3 服务层验收。');
   const compileExitCode = await runPythonCommand(pythonCommand, ['-m', 'compileall', 'app', 'tests'], cwd);
   if (compileExitCode !== 0) {
     return compileExitCode;
   }
   return runPythonCommand(pythonCommand, ['-m', 'pytest', ...fallbackPytestTargets, '-q'], cwd);
+}
+
+async function runWorkflowVerification(cwd) {
+  const pythonCommand = resolvePythonCommand();
+  if (!pythonCommand) {
+    console.error('未找到 uv、python3 或 python，无法执行 workflow 验证。');
+    return 1;
+  }
+
+  const compileExitCode = await runPythonCommand(pythonCommand, ['-m', 'compileall', 'storyforge_workflow', 'tests'], cwd);
+  if (compileExitCode !== 0) {
+    return compileExitCode;
+  }
+  return runPythonCommand(pythonCommand, ['-m', 'pytest', 'tests/test_generation_graph.py', 'tests/test_runtime_runner.py', '-q'], cwd);
 }
 
 function resolvePythonCommand() {
