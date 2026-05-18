@@ -1227,3 +1227,32 @@ summary: '已完成竞品架构横评落地修改：补齐 Phase 5 AI/RAG 环境
 建议：允许提交并推送。
 
 说明：`gh` 未安装，无法创建 PR；用户本轮要求为“提交上去”，因此执行直接提交并推送当前分支。
+
+## Tavily 竞品架构深挖验证报告
+
+时间：2026-05-18 20:20:00 +08:00
+
+### 验证范围
+
+- 任务：使用 Tavily 重新深挖 StoryForge 竞品架构。
+- 本轮不修改业务代码，不运行业务测试。
+- 已执行：sequential-thinking、shrimp-task-manager、desktop-commander 本地上下文读取、Tavily 搜索与提取、审计日志追加。
+
+### 来源充分性
+
+- 商业竞品：Sudowrite、Novelcrafter、NovelAI。
+- 开源/生态：SillyTavern、LangGraph story-writing 示例、LangGraph 官方文档。
+- 工程基础设施：Turborepo 官方文档、pgvector/Redis/hybrid search 公开资料。
+
+### 评分
+
+- 需求匹配：94/100，覆盖竞品横评、技术栈深拷问、模块架构和 Phase 0/5/6/7 落地路径。
+- 证据质量：91/100，主要依据官方文档和产品文档；少量市场博客只用于辅助趋势，不作为核心事实。
+- 架构一致性：93/100，建议保持 StoryForge 现有模块化单体边界，强化 API 真相源、workflow checkpoint、web 连续工作台。
+- 可执行性：90/100，已形成 Context Compiler、Memory Bank、Progression、Arbitrator、Turborepo 任务图等可分解任务。
+
+```Scoring
+score: 92
+```
+
+summary: 'Tavily 深挖完成，报告基于官方与公开资料重构竞品证据链，并将 StoryForge 下一阶段重点收敛到上下文编译、结构化长效记忆、LangGraph 状态瘦身、多 Agent 仲裁和 Monorepo 任务图治理。'
