@@ -126,7 +126,7 @@ async function runApiVerification(cwd) {
     return runPythonCommand(pythonCommand, ['-m', 'pytest', ...httpPytestTargets, '-q'], cwd);
   }
 
-  console.warn('检测到当前环境无法稳定执行 FastAPI HTTP pytest，改为运行补偿验证：compileall + Phase 1/2/3 服务层验收。');
+  console.warn('检测到当前环境无法稳定执行 FastAPI HTTP pytest，改为运行补偿验证：compileall + Phase 1/2/3/4 服务层验收。');
   const compileExitCode = await runPythonCommand(pythonCommand, ['-m', 'compileall', 'app', 'tests'], cwd);
   if (compileExitCode !== 0) {
     return compileExitCode;

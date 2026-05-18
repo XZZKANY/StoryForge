@@ -32,8 +32,10 @@ class ProviderConfigRead(BaseModel):
 
 
 class ProviderResolutionRead(BaseModel):
-    provider_id: int
+    provider_id: int | None
     provider_name: str
     capability: str
     model_aliases: dict[str, Any]
     resolution_summary: str
+    resolution_source: str = "database"
+    credential_status: str = "reference_configured"

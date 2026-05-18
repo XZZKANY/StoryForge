@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domains.provider_gateway.models import ProviderConfig
+from app.domains.provider_gateway.runtime_config import ProviderCapability, load_runtime_provider_config
 from app.domains.provider_gateway.schemas import ProviderConfigCreate, ProviderResolutionRead
 from app.domains.workspaces.models import Workspace
 
@@ -34,14 +35,48 @@ def list_provider_configs(session: Session, workspace_id: int | None = None) -> 
 
 
 def resolve_provider(session: Session, capability: str, workspace_id: int | None = None) -> ProviderResolutionRead:
-    providers = [provider for provider in list_provider_configs(session, workspace_id) if provider.status == "active" and capability in provider.capabilities]
+    normalized_capability = _normalize_capability(capability)
+    providers = [
+        provider
+        for provider in list_provider_configs(session, workspace_id)
+        if provider.status == "active" and normalized_capability in provider.capabilities
+    ]
     if not providers:
-        raise ProviderGatewayError("没有可用 provider 支持该能力。")
+        return _resolve_runtime_fallback(normalized_capability)
     provider = sorted(providers, key=lambda item: (item.priority, item.id))[0]
     return ProviderResolutionRead(
         provider_id=provider.id,
         provider_name=provider.provider_name,
-        capability=capability,
+        capability=normalized_capability,
         model_aliases=provider.model_aliases,
-        resolution_summary=f"能力 {capability} 已解析到 {provider.provider_name}。",
+        resolution_summary=f"能力 {normalized_capability} 已解析到 {provider.provider_name}。",
+        resolution_source="database",
+        credential_status="reference_configured" if provider.credential_ref else "reference_missing",
+    )
+
+
+def _normalize_capability(capability: str) -> ProviderCapability:
+    normalized = capability.strip().lower()
+    if normalized not in {"llm", "embedding", "reranker"}:
+        raise ProviderGatewayError("Provider 能力仅支持 llm、embedding、reranker。")
+    return normalized  # type: ignore[return-value]
+
+
+def _resolve_runtime_fallback(capability: ProviderCapability) -> ProviderResolutionRead:
+    runtime_config = load_runtime_provider_config(capability)
+    if runtime_config.resolution_source == "fallback":
+        summary = (
+            f"能力 {capability} 未找到数据库 provider，且配置的 "
+            f"{runtime_config.configured_provider_name} 缺少密钥，已回退到 {runtime_config.provider_name}。"
+        )
+    else:
+        summary = f"能力 {capability} 未找到数据库 provider，已使用环境配置 {runtime_config.provider_name}。"
+    return ProviderResolutionRead(
+        provider_id=None,
+        provider_name=runtime_config.provider_name,
+        capability=capability,
+        model_aliases=runtime_config.model_aliases,
+        resolution_summary=summary,
+        resolution_source=runtime_config.resolution_source,
+        credential_status=runtime_config.credential_status,
     )
