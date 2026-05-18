@@ -91,7 +91,7 @@ function Test-DockerContainerRunning {
 
     $ContainerId = docker ps --filter "name=^/$ContainerName$" --filter "status=running" --quiet 2>$null
     if ($LASTEXITCODE -ne 0) {
-        Write-Fail "无法查询 Docker 容器状态，请确认 Docker 服务已启动。"
+        Write-Fail "无法查询 $DisplayName 容器状态，请确认 Docker Desktop 或 Docker 服务已启动，然后执行 docker compose up -d postgres redis minio。"
         return
     }
 
@@ -121,6 +121,7 @@ Test-RequiredPath "packages/shared/package.json"
 
 Test-DockerContainerRunning -ContainerName "storyforge-postgres" -DisplayName "PostgreSQL"
 Test-DockerContainerRunning -ContainerName "storyforge-redis" -DisplayName "Redis"
+Test-DockerContainerRunning -ContainerName "storyforge-minio" -DisplayName "MinIO"
 
 if ($Failed) {
     Write-Host "StoryForge 本地验证失败，请先修复以上问题。" -ForegroundColor Red

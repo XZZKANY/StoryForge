@@ -1,6 +1,6 @@
 # StoryForge 本地启动手册
 
-更新时间：2026-05-18 11:15:00 +08:00
+更新时间：2026-05-18 17:10:00 +08:00
 
 ## 1. 适用范围
 
@@ -23,15 +23,19 @@ cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
 Copy-Item .env.example .env
 ```
 
-当前 `.env.example` 覆盖以下已落地配置：
+当前 `.env.example` 覆盖以下配置：
 
 - `DATABASE_URL`：对应 `docker-compose.yml` 中的 PostgreSQL `127.0.0.1:55432`。
 - `REDIS_URL`：对应 Redis `127.0.0.1:6379`。
 - `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`：对应 MinIO `127.0.0.1:9000`。
-
 - `API_BASE_URL`、`WEB_BASE_URL`：对应本地 API 与 Web 入口。
+- `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`：workflow 本地 runtime 和 checkpoint 后端预留，当前默认使用本地运行模式。
+- `STORYFORGE_PROVIDER_MODE`、`STORYFORGE_LLM_*`：Phase 5 Provider Gateway 真实化预留，默认保持 deterministic。
+- `STORYFORGE_EMBEDDING_*`：Phase 5 embedding 客户端预留，默认保持本地假 embedding。
+- `STORYFORGE_RERANKER_*`、`STORYFORGE_RAG_*`：Phase 5 reranker 和上下文预算预留，默认不启用 reranker。
+- `STORYFORGE_MODEL_RUN_LOG_LEVEL`：后续模型运行日志粒度预留。
 
-真实 provider、embedding、reranker 配置尚未进入代码读取路径，后续接入 Phase 5 时再补充到 `.env.example`，避免样例文件承诺未实现能力。
+AI/RAG 相关变量当前只是显式占位，代码尚未读取这些变量；本地启动不要求填写真实密钥，也不能据此声称真实 provider、embedding 或 reranker 已经接入。
 
 ## 4. 启动基础服务
 
@@ -73,7 +77,7 @@ pnpm run test:workflow
 验证说明：
 
 - `pnpm verify` 检查工具、路径和 Docker 容器状态；如果 Docker 未启动，会按预期失败并提示启动命令。
-- `pnpm openapi` 严格刷新 `packages/shared/src/contracts/storyforge.openapi.json`。
+- `pnpm openapi` 严格刷新 `packages/shared/src/contracts/storyforge.openapi.json`，并按 `uv`、`python3`、`python` 顺序选择可用运行时。
 - `pnpm e2e` 会先刷新 OpenAPI；刷新失败会停止，避免沿用陈旧契约。
 - 当前环境若无法稳定运行 FastAPI HTTP pytest，`pnpm e2e` 会切换到服务层补偿验收，并在输出中说明原因。
 
@@ -96,10 +100,10 @@ pnpm verify
 
 处理：
 
-1. 确认 Python 3.11+ 或 uv 可用。
+1. 确认 `uv`、`python3` 或 `python` 至少一个可用，且 Python 版本满足项目要求。
 2. 确认 `apps/api/app/main.py` 可导入。
 3. 先运行 `pnpm run test:api` 排除语法错误。
-4. 再运行 `pnpm openapi` 重新生成契约。
+4. 再运行 `pnpm openapi` 重新生成契约；脚本会输出实际使用的 Python 运行时。
 
 ### FastAPI HTTP pytest 不稳定
 

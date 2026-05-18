@@ -2231,17 +2231,34 @@
             "title": "Capability",
             "type": "string"
           },
+          "credential_status": {
+            "default": "reference_configured",
+            "title": "Credential Status",
+            "type": "string"
+          },
           "model_aliases": {
             "additionalProperties": true,
             "title": "Model Aliases",
             "type": "object"
           },
           "provider_id": {
-            "title": "Provider Id",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
           },
           "provider_name": {
             "title": "Provider Name",
+            "type": "string"
+          },
+          "resolution_source": {
+            "default": "database",
+            "title": "Resolution Source",
             "type": "string"
           },
           "resolution_summary": {
