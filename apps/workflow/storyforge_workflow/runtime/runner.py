@@ -7,7 +7,7 @@ from langgraph.types import Command
 
 from storyforge_workflow import create_generation_graph, initial_generation_state
 from storyforge_workflow.persistence import InMemoryWorkflowStore
-from storyforge_workflow.runtime.checkpoints import RuntimeCheckpointStore
+from storyforge_workflow.runtime.checkpoints import ModelRunPayload, ModelRunSink, RuntimeCheckpointStore
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, simulate_provider_execution
 
 
@@ -17,7 +17,7 @@ class WorkflowRuntimeResult:
     job_run_id: str
     status: str
     current_node: str
-    provider_execution: ProviderExecutionResult
+    provider_execution: ProviderExecutionResult | None
 
 
 class WorkflowRuntime:
@@ -28,9 +28,11 @@ class WorkflowRuntime:
         *,
         audit_store: InMemoryWorkflowStore | None = None,
         checkpoint_store: RuntimeCheckpointStore | None = None,
+        model_run_sink: ModelRunSink | None = None,
     ) -> None:
         self.audit_store = audit_store or InMemoryWorkflowStore()
         self.checkpoint_store = checkpoint_store or RuntimeCheckpointStore()
+        self.model_run_sink = model_run_sink
         self.graph = create_generation_graph(store=self.audit_store)
 
     def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any]) -> WorkflowRuntimeResult:
@@ -41,12 +43,35 @@ class WorkflowRuntime:
             user_intent=user_intent,
             scene_packet=scene_packet,
         )
-        provider_execution = simulate_provider_execution(
-            capability="llm",
-            provider_name="mock-provider",
-            model_name="storyforge-writer",
-            prompt_summary=f"{premise}::{scene_packet.get('scene_goal', '')}",
+        prompt_summary = f"{premise}::{scene_packet.get('scene_goal', '')}"
+        try:
+            provider_execution = simulate_provider_execution(
+                capability="llm",
+                provider_name="mock-provider",
+                model_name="storyforge-writer",
+                prompt_summary=prompt_summary,
+            )
+        except Exception as exc:
+            return self._record_provider_failure(
+                thread_id=thread_id,
+                job_run_id=job_run_id,
+                state=state,
+                prompt_summary=prompt_summary,
+                error=exc,
+            )
+        model_run = self.checkpoint_store.record_model_run(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            provider_name=provider_execution.provider_name,
+            model_name=provider_execution.model_name,
+            capability=provider_execution.capability,
+            latency_ms=provider_execution.latency_ms,
+            token_usage=provider_execution.token_usage,
+            input_summary=prompt_summary,
+            output_summary=provider_execution.summary,
         )
+        self._emit_model_run_payload(model_run)
+        state["model_run_id"] = model_run.model_run_id
         chunks = list(self.graph.stream(state, {"configurable": {"thread_id": thread_id}}))
         latest_state = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values
         self.checkpoint_store.save_state(thread_id, latest_state)
@@ -64,6 +89,52 @@ class WorkflowRuntime:
             status=status,
             current_node=latest_state.get("current_node", "unknown"),
             provider_execution=provider_execution,
+        )
+
+    def _record_provider_failure(
+        self,
+        *,
+        thread_id: str,
+        job_run_id: str,
+        state: dict[str, Any],
+        prompt_summary: str,
+        error: Exception,
+    ) -> WorkflowRuntimeResult:
+        model_run = self.checkpoint_store.record_model_run(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            provider_name="mock-provider",
+            model_name="storyforge-writer",
+            capability="llm",
+            latency_ms=0,
+            token_usage=0,
+            input_summary=prompt_summary,
+            output_summary="",
+            status="failed",
+            error_message=str(error),
+        )
+        self._emit_model_run_payload(model_run)
+        state.update(
+            {
+                "model_run_id": model_run.model_run_id,
+                "current_node": "provider_execution",
+                "error_code": "provider_execution_failed",
+            }
+        )
+        self.checkpoint_store.save_state(thread_id, state)
+        self.checkpoint_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            current_node="provider_execution",
+            summary=f"provider 调用失败：{error}",
+            approval_status="failed",
+        )
+        return WorkflowRuntimeResult(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status="failed",
+            current_node="provider_execution",
+            provider_execution=None,
         )
 
     def resume(self, *, thread_id: str, job_run_id: str, decision: dict[str, Any]) -> WorkflowRuntimeResult:
@@ -89,5 +160,24 @@ class WorkflowRuntime:
             status="completed",
             current_node=latest_state.get("current_node", "unknown"),
             provider_execution=provider_execution,
+        )
+
+    def _emit_model_run_payload(self, model_run: Any) -> None:
+        if self.model_run_sink is None:
+            return
+        self.model_run_sink.record(
+            ModelRunPayload(
+                thread_id=model_run.thread_id,
+                job_run_id=model_run.job_run_id,
+                provider_name=model_run.provider_name,
+                model_name=model_run.model_name,
+                capability=model_run.capability,
+                latency_ms=model_run.latency_ms,
+                token_usage=model_run.token_usage,
+                input_summary=model_run.input_summary,
+                output_summary=model_run.output_summary,
+                status=model_run.status,
+                error_message=model_run.error_message,
+            )
         )
 

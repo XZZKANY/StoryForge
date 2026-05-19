@@ -1404,9 +1404,53 @@
             "title": "Asset Id",
             "type": "integer"
           },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "context_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Tokens"
+          },
+          "embedding_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Score"
+          },
           "evidence_type": {
             "title": "Evidence Type",
             "type": "string"
+          },
+          "keyword_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword Score"
           },
           "rank": {
             "anyOf": [
@@ -1440,6 +1484,28 @@
               }
             ],
             "title": "Score"
+          },
+          "score_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Source"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
           },
           "source_ref": {
             "title": "Source Ref",
@@ -2443,9 +2509,19 @@
             "title": "Chunk Id",
             "type": "integer"
           },
+          "embedding_score": {
+            "default": 0.0,
+            "title": "Embedding Score",
+            "type": "number"
+          },
           "excerpt": {
             "title": "Excerpt",
             "type": "string"
+          },
+          "keyword_score": {
+            "default": 0.0,
+            "title": "Keyword Score",
+            "type": "number"
           },
           "rank": {
             "title": "Rank",
@@ -2454,6 +2530,11 @@
           "score": {
             "title": "Score",
             "type": "number"
+          },
+          "score_source": {
+            "default": "keyword",
+            "title": "Score Source",
+            "type": "string"
           },
           "series_id": {
             "anyOf": [

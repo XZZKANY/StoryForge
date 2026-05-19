@@ -46,7 +46,8 @@ def test_generation_graph_pauses_at_human_approval_and_records_checkpoints() -> 
     assert {record.job_run_id for record in records} == {job_run_id}
     assert all(record.approval_status == "pending" for record in records)
     assert "premise" in records[0].input_summary
-    assert "draft_excerpt" in records[-1].output_summary
+    assert "draft_artifact_id" in records[-1].output_summary
+    assert "draft_preview_ref" in records[-1].output_summary
 
 
 def test_generation_graph_resumes_with_same_thread_id_and_command() -> None:

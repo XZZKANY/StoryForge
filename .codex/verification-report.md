@@ -1256,3 +1256,1812 @@ score: 92
 ```
 
 summary: 'Tavily 深挖完成，报告基于官方与公开资料重构竞品证据链，并将 StoryForge 下一阶段重点收敛到上下文编译、结构化长效记忆、LangGraph 状态瘦身、多 Agent 仲裁和 Monorepo 任务图治理。'
+
+
+## 架构改造第一轮验证报告
+
+时间：2026-05-18 21:05:00 +08:00
+
+### 交付物
+
+- 新增 `apps/api/app/domains/context_compiler/`：Context Block、Context Compile Request、Compiled Context、WorkflowStateReference 与 `compile_context` 服务。
+- 新增 `apps/api/app/domains/story_memory/`：MemoryAtom、TimelineEvent、Progression、MemoryConflict、AgentProposal、ArbitrationDecision 与冲突检测/仲裁服务。
+- 新增 `apps/api/tests/test_context_compiler.py`。
+- 新增 `apps/api/tests/test_story_memory_contract.py`。
+- 新增 `docs/architecture/phase5-context-memory-architecture.md`。
+- 新增 `.codex/context-summary-架构改造第一轮.md`。
+
+### 本地验证
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+python -m compileall app tests
+uv run pytest tests/test_context_compiler.py tests/test_story_memory_contract.py -q
+```
+
+结果：
+
+- `python -m compileall app tests`：通过。
+- `uv run pytest tests/test_context_compiler.py tests/test_story_memory_contract.py -q`：7 passed。
+- `python -m pytest ...`：失败，原因为当前全局 Python 未安装 pytest；已使用项目推荐的 `uv run pytest` 补偿验证。
+
+### 质量评分
+
+- 代码质量：92/100。新增模块边界清晰，未引入数据库迁移或外部依赖。
+- 测试覆盖：90/100。覆盖预算裁剪、score threshold、引用型 workflow state、章节有效事实、冲突检测和 Agent 仲裁。
+- 规范遵循：93/100。中文文档/注释/日志完整，遵循现有服务层模式。
+- 架构一致：94/100。保持 API 真相源、workflow 引用状态、web 不持有长任务真相状态。
+
+```Scoring
+score: 92
+```
+
+summary: '第一轮架构改造已完成并通过本地验证，竞品成熟做法已择优落地为 Context Compiler、Story Memory、Progression、Agent Proposal/Arbitrator 和 LangGraph 引用型状态契约。'
+
+
+---
+
+# ScenePacket接入ContextCompiler 验证报告
+
+生成时间：2026-05-18 21:09:50 +08:00
+
+## 需求字段完整性
+
+- 目标：让 `assemble_scene_packet()` 生成的 `packet.packet` 包含 `compiled_context_id`、上下文注入、上下文裁剪、上下文预算和上下文调试字段。
+- 范围：`apps/api/app/domains/scene_packets/service.py`、`apps/api/tests/test_scene_packet_context_compiler.py`、`.codex/context-summary-ScenePacket接入ContextCompiler.md`。
+- 交付物：Scene Packet 接入代码、TDD 契约测试、上下文摘要、操作日志和本验证报告。
+- 审查要点：是否复用既有 Context Compiler，是否保持原 Scene Packet 固定槽位兼容，是否不新增数据库迁移或外部模型依赖。
+
+## 本地验证
+
+- `uv run pytest tests/test_scene_packet_context_compiler.py tests/test_context_compiler.py tests/test_story_memory_contract.py -q`：通过，`8 passed in 0.58s`。
+- `python -m compileall app tests`：通过，退出码 0。
+- `uv run pytest tests/test_phase1_service_acceptance.py tests/test_phase4_service_acceptance.py -q`：通过，`3 passed in 0.69s`。
+- `git status --short`：已检查，存在未提交变更，未执行提交。
+
+## 评分
+
+- 代码质量：93/100
+- 测试覆盖：92/100
+- 规范遵循：95/100
+- 需求匹配：95/100
+- 架构一致：94/100
+- 风险评估：92/100
+- 综合评分：94/100
+
+## 结论
+
+建议：通过。
+
+说明：本轮只完成 Scene Packet 与 Context Compiler 的服务层接入，不新增数据库迁移、不接真实外部模型、不改前端 UI。
+---
+
+# story_memory 最小持久化第1轮验证报告
+
+生成时间：2026-05-19 00:10:00 +08:00
+
+## 需求字段完整性
+
+- 目标：按总计划第 11.5 节新增 `memory_atoms` 最小持久化模型和迁移。
+- 范围：`apps/api/app/domains/story_memory/models.py`、`apps/api/app/models.py`、Alembic 迁移、持久化测试、TODO 与审计记录。
+- 交付物：`MemoryAtomRecord`、`c0ffee20260519_add_memory_atoms.py`、`test_story_memory_persistence.py`。
+- 审查要点：字段类型跟随现有 int 主键；不新增大型架构；不持久化第 11.5 明确延后的表。
+
+## 本地验证
+
+- `uv run pytest tests/test_story_memory_persistence.py -q`：通过，`2 passed in 0.67s`。
+- `pnpm run test:api`：通过，compileall 退出码 0。
+- `uv run alembic heads`：通过，输出 `c0ffee20260519 (head)`。
+- `git status --short --branch`：已检查，存在未提交改动，未自动提交。
+
+## 评分
+
+- 代码质量：92/100
+- 测试覆盖：90/100
+- 规范遵循：95/100
+- 需求匹配：94/100
+- 架构一致：94/100
+- 风险评估：91/100
+- 综合评分：93/100
+
+## 结论
+
+建议：通过。第1轮只补齐第 11.5 明确要求的 `memory_atoms` 持久化底座，未扩展大型架构。
+
+---
+
+# story_memory 最小持久化第2轮验证报告
+
+生成时间：2026-05-19 00:18:00 +08:00
+
+## 需求字段完整性
+
+- 目标：补齐总计划第 11.5 节要求的基础 CRUD service 和章节有效事实查询。
+- 范围：`apps/api/app/domains/story_memory/service.py`、`apps/api/tests/test_story_memory_persistence.py`、TODO 和审计记录。
+- 交付物：`create_memory_atom`、`list_memory_atoms`、`get_active_memory_atoms`。
+- 审查要点：复用契约层 MemoryAtom；按章节有效区间查询；不扩大为完整多 Agent 或 Progression 持久化。
+
+## 本地验证
+
+- `uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q`：通过，`7 passed in 0.74s`。
+- `git status --short --branch`：已检查，存在未提交改动，未自动提交。
+
+## 评分
+
+- 代码质量：92/100
+- 测试覆盖：91/100
+- 规范遵循：95/100
+- 需求匹配：94/100
+- 架构一致：94/100
+- 风险评估：91/100
+- 综合评分：93/100
+
+## 结论
+
+建议：通过。第2轮补齐了 memory_atoms 的可用服务闭环，仍保持第 11.5 的最小边界。
+
+---
+
+# story_memory 最小持久化第3轮与最终验证报告
+
+生成时间：2026-05-19 00:28:00 +08:00
+
+## 需求字段完整性
+
+- 目标：完成总计划 11.5 的 story_memory 最小持久化，并按 11.8 补齐最小仲裁写入闭环。
+- 范围：`story_memory` 模型、迁移、服务、测试、TODO 和 `.codex` 审计记录。
+- 交付物：`memory_atoms` 表、`MemoryAtomRecord`、CRUD service、章节有效事实查询、`apply_arbitration_decision`。
+- 审查要点：不假设 UUID；不新增大型架构模块；不拆微服务；不持久化第 11.5 延后项。
+
+## 三轮结果
+
+- 第1轮：新增 `MemoryAtomRecord`、`memory_atoms` Alembic 迁移、模型注册和模型测试。
+- 第2轮：新增 `create_memory_atom`、`list_memory_atoms`、`get_active_memory_atoms`。
+- 第3轮：新增最小 `AgentProposal -> ArbitrationDecision -> MemoryAtom` 自动合并写入闭环。
+
+## 本地验证
+
+- `uv run pytest tests/test_story_memory_persistence.py -q`：第1轮通过，`2 passed in 0.67s`。
+- `uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q`：第3轮通过，`9 passed in 0.72s`。
+- `pnpm run test:api`：通过，compileall 退出码 0。
+- `uv run alembic heads`：通过，输出 `c0ffee20260519 (head)`。
+- `pnpm e2e`：通过，Node 契约 14 项、API 补偿验收 7 项、workflow pytest 3 项均通过。
+
+## 状态区分
+
+- 已实现：MemoryAtom 契约、memory_atoms 持久化、CRUD、章节有效事实查询、最小 auto_merge 写入。
+- 已有契约但未持久化：TimelineEvent、Progression、MemoryConflict、AgentProposal、ArbitrationDecision 的独立表。
+- 完全不存在：完整多 Agent 仲裁系统、复杂人工审核 UI、递归激活、pgvector 检索优化。
+- 竞品启发：Letta/MemGPT、Novelcrafter、SillyTavern 机制仅作为边界参考，未扩展为大型架构。
+
+## 评分
+
+- 代码质量：93/100
+- 测试覆盖：92/100
+- 规范遵循：95/100
+- 需求匹配：95/100
+- 架构一致：95/100
+- 风险评估：92/100
+- 综合评分：94/100
+
+## 结论
+
+建议：通过。本次三轮完成了总计划第 11.5 的最小持久化闭环，并按 11.8 补齐最小仲裁写入路径；未自动提交。
+
+
+## 2026-05-19 compiled_contexts 第1轮验证报告
+
+### 验证目标
+
+- 为总计划第 11.6 `compiled_contexts` 最小持久化建立红灯测试。
+- 验证失败必须指向尚未实现的持久化模型或服务，而不是测试语法错误。
+
+### 执行结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_context_compiler_persistence.py -q
+```
+
+结果：失败，`1 error`。关键错误：`ModuleNotFoundError: No module named 'app.domains.context_compiler.models'`。
+
+### 审查结论
+
+- 技术评分：82/100。测试目标清晰，覆盖字段类型、审计摘要和 Scene Packet 集成；当前红灯为预期缺失功能。
+- 战略评分：90/100。符合第 11.6 P0 裁决，并严格限制在最小持久化范围。
+- 综合评分：86/100，建议：需继续第2轮实现后复验。
+
+
+## 2026-05-19 compiled_contexts 第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_context_compiler_persistence.py -q
+uv run alembic heads
+```
+
+### 验证结果
+
+- `uv run pytest tests/test_context_compiler_persistence.py -q`：通过，`3 passed in 0.71s`。
+- `uv run alembic heads`：通过，当前 head 为 `c0ffee20260520 (head)`。
+
+### 审查结论
+
+- 技术评分：91/100。模型、迁移、服务写入和 Scene Packet 集成均有定向测试覆盖；字段类型按现有 int 主键体系实现。
+- 战略评分：94/100。严格命中第 11.6 P0 风险，不引入大型架构或 UI。
+- 综合评分：93/100，建议：通过；第3轮继续运行更宽集成验证并补齐审计分类。
+
+
+## 2026-05-19 compiled_contexts 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_context_compiler.py tests/test_context_compiler_persistence.py tests/test_scene_packet_context_compiler.py -q
+uv run python -m compileall app tests
+uv run alembic upgrade head --sql
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:api
+```
+
+- Context Compiler + Scene Packet 相关 pytest：通过，`7 passed in 0.78s`。
+- API compileall：通过。
+- 根级 `pnpm run test:api`：通过。
+- 离线 Alembic SQL：通过，输出包含 `CREATE TABLE compiled_contexts` 和 `UPDATE alembic_version SET version_num='c0ffee20260520'`。
+
+### 未通过项与根因
+
+- `uv run alembic upgrade head` 在线升级：124 秒超时。
+- 根因：当前 Alembic 默认连接本地 PostgreSQL `127.0.0.1:55432`；既有运维验证已记录 Docker/PostgreSQL 当前不可用时在线迁移会超时。本轮不把在线升级伪装为通过，采用 head 检查与离线 SQL 作为补偿验证。
+
+### 审查结论
+
+- 技术评分：90/100。核心持久化路径和集成路径均有本地自动测试；在线迁移受环境限制未完成。
+- 战略评分：94/100。严格收口第 11.6，不扩展到 Inspector UI 或大型 workflow 改造。
+- 综合评分：92/100，建议：通过，保留 Docker/PostgreSQL 可用后补跑在线 Alembic 的环境任务。
+
+
+## 2026-05-19 workflow state 第1轮验证报告
+
+### 验证目标
+
+- 为总计划第 11.7 Workflow State 引用化建立红灯测试。
+- 红灯必须指向缺少引用型 state 边界或 checkpoint sanitizer，而不是测试语法错误。
+
+### 执行结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+python -m pytest tests/test_generation_state_references.py -q
+uv run pytest tests/test_generation_state_references.py -q
+```
+
+- `python -m pytest`：失败，当前系统 Python 缺少 pytest。
+- `uv run pytest`：失败，`ImportError: cannot import name 'checkpoint_reference_state' from 'storyforge_workflow.state'`。
+
+### 审查结论
+
+- 技术评分：84/100。红灯测试覆盖类型契约、sanitizer 和 runtime checkpoint 边界；失败原因符合预期缺失功能。
+- 战略评分：91/100。符合第 11.7 的最小修复方向，没有扩展到大型 runtime 重构。
+- 综合评分：88/100，建议：继续第2轮实现并复验。
+
+
+## 2026-05-19 workflow state 第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_generation_state_references.py -q
+uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+```
+
+### 验证结果
+
+- `test_generation_state_references.py`：通过，`3 passed in 0.05s`。
+- workflow graph/runtime/state 三组测试：通过，`6 passed in 0.05s`。
+
+### 审查结论
+
+- 技术评分：91/100。引用型 state 契约、checkpoint sanitizer 和 runtime store 边界均有测试覆盖；旧断言已按新引用边界校准。
+- 战略评分：94/100。严格命中第 11.7，未扩展到 PostgresSaver 或完整 replay UI。
+- 综合评分：93/100，建议：通过；第3轮继续跑 compileall 和必要补偿测试。
+
+
+## 2026-05-19 workflow state 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run python -m compileall storyforge_workflow tests
+uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:workflow
+cd apps/api
+uv run pytest tests/test_phase4_service_acceptance.py tests/test_context_compiler.py tests/test_context_compiler_persistence.py -q
+```
+
+- Workflow compileall：通过。
+- Workflow pytest：通过，`6 passed in 0.03s`。
+- 根级 `pnpm run test:workflow`：通过。
+- API 补偿测试：通过，`8 passed in 0.85s`。
+
+### 审查结论
+
+- 技术评分：92/100。引用化契约、runtime checkpoint 保存边界和既有 graph/runtime 行为均有本地自动验证。
+- 战略评分：94/100。符合第 11.7，避免新增大型架构、微服务或数据库迁移。
+- 综合评分：93/100，建议：通过；后续如果继续，应单独处理真实 PostgresSaver 或 `.codex` 审计归档，不在本轮继续展开。
+
+
+## 2026-05-19 审计治理第1轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+Select-String -Path .codex/current-phase.md -Pattern '11.5','11.6','11.7','11.8','11.9','已实现','已有契约但未持久化','完全不存在','竞品启发'
+```
+
+### 验证结果
+
+- 通过：输出包含 11.5、11.6、11.7、11.8、11.9 以及四类状态区分标题。
+
+### 审查结论
+
+- 技术评分：90/100。建立当前事实索引，降低后续恢复上下文成本。
+- 战略评分：92/100。符合第 11.9 的最小治理路径，没有扩大为归档迁移任务。
+- 综合评分：91/100，建议：通过；第2轮同步 Alembic 验证记录。
+
+
+## 2026-05-19 审计治理第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run alembic heads
+uv run alembic upgrade head --sql
+```
+
+### 验证结果
+
+- `uv run alembic heads`：通过，输出 `c0ffee20260520 (head)`。
+- `uv run alembic upgrade head --sql`：通过，输出包含 `CREATE TABLE memory_atoms`、`CREATE TABLE compiled_contexts`、`UPDATE alembic_version SET version_num='c0ffee20260520'`。
+- 在线 `uv run alembic upgrade head`：本轮未重跑；沿用最近一次 124 秒超时证据，原因是默认 PostgreSQL `127.0.0.1:55432` 当前不可用或不可确认。
+
+### 审查结论
+
+- 技术评分：91/100。迁移验证文档已同步到最新 head，并保留在线限制。
+- 战略评分：93/100。服务第 11.5/11.6 闭环与第 11.9 当前事实治理，未引入新迁移。
+- 综合评分：92/100，建议：通过；第3轮校准 TODO 任务池并做轻量验证。
+
+
+## 2026-05-19 审计治理第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:api
+pnpm run test:workflow
+Select-String -Path TODO.md -Pattern 'Story Memory 最小持久化','Context Compiler 追溯持久化','Workflow State 引用化','current-phase','c0ffee20260520'
+```
+
+- `pnpm run test:api`：通过，API 代码与测试 compileall 完成。
+- `pnpm run test:workflow`：通过，workflow 代码与测试 compileall 完成。
+- `Select-String`：通过，TODO 中能定位新增任务池校准条目和最新 Alembic head 记录。
+
+### 审查结论
+
+- 技术评分：90/100。文档状态已与最新 Phase 事实对齐，并通过轻量本地验证。
+- 战略评分：93/100。符合第 11.9，降低后续代理误读风险，未引入新架构。
+- 综合评分：92/100，建议：通过；本轮完成后停止，不继续开新任务。
+
+
+## 2026-05-19 retrieval 第1轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_retrieval_embedding.py -q
+```
+
+### 验证结果
+
+- 红灯通过：测试收集阶段失败，错误为 `ModuleNotFoundError: No module named 'app.domains.retrieval.reranker_client'`。
+- 该失败证明当前 retrieval 已有 embedding 客户端接口，但缺少 reranker 客户端契约和搜索重排接入。
+
+### 审查结论
+
+- 技术评分：88/100。已按 TDD 建立失败测试和上下文摘要；尚未进入实现。
+- 战略评分：92/100。选题符合 Phase 5 和总计划第 11 节后续优先级，未扩大架构范围。
+- 综合评分：90/100，建议：通过第1轮；第2轮实现最小 reranker 契约并转绿。
+
+
+## 2026-05-19 retrieval 第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_retrieval_embedding.py -q
+```
+
+### 验证结果
+
+- 通过：`3 passed in 0.86s`。
+- 覆盖范围：refresh run embedding 元数据与 chunk_refs、query embedding 语义命中、可选 reranker 重排与 rerank 元数据。
+
+### 审查结论
+
+- 技术评分：91/100。最小 reranker 契约与搜索接入已由服务层测试覆盖，默认路径保持稳定。
+- 战略评分：93/100。符合 Phase 5 真实 AI/RAG 依赖接入主线，未引入大模块或数据库迁移。
+- 综合评分：92/100，建议：通过；第3轮补齐 Scene Packet 证据透传和更宽验证。
+
+
+## 2026-05-19 retrieval 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_scene_packet_retrieval_upgrade.py -q
+uv run pytest tests/test_retrieval_embedding.py tests/test_scene_packet_retrieval_upgrade.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:api
+```
+
+- 红灯验证：`uv run pytest tests/test_scene_packet_retrieval_upgrade.py -q` 初次失败，`KeyError: 'rerank_score'`，证明 Scene Packet ContextBlock 未透传 rerank 元数据。
+- 目标 pytest：通过，`5 passed in 1.86s`。
+- 根级 API compileall：通过，`pnpm run test:api` 完成并编译新增 `reranker_client.py`、retrieval/scene packet schemas 与 service、相关测试。
+
+### 审查结论
+
+- 技术评分：92/100。检索 embedding、reranker 与 Scene Packet 证据透传均有本地自动验证，默认无 reranker 路径保持稳定。
+- 战略评分：93/100。符合 Phase 5 后续主线，未新增大型架构、微服务或数据库迁移。
+- 综合评分：92/100，建议：通过；本轮三轮结束后停止，不继续开启真实 SDK 或 Workflow ModelRun 新任务。
+
+
+## 2026-05-19 workflow model_run 第1轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+```
+
+### 验证结果
+
+- 红灯通过：`1 failed`，失败为 `AttributeError: 'RuntimeCheckpointStore' object has no attribute 'list_model_runs'`。
+- 该失败证明 workflow runtime 目前没有可查询的模型运行记录仓库，`model_run_id` 引用链尚未闭环。
+
+### 审查结论
+
+- 技术评分：88/100。已建立红灯测试和上下文摘要，失败原因与 Phase 5 缺口一致。
+- 战略评分：92/100。选题符合 TODO P1 和总计划第 11 节后续优先级，未扩大架构范围。
+- 综合评分：90/100，建议：通过第1轮；第2轮实现最小运行时 ModelRun 引用记录。
+
+
+## 2026-05-19 workflow model_run 第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+```
+
+### 验证结果
+
+- 通过：`1 passed in 0.12s`。
+- 覆盖范围：runtime start 写入模型运行记录，checkpoint state 保留 `model_run_id`，并区分 `model_run_id` 与 `token_usage`。
+
+### 审查结论
+
+- 技术评分：91/100。最小运行时 ModelRun 引用已由测试覆盖，且未污染 checkpoint 大对象边界。
+- 战略评分：93/100。符合 Phase 5 Workflow runtime 调用链联通方向，未引入数据库迁移或新服务。
+- 综合评分：92/100，建议：通过；第3轮补齐失败状态保留与集成验证。
+
+
+## 2026-05-19 workflow model_run 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:workflow
+```
+
+- 红灯验证：`uv run pytest tests/test_runtime_runner.py -q` 初次失败，`RuntimeError: provider timeout` 未被 runtime 捕获，证明失败恢复状态缺失。
+- 目标 pytest：通过，`5 passed in 0.08s`。
+- 根级 workflow compileall：通过，`pnpm run test:workflow` 完成并编译 runtime 与测试文件。
+
+### 审查结论
+
+- 技术评分：92/100。成功和失败路径均保留模型运行引用、checkpoint 状态和可恢复错误节点，且验证覆盖引用型 state 边界。
+- 战略评分：93/100。符合 Phase 5 Workflow runtime 调用链联通，不新增大型架构、微服务或数据库迁移。
+- 综合评分：92/100，建议：通过；本轮三轮结束后停止，不继续开启 API 真表写入或真实 provider SDK 新任务。
+
+
+## 2026-05-19 api model_run 第1轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q
+```
+
+### 验证结果
+
+- 红灯通过：`1 failed, 1 passed`，失败为 `ImportError: cannot import name 'record_failed_runtime_model_run'`。
+- 该失败证明 API ModelRun 已有成功记录能力，但缺少运行时 provider 失败记录 helper。
+
+### 审查结论
+
+- 技术评分：88/100。已补红灯测试和上下文摘要，失败原因与当前缺口一致。
+- 战略评分：92/100。符合 Phase 5 ModelRun 调用链闭环，不涉及新表、迁移或微服务。
+- 综合评分：90/100，建议：通过第1轮；第2轮实现失败记录 helper。
+
+
+## 2026-05-19 api model_run 第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q
+```
+
+### 验证结果
+
+- 通过：`2 passed in 1.39s`。
+- 覆盖范围：模型运行成功日志 API、失败 runtime helper、错误信息和恢复 payload、按 `job_run_id` 查询。
+
+### 审查结论
+
+- 技术评分：91/100。失败记录 helper 复用既有创建和引用校验路径，无新增迁移。
+- 战略评分：93/100。服务 Phase 5 Workflow/ModelRun 调用链，未扩大架构范围。
+- 综合评分：92/100，建议：通过；第3轮补齐边界说明和更宽验证。
+
+
+## 2026-05-19 api model_run 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py tests/test_phase4_service_acceptance.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:api
+pnpm run test:workflow
+```
+
+- API pytest：通过，`4 passed in 1.46s`。
+- Workflow pytest：通过，`5 passed in 0.04s`。
+- 根级 API compileall：通过。
+- 根级 workflow compileall：通过。
+
+### 审查结论
+
+- 技术评分：92/100。API 成功/失败 ModelRun 记录、workflow model_run 引用和失败 checkpoint 均有本地验证。
+- 战略评分：93/100。符合 Phase 5 调用链闭环，且明确保留跨进程真表 client 为后续任务，没有引入大型架构或迁移。
+- 综合评分：92/100，建议：通过；本轮三轮结束后停止，不继续开启 workflow-to-api client 或 UI 新任务。
+
+
+## 2026-05-19 workflow sink 第1轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+```
+
+### 验证结果
+
+- 红灯通过：`1 failed, 1 passed`，失败为 `WorkflowRuntime.__init__() got an unexpected keyword argument 'model_run_sink'`。
+- 该失败证明 workflow runtime 缺少可替换 ModelRun sink 边界。
+
+### 审查结论
+
+- 技术评分：88/100。红灯测试明确覆盖后续 API 真表 adapter 的必要注入点。
+- 战略评分：92/100。符合 Phase 5 调用链闭环，未实现跨进程 client 或新增架构。
+- 综合评分：90/100，建议：通过第1轮；第2轮实现最小 sink 边界。
+
+
+## 2026-05-19 workflow sink 第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+```
+
+### 验证结果
+
+- 通过：`2 passed in 0.10s`。
+- 覆盖范围：runtime 成功路径写入内存 model run、checkpoint 保留 `model_run_id`、可注入 sink 接收 completed payload、失败 checkpoint 既有测试仍通过。
+
+### 审查结论
+
+- 技术评分：91/100。sink 边界最小且可测试，不引入跨进程依赖。
+- 战略评分：93/100。符合 Phase 5 调用链联通前置，未新增大型架构或迁移。
+- 综合评分：92/100，建议：通过；第3轮补齐失败路径 sink 投递并运行更宽验证。
+
+
+## 2026-05-19 workflow sink 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:workflow
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q
+```
+
+- 红灯验证：`uv run pytest tests/test_runtime_runner.py -q` 初次失败，`IndexError: list index out of range`，证明失败路径未投递 sink。
+- Workflow 目标 pytest：通过，`5 passed in 0.06s`。
+- 根级 workflow compileall：通过。
+- API ModelRun pytest：通过，`2 passed in 1.32s`。
+
+### 审查结论
+
+- 技术评分：92/100。成功/失败路径均可向 sink 投递与 API helper 对齐的 payload，且 checkpoint 引用边界仍通过验证。
+- 战略评分：93/100。符合 Phase 5 调用链联通前置，未新增大型架构、微服务或迁移。
+- 综合评分：92/100，建议：通过；本轮三轮结束后停止，不继续实现具体 workflow-to-api client。
+
+
+## 2026-05-19 payload 映射第1轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+```
+
+### 验证结果
+
+- 红灯通过：`1 failed, 1 passed`，失败为 `ModelRunPayload` 缺少 `to_api_payload()`。
+- 该失败证明 workflow sink payload 尚不能稳定映射到 API `ModelRunCreate` 字段。
+
+### 审查结论
+
+- 技术评分：88/100。红灯覆盖字段映射缺口。
+- 战略评分：92/100。符合 Phase 5 调用链联通前置，不涉及新架构或迁移。
+- 综合评分：90/100，建议：通过第1轮；第2轮实现 completed 映射。
+
+
+## 2026-05-19 payload 映射第2轮验证报告
+
+### 验证命令
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+```
+
+### 验证结果
+
+- 通过：`2 passed in 0.06s`。
+- 覆盖范围：completed sink payload 可转换为 API-compatible payload，且既有失败 checkpoint 测试仍通过。
+
+### 审查结论
+
+- 技术评分：91/100。字段映射最小且可测试。
+- 战略评分：93/100。服务 Phase 5 调用链联通，不引入跨进程实现。
+- 综合评分：92/100，建议：通过；第3轮覆盖 failed 映射并运行更宽验证。
+
+
+## 2026-05-19 payload 映射第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:workflow
+```
+
+- Workflow pytest：通过，`5 passed in 0.08s`。
+- API ModelRun pytest：通过，`2 passed in 1.32s`。
+- 根级 workflow compileall：通过。
+
+### 审查结论
+
+- 技术评分：92/100。completed/failed payload 均可稳定映射到 API-compatible 字段，且不引入跨包依赖。
+- 战略评分：93/100。符合 Phase 5 Workflow/ModelRun 调用链前置闭环，未新增大型架构、微服务或迁移。
+- 综合评分：92/100，建议：通过；本轮三轮结束后停止，不继续实现具体 adapter/client。
+
+
+## 2026-05-19 Phase 交付闭环续推第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+python .codex/tmp_validate_todo.py
+git status --short --branch
+```
+
+- TODO 文本断言：通过，4 项关键校准文本均存在。
+- Git 状态：已检查，`master...origin/master` 未显示 ahead/behind；存在前序未提交 Phase 5/审计变更。
+
+### 审查结论
+
+- 技术评分：90/100。文档校准范围小、可验证，未触碰业务代码。
+- 战略评分：93/100。符合总计划第 11 节“当前事实优先”和 11.9 当前摘要治理要求。
+- 综合评分：92/100，建议：通过；第2轮继续补 workflow-to-api ModelRun adapter 契约验证。
+
+
+## 2026-05-19 Phase 交付闭环续推第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q
+git status --short --branch
+```
+
+- 红灯：`to_api_payload(api_job_run_id=...)` 初次失败，错误为 `unexpected keyword argument 'api_job_run_id'`，证明旧契约未区分 runtime 字符串 ID 与 API int ID。
+- Workflow 目标 pytest：通过，`2 passed in 0.05s`。
+- Workflow 更宽 pytest：通过，`5 passed in 0.03s`。
+- API ModelRun pytest：通过，`2 passed in 1.25s`。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：93/100。契约显式要求 API 真表 int ID，符合现有 SQLAlchemy/Pydantic 类型，避免 UUID/字符串假设。
+- 战略评分：94/100。服务 Phase 5 Workflow/ModelRun 调用链联通前置，未新增大型架构、微服务或迁移。
+- 综合评分：94/100，建议：通过；第3轮补当前 Phase 索引/文档并运行本地验证。
+
+
+## 2026-05-19 Phase 交付闭环续推第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+python .codex/tmp_validate_phase.py
+pnpm run test:workflow
+git status --short --branch
+```
+
+- 当前 Phase 索引断言：通过，ModelRun 边界已记录。
+- Workflow compileall：通过，`pnpm run test:workflow` 完成 `python -m compileall apps/workflow/storyforge_workflow apps/workflow/tests`，退出码 0。
+- Git 状态：已检查，`master...origin/master` 未显示 ahead/behind；存在前序未提交 Phase 5/审计变更。
+
+### 三轮综合审查
+
+- 技术评分：93/100。三轮分别完成 TODO 状态校准、ModelRun ID 类型契约修正、当前 Phase 索引同步，并有本地验证证据。
+- 战略评分：94/100。符合总计划第 11 节优先级，未新增大型架构、未拆微服务、未做数据库迁移，并明确区分已实现/已有契约但未持久化/完全不存在/竞品启发。
+- 综合评分：94/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+
+## 2026-05-19 Phase 交付闭环再续第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py -q
+git status --short --branch
+```
+
+- Workflow runtime pytest：通过，`3 passed in 0.05s`。
+- 覆盖范围：成功/失败 sink 映射、`api_job_run_id` 正整数映射、0/负数非法 ID 报错。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：93/100。补齐了第 11.2 类型硬约束的边界测试，避免 runtime 字符串 ID 混入 API 数据库字段。
+- 战略评分：94/100。符合 Phase 5 Workflow/ModelRun 调用链前置，不新增大型架构、微服务或迁移。
+- 综合评分：94/100，建议：通过；第2轮补 adapter 契约文档。
+
+
+## 2026-05-19 Phase 交付闭环再续第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+python .codex/tmp_validate_adapter_doc.py
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q
+git status --short --branch
+```
+
+- 文档断言：通过，adapter 契约包含 `api_job_run_id:int`、`JobRun.id` 正整数、`payload.runtime_job_run_id` 和状态区分。
+- Workflow pytest：通过，`6 passed in 0.03s`。
+- API ModelRun pytest：通过，`2 passed in 1.26s`。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：92/100。契约文档与测试证据一致，清楚分离 workflow runtime 字符串 ID 与 API 真表 int ID。
+- 战略评分：94/100。满足 Phase 5 调用链前置闭环，同时避免提前实现跨进程 client 或微服务化。
+- 综合评分：93/100，建议：通过；第3轮可转入 Phase 6 Runs 页面最小前置。
+
+
+## 2026-05-19 Phase 交付闭环再续第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：扩展契约测试后首次运行失败，错误为 `app/runs/page.tsx 必须包含：Checkpoint 状态`。
+- Web 中文契约测试：通过，6 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 三轮综合审查
+
+- 技术评分：93/100。三轮覆盖 workflow payload ID 边界测试、adapter 契约文档、Runs 页面最小入口，验证链包含 workflow/API/web。
+- 战略评分：94/100。符合总计划第 11 节与 Phase 6 后续闭环，不新增大型架构、不拆微服务、不做大规模迁移，且明确状态边界。
+- 综合评分：94/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+
+## 2026-05-19 Phase 6 再续第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：扩展契约测试后首次运行失败，错误为 `app/studio/page.tsx 必须包含：作品选择`。
+- Web 中文契约测试：通过，6 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：92/100。沿用现有静态页面与中文契约测试模式，改动小且可验证。
+- 战略评分：93/100。符合 Phase 6 Studio 连续创作入口方向，未新增大型架构、状态管理或后端依赖。
+- 综合评分：93/100，建议：通过；第2轮补 Retrieval 证据跳转入口。
+
+
+## 2026-05-19 Phase 6 再续第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：扩展契约测试后首次运行失败，错误为 `app/retrieval/page.tsx 必须包含：资料来源类型`。
+- Web 中文契约测试：通过，6 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：92/100。复用现有页面数组与中文契约测试，改动可验证且无新增依赖。
+- 战略评分：93/100。符合 Phase 6 Retrieval 工作台入口方向，承接 Phase 5 检索证据链，不引入大型前端架构。
+- 综合评分：93/100，建议：通过；第3轮补 Artifacts/Evaluations 后续闭环入口。
+
+
+## 2026-05-19 Phase 6 再续第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：扩展契约测试后首次运行失败，错误为 `app/evaluations/page.tsx 必须包含：评测集`。
+- Web 中文契约测试：通过，6 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 三轮综合审查
+
+- 技术评分：92/100。三轮均沿用现有页面数组和中文契约测试，红灯到转绿证据完整。
+- 战略评分：93/100。推进 Phase 6 Studio、Retrieval、Evaluations 工作台入口闭环，未新增大型架构、微服务或数据库迁移。
+- 综合评分：93/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+
+## 2026-05-19 Phase 6 收口第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：扩展契约测试后首次运行失败，错误为 `app/artifacts/page.tsx 必须包含：导出下载`。
+- Web 中文契约测试：通过，6 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：92/100。沿用现有页面数组和中文契约测试，红灯到转绿证据完整。
+- 战略评分：93/100。补齐 Phase 6 五大工作台之一的制品闭环入口，未新增大型架构或后端依赖。
+- 综合评分：93/100，建议：通过；第2轮更新当前 Phase 索引。
+
+
+## 2026-05-19 Phase 6 收口第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+python .codex/tmp_validate_phase6_index.py
+git status --short --branch
+```
+
+- 文本断言：通过，当前 Phase 索引已包含 Phase 6 工作台最小入口、各页面入口状态、真实数据联动待做边界和 web 验证命令。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：91/100。文档索引改动可验证，降低后续代理恢复状态成本。
+- 战略评分：94/100。符合总计划第 11.9，未新增大型架构、微服务或迁移。
+- 综合评分：93/100，建议：通过；第3轮补 Phase 6 工作台契约文档。
+
+
+## 2026-05-19 Phase 6 收口第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+python .codex/tmp_validate_phase6_contract.py
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 文档断言：通过，Phase 6 契约包含五个页面、状态区分、竞品启发边界和 web 验收命令。
+- Web 中文契约测试：通过，6 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 三轮综合审查
+
+- 技术评分：92/100。Artifacts 页面入口、当前 Phase 索引、Phase 6 契约文档均有本地验证。
+- 战略评分：94/100。完成 Phase 6 最小入口收口与边界说明，未新增大型架构、微服务或数据库迁移。
+- 综合评分：93/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+## 2026-05-19 Phase 6 索引续推第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+@' ... '@ | python -
+git status --short --branch
+```
+
+- 文档断言：通过，`README.md` 已包含 `docs/architecture/phase6-workbench-contract.md`。
+- 工具纠偏：首次误用 Bash heredoc，PowerShell 解析失败；已改用 here-string 重新执行并通过。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：90/100。改动范围小，索引可验证；扣分项是首次验证命令格式不适配 PowerShell，但已立即纠正并记录。
+- 战略评分：94/100。符合总计划第 11.9 与 Phase 6 后续交付闭环，避免契约文档孤岛。
+- 综合评分：92/100，建议：通过；第2轮补契约测试覆盖文档入口和四类状态边界。
+
+## 2026-05-19 Phase 6 索引续推第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为 `Phase 6 工作台契约 必须包含：真实数据联动优先级`。
+- Web 中文契约测试：通过，7 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：93/100。测试复用现有 Node 文本契约方式，覆盖 README 索引、五页面、四类状态和真实数据联动优先级。
+- 战略评分：94/100。符合 Phase 6 后续交付闭环，防止静态入口被误判为完整工作台。
+- 综合评分：94/100，建议：通过；第3轮收口 TODO 与当前 Phase 的真实数据联动优先级。
+
+## 2026-05-19 Phase 6 索引续推第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+Get-Content -Raw -Encoding UTF8 TODO.md / .codex/current-phase.md 后执行文本断言
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 文档断言：通过，`TODO.md` 与 `.codex/current-phase.md` 已包含真实数据联动闭环、不要继续堆静态入口、Phase 6 下一步优先级和状态边界。
+- 工具纠偏：首次 Python stdin 中文断言因编码失真失败；改用 PowerShell UTF-8 读取后通过。
+- Web 中文契约测试：通过，7 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 三轮综合审查
+
+- 技术评分：93/100。三轮分别完成 README 索引、契约测试覆盖、真实数据联动优先级收口，均有本地验证与 Git 状态检查。
+- 战略评分：95/100。符合总计划第 11 节和 Phase 6 后续交付闭环，明确不再堆静态入口，且未新增大型架构、微服务或数据库迁移。
+- 综合评分：94/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+## 2026-05-19 Phase 6 数据契约第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为 `Phase 6 工作台契约 必须包含：最小 API 数据源契约`。
+- Web 中文契约测试：通过，7 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：93/100。Studio 数据源契约以文档表格和现有文本契约测试保护，未引入新依赖。
+- 战略评分：94/100。符合 Phase 6 真实数据联动前置，不继续堆静态入口，也不贸然实现跨服务 client。
+- 综合评分：94/100，建议：通过；第2轮补 Retrieval 数据源契约。
+
+## 2026-05-19 Phase 6 数据契约第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+git status --short --branch
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为 `Phase 6 工作台契约 必须包含：Retrieval 数据源契约`。
+- Web 中文契约测试：通过，7 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- Git 状态：已检查，未自动提交。
+
+### 审查结论
+
+- 技术评分：93/100。Retrieval 数据源契约覆盖刷新、搜索、命中、证据和重排状态，且受现有 web 契约测试保护。
+- 战略评分：94/100。承接 Phase 5 检索证据链，并继续避免新增大型前端架构或跨服务 client。
+- 综合评分：94/100，建议：通过；第3轮补 Runs/Artifacts/Evaluations 数据源契约并收口当前 Phase 索引。
+
+## 2026-05-19 Phase 6 数据契约第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+Get-Content -Raw -Encoding UTF8 TODO.md / .codex/current-phase.md / docs/architecture/phase6-workbench-contract.md 后执行文本断言
+git status --short --branch
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为 `Phase 6 工作台契约 必须包含：Runs 数据源契约`。
+- Web 中文契约测试：通过，7 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- 文本断言：通过，契约文档包含 Runs/Artifacts/Evaluations 数据源契约，TODO 包含第3轮记录，current-phase 包含最小 API 数据源契约。
+- Git 状态：已检查，未自动提交。
+
+### 三轮综合审查
+
+- 技术评分：94/100。三轮均按 TDD 红灯到转绿推进，复用现有文本契约测试，覆盖 Studio、Retrieval、Runs、Artifacts、Evaluations 的最小 API 数据源契约。
+- 战略评分：95/100。符合总计划第 11 节与 TODO 中“不要继续堆静态入口”的收口方向，为后续真实 API 数据联动提供可测试边界，未新增大型架构、微服务或数据库迁移。
+- 综合评分：95/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+## 2026-05-19 Phase 6 registry 第1轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为缺少 `apps/web/lib/phase6-data-sources.ts`。
+- Web 中文契约测试：通过，8 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+
+### 审查结论
+
+- 技术评分：92/100。新增 registry 是小型 typed 常量，不含网络、缓存或状态管理；Studio 页面已从 registry 渲染数据源契约。
+- 战略评分：94/100。符合 Phase 6 真实联动前置，避免继续堆散落静态入口。
+- 综合评分：93/100，建议：通过；第2轮接入 Retrieval 页面。
+
+## 2026-05-19 Phase 6 registry 第2轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为 `Phase 6 数据源 registry 必须包含：retrieval`。
+- Web 中文契约测试：通过，8 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+
+### 审查结论
+
+- 技术评分：93/100。Retrieval 页面已复用同一个 typed registry，避免分散维护数据源契约。
+- 战略评分：94/100。符合 Phase 6 真实数据联动前置，同时没有引入外部 SDK、HTTP client 或大型状态层。
+- 综合评分：94/100，建议：通过；第3轮接入 Runs、Artifacts、Evaluations 并收口当前 Phase 索引。
+
+## 2026-05-19 Phase 6 registry 第3轮验证报告
+
+### 验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web exec tsc --noEmit
+Get-Content -Raw -Encoding UTF8 TODO.md / .codex/current-phase.md / apps/web/lib/phase6-data-sources.ts 后执行文本断言
+git status --short --branch
+```
+
+- 红灯：新增契约测试后首次运行失败，错误为 `Phase 6 数据源 registry 必须包含：runs`。
+- Web 中文契约测试：通过，8 项测试全通过。
+- TypeScript 检查：通过，`tsc --noEmit` 退出码 0。
+- 文本断言：通过，registry 包含 `runs`、`artifacts`、`evaluations`、`JobRun 状态 API`、`导出物 API`、`评测集 API`；TODO 包含 registry 第3轮记录；current-phase 包含 `phase6DataSources`。
+- Git 状态：已检查，未自动提交。
+
+### 三轮综合审查
+
+- 技术评分：94/100。三轮均按 TDD 红灯到转绿推进，新增 registry 小而明确，五个 Phase 6 页面均从统一契约读取数据源信息。
+- 战略评分：95/100。符合 TODO 中“不要继续堆静态入口”的方向，为后续真实 API 读取提供代码级前置，同时未新增 HTTP client、缓存、状态管理、微服务或迁移。
+- 综合评分：95/100，建议：通过；按用户要求完成 3 轮后停止，不继续开新任务。
+
+
+# Phase 6 registry 前置第1轮验证报告
+
+生成时间：2026-05-19 06:55:00 +08:00
+
+## 需求字段完整性
+
+- 目标：补齐 registry 追踪字段，为后续真实 API 读取选择页面、契约章节和下一步动作。
+- 范围：`apps/web/lib/phase6-data-sources.ts`、`apps/web/tests/phase1-navigation.test.tsx`、TODO 与操作日志。
+- 交付物：失败优先的契约测试、追踪字段实现、验证报告和 TODO 更新。
+- 审查要点：是否复用现有 registry，是否避免 HTTP client 和大型状态管理。
+
+## 本地验证
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败，命中 `Phase 6 数据源 registry 必须包含：page`。
+- 绿灯：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：94/100
+- 规范遵循：95/100
+- 需求匹配：95/100
+- 架构一致：95/100
+- 风险评估：94/100
+- 综合评分：95/100
+
+## 结论
+
+建议：通过。
+
+
+# Phase 6 registry 前置第2轮验证报告
+
+生成时间：2026-05-19 07:05:00 +08:00
+
+## 需求字段完整性
+
+- 目标：声明 `phase6DataSources` 为 Phase 6 页面真实联动前置的代码事实源。
+- 范围：`docs/architecture/phase6-workbench-contract.md`、TODO 与操作日志。
+- 交付物：文档事实源章节、文本断言、验证报告和 TODO 更新。
+- 审查要点：是否避免文档与 registry 分叉，是否保持“不新增大型架构”的边界。
+
+## 本地验证
+
+- 红灯：PowerShell 文本断言失败，提示缺少 `phase6DataSources` 代码事实源声明。
+- 文本断言：补文档后通过，输出 `Phase 6 契约文档已包含代码事实源声明`。
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：93/100
+- 规范遵循：95/100
+- 需求匹配：95/100
+- 架构一致：96/100
+- 风险评估：95/100
+- 综合评分：95/100
+
+## 结论
+
+建议：通过。
+
+
+# Phase 6 registry 前置第3轮验证报告
+
+生成时间：2026-05-19 07:20:00 +08:00
+
+## 需求字段完整性
+
+- 目标：收口 Phase 6 下一步真实 API 读取 spike 边界，避免扩展成全量 client 或一次性联通五页。
+- 范围：`TODO.md`、`.codex/current-phase.md`、操作日志和验证报告。
+- 交付物：边界说明、文本断言、验证报告和 Git 状态检查。
+- 审查要点：是否明确单页面单数据源、是否禁止大型状态管理和新架构。
+
+## 本地验证
+
+- 红灯：PowerShell 文本断言失败，提示 `TODO.md` 缺少真实 API spike 边界收口。
+- 文本断言：补文档后通过，输出 `真实 API spike 边界文本已存在`。
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：93/100
+- 规范遵循：96/100
+- 需求匹配：96/100
+- 架构一致：96/100
+- 风险评估：96/100
+- 综合评分：96/100
+
+## 结论
+
+建议：通过。
+
+
+# Phase 6 单数据源第1轮验证报告
+
+生成时间：2026-05-19 07:45:00 +08:00
+
+## 需求字段完整性
+
+- 目标：把首个 Phase 6 真实读取 spike 固定为 Studio 的作品列表 API。
+- 范围：`apps/web/lib/phase6-data-sources.ts`、`apps/web/tests/phase1-navigation.test.tsx`、TODO 与操作日志。
+- 交付物：红绿测试、导出的首个 spike 常量、审计记录。
+- 审查要点：是否保持单页面单数据源边界，是否避免全量 client。
+
+## 本地验证
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败，提示 `Phase 6 数据源 registry 必须包含：phase6FirstDataSourceSpike`。
+- 绿灯：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+
+## 评分
+
+- 代码质量：95/100
+- 测试覆盖：94/100
+- 规范遵循：96/100
+- 需求匹配：95/100
+- 架构一致：96/100
+- 风险评估：95/100
+- 综合评分：95/100
+
+## 结论
+
+建议：通过。
+
+
+# Phase 6 单数据源第2轮验证报告
+
+生成时间：2026-05-19 08:00:00 +08:00
+
+## 需求字段完整性
+
+- 目标：补齐 Studio 作品列表 API 真实读取 spike 的页面和文档前置说明。
+- 范围：`apps/web/app/studio/page.tsx`、`docs/architecture/phase6-workbench-contract.md`、`apps/web/tests/phase1-navigation.test.tsx`。
+- 交付物：页面可见区块、契约文档失败态、红绿验证记录。
+- 审查要点：是否继续区分“已有契约但未联通”，是否避免 HTTP client。
+
+## 本地验证
+
+- 红灯文本断言：契约文档缺少 `首个真实读取 spike` 与 `作品列表 API 读取失败`。
+- 红灯 Web 契约：`pnpm --filter @storyforge/web test` 失败，提示 Studio 页面缺少 `phase6FirstDataSourceSpike`。
+- 绿灯文本断言：输出 `Studio 作品列表读取 spike 文档前置已存在`。
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：94/100
+- 规范遵循：96/100
+- 需求匹配：96/100
+- 架构一致：96/100
+- 风险评估：95/100
+- 综合评分：95/100
+
+## 结论
+
+建议：通过。
+
+
+# Phase 6 单数据源第3轮验证报告
+
+生成时间：2026-05-19 08:15:00 +08:00
+
+## 需求字段完整性
+
+- 目标：收口下一轮 Studio 作品列表 API 可复现读取验证清单。
+- 范围：`TODO.md`、`.codex/current-phase.md`、操作日志和验证报告。
+- 交付物：执行清单、文本断言、Web 验证结果和 Git 状态检查。
+- 审查要点：是否要求先确认现有 API/router/service 与 int 主键，是否禁止全量 API client。
+
+## 本地验证
+
+- 红灯：PowerShell 文本断言失败，提示 `TODO.md 缺少 Studio 作品列表 API 可复现读取验证清单`。
+- 绿灯文本断言：输出 `Studio 作品列表 API 可复现读取验证清单已存在`。
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：93/100
+- 规范遵循：96/100
+- 需求匹配：96/100
+- 架构一致：96/100
+- 风险评估：96/100
+- 综合评分：96/100
+
+## 结论
+
+建议：通过。
+
+
+# Studio 作品列表第1轮验证报告
+
+生成时间：2026-05-19 08:35:00 +08:00
+
+## 需求字段完整性
+
+- 目标：定位 Studio 作品列表 API 所需的现有模型、分层模式和测试模式。
+- 范围：`Book`、`Workspace`、`IdMixin`、既有 router/service/schema、TestClient 测试样例。
+- 交付物：`.codex/context-summary-studio-book-list-api.md`、TODO 与操作日志更新。
+- 审查要点：是否确认主键类型、是否避免 UUID 假设、是否未新增业务代码。
+
+## 本地验证
+
+- 文本事实检查：`Studio 作品列表 API 上下文摘要事实检查通过`。
+- 检查项：`Book.id`、`Integer`、`不是 UUID`、`APIRouter`、`TestClient`、`phase6FirstDataSourceSpike` 均命中。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：90/100
+- 规范遵循：96/100
+- 需求匹配：95/100
+- 架构一致：96/100
+- 风险评估：96/100
+- 综合评分：95/100
+
+## 结论
+
+建议：通过。
+
+
+# Studio 作品列表第2轮验证报告
+
+生成时间：2026-05-19 08:55:00 +08:00
+
+## 需求字段完整性
+
+- 目标：补齐 Studio 作品列表 API 最小契约。
+- 范围：`apps/api/app/domains/studio/`、`apps/api/app/main.py`、`apps/api/tests/test_studio_book_list_api.py`。
+- 交付物：schema/service/router、路由注册、红绿测试记录。
+- 审查要点：是否只做作品列表一个数据源，是否使用 int 主键，是否不实现 Web client。
+
+## 本地验证
+
+- 红灯：`uv run pytest tests/test_studio_book_list_api.py -q` 失败 3 项，`/api/studio/books` 返回 404。
+- 绿灯：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，3 项全部通过。
+- 编译：`uv run python -m compileall app tests/test_studio_book_list_api.py` 通过。
+
+## 评分
+
+- 代码质量：95/100
+- 测试覆盖：95/100
+- 规范遵循：96/100
+- 需求匹配：96/100
+- 架构一致：96/100
+- 风险评估：95/100
+- 综合评分：96/100
+
+## 结论
+
+建议：通过。
+
+
+# Studio 作品列表第3轮验证报告
+
+生成时间：2026-05-19 09:15:00 +08:00
+
+## 需求字段完整性
+
+- 目标：同步 Phase 6 契约文档、当前 Phase 索引和 TODO，明确 Studio 作品列表 API 状态边界。
+- 范围：`docs/architecture/phase6-workbench-contract.md`、`.codex/current-phase.md`、`TODO.md`、操作日志和验证报告。
+- 交付物：API 已实现/Web 未联通状态同步、验收命令同步、本地验证记录。
+- 审查要点：是否区分“已实现”和“已有契约但未联通”，是否避免新增 Web client、大型架构或数据库迁移。
+
+## 本地验证
+
+- API 单测：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，3 项全部通过。
+- API 编译：`uv run python -m compileall app tests/test_studio_book_list_api.py` 通过。
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+- 文本断言：`TODO.md`、`.codex/current-phase.md`、`docs/architecture/phase6-workbench-contract.md` 均包含 `GET /api/studio/books`、`API 最小契约已实现` 和 Web 未联通边界。
+
+## 状态区分
+
+- 已实现：`GET /api/studio/books` 后端 API 最小契约、int 主键与 `workspace_id:int` 过滤、成功态/过滤/空列表测试。
+- 已有契约但未联通：Web Studio 对 `/api/studio/books` 的真实读取和读取失败态展示。
+- 完全不存在：全量 Web API client、五页一次性真实联动、作品列表缓存平台。
+- 竞品启发：仅保留单入口打穿的产品迭代方式，不作为新增架构理由。
+
+## 评分
+
+- 代码质量：95/100
+- 测试覆盖：95/100
+- 规范遵循：96/100
+- 需求匹配：97/100
+- 架构一致：96/100
+- 风险评估：96/100
+- 综合评分：96/100
+
+## 结论
+
+建议：通过。
+
+## Git 状态检查
+
+- 命令：`git -C D:/StoryForge/1-renovel-ai-ai-rag-tavern status --short --branch`。
+- 结果：当前仍在 `master...origin/master`，存在大量既有未提交/未跟踪变更；未执行提交。
+
+
+# Web Studio 作品列表第1轮验证报告
+
+生成时间：2026-05-19 10:05:00 +08:00
+
+## 需求字段完整性
+
+- 目标：补齐 Web Studio 读取 `/api/studio/books` 前的上下文摘要和红灯契约测试。
+- 范围：`.codex/context-summary-web-studio-book-list-read.md`、`apps/web/tests/phase1-navigation.test.tsx`、TODO、操作日志和验证报告。
+- 交付物：上下文摘要、红灯测试、状态区分记录。
+- 审查要点：是否只证明缺口，不提前实现全量 client 或跨页面联动。
+
+## 本地验证
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败 1 项，错误为 `Studio 作品列表真实读取边界 必须包含：/api/studio/books`。
+- 结论：红灯符合预期，证明 Web Studio 尚未真实声明或读取作品列表 API。
+
+## 评分
+
+- 代码质量：92/100
+- 测试覆盖：93/100
+- 规范遵循：96/100
+- 需求匹配：95/100
+- 架构一致：96/100
+- 风险评估：95/100
+- 综合评分：95/100
+
+## 结论
+
+建议：通过，进入第2轮最小实现转绿。
+
+
+# Web Studio 作品列表第2轮验证报告
+
+生成时间：2026-05-19 10:25:00 +08:00
+
+## 需求字段完整性
+
+- 目标：实现 Web Studio 对 `/api/studio/books` 的最小读取边界并让第1轮红灯转绿。
+- 范围：`apps/web/app/studio/page.tsx`、`apps/web/tests/phase1-navigation.test.tsx`、TODO、操作日志和验证报告。
+- 交付物：页面级读取函数、成功态、空列表态、可重试错误摘要、验证记录。
+- 审查要点：是否只读取一个端点，是否避免全量 client、大型状态管理和数据库迁移。
+
+## 本地验证
+
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，退出码 0。
+- API 单测：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，3 项全部通过。
+- API 编译：`uv run python -m compileall app tests/test_studio_book_list_api.py` 通过。
+
+## 状态区分
+
+- 已实现：Web Studio 页面级读取 `/api/studio/books`、作品列表成功态、空列表态、可重试错误摘要。
+- 已有契约但未联通：章节目标、Scene Packet、Judge、Repair、批准回写、失败恢复以及其他 Phase 6 页面真实 API 数据。
+- 完全不存在：全量 Web API client、缓存平台、一次性五页联动。
+- 竞品启发：仅保留单点打穿方式，不作为新增架构理由。
+
+## 评分
+
+- 代码质量：94/100
+- 测试覆盖：95/100
+- 规范遵循：96/100
+- 需求匹配：97/100
+- 架构一致：96/100
+- 风险评估：95/100
+- 综合评分：96/100
+
+## 结论
+
+建议：通过。
+
+
+# Web Studio 作品列表第3轮验证报告
+
+生成时间：2026-05-19 10:40:00 +08:00
+
+## 需求字段完整性
+
+- 目标：同步 Phase 6 契约文档、current-phase、TODO 和 registry 状态，明确 Web Studio 已具备作品列表单点读取边界。
+- 范围：`apps/web/lib/phase6-data-sources.ts`、`docs/architecture/phase6-workbench-contract.md`、`.codex/current-phase.md`、`TODO.md`、操作日志和验证报告。
+- 交付物：状态收口、文本断言、Web/API 验证记录。
+- 审查要点：是否继续区分已实现与未联通，是否避免新增全量 client、缓存平台或微服务拆分。
+
+## 本地验证
+
+- 文本断言：关键文件均包含 `Web 单点读取已实现`、`/api/studio/books` 和 `章节目标` 边界。
+- Web 契约：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- TypeScript：`pnpm --filter @storyforge/web exec tsc --noEmit` 通过，`tsc_exit=0`。
+- API 单测：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，3 项全部通过。
+- API 编译：`uv run python -m compileall app tests/test_studio_book_list_api.py` 通过。
+
+## 状态区分
+
+- 已实现：Studio 作品列表后端 API、Web Studio 页面级单点读取、成功态、空列表态、可重试错误摘要、registry 状态同步。
+- 已有契约但未联通：章节目标、Scene Packet、Judge、Repair、批准回写、失败恢复以及 Retrieval/Runs/Artifacts/Evaluations 的真实数据源。
+- 完全不存在：全量 Web API client、跨页面缓存平台、一次性五页真实联动。
+- 竞品启发：只保留单入口打穿方式，不作为新增架构理由。
+
+## 评分
+
+- 代码质量：95/100
+- 测试覆盖：96/100
+- 规范遵循：96/100
+- 需求匹配：97/100
+- 架构一致：96/100
+- 风险评估：96/100
+- 综合评分：96/100
+
+## 结论
+
+建议：通过。
+
+## Git 状态检查
+
+- 命令：`git -C D:/StoryForge/1-renovel-ai-ai-rag-tavern status --short --branch`。
+- 结果：当前仍为 `master...origin/master`，存在大量既有未提交/未跟踪变更；未执行提交。
+
+
+## 2026-05-19 17:05:00 +08:00 - Phase 6 Studio 章节目标第1轮验证
+
+- 范围：Studio 单页面“章节目标 API”后端真实读取。
+- 红灯证据：`uv run pytest tests/test_studio_book_list_api.py -q` 曾失败 1 项，`/api/studio/chapter-goals` 返回 404。
+- 绿灯证据：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，4 项全部通过。
+- 编译证据：`uv run python -m compileall app tests/test_studio_book_list_api.py` 退出码 0。
+- 技术评分：92/100；测试覆盖后端正常路径和现有作品列表回归，仍需第3轮补错误路径。
+- 战略评分：94/100；符合 TODO/current-phase/总计划第 11 节优先级，只推进单一 Studio 数据源。
+- 综合评分：93/100。
+- 建议：通过，继续第2轮 Web Studio 单点读取。
+
+
+## 2026-05-19 17:25:00 +08:00 - Phase 6 Studio 章节目标第2轮验证
+
+- 范围：Web Studio 对“章节目标 API”的单点真实读取。
+- 红灯证据：`pnpm --filter @storyforge/web test` 曾失败 1 项，缺少 `/api/studio/chapter-goals` 边界。
+- 绿灯证据：`pnpm --filter @storyforge/web test` 通过，8 项全部通过。
+- 类型证据：`pnpm --filter @storyforge/web exec tsc --noEmit` 退出码 0。
+- 回归证据：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，4 项全部通过。
+- 技术评分：91/100；页面级读取和类型守卫满足最小联动，仍需补后端 404 边界测试。
+- 战略评分：95/100；严格限制在 Studio 单页面单数据源。
+- 综合评分：93/100。
+- 建议：通过，进入第3轮状态收口与错误路径补强。
+
+
+## 2026-05-19 17:45:00 +08:00 - Phase 6 Studio 章节目标三轮最终验证
+
+### 审查范围
+
+- 单一页面：Studio。
+- 单一数据源：`phase6DataSources.studio` 中的“章节目标 API”。
+- 交付物：后端 API/schema/service/router、API 测试、Web Studio 单点读取、前端契约测试、Phase 6 registry、TODO、current-phase、契约文档和操作日志。
+
+### 本地验证证据
+
+- `uv run pytest tests/test_studio_book_list_api.py -q`：5 项通过。
+- `uv run python -m compileall app tests/test_studio_book_list_api.py`：退出码 0。
+- `pnpm --filter @storyforge/web test`：8 项通过。
+- `pnpm --filter @storyforge/web exec tsc --noEmit`：退出码 0。
+- 文本检查确认 `GET /api/studio/chapter-goals`、`章节目标 API` 和 `Web 单点读取已实现` 已同步到代码与文档。
+
+### 评分
+
+- 技术维度评分：92/100。后端读取现有 SQLAlchemy int 模型，测试覆盖正常路径与 404；Web 有类型守卫与失败态。扣分点是页面仍采用最小自动选择，不是完整交互式章节选择器。
+- 战略维度评分：95/100。严格遵守 Phase 6 单页面单数据源边界，未重复已完成项，未新增大型架构。
+- 综合评分：93/100。
+- 建议：通过。本次连续 3 轮已完成，应停止，不开启第4轮。
+
+### 决策留痕
+
+综合评分 ≥90 且建议为“通过”，按 AGENTS.md 质量审查规则确认通过。Docker/PostgreSQL 在线迁移不在本轮范围，本轮未宣称在线迁移通过。
+
+
+## 2026-05-19 18:20:00 +08:00 - Phase 6 Studio Scene Packet 第1轮验证
+
+- 范围：Studio Scene Packet 单数据源后端红灯契约。
+- 红灯证据：`uv run pytest tests/test_studio_book_list_api.py -q` 失败 1 项、通过 5 项。
+- 失败原因：`/api/studio/scene-packets` 返回 404，证明 Studio 尚未联通 Scene Packet 读取数据源。
+- 技术评分：90/100；红灯测试聚焦单一缺口且复用现有 SQLite/TestClient 模式。
+- 战略评分：95/100；符合单页面单数据源边界，没有重复已完成项。
+- 综合评分：92/100。
+- 建议：通过红灯阶段，继续第2轮最小实现。
+
+
+## 2026-05-19 18:40:00 +08:00 - Phase 6 Studio Scene Packet 第2轮验证
+
+- 范围：Studio Scene Packet 后端读取 API 与 Web 单点读取。
+- 红灯证据：前端契约测试曾失败，缺少 `/api/studio/scene-packets`。
+- 绿灯证据：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，6 项全部通过。
+- 编译证据：`uv run python -m compileall app tests/test_studio_book_list_api.py` 退出码 0。
+- Web 证据：`pnpm --filter @storyforge/web test` 通过，8 项全部通过；`pnpm --filter @storyforge/web exec tsc --noEmit` 退出码 0。
+- 技术评分：91/100；只读摘要避免复制大上下文，仍需补无 Scene Packet 错误路径。
+- 战略评分：95/100；严格限制在 Studio 单数据源。
+- 综合评分：93/100。
+- 建议：通过，进入第3轮错误路径和状态收口。
+
+
+## 2026-05-19 19:20:00 +08:00 - Phase 6 Studio Scene Packet 三轮最终验证
+
+### 审查范围
+
+- 单一页面：Studio。
+- 单一数据源：`phase6DataSources.studio` 中的“Scene Packet API”。
+- 交付物：后端 schema/service/router、API 测试、Web Studio 单点读取、前端契约测试、Phase 6 registry、契约文档、TODO、current-phase 和操作日志。
+
+### 需求字段完整性
+
+- 目标：在已完成作品列表与章节目标后，只联通 Studio Scene Packet 单一数据源。
+- 范围：`GET /api/studio/scene-packets` 摘要读取、缺失包错误路径、Web 页面级读取与状态文档收口。
+- 交付物映射：代码、测试、TODO、`.codex/operations-log.md`、`.codex/verification-report.md` 均已留痕。
+- 风险边界：未声明 Docker/PostgreSQL 在线迁移通过；未引入全量 client、缓存平台或大型状态管理。
+
+### 本地验证证据
+
+- `uv run pytest tests/test_studio_book_list_api.py -q`：7 项通过。
+- `uv run python -m compileall app tests/test_studio_book_list_api.py`：退出码 0。
+- `pnpm --filter @storyforge/web test`：8 项通过，0 失败。
+- `pnpm --filter @storyforge/web exec tsc --noEmit`：退出码 0。
+- `git status --short --branch`：当前分支 `master...origin/master`，存在未提交/未跟踪变更，未执行提交。
+### 状态区分
+
+- 已实现：Studio 作品列表 API、章节目标 API、Scene Packet API 的后端契约和 Web 单点读取；Scene Packet 缺失包 404 错误路径。
+- 已有契约但未联通：Judge、Repair、批准回写、失败恢复以及其他四个 Phase 6 页面真实 API 数据读取。
+- 完全不存在：全量 Web API client、跨页面缓存平台、完整交互式 Studio 编排器和一次性五页真实联动。
+- 竞品启发：仅保留连续步骤和证据追溯，不作为新增架构理由。
+
+### 评分
+
+- 技术维度评分：93/100。实现复用既有 FastAPI 分层、SQLAlchemy int 主键事实和 Web 页面级读取模式；测试覆盖成功路径、缺失包 404、前端契约与 TypeScript。扣分点是 Studio 仍是最小自动读取，不是完整交互式编排器。
+- 战略维度评分：96/100。严格遵守 TODO、current-phase 与总计划第 11 节的单页面单数据源优先级，未重复已完成模块，未扩展 Judge/Repair 等后续数据源。
+- 综合评分：95/100。
+- 建议：通过。本次连续 3 轮已完成，应停止，不开启第4轮。
+
+### 决策留痕
+
+综合评分 ≥90 且建议为“通过”，按 AGENTS.md 质量审查规则确认通过。所有成功结论均基于 2026-05-19 19:20 本地验证输出；未自动提交。
+
+
+## 2026-05-19 20:00:00 +08:00 - Phase 6 Studio Judge 第1轮验证
+
+- 范围：Studio Judge 单数据源后端红灯契约。
+- 红灯证据：`uv run pytest tests/test_studio_book_list_api.py -q` 失败 1 项、通过 7 项。
+- 失败原因：`/api/studio/judge-reviews` 返回 404，证明 Studio 尚未联通 Judge 读取数据源。
+- 技术评分：90/100；红灯测试复用既有 SQLite/TestClient 模式，直接引用现有 `JudgeIssue` int 主键与 `scene_packet_id`。
+- 战略评分：95/100；符合单页面单数据源边界，没有重复已完成项。
+- 综合评分：92/100。
+- 建议：通过红灯阶段，继续第2轮最小实现。
+
+
+## 2026-05-19 20:20:00 +08:00 - Phase 6 Studio Judge 第2轮验证
+
+- 范围：Studio Judge 后端读取 API 与 Web 单点读取。
+- 红灯证据：前端契约测试曾失败，缺少 `/api/studio/judge-reviews`。
+- 绿灯证据：`uv run pytest tests/test_studio_book_list_api.py -q` 通过，8 项全部通过。
+- 编译证据：`uv run python -m compileall app tests/test_studio_book_list_api.py` 退出码 0。
+- Web 证据：`pnpm --filter @storyforge/web test` 通过，8 项全部通过；`pnpm --filter @storyforge/web exec tsc --noEmit` 退出码 0。
+- 技术评分：91/100；只读 JudgeIssue 摘要避免触发 Repair，仍需补无 Judge 评审错误路径。
+- 战略评分：95/100；严格限制在 Studio 单数据源。
+- 综合评分：93/100。
+- 建议：通过，进入第3轮错误路径和状态收口。
+
+
+## 2026-05-19 20:40:00 +08:00 - Phase 6 Studio Judge 三轮最终验证
+
+### 审查范围
+
+- 单一页面：Studio。
+- 单一数据源：`phase6DataSources.studio` 中的“Judge 评审 API”。
+- 交付物：后端 schema/service/router、API 测试、Web Studio 单点读取、前端契约测试、Phase 6 registry、契约文档、TODO、current-phase 和操作日志。
+
+### 需求字段完整性
+
+- 目标：在已完成作品列表、章节目标和 Scene Packet 后，只联通 Studio Judge 评审单一数据源。
+- 范围：`GET /api/studio/judge-reviews` 摘要读取、缺失评审错误路径、Web 页面级读取与状态文档收口。
+- 交付物映射：代码、测试、TODO、`.codex/operations-log.md`、`.codex/verification-report.md` 均已留痕。
+- 风险边界：未声明 Docker/PostgreSQL 在线迁移通过；未引入全量 client、缓存平台、大型状态管理或 Repair 执行流。
+
+### 本地验证证据
+
+- `uv run pytest tests/test_studio_book_list_api.py -q`：9 项通过。
+- `uv run python -m compileall app tests/test_studio_book_list_api.py`：退出码 0。
+- `pnpm --filter @storyforge/web test`：8 项通过，0 失败。
+- `pnpm --filter @storyforge/web exec tsc --noEmit`：退出码 0。
+- `git status --short --branch`：当前分支 `master...origin/master`，存在未提交/未跟踪变更，未执行提交。
+### 状态区分
+
+- 已实现：Studio 作品列表 API、章节目标 API、Scene Packet API 与 Judge 评审 API 的后端契约和 Web 单点读取；Judge 缺失评审 404 错误路径。
+- 已有契约但未联通：Repair、批准回写、失败恢复以及其他四个 Phase 6 页面真实 API 数据读取。
+- 完全不存在：全量 Web API client、跨页面缓存平台、完整交互式 Studio 编排器和一次性五页真实联动。
+- 竞品启发：仅保留连续步骤、质量闸门和证据追溯，不作为新增架构理由。
+
+### 评分
+
+- 技术维度评分：93/100。实现复用既有 FastAPI 分层、SQLAlchemy int 主键事实、JudgeIssue 持久化模型和 Web 页面级读取模式；测试覆盖成功路径、缺失评审 404、前端契约与 TypeScript。
+- 战略维度评分：96/100。严格遵守 TODO、current-phase 与总计划第 11 节的单页面单数据源优先级，未重复已完成模块，未扩展 Repair/批准回写/失败恢复。
+- 综合评分：95/100。
+- 建议：通过。本次连续 3 轮已完成，应停止，不开启第4轮。
+
+### 决策留痕
+
+综合评分 ≥90 且建议为“通过”，按 AGENTS.md 质量审查规则确认通过。所有成功结论均基于 2026-05-19 20:40 本地验证输出；未自动提交。

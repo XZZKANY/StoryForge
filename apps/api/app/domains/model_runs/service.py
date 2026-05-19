@@ -81,6 +81,43 @@ def record_runtime_model_run(
     )
 
 
+def record_failed_runtime_model_run(
+    session: Session,
+    *,
+    job_run_id: int,
+    provider_name: str,
+    model_name: str,
+    capability: str,
+    input_summary: str,
+    error_message: str,
+    workspace_id: int | None = None,
+    book_id: int | None = None,
+    scene_id: int | None = None,
+    prompt_pack_id: int | None = None,
+    payload: dict | None = None,
+) -> ModelRun:
+    return create_model_run(
+        session,
+        ModelRunCreate(
+            workspace_id=workspace_id,
+            book_id=book_id,
+            scene_id=scene_id,
+            job_run_id=job_run_id,
+            prompt_pack_id=prompt_pack_id,
+            provider_name=provider_name,
+            model_name=model_name,
+            capability=capability,
+            status="failed",
+            latency_ms=0,
+            token_usage=0,
+            input_summary=input_summary,
+            output_summary=None,
+            error_message=error_message,
+            payload=payload or {},
+        ),
+    )
+
+
 def _validate_references(session: Session, payload: ModelRunCreate) -> None:
     if payload.workspace_id is not None and session.get(Workspace, payload.workspace_id) is None:
         raise ModelRunError("工作区不存在，无法记录模型运行日志。")

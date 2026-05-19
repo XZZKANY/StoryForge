@@ -104,3 +104,44 @@ def test_scene_packet_can_auto_query_retrieval_hits(client: TestClient, packet_s
     assert retrieval_evidence
     assert retrieval_evidence[0]["score"] is not None
     assert retrieval_evidence[0]["rank"] == 1
+
+
+def test_retrieval_context_block_preserves_rerank_metadata() -> None:
+    """Scene Packet 的检索上下文块应透传 reranker 证据，便于后续追溯排序来源。"""
+
+    from app.domains.retrieval.schemas import RetrievalHitRead
+    from app.domains.scene_packets.schemas import ScenePacketCreate
+    from app.domains.scene_packets.service import _retrieval_context_blocks
+
+    blocks = _retrieval_context_blocks(
+        ScenePacketCreate(
+            book_id=1,
+            chapter_id=1,
+            scene_goal="验证检索重排证据。",
+            active_asset_ids=[1],
+            token_budget=120,
+        ),
+        [
+            RetrievalHitRead(
+                source_id=10,
+                chunk_id=20,
+                source_ref="retrieval:10:20",
+                book_id=1,
+                series_id=None,
+                title="重排资料",
+                excerpt="灯塔重排证据。",
+                score=3.2,
+                rank=1,
+                score_source="rerank",
+                keyword_score=1.0,
+                embedding_score=0.8,
+                rerank_score=1.4,
+                rerank_provider="unit-reranker",
+                rerank_model="unit-rerank-v1",
+            )
+        ],
+    )
+
+    assert blocks[0].metadata["rerank_score"] == 1.4
+    assert blocks[0].metadata["rerank_provider"] == "unit-reranker"
+    assert blocks[0].metadata["rerank_model"] == "unit-rerank-v1"

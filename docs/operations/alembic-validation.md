@@ -1,6 +1,6 @@
 # StoryForge Alembic 本地验证记录
 
-更新时间：2026-05-18 13:05:00 +08:00
+更新时间：2026-05-19 02:15:00 +08:00
 
 ## 1. 目标
 
@@ -18,6 +18,8 @@
 
 - `71dfabf6badf_创建_phase_1_领域模型.py`
 - `9f2b3c4d5e6f_为资产增加版本谱系键.py`
+- `c0ffee20260519_add_memory_atoms.py`
+- `c0ffee20260520_add_compiled_contexts.py`
 
 ## 3. 已执行命令与结果
 
@@ -28,7 +30,7 @@ cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
 python -m compileall apps/api/alembic
 ```
 
-结果：通过。`env.py` 与两个版本脚本均可编译。
+最近记录：此前通过。当前本轮未新增迁移脚本，只同步验证记录。
 
 ### 3.2 Alembic head 检查
 
@@ -40,7 +42,7 @@ uv run alembic heads
 结果：通过，当前 head 为：
 
 ```text
-9f2b3c4d5e6f (head)
+c0ffee20260520 (head)
 ```
 
 ### 3.3 离线 SQL 生成
@@ -55,8 +57,11 @@ uv run alembic upgrade head --sql
 - `CREATE TABLE alembic_version`
 - `Running upgrade  -> 71dfabf6badf`
 - `Running upgrade 71dfabf6badf -> 9f2b3c4d5e6f`
-- `ALTER TABLE assets ADD COLUMN lineage_key`
-- `COMMIT`
+- `Running upgrade 9f2b3c4d5e6f -> c0ffee20260519`
+- `CREATE TABLE memory_atoms`
+- `Running upgrade c0ffee20260519 -> c0ffee20260520`
+- `CREATE TABLE compiled_contexts`
+- `UPDATE alembic_version SET version_num='c0ffee20260520'`
 
 这说明迁移链可以生成从空库到当前 head 的 PostgreSQL SQL。
 
@@ -64,17 +69,18 @@ uv run alembic upgrade head --sql
 
 ```powershell
 cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run alembic upgrade head
 uv run alembic current
 ```
 
-结果：未通过，命令在 64 秒后超时。结合本轮 `pnpm verify` 输出，当前本机 Docker 服务不可查询，因此 PostgreSQL 容器状态无法确认。
+结果：未通过。最近一次在线 `uv run alembic upgrade head` 在 124 秒后超时；默认 PostgreSQL 连接为 `127.0.0.1:55432`，当前本机 Docker/PostgreSQL 状态不可用或不可确认。
 
 ## 4. 当前结论
 
-- Alembic 迁移脚本语法检查通过。
-- Alembic head 检查通过，当前 head 为 `9f2b3c4d5e6f`。
+- Alembic head 检查通过，当前 head 为 `c0ffee20260520`。
 - 离线 SQL 生成通过，能生成从空库到当前 head 的 SQL。
-- 在线升级到真实 PostgreSQL 尚未完成验证，原因是当前 Docker/PostgreSQL 状态不可用。
+- 离线 SQL 已覆盖 `memory_atoms` 和 `compiled_contexts` 两张第 11.5/11.6 最小持久化表。
+- 在线升级到真实 PostgreSQL 尚未完成验证，原因是当前 Docker/PostgreSQL 状态不可用或不可确认。
 
 ## 5. 补跑步骤
 
@@ -93,8 +99,8 @@ uv run alembic current
 
 - `pnpm verify` 通过，PostgreSQL、Redis、MinIO 均正在运行。
 - `uv run alembic upgrade head` 退出码为 0。
-- `uv run alembic current` 输出 `9f2b3c4d5e6f`。
+- `uv run alembic current` 输出 `c0ffee20260520`。
 
 ## 6. 风险记录
 
-在线迁移未验证前，不应声称“干净数据库升级已完整通过”。当前可交付结论仅限于脚本语法、head 检查和离线 SQL 生成通过。
+在线迁移未验证前，不应声称“干净数据库升级已完整通过”。当前可交付结论仅限于 head 检查和离线 SQL 生成通过。

@@ -17,6 +17,8 @@ from app.domains.prompt_packs.models import PromptPack
 from app.domains.model_runs.models import ModelRun
 from app.domains.artifacts.models import Artifact
 from app.domains.evaluations.models import EvaluationCase, EvaluationRun
+from app.domains.story_memory.models import MemoryAtomRecord
+from app.domains.context_compiler.models import CompiledContextRecord
 
 __all__ = [
     "Base",
@@ -49,4 +51,6 @@ __all__ = [
     "Artifact",
     "EvaluationCase",
     "EvaluationRun",
+    "MemoryAtomRecord",
+    "CompiledContextRecord",
 ]
