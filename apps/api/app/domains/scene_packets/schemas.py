@@ -27,6 +27,15 @@ class EvidenceLinkRead(BaseModel):
     rationale: str | None = None
     score: float | None = None
     rank: int | None = None
+    source_id: int | None = None
+    chunk_id: int | None = None
+    score_source: str | None = None
+    keyword_score: float | None = None
+    embedding_score: float | None = None
+    rerank_score: float | None = None
+    rerank_provider: str | None = None
+    rerank_model: str | None = None
+    context_tokens: int | None = None
 
 
 class BudgetStatistics(BaseModel):

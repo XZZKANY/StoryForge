@@ -86,3 +86,9 @@ class RetrievalHitRead(BaseModel):
     excerpt: str
     score: float
     rank: int
+    score_source: str = "keyword"
+    keyword_score: float = 0.0
+    embedding_score: float = 0.0
+    rerank_score: float | None = None
+    rerank_provider: str | None = None
+    rerank_model: str | None = None

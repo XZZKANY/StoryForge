@@ -333,3 +333,248 @@ python -m pytest tests/test_generation_graph.py tests/test_runtime_runner.py -q
 - 所有新增说明、日志、测试描述和提交信息使用简体中文。
 - 所有验证必须本地执行；CI、远程流水线和人工验证不能作为完成依据。
 - 如果连续三次验证失败，暂停实现，回到需求和设计阶段复盘。
+
+
+---
+
+## 11. 2026-05-18 补充：Phase 5/6/7 架构执行裁决
+
+本节覆盖 2026-05-18 已完成的新底座，执行者必须把它视为当前事实，不得回到旧计划状态。
+
+### 11.1 当前新增事实
+
+- 已新增 `apps/api/app/domains/context_compiler/` 契约层，支持 `ContextBlock`、`ContextCompileRequest`、`CompiledContext`、token budget、priority、score threshold、injection position、注入/裁剪/调试输出。
+- 已新增 `apps/api/app/domains/story_memory/` 契约层，支持 `MemoryAtom`、`TimelineEvent`、`Progression`、`MemoryConflict`、`AgentProposal`、`ArbitrationDecision`。
+- 已完成 `apps/api/app/domains/scene_packets/service.py` 接入 Context Compiler，`assemble_scene_packet()` 会输出 `compiled_context_id`、`上下文注入`、`上下文裁剪`、`上下文预算`、`上下文调试`。
+- 已新增 `docs/architecture/phase5-context-memory-architecture.md`。
+- 当前这些能力只完成契约和服务层第一刀，不等于完整长效记忆系统、完整 Context Inspector 或完整多 Agent 仲裁系统已经完成。
+
+### 11.2 类型与事实源硬约束
+
+- 所有数据库字段类型必须以现有 SQLAlchemy 模型为准，不得凭空假设 UUID。
+- 如果现有 `books.id`、`chapters.id`、`scenes.id`、`assets.id` 是 `int`，新增外键必须继续使用 `int`。
+- 执行前必须读取现有模型文件确认字段类型，再写迁移和测试。
+- 任何架构建议必须区分：当前代码已存在、已有契约但未持久化、当前完全不存在、仅为竞品启发。
+
+### 11.3 当前执行优先级裁决
+
+| 优先级 | 事项 | 裁决 | 原因 |
+| --- | --- | --- | --- |
+| P0 | `story_memory` 最小持久化 | 现在做 | 不落库，长效记忆、Progression、冲突检测都是空壳。 |
+| P0 | `compiled_contexts` 持久化 | 现在做 | 不持久化，Context Compiler 无法审计、无法 diff、无法归因。 |
+| P1 | Workflow State 引用化 | 现在做 | 防止 LangGraph checkpoint 被大上下文撑爆。 |
+| P1 | Context Inspector API 草案 | 可以做 | 先 API 后 UI，服务 Phase 6。 |
+| P2 | 真实 tokenizer | 暂缓 | 重要但低于持久化，可在真实模型接入前做。 |
+| P2 | pgvector 检索优化 | 暂缓 | 先接真实 embedding provider，再谈索引优化。 |
+| P2 | 递归激活 | 暂缓 | token 预算失控风险高。 |
+| P3 | 完整多 Agent 仲裁系统 | 砍掉/延后 | 当前没有稳定记忆和 workflow 引用层，做了也不可测试。 |
+| P3 | Agent inner monologue | 砍掉/延后 | Phase 7+ 优化，不是当前瓶颈。 |
+| P3 | Nx/Turborepo 大迁移 | 暂缓 | 当前最大风险不是构建慢，而是改动影响面不可见。 |
+
+### 11.4 竞品机制采纳边界
+
+| 来源 | 可采纳机制 | 当前裁决 | StoryForge 落点 |
+| --- | --- | --- | --- |
+| SillyTavern World Info | keyword trigger、token budget、injection position | 部分采纳 | 已有 budget/position；`activation_keywords` 可作为后续字段，递归激活暂缓。 |
+| Letta / MemGPT | Core / Recall / Archival 分层记忆 | 采纳最小分层 | `MemoryAtom` 必须区分 always-inject 与 retrieval-on-demand，避免核心设定吃满预算。 |
+| Novelcrafter Codex | Progressions、auto-mention、Codex entry | 采纳 Progression 思路 | `Progression` 已有契约但未落库，auto-mention 可映射为 `activation_keywords`。 |
+| LangGraph 生态 | checkpoint/store/business table 分层 | 必须采纳 | workflow state 只能保存 ID 引用，不保存完整上下文或草稿。 |
+
+### 11.5 风险 1：Story Memory 永远是空壳
+
+**触发条件：** Phase 5 结束时仍无 SQLAlchemy model，导致冲突检测、Progression 查询、Context Compiler 拉取 memory blocks 全部停留在 mock 或单次请求内。
+
+**最小修复路径：** 新增 `memory_atoms` 表、Alembic migration、基础 CRUD service 和章节有效事实查询。
+
+**文件范围：**
+
+- Create: `apps/api/app/domains/story_memory/models.py`
+- Create/Modify: `apps/api/alembic/versions/*_add_memory_atoms.py`
+- Modify: `apps/api/app/models.py`
+- Modify: `apps/api/app/domains/story_memory/service.py`
+- Test: `apps/api/tests/test_story_memory_persistence.py`
+
+**字段边界：**
+
+- 现在必须落库：`book_id`、`entity_type`、`entity_id`、`fact_type`、`value`、`valid_from_chapter`、`valid_to_chapter`、`immutable`、`confidence`、`revision`、`source_ref`、`created_at`、`updated_at`。
+- 可以延后：独立 `TimelineEvent` 表、独立 `Progression` 表、持久化 `MemoryConflict`、持久化 `AgentProposal` / `ArbitrationDecision`。
+
+**验证命令：**
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q
+uv run alembic upgrade head
+python -m compileall app tests
+```
+
+**TODO.md 建议条目：**
+
+```markdown
+- [ ] Phase 5: `story_memory` 最小持久化，新增 `memory_atoms` 表、CRUD、章节有效事实查询和 Alembic 迁移。
+```
+
+### 11.6 风险 2：Context Compiler 无法追溯
+
+**触发条件：** 前端要做 Context Inspector、生成质量归因、上下文 diff 或模型运行审计时，发现 `compiled_context_id` 只是运行时临时 ID，无法查询历史编译结果。
+
+**后果：** 无法回答某次生成注入了哪些设定、哪些块被裁剪、为什么裁剪、预算如何消耗，也无法把 model run 与上下文快照绑定。
+
+**最小修复路径：** 新增 `compiled_contexts` 持久化表，只保存摘要、预算、block 引用、裁剪原因，不直接存整段 prompt 全文。
+
+**文件范围：**
+
+- Create: `apps/api/app/domains/context_compiler/models.py`
+- Create/Modify: `apps/api/alembic/versions/*_add_compiled_contexts.py`
+- Modify: `apps/api/app/models.py`
+- Modify: `apps/api/app/domains/context_compiler/service.py`
+- Modify: `apps/api/app/domains/scene_packets/service.py`
+- Test: `apps/api/tests/test_context_compiler_persistence.py`
+
+**字段建议：**
+
+- `id`、`book_id`、`chapter_id`、`scene_id`、`token_budget`、`used_tokens`、`dropped_tokens`、`injected_count`、`dropped_count`、`block_refs`、`budget_report`、`debug_summary`、`created_at`。
+- `book_id/chapter_id/scene_id` 类型必须跟随现有模型，不得假设 UUID。
+
+**验证命令：**
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_context_compiler.py tests/test_context_compiler_persistence.py tests/test_scene_packet_context_compiler.py -q
+uv run alembic upgrade head
+python -m compileall app tests
+```
+
+**TODO.md 建议条目：**
+
+```markdown
+- [ ] Phase 5: 持久化 `compiled_contexts`，支持 Scene Packet / ModelRun 追溯上下文预算、注入块和裁剪原因。
+```
+
+### 11.7 风险 3：LangGraph State 膨胀导致 checkpoint 不可用
+
+**触发条件：** 接入真实 LLM 后，workflow state 继续保存完整 `scene_packet`、`compiled_context`、`draft_excerpt`、`chapter_plan` 或 `book_strategy`。
+
+**后果：** InMemorySaver 无法恢复长任务，PostgresSaver 写入变慢，replay/time-travel 成本暴涨，state diff 不可读。
+
+**最小修复路径：** workflow state 改成引用型状态，只保存 `scene_packet_id`、`compiled_context_id`、`model_run_id`、`draft_artifact_id`、`memory_atom_ids`、`timeline_event_ids`、`current_node`、`approval_status`。
+
+**文件范围：**
+
+- Modify: `apps/workflow/storyforge_workflow/state.py`
+- Modify: `apps/workflow/storyforge_workflow/*`
+- Test: `apps/workflow/tests/test_generation_state_references.py`
+- Reference: `apps/api/app/domains/model_runs/*`
+- Reference: `apps/api/app/domains/artifacts/*`
+
+**禁止项：**
+
+- 禁止完整 prompt、完整 Scene Packet、完整 CompiledContext、完整草稿文本进入 LangGraph checkpoint。
+- 禁止用 `dict[str, Any]` 无限承载跨节点大对象。
+
+**验证命令：**
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+python -m compileall storyforge_workflow tests
+python -m pytest tests/test_generation_state_references.py -q
+cd ../api
+uv run pytest tests/test_phase4_service_acceptance.py -q
+```
+
+**TODO.md 建议条目：**
+
+```markdown
+- [ ] Phase 5: Workflow Runtime 引用型 State 接入，禁止完整上下文、完整草稿和完整 Scene Packet 进入 LangGraph checkpoint。
+```
+
+### 11.8 风险 4：多 Agent 概念拖死 Phase 5/6/7
+
+**触发条件：** 在 Story Memory、Context Compiler、Workflow State 还没持久化稳定前，直接实现世界观检测 Agent、剧情推进 Agent、风格 Agent、仲裁 Agent、多 Agent 并行和复杂人工审核 UI。
+
+**后果：** 输出不可复现，测试只能人工看，prompt 改一点全链路漂移，无法判断问题来自记忆、检索、上下文裁剪还是 Agent 判断。
+
+**最小修复路径：** 只做最小仲裁闭环。
+
+```text
+生成结果 → 提取 AgentProposal
+  → 纯函数 arbitrate_proposal()
+    → auto_merge: 写入 memory_atoms
+    → needs_human: 记录 warning，不做复杂 UI
+    → reject: 丢弃并记录原因
+```
+
+**当前不做：**
+
+- 不做完整世界观检测 Agent。
+- 不做剧情推进 Agent。
+- 不做多 Agent 并行执行。
+- 不做 LLM 仲裁决策。
+- 不做复杂审核工作台。
+
+**验证命令：**
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q
+uv run pytest tests/test_phase4_service_acceptance.py -q
+python -m compileall app tests
+```
+
+**TODO.md 建议条目：**
+
+```markdown
+- [ ] Phase 5: 建立最小 `AgentProposal -> ArbitrationDecision -> MemoryAtom` 写入闭环，暂缓完整多 Agent 仲裁系统。
+```
+
+### 11.9 风险 5：`.codex` 审计文件变成噪音
+
+**触发条件：** 每次执行都继续无限追加 `.codex/operations-log.md` 和 `.codex/verification-report.md`，Phase 增多后 Git diff 被流水账淹没。
+
+**后果：** 审计文件无人阅读，历史报告难以定位，后续代理误读旧状态。
+
+**最小修复路径：** 暂不立刻重构 `.codex`，但从下一轮执行开始按当前 Phase 写摘要，必要时再归档历史。
+
+**推荐结构：**
+
+```text
+.codex/
+├── current-phase.md
+├── operations-log.md
+├── verification-report.md
+├── archive/
+│   ├── phase-1-4-log.md
+│   └── phase-0-log.md
+└── verification-history/
+    └── 2026-05-18-*.md
+```
+
+**当前裁决：** 暂缓文件结构迁移；执行者只需在报告中记录“历史日志过长”风险，不要把归档作为 Phase 5 P0 任务。
+
+**TODO.md 建议条目：**
+
+```markdown
+- [ ] Phase 7: 归档 `.codex` 历史审计文件，保留当前 Phase 摘要，降低 Git diff 噪音。
+```
+
+### 11.10 推荐执行顺序
+
+1. 先做 `story_memory` 最小持久化，因为它是长效记忆、Progression、冲突检测、Context Compiler memory block 的真相源。
+2. 再做 `compiled_contexts` 持久化，因为它依赖稳定的上下文块引用，也服务后续 Context Inspector 和 model run 归因。
+3. 再做 Workflow State 引用化，因为它需要引用 `scene_packet_id`、`compiled_context_id`、`model_run_id`、`artifact_id` 等业务实体。
+4. 最后只做最小 AgentProposal 仲裁闭环，不做完整多 Agent 系统。
+5. `.codex` 归档治理放到 Phase 7，不要抢 Phase 5 主线资源。
+
+### 11.11 执行前检查清单
+
+- [ ] 重新读取 `AGENTS.md`、`AI_ITERATION_GUIDE.md`、`TODO.md`、本计划第 11 节。
+- [ ] 用 desktop-commander 搜索并阅读至少 3 个相似 SQLAlchemy/Alembic/pytest 实现。
+- [ ] 确认现有主键类型，不得假设 UUID。
+- [ ] 先写失败测试，再写实现。
+- [ ] 每一刀都运行本地验证，不依赖 CI。
+- [ ] 更新 `TODO.md`、`.codex/operations-log.md`、`.codex/verification-report.md`。
+- [ ] 检查 Git 状态，但不要自动提交。
+
+### 11.12 终止条件
+
+如果任一任务连续三次验证失败，停止继续扩展范围，回到上下文收集和计划修正阶段。禁止用新架构掩盖已有失败。

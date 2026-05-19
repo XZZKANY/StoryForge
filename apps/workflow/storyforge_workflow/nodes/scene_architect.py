@@ -4,18 +4,14 @@ from storyforge_workflow.state import GenerationState, advance_status
 
 
 def create_chapter_plan(state: GenerationState) -> dict:
-    """Scene Architect 的章节规划步骤只产出章节计划。"""
+    """Scene Architect 只产出章节引用摘要，避免保存完整章节计划。"""
 
-    strategy = state["book_strategy"]
-    scene_packet = state["scene_packet"]
-    chapter_plan = {
-        "chapter_title": scene_packet.get("chapter_title", "第一章：启航"),
-        "chapter_goal": scene_packet.get("chapter_goal", strategy["central_question"]),
-        "conflict_axis": "外部任务压力与角色隐秘状态互相挤压",
-        "required_facts": list(scene_packet.get("required_facts", [])),
-    }
+    chapter_title = str(state.get("chapter_title_ref", "第一章：启航"))
+    chapter_goal = str(state.get("chapter_goal_ref") or state.get("strategy_question_ref", "完成章节目标。"))
     return {
-        "chapter_plan": chapter_plan,
+        "chapter_title_ref": chapter_title,
+        "chapter_goal_ref": chapter_goal,
+        "conflict_axis_ref": "外部任务压力与角色隐秘状态互相挤压",
         "current_status": "chapter_plan_created",
         "status_history": advance_status(state, "chapter_plan_created"),
         "current_node": "scene_architect.chapter_plan",
@@ -23,17 +19,16 @@ def create_chapter_plan(state: GenerationState) -> dict:
 
 
 def create_scene_beats(state: GenerationState) -> dict:
-    """Scene Architect 的场景步骤只产出 scene beats。"""
+    """场景步骤只保存轻量 beat 摘要，后续正文进入 artifact。"""
 
-    scene_packet = state["scene_packet"]
-    scene_goal = scene_packet.get("scene_goal", "完成关键场景目标。")
-    beats = [
-        {"order": 1, "purpose": "建立目标", "content": scene_goal},
-        {"order": 2, "purpose": "施加阻力", "content": "连续性约束迫使角色做出取舍。"},
-        {"order": 3, "purpose": "留下钩子", "content": "场景末尾保留下一章可继承的疑问。"},
+    scene_goal = str(state.get("scene_goal_ref", "完成关键场景目标。"))
+    beat_summaries = [
+        f"建立目标：{scene_goal}",
+        "施加阻力：连续性约束迫使角色做出取舍。",
+        "留下钩子：场景末尾保留下一章可继承的疑问。",
     ]
     return {
-        "scene_beats": beats,
+        "scene_beat_refs": beat_summaries,
         "current_status": "scene_beats_created",
         "status_history": advance_status(state, "scene_beats_created"),
         "current_node": "scene_architect.scene_beats",

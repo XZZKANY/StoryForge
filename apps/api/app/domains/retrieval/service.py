@@ -7,7 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.domains.books.models import Book
+from app.domains.retrieval.embedding_client import EmbeddingClient, EmbeddingResult, LocalEmbeddingClient
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
+from app.domains.retrieval.reranker_client import RerankerClient
 from app.domains.retrieval.schemas import (
     RetrievalHitRead,
     RetrievalRefreshRunCreate,
@@ -16,12 +18,18 @@ from app.domains.retrieval.schemas import (
 )
 from app.domains.series.models import Series
 
+RetrievalScore = tuple[float, float, float, str]
+
 
 class RetrievalInputError(ValueError):
     """检索域输入引用不存在或作用域不合法时抛出。"""
 
 
-def create_retrieval_source(session: Session, payload: RetrievalSourceCreate) -> RetrievalSource:
+def create_retrieval_source(
+    session: Session,
+    payload: RetrievalSourceCreate,
+    embedding_client: EmbeddingClient | None = None,
+) -> RetrievalSource:
     _require_scope(session, payload.book_id, payload.series_id)
     source = RetrievalSource(
         book_id=payload.book_id,
@@ -34,7 +42,7 @@ def create_retrieval_source(session: Session, payload: RetrievalSourceCreate) ->
     )
     session.add(source)
     session.flush()
-    _sync_source_chunks(source)
+    _sync_source_chunks(source, _resolve_embedding_client(embedding_client))
     session.commit()
     return _load_source(session, source.id)
 
@@ -48,19 +56,40 @@ def list_retrieval_sources(session: Session, book_id: int | None = None, series_
     return session.scalars(statement).all()
 
 
-def create_retrieval_refresh_run(session: Session, payload: RetrievalRefreshRunCreate) -> RetrievalRefreshRun:
+def create_retrieval_refresh_run(
+    session: Session,
+    payload: RetrievalRefreshRunCreate,
+    embedding_client: EmbeddingClient | None = None,
+) -> RetrievalRefreshRun:
     sources = _select_refresh_sources(session, payload)
     if not sources:
         raise RetrievalInputError("没有找到可刷新的资料源。")
+    client = _resolve_embedding_client(embedding_client)
+    embedding_result: EmbeddingResult | None = None
     for source in sources:
-        _sync_source_chunks(source)
+        embedding_result = _sync_source_chunks(source, client)
+    session.flush()
+    chunk_refs = [
+        {"source_id": chunk.source_id, "chunk_id": chunk.id, "chunk_index": chunk.chunk_index}
+        for source in sources
+        for chunk in sorted(source.chunks, key=lambda item: item.chunk_index)
+    ]
+    payload_metadata: dict[str, object] = {"source_ids": [source.id for source in sources], "chunk_refs": chunk_refs}
+    if embedding_result is not None:
+        payload_metadata.update(
+            {
+                "embedding_provider": embedding_result.provider_name,
+                "embedding_model": embedding_result.model_name,
+                "credential_status": embedding_result.credential_status,
+            }
+        )
     refresh_run = RetrievalRefreshRun(
         source_id=payload.source_id,
         book_id=payload.book_id,
         series_id=payload.series_id,
         status="completed",
         chunk_count=sum(len(source.chunks) for source in sources),
-        payload={"source_ids": [source.id for source in sources]},
+        payload=payload_metadata,
     )
     session.add(refresh_run)
     session.commit()
@@ -68,7 +97,12 @@ def create_retrieval_refresh_run(session: Session, payload: RetrievalRefreshRunC
     return refresh_run
 
 
-def search_retrieval(session: Session, payload: RetrievalSearchCreate) -> list[RetrievalHitRead]:
+def search_retrieval(
+    session: Session,
+    payload: RetrievalSearchCreate,
+    embedding_client: EmbeddingClient | None = None,
+    reranker_client: RerankerClient | None = None,
+) -> list[RetrievalHitRead]:
     statement = (
         select(RetrievalChunk)
         .options(selectinload(RetrievalChunk.source))
@@ -82,13 +116,14 @@ def search_retrieval(session: Session, payload: RetrievalSearchCreate) -> list[R
         statement = statement.where(RetrievalSource.series_id == payload.series_id)
     chunks = session.scalars(statement).all()
     query_terms = _keywords(payload.query)
-    scored: list[tuple[float, RetrievalChunk]] = []
+    query_embedding = _embed_query(payload.query, embedding_client)
+    scored: list[tuple[RetrievalScore, RetrievalChunk]] = []
     for chunk in chunks:
-        score = _score_chunk(chunk, query_terms, payload.query)
-        if score > 0:
+        score = _score_chunk(chunk, query_terms, payload.query, query_embedding)
+        if score[0] > 0:
             scored.append((score, chunk))
-    scored.sort(key=lambda item: (-item[0], item[1].source_id, item[1].chunk_index, item[1].id))
-    return [
+    scored.sort(key=lambda item: (-item[0][0], item[1].source_id, item[1].chunk_index, item[1].id))
+    hits = [
         RetrievalHitRead(
             source_id=chunk.source_id,
             chunk_id=chunk.id,
@@ -97,11 +132,15 @@ def search_retrieval(session: Session, payload: RetrievalSearchCreate) -> list[R
             series_id=chunk.source.series_id,
             title=chunk.source.title,
             excerpt=chunk.content[:160],
-            score=round(score, 4),
+            score=round(score[0], 4),
             rank=rank,
+            keyword_score=round(score[1], 4),
+            embedding_score=round(score[2], 4),
+            score_source=score[3],
         )
         for rank, (score, chunk) in enumerate(scored[: payload.limit], start=1)
     ]
+    return _apply_reranker(payload.query, hits, reranker_client)
 
 
 def _require_scope(session: Session, book_id: int | None, series_id: int | None) -> None:
@@ -134,18 +173,21 @@ def _load_source(session: Session, source_id: int) -> RetrievalSource:
     return source
 
 
-def _sync_source_chunks(source: RetrievalSource) -> None:
+def _sync_source_chunks(source: RetrievalSource, embedding_client: EmbeddingClient) -> EmbeddingResult:
     source.chunks.clear()
-    for index, content in enumerate(_chunk_text(source.content_text), start=1):
+    contents = _chunk_text(source.content_text)
+    embedding_result = embedding_client.embed_texts(contents)
+    for index, (content, embedding) in enumerate(zip(contents, embedding_result.vectors, strict=True), start=1):
         source.chunks.append(
             RetrievalChunk(
                 chunk_index=index,
                 content=content,
                 token_count=max(1, (len(content) + 5) // 6),
                 keywords=_keywords(content),
-                embedding=_fake_embedding(content),
+                embedding=embedding,
             )
         )
+    return embedding_result
 
 
 def _chunk_text(content_text: str, *, chunk_size: int = 120) -> list[str]:
@@ -189,16 +231,89 @@ def _expand_keyword_candidates(part: str) -> list[str]:
     return candidates
 
 
-def _fake_embedding(content: str) -> list[float]:
-    base = _keywords(content)[:4]
-    return [float((sum(ord(char) for char in word) % 97) / 97) for word in base] or [0.0]
+def _resolve_embedding_client(embedding_client: EmbeddingClient | None) -> EmbeddingClient:
+    return embedding_client if embedding_client is not None else LocalEmbeddingClient()
 
 
-def _score_chunk(chunk: RetrievalChunk, query_terms: list[str], raw_query: str) -> float:
+def _embed_query(raw_query: str, embedding_client: EmbeddingClient | None) -> list[float] | None:
+    if embedding_client is None:
+        return None
+    result = embedding_client.embed_texts([raw_query])
+    return result.vectors[0] if result.vectors else None
+
+
+def _apply_reranker(
+    query: str,
+    hits: list[RetrievalHitRead],
+    reranker_client: RerankerClient | None,
+) -> list[RetrievalHitRead]:
+    if reranker_client is None or not hits:
+        return hits
+    rerank_result = reranker_client.rerank(query, hits)
+    scores_by_chunk_id = {item.chunk_id: item.score for item in rerank_result.items}
+    if not scores_by_chunk_id:
+        return hits
+    original_rank_by_chunk_id = {hit.chunk_id: hit.rank for hit in hits}
+    reranked = [
+        hit.model_copy(
+            update={
+                "rerank_score": scores_by_chunk_id[hit.chunk_id],
+                "rerank_provider": rerank_result.provider_name,
+                "rerank_model": rerank_result.model_name,
+                "score_source": "rerank",
+            }
+        )
+        if hit.chunk_id in scores_by_chunk_id
+        else hit
+        for hit in hits
+    ]
+    reranked.sort(
+        key=lambda hit: (
+            -(hit.rerank_score if hit.rerank_score is not None else float("-inf")),
+            original_rank_by_chunk_id[hit.chunk_id],
+        )
+    )
+    return [hit.model_copy(update={"rank": rank}) for rank, hit in enumerate(reranked, start=1)]
+
+
+def _score_chunk(
+    chunk: RetrievalChunk,
+    query_terms: list[str],
+    raw_query: str,
+    query_embedding: list[float] | None = None,
+) -> RetrievalScore:
     chunk_text = chunk.content.lower()
     overlap = sum(1 for term in query_terms if term in chunk.keywords or term in chunk_text)
-    if overlap == 0 and raw_query.lower() not in chunk_text and raw_query.lower() not in chunk.source.title.lower():
-        return 0.0
+    embedding_score = _cosine_similarity(query_embedding, chunk.embedding) if query_embedding else 0.0
+    if (
+        overlap == 0
+        and raw_query.lower() not in chunk_text
+        and raw_query.lower() not in chunk.source.title.lower()
+        and embedding_score <= 0.25
+    ):
+        return (0.0, 0.0, 0.0, "none")
     bonus = 0.5 if raw_query.lower() in chunk_text else 0.0
     title_bonus = 0.25 if any(term in chunk.source.title.lower() for term in query_terms) else 0.0
-    return float(overlap) + bonus + title_bonus
+    keyword_score = float(overlap) + bonus + title_bonus
+    total = keyword_score + embedding_score
+    if embedding_score > 0 and keyword_score == 0:
+        score_source = "embedding"
+    elif embedding_score > 0:
+        score_source = "hybrid"
+    else:
+        score_source = "keyword"
+    return (total, keyword_score, embedding_score, score_source)
+
+
+def _cosine_similarity(left: list[float] | None, right: list[float] | None) -> float:
+    if not left or not right:
+        return 0.0
+    size = min(len(left), len(right))
+    left_slice = left[:size]
+    right_slice = right[:size]
+    dot = sum(left_value * right_value for left_value, right_value in zip(left_slice, right_slice, strict=True))
+    left_norm = sum(value * value for value in left_slice) ** 0.5
+    right_norm = sum(value * value for value in right_slice) ** 0.5
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return round(dot / (left_norm * right_norm), 4)

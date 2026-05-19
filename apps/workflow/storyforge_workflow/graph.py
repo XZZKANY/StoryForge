@@ -10,7 +10,7 @@ from storyforge_workflow.nodes.director import create_book_strategy
 from storyforge_workflow.nodes.draft_writer import create_draft_excerpt
 from storyforge_workflow.nodes.scene_architect import create_chapter_plan, create_scene_beats
 from storyforge_workflow.persistence import InMemoryWorkflowStore, summarize_value
-from storyforge_workflow.state import GenerationState
+from storyforge_workflow.state import GenerationState, checkpoint_reference_state
 
 NodeFunction = Callable[[GenerationState], dict[str, Any]]
 
@@ -78,7 +78,8 @@ def _approval_node(store: InMemoryWorkflowStore):
             "question": "请审批当前草稿片段。",
             "thread_id": _thread_id(state, config),
             "job_run_id": state["job_run_id"],
-            "draft_excerpt": state["draft_excerpt"],
+            "draft_artifact_id": state.get("draft_artifact_id"),
+            "draft_preview": state.get("draft_preview_ref", "草稿预览已写入制品引用。"),
             "status_history": state["status_history"],
         }
         decision = interrupt(approval_request)
@@ -110,10 +111,10 @@ def _node_input(state: GenerationState, node_name: str) -> dict[str, Any]:
     if node_name == "book_director":
         return {"premise": state.get("premise"), "user_intent": state.get("user_intent")}
     if node_name == "scene_architect.chapter_plan":
-        return {"book_strategy": state.get("book_strategy"), "scene_packet": state.get("scene_packet")}
+        return {"strategy_question_ref": state.get("strategy_question_ref"), "scene_packet_id": state.get("scene_packet_id")}
     if node_name == "scene_architect.scene_beats":
-        return {"chapter_plan": state.get("chapter_plan"), "scene_packet": state.get("scene_packet")}
-    return {"scene_packet": state.get("scene_packet"), "scene_beats": state.get("scene_beats")}
+        return {"chapter_goal_ref": state.get("chapter_goal_ref"), "scene_packet_id": state.get("scene_packet_id")}
+    return {"scene_packet_id": state.get("scene_packet_id"), "scene_beat_refs": state.get("scene_beat_refs")}
 
 
 def _approval_status(decision: Any) -> str:

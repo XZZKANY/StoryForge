@@ -96,3 +96,33 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
     listing = client.get("/api/model-runs", params={"job_run_id": run_scope["job_run_id"]})
     assert listing.status_code == 200
     assert len(listing.json()) == 1
+
+
+def test_record_failed_runtime_model_run_preserves_error_for_recovery(
+    session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    """运行时 provider 失败也应写入 ModelRun 真表，保留错误摘要供恢复排查。"""
+
+    from app.domains.model_runs.service import list_model_runs, record_failed_runtime_model_run
+
+    with session_factory() as session:
+        failed_run = record_failed_runtime_model_run(
+            session,
+            job_run_id=run_scope["job_run_id"],
+            provider_name="mock-provider",
+            model_name="storyforge-writer",
+            capability="llm",
+            input_summary="远航舰队寻找新家园。::林岚争取维修窗口。",
+            error_message="provider timeout",
+            workspace_id=run_scope["workspace_id"],
+            book_id=run_scope["book_id"],
+            prompt_pack_id=run_scope["prompt_pack_id"],
+            payload={"thread_id": "phase5-runtime-failure", "error_code": "provider_execution_failed"},
+        )
+        listed = list_model_runs(session, job_run_id=run_scope["job_run_id"])
+
+    assert failed_run.status == "failed"
+    assert failed_run.token_usage == 0
+    assert failed_run.error_message == "provider timeout"
+    assert failed_run.payload["error_code"] == "provider_execution_failed"
+    assert [item.id for item in listed] == [failed_run.id]
