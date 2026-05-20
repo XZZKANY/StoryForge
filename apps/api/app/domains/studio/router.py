@@ -2,23 +2,29 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
-from app.domains.studio.schemas import StudioBookListItem, StudioChapterGoalRead, StudioJudgeReviewRead, StudioScenePacketRead
+from app.db.deps import SessionDependency
+from app.domains.studio.schemas import (
+    StudioBookListItem,
+    StudioChapterGoalRead,
+    StudioJudgeReviewRead,
+    StudioRepairPatchRead,
+    StudioScenePacketRead,
+)
 from app.domains.studio.service import (
     StudioChapterGoalNotFoundError,
     StudioJudgeReviewNotFoundError,
+    StudioRepairPatchesNotFoundError,
     StudioScenePacketNotFoundError,
     list_studio_books,
     read_studio_chapter_goal,
     read_studio_judge_review,
+    read_studio_repair_patches,
     read_studio_scene_packet,
 )
 
 router = APIRouter(prefix="/api/studio", tags=["Studio 创作工作台"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/books", response_model=list[StudioBookListItem])
@@ -69,4 +75,17 @@ def read_studio_judge_review_endpoint(
     try:
         return read_studio_judge_review(session, scene_packet_id=scene_packet_id)
     except StudioJudgeReviewNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/repair-patches", response_model=list[StudioRepairPatchRead])
+def read_studio_repair_patches_endpoint(
+    session: SessionDependency,
+    scene_packet_id: Annotated[int, Query(gt=0)],
+) -> list[StudioRepairPatchRead]:
+    """读取 Studio Repair 修订数据源：补丁摘要、修订文本和重评状态。"""
+
+    try:
+        return read_studio_repair_patches(session, scene_packet_id=scene_packet_id)
+    except StudioRepairPatchesNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

@@ -57,9 +57,3 @@ class WorkspaceMember(IdMixin, TimestampMixin, Base):
     events: Mapped[list[EventLog]] = relationship(back_populates="member")
 
 
-from app.domains.collaboration.models import ApprovalDecision  # noqa: E402
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import collaboration as _collaboration_domain  # noqa: E402,F401
-from app.domains import commercial as _commercial_domain  # noqa: E402,F401
-from app.domains import events as _events_domain  # noqa: E402,F401
-from app.domains import provider_gateway as _provider_domain  # noqa: E402,F401

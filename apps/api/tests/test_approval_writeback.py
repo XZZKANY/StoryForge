@@ -15,24 +15,6 @@ from app.domains.continuity.models import ContinuityRecord
 
 
 @pytest.fixture()
-def session_factory() -> Generator[sessionmaker[Session], None, None]:
-    """每个批准回写测试使用独立内存数据库。"""
-
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        Base.metadata.drop_all(engine)
-        engine.dispose()
-
-
-@pytest.fixture()
 def approval_context(session_factory: sessionmaker[Session]) -> dict[str, int]:
     """准备一章待批准正文和一个需要同步状态的草稿资产。"""
 

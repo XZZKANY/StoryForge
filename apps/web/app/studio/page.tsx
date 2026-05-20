@@ -11,6 +11,11 @@ type StudioBookListState =
   | { readonly status: "ready"; readonly books: readonly StudioBookListItem[] }
   | { readonly status: "error"; readonly message: string };
 
+type StudioTarget = {
+  readonly book_id: number;
+  readonly target_ordinal: number;
+};
+
 type StudioChapterGoal = {
   readonly book_id: number;
   readonly target_chapter_id: number;
@@ -67,6 +72,21 @@ type StudioJudgeReviewState =
   | { readonly status: "ready"; readonly review: StudioJudgeReview }
   | { readonly status: "error"; readonly message: string };
 
+type StudioRepairPatch = {
+  readonly id: number;
+  readonly issue_id: number;
+  readonly status: string;
+  readonly target_span: string;
+  readonly replacement_text: string;
+  readonly reason: string;
+  readonly requires_rejudge: boolean;
+};
+
+type StudioRepairPatchState =
+  | { readonly status: "idle"; readonly message: string }
+  | { readonly status: "ready"; readonly patches: readonly StudioRepairPatch[] }
+  | { readonly status: "error"; readonly message: string };
+
 const generationChain = [
   "作品选择",
   "章节目标",
@@ -82,8 +102,16 @@ const studioBooksEndpoint = "/api/studio/books";
 const studioChapterGoalsEndpoint = "/api/studio/chapter-goals";
 const studioScenePacketsEndpoint = "/api/studio/scene-packets";
 const studioJudgeReviewsEndpoint = "/api/studio/judge-reviews";
+const studioRepairPatchesEndpoint = "/api/studio/repair-patches";
 
 const getStudioApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
+
+function getStudioTarget(book: StudioBookListItem | undefined): StudioTarget | undefined {
+  if (!book) {
+    return undefined;
+  }
+  return { book_id: book.id, target_ordinal: book.recent_chapter_ordinal ?? 1 };
+}
 
 async function readStudioBooks(): Promise<StudioBookListState> {
   try {
@@ -104,15 +132,14 @@ async function readStudioBooks(): Promise<StudioBookListState> {
   }
 }
 
-async function readStudioChapterGoal(book: StudioBookListItem | undefined): Promise<StudioChapterGoalState> {
-  if (!book) {
+async function readStudioChapterGoal(target: StudioTarget | undefined): Promise<StudioChapterGoalState> {
+  if (!target) {
     return { status: "idle", message: "读取章节目标需要先获得作品列表。" };
   }
 
-  const targetOrdinal = book.recent_chapter_ordinal ?? 1;
   const url = new URL(studioChapterGoalsEndpoint, getStudioApiBaseUrl());
-  url.searchParams.set("book_id", String(book.id));
-  url.searchParams.set("target_ordinal", String(targetOrdinal));
+  url.searchParams.set("book_id", String(target.book_id));
+  url.searchParams.set("target_ordinal", String(target.target_ordinal));
 
   try {
     const response = await fetch(url, { cache: "no-store" });
@@ -148,14 +175,14 @@ function isStudioChapterGoal(value: unknown): value is StudioChapterGoal {
   );
 }
 
-async function readStudioScenePacket(goalState: StudioChapterGoalState): Promise<StudioScenePacketState> {
-  if (goalState.status !== "ready") {
-    return { status: "idle", message: "读取 Scene Packet 需要先获得章节目标。" };
+async function readStudioScenePacket(target: StudioTarget | undefined): Promise<StudioScenePacketState> {
+  if (!target) {
+    return { status: "idle", message: "读取 Scene Packet 需要先获得作品列表。" };
   }
 
   const url = new URL(studioScenePacketsEndpoint, getStudioApiBaseUrl());
-  url.searchParams.set("book_id", String(goalState.goal.book_id));
-  url.searchParams.set("target_ordinal", String(goalState.goal.target_chapter_ordinal));
+  url.searchParams.set("book_id", String(target.book_id));
+  url.searchParams.set("target_ordinal", String(target.target_ordinal));
 
   try {
     const response = await fetch(url, { cache: "no-store" });
@@ -235,12 +262,54 @@ function isStudioJudgeReview(value: unknown): value is StudioJudgeReview {
   );
 }
 
+async function readStudioRepairPatches(scenePacketState: StudioScenePacketState): Promise<StudioRepairPatchState> {
+  if (scenePacketState.status !== "ready") {
+    return { status: "idle", message: "读取 Repair 修订需要先获得 Judge 评审。" };
+  }
+
+  const url = new URL(studioRepairPatchesEndpoint, getStudioApiBaseUrl());
+  url.searchParams.set("scene_packet_id", String(scenePacketState.packet.scene_packet_id));
+
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return { status: "error", message: `Repair 修订 API 返回 ${response.status}` };
+    }
+
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload) || !payload.every(isStudioRepairPatch)) {
+      return { status: "error", message: "Repair 修订 API 返回格式不符合预期" };
+    }
+
+    return { status: "ready", patches: payload };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知错误";
+    return { status: "error", message };
+  }
+}
+
+function isStudioRepairPatch(value: unknown): value is StudioRepairPatch {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<StudioRepairPatch>;
+  return (
+    typeof candidate.id === "number" &&
+    typeof candidate.issue_id === "number" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.target_span === "string" &&
+    typeof candidate.replacement_text === "string" &&
+    typeof candidate.reason === "string" &&
+    typeof candidate.requires_rejudge === "boolean"
+  );
+}
+
 export default async function StudioPage() {
   const bookListState = await readStudioBooks();
   const selectedBook = bookListState.status === "ready" ? bookListState.books[0] : undefined;
-  const chapterGoalState = await readStudioChapterGoal(selectedBook);
-  const scenePacketState = await readStudioScenePacket(chapterGoalState);
-  const judgeReviewState = await readStudioJudgeReview(scenePacketState);
+  const studioTarget = getStudioTarget(selectedBook);
+  const [chapterGoalState, scenePacketState] = await Promise.all([readStudioChapterGoal(studioTarget), readStudioScenePacket(studioTarget)]);
+  const [judgeReviewState, repairPatchState] = await Promise.all([readStudioJudgeReview(scenePacketState), readStudioRepairPatches(scenePacketState)]);
 
   return (
     <main aria-labelledby="studio-title">
@@ -373,6 +442,32 @@ export default async function StudioPage() {
                 : judgeReviewState.review.issues.map((issue) => issue.summary).join("；")}
             </dd>
           </dl>
+        )}
+      </section>
+      <section aria-labelledby="studio-repair-patches-title">
+        <h2 id="studio-repair-patches-title">读取 Repair 修订</h2>
+        <p>
+          当前 Web Studio 只在 Scene Packet 之后与 Judge 评审并行读取 {studioRepairPatchesEndpoint}，用于展示修订文本、差异摘要和采纳建议。
+        </p>
+        {repairPatchState.status === "idle" ? (
+          <p>{repairPatchState.message}</p>
+        ) : repairPatchState.status === "error" ? (
+          <p role="status">可重试错误摘要：{repairPatchState.message}</p>
+        ) : repairPatchState.patches.length === 0 ? (
+          <p>空列表：当前评审暂无 Repair 修订补丁。</p>
+        ) : (
+          <ul>
+            {repairPatchState.patches.map((patch) => (
+              <li key={patch.id}>
+                <strong>补丁 #{patch.id}</strong>
+                <span>问题 ID：{patch.issue_id}</span>
+                <span>状态：{patch.status}</span>
+                <span>差异摘要：将“{patch.target_span}”替换为“{patch.replacement_text}”</span>
+                <span>采纳建议：{patch.reason}</span>
+                <span>是否需要重评：{patch.requires_rejudge ? "需要重新评审" : "无需重新评审"}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
       <ScenePacketPanel />

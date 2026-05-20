@@ -1474,6 +1474,39 @@
             ],
             "title": "Rationale"
           },
+          "rerank_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Model"
+          },
+          "rerank_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Provider"
+          },
+          "rerank_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Score"
+          },
           "score": {
             "anyOf": [
               {
@@ -2527,6 +2560,39 @@
             "title": "Rank",
             "type": "integer"
           },
+          "rerank_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Model"
+          },
+          "rerank_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Provider"
+          },
+          "rerank_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Score"
+          },
           "score": {
             "title": "Score",
             "type": "number"
@@ -2873,6 +2939,446 @@
           "updated_at"
         ],
         "title": "RetrievalSourceRead",
+        "type": "object"
+      },
+      "RetrievalWorkbenchHitRead": {
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "integer"
+          },
+          "embedding_score": {
+            "default": 0.0,
+            "title": "Embedding Score",
+            "type": "number"
+          },
+          "evidence_href": {
+            "title": "Evidence Href",
+            "type": "string"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "keyword_score": {
+            "default": 0.0,
+            "title": "Keyword Score",
+            "type": "number"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "rerank_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Model"
+          },
+          "rerank_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Provider"
+          },
+          "rerank_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Score"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "score_source": {
+            "default": "keyword",
+            "title": "Score Source",
+            "type": "string"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "integer"
+          },
+          "source_ref": {
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "chunk_id",
+          "source_ref",
+          "book_id",
+          "series_id",
+          "title",
+          "excerpt",
+          "score",
+          "rank",
+          "evidence_href"
+        ],
+        "title": "RetrievalWorkbenchHitRead",
+        "type": "object"
+      },
+      "RetrievalWorkbenchRefreshRunRead": {
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "credential_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Status"
+          },
+          "embedding_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Model"
+          },
+          "embedding_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Provider"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "book_id",
+          "series_id",
+          "status",
+          "chunk_count",
+          "embedding_provider",
+          "embedding_model",
+          "credential_status",
+          "source_ids"
+        ],
+        "title": "RetrievalWorkbenchRefreshRunRead",
+        "type": "object"
+      },
+      "RetrievalWorkbenchSearchRead": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievalWorkbenchHitRead"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "hits"
+        ],
+        "title": "RetrievalWorkbenchSearchRead",
+        "type": "object"
+      },
+      "RetrievalWorkbenchSourceRead": {
+        "properties": {
+          "book_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "evidence_anchor": {
+            "title": "Evidence Anchor",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "refresh_status": {
+            "title": "Refresh Status",
+            "type": "string"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "book_id",
+          "series_id",
+          "source_type",
+          "title",
+          "status",
+          "chunk_count",
+          "refresh_status",
+          "evidence_anchor"
+        ],
+        "title": "RetrievalWorkbenchSourceRead",
+        "type": "object"
+      },
+      "RunsJobRunRead": {
+        "properties": {
+          "checkpoint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_type": {
+            "title": "Job Type",
+            "type": "string"
+          },
+          "model_runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunsModelRunSummary"
+            },
+            "title": "Model Runs",
+            "type": "array"
+          },
+          "progress": {
+            "additionalProperties": true,
+            "title": "Progress",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_type",
+          "status",
+          "progress",
+          "checkpoint",
+          "model_runs",
+          "error_message",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RunsJobRunRead",
+        "type": "object"
+      },
+      "RunsModelRunSummary": {
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "token_usage": {
+            "title": "Token Usage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "provider_name",
+          "model_name",
+          "capability",
+          "status",
+          "latency_ms",
+          "token_usage",
+          "error_message"
+        ],
+        "title": "RunsModelRunSummary",
         "type": "object"
       },
       "ScenePacketCreate": {
@@ -3323,6 +3829,297 @@
           "updated_at"
         ],
         "title": "SeriesRead",
+        "type": "object"
+      },
+      "StudioBookListItem": {
+        "description": "Studio 作品列表只暴露首个读取 spike 需要的最小字段。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "recent_chapter_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Chapter Ordinal"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "recent_chapter_ordinal"
+        ],
+        "title": "StudioBookListItem",
+        "type": "object"
+      },
+      "StudioChapterGoalRead": {
+        "description": "Studio 章节目标读取单章创作前置所需的最小事实。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter_goal": {
+            "title": "Chapter Goal",
+            "type": "string"
+          },
+          "continuity_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Continuity Constraints",
+            "type": "array"
+          },
+          "previous_chapter_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Chapter Summary"
+          },
+          "target_chapter_id": {
+            "title": "Target Chapter Id",
+            "type": "integer"
+          },
+          "target_chapter_ordinal": {
+            "title": "Target Chapter Ordinal",
+            "type": "integer"
+          },
+          "target_chapter_title": {
+            "title": "Target Chapter Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book_id",
+          "target_chapter_id",
+          "target_chapter_ordinal",
+          "target_chapter_title",
+          "chapter_goal",
+          "previous_chapter_summary",
+          "continuity_constraints"
+        ],
+        "title": "StudioChapterGoalRead",
+        "type": "object"
+      },
+      "StudioJudgeIssueRead": {
+        "description": "Studio Judge 评审摘要中的单条问题。",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "recommended_repair_mode": {
+            "title": "Recommended Repair Mode",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "span_end": {
+            "title": "Span End",
+            "type": "integer"
+          },
+          "span_start": {
+            "title": "Span Start",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "severity",
+          "summary",
+          "span_start",
+          "span_end",
+          "recommended_repair_mode"
+        ],
+        "title": "StudioJudgeIssueRead",
+        "type": "object"
+      },
+      "StudioJudgeReviewRead": {
+        "description": "Studio Judge 读取只暴露评审摘要和关键问题。",
+        "properties": {
+          "highest_severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highest Severity"
+          },
+          "issue_count": {
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/StudioJudgeIssueRead"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "scene_packet_id": {
+            "title": "Scene Packet Id",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scene_packet_id",
+          "status",
+          "issue_count",
+          "highest_severity",
+          "score",
+          "issues"
+        ],
+        "title": "StudioJudgeReviewRead",
+        "type": "object"
+      },
+      "StudioRepairPatchRead": {
+        "description": "Studio Repair 读取只暴露已生成补丁的审查摘要。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "issue_id": {
+            "title": "Issue Id",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "replacement_text": {
+            "title": "Replacement Text",
+            "type": "string"
+          },
+          "requires_rejudge": {
+            "title": "Requires Rejudge",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_span": {
+            "title": "Target Span",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "issue_id",
+          "status",
+          "target_span",
+          "replacement_text",
+          "reason",
+          "requires_rejudge"
+        ],
+        "title": "StudioRepairPatchRead",
+        "type": "object"
+      },
+      "StudioScenePacketRead": {
+        "description": "Studio Scene Packet 读取只暴露页面所需的摘要字段。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "budget_summary": {
+            "additionalProperties": true,
+            "title": "Budget Summary",
+            "type": "object"
+          },
+          "chapter_goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Goal"
+          },
+          "compiled_context_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compiled Context Id"
+          },
+          "evidence_count": {
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "scene_packet_id": {
+            "title": "Scene Packet Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_chapter_ordinal": {
+            "title": "Target Chapter Ordinal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "book_id",
+          "target_chapter_ordinal",
+          "scene_id",
+          "scene_packet_id",
+          "status",
+          "chapter_goal",
+          "evidence_count",
+          "compiled_context_id",
+          "budget_summary"
+        ],
+        "title": "StudioScenePacketRead",
         "type": "object"
       },
       "StylePackApplyCreate": {
@@ -5493,6 +6290,48 @@
         ]
       }
     },
+    "/api/model-runs/job-runs/{job_run_id}": {
+      "get": {
+        "operationId": "get_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_run_id",
+            "required": true,
+            "schema": {
+              "title": "Job Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunsJobRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Runs Job Run Endpoint",
+        "tags": [
+          "模型运行日志"
+        ]
+      }
+    },
     "/api/prompt-packs": {
       "get": {
         "operationId": "list_prompt_packs_endpoint_api_prompt_packs_get",
@@ -6160,6 +6999,206 @@
         ]
       }
     },
+    "/api/retrieval/workbench/refresh-runs": {
+      "get": {
+        "operationId": "list_retrieval_workbench_refresh_runs_endpoint_api_retrieval_workbench_refresh_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "series_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Series Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RetrievalWorkbenchRefreshRunRead"
+                  },
+                  "title": "Response List Retrieval Workbench Refresh Runs Endpoint Api Retrieval Workbench Refresh Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Retrieval Workbench Refresh Runs Endpoint",
+        "tags": [
+          "检索中心"
+        ]
+      }
+    },
+    "/api/retrieval/workbench/search": {
+      "post": {
+        "operationId": "search_retrieval_workbench_endpoint_api_retrieval_workbench_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalSearchCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalWorkbenchSearchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Retrieval Workbench Endpoint",
+        "tags": [
+          "检索中心"
+        ]
+      }
+    },
+    "/api/retrieval/workbench/sources": {
+      "get": {
+        "operationId": "list_retrieval_workbench_sources_endpoint_api_retrieval_workbench_sources_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "series_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Series Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RetrievalWorkbenchSourceRead"
+                  },
+                  "title": "Response List Retrieval Workbench Sources Endpoint Api Retrieval Workbench Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Retrieval Workbench Sources Endpoint",
+        "tags": [
+          "检索中心"
+        ]
+      }
+    },
     "/api/scene-packets": {
       "post": {
         "description": "为章节首个场景组装固定槽位 Scene Packet 并持久化。",
@@ -6457,6 +7496,261 @@
         "summary": "Create Series Memory Endpoint",
         "tags": [
           "系列级记忆"
+        ]
+      }
+    },
+    "/api/studio/books": {
+      "get": {
+        "description": "读取 Studio 首个数据源：作品 ID、标题和最近章节编号。",
+        "operationId": "list_studio_books_endpoint_api_studio_books_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StudioBookListItem"
+                  },
+                  "title": "Response List Studio Books Endpoint Api Studio Books Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Studio Books Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
+    "/api/studio/chapter-goals": {
+      "get": {
+        "description": "读取 Studio 章节目标数据源：目标、上章摘要和连续性约束。",
+        "operationId": "read_studio_chapter_goal_endpoint_api_studio_chapter_goals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Book Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ordinal",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Target Ordinal",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioChapterGoalRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Studio Chapter Goal Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
+    "/api/studio/judge-reviews": {
+      "get": {
+        "description": "读取 Studio Judge 评审数据源：状态、分数和关键问题。",
+        "operationId": "read_studio_judge_review_endpoint_api_studio_judge_reviews_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scene_packet_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Scene Packet Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioJudgeReviewRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Studio Judge Review Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
+    "/api/studio/repair-patches": {
+      "get": {
+        "description": "读取 Studio Repair 修订数据源：补丁摘要、修订文本和重评状态。",
+        "operationId": "read_studio_repair_patches_endpoint_api_studio_repair_patches_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scene_packet_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Scene Packet Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StudioRepairPatchRead"
+                  },
+                  "title": "Response Read Studio Repair Patches Endpoint Api Studio Repair Patches Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Studio Repair Patches Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
+    "/api/studio/scene-packets": {
+      "get": {
+        "description": "读取 Studio Scene Packet 数据源：证据数量和上下文预算摘要。",
+        "operationId": "read_studio_scene_packet_endpoint_api_studio_scene_packets_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Book Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_ordinal",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Target Ordinal",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioScenePacketRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Studio Scene Packet Endpoint",
+        "tags": [
+          "Studio 创作工作台"
         ]
       }
     },

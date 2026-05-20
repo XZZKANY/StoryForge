@@ -62,3 +62,15 @@ class StudioJudgeReviewRead(BaseModel):
     highest_severity: str | None
     score: int
     issues: list[StudioJudgeIssueRead]
+
+
+class StudioRepairPatchRead(BaseModel):
+    """Studio Repair 读取只暴露已生成补丁的审查摘要。"""
+
+    id: int
+    issue_id: int
+    status: str
+    target_span: str
+    replacement_text: str
+    reason: str
+    requires_rejudge: bool

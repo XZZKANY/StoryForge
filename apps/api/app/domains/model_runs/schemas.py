@@ -46,3 +46,28 @@ class ModelRunRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class RunsModelRunSummary(BaseModel):
+    id: int
+    provider_name: str
+    model_name: str
+    capability: str
+    status: str
+    latency_ms: int
+    token_usage: int
+    error_message: str | None
+
+
+class RunsJobRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_type: str
+    status: str
+    progress: dict[str, Any]
+    checkpoint: dict[str, Any] | None
+    model_runs: list[RunsModelRunSummary]
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+

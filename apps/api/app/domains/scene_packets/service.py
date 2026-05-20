@@ -1,27 +1,29 @@
 from __future__ import annotations
 
-from typing import Any
-
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
-from app.domains.context_compiler.schemas import ContextBlock, ContextCompileRequest
-from app.domains.context_compiler.service import compile_context, persist_compiled_context
-from app.domains.assets.models import Asset, EvidenceLink
+from app.domains.assets.models import Asset
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
-from app.domains.retrieval.schemas import RetrievalHitRead
-from app.domains.retrieval.schemas import RetrievalSearchCreate
+from app.domains.retrieval.schemas import RetrievalHitRead, RetrievalSearchCreate
 from app.domains.retrieval.service import search_retrieval
-from app.domains.scene_packets.schemas import (
-    BudgetStatistics,
-    EvidenceLinkRead,
-    ScenePacketCreate,
-    ScenePacketRead,
+from app.domains.scene_packets.assembly import (
+    filter_continuity_records_for_chapter as _filter_continuity_records_for_chapter,
+    load_active_assets as _load_active_assets,
+    load_evidence_links as _load_evidence_links,
 )
+from app.domains.scene_packets.budget import build_packet as _build_packet, estimate_tokens as _estimate_tokens
+from app.domains.scene_packets.retrieval_bridge import (
+    attach_compiled_context as _attach_compiled_context,
+    build_retrieval_query as _build_retrieval_query,
+    retrieval_context_blocks as _retrieval_context_blocks,
+)
+from app.domains.scene_packets.schemas import EvidenceLinkRead, ScenePacketCreate, ScenePacketRead
 
 
-class ScenePacketInputError(ValueError):
+class ScenePacketInputError(NotFoundError):
     """上下文包输入无法定位作品、章节或资产时抛出。"""
 
 
@@ -41,6 +43,7 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
     assets = _load_active_assets(session, payload)
     if len(assets) != len(set(payload.active_asset_ids)):
         raise ScenePacketInputError("存在不属于该作品的活跃资产，无法组装 Scene Packet。")
+
     continuity_records = session.scalars(
         select(ContinuityRecord)
         .where(ContinuityRecord.book_id == payload.book_id, ContinuityRecord.status == "active")
@@ -48,7 +51,8 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
     ).all()
     continuity_records = _filter_continuity_records_for_chapter(continuity_records, payload.chapter_id)
     evidence_links = _load_evidence_links(session, scene.id, assets)
-    retrieval_hits = []
+    retrieval_hits: list[RetrievalHitRead] = []
+
     if not payload.retrieval_snippets:
         retrieval_query = _build_retrieval_query(payload, chapter, assets, continuity_records)
         retrieval_hits = search_retrieval(
@@ -82,6 +86,7 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
                 for hit in retrieval_hits
             ]
         )
+
     packet, budget_statistics = _build_packet(payload, chapter, assets, continuity_records, evidence_links)
     if retrieval_hits:
         packet["检索命中"] = [hit.model_dump() for hit in retrieval_hits]
@@ -103,413 +108,3 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
         created_at=scene_packet.created_at,
         updated_at=scene_packet.updated_at,
     )
-
-
-def _load_active_assets(session: Session, payload: ScenePacketCreate) -> list[Asset]:
-    """按请求顺序读取同一作品下的活跃资产。"""
-    requested_ids = list(dict.fromkeys(payload.active_asset_ids))
-    assets = session.scalars(
-        select(Asset)
-        .where(Asset.book_id == payload.book_id, Asset.id.in_(requested_ids), Asset.status == "active")
-        .order_by(Asset.id)
-    ).all()
-    asset_by_id = {asset.id: asset for asset in assets}
-    return [asset_by_id[asset_id] for asset_id in requested_ids if asset_id in asset_by_id]
-
-
-def _load_evidence_links(session: Session, scene_id: int, assets: list[Asset]) -> list[EvidenceLinkRead]:
-    """优先读取证据表，缺失时生成资产来源回退链接。"""
-
-    asset_ids = [asset.id for asset in assets]
-    links = session.scalars(
-        select(EvidenceLink)
-        .where(
-            EvidenceLink.asset_id.in_(asset_ids),
-            or_(EvidenceLink.scene_id == scene_id, EvidenceLink.scene_id.is_(None)),
-        )
-        .order_by(EvidenceLink.id)
-    ).all()
-
-    evidence_links = [
-        EvidenceLinkRead(
-            asset_id=link.asset_id,
-            evidence_type=link.evidence_type,
-            source_ref=link.source_ref,
-            rationale=link.rationale,
-        )
-        for link in links
-    ]
-    linked_asset_ids = {link.asset_id for link in evidence_links}
-    evidence_links.extend(
-        EvidenceLinkRead(
-            asset_id=asset.id,
-            evidence_type="asset_snapshot",
-            source_ref=f"asset:{asset.id}",
-            rationale=f"资产 {asset.name} 被显式加入本次 Scene Packet。",
-        )
-        for asset in assets
-        if asset.id not in linked_asset_ids
-    )
-    return evidence_links
-
-
-def _filter_continuity_records_for_chapter(
-    records: list[ContinuityRecord],
-    chapter_id: int,
-) -> list[ContinuityRecord]:
-    """仅保留当前章节连续性，以及未绑定章节的全局连续性。"""
-
-    return [
-        record
-        for record in records
-        if record.payload.get("chapter_id") in (None, chapter_id)
-    ]
-
-
-def _build_packet(
-    payload: ScenePacketCreate,
-    chapter: Chapter,
-    assets: list[Asset],
-    continuity_records: list[ContinuityRecord],
-    evidence_links: list[EvidenceLinkRead],
-) -> tuple[dict[str, Any], BudgetStatistics]:
-    """按优先级构造固定槽位，并控制检索片段的预算占用。"""
-
-    characters = [_asset_summary(asset) for asset in assets if asset.asset_type == "character"]
-    foreshadowing = [_asset_summary(asset) for asset in assets if asset.asset_type == "foreshadowing"]
-    style_rules = [_style_rule(asset) for asset in assets if asset.asset_type == "style_rule"]
-    include_facts = _collect_payload_values(assets, "必须包含事实") + _continuity_constraints(continuity_records)
-    avoid_facts = _collect_payload_values(assets, "必须规避事实")
-    packet: dict[str, Any] = {
-        "章节目标": payload.scene_goal,
-        "活跃角色": characters,
-        "关系状态": _relationship_states(assets),
-        "未回收伏笔": foreshadowing,
-        "风格规则": style_rules,
-        "必须包含事实": include_facts,
-        "必须规避事实": avoid_facts,
-        "用户意图": payload.user_intent,
-        "证据链接": [link.model_dump() for link in evidence_links],
-        "上一章摘要": _continuity_values(continuity_records, "previous_chapter_summary"),
-        "章节摘要": chapter.summary,
-    }
-    reserved_tokens = _estimate_tokens(packet)
-    snippets, retrieval_tokens, truncated = _fit_retrieval_snippets(
-        payload.retrieval_snippets,
-        payload.token_budget,
-        reserved_tokens,
-    )
-    packet["检索片段"] = snippets
-    used_tokens = reserved_tokens + retrieval_tokens
-    statistics = BudgetStatistics(
-        token_budget=payload.token_budget,
-        used_tokens=used_tokens,
-        reserved_tokens=reserved_tokens,
-        retrieval_tokens=retrieval_tokens,
-        truncated=truncated or used_tokens > payload.token_budget,
-    )
-    return packet, statistics
-
-
-def _asset_summary(asset: Asset) -> dict[str, Any]:
-    """输出资产摘要，保留类型、名称和结构化载荷。"""
-
-    return {"id": asset.id, "type": asset.asset_type, "name": asset.name, "payload": asset.payload}
-
-
-def _style_rule(asset: Asset) -> dict[str, Any]:
-    """风格规则槽位优先展示规则文本，同时保留来源资产。"""
-
-    return {"id": asset.id, "name": asset.name, "rule": asset.payload.get("规则", asset.payload)}
-
-
-def _relationship_states(assets: list[Asset]) -> list[dict[str, Any]]:
-    """从角色资产载荷中提取关系状态。"""
-
-    return [
-        {"asset_id": asset.id, "name": asset.name, "state": asset.payload["关系"]}
-        for asset in assets
-        if asset.asset_type == "character" and "关系" in asset.payload
-    ]
-
-
-def _collect_payload_values(assets: list[Asset], key: str) -> list[Any]:
-    """从资产载荷收集硬约束列表，保持输入顺序。"""
-
-    values: list[Any] = []
-    for asset in assets:
-        raw_value = asset.payload.get(key)
-        if isinstance(raw_value, list):
-            values.extend(raw_value)
-        elif raw_value is not None:
-            values.append(raw_value)
-    return values
-
-
-def _continuity_values(records: list[ContinuityRecord], record_type: str) -> list[Any]:
-    """读取指定类型的连续性载荷。"""
-
-    return [record.payload.get("value") for record in records if record.record_type == record_type]
-
-
-def _continuity_constraints(records: list[ContinuityRecord]) -> list[Any]:
-    """下一章继承约束属于硬约束，预算不足时也必须保留。"""
-
-    values: list[Any] = []
-    for raw_value in _continuity_values(records, "next_chapter_constraints"):
-        if isinstance(raw_value, list):
-            values.extend(raw_value)
-        elif raw_value is not None:
-            values.append(raw_value)
-    return values
-
-
-def _fit_retrieval_snippets(
-    snippets: list[str],
-    token_budget: int,
-    reserved_tokens: int,
-) -> tuple[list[str], int, bool]:
-    """只在剩余预算允许时加入检索片段，避免覆盖硬约束。"""
-
-    remaining = max(token_budget - reserved_tokens, 0)
-    selected: list[str] = []
-    used = 0
-    truncated = False
-    for snippet in snippets:
-        snippet_tokens = _estimate_tokens(snippet)
-        if used + snippet_tokens <= remaining:
-            selected.append(snippet)
-            used += snippet_tokens
-        else:
-            truncated = True
-    return selected, used, truncated
-
-
-def _attach_compiled_context(
-    session: Session,
-    packet: dict[str, Any],
-    payload: ScenePacketCreate,
-    chapter: Chapter,
-    scene: Scene,
-    assets: list[Asset],
-    continuity_records: list[ContinuityRecord],
-    retrieval_hits: list[RetrievalHitRead],
-) -> None:
-    """把 Scene Packet 现有槽位转换为可解释的 CompiledContext 调试字段。"""
-
-    blocks = _build_context_blocks(payload, chapter, assets, continuity_records, retrieval_hits)
-    compiled_context = compile_context(
-        ContextCompileRequest(
-            novel_id=payload.book_id,
-            chapter_id=payload.chapter_id,
-            scene_id=scene.id,
-            token_budget=payload.token_budget,
-            blocks=blocks,
-            score_threshold=0.25,
-        )
-    )
-    persist_compiled_context(session, compiled_context)
-    packet["compiled_context_id"] = compiled_context.compiled_context_id
-    packet["上下文注入"] = [block.model_dump() for block in compiled_context.injected_blocks]
-    packet["上下文裁剪"] = [block.model_dump() for block in compiled_context.dropped_blocks]
-    packet["上下文预算"] = compiled_context.budget_report.model_dump()
-    packet["上下文调试"] = compiled_context.debug_summary
-
-
-def _build_context_blocks(
-    payload: ScenePacketCreate,
-    chapter: Chapter,
-    assets: list[Asset],
-    continuity_records: list[ContinuityRecord],
-    retrieval_hits: list[RetrievalHitRead],
-) -> list[ContextBlock]:
-    """按竞品成熟做法生成带优先级、分数和注入位置的上下文块。"""
-
-    blocks = [
-        ContextBlock(
-            block_id="scene-goal",
-            kind="scene_goal",
-            title="场景目标",
-            content=payload.scene_goal,
-            source_ref=f"chapter:{chapter.id}",
-            token_count=_estimate_tokens(payload.scene_goal),
-            priority="required",
-            injection_position="scene",
-        )
-    ]
-    if payload.user_intent:
-        blocks.append(
-            ContextBlock(
-                block_id="user-intent",
-                kind="user_instruction",
-                title="用户意图",
-                content=payload.user_intent,
-                source_ref="request:user_intent",
-                token_count=_estimate_tokens(payload.user_intent),
-                priority="high",
-                injection_position="user",
-            )
-        )
-    if chapter.summary:
-        blocks.append(
-            ContextBlock(
-                block_id="chapter-summary",
-                kind="timeline_event",
-                title="章节摘要",
-                content=chapter.summary,
-                source_ref=f"chapter:{chapter.id}:summary",
-                token_count=_estimate_tokens(chapter.summary),
-                priority="high",
-                injection_position="scene",
-            )
-        )
-    blocks.extend(_asset_context_blocks(assets))
-    blocks.extend(_continuity_context_blocks(continuity_records))
-    blocks.extend(_retrieval_context_blocks(payload, retrieval_hits))
-    return blocks
-
-
-def _asset_context_blocks(assets: list[Asset]) -> list[ContextBlock]:
-    """把作品资产转换为记忆、风格或证据上下文块。"""
-
-    blocks: list[ContextBlock] = []
-    for asset in assets:
-        if asset.asset_type == "style_rule":
-            blocks.append(
-                ContextBlock(
-                    block_id=f"asset:{asset.id}",
-                    kind="style_rule",
-                    title=asset.name,
-                    content=str(asset.payload.get("规则", asset.payload)),
-                    source_ref=f"asset:{asset.id}",
-                    token_count=_estimate_tokens(asset.payload),
-                    priority="low",
-                    injection_position="style",
-                    score=0.8,
-                )
-            )
-            continue
-        priority = "required" if asset.payload.get("不可变") is True else "high"
-        blocks.append(
-            ContextBlock(
-                block_id=f"asset:{asset.id}",
-                kind="memory_atom",
-                title=asset.name,
-                content=str(asset.payload),
-                source_ref=f"asset:{asset.id}",
-                token_count=_estimate_tokens(asset.payload),
-                priority=priority,
-                injection_position="memory",
-                score=0.85,
-            )
-        )
-    return blocks
-
-
-def _continuity_context_blocks(records: list[ContinuityRecord]) -> list[ContextBlock]:
-    """连续性记录作为时间线或硬约束注入，避免下一章继承断裂。"""
-
-    blocks: list[ContextBlock] = []
-    for record in records:
-        raw_value = record.payload.get("value")
-        if raw_value is None:
-            continue
-        content = str(raw_value)
-        is_required = record.record_type == "next_chapter_constraints"
-        blocks.append(
-            ContextBlock(
-                block_id=f"continuity:{record.id}",
-                kind="immutable_fact" if is_required else "timeline_event",
-                title=record.record_type,
-                content=content,
-                source_ref=f"continuity:{record.id}",
-                token_count=_estimate_tokens(content),
-                priority="required" if is_required else "high",
-                injection_position="memory" if is_required else "scene",
-                score=0.9,
-            )
-        )
-    return blocks
-
-
-def _retrieval_context_blocks(payload: ScenePacketCreate, retrieval_hits: list[RetrievalHitRead]) -> list[ContextBlock]:
-    """检索命中和手工片段统一转为 evidence 上下文块。"""
-
-    if retrieval_hits:
-        return [
-            ContextBlock(
-                block_id=f"retrieval:{hit.source_id}:{hit.chunk_id}",
-                kind="retrieval_chunk",
-                title=hit.title,
-                content=hit.excerpt,
-                source_ref=hit.source_ref,
-                token_count=_estimate_tokens(hit.excerpt),
-                priority="medium",
-                injection_position="evidence",
-                score=hit.score,
-                metadata=_retrieval_hit_metadata(hit),
-            )
-            for hit in retrieval_hits
-        ]
-    return [
-        ContextBlock(
-            block_id=f"manual-retrieval:{index}",
-            kind="retrieval_chunk",
-            title=f"手工检索片段 {index}",
-            content=snippet,
-            source_ref=f"request:retrieval_snippets:{index}",
-            token_count=_estimate_tokens(snippet),
-            priority="medium",
-            injection_position="evidence",
-            score=0.75,
-        )
-        for index, snippet in enumerate(payload.retrieval_snippets, start=1)
-    ]
-
-
-def _retrieval_hit_metadata(hit: RetrievalHitRead) -> dict[str, str | int | float | bool]:
-    """只写入已存在的检索分数字段，避免空 rerank 字段污染上下文块。"""
-
-    metadata: dict[str, str | int | float | bool] = {
-        "source_id": hit.source_id,
-        "chunk_id": hit.chunk_id,
-        "rank": hit.rank,
-        "score_source": hit.score_source,
-        "keyword_score": hit.keyword_score,
-        "embedding_score": hit.embedding_score,
-        "context_tokens": _estimate_tokens(hit.excerpt),
-    }
-    if hit.rerank_score is not None:
-        metadata["rerank_score"] = hit.rerank_score
-    if hit.rerank_provider is not None:
-        metadata["rerank_provider"] = hit.rerank_provider
-    if hit.rerank_model is not None:
-        metadata["rerank_model"] = hit.rerank_model
-    return metadata
-
-
-def _build_retrieval_query(
-    payload: ScenePacketCreate,
-    chapter: Chapter,
-    assets: list[Asset],
-    continuity_records: list[ContinuityRecord],
-) -> str:
-    """组合场景目标、用户意图、章节摘要和硬约束，生成更稳定的检索查询。"""
-
-    include_facts = _collect_payload_values(assets, "必须包含事实") + _continuity_constraints(continuity_records)
-    segments = [
-        payload.scene_goal,
-        payload.user_intent,
-        chapter.title,
-        chapter.summary or "",
-        *[str(value) for value in include_facts],
-    ]
-    normalized = [segment.strip() for segment in segments if str(segment).strip()]
-    return " ".join(normalized)
-
-
-def _estimate_tokens(value: Any) -> int:
-    """用轻量字符近似估算预算，避免引入额外分词依赖。"""
-
-    text = str(value)
-    return max(1, (len(text) + 5) // 6)

@@ -5,13 +5,14 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord
 from app.domains.continuity.schemas import ChapterApprovalCreate
 
 
-class ChapterNotFoundError(ValueError):
+class ChapterNotFoundError(NotFoundError):
     """章节不存在时由服务层抛出，路由层转换为 HTTP 响应。"""
 
 

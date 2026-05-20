@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.books.models import Book, Scene
 from app.domains.jobs.models import JobRun
@@ -13,7 +15,7 @@ from app.domains.prompt_packs.models import PromptPack
 from app.domains.workspaces.models import Workspace
 
 
-class ModelRunError(ValueError):
+class ModelRunError(InputError):
     """模型运行日志引用对象不存在或作用域不一致。"""
 
 
@@ -41,6 +43,42 @@ def list_model_runs(
     if job_run_id is not None:
         statement = statement.where(ModelRun.job_run_id == job_run_id)
     return session.scalars(statement).all()
+
+
+def get_runs_job_run(session: Session, *, job_run_id: int) -> dict[str, Any]:
+    job = session.get(JobRun, job_run_id)
+    if job is None:
+        raise ModelRunError("任务不存在，无法读取 Runs 工作台任务状态。")
+    progress = dict(job.progress or {})
+    checkpoint = {
+        key: progress[key]
+        for key in ("thread_id", "current_node", "approval_status")
+        if key in progress
+    }
+    model_runs = list_model_runs(session, job_run_id=job_run_id)
+    return {
+        "id": job.id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "progress": progress,
+        "checkpoint": checkpoint or None,
+        "model_runs": [
+            {
+                "id": model_run.id,
+                "provider_name": model_run.provider_name,
+                "model_name": model_run.model_name,
+                "capability": model_run.capability,
+                "status": model_run.status,
+                "latency_ms": model_run.latency_ms,
+                "token_usage": model_run.token_usage,
+                "error_message": model_run.error_message,
+            }
+            for model_run in model_runs
+        ],
+        "error_message": job.error_message,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+    }
 
 
 def record_runtime_model_run(

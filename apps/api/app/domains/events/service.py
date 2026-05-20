@@ -4,13 +4,14 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
 from app.domains.events.models import EventLog
 from app.domains.events.schemas import EventRecordCreate
 from app.domains.workspaces.models import Workspace
 
 
-class EventWorkspaceNotFoundError(ValueError):
+class EventWorkspaceNotFoundError(NotFoundError):
     """事件归属的工作区不存在时抛出。"""
 
 

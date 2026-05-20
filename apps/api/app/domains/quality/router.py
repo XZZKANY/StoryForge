@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.quality.schemas import QualityDashboardQuery, QualityDashboardRead
 from app.domains.quality.service import QualityDashboardInputError, build_quality_dashboard
 
 router = APIRouter(prefix="/api/quality", tags=["质量看板"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/dashboard", response_model=QualityDashboardRead)

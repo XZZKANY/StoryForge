@@ -3,22 +3,24 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
+from app.common.exceptions import InputError, NotFoundError
 
+from app.db.queries import latest_by_lineage
 from app.domains.series.models import Series, SeriesMemory, SeriesMemoryEvidence
 from app.domains.series.schemas import SeriesCreate, SeriesMemoryCreate, SeriesMemoryUpdate
 
 
-class SeriesNotFoundError(ValueError):
+class SeriesNotFoundError(NotFoundError):
     """系列不存在时抛出，避免产生孤立的跨书记忆。"""
 
 
-class SeriesMemoryNotFoundError(ValueError):
+class SeriesMemoryNotFoundError(NotFoundError):
     """系列记忆不存在时抛出，路由层转换为 HTTP 响应。"""
 
 
-class EmptySeriesMemoryUpdateError(ValueError):
+class EmptySeriesMemoryUpdateError(InputError):
     """空更新无法形成有意义的新版本。"""
 
 
@@ -68,12 +70,7 @@ def list_series_memories(
 
     if session.get(Series, series_id) is None:
         raise SeriesNotFoundError("系列不存在，无法读取系列级记忆。")
-    latest_versions = (
-        select(SeriesMemory.lineage_key, func.max(SeriesMemory.version).label("latest_version"))
-        .where(SeriesMemory.series_id == series_id)
-        .group_by(SeriesMemory.lineage_key)
-        .subquery()
-    )
+    latest_versions = latest_by_lineage(SeriesMemory, filters=[SeriesMemory.series_id == series_id])
     statement = (
         select(SeriesMemory)
         .options(selectinload(SeriesMemory.evidence))

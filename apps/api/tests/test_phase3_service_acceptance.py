@@ -30,19 +30,6 @@ from app.domains.workspaces.service import (
 )
 
 
-@pytest.fixture()
-def session() -> Generator[Session, None, None]:
-    """使用 SQLite 内存库验证 Phase 3 服务闭环。"""
-
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with factory() as db_session:
-        yield db_session
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
 def test_workspace_and_collaboration_service_flow(session: Session) -> None:
     """工作区、席位限制、评论审批和事件流可以通过服务层跑通。"""
 

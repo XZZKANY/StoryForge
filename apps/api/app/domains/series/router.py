@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.series.schemas import SeriesCreate, SeriesMemoryCreate, SeriesMemoryRead, SeriesMemoryUpdate, SeriesRead
 from app.domains.series.service import (
     EmptySeriesMemoryUpdateError,
@@ -19,7 +18,6 @@ from app.domains.series.service import (
 )
 
 router = APIRouter(prefix="/api/series", tags=["系列级记忆"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=SeriesRead, status_code=status.HTTP_201_CREATED)

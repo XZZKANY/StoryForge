@@ -125,6 +125,7 @@ def test_domain_modules_configure_mappers_independently() -> None:
     for module_name in modules:
         script = (
             "from sqlalchemy.orm import configure_mappers\n"
+            "import app.models  # noqa: F401\n"
             f"__import__({module_name!r})\n"
             "configure_mappers()\n"
             f"print('已完成独立映射配置: {module_name}')\n"

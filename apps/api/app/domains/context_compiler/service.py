@@ -144,8 +144,13 @@ def _debug_summary(
     ]
 
 
-def persist_compiled_context(session: Session, compiled_context: CompiledContext) -> CompiledContextRecord:
-    """保存可审计的上下文编译快照，避免 compiled_context_id 只存在于运行时。"""
+def persist_compiled_context(
+    session: Session,
+    compiled_context: CompiledContext,
+    *,
+    commit: bool = True,
+) -> CompiledContextRecord:
+    """保存可审计的上下文编译快照，必要时交给外层事务统一提交。"""
 
     existing = get_compiled_context_record(session, compiled_context.compiled_context_id)
     if existing is not None:
@@ -166,8 +171,11 @@ def persist_compiled_context(session: Session, compiled_context: CompiledContext
         debug_summary=compiled_context.debug_summary,
     )
     session.add(record)
-    session.commit()
-    session.refresh(record)
+    if commit:
+        session.commit()
+        session.refresh(record)
+    else:
+        session.flush()
     return record
 
 

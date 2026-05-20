@@ -16,41 +16,6 @@ from app.main import app
 
 
 @pytest.fixture()
-def session_factory() -> Generator[sessionmaker[Session], None, None]:
-    """每个测试使用独立内存数据库，避免污染其他任务数据。"""
-
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        Base.metadata.drop_all(engine)
-        engine.dispose()
-
-
-@pytest.fixture()
-def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
-    """覆盖应用数据库依赖，使 API 测试完全本地可重复。"""
-
-    def override_get_session() -> Generator[Session, None, None]:
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture()
 def book_id(session_factory: sessionmaker[Session]) -> int:
     """准备资产 API 所需的作品根实体。"""
 

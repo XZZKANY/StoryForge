@@ -18,41 +18,6 @@ from app.main import app
 
 
 @pytest.fixture()
-def session_factory() -> Generator[sessionmaker[Session], None, None]:
-    """每个测试使用独立内存数据库，确保连续性状态可重复验证。"""
-
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        Base.metadata.drop_all(engine)
-        engine.dispose()
-
-
-@pytest.fixture()
-def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
-    """覆盖数据库依赖，复用资产 API 的本地 TestClient 模式。"""
-
-    def override_get_session() -> Generator[Session, None, None]:
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture()
 def story_context(session_factory: sessionmaker[Session]) -> dict[str, int]:
     """准备作品、章节、场景、资产和证据链接作为上下文包输入。"""
 

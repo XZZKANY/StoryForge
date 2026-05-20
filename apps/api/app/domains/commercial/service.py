@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
 from app.domains.books.models import Book
 from app.domains.commercial.models import WorkspaceSubscription
@@ -10,7 +11,7 @@ from app.domains.jobs.models import JobRun
 from app.domains.workspaces.models import Workspace, WorkspaceMember
 
 
-class CommercialWorkspaceNotFoundError(ValueError):
+class CommercialWorkspaceNotFoundError(NotFoundError):
     """商业化控制引用了不存在的工作区。"""
 
 

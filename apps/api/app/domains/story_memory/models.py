@@ -31,4 +31,3 @@ class MemoryAtomRecord(IdMixin, TimestampMixin, Base):
     book: Mapped[Book] = relationship()
 
 
-from app.domains import books as _books_domain  # noqa: E402,F401

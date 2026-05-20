@@ -80,17 +80,17 @@ OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 ### 现象
 
 - Phase 5 真实 AI/RAG 接入前，系统仍使用 deterministic provider、假 embedding 或关键词检索路径。
-- `.env.example` 已提供 `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*` 预留变量，但当前代码尚未读取这些变量。
+- `.env.example` 已提供 `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*` 变量；Provider Gateway 会读取 LLM、embedding、reranker 变量，并在缺少真实密钥时回退。
 
 ### 判断
 
-这是当前路线中的已知未完成项，不是 Phase 1 到 Phase 4 的回归缺陷。样例变量用于提前固定命名边界，不代表真实 provider、embedding 或 reranker 已经接入。
+这是当前路线中的已知降级路径，不是 Phase 1 到 Phase 4 的回归缺陷。样例变量已绑定到 Provider Gateway 运行时配置，但未配置真实密钥时会回退到本地默认实现；这不代表真实外部 provider、embedding 或 reranker 已经端到端接入。
 
 ### 处理
 
 - 当前阶段不要把真实 provider 调用作为本地启动前置条件。
-- 本地保持 `STORYFORGE_PROVIDER_MODE=deterministic`、`STORYFORGE_EMBEDDING_PROVIDER=local`、`STORYFORGE_RERANKER_PROVIDER=disabled`。
-- Phase 5 接入时再把这些变量绑定到 Provider Gateway、Embedding、Reranker 和 ModelRun 验证。
+- 本地保持 `STORYFORGE_LLM_PROVIDER=deterministic`、`STORYFORGE_EMBEDDING_PROVIDER=local`、`STORYFORGE_RERANKER_PROVIDER=disabled`。
+- 调整这些变量后，优先运行 Provider Gateway、Embedding、Reranker 相关本地测试；真实外部密钥不可用时只接受回退路径验证。
 - 文档中不得承诺未接入的真实 AI/RAG 能力已经可用。
 
 ## 6. `pnpm verify` 失败

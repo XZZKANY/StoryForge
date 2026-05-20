@@ -3,16 +3,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
+from app.db.queries import latest_by_lineage
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.books.models import Book
 from app.domains.workspaces.models import Workspace
 
 
-class ArtifactError(ValueError):
+class ArtifactError(InputError):
     """制品创建或查询的输入不合法。"""
 
 
@@ -22,7 +24,8 @@ def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:
     if payload.book_id is not None and session.get(Book, payload.book_id) is None:
         raise ArtifactError("作品不存在，无法创建制品。")
     lineage_key = payload.lineage_key or str(uuid4())
-    next_version = int(session.scalar(select(func.max(Artifact.version)).where(Artifact.lineage_key == lineage_key)) or 0) + 1
+    latest_versions = latest_by_lineage(Artifact, filters=[Artifact.lineage_key == lineage_key])
+    next_version = int(session.scalar(select(latest_versions.c.latest_version)) or 0) + 1
     artifact = Artifact(
         workspace_id=payload.workspace_id,
         book_id=payload.book_id,
@@ -43,11 +46,7 @@ def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:
 
 
 def list_artifacts(session: Session, *, workspace_id: int | None = None, book_id: int | None = None) -> Sequence[Artifact]:
-    statement = (
-        select(Artifact.lineage_key, func.max(Artifact.version).label("latest_version"))
-        .group_by(Artifact.lineage_key)
-        .subquery()
-    )
+    statement = latest_by_lineage(Artifact)
     query = (
         select(Artifact)
         .join(

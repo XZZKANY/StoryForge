@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.books.models import Scene
 from app.domains.continuity.models import ScenePacket
@@ -10,7 +11,7 @@ from app.domains.judge.models import JudgeIssue
 from app.domains.judge.schemas import JudgeIssueCreate
 
 
-class JudgeInputError(ValueError):
+class JudgeInputError(InputError):
     """评审请求无法定位场景或上下文包时抛出。"""
 
 

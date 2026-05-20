@@ -3,16 +3,17 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
-from app.domains.books.models import Book
+from app.common.scope import ScopeNotFoundError, validate_scope
+from app.db.queries import latest_by_lineage
 from app.domains.prompt_packs.models import PromptPack
 from app.domains.prompt_packs.schemas import PromptPackCreate, PromptPackUpdate
-from app.domains.workspaces.models import Workspace
 
 
-class PromptPackError(ValueError):
+class PromptPackError(InputError):
     """Prompt Pack 输入不合法或引用对象不存在。"""
 
 
@@ -35,11 +36,7 @@ def create_prompt_pack(session: Session, payload: PromptPackCreate) -> PromptPac
 
 
 def list_prompt_packs(session: Session, workspace_id: int | None = None, book_id: int | None = None) -> Sequence[PromptPack]:
-    statement = (
-        select(PromptPack.lineage_key, func.max(PromptPack.version).label("latest_version"))
-        .group_by(PromptPack.lineage_key)
-        .subquery()
-    )
+    statement = latest_by_lineage(PromptPack)
     query = (
         select(PromptPack)
         .join(
@@ -96,8 +93,10 @@ def get_prompt_pack_history(session: Session, pack_id: int) -> Sequence[PromptPa
 
 
 def _require_scope(session: Session, workspace_id: int | None, book_id: int | None) -> None:
-    if workspace_id is not None and session.get(Workspace, workspace_id) is None:
-        raise PromptPackError("工作区不存在，无法创建 Prompt Pack。")
-    if book_id is not None and session.get(Book, book_id) is None:
-        raise PromptPackError("作品不存在，无法创建 Prompt Pack。")
+    try:
+        validate_scope(session, workspace_id, book_id)
+    except ScopeNotFoundError as exc:
+        if str(exc).startswith("工作区"):
+            raise PromptPackError("工作区不存在，无法创建 Prompt Pack。") from exc
+        raise PromptPackError("作品不存在，无法创建 Prompt Pack。") from exc
 

@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.repair.schemas import RepairPatchCreate, RepairPatchRead
 from app.domains.repair.service import RepairInputError, create_repair_patch
 
 router = APIRouter(prefix="/api/repair", tags=["定向修复"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/patches", response_model=RepairPatchRead, status_code=status.HTTP_201_CREATED)

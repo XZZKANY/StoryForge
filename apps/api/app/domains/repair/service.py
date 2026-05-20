@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.repair.schemas import RepairPatchCreate
 
 
-class RepairInputError(ValueError):
+class RepairInputError(InputError):
     """修复请求无法定位问题单或原文片段时抛出。"""
 
 

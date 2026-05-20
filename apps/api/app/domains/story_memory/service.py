@@ -4,6 +4,7 @@ from hashlib import sha1
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.books.models import Book
 from app.domains.story_memory.models import MemoryAtomRecord
@@ -15,7 +16,7 @@ from app.domains.story_memory.schemas import (
 )
 
 
-class StoryMemoryInputError(ValueError):
+class StoryMemoryInputError(InputError):
     """长效记忆输入引用不存在或区间非法时抛出。"""
 
 

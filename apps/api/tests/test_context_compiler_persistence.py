@@ -18,19 +18,6 @@ from app.domains.scene_packets.schemas import ScenePacketCreate
 from app.domains.scene_packets.service import assemble_scene_packet
 
 
-@pytest.fixture()
-def session() -> Generator[Session, None, None]:
-    """使用 SQLite 内存库验证 compiled_contexts 最小持久化模型。"""
-
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with factory() as db_session:
-        yield db_session
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
 def test_compiled_contexts_table_uses_existing_integer_foreign_keys(session: Session) -> None:
     """compiled_contexts 表必须跟随现有 int 主键体系。"""
 
@@ -68,6 +55,47 @@ def test_persist_compiled_context_saves_auditable_budget_and_block_refs(session:
     assert "goal" in injected_refs
     assert "style" in dropped_refs
     assert loaded.debug_summary == compiled.debug_summary
+
+
+def test_scene_packet_assembly_commits_once_when_persisting_compiled_context(session: Session) -> None:
+    """Scene Packet 组装应把 compiled context 快照纳入外层事务统一提交。"""
+
+    book, chapter, scene = _create_book_chapter_scene(session)
+    asset = Asset(
+        book_id=book.id,
+        scene_id=scene.id,
+        asset_type="character",
+        lineage_key="char-linlan-single-commit",
+        name="林岚",
+        status="active",
+        payload={"必须包含事实": ["左臂旧伤不能公开"]},
+        version=1,
+    )
+    session.add(asset)
+    session.commit()
+    commit_count = 0
+    original_commit = session.commit
+
+    def counted_commit() -> None:
+        nonlocal commit_count
+        commit_count += 1
+        original_commit()
+
+    session.commit = counted_commit  # type: ignore[method-assign]
+
+    assemble_scene_packet(
+        session,
+        ScenePacketCreate(
+            book_id=book.id,
+            chapter_id=chapter.id,
+            scene_goal="林岚争取维修窗口并隐藏旧伤。",
+            active_asset_ids=[asset.id],
+            token_budget=90,
+            user_intent="优先保留设定。",
+        ),
+    )
+
+    assert commit_count == 1
 
 
 def test_scene_packet_assembly_persists_compiled_context_snapshot(session: Session) -> None:

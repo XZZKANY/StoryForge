@@ -46,6 +46,4 @@ class EvaluationRun(IdMixin, TimestampMixin, Base):
     book: Mapped[Book | None] = relationship()
 
 
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401
 

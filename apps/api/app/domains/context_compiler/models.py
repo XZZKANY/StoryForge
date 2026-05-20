@@ -34,4 +34,3 @@ class CompiledContextRecord(IdMixin, TimestampMixin, Base):
     scene: Mapped[Scene] = relationship()
 
 
-from app.domains import books as _books_domain  # noqa: E402,F401

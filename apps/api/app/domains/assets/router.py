@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.assets.schemas import AssetCreate, AssetRead, AssetUpdate
 from app.domains.assets.service import (
     AssetNotFoundError,
@@ -18,7 +17,6 @@ from app.domains.assets.service import (
 )
 
 router = APIRouter(prefix="/api/assets", tags=["资产中心"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED)

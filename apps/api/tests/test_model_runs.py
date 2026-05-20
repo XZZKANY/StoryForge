@@ -20,33 +20,6 @@ import pytest
 
 
 @pytest.fixture()
-def session_factory() -> Generator[sessionmaker[Session], None, None]:
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        Base.metadata.drop_all(engine)
-        engine.dispose()
-
-
-@pytest.fixture()
-def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
-    def override_get_session() -> Generator[Session, None, None]:
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture()
 def run_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
     with session_factory() as session:
         workspace = Workspace(title="Phase4 团队", slug="phase4-run-team", status="active", seat_limit=3)
@@ -96,6 +69,79 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
     listing = client.get("/api/model-runs", params={"job_run_id": run_scope["job_run_id"]})
     assert listing.status_code == 200
     assert len(listing.json()) == 1
+
+
+def test_runs_job_run_endpoint_reads_persisted_job_run(client: TestClient, run_scope: dict[str, int]) -> None:
+    response = client.get(f"/api/model-runs/job-runs/{run_scope['job_run_id']}")
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["id"] == run_scope["job_run_id"]
+    assert result["job_type"] == "generation_runtime"
+    assert result["status"] == "running"
+    assert result["progress"] == {}
+    assert result["error_message"] is None
+
+
+def test_runs_job_run_endpoint_exposes_checkpoint_from_progress(
+    client: TestClient, session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    with session_factory() as session:
+        job = session.get(JobRun, run_scope["job_run_id"])
+        assert job is not None
+        job.progress = {
+            "thread_id": "phase6-runs-thread",
+            "current_node": "draft_writer",
+            "approval_status": "pending",
+        }
+        session.commit()
+
+    response = client.get(f"/api/model-runs/job-runs/{run_scope['job_run_id']}")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["checkpoint"] == {
+        "thread_id": "phase6-runs-thread",
+        "current_node": "draft_writer",
+        "approval_status": "pending",
+    }
+
+
+def test_runs_job_run_endpoint_includes_model_run_summaries(
+    client: TestClient, session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    from app.domains.model_runs.service import record_failed_runtime_model_run, record_runtime_model_run
+
+    with session_factory() as session:
+        record_runtime_model_run(
+            session,
+            job_run_id=run_scope["job_run_id"],
+            provider_name="mock-provider",
+            model_name="storyforge-writer",
+            capability="llm",
+            latency_ms=160,
+            token_usage=42,
+            input_summary="生成输入摘要",
+            output_summary="生成输出摘要",
+        )
+        record_failed_runtime_model_run(
+            session,
+            job_run_id=run_scope["job_run_id"],
+            provider_name="mock-provider",
+            model_name="storyforge-retry",
+            capability="llm",
+            input_summary="重试输入摘要",
+            error_message="provider timeout",
+        )
+
+    response = client.get(f"/api/model-runs/job-runs/{run_scope['job_run_id']}")
+
+    assert response.status_code == 200, response.text
+    model_runs = response.json()["model_runs"]
+    assert [item["status"] for item in model_runs] == ["completed", "failed"]
+    assert model_runs[0]["provider_name"] == "mock-provider"
+    assert model_runs[0]["model_name"] == "storyforge-writer"
+    assert model_runs[0]["token_usage"] == 42
+    assert model_runs[1]["error_message"] == "provider timeout"
 
 
 def test_record_failed_runtime_model_run_preserves_error_for_recovery(

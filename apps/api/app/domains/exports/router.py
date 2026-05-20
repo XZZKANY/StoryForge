@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, Response, status
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session
-
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.exports.service import ExportNotFoundError, build_epub_export, build_markdown_export
 
 router = APIRouter(prefix="/api/books/{book_id}/exports", tags=["作品导出"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/markdown")

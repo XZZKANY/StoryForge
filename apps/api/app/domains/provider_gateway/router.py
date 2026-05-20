@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.provider_gateway.schemas import ProviderConfigCreate, ProviderConfigRead, ProviderResolutionRead
 from app.domains.provider_gateway.service import ProviderGatewayError, create_provider_config, list_provider_configs, resolve_provider
 
 router = APIRouter(prefix="/api/provider-gateway", tags=["模型接入层"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/providers", response_model=ProviderConfigRead, status_code=status.HTTP_201_CREATED)

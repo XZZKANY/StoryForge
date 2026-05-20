@@ -13,44 +13,9 @@ from app.db.base import Base
 from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
-from app.domains.judge.models import JudgeIssue
+from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.workspaces.models import Workspace
 from app.main import app
-
-
-@pytest.fixture()
-def session_factory() -> Generator[sessionmaker[Session], None, None]:
-    """每个测试使用独立内存数据库，避免污染其他任务数据。"""
-
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        Base.metadata.drop_all(engine)
-        engine.dispose()
-
-
-@pytest.fixture()
-def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
-    """覆盖应用数据库依赖，使 Studio API 测试完全本地可重复。"""
-
-    def override_get_session() -> Generator[Session, None, None]:
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
 
 
 def seed_book(
@@ -347,3 +312,96 @@ def test_read_studio_judge_review_returns_404_when_review_missing(
 
     assert response.status_code == 404, response.text
     assert response.json() == {"detail": "Judge 评审不存在，无法读取 Studio Judge 评审。"}
+
+
+def test_read_studio_repair_patches_returns_patch_summary(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Studio Repair 修订 API 读取已生成补丁摘要，不触发新修复。"""
+
+    with session_factory() as session:
+        book = Book(title="雾港修订", status="draft", premise="验证 Repair 摘要。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=4, title="修订章节", status="draft", summary="等待修订。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="修订场景", status="draft", content="林岚的左臂毫发无损。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"章节目标": "保持旧伤约束。"}, version=1)
+        session.add(scene_packet)
+        session.flush()
+        issue = JudgeIssue(
+            scene_id=scene.id,
+            scene_packet_id=scene_packet.id,
+            issue_type="setting_conflict",
+            severity="high",
+            status="requires_rejudge",
+            description="左臂状态违背旧伤设定。",
+            payload={"span_start": 3, "span_end": 10, "recommended_repair_mode": "replace_span"},
+        )
+        session.add(issue)
+        session.flush()
+        patch = RepairPatch(
+            judge_issue_id=issue.id,
+            scene_id=scene.id,
+            status="requires_rejudge",
+            patch={
+                "target_span": "的左臂毫发无",
+                "replacement_text": "压低受伤左臂",
+                "requires_rejudge": True,
+                "span_start": 3,
+                "span_end": 10,
+            },
+            rationale="将“的左臂毫发无”替换为“压低受伤左臂”，使正文回到必含事实约束。",
+            version=1,
+        )
+        session.add(patch)
+        session.commit()
+        scene_packet_id = scene_packet.id
+        patch_id = patch.id
+        issue_id = issue.id
+
+    response = client.get(f"/api/studio/repair-patches?scene_packet_id={scene_packet_id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == [
+        {
+            "id": patch_id,
+            "issue_id": issue_id,
+            "status": "requires_rejudge",
+            "target_span": "的左臂毫发无",
+            "replacement_text": "压低受伤左臂",
+            "reason": "将“的左臂毫发无”替换为“压低受伤左臂”，使正文回到必含事实约束。",
+            "requires_rejudge": True,
+        }
+    ]
+
+
+def test_read_studio_repair_patches_returns_404_when_patch_missing(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Repair 修订补丁不存在时返回 404，供 Web 展示可重试错误摘要。"""
+
+    with session_factory() as session:
+        book = Book(title="暂无修订作品", status="draft", premise="验证 Repair 缺失。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=1, title="待修订章节", status="draft", summary="等待修订。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="待修订场景", status="draft", content="草稿。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"章节目标": "等待修订。"}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        scene_packet_id = scene_packet.id
+
+    response = client.get(f"/api/studio/repair-patches?scene_packet_id={scene_packet_id}")
+
+    assert response.status_code == 404, response.text
+    assert response.json() == {"detail": "Repair 修订补丁不存在，无法读取 Studio Repair 修订。"}

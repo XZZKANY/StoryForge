@@ -28,14 +28,14 @@ Copy-Item .env.example .env
 - `DATABASE_URL`：对应 `docker-compose.yml` 中的 PostgreSQL `127.0.0.1:55432`。
 - `REDIS_URL`：对应 Redis `127.0.0.1:6379`。
 - `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`：对应 MinIO `127.0.0.1:9000`。
-- `API_BASE_URL`、`WEB_BASE_URL`：对应本地 API 与 Web 入口。
+- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`、`WEB_BASE_URL`：对应本地 API、Web 入口；当前 Web Studio/Retrieval 单点读取使用 `STORYFORGE_API_BASE_URL`。
 - `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`：workflow 本地 runtime 和 checkpoint 后端预留，当前默认使用本地运行模式。
-- `STORYFORGE_PROVIDER_MODE`、`STORYFORGE_LLM_*`：Phase 5 Provider Gateway 真实化预留，默认保持 deterministic。
+- `STORYFORGE_LLM_*`：Phase 5 Provider Gateway 真实化预留，默认保持 deterministic。
 - `STORYFORGE_EMBEDDING_*`：Phase 5 embedding 客户端预留，默认保持本地假 embedding。
 - `STORYFORGE_RERANKER_*`、`STORYFORGE_RAG_*`：Phase 5 reranker 和上下文预算预留，默认不启用 reranker。
 - `STORYFORGE_MODEL_RUN_LOG_LEVEL`：后续模型运行日志粒度预留。
 
-AI/RAG 相关变量当前只是显式占位，代码尚未读取这些变量；本地启动不要求填写真实密钥，也不能据此声称真实 provider、embedding 或 reranker 已经接入。
+AI/RAG 相关变量当前会由 Provider Gateway 的运行时配置读取；本地启动不要求填写真实密钥，缺少密钥时会按能力回退到 deterministic、local 或 disabled，因此不能据此声称真实外部 provider、embedding 或 reranker 端到端已接入。
 
 ## 4. 启动基础服务
 

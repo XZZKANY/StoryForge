@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
 from app.domains.assets.models import Asset
 from app.domains.continuity.models import ContinuityRecord
@@ -16,7 +17,7 @@ from app.domains.worldbuilding.schemas import (
 )
 
 
-class WorldbuildingNotFoundError(ValueError):
+class WorldbuildingNotFoundError(NotFoundError):
     """世界观中心无法定位系列时抛出。"""
 
 
