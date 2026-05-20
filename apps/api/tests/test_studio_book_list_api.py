@@ -14,6 +14,7 @@ from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.judge.models import JudgeIssue, RepairPatch
+from app.domains.jobs.models import JobRun
 from app.domains.workspaces.models import Workspace
 from app.main import app
 
@@ -201,6 +202,7 @@ def test_read_studio_scene_packet_returns_packet_summary(
         "target_chapter_ordinal": 2,
         "scene_id": scene_id,
         "scene_packet_id": packet_id,
+        "job_run_id": None,
         "status": "assembled",
         "chapter_goal": "林岚争取维修窗口。",
         "evidence_count": 2,
@@ -405,3 +407,175 @@ def test_read_studio_repair_patches_returns_404_when_patch_missing(
 
     assert response.status_code == 404, response.text
     assert response.json() == {"detail": "Repair 修订补丁不存在，无法读取 Studio Repair 修订。"}
+
+
+def test_read_studio_approval_summary_returns_scene_packet_eligibility(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """批准回写摘要通过 Scene Packet 返回可批准对象和目标章节。"""
+
+    with session_factory() as session:
+        book = Book(title="批准摘要", status="draft", premise="验证批准摘要。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=5, title="批准章节", status="draft", summary="等待批准。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="批准场景", status="draft", content="待回写正文。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"章节目标": "等待批准。"}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        scene_packet_id = scene_packet.id
+        scene_id = scene.id
+        chapter_id = chapter.id
+
+    response = client.get(f"/api/studio/approval-summary?scene_packet_id={scene_packet_id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "can_approve": True,
+        "approvable_object": {
+            "object_type": "scene_packet",
+            "id": scene_packet_id,
+            "status": "assembled",
+            "scene_id": scene_id,
+        },
+        "target_chapter": {
+            "id": chapter_id,
+            "ordinal": 5,
+            "title": "批准章节",
+            "status": "draft",
+        },
+        "writeback_status": "未回写",
+        "unavailable_reason": None,
+    }
+
+
+def test_read_studio_approval_summary_returns_unavailable_for_blocked_patch(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """批准回写摘要通过 Repair Patch 返回不可批准原因，不执行写回。"""
+
+    with session_factory() as session:
+        book = Book(title="不可批准摘要", status="draft", premise="验证不可批准。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=6, title="阻塞章节", status="draft", summary="等待修订。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="阻塞场景", status="draft", content="草稿。")
+        session.add(scene)
+        session.flush()
+        issue = JudgeIssue(
+            scene_id=scene.id,
+            scene_packet_id=None,
+            issue_type="style",
+            severity="medium",
+            status="open",
+            description="仍需修订。",
+            payload={},
+        )
+        session.add(issue)
+        session.flush()
+        patch = RepairPatch(
+            judge_issue_id=issue.id,
+            scene_id=scene.id,
+            status="rejected",
+            patch={"target_span": "草稿", "replacement_text": "修订稿"},
+            rationale="已被拒绝。",
+            version=1,
+        )
+        session.add(patch)
+        session.commit()
+        patch_id = patch.id
+
+    response = client.get(f"/api/studio/approval-summary?repair_patch_id={patch_id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["can_approve"] is False
+    assert response.json()["approvable_object"]["object_type"] == "repair_patch"
+    assert response.json()["writeback_status"] == "未回写"
+    assert response.json()["unavailable_reason"] == "Repair Patch 状态暂不可批准。"
+
+
+def test_read_studio_approval_summary_requires_single_identifier(client: TestClient) -> None:
+    """批准回写摘要没有输入对象时返回只读不可用摘要。"""
+
+    response = client.get("/api/studio/approval-summary")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "can_approve": False,
+        "approvable_object": None,
+        "target_chapter": None,
+        "writeback_status": "不可判定",
+        "unavailable_reason": "需要提供 Scene Packet ID 或 Repair Patch ID。",
+    }
+
+
+def test_read_studio_recovery_summary_returns_recoverable_checkpoint(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """失败恢复摘要返回失败节点、checkpoint、可恢复步骤和错误摘要。"""
+
+    with session_factory() as session:
+        job = JobRun(
+            job_type="generation_runtime",
+            status="failed",
+            progress={
+                "thread_id": "studio-thread-1",
+                "current_node": "repair_writer",
+                "approval_status": "pending",
+                "recoverable_steps": ["重新读取 Repair Patch", "从修订节点继续执行"],
+            },
+            error_message="Repair 节点调用模型失败。",
+        )
+        session.add(job)
+        session.commit()
+        job_run_id = job.id
+
+    response = client.get(f"/api/studio/recovery-summary?job_run_id={job_run_id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "can_recover": True,
+        "failed_node": "repair_writer",
+        "checkpoint": {
+            "thread_id": "studio-thread-1",
+            "current_node": "repair_writer",
+            "approval_status": "pending",
+        },
+        "recoverable_steps": ["重新读取 Repair Patch", "从修订节点继续执行"],
+        "error_summary": "Repair 节点调用模型失败。",
+        "unrecoverable_reason": None,
+    }
+
+
+def test_read_studio_recovery_summary_returns_unrecoverable_for_running_job(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """未失败任务返回不可恢复原因，不触发恢复动作。"""
+
+    with session_factory() as session:
+        job = JobRun(
+            job_type="generation_runtime",
+            status="running",
+            progress={"thread_id": "studio-thread-2", "current_node": "draft_writer"},
+            error_message=None,
+        )
+        session.add(job)
+        session.commit()
+        job_run_id = job.id
+
+    response = client.get(f"/api/studio/recovery-summary?job_run_id={job_run_id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["can_recover"] is False
+    assert response.json()["failed_node"] == "draft_writer"
+    assert response.json()["unrecoverable_reason"] == "任务尚未失败，无需执行失败恢复。"

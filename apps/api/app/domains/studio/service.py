@@ -8,11 +8,16 @@ from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.judge.models import JudgeIssue
 from app.domains.judge.models import RepairPatch
+from app.domains.jobs.models import JobRun
 from app.domains.studio.schemas import (
+    StudioApprovalObjectRead,
+    StudioApprovalSummaryRead,
+    StudioApprovalTargetChapterRead,
     StudioBookListItem,
     StudioChapterGoalRead,
     StudioJudgeIssueRead,
     StudioJudgeReviewRead,
+    StudioRecoverySummaryRead,
     StudioRepairPatchRead,
     StudioScenePacketRead,
 )
@@ -133,6 +138,7 @@ def read_studio_scene_packet(session: Session, *, book_id: int, target_ordinal: 
         target_chapter_ordinal=chapter.ordinal,
         scene_id=scene.id,
         scene_packet_id=scene_packet.id,
+        job_run_id=scene_packet.job_run_id,
         status=scene_packet.status,
         chapter_goal=packet.get("章节目标") if isinstance(packet.get("章节目标"), str) else None,
         evidence_count=len(evidence_links) if isinstance(evidence_links, list) else 0,
@@ -244,3 +250,176 @@ def _studio_repair_patch(patch: RepairPatch) -> StudioRepairPatchRead:
         reason=patch.rationale or "",
         requires_rejudge=bool(patch_payload.get("requires_rejudge", True)),
     )
+
+
+class StudioApprovalSummaryNotFoundError(NotFoundError):
+    """批准摘要目标不存在时由路由层转换为可重试的 HTTP 响应。"""
+
+
+class StudioRecoverySummaryNotFoundError(NotFoundError):
+    """恢复摘要目标不存在时由路由层转换为可重试的 HTTP 响应。"""
+
+
+def read_studio_approval_summary(
+    session: Session,
+    *,
+    scene_packet_id: int | None = None,
+    repair_patch_id: int | None = None,
+) -> StudioApprovalSummaryRead:
+    """读取批准回写资格摘要，不执行审批或章节写回。"""
+
+    if scene_packet_id is None and repair_patch_id is None:
+        return _unavailable_approval_summary("需要提供 Scene Packet ID 或 Repair Patch ID。")
+    if scene_packet_id is not None and repair_patch_id is not None:
+        return _unavailable_approval_summary("Scene Packet ID 与 Repair Patch ID 只能提供一个。")
+
+    if repair_patch_id is not None:
+        return _approval_summary_from_repair_patch(session, repair_patch_id=repair_patch_id)
+    assert scene_packet_id is not None
+    return _approval_summary_from_scene_packet(session, scene_packet_id=scene_packet_id)
+
+
+def _approval_summary_from_scene_packet(session: Session, *, scene_packet_id: int) -> StudioApprovalSummaryRead:
+    row = session.execute(
+        select(ScenePacket, Scene, Chapter)
+        .join(Scene, ScenePacket.scene_id == Scene.id)
+        .join(Chapter, Scene.chapter_id == Chapter.id)
+        .where(ScenePacket.id == scene_packet_id)
+        .limit(1)
+    ).first()
+    if row is None:
+        raise StudioApprovalSummaryNotFoundError("Scene Packet 不存在，无法读取批准回写摘要。")
+
+    scene_packet, scene, chapter = row
+    unavailable_reason = None if scene_packet.status == "assembled" else "Scene Packet 尚未完成组装，暂不可批准。"
+    return _approval_summary(
+        object_type="scene_packet",
+        object_id=scene_packet.id,
+        object_status=scene_packet.status,
+        scene_id=scene.id,
+        chapter=chapter,
+        unavailable_reason=unavailable_reason,
+    )
+
+
+def _approval_summary_from_repair_patch(session: Session, *, repair_patch_id: int) -> StudioApprovalSummaryRead:
+    row = session.execute(
+        select(RepairPatch, Scene, Chapter)
+        .join(Scene, RepairPatch.scene_id == Scene.id)
+        .join(Chapter, Scene.chapter_id == Chapter.id)
+        .where(RepairPatch.id == repair_patch_id)
+        .limit(1)
+    ).first()
+    if row is None:
+        raise StudioApprovalSummaryNotFoundError("Repair Patch 不存在，无法读取批准回写摘要。")
+
+    repair_patch, scene, chapter = row
+    unavailable_reason = (
+        None
+        if repair_patch.status in {"proposed", "requires_rejudge"}
+        else "Repair Patch 状态暂不可批准。"
+    )
+    return _approval_summary(
+        object_type="repair_patch",
+        object_id=repair_patch.id,
+        object_status=repair_patch.status,
+        scene_id=scene.id,
+        chapter=chapter,
+        unavailable_reason=unavailable_reason,
+    )
+
+
+def _approval_summary(
+    *,
+    object_type: str,
+    object_id: int,
+    object_status: str,
+    scene_id: int,
+    chapter: Chapter,
+    unavailable_reason: str | None,
+) -> StudioApprovalSummaryRead:
+    writeback_status = "已回写" if chapter.status == "approved" else "未回写"
+    if unavailable_reason is None and writeback_status == "已回写":
+        unavailable_reason = "目标章节已处于批准状态，无需重复回写。"
+
+    return StudioApprovalSummaryRead(
+        can_approve=unavailable_reason is None,
+        approvable_object=StudioApprovalObjectRead(
+            object_type=object_type,
+            id=object_id,
+            status=object_status,
+            scene_id=scene_id,
+        ),
+        target_chapter=StudioApprovalTargetChapterRead(
+            id=chapter.id,
+            ordinal=chapter.ordinal,
+            title=chapter.title,
+            status=chapter.status,
+        ),
+        writeback_status=writeback_status,
+        unavailable_reason=unavailable_reason,
+    )
+
+
+def _unavailable_approval_summary(reason: str) -> StudioApprovalSummaryRead:
+    return StudioApprovalSummaryRead(
+        can_approve=False,
+        approvable_object=None,
+        target_chapter=None,
+        writeback_status="不可判定",
+        unavailable_reason=reason,
+    )
+
+
+def read_studio_recovery_summary(session: Session, *, job_run_id: int) -> StudioRecoverySummaryRead:
+    """读取失败恢复资格摘要，不触发重试或运行时续跑。"""
+
+    job = session.get(JobRun, job_run_id)
+    if job is None:
+        raise StudioRecoverySummaryNotFoundError("任务不存在，无法读取失败恢复摘要。")
+
+    progress = dict(job.progress or {})
+    checkpoint = {
+        key: progress[key]
+        for key in ("thread_id", "current_node", "approval_status")
+        if key in progress
+    }
+    failed_node = _first_string(progress, "failed_node", "current_node")
+    recoverable_steps = _recoverable_steps(progress, failed_node=failed_node)
+    error_summary = job.error_message or _first_string(progress, "error_summary", "error_message")
+
+    unrecoverable_reason = None
+    if job.status != "failed":
+        unrecoverable_reason = "任务尚未失败，无需执行失败恢复。"
+    elif not checkpoint:
+        unrecoverable_reason = "缺少 checkpoint，无法定位恢复入口。"
+    elif not recoverable_steps:
+        unrecoverable_reason = "缺少可恢复步骤，无法生成恢复摘要。"
+    elif not error_summary:
+        unrecoverable_reason = "缺少错误摘要，无法判断恢复风险。"
+
+    return StudioRecoverySummaryRead(
+        can_recover=unrecoverable_reason is None,
+        failed_node=failed_node,
+        checkpoint=checkpoint or None,
+        recoverable_steps=recoverable_steps,
+        error_summary=error_summary,
+        unrecoverable_reason=unrecoverable_reason,
+    )
+
+
+def _first_string(payload: dict, *keys: str) -> str | None:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _recoverable_steps(progress: dict, *, failed_node: str | None) -> list[str]:
+    steps = progress.get("recoverable_steps")
+    if isinstance(steps, list):
+        return [str(step) for step in steps if str(step)]
+    if failed_node:
+        return [f"从 {failed_node} 重新读取 checkpoint 后继续执行"]
+    return []

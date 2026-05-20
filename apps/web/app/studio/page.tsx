@@ -36,6 +36,7 @@ type StudioScenePacket = {
   readonly target_chapter_ordinal: number;
   readonly scene_id: number;
   readonly scene_packet_id: number;
+  readonly job_run_id: number | null;
   readonly status: string;
   readonly chapter_goal: string | null;
   readonly evidence_count: number;
@@ -87,6 +88,33 @@ type StudioRepairPatchState =
   | { readonly status: "ready"; readonly patches: readonly StudioRepairPatch[] }
   | { readonly status: "error"; readonly message: string };
 
+type StudioApprovalSummary = {
+  readonly can_approve: boolean;
+  readonly approvable_object: { readonly object_type: string; readonly id: number; readonly status: string; readonly scene_id: number } | null;
+  readonly target_chapter: { readonly id: number; readonly ordinal: number; readonly title: string; readonly status: string } | null;
+  readonly writeback_status: string;
+  readonly unavailable_reason: string | null;
+};
+
+type StudioApprovalSummaryState =
+  | { readonly status: "idle"; readonly message: string }
+  | { readonly status: "ready"; readonly summary: StudioApprovalSummary }
+  | { readonly status: "error"; readonly message: string };
+
+type StudioRecoverySummary = {
+  readonly can_recover: boolean;
+  readonly failed_node: string | null;
+  readonly checkpoint: Record<string, unknown> | null;
+  readonly recoverable_steps: readonly string[];
+  readonly error_summary: string | null;
+  readonly unrecoverable_reason: string | null;
+};
+
+type StudioRecoverySummaryState =
+  | { readonly status: "idle"; readonly message: string }
+  | { readonly status: "ready"; readonly summary: StudioRecoverySummary }
+  | { readonly status: "error"; readonly message: string };
+
 const generationChain = [
   "作品选择",
   "章节目标",
@@ -103,6 +131,8 @@ const studioChapterGoalsEndpoint = "/api/studio/chapter-goals";
 const studioScenePacketsEndpoint = "/api/studio/scene-packets";
 const studioJudgeReviewsEndpoint = "/api/studio/judge-reviews";
 const studioRepairPatchesEndpoint = "/api/studio/repair-patches";
+const studioApprovalSummaryEndpoint = "/api/studio/approval-summary";
+const studioRecoverySummaryEndpoint = "/api/studio/recovery-summary";
 
 const getStudioApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -212,6 +242,7 @@ function isStudioScenePacket(value: unknown): value is StudioScenePacket {
     typeof candidate.target_chapter_ordinal === "number" &&
     typeof candidate.scene_id === "number" &&
     typeof candidate.scene_packet_id === "number" &&
+    (typeof candidate.job_run_id === "number" || candidate.job_run_id === null) &&
     typeof candidate.status === "string" &&
     (typeof candidate.chapter_goal === "string" || candidate.chapter_goal === null) &&
     typeof candidate.evidence_count === "number" &&
@@ -304,12 +335,116 @@ function isStudioRepairPatch(value: unknown): value is StudioRepairPatch {
   );
 }
 
+
+async function readStudioApprovalSummary(
+  scenePacketState: StudioScenePacketState,
+  repairPatchState: StudioRepairPatchState,
+): Promise<StudioApprovalSummaryState> {
+  if (repairPatchState.status === "ready" && repairPatchState.patches.length > 0) {
+    return readStudioApprovalSummaryByQuery("repair_patch_id", repairPatchState.patches[0].id);
+  }
+  if (scenePacketState.status === "ready") {
+    return readStudioApprovalSummaryByQuery("scene_packet_id", scenePacketState.packet.scene_packet_id);
+  }
+  return { status: "idle", message: "读取批准回写摘要需要先获得 Repair 修订或 Scene Packet。" };
+}
+
+async function readStudioApprovalSummaryByQuery(key: "scene_packet_id" | "repair_patch_id", value: number): Promise<StudioApprovalSummaryState> {
+  const url = new URL(studioApprovalSummaryEndpoint, getStudioApiBaseUrl());
+  url.searchParams.set(key, String(value));
+
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return { status: "error", message: `批准回写摘要 API 返回 ${response.status}` };
+    }
+
+    const payload: unknown = await response.json();
+    if (!isStudioApprovalSummary(payload)) {
+      return { status: "error", message: "批准回写摘要 API 返回格式不符合预期" };
+    }
+
+    return { status: "ready", summary: payload };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知错误";
+    return { status: "error", message };
+  }
+}
+
+function isStudioApprovalSummary(value: unknown): value is StudioApprovalSummary {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<StudioApprovalSummary>;
+  return (
+    typeof candidate.can_approve === "boolean" &&
+    (typeof candidate.approvable_object === "object" || candidate.approvable_object === null) &&
+    (typeof candidate.target_chapter === "object" || candidate.target_chapter === null) &&
+    typeof candidate.writeback_status === "string" &&
+    (typeof candidate.unavailable_reason === "string" || candidate.unavailable_reason === null)
+  );
+}
+
+async function readStudioRecoverySummary(scenePacketState: StudioScenePacketState): Promise<StudioRecoverySummaryState> {
+  if (scenePacketState.status !== "ready") {
+    return { status: "idle", message: "读取失败恢复摘要需要先获得 Scene Packet 中的任务线索。" };
+  }
+
+  const jobRunId = getJobRunIdFromScenePacket(scenePacketState.packet);
+  if (jobRunId === undefined) {
+    return { status: "idle", message: "当前 Scene Packet 未提供 job_run_id，暂不读取失败恢复摘要。" };
+  }
+
+  const url = new URL(studioRecoverySummaryEndpoint, getStudioApiBaseUrl());
+  url.searchParams.set("job_run_id", String(jobRunId));
+
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return { status: "error", message: `失败恢复摘要 API 返回 ${response.status}` };
+    }
+
+    const payload: unknown = await response.json();
+    if (!isStudioRecoverySummary(payload)) {
+      return { status: "error", message: "失败恢复摘要 API 返回格式不符合预期" };
+    }
+
+    return { status: "ready", summary: payload };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知错误";
+    return { status: "error", message };
+  }
+}
+
+function getJobRunIdFromScenePacket(packet: StudioScenePacket): number | undefined {
+  return packet.job_run_id ?? undefined;
+}
+
+function isStudioRecoverySummary(value: unknown): value is StudioRecoverySummary {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<StudioRecoverySummary>;
+  return (
+    typeof candidate.can_recover === "boolean" &&
+    (typeof candidate.failed_node === "string" || candidate.failed_node === null) &&
+    (typeof candidate.checkpoint === "object" || candidate.checkpoint === null) &&
+    Array.isArray(candidate.recoverable_steps) &&
+    (typeof candidate.error_summary === "string" || candidate.error_summary === null) &&
+    (typeof candidate.unrecoverable_reason === "string" || candidate.unrecoverable_reason === null)
+  );
+}
+
 export default async function StudioPage() {
   const bookListState = await readStudioBooks();
   const selectedBook = bookListState.status === "ready" ? bookListState.books[0] : undefined;
   const studioTarget = getStudioTarget(selectedBook);
   const [chapterGoalState, scenePacketState] = await Promise.all([readStudioChapterGoal(studioTarget), readStudioScenePacket(studioTarget)]);
   const [judgeReviewState, repairPatchState] = await Promise.all([readStudioJudgeReview(scenePacketState), readStudioRepairPatches(scenePacketState)]);
+  const [approvalSummaryState, recoverySummaryState] = await Promise.all([
+    readStudioApprovalSummary(scenePacketState, repairPatchState),
+    readStudioRecoverySummary(scenePacketState),
+  ]);
 
   return (
     <main aria-labelledby="studio-title">
@@ -468,6 +603,67 @@ export default async function StudioPage() {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="studio-approval-summary-title">
+        <h2 id="studio-approval-summary-title">批准回写摘要</h2>
+        <p>
+          当前 Web Studio 只在 Repair 后读取 {studioApprovalSummaryEndpoint}，用于展示可批准对象、目标章节、回写状态和不可批准原因。
+        </p>
+        {approvalSummaryState.status === "idle" ? (
+          <p>{approvalSummaryState.message}</p>
+        ) : approvalSummaryState.status === "error" ? (
+          <p role="status">读取失败：{approvalSummaryState.message}</p>
+        ) : (
+          <dl>
+            <dt>批准状态</dt>
+            <dd>{approvalSummaryState.summary.can_approve ? "可批准" : "不可批准"}</dd>
+            <dt>可批准对象</dt>
+            <dd>
+              {approvalSummaryState.summary.approvable_object
+                ? `${approvalSummaryState.summary.approvable_object.object_type} #${approvalSummaryState.summary.approvable_object.id}`
+                : "暂无可批准对象"}
+            </dd>
+            <dt>目标章节</dt>
+            <dd>
+              {approvalSummaryState.summary.target_chapter
+                ? `第 ${approvalSummaryState.summary.target_chapter.ordinal} 章：${approvalSummaryState.summary.target_chapter.title}`
+                : "暂无目标章节"}
+            </dd>
+            <dt>回写状态</dt>
+            <dd>{approvalSummaryState.summary.writeback_status}</dd>
+            <dt>不可批准原因</dt>
+            <dd>{approvalSummaryState.summary.unavailable_reason ?? "暂无阻塞原因"}</dd>
+          </dl>
+        )}
+      </section>
+      <section aria-labelledby="studio-recovery-summary-title">
+        <h2 id="studio-recovery-summary-title">失败恢复摘要</h2>
+        <p>当前 Web Studio 在 Repair 后读取 {studioRecoverySummaryEndpoint}，用于展示失败节点、checkpoint 和可恢复步骤。</p>
+        {recoverySummaryState.status === "idle" ? (
+          <p>{recoverySummaryState.message}</p>
+        ) : recoverySummaryState.status === "error" ? (
+          <p role="status">读取失败：{recoverySummaryState.message}</p>
+        ) : (
+          <dl>
+            <dt>恢复状态</dt>
+            <dd>{recoverySummaryState.summary.can_recover ? "可恢复" : "不可恢复"}</dd>
+            <dt>失败节点</dt>
+            <dd>{recoverySummaryState.summary.failed_node ?? "暂无失败节点"}</dd>
+            <dt>Checkpoint</dt>
+            <dd>{recoverySummaryState.summary.checkpoint ? JSON.stringify(recoverySummaryState.summary.checkpoint) : "暂无 checkpoint"}</dd>
+            <dt>可恢复步骤</dt>
+            <dd>
+              {recoverySummaryState.summary.recoverable_steps.length === 0
+                ? "暂无可恢复步骤"
+                : recoverySummaryState.summary.recoverable_steps.join("；")}
+            </dd>
+            <dt>错误摘要</dt>
+            <dd>{recoverySummaryState.summary.error_summary ?? "暂无错误摘要"}</dd>
+            <dt>不可恢复原因</dt>
+            <dd>{recoverySummaryState.summary.unrecoverable_reason ?? "暂无阻塞原因"}</dd>
+          </dl>
         )}
       </section>
       <ScenePacketPanel />

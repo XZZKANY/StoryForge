@@ -6,20 +6,26 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.studio.schemas import (
+    StudioApprovalSummaryRead,
     StudioBookListItem,
     StudioChapterGoalRead,
     StudioJudgeReviewRead,
+    StudioRecoverySummaryRead,
     StudioRepairPatchRead,
     StudioScenePacketRead,
 )
 from app.domains.studio.service import (
+    StudioApprovalSummaryNotFoundError,
     StudioChapterGoalNotFoundError,
     StudioJudgeReviewNotFoundError,
+    StudioRecoverySummaryNotFoundError,
     StudioRepairPatchesNotFoundError,
     StudioScenePacketNotFoundError,
     list_studio_books,
+    read_studio_approval_summary,
     read_studio_chapter_goal,
     read_studio_judge_review,
+    read_studio_recovery_summary,
     read_studio_repair_patches,
     read_studio_scene_packet,
 )
@@ -88,4 +94,35 @@ def read_studio_repair_patches_endpoint(
     try:
         return read_studio_repair_patches(session, scene_packet_id=scene_packet_id)
     except StudioRepairPatchesNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/approval-summary", response_model=StudioApprovalSummaryRead)
+def read_studio_approval_summary_endpoint(
+    session: SessionDependency,
+    scene_packet_id: Annotated[int | None, Query(gt=0)] = None,
+    repair_patch_id: Annotated[int | None, Query(gt=0)] = None,
+) -> StudioApprovalSummaryRead:
+    """读取 Studio 批准回写摘要：只返回资格、目标章节和阻塞原因。"""
+
+    try:
+        return read_studio_approval_summary(
+            session,
+            scene_packet_id=scene_packet_id,
+            repair_patch_id=repair_patch_id,
+        )
+    except StudioApprovalSummaryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/recovery-summary", response_model=StudioRecoverySummaryRead)
+def read_studio_recovery_summary_endpoint(
+    session: SessionDependency,
+    job_run_id: Annotated[int, Query(gt=0)],
+) -> StudioRecoverySummaryRead:
+    """读取 Studio 失败恢复摘要：只返回 checkpoint、可恢复步骤和阻塞原因。"""
+
+    try:
+        return read_studio_recovery_summary(session, job_run_id=job_run_id)
+    except StudioRecoverySummaryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

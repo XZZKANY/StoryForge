@@ -34,6 +34,7 @@ class StudioScenePacketRead(BaseModel):
     target_chapter_ordinal: int
     scene_id: int
     scene_packet_id: int
+    job_run_id: int | None
     status: str
     chapter_goal: str | None
     evidence_count: int
@@ -74,3 +75,42 @@ class StudioRepairPatchRead(BaseModel):
     replacement_text: str
     reason: str
     requires_rejudge: bool
+
+
+class StudioApprovalObjectRead(BaseModel):
+    """Studio 批准摘要中的可审查对象定位。"""
+
+    object_type: str
+    id: int
+    status: str
+    scene_id: int
+
+
+class StudioApprovalTargetChapterRead(BaseModel):
+    """Studio 批准摘要中的目标章节定位。"""
+
+    id: int
+    ordinal: int
+    title: str
+    status: str
+
+
+class StudioApprovalSummaryRead(BaseModel):
+    """Studio 批准回写只读摘要，仅说明资格和阻塞原因。"""
+
+    can_approve: bool
+    approvable_object: StudioApprovalObjectRead | None
+    target_chapter: StudioApprovalTargetChapterRead | None
+    writeback_status: str
+    unavailable_reason: str | None
+
+
+class StudioRecoverySummaryRead(BaseModel):
+    """Studio 失败恢复只读摘要，仅说明可恢复步骤和阻塞原因。"""
+
+    can_recover: bool
+    failed_node: str | None
+    checkpoint: dict[str, Any] | None
+    recoverable_steps: list[str]
+    error_summary: str | None
+    unrecoverable_reason: str | None

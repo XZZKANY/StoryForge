@@ -1469,3 +1469,86 @@ git diff --check
 建议：通过。
 
 理由：Phase 7 发布门禁验证已闭环，干净临时库可升级到 `20260520_0001 (head)`，完整本地门禁通过，且未新增产品功能或扩大 Phase 5/6 数据源范围。
+# 验证报告：Studio 批准回写与失败恢复摘要
+
+生成时间：2026-05-20 19:35:00
+
+## 审查清单
+- 需求字段完整性：已覆盖目标、范围、交付物和审查要点。
+- 原始意图覆盖：新增只读摘要 API 和页面展示；未实现真实按钮执行流；未写回章节。
+- 交付物映射：后端 schema/service/router、API pytest、Studio 页面展示均已完成。
+- 依赖与风险：依赖 ScenePacket、RepairPatch、JobRun；前端恢复摘要依赖 `job_run_id`，无值时显示中文不可用说明。
+- 审查结论：通过。
+
+## 技术维度评分
+- 代码质量：92/100，沿用现有 Studio 分层和命名风格。
+- 测试覆盖：90/100，API 覆盖可用、不可用和失败恢复路径。
+- 规范遵循：94/100，限定文件内修改，中文文案，无写回副作用。
+
+## 战略维度评分
+- 需求匹配：94/100，满足两个摘要 API 与页面状态展示要求。
+- 架构一致：92/100，继续使用只读 service 和 FastAPI router 模式。
+- 风险评估：88/100，未运行前端类型检查，但用户要求的相关 API pytest 已通过。
+
+## 综合评分
+score: 92
+
+## 建议
+通过。
+
+## 本地验证结果
+- 命令：`python -m pytest apps/api/tests/test_studio_book_list_api.py`
+- 结果：16 passed。
+
+## 2026-05-20 四项剩余风险收口验证报告
+
+### 审查结论
+
+- 技术维度评分：93/100。实现沿用既有 FastAPI router/service/schema 与 Next SSR 页面级读取模式，未新增全量 client 或微服务。
+- 战略维度评分：94/100。四项风险均从“待办”推进到可验证的只读摘要交付，同时保留执行流未实现边界。
+- 综合评分：93/100。
+- 建议：通过。
+
+### 需求字段完整性
+
+- 目标：Runs 真实读取、Studio 批准/恢复摘要、Artifacts/Evaluations 真实读取、连续工作流与治理压缩。
+- 范围：仅做模块化单体内的单点读取和只读摘要，不做写回按钮、失败续跑、制品下载、趋势图或详情页。
+- 交付物：Web 页面、Studio API schema/service/router、API/Web 测试、OpenAPI 契约、计划文档、上下文摘要、Phase/TODO/架构文档和审计日志。
+- 审查要点：真实端点、失败态、registry 状态、未实现边界、发布门禁。
+
+### 本地验证结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_model_runs.py -q                      # 5 passed
+uv run pytest tests/test_studio_book_list_api.py -q            # 16 passed
+uv run pytest tests/test_artifacts.py tests/test_evaluations.py -q # 2 passed
+uv run alembic current --check-heads                           # 20260520_0001 (head)
+
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm --filter @storyforge/web test                             # 9 passed
+pnpm --filter @storyforge/web exec tsc --noEmit                # 通过
+pnpm verify                                                    # StoryForge 本地验证通过
+pnpm openapi                                                   # 已生成 OpenAPI 契约
+pnpm test                                                      # Web/shared/API/workflow 通过
+pnpm e2e                                                       # 14 项契约测试、API 补偿验证 7 passed、workflow 5 passed
+
+git diff --check                                               # 通过，仅 CRLF 提示
+```
+
+### OpenAPI diff 来源确认
+
+- `packages/shared/src/contracts/storyforge.openapi.json` 的新增 diff 来源于本轮新增的 `GET /api/studio/approval-summary`、`GET /api/studio/recovery-summary` 及其 `StudioApproval*`、`StudioRecoverySummaryRead` schema。
+- 该 diff 与 `apps/api/app/domains/studio/router.py`、`schemas.py` 的新增端点和响应模型一致，不属于无来源契约漂移。
+
+### 风险与未实现边界
+
+- Runs 当前默认读取 `job_run_id=1`，干净库无数据时页面应展示可重试错误摘要。
+- Studio 批准/恢复当前只展示资格摘要，不执行批准写回或失败续跑。
+- Artifacts/Evaluations 当前只展示列表摘要；制品下载、指标趋势图、报告详情页和失败样例详情仍未实现。
+- `pnpm e2e` 内部仍记录当前环境对 FastAPI HTTP pytest 不稳定，已由独立 API 定向 pytest 和 compileall 补偿验证。
+
+summary: '四项剩余风险已按最小摘要读取边界完成，验证链通过，执行流与详情型能力保留为后续待办。'
+```Scoring
+score: 93
+```

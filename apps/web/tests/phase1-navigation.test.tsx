@@ -134,21 +134,31 @@ test("Phase 6 页面从统一数据源契约读取真实联动前置", () => {
   assertIncludesAll(registry, ["{ name: \"资料源列表 API\", input: \"作品 ID、来源类型过滤\", output: \"用户上传、章节快照、系列记忆、Prompt Pack 来源列表\", status: \"Web 单点读取已实现\" }"], "Retrieval 资料源 registry 状态");
   assertIncludesAll(registry, ["{ name: \"刷新任务 API\", input: \"资料源 ID、刷新范围、embedding provider\", output: \"refresh run ID、chunk 引用、provider 元数据、刷新状态\", status: \"Web 单点读取已实现\" }"], "Retrieval 刷新任务 registry 状态");
   assertIncludesAll(registry, ["{ name: \"搜索请求 API\", input: \"查询文本、作品 ID、topK、reranker 开关\", output: \"search request ID、命中列表、score、rerank 顺序\", status: \"Web 单点读取已实现\" }"], "Retrieval 搜索请求 registry 状态");
-  assertIncludesAll(registry, ["{ name: \"JobRun 状态 API\", input: \"job_run_id 或作品/章节过滤\", output: \"当前节点、运行状态、错误摘要、恢复提示\", status: \"API 最小契约已实现\" }"], "Runs JobRun registry 状态");
-  assertIncludesAll(registry, ["{ name: \"ModelRun 日志 API\", input: \"job_run_id、provider 或状态过滤\", output: \"provider、model、token、latency、错误消息和 payload 摘要\", status: \"API 最小契约已实现\" }"], "Runs ModelRun registry 状态");
+  assertIncludesAll(registry, ["{ name: \"批准回写 API\", input: \"修订结果、审批决策、章节 ID\", output: \"已批准章节版本、回写状态、后续任务引用\", status: \"Web 单点读取已实现\" }"], "Studio 批准回写 registry 状态");
+  assertIncludesAll(registry, ["{ name: \"失败恢复 API\", input: \"job_run_id、checkpoint 引用、失败节点\", output: \"可恢复步骤、错误摘要、重试入口状态\", status: \"Web 单点读取已实现\" }"], "Studio 失败恢复 registry 状态");
+  assertIncludesAll(registry, ["{ name: \"JobRun 状态 API\", input: \"job_run_id 或作品/章节过滤\", output: \"当前节点、运行状态、错误摘要、恢复提示\", status: \"Web 单点读取已实现\" }"], "Runs JobRun registry 状态");
+  assertIncludesAll(registry, ["{ name: \"Checkpoint 引用 API\", input: \"job_run_id、checkpoint ID\", output: \"scene_packet_id、compiled_context_id、model_run_id、恢复节点\", status: \"Web 单点读取已实现\" }"], "Runs Checkpoint registry 状态");
+  assertIncludesAll(registry, ["{ name: \"ModelRun 日志 API\", input: \"job_run_id、provider 或状态过滤\", output: \"provider、model、token、latency、错误消息和 payload 摘要\", status: \"Web 单点读取已实现\" }"], "Runs ModelRun registry 状态");
+  assertIncludesAll(registry, ["{ name: \"导出物 API\", input: \"作品 ID、章节 ID、导出类型\", output: \"artifact ID、文件名、版本、下载状态\", status: \"Web 单点读取已实现\" }"], "Artifacts 导出物 registry 状态");
+  assertIncludesAll(registry, ["{ name: \"评测运行 API\", input: \"eval set ID、模型或版本过滤\", output: \"run ID、状态、开始/结束时间、关联制品\", status: \"Web 单点读取已实现\" }"], "Evaluations 评测运行 registry 状态");
   assertIncludesAll(studio, ["phase6DataSources.studio", "phase6FirstDataSourceSpike", "首个真实读取 spike", "读取输入", "读取输出", "失败态", "数据源契约", "source.name", "source.status"], "Studio 数据源契约渲染");
   assertIncludesAll(studio, ["/api/studio/books", "读取作品列表", "空列表", "可重试错误摘要"], "Studio 作品列表真实读取边界");
   assertIncludesAll(studio, ["/api/studio/chapter-goals", "读取章节目标", "上章摘要", "连续性约束", "章节目标 API 返回格式不符合预期"], "Studio 章节目标真实读取边界");
   assertIncludesAll(studio, ["/api/studio/scene-packets", "读取 Scene Packet", "证据数量", "上下文预算摘要", "Scene Packet API 返回格式不符合预期"], "Studio Scene Packet 真实读取边界");
   assertIncludesAll(studio, ["/api/studio/judge-reviews", "读取 Judge 评审", "评审分数", "关键问题", "Judge 评审 API 返回格式不符合预期"], "Studio Judge 评审真实读取边界");
   assertIncludesAll(studio, ["/api/studio/repair-patches", "读取 Repair 修订", "修订文本", "差异摘要", "采纳建议", "Repair 修订 API 返回格式不符合预期"], "Studio Repair 修订真实读取边界");
+  assertIncludesAll(studio, ["/api/studio/approval-summary", "批准回写摘要", "可批准", "不可批准", "批准回写摘要 API 返回格式不符合预期"], "Studio 批准回写摘要真实读取边界");
+  assertIncludesAll(studio, ["/api/studio/recovery-summary", "失败恢复摘要", "可恢复", "不可恢复", "失败恢复摘要 API 返回格式不符合预期"], "Studio 失败恢复摘要真实读取边界");
   assertIncludesAll(retrieval, ["phase6DataSources.retrieval", "数据源契约", "source.name", "source.status"], "Retrieval 数据源契约渲染");
   assertIncludesAll(retrieval, ["/api/retrieval/workbench/sources", "读取资料源列表", "资料源列表 API 返回格式不符合预期", "可重试错误摘要"], "Retrieval 资料源列表真实读取边界");
   assertIncludesAll(retrieval, ["/api/retrieval/workbench/refresh-runs", "读取刷新任务", "刷新任务 API 返回格式不符合预期", "Embedding"], "Retrieval 刷新任务真实读取边界");
   assertIncludesAll(retrieval, ["/api/retrieval/workbench/search", "搜索请求与命中预览", "证据跳转", "搜索请求 API 返回格式不符合预期"], "Retrieval 搜索与命中预览真实读取边界");
   assertIncludesAll(runs, ["phase6DataSources.runs", "数据源契约", "source.name", "source.status"], "Runs 数据源契约渲染");
+  assertIncludesAll(runs, ["/api/model-runs/job-runs", "读取 JobRun", "JobRun 状态", "Checkpoint 引用", "ModelRun 摘要", "可重试错误摘要"], "Runs JobRun 真实读取边界");
   assertIncludesAll(artifacts, ["phase6DataSources.artifacts", "数据源契约", "source.name", "source.status"], "Artifacts 数据源契约渲染");
+  assertIncludesAll(artifacts, ["/api/artifacts", "制品真实读取", "Artifact #", "关联任务", "未实现边界", "制品下载动作、指标趋势图和报告详情页仍未实现"], "Artifacts 导出物真实读取边界");
   assertIncludesAll(evaluations, ["phase6DataSources.evaluations", "数据源契约", "source.name", "source.status"], "Evaluations 数据源契约渲染");
+  assertIncludesAll(evaluations, ["/api/evaluations/runs", "评测运行真实读取", "Evaluation Run #", "失败样例数量", "未实现边界", "评测报告下载、指标趋势图和报告详情页仍未实现"], "Evaluations 评测运行真实读取边界");
 });
 
 test("Studio SSR 读取链路并行化无依赖请求", () => {

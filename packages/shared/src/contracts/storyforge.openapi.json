@@ -3831,6 +3831,117 @@
         "title": "SeriesRead",
         "type": "object"
       },
+      "StudioApprovalObjectRead": {
+        "description": "Studio 批准摘要中的可审查对象定位。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "object_type": {
+            "title": "Object Type",
+            "type": "string"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_type",
+          "id",
+          "status",
+          "scene_id"
+        ],
+        "title": "StudioApprovalObjectRead",
+        "type": "object"
+      },
+      "StudioApprovalSummaryRead": {
+        "description": "Studio 批准回写只读摘要，仅说明资格和阻塞原因。",
+        "properties": {
+          "approvable_object": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioApprovalObjectRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_approve": {
+            "title": "Can Approve",
+            "type": "boolean"
+          },
+          "target_chapter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioApprovalTargetChapterRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "writeback_status": {
+            "title": "Writeback Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "can_approve",
+          "approvable_object",
+          "target_chapter",
+          "writeback_status",
+          "unavailable_reason"
+        ],
+        "title": "StudioApprovalSummaryRead",
+        "type": "object"
+      },
+      "StudioApprovalTargetChapterRead": {
+        "description": "Studio 批准摘要中的目标章节定位。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ordinal",
+          "title",
+          "status"
+        ],
+        "title": "StudioApprovalTargetChapterRead",
+        "type": "object"
+      },
       "StudioBookListItem": {
         "description": "Studio 作品列表只暴露首个读取 spike 需要的最小字段。",
         "properties": {
@@ -4009,6 +4120,77 @@
         "title": "StudioJudgeReviewRead",
         "type": "object"
       },
+      "StudioRecoverySummaryRead": {
+        "description": "Studio 失败恢复只读摘要，仅说明可恢复步骤和阻塞原因。",
+        "properties": {
+          "can_recover": {
+            "title": "Can Recover",
+            "type": "boolean"
+          },
+          "checkpoint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint"
+          },
+          "error_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Summary"
+          },
+          "failed_node": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Node"
+          },
+          "recoverable_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recoverable Steps",
+            "type": "array"
+          },
+          "unrecoverable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrecoverable Reason"
+          }
+        },
+        "required": [
+          "can_recover",
+          "failed_node",
+          "checkpoint",
+          "recoverable_steps",
+          "error_summary",
+          "unrecoverable_reason"
+        ],
+        "title": "StudioRecoverySummaryRead",
+        "type": "object"
+      },
       "StudioRepairPatchRead": {
         "description": "Studio Repair 读取只暴露已生成补丁的审查摘要。",
         "properties": {
@@ -4091,6 +4273,17 @@
             "title": "Evidence Count",
             "type": "integer"
           },
+          "job_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Run Id"
+          },
           "scene_id": {
             "title": "Scene Id",
             "type": "integer"
@@ -4113,6 +4306,7 @@
           "target_chapter_ordinal",
           "scene_id",
           "scene_packet_id",
+          "job_run_id",
           "status",
           "chapter_goal",
           "evidence_count",
@@ -7499,6 +7693,74 @@
         ]
       }
     },
+    "/api/studio/approval-summary": {
+      "get": {
+        "description": "读取 Studio 批准回写摘要：只返回资格、目标章节和阻塞原因。",
+        "operationId": "read_studio_approval_summary_endpoint_api_studio_approval_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scene_packet_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scene Packet Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "repair_patch_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repair Patch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioApprovalSummaryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Studio Approval Summary Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
     "/api/studio/books": {
       "get": {
         "description": "读取 Studio 首个数据源：作品 ID、标题和最近章节编号。",
@@ -7647,6 +7909,50 @@
           }
         },
         "summary": "Read Studio Judge Review Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
+    "/api/studio/recovery-summary": {
+      "get": {
+        "description": "读取 Studio 失败恢复摘要：只返回 checkpoint、可恢复步骤和阻塞原因。",
+        "operationId": "read_studio_recovery_summary_endpoint_api_studio_recovery_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "job_run_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Job Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioRecoverySummaryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Studio Recovery Summary Endpoint",
         "tags": [
           "Studio 创作工作台"
         ]
