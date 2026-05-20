@@ -1,6 +1,6 @@
 # StoryForge 当前 Phase 摘要
 
-更新时间：2026-05-20 17:18:00 +08:00
+更新时间：2026-05-20 19:20:00 +08:00
 
 ## 1. 当前执行裁决
 
@@ -100,6 +100,8 @@ pnpm --filter @storyforge/web exec tsc --noEmit
 ## 6. 后续建议
 
 - 短期：继续保持本文件为当前 Phase 入口，减少后续代理从长流水日志中恢复状态的成本。
+- 审计阅读顺序：后续代理应优先读取 `.codex/current-phase.md`，再读取 `TODO.md`、`.codex/verification-report.md` 和相关 `docs/operations/*`；`.codex/operations-log.md` 仅用于按关键词追溯，不再作为首要恢复入口。
+- 审计噪音处理：不删除历史 `.codex/operations-log.md` 证据；后续只追加索引化摘要或阶段性验证结论，避免继续复制长流水内容。
 - Phase 6 下一步优先级：不要继续堆静态入口；Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API 与 Repair 修订 API 后端最小契约和 Web 单点读取已实现，后续优先在同一 Studio 页面继续按 `docs/architecture/phase6-workbench-contract.md` 的最小 API 数据源契约推进批准回写单一数据源；再推进失败恢复，Retrieval 资料源/刷新/搜索/命中/证据跳转，Runs JobRun/checkpoint/ModelRun/失败重试，Artifacts 导出物/上传资料/快照/评测报告，Evaluations 评测集/运行记录/趋势/失败样例。
 - Phase 6 真实 API spike 边界：只能从 `apps/web/lib/phase6-data-sources.ts` 的 `phase6DataSources` 选择单页面单数据源；禁止全量 client，不一次性联通五页，不新增大型状态管理平台，不把静态契约扩展成新架构。
 - Studio 作品列表 API 可复现读取验证结果：已定位现有模型、API router/service 和 int 主键；已实现后端 `/api/studio/books` 与 Web 单点读取；已覆盖成功态、空列表态和作品列表 API 读取失败态边界。
