@@ -1,12 +1,12 @@
 # StoryForge 当前 Phase 摘要
 
-更新时间：2026-05-20 01:11:08 +08:00
+更新时间：2026-05-20 17:18:00 +08:00
 
 ## 1. 当前执行裁决
 
 - 当前总计划事实源：`docs/superpowers/plans/2026-05-17-storyforge-master-replan.md` 第 11 节。
 - 当前 TODO 事实源：`TODO.md` 第 9、10、11、20、21、22、23、24、25 节的推进记录。
-- 当前阶段重点：Phase 5/6/7 后续交付闭环，禁止回到 Phase 1~4 重复实现。
+- 当前阶段重点：Phase 5/6 已按当前批准边界完成收口；当前只推进 Phase 7 发布与治理闭环，禁止回到 Phase 1~4 重复实现，也禁止继续扩 Phase 6 数据源。
 - 第 11.9 处理方式：先建立当前摘要索引，不立刻归档历史 `.codex` 文件，避免把归档变成 Phase 5 P0 阻塞。
 
 ## 2. 第 11 节风险状态
@@ -18,8 +18,8 @@
 | 11.7 Workflow State 引用化 | 已实现最小闭环 | `TODO.md` 第 11 节；`apps/workflow/storyforge_workflow/state.py`；`tests/test_generation_state_references.py` |
 | 11.8 最小仲裁闭环 | 已实现最小闭环 | `TODO.md` 第 9 节；`apply_arbitration_decision()` 只处理 `auto_merge` 的 memory create |
 | 11.9 `.codex` 审计噪音 | 本轮开始治理 | 本文件作为当前 Phase 索引；历史归档暂缓 |
-| Phase 5 Workflow/ModelRun 调用链 | 已完成前置契约，真表 adapter 待做 | `ModelRunPayload.to_api_payload(api_job_run_id:int)`；`tests/test_runtime_runner.py`；API `tests/test_model_runs.py` |
-| Phase 6 工作台最小入口 | 已完成静态入口与部分真实联动；Artifacts/Evaluations 仍只有契约入口 | Studio、Retrieval、Runs、Artifacts、Evaluations 页面与 `tests/phase1-navigation.test.tsx` |
+| Phase 5 Workflow/ModelRun 调用链 | 当前边界已收口：已完成前置契约；真表 adapter/client 保留为后续功能待办 | `ModelRunPayload.to_api_payload(api_job_run_id:int)`；`tests/test_runtime_runner.py`；API `tests/test_model_runs.py` |
+| Phase 6 工作台最小入口 | 当前边界已收口：已完成静态入口、部分真实联动和状态审计；Artifacts/Evaluations 仍只有契约入口并保留为后续功能待办 | Studio、Retrieval、Runs、Artifacts、Evaluations 页面与 `tests/phase1-navigation.test.tsx` |
 | Phase 6 Studio 作品列表 API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/books` |
 | Phase 6 Studio 章节目标 API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/chapter-goals` |
 | Phase 6 Studio Scene Packet API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/scene-packets` |

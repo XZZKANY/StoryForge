@@ -1,6 +1,6 @@
 # StoryForge Alembic 本地验证记录
 
-更新时间：2026-05-19 02:15:00 +08:00
+更新时间：2026-05-20 18:45:00 +08:00
 
 ## 1. 目标
 
@@ -20,6 +20,7 @@
 - `9f2b3c4d5e6f_为资产增加版本谱系键.py`
 - `c0ffee20260519_add_memory_atoms.py`
 - `c0ffee20260520_add_compiled_contexts.py`
+- `20260520_0001_add_pgvector_retrieval_index.py`
 
 ## 3. 已执行命令与结果
 
@@ -42,7 +43,7 @@ uv run alembic heads
 结果：通过，当前 head 为：
 
 ```text
-c0ffee20260520 (head)
+20260520_0001 (head)
 ```
 
 ### 3.3 离线 SQL 生成
@@ -62,6 +63,11 @@ uv run alembic upgrade head --sql
 - `Running upgrade c0ffee20260519 -> c0ffee20260520`
 - `CREATE TABLE compiled_contexts`
 - `UPDATE alembic_version SET version_num='c0ffee20260520'`
+- `Running upgrade c0ffee20260520 -> 20260520_0001`
+- `CREATE EXTENSION IF NOT EXISTS vector`
+- `ALTER TABLE retrieval_chunks ADD COLUMN IF NOT EXISTS embedding_vector vector(4)`
+- `CREATE INDEX IF NOT EXISTS ix_retrieval_chunks_embedding_vector_hnsw`
+- `UPDATE alembic_version SET version_num='20260520_0001'`
 
 这说明迁移链可以生成从空库到当前 head 的 PostgreSQL SQL。
 
@@ -73,18 +79,32 @@ uv run alembic upgrade head
 uv run alembic current
 ```
 
-结果：未通过。最近一次在线 `uv run alembic upgrade head` 在 124 秒后超时；默认 PostgreSQL 连接为 `127.0.0.1:55432`，当前本机 Docker/PostgreSQL 状态不可用或不可确认。
+结果：通过。本轮 Docker Desktop 可用，`storyforge-postgres` 处于 healthy 状态；在线命令输出包含：
+
+```text
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+20260520_0001 (head)
+```
+
+补充执行：
+
+```powershell
+uv run alembic current --check-heads
+```
+
+结果：通过，输出 `20260520_0001 (head)`，说明当前数据库版本已处于 Alembic 脚本目录的全部 head。
 
 ## 4. 当前结论
 
-- Alembic head 检查通过，当前 head 为 `c0ffee20260520`。
+- Alembic head 检查通过，当前 head 为 `20260520_0001`。
 - 离线 SQL 生成通过，能生成从空库到当前 head 的 SQL。
-- 离线 SQL 已覆盖 `memory_atoms` 和 `compiled_contexts` 两张第 11.5/11.6 最小持久化表。
-- 在线升级到真实 PostgreSQL 尚未完成验证，原因是当前 Docker/PostgreSQL 状态不可用或不可确认。
+- 离线 SQL 已覆盖 `memory_atoms`、`compiled_contexts` 和 `retrieval_chunks.embedding_vector` / HNSW 索引相关迁移。
+- 在线升级到真实 PostgreSQL 已在本机通过，`uv run alembic current` 与 `uv run alembic current --check-heads` 均输出 `20260520_0001 (head)`。
 
-## 5. 补跑步骤
+## 5. 后续复核步骤
 
-在 Docker 可用后执行：
+在新机器或重置数据库后执行：
 
 ```powershell
 cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
@@ -93,14 +113,16 @@ pnpm verify
 cd apps/api
 uv run alembic upgrade head
 uv run alembic current
+uv run alembic current --check-heads
 ```
 
 通过条件：
 
 - `pnpm verify` 通过，PostgreSQL、Redis、MinIO 均正在运行。
 - `uv run alembic upgrade head` 退出码为 0。
-- `uv run alembic current` 输出 `c0ffee20260520`。
+- `uv run alembic current` 输出 `20260520_0001 (head)`。
+- `uv run alembic current --check-heads` 退出码为 0。
 
 ## 6. 风险记录
 
-在线迁移未验证前，不应声称“干净数据库升级已完整通过”。当前可交付结论仅限于 head 检查和离线 SQL 生成通过。
+本轮在线迁移验证基于当前本机 Docker Desktop 与既有 PostgreSQL 数据卷；若要证明“全新空库”路径，需要先清理或更换数据库卷后重新执行上述复核步骤。当前可交付结论是：当前本机数据库已可在线升级并处于最新 head。
