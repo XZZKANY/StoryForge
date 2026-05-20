@@ -1394,3 +1394,78 @@ git diff --check -- TODO.md docs/operations/alembic-validation.md .codex/context
 建议：通过。
 
 理由：Phase 7 本轮最小治理问题已经闭环：MinIO 已启动，`pnpm verify` 通过，Alembic 当前 head `20260520_0001` 的在线升级与 `--check-heads` 均通过，过期文档状态已同步修正。当前仍保持不自动提交。
+
+# Phase 7 发布门禁推进验证报告
+
+生成时间：2026-05-20 19:25:00 +08:00
+
+## 1. 验证目标
+
+执行 Phase 7 发布治理推进计划：证明干净数据库迁移路径可复现，压缩审计恢复入口，并复跑发布前本地门禁后提交推送。
+
+## 2. 交付物映射
+
+- 计划文档：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/docs/superpowers/plans/2026-05-20-phase7-release-governance.md`
+- Alembic 记录：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/docs/operations/alembic-validation.md`
+- 当前事实入口：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/current-phase.md`
+- 任务池：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/TODO.md`
+- 操作日志：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/operations-log.md`
+
+## 3. 本地验证命令与结果
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run alembic heads
+uv run alembic current --check-heads
+```
+
+结果：通过，均指向 `20260520_0001 (head)`。
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+# 创建 storyforge_phase7_clean_verify 后设置 DATABASE_URL 指向临时库
+cd apps/api
+uv run alembic upgrade head
+uv run alembic current --check-heads
+```
+
+结果：通过。临时空库从 `71dfabf6badf` 依次升级到 `20260520_0001`；验证后已删除临时数据库。
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm verify
+pnpm openapi
+pnpm test
+pnpm e2e
+git diff --check
+```
+
+结果：全部通过或无错误。
+
+- `pnpm verify`：Node.js、pnpm、Python 3.12.10、Docker、PostgreSQL、Redis、MinIO 和必需路径均通过。
+- `pnpm openapi`：使用 `uv run python` 生成 OpenAPI 契约；未产生 `packages/shared/src/contracts/storyforge.openapi.json` diff。
+- `pnpm test`：Web 9 项中文契约测试通过，共享包配置检查通过，API compileall 通过，Workflow compileall 通过。
+- `pnpm e2e`：14 项 Node 契约测试通过；当前环境 FastAPI HTTP pytest 自动切换到 compileall + Phase 1/2/3/4 服务层补偿验收，API 7 项、Workflow 5 项 pytest 通过。
+- `git diff --check`：未报告空白错误，仅有既有 LF/CRLF 工作区提示。
+
+## 4. 审查清单
+
+- 需求字段完整性：通过，目标、范围、交付物、验证命令和风险均已记录。
+- 原始意图覆盖：通过，完成干净数据库验证、审计入口压缩、发布门禁复跑和推送准备。
+- 交付物映射：通过，计划文档、运维文档、TODO、current-phase、operations-log 和 verification-report 均已更新。
+- 依赖与风险评估：通过，临时数据库验证不影响主库；FastAPI HTTP pytest 环境限制已记录为补偿验收。
+- 审查结论留痕：通过，见本报告评分。
+
+## 5. 评分
+
+- **代码质量**：95/100，本轮不改运行时代码，治理文件职责清晰。
+- **测试覆盖**：96/100，覆盖 Docker、OpenAPI、Web/API/Workflow、E2E、Alembic head 和干净库升级路径。
+- **规范遵循**：95/100，遵循简体中文、本地验证、`.codex` 留痕和不扩 Phase 5/6 范围约束。
+- **技术维度评分**：95/100
+- **战略维度评分**：96/100
+- **综合评分**：95/100
+
+## 6. 审查结论
+
+建议：通过。
+
+理由：Phase 7 发布门禁验证已闭环，干净临时库可升级到 `20260520_0001 (head)`，完整本地门禁通过，且未新增产品功能或扩大 Phase 5/6 数据源范围。

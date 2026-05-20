@@ -95,12 +95,32 @@ uv run alembic current --check-heads
 
 结果：通过，输出 `20260520_0001 (head)`，说明当前数据库版本已处于 Alembic 脚本目录的全部 head。
 
+### 3.5 干净临时数据库升级验证
+
+```powershell
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+docker exec storyforge-postgres psql -U storyforge -d postgres -c "DROP DATABASE IF EXISTS storyforge_phase7_clean_verify;"
+docker exec storyforge-postgres psql -U storyforge -d postgres -c "CREATE DATABASE storyforge_phase7_clean_verify OWNER storyforge;"
+
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+$env:DATABASE_URL='postgresql+psycopg://storyforge:storyforge@127.0.0.1:55432/storyforge_phase7_clean_verify'
+uv run alembic upgrade head
+uv run alembic current --check-heads
+Remove-Item Env:DATABASE_URL
+
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+docker exec storyforge-postgres psql -U storyforge -d postgres -c "DROP DATABASE storyforge_phase7_clean_verify;"
+```
+
+结果：通过。`upgrade head` 从空库依次执行 `71dfabf6badf`、`9f2b3c4d5e6f`、`c0ffee20260519`、`c0ffee20260520`、`20260520_0001`，`current --check-heads` 输出 `20260520_0001 (head)`；验证后已删除临时数据库。
+
 ## 4. 当前结论
 
 - Alembic head 检查通过，当前 head 为 `20260520_0001`。
 - 离线 SQL 生成通过，能生成从空库到当前 head 的 SQL。
 - 离线 SQL 已覆盖 `memory_atoms`、`compiled_contexts` 和 `retrieval_chunks.embedding_vector` / HNSW 索引相关迁移。
 - 在线升级到真实 PostgreSQL 已在本机通过，`uv run alembic current` 与 `uv run alembic current --check-heads` 均输出 `20260520_0001 (head)`。
+- 干净临时数据库 `storyforge_phase7_clean_verify` 已完成从空库升级到 `20260520_0001 (head)` 的在线验证，验证后已删除临时库，不影响主数据库。
 
 ## 5. 后续复核步骤
 
@@ -125,4 +145,4 @@ uv run alembic current --check-heads
 
 ## 6. 风险记录
 
-本轮在线迁移验证基于当前本机 Docker Desktop 与既有 PostgreSQL 数据卷；若要证明“全新空库”路径，需要先清理或更换数据库卷后重新执行上述复核步骤。当前可交付结论是：当前本机数据库已可在线升级并处于最新 head。
+本轮已使用独立临时数据库证明“空库到最新 head”路径可执行，但该验证仍依赖当前本机 Docker Desktop、当前镜像和当前代码工作区。跨机器复现时仍需按第 5 节重新执行；不得把本机结果等同于所有环境已经通过。
