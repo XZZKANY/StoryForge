@@ -1,76 +1,62 @@
 # StoryForge 当前 Phase 摘要
 
-更新时间：2026-05-20 20:05:00 +08:00
+更新时间：2026-05-21 01:05:00 +08:00
 
 ## 1. 当前执行裁决
 
 - 当前总计划事实源：`docs/superpowers/plans/2026-05-17-storyforge-master-replan.md` 第 11 节。
-- 当前 TODO 事实源：`TODO.md` 第 9、10、11、20、21、22、23、24、25 节的推进记录。
-- 当前阶段重点：Phase 5/6 已按当前批准边界完成收口；本轮仅按用户批准的四项剩余风险计划补真实摘要读取和治理压缩，禁止回到 Phase 1~4 重复实现，也禁止扩成全量工作台执行流。
-- 第 11.9 处理方式：先建立当前摘要索引，不立刻归档历史 `.codex` 文件，避免把归档变成 Phase 5 P0 阻塞。
+- 当前 TODO 事实源：`TODO.md` 的 P1/P2/P3 任务池与最近迭代记录。
+- 当前上下文摘要：`.codex/context-summary-end-to-end-closure.md`。
+- 当前阶段重点：Phase 5/6 已进入闭环事实源收口；本轮治理文档只校准最小执行/摘要事实和剩余边界，不修改 API、Web、workflow、OpenAPI 生成物、`.codex/operations-log.md` 或 `.codex/verification-report.md`。
+- 第 11.9 处理方式：继续保留本文件作为主事实入口，不复制 `.codex/operations-log.md` 长流水；历史审计记录只在追溯具体问题时按关键词读取。
 
 ## 2. 第 11 节风险状态
 
 | 条目 | 当前状态 | 证据 |
 | --- | --- | --- |
-| 11.5 `story_memory` 最小持久化 | 已实现最小闭环 | `TODO.md` 第 9 节；`apps/api/app/domains/story_memory/`；`tests/test_story_memory_persistence.py` |
-| 11.6 `compiled_contexts` 持久化 | 已实现最小闭环 | `TODO.md` 第 10 节；`apps/api/app/domains/context_compiler/models.py`；`tests/test_context_compiler_persistence.py` |
-| 11.7 Workflow State 引用化 | 已实现最小闭环 | `TODO.md` 第 11 节；`apps/workflow/storyforge_workflow/state.py`；`tests/test_generation_state_references.py` |
-| 11.8 最小仲裁闭环 | 已实现最小闭环 | `TODO.md` 第 9 节；`apply_arbitration_decision()` 只处理 `auto_merge` 的 memory create |
-| 11.9 `.codex` 审计噪音 | 本轮开始治理 | 本文件作为当前 Phase 索引；历史归档暂缓 |
-| Phase 5 Workflow/ModelRun 调用链 | 当前边界已收口：已完成前置契约；真表 adapter/client 保留为后续功能待办 | `ModelRunPayload.to_api_payload(api_job_run_id:int)`；`tests/test_runtime_runner.py`；API `tests/test_model_runs.py` |
-| Phase 6 工作台最小入口 | 当前边界已收口：已完成静态入口、真实摘要读取和状态审计；执行型能力仍保留为后续功能待办 | Studio、Retrieval、Runs、Artifacts、Evaluations 页面与 `tests/phase1-navigation.test.tsx` |
-| Phase 6 Studio 作品列表 API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/books` |
-| Phase 6 Studio 章节目标 API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/chapter-goals` |
-| Phase 6 Studio Scene Packet API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/scene-packets` |
-| Phase 6 Studio Judge 评审 API | API 与 Web 单点读取已实现 | `apps/api/app/domains/studio/`；`apps/api/app/domains/judge/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/judge-reviews` |
-| Phase 6 Studio Repair 修订 API | API 与 Web 单点读取已实现，后续 Studio 数据源从批准回写继续 | `apps/api/app/domains/studio/`；`apps/api/app/domains/repair/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/repair-patches` |
-| Phase 6 Retrieval 工作台 API | 资料源、刷新任务、搜索与命中预览 API/Web 单点读取已实现；独立证据跳转和重排状态仍未联通 | `apps/api/app/domains/retrieval/`；`apps/api/tests/test_retrieval_workbench_api.py`；`apps/web/app/retrieval/page.tsx` |
-| Phase 6 Studio 批准/恢复摘要 API | 批准回写摘要和失败恢复摘要 API/Web 单点读取已实现；不执行写回或续跑 | `apps/api/app/domains/studio/`；`apps/api/tests/test_studio_book_list_api.py`；`apps/web/app/studio/page.tsx`；`GET /api/studio/approval-summary`；`GET /api/studio/recovery-summary` |
-| Phase 6 Runs JobRun API | JobRun/checkpoint/ModelRun 摘要后端最小契约和 Web 单点读取已实现；失败重试执行仍未联通 | `apps/api/app/domains/model_runs/`；`apps/api/tests/test_model_runs.py`；`apps/web/app/runs/page.tsx` |
-| Phase 6 Artifacts 导出物 API | 导出物列表 API/Web 单点读取已实现；制品下载和详情仍未联通 | `apps/api/tests/test_artifacts.py`；`apps/web/app/artifacts/page.tsx`；`GET /api/artifacts` |
-| Phase 6 Evaluations 评测运行 API | 评测运行列表 API/Web 单点读取已实现；趋势图和失败样例详情仍未联通 | `apps/api/tests/test_evaluations.py`；`apps/web/app/evaluations/page.tsx`；`GET /api/evaluations/runs` |
+| 11.5 `story_memory` 最小持久化 | 已实现最小闭环 | `TODO.md`；`apps/api/app/domains/story_memory/`；`tests/test_story_memory_persistence.py` |
+| 11.6 `compiled_contexts` 持久化 | 已实现最小闭环 | `TODO.md`；`apps/api/app/domains/context_compiler/models.py`；`tests/test_context_compiler_persistence.py` |
+| 11.7 Workflow State 引用化 | 已实现最小闭环 | `TODO.md`；`apps/workflow/storyforge_workflow/state.py`；`tests/test_generation_state_references.py` |
+| 11.8 最小仲裁闭环 | 已实现最小闭环 | `TODO.md`；`apply_arbitration_decision()` 只处理 `auto_merge` 的 memory create |
+| 11.9 `.codex` 审计噪音 | 本文件继续作为主事实入口 | `.codex/current-phase.md`；`.codex/context-summary-end-to-end-closure.md` |
+| Workflow-to-API ModelRun 调用链 | 已完成最小真表 adapter/client，workflow runtime 可把 `ModelRunPayload` 写入 API 真表；不是新微服务 | `docs/architecture/workflow-modelrun-adapter-contract.md`；`apps/workflow/tests/test_runtime_runner.py`；`apps/api/tests/test_model_runs.py` |
+| Studio 创作闭环 | 读取链路已覆盖作品、章节目标、Scene Packet、Judge、Repair、批准摘要和恢复摘要；`POST /api/studio/approve` 已实现真实批准写回 | `apps/api/app/domains/studio/`；`apps/web/app/studio/page.tsx`；`apps/api/tests/test_studio_book_list_api.py` |
+| Retrieval 工作台 | 资料源、刷新任务、搜索和命中预览 API/Web 单点读取已实现 | `apps/api/app/domains/retrieval/`；`apps/web/app/retrieval/page.tsx`；`apps/api/tests/test_retrieval_workbench_api.py` |
+| Runs 工作台 | `GET /api/model-runs/job-runs/{job_run_id}` 真实读取；`POST /api/model-runs/job-runs/{job_run_id}/retry` 创建恢复任务，不立即续跑 workflow | `apps/api/app/domains/model_runs/`；`apps/api/tests/test_model_runs.py`；`apps/web/app/runs/page.tsx` |
+| Artifacts 工作台 | `GET /api/artifacts`、`GET /api/artifacts/{artifact_id}`、`GET /api/artifacts/{artifact_id}/download` 已实现；download 为 `payload_preview` 摘要 | `apps/api/app/domains/artifacts/`；`apps/api/tests/test_artifacts.py`；`apps/web/app/artifacts/page.tsx` |
+| Evaluations 工作台 | `GET /api/evaluations/runs`、`GET /api/evaluations/runs/{run_id}`、`GET /api/evaluations/runs/{run_id}/failed-samples` 已实现摘要读取 | `apps/api/app/domains/evaluations/`；`apps/api/tests/test_evaluations.py`；`apps/web/app/evaluations/page.tsx` |
+| 发布治理 | Alembic 干净临时库验证已纳入门禁；本轮最终验证由主线程执行 | `docs/operations/alembic-validation.md`；发布验证记录由主线程维护 |
 
 ## 3. 状态区分
 
-### 已实现
+### 已完成最小执行 / 摘要
 
-- `memory_atoms` 最小持久化、CRUD、章节有效事实查询、`auto_merge` 写入。
-- `compiled_contexts` 最小持久化、预算/注入/裁剪摘要保存、Scene Packet 反查。
-- Workflow State 最小引用化、`checkpoint_reference_state()`、运行时 checkpoint 保存边界。
-- Workflow runtime ModelRun 内存记录、成功/失败 sink、失败 checkpoint、`to_api_payload(api_job_run_id:int)` 类型安全映射。
-- Workflow-to-API ModelRun adapter 契约文档：`docs/architecture/workflow-modelrun-adapter-contract.md`。
-- Phase 6 工作台最小入口：Studio 创作闭环、Retrieval 证据入口、Runs checkpoint/失败重试、Artifacts 制品追溯、Evaluations 失败样例。
-- Studio 作品列表 API 最小契约与 Web 单点读取：`GET /api/studio/books` 返回 `id:int`、`title:str`、`recent_chapter_ordinal:int | None`，支持 `workspace_id:int` 过滤；Web Studio 页面显示成功态、空列表态和可重试错误摘要。
-- Studio 章节目标 API 最小契约与 Web 单点读取：`GET /api/studio/chapter-goals` 使用 `book_id:int` 与 `target_ordinal:int` 读取目标章节、上章摘要和连续性约束；缺少目标章节时返回 404 供页面展示可重试错误摘要。
-- Studio Scene Packet API 最小契约与 Web 单点读取：`GET /api/studio/scene-packets` 使用 `book_id:int` 与 `target_ordinal:int` 读取已组装 Scene Packet 的 ID、证据数量、`compiled_context_id` 和上下文预算摘要；缺少包时返回 404 供页面展示可重试错误摘要。
-- Studio Judge 评审 API 最小契约与 Web 单点读取：`GET /api/studio/judge-reviews` 使用 `scene_packet_id:int` 读取已持久化 JudgeIssue 的状态、分数、问题数量和关键问题；缺少评审时返回 404 供页面展示可重试错误摘要。
-- Studio Repair 修订 API 最小契约与 Web 单点读取：`GET /api/studio/repair-patches` 使用 `scene_packet_id:int` 只读已生成 RepairPatch 的修订文本、差异摘要、采纳建议和重评状态；缺少补丁时返回 404 供页面展示可重试错误摘要，且不触发新修复生成。
-- Studio 批准回写摘要 API 与 Web 单点读取：`GET /api/studio/approval-summary` 使用 `scene_packet_id` 或 `repair_patch_id` 只读可批准对象、目标章节、回写状态和不可批准原因；不执行写回。
-- Studio 失败恢复摘要 API 与 Web 单点读取：`GET /api/studio/recovery-summary` 使用 `job_run_id:int` 只读失败节点、checkpoint、可恢复步骤、错误摘要和不可恢复原因；不执行续跑。
-- Retrieval 工作台资料源、刷新任务、搜索请求和命中预览最小契约与 Web 单点读取：`GET /api/retrieval/workbench/sources`、`GET /api/retrieval/workbench/refresh-runs`、`POST /api/retrieval/workbench/search`；搜索结果提供 `evidence_href` 锚点，独立证据跳转路由仍未联通。
-- Runs JobRun 状态 API 后端最小契约与 Web 单点读取：`GET /api/model-runs/job-runs/{job_run_id}` 返回 JobRun 状态、checkpoint 摘要和 ModelRun 摘要；Runs 页面默认读取 `job_run_id=1` 并展示可重试错误摘要。
-- Artifacts 导出物列表 API 与 Web 单点读取：`GET /api/artifacts` 展示 artifact ID、类型、文件名或标题、版本、状态和关联 book/job；下载动作和详情页仍未实现。
-- Evaluations 评测运行 API 与 Web 单点读取：`GET /api/evaluations/runs` 展示 evaluation run ID、状态、指标摘要、关联作品和失败样例数量；趋势图和报告详情页仍未实现。
+- Workflow-to-API：最小真表 adapter/client 已有，runtime `ModelRunPayload` 可写 API `ModelRun` 真表；调用方仍必须传入已持久化 `JobRun.id:int`。
+- Studio：作品列表、章节目标、Scene Packet、Judge、Repair、批准摘要和恢复摘要读取已实现；`POST /api/studio/approve` 可把 ScenePacket 或 RepairPatch 写回章节、场景与 continuity。
+- Retrieval：资料源列表、刷新任务、搜索请求和命中预览已完成 API/Web 单点读取，保留 `evidence_href` 锚点。
+- Runs：JobRun/checkpoint/ModelRun 摘要读取已实现；retry API 创建 queued 恢复任务。
+- Artifacts：列表、详情和 `payload_preview` 下载摘要已实现。
+- Evaluations：运行列表、详情趋势摘要、失败样例和 Studio 反馈入口摘要已实现。
+- 发布治理：Alembic 干净临时库验证已纳入门禁。
 
-### 已有契约但未持久化
+### 剩余交互 / 详情增强
 
-- `TimelineEvent`、`Progression`、`MemoryConflict`、`AgentProposal`、`ArbitrationDecision` 的独立持久化表。
-- Context Inspector API 查询契约、ModelRun 与 `compiled_context_id` 的正式数据库关联。
-- 具体 workflow-to-api ModelRun 真表 adapter/client；调用方必须传入已持久化 `JobRun.id` 正整数，不得把 workflow runtime 字符串 ID 当作数据库 ID。
-- Phase 6 页面真实数据联动：Studio Web 已单点读取作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API、Repair 修订 API、批准回写摘要 API 与失败恢复摘要 API；Retrieval Web 已单点读取资料源列表、刷新任务、搜索请求和命中预览；Runs 已单点读取 JobRun/checkpoint/ModelRun 摘要；Artifacts 已单点读取导出物列表；Evaluations 已单点读取评测运行列表。独立证据跳转、重排状态、失败重试执行、制品下载、评测趋势和详情页仍待接入。
-- 真实 PostgresSaver、跨进程 workflow state 查询和数据库级 workflow checkpoint 关联。
+- Studio 完整交互式批准按钮流、Server Action 或 Client Component 提交流、失败续跑执行流。
+- Runs Web 已展示 retry 执行契约；当前仅说明可创建恢复任务和不可重试原因，不提供点击按钮或立即续跑 workflow。
+- Retrieval 独立证据跳转路由、重排状态详情和跨页面证据路由。
+- Artifacts 上传资料执行、工作流快照详情、评测报告详情、对象存储签名 URL。
+- Evaluations 评测集管理、复杂趋势图、报告下载、失败样例自动反馈执行。
+- 发布治理最终验证由主线程执行；治理文档子代理只完成文档事实收口。
 
 ### 完全不存在
 
-- Context Inspector UI、跨版本上下文 diff API、完整 workflow replay/time-travel UI。
-- 完整多 Agent 仲裁系统、世界观检测 Agent、剧情推进 Agent、复杂人工审核工作台。
-- 真实 LLM 恢复压测与真实 PostgresSaver 端到端环境验证。
-- 完整交互式 Studio、检索工作台、运行重试 UI、制品下载 UI、评测实验 UI。
+- 新微服务形态的 workflow-to-api 桥接。
+- 完整交互式 Studio 编排器、完整检索工作台、运行回放/time-travel UI、完整制品管理工作台和评测复盘工作台。
+- 对象存储签名 URL 下载、复杂图表系统、自动把失败样例写回 Studio 的反馈执行。
 
 ### 竞品启发
 
-- Letta/MemGPT、Novelcrafter、SillyTavern 只作为记忆分层、Progression、上下文注入与预算边界参考。
+- Letta/MemGPT、Novelcrafter、SillyTavern 只作为记忆分层、连续创作步骤和证据追溯参考。
 - LangGraph checkpoint/store/business table 分层只作为 Workflow State 引用化边界参考。
 - 当前未引入新 Agent 框架、微服务或大型架构模块。
 
@@ -78,41 +64,34 @@
 
 ```powershell
 cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
-uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q
-uv run pytest tests/test_context_compiler.py tests/test_context_compiler_persistence.py tests/test_scene_packet_context_compiler.py -q
-uv run alembic heads
-uv run alembic upgrade head --sql
-
-cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
-uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_generation_state_references.py -q
-uv run python -m compileall storyforge_workflow tests
-
-cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
 uv run pytest tests/test_model_runs.py -q
 uv run pytest tests/test_studio_book_list_api.py -q
 uv run pytest tests/test_retrieval_workbench_api.py -q
 uv run pytest tests/test_artifacts.py tests/test_evaluations.py -q
 uv run python -m compileall app tests/test_studio_book_list_api.py
 
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow
+uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q
+uv run python -m compileall storyforge_workflow tests
+
 cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
 pnpm --filter @storyforge/web test
 pnpm --filter @storyforge/web exec tsc --noEmit
+git diff --check
 ```
 
 ## 5. 环境限制
 
-- 在线 `uv run alembic upgrade head` 仍依赖本地 PostgreSQL `127.0.0.1:55432`。
+- 在线 `uv run alembic upgrade head` 依赖本地 PostgreSQL `127.0.0.1:55432`；Alembic 干净临时库验证已纳入发布门禁，但最终执行由主线程负责。
 - Docker/PostgreSQL 不可用时，只能声明 head 检查与离线 SQL 生成通过，不能声明在线升级通过。
 - 系统 `python -m pytest` 可能缺少 pytest；workflow 验证优先使用 `uv run pytest`。
+- 本轮治理文档子代理不修改 `.codex/operations-log.md` 和 `.codex/verification-report.md`，因此不会把长流水复制到当前入口。
 
 ## 6. 后续建议
 
-- 短期：继续保持本文件为当前 Phase 入口，减少后续代理从长流水日志中恢复状态的成本。
-- 审计阅读顺序：后续代理应优先读取 `.codex/current-phase.md`，再读取 `TODO.md`、`.codex/verification-report.md` 和相关 `docs/operations/*`；`.codex/operations-log.md` 仅用于按关键词追溯，不再作为首要恢复入口。
-- 审计噪音处理：不删除历史 `.codex/operations-log.md` 证据；后续只追加索引化摘要或阶段性验证结论，避免继续复制长流水内容。
-- Phase 6 下一步优先级：不要继续堆静态入口；Studio 作品列表、章节目标、Scene Packet、Judge、Repair、批准回写摘要、失败恢复摘要，Retrieval 资料源/刷新/搜索/命中预览，Runs JobRun/checkpoint/ModelRun，Artifacts 导出物列表，Evaluations 评测运行列表均已完成 Web 单点读取。后续只剩执行型能力和详情型能力：workflow-to-api 真表 adapter/client、批准写回按钮、失败续跑执行、独立证据跳转、重排状态、失败重试、制品下载、评测趋势和详情页。
-- Phase 6 真实 API spike 边界：只能从 `apps/web/lib/phase6-data-sources.ts` 的 `phase6DataSources` 选择单页面单数据源；禁止全量 client，不一次性联通五页，不新增大型状态管理平台，不把静态契约扩展成新架构。
-- Studio 作品列表 API 可复现读取验证结果：已定位现有模型、API router/service 和 int 主键；已实现后端 `/api/studio/books` 与 Web 单点读取；已覆盖成功态、空列表态和作品列表 API 读取失败态边界。
-- 状态边界：已实现的是静态入口、README 索引、Phase 6 契约文档、最小 API 数据源契约、`phase6DataSources` typed registry、`page/contractSection/nextAction` 追踪字段、`phase6FirstDataSourceSpike` 首个起点、中文契约测试、Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API、Repair 修订 API、批准回写摘要 API 与失败恢复摘要 API 后端最小契约和 Web 单点读取、Retrieval 资料源/刷新任务/搜索请求/命中预览 API 与 Web 单点读取、Runs JobRun/checkpoint/ModelRun API 与 Web 单点读取、Artifacts 导出物列表与 Evaluations 评测运行列表 Web 单点读取；已有契约但未联通的是独立证据跳转/重排状态、失败重试、制品下载、评测趋势和详情页；完全不存在的是全量 HTTP client、缓存、完整交互式工作台与执行流；竞品启发只保留连续步骤和证据追溯，不作为新增架构理由。
-- 当前已进入 Phase 7 发布与治理收口：先收口 `.env.example`、OpenAPI、Alembic、启动手册、发布清单、故障手册和审计状态，再做任何新的治理扩展。
-- Phase 7 期间只允许做发布治理校准，不新增产品功能，不继续扩 Studio/Retrieval/Runs/Artifacts/Evaluations 数据源。
+- 审计阅读顺序：优先读取 `.codex/current-phase.md`，再读取 `TODO.md`、`.codex/context-summary-end-to-end-closure.md`、`.codex/verification-report.md` 和相关 `docs/operations/*`。
+- Phase 6 后续只能推进明确批准的交互或详情增强；不要再把最小摘要读取误判为完整工作台。
+- Runs retry 需要区分“创建恢复任务”和“立即续跑 workflow”；文档、页面和测试中均不得混用。
+- Artifacts download 需要继续标明 `payload_preview`，直到对象存储签名 URL 真正接入。
+- Evaluations 当前仅提供趋势摘要、失败样例和反馈入口摘要；复杂图表和自动反馈执行另行规划。
+- 发布治理最终验证由主线程执行，治理文档只保持事实入口一致。

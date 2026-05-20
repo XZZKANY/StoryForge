@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -144,6 +144,56 @@ def test_runs_job_run_endpoint_includes_model_run_summaries(
     assert model_runs[1]["error_message"] == "provider timeout"
 
 
+def test_retry_runs_job_run_creates_recovery_job_from_failed_checkpoint(
+    client: TestClient, session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    with session_factory() as session:
+        job = session.get(JobRun, run_scope["job_run_id"])
+        assert job is not None
+        job.status = "failed"
+        job.error_message = "provider timeout"
+        job.progress = {
+            "thread_id": "retry-thread",
+            "current_node": "repair_writer",
+            "approval_status": "failed",
+            "model_run_id": 801,
+        }
+        session.commit()
+
+    response = client.post(f"/api/model-runs/job-runs/{run_scope['job_run_id']}/retry")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["can_retry"] is True
+    assert payload["source_job_run_id"] == run_scope["job_run_id"]
+    assert payload["recovery_node"] == "repair_writer"
+    assert payload["checkpoint"]["thread_id"] == "retry-thread"
+    assert payload["retry_status"] == "queued"
+    assert payload["unavailable_reason"] is None
+
+    with session_factory() as session:
+        retry_job = session.get(JobRun, payload["retry_job_run_id"])
+        assert retry_job is not None
+        assert retry_job.status == "queued"
+        assert retry_job.progress["retry_of_job_run_id"] == run_scope["job_run_id"]
+        assert retry_job.progress["recovery_node"] == "repair_writer"
+
+
+def test_retry_runs_job_run_rejects_running_job_without_creating_retry(
+    client: TestClient, session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    response = client.post(f"/api/model-runs/job-runs/{run_scope['job_run_id']}/retry")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["can_retry"] is False
+    assert response.json()["retry_job_run_id"] is None
+    assert response.json()["unavailable_reason"] == "任务尚未失败，不能创建失败重试。"
+
+    with session_factory() as session:
+        jobs = session.scalars(select(JobRun)).all()
+        assert len(jobs) == 1
+
+
 def test_record_failed_runtime_model_run_preserves_error_for_recovery(
     session_factory: sessionmaker[Session], run_scope: dict[str, int]
 ) -> None:
@@ -172,3 +222,91 @@ def test_record_failed_runtime_model_run_preserves_error_for_recovery(
     assert failed_run.error_message == "provider timeout"
     assert failed_run.payload["error_code"] == "provider_execution_failed"
     assert [item.id for item in listed] == [failed_run.id]
+
+
+def test_record_workflow_model_run_payload_persists_completed_adapter_payload(
+    session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    """workflow adapter 的成功 payload 应写入 API ModelRun 真表。"""
+
+    from app.domains.model_runs.service import list_model_runs, record_workflow_model_run_payload
+
+    api_payload = {
+        "job_run_id": run_scope["job_run_id"],
+        "provider_name": "mock-provider",
+        "model_name": "storyforge-writer",
+        "capability": "llm",
+        "status": "completed",
+        "latency_ms": 160,
+        "token_usage": 42,
+        "input_summary": "生成输入摘要",
+        "output_summary": "生成输出摘要",
+        "error_message": None,
+        "payload": {"thread_id": "adapter-success-thread", "runtime_job_run_id": "runtime-job-string"},
+    }
+
+    with session_factory() as session:
+        model_run = record_workflow_model_run_payload(session, api_payload)
+        listed = list_model_runs(session, job_run_id=run_scope["job_run_id"])
+
+    assert model_run.status == "completed"
+    assert model_run.job_run_id == run_scope["job_run_id"]
+    assert model_run.token_usage == 42
+    assert model_run.payload["runtime_job_run_id"] == "runtime-job-string"
+    assert [item.id for item in listed] == [model_run.id]
+
+
+def test_record_workflow_model_run_payload_persists_failed_adapter_payload(
+    session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    """workflow adapter 的失败 payload 应写入 API ModelRun 真表并保留错误。"""
+
+    from app.domains.model_runs.service import list_model_runs, record_workflow_model_run_payload
+
+    api_payload = {
+        "job_run_id": run_scope["job_run_id"],
+        "provider_name": "mock-provider",
+        "model_name": "storyforge-writer",
+        "capability": "llm",
+        "status": "failed",
+        "latency_ms": 0,
+        "token_usage": 0,
+        "input_summary": "失败输入摘要",
+        "output_summary": "",
+        "error_message": "provider timeout",
+        "payload": {"thread_id": "adapter-failure-thread", "runtime_job_run_id": "runtime-job-string"},
+    }
+
+    with session_factory() as session:
+        model_run = record_workflow_model_run_payload(session, api_payload)
+        listed = list_model_runs(session, job_run_id=run_scope["job_run_id"])
+
+    assert model_run.status == "failed"
+    assert model_run.job_run_id == run_scope["job_run_id"]
+    assert model_run.token_usage == 0
+    assert model_run.error_message == "provider timeout"
+    assert model_run.payload["thread_id"] == "adapter-failure-thread"
+    assert [item.id for item in listed] == [model_run.id]
+
+
+def test_record_workflow_model_run_payload_rejects_runtime_string_job_run_id(session: Session) -> None:
+    """API helper 必须拒绝把 workflow 字符串任务 ID 当作 JobRun.id。"""
+
+    from app.domains.model_runs.service import ModelRunError, record_workflow_model_run_payload
+
+    with pytest.raises(ModelRunError, match="正整数 ID"):
+        record_workflow_model_run_payload(
+            session,
+            {
+                "job_run_id": "runtime-job-string",
+                "provider_name": "mock-provider",
+                "model_name": "storyforge-writer",
+                "capability": "llm",
+                "status": "completed",
+                "latency_ms": 1,
+                "token_usage": 1,
+                "input_summary": "输入摘要",
+                "output_summary": "输出摘要",
+                "payload": {"runtime_job_run_id": "runtime-job-string"},
+            },
+        )

@@ -105,6 +105,24 @@ class StudioApprovalSummaryRead(BaseModel):
     unavailable_reason: str | None
 
 
+class StudioApprovalExecuteRequest(BaseModel):
+    """Studio 批准写回执行请求，只允许定位一个可批准对象。"""
+
+    scene_packet_id: int | None = None
+    repair_patch_id: int | None = None
+
+
+class StudioApprovalExecuteRead(BaseModel):
+    """Studio 批准写回执行结果，明确真实写回和阻断原因。"""
+
+    approved_object: StudioApprovalObjectRead | None
+    target_chapter: StudioApprovalTargetChapterRead | None
+    writeback_status: str
+    approved_chapter_id: int | None
+    continuity_update_summary: str | None
+    unavailable_reason: str | None
+
+
 class StudioRecoverySummaryRead(BaseModel):
     """Studio 失败恢复只读摘要，仅说明可恢复步骤和阻塞原因。"""
 

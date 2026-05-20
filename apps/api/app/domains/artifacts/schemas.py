@@ -37,3 +37,16 @@ class ArtifactRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class ArtifactDownloadRead(BaseModel):
+    """制品下载摘要在没有对象存储签名时返回可审查内容。"""
+
+    id: int
+    artifact_type: str
+    name: str
+    mime_type: str
+    storage_uri: str
+    download_mode: str
+    content_preview: str
+    payload_summary: dict[str, Any]
+

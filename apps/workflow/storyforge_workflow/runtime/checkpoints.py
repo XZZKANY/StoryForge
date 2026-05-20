@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -55,10 +56,9 @@ class ModelRunPayload:
     def to_api_payload(self, *, api_job_run_id: int) -> dict[str, object]:
         """转换为 API ModelRunCreate 兼容字段，显式使用 API 真表的 int 任务 ID。"""
 
-        if api_job_run_id <= 0:
-            raise ValueError("API ModelRun 的 job_run_id 必须是已持久化 JobRun 的正整数 ID。")
+        validated_job_run_id = _validate_api_job_run_id(api_job_run_id)
         return {
-            "job_run_id": api_job_run_id,
+            "job_run_id": validated_job_run_id,
             "provider_name": self.provider_name,
             "model_name": self.model_name,
             "capability": self.capability,
@@ -75,8 +75,28 @@ class ModelRunPayload:
 class ModelRunSink(Protocol):
     """workflow 到 API ModelRun 真表 adapter 的可替换边界。"""
 
-    def record(self, payload: ModelRunPayload) -> None:
-        """接收模型运行摘要；实现方决定是否写 API、数据库或测试捕获器。"""
+    def record(self, payload: ModelRunPayload) -> int | None:
+        """接收模型运行摘要；返回值为已持久化 API ModelRun ID。"""
+
+
+class ApiModelRunAdapter:
+    """把 workflow payload 交给 API 真表写入函数的最小 adapter。"""
+
+    def __init__(self, *, api_job_run_id: int, record_api_model_run: Callable[[dict[str, object]], int]) -> None:
+        self.api_job_run_id = _validate_api_job_run_id(api_job_run_id)
+        self.record_api_model_run = record_api_model_run
+
+    def record(self, payload: ModelRunPayload) -> int:
+        api_payload = payload.to_api_payload(api_job_run_id=self.api_job_run_id)
+        return self.record_api_model_run(api_payload)
+
+
+def _validate_api_job_run_id(api_job_run_id: object) -> int:
+    """确认传入的是 API JobRun 真表的正整数主键，而不是 workflow 字符串 ID。"""
+
+    if type(api_job_run_id) is not int or api_job_run_id <= 0:
+        raise ValueError("API ModelRun 的 job_run_id 必须是已持久化 JobRun 的正整数 ID。")
+    return api_job_run_id
 
 
 class RuntimeCheckpointStore:

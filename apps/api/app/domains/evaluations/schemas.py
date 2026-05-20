@@ -50,3 +50,23 @@ class EvaluationRunRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class EvaluationFailedSampleRead(BaseModel):
+    """评测失败样例用于把质量问题追溯回章节、制品和 Studio 修复入口。"""
+
+    id: str
+    reason: str
+    chapter_id: int | None = None
+    artifact_id: int | None = None
+    repair_hint: str
+    studio_href: str | None = None
+
+
+class EvaluationRunDetailRead(BaseModel):
+    """评测运行详情包含趋势摘要和失败样例数量。"""
+
+    run: EvaluationRunRead
+    trend_points: list[dict[str, Any]]
+    failed_sample_count: int
+    studio_feedback_href: str | None
+

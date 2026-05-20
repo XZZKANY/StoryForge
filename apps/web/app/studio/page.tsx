@@ -132,6 +132,7 @@ const studioScenePacketsEndpoint = "/api/studio/scene-packets";
 const studioJudgeReviewsEndpoint = "/api/studio/judge-reviews";
 const studioRepairPatchesEndpoint = "/api/studio/repair-patches";
 const studioApprovalSummaryEndpoint = "/api/studio/approval-summary";
+const studioApproveEndpoint = "/api/studio/approve";
 const studioRecoverySummaryEndpoint = "/api/studio/recovery-summary";
 
 const getStudioApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -636,6 +637,30 @@ export default async function StudioPage() {
             <dt>不可批准原因</dt>
             <dd>{approvalSummaryState.summary.unavailable_reason ?? "暂无阻塞原因"}</dd>
           </dl>
+        )}
+      </section>
+      <section aria-labelledby="studio-approve-execution-title">
+        <h2 id="studio-approve-execution-title">批准写回执行入口</h2>
+        <p>
+          后端已提供 {studioApproveEndpoint} 执行契约；页面当前展示可执行状态，交互式按钮留到 Client Component 或 Server Action 接入。
+        </p>
+        {approvalSummaryState.status !== "ready" ? (
+          <p>批准写回执行需要先读取批准摘要。</p>
+        ) : approvalSummaryState.summary.can_approve ? (
+          <dl>
+            <dt>执行状态</dt>
+            <dd>可执行批准写回</dd>
+            <dt>执行对象</dt>
+            <dd>
+              {approvalSummaryState.summary.approvable_object
+                ? `${approvalSummaryState.summary.approvable_object.object_type} #${approvalSummaryState.summary.approvable_object.id}`
+                : "暂无执行对象"}
+            </dd>
+            <dt>POST 请求体</dt>
+            <dd>{approvalSummaryState.summary.approvable_object?.object_type === "repair_patch" ? "repair_patch_id" : "scene_packet_id"}</dd>
+          </dl>
+        ) : (
+          <p>暂不可执行批准写回：{approvalSummaryState.summary.unavailable_reason ?? "暂无阻塞原因"}</p>
         )}
       </section>
       <section aria-labelledby="studio-recovery-summary-title">

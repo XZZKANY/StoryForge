@@ -71,3 +71,15 @@ class RunsJobRunRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class RunsJobRunRetryRead(BaseModel):
+    """Runs 失败重试执行结果，只创建恢复任务并返回入口状态。"""
+
+    can_retry: bool
+    retry_job_run_id: int | None
+    source_job_run_id: int
+    recovery_node: str | None
+    checkpoint: dict[str, Any] | None
+    retry_status: str
+    unavailable_reason: str | None
+

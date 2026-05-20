@@ -4,7 +4,7 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -515,6 +515,204 @@ def test_read_studio_approval_summary_requires_single_identifier(client: TestCli
         "writeback_status": "不可判定",
         "unavailable_reason": "需要提供 Scene Packet ID 或 Repair Patch ID。",
     }
+
+
+def test_approve_studio_scene_packet_writes_back_chapter_state(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """批准 Scene Packet 后写回章节状态并返回连续性更新摘要。"""
+
+    with session_factory() as session:
+        book = Book(title="ScenePacket 批准", status="draft", premise="验证批准执行。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=7, title="执行章节", status="draft", summary="保留克制语气。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="执行场景", status="draft", content="林岚按住仍在发疼的左臂。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"章节目标": "批准当前正文。"}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        chapter_id = chapter.id
+        scene_id = scene.id
+        scene_packet_id = scene_packet.id
+
+    response = client.post("/api/studio/approve", json={"scene_packet_id": scene_packet_id})
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["approved_object"] == {
+        "object_type": "scene_packet",
+        "id": scene_packet_id,
+        "status": "approved",
+        "scene_id": scene_id,
+    }
+    assert payload["target_chapter"] == {"id": chapter_id, "ordinal": 7, "title": "执行章节", "status": "approved"}
+    assert payload["writeback_status"] == "已回写"
+    assert payload["approved_chapter_id"] == chapter_id
+    assert "章节批准连续性记录" in payload["continuity_update_summary"]
+    assert payload["unavailable_reason"] is None
+
+    with session_factory() as session:
+        chapter = session.get(Chapter, chapter_id)
+        scene = session.get(Scene, scene_id)
+        scene_packet = session.get(ScenePacket, scene_packet_id)
+        approval_record = session.scalar(select(ContinuityRecord).where(ContinuityRecord.record_type == "chapter_approval"))
+
+    assert chapter is not None
+    assert chapter.status == "approved"
+    assert scene is not None
+    assert scene.status == "approved"
+    assert scene.content == "林岚按住仍在发疼的左臂。"
+    assert scene_packet is not None
+    assert scene_packet.status == "approved"
+    assert approval_record is not None
+    assert approval_record.payload["approved_content"] == "林岚按住仍在发疼的左臂。"
+
+
+def test_approve_studio_repair_patch_applies_patch_and_writes_back_chapter(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """批准 Repair Patch 后先应用补丁，再写回目标章节状态。"""
+
+    with session_factory() as session:
+        book = Book(title="Repair 批准", status="draft", premise="验证修订批准。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=8, title="修订执行章节", status="draft", summary="修正旧伤设定。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="修订执行场景", status="draft", content="林岚的左臂完好无损。")
+        session.add(scene)
+        session.flush()
+        issue = JudgeIssue(
+            scene_id=scene.id,
+            scene_packet_id=None,
+            issue_type="setting_conflict",
+            severity="high",
+            status="requires_rejudge",
+            description="左臂状态违背旧伤设定。",
+            payload={"span_start": 3, "span_end": 9, "matched_text": "的左臂完好无", "recommended_repair_mode": "replace_span"},
+        )
+        session.add(issue)
+        session.flush()
+        patch = RepairPatch(
+            judge_issue_id=issue.id,
+            scene_id=scene.id,
+            status="requires_rejudge",
+            patch={"target_span": "的左臂完好无", "replacement_text": "的左臂仍然受伤", "span_start": 3, "span_end": 9},
+            rationale="将左臂状态改回受伤。",
+            version=1,
+        )
+        session.add(patch)
+        session.commit()
+        chapter_id = chapter.id
+        scene_id = scene.id
+        issue_id = issue.id
+        patch_id = patch.id
+
+    response = client.post("/api/studio/approve", json={"repair_patch_id": patch_id})
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["approved_object"]["object_type"] == "repair_patch"
+    assert payload["approved_object"]["status"] == "accepted"
+    assert payload["target_chapter"]["status"] == "approved"
+    assert payload["approved_chapter_id"] == chapter_id
+    assert payload["unavailable_reason"] is None
+
+    with session_factory() as session:
+        scene = session.get(Scene, scene_id)
+        chapter = session.get(Chapter, chapter_id)
+        patch = session.get(RepairPatch, patch_id)
+        issue = session.get(JudgeIssue, issue_id)
+
+    assert scene is not None
+    assert scene.content == "林岚的左臂仍然受伤损。"
+    assert scene.status == "approved"
+    assert chapter is not None
+    assert chapter.status == "approved"
+    assert patch is not None
+    assert patch.status == "accepted"
+    assert issue is not None
+    assert issue.status == "closed"
+
+
+def test_approve_studio_unavailable_object_returns_reason_without_writeback(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """不可批准对象返回明确原因，并保持章节状态不变。"""
+
+    with session_factory() as session:
+        book = Book(title="不可执行批准", status="draft", premise="验证阻断。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=9, title="阻断执行章节", status="draft", summary="等待上下文包。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="阻断场景", status="draft", content="尚未完成。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembling", packet={"章节目标": "尚未完成。"}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        chapter_id = chapter.id
+        scene_packet_id = scene_packet.id
+
+    response = client.post("/api/studio/approve", json={"scene_packet_id": scene_packet_id})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["approved_chapter_id"] is None
+    assert response.json()["writeback_status"] == "未执行"
+    assert response.json()["unavailable_reason"] == "Scene Packet 尚未完成组装，暂不可批准。"
+
+    with session_factory() as session:
+        chapter = session.get(Chapter, chapter_id)
+        records = session.scalars(select(ContinuityRecord)).all()
+
+    assert chapter is not None
+    assert chapter.status == "draft"
+    assert records == []
+
+
+def test_approve_studio_duplicate_approval_returns_unavailable_reason(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """重复批准被明确阻断，且不会重复创建章节批准记录。"""
+
+    with session_factory() as session:
+        book = Book(title="重复批准", status="draft", premise="验证幂等阻断。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=10, title="重复章节", status="draft", summary="只允许批准一次。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="重复场景", status="draft", content="只批准一次。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"章节目标": "批准一次。"}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        scene_packet_id = scene_packet.id
+
+    first_response = client.post("/api/studio/approve", json={"scene_packet_id": scene_packet_id})
+    second_response = client.post("/api/studio/approve", json={"scene_packet_id": scene_packet_id})
+
+    assert first_response.status_code == 200, first_response.text
+    assert second_response.status_code == 200, second_response.text
+    assert second_response.json()["approved_chapter_id"] is None
+    assert second_response.json()["unavailable_reason"] == "目标章节已处于批准状态，无需重复回写。"
+
+    with session_factory() as session:
+        records = session.scalars(select(ContinuityRecord).where(ContinuityRecord.record_type == "chapter_approval")).all()
+
+    assert len(records) == 1
 
 
 def test_read_studio_recovery_summary_returns_recoverable_checkpoint(

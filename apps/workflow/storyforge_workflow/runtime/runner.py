@@ -70,8 +70,8 @@ class WorkflowRuntime:
             input_summary=prompt_summary,
             output_summary=provider_execution.summary,
         )
-        self._emit_model_run_payload(model_run)
-        state["model_run_id"] = model_run.model_run_id
+        persisted_model_run_id = self._emit_model_run_payload(model_run)
+        state["model_run_id"] = persisted_model_run_id if persisted_model_run_id is not None else model_run.model_run_id
         chunks = list(self.graph.stream(state, {"configurable": {"thread_id": thread_id}}))
         latest_state = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values
         self.checkpoint_store.save_state(thread_id, latest_state)
@@ -113,10 +113,10 @@ class WorkflowRuntime:
             status="failed",
             error_message=str(error),
         )
-        self._emit_model_run_payload(model_run)
+        persisted_model_run_id = self._emit_model_run_payload(model_run)
         state.update(
             {
-                "model_run_id": model_run.model_run_id,
+                "model_run_id": persisted_model_run_id if persisted_model_run_id is not None else model_run.model_run_id,
                 "current_node": "provider_execution",
                 "error_code": "provider_execution_failed",
             }
@@ -162,10 +162,10 @@ class WorkflowRuntime:
             provider_execution=provider_execution,
         )
 
-    def _emit_model_run_payload(self, model_run: Any) -> None:
+    def _emit_model_run_payload(self, model_run: Any) -> int | None:
         if self.model_run_sink is None:
-            return
-        self.model_run_sink.record(
+            return None
+        return self.model_run_sink.record(
             ModelRunPayload(
                 thread_id=model_run.thread_id,
                 job_run_id=model_run.job_run_id,

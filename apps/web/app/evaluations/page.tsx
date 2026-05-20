@@ -14,6 +14,32 @@ type EvaluationRunListState =
   | { readonly status: "ready"; readonly runs: readonly EvaluationRunItem[] }
   | { readonly status: "error"; readonly message: string };
 
+type EvaluationRunDetail = {
+  readonly run: EvaluationRunItem;
+  readonly trend_points: readonly Record<string, unknown>[];
+  readonly failed_sample_count: number;
+  readonly studio_feedback_href: string | null;
+};
+
+type EvaluationRunDetailState =
+  | { readonly status: "idle"; readonly message: string }
+  | { readonly status: "ready"; readonly detail: EvaluationRunDetail }
+  | { readonly status: "error"; readonly message: string };
+
+type EvaluationFailedSample = {
+  readonly id: string;
+  readonly reason: string;
+  readonly chapter_id: number | null;
+  readonly artifact_id: number | null;
+  readonly repair_hint: string;
+  readonly studio_href: string | null;
+};
+
+type EvaluationFailedSampleState =
+  | { readonly status: "idle"; readonly message: string }
+  | { readonly status: "ready"; readonly samples: readonly EvaluationFailedSample[] }
+  | { readonly status: "error"; readonly message: string };
+
 const evaluationSections = [
   "评测集",
   "运行记录",
@@ -48,6 +74,75 @@ async function readEvaluationRuns(): Promise<EvaluationRunListState> {
   }
 }
 
+async function readEvaluationRunDetail(runId: number | undefined): Promise<EvaluationRunDetailState> {
+  if (runId === undefined) {
+    return { status: "idle", message: "读取评测详情需要先获得评测运行列表。" };
+  }
+  try {
+    const response = await fetch(new URL(`${evaluationRunsEndpoint}/${runId}`, getEvaluationsApiBaseUrl()), { cache: "no-store" });
+    if (!response.ok) {
+      return { status: "error", message: `评测详情 API 返回 ${response.status}` };
+    }
+    const payload: unknown = await response.json();
+    if (!isEvaluationRunDetail(payload)) {
+      return { status: "error", message: "评测详情 API 返回格式不符合预期" };
+    }
+    return { status: "ready", detail: payload };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知错误";
+    return { status: "error", message };
+  }
+}
+
+async function readEvaluationFailedSamples(runId: number | undefined): Promise<EvaluationFailedSampleState> {
+  if (runId === undefined) {
+    return { status: "idle", message: "读取失败样例需要先获得评测运行列表。" };
+  }
+  try {
+    const response = await fetch(new URL(`${evaluationRunsEndpoint}/${runId}/failed-samples`, getEvaluationsApiBaseUrl()), { cache: "no-store" });
+    if (!response.ok) {
+      return { status: "error", message: `失败样例 API 返回 ${response.status}` };
+    }
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload) || !payload.every(isEvaluationFailedSample)) {
+      return { status: "error", message: "失败样例 API 返回格式不符合预期" };
+    }
+    return { status: "ready", samples: payload };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知错误";
+    return { status: "error", message };
+  }
+}
+
+function isEvaluationRunDetail(value: unknown): value is EvaluationRunDetail {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<EvaluationRunDetail>;
+  return (
+    typeof candidate.run === "object" &&
+    candidate.run !== null &&
+    Array.isArray(candidate.trend_points) &&
+    typeof candidate.failed_sample_count === "number" &&
+    (typeof candidate.studio_feedback_href === "string" || candidate.studio_feedback_href === null)
+  );
+}
+
+function isEvaluationFailedSample(value: unknown): value is EvaluationFailedSample {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<EvaluationFailedSample>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.reason === "string" &&
+    (typeof candidate.chapter_id === "number" || candidate.chapter_id === null) &&
+    (typeof candidate.artifact_id === "number" || candidate.artifact_id === null) &&
+    typeof candidate.repair_hint === "string" &&
+    (typeof candidate.studio_href === "string" || candidate.studio_href === null)
+  );
+}
+
 function formatMetricValue(value: unknown): string {
   return typeof value === "number" ? value.toFixed(4).replace(/\.?0+$/u, "") : "未提供";
 }
@@ -73,6 +168,11 @@ function formatOptionalBookId(bookId: number | null): string {
 
 export default async function EvaluationsPage() {
   const evaluationRunListState = await readEvaluationRuns();
+  const firstRunId = evaluationRunListState.status === "ready" ? evaluationRunListState.runs[0]?.id : undefined;
+  const [evaluationRunDetailState, failedSampleState] = await Promise.all([
+    readEvaluationRunDetail(firstRunId),
+    readEvaluationFailedSamples(firstRunId),
+  ]);
 
   return (
     <main aria-labelledby="evaluations-title">
@@ -109,7 +209,45 @@ export default async function EvaluationsPage() {
       </section>
       <section aria-labelledby="evaluations-unimplemented-title">
         <h2 id="evaluations-unimplemented-title">未实现边界</h2>
-        <p>评测报告下载、指标趋势图和报告详情页仍未实现；当前页面只做只读运行记录展示。</p>
+        <p>评测报告下载和复杂图表仍未实现；当前页面已读取趋势摘要、失败样例和 Studio 反馈入口。</p>
+      </section>
+      <section aria-labelledby="evaluation-feedback-title">
+        <h2 id="evaluation-feedback-title">失败样例与反馈回流</h2>
+        <p>服务端读取 {evaluationRunsEndpoint}/{"{run_id}"} 与 {evaluationRunsEndpoint}/{"{run_id}"}/failed-samples，展示趋势摘要和回到 Studio 的修复入口。</p>
+        {evaluationRunDetailState.status === "idle" ? (
+          <p>{evaluationRunDetailState.message}</p>
+        ) : evaluationRunDetailState.status === "error" ? (
+          <p role="status">可重试错误摘要：{evaluationRunDetailState.message}</p>
+        ) : (
+          <dl>
+            <dt>趋势摘要点</dt>
+            <dd>{evaluationRunDetailState.detail.trend_points.map((point) => `${String(point.metric)}=${String(point.value)}`).join("；")}</dd>
+            <dt>失败样例数量</dt>
+            <dd>{evaluationRunDetailState.detail.failed_sample_count}</dd>
+            <dt>Studio 反馈入口</dt>
+            <dd>{evaluationRunDetailState.detail.studio_feedback_href ?? "暂无 Studio 反馈入口"}</dd>
+          </dl>
+        )}
+        {failedSampleState.status === "idle" ? (
+          <p>{failedSampleState.message}</p>
+        ) : failedSampleState.status === "error" ? (
+          <p role="status">可重试错误摘要：{failedSampleState.message}</p>
+        ) : failedSampleState.samples.length === 0 ? (
+          <p>空列表：当前评测运行暂无失败样例。</p>
+        ) : (
+          <ul>
+            {failedSampleState.samples.map((sample) => (
+              <li key={sample.id}>
+                <strong>{sample.id}</strong>
+                <span>原因：{sample.reason}</span>
+                <span>关联章节：{sample.chapter_id ?? "未关联"}</span>
+                <span>关联制品：{sample.artifact_id ?? "未关联"}</span>
+                <span>修复建议：{sample.repair_hint}</span>
+                <span>Studio 入口：{sample.studio_href ?? "暂无入口"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       <section aria-labelledby="evaluations-data-sources-title">
         <h2 id="evaluations-data-sources-title">数据源契约</h2>

@@ -56,3 +56,25 @@ def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifac
     assert listing.status_code == 200
     artifact_types = {item["artifact_type"] for item in listing.json()}
     assert {"export", "upload"}.issubset(artifact_types)
+
+    artifact_id = upload.json()["id"]
+    detail = client.get(f"/api/artifacts/{artifact_id}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["name"] == "灯塔港设定附件"
+    assert detail.json()["payload"]["purpose"] == "reference"
+
+    download = client.get(f"/api/artifacts/{artifact_id}/download")
+    assert download.status_code == 200, download.text
+    assert download.json()["download_mode"] == "payload_preview"
+    assert download.json()["payload_summary"]["purpose"] == "reference"
+    assert "灯塔港设定附件" in download.json()["content_preview"]
+
+
+def test_artifact_detail_returns_404_for_missing_artifact(client: TestClient) -> None:
+    detail = client.get("/api/artifacts/999999")
+    assert detail.status_code == 404
+    assert "制品不存在" in detail.json()["detail"]
+
+    download = client.get("/api/artifacts/999999/download")
+    assert download.status_code == 404
+    assert "制品不存在" in download.json()["detail"]
