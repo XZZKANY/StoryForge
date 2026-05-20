@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.batch_refinery.schemas import BatchRefineryItemCreate, BatchRefineryRunCreate
 from app.domains.books.models import Book, Scene
@@ -12,7 +13,7 @@ from app.domains.repair.schemas import RepairPatchCreate
 from app.domains.repair.service import RepairInputError, create_repair_patch
 
 
-class BatchRefineryInputError(ValueError):
+class BatchRefineryInputError(InputError):
     """批量精修请求缺少作品或任务记录时抛出。"""
 
 

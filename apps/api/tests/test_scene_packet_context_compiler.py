@@ -19,19 +19,6 @@ from app.domains.series.models import Series
 import pytest
 
 
-@pytest.fixture()
-def session() -> Generator[Session, None, None]:
-    """使用 SQLite 内存库验证 Scene Packet 与 Context Compiler 接入。"""
-
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with factory() as db_session:
-        yield db_session
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
 def test_scene_packet_records_compiled_context_debug_fields(session: Session) -> None:
     """Scene Packet 应输出 compiled_context_id、注入块、裁剪块和预算报告。"""
 

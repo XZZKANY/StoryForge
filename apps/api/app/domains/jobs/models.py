@@ -35,7 +35,3 @@ class JobRun(IdMixin, TimestampMixin, Base):
 
 
 # 单独导入任务领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
-from app.domains import assets as _assets_domain  # noqa: E402,F401
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import continuity as _continuity_domain  # noqa: E402,F401
-from app.domains import judge as _judge_domain  # noqa: E402,F401

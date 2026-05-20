@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.evaluations.schemas import EvaluationCaseCreate, EvaluationCaseRead, EvaluationRunCreate, EvaluationRunRead
 from app.domains.evaluations.service import EvaluationError, create_evaluation_case, create_evaluation_run, list_evaluation_runs
 
 router = APIRouter(prefix="/api/evaluations", tags=["评测系统"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/cases", response_model=EvaluationCaseRead, status_code=status.HTTP_201_CREATED)

@@ -65,5 +65,3 @@ class ApprovalDecision(IdMixin, TimestampMixin, Base):
     member: Mapped[WorkspaceMember] = relationship(back_populates="decisions")
 
 
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401

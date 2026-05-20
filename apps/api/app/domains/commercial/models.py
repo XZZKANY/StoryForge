@@ -27,4 +27,3 @@ class WorkspaceSubscription(IdMixin, TimestampMixin, Base):
     workspace: Mapped[Workspace] = relationship(back_populates="subscriptions")
 
 
-from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401

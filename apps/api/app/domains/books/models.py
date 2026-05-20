@@ -69,8 +69,3 @@ class Scene(IdMixin, TimestampMixin, Base):
 
 
 # SQLAlchemy 的字符串关系解析依赖类注册表；单独导入本模块时也要注册相关领域模型。
-from app.domains import assets as _assets_domain  # noqa: E402,F401
-from app.domains import continuity as _continuity_domain  # noqa: E402,F401
-from app.domains import jobs as _jobs_domain  # noqa: E402,F401
-from app.domains import judge as _judge_domain  # noqa: E402,F401
-from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401

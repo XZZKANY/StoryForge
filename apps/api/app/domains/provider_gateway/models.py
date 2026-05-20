@@ -27,4 +27,3 @@ class ProviderConfig(IdMixin, TimestampMixin, Base):
     workspace: Mapped[Workspace | None] = relationship(back_populates="provider_configs")
 
 
-from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401

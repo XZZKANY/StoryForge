@@ -42,8 +42,4 @@ class ModelRun(IdMixin, TimestampMixin, Base):
     prompt_pack: Mapped[PromptPack | None] = relationship()
 
 
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import jobs as _jobs_domain  # noqa: E402,F401
-from app.domains import prompt_packs as _prompt_pack_domain  # noqa: E402,F401
-from app.domains import workspaces as _workspaces_domain  # noqa: E402,F401
 

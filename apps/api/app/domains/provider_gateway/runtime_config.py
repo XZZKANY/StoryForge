@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -42,8 +43,9 @@ class ProviderRuntimeConfig(BaseModel):
         return aliases
 
 
+@lru_cache(maxsize=3)
 def load_runtime_provider_config(capability: ProviderCapability) -> ProviderRuntimeConfig:
-    """按能力读取 Phase 5 provider 环境变量，并在缺少密钥时返回稳定回退。"""
+    """按能力读取 Phase 5 provider 环境变量，并缓存进程内稳定配置。"""
 
     if capability == "llm":
         return _load_llm_config()

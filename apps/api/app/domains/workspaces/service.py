@@ -5,20 +5,21 @@ from collections.abc import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from app.common.exceptions import ConflictError, NotFoundError
 
 from app.domains.workspaces.models import Workspace, WorkspaceMember
 from app.domains.workspaces.schemas import WorkspaceCreate, WorkspaceMemberCreate
 
 
-class WorkspaceNotFoundError(ValueError):
+class WorkspaceNotFoundError(NotFoundError):
     """目标工作区不存在时抛出。"""
 
 
-class WorkspaceSeatLimitError(ValueError):
+class WorkspaceSeatLimitError(ConflictError):
     """工作区席位已满时抛出。"""
 
 
-class WorkspaceConflictError(ValueError):
+class WorkspaceConflictError(ConflictError):
     """工作区 slug 冲突时抛出。"""
 
 

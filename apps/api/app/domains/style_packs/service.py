@@ -3,23 +3,25 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError, NotFoundError
 
+from app.db.queries import latest_by_lineage
 from app.domains.assets.models import Asset
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.style_packs.schemas import StylePackApplyCreate, StylePackCreate, StylePackUpdate
 
 
-class StylePackNotFoundError(ValueError):
+class StylePackNotFoundError(NotFoundError):
     """风格包不存在或类型不匹配时抛出。"""
 
 
-class StylePackInputError(ValueError):
+class StylePackInputError(InputError):
     """风格包创建、更新或应用的输入不合法时抛出。"""
 
 
-class StylePackBookNotFoundError(ValueError):
+class StylePackBookNotFoundError(NotFoundError):
     """目标作品不存在时抛出。"""
 
 
@@ -50,11 +52,9 @@ def create_style_pack(session: Session, payload: StylePackCreate) -> Asset:
 def list_style_packs(session: Session, book_id: int) -> Sequence[Asset]:
     """列出作品下每条风格包谱系的最新版本。"""
 
-    latest_versions = (
-        select(Asset.lineage_key, func.max(Asset.version).label("latest_version"))
-        .where(Asset.book_id == book_id, Asset.asset_type == "style_pack")
-        .group_by(Asset.lineage_key)
-        .subquery()
+    latest_versions = latest_by_lineage(
+        Asset,
+        filters=[Asset.book_id == book_id, Asset.asset_type == "style_pack"],
     )
     return session.scalars(
         select(Asset)

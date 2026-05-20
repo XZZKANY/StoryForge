@@ -22,19 +22,6 @@ from app.domains.style_packs.schemas import StylePackApplyCreate, StylePackCreat
 from app.domains.style_packs.service import apply_style_pack, create_style_pack, update_style_pack
 
 
-@pytest.fixture()
-def session() -> Generator[Session, None, None]:
-    """使用 SQLite 内存库验证 Phase 2 服务闭环。"""
-
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with factory() as db_session:
-        yield db_session
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
 def test_style_pack_service_flow_uses_latest_version_for_applied_rules(session: Session) -> None:
     """风格包应用时应复制最新版本，并让 Scene Packet 消费最新规则。"""
 

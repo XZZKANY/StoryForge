@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.scene_packets.schemas import ScenePacketCreate, ScenePacketRead
 from app.domains.scene_packets.service import ScenePacketInputError, assemble_scene_packet
 
 router = APIRouter(prefix="/api/scene-packets", tags=["场景上下文包"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=ScenePacketRead, status_code=status.HTTP_201_CREATED)

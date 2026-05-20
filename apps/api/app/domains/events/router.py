@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.events.schemas import EventLogRead, EventRecordCreate
 from app.domains.events.service import EventWorkspaceNotFoundError, list_workspace_events, record_event
 
 router = APIRouter(prefix="/api/events", tags=["事件流"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=EventLogRead, status_code=status.HTTP_201_CREATED)

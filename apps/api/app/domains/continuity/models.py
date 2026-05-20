@@ -46,6 +46,3 @@ class ScenePacket(IdMixin, TimestampMixin, VersionMixin, Base):
 
 
 # 单独导入连续性领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import jobs as _jobs_domain  # noqa: E402,F401
-from app.domains import judge as _judge_domain  # noqa: E402,F401

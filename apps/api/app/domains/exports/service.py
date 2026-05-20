@@ -7,13 +7,14 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact
 from app.domains.books.models import Book, Chapter, Scene
 
 
-class ExportNotFoundError(ValueError):
+class ExportNotFoundError(NotFoundError):
     """作品或可导出的已批准正文不存在时抛出。"""
 
 

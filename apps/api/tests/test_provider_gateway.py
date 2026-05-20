@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401
 from app.db.base import Base
 from app.db.session import get_session
+from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
 from app.domains.provider_gateway.service import ProviderGatewayError, resolve_provider
 from app.domains.workspaces.models import Workspace
 from app.main import app
@@ -17,31 +18,17 @@ from app.main import app
 import pytest
 
 
-@pytest.fixture()
-def session_factory() -> Generator[sessionmaker[Session], None, None]:
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    try:
-        yield factory
-    finally:
-        Base.metadata.drop_all(engine)
-        engine.dispose()
+@pytest.fixture(autouse=True)
+def clear_runtime_provider_config_cache() -> Generator[None, None, None]:
+    """每个 provider 测试独立解析环境变量和 Redis 缓存，避免跨用例污染。"""
 
+    from app.domains.provider_gateway import service as provider_service
 
-@pytest.fixture()
-def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
-    def override_get_session() -> Generator[Session, None, None]:
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    load_runtime_provider_config.cache_clear()
+    provider_service.cache_delete_pattern("storyforge:provider-resolution:*")
+    yield
+    load_runtime_provider_config.cache_clear()
+    provider_service.cache_delete_pattern("storyforge:provider-resolution:*")
 
 
 @pytest.fixture()
@@ -149,3 +136,82 @@ def test_provider_gateway_rejects_unknown_capability(session_factory: sessionmak
     with session_factory() as session:
         with pytest.raises(ProviderGatewayError, match="llm、embedding、reranker"):
             resolve_provider(session, "vision")
+
+
+def test_runtime_provider_config_uses_lru_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """运行时 provider 环境配置应按能力缓存，并允许测试或运维显式清理。"""
+
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "deterministic")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "cached-writer")
+
+    load_runtime_provider_config.cache_clear()
+    first = load_runtime_provider_config("llm")
+    second = load_runtime_provider_config("llm")
+    cache_info = load_runtime_provider_config.cache_info()
+
+    assert first is second
+    assert cache_info.hits == 1
+    assert cache_info.maxsize == 3
+
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "cleared-writer")
+    load_runtime_provider_config.cache_clear()
+    refreshed = load_runtime_provider_config("llm")
+
+    assert refreshed.model_name == "cleared-writer"
+
+
+
+def test_provider_resolution_uses_redis_cache_and_invalidates_on_provider_create(
+    session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider 解析应接入 Redis 缓存，并在新增 provider 后失效。"""
+
+    from app.domains.provider_gateway import service as provider_service
+    from app.domains.provider_gateway.schemas import ProviderConfigCreate
+
+    cache_store: dict[str, dict] = {}
+    deleted_patterns: list[str] = []
+
+    def fake_get_json(key: str):
+        return cache_store.get(key)
+
+    def fake_set_json(key: str, value: dict, ttl_seconds: int) -> None:
+        cache_store[key] = value
+
+    def fake_delete_pattern(pattern: str) -> None:
+        deleted_patterns.append(pattern)
+        cache_store.clear()
+
+    monkeypatch.setattr(provider_service, "cache_get_json", fake_get_json)
+    monkeypatch.setattr(provider_service, "cache_set_json", fake_set_json)
+    monkeypatch.setattr(provider_service, "cache_delete_pattern", fake_delete_pattern)
+
+    with session_factory() as session:
+        first = provider_service.resolve_provider(session, "llm")
+        assert first.resolution_source in {"environment", "fallback"}
+        assert cache_store
+
+        cached_key = next(iter(cache_store))
+        cached_payload = dict(cache_store[cached_key])
+        cached_payload["provider_name"] = "cached-provider"
+        cached_payload["resolution_summary"] = "来自 Redis 缓存。"
+        cache_store[cached_key] = cached_payload
+
+        second = provider_service.resolve_provider(session, "llm")
+        assert second.provider_name == "cached-provider"
+        assert second.resolution_summary == "来自 Redis 缓存。"
+
+        provider_service.create_provider_config(
+            session,
+            ProviderConfigCreate(
+                provider_name="openai-global",
+                priority=10,
+                capabilities=["llm"],
+                model_aliases={"default": "gpt-5.5"},
+                credential_ref="vault://global/openai",
+            ),
+        )
+
+    assert deleted_patterns
+    assert cache_store == {}

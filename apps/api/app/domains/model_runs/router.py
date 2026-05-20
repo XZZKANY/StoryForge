@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
-from app.domains.model_runs.schemas import ModelRunCreate, ModelRunRead
-from app.domains.model_runs.service import ModelRunError, create_model_run, list_model_runs
+from app.db.deps import SessionDependency
+from app.domains.model_runs.schemas import ModelRunCreate, ModelRunRead, RunsJobRunRead
+from app.domains.model_runs.service import ModelRunError, create_model_run, get_runs_job_run, list_model_runs
 
 router = APIRouter(prefix="/api/model-runs", tags=["模型运行日志"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=ModelRunRead, status_code=status.HTTP_201_CREATED)
@@ -29,4 +27,12 @@ def list_model_runs_endpoint(
     job_run_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> list[ModelRunRead]:
     return list(list_model_runs(session, workspace_id=workspace_id, book_id=book_id, job_run_id=job_run_id))
+
+
+@router.get("/job-runs/{job_run_id}", response_model=RunsJobRunRead)
+def get_runs_job_run_endpoint(job_run_id: int, session: SessionDependency) -> RunsJobRunRead:
+    try:
+        return get_runs_job_run(session, job_run_id=job_run_id)
+    except ModelRunError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

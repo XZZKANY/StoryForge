@@ -66,6 +66,4 @@ class RetrievalRefreshRun(IdMixin, TimestampMixin, Base):
     series: Mapped[Series | None] = relationship()
 
 
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import series as _series_domain  # noqa: E402,F401
 

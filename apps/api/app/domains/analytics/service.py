@@ -4,7 +4,9 @@ from collections import Counter
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
+from app.common.math import safe_ratio
 from app.domains.analytics.schemas import AnalyticsFailureCategoryRead, WorkspaceAnalyticsRead
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
@@ -15,7 +17,7 @@ from app.domains.provider_gateway.models import ProviderConfig
 from app.domains.workspaces.models import Workspace, WorkspaceMember
 
 
-class AnalyticsWorkspaceNotFoundError(ValueError):
+class AnalyticsWorkspaceNotFoundError(NotFoundError):
     """分析层查询的工作区不存在。"""
 
 
@@ -41,13 +43,13 @@ def build_workspace_analytics(session: Session, workspace_id: int) -> WorkspaceA
         .order_by(ApprovalDecision.id)
     ).all()
     approved_count = sum(1 for row in decision_rows if row.decision == "approved")
-    approval_pass_rate = _safe_ratio(approved_count, len(decision_rows))
+    approval_pass_rate = safe_ratio(approved_count, len(decision_rows))
     repair_rows = session.scalars(select(RepairPatch).where(RepairPatch.scene_id.in_(scene_ids)).order_by(RepairPatch.id)).all() if scene_ids else []
     accepted_repairs = sum(1 for row in repair_rows if row.status == "accepted")
-    repair_acceptance_rate = _safe_ratio(accepted_repairs, len(repair_rows))
+    repair_acceptance_rate = safe_ratio(accepted_repairs, len(repair_rows))
     job_rows = session.scalars(select(JobRun).join(Book, JobRun.book_id == Book.id).where(Book.workspace_id == workspace_id).order_by(JobRun.id)).all()
     completed_jobs = sum(1 for row in job_rows if row.status == "completed")
-    job_success_rate = _safe_ratio(completed_jobs, len(job_rows))
+    job_success_rate = safe_ratio(completed_jobs, len(job_rows))
     recent_event_count = int(session.scalar(select(func.count(EventLog.id)).where(EventLog.workspace_id == workspace_id)) or 0)
     active_provider_count = int(session.scalar(select(func.count(ProviderConfig.id)).where((ProviderConfig.workspace_id == workspace_id) | (ProviderConfig.workspace_id.is_(None)), ProviderConfig.status == "active")) or 0)
     issue_rows = session.scalars(select(JudgeIssue).where(JudgeIssue.scene_id.in_(scene_ids)).order_by(JudgeIssue.id)).all() if scene_ids else []
@@ -72,8 +74,3 @@ def build_workspace_analytics(session: Session, workspace_id: int) -> WorkspaceA
         ),
     )
 
-
-def _safe_ratio(success: int, total: int) -> float:
-    if total <= 0:
-        return 0.0
-    return round(success / total, 4)

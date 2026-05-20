@@ -48,5 +48,3 @@ class EvidenceLink(IdMixin, TimestampMixin, Base):
 
 
 # 单独导入资产领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。
-from app.domains import books as _books_domain  # noqa: E402,F401
-from app.domains import jobs as _jobs_domain  # noqa: E402,F401

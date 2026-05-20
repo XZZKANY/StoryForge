@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from starlette.requests import Request
 
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
@@ -26,6 +28,8 @@ from app.domains.series.router import router as series_router
 from app.domains.workspaces.router import router as workspaces_router
 from app.domains.worldbuilding.router import router as worldbuilding_router
 
+from app.common.exceptions import DomainError
+
 app = FastAPI(title="StoryForge API", version="0.1.0")
 app.include_router(analytics_router)
 app.include_router(artifacts_router)
@@ -50,3 +54,8 @@ app.include_router(studio_router)
 app.include_router(series_router)
 app.include_router(workspaces_router)
 app.include_router(worldbuilding_router)
+
+
+@app.exception_handler(DomainError)
+async def domain_error_handler(request: Request, exc: DomainError):
+    return JSONResponse(status_code=exc.status_code, content={"detail": str(exc)})

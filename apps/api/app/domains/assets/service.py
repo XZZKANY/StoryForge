@@ -3,23 +3,25 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError, NotFoundError
 
+from app.db.queries import latest_by_lineage
 from app.domains.assets.models import Asset
 from app.domains.assets.schemas import AssetCreate, AssetUpdate
 from app.domains.books.models import Book, Chapter, Scene
 
 
-class AssetNotFoundError(ValueError):
+class AssetNotFoundError(NotFoundError):
     """资产不存在时由服务层抛出，路由层负责转换为 HTTP 响应。"""
 
 
-class BookNotFoundError(ValueError):
+class BookNotFoundError(NotFoundError):
     """作品不存在时由服务层抛出，避免产生孤立资产。"""
 
 
-class EmptyAssetUpdateError(ValueError):
+class EmptyAssetUpdateError(InputError):
     """空更新无法形成有意义的新版本。"""
 
 
@@ -57,12 +59,7 @@ def create_asset(session: Session, payload: AssetCreate) -> Asset:
 def list_assets(session: Session, book_id: int, asset_type: str | None = None) -> Sequence[Asset]:
     """列出作品下每条资产谱系的最新版本。"""
 
-    latest_versions = (
-        select(Asset.lineage_key, func.max(Asset.version).label("latest_version"))
-        .where(Asset.book_id == book_id)
-        .group_by(Asset.lineage_key)
-        .subquery()
-    )
+    latest_versions = latest_by_lineage(Asset, filters=[Asset.book_id == book_id])
     statement = (
         select(Asset)
         .join(

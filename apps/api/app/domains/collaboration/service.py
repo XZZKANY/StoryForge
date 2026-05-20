@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
@@ -18,7 +19,7 @@ from app.domains.events.service import record_event
 from app.domains.workspaces.service import require_active_member
 
 
-class CollaborationInputError(ValueError):
+class CollaborationInputError(InputError):
     """协作对象缺失或归属不一致时抛出。"""
 
 

@@ -37,6 +37,31 @@ class RetrievalSourceRead(BaseModel):
     updated_at: datetime
 
 
+class RetrievalWorkbenchSourceRead(BaseModel):
+    id: int
+    book_id: int | None
+    series_id: int | None
+    source_type: str
+    title: str
+    status: str
+    chunk_count: int
+    refresh_status: str
+    evidence_anchor: str
+
+
+class RetrievalWorkbenchRefreshRunRead(BaseModel):
+    id: int
+    source_id: int | None
+    book_id: int | None
+    series_id: int | None
+    status: str
+    chunk_count: int
+    embedding_provider: str | None
+    embedding_model: str | None
+    credential_status: str | None
+    source_ids: list[int]
+
+
 class RetrievalRefreshRunCreate(BaseModel):
     source_id: int | None = Field(default=None, gt=0)
     book_id: int | None = Field(default=None, gt=0)
@@ -92,3 +117,12 @@ class RetrievalHitRead(BaseModel):
     rerank_score: float | None = None
     rerank_provider: str | None = None
     rerank_model: str | None = None
+
+
+class RetrievalWorkbenchHitRead(RetrievalHitRead):
+    evidence_href: str
+
+
+class RetrievalWorkbenchSearchRead(BaseModel):
+    query: str
+    hits: list[RetrievalWorkbenchHitRead]

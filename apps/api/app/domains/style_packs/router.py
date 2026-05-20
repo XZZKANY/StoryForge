@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.style_packs.schemas import (
     StylePackApplyCreate,
     StylePackCreate,
@@ -24,7 +23,6 @@ from app.domains.style_packs.service import (
 )
 
 router = APIRouter(prefix="/api/style-packs", tags=["风格包"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=StylePackRead, status_code=status.HTTP_201_CREATED)

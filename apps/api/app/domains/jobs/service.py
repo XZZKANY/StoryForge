@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
 from app.domains.jobs.models import JobRun
 
 
-class JobRuntimeBridgeError(ValueError):
+class JobRuntimeBridgeError(InputError):
     """任务与运行时桥接失败。"""
 
 

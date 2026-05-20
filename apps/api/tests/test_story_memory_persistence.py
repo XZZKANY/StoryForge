@@ -22,19 +22,6 @@ from app.domains.story_memory.service import (
 import pytest
 
 
-@pytest.fixture()
-def session() -> Generator[Session, None, None]:
-    """使用 SQLite 内存库验证 story_memory 最小持久化模型。"""
-
-    engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with factory() as db_session:
-        yield db_session
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
 def test_memory_atom_record_table_uses_existing_integer_book_id(session: Session) -> None:
     """memory_atoms 表必须使用现有 int 主键体系，不得凭空假设 UUID。"""
 

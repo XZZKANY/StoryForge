@@ -27,7 +27,7 @@
 - 当前环境中 Docker 服务不可查询时，`pnpm verify` 会失败；需要启动 Docker Desktop 或 Docker 服务后补跑。
 - `pnpm openapi` 会按 `uv`、`python3`、`python` 顺序选择可用运行时；三者都不可用时才会失败。
 - FastAPI HTTP pytest 在部分环境可能阻塞，`pnpm e2e` 会自动切换到服务层补偿验收。
-- `.env.example` 已包含 `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*` 预留变量；当前代码尚未读取这些变量，不能作为真实 AI/RAG 已接入的发布依据。
+- `.env.example` 已包含 `STORYFORGE_API_BASE_URL`、`STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*`；其中 Provider Gateway 会读取 LLM、embedding、reranker 变量，缺少密钥时稳定回退，不能作为真实外部 AI/RAG 端到端已接入的发布依据。
 
 ## 5. 维护规则
 

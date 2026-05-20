@@ -3,15 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
+from app.db.queries import latest_by_lineage
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord
 
 
-class ChapterWritebackError(ValueError):
+class ChapterWritebackError(NotFoundError):
     """批准回写无法定位作品、章节、场景或资产时抛出。"""
 
 
@@ -178,7 +180,8 @@ def _load_source_assets(session: Session, payload: ChapterWritebackApproval, sce
 def _next_asset_version(session: Session, lineage_key: str) -> int:
     """读取同一谱系的下一版本号，保持章节版本和差异摘要可追溯。"""
 
-    latest_version = session.scalar(select(func.max(Asset.version)).where(Asset.lineage_key == lineage_key))
+    latest_versions = latest_by_lineage(Asset, filters=[Asset.lineage_key == lineage_key])
+    latest_version = session.scalar(select(latest_versions.c.latest_version))
     return int(latest_version or 0) + 1
 
 

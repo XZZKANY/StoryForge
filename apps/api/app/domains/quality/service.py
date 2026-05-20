@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from app.common.exceptions import NotFoundError
 
+from app.common.math import safe_ratio
+from app.db.queries import latest_by_lineage
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
@@ -10,7 +13,7 @@ from app.domains.quality.schemas import QualityDashboardQuery, QualityDashboardR
 from app.domains.series.models import Series, SeriesMemory
 
 
-class QualityDashboardInputError(ValueError):
+class QualityDashboardInputError(NotFoundError):
     """质量看板请求缺少必要过滤条件或引用不存在实体时抛出。"""
 
 
@@ -28,8 +31,8 @@ def build_quality_dashboard(session: Session, query: QualityDashboardQuery) -> Q
     successful_jobs, total_jobs = _count_jobs(session, query.book_id)
     series_memory_count = _count_series_memories(session, query.series_id)
 
-    repair_acceptance_rate = _safe_ratio(accepted_repairs, total_repairs)
-    job_success_rate = _safe_ratio(successful_jobs, total_jobs)
+    repair_acceptance_rate = safe_ratio(accepted_repairs, total_repairs)
+    job_success_rate = safe_ratio(successful_jobs, total_jobs)
     return QualityDashboardRead(
         book_id=query.book_id,
         series_id=query.series_id,
@@ -84,11 +87,9 @@ def _count_jobs(session: Session, book_id: int | None) -> tuple[int, int]:
 def _count_series_memories(session: Session, series_id: int | None) -> int:
     if series_id is None:
         return 0
-    latest_versions = (
-        select(SeriesMemory.lineage_key, func.max(SeriesMemory.version).label("latest_version"))
-        .where(SeriesMemory.series_id == series_id, SeriesMemory.status == "active")
-        .group_by(SeriesMemory.lineage_key)
-        .subquery()
+    latest_versions = latest_by_lineage(
+        SeriesMemory,
+        filters=[SeriesMemory.series_id == series_id, SeriesMemory.status == "active"],
     )
     return int(
         session.scalar(
@@ -104,8 +105,3 @@ def _count_series_memories(session: Session, series_id: int | None) -> int:
         or 0
     )
 
-
-def _safe_ratio(success: int, total: int) -> float:
-    if total <= 0:
-        return 0.0
-    return round(success / total, 4)

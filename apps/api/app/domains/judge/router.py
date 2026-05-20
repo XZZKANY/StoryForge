@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
 from app.domains.judge.service import JudgeInputError, create_judge_issues
 
 router = APIRouter(prefix="/api/judge", tags=["结构化评审"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/issues", response_model=list[JudgeIssueRead], status_code=status.HTTP_201_CREATED)

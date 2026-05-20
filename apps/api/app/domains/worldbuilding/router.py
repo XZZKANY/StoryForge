@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.worldbuilding.schemas import WorldbuildingCenterRead
 from app.domains.worldbuilding.service import WorldbuildingNotFoundError, build_worldbuilding_center
 
 router = APIRouter(prefix="/api/worldbuilding", tags=["世界观中心"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/center", response_model=WorldbuildingCenterRead)

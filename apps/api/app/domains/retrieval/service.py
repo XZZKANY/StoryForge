@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import logging
+import os
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
+from app.common.exceptions import InputError
 
-from app.domains.books.models import Book
+from app.common.scope import ScopeNotFoundError, validate_scope
 from app.domains.retrieval.embedding_client import EmbeddingClient, EmbeddingResult, LocalEmbeddingClient
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
 from app.domains.retrieval.reranker_client import RerankerClient
@@ -15,13 +19,36 @@ from app.domains.retrieval.schemas import (
     RetrievalRefreshRunCreate,
     RetrievalSearchCreate,
     RetrievalSourceCreate,
+    RetrievalWorkbenchHitRead,
+    RetrievalWorkbenchRefreshRunRead,
+    RetrievalWorkbenchSearchRead,
+    RetrievalWorkbenchSourceRead,
 )
 from app.domains.series.models import Series
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_VECTOR_CANDIDATE_MULTIPLIER = 8
+DEFAULT_MIN_VECTOR_CANDIDATES = 32
+DEFAULT_PGVECTOR_DIMENSIONS = 4
 
 RetrievalScore = tuple[float, float, float, str]
 
 
-class RetrievalInputError(ValueError):
+@dataclass(frozen=True)
+class SearchCandidateLoad:
+    """检索候选加载摘要，用于后续观测候选裁剪效果。"""
+
+    chunks: list[RetrievalChunk]
+    prefilter_enabled: bool
+    prefilter_terms: tuple[str, ...]
+    filtered_count: int
+    fallback_used: bool
+    pgvector_enabled: bool = False
+    vector_candidate_limit: int | None = None
+
+
+class RetrievalInputError(InputError):
     """检索域输入引用不存在或作用域不合法时抛出。"""
 
 
@@ -54,6 +81,47 @@ def list_retrieval_sources(session: Session, book_id: int | None = None, series_
     if series_id is not None:
         statement = statement.where(RetrievalSource.series_id == series_id)
     return session.scalars(statement).all()
+
+
+def _list_retrieval_sources_for_workbench(
+    session: Session,
+    book_id: int | None = None,
+    series_id: int | None = None,
+) -> Sequence[RetrievalSource]:
+    statement = select(RetrievalSource).order_by(RetrievalSource.id)
+    if book_id is not None:
+        statement = statement.where(RetrievalSource.book_id == book_id)
+    if series_id is not None:
+        statement = statement.where(RetrievalSource.series_id == series_id)
+    return session.scalars(statement).all()
+
+
+def list_retrieval_workbench_sources(
+    session: Session,
+    book_id: int | None = None,
+    series_id: int | None = None,
+) -> list[RetrievalWorkbenchSourceRead]:
+    sources = _list_retrieval_sources_for_workbench(session, book_id=book_id, series_id=series_id)
+    source_ids = [source.id for source in sources]
+    latest_runs = _load_latest_refresh_runs_by_source_id(session, source_ids)
+    chunk_counts = _load_chunk_counts_by_source_id(session, source_ids)
+    return [_build_workbench_source(source, latest_runs.get(source.id), chunk_counts.get(source.id, 0)) for source in sources]
+
+
+def list_retrieval_workbench_refresh_runs(
+    session: Session,
+    source_id: int | None = None,
+    book_id: int | None = None,
+    series_id: int | None = None,
+) -> list[RetrievalWorkbenchRefreshRunRead]:
+    statement = select(RetrievalRefreshRun).order_by(RetrievalRefreshRun.id.desc())
+    if source_id is not None:
+        statement = statement.where(RetrievalRefreshRun.source_id == source_id)
+    if book_id is not None:
+        statement = statement.where(RetrievalRefreshRun.book_id == book_id)
+    if series_id is not None:
+        statement = statement.where(RetrievalRefreshRun.series_id == series_id)
+    return [_build_workbench_refresh_run(run) for run in session.scalars(statement).all()]
 
 
 def create_retrieval_refresh_run(
@@ -114,9 +182,19 @@ def search_retrieval(
         statement = statement.where(RetrievalSource.book_id == payload.book_id)
     if payload.series_id is not None:
         statement = statement.where(RetrievalSource.series_id == payload.series_id)
-    chunks = session.scalars(statement).all()
     query_terms = _keywords(payload.query)
     query_embedding = _embed_query(payload.query, embedding_client)
+    candidate_load = _load_search_candidates(
+        session,
+        statement,
+        payload.query,
+        query_terms,
+        use_keyword_prefilter=embedding_client is None,
+        query_embedding=query_embedding,
+        limit=payload.limit,
+    )
+    _log_search_candidate_load(candidate_load)
+    chunks = candidate_load.chunks
     scored: list[tuple[RetrievalScore, RetrievalChunk]] = []
     for chunk in chunks:
         score = _score_chunk(chunk, query_terms, payload.query, query_embedding)
@@ -143,9 +221,245 @@ def search_retrieval(
     return _apply_reranker(payload.query, hits, reranker_client)
 
 
+def _log_search_candidate_load(candidate_load: SearchCandidateLoad) -> None:
+    logger.info(
+        "检索候选加载摘要",
+        extra={
+            "candidate_count": len(candidate_load.chunks),
+            "filtered_count": candidate_load.filtered_count,
+            "prefilter_enabled": candidate_load.prefilter_enabled,
+            "fallback_used": candidate_load.fallback_used,
+            "pgvector_enabled": candidate_load.pgvector_enabled,
+            "vector_candidate_limit": candidate_load.vector_candidate_limit,
+        },
+    )
+
+
+def _load_search_candidates(
+    session: Session,
+    statement,
+    raw_query: str,
+    query_terms: Sequence[str],
+    *,
+    use_keyword_prefilter: bool,
+    query_embedding: Sequence[float] | None = None,
+    limit: int | None = None,
+) -> SearchCandidateLoad:
+    if not use_keyword_prefilter:
+        if _should_use_pgvector_candidates(session, query_embedding):
+            candidate_limit = _vector_candidate_limit(limit)
+            vector_statement = _apply_pgvector_candidate_order(statement, candidate_limit)
+            chunks = list(
+                session.scalars(vector_statement, {"query_embedding": _pgvector_literal(query_embedding or [])}).all()
+            )
+            return SearchCandidateLoad(
+                chunks=chunks,
+                prefilter_enabled=False,
+                prefilter_terms=(),
+                filtered_count=len(chunks),
+                fallback_used=False,
+                pgvector_enabled=True,
+                vector_candidate_limit=candidate_limit,
+            )
+        chunks = list(session.scalars(statement).all())
+        return SearchCandidateLoad(
+            chunks=chunks,
+            prefilter_enabled=False,
+            prefilter_terms=(),
+            filtered_count=len(chunks),
+            fallback_used=False,
+        )
+    terms = tuple(_keyword_prefilter_terms(raw_query, query_terms))
+    filtered_statement = _apply_keyword_candidate_filter(statement, terms)
+    chunks = list(session.scalars(filtered_statement).all())
+    if chunks:
+        return SearchCandidateLoad(
+            chunks=chunks,
+            prefilter_enabled=True,
+            prefilter_terms=terms,
+            filtered_count=len(chunks),
+            fallback_used=False,
+        )
+    fallback_chunks = list(session.scalars(statement).all())
+    return SearchCandidateLoad(
+        chunks=fallback_chunks,
+        prefilter_enabled=True,
+        prefilter_terms=terms,
+        filtered_count=0,
+        fallback_used=True,
+    )
+
+
+def _should_use_pgvector_candidates(session: Session, query_embedding: Sequence[float] | None) -> bool:
+    if query_embedding is None or len(query_embedding) != _pgvector_dimensions():
+        return False
+    try:
+        dialect_name = session.get_bind().dialect.name
+    except Exception:
+        return False
+    return dialect_name == "postgresql"
+
+
+def _pgvector_dimensions() -> int:
+    return _positive_int_env("STORYFORGE_RETRIEVAL_PGVECTOR_DIMENSIONS", DEFAULT_PGVECTOR_DIMENSIONS)
+
+
+def _vector_candidate_limit(limit: int | None) -> int:
+    multiplier = _positive_int_env(
+        "STORYFORGE_RETRIEVAL_VECTOR_CANDIDATE_MULTIPLIER",
+        DEFAULT_VECTOR_CANDIDATE_MULTIPLIER,
+    )
+    min_candidates = _positive_int_env(
+        "STORYFORGE_RETRIEVAL_VECTOR_MIN_CANDIDATES",
+        DEFAULT_MIN_VECTOR_CANDIDATES,
+    )
+    if limit is None:
+        return min_candidates
+    return max(limit * multiplier, min_candidates)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _pgvector_literal(values: Sequence[float]) -> str:
+    return "[" + ",".join(str(float(value)) for value in values) + "]"
+
+
+def _apply_pgvector_candidate_order(statement, candidate_limit: int):
+    distance_order = text("retrieval_chunks.embedding_vector <=> CAST(:query_embedding AS vector)")
+    return statement.order_by(None).order_by(distance_order).limit(candidate_limit)
+
+
+def _apply_keyword_candidate_filter(statement, terms: Sequence[str]):
+    if not terms:
+        return statement
+    conditions = []
+    for term in terms:
+        pattern = f"%{term}%"
+        conditions.append(RetrievalChunk.content.ilike(pattern))
+        conditions.append(RetrievalSource.title.ilike(pattern))
+    return statement.where(or_(*conditions))
+
+
+def _keyword_prefilter_terms(raw_query: str, query_terms: Sequence[str]) -> list[str]:
+    candidates = [raw_query.strip(), *query_terms]
+    seen: set[str] = set()
+    terms: list[str] = []
+    for candidate in candidates:
+        normalized = candidate.strip().lower()
+        if len(normalized) < 2 or normalized in seen:
+            continue
+        seen.add(normalized)
+        terms.append(normalized)
+        if len(terms) >= 8:
+            break
+    return terms
+
+
+def search_retrieval_workbench(
+    session: Session,
+    payload: RetrievalSearchCreate,
+    embedding_client: EmbeddingClient | None = None,
+    reranker_client: RerankerClient | None = None,
+) -> RetrievalWorkbenchSearchRead:
+    hits = search_retrieval(
+        session,
+        payload,
+        embedding_client=embedding_client,
+        reranker_client=reranker_client,
+    )
+    return RetrievalWorkbenchSearchRead(
+        query=payload.query,
+        hits=[_build_workbench_hit(hit) for hit in hits],
+    )
+
+
+def _load_chunk_counts_by_source_id(session: Session, source_ids: Sequence[int]) -> dict[int, int]:
+    if not source_ids:
+        return {}
+    rows = session.execute(
+        select(RetrievalChunk.source_id, func.count(RetrievalChunk.id))
+        .where(RetrievalChunk.source_id.in_(source_ids))
+        .group_by(RetrievalChunk.source_id)
+    ).all()
+    return {source_id: int(chunk_count) for source_id, chunk_count in rows}
+
+
+def _load_latest_refresh_runs_by_source_id(
+    session: Session,
+    source_ids: Sequence[int],
+) -> dict[int, RetrievalRefreshRun]:
+    if not source_ids:
+        return {}
+    latest_run_ids = (
+        select(
+            RetrievalRefreshRun.source_id.label("source_id"),
+            func.max(RetrievalRefreshRun.id).label("latest_run_id"),
+        )
+        .where(RetrievalRefreshRun.source_id.in_(source_ids))
+        .group_by(RetrievalRefreshRun.source_id)
+        .subquery()
+    )
+    runs = session.scalars(
+        select(RetrievalRefreshRun).join(latest_run_ids, RetrievalRefreshRun.id == latest_run_ids.c.latest_run_id)
+    ).all()
+    return {run.source_id: run for run in runs if run.source_id is not None}
+
+
+def _build_workbench_source(
+    source: RetrievalSource,
+    latest_refresh: RetrievalRefreshRun | None = None,
+    chunk_count: int | None = None,
+) -> RetrievalWorkbenchSourceRead:
+    return RetrievalWorkbenchSourceRead(
+        id=source.id,
+        book_id=source.book_id,
+        series_id=source.series_id,
+        source_type=source.source_type,
+        title=source.title,
+        status=source.status,
+        chunk_count=source.chunk_count if chunk_count is None else chunk_count,
+        refresh_status=latest_refresh.status if latest_refresh is not None else "not_refreshed",
+        evidence_anchor=f"retrieval-source-{source.id}",
+    )
+
+
+def _build_workbench_refresh_run(run: RetrievalRefreshRun) -> RetrievalWorkbenchRefreshRunRead:
+    source_ids = run.payload.get("source_ids", [])
+    return RetrievalWorkbenchRefreshRunRead(
+        id=run.id,
+        source_id=run.source_id,
+        book_id=run.book_id,
+        series_id=run.series_id,
+        status=run.status,
+        chunk_count=run.chunk_count,
+        embedding_provider=run.payload.get("embedding_provider"),
+        embedding_model=run.payload.get("embedding_model"),
+        credential_status=run.payload.get("credential_status"),
+        source_ids=[source_id for source_id in source_ids if isinstance(source_id, int)],
+    )
+
+
+def _build_workbench_hit(hit: RetrievalHitRead) -> RetrievalWorkbenchHitRead:
+    return RetrievalWorkbenchHitRead(
+        **hit.model_dump(),
+        evidence_href=f"#retrieval-evidence-{hit.source_id}-{hit.chunk_id}",
+    )
+
+
 def _require_scope(session: Session, book_id: int | None, series_id: int | None) -> None:
-    if book_id is not None and session.get(Book, book_id) is None:
-        raise RetrievalInputError("作品不存在，无法创建检索资料源。")
+    try:
+        validate_scope(session, None, book_id)
+    except ScopeNotFoundError as exc:
+        raise RetrievalInputError("作品不存在，无法创建检索资料源。") from exc
     if series_id is not None and session.get(Series, series_id) is None:
         raise RetrievalInputError("系列不存在，无法创建检索资料源。")
 
@@ -156,8 +470,10 @@ def _select_refresh_sources(session: Session, payload: RetrievalRefreshRunCreate
         source = session.get(RetrievalSource, payload.source_id)
         return [] if source is None else [_load_source(session, source.id)]
     if payload.book_id is not None:
-        if session.get(Book, payload.book_id) is None:
-            raise RetrievalInputError("作品不存在，无法刷新检索资料源。")
+        try:
+            validate_scope(session, None, payload.book_id)
+        except ScopeNotFoundError as exc:
+            raise RetrievalInputError("作品不存在，无法刷新检索资料源。") from exc
         statement = statement.where(RetrievalSource.book_id == payload.book_id)
     if payload.series_id is not None:
         if session.get(Series, payload.series_id) is None:
@@ -211,12 +527,15 @@ def _chunk_text(content_text: str, *, chunk_size: int = 120) -> list[str]:
 
 def _keywords(value: str) -> list[str]:
     parts = [part.lower() for part in re.split(r"[^0-9A-Za-z\u4e00-\u9fff]+", value) if part.strip()]
-    seen: list[str] = []
+    seen: set[str] = set()
+    keywords: list[str] = []
     for part in parts:
         for candidate in _expand_keyword_candidates(part):
-            if candidate not in seen:
-                seen.append(candidate)
-    return seen
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            keywords.append(candidate)
+    return keywords
 
 
 def _expand_keyword_candidates(part: str) -> list[str]:
@@ -283,7 +602,8 @@ def _score_chunk(
     query_embedding: list[float] | None = None,
 ) -> RetrievalScore:
     chunk_text = chunk.content.lower()
-    overlap = sum(1 for term in query_terms if term in chunk.keywords or term in chunk_text)
+    chunk_keywords = set(chunk.keywords)
+    overlap = sum(1 for term in query_terms if term in chunk_keywords or term in chunk_text)
     embedding_score = _cosine_similarity(query_embedding, chunk.embedding) if query_embedding else 0.0
     if (
         overlap == 0
@@ -308,12 +628,13 @@ def _score_chunk(
 def _cosine_similarity(left: list[float] | None, right: list[float] | None) -> float:
     if not left or not right:
         return 0.0
-    size = min(len(left), len(right))
-    left_slice = left[:size]
-    right_slice = right[:size]
-    dot = sum(left_value * right_value for left_value, right_value in zip(left_slice, right_slice, strict=True))
-    left_norm = sum(value * value for value in left_slice) ** 0.5
-    right_norm = sum(value * value for value in right_slice) ** 0.5
-    if left_norm == 0 or right_norm == 0:
+    dot = 0.0
+    left_norm_squared = 0.0
+    right_norm_squared = 0.0
+    for left_value, right_value in zip(left, right):
+        dot += left_value * right_value
+        left_norm_squared += left_value * left_value
+        right_norm_squared += right_value * right_value
+    if left_norm_squared == 0 or right_norm_squared == 0:
         return 0.0
-    return round(dot / (left_norm * right_norm), 4)
+    return round(dot / ((left_norm_squared**0.5) * (right_norm_squared**0.5)), 4)

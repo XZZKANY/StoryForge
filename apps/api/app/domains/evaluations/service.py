@@ -4,14 +4,14 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.common.exceptions import InputError
 
-from app.domains.books.models import Book
+from app.common.scope import ScopeNotFoundError, validate_scope
 from app.domains.evaluations.models import EvaluationCase, EvaluationRun
 from app.domains.evaluations.schemas import EvaluationCaseCreate, EvaluationRunCreate
-from app.domains.workspaces.models import Workspace
 
 
-class EvaluationError(ValueError):
+class EvaluationError(InputError):
     """评测对象引用不存在或输入不合法。"""
 
 
@@ -74,10 +74,12 @@ def list_evaluation_runs(session: Session, *, workspace_id: int | None = None, b
 
 
 def _validate_scope(session: Session, workspace_id: int | None, book_id: int | None) -> None:
-    if workspace_id is not None and session.get(Workspace, workspace_id) is None:
-        raise EvaluationError("工作区不存在，无法创建评测对象。")
-    if book_id is not None and session.get(Book, book_id) is None:
-        raise EvaluationError("作品不存在，无法创建评测对象。")
+    try:
+        validate_scope(session, workspace_id, book_id)
+    except ScopeNotFoundError as exc:
+        if str(exc).startswith("工作区"):
+            raise EvaluationError("工作区不存在，无法创建评测对象。") from exc
+        raise EvaluationError("作品不存在，无法创建评测对象。") from exc
 
 
 def _build_metrics(expected: dict, observed: dict) -> dict:

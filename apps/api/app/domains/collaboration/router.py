@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.db.session import get_session
+from app.db.deps import SessionDependency
 from app.domains.collaboration.schemas import (
     ApprovalDecisionCreate,
     ApprovalDecisionRead,
@@ -24,7 +21,6 @@ from app.domains.collaboration.service import (
 )
 
 router = APIRouter(prefix="/api/collaboration", tags=["协作审批"])
-SessionDependency = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/comments", response_model=WorkspaceCommentRead, status_code=status.HTTP_201_CREATED)
