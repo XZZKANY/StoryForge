@@ -44,14 +44,14 @@ export const phase6DataSources = {
     { name: "失败重试 API", input: "job_run_id、失败节点、checkpoint 引用", output: "重试资格、重试任务引用、不可重试原因", status: "已有契约但未联通" },
   ]),
   artifacts: withTrace("Artifacts", "Artifacts 数据源契约", "从导出物 API 做单页面单数据源真实读取 spike", [
-    { name: "导出物 API", input: "作品 ID、章节 ID、导出类型", output: "artifact ID、文件名、版本、下载状态", status: "Web 单点读取已实现" },
+    { name: "导出物 API", input: "作品 ID、章节 ID、导出类型", output: "artifact ID、文件名、版本、下载状态、详情和下载摘要", status: "Web 单点读取已实现" },
     { name: "上传资料 API", input: "作品 ID、资料来源类型", output: "上传对象、入库状态、检索刷新引用", status: "已有契约但未联通" },
     { name: "工作流快照 API", input: "job_run_id、checkpoint 引用", output: "快照摘要、关联节点、上下文引用和恢复状态", status: "已有契约但未联通" },
     { name: "评测报告 API", input: "evaluation run ID、artifact ID", output: "报告摘要、指标、失败样例引用", status: "已有契约但未联通" },
   ]),
   evaluations: withTrace("Evaluations", "Evaluations 数据源契约", "从评测集 API 做单页面单数据源真实读取 spike", [
     { name: "评测集 API", input: "作品 ID、评测类型", output: "eval set ID、样例数量、覆盖范围", status: "已有契约但未联通" },
-    { name: "评测运行 API", input: "eval set ID、模型或版本过滤", output: "run ID、状态、开始/结束时间、关联制品", status: "Web 单点读取已实现" },
+    { name: "评测运行 API", input: "eval set ID、模型或版本过滤", output: "run ID、状态、开始/结束时间、关联制品、失败样例摘要", status: "Web 单点读取已实现" },
     { name: "指标趋势 API", input: "指标名称、时间范围、作品 ID", output: "趋势点、均值、异常点摘要", status: "已有契约但未联通" },
     { name: "失败样例 API", input: "eval run ID、失败类别", output: "样例 ID、失败原因、关联章节和修复建议", status: "已有契约但未联通" },
   ]),

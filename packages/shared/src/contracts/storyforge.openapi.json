@@ -287,6 +287,56 @@
         "title": "ArtifactCreate",
         "type": "object"
       },
+      "ArtifactDownloadRead": {
+        "description": "制品下载摘要在没有对象存储签名时返回可审查内容。",
+        "properties": {
+          "artifact_type": {
+            "title": "Artifact Type",
+            "type": "string"
+          },
+          "content_preview": {
+            "title": "Content Preview",
+            "type": "string"
+          },
+          "download_mode": {
+            "title": "Download Mode",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "payload_summary": {
+            "additionalProperties": true,
+            "title": "Payload Summary",
+            "type": "object"
+          },
+          "storage_uri": {
+            "title": "Storage Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "artifact_type",
+          "name",
+          "mime_type",
+          "storage_uri",
+          "download_mode",
+          "content_preview",
+          "payload_summary"
+        ],
+        "title": "ArtifactDownloadRead",
+        "type": "object"
+      },
       "ArtifactRead": {
         "properties": {
           "artifact_type": {
@@ -1122,6 +1172,63 @@
         "title": "EvaluationCaseRead",
         "type": "object"
       },
+      "EvaluationFailedSampleRead": {
+        "description": "评测失败样例用于把质量问题追溯回章节、制品和 Studio 修复入口。",
+        "properties": {
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "chapter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "repair_hint": {
+            "title": "Repair Hint",
+            "type": "string"
+          },
+          "studio_href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Studio Href"
+          }
+        },
+        "required": [
+          "id",
+          "reason",
+          "repair_hint"
+        ],
+        "title": "EvaluationFailedSampleRead",
+        "type": "object"
+      },
       "EvaluationRunCreate": {
         "properties": {
           "book_id": {
@@ -1167,6 +1274,45 @@
           }
         },
         "title": "EvaluationRunCreate",
+        "type": "object"
+      },
+      "EvaluationRunDetailRead": {
+        "description": "评测运行详情包含趋势摘要和失败样例数量。",
+        "properties": {
+          "failed_sample_count": {
+            "title": "Failed Sample Count",
+            "type": "integer"
+          },
+          "run": {
+            "$ref": "#/components/schemas/EvaluationRunRead"
+          },
+          "studio_feedback_href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Studio Feedback Href"
+          },
+          "trend_points": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Trend Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run",
+          "trend_points",
+          "failed_sample_count",
+          "studio_feedback_href"
+        ],
+        "title": "EvaluationRunDetailRead",
         "type": "object"
       },
       "EvaluationRunRead": {
@@ -3326,6 +3472,79 @@
         "title": "RunsJobRunRead",
         "type": "object"
       },
+      "RunsJobRunRetryRead": {
+        "description": "Runs 失败重试执行结果，只创建恢复任务并返回入口状态。",
+        "properties": {
+          "can_retry": {
+            "title": "Can Retry",
+            "type": "boolean"
+          },
+          "checkpoint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint"
+          },
+          "recovery_node": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Node"
+          },
+          "retry_job_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Job Run Id"
+          },
+          "retry_status": {
+            "title": "Retry Status",
+            "type": "string"
+          },
+          "source_job_run_id": {
+            "title": "Source Job Run Id",
+            "type": "integer"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "can_retry",
+          "retry_job_run_id",
+          "source_job_run_id",
+          "recovery_node",
+          "checkpoint",
+          "retry_status",
+          "unavailable_reason"
+        ],
+        "title": "RunsJobRunRetryRead",
+        "type": "object"
+      },
       "RunsModelRunSummary": {
         "properties": {
           "capability": {
@@ -3829,6 +4048,107 @@
           "updated_at"
         ],
         "title": "SeriesRead",
+        "type": "object"
+      },
+      "StudioApprovalExecuteRead": {
+        "description": "Studio 批准写回执行结果，明确真实写回和阻断原因。",
+        "properties": {
+          "approved_chapter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Chapter Id"
+          },
+          "approved_object": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioApprovalObjectRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "continuity_update_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continuity Update Summary"
+          },
+          "target_chapter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioApprovalTargetChapterRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "writeback_status": {
+            "title": "Writeback Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approved_object",
+          "target_chapter",
+          "writeback_status",
+          "approved_chapter_id",
+          "continuity_update_summary",
+          "unavailable_reason"
+        ],
+        "title": "StudioApprovalExecuteRead",
+        "type": "object"
+      },
+      "StudioApprovalExecuteRequest": {
+        "description": "Studio 批准写回执行请求，只允许定位一个可批准对象。",
+        "properties": {
+          "repair_patch_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repair Patch Id"
+          },
+          "scene_packet_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scene Packet Id"
+          }
+        },
+        "title": "StudioApprovalExecuteRequest",
         "type": "object"
       },
       "StudioApprovalObjectRead": {
@@ -5384,6 +5704,90 @@
         ]
       }
     },
+    "/api/artifacts/{artifact_id}": {
+      "get": {
+        "operationId": "get_artifact_endpoint_api_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "title": "Artifact Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Artifact Endpoint",
+        "tags": [
+          "制品中心"
+        ]
+      }
+    },
+    "/api/artifacts/{artifact_id}/download": {
+      "get": {
+        "operationId": "download_artifact_endpoint_api_artifacts__artifact_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "title": "Artifact Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Artifact Endpoint",
+        "tags": [
+          "制品中心"
+        ]
+      }
+    },
     "/api/assets": {
       "get": {
         "description": "查询指定作品下每条资产谱系的最新版本列表。",
@@ -6224,6 +6628,94 @@
         ]
       }
     },
+    "/api/evaluations/runs/{run_id}": {
+      "get": {
+        "operationId": "get_evaluation_run_detail_endpoint_api_evaluations_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationRunDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Evaluation Run Detail Endpoint",
+        "tags": [
+          "评测系统"
+        ]
+      }
+    },
+    "/api/evaluations/runs/{run_id}/failed-samples": {
+      "get": {
+        "operationId": "list_failed_samples_endpoint_api_evaluations_runs__run_id__failed_samples_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvaluationFailedSampleRead"
+                  },
+                  "title": "Response List Failed Samples Endpoint Api Evaluations Runs  Run Id  Failed Samples Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Failed Samples Endpoint",
+        "tags": [
+          "评测系统"
+        ]
+      }
+    },
     "/api/events": {
       "post": {
         "operationId": "create_event_endpoint_api_events_post",
@@ -6521,6 +7013,48 @@
           }
         },
         "summary": "Get Runs Job Run Endpoint",
+        "tags": [
+          "模型运行日志"
+        ]
+      }
+    },
+    "/api/model-runs/job-runs/{job_run_id}/retry": {
+      "post": {
+        "operationId": "retry_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_run_id",
+            "required": true,
+            "schema": {
+              "title": "Job Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunsJobRunRetryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Runs Job Run Endpoint",
         "tags": [
           "模型运行日志"
         ]
@@ -7756,6 +8290,48 @@
           }
         },
         "summary": "Read Studio Approval Summary Endpoint",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
+    "/api/studio/approve": {
+      "post": {
+        "description": "执行 Studio 批准写回：更新章节、场景和连续性记录。",
+        "operationId": "approve_studio_writeback_endpoint_api_studio_approve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioApprovalExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioApprovalExecuteRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Studio Writeback Endpoint",
         "tags": [
           "Studio 创作工作台"
         ]

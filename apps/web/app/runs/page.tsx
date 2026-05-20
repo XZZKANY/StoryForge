@@ -39,6 +39,7 @@ const runSections = [
 
 const defaultJobRunId = 1;
 const runsJobRunEndpoint = "/api/model-runs/job-runs";
+const runsRetryExecutionEndpoint = "POST /api/model-runs/job-runs/{job_run_id}/retry";
 
 const getRunsApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -188,6 +189,15 @@ export default async function RunsPage() {
             </section>
           </>
         )}
+      </section>
+      <section aria-labelledby="runs-retry-execution-title">
+        <h2 id="runs-retry-execution-title">失败重试执行入口</h2>
+        <p>Endpoint：<code>{runsRetryExecutionEndpoint}</code></p>
+        <p>该契约可创建恢复任务：后端基于失败 JobRun checkpoint 创建恢复任务，不是即时续跑 workflow。</p>
+        <ul>
+          <li>缺少 checkpoint 时不可重试，必须先拥有可恢复的 checkpoint 引用。</li>
+          <li>Server Component 当前只展示执行契约，不伪装点击按钮；交互接入留给后续 Client Component 或 Server Action。</li>
+        </ul>
       </section>
       <section aria-labelledby="runs-data-sources-title">
         <h2 id="runs-data-sources-title">数据源契约</h2>

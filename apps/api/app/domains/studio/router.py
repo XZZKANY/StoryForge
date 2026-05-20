@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.studio.schemas import (
+    StudioApprovalExecuteRead,
+    StudioApprovalExecuteRequest,
     StudioApprovalSummaryRead,
     StudioBookListItem,
     StudioChapterGoalRead,
@@ -21,6 +23,7 @@ from app.domains.studio.service import (
     StudioRecoverySummaryNotFoundError,
     StudioRepairPatchesNotFoundError,
     StudioScenePacketNotFoundError,
+    approve_studio_writeback,
     list_studio_books,
     read_studio_approval_summary,
     read_studio_chapter_goal,
@@ -111,6 +114,19 @@ def read_studio_approval_summary_endpoint(
             scene_packet_id=scene_packet_id,
             repair_patch_id=repair_patch_id,
         )
+    except StudioApprovalSummaryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/approve", response_model=StudioApprovalExecuteRead)
+def approve_studio_writeback_endpoint(
+    payload: StudioApprovalExecuteRequest,
+    session: SessionDependency,
+) -> StudioApprovalExecuteRead:
+    """执行 Studio 批准写回：更新章节、场景和连续性记录。"""
+
+    try:
+        return approve_studio_writeback(session, payload)
     except StudioApprovalSummaryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

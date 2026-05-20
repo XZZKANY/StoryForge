@@ -53,6 +53,15 @@ def test_evaluation_case_and_run_produce_metrics(client: TestClient, evaluation_
                 "suggestions_total": 4,
                 "suggestions_accepted": 2,
                 "open_loop_count": 1,
+                "failed_samples": [
+                    {
+                        "id": "港口谈判-一致性",
+                        "reason": "角色动机与上一章摘要冲突",
+                        "chapter_id": 7,
+                        "artifact_id": 11,
+                        "repair_hint": "回到 Studio 对第 7 章重新执行 Judge/Repair。",
+                    }
+                ],
             },
         },
     )
@@ -62,7 +71,32 @@ def test_evaluation_case_and_run_produce_metrics(client: TestClient, evaluation_
     assert result["metrics"]["repair_success_rate"] == 0.5
     assert result["metrics"]["user_acceptance_rate"] == 0.5
     assert result["metrics"]["open_loop_count"] == 1
+    assert result["metrics"]["failed_sample_count"] == 1
 
     listing = client.get("/api/evaluations/runs", params={"workspace_id": evaluation_scope["workspace_id"]})
     assert listing.status_code == 200
     assert len(listing.json()) == 1
+
+    detail = client.get(f"/api/evaluations/runs/{result['id']}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["failed_sample_count"] == 1
+    assert detail.json()["trend_points"][0]["metric"] == "consistency_error_rate"
+    assert detail.json()["studio_feedback_href"] == "/studio?chapter_id=7"
+
+    failed_samples = client.get(f"/api/evaluations/runs/{result['id']}/failed-samples")
+    assert failed_samples.status_code == 200, failed_samples.text
+    sample = failed_samples.json()[0]
+    assert sample["reason"] == "角色动机与上一章摘要冲突"
+    assert sample["chapter_id"] == 7
+    assert sample["artifact_id"] == 11
+    assert sample["studio_href"] == "/studio?chapter_id=7"
+
+
+def test_evaluation_run_detail_returns_404_for_missing_run(client: TestClient) -> None:
+    detail = client.get("/api/evaluations/runs/999999")
+    assert detail.status_code == 404
+    assert "评测运行不存在" in detail.json()["detail"]
+
+    failed_samples = client.get("/api/evaluations/runs/999999/failed-samples")
+    assert failed_samples.status_code == 404
+    assert "评测运行不存在" in failed_samples.json()["detail"]

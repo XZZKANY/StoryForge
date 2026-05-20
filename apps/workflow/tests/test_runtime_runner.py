@@ -4,16 +4,19 @@ import pytest
 
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
 from storyforge_workflow.runtime import ModelRunPayload, RuntimeCheckpointStore, WorkflowRuntime
+from storyforge_workflow.runtime.checkpoints import ApiModelRunAdapter
 
 
 class CapturingModelRunSink:
     """测试用 sink，模拟后续 API ModelRun 真表 adapter。"""
 
-    def __init__(self) -> None:
+    def __init__(self, persisted_model_run_id: int | None = None) -> None:
+        self.persisted_model_run_id = persisted_model_run_id
         self.payloads: list[object] = []
 
-    def record(self, payload: object) -> None:
+    def record(self, payload: object) -> int | None:
         self.payloads.append(payload)
+        return self.persisted_model_run_id
 
 
 def test_workflow_runtime_start_and_resume_records_provider_execution() -> None:
@@ -81,7 +84,7 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
 
     monkeypatch.setattr("storyforge_workflow.runtime.runner.simulate_provider_execution", fail_provider_execution)
     checkpoint_store = RuntimeCheckpointStore()
-    sink = CapturingModelRunSink()
+    sink = CapturingModelRunSink(persisted_model_run_id=9002)
     runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
 
     failed = runtime.start(
@@ -95,9 +98,11 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
     checkpoint_state = checkpoint_store.load_state("phase5-runtime-failure")
     assert failed.status == "failed"
     assert checkpoint_state is not None
+    assert checkpoint_state["model_run_id"] == 9002
     assert checkpoint_state["error_code"] == "provider_execution_failed"
     assert checkpoint_state["current_node"] == "provider_execution"
     assert checkpoint_store.latest("phase5-runtime-failure").approval_status == "failed"
+    assert checkpoint_store.list_model_runs("phase5-runtime-failure")[0].model_run_id == 1
     assert checkpoint_store.list_model_runs("phase5-runtime-failure")[0].status == "failed"
     assert sink.payloads[0].status == "failed"
     assert sink.payloads[0].error_message == "provider timeout"
@@ -132,7 +137,57 @@ def test_model_run_payload_requires_persisted_api_job_run_id() -> None:
         payload.to_api_payload(api_job_run_id=0)
     with pytest.raises(ValueError, match="正整数 ID"):
         payload.to_api_payload(api_job_run_id=-1)
+    with pytest.raises(ValueError, match="正整数 ID"):
+        payload.to_api_payload(api_job_run_id="runtime-job-string")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="正整数 ID"):
+        payload.to_api_payload(api_job_run_id=True)  # type: ignore[arg-type]
 
     api_payload = payload.to_api_payload(api_job_run_id=7)
     assert api_payload["job_run_id"] == 7
     assert api_payload["payload"]["runtime_job_run_id"] == "runtime-job-string"
+
+
+def test_api_model_run_adapter_requires_persisted_api_job_run_id() -> None:
+    """adapter 构造时必须拒绝 workflow 字符串 ID 和非正整数 ID。"""
+
+    def record_api_model_run(api_payload: dict[str, object]) -> int:
+        return 1
+
+    invalid_ids = [0, -1, "runtime-job-string", True]
+    for invalid_id in invalid_ids:
+        with pytest.raises(ValueError, match="正整数 ID"):
+            ApiModelRunAdapter(  # type: ignore[arg-type]
+                api_job_run_id=invalid_id,
+                record_api_model_run=record_api_model_run,
+            )
+
+
+def test_api_model_run_adapter_returns_persisted_model_run_id() -> None:
+    """adapter 应使用 API JobRun.id 写入 payload，并返回真表 ModelRun.id。"""
+
+    captured_payload: dict[str, object] = {}
+
+    def record_api_model_run(api_payload: dict[str, object]) -> int:
+        captured_payload.update(api_payload)
+        return 8101
+
+    payload = ModelRunPayload(
+        thread_id="adapter-thread",
+        job_run_id="runtime-job-string",
+        provider_name="mock-provider",
+        model_name="storyforge-writer",
+        capability="llm",
+        latency_ms=25,
+        token_usage=35,
+        input_summary="adapter 输入摘要",
+        output_summary="adapter 输出摘要",
+        status="completed",
+        error_message=None,
+    )
+
+    adapter = ApiModelRunAdapter(api_job_run_id=77, record_api_model_run=record_api_model_run)
+    model_run_id = adapter.record(payload)
+
+    assert model_run_id == 8101
+    assert captured_payload["job_run_id"] == 77
+    assert captured_payload["payload"] == {"thread_id": "adapter-thread", "runtime_job_run_id": "runtime-job-string"}
