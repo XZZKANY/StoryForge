@@ -19,8 +19,11 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 - Studio Scene Packet API 已完成后端最小契约：`GET /api/studio/scene-packets` 使用 `book_id:int` 与 `target_ordinal:int` 读取已组装 Scene Packet 的 ID、证据数量、`compiled_context_id` 和上下文预算摘要；Web Studio 已在章节目标之后单点读取该端点。
 - Studio Judge 评审 API 已完成后端最小契约：`GET /api/studio/judge-reviews` 使用 `scene_packet_id:int` 读取已持久化 JudgeIssue 的状态、分数和关键问题；Web Studio 已在 Scene Packet 之后单点读取该端点。
 - Studio Repair 修订 API 已完成后端最小契约：`GET /api/studio/repair-patches` 使用 `scene_packet_id:int` 只读已生成 RepairPatch 的修订文本、差异摘要、采纳建议和重评状态；Web Studio 已在 Judge 评审之后单点读取该端点。
+- Studio 批准回写摘要与失败恢复摘要 API 已完成只读契约：`GET /api/studio/approval-summary` 读取可批准对象、目标章节、回写状态和不可批准原因；`GET /api/studio/recovery-summary` 读取失败节点、checkpoint、可恢复步骤和不可恢复原因；Web Studio 已在 Repair 后单点读取摘要，但不执行写回或续跑。
 - Retrieval 资料源列表、刷新任务与搜索请求已完成工作台 API 最小契约：`GET /api/retrieval/workbench/sources`、`GET /api/retrieval/workbench/refresh-runs`、`POST /api/retrieval/workbench/search`；Web Retrieval 已按资料源 → 刷新任务 → 搜索命中预览顺序单点读取，搜索结果包含 `evidence_href` 锚点。
-- Runs JobRun 状态 API 已完成后端最小契约：`GET /api/model-runs/job-runs/{job_run_id}` 返回 JobRun 状态、progress、checkpoint 摘要和 ModelRun 摘要；Runs 页面尚未单点读取该端点。
+- Runs JobRun 状态 API 已完成后端最小契约：`GET /api/model-runs/job-runs/{job_run_id}` 返回 JobRun 状态、progress、checkpoint 摘要和 ModelRun 摘要；Runs 页面已默认读取 `job_run_id=1` 并展示可重试错误摘要。
+- Artifacts 页面已单点读取 `GET /api/artifacts`，展示 artifact ID、类型、文件名或标题、版本、状态和关联 book/job；制品下载、趋势图和报告详情页仍未实现。
+- Evaluations 页面已单点读取 `GET /api/evaluations/runs`，展示 evaluation run ID、状态、指标摘要、关联作品和失败样例数量；评测报告下载、指标趋势图和报告详情页仍未实现。
 
 | 页面 | 已有入口 |
 | --- | --- |
@@ -32,19 +35,19 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 
 ## 已有契约但未联通
 
-- Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API 与 Repair 修订 API 的后端最小契约和 Web 单点读取已实现；批准回写和失败恢复 API 数据仍未联通。
+- Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API、Repair 修订 API、批准回写摘要 API 与失败恢复摘要 API 的后端最小契约和 Web 单点读取已实现；批准写回执行按钮和失败续跑执行流仍未实现。
 - Retrieval 资料源列表、refresh run、search request 与 hit preview 已接入工作台 API 和 Web 单点读取；独立 evidence link 跳转路由、重排状态详情和不可用原因仍未联通。
-- Runs 已有 JobRun/checkpoint/ModelRun 后端最小契约；Runs 页面真实读取、失败重试执行状态和 adapter 执行状态仍未联通。
-- Artifacts 还未接真实导出文件、上传资料、工作流快照和评测报告对象。
-- Evaluations 还未接真实评测集、运行记录、指标趋势和失败样例。
+- Runs 已有 JobRun/checkpoint/ModelRun 后端最小契约与页面单点读取；失败重试执行状态和 adapter 执行状态仍未联通。
+- Artifacts 已接入导出物列表单点读取；制品下载、上传资料、工作流快照和评测报告对象仍未联通。
+- Evaluations 已接入评测运行列表单点读取；评测集、指标趋势和失败样例详情仍未联通。
 
 ## Studio / Retrieval / Runs 状态矩阵
 
 | 方向 | 已实现 | 已有契约但未联通 | 完全不存在 |
 | --- | --- | --- | --- |
-| Studio | 作品列表、章节目标、Scene Packet、Judge 评审、Repair 修订的 API 最小契约、Web 单点读取和缺失态错误摘要。 | 批准回写、失败恢复仍只有数据源契约和页面入口。 | 完整交互式 Studio 编排器、跨步骤草稿编辑器、批准后自动写回执行流。 |
+| Studio | 作品列表、章节目标、Scene Packet、Judge 评审、Repair 修订、批准回写摘要、失败恢复摘要的 API 最小契约、Web 单点读取和缺失态错误摘要。 | 批准写回执行按钮、失败续跑执行流仍未联通。 | 完整交互式 Studio 编排器、跨步骤草稿编辑器、批准后自动写回执行流。 |
 | Retrieval | 资料源列表、刷新任务、搜索请求、命中预览的 API 最小契约与 Web 单点读取；搜索结果提供 `evidence_href` 锚点。 | 独立证据跳转 API、重排状态详情、不可用原因和跨页面证据路由仍未联通。 | 完整检索请求表单、命中详情弹层、证据详情路由和检索工作台执行流。 |
-| Runs | JobRun 状态、checkpoint 摘要、ModelRun 日志摘要后端最小契约和 API 测试。 | Runs 页面未读取 JobRun API；失败重试 API、adapter 执行状态和运行恢复入口仍未联通。 | 真实失败重试按钮、重试执行流、运行回放 UI、完整 workflow replay/time-travel UI。 |
+| Runs | JobRun 状态、checkpoint 摘要、ModelRun 日志摘要后端最小契约、API 测试和 Web 单点读取。 | 失败重试 API、adapter 执行状态和运行恢复入口仍未联通。 | 真实失败重试按钮、重试执行流、运行回放 UI、完整 workflow replay/time-travel UI。 |
 
 ## 真实数据联动优先级
 
@@ -67,8 +70,8 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 | Scene Packet API | 作品 ID、章节 ID、场景目标 | `scene_packet_id`、证据链接、上下文预算摘要 | API 与 Web 单点读取已实现 |
 | Judge 评审 API | 草稿或 `draft_artifact_id`、`scene_packet_id` | 问题列表、严重级别、位置和建议 | API 与 Web 单点读取已实现 |
 | Repair 修订 API | Judge 问题、草稿引用、修订策略 | 修订文本、差异摘要、采纳建议 | API 与 Web 单点读取已实现 |
-| 批准回写 API | 修订结果、审批决策、章节 ID | 已批准章节版本、回写状态、后续任务引用 | 已有契约但未联通 |
-| 失败恢复 API | `job_run_id`、checkpoint 引用、失败节点 | 可恢复步骤、错误摘要、重试入口状态 | 已有契约但未联通 |
+| 批准回写 API | 修订结果、审批决策、章节 ID | 已批准章节版本、回写状态、后续任务引用 | API 与 Web 单点读取已实现 |
+| 失败恢复 API | `job_run_id`、checkpoint 引用、失败节点 | 可恢复步骤、错误摘要、重试入口状态 | API 与 Web 单点读取已实现 |
 
 ### Retrieval 数据源契约
 
@@ -85,16 +88,16 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 
 | 数据源 | 最小输入 | 最小输出 | 当前状态 |
 | --- | --- | --- | --- |
-| JobRun 状态 API | `job_run_id` 或作品/章节过滤 | 当前节点、运行状态、错误摘要、恢复提示 | API 最小契约已实现 |
-| Checkpoint 引用 API | `job_run_id`、checkpoint ID | `scene_packet_id`、`compiled_context_id`、`model_run_id`、恢复节点 | API 最小契约已实现 |
-| ModelRun 日志 API | `job_run_id`、provider 或状态过滤 | provider、model、token、latency、错误消息和 payload 摘要 | API 最小契约已实现 |
+| JobRun 状态 API | `job_run_id` 或作品/章节过滤 | 当前节点、运行状态、错误摘要、恢复提示 | API 与 Web 单点读取已实现 |
+| Checkpoint 引用 API | `job_run_id`、checkpoint ID | `scene_packet_id`、`compiled_context_id`、`model_run_id`、恢复节点 | API 与 Web 单点读取已实现 |
+| ModelRun 日志 API | `job_run_id`、provider 或状态过滤 | provider、model、token、latency、错误消息和 payload 摘要 | API 与 Web 单点读取已实现 |
 | 失败重试 API | `job_run_id`、失败节点、checkpoint 引用 | 重试资格、重试任务引用、不可重试原因 | 已有契约但未联通 |
 
 ### Artifacts 数据源契约
 
 | 数据源 | 最小输入 | 最小输出 | 当前状态 |
 | --- | --- | --- | --- |
-| 导出物 API | 作品 ID、章节 ID、导出类型 | artifact ID、文件名、版本、下载状态 | 已有契约但未联通 |
+| 导出物 API | 作品 ID、章节 ID、导出类型 | artifact ID、文件名、版本、下载状态 | API 与 Web 单点读取已实现 |
 | 上传资料 API | 作品 ID、资料来源类型 | 上传对象、入库状态、检索刷新引用 | 已有契约但未联通 |
 | 工作流快照 API | `job_run_id`、checkpoint 引用 | 快照摘要、关联节点、上下文引用和恢复状态 | 已有契约但未联通 |
 | 评测报告 API | evaluation run ID、artifact ID | 报告摘要、指标、失败样例引用 | 已有契约但未联通 |
@@ -104,7 +107,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 | 数据源 | 最小输入 | 最小输出 | 当前状态 |
 | --- | --- | --- | --- |
 | 评测集 API | 作品 ID、评测类型 | eval set ID、样例数量、覆盖范围 | 已有契约但未联通 |
-| 评测运行 API | eval set ID、模型或版本过滤 | run ID、状态、开始/结束时间、关联制品 | 已有契约但未联通 |
+| 评测运行 API | eval set ID、模型或版本过滤 | run ID、状态、开始/结束时间、关联制品 | API 与 Web 单点读取已实现 |
 | 指标趋势 API | 指标名称、时间范围、作品 ID | 趋势点、均值、异常点摘要 | 已有契约但未联通 |
 | 失败样例 API | eval run ID、失败类别 | 样例 ID、失败原因、关联章节和修复建议 | 已有契约但未联通 |
 
@@ -127,6 +130,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
 uv run pytest tests/test_studio_book_list_api.py -q
 uv run pytest tests/test_retrieval_workbench_api.py tests/test_model_runs.py -q
+uv run pytest tests/test_artifacts.py tests/test_evaluations.py -q
 uv run python -m compileall app tests/test_studio_book_list_api.py
 
 cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
@@ -136,4 +140,4 @@ pnpm run test:api
 pnpm run test:workflow
 ```
 
-通过条件：Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API 与 Repair 修订 API 最小契约测试通过；Retrieval 资料源、刷新任务、搜索命中预览测试通过；Runs JobRun/checkpoint/ModelRun 摘要测试通过；API 与 Workflow compileall 通过；Web 中文契约与 TypeScript 编译无错误。
+通过条件：Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API、Repair 修订 API、批准回写摘要 API 与失败恢复摘要 API 最小契约测试通过；Retrieval 资料源、刷新任务、搜索命中预览测试通过；Runs JobRun/checkpoint/ModelRun 摘要测试通过；Artifacts 导出物列表和 Evaluations 评测运行列表测试通过；API 与 Workflow compileall 通过；Web 中文契约与 TypeScript 编译无错误。
