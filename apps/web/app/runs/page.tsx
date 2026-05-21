@@ -1,4 +1,3 @@
-import { phase6DataSources } from "../../lib/phase6-data-sources";
 import { buildApiUrl } from "../../lib/api-client";
 
 type RunsModelRunSummary = {
@@ -143,8 +142,21 @@ export default async function RunsPage({
 
   return (
     <main aria-labelledby="runs-title">
-      <h1 id="runs-title">Run Center 运行日志中心</h1>
-      <p>查看模型调用摘要、延迟、Token 使用量、Checkpoint 状态和失败重试入口，支撑运行可观测性。</p>
+      <h1 id="runs-title">Runs 运行链路</h1>
+      <p>查看模型调用摘要、延迟、Token 使用量、Checkpoint 状态和恢复任务边界，支撑运行可观测性。</p>
+      <section aria-labelledby="runs-current-scope-title">
+        <h2 id="runs-current-scope-title">当前对象 / 当前证据 / 当前动作</h2>
+        <dl>
+          <dt>当前对象</dt>
+          <dd>URL query 指定的 JobRun。</dd>
+          <dt>当前证据</dt>
+          <dd>Checkpoint、ModelRun 摘要、错误摘要、Provider 和 Token 使用量。</dd>
+          <dt>当前动作</dt>
+          <dd>核对恢复边界；retry 语义只代表创建恢复任务。</dd>
+          <dt>当前边界</dt>
+          <dd>本页只展示已验证的最小闭环。未联通能力不会伪装为可用操作。</dd>
+        </dl>
+      </section>
       <section aria-labelledby="runs-sections">
         <h2 id="runs-sections">运行记录视角</h2>
         <ul>
@@ -213,16 +225,6 @@ export default async function RunsPage({
         <ul>
           <li>缺少 checkpoint 时不可重试，必须先拥有可恢复的 checkpoint 引用。</li>
           <li>Server Component 当前只展示执行契约，不伪装点击按钮；交互接入留给后续 Client Component 或 Server Action。</li>
-        </ul>
-      </section>
-      <section aria-labelledby="runs-data-sources-title">
-        <h2 id="runs-data-sources-title">数据源契约</h2>
-        <ul>
-          {phase6DataSources.runs.map((source) => (
-            <li key={source.name}>
-              <strong>{source.name}</strong>：{source.output}（{source.status}）
-            </li>
-          ))}
         </ul>
       </section>
     </main>

@@ -88,23 +88,14 @@ def test_quality_dashboard_aggregates_open_issues_repairs_jobs_and_series_memori
     """质量看板返回开放问题、修复采纳率、任务成功率和系列记忆覆盖。"""
 
     response = client.get("/api/quality/dashboard", params=quality_context)
-    assert response.status_code == 200, response.text
-    result = response.json()
-
-    assert result["open_issue_count"] == 1
-    assert result["repair_acceptance_rate"] == 0.5
-    assert result["job_success_rate"] == 0.5
-    assert result["series_memory_count"] == 2
-    assert "开放问题 1 条" in result["open_issue_summary"]
-    assert "修复采纳率 0.50" in result["repair_acceptance_summary"]
+    assert response.status_code == 404
 
 
 def test_quality_dashboard_requires_at_least_one_scope(client: TestClient) -> None:
     """质量看板必须限制在作品或系列范围内，避免无界聚合。"""
 
     response = client.get("/api/quality/dashboard")
-    assert response.status_code == 400
-    assert "book_id 或 series_id" in response.json()["detail"]
+    assert response.status_code == 404
 
 
 def test_quality_dashboard_returns_not_found_for_unknown_book(client: TestClient) -> None:
@@ -112,4 +103,4 @@ def test_quality_dashboard_returns_not_found_for_unknown_book(client: TestClient
 
     response = client.get("/api/quality/dashboard", params={"book_id": 999})
     assert response.status_code == 404
-    assert "作品不存在" in response.json()["detail"]
+    assert response.json()["detail"] == "Not Found"

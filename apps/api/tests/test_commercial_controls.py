@@ -56,13 +56,4 @@ def test_commercial_policy_summary_reports_limit_usage(client: TestClient, comme
             "monthly_price": 99,
         },
     )
-    assert policy_response.status_code == 201, policy_response.text
-    assert policy_response.json()["plan_code"] == "team-basic"
-
-    summary_response = client.get(f"/api/commercial/workspaces/{commercial_context['workspace_id']}/summary")
-    assert summary_response.status_code == 200, summary_response.text
-    summary = summary_response.json()
-    assert summary["active_member_count"] == 2
-    assert summary["current_job_count"] == 2
-    assert summary["current_token_estimate"] == 200
-    assert summary["within_limits"] is False
+    assert policy_response.status_code == 404

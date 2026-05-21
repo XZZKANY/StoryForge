@@ -7,11 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
-from app.domains.collaboration.router import router as collaboration_router
-from app.domains.commercial.router import router as commercial_router
 from app.domains.evaluations.router import router as evaluations_router
 from app.domains.events.router import router as events_router
 from app.domains.batch_refinery.router import router as batch_refinery_router
@@ -21,15 +18,12 @@ from app.domains.judge.router import router as judge_router
 from app.domains.model_runs.router import router as model_runs_router
 from app.domains.provider_gateway.router import router as provider_gateway_router
 from app.domains.prompt_packs.router import router as prompt_packs_router
-from app.domains.quality.router import router as quality_router
 from app.domains.repair.router import router as repair_router
 from app.domains.retrieval.router import router as retrieval_router
 from app.domains.scene_packets.router import router as scene_packets_router
 from app.domains.style_packs.router import router as style_packs_router
 from app.domains.studio.router import router as studio_router
 from app.domains.series.router import router as series_router
-from app.domains.workspaces.router import router as workspaces_router
-from app.domains.worldbuilding.router import router as worldbuilding_router
 
 from app.common.exceptions import DomainError
 
@@ -78,11 +72,8 @@ def health_check() -> dict[str, str]:
 
     return {"status": "ok", "service": "storyforge-api"}
 
-app.include_router(analytics_router)
 app.include_router(artifacts_router)
 app.include_router(assets_router)
-app.include_router(collaboration_router)
-app.include_router(commercial_router)
 app.include_router(evaluations_router)
 app.include_router(events_router)
 app.include_router(batch_refinery_router)
@@ -92,15 +83,12 @@ app.include_router(judge_router)
 app.include_router(model_runs_router)
 app.include_router(provider_gateway_router)
 app.include_router(prompt_packs_router)
-app.include_router(quality_router)
 app.include_router(repair_router)
 app.include_router(retrieval_router)
 app.include_router(scene_packets_router)
 app.include_router(style_packs_router)
 app.include_router(studio_router)
 app.include_router(series_router)
-app.include_router(workspaces_router)
-app.include_router(worldbuilding_router)
 
 
 @app.exception_handler(DomainError)

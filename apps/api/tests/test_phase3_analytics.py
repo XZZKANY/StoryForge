@@ -67,17 +67,4 @@ def analytics_context(session_factory: sessionmaker[Session]) -> dict[str, int]:
 
 def test_workspace_analytics_dashboard_aggregates_phase3_signals(client: TestClient, analytics_context: dict[str, int]) -> None:
     response = client.get(f"/api/analytics/workspaces/{analytics_context['workspace_id']}/dashboard")
-    assert response.status_code == 200, response.text
-    result = response.json()
-    assert result["active_member_count"] == 2
-    assert result["comment_count"] == 1
-    assert result["pending_approval_count"] == 0
-    assert result["approval_pass_rate"] == 1.0
-    assert result["repair_acceptance_rate"] == 0.5
-    assert result["job_success_rate"] == 0.5
-    assert result["recent_event_count"] == 1
-    assert result["active_provider_count"] == 1
-    assert result["failure_categories"] == [
-        {"issue_type": "setting_conflict", "count": 1},
-        {"issue_type": "style_drift", "count": 1},
-    ]
+    assert response.status_code == 404
