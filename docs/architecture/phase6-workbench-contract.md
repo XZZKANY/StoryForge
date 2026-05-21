@@ -18,7 +18,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 - Workflow-to-API 已有最小真表 adapter/client：workflow runtime 可把 `ModelRunPayload` 通过 adapter 写入 API `ModelRun` 真表；这是模块化单体内的交接层，不是新微服务，也不是跨进程 HTTP client。
 - Studio 作品列表、章节目标、Scene Packet、Judge 评审与 Repair 修订 API 已完成后端最小契约，并由 Web Studio 按页面级 `fetch` 单点读取。
 - Studio 批准摘要与恢复摘要已完成读取：`GET /api/studio/approval-summary` 返回可批准对象、目标章节、回写状态和不可批准原因；`GET /api/studio/recovery-summary` 返回失败节点、checkpoint、可恢复步骤和不可恢复原因。
-- Studio 批准写回已具备真实执行端点：`POST /api/studio/approve` 可把 ScenePacket 或 RepairPatch 写回章节、场景与 continuity 相关记录；Web 当前只展示执行入口契约和可执行状态，不是完整交互式按钮流。
+- Studio 批准写回已具备真实执行端点：`POST /api/studio/approve` 可把 ScenePacket 或 RepairPatch 写回章节、场景与 continuity 相关记录；Web 已通过 Server Action 提交批准写回并展示执行结果摘要。
 - Retrieval 资料源列表、刷新任务与搜索请求已完成工作台 API 最小契约：`GET /api/retrieval/workbench/sources`、`GET /api/retrieval/workbench/refresh-runs`、`POST /api/retrieval/workbench/search`；Web Retrieval 已按资料源 → 刷新任务 → 搜索命中预览顺序单点读取，搜索结果包含 `evidence_href` 锚点。
 - Runs JobRun 状态 API 已完成后端最小契约：`GET /api/model-runs/job-runs/{job_run_id}` 返回 JobRun 状态、progress、checkpoint 摘要和 ModelRun 摘要；`POST /api/model-runs/job-runs/{job_run_id}/retry` 的语义是基于失败 checkpoint 创建恢复任务，不会立即续跑 workflow。
 - Artifacts 已完成列表、详情和下载摘要 API：`GET /api/artifacts`、`GET /api/artifacts/{artifact_id}`、`GET /api/artifacts/{artifact_id}/download`；当前 download 返回 `payload_preview` 下载摘要，不是对象存储签名 URL。
@@ -37,7 +37,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 | 方向 | 已完成最小执行 / 摘要 | 剩余交互 / 详情增强 | 明确不代表 |
 | --- | --- | --- | --- |
 | Workflow-to-API | 最小真表 adapter/client 已存在，runtime `ModelRunPayload` 可写入 API 真表；调用方仍需传入已持久化 `JobRun.id:int`。 | HTTP 传输、真实 provider 端到端、跨进程恢复压测仍是后续能力。 | 不是新微服务；不是把 workflow runtime 字符串 ID 当数据库 ID。 |
-| Studio | 七个读取摘要已串起；`POST /api/studio/approve` 已实现真实批准写回，可写回章节、场景和 continuity 记录。 | Web 仍是执行入口契约展示，交互式按钮流、Server Action 或 Client Component 提交流和失败续跑执行流仍待增强。 | 不是完整交互式 Studio 编排器；不是批准后自动全流程续跑。 |
+| Studio | 七个读取摘要已串起；`POST /api/studio/approve` 已实现真实批准写回；Web 已通过 Server Action 提交 ScenePacket 或 RepairPatch 批准写回并展示结果摘要。 | 生成、Judge、Repair 的交互按钮流和失败续跑执行流仍待增强。 | 不是完整交互式 Studio 编排器；不是批准后自动全流程续跑。 |
 | Retrieval | 资料源、刷新任务、搜索和命中预览 API/Web 单点读取已实现，搜索结果保留 `evidence_href`。 | 独立证据跳转路由、重排状态详情、不可用原因和跨页面证据路由仍未联通。 | 不是完整检索请求表单、命中详情弹层或检索工作台执行流。 |
 | Runs | `GET /api/model-runs/job-runs/{job_run_id}` 真实读取；retry API 可创建 queued 恢复任务；Web 已展示执行契约。 | 交互式按钮流、Server Action 提交和 workflow 立即续跑仍待增强。 | retry 不是立即续跑 workflow；不是运行回放 UI 或完整 time-travel UI。 |
 | Artifacts | 列表、详情和 download 摘要 API 已实现；download 当前为 `payload_preview`，页面可展示首个制品详情和 payload 预览。 | 上传资料执行、工作流快照详情、评测报告详情和对象存储签名 URL 仍待增强。 | 不是对象存储签名 URL 下载；不是完整制品管理工作台。 |
@@ -46,7 +46,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 
 ## 剩余边界清单
 
-- Studio：页面仍展示执行入口契约，不提供完整交互式批准按钮流；失败恢复仍是摘要，不是续跑执行。
+- Studio：批准写回已具备 Server Action 提交流；生成、Judge、Repair 的交互按钮流和失败恢复续跑仍待增强。
 - Runs：retry API 创建恢复任务，不直接调用 workflow runtime；Web 已展示执行契约，不伪装点击按钮。
 - Artifacts：download 是 `payload_preview` 摘要，不是对象存储签名 URL；上传资料、快照详情和报告详情仍未闭环。
 - Evaluations：趋势和失败样例是摘要读取，不是复杂图表，也不是自动反馈执行。
@@ -54,7 +54,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 
 ## 真实数据联动优先级
 
-1. Studio 优先保持作品、章节、Scene Packet、Judge、Repair、批准写回和失败恢复事实链准确，不把执行入口契约夸大为完整交互按钮流。
+1. Studio 优先保持作品、章节、Scene Packet、Judge、Repair、批准写回和失败恢复事实链准确，不把批准写回最小 Server Action 夸大为完整交互式编排器。
 2. Retrieval 优先补独立证据跳转、重排状态和不可用原因，承接 Phase 5 检索证据链。
 3. Runs 优先区分 JobRun 读取、retry 恢复任务创建和 workflow 立即续跑三类语义。
 4. Artifacts 优先补对象存储签名 URL、上传资料执行、工作流快照详情和评测报告详情。
@@ -74,7 +74,7 @@ Studio 已从首个作品列表 spike 扩展到单章创作闭环的最小读取
 | Judge 评审 API | 草稿或 `draft_artifact_id`、`scene_packet_id` | 问题列表、严重级别、位置和建议 | API 与 Web 单点读取已实现 |
 | Repair 修订 API | Judge 问题、草稿引用、修订策略 | 修订文本、差异摘要、采纳建议 | API 与 Web 单点读取已实现 |
 | 批准回写 API | `scene_packet_id` 或 `repair_patch_id` | 可批准对象、目标章节、回写状态、不可批准原因 | 摘要读取已实现，真实写回由 `POST /api/studio/approve` 承接 |
-| 批准执行 API | ScenePacket 或 RepairPatch 批准请求 | 章节、场景、continuity 回写结果 | `POST /api/studio/approve` 真实写回已实现；Web 仅展示执行入口契约 |
+| 批准执行 API | ScenePacket 或 RepairPatch 批准请求 | 章节、场景、continuity 回写结果 | `POST /api/studio/approve` 真实写回已实现；Web 已通过 Server Action 提交并展示结果摘要 |
 | 失败恢复 API | `job_run_id`、checkpoint 引用、失败节点 | 可恢复步骤、错误摘要、重试入口状态 | API 与 Web 摘要读取已实现；续跑执行未实现 |
 
 ### Retrieval 数据源契约

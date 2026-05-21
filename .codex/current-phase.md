@@ -20,7 +20,7 @@
 | 11.8 最小仲裁闭环 | 已实现最小闭环 | `TODO.md`；`apply_arbitration_decision()` 只处理 `auto_merge` 的 memory create |
 | 11.9 `.codex` 审计噪音 | 本文件继续作为主事实入口 | `.codex/current-phase.md`；`.codex/context-summary-end-to-end-closure.md` |
 | Workflow-to-API ModelRun 调用链 | 已完成最小真表 adapter/client，workflow runtime 可把 `ModelRunPayload` 写入 API 真表；不是新微服务 | `docs/architecture/workflow-modelrun-adapter-contract.md`；`apps/workflow/tests/test_runtime_runner.py`；`apps/api/tests/test_model_runs.py` |
-| Studio 创作闭环 | 读取链路已覆盖作品、章节目标、Scene Packet、Judge、Repair、批准摘要和恢复摘要；`POST /api/studio/approve` 已实现真实批准写回 | `apps/api/app/domains/studio/`；`apps/web/app/studio/page.tsx`；`apps/api/tests/test_studio_book_list_api.py` |
+| Studio 创作闭环 | 读取链路已覆盖作品、章节目标、Scene Packet、Judge、Repair、批准摘要和恢复摘要；Web 已通过 Server Action 调用 `POST /api/studio/approve` 提交批准写回并展示结果摘要 | `apps/api/app/domains/studio/`；`apps/web/app/studio/page.tsx`；`apps/api/tests/test_studio_book_list_api.py` |
 | Retrieval 工作台 | 资料源、刷新任务、搜索和命中预览 API/Web 单点读取已实现 | `apps/api/app/domains/retrieval/`；`apps/web/app/retrieval/page.tsx`；`apps/api/tests/test_retrieval_workbench_api.py` |
 | Runs 工作台 | `GET /api/model-runs/job-runs/{job_run_id}` 真实读取；`POST /api/model-runs/job-runs/{job_run_id}/retry` 创建恢复任务，不立即续跑 workflow | `apps/api/app/domains/model_runs/`；`apps/api/tests/test_model_runs.py`；`apps/web/app/runs/page.tsx` |
 | Artifacts 工作台 | `GET /api/artifacts`、`GET /api/artifacts/{artifact_id}`、`GET /api/artifacts/{artifact_id}/download` 已实现；download 为 `payload_preview` 摘要 | `apps/api/app/domains/artifacts/`；`apps/api/tests/test_artifacts.py`；`apps/web/app/artifacts/page.tsx` |
@@ -32,7 +32,7 @@
 ### 已完成最小执行 / 摘要
 
 - Workflow-to-API：最小真表 adapter/client 已有，runtime `ModelRunPayload` 可写 API `ModelRun` 真表；调用方仍必须传入已持久化 `JobRun.id:int`。
-- Studio：作品列表、章节目标、Scene Packet、Judge、Repair、批准摘要和恢复摘要读取已实现；`POST /api/studio/approve` 可把 ScenePacket 或 RepairPatch 写回章节、场景与 continuity。
+- Studio：作品列表、章节目标、Scene Packet、Judge、Repair、批准摘要和恢复摘要读取已实现；Web Server Action 已可提交 `POST /api/studio/approve`，把 ScenePacket 或 RepairPatch 写回章节、场景与 continuity，并通过查询参数展示结果摘要。
 - Retrieval：资料源列表、刷新任务、搜索请求和命中预览已完成 API/Web 单点读取，保留 `evidence_href` 锚点。
 - Runs：JobRun/checkpoint/ModelRun 摘要读取已实现；retry API 创建 queued 恢复任务。
 - Artifacts：列表、详情和 `payload_preview` 下载摘要已实现。
@@ -41,7 +41,7 @@
 
 ### 剩余交互 / 详情增强
 
-- Studio 完整交互式批准按钮流、Server Action 或 Client Component 提交流、失败续跑执行流。
+- Studio 生成、Judge、Repair 的完整交互按钮流和失败续跑执行流；批准写回 Server Action 已完成最小交互闭环。
 - Runs Web 已展示 retry 执行契约；当前仅说明可创建恢复任务和不可重试原因，不提供点击按钮或立即续跑 workflow。
 - Retrieval 独立证据跳转路由、重排状态详情和跨页面证据路由。
 - Artifacts 上传资料执行、工作流快照详情、评测报告详情、对象存储签名 URL。

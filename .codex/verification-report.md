@@ -1654,3 +1654,167 @@ git diff --check
 建议：通过。
 
 理由：本轮把闭环剩余风险推进到可验证的最小执行入口和真实摘要读取，且完整本地门禁已通过；剩余内容已明确降级为后续交互式产品增强，不再混入已完成事实。
+
+
+# Studio Server Action 最小交互闭环验证报告
+
+生成时间：2026-05-21 03:10:41 +08:00
+
+## 1. 需求字段完整性
+
+- **目标**：把 Studio 批准写回从纯展示入口推进为可点击提交、后端真实写回、页面展示结果摘要的最小交互闭环。
+- **范围**：仅限 Studio 批准写回 Server Action、Web 契约测试和治理事实源；不新增微服务、不扩展 Retrieval/Runs/Artifacts/Evaluations 数据源。
+- **交付物**：Web 页面、Web 契约测试、治理文档、上下文摘要、操作日志和验证报告。
+- **审查要点**：复用既有 `POST /api/studio/approve`，不改变后端 API schema 和业务规则。
+
+## 2. 交付物映射
+
+- `apps/web/app/studio/page.tsx`：新增 `approveStudioWritebackAction`、表单提交和结果摘要展示。
+- `apps/web/tests/phase1-navigation.test.tsx`：新增 Server Action 与表单契约断言。
+- `docs/architecture/phase6-workbench-contract.md`、`.codex/current-phase.md`、`TODO.md`：同步事实边界。
+## 3. 本地验证命令与结果
+
+```powershell
+pnpm --filter @storyforge/web test
+pnpm --filter @storyforge/web lint
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api
+uv run pytest tests/test_studio_book_list_api.py -q
+cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+pnpm run test:web
+pnpm run test:api
+git diff --check
+```
+
+结果：Web 契约测试 9 项通过；Web lint 通过；Studio API 测试 20 项通过；`pnpm run test:web` 与 `pnpm run test:api` 通过；`git diff --check` 退出码 0，仅有 Windows 换行提示。
+
+## 4. 依赖与风险评估
+
+- Server Action 依赖运行时可访问 `STORYFORGE_API_BASE_URL`；API 不可用时页面通过查询参数展示错误摘要。
+- 本轮只完成批准写回最小交互闭环，不等于完整 Studio 生成、Judge、Repair、失败续跑编排器。
+- 未新增依赖、未修改数据库迁移、未刷新 OpenAPI，因为 API 契约未改变。
+
+## 5. 质量审查评分
+
+- **代码质量**：92/100
+- **测试覆盖**：92/100
+- **规范遵循**：94/100
+- **需求匹配**：93/100
+- **架构一致性**：92/100
+- **风险评估**：90/100
+
+**综合评分**：92/100
+
+## 6. 审查结论
+
+建议：通过。
+
+理由：本轮按用户指定的 Server Action 路线复用既有批准写回 API，形成可本地验证的最小交互闭环，并明确保留完整 Studio 编排器为后续范围。
+
+# Studio 文档状态收口验证报告
+
+生成时间：2026-05-21 03:12:48 +08:00
+
+## 1. 目标与范围
+
+- **目标**：修复文档中旧执行入口表述，并清理 `.codex` 记录中的连续问号乱码。
+- **范围**：仅限文档和审计记录，不修改业务代码或 API 契约。
+
+## 2. 本地验证
+
+```powershell
+# 扫描 Phase 6 契约、当前阶段、TODO 和 .codex 审计文件，确认没有旧表述或连续问号占位。
+# 随后执行 git diff --check。
+```
+
+结果：旧表述与连续问号占位扫描无输出；`git diff --check` 退出码 0，仅有 CRLF 换行提示。
+
+## 3. 结论
+
+建议：通过。
+
+理由：文档事实源已统一为 Studio Server Action 最小交互闭环，且审计记录不再包含连续问号乱码。
+
+## 4. 复核补充
+
+时间：2026-05-21 03:20:00 +08:00
+
+- 旧表述与连续问号占位扫描范围包含 Phase 6 契约、当前阶段、TODO、上下文摘要、操作日志和验证报告；命令无输出，退出码 0。
+- `git diff --check` 退出码 0，仅提示 `.codex/operations-log.md` 下次由 Git 转 CRLF。
+
+
+# Studio 治理事实源乱码回归测试验证报告
+
+生成时间：2026-05-21 03:30:00 +08:00
+
+## 1. 目标与范围
+
+- **目标**：为 Studio Server Action 闭环相关治理事实源补充乱码和旧事实回归保护。
+- **范围**：仅修改 Web 静态契约测试和 `.codex` 审计记录，不修改运行时代码、API 或数据库。
+
+## 2. 交付物映射
+
+- `apps/web/tests/phase1-navigation.test.tsx`：新增项目级治理事实源清洁测试。
+- `.codex/context-summary-studio-governance-garble-guard.md`：记录本轮上下文与复用模式。
+- `.codex/operations-log.md`、`.codex/verification-report.md`：记录实施与验证结果。
+
+## 3. 本地验证
+
+- `pnpm --filter @storyforge/web test`：10 项通过，新增测试通过。
+- `git diff --check`：退出码 0，仅有 `.codex` 文件 CRLF 换行提示。
+## 4. 失败修复记录
+
+- 初次验证失败 1 项：新增断言要求 `最小交互闭环`，但现有 Phase 6 契约稳定文本为 `最小 Server Action`。
+- 修复方式：将断言改为事实源中已存在的稳定文本，避免测试引入新文案要求。
+- 复跑结果：Web 测试 10 项通过。
+
+## 5. 质量审查评分
+
+- **代码质量**：93/100
+- **测试覆盖**：94/100
+- **规范遵循**：94/100
+- **需求匹配**：92/100
+- **架构一致性**：93/100
+- **风险评估**：92/100
+
+**综合评分**：93/100
+
+## 6. 审查结论
+
+建议：通过。
+
+理由：新增测试直接覆盖本轮发现的乱码回归风险，并复用既有静态契约测试工具，验证链路本地可重复。
+
+## 7. 补充类型验证
+
+- `pnpm --filter @storyforge/web exec tsc --noEmit`：退出码 0。
+
+
+# 未提交 diff 分析与完整验证报告
+
+生成时间：2026-05-21 11:20:00 +08:00
+
+## 1. diff 摘要
+
+- `git diff --stat` 显示 7 个已跟踪文件变更：`.codex/current-phase.md`、`.codex/operations-log.md`、`.codex/verification-report.md`、`TODO.md`、`apps/web/app/studio/page.tsx`、`apps/web/tests/phase1-navigation.test.tsx`、`docs/architecture/phase6-workbench-contract.md`。
+- 统计结果：402 行新增、28 行删除。
+- `git status --short` 另显示 3 个未跟踪上下文摘要：`.codex/context-summary-project-analysis.md`、`.codex/context-summary-studio-governance-garble-guard.md`、`.codex/context-summary-studio-server-action-closure.md`。
+
+## 2. 保留建议
+
+- **保留**：Studio Server Action 实现、Web 契约测试、Phase 6/TODO/current-phase 事实源同步、Studio 两个上下文摘要。
+- **可选保留**：`.codex/context-summary-project-analysis.md`，它是项目现状分析审计资料；若本次提交只聚焦 Studio，可单独排除。
+- **保留但不作为运行时代码**：`.codex/operations-log.md` 与 `.codex/verification-report.md`。
+
+## 3. 本地验证结果
+
+- `pnpm test`：退出码 0。
+- `pnpm e2e`：退出码 0；TAP 14 项通过，补偿验收完成。
+- `pnpm openapi`：退出码 0；OpenAPI 契约生成成功。
+- `git diff -- packages/shared/src/contracts/storyforge.openapi.json`：无输出，OpenAPI 生成物没有新增 diff。
+- `git diff --check`：退出码 0，仅有 `.codex` 文件 CRLF 提示。
+
+## 4. 风险与后续
+
+- 当前 Studio 改动仍是批准写回最小交互闭环，不等于完整 Studio 编排器。
+- 历史 `.codex/context-summary-task-7.md` 仍存在连续问号乱码，但不属于当前未提交 diff；建议后续单独清理历史审计乱码。
+- 下一步若继续迭代，优先级建议：Phase 7 发布治理验证、Studio 大文件拆分计划、OpenAPI/文档/TODO 状态一致性检查。
