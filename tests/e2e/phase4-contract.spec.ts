@@ -53,7 +53,7 @@ test("Phase 4 后端测试源码保留关键业务证据", () => {
 test("Phase 4 前端入口包含检索、运行日志、制品中心和评测面板", () => {
   assertSourceEvidence(
     webSources.home,
-    ["/retrieval", "/runs", "/artifacts", "/evaluations", "Retrieval Center 检索中心", "Evaluation Lab 评测实验面板"],
+    ["/retrieval", "/runs", "/artifacts", "/evaluations", "Retrieval 证据链路", "Evaluations 评测诊断"],
   );
   assertSourceEvidence(webSources.retrieval, ["资料库", "Embedding 刷新任务", "检索命中与重排", "Scene Packet 检索证据"]);
   assertSourceEvidence(webSources.runs, ["模型运行日志", "Provider 解析结果", "Prompt Pack 来源", "任务恢复入口"]);
