@@ -3,6 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import sqlite3
 from typing import Any, Protocol
 
 from storyforge_workflow.state import checkpoint_reference_state
@@ -99,8 +103,8 @@ def _validate_api_job_run_id(api_job_run_id: object) -> int:
     return api_job_run_id
 
 
-class RuntimeCheckpointStore:
-    """持久化运行时的最小内存实现，可被真实数据库实现替换。"""
+class InMemoryRuntimeCheckpointStore:
+    """显式测试替身：只在调用方主动选择时使用进程内存保存运行时记录。"""
 
     def __init__(self) -> None:
         self._records: list[RuntimeRecord] = []
@@ -170,3 +174,248 @@ class RuntimeCheckpointStore:
 
     def list_model_runs(self, thread_id: str) -> list[RuntimeModelRunRecord]:
         return [record for record in self._model_runs if record.thread_id == thread_id]
+
+
+class RuntimeCheckpointStore:
+    """使用 SQLite 持久化运行时 checkpoint，默认避免进程退出后丢状态。"""
+
+    def __init__(self, *, sqlite_path: str | os.PathLike[str] | None = None) -> None:
+        self.sqlite_path = Path(sqlite_path) if sqlite_path is not None else _default_sqlite_path()
+        self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+        self._setup()
+
+    def record(self, *, thread_id: str, job_run_id: str, current_node: str, summary: str, approval_status: str) -> RuntimeRecord:
+        record = RuntimeRecord(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            current_node=current_node,
+            summary=summary,
+            approval_status=approval_status,
+            created_at=datetime.now(timezone.utc),
+        )
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO runtime_records (thread_id, job_run_id, current_node, summary, approval_status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.thread_id,
+                    record.job_run_id,
+                    record.current_node,
+                    record.summary,
+                    record.approval_status,
+                    _format_datetime(record.created_at),
+                ),
+            )
+        return record
+
+    def record_model_run(
+        self,
+        *,
+        thread_id: str,
+        job_run_id: str,
+        provider_name: str,
+        model_name: str,
+        capability: str,
+        latency_ms: int,
+        token_usage: int,
+        input_summary: str,
+        output_summary: str,
+        status: str = "completed",
+        error_message: str | None = None,
+    ) -> RuntimeModelRunRecord:
+        created_at = datetime.now(timezone.utc)
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO runtime_model_runs (
+                    thread_id, job_run_id, provider_name, model_name, capability, latency_ms,
+                    token_usage, input_summary, output_summary, status, error_message, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    thread_id,
+                    job_run_id,
+                    provider_name,
+                    model_name,
+                    capability,
+                    latency_ms,
+                    token_usage,
+                    input_summary,
+                    output_summary,
+                    status,
+                    error_message,
+                    _format_datetime(created_at),
+                ),
+            )
+            model_run_id = int(cursor.lastrowid)
+        return RuntimeModelRunRecord(
+            model_run_id=model_run_id,
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            provider_name=provider_name,
+            model_name=model_name,
+            capability=capability,
+            latency_ms=latency_ms,
+            token_usage=token_usage,
+            input_summary=input_summary,
+            output_summary=output_summary,
+            status=status,
+            error_message=error_message,
+            created_at=created_at,
+        )
+
+    def save_state(self, thread_id: str, state: dict[str, Any]) -> None:
+        reference_state = checkpoint_reference_state(state)
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO runtime_states (thread_id, state_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(thread_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at
+                """,
+                (
+                    thread_id,
+                    json.dumps(reference_state, ensure_ascii=False, sort_keys=True, default=str),
+                    _format_datetime(datetime.now(timezone.utc)),
+                ),
+            )
+
+    def load_state(self, thread_id: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute("SELECT state_json FROM runtime_states WHERE thread_id = ?", (thread_id,)).fetchone()
+        if row is None:
+            return None
+        state = json.loads(str(row["state_json"]))
+        return dict(state)
+
+    def latest(self, thread_id: str) -> RuntimeRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT thread_id, job_run_id, current_node, summary, approval_status, created_at
+                FROM runtime_records
+                WHERE thread_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (thread_id,),
+            ).fetchone()
+        return None if row is None else _record_from_row(row)
+
+    def list_records(self, thread_id: str) -> list[RuntimeRecord]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT thread_id, job_run_id, current_node, summary, approval_status, created_at
+                FROM runtime_records
+                WHERE thread_id = ?
+                ORDER BY id
+                """,
+                (thread_id,),
+            ).fetchall()
+        return [_record_from_row(row) for row in rows]
+
+    def list_model_runs(self, thread_id: str) -> list[RuntimeModelRunRecord]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, thread_id, job_run_id, provider_name, model_name, capability, latency_ms,
+                       token_usage, input_summary, output_summary, status, error_message, created_at
+                FROM runtime_model_runs
+                WHERE thread_id = ?
+                ORDER BY id
+                """,
+                (thread_id,),
+            ).fetchall()
+        return [_model_run_from_row(row) for row in rows]
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.sqlite_path)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def _setup(self) -> None:
+        with self._connect() as connection:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thread_id TEXT NOT NULL,
+                    job_run_id TEXT NOT NULL,
+                    current_node TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    approval_status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_records_thread_id ON runtime_records(thread_id, id);
+                CREATE TABLE IF NOT EXISTS runtime_model_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thread_id TEXT NOT NULL,
+                    job_run_id TEXT NOT NULL,
+                    provider_name TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    capability TEXT NOT NULL,
+                    latency_ms INTEGER NOT NULL,
+                    token_usage INTEGER NOT NULL,
+                    input_summary TEXT NOT NULL,
+                    output_summary TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    error_message TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_model_runs_thread_id ON runtime_model_runs(thread_id, id);
+                CREATE TABLE IF NOT EXISTS runtime_states (
+                    thread_id TEXT PRIMARY KEY,
+                    state_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """
+            )
+
+
+def _default_sqlite_path() -> Path:
+    configured = os.getenv("STORYFORGE_WORKFLOW_SQLITE_PATH")
+    if configured:
+        return Path(configured)
+    return Path(__file__).resolve().parents[2] / ".runtime" / "workflow-runtime.sqlite3"
+
+
+def _format_datetime(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _parse_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def _record_from_row(row: sqlite3.Row) -> RuntimeRecord:
+    return RuntimeRecord(
+        thread_id=str(row["thread_id"]),
+        job_run_id=str(row["job_run_id"]),
+        current_node=str(row["current_node"]),
+        summary=str(row["summary"]),
+        approval_status=str(row["approval_status"]),
+        created_at=_parse_datetime(str(row["created_at"])),
+    )
+
+
+def _model_run_from_row(row: sqlite3.Row) -> RuntimeModelRunRecord:
+    return RuntimeModelRunRecord(
+        model_run_id=int(row["id"]),
+        thread_id=str(row["thread_id"]),
+        job_run_id=str(row["job_run_id"]),
+        provider_name=str(row["provider_name"]),
+        model_name=str(row["model_name"]),
+        capability=str(row["capability"]),
+        latency_ms=int(row["latency_ms"]),
+        token_usage=int(row["token_usage"]),
+        input_summary=str(row["input_summary"]),
+        output_summary=str(row["output_summary"]),
+        status=str(row["status"]),
+        error_message=None if row["error_message"] is None else str(row["error_message"]),
+        created_at=_parse_datetime(str(row["created_at"])),
+    )

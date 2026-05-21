@@ -1,5 +1,6 @@
 from storyforge_workflow.runtime.checkpoints import (
     ApiModelRunAdapter,
+    InMemoryRuntimeCheckpointStore,
     ModelRunPayload,
     ModelRunSink,
     RuntimeCheckpointStore,
@@ -12,6 +13,7 @@ from storyforge_workflow.runtime.runner import WorkflowRuntime, WorkflowRuntimeR
 __all__ = [
     "ProviderExecutionResult",
     "ApiModelRunAdapter",
+    "InMemoryRuntimeCheckpointStore",
     "ModelRunPayload",
     "ModelRunSink",
     "RuntimeCheckpointStore",
