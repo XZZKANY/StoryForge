@@ -58,6 +58,6 @@ def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None
             db_session.close()
 
     app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app) as test_client:
+    with TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"}) as test_client:
         yield test_client
     app.dependency_overrides.clear()
