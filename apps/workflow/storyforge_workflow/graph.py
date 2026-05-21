@@ -22,8 +22,9 @@ def create_generation_graph(
 ):
     """创建可中断、可恢复的生成工作流图。"""
 
+    if checkpointer is None:
+        raise ValueError("create_generation_graph 需要显式传入持久化 checkpointer；测试可传入 InMemorySaver。")
     workflow_store = store or InMemoryWorkflowStore()
-    saver = checkpointer or InMemorySaver()
     builder = StateGraph(GenerationState)
     builder.add_node("book_director", _audited_node("book_director", create_book_strategy, workflow_store))
     builder.add_node(
@@ -43,7 +44,7 @@ def create_generation_graph(
     builder.add_edge("scene_beats", "draft_writer")
     builder.add_edge("draft_writer", "human_approval")
     builder.add_edge("human_approval", END)
-    return builder.compile(checkpointer=saver)
+    return builder.compile(checkpointer=checkpointer)
 
 
 def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowStore):

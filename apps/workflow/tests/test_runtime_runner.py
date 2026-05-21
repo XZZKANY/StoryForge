@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
-from storyforge_workflow.runtime import ModelRunPayload, RuntimeCheckpointStore, WorkflowRuntime
+from storyforge_workflow.runtime import InMemoryRuntimeCheckpointStore, ModelRunPayload, WorkflowRuntime
 from storyforge_workflow.runtime.checkpoints import ApiModelRunAdapter
 
 
@@ -34,7 +34,7 @@ def test_workflow_runtime_start_and_resume_records_provider_execution(monkeypatc
 
     _stub_node_llm(monkeypatch)
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
-    checkpoint_store = RuntimeCheckpointStore()
+    checkpoint_store = InMemoryRuntimeCheckpointStore()
     sink = CapturingModelRunSink()
     runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
 
@@ -95,7 +95,7 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
         raise RuntimeError("provider timeout")
 
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", fail_provider_execution)
-    checkpoint_store = RuntimeCheckpointStore()
+    checkpoint_store = InMemoryRuntimeCheckpointStore()
     sink = CapturingModelRunSink(persisted_model_run_id=9002)
     runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
 

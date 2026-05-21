@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from storyforge_workflow import create_generation_graph, initial_generation_state
@@ -33,7 +34,7 @@ class WorkflowRuntime:
         self.audit_store = audit_store or InMemoryWorkflowStore()
         self.checkpoint_store = checkpoint_store or RuntimeCheckpointStore()
         self.model_run_sink = model_run_sink
-        self.graph = create_generation_graph(store=self.audit_store)
+        self.graph = create_generation_graph(store=self.audit_store, checkpointer=InMemorySaver())
 
     def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any]) -> WorkflowRuntimeResult:
         state = initial_generation_state(

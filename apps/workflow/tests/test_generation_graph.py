@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from storyforge_workflow import InMemoryWorkflowStore, create_generation_graph, initial_generation_state
@@ -26,7 +28,7 @@ def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monke
 
     _stub_llm(monkeypatch)
     store = InMemoryWorkflowStore()
-    graph = create_generation_graph(store=store)
+    graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
     thread_id = "thread-task-5"
     job_run_id = "job-task-5"
     config = {"configurable": {"thread_id": thread_id}}
@@ -72,7 +74,7 @@ def test_generation_graph_resumes_with_same_thread_id_and_command(monkeypatch) -
 
     _stub_llm(monkeypatch)
     store = InMemoryWorkflowStore()
-    graph = create_generation_graph(store=store)
+    graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
     thread_id = "thread-resume"
     job_run_id = "job-resume"
     config = {"configurable": {"thread_id": thread_id}}
@@ -112,6 +114,13 @@ def test_generation_graph_resumes_with_same_thread_id_and_command(monkeypatch) -
     assert latest.approval_status == "approved"
     assert latest.thread_id == thread_id
     assert latest.job_run_id == job_run_id
+
+
+def test_generation_graph_requires_explicit_checkpointer_for_local_tests() -> None:
+    """图构建不应默认创建 InMemorySaver，生产入口必须显式传入持久化 checkpointer。"""
+
+    with pytest.raises(ValueError, match="checkpointer"):
+        create_generation_graph(store=InMemoryWorkflowStore())
 
 
 def _state(thread_id: str, job_run_id: str) -> dict:

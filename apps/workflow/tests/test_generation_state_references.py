@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import get_type_hints
 
+import storyforge_workflow.runtime as runtime_module
 from storyforge_workflow.runtime import RuntimeCheckpointStore
 from storyforge_workflow.state import GenerationState, checkpoint_reference_state, initial_generation_state
 
@@ -91,4 +92,43 @@ def test_runtime_checkpoint_store_saves_reference_state_only() -> None:
     assert saved["compiled_context_id"] == "ctx_store"
     assert saved["current_node"] == "draft_writer"
     assert "scene_packet" not in saved
+    assert "draft_excerpt" not in saved
+
+
+def test_runtime_checkpoint_store_persists_state_across_instances(tmp_path) -> None:
+    """默认运行时 checkpoint 仓库必须落到 SQLite，而不是进程内字典。"""
+
+    sqlite_path = tmp_path / "workflow-runtime.sqlite3"
+    assert hasattr(runtime_module, "InMemoryRuntimeCheckpointStore")
+    first_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    first_store.record(
+        thread_id="thread-sqlite",
+        job_run_id="job-sqlite",
+        current_node="draft_writer",
+        summary="已保存到 SQLite。",
+        approval_status="pending",
+    )
+    first_store.save_state(
+        "thread-sqlite",
+        {
+            "thread_id": "thread-sqlite",
+            "job_run_id": "job-sqlite",
+            "scene_packet_id": 303,
+            "compiled_context_id": "ctx_sqlite",
+            "current_node": "draft_writer",
+            "approval_status": "pending",
+            "draft_excerpt": "完整草稿禁止进入持久化 checkpoint。",
+        },
+    )
+
+    second_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    latest = second_store.latest("thread-sqlite")
+    saved = second_store.load_state("thread-sqlite")
+
+    assert latest is not None
+    assert latest.current_node == "draft_writer"
+    assert latest.summary == "已保存到 SQLite。"
+    assert saved is not None
+    assert saved["scene_packet_id"] == 303
+    assert saved["compiled_context_id"] == "ctx_sqlite"
     assert "draft_excerpt" not in saved
