@@ -1,4 +1,4 @@
-import { phase6DataSources } from "../../lib/phase6-data-sources";
+import { readJson } from "../../lib/api-client";
 
 type EvaluationRunItem = {
   readonly id: number;
@@ -53,65 +53,40 @@ const evaluationSections = [
 
 const evaluationRunsEndpoint = "/api/evaluations/runs";
 
-const getEvaluationsApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
-
 async function readEvaluationRuns(): Promise<EvaluationRunListState> {
-  try {
-    const response = await fetch(new URL(evaluationRunsEndpoint, getEvaluationsApiBaseUrl()), { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "error", message: `评测运行 API 返回 ${response.status}` };
-    }
-
-    const payload: unknown = await response.json();
-    if (!Array.isArray(payload)) {
-      return { status: "error", message: "评测运行 API 返回格式不符合预期" };
-    }
-
-    return { status: "ready", runs: payload as EvaluationRunItem[] };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson<EvaluationRunItem[]>(evaluationRunsEndpoint, {
+    validate: isEvaluationRunItemList,
+    invalidMessage: "评测运行 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", runs: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "评测运行 API 返回") };
 }
 
 async function readEvaluationRunDetail(runId: number | undefined): Promise<EvaluationRunDetailState> {
   if (runId === undefined) {
     return { status: "idle", message: "读取评测详情需要先获得评测运行列表。" };
   }
-  try {
-    const response = await fetch(new URL(`${evaluationRunsEndpoint}/${runId}`, getEvaluationsApiBaseUrl()), { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "error", message: `评测详情 API 返回 ${response.status}` };
-    }
-    const payload: unknown = await response.json();
-    if (!isEvaluationRunDetail(payload)) {
-      return { status: "error", message: "评测详情 API 返回格式不符合预期" };
-    }
-    return { status: "ready", detail: payload };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson(`${evaluationRunsEndpoint}/${runId}`, {
+    validate: isEvaluationRunDetail,
+    invalidMessage: "评测详情 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", detail: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "评测详情 API 返回") };
 }
 
 async function readEvaluationFailedSamples(runId: number | undefined): Promise<EvaluationFailedSampleState> {
   if (runId === undefined) {
     return { status: "idle", message: "读取失败样例需要先获得评测运行列表。" };
   }
-  try {
-    const response = await fetch(new URL(`${evaluationRunsEndpoint}/${runId}/failed-samples`, getEvaluationsApiBaseUrl()), { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "error", message: `失败样例 API 返回 ${response.status}` };
-    }
-    const payload: unknown = await response.json();
-    if (!Array.isArray(payload) || !payload.every(isEvaluationFailedSample)) {
-      return { status: "error", message: "失败样例 API 返回格式不符合预期" };
-    }
-    return { status: "ready", samples: payload };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson(`${evaluationRunsEndpoint}/${runId}/failed-samples`, {
+    validate: isEvaluationFailedSampleList,
+    invalidMessage: "失败样例 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", samples: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "失败样例 API 返回") };
 }
 
 function isEvaluationRunDetail(value: unknown): value is EvaluationRunDetail {
@@ -128,6 +103,27 @@ function isEvaluationRunDetail(value: unknown): value is EvaluationRunDetail {
   );
 }
 
+function isEvaluationRunItem(value: unknown): value is EvaluationRunItem {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<EvaluationRunItem>;
+  return (
+    typeof candidate.id === "number" &&
+    (typeof candidate.case_id === "number" || candidate.case_id === null) &&
+    (typeof candidate.workspace_id === "number" || candidate.workspace_id === null) &&
+    (typeof candidate.book_id === "number" || candidate.book_id === null) &&
+    typeof candidate.status === "string" &&
+    typeof candidate.metrics === "object" &&
+    candidate.metrics !== null &&
+    typeof candidate.summary === "string"
+  );
+}
+
+function isEvaluationRunItemList(value: unknown): value is EvaluationRunItem[] {
+  return Array.isArray(value) && value.every(isEvaluationRunItem);
+}
+
 function isEvaluationFailedSample(value: unknown): value is EvaluationFailedSample {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -141,6 +137,10 @@ function isEvaluationFailedSample(value: unknown): value is EvaluationFailedSamp
     typeof candidate.repair_hint === "string" &&
     (typeof candidate.studio_href === "string" || candidate.studio_href === null)
   );
+}
+
+function isEvaluationFailedSampleList(value: unknown): value is EvaluationFailedSample[] {
+  return Array.isArray(value) && value.every(isEvaluationFailedSample);
 }
 
 function formatMetricValue(value: unknown): string {
@@ -176,8 +176,21 @@ export default async function EvaluationsPage() {
 
   return (
     <main aria-labelledby="evaluations-title">
-      <h1 id="evaluations-title">Evaluation Lab 评测实验面板</h1>
-      <p>维护评测集、运行记录、指标趋势和失败样例，为后续模型与 Prompt 策略迭代提供依据。</p>
+      <h1 id="evaluations-title">Evaluations 评测诊断</h1>
+      <p>核对评测运行、趋势摘要和失败样例，为后续模型与 Prompt 策略迭代提供证据。</p>
+      <section aria-labelledby="evaluations-current-scope-title">
+        <h2 id="evaluations-current-scope-title">当前对象 / 当前证据 / 当前动作</h2>
+        <dl>
+          <dt>当前对象</dt>
+          <dd>Evaluation Run 列表中的首个运行记录。</dd>
+          <dt>当前证据</dt>
+          <dd>趋势摘要点、失败样例数量、失败原因、修复建议和 Studio 反馈入口摘要。</dd>
+          <dt>当前动作</dt>
+          <dd>核对失败样例、记录反馈入口、回到 Studio 处理可追溯修复。</dd>
+          <dt>当前边界</dt>
+          <dd>本页只展示已验证的最小闭环。未联通能力不会伪装为可用操作。</dd>
+        </dl>
+      </section>
       <section aria-labelledby="evaluation-sections">
         <h2 id="evaluation-sections">评测指标</h2>
         <ul>
@@ -248,16 +261,6 @@ export default async function EvaluationsPage() {
             ))}
           </ul>
         )}
-      </section>
-      <section aria-labelledby="evaluations-data-sources-title">
-        <h2 id="evaluations-data-sources-title">数据源契约</h2>
-        <ul>
-          {phase6DataSources.evaluations.map((source) => (
-            <li key={source.name}>
-              <strong>{source.name}</strong>：{source.output}（{source.status}）
-            </li>
-          ))}
-        </ul>
       </section>
     </main>
   );

@@ -1,4 +1,3 @@
-import { phase6DataSources } from "../../lib/phase6-data-sources";
 import { buildApiUrl } from "../../lib/api-client";
 
 type RetrievalWorkbenchSource = {
@@ -195,9 +194,22 @@ export default async function RetrievalPage({
 
   return (
     <main aria-labelledby="retrieval-title">
-        <h1 id="retrieval-title">Retrieval Center 检索中心</h1>
-        <p>管理资料来源类型、搜索请求、命中预览、证据跳转和 Scene Packet 的检索证据来源。</p>
+        <h1 id="retrieval-title">Retrieval 证据链路</h1>
+        <p>核对资料来源类型、搜索请求、命中预览、证据锚点和 Scene Packet 的检索证据来源。</p>
         <p>当前读取范围：{bookId === undefined ? "未指定 book_id，读取 API 默认资料源列表。" : `book_id=${bookId}`}</p>
+      <section aria-labelledby="retrieval-current-scope-title">
+        <h2 id="retrieval-current-scope-title">当前对象 / 当前证据 / 当前动作</h2>
+        <dl>
+          <dt>当前对象</dt>
+          <dd>资料源、刷新任务和搜索请求。</dd>
+          <dt>当前证据</dt>
+          <dd>Retrieval Hit、来源标题、片段摘要、score、rank 和 evidence anchor。</dd>
+          <dt>当前动作</dt>
+          <dd>核对命中、跳转锚点、回到 Studio 复核 Scene Packet 证据。</dd>
+          <dt>当前边界</dt>
+          <dd>本页只展示已验证的最小闭环。未联通能力不会伪装为可用操作。</dd>
+        </dl>
+      </section>
       <section aria-labelledby="retrieval-sections">
         <h2 id="retrieval-sections">检索能力</h2>
         <ul>
@@ -273,16 +285,6 @@ export default async function RetrievalPage({
             ))}
           </ol>
         )}
-      </section>
-      <section aria-labelledby="retrieval-data-sources-title">
-        <h2 id="retrieval-data-sources-title">数据源契约</h2>
-        <ul>
-          {phase6DataSources.retrieval.map((source) => (
-            <li key={source.name}>
-              <strong>{source.name}</strong>：{source.output}（{source.status}）
-            </li>
-          ))}
-        </ul>
       </section>
     </main>
   );

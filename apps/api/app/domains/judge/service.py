@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 import json
 import os
@@ -34,6 +35,7 @@ class DetectedIssue:
 
 
 STYLE_DRIFT_PHRASES = ("作者直接解释", "设定说明", "旁白解释", "直接说明设定", "作者在这里解释")
+JudgeProvider = Callable[[JudgeIssueCreate], Sequence[dict[str, object] | DetectedIssue]]
 
 
 def create_judge_issues(session: Session, payload: JudgeIssueCreate) -> list[JudgeIssue]:
@@ -89,8 +91,11 @@ def deterministic_judge_fallback(payload: JudgeIssueCreate) -> list[DetectedIssu
     ]
 
 
-def semantic_judge(payload: JudgeIssueCreate) -> list[DetectedIssue]:
+def semantic_judge(payload: JudgeIssueCreate, *, provider: JudgeProvider | None = None) -> list[DetectedIssue]:
     """调用 OpenAI 兼容模型执行语义一致性评审。"""
+
+    if provider is not None:
+        return _issues_from_provider_items(provider(payload), payload.content)
 
     api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or os.getenv("STORYFORGE_LLM_API_KEY")
     if not api_key:
@@ -128,7 +133,19 @@ def semantic_judge(payload: JudgeIssueCreate) -> list[DetectedIssue]:
         return []
     if not isinstance(decoded, list):
         return []
-    return [_issue_from_llm_item(item, payload.content) for item in decoded if isinstance(item, dict)]
+    return _issues_from_provider_items(decoded, payload.content)
+
+
+def _issues_from_provider_items(items: Sequence[dict[str, object] | DetectedIssue], content: str) -> list[DetectedIssue]:
+    """规整 provider 返回值，让远程模型和本地测试替身走同一条解析路径。"""
+
+    issues: list[DetectedIssue] = []
+    for item in items:
+        if isinstance(item, DetectedIssue):
+            issues.append(item)
+        elif isinstance(item, dict):
+            issues.append(_issue_from_llm_item(item, content))
+    return issues
 
 
 def _detect_setting_conflicts(content: str, required_facts: list[str]) -> list[DetectedIssue]:

@@ -1,4 +1,4 @@
-import { phase6DataSources } from "../../lib/phase6-data-sources";
+import { readJson } from "../../lib/api-client";
 
 type ArtifactWorkbenchItem = {
   readonly id: number;
@@ -49,65 +49,40 @@ const artifactSections = [
 
 const artifactsEndpoint = "/api/artifacts";
 
-const getArtifactsApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
-
 async function readArtifacts(): Promise<ArtifactListState> {
-  try {
-    const response = await fetch(new URL(artifactsEndpoint, getArtifactsApiBaseUrl()), { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "error", message: `制品列表 API 返回 ${response.status}` };
-    }
-
-    const payload: unknown = await response.json();
-    if (!Array.isArray(payload)) {
-      return { status: "error", message: "制品列表 API 返回格式不符合预期" };
-    }
-
-    return { status: "ready", artifacts: payload as ArtifactWorkbenchItem[] };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson<ArtifactWorkbenchItem[]>(artifactsEndpoint, {
+    validate: isArtifactWorkbenchItemList,
+    invalidMessage: "制品列表 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", artifacts: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "制品列表 API 返回") };
 }
 
 async function readArtifactDetail(artifactId: number | undefined): Promise<ArtifactDetailState> {
   if (artifactId === undefined) {
     return { status: "idle", message: "读取制品详情需要先获得制品列表。" };
   }
-  try {
-    const response = await fetch(new URL(`${artifactsEndpoint}/${artifactId}`, getArtifactsApiBaseUrl()), { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "error", message: `制品详情 API 返回 ${response.status}` };
-    }
-    const payload: unknown = await response.json();
-    if (!isArtifactWorkbenchItem(payload)) {
-      return { status: "error", message: "制品详情 API 返回格式不符合预期" };
-    }
-    return { status: "ready", artifact: payload };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson(`${artifactsEndpoint}/${artifactId}`, {
+    validate: isArtifactWorkbenchItem,
+    invalidMessage: "制品详情 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", artifact: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "制品详情 API 返回") };
 }
 
 async function readArtifactDownload(artifactId: number | undefined): Promise<ArtifactDownloadState> {
   if (artifactId === undefined) {
     return { status: "idle", message: "读取制品下载摘要需要先获得制品列表。" };
   }
-  try {
-    const response = await fetch(new URL(`${artifactsEndpoint}/${artifactId}/download`, getArtifactsApiBaseUrl()), { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "error", message: `制品下载摘要 API 返回 ${response.status}` };
-    }
-    const payload: unknown = await response.json();
-    if (!isArtifactDownloadSummary(payload)) {
-      return { status: "error", message: "制品下载摘要 API 返回格式不符合预期" };
-    }
-    return { status: "ready", download: payload };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson(`${artifactsEndpoint}/${artifactId}/download`, {
+    validate: isArtifactDownloadSummary,
+    invalidMessage: "制品下载摘要 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", download: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "制品下载摘要 API 返回") };
 }
 
 function isArtifactWorkbenchItem(value: unknown): value is ArtifactWorkbenchItem {
@@ -126,6 +101,10 @@ function isArtifactWorkbenchItem(value: unknown): value is ArtifactWorkbenchItem
     typeof candidate.payload === "object" &&
     candidate.payload !== null
   );
+}
+
+function isArtifactWorkbenchItemList(value: unknown): value is ArtifactWorkbenchItem[] {
+  return Array.isArray(value) && value.every(isArtifactWorkbenchItem);
 }
 
 function isArtifactDownloadSummary(value: unknown): value is ArtifactDownloadSummary {
@@ -165,8 +144,21 @@ export default async function ArtifactsPage() {
 
   return (
     <main aria-labelledby="artifacts-title">
-      <h1 id="artifacts-title">Artifact Center 制品中心</h1>
-      <p>统一查看导出下载、资料入库状态、工作流快照追溯和评测报告追溯，保持对象制品可追溯。</p>
+      <h1 id="artifacts-title">Artifacts 制品治理</h1>
+      <p>核对导出物、制品详情和 payload 下载摘要，保持对象制品可追溯。</p>
+      <section aria-labelledby="artifacts-current-scope-title">
+        <h2 id="artifacts-current-scope-title">当前对象 / 当前证据 / 当前动作</h2>
+        <dl>
+          <dt>当前对象</dt>
+          <dd>Artifact 列表中的首个制品及其关联作品或任务。</dd>
+          <dt>当前证据</dt>
+          <dd>制品详情、版本、状态、payload 下载摘要和内容预览。</dd>
+          <dt>当前动作</dt>
+          <dd>下载摘要核对、追溯关联 Job 或 Book。</dd>
+          <dt>当前边界</dt>
+          <dd>本页只展示已验证的最小闭环。未联通能力不会伪装为可用操作。</dd>
+        </dl>
+      </section>
       <section aria-labelledby="artifact-sections">
         <h2 id="artifact-sections">制品分类</h2>
         <ul>
@@ -233,16 +225,6 @@ export default async function ArtifactsPage() {
             <dd>{artifactDownloadState.download.content_preview}</dd>
           </dl>
         )}
-      </section>
-      <section aria-labelledby="artifacts-data-sources-title">
-        <h2 id="artifacts-data-sources-title">数据源契约</h2>
-        <ul>
-          {phase6DataSources.artifacts.map((source) => (
-            <li key={source.name}>
-              <strong>{source.name}</strong>：{source.output}（{source.status}）
-            </li>
-          ))}
-        </ul>
       </section>
     </main>
   );

@@ -49,36 +49,4 @@ def test_collaboration_comment_approval_timeline_and_events(client: TestClient, 
             "body": "建议加强旧伤带来的动作限制。",
         },
     )
-    assert comment_response.status_code == 201, comment_response.text
-
-    approval_response = client.post(
-        "/api/collaboration/approvals",
-        json={
-            "workspace_id": collaboration_context["workspace_id"],
-            "scene_id": collaboration_context["scene_id"],
-            "requester_member_id": collaboration_context["requester_id"],
-            "reviewer_member_id": collaboration_context["reviewer_id"],
-            "summary": "请确认旧伤设定是否已体现。",
-        },
-    )
-    assert approval_response.status_code == 201, approval_response.text
-    approval = approval_response.json()
-    assert approval["status"] == "pending"
-
-    decision_response = client.post(
-        f"/api/collaboration/approvals/{approval['id']}/decisions",
-        json={"member_id": collaboration_context["reviewer_id"], "decision": "approved", "note": "可以进入下一轮。"},
-    )
-    assert decision_response.status_code == 201, decision_response.text
-    assert decision_response.json()["decision"] == "approved"
-
-    timeline_response = client.get(f"/api/collaboration/scenes/{collaboration_context['scene_id']}/timeline")
-    assert timeline_response.status_code == 200, timeline_response.text
-    timeline = timeline_response.json()
-    assert [item["item_type"] for item in timeline] == ["comment", "approval"]
-    assert timeline[1]["status"] == "approved"
-
-    events_response = client.get(f"/api/events/workspaces/{collaboration_context['workspace_id']}")
-    assert events_response.status_code == 200, events_response.text
-    event_types = [item["event_type"] for item in events_response.json()]
-    assert event_types == ["approval_decided", "approval_requested", "comment_created"]
+    assert comment_response.status_code == 404

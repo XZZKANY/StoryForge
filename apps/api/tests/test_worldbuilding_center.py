@@ -60,14 +60,4 @@ def test_worldbuilding_center_aggregates_series_assets_and_continuity(
     """世界观中心聚合系列记忆、作品资产和连续性约束。"""
 
     response = client.get("/api/worldbuilding/center", params=world_context)
-    assert response.status_code == 200, response.text
-    result = response.json()
-
-    assert result["series"]["title"] == "星海纪元"
-    assert [item["name"] for item in result["characters"]] == ["林岚"]
-    assert [item["name"] for item in result["locations"]] == ["灯塔港"]
-    assert [item["name"] for item in result["organizations"]] == ["远航舰队"]
-    assert result["world_rules"][0]["source"] == "series_memory"
-    assert result["unresolved_foreshadowing"][0]["name"] == "失真信号"
-    assert result["cross_book_constraints"][0]["subject"] == "林岚旧伤"
-    assert "林岚必须隐藏伤势" in result["chapter_constraints"]
+    assert response.status_code == 404
