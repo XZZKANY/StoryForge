@@ -19,9 +19,21 @@ class CapturingModelRunSink:
         return self.persisted_model_run_id
 
 
-def test_workflow_runtime_start_and_resume_records_provider_execution() -> None:
+def test_workflow_runtime_start_and_resume_records_provider_execution(monkeypatch: pytest.MonkeyPatch) -> None:
     """运行器可把工作流中断、恢复和 provider 执行摘要记录到检查点仓库。"""
 
+    def provider_execution(**kwargs: object) -> ProviderExecutionResult:
+        return ProviderExecutionResult(
+            capability=str(kwargs["capability"]),
+            provider_name="openai-compatible",
+            model_name="storyforge-writer",
+            latency_ms=20,
+            token_usage=30,
+            summary=f"真实模型摘要：{kwargs['prompt_summary']}",
+        )
+
+    _stub_node_llm(monkeypatch)
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
     checkpoint_store = RuntimeCheckpointStore()
     sink = CapturingModelRunSink()
     runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
@@ -41,7 +53,7 @@ def test_workflow_runtime_start_and_resume_records_provider_execution() -> None:
     )
 
     assert started.status == "interrupted"
-    assert started.provider_execution.provider_name == "mock-provider"
+    assert started.provider_execution.provider_name == "openai-compatible"
     assert started.provider_execution.model_name == "storyforge-writer"
     latest = checkpoint_store.latest("phase4-runtime-thread")
     assert latest is not None
@@ -52,9 +64,9 @@ def test_workflow_runtime_start_and_resume_records_provider_execution() -> None:
     assert checkpoint_state is not None
     assert checkpoint_state["model_run_id"] == model_runs[0].model_run_id
     assert model_runs[0].token_usage == started.provider_execution.token_usage
-    assert model_runs[0].provider_name == "mock-provider"
+    assert model_runs[0].provider_name == "openai-compatible"
     assert sink.payloads[0].status == "completed"
-    assert sink.payloads[0].provider_name == "mock-provider"
+    assert sink.payloads[0].provider_name == "openai-compatible"
     assert sink.payloads[0].token_usage == started.provider_execution.token_usage
     api_payload = sink.payloads[0].to_api_payload(api_job_run_id=42)
     assert api_payload["job_run_id"] == 42
@@ -70,7 +82,7 @@ def test_workflow_runtime_start_and_resume_records_provider_execution() -> None:
 
     assert resumed.status == "completed"
     assert resumed.current_node == "human_approval"
-    assert resumed.provider_execution.model_name == "storyforge-approval"
+    assert resumed.provider_execution.model_name == "storyforge-writer"
     records = checkpoint_store.list_records("phase4-runtime-thread")
     assert [record.current_node for record in records] == ["draft_writer", "human_approval"]
     assert records[-1].approval_status == "approved"
@@ -82,7 +94,7 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
     def fail_provider_execution(**kwargs: object) -> ProviderExecutionResult:
         raise RuntimeError("provider timeout")
 
-    monkeypatch.setattr("storyforge_workflow.runtime.runner.simulate_provider_execution", fail_provider_execution)
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", fail_provider_execution)
     checkpoint_store = RuntimeCheckpointStore()
     sink = CapturingModelRunSink(persisted_model_run_id=9002)
     runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
@@ -191,3 +203,19 @@ def test_api_model_run_adapter_returns_persisted_model_run_id() -> None:
     assert model_run_id == 8101
     assert captured_payload["job_run_id"] == 77
     assert captured_payload["payload"] == {"thread_id": "adapter-thread", "runtime_job_run_id": "runtime-job-string"}
+
+
+def _stub_node_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """固定节点 LLM 输出，避免运行器测试依赖外部模型。"""
+
+    responses = iter(
+        [
+            "灯塔远航\n舰队如何在旧伤与谈判压力中找到新家园\n克制、具画面感、重视连续性\n兑现迁徙史诗与个人代价",
+            "暗潮\n林岚在港口谈判中争取维修窗口\n外部任务压力与角色隐秘状态互相挤压",
+            "林岚压住左臂旧伤进入谈判。\n灯塔信号每七分钟重复一次。\n港口代表提出代价。",
+            "林岚把左臂藏进披风，听见灯塔信号第七分钟再次回响。",
+        ]
+    )
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt: next(responses))

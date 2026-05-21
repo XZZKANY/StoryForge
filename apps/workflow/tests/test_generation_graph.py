@@ -5,9 +5,26 @@ from langgraph.types import Command
 from storyforge_workflow import InMemoryWorkflowStore, create_generation_graph, initial_generation_state
 
 
-def test_generation_graph_pauses_at_human_approval_and_records_checkpoints() -> None:
+def _stub_llm(monkeypatch) -> None:
+    """用测试替身固定节点输出，生产代码仍通过 provider client 调真实模型。"""
+
+    responses = iter(
+        [
+            "灯塔远航\n舰队如何在旧伤与谈判压力中找到新家园\n克制、具画面感、重视连续性\n兑现迁徙史诗与个人代价",
+            "暗潮\n林岚在港口谈判中争取维修窗口\n外部任务压力与角色隐秘状态互相挤压",
+            "林岚压住左臂旧伤进入谈判。\n灯塔信号每七分钟重复一次，逼近维修窗口。\n港口代表提出代价，留下下一章疑问。",
+            "林岚把左臂藏进披风，听见灯塔信号第七分钟再次回响。她没有解释伤势，只把维修窗口压进谈判桌。",
+        ]
+    )
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt: next(responses))
+
+
+def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monkeypatch) -> None:
     """生成工作流按固定阶段推进，并在人工审批点暂停。"""
 
+    _stub_llm(monkeypatch)
     store = InMemoryWorkflowStore()
     graph = create_generation_graph(store=store)
     thread_id = "thread-task-5"
@@ -50,9 +67,10 @@ def test_generation_graph_pauses_at_human_approval_and_records_checkpoints() -> 
     assert "draft_preview_ref" in records[-1].output_summary
 
 
-def test_generation_graph_resumes_with_same_thread_id_and_command() -> None:
+def test_generation_graph_resumes_with_same_thread_id_and_command(monkeypatch) -> None:
     """相同 thread_id 可用 Command(resume=...) 从中断点恢复。"""
 
+    _stub_llm(monkeypatch)
     store = InMemoryWorkflowStore()
     graph = create_generation_graph(store=store)
     thread_id = "thread-resume"
