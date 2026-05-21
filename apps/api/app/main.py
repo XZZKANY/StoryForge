@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
@@ -31,6 +34,50 @@ from app.domains.worldbuilding.router import router as worldbuilding_router
 from app.common.exceptions import DomainError
 
 app = FastAPI(title="StoryForge API", version="0.1.0")
+
+_PUBLIC_PATHS = {"/health", "/openapi.json", "/docs", "/redoc"}
+_API_KEY_HEADER = "x-storyforge-api-key"
+
+
+def _expected_api_key() -> str:
+    """读取本地和部署环境共用的 API Key，未配置时使用开发默认值。"""
+
+    return os.getenv("STORYFORGE_API_KEY", "local-dev-key")
+
+
+def _cors_origins() -> list[str]:
+    """从环境变量读取允许的 Web 来源，默认覆盖本地开发端口。"""
+
+    raw_value = os.getenv("STORYFORGE_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+    return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def require_storyforge_api_key(request: Request, call_next):
+    """保护业务 API；健康检查、文档和浏览器预检保持公开。"""
+
+    if request.method == "OPTIONS" or request.url.path in _PUBLIC_PATHS:
+        return await call_next(request)
+    if request.headers.get(_API_KEY_HEADER) != _expected_api_key():
+        return JSONResponse(status_code=401, content={"detail": "缺少或无效的 API Key。"})
+    return await call_next(request)
+
+
+@app.get("/health", tags=["运行状态"])
+def health_check() -> dict[str, str]:
+    """提供无需认证的本地和部署健康检查。"""
+
+    return {"status": "ok", "service": "storyforge-api"}
+
 app.include_router(analytics_router)
 app.include_router(artifacts_router)
 app.include_router(assets_router)

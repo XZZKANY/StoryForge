@@ -8,7 +8,7 @@ from langgraph.types import Command
 from storyforge_workflow import create_generation_graph, initial_generation_state
 from storyforge_workflow.persistence import InMemoryWorkflowStore
 from storyforge_workflow.runtime.checkpoints import ModelRunPayload, ModelRunSink, RuntimeCheckpointStore
-from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, simulate_provider_execution
+from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text
 
 
 @dataclass(frozen=True)
@@ -45,10 +45,8 @@ class WorkflowRuntime:
         )
         prompt_summary = f"{premise}::{scene_packet.get('scene_goal', '')}"
         try:
-            provider_execution = simulate_provider_execution(
+            provider_execution = execute_provider_text(
                 capability="llm",
-                provider_name="mock-provider",
-                model_name="storyforge-writer",
                 prompt_summary=prompt_summary,
             )
         except Exception as exc:
@@ -103,7 +101,7 @@ class WorkflowRuntime:
         model_run = self.checkpoint_store.record_model_run(
             thread_id=thread_id,
             job_run_id=job_run_id,
-            provider_name="mock-provider",
+            provider_name="openai-compatible",
             model_name="storyforge-writer",
             capability="llm",
             latency_ms=0,
@@ -138,10 +136,8 @@ class WorkflowRuntime:
         )
 
     def resume(self, *, thread_id: str, job_run_id: str, decision: dict[str, Any]) -> WorkflowRuntimeResult:
-        provider_execution = simulate_provider_execution(
+        provider_execution = execute_provider_text(
             capability="llm",
-            provider_name="mock-provider",
-            model_name="storyforge-approval",
             prompt_summary=str(decision),
         )
         list(self.graph.stream(Command(resume=decision), {"configurable": {"thread_id": thread_id}}))

@@ -3,6 +3,7 @@ from __future__ import annotations
 from hashlib import sha1
 
 from storyforge_workflow.state import GenerationState, advance_status
+from storyforge_workflow.provider_client import generate_text
 
 
 def create_draft_excerpt(state: GenerationState) -> dict:
@@ -12,7 +13,12 @@ def create_draft_excerpt(state: GenerationState) -> dict:
     scene_goal = str(state.get("scene_goal_ref", "完成关键场景目标。"))
     required_facts = "、".join(state.get("required_fact_refs", [])) or "关键事实"
     beat_refs = state.get("scene_beat_refs", ["建立目标", "施加阻力", "留下钩子"])
-    draft_preview = f"{protagonist}站在场景入口，目标很明确：{scene_goal} 他必须记住{required_facts}。"
+    prompt = (
+        "请生成一段 120 字以内的中文小说草稿预览，避免说明腔，必须包含关键事实。\n"
+        f"主角：{protagonist}\n场景目标：{scene_goal}\n必含事实：{required_facts}\n"
+        f"场景 beat：{' / '.join(str(beat) for beat in beat_refs)}"
+    )
+    draft_preview = generate_text(prompt)
     artifact_seed = "|".join([state["job_run_id"], scene_goal, *[str(beat) for beat in beat_refs]])
     return {
         "draft_artifact_id": int(sha1(artifact_seed.encode("utf-8")).hexdigest()[:8], 16),

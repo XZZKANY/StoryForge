@@ -1,4 +1,5 @@
 import { phase6DataSources } from "../../lib/phase6-data-sources";
+import { buildApiUrl } from "../../lib/api-client";
 
 type RunsModelRunSummary = {
   readonly id: number;
@@ -37,16 +38,17 @@ const runSections = [
   "任务恢复入口",
 ];
 
-const defaultJobRunId = 1;
 const runsJobRunEndpoint = "/api/model-runs/job-runs";
 const runsRetryExecutionEndpoint = "POST /api/model-runs/job-runs/{job_run_id}/retry";
 
-const getRunsApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-async function readRunsJobRun(jobRunId = defaultJobRunId): Promise<RunsJobRunState> {
+async function readRunsJobRun(jobRunId: number | undefined): Promise<RunsJobRunState> {
+  if (jobRunId === undefined) {
+    return { status: "error", message: "缺少 job_run_id，请在 URL query 中指定运行记录 ID。" };
+  }
   try {
-    const response = await fetch(new URL(`${runsJobRunEndpoint}/${jobRunId}`, getRunsApiBaseUrl()), {
+    const response = await fetch(buildApiUrl(`${runsJobRunEndpoint}/${jobRunId}`), {
       cache: "no-store",
+      headers: { "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key" },
     });
     if (!response.ok) {
       return { status: "error", message: `运行记录 API 返回 ${response.status}` };
@@ -122,8 +124,22 @@ function formatCheckpointReference(checkpoint: Record<string, unknown> | null): 
   return JSON.stringify(checkpoint);
 }
 
-export default async function RunsPage() {
-  const jobRunState = await readRunsJobRun();
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export default async function RunsPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<{ readonly job_run_id?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const jobRunId = parsePositiveInt(resolvedSearchParams?.job_run_id);
+  const jobRunState = await readRunsJobRun(jobRunId);
 
   return (
     <main aria-labelledby="runs-title">
@@ -138,8 +154,8 @@ export default async function RunsPage() {
         </ul>
       </section>
       <section aria-labelledby="runs-job-run-title">
-        <h2 id="runs-job-run-title">读取 JobRun #{defaultJobRunId}</h2>
-        <p>当前 Runs 工作台只读取 {runsJobRunEndpoint}/{defaultJobRunId} 这一条运行记录。</p>
+        <h2 id="runs-job-run-title">读取 JobRun {jobRunId === undefined ? "未选择" : `#${jobRunId}`}</h2>
+        <p>Runs 工作台从 URL query 读取 job_run_id，不再硬编码固定运行记录。</p>
         {jobRunState.status === "error" ? (
           <p role="status">可重试错误摘要：{jobRunState.message}</p>
         ) : (

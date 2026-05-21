@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts/storyforge.openapi.json": "./src/contracts/storyforge.openapi.json"
+  },
   "scripts": {
-    "test": "node -e \"JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('共享包配置检查通过。')\""
+    "test": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "5.8.3"

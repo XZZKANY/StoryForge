@@ -46,16 +46,6 @@ def create_generation_graph(
     return builder.compile(checkpointer=saver)
 
 
-def build_generation_graph(
-    *,
-    store: InMemoryWorkflowStore | None = None,
-    checkpointer: InMemorySaver | None = None,
-):
-    """兼容调用方命名偏好，返回同一类编译图。"""
-
-    return create_generation_graph(store=store, checkpointer=checkpointer)
-
-
 def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowStore):
     def run(state: GenerationState, config: RunnableConfig | None = None) -> dict[str, Any]:
         output = node(state)
