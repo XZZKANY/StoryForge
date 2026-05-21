@@ -1,4 +1,5 @@
 import { phase6DataSources } from "../../lib/phase6-data-sources";
+import { buildApiUrl } from "../../lib/api-client";
 
 type RetrievalWorkbenchSource = {
   readonly id: number;
@@ -73,14 +74,14 @@ const retrievalWorkbenchSourcesEndpoint = "/api/retrieval/workbench/sources";
 const retrievalWorkbenchRefreshRunsEndpoint = "/api/retrieval/workbench/refresh-runs";
 const retrievalWorkbenchSearchEndpoint = "/api/retrieval/workbench/search";
 
-const getRetrievalApiBaseUrl = () => process.env.STORYFORGE_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-async function readRetrievalWorkbenchSources(): Promise<RetrievalSourceListState> {
-  const url = new URL(retrievalWorkbenchSourcesEndpoint, getRetrievalApiBaseUrl());
-  url.searchParams.set("book_id", "1");
+async function readRetrievalWorkbenchSources(bookId: number | undefined): Promise<RetrievalSourceListState> {
+  const url = buildApiUrl(retrievalWorkbenchSourcesEndpoint, bookId === undefined ? {} : { book_id: bookId });
 
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key" },
+    });
     if (!response.ok) {
       return { status: "error", message: `资料源列表 API 返回 ${response.status}` };
     }
@@ -104,11 +105,14 @@ async function readRetrievalWorkbenchRefreshRuns(
     return { status: "idle", message: "读取刷新任务需要先获得资料源列表。" };
   }
 
-  const url = new URL(retrievalWorkbenchRefreshRunsEndpoint, getRetrievalApiBaseUrl());
+  const url = buildApiUrl(retrievalWorkbenchRefreshRunsEndpoint);
   url.searchParams.set("source_id", String(sourceListState.sources[0].id));
 
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key" },
+    });
     if (!response.ok) {
       return { status: "error", message: `刷新任务 API 返回 ${response.status}` };
     }
@@ -137,10 +141,13 @@ async function readRetrievalWorkbenchSearch(sourceListState: RetrievalSourceList
       : { series_id: firstSource.series_id, query: firstSource.title, limit: 3 };
 
   try {
-    const response = await fetch(new URL(retrievalWorkbenchSearchEndpoint, getRetrievalApiBaseUrl()), {
+    const response = await fetch(buildApiUrl(retrievalWorkbenchSearchEndpoint), {
       cache: "no-store",
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key",
+      },
       body: JSON.stringify(requestBody),
     });
     if (!response.ok) {
@@ -167,15 +174,30 @@ function isRetrievalWorkbenchSearchResult(value: unknown): value is RetrievalWor
   return typeof candidate.query === "string" && Array.isArray(candidate.hits);
 }
 
-export default async function RetrievalPage() {
-  const sourceListState = await readRetrievalWorkbenchSources();
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export default async function RetrievalPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<{ readonly book_id?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const bookId = parsePositiveInt(resolvedSearchParams?.book_id);
+  const sourceListState = await readRetrievalWorkbenchSources(bookId);
   const refreshRunListState = await readRetrievalWorkbenchRefreshRuns(sourceListState);
   const searchState = await readRetrievalWorkbenchSearch(sourceListState);
 
   return (
     <main aria-labelledby="retrieval-title">
-      <h1 id="retrieval-title">Retrieval Center 检索中心</h1>
-      <p>管理资料来源类型、搜索请求、命中预览、证据跳转和 Scene Packet 的检索证据来源。</p>
+        <h1 id="retrieval-title">Retrieval Center 检索中心</h1>
+        <p>管理资料来源类型、搜索请求、命中预览、证据跳转和 Scene Packet 的检索证据来源。</p>
+        <p>当前读取范围：{bookId === undefined ? "未指定 book_id，读取 API 默认资料源列表。" : `book_id=${bookId}`}</p>
       <section aria-labelledby="retrieval-sections">
         <h2 id="retrieval-sections">检索能力</h2>
         <ul>

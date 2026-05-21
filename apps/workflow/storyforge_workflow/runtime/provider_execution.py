@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
+
+from storyforge_workflow.provider_client import generate_text, provider_config
 
 
 @dataclass(frozen=True)
@@ -13,23 +16,23 @@ class ProviderExecutionResult:
     summary: str
 
 
-def simulate_provider_execution(
+def execute_provider_text(
     *,
     capability: str,
-    provider_name: str,
-    model_name: str,
     prompt_summary: str,
 ) -> ProviderExecutionResult:
-    """用确定性假结果替代真实模型调用，便于本地运行时测试。"""
+    """执行真实 provider 文本调用并返回模型运行摘要。"""
 
-    token_usage = max(16, len(prompt_summary) // 4)
-    latency_ms = 120 + len(prompt_summary) % 80
+    config = provider_config()
+    started_at = perf_counter()
+    summary = generate_text(prompt_summary)
+    latency_ms = int((perf_counter() - started_at) * 1000)
     return ProviderExecutionResult(
         capability=capability,
-        provider_name=provider_name,
-        model_name=model_name,
+        provider_name=config["provider_name"],
+        model_name=config["model"],
         latency_ms=latency_ms,
-        token_usage=token_usage,
-        summary=f"{provider_name}/{model_name} 已完成 {capability} 调用。",
+        token_usage=max(1, (len(prompt_summary) + len(summary)) // 4),
+        summary=summary,
     )
 
