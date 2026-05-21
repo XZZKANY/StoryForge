@@ -14,6 +14,20 @@ from app.db.session import get_session
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def isolate_remote_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """清理会触发远程 Judge 的环境变量，保证 API 测试可重复。"""
+
+    for name in (
+        "STORYFORGE_JUDGE_LLM_API_KEY",
+        "STORYFORGE_JUDGE_LLM_BASE_URL",
+        "STORYFORGE_JUDGE_LLM_MODEL",
+        "STORYFORGE_LLM_API_KEY",
+        "STORYFORGE_LLM_BASE_URL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture()
 def engine() -> Generator:
     """每个测试使用独立内存数据库，避免跨用例污染。"""
