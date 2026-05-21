@@ -118,6 +118,27 @@ test("Phase 6 工作台契约文档进入索引并区分交付状态", () => {
   );
 });
 
+test("Studio 治理事实源记录 Server Action 闭环且没有乱码", () => {
+  const readProject = (path: string) => read(join("..", "..", path));
+  const cleanProjectContract = (path: string) => {
+    const content = readProject(path);
+    assert.doesNotMatch(content, /\?{3,}/u, `${path} 不得包含连续问号占位`);
+    assert.doesNotMatch(content, new RegExp("\\uFFFD", "u"), `${path} 不得包含替换字符`);
+    assert.match(content, /[一-鿿]/u, `${path} 必须包含真实中文字符`);
+    return content;
+  };
+
+  const contract = cleanProjectContract("docs/architecture/phase6-workbench-contract.md");
+  const currentPhase = cleanProjectContract(".codex/current-phase.md");
+  const todo = cleanProjectContract("TODO.md");
+  const contextSummary = cleanProjectContract(".codex/context-summary-studio-server-action-closure.md");
+
+  assertIncludesAll(contract, ["Server Action", "POST /api/studio/approve", "批准写回", "最小 Server Action"], "Phase 6 Studio 治理契约");
+  assertIncludesAll(currentPhase, ["Web Server Action", "POST /api/studio/approve", "结果摘要"], "当前阶段 Studio 治理契约");
+  assertIncludesAll(todo, ["Server Action", "批准写回", "完整 Studio 编排器"], "TODO Studio 治理契约");
+  assertIncludesAll(contextSummary, ["Studio Server Action 闭环", "approve_studio_writeback()", "scene_packet_id", "repair_patch_id"], "Studio 上下文摘要");
+});
+
 test("Phase 6 页面从统一数据源契约读取真实联动前置", () => {
   const registry = assertCleanChineseContract("lib/phase6-data-sources.ts");
   const studio = assertCleanChineseContract("app/studio/page.tsx");
@@ -148,7 +169,7 @@ test("Phase 6 页面从统一数据源契约读取真实联动前置", () => {
   assertIncludesAll(studio, ["/api/studio/judge-reviews", "读取 Judge 评审", "评审分数", "关键问题", "Judge 评审 API 返回格式不符合预期"], "Studio Judge 评审真实读取边界");
   assertIncludesAll(studio, ["/api/studio/repair-patches", "读取 Repair 修订", "修订文本", "差异摘要", "采纳建议", "Repair 修订 API 返回格式不符合预期"], "Studio Repair 修订真实读取边界");
   assertIncludesAll(studio, ["/api/studio/approval-summary", "批准回写摘要", "可批准", "不可批准", "批准回写摘要 API 返回格式不符合预期"], "Studio 批准回写摘要真实读取边界");
-  assertIncludesAll(studio, ["/api/studio/approve", "批准写回执行入口", "可执行批准写回", "POST 请求体"], "Studio 批准写回执行入口");
+  assertIncludesAll(studio, ["/api/studio/approve", "批准写回执行入口", "可执行批准写回", "POST 请求体", "async function approveStudioWritebackAction", "revalidatePath(\"/studio\")", "form action={approveStudioWritebackAction}", "name=\"scene_packet_id\"", "name=\"repair_patch_id\"", "批准写回已提交"], "Studio Server Action 批准写回执行入口");
   assertIncludesAll(studio, ["/api/studio/recovery-summary", "失败恢复摘要", "可恢复", "不可恢复", "失败恢复摘要 API 返回格式不符合预期"], "Studio 失败恢复摘要真实读取边界");
   assertIncludesAll(retrieval, ["phase6DataSources.retrieval", "数据源契约", "source.name", "source.status"], "Retrieval 数据源契约渲染");
   assertIncludesAll(retrieval, ["/api/retrieval/workbench/sources", "读取资料源列表", "资料源列表 API 返回格式不符合预期", "可重试错误摘要"], "Retrieval 资料源列表真实读取边界");

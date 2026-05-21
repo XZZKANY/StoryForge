@@ -1,3 +1,6 @@
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
 import { ScenePacketPanel } from "../../components/scene-packet/ScenePacketPanel";
 import { phase6DataSources, phase6FirstDataSourceSpike } from "../../lib/phase6-data-sources";
 
@@ -100,6 +103,13 @@ type StudioApprovalSummaryState =
   | { readonly status: "idle"; readonly message: string }
   | { readonly status: "ready"; readonly summary: StudioApprovalSummary }
   | { readonly status: "error"; readonly message: string };
+
+type StudioApprovalExecuteResult = {
+  readonly writeback_status: string;
+  readonly approved_chapter_id: number | null;
+  readonly continuity_update_summary: string | null;
+  readonly unavailable_reason: string | null;
+};
 
 type StudioRecoverySummary = {
   readonly can_recover: boolean;
@@ -386,6 +396,19 @@ function isStudioApprovalSummary(value: unknown): value is StudioApprovalSummary
   );
 }
 
+function isStudioApprovalExecuteResult(value: unknown): value is StudioApprovalExecuteResult {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<StudioApprovalExecuteResult>;
+  return (
+    typeof candidate.writeback_status === "string" &&
+    (typeof candidate.approved_chapter_id === "number" || candidate.approved_chapter_id === null) &&
+    (typeof candidate.continuity_update_summary === "string" || candidate.continuity_update_summary === null) &&
+    (typeof candidate.unavailable_reason === "string" || candidate.unavailable_reason === null)
+  );
+}
+
 async function readStudioRecoverySummary(scenePacketState: StudioScenePacketState): Promise<StudioRecoverySummaryState> {
   if (scenePacketState.status !== "ready") {
     return { status: "idle", message: "读取失败恢复摘要需要先获得 Scene Packet 中的任务线索。" };
@@ -436,7 +459,71 @@ function isStudioRecoverySummary(value: unknown): value is StudioRecoverySummary
   );
 }
 
-export default async function StudioPage() {
+function getRequiredFormValue(formData: FormData, key: "scene_packet_id" | "repair_patch_id"): string | undefined {
+  const value = formData.get(key);
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function buildApprovalResultUrl(payload: Partial<StudioApprovalExecuteResult>): string {
+  const params = new URLSearchParams();
+  params.set("approval_submitted", "1");
+  params.set("writeback_status", payload.writeback_status ?? "提交失败");
+  if (typeof payload.approved_chapter_id === "number") {
+    params.set("approved_chapter_id", String(payload.approved_chapter_id));
+  }
+  if (typeof payload.continuity_update_summary === "string" && payload.continuity_update_summary.length > 0) {
+    params.set("continuity_update_summary", payload.continuity_update_summary);
+  }
+  if (typeof payload.unavailable_reason === "string" && payload.unavailable_reason.length > 0) {
+    params.set("unavailable_reason", payload.unavailable_reason);
+  }
+  return `/studio?${params.toString()}`;
+}
+
+async function approveStudioWritebackAction(formData: FormData) {
+  "use server";
+
+  const scenePacketId = getRequiredFormValue(formData, "scene_packet_id");
+  const repairPatchId = getRequiredFormValue(formData, "repair_patch_id");
+  const requestBody: { scene_packet_id?: number; repair_patch_id?: number } = {};
+
+  if (scenePacketId !== undefined && repairPatchId !== undefined) {
+    redirect(buildApprovalResultUrl({ writeback_status: "未执行", unavailable_reason: "Scene Packet ID 与 Repair Patch ID 只能提供一个。" }));
+  }
+  if (scenePacketId !== undefined) {
+    requestBody.scene_packet_id = Number(scenePacketId);
+  }
+  if (repairPatchId !== undefined) {
+    requestBody.repair_patch_id = Number(repairPatchId);
+  }
+  if (requestBody.scene_packet_id === undefined && requestBody.repair_patch_id === undefined) {
+    redirect(buildApprovalResultUrl({ writeback_status: "未执行", unavailable_reason: "需要提供 Scene Packet ID 或 Repair Patch ID。" }));
+  }
+
+  try {
+    const response = await fetch(new URL(studioApproveEndpoint, getStudioApiBaseUrl()), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      redirect(buildApprovalResultUrl({ writeback_status: "提交失败", unavailable_reason: `批准写回 API 返回 ${response.status}` }));
+    }
+    const payload: unknown = await response.json();
+    if (!isStudioApprovalExecuteResult(payload)) {
+      redirect(buildApprovalResultUrl({ writeback_status: "提交失败", unavailable_reason: "批准写回 API 返回格式不符合预期" }));
+    }
+    revalidatePath("/studio");
+    redirect(buildApprovalResultUrl(payload));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "未知错误";
+    redirect(buildApprovalResultUrl({ writeback_status: "提交失败", unavailable_reason: message }));
+  }
+}
+
+export default async function StudioPage({ searchParams }: { readonly searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const resolvedSearchParams = await searchParams;
   const bookListState = await readStudioBooks();
   const selectedBook = bookListState.status === "ready" ? bookListState.books[0] : undefined;
   const studioTarget = getStudioTarget(selectedBook);
@@ -607,6 +694,22 @@ export default async function StudioPage() {
         )}
       </section>
 
+      {resolvedSearchParams?.approval_submitted === "1" ? (
+        <section aria-labelledby="studio-approval-execute-result-title">
+          <h2 id="studio-approval-execute-result-title">批准写回已提交</h2>
+          <dl>
+            <dt>回写状态</dt>
+            <dd>{resolvedSearchParams.writeback_status ?? "暂无回写状态"}</dd>
+            <dt>批准章节</dt>
+            <dd>{resolvedSearchParams.approved_chapter_id ?? "暂无批准章节"}</dd>
+            <dt>连续性更新</dt>
+            <dd>{resolvedSearchParams.continuity_update_summary ?? "暂无连续性更新摘要"}</dd>
+            <dt>不可批准原因</dt>
+            <dd>{resolvedSearchParams.unavailable_reason ?? "暂无阻塞原因"}</dd>
+          </dl>
+        </section>
+      ) : null}
+
       <section aria-labelledby="studio-approval-summary-title">
         <h2 id="studio-approval-summary-title">批准回写摘要</h2>
         <p>
@@ -641,24 +744,28 @@ export default async function StudioPage() {
       </section>
       <section aria-labelledby="studio-approve-execution-title">
         <h2 id="studio-approve-execution-title">批准写回执行入口</h2>
-        <p>
-          后端已提供 {studioApproveEndpoint} 执行契约；页面当前展示可执行状态，交互式按钮留到 Client Component 或 Server Action 接入。
-        </p>
+        <p>后端已提供 {studioApproveEndpoint} 执行契约；页面通过 Server Action 提交批准写回，并在提交后重新读取 Studio 状态。</p>
         {approvalSummaryState.status !== "ready" ? (
           <p>批准写回执行需要先读取批准摘要。</p>
-        ) : approvalSummaryState.summary.can_approve ? (
-          <dl>
-            <dt>执行状态</dt>
-            <dd>可执行批准写回</dd>
-            <dt>执行对象</dt>
-            <dd>
-              {approvalSummaryState.summary.approvable_object
-                ? `${approvalSummaryState.summary.approvable_object.object_type} #${approvalSummaryState.summary.approvable_object.id}`
-                : "暂无执行对象"}
-            </dd>
-            <dt>POST 请求体</dt>
-            <dd>{approvalSummaryState.summary.approvable_object?.object_type === "repair_patch" ? "repair_patch_id" : "scene_packet_id"}</dd>
-          </dl>
+        ) : approvalSummaryState.summary.can_approve && approvalSummaryState.summary.approvable_object ? (
+          <>
+            <dl>
+              <dt>执行状态</dt>
+              <dd>可执行批准写回</dd>
+              <dt>执行对象</dt>
+              <dd>{`${approvalSummaryState.summary.approvable_object.object_type} #${approvalSummaryState.summary.approvable_object.id}`}</dd>
+              <dt>POST 请求体</dt>
+              <dd>{approvalSummaryState.summary.approvable_object.object_type === "repair_patch" ? "repair_patch_id" : "scene_packet_id"}</dd>
+            </dl>
+            <form action={approveStudioWritebackAction}>
+              {approvalSummaryState.summary.approvable_object.object_type === "repair_patch" ? (
+                <input type="hidden" name="repair_patch_id" value={approvalSummaryState.summary.approvable_object.id} />
+              ) : (
+                <input type="hidden" name="scene_packet_id" value={approvalSummaryState.summary.approvable_object.id} />
+              )}
+              <button type="submit">提交批准写回</button>
+            </form>
+          </>
         ) : (
           <p>暂不可执行批准写回：{approvalSummaryState.summary.unavailable_reason ?? "暂无阻塞原因"}</p>
         )}
