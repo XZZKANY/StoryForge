@@ -30,7 +30,8 @@ StoryForge 是一个面向长篇小说生产的可验证创作流水线：每一
 ## 如何本地跑通
 
 ```powershell
-cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+git clone https://github.com/XZZKANY/StoryForge.git
+cd StoryForge
 pnpm install
 docker compose up -d postgres redis minio
 pnpm verify

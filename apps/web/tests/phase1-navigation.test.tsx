@@ -131,3 +131,12 @@ test("文本文件不应残留连续问号编码损坏或 UTF-8 BOM", () => {
     assert.ok(!content.includes("???"), `${file} 不应包含连续问号编码损坏`);
   }
 });
+
+test("README 面向公开读者，不应包含本机绝对路径", () => {
+  const readme = read("../../README.md");
+  const forbiddenLocalPaths = ["D:/StoryForge", "D:\\StoryForge", "1-renovel-ai-ai-rag-tavern"] as const;
+
+  for (const pathFragment of forbiddenLocalPaths) {
+    assert.ok(!readme.includes(pathFragment), `README 不应包含本机路径片段 ${pathFragment}`);
+  }
+});
