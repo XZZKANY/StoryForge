@@ -277,3 +277,172 @@
 - `pnpm run test`（带真实 LLM 环境变量）：通过；Web 7 项通过，shared 类型检查通过，API 147 项通过，workflow 13 项通过。
 - `pnpm run e2e`（带真实 LLM 环境变量）：通过；14 项 Node 契约测试通过，API 补偿验证 7 项通过，workflow 补偿验证 8 项通过。
 - `pnpm openapi`：通过，OpenAPI 契约已生成。
+
+## 项目级审查 - 操作记录
+
+时间：2026-05-22 03:01:37 +08:00
+
+### 需求与约束
+
+- 用户要求执行 StoryForge 项目级审查计划，判断最小闭环、占位能力、文档夸大、契约不同步和测试真实性。
+- 用户明确要求不开子代理，本轮全部由主线程执行。
+- 本轮只修改 `.codex` 审查产物，不修改业务代码、测试代码、OpenAPI 生成物或项目文档正文。
+
+### 工具链与计划执行
+
+- 已使用 sequential-thinking 梳理执行风险：验证命令可能受 Docker、uv cache、pnpm、Python 环境影响。
+- 已使用 shrimp-task-manager 读取并复用项目级审查任务拆分。
+- 已使用 desktop-commander 读取事实源、核心代码、测试文件和文档证据。
+- 已使用本地 shell 执行验证命令，所有失败均记录退出码和补偿路径。
+
+### 审查事实源
+
+- 根脚本：`package.json`。
+- 项目边界：`README.md`、`PROJECT_SUMMARY.md`、`TODO.md`。
+- 当前阶段事实：`.codex/current-phase.md`。
+- Web 关键文件：`apps/web/lib/api-client.ts`、`apps/web/app/retrieval/page.tsx`、`apps/web/app/runs/page.tsx`、`apps/web/app/studio/actions.tsx`。
+- API 关键文件：`apps/api/app/main.py`、`apps/api/tests/test_api_surface.py`。
+- Workflow 关键文件：`apps/workflow/storyforge_workflow/runtime/runner.py`、`apps/workflow/storyforge_workflow/runtime/checkpoints.py`。
+### 静态审查记录
+
+- Web：`api-client.ts` 已统一 API Key 与 `cache: "no-store"`；Studio Server Action 已复用 `apiFetch()`。
+- Web 风险：Retrieval 与 Runs 页面仍直接调用 `fetch()`，虽然手动注入 header，但没有完全复用统一 client。
+- 文档风险：Artifacts 域 `__init__.py` 描述“统一管理导出物、上传资料、快照和评测报告”，与当前未联通能力不完全一致。
+- API：主应用当前暴露活动 router，`test_api_surface.py` 明确拒绝 analytics、collaboration、commercial、quality、workspaces、worldbuilding 旧域进入主应用。
+- Workflow：SQLite checkpoint、显式内存测试替身、API JobRun 正整数 ID 边界均有测试覆盖。
+
+### 验证命令记录
+
+1. `pnpm.cmd run verify`
+   - 结果：失败，退出码 1。
+   - 关键证据：Node、pnpm、Python、Docker 和必需文件通过；PostgreSQL、Redis、MinIO 容器状态无法查询。
+   - 补充：按沙箱外权限复跑同样失败，因此记录为本地环境门禁失败。
+
+2. `pnpm.cmd run test:web`
+   - 结果：通过，退出码 0。
+   - 关键证据：Web 7 项 node:test 通过，shared `tsc --noEmit` 通过。
+
+3. `pnpm.cmd run test:api`
+   - 首次结果：失败，退出码 2。
+   - 关键证据：默认 uv cache 路径 `C:/Users/kanye/AppData/Local/uv/cache` 权限拒绝。
+   - 补偿：设置 `UV_CACHE_DIR=D:/StoryForge/1-renovel-ai-ai-rag-tavern/.cache/uv` 后复跑通过，API 147 项通过。
+4. `UV_CACHE_DIR=.cache/uv; pnpm.cmd run test:workflow`
+   - 结果：通过，退出码 0。
+   - 关键证据：Workflow 13 项 pytest 通过。
+
+5. `UV_CACHE_DIR=.cache/uv; pnpm.cmd run test`
+   - 结果：通过，退出码 0。
+   - 关键证据：Web/shared、API 147 项、Workflow 13 项均通过。
+
+6. `UV_CACHE_DIR=.cache/uv; pnpm.cmd run e2e`
+   - 结果：通过，退出码 0。
+   - 关键证据：14 项 Node 契约测试通过；API 补偿验证 7 项通过；Workflow 补偿验证 8 项通过。
+   - 注意：脚本提示当前环境无法稳定执行 FastAPI HTTP pytest，已转入 compileall + 服务层验收补偿路径。
+
+7. `UV_CACHE_DIR=.cache/uv; pnpm.cmd openapi`
+   - 结果：通过，退出码 0。
+   - 关键证据：OpenAPI 契约生成成功。
+
+8. `git -c safe.directory=D:/StoryForge/1-renovel-ai-ai-rag-tavern diff --check`
+   - 结果：通过，退出码 0。
+   - 关键证据：无空白错误。
+
+### 审查产物
+
+- 已生成 `.codex/context-summary-project-review.md`。
+- 已更新 `.codex/verification-report.md`。
+- 综合评分：85/100。
+- 建议：需讨论；不应按完全实现标准直接通过。
+## 项目级审查优化 - 操作记录
+
+时间：2026-05-23 00:00:00 +08:00
+
+### 需求与约束
+
+- 用户要求基于上一轮 85/100 的项目级审查结论继续优化。
+- 本轮未开启子代理。
+- 已按要求使用 sequential-thinking、shrimp-task-manager 与 desktop-commander；sequential-thinking 首次曾因服务 503 失败，随后重试成功。
+- context7 已用于查询 Next.js App Router 服务端数据读取与 `cache: "no-store"` 模式。
+- 当前可用工具中没有 `github.search_code`，因此无法执行开源代码搜索；本轮以项目内实现和 context7 官方文档作为证据源。
+
+### 编码前检查 - 项目级审查优化
+
+- 已查阅上下文摘要文件：`.codex/context-summary-project-review.md`。
+- 将使用以下可复用组件：
+  - `apps/web/lib/api-client.ts`：统一 API 请求、API Key 注入和 no-store 缓存策略。
+  - `apps/web/tests/phase1-navigation.test.tsx`：复用既有 node:test 静态契约测试。
+  - `apps/workflow/tests/conftest.py`：保留每个 workflow 测试独立 SQLite 路径策略。
+- 将遵循命名约定：TypeScript 使用 camelCase，测试沿用现有 `test()` 与 `assert.ok()` 风格。
+- 将遵循代码风格：不新增 HTTP client，不新增测试框架，不新增脚本。
+- 确认不重复造轮子：已检查 `api-client.ts`、Studio、Artifacts、Evaluations 与 Web 静态测试结构。
+
+### 执行记录
+
+1. 扩展 `apps/web/tests/phase1-navigation.test.tsx` 的编码损坏文件清单，加入 Retrieval、Runs、Artifacts、Evaluations 页面和 Artifacts 域 `__init__.py`。
+2. 运行 `pnpm.cmd run test:web`，预期失败，失败点为 `app/runs/page.tsx` 包含连续问号编码损坏。
+3. 修复 `apps/web/app/runs/page.tsx` 中缺少 `job_run_id`、响应格式异常和 API 错误前缀的中文文案。
+4. 复跑 `pnpm.cmd run test:web`，通过，Web 7/7，shared 类型检查通过。
+5. 运行 `UV_CACHE_DIR=.cache/uv; pnpm.cmd run test`，首次失败，Workflow pytest 清理固定 `.pytest-tmp` 时出现 Windows 权限拒绝。
+6. 移除 `apps/workflow/pyproject.toml` 中固定 `--basetemp=.pytest-tmp` 配置，保留 fixture 的独立 SQLite 运行态隔离。
+7. 复跑 `UV_CACHE_DIR=.cache/uv; pnpm.cmd run test:workflow`，通过，Workflow 13/13。
+8. 复跑 `UV_CACHE_DIR=.cache/uv; pnpm.cmd run test`，通过，Web 7/7、API 147/147、Workflow 13/13。
+9. 运行 `UV_CACHE_DIR=.cache/uv; pnpm.cmd run e2e`，通过；Node 契约 14/14，API 补偿验证 7/7，Workflow 补偿 8/8；仍保留 API HTTP pytest 补偿路径风险。
+10. 运行 `UV_CACHE_DIR=.cache/uv; pnpm.cmd openapi`，通过，OpenAPI 契约生成成功。
+11. 运行 `pnpm.cmd run verify`，失败；Docker 已安装但 PostgreSQL、Redis、MinIO 容器状态无法查询。
+12. 运行 `git diff --check`，通过，无空白错误，仅有 CRLF 提示。
+
+### 编码后声明 - 项目级审查优化
+
+#### 1. 复用了以下既有组件
+
+- `apiFetch()` / `readJson()`：继续作为 Web 请求层唯一复用点。
+- `phase1-navigation.test.tsx`：扩展既有静态契约测试覆盖范围。
+- Workflow `tmp_path` fixture：继续使用 pytest 原生临时目录能力生成独立 SQLite 路径。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：保持现有 TypeScript 与 Python 配置命名风格。
+- 代码风格：仅做小范围文本、测试清单和 pytest 配置修正。
+- 文件组织：测试仍在 `apps/web/tests`，Workflow 配置仍在 `apps/workflow/pyproject.toml`。
+
+#### 3. 对比了以下相似实现
+
+- `apps/web/app/artifacts/page.tsx`：页面读取复用 `readJson()`。
+- `apps/web/app/evaluations/page.tsx`：页面读取复用 `readJson()`。
+- `apps/web/app/studio/actions.tsx`：写操作复用 `apiFetch()`。
+
+#### 4. 未重复造轮子的证明
+
+- 已检查 `apps/web/lib/api-client.ts`，确认无需新增 HTTP client。
+- 已检查 Web 静态测试，确认无需新增测试框架。
+- 已检查 Workflow 测试隔离，确认使用 pytest 原生临时目录即可解决固定目录清理失败。
+
+## 最终闭环验证 - 操作记录
+
+时间：2026-05-23 04:34:29 +08:00
+
+### 本轮修复
+
+1. 启动 Docker Desktop，并通过 docker compose up -d postgres redis minio 启动 StoryForge 本地依赖容器，打通 pnpm verify 的 PostgreSQL、Redis、MinIO 门禁。
+2. scripts/run-e2e.mjs 移除 FastAPI HTTP pytest 探针与补偿验证分支，API 阶段固定执行真实 HTTP pytest 目标；若真实 API pytest 失败，pnpm e2e 将直接失败。
+3. pps/web/tests/phase1-navigation.test.tsx 扩展编码损坏回归测试，覆盖 Retrieval、Runs、Artifacts、Evaluations、Artifacts 域描述和 scripts/run-e2e.mjs，并检查 UTF-8 无 BOM。
+4. pps/api/app/domains/artifacts/__init__.py 移除 BOM，并将 Artifacts 域描述收敛为当前真实能力范围。
+5. pps/web/app/retrieval/page.tsx 与 pps/web/app/runs/page.tsx 复用统一 API client，避免裸业务 fetch 绕过 API Key 与 no-store 策略。
+6. pps/workflow/pyproject.toml 移除固定 --basetemp=.pytest-tmp，避免 Windows 固定临时目录清理失败。
+
+### 验证结果
+
+- pnpm.cmd run verify; if ($LASTEXITCODE -eq 0) { pnpm.cmd run e2e }：通过，退出码 0。
+  - verify：Node.js、pnpm、Python、Docker、必需文件、PostgreSQL、Redis、MinIO 全部通过。
+  - e2e：Node 契约 14/14 通过；API compileall 通过；真实 API HTTP pytest 41/41 通过；workflow compileall 通过；workflow 8/8 通过。
+- pnpm.cmd run test：通过，Web 7/7、shared 	sc --noEmit、API 147/147、workflow 13/13 全部通过。
+- git diff --check：通过，无空白错误。
+- 远程 LLM 冒烟：使用用户提供的 OpenAI 兼容 URL 与密钥环境变量执行 workflow generate_text()，退出码 0，返回正文长度 559；报告中不记录完整密钥。
+
+### 编码后声明 - 最终闭环验证
+
+- 复用组件：piFetch()、
+eadJson()、现有 Web 静态契约测试、e2e 真实 API pytest 目标、workflow provider client。
+- 命名与风格：保持现有 TypeScript/Python/Node 脚本风格，不新增测试框架，不新增业务外脚本。
+- 未重复造轮子：移除 e2e 探针补偿路径，直接复用已存在且可通过的 API HTTP pytest 目标集。
+- 风险处理：远程 LLM key 仅作为本轮环境变量验证，不写入仓库文件或报告明文。

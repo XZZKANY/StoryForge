@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
@@ -11,10 +11,16 @@ const removedRoutes = ["analytics", "collaboration", "commercial", "workspace", 
 const textFilesWithoutEncodingDamage = [
   "../../TODO.md",
   "app/page.tsx",
+  "app/retrieval/page.tsx",
+  "app/runs/page.tsx",
+  "app/artifacts/page.tsx",
+  "app/evaluations/page.tsx",
   "app/studio/actions.tsx",
   "app/studio/api.ts",
   "app/studio/types.ts",
   "app/studio/validators.ts",
+  "../api/app/domains/artifacts/__init__.py",
+  "../../scripts/run-e2e.mjs",
 ] as const;
 
 test("首页只保留真实数据流入口并删除占位页", () => {
@@ -52,6 +58,8 @@ test("页面复用 API client 并注入 API Key", () => {
   const studioActions = read("app/studio/actions.tsx");
   const artifacts = read("app/artifacts/page.tsx");
   const evaluations = read("app/evaluations/page.tsx");
+  const retrieval = read("app/retrieval/page.tsx");
+  const runs = read("app/runs/page.tsx");
 
   assert.ok(client.includes("X-StoryForge-API-Key"));
   assert.ok(client.includes("buildApiUrl"));
@@ -67,8 +75,10 @@ test("页面复用 API client 并注入 API Key", () => {
   assert.ok(!artifacts.includes("fetch(new URL"), "Artifacts 页面不应保留裸业务 fetch");
   assert.ok(!evaluations.includes("fetch(new URL"), "Evaluations 页面不应保留裸业务 fetch");
 
-  assert.ok(read("app/retrieval/page.tsx").includes("buildApiUrl"));
-  assert.ok(read("app/runs/page.tsx").includes("buildApiUrl"));
+  assert.ok(retrieval.includes("apiFetch"), "Retrieval 页面应复用 apiFetch 注入 API Key");
+  assert.ok(runs.includes("readJson"), "Runs 页面应复用 readJson 校验响应");
+  assert.ok(!retrieval.includes("await fetch("), "Retrieval 页面不应保留裸业务 fetch");
+  assert.ok(!runs.includes("await fetch("), "Runs 页面不应保留裸业务 fetch");
 });
 
 test("Studio 保留 Server Action 写回闭环且 page 保持薄入口", () => {
@@ -101,6 +111,8 @@ test("产品文案不应夸大未联通能力", () => {
     "app/evaluations/page.tsx",
     "../../README.md",
     "../../PROJECT_SUMMARY.md",
+    "../api/app/domains/artifacts/__init__.py",
+    "../../scripts/run-e2e.mjs",
   ] as const;
   const forbiddenPhrases = ["完整中心", "实验室", "统一管理", "全家桶", "完整交互式"] as const;
 
@@ -112,8 +124,10 @@ test("产品文案不应夸大未联通能力", () => {
   }
 });
 
-test("文本文件不应残留连续问号编码损坏", () => {
+test("文本文件不应残留连续问号编码损坏或 UTF-8 BOM", () => {
   for (const file of textFilesWithoutEncodingDamage) {
-    assert.ok(!read(file).includes("???"), `${file} 不应包含连续问号编码损坏`);
+    const content = read(file);
+    assert.notEqual(content.charCodeAt(0), 0xfeff, `${file} 必须使用 UTF-8 无 BOM 编码`);
+    assert.ok(!content.includes("???"), `${file} 不应包含连续问号编码损坏`);
   }
 });

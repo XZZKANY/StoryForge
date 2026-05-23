@@ -1,4 +1,4 @@
-import { buildApiUrl } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 
 type RetrievalWorkbenchSource = {
   readonly id: number;
@@ -74,12 +74,9 @@ const retrievalWorkbenchRefreshRunsEndpoint = "/api/retrieval/workbench/refresh-
 const retrievalWorkbenchSearchEndpoint = "/api/retrieval/workbench/search";
 
 async function readRetrievalWorkbenchSources(bookId: number | undefined): Promise<RetrievalSourceListState> {
-  const url = buildApiUrl(retrievalWorkbenchSourcesEndpoint, bookId === undefined ? {} : { book_id: bookId });
-
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: { "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key" },
+    const response = await apiFetch(retrievalWorkbenchSourcesEndpoint, {
+      params: bookId === undefined ? {} : { book_id: bookId },
     });
     if (!response.ok) {
       return { status: "error", message: `资料源列表 API 返回 ${response.status}` };
@@ -104,13 +101,9 @@ async function readRetrievalWorkbenchRefreshRuns(
     return { status: "idle", message: "读取刷新任务需要先获得资料源列表。" };
   }
 
-  const url = buildApiUrl(retrievalWorkbenchRefreshRunsEndpoint);
-  url.searchParams.set("source_id", String(sourceListState.sources[0].id));
-
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: { "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key" },
+    const response = await apiFetch(retrievalWorkbenchRefreshRunsEndpoint, {
+      params: { source_id: sourceListState.sources[0].id },
     });
     if (!response.ok) {
       return { status: "error", message: `刷新任务 API 返回 ${response.status}` };
@@ -140,13 +133,9 @@ async function readRetrievalWorkbenchSearch(sourceListState: RetrievalSourceList
       : { series_id: firstSource.series_id, query: firstSource.title, limit: 3 };
 
   try {
-    const response = await fetch(buildApiUrl(retrievalWorkbenchSearchEndpoint), {
-      cache: "no-store",
+    const response = await apiFetch(retrievalWorkbenchSearchEndpoint, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key",
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(requestBody),
     });
     if (!response.ok) {
