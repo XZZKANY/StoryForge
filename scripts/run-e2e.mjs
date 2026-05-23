@@ -29,26 +29,6 @@ const httpPytestTargets = [
   'tests/test_evaluations.py',
   'tests/test_job_runtime_bridge.py',
 ];
-const fallbackPytestTargets = [
-  'tests/test_phase1_service_acceptance.py',
-  'tests/test_phase2_service_acceptance.py',
-  'tests/test_phase3_service_acceptance.py',
-  'tests/test_phase4_service_acceptance.py',
-];
-const HTTP_TESTCLIENT_PROBE = `
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-app = FastAPI()
-
-@app.get("/")
-def healthcheck():
-    return {"ok": True}
-
-with TestClient(app) as client:
-    response = client.get("/")
-    assert response.status_code == 200
-`.trim();
 const requestedTests = process.argv.slice(2).filter((value) => value.trim().length > 0);
 const testFiles = requestedTests.length > 0 ? requestedTests : defaultTests;
 const tempDir = await mkdtemp(join(tmpdir(), 'storyforge-e2e-'));
@@ -121,19 +101,12 @@ async function runApiVerification(cwd) {
     return 1;
   }
 
-  const supportsHttpPytest = await probeHttpPytestSupport(pythonCommand, cwd);
-  if (supportsHttpPytest) {
-    return runPythonCommand(pythonCommand, ['-m', 'pytest', ...httpPytestTargets, '-q'], cwd);
-  }
-
-  console.warn('检测到当前环境无法稳定执行 FastAPI HTTP pytest，改为运行补偿验证：compileall + Phase 1/2/3/4 服务层验收。');
   const compileExitCode = await runPythonCommand(pythonCommand, ['-m', 'compileall', 'app', 'tests'], cwd);
   if (compileExitCode !== 0) {
     return compileExitCode;
   }
-  return runPythonCommand(pythonCommand, ['-m', 'pytest', ...fallbackPytestTargets, '-q'], cwd);
+  return runPythonCommand(pythonCommand, ['-m', 'pytest', ...httpPytestTargets, '-q'], cwd);
 }
-
 async function runWorkflowVerification(cwd) {
   const pythonCommand = resolvePythonCommand();
   if (!pythonCommand) {
@@ -173,38 +146,6 @@ function runPythonScript(command, scriptPath, cwd) {
     return runCommand('uv', ['run', 'python', scriptPath], cwd);
   }
   return runCommand(command, [scriptPath], cwd);
-}
-
-async function probeHttpPytestSupport(command, cwd) {
-  const probeArgs =
-    command === 'uv'
-      ? ['run', 'python', '-c', HTTP_TESTCLIENT_PROBE]
-      : ['-c', HTTP_TESTCLIENT_PROBE];
-  const result = await runCommandWithTimeout(command, probeArgs, cwd, 5000);
-  return result.exitCode === 0 && !result.timedOut;
-}
-
-function runCommandWithTimeout(command, args, cwd, timeoutMs) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd,
-      stdio: 'ignore',
-      shell: process.platform === 'win32' && command === 'uv',
-    });
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      resolve({ exitCode: 124, timedOut: true });
-    }, timeoutMs);
-
-    child.on('error', () => {
-      clearTimeout(timer);
-      resolve({ exitCode: 1, timedOut: false });
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      resolve({ exitCode: code ?? 1, timedOut: false });
-    });
-  });
 }
 
 function hasCommand(command) {

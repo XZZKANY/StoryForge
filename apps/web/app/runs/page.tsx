@@ -1,4 +1,4 @@
-import { buildApiUrl } from "../../lib/api-client";
+import { readJson } from "../../lib/api-client";
 
 type RunsModelRunSummary = {
   readonly id: number;
@@ -42,27 +42,15 @@ const runsRetryExecutionEndpoint = "POST /api/model-runs/job-runs/{job_run_id}/r
 
 async function readRunsJobRun(jobRunId: number | undefined): Promise<RunsJobRunState> {
   if (jobRunId === undefined) {
-    return { status: "error", message: "缺少 job_run_id，请在 URL query 中指定运行记录 ID。" };
+    return { status: "error", message: "缺少 job_run_id，请在 URL query 中提供运行记录 ID。" };
   }
-  try {
-    const response = await fetch(buildApiUrl(`${runsJobRunEndpoint}/${jobRunId}`), {
-      cache: "no-store",
-      headers: { "X-StoryForge-API-Key": process.env.STORYFORGE_API_KEY ?? "local-dev-key" },
-    });
-    if (!response.ok) {
-      return { status: "error", message: `运行记录 API 返回 ${response.status}` };
-    }
-
-    const payload: unknown = await response.json();
-    if (!isRunsJobRun(payload)) {
-      return { status: "error", message: "运行记录 API 返回格式不符合预期" };
-    }
-
-    return { status: "ready", jobRun: payload };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
-  }
+  const result = await readJson(`${runsJobRunEndpoint}/${jobRunId}`, {
+    validate: isRunsJobRun,
+    invalidMessage: "运行记录 API 返回格式不符合预期",
+  });
+  return result.status === "ready"
+    ? { status: "ready", jobRun: result.data }
+    : { status: "error", message: result.message.replace("API 返回", "运行记录 API 返回") };
 }
 
 function isRunsJobRun(value: unknown): value is RunsJobRun {
