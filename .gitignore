@@ -22,3 +22,4 @@ redis-data/
 *.tsbuildinfo
 # 本地缓存
 .cache/
+.codex/tmp/

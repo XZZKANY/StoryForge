@@ -446,3 +446,48 @@ eadJson()、现有 Web 静态契约测试、e2e 真实 API pytest 目标、workf
 - 命名与风格：保持现有 TypeScript/Python/Node 脚本风格，不新增测试框架，不新增业务外脚本。
 - 未重复造轮子：移除 e2e 探针补偿路径，直接复用已存在且可通过的 API HTTP pytest 目标集。
 - 风险处理：远程 LLM key 仅作为本轮环境变量验证，不写入仓库文件或报告明文。
+
+## 20w 悬疑小说链路验证 - 操作记录
+
+时间：2026-05-23 14:24:56 +08:00
+
+### 工具降级说明
+
+- 当前 Codex CLI 可调用工具集中未提供 sequential-thinking、shrimp-task-manager、desktop-commander、context7、github.search_code。
+- 已按 AGENTS 要求记录降级原因；本轮使用 PowerShell、rg、pytest、Python 模块执行等价本地审计与验证。
+- 当前仓库根为 D:\StoryForge\1-renovel-ai-ai-rag-tavern，外层 D:\StoryForge 不是 Git 仓库。
+
+### 当前状态审计
+
+- Git 未跟踪文件：apps/workflow/storyforge_workflow/longform.py、apps/workflow/tests/test_longform_generation.py。
+- uv run pytest tests/test_longform_generation.py -q 已通过：3 passed。
+- 当前 shell 未配置 STORYFORGE_LLM_API_KEY、STORYFORGE_LLM_BASE_URL、STORYFORGE_LLM_MODEL，真实远程 LLM 20w 生成暂不可直接验证。
+-
+g 结果显示 longform 仅有库函数和单元测试，没有 CLI 或项目脚本入口；这意味着“只能通过项目链条”生成 20w 的可操作入口仍不足。
+
+### 20w 压力验证失败复盘
+
+时间：2026-05-23 14:27:50 +08:00
+
+- 失败 1：从 apps/workflow 执行 ../../.codex/tmp/verify_200k_mystery.py，但脚本实际写入 apps/workflow/.codex/tmp，路径不一致。
+- 失败 2：从仓库根执行时继续使用 ../../.codex/tmp，解析到 D:\.codex，路径不一致。
+- 失败 3：从 apps/workflow 执行仓库脚本时，普通 uv run python 未加载 pytest 的 pythonpath=["."]，导致 ModuleNotFoundError: storyforge_workflow。
+- 失败 4：设置 PYTHONPATH=. 后，脚本中的中文输出文件名在当前 PowerShell 写入链路中被编码污染，Windows 拒绝非法路径。
+- 根因判断：以上均为验证脚本编排问题，不是 generate_longform_article 当前业务循环失败；下一步固定脚本路径、显式 PYTHONPATH，并使用 ASCII 文件名隔离编码路径变量。
+
+## 20w 悬疑小说项目链路 - 最终修复与验证
+
+时间：2026-05-24 04:11:38 +08:00
+
+### 本轮结论
+
+- 真实 API 长链路曾暴露 `HTTP Error 503: Service Unavailable`，已通过可配置重试、指数退避和断点续跑修复。
+- 复核发现 `actual_chars` 与 `count_article_chars()` 不一致，根因是旧逻辑把换行符计入正文；已改为 `count_article_chars(cleaned)`。
+- 真实 20w 输出已通过独立计数验收：`200887` 正文字符。
+
+### 验证结果
+
+- `uv run pytest tests/test_longform_generation.py -q`：6/6 通过。
+- `pnpm.cmd run test:workflow`：19/19 通过。
+- 真实链路：`.codex/tmp/run_real_200k_mystery.py` 退出码 0，输出 `actual_chars=200887`。
+- 真实产物：`.codex/tmp/mystery-200k-real-chain.md`，64 段，关键词抽样符合悬疑小说内容。
