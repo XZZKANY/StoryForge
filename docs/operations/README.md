@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `local-start.md` | 本地工具、环境文件、Docker 服务、依赖安装和验证顺序。 | 新机器启动、环境重建、首次接手项目。 |
 | `release-checklist.md` | 发布前 Git、环境、OpenAPI、测试、文档和回滚门禁。 | 准备提交、推送、发布或交接前。 |
-| `troubleshooting.md` | Docker、FastAPI TestClient、OpenAPI、provider 未配置、`pnpm verify` 和 Git 工作区故障排查。 | 本地验证失败或环境行为不确定时。 |
+| `troubleshooting.md` | Docker、FastAPI HTTP pytest、OpenAPI、provider 未配置、`pnpm verify` 和 Git 工作区故障排查。 | 本地验证失败或环境行为不确定时。 |
 | `alembic-validation.md` | Alembic 迁移脚本、head、离线 SQL 和在线数据库验证状态。 | 处理数据库迁移、升级或发布前数据库门禁时。 |
 
 ## 3. 推荐阅读顺序
@@ -26,8 +26,8 @@
 
 - 当前环境中 Docker 服务不可查询时，`pnpm verify` 会失败；需要启动 Docker Desktop 或 Docker 服务后补跑。
 - `pnpm openapi` 会按 `uv`、`python3`、`python` 顺序选择可用运行时；三者都不可用时才会失败。
-- FastAPI HTTP pytest 在部分环境可能阻塞，`pnpm e2e` 会自动切换到服务层补偿验收。
-- `.env.example` 已包含 `STORYFORGE_API_BASE_URL`、`STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*`；其中 Provider Gateway 会读取 LLM、embedding、reranker 变量，缺少密钥时稳定回退，不能作为真实外部 AI/RAG 端到端已接入的发布依据。
+- FastAPI HTTP pytest 是 `pnpm e2e` 的固定发布门禁；失败时必须修复，不再切换到服务层补偿验收。
+- `.env.example` 已包含 `STORYFORGE_API_KEY`、`STORYFORGE_API_BASE_URL`、`STORYFORGE_WORKFLOW_SQLITE_PATH`、`STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*`；其中 Provider Gateway 会读取 LLM、embedding、reranker 变量，缺少密钥时稳定回退，不能作为真实外部 AI/RAG 端到端已接入的发布依据。
 
 ## 5. 维护规则
 
