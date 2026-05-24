@@ -491,3 +491,101 @@ g 结果显示 longform 仅有库函数和单元测试，没有 CLI 或项目脚
 - `pnpm.cmd run test:workflow`：19/19 通过。
 - 真实链路：`.codex/tmp/run_real_200k_mystery.py` 退出码 0，输出 `actual_chars=200887`。
 - 真实产物：`.codex/tmp/mystery-200k-real-chain.md`，64 段，关键词抽样符合悬疑小说内容。
+
+
+## Context Pipeline 重构 - 操作记录
+
+时间：2026-05-24 16:45:00
+
+### 需求与约束
+
+- 用户要求先处理上一轮评分中最恶心的模块。
+- 处理范围收敛为 `Context / Scene Packet / Retrieval` 交界面。
+- 本轮只做小步隔离，不改变外部 API、数据库迁移、Workflow 图或前端页面。
+
+### 上下文与计划
+
+- 已生成 `.codex/context-summary-context-pipeline-refactor.md`。
+- 已生成 `docs/superpowers/plans/2026-05-24-context-pipeline-refactor.md`。
+- 基线验证：`uv run pytest tests/test_scene_packet.py tests/test_context_compiler_persistence.py -q` → `9 passed in 0.52s`。
+
+### 编码前检查
+
+- 复用 `apps/api/app/domains/scene_packets/budget.py` 的 `build_packet()` 和 `estimate_tokens()`。
+- 复用 `apps/api/app/domains/scene_packets/retrieval_bridge.py` 的 `build_retrieval_query()` 和 `attach_compiled_context()`。
+- 复用 `apps/api/app/domains/retrieval/service.py` 的 `search_retrieval()`。
+- 不重复造轮子：新增模块只移动 orchestration 边界，不重写上下文编译或预算算法。
+
+### 实施结果
+
+- 新增 `apps/api/app/domains/scene_packets/context_pipeline.py`。
+- 修改 `apps/api/app/domains/scene_packets/service.py`，让 `assemble_scene_packet()` 只保留实体定位、输入校验和 ScenePacket 持久化。
+
+### 本地验证
+
+- `uv run pytest tests/test_scene_packet.py tests/test_context_compiler_persistence.py -q` → `9 passed in 0.47s`。
+- `uv run python -m compileall app tests` → 退出码 0。
+- 静态边界检查：`service.py` 不再包含 `search_retrieval`、`build_packet`、`attach_compiled_context`、`RetrievalSearchCreate`。
+
+
+## Worldbuilding Router 修复 - 编码前检查
+
+时间：2026-05-24 17:15:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-worldbuilding-router.md`。
+- 已分析代表性文件：
+  - `apps/api/app/main.py`
+  - `apps/api/app/domains/worldbuilding/router.py`
+  - `apps/api/app/domains/worldbuilding/service.py`
+  - `apps/api/app/domains/worldbuilding/schemas.py`
+  - `apps/api/tests/test_worldbuilding_center.py`
+  - `apps/api/tests/test_api_surface.py`
+- 基线验证：`uv run pytest tests/test_worldbuilding_center.py tests/test_api_surface.py -q` → `2 passed in 0.18s`，当前测试证明 worldbuilding 未开放。
+- 将复用既有 `worldbuilding` router/service/schema，不新增实现算法。
+- 将遵循 FastAPI router 注册模式：导入 `router as xxx_router`，再 `app.include_router(xxx_router)`。
+
+## Worldbuilding Router 修复 - 编码后声明
+
+时间：2026-05-24 17:25:00
+
+### 1. 复用了以下既有组件
+
+- `apps/api/app/domains/worldbuilding/router.py`：直接注册既有 `/api/worldbuilding/center`。
+- `apps/api/app/domains/worldbuilding/service.py`：继续使用 `build_worldbuilding_center()` 聚合只读世界观中心。
+- `apps/api/app/domains/worldbuilding/schemas.py`：继续使用 `WorldbuildingCenterRead` 响应结构。
+- `apps/api/tests/conftest.py`：继续使用内存 SQLite 与 TestClient 覆盖本地 API 测试。
+
+### 2. 遵循了以下项目约定
+
+- Router 注册沿用 `from app.domains.xxx.router import router as xxx_router` 与 `app.include_router(xxx_router)`。
+- 测试使用 pytest、TestClient、中文测试说明。
+- 未新增前端页面、写入 API、数据库迁移或新的服务算法。
+
+### 3. 对比了以下相似实现
+
+- `apps/api/app/main.py` 既有 router 注册模式。
+- `apps/api/tests/test_api_surface.py` 既有 API surface 白名单/黑名单模式。
+- `apps/api/tests/test_worldbuilding_center.py` 既有夹具已准备完整世界观聚合输入，本轮将断言从 404 改为字段聚合。
+
+### 4. 本地验证
+
+- `uv run pytest tests/test_worldbuilding_center.py tests/test_api_surface.py -q` → `3 passed in 0.23s`。
+- `uv run python -m compileall app tests` → 退出码 0。
+
+## Code Review 操作记录 - 2026-05-24 20:00:00
+
+- 使用 sequential-thinking 梳理审查策略和风险。
+- 使用 shrimp-task-manager 记录审查分析、反思和后续任务拆分。
+- 使用 desktop-commander 读取仓库结构、关键配置、实现文件和测试文件。
+- 使用 Context7 查询 Next.js 与 FastAPI 官方文档模式。
+- 尝试发现 `github.search_code` 工具，当前环境未暴露，记录为检索限制。
+- 运行定向验证：Web test、Web lint、API 定向 pytest 均通过。
+- 运行完整验证：`pnpm test` 失败，阻断点为 Scene Packet 检索上下文块测试导入旧私有别名。
+- 已生成 `.codex/context-summary-code-review.md` 与 `.codex/verification-report.md`。
+
+## 修复测试导入契约 - 2026-05-24 20:10:00
+
+- 根因：`test_scene_packet_retrieval_upgrade.py` 仍导入 `service._retrieval_context_blocks`，但 Scene Packet 重构后检索上下文块实现位于 `retrieval_bridge.retrieval_context_blocks`。
+- 处理：将测试导入改为 `from app.domains.scene_packets.retrieval_bridge import retrieval_context_blocks`，并同步调用名。
+- 定向验证：`cd apps/api && uv run pytest tests/test_scene_packet_retrieval_upgrade.py`，结果 2 passed。
+- 完整验证：`pnpm test`，结果 Web 9 passed、shared tsc 通过、API 148 passed、workflow 19 passed。

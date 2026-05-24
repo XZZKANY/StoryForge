@@ -104,6 +104,24 @@ test("Studio 保留 Server Action 写回闭环且 page 保持薄入口", () => {
   assert.ok(pageContent.includes("form action={approveStudioWritebackAction}"));
 });
 
+test("Studio 使用四步流程引导并自动滚动到下一步", () => {
+  const pageContent = read("app/studio/page-content.tsx");
+  const flow = read("app/studio/StudioFlow.tsx");
+
+  for (const label of ["Step 1", "Step 2", "Step 3", "Step 4", "选作品", "设目标", "生成", "评审并批准"] as const) {
+    assert.ok(flow.includes(label), `步骤条应展示 ${label}`);
+  }
+  for (const className of ["opacity-50", "bg-stone-100", "ring-2", "border-amber-700"] as const) {
+    assert.ok(flow.includes(className), `步骤状态应使用 Tailwind 类 ${className}`);
+  }
+  assert.ok(flow.includes('"use client"'), "自动滚动必须放在 Client Component 中");
+  assert.ok(flow.includes("useRef"), "步骤区块需要使用 ref 定位滚动目标");
+  assert.ok(flow.includes("useEffect"), "步骤完成后需要通过 effect 触发滚动");
+  assert.ok(flow.includes("scrollIntoView"), "每步完成后应自动滚动到下一步");
+  assert.ok(pageContent.includes("<StudioFlow"), "Studio 页面应由步骤流包装既有区块");
+  assert.ok(pageContent.includes("studioSteps"), "Studio 页面应从现有状态派生四步完成状态");
+});
+
 test("产品文案不应夸大未联通能力", () => {
   const files = [
     "app/page.tsx",
