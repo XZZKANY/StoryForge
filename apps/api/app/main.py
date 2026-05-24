@@ -24,6 +24,7 @@ from app.domains.scene_packets.router import router as scene_packets_router
 from app.domains.style_packs.router import router as style_packs_router
 from app.domains.studio.router import router as studio_router
 from app.domains.series.router import router as series_router
+from app.domains.worldbuilding.router import router as worldbuilding_router
 
 from app.common.exceptions import DomainError
 
@@ -89,6 +90,7 @@ app.include_router(scene_packets_router)
 app.include_router(style_packs_router)
 app.include_router(studio_router)
 app.include_router(series_router)
+app.include_router(worldbuilding_router)
 
 
 @app.exception_handler(DomainError)

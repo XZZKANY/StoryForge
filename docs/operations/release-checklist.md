@@ -65,9 +65,9 @@ pnpm e2e
 
 通过条件：
 
-- `pnpm test` 中 Web 契约、共享包检查、API `compileall`、workflow `compileall` 全部通过。
-- `pnpm e2e` 先刷新 OpenAPI，再完成阶段契约、API 服务层补偿验收和 workflow pytest。
-- 若当前环境无法稳定执行 FastAPI HTTP pytest，可以接受 `pnpm e2e` 自动记录并执行的服务层补偿验收，但必须在验证报告中说明。
+- `pnpm test` 中 Web 契约、共享包检查、API pytest、workflow pytest 全部通过。
+- `pnpm e2e` 先刷新 OpenAPI，再完成阶段契约、API `compileall`、真实 FastAPI HTTP pytest、workflow `compileall` 和 workflow pytest。
+- 若真实 FastAPI HTTP pytest 失败，发布门禁必须失败；不得用补偿验收替代。
 
 ## 6. 文档门禁
 

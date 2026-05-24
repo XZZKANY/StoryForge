@@ -491,3 +491,175 @@ g 结果显示 longform 仅有库函数和单元测试，没有 CLI 或项目脚
 - `pnpm.cmd run test:workflow`：19/19 通过。
 - 真实链路：`.codex/tmp/run_real_200k_mystery.py` 退出码 0，输出 `actual_chars=200887`。
 - 真实产物：`.codex/tmp/mystery-200k-real-chain.md`，64 段，关键词抽样符合悬疑小说内容。
+
+
+## Context Pipeline 重构 - 操作记录
+
+时间：2026-05-24 16:45:00
+
+### 需求与约束
+
+- 用户要求先处理上一轮评分中最恶心的模块。
+- 处理范围收敛为 `Context / Scene Packet / Retrieval` 交界面。
+- 本轮只做小步隔离，不改变外部 API、数据库迁移、Workflow 图或前端页面。
+
+### 上下文与计划
+
+- 已生成 `.codex/context-summary-context-pipeline-refactor.md`。
+- 已生成 `docs/superpowers/plans/2026-05-24-context-pipeline-refactor.md`。
+- 基线验证：`uv run pytest tests/test_scene_packet.py tests/test_context_compiler_persistence.py -q` → `9 passed in 0.52s`。
+
+### 编码前检查
+
+- 复用 `apps/api/app/domains/scene_packets/budget.py` 的 `build_packet()` 和 `estimate_tokens()`。
+- 复用 `apps/api/app/domains/scene_packets/retrieval_bridge.py` 的 `build_retrieval_query()` 和 `attach_compiled_context()`。
+- 复用 `apps/api/app/domains/retrieval/service.py` 的 `search_retrieval()`。
+- 不重复造轮子：新增模块只移动 orchestration 边界，不重写上下文编译或预算算法。
+
+### 实施结果
+
+- 新增 `apps/api/app/domains/scene_packets/context_pipeline.py`。
+- 修改 `apps/api/app/domains/scene_packets/service.py`，让 `assemble_scene_packet()` 只保留实体定位、输入校验和 ScenePacket 持久化。
+
+### 本地验证
+
+- `uv run pytest tests/test_scene_packet.py tests/test_context_compiler_persistence.py -q` → `9 passed in 0.47s`。
+- `uv run python -m compileall app tests` → 退出码 0。
+- 静态边界检查：`service.py` 不再包含 `search_retrieval`、`build_packet`、`attach_compiled_context`、`RetrievalSearchCreate`。
+
+
+## Worldbuilding Router 修复 - 编码前检查
+
+时间：2026-05-24 17:15:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-worldbuilding-router.md`。
+- 已分析代表性文件：
+  - `apps/api/app/main.py`
+  - `apps/api/app/domains/worldbuilding/router.py`
+  - `apps/api/app/domains/worldbuilding/service.py`
+  - `apps/api/app/domains/worldbuilding/schemas.py`
+  - `apps/api/tests/test_worldbuilding_center.py`
+  - `apps/api/tests/test_api_surface.py`
+- 基线验证：`uv run pytest tests/test_worldbuilding_center.py tests/test_api_surface.py -q` → `2 passed in 0.18s`，当前测试证明 worldbuilding 未开放。
+- 将复用既有 `worldbuilding` router/service/schema，不新增实现算法。
+- 将遵循 FastAPI router 注册模式：导入 `router as xxx_router`，再 `app.include_router(xxx_router)`。
+
+## Worldbuilding Router 修复 - 编码后声明
+
+时间：2026-05-24 17:25:00
+
+### 1. 复用了以下既有组件
+
+- `apps/api/app/domains/worldbuilding/router.py`：直接注册既有 `/api/worldbuilding/center`。
+- `apps/api/app/domains/worldbuilding/service.py`：继续使用 `build_worldbuilding_center()` 聚合只读世界观中心。
+- `apps/api/app/domains/worldbuilding/schemas.py`：继续使用 `WorldbuildingCenterRead` 响应结构。
+- `apps/api/tests/conftest.py`：继续使用内存 SQLite 与 TestClient 覆盖本地 API 测试。
+
+### 2. 遵循了以下项目约定
+
+- Router 注册沿用 `from app.domains.xxx.router import router as xxx_router` 与 `app.include_router(xxx_router)`。
+- 测试使用 pytest、TestClient、中文测试说明。
+- 未新增前端页面、写入 API、数据库迁移或新的服务算法。
+
+### 3. 对比了以下相似实现
+
+- `apps/api/app/main.py` 既有 router 注册模式。
+- `apps/api/tests/test_api_surface.py` 既有 API surface 白名单/黑名单模式。
+- `apps/api/tests/test_worldbuilding_center.py` 既有夹具已准备完整世界观聚合输入，本轮将断言从 404 改为字段聚合。
+
+### 4. 本地验证
+
+- `uv run pytest tests/test_worldbuilding_center.py tests/test_api_surface.py -q` → `3 passed in 0.23s`。
+- `uv run python -m compileall app tests` → 退出码 0。
+
+## Code Review 操作记录 - 2026-05-24 20:00:00
+
+- 使用 sequential-thinking 梳理审查策略和风险。
+- 使用 shrimp-task-manager 记录审查分析、反思和后续任务拆分。
+- 使用 desktop-commander 读取仓库结构、关键配置、实现文件和测试文件。
+- 使用 Context7 查询 Next.js 与 FastAPI 官方文档模式。
+- 尝试发现 `github.search_code` 工具，当前环境未暴露，记录为检索限制。
+- 运行定向验证：Web test、Web lint、API 定向 pytest 均通过。
+- 运行完整验证：`pnpm test` 失败，阻断点为 Scene Packet 检索上下文块测试导入旧私有别名。
+- 已生成 `.codex/context-summary-code-review.md` 与 `.codex/verification-report.md`。
+
+## 修复测试导入契约 - 2026-05-24 20:10:00
+
+- 根因：`test_scene_packet_retrieval_upgrade.py` 仍导入 `service._retrieval_context_blocks`，但 Scene Packet 重构后检索上下文块实现位于 `retrieval_bridge.retrieval_context_blocks`。
+- 处理：将测试导入改为 `from app.domains.scene_packets.retrieval_bridge import retrieval_context_blocks`，并同步调用名。
+- 定向验证：`cd apps/api && uv run pytest tests/test_scene_packet_retrieval_upgrade.py`，结果 2 passed。
+- 完整验证：`pnpm test`，结果 Web 9 passed、shared tsc 通过、API 148 passed、workflow 19 passed。
+
+## Phase 7 发布收口到全流程闭环 - 任务启动
+
+时间：2026-05-24 20:40:35 +08:00
+
+### 需求与约束
+
+- 用户要求先阅读 `D:/StoryForge/AGENTS.md`、项目 `AI_ITERATION_GUIDE.md`、`README.md`、`TODO.md`、`.codex/current-phase.md`。
+- 本轮目标：先完成 Phase 7 发布治理五项收口，再推进 workflow-to-api ModelRun adapter 和端到端冒烟。
+- 不做：不继续扩 Studio/Retrieval/Runs/Artifacts/Evaluations 数据源，不重做 Phase 1-4，不在 Phase 7 完成前跳到功能闭环。
+- 最终验收：`pnpm verify && pnpm e2e` 全绿，`.codex/verification-report.md` 记录本次证据。
+
+### 工具链记录
+
+- 已使用 sequential-thinking 梳理目标、顺序和风险。
+- 已使用 shrimp-task-manager 生成并拆分 3 个任务：上下文与日志、Phase 7 发布治理、ModelRun 与端到端验证。
+- 已使用 desktop-commander 读取本地文件、目录和脚本。
+- 已使用 Context7 查询 Alembic `upgrade head` 与 `current --check-heads` 官方行为。
+- `github.search_code` 当前工具集中未暴露；已记录为检索限制，以项目内实现和官方文档替代。
+
+### 编码前检查 - Phase 7 发布收口
+
+- 已查阅上下文摘要文件：`.codex/context-summary-phase7-full-closure.md`。
+- 将复用 `scripts/verify-local.ps1`、`scripts/generate-openapi.ps1`、`scripts/run-e2e.mjs`、`docs/operations/*`、`runtime/checkpoints.py`、`tests/test_runtime_runner.py`、`tests/test_model_runs.py`。
+- 将遵循命名与风格：文档简体中文；PowerShell/Node/Python 保持既有脚本风格；不新增依赖或平行脚本。
+- 不重复造轮子证明：已检查根脚本、运维文档、Alembic 配置、ModelRun adapter 和测试入口。
+## Phase 7 发布治理补齐 - 执行记录
+
+时间：2026-05-24 20:50:00 +08:00
+
+### 修正内容
+
+1. `.env.example` 补齐本地默认：`STORYFORGE_API_KEY=local-dev-key`、`STORYFORGE_CORS_ORIGINS`、`STORYFORGE_WORKFLOW_SQLITE_PATH`、workflow SQLite checkpoint 默认、LLM/embedding/reranker base URL 与 LLM temperature。
+2. `docs/operations/local-start.md` 更新 API Key、workflow SQLite 和真实 HTTP e2e 说明。
+3. `docs/operations/release-checklist.md` 更新测试门禁：`pnpm e2e` 必须真实 FastAPI HTTP pytest 通过，不再接受补偿验收。
+4. `docs/operations/troubleshooting.md` 更新 FastAPI HTTP pytest 失败处理路径。
+5. `docs/operations/README.md` 更新当前已知限制和 `.env.example` 变量范围。
+6. `docs/operations/alembic-validation.md` 记录 2026-05-24 干净临时库复验。
+
+### Phase 7 验收记录
+
+- `.env.example` 变量检查：所有环境变量行均包含赋值；真实外部密钥字段保留为空值，因默认 provider 为 deterministic/local/disabled，本地启动不依赖真实密钥。
+- `pnpm.cmd run verify`：通过，Node.js、pnpm、Python、Docker、必需文件、PostgreSQL、Redis、MinIO 均通过。
+- Alembic 干净临时库：`storyforge_phase7_20260524_verify` 从空库执行 `uv run alembic upgrade head` 通过，`uv run alembic current --check-heads` 输出 `20260520_0001 (head)`，验证后已删除临时库。
+- `pnpm.cmd openapi`：通过并刷新 OpenAPI；生成物出现 Worldbuilding Center diff。
+- OpenAPI diff 解释：diff 来源于此前已注册的 `GET /api/worldbuilding/center` 真实 API surface；本轮非新增数据源，只是生成物同步。定向验证 `uv run pytest tests/test_worldbuilding_center.py tests/test_api_surface.py -q` 通过，3 passed。
+
+## ModelRun adapter 与端到端闭环 - 验证记录
+
+时间：2026-05-24 21:05:00 +08:00
+
+### 定向验收
+
+- Workflow adapter 验收：`cd apps/workflow; uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q`，结果 `9 passed in 0.78s`。
+- API 真表验收：`cd apps/api; uv run pytest tests/test_model_runs.py -q`，结果 `10 passed in 0.47s`。
+
+### 最终验收
+
+- `pnpm.cmd run verify; if ($LASTEXITCODE -eq 0) { pnpm.cmd run e2e }`：通过，退出码 0。
+  - verify：Node.js、pnpm、Python、Docker、必需文件、PostgreSQL、Redis、MinIO 全部通过。
+  - e2e：Node 契约 14/14 通过；API compileall 通过；真实 FastAPI HTTP pytest 42/42 通过；workflow compileall 通过；workflow pytest 8/8 通过。
+- `git diff --check`：通过，退出码 0；仅有 Windows CRLF 提示，无空白错误。
+
+### 编码后声明 - Phase 7 与闭环验证
+
+- 复用组件：根级 pnpm 脚本、运维文档、Alembic 配置、`ApiModelRunAdapter`、`WorkflowRuntime` 的 `model_run_sink`、API `record_workflow_model_run_payload()`。
+- 遵循项目约定：所有文档和日志使用简体中文；未新增依赖、未新增脚本、未扩大工作台数据源。
+- OpenAPI diff 说明：生成物同步了既有 Worldbuilding Center API；已用 API surface 和 worldbuilding 测试覆盖。
+- 未重复造轮子证明：仅同步配置与文档事实，并复用既有 adapter、pytest 和 e2e 门禁。
+## 端到端冒烟补强 - 2026-05-24 21:20:00 +08:00
+
+- `apps/api/tests/test_phase1_closed_loop_api.py` 已覆盖新建持久化作品/章节/场景、Scene Packet、Judge、Repair、批准写回、导出和评测 run 详情读取。
+- 定向验证：`cd apps/api; uv run pytest tests/test_phase1_closed_loop_api.py tests/test_evaluations.py -q`，结果 `3 passed in 0.35s`。
+- 最终复验：`pnpm.cmd run verify; pnpm.cmd run e2e; git diff --check` 退出码 0；e2e 真实 FastAPI HTTP pytest `42 passed`，workflow pytest `8 passed`。

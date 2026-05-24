@@ -32,22 +32,23 @@ pnpm verify
 
 如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。
 
-## 3. FastAPI HTTP pytest 或 TestClient 阻塞
+## 3. FastAPI HTTP pytest 失败
 
 ### 现象
 
-- 直接运行 FastAPI HTTP route pytest 时长时间无输出或阻塞。
-- `pnpm e2e` 输出：`检测到当前环境无法稳定执行 FastAPI HTTP pytest，改为运行补偿验证`。
+- `pnpm e2e` 在真实 FastAPI HTTP pytest 阶段失败。
+- 直接运行某个 HTTP route pytest 返回非零退出码。
 
 ### 判断
 
-这是当前环境已记录限制。根级 `scripts/run-e2e.mjs` 会先探测 TestClient 行为，失败时自动运行 API 服务层补偿验收。
+这是当前发布门禁红灯。根级 `scripts/run-e2e.mjs` 已固定执行真实 API HTTP pytest 目标，不再探测或切换到服务层补偿验收。
 
 ### 处理
 
-- 当前环境下以 `pnpm e2e` 的服务层补偿验收作为本地闭环证据。
-- 若切换到正常开发环境，再补跑对应 HTTP route pytest。
-- 不要删除 HTTP route 测试文件；它们用于正常环境下的更高置信度验证。
+- 不要删除 HTTP route 测试文件，也不要把失败改写为补偿通过。
+- 在 `apps/api` 下复跑失败目标，例如 `uv run pytest tests/test_model_runs.py -q`。
+- 根据失败信息修复 API router、service、schema、测试夹具或 OpenAPI 契约。
+- 修复后回到仓库根重新运行 `pnpm e2e`。
 
 ## 4. OpenAPI 刷新失败
 

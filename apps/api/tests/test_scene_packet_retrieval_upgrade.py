@@ -83,10 +83,10 @@ def test_retrieval_context_block_preserves_rerank_metadata() -> None:
     """Scene Packet 的检索上下文块应透传 reranker 证据，便于后续追溯排序来源。"""
 
     from app.domains.retrieval.schemas import RetrievalHitRead
+    from app.domains.scene_packets.retrieval_bridge import retrieval_context_blocks
     from app.domains.scene_packets.schemas import ScenePacketCreate
-    from app.domains.scene_packets.service import _retrieval_context_blocks
 
-    blocks = _retrieval_context_blocks(
+    blocks = retrieval_context_blocks(
         ScenePacketCreate(
             book_id=1,
             chapter_id=1,
