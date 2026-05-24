@@ -4589,6 +4589,181 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WorldbuildingCenterRead": {
+        "description": "完整世界观中心聚合响应。",
+        "properties": {
+          "chapter_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Chapter Constraints",
+            "type": "array"
+          },
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Characters",
+            "type": "array"
+          },
+          "cross_book_constraints": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingMemoryRead"
+            },
+            "title": "Cross Book Constraints",
+            "type": "array"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Organizations",
+            "type": "array"
+          },
+          "series": {
+            "$ref": "#/components/schemas/WorldbuildingSeriesRead"
+          },
+          "unresolved_foreshadowing": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingItemRead"
+            },
+            "title": "Unresolved Foreshadowing",
+            "type": "array"
+          },
+          "world_rules": {
+            "items": {
+              "$ref": "#/components/schemas/WorldbuildingMemoryRead"
+            },
+            "title": "World Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "series",
+          "characters",
+          "locations",
+          "organizations",
+          "world_rules",
+          "unresolved_foreshadowing",
+          "cross_book_constraints",
+          "chapter_constraints"
+        ],
+        "title": "WorldbuildingCenterRead",
+        "type": "object"
+      },
+      "WorldbuildingItemRead": {
+        "description": "世界观中心统一条目，保留来源和结构化载荷。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "source",
+          "payload"
+        ],
+        "title": "WorldbuildingItemRead",
+        "type": "object"
+      },
+      "WorldbuildingMemoryRead": {
+        "description": "来自系列级记忆的世界规则或跨书约束。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "type",
+          "source",
+          "payload"
+        ],
+        "title": "WorldbuildingMemoryRead",
+        "type": "object"
+      },
+      "WorldbuildingSeriesRead": {
+        "description": "世界观中心中的系列摘要。",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "description"
+        ],
+        "title": "WorldbuildingSeriesRead",
+        "type": "object"
       }
     }
   },
@@ -7489,6 +7664,67 @@
         "summary": "Apply Style Pack Endpoint",
         "tags": [
           "风格包"
+        ]
+      }
+    },
+    "/api/worldbuilding/center": {
+      "get": {
+        "description": "读取系列与作品范围下的世界观中心聚合结果。",
+        "operationId": "read_worldbuilding_center_endpoint_api_worldbuilding_center_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Series Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldbuildingCenterRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Worldbuilding Center Endpoint",
+        "tags": [
+          "世界观中心"
         ]
       }
     },

@@ -1,13 +1,13 @@
 # StoryForge 当前 Phase 摘要
 
-更新时间：2026-05-21 01:05:00 +08:00
+更新时间：2026-05-24 21:10:00 +08:00
 
 ## 1. 当前执行裁决
 
 - 当前总计划事实源：`docs/superpowers/plans/2026-05-17-storyforge-master-replan.md` 第 11 节。
 - 当前 TODO 事实源：`TODO.md` 的 P1/P2/P3 任务池与最近迭代记录。
 - 当前上下文摘要：`.codex/context-summary-end-to-end-closure.md`。
-- 当前阶段重点：Phase 5/6 已进入闭环事实源收口；本轮治理文档只校准最小执行/摘要事实和剩余边界，不修改 API、Web、workflow、OpenAPI 生成物、`.codex/operations-log.md` 或 `.codex/verification-report.md`。
+- 当前阶段重点：Phase 7 发布治理已由主线程完成本地收口；`pnpm verify && pnpm e2e` 已通过，ModelRun adapter 与 API 真表写入已通过定向测试。
 - 第 11.9 处理方式：继续保留本文件作为主事实入口，不复制 `.codex/operations-log.md` 长流水；历史审计记录只在追溯具体问题时按关键词读取。
 
 ## 2. 第 11 节风险状态
@@ -25,7 +25,7 @@
 | Runs 工作台 | `GET /api/model-runs/job-runs/{job_run_id}` 真实读取；`POST /api/model-runs/job-runs/{job_run_id}/retry` 创建恢复任务，不立即续跑 workflow | `apps/api/app/domains/model_runs/`；`apps/api/tests/test_model_runs.py`；`apps/web/app/runs/page.tsx` |
 | Artifacts 工作台 | `GET /api/artifacts`、`GET /api/artifacts/{artifact_id}`、`GET /api/artifacts/{artifact_id}/download` 已实现；download 为 `payload_preview` 摘要 | `apps/api/app/domains/artifacts/`；`apps/api/tests/test_artifacts.py`；`apps/web/app/artifacts/page.tsx` |
 | Evaluations 工作台 | `GET /api/evaluations/runs`、`GET /api/evaluations/runs/{run_id}`、`GET /api/evaluations/runs/{run_id}/failed-samples` 已实现摘要读取 | `apps/api/app/domains/evaluations/`；`apps/api/tests/test_evaluations.py`；`apps/web/app/evaluations/page.tsx` |
-| 发布治理 | Alembic 干净临时库验证已纳入门禁；本轮最终验证由主线程执行 | `docs/operations/alembic-validation.md`；发布验证记录由主线程维护 |
+| 发布治理 | 已完成本地收口：`.env.example` 默认项、Alembic 干净临时库、OpenAPI diff 解释、运维手册与最终报告均已验证 | `.env.example`；`docs/operations/alembic-validation.md`；`.codex/verification-report.md`；`pnpm verify && pnpm e2e` |
 
 ## 3. 状态区分
 
@@ -37,7 +37,7 @@
 - Runs：JobRun/checkpoint/ModelRun 摘要读取已实现；retry API 创建 queued 恢复任务。
 - Artifacts：列表、详情和 `payload_preview` 下载摘要已实现。
 - Evaluations：运行列表、详情趋势摘要、失败样例和 Studio 反馈入口摘要已实现。
-- 发布治理：Alembic 干净临时库验证已纳入门禁。
+- 发布治理：`.env.example` 默认项、Alembic 干净临时库、OpenAPI diff 解释、`docs/operations/` 手册和 `.codex/verification-report.md` 已完成本地收口。
 
 ### 剩余交互 / 详情增强
 
@@ -46,7 +46,7 @@
 - Retrieval 独立证据跳转路由、重排状态详情和跨页面证据路由。
 - Artifacts 上传资料执行、工作流快照详情、评测报告详情、对象存储签名 URL。
 - Evaluations 评测集管理、复杂趋势图、报告下载、失败样例自动反馈执行。
-- 发布治理最终验证由主线程执行；治理文档子代理只完成文档事实收口。
+- 发布治理最终验证已由主线程执行：`pnpm verify && pnpm e2e` 退出码 0；详细证据见 `.codex/verification-report.md`。
 
 ### 完全不存在
 

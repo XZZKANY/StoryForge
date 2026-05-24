@@ -10,7 +10,7 @@
 
 - Node.js：运行前端、共享包和 Node 契约测试。
 - pnpm：根包管理器，版本以 `package.json` 中的 `pnpm@9.15.4` 为准。
-- Python 3.11 或更高版本：运行 FastAPI、OpenAPI 生成、API 语法验证和补偿验收。
+- Python 3.11 或更高版本：运行 FastAPI、OpenAPI 生成、API 语法验证和真实 HTTP pytest。
 - uv：推荐用于 Python 依赖与测试，`scripts/run-e2e.mjs` 会优先使用它。
 - Docker：启动 PostgreSQL、Redis 和 MinIO。
 
@@ -28,9 +28,11 @@ Copy-Item .env.example .env
 - `DATABASE_URL`：对应 `docker-compose.yml` 中的 PostgreSQL `127.0.0.1:55432`。
 - `REDIS_URL`：对应 Redis `127.0.0.1:6379`。
 - `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`：对应 MinIO `127.0.0.1:9000`。
-- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`、`WEB_BASE_URL`：对应本地 API、Web 入口；当前 Web Studio/Retrieval 单点读取使用 `STORYFORGE_API_BASE_URL`。
-- `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`：workflow 本地 runtime 和 checkpoint 后端预留，当前默认使用本地运行模式。
-- `STORYFORGE_LLM_*`：Phase 5 Provider Gateway 真实化预留，默认保持 deterministic。
+- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`、`WEB_BASE_URL`：对应本地 API、Web 入口；当前 Web 读取统一使用 `STORYFORGE_API_BASE_URL`。
+- `STORYFORGE_API_KEY`：本地默认值为 `local-dev-key`，与 API 和 Web 默认访问密钥保持一致。
+- `STORYFORGE_CORS_ORIGINS`：默认允许 `localhost:3000` 与 `127.0.0.1:3000`。
+- `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`、`STORYFORGE_WORKFLOW_SQLITE_PATH`：workflow 默认使用本地 SQLite runtime checkpoint。
+- `STORYFORGE_LLM_*`：Phase 5 Provider Gateway 真实化预留，默认保持 deterministic；workflow 真实 HTTP provider 仅在配置真实 `STORYFORGE_LLM_API_KEY` 后使用。
 - `STORYFORGE_EMBEDDING_*`：Phase 5 embedding 客户端预留，默认保持本地假 embedding。
 - `STORYFORGE_RERANKER_*`、`STORYFORGE_RAG_*`：Phase 5 reranker 和上下文预算预留，默认不启用 reranker。
 - `STORYFORGE_MODEL_RUN_LOG_LEVEL`：后续模型运行日志粒度预留。
@@ -79,7 +81,7 @@ pnpm run test:workflow
 - `pnpm verify` 检查工具、路径和 Docker 容器状态；如果 Docker 未启动，会按预期失败并提示启动命令。
 - `pnpm openapi` 严格刷新 `packages/shared/src/contracts/storyforge.openapi.json`，并按 `uv`、`python3`、`python` 顺序选择可用运行时。
 - `pnpm e2e` 会先刷新 OpenAPI；刷新失败会停止，避免沿用陈旧契约。
-- 当前环境若无法稳定运行 FastAPI HTTP pytest，`pnpm e2e` 会切换到服务层补偿验收，并在输出中说明原因。
+- `pnpm e2e` 固定执行真实 FastAPI HTTP pytest 目标；如果 HTTP pytest 失败，e2e 直接失败，不再降级为补偿验收。
 
 ## 7. 常见失败处理
 
@@ -105,14 +107,15 @@ pnpm verify
 3. 先运行 `pnpm run test:api` 排除语法错误。
 4. 再运行 `pnpm openapi` 重新生成契约；脚本会输出实际使用的 Python 运行时。
 
-### FastAPI HTTP pytest 不稳定
+### FastAPI HTTP pytest 失败
 
-现象：本地输出提示无法稳定执行 FastAPI HTTP pytest。
+现象：`pnpm e2e` 在 API HTTP pytest 阶段失败。
 
 处理：
 
-- 这是当前环境已知限制；以 `pnpm e2e` 自动执行的服务层补偿验收作为本地闭环证据。
-- 若切换到正常开发环境，仍建议补跑对应 HTTP route pytest。
+- 这是发布门禁红灯，不能降级为服务层补偿验收。
+- 先在 `apps/api` 中复跑失败的 `uv run pytest <失败目标> -q`，定位路由、TestClient 或数据夹具问题。
+- 修复后重新执行 `pnpm e2e`，确认真实 HTTP pytest 目标通过。
 
 ## 8. Git 检查
 
