@@ -16,6 +16,7 @@ from app.db.session import get_session
 from app.domains.books.lineage_service import ChapterWritebackApproval, approve_chapter_writeback
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.judge.models import RepairPatch
+from app.domains.workspaces.models import Workspace
 from app.main import app
 
 
@@ -161,6 +162,51 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
         content = epub.read("OEBPS/content.xhtml").decode("utf-8")
     assert "灯塔闭环" in content
     assert approved_content in content
+
+    with session_factory() as session:
+        workspace = Workspace(title="闭环评测空间", slug="closed-loop-evaluation", status="active", seat_limit=2)
+        session.add(workspace)
+        session.commit()
+        workspace_id = workspace.id
+
+    evaluation_case = client.post(
+        "/api/evaluations/cases",
+        json={
+            "workspace_id": workspace_id,
+            "book_id": phase1_story["book_id"],
+            "case_name": "批准章节一致性冒烟",
+            "case_type": "consistency",
+            "input_payload": {"chapter_id": phase1_story["chapter_id"], "scene_id": phase1_story["scene_id"]},
+            "expected_payload": {"open_loop_count": 0},
+        },
+    )
+    assert evaluation_case.status_code == 201, evaluation_case.text
+
+    evaluation_run = client.post(
+        "/api/evaluations/runs",
+        json={
+            "case_id": evaluation_case.json()["id"],
+            "observed_payload": {
+                "scene_count": 1,
+                "open_issue_count": 0,
+                "repair_attempts": 1,
+                "repair_accepted": 1,
+                "suggestions_total": 1,
+                "suggestions_accepted": 1,
+                "open_loop_count": 0,
+                "failed_samples": [],
+            },
+        },
+    )
+    assert evaluation_run.status_code == 201, evaluation_run.text
+    evaluation_result = evaluation_run.json()
+    assert evaluation_result["metrics"]["consistency_error_rate"] == 0.0
+    assert evaluation_result["metrics"]["repair_success_rate"] == 1.0
+    assert evaluation_result["metrics"]["open_loop_count"] == 0
+
+    evaluation_detail = client.get(f"/api/evaluations/runs/{evaluation_result['id']}")
+    assert evaluation_detail.status_code == 200, evaluation_detail.text
+    assert evaluation_detail.json()["failed_sample_count"] == 0
 
 
 def _create_asset(

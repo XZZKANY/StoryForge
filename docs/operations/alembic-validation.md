@@ -1,6 +1,6 @@
 # StoryForge Alembic 本地验证记录
 
-更新时间：2026-05-20 18:45:00 +08:00
+更新时间：2026-05-24 20:45:00 +08:00
 
 ## 1. 目标
 
@@ -112,7 +112,7 @@ cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
 docker exec storyforge-postgres psql -U storyforge -d postgres -c "DROP DATABASE storyforge_phase7_clean_verify;"
 ```
 
-结果：通过。`upgrade head` 从空库依次执行 `71dfabf6badf`、`9f2b3c4d5e6f`、`c0ffee20260519`、`c0ffee20260520`、`20260520_0001`，`current --check-heads` 输出 `20260520_0001 (head)`；验证后已删除临时数据库。
+结果：通过。最近复验时间：2026-05-24 20:45:00 +08:00；临时数据库名：`storyforge_phase7_20260524_verify`。`upgrade head` 从空库依次执行 `71dfabf6badf`、`9f2b3c4d5e6f`、`c0ffee20260519`、`c0ffee20260520`、`20260520_0001`，`current --check-heads` 输出 `20260520_0001 (head)`；验证后已删除临时数据库。
 
 ## 4. 当前结论
 

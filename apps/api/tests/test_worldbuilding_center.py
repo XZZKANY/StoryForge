@@ -60,4 +60,22 @@ def test_worldbuilding_center_aggregates_series_assets_and_continuity(
     """世界观中心聚合系列记忆、作品资产和连续性约束。"""
 
     response = client.get("/api/worldbuilding/center", params=world_context)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["series"]["title"] == "星海纪元"
+    assert [item["name"] for item in payload["characters"]] == ["林岚"]
+    assert [item["name"] for item in payload["locations"]] == ["灯塔港"]
+    assert [item["name"] for item in payload["organizations"]] == ["远航舰队"]
+    assert [item["name"] for item in payload["unresolved_foreshadowing"]] == ["失真信号"]
+    assert [item["subject"] for item in payload["world_rules"]] == ["灯塔信号"]
+    assert [item["subject"] for item in payload["cross_book_constraints"]] == ["林岚旧伤"]
+    assert payload["chapter_constraints"] == ["林岚必须隐藏伤势"]
+
+
+def test_worldbuilding_center_returns_404_for_unknown_series(client: TestClient) -> None:
+    """未知系列应返回明确 404，而不是空世界观中心。"""
+
+    response = client.get("/api/worldbuilding/center", params={"series_id": 99999})
     assert response.status_code == 404
+    assert response.json()["detail"] == "系列不存在，无法构建世界观中心。"
