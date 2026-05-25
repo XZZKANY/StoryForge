@@ -20,6 +20,7 @@ from app.domains.provider_gateway.router import router as provider_gateway_route
 from app.domains.prompt_packs.router import router as prompt_packs_router
 from app.domains.repair.router import router as repair_router
 from app.domains.retrieval.router import router as retrieval_router
+from app.domains.runtime_tools.router import router as runtime_tools_router
 from app.domains.scene_packets.router import router as scene_packets_router
 from app.domains.style_packs.router import router as style_packs_router
 from app.domains.studio.router import router as studio_router
@@ -86,6 +87,7 @@ app.include_router(provider_gateway_router)
 app.include_router(prompt_packs_router)
 app.include_router(repair_router)
 app.include_router(retrieval_router)
+app.include_router(runtime_tools_router)
 app.include_router(scene_packets_router)
 app.include_router(style_packs_router)
 app.include_router(studio_router)

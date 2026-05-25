@@ -78,6 +78,76 @@ function Test-RequiredPath {
     }
 }
 
+function Test-RuntimeDiagnosticsGate {
+    $E2eScriptRelativePath = "scripts/run-e2e.mjs"
+    $E2eScriptPath = Join-Path $Root $E2eScriptRelativePath
+    if (-not (Test-Path -LiteralPath $E2eScriptPath)) {
+        Write-Fail "缺少 Runtime 诊断门禁脚本：$E2eScriptRelativePath。"
+        return
+    }
+
+    $E2eScriptContent = Get-Content -LiteralPath $E2eScriptPath -Raw -Encoding UTF8
+    $RequiredTargets = @(
+        "tests/e2e/phase5-runtime-diagnostics.spec.ts",
+        "tests/test_model_runs.py",
+        "tests/test_runtime_tools.py",
+        "tests/test_workflow_session.py",
+        "tests/test_workflow_lifecycle.py",
+        "tests/test_provider_adapter.py",
+        "tests/test_provider_parity_harness.py",
+        "tests/test_creative_tool_registry.py"
+    )
+
+    foreach ($Target in $RequiredTargets) {
+        if ($E2eScriptContent -like "*$Target*") {
+            Write-Ok "Runtime 诊断门禁已纳入 $Target。"
+        } else {
+            Write-Fail "Runtime 诊断门禁缺少 $Target，请更新 $E2eScriptRelativePath。"
+        }
+    }
+}
+
+function Test-OpenApiRuntimeContractGate {
+    $OpenApiScriptRelativePath = "scripts/generate-openapi.ps1"
+    $E2eScriptRelativePath = "scripts/run-e2e.mjs"
+    $SharedOpenApiRelativePath = "packages/shared/src/contracts/storyforge.openapi.json"
+    $OpenApiScriptPath = Join-Path $Root $OpenApiScriptRelativePath
+    $E2eScriptPath = Join-Path $Root $E2eScriptRelativePath
+    $SharedOpenApiPath = Join-Path $Root $SharedOpenApiRelativePath
+
+    foreach ($RequiredPath in @($OpenApiScriptPath, $E2eScriptPath, $SharedOpenApiPath)) {
+        if (-not (Test-Path -LiteralPath $RequiredPath)) {
+            Write-Fail "OpenAPI Runtime 契约门禁缺少文件：$RequiredPath。"
+            return
+        }
+    }
+
+    $OpenApiScriptContent = Get-Content -LiteralPath $OpenApiScriptPath -Raw -Encoding UTF8
+    $E2eScriptContent = Get-Content -LiteralPath $E2eScriptPath -Raw -Encoding UTF8
+    $SharedOpenApiContent = Get-Content -LiteralPath $SharedOpenApiPath -Raw -Encoding UTF8
+    $RequiredMarkers = @(
+        @{ Source = $OpenApiScriptContent; Marker = "app.openapi()"; Display = $OpenApiScriptRelativePath },
+        @{ Source = $OpenApiScriptContent; Marker = $SharedOpenApiRelativePath; Display = $OpenApiScriptRelativePath },
+        @{ Source = $E2eScriptContent; Marker = "refreshOpenApiContract"; Display = $E2eScriptRelativePath },
+        @{ Source = $E2eScriptContent; Marker = $SharedOpenApiRelativePath; Display = $E2eScriptRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"RuntimeToolRead"'; Display = $SharedOpenApiRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"RunsRuntimeDiagnosticsRead"'; Display = $SharedOpenApiRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"RunsJobRunRead"'; Display = $SharedOpenApiRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"ModelRunRead"'; Display = $SharedOpenApiRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"/api/runtime-tools"'; Display = $SharedOpenApiRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"/api/model-runs"'; Display = $SharedOpenApiRelativePath },
+        @{ Source = $SharedOpenApiContent; Marker = '"runtime_diagnostics"'; Display = $SharedOpenApiRelativePath }
+    )
+
+    foreach ($Requirement in $RequiredMarkers) {
+        if ($Requirement.Source -like "*$($Requirement.Marker)*") {
+            Write-Ok "OpenAPI Runtime 契约门禁已确认 $($Requirement.Display) 包含 $($Requirement.Marker)。"
+        } else {
+            Write-Fail "OpenAPI Runtime 契约门禁缺少 $($Requirement.Marker)，请检查 $($Requirement.Display)。"
+        }
+    }
+}
+
 function Test-DockerContainerRunning {
     param(
         [string]$ContainerName,
@@ -118,6 +188,9 @@ Test-RequiredPath "apps/web/package.json"
 Test-RequiredPath "apps/api/pyproject.toml"
 Test-RequiredPath "apps/workflow/pyproject.toml"
 Test-RequiredPath "packages/shared/package.json"
+
+Test-RuntimeDiagnosticsGate
+Test-OpenApiRuntimeContractGate
 
 Test-DockerContainerRunning -ContainerName "storyforge-postgres" -DisplayName "PostgreSQL"
 Test-DockerContainerRunning -ContainerName "storyforge-redis" -DisplayName "Redis"

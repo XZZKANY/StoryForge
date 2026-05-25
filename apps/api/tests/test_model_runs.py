@@ -144,6 +144,100 @@ def test_runs_job_run_endpoint_includes_model_run_summaries(
     assert model_runs[1]["error_message"] == "provider timeout"
 
 
+def test_runs_job_run_endpoint_exposes_runtime_diagnostics_summary(
+    client: TestClient, session_factory: sessionmaker[Session], run_scope: dict[str, int]
+) -> None:
+    """Runs API 应聚合 workflow、provider、ModelRun 与 runtime tools 摘要。"""
+
+    from app.domains.model_runs.service import record_failed_runtime_model_run, record_runtime_model_run
+
+    with session_factory() as session:
+        job = session.get(JobRun, run_scope["job_run_id"])
+        assert job is not None
+        job.status = "failed"
+        job.error_message = "provider timeout after 30s"
+        job.progress = {
+            "thread_id": "phase5-runtime-thread",
+            "current_node": "provider_execution",
+            "approval_status": "failed",
+            "failure_kind": "provider_timeout",
+            "recoverable": True,
+            "lifecycle_status": "recoverable_failed",
+            "lifecycle_message": "provider 调用超时，可从 checkpoint 恢复。",
+            "last_heartbeat_ms": 1779650000000,
+            "prompt_count": 2,
+            "provider_execution": {
+                "provider_name": "mock-provider",
+                "model_name": "storyforge-writer",
+                "capability": "llm",
+                "status": "failed",
+                "latency_ms": 320,
+                "token_usage": 96,
+                "error_message": "provider timeout after 30s",
+            },
+        }
+        session.commit()
+        record_runtime_model_run(
+            session,
+            job_run_id=run_scope["job_run_id"],
+            provider_name="mock-provider",
+            model_name="storyforge-writer",
+            capability="llm",
+            latency_ms=180,
+            token_usage=66,
+            input_summary="诊断输入摘要",
+            output_summary="诊断输出摘要",
+        )
+        record_failed_runtime_model_run(
+            session,
+            job_run_id=run_scope["job_run_id"],
+            provider_name="mock-provider",
+            model_name="storyforge-retry",
+            capability="llm",
+            input_summary="失败诊断输入摘要",
+            error_message="provider timeout after 30s",
+        )
+
+    response = client.get(f"/api/model-runs/job-runs/{run_scope['job_run_id']}")
+
+    assert response.status_code == 200, response.text
+    diagnostics = response.json()["runtime_diagnostics"]
+    assert diagnostics["workflow_session"]["session_id"] == f"phase5-runtime-thread:{run_scope['job_run_id']}"
+    assert diagnostics["workflow_session"]["thread_id"] == "phase5-runtime-thread"
+    assert diagnostics["workflow_session"]["current_node"] == "provider_execution"
+    assert diagnostics["workflow_session"]["last_heartbeat_ms"] == 1779650000000
+    assert diagnostics["workflow_lifecycle"]["status"] == "recoverable_failed"
+    assert diagnostics["workflow_lifecycle"]["recoverable"] is True
+    assert diagnostics["workflow_lifecycle"]["failure_kind"] == "provider_timeout"
+    assert diagnostics["provider"]["provider_name"] == "mock-provider"
+    assert diagnostics["provider"]["model_name"] == "storyforge-writer"
+    assert diagnostics["provider"]["latency_ms"] == 320
+    assert diagnostics["provider"]["token_usage"] == 96
+    assert diagnostics["model_usage"]["model_run_count"] == 2
+    assert diagnostics["model_usage"]["failed_model_run_count"] == 1
+    assert diagnostics["model_usage"]["total_token_usage"] == 66
+    assert diagnostics["model_usage"]["max_latency_ms"] == 180
+    tool_names = {tool["name"] for tool in diagnostics["runtime_tools"]}
+    assert "provider_gateway.resolve" in tool_names
+    provider_tool = next(tool for tool in diagnostics["runtime_tools"] if tool["name"] == "provider_gateway.resolve")
+    assert provider_tool["domain"] == "provider_gateway"
+    assert provider_tool["workflow_nodes"] == ["provider_execution"]
+
+
+def test_runs_job_run_openapi_documents_runtime_diagnostics() -> None:
+    """OpenAPI 必须记录 Runs runtime diagnostics 摘要，供 Web 和 e2e 校验。"""
+
+    schemas = app.openapi()["components"]["schemas"]
+    operation = app.openapi()["paths"]["/api/model-runs/job-runs/{job_run_id}"]["get"]
+    response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+
+    assert response_schema["$ref"].endswith("RunsJobRunRead")
+    diagnostics = schemas["RunsJobRunRead"]["properties"]["runtime_diagnostics"]
+    assert diagnostics["$ref"].endswith("RunsRuntimeDiagnosticsRead")
+    assert "workflow_lifecycle" in schemas["RunsRuntimeDiagnosticsRead"]["properties"]
+    assert "runtime_tools" in schemas["RunsRuntimeDiagnosticsRead"]["properties"]
+
+
 def test_retry_runs_job_run_creates_recovery_job_from_failed_checkpoint(
     client: TestClient, session_factory: sessionmaker[Session], run_scope: dict[str, int]
 ) -> None:

@@ -8,6 +8,7 @@ const defaultTests = [
   'tests/e2e/phase2-contract.spec.ts',
   'tests/e2e/phase3-contract.spec.ts',
   'tests/e2e/phase4-contract.spec.ts',
+  'tests/e2e/phase5-runtime-diagnostics.spec.ts',
 ];
 const httpPytestTargets = [
   'tests/test_phase1_closed_loop_api.py',
@@ -25,9 +26,19 @@ const httpPytestTargets = [
   'tests/test_scene_packet_retrieval_upgrade.py',
   'tests/test_prompt_packs.py',
   'tests/test_model_runs.py',
+  'tests/test_runtime_tools.py',
   'tests/test_artifacts.py',
   'tests/test_evaluations.py',
   'tests/test_job_runtime_bridge.py',
+];
+const workflowPytestTargets = [
+  'tests/test_generation_graph.py',
+  'tests/test_runtime_runner.py',
+  'tests/test_workflow_session.py',
+  'tests/test_workflow_lifecycle.py',
+  'tests/test_provider_adapter.py',
+  'tests/test_provider_parity_harness.py',
+  'tests/test_creative_tool_registry.py',
 ];
 const requestedTests = process.argv.slice(2).filter((value) => value.trim().length > 0);
 const testFiles = requestedTests.length > 0 ? requestedTests : defaultTests;
@@ -118,7 +129,7 @@ async function runWorkflowVerification(cwd) {
   if (compileExitCode !== 0) {
     return compileExitCode;
   }
-  return runPythonCommand(pythonCommand, ['-m', 'pytest', 'tests/test_generation_graph.py', 'tests/test_runtime_runner.py', '-q'], cwd);
+  return runPythonCommand(pythonCommand, ['-m', 'pytest', ...workflowPytestTargets, '-q'], cwd);
 }
 
 function resolvePythonCommand() {

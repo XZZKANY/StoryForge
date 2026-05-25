@@ -9,7 +9,13 @@ from langgraph.types import Command
 from storyforge_workflow import create_generation_graph, initial_generation_state
 from storyforge_workflow.persistence import InMemoryWorkflowStore
 from storyforge_workflow.runtime.checkpoints import ModelRunPayload, ModelRunSink, RuntimeCheckpointStore
+from storyforge_workflow.runtime.lifecycle import (
+    InMemoryWorkflowLifecycleStore,
+    WorkflowFailureKind,
+    WorkflowLifecycleStatus,
+)
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text
+from storyforge_workflow.runtime.session import InMemoryWorkflowSessionStore
 
 
 @dataclass(frozen=True)
@@ -30,13 +36,31 @@ class WorkflowRuntime:
         audit_store: InMemoryWorkflowStore | None = None,
         checkpoint_store: RuntimeCheckpointStore | None = None,
         model_run_sink: ModelRunSink | None = None,
+        lifecycle_store: InMemoryWorkflowLifecycleStore | None = None,
+        session_store: InMemoryWorkflowSessionStore | None = None,
     ) -> None:
         self.audit_store = audit_store or InMemoryWorkflowStore()
         self.checkpoint_store = checkpoint_store or RuntimeCheckpointStore()
         self.model_run_sink = model_run_sink
+        self.lifecycle_store = lifecycle_store or InMemoryWorkflowLifecycleStore()
+        self.session_store = session_store or InMemoryWorkflowSessionStore()
         self.graph = create_generation_graph(store=self.audit_store, checkpointer=InMemorySaver())
 
     def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any]) -> WorkflowRuntimeResult:
+        session = self.session_store.create(
+            session_id=_session_id(thread_id, job_run_id),
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=WorkflowLifecycleStatus.QUEUED,
+            current_node="runtime_start",
+        )
+        self.lifecycle_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=WorkflowLifecycleStatus.QUEUED,
+            current_node="runtime_start",
+            message="workflow 运行已排队。",
+        )
         state = initial_generation_state(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -45,6 +69,24 @@ class WorkflowRuntime:
             scene_packet=scene_packet,
         )
         prompt_summary = f"{premise}::{scene_packet.get('scene_goal', '')}"
+        self.session_store.update_status(
+            session.session_id,
+            status=WorkflowLifecycleStatus.PROVIDER_RUNNING,
+            current_node="provider_execution",
+        )
+        self.session_store.append_prompt(
+            session.session_id,
+            node_name="provider_execution",
+            prompt_summary=prompt_summary,
+            model_name=None,
+        )
+        self.lifecycle_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=WorkflowLifecycleStatus.PROVIDER_RUNNING,
+            current_node="provider_execution",
+            message="provider 文本生成调用中。",
+        )
         try:
             provider_execution = execute_provider_text(
                 capability="llm",
@@ -58,6 +100,12 @@ class WorkflowRuntime:
                 prompt_summary=prompt_summary,
                 error=exc,
             )
+        self.session_store.append_prompt(
+            session.session_id,
+            node_name="provider_execution",
+            prompt_summary=prompt_summary,
+            model_name=provider_execution.model_name,
+        )
         model_run = self.checkpoint_store.record_model_run(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -71,6 +119,18 @@ class WorkflowRuntime:
         )
         persisted_model_run_id = self._emit_model_run_payload(model_run)
         state["model_run_id"] = persisted_model_run_id if persisted_model_run_id is not None else model_run.model_run_id
+        self.session_store.update_status(
+            session.session_id,
+            status=WorkflowLifecycleStatus.GRAPH_RUNNING,
+            current_node="book_director",
+        )
+        self.lifecycle_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=WorkflowLifecycleStatus.GRAPH_RUNNING,
+            current_node="book_director",
+            message="LangGraph 生成图执行中。",
+        )
         chunks = list(self.graph.stream(state, {"configurable": {"thread_id": thread_id}}))
         latest_state = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values
         self.checkpoint_store.save_state(thread_id, latest_state)
@@ -82,11 +142,27 @@ class WorkflowRuntime:
             approval_status=latest_state.get("approval_status", "pending"),
         )
         status = "interrupted" if chunks and "__interrupt__" in chunks[-1] else "completed"
+        lifecycle_status = WorkflowLifecycleStatus.APPROVAL_WAITING if status == "interrupted" else WorkflowLifecycleStatus.COMPLETED
+        lifecycle_message = "等待人工审批。" if status == "interrupted" else "workflow 运行完成。"
+        current_node = latest_state.get("current_node", "unknown")
+        self.session_store.update_status(
+            session.session_id,
+            status=lifecycle_status,
+            current_node=current_node,
+        )
+        self.session_store.heartbeat(session.session_id)
+        self.lifecycle_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=lifecycle_status,
+            current_node=current_node,
+            message=lifecycle_message,
+        )
         return WorkflowRuntimeResult(
             thread_id=thread_id,
             job_run_id=job_run_id,
             status=status,
-            current_node=latest_state.get("current_node", "unknown"),
+            current_node=current_node,
             provider_execution=provider_execution,
         )
 
@@ -128,6 +204,23 @@ class WorkflowRuntime:
             summary=f"provider 调用失败：{error}",
             approval_status="failed",
         )
+        failure_kind = _provider_failure_kind(error)
+        self.lifecycle_store.record_failure(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            current_node="provider_execution",
+            message=str(error),
+            failure_kind=failure_kind,
+            recoverable=True,
+        )
+        session = self.session_store.get(_session_id(thread_id, job_run_id))
+        if session is not None:
+            self.session_store.update_status(
+                session.session_id,
+                status=WorkflowLifecycleStatus.RECOVERABLE_FAILED,
+                current_node="provider_execution",
+            )
+            self.session_store.heartbeat(session.session_id)
         return WorkflowRuntimeResult(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -137,9 +230,44 @@ class WorkflowRuntime:
         )
 
     def resume(self, *, thread_id: str, job_run_id: str, decision: dict[str, Any]) -> WorkflowRuntimeResult:
+        session = self.session_store.get(_session_id(thread_id, job_run_id))
+        if session is None:
+            session = self.session_store.create(
+                session_id=_session_id(thread_id, job_run_id),
+                thread_id=thread_id,
+                job_run_id=job_run_id,
+                status=WorkflowLifecycleStatus.RESUMING,
+                current_node="human_approval",
+            )
+        else:
+            session = self.session_store.update_status(
+                session.session_id,
+                status=WorkflowLifecycleStatus.RESUMING,
+                current_node="human_approval",
+            )
+        self.lifecycle_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=WorkflowLifecycleStatus.RESUMING,
+            current_node="human_approval",
+            message="workflow 从人工审批点恢复。",
+        )
+        prompt_summary = str(decision)
+        self.session_store.append_prompt(
+            session.session_id,
+            node_name="human_approval",
+            prompt_summary=prompt_summary,
+            model_name=None,
+        )
         provider_execution = execute_provider_text(
             capability="llm",
-            prompt_summary=str(decision),
+            prompt_summary=prompt_summary,
+        )
+        self.session_store.append_prompt(
+            session.session_id,
+            node_name="human_approval",
+            prompt_summary=prompt_summary,
+            model_name=provider_execution.model_name,
         )
         list(self.graph.stream(Command(resume=decision), {"configurable": {"thread_id": thread_id}}))
         latest_state = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values
@@ -151,11 +279,25 @@ class WorkflowRuntime:
             summary=provider_execution.summary,
             approval_status=latest_state.get("approval_status", "pending"),
         )
+        current_node = latest_state.get("current_node", "unknown")
+        self.session_store.update_status(
+            session.session_id,
+            status=WorkflowLifecycleStatus.COMPLETED,
+            current_node=current_node,
+        )
+        self.session_store.heartbeat(session.session_id)
+        self.lifecycle_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status=WorkflowLifecycleStatus.COMPLETED,
+            current_node=current_node,
+            message="workflow 恢复执行完成。",
+        )
         return WorkflowRuntimeResult(
             thread_id=thread_id,
             job_run_id=job_run_id,
             status="completed",
-            current_node=latest_state.get("current_node", "unknown"),
+            current_node=current_node,
             provider_execution=provider_execution,
         )
 
@@ -177,4 +319,21 @@ class WorkflowRuntime:
                 error_message=model_run.error_message,
             )
         )
+
+
+def _session_id(thread_id: str, job_run_id: str) -> str:
+    """生成稳定 session_id，保持同一 thread/job 的 start 与 resume 可关联。"""
+
+    return f"{thread_id}:{job_run_id}"
+
+
+def _provider_failure_kind(error: Exception) -> WorkflowFailureKind:
+    """把第一阶段可识别 provider 异常映射为 lifecycle 失败分类。"""
+
+    message = str(error).lower()
+    if "timeout" in message or "timed out" in message:
+        return WorkflowFailureKind.PROVIDER_TIMEOUT
+    if "invalid" in message or "parse" in message:
+        return WorkflowFailureKind.PROVIDER_INVALID_RESPONSE
+    return WorkflowFailureKind.UNKNOWN_RUNTIME_ERROR
 

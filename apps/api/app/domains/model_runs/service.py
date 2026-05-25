@@ -12,6 +12,7 @@ from app.domains.jobs.models import JobRun
 from app.domains.model_runs.models import ModelRun
 from app.domains.model_runs.schemas import ModelRunCreate, RunsJobRunRetryRead
 from app.domains.prompt_packs.models import PromptPack
+from app.domains.runtime_tools.service import list_runtime_tools
 from app.domains.workspaces.models import Workspace
 
 
@@ -75,10 +76,154 @@ def get_runs_job_run(session: Session, *, job_run_id: int) -> dict[str, Any]:
             }
             for model_run in model_runs
         ],
+        "runtime_diagnostics": _runtime_diagnostics(job, progress, model_runs),
         "error_message": job.error_message,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }
+
+
+def _runtime_diagnostics(job: JobRun, progress: Mapping[str, object], model_runs: Sequence[ModelRun]) -> dict[str, Any]:
+    """聚合运行时读侧摘要，避免页面自行拼装 runtime 事实。"""
+
+    current_node = _first_text(progress, "current_node", "failed_node") or "unknown"
+    thread_id = _first_text(progress, "thread_id")
+    recoverable = _recoverable_from_progress(job, progress)
+    failure_kind = _first_text(progress, "failure_kind", "error_code") or _failure_kind_from_error(job.error_message)
+    lifecycle_status = _first_text(progress, "lifecycle_status") or _lifecycle_status_from_job(job.status, recoverable)
+    lifecycle_message = _first_text(progress, "lifecycle_message") or job.error_message or f"任务状态：{job.status}"
+
+    return {
+        "workflow_session": {
+            "session_id": _session_id(thread_id, job.id),
+            "thread_id": thread_id,
+            "job_run_id": str(job.id),
+            "status": str(job.status),
+            "current_node": current_node,
+            "approval_status": _first_text(progress, "approval_status"),
+            "last_heartbeat_ms": _optional_nonnegative_int(progress.get("last_heartbeat_ms")),
+            "prompt_count": _optional_nonnegative_int(progress.get("prompt_count")) or 0,
+        },
+        "workflow_lifecycle": {
+            "status": lifecycle_status,
+            "current_node": current_node,
+            "message": lifecycle_message,
+            "failure_kind": failure_kind,
+            "recoverable": recoverable,
+        },
+        "provider": _provider_summary(progress, model_runs),
+        "model_usage": _model_usage_summary(model_runs),
+        "runtime_tools": _runtime_tool_summaries(progress, model_runs, current_node),
+    }
+
+
+def _session_id(thread_id: str | None, job_run_id: int) -> str | None:
+    if thread_id is None:
+        return None
+    return f"{thread_id}:{job_run_id}"
+
+
+def _recoverable_from_progress(job: JobRun, progress: Mapping[str, object]) -> bool | None:
+    value = progress.get("recoverable")
+    if isinstance(value, bool):
+        return value
+    if job.status == "failed":
+        return bool(_checkpoint_from_progress(progress))
+    return None
+
+
+def _failure_kind_from_error(error_message: str | None) -> str | None:
+    if not error_message:
+        return None
+    normalized = error_message.lower()
+    if "timeout" in normalized or "timed out" in normalized:
+        return "provider_timeout"
+    if "invalid" in normalized or "parse" in normalized:
+        return "provider_invalid_response"
+    return "unknown_runtime_error"
+
+
+def _lifecycle_status_from_job(status: str, recoverable: bool | None) -> str:
+    if status == "failed":
+        return "recoverable_failed" if recoverable else "terminal_failed"
+    if status == "running":
+        return "graph_running"
+    if status == "queued":
+        return "queued"
+    if status == "completed":
+        return "completed"
+    return status
+
+
+def _provider_summary(progress: Mapping[str, object], model_runs: Sequence[ModelRun]) -> dict[str, object] | None:
+    provider_execution = progress.get("provider_execution")
+    if isinstance(provider_execution, Mapping):
+        return {
+            "provider_name": _text_or_default(provider_execution.get("provider_name"), "暂无 provider"),
+            "model_name": _text_or_default(provider_execution.get("model_name"), "暂无模型"),
+            "capability": _text_or_default(provider_execution.get("capability"), "unknown"),
+            "status": _text_or_default(provider_execution.get("status"), "unknown"),
+            "latency_ms": _optional_nonnegative_int(provider_execution.get("latency_ms")) or 0,
+            "token_usage": _optional_nonnegative_int(provider_execution.get("token_usage")) or 0,
+            "error_message": _optional_text(provider_execution.get("error_message")),
+        }
+    if not model_runs:
+        return None
+    latest = model_runs[-1]
+    return {
+        "provider_name": latest.provider_name,
+        "model_name": latest.model_name,
+        "capability": latest.capability,
+        "status": latest.status,
+        "latency_ms": latest.latency_ms,
+        "token_usage": latest.token_usage,
+        "error_message": latest.error_message,
+    }
+
+
+def _model_usage_summary(model_runs: Sequence[ModelRun]) -> dict[str, int]:
+    return {
+        "model_run_count": len(model_runs),
+        "failed_model_run_count": sum(1 for model_run in model_runs if model_run.status == "failed"),
+        "total_token_usage": sum(model_run.token_usage for model_run in model_runs),
+        "max_latency_ms": max((model_run.latency_ms for model_run in model_runs), default=0),
+    }
+
+
+def _runtime_tool_summaries(
+    progress: Mapping[str, object], model_runs: Sequence[ModelRun], current_node: str
+) -> list[dict[str, object]]:
+    explicit_tool_names = set(_string_list(progress.get("runtime_tool_names")))
+    capabilities = {
+        model_run.capability
+        for model_run in model_runs
+        if model_run.capability
+    }
+    provider_execution = progress.get("provider_execution")
+    if isinstance(provider_execution, Mapping):
+        capability = provider_execution.get("capability")
+        if isinstance(capability, str) and capability:
+            capabilities.add(capability)
+
+    summaries: list[dict[str, object]] = []
+    for tool in list_runtime_tools():
+        workflow_nodes = list(tool.references.workflow_nodes)
+        required_capabilities = list(tool.required_capabilities)
+        is_explicit = tool.name in explicit_tool_names
+        matches_node = current_node in workflow_nodes
+        matches_capability = bool(capabilities.intersection(required_capabilities))
+        if not (is_explicit or matches_node or matches_capability):
+            continue
+        summaries.append(
+            {
+                "name": tool.name,
+                "domain": tool.domain,
+                "required_capabilities": required_capabilities,
+                "evidence_fields": list(tool.evidence_fields),
+                "workflow_nodes": workflow_nodes,
+            }
+        )
+    return summaries
 
 
 def retry_runs_job_run(session: Session, *, job_run_id: int) -> RunsJobRunRetryRead:
@@ -267,6 +412,26 @@ def _first_text(payload: Mapping[str, object], *keys: str) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _optional_text(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _text_or_default(value: object, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
+
+def _optional_nonnegative_int(value: object) -> int | None:
+    if type(value) is int and value >= 0:
+        return value
+    return None
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
 
 
 def _retry_unavailable_reason(job: JobRun, checkpoint: Mapping[str, object], failed_node: str | None) -> str | None:

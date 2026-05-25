@@ -58,6 +58,70 @@ class RunsModelRunSummary(BaseModel):
     error_message: str | None
 
 
+class RunsWorkflowSessionSummary(BaseModel):
+    """从 JobRun 运行时同步字段派生的 WorkflowSession 摘要。"""
+
+    session_id: str | None
+    thread_id: str | None
+    job_run_id: str
+    status: str
+    current_node: str
+    approval_status: str | None
+    last_heartbeat_ms: int | None
+    prompt_count: int
+
+
+class RunsWorkflowLifecycleSummary(BaseModel):
+    """运行生命周期最新摘要，用于页面展示恢复边界。"""
+
+    status: str
+    current_node: str
+    message: str
+    failure_kind: str | None
+    recoverable: bool | None
+
+
+class RunsProviderSummary(BaseModel):
+    """ProviderAdapter 或 ModelRun 派生的供应商调用摘要。"""
+
+    provider_name: str
+    model_name: str
+    capability: str
+    status: str
+    latency_ms: int
+    token_usage: int
+    error_message: str | None
+
+
+class RunsModelUsageSummary(BaseModel):
+    """ModelRun 真表派生的轻量用量聚合。"""
+
+    model_run_count: int
+    failed_model_run_count: int
+    total_token_usage: int
+    max_latency_ms: int
+
+
+class RunsRuntimeToolSummary(BaseModel):
+    """本次运行命中的运行时工具能力摘要，不包含大 schema payload。"""
+
+    name: str
+    domain: str
+    required_capabilities: list[str]
+    evidence_fields: list[str]
+    workflow_nodes: list[str]
+
+
+class RunsRuntimeDiagnosticsRead(BaseModel):
+    """Runs 页面统一读取的运行时诊断摘要。"""
+
+    workflow_session: RunsWorkflowSessionSummary
+    workflow_lifecycle: RunsWorkflowLifecycleSummary
+    provider: RunsProviderSummary | None
+    model_usage: RunsModelUsageSummary
+    runtime_tools: list[RunsRuntimeToolSummary]
+
+
 class RunsJobRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -67,6 +131,7 @@ class RunsJobRunRead(BaseModel):
     progress: dict[str, Any]
     checkpoint: dict[str, Any] | None
     model_runs: list[RunsModelRunSummary]
+    runtime_diagnostics: RunsRuntimeDiagnosticsRead
     error_message: str | None
     created_at: datetime
     updated_at: datetime
