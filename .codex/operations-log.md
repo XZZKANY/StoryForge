@@ -663,3 +663,763 @@ g 结果显示 longform 仅有库函数和单元测试，没有 CLI 或项目脚
 - `apps/api/tests/test_phase1_closed_loop_api.py` 已覆盖新建持久化作品/章节/场景、Scene Packet、Judge、Repair、批准写回、导出和评测 run 详情读取。
 - 定向验证：`cd apps/api; uv run pytest tests/test_phase1_closed_loop_api.py tests/test_evaluations.py -q`，结果 `3 passed in 0.35s`。
 - 最终复验：`pnpm.cmd run verify; pnpm.cmd run e2e; git diff --check` 退出码 0；e2e 真实 FastAPI HTTP pytest `42 passed`，workflow pytest `8 passed`。
+
+## 上线前终审报告生成 - 2026-05-24 22:22:19 +08:00
+
+### 覆盖原因
+
+- 用户要求将 `.codex/verification-report.md` 从 Phase 7 验证记录覆盖为上线前终审版 QA 报告。
+- 旧报告仍可作为历史验证证据摘要，但不再满足发布决策所需的极限压力测试、剪枝建议、高光抛光和最终检查清单。
+- 本轮只更新 `.codex` 文档，不改业务代码、测试代码或 OpenAPI 产物。
+
+### 审查依据文件
+
+- `.codex/verification-report.md`：旧 Phase 7、ModelRun adapter、端到端闭环验证证据。
+- `MODULE_ISOLATION_SCORECARD.md:19,151-163`：仍保留 worldbuilding “入口不通”的旧判断。
+- `apps/api/app/main.py:27,93`：当前已导入并注册 `worldbuilding_router`。
+- `apps/api/tests/test_worldbuilding_center.py:62-63`：当前断言 `/api/worldbuilding/center` 返回 200。
+- `package.json:7,12,13`：本地验证、e2e、OpenAPI 根命令入口。
+### 本轮验证说明
+
+- 已生成 `.codex/context-summary-上线前终审报告.md`，记录证据、约定、复用组件、风险和充分性检查。
+- 已覆盖 `.codex/verification-report.md` 为上线前终审报告。
+- 本阶段尚未重新运行 `pnpm verify`、`pnpm e2e`、`pnpm test`、`pnpm openapi`；原因是本轮计划限定为终审文档落盘，完整门禁将在发布前另行执行。
+- 后续立即执行非破坏检查：回读报告、核对引用路径、运行 `git diff --check`，结果将继续记录。
+### 非破坏验证结果
+
+- 回读 `.codex/verification-report.md`：完成，报告包含终审结论、极限压力测试、无情剪枝、高光抛光、上线前检查清单、风险与后续建议。
+- 路径核对：`MODULE_ISOLATION_SCORECARD.md`、`apps/api/app/main.py`、`apps/api/tests/test_worldbuilding_center.py`、`package.json`、`.codex/operations-log.md`、`.codex/context-summary-上线前终审报告.md` 均存在。
+- 章节核对命令：PowerShell `Select-String` 检查 6 个核心章节，输出 `章节核对通过`。
+- `git diff --check`：退出码 0；仅提示 `.codex/operations-log.md` 与 `.codex/verification-report.md` 下次由 LF 替换为 CRLF，无空白错误。
+
+
+## CreativeToolRegistry 第三阶段启动 - 2026-05-25 00:00:00 +08:00
+
+### 需求与约束
+
+- 目标：在 workflow 内部新增静态 CreativeToolRegistry，统一描述工具名称、domain、schema、能力、证据字段及页面/API/Workflow 对应关系。
+- 明确不做：不引入 `C:\Users\kanye\claw-code` Rust 代码；不接 MCP；不做插件动态安装；不改 Web 页面展示逻辑；不做大型重构。
+- 工具流程：已执行 sequential-thinking、shrimp-task-manager 分析和任务拆分；本地读取优先使用 desktop-commander。
+
+### 编码前检查 - CreativeToolRegistry
+
+- 已查阅上下文摘要文件：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/context-summary-creative-tool-registry.md`。
+- 已核验第二阶段真实实现：`provider_adapter.py`、`provider_execution.py`、`runner.py`、`test_provider_adapter.py`、`test_provider_parity_harness.py`。
+- 已读取 domain 实现：retrieval、scene_packets、judge、repair、artifacts、evaluations、provider_gateway。
+- 将遵循命名约定：Python `snake_case` 函数/变量、`PascalCase` 类、常量大写。
+- 将遵循代码风格：`from __future__ import annotations`、类型标注、中文 docstring、pytest 直接断言。
+### 可复用组件与不重复造轮子证明
+
+- `ProviderRequest.capability`：作为注册表 `required_capabilities` 的命名依据。
+- `ProviderExecutionResult`：作为 provider 运行摘要的字段命名参考。
+- `graph.py` 节点名：作为 `workflow_nodes` 静态映射来源。
+- `provider_gateway.runtime_config.ProviderCapability`：作为能力值 `llm/embedding/reranker` 的事实来源，但不导入 API 包。
+- 检查范围：workflow 全目录搜索 `Registry|ToolSpec|tools`，未发现等价工具注册表；API 中 provider_gateway 仅做 provider 解析，职责不同。
+
+### 外部检索记录
+
+- Context7：已查询 `/pytest-dev/pytest`，用于确认 `pytest.raises` 与 dataclass equality 测试写法。
+- GitHub 搜索：当前可用工具中未暴露 `github.search_code`，`tool_search` 返回 0 个匹配；已通过 GitHub 站点搜索作补偿，且本任务核心设计以本仓库事实为准。
+
+### 进入编码阶段准入结论
+
+- 充分性检查 7 项均已通过，允许进入 TDD 阶段。
+- 下一步先新增失败测试 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow/tests/test_creative_tool_registry.py`，运行确认失败后再写生产代码。
+
+
+### 页面对应关系补充 - 2026-05-25 00:00:00 +08:00
+
+- 已补充读取 Web 页面与组件：`apps/web/app/retrieval/page.tsx`、`apps/web/app/artifacts/page.tsx`、`apps/web/app/evaluations/page.tsx`、`apps/web/app/providers/page.tsx`、`apps/web/app/studio/api.ts`、Scene Packet/Judge/Repair 组件。
+- 结论：注册表可以记录页面引用，但本阶段不修改任何 Web 展示逻辑。
+
+
+## TDD Red - CreativeToolRegistry - 2026-05-25 00:00:00 +08:00
+
+- 已新增 `apps/workflow/tests/test_creative_tool_registry.py`，覆盖默认 domain、schema/能力/映射元数据、按 domain/能力查询、不可变快照、重复名称和缺失工具异常。
+- Red 验证命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/workflow'; uv run pytest tests/test_creative_tool_registry.py -q`。
+- Red 验证结果：`ModuleNotFoundError: No module named 'storyforge_workflow.tools'`，符合“生产模块尚未实现”的预期失败。
+
+
+## TDD Green - CreativeToolRegistry - 2026-05-25 00:00:00 +08:00
+
+- 已新增 `storyforge_workflow/tools/__init__.py` 与 `storyforge_workflow/tools/registry.py`。
+- 实现方式：`CreativeToolSpec`、`CreativeToolReferences` 使用 `frozen=True` dataclass；schema 使用递归只读快照；`CreativeToolRegistry` 提供 `all/get/require/by_domain/by_capability`。
+- 内置条目：`retrieval.search`、`scene_packets.assemble`、`judge.create_issues`、`repair.create_patch`、`artifacts.create`、`evaluations.create_run`、`provider_gateway.resolve`。
+- 目标测试首次 Green 命令：`uv run pytest tests/test_creative_tool_registry.py -q`，结果 `5 passed in 0.25s`。
+- 禁止项检查：在 `storyforge_workflow/tools` 中搜索 `claw|MCP|mcp|fastapi|pydantic|sqlalchemy|subprocess|importlib`，结果 0 个匹配。
+
+
+## 编码后声明 - CreativeToolRegistry - 2026-05-25 00:00:00 +08:00
+
+### 1. 复用了以下既有组件和约定
+
+- `ProviderRequest.capability`：作为能力字段命名依据。
+- `ProviderExecutionResult`：沿用 provider 运行摘要字段语义。
+- `graph.py` 节点名：用于 workflow 对应关系静态记录。
+- API domain router/schema/service：用于提取七个 domain 的 API path、输入输出 schema 名称与证据字段。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新类使用 `CreativeToolSpec`、`CreativeToolReferences`、`CreativeToolRegistry`；函数使用 `snake_case`。
+- 代码风格：`from __future__ import annotations`、类型标注、中文 docstring、pytest 直接断言。
+- 文件组织：新增 `storyforge_workflow/tools/`，只承载 workflow 内部工具元数据，不改 runtime 执行图。
+### 3. 对比了以下相似实现
+
+- `provider_adapter.py`：同样使用不可变 dataclass；本实现额外递归冻结 schema，防止嵌套 dict 被污染。
+- `provider_execution.py`：同样保留 capability 字段；本实现不执行 provider 调用，只做能力目录。
+- `graph.py`：同样显式记录节点名；本实现将节点名作为元数据引用，不改变 LangGraph 拓扑。
+- `provider_gateway/runtime_config.py`：同样使用固定能力集合；本实现不导入 API 包，避免跨应用耦合。
+
+### 4. 未重复造轮子的证明
+
+- workflow 内搜索 `Registry|ToolSpec|tools` 未发现等价工具注册表。
+- API `provider_gateway` 负责 provider 解析，不负责创作工具目录；职责不同，不应复用为 registry。
+- 本实现只新增元数据查询层，未新增执行器、插件系统或 Web 展示逻辑。
+
+### 5. 验证结果
+
+- `uv run pytest tests/test_creative_tool_registry.py tests/test_provider_adapter.py tests/test_provider_parity_harness.py -q`：`12 passed in 0.41s`。
+- `uv run pytest -q`：`37 passed in 1.67s`。
+- `git diff --check`：退出码 0；仅有 LF/CRLF 提示，无空白错误。
+
+
+### 6. 最新复验结果补充
+
+- 因移除 `registry.py` 中未使用导入后重新验证：
+  - `uv run pytest tests/test_creative_tool_registry.py tests/test_provider_adapter.py tests/test_provider_parity_harness.py -q`：`12 passed in 0.60s`。
+  - `uv run pytest -q`：`37 passed in 1.53s`。
+  - `git diff --check`：退出码 0；仅有 LF/CRLF 提示，无空白错误。
+
+## 编码前检查 - CreativeToolRegistry API/Web 可见性
+
+时间：2026-05-25 02:35:00 +08:00
+
+- 已使用 sequential-thinking 梳理目标、风险与验收契约。
+- 已使用 shrimp-task-manager 完成分析、反思与任务拆分。
+- 已核验第三阶段真实实现：`apps/workflow/storyforge_workflow/tools/registry.py`、`tools/__init__.py`、`tests/test_creative_tool_registry.py`。
+- 已查阅上下文摘要文件：`.codex/context-summary-creative-tool-visibility.md`。
+- GitHub `search_code` 工具本会话未暴露，已使用项目内检索与 Context7 官方文档替代。
+### 可复用组件与约定
+
+- 将使用 `list_creative_tools()` 作为唯一工具事实源，不复制 registry 条目。
+- 将使用 `apps/api/app/domains/*/{schemas,service,router}.py` 的 FastAPI domain 分层。
+- 将使用 `apps/web/lib/api-client.ts` 的 `readJson` / `apiFetch` 注入 API Key。
+- 将使用 `tests/e2e/phase4-contract.spec.ts` 的 node:test 契约风格，并增加本地 TestClient 真实响应校验。
+- 命名约定：Python `snake_case`/`PascalCase`，TypeScript `camelCase`/`PascalCase`。
+- 代码风格：中文文案和测试描述、UTF-8 无 BOM、Next async Server Component、pytest。
+## TDD 红灯记录 - runtime tools API
+
+时间：2026-05-25 02:38:00 +08:00
+
+- 新增 `apps/api/tests/test_runtime_tools.py`，先校验 `/api/runtime-tools` 和 OpenAPI 契约。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api'; uv run pytest tests/test_runtime_tools.py -q`
+- 结果：失败，符合红灯预期。
+- 关键失败：接口返回 404；OpenAPI `paths` 缺少 `/api/runtime-tools`。
+## TDD 绿灯记录 - runtime tools API
+
+时间：2026-05-25 02:42:00 +08:00
+
+- 实现 `apps/api/app/domains/runtime_tools/` 的 schemas、service、router，并在 `app/main.py` 注册。
+- service 通过文件级加载读取真实 `apps/workflow/storyforge_workflow/tools/registry.py`，避免触发 workflow 顶层 LangGraph 依赖。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api'; uv run pytest tests/test_runtime_tools.py -q`
+- 结果：2/2 通过。
+## TDD 红灯记录 - Runs runtime tools 摘要
+
+时间：2026-05-25 02:45:00 +08:00
+
+- 在 `apps/web/tests/phase1-navigation.test.tsx` 增加 Runs 页面必须读取 `/api/runtime-tools`、使用 `readRuntimeTools` 和 `runtimeTools.map` 的契约断言。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm --filter @storyforge/web test`
+- 结果：失败，符合红灯预期。
+- 关键失败：`Runs 页面应读取 runtime tools API`。
+## TDD 绿灯记录 - Runs runtime tools 摘要
+
+时间：2026-05-25 02:49:00 +08:00
+
+- `apps/web/app/runs/page.tsx` 新增 runtime tools 类型守卫、`readRuntimeTools()` 和能力摘要 section。
+- 页面通过 `readJson('/api/runtime-tools')` 读取 API，不引用 workflow registry，不维护静态工具清单。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm --filter @storyforge/web test`，结果 9/9 通过。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm --filter @storyforge/shared test`，结果 `tsc --noEmit` 退出码 0。
+## TDD 红灯记录 - phase4 e2e runtime tools 闭环
+
+时间：2026-05-25 02:52:00 +08:00
+
+- 增强 `tests/e2e/phase4-contract.spec.ts`，加入 `/api/runtime-tools` OpenAPI 校验、API TestClient 响应与 workflow registry dump 深度一致性校验、Runs 页面非复制校验。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm e2e tests/e2e/phase4-contract.spec.ts`
+- 结果：失败，符合 e2e 红灯预期。
+- 关键失败：Windows 下 `uv run python -c` 传递多行脚本失败，需改为临时脚本文件执行。
+## TDD 绿灯记录 - phase4 e2e runtime tools 闭环
+
+时间：2026-05-25 02:56:00 +08:00
+
+- `tests/e2e/phase4-contract.spec.ts` 使用临时 Python 脚本调用本地 API TestClient，并独立读取 workflow `registry.py`，对 API 响应与 registry dump 执行 `deepEqual`。
+- e2e 同时校验 OpenAPI `/api/runtime-tools`、Runs 页面读取 `/api/runtime-tools`、不直接引用 `DEFAULT_CREATIVE_TOOL_REGISTRY`、不维护 `runtimeToolList = [`。
+- 命令：`Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm e2e tests/e2e/phase4-contract.spec.ts`
+- 结果：node:test 4/4 通过，API pytest 42/42 通过，workflow pytest 8/8 通过，整体退出码 0。
+
+## 最终验证记录 - CreativeToolRegistry API/Web 可见性
+
+时间：2026-05-25 03:05:00 +08:00
+
+- `Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api'; uv run pytest tests/test_runtime_tools.py -q`：2/2 通过。
+- `Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm --filter @storyforge/web lint`：`tsc --noEmit` 退出码 0。
+- `Set-Location 'D:/StoryForge/1-renovel-ai-ai-rag-tavern'; pnpm e2e tests/e2e/phase4-contract.spec.ts`：node:test 4/4、API pytest 42/42、workflow pytest 8/8，整体退出码 0。
+- `git diff --check` 针对本次文件：退出码 0，仅有 LF/CRLF 提示。
+- 已生成 `.codex/verification-report.md`，综合评分 95/100，建议通过。
+## 编码前检查 - 运行时诊断视图
+
+时间：2026-05-25 03:40:52 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-runtime-diagnostics.md`
+□ 将使用以下可复用组件：
+
+- `apps/api/app/domains/model_runs/service.py`: 扩展 `get_runs_job_run()` 读侧聚合，不新增核心 runtime 抽象。
+- `apps/api/app/domains/runtime_tools/service.py`: 复用 `list_runtime_tools()`，从 CreativeToolRegistry 派生工具能力。
+- `apps/web/lib/api-client.ts`: 继续通过 `readJson()` 读取真实 API 并注入 API Key。
+- `tests/e2e/phase4-contract.spec.ts`: 复用 API TestClient 脚本模式验证真实 API 和 registry 一致性。
+
+□ 将遵循命名约定：Python `snake_case` 字段和函数、Pydantic `PascalCase` 模型；TypeScript `camelCase` 函数和 `PascalCase` 类型。
+□ 将遵循代码风格：中文文案与测试描述、FastAPI router/service/schema 分层、Next.js async Server Component。
+□ 确认不重复造轮子，证明：已检查 runtime_tools、model_runs、jobs bridge、workflow session/lifecycle/provider adapter、Runs 页面和 phase4 e2e，未发现现成 runtime diagnostics 响应，只需扩展既有读模型。
+
+### 工具与检索说明
+
+- 已按要求执行 sequential-thinking → shrimp-task-manager。
+- 已使用 desktop-commander 读取第四阶段真实实现和相关测试。
+- 已使用 Context7 查询 FastAPI response_model 与 Next.js App Router `searchParams`/`no-store` 官方文档。
+- 本会话没有可用 `github.search_code` 工具；`tool_search` 未发现 GitHub 搜索工具，已改用项目内真实实现、Context7 官方文档和网页搜索补偿。
+
+## 红灯测试记录 - 后端运行诊断摘要
+
+时间：2026-05-25 03:40:52 +08:00
+
+命令：`cd apps/api; uv run pytest tests/test_model_runs.py -q`
+
+结果：失败，符合 TDD 红灯预期。
+
+关键失败：
+
+- `KeyError: 'runtime_diagnostics'`：`GET /api/model-runs/job-runs/{job_run_id}` 尚未返回运行诊断摘要。
+- `KeyError: 'runtime_diagnostics'`：OpenAPI 中 `RunsJobRunRead` 尚未记录诊断 schema。
+
+## 绿灯测试记录 - 后端运行诊断摘要
+
+时间：2026-05-25 03:40:52 +08:00
+
+命令：`cd apps/api; uv run pytest tests/test_model_runs.py -q`
+
+结果：通过，`12 passed in 1.16s`。
+
+### 编码中监控 - 后端聚合
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用 `get_runs_job_run()` 扩展读模型，复用 `list_runtime_tools()` 派生本次运行工具能力。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 Pydantic 模型使用 `Runs*Read/Summary`，服务 helper 使用 `snake_case`。
+
+□ 代码风格是否一致？
+✅ 是：继续保持 router/service/schema 分层，注释和错误文案使用简体中文。
+
+## 红灯测试记录 - Runs 页面诊断摘要
+
+时间：2026-05-25 03:40:52 +08:00
+
+命令：`pnpm --filter @storyforge/web test`
+
+结果：失败，符合 TDD 红灯预期。
+
+关键失败：
+
+- `Runs 页面应读取 JobRun API 返回的运行诊断摘要`：`app/runs/page.tsx` 尚未消费 `runtime_diagnostics`。
+
+## 绿灯测试记录 - Runs 页面诊断摘要
+
+时间：2026-05-25 03:40:52 +08:00
+
+命令：`pnpm --filter @storyforge/web test`
+
+结果：通过，`9` 个 node:test 子测试全部通过。
+
+### 编码中监控 - Runs 页面展示
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：继续复用 `readJson()` 和既有 `readRunsJobRun()`，仅扩展响应类型守卫与 JSX 展示。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 TypeScript 类型使用 `Runs*Summary` / `RunsRuntimeDiagnostics`，函数使用 `isRuns*` 和 `formatRecoverable`。
+
+□ 代码风格是否一致？
+✅ 是：Server Component 保持只读展示，用户可见文案均为简体中文。
+
+## E2E 契约记录 - Phase5 运行诊断
+
+时间：2026-05-25 03:40:52 +08:00
+
+命令：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts`
+
+结果：通过。
+
+关键证据：
+
+- Phase5 node:test：3/3 通过，覆盖 OpenAPI、真实 API TestClient 响应和 Runs 页面源码契约。
+- API 验证：`46 passed in 54.35s`，包含新增 `test_runtime_tools.py` 目标。
+- Workflow 验证：`8 passed in 0.61s`。
+
+### 编码中监控 - Phase5 e2e
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用 phase4 `runApiPythonJson()` 模式，复用 `scripts/run-e2e.mjs` 既有刷新 OpenAPI 与 API/workflow 验证流程。
+
+□ 命名是否符合项目约定？
+✅ 是：测试文件命名为 `phase5-runtime-diagnostics.spec.ts`，测试标题和断言文案使用简体中文。
+
+□ 代码风格是否一致？
+✅ 是：e2e 文件保持可直接由 Node 运行的 JavaScript 语法，不依赖 TS 转译。
+
+## 最终验证记录 - 运行时诊断视图
+
+时间：2026-05-25 03:40:52 +08:00
+
+- Web 测试：`pnpm --filter @storyforge/web test`，9/9 通过。
+- Web 类型检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- Phase5 局部 e2e：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts`，Phase5 3/3 通过，API 46/46 通过，workflow 8/8 通过。
+- 全量 e2e：`node scripts/run-e2e.mjs`，Phase1-5 共 18/18 通过，API 46/46 通过，workflow 8/8 通过。
+- 根级测试：`pnpm run test`，Web 9/9 通过，shared `tsc --noEmit` 通过，API 152/152 通过，workflow 37/37 通过。
+
+## 编码后声明 - 运行时诊断视图
+
+### 1. 复用了以下既有组件
+
+- `apps/api/app/domains/model_runs/service.py`: 扩展既有 `get_runs_job_run()`，没有新增平行 Runs API。
+- `apps/api/app/domains/runtime_tools/service.py`: 复用 `list_runtime_tools()` 从 CreativeToolRegistry 派生运行工具能力。
+- `apps/web/lib/api-client.ts`: 继续通过 `readJson()` 读取真实 API 和注入 API Key。
+- `scripts/run-e2e.mjs`: 复用 OpenAPI 刷新、node:test、API pytest、workflow pytest 的本地闭环。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 字段和 helper 使用 `snake_case`，Pydantic 类型使用 `Runs*Read/Summary`；TypeScript 类型和守卫沿用 `Runs*` / `isRuns*`。
+- 代码风格：中文注释、测试名和页面文案；API 保持 schema/service/router 分层；Web 保持 async Server Component。
+- 文件组织：后端读模型留在 `model_runs` 领域，Web 展示留在 `/runs` 页面，e2e 留在 `tests/e2e`。
+
+### 3. 对比了以下相似实现
+
+- `runtime_tools/service.py`: 新工具摘要继续由 registry 派生，但只传摘要字段，不传大 schema payload。
+- `model_runs/service.py`: 沿用 JobRun + ModelRun 聚合模式，新增 runtime diagnostics 读侧结构。
+- `phase4-contract.spec.ts`: Phase5 e2e 复用真实 API/registry 校验模式，新增运行诊断 API 和页面闭环。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 workflow session/lifecycle/provider adapter、jobs bridge、runtime_tools API、Runs 页面和 phase4 e2e；本阶段未新增核心 runtime 抽象、未复制工具清单到 Web、未接 MCP 或插件安装，只增加诊断读侧 DTO 与展示。
+
+## 代码审查说明
+
+时间：2026-05-25 03:40:52 +08:00
+
+- 已读取 `superpowers:requesting-code-review` 技能。
+- 当前多代理工具约束要求只有用户显式请求子代理/委派时才能 `spawn_agent`，本任务未获得该授权，因此未启动子代理审查。
+- 已改为使用 sequential-thinking 完成本地深度审查，并将评分、风险和结论写入 `.codex/verification-report.md`。
+
+## 第六阶段 Runtime 诊断门禁 - 上下文核验
+
+时间：2026-05-25 04:39:42 +08:00
+
+### 必须先核验证据
+
+- 已检查 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api/app/domains/runtime_diagnostics/`：当前不存在该目录。
+- 已检查 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api/tests/test_runtime_diagnostics.py`：当前不存在该文件。
+- 真实 Runtime Diagnostics API 读侧位于 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api/app/domains/model_runs/service.py` 与 `schemas.py`，通过 `runtime_diagnostics` 字段返回。
+- Runtime Tools API 位于 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api/app/domains/runtime_tools/`，测试为 `apps/api/tests/test_runtime_tools.py`。
+- `/runs` 诊断视图位于 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/web/app/runs/page.tsx`。
+### 现有门禁缺口
+
+- `scripts/run-e2e.mjs` 默认 e2e 已包含 `tests/e2e/phase5-runtime-diagnostics.spec.ts`。
+- `scripts/run-e2e.mjs` API pytest targets 已包含 `tests/test_model_runs.py` 与 `tests/test_runtime_tools.py`。
+- `scripts/run-e2e.mjs` workflow pytest targets 目前只包含 `tests/test_generation_graph.py` 与 `tests/test_runtime_runner.py`。
+- 未纳入发布前 e2e workflow 门禁的专项测试：`tests/test_workflow_session.py`、`tests/test_workflow_lifecycle.py`、`tests/test_provider_adapter.py`、`tests/test_provider_parity_harness.py`、`tests/test_creative_tool_registry.py`。
+- `scripts/verify-local.ps1` 当前只做 Node/pnpm/Python/Docker/路径/容器预检，不执行或静态校验 Runtime 诊断门禁。
+
+## 编码前检查 - 第六阶段 Runtime 诊断门禁
+
+时间：2026-05-25 04:39:42 +08:00
+
+□ 已查阅上下文摘要文件：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/context-summary-runtime-gate.md`
+
+□ 将使用以下可复用组件：
+
+- `tests/e2e/phase5-runtime-diagnostics.spec.ts`: 扩展发布前门禁契约断言。
+- `scripts/run-e2e.mjs`: 纳入 workflow runtime 专项 pytest target。
+- `scripts/verify-local.ps1`: 增加轻量 Runtime 诊断门禁完整性检查。
+- `apps/workflow/tests/test_*`: 复用已存在专项测试，不新增 workflow 抽象。
+□ 将遵循命名约定：Node e2e 测试继续使用中文 `test(...)` 标题；PowerShell 函数继续使用 `Test-*`；pytest target 保持 `tests/test_*.py`。
+
+□ 将遵循代码风格：不新增平行脚本；脚本输出和错误文案使用简体中文；只展示摘要字段，不复制 Runtime 工具清单到 Web。
+
+□ 确认不重复造轮子，证明：已检查 `phase4-contract.spec.ts`、`phase5-runtime-diagnostics.spec.ts`、`run-e2e.mjs`、`verify-local.ps1`、workflow 专项测试，确认可复用现有入口完成门禁整合。
+
+### 外部检索记录
+
+- Context7 查询 `/nodejs/node`：确认 Node 内置测试运行器通过 `node --test` 执行测试文件，测试文件使用 `node:test` 与 `node:assert/strict`，与现有 e2e 模式一致。
+- `github.search_code` 工具在当前会话不可用，且本阶段是项目发布脚本整合而非通用算法实现；已改为以本仓库既有实现为准。
+
+## 红灯测试记录 - 第六阶段 Runtime 诊断门禁
+
+时间：2026-05-25 04:39:42 +08:00
+
+命令：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts`
+
+结果：失败，符合 TDD 红灯预期。
+
+关键失败：
+
+- `Phase 6 发布前门禁覆盖 Runtime 诊断链路` 失败。
+- 失败原因：`pnpm e2e 未纳入 Runtime 诊断门禁目标：tests/test_workflow_session.py`。
+- 说明：当前 `scripts/run-e2e.mjs` 的 workflow pytest target 未覆盖 WorkflowSession 等专项 runtime 测试，`pnpm verify` 也尚无 Runtime 门禁静态校验。
+
+## 绿灯测试记录 - 第六阶段 Runtime 诊断门禁局部 e2e
+
+时间：2026-05-25 04:39:42 +08:00
+
+命令：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts`
+
+结果：通过。
+
+关键证据：
+
+- Phase5/Phase6 node:test：4/4 通过，新增发布前门禁断言已覆盖 `scripts/run-e2e.mjs` 与 `scripts/verify-local.ps1`。
+- API 验证：`46 passed in 53.92s`，包含 `tests/test_model_runs.py` 与 `tests/test_runtime_tools.py`。
+- Workflow 验证：`26 passed in 0.86s`，包含 Runtime Runner、WorkflowSession、WorkflowLifecycle、ProviderAdapter、Provider Parity Harness、CreativeToolRegistry。
+
+### 编码中监控 - Runtime 诊断门禁
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用 `phase5-runtime-diagnostics.spec.ts`、`run-e2e.mjs` 和 `verify-local.ps1`，没有新增平行脚本。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 Node 测试标题、PowerShell 函数 `Test-RuntimeDiagnosticsGate` 和输出文案均保持项目风格。
+
+□ 代码风格是否一致？
+✅ 是：`run-e2e.mjs` 继续使用 target 数组与 `runPythonCommand()`，`verify-local.ps1` 继续使用 `Write-Ok` / `Write-Fail` 聚合失败。
+
+## 全量验证记录 - 第六阶段 Runtime 诊断门禁
+
+时间：2026-05-25 04:39:42 +08:00
+
+### `pnpm e2e` / `node scripts/run-e2e.mjs`
+
+命令：`node scripts/run-e2e.mjs`
+
+结果：通过，退出码 0。
+
+关键证据：
+
+- Node 契约测试：19/19 通过，包含新增 `Phase 6 发布前门禁覆盖 Runtime 诊断链路`。
+- API pytest：`46 passed in 53.77s`。
+- Workflow pytest：`26 passed in 0.90s`，新增 workflow 专项 Runtime 目标已纳入统一 e2e 门禁。
+
+### `pnpm verify`
+
+命令：`pnpm run verify`
+
+结果：失败，退出码 1；失败原因是本机 Docker daemon 未运行，不是 Runtime 诊断门禁断言失败。
+
+Runtime 门禁证据：
+
+- `Test-RuntimeDiagnosticsGate` 已执行。
+- 输出显示 8 个 Runtime 诊断目标均为 `[通过]`：Phase5 e2e、`test_model_runs.py`、`test_runtime_tools.py`、`test_workflow_session.py`、`test_workflow_lifecycle.py`、`test_provider_adapter.py`、`test_provider_parity_harness.py`、`test_creative_tool_registry.py`。
+- 随后 Docker 容器检查失败：无法连接 `dockerDesktopLinuxEngine`，`docker ps` 复核显示 Docker daemon pipe 不存在。
+### 非破坏性格式检查
+
+命令：`git diff --check -- scripts/run-e2e.mjs scripts/verify-local.ps1 tests/e2e/phase5-runtime-diagnostics.spec.ts .codex/context-summary-runtime-gate.md .codex/operations-log.md .codex/verification-report.md`
+
+结果：通过，退出码 0；仅有 LF/CRLF 提示，无空白错误。
+
+## 编码后声明 - 第六阶段 Runtime 诊断门禁
+
+### 1. 复用了以下既有组件
+
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/run-e2e.mjs`: 继续作为 `pnpm e2e` 唯一统一入口，新增 workflow pytest target 数组。
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/verify-local.ps1`: 继续作为 `pnpm verify` 入口，新增轻量 `Test-RuntimeDiagnosticsGate` 静态完整性检查。
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/tests/e2e/phase5-runtime-diagnostics.spec.ts`: 复用第五阶段真实 API/Web 契约测试，增加第六阶段发布前门禁断言。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Node e2e 测试仍使用 `test("Phase ...")`；PowerShell 函数使用 `Test-*`；Python target 保持 `tests/test_*.py`。
+- 代码风格：所有新增脚本输出、断言文案和日志均为简体中文。
+- 文件组织：只修改现有 e2e/verify 入口，不新增平行脚本、不新增 runtime domain。
+
+### 3. 对比了以下相似实现
+
+- `phase4-contract.spec.ts`: 继续通过源码和真实 API 证据验证跨端契约。
+- `phase5-runtime-diagnostics.spec.ts`: 延续 OpenAPI、API TestClient、Web 非硬编码检查模式。
+- `verify-local.ps1`: 新函数沿用 `Write-Ok` / `Write-Fail` 聚合失败模式。
+
+### 4. 未重复造轮子的证明
+
+- 已检查现有 `pnpm verify`、`pnpm e2e`、API pytest、workflow pytest 和 Web 源码契约；本阶段只把既有 Runtime 诊断测试接入门禁，没有新增业务功能或 runtime 抽象。
+
+## 第七阶段 Runtime 契约治理 - 上下文核验
+
+时间：2026-05-25 05:02:22 +08:00
+
+### 必须先核验证据
+
+- 已读取 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/package.json`：`pnpm openapi` 调用 `scripts/generate-openapi.ps1`，`pnpm e2e` 调用 `scripts/run-e2e.mjs`，`pnpm verify` 调用 `scripts/verify-local.ps1`。
+- 已读取 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/generate-openapi.ps1`：从 `apps/api/app.main:app.openapi()` 写入 `packages/shared/src/contracts/storyforge.openapi.json`。
+- 已读取 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/run-e2e.mjs`：e2e 前刷新同一 shared OpenAPI 快照，并运行 Node/API/workflow 验证。
+- 已读取 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/packages/shared/src/contracts/storyforge.openapi.json`：包含 `RuntimeToolRead`、`RunsRuntimeDiagnosticsRead`、`RunsJobRunRead`、`ModelRunRead` 及 `/api/runtime-tools`、`/api/model-runs`、`/api/model-runs/job-runs/{job_run_id}` 路径。
+### 契约事实源
+
+- Runtime Tools API：`apps/api/app/domains/runtime_tools/router.py` 的 `GET /api/runtime-tools`，response_model 为 `list[RuntimeToolRead]`。
+- Runtime Tools schema：`RuntimeToolRead` 关键字段为 `name/domain/input_schema/output_schema/required_capabilities/evidence_fields/references`，`RuntimeToolReferencesRead` 关键字段为 `page_refs/api_paths/workflow_nodes`。
+- Runtime Diagnostics API：`apps/api/app/domains/model_runs/router.py` 的 `GET /api/model-runs/job-runs/{job_run_id}`，response_model 为 `RunsJobRunRead`。
+- Runtime Diagnostics schema：`RunsRuntimeDiagnosticsRead` 关键字段为 `workflow_session/workflow_lifecycle/provider/model_usage/runtime_tools`。
+- ModelRun API：`POST/GET /api/model-runs` 使用 `ModelRunCreate/ModelRunRead`，关键字段包含 provider/model/capability/status/latency/token/payload。
+- `/runs` 页面：`apps/web/app/runs/page.tsx` 读取 `/api/runtime-tools` 与 `/api/model-runs/job-runs/{id}`，类型守卫覆盖 Runtime Tools 和 Runtime Diagnostics 关键字段。
+
+## 编码前检查 - 第七阶段 Runtime 契约治理
+
+时间：2026-05-25 05:02:22 +08:00
+
+□ 已查阅上下文摘要文件：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/context-summary-runtime-contract-governance.md`
+
+□ 将使用以下可复用组件：
+
+- `tests/e2e/phase5-runtime-diagnostics.spec.ts`: 承载 Phase7 Runtime 契约治理断言。
+- `scripts/generate-openapi.ps1`: 验证 OpenAPI shared 快照生成入口。
+- `scripts/run-e2e.mjs`: 验证 e2e 刷新同一 shared 快照。
+- `apps/web/app/runs/page.tsx`: 验证 Web 读取字段与 API/OpenAPI 对齐。
+
+□ 将遵循命名约定：测试标题使用 `Phase 7 ...`，字段数组使用 `camelCase` 常量名，JSON 字段保持 snake_case。
+□ 将遵循代码风格：不新增第二套契约文件，不复制完整 schema，只维护关键字段数组。
+□ 确认不重复造轮子，证明：已检查 Phase5 e2e、generate-openapi、run-e2e 和 shared OpenAPI 快照，确认现有文件可承载治理逻辑。
+
+## 红灯测试记录 - 第七阶段 Runtime 契约治理
+
+时间：2026-05-25 05:02:22 +08:00
+
+命令：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts`
+
+结果：失败，符合 TDD 红灯预期。
+
+关键失败：
+
+- `Phase 7 Runtime OpenAPI、API schema、Web 字段与 e2e 声明保持一致` 失败。
+- 失败原因：`scripts/verify-local.ps1` 缺少 `Test-OpenApiRuntimeContractGate`。
+- 说明：`pnpm verify` 尚不能检查 OpenAPI Runtime 契约治理入口是否存在，可能漏掉 OpenAPI/shared/Web/e2e 字段漂移。
+
+## 绿灯测试记录 - 第七阶段 Runtime 契约治理局部 e2e
+
+时间：2026-05-25 05:02:22 +08:00
+
+命令：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts`
+
+结果：通过，退出码 0。
+
+关键证据：
+
+- Node 契约测试：5/5 通过，新增 Phase7 测试验证 package/openapi/e2e/verify 入口、shared OpenAPI 关键 schema 字段、FastAPI live OpenAPI 与 shared snapshot、/runs Web 字段。
+- API pytest：`46 passed in 53.88s`。
+- Workflow pytest：`26 passed in 0.84s`。
+
+### 编码中监控 - Runtime 契约治理
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用 `phase5-runtime-diagnostics.spec.ts`、`generate-openapi.ps1`、`run-e2e.mjs` 和 `verify-local.ps1`。
+
+□ 命名是否符合项目约定？
+✅ 是：新增测试标题使用 `Phase 7`，字段清单使用 `camelCase` 常量名，JSON 字段保持 snake_case。
+
+□ 代码风格是否一致？
+✅ 是：只维护关键字段数组，不复制完整 schema；PowerShell 继续使用 `Test-*` 和 `Write-Ok` / `Write-Fail`。
+
+## 全量验证记录 - 第七阶段 Runtime 契约治理
+
+时间：2026-05-25 05:02:22 +08:00
+
+### `pnpm openapi`
+
+命令：`pnpm openapi`
+
+结果：通过，退出码 0。
+
+关键证据：
+
+- 使用 `uv run python` 生成 OpenAPI 契约。
+- 已生成 `D:/StoryForge/1-renovel-ai-ai-rag-tavern/packages/shared/src/contracts/storyforge.openapi.json`。
+
+### `pnpm e2e` / `node scripts/run-e2e.mjs`
+
+命令：`node scripts/run-e2e.mjs`
+
+结果：通过，退出码 0。
+
+关键证据：
+
+- Node 契约测试：20/20 通过，包含新增 `Phase 7 Runtime OpenAPI、API schema、Web 字段与 e2e 声明保持一致`。
+- API pytest：`46 passed in 52.19s`。
+- Workflow pytest：`26 passed in 0.49s`。
+
+### `pnpm verify`
+
+命令：`pnpm run verify`
+
+结果：失败，退出码 1；失败原因仍为本机 Docker daemon 未运行，不是 Runtime/OpenAPI 契约门禁失败。
+
+OpenAPI / Runtime 门禁证据：
+
+- `Test-RuntimeDiagnosticsGate` 8 个目标全部 `[通过]`。
+- `Test-OpenApiRuntimeContractGate` 已执行，确认 `generate-openapi.ps1`、`run-e2e.mjs`、shared OpenAPI 快照、Runtime schema 和 Runtime paths 关键 marker 全部 `[通过]`。
+- Docker 容器检查失败：PostgreSQL、Redis、MinIO 无法查询，需启动 Docker Desktop 后复跑。
+
+### 非破坏性格式检查
+
+命令：`git diff --check -- scripts/verify-local.ps1 tests/e2e/phase5-runtime-diagnostics.spec.ts .codex/context-summary-runtime-contract-governance.md .codex/operations-log.md .codex/verification-report.md packages/shared/src/contracts/storyforge.openapi.json`
+
+结果：通过，退出码 0；仅有 LF/CRLF 提示，无空白错误。
+
+## 编码后声明 - 第七阶段 Runtime 契约治理
+
+### 1. 复用了以下既有组件
+
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/tests/e2e/phase5-runtime-diagnostics.spec.ts`: 扩展 Phase7 契约治理断言，没有新增第二套契约文件。
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/generate-openapi.ps1`: 继续作为 `pnpm openapi` 的唯一 shared OpenAPI 生成入口。
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/run-e2e.mjs`: 继续在 e2e 前刷新同一 shared OpenAPI 快照。
+- `D:/StoryForge/1-renovel-ai-ai-rag-tavern/scripts/verify-local.ps1`: 新增 `Test-OpenApiRuntimeContractGate`，复用本地 verify 入口。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：测试标题使用 `Phase 7`；PowerShell 函数使用 `Test-*`；关键字段数组使用 `camelCase` 常量名。
+- 代码风格：用户可见文案、断言、日志和报告均为简体中文。
+- 文件组织：只更新现有 e2e 和 verify 入口，不新增业务功能、runtime 抽象或第二套契约文件。
+
+### 3. 对比了以下相似实现
+
+- `phase4-contract.spec.ts`: 沿用 OpenAPI 与 API/Web 一致性检查模式。
+- `phase5-runtime-diagnostics.spec.ts`: 沿用真实 API TestClient 与 Web 非硬编码证据检查模式。
+- `verify-local.ps1`: 新增函数沿用 `Write-Ok` / `Write-Fail` 失败聚合方式。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `pnpm openapi`、`run-e2e.mjs` OpenAPI 刷新逻辑、shared OpenAPI 快照、API schema 和 `/runs` Web 类型守卫；第七阶段仅增加关键字段一致性门禁，没有复制完整 schema 或新增平行契约文件。
+
+## 第八阶段 Runtime 诊断治理收尾与发布候选冻结
+
+时间：2026-05-25 15:20:00 +08:00
+
+### 编码前检查 - 第八阶段 Runtime 发布候选冻结
+
+- 已查阅上下文摘要文件：`D:/StoryForge/1-renovel-ai-ai-rag-tavern/.codex/context-summary-phase8-runtime-rc-freeze.md`
+- 将使用以下可复用组件：
+  - `scripts/verify-local.ps1`：发布前门禁。
+  - `scripts/run-e2e.mjs`：e2e 与 API/workflow 验证入口。
+  - `tests/e2e/phase5-runtime-diagnostics.spec.ts`：OpenAPI/API/Web/e2e 一致性治理断言。
+  - `apps/workflow/storyforge_workflow/tools/registry.py`：Runtime 工具单一事实源。
+- 将遵循命名约定：Python `snake_case`/`PascalCase`，TypeScript `camelCase`/`PascalCase`。
+- 将遵循代码风格：简体中文文档、注释和测试描述；不新增并行脚本。
+- 确认不重复造轮子：已检查 workflow registry、API runtime_tools、Web Runs 页面和 e2e 门禁，确认工具清单由单一 registry 派生。
+
+### Runtime 契约一致性核验
+
+时间：2026-05-25 15:25:00 +08:00
+
+- API 探针：`/api/runtime-tools` 返回 200，工具数量 7，工具名称无重复。
+- OpenAPI 探针：`/api/runtime-tools`、`/api/model-runs/job-runs/{job_run_id}`、`/api/model-runs` 均存在，`RunsJobRunRead` 包含 `runtime_diagnostics`。
+- 定向契约验证：`node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts` 退出码 0。
+- 定向验证覆盖：Node e2e 5/5 通过；API compileall 与 46 项 pytest 通过；workflow compileall 与 26 项 pytest 通过。
+- 本阶段未修改业务代码；仅新增第八阶段上下文摘要并追加操作日志。
+
+### 发布候选最终验证与报告
+
+时间：2026-05-25 15:45:00 +08:00
+
+- `pnpm verify` 首次失败：Docker daemon 未运行，无法查询 PostgreSQL/Redis/MinIO。
+- 已执行 `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` 请求启动 Docker Desktop。
+- 已执行 `docker compose up -d postgres redis minio`，三个 storyforge 容器启动。
+- 复跑 `pnpm verify`：通过。
+- `pnpm e2e`：通过，Node 20/20、API 46 passed、workflow 26 passed。
+- `pnpm test`：通过，Web 9/9、shared tsc、API 152 passed、workflow 37 passed。
+- `pnpm --filter @storyforge/web exec tsc --noEmit`：通过。
+- `git diff --check`：通过，仅 CRLF 替换警告。
+- 已生成 `verification-report.md` 与 `release-candidate-report.md`。
+
+### 编码后声明 - 第八阶段 Runtime 发布候选冻结
+
+1. 复用了以下既有组件：`scripts/verify-local.ps1`、`scripts/run-e2e.mjs`、`tests/e2e/phase5-runtime-diagnostics.spec.ts`、`apps/workflow/storyforge_workflow/tools/registry.py`。
+2. 遵循了项目约定：报告和日志使用简体中文；未新增并行脚本；未新增业务功能或 runtime 抽象。
+3. 对比了相似实现：workflow runtime、API runtime_tools service、e2e 契约治理文件；本阶段只核验和报告。
+4. 未重复造轮子：工具清单继续由 workflow registry 单源派生，API/Web/e2e 只消费和验证。
+
+
+## 第九阶段发布候选审查与归档
+
+时间：2026-05-25 15:48:53 +08:00
+
+### 执行记录
+
+- 已使用 `sequential-thinking` 梳理审查目标、风险和输出边界。
+- 已使用 `shrimp-task-manager` 完成任务分析、反思和三项任务拆分。
+- 已读取用户指定的根目录证据文件；`runtime-diagnostics-release-candidate.md` 缺失，已用仓库内 `.codex/release-candidate-report.md` 补充核验并记录偏差。
+- 已读取仓库内第八阶段 `verification-report.md`、`operations-log.md`、`context-summary-phase8-runtime-rc-freeze.md` 与 Runtime 诊断上下文摘要。
+- 已执行 `git status --short --branch`、`git diff --name-status`、`git diff --stat`、`git ls-files --others --exclude-standard`、`git diff --cached --name-status`、`git diff --check`。
+- 已执行 Runtime 工具注册表探针，确认工具数量 7、重复名称 0。
+- 已执行禁止项与静态工具清单关键词搜索；命中均为单一事实源、测试断言或文档边界说明。
+
+### 结论
+
+- 当前 diff 分类属于 Runtime 诊断治理发布候选范围。
+- 未发现无关业务功能、MCP 接入、插件动态安装或 claw-code Rust 代码引入。
+- 已生成最终审查归档：`D:\StoryForge\1-renovel-ai-ai-rag-tavern\.codex\release-candidate-review-archive.md`。
+- 本阶段未提交、未创建 PR、未删除无关文件。
+
+
+## 第十阶段提交与 PR 准备 - 核验记录
+
+时间：2026-05-25 17:15:00 +08:00
+
+### 1. 路径修正
+
+- 用户确认实际仓库为 `D:\StoryForge\1-renovel-ai-ai-rag-tavern`。
+- 发布候选冻结报告读取路径：`.codex/release-candidate-report.md`。
+- 第九阶段最终审查归档读取路径：`.codex/release-candidate-review-archive.md`。
+- 验证报告读取路径：`.codex/verification-report.md`。
+- 操作日志读取路径：`.codex/operations-log.md`。
+
+### 2. 提交范围核验
+
+- 当前分支：`master...origin/master`。
+- 当前无 staged diff：`git diff --cached --name-status` 无输出。
+- 已跟踪修改：16 个文件，集中在 Runtime/API/Web/e2e/门禁/OpenAPI/报告。
+- 未跟踪路径：包含 `.codex` 阶段报告、runtime_tools、workflow runtime 新模块、workflow tools、相关测试、`tests/e2e/phase5-runtime-diagnostics.spec.ts`。
+- 仍需用户确认：`apps/workflow/.codex/` 是否按当前子目录位置纳入提交。
+
+### 3. 重新验证结果
+
+- `pnpm verify`：通过，退出码 0。
+- `pnpm e2e`：通过，Node 20/20，API 46 passed，workflow 26 passed，退出码 0。
+- `pnpm test`：通过，Web 9/9，shared tsc 通过，API 152 passed，workflow 37 passed，退出码 0。
+- `pnpm --filter @storyforge/web exec tsc --noEmit`：通过，退出码 0。
+- `git diff --check`：通过，退出码 0；仅 LF/CRLF 替换提示，无 whitespace error。
+
+### 4. 执行边界
+
+- 未自动执行 `git commit`。
+- 未自动执行 `git push`。
+- 未自动创建 PR。
+- 未新增业务功能，未修改 runtime 逻辑。
+
+
+## 第十阶段提交执行记录
+
+时间：2026-05-25 17:25:00 +08:00
+
+### 1. 用户确认
+
+- 用户选择保留 `apps/workflow/.codex/`。
+- 用户明确要求执行提交。
+- 本轮只执行 `git add` 与 `git commit`，不执行 `git push`，不创建 PR。
+
+### 2. 提交前动作计划
+
+- 重新运行 `pnpm verify`、`pnpm e2e`、`pnpm test`、Web `tsc --noEmit` 与 `git diff --check`。
+- 验证通过后纳入发布候选确认范围并提交。
+- 提交信息使用中文。

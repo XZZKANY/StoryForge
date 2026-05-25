@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const openapi = JSON.parse(readFileSync("packages/shared/src/contracts/storyforge.openapi.json", "utf8"));
 const apiTests = {
@@ -31,6 +34,23 @@ function assertSourceEvidence(source, markers) {
   }
 }
 
+function runApiPythonJson(script) {
+  const tempDir = mkdtempSync(join(tmpdir(), "storyforge-phase4-python-"));
+  const scriptPath = join(tempDir, "dump-runtime-tools.py");
+  try {
+    writeFileSync(scriptPath, `import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n${script.trim()}\n`, "utf8");
+    const result = spawnSync("uv", ["run", "python", scriptPath], {
+      cwd: "apps/api",
+      encoding: "utf8",
+      shell: process.platform === "win32",
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return JSON.parse(result.stdout.trim());
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 test("Phase 4 OpenAPI 暴露检索、Prompt Packs、模型运行日志、制品中心和评测端点", () => {
   assertOperation("/api/retrieval/sources", "post", "检索中心");
   assertOperation("/api/retrieval/refresh-runs", "post", "检索中心");
@@ -39,6 +59,7 @@ test("Phase 4 OpenAPI 暴露检索、Prompt Packs、模型运行日志、制品�
   assertOperation("/api/model-runs", "post", "模型运行日志");
   assertOperation("/api/artifacts", "post", "制品中心");
   assertOperation("/api/evaluations/runs", "post", "评测系统");
+  assertOperation("/api/runtime-tools", "get", "运行时工具");
 });
 
 test("Phase 4 后端测试源码保留关键业务证据", () => {
@@ -59,4 +80,61 @@ test("Phase 4 前端入口包含检索、运行日志、制品中心和评测面
   assertSourceEvidence(webSources.runs, ["模型运行日志", "Provider 解析结果", "Prompt Pack 来源", "任务恢复入口"]);
   assertSourceEvidence(webSources.artifacts, ["导出物", "上传资料", "工作流快照", "评测报告"]);
   assertSourceEvidence(webSources.evaluations, ["一致性错误率", "修复成功率", "用户接受率", "未回收 open loop"]);
+});
+
+test("Phase 4 runtime tools API 与 CreativeToolRegistry 和 Runs 页面保持一致", () => {
+  const apiTools = runApiPythonJson(`
+import json
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"})
+response = client.get("/api/runtime-tools")
+response.raise_for_status()
+print(json.dumps(response.json(), ensure_ascii=False, sort_keys=True))
+`);
+  const registryTools = runApiPythonJson(`
+import importlib.util
+import json
+import sys
+from collections.abc import Mapping, Sequence, Set
+from pathlib import Path
+
+registry_path = Path.cwd().parent / "workflow" / "storyforge_workflow" / "tools" / "registry.py"
+spec = importlib.util.spec_from_file_location("storyforge_phase4_registry", registry_path)
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+def to_jsonable(value):
+    if isinstance(value, Mapping):
+        return {str(key): to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, Set):
+        return [to_jsonable(item) for item in sorted(value, key=str)]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [to_jsonable(item) for item in value]
+    return value
+
+print(json.dumps([
+    {
+        "name": tool.name,
+        "domain": tool.domain,
+        "input_schema": to_jsonable(tool.input_schema),
+        "output_schema": to_jsonable(tool.output_schema),
+        "required_capabilities": list(tool.required_capabilities),
+        "evidence_fields": list(tool.evidence_fields),
+        "references": {
+            "page_refs": list(tool.references.page_refs),
+            "api_paths": list(tool.references.api_paths),
+            "workflow_nodes": list(tool.references.workflow_nodes),
+        },
+    }
+    for tool in module.list_creative_tools()
+], ensure_ascii=False, sort_keys=True))
+`);
+
+  assert.deepEqual(apiTools, registryTools);
+  assertSourceEvidence(webSources.runs, ["readRuntimeTools", "\"/api/runtime-tools\"", "runtimeTools.map"]);
+  assert.ok(!webSources.runs.includes("DEFAULT_CREATIVE_TOOL_REGISTRY"), "Runs 页面不应直接引用 workflow registry");
+  assert.ok(!webSources.runs.includes("runtimeToolList = ["), "Runs 页面不应维护静态工具清单");
 });

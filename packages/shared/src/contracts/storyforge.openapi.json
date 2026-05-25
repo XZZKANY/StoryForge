@@ -3088,6 +3088,9 @@
             "title": "Progress",
             "type": "object"
           },
+          "runtime_diagnostics": {
+            "$ref": "#/components/schemas/RunsRuntimeDiagnosticsRead"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -3105,6 +3108,7 @@
           "progress",
           "checkpoint",
           "model_runs",
+          "runtime_diagnostics",
           "error_message",
           "created_at",
           "updated_at"
@@ -3238,6 +3242,378 @@
           "error_message"
         ],
         "title": "RunsModelRunSummary",
+        "type": "object"
+      },
+      "RunsModelUsageSummary": {
+        "description": "ModelRun 真表派生的轻量用量聚合。",
+        "properties": {
+          "failed_model_run_count": {
+            "title": "Failed Model Run Count",
+            "type": "integer"
+          },
+          "max_latency_ms": {
+            "title": "Max Latency Ms",
+            "type": "integer"
+          },
+          "model_run_count": {
+            "title": "Model Run Count",
+            "type": "integer"
+          },
+          "total_token_usage": {
+            "title": "Total Token Usage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_run_count",
+          "failed_model_run_count",
+          "total_token_usage",
+          "max_latency_ms"
+        ],
+        "title": "RunsModelUsageSummary",
+        "type": "object"
+      },
+      "RunsProviderSummary": {
+        "description": "ProviderAdapter 或 ModelRun 派生的供应商调用摘要。",
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "provider_name": {
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "token_usage": {
+            "title": "Token Usage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider_name",
+          "model_name",
+          "capability",
+          "status",
+          "latency_ms",
+          "token_usage",
+          "error_message"
+        ],
+        "title": "RunsProviderSummary",
+        "type": "object"
+      },
+      "RunsRuntimeDiagnosticsRead": {
+        "description": "Runs 页面统一读取的运行时诊断摘要。",
+        "properties": {
+          "model_usage": {
+            "$ref": "#/components/schemas/RunsModelUsageSummary"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunsProviderSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runtime_tools": {
+            "items": {
+              "$ref": "#/components/schemas/RunsRuntimeToolSummary"
+            },
+            "title": "Runtime Tools",
+            "type": "array"
+          },
+          "workflow_lifecycle": {
+            "$ref": "#/components/schemas/RunsWorkflowLifecycleSummary"
+          },
+          "workflow_session": {
+            "$ref": "#/components/schemas/RunsWorkflowSessionSummary"
+          }
+        },
+        "required": [
+          "workflow_session",
+          "workflow_lifecycle",
+          "provider",
+          "model_usage",
+          "runtime_tools"
+        ],
+        "title": "RunsRuntimeDiagnosticsRead",
+        "type": "object"
+      },
+      "RunsRuntimeToolSummary": {
+        "description": "本次运行命中的运行时工具能力摘要，不包含大 schema payload。",
+        "properties": {
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "evidence_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Fields",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Capabilities",
+            "type": "array"
+          },
+          "workflow_nodes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Workflow Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "domain",
+          "required_capabilities",
+          "evidence_fields",
+          "workflow_nodes"
+        ],
+        "title": "RunsRuntimeToolSummary",
+        "type": "object"
+      },
+      "RunsWorkflowLifecycleSummary": {
+        "description": "运行生命周期最新摘要，用于页面展示恢复边界。",
+        "properties": {
+          "current_node": {
+            "title": "Current Node",
+            "type": "string"
+          },
+          "failure_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Kind"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "recoverable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recoverable"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "current_node",
+          "message",
+          "failure_kind",
+          "recoverable"
+        ],
+        "title": "RunsWorkflowLifecycleSummary",
+        "type": "object"
+      },
+      "RunsWorkflowSessionSummary": {
+        "description": "从 JobRun 运行时同步字段派生的 WorkflowSession 摘要。",
+        "properties": {
+          "approval_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Status"
+          },
+          "current_node": {
+            "title": "Current Node",
+            "type": "string"
+          },
+          "job_run_id": {
+            "title": "Job Run Id",
+            "type": "string"
+          },
+          "last_heartbeat_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat Ms"
+          },
+          "prompt_count": {
+            "title": "Prompt Count",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          }
+        },
+        "required": [
+          "session_id",
+          "thread_id",
+          "job_run_id",
+          "status",
+          "current_node",
+          "approval_status",
+          "last_heartbeat_ms",
+          "prompt_count"
+        ],
+        "title": "RunsWorkflowSessionSummary",
+        "type": "object"
+      },
+      "RuntimeToolRead": {
+        "description": "由 CreativeToolRegistry 派生的运行时工具说明。",
+        "properties": {
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "evidence_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Fields",
+            "type": "array"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "title": "Input Schema",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_schema": {
+            "additionalProperties": true,
+            "title": "Output Schema",
+            "type": "object"
+          },
+          "references": {
+            "$ref": "#/components/schemas/RuntimeToolReferencesRead"
+          },
+          "required_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Capabilities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "domain",
+          "input_schema",
+          "output_schema",
+          "required_capabilities",
+          "evidence_fields",
+          "references"
+        ],
+        "title": "RuntimeToolRead",
+        "type": "object"
+      },
+      "RuntimeToolReferencesRead": {
+        "description": "运行时工具在 Web、API 与 workflow 中的静态引用。",
+        "properties": {
+          "api_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Api Paths",
+            "type": "array"
+          },
+          "page_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Page Refs",
+            "type": "array"
+          },
+          "workflow_nodes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Workflow Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page_refs",
+          "api_paths",
+          "workflow_nodes"
+        ],
+        "title": "RuntimeToolReferencesRead",
         "type": "object"
       },
       "ScenePacketCreate": {
@@ -6761,6 +7137,32 @@
         "summary": "List Retrieval Workbench Sources Endpoint",
         "tags": [
           "检索中心"
+        ]
+      }
+    },
+    "/api/runtime-tools": {
+      "get": {
+        "description": "列出 CreativeToolRegistry 声明的运行时工具能力。",
+        "operationId": "list_runtime_tools_endpoint_api_runtime_tools_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RuntimeToolRead"
+                  },
+                  "title": "Response List Runtime Tools Endpoint Api Runtime Tools Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Runtime Tools Endpoint",
+        "tags": [
+          "运行时工具"
         ]
       }
     },

@@ -77,6 +77,18 @@ test("页面复用 API client 并注入 API Key", () => {
 
   assert.ok(retrieval.includes("apiFetch"), "Retrieval 页面应复用 apiFetch 注入 API Key");
   assert.ok(runs.includes("readJson"), "Runs 页面应复用 readJson 校验响应");
+  assert.ok(runs.includes("readRuntimeTools"), "Runs 页面应读取 runtime tools API");
+  assert.ok(runs.includes('"/api/runtime-tools"'), "Runs 页面应通过 API 获取工具事实源");
+  assert.ok(runs.includes("runtimeTools.map"), "Runs 页面应渲染 API 返回的工具列表");
+  assert.ok(runs.includes("runtime_diagnostics"), "Runs 页面应读取 JobRun API 返回的运行诊断摘要");
+  assert.ok(runs.includes("运行时诊断摘要"), "Runs 页面应展示运行时诊断摘要区域");
+  assert.ok(runs.includes("workflow_lifecycle"), "Runs 页面应展示 WorkflowLifecycle 摘要");
+  assert.ok(runs.includes("failure_kind"), "Runs 页面应展示失败分类字段");
+  assert.ok(runs.includes("recoverable"), "Runs 页面应展示可恢复性字段");
+  assert.ok(runs.includes("runtime_diagnostics.runtime_tools.map"), "Runs 页面应渲染本次运行命中的工具能力");
+  assert.ok(!runs.includes("DEFAULT_CREATIVE_TOOL_REGISTRY"), "Web 不应直接引用 workflow registry");
+  assert.ok(!runs.includes("runtimeToolList = ["), "Web 不应维护静态工具清单");
+  assert.ok(!runs.includes("runtimeDiagnosticTools = ["), "Web 不应维护运行诊断静态工具清单");
   assert.ok(!retrieval.includes("await fetch("), "Retrieval 页面不应保留裸业务 fetch");
   assert.ok(!runs.includes("await fetch("), "Runs 页面不应保留裸业务 fetch");
 });

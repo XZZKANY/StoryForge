@@ -3,7 +3,13 @@ from __future__ import annotations
 import pytest
 
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
-from storyforge_workflow.runtime import InMemoryRuntimeCheckpointStore, ModelRunPayload, WorkflowRuntime
+from storyforge_workflow.runtime import (
+    InMemoryRuntimeCheckpointStore,
+    InMemoryWorkflowLifecycleStore,
+    InMemoryWorkflowSessionStore,
+    ModelRunPayload,
+    WorkflowRuntime,
+)
 from storyforge_workflow.runtime.checkpoints import ApiModelRunAdapter
 
 
@@ -35,8 +41,15 @@ def test_workflow_runtime_start_and_resume_records_provider_execution(monkeypatc
     _stub_node_llm(monkeypatch)
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
     checkpoint_store = InMemoryRuntimeCheckpointStore()
+    lifecycle_store = InMemoryWorkflowLifecycleStore()
+    session_store = InMemoryWorkflowSessionStore()
     sink = CapturingModelRunSink()
-    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
+    runtime = WorkflowRuntime(
+        checkpoint_store=checkpoint_store,
+        model_run_sink=sink,
+        lifecycle_store=lifecycle_store,
+        session_store=session_store,
+    )
 
     started = runtime.start(
         thread_id="phase4-runtime-thread",
@@ -86,6 +99,20 @@ def test_workflow_runtime_start_and_resume_records_provider_execution(monkeypatc
     records = checkpoint_store.list_records("phase4-runtime-thread")
     assert [record.current_node for record in records] == ["draft_writer", "human_approval"]
     assert records[-1].approval_status == "approved"
+    events = lifecycle_store.list_events("phase4-runtime-thread")
+    assert [event.status for event in events] == [
+        "queued",
+        "provider_running",
+        "graph_running",
+        "approval_waiting",
+        "resuming",
+        "completed",
+    ]
+    session = session_store.latest_for_thread("phase4-runtime-thread")
+    assert session is not None
+    assert session.status == "completed"
+    assert session.current_node == "human_approval"
+    assert session.prompt_history[-1].prompt_summary == str({"approved": True, "comment": "继续进入后续润色。"})
 
 
 def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,8 +123,15 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
 
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", fail_provider_execution)
     checkpoint_store = InMemoryRuntimeCheckpointStore()
+    lifecycle_store = InMemoryWorkflowLifecycleStore()
+    session_store = InMemoryWorkflowSessionStore()
     sink = CapturingModelRunSink(persisted_model_run_id=9002)
-    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
+    runtime = WorkflowRuntime(
+        checkpoint_store=checkpoint_store,
+        model_run_sink=sink,
+        lifecycle_store=lifecycle_store,
+        session_store=session_store,
+    )
 
     failed = runtime.start(
         thread_id="phase5-runtime-failure",
@@ -125,6 +159,15 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
     assert api_payload["token_usage"] == 0
     assert api_payload["payload"]["thread_id"] == "phase5-runtime-failure"
     assert api_payload["payload"]["runtime_job_run_id"] == "phase5-runtime-job"
+    failure_event = lifecycle_store.latest("phase5-runtime-failure")
+    assert failure_event is not None
+    assert failure_event.status == "recoverable_failed"
+    assert failure_event.failure_kind == "provider_timeout"
+    assert failure_event.current_node == "provider_execution"
+    assert failure_event.recoverable is True
+    session = session_store.latest_for_thread("phase5-runtime-failure")
+    assert session is not None
+    assert session.status == "recoverable_failed"
 
 
 
