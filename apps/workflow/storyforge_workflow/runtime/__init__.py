@@ -26,6 +26,7 @@ from storyforge_workflow.runtime.provider_adapter import (
 )
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text, generate_text
 from storyforge_workflow.runtime.runner import WorkflowRuntime, WorkflowRuntimeResult
+from storyforge_workflow.runtime.sentry_config import capture_workflow_exception, init_sentry as init_workflow_sentry
 from storyforge_workflow.runtime.session import (
     InMemoryWorkflowSessionStore,
     SessionCompaction,
@@ -61,6 +62,8 @@ __all__ = [
     "WorkflowRuntime",
     "WorkflowRuntimeResult",
     "WorkflowSession",
+    "capture_workflow_exception",
     "execute_provider_text",
     "generate_text",
+    "init_workflow_sentry",
 ]

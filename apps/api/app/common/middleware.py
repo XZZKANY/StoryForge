@@ -13,11 +13,21 @@ from starlette.responses import Response
 _REQUEST_ID_HEADER = "X-Request-Id"
 
 
+def _set_sentry_request_id(request_id: str) -> None:
+    try:
+        import sentry_sdk
+
+        sentry_sdk.set_tag("request_id", request_id)
+    except Exception:
+        pass
+
+
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = request.headers.get(_REQUEST_ID_HEADER) or uuid.uuid4().hex
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
+        _set_sentry_request_id(request_id)
 
         logger = structlog.get_logger("app.common.middleware")
         start = time.perf_counter()

@@ -17,6 +17,7 @@ from starlette.requests import Request
 from app.common.exceptions import DomainError
 from app.common.logging_config import configure_logging, get_logger
 from app.common.middleware import RequestLoggingMiddleware
+from app.common.sentry_config import init_sentry
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
@@ -63,6 +64,7 @@ def warn_default_credentials() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    init_sentry()
     configure_logging()
     warn_default_credentials()
     logger.info("storyforge_api_started")
