@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class WorkspaceCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=5000)
     seat_limit: int = Field(default=1, ge=1, le=1000)
 
 

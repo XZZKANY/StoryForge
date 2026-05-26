@@ -13,10 +13,10 @@ class JudgeIssueCreate(BaseModel):
 
     scene_id: int = Field(gt=0)
     scene_packet_id: int | None = Field(default=None, gt=0)
-    content: str = Field(min_length=1)
-    required_facts: list[str] = Field(default_factory=list)
-    style_rules: list[str] = Field(default_factory=list)
-    evidence_links: list[dict[str, Any]] = Field(default_factory=list)
+    content: str = Field(min_length=1, max_length=50000)
+    required_facts: list[str] = Field(default_factory=list, max_length=100)
+    style_rules: list[str] = Field(default_factory=list, max_length=100)
+    evidence_links: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
 
 
 class JudgeIssueRead(BaseModel):

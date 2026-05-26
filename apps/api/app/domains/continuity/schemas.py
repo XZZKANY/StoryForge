@@ -10,11 +10,11 @@ class ChapterApprovalCreate(BaseModel):
     """章节批准时回写下一章需要继承的连续性事实。"""
 
     chapter_id: int = Field(gt=0)
-    previous_chapter_summary: str = Field(min_length=1)
+    previous_chapter_summary: str = Field(min_length=1, max_length=50000)
     character_state_changes: dict[str, Any] = Field(default_factory=dict)
     foreshadowing_changes: dict[str, Any] = Field(default_factory=dict)
-    style_drift: str = Field(min_length=1)
-    next_chapter_constraints: list[str] = Field(default_factory=list)
+    style_drift: str = Field(min_length=1, max_length=5000)
+    next_chapter_constraints: list[str] = Field(default_factory=list, max_length=100)
 
 
 class ContinuityRecordRead(BaseModel):

@@ -13,13 +13,13 @@ ProposalOperation = Literal["create", "update", "delete", "annotate"]
 class MemoryAtom(BaseModel):
     """长效记忆中的单条结构化事实，带章节有效区间和来源证据。"""
 
-    memory_id: str = Field(min_length=1)
+    memory_id: str = Field(min_length=1, max_length=255)
     novel_id: int = Field(gt=0)
     entity_type: MemoryEntityType
-    entity_id: str = Field(min_length=1)
+    entity_id: str = Field(min_length=1, max_length=255)
     fact_type: MemoryFactType
-    value: str = Field(min_length=1)
-    source_ref: str = Field(min_length=1)
+    value: str = Field(min_length=1, max_length=50000)
+    source_ref: str = Field(min_length=1, max_length=1000)
     valid_from_chapter: int = Field(default=1, ge=1)
     valid_to_chapter: int | None = Field(default=None, ge=1)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
@@ -36,15 +36,15 @@ class MemoryAtom(BaseModel):
 class TimelineEvent(BaseModel):
     """时间线事件用于表达因果和章节顺序，避免长篇后期时间错乱。"""
 
-    event_id: str = Field(min_length=1)
+    event_id: str = Field(min_length=1, max_length=255)
     novel_id: int = Field(gt=0)
     chapter_id: int = Field(gt=0)
-    title: str = Field(min_length=1)
-    summary: str = Field(min_length=1)
-    participant_entity_ids: list[str] = Field(default_factory=list)
-    causality_before_ids: list[str] = Field(default_factory=list)
-    causality_after_ids: list[str] = Field(default_factory=list)
-    source_ref: str = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=500)
+    summary: str = Field(min_length=1, max_length=10000)
+    participant_entity_ids: list[str] = Field(default_factory=list, max_length=500)
+    causality_before_ids: list[str] = Field(default_factory=list, max_length=100)
+    causality_after_ids: list[str] = Field(default_factory=list, max_length=100)
+    source_ref: str = Field(min_length=1, max_length=1000)
     revision: int = Field(default=1, ge=1)
 
 
@@ -55,7 +55,7 @@ class Progression(BaseModel):
     novel_id: int = Field(gt=0)
     entity_id: str = Field(min_length=1)
     fact_type: MemoryFactType
-    atoms: list[MemoryAtom] = Field(min_length=1)
+    atoms: list[MemoryAtom] = Field(min_length=1, max_length=10000)
 
     @model_validator(mode="after")
     def require_same_entity(self) -> Progression:
@@ -89,7 +89,7 @@ class AgentProposal(BaseModel):
     target_revision: int = Field(ge=1)
     operation: ProposalOperation
     diff: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
-    evidence_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=100)
     severity: ConflictSeverity = "medium"
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
@@ -100,4 +100,4 @@ class ArbitrationDecision(BaseModel):
     proposal_id: str
     decision: Literal["auto_merge", "needs_human", "reject"]
     reason: str
-    blocked_by_conflict_ids: list[str] = Field(default_factory=list)
+    blocked_by_conflict_ids: list[str] = Field(default_factory=list, max_length=100)

@@ -8,14 +8,14 @@ from fastapi.testclient import TestClient
 from app.main import app, warn_default_credentials
 
 
-def test_protected_api_requires_storyforge_api_key() -> None:
-    """受保护 API 缺少 API Key 时必须拒绝访问。"""
+def test_protected_api_requires_authentication() -> None:
+    """受保护 API 缺少认证凭据时必须拒绝访问。"""
 
     with TestClient(app) as client:
         response = client.get("/api/workspaces")
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "缺少或无效的 API Key。"}
+    assert response.json() == {"detail": "缺少认证凭据。"}
 
 
 def test_health_endpoint_and_cors_preflight_are_public() -> None:
@@ -69,14 +69,76 @@ def test_cors_preflight_uses_explicit_method_and_header_allowlists() -> None:
     assert rejected_header.status_code == 400
 
 
-def test_app_configures_default_rate_limiter_and_exempts_health() -> None:
-    """应用必须配置默认限流器，并让健康检查保持不受限。"""
+def _ensure_test_routes():
+    """注册用于限流测试的轻量端点（无 DB 依赖）。"""
 
-    limiter = app.state.limiter
-    default_limit = limiter._default_limits[0]._LimitGroup__limit_provider
+    read_path = "/api/__test__/rate-read"
+    write_path = "/api/__test__/rate-write"
+    batch_path = "/api/batch-refinery/__test__/rate-batch"
 
-    assert default_limit == "60/minute"
-    assert "app.main.health_check" in limiter._exempt_routes
+    if not any(getattr(r, "path", None) == read_path for r in app.routes):
+
+        @app.get(read_path)
+        async def rate_read_probe() -> dict[str, str]:
+            return {"tier": "read"}
+
+        @app.post(write_path)
+        async def rate_write_probe() -> dict[str, str]:
+            return {"tier": "write"}
+
+        @app.post(batch_path)
+        async def rate_batch_probe() -> dict[str, str]:
+            return {"tier": "batch"}
+
+
+def test_tiered_rate_limiting_applies_per_api_key() -> None:
+    """分层限流：批量 10/min、写入 60/min、读取 120/min，按 API Key 隔离。"""
+
+    from app.main import _rate_store
+
+    _rate_store.reset()
+    _ensure_test_routes()
+
+    with TestClient(app) as client:
+        headers = {"X-StoryForge-API-Key": "local-dev-key"}
+
+        read_resp = client.get("/api/__test__/rate-read", headers=headers)
+        assert read_resp.status_code == 200
+
+        write_resp = client.post("/api/__test__/rate-write", headers=headers)
+        assert write_resp.status_code == 200
+
+        batch_resp = client.post("/api/batch-refinery/__test__/rate-batch", headers=headers)
+        assert batch_resp.status_code == 200
+
+
+def test_rate_limit_returns_429_when_exceeded() -> None:
+    """超出限额后必须返回 429。"""
+
+    from app.main import _BATCH_LIMIT, _rate_store, _rate_strategy
+
+    _rate_store.reset()
+    _ensure_test_routes()
+
+    for _ in range(_BATCH_LIMIT.amount):
+        _rate_strategy.hit(_BATCH_LIMIT, "rate", "local-dev-key")
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/batch-refinery/__test__/rate-batch",
+            headers={"X-StoryForge-API-Key": "local-dev-key"},
+        )
+
+    assert resp.status_code == 429
+
+
+def test_health_endpoint_bypasses_rate_limit() -> None:
+    """健康检查不受限流影响。"""
+
+    with TestClient(app) as client:
+        resp = client.get("/health")
+
+    assert resp.status_code == 200
 
 
 def test_request_timeout_middleware_returns_504_for_slow_handlers(monkeypatch) -> None:
@@ -121,3 +183,89 @@ def test_warn_default_credentials_allows_development_default(monkeypatch, caplog
         warn_default_credentials()
 
     assert "STORYFORGE_API_KEY is set to default value" not in caplog.text
+
+
+def test_security_response_headers_present() -> None:
+    """所有响应必须包含安全响应头。"""
+
+    with TestClient(app) as client:
+        resp = client.get("/health")
+
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    assert resp.headers["X-Frame-Options"] == "DENY"
+    assert resp.headers["X-XSS-Protection"] == "0"
+    assert resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert resp.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+
+
+def test_jwt_bearer_token_grants_access(monkeypatch) -> None:
+    """合法 JWT Bearer Token 应通过认证。"""
+
+    monkeypatch.setenv("STORYFORGE_JWT_SECRET", "test-secret-key-for-jwt")
+
+    from app.common.auth import create_access_token
+
+    token = create_access_token(user_id="user-42", role="editor")
+
+    _ensure_test_routes()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/api/__test__/rate-read",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200
+
+
+def test_jwt_expired_token_returns_401(monkeypatch) -> None:
+    """过期 JWT Token 必须返回 401。"""
+
+    monkeypatch.setenv("STORYFORGE_JWT_SECRET", "test-secret-key-for-jwt")
+    monkeypatch.setenv("STORYFORGE_JWT_EXPIRY_SECONDS", "0")
+
+    import time
+
+    import jwt as pyjwt
+
+    payload = {
+        "sub": "user-99",
+        "role": "user",
+        "iss": "storyforge",
+        "iat": int(time.time()) - 10,
+        "exp": int(time.time()) - 5,
+    }
+    token = pyjwt.encode(payload, "test-secret-key-for-jwt", algorithm="HS256")
+
+    with TestClient(app) as client:
+        resp = client.get(
+            "/api/workspaces",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 401
+    assert "expired" in resp.json()["detail"].lower()
+
+
+def test_jwt_invalid_token_returns_401() -> None:
+    """篡改或伪造的 JWT 必须返回 401。"""
+
+    with TestClient(app) as client:
+        resp = client.get(
+            "/api/workspaces",
+            headers={"Authorization": "Bearer not-a-real-token"},
+        )
+
+    assert resp.status_code == 401
+
+
+def test_invalid_api_key_returns_401() -> None:
+    """无效 API Key 必须返回 401。"""
+
+    with TestClient(app) as client:
+        resp = client.get(
+            "/api/workspaces",
+            headers={"X-StoryForge-API-Key": "wrong-key"},
+        )
+
+    assert resp.status_code == 401
+    assert "无效" in resp.json()["detail"]

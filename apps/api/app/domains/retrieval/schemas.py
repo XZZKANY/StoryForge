@@ -11,7 +11,7 @@ class RetrievalSourceCreate(BaseModel):
     series_id: int | None = Field(default=None, gt=0)
     source_type: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=1, max_length=255)
-    content_text: str = Field(min_length=1)
+    content_text: str = Field(min_length=1, max_length=1000000)
     payload: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -89,7 +89,7 @@ class RetrievalRefreshRunRead(BaseModel):
 
 
 class RetrievalSearchCreate(BaseModel):
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=5000)
     book_id: int | None = Field(default=None, gt=0)
     series_id: int | None = Field(default=None, gt=0)
     limit: int = Field(default=5, ge=1, le=20)

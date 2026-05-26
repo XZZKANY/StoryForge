@@ -21,11 +21,11 @@ ContextBlockPriority = Literal["required", "high", "medium", "low"]
 class ContextBlock(BaseModel):
     """可被注入模型上下文的最小上下文块。"""
 
-    block_id: str = Field(min_length=1)
+    block_id: str = Field(min_length=1, max_length=255)
     kind: ContextBlockKind
     title: str = Field(min_length=1, max_length=200)
-    content: str = Field(min_length=1)
-    source_ref: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=100000)
+    source_ref: str = Field(min_length=1, max_length=1000)
     token_count: int = Field(gt=0)
     priority: ContextBlockPriority = "medium"
     injection_position: InjectionPosition = "evidence"
@@ -45,7 +45,7 @@ class ContextCompileRequest(BaseModel):
     memory_revision: int = Field(default=1, ge=1)
     timeline_revision: int = Field(default=1, ge=1)
     score_threshold: float = Field(default=0.0, ge=0.0)
-    blocks: list[ContextBlock] = Field(min_length=1)
+    blocks: list[ContextBlock] = Field(min_length=1, max_length=1000)
 
     @model_validator(mode="after")
     def require_budget_for_required_blocks(self) -> ContextCompileRequest:
@@ -114,15 +114,15 @@ class CompiledContext(BaseModel):
 class WorkflowStateReference(BaseModel):
     """workflow 只能保存引用型状态，禁止把全文和全量记忆塞入 checkpoint。"""
 
-    job_id: str = Field(min_length=1)
+    job_id: str = Field(min_length=1, max_length=255)
     novel_id: int = Field(gt=0)
     chapter_id: int = Field(gt=0)
     scene_id: int = Field(gt=0)
-    compiled_context_id: str = Field(min_length=1)
+    compiled_context_id: str = Field(min_length=1, max_length=255)
     outline_revision: int = Field(ge=1)
     memory_revision: int = Field(ge=1)
     timeline_revision: int = Field(ge=1)
-    model_run_ids: list[str] = Field(default_factory=list)
-    artifact_ids: list[str] = Field(default_factory=list)
-    current_step: str = Field(min_length=1)
-    error_code: str | None = None
+    model_run_ids: list[str] = Field(default_factory=list, max_length=100)
+    artifact_ids: list[str] = Field(default_factory=list, max_length=100)
+    current_step: str = Field(min_length=1, max_length=255)
+    error_code: str | None = Field(default=None, max_length=100)
