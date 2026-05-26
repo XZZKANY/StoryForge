@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import inspect
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.books.models import Book
 from app.domains.story_memory.models import MemoryAtomRecord
-from app.domains.story_memory.schemas import MemoryAtom
-from app.domains.story_memory.schemas import AgentProposal, ArbitrationDecision
+from app.domains.story_memory.schemas import AgentProposal, ArbitrationDecision, MemoryAtom
 from app.domains.story_memory.service import (
     apply_arbitration_decision,
     create_memory_atom,
     get_active_memory_atoms,
     list_memory_atoms,
 )
-
-import pytest
 
 
 def test_memory_atom_record_table_uses_existing_integer_book_id(session: Session) -> None:

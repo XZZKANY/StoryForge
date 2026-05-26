@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
 from app.domains.events.models import EventLog
@@ -17,9 +12,6 @@ from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.provider_gateway.models import ProviderConfig
 from app.domains.workspaces.models import Workspace, WorkspaceMember
-from app.main import app
-
-import pytest
 
 
 @pytest.fixture()
@@ -67,4 +59,18 @@ def analytics_context(session_factory: sessionmaker[Session]) -> dict[str, int]:
 
 def test_workspace_analytics_dashboard_aggregates_phase3_signals(client: TestClient, analytics_context: dict[str, int]) -> None:
     response = client.get(f"/api/analytics/workspaces/{analytics_context['workspace_id']}/dashboard")
-    assert response.status_code == 404
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == analytics_context["workspace_id"]
+    assert payload["active_member_count"] == 2
+    assert payload["comment_count"] == 1
+    assert payload["pending_approval_count"] == 0
+    assert payload["approval_pass_rate"] == 1.0
+    assert payload["repair_acceptance_rate"] == 0.5
+    assert payload["job_success_rate"] == 0.5
+    assert payload["recent_event_count"] == 1
+    assert payload["active_provider_count"] == 1
+    assert payload["failure_categories"] == [
+        {"issue_type": "setting_conflict", "count": 1},
+        {"issue_type": "style_drift", "count": 1},
+    ]

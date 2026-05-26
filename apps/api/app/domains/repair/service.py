@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.repair.schemas import RepairPatchCreate
 

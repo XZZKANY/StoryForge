@@ -5,8 +5,23 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
-from app.domains.evaluations.schemas import EvaluationCaseCreate, EvaluationCaseRead, EvaluationFailedSampleRead, EvaluationRunCreate, EvaluationRunDetailRead, EvaluationRunRead
-from app.domains.evaluations.service import EvaluationError, EvaluationRunNotFoundError, create_evaluation_case, create_evaluation_run, get_evaluation_run_detail, list_evaluation_runs, list_failed_samples
+from app.domains.evaluations.schemas import (
+    EvaluationCaseCreate,
+    EvaluationCaseRead,
+    EvaluationFailedSampleRead,
+    EvaluationRunCreate,
+    EvaluationRunDetailRead,
+    EvaluationRunRead,
+)
+from app.domains.evaluations.service import (
+    EvaluationError,
+    EvaluationRunNotFoundError,
+    create_evaluation_case,
+    create_evaluation_run,
+    get_evaluation_run_detail,
+    list_evaluation_runs,
+    list_failed_samples,
+)
 
 router = APIRouter(prefix="/api/evaluations", tags=["评测系统"])
 

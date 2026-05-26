@@ -1,23 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.series.models import Series, SeriesMemory
-from app.main import app
-
-
-import pytest
 
 
 @pytest.fixture()
@@ -88,14 +79,22 @@ def test_quality_dashboard_aggregates_open_issues_repairs_jobs_and_series_memori
     """质量看板返回开放问题、修复采纳率、任务成功率和系列记忆覆盖。"""
 
     response = client.get("/api/quality/dashboard", params=quality_context)
-    assert response.status_code == 404
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["book_id"] == quality_context["book_id"]
+    assert payload["series_id"] == quality_context["series_id"]
+    assert payload["open_issue_count"] == 1
+    assert payload["repair_acceptance_rate"] == 0.5
+    assert payload["job_success_rate"] == 0.5
+    assert payload["series_memory_count"] == 2
 
 
 def test_quality_dashboard_requires_at_least_one_scope(client: TestClient) -> None:
     """质量看板必须限制在作品或系列范围内，避免无界聚合。"""
 
     response = client.get("/api/quality/dashboard")
-    assert response.status_code == 404
+    assert response.status_code == 400
+    assert "质量看板至少需要 book_id 或 series_id 之一。" in response.json()["detail"]
 
 
 def test_quality_dashboard_returns_not_found_for_unknown_book(client: TestClient) -> None:
@@ -103,4 +102,4 @@ def test_quality_dashboard_returns_not_found_for_unknown_book(client: TestClient
 
     response = client.get("/api/quality/dashboard", params={"book_id": 999})
     assert response.status_code == 404
-    assert response.json()["detail"] == "Not Found"
+    assert response.json()["detail"] == "作品不存在，无法读取质量看板。"

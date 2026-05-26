@@ -1,12 +1,9 @@
 export type RepairDiffViewerProps = {
-  originalText?: string;
-  revisedText?: string;
+  originalText: string;
+  revisedText: string;
 };
 
-export function RepairDiffViewer({
-  originalText = "补给船靠岸后，林岚立刻离开港口。",
-  revisedText = "补给船靠岸后，林岚先确认旧无线电线索，再离开港口。",
-}: RepairDiffViewerProps) {
+export function RepairDiffViewer({ originalText, revisedText }: RepairDiffViewerProps) {
   return (
     <section aria-labelledby="repair-diff-title">
       <h2 id="repair-diff-title">修订差异</h2>

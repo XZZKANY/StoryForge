@@ -1,5 +1,9 @@
-import { StudioPageContent } from "./page-content";
+import { StudioPageContent } from './page-content';
 
-export default async function StudioPage({ searchParams }: { readonly searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function StudioPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   return <StudioPageContent searchParams={searchParams} />;
 }

@@ -6,7 +6,14 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.schemas import ArtifactCreate, ArtifactDownloadRead, ArtifactRead
-from app.domains.artifacts.service import ArtifactError, ArtifactNotFoundError, create_artifact, get_artifact, list_artifacts, read_artifact_download
+from app.domains.artifacts.service import (
+    ArtifactError,
+    ArtifactNotFoundError,
+    create_artifact,
+    get_artifact,
+    list_artifacts,
+    read_artifact_download,
+)
 
 router = APIRouter(prefix="/api/artifacts", tags=["制品中心"])
 

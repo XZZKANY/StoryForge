@@ -4,8 +4,8 @@ from hashlib import sha1
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.domains.books.models import Book
 from app.domains.story_memory.models import MemoryAtomRecord
 from app.domains.story_memory.schemas import (

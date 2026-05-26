@@ -29,7 +29,7 @@ class RepairPatchRead(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_patch(cls, patch: RepairPatch) -> "RepairPatchRead":
+    def from_patch(cls, patch: RepairPatch) -> RepairPatchRead:
         """从数据库补丁模型展开面向 API 的修复契约。"""
 
         patch_payload: dict[str, Any] = patch.patch or {}

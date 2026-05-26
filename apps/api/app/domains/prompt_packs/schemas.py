@@ -15,7 +15,7 @@ class PromptPackCreate(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def require_scope(self) -> "PromptPackCreate":
+    def require_scope(self) -> PromptPackCreate:
         if self.workspace_id is None and self.book_id is None:
             raise ValueError("Prompt Pack 至少需要 workspace_id 或 book_id 之一。")
         return self
@@ -27,7 +27,7 @@ class PromptPackUpdate(BaseModel):
     payload: dict[str, Any] | None = None
 
     @model_validator(mode="after")
-    def require_changes(self) -> "PromptPackUpdate":
+    def require_changes(self) -> PromptPackUpdate:
         if not self.model_fields_set:
             raise ValueError("Prompt Pack 更新内容不能为空。")
         return self

@@ -1,4 +1,7 @@
+import os
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -10,32 +13,44 @@ from storyforge_workflow.nodes.director import create_book_strategy
 from storyforge_workflow.nodes.draft_writer import create_draft_excerpt
 from storyforge_workflow.nodes.scene_architect import create_chapter_plan, create_scene_beats
 from storyforge_workflow.persistence import InMemoryWorkflowStore, summarize_value
-from storyforge_workflow.state import GenerationState, checkpoint_reference_state
+from storyforge_workflow.state import GenerationState
 
 NodeFunction = Callable[[GenerationState], dict[str, Any]]
+DEFAULT_NODE_TIMEOUT_SECONDS = 120.0
+
+
+class WorkflowNodeTimeoutError(TimeoutError):
+    """workflow 节点执行超过配置阈值。"""
+
+    def __init__(self, *, node_name: str, timeout_seconds: float) -> None:
+        super().__init__(f"workflow 节点 {node_name} 执行超过 {timeout_seconds:g} 秒。")
+        self.node_name = node_name
+        self.timeout_seconds = timeout_seconds
 
 
 def create_generation_graph(
     *,
     store: InMemoryWorkflowStore | None = None,
     checkpointer: InMemorySaver | None = None,
+    node_timeout_seconds: float | None = None,
 ):
     """创建可中断、可恢复的生成工作流图。"""
 
     if checkpointer is None:
         raise ValueError("create_generation_graph 需要显式传入持久化 checkpointer；测试可传入 InMemorySaver。")
     workflow_store = store or InMemoryWorkflowStore()
+    resolved_node_timeout_seconds = _resolve_node_timeout_seconds(node_timeout_seconds)
     builder = StateGraph(GenerationState)
-    builder.add_node("book_director", _audited_node("book_director", create_book_strategy, workflow_store))
+    builder.add_node("book_director", _audited_node("book_director", create_book_strategy, workflow_store, resolved_node_timeout_seconds))
     builder.add_node(
         "chapter_planner",
-        _audited_node("scene_architect.chapter_plan", create_chapter_plan, workflow_store),
+        _audited_node("scene_architect.chapter_plan", create_chapter_plan, workflow_store, resolved_node_timeout_seconds),
     )
     builder.add_node(
         "scene_beats",
-        _audited_node("scene_architect.scene_beats", create_scene_beats, workflow_store),
+        _audited_node("scene_architect.scene_beats", create_scene_beats, workflow_store, resolved_node_timeout_seconds),
     )
-    builder.add_node("draft_writer", _audited_node("draft_writer", create_draft_excerpt, workflow_store))
+    builder.add_node("draft_writer", _audited_node("draft_writer", create_draft_excerpt, workflow_store, resolved_node_timeout_seconds))
     builder.add_node("human_approval", _approval_node(workflow_store))
 
     builder.add_edge(START, "book_director")
@@ -47,9 +62,9 @@ def create_generation_graph(
     return builder.compile(checkpointer=checkpointer)
 
 
-def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowStore):
+def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowStore, timeout_seconds: float):
     def run(state: GenerationState, config: RunnableConfig | None = None) -> dict[str, Any]:
-        output = node(state)
+        output = _run_node_with_timeout(node_name, node, state, timeout_seconds)
         store.record(
             thread_id=_thread_id(state, config),
             job_run_id=state["job_run_id"],
@@ -118,3 +133,29 @@ def _approval_status(decision: Any) -> str:
     if decision in ("approved", "通过", True):
         return "approved"
     return "rejected"
+
+
+def _run_node_with_timeout(node_name: str, node: NodeFunction, state: GenerationState, timeout_seconds: float) -> dict[str, Any]:
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"storyforge-{node_name}")
+    future = executor.submit(node, state)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise WorkflowNodeTimeoutError(node_name=node_name, timeout_seconds=timeout_seconds) from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _resolve_node_timeout_seconds(value: float | None) -> float:
+    if value is not None and value > 0:
+        return value
+    configured = os.getenv("STORYFORGE_WORKFLOW_NODE_TIMEOUT_SECONDS")
+    if configured:
+        try:
+            parsed = float(configured)
+        except ValueError:
+            return DEFAULT_NODE_TIMEOUT_SECONDS
+        if parsed > 0:
+            return parsed
+    return DEFAULT_NODE_TIMEOUT_SECONDS

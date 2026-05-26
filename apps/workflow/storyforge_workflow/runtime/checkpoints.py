@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import sqlite3
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
 
 from storyforge_workflow.state import checkpoint_reference_state
@@ -20,6 +20,18 @@ class RuntimeRecord:
     summary: str
     approval_status: str
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class RuntimeStateSnapshot:
+    """SQLite 中保存的单次 workflow 状态快照。"""
+
+    thread_id: str
+    job_run_id: str
+    current_node: str
+    approval_status: str
+    state: dict[str, Any]
+    updated_at: datetime
 
 
 @dataclass(frozen=True)
@@ -118,7 +130,7 @@ class InMemoryRuntimeCheckpointStore:
             current_node=current_node,
             summary=summary,
             approval_status=approval_status,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._records.append(record)
         return record
@@ -151,13 +163,27 @@ class InMemoryRuntimeCheckpointStore:
             output_summary=output_summary,
             status=status,
             error_message=error_message,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._model_runs.append(model_run)
         return model_run
 
     def save_state(self, thread_id: str, state: dict[str, Any]) -> None:
-        self._state[thread_id] = checkpoint_reference_state(state)
+        reference_state = checkpoint_reference_state(state)
+        self._state[thread_id] = reference_state
+
+    def list_state_snapshots(self, thread_id: str) -> list[RuntimeStateSnapshot]:
+        stored = self._state.get(thread_id)
+        if stored is None:
+            return []
+        return [_snapshot_from_state(stored)]
+
+    def list_incomplete_workflows(self) -> list[RuntimeStateSnapshot]:
+        return [
+            _snapshot_from_state(state)
+            for state in self._state.values()
+            if state.get("approval_status", "pending") != "approved"
+        ]
 
     def load_state(self, thread_id: str) -> dict[str, Any] | None:
         stored = self._state.get(thread_id)
@@ -191,7 +217,7 @@ class RuntimeCheckpointStore:
             current_node=current_node,
             summary=summary,
             approval_status=approval_status,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         with self._connect() as connection:
             connection.execute(
@@ -225,7 +251,7 @@ class RuntimeCheckpointStore:
         status: str = "completed",
         error_message: str | None = None,
     ) -> RuntimeModelRunRecord:
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
         with self._connect() as connection:
             cursor = connection.execute(
                 """
@@ -269,6 +295,8 @@ class RuntimeCheckpointStore:
 
     def save_state(self, thread_id: str, state: dict[str, Any]) -> None:
         reference_state = checkpoint_reference_state(state)
+        state_json = json.dumps(reference_state, ensure_ascii=False, sort_keys=True, default=str)
+        updated_at = _format_datetime(datetime.now(UTC))
         with self._connect() as connection:
             connection.execute(
                 """
@@ -278,8 +306,24 @@ class RuntimeCheckpointStore:
                 """,
                 (
                     thread_id,
-                    json.dumps(reference_state, ensure_ascii=False, sort_keys=True, default=str),
-                    _format_datetime(datetime.now(timezone.utc)),
+                    state_json,
+                    updated_at,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO runtime_state_snapshots (
+                    thread_id, job_run_id, current_node, approval_status, state_json, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    thread_id,
+                    str(reference_state.get("job_run_id", "")),
+                    str(reference_state.get("current_node", "unknown")),
+                    str(reference_state.get("approval_status", "pending")),
+                    state_json,
+                    updated_at,
                 ),
             )
 
@@ -332,6 +376,35 @@ class RuntimeCheckpointStore:
             ).fetchall()
         return [_model_run_from_row(row) for row in rows]
 
+    def list_state_snapshots(self, thread_id: str) -> list[RuntimeStateSnapshot]:
+        """按写入顺序返回指定线程的状态快照历史。"""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT thread_id, job_run_id, current_node, approval_status, state_json, updated_at
+                FROM runtime_state_snapshots
+                WHERE thread_id = ?
+                ORDER BY id
+                """,
+                (thread_id,),
+            ).fetchall()
+        return [_state_snapshot_from_row(row) for row in rows]
+
+    def list_incomplete_workflows(self) -> list[RuntimeStateSnapshot]:
+        """返回启动时可恢复的未完成 workflow 最新 checkpoint。"""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT thread_id, state_json, updated_at
+                FROM runtime_states
+                ORDER BY updated_at, thread_id
+                """
+            ).fetchall()
+        snapshots = [_snapshot_from_latest_state_row(row) for row in rows]
+        return [snapshot for snapshot in snapshots if snapshot.approval_status != "approved"]
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.sqlite_path)
         connection.row_factory = sqlite3.Row
@@ -372,6 +445,16 @@ class RuntimeCheckpointStore:
                     state_json TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS runtime_state_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thread_id TEXT NOT NULL,
+                    job_run_id TEXT NOT NULL,
+                    current_node TEXT NOT NULL,
+                    approval_status TEXT NOT NULL,
+                    state_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_state_snapshots_thread_id ON runtime_state_snapshots(thread_id, id);
                 """
             )
 
@@ -384,12 +467,12 @@ def _default_sqlite_path() -> Path:
 
 
 def _format_datetime(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 def _parse_datetime(value: str) -> datetime:
     parsed = datetime.fromisoformat(value)
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def _record_from_row(row: sqlite3.Row) -> RuntimeRecord:
@@ -418,4 +501,32 @@ def _model_run_from_row(row: sqlite3.Row) -> RuntimeModelRunRecord:
         status=str(row["status"]),
         error_message=None if row["error_message"] is None else str(row["error_message"]),
         created_at=_parse_datetime(str(row["created_at"])),
+    )
+
+
+def _state_snapshot_from_row(row: sqlite3.Row) -> RuntimeStateSnapshot:
+    state = json.loads(str(row["state_json"]))
+    return RuntimeStateSnapshot(
+        thread_id=str(row["thread_id"]),
+        job_run_id=str(row["job_run_id"]),
+        current_node=str(row["current_node"]),
+        approval_status=str(row["approval_status"]),
+        state=dict(state),
+        updated_at=_parse_datetime(str(row["updated_at"])),
+    )
+
+
+def _snapshot_from_latest_state_row(row: sqlite3.Row) -> RuntimeStateSnapshot:
+    state = json.loads(str(row["state_json"]))
+    return _snapshot_from_state(dict(state), updated_at=_parse_datetime(str(row["updated_at"])))
+
+
+def _snapshot_from_state(state: dict[str, Any], *, updated_at: datetime | None = None) -> RuntimeStateSnapshot:
+    return RuntimeStateSnapshot(
+        thread_id=str(state.get("thread_id", "")),
+        job_run_id=str(state.get("job_run_id", "")),
+        current_node=str(state.get("current_node", "unknown")),
+        approval_status=str(state.get("approval_status", "pending")),
+        state=dict(state),
+        updated_at=updated_at or datetime.now(UTC),
     )

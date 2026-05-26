@@ -13,7 +13,6 @@ from storyforge_workflow.tools.registry import (
     list_creative_tools,
 )
 
-
 REQUIRED_DOMAINS = {
     "retrieval",
     "scene_packets",

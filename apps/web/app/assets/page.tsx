@@ -1,7 +1,7 @@
 const assets = [
-  { name: "章节计划", type: "文档", version: "v3", summary: "记录主线节奏和章节目标。" },
-  { name: "林岚", type: "人物", version: "v2", summary: "维护角色动机、关系和口吻。" },
-  { name: "灯塔港", type: "地点", version: "v1", summary: "沉淀场景地理、氛围和证据。" },
+  { name: '章节计划', type: '文档', version: 'v3', summary: '记录主线节奏和章节目标。' },
+  { name: '林岚', type: '人物', version: 'v2', summary: '维护角色动机、关系和口吻。' },
+  { name: '灯塔港', type: '地点', version: 'v1', summary: '沉淀场景地理、氛围和证据。' },
 ];
 
 export default function AssetsPage() {

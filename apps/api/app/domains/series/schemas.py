@@ -66,7 +66,7 @@ class SeriesMemoryUpdate(BaseModel):
     evidence: list[SeriesMemoryEvidenceCreate] | None = None
 
     @model_validator(mode="after")
-    def reject_empty_update(self) -> "SeriesMemoryUpdate":
+    def reject_empty_update(self) -> SeriesMemoryUpdate:
         """空更新无法形成有意义的系列记忆版本。"""
 
         if not self.model_fields_set:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
+from app.db.session import SessionLocal
 from app.domains.batch_refinery.schemas import BatchRefineryItemCreate, BatchRefineryRunCreate
 from app.domains.books.models import Book, Scene
 from app.domains.jobs.models import JobRun
@@ -17,14 +18,33 @@ class BatchRefineryInputError(InputError):
     """批量精修请求缺少作品或任务记录时抛出。"""
 
 
-def run_batch_refinery(session: Session, payload: BatchRefineryRunCreate) -> JobRun:
-    """同步执行一批确定性评审与修复，并把逐项结果写入 JobRun。"""
+def create_batch_refinery_job(session: Session, payload: BatchRefineryRunCreate) -> JobRun:
+    """创建排队中的批量精修任务，供接口立即返回和后台执行复用。"""
 
     if session.get(Book, payload.book_id) is None:
         raise BatchRefineryInputError("作品不存在，无法执行批量精修。")
-    job = JobRun(book_id=payload.book_id, job_type="batch_refinery", status="running", progress={})
+    job = JobRun(book_id=payload.book_id, job_type="batch_refinery", status="queued", progress={})
     session.add(job)
-    session.flush()
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def run_batch_refinery(session: Session, payload: BatchRefineryRunCreate, *, job_id: int | None = None) -> JobRun:
+    """执行一批确定性评审与修复，并把逐项结果写入 JobRun。"""
+
+    if session.get(Book, payload.book_id) is None:
+        raise BatchRefineryInputError("作品不存在，无法执行批量精修。")
+    if job_id is None:
+        job = JobRun(book_id=payload.book_id, job_type="batch_refinery", status="running", progress={})
+        session.add(job)
+        session.flush()
+    else:
+        job = session.get(JobRun, job_id)
+        if job is None or job.job_type != "batch_refinery":
+            raise BatchRefineryInputError("批量精修任务不存在。")
+        job.status = "running"
+        job.progress = {}
 
     items: list[dict] = []
     succeeded = 0
@@ -59,6 +79,16 @@ def run_batch_refinery(session: Session, payload: BatchRefineryRunCreate) -> Job
     session.commit()
     session.refresh(job)
     return job
+
+
+def run_batch_refinery_in_background(payload: BatchRefineryRunCreate, job_id: int) -> None:
+    """后台任务使用独立数据库会话，避免复用已结束的请求会话。"""
+
+    session = SessionLocal()
+    try:
+        run_batch_refinery(session, payload, job_id=job_id)
+    finally:
+        session.close()
 
 
 def get_batch_refinery_run(session: Session, job_id: int) -> JobRun:

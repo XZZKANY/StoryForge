@@ -4,8 +4,8 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import NotFoundError
 
+from app.common.exceptions import NotFoundError
 from app.domains.assets.models import Asset
 from app.domains.continuity.models import ContinuityRecord
 from app.domains.series.models import Series, SeriesMemory

@@ -5,8 +5,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.db.queries import latest_by_lineage
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate, ArtifactDownloadRead

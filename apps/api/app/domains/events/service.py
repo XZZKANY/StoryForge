@@ -4,8 +4,8 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import NotFoundError
 
+from app.common.exceptions import NotFoundError
 from app.domains.events.models import EventLog
 from app.domains.events.schemas import EventRecordCreate
 from app.domains.workspaces.models import Workspace

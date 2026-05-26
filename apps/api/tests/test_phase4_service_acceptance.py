@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 from io import BytesIO
 from zipfile import ZipFile
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact, list_artifacts
 from app.domains.assets.models import Asset

@@ -5,8 +5,8 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.domains.books.models import Book, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.model_runs.models import ModelRun

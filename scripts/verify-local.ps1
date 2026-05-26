@@ -3,14 +3,28 @@ $ErrorActionPreference = "Continue"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Failed = $false
 
+function Get-LogTimestamp {
+    return (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "[$(Get-LogTimestamp)] [INFO] $Message" -ForegroundColor Cyan
+}
+
+function Write-Warn {
+    param([string]$Message)
+    Write-Host "[$(Get-LogTimestamp)] [WARN] $Message" -ForegroundColor Yellow
+}
+
 function Write-Ok {
     param([string]$Message)
-    Write-Host "[通过] $Message" -ForegroundColor Green
+    Write-Host "[$(Get-LogTimestamp)] [OK] [通过] $Message" -ForegroundColor Green
 }
 
 function Write-Fail {
     param([string]$Message)
-    Write-Host "[失败] $Message" -ForegroundColor Red
+    Write-Host "[$(Get-LogTimestamp)] [ERROR] [失败] $Message" -ForegroundColor Red
     $script:Failed = $true
 }
 
@@ -60,7 +74,7 @@ function Test-PythonRuntime {
                 return
             }
 
-            Write-Host "[跳过] $DisplayName -> Python $VersionText，低于项目要求的 Python 3.11。" -ForegroundColor Yellow
+            Write-Warn "$DisplayName -> Python $VersionText，低于项目要求的 Python 3.11。"
         }
     }
 
@@ -172,7 +186,7 @@ function Test-DockerContainerRunning {
     }
 }
 
-Write-Host "开始执行 StoryForge 本地验证。" -ForegroundColor Cyan
+Write-Info "开始执行 StoryForge 本地验证。"
 
 Test-CommandAvailable -CommandName "node" -DisplayName "Node.js"
 Test-CommandAvailable -CommandName "pnpm" -DisplayName "pnpm"
@@ -197,9 +211,9 @@ Test-DockerContainerRunning -ContainerName "storyforge-redis" -DisplayName "Redi
 Test-DockerContainerRunning -ContainerName "storyforge-minio" -DisplayName "MinIO"
 
 if ($Failed) {
-    Write-Host "StoryForge 本地验证失败，请先修复以上问题。" -ForegroundColor Red
+    Write-Fail "StoryForge 本地验证失败，请先修复以上问题。"
     exit 1
 }
 
-Write-Host "StoryForge 本地验证通过。" -ForegroundColor Green
+Write-Ok "StoryForge 本地验证通过。"
 exit 0

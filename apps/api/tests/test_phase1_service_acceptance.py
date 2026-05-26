@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 from io import BytesIO
 from zipfile import ZipFile
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.assets.schemas import AssetCreate
 from app.domains.assets.service import create_asset
 from app.domains.books.lineage_service import ChapterWritebackApproval, approve_chapter_writeback
@@ -23,8 +19,6 @@ from app.domains.repair.schemas import RepairPatchCreate
 from app.domains.repair.service import create_repair_patch
 from app.domains.scene_packets.schemas import ScenePacketCreate
 from app.domains.scene_packets.service import assemble_scene_packet
-
-import pytest
 
 
 def test_phase1_service_closed_loop_auto_inherits_to_next_chapter(session: Session) -> None:

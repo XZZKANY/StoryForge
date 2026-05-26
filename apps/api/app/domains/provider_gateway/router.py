@@ -6,7 +6,12 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.provider_gateway.schemas import ProviderConfigCreate, ProviderConfigRead, ProviderResolutionRead
-from app.domains.provider_gateway.service import ProviderGatewayError, create_provider_config, list_provider_configs, resolve_provider
+from app.domains.provider_gateway.service import (
+    ProviderGatewayError,
+    create_provider_config,
+    list_provider_configs,
+    resolve_provider,
+)
 
 router = APIRouter(prefix="/api/provider-gateway", tags=["模型接入层"])
 

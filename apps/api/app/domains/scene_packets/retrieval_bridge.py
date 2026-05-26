@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domains.assets.models import Asset
@@ -234,15 +233,3 @@ def continuity_context_blocks(records: list[ContinuityRecord]) -> list[ContextBl
             )
         )
     return blocks
-
-
-def continuity_constraints(records: list[ContinuityRecord]) -> list[object]:
-    """读取下一章硬约束。"""
-
-    values: list[object] = []
-    for raw_value in [record.payload.get("value") for record in records if record.record_type == "next_chapter_constraints"]:
-        if isinstance(raw_value, list):
-            values.extend(raw_value)
-        elif raw_value is not None:
-            values.append(raw_value)
-    return values

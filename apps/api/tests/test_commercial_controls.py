@@ -1,21 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.workspaces.models import Workspace, WorkspaceMember
-from app.main import app
-
-import pytest
 
 
 @pytest.fixture()
@@ -56,4 +48,15 @@ def test_commercial_policy_summary_reports_limit_usage(client: TestClient, comme
             "monthly_price": 99,
         },
     )
-    assert policy_response.status_code == 404
+    assert policy_response.status_code == 201
+    policy = policy_response.json()
+    assert policy["workspace_id"] == commercial_context["workspace_id"]
+    assert policy["seat_limit"] == 1
+
+    summary_response = client.get(f"/api/commercial/workspaces/{commercial_context['workspace_id']}/summary")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["active_member_count"] == 2
+    assert summary["current_job_count"] == 2
+    assert summary["current_token_estimate"] == 200
+    assert summary["within_limits"] is False

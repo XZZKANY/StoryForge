@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ class InMemoryWorkflowStore:
             input_summary=input_summary,
             output_summary=output_summary,
             approval_status=approval_status,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._records.append(checkpoint)
         return checkpoint

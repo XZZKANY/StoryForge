@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from hashlib import sha1
 
-from storyforge_workflow.state import GenerationState, advance_status
 from storyforge_workflow.provider_client import generate_text
+from storyforge_workflow.state import GenerationState, advance_status
 
 
 def create_draft_excerpt(state: GenerationState) -> dict:

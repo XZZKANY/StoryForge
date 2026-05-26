@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 ContextBlockKind = Literal[
     "scene_goal",
     "immutable_fact",
@@ -49,7 +48,7 @@ class ContextCompileRequest(BaseModel):
     blocks: list[ContextBlock] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def require_budget_for_required_blocks(self) -> "ContextCompileRequest":
+    def require_budget_for_required_blocks(self) -> ContextCompileRequest:
         required_tokens = sum(block.token_count for block in self.blocks if block.priority == "required")
         if required_tokens > self.token_budget:
             raise ValueError("必保留上下文已经超过总预算，请先拆分场景或提高预算。")

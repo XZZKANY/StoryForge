@@ -1,22 +1,24 @@
 from __future__ import annotations
 
-from collections.abc import Generator, Sequence
+import inspect
+from collections.abc import Sequence
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+import pytest
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.books.models import Book
 from app.domains.retrieval.embedding_client import EmbeddingResult
 from app.domains.retrieval.models import RetrievalChunk
 from app.domains.retrieval.reranker_client import RerankItem, RerankResult
-from app.domains.retrieval.schemas import RetrievalHitRead, RetrievalRefreshRunCreate, RetrievalSearchCreate, RetrievalSourceCreate
+from app.domains.retrieval.schemas import (
+    RetrievalHitRead,
+    RetrievalRefreshRunCreate,
+    RetrievalSearchCreate,
+    RetrievalSourceCreate,
+)
 from app.domains.retrieval.service import create_retrieval_refresh_run, create_retrieval_source
-
-import inspect
-import pytest
 
 
 class StaticEmbeddingClient:

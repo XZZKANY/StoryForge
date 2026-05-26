@@ -23,7 +23,7 @@ class StylePackUpdate(BaseModel):
     payload: dict[str, Any] | None = None
 
     @model_validator(mode="after")
-    def reject_empty_update(self) -> "StylePackUpdate":
+    def reject_empty_update(self) -> StylePackUpdate:
         if not self.model_fields_set:
             raise ValueError("风格包更新内容不能为空。")
         return self

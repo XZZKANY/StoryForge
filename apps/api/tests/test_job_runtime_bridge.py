@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.books.models import Book
 from app.domains.jobs.models import JobRun
 from app.domains.jobs.service import sync_job_run_with_runtime
-
-import pytest
 
 
 def test_sync_job_run_with_runtime_updates_progress(session: Session) -> None:

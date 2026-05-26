@@ -4,8 +4,8 @@ from collections import Counter
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from app.common.exceptions import NotFoundError
 
+from app.common.exceptions import NotFoundError
 from app.common.math import safe_ratio
 from app.domains.analytics.schemas import AnalyticsFailureCategoryRead, WorkspaceAnalyticsRead
 from app.domains.books.models import Book, Chapter, Scene

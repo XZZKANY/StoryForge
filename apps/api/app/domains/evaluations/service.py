@@ -4,11 +4,17 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.common.scope import ScopeNotFoundError, validate_scope
 from app.domains.evaluations.models import EvaluationCase, EvaluationRun
-from app.domains.evaluations.schemas import EvaluationCaseCreate, EvaluationFailedSampleRead, EvaluationRunCreate, EvaluationRunDetailRead, EvaluationRunRead
+from app.domains.evaluations.schemas import (
+    EvaluationCaseCreate,
+    EvaluationFailedSampleRead,
+    EvaluationRunCreate,
+    EvaluationRunDetailRead,
+    EvaluationRunRead,
+)
 
 
 class EvaluationError(InputError):

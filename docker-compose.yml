@@ -12,8 +12,8 @@ services:
       - storyforge-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U storyforge -d storyforge"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
 
   redis:
@@ -25,8 +25,8 @@ services:
       - storyforge-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
 
   minio:
@@ -41,6 +41,11 @@ services:
       - "9001:9001"
     volumes:
       - storyforge-minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   storyforge-postgres-data:

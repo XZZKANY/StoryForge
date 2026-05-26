@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import event
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book
 from app.domains.retrieval.models import RetrievalRefreshRun
 from app.domains.retrieval.schemas import RetrievalRefreshRunCreate, RetrievalSourceCreate
@@ -19,7 +13,6 @@ from app.domains.retrieval.service import (
     create_retrieval_source,
     list_retrieval_workbench_sources,
 )
-from app.main import app
 
 
 def test_list_retrieval_workbench_sources_returns_source_summary(
@@ -197,7 +190,7 @@ def test_list_retrieval_workbench_sources_batches_latest_refresh_runs(engine, se
 
     assert [summary.id for summary in summaries] == [source.id for source in sources]
     assert [summary.refresh_status for summary in summaries] == ["not_refreshed", "completed", "not_refreshed"]
-    assert select_count <= 3
+    assert select_count == 1
 
 
 

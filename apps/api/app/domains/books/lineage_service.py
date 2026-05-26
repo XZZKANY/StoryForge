@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import NotFoundError
 
+from app.common.exceptions import NotFoundError
 from app.db.queries import latest_by_lineage
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Book, Chapter, Scene

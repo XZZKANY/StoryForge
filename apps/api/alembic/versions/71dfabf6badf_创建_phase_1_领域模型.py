@@ -1,7 +1,7 @@
 """创建 Phase 1 领域模型
 
 Revision ID: 71dfabf6badf
-Revises: 
+Revises:
 Create Date: 2026-05-12 19:22:09.513826
 """
 
@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 revision: str = '71dfabf6badf'
 down_revision: str | None = None

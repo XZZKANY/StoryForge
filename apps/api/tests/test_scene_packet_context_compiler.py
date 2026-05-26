@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.assets.models import Asset
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.retrieval.schemas import RetrievalSourceCreate
@@ -15,8 +10,6 @@ from app.domains.retrieval.service import create_retrieval_source
 from app.domains.scene_packets.schemas import ScenePacketCreate
 from app.domains.scene_packets.service import assemble_scene_packet
 from app.domains.series.models import Series
-
-import pytest
 
 
 def test_scene_packet_records_compiled_context_debug_fields(session: Session) -> None:

@@ -10,7 +10,7 @@ class QualityDashboardQuery(BaseModel):
     series_id: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
-    def require_scope(self) -> "QualityDashboardQuery":
+    def require_scope(self) -> QualityDashboardQuery:
         if self.book_id is None and self.series_id is None:
             raise ValueError("质量看板至少需要 book_id 或 series_id 之一。")
         return self

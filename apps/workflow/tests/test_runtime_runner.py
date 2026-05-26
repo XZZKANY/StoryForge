@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from time import sleep
+
 import pytest
 
-from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
 from storyforge_workflow.runtime import (
     InMemoryRuntimeCheckpointStore,
     InMemoryWorkflowLifecycleStore,
     InMemoryWorkflowSessionStore,
     ModelRunPayload,
+    RuntimeCheckpointStore,
     WorkflowRuntime,
 )
 from storyforge_workflow.runtime.checkpoints import ApiModelRunAdapter
+from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
 
 
 class CapturingModelRunSink:
@@ -115,6 +118,53 @@ def test_workflow_runtime_start_and_resume_records_provider_execution(monkeypatc
     assert session.prompt_history[-1].prompt_summary == str({"approved": True, "comment": "继续进入后续润色。"})
 
 
+def test_workflow_runtime_flushes_sqlite_snapshot_after_each_graph_node(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """运行器应在每个图节点完成后把当前引用状态刷新到 SQLite。"""
+
+    def provider_execution(**kwargs: object) -> ProviderExecutionResult:
+        return ProviderExecutionResult(
+            capability=str(kwargs["capability"]),
+            provider_name="openai-compatible",
+            model_name="storyforge-writer",
+            latency_ms=20,
+            token_usage=30,
+            summary=f"真实模型摘要：{kwargs['prompt_summary']}",
+        )
+
+    _stub_node_llm(monkeypatch)
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
+    sqlite_path = tmp_path / "runtime-snapshots.sqlite3"
+    checkpoint_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store)
+
+    runtime.start(
+        thread_id="phase-f1-snapshot-thread",
+        job_run_id="phase-f1-snapshot-job",
+        premise="远航舰队寻找新家园。",
+        user_intent="验证节点级快照。",
+        scene_packet={
+            "chapter_title": "暗潮",
+            "chapter_goal": "舰队抵达灯塔港并争取维修窗口。",
+            "scene_goal": "林岚在港口谈判中争取维修窗口。",
+            "protagonist": "林岚",
+            "required_facts": ["左臂受伤", "灯塔信号每七分钟重复"],
+        },
+    )
+
+    reopened_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    snapshots = reopened_store.list_state_snapshots("phase-f1-snapshot-thread")
+    snapshot_nodes = [snapshot.current_node for snapshot in snapshots]
+
+    assert snapshot_nodes[:4] == [
+        "book_director",
+        "scene_architect.chapter_plan",
+        "scene_architect.scene_beats",
+        "draft_writer",
+    ]
+    assert snapshots[-1].state["current_node"] == "draft_writer"
+    assert "draft_excerpt" not in snapshots[-1].state
+
+
 def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     """provider 调用失败时，运行器应保留可恢复 checkpoint 和错误状态。"""
 
@@ -166,6 +216,72 @@ def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monke
     assert failure_event.current_node == "provider_execution"
     assert failure_event.recoverable is True
     session = session_store.latest_for_thread("phase5-runtime-failure")
+    assert session is not None
+    assert session.status == "recoverable_failed"
+
+
+def test_workflow_runtime_marks_timed_out_node_as_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """节点执行超过配置阈值时，运行器应记录可恢复失败 checkpoint。"""
+
+    def provider_execution(**kwargs: object) -> ProviderExecutionResult:
+        return ProviderExecutionResult(
+            capability=str(kwargs["capability"]),
+            provider_name="openai-compatible",
+            model_name="storyforge-writer",
+            latency_ms=20,
+            token_usage=30,
+            summary=f"真实模型摘要：{kwargs['prompt_summary']}",
+        )
+
+    quick_responses = iter(
+        [
+            "灯塔远航\n舰队如何找到新家园\n克制\n兑现迁徙史诗",
+            "暗潮\n林岚争取维修窗口\n谈判压力与伤势互相挤压",
+            "林岚压住左臂旧伤进入谈判。\n灯塔信号每七分钟重复一次。\n港口代表提出代价。",
+        ]
+    )
+
+    def slow_draft_response(prompt: str) -> str:
+        sleep(0.05)
+        return "这段草稿不应在超时后继续推进。"
+
+    monkeypatch.setenv("STORYFORGE_WORKFLOW_NODE_TIMEOUT_SECONDS", "0.001")
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt: next(quick_responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt: next(quick_responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", slow_draft_response)
+    checkpoint_store = InMemoryRuntimeCheckpointStore()
+    lifecycle_store = InMemoryWorkflowLifecycleStore()
+    session_store = InMemoryWorkflowSessionStore()
+    runtime = WorkflowRuntime(
+        checkpoint_store=checkpoint_store,
+        lifecycle_store=lifecycle_store,
+        session_store=session_store,
+    )
+
+    failed = runtime.start(
+        thread_id="phase-f2-timeout-thread",
+        job_run_id="phase-f2-timeout-job",
+        premise="远航舰队寻找新家园。",
+        user_intent="验证节点超时。",
+        scene_packet={"scene_goal": "林岚争取维修窗口。"},
+    )
+
+    checkpoint_state = checkpoint_store.load_state("phase-f2-timeout-thread")
+    latest_record = checkpoint_store.latest("phase-f2-timeout-thread")
+    failure_event = lifecycle_store.latest("phase-f2-timeout-thread")
+    session = session_store.latest_for_thread("phase-f2-timeout-thread")
+
+    assert failed.status == "failed"
+    assert failed.current_node == "draft_writer"
+    assert checkpoint_state is not None
+    assert checkpoint_state["current_node"] == "draft_writer"
+    assert checkpoint_state["error_code"] == "node_timeout"
+    assert latest_record is not None
+    assert latest_record.approval_status == "failed"
+    assert failure_event is not None
+    assert failure_event.failure_kind == "node_timeout"
+    assert failure_event.recoverable is True
     assert session is not None
     assert session.status == "recoverable_failed"
 

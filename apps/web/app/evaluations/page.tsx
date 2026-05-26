@@ -1,4 +1,4 @@
-import { readJson } from "../../lib/api-client";
+import { readJson } from '../../lib/api-client';
 
 type EvaluationRunItem = {
   readonly id: number;
@@ -11,8 +11,8 @@ type EvaluationRunItem = {
 };
 
 type EvaluationRunListState =
-  | { readonly status: "ready"; readonly runs: readonly EvaluationRunItem[] }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'ready'; readonly runs: readonly EvaluationRunItem[] }
+  | { readonly status: 'error'; readonly message: string };
 
 type EvaluationRunDetail = {
   readonly run: EvaluationRunItem;
@@ -22,9 +22,9 @@ type EvaluationRunDetail = {
 };
 
 type EvaluationRunDetailState =
-  | { readonly status: "idle"; readonly message: string }
-  | { readonly status: "ready"; readonly detail: EvaluationRunDetail }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'idle'; readonly message: string }
+  | { readonly status: 'ready'; readonly detail: EvaluationRunDetail }
+  | { readonly status: 'error'; readonly message: string };
 
 type EvaluationFailedSample = {
   readonly id: string;
@@ -36,87 +36,91 @@ type EvaluationFailedSample = {
 };
 
 type EvaluationFailedSampleState =
-  | { readonly status: "idle"; readonly message: string }
-  | { readonly status: "ready"; readonly samples: readonly EvaluationFailedSample[] }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'idle'; readonly message: string }
+  | { readonly status: 'ready'; readonly samples: readonly EvaluationFailedSample[] }
+  | { readonly status: 'error'; readonly message: string };
 
 const evaluationSections = [
-  "评测集",
-  "运行记录",
-  "指标趋势",
-  "失败样例",
-  "一致性错误率",
-  "修复成功率",
-  "用户接受率",
-  "未回收 open loop",
+  '评测集',
+  '运行记录',
+  '指标趋势',
+  '失败样例',
+  '一致性错误率',
+  '修复成功率',
+  '用户接受率',
+  '未回收 open loop',
 ];
 
-const evaluationRunsEndpoint = "/api/evaluations/runs";
+const evaluationRunsEndpoint = '/api/evaluations/runs';
 
 async function readEvaluationRuns(): Promise<EvaluationRunListState> {
   const result = await readJson<EvaluationRunItem[]>(evaluationRunsEndpoint, {
     validate: isEvaluationRunItemList,
-    invalidMessage: "评测运行 API 返回格式不符合预期",
+    invalidMessage: '评测运行 API 返回格式不符合预期',
   });
-  return result.status === "ready"
-    ? { status: "ready", runs: result.data }
-    : { status: "error", message: result.message.replace("API 返回", "评测运行 API 返回") };
+  return result.status === 'ready'
+    ? { status: 'ready', runs: result.data }
+    : { status: 'error', message: result.message.replace('API 返回', '评测运行 API 返回') };
 }
 
-async function readEvaluationRunDetail(runId: number | undefined): Promise<EvaluationRunDetailState> {
+async function readEvaluationRunDetail(
+  runId: number | undefined,
+): Promise<EvaluationRunDetailState> {
   if (runId === undefined) {
-    return { status: "idle", message: "读取评测详情需要先获得评测运行列表。" };
+    return { status: 'idle', message: '读取评测详情需要先获得评测运行列表。' };
   }
   const result = await readJson(`${evaluationRunsEndpoint}/${runId}`, {
     validate: isEvaluationRunDetail,
-    invalidMessage: "评测详情 API 返回格式不符合预期",
+    invalidMessage: '评测详情 API 返回格式不符合预期',
   });
-  return result.status === "ready"
-    ? { status: "ready", detail: result.data }
-    : { status: "error", message: result.message.replace("API 返回", "评测详情 API 返回") };
+  return result.status === 'ready'
+    ? { status: 'ready', detail: result.data }
+    : { status: 'error', message: result.message.replace('API 返回', '评测详情 API 返回') };
 }
 
-async function readEvaluationFailedSamples(runId: number | undefined): Promise<EvaluationFailedSampleState> {
+async function readEvaluationFailedSamples(
+  runId: number | undefined,
+): Promise<EvaluationFailedSampleState> {
   if (runId === undefined) {
-    return { status: "idle", message: "读取失败样例需要先获得评测运行列表。" };
+    return { status: 'idle', message: '读取失败样例需要先获得评测运行列表。' };
   }
   const result = await readJson(`${evaluationRunsEndpoint}/${runId}/failed-samples`, {
     validate: isEvaluationFailedSampleList,
-    invalidMessage: "失败样例 API 返回格式不符合预期",
+    invalidMessage: '失败样例 API 返回格式不符合预期',
   });
-  return result.status === "ready"
-    ? { status: "ready", samples: result.data }
-    : { status: "error", message: result.message.replace("API 返回", "失败样例 API 返回") };
+  return result.status === 'ready'
+    ? { status: 'ready', samples: result.data }
+    : { status: 'error', message: result.message.replace('API 返回', '失败样例 API 返回') };
 }
 
 function isEvaluationRunDetail(value: unknown): value is EvaluationRunDetail {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
   const candidate = value as Partial<EvaluationRunDetail>;
   return (
-    typeof candidate.run === "object" &&
+    typeof candidate.run === 'object' &&
     candidate.run !== null &&
     Array.isArray(candidate.trend_points) &&
-    typeof candidate.failed_sample_count === "number" &&
-    (typeof candidate.studio_feedback_href === "string" || candidate.studio_feedback_href === null)
+    typeof candidate.failed_sample_count === 'number' &&
+    (typeof candidate.studio_feedback_href === 'string' || candidate.studio_feedback_href === null)
   );
 }
 
 function isEvaluationRunItem(value: unknown): value is EvaluationRunItem {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
   const candidate = value as Partial<EvaluationRunItem>;
   return (
-    typeof candidate.id === "number" &&
-    (typeof candidate.case_id === "number" || candidate.case_id === null) &&
-    (typeof candidate.workspace_id === "number" || candidate.workspace_id === null) &&
-    (typeof candidate.book_id === "number" || candidate.book_id === null) &&
-    typeof candidate.status === "string" &&
-    typeof candidate.metrics === "object" &&
+    typeof candidate.id === 'number' &&
+    (typeof candidate.case_id === 'number' || candidate.case_id === null) &&
+    (typeof candidate.workspace_id === 'number' || candidate.workspace_id === null) &&
+    (typeof candidate.book_id === 'number' || candidate.book_id === null) &&
+    typeof candidate.status === 'string' &&
+    typeof candidate.metrics === 'object' &&
     candidate.metrics !== null &&
-    typeof candidate.summary === "string"
+    typeof candidate.summary === 'string'
   );
 }
 
@@ -125,17 +129,17 @@ function isEvaluationRunItemList(value: unknown): value is EvaluationRunItem[] {
 }
 
 function isEvaluationFailedSample(value: unknown): value is EvaluationFailedSample {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
   const candidate = value as Partial<EvaluationFailedSample>;
   return (
-    typeof candidate.id === "string" &&
-    typeof candidate.reason === "string" &&
-    (typeof candidate.chapter_id === "number" || candidate.chapter_id === null) &&
-    (typeof candidate.artifact_id === "number" || candidate.artifact_id === null) &&
-    typeof candidate.repair_hint === "string" &&
-    (typeof candidate.studio_href === "string" || candidate.studio_href === null)
+    typeof candidate.id === 'string' &&
+    typeof candidate.reason === 'string' &&
+    (typeof candidate.chapter_id === 'number' || candidate.chapter_id === null) &&
+    (typeof candidate.artifact_id === 'number' || candidate.artifact_id === null) &&
+    typeof candidate.repair_hint === 'string' &&
+    (typeof candidate.studio_href === 'string' || candidate.studio_href === null)
   );
 }
 
@@ -144,7 +148,7 @@ function isEvaluationFailedSampleList(value: unknown): value is EvaluationFailed
 }
 
 function formatMetricValue(value: unknown): string {
-  return typeof value === "number" ? value.toFixed(4).replace(/\.?0+$/u, "") : "未提供";
+  return typeof value === 'number' ? value.toFixed(4).replace(/\.?0+$/u, '') : '未提供';
 }
 
 function formatMetricsSummary(metrics: Record<string, unknown>): string {
@@ -153,22 +157,26 @@ function formatMetricsSummary(metrics: Record<string, unknown>): string {
     `修复成功率 ${formatMetricValue(metrics.repair_success_rate)}`,
     `用户接受率 ${formatMetricValue(metrics.user_acceptance_rate)}`,
     `未回收 open loop ${formatMetricValue(metrics.open_loop_count)}`,
-  ].join("；");
+  ].join('；');
 }
 
 function readFailedSampleCount(metrics: Record<string, unknown>): number {
   const value =
-    metrics.failed_sample_count ?? metrics.failed_samples ?? metrics.failure_count ?? metrics.failing_examples;
-  return typeof value === "number" ? value : 0;
+    metrics.failed_sample_count ??
+    metrics.failed_samples ??
+    metrics.failure_count ??
+    metrics.failing_examples;
+  return typeof value === 'number' ? value : 0;
 }
 
 function formatOptionalBookId(bookId: number | null): string {
-  return typeof bookId === "number" ? `Book #${bookId}` : "未关联";
+  return typeof bookId === 'number' ? `Book #${bookId}` : '未关联';
 }
 
 export default async function EvaluationsPage() {
   const evaluationRunListState = await readEvaluationRuns();
-  const firstRunId = evaluationRunListState.status === "ready" ? evaluationRunListState.runs[0]?.id : undefined;
+  const firstRunId =
+    evaluationRunListState.status === 'ready' ? evaluationRunListState.runs[0]?.id : undefined;
   const [evaluationRunDetailState, failedSampleState] = await Promise.all([
     readEvaluationRunDetail(firstRunId),
     readEvaluationFailedSamples(firstRunId),
@@ -201,9 +209,14 @@ export default async function EvaluationsPage() {
       </section>
       <section aria-labelledby="evaluation-runs-live-data-title">
         <h2 id="evaluation-runs-live-data-title">评测运行真实读取</h2>
-        <p>服务端实时读取 {evaluationRunsEndpoint}，展示 evaluation run ID、状态、指标摘要、关联作品和失败样例数量。</p>
-        {evaluationRunListState.status === "error" ? (
-          <p role="status">可重试错误摘要：{evaluationRunListState.message}。请刷新页面或稍后重试。</p>
+        <p>
+          服务端实时读取 {evaluationRunsEndpoint}，展示 evaluation run
+          ID、状态、指标摘要、关联作品和失败样例数量。
+        </p>
+        {evaluationRunListState.status === 'error' ? (
+          <p role="status">
+            可重试错误摘要：{evaluationRunListState.message}。请刷新页面或稍后重试。
+          </p>
         ) : evaluationRunListState.runs.length === 0 ? (
           <p>空列表：当前没有可展示的评测运行记录。</p>
         ) : (
@@ -226,24 +239,33 @@ export default async function EvaluationsPage() {
       </section>
       <section aria-labelledby="evaluation-feedback-title">
         <h2 id="evaluation-feedback-title">失败样例与反馈回流</h2>
-        <p>服务端读取 {evaluationRunsEndpoint}/{"{run_id}"} 与 {evaluationRunsEndpoint}/{"{run_id}"}/failed-samples，展示趋势摘要和回到 Studio 的修复入口。</p>
-        {evaluationRunDetailState.status === "idle" ? (
+        <p>
+          服务端读取 {evaluationRunsEndpoint}/{'{run_id}'} 与 {evaluationRunsEndpoint}/{'{run_id}'}
+          /failed-samples，展示趋势摘要和回到 Studio 的修复入口。
+        </p>
+        {evaluationRunDetailState.status === 'idle' ? (
           <p>{evaluationRunDetailState.message}</p>
-        ) : evaluationRunDetailState.status === "error" ? (
+        ) : evaluationRunDetailState.status === 'error' ? (
           <p role="status">可重试错误摘要：{evaluationRunDetailState.message}</p>
         ) : (
           <dl>
             <dt>趋势摘要点</dt>
-            <dd>{evaluationRunDetailState.detail.trend_points.map((point) => `${String(point.metric)}=${String(point.value)}`).join("；")}</dd>
+            <dd>
+              {evaluationRunDetailState.detail.trend_points
+                .map((point) => `${String(point.metric)}=${String(point.value)}`)
+                .join('；')}
+            </dd>
             <dt>失败样例数量</dt>
             <dd>{evaluationRunDetailState.detail.failed_sample_count}</dd>
             <dt>Studio 反馈入口</dt>
-            <dd>{evaluationRunDetailState.detail.studio_feedback_href ?? "暂无 Studio 反馈入口"}</dd>
+            <dd>
+              {evaluationRunDetailState.detail.studio_feedback_href ?? '暂无 Studio 反馈入口'}
+            </dd>
           </dl>
         )}
-        {failedSampleState.status === "idle" ? (
+        {failedSampleState.status === 'idle' ? (
           <p>{failedSampleState.message}</p>
-        ) : failedSampleState.status === "error" ? (
+        ) : failedSampleState.status === 'error' ? (
           <p role="status">可重试错误摘要：{failedSampleState.message}</p>
         ) : failedSampleState.samples.length === 0 ? (
           <p>空列表：当前评测运行暂无失败样例。</p>
@@ -253,10 +275,10 @@ export default async function EvaluationsPage() {
               <li key={sample.id}>
                 <strong>{sample.id}</strong>
                 <span>原因：{sample.reason}</span>
-                <span>关联章节：{sample.chapter_id ?? "未关联"}</span>
-                <span>关联制品：{sample.artifact_id ?? "未关联"}</span>
+                <span>关联章节：{sample.chapter_id ?? '未关联'}</span>
+                <span>关联制品：{sample.artifact_id ?? '未关联'}</span>
                 <span>修复建议：{sample.repair_hint}</span>
-                <span>Studio 入口：{sample.studio_href ?? "暂无入口"}</span>
+                <span>Studio 入口：{sample.studio_href ?? '暂无入口'}</span>
               </li>
             ))}
           </ul>
