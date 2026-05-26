@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.common.metrics import judge_calls_total
 from app.db.deps import SessionDependency
 from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
 from app.domains.judge.service import JudgeInputError, create_judge_issues
@@ -17,4 +18,5 @@ def create_judge_issues_endpoint(payload: JudgeIssueCreate, session: SessionDepe
         issues = create_judge_issues(session, payload)
     except JudgeInputError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    judge_calls_total.inc()
     return [JudgeIssueRead.from_issue(issue) for issue in issues]

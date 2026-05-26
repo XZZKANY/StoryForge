@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
+from app.common.metrics import batch_refinery_jobs_total
 from app.db.deps import SessionDependency
 from app.domains.batch_refinery.schemas import BatchRefineryRunCreate, BatchRefineryRunRead
 from app.domains.batch_refinery.service import (
@@ -26,6 +27,7 @@ def create_batch_refinery_run(
         job = create_batch_refinery_job(session, payload)
     except BatchRefineryInputError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    batch_refinery_jobs_total.inc()
     background_tasks.add_task(run_batch_refinery_in_background, payload, job.id)
     return BatchRefineryRunRead.model_validate(job)
 

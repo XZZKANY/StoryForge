@@ -12,7 +12,7 @@ class RepairPatchCreate(BaseModel):
     """请求定向修复某一条评审问题单。"""
 
     issue_id: int = Field(gt=0)
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=50000)
 
 
 class RepairPatchRead(BaseModel):

@@ -11,9 +11,7 @@ class SeriesCreate(BaseModel):
 
     title: str = Field(min_length=1, max_length=255)
     status: str = Field(default="active", min_length=1, max_length=50)
-    description: str | None = None
-
-
+    description: str | None = Field(default=None, max_length=5000)
 class SeriesRead(BaseModel):
     """系列根实体响应契约。"""
 
@@ -32,9 +30,7 @@ class SeriesMemoryEvidenceCreate(BaseModel):
 
     evidence_type: str = Field(min_length=1, max_length=80)
     source_ref: str = Field(min_length=1, max_length=255)
-    rationale: str | None = None
-
-
+    rationale: str | None = Field(default=None, max_length=5000)
 class SeriesMemoryEvidenceRead(BaseModel):
     """系列记忆证据响应契约。"""
 
@@ -53,7 +49,7 @@ class SeriesMemoryCreate(BaseModel):
     subject: str = Field(min_length=1, max_length=255)
     status: str = Field(default="active", min_length=1, max_length=50)
     payload: dict[str, Any] = Field(default_factory=dict)
-    evidence: list[SeriesMemoryEvidenceCreate] = Field(default_factory=list)
+    evidence: list[SeriesMemoryEvidenceCreate] = Field(default_factory=list, max_length=100)
 
 
 class SeriesMemoryUpdate(BaseModel):
@@ -63,7 +59,7 @@ class SeriesMemoryUpdate(BaseModel):
     subject: str | None = Field(default=None, min_length=1, max_length=255)
     status: str | None = Field(default=None, min_length=1, max_length=50)
     payload: dict[str, Any] | None = None
-    evidence: list[SeriesMemoryEvidenceCreate] | None = None
+    evidence: list[SeriesMemoryEvidenceCreate] | None = Field(default=None, max_length=100)
 
     @model_validator(mode="after")
     def reject_empty_update(self) -> SeriesMemoryUpdate:

@@ -11,7 +11,7 @@ class ProviderConfigCreate(BaseModel):
     provider_name: str = Field(min_length=1, max_length=80)
     status: str = Field(default="active", min_length=1, max_length=50)
     priority: int = Field(default=100, ge=0, le=10000)
-    capabilities: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list, max_length=50)
     model_aliases: dict[str, Any] = Field(default_factory=dict)
     credential_ref: str | None = Field(default=None, max_length=255)
 

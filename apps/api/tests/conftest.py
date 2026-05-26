@@ -28,6 +28,15 @@ def isolate_remote_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter() -> None:
+    """每个测试前重置限流计数器，避免跨用例污染。"""
+
+    from app.main import _rate_store
+
+    _rate_store.reset()
+
+
 @pytest.fixture()
 def engine() -> Generator:
     """每个测试使用独立内存数据库，避免跨用例污染。"""

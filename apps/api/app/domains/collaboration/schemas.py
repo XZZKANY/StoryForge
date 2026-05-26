@@ -9,8 +9,7 @@ class WorkspaceCommentCreate(BaseModel):
     workspace_id: int = Field(gt=0)
     scene_id: int = Field(gt=0)
     member_id: int = Field(gt=0)
-    body: str = Field(min_length=1)
-
+    body: str = Field(min_length=1, max_length=10000)
 
 class WorkspaceCommentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -30,9 +29,7 @@ class ApprovalRequestCreate(BaseModel):
     scene_id: int = Field(gt=0)
     requester_member_id: int = Field(gt=0)
     reviewer_member_id: int = Field(gt=0)
-    summary: str = Field(min_length=1)
-
-
+    summary: str = Field(min_length=1, max_length=5000)
 class ApprovalRequestRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,7 +47,7 @@ class ApprovalRequestRead(BaseModel):
 class ApprovalDecisionCreate(BaseModel):
     member_id: int = Field(gt=0)
     decision: str = Field(min_length=1, max_length=50)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=5000)
 
 
 class ApprovalDecisionRead(BaseModel):

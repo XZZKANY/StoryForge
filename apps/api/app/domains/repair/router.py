@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.common.metrics import repair_patches_total
 from app.db.deps import SessionDependency
 from app.domains.repair.schemas import RepairPatchCreate, RepairPatchRead
 from app.domains.repair.service import RepairInputError, create_repair_patch
@@ -17,4 +18,5 @@ def create_repair_patch_endpoint(payload: RepairPatchCreate, session: SessionDep
         patch = create_repair_patch(session, payload)
     except RepairInputError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    repair_patches_total.inc()
     return RepairPatchRead.from_patch(patch)

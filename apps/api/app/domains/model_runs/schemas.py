@@ -18,9 +18,9 @@ class ModelRunCreate(BaseModel):
     status: str = Field(default="completed", min_length=1, max_length=50)
     latency_ms: int = Field(default=0, ge=0)
     token_usage: int = Field(default=0, ge=0)
-    input_summary: str = Field(min_length=1)
-    output_summary: str | None = None
-    error_message: str | None = None
+    input_summary: str = Field(min_length=1, max_length=50000)
+    output_summary: str | None = Field(default=None, max_length=50000)
+    error_message: str | None = Field(default=None, max_length=10000)
     payload: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -8,15 +8,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from limits import parse as parse_limit
+from limits.storage import MemoryStorage
+from limits.strategies import FixedWindowRateLimiter
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
+from app.common.auth import InvalidTokenError, verify_access_token
 from app.common.exceptions import DomainError
 from app.common.logging_config import configure_logging, get_logger
-from app.common.middleware import RequestLoggingMiddleware
+from app.common.metrics import setup_metrics
+from app.common.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
 from app.common.sentry_config import init_sentry
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
@@ -41,11 +44,12 @@ from app.domains.series.router import router as series_router
 from app.domains.studio.router import router as studio_router
 from app.domains.style_packs.router import router as style_packs_router
 from app.domains.workspaces.router import router as workspaces_router
+from app.domains.health.router import router as health_router
 from app.domains.worldbuilding.router import router as worldbuilding_router
 
 logger = get_logger(__name__)
 
-_PUBLIC_PATHS = {"/health", "/openapi.json", "/docs", "/redoc"}
+_PUBLIC_PATHS = {"/health", "/health/live", "/health/ready", "/metrics", "/openapi.json", "/docs", "/redoc"}
 _API_KEY_HEADER = "x-storyforge-api-key"
 
 
@@ -73,6 +77,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="StoryForge API", version="0.1.0", lifespan=lifespan)
 
+setup_metrics(app)
+
 
 def _cors_origins() -> list[str]:
     """从环境变量读取允许的 Web 来源，默认覆盖本地开发端口。"""
@@ -98,18 +104,22 @@ def _request_timeout_seconds() -> float:
     return timeout if timeout > 0 else 120.0
 
 
-limiter = Limiter(key_func=_rate_limit_key, default_limits=["60/minute"])
+limiter = Limiter(key_func=_rate_limit_key)
+
+_rate_store = MemoryStorage()
+_rate_strategy = FixedWindowRateLimiter(_rate_store)
+_READ_LIMIT = parse_limit("120/minute")
+_WRITE_LIMIT = parse_limit("60/minute")
+_BATCH_LIMIT = parse_limit("10/minute")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["content-type", "x-storyforge-api-key"],
+    allow_headers=["content-type", "x-storyforge-api-key", "authorization"],
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(SlowAPIMiddleware)
 
 
 @app.middleware("http")
@@ -123,17 +133,57 @@ async def enforce_request_timeout(request: Request, call_next):
 
 
 @app.middleware("http")
-async def require_storyforge_api_key(request: Request, call_next):
-    """保护业务 API；健康检查、文档和浏览器预检保持公开。"""
+async def enforce_tiered_rate_limit(request: Request, call_next):
+    """按 API Key 实施分层限流：批量 10/min、写入 60/min、读取 120/min。"""
 
     if request.method == "OPTIONS" or request.url.path in _PUBLIC_PATHS:
         return await call_next(request)
-    if request.headers.get(_API_KEY_HEADER) != _expected_api_key():
-        return JSONResponse(status_code=401, content={"detail": "缺少或无效的 API Key。"})
+
+    key = _rate_limit_key(request)
+    path = request.url.path
+
+    if path.startswith("/api/batch-refinery"):
+        limit = _BATCH_LIMIT
+    elif request.method in ("POST", "PATCH", "DELETE"):
+        limit = _WRITE_LIMIT
+    else:
+        limit = _READ_LIMIT
+
+    if not _rate_strategy.hit(limit, "rate", key):
+        return JSONResponse(status_code=429, content={"detail": "请求频率超限，请稍后重试。"})
+
     return await call_next(request)
 
 
+@app.middleware("http")
+async def require_authentication(request: Request, call_next):
+    """双模认证：X-StoryForge-API-Key（服务间通信）或 Authorization: Bearer（用户会话）。"""
+
+    if request.method == "OPTIONS" or request.url.path in _PUBLIC_PATHS:
+        return await call_next(request)
+
+    api_key = request.headers.get(_API_KEY_HEADER)
+    if api_key:
+        if api_key != _expected_api_key():
+            return JSONResponse(status_code=401, content={"detail": "无效的 API Key。"})
+        return await call_next(request)
+
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        try:
+            payload = verify_access_token(token)
+            request.state.user_id = payload.user_id
+            request.state.user_role = payload.role
+        except InvalidTokenError as exc:
+            return JSONResponse(status_code=401, content={"detail": str(exc)})
+        return await call_next(request)
+
+    return JSONResponse(status_code=401, content={"detail": "缺少认证凭据。"})
+
+
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.get("/health", tags=["运行状态"])
@@ -143,6 +193,10 @@ def health_check() -> dict[str, str]:
 
     return {"status": "ok", "service": "storyforge-api"}
 
+app.include_router(health_router)
+for _route in health_router.routes:
+    if hasattr(_route, "endpoint"):
+        limiter.exempt(_route.endpoint)
 app.include_router(artifacts_router)
 app.include_router(analytics_router)
 app.include_router(assets_router)

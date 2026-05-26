@@ -11,11 +11,11 @@ class ScenePacketCreate(BaseModel):
 
     book_id: int = Field(gt=0)
     chapter_id: int = Field(gt=0)
-    scene_goal: str = Field(min_length=1)
-    active_asset_ids: list[int] = Field(min_length=1)
+    scene_goal: str = Field(min_length=1, max_length=5000)
+    active_asset_ids: list[int] = Field(min_length=1, max_length=1000)
     token_budget: int = Field(gt=0)
     user_intent: str = Field(default="", max_length=2000)
-    retrieval_snippets: list[str] = Field(default_factory=list)
+    retrieval_snippets: list[str] = Field(default_factory=list, max_length=100)
 
 
 class EvidenceLinkRead(BaseModel):
