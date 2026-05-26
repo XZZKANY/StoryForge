@@ -17,6 +17,9 @@ from storyforge_workflow.runtime.lifecycle import (
 )
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text
 from storyforge_workflow.runtime.session import InMemoryWorkflowSessionStore
+from storyforge_workflow.utils.logging import get_logger
+
+log = get_logger("storyforge_workflow.runtime.runner")
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,8 @@ class WorkflowRuntime:
         self.graph = create_generation_graph(store=self.audit_store, checkpointer=InMemorySaver())
 
     def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any]) -> WorkflowRuntimeResult:
+        bound = log.bind(workflow_id=job_run_id, thread_id=thread_id)
+        bound.info("workflow_started")
         session = self.session_store.create(
             session_id=_session_id(thread_id, job_run_id),
             thread_id=thread_id,
@@ -88,12 +93,14 @@ class WorkflowRuntime:
             current_node="provider_execution",
             message="provider 文本生成调用中。",
         )
+        bound.info("provider_execution_started", node_id="provider_execution")
         try:
             provider_execution = execute_provider_text(
                 capability="llm",
                 prompt_summary=prompt_summary,
             )
         except Exception as exc:
+            bound.error("provider_execution_failed", node_id="provider_execution", error=str(exc))
             return self._record_provider_failure(
                 thread_id=thread_id,
                 job_run_id=job_run_id,
@@ -132,9 +139,11 @@ class WorkflowRuntime:
             current_node="book_director",
             message="LangGraph 生成图执行中。",
         )
+        bound.info("graph_execution_started", node_id="book_director")
         try:
             chunks = self._stream_graph_with_state_snapshots(state, thread_id=thread_id, initial_state=state)
         except _GraphNodeFailure as failure:
+            bound.error("graph_execution_failed", node_id=getattr(failure.error, "node_name", "unknown"), error=str(failure.error))
             return self._record_node_failure(
                 thread_id=thread_id,
                 job_run_id=job_run_id,
@@ -168,6 +177,7 @@ class WorkflowRuntime:
             current_node=current_node,
             message=lifecycle_message,
         )
+        bound.info("workflow_completed", status=status, node_id=current_node)
         return WorkflowRuntimeResult(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -240,6 +250,8 @@ class WorkflowRuntime:
         )
 
     def resume(self, *, thread_id: str, job_run_id: str, decision: dict[str, Any]) -> WorkflowRuntimeResult:
+        bound = log.bind(workflow_id=job_run_id, thread_id=thread_id)
+        bound.info("workflow_resumed")
         session = self.session_store.get(_session_id(thread_id, job_run_id))
         if session is None:
             session = self.session_store.create(
@@ -287,6 +299,7 @@ class WorkflowRuntime:
                 initial_state=restored_state,
             )
         except _GraphNodeFailure as failure:
+            bound.error("resume_graph_failed", node_id=getattr(failure.error, "node_name", "unknown"), error=str(failure.error))
             return self._record_node_failure(
                 thread_id=thread_id,
                 job_run_id=job_run_id,
@@ -317,6 +330,7 @@ class WorkflowRuntime:
             current_node=current_node,
             message="workflow 恢复执行完成。",
         )
+        bound.info("resume_completed", status="completed", node_id=current_node)
         return WorkflowRuntimeResult(
             thread_id=thread_id,
             job_run_id=job_run_id,
