@@ -1,4 +1,4 @@
-import { readJson } from "../../lib/api-client";
+import { readJson } from '../../lib/api-client';
 
 type RunsModelRunSummary = {
   readonly id: number;
@@ -93,87 +93,87 @@ type RuntimeTool = {
 };
 
 type RunsJobRunState =
-  | { readonly status: "ready"; readonly jobRun: RunsJobRun }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'ready'; readonly jobRun: RunsJobRun }
+  | { readonly status: 'error'; readonly message: string };
 
 type RuntimeToolsState =
-  | { readonly status: "ready"; readonly runtimeTools: readonly RuntimeTool[] }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'ready'; readonly runtimeTools: readonly RuntimeTool[] }
+  | { readonly status: 'error'; readonly message: string };
 
 const runSections = [
-  "模型运行日志",
-  "Provider 解析结果",
-  "Prompt Pack 来源",
-  "Checkpoint 状态",
-  "失败重试",
-  "ModelRun adapter 契约",
-  "任务恢复入口",
+  '模型运行日志',
+  'Provider 解析结果',
+  'Prompt Pack 来源',
+  'Checkpoint 状态',
+  '失败重试',
+  'ModelRun adapter 契约',
+  '任务恢复入口',
 ];
 
-const runsJobRunEndpoint = "/api/model-runs/job-runs";
-const runsRetryExecutionEndpoint = "POST /api/model-runs/job-runs/{job_run_id}/retry";
-const runtimeToolsEndpoint = "/api/runtime-tools";
+const runsJobRunEndpoint = '/api/model-runs/job-runs';
+const runsRetryExecutionEndpoint = 'POST /api/model-runs/job-runs/{job_run_id}/retry';
+const runtimeToolsEndpoint = '/api/runtime-tools';
 
 async function readRunsJobRun(jobRunId: number | undefined): Promise<RunsJobRunState> {
   if (jobRunId === undefined) {
-    return { status: "error", message: "缺少 job_run_id，请在 URL query 中提供运行记录 ID。" };
+    return { status: 'error', message: '缺少 job_run_id，请在 URL query 中提供运行记录 ID。' };
   }
   const result = await readJson(`${runsJobRunEndpoint}/${jobRunId}`, {
     validate: isRunsJobRun,
-    invalidMessage: "运行记录 API 返回格式不符合预期",
+    invalidMessage: '运行记录 API 返回格式不符合预期',
   });
-  return result.status === "ready"
-    ? { status: "ready", jobRun: result.data }
-    : { status: "error", message: result.message.replace("API 返回", "运行记录 API 返回") };
+  return result.status === 'ready'
+    ? { status: 'ready', jobRun: result.data }
+    : { status: 'error', message: result.message.replace('API 返回', '运行记录 API 返回') };
 }
 
 async function readRuntimeTools(): Promise<RuntimeToolsState> {
   const result = await readJson<RuntimeTool[]>(runtimeToolsEndpoint, {
     validate: isRuntimeToolList,
-    invalidMessage: "运行时工具 API 返回格式不符合预期",
+    invalidMessage: '运行时工具 API 返回格式不符合预期',
   });
-  return result.status === "ready"
-    ? { status: "ready", runtimeTools: result.data }
-    : { status: "error", message: result.message.replace("API 返回", "运行时工具 API 返回") };
+  return result.status === 'ready'
+    ? { status: 'ready', runtimeTools: result.data }
+    : { status: 'error', message: result.message.replace('API 返回', '运行时工具 API 返回') };
 }
 
 function isRunsJobRun(value: unknown): value is RunsJobRun {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
 
   const candidate = value as Partial<RunsJobRun>;
   return (
-    typeof candidate.id === "number" &&
-    typeof candidate.job_type === "string" &&
-    typeof candidate.status === "string" &&
-    typeof candidate.progress === "object" &&
+    typeof candidate.id === 'number' &&
+    typeof candidate.job_type === 'string' &&
+    typeof candidate.status === 'string' &&
+    typeof candidate.progress === 'object' &&
     candidate.progress !== null &&
-    (typeof candidate.checkpoint === "object" || candidate.checkpoint === null) &&
+    (typeof candidate.checkpoint === 'object' || candidate.checkpoint === null) &&
     Array.isArray(candidate.model_runs) &&
     candidate.model_runs.every(isRunsModelRunSummary) &&
     isRunsRuntimeDiagnostics(candidate.runtime_diagnostics) &&
-    (typeof candidate.error_message === "string" || candidate.error_message === null) &&
-    typeof candidate.created_at === "string" &&
-    typeof candidate.updated_at === "string"
+    (typeof candidate.error_message === 'string' || candidate.error_message === null) &&
+    typeof candidate.created_at === 'string' &&
+    typeof candidate.updated_at === 'string'
   );
 }
 
 function isRunsModelRunSummary(value: unknown): value is RunsModelRunSummary {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
 
   const candidate = value as Partial<RunsModelRunSummary>;
   return (
-    typeof candidate.id === "number" &&
-    typeof candidate.provider_name === "string" &&
-    typeof candidate.model_name === "string" &&
-    typeof candidate.capability === "string" &&
-    typeof candidate.status === "string" &&
-    typeof candidate.latency_ms === "number" &&
-    typeof candidate.token_usage === "number" &&
-    (typeof candidate.error_message === "string" || candidate.error_message === null)
+    typeof candidate.id === 'number' &&
+    typeof candidate.provider_name === 'string' &&
+    typeof candidate.model_name === 'string' &&
+    typeof candidate.capability === 'string' &&
+    typeof candidate.status === 'string' &&
+    typeof candidate.latency_ms === 'number' &&
+    typeof candidate.token_usage === 'number' &&
+    (typeof candidate.error_message === 'string' || candidate.error_message === null)
   );
 }
 
@@ -198,14 +198,14 @@ function isRunsWorkflowSessionSummary(value: unknown): value is RunsWorkflowSess
   }
 
   return (
-    (typeof value.session_id === "string" || value.session_id === null) &&
-    (typeof value.thread_id === "string" || value.thread_id === null) &&
-    typeof value.job_run_id === "string" &&
-    typeof value.status === "string" &&
-    typeof value.current_node === "string" &&
-    (typeof value.approval_status === "string" || value.approval_status === null) &&
-    (typeof value.last_heartbeat_ms === "number" || value.last_heartbeat_ms === null) &&
-    typeof value.prompt_count === "number"
+    (typeof value.session_id === 'string' || value.session_id === null) &&
+    (typeof value.thread_id === 'string' || value.thread_id === null) &&
+    typeof value.job_run_id === 'string' &&
+    typeof value.status === 'string' &&
+    typeof value.current_node === 'string' &&
+    (typeof value.approval_status === 'string' || value.approval_status === null) &&
+    (typeof value.last_heartbeat_ms === 'number' || value.last_heartbeat_ms === null) &&
+    typeof value.prompt_count === 'number'
   );
 }
 
@@ -215,11 +215,11 @@ function isRunsWorkflowLifecycleSummary(value: unknown): value is RunsWorkflowLi
   }
 
   return (
-    typeof value.status === "string" &&
-    typeof value.current_node === "string" &&
-    typeof value.message === "string" &&
-    (typeof value.failure_kind === "string" || value.failure_kind === null) &&
-    (typeof value.recoverable === "boolean" || value.recoverable === null)
+    typeof value.status === 'string' &&
+    typeof value.current_node === 'string' &&
+    typeof value.message === 'string' &&
+    (typeof value.failure_kind === 'string' || value.failure_kind === null) &&
+    (typeof value.recoverable === 'boolean' || value.recoverable === null)
   );
 }
 
@@ -229,13 +229,13 @@ function isRunsProviderSummary(value: unknown): value is RunsProviderSummary {
   }
 
   return (
-    typeof value.provider_name === "string" &&
-    typeof value.model_name === "string" &&
-    typeof value.capability === "string" &&
-    typeof value.status === "string" &&
-    typeof value.latency_ms === "number" &&
-    typeof value.token_usage === "number" &&
-    (typeof value.error_message === "string" || value.error_message === null)
+    typeof value.provider_name === 'string' &&
+    typeof value.model_name === 'string' &&
+    typeof value.capability === 'string' &&
+    typeof value.status === 'string' &&
+    typeof value.latency_ms === 'number' &&
+    typeof value.token_usage === 'number' &&
+    (typeof value.error_message === 'string' || value.error_message === null)
   );
 }
 
@@ -245,10 +245,10 @@ function isRunsModelUsageSummary(value: unknown): value is RunsModelUsageSummary
   }
 
   return (
-    typeof value.model_run_count === "number" &&
-    typeof value.failed_model_run_count === "number" &&
-    typeof value.total_token_usage === "number" &&
-    typeof value.max_latency_ms === "number"
+    typeof value.model_run_count === 'number' &&
+    typeof value.failed_model_run_count === 'number' &&
+    typeof value.total_token_usage === 'number' &&
+    typeof value.max_latency_ms === 'number'
   );
 }
 
@@ -258,8 +258,8 @@ function isRunsRuntimeToolSummary(value: unknown): value is RunsRuntimeToolSumma
   }
 
   return (
-    typeof value.name === "string" &&
-    typeof value.domain === "string" &&
+    typeof value.name === 'string' &&
+    typeof value.domain === 'string' &&
     isStringList(value.required_capabilities) &&
     isStringList(value.evidence_fields) &&
     isStringList(value.workflow_nodes)
@@ -276,8 +276,8 @@ function isRuntimeTool(value: unknown): value is RuntimeTool {
   }
 
   return (
-    typeof value.name === "string" &&
-    typeof value.domain === "string" &&
+    typeof value.name === 'string' &&
+    typeof value.domain === 'string' &&
     isRecord(value.input_schema) &&
     isRecord(value.output_schema) &&
     isStringList(value.required_capabilities) &&
@@ -290,30 +290,38 @@ function isRuntimeToolReferences(value: unknown): value is RuntimeToolReferences
   if (!isRecord(value)) {
     return false;
   }
-  return isStringList(value.page_refs) && isStringList(value.api_paths) && isStringList(value.workflow_nodes);
+  return (
+    isStringList(value.page_refs) &&
+    isStringList(value.api_paths) &&
+    isStringList(value.workflow_nodes)
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isStringList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
 function readCurrentNode(progress: Record<string, unknown>): string {
   const currentNode = progress.current_node ?? progress.currentNode ?? progress.node;
-  return typeof currentNode === "string" && currentNode.length > 0 ? currentNode : "暂无当前节点";
+  return typeof currentNode === 'string' && currentNode.length > 0 ? currentNode : '暂无当前节点';
 }
 
 function formatCheckpointReference(checkpoint: Record<string, unknown> | null): string {
   if (!checkpoint) {
-    return "暂无 checkpoint 引用";
+    return '暂无 checkpoint 引用';
   }
 
   const reference =
-    checkpoint.reference ?? checkpoint.checkpoint_ref ?? checkpoint.checkpoint_id ?? checkpoint.id ?? checkpoint.node_id;
-  if (typeof reference === "string" || typeof reference === "number") {
+    checkpoint.reference ??
+    checkpoint.checkpoint_ref ??
+    checkpoint.checkpoint_id ??
+    checkpoint.id ??
+    checkpoint.node_id;
+  if (typeof reference === 'string' || typeof reference === 'number') {
     return String(reference);
   }
 
@@ -322,12 +330,12 @@ function formatCheckpointReference(checkpoint: Record<string, unknown> | null): 
 
 function formatRecoverable(recoverable: boolean | null): string {
   if (recoverable === true) {
-    return "可恢复";
+    return '可恢复';
   }
   if (recoverable === false) {
-    return "不可恢复";
+    return '不可恢复';
   }
-  return "暂无可恢复性判断";
+  return '暂无可恢复性判断';
 }
 
 function parsePositiveInt(value: string | undefined): number | undefined {
@@ -345,7 +353,10 @@ export default async function RunsPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const jobRunId = parsePositiveInt(resolvedSearchParams?.job_run_id);
-  const [jobRunState, runtimeToolsState] = await Promise.all([readRunsJobRun(jobRunId), readRuntimeTools()]);
+  const [jobRunState, runtimeToolsState] = await Promise.all([
+    readRunsJobRun(jobRunId),
+    readRuntimeTools(),
+  ]);
 
   return (
     <main aria-labelledby="runs-title">
@@ -374,8 +385,11 @@ export default async function RunsPage({
       </section>
       <section aria-labelledby="runs-runtime-tools-title">
         <h2 id="runs-runtime-tools-title">运行时工具能力摘要</h2>
-        <p>本摘要读取 {runtimeToolsEndpoint}，由 API 从 CreativeToolRegistry 序列化，不在 Web 维护重复工具清单。</p>
-        {runtimeToolsState.status === "error" ? (
+        <p>
+          本摘要读取 {runtimeToolsEndpoint}，由 API 从 CreativeToolRegistry 序列化，不在 Web
+          维护重复工具清单。
+        </p>
+        {runtimeToolsState.status === 'error' ? (
           <p role="status">可重试错误摘要：{runtimeToolsState.message}</p>
         ) : (
           <ul>
@@ -385,19 +399,33 @@ export default async function RunsPage({
                 <span>Domain：{tool.domain}</span>
                 <span>
                   所需能力：
-                  {tool.required_capabilities.length === 0 ? "无额外运行时能力" : tool.required_capabilities.join("、")}
+                  {tool.required_capabilities.length === 0
+                    ? '无额外运行时能力'
+                    : tool.required_capabilities.join('、')}
                 </span>
-                <span>证据字段：{tool.evidence_fields.length === 0 ? "暂无证据字段" : tool.evidence_fields.join("、")}</span>
-                <span>API 契约：{tool.references.api_paths.length === 0 ? "暂无 API 引用" : tool.references.api_paths.join("；")}</span>
+                <span>
+                  证据字段：
+                  {tool.evidence_fields.length === 0
+                    ? '暂无证据字段'
+                    : tool.evidence_fields.join('、')}
+                </span>
+                <span>
+                  API 契约：
+                  {tool.references.api_paths.length === 0
+                    ? '暂无 API 引用'
+                    : tool.references.api_paths.join('；')}
+                </span>
               </li>
             ))}
           </ul>
         )}
       </section>
       <section aria-labelledby="runs-job-run-title">
-        <h2 id="runs-job-run-title">读取 JobRun {jobRunId === undefined ? "未选择" : `#${jobRunId}`}</h2>
+        <h2 id="runs-job-run-title">
+          读取 JobRun {jobRunId === undefined ? '未选择' : `#${jobRunId}`}
+        </h2>
         <p>Runs 工作台从 URL query 读取 job_run_id，不再硬编码固定运行记录。</p>
-        {jobRunState.status === "error" ? (
+        {jobRunState.status === 'error' ? (
           <p role="status">可重试错误摘要：{jobRunState.message}</p>
         ) : (
           <>
@@ -416,7 +444,7 @@ export default async function RunsPage({
               </div>
               <div>
                 <dt>错误摘要</dt>
-                <dd>{jobRunState.jobRun.error_message ?? "暂无错误摘要"}</dd>
+                <dd>{jobRunState.jobRun.error_message ?? '暂无错误摘要'}</dd>
               </div>
               <div>
                 <dt>Checkpoint 引用</dt>
@@ -429,20 +457,26 @@ export default async function RunsPage({
                 <div>
                   <dt>WorkflowSession</dt>
                   <dd>
-                    {jobRunState.jobRun.runtime_diagnostics.workflow_session.session_id ?? "暂无 session_id"} /{" "}
-                    {jobRunState.jobRun.runtime_diagnostics.workflow_session.status}
+                    {jobRunState.jobRun.runtime_diagnostics.workflow_session.session_id ??
+                      '暂无 session_id'}{' '}
+                    / {jobRunState.jobRun.runtime_diagnostics.workflow_session.status}
                   </dd>
                 </div>
                 <div>
                   <dt>WorkflowLifecycle</dt>
                   <dd>
                     {jobRunState.jobRun.runtime_diagnostics.workflow_lifecycle.status}，
-                    {formatRecoverable(jobRunState.jobRun.runtime_diagnostics.workflow_lifecycle.recoverable)}
+                    {formatRecoverable(
+                      jobRunState.jobRun.runtime_diagnostics.workflow_lifecycle.recoverable,
+                    )}
                   </dd>
                 </div>
                 <div>
                   <dt>失败分类 failure_kind</dt>
-                  <dd>{jobRunState.jobRun.runtime_diagnostics.workflow_lifecycle.failure_kind ?? "暂无失败分类"}</dd>
+                  <dd>
+                    {jobRunState.jobRun.runtime_diagnostics.workflow_lifecycle.failure_kind ??
+                      '暂无失败分类'}
+                  </dd>
                 </div>
                 <div>
                   <dt>生命周期消息</dt>
@@ -452,15 +486,16 @@ export default async function RunsPage({
                   <dt>ProviderAdapter 摘要</dt>
                   <dd>
                     {jobRunState.jobRun.runtime_diagnostics.provider === null
-                      ? "暂无 provider 调用摘要"
+                      ? '暂无 provider 调用摘要'
                       : `${jobRunState.jobRun.runtime_diagnostics.provider.provider_name} / ${jobRunState.jobRun.runtime_diagnostics.provider.model_name} / ${jobRunState.jobRun.runtime_diagnostics.provider.capability}`}
                   </dd>
                 </div>
                 <div>
                   <dt>Token / 延迟聚合</dt>
                   <dd>
-                    Token {jobRunState.jobRun.runtime_diagnostics.model_usage.total_token_usage}，最大延迟{" "}
-                    {jobRunState.jobRun.runtime_diagnostics.model_usage.max_latency_ms}ms，失败 ModelRun{" "}
+                    Token {jobRunState.jobRun.runtime_diagnostics.model_usage.total_token_usage}
+                    ，最大延迟 {jobRunState.jobRun.runtime_diagnostics.model_usage.max_latency_ms}
+                    ms，失败 ModelRun{' '}
                     {jobRunState.jobRun.runtime_diagnostics.model_usage.failed_model_run_count}/
                     {jobRunState.jobRun.runtime_diagnostics.model_usage.model_run_count}
                   </dd>
@@ -478,10 +513,22 @@ export default async function RunsPage({
                         <span>Domain：{tool.domain}</span>
                         <span>
                           所需能力：
-                          {tool.required_capabilities.length === 0 ? "无额外运行时能力" : tool.required_capabilities.join("、")}
+                          {tool.required_capabilities.length === 0
+                            ? '无额外运行时能力'
+                            : tool.required_capabilities.join('、')}
                         </span>
-                        <span>证据字段：{tool.evidence_fields.length === 0 ? "暂无证据字段" : tool.evidence_fields.join("、")}</span>
-                        <span>Workflow 节点：{tool.workflow_nodes.length === 0 ? "暂无节点引用" : tool.workflow_nodes.join("、")}</span>
+                        <span>
+                          证据字段：
+                          {tool.evidence_fields.length === 0
+                            ? '暂无证据字段'
+                            : tool.evidence_fields.join('、')}
+                        </span>
+                        <span>
+                          Workflow 节点：
+                          {tool.workflow_nodes.length === 0
+                            ? '暂无节点引用'
+                            : tool.workflow_nodes.join('、')}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -503,7 +550,7 @@ export default async function RunsPage({
                       <span>状态：{modelRun.status}</span>
                       <span>Token：{modelRun.token_usage}</span>
                       <span>延迟：{modelRun.latency_ms}ms</span>
-                      <span>错误：{modelRun.error_message ?? "暂无错误"}</span>
+                      <span>错误：{modelRun.error_message ?? '暂无错误'}</span>
                     </li>
                   ))}
                 </ul>
@@ -514,11 +561,18 @@ export default async function RunsPage({
       </section>
       <section aria-labelledby="runs-retry-execution-title">
         <h2 id="runs-retry-execution-title">失败重试执行入口</h2>
-        <p>Endpoint：<code>{runsRetryExecutionEndpoint}</code></p>
-        <p>该契约可创建恢复任务：后端基于失败 JobRun checkpoint 创建恢复任务，不是即时续跑 workflow。</p>
+        <p>
+          Endpoint：<code>{runsRetryExecutionEndpoint}</code>
+        </p>
+        <p>
+          该契约可创建恢复任务：后端基于失败 JobRun checkpoint 创建恢复任务，不是即时续跑 workflow。
+        </p>
         <ul>
           <li>缺少 checkpoint 时不可重试，必须先拥有可恢复的 checkpoint 引用。</li>
-          <li>Server Component 当前只展示执行契约，不伪装点击按钮；交互接入留给后续 Client Component 或 Server Action。</li>
+          <li>
+            Server Component 当前只展示执行契约，不伪装点击按钮；交互接入留给后续 Client Component
+            或 Server Action。
+          </li>
         </ul>
       </section>
     </main>

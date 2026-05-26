@@ -10,37 +10,39 @@ export type ScenePacketPanelProps = {
   evidenceLinks?: EvidenceLink[];
 };
 
-const defaultEvidenceLinks: EvidenceLink[] = [
-  { label: "章节计划证据", href: "/assets#chapter-plan" },
-  { label: "林岚人物卡", href: "/assets#lin-lan" },
-  { label: "灯塔港地点卡", href: "/assets#lighthouse-port" },
-];
-
 export function ScenePacketPanel({
-  title = "灯塔港重逢",
-  goal = "让主角在补给船抵达前发现旧无线电留下的新线索。",
-  requiredFacts = ["章节目标", "林岚的角色动机", "灯塔港的场景限制"],
-  evidenceLinks = defaultEvidenceLinks,
+  title,
+  goal,
+  requiredFacts = [],
+  evidenceLinks = [],
 }: ScenePacketPanelProps) {
   return (
     <section aria-labelledby="scene-packet-title">
       <h2 id="scene-packet-title">Scene Packet 场景包</h2>
-      <h3>{title}</h3>
-      <p>{goal}</p>
+      {title ? <h3>{title}</h3> : <p>暂无场景标题。</p>}
+      {goal ? <p>{goal}</p> : <p>暂无场景目标。</p>}
       <h4>必要事实</h4>
-      <ul>
-        {requiredFacts.map((fact) => (
-          <li key={fact}>{fact}</li>
-        ))}
-      </ul>
+      {requiredFacts.length === 0 ? (
+        <p>暂无必要事实。</p>
+      ) : (
+        <ul>
+          {requiredFacts.map((fact) => (
+            <li key={fact}>{fact}</li>
+          ))}
+        </ul>
+      )}
       <h4>证据链接</h4>
-      <ul>
-        {evidenceLinks.map((link) => (
-          <li key={link.href}>
-            <a href={link.href}>{link.label}</a>
-          </li>
-        ))}
-      </ul>
+      {evidenceLinks.length === 0 ? (
+        <p>暂无证据链接。</p>
+      ) : (
+        <ul>
+          {evidenceLinks.map((link) => (
+            <li key={link.href}>
+              <a href={link.href}>{link.label}</a>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

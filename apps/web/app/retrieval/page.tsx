@@ -1,4 +1,4 @@
-import { apiFetch } from "../../lib/api-client";
+import { apiFetch } from '../../lib/api-client';
 
 type RetrievalWorkbenchSource = {
   readonly id: number;
@@ -13,8 +13,8 @@ type RetrievalWorkbenchSource = {
 };
 
 type RetrievalSourceListState =
-  | { readonly status: "ready"; readonly sources: readonly RetrievalWorkbenchSource[] }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'ready'; readonly sources: readonly RetrievalWorkbenchSource[] }
+  | { readonly status: 'error'; readonly message: string };
 
 type RetrievalWorkbenchRefreshRun = {
   readonly id: number;
@@ -30,9 +30,9 @@ type RetrievalWorkbenchRefreshRun = {
 };
 
 type RetrievalRefreshRunListState =
-  | { readonly status: "idle"; readonly message: string }
-  | { readonly status: "ready"; readonly refreshRuns: readonly RetrievalWorkbenchRefreshRun[] }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'idle'; readonly message: string }
+  | { readonly status: 'ready'; readonly refreshRuns: readonly RetrievalWorkbenchRefreshRun[] }
+  | { readonly status: 'error'; readonly message: string };
 
 type RetrievalWorkbenchHit = {
   readonly source_id: number;
@@ -54,51 +54,53 @@ type RetrievalWorkbenchSearchResult = {
 };
 
 type RetrievalSearchState =
-  | { readonly status: "idle"; readonly message: string }
-  | { readonly status: "ready"; readonly result: RetrievalWorkbenchSearchResult }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: 'idle'; readonly message: string }
+  | { readonly status: 'ready'; readonly result: RetrievalWorkbenchSearchResult }
+  | { readonly status: 'error'; readonly message: string };
 
 const retrievalSections = [
-  "资料库",
-  "资料来源类型",
-  "Embedding 刷新任务",
-  "搜索请求",
-  "命中预览",
-  "证据跳转",
-  "检索命中与重排",
-  "Scene Packet 检索证据",
+  '资料库',
+  '资料来源类型',
+  'Embedding 刷新任务',
+  '搜索请求',
+  '命中预览',
+  '证据跳转',
+  '检索命中与重排',
+  'Scene Packet 检索证据',
 ];
 
-const retrievalWorkbenchSourcesEndpoint = "/api/retrieval/workbench/sources";
-const retrievalWorkbenchRefreshRunsEndpoint = "/api/retrieval/workbench/refresh-runs";
-const retrievalWorkbenchSearchEndpoint = "/api/retrieval/workbench/search";
+const retrievalWorkbenchSourcesEndpoint = '/api/retrieval/workbench/sources';
+const retrievalWorkbenchRefreshRunsEndpoint = '/api/retrieval/workbench/refresh-runs';
+const retrievalWorkbenchSearchEndpoint = '/api/retrieval/workbench/search';
 
-async function readRetrievalWorkbenchSources(bookId: number | undefined): Promise<RetrievalSourceListState> {
+async function readRetrievalWorkbenchSources(
+  bookId: number | undefined,
+): Promise<RetrievalSourceListState> {
   try {
     const response = await apiFetch(retrievalWorkbenchSourcesEndpoint, {
       params: bookId === undefined ? {} : { book_id: bookId },
     });
     if (!response.ok) {
-      return { status: "error", message: `资料源列表 API 返回 ${response.status}` };
+      return { status: 'error', message: `资料源列表 API 返回 ${response.status}` };
     }
 
     const payload: unknown = await response.json();
     if (!Array.isArray(payload)) {
-      return { status: "error", message: "资料源列表 API 返回格式不符合预期" };
+      return { status: 'error', message: '资料源列表 API 返回格式不符合预期' };
     }
 
-    return { status: "ready", sources: payload as RetrievalWorkbenchSource[] };
+    return { status: 'ready', sources: payload as RetrievalWorkbenchSource[] };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { status: 'error', message };
   }
 }
 
 async function readRetrievalWorkbenchRefreshRuns(
   sourceListState: RetrievalSourceListState,
 ): Promise<RetrievalRefreshRunListState> {
-  if (sourceListState.status !== "ready" || sourceListState.sources.length === 0) {
-    return { status: "idle", message: "读取刷新任务需要先获得资料源列表。" };
+  if (sourceListState.status !== 'ready' || sourceListState.sources.length === 0) {
+    return { status: 'idle', message: '读取刷新任务需要先获得资料源列表。' };
   }
 
   try {
@@ -106,24 +108,26 @@ async function readRetrievalWorkbenchRefreshRuns(
       params: { source_id: sourceListState.sources[0].id },
     });
     if (!response.ok) {
-      return { status: "error", message: `刷新任务 API 返回 ${response.status}` };
+      return { status: 'error', message: `刷新任务 API 返回 ${response.status}` };
     }
 
     const payload: unknown = await response.json();
     if (!Array.isArray(payload)) {
-      return { status: "error", message: "刷新任务 API 返回格式不符合预期" };
+      return { status: 'error', message: '刷新任务 API 返回格式不符合预期' };
     }
 
-    return { status: "ready", refreshRuns: payload as RetrievalWorkbenchRefreshRun[] };
+    return { status: 'ready', refreshRuns: payload as RetrievalWorkbenchRefreshRun[] };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { status: 'error', message };
   }
 }
 
-async function readRetrievalWorkbenchSearch(sourceListState: RetrievalSourceListState): Promise<RetrievalSearchState> {
-  if (sourceListState.status !== "ready" || sourceListState.sources.length === 0) {
-    return { status: "idle", message: "发送搜索请求需要先获得资料源列表。" };
+async function readRetrievalWorkbenchSearch(
+  sourceListState: RetrievalSourceListState,
+): Promise<RetrievalSearchState> {
+  if (sourceListState.status !== 'ready' || sourceListState.sources.length === 0) {
+    return { status: 'idle', message: '发送搜索请求需要先获得资料源列表。' };
   }
 
   const firstSource = sourceListState.sources[0];
@@ -134,32 +138,32 @@ async function readRetrievalWorkbenchSearch(sourceListState: RetrievalSourceList
 
   try {
     const response = await apiFetch(retrievalWorkbenchSearchEndpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(requestBody),
     });
     if (!response.ok) {
-      return { status: "error", message: `搜索请求 API 返回 ${response.status}` };
+      return { status: 'error', message: `搜索请求 API 返回 ${response.status}` };
     }
 
     const payload: unknown = await response.json();
     if (!isRetrievalWorkbenchSearchResult(payload)) {
-      return { status: "error", message: "搜索请求 API 返回格式不符合预期" };
+      return { status: 'error', message: '搜索请求 API 返回格式不符合预期' };
     }
 
-    return { status: "ready", result: payload };
+    return { status: 'ready', result: payload };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "未知错误";
-    return { status: "error", message };
+    const message = error instanceof Error ? error.message : '未知错误';
+    return { status: 'error', message };
   }
 }
 
 function isRetrievalWorkbenchSearchResult(value: unknown): value is RetrievalWorkbenchSearchResult {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
   const candidate = value as Partial<RetrievalWorkbenchSearchResult>;
-  return typeof candidate.query === "string" && Array.isArray(candidate.hits);
+  return typeof candidate.query === 'string' && Array.isArray(candidate.hits);
 }
 
 function parsePositiveInt(value: string | undefined): number | undefined {
@@ -183,9 +187,12 @@ export default async function RetrievalPage({
 
   return (
     <main aria-labelledby="retrieval-title">
-        <h1 id="retrieval-title">Retrieval 证据链路</h1>
-        <p>核对资料来源类型、搜索请求、命中预览、证据锚点和 Scene Packet 的检索证据来源。</p>
-        <p>当前读取范围：{bookId === undefined ? "未指定 book_id，读取 API 默认资料源列表。" : `book_id=${bookId}`}</p>
+      <h1 id="retrieval-title">Retrieval 证据链路</h1>
+      <p>核对资料来源类型、搜索请求、命中预览、证据锚点和 Scene Packet 的检索证据来源。</p>
+      <p>
+        当前读取范围：
+        {bookId === undefined ? '未指定 book_id，读取 API 默认资料源列表。' : `book_id=${bookId}`}
+      </p>
       <section aria-labelledby="retrieval-current-scope-title">
         <h2 id="retrieval-current-scope-title">当前对象 / 当前证据 / 当前动作</h2>
         <dl>
@@ -209,8 +216,10 @@ export default async function RetrievalPage({
       </section>
       <section aria-labelledby="retrieval-source-list-title">
         <h2 id="retrieval-source-list-title">读取资料源列表</h2>
-        <p>当前 Retrieval 工作台只读取 {retrievalWorkbenchSourcesEndpoint} 这一个资料源列表端点。</p>
-        {sourceListState.status === "error" ? (
+        <p>
+          当前 Retrieval 工作台只读取 {retrievalWorkbenchSourcesEndpoint} 这一个资料源列表端点。
+        </p>
+        {sourceListState.status === 'error' ? (
           <p role="status">可重试错误摘要：{sourceListState.message}</p>
         ) : sourceListState.sources.length === 0 ? (
           <p>空列表：当前作品暂无可检索资料源，请先上传资料或生成章节快照。</p>
@@ -230,9 +239,9 @@ export default async function RetrievalPage({
       <section aria-labelledby="retrieval-refresh-runs-title">
         <h2 id="retrieval-refresh-runs-title">读取刷新任务</h2>
         <p>当前 Retrieval 工作台只在资料源列表之后读取 {retrievalWorkbenchRefreshRunsEndpoint}。</p>
-        {refreshRunListState.status === "idle" ? (
+        {refreshRunListState.status === 'idle' ? (
           <p>{refreshRunListState.message}</p>
-        ) : refreshRunListState.status === "error" ? (
+        ) : refreshRunListState.status === 'error' ? (
           <p role="status">可重试错误摘要：{refreshRunListState.message}</p>
         ) : refreshRunListState.refreshRuns.length === 0 ? (
           <p>空列表：当前资料源暂无刷新任务记录。</p>
@@ -243,8 +252,8 @@ export default async function RetrievalPage({
                 <strong>刷新任务 #{run.id}</strong>
                 <span>状态：{run.status}</span>
                 <span>切片数量：{run.chunk_count}</span>
-                <span>Embedding：{run.embedding_provider ?? "暂无 provider"}</span>
-                <span>凭据状态：{run.credential_status ?? "暂无凭据状态"}</span>
+                <span>Embedding：{run.embedding_provider ?? '暂无 provider'}</span>
+                <span>凭据状态：{run.credential_status ?? '暂无凭据状态'}</span>
               </li>
             ))}
           </ul>
@@ -253,11 +262,12 @@ export default async function RetrievalPage({
       <section aria-labelledby="retrieval-search-title">
         <h2 id="retrieval-search-title">搜索请求与命中预览</h2>
         <p>
-          当前 Retrieval 工作台只发送 {retrievalWorkbenchSearchEndpoint} 这一类搜索请求，并在结果中展示命中预览和证据跳转。
+          当前 Retrieval 工作台只发送 {retrievalWorkbenchSearchEndpoint}{' '}
+          这一类搜索请求，并在结果中展示命中预览和证据跳转。
         </p>
-        {searchState.status === "idle" ? (
+        {searchState.status === 'idle' ? (
           <p>{searchState.message}</p>
-        ) : searchState.status === "error" ? (
+        ) : searchState.status === 'error' ? (
           <p role="status">可重试错误摘要：{searchState.message}</p>
         ) : searchState.result.hits.length === 0 ? (
           <p>空列表：搜索请求“{searchState.result.query}”暂无命中。</p>

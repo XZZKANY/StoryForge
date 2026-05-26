@@ -6,6 +6,7 @@ from storyforge_workflow.runtime.checkpoints import (
     RuntimeCheckpointStore,
     RuntimeModelRunRecord,
     RuntimeRecord,
+    RuntimeStateSnapshot,
 )
 from storyforge_workflow.runtime.lifecycle import (
     InMemoryWorkflowLifecycleStore,
@@ -44,6 +45,7 @@ __all__ = [
     "RuntimeCheckpointStore",
     "RuntimeModelRunRecord",
     "RuntimeRecord",
+    "RuntimeStateSnapshot",
     "ProviderAdapter",
     "ProviderClientAdapter",
     "ProviderParityCase",

@@ -27,7 +27,7 @@ class MemoryAtom(BaseModel):
     revision: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
-    def validate_chapter_range(self) -> "MemoryAtom":
+    def validate_chapter_range(self) -> MemoryAtom:
         if self.valid_to_chapter is not None and self.valid_to_chapter < self.valid_from_chapter:
             raise ValueError("事实结束章节不能早于开始章节。")
         return self
@@ -58,7 +58,7 @@ class Progression(BaseModel):
     atoms: list[MemoryAtom] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def require_same_entity(self) -> "Progression":
+    def require_same_entity(self) -> Progression:
         if any(atom.entity_id != self.entity_id or atom.fact_type != self.fact_type for atom in self.atoms):
             raise ValueError("Progression 只能包含同一实体和同一事实类型的记忆。")
         return self

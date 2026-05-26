@@ -5,8 +5,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.common.scope import ScopeNotFoundError, validate_scope
 from app.db.queries import latest_by_lineage
 from app.domains.prompt_packs.models import PromptPack

@@ -2,20 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
 from app.domains.provider_gateway.service import ProviderGatewayError, resolve_provider
 from app.domains.workspaces.models import Workspace
-from app.main import app
-
-import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -133,9 +127,8 @@ def test_provider_gateway_falls_back_by_capability_when_key_missing(
 def test_provider_gateway_rejects_unknown_capability(session_factory: sessionmaker[Session]) -> None:
     """Provider Gateway 只接受已区分的三类 Phase 5 能力。"""
 
-    with session_factory() as session:
-        with pytest.raises(ProviderGatewayError, match="llm、embedding、reranker"):
-            resolve_provider(session, "vision")
+    with session_factory() as session, pytest.raises(ProviderGatewayError, match="llm、embedding、reranker"):
+        resolve_provider(session, "vision")
 
 
 def test_runtime_provider_config_uses_lru_cache(monkeypatch: pytest.MonkeyPatch) -> None:

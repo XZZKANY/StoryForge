@@ -1,18 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
-from app.main import app
-
-import pytest
 
 
 def test_create_workspace_add_members_and_enforce_seat_limit(client: TestClient) -> None:
@@ -20,4 +10,26 @@ def test_create_workspace_add_members_and_enforce_seat_limit(client: TestClient)
         "/api/workspaces",
         json={"title": "星海协作组", "description": "第三阶段协作试点", "seat_limit": 1},
     )
-    assert create_response.status_code == 404
+    assert create_response.status_code == 201
+    workspace = create_response.json()
+    assert workspace["title"] == "星海协作组"
+    assert workspace["slug"] == "workspace"
+    assert workspace["seat_limit"] == 1
+
+    first_member_response = client.post(
+        f"/api/workspaces/{workspace['id']}/members",
+        json={"display_name": "林岚", "role": "owner"},
+    )
+    assert first_member_response.status_code == 201
+    assert first_member_response.json()["role"] == "owner"
+
+    overflow_response = client.post(
+        f"/api/workspaces/{workspace['id']}/members",
+        json={"display_name": "顾潮", "role": "editor"},
+    )
+    assert overflow_response.status_code == 400
+    assert overflow_response.json()["detail"] == "工作区席位已满，无法继续添加活跃成员。"
+
+    members_response = client.get(f"/api/workspaces/{workspace['id']}/members")
+    assert members_response.status_code == 200
+    assert [member["display_name"] for member in members_response.json()] == ["林岚"]

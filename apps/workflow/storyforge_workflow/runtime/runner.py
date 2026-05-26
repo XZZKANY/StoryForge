@@ -6,7 +6,8 @@ from typing import Any
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from storyforge_workflow import create_generation_graph, initial_generation_state
+from storyforge_workflow import initial_generation_state
+from storyforge_workflow.graph import WorkflowNodeTimeoutError, create_generation_graph
 from storyforge_workflow.persistence import InMemoryWorkflowStore
 from storyforge_workflow.runtime.checkpoints import ModelRunPayload, ModelRunSink, RuntimeCheckpointStore
 from storyforge_workflow.runtime.lifecycle import (
@@ -131,7 +132,16 @@ class WorkflowRuntime:
             current_node="book_director",
             message="LangGraph 生成图执行中。",
         )
-        chunks = list(self.graph.stream(state, {"configurable": {"thread_id": thread_id}}))
+        try:
+            chunks = self._stream_graph_with_state_snapshots(state, thread_id=thread_id, initial_state=state)
+        except _GraphNodeFailure as failure:
+            return self._record_node_failure(
+                thread_id=thread_id,
+                job_run_id=job_run_id,
+                state=failure.state,
+                error=failure.error,
+                provider_execution=provider_execution,
+            )
         latest_state = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values
         self.checkpoint_store.save_state(thread_id, latest_state)
         self.checkpoint_store.record(
@@ -269,7 +279,21 @@ class WorkflowRuntime:
             prompt_summary=prompt_summary,
             model_name=provider_execution.model_name,
         )
-        list(self.graph.stream(Command(resume=decision), {"configurable": {"thread_id": thread_id}}))
+        restored_state = self.checkpoint_store.load_state(thread_id) or {"thread_id": thread_id, "job_run_id": job_run_id}
+        try:
+            self._stream_graph_with_state_snapshots(
+                Command(resume=decision),
+                thread_id=thread_id,
+                initial_state=restored_state,
+            )
+        except _GraphNodeFailure as failure:
+            return self._record_node_failure(
+                thread_id=thread_id,
+                job_run_id=job_run_id,
+                state=failure.state,
+                error=failure.error,
+                provider_execution=provider_execution,
+            )
         latest_state = self.graph.get_state({"configurable": {"thread_id": thread_id}}).values
         self.checkpoint_store.save_state(thread_id, latest_state)
         self.checkpoint_store.record(
@@ -320,6 +344,66 @@ class WorkflowRuntime:
             )
         )
 
+    def _stream_graph_with_state_snapshots(self, graph_input: Any, *, thread_id: str, initial_state: dict[str, Any]) -> list[dict[str, Any]]:
+        """每个 LangGraph 节点完成后保存一次引用化运行状态。"""
+
+        chunks: list[dict[str, Any]] = []
+        running_state = dict(initial_state)
+        try:
+            for chunk in self.graph.stream(graph_input, {"configurable": {"thread_id": thread_id}}):
+                chunks.append(chunk)
+                for update in _node_updates_from_chunk(chunk):
+                    running_state.update(update)
+                    self.checkpoint_store.save_state(thread_id, running_state)
+        except WorkflowNodeTimeoutError as exc:
+            running_state.update({"current_node": exc.node_name, "error_code": "node_timeout", "approval_status": "failed"})
+            self.checkpoint_store.save_state(thread_id, running_state)
+            raise _GraphNodeFailure(error=exc, state=running_state) from exc
+        return chunks
+
+    def _record_node_failure(
+        self,
+        *,
+        thread_id: str,
+        job_run_id: str,
+        state: dict[str, Any],
+        error: Exception,
+        provider_execution: ProviderExecutionResult | None,
+    ) -> WorkflowRuntimeResult:
+        current_node = getattr(error, "node_name", state.get("current_node", "unknown"))
+        state.update({"current_node": current_node, "error_code": _node_failure_error_code(error), "approval_status": "failed"})
+        self.checkpoint_store.save_state(thread_id, state)
+        self.checkpoint_store.record(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            current_node=str(current_node),
+            summary=f"workflow 节点失败：{error}",
+            approval_status="failed",
+        )
+        self.lifecycle_store.record_failure(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            current_node=str(current_node),
+            message=str(error),
+            failure_kind=_node_failure_kind(error),
+            recoverable=True,
+        )
+        session = self.session_store.get(_session_id(thread_id, job_run_id))
+        if session is not None:
+            self.session_store.update_status(
+                session.session_id,
+                status=WorkflowLifecycleStatus.RECOVERABLE_FAILED,
+                current_node=str(current_node),
+            )
+            self.session_store.heartbeat(session.session_id)
+        return WorkflowRuntimeResult(
+            thread_id=thread_id,
+            job_run_id=job_run_id,
+            status="failed",
+            current_node=str(current_node),
+            provider_execution=provider_execution,
+        )
+
 
 def _session_id(thread_id: str, job_run_id: str) -> str:
     """生成稳定 session_id，保持同一 thread/job 的 start 与 resume 可关联。"""
@@ -336,4 +420,36 @@ def _provider_failure_kind(error: Exception) -> WorkflowFailureKind:
     if "invalid" in message or "parse" in message:
         return WorkflowFailureKind.PROVIDER_INVALID_RESPONSE
     return WorkflowFailureKind.UNKNOWN_RUNTIME_ERROR
+
+
+@dataclass(frozen=True)
+class _GraphNodeFailure(Exception):
+    error: Exception
+    state: dict[str, Any]
+
+
+def _node_updates_from_chunk(chunk: Any) -> list[dict[str, Any]]:
+    """从 LangGraph stream chunk 中提取节点输出，跳过 interrupt 事件。"""
+
+    if not isinstance(chunk, dict):
+        return []
+    updates: list[dict[str, Any]] = []
+    for key, value in chunk.items():
+        if key == "__interrupt__":
+            continue
+        if isinstance(value, dict):
+            updates.append(value)
+    return updates
+
+
+def _node_failure_kind(error: Exception) -> WorkflowFailureKind:
+    if isinstance(error, WorkflowNodeTimeoutError):
+        return WorkflowFailureKind.NODE_TIMEOUT
+    return WorkflowFailureKind.UNKNOWN_RUNTIME_ERROR
+
+
+def _node_failure_error_code(error: Exception) -> str:
+    if isinstance(error, WorkflowNodeTimeoutError):
+        return "node_timeout"
+    return "node_execution_failed"
 

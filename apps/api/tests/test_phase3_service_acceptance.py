@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.db.base import Base
 from app.domains.analytics.service import build_workspace_analytics
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.collaboration.schemas import ApprovalDecisionCreate, ApprovalRequestCreate, WorkspaceCommentCreate
-from app.domains.collaboration.service import create_approval_request, create_comment, decide_approval, list_scene_timeline
+from app.domains.collaboration.service import (
+    create_approval_request,
+    create_comment,
+    decide_approval,
+    list_scene_timeline,
+)
 from app.domains.commercial.schemas import WorkspaceSubscriptionCreate
 from app.domains.commercial.service import build_commercial_summary, upsert_workspace_subscription
 from app.domains.events.schemas import EventRecordCreate

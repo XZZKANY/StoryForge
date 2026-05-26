@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Protocol
+from urllib.error import HTTPError
 
 from storyforge_workflow.provider_client import generate_text, provider_config
 
@@ -47,6 +48,18 @@ class ProviderAdapter(Protocol):
         """根据统一请求生成统一响应。"""
 
 
+class ProviderError(RuntimeError):
+    """provider 调用失败的统一异常，隐藏底层 HTTP 客户端细节。"""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class ProviderTimeoutError(ProviderError):
+    """provider 调用超时。"""
+
+
 class ProviderClientAdapter:
     """把现有 provider client 包装为 workflow runtime adapter。"""
 
@@ -66,7 +79,16 @@ class ProviderClientAdapter:
 
         config = self._config_loader()
         started_at = self._timer()
-        output_text = self._generate_text(request.prompt)
+        try:
+            output_text = self._generate_text(request.prompt)
+        except ProviderError:
+            raise
+        except TimeoutError as exc:
+            raise ProviderTimeoutError("provider 调用超时。") from exc
+        except HTTPError as exc:
+            raise ProviderError(_http_error_message(exc.code), status_code=exc.code) from exc
+        except Exception as exc:
+            raise ProviderError(f"provider 调用失败：{exc}") from exc
         latency_ms = int((self._timer() - started_at) * 1000)
         return ProviderResponse(
             provider_name=config["provider_name"],
@@ -186,6 +208,12 @@ def _request_id(metadata: dict[str, object]) -> str | None:
 
 def _estimate_token_usage(prompt: str, output_text: str) -> int:
     return max(1, (len(prompt) + len(output_text)) // 4)
+
+
+def _http_error_message(status_code: int) -> str:
+    if status_code == 429:
+        return "provider 返回 HTTP 429，触发限流。"
+    return f"provider 返回 HTTP {status_code}。"
 
 
 def _field_difference(field: str, reference: ProviderResponse, candidate: ProviderResponse) -> str | None:

@@ -1,22 +1,32 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.db.deps import SessionDependency
 from app.domains.batch_refinery.schemas import BatchRefineryRunCreate, BatchRefineryRunRead
-from app.domains.batch_refinery.service import BatchRefineryInputError, get_batch_refinery_run, run_batch_refinery
+from app.domains.batch_refinery.service import (
+    BatchRefineryInputError,
+    create_batch_refinery_job,
+    get_batch_refinery_run,
+    run_batch_refinery_in_background,
+)
 
 router = APIRouter(prefix="/api/batch-refinery", tags=["批量精修"])
 
 
-@router.post("/runs", response_model=BatchRefineryRunRead, status_code=status.HTTP_201_CREATED)
-def create_batch_refinery_run(payload: BatchRefineryRunCreate, session: SessionDependency) -> BatchRefineryRunRead:
-    """同步执行批量精修，并返回 JobRun 进度明细。"""
+@router.post("/runs", response_model=BatchRefineryRunRead, status_code=status.HTTP_202_ACCEPTED)
+def create_batch_refinery_run(
+    payload: BatchRefineryRunCreate,
+    session: SessionDependency,
+    background_tasks: BackgroundTasks,
+) -> BatchRefineryRunRead:
+    """创建排队任务并交给后台执行，客户端通过查询接口读取进度。"""
 
     try:
-        job = run_batch_refinery(session, payload)
+        job = create_batch_refinery_job(session, payload)
     except BatchRefineryInputError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    background_tasks.add_task(run_batch_refinery_in_background, payload, job.id)
     return BatchRefineryRunRead.model_validate(job)
 
 

@@ -9,7 +9,6 @@ from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
 
-
 ENTITY_CLASSES = (
     Book,
     Chapter,

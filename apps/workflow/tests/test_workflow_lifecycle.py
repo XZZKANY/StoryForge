@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from storyforge_workflow.runtime import (
     InMemoryWorkflowLifecycleStore,
+    RuntimeCheckpointStore,
     WorkflowFailureKind,
     WorkflowLifecycleStatus,
 )
@@ -52,3 +53,38 @@ def test_workflow_lifecycle_records_provider_recoverable_failure() -> None:
     assert event.current_node == "provider_execution"
     assert event.recoverable is True
     assert event.created_at_ms == 2000
+
+
+def test_runtime_checkpoint_store_lists_incomplete_workflows_for_startup_resume(tmp_path) -> None:
+    """启动时应能从 SQLite 找到未完成 workflow，并提供最后 checkpoint。"""
+
+    sqlite_path = tmp_path / "workflow-runtime.sqlite3"
+    store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    store.save_state(
+        "thread-pending",
+        {
+            "thread_id": "thread-pending",
+            "job_run_id": "job-pending",
+            "current_node": "draft_writer",
+            "approval_status": "pending",
+            "scene_packet_id": 401,
+        },
+    )
+    store.save_state(
+        "thread-approved",
+        {
+            "thread_id": "thread-approved",
+            "job_run_id": "job-approved",
+            "current_node": "human_approval",
+            "approval_status": "approved",
+            "scene_packet_id": 402,
+        },
+    )
+
+    restarted_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    incomplete = restarted_store.list_incomplete_workflows()
+
+    assert [snapshot.thread_id for snapshot in incomplete] == ["thread-pending"]
+    assert incomplete[0].job_run_id == "job-pending"
+    assert incomplete[0].current_node == "draft_writer"
+    assert incomplete[0].state["scene_packet_id"] == 401

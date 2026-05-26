@@ -5,8 +5,8 @@ from collections.abc import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from app.common.exceptions import ConflictError, NotFoundError
 
+from app.common.exceptions import ConflictError, NotFoundError
 from app.domains.workspaces.models import Workspace, WorkspaceMember
 from app.domains.workspaces.schemas import WorkspaceCreate, WorkspaceMemberCreate
 

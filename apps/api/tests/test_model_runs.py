@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book
 from app.domains.jobs.models import JobRun
 from app.domains.prompt_packs.models import PromptPack
 from app.domains.workspaces.models import Workspace
 from app.main import app
-
-import pytest
 
 
 @pytest.fixture()

@@ -1,22 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
-from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.jobs.models import JobRun
+from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.workspaces.models import Workspace
-from app.main import app
 
 
 def seed_book(

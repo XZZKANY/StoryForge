@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.common.scope import ScopeNotFoundError, validate_scope
 from app.domains.retrieval.embedding_client import EmbeddingClient, EmbeddingResult, LocalEmbeddingClient
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
@@ -83,29 +83,56 @@ def list_retrieval_sources(session: Session, book_id: int | None = None, series_
     return session.scalars(statement).all()
 
 
-def _list_retrieval_sources_for_workbench(
-    session: Session,
-    book_id: int | None = None,
-    series_id: int | None = None,
-) -> Sequence[RetrievalSource]:
-    statement = select(RetrievalSource).order_by(RetrievalSource.id)
-    if book_id is not None:
-        statement = statement.where(RetrievalSource.book_id == book_id)
-    if series_id is not None:
-        statement = statement.where(RetrievalSource.series_id == series_id)
-    return session.scalars(statement).all()
-
-
 def list_retrieval_workbench_sources(
     session: Session,
     book_id: int | None = None,
     series_id: int | None = None,
 ) -> list[RetrievalWorkbenchSourceRead]:
-    sources = _list_retrieval_sources_for_workbench(session, book_id=book_id, series_id=series_id)
-    source_ids = [source.id for source in sources]
-    latest_runs = _load_latest_refresh_runs_by_source_id(session, source_ids)
-    chunk_counts = _load_chunk_counts_by_source_id(session, source_ids)
-    return [_build_workbench_source(source, latest_runs.get(source.id), chunk_counts.get(source.id, 0)) for source in sources]
+    rows = _list_workbench_source_rows(session, book_id=book_id, series_id=series_id)
+    return [
+        _build_workbench_source(source, latest_refresh, int(chunk_count or 0))
+        for source, chunk_count, latest_refresh in rows
+    ]
+
+
+def _list_workbench_source_rows(
+    session: Session,
+    book_id: int | None = None,
+    series_id: int | None = None,
+):
+    chunk_counts = (
+        select(
+            RetrievalChunk.source_id.label("source_id"),
+            func.count(RetrievalChunk.id).label("chunk_count"),
+        )
+        .group_by(RetrievalChunk.source_id)
+        .subquery()
+    )
+    latest_run_ids = (
+        select(
+            RetrievalRefreshRun.source_id.label("source_id"),
+            func.max(RetrievalRefreshRun.id).label("latest_run_id"),
+        )
+        .where(RetrievalRefreshRun.source_id.is_not(None))
+        .group_by(RetrievalRefreshRun.source_id)
+        .subquery()
+    )
+    statement = (
+        select(
+            RetrievalSource,
+            func.coalesce(chunk_counts.c.chunk_count, 0).label("chunk_count"),
+            RetrievalRefreshRun,
+        )
+        .outerjoin(chunk_counts, chunk_counts.c.source_id == RetrievalSource.id)
+        .outerjoin(latest_run_ids, latest_run_ids.c.source_id == RetrievalSource.id)
+        .outerjoin(RetrievalRefreshRun, RetrievalRefreshRun.id == latest_run_ids.c.latest_run_id)
+        .order_by(RetrievalSource.id)
+    )
+    if book_id is not None:
+        statement = statement.where(RetrievalSource.book_id == book_id)
+    if series_id is not None:
+        statement = statement.where(RetrievalSource.series_id == series_id)
+    return session.execute(statement).all()
 
 
 def list_retrieval_workbench_refresh_runs(
@@ -382,37 +409,6 @@ def search_retrieval_workbench(
     )
 
 
-def _load_chunk_counts_by_source_id(session: Session, source_ids: Sequence[int]) -> dict[int, int]:
-    if not source_ids:
-        return {}
-    rows = session.execute(
-        select(RetrievalChunk.source_id, func.count(RetrievalChunk.id))
-        .where(RetrievalChunk.source_id.in_(source_ids))
-        .group_by(RetrievalChunk.source_id)
-    ).all()
-    return {source_id: int(chunk_count) for source_id, chunk_count in rows}
-
-
-def _load_latest_refresh_runs_by_source_id(
-    session: Session,
-    source_ids: Sequence[int],
-) -> dict[int, RetrievalRefreshRun]:
-    if not source_ids:
-        return {}
-    latest_run_ids = (
-        select(
-            RetrievalRefreshRun.source_id.label("source_id"),
-            func.max(RetrievalRefreshRun.id).label("latest_run_id"),
-        )
-        .where(RetrievalRefreshRun.source_id.in_(source_ids))
-        .group_by(RetrievalRefreshRun.source_id)
-        .subquery()
-    )
-    runs = session.scalars(
-        select(RetrievalRefreshRun).join(latest_run_ids, RetrievalRefreshRun.id == latest_run_ids.c.latest_run_id)
-    ).all()
-    return {run.source_id: run for run in runs if run.source_id is not None}
-
 
 def _build_workbench_source(
     source: RetrievalSource,
@@ -631,7 +627,7 @@ def _cosine_similarity(left: list[float] | None, right: list[float] | None) -> f
     dot = 0.0
     left_norm_squared = 0.0
     right_norm_squared = 0.0
-    for left_value, right_value in zip(left, right):
+    for left_value, right_value in zip(left, right, strict=False):
         dot += left_value * right_value
         left_norm_squared += left_value * left_value
         right_norm_squared += right_value * right_value

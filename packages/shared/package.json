@@ -8,9 +8,11 @@
     "./contracts/storyforge.openapi.json": "./src/contracts/storyforge.openapi.json"
   },
   "scripts": {
+    "generate:types": "openapi-typescript src/contracts/storyforge.openapi.json -o src/generated/api-types.ts",
     "test": "tsc --noEmit"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.13.0",
     "typescript": "5.8.3"
   }
 }

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
+from urllib.error import HTTPError
 
 import pytest
 
 from storyforge_workflow.runtime.provider_adapter import (
     MockProviderAdapter,
     ProviderClientAdapter,
+    ProviderError,
     ProviderRequest,
     ProviderResponse,
+    ProviderTimeoutError,
 )
 from storyforge_workflow.runtime.provider_execution import execute_provider_text
 
@@ -125,3 +128,58 @@ def test_execute_provider_text_delegates_to_provider_adapter() -> None:
     assert result.latency_ms == 5
     assert result.token_usage == 9
     assert result.summary == "adapter 摘要：章节输入。"
+
+
+def test_provider_client_adapter_maps_rate_limit_to_clear_provider_error() -> None:
+    """HTTP 429 应转换为带状态码的 provider 错误，调用方不需要理解 urllib。"""
+
+    def generate_text_fn(prompt: str) -> str:
+        raise HTTPError(url="https://provider.test", code=429, msg="Too Many Requests", hdrs=None, fp=None)
+
+    adapter = ProviderClientAdapter(
+        generate_text_fn=generate_text_fn,
+        config_loader=lambda: {"provider_name": "gateway-provider", "model": "gateway-model"},
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        adapter.generate(ProviderRequest(capability="llm", prompt="输入提示。", model_alias=None, metadata={}))
+
+    assert exc_info.value.status_code == 429
+    assert "429" in str(exc_info.value)
+    assert "限流" in str(exc_info.value)
+
+
+def test_provider_client_adapter_maps_server_error_with_status_code() -> None:
+    """HTTP 500 应转换为带状态码的 provider 错误。"""
+
+    def generate_text_fn(prompt: str) -> str:
+        raise HTTPError(url="https://provider.test", code=500, msg="Internal Server Error", hdrs=None, fp=None)
+
+    adapter = ProviderClientAdapter(
+        generate_text_fn=generate_text_fn,
+        config_loader=lambda: {"provider_name": "gateway-provider", "model": "gateway-model"},
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        adapter.generate(ProviderRequest(capability="llm", prompt="输入提示。", model_alias=None, metadata={}))
+
+    assert exc_info.value.status_code == 500
+    assert "500" in str(exc_info.value)
+
+
+def test_provider_client_adapter_maps_timeout_to_dedicated_error() -> None:
+    """provider 连接超时应转换为专用 timeout 异常。"""
+
+    def generate_text_fn(prompt: str) -> str:
+        raise TimeoutError("provider 连接超时")
+
+    adapter = ProviderClientAdapter(
+        generate_text_fn=generate_text_fn,
+        config_loader=lambda: {"provider_name": "gateway-provider", "model": "gateway-model"},
+    )
+
+    with pytest.raises(ProviderTimeoutError) as exc_info:
+        adapter.generate(ProviderRequest(capability="llm", prompt="输入提示。", model_alias=None, metadata={}))
+
+    assert exc_info.value.status_code is None
+    assert "超时" in str(exc_info.value)

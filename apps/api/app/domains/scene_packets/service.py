@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import NotFoundError
 
-from app.domains.assets.models import Asset
+from app.common.exceptions import NotFoundError
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.scene_packets.assembly import (
     filter_continuity_records_for_chapter as _filter_continuity_records_for_chapter,
+)
+from app.domains.scene_packets.assembly import (
     load_active_assets as _load_active_assets,
+)
+from app.domains.scene_packets.assembly import (
     load_evidence_links as _load_evidence_links,
 )
 from app.domains.scene_packets.context_pipeline import assemble_scene_context

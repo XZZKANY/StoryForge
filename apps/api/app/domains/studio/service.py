@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from app.common.exceptions import NotFoundError
 
+from app.common.exceptions import NotFoundError
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
-from app.domains.judge.models import JudgeIssue
-from app.domains.judge.models import RepairPatch
 from app.domains.jobs.models import JobRun
+from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.studio.schemas import (
     StudioApprovalExecuteRead,
     StudioApprovalExecuteRequest,

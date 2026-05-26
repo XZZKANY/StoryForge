@@ -15,7 +15,7 @@ class RetrievalSourceCreate(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def require_scope(self) -> "RetrievalSourceCreate":
+    def require_scope(self) -> RetrievalSourceCreate:
         if self.book_id is None and self.series_id is None:
             raise ValueError("资料源至少需要 book_id 或 series_id 之一。")
         return self
@@ -68,7 +68,7 @@ class RetrievalRefreshRunCreate(BaseModel):
     series_id: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
-    def require_scope(self) -> "RetrievalRefreshRunCreate":
+    def require_scope(self) -> RetrievalRefreshRunCreate:
         if self.source_id is None and self.book_id is None and self.series_id is None:
             raise ValueError("刷新任务至少需要 source_id、book_id 或 series_id 之一。")
         return self
@@ -95,7 +95,7 @@ class RetrievalSearchCreate(BaseModel):
     limit: int = Field(default=5, ge=1, le=20)
 
     @model_validator(mode="after")
-    def require_scope(self) -> "RetrievalSearchCreate":
+    def require_scope(self) -> RetrievalSearchCreate:
         if self.book_id is None and self.series_id is None:
             raise ValueError("检索查询至少需要 book_id 或 series_id 之一。")
         return self

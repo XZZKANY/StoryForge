@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.domains.jobs.models import JobRun
 
 

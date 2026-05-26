@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from storyforge_workflow.state import GenerationState, advance_status
 from storyforge_workflow.provider_client import generate_text
+from storyforge_workflow.state import GenerationState, advance_status
 
 
 def create_book_strategy(state: GenerationState) -> dict:

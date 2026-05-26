@@ -28,6 +28,7 @@ class WorkflowFailureKind(StrEnum):
     APPROVAL_PAYLOAD_INVALID = "approval_payload_invalid"
     RESUME_THREAD_MISMATCH = "resume_thread_mismatch"
     TOOL_CONTRACT_FAILED = "tool_contract_failed"
+    NODE_TIMEOUT = "node_timeout"
     UNKNOWN_RUNTIME_ERROR = "unknown_runtime_error"
 
 

@@ -4,7 +4,11 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.db.deps import SessionDependency
 from app.domains.commercial.schemas import CommercialSummaryRead, WorkspaceSubscriptionCreate, WorkspaceSubscriptionRead
-from app.domains.commercial.service import CommercialWorkspaceNotFoundError, build_commercial_summary, upsert_workspace_subscription
+from app.domains.commercial.service import (
+    CommercialWorkspaceNotFoundError,
+    build_commercial_summary,
+    upsert_workspace_subscription,
+)
 
 router = APIRouter(prefix="/api/commercial", tags=["商业化控制"])
 

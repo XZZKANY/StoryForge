@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
+from app.domains.batch_refinery import service as batch_service
+from app.domains.batch_refinery.schemas import BatchRefineryRunCreate
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.judge.models import JudgeIssue, RepairPatch
-from app.main import app
 
 
 @pytest.fixture()
@@ -51,8 +47,11 @@ def test_batch_refinery_records_job_progress_issues_and_patches(
     client: TestClient,
     session_factory: sessionmaker[Session],
     batch_context: dict[str, int],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """批量精修逐项执行评审和修复，并把明细写入 JobRun。"""
+
+    monkeypatch.setattr(batch_service, "SessionLocal", session_factory)
 
     response = client.post(
         "/api/batch-refinery/runs",
@@ -74,8 +73,14 @@ def test_batch_refinery_records_job_progress_issues_and_patches(
             ],
         },
     )
-    assert response.status_code == 201, response.text
-    result = response.json()
+    assert response.status_code == 202, response.text
+    queued_result = response.json()
+    assert queued_result["status"] == "queued"
+    assert queued_result["progress"] == {}
+
+    detail_response = client.get(f"/api/batch-refinery/runs/{queued_result['id']}")
+    assert detail_response.status_code == 200, detail_response.text
+    result = detail_response.json()
     assert result["status"] == "completed"
     assert result["progress"]["total"] == 2
     assert result["progress"]["succeeded"] == 2
@@ -89,16 +94,14 @@ def test_batch_refinery_records_job_progress_issues_and_patches(
     assert second_item["issue_ids"] == []
     assert second_item["repair_patch_id"] is None
 
-    detail_response = client.get(f"/api/batch-refinery/runs/{result['id']}")
-    assert detail_response.status_code == 200, detail_response.text
-    assert detail_response.json()["progress"] == result["progress"]
-
     with session_factory() as session:
         job = session.get(JobRun, result["id"])
+        jobs = session.scalars(select(JobRun).where(JobRun.job_type == "batch_refinery")).all()
         issues = session.scalars(select(JudgeIssue).order_by(JudgeIssue.id)).all()
         patches = session.scalars(select(RepairPatch)).all()
     assert job is not None
     assert job.progress["items"][0]["repair_patch_id"] == patches[0].id
+    assert [stored_job.id for stored_job in jobs] == [result["id"]]
     assert len(issues) == 1
     assert len(patches) == 1
 
@@ -106,8 +109,12 @@ def test_batch_refinery_records_job_progress_issues_and_patches(
 def test_batch_refinery_keeps_partial_failure_progress(
     client: TestClient,
     batch_context: dict[str, int],
+    session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """单项失败时保留其他成功项，并返回可恢复的部分失败进度。"""
+
+    monkeypatch.setattr(batch_service, "SessionLocal", session_factory)
 
     response = client.post(
         "/api/batch-refinery/runs",
@@ -119,10 +126,51 @@ def test_batch_refinery_keeps_partial_failure_progress(
             ],
         },
     )
-    assert response.status_code == 201, response.text
-    result = response.json()
+    assert response.status_code == 202, response.text
+    queued_result = response.json()
+    assert queued_result["status"] == "queued"
+    assert queued_result["progress"] == {}
+
+    detail_response = client.get(f"/api/batch-refinery/runs/{queued_result['id']}")
+    assert detail_response.status_code == 200, detail_response.text
+    result = detail_response.json()
     assert result["status"] == "partial_failed"
     assert result["progress"]["succeeded"] == 1
     assert result["progress"]["failed"] == 1
     assert result["progress"]["items"][1]["status"] == "failed"
     assert "场景不存在" in result["progress"]["items"][1]["error"]
+
+
+def test_batch_refinery_background_task_uses_dedicated_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """后台批量精修必须自建数据库会话，并在执行结束后关闭。"""
+
+    payload = BatchRefineryRunCreate(book_id=1, items=[{"scene_id": 1, "content": "左臂完好无损"}])
+    calls: dict[str, object] = {}
+
+    class FakeSession:
+        def close(self) -> None:
+            calls["closed"] = True
+
+    fake_session = FakeSession()
+
+    def fake_session_local() -> FakeSession:
+        calls["session_created"] = True
+        return fake_session
+
+    def fake_run_batch_refinery(session: FakeSession, run_payload: BatchRefineryRunCreate, *, job_id: int | None = None) -> None:
+        calls["session"] = session
+        calls["payload"] = run_payload
+        calls["job_id"] = job_id
+
+    monkeypatch.setattr(batch_service, "SessionLocal", fake_session_local)
+    monkeypatch.setattr(batch_service, "run_batch_refinery", fake_run_batch_refinery)
+
+    batch_service.run_batch_refinery_in_background(payload, 42)
+
+    assert calls == {
+        "session_created": True,
+        "session": fake_session,
+        "payload": payload,
+        "job_id": 42,
+        "closed": True,
+    }

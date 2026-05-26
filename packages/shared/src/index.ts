@@ -1,8 +1,10 @@
+export type { components, operations, paths, webhooks } from './generated/api-types';
+
 export type ApiErrorResponse = {
   readonly detail: string;
 };
 
-export type ProviderCapability = "llm" | "embedding" | "reranker";
+export type ProviderCapability = 'llm' | 'embedding' | 'reranker';
 
 export type ProviderResolution = {
   readonly provider_id: number | null;

@@ -5,7 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
-from app.domains.series.schemas import SeriesCreate, SeriesMemoryCreate, SeriesMemoryRead, SeriesMemoryUpdate, SeriesRead
+from app.domains.series.schemas import (
+    SeriesCreate,
+    SeriesMemoryCreate,
+    SeriesMemoryRead,
+    SeriesMemoryUpdate,
+    SeriesRead,
+)
 from app.domains.series.service import (
     EmptySeriesMemoryUpdateError,
     SeriesMemoryNotFoundError,

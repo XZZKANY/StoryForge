@@ -8,9 +8,18 @@ dependencies = [
   "pydantic>=2.10.0",
   "redis>=5.2.0",
   "psycopg[binary]>=3.2.0",
-  "pytest>=8.0.0"
+  "pytest>=8.0.0",
+  "ruff>=0.11.0"
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

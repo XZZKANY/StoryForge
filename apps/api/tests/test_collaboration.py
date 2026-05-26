@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
+import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.workspaces.models import Workspace, WorkspaceMember
-from app.main import app
-
-import pytest
 
 
 @pytest.fixture()
@@ -49,4 +41,39 @@ def test_collaboration_comment_approval_timeline_and_events(client: TestClient, 
             "body": "建议加强旧伤带来的动作限制。",
         },
     )
-    assert comment_response.status_code == 404
+    assert comment_response.status_code == 201
+    comment = comment_response.json()
+    assert comment["status"] == "open"
+    assert comment["body"] == "建议加强旧伤带来的动作限制。"
+
+    approval_response = client.post(
+        "/api/collaboration/approvals",
+        json={
+            "workspace_id": collaboration_context["workspace_id"],
+            "scene_id": collaboration_context["scene_id"],
+            "requester_member_id": collaboration_context["requester_id"],
+            "reviewer_member_id": collaboration_context["reviewer_id"],
+            "summary": "请确认修订方案。",
+        },
+    )
+    assert approval_response.status_code == 201
+    approval = approval_response.json()
+    assert approval["status"] == "pending"
+
+    decision_response = client.post(
+        f"/api/collaboration/approvals/{approval['id']}/decisions",
+        json={
+            "member_id": collaboration_context["reviewer_id"],
+            "decision": "approved",
+            "note": "同意。",
+        },
+    )
+    assert decision_response.status_code == 201
+    assert decision_response.json()["decision"] == "approved"
+
+    timeline_response = client.get(f"/api/collaboration/scenes/{collaboration_context['scene_id']}/timeline")
+    assert timeline_response.status_code == 200
+    timeline = timeline_response.json()
+    assert [item["item_type"] for item in timeline] == ["comment", "approval"]
+    assert timeline[0]["summary"] == "建议加强旧伤带来的动作限制。"
+    assert timeline[1]["status"] == "approved"

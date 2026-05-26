@@ -1,7 +1,7 @@
 const jobs = [
-  { id: "job-001", name: "章节草稿生成", status: "等待人工确认", resumeHref: "/studio" },
-  { id: "job-002", name: "修订评审", status: "正在运行", resumeHref: "/refinery" },
-  { id: "job-003", name: "素材同步", status: "已完成", resumeHref: "/assets" },
+  { id: 'job-001', name: '章节草稿生成', status: '等待人工确认', resumeHref: '/studio' },
+  { id: 'job-002', name: '修订评审', status: '正在运行', resumeHref: '/refinery' },
+  { id: 'job-003', name: '素材同步', status: '已完成', resumeHref: '/assets' },
 ];
 
 export default function JobsPage() {

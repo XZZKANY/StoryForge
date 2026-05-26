@@ -6,7 +6,13 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.model_runs.schemas import ModelRunCreate, ModelRunRead, RunsJobRunRead, RunsJobRunRetryRead
-from app.domains.model_runs.service import ModelRunError, create_model_run, get_runs_job_run, list_model_runs, retry_runs_job_run
+from app.domains.model_runs.service import (
+    ModelRunError,
+    create_model_run,
+    get_runs_job_run,
+    list_model_runs,
+    retry_runs_job_run,
+)
 
 router = APIRouter(prefix="/api/model-runs", tags=["模型运行日志"])
 

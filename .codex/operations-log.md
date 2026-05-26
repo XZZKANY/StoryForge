@@ -1,5 +1,470 @@
 # 操作日志
 
+## 编码前检查 - Step E-2a Web API 客户端单元测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-e-2a.md`
+□ 将使用以下可复用组件：
+
+- `apps/web/lib/api-client.ts`: 作为函数级单元测试对象，覆盖 API base URL、API Key 注入和错误响应转换。
+- `apps/web/scripts/phase1-contract-test.mjs`: 复用既有 TypeScript 临时转译与 `node --test` 执行流程。
+- `apps/web/tests/phase1-navigation.test.tsx`: 复用 `node:test`、`node:assert/strict` 和中文断言风格。
+
+□ 将遵循命名约定：TypeScript 测试文件使用 `*.test.ts`，函数和变量使用 camelCase。
+□ 将遵循代码风格：ESM 导入、中文测试描述和断言消息、无额外测试框架依赖。
+□ 确认不重复造轮子，证明：已检查 `apps/web/package.json`、`apps/web/scripts/phase1-contract-test.mjs`、`apps/web/tests/phase1-navigation.test.tsx` 和 `apps/web/lib/api-client.ts`，项目当前没有 Vitest/Jest，本步骤继续复用内置 `node:test`。
+
+### 工具与检索说明
+
+- 已按顺序执行 sequential-thinking 与 shrimp-task-manager。
+- 已使用 desktop-commander 读取 Web 测试、API client、测试脚本和包配置。
+- 已使用 Context7 查询 Node.js `node:test` 官方文档，确认 ESM 导入、严格断言和清理钩子模式。
+- 当前会话没有可用的 `github.search_code` 工具；`tool_search` 未发现 GitHub 代码搜索工具，已用项目内实现与 Context7 官方文档替代。
+
+## 红灯测试记录 - Step E-2a Web API 客户端单元测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+- 命令：`cd apps/web && node --test tests/api-client.test.ts`
+- 结果：失败，退出码 1。
+- 关键失败：`ERR_UNKNOWN_FILE_EXTENSION`，Node 无法直接执行新增 `.ts` 测试文件，说明现有测试入口必须通过项目既有 TypeScript 转译脚本纳入新增单元测试。
+
+## 编码中监控 - Step E-2a Web API 客户端单元测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：`api-client.test.ts` 直接覆盖 `getApiBaseUrl()`、`apiFetch()`、`readJson()`；`phase1-contract-test.mjs` 继续复用 TypeScript 临时转译与 `node --test`。
+
+□ 命名是否符合项目约定？
+✅ 是：新增文件名为 `api-client.test.ts`，测试函数和夹具使用 camelCase，测试描述使用简体中文。
+
+□ 代码风格是否一致？
+✅ 是：保持 ESM、`node:test`、`node:assert/strict`，未引入额外测试框架。
+
+## 编码后声明 - Step E-2a Web API 客户端单元测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+### 1. 复用了以下既有组件
+
+- `apps/web/lib/api-client.ts`: 作为 API client 函数级单元测试对象。
+- `apps/web/scripts/phase1-contract-test.mjs`: 扩展既有测试执行器，使 `pnpm test` 自动转译并运行 `tests/*.test.ts(x)`。
+- `apps/web/tests/phase1-navigation.test.tsx`: 沿用 `node:test` 与中文断言风格。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：TypeScript 测试文件使用 `*.test.ts`，函数和变量使用 camelCase。
+- 代码风格：测试描述、断言消息和脚本输出保持简体中文。
+- 文件组织：新增测试位于 `apps/web/tests/`，测试执行器仍位于 `apps/web/scripts/`。
+
+### 3. 对比了以下相似实现
+
+- `apps/web/tests/phase1-navigation.test.tsx`: 新测试从静态契约升级为函数级断言，但保持相同测试框架。
+- `apps/web/scripts/phase1-contract-test.mjs`: 保留临时目录、转译、执行、清理流程，只扩展为多测试文件发现。
+- `apps/web/lib/api-client.ts`: 测试直接验证既有 API Key、base URL 和错误响应契约，没有新增平行 API client。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `apps/web/package.json`、`apps/web/scripts/phase1-contract-test.mjs`、`apps/web/tests/phase1-navigation.test.tsx` 和 `apps/web/lib/api-client.ts`；项目未配置 Vitest/Jest，因此继续复用 Node 内置测试运行器。
+
+### 5. 本地验证
+
+- `cd apps/web && pnpm test api-client`：通过，`3 pass, 0 fail`。
+- `cd apps/web && pnpm test`：通过，`13 pass, 0 fail`。
+- `cd apps/web && pnpm run lint`：通过，`tsc --noEmit` 退出码 0。
+
+## 编码前检查 - Step E-2b Studio 页面冒烟测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-e-2b.md`
+□ 将使用以下可复用组件：
+
+- `apps/web/app/studio/StudioFlow.tsx`: 作为四步流程静态渲染烟测对象。
+- `apps/web/app/studio/actions.tsx`: 保留 Server Action 入口，提取无 Next 依赖 core 以便测试。
+- `apps/web/app/studio/validators.ts`: 复用批准写回响应格式校验。
+- `apps/web/scripts/phase1-contract-test.mjs`: 继续作为 `pnpm test` 的 TypeScript/TSX 转译执行器。
+
+□ 将遵循命名约定：Studio 纯函数使用 camelCase，测试文件使用 `studio.test.tsx`。
+□ 将遵循代码风格：中文测试描述、ESM 导入、React 渲染使用现有依赖，不新增测试框架。
+□ 确认不重复造轮子，证明：已检查 `StudioFlow.tsx`、`page-content.tsx`、`actions.tsx`、`validators.ts`、`api-client.test.ts` 和 `phase1-contract-test.mjs`，现有依赖可通过 `react-dom/server` 完成烟测。
+
+### 工具与检索说明
+
+- 已按顺序执行 sequential-thinking 与 shrimp-task-manager。
+- 已使用 desktop-commander 读取 Studio 组件、Server Action、校验器和测试执行器。
+- 已使用 Context7 查询 React `renderToStaticMarkup()` 官方文档，确认其适合非交互静态 HTML 渲染烟测。
+- 当前会话没有可用的 `github.search_code` 工具；沿用项目内实现与官方文档作为依据。
+
+## 红灯测试记录 - Step E-2b Studio 页面冒烟测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+- 命令：`cd apps/web && pnpm test studio`
+- 首次结果：失败，退出码 1。
+- 关键失败：临时目录在系统 Temp 下，无法解析项目依赖 `react`。
+- 二次结果：失败，退出码 1。
+- 关键失败：`StudioFlow.tsx` 转译后仍保留 JSX，Node 报 `Unexpected token '<'`。
+- 处理方式：将测试临时目录改到 `apps/web` 下，使依赖解析遵循项目目录；将 TSX 转译配置改为 React JSX runtime。
+
+## 编码中监控 - Step E-2b Studio 页面冒烟测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：`studio.test.tsx` 覆盖 `StudioFlow`、`approval-action-core` 和批准响应校验；`actions.tsx` 继续保留 Next Server Action 入口。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `approval-action-core.ts`、`studio.test.tsx`，函数命名使用 camelCase。
+
+□ 代码风格是否一致？
+✅ 是：保持中文文案、ESM、`node:test`、无新测试框架。
+
+## 编码后声明 - Step E-2b Studio 页面冒烟测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+### 1. 复用了以下既有组件
+
+- `apps/web/app/studio/StudioFlow.tsx`: 用于四步流程静态渲染烟测。
+- `apps/web/app/studio/validators.ts`: 用于批准写回响应格式校验。
+- `apps/web/scripts/phase1-contract-test.mjs`: 扩展为支持 React TSX 测试与 Studio 支持文件转译。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：函数使用 camelCase，类型使用 PascalCase。
+- 代码风格：测试描述和错误文案使用简体中文，Server Action 保持薄入口。
+- 文件组织：可测试 core 位于 `apps/web/app/studio/approval-action-core.ts`，测试位于 `apps/web/tests/studio.test.tsx`。
+
+### 3. 对比了以下相似实现
+
+- `apps/web/tests/api-client.test.ts`: 沿用函数级假依赖和中文断言模式。
+- `apps/web/app/studio/actions.tsx`: 将原有逻辑移入 core，但保留 action 导出和注入依赖。
+- `apps/web/scripts/phase1-contract-test.mjs`: 保留发现、转译、执行、清理流程，只补齐 React/Studio 运行依赖。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 Web 依赖和测试脚本，未引入 Vitest/Jest/Testing Library；使用已有 React DOM Server 与 Node 测试运行器完成计划要求。
+
+### 5. 本地验证
+
+- `cd apps/web && pnpm test studio`：通过，`3 pass, 0 fail`。
+- `cd apps/web && pnpm test`：通过，`16 pass, 0 fail`。
+- `cd apps/web && pnpm run lint`：通过，`tsc --noEmit` 退出码 0。
+
+## 编码前检查 - Step E-3 Provider 错误恢复测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-e-3.md`
+□ 将使用以下可复用组件：
+
+- `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`: 统一 provider adapter 边界。
+- `apps/workflow/tests/test_provider_adapter.py`: 既有 pytest 模式和依赖注入测试方式。
+- `apps/workflow/storyforge_workflow/provider_client.py`: 低层 `urllib` provider 调用异常来源。
+
+□ 将遵循命名约定：异常类 PascalCase，测试函数 snake_case。
+□ 将遵循代码风格：中文 docstring、pytest `raises`、不发真实网络请求。
+□ 确认不重复造轮子，证明：已搜索 `ProviderError`、`ProviderTimeout`、`429`、`500` 和 `timeout`，workflow 侧未发现现成 provider 专用异常类型。
+
+### 工具与检索说明
+
+- 已按顺序执行 sequential-thinking 与 shrimp-task-manager。
+- 已使用 desktop-commander 读取 provider adapter、provider client、既有测试和 pyproject。
+- 本步骤仅使用 Python 标准库异常，无需新增外部依赖。
+
+## 红灯测试记录 - Step E-3 Provider 错误恢复测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+- 命令：`cd apps/workflow && python -m pytest tests/test_provider_adapter.py -q`
+- 结果：失败，退出码 1。
+- 关键失败：系统 Python 缺少 workflow 项目依赖 `langchain_core`，属于本地环境未进入项目依赖环境。
+- 补偿命令：`cd apps/workflow && uv run python -m pytest tests/test_provider_adapter.py -q`
+- 红灯结果：失败，退出码 1。
+- 关键失败：`ImportError: cannot import name 'ProviderError'`，符合 E-3 红灯预期。
+
+## 编码中监控 - Step E-3 Provider 错误恢复测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：测试继续通过 `ProviderClientAdapter` 的 `generate_text_fn`、`config_loader` 注入模拟 provider 故障。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `ProviderError`、`ProviderTimeoutError`，测试函数使用 snake_case。
+
+□ 代码风格是否一致？
+✅ 是：保持 `from __future__ import annotations`、标准库导入顺序和中文 docstring。
+
+## 编码后声明 - Step E-3 Provider 错误恢复测试
+
+时间：2026-05-26 14:06:34 +08:00
+
+### 1. 复用了以下既有组件
+
+- `ProviderClientAdapter`: 作为 provider 错误映射边界。
+- `ProviderRequest`: 作为测试输入契约。
+- `pytest.raises`: 验证异常类型、状态码和中文错误摘要。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：异常类 PascalCase，测试函数 snake_case。
+- 代码风格：中文 docstring，依赖注入模拟 provider，不发真实网络请求。
+- 文件组织：实现留在 `storyforge_workflow/runtime/provider_adapter.py`，测试留在 `tests/test_provider_adapter.py`。
+
+### 3. 对比了以下相似实现
+
+- `test_provider_client_adapter_uses_gateway_config_and_normalizes_response`: 新测试沿用注入 `generate_text_fn` 与 `config_loader` 的方式。
+- `provider_client.generate_text`: 新错误映射只处理其可能抛出的 `HTTPError` 和 timeout，不改低层 HTTP 调用。
+- `execute_provider_text`: 保持调用 adapter 的入口不变，避免扩大影响面。
+
+### 4. 未重复造轮子的证明
+
+- 已搜索 workflow 侧 `ProviderError`、`ProviderTimeout`、`429`、`500`、`timeout`，未发现既有 provider 专用异常类型。
+
+### 5. 本地验证
+
+- `cd apps/workflow && python -m pytest tests/test_provider_adapter.py -q`：失败，系统 Python 缺少 `langchain_core`。
+- `cd apps/workflow && uv run python -m pytest tests/test_provider_adapter.py -q`：通过，`7 passed in 0.34s`。
+
+## 编码前检查 - Step F-1 Workflow SQLite 快照与恢复入口
+
+时间：2026-05-26 14:26:55 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-f-1.md`
+□ 将使用以下可复用组件：
+
+- `apps/workflow/storyforge_workflow/runtime/checkpoints.py`: 复用既有 SQLite `RuntimeCheckpointStore`、`save_state()`、`load_state()` 和 `STORYFORGE_WORKFLOW_SQLITE_PATH`。
+- `apps/workflow/storyforge_workflow/runtime/runner.py`: 在 LangGraph stream 节点 chunk 后刷新当前引用状态。
+- `apps/workflow/storyforge_workflow/state.py`: 继续通过 `checkpoint_reference_state()` 防止完整草稿和大对象进入 checkpoint。
+- `apps/workflow/tests/test_generation_state_references.py`: 复用 SQLite 跨实例持久化和引用化验证模式。
+
+□ 将遵循命名约定：Python 函数 snake_case，数据类 PascalCase。
+□ 将遵循代码风格：中文 docstring，runtime/checkpoints 负责持久化，runner 负责编排。
+□ 确认不重复造轮子，证明：已检查 `RuntimeCheckpointStore` 已具备 SQLite 落库能力，本步骤仅扩展快照历史与未完成 workflow 查询，不新增平行 SQLite store。
+
+### 工具与检索说明
+
+- 已按顺序执行 sequential-thinking 与 shrimp-task-manager。
+- 已使用 desktop-commander 读取 `.dev_plan.md`、persistence、runner、session、lifecycle、checkpoints、测试和图节点实现。
+- 已使用 Context7 查询 Python `sqlite3` 官方文档，确认连接上下文事务提交/回滚和 `sqlite3.Row` 列名访问模式。
+- 当前会话没有可用的 `github.search_code` 工具；沿用项目内实现与 Python 官方文档作为依据。
+
+## 红灯测试记录 - Step F-1 Workflow SQLite 快照与恢复入口
+
+时间：2026-05-26 14:26:55 +08:00
+
+- 命令：`cd apps/workflow && uv run python -m pytest tests/test_runtime_runner.py tests/test_workflow_lifecycle.py -q`
+- 结果：失败，`2 failed, 7 passed`。
+- 失败 1：`RuntimeCheckpointStore` 未导入测试文件，属于新增测试自身导入缺口，已补齐。
+- 失败 2：`RuntimeCheckpointStore` 缺少 `list_incomplete_workflows()`，符合 F-1 红灯预期。
+
+## 编码中监控 - Step F-1 Workflow SQLite 快照与恢复入口
+
+时间：2026-05-26 14:26:55 +08:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：扩展 `RuntimeCheckpointStore.save_state()` 写入最新状态和快照历史；runner 继续调用同一 checkpoint store；状态继续由 `checkpoint_reference_state()` 引用化。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `RuntimeStateSnapshot`、`list_state_snapshots()`、`list_incomplete_workflows()`，命名与现有 runtime store 方法一致。
+
+□ 代码风格是否一致？
+✅ 是：保持 SQLite 表创建集中在 `_setup()`，runner 只做编排和 chunk 输出提取。
+
+## 编码后声明 - Step F-1 Workflow SQLite 快照与恢复入口
+
+时间：2026-05-26 14:26:55 +08:00
+
+### 1. 复用了以下既有组件
+
+- `RuntimeCheckpointStore`: 承担 SQLite 最新状态、快照历史和未完成 workflow 查询。
+- `InMemoryRuntimeCheckpointStore`: 补齐同名查询接口，保持测试替身和 SQLite store 接口一致。
+- `WorkflowRuntime.start()` / `resume()`: 在图节点完成后刷新快照。
+- `checkpoint_reference_state()`: 继续控制 checkpoint 只保存引用字段。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 数据类 PascalCase，方法 snake_case。
+- 代码风格：持久化逻辑留在 `runtime/checkpoints.py`，编排逻辑留在 `runtime/runner.py`。
+- 文件组织：测试分别覆盖 runner 快照行为和 lifecycle 启动恢复发现。
+
+### 3. 对比了以下相似实现
+
+- `test_runtime_checkpoint_store_persists_state_across_instances`: 新测试沿用 tmp_path SQLite 跨实例读取方式。
+- `WorkflowRuntime.start()` 既有最终 checkpoint：新增节点级快照不改变最终 `load_state()` 兼容行为。
+- `InMemoryRuntimeCheckpointStore`: 保持内存替身接口与 SQLite store 对齐。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `RuntimeCheckpointStore` 已使用 SQLite 并读取 `STORYFORGE_WORKFLOW_SQLITE_PATH`；没有新增第二套持久化实现。
+
+### 5. 本地验证
+
+- `cd apps/workflow && uv run python -m pytest tests/test_runtime_runner.py tests/test_workflow_lifecycle.py -q`：通过，`9 passed in 0.57s`。
+- `cd apps/workflow && uv run python -m pytest tests/test_generation_state_references.py -q`：通过，`4 passed in 0.43s`。
+
+## 编码前检查 - Step F-2 Workflow 节点执行超时
+
+时间：2026-05-26 14:32:18 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-f-2.md`
+□ 将使用以下可复用组件：
+
+- `apps/workflow/storyforge_workflow/graph.py`: `_audited_node()` 是创作节点统一调用入口。
+- `apps/workflow/storyforge_workflow/runtime/runner.py`: 复用 provider 失败记录模式，新增 graph 节点失败记录。
+- `apps/workflow/storyforge_workflow/runtime/lifecycle.py`: 复用 `record_failure()` 并新增节点超时失败分类。
+- `apps/workflow/tests/test_runtime_runner.py`: 复用 monkeypatch provider 与节点 LLM 的测试模式。
+
+□ 将遵循命名约定：异常类 PascalCase，失败分类使用小写下划线。
+□ 将遵循代码风格：中文错误消息、pytest 红绿验证、runner 不直接执行节点业务逻辑。
+□ 确认不重复造轮子，证明：已有 provider timeout 只覆盖 provider HTTP adapter；F-2 需要 graph 节点级 timeout，不能复用为同一层能力。
+
+### 工具与检索说明
+
+- 已按顺序执行 sequential-thinking 与 shrimp-task-manager。
+- 已使用 desktop-commander 读取 runner、provider_execution、graph、lifecycle 和测试。
+- 本步骤使用 Python 标准库 `concurrent.futures`，不新增外部依赖。
+
+## 红灯测试记录 - Step F-2 Workflow 节点执行超时
+
+时间：2026-05-26 14:32:18 +08:00
+
+- 命令：`cd apps/workflow && uv run python -m pytest tests/test_runtime_runner.py -q`
+- 红灯结果：失败，`1 failed, 6 passed`。
+- 关键失败：慢 `draft_writer` 未被 timeout 中断，runner 继续返回 `interrupted`，不符合 F-2 期望。
+
+## 调试记录 - Step F-2 Workflow 节点执行超时
+
+时间：2026-05-26 14:32:18 +08:00
+
+- 初次实现把 `human_approval` 的 `interrupt()` 也放入线程 timeout wrapper，导致 LangGraph context 丢失。
+- 复现命令：`cd apps/workflow && uv run python -m pytest tests/test_runtime_runner.py -q`。
+- 失败根因：`interrupt()` 依赖 LangGraph runnable context，新线程无法继承该上下文。
+- 修正：timeout wrapper 只覆盖 `_audited_node()` 创作节点；`human_approval` 保持在原 LangGraph 上下文中直接执行。
+
+## 编码中监控 - Step F-2 Workflow 节点执行超时
+
+时间：2026-05-26 14:32:18 +08:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：`_audited_node()` 统一套用 timeout，runner 捕获 `WorkflowNodeTimeoutError` 后写 checkpoint/lifecycle/session。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `WorkflowNodeTimeoutError`、`WorkflowFailureKind.NODE_TIMEOUT` 和 `node_timeout` error_code。
+
+□ 代码风格是否一致？
+✅ 是：配置读取集中在 graph helper，失败落库集中在 runner helper。
+
+## 编码后声明 - Step F-2 Workflow 节点执行超时
+
+时间：2026-05-26 14:32:18 +08:00
+
+### 1. 复用了以下既有组件
+
+- `WorkflowRuntime`: 捕获 graph 节点超时并返回 failed 运行结果。
+- `RuntimeCheckpointStore`: 保存超时后的引用化状态和失败记录。
+- `InMemoryWorkflowLifecycleStore.record_failure()`: 写入可恢复失败事件。
+- `InMemoryWorkflowSessionStore`: 更新 session 为 `recoverable_failed`。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：异常类 PascalCase，error_code 和 failure_kind 使用 `node_timeout`。
+- 代码风格：中文 docstring 与错误消息，标准库实现，无新增依赖。
+- 文件组织：graph 负责节点 timeout，runner 负责失败记录。
+
+### 3. 对比了以下相似实现
+
+- `_record_provider_failure()`: 新增 `_record_node_failure()` 沿用 checkpoint/lifecycle/session 失败记录模式。
+- `ProviderTimeoutError`: 节点 timeout 使用独立异常，避免和 provider HTTP timeout 混淆。
+- `test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails`: 新测试沿用可恢复失败断言模式。
+
+### 4. 未重复造轮子的证明
+
+- 已确认 provider timeout 只覆盖 provider adapter；节点 timeout 位于 LangGraph 创作节点调用层，职责不同。
+
+### 5. 本地验证
+
+- `cd apps/workflow && uv run python -m pytest tests/test_runtime_runner.py -q`：通过，`7 passed in 0.44s`。
+- `cd apps/workflow && uv run python -m pytest tests/test_generation_graph.py -q`：通过，`3 passed in 0.27s`。
+
+## 编码前检查 - Step G-1 生产默认凭据启动告警
+
+时间：2026-05-26 14:36:56 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-g-1.md`
+□ 将使用以下可复用组件：
+
+- `apps/api/app/main.py`: 复用 `_expected_api_key()` 读取 API Key。
+- `apps/api/tests/test_api_middleware.py`: 复用 monkeypatch、TestClient 和配置断言测试风格。
+- `.env.example`: 确认默认 `STORYFORGE_API_KEY=local-dev-key`。
+
+□ 将遵循命名约定：Python 函数 snake_case，logger 使用模块名。
+□ 将遵循代码风格：中文 docstring，计划指定的英文 warning 文案保持原样。
+□ 确认不重复造轮子，证明：现有 main.py 已有 `_expected_api_key()`，无需新增配置读取器。
+
+### 工具与检索说明
+
+- 已按顺序执行 sequential-thinking 与 shrimp-task-manager。
+- 已使用 desktop-commander 读取 main.py、.env.example、API middleware/surface 测试和 pyproject。
+- 已使用 Context7 查询 FastAPI startup event；官方文档说明 `@app.on_event("startup")` 可用，但 lifespan 是新推荐方式。
+
+## 红灯测试记录 - Step G-1 生产默认凭据启动告警
+
+时间：2026-05-26 14:36:56 +08:00
+
+- 命令：`cd apps/api && uv run python -m pytest tests/test_api_middleware.py -q`
+- 结果：失败，退出码 1。
+- 关键失败：`ImportError: cannot import name 'warn_default_credentials' from 'app.main'`，符合 G-1 红灯预期。
+
+## 编码中监控 - Step G-1 生产默认凭据启动告警
+
+时间：2026-05-26 14:36:56 +08:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：`warn_default_credentials()` 复用 `_expected_api_key()`，测试复用 middleware 测试文件。
+
+□ 命名是否符合项目约定？
+✅ 是：函数使用 snake_case，logger 使用 `logging.getLogger(__name__)`。
+
+□ 代码风格是否一致？
+✅ 是：中文 docstring，warning 文案按计划保留英文原文。
+
+## 编码后声明 - Step G-1 生产默认凭据启动告警
+
+时间：2026-05-26 14:36:56 +08:00
+
+### 1. 复用了以下既有组件
+
+- `_expected_api_key()`: 读取当前 API Key 并保持默认值来源一致。
+- `test_api_middleware.py`: 增加 caplog 测试生产告警和开发环境不告警。
+- FastAPI `app.on_event("startup")`: 按计划注册启动检查。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：函数和测试使用 snake_case。
+- 代码风格：API main.py 保持配置函数集中定义，测试 docstring 使用简体中文。
+- 文件组织：启动告警留在 app main，测试留在 middleware 测试文件。
+
+### 3. 对比了以下相似实现
+
+- `_request_timeout_seconds()`: 同样从环境变量读取并回退默认值。
+- `_expected_api_key()`: 新检查直接复用该函数，不复制环境变量解析。
+- `test_app_configures_default_rate_limiter_and_exempts_health`: 新测试同样验证 app 配置行为。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 main.py 中已有 API Key 配置函数，未新增平行设置读取逻辑。
+
+### 5. 本地验证
+
+- `cd apps/api && uv run python -m pytest tests/test_api_middleware.py -q`：通过，`7 passed`，有 FastAPI `on_event` deprecation warning。
+- `cmd /c "set STORYFORGE_ENV=production&& set STORYFORGE_API_KEY=local-dev-key&& uv run python -c \"from app.main import app; print('check logs')\" 2>&1"`：通过，退出码 0，输出包含 `STORYFORGE_API_KEY is set to default value in non-development environment!`。
+- `cd apps/api && uv run python -m pytest tests/test_api_surface.py -q`：通过，`1 passed`，有 FastAPI `on_event` deprecation warning。
+
 ## 任务启动
 
 时间：2026-05-21 17:33:06 +08:00
@@ -1423,3 +1888,784 @@ OpenAPI / Runtime 门禁证据：
 - 重新运行 `pnpm verify`、`pnpm e2e`、`pnpm test`、Web `tsc --noEmit` 与 `git diff --check`。
 - 验证通过后纳入发布候选确认范围并提交。
 - 提交信息使用中文。
+
+
+## Step A-1 数据库连接池配置执行记录
+
+时间：2026-05-25 23:04:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-1.md`。
+- 复用组件：`_get_int_env` 与 `_build_engine_options`。
+- 对比实现：`pool_size`、`max_overflow`、`pool_pre_ping` 三个既有连接池参数。
+- Context7 资料：SQLAlchemy 2.0 文档确认 `pool_timeout` 与 `pool_recycle` 可传给 `create_engine()`。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_db_session.py -q`
+- 结果：失败，2 failed / 1 passed。
+- 失败原因：测试已期望 `pool_timeout` 与 `pool_recycle`，实现尚未返回这两个键。
+
+### 实现记录
+
+- 在 `apps/api/app/db/session.py` 的 `_build_engine_options()` 中新增：
+  - `pool_timeout`: `STORYFORGE_DB_POOL_TIMEOUT`，默认 `30`。
+  - `pool_recycle`: `STORYFORGE_DB_POOL_RECYCLE`，默认 `300`。
+- 在 `apps/api/tests/test_db_session.py` 中补充默认值、环境变量覆盖和 SQLite 兼容断言。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_db_session.py -q`
+- 结果：`3 passed in 0.03s`。
+- 已更新 `.dev_plan.md`：Step A-1 `[ ]` → `[x]`。
+
+
+## Step A-2 Judge LLM HTTP 客户端替换执行记录
+
+时间：2026-05-25 23:22:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-2.md`。
+- 复用组件：`DetectedIssue`、`_issues_from_provider_items()`、`_issue_from_llm_item()`。
+- 对比实现：`apps/api/tests/test_judge_semantic.py` 的 provider 注入测试、`apps/api/tests/conftest.py` 的远程 LLM 环境隔离、`apps/workflow/storyforge_workflow/provider_client.py` 的 Chat Completions 请求结构。
+- Context7 资料：`/encode/httpx` 文档确认 `httpx.Client(timeout=...)`、`client.post(..., json=..., headers=...)` 与 `response.json()` 用法。
+- GitHub 代码搜索：当前会话未暴露 `github.search_code` 工具，已记录为检索限制，未用网页搜索替代。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_judge_semantic.py tests/test_judge_repair.py -q`
+- 结果：失败，1 failed / 3 passed。
+- 失败原因：新增测试 `test_semantic_judge_posts_llm_request_with_httpx_client` 期望 `judge_service.httpx.Client` 可替换，但生产代码尚未导入 `httpx`。
+
+### 实现记录
+
+- 在 `apps/api/app/domains/judge/service.py` 中删除 `urllib.request` 路径，改为 `httpx.Client(timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "30")))`。
+- 使用 `client.post(..., json=request_payload, headers={"Authorization": f"Bearer {api_key}"})` 发送 OpenAI 兼容 Chat Completions 请求。
+- 保持无 API key 返回空列表、异常返回空列表、模型 JSON 数组规整为 `DetectedIssue` 的原有契约。
+- 在 `apps/api/pyproject.toml` 显式加入 `httpx>=0.28.0`。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_judge_semantic.py tests/test_judge_repair.py -q`
+- 结果：`4 passed in 0.21s`。
+- 下一步：更新 `.dev_plan.md`：Step A-2 `[ ]` → `[x]`。
+
+
+## Step A-3a 批量精修后台任务执行记录
+
+时间：2026-05-25 23:43:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-3a.md`。
+- 复用组件：`JobRun`、`BatchRefineryInputError`、`run_batch_refinery()` 既有逐项 Judge/Repair 逻辑。
+- 对比实现：`router.py` 的 HTTP 异常映射、`service.py` 的 JobRun 进度写入、`tests/test_batch_refinery.py` 的 TestClient + 数据库断言模式。
+- Context7 资料：FastAPI 文档确认 `BackgroundTasks` 参数注入和 `background_tasks.add_task()` 用法。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_batch_refinery.py -q`
+- 结果：失败，2 failed。
+- 失败原因：测试已期望 POST 返回 `202` 与 queued JobRun，但当前实现仍同步返回 `201` 与最终 `completed` / `partial_failed`。
+
+### 实现记录
+
+- 在 `apps/api/app/domains/batch_refinery/service.py` 新增 `create_batch_refinery_job()`，先校验作品存在并创建 `status="queued"` 的 JobRun。
+- 扩展 `run_batch_refinery(session, payload, *, job_id=None)`，支持后台任务复用已创建 JobRun，并在执行前设置为 `running`。
+- 在 `apps/api/app/domains/batch_refinery/router.py` 引入 `BackgroundTasks`，POST `/runs` 状态码改为 `202 Accepted`。
+- 路由返回 queued JobRun 后调用 `background_tasks.add_task(run_batch_refinery, session, payload, job_id=job.id)`。
+- A-3b 的独立 `SessionLocal()` 暂未实现，按计划保留为下一未勾选步骤。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_batch_refinery.py -q`
+- 结果：`2 passed in 0.49s`。
+- 下一步：更新 `.dev_plan.md`：Step A-3a `[ ]` → `[x]`，Step A-3b 保持 `[ ]`。
+
+
+## Step A-3b 批量精修后台独立会话执行记录
+
+时间：2026-05-25 23:52:00
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_batch_refinery.py -q`
+- 结果：失败，3 failed。
+- 失败原因：测试期望 `batch_refinery.service.SessionLocal` 与 `run_batch_refinery_in_background()` 存在，但当前生产代码尚未提供独立后台 session wrapper。
+
+### 实现记录
+
+- 在 `apps/api/app/domains/batch_refinery/service.py` 导入 `SessionLocal`。
+- 新增 `run_batch_refinery_in_background(payload, job_id)`，内部创建独立 session，调用 `run_batch_refinery(session, payload, job_id=job_id)`，并在 `finally` 中关闭 session。
+- 在 `apps/api/app/domains/batch_refinery/router.py` 中改为调度 `run_batch_refinery_in_background(payload, job.id)`，不再向后台任务传入 request-scoped session。
+- 在 `apps/api/tests/test_batch_refinery.py` 中新增 wrapper 单测，并让 API 集成测试通过 monkeypatch 使用本地 SQLite session factory。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_batch_refinery.py -q`
+- 结果：`3 passed in 0.31s`。
+
+
+## Step A-4 主应用路由注册执行记录
+
+时间：2026-05-26 00:08:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-4.md`。
+- 对比实现：`apps/api/app/main.py` 现有 router import 与 `app.include_router(...)` 模式。
+- 目标 router 均已存在并自带 prefix：`/api/analytics`、`/api/collaboration`、`/api/commercial`、`/api/quality`、`/api/workspaces`。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_surface.py -q`
+- 结果：失败，1 failed。
+- 失败原因：`/api/analytics` 尚未注册，测试期望 A-4 五个 router prefix 必须存在。
+
+### 实现记录
+
+- 在 `apps/api/app/main.py` 中新增五个 router import。
+- 在主应用 include 区域新增五个 `app.include_router(...)` 调用。
+- 未修改 CORS、API key middleware 或任何业务服务。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_surface.py -q`
+- 结果：`1 passed in 0.02s`。
+
+
+## Step A-5 CORS 显式 allowlist 执行记录
+
+时间：2026-05-26 00:21:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-5.md`。
+- 对比实现：`apps/api/app/main.py` 的 `CORSMiddleware` 配置与 `apps/api/tests/test_api_middleware.py` 的预检测试。
+- Context7 资料：FastAPI CORS 文档确认 `allow_methods` 与 `allow_headers` 可显式配置。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_middleware.py -q`
+- 结果：失败，1 failed / 2 passed。
+- 失败原因：当前通配符 methods 使预检响应额外允许 `PUT`、`HEAD`。
+
+### 实现记录
+
+- 将 `allow_methods=["*"]` 改为 `allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"]`。
+- 将 `allow_headers=["*"]` 改为 `allow_headers=["content-type", "x-storyforge-api-key"]`。
+- 根据 CORSMiddleware 行为，测试拆分为计划内 headers 预检返回 200，任意 `x-debug-token` 预检返回 400。
+- 未修改 origins、credentials、API key middleware 或 A-6 相关中间件。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_middleware.py -q`
+- 结果：`3 passed in 0.06s`。
+
+
+## Step A-6a slowapi 默认限流执行记录
+
+时间：2026-05-26 00:33:00
+
+### 编码前检查
+
+- Context7 资料：SlowAPI 文档确认 `Limiter(default_limits=[...])`、`app.state.limiter`、`RateLimitExceeded` handler、`SlowAPIMiddleware` 与 `@limiter.exempt` 用法。
+- 本地检索：仓库内此前无 slowapi 使用记录。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_middleware.py -q`
+- 结果：失败，1 failed / 3 passed。
+- 失败原因：`app.state` 尚无 `limiter` 属性。
+
+### 实现记录
+
+- 在 `apps/api/pyproject.toml` 添加 `slowapi>=0.1.9`。
+- 在 `apps/api/app/main.py` 配置 `Limiter(default_limits=["60/minute"])`、`RateLimitExceeded` handler 和 `SlowAPIMiddleware`。
+- `_rate_limit_key()` 优先使用 `x-storyforge-api-key`，缺失时回退客户端地址。
+- 对 `/health` 使用 `@limiter.exempt` 豁免。
+- 本地 Python 环境缺少 slowapi，已执行 `python -m pip install slowapi>=0.1.9` 以完成本地验证。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_middleware.py -q`
+- 结果：`4 passed in 0.04s`。
+- 命令：`cd apps/api && python -c "from slowapi import Limiter; print('ok')"`
+- 结果：`ok`。
+
+
+## Step A-6b 请求处理超时中间件执行记录
+
+时间：2026-05-26 00:52:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-6b.md`。
+- 对比实现：`apps/api/app/main.py` 现有 HTTP middleware 与 `JSONResponse` 错误响应模式。
+- 本地检索：API 侧无已有 request timeout middleware。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_middleware.py -q`
+- 结果：失败，1 failed / 4 passed。
+- 失败原因：动态慢路由在 `STORYFORGE_REQUEST_TIMEOUT_SECONDS=0.01` 下仍返回 200，未被超时中断。
+
+### 实现记录
+
+- 在 `apps/api/app/main.py` 导入 `asyncio`。
+- 新增 `_request_timeout_seconds()`，读取 `STORYFORGE_REQUEST_TIMEOUT_SECONDS`，默认 `120`，非法或非正值回退 `120.0`。
+- 新增 `enforce_request_timeout` HTTP middleware，使用 `asyncio.wait_for(call_next(request), timeout=...)` 包裹下游请求处理。
+- 捕获超时并返回 `504` 与 `{"detail": "请求处理超时。"}`。
+- 未修改 A-7 检索查询逻辑。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_api_middleware.py -q`
+- 结果：`5 passed in 0.09s`。
+
+
+## Step A-7 Retrieval Workbench 查询合并执行记录
+
+时间：2026-05-26 01:08:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-step-a-7.md`。
+- 复用组件：`_build_workbench_source()`、`RetrievalSource`、`RetrievalChunk`、`RetrievalRefreshRun`。
+- 对比实现：`list_retrieval_sources()` 的过滤与排序、修改前最新 refresh run 聚合逻辑、workbench API 查询统计测试。
+- Context7 资料：SQLAlchemy 2.0 文档确认 `select(...).subquery()`、聚合 `count/max` 与 `Session.execute()` 用法。
+- GitHub 代码搜索：当前会话未暴露 `github.search_code` 工具，已记录为检索限制，未用网页搜索替代。
+
+### TDD 红灯验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_retrieval_workbench_api.py tests/test_retrieval_index.py -q`
+- 结果：失败，`1 failed, 5 passed`。
+- 失败原因：测试已将 workbench source 列表 SELECT 次数收紧为 `1`，当前实现仍执行 `3` 次 SELECT。
+### 实现记录
+
+- 在 `apps/api/app/domains/retrieval/service.py` 中将 `list_retrieval_workbench_sources()` 改为读取 `_list_workbench_source_rows()` 的单次查询结果。
+- 新增 `chunk_counts` 聚合子查询，按 `RetrievalChunk.source_id` 统计 chunk 数量。
+- 新增 `latest_run_ids` 聚合子查询，按 `RetrievalRefreshRun.source_id` 取最新运行 id，并在主查询中关联完整 `RetrievalRefreshRun`。
+- 主查询保持 `book_id`、`series_id` 过滤与 `RetrievalSource.id` 排序。
+- 删除不再使用的 `_load_chunk_counts_by_source_id()` 与 `_load_latest_refresh_runs_by_source_id()`。
+
+### 最终验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_retrieval_workbench_api.py tests/test_retrieval_index.py -q`
+- 结果：`6 passed in 0.36s`。
+- 覆盖：单次 SELECT、最新刷新状态、chunk_count 聚合、不加载 chunk 大字段、retrieval index 无回归。
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `_build_workbench_source()`：继续统一生成 workbench source 响应。
+- `RetrievalWorkbenchSourceRead`：保持公开返回 schema 不变。
+- SQLAlchemy `select` / `func`：沿用本文件既有查询构建方式。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：新增 helper 使用 `_list_workbench_source_rows` 的内部函数命名。
+- 代码风格：继续使用链式 SQLAlchemy 查询与显式 `if book_id is not None` 过滤。
+- 文件组织：仅修改 retrieval service 与对应测试，不跨域新增抽象。
+
+#### 3. 未重复造轮子的证明
+
+- 检查了 retrieval service 内旧 helper 与 workbench 测试，确认合并后旧 helper 仅剩定义，已删除。
+- 保留 `_build_workbench_source()`，未重新实现 schema 组装逻辑。
+
+
+## 编码前检查 - Step B-1a
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-b-1a.md`
+□ 将使用以下可复用组件：
+- `runCommand`: `scripts/run-e2e.mjs` - 保持命令执行与退出码收集方式。
+- `runApiVerification`: `scripts/run-e2e.mjs` - API 阶段边界。
+- `runWorkflowVerification`: `scripts/run-e2e.mjs` - workflow 阶段边界。
+□ 将遵循命名约定：JavaScript camelCase，阶段变量使用描述性名称。
+□ 将遵循代码风格：ESM、两空格缩进、单引号、中文诊断输出。
+□ 确认不重复造轮子，证明：已检查 `scripts/run-e2e.mjs`、`scripts/verify-local.ps1`、`scripts/generate-openapi.ps1`、`apps/web/scripts/phase1-contract-test.mjs`，当前无 Node 共享 logger；B-3 才要求结构化日志。
+
+### Step B-1a 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 在 `scripts/run-e2e.mjs` 的四阶段调用点添加阶段开始日志。
+- 为 OpenAPI 刷新、契约测试、API 验证、workflow 验证添加 PASSED / FAILED 结果日志。
+- 保持默认 fail-fast 行为不变，未实现 `--continue-on-error`，该能力保留给 Step B-1b。
+- 已更新 `.dev_plan.md`：Step B-1a `[ ]` → `[x]`。
+
+### Step B-1a 本地验证
+
+- 命令：`node scripts/run-e2e.mjs 2>&1 | Select-Object -First 20`
+- 结果：退出码 `1`，但前 20 行已出现 `[1/4] Refreshing OpenAPI contract...`、`[1/4] OpenAPI contract refresh: PASSED`、`[2/4] Running contract tests (5 specs)...`。
+- 退出码说明：PowerShell 管道截断前 20 行时，后续原生命令输出被中断并报告 NativeCommandError；该命令仍证明 B-1a 要求的阶段进度日志已输出。
+- 补充命令：`node --check scripts/run-e2e.mjs`
+- 补充结果：退出码 `0`，语法检查通过。
+
+## 编码前检查 - Step B-1b
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-b-1b.md`
+□ 将使用以下可复用组件：
+- `runCommand`: `scripts/run-e2e.mjs` - 继续收集阶段退出码。
+- `refreshOpenApiContract`: `scripts/run-e2e.mjs` - 第 1 阶段。
+- `runApiVerification` / `runWorkflowVerification`: `scripts/run-e2e.mjs` - 第 3/4 阶段。
+□ 将遵循命名约定：camelCase，阶段结果使用 `phaseResults`。
+□ 将遵循代码风格：ESM、两空格缩进、单引号、`process.exitCode`。
+□ 确认不重复造轮子，证明：B-1b 复用 B-1a 的阶段日志和现有命令执行函数，仅新增最小控制流与汇总输出。
+
+### Step B-1b 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 在 `scripts/run-e2e.mjs` 中新增 `--continue-on-error` CLI flag。
+- 解析参数时过滤 `--continue-on-error`，避免将 flag 当作契约测试文件路径。
+- 新增 `phaseResults` 收集四阶段退出码，continue 模式下失败后继续执行后续阶段。
+- 新增 `printPhaseSummary()`，输出 `E2E phase summary` Markdown 风格汇总表。
+- 默认无 flag 时仍保持 fail-fast：`rememberPhaseResult()` 在失败且未启用 continue 时阻止后续阶段执行。
+- 最终退出码为首个失败阶段退出码；全部通过时为 `0`。
+- 已更新 `.dev_plan.md`：Step B-1b `[ ]` → `[x]`。
+
+### Step B-1b 本地验证
+
+- 命令：`node --check scripts/run-e2e.mjs`
+- 结果：退出码 `0`。
+- 命令：`node scripts/run-e2e.mjs --continue-on-error 2>&1 | Select-Object -Last 10`
+- 结果：退出码 `1`，尾部输出 `E2E phase summary` 汇总表。
+- 汇总证据：OpenAPI contract refresh `PASSED 0`；Contract tests `FAILED 1`；API verification `FAILED 1`；Workflow verification `PASSED 0`。
+- 结论：continue 模式已在失败后继续执行到第 4 阶段，并保留失败退出码。
+
+## 编码前检查 - Step B-2
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-b-2.md`
+□ 将使用以下可复用组件：
+- `mkdtempSync` / `rmSync`: 保持临时目录创建与清理。
+- `spawnSync`: 保持 Node test runner 执行方式。
+- `process.exitCode`: 保持脚本退出码契约。
+□ 将遵循命名约定：沿用 `tempDir`、`tempTest` 风格，新增 `testFile`。
+□ 将遵循代码风格：ESM、两空格缩进、双引号与原文件一致。
+□ 确认不重复造轮子，证明：仅增强现有脚本异常路径，不新增 logger 或测试运行器。
+
+### Step B-2 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 在 `apps/web/scripts/phase1-contract-test.mjs` 中新增 `existsSync` 导入。
+- 提取 `testFile` 路径，并在读取前检查测试文件是否存在。
+- 为主体 `try` 增加 `catch`，输出 `phase1-contract-test failed: ...` 并设置 `process.exitCode = 1`。
+- 保留 `finally` 中的临时目录清理逻辑。
+- 已更新 `.dev_plan.md`：Step B-2 `[ ]` → `[x]`。
+
+### Step B-2 本地验证
+
+- 命令：`node --check apps/web/scripts/phase1-contract-test.mjs`
+- 结果：退出码 `0`。
+- 命令：`node scripts/phase1-contract-test.mjs`
+- 工作目录：`apps/web`
+- 结果：退出码 `0`，`9` 个 Node test 子测试全部通过。
+
+## 编码前检查 - Step B-3
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-b-3.md`
+□ 将使用以下可复用组件：
+- `scripts/run-e2e.mjs` 阶段日志与 `printPhaseSummary()`：统一替换为 `log(level, message)`。
+- `scripts/verify-local.ps1` 的 `Write-Ok` / `Write-Fail`：保留颜色并增加前缀。
+- `scripts/generate-openapi.ps1` 的单点脚本输出：新增 `Write-Info`。
+□ 将遵循命名约定：Node 使用 camelCase；PowerShell 使用 PascalCase。
+□ 将遵循代码风格：Node 两空格与单引号；PowerShell 四空格与 `Write-Host` 颜色。
+□ 确认不重复造轮子，证明：已搜索 `Get-LogTimestamp|Write-Info|[INFO]|[ERROR]`，脚本中无现成结构化日志 helper。
+
+### Step B-3 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 在 `scripts/run-e2e.mjs` 中新增 `formatTimestamp()` 与 `log(level, message)`。
+- 已将脚本自身阶段输出、错误输出和汇总表输出替换为 `log('INFO'| 'ERROR', ...)`。
+- `log()` 会保留原先用于分隔阶段的前导空行，并确保实际日志行以 `[YYYY-MM-DDTHH:mm:ss] [LEVEL]` 开头。
+- 在 `scripts/verify-local.ps1` 中新增 `Get-LogTimestamp`、`Write-Info`、`Write-Warn`，并更新 `Write-Ok` / `Write-Fail` 为带时间戳和等级的输出。
+- 在 `scripts/generate-openapi.ps1` 中新增 `Get-LogTimestamp` 与 `Write-Info`，替换脚本自身 `Write-Host` 输出。
+- 未修改 C-1 或后续计划步骤；未新增依赖；未改变脚本退出码。
+- 已更新 `.dev_plan.md`：Step B-3 `[ ]` → `[x]`。
+
+### Step B-3 本地验证
+
+- 命令：`node --check scripts/run-e2e.mjs`
+- 结果：退出码 `0`。
+- 命令：PowerShell AST 解析 `scripts/verify-local.ps1` 与 `scripts/generate-openapi.ps1`
+- 结果：`verify-local.ps1 AST OK`，`generate-openapi.ps1 AST OK`。
+- 命令：`node scripts/run-e2e.mjs 2>&1 | Select-String -Pattern '^\[20' | Select-Object -First 5`
+- 结果：退出码 `1`，但输出已显示时间戳等级前缀：`[2026-05-25T17:27:13] [INFO] [1/4]...`、`[2026-05-25T17:27:19] [ERROR] [2/4]...`。
+- 退出码说明：当前 e2e 在契约测试阶段返回失败码 `1`，与日志格式验证无关；B-3 验证目标为确认结构化日志前缀。
+
+## 编码前检查 - Step C-1
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-c-1.md`
+□ 将使用以下可复用组件：
+- `_build_engine_options`: `apps/api/app/db/session.py` - 继续统一生成连接池参数。
+- `get_session`: `apps/api/app/db/session.py` - 保持 FastAPI dependency 协议。
+- `SessionLocal()`: `apps/api/app/db/session.py` - 保持后台任务可调用接口。
+□ 将遵循命名约定：Python snake_case；内部工厂使用 `_SessionFactory`。
+□ 将遵循代码风格：中文文档字符串、类型注解、SQLAlchemy ORM 既有配置。
+□ 确认不重复造轮子，证明：已搜索 `SessionLocal` 使用点并查询 SQLAlchemy 文档，仓库无现成懒 engine helper。
+
+### Step C-1 TDD 红灯验证
+
+- 命令：`python -m pytest tests/test_db_session.py -q`
+- 工作目录：`apps/api`
+- 结果：失败，`2 failed, 3 passed`。
+- 失败原因：新增测试期望 `app.db.session.get_engine` 存在并具备缓存清理能力，但当前生产代码尚未实现该函数。
+
+### Step C-1 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 在 `apps/api/tests/test_db_session.py` 中新增懒加载 engine 行为测试：
+  - `test_get_engine_reads_database_url_lazily_and_caches`
+  - `test_session_local_uses_lazy_engine_binding`
+- 在 `apps/api/app/db/session.py` 中移除模块级 `engine = create_engine(...)`。
+- 新增 `@lru_cache(maxsize=1) get_engine()`，首次调用时读取当前 `DATABASE_URL`。
+- 新增 `_SessionFactory = sessionmaker(...)`，并保留无参可调用 `SessionLocal()`，内部绑定 `get_engine()`。
+- `get_session()` 继续使用 `SessionLocal()`，未提前实现 C-2 的 rollback 行为。
+- 已更新 `.dev_plan.md`：Step C-1 `[ ]` → `[x]`。
+
+### Step C-1 本地验证
+
+- RED 命令：`python -m pytest tests/test_db_session.py -q`
+- RED 结果：`2 failed, 3 passed`，失败原因为 `get_engine` 尚不存在。
+- GREEN 命令：`python -m pytest tests/test_db_session.py -q`
+- GREEN 结果：`5 passed in 0.04s`。
+- 兼容验证命令：`python -m pytest tests/test_batch_refinery.py -q`
+- 兼容验证结果：`3 passed in 0.18s`，证明 `SessionLocal()` 后台任务调用形态未破坏。
+- 全量 API 命令：`python -m pytest tests/ -q`
+- 全量 API 结果：`7 failed, 152 passed in 8.34s`。
+- 全量失败说明：失败集中在此前 A-4 注册路由后仍期望 404 的旧测试断言（collaboration、commercial、analytics、quality、workspaces），与 C-1 engine 懒初始化无关。
+
+## 编码前检查 - Step C-2
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-c-2.md`
+□ 将使用以下可复用组件：
+- `get_session`: `apps/api/app/db/session.py` - 在现有生成器中补异常路径。
+- `SessionLocal`: `apps/api/app/db/session.py` - 测试中 monkeypatch 为 fake session factory。
+□ 将遵循命名约定：Python snake_case，测试名描述行为。
+□ 将遵循代码风格：中文 docstring、pytest monkeypatch、简单 try/except/finally。
+□ 确认不重复造轮子，证明：已读取 `session.py` 与 `test_db_session.py`，当前无 rollback 测试或共享 helper。
+
+### Step C-2 TDD 红灯验证
+
+- 命令：`python -m pytest tests/test_db_session.py -q`
+- 工作目录：`apps/api`
+- 结果：失败，`1 failed, 5 passed`。
+- 失败原因：异常注入后只调用了 `close`，未调用 `rollback`，证明测试捕获 C-2 缺口。
+
+### Step C-2 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 在 `apps/api/tests/test_db_session.py` 中新增 `test_get_session_rolls_back_and_closes_on_exception`。
+- 测试使用 fake session 和 `provider.throw(RuntimeError("boom"))` 模拟请求处理异常。
+- 在 `apps/api/app/db/session.py` 的 `get_session()` 中新增 `except Exception` 分支。
+- 异常路径现在先调用 `session.rollback()`，随后重抛异常，并由 `finally` 调用 `session.close()`。
+- 未修改正常路径；未提前执行 D-1a。
+- 已更新 `.dev_plan.md`：Step C-2 `[ ]` → `[x]`。
+
+### Step C-2 本地验证
+
+- RED 命令：`python -m pytest tests/test_db_session.py -q`
+- RED 结果：`1 failed, 5 passed`，失败原因为异常路径只调用 `close`，未调用 `rollback`。
+- GREEN 命令：`python -m pytest tests/test_db_session.py -q`
+- GREEN 结果：`6 passed in 0.03s`。
+
+## 编码前检查 - Step D-1a
+
+时间：2026-05-26 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-d-1a.md`
+□ 将使用以下可复用组件：
+- `packages/shared/src/contracts/storyforge.openapi.json`：OpenAPI 输入契约。
+- `packages/shared/src/index.ts`：共享类型导出入口。
+- `packages/shared/tsconfig.json`：生成文件类型检查入口。
+□ 将遵循命名约定：生成文件路径 `src/generated/api-types.ts`；脚本名 `generate:types`。
+□ 将遵循代码风格：TypeScript 使用 `export type`；package scripts 保持简洁。
+□ 确认不重复造轮子，证明：仓库搜索未发现 `openapi-typescript`、`generated/api-types` 或 `generate:types`；Context7 已确认官方 CLI 用法；GitHub search_code 工具当前不可用并已记录。
+
+### Step D-1a TDD 红灯验证
+
+- 命令：`pnpm run generate:types`
+- 工作目录：`packages/shared`
+- 结果：失败，退出码 `1`。
+- 失败原因：`ERR_PNPM_NO_SCRIPT Missing script: generate:types`，证明当前 shared 包尚未配置 OpenAPI 类型生成脚本。
+
+### Step D-1a 实现记录
+
+时间：2026-05-26 00:00:00
+
+- 使用 `pnpm add -D openapi-typescript --filter @storyforge/shared` 添加 shared 包开发依赖。
+- 在 `packages/shared/package.json` 新增脚本：`generate:types`。
+- 运行 `pnpm run generate:types` 生成 `packages/shared/src/generated/api-types.ts`。
+- 读取生成文件确认导出 `paths`、`components`、`operations`、`webhooks`。
+- 在 `packages/shared/src/index.ts` 新增 `export type { components, operations, paths, webhooks } from "./generated/api-types";`。
+- 未执行 D-1b，未修改 apps/web 使用点。
+- 已更新 `.dev_plan.md`：Step D-1a `[ ]` → `[x]`。
+
+### Step D-1a 本地验证
+
+- RED 命令：`pnpm run generate:types`
+- RED 结果：失败，`ERR_PNPM_NO_SCRIPT Missing script: generate:types`。
+- 依赖安装命令：`pnpm add -D openapi-typescript --filter @storyforge/shared`
+- 依赖安装结果：成功，`openapi-typescript` 版本 `^7.13.0` 写入 `packages/shared/package.json`。
+- GREEN 命令：`pnpm run generate:types; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm run test`
+- 工作目录：`packages/shared`
+- GREEN 结果：生成成功，`tsc --noEmit` 通过，退出码 `0`。
+## 编码前检查 - D-1b Web 共享生成类型
+
+时间：2026-05-26 02:05:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-d-1b.md`
+□ 将使用以下可复用组件：
+- `@storyforge/shared` / `components`: OpenAPI 生成 schema 类型事实源。
+- `apps/web/lib/api-client.ts`: 增加类型别名并继续复用 `apiFetch`、`readJson`。
+- `apps/web/app/studio/validators.ts`: 保持运行时校验职责。
+□ 将遵循命名约定：TypeScript 类型 PascalCase，状态联合类型继续以 `State` 结尾。
+□ 将遵循代码风格：双引号、两空格缩进、手写 UI 状态保留 readonly。
+□ 确认不重复造轮子，证明：检查了 `packages/shared/src/generated/api-types.ts` 已包含全部 Studio response schema，Web 端不再维护重复字段定义。
+□ 工具替代说明：sequential-thinking、shrimp-task-manager、desktop-commander、context7、github.search_code 当前不可调用，已记录并采用项目内证据替代。
+
+## RED 验证 - D-1b Web 共享生成类型
+
+时间：2026-05-26 02:08:00
+
+- 新增结构测试：要求 `apps/web/app/studio/types.ts` 通过 `ApiResponseSchema` 复用 shared 生成类型，并删除 Studio response 手写字段块。
+- 执行命令：`cd apps/web && node scripts/phase1-contract-test.mjs`
+- 结果：按预期失败，失败原因为 `Studio 类型应通过统一 API client 复用共享生成类型`，证明测试能捕获 D-1b 未完成状态。
+
+## 编码后声明 - D-1b Web 共享生成类型
+
+时间：2026-05-26 02:18:00
+
+### 1. 复用了以下既有组件
+
+- `@storyforge/shared`：通过 `components["schemas"]` 复用 OpenAPI 生成类型。
+- `apps/web/lib/api-client.ts`：新增 `ApiSchemas` 与 `ApiResponseSchema` 类型别名，保持请求运行时逻辑不变。
+- `apps/web/app/studio/validators.ts`：继续承担运行时响应校验职责。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Studio 页面状态类型继续使用 `Studio*State`；schema 映射类型继续使用既有 `Studio*` 名称。
+- 代码风格：TypeScript 文件保持双引号、两空格缩进、UTF-8 无 BOM。
+- 文件组织：响应类型仍集中于 `app/studio/types.ts`，通用 API 类型入口放在 `lib/api-client.ts`。
+
+### 3. 对比了以下相似实现
+
+- `apps/web/app/studio/types.ts`：保留 UI state 联合类型，只删除 response 字段重复声明。
+- `apps/web/lib/api-client.ts`：只扩展类型导出，不改变 `apiFetch` 与 `readJson` 行为。
+- `packages/shared/src/generated/api-types.ts`：使用 D-1a 生成的 Studio schema 作为事实源。
+
+### 4. 未重复造轮子的证明
+
+- 检查 `packages/shared/src/generated/api-types.ts` 已包含全部 Studio response schema，Web 端不再手写 `StudioScenePacket` 等响应字段。
+- 结构测试已断言 `StudioBookListItem` 与批准执行结果来自 `ApiResponseSchema`，并断言旧手写字段块不存在。
+
+### 5. 本地验证结果
+
+- RED：`cd apps/web && node scripts/phase1-contract-test.mjs` 曾按预期失败，错误为缺少共享生成类型引用。
+- GREEN：`cd apps/web && node scripts/phase1-contract-test.mjs` 通过，9 项测试全部通过。
+- 构建：`cd apps/web && pnpm run build` 通过，Next.js 生产构建、Lint 与类型检查均成功。
+
+## 编码前检查 - D-2 OpenAPI 契约漂移检查
+
+时间：2026-05-26 02:23:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-d-2.md`
+□ 将使用以下可复用组件：
+- `runCommand`: 执行 `git diff --exit-code`。
+- `log`: 输出中文修复提示与阶段状态。
+- `rememberPhaseResult`: 保持 fail-fast 与 continue 模式一致。
+□ 将遵循命名约定：新增 helper 使用 `checkOpenApiContractDrift`。
+□ 将遵循代码风格：ESM、单引号、两空格缩进、中文日志。
+□ 确认不重复造轮子，证明：`run-e2e.mjs` 已有阶段结果收集与命令执行函数，无需新增脚本框架。
+
+## RED 验证 - D-2 OpenAPI 契约漂移检查
+
+时间：2026-05-26 02:27:00
+
+- 新增结构测试：要求 `scripts/run-e2e.mjs` 在刷新 OpenAPI 后包含 `checkOpenApiContractDrift`、`git diff --exit-code`、契约文件路径和 `OpenAPI contract is stale` 提示。
+- 执行命令：`cd apps/web && node scripts/phase1-contract-test.mjs`
+- 结果：按预期失败，失败原因为 `e2e 应在刷新 OpenAPI 后检查契约漂移`。
+
+## 编码后声明 - D-2 OpenAPI 契约漂移检查
+
+时间：2026-05-26 02:32:00
+
+### 1. 复用了以下既有组件
+
+- `runCommand`: 用于执行 `git diff --exit-code -- packages/shared/src/contracts/storyforge.openapi.json`。
+- `log`: 用于输出结构化中文阶段日志和 `OpenAPI contract is stale` 修复提示。
+- `rememberPhaseResult`: 用于保持默认 fail-fast 与 `--continue-on-error` 的既有控制流。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `checkOpenApiContractDrift(root)` helper，使用 camelCase。
+- 代码风格：继续使用 ESM、单引号、两空格缩进。
+- 文件组织：漂移检查保留在 `scripts/run-e2e.mjs` 的 e2e 管线中，未新增额外脚本。
+
+### 3. 对比了以下相似实现
+
+- `refreshOpenApiContract()`：D-2 在其成功后立即执行 drift check，不改动刷新逻辑。
+- B-1 阶段结果收集：新增 drift check 也写入 `phaseResults`，continue 模式下继续执行后续阶段。
+- B-3 日志 helper：所有新增诊断均走 `log()`。
+
+### 4. 未重复造轮子的证明
+
+- 检查 `scripts/run-e2e.mjs` 已有 `runCommand()` 和阶段失败处理，未新增重复 spawn 封装。
+- 检查 `package.json` 已有 `pnpm run openapi`，漂移提示直接引用该入口。
+
+### 5. 本地验证结果
+
+- RED：`cd apps/web && node scripts/phase1-contract-test.mjs` 曾按预期失败，错误为缺少 OpenAPI drift check。
+- GREEN：`cd apps/web && node scripts/phase1-contract-test.mjs` 通过，10 项测试全部通过。
+- 语法：`node --check scripts/run-e2e.mjs` 通过。
+- 计划验证：`node scripts/run-e2e.mjs --continue-on-error 2>&1 | Select-String -Pattern 'contract|Contract' | Select-Object -First 12` 输出刷新、漂移检查、`OpenAPI contract is stale` 和失败阶段日志。该命令退出码为 1，原因是当前工作树确实存在 OpenAPI 契约差异，符合 D-2 要求的失败行为。
+
+
+## 编码前检查 - E-1 连接池耗尽测试
+
+时间：2026-05-26 02:45:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-e-1.md`
+□ 将使用以下可复用组件：
+- `pytest.raises`: 断言连接池耗尽抛出 TimeoutError。
+- `sqlalchemy.create_engine`: 构造测试专用 engine。
+- `sqlalchemy.pool.QueuePool`: 强制触发 pool_timeout 队列池行为。
+- `time.perf_counter`: 验证失败时间在合理范围内。
+□ 将遵循命名约定：Python 测试函数使用 snake_case，中文 docstring。
+□ 将遵循代码风格：标准库、第三方库、项目模块导入分组；finally 中释放连接与 engine。
+□ 确认不重复造轮子，证明：`test_db_session.py` 已覆盖配置构建和 session 生命周期，但缺少真实池耗尽行为测试。
+
+
+### E-1 RED 验证
+
+- 命令：`cd apps/api && python -m pytest tests/test_db_session.py -q`
+- 结果：失败，`1 failed, 6 passed`。
+- 失败原因：新增耗尽测试未显式传入 `pool_timeout=1`，第三次连接按 SQLAlchemy 默认 30 秒超时，违反 `.dev_plan.md` 对 1 秒超时场景的要求。
+- 修正方向：按计划在测试 engine 中显式设置 `pool_timeout=1`，再验证第三次连接在合理时间内抛出 `TimeoutError`。
+
+
+## 编码后声明 - E-1 连接池耗尽测试
+
+时间：2026-05-26 02:52:00
+
+### 1. 复用了以下既有组件
+
+- `apps/api/tests/test_db_session.py`：沿用数据库 session 测试文件与 pytest 风格。
+- `sqlalchemy.pool.QueuePool`：用于真实模拟连接池容量耗尽。
+- `sqlalchemy.exc.TimeoutError`：用于断言第三次连接请求因池耗尽失败。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `test_connection_pool_timeout_is_enforced_when_pool_is_exhausted`。
+- 代码风格：中文 docstring、标准库/第三方/项目导入分组、finally 显式释放资源。
+- 文件组织：仅修改 `apps/api/tests/test_db_session.py`，未改动生产 session 实现。
+
+### 3. 对比了以下相似实现
+
+- `test_build_engine_options_uses_postgresql_pool_defaults`：验证连接池参数配置存在。
+- `test_build_engine_options_allows_environment_overrides`：验证连接池参数可配置。
+- `test_session_local_uses_lazy_engine_binding`：验证 engine/session 生命周期并做资源清理。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `test_db_session.py` 现有测试仅覆盖配置字典与 session 生命周期，缺少真实 QueuePool 耗尽场景。
+- 新测试只补足 E-1 指定缺口，没有抽象新 helper。
+
+### 5. 本地验证结果
+
+- RED：首次运行 `python -m pytest tests/test_db_session.py -q` 失败，原因是测试未按计划传入 `pool_timeout=1`，第三个连接等待默认 30 秒。
+- GREEN：补充 `pool_timeout=1` 后运行 `python -m pytest tests/test_db_session.py -q` 通过，`7 passed in 1.05s`。
+- 已更新 `.dev_plan.md`：Step E-1 `[ ]` → `[x]`。
+
+## 编码后声明 - G-2 Docker Compose healthcheck
+
+时间：2026-05-26 14:43:20
+
+### 1. 复用了以下既有组件
+
+- `docker-compose.yml`：复用现有 postgres 与 redis healthcheck，仅调整 `interval` 和 `timeout`。
+- `apps/web/tests/phase1-navigation.test.tsx`：新增 Compose 结构测试，复用既有 Node 测试入口。
+- `apps/web/scripts/phase1-contract-test.mjs`：通过现有脚本运行新增结构测试。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：测试名称与断言消息使用简体中文，变量使用 camelCase。
+- 代码风格：YAML 保持现有两空格缩进；测试保持 ESM、`node:test`、`node:assert/strict`。
+- 文件组织：Docker 配置仍位于根 `docker-compose.yml`，未新增平行配置文件或脚本。
+
+### 3. 对比了以下相似实现
+
+- postgres healthcheck：保持 `pg_isready` 探测方式，只把 `interval` 改为 `5s`、`timeout` 改为 `3s`。
+- redis healthcheck：保持 `redis-cli ping` 探测方式，只把 `interval` 改为 `5s`、`timeout` 改为 `3s`。
+- Web 结构测试：沿用 `phase1-navigation.test.tsx` 读取根文件并断言关键配置的模式。
+
+### 4. 未重复造轮子的证明
+
+- 已搜索仓库 `docker-compose.yml` 和 `healthcheck`，根 compose 是唯一 Compose 配置。
+- 当前 compose 没有 api/web 应用服务，因此没有可配置数据库 `depends_on` 的目标。
+- 未新增 YAML 解析依赖，结构测试使用现有 Node 内置测试能力。
+
+### 5. 本地验证结果
+
+- RED：`cd apps/web && node scripts/phase1-contract-test.mjs phase1-navigation` 失败，`1 failed, 10 passed`，失败原因为 `MinIO 应配置 healthcheck`。
+- GREEN：同一命令通过，`11 passed`。
+- Compose 解析：`docker compose config` 退出码 0，输出包含三个服务的 healthcheck。
+- 运行时：`docker compose up -d` 退出码 0；等待 12 秒后 `docker compose ps` 显示 postgres、redis、minio 均为 `healthy`。
+- Web 回归：`cd apps/web && pnpm test` 通过，`17 passed`；`cd apps/web && pnpm run lint` 通过。
+- 计划收敛：`.dev_plan.md` 中 `- [ ]` 搜索结果为 0。
+## 编码前检查 - G-2 Docker Compose healthcheck
+
+时间：2026-05-26 14:43:20
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-g-2.md`
+□ 将使用以下可复用组件：
+- `docker-compose.yml` 现有 postgres healthcheck：复用 `pg_isready` 探测。
+- `docker-compose.yml` 现有 redis healthcheck：复用 `redis-cli ping` 探测。
+- `apps/web/tests/phase1-navigation.test.tsx`：复用 Node 结构测试入口验证根 Compose 配置。
+□ 将遵循命名约定：测试名称与断言消息使用简体中文，局部变量使用 camelCase。
+□ 将遵循代码风格：TypeScript 测试保持双引号与两空格缩进；YAML 保持现有服务层级和缩进。
+□ 确认不重复造轮子，证明：已搜索 `docker-compose.yml` 和 `healthcheck`，仓库仅有根 Compose 配置；已有 postgres/redis healthcheck 可调整，minio 缺失需新增。
+□ 外部资料记录：Context7 查询 `/docker/compose` 的 healthcheck 字段与 `service_healthy` 语义；Context7 查询 `/minio/docs` 的 `/minio/health/live` 端点。
+□ GitHub 开源搜索记录：当前会话 `tool_search` 未发现可用 `github.search_code` 工具，无法执行该项，已记录为工具缺失。
+□ depends_on 判断：当前 `docker-compose.yml` 只有 postgres、redis、minio 三个基础服务，没有 api/web 等需要 DB 的应用服务，因此不新增 `depends_on.postgres.condition`。
+
+### G-2 RED 验证
+
+- 命令：`cd apps/web && node scripts/phase1-contract-test.mjs phase1-navigation`
+- 结果：失败，`1 failed, 10 passed`。
+- 失败原因：`Docker Compose 基础服务具备健康检查` 测试报错 `MinIO 应配置 healthcheck`。
+- 结论：红灯有效，当前 Compose 缺少 MinIO healthcheck，且 postgres/redis 参数仍待统一为计划要求。
+## 编码前检查 - Step 1-1a 基础 CI workflow
+
+时间：2026-05-26 15:25:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-step-1-1a.md`
+□ 将使用以下可复用组件：
+- `package.json`: 复用 `test:web`、`test:api`、`test:workflow`、`openapi` 的现有命令语义。
+- `scripts/generate-openapi.ps1`: 暂作为 contract-check 的 OpenAPI 生成入口。
+- `apps/api/pyproject.toml` 与 `apps/workflow/pyproject.toml`: 复用 uv + pytest 子项目测试模式。
+- `pnpm-lock.yaml`、`apps/api/uv.lock`、`apps/workflow/uv.lock`: 作为 CI 冻结安装依据。
+□ 将遵循命名约定：workflow job 使用计划给出的 kebab-case 名称，步骤名称使用简体中文。
+□ 将遵循代码风格：YAML 两空格缩进，不新增应用源码注释。
+□ 确认不重复造轮子，证明：已搜索 `.github/workflows`，仓库当前不存在 workflow；已有验证入口足够复用。
+□ 外部资料记录：Context7 查询 `/websites/github_en_actions` 与 `/pnpm/action-setup`，用于确认 workflow 触发、checkout、Node、pnpm install 和 service/job 基本语法。
+□ GitHub 开源搜索记录：当前会话 `tool_search` 未发现可用 `github.search_code` 工具，无法执行该项，已记录为工具缺失并以 Context7 官方文档补偿。

@@ -4,8 +4,8 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
 from app.domains.collaboration.schemas import (

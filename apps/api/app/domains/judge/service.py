@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 import json
 import os
-from urllib import request
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
+import httpx
 from sqlalchemy.orm import Session
-from app.common.exceptions import InputError
 
+from app.common.exceptions import InputError
 from app.domains.books.models import Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.judge.models import JudgeIssue
@@ -107,26 +107,22 @@ def semantic_judge(payload: JudgeIssueCreate, *, provider: JudgeProvider | None 
         "仅返回 JSON 数组，每项包含 category、severity、span_start、span_end、summary、expected_text、replacement_text、matched_text。\n"
         f"正文：{payload.content}\n必含事实：{payload.required_facts}\n风格规则：{payload.style_rules}"
     )
-    body = json.dumps(
-        {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "只返回 JSON，不要解释。"},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0,
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
-    http_request = request.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        method="POST",
-    )
+    request_payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "只返回 JSON，不要解释。"},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+    }
     try:
-        with request.urlopen(http_request, timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "30"))) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        with httpx.Client(timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "30"))) as client:
+            response = client.post(
+                f"{base_url.rstrip('/')}/chat/completions",
+                json=request_payload,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            data = response.json()
         raw_content = data["choices"][0]["message"]["content"]
         decoded = json.loads(raw_content)
     except Exception:

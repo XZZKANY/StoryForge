@@ -27,7 +27,7 @@ class AssetUpdate(BaseModel):
     payload: dict[str, Any] | None = None
 
     @model_validator(mode="after")
-    def reject_required_field_nulls(self) -> "AssetUpdate":
+    def reject_required_field_nulls(self) -> AssetUpdate:
         """显式清空核心字段会破坏版本契约，必须在入库前拒绝。"""
 
         null_fields = [

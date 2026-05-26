@@ -5,8 +5,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
-from app.common.exceptions import InputError, NotFoundError
 
+from app.common.exceptions import InputError, NotFoundError
 from app.db.queries import latest_by_lineage
 from app.domains.series.models import Series, SeriesMemory, SeriesMemoryEvidence
 from app.domains.series.schemas import SeriesCreate, SeriesMemoryCreate, SeriesMemoryUpdate

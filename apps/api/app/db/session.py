@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 import os
+from collections.abc import Generator
+from functools import lru_cache
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://storyforge:storyforge@127.0.0.1:55432/storyforge"
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
 def _get_int_env(name: str, default: int) -> int:
@@ -37,11 +38,26 @@ def _build_engine_options(database_url: str) -> dict[str, int | bool]:
         "pool_size": _get_int_env("STORYFORGE_DB_POOL_SIZE", 10),
         "max_overflow": _get_int_env("STORYFORGE_DB_MAX_OVERFLOW", 20),
         "pool_pre_ping": _get_bool_env("STORYFORGE_DB_POOL_PRE_PING", True),
+        "pool_timeout": _get_int_env("STORYFORGE_DB_POOL_TIMEOUT", 30),
+        "pool_recycle": _get_int_env("STORYFORGE_DB_POOL_RECYCLE", 300),
     }
 
 
-engine = create_engine(DATABASE_URL, **_build_engine_options(DATABASE_URL))
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+@lru_cache(maxsize=1)
+def get_engine() -> Engine:
+    """首次需要数据库时才创建 engine，使运行时环境配置可生效。"""
+
+    database_url = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+    return create_engine(database_url, **_build_engine_options(database_url))
+
+
+_SessionFactory = sessionmaker(autoflush=False, autocommit=False, expire_on_commit=False)
+
+
+def SessionLocal() -> Session:
+    """创建绑定到懒加载 engine 的 ORM 会话，保持既有无参调用协议。"""
+
+    return _SessionFactory(bind=get_engine())
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -50,5 +66,8 @@ def get_session() -> Generator[Session, None, None]:
     session = SessionLocal()
     try:
         yield session
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()

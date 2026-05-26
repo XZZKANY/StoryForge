@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_session
-from app.domains.series.models import Series, SeriesMemory, SeriesMemoryEvidence
-from app.main import app
+from app.domains.series.models import SeriesMemory, SeriesMemoryEvidence
 
 
 def test_series_memory_keeps_latest_history_and_evidence(

@@ -9,7 +9,7 @@ from app.db.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.domains.books.models import Book
-    from app.domains.collaboration.models import ApprovalRequest, WorkspaceComment
+    from app.domains.collaboration.models import ApprovalDecision, ApprovalRequest, WorkspaceComment
     from app.domains.commercial.models import WorkspaceSubscription
     from app.domains.events.models import EventLog
     from app.domains.provider_gateway.models import ProviderConfig

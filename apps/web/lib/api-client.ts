@@ -1,9 +1,14 @@
-export type ApiResult<T> =
-  | { readonly status: "ready"; readonly data: T }
-  | { readonly status: "error"; readonly message: string };
+import type { components } from '@storyforge/shared';
 
-const defaultApiBaseUrl = "http://127.0.0.1:8000";
-const defaultApiKey = "local-dev-key";
+export type ApiSchemas = components['schemas'];
+export type ApiResponseSchema<Name extends keyof ApiSchemas> = ApiSchemas[Name];
+
+export type ApiResult<T> =
+  | { readonly status: 'ready'; readonly data: T }
+  | { readonly status: 'error'; readonly message: string };
+
+const defaultApiBaseUrl = 'http://127.0.0.1:8000';
+const defaultApiKey = 'local-dev-key';
 type ApiQueryParams = Record<string, string | number | undefined | null>;
 
 export type ApiFetchInit = RequestInit & {
@@ -27,11 +32,11 @@ export function buildApiUrl(path: string, params: ApiQueryParams = {}): URL {
 export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<Response> {
   const { params, headers, ...requestInit } = init;
   const apiHeaders = new Headers(headers);
-  apiHeaders.set("X-StoryForge-API-Key", process.env.STORYFORGE_API_KEY ?? defaultApiKey);
+  apiHeaders.set('X-StoryForge-API-Key', process.env.STORYFORGE_API_KEY ?? defaultApiKey);
 
   return fetch(buildApiUrl(path, params), {
     ...requestInit,
-    cache: "no-store",
+    cache: 'no-store',
     headers: apiHeaders,
   });
 }
@@ -51,14 +56,14 @@ export async function readJson<T>(
       params: options.params,
     });
     if (!response.ok) {
-      return { status: "error", message: `API 返回 ${response.status}` };
+      return { status: 'error', message: `API 返回 ${response.status}` };
     }
     const payload: unknown = await response.json();
     if (!options.validate(payload)) {
-      return { status: "error", message: options.invalidMessage };
+      return { status: 'error', message: options.invalidMessage };
     }
-    return { status: "ready", data: payload };
+    return { status: 'ready', data: payload };
   } catch (error) {
-    return { status: "error", message: error instanceof Error ? error.message : "未知错误" };
+    return { status: 'error', message: error instanceof Error ? error.message : '未知错误' };
   }
 }

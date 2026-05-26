@@ -1,0 +1,14 @@
+node_modules
+dist
+.next
+*.json
+generated
+packages/shared/src/contracts
+pnpm-lock.yaml
+.pytest-tmp
+.pytest_cache
+__pycache__
+.codex
+apps/api
+apps/workflow
+docs

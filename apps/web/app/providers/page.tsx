@@ -1,9 +1,4 @@
-const providerCapabilities = [
-  "LLM",
-  "Embedding",
-  "Reranker",
-  "图片生成或封面生成能力",
-];
+const providerCapabilities = ['LLM', 'Embedding', 'Reranker', '图片生成或封面生成能力'];
 
 export default function ProviderGatewayPage() {
   return (

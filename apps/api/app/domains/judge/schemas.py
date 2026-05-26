@@ -39,7 +39,7 @@ class JudgeIssueRead(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_issue(cls, issue: JudgeIssue) -> "JudgeIssueRead":
+    def from_issue(cls, issue: JudgeIssue) -> JudgeIssueRead:
         """从数据库模型展开 payload 字段，避免泄漏内部存储结构。"""
 
         payload = issue.payload or {}
