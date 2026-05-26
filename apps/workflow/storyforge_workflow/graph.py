@@ -2,6 +2,7 @@ import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from time import perf_counter
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -14,6 +15,9 @@ from storyforge_workflow.nodes.draft_writer import create_draft_excerpt
 from storyforge_workflow.nodes.scene_architect import create_chapter_plan, create_scene_beats
 from storyforge_workflow.persistence import InMemoryWorkflowStore, summarize_value
 from storyforge_workflow.state import GenerationState
+from storyforge_workflow.utils.logging import get_logger
+
+log = get_logger("storyforge_workflow.graph")
 
 NodeFunction = Callable[[GenerationState], dict[str, Any]]
 DEFAULT_NODE_TIMEOUT_SECONDS = 120.0
@@ -40,6 +44,7 @@ def create_generation_graph(
         raise ValueError("create_generation_graph 需要显式传入持久化 checkpointer；测试可传入 InMemorySaver。")
     workflow_store = store or InMemoryWorkflowStore()
     resolved_node_timeout_seconds = _resolve_node_timeout_seconds(node_timeout_seconds)
+    log.info("graph_created", node_timeout_seconds=resolved_node_timeout_seconds)
     builder = StateGraph(GenerationState)
     builder.add_node("book_director", _audited_node("book_director", create_book_strategy, workflow_store, resolved_node_timeout_seconds))
     builder.add_node(
@@ -64,7 +69,18 @@ def create_generation_graph(
 
 def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowStore, timeout_seconds: float):
     def run(state: GenerationState, config: RunnableConfig | None = None) -> dict[str, Any]:
-        output = _run_node_with_timeout(node_name, node, state, timeout_seconds)
+        workflow_id = state.get("job_run_id", "unknown")
+        bound = log.bind(workflow_id=workflow_id, node_id=node_name)
+        bound.info("node_started")
+        t0 = perf_counter()
+        try:
+            output = _run_node_with_timeout(node_name, node, state, timeout_seconds)
+        except Exception:
+            duration_ms = (perf_counter() - t0) * 1000
+            bound.error("node_failed", duration_ms=round(duration_ms, 1), status="failed")
+            raise
+        duration_ms = (perf_counter() - t0) * 1000
+        bound.info("node_completed", duration_ms=round(duration_ms, 1), status="completed")
         store.record(
             thread_id=_thread_id(state, config),
             job_run_id=state["job_run_id"],
@@ -142,6 +158,7 @@ def _run_node_with_timeout(node_name: str, node: NodeFunction, state: Generation
         return future.result(timeout=timeout_seconds)
     except FutureTimeoutError as exc:
         future.cancel()
+        log.error("node_timeout", node_id=node_name, timeout_seconds=timeout_seconds)
         raise WorkflowNodeTimeoutError(node_name=node_name, timeout_seconds=timeout_seconds) from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
