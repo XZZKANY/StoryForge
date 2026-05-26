@@ -16,6 +16,22 @@ class AssetCreate(BaseModel):
     status: str = Field(default="active", min_length=1, max_length=50)
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "book_id": 12,
+                "asset_type": "character",
+                "name": "墨砚秋",
+                "status": "active",
+                "payload": {
+                    "role": "主角",
+                    "voice": "冷静而克制",
+                    "key_traits": ["剑修", "外冷内热"],
+                },
+            }
+        }
+    )
+
 
 class AssetUpdate(BaseModel):
     """更新资产会产生新版本，未提供字段沿用上一版本。"""
@@ -44,7 +60,24 @@ class AssetUpdate(BaseModel):
 class AssetRead(BaseModel):
     """资产响应契约，所有路由响应都通过该结构输出。"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": 305,
+                "book_id": 12,
+                "scene_id": None,
+                "asset_type": "character",
+                "lineage_key": "book-12-墨砚秋",
+                "name": "墨砚秋",
+                "status": "active",
+                "payload": {"role": "主角"},
+                "version": 2,
+                "created_at": "2026-05-20T03:21:00Z",
+                "updated_at": "2026-05-26T07:55:00Z",
+            }
+        },
+    )
 
     id: int
     book_id: int
@@ -57,3 +90,11 @@ class AssetRead(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class AssetListPage(BaseModel):
+    """资产列表的游标分页响应。"""
+
+    items: list[AssetRead]
+    next_cursor: str | None = None
+    has_more: bool = False

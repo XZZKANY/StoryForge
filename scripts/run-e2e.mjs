@@ -46,6 +46,7 @@ const requestedTests = rawArgs.filter((value) => value !== '--continue-on-error'
 const testFiles = requestedTests.length > 0 ? requestedTests : defaultTests;
 const openApiContractPath = 'packages/shared/src/contracts/storyforge.openapi.json';
 const tempDir = await mkdtemp(join(tmpdir(), 'storyforge-e2e-'));
+const openApiContractBaselinePath = join(tempDir, basename(openApiContractPath));
 
 function formatTimestamp() {
   return new Date().toISOString().slice(0, 19);
@@ -73,6 +74,8 @@ try {
     return exitCode !== 0 && !continueOnError;
   };
 
+  await copyFile(openApiContractPath, openApiContractBaselinePath);
+
   log('INFO', '\n[1/4] Refreshing OpenAPI contract...');
   const refreshExitCode = await refreshOpenApiContract(process.cwd(), tempDir);
   if (refreshExitCode !== 0) {
@@ -83,7 +86,10 @@ try {
   let shouldStop = rememberPhaseResult('OpenAPI contract refresh', refreshExitCode);
   if (!shouldStop && refreshExitCode === 0) {
     log('INFO', '[1/4] Checking OpenAPI contract drift...');
-    const driftExitCode = await checkOpenApiContractDrift(process.cwd());
+    const driftExitCode = await checkOpenApiContractDrift(
+      process.cwd(),
+      openApiContractBaselinePath,
+    );
     if (driftExitCode !== 0) {
       log('ERROR', '[1/4] OpenAPI contract drift check: FAILED');
     } else {
@@ -157,10 +163,11 @@ function printPhaseSummary(phaseResults) {
   }
 }
 
-async function checkOpenApiContractDrift(root) {
+async function checkOpenApiContractDrift(root, baselinePath) {
+  const currentPath = join(root, openApiContractPath);
   const exitCode = await runCommand(
     'git',
-    ['diff', '--exit-code', '--', openApiContractPath],
+    ['diff', '--no-index', '--exit-code', '--', baselinePath, currentPath],
     root,
   );
   if (exitCode !== 0) {

@@ -15,7 +15,12 @@ from app.domains.batch_refinery.service import (
 router = APIRouter(prefix="/api/batch-refinery", tags=["批量精修"])
 
 
-@router.post("/runs", response_model=BatchRefineryRunRead, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/runs",
+    response_model=BatchRefineryRunRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="提交批量精修任务",
+)
 def create_batch_refinery_run(
     payload: BatchRefineryRunCreate,
     session: SessionDependency,
@@ -32,7 +37,11 @@ def create_batch_refinery_run(
     return BatchRefineryRunRead.model_validate(job)
 
 
-@router.get("/runs/{job_id}", response_model=BatchRefineryRunRead)
+@router.get(
+    "/runs/{job_id}",
+    response_model=BatchRefineryRunRead,
+    summary="读取批量精修任务状态",
+)
 def read_batch_refinery_run(job_id: int, session: SessionDependency) -> BatchRefineryRunRead:
     """读取批量精修 JobRun 明细，供恢复和重试前检查。"""
 

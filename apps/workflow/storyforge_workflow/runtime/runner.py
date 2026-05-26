@@ -127,7 +127,7 @@ class WorkflowRuntime:
             input_summary=prompt_summary,
             output_summary=provider_execution.summary,
         )
-        persisted_model_run_id = self._emit_model_run_payload(model_run)
+        persisted_model_run_id = self._emit_model_run_payload(model_run, provider_execution=provider_execution)
         state["model_run_id"] = persisted_model_run_id if persisted_model_run_id is not None else model_run.model_run_id
         self.session_store.update_status(
             session.session_id,
@@ -342,24 +342,48 @@ class WorkflowRuntime:
             provider_execution=provider_execution,
         )
 
-    def _emit_model_run_payload(self, model_run: Any) -> int | None:
+    def _emit_model_run_payload(
+        self, model_run: Any, *, provider_execution: Any | None = None
+    ) -> int | None:
         if self.model_run_sink is None:
             return None
-        return self.model_run_sink.record(
-            ModelRunPayload(
-                thread_id=model_run.thread_id,
-                job_run_id=model_run.job_run_id,
-                provider_name=model_run.provider_name,
-                model_name=model_run.model_name,
-                capability=model_run.capability,
-                latency_ms=model_run.latency_ms,
-                token_usage=model_run.token_usage,
-                input_summary=model_run.input_summary,
-                output_summary=model_run.output_summary,
-                status=model_run.status,
-                error_message=model_run.error_message,
-            )
+        extras: dict[str, object] = {}
+        if provider_execution is not None:
+            extras["prompt_tokens"] = int(getattr(provider_execution, "prompt_tokens", 0) or 0)
+            extras["completion_tokens"] = int(getattr(provider_execution, "completion_tokens", 0) or 0)
+            extras["total_tokens"] = int(getattr(provider_execution, "token_usage", 0) or 0)
+            cost_estimate = getattr(provider_execution, "cost_estimate", 0.0)
+            try:
+                extras["cost_estimate"] = float(cost_estimate or 0.0)
+            except (TypeError, ValueError):
+                extras["cost_estimate"] = 0.0
+            fallback_metadata = getattr(provider_execution, "fallback_metadata", None)
+            if isinstance(fallback_metadata, dict):
+                extras["fallback"] = dict(fallback_metadata)
+        payload = ModelRunPayload(
+            thread_id=model_run.thread_id,
+            job_run_id=model_run.job_run_id,
+            provider_name=model_run.provider_name,
+            model_name=model_run.model_name,
+            capability=model_run.capability,
+            latency_ms=model_run.latency_ms,
+            token_usage=model_run.token_usage,
+            input_summary=model_run.input_summary,
+            output_summary=model_run.output_summary,
+            status=model_run.status,
+            error_message=model_run.error_message,
+            extras=extras or None,
         )
+        try:
+            return self.model_run_sink.record(payload)
+        except Exception as exc:
+            log.warning(
+                "model_run_sink_record_failed",
+                error=str(exc),
+                thread_id=model_run.thread_id,
+                workflow_id=model_run.job_run_id,
+            )
+            return None
 
     def _stream_graph_with_state_snapshots(self, graph_input: Any, *, thread_id: str, initial_state: dict[str, Any]) -> list[dict[str, Any]]:
         """每个 LangGraph 节点完成后保存一次引用化运行状态。"""
@@ -470,4 +494,3 @@ def _node_failure_error_code(error: Exception) -> str:
     if isinstance(error, WorkflowNodeTimeoutError):
         return "node_timeout"
     return "node_execution_failed"
-

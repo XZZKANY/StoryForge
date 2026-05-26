@@ -11,7 +11,11 @@ from app.domains.worldbuilding.service import WorldbuildingNotFoundError, build_
 router = APIRouter(prefix="/api/worldbuilding", tags=["世界观中心"])
 
 
-@router.get("/center", response_model=WorldbuildingCenterRead)
+@router.get(
+    "/center",
+    response_model=WorldbuildingCenterRead,
+    summary="读取世界观中心聚合",
+)
 def read_worldbuilding_center_endpoint(
     session: SessionDependency,
     series_id: Annotated[int, Query(gt=0)],

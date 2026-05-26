@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.judge.models import RepairPatch
 
@@ -13,6 +13,15 @@ class RepairPatchCreate(BaseModel):
 
     issue_id: int = Field(gt=0)
     content: str = Field(min_length=1, max_length=50000)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "issue_id": 902,
+                "content": "墨砚秋拔出佩剑霜河，剑芒在山门前划出一道弧。",
+            }
+        }
+    )
 
 
 class RepairPatchRead(BaseModel):

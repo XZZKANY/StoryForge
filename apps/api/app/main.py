@@ -16,6 +16,7 @@ from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from app.common.auth import InvalidTokenError, verify_access_token
+from app.common.config import ensure_production_settings
 from app.common.exceptions import DomainError
 from app.common.logging_config import configure_logging, get_logger
 from app.common.metrics import setup_metrics
@@ -31,6 +32,7 @@ from app.domains.continuity.router import router as continuity_router
 from app.domains.evaluations.router import router as evaluations_router
 from app.domains.events.router import router as events_router
 from app.domains.exports.router import router as exports_router
+from app.domains.health.router import router as health_router
 from app.domains.judge.router import router as judge_router
 from app.domains.model_runs.router import router as model_runs_router
 from app.domains.prompt_packs.router import router as prompt_packs_router
@@ -44,7 +46,6 @@ from app.domains.series.router import router as series_router
 from app.domains.studio.router import router as studio_router
 from app.domains.style_packs.router import router as style_packs_router
 from app.domains.workspaces.router import router as workspaces_router
-from app.domains.health.router import router as health_router
 from app.domains.worldbuilding.router import router as worldbuilding_router
 
 logger = get_logger(__name__)
@@ -68,6 +69,7 @@ def warn_default_credentials() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    ensure_production_settings()
     init_sentry()
     configure_logging()
     warn_default_credentials()
@@ -186,10 +188,14 @@ app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-@app.get("/health", tags=["运行状态"])
+@app.get(
+    "/health",
+    tags=["运行状态"],
+    summary="顶层健康检查",
+)
 @limiter.exempt
 def health_check() -> dict[str, str]:
-    """提供无需认证的本地和部署健康检查。"""
+    """提供无需认证的本地和部署健康检查；仅证明进程存活，不检查外部依赖。"""
 
     return {"status": "ok", "service": "storyforge-api"}
 

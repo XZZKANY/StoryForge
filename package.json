@@ -5,12 +5,15 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "verify": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1",
+    "dev": "node scripts/dev-start.mjs",
+    "dev:api": "node scripts/dev-start.mjs --api-only",
+    "dev:web": "node scripts/dev-start.mjs --web-only",
     "test": "pnpm run test:web && pnpm run test:api && pnpm run test:workflow",
     "test:web": "pnpm --filter @storyforge/web test && pnpm --filter @storyforge/shared test",
     "test:api": "cd apps/api && uv run pytest",
     "test:workflow": "cd apps/workflow && uv run pytest",
     "e2e": "node scripts/run-e2e.mjs",
-    "openapi": "node scripts/generate-openapi.mjs",
+    "openapi": "powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1",
     "lint": "eslint . && prettier --check \"apps/web/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\"",
     "lint:fix": "eslint . --fix && prettier --write \"apps/web/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\""
   },

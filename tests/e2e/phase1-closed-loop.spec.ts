@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const openapi = JSON.parse(readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'));
+const openapi = JSON.parse(
+  readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
+);
 
 const apiTests = {
   scenePacket: readFileSync('apps/api/tests/test_scene_packet.py', 'utf8'),
@@ -95,7 +97,10 @@ test('契约检查标记批准回写服务边界和下一章继承证据', () =>
   ]);
 
   const approvalSchema = openapi.components.schemas.ChapterApprovalCreate;
-  assert.ok(approvalSchema.properties.next_chapter_constraints, '批准请求必须允许写入下一章继承约束');
+  assert.ok(
+    approvalSchema.properties.next_chapter_constraints,
+    '批准请求必须允许写入下一章继承约束',
+  );
   assert.ok(approvalSchema.properties.character_state_changes, '批准请求必须允许写入角色状态变化');
 });
 

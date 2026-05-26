@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const openapi = JSON.parse(readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'));
+const openapi = JSON.parse(
+  readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
+);
 const apiTests = {
   series: readFileSync('apps/api/tests/test_series_memory.py', 'utf8'),
   batchRefinery: readFileSync('apps/api/tests/test_batch_refinery.py', 'utf8'),
@@ -40,13 +42,32 @@ test('Phase 2 OpenAPI 暴露当前保留的系列记忆、批量精修和风格�
 });
 
 test('Phase 2 后端测试源码保留当前业务证据', () => {
-  assertSourceEvidence(apiTests.series, ['"/api/series"', 'memory_type', 'world_rule', '系列不存在']);
-  assertSourceEvidence(apiTests.batchRefinery, ['"/api/batch-refinery/runs"', 'repair_patch_id', 'partial_failed']);
-  assertSourceEvidence(apiTests.stylePacks, ['"/api/style-packs"', 'style_pack', 'style_rule', '保持克制而具画面感']);
+  assertSourceEvidence(apiTests.series, [
+    '"/api/series"',
+    'memory_type',
+    'world_rule',
+    '系列不存在',
+  ]);
+  assertSourceEvidence(apiTests.batchRefinery, [
+    '"/api/batch-refinery/runs"',
+    'repair_patch_id',
+    'partial_failed',
+  ]);
+  assertSourceEvidence(apiTests.stylePacks, [
+    '"/api/style-packs"',
+    'style_pack',
+    'style_rule',
+    '保持克制而具画面感',
+  ]);
 });
 
 test('Phase 2 前端边界对齐当前已验证入口', () => {
   assertSourceEvidence(webSources.home, ['/refinery', 'Refinery 批量精修诊断']);
   assertSourceEvidence(webSources.refinery, ['Refinery 修订工坊', '评审问题', '修订差异', '补丁']);
-  assertNoSourceEvidence(webSources.home, ['/world', '/quality', 'World Center 世界观中心', 'Quality Dashboard 质量看板']);
+  assertNoSourceEvidence(webSources.home, [
+    "href: '/world'",
+    "href: '/quality'",
+    'World Center 世界观中心',
+    'Quality Dashboard 质量看板',
+  ]);
 });

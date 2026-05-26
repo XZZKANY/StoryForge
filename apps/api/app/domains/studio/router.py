@@ -36,7 +36,11 @@ from app.domains.studio.service import (
 router = APIRouter(prefix="/api/studio", tags=["Studio 创作工作台"])
 
 
-@router.get("/books", response_model=list[StudioBookListItem])
+@router.get(
+    "/books",
+    response_model=list[StudioBookListItem],
+    summary="读取 Studio 作品列表",
+)
 def list_studio_books_endpoint(
     session: SessionDependency,
     workspace_id: Annotated[int | None, Query(gt=0)] = None,
@@ -46,7 +50,11 @@ def list_studio_books_endpoint(
     return list_studio_books(session, workspace_id=workspace_id)
 
 
-@router.get("/chapter-goals", response_model=StudioChapterGoalRead)
+@router.get(
+    "/chapter-goals",
+    response_model=StudioChapterGoalRead,
+    summary="读取 Studio 章节目标",
+)
 def read_studio_chapter_goal_endpoint(
     session: SessionDependency,
     book_id: Annotated[int, Query(gt=0)],
@@ -60,13 +68,17 @@ def read_studio_chapter_goal_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/scene-packets", response_model=StudioScenePacketRead)
+@router.get(
+    "/scene-packets",
+    response_model=StudioScenePacketRead,
+    summary="读取 Studio Scene Packet",
+)
 def read_studio_scene_packet_endpoint(
     session: SessionDependency,
     book_id: Annotated[int, Query(gt=0)],
     target_ordinal: Annotated[int, Query(gt=0)],
 ) -> StudioScenePacketRead:
-    """读取 Studio Scene Packet 数据源：证据数量和上下文预算摘要。"""
+    """读取 Studio Scene Packet 数据源:证据数量和上下文预算摘要。"""
 
     try:
         return read_studio_scene_packet(session, book_id=book_id, target_ordinal=target_ordinal)
@@ -74,7 +86,11 @@ def read_studio_scene_packet_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/judge-reviews", response_model=StudioJudgeReviewRead)
+@router.get(
+    "/judge-reviews",
+    response_model=StudioJudgeReviewRead,
+    summary="读取 Studio Judge 评审",
+)
 def read_studio_judge_review_endpoint(
     session: SessionDependency,
     scene_packet_id: Annotated[int, Query(gt=0)],
@@ -87,7 +103,11 @@ def read_studio_judge_review_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/repair-patches", response_model=list[StudioRepairPatchRead])
+@router.get(
+    "/repair-patches",
+    response_model=list[StudioRepairPatchRead],
+    summary="读取 Studio 修复补丁",
+)
 def read_studio_repair_patches_endpoint(
     session: SessionDependency,
     scene_packet_id: Annotated[int, Query(gt=0)],
@@ -100,7 +120,11 @@ def read_studio_repair_patches_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/approval-summary", response_model=StudioApprovalSummaryRead)
+@router.get(
+    "/approval-summary",
+    response_model=StudioApprovalSummaryRead,
+    summary="读取 Studio 批准摘要",
+)
 def read_studio_approval_summary_endpoint(
     session: SessionDependency,
     scene_packet_id: Annotated[int | None, Query(gt=0)] = None,
@@ -118,7 +142,11 @@ def read_studio_approval_summary_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.post("/approve", response_model=StudioApprovalExecuteRead)
+@router.post(
+    "/approve",
+    response_model=StudioApprovalExecuteRead,
+    summary="执行 Studio 批准写回",
+)
 def approve_studio_writeback_endpoint(
     payload: StudioApprovalExecuteRequest,
     session: SessionDependency,
@@ -131,7 +159,11 @@ def approve_studio_writeback_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/recovery-summary", response_model=StudioRecoverySummaryRead)
+@router.get(
+    "/recovery-summary",
+    response_model=StudioRecoverySummaryRead,
+    summary="读取 Studio 失败恢复摘要",
+)
 def read_studio_recovery_summary_endpoint(
     session: SessionDependency,
     job_run_id: Annotated[int, Query(gt=0)],

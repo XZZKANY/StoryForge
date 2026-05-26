@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 
 export type StudioFlowStep = {
-  readonly id: 'book' | 'goal' | 'generate' | 'review';
+  readonly id: string;
   readonly label: string;
   readonly title: string;
   readonly description: string;
@@ -17,7 +17,21 @@ type StudioFlowProps = {
   readonly steps: readonly StudioFlowStep[];
 };
 
-const stepNumberLabels = ['Step 1', 'Step 2', 'Step 3', 'Step 4'] as const;
+const stepNumberLabels = [
+  'Step 1',
+  'Step 2',
+  'Step 3',
+  'Step 4',
+  'Step 5',
+  'Step 6',
+  'Step 7',
+  'Step 8',
+  'Step 9',
+] as const;
+
+function getStepNumberLabel(index: number): string {
+  return stepNumberLabels[index] ?? `Step ${index + 1}`;
+}
 
 function getCurrentStepIndex(steps: readonly StudioFlowStep[]): number {
   const firstIncompleteIndex = steps.findIndex((step) => !step.completed);
@@ -83,10 +97,10 @@ export function StudioFlow({ steps }: StudioFlowProps) {
           Studio 操作流程
         </h2>
         <p className="mt-2 text-sm text-stone-600">
-          按顺序完成选作品、设目标、生成、评审并批准，当前步骤会高亮，未完成步骤会置灰。
+          按顺序完成选作品、选章节、设目标、场景编辑、预览、生成、评审并批准，当前步骤会高亮，未完成步骤会置灰。
         </p>
       </div>
-      <ol className="grid gap-3 md:grid-cols-4" aria-label="Studio 四步操作进度">
+      <ol className="grid gap-3 md:grid-cols-4" aria-label="Studio 操作进度">
         {steps.map((step, index) => {
           const status = getStepStatus(index, currentStepIndex, step.completed);
           return (
@@ -96,7 +110,7 @@ export function StudioFlow({ steps }: StudioFlowProps) {
               aria-current={status === 'current' ? 'step' : undefined}
             >
               <span className="text-xs font-semibold uppercase tracking-wide">
-                {stepNumberLabels[index]}
+                {getStepNumberLabel(index)}
               </span>
               <strong className="mt-1 block text-base">{step.label}</strong>
               <span className="mt-2 block text-sm">
@@ -121,7 +135,7 @@ export function StudioFlow({ steps }: StudioFlowProps) {
               <div className="mb-4 flex flex-col gap-2 border-b border-stone-200 pb-4 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                    {stepNumberLabels[index]}
+                    {getStepNumberLabel(index)}
                   </p>
                   <h3
                     id={`studio-flow-${step.id}-title`}

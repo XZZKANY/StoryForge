@@ -84,6 +84,74 @@ def test_evaluation_case_and_run_produce_metrics(client: TestClient, evaluation_
     assert sample["studio_href"] == "/studio?chapter_id=7"
 
 
+def test_evaluation_run_rejects_scope_mismatch_when_case_is_provided(
+    client: TestClient,
+    evaluation_scope: dict[str, int],
+    session_factory: sessionmaker[Session],
+) -> None:
+    case = client.post(
+        "/api/evaluations/cases",
+        json={
+            "workspace_id": evaluation_scope["workspace_id"],
+            "book_id": evaluation_scope["book_id"],
+            "case_name": "作用域一致性基准",
+            "case_type": "consistency",
+            "input_payload": {},
+            "expected_payload": {},
+        },
+    )
+    assert case.status_code == 201, case.text
+
+    with session_factory() as session:
+        other_workspace = Workspace(title="Phase4 Other Team", slug="phase4-other-team", status="active", seat_limit=2)
+        other_book = Book(title="错位星图", status="draft", premise="另一本书的基准。")
+        session.add_all([other_workspace, other_book])
+        session.commit()
+        other_scope = {"workspace_id": other_workspace.id, "book_id": other_book.id}
+
+    run = client.post(
+        "/api/evaluations/runs",
+        json={
+            "case_id": case.json()["id"],
+            "workspace_id": other_scope["workspace_id"],
+            "book_id": other_scope["book_id"],
+            "observed_payload": {"scene_count": 1},
+        },
+    )
+
+    assert run.status_code == 400, run.text
+    assert "评测运行作用域必须与评测用例一致" in run.json()["detail"]
+
+
+def test_evaluation_run_rejects_invalid_observed_payload_number(client: TestClient) -> None:
+    run = client.post(
+        "/api/evaluations/runs",
+        json={"observed_payload": {"scene_count": "不是数字"}},
+    )
+
+    assert run.status_code == 400, run.text
+    assert "scene_count 必须是非负整数" in run.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "observed_payload",
+    [
+        {"scene_count": 2, "open_issue_count": 3},
+        {"repair_attempts": 2, "repair_accepted": 3},
+        {"suggestions_total": 2, "suggestions_accepted": 3},
+        {"open_loop_count": -1},
+    ],
+)
+def test_evaluation_run_rejects_invalid_metric_boundaries(
+    client: TestClient,
+    observed_payload: dict[str, int],
+) -> None:
+    run = client.post("/api/evaluations/runs", json={"observed_payload": observed_payload})
+
+    assert run.status_code == 400, run.text
+    assert "评测指标数值不合法" in run.json()["detail"]
+
+
 def test_evaluation_run_detail_returns_404_for_missing_run(client: TestClient) -> None:
     detail = client.get("/api/evaluations/runs/999999")
     assert detail.status_code == 404

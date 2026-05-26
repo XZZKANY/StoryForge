@@ -1,5 +1,11 @@
-import { JudgeIssueList } from '../../components/judge-panel/JudgeIssueList';
-import { RepairDiffViewer } from '../../components/diff-viewer/RepairDiffViewer';
+import dynamic from 'next/dynamic';
+
+const JudgeIssueList = dynamic(() =>
+  import('../../components/judge-panel/JudgeIssueList').then((mod) => mod.JudgeIssueList),
+);
+const RepairDiffViewer = dynamic(() =>
+  import('../../components/diff-viewer/RepairDiffViewer').then((mod) => mod.RepairDiffViewer),
+);
 
 const sourceText = '林岚在灯塔港等待补给船，潮声盖过了旧无线电的杂音。';
 const candidateText = '林岚站在灯塔港，等待补给船穿过晨雾靠岸。';

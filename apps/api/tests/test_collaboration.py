@@ -77,3 +77,11 @@ def test_collaboration_comment_approval_timeline_and_events(client: TestClient, 
     assert [item["item_type"] for item in timeline] == ["comment", "approval"]
     assert timeline[0]["summary"] == "建议加强旧伤带来的动作限制。"
     assert timeline[1]["status"] == "approved"
+
+
+def test_collaboration_decision_returns_400_for_missing_approval(client: TestClient) -> None:
+    response = client.post(
+        "/api/collaboration/approvals/999/decisions",
+        json={"member_id": 999, "decision": "approved"},
+    )
+    assert response.status_code == 400

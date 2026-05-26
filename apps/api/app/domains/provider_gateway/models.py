@@ -25,5 +25,3 @@ class ProviderConfig(IdMixin, TimestampMixin, Base):
     credential_ref: Mapped[str | None] = mapped_column(String(255))
 
     workspace: Mapped[Workspace | None] = relationship(back_populates="provider_configs")
-
-

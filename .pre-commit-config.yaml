@@ -14,7 +14,7 @@ repos:
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        types_or: [typescript, tsx, javascript, json, markdown, yaml]
+        types_or: [ts, tsx, javascript, json, markdown, yaml]
         exclude: |
           (?x)^(
             .*node_modules/.*|
@@ -29,3 +29,11 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: pnpm exec eslint .
+        language: system
+        pass_filenames: false

@@ -1,4 +1,4 @@
-# 操作日志
+﻿# 操作日志
 
 ## 编码前检查 - Step E-2a Web API 客户端单元测试
 
@@ -2669,3 +2669,65 @@ OpenAPI / Runtime 门禁证据：
 □ 确认不重复造轮子，证明：已搜索 `.github/workflows`，仓库当前不存在 workflow；已有验证入口足够复用。
 □ 外部资料记录：Context7 查询 `/websites/github_en_actions` 与 `/pnpm/action-setup`，用于确认 workflow 触发、checkout、Node、pnpm install 和 service/job 基本语法。
 □ GitHub 开源搜索记录：当前会话 `tool_search` 未发现可用 `github.search_code` 工具，无法执行该项，已记录为工具缺失并以 Context7 官方文档补偿。
+
+
+## 验证记录 - OpenAPI verify/e2e 门禁
+
+时间：2026-05-26 23:27:40
+
+- `pnpm exec prettier --check scripts/run-e2e.mjs scripts/generate-openapi.mjs`：退出码 0，格式检查通过。
+- `pnpm verify`：退出码 0，StoryForge 本地验证通过；OpenAPI Runtime 契约门禁标记全部通过。
+- `pnpm e2e -- --continue-on-error`：整体退出码 1；OpenAPI contract refresh 通过，OpenAPI contract drift check 通过；Contract tests 仍有非 OpenAPI 范围失败，API verification 与 Workflow verification 通过。
+
+### 审查结论
+
+综合评分 91/100，建议通过本任务。剩余 e2e 失败不属于本次允许修改范围。
+
+## P8-009 操作日志 - Workflow 诊断写入失败隔离
+
+时间：2026-05-26 23:28:00
+
+- sequential-thinking 已执行：定位 `WorkflowRuntime._emit_model_run_payload()` 中 `model_run_sink.record` 异常冒泡。
+- shrimp-task-manager 已执行分析与拆分；后续 `verify_task` 返回旧任务状态异常，已改用本地日志记录补偿。
+- context7 已查询 `/pytest-dev/pytest`，用于确认 `monkeypatch.setattr` 与 `pytest.raises` 测试写法。
+- 当前工具集没有 `github.search_code`，已记录为工具缺失，改用项目内相似实现补偿。
+- 上下文摘要：`.codex/context-summary-p8-009-workflow-runner-sink-isolation.md`。
+- TDD 红灯：两个新增 runner 回归测试先失败，失败原因为 `RuntimeError: model run sink 写入失败` 从 sink 写入边界冒泡。
+- 实现：仅修改 `apps/workflow/storyforge_workflow/runtime/runner.py`，在 `_emit_model_run_payload()` 中捕获 sink 写入异常，记录 warning 并返回 `None`。
+- 验证：`uv run pytest tests/test_runtime_runner.py -q`，结果 `9 passed in 0.59s`。
+- 验证：`uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q`，结果 `13 passed in 0.79s`。
+- 注意：工作区已有大量无关 diff，`provider_adapter.py` 已存在 diff；本任务未编辑该文件，也未回滚用户既有改动。
+
+## Phase 8 最终收口验证记录
+
+时间：2026-05-27 02:48:58 +08:00
+
+### 1. 环境问题复现与处理
+
+- 首次执行 `pnpm verify` 失败，根因不是代码断言失败，而是 Docker daemon 未运行。
+- 失败证据：Docker API 连接 `npipe:////./pipe/dockerDesktopLinuxEngine` 返回 `The system cannot find the file specified`。
+- 处理方式：启动 `C:\Program Files\Docker\Docker\Docker Desktop.exe`，等待 `docker info --format '{{.ServerVersion}}'` 返回 `29.2.1`。
+- 随后执行 `docker compose up -d postgres redis minio`，三项基础服务均进入 `healthy` 状态。
+
+### 2. 最终本地验证矩阵
+
+- `pnpm verify`：通过，退出码 0，StoryForge 本地验证通过。
+- `pnpm lint`：通过，退出码 0，ESLint 与 Prettier 检查通过。
+- `pnpm test`：通过，退出码 0；Web 59 passed，Shared `tsc --noEmit` 通过，API 229 passed，Workflow 62 passed。
+- `pnpm e2e`：通过，退出码 0；Contract tests 20 passed，API verification 58 passed，Workflow verification 34 passed。
+- `pnpm --filter @storyforge/web build`：通过，退出码 0；Next.js production build 成功生成 14 个页面。
+- `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet`：通过，退出码 0。
+- `uvx pre-commit run --all-files`：通过，退出码 0；large files、merge conflicts、private key、trailing whitespace、EOF、prettier、ruff、eslint 全部 Passed。
+- `rg --fixed-strings -- "- [ ]" .dev_plan.md`：退出码 1，无匹配项，表示计划文件中没有剩余未完成任务。
+
+### 3. 残余风险与非阻断告警
+
+- API 测试仍有 4 个 PyJWT `InsecureKeyLengthWarning`，来源于测试密钥长度低于 HS256 建议值；当前不影响测试通过。
+- Web build 仍有 Sentry/Next 配置建议和弃用警告，包括 `global-error`、`onRequestError`、`sentry.client.config.ts` 重命名建议与 Next ESLint 插件提示；当前不影响构建通过。
+- 工作树包含大量历史改动、并发 agent 改动和 pre-commit 格式化触碰；本轮未回滚任何非本轮改动。
+
+### 4. 审查结论
+
+- `.dev_plan.md` 中任务已全部勾选完成。
+- 本地验证、测试、e2e、构建、pre-commit 和生产 Compose 配置均已通过。
+- 建议结论：通过，可进入人工决策的提交/合并阶段。

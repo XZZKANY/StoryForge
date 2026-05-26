@@ -40,6 +40,3 @@ class ModelRun(IdMixin, TimestampMixin, Base):
     scene: Mapped[Scene | None] = relationship()
     job_run: Mapped[JobRun | None] = relationship()
     prompt_pack: Mapped[PromptPack | None] = relationship()
-
-
-

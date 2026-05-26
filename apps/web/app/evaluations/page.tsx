@@ -14,9 +14,15 @@ type EvaluationRunListState =
   | { readonly status: 'ready'; readonly runs: readonly EvaluationRunItem[] }
   | { readonly status: 'error'; readonly message: string };
 
+type EvaluationTrendPoint = {
+  readonly metric: string;
+  readonly value: number;
+  readonly [key: string]: unknown;
+};
+
 type EvaluationRunDetail = {
   readonly run: EvaluationRunItem;
-  readonly trend_points: readonly Record<string, unknown>[];
+  readonly trend_points: readonly EvaluationTrendPoint[];
   readonly failed_sample_count: number;
   readonly studio_feedback_href: string | null;
 };
@@ -99,12 +105,23 @@ function isEvaluationRunDetail(value: unknown): value is EvaluationRunDetail {
   }
   const candidate = value as Partial<EvaluationRunDetail>;
   return (
-    typeof candidate.run === 'object' &&
-    candidate.run !== null &&
-    Array.isArray(candidate.trend_points) &&
+    isEvaluationRunItem(candidate.run) &&
+    isEvaluationTrendPointList(candidate.trend_points) &&
     typeof candidate.failed_sample_count === 'number' &&
     (typeof candidate.studio_feedback_href === 'string' || candidate.studio_feedback_href === null)
   );
+}
+
+function isEvaluationTrendPoint(value: unknown): value is EvaluationTrendPoint {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<EvaluationTrendPoint>;
+  return typeof candidate.metric === 'string' && typeof candidate.value === 'number';
+}
+
+function isEvaluationTrendPointList(value: unknown): value is EvaluationTrendPoint[] {
+  return Array.isArray(value) && value.every(isEvaluationTrendPoint);
 }
 
 function isEvaluationRunItem(value: unknown): value is EvaluationRunItem {

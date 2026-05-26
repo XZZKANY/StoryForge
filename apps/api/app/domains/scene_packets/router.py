@@ -9,7 +9,12 @@ from app.domains.scene_packets.service import ScenePacketInputError, assemble_sc
 router = APIRouter(prefix="/api/scene-packets", tags=["场景上下文包"])
 
 
-@router.post("", response_model=ScenePacketRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=ScenePacketRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="组装 Scene Packet",
+)
 def create_scene_packet_endpoint(payload: ScenePacketCreate, session: SessionDependency) -> ScenePacketRead:
     """为章节首个场景组装固定槽位 Scene Packet 并持久化。"""
 

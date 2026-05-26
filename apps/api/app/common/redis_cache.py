@@ -43,6 +43,39 @@ def cache_set_json(key: str, value: dict[str, Any], ttl_seconds: int) -> None:
         return
 
 
+def cache_get_value(key: str) -> Any | None:
+    """读取任意 JSON 值（dict/list/标量）；Redis 不可用或内容异常时返回 None。"""
+
+    try:
+        raw_value = _redis_client().get(key)
+    except redis.RedisError:
+        return None
+    if not raw_value:
+        return None
+    try:
+        return json.loads(raw_value)
+    except json.JSONDecodeError:
+        return None
+
+
+def cache_set_value(key: str, value: Any, ttl_seconds: int) -> None:
+    """写入任意 JSON 可序列化值；Redis 不可用或序列化失败时不影响主流程。"""
+
+    try:
+        _redis_client().set(key, json.dumps(value, ensure_ascii=False, default=str), ex=ttl_seconds)
+    except (TypeError, redis.RedisError):
+        return
+
+
+def cache_delete(key: str) -> None:
+    """删除单个缓存键。"""
+
+    try:
+        _redis_client().delete(key)
+    except redis.RedisError:
+        return
+
+
 def cache_delete_pattern(pattern: str) -> None:
     """按 pattern 删除缓存键，使用 SCAN 避免阻塞 Redis。"""
 

@@ -104,4 +104,3 @@ def _count_series_memories(session: Session, series_id: int | None) -> int:
         )
         or 0
     )
-

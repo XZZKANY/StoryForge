@@ -33,3 +33,14 @@ def test_create_workspace_add_members_and_enforce_seat_limit(client: TestClient)
     members_response = client.get(f"/api/workspaces/{workspace['id']}/members")
     assert members_response.status_code == 200
     assert [member["display_name"] for member in members_response.json()] == ["林岚"]
+
+
+def test_workspace_members_return_404_for_missing_workspace(client: TestClient) -> None:
+    member_response = client.post(
+        "/api/workspaces/999/members",
+        json={"display_name": "顾潮", "role": "editor"},
+    )
+    assert member_response.status_code == 404
+
+    members_response = client.get("/api/workspaces/999/members")
+    assert members_response.status_code == 404

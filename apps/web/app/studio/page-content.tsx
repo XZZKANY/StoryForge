@@ -1,8 +1,15 @@
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 
 import { ScenePacketPanel } from '../../components/scene-packet/ScenePacketPanel';
-import { JudgeIssueList } from '../../components/judge-panel/JudgeIssueList';
-import { RepairDiffViewer } from '../../components/diff-viewer/RepairDiffViewer';
+import { JobStatusPoller } from '../../components/job-status/JobStatusPoller';
+
+const JudgeIssueList = dynamic(() =>
+  import('../../components/judge-panel/JudgeIssueList').then((mod) => mod.JudgeIssueList),
+);
+const RepairDiffViewer = dynamic(() =>
+  import('../../components/diff-viewer/RepairDiffViewer').then((mod) => mod.RepairDiffViewer),
+);
 
 import { approveStudioWritebackAction } from './actions';
 import {
@@ -175,6 +182,50 @@ export async function StudioPageContent({
               <dt>Compiled Context</dt>
               <dd>{scenePacketState.packet.compiled_context_id ?? '暂无上下文快照'}</dd>
             </dl>
+          )}
+          {scenePacketState.status === 'ready' && scenePacketState.packet.job_run_id ? (
+            <JobStatusPoller jobRunId={scenePacketState.packet.job_run_id} />
+          ) : null}
+        </section>
+      ),
+    },
+    {
+      id: 'preview',
+      label: '预览 Scene Packet',
+      title: '预览 Scene Packet',
+      description: '在 Judge 评审前预览 Scene Packet 的目标、必要事实和证据链接，确认输入正确。',
+      completed:
+        scenePacketState.status === 'ready' && scenePacketState.packet.compiled_context_id !== null,
+      content: (
+        <section aria-labelledby="studio-scene-preview-title">
+          <h2 id="studio-scene-preview-title">Scene Packet 预览</h2>
+          {scenePacketState.status !== 'ready' ? (
+            <p>需要先生成 Scene Packet 才能预览。</p>
+          ) : (
+            <ScenePacketPanel
+              title={
+                chapterGoalState.status === 'ready'
+                  ? chapterGoalState.goal.target_chapter_title
+                  : undefined
+              }
+              goal={
+                chapterGoalState.status === 'ready' ? chapterGoalState.goal.chapter_goal : undefined
+              }
+              requiredFacts={
+                chapterGoalState.status === 'ready'
+                  ? [...chapterGoalState.goal.continuity_constraints]
+                  : undefined
+              }
+              evidenceLinks={[
+                {
+                  label: `证据素材（${scenePacketState.packet.evidence_count} 条）`,
+                  href: '#studio-scene-packet-title',
+                },
+                ...(scenePacketState.packet.compiled_context_id
+                  ? [{ label: 'Compiled Context', href: '#studio-scene-packet-title' }]
+                  : []),
+              ]}
+            />
           )}
         </section>
       ),

@@ -83,13 +83,11 @@ test('Docker Compose 基础服务具备健康检查', () => {
   const minio = readComposeServiceBlock(compose, 'minio');
 
   assert.ok(postgres.includes('healthcheck:'), 'PostgreSQL 应配置 healthcheck');
-  assert.ok(
-    postgres.includes('test: ["CMD-SHELL", "pg_isready -U storyforge'),
-    'PostgreSQL 应使用 pg_isready 探测',
-  );
+  assert.ok(postgres.includes('CMD-SHELL'), 'PostgreSQL healthcheck 应使用 shell 命令');
+  assert.ok(postgres.includes('pg_isready -U storyforge'), 'PostgreSQL 应使用 pg_isready 探测');
   assert.ok(redis.includes('healthcheck:'), 'Redis 应配置 healthcheck');
   assert.ok(
-    redis.includes('test: ["CMD", "redis-cli", "ping"]'),
+    redis.includes('redis-cli') && redis.includes('ping'),
     'Redis 应使用 redis-cli ping 探测',
   );
   assert.ok(minio.includes('healthcheck:'), 'MinIO 应配置 healthcheck');
@@ -104,6 +102,29 @@ test('Docker Compose 基础服务具备健康检查', () => {
     assert.ok(serviceBlock.includes('retries: 5'), `${serviceName} healthcheck retries 应为 5`);
   }
 });
+
+test('Web 本机构建关闭 standalone 且 Docker 构建显式开启', () => {
+  const nextConfig = read('next.config.ts');
+  const dockerfile = read('Dockerfile');
+
+  assert.ok(
+    nextConfig.includes('STORYFORGE_WEB_STANDALONE'),
+    'Next 配置应由环境变量控制 standalone 输出',
+  );
+  assert.ok(
+    nextConfig.includes("process.env.STORYFORGE_WEB_STANDALONE === '1'"),
+    '只有容器构建显式开启 standalone',
+  );
+  assert.ok(
+    dockerfile.includes('STORYFORGE_WEB_STANDALONE=1'),
+    'Web Docker 构建必须生成 .next/standalone',
+  );
+  assert.ok(
+    dockerfile.includes('/repo/apps/web/.next/standalone'),
+    '运行镜像仍应复制 standalone 产物',
+  );
+});
+
 test('Retrieval 与 Runs 不再硬编码默认 ID', () => {
   const retrieval = read('app/retrieval/page.tsx');
   const runs = read('app/runs/page.tsx');

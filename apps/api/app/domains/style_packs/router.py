@@ -25,7 +25,12 @@ from app.domains.style_packs.service import (
 router = APIRouter(prefix="/api/style-packs", tags=["风格包"])
 
 
-@router.post("", response_model=StylePackRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=StylePackRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建风格包",
+)
 def create_style_pack_endpoint(payload: StylePackCreate, session: SessionDependency) -> StylePackRead:
     """创建风格包首版本。"""
 
@@ -35,7 +40,11 @@ def create_style_pack_endpoint(payload: StylePackCreate, session: SessionDepende
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("", response_model=list[StylePackRead])
+@router.get(
+    "",
+    response_model=list[StylePackRead],
+    summary="读取风格包列表",
+)
 def list_style_packs_endpoint(
     session: SessionDependency,
     book_id: Annotated[int, Query(gt=0)],
@@ -45,7 +54,11 @@ def list_style_packs_endpoint(
     return list(list_style_packs(session, book_id))
 
 
-@router.patch("/{asset_id}", response_model=StylePackRead)
+@router.patch(
+    "/{asset_id}",
+    response_model=StylePackRead,
+    summary="更新风格包",
+)
 def update_style_pack_endpoint(asset_id: int, payload: StylePackUpdate, session: SessionDependency) -> StylePackRead:
     """更新风格包并创建新版本。"""
 
@@ -57,7 +70,12 @@ def update_style_pack_endpoint(asset_id: int, payload: StylePackUpdate, session:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/{asset_id}/apply", response_model=StyleRuleRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{asset_id}/apply",
+    response_model=StyleRuleRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="应用风格包到作品",
+)
 def apply_style_pack_endpoint(
     asset_id: int,
     payload: StylePackApplyCreate,

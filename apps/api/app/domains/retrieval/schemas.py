@@ -20,6 +20,18 @@ class RetrievalSourceCreate(BaseModel):
             raise ValueError("资料源至少需要 book_id 或 series_id 之一。")
         return self
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "book_id": 12,
+                "source_type": "setting_doc",
+                "title": "九重山门内门规矩",
+                "content_text": "九重山门分内、外两脉……（正文略）",
+                "payload": {"author": "世界观组", "version": 3},
+            }
+        }
+    )
+
 
 class RetrievalSourceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -99,6 +111,16 @@ class RetrievalSearchCreate(BaseModel):
         if self.book_id is None and self.series_id is None:
             raise ValueError("检索查询至少需要 book_id 或 series_id 之一。")
         return self
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "query": "墨砚秋的剑名是什么",
+                "book_id": 12,
+                "limit": 5,
+            }
+        }
+    )
 
 
 class RetrievalHitRead(BaseModel):

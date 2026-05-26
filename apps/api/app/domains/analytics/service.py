@@ -73,4 +73,3 @@ def build_workspace_analytics(session: Session, workspace_id: int) -> WorkspaceA
             f"审批通过率 {approval_pass_rate:.2f}，修复采纳率 {repair_acceptance_rate:.2f}，任务成功率 {job_success_rate:.2f}。"
         ),
     )
-

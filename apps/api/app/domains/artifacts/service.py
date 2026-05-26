@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from uuid import uuid4
 
@@ -7,11 +8,35 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
+from app.common.redis_cache import cache_delete_pattern, cache_get_value, cache_set_value
 from app.db.queries import latest_by_lineage
 from app.domains.artifacts.models import Artifact
-from app.domains.artifacts.schemas import ArtifactCreate, ArtifactDownloadRead
+from app.domains.artifacts.schemas import ArtifactCreate, ArtifactDownloadRead, ArtifactRead
 from app.domains.books.models import Book
 from app.domains.workspaces.models import Workspace
+
+DEFAULT_ARTIFACT_LIST_CACHE_TTL = 60
+
+
+def _artifact_list_cache_key(workspace_id: int | None, book_id: int | None) -> str:
+    workspace_part = "all" if workspace_id is None else str(workspace_id)
+    book_part = "all" if book_id is None else str(book_id)
+    return f"storyforge:artifact-list:workspace:{workspace_part}:book:{book_part}"
+
+
+def _artifact_list_cache_ttl_seconds() -> int:
+    raw_value = os.getenv(
+        "STORYFORGE_ARTIFACT_CACHE_TTL_SECONDS", str(DEFAULT_ARTIFACT_LIST_CACHE_TTL)
+    )
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return DEFAULT_ARTIFACT_LIST_CACHE_TTL
+    return value if value > 0 else DEFAULT_ARTIFACT_LIST_CACHE_TTL
+
+
+def _invalidate_artifact_list_cache() -> None:
+    cache_delete_pattern("storyforge:artifact-list:*")
 
 
 class ArtifactError(InputError):
@@ -46,10 +71,43 @@ def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:
     session.add(artifact)
     session.commit()
     session.refresh(artifact)
+    _invalidate_artifact_list_cache()
     return artifact
 
 
 def list_artifacts(session: Session, *, workspace_id: int | None = None, book_id: int | None = None) -> Sequence[Artifact]:
+    query = build_artifact_list_query(workspace_id=workspace_id, book_id=book_id)
+    return session.scalars(query).all()
+
+
+def list_artifacts_cached(
+    session: Session,
+    *,
+    workspace_id: int | None = None,
+    book_id: int | None = None,
+) -> list[ArtifactRead]:
+    """Redis 缓存命中时直接返回 ArtifactRead；未命中时落库并写入缓存。"""
+
+    cache_key = _artifact_list_cache_key(workspace_id, book_id)
+    cached = cache_get_value(cache_key)
+    if isinstance(cached, list):
+        try:
+            return [ArtifactRead.model_validate(item) for item in cached]
+        except Exception:
+            cache_delete_pattern(cache_key)
+    artifacts = list_artifacts(session, workspace_id=workspace_id, book_id=book_id)
+    rendered = [ArtifactRead.model_validate(item) for item in artifacts]
+    cache_set_value(
+        cache_key,
+        [item.model_dump(mode="json") for item in rendered],
+        _artifact_list_cache_ttl_seconds(),
+    )
+    return rendered
+
+
+def build_artifact_list_query(*, workspace_id: int | None = None, book_id: int | None = None):
+    """返回未执行的最新版制品列表查询，便于分页 helper 接入主键游标。"""
+
     statement = latest_by_lineage(Artifact)
     query = (
         select(Artifact)
@@ -63,7 +121,7 @@ def list_artifacts(session: Session, *, workspace_id: int | None = None, book_id
         query = query.where(Artifact.workspace_id == workspace_id)
     if book_id is not None:
         query = query.where(Artifact.book_id == book_id)
-    return session.scalars(query).all()
+    return query
 
 
 def get_artifact(session: Session, artifact_id: int) -> Artifact:
@@ -99,4 +157,3 @@ def _artifact_content_preview(artifact: Artifact) -> str:
         if isinstance(value, str) and value:
             return value[:500]
     return f"{artifact.name}（{artifact.artifact_type}，v{artifact.version}）"
-

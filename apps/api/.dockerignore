@@ -1,0 +1,12 @@
+# Build artifacts and dev-only files we don't want shipping into the image.
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+tests
+README.md

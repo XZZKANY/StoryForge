@@ -29,5 +29,3 @@ class MemoryAtomRecord(IdMixin, TimestampMixin, Base):
     source_ref: Mapped[str] = mapped_column(String(255), nullable=False)
 
     book: Mapped[Book] = relationship()
-
-

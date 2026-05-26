@@ -1,3 +1,7 @@
+param(
+    [switch]$RunDockerBuild
+)
+
 $ErrorActionPreference = "Continue"
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -162,6 +166,119 @@ function Test-OpenApiRuntimeContractGate {
     }
 }
 
+function Invoke-DockerComposeConfig {
+    $Output = & docker compose -f docker-compose.yml -f docker-compose.prod.yml config 2>&1 | Out-String
+    $ExitCode = $LASTEXITCODE
+    return @{
+        ExitCode = $ExitCode
+        Output = $Output
+    }
+}
+
+function Test-DockerProdComposeConfig {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Fail "无法验证生产 Docker Compose 配置，因为 Docker 命令不可用。"
+        return
+    }
+
+    Push-Location $Root
+    try {
+        $Result = Invoke-DockerComposeConfig
+    } finally {
+        Pop-Location
+    }
+
+    if ($Result.ExitCode -ne 0) {
+        Write-Fail "生产 Docker Compose 配置渲染失败：$($Result.Output.Trim())"
+        return
+    }
+
+    Write-Ok "生产 Docker Compose 配置可通过 docker compose config 渲染。"
+
+    $ForbiddenPublishedPorts = @('published: "55432"', 'published: "6379"', 'published: "9000"', 'published: "9001"')
+    foreach ($PortMarker in $ForbiddenPublishedPorts) {
+        if ($Result.Output -like "*$PortMarker*") {
+            Write-Fail "生产 Docker Compose 配置不应暴露基础服务端口：$PortMarker。"
+        } else {
+            Write-Ok "生产 Docker Compose 配置未暴露基础服务端口：$PortMarker。"
+        }
+    }
+}
+
+function Test-DockerComposeBuildGate {
+    $ComposePath = Join-Path $Root "docker-compose.yml"
+    $RequiredDockerfiles = @(
+        "apps/api/Dockerfile",
+        "apps/web/Dockerfile",
+        "apps/workflow/Dockerfile"
+    )
+
+    if (-not (Test-Path -LiteralPath $ComposePath)) {
+        Write-Fail "缺少 Docker Compose 构建配置：docker-compose.yml。"
+        return
+    }
+
+    $ComposeContent = Get-Content -LiteralPath $ComposePath -Raw -Encoding UTF8
+    foreach ($Marker in @("context: ./apps/api", "dockerfile: apps/web/Dockerfile", "context: ./apps/workflow")) {
+        if ($ComposeContent -like "*$Marker*") {
+            Write-Ok "Docker build 门禁已确认 compose 包含 $Marker。"
+        } else {
+            Write-Fail "Docker build 门禁缺少 compose 标记：$Marker。"
+        }
+    }
+
+    foreach ($Dockerfile in $RequiredDockerfiles) {
+        $DockerfilePath = Join-Path $Root $Dockerfile
+        if (Test-Path -LiteralPath $DockerfilePath) {
+            Write-Ok "Docker build 门禁已找到 $Dockerfile。"
+        } else {
+            Write-Fail "Docker build 门禁缺少 $Dockerfile。"
+        }
+    }
+
+    if (-not $RunDockerBuild) {
+        Write-Info "跳过实际 Docker 镜像构建；如需执行，请追加 -RunDockerBuild。"
+        return
+    }
+
+    Push-Location $Root
+    try {
+        & docker compose -f docker-compose.yml -f docker-compose.prod.yml build api web workflow
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Docker build 门禁通过：api、web、workflow 镜像可构建。"
+        } else {
+            Write-Fail "Docker build 门禁失败：api、web、workflow 镜像构建退出码 $LASTEXITCODE。"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+function Test-DockerComposeHealthGate {
+    $ComposeContent = Get-Content -LiteralPath (Join-Path $Root "docker-compose.yml") -Raw -Encoding UTF8
+    $ProdComposeContent = Get-Content -LiteralPath (Join-Path $Root "docker-compose.prod.yml") -Raw -Encoding UTF8
+    $ApiDockerfileContent = Get-Content -LiteralPath (Join-Path $Root "apps/api/Dockerfile") -Raw -Encoding UTF8
+    $WebDockerfileContent = Get-Content -LiteralPath (Join-Path $Root "apps/web/Dockerfile") -Raw -Encoding UTF8
+
+    $RequiredMarkers = @(
+        @{ Source = $ComposeContent; Marker = "http://localhost:8000/health/live"; Display = "docker-compose.yml API healthcheck" },
+        @{ Source = $ComposeContent; Marker = "http://localhost:3000/"; Display = "docker-compose.yml Web healthcheck" },
+        @{ Source = $ProdComposeContent; Marker = "condition: service_healthy"; Display = "docker-compose.prod.yml service_healthy 依赖" },
+        @{ Source = $ApiDockerfileContent; Marker = "HEALTHCHECK"; Display = "apps/api/Dockerfile healthcheck" },
+        @{ Source = $ApiDockerfileContent; Marker = "http://127.0.0.1:8000/health/live"; Display = "apps/api/Dockerfile liveness 探针" },
+        @{ Source = $WebDockerfileContent; Marker = "HEALTHCHECK"; Display = "apps/web/Dockerfile healthcheck" },
+        @{ Source = $WebDockerfileContent; Marker = "http://127.0.0.1:3000/"; Display = "apps/web/Dockerfile 首页探针" }
+    )
+
+    foreach ($Requirement in $RequiredMarkers) {
+        if ($Requirement.Source -like "*$($Requirement.Marker)*") {
+            Write-Ok "Docker health 门禁已确认 $($Requirement.Display)。"
+        } else {
+            Write-Fail "Docker health 门禁缺少 $($Requirement.Display)：$($Requirement.Marker)。"
+        }
+    }
+}
+
 function Test-DockerContainerRunning {
     param(
         [string]$ContainerName,
@@ -205,6 +322,9 @@ Test-RequiredPath "packages/shared/package.json"
 
 Test-RuntimeDiagnosticsGate
 Test-OpenApiRuntimeContractGate
+Test-DockerProdComposeConfig
+Test-DockerComposeBuildGate
+Test-DockerComposeHealthGate
 
 Test-DockerContainerRunning -ContainerName "storyforge-postgres" -DisplayName "PostgreSQL"
 Test-DockerContainerRunning -ContainerName "storyforge-redis" -DisplayName "Redis"

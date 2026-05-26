@@ -70,3 +70,52 @@ def test_artifact_detail_returns_404_for_missing_artifact(client: TestClient) ->
     download = client.get("/api/artifacts/999999/download")
     assert download.status_code == 404
     assert "制品不存在" in download.json()["detail"]
+
+
+def test_artifact_list_supports_cursor_pagination_envelope(
+    client: TestClient, artifact_scope: dict[str, int]
+) -> None:
+    for index in range(3):
+        upload = client.post(
+            "/api/artifacts",
+            json={
+                "book_id": artifact_scope["book_id"],
+                "artifact_type": "upload",
+                "lineage_key": f"upload-page-{index}",
+                "name": f"分页制品 {index}",
+                "storage_uri": f"memory://page-{index}.txt",
+                "mime_type": "text/plain",
+                "size_bytes": 32,
+            },
+        )
+        assert upload.status_code == 201, upload.text
+
+    legacy = client.get("/api/artifacts", params={"book_id": artifact_scope["book_id"]})
+    assert legacy.status_code == 200
+    assert isinstance(legacy.json(), list)
+
+    page_one = client.get(
+        "/api/artifacts",
+        params={"book_id": artifact_scope["book_id"], "limit": 2},
+    )
+    assert page_one.status_code == 200
+    body_one = page_one.json()
+    assert isinstance(body_one, dict)
+    assert "items" in body_one and "next_cursor" in body_one and "has_more" in body_one
+    assert len(body_one["items"]) == 2
+    assert body_one["has_more"] is True
+    assert body_one["next_cursor"] is not None
+
+    page_two = client.get(
+        "/api/artifacts",
+        params={
+            "book_id": artifact_scope["book_id"],
+            "limit": 2,
+            "cursor": body_one["next_cursor"],
+        },
+    )
+    assert page_two.status_code == 200
+    body_two = page_two.json()
+    page_one_ids = {item["id"] for item in body_one["items"]}
+    page_two_ids = {item["id"] for item in body_two["items"]}
+    assert page_one_ids.isdisjoint(page_two_ids)

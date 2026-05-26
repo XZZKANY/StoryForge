@@ -26,10 +26,29 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ];
 
+const immutableCacheHeader = {
+  key: 'Cache-Control',
+  value: 'public, max-age=31536000, immutable',
+};
+const standaloneOutput = process.env.STORYFORGE_WEB_STANDALONE === '1' ? 'standalone' : undefined;
+
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  output: standaloneOutput,
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60 * 60 * 24 * 7,
+    remotePatterns: [{ protocol: 'https', hostname: '**' }],
+  },
   async headers() {
-    return [{ source: '/(.*)', headers: securityHeaders }];
+    return [
+      { source: '/(.*)', headers: securityHeaders },
+      { source: '/_next/static/(.*)', headers: [immutableCacheHeader] },
+      { source: '/_next/image(.*)', headers: [immutableCacheHeader] },
+      {
+        source: '/favicon.ico',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
+      },
+    ];
   },
 };
 

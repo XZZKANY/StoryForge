@@ -7,11 +7,11 @@ services:
       POSTGRES_USER: storyforge
       POSTGRES_PASSWORD: storyforge
     ports:
-      - "55432:5432"
+      - '55432:5432'
     volumes:
       - storyforge-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U storyforge -d storyforge"]
+      test: ['CMD-SHELL', 'pg_isready -U storyforge -d storyforge']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -20,11 +20,11 @@ services:
     image: redis:7-alpine
     container_name: storyforge-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - storyforge-redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -37,17 +37,99 @@ services:
       MINIO_ROOT_USER: storyforge
       MINIO_ROOT_PASSWORD: storyforge-dev-only
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - storyforge-minio-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:9000/minio/health/live || exit 1']
       interval: 5s
       timeout: 3s
       retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: storyforge-api:local
+    container_name: storyforge-api
+    environment:
+      STORYFORGE_ENV: ${STORYFORGE_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://storyforge:storyforge@postgres:5432/storyforge
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: local
+      S3_BUCKET: storyforge
+      S3_ACCESS_KEY: storyforge
+      S3_SECRET_KEY: storyforge-dev-only
+      STORYFORGE_API_KEY: ${STORYFORGE_API_KEY:-local-dev-key}
+      STORYFORGE_JWT_SECRET: ${STORYFORGE_JWT_SECRET:-}
+      STORYFORGE_CORS_ORIGINS: ${STORYFORGE_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      STORYFORGE_AUTO_MIGRATE: ${STORYFORGE_AUTO_MIGRATE:-1}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      WORKERS: ${WORKERS:-2}
+    ports:
+      - '8000:8000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8000/health/live || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: storyforge-web:local
+    container_name: storyforge-web
+    environment:
+      NODE_ENV: production
+      STORYFORGE_API_BASE_URL: http://api:8000
+      STORYFORGE_API_KEY: ${STORYFORGE_API_KEY:-local-dev-key}
+    ports:
+      - '3000:3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/ || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  workflow:
+    build:
+      context: ./apps/workflow
+      dockerfile: Dockerfile
+    image: storyforge-workflow:local
+    container_name: storyforge-workflow
+    environment:
+      STORYFORGE_ENV: ${STORYFORGE_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://storyforge:storyforge@postgres:5432/storyforge
+      REDIS_URL: redis://redis:6379/0
+      WORKFLOW_RUNTIME_MODE: ${WORKFLOW_RUNTIME_MODE:-local}
+      WORKFLOW_CHECKPOINT_BACKEND: ${WORKFLOW_CHECKPOINT_BACKEND:-sqlite}
+      STORYFORGE_LLM_PROVIDER: ${STORYFORGE_LLM_PROVIDER:-deterministic}
+      STORYFORGE_LLM_API_KEY: ${STORYFORGE_LLM_API_KEY:-}
+    volumes:
+      - storyforge-workflow-runtime:/app/.runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   storyforge-postgres-data:
   storyforge-redis-data:
   storyforge-minio-data:
+  storyforge-workflow-runtime:

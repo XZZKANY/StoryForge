@@ -32,5 +32,3 @@ class CompiledContextRecord(IdMixin, TimestampMixin, Base):
     book: Mapped[Book] = relationship()
     chapter: Mapped[Chapter] = relationship()
     scene: Mapped[Scene] = relationship()
-
-

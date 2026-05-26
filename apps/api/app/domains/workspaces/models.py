@@ -55,5 +55,3 @@ class WorkspaceMember(IdMixin, TimestampMixin, Base):
     )
     decisions: Mapped[list[ApprovalDecision]] = relationship(back_populates="member")
     events: Mapped[list[EventLog]] = relationship(back_populates="member")
-
-
