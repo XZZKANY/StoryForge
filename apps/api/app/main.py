@@ -16,6 +16,7 @@ from starlette.requests import Request
 
 from app.common.exceptions import DomainError
 from app.common.logging_config import configure_logging, get_logger
+from app.common.middleware import RequestLoggingMiddleware
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
@@ -128,6 +129,9 @@ async def require_storyforge_api_key(request: Request, call_next):
     if request.headers.get(_API_KEY_HEADER) != _expected_api_key():
         return JSONResponse(status_code=401, content={"detail": "缺少或无效的 API Key。"})
     return await call_next(request)
+
+
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/health", tags=["运行状态"])
