@@ -16,6 +16,7 @@ from storyforge_workflow.runtime.lifecycle import (
     WorkflowLifecycleStatus,
 )
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text
+from storyforge_workflow.runtime.sentry_config import capture_workflow_exception, init_sentry
 from storyforge_workflow.runtime.session import InMemoryWorkflowSessionStore
 from storyforge_workflow.utils.logging import get_logger
 
@@ -43,6 +44,7 @@ class WorkflowRuntime:
         lifecycle_store: InMemoryWorkflowLifecycleStore | None = None,
         session_store: InMemoryWorkflowSessionStore | None = None,
     ) -> None:
+        init_sentry()
         self.audit_store = audit_store or InMemoryWorkflowStore()
         self.checkpoint_store = checkpoint_store or RuntimeCheckpointStore()
         self.model_run_sink = model_run_sink
@@ -195,6 +197,7 @@ class WorkflowRuntime:
         prompt_summary: str,
         error: Exception,
     ) -> WorkflowRuntimeResult:
+        capture_workflow_exception(error, workflow_id=job_run_id, node_id="provider_execution")
         model_run = self.checkpoint_store.record_model_run(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -385,6 +388,7 @@ class WorkflowRuntime:
         provider_execution: ProviderExecutionResult | None,
     ) -> WorkflowRuntimeResult:
         current_node = getattr(error, "node_name", state.get("current_node", "unknown"))
+        capture_workflow_exception(error, workflow_id=job_run_id, node_id=str(current_node))
         state.update({"current_node": current_node, "error_code": _node_failure_error_code(error), "approval_status": "failed"})
         self.checkpoint_store.save_state(thread_id, state)
         self.checkpoint_store.record(

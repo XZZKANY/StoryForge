@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.53.1",
     "@storyforge/shared": "workspace:*",
     "next": "15.3.2",
     "react": "19.1.0",
