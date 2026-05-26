@@ -64,6 +64,3 @@ class RetrievalRefreshRun(IdMixin, TimestampMixin, Base):
     source: Mapped[RetrievalSource | None] = relationship()
     book: Mapped[Book | None] = relationship()
     series: Mapped[Series | None] = relationship()
-
-
-

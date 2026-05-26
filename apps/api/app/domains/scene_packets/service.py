@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import NotFoundError
+from app.common.redis_cache import cache_get_value, cache_set_value
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.scene_packets.assembly import (
@@ -23,8 +27,22 @@ class ScenePacketInputError(NotFoundError):
     """上下文包输入无法定位作品、章节或资产时抛出。"""
 
 
+SCENE_PACKET_CACHE_TTL_SECONDS = 120
+
+
 def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> ScenePacketRead:
     """先装配结构化资产和连续性摘要，再按预算加入检索片段。"""
+
+    cache_key = _scene_packet_cache_key(payload)
+    cached_packet = cache_get_value(cache_key)
+    if isinstance(cached_packet, dict):
+        cached_packet_id = cached_packet.get("id")
+        cached_scene_id = cached_packet.get("scene_id")
+        stored_packet = session.get(ScenePacket, cached_packet_id) if isinstance(cached_packet_id, int) else None
+        if stored_packet is not None and (
+            not isinstance(cached_scene_id, int) or stored_packet.scene_id == cached_scene_id
+        ):
+            return ScenePacketRead.model_validate(cached_packet)
 
     chapter = session.get(Chapter, payload.chapter_id)
     if chapter is None or chapter.book_id != payload.book_id:
@@ -62,7 +80,7 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
     session.commit()
     session.refresh(scene_packet)
 
-    return ScenePacketRead(
+    result = ScenePacketRead(
         id=scene_packet.id,
         scene_id=scene_packet.scene_id,
         status=scene_packet.status,
@@ -73,3 +91,13 @@ def assemble_scene_packet(session: Session, payload: ScenePacketCreate) -> Scene
         created_at=scene_packet.created_at,
         updated_at=scene_packet.updated_at,
     )
+    cache_set_value(cache_key, result.model_dump(mode="json"), SCENE_PACKET_CACHE_TTL_SECONDS)
+    return result
+
+
+def _scene_packet_cache_key(payload: ScenePacketCreate) -> str:
+    """按显式输入生成 Scene Packet 装配缓存键，避免同一请求重复编译上下文。"""
+
+    fingerprint = json.dumps(payload.model_dump(mode="json"), ensure_ascii=False, sort_keys=True)
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+    return f"storyforge:scene-packet:compile:{digest}"

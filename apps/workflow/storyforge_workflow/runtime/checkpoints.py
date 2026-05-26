@@ -68,11 +68,18 @@ class ModelRunPayload:
     output_summary: str
     status: str
     error_message: str | None
+    extras: dict[str, object] | None = None
 
     def to_api_payload(self, *, api_job_run_id: int) -> dict[str, object]:
         """转换为 API ModelRunCreate 兼容字段，显式使用 API 真表的 int 任务 ID。"""
 
         validated_job_run_id = _validate_api_job_run_id(api_job_run_id)
+        payload_metadata: dict[str, object] = {
+            "thread_id": self.thread_id,
+            "runtime_job_run_id": self.job_run_id,
+        }
+        if self.extras:
+            payload_metadata.update(self.extras)
         return {
             "job_run_id": validated_job_run_id,
             "provider_name": self.provider_name,
@@ -84,7 +91,7 @@ class ModelRunPayload:
             "input_summary": self.input_summary,
             "output_summary": self.output_summary,
             "error_message": self.error_message,
-            "payload": {"thread_id": self.thread_id, "runtime_job_run_id": self.job_run_id},
+            "payload": payload_metadata,
         }
 
 

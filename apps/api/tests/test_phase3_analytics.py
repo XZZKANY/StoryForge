@@ -74,3 +74,8 @@ def test_workspace_analytics_dashboard_aggregates_phase3_signals(client: TestCli
         {"issue_type": "setting_conflict", "count": 1},
         {"issue_type": "style_drift", "count": 1},
     ]
+
+
+def test_workspace_analytics_returns_404_for_missing_workspace(client: TestClient) -> None:
+    response = client.get("/api/analytics/workspaces/999/dashboard")
+    assert response.status_code == 404

@@ -47,6 +47,14 @@ class ModelRunRead(BaseModel):
     updated_at: datetime
 
 
+class ModelRunListPage(BaseModel):
+    """模型运行日志的游标分页响应。"""
+
+    items: list[ModelRunRead]
+    next_cursor: str | None = None
+    has_more: bool = False
+
+
 class RunsModelRunSummary(BaseModel):
     id: int
     provider_name: str
@@ -147,4 +155,3 @@ class RunsJobRunRetryRead(BaseModel):
     checkpoint: dict[str, Any] | None
     retry_status: str
     unavailable_reason: str | None
-

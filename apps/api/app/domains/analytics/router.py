@@ -9,8 +9,14 @@ from app.domains.analytics.service import AnalyticsWorkspaceNotFoundError, build
 router = APIRouter(prefix="/api/analytics", tags=["分析扩展"])
 
 
-@router.get("/workspaces/{workspace_id}/dashboard", response_model=WorkspaceAnalyticsRead)
+@router.get(
+    "/workspaces/{workspace_id}/dashboard",
+    response_model=WorkspaceAnalyticsRead,
+    summary="读取工作区分析面板",
+)
 def read_workspace_analytics_endpoint(workspace_id: int, session: SessionDependency) -> WorkspaceAnalyticsRead:
+    """聚合指定工作区维度的关键指标快照，用于运营看板和报表导出。"""
+
     try:
         return build_workspace_analytics(session, workspace_id)
     except AnalyticsWorkspaceNotFoundError as exc:

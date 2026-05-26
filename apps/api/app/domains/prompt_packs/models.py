@@ -27,6 +27,3 @@ class PromptPack(IdMixin, TimestampMixin, VersionMixin, Base):
 
     workspace: Mapped[Workspace | None] = relationship()
     book: Mapped[Book | None] = relationship()
-
-
-

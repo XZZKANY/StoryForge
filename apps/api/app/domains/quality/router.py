@@ -11,7 +11,11 @@ from app.domains.quality.service import QualityDashboardInputError, build_qualit
 router = APIRouter(prefix="/api/quality", tags=["质量看板"])
 
 
-@router.get("/dashboard", response_model=QualityDashboardRead)
+@router.get(
+    "/dashboard",
+    response_model=QualityDashboardRead,
+    summary="读取质量看板",
+)
 def read_quality_dashboard(
     session: SessionDependency,
     book_id: Annotated[int | None, Query(gt=0)] = None,

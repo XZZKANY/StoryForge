@@ -18,6 +18,19 @@ class JudgeIssueCreate(BaseModel):
     style_rules: list[str] = Field(default_factory=list, max_length=100)
     evidence_links: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "scene_id": 501,
+                "scene_packet_id": 88,
+                "content": "墨砚秋拔出佩剑霜河，剑芒在山门前划出一道弧。",
+                "required_facts": ["主角剑名为霜河"],
+                "style_rules": ["第三人称限知", "保持冷静叙述"],
+                "evidence_links": [{"source_id": 17, "anchor": "ch-2#para-12"}],
+            }
+        }
+    )
+
 
 class JudgeIssueRead(BaseModel):
     """评审问题单响应契约，对外暴露结构化定位和修复建议。"""

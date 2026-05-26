@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   color-scheme: light;
   --bg: #f5f3ee;
@@ -10,14 +12,25 @@
   --accent: #8a4b2a;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1c1814;
+  --panel: #251f1a;
+  --text: #f4ece1;
+  --muted: #a59685;
+  --border: #3b332b;
+  --accent: #e2a373;
+}
+
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top left, #fff6df, var(--bg) 36rem);
+  background: radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 12%, var(--bg)), var(--bg) 36rem);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.65;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 main {
@@ -31,12 +44,12 @@ h1, h2, h3 { line-height: 1.25; }
 h1 { font-size: clamp(2rem, 4vw, 3.5rem); margin-bottom: 0.5rem; }
 
 section, nav li {
-  background: color-mix(in srgb, var(--panel) 92%, white);
+  background: color-mix(in srgb, var(--panel) 92%, var(--bg));
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 20px;
   margin: 18px 0;
-  box-shadow: 0 12px 40px rgb(59 38 18 / 8%);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 12%);
 }
 
 ul, ol { padding-left: 1.25rem; }
@@ -47,7 +60,7 @@ nav li { margin: 0; }
 
 a { color: var(--accent); font-weight: 700; text-decoration-thickness: 0.12em; }
 
-code { background: #efe4d5; padding: 0.15rem 0.35rem; border-radius: 0.35rem; }
+code { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); padding: 0.15rem 0.35rem; border-radius: 0.35rem; }
 
 dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 
@@ -55,4 +68,4 @@ dt { color: var(--muted); font-size: 0.9rem; }
 
 dd { margin: 0; font-weight: 700; }
 
-[role="status"] { color: #9a3412; font-weight: 700; }
+[role="status"] { color: #d97757; font-weight: 700; }

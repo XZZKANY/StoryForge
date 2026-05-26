@@ -48,3 +48,10 @@ class PromptPackRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class PromptPackListPage(BaseModel):
+    """Prompt Pack 列表的游标分页响应。"""
+
+    items: list[PromptPackRead]
+    next_cursor: str | None = None
+    has_more: bool = False

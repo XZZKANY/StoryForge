@@ -18,9 +18,46 @@ class ArtifactCreate(BaseModel):
     size_bytes: int = Field(default=0, ge=0)
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "workspace_id": 1,
+                "book_id": 12,
+                "artifact_type": "chapter_draft",
+                "lineage_key": "book-12-ch-3",
+                "name": "第三章 - 山门初见",
+                "status": "active",
+                "storage_uri": "s3://storyforge/drafts/book-12/ch-3.md",
+                "mime_type": "text/markdown",
+                "size_bytes": 8421,
+                "payload": {"summary": "主角抵达山门，与守门弟子相遇。"},
+            }
+        }
+    )
+
 
 class ArtifactRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": 101,
+                "workspace_id": 1,
+                "book_id": 12,
+                "artifact_type": "chapter_draft",
+                "lineage_key": "book-12-ch-3",
+                "name": "第三章 - 山门初见",
+                "status": "active",
+                "storage_uri": "s3://storyforge/drafts/book-12/ch-3.md",
+                "mime_type": "text/markdown",
+                "size_bytes": 8421,
+                "payload": {"summary": "主角抵达山门。"},
+                "version": 1,
+                "created_at": "2026-05-26T08:00:00Z",
+                "updated_at": "2026-05-26T08:00:00Z",
+            }
+        },
+    )
 
     id: int
     workspace_id: int | None
@@ -50,3 +87,10 @@ class ArtifactDownloadRead(BaseModel):
     content_preview: str
     payload_summary: dict[str, Any]
 
+
+class ArtifactListPage(BaseModel):
+    """制品列表的游标分页响应。"""
+
+    items: list[ArtifactRead]
+    next_cursor: str | None = None
+    has_more: bool = False

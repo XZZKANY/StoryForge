@@ -9,7 +9,6 @@ from typing import Any
 
 import jwt
 
-
 _JWT_ALGORITHM = "HS256"
 _JWT_ISSUER = "storyforge"
 
@@ -66,10 +65,10 @@ def verify_access_token(token: str) -> TokenPayload:
             issuer=_JWT_ISSUER,
             options={"require": ["sub", "role", "exp", "iss"]},
         )
-    except jwt.ExpiredSignatureError:
-        raise InvalidTokenError("Token has expired.")
+    except jwt.ExpiredSignatureError as exc:
+        raise InvalidTokenError("Token has expired.") from exc
     except jwt.InvalidTokenError as exc:
-        raise InvalidTokenError(str(exc))
+        raise InvalidTokenError(str(exc)) from exc
     return TokenPayload(
         user_id=data["sub"],
         role=data["role"],

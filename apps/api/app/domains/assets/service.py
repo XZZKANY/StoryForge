@@ -13,6 +13,17 @@ from app.domains.assets.schemas import AssetCreate, AssetUpdate
 from app.domains.books.models import Book, Chapter, Scene
 
 
+def _invalidate_caches_for_book(session: Session, book_id: int) -> None:
+    """资产写入会影响世界观中心和资产列表缓存，写后显式失效。"""
+
+    from app.common.redis_cache import cache_delete_pattern
+    from app.domains.worldbuilding.service import invalidate_worldbuilding_cache
+
+    cache_delete_pattern(f"storyforge:asset-list:book:{book_id}:*")
+    # 资产作用域是 book；世界观中心按 series_id 缓存，跨表反向查找成本不值，直接全失效。
+    invalidate_worldbuilding_cache(None)
+
+
 class AssetNotFoundError(NotFoundError):
     """资产不存在时由服务层抛出，路由层负责转换为 HTTP 响应。"""
 
@@ -53,11 +64,19 @@ def create_asset(session: Session, payload: AssetCreate) -> Asset:
     session.add(asset)
     session.commit()
     session.refresh(asset)
+    _invalidate_caches_for_book(session, payload.book_id)
     return asset
 
 
 def list_assets(session: Session, book_id: int, asset_type: str | None = None) -> Sequence[Asset]:
     """列出作品下每条资产谱系的最新版本。"""
+
+    statement = build_asset_list_query(book_id=book_id, asset_type=asset_type)
+    return session.scalars(statement).all()
+
+
+def build_asset_list_query(*, book_id: int, asset_type: str | None = None):
+    """返回未执行的资产列表查询，便于分页 helper 复用相同筛选逻辑。"""
 
     latest_versions = latest_by_lineage(Asset, filters=[Asset.book_id == book_id])
     statement = (
@@ -72,7 +91,7 @@ def list_assets(session: Session, book_id: int, asset_type: str | None = None) -
     )
     if asset_type is not None:
         statement = statement.where(Asset.asset_type == asset_type)
-    return session.scalars(statement).all()
+    return statement
 
 
 def update_asset(session: Session, asset_id: int, payload: AssetUpdate) -> Asset:
@@ -107,6 +126,7 @@ def update_asset(session: Session, asset_id: int, payload: AssetUpdate) -> Asset
     session.add(new_asset)
     session.commit()
     session.refresh(new_asset)
+    _invalidate_caches_for_book(session, new_asset.book_id)
     return new_asset
 
 

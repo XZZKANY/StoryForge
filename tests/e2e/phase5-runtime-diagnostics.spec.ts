@@ -1,23 +1,25 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const openapi = JSON.parse(readFileSync("packages/shared/src/contracts/storyforge.openapi.json", "utf8"));
+const openapi = JSON.parse(
+  readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
+);
 const webSources = {
-  runs: readFileSync("apps/web/app/runs/page.tsx", "utf8"),
+  runs: readFileSync('apps/web/app/runs/page.tsx', 'utf8'),
 };
 const gateSources = {
-  e2e: readFileSync("scripts/run-e2e.mjs", "utf8"),
-  verify: readFileSync("scripts/verify-local.ps1", "utf8"),
+  e2e: readFileSync('scripts/run-e2e.mjs', 'utf8'),
+  verify: readFileSync('scripts/verify-local.ps1', 'utf8'),
 };
 const contractSources = {
-  packageJson: readFileSync("package.json", "utf8"),
-  generateOpenApi: readFileSync("scripts/generate-openapi.ps1", "utf8"),
+  packageJson: readFileSync('package.json', 'utf8'),
+  generateOpenApi: readFileSync('scripts/generate-openapi.ps1', 'utf8'),
 };
-const sharedOpenApiPath = "packages/shared/src/contracts/storyforge.openapi.json";
+const sharedOpenApiPath = 'packages/shared/src/contracts/storyforge.openapi.json';
 
 function assertSourceEvidence(source, markers) {
   for (const marker of markers) {
@@ -38,88 +40,154 @@ function assertSchemaFields(schemaName, expectedFields, schemaSource = openapi) 
   assert.deepEqual(fields, [...expectedFields].sort(), `${schemaName} 关键字段与治理清单不一致`);
 }
 
-const runtimeToolReadFields = ["domain", "evidence_fields", "input_schema", "name", "output_schema", "references", "required_capabilities"];
-const runtimeToolReferencesFields = ["api_paths", "page_refs", "workflow_nodes"];
+const runtimeToolReadFields = [
+  'domain',
+  'evidence_fields',
+  'input_schema',
+  'name',
+  'output_schema',
+  'references',
+  'required_capabilities',
+];
+const runtimeToolReferencesFields = ['api_paths', 'page_refs', 'workflow_nodes'];
 const modelRunReadFields = [
-  "book_id",
-  "capability",
-  "created_at",
-  "error_message",
-  "id",
-  "input_summary",
-  "job_run_id",
-  "latency_ms",
-  "model_name",
-  "output_summary",
-  "payload",
-  "prompt_pack_id",
-  "provider_name",
-  "scene_id",
-  "status",
-  "token_usage",
-  "updated_at",
-  "workspace_id",
+  'book_id',
+  'capability',
+  'created_at',
+  'error_message',
+  'id',
+  'input_summary',
+  'job_run_id',
+  'latency_ms',
+  'model_name',
+  'output_summary',
+  'payload',
+  'prompt_pack_id',
+  'provider_name',
+  'scene_id',
+  'status',
+  'token_usage',
+  'updated_at',
+  'workspace_id',
 ];
 const runsJobRunReadFields = [
-  "checkpoint",
-  "created_at",
-  "error_message",
-  "id",
-  "job_type",
-  "model_runs",
-  "progress",
-  "runtime_diagnostics",
-  "status",
-  "updated_at",
+  'checkpoint',
+  'created_at',
+  'error_message',
+  'id',
+  'job_type',
+  'model_runs',
+  'progress',
+  'runtime_diagnostics',
+  'status',
+  'updated_at',
 ];
-const runsRuntimeDiagnosticsFields = ["model_usage", "provider", "runtime_tools", "workflow_lifecycle", "workflow_session"];
+const runsRuntimeDiagnosticsFields = [
+  'model_usage',
+  'provider',
+  'runtime_tools',
+  'workflow_lifecycle',
+  'workflow_session',
+];
 const runsWorkflowSessionFields = [
-  "approval_status",
-  "current_node",
-  "job_run_id",
-  "last_heartbeat_ms",
-  "prompt_count",
-  "session_id",
-  "status",
-  "thread_id",
+  'approval_status',
+  'current_node',
+  'job_run_id',
+  'last_heartbeat_ms',
+  'prompt_count',
+  'session_id',
+  'status',
+  'thread_id',
 ];
-const runsWorkflowLifecycleFields = ["current_node", "failure_kind", "message", "recoverable", "status"];
-const runsProviderFields = ["capability", "error_message", "latency_ms", "model_name", "provider_name", "status", "token_usage"];
-const runsModelUsageFields = ["failed_model_run_count", "max_latency_ms", "model_run_count", "total_token_usage"];
-const runsRuntimeToolSummaryFields = ["domain", "evidence_fields", "name", "required_capabilities", "workflow_nodes"];
+const runsWorkflowLifecycleFields = [
+  'current_node',
+  'failure_kind',
+  'message',
+  'recoverable',
+  'status',
+];
+const runsProviderFields = [
+  'capability',
+  'error_message',
+  'latency_ms',
+  'model_name',
+  'provider_name',
+  'status',
+  'token_usage',
+];
+const runsModelUsageFields = [
+  'failed_model_run_count',
+  'max_latency_ms',
+  'model_run_count',
+  'total_token_usage',
+];
+const runsRuntimeToolSummaryFields = [
+  'domain',
+  'evidence_fields',
+  'name',
+  'required_capabilities',
+  'workflow_nodes',
+];
 
 function runApiPythonJson(script) {
-  const tempDir = mkdtempSync(join(tmpdir(), "storyforge-phase5-python-"));
-  const scriptPath = join(tempDir, "dump-runtime-diagnostics.py");
+  const tempDir = mkdtempSync(join(tmpdir(), 'storyforge-phase5-python-'));
+  const scriptPath = join(tempDir, 'dump-runtime-diagnostics.py');
   try {
-    writeFileSync(scriptPath, `import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n${script.trim()}\n`, "utf8");
-    const result = spawnSync("uv", ["run", "python", scriptPath], {
-      cwd: "apps/api",
-      encoding: "utf8",
-      shell: process.platform === "win32",
+    writeFileSync(
+      scriptPath,
+      `import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n${script.trim()}\n`,
+      'utf8',
+    );
+    const result = spawnSync('uv', ['run', 'python', scriptPath], {
+      cwd: 'apps/api',
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    return JSON.parse(result.stdout.trim());
+    return JSON.parse(readLastJsonLine(result.stdout));
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
-test("Phase 5 OpenAPI 记录 Runs runtime diagnostics 响应契约", () => {
-  const operation = openapi.paths?.["/api/model-runs/job-runs/{job_run_id}"]?.get;
-  assert.ok(operation, "缺少 GET /api/model-runs/job-runs/{job_run_id}");
-  const responseSchema = operation.responses["200"].content["application/json"].schema;
-  assert.ok(responseSchema.$ref.endsWith("RunsJobRunRead"), "Runs JobRun 响应必须引用 RunsJobRunRead");
+function readLastJsonLine(stdout) {
+  const lines = stdout
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const jsonLine = lines.findLast((line) => line.startsWith('{') || line.startsWith('['));
+  assert.ok(jsonLine, `Python 输出缺少 JSON 行：${stdout}`);
+  return jsonLine;
+}
+
+test('Phase 5 OpenAPI 记录 Runs runtime diagnostics 响应契约', () => {
+  const operation = openapi.paths?.['/api/model-runs/job-runs/{job_run_id}']?.get;
+  assert.ok(operation, '缺少 GET /api/model-runs/job-runs/{job_run_id}');
+  const responseSchema = operation.responses['200'].content['application/json'].schema;
+  assert.ok(
+    responseSchema.$ref.endsWith('RunsJobRunRead'),
+    'Runs JobRun 响应必须引用 RunsJobRunRead',
+  );
 
   const runsSchema = openapi.components.schemas.RunsJobRunRead;
-  assert.ok(runsSchema.properties.runtime_diagnostics, "RunsJobRunRead 必须包含 runtime_diagnostics");
+  assert.ok(
+    runsSchema.properties.runtime_diagnostics,
+    'RunsJobRunRead 必须包含 runtime_diagnostics',
+  );
   const diagnosticsSchema = openapi.components.schemas.RunsRuntimeDiagnosticsRead;
-  for (const field of ["workflow_session", "workflow_lifecycle", "provider", "model_usage", "runtime_tools"]) {
+  for (const field of [
+    'workflow_session',
+    'workflow_lifecycle',
+    'provider',
+    'model_usage',
+    'runtime_tools',
+  ]) {
     assert.ok(diagnosticsSchema.properties[field], `runtime diagnostics 缺少 ${field}`);
   }
 });
 
-test("Phase 5 API 从真实 JobRun、ModelRun 和 Runtime Tools 派生运行诊断", () => {
+test('Phase 5 API 从真实 JobRun、ModelRun 和 Runtime Tools 派生运行诊断', () => {
   const payload = runApiPythonJson(`
 import json
 from fastapi.testclient import TestClient
@@ -196,62 +264,66 @@ print(json.dumps(response.json()["runtime_diagnostics"], ensure_ascii=False, sor
 app.dependency_overrides.clear()
 `);
 
-  assert.equal(payload.workflow_session.session_id, "phase5-e2e-thread:1");
-  assert.equal(payload.workflow_lifecycle.failure_kind, "provider_timeout");
+  assert.equal(payload.workflow_session.session_id, 'phase5-e2e-thread:1');
+  assert.equal(payload.workflow_lifecycle.failure_kind, 'provider_timeout');
   assert.equal(payload.workflow_lifecycle.recoverable, true);
-  assert.equal(payload.provider.provider_name, "mock-provider");
-  assert.equal(payload.provider.model_name, "storyforge-writer");
+  assert.equal(payload.provider.provider_name, 'mock-provider');
+  assert.equal(payload.provider.model_name, 'storyforge-writer');
   assert.equal(payload.provider.latency_ms, 450);
   assert.equal(payload.model_usage.total_token_usage, 88);
   assert.equal(payload.model_usage.max_latency_ms, 210);
   assert.ok(
-    payload.runtime_tools.some((tool) => tool.name === "provider_gateway.resolve"),
-    "运行诊断工具能力必须由 Runtime Tools API/CreativeToolRegistry 派生",
+    payload.runtime_tools.some((tool) => tool.name === 'provider_gateway.resolve'),
+    '运行诊断工具能力必须由 Runtime Tools API/CreativeToolRegistry 派生',
   );
 });
 
-test("Phase 5 Runs 页面消费 API 诊断摘要且不维护静态工具清单", () => {
+test('Phase 5 Runs 页面消费 API 诊断摘要且不维护静态工具清单', () => {
   assertSourceEvidence(webSources.runs, [
-    "runtime_diagnostics",
-    "运行时诊断摘要",
-    "workflow_lifecycle",
-    "failure_kind",
-    "recoverable",
-    "runtime_diagnostics.runtime_tools.map",
+    'runtime_diagnostics',
+    '运行时诊断摘要',
+    'workflow_lifecycle',
+    'failure_kind',
+    'recoverable',
+    'runtime_diagnostics.runtime_tools.map',
   ]);
-  assertNoSourceEvidence(webSources.runs, ["DEFAULT_CREATIVE_TOOL_REGISTRY", "runtimeToolList = [", "runtimeDiagnosticTools = ["]);
+  assertNoSourceEvidence(webSources.runs, [
+    'DEFAULT_CREATIVE_TOOL_REGISTRY',
+    'runtimeToolList = [',
+    'runtimeDiagnosticTools = [',
+  ]);
 });
 
-test("Phase 6 发布前门禁覆盖 Runtime 诊断链路", () => {
+test('Phase 6 发布前门禁覆盖 Runtime 诊断链路', () => {
   const requiredE2eTargets = [
-    "tests/e2e/phase5-runtime-diagnostics.spec.ts",
-    "tests/test_model_runs.py",
-    "tests/test_runtime_tools.py",
-    "tests/test_workflow_session.py",
-    "tests/test_workflow_lifecycle.py",
-    "tests/test_provider_adapter.py",
-    "tests/test_provider_parity_harness.py",
-    "tests/test_creative_tool_registry.py",
+    'tests/e2e/phase5-runtime-diagnostics.spec.ts',
+    'tests/test_model_runs.py',
+    'tests/test_runtime_tools.py',
+    'tests/test_workflow_session.py',
+    'tests/test_workflow_lifecycle.py',
+    'tests/test_provider_adapter.py',
+    'tests/test_provider_parity_harness.py',
+    'tests/test_creative_tool_registry.py',
   ];
   for (const target of requiredE2eTargets) {
     assert.ok(gateSources.e2e.includes(target), `pnpm e2e 未纳入 Runtime 诊断门禁目标：${target}`);
   }
 
   assertSourceEvidence(gateSources.verify, [
-    "Test-RuntimeDiagnosticsGate",
-    "scripts/run-e2e.mjs",
-    "tests/e2e/phase5-runtime-diagnostics.spec.ts",
-    "tests/test_model_runs.py",
-    "tests/test_runtime_tools.py",
-    "tests/test_workflow_session.py",
-    "tests/test_workflow_lifecycle.py",
-    "tests/test_provider_adapter.py",
-    "tests/test_provider_parity_harness.py",
-    "tests/test_creative_tool_registry.py",
+    'Test-RuntimeDiagnosticsGate',
+    'scripts/run-e2e.mjs',
+    'tests/e2e/phase5-runtime-diagnostics.spec.ts',
+    'tests/test_model_runs.py',
+    'tests/test_runtime_tools.py',
+    'tests/test_workflow_session.py',
+    'tests/test_workflow_lifecycle.py',
+    'tests/test_provider_adapter.py',
+    'tests/test_provider_parity_harness.py',
+    'tests/test_creative_tool_registry.py',
   ]);
 });
 
-test("Phase 7 Runtime OpenAPI、API schema、Web 字段与 e2e 声明保持一致", () => {
+test('Phase 7 Runtime OpenAPI、API schema、Web 字段与 e2e 声明保持一致', () => {
   const liveOpenApi = runApiPythonJson(`
 import json
 from app.main import app
@@ -263,30 +335,43 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
     '"e2e": "node scripts/run-e2e.mjs"',
     '"verify": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1"',
   ]);
-  assertSourceEvidence(contractSources.generateOpenApi, ["app.openapi()", sharedOpenApiPath]);
-  assertSourceEvidence(gateSources.e2e, ["refreshOpenApiContract", sharedOpenApiPath, "app.openapi()"]);
-  assertSourceEvidence(gateSources.verify, ["Test-OpenApiRuntimeContractGate", sharedOpenApiPath]);
+  assertSourceEvidence(contractSources.generateOpenApi, ['app.openapi()', sharedOpenApiPath]);
+  assertSourceEvidence(gateSources.e2e, [
+    'refreshOpenApiContract',
+    sharedOpenApiPath,
+    'app.openapi()',
+  ]);
+  assertSourceEvidence(gateSources.verify, ['Test-OpenApiRuntimeContractGate', sharedOpenApiPath]);
 
   for (const schemaSource of [openapi, liveOpenApi]) {
-    assertSchemaFields("RuntimeToolRead", runtimeToolReadFields, schemaSource);
-    assertSchemaFields("RuntimeToolReferencesRead", runtimeToolReferencesFields, schemaSource);
-    assertSchemaFields("ModelRunRead", modelRunReadFields, schemaSource);
-    assertSchemaFields("RunsJobRunRead", runsJobRunReadFields, schemaSource);
-    assertSchemaFields("RunsRuntimeDiagnosticsRead", runsRuntimeDiagnosticsFields, schemaSource);
-    assertSchemaFields("RunsWorkflowSessionSummary", runsWorkflowSessionFields, schemaSource);
-    assertSchemaFields("RunsWorkflowLifecycleSummary", runsWorkflowLifecycleFields, schemaSource);
-    assertSchemaFields("RunsProviderSummary", runsProviderFields, schemaSource);
-    assertSchemaFields("RunsModelUsageSummary", runsModelUsageFields, schemaSource);
-    assertSchemaFields("RunsRuntimeToolSummary", runsRuntimeToolSummaryFields, schemaSource);
+    assertSchemaFields('RuntimeToolRead', runtimeToolReadFields, schemaSource);
+    assertSchemaFields('RuntimeToolReferencesRead', runtimeToolReferencesFields, schemaSource);
+    assertSchemaFields('ModelRunRead', modelRunReadFields, schemaSource);
+    assertSchemaFields('RunsJobRunRead', runsJobRunReadFields, schemaSource);
+    assertSchemaFields('RunsRuntimeDiagnosticsRead', runsRuntimeDiagnosticsFields, schemaSource);
+    assertSchemaFields('RunsWorkflowSessionSummary', runsWorkflowSessionFields, schemaSource);
+    assertSchemaFields('RunsWorkflowLifecycleSummary', runsWorkflowLifecycleFields, schemaSource);
+    assertSchemaFields('RunsProviderSummary', runsProviderFields, schemaSource);
+    assertSchemaFields('RunsModelUsageSummary', runsModelUsageFields, schemaSource);
+    assertSchemaFields('RunsRuntimeToolSummary', runsRuntimeToolSummaryFields, schemaSource);
   }
 
-  assert.deepEqual(liveOpenApi.paths["/api/runtime-tools"].get.responses["200"], openapi.paths["/api/runtime-tools"].get.responses["200"]);
   assert.deepEqual(
-    liveOpenApi.paths["/api/model-runs/job-runs/{job_run_id}"].get.responses["200"],
-    openapi.paths["/api/model-runs/job-runs/{job_run_id}"].get.responses["200"],
+    liveOpenApi.paths['/api/runtime-tools'].get.responses['200'],
+    openapi.paths['/api/runtime-tools'].get.responses['200'],
   );
-  assert.deepEqual(liveOpenApi.paths["/api/model-runs"].get.responses["200"], openapi.paths["/api/model-runs"].get.responses["200"]);
-  assert.deepEqual(liveOpenApi.paths["/api/model-runs"].post.responses["201"], openapi.paths["/api/model-runs"].post.responses["201"]);
+  assert.deepEqual(
+    liveOpenApi.paths['/api/model-runs/job-runs/{job_run_id}'].get.responses['200'],
+    openapi.paths['/api/model-runs/job-runs/{job_run_id}'].get.responses['200'],
+  );
+  assert.deepEqual(
+    liveOpenApi.paths['/api/model-runs'].get.responses['200'],
+    openapi.paths['/api/model-runs'].get.responses['200'],
+  );
+  assert.deepEqual(
+    liveOpenApi.paths['/api/model-runs'].post.responses['201'],
+    openapi.paths['/api/model-runs'].post.responses['201'],
+  );
 
   assertSourceEvidence(webSources.runs, [
     ...runtimeToolReadFields,
@@ -297,9 +382,9 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
     ...runsProviderFields,
     ...runsModelUsageFields,
     ...runsRuntimeToolSummaryFields,
-    "runsJobRunEndpoint",
-    "runtimeToolsEndpoint",
-    "isRunsRuntimeDiagnostics",
-    "isRuntimeTool",
+    'runsJobRunEndpoint',
+    'runtimeToolsEndpoint',
+    'isRunsRuntimeDiagnostics',
+    'isRuntimeTool',
   ]);
 });

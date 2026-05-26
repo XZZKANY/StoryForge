@@ -25,6 +25,7 @@
 ### 2026-05-24 Phase 7 发布治理到闭环验证
 
 完成：
+
 - 补齐 `.env.example` 本地默认项，新增 API Key、CORS、workflow SQLite 和 provider base URL 默认配置。
 - 更新 `docs/operations/` 启动、发布、故障与 Alembic 文档，明确 `pnpm e2e` 固定执行真实 FastAPI HTTP pytest，不再接受补偿验收替代。
 - 复验 Alembic 干净临时库从空库 `upgrade head` 到 `20260520_0001 (head)`。
@@ -32,6 +33,7 @@
 - 补强端到端冒烟测试，覆盖作品/章节/场景准备、Scene Packet、Judge、Repair、批准写回、导出和评测 run 详情读取。
 
 验证方式：
+
 - `pnpm verify`：通过。
 - `uv run alembic upgrade head` + `uv run alembic current --check-heads`（临时库）：通过。
 - `pnpm openapi`：通过，Worldbuilding Center 生成物 diff 已解释。
@@ -41,5 +43,6 @@
 - `pnpm verify && pnpm e2e`：通过。
 
 下一步建议：
+
 - 提交前确认 OpenAPI diff 与 Worldbuilding Center API 代码和测试一起提交。
 - 后续若接入真实外部 LLM，只在本地私有 `.env` 配置真实密钥，不写入仓库。

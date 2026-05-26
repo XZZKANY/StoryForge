@@ -63,5 +63,3 @@ class ApprovalDecision(IdMixin, TimestampMixin, Base):
 
     approval_request: Mapped[ApprovalRequest] = relationship(back_populates="decisions")
     member: Mapped[WorkspaceMember] = relationship(back_populates="decisions")
-
-

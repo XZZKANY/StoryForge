@@ -25,5 +25,3 @@ class WorkspaceSubscription(IdMixin, TimestampMixin, Base):
     monthly_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
 
     workspace: Mapped[Workspace] = relationship(back_populates="subscriptions")
-
-

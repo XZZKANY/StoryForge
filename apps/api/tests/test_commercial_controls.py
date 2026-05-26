@@ -60,3 +60,20 @@ def test_commercial_policy_summary_reports_limit_usage(client: TestClient, comme
     assert summary["current_job_count"] == 2
     assert summary["current_token_estimate"] == 200
     assert summary["within_limits"] is False
+
+
+def test_commercial_controls_return_404_for_missing_workspace(client: TestClient) -> None:
+    policy_response = client.post(
+        "/api/commercial/workspaces/999/policy",
+        json={
+            "plan_code": "team-basic",
+            "seat_limit": 1,
+            "monthly_job_limit": 1,
+            "monthly_token_limit": 150,
+            "monthly_price": 99,
+        },
+    )
+    assert policy_response.status_code == 404
+
+    summary_response = client.get("/api/commercial/workspaces/999/summary")
+    assert summary_response.status_code == 404

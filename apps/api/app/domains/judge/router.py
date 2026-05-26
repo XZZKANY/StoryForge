@@ -10,7 +10,12 @@ from app.domains.judge.service import JudgeInputError, create_judge_issues
 router = APIRouter(prefix="/api/judge", tags=["结构化评审"])
 
 
-@router.post("/issues", response_model=list[JudgeIssueRead], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/issues",
+    response_model=list[JudgeIssueRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="评审 Scene Packet 并生成问题单",
+)
 def create_judge_issues_endpoint(payload: JudgeIssueCreate, session: SessionDependency) -> list[JudgeIssueRead]:
     """对章节片段执行本地确定性评审，返回结构化问题单。"""
 

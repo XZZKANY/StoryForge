@@ -1,25 +1,27 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const openapi = JSON.parse(readFileSync("packages/shared/src/contracts/storyforge.openapi.json", "utf8"));
+const openapi = JSON.parse(
+  readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
+);
 const apiTests = {
-  retrieval: readFileSync("apps/api/tests/test_retrieval_index.py", "utf8"),
-  scenePacketUpgrade: readFileSync("apps/api/tests/test_scene_packet_retrieval_upgrade.py", "utf8"),
-  promptPacks: readFileSync("apps/api/tests/test_prompt_packs.py", "utf8"),
-  modelRuns: readFileSync("apps/api/tests/test_model_runs.py", "utf8"),
-  artifacts: readFileSync("apps/api/tests/test_artifacts.py", "utf8"),
-  evaluations: readFileSync("apps/api/tests/test_evaluations.py", "utf8"),
+  retrieval: readFileSync('apps/api/tests/test_retrieval_index.py', 'utf8'),
+  scenePacketUpgrade: readFileSync('apps/api/tests/test_scene_packet_retrieval_upgrade.py', 'utf8'),
+  promptPacks: readFileSync('apps/api/tests/test_prompt_packs.py', 'utf8'),
+  modelRuns: readFileSync('apps/api/tests/test_model_runs.py', 'utf8'),
+  artifacts: readFileSync('apps/api/tests/test_artifacts.py', 'utf8'),
+  evaluations: readFileSync('apps/api/tests/test_evaluations.py', 'utf8'),
 };
 const webSources = {
-  home: readFileSync("apps/web/app/page.tsx", "utf8"),
-  retrieval: readFileSync("apps/web/app/retrieval/page.tsx", "utf8"),
-  runs: readFileSync("apps/web/app/runs/page.tsx", "utf8"),
-  artifacts: readFileSync("apps/web/app/artifacts/page.tsx", "utf8"),
-  evaluations: readFileSync("apps/web/app/evaluations/page.tsx", "utf8"),
+  home: readFileSync('apps/web/app/page.tsx', 'utf8'),
+  retrieval: readFileSync('apps/web/app/retrieval/page.tsx', 'utf8'),
+  runs: readFileSync('apps/web/app/runs/page.tsx', 'utf8'),
+  artifacts: readFileSync('apps/web/app/artifacts/page.tsx', 'utf8'),
+  evaluations: readFileSync('apps/web/app/evaluations/page.tsx', 'utf8'),
 };
 
 function assertOperation(path, method, tag) {
@@ -35,54 +37,106 @@ function assertSourceEvidence(source, markers) {
 }
 
 function runApiPythonJson(script) {
-  const tempDir = mkdtempSync(join(tmpdir(), "storyforge-phase4-python-"));
-  const scriptPath = join(tempDir, "dump-runtime-tools.py");
+  const tempDir = mkdtempSync(join(tmpdir(), 'storyforge-phase4-python-'));
+  const scriptPath = join(tempDir, 'dump-runtime-tools.py');
   try {
-    writeFileSync(scriptPath, `import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n${script.trim()}\n`, "utf8");
-    const result = spawnSync("uv", ["run", "python", scriptPath], {
-      cwd: "apps/api",
-      encoding: "utf8",
-      shell: process.platform === "win32",
+    writeFileSync(
+      scriptPath,
+      `import sys\nfrom pathlib import Path\nsys.path.insert(0, str(Path.cwd()))\n${script.trim()}\n`,
+      'utf8',
+    );
+    const result = spawnSync('uv', ['run', 'python', scriptPath], {
+      cwd: 'apps/api',
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    return JSON.parse(result.stdout.trim());
+    return JSON.parse(readLastJsonLine(result.stdout));
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
-test("Phase 4 OpenAPI 暴露检索、Prompt Packs、模型运行日志、制品中心和评测端点", () => {
-  assertOperation("/api/retrieval/sources", "post", "检索中心");
-  assertOperation("/api/retrieval/refresh-runs", "post", "检索中心");
-  assertOperation("/api/retrieval/search", "post", "检索中心");
-  assertOperation("/api/prompt-packs", "post", "Prompt Packs");
-  assertOperation("/api/model-runs", "post", "模型运行日志");
-  assertOperation("/api/artifacts", "post", "制品中心");
-  assertOperation("/api/evaluations/runs", "post", "评测系统");
-  assertOperation("/api/runtime-tools", "get", "运行时工具");
+function readLastJsonLine(stdout) {
+  const lines = stdout
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const jsonLine = lines.findLast((line) => line.startsWith('{') || line.startsWith('['));
+  assert.ok(jsonLine, `Python 输出缺少 JSON 行：${stdout}`);
+  return jsonLine;
+}
+
+test('Phase 4 OpenAPI 暴露检索、Prompt Packs、模型运行日志、制品中心和评测端点', () => {
+  assertOperation('/api/retrieval/sources', 'post', '检索中心');
+  assertOperation('/api/retrieval/refresh-runs', 'post', '检索中心');
+  assertOperation('/api/retrieval/search', 'post', '检索中心');
+  assertOperation('/api/prompt-packs', 'post', 'Prompt Packs');
+  assertOperation('/api/model-runs', 'post', '模型运行日志');
+  assertOperation('/api/artifacts', 'post', '制品中心');
+  assertOperation('/api/evaluations/runs', 'post', '评测系统');
+  assertOperation('/api/runtime-tools', 'get', '运行时工具');
 });
 
-test("Phase 4 后端测试源码保留关键业务证据", () => {
-  assertSourceEvidence(apiTests.retrieval, ['"/api/retrieval/sources"', '"/api/retrieval/search"', "chunk_count", "source_ref"]);
-  assertSourceEvidence(apiTests.scenePacketUpgrade, ['"/api/scene-packets"', "retrieval_hit", "检索命中"]);
-  assertSourceEvidence(apiTests.promptPacks, ['"/api/prompt-packs"', "forbidden", "history"]);
-  assertSourceEvidence(apiTests.modelRuns, ['"/api/model-runs"', "provider_name", "token_usage", "prompt_pack_id"]);
-  assertSourceEvidence(apiTests.artifacts, ['"/api/artifacts"', "artifact_type", "upload"]);
-  assertSourceEvidence(apiTests.evaluations, ['"/api/evaluations/cases"', '"/api/evaluations/runs"', "consistency_error_rate"]);
+test('Phase 4 后端测试源码保留关键业务证据', () => {
+  assertSourceEvidence(apiTests.retrieval, [
+    '"/api/retrieval/sources"',
+    '"/api/retrieval/search"',
+    'chunk_count',
+    'source_ref',
+  ]);
+  assertSourceEvidence(apiTests.scenePacketUpgrade, [
+    '"/api/scene-packets"',
+    'retrieval_hit',
+    '检索命中',
+  ]);
+  assertSourceEvidence(apiTests.promptPacks, ['"/api/prompt-packs"', 'forbidden', 'history']);
+  assertSourceEvidence(apiTests.modelRuns, [
+    '"/api/model-runs"',
+    'provider_name',
+    'token_usage',
+    'prompt_pack_id',
+  ]);
+  assertSourceEvidence(apiTests.artifacts, ['"/api/artifacts"', 'artifact_type', 'upload']);
+  assertSourceEvidence(apiTests.evaluations, [
+    '"/api/evaluations/cases"',
+    '"/api/evaluations/runs"',
+    'consistency_error_rate',
+  ]);
 });
 
-test("Phase 4 前端入口包含检索、运行日志、制品中心和评测面板", () => {
-  assertSourceEvidence(
-    webSources.home,
-    ["/retrieval", "/runs", "/artifacts", "/evaluations", "Retrieval 证据链路", "Evaluations 评测诊断"],
-  );
-  assertSourceEvidence(webSources.retrieval, ["资料库", "Embedding 刷新任务", "检索命中与重排", "Scene Packet 检索证据"]);
-  assertSourceEvidence(webSources.runs, ["模型运行日志", "Provider 解析结果", "Prompt Pack 来源", "任务恢复入口"]);
-  assertSourceEvidence(webSources.artifacts, ["导出物", "上传资料", "工作流快照", "评测报告"]);
-  assertSourceEvidence(webSources.evaluations, ["一致性错误率", "修复成功率", "用户接受率", "未回收 open loop"]);
+test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面板', () => {
+  assertSourceEvidence(webSources.home, [
+    '/retrieval',
+    '/runs',
+    '/artifacts',
+    '/evaluations',
+    'Retrieval 证据链路',
+    'Evaluations 评测诊断',
+  ]);
+  assertSourceEvidence(webSources.retrieval, [
+    '资料库',
+    'Embedding 刷新任务',
+    '检索命中与重排',
+    'Scene Packet 检索证据',
+  ]);
+  assertSourceEvidence(webSources.runs, [
+    '模型运行日志',
+    'Provider 解析结果',
+    'Prompt Pack 来源',
+    '任务恢复入口',
+  ]);
+  assertSourceEvidence(webSources.artifacts, ['导出物', '上传资料', '工作流快照', '评测报告']);
+  assertSourceEvidence(webSources.evaluations, [
+    '一致性错误率',
+    '修复成功率',
+    '用户接受率',
+    '未回收 open loop',
+  ]);
 });
 
-test("Phase 4 runtime tools API 与 CreativeToolRegistry 和 Runs 页面保持一致", () => {
+test('Phase 4 runtime tools API 与 CreativeToolRegistry 和 Runs 页面保持一致', () => {
   const apiTools = runApiPythonJson(`
 import json
 from fastapi.testclient import TestClient
@@ -134,7 +188,14 @@ print(json.dumps([
 `);
 
   assert.deepEqual(apiTools, registryTools);
-  assertSourceEvidence(webSources.runs, ["readRuntimeTools", "\"/api/runtime-tools\"", "runtimeTools.map"]);
-  assert.ok(!webSources.runs.includes("DEFAULT_CREATIVE_TOOL_REGISTRY"), "Runs 页面不应直接引用 workflow registry");
-  assert.ok(!webSources.runs.includes("runtimeToolList = ["), "Runs 页面不应维护静态工具清单");
+  assertSourceEvidence(webSources.runs, [
+    'readRuntimeTools',
+    '/api/runtime-tools',
+    'runtimeTools.map',
+  ]);
+  assert.ok(
+    !webSources.runs.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'),
+    'Runs 页面不应直接引用 workflow registry',
+  );
+  assert.ok(!webSources.runs.includes('runtimeToolList = ['), 'Runs 页面不应维护静态工具清单');
 });

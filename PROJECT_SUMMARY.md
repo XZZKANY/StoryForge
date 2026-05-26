@@ -8,13 +8,13 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 
 ## 2. 当前验证状态
 
-| 验证项 | 当前结果 | 说明 |
-| --- | --- | --- |
-| 本地依赖门禁 | 通过 | `pnpm verify` 已验证 Node.js、pnpm、Python、Docker、PostgreSQL、Redis、MinIO 和必需文件 |
-| 端到端契约 | 通过 | `pnpm e2e` 中 Node 契约 14/14、真实 API HTTP pytest 41/41、workflow 8/8 均通过 |
-| 完整测试 | 通过 | `pnpm test` 中 Web 7/7、shared 类型检查、API 147/147、workflow 13/13 均通过 |
-| 远程 LLM 冒烟 | 通过 | workflow `generate_text()` 已用 OpenAI 兼容远程端点返回正文；密钥未落盘 |
-| 空白与编码检查 | 通过 | `git diff --check` 通过，关键文本文件覆盖 UTF-8 无 BOM 与连续问号损坏回归 |
+| 验证项         | 当前结果 | 说明                                                                                    |
+| -------------- | -------- | --------------------------------------------------------------------------------------- |
+| 本地依赖门禁   | 通过     | `pnpm verify` 已验证 Node.js、pnpm、Python、Docker、PostgreSQL、Redis、MinIO 和必需文件 |
+| 端到端契约     | 通过     | `pnpm e2e` 中 Node 契约 14/14、真实 API HTTP pytest 41/41、workflow 8/8 均通过          |
+| 完整测试       | 通过     | `pnpm test` 中 Web 7/7、shared 类型检查、API 147/147、workflow 13/13 均通过             |
+| 远程 LLM 冒烟  | 通过     | workflow `generate_text()` 已用 OpenAI 兼容远程端点返回正文；密钥未落盘                 |
+| 空白与编码检查 | 通过     | `git diff --check` 通过，关键文本文件覆盖 UTF-8 无 BOM 与连续问号损坏回归               |
 
 ## 3. 技术栈与仓库结构
 
@@ -27,14 +27,14 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 
 ## 4. 当前页面边界
 
-| 页面 | 当前对象 | 当前证据 | 当前动作 |
-| --- | --- | --- | --- |
-| Studio | 作品、章节、Scene Packet、Repair Patch | Judge 评审、批准摘要、失败恢复摘要 | 批准写回、刷新后复核 |
-| Retrieval | 资料源、刷新任务、搜索请求 | Retrieval Hit、证据锚点 | 跳转锚点、核对检索来源 |
-| Runs | JobRun | Checkpoint、ModelRun 摘要 | 查看恢复边界 |
-| Artifacts | Artifact | 详情、payload 下载摘要 | 下载摘要核对 |
-| Evaluations | Evaluation Run | 趋势摘要、失败样例 | 反馈入口核对 |
-| Providers | Provider 配置 | 解析来源、凭据状态、缓存边界 | 诊断真实模型配置 |
+| 页面        | 当前对象                               | 当前证据                           | 当前动作               |
+| ----------- | -------------------------------------- | ---------------------------------- | ---------------------- |
+| Studio      | 作品、章节、Scene Packet、Repair Patch | Judge 评审、批准摘要、失败恢复摘要 | 批准写回、刷新后复核   |
+| Retrieval   | 资料源、刷新任务、搜索请求             | Retrieval Hit、证据锚点            | 跳转锚点、核对检索来源 |
+| Runs        | JobRun                                 | Checkpoint、ModelRun 摘要          | 查看恢复边界           |
+| Artifacts   | Artifact                               | 详情、payload 下载摘要             | 下载摘要核对           |
+| Evaluations | Evaluation Run                         | 趋势摘要、失败样例                 | 反馈入口核对           |
+| Providers   | Provider 配置                          | 解析来源、凭据状态、缓存边界       | 诊断真实模型配置       |
 
 ## 5. 当前不能承诺的能力
 

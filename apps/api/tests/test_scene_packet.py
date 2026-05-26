@@ -9,6 +9,7 @@ import app.models  # noqa: F401
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
+from app.domains.scene_packets import service as scene_packet_service
 
 
 @pytest.fixture()
@@ -208,6 +209,83 @@ def test_scene_packet_contains_required_slots_evidence_and_budget(
     with session_factory() as session:
         stored = session.get(ScenePacket, packet["id"])
     assert stored is not None
+
+
+def test_scene_packet_compile_result_cache_reuses_same_payload(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    story_context: dict[str, int],
+) -> None:
+    """相同输入在 120 秒 TTL 内复用 Scene Packet 装配快照，避免重复编译上下文。"""
+
+    cache_store: dict[str, object] = {}
+    ttl_values: list[int] = []
+
+    monkeypatch.setattr(scene_packet_service, "cache_get_value", lambda key: cache_store.get(key))
+
+    def fake_cache_set(key: str, value: object, ttl_seconds: int) -> None:
+        cache_store[key] = value
+        ttl_values.append(ttl_seconds)
+
+    monkeypatch.setattr(scene_packet_service, "cache_set_value", fake_cache_set)
+    approve_chapter(client, story_context["chapter_id"])
+    payload = {
+        "book_id": story_context["book_id"],
+        "chapter_id": story_context["chapter_id"],
+        "scene_goal": "林岚在港口谈判中争取维修窗口。",
+        "active_asset_ids": [story_context["character_id"], story_context["style_id"]],
+        "token_budget": 160,
+        "user_intent": "验证缓存复用。",
+        "retrieval_snippets": ["港口协议要求先完成安全检查。"],
+    }
+
+    first = client.post("/api/scene-packets", json=payload)
+    second = client.post("/api/scene-packets", json=payload)
+
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert first.json()["id"] == second.json()["id"]
+    assert ttl_values == [scene_packet_service.SCENE_PACKET_CACHE_TTL_SECONDS]
+
+
+def test_scene_packet_cache_miss_when_cached_record_is_not_persisted(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    story_context: dict[str, int],
+) -> None:
+    """跨测试或跨环境残留的缓存值必须先通过当前数据库记录校验。"""
+
+    stale_cached_packet = {
+        "id": 999,
+        "scene_id": story_context["scene_id"],
+        "status": "assembled",
+        "packet": {"章节目标": "旧缓存"},
+        "budget_statistics": {"token_budget": 1},
+        "evidence_links": [],
+        "version": 1,
+        "created_at": "2026-05-26T00:00:00",
+        "updated_at": "2026-05-26T00:00:00",
+    }
+    monkeypatch.setattr(scene_packet_service, "cache_get_value", lambda key: stale_cached_packet)
+    monkeypatch.setattr(scene_packet_service, "cache_set_value", lambda key, value, ttl_seconds: None)
+    approve_chapter(client, story_context["chapter_id"])
+
+    response = client.post(
+        "/api/scene-packets",
+        json={
+            "book_id": story_context["book_id"],
+            "chapter_id": story_context["chapter_id"],
+            "scene_goal": "林岚在港口谈判中争取维修窗口。",
+            "active_asset_ids": [story_context["character_id"], story_context["style_id"]],
+            "token_budget": 160,
+            "user_intent": "验证缓存残留隔离。",
+            "retrieval_snippets": ["港口协议要求先完成安全检查。"],
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["id"] != stale_cached_packet["id"]
+    assert response.json()["packet"]["章节目标"] == "林岚在港口谈判中争取维修窗口。"
 
 
 def test_scene_packet_low_budget_keeps_hard_constraints_and_active_characters(

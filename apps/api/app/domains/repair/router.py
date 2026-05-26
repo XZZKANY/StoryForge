@@ -10,7 +10,12 @@ from app.domains.repair.service import RepairInputError, create_repair_patch
 router = APIRouter(prefix="/api/repair", tags=["定向修复"])
 
 
-@router.post("/patches", response_model=RepairPatchRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/patches",
+    response_model=RepairPatchRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="生成定向修复补丁",
+)
 def create_repair_patch_endpoint(payload: RepairPatchCreate, session: SessionDependency) -> RepairPatchRead:
     """根据结构化问题单生成局部替换补丁，修复后必须重新评审。"""
 

@@ -17,6 +17,20 @@ class ScenePacketCreate(BaseModel):
     user_intent: str = Field(default="", max_length=2000)
     retrieval_snippets: list[str] = Field(default_factory=list, max_length=100)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "book_id": 12,
+                "chapter_id": 33,
+                "scene_goal": "主角抵达山门，与守门弟子发生冲突，揭示佩剑霜河的身份。",
+                "active_asset_ids": [305, 308, 412],
+                "token_budget": 8000,
+                "user_intent": "需要强调主角剑名'霜河'与上一章伏笔呼应",
+                "retrieval_snippets": ["守门弟子规矩见第二章 para-12"],
+            }
+        }
+    )
+
 
 class EvidenceLinkRead(BaseModel):
     """证据链接响应用于追溯上下文来源。"""

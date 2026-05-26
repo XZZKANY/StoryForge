@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_VECTOR_CANDIDATE_MULTIPLIER = 8
 DEFAULT_MIN_VECTOR_CANDIDATES = 32
 DEFAULT_PGVECTOR_DIMENSIONS = 4
+DEFAULT_RERANK_CANDIDATE_MULTIPLIER = 5
+DEFAULT_MIN_RERANK_CANDIDATES = 50
 
 RetrievalScore = tuple[float, float, float, str]
 
@@ -228,6 +230,7 @@ def search_retrieval(
         if score[0] > 0:
             scored.append((score, chunk))
     scored.sort(key=lambda item: (-item[0][0], item[1].source_id, item[1].chunk_index, item[1].id))
+    rerank_window = _rerank_window_size(payload.limit) if reranker_client is not None else payload.limit
     hits = [
         RetrievalHitRead(
             source_id=chunk.source_id,
@@ -243,9 +246,22 @@ def search_retrieval(
             embedding_score=round(score[2], 4),
             score_source=score[3],
         )
-        for rank, (score, chunk) in enumerate(scored[: payload.limit], start=1)
+        for rank, (score, chunk) in enumerate(scored[:rerank_window], start=1)
     ]
-    return _apply_reranker(payload.query, hits, reranker_client)
+    reranked = _apply_reranker(payload.query, hits, reranker_client)
+    return reranked[: payload.limit]
+
+
+def _rerank_window_size(limit: int) -> int:
+    multiplier = _positive_int_env(
+        "STORYFORGE_RETRIEVAL_RERANK_CANDIDATE_MULTIPLIER",
+        DEFAULT_RERANK_CANDIDATE_MULTIPLIER,
+    )
+    min_candidates = _positive_int_env(
+        "STORYFORGE_RETRIEVAL_RERANK_MIN_CANDIDATES",
+        DEFAULT_MIN_RERANK_CANDIDATES,
+    )
+    return max(limit * multiplier, min_candidates)
 
 
 def _log_search_candidate_load(candidate_load: SearchCandidateLoad) -> None:

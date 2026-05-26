@@ -29,5 +29,3 @@ class EventLog(IdMixin, TimestampMixin, Base):
     book: Mapped[Book | None] = relationship()
     scene: Mapped[Scene | None] = relationship()
     member: Mapped[WorkspaceMember | None] = relationship(back_populates="events")
-
-

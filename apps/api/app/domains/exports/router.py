@@ -8,7 +8,10 @@ from app.domains.exports.service import ExportNotFoundError, build_epub_export, 
 router = APIRouter(prefix="/api/books/{book_id}/exports", tags=["作品导出"])
 
 
-@router.get("/markdown")
+@router.get(
+    "/markdown",
+    summary="导出作品 Markdown",
+)
 def export_book_markdown(book_id: int, session: SessionDependency) -> Response:
     """导出作品已批准章节正文为 Markdown。"""
 
@@ -23,7 +26,10 @@ def export_book_markdown(book_id: int, session: SessionDependency) -> Response:
     )
 
 
-@router.get("/epub")
+@router.get(
+    "/epub",
+    summary="导出作品 EPUB",
+)
 def export_book_epub(book_id: int, session: SessionDependency) -> Response:
     """导出作品已批准章节正文为最小 EPUB。"""
 

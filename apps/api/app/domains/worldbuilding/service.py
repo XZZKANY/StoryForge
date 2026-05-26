@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import NotFoundError
+from app.common.redis_cache import cache_delete_pattern, cache_get_value, cache_set_value
 from app.domains.assets.models import Asset
 from app.domains.continuity.models import ContinuityRecord
 from app.domains.series.models import Series, SeriesMemory
@@ -16,13 +18,46 @@ from app.domains.worldbuilding.schemas import (
     WorldbuildingSeriesRead,
 )
 
+DEFAULT_WORLDBUILDING_CACHE_TTL = 300
+
 
 class WorldbuildingNotFoundError(NotFoundError):
     """世界观中心无法定位系列时抛出。"""
 
 
+def _worldbuilding_cache_ttl_seconds() -> int:
+    raw_value = os.getenv("STORYFORGE_WORLDBUILDING_CACHE_TTL_SECONDS", str(DEFAULT_WORLDBUILDING_CACHE_TTL))
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return DEFAULT_WORLDBUILDING_CACHE_TTL
+    return value if value > 0 else DEFAULT_WORLDBUILDING_CACHE_TTL
+
+
+def _worldbuilding_cache_key(series_id: int, book_id: int | None) -> str:
+    scope = "all" if book_id is None else f"book:{book_id}"
+    return f"storyforge:worldbuilding-center:series:{series_id}:{scope}"
+
+
+def invalidate_worldbuilding_cache(series_id: int | None = None) -> None:
+    """资产/连续性/系列记忆写入时调用，按系列范围失效世界观中心缓存。"""
+
+    if series_id is None:
+        cache_delete_pattern("storyforge:worldbuilding-center:series:*")
+        return
+    cache_delete_pattern(f"storyforge:worldbuilding-center:series:{series_id}:*")
+
+
 def build_worldbuilding_center(session: Session, series_id: int, book_id: int | None = None) -> WorldbuildingCenterRead:
     """聚合系列记忆、作品资产和连续性记录，形成只读世界观中心。"""
+
+    cache_key = _worldbuilding_cache_key(series_id, book_id)
+    cached = cache_get_value(cache_key)
+    if isinstance(cached, dict):
+        try:
+            return WorldbuildingCenterRead.model_validate(cached)
+        except Exception:
+            cache_delete_pattern(cache_key)
 
     series = session.get(Series, series_id)
     if series is None:
@@ -34,7 +69,7 @@ def build_worldbuilding_center(session: Session, series_id: int, book_id: int | 
         .order_by(SeriesMemory.id)
     ).all()
     continuity_records = _load_continuity_records(session, book_id)
-    return WorldbuildingCenterRead(
+    result = WorldbuildingCenterRead(
         series=WorldbuildingSeriesRead(
             id=series.id,
             title=series.title,
@@ -51,6 +86,8 @@ def build_worldbuilding_center(session: Session, series_id: int, book_id: int | 
         cross_book_constraints=_memory_items(memories, "cross_book_constraint"),
         chapter_constraints=_chapter_constraints(continuity_records),
     )
+    cache_set_value(cache_key, result.model_dump(), _worldbuilding_cache_ttl_seconds())
+    return result
 
 
 def _load_assets(session: Session, book_id: int | None) -> list[Asset]:

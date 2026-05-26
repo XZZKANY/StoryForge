@@ -14,6 +14,19 @@ class EvaluationCaseCreate(BaseModel):
     input_payload: dict[str, Any] = Field(default_factory=dict)
     expected_payload: dict[str, Any] = Field(default_factory=dict)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "workspace_id": 1,
+                "book_id": 12,
+                "case_name": "连续性 - 主角剑名一致性",
+                "case_type": "continuity",
+                "input_payload": {"chapter_id": 33},
+                "expected_payload": {"sword_name": "霜河"},
+            }
+        }
+    )
+
 
 class EvaluationCaseRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -36,6 +49,17 @@ class EvaluationRunCreate(BaseModel):
     book_id: int | None = Field(default=None, gt=0)
     observed_payload: dict[str, Any] = Field(default_factory=dict)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "case_id": 42,
+                "workspace_id": 1,
+                "book_id": 12,
+                "observed_payload": {"sword_name": "霜河", "matched": True},
+            }
+        }
+    )
+
 
 class EvaluationRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -49,6 +73,14 @@ class EvaluationRunRead(BaseModel):
     summary: str
     created_at: datetime
     updated_at: datetime
+
+
+class EvaluationRunListPage(BaseModel):
+    """评测运行的游标分页响应。"""
+
+    items: list[EvaluationRunRead]
+    next_cursor: str | None = None
+    has_more: bool = False
 
 
 class EvaluationFailedSampleRead(BaseModel):
@@ -69,4 +101,3 @@ class EvaluationRunDetailRead(BaseModel):
     trend_points: list[dict[str, Any]]
     failed_sample_count: int
     studio_feedback_href: str | None
-

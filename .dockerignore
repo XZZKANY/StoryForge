@@ -1,0 +1,15 @@
+# Files that shouldn't be sent to the docker build context.
+**/.next
+**/.turbo
+**/node_modules
+**/.git
+**/.env
+**/.env.*
+**/.venv
+**/__pycache__
+**/dist
+**/coverage
+**/.pytest_cache
+apps/api
+apps/workflow
+deploy

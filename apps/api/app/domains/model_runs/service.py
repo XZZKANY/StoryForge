@@ -36,6 +36,20 @@ def list_model_runs(
     book_id: int | None = None,
     job_run_id: int | None = None,
 ) -> Sequence[ModelRun]:
+    statement = build_model_run_list_query(
+        workspace_id=workspace_id, book_id=book_id, job_run_id=job_run_id
+    )
+    return session.scalars(statement).all()
+
+
+def build_model_run_list_query(
+    *,
+    workspace_id: int | None = None,
+    book_id: int | None = None,
+    job_run_id: int | None = None,
+):
+    """构造按主键升序排列的模型运行日志查询，供分页 helper 复用。"""
+
     statement = select(ModelRun).order_by(ModelRun.id)
     if workspace_id is not None:
         statement = statement.where(ModelRun.workspace_id == workspace_id)
@@ -43,7 +57,7 @@ def list_model_runs(
         statement = statement.where(ModelRun.book_id == book_id)
     if job_run_id is not None:
         statement = statement.where(ModelRun.job_run_id == job_run_id)
-    return session.scalars(statement).all()
+    return statement
 
 
 def get_runs_job_run(session: Session, *, job_run_id: int) -> dict[str, Any]:
@@ -468,4 +482,3 @@ def _require_text(payload: Mapping[str, object], key: str) -> str:
 def _payload_metadata(payload: Mapping[str, object]) -> dict:
     metadata = payload.get("payload")
     return dict(metadata) if isinstance(metadata, Mapping) else {}
-

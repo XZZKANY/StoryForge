@@ -36,6 +36,13 @@ def create_prompt_pack(session: Session, payload: PromptPackCreate) -> PromptPac
 
 
 def list_prompt_packs(session: Session, workspace_id: int | None = None, book_id: int | None = None) -> Sequence[PromptPack]:
+    query = build_prompt_pack_list_query(workspace_id=workspace_id, book_id=book_id)
+    return session.scalars(query).all()
+
+
+def build_prompt_pack_list_query(*, workspace_id: int | None = None, book_id: int | None = None):
+    """构造按主键升序排列的 Prompt Pack 列表查询，供分页 helper 复用。"""
+
     statement = latest_by_lineage(PromptPack)
     query = (
         select(PromptPack)
@@ -49,7 +56,7 @@ def list_prompt_packs(session: Session, workspace_id: int | None = None, book_id
         query = query.where(PromptPack.workspace_id == workspace_id)
     if book_id is not None:
         query = query.where(PromptPack.book_id == book_id)
-    return session.scalars(query).all()
+    return query
 
 
 def update_prompt_pack(session: Session, pack_id: int, payload: PromptPackUpdate) -> PromptPack:
@@ -99,4 +106,3 @@ def _require_scope(session: Session, workspace_id: int | None, book_id: int | No
         if str(exc).startswith("工作区"):
             raise PromptPackError("工作区不存在，无法创建 Prompt Pack。") from exc
         raise PromptPackError("作品不存在，无法创建 Prompt Pack。") from exc
-

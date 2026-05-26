@@ -44,6 +44,3 @@ class EvaluationRun(IdMixin, TimestampMixin, Base):
     case: Mapped[EvaluationCase | None] = relationship()
     workspace: Mapped[Workspace | None] = relationship()
     book: Mapped[Book | None] = relationship()
-
-
-

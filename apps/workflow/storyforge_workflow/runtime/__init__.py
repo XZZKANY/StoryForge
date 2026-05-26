@@ -15,18 +15,23 @@ from storyforge_workflow.runtime.lifecycle import (
     WorkflowLifecycleStatus,
 )
 from storyforge_workflow.runtime.provider_adapter import (
+    FallbackProviderAdapter,
     MockProviderAdapter,
     ProviderAdapter,
     ProviderClientAdapter,
+    ProviderError,
     ProviderParityCase,
     ProviderParityHarness,
     ProviderParityResult,
     ProviderRequest,
     ProviderResponse,
+    ProviderTimeoutError,
+    build_default_provider_adapter,
 )
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text, generate_text
 from storyforge_workflow.runtime.runner import WorkflowRuntime, WorkflowRuntimeResult
-from storyforge_workflow.runtime.sentry_config import capture_workflow_exception, init_sentry as init_workflow_sentry
+from storyforge_workflow.runtime.sentry_config import capture_workflow_exception
+from storyforge_workflow.runtime.sentry_config import init_sentry as init_workflow_sentry
 from storyforge_workflow.runtime.session import (
     InMemoryWorkflowSessionStore,
     SessionCompaction,
@@ -49,11 +54,15 @@ __all__ = [
     "RuntimeStateSnapshot",
     "ProviderAdapter",
     "ProviderClientAdapter",
+    "ProviderError",
     "ProviderParityCase",
     "ProviderParityHarness",
     "ProviderParityResult",
     "ProviderRequest",
     "ProviderResponse",
+    "ProviderTimeoutError",
+    "FallbackProviderAdapter",
+    "build_default_provider_adapter",
     "SessionCompaction",
     "SessionPromptEntry",
     "WorkflowFailureKind",

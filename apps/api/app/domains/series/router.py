@@ -26,14 +26,24 @@ from app.domains.series.service import (
 router = APIRouter(prefix="/api/series", tags=["系列级记忆"])
 
 
-@router.post("", response_model=SeriesRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=SeriesRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建系列",
+)
 def create_series_endpoint(payload: SeriesCreate, session: SessionDependency) -> SeriesRead:
     """创建承载跨书记忆的系列根实体。"""
 
     return create_series(session, payload)
 
 
-@router.post("/{series_id}/memories", response_model=SeriesMemoryRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{series_id}/memories",
+    response_model=SeriesMemoryRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建系列记忆首版本",
+)
 def create_series_memory_endpoint(
     series_id: int,
     payload: SeriesMemoryCreate,
@@ -47,7 +57,11 @@ def create_series_memory_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/{series_id}/memories", response_model=list[SeriesMemoryRead])
+@router.get(
+    "/{series_id}/memories",
+    response_model=list[SeriesMemoryRead],
+    summary="读取系列记忆列表",
+)
 def list_series_memories_endpoint(
     series_id: int,
     session: SessionDependency,
@@ -61,7 +75,11 @@ def list_series_memories_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.patch("/memories/{memory_id}", response_model=SeriesMemoryRead)
+@router.patch(
+    "/memories/{memory_id}",
+    response_model=SeriesMemoryRead,
+    summary="更新系列记忆",
+)
 def update_series_memory_endpoint(
     memory_id: int,
     payload: SeriesMemoryUpdate,
@@ -77,7 +95,11 @@ def update_series_memory_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.get("/memories/{memory_id}/history", response_model=list[SeriesMemoryRead])
+@router.get(
+    "/memories/{memory_id}/history",
+    response_model=list[SeriesMemoryRead],
+    summary="读取系列记忆历史",
+)
 def read_series_memory_history_endpoint(memory_id: int, session: SessionDependency) -> list[SeriesMemoryRead]:
     """读取同一系列记忆谱系的全部版本历史。"""
 

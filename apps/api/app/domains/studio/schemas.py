@@ -111,6 +111,15 @@ class StudioApprovalExecuteRequest(BaseModel):
     scene_packet_id: int | None = None
     repair_patch_id: int | None = None
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "scene_packet_id": 88,
+                "repair_patch_id": None,
+            }
+        }
+    )
+
 
 class StudioApprovalExecuteRead(BaseModel):
     """Studio 批准写回执行结果，明确真实写回和阻断原因。"""

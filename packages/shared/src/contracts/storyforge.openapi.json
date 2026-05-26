@@ -35,6 +35,7 @@
           "note": {
             "anyOf": [
               {
+                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -121,6 +122,7 @@
             "type": "integer"
           },
           "summary": {
+            "maxLength": 5000,
             "minLength": 1,
             "title": "Summary",
             "type": "string"
@@ -197,6 +199,20 @@
         "type": "object"
       },
       "ArtifactCreate": {
+        "example": {
+          "artifact_type": "chapter_draft",
+          "book_id": 12,
+          "lineage_key": "book-12-ch-3",
+          "mime_type": "text/markdown",
+          "name": "第三章 - 山门初见",
+          "payload": {
+            "summary": "主角抵达山门，与守门弟子相遇。"
+          },
+          "size_bytes": 8421,
+          "status": "active",
+          "storage_uri": "s3://storyforge/drafts/book-12/ch-3.md",
+          "workspace_id": 1
+        },
         "properties": {
           "artifact_type": {
             "maxLength": 80,
@@ -337,7 +353,58 @@
         "title": "ArtifactDownloadRead",
         "type": "object"
       },
+      "ArtifactListPage": {
+        "description": "制品列表的游标分页响应。",
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ArtifactListPage",
+        "type": "object"
+      },
       "ArtifactRead": {
+        "example": {
+          "artifact_type": "chapter_draft",
+          "book_id": 12,
+          "created_at": "2026-05-26T08:00:00Z",
+          "id": 101,
+          "lineage_key": "book-12-ch-3",
+          "mime_type": "text/markdown",
+          "name": "第三章 - 山门初见",
+          "payload": {
+            "summary": "主角抵达山门。"
+          },
+          "size_bytes": 8421,
+          "status": "active",
+          "storage_uri": "s3://storyforge/drafts/book-12/ch-3.md",
+          "updated_at": "2026-05-26T08:00:00Z",
+          "version": 1,
+          "workspace_id": 1
+        },
         "properties": {
           "artifact_type": {
             "title": "Artifact Type",
@@ -434,6 +501,20 @@
       },
       "AssetCreate": {
         "description": "创建资产时由调用方提供的业务载荷。",
+        "example": {
+          "asset_type": "character",
+          "book_id": 12,
+          "name": "墨砚秋",
+          "payload": {
+            "key_traits": [
+              "剑修",
+              "外冷内热"
+            ],
+            "role": "主角",
+            "voice": "冷静而克制"
+          },
+          "status": "active"
+        },
         "properties": {
           "asset_type": {
             "maxLength": 80,
@@ -485,8 +566,55 @@
         "title": "AssetCreate",
         "type": "object"
       },
+      "AssetListPage": {
+        "description": "资产列表的游标分页响应。",
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssetRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AssetListPage",
+        "type": "object"
+      },
       "AssetRead": {
         "description": "资产响应契约，所有路由响应都通过该结构输出。",
+        "example": {
+          "asset_type": "character",
+          "book_id": 12,
+          "created_at": "2026-05-20T03:21:00Z",
+          "id": 305,
+          "lineage_key": "book-12-墨砚秋",
+          "name": "墨砚秋",
+          "payload": {
+            "role": "主角"
+          },
+          "status": "active",
+          "updated_at": "2026-05-26T07:55:00Z",
+          "version": 2
+        },
         "properties": {
           "asset_type": {
             "title": "Asset Type",
@@ -633,6 +761,7 @@
         "description": "批量精修中的单个场景输入。",
         "properties": {
           "content": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Content",
             "type": "string"
@@ -642,6 +771,7 @@
               "additionalProperties": true,
               "type": "object"
             },
+            "maxItems": 50,
             "title": "Evidence Links",
             "type": "array"
           },
@@ -649,6 +779,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Required Facts",
             "type": "array"
           },
@@ -673,6 +804,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Style Rules",
             "type": "array"
           }
@@ -696,6 +828,7 @@
             "items": {
               "$ref": "#/components/schemas/BatchRefineryItemCreate"
             },
+            "maxItems": 100,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -825,15 +958,18 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Next Chapter Constraints",
             "type": "array"
           },
           "previous_chapter_summary": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Previous Chapter Summary",
             "type": "string"
           },
           "style_drift": {
+            "maxLength": 5000,
             "minLength": 1,
             "title": "Style Drift",
             "type": "string"
@@ -1041,6 +1177,18 @@
         "type": "object"
       },
       "EvaluationCaseCreate": {
+        "example": {
+          "book_id": 12,
+          "case_name": "连续性 - 主角剑名一致性",
+          "case_type": "continuity",
+          "expected_payload": {
+            "sword_name": "霜河"
+          },
+          "input_payload": {
+            "chapter_id": 33
+          },
+          "workspace_id": 1
+        },
         "properties": {
           "book_id": {
             "anyOf": [
@@ -1230,6 +1378,15 @@
         "type": "object"
       },
       "EvaluationRunCreate": {
+        "example": {
+          "book_id": 12,
+          "case_id": 42,
+          "observed_payload": {
+            "matched": true,
+            "sword_name": "霜河"
+          },
+          "workspace_id": 1
+        },
         "properties": {
           "book_id": {
             "anyOf": [
@@ -1313,6 +1470,39 @@
           "studio_feedback_href"
         ],
         "title": "EvaluationRunDetailRead",
+        "type": "object"
+      },
+      "EvaluationRunListPage": {
+        "description": "评测运行的游标分页响应。",
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRunRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EvaluationRunListPage",
         "type": "object"
       },
       "EvaluationRunRead": {
@@ -1714,8 +1904,27 @@
       },
       "JudgeIssueCreate": {
         "description": "结构化评审请求，正文与上下文约束都由调用方显式传入。",
+        "example": {
+          "content": "墨砚秋拔出佩剑霜河，剑芒在山门前划出一道弧。",
+          "evidence_links": [
+            {
+              "anchor": "ch-2#para-12",
+              "source_id": 17
+            }
+          ],
+          "required_facts": [
+            "主角剑名为霜河"
+          ],
+          "scene_id": 501,
+          "scene_packet_id": 88,
+          "style_rules": [
+            "第三人称限知",
+            "保持冷静叙述"
+          ]
+        },
         "properties": {
           "content": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Content",
             "type": "string"
@@ -1725,6 +1934,7 @@
               "additionalProperties": true,
               "type": "object"
             },
+            "maxItems": 50,
             "title": "Evidence Links",
             "type": "array"
           },
@@ -1732,6 +1942,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Required Facts",
             "type": "array"
           },
@@ -1756,6 +1967,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Style Rules",
             "type": "array"
           }
@@ -1877,6 +2089,7 @@
           "error_message": {
             "anyOf": [
               {
+                "maxLength": 10000,
                 "type": "string"
               },
               {
@@ -1886,6 +2099,7 @@
             "title": "Error Message"
           },
           "input_summary": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Input Summary",
             "type": "string"
@@ -1917,6 +2131,7 @@
           "output_summary": {
             "anyOf": [
               {
+                "maxLength": 50000,
                 "type": "string"
               },
               {
@@ -1993,6 +2208,39 @@
           "input_summary"
         ],
         "title": "ModelRunCreate",
+        "type": "object"
+      },
+      "ModelRunListPage": {
+        "description": "模型运行日志的游标分页响应。",
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRunRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ModelRunListPage",
         "type": "object"
       },
       "ModelRunRead": {
@@ -2203,6 +2451,39 @@
         "title": "PromptPackCreate",
         "type": "object"
       },
+      "PromptPackListPage": {
+        "description": "Prompt Pack 列表的游标分页响应。",
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PromptPackRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PromptPackListPage",
+        "type": "object"
+      },
       "PromptPackRead": {
         "properties": {
           "book_id": {
@@ -2333,6 +2614,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 50,
             "title": "Capabilities",
             "type": "array"
           },
@@ -2596,8 +2878,13 @@
       },
       "RepairPatchCreate": {
         "description": "请求定向修复某一条评审问题单。",
+        "example": {
+          "content": "墨砚秋拔出佩剑霜河，剑芒在山门前划出一道弧。",
+          "issue_id": 902
+        },
         "properties": {
           "content": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Content",
             "type": "string"
@@ -2906,6 +3193,11 @@
         "type": "object"
       },
       "RetrievalSearchCreate": {
+        "example": {
+          "book_id": 12,
+          "limit": 5,
+          "query": "墨砚秋的剑名是什么"
+        },
         "properties": {
           "book_id": {
             "anyOf": [
@@ -2927,6 +3219,7 @@
             "type": "integer"
           },
           "query": {
+            "maxLength": 5000,
             "minLength": 1,
             "title": "Query",
             "type": "string"
@@ -2951,6 +3244,16 @@
         "type": "object"
       },
       "RetrievalSourceCreate": {
+        "example": {
+          "book_id": 12,
+          "content_text": "九重山门分内、外两脉……（正文略）",
+          "payload": {
+            "author": "世界观组",
+            "version": 3
+          },
+          "source_type": "setting_doc",
+          "title": "九重山门内门规矩"
+        },
         "properties": {
           "book_id": {
             "anyOf": [
@@ -2965,6 +3268,7 @@
             "title": "Book Id"
           },
           "content_text": {
+            "maxLength": 1000000,
             "minLength": 1,
             "title": "Content Text",
             "type": "string"
@@ -3978,11 +4282,27 @@
       },
       "ScenePacketCreate": {
         "description": "组装场景上下文包所需的显式输入。",
+        "example": {
+          "active_asset_ids": [
+            305,
+            308,
+            412
+          ],
+          "book_id": 12,
+          "chapter_id": 33,
+          "retrieval_snippets": [
+            "守门弟子规矩见第二章 para-12"
+          ],
+          "scene_goal": "主角抵达山门，与守门弟子发生冲突，揭示佩剑霜河的身份。",
+          "token_budget": 8000,
+          "user_intent": "需要强调主角剑名'霜河'与上一章伏笔呼应"
+        },
         "properties": {
           "active_asset_ids": {
             "items": {
               "type": "integer"
             },
+            "maxItems": 1000,
             "minItems": 1,
             "title": "Active Asset Ids",
             "type": "array"
@@ -4001,10 +4321,12 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Retrieval Snippets",
             "type": "array"
           },
           "scene_goal": {
+            "maxLength": 5000,
             "minLength": 1,
             "title": "Scene Goal",
             "type": "string"
@@ -4096,6 +4418,7 @@
           "description": {
             "anyOf": [
               {
+                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -4131,6 +4454,7 @@
             "items": {
               "$ref": "#/components/schemas/SeriesMemoryEvidenceCreate"
             },
+            "maxItems": 100,
             "title": "Evidence",
             "type": "array"
           },
@@ -4178,6 +4502,7 @@
           "rationale": {
             "anyOf": [
               {
+                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -4315,6 +4640,7 @@
                 "items": {
                   "$ref": "#/components/schemas/SeriesMemoryEvidenceCreate"
                 },
+                "maxItems": 100,
                 "type": "array"
               },
               {
@@ -4500,6 +4826,9 @@
       },
       "StudioApprovalExecuteRequest": {
         "description": "Studio 批准写回执行请求，只允许定位一个可批准对象。",
+        "example": {
+          "scene_packet_id": 88
+        },
         "properties": {
           "repair_patch_id": {
             "anyOf": [
@@ -5395,6 +5724,7 @@
       "WorkspaceCommentCreate": {
         "properties": {
           "body": {
+            "maxLength": 10000,
             "minLength": 1,
             "title": "Body",
             "type": "string"
@@ -5479,6 +5809,7 @@
           "description": {
             "anyOf": [
               {
+                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -5930,6 +6261,7 @@
   "paths": {
     "/api/analytics/workspaces/{workspace_id}/dashboard": {
       "get": {
+        "description": "聚合指定工作区维度的关键指标快照，用于运营看板和报表导出。",
         "operationId": "read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get",
         "parameters": [
           {
@@ -5964,7 +6296,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Workspace Analytics Endpoint",
+        "summary": "读取工作区分析面板",
         "tags": [
           "分析扩展"
         ]
@@ -5972,6 +6304,7 @@
     },
     "/api/artifacts": {
       "get": {
+        "description": "制品列表：未指定 limit 时返回兼容的扁平数组；指定 limit 时返回游标分页信封。",
         "operationId": "list_artifacts_endpoint_api_artifacts_get",
         "parameters": [
           {
@@ -6007,6 +6340,41 @@
               ],
               "title": "Book Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -6014,11 +6382,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ArtifactRead"
-                  },
-                  "title": "Response List Artifacts Endpoint Api Artifacts Get",
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/ArtifactRead"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ArtifactListPage"
+                    }
+                  ],
+                  "title": "Response List Artifacts Endpoint Api Artifacts Get"
                 }
               }
             },
@@ -6035,12 +6410,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Artifacts Endpoint",
+        "summary": "读取制品列表",
         "tags": [
           "制品中心"
         ]
       },
       "post": {
+        "description": "登记一条制品记录（草稿、章节稿、评测报告等），返回新建后的元数据。",
         "operationId": "create_artifact_endpoint_api_artifacts_post",
         "requestBody": {
           "content": {
@@ -6074,7 +6450,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Artifact Endpoint",
+        "summary": "创建制品",
         "tags": [
           "制品中心"
         ]
@@ -6082,6 +6458,7 @@
     },
     "/api/artifacts/{artifact_id}": {
       "get": {
+        "description": "按主键读取单个制品的完整元数据。",
         "operationId": "get_artifact_endpoint_api_artifacts__artifact_id__get",
         "parameters": [
           {
@@ -6116,7 +6493,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Artifact Endpoint",
+        "summary": "读取制品详情",
         "tags": [
           "制品中心"
         ]
@@ -6124,6 +6501,7 @@
     },
     "/api/artifacts/{artifact_id}/download": {
       "get": {
+        "description": "返回制品下载摘要（路径、大小、校验信息），实际签名 URL 由对象存储后端二次签发。",
         "operationId": "download_artifact_endpoint_api_artifacts__artifact_id__download_get",
         "parameters": [
           {
@@ -6158,7 +6536,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Download Artifact Endpoint",
+        "summary": "读取制品下载摘要",
         "tags": [
           "制品中心"
         ]
@@ -6196,6 +6574,41 @@
               ],
               "title": "Asset Type"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -6203,11 +6616,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/AssetRead"
-                  },
-                  "title": "Response List Assets Endpoint Api Assets Get",
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/AssetRead"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AssetListPage"
+                    }
+                  ],
+                  "title": "Response List Assets Endpoint Api Assets Get"
                 }
               }
             },
@@ -6224,7 +6644,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Assets Endpoint",
+        "summary": "读取资产列表",
         "tags": [
           "资产中心"
         ]
@@ -6264,7 +6684,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Asset Endpoint",
+        "summary": "创建资产",
         "tags": [
           "资产中心"
         ]
@@ -6317,7 +6737,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Update Asset Endpoint",
+        "summary": "更新资产并创建新版本",
         "tags": [
           "资产中心"
         ]
@@ -6364,7 +6784,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Asset History Endpoint",
+        "summary": "读取资产版本历史",
         "tags": [
           "资产中心"
         ]
@@ -6406,7 +6826,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Batch Refinery Run",
+        "summary": "提交批量精修任务",
         "tags": [
           "批量精修"
         ]
@@ -6449,7 +6869,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Batch Refinery Run",
+        "summary": "读取批量精修任务状态",
         "tags": [
           "批量精修"
         ]
@@ -6490,7 +6910,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Export Book Epub",
+        "summary": "导出作品 EPUB",
         "tags": [
           "作品导出"
         ]
@@ -6531,7 +6951,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Export Book Markdown",
+        "summary": "导出作品 Markdown",
         "tags": [
           "作品导出"
         ]
@@ -6539,6 +6959,7 @@
     },
     "/api/collaboration/approvals": {
       "post": {
+        "description": "针对场景或章节创建批准请求，等待审核者决议。",
         "operationId": "create_approval_request_endpoint_api_collaboration_approvals_post",
         "requestBody": {
           "content": {
@@ -6572,7 +6993,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Approval Request Endpoint",
+        "summary": "发起批准请求",
         "tags": [
           "协作审批"
         ]
@@ -6580,6 +7001,7 @@
     },
     "/api/collaboration/approvals/{approval_request_id}/decisions": {
       "post": {
+        "description": "对批准请求做出 approve/reject 决议并附带备注。",
         "operationId": "create_approval_decision_endpoint_api_collaboration_approvals__approval_request_id__decisions_post",
         "parameters": [
           {
@@ -6624,7 +7046,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Approval Decision Endpoint",
+        "summary": "提交批准决议",
         "tags": [
           "协作审批"
         ]
@@ -6632,6 +7054,7 @@
     },
     "/api/collaboration/comments": {
       "post": {
+        "description": "对场景或制品添加协作评论；评论与场景绑定，按时间线展示。",
         "operationId": "create_comment_endpoint_api_collaboration_comments_post",
         "requestBody": {
           "content": {
@@ -6665,7 +7088,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Comment Endpoint",
+        "summary": "提交工作区评论",
         "tags": [
           "协作审批"
         ]
@@ -6673,6 +7096,7 @@
     },
     "/api/collaboration/scenes/{scene_id}/timeline": {
       "get": {
+        "description": "按时间顺序读取场景下的评论与批准事件，用于协作面板展示。",
         "operationId": "read_scene_timeline_endpoint_api_collaboration_scenes__scene_id__timeline_get",
         "parameters": [
           {
@@ -6711,7 +7135,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Scene Timeline Endpoint",
+        "summary": "读取场景协作时间线",
         "tags": [
           "协作审批"
         ]
@@ -6719,6 +7143,7 @@
     },
     "/api/commercial/workspaces/{workspace_id}/policy": {
       "post": {
+        "description": "新建或覆盖工作区的订阅与配额策略。",
         "operationId": "upsert_workspace_policy_endpoint_api_commercial_workspaces__workspace_id__policy_post",
         "parameters": [
           {
@@ -6763,7 +7188,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Upsert Workspace Policy Endpoint",
+        "summary": "更新工作区订阅策略",
         "tags": [
           "商业化控制"
         ]
@@ -6771,6 +7196,7 @@
     },
     "/api/commercial/workspaces/{workspace_id}/summary": {
       "get": {
+        "description": "读取工作区当前商业化用量、剩余配额和订阅状态摘要。",
         "operationId": "read_workspace_commercial_summary_endpoint_api_commercial_workspaces__workspace_id__summary_get",
         "parameters": [
           {
@@ -6805,7 +7231,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Workspace Commercial Summary Endpoint",
+        "summary": "读取工作区商业化摘要",
         "tags": [
           "商业化控制"
         ]
@@ -6847,7 +7273,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Approve Chapter Endpoint",
+        "summary": "提交章节批准并刷新连续性",
         "tags": [
           "章节连续性"
         ]
@@ -6855,6 +7281,7 @@
     },
     "/api/evaluations/cases": {
       "post": {
+        "description": "登记一条评测样例（输入 / 预期输出），供评测运行批量执行。",
         "operationId": "create_evaluation_case_endpoint_api_evaluations_cases_post",
         "requestBody": {
           "content": {
@@ -6888,7 +7315,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Evaluation Case Endpoint",
+        "summary": "创建评测样例",
         "tags": [
           "评测系统"
         ]
@@ -6896,6 +7323,7 @@
     },
     "/api/evaluations/runs": {
       "get": {
+        "description": "评测运行列表：未指定 limit 时返回兼容数组；指定 limit 时返回游标分页信封。",
         "operationId": "list_evaluation_runs_endpoint_api_evaluations_runs_get",
         "parameters": [
           {
@@ -6931,6 +7359,41 @@
               ],
               "title": "Book Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -6938,11 +7401,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/EvaluationRunRead"
-                  },
-                  "title": "Response List Evaluation Runs Endpoint Api Evaluations Runs Get",
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/EvaluationRunRead"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EvaluationRunListPage"
+                    }
+                  ],
+                  "title": "Response List Evaluation Runs Endpoint Api Evaluations Runs Get"
                 }
               }
             },
@@ -6959,12 +7429,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Evaluation Runs Endpoint",
+        "summary": "读取评测运行列表",
         "tags": [
           "评测系统"
         ]
       },
       "post": {
+        "description": "对一批评测样例发起新的评测运行，返回评测运行入口。",
         "operationId": "create_evaluation_run_endpoint_api_evaluations_runs_post",
         "requestBody": {
           "content": {
@@ -6998,7 +7469,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Evaluation Run Endpoint",
+        "summary": "启动评测运行",
         "tags": [
           "评测系统"
         ]
@@ -7006,6 +7477,7 @@
     },
     "/api/evaluations/runs/{run_id}": {
       "get": {
+        "description": "读取单次评测运行的整体指标摘要与子样本统计。",
         "operationId": "get_evaluation_run_detail_endpoint_api_evaluations_runs__run_id__get",
         "parameters": [
           {
@@ -7040,7 +7512,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Evaluation Run Detail Endpoint",
+        "summary": "读取评测运行详情",
         "tags": [
           "评测系统"
         ]
@@ -7048,6 +7520,7 @@
     },
     "/api/evaluations/runs/{run_id}/failed-samples": {
       "get": {
+        "description": "读取指定评测运行下未达标的样例列表，便于排错和反馈。",
         "operationId": "list_failed_samples_endpoint_api_evaluations_runs__run_id__failed_samples_get",
         "parameters": [
           {
@@ -7086,7 +7559,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Failed Samples Endpoint",
+        "summary": "读取评测失败样例",
         "tags": [
           "评测系统"
         ]
@@ -7094,6 +7567,7 @@
     },
     "/api/events": {
       "post": {
+        "description": "追加一条工作区级事件流记录，可用于审计和回溯。",
         "operationId": "create_event_endpoint_api_events_post",
         "requestBody": {
           "content": {
@@ -7127,7 +7601,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Event Endpoint",
+        "summary": "记录事件",
         "tags": [
           "事件流"
         ]
@@ -7135,6 +7609,7 @@
     },
     "/api/events/workspaces/{workspace_id}": {
       "get": {
+        "description": "按时间倒序读取工作区下的事件流。",
         "operationId": "list_workspace_events_endpoint_api_events_workspaces__workspace_id__get",
         "parameters": [
           {
@@ -7173,7 +7648,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Workspace Events Endpoint",
+        "summary": "读取工作区事件流",
         "tags": [
           "事件流"
         ]
@@ -7219,7 +7694,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Judge Issues Endpoint",
+        "summary": "评审 Scene Packet 并生成问题单",
         "tags": [
           "结构化评审"
         ]
@@ -7227,6 +7702,7 @@
     },
     "/api/model-runs": {
       "get": {
+        "description": "模型运行列表：未指定 limit 时返回兼容数组；指定 limit 时返回游标分页信封。",
         "operationId": "list_model_runs_endpoint_api_model_runs_get",
         "parameters": [
           {
@@ -7279,6 +7755,41 @@
               ],
               "title": "Job Run Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -7286,11 +7797,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ModelRunRead"
-                  },
-                  "title": "Response List Model Runs Endpoint Api Model Runs Get",
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/ModelRunRead"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ModelRunListPage"
+                    }
+                  ],
+                  "title": "Response List Model Runs Endpoint Api Model Runs Get"
                 }
               }
             },
@@ -7307,12 +7825,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Model Runs Endpoint",
+        "summary": "读取模型运行列表",
         "tags": [
           "模型运行日志"
         ]
       },
       "post": {
+        "description": "登记一次模型调用的输入、输出、token 用量和成本估计。",
         "operationId": "create_model_run_endpoint_api_model_runs_post",
         "requestBody": {
           "content": {
@@ -7346,7 +7865,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Model Run Endpoint",
+        "summary": "记录模型调用",
         "tags": [
           "模型运行日志"
         ]
@@ -7354,6 +7873,7 @@
     },
     "/api/model-runs/job-runs/{job_run_id}": {
       "get": {
+        "description": "按 job_run_id 读取 JobRun、Checkpoint 和 ModelRun 摘要。",
         "operationId": "get_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__get",
         "parameters": [
           {
@@ -7388,7 +7908,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Runs Job Run Endpoint",
+        "summary": "读取 JobRun 详情",
         "tags": [
           "模型运行日志"
         ]
@@ -7396,6 +7916,7 @@
     },
     "/api/model-runs/job-runs/{job_run_id}/retry": {
       "post": {
+        "description": "对失败的 JobRun 创建恢复任务（仅登记，不立即续跑 workflow）。",
         "operationId": "retry_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__retry_post",
         "parameters": [
           {
@@ -7430,7 +7951,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Retry Runs Job Run Endpoint",
+        "summary": "创建 JobRun 恢复任务",
         "tags": [
           "模型运行日志"
         ]
@@ -7438,6 +7959,7 @@
     },
     "/api/prompt-packs": {
       "get": {
+        "description": "Prompt Pack 列表：未指定 limit 时返回兼容数组；指定 limit 时返回游标分页信封。",
         "operationId": "list_prompt_packs_endpoint_api_prompt_packs_get",
         "parameters": [
           {
@@ -7473,6 +7995,41 @@
               ],
               "title": "Book Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -7480,11 +8037,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PromptPackRead"
-                  },
-                  "title": "Response List Prompt Packs Endpoint Api Prompt Packs Get",
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/PromptPackRead"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PromptPackListPage"
+                    }
+                  ],
+                  "title": "Response List Prompt Packs Endpoint Api Prompt Packs Get"
                 }
               }
             },
@@ -7501,12 +8065,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Prompt Packs Endpoint",
+        "summary": "读取 Prompt Pack 列表",
         "tags": [
           "Prompt Packs"
         ]
       },
       "post": {
+        "description": "创建 Prompt Pack 首版本，承载创作链路上可复用的提示词集合。",
         "operationId": "create_prompt_pack_endpoint_api_prompt_packs_post",
         "requestBody": {
           "content": {
@@ -7540,7 +8105,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Prompt Pack Endpoint",
+        "summary": "创建 Prompt Pack",
         "tags": [
           "Prompt Packs"
         ]
@@ -7548,6 +8113,7 @@
     },
     "/api/prompt-packs/{pack_id}": {
       "patch": {
+        "description": "更新 Prompt Pack 并创建新版本，旧版本保留在历史中。",
         "operationId": "update_prompt_pack_endpoint_api_prompt_packs__pack_id__patch",
         "parameters": [
           {
@@ -7592,7 +8158,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Update Prompt Pack Endpoint",
+        "summary": "更新 Prompt Pack",
         "tags": [
           "Prompt Packs"
         ]
@@ -7600,6 +8166,7 @@
     },
     "/api/prompt-packs/{pack_id}/history": {
       "get": {
+        "description": "读取 Prompt Pack 同一谱系的全部版本历史。",
         "operationId": "get_prompt_pack_history_endpoint_api_prompt_packs__pack_id__history_get",
         "parameters": [
           {
@@ -7638,7 +8205,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Prompt Pack History Endpoint",
+        "summary": "读取 Prompt Pack 历史",
         "tags": [
           "Prompt Packs"
         ]
@@ -7646,6 +8213,7 @@
     },
     "/api/provider-gateway/providers": {
       "get": {
+        "description": "按工作区维度列出全部 Provider 配置；不返回明文密钥。",
         "operationId": "list_provider_configs_endpoint_api_provider_gateway_providers_get",
         "parameters": [
           {
@@ -7692,12 +8260,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Provider Configs Endpoint",
+        "summary": "读取 Provider 配置列表",
         "tags": [
           "模型接入层"
         ]
       },
       "post": {
+        "description": "登记一条模型 Provider 配置，密钥仅记录引用而不入库明文。",
         "operationId": "create_provider_config_endpoint_api_provider_gateway_providers_post",
         "requestBody": {
           "content": {
@@ -7731,7 +8300,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Provider Config Endpoint",
+        "summary": "创建 Provider 配置",
         "tags": [
           "模型接入层"
         ]
@@ -7739,6 +8308,7 @@
     },
     "/api/provider-gateway/resolve": {
       "get": {
+        "description": "按 capability（如 chat、embedding、rerank）解析出当前生效的 Provider。",
         "operationId": "resolve_provider_endpoint_api_provider_gateway_resolve_get",
         "parameters": [
           {
@@ -7791,7 +8361,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Resolve Provider Endpoint",
+        "summary": "按能力解析 Provider",
         "tags": [
           "模型接入层"
         ]
@@ -7859,7 +8429,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Quality Dashboard",
+        "summary": "读取质量看板",
         "tags": [
           "质量看板"
         ]
@@ -7901,7 +8471,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Repair Patch Endpoint",
+        "summary": "生成定向修复补丁",
         "tags": [
           "定向修复"
         ]
@@ -7909,6 +8479,7 @@
     },
     "/api/retrieval/refresh-runs": {
       "post": {
+        "description": "对指定资料源发起索引刷新任务，返回刷新运行记录。",
         "operationId": "create_retrieval_refresh_run_endpoint_api_retrieval_refresh_runs_post",
         "requestBody": {
           "content": {
@@ -7942,7 +8513,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Retrieval Refresh Run Endpoint",
+        "summary": "创建检索索引刷新任务",
         "tags": [
           "检索中心"
         ]
@@ -7950,6 +8521,7 @@
     },
     "/api/retrieval/search": {
       "post": {
+        "description": "基础检索接口：仅返回命中列表，不附加工作台需要的摘要字段。",
         "operationId": "search_retrieval_endpoint_api_retrieval_search_post",
         "requestBody": {
           "content": {
@@ -7987,7 +8559,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Search Retrieval Endpoint",
+        "summary": "基础检索",
         "tags": [
           "检索中心"
         ]
@@ -7995,6 +8567,7 @@
     },
     "/api/retrieval/sources": {
       "get": {
+        "description": "按作品或系列范围列出已登记的检索资料源。",
         "operationId": "list_retrieval_sources_endpoint_api_retrieval_sources_get",
         "parameters": [
           {
@@ -8058,12 +8631,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Retrieval Sources Endpoint",
+        "summary": "读取检索资料源列表",
         "tags": [
           "检索中心"
         ]
       },
       "post": {
+        "description": "登记一条检索资料源（URL 或文档），可后续触发索引刷新任务。",
         "operationId": "create_retrieval_source_endpoint_api_retrieval_sources_post",
         "requestBody": {
           "content": {
@@ -8097,7 +8671,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Retrieval Source Endpoint",
+        "summary": "创建检索资料源",
         "tags": [
           "检索中心"
         ]
@@ -8105,6 +8679,7 @@
     },
     "/api/retrieval/workbench/refresh-runs": {
       "get": {
+        "description": "按资料源或作品维度列出索引刷新任务的最近运行记录。",
         "operationId": "list_retrieval_workbench_refresh_runs_endpoint_api_retrieval_workbench_refresh_runs_get",
         "parameters": [
           {
@@ -8185,7 +8760,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Retrieval Workbench Refresh Runs Endpoint",
+        "summary": "读取检索刷新任务列表",
         "tags": [
           "检索中心"
         ]
@@ -8193,6 +8768,7 @@
     },
     "/api/retrieval/workbench/search": {
       "post": {
+        "description": "检索工作台搜索：返回命中、证据锚点和检索摘要，便于核对 Scene Packet 的来源。",
         "operationId": "search_retrieval_workbench_endpoint_api_retrieval_workbench_search_post",
         "requestBody": {
           "content": {
@@ -8226,7 +8802,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Search Retrieval Workbench Endpoint",
+        "summary": "检索工作台搜索",
         "tags": [
           "检索中心"
         ]
@@ -8234,6 +8810,7 @@
     },
     "/api/retrieval/workbench/sources": {
       "get": {
+        "description": "读取检索工作台需要的资料源摘要：状态、规模、最近一次刷新时间。",
         "operationId": "list_retrieval_workbench_sources_endpoint_api_retrieval_workbench_sources_get",
         "parameters": [
           {
@@ -8297,7 +8874,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Retrieval Workbench Sources Endpoint",
+        "summary": "读取检索工作台资料源",
         "tags": [
           "检索中心"
         ]
@@ -8323,7 +8900,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "List Runtime Tools Endpoint",
+        "summary": "读取运行时工具列表",
         "tags": [
           "运行时工具"
         ]
@@ -8365,7 +8942,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Scene Packet Endpoint",
+        "summary": "组装 Scene Packet",
         "tags": [
           "场景上下文包"
         ]
@@ -8407,7 +8984,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Series Endpoint",
+        "summary": "创建系列",
         "tags": [
           "系列级记忆"
         ]
@@ -8460,7 +9037,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Update Series Memory Endpoint",
+        "summary": "更新系列记忆",
         "tags": [
           "系列级记忆"
         ]
@@ -8507,7 +9084,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Series Memory History Endpoint",
+        "summary": "读取系列记忆历史",
         "tags": [
           "系列级记忆"
         ]
@@ -8572,7 +9149,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Series Memories Endpoint",
+        "summary": "读取系列记忆列表",
         "tags": [
           "系列级记忆"
         ]
@@ -8623,7 +9200,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Series Memory Endpoint",
+        "summary": "创建系列记忆首版本",
         "tags": [
           "系列级记忆"
         ]
@@ -8691,7 +9268,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Studio Approval Summary Endpoint",
+        "summary": "读取 Studio 批准摘要",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8733,7 +9310,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Approve Studio Writeback Endpoint",
+        "summary": "执行 Studio 批准写回",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8788,7 +9365,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Studio Books Endpoint",
+        "summary": "读取 Studio 作品列表",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8842,7 +9419,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Studio Chapter Goal Endpoint",
+        "summary": "读取 Studio 章节目标",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8886,7 +9463,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Studio Judge Review Endpoint",
+        "summary": "读取 Studio Judge 评审",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8930,7 +9507,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Studio Recovery Summary Endpoint",
+        "summary": "读取 Studio 失败恢复摘要",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8978,7 +9555,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Studio Repair Patches Endpoint",
+        "summary": "读取 Studio 修复补丁",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -8986,7 +9563,7 @@
     },
     "/api/studio/scene-packets": {
       "get": {
-        "description": "读取 Studio Scene Packet 数据源：证据数量和上下文预算摘要。",
+        "description": "读取 Studio Scene Packet 数据源:证据数量和上下文预算摘要。",
         "operationId": "read_studio_scene_packet_endpoint_api_studio_scene_packets_get",
         "parameters": [
           {
@@ -9032,7 +9609,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Studio Scene Packet Endpoint",
+        "summary": "读取 Studio Scene Packet",
         "tags": [
           "Studio 创作工作台"
         ]
@@ -9080,7 +9657,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Style Packs Endpoint",
+        "summary": "读取风格包列表",
         "tags": [
           "风格包"
         ]
@@ -9120,7 +9697,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Style Pack Endpoint",
+        "summary": "创建风格包",
         "tags": [
           "风格包"
         ]
@@ -9173,7 +9750,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Update Style Pack Endpoint",
+        "summary": "更新风格包",
         "tags": [
           "风格包"
         ]
@@ -9226,7 +9803,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Apply Style Pack Endpoint",
+        "summary": "应用风格包到作品",
         "tags": [
           "风格包"
         ]
@@ -9234,6 +9811,7 @@
     },
     "/api/workspaces": {
       "get": {
+        "description": "列出当前用户可见的全部工作区。",
         "operationId": "list_workspaces_endpoint_api_workspaces_get",
         "responses": {
           "200": {
@@ -9251,12 +9829,13 @@
             "description": "Successful Response"
           }
         },
-        "summary": "List Workspaces Endpoint",
+        "summary": "读取工作区列表",
         "tags": [
           "团队工作区"
         ]
       },
       "post": {
+        "description": "创建工作区，承载团队成员、订阅策略、批准流程。",
         "operationId": "create_workspace_endpoint_api_workspaces_post",
         "requestBody": {
           "content": {
@@ -9290,7 +9869,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Workspace Endpoint",
+        "summary": "创建工作区",
         "tags": [
           "团队工作区"
         ]
@@ -9298,6 +9877,7 @@
     },
     "/api/workspaces/{workspace_id}/members": {
       "get": {
+        "description": "读取工作区下的全部成员清单。",
         "operationId": "list_workspace_members_endpoint_api_workspaces__workspace_id__members_get",
         "parameters": [
           {
@@ -9336,12 +9916,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Workspace Members Endpoint",
+        "summary": "读取工作区成员列表",
         "tags": [
           "团队工作区"
         ]
       },
       "post": {
+        "description": "向工作区添加新成员，受订阅 seat 上限约束。",
         "operationId": "create_workspace_member_endpoint_api_workspaces__workspace_id__members_post",
         "parameters": [
           {
@@ -9386,7 +9967,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Workspace Member Endpoint",
+        "summary": "添加工作区成员",
         "tags": [
           "团队工作区"
         ]
@@ -9447,7 +10028,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Worldbuilding Center Endpoint",
+        "summary": "读取世界观中心聚合",
         "tags": [
           "世界观中心"
         ]
@@ -9455,7 +10036,7 @@
     },
     "/health": {
       "get": {
-        "description": "提供无需认证的本地和部署健康检查。",
+        "description": "提供无需认证的本地和部署健康检查；仅证明进程存活，不检查外部依赖。",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -9473,7 +10054,67 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Health Check",
+        "summary": "顶层健康检查",
+        "tags": [
+          "运行状态"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "description": "仅返回 200 表明进程存活，不检查任何外部依赖。供 Kubernetes liveness 调用。",
+        "operationId": "liveness_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Liveness Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "进程存活探针",
+        "tags": [
+          "运行状态"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "description": "检查数据库连接 + 核心表存在 + Redis 可达；任一失败则标记为 degraded。",
+        "operationId": "readiness_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "additionalProperties": true,
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "title": "Response Readiness Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "就绪探针",
         "tags": [
           "运行状态"
         ]

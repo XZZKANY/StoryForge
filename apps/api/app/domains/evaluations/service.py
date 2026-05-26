@@ -46,10 +46,17 @@ def create_evaluation_run(session: Session, payload: EvaluationRunCreate) -> Eva
     case = session.get(EvaluationCase, payload.case_id) if payload.case_id is not None else None
     if payload.case_id is not None and case is None:
         raise EvaluationError("评测用例不存在。")
+    if case is not None:
+        if payload.workspace_id is not None and payload.workspace_id != case.workspace_id:
+            raise EvaluationError("评测运行作用域必须与评测用例一致。")
+        if payload.book_id is not None and payload.book_id != case.book_id:
+            raise EvaluationError("评测运行作用域必须与评测用例一致。")
+    workspace_id = payload.workspace_id if payload.workspace_id is not None else (case.workspace_id if case is not None else None)
+    book_id = payload.book_id if payload.book_id is not None else (case.book_id if case is not None else None)
     _validate_scope(
         session,
-        payload.workspace_id if payload.workspace_id is not None else (case.workspace_id if case is not None else None),
-        payload.book_id if payload.book_id is not None else (case.book_id if case is not None else None),
+        workspace_id,
+        book_id,
     )
     observed = payload.observed_payload
     expected = case.expected_payload if case is not None else {}
@@ -62,8 +69,8 @@ def create_evaluation_run(session: Session, payload: EvaluationRunCreate) -> Eva
     )
     run = EvaluationRun(
         case_id=payload.case_id,
-        workspace_id=payload.workspace_id if payload.workspace_id is not None else (case.workspace_id if case is not None else None),
-        book_id=payload.book_id if payload.book_id is not None else (case.book_id if case is not None else None),
+        workspace_id=workspace_id,
+        book_id=book_id,
         status="completed",
         metrics=metrics,
         summary=summary,
@@ -75,12 +82,19 @@ def create_evaluation_run(session: Session, payload: EvaluationRunCreate) -> Eva
 
 
 def list_evaluation_runs(session: Session, *, workspace_id: int | None = None, book_id: int | None = None) -> Sequence[EvaluationRun]:
+    statement = build_evaluation_run_list_query(workspace_id=workspace_id, book_id=book_id)
+    return session.scalars(statement).all()
+
+
+def build_evaluation_run_list_query(*, workspace_id: int | None = None, book_id: int | None = None):
+    """构造按主键升序排列的评测运行查询，供分页 helper 复用。"""
+
     statement = select(EvaluationRun).order_by(EvaluationRun.id)
     if workspace_id is not None:
         statement = statement.where(EvaluationRun.workspace_id == workspace_id)
     if book_id is not None:
         statement = statement.where(EvaluationRun.book_id == book_id)
-    return session.scalars(statement).all()
+    return statement
 
 
 def get_evaluation_run_detail(session: Session, run_id: int) -> EvaluationRunDetailRead:
@@ -120,13 +134,16 @@ def _validate_scope(session: Session, workspace_id: int | None, book_id: int | N
 
 
 def _build_metrics(expected: dict, observed: dict) -> dict:
-    scene_count = max(1, int(observed.get("scene_count", expected.get("scene_count", 1) or 1)))
-    open_issue_count = int(observed.get("open_issue_count", 0))
-    repair_attempts = max(1, int(observed.get("repair_attempts", 0) or 1))
-    repair_accepted = int(observed.get("repair_accepted", 0))
-    suggestions_total = max(1, int(observed.get("suggestions_total", 0) or 1))
-    suggestions_accepted = int(observed.get("suggestions_accepted", 0))
-    open_loop_count = int(observed.get("open_loop_count", expected.get("open_loop_count", 0) or 0))
+    scene_count = max(1, _non_negative_int(observed, "scene_count", expected.get("scene_count", 1) or 1))
+    open_issue_count = _non_negative_int(observed, "open_issue_count", 0)
+    repair_attempts = max(1, _non_negative_int(observed, "repair_attempts", 1))
+    repair_accepted = _non_negative_int(observed, "repair_accepted", 0)
+    suggestions_total = max(1, _non_negative_int(observed, "suggestions_total", 1))
+    suggestions_accepted = _non_negative_int(observed, "suggestions_accepted", 0)
+    open_loop_count = _non_negative_int(observed, "open_loop_count", expected.get("open_loop_count", 0) or 0)
+    _validate_ratio_bounds(open_issue_count, scene_count)
+    _validate_ratio_bounds(repair_accepted, repair_attempts)
+    _validate_ratio_bounds(suggestions_accepted, suggestions_total)
     metrics = {
         "consistency_error_rate": round(open_issue_count / scene_count, 4),
         "repair_success_rate": round(repair_accepted / repair_attempts, 4),
@@ -138,6 +155,26 @@ def _build_metrics(expected: dict, observed: dict) -> dict:
         metrics["failed_samples"] = failed_samples
         metrics["failed_sample_count"] = len(failed_samples)
     return metrics
+
+
+def _non_negative_int(values: dict, name: str, default: object) -> int:
+    raw_value = values.get(name, default)
+    if isinstance(raw_value, bool):
+        raise EvaluationError(f"{name} 必须是非负整数。")
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise EvaluationError(f"{name} 必须是非负整数。") from exc
+    if isinstance(raw_value, float) and not raw_value.is_integer():
+        raise EvaluationError(f"{name} 必须是非负整数。")
+    if value < 0:
+        raise EvaluationError("评测指标数值不合法：指标计数不能为负数。")
+    return value
+
+
+def _validate_ratio_bounds(numerator: int, denominator: int) -> None:
+    if numerator > denominator:
+        raise EvaluationError("评测指标数值不合法：比例分子不能超过分母。")
 
 
 def _failed_samples_from_metrics(metrics: dict) -> list[EvaluationFailedSampleRead]:
@@ -178,4 +215,3 @@ def _first_studio_href(samples: list[EvaluationFailedSampleRead]) -> str | None:
         if sample.studio_href:
             return sample.studio_href
     return None
-
