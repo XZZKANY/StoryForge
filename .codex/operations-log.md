@@ -2767,3 +2767,12 @@ OpenAPI / Runtime 门禁证据：
 - 三个待办任务均已在 `shrimp-task-manager` 中标记完成。
 - 综合评分 95/100。
 - 建议结论：通过。
+
+## Stage 1 CI 触发分支收口记录
+
+时间：2026-05-27 09:27:54 +08:00
+
+- 问题：远端真实主分支为 `master`，但 `.github/workflows/ci.yml` 与 `.github/workflows/e2e.yml` 仅在 `push` 到 `main` 时触发，导致推送当前主分支不会自动运行 CI/E2E。
+- 处理：两个 workflow 的 `on.push.branches` 均补充 `master`，同时保留 `main`，兼容未来默认分支迁移。
+- 验证：`pnpm exec prettier --check .github/workflows/ci.yml .github/workflows/e2e.yml` 通过；`rg -n "branches:|master|main" .github/workflows/ci.yml .github/workflows/e2e.yml` 确认两个 workflow 均包含 `master` 与 `main`。
+- 范围：本次只收口 Stage 1 的 push 触发分支，不修改 CI Job 矩阵、测试命令或应用代码。
