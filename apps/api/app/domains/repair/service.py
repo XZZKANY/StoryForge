@@ -74,6 +74,10 @@ def _repair_reason(issue: JudgeIssue, target_span: str, replacement_text: str) -
 
     if issue.issue_type == "setting_conflict":
         return f"将“{target_span}”替换为“{replacement_text}”，使正文回到必含事实约束。"
+    if issue.issue_type == "character_consistency":
+        return f"将违反角色一致性的“{target_span}”替换为“{replacement_text}”。"
+    if issue.issue_type == "timeline_conflict":
+        return f"将违反时间线的“{target_span}”替换为“{replacement_text}”。"
     if issue.issue_type == "style_drift":
         return f"将解释性短语“{target_span}”替换为更克制的描写。"
     return f"根据问题单建议替换“{target_span}”。"
