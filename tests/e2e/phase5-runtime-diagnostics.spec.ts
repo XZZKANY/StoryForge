@@ -190,6 +190,7 @@ test('Phase 5 OpenAPI 记录 Runs runtime diagnostics 响应契约', () => {
 test('Phase 5 API 从真实 JobRun、ModelRun 和 Runtime Tools 派生运行诊断', () => {
   const payload = runApiPythonJson(`
 import json
+import os
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -257,7 +258,7 @@ with SessionLocal() as session:
         output_summary="Phase5 输出摘要",
     )
 
-client = TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"})
+client = TestClient(app, headers={"X-StoryForge-API-Key": os.getenv("STORYFORGE_API_KEY", "local-dev-key")})
 response = client.get(f"/api/model-runs/job-runs/{job_id}")
 response.raise_for_status()
 print(json.dumps(response.json()["runtime_diagnostics"], ensure_ascii=False, sort_keys=True))
@@ -331,7 +332,7 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
 `);
 
   assertSourceEvidence(contractSources.packageJson, [
-    '"openapi": "powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1"',
+    '"openapi": "node scripts/generate-openapi.mjs"',
     '"e2e": "node scripts/run-e2e.mjs"',
     '"verify": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1"',
   ]);

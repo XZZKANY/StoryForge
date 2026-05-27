@@ -13,7 +13,7 @@
     "test:api": "cd apps/api && uv run pytest",
     "test:workflow": "cd apps/workflow && uv run pytest",
     "e2e": "node scripts/run-e2e.mjs",
-    "openapi": "powershell -ExecutionPolicy Bypass -File ./scripts/generate-openapi.ps1",
+    "openapi": "node scripts/generate-openapi.mjs",
     "lint": "eslint . && prettier --check \"apps/web/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\"",
     "lint:fix": "eslint . --fix && prettier --write \"apps/web/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\""
   },

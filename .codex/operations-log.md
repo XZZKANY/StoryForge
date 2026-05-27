@@ -2776,3 +2776,17 @@ OpenAPI / Runtime 门禁证据：
 - 处理：两个 workflow 的 `on.push.branches` 均补充 `master`，同时保留 `main`，兼容未来默认分支迁移。
 - 验证：`pnpm exec prettier --check .github/workflows/ci.yml .github/workflows/e2e.yml` 通过；`rg -n "branches:|master|main" .github/workflows/ci.yml .github/workflows/e2e.yml` 确认两个 workflow 均包含 `master` 与 `main`。
 - 范围：本次只收口 Stage 1 的 push 触发分支，不修改 CI Job 矩阵、测试命令或应用代码。
+
+## Stage 1 远端 CI 失败修复记录
+
+时间：2026-05-27 09:36:03 +08:00
+
+- 远端触发验证：提交 `98ca854` 推送到 `origin/master` 后，GitHub Actions 已触发 `CI` 与 `E2E`。
+- 失败根因 1：`CI / Contract check` 在 Linux runner 执行 `pnpm openapi` 时仍调用 PowerShell 脚本，报错 `powershell: not found`。
+- 处理 1：根 `package.json` 的 `openapi` 脚本改为跨平台 `node scripts/generate-openapi.mjs`。
+- 失败根因 2：`E2E` contract tests 与 API verification 在 CI 使用 `STORYFORGE_API_KEY=ci-test-key` 时，测试客户端仍写死 `local-dev-key`，导致受保护端点返回 401。
+- 处理 2：`tests/e2e/phase4-contract.spec.ts`、`tests/e2e/phase5-runtime-diagnostics.spec.ts` 与 `apps/api/tests/conftest.py` 均改为从 `STORYFORGE_API_KEY` 读取测试请求头，默认仍回退 `local-dev-key`。
+- 失败根因 3：`E2E` workflow 使用 `STORYFORGE_ENV=ci`，但应用配置仅允许 `development/local/staging/production`。
+- 处理 3：`.github/workflows/e2e.yml` 改为 `STORYFORGE_ENV=development`。
+- 本地复验：设置 CI 近似环境变量后执行 `pnpm e2e`，结果 contract tests `20 passed`、API verification `58 passed`、workflow verification `34 passed`。
+- 补充验证：`pnpm openapi` 通过；`pnpm exec prettier --check package.json .github/workflows/ci.yml .github/workflows/e2e.yml tests/e2e/phase4-contract.spec.ts tests/e2e/phase5-runtime-diagnostics.spec.ts` 通过；`cd apps/api && uv run ruff check tests/conftest.py` 通过。
