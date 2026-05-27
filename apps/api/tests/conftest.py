@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 
 import pytest
@@ -81,6 +82,7 @@ def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None
             db_session.close()
 
     app.dependency_overrides[get_session] = override_get_session
-    with TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"}) as test_client:
+    api_key = os.getenv("STORYFORGE_API_KEY", "local-dev-key")
+    with TestClient(app, headers={"X-StoryForge-API-Key": api_key}) as test_client:
         yield test_client
     app.dependency_overrides.clear()

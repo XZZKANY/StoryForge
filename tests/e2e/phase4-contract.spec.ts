@@ -139,10 +139,11 @@ test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面
 test('Phase 4 runtime tools API 与 CreativeToolRegistry 和 Runs 页面保持一致', () => {
   const apiTools = runApiPythonJson(`
 import json
+import os
 from fastapi.testclient import TestClient
 from app.main import app
 
-client = TestClient(app, headers={"X-StoryForge-API-Key": "local-dev-key"})
+client = TestClient(app, headers={"X-StoryForge-API-Key": os.getenv("STORYFORGE_API_KEY", "local-dev-key")})
 response = client.get("/api/runtime-tools")
 response.raise_for_status()
 print(json.dumps(response.json(), ensure_ascii=False, sort_keys=True))

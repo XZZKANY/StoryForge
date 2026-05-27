@@ -1617,3 +1617,47 @@ score: 95
 ```
 
 summary: '本轮已按顺序完成 workflow runner sink 隔离复验、OpenAPI/e2e 状态确认和最终验证矩阵。除直接 pre-commit 命令因本机 PATH 缺失失败并已由 uvx pre-commit 补偿通过外，其余本地验证均退出码 0。建议通过。'
+
+# Stage 1 CI 触发与远端失败收口验证报告
+
+生成时间：2026-05-27 09:36:03 +08:00
+
+## 1. 验证范围
+
+- 修复 GitHub Actions 仅监听 `main`，不监听当前真实主分支 `master` 的问题。
+- 修复远端触发后暴露的 Linux CI 脚本兼容问题。
+- 修复 CI 环境变量与测试客户端 API Key 不一致导致的 401。
+- 修复 E2E workflow 使用应用不支持的 `STORYFORGE_ENV=ci`。
+
+## 2. 本地验证证据
+
+- `pnpm openapi`：通过，退出码 0，使用 `node scripts/generate-openapi.mjs` 生成 OpenAPI 契约。
+- `pnpm exec prettier --check package.json .github/workflows/ci.yml .github/workflows/e2e.yml tests/e2e/phase4-contract.spec.ts tests/e2e/phase5-runtime-diagnostics.spec.ts`：通过，退出码 0。
+- `cd apps/api && uv run ruff check tests/conftest.py`：通过，退出码 0。
+- 设置 CI 近似环境变量后执行 `pnpm e2e`：通过，退出码 0；Contract tests `20 passed`，API verification `58 passed`，Workflow verification `34 passed`。
+
+## 3. 远端验证状态
+
+- 提交 `98ca854` 推送后已确认 `CI` 与 `E2E` 在 `master` push 上被触发。
+- 首轮远端失败已定位并修复：`powershell: not found`、受保护端点 401、`STORYFORGE_ENV=ci` 配置校验失败。
+- 后续需以修复提交推送后的 GitHub Actions 新运行结果作为最终远端通过证据。
+
+## 4. 质量评分
+
+- 代码质量：94/100。修复集中在 workflow 触发、跨平台脚本入口和测试环境配置，不改业务逻辑。
+- 测试覆盖：94/100。本地已复现并覆盖远端失败链路，`pnpm e2e` 全阶段通过。
+- 规范遵循：92/100。操作日志与验证报告已留痕；工作区仍有非本任务 `.dev_plan.md` 改动未纳入本次提交。
+- 需求匹配：96/100。Stage 1 的实际主分支触发问题已修复，并清理远端运行暴露的 CI 配置问题。
+- 架构一致：95/100。继续复用现有 Node OpenAPI 生成脚本和既有验证入口。
+- 风险评估：90/100。剩余风险为 GitHub Actions 新运行结果需等待远端完成确认。
+
+## 5. 结论
+
+- 综合评分：94/100。
+- 建议：通过本地收口，推送后继续观察远端 CI/E2E 新运行。
+
+```Scoring
+score: 94
+```
+
+summary: 'Stage 1 CI 触发已对齐 master/main，Linux CI 的 OpenAPI 脚本入口已改为跨平台 Node 脚本，E2E/API 测试客户端已按 STORYFORGE_API_KEY 对齐 CI 环境，本地 CI 近似环境 pnpm e2e 已全阶段通过。'
