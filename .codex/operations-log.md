@@ -2790,3 +2790,12 @@ OpenAPI / Runtime 门禁证据：
 - 处理 3：`.github/workflows/e2e.yml` 改为 `STORYFORGE_ENV=development`。
 - 本地复验：设置 CI 近似环境变量后执行 `pnpm e2e`，结果 contract tests `20 passed`、API verification `58 passed`、workflow verification `34 passed`。
 - 补充验证：`pnpm openapi` 通过；`pnpm exec prettier --check package.json .github/workflows/ci.yml .github/workflows/e2e.yml tests/e2e/phase4-contract.spec.ts tests/e2e/phase5-runtime-diagnostics.spec.ts` 通过；`cd apps/api && uv run ruff check tests/conftest.py` 通过。
+
+## Phase 9 计划三段式重写记录
+
+时间：2026-05-27 09:58:24 +08:00
+
+- 目标：按用户确认的方向，把 Phase 9 从“大而全总蓝图”改为先产出第一本书的可执行计划。
+- 处理：`.dev_plan.md` 的 Phase 9 已调整为 9A/9B/9C 三段式：9A 聚焦 3 章最小全书闭环与 Markdown/audit 导出；9B 聚焦恢复、预算和真实 LLM 小样本；9C 聚焦长程质量、EPUB 与审计 UI。
+- 约束：9A 完成前禁止扩散到 EPUB、复杂审计 UI、Style Guard、Timeline 等增强项。
+- 验证：`pnpm exec prettier --write .dev_plan.md` 已执行，随后复查 Markdown 格式与 diff。
