@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.domains.books.models import Book
+    from app.domains.books.models import Book, Chapter
 
 
 class MemoryAtomRecord(IdMixin, TimestampMixin, Base):
@@ -27,5 +27,10 @@ class MemoryAtomRecord(IdMixin, TimestampMixin, Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0, server_default="1")
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     source_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_chapter_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chapters.id", ondelete="SET NULL"),
+        index=True,
+    )
 
     book: Mapped[Book] = relationship()
+    source_chapter: Mapped[Chapter | None] = relationship()

@@ -4,7 +4,7 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
-from app.domains.books.models import Book
+from app.domains.books.models import Book, Chapter
 from app.domains.story_memory.models import MemoryAtomRecord
 from app.domains.story_memory.schemas import AgentProposal, ArbitrationDecision, MemoryAtom
 from app.domains.story_memory.service import (
@@ -25,6 +25,7 @@ def test_memory_atom_record_table_uses_existing_integer_book_id(session: Session
     assert column_types["book_id"] == "integer"
     assert "entity_id" in column_types
     assert "value" in column_types
+    assert "source_chapter_id" in column_types
 
 
 def test_memory_atom_record_can_persist_minimum_required_fields(session: Session) -> None:
@@ -45,6 +46,7 @@ def test_memory_atom_record_can_persist_minimum_required_fields(session: Session
         confidence=0.95,
         revision=1,
         source_ref="chapter:3",
+        source_chapter_id=None,
     )
     session.add(record)
     session.commit()
@@ -57,6 +59,41 @@ def test_memory_atom_record_can_persist_minimum_required_fields(session: Session
     assert saved.entity_id == "linlan"
     assert saved.immutable is True
     assert saved.confidence == 0.95
+
+
+def test_memory_atom_persists_source_chapter_id_and_confidence(session: Session) -> None:
+    """章节结束抽取的 memory 必须保留章节来源和置信度。"""
+
+    book = Book(title="章节来源记忆", status="draft", premise="验证 approve 后抽取。")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=2, title="雾港", status="approved", summary="林岚公开旧伤。")
+    session.add(chapter)
+    session.commit()
+
+    atom = create_memory_atom(
+        session,
+        MemoryAtom(
+            memory_id="draft-approved-memory",
+            novel_id=book.id,
+            entity_type="character",
+            entity_id="林岚",
+            fact_type="status",
+            value="林岚已经公开左臂旧伤。",
+            source_ref=f"chapter:{chapter.id}",
+            source_chapter_id=chapter.id,
+            valid_from_chapter=chapter.ordinal,
+            confidence=0.87,
+        ),
+    )
+    saved = session.get(MemoryAtomRecord, int(atom.memory_id.removeprefix("memory:")))
+    active_atoms = get_active_memory_atoms(session, book_id=book.id, chapter_id=chapter.ordinal, entity_id="林岚")
+
+    assert saved is not None
+    assert saved.source_chapter_id == chapter.id
+    assert atom.source_chapter_id == chapter.id
+    assert active_atoms[0].source_chapter_id == chapter.id
+    assert active_atoms[0].confidence == 0.87
 
 
 def test_memory_atom_crud_returns_contract_and_filters_active_chapter(session: Session) -> None:

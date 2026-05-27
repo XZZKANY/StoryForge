@@ -20,6 +20,7 @@ class MemoryAtom(BaseModel):
     fact_type: MemoryFactType
     value: str = Field(min_length=1, max_length=50000)
     source_ref: str = Field(min_length=1, max_length=1000)
+    source_chapter_id: int | None = Field(default=None, gt=0)
     valid_from_chapter: int = Field(default=1, ge=1)
     valid_to_chapter: int | None = Field(default=None, ge=1)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)

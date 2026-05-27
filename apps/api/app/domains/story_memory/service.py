@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
-from app.domains.books.models import Book
+from app.domains.assets.models import Asset
+from app.domains.books.models import Book, Chapter
+from app.domains.continuity.models import ContinuityRecord
 from app.domains.story_memory.models import MemoryAtomRecord
 from app.domains.story_memory.schemas import (
     AgentProposal,
@@ -25,12 +27,17 @@ def create_memory_atom(session: Session, payload: MemoryAtom) -> MemoryAtom:
 
     if session.get(Book, payload.novel_id) is None:
         raise StoryMemoryInputError("作品不存在，无法写入长效记忆。")
+    if payload.source_chapter_id is not None:
+        chapter = session.get(Chapter, payload.source_chapter_id)
+        if chapter is None or chapter.book_id != payload.novel_id:
+            raise StoryMemoryInputError("章节来源不存在或不属于当前作品，无法写入长效记忆。")
     record = MemoryAtomRecord(
         book_id=payload.novel_id,
         entity_type=payload.entity_type,
         entity_id=payload.entity_id,
         fact_type=payload.fact_type,
         value=payload.value,
+        source_chapter_id=payload.source_chapter_id,
         valid_from_chapter=payload.valid_from_chapter,
         valid_to_chapter=payload.valid_to_chapter,
         immutable=payload.immutable,
@@ -97,6 +104,24 @@ def atoms_active_at_chapter(atoms: list[MemoryAtom], chapter_id: int) -> list[Me
     return [atom for atom in atoms if _is_active(atom, chapter_id)]
 
 
+def recall_scene_memory_atoms(
+    session: Session,
+    *,
+    book_id: int,
+    chapter: Chapter,
+    assets: list[Asset],
+    continuity_records: list[ContinuityRecord],
+) -> list[MemoryAtom]:
+    """按 POV、地点、活跃角色和前章约束召回当前场景需要的长效记忆。"""
+
+    active_atoms = get_active_memory_atoms(session, book_id=book_id, chapter_id=chapter.ordinal)
+    if not active_atoms:
+        return []
+    candidate_terms = _scene_memory_terms(chapter, assets, continuity_records)
+    recalled = [atom for atom in active_atoms if _memory_atom_matches_scene(atom, candidate_terms)]
+    return sorted(recalled, key=lambda atom: (_term_rank(atom.entity_id, candidate_terms), atom.entity_type, atom.fact_type, atom.memory_id))
+
+
 def detect_memory_conflicts(atoms: list[MemoryAtom]) -> list[MemoryConflict]:
     """检测同一实体同一事实类型在重叠章节区间的矛盾。"""
 
@@ -160,6 +185,7 @@ def apply_arbitration_decision(
             fact_type=str(diff["fact_type"]),  # type: ignore[arg-type]
             value=str(diff["value"]),
             source_ref=str(diff["source_ref"]),
+            source_chapter_id=int(diff["source_chapter_id"]) if diff.get("source_chapter_id") is not None else None,
             valid_from_chapter=int(diff.get("valid_from_chapter", 1) or 1),
             valid_to_chapter=int(diff["valid_to_chapter"]) if diff.get("valid_to_chapter") is not None else None,
             immutable=bool(diff.get("immutable", False)),
@@ -167,6 +193,53 @@ def apply_arbitration_decision(
             revision=int(diff.get("revision", proposal.target_revision) or proposal.target_revision),
         ),
     )
+
+
+def _scene_memory_terms(
+    chapter: Chapter,
+    assets: list[Asset],
+    continuity_records: list[ContinuityRecord],
+) -> list[str]:
+    terms: list[str] = []
+    for value in (chapter.pov, chapter.location, chapter.summary):
+        _append_term(terms, value)
+    for asset in assets:
+        if asset.asset_type == "character":
+            _append_term(terms, asset.name)
+        for raw_value in asset.payload.values():
+            if isinstance(raw_value, str):
+                _append_term(terms, raw_value)
+            elif isinstance(raw_value, list):
+                for item in raw_value:
+                    _append_term(terms, str(item))
+    for record in continuity_records:
+        raw_value = record.payload.get("value")
+        if isinstance(raw_value, list):
+            for item in raw_value:
+                _append_term(terms, str(item))
+        elif raw_value is not None:
+            _append_term(terms, str(raw_value))
+    return terms
+
+
+def _append_term(terms: list[str], value: str | None) -> None:
+    if value is None:
+        return
+    normalized = value.strip()
+    if normalized and normalized not in terms:
+        terms.append(normalized)
+
+
+def _memory_atom_matches_scene(atom: MemoryAtom, candidate_terms: list[str]) -> bool:
+    haystack = f"{atom.entity_id} {atom.value} {atom.source_ref}"
+    return any(term in haystack or atom.entity_id in term for term in candidate_terms)
+
+
+def _term_rank(entity_id: str, candidate_terms: list[str]) -> int:
+    for index, term in enumerate(candidate_terms):
+        if entity_id == term or entity_id in term or term in entity_id:
+            return index
+    return len(candidate_terms)
 
 
 def _is_active(atom: MemoryAtom, chapter_id: int) -> bool:
@@ -206,6 +279,7 @@ def _record_to_atom(record: MemoryAtomRecord) -> MemoryAtom:
         fact_type=record.fact_type,  # type: ignore[arg-type]
         value=record.value,
         source_ref=record.source_ref,
+        source_chapter_id=record.source_chapter_id,
         valid_from_chapter=record.valid_from_chapter,
         valid_to_chapter=record.valid_to_chapter,
         confidence=record.confidence,
