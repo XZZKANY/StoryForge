@@ -10,6 +10,7 @@ from app.domains.continuity.models import ContinuityRecord
 from app.domains.retrieval.schemas import RetrievalHitRead
 from app.domains.scene_packets.budget import collect_payload_values, continuity_constraints, estimate_tokens
 from app.domains.scene_packets.schemas import ScenePacketCreate
+from app.domains.story_memory.schemas import MemoryAtom
 
 
 def build_retrieval_query(
@@ -41,10 +42,11 @@ def attach_compiled_context(
     assets: list[Asset],
     continuity_records: list[ContinuityRecord],
     retrieval_hits: list[RetrievalHitRead],
+    memory_atoms: list[MemoryAtom] | None = None,
 ) -> None:
     """把 Scene Packet 现有槽位转换为可解释的 CompiledContext 调试字段。"""
 
-    blocks = build_context_blocks(payload, chapter, assets, continuity_records, retrieval_hits)
+    blocks = build_context_blocks(payload, chapter, assets, continuity_records, retrieval_hits, memory_atoms or [])
     compiled_context = compile_context(
         ContextCompileRequest(
             novel_id=payload.book_id,
@@ -69,6 +71,7 @@ def build_context_blocks(
     assets: list[Asset],
     continuity_records: list[ContinuityRecord],
     retrieval_hits: list[RetrievalHitRead],
+    memory_atoms: list[MemoryAtom] | None = None,
 ) -> list[ContextBlock]:
     """按优先级生成带分数和注入位置的上下文块。"""
 
@@ -111,9 +114,30 @@ def build_context_blocks(
             )
         )
     blocks.extend(asset_context_blocks(assets))
+    blocks.extend(memory_context_blocks(memory_atoms or []))
     blocks.extend(continuity_context_blocks(continuity_records))
     blocks.extend(retrieval_context_blocks(payload, retrieval_hits))
     return blocks
+
+
+def memory_context_blocks(memory_atoms: list[MemoryAtom]) -> list[ContextBlock]:
+    """把自动召回的 Story Memory 转为受预算约束的 memory 注入块。"""
+
+    return [
+        ContextBlock(
+            block_id=f"story-memory:{atom.memory_id}",
+            kind="memory_atom",
+            title=f"{atom.entity_type}:{atom.entity_id}:{atom.fact_type}",
+            content=atom.value,
+            source_ref=atom.memory_id,
+            token_count=estimate_tokens(atom.value),
+            priority="required" if atom.immutable else "high",
+            injection_position="memory",
+            score=atom.confidence,
+            metadata={"source_ref": atom.source_ref, "confidence": atom.confidence},
+        )
+        for atom in memory_atoms
+    ]
 
 
 def retrieval_context_blocks(payload: ScenePacketCreate, retrieval_hits: list[RetrievalHitRead]) -> list[ContextBlock]:

@@ -26,6 +26,9 @@ from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
 from app.domains.batch_refinery.router import router as batch_refinery_router
+from app.domains.blueprints.router import router as blueprints_router
+from app.domains.book_runs.router import router as book_runs_router
+from app.domains.character_bible.router import router as character_bible_router
 from app.domains.collaboration.router import router as collaboration_router
 from app.domains.commercial.router import router as commercial_router
 from app.domains.continuity.router import router as continuity_router
@@ -206,6 +209,9 @@ for _route in health_router.routes:
 app.include_router(artifacts_router)
 app.include_router(analytics_router)
 app.include_router(assets_router)
+app.include_router(blueprints_router)
+app.include_router(book_runs_router)
+app.include_router(character_bible_router)
 app.include_router(evaluations_router)
 app.include_router(events_router)
 app.include_router(batch_refinery_router)

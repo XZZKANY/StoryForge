@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -42,6 +42,12 @@ class Chapter(IdMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="planned", server_default="planned")
     summary: Mapped[str | None] = mapped_column(Text)
+    blueprint_id: Mapped[int | None] = mapped_column(ForeignKey("book_blueprints.id", ondelete="SET NULL"), index=True)
+    planning_source: Mapped[str | None] = mapped_column(String(80))
+    pov: Mapped[str | None] = mapped_column(String(120))
+    location: Mapped[str | None] = mapped_column(String(255))
+    required_beats: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    expected_word_count: Mapped[int | None] = mapped_column(Integer)
 
     book: Mapped[Book] = relationship(back_populates="chapters")
     scenes: Mapped[list[Scene]] = relationship(back_populates="chapter", cascade="all, delete-orphan")
