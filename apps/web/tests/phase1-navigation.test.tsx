@@ -19,18 +19,18 @@ function readComposeServiceBlock(compose: string, serviceName: string) {
 
 const activeRoutes = [
   'studio',
-  'refinery',
   'retrieval',
   'runs',
   'artifacts',
-  'evaluations',
   'providers',
-  'worldbuilding',
+  'blueprints',
+  'book-runs',
 ] as const;
 const removedRoutes = ['analytics', 'collaboration', 'commercial', 'workspace', 'quality'] as const;
 const textFilesWithoutEncodingDamage = [
   '../../TODO.md',
   'app/page.tsx',
+  'components/home/home-data.ts',
   'app/retrieval/page.tsx',
   'app/runs/page.tsx',
   'app/artifacts/page.tsx',
@@ -44,7 +44,12 @@ const textFilesWithoutEncodingDamage = [
 ] as const;
 
 test('首页只保留真实数据流入口并删除占位页', () => {
-  const home = read('app/page.tsx');
+  const home =
+    read('app/page.tsx') +
+    '\n' +
+    read('components/home/home-data.ts') +
+    '\n' +
+    read('components/home/HomeShell.tsx');
   for (const route of activeRoutes) {
     assert.ok(home.includes(`/${route}`), `应展示 /${route}`);
   }

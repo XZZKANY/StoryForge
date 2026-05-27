@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { SiteNav } from '../components/site-nav/SiteNav';
-import { ThemeToggle } from '../components/site-nav/ThemeToggle';
+import { Chrome } from '../components/site-nav/Chrome';
 import './globals.css';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -13,13 +12,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             __html: `try{var t=localStorage.getItem('storyforge-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.dataset.theme='dark';}catch(e){}`,
           }}
         />
-        <div className="md:grid md:grid-cols-[18rem_1fr]">
-          <SiteNav />
-          <div className="min-w-0">
-            <ThemeToggle />
-            {children}
-          </div>
-        </div>
+        <Chrome>{children}</Chrome>
       </body>
     </html>
   );

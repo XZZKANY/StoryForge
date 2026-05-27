@@ -35,10 +35,12 @@ test('runs 页面渲染运行时诊断摘要', () => {
 });
 
 test('layout 加载侧栏导航与主题切换', () => {
-  const content = read('app/layout.tsx');
-  assert.ok(content.includes('SiteNav'));
-  assert.ok(content.includes('ThemeToggle'));
-  assert.ok(content.includes('./globals.css'));
+  const layout = read('app/layout.tsx');
+  const chrome = read('components/site-nav/Chrome.tsx');
+  assert.ok(layout.includes('Chrome'), 'layout 应通过 Chrome 包装侧栏与主题切换');
+  assert.ok(layout.includes('./globals.css'));
+  assert.ok(chrome.includes('SiteNav'), 'Chrome 应继续装配 SiteNav');
+  assert.ok(chrome.includes('ThemeToggle'), 'Chrome 应继续装配 ThemeToggle');
 });
 
 test('globals.css 包含 data-theme="dark" 暗色模式覆盖', () => {
