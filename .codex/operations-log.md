@@ -2731,3 +2731,39 @@ OpenAPI / Runtime 门禁证据：
 - `.dev_plan.md` 中任务已全部勾选完成。
 - 本地验证、测试、e2e、构建、pre-commit 和生产 Compose 配置均已通过。
 - 建议结论：通过，可进入人工决策的提交/合并阶段。
+
+## Phase 8 主线程复验与最终验证记录
+
+时间：2026-05-27 08:13:00 +08:00
+
+### 1. 执行顺序
+
+- 已使用 `sequential-thinking` 梳理三步目标、验收命令和风险。
+- 已使用 `shrimp-task-manager` 依次执行并验证三个任务：复验 workflow runner sink 隔离、复现 OpenAPI 与 e2e 状态、全量验证与最终报告。
+- 本轮未修改业务代码；仅追加 `.codex/verification-report.md` 与 `.codex/operations-log.md`。
+
+### 2. 本地验证结果
+
+- `cd apps/workflow && uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q`：退出码 0，`13 passed in 1.28s`。
+- `pnpm verify`：退出码 0，StoryForge 本地验证通过；OpenAPI Runtime 契约门禁全部通过。
+- `pnpm e2e -- --continue-on-error`：退出码 0；OpenAPI contract refresh、OpenAPI contract drift check、Contract tests、API verification、Workflow verification 均通过。
+- `pnpm lint`：退出码 0，ESLint 与 Prettier 通过。
+- `pnpm test`：退出码 0；Web 59 passed，Shared 类型检查通过，API 229 passed，Workflow 62 passed。
+- `pnpm e2e`：退出码 0；Contract tests 20 passed，API verification 58 passed，Workflow verification 34 passed。
+- `pnpm --filter @storyforge/web build`：退出码 0，Next.js production build 成功生成 14 个页面。
+- `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet`：退出码 0。
+- `pre-commit run --all-files`：退出码 1，本机 PATH 缺少 `pre-commit` 命令。
+- `uvx pre-commit run --all-files`：退出码 0，所有 hook Passed。
+- `git status --short`：无输出，验证命令未留下业务文件改动。
+
+### 3. 残余风险
+
+- 直接 `pre-commit` 命令不可用，已用 `uvx pre-commit run --all-files` 补偿验证。
+- API 测试保留 4 个 PyJWT `InsecureKeyLengthWarning`。
+- Web build 保留 Sentry/Next 配置建议和弃用警告，当前不阻断构建。
+
+### 4. 审查结论
+
+- 三个待办任务均已在 `shrimp-task-manager` 中标记完成。
+- 综合评分 95/100。
+- 建议结论：通过。
