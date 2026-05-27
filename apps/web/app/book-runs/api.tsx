@@ -64,9 +64,13 @@ export function BookRunStatusPanel({ bookRun }: { readonly bookRun: BookRunRead 
         <dt>运行状态</dt>
         <dd>{bookRun.status}</dd>
         <dt>章节进度</dt>
-        <dd>{bookRun.current_chapter_index} / {bookRun.total_chapters}</dd>
+        <dd>
+          {bookRun.current_chapter_index} / {bookRun.total_chapters}
+        </dd>
         <dt>Token</dt>
-        <dd>{bookRun.tokens_used} / {bookRun.token_budget ?? '未设置'}</dd>
+        <dd>
+          {bookRun.tokens_used} / {bookRun.token_budget ?? '未设置'}
+        </dd>
         <dt>剩余预算</dt>
         <dd>{formatOptionalNumber(bookRun.cost_summary.tokens_remaining)}</dd>
         <dt>估算成本</dt>

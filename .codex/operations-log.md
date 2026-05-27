@@ -3880,3 +3880,52 @@ OpenAPI / Runtime 门禁证据：
 - `uv run alembic upgrade head` 通过，执行 `20260527_0003 -> 20260528_0001`。
 - schema 检查：`missing_tables []`，`books` 包含 `workspace_id`，`alembic_version=20260528_0001`。
 - 回归：`uv run pytest tests/test_alembic_schema_current_orm.py tests/test_phase9b_real_llm_smoke.py -q` 通过，`8 passed`。
+
+## CI 失败修复操作记录
+
+### 任务开始前检查
+
+时间：2026-05-28 02:53:40 +08:00
+
+- 已调用 sequential-thinking 梳理失败范围：lint/typecheck 与 API 测试作业。
+- 已调用 shrimp-task-manager 拆分任务并记录验收标准。
+- 已确认项目根目录：`D:/StoryForge/1-renovel-ai-ai-rag-tavern`。
+- 已确认 GitHub search_code 工具在当前环境不可用：`tool_search` 未找到 github search_code 工具。
+- 补偿方案：使用本地代码搜索、CI 配置、相似实现和 context7 Ruff 官方文档。
+
+### 复现结果
+
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm exec eslint .`：通过。
+- `pnpm exec prettier --check ...`：失败，12 个 Web/测试文件格式不符合 Prettier。
+- `uv run pytest`：通过，271 passed，6 warnings。
+- `uv run ruff check .`：失败，`phase9b_real_llm_smoke.py` 触发 Ruff I001 导入排序。
+### 编码前检查
+
+时间：2026-05-28 02:53:40 +08:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-ci-fix.md`。
+- 将使用以下可复用组件：Prettier、Ruff、既有 CI 命令。
+- 将遵循命名约定：不修改标识符，仅调整格式和导入分组。
+- 将遵循代码风格：Prettier 与 Ruff 作为项目既有格式来源。
+- 确认不重复造轮子：检查了根脚本、CI 工作流、pyproject、ESLint 和相邻测试。
+
+### 编码后声明
+
+时间：2026-05-28 02:53:40 +08:00
+
+- 复用了 Prettier、Ruff、CI 工作流命令和 pytest fixture。
+- 遵循 TypeScript/React 文件交给 Prettier、Python 导入交给 Ruff I 规则的项目约定。
+- 对比了 `service.py`、`test_phase9a_deterministic_smoke.py`、`conftest.py`、`ci.yml`。
+- 未重复造轮子：已有格式工具覆盖本次根因，无需新增实现。
+
+### 验证结果
+
+时间：2026-05-28 02:53:40 +08:00
+
+- Web 类型检查：通过。
+- ESLint：通过。
+- Prettier：通过。
+- API Ruff：通过。
+- API pytest：通过，271 passed，6 warnings。
+- 审查报告：已写入 `.codex/verification-report.md`，综合评分 95/100，建议通过。

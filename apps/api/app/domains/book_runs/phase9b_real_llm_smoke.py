@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from typing import TextIO
 from urllib import request
 
-import app.models  # noqa: F401
 from sqlalchemy.orm import Session
 
+import app.models  # noqa: F401
 from app.domains.artifacts.models import Artifact
 from app.domains.blueprints.schemas import BookBlueprintCreate
 from app.domains.blueprints.service import create_book_blueprint, lock_book_blueprint, trigger_chapter_plan
