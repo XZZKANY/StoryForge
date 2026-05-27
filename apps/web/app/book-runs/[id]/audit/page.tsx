@@ -8,7 +8,8 @@ export default async function BookRunAuditPage({
 }) {
   const resolvedParams = await params;
   const bookRunId = Number.parseInt(resolvedParams.id, 10);
-  const bookRun = Number.isInteger(bookRunId) && bookRunId > 0 ? await readBookRun(bookRunId) : null;
+  const bookRun =
+    Number.isInteger(bookRunId) && bookRunId > 0 ? await readBookRun(bookRunId) : null;
 
   return (
     <main aria-labelledby="book-run-audit-page-title">
