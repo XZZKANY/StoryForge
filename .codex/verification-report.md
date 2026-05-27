@@ -1558,3 +1558,62 @@ score: 94
 ```
 
 summary: 'Phase 8 并发整改已完成最终收口；.dev_plan.md 无剩余未完成项，pnpm verify、pnpm lint、pnpm test、pnpm e2e、Web build、生产 Compose 配置和 pre-commit 均已本地通过。残余风险为非阻断 warning 与提交组织风险，建议通过并进入提交/合并决策。'
+
+# Phase 8 主线程复验与最终验证报告
+
+生成时间：2026-05-27 08:13:00 +08:00
+
+## 1. 验证范围
+
+- 复验 workflow runner 的 `model_run_sink.record()` 失败隔离能力。
+- 验证 OpenAPI 刷新、契约漂移检查、Contract tests、API verification 与 Workflow verification 状态。
+- 执行最终本地验证矩阵：lint、test、verify、e2e、Web build、生产 Compose 配置和 pre-commit。
+- 本轮未修改业务代码；仅追加验证报告与操作记录。
+
+## 2. 本地验证证据
+
+- `cd apps/workflow && uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q`：通过，退出码 0，`13 passed in 1.28s`。
+- `pnpm verify`：通过，退出码 0，StoryForge 本地验证通过；OpenAPI Runtime 契约门禁全部通过。
+- `pnpm e2e -- --continue-on-error`：通过，退出码 0；OpenAPI contract refresh、OpenAPI contract drift check、Contract tests、API verification、Workflow verification 均 `PASSED | 0`。
+- `pnpm lint`：通过，退出码 0；ESLint 与 Prettier 检查通过。
+- `pnpm test`：通过，退出码 0；Web `59 passed`，Shared `tsc --noEmit` 通过，API `229 passed`，Workflow `62 passed`。
+- `pnpm e2e`：通过，退出码 0；Contract tests `20 passed`，API verification `58 passed`，Workflow verification `34 passed`。
+- `pnpm --filter @storyforge/web build`：通过，退出码 0；Next.js production build 成功生成 14 个页面。
+- `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet`：通过，退出码 0。
+- `pre-commit run --all-files`：失败，退出码 1；本机 PATH 中缺少 `pre-commit` 命令，PowerShell 返回 `CommandNotFoundException`。
+- `uvx pre-commit run --all-files`：补偿验证通过，退出码 0；large files、merge conflicts、private key、trailing whitespace、EOF、prettier、ruff、eslint 全部 Passed。
+- `git status --short`：无输出；本轮验证命令未留下业务文件改动。
+
+## 3. 失败原因与处理
+
+- 直接执行 `pre-commit run --all-files` 失败的原因是本机未将 `pre-commit` 安装到 PATH；这属于工具可用性问题，不是仓库钩子失败。
+- 已使用 `uvx pre-commit run --all-files` 执行同一钩子集合完成补偿验证，钩子结果全部通过。
+- 未发现 OpenAPI 漂移、契约测试失败、API 测试失败、Workflow 测试失败或 Web build 失败。
+
+## 4. 残余风险
+
+- API 测试仍有 4 个 PyJWT `InsecureKeyLengthWarning`，来源于测试密钥长度低于 HS256 建议值；当前不影响测试通过。
+- Web build 保留 Sentry/Next 配置建议与弃用警告，包括 `disableLogger` 弃用、缺少 `onRequestError`、缺少 global error handler、`sentry.client.config.ts` 迁移建议和 Next ESLint 插件提示；当前不影响构建通过。
+- 本机直接 `pre-commit` 命令不可用，后续自动化或人工复验应使用 `uvx pre-commit run --all-files`，或显式安装 `pre-commit` 后再运行直接命令。
+
+## 5. 质量评分
+
+- 代码质量：95/100。runner sink 隔离回归测试通过，未发现本轮引入的业务代码风险。
+- 测试覆盖：96/100。Workflow、Web、Shared、API、e2e、build、Compose 与 pre-commit 均有本地证据。
+- 规范遵循：93/100。验证、日志和报告均按本地流程留痕；扣分点为直接 `pre-commit` 工具缺失。
+- 需求匹配：96/100。用户指定的三步顺序均已完成并记录结果。
+- 架构一致：95/100。OpenAPI、e2e 编排、runner 测试和现有验证入口保持一致。
+- 风险评估：92/100。剩余风险均为非阻断 warning 或本机工具安装差异。
+
+## 6. 最终结论
+
+- 技术维度评分：代码质量 95，测试覆盖 96，规范遵循 93。
+- 战略维度评分：需求匹配 96，架构一致 95，风险评估 92。
+- 综合评分：95/100。
+- 建议：通过。
+
+```Scoring
+score: 95
+```
+
+summary: '本轮已按顺序完成 workflow runner sink 隔离复验、OpenAPI/e2e 状态确认和最终验证矩阵。除直接 pre-commit 命令因本机 PATH 缺失失败并已由 uvx pre-commit 补偿通过外，其余本地验证均退出码 0。建议通过。'
