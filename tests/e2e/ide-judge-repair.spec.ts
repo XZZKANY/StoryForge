@@ -34,7 +34,11 @@ test('IDE P1 章节编辑器和 Diff 视图保留最小闭环展示', () => {
 });
 
 test('IDE P1 diagnostics API 从 JudgeIssue 映射 Problems 契约', () => {
-  assertSourceEvidence(sources.diagnosticsApi, ['/diagnostics', '/commands/{command_id}', '未知 IDE 命令']);
+  assertSourceEvidence(sources.diagnosticsApi, [
+    '/diagnostics',
+    '/commands/{command_id}',
+    'IdeCommandNotFoundError',
+  ]);
   assertSourceEvidence(sources.diagnosticsService, [
     'JudgeIssue',
     'blocking',
@@ -42,6 +46,7 @@ test('IDE P1 diagnostics API 从 JudgeIssue 映射 Problems 契约', () => {
     'medium',
     'low',
     'judge.repair',
+    '未知 IDE 命令',
   ]);
   assertSourceEvidence(sources.diagnosticsTest, ['setting_conflict', '生成定向修复', 'response.json() == []']);
 });

@@ -3968,3 +3968,105 @@ P2-P7 增量文件通过局部 	sc 与测试验证，但未在最终阶段执行
 ### 结论
 
 综合评分 91/100，建议通过。报告已写入 .codex/verification-report.md。
+
+## 最终复核 - StoryForge VS Code 式创作 IDE P0-P7
+
+时间：2026-05-28 11:29:05 +08:00
+
+### 1. 需求理解
+
+- 用户提供最近 CI/E2E #6-#8 摘要，并要求处理“完成 VS Code 式创作 IDE P0-P7”。
+- 本地核对确认最新提交为 `330f286 完成 VS Code 式创作 IDE P0-P7`，因此本轮任务定位为本地复核、验证和交付报告。
+- 所有本轮文档写入项目本地 `.codex/`，不写入全局目录。
+
+### 2. 工具链执行记录
+
+- 已执行 sequential-thinking：识别任务歧义、根目录风险、验证优先级。
+- 已执行 shrimp-task-manager：完成任务分析、反思和三项任务拆分。
+- 已执行 desktop-commander：定位真实项目根目录、读取 IDE 实现、测试、包配置和现有 `.codex` 记录。
+- 已执行 Context7：查询 Next.js App Router `searchParams` 官方文档。
+- GitHub 搜索工具缺失：`tool_search` 未发现 `github.search_code`，无法执行开源代码检索，已记录为工具缺失。
+
+### 3. 上下文充分性检查
+
+- 至少三个相似实现路径：`IdeShell.tsx`、`router.py`、`service.py`，另补充 `BookRunPanel.tsx` 和 `ArtifactViewer.tsx`。
+- 项目模式：前端组件化 IDE 壳层 + 后端 `/api/ide` 聚合服务 + node:test/pytest/E2E 契约验证。
+- 可复用组件：`ide-url-state.ts`、`registry.ts`、`registerBuiltinCommands.ts`、`judgeIssueDecorations.ts`、`schemas.py`、`service.py`。
+- 测试方式：Web `pnpm --filter @storyforge/web test`，API `uv run pytest tests/test_ide_*.py`，E2E `node scripts/run-e2e.mjs ...`。
+
+### 4. 编码前检查
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-final.md`
+□ 将使用以下可复用组件：
+
+- `apps/web/components/ide/*`：作为 P0-P7 前端实现证据。
+- `apps/api/app/domains/ide/*`：作为 P0-P7 后端契约和聚合实现证据。
+- `apps/web/tests/ide-*.test.*`、`apps/api/tests/test_ide_*.py`、`tests/e2e/ide-*.spec.ts`：作为验证证据。
+
+□ 将遵循命名约定：本轮仅写 `.codex` 文档，文件名使用既有 `context-summary-*` 与 `verification-report.md` 模式。
+□ 将遵循代码风格：文档使用简体中文，保留路径和命令原文。
+□ 确认不重复造轮子：本轮不新增业务实现，仅复核提交和运行既有验证入口。
+
+## 本地验证误跑记录 - StoryForge VS Code 式创作 IDE P0-P7
+
+时间：2026-05-28 11:29:05 +08:00
+
+### 失败原因
+
+- `desktop-commander.start_process` 未绑定项目根目录，导致命令在 `D:\StoryForge` 下执行。
+- Web 测试误扫到 `apps/workflow/.pytest-tmp` 并报 `EPERM`。
+- API 测试在错误目录下找不到 `tests/test_ide_workspace_tree.py`。
+- E2E 在错误目录下查找 `D:\StoryForge\scripts\run-e2e.mjs`，报 `MODULE_NOT_FOUND`。
+
+### 补救措施
+
+- 后续命令全部显式执行 `Set-Location 'D:\StoryForge\1-renovel-ai-ai-rag-tavern'`。
+- API pytest 显式进入 `apps/api` 后运行 IDE 相关测试。
+- E2E 从项目根目录运行 `node scripts/run-e2e.mjs ...`。
+
+## 系统化调试记录 - IDE E2E 契约失败
+
+时间：2026-05-28 11:31:20 +08:00
+
+### 失败现象
+
+- 命令：`node scripts/run-e2e.mjs tests/e2e/ide-shell.spec.ts tests/e2e/ide-judge-repair.spec.ts`
+- 结果：失败，退出码 1。
+- 失败用例：`IDE P1 diagnostics API 从 JudgeIssue 映射 Problems 契约`。
+- 关键错误：`缺少 IDE Judge/Repair 证据：未知 IDE 命令`。
+
+### 根因分析
+
+- `tests/e2e/ide-judge-repair.spec.ts` 将 `未知 IDE 命令` 断言放在 `sources.diagnosticsApi`，该源文件实际读取 `apps/api/app/domains/ide/router.py`。
+- `apps/api/app/domains/ide/router.py` 的职责是捕获 `IdeCommandNotFoundError` 并转成 HTTP 404。
+- `未知 IDE 命令` 的真实来源在 `apps/api/app/domains/ide/service.py` 的 `execute_ide_command_by_id`。
+- `apps/api/tests/test_ide_commands.py` 已验证未知命令返回 404 和中文 detail。
+
+### 修复策略
+
+- 不修改业务实现。
+- 将 E2E 契约测试改为：`router.py` 断言 `IdeCommandNotFoundError`，`service.py` 断言 `未知 IDE 命令`。
+- 该修改让测试证据匹配现有架构边界：router 负责 HTTP 转换，service 负责命令目录与错误文案。
+
+## 本地验证完成 - StoryForge VS Code 式创作 IDE P0-P7
+
+时间：2026-05-28 11:32:45 +08:00
+
+### 修复内容
+
+- 修改 `tests/e2e/ide-judge-repair.spec.ts`。
+- 将 `未知 IDE 命令` 断言从 `router.py` 证据移动到 `service.py` 证据。
+- `router.py` 继续断言 `/diagnostics`、`/commands/{command_id}` 与 `IdeCommandNotFoundError`，体现 HTTP 转换边界。
+
+### 本地验证结果
+
+- `pnpm --filter @storyforge/web test`：通过，退出码 0。
+- `cd apps/api; uv run pytest tests/test_ide_workspace_tree.py tests/test_ide_diagnostics.py tests/test_ide_context_snapshot.py tests/test_ide_story_memory.py tests/test_ide_run_events.py tests/test_ide_command_registry.py tests/test_ide_commands.py tests/test_ide_artifact_preview.py -q`：通过，`20 passed`，退出码 0。
+- `node scripts/run-e2e.mjs tests/e2e/ide-shell.spec.ts tests/e2e/ide-judge-repair.spec.ts`：通过，OpenAPI 刷新通过、契约测试 `6 pass / 0 fail`、API 验证 `58 passed`、workflow 验证 `34 passed`，退出码 0。
+- `pnpm lint`：通过，ESLint 和 Prettier 检查退出码 0。
+- `git diff --check`：通过，退出码 0；仅提示 `.codex/operations-log.md` 与 `tests/e2e/ide-judge-repair.spec.ts` 下次由 Git 接触时 LF 将替换为 CRLF。
+
+### 风险与结论
+
+- 未跟踪文件 `.codex/phase9b-real-llm-smoke-1ch.sqlite` 与 `.codex/visual-preview/` 为本轮前已存在，未修改。
+- 当前阻塞性验证问题已修复并通过本地回归。
