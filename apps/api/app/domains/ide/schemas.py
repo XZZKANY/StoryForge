@@ -10,7 +10,7 @@ class IdeTreeNode(BaseModel):
     type: str
     title: str
     ref_id: int | None = None
-    children: list["IdeTreeNode"] = Field(default_factory=list)
+    children: list[IdeTreeNode] = Field(default_factory=list)
 
 
 class IdeWorkspaceTree(BaseModel):

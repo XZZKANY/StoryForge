@@ -13,23 +13,23 @@ from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter
 from app.domains.context_compiler.service import get_compiled_context_record
 from app.domains.ide.schemas import (
-    IdeContextBlockRef,
-    IdeContextBudget,
     IdeArtifactPreview,
     IdeArtifactPreviewContent,
     IdeArtifactTrace,
     IdeArtifactTraceLink,
     IdeArtifactVersion,
     IdeCommandResult,
+    IdeContextBlockRef,
+    IdeContextBudget,
     IdeContextSnapshot,
     IdeDiagnostic,
     IdeDiagnosticRange,
+    IdeQuickFix,
+    IdeRunEvent,
     IdeStoryMemoryConflict,
     IdeStoryMemoryItem,
     IdeStoryMemoryQuery,
     IdeStoryMemoryQueryResult,
-    IdeQuickFix,
-    IdeRunEvent,
     IdeTreeNode,
     IdeWorkspaceTree,
 )
