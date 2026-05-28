@@ -7,9 +7,28 @@ from fastapi.responses import StreamingResponse
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.service import ArtifactNotFoundError
-from app.domains.ide.schemas import IdeArtifactPreview, IdeCommandRequest, IdeCommandResult, IdeContextSnapshot, IdeDiagnostic, IdeStoryMemoryQuery, IdeStoryMemoryQueryResult, IdeWorkspaceTree
 from app.domains.book_runs.service import BookRunNotFoundError, get_book_run
-from app.domains.ide.service import IdeCommandNotFoundError, build_run_events, encode_sse_event, execute_ide_command_by_id, get_artifact_preview, get_context_snapshot, get_workspace_tree, list_diagnostics_for_scene, query_story_memory
+from app.domains.ide.schemas import (
+    IdeArtifactPreview,
+    IdeCommandRequest,
+    IdeCommandResult,
+    IdeContextSnapshot,
+    IdeDiagnostic,
+    IdeStoryMemoryQuery,
+    IdeStoryMemoryQueryResult,
+    IdeWorkspaceTree,
+)
+from app.domains.ide.service import (
+    IdeCommandNotFoundError,
+    build_run_events,
+    encode_sse_event,
+    execute_ide_command_by_id,
+    get_artifact_preview,
+    get_context_snapshot,
+    get_workspace_tree,
+    list_diagnostics_for_scene,
+    query_story_memory,
+)
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
