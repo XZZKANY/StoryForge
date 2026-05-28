@@ -1,51 +1,76 @@
-# CI 失败修复验证报告
+﻿# StoryForge VS Code IDE P0-P7 最终本地验收报告
 
-生成时间：2026-05-28 02:53:40 +08:00
+生成时间：2026-05-28 10:20:29
 
-## 需求字段完整性
+## 1. 验收结论
 
-- 目标：修复 `CI / Lint and typecheck` 与 `CI / Test API` 两个失败检查。
-- 范围：Web/TS 格式门禁、API pytest 与 Ruff 门禁。
-- 交付物：代码格式修复、上下文摘要、操作日志、验证报告。
-- 审查要点：根因明确、本地可重复验证、无无关功能改动。
+基于本次重新执行的本地验证，D:/StoryForge/.codex/storyforge-vscode-ide-master-plan.md 对应的 P0-P7 主路径可以判定为：**通过**。
 
-## 根因结论
+本次验收过程中先发现根级 pnpm lint 失败，已按项目既有 Prettier/ESLint 规则完成最小修复并重新验证通过。修复范围仅限 IDE 文件格式化与删除未使用导入，不改变业务逻辑。
 
-- `CI / Lint and typecheck`：`pnpm exec prettier --check ...` 发现 12 个文件格式不符合 Prettier。
-- `CI / Test API`：`uv run ruff check .` 发现 `app/domains/book_runs/phase9b_real_llm_smoke.py` 导入分组触发 Ruff I001。
-- `uv run pytest` 本地复现阶段即通过，API 作业失败来自 Ruff 步骤。
-## 本地验证结果
+## 2. 范围与证据映射
 
-- `pnpm --dir "D:/StoryForge/1-renovel-ai-ai-rag-tavern" --filter @storyforge/web lint`：通过，exit code 0。
-- `pnpm --dir "D:/StoryForge/1-renovel-ai-ai-rag-tavern" exec eslint .`：通过，exit code 0。
-- `pnpm --dir "D:/StoryForge/1-renovel-ai-ai-rag-tavern" exec prettier --check "apps/web/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"`：通过，输出 `All matched files use Prettier code style!`。
-- `uv --directory "D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api" run ruff check .`：通过，输出 `All checks passed!`。
-- `uv --directory "D:/StoryForge/1-renovel-ai-ai-rag-tavern/apps/api" run pytest`：通过，271 passed，6 warnings，exit code 0。
+| 阶段 | 状态 | 关键证据 |
+|---|---:|---|
+| P0/P1 IDE 壳层、章节编辑器、Problems、Repair Diff | 通过 | .codex/verification-report-ide-p0-p1.md；pps/web/app/ide/page.tsx；pps/web/components/ide/shell/IdeShell.tsx；pps/web/components/ide/panels/ProblemsPanel.tsx；packages/shared/src/diagnostic.ts |
+| P2 Context Inspector | 通过 | .codex/verification-report-ide-p2.md；pps/api/app/domains/ide/router.py 的 /api/ide/context-snapshot/{compiled_context_id}；pps/web/components/ide/views/ContextInspector.tsx |
+| P3 Story Memory Explorer | 通过 | .codex/verification-report-ide-p3.md；/api/ide/story-memory/query；pps/web/components/ide/views/StoryMemoryExplorer.tsx |
+| P4 BookRun Run Panel | 通过 | .codex/verification-report-ide-p4.md；/api/ide/runs/{book_run_id}/events；pps/web/components/ide/views/BookRunPanel.tsx |
+| P5 Command Registry + Agent Sidebar | 通过 | .codex/verification-report-ide-p5.md；/api/ide/commands/{command_id}；/api/ide/agent/sessions/{session_id}；pps/web/components/ide/commands/registry.ts；pps/web/components/ide/agent/AgentSidebar.tsx |
+| P6 Artifact / Export Viewer | 通过 | .codex/verification-report-ide-p6.md；/api/ide/artifacts/{artifact_id}/preview；pps/web/components/ide/views/ArtifactViewer.tsx |
+| P7 主题 / 多窗口 / 个性化 | 通过 | .codex/verification-report-ide-p7.md；pps/web/components/ide/personalization/preferences.ts；pps/web/components/ide/personalization/PersonalizationPanel.tsx |
 
-## 审查清单
+## 3. 本次重新执行的本地验证
 
-- 需求字段完整性：通过。
-- 覆盖原始意图无遗漏或歧义：通过，覆盖两个失败作业。
-- 交付物映射明确：通过，代码、文档、验证报告均已生成。
-- 依赖与风险评估完毕：通过。
-- 审查结论已留痕：通过。
-## 评分
+| 命令 | 结果 | 关键输出 |
+|---|---:|---|
+| pnpm lint | 通过 | ESLint 0 error；Prettier：All matched files use Prettier code style! |
+| pnpm --filter @storyforge/web test | 通过 | 	ests 104，pass 104，ail 0 |
+| cd apps/api; uv run pytest tests/test_ide_workspace_tree.py tests/test_ide_context_snapshot.py tests/test_ide_story_memory.py tests/test_ide_run_events.py tests/test_ide_commands.py tests/test_ide_artifact_preview.py -q | 通过 | 14 passed in 1.21s |
+| pnpm --filter @storyforge/shared test | 通过 | 	sc --noEmit 退出码 0 |
+| pnpm openapi | 通过 | 已生成 packages/shared/src/contracts/storyforge.openapi.json |
+| git diff --check | 通过 | 退出码 0；仅有 Windows CRLF 提示 |
 
-- 技术维度评分：95/100
-  - 代码质量：29/30，修复由项目既有格式工具生成，无业务逻辑变更。
-  - 测试覆盖：29/30，失败作业对应本地命令全部通过。
-  - 规范遵循：28/30，已生成上下文摘要、操作日志和验证报告；GitHub search_code 工具不可用已记录补偿。
-- 战略维度评分：96/100
-  - 需求匹配：20/20，直接对应两个失败检查。
-  - 架构一致：10/10，未引入新依赖或新抽象。
-  - 风险评估：9/10，主要剩余风险是工作树存在先前未提交内容。
-- 综合评分：95/100
+## 4. 验收中发现并修复的问题
 
-## 明确建议
+### 问题
 
-建议：通过。
+- pnpm lint 初次失败。
+- 失败原因：pps/web/components/ide/shell/EditorArea.tsx 存在未使用导入 ContextInspector；22 个 IDE 相关文件未满足 Prettier 格式。
 
-## 风险与补偿
+### 处理
 
-- 本地 Python 为 3.13.9，CI 配置为 Python 3.11；本次改动仅为导入排序与格式修复，不依赖版本行为。
-- 工作树存在修复前已有的未提交或未跟踪文件，未执行回滚；最终说明需区分本次修复范围。
+- 删除未使用导入。
+- 使用项目既有 Prettier 配置格式化 IDE 相关文件与 IDE 测试文件。
+- 重新执行 lint、Web 测试、API IDE 测试、shared 类型检查、OpenAPI 生成、diff 检查，均通过。
+
+## 5. 质量评分
+
+| 维度 | 分数 | 说明 |
+|---|---:|---|
+| 代码质量 | 92 | lint 与格式化已通过；IDE 模块结构清晰；仍存在若干能力为薄壳或快照式实现。 |
+| 测试覆盖 | 91 | Web 104 项与 API IDE 14 项覆盖 P0-P7 主路径；阶段报告齐全；尚未执行真实浏览器 E2E 和生产构建。 |
+| 规范遵循 | 93 | .codex 留痕、中文文档、OpenAPI 与本地验证均完成；工具缺失已记录替代流程。 |
+| 需求匹配 | 92 | P0-P7 目标均有对应实现、测试与阶段验证报告。 |
+| 架构一致 | 90 | 保持 pps/api 真相源、pps/web IDE 壳、pps/workflow 编排边界；P5 audit_event_id 仍是追踪 ID 而非持久化审计事件。 |
+| 风险评估 | 88 | 已识别 P5/P6/P7 后续真实化风险；不阻断当前主计划验收。 |
+
+**综合评分：91 / 100。**
+
+## 6. 明确建议
+
+建议：**通过**。
+
+通过依据：P0-P7 关键文件、阶段报告和本次本地自动化验证均存在可复现证据；初次 lint 失败已完成最小修复并复验通过。
+
+## 7. 已知限制与后续建议
+
+1. P5 的 udit_event_id 当前更接近命令追踪 ID，后续若要求真实审计落库，应追加持久化 audit_event 表联动测试。
+2. P6 制品下载为 payload 摘要/预览模式，尚未实现对象存储签名下载 URL。
+3. P7 多窗口为 pop-out URL 入口，未实现跨窗口同步编辑锁。
+4. 本次未执行 pnpm e2e 全量与 pnpm --filter @storyforge/web build 生产构建；如进入发布前门禁，建议追加执行。
+5. Web 测试输出中仍可见部分历史中文测试名在终端显示为问号，但文本文件编码检查通过，属于终端显示层问题，建议后续单独清理历史测试标题。
+
+## 8. 决策
+
+根据综合评分 91 分且建议为“通过”，本次确认：**P0-P7 与长期目标完成状态可以保留为完成；当前变更可进入提交/PR 或后续技术债清理阶段。**

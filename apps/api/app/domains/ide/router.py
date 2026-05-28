@@ -1,0 +1,137 @@
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import StreamingResponse
+
+from app.db.deps import SessionDependency
+from app.domains.artifacts.service import ArtifactNotFoundError
+from app.domains.ide.schemas import IdeArtifactPreview, IdeCommandRequest, IdeCommandResult, IdeContextSnapshot, IdeDiagnostic, IdeStoryMemoryQuery, IdeStoryMemoryQueryResult, IdeWorkspaceTree
+from app.domains.book_runs.service import BookRunNotFoundError, get_book_run
+from app.domains.ide.service import IdeCommandNotFoundError, build_run_events, encode_sse_event, execute_ide_command_by_id, get_artifact_preview, get_context_snapshot, get_workspace_tree, list_diagnostics_for_scene, query_story_memory
+
+router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
+
+
+@router.get(
+    "/workspace-tree",
+    response_model=IdeWorkspaceTree,
+    summary="读取 IDE 工作区树",
+)
+def read_workspace_tree(session: SessionDependency) -> IdeWorkspaceTree:
+    """返回 IDE Explorer 初始渲染所需的作品与章节树。"""
+
+    return get_workspace_tree(session)
+
+
+@router.get(
+    "/diagnostics",
+    response_model=list[IdeDiagnostic],
+    summary="读取 IDE 诊断列表",
+)
+def list_diagnostics(
+    session: SessionDependency,
+    scene_id: Annotated[int, Query(gt=0)],
+) -> list[IdeDiagnostic]:
+    """返回指定场景的开放诊断问题。"""
+
+    return list_diagnostics_for_scene(session, scene_id)
+
+
+@router.get(
+    "/context-snapshot/{compiled_context_id}",
+    response_model=IdeContextSnapshot,
+    summary="读取 IDE 上下文快照",
+)
+def read_context_snapshot(session: SessionDependency, compiled_context_id: str) -> IdeContextSnapshot:
+    """返回 Context Inspector 渲染所需的上下文编译记录。"""
+
+    snapshot = get_context_snapshot(session, compiled_context_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"snapshot evicted at unknown: {compiled_context_id}",
+        )
+    return snapshot
+
+
+@router.post(
+    "/story-memory/query",
+    response_model=IdeStoryMemoryQueryResult,
+    summary="查询 IDE Story Memory",
+)
+def query_story_memory_endpoint(session: SessionDependency, payload: IdeStoryMemoryQuery) -> IdeStoryMemoryQueryResult:
+    """返回 Story Memory Explorer 所需的长效记忆和冲突队列。"""
+
+    return query_story_memory(session, payload)
+
+
+@router.get(
+    "/artifacts/{artifact_id}/preview",
+    response_model=IdeArtifactPreview,
+    summary="读取 IDE 制品预览",
+)
+def read_artifact_preview(session: SessionDependency, artifact_id: int) -> IdeArtifactPreview:
+    """返回 Artifact Viewer 所需的预览、下载摘要、版本和追溯链。"""
+
+    try:
+        return get_artifact_preview(session, artifact_id)
+    except ArtifactNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get(
+    "/runs/{book_run_id}/events",
+    summary="读取 IDE BookRun 事件流",
+)
+def stream_run_events(session: SessionDependency, book_run_id: int) -> StreamingResponse:
+    """返回 BookRun 当前状态投影生成的 SSE 快照事件。"""
+
+    try:
+        book_run = get_book_run(session, book_run_id)
+    except BookRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    def event_stream():
+        for event in build_run_events(book_run):
+            yield encode_sse_event(event.event, event.data)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post(
+    "/commands/{command_id}",
+    response_model=IdeCommandResult,
+    summary="执行 IDE 命令",
+)
+def execute_ide_command(command_id: str, payload: IdeCommandRequest | None = None) -> IdeCommandResult:
+    """执行已注册 IDE 命令，所有写操作都返回审计追踪 ID。"""
+
+    try:
+        return execute_ide_command_by_id(command_id, (payload or IdeCommandRequest()).args)
+    except IdeCommandNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.websocket("/agent/sessions/{session_id}")
+async def agent_session(websocket: WebSocket, session_id: str) -> None:
+    """Agent 双向通道；写操作只能转发给 IDE 命令执行器。"""
+
+    await websocket.accept()
+    try:
+        while True:
+            message = await websocket.receive_json()
+            if message.get("type") != "command":
+                await websocket.send_json({"type": "error", "session_id": session_id, "detail": "Agent 仅支持 command 消息。"})
+                continue
+            command_id = str(message.get("command_id", ""))
+            args = message.get("args") if isinstance(message.get("args"), dict) else {}
+            try:
+                result = execute_ide_command_by_id(command_id, args)
+            except IdeCommandNotFoundError as exc:
+                await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
+                continue
+            await websocket.send_json({"type": "command_result", "session_id": session_id, "result": result.model_dump()})
+    except WebSocketDisconnect:
+        return

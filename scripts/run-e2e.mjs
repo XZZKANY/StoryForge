@@ -9,6 +9,8 @@ const defaultTests = [
   'tests/e2e/phase3-contract.spec.ts',
   'tests/e2e/phase4-contract.spec.ts',
   'tests/e2e/phase5-runtime-diagnostics.spec.ts',
+  'tests/e2e/ide-shell.spec.ts',
+  'tests/e2e/ide-judge-repair.spec.ts',
 ];
 const httpPytestTargets = [
   'tests/test_phase1_closed_loop_api.py',
