@@ -3929,3 +3929,42 @@ OpenAPI / Runtime 门禁证据：
 - API Ruff：通过。
 - API pytest：通过，271 passed，6 warnings。
 - 审查报告：已写入 `.codex/verification-report.md`，综合评分 95/100，建议通过。
+
+## 验收中发现 lint 失败
+
+时间：2026-05-28 10:18:25
+
+### 复现命令
+
+pnpm lint
+
+### 失败证据
+
+- pps/web/components/ide/shell/EditorArea.tsx 第 4 行：ContextInspector 未使用。
+- Prettier 检查提示 22 个 IDE 相关文件格式不一致。
+
+### 根因分析
+
+P2-P7 增量文件通过局部 	sc 与测试验证，但未在最终阶段执行根级 pnpm lint，导致 ESLint/Prettier 门禁暴露格式与未使用导入问题。
+
+### 最小修复策略
+
+- 删除 EditorArea.tsx 中未使用的 ContextInspector 导入。
+- 对 Prettier 报告的 IDE 文件执行项目既有 prettier --write 格式化，不改变业务逻辑。
+
+## 最终验收完成
+
+时间：2026-05-28 10:20:29
+
+### 已执行验证
+
+- pnpm lint：通过。
+- pnpm --filter @storyforge/web test：104 passed。
+- cd apps/api; uv run pytest ...IDE tests... -q：14 passed。
+- pnpm --filter @storyforge/shared test：通过。
+- pnpm openapi：通过。
+- git diff --check：通过，仅有 CRLF 提示。
+
+### 结论
+
+综合评分 91/100，建议通过。报告已写入 .codex/verification-report.md。

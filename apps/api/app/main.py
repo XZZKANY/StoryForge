@@ -36,6 +36,7 @@ from app.domains.evaluations.router import router as evaluations_router
 from app.domains.events.router import router as events_router
 from app.domains.exports.router import router as exports_router
 from app.domains.health.router import router as health_router
+from app.domains.ide.router import router as ide_router
 from app.domains.judge.router import router as judge_router
 from app.domains.model_runs.router import router as model_runs_router
 from app.domains.prompt_packs.router import router as prompt_packs_router
@@ -203,6 +204,7 @@ def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "storyforge-api"}
 
 app.include_router(health_router)
+app.include_router(ide_router)
 for _route in health_router.routes:
     if hasattr(_route, "endpoint"):
         limiter.exempt(_route.endpoint)

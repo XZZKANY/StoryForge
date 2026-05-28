@@ -2460,6 +2460,742 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IdeArtifactPreview": {
+        "description": "IDE Artifact Viewer 聚合响应。",
+        "properties": {
+          "artifact": {
+            "additionalProperties": true,
+            "title": "Artifact",
+            "type": "object"
+          },
+          "download": {
+            "additionalProperties": true,
+            "title": "Download",
+            "type": "object"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/IdeArtifactPreviewContent"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/IdeArtifactTrace"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/IdeArtifactVersion"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "artifact",
+          "preview",
+          "download",
+          "trace"
+        ],
+        "title": "IdeArtifactPreview",
+        "type": "object"
+      },
+      "IdeArtifactPreviewContent": {
+        "description": "IDE Artifact Viewer 使用的预览内容。",
+        "properties": {
+          "content_preview": {
+            "title": "Content Preview",
+            "type": "string"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "format",
+          "content_preview"
+        ],
+        "title": "IdeArtifactPreviewContent",
+        "type": "object"
+      },
+      "IdeArtifactTrace": {
+        "description": "制品到 BookRun、ModelRun、Judge 和 Approve 的反向追溯链。",
+        "properties": {
+          "approve": {
+            "$ref": "#/components/schemas/IdeArtifactTraceLink"
+          },
+          "book_run": {
+            "$ref": "#/components/schemas/IdeArtifactTraceLink"
+          },
+          "judge_report": {
+            "$ref": "#/components/schemas/IdeArtifactTraceLink"
+          },
+          "model_run": {
+            "$ref": "#/components/schemas/IdeArtifactTraceLink"
+          }
+        },
+        "required": [
+          "book_run",
+          "model_run",
+          "judge_report",
+          "approve"
+        ],
+        "title": "IdeArtifactTrace",
+        "type": "object"
+      },
+      "IdeArtifactTraceLink": {
+        "description": "制品反向追溯中的单个跳转节点。",
+        "properties": {
+          "href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Href"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "IdeArtifactTraceLink",
+        "type": "object"
+      },
+      "IdeArtifactVersion": {
+        "description": "同一谱系下可比较的制品版本。",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "title": "IdeArtifactVersion",
+        "type": "object"
+      },
+      "IdeCommandRequest": {
+        "description": "IDE 命令执行请求，所有写操作通过 args 传入参数。",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          }
+        },
+        "title": "IdeCommandRequest",
+        "type": "object"
+      },
+      "IdeCommandResult": {
+        "description": "IDE 命令执行结果，供前端统一处理审计与载荷。",
+        "properties": {
+          "audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Event Id"
+          },
+          "command_id": {
+            "title": "Command Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "status"
+        ],
+        "title": "IdeCommandResult",
+        "type": "object"
+      },
+      "IdeContextBlockRef": {
+        "description": "Context Inspector 使用的上下文块引用。",
+        "properties": {
+          "block_id": {
+            "title": "Block Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "source_ref": {
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "token_count": {
+            "title": "Token Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "block_id",
+          "kind",
+          "source_ref",
+          "token_count",
+          "priority",
+          "reason"
+        ],
+        "title": "IdeContextBlockRef",
+        "type": "object"
+      },
+      "IdeContextBudget": {
+        "description": "Context Inspector 使用的 token 预算信息。",
+        "properties": {
+          "dropped_tokens": {
+            "title": "Dropped Tokens",
+            "type": "integer"
+          },
+          "token_budget": {
+            "title": "Token Budget",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "used_tokens": {
+            "title": "Used Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "token_budget",
+          "used_tokens",
+          "dropped_tokens",
+          "truncated"
+        ],
+        "title": "IdeContextBudget",
+        "type": "object"
+      },
+      "IdeContextSnapshot": {
+        "description": "IDE Context Inspector 快照响应。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/IdeContextBudget"
+          },
+          "chapter_id": {
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "compiled_context_id": {
+            "title": "Compiled Context Id",
+            "type": "string"
+          },
+          "debug_summary": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Debug Summary",
+            "type": "array"
+          },
+          "dropped_blocks": {
+            "items": {
+              "$ref": "#/components/schemas/IdeContextBlockRef"
+            },
+            "title": "Dropped Blocks",
+            "type": "array"
+          },
+          "injected_blocks": {
+            "items": {
+              "$ref": "#/components/schemas/IdeContextBlockRef"
+            },
+            "title": "Injected Blocks",
+            "type": "array"
+          },
+          "scene_id": {
+            "title": "Scene Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "compiled_context_id",
+          "book_id",
+          "chapter_id",
+          "scene_id",
+          "budget"
+        ],
+        "title": "IdeContextSnapshot",
+        "type": "object"
+      },
+      "IdeDiagnostic": {
+        "description": "IDE Problems 面板统一诊断契约。",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "quickFixes": {
+            "items": {
+              "$ref": "#/components/schemas/IdeQuickFix"
+            },
+            "title": "Quickfixes",
+            "type": "array"
+          },
+          "range": {
+            "$ref": "#/components/schemas/IdeDiagnosticRange"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "source": {
+            "default": "judge",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "code",
+          "message",
+          "range"
+        ],
+        "title": "IdeDiagnostic",
+        "type": "object"
+      },
+      "IdeDiagnosticRange": {
+        "description": "诊断在章节或场景正文中的字符范围。",
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "IdeDiagnosticRange",
+        "type": "object"
+      },
+      "IdeQuickFix": {
+        "description": "Problems 面板展示的快捷修复命令。",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "command_id": {
+            "title": "Command Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "title"
+        ],
+        "title": "IdeQuickFix",
+        "type": "object"
+      },
+      "IdeStoryMemoryConflict": {
+        "description": "IDE 展示的长效记忆冲突。",
+        "properties": {
+          "conflict_id": {
+            "title": "Conflict Id",
+            "type": "string"
+          },
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "fact_type": {
+            "title": "Fact Type",
+            "type": "string"
+          },
+          "left_memory_id": {
+            "title": "Left Memory Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "right_memory_id": {
+            "title": "Right Memory Id",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "source_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Refs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conflict_id",
+          "entity_id",
+          "fact_type",
+          "left_memory_id",
+          "right_memory_id",
+          "severity",
+          "reason"
+        ],
+        "title": "IdeStoryMemoryConflict",
+        "type": "object"
+      },
+      "IdeStoryMemoryItem": {
+        "description": "IDE 展示的长效记忆条目。",
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "conflict_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conflict Ids",
+            "type": "array"
+          },
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "fact_type": {
+            "title": "Fact Type",
+            "type": "string"
+          },
+          "immutable": {
+            "title": "Immutable",
+            "type": "boolean"
+          },
+          "memory_id": {
+            "title": "Memory Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "source_chapter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Chapter Id"
+          },
+          "source_ref": {
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "valid_from_chapter": {
+            "title": "Valid From Chapter",
+            "type": "integer"
+          },
+          "valid_to_chapter": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To Chapter"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "entity_type",
+          "entity_id",
+          "fact_type",
+          "value",
+          "source_ref",
+          "valid_from_chapter",
+          "confidence",
+          "immutable",
+          "revision"
+        ],
+        "title": "IdeStoryMemoryItem",
+        "type": "object"
+      },
+      "IdeStoryMemoryQuery": {
+        "description": "IDE Story Memory Explorer 查询条件。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "conflict_status": {
+            "default": "all",
+            "title": "Conflict Status",
+            "type": "string"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "entity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Type"
+          },
+          "fact_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fact Type"
+          }
+        },
+        "required": [
+          "book_id"
+        ],
+        "title": "IdeStoryMemoryQuery",
+        "type": "object"
+      },
+      "IdeStoryMemoryQueryResult": {
+        "description": "Story Memory Explorer 查询结果。",
+        "properties": {
+          "conflict_queue": {
+            "items": {
+              "$ref": "#/components/schemas/IdeStoryMemoryConflict"
+            },
+            "title": "Conflict Queue",
+            "type": "array"
+          },
+          "conflicted_count": {
+            "title": "Conflicted Count",
+            "type": "integer"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/IdeStoryMemoryQuery"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IdeStoryMemoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filters",
+          "total",
+          "conflicted_count"
+        ],
+        "title": "IdeStoryMemoryQueryResult",
+        "type": "object"
+      },
+      "IdeTreeNode": {
+        "description": "IDE Explorer 使用的统一树节点。",
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/IdeTreeNode"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ref_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title"
+        ],
+        "title": "IdeTreeNode",
+        "type": "object"
+      },
+      "IdeWorkspaceTree": {
+        "description": "工作区树响应，root 用于渲染，nodes 用于快速索引。",
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/IdeTreeNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/IdeTreeNode"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "title": "IdeWorkspaceTree",
+        "type": "object"
+      },
       "JudgeIssueCreate": {
         "description": "结构化评审请求，正文与上下文约束都由调用方显式传入。",
         "example": {
@@ -8906,6 +9642,305 @@
         "summary": "读取工作区事件流",
         "tags": [
           "事件流"
+        ]
+      }
+    },
+    "/api/ide/artifacts/{artifact_id}/preview": {
+      "get": {
+        "description": "返回 Artifact Viewer 所需的预览、下载摘要、版本和追溯链。",
+        "operationId": "read_artifact_preview_api_ide_artifacts__artifact_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "title": "Artifact Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeArtifactPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 IDE 制品预览",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/commands/{command_id}": {
+      "post": {
+        "description": "执行已注册 IDE 命令，所有写操作都返回审计追踪 ID。",
+        "operationId": "execute_ide_command_api_ide_commands__command_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "title": "Command Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/IdeCommandRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeCommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "执行 IDE 命令",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/context-snapshot/{compiled_context_id}": {
+      "get": {
+        "description": "返回 Context Inspector 渲染所需的上下文编译记录。",
+        "operationId": "read_context_snapshot_api_ide_context_snapshot__compiled_context_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "compiled_context_id",
+            "required": true,
+            "schema": {
+              "title": "Compiled Context Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeContextSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 IDE 上下文快照",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/diagnostics": {
+      "get": {
+        "description": "返回指定场景的开放诊断问题。",
+        "operationId": "list_diagnostics_api_ide_diagnostics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Scene Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdeDiagnostic"
+                  },
+                  "title": "Response List Diagnostics Api Ide Diagnostics Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 IDE 诊断列表",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/runs/{book_run_id}/events": {
+      "get": {
+        "description": "返回 BookRun 当前状态投影生成的 SSE 快照事件。",
+        "operationId": "stream_run_events_api_ide_runs__book_run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_run_id",
+            "required": true,
+            "schema": {
+              "title": "Book Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 IDE BookRun 事件流",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/story-memory/query": {
+      "post": {
+        "description": "返回 Story Memory Explorer 所需的长效记忆和冲突队列。",
+        "operationId": "query_story_memory_endpoint_api_ide_story_memory_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdeStoryMemoryQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeStoryMemoryQueryResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "查询 IDE Story Memory",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/workspace-tree": {
+      "get": {
+        "description": "返回 IDE Explorer 初始渲染所需的作品与章节树。",
+        "operationId": "read_workspace_tree_api_ide_workspace_tree_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeWorkspaceTree"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "读取 IDE 工作区树",
+        "tags": [
+          "IDE 工作台"
         ]
       }
     },
