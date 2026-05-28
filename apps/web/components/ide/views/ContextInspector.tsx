@@ -24,12 +24,19 @@ export type ContextSnapshot = {
   readonly debug_summary: readonly string[];
 };
 
+export type ContextInspectorEntry = {
+  readonly kind: 'model_run' | 'repair' | 'approve' | string;
+  readonly label: string;
+  readonly href?: string | null;
+};
+
 export type ContextInspectorProps = {
   readonly snapshot?: ContextSnapshot;
   readonly evictedAt?: string;
+  readonly entries?: readonly ContextInspectorEntry[];
 };
 
-export function ContextInspector({ snapshot, evictedAt }: ContextInspectorProps) {
+export function ContextInspector({ snapshot, evictedAt, entries = [] }: ContextInspectorProps) {
   if (!snapshot) {
     return (
       <section className="rounded-xl border border-amber-700 bg-amber-950/40 p-6 text-amber-100">
@@ -72,6 +79,7 @@ export function ContextInspector({ snapshot, evictedAt }: ContextInspectorProps)
 
       <ContextBlockList title="Injected Blocks" blocks={snapshot.injected_blocks} />
       <ContextBlockList title="Dropped Blocks" blocks={snapshot.dropped_blocks} />
+      <ContextEntryList compiledContextId={snapshot.compiled_context_id} entries={entries} />
 
       <section>
         <h3 className="text-sm font-semibold text-stone-200">Debug Summary</h3>
@@ -81,6 +89,41 @@ export function ContextInspector({ snapshot, evictedAt }: ContextInspectorProps)
           ))}
         </ul>
       </section>
+    </section>
+  );
+}
+
+function ContextEntryList({
+  compiledContextId,
+  entries,
+}: {
+  readonly compiledContextId: string;
+  readonly entries: readonly ContextInspectorEntry[];
+}) {
+  if (entries.length === 0) return null;
+
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-stone-200">来源入口</h3>
+      <ul className="mt-2 space-y-2 text-sm">
+        {entries.map((entry) => (
+          <li
+            key={`${entry.kind}:${entry.label}`}
+            className="rounded-lg border border-sky-900 bg-sky-950/30 p-3"
+            data-context-entry-kind={entry.kind}
+            data-compiled-context-id={compiledContextId}
+            data-context-entry-href={entry.href ?? undefined}
+          >
+            {entry.href ? (
+              <a href={entry.href} className="text-sky-100">
+                {entry.label}
+              </a>
+            ) : (
+              <span className="text-sky-100">{entry.label}</span>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

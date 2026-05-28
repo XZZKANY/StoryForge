@@ -64,3 +64,40 @@ def test_list_diagnostics_returns_empty_list_for_scene_without_issues(client: Te
 
     assert response.status_code == 200, response.text
     assert response.json() == []
+
+
+
+
+def test_read_ide_scene_returns_scene_content_for_workbench(client: TestClient, session: Session) -> None:
+    """IDE scene 端点应返回 JudgeRepairWorkbench 所需的场景正文。"""
+
+    book = Book(title="正文作品", status="draft", premise="验证正文读取。")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=1, title="灯塔", status="draft", summary=None)
+    session.add(chapter)
+    session.flush()
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="南岸", status="draft", content="林岚走向北岸灯塔。")
+    session.add(scene)
+    session.commit()
+
+    response = client.get(f"/api/ide/scenes/{scene.id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "id": scene.id,
+        "chapter_id": chapter.id,
+        "book_id": book.id,
+        "title": "南岸",
+        "status": "draft",
+        "content": "林岚走向北岸灯塔。",
+    }
+
+
+def test_read_ide_scene_returns_404_for_missing_scene(client: TestClient) -> None:
+    """缺失场景必须显式返回 404，避免 IDE 伪造空正文。"""
+
+    response = client.get("/api/ide/scenes/999999")
+
+    assert response.status_code == 404, response.text
+    assert response.json()["detail"] == "场景不存在，无法读取 IDE 场景正文。"

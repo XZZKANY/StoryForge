@@ -3,6 +3,7 @@ import type { IdeCommandDefinition } from './registry';
 export type CommandPaletteProps = {
   readonly commands: readonly IdeCommandDefinition[];
   readonly query?: string;
+  readonly onExecuteCommand?: (commandId: string) => void;
 };
 
 export function filterCommands(
@@ -18,7 +19,7 @@ export function filterCommands(
   );
 }
 
-export function CommandPalette({ commands, query = '' }: CommandPaletteProps) {
+export function CommandPalette({ commands, query = '', onExecuteCommand }: CommandPaletteProps) {
   const filtered = filterCommands(commands, query);
   return (
     <section className="rounded-xl border border-stone-800 bg-stone-900 p-4 text-stone-100">
@@ -33,6 +34,14 @@ export function CommandPalette({ commands, query = '' }: CommandPaletteProps) {
             <p className="text-xs text-stone-400">
               {command.id} · {command.category}
             </p>
+            <button
+              type="button"
+              className="mt-2 rounded bg-sky-700 px-2 py-1 text-xs text-white"
+              data-command-id={command.id}
+              onClick={() => onExecuteCommand?.(command.id)}
+            >
+              执行命令
+            </button>
           </li>
         ))}
       </ul>

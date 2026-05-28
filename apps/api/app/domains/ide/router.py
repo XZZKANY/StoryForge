@@ -14,11 +14,13 @@ from app.domains.ide.schemas import (
     IdeCommandResult,
     IdeContextSnapshot,
     IdeDiagnostic,
+    IdeSceneRead,
     IdeStoryMemoryQuery,
     IdeStoryMemoryQueryResult,
     IdeWorkspaceTree,
 )
 from app.domains.ide.service import (
+    IdeCommandExecutionError,
     IdeCommandNotFoundError,
     build_run_events,
     encode_sse_event,
@@ -28,6 +30,7 @@ from app.domains.ide.service import (
     get_workspace_tree,
     list_diagnostics_for_scene,
     query_story_memory,
+    read_ide_scene,
 )
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
@@ -56,6 +59,23 @@ def list_diagnostics(
     """返回指定场景的开放诊断问题。"""
 
     return list_diagnostics_for_scene(session, scene_id)
+
+
+@router.get(
+    "/scenes/{scene_id}",
+    response_model=IdeSceneRead,
+    summary="读取 IDE 场景正文",
+)
+def read_scene_for_ide(session: SessionDependency, scene_id: int) -> IdeSceneRead:
+    """返回 JudgeRepairWorkbench 渲染和修复命令需要的场景正文。"""
+
+    scene = read_ide_scene(session, scene_id)
+    if scene is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="场景不存在，无法读取 IDE 场景正文。",
+        )
+    return scene
 
 
 @router.get(
@@ -124,17 +144,19 @@ def stream_run_events(session: SessionDependency, book_run_id: int) -> Streaming
     response_model=IdeCommandResult,
     summary="执行 IDE 命令",
 )
-def execute_ide_command(command_id: str, payload: IdeCommandRequest | None = None) -> IdeCommandResult:
+def execute_ide_command(session: SessionDependency, command_id: str, payload: IdeCommandRequest | None = None) -> IdeCommandResult:
     """执行已注册 IDE 命令，所有写操作都返回审计追踪 ID。"""
 
     try:
-        return execute_ide_command_by_id(command_id, (payload or IdeCommandRequest()).args)
+        return execute_ide_command_by_id(command_id, (payload or IdeCommandRequest()).args, session)
     except IdeCommandNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except IdeCommandExecutionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.websocket("/agent/sessions/{session_id}")
-async def agent_session(websocket: WebSocket, session_id: str) -> None:
+async def agent_session(websocket: WebSocket, session_id: str, session: SessionDependency) -> None:
     """Agent 双向通道；写操作只能转发给 IDE 命令执行器。"""
 
     await websocket.accept()
@@ -147,8 +169,8 @@ async def agent_session(websocket: WebSocket, session_id: str) -> None:
             command_id = str(message.get("command_id", ""))
             args = message.get("args") if isinstance(message.get("args"), dict) else {}
             try:
-                result = execute_ide_command_by_id(command_id, args)
-            except IdeCommandNotFoundError as exc:
+                result = execute_ide_command_by_id(command_id, args, session)
+            except (IdeCommandNotFoundError, IdeCommandExecutionError) as exc:
                 await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
                 continue
             await websocket.send_json({"type": "command_result", "session_id": session_id, "result": result.model_dump()})

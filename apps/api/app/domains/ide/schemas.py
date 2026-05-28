@@ -20,6 +20,17 @@ class IdeWorkspaceTree(BaseModel):
     nodes: list[IdeTreeNode] = Field(default_factory=list)
 
 
+class IdeSceneRead(BaseModel):
+    """IDE 章节编辑器读取的场景正文。"""
+
+    id: int
+    chapter_id: int
+    book_id: int
+    title: str
+    status: str
+    content: str
+
+
 class IdeDiagnosticRange(BaseModel):
     """诊断在章节或场景正文中的字符范围。"""
 
@@ -177,6 +188,7 @@ class IdeArtifactTraceLink(BaseModel):
 
     id: int | None = None
     href: str | None = None
+    context_href: str | None = None
     label: str
 
 

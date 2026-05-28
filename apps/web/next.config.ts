@@ -32,6 +32,36 @@ const immutableCacheHeader = {
 };
 const standaloneOutput = process.env.STORYFORGE_WEB_STANDALONE === '1' ? 'standalone' : undefined;
 
+export async function storyforgeLegacyRedirects() {
+  return [
+    {
+      source: '/studio',
+      destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio',
+      permanent: true,
+    },
+    {
+      source: '/retrieval',
+      destination: '/ide?panel.left=search',
+      permanent: true,
+    },
+    {
+      source: '/runs',
+      destination: '/ide?panel.bottom=runs',
+      permanent: true,
+    },
+    {
+      source: '/artifacts',
+      destination: '/ide?panel.bottom=artifacts',
+      permanent: true,
+    },
+    {
+      source: '/evaluations',
+      destination: '/ide?panel.bottom=evaluation',
+      permanent: true,
+    },
+  ];
+}
+
 const nextConfig: NextConfig = {
   output: standaloneOutput,
   images: {
@@ -49,6 +79,9 @@ const nextConfig: NextConfig = {
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
       },
     ];
+  },
+  async redirects() {
+    return storyforgeLegacyRedirects();
   },
 };
 

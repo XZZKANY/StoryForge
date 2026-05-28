@@ -1,3 +1,6 @@
+import type { CommandRegistry } from '../commands/registry';
+import type { IdeCommandResponse } from '../commands/command-client';
+
 export type IdeKeybinding = {
   readonly shortcut: string;
   readonly commandId: string;
@@ -33,4 +36,17 @@ export function findCommandByShortcut(
   keymap: readonly IdeKeybinding[] = ideKeymap,
 ): IdeKeybinding | undefined {
   return keymap.find((item) => item.shortcut.toLowerCase() === shortcut.toLowerCase());
+}
+
+export async function executeShortcutCommand(
+  shortcut: string,
+  registry: CommandRegistry,
+  args: Record<string, unknown> = {},
+  keymap: readonly IdeKeybinding[] = ideKeymap,
+): Promise<IdeCommandResponse | undefined> {
+  const binding = findCommandByShortcut(shortcut, keymap);
+  if (!binding) {
+    return undefined;
+  }
+  return registry.execute(binding.commandId, args);
 }
