@@ -1,10 +1,11 @@
 ﻿'use client';
 
-import { StoryMemoryExplorer } from '../views/StoryMemoryExplorer';
+import { StoryMemoryExplorer, type StoryMemoryResult } from '../views/StoryMemoryExplorer';
 
 export type SidePanelProps = {
   readonly activePanel: string;
   readonly onOpenTab?: (tabId: string) => void;
+  readonly storyMemoryResult?: StoryMemoryResult;
 };
 
 const legacyEntries = [
@@ -15,7 +16,7 @@ const legacyEntries = [
   ['legacy:evaluations', 'Evaluations'],
 ] as const;
 
-export function SidePanel({ activePanel, onOpenTab }: SidePanelProps) {
+export function SidePanel({ activePanel, onOpenTab, storyMemoryResult }: SidePanelProps) {
   return (
     <aside
       aria-label="Explorer"
@@ -29,7 +30,7 @@ export function SidePanel({ activePanel, onOpenTab }: SidePanelProps) {
             : 'Explorer'}
       </div>
       {activePanel === 'memory' ? (
-        <StoryMemoryExplorer />
+        <StoryMemoryExplorer result={storyMemoryResult} />
       ) : (
         <>
           <h2 className="mb-3 font-semibold">StoryForge 工作区</h2>

@@ -128,6 +128,23 @@ export function StoryMemoryExplorer({ result = emptyResult }: StoryMemoryExplore
                 <p className="mt-1 text-xs text-red-200">
                   {conflict.left_memory_id} ↔ {conflict.right_memory_id}
                 </p>
+                <button
+                  type="button"
+                  className="mt-2 rounded border border-red-700 px-2 py-1 text-xs text-red-100"
+                  data-command-id="memory.resolve_conflict"
+                  data-command-args={JSON.stringify({
+                    conflict_id: conflict.conflict_id,
+                    entity_id: conflict.entity_id,
+                    fact_type: conflict.fact_type,
+                    left_memory_id: conflict.left_memory_id,
+                    right_memory_id: conflict.right_memory_id,
+                    resolution: 'keep_left',
+                    winner_memory_id: conflict.left_memory_id,
+                    source_refs: conflict.source_refs,
+                  })}
+                >
+                  仲裁冲突
+                </button>
               </li>
             ))}
           </ul>

@@ -15,6 +15,9 @@ export type IdePersonalizationPreferences = {
   readonly keybindings: Readonly<Record<string, string>>;
 };
 
+export const idePreferencesStorageKey = 'storyforge-ide-preferences';
+export const preferencesChangedEvent = 'storyforge:ide-preferences-change';
+
 export const defaultIdePreferences: IdePersonalizationPreferences = {
   theme: 'dark',
   layout: {
@@ -99,6 +102,27 @@ export function mergeIdePreferences(
 
 export function serializeIdePreferences(preferences: IdePersonalizationPreferences): string {
   return JSON.stringify(preferences);
+}
+
+export type IdePreferencesReadableStorage = {
+  readonly getItem: (key: string) => string | null;
+};
+
+export type IdePreferencesWritableStorage = IdePreferencesReadableStorage & {
+  readonly setItem: (key: string, value: string) => unknown;
+};
+
+export function loadIdePreferences(
+  storage: IdePreferencesReadableStorage | null | undefined,
+): IdePersonalizationPreferences {
+  return parseIdePreferences(storage?.getItem(idePreferencesStorageKey));
+}
+
+export function saveIdePreferences(
+  storage: IdePreferencesWritableStorage | null | undefined,
+  preferences: IdePersonalizationPreferences,
+): void {
+  storage?.setItem(idePreferencesStorageKey, serializeIdePreferences(preferences));
 }
 
 export function createEditorPopoutUrl(state: IdeUrlState): string {

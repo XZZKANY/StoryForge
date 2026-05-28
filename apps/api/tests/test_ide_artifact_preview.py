@@ -27,7 +27,13 @@ def test_read_ide_artifact_preview_returns_preview_versions_and_trace(
                 name="book.md",
                 storage_uri="memory://book-runs/42/book-v1.md",
                 mime_type="text/markdown",
-                payload={"content": "# 旧版\n", "book_run_id": 42, "model_run_id": 101, "approved_scene_id": 303},
+                payload={
+                    "content": "# 旧版\n",
+                    "book_run_id": 42,
+                    "model_run_id": 101,
+                    "approved_scene_id": 303,
+                    "compiled_context_id": "ctx_old",
+                },
             ),
         )
         latest = create_artifact(
@@ -45,6 +51,7 @@ def test_read_ide_artifact_preview_returns_preview_versions_and_trace(
                     "model_run_id": 101,
                     "judge_report_id": 202,
                     "approved_scene_id": 303,
+                    "compiled_context_id": "ctx_artifact",
                 },
             ),
         )
@@ -64,8 +71,11 @@ def test_read_ide_artifact_preview_returns_preview_versions_and_trace(
     assert trace["book_run"]["href"] == "/ide?panel.bottom=runs&book_run=42"
     assert trace["model_run"]["id"] == 101
     assert trace["model_run"]["href"] == "/ide?panel.bottom=runs&model_run=101"
+    assert trace["model_run"]["context_href"] == "/ide?inspector=ctx_artifact"
+    assert trace["judge_report"]["context_href"] == "/ide?inspector=ctx_artifact"
     assert trace["approve"]["id"] == 303
     assert trace["approve"]["href"] == "/ide?tab=scene:303"
+    assert trace["approve"]["context_href"] == "/ide?inspector=ctx_artifact"
 
 
 def test_read_ide_artifact_preview_extracts_trace_from_audit_chapters(
@@ -86,7 +96,13 @@ def test_read_ide_artifact_preview_extracts_trace_from_audit_chapters(
                 payload={
                     "book_run_id": 77,
                     "chapters": [
-                        {"chapter_index": 1, "model_run_id": 501, "judge_report_id": 502, "approved_scene_id": 503}
+                        {
+                            "chapter_index": 1,
+                            "model_run_id": 501,
+                            "judge_report_id": 502,
+                            "approved_scene_id": 503,
+                            "compiled_context_id": "ctx_chapter",
+                        }
                     ],
                 },
             ),
@@ -102,6 +118,8 @@ def test_read_ide_artifact_preview_extracts_trace_from_audit_chapters(
     assert body["trace"]["model_run"]["id"] == 501
     assert body["trace"]["judge_report"]["id"] == 502
     assert body["trace"]["approve"]["id"] == 503
+    assert body["trace"]["model_run"]["context_href"] == "/ide?inspector=ctx_chapter"
+    assert body["trace"]["approve"]["context_href"] == "/ide?inspector=ctx_chapter"
 
 
 def test_read_ide_artifact_preview_returns_404_for_missing_artifact(client: TestClient) -> None:

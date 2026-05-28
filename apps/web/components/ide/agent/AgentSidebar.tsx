@@ -6,6 +6,10 @@ const agentToolCommandIds = [
   'bookrun.retry_from_checkpoint',
 ] as const;
 
+function agentCommandPayload(commandId: string): string {
+  return JSON.stringify({ type: 'command', command_id: commandId, args: {} });
+}
+
 export function AgentSidebar() {
   const tools = builtinCommands.filter((command) =>
     agentToolCommandIds.includes(command.id as (typeof agentToolCommandIds)[number]),
@@ -21,7 +25,13 @@ export function AgentSidebar() {
       </header>
       <ul className="space-y-2 text-sm">
         {tools.map((tool) => (
-          <li key={tool.id} className="rounded border border-stone-800 bg-stone-900 p-2">
+          <li
+            key={tool.id}
+            className="rounded border border-stone-800 bg-stone-900 p-2"
+            data-command-id={tool.id}
+            data-agent-message-type="command"
+            data-agent-command-payload={agentCommandPayload(tool.id)}
+          >
             <strong>{tool.title}</strong>
             <p className="text-xs text-stone-400">{tool.id}</p>
           </li>

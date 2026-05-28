@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
+import { storyforgeLegacyRedirects } from '../next.config';
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), 'utf8');
@@ -108,6 +109,20 @@ test('Docker Compose 基础服务具备健康检查', () => {
   }
 });
 
+test('旧页面路由通过 308 重定向进入 IDE 壳层', async () => {
+  const expectedRedirects = [
+    { source: '/studio', destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio' },
+    { source: '/retrieval', destination: '/ide?panel.left=search' },
+    { source: '/runs', destination: '/ide?panel.bottom=runs' },
+    { source: '/artifacts', destination: '/ide?panel.bottom=artifacts' },
+    { source: '/evaluations', destination: '/ide?panel.bottom=evaluation' },
+  ] as const;
+
+  const redirects = await storyforgeLegacyRedirects();
+  assert.deepEqual(redirects, expectedRedirects.map((redirect) => ({ ...redirect, permanent: true })));
+  assert.equal(redirects.length, 5, '五个旧页面都应声明重定向');
+  assert.ok(redirects.every((redirect) => redirect.permanent === true), 'permanent: true 对应 Next HTTP 308');
+});
 test('Web 本机构建关闭 standalone 且 Docker 构建显式开启', () => {
   const nextConfig = read('next.config.ts');
   const dockerfile = read('Dockerfile');
