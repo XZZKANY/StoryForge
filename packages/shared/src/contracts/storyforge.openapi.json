@@ -2548,6 +2548,17 @@
       "IdeArtifactTraceLink": {
         "description": "制品反向追溯中的单个跳转节点。",
         "properties": {
+          "context_href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Href"
+          },
           "href": {
             "anyOf": [
               {
@@ -2891,6 +2902,45 @@
           "title"
         ],
         "title": "IdeQuickFix",
+        "type": "object"
+      },
+      "IdeSceneRead": {
+        "description": "IDE 章节编辑器读取的场景正文。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter_id": {
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "chapter_id",
+          "book_id",
+          "title",
+          "status",
+          "content"
+        ],
+        "title": "IdeSceneRead",
         "type": "object"
       },
       "IdeStoryMemoryConflict": {
@@ -9875,6 +9925,49 @@
           }
         },
         "summary": "读取 IDE BookRun 事件流",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/scenes/{scene_id}": {
+      "get": {
+        "description": "返回 JudgeRepairWorkbench 渲染和修复命令需要的场景正文。",
+        "operationId": "read_scene_for_ide_api_ide_scenes__scene_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeSceneRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 IDE 场景正文",
         "tags": [
           "IDE 工作台"
         ]

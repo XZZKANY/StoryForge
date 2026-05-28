@@ -9,6 +9,7 @@ export const builtinCommands: readonly IdeCommandDefinition[] = [
     writes: true,
     shortcut: 'Ctrl+.',
   },
+  { id: 'judge.approve', title: '批准修复写回', category: 'Judge', writes: true },
   { id: 'bookrun.start', title: '启动 BookRun', category: 'BookRun', writes: true },
   { id: 'bookrun.pause', title: '暂停 BookRun', category: 'BookRun', writes: true },
   { id: 'bookrun.resume', title: '恢复 BookRun', category: 'BookRun', writes: true },

@@ -1,4 +1,4 @@
-﻿# 操作日志
+# 操作日志
 
 ## 编码前检查 - Step E-2a Web API 客户端单元测试
 
@@ -4070,3 +4070,1893 @@ P2-P7 增量文件通过局部 	sc 与测试验证，但未在最终阶段执行
 
 - 未跟踪文件 `.codex/phase9b-real-llm-smoke-1ch.sqlite` 与 `.codex/visual-preview/` 为本轮前已存在，未修改。
 - 当前阻塞性验证问题已修复并通过本地回归。
+
+## 编码前检查 - P1.5 任务B Judge 闭环
+
+时间：2026-05-28 13:45:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p15-judge-loop.md`
+□ 将使用以下可复用组件：
+
+- `ChapterEditor`: `apps/web/components/ide/editors/ChapterEditor.tsx` - 展示章节正文和诊断装饰。
+- `ProblemsPanel`: `apps/web/components/ide/panels/ProblemsPanel.tsx` - 展示诊断、选择诊断和触发 Quick Fix。
+- `DiffViewer`: `apps/web/components/ide/views/DiffViewer.tsx` - 展示修复前后内容。
+- `CommandRegistry`: `apps/web/components/ide/commands/registry.ts` - 统一执行 `judge.repair` 与 `judge.approve`。
+- `_BUILTIN_COMMANDS`: `apps/api/app/domains/ide/service.py` - 后端命令目录和审计 ID 生成。
+
+□ 将遵循命名约定：React 组件 PascalCase，props 类型 `XxxProps`，命令 ID 使用点分命名。
+□ 将遵循代码风格：TypeScript 使用 readonly props；Python 使用类型注解和简体中文 docstring。
+□ 确认不重复造轮子，证明：已检查 ChapterEditor、ProblemsPanel、DiffViewer、CommandRegistry、IDE API service/router/schemas 和现有测试，项目内没有 Judge→Problems→Repair→Diff→Approve 组合组件。
+□ 工具缺口记录：当前未暴露 `github.search_code` 工具，无法执行开源代码搜索；已用项目内 5 个实现和 Context7 React 官方文档替代。
+
+## 编码后声明 - P1.5 任务B Judge 闭环
+
+时间：2026-05-28 13:58:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `ChapterEditor`: 用于章节正文展示和诊断装饰输入，位于 `apps/web/components/ide/editors/ChapterEditor.tsx`。
+- `ProblemsPanel`: 用于 Problems 诊断列表、诊断选择和 Quick Fix，位于 `apps/web/components/ide/panels/ProblemsPanel.tsx`。
+- `DiffViewer`: 用于修复前后差异展示，位于 `apps/web/components/ide/views/DiffViewer.tsx`。
+- `CommandRegistry`: 用于执行 `judge.repair` 和 `judge.approve`，位于 `apps/web/components/ide/commands/registry.ts`。
+- `_BUILTIN_COMMANDS`: 用于后端命令目录与审计 ID 生成，位于 `apps/api/app/domains/ide/service.py`。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `JudgeRepairWorkbench` 使用 PascalCase，props 类型为 `JudgeRepairWorkbenchProps`。
+- 代码风格：TypeScript props 使用 readonly，Python 测试使用简体中文 docstring。
+- 文件组织：新增工作流组件放在 `apps/web/components/ide/workflows/`，保持 IDE 模块边界。
+
+### 3. 对比了以下相似实现
+
+- `BookRunPanel`: 同样通过 `data-command-id` 暴露命令按钮；本次沿用该契约到 Problems 和 Diff。
+- `CommandRegistry`: 本次没有新增执行通道，只追加命令目录项。
+- `test_ide_commands.py`: 保留未知命令 404 测试，并新增批准写回命令审计测试。
+### 4. 未重复造轮子的证明
+
+- 检查了 `ChapterEditor`、`ProblemsPanel`、`DiffViewer`、`CommandRegistry`、IDE API service/router/schemas 和测试目录，确认没有现成 Judge→Problems→Repair→Diff→Approve 组合组件。
+- 新增组件只负责组合和契约衔接，不复制已有编辑器、Problems 或 Diff 逻辑。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败于 `未知 IDE 命令：judge.approve` 与 `JudgeRepairWorkbench` 模块缺失，证明测试覆盖真实缺口。
+- 绿灯：`pnpm --filter @storyforge/web test`，105 passed。
+- Web 静态检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- API 命令测试：`uv run pytest tests/test_ide_commands.py -q`，2 passed。
+- API IDE 相关测试：`uv run pytest tests/test_ide_diagnostics.py tests/test_ide_commands.py -q`，4 passed。
+- 空白检查：`git diff --check` 退出码 0，仅有 CRLF 提示。
+- 写路径检查：`apps/web/components/ide` 中无直接 `fetch(`；唯一 `apiFetch(` 位于 `components/ide/commands/command-client.ts`。
+
+## 编码前检查 - P1.5 任务C BookRun 事件快照
+
+时间：2026-05-28 14:08:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p15-bookrun-events.md`
+□ 将使用以下可复用组件：
+
+- `BookRunPanel`: `apps/web/components/ide/views/BookRunPanel.tsx` - 运行状态和命令按钮展示。
+- `BottomPanel`: `apps/web/components/ide/shell/BottomPanel.tsx` - runs 面板入口和 CommandRegistry 绑定。
+- `build_run_events`: `apps/api/app/domains/ide/service.py` - 后端 SSE 快照事件来源。
+- `test_ide_run_events.py`: `apps/api/tests/test_ide_run_events.py` - 后端事件契约参考。
+
+□ 将遵循命名约定：新增组件使用 `BookRunEventsPanel`，props 使用 `BookRunEventsPanelProps`。
+□ 将遵循代码风格：readonly props、简体中文文案、SSR 可断言 `data-*` 属性。
+□ 确认不重复造轮子，证明：已搜索 `EventSource`，apps/web 当前无前端 SSE 消费实现；现有 BookRunPanel 仅为静态展示。
+
+## 编码后声明 - P1.5 任务C BookRun 事件快照
+
+时间：2026-05-28 14:16:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `BookRunPanel`: 用于运行状态、checkpoint、阻塞章节和命令按钮展示。
+- `CommandRegistry`: 通过 `BottomPanel` 继续执行 BookRun 写命令。
+- `/api/ide/runs/{book_run_id}/events`: 作为 BookRun SSE 快照事件来源。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `BookRunEventsPanel` 和 `BookRunEventsPanelProps`。
+- 代码风格：使用 readonly props、纯展示映射和 SSR 可断言 `data-*` 属性。
+- 文件组织：事件快照容器放在 `apps/web/components/ide/views/`，runs 入口仍由 `BottomPanel` 统一管理。
+
+### 3. 对比了以下相似实现
+
+- `BookRunPanel`: 本次不复制运行状态展示，只在外层补事件快照容器。
+- `test_ide_run_events.py`: 前端事件名和 URL 与后端 SSE 测试保持一致。
+- `BottomPanel`: 沿用命令注册与 `commands.execute` 写入路径。
+
+### 4. 未重复造轮子的证明
+
+- 已搜索 `apps/web` 中 `EventSource`，当前无前端 SSE 消费实现。
+- 新增组件只提供事件快照入口和摘要展示，不新增独立命令系统或请求客户端。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败于 `BookRunEventsPanel` 模块缺失。
+- 绿灯：`pnpm --filter @storyforge/web test`，106 passed。
+- Web 静态检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- API 相关测试：`uv run pytest tests/test_ide_run_events.py tests/test_ide_commands.py -q`，6 passed。
+
+## 编码前检查 - P1.5 任务D 命令治理
+
+时间：2026-05-28 14:25:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p15-command-governance.md`
+□ 将使用以下可复用组件：
+
+- `CommandRegistry`: `apps/web/components/ide/commands/registry.ts` - 统一命令执行接口。
+- `CommandPalette`: `apps/web/components/ide/commands/palette.tsx` - 命令搜索和展示。
+- `ideKeymap`: `apps/web/components/ide/keymap/index.ts` - 快捷键映射。
+- `AgentSidebar`: `apps/web/components/ide/agent/AgentSidebar.tsx` - Agent 工具列表。
+- `test_ide_command_registry.py`: `apps/api/tests/test_ide_command_registry.py` - 后端 Agent WS 治理证据。
+
+□ 将遵循命名约定：新增 helper 使用 `executeShortcutCommand`，props 使用 readonly。
+□ 将遵循代码风格：SSR 可断言 `data-*` 属性，文案和日志使用简体中文。
+□ 确认不重复造轮子，证明：已检查 palette、keymap、AgentSidebar 和 API WS 测试，缺口是前端执行治理契约而非新命令系统。
+
+## 编码后声明 - P1.5 任务D 命令治理
+
+时间：2026-05-28 14:34:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `CommandRegistry`: 用于命令面板和快捷键统一执行命令。
+- `CommandPalette`: 保留原有搜索过滤逻辑，新增执行按钮契约。
+- `ideKeymap` / `findCommandByShortcut`: 复用快捷键解析，新增 `executeShortcutCommand`。
+- `AgentSidebar`: 复用 Agent 工具列表，新增机器可读 command payload。
+- `test_ide_command_registry.py`: 后端 Agent WS 约束已有测试证据。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `executeShortcutCommand` 使用 camelCase。
+- 代码风格：React props 使用 readonly，SSR 契约使用 `data-command-id`、`data-agent-message-type` 和 `data-agent-command-payload`。
+- 文件组织：命令面板、快捷键和 Agent 改动均留在各自 IDE 子模块。
+
+### 3. 对比了以下相似实现
+
+- `BookRunPanel`: 继续沿用 `data-command-id` 按钮契约。
+- `CommandRegistry`: 没有新增并行命令执行器，只调用 `registry.execute`。
+- `router.py` Agent WebSocket：前端 payload 与后端 `type=command` 协议保持一致。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 palette、keymap、AgentSidebar 和后端 WS 测试；缺口是执行治理契约，不是新命令系统。
+- 未新增直接 fetch 写入路径，前端写命令仍经 `CommandRegistry`。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败于 `executeShortcutCommand` 未导出。
+- 绿灯：`pnpm --filter @storyforge/web test`，107 passed。
+- Web 静态检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- API 命令治理：`uv run pytest tests/test_ide_command_registry.py tests/test_ide_commands.py -q`，6 passed。
+- 写路径检查：`apps/web/components/ide` 中无直接原生 `fetch(` 写入；唯一命中为 `command-client.ts` 中的 `apiFetch(`。
+
+## 编码前检查 - P1.5 任务E 入口闭环
+
+时间：2026-05-28 14:44:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p15-entry-links.md`
+□ 将使用以下可复用组件：
+
+- `ContextInspector`: `apps/web/components/ide/views/ContextInspector.tsx` - 复用 compiled context 快照展示。
+- `StoryMemoryExplorer`: `apps/web/components/ide/views/StoryMemoryExplorer.tsx` - 复用冲突队列数据结构。
+- `ArtifactViewer`: `apps/web/components/ide/views/ArtifactViewer.tsx` - 复用已有 trace href 数据。
+- `BookRunPanel` / `ProblemsPanel` / `DiffViewer`: 复用 `data-command-id` 和 `data-command-args` 机器可读契约。
+
+□ 将遵循命名约定：新增类型使用 PascalCase，props 字段保持 camelCase，后端数据字段保持 snake_case。
+□ 将遵循代码风格：React 纯展示组件、readonly props、SSR 可断言 `data-*` 属性，文案使用简体中文。
+□ 确认不重复造轮子，证明：已检查目标组件、命令入口组件和组件测试；缺口是入口元数据，不是新命令系统或新请求层。
+□ 工具降级记录：当前会话未发现 `github.search_code` 工具，已使用项目内相似实现和 Context7 React 官方文档补足依据。
+
+## 编码后声明 - P1.5 任务E 入口闭环
+
+时间：2026-05-28 14:58:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `ContextInspector`: 在既有 compiled context 快照展示下补充来源入口列表。
+- `StoryMemoryExplorer`: 在既有冲突队列内补充 `memory.resolve_conflict` 命令入口。
+- `ArtifactViewer`: 在既有 BookRun、ModelRun、JudgeReport、Approve trace 链接上补充机器可读属性。
+- `ide-components.test.tsx`: 继续使用 `renderToStaticMarkup` 进行组件契约断言。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `ContextInspectorEntry`、`ContextEntryList`、`TraceItem.kind` 使用现有 TypeScript 命名风格。
+- 代码风格：props 使用 `readonly`，组件保持纯展示，命令参数使用稳定 JSON 字符串。
+- 文件组织：入口闭环改动留在 `apps/web/components/ide/views/`，测试留在 `apps/web/tests/ide-components.test.tsx`。
+
+### 3. 对比了以下相似实现
+
+- `ProblemsPanel`: 本次沿用诊断/命令入口使用 `data-*` 暴露机器可读元数据的做法。
+- `DiffViewer`: 本次沿用批准写回通过 `data-command-id` 和 `data-command-args` 暴露命令的做法。
+- `BookRunPanel`: 本次沿用按钮只声明命令，不直接执行写操作的 UI 契约。
+
+### 4. 未重复造轮子的证明
+
+- 已检查目标组件和既有命令入口组件，缺口是补足可追溯元数据，不是新增命令系统、请求客户端或 trace 模型。
+- `StoryMemoryExplorer` 未新增直接写入逻辑，只暴露 `memory.resolve_conflict` 命令参数。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm --filter @storyforge/web test` 失败于缺少 `data-context-entry-kind="model_run"`、`data-command-id="memory.resolve_conflict"`、`data-trace-kind="book_run"`。
+- 绿灯：`pnpm --filter @storyforge/web test`，109 passed。
+- Web 静态检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- API 相关测试：`uv run pytest tests/test_ide_artifact_preview.py tests/test_ide_commands.py -q`，5 passed。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 替换提示。
+
+### 6. 后续风险
+
+- 当前任务 E 补齐组件层入口契约；主计划后续仍需全量退出标准验证和真实页面/e2e 串联检查。
+
+## 编码前检查 - P1.5 退出审计闭环补强
+
+时间：2026-05-28 15:09:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p15-exit-audit.md`
+□ 将使用以下可复用组件：
+
+- `JudgeRepairWorkbench`: `apps/web/components/ide/workflows/JudgeRepairWorkbench.tsx` - 闭环组合入口。
+- `CommandRegistry`: `apps/web/components/ide/commands/registry.ts` - 统一执行 `judge.run`、`judge.repair`、`judge.approve`。
+- `registerBuiltinCommands`: `apps/web/components/ide/commands/registerBuiltinCommands.ts` - 已存在 `judge.run` 命令定义。
+- `ide-components.test.tsx` / `ide-judge-repair.spec.ts`: 组件和 e2e 契约验证入口。
+
+□ 将遵循命名约定：新增 props 使用 `judgeRunArgs`，命令 ID 继续使用 `judge.run`。
+□ 将遵循代码风格：React 纯组件、readonly props、SSR 可断言 `data-*` 属性，文案使用简体中文。
+□ 确认不重复造轮子，证明：已确认命令目录和快捷键已有 `judge.run`，本次只把 Workbench 起点接入同一命令系统。
+
+## 编码后声明 - P1.5 退出审计闭环补强
+
+时间：2026-05-28 15:16:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `JudgeRepairWorkbench`: 继续组合 ChapterEditor、ProblemsPanel 和 DiffViewer。
+- `CommandRegistry`: 新增运行 Judge 入口时复用同一个 `commands.execute` 执行面。
+- `registerBuiltinCommands`: 复用既有 `judge.run` 命令定义，没有新增并行命令 ID。
+- `ide-judge-repair.spec.ts`: 复用 e2e 源码契约检查，强化 Workbench 命令闭环证据。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `judgeRunArgs` props 使用 camelCase，命令 ID 沿用 `judge.run`。
+- 代码风格：React props 使用 `readonly`，按钮暴露 `data-command-id` 和 `data-command-args`。
+- 文件组织：闭环起点仍在 `apps/web/components/ide/workflows/`，测试分别放在组件测试和 e2e 契约测试中。
+
+### 3. 对比了以下相似实现
+
+- `ProblemsPanel`: Repair 按钮通过 `data-command-id` 暴露命令并由上层执行。
+- `DiffViewer`: Approve 按钮通过 `data-command-id` 暴露命令并由上层执行。
+- `keymap/index.ts`: `judge.run` 已是快捷键命令，本次将同一命令接入 Workbench UI。
+
+### 4. 未重复造轮子的证明
+
+- 已检查命令目录、快捷键、Workbench、组件测试和 e2e 契约；缺口是 Workbench 闭环起点，不是新命令系统。
+- 未新增直接 fetch、axios 或 XMLHttpRequest 写路径。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm --filter @storyforge/web test ide-components` 失败于缺少 `运行 Judge` / `data-command-id="judge.run"`。
+- 绿灯：`pnpm --filter @storyforge/web test ide-components`，17 passed。
+- e2e 单项红灯：`pnpm e2e tests/e2e/ide-judge-repair.spec.ts` 失败于 Workbench 源码缺少 `judge.repair` 闭环证据。
+- e2e 单项绿灯：`pnpm e2e tests/e2e/ide-judge-repair.spec.ts`，4 contract tests passed，API 58 passed，workflow 34 passed。
+- 全量测试：`pnpm test`，Web 109 passed，API 292 passed，Workflow 74 passed。
+- 全量 e2e：`pnpm e2e`，27 contract tests passed，API 58 passed，Workflow 34 passed。
+- 全量 lint：首次与测试并行时扫到临时 `.tmp-storyforge-phase1-*` 转译目录失败；测试结束后单独重跑 `pnpm lint` 通过。
+- 写路径检查：`apps/web/components/ide` 中仅 `components/ide/commands/command-client.ts` 命中 `apiFetch(`，未发现直接 `fetch(`、axios 或 XMLHttpRequest。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 替换提示。
+
+### 6. 后续风险
+
+- 本轮补强的是本地契约型闭环和全量命令验证，不等同于完成主计划 P2-P7。
+- 真实浏览器点击式 Playwright UI 测试仍可作为后续增强，但当前仓库 e2e 脚本采用源码契约 + API/workflow 验证模式。
+
+## 编码前检查 - P2 Context Inspector URL 与入口
+
+时间：2026-05-28 15:29:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p2-context-inspector.md`
+□ 将使用以下可复用组件：
+
+- `ContextInspector`: `apps/web/components/ide/views/ContextInspector.tsx` - 快照展示和 evicted 提示。
+- `parseIdeUrlState` / `serializeIdeUrlState`: `apps/web/components/ide/url/ide-url-state.ts` - IDE URL 真相源。
+- `JudgeRepairWorkbench`: `apps/web/components/ide/workflows/JudgeRepairWorkbench.tsx` - Repair/Approve 所在上下文入口宿主。
+- `test_ide_context_snapshot.py`: `apps/api/tests/test_ide_context_snapshot.py` - 后端快照回放和 evicted 契约证据。
+
+□ 将遵循命名约定：新增 URL 字段使用 `inspectorId`，query 参数使用主计划中的 `inspector`。
+□ 将遵循代码风格：readonly props、SSR 可断言 `data-*` 属性，文案使用简体中文。
+□ 确认不重复造轮子，证明：已确认后端快照 API 和前端 ContextInspector 已存在，缺口是 URL 状态和只读入口绑定。
+
+## 编码后声明 - P2 Context Inspector URL 与入口
+
+时间：2026-05-28 13:26:40 +08:00
+
+### 1. 复用了以下既有组件
+
+- `ContextInspector`: 复用既有 compiled context 快照展示、budget、injected/dropped、debug summary 和 evicted 提示。
+- `parseIdeUrlState` / `serializeIdeUrlState`: 复用 IDE URL 真相源，新增 `inspectorId` 与 `inspector` query 映射。
+- `ide-components.test.tsx` / `ide-url-state.test.ts`: 复用 React SSR 契约测试和 URL 状态单元测试。
+- `ide-judge-repair.spec.ts`: 复用 e2e 源码契约 + API/workflow 验证入口，增加 P2 Context Inspector 证据。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：URL 状态字段使用 camelCase `inspectorId`，query 参数沿用主计划的 `inspector`。
+- 代码风格：组件 props 使用 `readonly`，入口暴露 SSR 可断言 `data-context-entry-*` 属性。
+- 文件组织：URL 状态仍在 `apps/web/components/ide/url/`，Context 展示仍在 `apps/web/components/ide/views/`，契约测试留在 `apps/web/tests/` 和 `tests/e2e/`。
+
+### 3. 对比了以下相似实现
+
+- `ide-url-state.ts`: 本次沿用 workspace/book/tab/active 的解析序列化模式，没有新增平行 URL 状态系统。
+- `ContextInspector.tsx`: 本次在现有快照展示下补只读来源入口，不改变 injected/dropped/debug summary 数据结构。
+- `apps/api/tests/test_ide_context_snapshot.py`: 后端快照回放和 evicted 契约已存在，本次前端契约引用该证据。
+
+### 4. 未重复造轮子的证明
+
+- 已检查后端 `/api/ide/context-snapshot/{id}` 测试、前端 ContextInspector、IDE URL 状态和 Workbench；缺口是 URL/入口契约，不是新请求层或新快照服务。
+- 写路径搜索确认 `apps/web/components/ide` 中未新增直接 `fetch(`、axios 或 XMLHttpRequest；唯一命中仍是既有 `command-client.ts` 中的 `apiFetch(`。
+
+### 5. 本地验证记录
+
+- 目标 Web 测试：`pnpm --filter @storyforge/web test ide-components ide-url-state`，19 passed。
+- 单项 e2e：`pnpm e2e tests/e2e/ide-judge-repair.spec.ts`，5 contract tests passed、API 58 passed、Workflow 34 passed。
+- Web 类型检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- 目标格式检查：首次 `pnpm exec prettier --check ...` 发现 `tests/e2e/ide-judge-repair.spec.ts` 需格式化；执行 `pnpm exec prettier --write "tests/e2e/ide-judge-repair.spec.ts"` 后重跑通过。
+- 全量 lint：首次被未跟踪临时目录 `apps/workflow/.pytest-tmp` 的 EPERM 扫描问题阻塞；e2e 脚本清理临时目录后重跑 `pnpm lint` 通过。
+- 范围 ESLint：`pnpm exec eslint "apps/web/components/ide/url/ide-url-state.ts" "apps/web/components/ide/views/ContextInspector.tsx" "apps/web/tests/ide-url-state.test.ts" "apps/web/tests/ide-components.test.tsx" "tests/e2e/ide-judge-repair.spec.ts"` 退出码 0。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 替换提示。
+- 写路径搜索：`apps/web/components/ide` 中唯一命中为 `components/ide/commands/command-client.ts` 的 `apiFetch(`，未发现直接 `fetch(`、axios 或 XMLHttpRequest。
+
+### 6. 后续风险
+
+- 本轮只完成 P2 URL 状态和组件入口契约；IDE 页面尚未根据 `inspector=<compiled_context_id>` 实际加载 `/api/ide/context-snapshot/{id}`。
+- ModelRun、Repair、Approve 真实数据旁的一键进入 Inspector 图标或入口仍需后续切片实现。
+- 主计划 P2-P7 未完成，不能标记长期目标完成。
+
+## 编码前检查 - P2 Inspector 快照加载
+
+时间：2026-05-28 13:35:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p2-inspector-load.md`
+□ 将使用以下可复用组件：
+
+- `readJson`: `apps/web/lib/api-client.ts` - 只读 REST 查询包装，默认 no-store。
+- `ContextInspector`: `apps/web/components/ide/views/ContextInspector.tsx` - 快照展示与 evicted 提示。
+- `IdeShell` / `EditorArea`: `apps/web/components/ide/shell/` - IDE 页面渲染入口。
+- `parseIdeUrlState`: `apps/web/components/ide/url/ide-url-state.ts` - `/ide` URL 真相源。
+
+□ 将遵循命名约定：新增状态字段使用 camelCase，API payload 字段保持 snake_case。
+□ 将遵循代码风格：readonly props、SSR 可断言 data 属性、简体中文文案。
+□ 确认不重复造轮子，证明：已确认 `readJson`、ContextInspector 和后端 context snapshot API 均存在，本次只补页面加载和传递。
+□ Context7 查询记录：查询 Next.js App Router 官方文档，确认 async Page 可 await `searchParams` 并在服务端使用 `fetch`/no-store 动态读取数据。
+
+## 编码后声明 - P2 Inspector 快照加载
+
+时间：2026-05-28 13:38:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `readJson`: 在 `apps/web/app/ide/page.tsx` 中读取 `/api/ide/context-snapshot/{id}`，继续复用 no-store 和 API Key 注入逻辑。
+- `ContextInspector`: 在 `EditorArea` 中按 `inspectorId` 渲染真实快照或 evicted 提示。
+- `IdeShell` / `EditorArea`: 通过既有 IDE 壳层传递 `contextSnapshot`、`contextSnapshotEvictedAt` 和 `inspectorId`。
+- `phase1-contract-test.mjs`: 复用本地 React SSR 测试转译脚本，增加 `app/ide/page.tsx` 运行时转译。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `contextSnapshot`、`contextSnapshotEvictedAt`、`inspectorId` 均使用 camelCase；API payload 保持 snake_case。
+- 代码风格：props 使用 `readonly`，SSR 契约通过 `data-active-inspector-id` 验证。
+- 文件组织：页面数据读取留在 `apps/web/app/ide/page.tsx`，展示传递留在 `components/ide/shell/`。
+
+### 3. 对比了以下相似实现
+
+- `api-client.ts`: 沿用 `readJson` 的 `ApiResult` 形态，没有新增请求客户端。
+- `ContextInspector.tsx`: 继续使用既有 evicted 展示文案，不新建平行错误组件。
+- `app/ide/page.tsx`: 延续 Next.js 15 async `searchParams` 解析模式，只在 URL 带 inspector 时增加只读加载。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `readJson`、`ContextInspector`、`IdeShell`、`EditorArea` 和后端 context snapshot API；本次只补数据流，不新增快照服务或自研请求封装。
+- 写路径搜索确认 `apps/web/components/ide` 中未新增直接 `fetch(`、axios 或 XMLHttpRequest；唯一命中仍是既有 `command-client.ts` 中的 `apiFetch(`。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm --filter @storyforge/web test ide-components ide-page` 失败于 `IdePage` 未请求快照 API，且测试转译脚本缺少 `EditorArea` import 重写。
+- 绿灯：`pnpm --filter @storyforge/web test ide-components ide-page ide-url-state`，22 passed。
+- 单项 e2e：`pnpm e2e tests/e2e/ide-judge-repair.spec.ts`，5 contract tests passed、API 58 passed、Workflow 34 passed。
+- Web 类型检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- 格式检查：相关文件 `pnpm exec prettier --check ...` 通过；曾发现 `app/ide/page.tsx`、`ide-page.test.tsx`、`phase1-contract-test.mjs` 需格式化，已执行 `prettier --write` 后重跑。
+- 全量 lint：`pnpm lint` 通过。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 替换提示。
+- 写路径搜索：`apps/web/components/ide` 中唯一命中为 `components/ide/commands/command-client.ts` 的 `apiFetch(`，未发现直接 `fetch(`、axios 或 XMLHttpRequest。
+
+### 6. 后续风险
+
+- 本轮已完成 `/ide?inspector=<compiled_context_id>` 的真实快照加载和 evicted 降级。
+- 真实 ModelRun、Repair、Approve 旁自动生成“一键进入 Inspector”的入口仍需后续切片完成。
+- 主计划 P3-P7 未完成，不能标记长期目标完成。
+
+## 编码前检查 - P2 Trace Context Links
+
+时间：2026-05-28 13:45:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p2-trace-context-links.md`
+□ 将使用以下可复用组件：
+
+- `IdeArtifactTraceLink`: `apps/api/app/domains/ide/schemas.py` - trace 链接 schema。
+- `_artifact_trace`: `apps/api/app/domains/ide/service.py` - 现有 BookRun/ModelRun/Judge/Approve 追溯聚合。
+- `ArtifactViewer`: `apps/web/components/ide/views/ArtifactViewer.tsx` - trace UI 与 `data-trace-*` 出口。
+- `/ide?inspector=<compiled_context_id>`: 已接通的 Context Inspector URL。
+
+□ 将遵循命名约定：后端新增字段使用 `context_href`，前端数据属性使用 `data-context-href`。
+□ 将遵循代码风格：只读链接、SSR 可断言 data 属性、简体中文测试文案。
+□ 确认不重复造轮子，证明：已确认 Artifact Preview trace 聚合和 UI 已存在，本次只补 `compiled_context_id` 到 Context Inspector 的链接。
+
+## 编码后声明 - P2 Trace Context Links
+
+时间：2026-05-28 13:49:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `IdeArtifactTraceLink`: 追加只读 `context_href` 字段，保持 trace schema 边界。
+- `_artifact_trace`: 复用 Artifact payload 和 audit chapters 的追溯提取逻辑，把 `compiled_context_id` 转成 `/ide?inspector=...`。
+- `ArtifactViewer`: 复用现有 trace item，补充 `data-context-href` 和“上下文”链接。
+- `storyforge.openapi.json`: 通过 `pnpm run openapi` 刷新，保持共享 OpenAPI 契约同步。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：后端字段使用 `context_href`，前端属性使用 `data-context-href`。
+- 代码风格：新增入口是只读链接，不执行写命令；测试和文档使用简体中文。
+- 文件组织：后端聚合仍在 `apps/api/app/domains/ide/`，前端展示仍在 `ArtifactViewer`。
+
+### 3. 对比了以下相似实现
+
+- `ArtifactViewer` 既有 `data-trace-kind`、`data-trace-id`、`data-trace-href`，本次沿同一契约补 `data-context-href`。
+- `_artifact_trace` 既有从 payload/chapter 提取 ID 的实现，本次复用相同来源读取 `compiled_context_id`。
+- `ContextInspector` 已接受 `/ide?inspector=<id>`，本次 trace 链接复用该 URL，不新增路由。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 ModelRun payload、RepairPatch/JudgeIssue、Artifact Preview trace、ArtifactViewer 和 Context Inspector URL；缺口是把已有 compiled context 引用暴露到 trace，不是新建 trace 系统。
+- 写路径搜索确认 `apps/web/components/ide` 中未新增直接 `fetch(`、axios 或 XMLHttpRequest；唯一命中仍是既有 `command-client.ts` 中的 `apiFetch(`。
+
+### 5. 本地验证记录
+
+- 红灯 API：`uv run pytest tests/test_ide_artifact_preview.py -q` 失败于缺少 `trace["model_run"]["context_href"]`。
+- 红灯 Web：`pnpm --filter @storyforge/web test ide-components` 失败于缺少 `data-context-href="/ide?inspector=ctx_trace"`。
+- 绿灯 API：`uv run pytest tests/test_ide_artifact_preview.py tests/test_ide_context_snapshot.py -q`，5 passed。
+- 绿灯 Web：`pnpm --filter @storyforge/web test ide-components ide-page ide-url-state`，22 passed。
+- OpenAPI：首次 `pnpm e2e tests/e2e/ide-judge-repair.spec.ts` 发现 `IdeArtifactTraceLink.context_href` 合约漂移；执行 `pnpm run openapi` 后重跑通过。
+- 单项 e2e：`pnpm e2e tests/e2e/ide-judge-repair.spec.ts`，5 contract tests passed、API 58 passed、Workflow 34 passed。
+- Web 类型检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- 全量 lint：`pnpm lint` 通过。
+- 格式检查：相关文件 `pnpm exec prettier --check ...` 通过；`tests/e2e/ide-judge-repair.spec.ts` 已执行 Prettier 修复。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 替换提示。
+- 写路径搜索：`apps/web/components/ide` 中唯一命中为 `components/ide/commands/command-client.ts` 的 `apiFetch(`，未发现直接 `fetch(`、axios 或 XMLHttpRequest。
+
+### 6. 后续风险
+
+- 本轮已让 Artifact trace 中的 ModelRun、JudgeReport、Approve 具备进入 Context Inspector 的真实只读入口。
+- RepairPatch 暂无独立 trace 节点；后续若需要严格满足“Repair 旁”入口，可在 Repair/Diff 专用聚合中新增 repair trace。
+- 主计划 P3-P7 未完成，不能标记长期目标完成。
+
+## P3 Story Memory 编码前检查 - 冲突仲裁命令审计闭环
+
+时间：2026-05-28 00:00:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p3-story-memory.md`
+- 将使用以下可复用组件：
+  - `apps/api/app/domains/ide/service.py`: 复用 `execute_ide_command_by_id` 写命令审计薄壳。
+  - `apps/web/components/ide/views/StoryMemoryExplorer.tsx`: 复用现有 `data-command-id` / `data-command-args` 契约。
+  - `apps/api/tests/test_ide_commands.py`: 复用 `judge.approve` 命令审计测试模式。
+- 将遵循命名约定：Python snake_case；TypeScript 类型 PascalCase、字段沿用后端契约。
+- 将遵循代码风格：中文测试描述与 docstring，React 静态渲染断言机器可读属性。
+- 确认不重复造轮子：已检查 IDE 命令、Story Memory 查询、冲突检测和 Agent 命令入口；冲突持久化仲裁模型不存在，因此本切片只补强命令审计留痕。
+- 检索缺口：当前工具集中没有 `github.search_code`，已用 `tool_search` 确认并记录。
+## P3 Story Memory 编码中监控 - 冲突仲裁命令参数
+
+时间：2026-05-28 00:00:00
+
+- 是否使用了摘要中列出的可复用组件：是，继续复用 `StoryMemoryExplorer` 的 `data-command-args` 契约和后端 `execute_ide_command_by_id`。
+- 命名是否符合项目约定：是，新增字段沿用后端契约 snake_case，包括 `left_memory_id`、`right_memory_id`、`winner_memory_id`。
+- 代码风格是否一致：是，只扩展 JSON.stringify 参数对象，不新增组件抽象或直接网络调用。
+- 红灯记录：后端命令 payload 测试在现有薄壳下已通过；前端 `pnpm test ide-components` 失败于缺少 `left_memory_id`，红灯有效。
+## P3 Story Memory 编码前检查 - 页面真实查询接入
+
+时间：2026-05-28 00:00:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p3-story-memory.md`
+- 将使用以下可复用组件：
+  - `apps/web/app/ide/page.tsx`: 复用 `readJson` 与响应类型守卫模式。
+  - `apps/web/components/ide/shell/ide-store.ts`: 复用 `createInitialIdeState` 合并 URL/服务端初始状态。
+  - `apps/web/components/ide/shell/SidePanel.tsx`: 复用 Memory 面板入口并传入查询结果。
+- 将遵循命名约定：URL 中 `book` 映射为前端 `bookId`，API body 沿用后端 `book_id`。
+- 将遵循代码风格：页面测试继续 mock `globalThis.fetch` 并断言服务端渲染 HTML。
+- 确认不重复造轮子：已有 `/api/ide/story-memory/query` 和 `StoryMemoryExplorer`，只接线，不新增查询端点或自研客户端。
+## P3 Story Memory 编码中监控 - 页面真实查询接入
+
+时间：2026-05-28 00:00:00
+
+- 是否使用了摘要中列出的可复用组件：是，复用 `readJson`、`createInitialIdeState`、`SidePanel` 和 `StoryMemoryExplorer`。
+- 命名是否符合项目约定：是，前端状态使用 `storyMemoryResult`，API 请求体使用 `book_id`。
+- 代码风格是否一致：是，页面响应校验沿用 Context Snapshot 的本地类型守卫模式。
+- 红灯记录：`pnpm test ide-page` 失败于 `calls.length` 为 0，证明页面尚未发起 Story Memory 查询。
+## 编码后声明 - P3 Story Memory
+
+时间：2026-05-28 00:00:00
+
+### 1. 复用了以下既有组件
+
+- `execute_ide_command_by_id`: 用于 `memory.resolve_conflict` 审计 ID 和 payload args 留痕。
+- `StoryMemoryExplorer`: 用于长效记忆与冲突队列渲染，并扩展仲裁命令参数。
+- `readJson`: 用于 `/ide` 页面读取 Story Memory 查询响应并进行类型守卫校验。
+- `createInitialIdeState`: 用于把服务端查询结果纳入 IDE 初始状态。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 测试使用 snake_case；前端状态使用 `storyMemoryResult`；API 请求体沿用 `book_id`。
+- 代码风格：测试描述和文档使用简体中文；React 组件继续使用只读 props 和静态渲染契约。
+- 文件组织：后端命令测试留在 `apps/api/tests/test_ide_commands.py`；页面查询逻辑留在 `apps/web/app/ide/page.tsx`；状态传递留在 shell 组件。
+
+### 3. 对比了以下相似实现
+
+- `judge.approve` 命令审计测试：本轮 `memory.resolve_conflict` 沿用相同 `audit_event_id` 和 payload 断言方式。
+- `Context Snapshot` 页面加载：本轮 Story Memory 页面查询沿用 `readJson`、类型守卫和失败降级模式。
+- `StoryMemoryExplorer` 既有冲突按钮：本轮只补齐 args 字段，不新增按钮系统或直接网络调用。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 IDE 命令系统、Story Memory 查询 API、Story Memory 冲突检测服务、URL 状态和 SidePanel 数据流。
+- 现有冲突持久化仲裁模型不存在，因此未新增伪持久化实现；真实状态写回作为后续 Phase 9 缺口记录。
+## 编码前检查 - P4 BookRun checkpoint 与 blocked chapter 跳转
+
+时间：2026-05-28 00:00:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p4-bookrun-links.md`
+- 将使用以下可复用组件：
+  - `BookRunPanel`: 用于 Run 状态、checkpoint 和 blocked chapter 展示。
+  - `ArtifactViewer`: 参考 trace href 与 `data-*` 机器可读属性。
+  - `test_ide_run_events.py`: 参考 checkpoint 和 blocked 事件字段。
+- 将遵循命名约定：helper 使用 camelCase，数据字段沿用 `chapter_index`、`model_run_id`、`judge_report_id`、`approved_scene_id`。
+- 将遵循代码风格：纯展示链接，SSR 可断言属性，简体中文文案。
+- 确认不重复造轮子：已检查 BookRunPanel、BookRunEventsPanel、ArtifactViewer 和后端 Run events 测试；缺口是跳转元数据，不是新请求层或新命令系统。
+- 工具缺口：当前无 `github.search_code` 工具，已记录并用项目内实现与 Context7 React 官方文档补足依据。
+## 编码中监控 - P4 BookRun 跳转
+
+时间：2026-05-28 00:00:00
+
+- 是否使用了摘要中列出的可复用组件：是，继续复用 `BookRunPanel` 的 checkpoint/blocked 区块和 `ArtifactViewer` 的 href/data 属性模式。
+- 命名是否符合项目约定：是，helper 使用 `chapterHref`、`modelRunHref`、`judgeReportHref`、`approveHref`。
+- 代码风格是否一致：是，纯展示链接，不新增请求层或写操作。
+- 红灯记录：`pnpm test ide-components` 失败于缺少 `data-checkpoint-index="2"`，证明测试覆盖 P4 跳转缺口。
+## 编码后声明 - P4 BookRun checkpoint 与 blocked chapter 跳转
+
+时间：2026-05-28 00:00:00
+
+### 1. 复用了以下既有组件
+
+- `BookRunPanel`: 在既有 checkpoint、blocked_chapter 和 CommandBar 上补充跳转链接。
+- `BookRunEventsPanel`: 继续通过同一个 `BookRunPanel` 展示 SSE 快照关联的运行状态。
+- `ArtifactViewer` 的 trace 契约模式：复用 href + `data-*` 的机器可读跳转表达。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 helper 使用 `chapterHref`、`modelRunHref`、`judgeReportHref`、`approveHref`。
+- 代码风格：纯渲染 helper，React props 使用 readonly，测试描述和日志使用简体中文。
+- 文件组织：实现留在 `apps/web/components/ide/views/BookRunPanel.tsx`，测试留在 `apps/web/tests/ide-components.test.tsx`。
+
+### 3. 对比了以下相似实现
+
+- `ArtifactViewer.TraceItem`: 本次沿用 trace href 和 `data-*` 方式，但没有抽象出共享组件。
+- `BookRunEventsPanel`: 本次不改 SSE 事件入口，只让其内部 Run Panel 获得同样跳转能力。
+- `test_ide_run_events.py`: checkpoint 字段来源与后端事件契约保持一致。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `BookRunPanel`、`BookRunEventsPanel`、`ArtifactViewer` 和后端 Run events 测试，缺口是跳转元数据，不是新请求层或新命令系统。
+- 未新增直接 `fetch`、axios 或 XMLHttpRequest；写命令仍走 CommandRegistry。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm test ide-components` 失败于缺少 `data-checkpoint-index="2"`。
+- 绿灯：`pnpm test ide-components`，19 passed。
+- Web 静态检查：`pnpm lint`（apps/web），`tsc --noEmit` 退出码 0。
+- 仓库 lint：`pnpm lint` 通过，ESLint 与 Prettier 均通过。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 提示。
+- 写路径扫描：`apps/web/components/ide` 未发现 `fetch(`、axios 或 XMLHttpRequest。
+
+### 6. 后续风险
+
+- checkpoint 当前仅有 `chapter_index`，暂无真实 `chapter_id`；本轮使用 `/ide?tab=chapter:<chapter_index>` 作为过渡跳转，后续后端事件提供 `chapter_id` 后应迁移。
+## 编码前检查 - P6 Artifact Viewer 页面真实预览接入
+
+时间：2026-05-28 00:00:00
+
+- 已查阅上下文摘要文件：`.codex/context-summary-storyforge-vscode-ide-p6-artifact-preview-load.md`
+- 将使用以下可复用组件：
+  - `apps/web/app/ide/page.tsx`: 复用 `readJson` 和类型守卫模式。
+  - `ArtifactViewer`: 复用预览、版本和 trace 渲染。
+  - `parseIdeUrlState` / `serializeIdeUrlState`: 复用 URL 真相源。
+  - `BottomPanel`: 复用 artifacts 面板入口。
+- 将遵循命名约定：URL 状态字段使用 `artifactId`，传递状态使用 `artifactPreview`。
+- 将遵循代码风格：readonly props，SSR 可断言 HTML，简体中文日志。
+- 确认不重复造轮子：后端 API 和 ArtifactViewer 已存在，本切片只接线；只读请求不走 CommandRegistry。
+- 工具缺口：当前无 `github.search_code` 工具，已用项目内实现和 Context7 Next.js 官方文档补足依据。
+## 编码中监控 - P6 Artifact Preview Load
+
+时间：2026-05-28 00:00:00
+
+- 是否使用了摘要中列出的可复用组件：是，复用 `readJson`、`ArtifactViewer`、`IdeShell initialState` 和 `BottomPanel`。
+- 命名是否符合项目约定：是，URL 状态使用 `artifactId`，初始状态使用 `artifactPreview`。
+- 代码风格是否一致：是，沿用 page.tsx 本地类型守卫模式和 SSR 页面测试。
+- 红灯记录：`pnpm test ide-url-state ide-page` 失败于缺少 `artifactId` 解析/序列化和页面未请求 `/api/ide/artifacts/7/preview`。
+## 编码后声明 - P6 Artifact Viewer 页面真实预览接入
+
+时间：2026-05-28 14:28:00
+
+### 1. 复用了以下既有组件
+
+- `readJson`: 用于 `/ide` 服务端读取 `/api/ide/artifacts/{id}/preview`。
+- `ArtifactViewer`: 用于渲染预览正文、版本列表和 BookRun→ModelRun→JudgeReport→Approve 追溯链。
+- `parseIdeUrlState` / `serializeIdeUrlState`: 用于 `artifact` URL 参数的解析和序列化。
+- `IdeShell`、`BottomPanel` 和 `createInitialIdeState`: 用于把 `artifactPreview` 作为 IDE 初始状态传入 artifacts 面板。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：URL 状态字段使用 `artifactId`，初始状态字段使用 `artifactPreview`，API 响应字段沿用后端 snake_case。
+- 代码风格：页面数据加载沿用 `page.tsx` 本地类型守卫和失败降级模式；组件 props 保持 readonly。
+- 文件组织：URL 状态、shell 状态、页面读取和测试分别留在既有模块内，未新增客户端请求层。
+
+### 3. 对比了以下相似实现
+
+- Context Snapshot 页面加载：本轮沿用服务端 `readJson`、类型守卫和空状态降级模式。
+- Story Memory 页面加载：本轮同样由 URL 状态驱动服务端只读 REST 查询，并注入 `initialState`。
+- ArtifactViewer trace 渲染：本轮不改追溯视图实现，只提供真实 preview 数据。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 ArtifactViewer、BottomPanel、IDE URL 状态、页面服务端读取模式和后端 artifact preview 契约。
+- 后端 `/api/ide/artifacts/{id}/preview` 已存在，本轮只做前端页面接线；写操作仍不绕过 CommandRegistry。
+- `github.search_code` 工具不可用，已记录缺口，并用项目内相似实现和 Context7 官方文档查询补偿。
+
+### 5. 本地验证记录
+
+- 红灯：`pnpm test ide-url-state ide-page` 失败于缺少 `artifactId` 解析/序列化和页面未请求 `/api/ide/artifacts/7/preview`。
+- 格式化：首次 `pnpm exec prettier --write apps/web/tests/ide-page.test.tsx` 因未在仓库根执行失败；切换到仓库根后成功。
+- 绿灯：`pnpm test ide-url-state ide-page ide-components`，24 passed。
+- Web 静态检查：`pnpm lint`（apps/web），`tsc --noEmit` 退出码 0。
+- 仓库 lint：`pnpm lint` 退出码 0，ESLint 与 Prettier 均通过。
+- 空白检查：`git diff --check` 退出码 0，仅 CRLF 提示。
+- 写路径扫描：`apps/web/components/ide` 未发现 `fetch(`、axios 或 XMLHttpRequest。
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+```json
+{
+  "baseline": {
+    "generatedAt": "2026-05-28T10:33:20.853Z",
+    "metrics": [
+      {
+        "name": "1000 Problems SSR render",
+        "durationMs": 29.533600000000035,
+        "measuredAt": "2026-05-28T10:33:20.848Z"
+      },
+      {
+        "name": "10k ChapterEditor SSR render",
+        "durationMs": 1.1272000000000162,
+        "measuredAt": "2026-05-28T10:33:20.850Z"
+      },
+      {
+        "name": "CommandPalette 100 command filter",
+        "durationMs": 2.490099999999984,
+        "measuredAt": "2026-05-28T10:33:20.853Z"
+      }
+    ]
+  },
+  "evaluation": {
+    "status": "pass",
+    "violations": []
+  }
+}
+```
+
+## 编码前检查 - StoryForge IDE 运行时与构建预算
+
+时间：2026-05-28 18:46:16 +08:00
+
+- 已按要求尝试执行 sequential-thinking / shrimp-task-manager 流程；当前环境未提供这些专用工具，因此以本地证据扫描、计划清单和日志留痕替代。
+- 已查阅上下文摘要文件：.codex/context-summary-storyforge-vscode-ide-runtime-budgets.md。
+- 将使用以下可复用组件：
+  - pps/web/components/ide/performance/budgets.ts：复用性能预算声明与评估模型。
+  - pps/web/tests/ide-performance-budget.test.tsx：复用本地性能基线和 .codex JSON 报告模式。
+  - pps/web/scripts/phase1-contract-test.mjs：沿用 Web 测试运行方式。
+  - .next/app-build-manifest.json：读取 Next App Router 页面 chunk 映射。
+- 将遵循命名约定：Node 脚本使用 camelCase 函数，测试用中文描述行为。
+- 将遵循代码风格：ESM、单引号、2 空格缩进、无新增依赖。
+- 确认不重复造轮子：已搜索 gzip、undle、aseline、performance，现有实现只有 SSR 性能预算，没有 /ide 构建 bundle gzip 脚本。
+
+## TDD 红灯 - IDE 构建预算脚本
+
+时间：2026-05-28 18:48:43 +08:00
+
+- 新增测试：pps/web/tests/ide-build-budget.test.ts。
+- 执行：pnpm --filter @storyforge/web test ide-build-budget。
+- 结果：失败，原因是 scripts/measure-ide-build-budget.mjs 不存在，第二个缺失 manifest 断言也因脚本不存在而失败。
+- 判定：红灯有效，测试正在约束新增脚本契约：读取 /ide/page manifest chunk、计算 gzip、写 JSON 报告、缺少路由时明确失败。
+
+## 调试记录 - IDE 构建预算格式验证失败
+
+时间：2026-05-28 18:53:34 +08:00
+
+- 失败命令：pnpm lint。
+- 错误信息：Prettier 仅报告 pps/web/tests/ide-build-budget.test.ts 存在格式问题。
+- 复现情况：同一命令稳定失败；pnpm --filter @storyforge/web lint 已通过，说明不是 TypeScript 类型错误。
+- 根因判断：新增测试文件未按项目 Prettier 格式换行。
+- 最小修复：仅对新增测试与新增脚本执行 Prettier，随后复跑 lint 与 diff 检查。
+
+## 编码后声明 - StoryForge IDE 运行时与构建预算
+
+时间：2026-05-28 18:56:56 +08:00
+
+### 1. 复用了以下既有组件
+
+- pps/web/components/ide/performance/budgets.ts：延续 IDE 性能预算的目标/阈值表达方式。
+- pps/web/tests/ide-performance-budget.test.tsx：复用本地性能基线测试与 .codex JSON 报告模式。
+- pps/web/scripts/phase1-contract-test.mjs：继续使用项目既有 Web 测试执行器。
+- pps/web/.next/app-build-manifest.json：使用 Next 构建真相源映射 /ide/page 首屏 chunk。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 measureBuildBudget、classifyBudget、measureChunk 等 camelCase 函数；测试名使用中文业务描述。
+- 代码风格：ESM、单引号、2 空格缩进；已用 Prettier 修正新增文件。
+- 文件组织：脚本位于 pps/web/scripts/，测试位于 pps/web/tests/，报告位于 .codex/。
+
+### 3. 对比了以下相似实现
+
+- ide-performance-budget.test.tsx：本轮同样输出 JSON 基线，但新增读取 .next 构建产物而不是 SSR 组件渲染。
+- phase1-navigation.test.tsx：本轮同样验证工程契约，但新增对真实构建 chunk gzip 的数值计算。
+- phase1-contract-test.mjs：新增测试继续通过既有执行器运行，未新增测试框架。
+
+### 4. 未重复造轮子的证明
+
+- 已搜索 gzip、undle、aseline、TTI、.next 等关键字，确认此前没有 /ide/page 首屏 chunk gzip 报告脚本。
+- 新增脚本只补 master plan §13.3 缺口，不替代既有 SSR 性能预算。
+
+### 5. 本轮验证结果
+
+- 红灯：pnpm --filter @storyforge/web test ide-build-budget 起初失败，原因是 pps/web/scripts/measure-ide-build-budget.mjs 不存在。
+- 绿灯：实现脚本后 pnpm --filter @storyforge/web test ide-build-budget 通过 2/2。
+- 构建：pnpm --filter @storyforge/web build 通过，Next 生产构建生成 /ide 页面，输出显示 /ide First Load JS 184 kB。
+- 基线脚本：
+ode apps/web/scripts/measure-ide-build-budget.mjs --next-dir apps/web/.next --out .codex/ide-build-baseline.json --route /ide/page 通过。
+- IDE 定向测试：pnpm --filter @storyforge/web test ide-build-budget ide-performance-budget ide-components ide-page ide-personalization ide-command-registry ide-url-state 通过 41/41。
+- Web 类型检查：pnpm --filter @storyforge/web lint 通过。
+- 全仓 lint/格式：pnpm lint 通过，Prettier 输出 All matched files use Prettier code style!。
+- 空白检查：git diff --check 退出码 0，仅有既有 CRLF 提示。
+
+### 6. 新增构建预算报告摘要
+
+`json
+{
+  "generatedAt": "2026-05-28T10:54:18.085Z",
+  "route": "/ide/page",
+  "method": "Next app-build-manifest 首屏 chunk gzip；TTI 为本地构建清单读取代理指标，不等同真实浏览器 TTI。",
+  "bundle": {
+    "totalBytes": 604693,
+    "totalGzipBytes": 184373,
+    "totalGzipKb": 180.05,
+    "targetGzipBytes": 614400,
+    "blockingGzipBytes": 921600,
+    "status": "pass",
+    "chunks": [
+      {
+        "path": "static/chunks/webpack-436321d1eca0d142.js",
+        "bytes": 3912,
+        "gzipBytes": 1950
+      },
+      {
+        "path": "static/chunks/fd8fe9d9-117cddacdc77bf3a.js",
+        "bytes": 168795,
+        "gzipBytes": 53464
+      },
+      {
+        "path": "static/chunks/251-5838b65e3987a530.js",
+        "bytes": 396015,
+        "gzipBytes": 119477
+      },
+      {
+        "path": "static/chunks/main-app-eb38f5612b5e2e6e.js",
+        "bytes": 2052,
+        "gzipBytes": 933
+      },
+      {
+        "path": "static/chunks/app/ide/page-dce4b49bdcfd2bd3.js",
+        "bytes": 33919,
+        "gzipBytes": 8549
+      }
+    ]
+  },
+  "ttiProxy": {
+    "name": "/ide build manifest read proxy",
+    "durationMs": 22.868,
+    "targetMs": 1500,
+    "blockingMs": 2500,
+    "status": "pass"
+  }
+}
+
+`
+
+### 7. 风险与限制
+
+- undle.status=pass 是基于 Next pp-build-manifest.json 中 /ide/page 首屏 chunk 的 gzip 合计，满足 <600KB 目标。
+- 	tiProxy 是本地构建清单读取代理指标，报告中已明确“不等同真实浏览器 TTI”；master plan 中真实浏览器 /ide TTI 仍需要 Playwright/浏览器性能采样补证。
+
+## 编码前检查 - StoryForge IDE SSE p95 基线
+
+时间：2026-05-28 19:00:38 +08:00
+
+- 已按要求尝试 sequential-thinking / shrimp-task-manager；当前环境未提供这些专用工具，因此以本地证据扫描、计划和日志留痕替代。
+- 已查阅上下文摘要文件：.codex/context-summary-storyforge-vscode-ide-sse-p95.md。
+- 将使用以下可复用组件：
+  - pps/api/tests/conftest.py：复用 SQLite 内存库和 TestClient。
+  - pps/api/tests/test_book_runs.py::seed_locked_blueprint：复用 BookRun 启动夹具。
+  - pps/api/tests/test_ide_run_events.py：复用 SSE 端点内容契约。
+  - pps/api/app/domains/ide/router.py::stream_run_events：以真实 API 路由作为测量对象。
+- 将遵循命名约定：Python snake_case、中文 docstring、测试函数 	est_*。
+- 将遵循代码风格：ruff/isort、类型标注、报告写入项目 .codex/。
+- 确认不重复造轮子：已搜索 p95、latency、aseline、perf_counter，当前只有 middleware latency 日志和 DB timeout 测试，没有 IDE SSE p95 基线脚本。
+
+## TDD 红灯 - IDE SSE p95 基线
+
+时间：2026-05-28 19:02:48 +08:00
+
+- 新增测试：pps/api/tests/test_ide_sse_latency_budget.py。
+- 执行：cd apps/api; uv run pytest tests/test_ide_sse_latency_budget.py -q。
+- 结果：失败，原因是 ModuleNotFoundError: No module named 'scripts'。
+- 判定：红灯有效，测试正在约束新增测量模块：读取真实 /api/ide/runs/{id}/events、记录 samples/p95/阈值/事件列表，并写 JSON 报告。
+
+## 调试记录 - git diff --check 行尾空白
+
+时间：2026-05-28 19:04:48 +08:00
+
+- 失败命令：git diff --check。
+- 错误信息：.codex/verification-report.md:254: trailing whitespace.。
+- 复现情况：同一组合命令中测试、tsc、pnpm lint 均通过，仅 diff whitespace 检查失败。
+- 根因判断：前一轮写入验证报告时在空行残留空白字符。
+- 最小修复：只移除 .codex/verification-report.md 行尾空白，不改业务代码。
+
+## 编码后声明 - StoryForge IDE SSE p95 基线
+
+时间：2026-05-28 19:07:02 +08:00
+
+### 1. 复用了以下既有组件
+
+- pps/api/tests/conftest.py：复用 SQLite 内存库、TestClient 和 get_session 依赖覆盖模式。
+- pps/api/tests/test_book_runs.py::seed_locked_blueprint：复用 locked Blueprint 构造，保证 BookRun API 可启动。
+- pps/api/app/domains/book_runs/service.py::apply_book_run_progress：复用真实进度回填逻辑生成 checkpoint、budget 和 completed 状态。
+- pps/api/app/domains/ide/router.py::stream_run_events：以真实 /api/ide/runs/{id}/events 路由作为测量目标。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 Python 函数使用 snake_case，测试函数以 	est_ 开头。
+- 代码风格：标准库、第三方、项目模块分组导入；通过 ruff 检查。
+- 文件组织：API 脚本位于 pps/api/scripts/，测试位于 pps/api/tests/，报告写入 .codex/。
+
+### 3. 对比了以下相似实现
+
+- 	est_ide_run_events.py：本轮继续验证同一 SSE 端点，但新增 p95 延迟和报告输出。
+- 	est_book_runs.py：本轮复用 BookRun 创建与 progress 回填模式，不重新造数据初始化逻辑。
+- measure-ide-build-budget.mjs：本轮沿用 .codex/*baseline.json 思路，但用 Python/TestClient 覆盖后端 SSE。
+
+### 4. 未重复造轮子的证明
+
+- 已搜索 p95、latency、aseline、perf_counter；此前只有中间件日志和 DB 超时测试，没有 IDE SSE p95 基线报告。
+- 新增 measure_ide_sse_latency.py 只封装测量与报告，未改动 SSE 业务端点。
+
+### 5. 本轮验证结果
+
+- 红灯：cd apps/api; uv run pytest tests/test_ide_sse_latency_budget.py -q 起初失败，原因是 ModuleNotFoundError: No module named 'scripts'。
+- 绿灯：新增测量模块后同一测试通过，1 passed。
+- 报告生成：cd apps/api; uv run python -m scripts.measure_ide_sse_latency --samples 25 --out ../../.codex/ide-sse-latency-baseline.json 通过。
+- API 定向测试：cd apps/api; uv run pytest tests/test_ide_sse_latency_budget.py tests/test_ide_run_events.py -q 通过，5 passed。
+- API ruff：uv run ruff check scripts/measure_ide_sse_latency.py tests/test_ide_sse_latency_budget.py tests/test_ide_run_events.py 通过。
+- Web 回归：pnpm --filter @storyforge/web test ide-components 通过，19 passed。
+- Web 类型检查：pnpm --filter @storyforge/web lint 通过。
+- 全仓 lint/格式：pnpm lint 通过，Prettier 输出 All matched files use Prettier code style!。
+- 空白检查：git diff --check 退出码 0，仅有既有 CRLF 提示。
+
+### 6. 新增 SSE 延迟报告摘要
+
+`json
+{
+  "generated_at": "2026-05-28T11:03:16.010539+00:00",
+  "method": "FastAPI TestClient 本地请求 /api/ide/runs/{id}/events；不等同真实浏览器 EventSource 或网络 e2e。",
+  "route": "/api/ide/runs/1/events",
+  "samples": 25,
+  "target_p95_ms": 500,
+  "blocking_p95_ms": 1200,
+  "p95_ms": 17.294,
+  "min_ms": 11.729,
+  "max_ms": 31.006,
+  "latencies_ms": [
+    16.345,
+    11.729,
+    14.336,
+    13.381,
+    31.006,
+    13.681,
+    14.921,
+    12.477,
+    14.288,
+    16.501,
+    13.599,
+    13.523,
+    17.294,
+    14.121,
+    13.822,
+    15.24,
+    13.546,
+    13.508,
+    14.975,
+    12.929,
+    13.473,
+    14.237,
+    13.41,
+    13.384,
+    14.06
+  ],
+  "status": "pass",
+  "content_type": "text/event-stream; charset=utf-8",
+  "events": [
+    "progress",
+    "checkpoint",
+    "budget",
+    "completed"
+  ]
+}
+
+`
+
+### 7. 风险与限制
+
+- 当前 p95 证据是 FastAPI TestClient 本地请求，报告中已明确“不等同真实浏览器 EventSource 或网络 e2e”。
+- 当前 SSE 端点仍是 BookRun 状态快照流，不是完整实时事件总线；master plan 中浏览器级 SSE 重连与代理截断降级仍需后续补证。
+
+## 编码前检查 - StoryForge IDE URL 回退与面板状态
+
+时间：2026-05-28 19:11:37 +08:00
+
+- 已按要求尝试 sequential-thinking / shrimp-task-manager；当前环境未提供这些专用工具，因此以本地证据扫描、计划和日志留痕替代。
+- 已查阅上下文摘要文件：.codex/context-summary-storyforge-vscode-ide-url-history.md。
+- 将使用以下可复用组件：
+  - parseIdeUrlState / serializeIdeUrlState：继续以 URL query 作为分享真相源。
+  - createInitialIdeState：popstate 恢复后归一化 tabs/active。
+  - ActivityBar / BottomPanel：复用既有面板切换入口。
+- 将遵循命名约定：TypeScript camelCase、组件 PascalCase、中文测试名。
+- 将遵循代码风格：现有 Web Node 测试、Prettier、无新增依赖。
+- 确认不重复造轮子：已搜索 history、pushState、popstate、panel.left、panel.bottom，当前 IDE 尚未实现客户端 URL 提交与回退恢复。
+
+## TDD 红灯 - IDE URL 回退与面板状态
+
+时间：2026-05-28 19:12:39 +08:00
+
+- 新增/扩展测试：pps/web/tests/ide-url-state.test.ts、pps/web/tests/ide-components.test.tsx。
+- 执行：pnpm --filter @storyforge/web test ide-url-state ide-components。
+- 结果：失败。
+  - ide-url-state：createIdeUrlHref 未导出。
+  - ide-components：IdeShell 未暴露 data-active-left-panel="memory"。
+- 判定：红灯有效，测试正在约束 URL 状态合并、面板分享链接和可观察 active panel 属性。
+
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+### 3. TDD ??
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+- ?? `.codex/context-summary-storyforge-vscode-ide-bookrun-command-state.md`?`.codex/operations-log.md`?`.codex/verification-report.md`?
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+（旧记录该行存在编码损坏，已用本行中文说明替代以避免保留乱码。）
+
+## 编码前检查 - P1 IDE Judge 命令真实化
+
+时间：2026-05-28 21:30:19
+
+□ 已查阅上下文摘要文件：.codex/context-summary-storyforge-vscode-ide-p1-real-commands.md
+□ 工具降级记录：当前 Codex CLI 未提供 sequential-thinking、shrimp-task-manager、desktop-commander、context7、github.search_code 工具入口；已用 PowerShell 文件读取、项目内搜索和本地 pytest 作为替代，并在本地 .codex 留痕。
+□ 将使用以下可复用组件：
+- create_judge_issues: pps/api/app/domains/judge/service.py - 执行真实结构化评审。
+- create_repair_patch: pps/api/app/domains/repair/service.py - 生成真实定向修复补丁。
+- pprove_studio_writeback: pps/api/app/domains/studio/service.py - 执行真实 RepairPatch 写回。
+□ 将遵循命名约定：Python snake_case、pytest 	est_...、中文 docstring。
+□ 将遵循代码风格：服务层编排，路由层注入 session 并转换异常；不新增重型依赖。
+□ 确认不重复造轮子，证明：已检查 Judge、Repair、Studio 三个领域服务，均已有可复用真实业务函数。
+
+### 轻量实施计划
+
+1. 在 pps/api/tests/test_ide_commands.py 增加最小故事上下文 fixture 和 IDE 命令闭环测试。
+2. 先运行定向 pytest 观察红灯，确认失败来自 IDE 命令仍是薄壳。
+3. 修改 pps/api/app/domains/ide/router.py 为 HTTP/WebSocket 命令执行器传入数据库 session。
+4. 修改 pps/api/app/domains/ide/service.py，让 judge.run、judge.repair、judge.approve 复用现有服务并返回真实 payload。
+5. 运行定向测试、相关回归测试、ruff、乱码扫描与 diff 检查。
+
+## TDD 红灯记录 - P1 IDE Judge 命令真实化
+
+时间：2026-05-28 21:33:33
+
+命令：cd apps/api; uv run pytest tests/test_ide_commands.py::test_ide_judge_repair_approve_commands_execute_real_writeback -q
+结果：失败 1 项，符合预期。
+关键失败：KeyError: 'issues'，说明 POST /api/ide/commands/judge.run 当前仍只返回薄壳 payload，尚未执行真实 Judge 创建问题单。
+
+## 编码后声明 - P1 IDE Judge 命令真实化
+
+时间：2026-05-28 22:00:32
+
+### 1. 复用了以下既有组件
+
+- create_judge_issues: 用于 judge.run 真实创建结构化问题单，位于 pps/api/app/domains/judge/service.py。
+- create_repair_patch: 用于 judge.repair 真实创建局部修复补丁，位于 pps/api/app/domains/repair/service.py。
+- pprove_studio_writeback: 用于 judge.approve 真实应用 RepairPatch 并写回章节/场景，位于 pps/api/app/domains/studio/service.py。
+- JudgeIssueRead / RepairPatchRead / StudioApprovalExecuteRequest: 用于保持既有 API 契约输出，不在 IDE 层重复造 schema。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增函数使用 _execute_judge_*_command snake_case；测试命名使用 	est_...。
+- 代码风格：服务层负责领域编排，路由层只注入 session 并把命令错误转换为 HTTP 400；所有 docstring 与测试说明使用简体中文。
+- 文件组织：仅修改 IDE 路由/服务与 IDE 命令测试，未新增跨领域自研业务实现。
+
+### 3. 对比了以下相似实现
+
+- pps/api/tests/test_judge_repair.py: 本轮测试复用其故事上下文、Judge 输入与 Repair 断言，但入口改为 /api/ide/commands/*。
+- pps/api/app/domains/repair/service.py: 本轮不重写补丁生成逻辑，只通过 RepairPatchCreate 转发。
+- pps/api/app/domains/studio/service.py: 本轮不重写批准写回逻辑，只通过 StudioApprovalExecuteRequest 转发。
+
+### 4. 未重复造轮子的证明
+
+- 检查了 judge、
+epair、studio 领域服务，确认已有真实评审、修复、写回能力；IDE 层只做命令参数适配和统一 IdeCommandResult 包装。
+- 原薄壳 judge.approve 测试已改为缺失补丁拒绝测试，防止不存在的 RepairPatch 被误报为 accepted。
+
+### 5. 本地验证记录
+
+- RED：cd apps/api; uv run pytest tests/test_ide_commands.py::test_ide_judge_repair_approve_commands_execute_real_writeback -q，失败于 KeyError: 'issues'，证明命令仍是薄壳。
+- GREEN：cd apps/api; uv run pytest tests/test_ide_commands.py tests/test_ide_diagnostics.py tests/test_judge_repair.py tests/test_approval_writeback.py -q，10 passed。
+- 代码检查：cd apps/api; uv run ruff check app/domains/ide/service.py app/domains/ide/router.py tests/test_ide_commands.py，All checks passed。
+- 前端回归：pnpm --filter @storyforge/web test，123 passed。
+- 仓库 lint：pnpm lint，ESLint 与 Prettier 均通过。
+- 空白/乱码：git diff --check 退出码 0；连续问号扫描无命中。
+
+## 编码前检查 - P1 前端 Judge 闭环真实响应接线
+
+时间：2026-05-28 22:14:44
+
+□ 已查阅上下文摘要文件：.codex/context-summary-storyforge-vscode-ide-p1-frontend-real-loop.md
+□ 工具降级记录：当前会话未提供 sequential-thinking、shrimp-task-manager、desktop-commander、context7、github.search_code；已用 PowerShell 搜索、文件读取和本地测试替代。
+□ 将使用以下可复用组件：
+- CommandRegistry: 统一执行 judge.run、judge.repair、judge.approve。
+- ProblemsPanel: 保持诊断与 quick fix UI，不混入正文知识。
+- DiffViewer: 展示后端 RepairPatch 转换后的 before/after。
+- IdeCommandResponse: 解析后端命令响应。
+□ 将遵循命名约定：React 组件 PascalCase，工具函数 camelCase，中文文案。
+□ 将遵循代码风格：不新增依赖；辅助函数导出供 node:test 验证；工作流层适配后端响应。
+□ 确认不重复造轮子：已检查 ProblemsPanel、DiffViewer、CommandRegistry、diagnostic.ts，仅补缺失的数据适配。
+
+### 轻量实施计划
+
+1. 在 pps/web/tests/ide-components.test.tsx 增加辅助函数红灯测试：repair args 必须包含正文，后端 patch payload 必须推导可视 Diff。
+2. 在 JudgeRepairWorkbench.tsx 导出并实现 uildJudgeRepairCommandArgs、
+esolveJudgeRepairResult、
+esolveJudgeApprovalResult。
+3. 将组件内部 quick fix 与 approve 点击改为异步执行并更新本地 repair/approval 状态与错误提示。
+4. 运行 web 测试、前后端相关验证、lint、乱码与 diff 检查。
+
+## TDD 红灯记录 - P1 前端 Judge 响应接线
+
+时间：2026-05-28 22:19:53
+
+命令：pnpm --filter @storyforge/web test
+结果：失败，符合预期。
+关键失败：JudgeRepairWorkbench.mjs does not provide an export named 'buildJudgeRepairCommandArgs'，说明工作流层尚未导出并实现后端 repair/approve 响应适配函数。
+
+## 编码后声明 - P1 前端 Judge 闭环真实响应接线
+
+时间：2026-05-28 22:38:21
+
+### 1. 复用了以下既有组件
+
+- CommandRegistry: JudgeRepairWorkbench 的 Judge、Repair、Approve 写操作继续通过 commands.execute 统一入口执行。
+- ProblemsPanel: 保持 quick fix UI 只传诊断对象，正文由工作流层补入后端所需 content。
+- DiffViewer: 复用修复前后两栏和批准写回按钮，展示从后端 RepairPatchRead payload 推导出的可视 Diff。
+- IdeCommandResponse: 用于约束后端 /api/ide/commands/{id} 响应解析。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 uildJudgeRepairCommandArgs、
+esolveJudgeRepairResult、
+esolveJudgeApprovalResult 均使用 camelCase。
+- 代码风格：保留 React 客户端组件、readonly 类型和简体中文 UI 错误文案。
+- 文件组织：只修改 pps/web/components/ide/workflows/JudgeRepairWorkbench.tsx 和对应 pps/web/tests/ide-components.test.tsx。
+
+### 3. 对比了以下相似实现
+
+- BookRunPanel.resolveBookRunCommandState: 本轮沿用“导出可测试异步命令状态解析函数”的模式。
+- ProblemsPanel: 本轮不改变面板职责，只在工作流层补充正文参数。
+- DiffViewer: 本轮不重写 diff 展示，只把后端 patch 的 target/replacement 映射为 before/after。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 CommandRegistry、ProblemsPanel、DiffViewer、diagnostic.ts，现有组件足以承载真实闭环；本轮只补数据适配和错误显示。
+
+### 5. 本地验证记录
+
+- RED：pnpm --filter @storyforge/web test 失败于 JudgeRepairWorkbench.mjs does not provide an export named 'buildJudgeRepairCommandArgs'。
+- GREEN：pnpm --filter @storyforge/web test，124 passed。
+- Web 类型检查：pnpm --filter @storyforge/web lint，	sc --noEmit 通过。
+- 仓库 lint：pnpm lint，ESLint 与 Prettier 均通过。
+- API 回归：cd apps/api; uv run pytest tests/test_ide_commands.py tests/test_ide_diagnostics.py tests/test_judge_repair.py tests/test_approval_writeback.py -q，10 passed。
+- API ruff：cd apps/api; uv run ruff check app/domains/ide/service.py app/domains/ide/router.py tests/test_ide_commands.py，All checks passed。
+- 空白/乱码：git diff --check 退出码 0；连续问号扫描无命中。
+
+## 旧记录编码损坏说明 - P1 页面 diagnostics 真实接线
+
+时间：2026-05-28 23:08:00 +0800
+
+- 该段原始记录在 PowerShell 写入时发生中文编码损坏，已替换为可读说明。
+- 本轮上下文摘要位于 `.codex/context-summary-storyforge-vscode-ide-p1-page-diagnostics.md`。
+- 本轮复用 `readJson`、`parseIdeUrlState`、`IdeShell` 状态管线、`JudgeRepairWorkbench` 和 IDE 后端 service/router/schema 模式。
+
+## 编码后声明 - P1 页面 diagnostics 真实接线
+
+时间：2026-05-28 23:52:40 +0800
+
+### 1. 复用了以下既有组件
+
+- `apps/web/lib/api-client.ts`: 用于 `/api/ide/scenes/{id}` 与 `/api/ide/diagnostics` 只读请求，保留 API Key 注入。
+- `apps/web/components/ide/url/ide-url-state.ts`: 扩展 URL 状态，支持 `scene` 与 `tab=scene:<id>` 恢复。
+- `apps/web/components/ide/workflows/JudgeRepairWorkbench.tsx`: 页面级复用 Judge -> Problems -> Repair -> Diff -> Approve 工作流。
+- `apps/api/app/domains/ide/service.py` 与 `router.py`: 沿用 IDE 聚合端点模式新增只读场景正文。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：前端 helper 使用 camelCase，后端读取函数使用 `read_ide_scene`，测试标题为简体中文。
+- 代码风格：只读数据经 SSR initialState 下传，写操作仍由 `CommandRegistry` 执行，没有直接写 API。
+- 文件组织：页面装载留在 `app/ide/page.tsx`，显示逻辑留在 `shell/EditorArea.tsx` 与 `BottomPanel.tsx`，后端契约留在 `domains/ide`。
+
+### 3. 对比了以下相似实现
+
+- Context Snapshot：同样在 `IdePage` 中按 URL 参数读取后注入 Shell；本轮扩展为 scene + diagnostics 双请求。
+- Story Memory：同样只在相关 URL 状态存在时读取；本轮只在 `sceneId` 存在时读取 P1 数据。
+- JudgeRepairWorkbench：沿用已有命令执行设计，仅补足真实页面数据来源。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 Studio、IDE diagnostics、IDE Workbench、CommandRegistry 与 URL 状态模块；不存在可直接读取任意场景正文的 IDE 端点。
+- 新增 `/api/ide/scenes/{scene_id}` 为只读最小契约，避免前端绕用 Studio 特定流程或直接拼接数据库细节。
+
+### 5. 本轮验证结果
+
+- RED：`pnpm --filter @storyforge/web test -- ide-page` 初始失败，未读取 `/api/ide/scenes/3` 与 `/api/ide/diagnostics`。
+- RED：`cd apps/api; uv run pytest tests/test_ide_diagnostics.py -q` 初始失败，`/api/ide/scenes/{id}` 返回 404 Not Found。
+- GREEN 定向：`pnpm --filter @storyforge/web test -- ide-page ide-components ide-url-state`，30 passed。
+- GREEN 全量 Web：`pnpm --filter @storyforge/web test`，125 passed。
+- API 回归：`uv run pytest tests/test_ide_commands.py tests/test_ide_diagnostics.py tests/test_judge_repair.py tests/test_approval_writeback.py -q`，12 passed。
+- 契约生成：`pnpm openapi` 通过，已刷新 `packages/shared/src/contracts/storyforge.openapi.json`。
+- 类型与静态检查：`pnpm --filter @storyforge/shared test`、`pnpm --filter @storyforge/web lint`、API ruff 均通过。
+- 空白/乱码：连续问号扫描无命中；`git diff --check` 退出码 0，仅 CRLF 提示。
+
+## ????? - BookRun ??????
+
+???2026-05-29 00:03:58 +0800
+
+- ??????????? sequential-thinking?shrimp-task-manager?desktop-commander?context7?github.search_code ??????? PowerShell/Python/pytest/node:test???????
+- ???????????.codex/context-summary-storyforge-vscode-ide-bookrun-command-state.md
+- ?????????BookRun ?????IDE ?????BookRunRead ?????? seed_locked_blueprint ?????
+- ????????Python snake_case??? docstring??????????
+- ???????????? book_runs service/router?IDE service?BookRunPanel ??? BookRun ???????? IDE bookrun.* ???????????
+
+
+## ????? - BookRun IDE ????????
+
+???2026-05-29 01:05:06
+
+? ???????????.codex/context-summary-storyforge-vscode-ide-bookrun-command-state.md
+? ????????? Codex CLI ??? sequential-thinking?shrimp-task-manager?desktop-commander?context7?github.search_code ??????????????pytest ?????????????
+? ???????????
+- `create_book_run`: `apps/api/app/domains/book_runs/service.py` - ???? BookRun?
+- `pause_book_run` / `resume_book_run` / `stop_book_run` / `retry_book_run_from_checkpoint`: `apps/api/app/domains/book_runs/service.py` - ????????
+- `BookRunRead`: `apps/api/app/domains/book_runs/schemas.py` - ??????? payload?
+- `_accepted_command_result`: `apps/api/app/domains/ide/service.py` - ?? IDE ?????????
+? ????????Python snake_case?pytest `test_...`??? docstring ??????
+? ????????IDE service ????????????????? BookRun ????
+? ??????????????? `book_runs/service.py` ? `book_runs/router.py`??????????????
+
+### TDD ????
+
+???`cd apps/api; uv run pytest tests/test_ide_commands.py::test_bookrun_control_ide_commands_update_real_status tests/test_ide_commands.py::test_bookrun_retry_from_checkpoint_command_resumes_next_chapter tests/test_ide_commands.py::test_bookrun_control_ide_commands_reject_invalid_state -q`
+???3 failed?????? `NameError: name '_execute_bookrun_command' is not defined`??? IDE ????? `bookrun.*`??????????????
+
+
+## ????? - BookRun IDE ??? Runs ??????
+
+???2026-05-29 01:38:06 +0800
+
+### 1. ?????????
+
+- `create_book_run` / `pause_book_run` / `resume_book_run` / `stop_book_run` / `retry_book_run_from_checkpoint`: ?? `bookrun.*` IDE ??????????? `apps/api/app/domains/book_runs/service.py`?
+- `BookRunRead`: ?? IDE ?? payload ??? JSON ?????? `apps/api/app/domains/book_runs/schemas.py`?
+- `readJson` / `apiFetch`: ?? `/ide?panel.bottom=runs&book_run=<id>` ? BookRun ??? SSE ??????? `apps/web/lib/api-client.ts`?
+- `BookRunEventsPanel`: ?????? BookRun ? SSE ??????? `apps/web/components/ide/views/BookRunEventsPanel.tsx`?
+
+### 2. ?????????
+
+- ?????Python ?? `_execute_bookrun_command`?`_required_book_run_id` ?? snake_case????? `bookRunId`?`readBookRunPanelState` camelCase?
+- ?????IDE ???????????????????? BookRun ??????? SSR ?????? `readJson` ?????
+- ????????????? `domains/ide/service.py`?BookRun ?????? `domains/book_runs/service.py`??? URL ???? `components/ide/url/ide-url-state.ts`?
+
+### 3. ?????????
+
+- `judge.run` / `judge.repair` / `judge.approve`: ??????????? + `_accepted_command_result` ?????????
+- Context Inspector ????????? `/ide` SSR ? URL ?????? API ????? `IdeShell` ????
+- `BookRunEventsPanel` ??????????????????????????????
+
+### 4. ?????????
+
+- ??? `book_runs/service.py`?`book_runs/router.py`?`BookRunEventsPanel.tsx` ? `readJson`???????????API client ?????????? IDE ???????????
+
+### 5. ??????
+
+- RED?`cd apps/api; uv run pytest tests/test_ide_commands.py::test_bookrun_control_ide_commands_update_real_status tests/test_ide_commands.py::test_bookrun_retry_from_checkpoint_command_resumes_next_chapter tests/test_ide_commands.py::test_bookrun_control_ide_commands_reject_invalid_state -q` ???????? `_execute_bookrun_command` ????
+- RED?`pnpm --filter @storyforge/web test -- ide-page` ?????`/ide?panel.bottom=runs&book_run=12` ??? `/api/book-runs/12` ? `/api/ide/runs/12/events`?
+- GREEN ???`pnpm --filter @storyforge/web test -- ide-page ide-components ide-url-state`?31 passed?
+- GREEN API?`cd apps/api; uv run pytest tests/test_ide_commands.py tests/test_book_runs.py tests/test_ide_run_events.py tests/test_ide_sse_latency_budget.py -q`?20 passed?1 ??? deprecation warning?
+- GREEN Web ???`pnpm --filter @storyforge/web test`?126 passed?
+- Web ?????`pnpm --filter @storyforge/web lint`????
+- API ruff?`cd apps/api; uv run ruff check app/domains/ide/service.py app/domains/book_runs/service.py tests/test_ide_commands.py tests/test_ide_run_events.py tests/test_ide_sse_latency_budget.py`?All checks passed?
+- ?????`git diff --check` ??? 0?? CRLF ?????
+
+
+## ????? - P5 ??????
+
+???2026-05-29 01:42:13 +0800
+
+? ???????????.codex/context-summary-storyforge-vscode-ide-p5-command-governance-gate.md
+? ????????? Codex CLI ??? sequential-thinking?shrimp-task-manager?desktop-commander?context7?github.search_code ??????????????????? node:test ???
+? ???????????
+- `CommandRegistry`: `apps/web/components/ide/commands/registry.ts` - ????????
+- `registerBuiltinCommands`: `apps/web/components/ide/commands/registerBuiltinCommands.ts` - ?????
+- `phase1-navigation.test.tsx` ?????? - ????????
+? ?????????????????helper ?? camelCase?
+? ????????????????????????????? `apps/web/components/ide`?
+? ???????????????????????????????? master plan ?????
+
+
+## ???? - P5 ??????????
+
+???2026-05-29 01:58:00 +0800
+
+### ????
+
+- ?????`cd apps/api; uv run pytest tests/test_ide_command_registry.py -q`?
+- ?? 1?`test_known_ide_command_returns_audit_event` ?? `bookrun.start` ?? `book_run_id`??????????? `BookRunCreate`??? `book_id` ? `blueprint_id`?
+- ?? 2?`test_agent_websocket_write_command_uses_command_registry` ?? `judge.repair` ???????????????? Repair ??????????? `JudgeIssue` ???????
+- ?????????????????????? accepted????????????????
+
+### ????
+
+- `apps/api/tests/test_ide_command_registry.py`??????? Agent WebSocket ????????? `memory.resolve_conflict`??????????????????? `execute_ide_command_by_id`?`audit_event_id` ??????
+- `apps/web/tests/ide-command-registry.test.tsx`????????????????????????
+
+### ????
+
+- `cd apps/api; uv run pytest tests/test_ide_command_registry.py -q`?4 passed?
+- `pnpm --filter @storyforge/web test -- ide-command-registry ide-components ide-page`?35 passed?
+- `pnpm --filter @storyforge/web lint`????
+- `cd apps/api; uv run pytest tests/test_ide_command_registry.py tests/test_ide_commands.py -q`?11 passed?
+- `cd apps/api; uv run ruff check tests/test_ide_command_registry.py app/domains/ide/service.py`?All checks passed?
+- `pnpm --filter @storyforge/web test`?127 passed?
+- `git diff --check`???? 0?????? CRLF ?????
+
+### ?????
+
+- ?????`memory.resolve_conflict` ??????`execute_ide_command_by_id`??? `node:test`/`assert` ?????
+- ??????????? `test_*` ??? docstring??????? `node:test`??????? `fs/path` ???????
+- ?????????????????????????????????? ESLint ???????
+
+## 本轮记录 - P0 旧路由 308 重定向
+
+时间：2026-05-29 02:12:00 +0800
+
+### 根因定位
+
+- master plan 第 7 节要求 `/studio`、`/retrieval`、`/runs`、`/artifacts`、`/evaluations` 旧路径以 308 进入 `/ide`。
+- 仓库扫描未发现 `middleware.ts` 或 `next.config.ts` 中的 `redirects()`，说明 P0 兼容期重定向缺失。
+
+### 实施内容
+
+- 新增上下文摘要：`.codex/context-summary-storyforge-vscode-ide-p0-legacy-redirects.md`。
+- 在 `apps/web/tests/phase1-navigation.test.tsx` 增加静态契约测试：五个旧入口必须声明 `permanent: true`，对应 HTTP 308。
+- 在 `apps/web/next.config.ts` 增加 `async redirects()`：
+  - `/studio` → `/ide?tab=legacy%3Astudio&active=legacy%3Astudio`
+  - `/retrieval` → `/ide?panel.left=search`
+  - `/runs` → `/ide?panel.bottom=runs`
+  - `/artifacts` → `/ide?panel.bottom=artifacts`
+  - `/evaluations` → `/ide?panel.bottom=evaluation`
+
+### TDD 记录
+
+- RED：`pnpm --filter @storyforge/web test -- phase1-navigation` 失败，断言 `Next 配置应声明 redirects 兼容旧入口`。
+- GREEN：实现 `next.config.ts` redirects 后，同一命令 13 passed。
+
+### 验证结果
+
+- `pnpm --filter @storyforge/web test -- phase1-navigation ide-url-state ide-components`：39 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `git diff --check`：退出码 0，仅报告既有 CRLF 换行提示。
+
+### 编码后声明
+
+- 复用组件：`next.config.ts` 既有 NextConfig 配置对象；`phase1-navigation.test.tsx` 既有静态契约测试模式。
+- 遵循约定：中文测试名和断言消息；未新增依赖；配置改动集中在 Next 官方 `redirects()`。
+- 未重复造轮子：未新增 middleware 或运行时代码，避免与现有 headers/Sentry 配置分散。
+## 本轮记录 - P4 BookRun EventSource 实时客户端
+
+时间：2026-05-29 02:28:00 +0800
+
+### 根因定位
+
+- master plan P4 要求 BookRun Run Panel 使用 SSE，测试矩阵提到 SSE client 和 SSE 重连。
+- 当前实现已有后端 `text/event-stream` 快照端点、SSR `readSseSnapshot` 和 `BookRunEventsPanel` 事件展示，但未发现 `EventSource` 客户端代码。
+- 结论：P4 有“可读取 SSE 文本”证据，但缺少浏览器端真实长连接/重连观测能力。
+
+### 实施内容
+
+- 新增上下文摘要：`.codex/context-summary-storyforge-vscode-ide-p4-eventsource-client.md`。
+- 新增客户端组件：`apps/web/components/ide/views/BookRunEventsClient.tsx`。
+  - 使用浏览器原生 `new EventSource(eventsUrl)`。
+  - 监听 `progress`、`checkpoint`、`blocked`、`budget`、`provider_fallback`、`completed` 事件。
+  - 监听 `error` 并维护 `retryCount`，不主动关闭连接，交给 EventSource 原生重连。
+  - 使用 `MAX_LIVE_EVENTS` 限制长连接事件列表长度。
+- `BookRunEventsPanel.tsx` 嵌入客户端组件，同时保留 SSR 快照事件展示。
+- `phase1-contract-test.mjs` 增加新客户端组件转译与 import rewrite。
+- `ide-components.test.tsx` 增加 EventSource 客户端源码契约和渲染数据属性断言。
+
+### TDD 记录
+
+- RED：`pnpm --filter @storyforge/web test -- ide-components` 失败：缺少 `data-eventsource-client="book-run"`，且 `BookRunEventsClient.tsx` 不存在。
+- GREEN：新增客户端并接入后，同一命令 24 passed。
+
+### 验证结果
+
+- `pnpm --filter @storyforge/web test -- ide-components`：24 passed。
+- `pnpm --filter @storyforge/web test -- ide-components ide-page`：29 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `git diff --check`：退出码 0，仅报告既有 CRLF 换行提示。
+
+### 编码后声明
+
+- 复用组件：`BookRunEventsPanel`、`BookRunEventSnapshot`、既有 SSR SSE 快照读取链路。
+- 遵循约定：客户端组件显式 `'use client'`；React state/effect 管理连接生命周期；测试使用 `node:test` 与静态源码契约。
+- 未重复造轮子：使用浏览器原生 EventSource，不新增 SSE 客户端依赖。
+## 本轮记录 - P1/P5 持久 audit_event
+
+时间：2026-05-29 02:50:00 +0800
+
+### 根因定位
+
+- master plan P1 要求“写回有 audit_event”，P5 要求 Agent 写操作可在 audit 中追溯。
+- 当前 `audit_event_id` 只是 `ide-command:{command}:{uuid}` 字符串，无法查询到持久审计记录。
+- 仓库已有 `EventLog` 事件流，适合承载 IDE 命令审计事件，无需新增重复审计表。
+
+### 实施内容
+
+- 新增上下文摘要：`.codex/context-summary-storyforge-vscode-ide-p1-persistent-audit-events.md`。
+- `apps/api/app/domains/ide/service.py`：
+  - 成功执行写命令后写入 `EventLog`。
+  - 返回 `audit_event_id=ide-command-event:<event_id>`。
+  - 审计 payload 记录 `command_id`、`status`、`args` 和命令结果 payload。
+  - 无业务工作区时创建/复用系统工作区 `storyforge-ide-audit`。
+- `apps/api/tests/test_ide_command_registry.py`：验证 `audit_event_id` 可解析并查询到 `EventLog`。
+- `apps/api/tests/test_ide_commands.py`：同步断言持久事件 ID 前缀。
+
+### TDD 记录
+
+- RED：`cd apps/api; uv run pytest tests/test_ide_command_registry.py -q` 失败，返回仍是 `ide-command:memory.resolve_conflict:<uuid>`，且无持久事件。
+- GREEN：实现 EventLog 持久化后，同一命令 4 passed。
+
+### 验证结果
+
+- `cd apps/api; uv run pytest tests/test_ide_command_registry.py tests/test_ide_commands.py -q`：11 passed。
+- `cd apps/api; uv run ruff check app/domains/ide/service.py tests/test_ide_command_registry.py tests/test_ide_commands.py`：All checks passed。
+- `cd apps/api; uv run pytest tests/test_ide_command_registry.py tests/test_ide_commands.py tests/test_ide_run_events.py tests/test_ide_artifact_preview.py tests/test_ide_sse_latency_budget.py -q`：19 passed。
+- `pnpm --filter @storyforge/web test -- ide-command-registry ide-components ide-page phase1-navigation ide-url-state`：52 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `git diff --check`：退出码 0，仅报告既有 CRLF 换行提示。
+
+### 编码后声明
+
+- 复用组件：`EventLog`、`Workspace`、现有 IDE 命令统一入口。
+- 遵循约定：测试中文 docstring；服务层集中处理命令审计；未新增依赖。
+- 未重复造轮子：复用平台事件流作为 audit event 存储，而非新增自研审计表。
+## 本轮记录 - P7 个性化偏好写入入口
+
+时间：2026-05-29 03:12:00 +0800
+
+### 根因定位
+
+- master plan P7 退出标准要求“用户布局、键位、主题持久化；可把编辑器拆到新窗口”。
+- 当前已有偏好解析、localStorage 读写函数、Hydrator 水合和 pop-out URL，但 IDE 内缺少用户可点击的保存入口。
+- 结论：P7 有存储能力和展示能力，但“用户在 IDE 内修改并持久化”证据不足。
+
+### 实施内容
+
+- 新增上下文摘要：`.codex/context-summary-storyforge-vscode-ide-p7-preferences-writeback.md`。
+- 新增 `apps/web/components/ide/personalization/PersonalizationControls.tsx`：
+  - 客户端组件，提供“保存浅色主题”“保存宽布局”“保存 Judge 键位”三个写入入口。
+  - 复用 `mergeIdePreferences` 与 `saveIdePreferences(window.localStorage, ...)`。
+  - 保存后派发统一 `preferencesChangedEvent`，让 `IdeShellPreferencesHydrator` 重新水合。
+- `preferences.ts` 导出 `preferencesChangedEvent`，避免事件名漂移。
+- `PersonalizationPanel.tsx` 嵌入写入控件，保留 SSR 摘要。
+- `phase1-contract-test.mjs` 增加新组件转译和 import rewrite。
+- `ide-personalization.test.tsx` 增加源码契约和渲染断言。
+
+### TDD 记录
+
+- RED：`pnpm --filter @storyforge/web test -- ide-personalization` 失败，缺少 `PersonalizationControls.tsx`。
+- GREEN：新增客户端写入控件并接入后，同一命令 9 passed。
+
+### 验证结果
+
+- `pnpm --filter @storyforge/web test -- ide-personalization`：9 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm --filter @storyforge/web test -- ide-personalization ide-components ide-page`：38 passed。
+- `git diff --check`：退出码 0，仅报告既有 CRLF 换行提示。
+
+### 编码后声明
+
+- 复用组件：`mergeIdePreferences`、`saveIdePreferences`、`IdeShellPreferencesHydrator` 的偏好变更事件机制。
+- 遵循约定：客户端组件显式 `'use client'`；测试中文名称和断言；未新增依赖。
+- 未重复造轮子：没有新增存储模型或表单库，仅补齐 IDE 内写入入口。
+## 本轮记录 - P0 旧 5 页 IDE 内 legacy 子视图
+
+时间：2026-05-29 03:32:00 +0800
+
+### 根因定位
+
+- master plan P0 退出标准要求旧 5 页全部可在 `/ide` 内访问。
+- 当前重定向已进入 `/ide`，Explorer 可打开 `legacy:*` tab，但 `EditorArea` 只是“打开旧页面”占位链接，缺少明确的 IDE 内 legacy 子视图证据。
+- 结论：旧路由兼容存在，但“在 IDE 内访问”的证据偏弱。
+
+### 实施内容
+
+- 新增上下文摘要：`.codex/context-summary-storyforge-vscode-ide-p0-legacy-views.md`。
+- `apps/web/tests/ide-components.test.tsx` 新增 `EditorArea 在 IDE 内提供旧 5 页 legacy 子视图`，覆盖：
+  - `legacy:studio`
+  - `legacy:retrieval`
+  - `legacy:runs`
+  - `legacy:artifacts`
+  - `legacy:evaluations`
+- `apps/web/components/ide/shell/EditorArea.tsx` 为 legacy tab 增加：
+  - `data-legacy-view`
+  - `data-legacy-route`
+  - 每个旧页的 IDE 内访问摘要
+  - 兼容期旧路由链接
+
+### TDD 记录
+
+- RED：`pnpm --filter @storyforge/web test -- ide-components` 失败，`legacy:studio` 缺少 `data-legacy-view`。
+- GREEN：补强 `EditorArea` legacy 子视图后，同一命令 25 passed。
+
+### 验证结果
+
+- `pnpm --filter @storyforge/web test -- ide-components`：25 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm --filter @storyforge/web test -- ide-components ide-page phase1-navigation`：43 passed。
+- `git diff --check`：退出码 0，仅报告既有 CRLF 换行提示。
+
+### 编码后声明
+
+- 复用组件：`EditorArea` 既有 legacy tab 映射和 `IdeShell` tab 状态。
+- 遵循约定：仅补 P0 子视图挂载证明，不重写旧业务页面。
+- 未重复造轮子：保留旧路由兼容链接，未新增 iframe 或重复页面实现。
+## 编码前检查 - VS Code IDE P0/P7 收尾补强
+
+时间：2026-05-29 03:04:49 +08:00
+
+□ 已查阅上下文摘要文件：交接摘要、.codex/context-summary-storyforge-vscode-ide-p0-legacy-redirects.md、.codex/context-summary-storyforge-vscode-ide-p7-preferences-writeback.md
+□ 将使用以下可复用组件：
+
+- mergeIdePreferences: pps/web/components/ide/personalization/preferences.ts - 合并主题、布局、键位偏好
+- saveIdePreferences: pps/web/components/ide/personalization/preferences.ts - 写入浏览器存储
+- preferencesChangedEvent: pps/web/components/ide/personalization/preferences.ts - 通知 IDE 偏好水合器刷新
+- phase1-contract-test.mjs: pps/web/scripts/phase1-contract-test.mjs - 转译真实生产代码并执行本地 node:test
+
+□ 将遵循命名约定：React 组件 PascalCase，测试文件 *.test.tsx，辅助函数 camelCase
+□ 将遵循代码风格：现有 TSX 函数组件、只读 props、Tailwind className、node:test + assert
+□ 确认不重复造轮子：复用了既有 preferences/keymap/Next redirects 测试结构，仅补强缺失入口和测试导入
+
+## 编码后声明 - VS Code IDE P0/P7 收尾补强
+
+时间：2026-05-29 03:04:49 +08:00
+
+### 1. 复用了以下既有组件
+
+- mergeIdePreferences: 用于保持偏好合并策略一致
+- saveIdePreferences: 用于统一写入 storyforge-ide-preferences
+- storyforgeLegacyRedirects: 新增为 Next redirects 的可执行单一来源，供配置和测试复用
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：PersonalizationControls、storyforgeLegacyRedirects 与既有组件/函数风格一致
+- 代码风格：保留函数组件和
+ode:test 断言方式
+- 文件组织：前端控件仍位于 components/ide/personalization，导航契约仍位于 	ests/phase1-navigation.test.tsx
+
+### 3. 对比了以下相似实现
+
+- PersonalizationPanel.tsx: 继续作为偏好摘要容器，写入控件作为子组件嵌入
+- preferences.ts: 继续作为偏好序列化、解析、合并真相源
+- phase1-navigation.test.tsx: 从原字符串扫描升级为执行配置导出的重定向函数
+
+### 4. 未重复造轮子的证明
+
+- 检查了 components/ide/personalization、components/ide/keymap、
+ext.config.ts 和对应测试，确认已有偏好读写能力但缺少任意键位表单和可执行 redirects 契约测试。
+
+## 本轮验证记录 - VS Code IDE P0/P7 收尾补强
+
+时间：2026-05-29 03:04:49 +08:00
+
+- 已执行红灯：pnpm --filter @storyforge/web test -- ide-personalization 首次因缺少任意键位输入失败；随后实现表单后通过。
+- 已执行红灯：pnpm --filter @storyforge/web test -- phase1-navigation 首次因 storyforgeLegacyRedirects 未导出失败；随后抽出配置函数后通过。
+## 编码前检查 - P0 HTTP 308 与 P4 EventSource 状态机补强
+
+时间：2026-05-29 03:21:36 +08:00
+
+□ 已查阅上下文摘要文件：.codex/ide-master-plan-completion-audit.md 与 master plan P0/P4 退出标准
+□ 将使用以下可复用组件：
+
+- storyforgeLegacyRedirects: pps/web/next.config.ts - 旧路由重定向真相源
+- BookRunEventsClient: pps/web/components/ide/views/BookRunEventsClient.tsx - EventSource 实时连接 UI
+- phase1-contract-test.mjs: pps/web/scripts/phase1-contract-test.mjs - 前端契约测试转译入口
+
+□ 将遵循命名约定：脚本使用
+erify-*.mjs，状态机函数使用 camelCase
+□ 将遵循代码风格：Node ESM、React 函数组件、node:test + assert
+□ 确认不重复造轮子：P0 复用 Next dev 与现有 redirects 配置，P4 仅抽出现有状态更新逻辑为纯函数
+
+## 编码后声明 - P0 HTTP 308 与 P4 EventSource 状态机补强
+
+时间：2026-05-29 03:21:36 +08:00
+
+### 1. 复用了以下既有组件
+
+- storyforgeLegacyRedirects: 用于配置级与真实 HTTP smoke 的同源重定向契约
+- BookRunEventsClient: 原有 EventSource UI 继续负责渲染与监听，新增纯 reducer 只承载状态转换
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：
+erify-legacy-redirects-http.mjs 与既有 measure-ide-build-budget.mjs 脚本命名风格一致
+- 测试风格：继续使用
+ode:test 和 ssert
+- 文件组织：脚本放在 pps/web/scripts，组件测试继续放在 pps/web/tests/ide-components.test.tsx
+
+### 3. 对比了以下相似实现
+
+- measure-ide-build-budget.mjs: 同样提供可重复本地验证脚本
+- BookRunEventsClient.tsx: 原有 error 与事件监听逻辑保留，只把状态计算抽为可测函数
+- phase1-navigation.test.tsx: 配置级 redirects 测试与 HTTP smoke 互补
+
+### 4. 未重复造轮子的证明
+
+- 检查了现有 e2e 结构，当前仓库 e2e 实际以
+ode:test 契约测试为主，未引入新的浏览器测试依赖。
+
+## 本轮验证记录 - P0/P4 收尾补强
+
+时间：2026-05-29 03:21:36 +08:00
+
+-
+ode apps/web/scripts/verify-legacy-redirects-http.mjs --base-url http://127.0.0.1:9 --timeout-ms 1000 首次按预期失败，证明脚本能识别服务不可用。
+-
+ode scripts/verify-legacy-redirects-http.mjs --port 3187 --timeout-ms 120000 初次暴露 Location 编码差异，归一化后通过，五个旧路由均为 HTTP 308。
+- pnpm --filter @storyforge/web test -- ide-components 首次因缺少 reducer 导出失败，后续实现状态机并修复 SSR 引用后 26 passed。
+
+## 编码前检查 - P4 EventSource 协议重连 smoke
+
+时间：2026-05-29 03:28:30 +08:00
+
+□ 已查阅上下文摘要文件：.codex/ide-master-plan-completion-audit.md 与 master plan P4 退出标准
+□ 将使用以下可复用组件：
+
+- BookRunEventsClient: pps/web/components/ide/views/BookRunEventsClient.tsx - EventSource 客户端状态展示
+-
+erify-bookrun-eventsource-reconnect.mjs: pps/web/scripts/ - 新增本地 SSE 协议 smoke
+- package.json scripts：复用 Web 本地脚本入口模式
+
+□ 将遵循命名约定：验证脚本
+erify-*.mjs，命令入口
+erify:eventsource-reconnect
+□ 将遵循代码风格：Node ESM、内置
+ode:http、
+ode:assert/strict，不引入新依赖
+□ 确认不重复造轮子：检查到项目没有 Playwright/jsdom/EventSource polyfill 可用，因此用内置 HTTP + fetch 模拟 SSE 协议重连
+
+## 编码后声明 - P4 EventSource 协议重连 smoke
+
+时间：2026-05-29 03:28:30 +08:00
+
+### 1. 复用了以下既有组件
+
+- BookRunEventsClient：保留原生 EventSource UI 与状态机，新增脚本验证协议层重连语义
+- pps/web/package.json：新增可重复本地验证入口
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：脚本命名与
+erify-legacy-redirects-http.mjs 保持一致
+- 代码风格：使用 Node ESM 与内置模块，避免新增依赖
+- 文件组织：验证脚本放在 pps/web/scripts
+
+### 3. 对比了以下相似实现
+
+-
+erify-legacy-redirects-http.mjs：同样提供本地可重复 smoke
+- BookRunEventsClient.tsx：脚本验证的事件名 progress/completed 与 UI 监听事件一致
+- 	est_ide_run_events.py：后端 SSE 事件契约与本地 smoke 的事件形态一致
+
+### 4. 未重复造轮子的证明
+
+- 已检查 @playwright/test、playwright、eventsource、jsdom、happy-dom 均未安装；未新增重依赖，使用 Node 内置模块完成协议 smoke。
+
+## 本轮验证记录 - P4 EventSource 协议重连 smoke
+
+时间：2026-05-29 03:28:30 +08:00
+
+- RED：初始
+erify-bookrun-eventsource-reconnect.mjs 输出“未实现”并退出 1。
+- GREEN：实现本地 SSE 服务和重连客户端后，
+ode scripts/verify-bookrun-eventsource-reconnect.mjs --timeout-ms 10000 通过，输出
+equests=2, events=progress -> completed。

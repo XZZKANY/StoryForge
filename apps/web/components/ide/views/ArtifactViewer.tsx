@@ -1,6 +1,7 @@
 export type ArtifactViewerTraceLink = {
   readonly id?: number | null;
   readonly href?: string | null;
+  readonly context_href?: string | null;
   readonly label: string;
 };
 
@@ -107,10 +108,10 @@ export function ArtifactViewer({ preview }: ArtifactViewerProps) {
       <section className="rounded-lg border border-sky-900 bg-sky-950/30 p-3">
         <h3 className="text-sm font-semibold">BookRun → ModelRun → Approve</h3>
         <ol className="mt-2 space-y-1 text-sm text-sky-100">
-          <TraceItem link={preview.trace.book_run} fallback="BookRun" />
-          <TraceItem link={preview.trace.model_run} fallback="ModelRun" />
-          <TraceItem link={preview.trace.judge_report} fallback="JudgeReport" />
-          <TraceItem link={preview.trace.approve} fallback="Approve" />
+          <TraceItem kind="book_run" link={preview.trace.book_run} fallback="BookRun" />
+          <TraceItem kind="model_run" link={preview.trace.model_run} fallback="ModelRun" />
+          <TraceItem kind="judge_report" link={preview.trace.judge_report} fallback="JudgeReport" />
+          <TraceItem kind="approve" link={preview.trace.approve} fallback="Approve" />
         </ol>
       </section>
     </section>
@@ -118,14 +119,30 @@ export function ArtifactViewer({ preview }: ArtifactViewerProps) {
 }
 
 function TraceItem({
+  kind,
   link,
   fallback,
 }: {
+  readonly kind: string;
   readonly link: ArtifactViewerTraceLink;
   readonly fallback: string;
 }) {
   const text = link.id ? `${link.label} #${link.id}` : `${fallback} 未记录`;
-  return <li>{link.href ? <a href={link.href}>{text}</a> : text}</li>;
+  return (
+    <li
+      data-trace-kind={kind}
+      data-trace-id={link.id ?? undefined}
+      data-trace-href={link.href ?? undefined}
+      data-context-href={link.context_href ?? undefined}
+    >
+      {link.href ? <a href={link.href}>{text}</a> : text}
+      {link.context_href ? (
+        <a className="ml-2 text-sky-200" href={link.context_href}>
+          上下文
+        </a>
+      ) : null}
+    </li>
+  );
 }
 
 function KeyValueList({ values }: { readonly values: Record<string, unknown> }) {

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,8 +9,20 @@ from sqlalchemy.orm import Session
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.service import get_artifact, read_artifact_download
 from app.domains.book_runs.models import BookRun
-from app.domains.books.models import Book, Chapter
+from app.domains.book_runs.schemas import BookRunCreate, BookRunRead
+from app.domains.book_runs.service import (
+    BookRunBlockedError,
+    BookRunError,
+    BookRunNotFoundError,
+    create_book_run,
+    pause_book_run,
+    resume_book_run,
+    retry_book_run_from_checkpoint,
+    stop_book_run,
+)
+from app.domains.books.models import Book, Chapter, Scene
 from app.domains.context_compiler.service import get_compiled_context_record
+from app.domains.events.models import EventLog
 from app.domains.ide.schemas import (
     IdeArtifactPreview,
     IdeArtifactPreviewContent,
@@ -26,6 +37,7 @@ from app.domains.ide.schemas import (
     IdeDiagnosticRange,
     IdeQuickFix,
     IdeRunEvent,
+    IdeSceneRead,
     IdeStoryMemoryConflict,
     IdeStoryMemoryItem,
     IdeStoryMemoryQuery,
@@ -34,8 +46,15 @@ from app.domains.ide.schemas import (
     IdeWorkspaceTree,
 )
 from app.domains.judge.models import JudgeIssue
+from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
+from app.domains.judge.service import JudgeInputError, create_judge_issues
+from app.domains.repair.schemas import RepairPatchCreate, RepairPatchRead
+from app.domains.repair.service import RepairInputError, create_repair_patch
 from app.domains.story_memory.schemas import MemoryAtom, MemoryConflict
 from app.domains.story_memory.service import detect_memory_conflicts, list_memory_atoms
+from app.domains.studio.schemas import StudioApprovalExecuteRequest
+from app.domains.studio.service import StudioApprovalSummaryNotFoundError, approve_studio_writeback
+from app.domains.workspaces.models import Workspace
 
 
 @dataclass(frozen=True)
@@ -53,6 +72,7 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
     for command in [
         IdeCommandDefinition(id="judge.run", title="运行 Judge", category="Judge"),
         IdeCommandDefinition(id="judge.repair", title="生成定向修复", category="Judge"),
+        IdeCommandDefinition(id="judge.approve", title="批准修复写回", category="Judge"),
         IdeCommandDefinition(id="bookrun.start", title="启动 BookRun", category="BookRun"),
         IdeCommandDefinition(id="bookrun.pause", title="暂停 BookRun", category="BookRun"),
         IdeCommandDefinition(id="bookrun.resume", title="恢复 BookRun", category="BookRun"),
@@ -68,7 +88,15 @@ class IdeCommandNotFoundError(Exception):
     """命令目录中不存在指定命令。"""
 
 
-def execute_ide_command_by_id(command_id: str, args: dict[str, object] | None = None) -> IdeCommandResult:
+class IdeCommandExecutionError(Exception):
+    """命令参数或领域状态不满足执行条件。"""
+
+
+def execute_ide_command_by_id(
+    command_id: str,
+    args: dict[str, object] | None = None,
+    session: Session | None = None,
+) -> IdeCommandResult:
     """执行已注册 IDE 命令并返回审计追踪结果。"""
 
     command = _BUILTIN_COMMANDS.get(command_id)
@@ -76,18 +104,205 @@ def execute_ide_command_by_id(command_id: str, args: dict[str, object] | None = 
         raise IdeCommandNotFoundError(f"未知 IDE 命令：{command_id}")
 
     normalized_args = args or {}
-    audit_event_id = f"ide-command:{command.id}:{uuid4().hex}" if command.writes else None
+    if session is not None and command.id == "judge.run":
+        result = _execute_judge_run_command(command, normalized_args, None, session)
+    elif session is not None and command.id == "judge.repair":
+        result = _execute_judge_repair_command(command, normalized_args, None, session)
+    elif session is not None and command.id == "judge.approve":
+        result = _execute_judge_approve_command(command, normalized_args, None, session)
+    elif session is not None and command.id.startswith("bookrun."):
+        result = _execute_bookrun_command(command, normalized_args, None, session)
+    else:
+        result = _accepted_command_result(command, normalized_args, None)
+
+    if session is not None and command.writes:
+        return _attach_persistent_audit_event(session, result, normalized_args)
+    return result
+
+
+def _accepted_command_result(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    extra_payload: dict[str, object] | None = None,
+) -> IdeCommandResult:
+    """组装 IDE 命令通用响应，并保留原始参数用于审计。"""
+
+    payload: dict[str, object] = {
+        "title": command.title,
+        "category": command.category,
+        "writes": command.writes,
+        "args": args,
+    }
+    if extra_payload:
+        payload.update(extra_payload)
     return IdeCommandResult(
         command_id=command.id,
         status="accepted",
         audit_event_id=audit_event_id,
+        payload=payload,
+    )
+
+
+
+
+def _attach_persistent_audit_event(
+    session: Session,
+    result: IdeCommandResult,
+    args: dict[str, object],
+) -> IdeCommandResult:
+    """把成功执行的 IDE 写命令沉淀为可查询事件，并用事件 ID 作为审计标识。"""
+
+    workspace_id = _resolve_audit_workspace_id(session, result.payload)
+    event = EventLog(
+        workspace_id=workspace_id,
+        book_id=_int_or_none(result.payload.get("book_id")),
+        scene_id=_int_or_none(result.payload.get("scene_id")),
+        member_id=None,
+        event_type="ide_command_executed",
+        source="ide.command_registry",
         payload={
-            "title": command.title,
-            "category": command.category,
-            "writes": command.writes,
-            "args": normalized_args,
+            "command_id": result.command_id,
+            "status": result.status,
+            "args": args,
+            "result": result.payload,
         },
     )
+    session.add(event)
+    session.commit()
+    session.refresh(event)
+    return result.model_copy(update={"audit_event_id": f"ide-command-event:{event.id}"})
+
+
+def _resolve_audit_workspace_id(session: Session, payload: dict[str, object]) -> int:
+    """把成功执行的 IDE 写命令沉淀为可查询事件，并用事件 ID 作为审计标识。"""
+
+    book_id = _int_or_none(payload.get("book_id"))
+    if book_id is None:
+        book_run = payload.get("book_run")
+        if isinstance(book_run, dict):
+            book_id = _int_or_none(book_run.get("book_id"))
+    if book_id is not None:
+        book = session.get(Book, book_id)
+        if book is not None and book.workspace_id is not None:
+            return book.workspace_id
+
+    workspace = session.scalars(select(Workspace).where(Workspace.slug == "storyforge-ide-audit")).first()
+    if workspace is None:
+        workspace = Workspace(title="StoryForge IDE ??", slug="storyforge-ide-audit", status="active", seat_limit=1)
+        session.add(workspace)
+        session.flush()
+    return workspace.id
+
+
+def _execute_judge_run_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    session: Session,
+) -> IdeCommandResult:
+    """把 IDE judge.run 命令转交给结构化评审服务。"""
+
+    try:
+        issues = create_judge_issues(session, JudgeIssueCreate(**args))
+    except (TypeError, ValueError, JudgeInputError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+    return _accepted_command_result(
+        command,
+        args,
+        audit_event_id,
+        {"issues": [JudgeIssueRead.from_issue(issue).model_dump(mode="json") for issue in issues]},
+    )
+
+
+def _execute_judge_repair_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    session: Session,
+) -> IdeCommandResult:
+    """把 IDE judge.repair 命令转交给定向修复服务。"""
+
+    try:
+        patch = create_repair_patch(session, RepairPatchCreate(**args))
+    except (TypeError, ValueError, RepairInputError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+    return _accepted_command_result(
+        command,
+        args,
+        audit_event_id,
+        {"patch": RepairPatchRead.from_patch(patch).model_dump(mode="json")},
+    )
+
+
+def _execute_judge_approve_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    session: Session,
+) -> IdeCommandResult:
+    """把 IDE judge.approve 命令转交给 Studio 批准写回服务。"""
+
+    try:
+        approval = approve_studio_writeback(session, StudioApprovalExecuteRequest(**args))
+    except (TypeError, ValueError, StudioApprovalSummaryNotFoundError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+    return _accepted_command_result(
+        command,
+        args,
+        audit_event_id,
+        {"approval": approval.model_dump(mode="json")},
+    )
+
+
+def _execute_bookrun_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    session: Session,
+) -> IdeCommandResult:
+    """把 IDE bookrun.* 命令转交给 BookRun 领域状态机。"""
+
+    try:
+        if command.id == "bookrun.start":
+            book_run = create_book_run(session, BookRunCreate(**args))
+        elif command.id == "bookrun.pause":
+            book_run = pause_book_run(session, _required_book_run_id(args), _optional_reason(args))
+        elif command.id == "bookrun.resume":
+            book_run = resume_book_run(session, _required_book_run_id(args))
+        elif command.id == "bookrun.stop":
+            book_run = stop_book_run(session, _required_book_run_id(args), _optional_reason(args))
+        elif command.id == "bookrun.retry_from_checkpoint":
+            book_run = retry_book_run_from_checkpoint(session, _required_book_run_id(args))
+        else:
+            raise IdeCommandExecutionError(f"未知 BookRun 命令：{command.id}")
+    except (TypeError, ValueError, BookRunError, BookRunBlockedError, BookRunNotFoundError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+
+    return _accepted_command_result(
+        command,
+        args,
+        audit_event_id,
+        {"book_run": BookRunRead.model_validate(book_run).model_dump(mode="json")},
+    )
+
+
+def _required_book_run_id(args: dict[str, object]) -> int:
+    """从 IDE 命令参数中读取正整数 BookRun ID。"""
+
+    value = args.get("book_run_id")
+    if isinstance(value, int) and value > 0:
+        return value
+    raise IdeCommandExecutionError("BookRun 命令缺少 book_run_id。")
+
+
+def _optional_reason(args: dict[str, object]) -> str | None:
+    """读取可选中文操作原因，空白内容按未填写处理。"""
+
+    value = args.get("reason")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def get_artifact_preview(session: Session, artifact_id: int) -> IdeArtifactPreview:
@@ -146,11 +361,12 @@ def _artifact_trace(artifact: Artifact) -> IdeArtifactTrace:
     model_run_id = _int_or_none(payload.get("model_run_id")) or _int_or_none(chapter.get("model_run_id"))
     judge_report_id = _int_or_none(payload.get("judge_report_id")) or _int_or_none(chapter.get("judge_report_id"))
     approved_scene_id = _int_or_none(payload.get("approved_scene_id")) or _int_or_none(chapter.get("approved_scene_id"))
+    context_href = _context_href(_string_or_none(payload.get("compiled_context_id")) or _string_or_none(chapter.get("compiled_context_id")))
     return IdeArtifactTrace(
         book_run=IdeArtifactTraceLink(id=book_run_id, href=f"/ide?panel.bottom=runs&book_run={book_run_id}" if book_run_id is not None else None, label="BookRun"),
-        model_run=IdeArtifactTraceLink(id=model_run_id, href=f"/ide?panel.bottom=runs&model_run={model_run_id}" if model_run_id is not None else None, label="ModelRun"),
-        judge_report=IdeArtifactTraceLink(id=judge_report_id, href=f"/ide?panel.bottom=problems&judge_report={judge_report_id}" if judge_report_id is not None else None, label="JudgeReport"),
-        approve=IdeArtifactTraceLink(id=approved_scene_id, href=f"/ide?tab=scene:{approved_scene_id}" if approved_scene_id is not None else None, label="Approve"),
+        model_run=IdeArtifactTraceLink(id=model_run_id, href=f"/ide?panel.bottom=runs&model_run={model_run_id}" if model_run_id is not None else None, context_href=context_href if model_run_id is not None else None, label="ModelRun"),
+        judge_report=IdeArtifactTraceLink(id=judge_report_id, href=f"/ide?panel.bottom=problems&judge_report={judge_report_id}" if judge_report_id is not None else None, context_href=context_href if judge_report_id is not None else None, label="JudgeReport"),
+        approve=IdeArtifactTraceLink(id=approved_scene_id, href=f"/ide?tab=scene:{approved_scene_id}" if approved_scene_id is not None else None, context_href=context_href if approved_scene_id is not None else None, label="Approve"),
     )
 
 
@@ -177,6 +393,16 @@ def _int_or_none(value: object) -> int | None:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return None
+
+
+def _string_or_none(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
+
+
+def _context_href(compiled_context_id: str | None) -> str | None:
+    return f"/ide?inspector={compiled_context_id}" if compiled_context_id else None
 
 
 def get_workspace_tree(session: Session) -> IdeWorkspaceTree:
@@ -211,6 +437,27 @@ def get_workspace_tree(session: Session) -> IdeWorkspaceTree:
 
     visit(root)
     return IdeWorkspaceTree(root=root, nodes=ordered_nodes)
+
+
+def read_ide_scene(session: Session, scene_id: int) -> IdeSceneRead | None:
+    """读取 IDE 章节编辑器和修复工作流需要的场景正文。"""
+
+    row = session.execute(
+        select(Scene, Chapter.book_id)
+        .join(Chapter, Scene.chapter_id == Chapter.id)
+        .where(Scene.id == scene_id)
+    ).first()
+    if row is None:
+        return None
+    scene, book_id = row
+    return IdeSceneRead(
+        id=scene.id,
+        chapter_id=scene.chapter_id,
+        book_id=book_id,
+        title=scene.title,
+        status=scene.status,
+        content=scene.content or "",
+    )
 
 
 def _diagnostic_severity(severity: str) -> str:

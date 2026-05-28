@@ -1,4 +1,5 @@
 ﻿import type { IdePersonalizationPreferences } from './preferences';
+import { PersonalizationControls } from './PersonalizationControls';
 import { defaultIdePreferences } from './preferences';
 
 export type PersonalizationPanelProps = {
@@ -40,6 +41,7 @@ export function PersonalizationPanel({
           ))}
         </ul>
       )}
+      <PersonalizationControls preferences={preferences} />
     </section>
   );
 }

@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "test": "node scripts/phase1-contract-test.mjs",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "verify:legacy-redirects": "node scripts/verify-legacy-redirects-http.mjs",
+    "verify:eventsource-reconnect": "node scripts/verify-bookrun-eventsource-reconnect.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
