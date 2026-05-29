@@ -15,7 +15,6 @@ export type IdeShellPreferencesHydratorProps = {
   readonly storageSnapshot?: string | null;
 };
 
-
 function subscribePreferences(callback: () => void): () => void {
   if (typeof window === 'undefined') return () => undefined;
   window.addEventListener('storage', callback);

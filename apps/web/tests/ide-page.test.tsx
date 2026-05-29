@@ -191,7 +191,6 @@ test('IdePage 根据 artifacts 面板和 artifact query 读取 Artifact Preview'
   assert.ok(html.includes('href="/ide?inspector=ctx_artifact"'));
 });
 
-
 test('IdePage 根据 scene query 读取场景正文和 diagnostics 并渲染 JudgeRepairWorkbench', async () => {
   process.env.STORYFORGE_API_BASE_URL = 'https://api.storyforge.test';
   process.env.STORYFORGE_API_KEY = 'unit-key';

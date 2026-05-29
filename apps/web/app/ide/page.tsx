@@ -40,10 +40,18 @@ export default async function IdePage({
     state.bottomPanel === 'runs' && state.bookRunId !== undefined
       ? await readBookRunPanelState(state.bookRunId)
       : {};
-  const sceneState = state.sceneId !== undefined ? await readSceneWorkbenchState(state.sceneId) : {};
+  const sceneState =
+    state.sceneId !== undefined ? await readSceneWorkbenchState(state.sceneId) : {};
   return (
     <IdeShellPreferencesHydrator
-      initialState={{ ...state, ...contextState, ...storyMemoryState, ...artifactState, ...bookRunState, ...sceneState }}
+      initialState={{
+        ...state,
+        ...contextState,
+        ...storyMemoryState,
+        ...artifactState,
+        ...bookRunState,
+        ...sceneState,
+      }}
     />
   );
 }
@@ -239,7 +247,6 @@ async function readStoryMemoryResult(bookId: number): Promise<{
   }
   return {};
 }
-
 
 function isBookRunPanelRun(value: unknown): value is BookRunPanelRun {
   if (!isRecord(value)) return false;

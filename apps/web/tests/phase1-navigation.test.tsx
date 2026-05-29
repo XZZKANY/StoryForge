@@ -119,9 +119,15 @@ test('旧页面路由通过 308 重定向进入 IDE 壳层', async () => {
   ] as const;
 
   const redirects = await storyforgeLegacyRedirects();
-  assert.deepEqual(redirects, expectedRedirects.map((redirect) => ({ ...redirect, permanent: true })));
+  assert.deepEqual(
+    redirects,
+    expectedRedirects.map((redirect) => ({ ...redirect, permanent: true })),
+  );
   assert.equal(redirects.length, 5, '五个旧页面都应声明重定向');
-  assert.ok(redirects.every((redirect) => redirect.permanent === true), 'permanent: true 对应 Next HTTP 308');
+  assert.ok(
+    redirects.every((redirect) => redirect.permanent === true),
+    'permanent: true 对应 Next HTTP 308',
+  );
 });
 test('Web 本机构建关闭 standalone 且 Docker 构建显式开启', () => {
   const nextConfig = read('next.config.ts');

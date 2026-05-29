@@ -3,11 +3,7 @@
 import type { FormEvent } from 'react';
 
 import type { IdePersonalizationPreferences } from './preferences';
-import {
-  mergeIdePreferences,
-  preferencesChangedEvent,
-  saveIdePreferences,
-} from './preferences';
+import { mergeIdePreferences, preferencesChangedEvent, saveIdePreferences } from './preferences';
 
 export type PersonalizationControlsProps = {
   readonly preferences: IdePersonalizationPreferences;
@@ -25,7 +21,9 @@ export function PersonalizationControls({ preferences }: PersonalizationControls
     const commandId = String(formData.get('commandId') || '').trim();
     const shortcut = String(formData.get('shortcut') || '').trim();
     if (!commandId || !shortcut) return;
-    persistPreferences(mergeIdePreferences(preferences, { keybindings: { [commandId]: shortcut } }));
+    persistPreferences(
+      mergeIdePreferences(preferences, { keybindings: { [commandId]: shortcut } }),
+    );
   };
 
   return (
@@ -69,10 +67,7 @@ export function PersonalizationControls({ preferences }: PersonalizationControls
             className="w-28 rounded border border-stone-700 bg-stone-950 px-2 py-1 text-stone-100"
           />
         </label>
-        <button
-          type="submit"
-          className="rounded border border-stone-700 px-2 py-1 text-stone-100"
-        >
+        <button type="submit" className="rounded border border-stone-700 px-2 py-1 text-stone-100">
           保存自定义键位
         </button>
       </form>

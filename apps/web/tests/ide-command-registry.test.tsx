@@ -16,7 +16,6 @@ import {
 } from '../components/ide/keymap/index';
 import { RightDock } from '../components/ide/shell/RightDock';
 
-
 type CommandBypassFinding = {
   readonly file: string;
   readonly line: number;
@@ -38,7 +37,8 @@ function scanIdeWriteButtonBypasses(root: string): readonly CommandBypassFinding
     for (const block of collectOnClickBlocks(lines)) {
       const blockText = block.lines.join('\n');
       const mentionsDirectApi = /\b(fetch|apiFetch)\s*\(|\/api\//.test(blockText);
-      const delegatesToCommand = /commands\.execute|onExecuteCommand|executeCommand|registry\.execute/.test(blockText);
+      const delegatesToCommand =
+        /commands\.execute|onExecuteCommand|executeCommand|registry\.execute/.test(blockText);
       if (mentionsDirectApi && !delegatesToCommand) {
         findings.push({
           file: file.replace(`${process.cwd()}\\`, '').replace(`${process.cwd()}/`, ''),
@@ -64,13 +64,19 @@ function listSourceFiles(root: string): readonly string[] {
   return result;
 }
 
-function collectOnClickBlocks(lines: readonly string[]): Array<{ startLine: number; lines: string[] }> {
+function collectOnClickBlocks(
+  lines: readonly string[],
+): Array<{ startLine: number; lines: string[] }> {
   const blocks: Array<{ startLine: number; lines: string[] }> = [];
   for (let index = 0; index < lines.length; index += 1) {
     if (!lines[index].includes('onClick')) continue;
     const blockLines = [lines[index]];
     let balance = bracketBalance(lines[index]);
-    for (let cursor = index + 1; cursor < Math.min(lines.length, index + 20) && balance > 0; cursor += 1) {
+    for (
+      let cursor = index + 1;
+      cursor < Math.min(lines.length, index + 20) && balance > 0;
+      cursor += 1
+    ) {
       blockLines.push(lines[cursor]);
       balance += bracketBalance(lines[cursor]);
     }
@@ -175,8 +181,6 @@ test('RightDock 接入 AgentSidebar', () => {
   assert.ok(html.includes('Right Dock'));
   assert.ok(html.includes('AI Agent Sidebar'));
 });
-
-
 
 test('IDE 写操作按钮不得绕过 CommandRegistry 直接调用 API', () => {
   assert.deepEqual(assertIdeWriteButtonsUseCommandsExecute(), []);

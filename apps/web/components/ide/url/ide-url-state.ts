@@ -63,7 +63,6 @@ export function createIdeUrlHref(state: IdeUrlState, patch: Partial<IdeUrlState>
   return `/ide?${serializeIdeUrlState(nextState)}`;
 }
 
-
 function parseSceneTabId(tabId: string | undefined): number | undefined {
   if (!tabId?.startsWith('scene:')) return undefined;
   const id = Number(tabId.slice('scene:'.length));
