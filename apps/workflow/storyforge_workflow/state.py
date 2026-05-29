@@ -29,6 +29,28 @@ _REFERENCE_STATE_KEYS = {
     "error_code",
 }
 
+# prompt 工程层可消费、但不进 checkpoint 的注入键白名单。API 装配器读 DB 后产出，
+# 经 WorkflowRuntime.start 透传进初始 state，供 draft_writer 的分层 prompt 使用。
+# 刻意不并入 _REFERENCE_STATE_KEYS，因此 checkpoint_reference_state 会自动剔除。
+_PROMPT_INJECTION_KEYS = {
+    "strategy_title_ref",
+    "strategy_question_ref",
+    "strategy_reader_promise_ref",
+    "strategy_tone_ref",
+    "chapter_title_ref",
+    "chapter_goal_ref",
+    "conflict_axis_ref",
+    "scene_goal_ref",
+    "scene_beat_refs",
+    "previous_summary_ref",
+    "protagonist_ref",
+    "required_fact_refs",
+    "character_constraints",
+    "style_directive",
+    "pacing_directive",
+    "continuity_facts",
+}
+
 
 class GenerationState(TypedDict, total=False):
     """LangGraph checkpoint 只保存引用字段，避免大上下文撑爆持久化。"""
@@ -49,6 +71,18 @@ class GenerationState(TypedDict, total=False):
     approval_status: ApprovalStatus
     approval_response: Any
     error_code: str
+    # 以下为 prompt 工程层的可选注入键：由上游编译上下文后写入，属大上下文，
+    # 不纳入 _REFERENCE_STATE_KEYS，因此不会被持久化进 checkpoint。
+    character_constraints: list[dict[str, Any]]
+    style_directive: dict[str, Any]
+    pacing_directive: dict[str, Any]
+    continuity_facts: list[dict[str, Any]]
+    previous_summary_ref: str
+    # 评审→修订环的工作键：在单次执行内 draft_writer→critic→reviser 间流转，
+    # 同样不纳入 _REFERENCE_STATE_KEYS（环在 human_approval 中断前闭合，无需跨 checkpoint 续存）。
+    draft_preview_ref: str
+    draft_issues: list[str]
+    draft_revision_round: int
 
 
 def initial_generation_state(
@@ -64,6 +98,7 @@ def initial_generation_state(
     memory_atom_ids: list[int] | None = None,
     timeline_event_ids: list[int] | None = None,
     scene_packet: dict[str, Any] | None = None,
+    prompt_injection: dict[str, Any] | None = None,
 ) -> GenerationState:
     """创建引用型初始状态，兼容测试输入但不把完整 Scene Packet 写入 checkpoint。"""
 
@@ -85,6 +120,9 @@ def initial_generation_state(
     }
     if scene_packet:
         state.update(_scene_packet_reference_summary(scene_packet))
+    if prompt_injection:
+        # 真实装配数据放在 scene_packet 摘要之后合并，让 DB 里的章节标题/目标覆盖占位默认值。
+        state.update(_prompt_injection_state(prompt_injection))
     return state
 
 
@@ -117,6 +155,16 @@ def _scene_packet_reference_summary(scene_packet: dict[str, Any]) -> dict[str, A
         "scene_goal_ref": str(scene_packet.get("scene_goal", "完成关键场景目标。")),
         "protagonist_ref": str(scene_packet.get("protagonist", "主角")),
         "required_fact_refs": [str(value) for value in scene_packet.get("required_facts", [])],
+    }
+
+
+def _prompt_injection_state(prompt_injection: dict[str, Any]) -> dict[str, Any]:
+    """从装配器产出的注入键里取 prompt 工程层认得的键，跳过空值。"""
+
+    return {
+        key: prompt_injection[key]
+        for key in _PROMPT_INJECTION_KEYS
+        if key in prompt_injection and prompt_injection[key]
     }
 
 

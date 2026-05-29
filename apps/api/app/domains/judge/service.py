@@ -454,6 +454,28 @@ def _approved_style_sources(session: Session, scene_id: int) -> list[tuple[int, 
     return [(int(scene_id), str(content).strip()) for scene_id, content in rows if str(content).strip()]
 
 
+def compute_book_style_baseline(session: Session, book_id: int) -> dict[str, float | int] | None:
+    """用作品下全部已批准章节正文算出 StyleFingerprint 基线，供生成前前馈对齐。
+
+    无已批准章节时返回 None，交由调用方省略注入，绝不伪造空指纹。
+    """
+
+    rows = session.execute(
+        select(Scene.content)
+        .join(Chapter, Scene.chapter_id == Chapter.id)
+        .where(
+            Chapter.book_id == book_id,
+            Chapter.status == "approved",
+            Scene.content.is_not(None),
+        )
+        .order_by(Chapter.ordinal, Scene.ordinal, Scene.id)
+    ).all()
+    contents = [str(content).strip() for (content,) in rows if str(content).strip()]
+    if not contents:
+        return None
+    return _style_fingerprint("\n".join(contents)).as_payload()
+
+
 def _style_fingerprint(content: str) -> StyleFingerprint:
     """提取可解释的轻量文风特征，避免测试依赖外部 NLP 服务。"""
 

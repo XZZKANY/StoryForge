@@ -327,14 +327,15 @@ def test_workflow_runtime_marks_timed_out_node_as_failed(monkeypatch: pytest.Mon
         ]
     )
 
-    def slow_draft_response(prompt: str) -> str:
+    def slow_draft_response(prompt: str, **kwargs) -> str:
         sleep(0.05)
         return "这段草稿不应在超时后继续推进。"
 
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
     monkeypatch.setenv("STORYFORGE_WORKFLOW_NODE_TIMEOUT_SECONDS", "0.001")
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
-    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt: next(quick_responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt: next(quick_responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(quick_responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(quick_responses))
     monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", slow_draft_response)
     checkpoint_store = InMemoryRuntimeCheckpointStore()
     lifecycle_store = InMemoryWorkflowLifecycleStore()
@@ -450,9 +451,75 @@ def test_api_model_run_adapter_returns_persisted_model_run_id() -> None:
     assert captured_payload["payload"] == {"thread_id": "adapter-thread", "runtime_job_run_id": "runtime-job-string"}
 
 
+def test_workflow_runtime_threads_prompt_injection_into_draft_writer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """start 传入的装配注入键应经初始 state 流到 draft_writer 的分层 prompt。"""
+
+    def provider_execution(**kwargs: object) -> ProviderExecutionResult:
+        return ProviderExecutionResult(
+            capability=str(kwargs["capability"]),
+            provider_name="openai-compatible",
+            model_name="storyforge-writer",
+            latency_ms=20,
+            token_usage=30,
+            summary=f"真实模型摘要：{kwargs['prompt_summary']}",
+        )
+
+    plan_responses = iter(
+        [
+            "灯塔远航\n舰队如何找到新家园\n克制\n兑现迁徙史诗",
+            "暗潮\n林岚争取维修窗口\n谈判压力与伤势互相挤压",
+            "林岚压住左臂旧伤进入谈判。\n灯塔信号每七分钟重复一次。\n港口代表提出代价。",
+        ]
+    )
+    captured_draft_prompts: list[str] = []
+
+    def capture_draft_prompt(prompt: str, **kwargs) -> str:
+        captured_draft_prompts.append(prompt)
+        return "林岚把左臂藏进披风，没有解释。"
+
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(plan_responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(plan_responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", capture_draft_prompt)
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
+    checkpoint_store = InMemoryRuntimeCheckpointStore()
+    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store)
+
+    started = runtime.start(
+        thread_id="phase-injection-thread",
+        job_run_id="phase-injection-job",
+        premise="林岚在雾港追查失真的灯塔信号。",
+        user_intent="突出克制悬疑。",
+        scene_packet={"chapter_title": "占位标题", "scene_goal": "林岚争取维修窗口。"},
+        prompt_injection={
+            "character_constraints": [{"name": "林岚", "forbidden_traits": ["突然健谈"]}],
+            "style_directive": {"forbidden_phrases": ["不禁"], "rules": ["多用动作与画面"]},
+            "continuity_facts": [{"statement": "林岚：左臂受伤未愈", "must_appear": True}],
+            "chapter_title_ref": "第一章 雾港",
+        },
+    )
+
+    assert started.status == "interrupted"
+    assert captured_draft_prompts, "draft_writer 应至少构造一次 prompt。"
+    draft_prompt = captured_draft_prompts[-1]
+    assert "林岚" in draft_prompt
+    assert "禁止表现：突然健谈" in draft_prompt
+    assert "禁用表达（绝不能出现）：不禁" in draft_prompt
+    assert "林岚：左臂受伤未愈" in draft_prompt
+    # chapter_title_ref 是起点：chapter_planner 节点会用自己的产出覆盖它，故这里不断言其存活。
+    # 注入键属大上下文，绝不能渗进 checkpoint。
+    checkpoint_state = checkpoint_store.load_state("phase-injection-thread")
+    assert checkpoint_state is not None
+    assert "character_constraints" not in checkpoint_state
+    assert "style_directive" not in checkpoint_state
+    assert "continuity_facts" not in checkpoint_state
+
+
 def _stub_node_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     """固定节点 LLM 输出，避免运行器测试依赖外部模型。"""
 
+    # 运行器测试只验证单遍主路径与持久化，关掉评审环以稳定节点序与调用计数（环另在 graph 测试覆盖）。
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
     responses = iter(
         [
             "灯塔远航\n舰队如何在旧伤与谈判压力中找到新家园\n克制、具画面感、重视连续性\n兑现迁徙史诗与个人代价",
@@ -461,6 +528,6 @@ def _stub_node_llm(monkeypatch: pytest.MonkeyPatch) -> None:
             "林岚把左臂藏进披风，听见灯塔信号第七分钟再次回响。",
         ]
     )
-    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt, **kwargs: next(responses))

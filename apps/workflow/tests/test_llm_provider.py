@@ -83,3 +83,89 @@ def test_generate_text_uses_gateway_friendly_default_system_prompt(monkeypatch) 
     payload = captured["payload"]
     assert payload["messages"][0]["content"].startswith("You are a creative writing engine")
     assert payload["max_tokens"] == 512
+
+
+def test_generate_text_threads_temperature_and_model_override(monkeypatch) -> None:
+    """显式 temperature/model 应进入请求体，支撑规划低温、正文高温的分层采样。"""
+
+    captured: dict[str, object] = {}
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": "正文"}}]}).encode("utf-8")
+
+    def fake_urlopen(http_request, timeout: float):
+        captured["payload"] = json.loads(http_request.data.decode("utf-8"))
+        return _Response()
+
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "default-model")
+    monkeypatch.setattr("storyforge_workflow.provider_client.request.urlopen", fake_urlopen)
+
+    assert generate_text("正文段落", temperature=0.85, model="draft-model") == "正文"
+    payload = captured["payload"]
+    assert payload["temperature"] == 0.85
+    assert payload["model"] == "draft-model"
+
+
+def test_generate_text_falls_back_to_global_temperature_and_model(monkeypatch) -> None:
+    """未显式传参时 temperature/model 回退全局 env，保证旧调用方行为不变。"""
+
+    captured: dict[str, object] = {}
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": "正文"}}]}).encode("utf-8")
+
+    def fake_urlopen(http_request, timeout: float):
+        captured["payload"] = json.loads(http_request.data.decode("utf-8"))
+        return _Response()
+
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "default-model")
+    monkeypatch.setenv("STORYFORGE_LLM_TEMPERATURE", "0.55")
+    monkeypatch.setattr("storyforge_workflow.provider_client.request.urlopen", fake_urlopen)
+
+    assert generate_text("默认参数段落") == "正文"
+    payload = captured["payload"]
+    assert payload["temperature"] == 0.55
+    assert payload["model"] == "default-model"
+
+
+def test_sampling_helpers_expose_layered_defaults(monkeypatch) -> None:
+    """规划/正文温度助手在无 env 时给出分层默认值，可被 env 覆盖。"""
+
+    from storyforge_workflow.provider_client import (
+        draft_model,
+        draft_temperature,
+        planning_model,
+        planning_temperature,
+    )
+
+    monkeypatch.delenv("STORYFORGE_LLM_PLANNING_TEMPERATURE", raising=False)
+    monkeypatch.delenv("STORYFORGE_LLM_DRAFT_TEMPERATURE", raising=False)
+    monkeypatch.delenv("STORYFORGE_LLM_PLANNING_MODEL", raising=False)
+    monkeypatch.delenv("STORYFORGE_LLM_DRAFT_MODEL", raising=False)
+    assert planning_temperature() == 0.3
+    assert draft_temperature() == 0.85
+    assert planning_model() is None
+    assert draft_model() is None
+
+    monkeypatch.setenv("STORYFORGE_LLM_PLANNING_TEMPERATURE", "0.2")
+    monkeypatch.setenv("STORYFORGE_LLM_DRAFT_TEMPERATURE", "0.9")
+    monkeypatch.setenv("STORYFORGE_LLM_DRAFT_MODEL", "writer-model")
+    assert planning_temperature() == 0.2
+    assert draft_temperature() == 0.9
+    assert draft_model() == "writer-model"

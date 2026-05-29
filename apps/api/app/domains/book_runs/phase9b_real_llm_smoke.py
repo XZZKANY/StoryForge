@@ -17,14 +17,20 @@ from app.domains.artifacts.models import Artifact
 from app.domains.blueprints.schemas import BookBlueprintCreate
 from app.domains.blueprints.service import create_book_blueprint, lock_book_blueprint, trigger_chapter_plan
 from app.domains.book_runs.models import BookRun
+from app.domains.book_runs.prompt_assembly import assemble_prompt_injection
 from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress, create_book_run
+from app.domains.book_runs.workflow_prompt_bridge import build_draft_prompt_from_state
 from app.domains.books.models import Book, Chapter, Scene
+from app.domains.character_bible.schemas import CharacterBibleCreate
+from app.domains.character_bible.service import create_character_bible_entry
 from app.domains.continuity.models import ScenePacket
 from app.domains.exports.book_markdown_exporter import export_book_run_audit_report, export_book_run_markdown
 from app.domains.judge.models import JudgeIssue
 from app.domains.model_runs.schemas import ModelRunCreate
 from app.domains.model_runs.service import create_model_run
+from app.domains.style_packs.schemas import StylePackCreate
+from app.domains.style_packs.service import create_style_pack
 
 REQUIRED_REAL_LLM_ENV = (
     "STORYFORGE_LLM_API_KEY",
@@ -72,6 +78,7 @@ def run_phase9b_real_llm_smoke(
     _assert_preflight(source, chapter_count, token_budget)
     started_at = time.monotonic()
     book = _create_smoke_book(session, chapter_count)
+    _seed_consistency_data(session, book.id)
     blueprint = create_book_blueprint(session, _blueprint_payload(book.id, chapter_count))
     lock_book_blueprint(session, blueprint.id)
     trigger_chapter_plan(session, blueprint.id)
@@ -89,7 +96,7 @@ def run_phase9b_real_llm_smoke(
     tokens_used = 0
     for chapter_index in range(1, chapter_count + 1):
         chapter = _chapter(session, book.id, chapter_index)
-        generated = _generate_chapter(source, chapter_index, chapter)
+        generated = _generate_chapter(session, source, chapter_index, chapter)
         tokens_used += generated["token_usage"]
         scene = _approve_scene(session, chapter, str(generated["content"]))
         model_run = _record_model_run(session, book_run, scene, source, generated)
@@ -164,6 +171,35 @@ def _create_smoke_book(session: Session, chapter_count: int) -> Book:
     return book
 
 
+def _seed_consistency_data(session: Session, book_id: int) -> None:
+    """为冒烟书写入一条 Character Bible 与一个 Style Pack，让真实一致性数据进入 prompt。"""
+
+    create_character_bible_entry(
+        session,
+        CharacterBibleCreate(
+            book_id=book_id,
+            canonical_name="林岚",
+            aliases=["雾港调查员"],
+            voice_traits={"语气": "克制", "句式": ["短句", "少解释"]},
+            forbidden_traits={"禁止": ["突然健谈", "忘记左臂旧伤"]},
+        ),
+    )
+    create_style_pack(
+        session,
+        StylePackCreate(
+            book_id=book_id,
+            name="雾港克制悬疑风格",
+            payload={
+                "语气": "克制悬疑",
+                "视角": "第三人称贴身",
+                "规则": ["多用动作与画面", "对话推动信息"],
+                "禁用表达": ["不禁", "情不自禁"],
+                "示例句": ["她把左臂藏进披风，没有解释。"],
+            },
+        ),
+    )
+
+
 def _blueprint_payload(book_id: int, chapter_count: int) -> BookBlueprintCreate:
     return BookBlueprintCreate(
         book_id=book_id,
@@ -188,13 +224,20 @@ def _chapter(session: Session, book_id: int, chapter_index: int) -> Chapter:
     return chapter
 
 
-def _generate_chapter(source: Mapping[str, str | None], chapter_index: int, chapter: Chapter) -> dict[str, object]:
-    prompt = (
-        f"请为 StoryForge Phase 9B 真实 LLM 冒烟生成第 {chapter_index} 章正文。\n"
-        f"章节标题：{chapter.title}\n"
-        f"章节目标：{chapter.summary or '推进主线调查。'}\n"
-        "要求：使用简体中文，保持克制悬疑语气，输出可直接批准的章节正文。"
+def _generate_chapter(
+    session: Session,
+    source: Mapping[str, str | None],
+    chapter_index: int,
+    chapter: Chapter,
+) -> dict[str, object]:
+    injection = assemble_prompt_injection(
+        session,
+        book_id=chapter.book_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        chapter_goal=chapter.summary or "推进主线调查。",
     )
+    prompt = build_draft_prompt_from_state(injection)
     payload = {
         "model": _required_env(source, "STORYFORGE_LLM_MODEL"),
         "messages": [

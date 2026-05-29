@@ -52,7 +52,7 @@ class WorkflowRuntime:
         self.session_store = session_store or InMemoryWorkflowSessionStore()
         self.graph = create_generation_graph(store=self.audit_store, checkpointer=InMemorySaver())
 
-    def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any]) -> WorkflowRuntimeResult:
+    def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any], prompt_injection: dict[str, Any] | None = None) -> WorkflowRuntimeResult:
         bound = log.bind(workflow_id=job_run_id, thread_id=thread_id)
         bound.info("workflow_started")
         session = self.session_store.create(
@@ -75,6 +75,7 @@ class WorkflowRuntime:
             premise=premise,
             user_intent=user_intent,
             scene_packet=scene_packet,
+            prompt_injection=prompt_injection,
         )
         prompt_summary = f"{premise}::{scene_packet.get('scene_goal', '')}"
         self.session_store.update_status(

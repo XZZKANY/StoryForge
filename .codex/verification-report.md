@@ -377,3 +377,32 @@ equests=2, events=progress -> completed。
 综合评分：93/100。
 
 建议：通过。
+
+## 提高小说生成质量（四杠杆）验证报告
+
+时间：2026-05-29 22:50 +08:00
+
+### 需求字段完整性
+
+- 目标：把"质量"从事后能测变成生成时主动满足，四杠杆并做。
+- 范围：
+  - Lever 1 强化创作 prompt：`prompts/builder.py` 新增 `_craft_section`（反套话词表 + show-don't-tell + 感官 + 对白配比 + 好坏 few-shot），注入 `build_draft_prompt` 与 `build_longform_segment_prompt`；新增 `build_critique_prompt`/`build_revision_prompt`。
+  - Lever 2 评审→修订环：`graph.py` 新增 `draft_critic`/`draft_reviser` 节点与条件边，默认开、最多 2 轮（env 可调/可关），仅单场景 graph。
+  - Lever 3 风格指纹前馈：`judge/service.py` 新增只读 `compute_book_style_baseline`；`prompt_assembly.py` 注入 `style_directive.fingerprint`；`prompts/context.py` 映射为 StyleDirective 目标字段。
+  - Lever 4 采样/模型分层：`provider_client.py` `generate_text` 支持 temperature/model 覆盖 + `planning_temperature`/`draft_temperature`/`planning_model`/`draft_model` 助手；规划节点低温、正文/重写高温。
+- 约束遵守：保留各节点输出解析契约；prompt 层纯函数不读 DB；API 层只读 DB 产出 dict、不 import workflow；longform 本轮不接环。
+
+### 本地验证结果
+
+- Workflow 测试：`uv run pytest -q` → 98 passed（含新增 critique-loop、revision-cap、craft/cliché/critique/revision 契约、指纹渲染、temperature/model 覆盖等）。
+- Workflow Ruff：`uv run ruff check .` → All checks passed。
+- API 测试：`uv run pytest tests/ -q` → 305 passed，6 warnings（既有告警，与本次无关）。
+- API Ruff：`uv run ruff check .` → All checks passed。
+- API 路由签名未变，无需 `pnpm openapi`。
+
+### 未联通能力
+
+- longform 连载路径只吃到强化 prompt，未接评审→修订环。
+- NovelLoop/BookLoop 编排器、API 路由、前端均未改动。
+
+建议：通过。
