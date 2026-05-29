@@ -248,3 +248,35 @@ equests=2, events=progress -> completed。
 综合评分：92/100。
 
 建议：通过。
+
+## BookRun EventSource hooks lint 修复验证报告
+
+时间：2026-05-29 16:31:33 +08:00
+
+### 需求字段完整性
+
+- 目标：修复 GitHub CI 中 `pnpm exec eslint .` 的 react-hooks/set-state-in-effect 失败。
+- 范围：`apps/web/components/ide/views/BookRunEventsClient.tsx`。
+- 交付物：组件状态派生修复、上下文摘要、操作日志、验证报告。
+- 审查要点：不得绕过 lint；保留 EventSource 订阅行为；本地验证可重复。
+
+### 本地验证结果
+
+- `pnpm exec eslint apps/web/components/ide/views/BookRunEventsClient.tsx`：通过。
+- `pnpm exec eslint .`：通过。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm --filter @storyforge/web test ide-components`：26 passed。
+- `git diff --check`：通过。
+
+### 评分
+
+- 代码质量：94/100。派生状态移回渲染阶段，effect 只保留外部系统订阅。
+- 测试覆盖：92/100。覆盖 eslint、TypeScript 和 BookRun Events 组件契约。
+- 规范遵循：94/100。遵循 React hooks lint、项目组件风格和中文记录要求。
+- 需求匹配：96/100。直接修复 CI 报错的两个违规点。
+- 架构一致：93/100。复用既有状态机和测试入口，无新增依赖。
+- 风险评估：90/100。Windows 沙箱测试需提升权限，已记录并复跑通过。
+
+综合评分：93/100。
+
+建议：通过。
