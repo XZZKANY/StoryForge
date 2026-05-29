@@ -165,5 +165,8 @@ def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None
     request_json = captured["json"]
     assert isinstance(request_json, dict)
     assert request_json["temperature"] == 0
-    assert request_json["messages"][0] == {"role": "system", "content": "只返回 JSON，不要解释。"}
+    system_message = request_json["messages"][0]
+    assert system_message["role"] == "system"
+    assert "JSON" in system_message["content"]
+    assert "character_voice_violation" in system_message["content"]
     assert "地点：灯塔港" in str(request_json["messages"][1]["content"])

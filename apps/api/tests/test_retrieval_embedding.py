@@ -329,6 +329,7 @@ def test_search_candidate_loader_reports_prefilter_metadata(session: Session) ->
 def test_pgvector_candidate_loader_orders_postgresql_embeddings_with_bound_vector() -> None:
     """PostgreSQL 语义检索应使用 pgvector 距离排序并限制候选规模。"""
 
+    import json
     from types import SimpleNamespace
 
     from sqlalchemy import select as sqlalchemy_select
@@ -362,6 +363,7 @@ def test_pgvector_candidate_loader_orders_postgresql_embeddings_with_bound_vecto
         .where(RetrievalSource.status == "active")
         .order_by(RetrievalSource.id, RetrievalChunk.chunk_index, RetrievalChunk.id)
     )
+    query_embedding = [0.1] * retrieval_service.DEFAULT_PGVECTOR_DIMENSIONS
 
     candidate_load = retrieval_service._load_search_candidates(
         session,
@@ -369,13 +371,13 @@ def test_pgvector_candidate_loader_orders_postgresql_embeddings_with_bound_vecto
         "灯塔",
         retrieval_service._keywords("灯塔"),
         use_keyword_prefilter=False,
-        query_embedding=[0.1, 0.2, 0.3, 0.4],
+        query_embedding=query_embedding,
         limit=3,
     )
 
     assert candidate_load.pgvector_enabled is True
     assert candidate_load.vector_candidate_limit == 32
-    assert session.params == {"query_embedding": "[0.1,0.2,0.3,0.4]"}
+    assert json.loads(session.params["query_embedding"]) == query_embedding
     compiled_sql = str(session.statement)
     assert "embedding_vector <=> CAST(:query_embedding AS vector)" in compiled_sql
     assert "retrieval_sources.id, retrieval_chunks.chunk_index" not in compiled_sql
@@ -469,7 +471,7 @@ def test_pgvector_candidate_dimension_uses_environment_override(monkeypatch: pyt
 
 
 def test_pgvector_candidate_dimension_falls_back_for_invalid_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """pgvector 维度配置非法时应回退当前 vector(4) 默认值。"""
+    """pgvector 维度配置非法时应回退当前默认维度。"""
 
     from types import SimpleNamespace
 
@@ -480,6 +482,7 @@ def test_pgvector_candidate_dimension_falls_back_for_invalid_environment(monkeyp
             return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
 
     monkeypatch.setenv("STORYFORGE_RETRIEVAL_PGVECTOR_DIMENSIONS", "invalid")
+    default_embedding = [0.1] * retrieval_service.DEFAULT_PGVECTOR_DIMENSIONS
 
-    assert retrieval_service._should_use_pgvector_candidates(PostgreSQLSession(), [0.1, 0.2, 0.3, 0.4]) is True
-    assert retrieval_service._should_use_pgvector_candidates(PostgreSQLSession(), [0.1, 0.2, 0.3]) is False
+    assert retrieval_service._should_use_pgvector_candidates(PostgreSQLSession(), default_embedding) is True
+    assert retrieval_service._should_use_pgvector_candidates(PostgreSQLSession(), default_embedding[:-1]) is False

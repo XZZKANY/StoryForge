@@ -6098,3 +6098,23 @@ equests=2, events=progress -> completed。
   - OpenAPI drift 检查：通过。
 - 普通沙箱首次运行 Web node:test 遇到 `spawn EPERM`，清理临时目录后使用提升权限重跑同一命令通过。
 - `.codex/ide-performance-baseline.json` 被 Web 测试刷新为机器耗时漂移，已恢复并排除出本次提交。
+
+## AI 小说质量测试复跑与断言同步记录
+
+时间：2026-05-29 19:19:52 +08:00
+
+### 根因分析
+
+- Docker 开启后重新执行 `uv run pytest tests/test_judge_semantic.py tests/test_judge_character_consistency.py tests/test_retrieval_embedding.py -q --tb=short`。
+- 测试可正常运行，结果为 16 passed、2 failed，说明此前慢速环境问题已不再阻塞本轮验证。
+- 两个失败均来自 `tests/test_retrieval_embedding.py`，根因为测试仍使用旧的 4 维 pgvector 默认向量，而当前实现已将 `DEFAULT_PGVECTOR_DIMENSIONS` 提升为 1536。
+
+### 实施记录
+
+- `test_pgvector_candidate_loader_orders_postgresql_embeddings_with_bound_vector` 改为基于 `retrieval_service.DEFAULT_PGVECTOR_DIMENSIONS` 构造查询向量。
+- 查询向量参数断言改为解析序列化后的 JSON 再比较，避免硬编码 1536 维字符串。
+- `test_pgvector_candidate_dimension_falls_back_for_invalid_environment` 改为验证非法环境变量回退到当前默认维度，而不是旧的 `vector(4)`。
+
+### 本地验证
+
+- `uv run pytest tests/test_judge_semantic.py tests/test_judge_character_consistency.py tests/test_retrieval_embedding.py -q --tb=short`：18 passed。

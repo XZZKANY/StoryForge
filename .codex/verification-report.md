@@ -249,6 +249,36 @@ equests=2, events=progress -> completed。
 
 建议：通过。
 
+## AI 小说质量测试复跑验证报告
+
+时间：2026-05-29 19:19:52 +08:00
+
+### 需求字段完整性
+
+- 目标：在 Docker 已开启后重新验证裁判提示词、角色声音约束和检索 embedding 相关测试。
+- 范围：`tests/test_judge_semantic.py`、`tests/test_judge_character_consistency.py`、`tests/test_retrieval_embedding.py`。
+- 交付物：测试复跑结果、测试断言同步修正、操作日志和验证报告。
+- 审查要点：不得降低 1536 维 pgvector 默认值；不得用旧 4 维测试掩盖真实实现；必须提供本地可重复命令。
+
+### 本地验证结果
+
+- 首次复跑：16 passed、2 failed。
+- 失败原因：两个 retrieval 测试仍按旧 4 维默认向量构造断言。
+- 修正后复跑：`uv run pytest tests/test_judge_semantic.py tests/test_judge_character_consistency.py tests/test_retrieval_embedding.py -q --tb=short`，18 passed。
+
+### 评分
+
+- 代码质量：93/100。测试断言改为引用默认维度常量，避免再次硬编码旧维度。
+- 测试覆盖：92/100。覆盖裁判语义、角色一致性和检索 embedding 相关路径。
+- 规范遵循：94/100。保持既有 pytest 风格和中文测试描述。
+- 需求匹配：96/100。直接回应 Docker 开启后的复测需求，并修正实际失败点。
+- 架构一致：93/100。未改变业务实现，仅让测试与 1536 维实现契约对齐。
+- 风险评估：90/100。当前只复跑相关测试，未执行 API 全量测试。
+
+综合评分：93/100。
+
+建议：通过。
+
 ## BookRun EventSource hooks lint 修复验证报告
 
 时间：2026-05-29 16:31:33 +08:00
