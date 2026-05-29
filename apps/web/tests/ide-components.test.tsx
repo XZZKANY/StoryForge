@@ -589,7 +589,6 @@ test('BookRunEventsPanel 暴露 SSE 快照入口和事件摘要', () => {
   assert.ok(html.includes('data-command-id="bookrun.start"'));
 });
 
-
 test('BookRunEventsClient 重连状态机覆盖 error 后自动恢复 open', () => {
   const connecting = reduceBookRunEventSourceState(undefined, { type: 'connect' });
   assert.deepEqual(connecting, { connectionState: 'connecting', retryCount: 0 });
@@ -603,7 +602,10 @@ test('BookRunEventsClient 重连状态机覆盖 error 后自动恢复 open', () 
   assert.deepEqual(closed, { connectionState: 'closed', retryCount: 2 });
 });
 test('BookRunEventsClient 使用浏览器 EventSource 长连接并暴露重连状态', () => {
-  const source = readFileSync(join(process.cwd(), 'components/ide/views/BookRunEventsClient.tsx'), 'utf8');
+  const source = readFileSync(
+    join(process.cwd(), 'components/ide/views/BookRunEventsClient.tsx'),
+    'utf8',
+  );
 
   assert.ok(source.includes("'use client'"), 'EventSource 客户端必须是浏览器组件');
   assert.ok(source.includes('new EventSource(eventsUrl)'), '客户端必须打开真实 EventSource 长连接');

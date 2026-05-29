@@ -45,14 +45,8 @@ export type BookRunEventsClientProps = {
   readonly initialEvents?: readonly BookRunEventSnapshot[];
 };
 
-export function BookRunEventsClient({
-  eventsUrl,
-  initialEvents = [],
-}: BookRunEventsClientProps) {
-  const initialEventWindow = useMemo(
-    () => initialEvents.slice(-MAX_LIVE_EVENTS),
-    [initialEvents],
-  );
+export function BookRunEventsClient({ eventsUrl, initialEvents = [] }: BookRunEventsClientProps) {
+  const initialEventWindow = useMemo(() => initialEvents.slice(-MAX_LIVE_EVENTS), [initialEvents]);
 
   return (
     <BookRunEventsLiveClient
@@ -102,7 +96,14 @@ function BookRunEventsLiveClient({
 
     eventSource.addEventListener('open', markOpen);
     eventSource.addEventListener('error', markReconnecting);
-    for (const eventName of ['progress', 'checkpoint', 'blocked', 'budget', 'provider_fallback', 'completed']) {
+    for (const eventName of [
+      'progress',
+      'checkpoint',
+      'blocked',
+      'budget',
+      'provider_fallback',
+      'completed',
+    ]) {
       eventSource.addEventListener(eventName, appendEvent as EventListener);
     }
 
@@ -120,7 +121,10 @@ function BookRunEventsLiveClient({
     if (!eventsUrl) {
       return reduceBookRunEventSourceState(eventSourceState, { type: 'idle' });
     }
-    if (eventSourceState.connectionState === 'idle' || eventSourceState.connectionState === 'closed') {
+    if (
+      eventSourceState.connectionState === 'idle' ||
+      eventSourceState.connectionState === 'closed'
+    ) {
       return reduceBookRunEventSourceState(eventSourceState, { type: 'connect' });
     }
     return eventSourceState;

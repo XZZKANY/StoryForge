@@ -17,11 +17,31 @@ export type EditorAreaProps = {
 };
 
 const legacyLabels: Record<string, { title: string; href: string; summary: string }> = {
-  'legacy:studio': { title: 'Studio 创作工作台', href: '/studio', summary: '审阅、修复和批准写回链路已在 IDE 内访问。' },
-  'legacy:retrieval': { title: 'Retrieval 证据检索', href: '/retrieval', summary: '资料检索入口已在 IDE 内访问。' },
-  'legacy:runs': { title: 'Runs 运行诊断', href: '/runs', summary: '运行诊断入口已在 IDE 内访问。' },
-  'legacy:artifacts': { title: 'Artifacts 工件与导出', href: '/artifacts', summary: '工件和导出入口已在 IDE 内访问。' },
-  'legacy:evaluations': { title: 'Evaluations 评测系统', href: '/evaluations', summary: '评测诊断入口已在 IDE 内访问。' },
+  'legacy:studio': {
+    title: 'Studio 创作工作台',
+    href: '/studio',
+    summary: '审阅、修复和批准写回链路已在 IDE 内访问。',
+  },
+  'legacy:retrieval': {
+    title: 'Retrieval 证据检索',
+    href: '/retrieval',
+    summary: '资料检索入口已在 IDE 内访问。',
+  },
+  'legacy:runs': {
+    title: 'Runs 运行诊断',
+    href: '/runs',
+    summary: '运行诊断入口已在 IDE 内访问。',
+  },
+  'legacy:artifacts': {
+    title: 'Artifacts 工件与导出',
+    href: '/artifacts',
+    summary: '工件和导出入口已在 IDE 内访问。',
+  },
+  'legacy:evaluations': {
+    title: 'Evaluations 评测系统',
+    href: '/evaluations',
+    summary: '评测诊断入口已在 IDE 内访问。',
+  },
 };
 
 export function EditorArea({
@@ -94,7 +114,8 @@ export function EditorArea({
           >
             打开旧页面
           </a>
-        </section>      ) : active === 'diff' ? (
+        </section>
+      ) : active === 'diff' ? (
         <DiffViewer before="修复前内容" after="修复后内容" />
       ) : (
         <section className="rounded-xl border border-stone-800 bg-stone-900 p-6">

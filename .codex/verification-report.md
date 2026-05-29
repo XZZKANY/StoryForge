@@ -280,3 +280,35 @@ equests=2, events=progress -> completed。
 综合评分：93/100。
 
 建议：通过。
+
+## CI Prettier 格式检查修复验证报告
+
+时间：2026-05-29 16:39:51 +08:00
+
+### 需求字段完整性
+
+- 目标：修复 push CI 中 Prettier 格式检查失败。
+- 范围：CI glob 覆盖的 `apps/web/**/*.{ts,tsx}`、`packages/shared/src/**/*.ts`、`scripts/**/*.mjs`。
+- 交付物：Prettier 机械格式化变更、上下文摘要、操作日志和验证报告。
+- 审查要点：不得改变业务逻辑；不得绕过格式检查；本地验证必须可重复。
+
+### 本地验证结果
+
+- `pnpm exec prettier --check "apps/web/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"`：通过。
+- `pnpm exec eslint .`：通过。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm --filter @storyforge/web test`：132 passed。
+- `git diff --check`：通过。
+
+### 评分
+
+- 代码质量：92/100。变更为 Prettier 机械格式化，无业务逻辑调整。
+- 测试覆盖：94/100。覆盖格式、eslint、类型检查和 Web 全量契约测试。
+- 规范遵循：96/100。完全复用项目 Prettier 配置和 CI 同款命令。
+- 需求匹配：96/100。直接修复 push CI 的格式检查失败。
+- 架构一致：94/100。未新增依赖，未改变模块边界。
+- 风险评估：90/100。格式化范围较大，但全量 Web 测试已通过；测试生成的性能基线漂移已排除。
+
+综合评分：94/100。
+
+建议：通过。

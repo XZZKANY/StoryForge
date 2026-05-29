@@ -6027,3 +6027,37 @@ equests=2, events=progress -> completed。
 - pnpm --filter @storyforge/web lint：通过。
 - pnpm --filter @storyforge/web test ide-components：26 passed。
 - git diff --check：通过。
+
+## CI Prettier 格式检查修复记录
+
+时间：2026-05-29 16:39:51 +08:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：.codex/context-summary-ci-prettier-format.md。
+- 将使用以下可复用组件：
+  - .prettierrc.json：项目格式配置真相源。
+  - package.json#scripts.lint：CI 格式检查命令来源。
+  - apps/web/scripts/phase1-contract-test.mjs：Web 契约测试入口。
+- 将遵循命名约定：不改标识符，仅执行 Prettier 机械格式化。
+- 将遵循代码风格：semi=true、singleQuote=true、trailingComma=all、printWidth=100。
+- 确认不重复造轮子：使用项目既有 Prettier，不新增格式化工具。
+
+### 根因分析
+
+- CI 失败命令为 `pnpm exec prettier --check "apps/web/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"`。
+- 本地复现同款命令，当前分支实际报告 35 个 Web 文件存在格式漂移。
+- 该问题为机械格式问题，不涉及业务逻辑缺陷。
+
+### 实施记录
+
+- 执行 `pnpm exec prettier --write "apps/web/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"`。
+- 全量 Web 测试曾刷新 `.codex/ide-performance-baseline.json`，已确认只是测试运行生成的时间与耗时漂移，并从本次变更中排除。
+
+### 本地验证
+
+- Prettier check：All matched files use Prettier code style!
+- pnpm exec eslint .：通过。
+- pnpm --filter @storyforge/web lint：通过。
+- pnpm --filter @storyforge/web test：132 passed。
+- git diff --check：通过。
