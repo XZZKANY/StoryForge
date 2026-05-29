@@ -312,3 +312,38 @@ equests=2, events=progress -> completed。
 综合评分：94/100。
 
 建议：通过。
+
+## CI 与本地验证对齐验证报告
+
+时间：2026-05-29 17:07:04 +08:00
+
+### 需求字段完整性
+
+- 目标：保留 CI/CD，但将 push/PR 门禁改成少而准，并让本地验证与 CI 命令完全一致。
+- 范围：根 package scripts、共享验证脚本、GitHub CI workflow、E2E workflow 触发策略。
+- 交付物：`scripts/verify-ci.mjs`、`verify:ci`/`verify:infra` 脚本、收敛后的 CI workflow、手动/夜间 E2E workflow、实施计划与审计记录。
+- 审查要点：不得删除 CI/CD；不得让 E2E 继续默认卡 push/PR；本地与 CI 必须共享同一核心命令。
+
+### 本地验证结果
+
+- `node --check scripts/verify-ci.mjs`：通过。
+- Prettier 检查 package、workflow、scripts 与计划文档：通过。
+- `pnpm run verify:ci`：通过。
+- Web 契约测试：132 passed。
+- API 测试：300 passed，6 warnings。
+- Workflow 测试：77 passed。
+- API/Workflow Ruff：All checks passed。
+- OpenAPI drift 检查：通过。
+
+### 评分
+
+- 代码质量：93/100。验证编排集中到单一 ESM 脚本，失败点清晰。
+- 测试覆盖：95/100。本地执行了 CI 同款核心门禁，并覆盖 Web/API/Workflow。
+- 规范遵循：94/100。保留 CI/CD、保留 infra 验证入口，使用中文日志与记录。
+- 需求匹配：96/100。CI 与本地现在共享 `pnpm run verify:ci`，E2E 从默认 push/PR 门禁移出。
+- 架构一致：92/100。复用现有 package scripts、uv 子项目和 OpenAPI 生成流程。
+- 风险评估：90/100。单 job 降低并行度，但减少本地/远端不一致；Web 测试生成的性能基线漂移已排除。
+
+综合评分：93/100。
+
+建议：通过。

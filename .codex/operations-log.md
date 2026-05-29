@@ -6061,3 +6061,40 @@ equests=2, events=progress -> completed。
 - pnpm --filter @storyforge/web lint：通过。
 - pnpm --filter @storyforge/web test：132 passed。
 - git diff --check：通过。
+
+## CI 与本地验证对齐实施记录
+
+时间：2026-05-29 17:07:04 +08:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：.codex/context-summary-ci-local-verify-alignment.md。
+- 将使用以下可复用组件：
+  - package.json#lint：复用 ESLint 与 Prettier 门禁。
+  - pnpm --filter @storyforge/web test：复用 Web 契约测试。
+  - uv run pytest / uv run ruff check .：复用 API 与 Workflow 子项目验证。
+  - pnpm openapi：复用 OpenAPI 契约刷新。
+- 将遵循命名约定：脚本文件 kebab-case，变量 camelCase，日志使用简体中文。
+- 将遵循代码风格：Node ESM、单引号、2 空格缩进。
+- 确认不重复造轮子：新增脚本只编排既有命令，不重写测试或 lint 逻辑。
+
+### 实施记录
+
+- 新增 `scripts/verify-ci.mjs`，作为本地和 GitHub CI 的共享核心门禁。
+- `package.json` 新增 `verify:ci`，并让 `verify` 调用同一核心门禁；原 Docker/infra 检查保留为 `verify:infra`。
+- `.github/workflows/ci.yml` 收敛为一个 `core-gate` job，安装依赖后运行 `pnpm run verify:ci`。
+- `.github/workflows/e2e.yml` 改为 `workflow_dispatch` 与每日夜间 schedule，不再每次 push/PR 默认触发。
+- `docs/superpowers/plans/2026-05-29-ci-local-verify-alignment.md` 记录实施计划。
+
+### 本地验证
+
+- `node --check scripts/verify-ci.mjs`：通过。
+- Prettier 检查 package、workflow、scripts 与计划文档：通过。
+- `pnpm run verify:ci`：通过。
+  - Web 契约测试：132 passed。
+  - API 测试：300 passed。
+  - Workflow 测试：77 passed。
+  - API/Workflow Ruff：All checks passed。
+  - OpenAPI drift 检查：通过。
+- 普通沙箱首次运行 Web node:test 遇到 `spawn EPERM`，清理临时目录后使用提升权限重跑同一命令通过。
+- `.codex/ide-performance-baseline.json` 被 Web 测试刷新为机器耗时漂移，已恢复并排除出本次提交。

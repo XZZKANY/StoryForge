@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  lint-and-typecheck:
-    name: Lint and typecheck
+  core-gate:
+    name: Core verification
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
@@ -26,72 +26,6 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-
-      - name: 安装 Node 依赖
-        run: pnpm install --frozen-lockfile
-
-      - name: Web 类型检查
-        run: pnpm --filter @storyforge/web lint
-
-      - name: Shared 类型检查
-        run: pnpm --filter @storyforge/shared test
-
-      - name: ESLint 门禁
-        run: pnpm exec eslint .
-
-      - name: Prettier 格式检查
-        run: pnpm exec prettier --check "apps/web/**/*.{ts,tsx}" "packages/shared/src/**/*.ts" "scripts/**/*.mjs"
-
-  test-web:
-    name: Test web
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v6
-
-      - name: 安装 pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: 安装 Node 依赖
-        run: pnpm install --frozen-lockfile
-
-      - name: 运行 Web 测试
-        run: pnpm --filter @storyforge/web test
-
-  test-shared:
-    name: Test shared
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v6
-
-      - name: 安装 pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: 安装 Node 依赖
-        run: pnpm install --frozen-lockfile
-
-      - name: 运行 Shared 测试
-        run: pnpm --filter @storyforge/shared test
-
-  test-api:
-    name: Test API
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v6
 
       - name: 安装 Python
         uses: actions/setup-python@v5
@@ -100,79 +34,17 @@ jobs:
 
       - name: 安装 uv
         uses: astral-sh/setup-uv@v6
+
+      - name: 安装 Node 依赖
+        run: pnpm install --frozen-lockfile
 
       - name: 安装 API 依赖
         working-directory: apps/api
         run: uv sync --frozen
-
-      - name: 运行 API 测试
-        working-directory: apps/api
-        run: uv run pytest
-
-      - name: Ruff 代码检查
-        working-directory: apps/api
-        run: uv run ruff check .
-
-  test-workflow:
-    name: Test workflow
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v6
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装 uv
-        uses: astral-sh/setup-uv@v6
 
       - name: 安装 Workflow 依赖
         working-directory: apps/workflow
         run: uv sync --frozen
 
-      - name: 运行 Workflow 测试
-        working-directory: apps/workflow
-        run: uv run pytest
-
-      - name: Ruff 代码检查
-        working-directory: apps/workflow
-        run: uv run ruff check .
-
-  contract-check:
-    name: Contract check
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v6
-
-      - name: 安装 pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装 uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: 安装 Node 依赖
-        run: pnpm install --frozen-lockfile
-
-      - name: 安装 API 依赖
-        working-directory: apps/api
-        run: uv sync --frozen
-
-      - name: 刷新 OpenAPI 契约
-        run: pnpm openapi
-
-      - name: 检查 OpenAPI 契约漂移
-        run: git diff --exit-code -- packages/shared/src/contracts/storyforge.openapi.json
+      - name: 执行核心门禁
+        run: pnpm run verify:ci
