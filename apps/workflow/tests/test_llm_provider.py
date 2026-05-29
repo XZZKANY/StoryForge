@@ -42,3 +42,44 @@ def test_generate_text_calls_openai_compatible_provider(monkeypatch) -> None:
         thread.join(timeout=2)
 
     assert result.startswith("模型响应：请根据不同 premise")
+
+def test_provider_config_normalizes_user_facing_model_alias(monkeypatch) -> None:
+    """用户口语化模型名应归一为网关实际暴露的 OpenAI 兼容模型 ID。"""
+
+    from storyforge_workflow.provider_client import provider_config
+
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "GPT5.4mini")
+
+    assert provider_config()["model"] == "gpt-5.4-mini"
+
+
+
+def test_generate_text_uses_gateway_friendly_default_system_prompt(monkeypatch) -> None:
+    """默认 system prompt 应使用英文任务边界，适配 Codex 类网关模型。"""
+
+    captured: dict[str, object] = {}
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": "正文"}}]}).encode("utf-8")
+
+    def fake_urlopen(http_request, timeout: float):
+        captured["payload"] = json.loads(http_request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_LLM_MAX_TOKENS", "512")
+    monkeypatch.setattr("storyforge_workflow.provider_client.request.urlopen", fake_urlopen)
+
+    assert generate_text("继续正文") == "正文"
+    payload = captured["payload"]
+    assert payload["messages"][0]["content"].startswith("You are a creative writing engine")
+    assert payload["max_tokens"] == 512

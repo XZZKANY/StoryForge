@@ -5,7 +5,7 @@ import os
 from urllib import request
 
 
-def generate_text(prompt: str, *, system_prompt: str = "你是 StoryForge 的中文长篇创作助手。") -> str:
+def generate_text(prompt: str, *, system_prompt: str = "You are a creative writing engine for StoryForge. Return only the requested Chinese prose or structured result.") -> str:
     """调用 OpenAI 兼容 Chat Completions 端点生成文本。"""
 
     config = provider_config()
@@ -17,6 +17,9 @@ def generate_text(prompt: str, *, system_prompt: str = "你是 StoryForge 的中
         ],
         "temperature": float(os.getenv("STORYFORGE_LLM_TEMPERATURE", "0.7")),
     }
+    max_tokens = os.getenv("STORYFORGE_LLM_MAX_TOKENS")
+    if max_tokens:
+        payload["max_tokens"] = int(max_tokens)
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     http_request = request.Request(
         f"{config['base_url'].rstrip('/')}/chat/completions",
@@ -45,6 +48,19 @@ def provider_config() -> dict[str, str]:
     return {
         "api_key": api_key,
         "base_url": os.getenv("STORYFORGE_LLM_BASE_URL", "https://api.openai.com/v1"),
-        "model": os.getenv("STORYFORGE_LLM_MODEL", "gpt-4o-mini"),
+        "model": _normalize_model_id(os.getenv("STORYFORGE_LLM_MODEL", "gpt-4o-mini")),
         "provider_name": os.getenv("STORYFORGE_LLM_PROVIDER", "openai-compatible"),
     }
+
+
+def _normalize_model_id(model: str) -> str:
+    """归一用户口语化模型名，避免网关因非标准 ID 返回上游错误。"""
+
+    aliases = {
+        "gpt5.4mini": "gpt-5.4-mini",
+        "gpt-5.4mini": "gpt-5.4-mini",
+        "gpt5.4-mini": "gpt-5.4-mini",
+        "gpt-5.4-mini": "gpt-5.4-mini",
+    }
+    normalized = model.strip()
+    return aliases.get(normalized.lower(), normalized)
