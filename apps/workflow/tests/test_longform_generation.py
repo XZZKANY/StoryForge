@@ -165,3 +165,24 @@ def test_generate_longform_article_reports_persisted_counting_contract_for_multi
     persisted_chars = count_article_chars(output.read_text(encoding="utf-8"))
     assert result["actual_chars"] == persisted_chars
     assert persisted_chars >= 700
+
+def test_longform_segment_prompt_uses_gateway_friendly_english_instruction(tmp_path: Path) -> None:
+    """长文提示词应包含英文任务边界，适配会忽略纯中文任务的网关模型。"""
+
+    prompts: list[str] = []
+
+    def provider(prompt: str) -> str:
+        prompts.append(prompt)
+        return "雨夜里，侦探沿着旧剧院的安全通道前进，录音笔忽然播放失踪者的耳语。" * 12
+
+    generate_longform_article(
+        LongformGenerationPlan(title="雾城回声", target_chars=260, segment_chars=240, max_segments=2, retry_sleep_seconds=0),
+        tmp_path / "article.md",
+        premise="刑警追查旧剧院录音引发的连环失踪案。",
+        provider=provider,
+    )
+
+    assert "Task:" in prompts[0]
+    assert "Return only Chinese prose" in prompts[0]
+    assert "Do not ask questions" in prompts[0]
+    assert "标题：雾城回声" in prompts[0]

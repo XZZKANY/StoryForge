@@ -1,0 +1,66 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>StoryForge Claude-like Project Logic</title>
+<style>
+:root{--bg:#1f1f1d;--sidebar:#191917;--panel:#2c2c2a;--panel2:#343432;--text:#e8decb;--muted:#a8a096;--line:#3b3a37;--orange:#d96f43;--blue:#9db7ff;--green:#a9d2b4}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app{height:100vh;display:grid;grid-template-columns:290px 1fr}.sidebar{background:linear-gradient(90deg,#171715,#1c1c1a);border-right:1px solid var(--line);padding:14px 16px;display:flex;flex-direction:column}.side-top{height:34px;display:flex;align-items:center;justify-content:space-between}.brand{font-family:Georgia,"Times New Roman",serif;font-size:24px;font-weight:650;color:#f4eadb;letter-spacing:-.02em}.collapse{color:#c9c0b5;font-size:15px}.menu{display:grid;gap:15px;margin-top:22px}.menu-item{display:flex;align-items:center;gap:11px;font-size:15px;color:#e7dfd3}.menu-item.dim{color:#7e776f}.ico{width:20px;height:20px;display:grid;place-items:center;color:#f3eadf}.ico.circle{border-radius:50%;background:#353532}.badge{margin-left:auto;color:#a9c0ff;border:1px solid #45536a;border-radius:999px;padding:2px 8px;font-size:12px}.recents-title{margin-top:28px;margin-bottom:12px;color:#89827a;font-size:13px}.recents{display:grid;gap:15px;font-size:14px;line-height:1.25;color:#d7cec1;overflow:hidden}.recent small{display:block;margin-top:4px;color:#827b72;font-size:12px}.user{margin-top:auto;border-top:1px solid var(--line);padding-top:14px;display:flex;align-items:center;gap:12px}.avatar{width:36px;height:36px;border-radius:50%;background:#d9d2c5;color:#141412;display:grid;place-items:center;font-weight:800}.user b{display:block;font-size:14px}.user span{font-size:13px;color:#908a82}.main{position:relative;height:100vh;display:flex;flex-direction:column}.topbar{height:48px;position:relative;display:flex;align-items:center;justify-content:center}.plan{background:#131312;border-radius:8px;padding:7px 11px;color:#aaa39a;font-size:14px}.plan a{color:#d8cab8;text-decoration:underline;text-underline-offset:3px}.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}.owl{position:absolute;right:22px;top:15px;color:#e3dbce;font-size:18px}.center{flex:1;display:flex;align-items:center;justify-content:center;padding-bottom:78px}.hero{width:min(676px,calc(100vw - 360px));display:flex;flex-direction:column;align-items:center}.hello{display:flex;align-items:center;gap:14px;margin-bottom:34px}.spark{position:relative;width:31px;height:31px}.spark:before{content:"✳";position:absolute;inset:-4px;color:var(--orange);font-size:35px;line-height:31px;transform:rotate(10deg)}h1{font-family:Georgia,"Times New Roman",serif;font-size:45px;line-height:1;margin:0;color:#ded4c2;font-weight:500;letter-spacing:-.035em}.composer{width:100%;height:132px;background:#2c2c2a;border:1px solid #3a3935;border-radius:20px;box-shadow:0 1px 0 rgba(255,255,255,.035) inset;display:flex;flex-direction:column;overflow:hidden}.prompt{height:70px;padding:21px 21px 0;color:#aaa196;font-size:16px}.composer-bottom{display:flex;align-items:center;justify-content:space-between;padding:11px 20px 18px}.left-tools{display:flex;align-items:center;gap:14px;color:#aaa196}.plus{font-size:31px;font-weight:200;line-height:1}.attach{font-size:13px;color:#8f887f}.right-tools{display:flex;align-items:center;gap:17px;color:#eee4d2}.mode{font-size:14px;color:#f0e5d4}.chev{font-size:12px;color:#aaa196;margin-left:3px}.tool{font-size:18px;color:#f4eadb}.submit{height:34px;border:0;border-radius:999px;background:#e7dccd;color:#1e1d1b;padding:0 13px;font-weight:800}.chips{display:flex;gap:8px;margin-top:15px;flex-wrap:wrap;justify-content:center}.chip{height:32px;background:#343432;border:1px solid #3a3937;border-radius:8px;color:#fffaf0;padding:0 11px;display:flex;align-items:center;gap:7px;font-size:14px;font-weight:750}.chip span{opacity:.72;font-size:15px;font-weight:400}.context-strip{margin-top:22px;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.context{border:1px solid #363530;background:#242422;border-radius:13px;padding:12px 13px;text-align:left}.context b{font-size:13px;color:#e7dece}.context span{display:block;margin-top:5px;color:#8f887f;font-size:12px}.float{position:absolute;right:-18px;top:78%;width:38px;height:38px;border-radius:50%;background:#2d2d2a;border:1px solid #3a3936;display:grid;place-items:center}.mobile-rail{display:none;position:absolute;left:16px;top:17px;color:#e5ded1}@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}.mobile-rail{display:block}.hero{width:min(676px,calc(100vw - 188px))}}@media(max-width:720px){.hero{width:calc(100vw - 36px)}h1{font-size:36px}.hello{margin-bottom:26px}.context-strip{grid-template-columns:1fr}.center{padding-bottom:42px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="side-top"><div class="brand">StoryForge</div><div class="collapse">▯</div></div>
+    <nav class="menu">
+      <div class="menu-item"><span class="ico circle">＋</span><span>新建作品</span></div>
+      <div class="menu-item"><span class="ico">⌕</span><span>搜索作品与证据</span></div>
+      <div class="menu-item"><span class="ico">◔</span><span>作品库</span></div>
+      <div class="menu-item"><span class="ico">✦</span><span>Studio 审阅</span></div>
+      <div class="menu-item"><span class="ico">▣</span><span>BookRun 整书运行</span></div>
+      <div class="menu-item"><span class="ico">⌁</span><span>Retrieval 证据</span></div>
+      <div class="menu-item"><span class="ico">▤</span><span>工件与导出</span></div>
+      <div class="menu-item dim"><span class="ico">◌</span><span>运行诊断</span><span class="badge">审计</span></div>
+    </nav>
+    <div class="recents-title">最近</div>
+    <div class="recents">
+      <div class="recent">雾港灯塔<small>BookRun #12 · 2/3 章 · 待审阅</small></div>
+      <div class="recent">灰塔协议<small>Blueprint 已锁定 · 可启动整书运行</small></div>
+      <div class="recent">林岚人物小传<small>Character Bible · 最近更新</small></div>
+      <div class="recent">第 2 章修订清单<small>3 个 Judge 问题 · 1 个需批准</small></div>
+      <div class="recent">雾港灯塔审计报告<small>Markdown / EPUB 可导出</small></div>
+    </div>
+    <div class="user"><div class="avatar">SF</div><div><b>本地工作区</b><span>Provider 已配置</span></div></div>
+  </aside>
+  <main class="main">
+    <div class="mobile-rail">▯</div>
+    <div class="topbar"><div class="plan"><span class="status-dot"></span>Local workspace · <a>Provider 正常</a></div><div class="owl">♙</div></div>
+    <section class="center">
+      <div class="hero">
+        <div class="hello"><span class="spark"></span><h1>今天要锻造哪段故事？</h1></div>
+        <div class="composer">
+          <div class="prompt">输入故事想法、章节目标或修订要求，StoryForge 会选择对应创作流程。</div>
+          <div class="composer-bottom">
+            <div class="left-tools"><div class="plus">＋</div><div class="attach">附加资料 / 世界观 / 上章摘要</div></div>
+            <div class="right-tools"><div class="mode">创作模式 <span class="chev">⌄</span></div><div class="tool">🎙</div><div class="tool">▥</div><button class="submit">开始</button></div>
+          </div>
+        </div>
+        <div class="chips">
+          <div class="chip"><span>✎</span> 创建 Blueprint</div>
+          <div class="chip"><span>▶</span> 启动 BookRun</div>
+          <div class="chip"><span>✓</span> 审阅并批准</div>
+          <div class="chip"><span>⌁</span> 核对证据</div>
+          <div class="chip"><span>▤</span> 导出审计</div>
+        </div>
+        <div class="context-strip">
+          <div class="context"><b>当前作品</b><span>雾港灯塔 · 第 2 章待批准</span></div>
+          <div class="context"><b>运行状态</b><span>BookRun #12 · tokens 6,420 / 24,000</span></div>
+          <div class="context"><b>下一步建议</b><span>查看 Repair Patch 并提交批准写回</span></div>
+        </div>
+      </div>
+    </section>
+    <div class="float">🦉</div>
+  </main>
+</div>
+</body>
+</html>

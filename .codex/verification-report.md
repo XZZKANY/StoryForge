@@ -215,3 +215,36 @@ equests=2, events=progress -> completed。
 综合评分：93/100。
 
 建议：**通过**。在 git diff --check 复跑通过后，可将目标标记为完成。
+## yybb GPT5.4mini 20万字全流程验证报告
+
+时间：2026-05-29 05:18:39 +08:00
+
+### 需求字段完整性
+
+- 目标：使用 https://yybb.codes、用户提供 API Key、模型 GPT5.4mini 跑完整 20 万字流程。
+- 范围：workflow 长文生成入口、OpenAI 兼容 provider、断点续跑、输出字数审计、本地回归测试。
+- 交付物：.codex/tmp/yybb-gpt54mini-200k-midnight-archive.md、.codex/tmp/yybb-gpt54mini-200k-midnight-archive.audit.json、provider/longform 最小修复、测试补强。
+- 审查要点：密钥不落盘；真实远端模型返回中文正文；输出正文不少于 200000 字；失败后最小修复并继续流程。
+
+### 本地验证结果
+
+- 真实输出正文计数：316586 / 200000，满足目标。
+- 输出文件：.codex/tmp/yybb-gpt54mini-200k-midnight-archive.md，大小 968394 bytes。
+- 跑偏话术扫描：未发现 What would you like me to work on、I need the actual task、repository、workspace、Task: Continue、Do not ask questions。
+- CLI 断点完成复跑：退出码 0，返回 actual_chars=316586，segments=175。
+- 单元测试：10 passed。
+- Ruff：All checks passed!。
+- git diff --check：退出码 0。
+
+### 评分
+
+- 代码质量：92/100。修复集中在 provider 配置和 longform prompt 边界，未引入新依赖。
+- 测试覆盖：91/100。覆盖模型别名、默认 system prompt、max_tokens、longform prompt、断点/计数/重试路径。
+- 规范遵循：90/100。密钥未写入文件；新增日志和报告使用简体中文；保留产物在项目 .codex/tmp/。
+- 需求匹配：95/100。真实 yybb + GPT5.4mini 流程已生成超过 20 万字并通过独立计数。
+- 架构一致：92/100。复用现有 workflow CLI 和 provider client。
+- 风险评估：88/100。远端 502/短响应仍可能偶发，但断点续跑和重试策略已验证可恢复。
+
+综合评分：92/100。
+
+建议：通过。

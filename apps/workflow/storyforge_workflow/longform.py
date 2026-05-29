@@ -119,14 +119,17 @@ def _build_segment_prompt(
     previous_summary: str,
 ) -> str:
     segment_target = min(plan.segment_chars, remaining_chars)
+    opening_summary = "这是开篇，请建立主题、核心人物和长期冲突。"
+    summary = previous_summary or opening_summary
     return (
-        "请为一篇中文长篇文章继续生成正文，只输出正文，不要解释写作过程。\n"
+        "Task: Continue a long-form Chinese suspense manuscript. Return only Chinese prose. "
+        "Do not ask questions. Do not explain your process. Do not mention code, repository, or workspace.\n"
         f"标题：{plan.title}\n"
         f"整体设定：{premise}\n"
         f"当前段号：{segment_index}\n"
         f"本段目标字数：约 {segment_target} 个中文字符，允许上下浮动 15%。\n"
-        f"剩余总目标：约 {remaining_chars} 个中文字符。\n"
-        f"上文摘要：{previous_summary or '这是开篇，请建立主题、核心人物和长期冲突。'}\n"
+        f"剩余总目标：约 {remaining_chars} 个中文字符?\n"
+        f"上文摘要：{summary}\n"
         "要求：保持叙事连续，包含具体场景、行动、对话和细节；不要写大纲；不要提前完结。"
     )
 
