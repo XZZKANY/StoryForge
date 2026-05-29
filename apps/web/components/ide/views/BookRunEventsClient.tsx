@@ -49,31 +49,49 @@ export function BookRunEventsClient({
   eventsUrl,
   initialEvents = [],
 }: BookRunEventsClientProps) {
-  const [events, setEvents] = useState<readonly BookRunEventSnapshot[]>(() =>
-    initialEvents.slice(-MAX_LIVE_EVENTS),
+  const initialEventWindow = useMemo(
+    () => initialEvents.slice(-MAX_LIVE_EVENTS),
+    [initialEvents],
   );
+
+  return (
+    <BookRunEventsLiveClient
+      key={eventsUrl}
+      eventsUrl={eventsUrl}
+      initialEvents={initialEventWindow}
+      initialEventCount={initialEvents.length}
+    />
+  );
+}
+
+type BookRunEventsLiveClientProps = {
+  readonly eventsUrl: string;
+  readonly initialEvents: readonly BookRunEventSnapshot[];
+  readonly initialEventCount: number;
+};
+
+function BookRunEventsLiveClient({
+  eventsUrl,
+  initialEvents,
+  initialEventCount,
+}: BookRunEventsLiveClientProps) {
+  const [liveEvents, setLiveEvents] = useState<readonly BookRunEventSnapshot[]>([]);
   const [eventSourceState, setEventSourceState] = useState<BookRunEventSourceState>(() => ({
-    connectionState: eventsUrl ? 'connecting' : 'idle',
+    connectionState: 'idle',
     retryCount: 0,
   }));
 
   useEffect(() => {
-    setEvents(initialEvents.slice(-MAX_LIVE_EVENTS));
-  }, [initialEvents]);
-
-  useEffect(() => {
     if (!eventsUrl) {
-      setEventSourceState((state) => reduceBookRunEventSourceState(state, { type: 'idle' }));
       return undefined;
     }
 
-    setEventSourceState((state) => reduceBookRunEventSourceState(state, { type: 'connect' }));
     const eventSource = new EventSource(eventsUrl);
 
     const appendEvent = (event: MessageEvent<string>) => {
       const parsed = parseBookRunEvent(event.type, event.data);
       if (!parsed) return;
-      setEvents((current) => [...current, parsed].slice(-MAX_LIVE_EVENTS));
+      setLiveEvents((current) => [...current, parsed].slice(-MAX_LIVE_EVENTS));
       setEventSourceState((state) => reduceBookRunEventSourceState(state, { type: 'event' }));
     };
 
@@ -92,8 +110,21 @@ export function BookRunEventsClient({
       eventSource.close();
       setEventSourceState((state) => reduceBookRunEventSourceState(state, { type: 'close' }));
     };
-  }, [eventsUrl, initialEvents]);
+  }, [eventsUrl]);
 
+  const events = useMemo(
+    () => [...initialEvents, ...liveEvents].slice(-MAX_LIVE_EVENTS),
+    [initialEvents, liveEvents],
+  );
+  const displayedEventSourceState = useMemo<BookRunEventSourceState>(() => {
+    if (!eventsUrl) {
+      return reduceBookRunEventSourceState(eventSourceState, { type: 'idle' });
+    }
+    if (eventSourceState.connectionState === 'idle' || eventSourceState.connectionState === 'closed') {
+      return reduceBookRunEventSourceState(eventSourceState, { type: 'connect' });
+    }
+    return eventSourceState;
+  }, [eventsUrl, eventSourceState]);
   const latestEvents = useMemo(() => events.slice(-5), [events]);
 
   return (
@@ -102,17 +133,20 @@ export function BookRunEventsClient({
       className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 p-3 text-emerald-50"
       data-eventsource-client="book-run"
       data-events-url={eventsUrl}
-      data-connection-state={eventSourceState.connectionState}
-      data-retry-count={eventSourceState.retryCount}
+      data-connection-state={displayedEventSourceState.connectionState}
+      data-retry-count={displayedEventSourceState.retryCount}
       data-live-event-count={events.length}
-      data-initial-event-count={initialEvents.length}
+      data-initial-event-count={initialEventCount}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">EventSource 实时连接</h3>
-        <span className="font-mono text-xs text-emerald-200">{eventSourceState.connectionState}</span>
+        <span className="font-mono text-xs text-emerald-200">
+          {displayedEventSourceState.connectionState}
+        </span>
       </div>
       <p className="mt-2 text-xs text-emerald-200/80">
-        浏览器原生 EventSource 会在断线后自动重连；当前重连观察次数：{eventSourceState.retryCount}。
+        浏览器原生 EventSource 会在断线后自动重连；当前重连观察次数：
+        {displayedEventSourceState.retryCount}。
       </p>
       {latestEvents.length === 0 ? (
         <p className="mt-3 rounded border border-dashed border-emerald-900 p-2 text-sm text-emerald-100/70">

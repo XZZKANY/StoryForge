@@ -5992,3 +5992,38 @@ equests=2, events=progress -> completed。
 - uv run pytest tests/test_llm_provider.py tests/test_longform_generation.py -q：10 passed。
 - uv run ruff check storyforge_workflow/provider_client.py storyforge_workflow/longform.py tests/test_llm_provider.py tests/test_longform_generation.py：All checks passed!。
 - git diff --check：退出码 0。
+
+## CI hooks lint 修复记录 - BookRunEventsClient
+
+时间：2026-05-29 16:31:33 +08:00
+
+### 编码前检查
+
+- 已查阅上下文摘要文件：.codex/context-summary-bookrun-eventsource-hooks-lint.md。
+- 将使用以下可复用组件：
+  - apps/web/components/ide/views/BookRunEventsClient.tsx：复用 reduceBookRunEventSourceState 状态机。
+  - apps/web/components/ide/views/BookRunEventsPanel.tsx：确认 eventsUrl 与 initialEvents 集成协议。
+  - apps/web/tests/ide-components.test.tsx：复用 BookRun EventSource 状态机和源码契约测试。
+- 将遵循命名约定：React 组件 PascalCase，局部变量 camelCase。
+- 将遵循代码风格：TypeScript、React hooks、Tailwind className、简体中文 UI 文案。
+- 确认不重复造轮子：已检查 BookRunEventsClient、BookRunEventsPanel、ChapterEditor、IdeShell，确认只需调整现有组件状态派生方式。
+
+### 根因分析
+
+- CI 报错来自 react-hooks/set-state-in-effect。
+- initialEvents 是 props 派生数据，不应在 effect 主体用 setEvents 二次同步。
+- eventsUrl 为空时的 idle 展示也可由渲染阶段派生，不需要 effect 主体同步 setEventSourceState。
+
+### 实施记录
+
+- 将 initialEvents 截断窗口改为 useMemo 派生。
+- 新增内部 BookRunEventsLiveClient，并用 eventsUrl 作为 key，切换 BookRun 时重置实时事件 state。
+- 保留 EventSource open/error/message 回调中的 setState，因为这是外部系统订阅回调。
+
+### 本地验证
+
+- pnpm exec eslint apps/web/components/ide/views/BookRunEventsClient.tsx：通过。
+- pnpm exec eslint .：通过。
+- pnpm --filter @storyforge/web lint：通过。
+- pnpm --filter @storyforge/web test ide-components：26 passed。
+- git diff --check：通过。
