@@ -18,14 +18,15 @@ def _stub_llm(monkeypatch) -> None:
             "林岚把左臂藏进披风，听见灯塔信号第七分钟再次回响。她没有解释伤势，只把维修窗口压进谈判桌。",
         ]
     )
-    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(responses))
+    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt, **kwargs: next(responses))
 
 
 def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monkeypatch) -> None:
     """生成工作流按固定阶段推进，并在人工审批点暂停。"""
 
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
     _stub_llm(monkeypatch)
     store = InMemoryWorkflowStore()
     graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
@@ -72,6 +73,7 @@ def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monke
 def test_generation_graph_resumes_with_same_thread_id_and_command(monkeypatch) -> None:
     """相同 thread_id 可用 Command(resume=...) 从中断点恢复。"""
 
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
     _stub_llm(monkeypatch)
     store = InMemoryWorkflowStore()
     graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
@@ -121,6 +123,139 @@ def test_generation_graph_requires_explicit_checkpointer_for_local_tests() -> No
 
     with pytest.raises(ValueError, match="checkpointer"):
         create_generation_graph(store=InMemoryWorkflowStore())
+
+
+def test_generation_graph_runs_critique_revision_loop(monkeypatch) -> None:
+    """critique 环开启时：首稿被评出问题→reviser 改稿→二轮通过→暂停于审批。"""
+
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "1")
+    monkeypatch.setenv("STORYFORGE_DRAFT_MAX_REVISIONS", "2")
+
+    planning = iter(
+        [
+            "灯塔远航\n舰队如何在旧伤与谈判压力中找到新家园\n克制、具画面感\n兑现迁徙史诗",
+            "暗潮\n林岚在港口谈判中争取维修窗口\n外部任务压力与角色隐秘状态互相挤压",
+            "林岚压住左臂旧伤进入谈判。\n灯塔信号每七分钟重复一次。\n港口代表提出代价。",
+        ]
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.director.generate_text",
+        lambda prompt, **kwargs: next(planning),
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text",
+        lambda prompt, **kwargs: next(planning),
+    )
+
+    calls: list[str] = []
+
+    def fake_draft_writer_llm(prompt: str, **kwargs) -> str:
+        # 用 prompt 段落标题区分 draft / critique / revision 三种调用。
+        if "待审正文" in prompt:
+            calls.append("critique")
+            # 第一次评审报问题，第二次（修订后）通过。
+            critique_calls = [c for c in calls if c == "critique"]
+            if len(critique_calls) == 1:
+                return "文笔｜他很愤怒｜用动作呈现情绪"
+            return "通过"
+        if "原稿" in prompt and "评审问题清单" in prompt:
+            calls.append("revision")
+            return "林岚把左臂藏进披风，指节泛白，把维修窗口压进谈判桌。"
+        calls.append("draft")
+        return "林岚很愤怒地进入谈判。"
+
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.draft_writer.generate_text",
+        fake_draft_writer_llm,
+    )
+
+    store = InMemoryWorkflowStore()
+    graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
+    thread_id = "thread-critique"
+    job_run_id = "job-critique"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    chunks = list(graph.stream(_state(thread_id, job_run_id), config))
+    visited = [next(iter(chunk)) for chunk in chunks]
+
+    assert visited == [
+        "book_director",
+        "chapter_planner",
+        "scene_beats",
+        "draft_writer",
+        "draft_critic",
+        "draft_reviser",
+        "draft_critic",
+        "__interrupt__",
+    ]
+    assert calls == ["draft", "critique", "revision", "critique"]
+
+    state_values = graph.get_state(config).values
+    assert state_values["draft_revision_round"] == 1
+    assert state_values["draft_preview_ref"].startswith("林岚把左臂藏进披风")
+    assert state_values["draft_issues"] == []
+
+
+def test_generation_graph_caps_revisions_at_max(monkeypatch) -> None:
+    """critic 持续报问题时，重写轮数被 STORYFORGE_DRAFT_MAX_REVISIONS 限制后转入审批。"""
+
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "1")
+    monkeypatch.setenv("STORYFORGE_DRAFT_MAX_REVISIONS", "1")
+
+    planning = iter(
+        [
+            "灯塔远航\n核心问题\n语气\n承诺",
+            "暗潮\n章节目标\n冲突轴",
+            "beat1\nbeat2\nbeat3",
+        ]
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.director.generate_text",
+        lambda prompt, **kwargs: next(planning),
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text",
+        lambda prompt, **kwargs: next(planning),
+    )
+
+    visited_nodes: list[str] = []
+
+    def always_failing(prompt: str, **kwargs) -> str:
+        if "待审正文" in prompt:
+            visited_nodes.append("critique")
+            return "文笔｜仍有问题｜继续修"
+        if "原稿" in prompt and "评审问题清单" in prompt:
+            visited_nodes.append("revision")
+            return "改了一版仍有问题的正文。"
+        visited_nodes.append("draft")
+        return "初稿正文。"
+
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.draft_writer.generate_text",
+        always_failing,
+    )
+
+    store = InMemoryWorkflowStore()
+    graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
+    thread_id = "thread-cap"
+    job_run_id = "job-cap"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    chunks = list(graph.stream(_state(thread_id, job_run_id), config))
+    visited = [next(iter(chunk)) for chunk in chunks]
+
+    # max=1：draft → critic(报问题) → reviser → critic(仍报问题，但已达上限) → approval
+    assert visited == [
+        "book_director",
+        "chapter_planner",
+        "scene_beats",
+        "draft_writer",
+        "draft_critic",
+        "draft_reviser",
+        "draft_critic",
+        "__interrupt__",
+    ]
+    assert graph.get_state(config).values["draft_revision_round"] == 1
 
 
 def _state(thread_id: str, job_run_id: str) -> dict:

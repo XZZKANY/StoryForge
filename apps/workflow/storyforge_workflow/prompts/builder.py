@@ -1,0 +1,412 @@
+"""分层 prompt 构建器。
+
+设计要点：
+- 分层注入：任务边界 → 作品策略 → 角色约束 → 风格 → 叙事位置 → 连续性 → 上文衔接 → 节奏 → 输出契约。
+- 空段省略：任一层没有内容就不渲染，避免给模型留下空标题造成噪声。
+- 负向约束显式化：禁止表现 / 禁用表达 / 不得提前完结，单独成行，优先级高于正向描述。
+- 输出契约保留：各节点下游解析（四行 / 三行 / 逐行 beat / 预览正文）由本层 prompt 明确约定，
+  改 prompt 不破坏既有解析逻辑。
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+from storyforge_workflow.prompts.models import (
+    CharacterConstraint,
+    NarrativeContext,
+    PacingDirective,
+    StyleDirective,
+)
+
+# 英文任务边界：部分兼容网关模型会忽略纯中文任务说明，这里沿用 longform 已验证的做法。
+_RETURN_PROSE = (
+    "Task: Write part of a Chinese novel. Return only Chinese prose. "
+    "Do not ask questions. Do not explain your process. Do not mention code, repository, or workspace."
+)
+_RETURN_STRUCTURED = (
+    "Task: Produce a structured Chinese planning result. Return only the requested lines. "
+    "Do not add numbering, commentary, or blank lines."
+)
+
+# 软禁用套话：与 StyleDirective.forbidden_phrases（硬禁用）分开，这里是高频陈词，
+# 措辞为"避免滥用"而非"绝不出现"，否则会误伤正常用词。
+_CLICHE_PHRASES = (
+    "忽然",
+    "仿佛",
+    "不禁",
+    "情不自禁",
+    "无法言喻",
+    "五味杂陈",
+    "心中一震",
+    "莫名",
+    "缓缓",
+    "深深地",
+)
+
+# 创作准则：把"什么是好文笔"显式写进 prompt，配好坏对照锚定模型。
+_CRAFT_GUIDELINES = (
+    "用具体的动作、对话和感官细节呈现，而非直接说明或概括（show, don't tell）。",
+    "不要用情绪词直接收尾（如“他很愤怒”“她感到害怕”）；用身体反应、动作或语言让情绪自然显形。",
+    "每个场景至少落地两种具体感官细节（视觉之外的声音、触感、气味、温度等）。",
+    "对白与叙述大致按 4:6 配比推进信息，避免大段内心独白与解释性旁白。",
+    "优先具体名词与有力动词，避免抽象形容词与副词堆叠。",
+    "避免滥用陈词套话：" + "、".join(_CLICHE_PHRASES) + " 等，确有必要才用。",
+)
+
+_CRAFT_EXAMPLE_BAD = "反例（说明腔，禁止）：他非常愤怒，无法控制自己的情绪，心中五味杂陈。"
+_CRAFT_EXAMPLE_GOOD = "正例（画面化，模仿）：他把茶杯按在桌上，瓷底磕出一声脆响，指节泛白，半天没松开。"
+
+
+def _clean(value: str | None) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _section(title: str, lines: Iterable[str]) -> str:
+    body = [line for line in (_clean(item) for item in lines) if line]
+    if not body:
+        return ""
+    return "【" + title + "】\n" + "\n".join(body)
+
+
+def _join_sections(sections: Iterable[str]) -> str:
+    return "\n\n".join(section for section in sections if section)
+
+
+def _strategy_section(ctx: NarrativeContext) -> str:
+    lines = []
+    if _clean(ctx.strategy_title):
+        lines.append(f"作品标题：{_clean(ctx.strategy_title)}")
+    if _clean(ctx.premise):
+        lines.append(f"故事前提：{_clean(ctx.premise)}")
+    if _clean(ctx.central_question):
+        lines.append(f"核心问题：{_clean(ctx.central_question)}")
+    if _clean(ctx.reader_promise):
+        lines.append(f"读者承诺：{_clean(ctx.reader_promise)}")
+    if _clean(ctx.user_intent):
+        lines.append(f"用户意图：{_clean(ctx.user_intent)}")
+    return _section("作品策略", lines)
+
+
+def _character_section(characters: Iterable[CharacterConstraint]) -> str:
+    described = [character.describe() for character in characters]
+    return _section("角色约束（必须严格遵守，禁止 OOC）", described)
+
+
+def _craft_section() -> str:
+    """固定创作准则段：把好文笔的判定标准显式注入，配好坏对照锚定模型。"""
+
+    lines = [*_CRAFT_GUIDELINES, _CRAFT_EXAMPLE_BAD, _CRAFT_EXAMPLE_GOOD]
+    return _section("创作准则（高于个人发挥，逐条遵守）", lines)
+
+
+def _style_section(style: StyleDirective) -> str:
+    if not style.has_content():
+        return ""
+    lines = []
+    if _clean(style.tone):
+        lines.append(f"语气：{_clean(style.tone)}")
+    if _clean(style.pov):
+        lines.append(f"叙事视角：{_clean(style.pov)}")
+    if _clean(style.tense):
+        lines.append(f"时态/时序：{_clean(style.tense)}")
+    for rule in style.rules:
+        if _clean(rule):
+            lines.append(f"规则：{_clean(rule)}")
+    forbidden = [_clean(item) for item in style.forbidden_phrases if _clean(item)]
+    if forbidden:
+        lines.append(f"禁用表达（绝不能出现）：{('、'.join(forbidden))}")
+    if style.target_avg_sentence_length:
+        lines.append(
+            f"目标句长：平均约 {style.target_avg_sentence_length:.0f} 字/句，贴合已批准章节的节奏，避免明显变长或变碎。"
+        )
+    if style.target_dialogue_ratio:
+        lines.append(
+            f"目标对白密度：与已批准章节相当（参考占比 {style.target_dialogue_ratio:.2f}），不要突然大段独白或全是旁白。"
+        )
+    if style.restraint:
+        lines.append("保持克制叙述：少解释、多呈现，延续既定章节的冷静质感。")
+    examples = [_clean(item) for item in style.example_sentences if _clean(item)]
+    if examples:
+        lines.append("风格示例句（模仿其句式与质感，不要照抄内容）：")
+        lines.extend(f"  - {example}" for example in examples)
+    return _section("文风要求", lines)
+
+
+def _position_section(ctx: NarrativeContext) -> str:
+    lines = []
+    if _clean(ctx.chapter_title):
+        lines.append(f"当前章节：{_clean(ctx.chapter_title)}")
+    if _clean(ctx.chapter_goal):
+        lines.append(f"章节目标：{_clean(ctx.chapter_goal)}")
+    if _clean(ctx.conflict_axis):
+        lines.append(f"冲突轴：{_clean(ctx.conflict_axis)}")
+    if _clean(ctx.scene_goal):
+        lines.append(f"场景目标：{_clean(ctx.scene_goal)}")
+    beats = [_clean(beat) for beat in ctx.scene_beats if _clean(beat)]
+    if beats:
+        lines.append("场景 beat：" + " / ".join(beats))
+    return _section("叙事位置", lines)
+
+
+def _continuity_section(ctx: NarrativeContext) -> str:
+    lines = [fact.describe() for fact in ctx.continuity if _clean(fact.statement)]
+    required = [_clean(item) for item in ctx.required_facts if _clean(item)]
+    if required:
+        lines.append("必含事实（缺一不可）：" + "、".join(required))
+    return _section("连续性约束", lines)
+
+
+def _previous_section(ctx: NarrativeContext) -> str:
+    summary = _clean(ctx.previous_summary)
+    if not summary:
+        return ""
+    return _section("上文衔接（保持连续，不要重复已写内容）", [summary])
+
+
+def _pacing_section(pacing: PacingDirective) -> str:
+    if not pacing.has_content():
+        return ""
+    lines = []
+    if _clean(pacing.intensity):
+        lines.append(f"张力强度：{_clean(pacing.intensity)}")
+    if _clean(pacing.beat_density):
+        lines.append(f"节奏密度：{_clean(pacing.beat_density)}")
+    if pacing.target_chars:
+        lines.append(f"目标篇幅：约 {pacing.target_chars} 个中文字符，允许上下浮动 15%。")
+    for note in pacing.notes:
+        if _clean(note):
+            lines.append(_clean(note))
+    if pacing.hook_required:
+        lines.append("段末必须留下推动下一段的钩子，不要收束或提前完结。")
+    return _section("节奏控制", lines)
+
+
+def build_strategy_prompt(ctx: NarrativeContext) -> str:
+    """Book Director：产出作品策略，下游按四行解析（标题/核心问题/语气/读者承诺）。"""
+
+    sections = [
+        _RETURN_STRUCTURED,
+        _section(
+            "任务",
+            ["为这部长篇作品确立顶层创作策略，统领后续所有章节。"],
+        ),
+        _strategy_section(ctx),
+        _style_section(ctx.style),
+        _section(
+            "输出要求",
+            [
+                "输出且仅输出四行，依次为：标题、核心问题、语气、读者承诺。",
+                "每行只写内容本身，不要加序号、标签或解释。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_chapter_plan_prompt(ctx: NarrativeContext) -> str:
+    """Scene Architect 章节规划：下游按三行解析（章节标题/章节目标/冲突轴）。"""
+
+    sections = [
+        _RETURN_STRUCTURED,
+        _section("任务", ["根据作品策略规划当前章节，保证服务于核心问题与冲突推进。"]),
+        _strategy_section(ctx),
+        _character_section(ctx.characters),
+        _continuity_section(ctx),
+        _section(
+            "输出要求",
+            [
+                "输出且仅输出三行，依次为：章节标题、章节目标、冲突轴。",
+                "冲突轴需点明外部压力与角色内在状态如何相互挤压。",
+                "每行只写内容本身，不要加序号或标签。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_scene_beats_prompt(ctx: NarrativeContext) -> str:
+    """Scene Architect 场景 beat：下游取前三行作为动作 beat。"""
+
+    sections = [
+        _RETURN_STRUCTURED,
+        _section("任务", ["把场景目标拆成三条可推进的动作 beat，逐条贴合连续性约束。"]),
+        _position_section(ctx),
+        _character_section(ctx.characters),
+        _continuity_section(ctx),
+        _pacing_section(ctx.pacing),
+        _section(
+            "输出要求",
+            [
+                "输出且仅输出三行，每行一条动作 beat，按发生顺序排列。",
+                "每条 beat 必须是具体动作或转折，而非抽象概括。",
+                "不要加序号、标题或解释。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_draft_prompt(ctx: NarrativeContext, *, preview_chars: int = 120) -> str:
+    """Draft Writer：产出可批准的中文小说正文（默认预览长度）。
+
+    这是直接影响成稿质量的主路径，分层注入全部约束。
+    """
+
+    pacing = ctx.pacing
+    if pacing.target_chars:
+        length_line = f"篇幅：约 {pacing.target_chars} 个中文字符，允许上下浮动 15%。"
+    else:
+        length_line = f"篇幅：{preview_chars} 字以内的中文正文预览。"
+    sections = [
+        _RETURN_PROSE,
+        _section(
+            "任务",
+            ["基于以下约束写一段可直接批准的小说正文，避免说明腔与大纲腔，用画面、动作和对话呈现。"],
+        ),
+        _craft_section(),
+        _strategy_section(ctx),
+        _character_section(ctx.characters),
+        _style_section(ctx.style),
+        _position_section(ctx),
+        _continuity_section(ctx),
+        _previous_section(ctx),
+        _pacing_section(pacing),
+        _section(
+            "输出要求",
+            [
+                length_line,
+                "只输出正文，不要标题、不要解释、不要列大纲。",
+                "必须体现全部必含事实，并尊重所有连续性与角色约束。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_longform_segment_prompt(
+    ctx: NarrativeContext,
+    *,
+    title: str,
+    segment_index: int,
+    segment_target_chars: int,
+    remaining_chars: int,
+) -> str:
+    """长文连载分段 prompt：在分层约束之上叠加连载位置框架。
+
+    保留 _RETURN_PROSE 任务边界与 `标题：`/`当前段号：` 行，兼容续跑检测与既有断言。
+    """
+
+    opening = "这是开篇，请建立主题、核心人物与长期冲突。"
+    summary = _clean(ctx.previous_summary) or opening
+    sections = [
+        # 续跑续写需要明确"继续"，与首段建立区分，故在通用 prose 边界后补一句连载提示。
+        _RETURN_PROSE + " Continue the manuscript; do not restart or summarize.",
+        _section(
+            "连载位置",
+            [
+                f"标题：{_clean(title)}",
+                f"当前段号：{segment_index}",
+                f"本段目标字数：约 {segment_target_chars} 个中文字符，允许上下浮动 15%。",
+                f"剩余总目标：约 {remaining_chars} 个中文字符。",
+            ],
+        ),
+        _craft_section(),
+        _strategy_section(ctx),
+        _character_section(ctx.characters),
+        _style_section(ctx.style),
+        _position_section(ctx),
+        _continuity_section(ctx),
+        _section("上文摘要（保持连续，不要重复已写内容）", [summary]),
+        _pacing_section(ctx.pacing),
+        _section(
+            "输出要求",
+            [
+                "保持叙事连续，包含具体场景、行动、对话和细节。",
+                "只输出正文，不要写大纲、不要提前完结、不要解释。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
+    """Draft Critic：对照全量约束自检草稿，列出违规清单。
+
+    返回契约：无问题输出单行"通过"；否则每行一条问题（命中片段 + 维度 + 修法），
+    下游 create_draft_critique 按行解析。
+    """
+
+    sections = [
+        _RETURN_STRUCTURED,
+        _section(
+            "任务",
+            [
+                "你是严格的小说一致性与文笔评审员。对照以下约束逐条检查待审正文。",
+                "只评审、不重写。",
+            ],
+        ),
+        _craft_section(),
+        _character_section(ctx.characters),
+        _style_section(ctx.style),
+        _position_section(ctx),
+        _continuity_section(ctx),
+        _section("待审正文", [_clean(draft) or "（空）"]),
+        _section(
+            "检查维度",
+            [
+                "角色一致性：是否 OOC、违反声音约束或禁止特质。",
+                "连续性：是否与必含事实、上文或连续性约束矛盾。",
+                "风格：是否偏离文风要求与目标句长/对白密度。",
+                "文笔：是否出现说明腔、情绪词直述、套话滥用、感官细节缺失。",
+            ],
+        ),
+        _section(
+            "输出要求",
+            [
+                "若正文满足全部约束，只输出一行：通过。",
+                "否则每行输出一条问题，格式：维度｜命中片段｜应如何修。",
+                "不要加序号、标题或额外解释，只列实际存在的问题。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_revision_prompt(ctx: NarrativeContext, draft: str, issues: Iterable[str]) -> str:
+    """Draft Reviser：按问题清单定点重写，保留无问题部分。"""
+
+    issue_lines = [_clean(issue) for issue in issues if _clean(issue)]
+    pacing = ctx.pacing
+    if pacing.target_chars:
+        length_line = f"篇幅：约 {pacing.target_chars} 个中文字符，允许上下浮动 15%。"
+    else:
+        length_line = "篇幅：与原稿相当。"
+    sections = [
+        _RETURN_PROSE,
+        _section(
+            "任务",
+            [
+                "下面是一段小说正文与评审发现的问题。请据问题清单修订正文。",
+                "只改有问题的部分，保留没有问题的内容与原有语感，不要整体重写。",
+            ],
+        ),
+        _craft_section(),
+        _section("评审问题清单（逐条修复）", issue_lines or ["（无具体问题，按创作准则润色即可）"]),
+        _character_section(ctx.characters),
+        _style_section(ctx.style),
+        _position_section(ctx),
+        _continuity_section(ctx),
+        _previous_section(ctx),
+        _pacing_section(pacing),
+        _section("原稿", [_clean(draft) or "（空）"]),
+        _section(
+            "输出要求",
+            [
+                length_line,
+                "只输出修订后的完整正文，不要解释、不要列改动点、不要保留问题标记。",
+                "必须体现全部必含事实，并尊重所有连续性与角色约束。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)

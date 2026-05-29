@@ -67,6 +67,49 @@ def test_checkpoint_reference_state_removes_full_payloads_and_keeps_ids() -> Non
     assert "chapter_plan" not in checkpoint_state
 
 
+def test_prompt_injection_keys_reach_state_but_stay_out_of_checkpoint() -> None:
+    """装配器注入键应进入运行 state 供 draft_writer 使用，但绝不写进 checkpoint。"""
+
+    prompt_injection = {
+        "character_constraints": [{"name": "林岚", "forbidden_traits": ["突然健谈"]}],
+        "style_directive": {"forbidden_phrases": ["不禁"], "rules": ["多用动作"]},
+        "continuity_facts": [{"statement": "林岚：左臂受伤未愈", "must_appear": True}],
+        "strategy_tone_ref": "克制悬疑",
+        "chapter_title_ref": "第一章 雾港",
+        "previous_summary_ref": "上一章林岚抵达雾港。",
+        "pacing_directive": {},
+    }
+    state = initial_generation_state(
+        thread_id="thread-injection",
+        job_run_id="job-injection",
+        premise="林岚在雾港追查失真的灯塔信号。",
+        user_intent="突出克制悬疑。",
+        scene_packet={"chapter_title": "占位标题", "scene_goal": "推进调查。"},
+        prompt_injection=prompt_injection,
+    )
+
+    assert state["character_constraints"] == [{"name": "林岚", "forbidden_traits": ["突然健谈"]}]
+    assert state["style_directive"] == {"forbidden_phrases": ["不禁"], "rules": ["多用动作"]}
+    assert state["continuity_facts"][0]["statement"] == "林岚：左臂受伤未愈"
+    assert state["strategy_tone_ref"] == "克制悬疑"
+    # 真实章节标题覆盖 scene_packet 占位默认值。
+    assert state["chapter_title_ref"] == "第一章 雾港"
+    assert state["previous_summary_ref"] == "上一章林岚抵达雾港。"
+    # 空注入值跳过，不污染 state。
+    assert "pacing_directive" not in state
+
+    checkpoint_state = checkpoint_reference_state(state)
+    for injected_key in (
+        "character_constraints",
+        "style_directive",
+        "continuity_facts",
+        "strategy_tone_ref",
+        "chapter_title_ref",
+        "previous_summary_ref",
+    ):
+        assert injected_key not in checkpoint_state
+
+
 def test_runtime_checkpoint_store_saves_reference_state_only() -> None:
     """运行时 checkpoint 仓库必须在边界处强制引用化。"""
 

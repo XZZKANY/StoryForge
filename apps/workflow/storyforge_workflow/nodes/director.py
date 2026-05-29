@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from storyforge_workflow.provider_client import generate_text
+from storyforge_workflow.prompts import build_strategy_prompt
+from storyforge_workflow.prompts.context import narrative_context_from_state
+from storyforge_workflow.provider_client import generate_text, planning_model, planning_temperature
 from storyforge_workflow.state import GenerationState, advance_status
 
 
@@ -9,12 +11,9 @@ def create_book_strategy(state: GenerationState) -> dict:
 
     premise = state["premise"]
     user_intent = state.get("user_intent", "")
-    prompt = (
-        "请为 StoryForge 生成一个简洁的作品策略标题、核心问题、语气和读者承诺。\n"
-        f"故事前提：{premise}\n用户意图：{user_intent or '未提供'}\n"
-        "输出四行，依次为标题、核心问题、语气、读者承诺。"
-    )
-    lines = [line.strip(" -：:") for line in generate_text(prompt).splitlines() if line.strip()]
+    prompt = build_strategy_prompt(narrative_context_from_state(state))
+    raw = generate_text(prompt, temperature=planning_temperature(), model=planning_model())
+    lines = [line.strip(" -：:") for line in raw.splitlines() if line.strip()]
     central_question = lines[1] if len(lines) > 1 else f"角色如何回应：{premise}"
     return {
         "strategy_title_ref": lines[0] if lines else premise[:24],

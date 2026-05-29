@@ -11,7 +11,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from storyforge_workflow.nodes.director import create_book_strategy
-from storyforge_workflow.nodes.draft_writer import create_draft_excerpt
+from storyforge_workflow.nodes.draft_writer import (
+    create_draft_critique,
+    create_draft_excerpt,
+    create_draft_revision,
+)
 from storyforge_workflow.nodes.scene_architect import create_chapter_plan, create_scene_beats
 from storyforge_workflow.persistence import InMemoryWorkflowStore, summarize_value
 from storyforge_workflow.state import GenerationState
@@ -21,6 +25,7 @@ log = get_logger("storyforge_workflow.graph")
 
 NodeFunction = Callable[[GenerationState], dict[str, Any]]
 DEFAULT_NODE_TIMEOUT_SECONDS = 120.0
+DEFAULT_MAX_REVISIONS = 2
 
 
 class WorkflowNodeTimeoutError(TimeoutError):
@@ -56,15 +61,55 @@ def create_generation_graph(
         _audited_node("scene_architect.scene_beats", create_scene_beats, workflow_store, resolved_node_timeout_seconds),
     )
     builder.add_node("draft_writer", _audited_node("draft_writer", create_draft_excerpt, workflow_store, resolved_node_timeout_seconds))
+    builder.add_node("draft_critic", _audited_node("draft_critic", create_draft_critique, workflow_store, resolved_node_timeout_seconds))
+    builder.add_node("draft_reviser", _audited_node("draft_reviser", create_draft_revision, workflow_store, resolved_node_timeout_seconds))
     builder.add_node("human_approval", _approval_node(workflow_store))
 
     builder.add_edge(START, "book_director")
     builder.add_edge("book_director", "chapter_planner")
     builder.add_edge("chapter_planner", "scene_beats")
     builder.add_edge("scene_beats", "draft_writer")
-    builder.add_edge("draft_writer", "human_approval")
+    # 评审→修订环：默认开（env 可关）。critic 发现问题且未超轮数则回到 reviser 重写后再评审。
+    builder.add_conditional_edges(
+        "draft_writer",
+        _route_after_draft,
+        {"draft_critic": "draft_critic", "human_approval": "human_approval"},
+    )
+    builder.add_conditional_edges(
+        "draft_critic",
+        _route_after_critique,
+        {"draft_reviser": "draft_reviser", "human_approval": "human_approval"},
+    )
+    builder.add_edge("draft_reviser", "draft_critic")
     builder.add_edge("human_approval", END)
     return builder.compile(checkpointer=checkpointer)
+
+
+def _critique_enabled() -> bool:
+    return os.getenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off", "")
+
+
+def _max_revisions() -> int:
+    raw = os.getenv("STORYFORGE_DRAFT_MAX_REVISIONS")
+    if raw is None:
+        return DEFAULT_MAX_REVISIONS
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_REVISIONS
+    return parsed if parsed >= 0 else DEFAULT_MAX_REVISIONS
+
+
+def _route_after_draft(state: GenerationState) -> str:
+    return "draft_critic" if _critique_enabled() else "human_approval"
+
+
+def _route_after_critique(state: GenerationState) -> str:
+    issues = state.get("draft_issues") or []
+    rounds = int(state.get("draft_revision_round", 0))
+    if issues and rounds < _max_revisions():
+        return "draft_reviser"
+    return "human_approval"
 
 
 def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowStore, timeout_seconds: float):

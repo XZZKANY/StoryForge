@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import sleep
 
+from storyforge_workflow.prompts import NarrativeContext, build_longform_segment_prompt
 from storyforge_workflow.provider_client import generate_text
 
 
@@ -48,8 +49,15 @@ def generate_longform_article(
     *,
     premise: str,
     provider=generate_text,
+    narrative_context: NarrativeContext | None = None,
 ) -> dict[str, int | str]:
-    """生成长文并增量写入 Markdown 文件，返回实际字数和分段数。"""
+    """生成长文并增量写入 Markdown 文件，返回实际字数和分段数。
+
+    narrative_context 可选注入角色/风格/节奏/连续性约束；缺省时退化为仅 premise 驱动。
+    """
+
+    base_context = narrative_context or NarrativeContext()
+    base_context = replace(base_context, premise=premise or base_context.premise)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     existing = output_path.read_text(encoding="utf-8") if output_path.exists() else ""
@@ -65,7 +73,7 @@ def generate_longform_article(
         remaining = plan.target_chars - generated_chars
         prompt = _build_segment_prompt(
             plan=plan,
-            premise=premise,
+            context=base_context,
             segment_index=segment_index,
             remaining_chars=remaining,
             previous_summary=previous_summary,
@@ -113,24 +121,19 @@ def count_article_chars(content: str) -> int:
 def _build_segment_prompt(
     *,
     plan: LongformGenerationPlan,
-    premise: str,
+    context: NarrativeContext,
     segment_index: int,
     remaining_chars: int,
     previous_summary: str,
 ) -> str:
     segment_target = min(plan.segment_chars, remaining_chars)
-    opening_summary = "这是开篇，请建立主题、核心人物和长期冲突。"
-    summary = previous_summary or opening_summary
-    return (
-        "Task: Continue a long-form Chinese suspense manuscript. Return only Chinese prose. "
-        "Do not ask questions. Do not explain your process. Do not mention code, repository, or workspace.\n"
-        f"标题：{plan.title}\n"
-        f"整体设定：{premise}\n"
-        f"当前段号：{segment_index}\n"
-        f"本段目标字数：约 {segment_target} 个中文字符，允许上下浮动 15%。\n"
-        f"剩余总目标：约 {remaining_chars} 个中文字符?\n"
-        f"上文摘要：{summary}\n"
-        "要求：保持叙事连续，包含具体场景、行动、对话和细节；不要写大纲；不要提前完结。"
+    segment_context = replace(context, previous_summary=previous_summary)
+    return build_longform_segment_prompt(
+        segment_context,
+        title=plan.title,
+        segment_index=segment_index,
+        segment_target_chars=segment_target,
+        remaining_chars=remaining_chars,
     )
 
 

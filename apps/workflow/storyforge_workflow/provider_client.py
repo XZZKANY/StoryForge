@@ -5,17 +5,28 @@ import os
 from urllib import request
 
 
-def generate_text(prompt: str, *, system_prompt: str = "You are a creative writing engine for StoryForge. Return only the requested Chinese prose or structured result.") -> str:
-    """调用 OpenAI 兼容 Chat Completions 端点生成文本。"""
+def generate_text(
+    prompt: str,
+    *,
+    system_prompt: str = "You are a creative writing engine for StoryForge. Return only the requested Chinese prose or structured result.",
+    temperature: float | None = None,
+    model: str | None = None,
+) -> str:
+    """调用 OpenAI 兼容 Chat Completions 端点生成文本。
+
+    temperature/model 为 None 时回退到全局 env 默认，保证旧调用方行为不变；
+    传入显式值即可按节点角色（规划低温、正文高温）分层采样。
+    """
 
     config = provider_config()
+    resolved_temperature = temperature if temperature is not None else float(os.getenv("STORYFORGE_LLM_TEMPERATURE", "0.7"))
     payload = {
-        "model": config["model"],
+        "model": model or config["model"],
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ],
-        "temperature": float(os.getenv("STORYFORGE_LLM_TEMPERATURE", "0.7")),
+        "temperature": resolved_temperature,
     }
     max_tokens = os.getenv("STORYFORGE_LLM_MAX_TOKENS")
     if max_tokens:
@@ -64,3 +75,33 @@ def _normalize_model_id(model: str) -> str:
     }
     normalized = model.strip()
     return aliases.get(normalized.lower(), normalized)
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def planning_temperature() -> float:
+    """规划节点（策略/章纲/beat）用低温，换取结构稳定与可解析。"""
+
+    return _float_env("STORYFORGE_LLM_PLANNING_TEMPERATURE", 0.3)
+
+
+def draft_temperature() -> float:
+    """正文与重写用高温，换取文笔层次与画面感。"""
+
+    return _float_env("STORYFORGE_LLM_DRAFT_TEMPERATURE", 0.85)
+
+
+def planning_model() -> str | None:
+    return os.getenv("STORYFORGE_LLM_PLANNING_MODEL") or None
+
+
+def draft_model() -> str | None:
+    return os.getenv("STORYFORGE_LLM_DRAFT_MODEL") or None
