@@ -222,3 +222,5 @@ class NarrativeContext:
     scene_quality_plan: SceneQualityPlan = field(default_factory=SceneQualityPlan)
     continuity: Sequence[ContinuityFact] = field(default_factory=tuple)
     required_facts: Sequence[str] = field(default_factory=tuple)
+    target_word_count_min: int | None = None
+    target_word_count_max: int | None = None

@@ -52,9 +52,17 @@ def _load_prompt_layer() -> tuple[ModuleType, ModuleType]:
     return builder, context
 
 
-def build_draft_prompt_from_state(state: Mapping[str, Any], *, preview_chars: int = 120) -> str:
-    """把注入键字典编译成可批准正文的分层 prompt。"""
+def build_draft_prompt_from_state(
+    state: Mapping[str, Any],
+    *,
+    preview_chars: int = 120,
+    full_chapter: bool = False,
+) -> str:
+    """把注入键字典编译成可批准正文的分层 prompt。
+
+    full_chapter=True 时要求按字数目标写完整一章，而非开头预览。
+    """
 
     builder, context = _load_prompt_layer()
     ctx = context.narrative_context_from_state(dict(state))
-    return builder.build_draft_prompt(ctx, preview_chars=preview_chars)
+    return builder.build_draft_prompt(ctx, preview_chars=preview_chars, full_chapter=full_chapter)
