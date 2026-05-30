@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -38,6 +38,12 @@ def _skip_memory_extraction(request: NovelLoopRequest, draft: str, approved_scen
     return []
 
 
+def _skip_static_quality_check(draft: str) -> list[dict[str, Any]]:
+    """????????????????????????"""
+
+    return []
+
+
 @dataclass(frozen=True)
 class NovelLoopPorts:
     """NovelLoop 外部依赖端口，测试和生产 adapter 都可注入。"""
@@ -49,6 +55,7 @@ class NovelLoopPorts:
     approve_scene: Callable[[NovelLoopRequest, str, dict[str, Any]], int]
     record_model_run: Callable[[NovelLoopRequest, str], int]
     extract_memory: Callable[[NovelLoopRequest, str, int], list[str]] = _skip_memory_extraction
+    check_static_quality: Callable[[str], Sequence[dict[str, Any] | object]] = _skip_static_quality_check
 
 
 def run_single_chapter_loop(
@@ -66,6 +73,15 @@ def run_single_chapter_loop(
     latest_repair_patch_id: int | None = None
 
     for attempt in range(max_repairs + 1):
+        static_issues = [_issue_to_dict(issue) for issue in ports.check_static_quality(draft)]
+        if _has_high_severity(static_issues):
+            latest_report = {"status": "awaiting_review", "static_quality_issues": static_issues}
+            break
+        if static_issues and attempt < max_repairs:
+            latest_report = {"status": "repair", "static_quality_issues": static_issues}
+            draft = ports.repair_scene(draft, latest_report, attempt + 1)
+            continue
+
         latest_report = ports.judge_scene(draft, attempt)
         judge_report_id = _optional_int(latest_report.get("judge_report_id"))
         if latest_report.get("status") == "pass":
@@ -102,3 +118,21 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _issue_to_dict(issue: dict[str, Any] | object) -> dict[str, Any]:
+    if isinstance(issue, dict):
+        return dict(issue)
+    return {
+        "dimension": getattr(issue, "dimension", ""),
+        "severity": getattr(issue, "severity", ""),
+        "snippet": getattr(issue, "snippet", ""),
+        "message": getattr(issue, "message", ""),
+        "suggestion": getattr(issue, "suggestion", ""),
+        "revision_strategy": getattr(issue, "revision_strategy", "line_edit"),
+    }
+
+
+def _has_high_severity(issues: Sequence[dict[str, Any]]) -> bool:
+    high = {"\u9ad8", "high", "critical", "severe"}
+    return any(str(issue.get("severity", "")).strip().lower() in high or issue.get("revision_strategy") == "regenerate" for issue in issues)

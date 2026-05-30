@@ -28,6 +28,7 @@ export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead |
       <p>
         BookRun #{bookRun.id} / Blueprint #{bookRun.blueprint_id}，状态：{bookRun.status}
       </p>
+      <QualitySummary progress={bookRun.progress} />
       {events.length > 0 ? (
         <ol>
           {events.map((event) => (
@@ -117,4 +118,81 @@ function evidenceHref(path: string, queryKey: string, value: string): string | n
 function formatEvidenceValue(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'string') return String(value);
   return '未记录';
+}
+
+function QualitySummary({ progress }: { readonly progress: Record<string, unknown> }) {
+  const summary = asRecord(progress.quality_summary);
+  const chapterScores = asRecordArray(progress.chapter_quality_scores);
+  const issues = asRecordArray(progress.top_quality_issues);
+  const recommendations = Array.isArray(progress.manual_review_recommendations)
+    ? progress.manual_review_recommendations.filter(
+        (item): item is string => typeof item === 'string',
+      )
+    : [];
+  if (
+    !summary &&
+    chapterScores.length === 0 &&
+    issues.length === 0 &&
+    recommendations.length === 0
+  ) {
+    return (
+      <section aria-labelledby="quality-summary-title">
+        <h3 id="quality-summary-title">????</h3>
+        <p>???????</p>
+      </section>
+    );
+  }
+  return (
+    <section aria-labelledby="quality-summary-title">
+      <h3 id="quality-summary-title">????</h3>
+      <dl>
+        <dt>?????</dt>
+        <dd>{formatEvidenceValue(summary?.average_score)}</dd>
+        <dt>????</dt>
+        <dd>{formatEvidenceValue(summary?.status)}</dd>
+      </dl>
+      {chapterScores.length > 0 ? (
+        <ul>
+          {chapterScores.map((score) => (
+            <li key={formatEvidenceValue(score.chapter_index)}>
+              ?? {formatEvidenceValue(score.chapter_index)}?
+              {formatEvidenceValue(score.quality_score)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {issues.length > 0 ? (
+        <ul>
+          {issues.map((issue, index) => (
+            <li key={`${formatEvidenceValue(issue.chapter_index)}-${index}`}>
+              ?? {formatEvidenceValue(issue.chapter_index)} / {formatEvidenceValue(issue.dimension)}{' '}
+              /{formatEvidenceValue(issue.severity)}?{formatEvidenceValue(issue.message)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {recommendations.length > 0 ? (
+        <ul>
+          {recommendations.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asRecordArray(value: unknown): readonly Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+      )
+    : [];
 }

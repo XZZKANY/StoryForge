@@ -117,6 +117,72 @@ class PacingDirective:
 
 
 @dataclass(frozen=True)
+class SceneQualityPlan:
+    """???????????????????????????"""
+
+    emotional_shift: str = ""
+    conflict_turn: str = ""
+    sensory_anchors: Sequence[str] = field(default_factory=tuple)
+    dialogue_purpose: str = ""
+    reveal_or_payoff: str = ""
+    ending_hook: str = ""
+
+    def has_content(self) -> bool:
+        return bool(
+            _clean(self.emotional_shift)
+            or _clean(self.conflict_turn)
+            or _clean_list(self.sensory_anchors)
+            or _clean(self.dialogue_purpose)
+            or _clean(self.reveal_or_payoff)
+            or _clean(self.ending_hook)
+        )
+
+
+@dataclass(frozen=True)
+class RevisionStrategy:
+    """???????????????????????"""
+
+    name: str = "line_edit"
+    preserve: Sequence[str] = field(default_factory=tuple)
+    remove: Sequence[str] = field(default_factory=tuple)
+    target_effect: str = ""
+
+
+@dataclass(frozen=True)
+class QualityScore:
+    """??????????????????????"""
+
+    dimension: str = ""
+    score: float | None = None
+    rationale: str = ""
+
+
+@dataclass(frozen=True)
+class QualityIssue:
+    """??????LLM Judge ?????????????"""
+
+    dimension: str = ""
+    severity: str = "low"
+    snippet: str = ""
+    reason: str = ""
+    suggestion: str = ""
+    revision_strategy: str = "line_edit"
+    must_preserve: Sequence[str] = field(default_factory=tuple)
+    must_remove: Sequence[str] = field(default_factory=tuple)
+    target_effect: str = ""
+
+
+@dataclass(frozen=True)
+class QualityReport:
+    """???????????????? NovelLoop ? BookRun ?????"""
+
+    decision: str = "pass"
+    scores: Sequence[QualityScore] = field(default_factory=tuple)
+    issues: Sequence[QualityIssue] = field(default_factory=tuple)
+    summary: str = ""
+
+
+@dataclass(frozen=True)
 class ContinuityFact:
     """必须在本段被尊重或体现的连续性事实，来源 Story Memory / Timeline。"""
 
@@ -153,5 +219,6 @@ class NarrativeContext:
     characters: Sequence[CharacterConstraint] = field(default_factory=tuple)
     style: StyleDirective = field(default_factory=StyleDirective)
     pacing: PacingDirective = field(default_factory=PacingDirective)
+    scene_quality_plan: SceneQualityPlan = field(default_factory=SceneQualityPlan)
     continuity: Sequence[ContinuityFact] = field(default_factory=tuple)
     required_facts: Sequence[str] = field(default_factory=tuple)
