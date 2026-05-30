@@ -29,7 +29,16 @@ from app.domains.continuity.models import ScenePacket
 from app.domains.exports.book_markdown_exporter import export_book_run_audit_report, export_book_run_markdown
 from app.domains.judge.models import JudgeIssue
 from app.domains.judge.schemas import JudgeIssueCreate
-from app.domains.judge.service import JUDGE_SYSTEM_FAILURE_CATEGORY, create_judge_issues
+from app.domains.judge.service import (
+    JUDGE_SYSTEM_FAILURE_CATEGORY,
+    DetectedIssue,
+    _detect_character_bible_violations,
+    _detect_style_fingerprint_drift,
+    _detect_timeline_conflicts,
+    _forbidden_trait_phrases,
+    deterministic_judge_fallback,
+    semantic_judge_with_status,
+)
 from app.domains.model_runs.schemas import ModelRunCreate
 from app.domains.model_runs.service import create_model_run
 from app.domains.repair.schemas import RepairPatchCreate
@@ -457,7 +466,7 @@ def _judge_and_repair_loop(
     final_quality_score = 100
     final_quality_issues: list[dict[str, object]] = []
 
-    for round_num in range(MAX_REPAIR_ROUNDS):
+    for _round_num in range(MAX_REPAIR_ROUNDS):
         session.refresh(scene)
         issues, quality_score, quality_issues = _run_real_judge(session, book_run, scene, scene_packet)
         final_issues = issues
@@ -500,7 +509,6 @@ def _run_real_judge(
     character_voice_constraints: list[dict] = []
     if book_id is not None:
         from app.domains.character_bible.service import list_character_bible_entries
-        from app.domains.judge.service import _forbidden_trait_phrases
 
         entries = list_character_bible_entries(session, book_id=book_id)
         for entry in entries:
@@ -515,10 +523,6 @@ def _run_real_judge(
     # 注意：create_judge_issues 内部会调用 semantic_judge_with_status，
     # 但它用的是 _load_voice_constraints 读 voice_traits，不读 forbidden_traits。
     # 我们需要直接调用 semantic_judge_with_status 并传入 character_voice_constraints。
-    from app.domains.judge.service import semantic_judge_with_status, deterministic_judge_fallback
-    from app.domains.judge.service import _detect_character_bible_violations, _detect_timeline_conflicts, _detect_style_fingerprint_drift
-    from app.domains.judge.models import JudgeIssue as JudgeIssueModel
-
     # 手动执行 Judge 流程（复制 create_judge_issues 的逻辑，但传入 character_voice_constraints）
     outcome = semantic_judge_with_status(payload, character_voice_constraints=character_voice_constraints)
     detected = outcome.issues or deterministic_judge_fallback(payload)
@@ -531,7 +535,6 @@ def _run_real_judge(
 
     # 注入失败标记
     if outcome.failed:
-        from app.domains.judge.service import DetectedIssue, JUDGE_SYSTEM_FAILURE_CATEGORY
         detected.append(
             DetectedIssue(
                 category=JUDGE_SYSTEM_FAILURE_CATEGORY,
@@ -549,7 +552,7 @@ def _run_real_judge(
 
     # 写入数据库
     issues = [
-        JudgeIssueModel(
+        JudgeIssue(
             scene_id=payload.scene_id,
             scene_packet_id=payload.scene_packet_id,
             issue_type=item.category,

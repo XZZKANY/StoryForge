@@ -167,4 +167,17 @@ def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
         scene_quality_plan=_scene_quality_plan_from_state(state),
         continuity=_continuity_from_state(state),
         required_facts=tuple(_str_list(state.get("required_fact_refs"))),
+        target_word_count_min=_as_int(state.get("target_word_count_min")),
+        target_word_count_max=_as_int(state.get("target_word_count_max")),
     )
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value.strip())
+        return parsed if parsed > 0 else None
+    return None

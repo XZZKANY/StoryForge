@@ -93,6 +93,8 @@ def test_assemble_reads_all_consistency_sources(session: Session) -> None:
     assert state["strategy_title_ref"] == "灯塔余烬"
     assert state["chapter_title_ref"] == "第一章 雾港"
     assert state["chapter_goal_ref"] == "建立调查线索。"
+    assert state["target_word_count_min"] == 600
+    assert state["target_word_count_max"] == 1600
 
     character = state["character_constraints"][0]
     assert character["name"] == "林岚"
@@ -110,6 +112,26 @@ def test_assemble_reads_all_consistency_sources(session: Session) -> None:
     facts = state["continuity_facts"]
     assert facts[0]["statement"] == "林岚：左臂受伤未愈"
     assert facts[0]["must_appear"] is True
+
+
+def test_assemble_injects_prior_chapter_text_as_previous_summary(session: Session) -> None:
+    book_id, _ = _seed_book(session)
+
+    state = assemble_prompt_injection(
+        session,
+        book_id=book_id,
+        prior_chapter_text='  上一章林岚在旧港发现灯塔密钥。  ',
+    )
+
+    assert state["previous_summary_ref"] == '上一章林岚在旧港发现灯塔密钥。'
+
+
+def test_assemble_omits_blank_prior_chapter_text(session: Session) -> None:
+    book_id, _ = _seed_book(session)
+
+    state = assemble_prompt_injection(session, book_id=book_id, prior_chapter_text="  ")
+
+    assert "previous_summary_ref" not in state
 
 
 def test_assemble_omits_missing_sources(session: Session) -> None:
@@ -166,6 +188,36 @@ def test_assemble_skips_fingerprint_without_approved_chapter(session: Session) -
     state = assemble_prompt_injection(session, book_id=book_id, chapter_id=chapter_id)
 
     assert "fingerprint" not in state["style_directive"]
+
+
+def test_assembled_state_renders_full_chapter_prompt_via_bridge(session: Session) -> None:
+    book_id, chapter_id = _seed_book(session)
+    create_book_blueprint(
+        session,
+        BookBlueprintCreate(
+            book_id=book_id,
+            premise='林岚在雾港追查失真的灯塔信号。',
+            tone='克制悬疑',
+            target_word_count=2400,
+            target_chapter_count=2,
+            chapter_word_count_min=600,
+            chapter_word_count_max=1600,
+            metadata={},
+        ),
+    )
+
+    state = assemble_prompt_injection(
+        session,
+        book_id=book_id,
+        chapter_id=chapter_id,
+        prior_chapter_text='上一章林岚在旧港发现灯塔密钥。',
+    )
+
+    prompt = build_draft_prompt_from_state(state, full_chapter=True)
+
+    assert '写出本章完整正文（600–1600 字）' in prompt
+    assert '上文衔接（保持连续，不要重复已写内容）' in prompt
+    assert '上一章林岚在旧港发现灯塔密钥。' in prompt
 
 
 def test_assembled_state_renders_layered_prompt_via_bridge(session: Session) -> None:

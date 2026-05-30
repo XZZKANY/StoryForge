@@ -268,14 +268,35 @@ def build_scene_beats_prompt(ctx: NarrativeContext) -> str:
     return _join_sections(sections)
 
 
-def build_draft_prompt(ctx: NarrativeContext, *, preview_chars: int = 120) -> str:
+def build_draft_prompt(
+    ctx: NarrativeContext,
+    *,
+    preview_chars: int = 120,
+    full_chapter: bool = False,
+) -> str:
     """Draft Writer：产出可批准的中文小说正文（默认预览长度）。
 
     这是直接影响成稿质量的主路径，分层注入全部约束。
+    full_chapter=True 时要求按字数目标写完整一章，而非开头预览。
     """
 
     pacing = ctx.pacing
-    if pacing.target_chars:
+    if full_chapter:
+        low = ctx.target_word_count_min
+        high = ctx.target_word_count_max
+        if low and high:
+            span = f"{low}–{high} 字"
+        elif high:
+            span = f"约 {high} 字"
+        elif low:
+            span = f"不少于 {low} 字"
+        else:
+            span = "1000–1600 字"
+        length_line = (
+            f"写出本章完整正文（{span}），保持语气、视角、文风一致，"
+            "有场景推进与具体画面，不要写大纲、不要写省略号占位、不要在结尾标注字数。"
+        )
+    elif pacing.target_chars:
         length_line = f"篇幅：约 {pacing.target_chars} 个中文字符，允许上下浮动 15%。"
     else:
         length_line = f"篇幅：{preview_chars} 字以内的中文正文预览。"
