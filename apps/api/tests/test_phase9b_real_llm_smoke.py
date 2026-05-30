@@ -24,7 +24,7 @@ from app.domains.model_runs.models import ModelRun
 
 
 class _Phase9BChatHandler(BaseHTTPRequestHandler):
-    """模拟 OpenAI 兼容 Chat Completions，用于验证真实协议边界。"""
+    """模拟 OpenAI 兼容 Chat Completions，用于验证真实协议边界（生成 + Judge）。"""
 
     requests: list[dict[str, object]] = []
 
@@ -32,16 +32,15 @@ class _Phase9BChatHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("content-length", "0"))
         payload = json.loads(self.rfile.read(length).decode("utf-8"))
         self.__class__.requests.append({"headers": dict(self.headers), "payload": payload})
-        prompt = payload["messages"][-1]["content"]
+        system_prompt = payload["messages"][0]["content"] if payload["messages"] else ""
+        user_prompt = payload["messages"][-1]["content"]
+        if "结构化一致性评审员" in system_prompt:
+            response_content = "[]"
+        else:
+            response_content = f"真实模型章节正文：{user_prompt[:32]}。林岚完成调查并留下审计证据。"
         body = json.dumps(
             {
-                "choices": [
-                    {
-                        "message": {
-                            "content": f"真实模型章节正文：{prompt[:32]}。林岚完成调查并留下审计证据。"
-                        }
-                    }
-                ],
+                "choices": [{"message": {"content": response_content}}],
                 "usage": {"prompt_tokens": 101, "completion_tokens": 222, "total_tokens": 323},
             },
             ensure_ascii=False,
@@ -84,23 +83,32 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
         "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "700",
     }
+    import os
+    old_env = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
 
     try:
         result = run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env=env)
     finally:
         server.shutdown()
         thread.join(timeout=2)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
     assert result.book_run.status == "completed"
     assert result.book_run.total_chapters == 1
     assert result.book_run.tokens_used == 323
     assert result.markdown_artifact.name == "book.md"
     assert result.audit_artifact.name == "audit_report.json"
-    assert len(_Phase9BChatHandler.requests) == 1
-    request_payload = _Phase9BChatHandler.requests[0]["payload"]
-    assert request_payload["max_completion_tokens"] == 700
-    request_headers = _Phase9BChatHandler.requests[0]["headers"]
-    assert request_headers["Authorization"] == "Bearer test-private-key"
+    assert len(_Phase9BChatHandler.requests) == 2
+    draft_request = _Phase9BChatHandler.requests[0]
+    assert draft_request["payload"]["max_completion_tokens"] == 700
+    assert draft_request["headers"]["Authorization"] == "Bearer test-private-key"
+    judge_request = _Phase9BChatHandler.requests[1]
+    assert "结构化一致性评审员" in judge_request["payload"]["messages"][0]["content"]
 
     model_run = session.query(ModelRun).one()
     assert model_run.provider_name == "openai-compatible"
@@ -113,6 +121,11 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert scene.status == "approved"
     assert "真实模型章节正文" in scene.content
     assert "test-private-key" not in str(result.audit_artifact.payload)
+
+    audit = result.audit_artifact.payload
+    assert audit["quality_summary"]["average_score"] == 100
+    assert audit["quality_summary"]["scored_chapter_count"] == 1
+    assert audit["chapters"][0]["quality_score"] == 100
 
 
 class _FakeSession:

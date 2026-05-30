@@ -46,6 +46,22 @@ class DetectedIssue:
     metadata: dict[str, object] | None = None
 
 
+# 语义评审调用本身失败时落的标记类别：区别于"评审通过没发现问题"，让审计层看见降级而非误判为干净。
+JUDGE_SYSTEM_FAILURE_CATEGORY = "judge_system_failure"
+
+
+@dataclass(frozen=True)
+class SemanticJudgeOutcome:
+    """语义评审结果，把"没发现问题"与"调用失败"区分开。
+
+    failed=True 表示远程模型调用本身出错（网络/超时/响应不可解析），
+    此时 issues 为空但绝不能被当成"干净通过"，调用方需据此降级并留痕。
+    """
+
+    issues: list[DetectedIssue]
+    failed: bool
+
+
 STYLE_DRIFT_PHRASES = ("作者直接解释", "设定说明", "旁白解释", "直接说明设定", "作者在这里解释")
 STYLE_FINGERPRINT_DRIFT_PHRASES = (
     *STYLE_DRIFT_PHRASES,
@@ -84,13 +100,30 @@ def create_judge_issues(session: Session, payload: JudgeIssueCreate) -> list[Jud
 
     _validate_scene_packet(session, payload.scene_id, payload.scene_packet_id)
     voice_constraints = _load_voice_constraints(session, payload.scene_id)
-    detected = semantic_judge(payload, character_voice_constraints=voice_constraints) or deterministic_judge_fallback(payload)
+    outcome = semantic_judge_with_status(payload, character_voice_constraints=voice_constraints)
+    detected = outcome.issues or deterministic_judge_fallback(payload)
     detected = [
         *detected,
         *_detect_character_bible_violations(session, payload),
         *_detect_timeline_conflicts(session, payload),
         *_detect_style_fingerprint_drift(session, payload),
     ]
+    # 语义评审调用失败时注入标记问题，让审计层看见降级而非误判为干净通过。
+    if outcome.failed:
+        detected.append(
+            DetectedIssue(
+                category=JUDGE_SYSTEM_FAILURE_CATEGORY,
+                severity="high",
+                span_start=0,
+                span_end=0,
+                summary="语义评审调用失败（网络/超时/响应不可解析），仅执行确定性检测。",
+                recommended_repair_mode="none",
+                expected_text="",
+                replacement_text="",
+                matched_text="",
+                metadata={"judge_degraded": True},
+            )
+        )
     issues = [
         JudgeIssue(
             scene_id=payload.scene_id,
@@ -345,14 +378,37 @@ def semantic_judge(
     provider: JudgeProvider | None = None,
     character_voice_constraints: list[dict] | None = None,
 ) -> list[DetectedIssue]:
-    """调用 OpenAI 兼容模型执行语义一致性评审。"""
+    """调用 OpenAI 兼容模型执行语义一致性评审，仅返回问题列表。
+
+    保留历史签名供既有调用方使用；需要区分"无问题"与"调用失败"时改用
+    semantic_judge_with_status。
+    """
+
+    return semantic_judge_with_status(
+        payload,
+        provider=provider,
+        character_voice_constraints=character_voice_constraints,
+    ).issues
+
+
+def semantic_judge_with_status(
+    payload: JudgeIssueCreate,
+    *,
+    provider: JudgeProvider | None = None,
+    character_voice_constraints: list[dict] | None = None,
+) -> SemanticJudgeOutcome:
+    """执行语义评审并返回结果与失败标记。
+
+    failed=True 仅代表远程调用出错（网络/超时/响应不可解析）。
+    未配置 API Key 属于"未启用"而非失败，failed 保持 False。
+    """
 
     if provider is not None:
-        return _issues_from_provider_items(provider(payload), payload.content)
+        return SemanticJudgeOutcome(issues=_issues_from_provider_items(provider(payload), payload.content), failed=False)
 
     api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or os.getenv("STORYFORGE_LLM_API_KEY")
     if not api_key:
-        return []
+        return SemanticJudgeOutcome(issues=[], failed=False)
     base_url = os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL") or os.getenv("STORYFORGE_LLM_BASE_URL", "https://api.openai.com/v1")
     model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or os.getenv("STORYFORGE_LLM_MODEL", "gpt-4o-mini")
 
@@ -372,9 +428,12 @@ def semantic_judge(
         ],
         "temperature": 0,
     }
+    reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or os.getenv("STORYFORGE_LLM_REASONING_EFFORT")
+    if reasoning_effort:
+        request_payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
     try:
-        with httpx.Client(timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "30"))) as client:
+        with httpx.Client(timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or os.getenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "300"))) as client:
             response = client.post(
                 f"{base_url.rstrip('/')}/chat/completions",
                 json=request_payload,
@@ -386,14 +445,14 @@ def semantic_judge(
     except Exception as exc:
         log.warning("semantic_judge_failed", error=str(exc), model=model)
         _judge_llm_errors_total.inc()
-        return []
+        return SemanticJudgeOutcome(issues=[], failed=True)
     if not isinstance(decoded, list):
         log.warning("semantic_judge_invalid_response", raw=str(raw_content)[:200])
-        return []
+        return SemanticJudgeOutcome(issues=[], failed=True)
     valid_items = [item for item in decoded if isinstance(item, dict) and "category" in item]
     if len(valid_items) < len(decoded):
         log.warning("semantic_judge_filtered_items", dropped=len(decoded) - len(valid_items))
-    return _issues_from_provider_items(valid_items, payload.content)
+    return SemanticJudgeOutcome(issues=_issues_from_provider_items(valid_items, payload.content), failed=False)
 
 
 def _issues_from_provider_items(items: Sequence[dict[str, object] | DetectedIssue], content: str) -> list[DetectedIssue]:
