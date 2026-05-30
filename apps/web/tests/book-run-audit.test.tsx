@@ -13,6 +13,10 @@ const bookRun = {
   current_chapter_index: 3,
   total_chapters: 3,
   progress: {
+    quality_summary: { average_score: 89, status: 'needs_review', issue_count: 1 },
+    chapter_quality_scores: [{ chapter_index: 1, quality_score: 91 }],
+    top_quality_issues: [{ chapter_index: 1, dimension: '??', severity: '?', message: '?????' }],
+    manual_review_recommendations: ['? 1 ??????????'],
     completed_chapters: [
       {
         chapter_index: 1,
@@ -58,4 +62,10 @@ test('BookRun 审计面板按章节展示关键证据链', () => {
   assert.ok(html.includes('href="/studio?scene_id=14"'));
   assert.ok(html.includes('memory_extract_id='));
   assert.ok(html.includes('href="/worldbuilding?memory_atom_id=15"'));
+  assert.ok(html.includes('????'));
+  assert.ok(html.includes('?????'));
+  assert.ok(html.includes('89'));
+  assert.ok(html.includes('?? 1?91'));
+  assert.ok(html.includes('?????'));
+  assert.ok(html.includes('? 1 ??????????'));
 });

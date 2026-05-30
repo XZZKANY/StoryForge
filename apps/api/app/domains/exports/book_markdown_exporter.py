@@ -54,10 +54,15 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
     book = session.get(Book, book_run.book_id)
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun 审计报告。")
+    chapters = list(book_run.progress.get("completed_chapters", []))
     report = {
         "book_run_id": book_run.id,
         "blueprint_id": book_run.blueprint_id,
-        "chapters": list(book_run.progress.get("completed_chapters", [])),
+        "chapters": chapters,
+        "quality_summary": _quality_summary(chapters),
+        "chapter_quality_scores": _chapter_quality_scores(chapters),
+        "top_quality_issues": _top_quality_issues(chapters),
+        "manual_review_recommendations": _manual_review_recommendations(chapters),
     }
     for chapter in report["chapters"]:
         if not chapter.get("model_run_id") or not chapter.get("judge_report_id") or not chapter.get("approved_scene_id"):
@@ -256,3 +261,44 @@ def _build_chapter_xhtml(book: Book, chapter: Chapter, scene: Scene) -> str:
 </body>
 </html>
 """
+
+
+def _chapter_quality_scores(chapters: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [
+        {
+            "chapter_index": chapter.get("chapter_index"),
+            "quality_score": chapter.get("quality_score"),
+        }
+        for chapter in chapters
+        if isinstance(chapter, dict) and chapter.get("quality_score") is not None
+    ]
+
+
+def _top_quality_issues(chapters: list[dict[str, object]]) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    for chapter in chapters:
+        if not isinstance(chapter, dict):
+            continue
+        for issue in chapter.get("quality_issues", []) if isinstance(chapter.get("quality_issues"), list) else []:
+            if isinstance(issue, dict):
+                issues.append({"chapter_index": chapter.get("chapter_index"), **issue})
+    return issues[:10]
+
+
+def _manual_review_recommendations(chapters: list[dict[str, object]]) -> list[str]:
+    recommendations: list[str] = []
+    for issue in _top_quality_issues(chapters):
+        if str(issue.get("severity")) in {"?", "high", "critical"}:
+            recommendations.append(f"? {issue.get('chapter_index')} ????????{issue.get('dimension', '????')}")
+    return recommendations
+
+
+def _quality_summary(chapters: list[dict[str, object]]) -> dict[str, object]:
+    scores = [float(chapter["quality_score"]) for chapter in chapters if isinstance(chapter, dict) and isinstance(chapter.get("quality_score"), int | float)]
+    issues = _top_quality_issues(chapters)
+    return {
+        "average_score": round(sum(scores) / len(scores), 2) if scores else None,
+        "scored_chapter_count": len(scores),
+        "issue_count": len(issues),
+        "status": "needs_review" if _manual_review_recommendations(chapters) else "ok",
+    }

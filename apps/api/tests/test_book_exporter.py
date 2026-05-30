@@ -33,6 +33,10 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert report["chapters"][0]["model_run_id"] == 11
         assert report["chapters"][0]["judge_report_id"] == 12
         assert report["chapters"][0]["approved_scene_id"] > 0
+        assert "quality_summary" in report
+        assert "chapter_quality_scores" in report
+        assert "top_quality_issues" in report
+        assert "manual_review_recommendations" in report
 
 
 def test_book_run_export_endpoints_return_artifacts(
@@ -95,6 +99,8 @@ def _seed_completed_book_run(session: Session) -> int:
                 "judge_report_id": index * 10 + 2,
                 "repair_patch_id": None,
                 "approved_scene_id": scene.id,
+                "quality_score": 88 + index,
+                "quality_issues": [{"dimension": "??", "severity": "?", "message": "????"}] if index == 1 else [],
             }
         )
     book_run = BookRun(

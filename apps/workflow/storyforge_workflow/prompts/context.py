@@ -15,6 +15,7 @@ from storyforge_workflow.prompts.models import (
     ContinuityFact,
     NarrativeContext,
     PacingDirective,
+    SceneQualityPlan,
     StyleDirective,
 )
 
@@ -110,6 +111,20 @@ def _pacing_from_state(state: Mapping[str, Any]) -> PacingDirective:
     return PacingDirective()
 
 
+def _scene_quality_plan_from_state(state: Mapping[str, Any]) -> SceneQualityPlan:
+    raw = state.get("scene_quality_plan")
+    if not isinstance(raw, Mapping):
+        return SceneQualityPlan()
+    return SceneQualityPlan(
+        emotional_shift=_str(raw.get("emotional_shift")),
+        conflict_turn=_str(raw.get("conflict_turn")),
+        sensory_anchors=tuple(_str_list(raw.get("sensory_anchors"))),
+        dialogue_purpose=_str(raw.get("dialogue_purpose")),
+        reveal_or_payoff=_str(raw.get("reveal_or_payoff")),
+        ending_hook=_str(raw.get("ending_hook")),
+    )
+
+
 def _continuity_from_state(state: Mapping[str, Any]) -> tuple[ContinuityFact, ...]:
     raw = state.get("continuity_facts")
     facts: list[ContinuityFact] = []
@@ -149,6 +164,7 @@ def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
         characters=_characters_from_state(state),
         style=_style_from_state(state),
         pacing=_pacing_from_state(state),
+        scene_quality_plan=_scene_quality_plan_from_state(state),
         continuity=_continuity_from_state(state),
         required_facts=tuple(_str_list(state.get("required_fact_refs"))),
     )

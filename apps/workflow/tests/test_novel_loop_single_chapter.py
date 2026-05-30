@@ -99,5 +99,60 @@ def test_single_chapter_loop_pauses_when_repair_budget_exhausted() -> None:
     assert result.repair_patch_id == 91
 
 
+def test_static_issue_triggers_repair_before_approval() -> None:
+    calls: list[str] = []
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "???????????",
+        judge_scene=lambda draft, attempt: calls.append(f"judge:{attempt}:{draft}") or {"status": "pass", "judge_report_id": 11 + attempt},
+        repair_scene=lambda draft, report, attempt: calls.append(f"repair:{attempt}:{report['static_quality_issues'][0]['dimension']}") or "????????????",
+        approve_scene=lambda request, draft, evidence: calls.append(f"approve:{draft}") or 21,
+        record_model_run=lambda request, draft: 31,
+        check_static_quality=lambda draft: [
+            {
+                "dimension": "????",
+                "severity": "?",
+                "snippet": "???",
+                "message": "??????",
+                "suggestion": "?????",
+                "revision_strategy": "line_edit",
+            }
+        ] if "???" in draft else [],
+    )
+
+    result = run_single_chapter_loop(_request(), ports, max_repairs=1)
+
+    assert result.status == "approved"
+    assert result.final_draft == "????????????"
+    assert calls == ["repair:1:????", "judge:1:????????????", "approve:????????????"]
+
+
+def test_high_static_issue_pauses_for_manual_review() -> None:
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "???????????",
+        judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": 11},
+        repair_scene=lambda draft, report, attempt: draft,
+        approve_scene=lambda request, draft, evidence: 21,
+        record_model_run=lambda request, draft: 31,
+        check_static_quality=lambda draft: [
+            {
+                "dimension": "???",
+                "severity": "?",
+                "snippet": "????",
+                "message": "??????",
+                "suggestion": "??",
+                "revision_strategy": "regenerate",
+            }
+        ],
+    )
+
+    result = run_single_chapter_loop(_request(), ports, max_repairs=1)
+
+    assert result.status == "awaiting_review"
+    assert result.approved_scene_id is None
+    assert result.judge_report_id is None
+
+
 def _request() -> NovelLoopRequest:
     return NovelLoopRequest(book_id=1, chapter_id=2, chapter_index=1, chapter_goal="完成雾港开篇。")
