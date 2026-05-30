@@ -1,18 +1,19 @@
 # StoryForge
 
-StoryForge 是一个面向长篇小说生产的可验证创作流水线：每一次生成、检索、评审、修复、批准与回写，都必须留下可追溯证据，而不是只产出一段孤立文本。
+StoryForge 是一个面向中文长篇小说生产的可验证创作流水线。它把 Blueprint、检索证据、章节生成、Judge 评审、Repair 修复、批准写回、Story Memory、导出制品与审计报告串成可复盘的 BookRun，而不是只产出一段孤立文本。
 
 ## 当前状态
 
-- 本地基础门禁已验证：`pnpm verify`、`pnpm test`、`pnpm e2e` 均通过，详细证据见 `.codex/verification-report.md`。
-- Phase 9A 本地 deterministic/mock 闭环已实现：BookRun 可从 Blueprint 生成 3 章最小可审计小说，并导出 `book.md` 与 `audit_report.json`。
-- Phase 9B 本地控制面已实现：BookRun 支持 checkpoint resume、token/时间/章节预算暂停，以及 provider 连续降级自动暂停。
+- 远端 `master` 已合并 Phase 9B 真实 LLM 冒烟调用链修复，GitHub Actions `CI / Core verification` 已通过。
+- Phase 9A 本地 deterministic/mock 闭环已实现：BookRun 可从锁定 Blueprint 生成 3 章最小可审计小说，并导出 `book.md` 与 `audit_report.json`。
+- Phase 9B 控制面已实现：BookRun 支持 checkpoint resume、token/时间/章节预算暂停、provider 连续降级自动暂停，以及真实 LLM 冒烟入口。
 - Phase 9C 本地增强已实现：Story Memory 注入/抽取、Character Bible、Timeline Guard、Style Guard、EPUB 导出和全书审计页已纳入本地测试。
-- 真实 LLM 1 章/3 章 BookRun 冒烟尚未执行；当前环境未设置 `STORYFORGE_LLM_API_KEY`、`STORYFORGE_LLM_BASE_URL`、`STORYFORGE_LLM_MODEL` 与 `STORYFORGE_LLM_PROVIDER`。
+- 当前仍不能宣称真实 LLM 下 3 章 BookRun 已稳定 completed；该结论需要私有模型环境、真实运行制品和人工通读证据共同支撑。
 
 ## 当前能做什么
 
 - **BookRun 最小全书闭环**：从 Blueprint 章节计划顺序驱动 NovelLoop，完成 generate、Judge、Repair、approve、checkpoint 与导出登记。
+- **真实 LLM 冒烟门禁**：提供 Phase 9B 真实 LLM 1 章/3 章冒烟入口，支持 token 预算、章节预算、Judge/Repair 证据记录和脱敏摘要输出。
 - **BookRun 控制面**：支持暂停/恢复、预算硬上限、provider 降级暂停和成本摘要展示，避免真实模型运行失控。
 - **全书制品与审计**：生成 Markdown、EPUB 与 `audit_report.json`，并通过 `/book-runs/[id]/audit` 回看 generate/judge/repair/approve/memory_extract 证据链。
 - **Studio 创作链路**：读取作品、章节目标、Scene Packet、Judge 评审、Repair 修订、批准摘要与失败恢复摘要；批准写回通过 Server Action 提交到后端真实端点。
@@ -22,11 +23,19 @@ StoryForge 是一个面向长篇小说生产的可验证创作流水线：每一
 - **Evaluations 诊断入口**：读取评测运行、趋势摘要、失败样例和 Studio 反馈入口摘要。
 - **Provider/LLM 诊断**：通过 Provider Gateway 与 workflow provider client 验证真实模型配置、降级边界和调用连通性。
 
+## 进行中但尚未合并的方向
+
+这些内容来自当前本地主工作区的未提交进度，属于近期方向，不等同于远端 `master` 已发布能力：
+
+- **模型设置页与 API Key 检测**：新增 `/settings` 入口、Provider 模型检测 API 与页面测试，用于填写 Key、测试连通性并查看可用模型。
+- **首页体验改版**：首页导航、快捷动作、侧栏与最近记录正在向更接近 Claude-like 工作台的体验收敛。
+- **Novel Skill Framework 设计**：将现有 generate、judge、repair、approve、memory_extract、export 显式声明为 StoryForge 自己的小说技能契约层，第一阶段只映射现有能力，不新增动态插件。
+- **小说质量总控计划**：规划静态坏味道检查、场景质量计划、分级修订、黄金样例回归和整书质量审计，目标是提升连贯性、人物一致性与文风稳定性。
+
 ## 当前不能做什么
 
-- 不能宣称真实 LLM 下 3 章 BookRun 已 completed；真实 LLM 1 章/3 章冒烟仍缺少私有环境配置和运行证据。
-- 不能宣称已具备稳定生产级长篇闭环；3-5 万字短篇、人工通读和真实长程质量验收仍未完成。
-- 尚未在本轮取得远端 GitHub Actions `CI` 与 `E2E` 通过证据；当前结论仅基于本地验证。
+- 不能宣称真实 LLM 下 3 章 BookRun 已稳定 completed；仍需私有环境变量、真实运行产物、审计报告和人工通读证据。
+- 不能宣称已具备稳定生产级长篇闭环；3-5 万字短篇、Markdown/EPUB 导出验收、审计页回放和人工通读仍是发布前门禁。
 - 不提供全步骤 Studio 编排器，也不提供跨步骤草稿编辑器。
 - 不提供完整检索请求表单、命中详情弹层或 Retrieval 独立证据跳转路由。
 - 不把 Runs retry 描述为立即续跑 workflow。
@@ -65,14 +74,20 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 
 uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
 ```
 
-命令只输出脱敏摘要；真实密钥不得写入仓库或验证报告。当前环境缺少上述变量，因此 9B-4a/9B-4b 仍未完成。
+命令只输出脱敏摘要；真实密钥不得写入仓库、日志或验证报告。真实 LLM 冒烟结果必须连同 `book.md`、`audit_report.json`、ModelRun token 用量和 Judge/Repair 证据一起记录，才能升级能力声明。
+
+## 最近验证证据
+
+- PR #4：修复 Phase 9B 真实 LLM 冒烟调用链，远端 `CI / Core verification` 已通过。
+- 隔离 worktree 验证：`apps/api` 全量 pytest 为 `313 passed, 6 warnings`；`apps/workflow` 全量 pytest 为 `110 passed`。
+- 本地快速验证仍建议运行 `pnpm verify`、`pnpm test`、`pnpm e2e` 与 `pnpm openapi`，并把结果写入 `.codex/verification-report.md`。
 
 ## 发布前门禁
 
 - Web 业务请求必须统一经过 `apps/web/lib/api-client.ts` 注入 `X-StoryForge-API-Key` 和 `cache: "no-store"`。
 - 页面级读取验证必须覆盖 `/studio`、`/retrieval`、`/runs?job_run_id=<有效ID>`、`/artifacts`、`/evaluations`、`/book-runs` 和 `/book-runs/[id]/audit`。
 - `scripts/run-e2e.mjs` 必须执行真实 API HTTP pytest 目标，不允许重新降级为补偿验证来掩盖 API 链路失败。
-- 宣称“能产出一本最小可审计小说”前，必须补齐真实 LLM 3 章 BookRun completed、远端 `CI`/`E2E` 通过、`book.md` 可读和 `audit_report.json` 完整证据。
+- 宣称“真实模型下能产出一本最小可审计小说”前，必须补齐真实 LLM 3 章 BookRun completed、远端 `CI`/`E2E` 通过、`book.md` 可读和 `audit_report.json` 完整证据。
 - 宣称“稳定长篇生产闭环”前，必须补齐 3-5 万字短篇、Markdown/EPUB 导出、审计页回放、人工通读无明显一致性矛盾，以及 README/current-phase 能力边界同步。
 - `.codex/verification-report.md` 必须记录自动化测试、页面读取、API Key 注入、Studio 批准写回、BookRun 冒烟、Artifacts/Evaluations 真实读取、远程 LLM 冒烟、未联通能力和 OpenAPI 变化情况。
 - `pnpm openapi` 如产生 diff，必须解释来源并补充测试证据后才能进入发布判断。
@@ -85,4 +100,5 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 - BookRun：`apps/api/app/domains/book_runs` 与 `apps/workflow/storyforge_workflow/orchestrators` 共同承载整书闭环。
 - 共享契约：`packages/shared/src/contracts/storyforge.openapi.json`。
 - 工作台契约：`docs/architecture/phase6-workbench-contract.md`。
+- 当前阶段事实源：`current-phase.md`。
 - 本地验证报告：`.codex/verification-report.md`。
