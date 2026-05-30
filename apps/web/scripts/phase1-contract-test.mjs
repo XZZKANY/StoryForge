@@ -39,6 +39,8 @@ const tempDir = mkdtempSync(join(process.cwd(), '.tmp-storyforge-phase1-'));
 const runtimeModules = [
   { src: 'next.config.ts', dst: 'next.config.mjs' },
   { src: 'lib/api-client.ts', dst: 'lib/api-client.mjs' },
+  { src: 'app/api/provider-models/route.ts', dst: 'app/api/provider-models/route.mjs' },
+  { src: 'app/api/provider-models/provider-models.ts', dst: 'app/api/provider-models/provider-models.mjs' },
   { src: 'lib/text-diff.ts', dst: 'lib/text-diff.mjs' },
   { src: 'app/studio/StudioFlow.tsx', dst: 'app/studio/StudioFlow.mjs' },
   { src: 'app/studio/approval-action-core.ts', dst: 'app/studio/approval-action-core.mjs' },
@@ -147,6 +149,9 @@ const runtimeModules = [
 const importRewrites = [
   ['../next.config', '../next.config.mjs'],
   ['../lib/api-client', '../lib/api-client.mjs'],
+  ['../app/api/provider-models/provider-models', '../app/api/provider-models/provider-models.mjs'],
+  ['../app/api/provider-models/route', '../app/api/provider-models/route.mjs'],
+  ['./provider-models', './provider-models.mjs'],
   ['../lib/text-diff', '../lib/text-diff.mjs'],
   ['../app/studio/StudioFlow', '../app/studio/StudioFlow.mjs'],
   ['../app/studio/approval-action-core', '../app/studio/approval-action-core.mjs'],

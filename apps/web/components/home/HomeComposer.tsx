@@ -17,17 +17,22 @@ export function HomeComposer() {
   return (
     <section
       aria-labelledby="home-composer-title"
-      className="!m-0 !border-0 !bg-transparent !p-0 !shadow-none"
+      className="!m-0 flex w-full flex-col items-center !border-0 !bg-transparent !p-0 !shadow-none"
     >
-      <h1
-        id="home-composer-title"
-        className="text-center text-3xl font-semibold text-stone-100 md:text-4xl"
-      >
-        {homeMainTitle}
-      </h1>
+      <div className="mb-8 flex items-center gap-3.5 text-center">
+        <span className="relative h-8 w-8 text-[#d96f43]" aria-hidden>
+          <span className="absolute -inset-1 rotate-12 text-[35px] leading-8">✳</span>
+        </span>
+        <h1
+          id="home-composer-title"
+          className="m-0 font-serif text-4xl font-medium leading-none tracking-[-0.035em] text-[#ded4c2] md:text-[45px]"
+        >
+          {homeMainTitle}
+        </h1>
+      </div>
       <form
         onSubmit={handleSubmit}
-        className="mt-8 rounded-2xl border border-stone-800 bg-stone-900/80 p-3 shadow-xl shadow-black/40"
+        className="h-[132px] w-full overflow-hidden rounded-[20px] border border-[#3a3935] bg-[#2c2c2a] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
       >
         <label htmlFor="home-composer-input" className="sr-only">
           创作意图输入
@@ -39,19 +44,35 @@ export function HomeComposer() {
           placeholder={homeComposerPlaceholder}
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          rows={3}
-          className="w-full resize-none bg-transparent px-3 py-2 text-sm text-stone-100 placeholder:text-stone-500 focus:outline-none"
+          rows={2}
+          className="h-[70px] w-full resize-none bg-transparent px-5 pt-5 text-base text-[#e8decb] placeholder:text-[#aaa196] focus:outline-none"
         />
-        <div className="mt-2 flex items-center justify-between gap-2 px-1">
-          <p className="text-xs text-stone-500">
-            第一阶段：内容暂不提交后端，点击开始进入蓝图入口。
-          </p>
-          <button
-            type="submit"
-            className="rounded-full bg-amber-700 px-4 py-1.5 text-sm font-semibold text-stone-50 hover:bg-amber-600"
-          >
-            开始
-          </button>
+        <div className="flex items-center justify-between px-5 pb-4 pt-2">
+          <div className="flex items-center gap-3.5 text-[#aaa196]">
+            <span className="text-3xl font-extralight leading-none" aria-hidden>
+              ＋
+            </span>
+            <span className="hidden text-xs text-[#8f887f] sm:inline">
+              附加资料 / 世界观 / 上章摘要
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-[#eee4d2]">
+            <span className="hidden text-sm text-[#f0e5d4] sm:inline">
+              创作模式 <span className="text-xs text-[#aaa196]">⌄</span>
+            </span>
+            <span className="hidden text-lg sm:inline" aria-hidden>
+              🎙
+            </span>
+            <span className="hidden text-lg sm:inline" aria-hidden>
+              ▥
+            </span>
+            <button
+              type="submit"
+              className="h-8 rounded-full bg-[#e7dccd] px-3 text-sm font-extrabold text-[#1e1d1b] hover:bg-[#f3eadf]"
+            >
+              开始
+            </button>
+          </div>
         </div>
       </form>
     </section>

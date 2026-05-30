@@ -13,4 +13,5 @@ export const primaryNavLinks: readonly SiteNavLink[] = [
   { href: '/worldbuilding', label: '世界观中心', description: '世界观图谱与连续性' },
   { href: '/refinery', label: 'Refinery 批量精修', description: '批量精修诊断与回写' },
   { href: '/runs', label: 'Runs 运行链路', description: 'JobRun 与运行时诊断' },
+  { href: '/settings', label: '模型设置', description: '检测 Provider 连通性与可用模型' },
 ] as const;
