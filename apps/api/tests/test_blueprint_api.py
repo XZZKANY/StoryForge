@@ -120,7 +120,7 @@ def test_locked_blueprint_writes_chapter_plan_to_existing_chapters(
     assert chapter_goal.status_code == 200, chapter_goal.text
     payload = chapter_goal.json()
     assert payload["target_chapter_title"] == "雾港航线 1"
-    assert payload["chapter_goal"] == "第 1 章推进：林岚在雾港追查失真的灯塔信号。"
+    assert payload["chapter_goal"] == "发现异常并开始调查：林岚在雾港追查失真的灯塔信号。"
 
 
 def test_create_blueprint_rejects_missing_book(client: TestClient) -> None:

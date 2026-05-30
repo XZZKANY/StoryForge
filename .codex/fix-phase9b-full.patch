@@ -1,0 +1,152 @@
+﻿diff --git a/apps/api/app/domains/book_runs/prompt_assembly.py b/apps/api/app/domains/book_runs/prompt_assembly.py
+index 9291af4..6310aaf 100644
+--- a/apps/api/app/domains/book_runs/prompt_assembly.py
++++ b/apps/api/app/domains/book_runs/prompt_assembly.py
+@@ -35,6 +35,7 @@ def assemble_prompt_injection(
+     chapter_id: int | None = None,
+     chapter_title: str | None = None,
+     chapter_goal: str | None = None,
++    prior_chapter_text: str | None = None,
+ ) -> dict[str, Any]:
+     """读取作品级一致性数据，产出 narrative_context_from_state 注入键字典。
+ 
+@@ -65,6 +66,12 @@ def assemble_prompt_injection(
+     if continuity:
+         state["continuity_facts"] = continuity
+ 
++    word_count_min, word_count_max = _chapter_word_count(session, book_id)
++    if word_count_min is not None:
++        state["target_word_count_min"] = word_count_min
++    if word_count_max is not None:
++        state["target_word_count_max"] = word_count_max
++
+     chapter_title = _clean(chapter_title)
+     if chapter_title:
+         state["chapter_title_ref"] = chapter_title
+@@ -72,9 +79,24 @@ def assemble_prompt_injection(
+     if chapter_goal:
+         state["chapter_goal_ref"] = chapter_goal
+ 
++    prior_chapter_text = _clean(prior_chapter_text)
++    if prior_chapter_text:
++        state["previous_summary_ref"] = prior_chapter_text
++
+     return state
+ 
+ 
++def _chapter_word_count(session: Session, book_id: int) -> tuple[int | None, int | None]:
++    from sqlalchemy import select
++
++    blueprint = session.execute(
++        select(BookBlueprint).where(BookBlueprint.book_id == book_id).order_by(BookBlueprint.id.desc())
++    ).scalars().first()
++    if blueprint is None:
++        return None, None
++    return blueprint.chapter_word_count_min, blueprint.chapter_word_count_max
++
++
+ def _latest_blueprint(session: Session, book_id: int) -> BookBlueprint | None:
+     return (
+         session.query(BookBlueprint)
+diff --git a/apps/api/app/domains/book_runs/workflow_prompt_bridge.py b/apps/api/app/domains/book_runs/workflow_prompt_bridge.py
+index 71ff535..6311adf 100644
+--- a/apps/api/app/domains/book_runs/workflow_prompt_bridge.py
++++ b/apps/api/app/domains/book_runs/workflow_prompt_bridge.py
+@@ -52,9 +52,17 @@ def _load_prompt_layer() -> tuple[ModuleType, ModuleType]:
+     return builder, context
+ 
+ 
+-def build_draft_prompt_from_state(state: Mapping[str, Any], *, preview_chars: int = 120) -> str:
+-    """把注入键字典编译成可批准正文的分层 prompt。"""
++def build_draft_prompt_from_state(
++    state: Mapping[str, Any],
++    *,
++    preview_chars: int = 120,
++    full_chapter: bool = False,
++) -> str:
++    """把注入键字典编译成可批准正文的分层 prompt。
++
++    full_chapter=True 时要求按字数目标写完整一章，而非开头预览。
++    """
+ 
+     builder, context = _load_prompt_layer()
+     ctx = context.narrative_context_from_state(dict(state))
+-    return builder.build_draft_prompt(ctx, preview_chars=preview_chars)
++    return builder.build_draft_prompt(ctx, preview_chars=preview_chars, full_chapter=full_chapter)
+diff --git a/apps/api/tests/test_prompt_assembly.py b/apps/api/tests/test_prompt_assembly.py
+index c54dc38..a6b7bd7 100644
+--- a/apps/api/tests/test_prompt_assembly.py
++++ b/apps/api/tests/test_prompt_assembly.py
+@@ -93,6 +93,8 @@ def test_assemble_reads_all_consistency_sources(session: Session) -> None:
+     assert state["strategy_title_ref"] == "灯塔余烬"
+     assert state["chapter_title_ref"] == "第一章 雾港"
+     assert state["chapter_goal_ref"] == "建立调查线索。"
++    assert state["target_word_count_min"] == 600
++    assert state["target_word_count_max"] == 1600
+ 
+     character = state["character_constraints"][0]
+     assert character["name"] == "林岚"
+@@ -112,6 +114,26 @@ def test_assemble_reads_all_consistency_sources(session: Session) -> None:
+     assert facts[0]["must_appear"] is True
+ 
+ 
++def test_assemble_injects_prior_chapter_text_as_previous_summary(session: Session) -> None:
++    book_id, _ = _seed_book(session)
++
++    state = assemble_prompt_injection(
++        session,
++        book_id=book_id,
++        prior_chapter_text='  上一章林岚在旧港发现灯塔密钥。  ',
++    )
++
++    assert state["previous_summary_ref"] == '上一章林岚在旧港发现灯塔密钥。'
++
++
++def test_assemble_omits_blank_prior_chapter_text(session: Session) -> None:
++    book_id, _ = _seed_book(session)
++
++    state = assemble_prompt_injection(session, book_id=book_id, prior_chapter_text="  ")
++
++    assert "previous_summary_ref" not in state
++
++
+ def test_assemble_omits_missing_sources(session: Session) -> None:
+     book_id, _ = _seed_book(session)
+     state = assemble_prompt_injection(session, book_id=book_id)
+@@ -168,6 +190,36 @@ def test_assemble_skips_fingerprint_without_approved_chapter(session: Session) -
+     assert "fingerprint" not in state["style_directive"]
+ 
+ 
++def test_assembled_state_renders_full_chapter_prompt_via_bridge(session: Session) -> None:
++    book_id, chapter_id = _seed_book(session)
++    create_book_blueprint(
++        session,
++        BookBlueprintCreate(
++            book_id=book_id,
++            premise='林岚在雾港追查失真的灯塔信号。',
++            tone='克制悬疑',
++            target_word_count=2400,
++            target_chapter_count=2,
++            chapter_word_count_min=600,
++            chapter_word_count_max=1600,
++            metadata={},
++        ),
++    )
++
++    state = assemble_prompt_injection(
++        session,
++        book_id=book_id,
++        chapter_id=chapter_id,
++        prior_chapter_text='上一章林岚在旧港发现灯塔密钥。',
++    )
++
++    prompt = build_draft_prompt_from_state(state, full_chapter=True)
++
++    assert '写出本章完整正文（600–1600 字）' in prompt
++    assert '上文衔接（保持连续，不要重复已写内容）' in prompt
++    assert '上一章林岚在旧港发现灯塔密钥。' in prompt
++
++
+ def test_assembled_state_renders_layered_prompt_via_bridge(session: Session) -> None:
+     book_id, chapter_id = _seed_book(session)
+     create_character_bible_entry(

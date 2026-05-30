@@ -45,9 +45,9 @@ test('home-data 暴露 spec 第 3.2 / 3.6 节定义的入口', () => {
   assert.ok(data.includes('输入故事想法、章节目标或修订要求'), '应包含输入框 placeholder 文案');
 });
 
-test('HomeShell 提供顶部状态胶囊并链接到 /providers', () => {
+test('HomeShell 提供顶部状态胶囊并链接到 /settings', () => {
   const shell = read('components/home/HomeShell.tsx');
-  assert.ok(shell.includes('href="/providers"'), '顶部状态胶囊应链接 /providers');
+  assert.ok(shell.includes('href="/settings"'), '顶部状态胶囊应链接 /settings');
   assert.ok(shell.includes('homeWorkspaceLabel'), '应展示 workspace 标签');
   assert.ok(shell.includes('homeProviderUncheckedLabel'), '未读取 Provider 时显示待检查');
   assert.ok(shell.includes('bg-stone-950'), '首页容器使用深色背景');
