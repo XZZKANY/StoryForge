@@ -298,6 +298,28 @@ def test_revision_prompt_lists_issues_and_keeps_clean_parts() -> None:
     assert "只输出修订后的完整正文" in prompt
 
 
+def test_build_draft_prompt_full_chapter_uses_word_count_bounds() -> None:
+    ctx = NarrativeContext(
+        premise='远航舰队寻找新家园。',
+        chapter_title='暗潮',
+        target_word_count_min=600,
+        target_word_count_max=1600,
+    )
+
+    prompt = build_draft_prompt(ctx, full_chapter=True)
+
+    assert '写出本章完整正文（600–1600 字）' in prompt
+    assert '不要写大纲' in prompt
+    assert '不要在结尾标注字数' in prompt
+
+
+def test_context_from_state_maps_word_count_bounds() -> None:
+    ctx = narrative_context_from_state({"target_word_count_min": "600", "target_word_count_max": 1600})
+
+    assert ctx.target_word_count_min == 600
+    assert ctx.target_word_count_max == 1600
+
+
 def test_style_section_renders_fingerprint_targets() -> None:
     style = StyleDirective(
         tone="克制",
