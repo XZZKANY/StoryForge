@@ -35,6 +35,7 @@ def assemble_prompt_injection(
     chapter_id: int | None = None,
     chapter_title: str | None = None,
     chapter_goal: str | None = None,
+    prior_chapter_text: str | None = None,
 ) -> dict[str, Any]:
     """读取作品级一致性数据，产出 narrative_context_from_state 注入键字典。
 
@@ -65,6 +66,12 @@ def assemble_prompt_injection(
     if continuity:
         state["continuity_facts"] = continuity
 
+    word_count_min, word_count_max = _chapter_word_count(session, book_id)
+    if word_count_min is not None:
+        state["target_word_count_min"] = word_count_min
+    if word_count_max is not None:
+        state["target_word_count_max"] = word_count_max
+
     chapter_title = _clean(chapter_title)
     if chapter_title:
         state["chapter_title_ref"] = chapter_title
@@ -72,7 +79,22 @@ def assemble_prompt_injection(
     if chapter_goal:
         state["chapter_goal_ref"] = chapter_goal
 
+    prior_chapter_text = _clean(prior_chapter_text)
+    if prior_chapter_text:
+        state["previous_summary_ref"] = prior_chapter_text
+
     return state
+
+
+def _chapter_word_count(session: Session, book_id: int) -> tuple[int | None, int | None]:
+    from sqlalchemy import select
+
+    blueprint = session.execute(
+        select(BookBlueprint).where(BookBlueprint.book_id == book_id).order_by(BookBlueprint.id.desc())
+    ).scalars().first()
+    if blueprint is None:
+        return None, None
+    return blueprint.chapter_word_count_min, blueprint.chapter_word_count_max
 
 
 def _latest_blueprint(session: Session, book_id: int) -> BookBlueprint | None:
