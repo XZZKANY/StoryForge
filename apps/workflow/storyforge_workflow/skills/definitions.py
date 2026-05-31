@@ -96,10 +96,31 @@ class NovelSkillRegistry:
             index[skill.name] = skill
         self._by_name = MappingProxyType(index)
 
+    @classmethod
+    def default(cls) -> NovelSkillRegistry:
+        """返回只包含通用技能链的默认注册表。"""
+
+        return DEFAULT_NOVEL_SKILL_REGISTRY
+
+    @classmethod
+    def with_genre_pack(cls, genre: str) -> NovelSkillRegistry:
+        """显式加载单个题材技能包，默认链路不自动携带题材技能。"""
+
+        normalized_genre = genre.strip().lower()
+        pack = GENRE_NOVEL_SKILL_PACKS.get(normalized_genre)
+        if pack is None:
+            raise ValueError(f"未知题材技能包：{genre}")
+        return cls((*DEFAULT_NOVEL_SKILLS, *pack))
+
     def all(self) -> tuple[NovelSkillDefinition, ...]:
         """按注册顺序返回全部小说技能说明。"""
 
         return self._skills
+
+    def names(self) -> tuple[str, ...]:
+        """按注册顺序返回全部技能名称。"""
+
+        return tuple(skill.name for skill in self._skills)
 
     def get(self, name: str) -> NovelSkillDefinition | None:
         """按名称读取小说技能；缺失时返回 None，便于调用方自行降级。"""
@@ -264,6 +285,57 @@ EXPORT_SKILL = NovelSkillDefinition(
     ),
 )
 
+CLUE_FAIRNESS_JUDGE_SKILL = NovelSkillDefinition(
+    name="clue_fairness_judge",
+    version="1.0.0",
+    stage="chapter",
+    description="检查悬疑章节是否公平埋设线索、误导与揭示，只输出题材审计引用。",
+    input_refs=("chapter_id", "draft_ref", "judge_report_id", "clue_map_ref"),
+    output_refs=("clue_fairness_report_id", "unfair_clue_refs"),
+    gates=("draft_ref", "judge_report_id"),
+    audit_fields=("clue_fairness_report_id", "unfair_clue_refs", "fairness_score"),
+    status_mapping={"pass": "clue_fair", "warn": "clue_warning", "fail": "clue_unfair"},
+    required_capabilities=("llm",),
+    references=_refs(
+        workflow_nodes=("NovelLoopPorts.judge_scene",),
+        source_refs=("apps/workflow/storyforge_workflow/skills/genre_mystery/clue_fairness_judge/SKILL.md",),
+    ),
+)
+
+POWER_SCALE_GUARD_SKILL = NovelSkillDefinition(
+    name="power_scale_guard",
+    version="1.0.0",
+    stage="chapter",
+    description="检查玄幻章节战力等级、突破代价与胜负因果是否自洽。",
+    input_refs=("chapter_id", "draft_ref", "power_system_ref", "character_power_refs"),
+    output_refs=("power_scale_report_id", "power_violation_refs"),
+    gates=("draft_ref", "power_system_ref"),
+    audit_fields=("power_scale_report_id", "power_violation_refs", "scale_consistency_score"),
+    status_mapping={"pass": "scale_consistent", "warn": "scale_warning", "fail": "scale_broken"},
+    required_capabilities=("llm",),
+    references=_refs(
+        workflow_nodes=("NovelLoopPorts.judge_scene",),
+        source_refs=("apps/workflow/storyforge_workflow/skills/genre_xuanhuan/power_scale_guard/SKILL.md",),
+    ),
+)
+
+RELATIONSHIP_ARC_JUDGE_SKILL = NovelSkillDefinition(
+    name="relationship_arc_judge",
+    version="1.0.0",
+    stage="chapter",
+    description="检查言情章节关系推进、情绪转折和互动边界是否连续可信。",
+    input_refs=("chapter_id", "draft_ref", "relationship_state_ref", "emotional_beats_ref"),
+    output_refs=("relationship_arc_report_id", "arc_issue_refs"),
+    gates=("draft_ref", "relationship_state_ref"),
+    audit_fields=("relationship_arc_report_id", "arc_issue_refs", "arc_progress_score"),
+    status_mapping={"pass": "arc_coherent", "warn": "arc_warning", "fail": "arc_broken"},
+    required_capabilities=("llm",),
+    references=_refs(
+        workflow_nodes=("NovelLoopPorts.judge_scene",),
+        source_refs=("apps/workflow/storyforge_workflow/skills/genre_romance/relationship_arc_judge/SKILL.md",),
+    ),
+)
+
 DEFAULT_NOVEL_SKILLS = (
     GENERATE_SKILL,
     JUDGE_SKILL,
@@ -271,6 +343,13 @@ DEFAULT_NOVEL_SKILLS = (
     APPROVE_SKILL,
     MEMORY_EXTRACT_SKILL,
     EXPORT_SKILL,
+)
+GENRE_NOVEL_SKILL_PACKS = MappingProxyType(
+    {
+        "mystery": (CLUE_FAIRNESS_JUDGE_SKILL,),
+        "xuanhuan": (POWER_SCALE_GUARD_SKILL,),
+        "romance": (RELATIONSHIP_ARC_JUDGE_SKILL,),
+    }
 )
 DEFAULT_NOVEL_SKILL_REGISTRY = NovelSkillRegistry(DEFAULT_NOVEL_SKILLS)
 
