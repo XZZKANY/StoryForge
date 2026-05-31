@@ -12,6 +12,7 @@ from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact
 from app.domains.book_runs.models import BookRun
+from app.domains.book_runs.skill_audit_bridge import derive_book_run_skill_chain
 from app.domains.books.models import Book, Chapter, Scene
 
 
@@ -59,6 +60,7 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
         "book_run_id": book_run.id,
         "blueprint_id": book_run.blueprint_id,
         "chapters": chapters,
+        "skill_chain": derive_book_run_skill_chain(book_run.progress or {}),
         "quality_summary": _quality_summary(chapters),
         "chapter_quality_scores": _chapter_quality_scores(chapters),
         "top_quality_issues": _top_quality_issues(chapters),

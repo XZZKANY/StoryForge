@@ -18,6 +18,7 @@ export type BookRunRead = {
   readonly chapter_budget: number | null;
   readonly estimated_cost: number;
   readonly cost_summary: Record<string, unknown>;
+  readonly skill_chain?: Record<string, unknown> | null;
 };
 
 export type ApiRequest = {

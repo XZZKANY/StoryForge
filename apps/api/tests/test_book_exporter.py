@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
@@ -37,6 +37,10 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
+        assert report["skill_chain"]["skill_chain_version"] == "bookrun-default-v1"
+        assert report["skill_chain"]["chapters"][0]["skills"][0]["skill_name"] == "generate"
+        assert report["skill_chain"]["chapters"][0]["skills"][1]["skill_name"] == "judge"
+        assert report["skill_chain"]["chapters"][0]["skills"][2]["skill_name"] == "approve"
 
 
 def test_book_run_export_endpoints_return_artifacts(
@@ -114,3 +118,52 @@ def _seed_completed_book_run(session: Session) -> int:
     session.add(book_run)
     session.commit()
     return book_run.id
+
+
+
+def test_book_run_audit_report_prefers_recorded_skill_chain(session_factory: sessionmaker[Session]) -> None:
+    """audit_report.json 有真实 skill_runs 时应优先输出记录链路。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(session)
+        book_run = session.get(BookRun, book_run_id)
+        assert book_run is not None
+        progress = dict(book_run.progress)
+        completed = list(progress["completed_chapters"])
+        first = dict(completed[0])
+        first["skill_runs"] = [
+            {"skill_name": "generate", "status": "generated", "output_refs": {"model_run_id": 11}},
+            {"skill_name": "judge", "status": "pass", "output_refs": {"judge_report_id": 12}},
+            {"skill_name": "approve", "status": "approved", "output_refs": {"approved_scene_id": first["approved_scene_id"]}},
+        ]
+        completed[0] = first
+        progress["completed_chapters"] = completed
+        book_run.progress = progress
+        session.commit()
+
+        audit_artifact = export_book_run_audit_report(session, book_run_id)
+
+        skills = audit_artifact.payload["skill_chain"]["chapters"][0]["skills"]
+        assert [skill["skill_name"] for skill in skills[:3]] == ["generate", "judge", "approve"]
+        assert skills[0]["model_run_id"] == 11
+
+
+def test_book_run_audit_report_outputs_empty_skill_chain_for_empty_progress(session_factory: sessionmaker[Session]) -> None:
+    """旧 progress 缺少章节审计数据时，skill_chain 应空数组退化。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(session)
+        book_run = session.get(BookRun, book_run_id)
+        assert book_run is not None
+        book_run.progress = {"completed_chapters": []}
+        session.commit()
+
+        audit_artifact = export_book_run_audit_report(session, book_run_id)
+
+        assert audit_artifact.payload["chapters"] == []
+        assert audit_artifact.payload["skill_chain"] == {
+            "skill_chain_version": "bookrun-default-v1",
+            "chapters": [],
+            "book_level_skills": [],
+            "book_status_projection": {"status": "completed", "pause_reason": None},
+        }
