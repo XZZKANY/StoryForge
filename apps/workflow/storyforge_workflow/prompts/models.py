@@ -117,8 +117,23 @@ class PacingDirective:
 
 
 @dataclass(frozen=True)
+class ContinuityFact:
+    """必须在本段被尊重或体现的连续性事实，来源 Story Memory / Timeline。"""
+
+    statement: str
+    must_appear: bool = False
+    source_ref: str = ""
+
+    def describe(self) -> str:
+        text = _clean(self.statement)
+        if self.must_appear:
+            return f"{text}（本段必须体现）"
+        return text
+
+
+@dataclass(frozen=True)
 class SceneQualityPlan:
-    """???????????????????????????"""
+    """生成前的场景质量意图，用于把好场景应具备的推进点前馈给 Draft Writer。"""
 
     emotional_shift: str = ""
     conflict_turn: str = ""
@@ -139,63 +154,66 @@ class SceneQualityPlan:
 
 
 @dataclass(frozen=True)
-class RevisionStrategy:
-    """???????????????????????"""
-
-    name: str = "line_edit"
-    preserve: Sequence[str] = field(default_factory=tuple)
-    remove: Sequence[str] = field(default_factory=tuple)
-    target_effect: str = ""
-
-
-@dataclass(frozen=True)
 class QualityScore:
-    """??????????????????????"""
+    """多维质量评分，服务 Judge 输出、审计汇总和后续趋势对比。"""
 
-    dimension: str = ""
-    score: float | None = None
-    rationale: str = ""
+    prose_quality: float | None = None
+    show_dont_tell: float | None = None
+    character_consistency: float | None = None
+    continuity_consistency: float | None = None
+    scene_progression: float | None = None
+    pacing_control: float | None = None
+    hook_strength: float | None = None
+    ai_artifact_penalty: float | None = None
 
 
 @dataclass(frozen=True)
-class QualityIssue:
-    """??????LLM Judge ?????????????"""
+class RevisionStrategy:
+    """问题修订策略，约束 Reviser 是局部改句、场景补丁还是整段重写。"""
 
-    dimension: str = ""
-    severity: str = "low"
-    snippet: str = ""
-    reason: str = ""
-    suggestion: str = ""
-    revision_strategy: str = "line_edit"
-    must_preserve: Sequence[str] = field(default_factory=tuple)
+    mode: str = "line_edit"
+    must_keep: Sequence[str] = field(default_factory=tuple)
     must_remove: Sequence[str] = field(default_factory=tuple)
     target_effect: str = ""
 
 
 @dataclass(frozen=True)
-class QualityReport:
-    """???????????????? NovelLoop ? BookRun ?????"""
+class QualityIssue:
+    """可执行的质量问题条目，连接静态检查、LLM Judge 和 Repair prompt。"""
 
-    decision: str = "pass"
-    scores: Sequence[QualityScore] = field(default_factory=tuple)
-    issues: Sequence[QualityIssue] = field(default_factory=tuple)
-    summary: str = ""
+    dimension: str = ""
+    severity: str = "低"
+    snippet: str = ""
+    reason: str = ""
+    suggestion: str = ""
+    revision_strategy: RevisionStrategy = field(default_factory=RevisionStrategy)
+
+    def to_contract_line(self) -> str:
+        """渲染为 revision prompt 可消费的单行契约。"""
+
+        strategy = self.revision_strategy
+        return "｜".join(
+            (
+                _clean(self.dimension),
+                _clean(self.severity),
+                _clean(self.snippet),
+                _clean(self.reason),
+                _clean(strategy.mode),
+                "、".join(_clean_list(strategy.must_keep)),
+                "、".join(_clean_list(strategy.must_remove)),
+                _clean(strategy.target_effect) or _clean(self.suggestion),
+            )
+        )
 
 
 @dataclass(frozen=True)
-class ContinuityFact:
-    """必须在本段被尊重或体现的连续性事实，来源 Story Memory / Timeline。"""
+class QualityReport:
+    """一次场景质量评审结果，可由静态检查和 LLM Judge 共同填充。"""
 
-    statement: str
-    must_appear: bool = False
-    source_ref: str = ""
-
-    def describe(self) -> str:
-        text = _clean(self.statement)
-        if self.must_appear:
-            return f"{text}（本段必须体现）"
-        return text
-
+    decision: str = "pass"
+    score: QualityScore = field(default_factory=QualityScore)
+    issues: Sequence[QualityIssue] = field(default_factory=tuple)
+    summary: str = ""
 
 @dataclass(frozen=True)
 class NarrativeContext:
@@ -219,8 +237,7 @@ class NarrativeContext:
     characters: Sequence[CharacterConstraint] = field(default_factory=tuple)
     style: StyleDirective = field(default_factory=StyleDirective)
     pacing: PacingDirective = field(default_factory=PacingDirective)
-    scene_quality_plan: SceneQualityPlan = field(default_factory=SceneQualityPlan)
     continuity: Sequence[ContinuityFact] = field(default_factory=tuple)
     required_facts: Sequence[str] = field(default_factory=tuple)
-    target_word_count_min: int | None = None
-    target_word_count_max: int | None = None
+    scene_quality_plan: SceneQualityPlan = field(default_factory=SceneQualityPlan)
+

@@ -155,20 +155,19 @@ def _scene_quality_section(ctx: NarrativeContext) -> str:
         return ""
     lines = []
     if _clean(plan.emotional_shift):
-        lines.append(f"\u60c5\u7eea\u53d8\u5316\uff1a{_clean(plan.emotional_shift)}")
+        lines.append(f"情绪变化：{_clean(plan.emotional_shift)}")
     if _clean(plan.conflict_turn):
-        lines.append(f"\u51b2\u7a81\u8f6c\u6298\uff1a{_clean(plan.conflict_turn)}")
-    anchors = [_clean(item) for item in plan.sensory_anchors if _clean(item)]
+        lines.append(f"冲突转折：{_clean(plan.conflict_turn)}")
+    anchors = [_clean(anchor) for anchor in plan.sensory_anchors if _clean(anchor)]
     if anchors:
-        lines.append("\u611f\u5b98\u951a\u70b9\uff1a" + "\u3001".join(anchors))
+        lines.append(f"感官锚点：{'、'.join(anchors)}")
     if _clean(plan.dialogue_purpose):
-        lines.append(f"\u5bf9\u767d\u76ee\u7684\uff1a{_clean(plan.dialogue_purpose)}")
+        lines.append(f"对白目的：{_clean(plan.dialogue_purpose)}")
     if _clean(plan.reveal_or_payoff):
-        lines.append(f"\u4f0f\u7b14/\u5151\u73b0\uff1a{_clean(plan.reveal_or_payoff)}")
+        lines.append(f"伏笔/兑现：{_clean(plan.reveal_or_payoff)}")
     if _clean(plan.ending_hook):
-        lines.append(f"\u7ed3\u5c3e\u94a9\u5b50\uff1a{_clean(plan.ending_hook)}")
-    return _section("\u573a\u666f\u8d28\u91cf\u8ba1\u5212", lines)
-
+        lines.append(f"结尾钩子：{_clean(plan.ending_hook)}")
+    return _section("场景质量计划", lines)
 
 def _continuity_section(ctx: NarrativeContext) -> str:
     lines = [fact.describe() for fact in ctx.continuity if _clean(fact.statement)]
@@ -268,35 +267,14 @@ def build_scene_beats_prompt(ctx: NarrativeContext) -> str:
     return _join_sections(sections)
 
 
-def build_draft_prompt(
-    ctx: NarrativeContext,
-    *,
-    preview_chars: int = 120,
-    full_chapter: bool = False,
-) -> str:
+def build_draft_prompt(ctx: NarrativeContext, *, preview_chars: int = 120) -> str:
     """Draft Writer：产出可批准的中文小说正文（默认预览长度）。
 
     这是直接影响成稿质量的主路径，分层注入全部约束。
-    full_chapter=True 时要求按字数目标写完整一章，而非开头预览。
     """
 
     pacing = ctx.pacing
-    if full_chapter:
-        low = ctx.target_word_count_min
-        high = ctx.target_word_count_max
-        if low and high:
-            span = f"{low}–{high} 字"
-        elif high:
-            span = f"约 {high} 字"
-        elif low:
-            span = f"不少于 {low} 字"
-        else:
-            span = "1000–1600 字"
-        length_line = (
-            f"写出本章完整正文（{span}），保持语气、视角、文风一致，"
-            "有场景推进与具体画面，不要写大纲、不要写省略号占位、不要在结尾标注字数。"
-        )
-    elif pacing.target_chars:
+    if pacing.target_chars:
         length_line = f"篇幅：约 {pacing.target_chars} 个中文字符，允许上下浮动 15%。"
     else:
         length_line = f"篇幅：{preview_chars} 字以内的中文正文预览。"
@@ -375,15 +353,28 @@ def build_longform_segment_prompt(
 
 
 def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
-    """Draft Critic??????????????????????"""
+    """Draft Critic：输出结构化质量评分、决策和可执行修订项。
 
+    兼容旧解析：无问题时仍允许单行“通过”；结构化模式优先使用 DECISION / SCORE / ISSUE。
+    """
+
+    score_dimensions = (
+        "prose_quality",
+        "show_dont_tell",
+        "character_consistency",
+        "continuity_consistency",
+        "scene_progression",
+        "pacing_control",
+        "hook_strength",
+        "ai_artifact_penalty",
+    )
     sections = [
         _RETURN_STRUCTURED,
         _section(
-            "\u4efb\u52a1",
+            "任务",
             [
-                "\u4f60\u662f\u4e25\u683c\u7684\u5c0f\u8bf4\u4e00\u81f4\u6027\u4e0e\u6587\u7b14\u8bc4\u5ba1\u5458\u3002\u5bf9\u7167\u4ee5\u4e0b\u7ea6\u675f\u9010\u6761\u68c0\u67e5\u5f85\u5ba1\u6b63\u6587\u3002",
-                "\u53ea\u8bc4\u5ba1\u3001\u4e0d\u91cd\u5199\uff1b\u6240\u6709\u7ed3\u8bba\u5fc5\u987b\u80fd\u843d\u5230\u8bc4\u5206\u3001\u547d\u4e2d\u7247\u6bb5\u548c\u4fee\u8ba2\u7b56\u7565\u3002",
+                "你是严格的小说一致性与文笔评审员。对照以下约束逐条检查待审正文。",
+                "只评审、不重写，必须给出可执行的质量决策。",
             ],
         ),
         _craft_section(),
@@ -392,64 +383,65 @@ def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
         _position_section(ctx),
         _scene_quality_section(ctx),
         _continuity_section(ctx),
-        _section("\u5f85\u5ba1\u6b63\u6587", [_clean(draft) or "\uff08\u7a7a\uff09"]),
+        _section("待审正文", [_clean(draft) or "（空）"]),
         _section(
-            "\u68c0\u67e5\u7ef4\u5ea6",
+            "评分维度",
             [
-                "prose_quality\uff1a\u6587\u7b14\u662f\u5426\u5177\u4f53\u3001\u6709\u753b\u9762\uff0c\u907f\u514d\u7a7a\u6cdb\u5957\u8bdd\u3002",
-                "show_dont_tell\uff1a\u662f\u5426\u7528\u52a8\u4f5c\u3001\u5bf9\u767d\u548c\u611f\u5b98\u5448\u73b0\u60c5\u7eea\u3002",
-                "character_consistency\uff1a\u662f\u5426 OOC\u3001\u8fdd\u53cd\u58f0\u97f3\u7ea6\u675f\u6216\u7981\u6b62\u7279\u8d28\u3002",
-                "continuity_consistency\uff1a\u662f\u5426\u4e0e\u5fc5\u542b\u4e8b\u5b9e\u3001\u4e0a\u6587\u6216\u8fde\u7eed\u6027\u7ea6\u675f\u77db\u76fe\u3002",
-                "scene_progression\uff1a\u573a\u666f\u662f\u5426\u6709\u884c\u52a8\u63a8\u8fdb\u3001\u51b2\u7a81\u8f6c\u6298\u548c\u4fe1\u606f\u589e\u91cf\u3002",
-                "pacing_control\uff1a\u53e5\u957f\u3001\u5bf9\u767d\u5bc6\u5ea6\u548c\u8282\u594f\u662f\u5426\u8d34\u5408\u573a\u666f\u76ee\u6807\u3002",
-                "hook_strength\uff1a\u6bb5\u672b\u662f\u5426\u7559\u4e0b\u63a8\u52a8\u4e0b\u4e00\u6bb5\u7684\u94a9\u5b50\u3002",
-                "ai_artifact_penalty\uff1a\u662f\u5426\u5b58\u5728 AI \u8bf4\u660e\u8154\u3001\u603b\u7ed3\u8154\u6216\u6a21\u677f\u5316\u8868\u8fbe\u3002",
+                "prose_quality：文笔质感、具体名词和动词、套话控制。",
+                "show_dont_tell：情绪是否通过动作、触觉、对白和环境显形。",
+                "character_consistency（角色一致性）：是否 OOC、违反声音约束或禁止特质。",
+                "continuity_consistency（连续性）：是否与必含事实、上文或连续性约束矛盾。",
+                "scene_progression：是否完成场景目标和动作 beat。",
+                "pacing_control：句长、对白密度、节奏推进是否稳定。",
+                "hook_strength：结尾是否留下推动下一段的钩子。",
+                "ai_artifact_penalty：说明腔、大纲腔、模板腔和机械重复惩罚。",
             ],
         ),
         _section(
-            "\u8f93\u51fa\u8981\u6c42",
+            "输出要求",
             [
-                "\u7b2c\u4e00\u884c\u5fc5\u987b\u8f93\u51fa\uff1aDECISION: pass|repair|regenerate|awaiting_review\u3002",
-                "\u7b2c\u4e8c\u884c\u5fc5\u987b\u8f93\u51fa\uff1aSCORE: prose_quality=0-100; show_dont_tell=0-100; character_consistency=0-100; continuity_consistency=0-100; scene_progression=0-100; pacing_control=0-100; hook_strength=0-100; ai_artifact_penalty=0-100\u3002",
-                "\u5982\u6709\u95ee\u9898\uff0c\u540e\u7eed\u6bcf\u884c\u8f93\u51fa\uff1aISSUE: \u7ef4\u5ea6\uff5c\u4e25\u91cd\u7ea7\u522b\uff5c\u547d\u4e2d\u7247\u6bb5\uff5c\u539f\u56e0\uff5c\u4fee\u8ba2\u7b56\u7565\uff5c\u5fc5\u987b\u4fdd\u7559\uff5c\u5fc5\u987b\u5220\u9664\uff5c\u76ee\u6807\u6548\u679c\u3002",
-                "\u4e25\u91cd\u7ea7\u522b\u4f7f\u7528 \u4f4e|\u4e2d|\u9ad8\uff1b\u4fee\u8ba2\u7b56\u7565\u4f7f\u7528 line_edit|scene_patch|regenerate\u3002",
-                "\u82e5\u6b63\u6587\u6ee1\u8db3\u5168\u90e8\u7ea6\u675f\uff0cDECISION \u4f7f\u7528 pass\uff0c\u5e76\u53ea\u4fdd\u7559 DECISION \u4e0e SCORE \u4e24\u884c\u3002",
+                "若正文满足全部约束，可只输出一行：通过。",
+                "结构化输出优先使用以下契约：",
+                "旧格式兼容：维度｜命中片段｜应如何修。",
+                "DECISION: pass|repair|regenerate|awaiting_review",
+                "SCORE: " + "; ".join(f"{dimension}=0-100" for dimension in score_dimensions),
+                "ISSUE: 维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果",
+                "修订策略只能是 line_edit、scene_patch、regenerate；严重连续性或角色问题使用 awaiting_review。",
+                "不要加序号、标题或额外解释，只列实际存在的问题。",
             ],
         ),
     ]
     return _join_sections(sections)
 
-
 def build_revision_prompt(ctx: NarrativeContext, draft: str, issues: Iterable[str]) -> str:
-    """Draft Reviser???????????????????"""
+    """Draft Reviser：按问题清单和分级策略定点重写。"""
 
     issue_lines = [_clean(issue) for issue in issues if _clean(issue)]
     pacing = ctx.pacing
     if pacing.target_chars:
-        length_line = f"\u7bc7\u5e45\uff1a\u7ea6 {pacing.target_chars} \u4e2a\u4e2d\u6587\u5b57\u7b26\uff0c\u5141\u8bb8\u4e0a\u4e0b\u6d6e\u52a8 15%\u3002"
+        length_line = f"篇幅：约 {pacing.target_chars} 个中文字符，允许上下浮动 15%。"
     else:
-        length_line = "\u7bc7\u5e45\uff1a\u4e0e\u539f\u7a3f\u76f8\u5f53\u3002"
+        length_line = "篇幅：与原稿相当。"
     sections = [
         _RETURN_PROSE,
         _section(
-            "\u4efb\u52a1",
+            "任务",
             [
-                "\u4e0b\u9762\u662f\u4e00\u6bb5\u5c0f\u8bf4\u6b63\u6587\u4e0e\u8bc4\u5ba1\u53d1\u73b0\u7684\u95ee\u9898\u3002\u8bf7\u636e\u95ee\u9898\u6e05\u5355\u4fee\u8ba2\u6b63\u6587\u3002",
-                "\u6309\u95ee\u9898\u4e2d\u7684\u4fee\u8ba2\u7b56\u7565\u6267\u884c\uff1aline_edit \u53ea\u6539\u547d\u4e2d\u53e5\uff1bscene_patch \u8865\u8db3\u573a\u666f\u7f3a\u53e3\u4f46\u4fdd\u7559\u4e3b\u4f53\uff1bregenerate \u6574\u6bb5\u91cd\u5199\u4f46\u4fdd\u7559\u4e8b\u5b9e\u548c\u8fde\u7eed\u6027\u3002",
-                "\u4e25\u683c\u9075\u5b88\u5fc5\u987b\u4fdd\u7559\u3001\u5fc5\u987b\u5220\u9664\u3001\u76ee\u6807\u6548\u679c\uff0c\u4e0d\u8981\u6cdb\u6cdb\u6da6\u8272\u3002",
+                "下面是一段小说正文与评审发现的问题。请据问题清单修订正文。",
+                "按修订策略控制改动范围，只改有问题的部分，保留没有问题的内容与原有语感。",
             ],
         ),
         _craft_section(),
         _section(
-            "\u4fee\u8ba2\u7b56\u7565\u5951\u7ea6",
+            "修订策略契约",
             [
-                "line_edit\uff1a\u53ea\u6539\u547d\u4e2d\u53e5\uff0c\u4fdd\u7559\u4e0a\u4e0b\u6587\u8bed\u4e49\u3002",
-                "scene_patch\uff1a\u8865\u8db3\u573a\u666f\u7f3a\u53e3\uff0c\u4fdd\u7559\u4e3b\u4f53\u7ed3\u6784\u4e0e\u5173\u952e\u4e8b\u5b9e\u3002",
-                "regenerate\uff1a\u6574\u6bb5\u91cd\u5199\uff0c\u5fc5\u987b\u4fdd\u7559\u4e8b\u5b9e\u3001\u8fde\u7eed\u6027\u548c\u89d2\u8272\u7ea6\u675f\u3002",
-                "\u95ee\u9898\u5b57\u6bb5\u987a\u5e8f\uff1a\u7ef4\u5ea6\uff5c\u4e25\u91cd\u7ea7\u522b\uff5c\u547d\u4e2d\u7247\u6bb5\uff5c\u539f\u56e0\uff5c\u4fee\u8ba2\u7b56\u7565\uff5c\u5fc5\u987b\u4fdd\u7559\uff5c\u5fc5\u987b\u5220\u9664\uff5c\u76ee\u6807\u6548\u679c\u3002",
+                "line_edit：只改命中句，用动作、触觉或对白替换问题表达。",
+                "scene_patch：补足场景缺口、感官锚点、对白目的或动作 beat，但保留主体。",
+                "regenerate：整段重写，但必须保留事实、连续性、必须保留项和场景目标。",
+                "问题字段含义：维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果。",
             ],
         ),
-        _section("\u8bc4\u5ba1\u95ee\u9898\u6e05\u5355\uff08\u9010\u6761\u4fee\u590d\uff09", issue_lines or ["\uff08\u65e0\u5177\u4f53\u95ee\u9898\uff0c\u6309\u521b\u4f5c\u51c6\u5219\u6da6\u8272\u5373\u53ef\uff09"]),
+        _section("评审问题清单（逐条修复）", issue_lines or ["（无具体问题，按创作准则润色即可）"]),
         _character_section(ctx.characters),
         _style_section(ctx.style),
         _position_section(ctx),
@@ -457,13 +449,13 @@ def build_revision_prompt(ctx: NarrativeContext, draft: str, issues: Iterable[st
         _continuity_section(ctx),
         _previous_section(ctx),
         _pacing_section(pacing),
-        _section("\u539f\u7a3f", [_clean(draft) or "\uff08\u7a7a\uff09"]),
+        _section("原稿", [_clean(draft) or "（空）"]),
         _section(
-            "\u8f93\u51fa\u8981\u6c42",
+            "输出要求",
             [
                 length_line,
-                "\u53ea\u8f93\u51fa\u4fee\u8ba2\u540e\u7684\u5b8c\u6574\u6b63\u6587\uff0c\u4e0d\u8981\u89e3\u91ca\u3001\u4e0d\u8981\u5217\u6539\u52a8\u70b9\u3001\u4e0d\u8981\u4fdd\u7559\u95ee\u9898\u6807\u8bb0\u3002",
-                "\u5fc5\u987b\u4f53\u73b0\u5168\u90e8\u5fc5\u542b\u4e8b\u5b9e\uff0c\u5e76\u5c0a\u91cd\u6240\u6709\u8fde\u7eed\u6027\u4e0e\u89d2\u8272\u7ea6\u675f\u3002",
+                "只输出修订后的完整正文，不要解释、不要列改动点、不要保留问题标记。",
+                "必须体现全部必含事实，并尊重所有连续性与角色约束。",
             ],
         ),
     ]

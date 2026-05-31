@@ -20,6 +20,14 @@ class BookRunProgressUpdate(BaseModel):
     progress: dict[str, Any] = Field(default_factory=dict)
 
 
+class BookRunQualitySummary(BaseModel):
+    overall_quality_score: int | float | None = None
+    chapter_count: int = 0
+    scored_chapter_count: int = 0
+    issue_count: int = 0
+    severe_issue_count: int = 0
+
+
 class BookRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,5 +46,6 @@ class BookRunRead(BaseModel):
     chapter_budget: int | None
     estimated_cost: float
     cost_summary: dict[str, Any]
+    quality_summary: BookRunQualitySummary | None = None
     created_at: datetime
     updated_at: datetime

@@ -1,0 +1,7 @@
+{
+  "name": "bad_ooc_01",
+  "expected_decision": "awaiting_review",
+  "draft": "林岚嚎啕大哭，向港口代表滔滔不绝地倾诉自己的委屈。",
+  "character_constraints": [{"name": "林岚", "forbidden_traits": ["嚎啕大哭", "滔滔不绝"]}],
+  "expected_issue_dimensions": ["角色一致性"]
+}
