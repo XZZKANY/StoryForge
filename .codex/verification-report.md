@@ -881,3 +881,40 @@ econstructed_event_count 为 1，evidence_basis 为 mixed。
 - 占位符检查：未发现 TBD、TODO、待补、占位。
 - 最近提交链路：0de0c4c → 54335d3 → 8fa21e0 → ff1221f → b74038a。
 - 结论：评估计划已执行完毕，可进入下一步推荐任务的 implementation plan 编写。
+
+## BookRun workflow dispatch 生产接线契约验证
+
+时间：2026-06-01 04:41:26 +08:00
+
+### 变更范围
+
+- API 新增 workflow dispatch payload 模型、构造函数和读取接口：GET /api/book-runs/{book_run_id}/workflow-dispatch。
+- workflow 新增 CallableProgressSink 与 un_book_run_dispatch_payload()，可消费 API 形状 payload。
+- 保持架构边界：API service 只生成 dispatch payload，不直接执行 workflow；workflow 不导入 API ORM。
+
+### 本地验证命令与结果
+
+- cd D:\StoryForge\apps\api; uv run pytest tests/test_book_run_workflow_dispatch.py tests/test_book_runs.py tests/test_book_exporter.py tests/test_book_run_recorded_skill_runs_export.py -v → 15 passed, 1 warning。
+- cd D:\StoryForge\apps\workflow; uv run pytest tests/test_book_run_dispatch_payload.py tests/test_book_run_adapter.py tests/test_skill_audit_summary.py tests/test_novel_skill_runner.py -v → 25 passed。
+- cd D:\StoryForge\apps\api; uv run ruff check . → All checks passed。
+- cd D:\StoryForge\apps\api; uv run pytest -q → 329 passed, 6 warnings。
+- cd D:\StoryForge\apps\workflow; uv run ruff check . → All checks passed。
+- cd D:\StoryForge\apps\workflow; uv run pytest -q → 159 passed。
+- cd D:\StoryForge; pnpm --filter @storyforge/web test -- book-run-audit → 3 pass / 0 fail。
+
+### 关键验收证据
+
+- API dispatch payload 测试确认：running BookRun 可生成 ook_run_id、预算、章节映射和章节目标；缺少章节计划时拒绝生成 dispatch。
+- workflow payload 测试确认：API 形状 payload 可驱动 adapter 产出 recorded generate、judge、pprove、memory_extract skill_runs，并通过 sink 回填 progress。
+- CallableProgressSink 测试确认：标准 progress payload 可交给外部 HTTP、队列或本地 service adapter 发送函数。
+- 审计最小暴露仍成立：测试断言 skill_runs 不包含完整正文或完整提示词。
+
+### 审查评分
+
+- 代码质量：93/100。新增接口保持边界清晰，API 与 workflow 通过 JSON payload 解耦；扣分项是真实外部 worker daemon 尚未实现。
+- 测试覆盖：95/100。覆盖 API payload、章节计划缺失、workflow payload 消费、sink 包装、目标回归和全量测试。
+- 架构一致：95/100。API 不直接执行 workflow，workflow 不导入 API ORM，符合项目健康评估的 P0 方向。
+- 风险控制：92/100。仍有 API 既有 warnings 和真实部署层 worker/HTTP sink 待后续实现。
+
+综合评分：94/100
+建议：通过

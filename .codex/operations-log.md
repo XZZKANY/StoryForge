@@ -1052,3 +1052,14 @@ epair 可修复语义。
 - 已先运行红灯：uv run pytest tests/test_book_run_dispatch_payload.py -v，失败原因为 CallableProgressSink / un_book_run_dispatch_payload 不存在。
 - 已新增 CallableProgressSink 与 un_book_run_dispatch_payload()，workflow 可消费 API 形状 dispatch payload。
 - 验证：uv run pytest tests/test_book_run_dispatch_payload.py tests/test_book_run_adapter.py -v → 7 passed。
+
+## BookRun workflow dispatch 生产接线契约收尾
+
+时间：2026-06-01 04:41:26 +08:00
+
+- API 目标回归：15 passed, 1 warning。
+- workflow 目标回归：25 passed。
+- API ruff：通过；API 全量：329 passed, 6 warnings。
+- workflow ruff：通过；workflow 全量：159 passed。
+- Web audit contract：3 pass / 0 fail。
+- 结论：计划已执行完成；当前实现关闭了“只有测试内部能构造 adapter 输入”的缺口，留下真实外部 worker/HTTP sink 部署为后续任务。
