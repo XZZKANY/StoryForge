@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -58,17 +58,74 @@ class NovelLoopPorts:
     check_static_quality: Callable[[str], Sequence[dict[str, Any] | object]] = _skip_static_quality_check
 
 
+class NovelSkillRunnerPort(Protocol):
+    """NovelLoop 所需的技能 runner 最小协议，避免与 skills.runner 形成循环导入。"""
+
+    def run_generate(
+        self,
+        *,
+        request: NovelLoopRequest,
+        context_id: str,
+        generate_scene: Callable[[NovelLoopRequest, str], str],
+        record_model_run: Callable[[NovelLoopRequest, str], int],
+    ) -> tuple[str, int]: ...
+
+    def run_judge(
+        self,
+        *,
+        draft: str,
+        attempt: int,
+        judge_scene: Callable[[str, int], dict[str, Any]],
+    ) -> dict[str, Any]: ...
+
+    def run_repair(
+        self,
+        *,
+        draft: str,
+        report: Mapping[str, Any],
+        attempt: int,
+        repair_scene: Callable[[str, Mapping[str, Any], int], str],
+    ) -> str: ...
+
+    def run_approve(
+        self,
+        *,
+        request: NovelLoopRequest,
+        draft: str,
+        refs: Mapping[str, Any],
+        approve_scene: Callable[[NovelLoopRequest, str, dict[str, Any]], int],
+    ) -> int: ...
+
+    def run_memory_extract(
+        self,
+        *,
+        request: NovelLoopRequest,
+        draft: str,
+        approved_scene_id: int,
+        extract_memory: Callable[[NovelLoopRequest, str, int], list[str]],
+    ) -> list[str]: ...
+
+
 def run_single_chapter_loop(
     request: NovelLoopRequest,
     ports: NovelLoopPorts,
     *,
     max_repairs: int = 1,
+    skill_runner: NovelSkillRunnerPort | None = None,
 ) -> NovelLoopResult:
     """执行单章 compile -> generate -> judge -> repair -> approve 闭环。"""
 
     context_id = ports.compile_context(request)
-    draft = ports.generate_scene(request, context_id)
-    model_run_id = ports.record_model_run(request, draft)
+    if skill_runner is None:
+        draft = ports.generate_scene(request, context_id)
+        model_run_id = ports.record_model_run(request, draft)
+    else:
+        draft, model_run_id = skill_runner.run_generate(
+            request=request,
+            context_id=context_id,
+            generate_scene=ports.generate_scene,
+            record_model_run=ports.record_model_run,
+        )
     latest_report: dict[str, Any] = {}
     latest_repair_patch_id: int | None = None
 
@@ -79,18 +136,32 @@ def run_single_chapter_loop(
             break
         if static_issues and attempt < max_repairs:
             latest_report = {"status": "repair", "static_quality_issues": static_issues}
-            draft = ports.repair_scene(draft, latest_report, attempt + 1)
+            draft = _run_repair(skill_runner, ports, draft, latest_report, attempt + 1)
             continue
 
-        latest_report = ports.judge_scene(draft, attempt)
+        if skill_runner is None:
+            latest_report = ports.judge_scene(draft, attempt)
+        else:
+            latest_report = skill_runner.run_judge(draft=draft, attempt=attempt, judge_scene=ports.judge_scene)
         judge_report_id = _optional_int(latest_report.get("judge_report_id"))
         if latest_report.get("status") == "pass":
-            approved_scene_id = ports.approve_scene(
-                request,
-                draft,
-                {"source_model_run_id": model_run_id, "judge_report_id": judge_report_id},
-            )
-            memory_atom_ids = ports.extract_memory(request, draft, approved_scene_id)
+            refs = {"source_model_run_id": model_run_id, "judge_report_id": judge_report_id}
+            if skill_runner is None:
+                approved_scene_id = ports.approve_scene(request, draft, refs)
+                memory_atom_ids = ports.extract_memory(request, draft, approved_scene_id)
+            else:
+                approved_scene_id = skill_runner.run_approve(
+                    request=request,
+                    draft=draft,
+                    refs=refs,
+                    approve_scene=ports.approve_scene,
+                )
+                memory_atom_ids = skill_runner.run_memory_extract(
+                    request=request,
+                    draft=draft,
+                    approved_scene_id=approved_scene_id,
+                    extract_memory=ports.extract_memory,
+                )
             return NovelLoopResult(
                 status="approved",
                 final_draft=draft,
@@ -102,7 +173,7 @@ def run_single_chapter_loop(
             )
         latest_repair_patch_id = _optional_int(latest_report.get("repair_patch_id"))
         if attempt < max_repairs:
-            draft = ports.repair_scene(draft, latest_report, attempt + 1)
+            draft = _run_repair(skill_runner, ports, draft, latest_report, attempt + 1)
 
     return NovelLoopResult(
         status="awaiting_review",
@@ -118,6 +189,18 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _run_repair(
+    skill_runner: NovelSkillRunnerPort | None,
+    ports: NovelLoopPorts,
+    draft: str,
+    report: dict[str, Any],
+    attempt: int,
+) -> str:
+    if skill_runner is None:
+        return ports.repair_scene(draft, report, attempt)
+    return skill_runner.run_repair(draft=draft, report=report, attempt=attempt, repair_scene=ports.repair_scene)
 
 
 def _issue_to_dict(issue: dict[str, Any] | object) -> dict[str, Any]:
