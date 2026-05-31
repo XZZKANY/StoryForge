@@ -1,4 +1,4 @@
-# 验证报告：工作流、剪枝与不兼容审查
+﻿# 验证报告：工作流、剪枝与不兼容审查
 
 ## 验证报告：移除 GitHub 撰稿人中的 Claude
 
@@ -802,3 +802,45 @@ econstructed_event_count 为 1，evidence_basis 为 mixed。
 - Web ????????`3 pass / 0 fail`?
 - workflow ????????`156 passed`?
 - API ????????`326 passed, 6 warnings`?
+
+## BookRun workflow adapter recorded skill_runs 复核记录
+
+时间：2026-06-01 03:52:48 +08:00
+
+### 复核范围
+
+- 目标：确认 BookRun workflow adapter 已完成并能产出真实 recorded skill_runs。
+- 范围：workflow adapter、NovelLoop skill runner 集成、BookLoop 回归、API exporter、Web 审计面板回归。
+- 排除：未将 LangGraph 节点事件伪装为章节 skill_runs；未在 API service 内直接执行 workflow。
+
+### 本地验证命令与结果
+
+- cd D:\StoryForge\apps\workflow; uv run pytest tests/test_book_run_adapter.py -v → 4 passed。
+- cd D:\StoryForge\apps\api; uv run pytest tests/test_book_run_recorded_skill_runs_export.py -v → 1 passed。
+- rg -n "from storyforge_workflow\.orchestrators import|import storyforge_workflow\.orchestrators" apps\workflow apps\api tests docs → 未发现聚合入口导入用法，orchestrators.__init__ 当前导出未破坏已知导入方。
+- cd D:\StoryForge\apps\workflow; uv run ruff check . → All checks passed。
+- cd D:\StoryForge\apps\api; uv run ruff check . → All checks passed。
+- cd D:\StoryForge\apps\workflow; uv run pytest tests/test_book_run_adapter.py tests/test_novel_loop_skill_runner_integration.py tests/test_book_loop_three_chapters.py tests/test_skill_audit_summary.py tests/test_novel_skill_runner.py -v → 30 passed。
+- cd D:\StoryForge\apps\api; uv run pytest tests/test_book_run_recorded_skill_runs_export.py tests/test_book_exporter.py tests/test_book_runs.py -v → 12 passed, 1 warning。
+- cd D:\StoryForge\apps\workflow; uv run pytest -q → 156 passed。
+- cd D:\StoryForge\apps\api; uv run pytest -q → 326 passed, 6 warnings。
+- cd D:\StoryForge; pnpm --filter @storyforge/web test -- book-run-audit → 3 pass / 0 fail。
+
+### 关键验收证据
+
+- tests/test_book_run_adapter.py 覆盖 completed、awaiting_review、章节预算暂停和状态词一致性；adapter 路径产出 generate、judge、approve、memory_extract recorded skill_runs。
+- tests/test_book_run_recorded_skill_runs_export.py 断言 recorded_event_count == 4、reconstructed_event_count == 1、evidence_basis == "mixed"，因此 recorded_event_count > 0 已由本地测试验证。
+- 同一 API 导出测试确认前 4 个事件 provenance == "recorded_skill_run"，export 事件仍为 reconstructed，避免把导出阶段伪装成实录 skill。
+- workflow 与 API 测试均断言输出不包含完整提示词或完整正文，满足审计投影最小暴露要求。
+
+### 审查评分
+
+- 代码质量：95/100。adapter 保持边界清晰，复用 BookLoop、NovelLoop 与 NovelSkillRunner，未把 API ORM 引入 workflow。
+- 测试覆盖：95/100。覆盖正常完成、awaiting_review、预算暂停、状态映射、导出混合证据、Web 审计显示和全量回归。
+- 规范遵循：94/100。所有验证均在本地执行并留痕；当前工具集中未暴露 desktop-commander，已用 PowerShell 替代并记录。
+- 需求匹配：96/100。真实 recorded skill_runs 已由 adapter 产出并进入 audit/export/web 消费路径。
+- 架构一致：95/100。未把 LangGraph 节点冒充章节 skill；未在 API service 内执行 workflow。
+- 风险评估：94/100。既有 API warning 不影响本任务；工作区仍存在任务外 .codex 历史变更，暂存时必须继续选择性处理。
+
+综合评分：95/100
+建议：通过

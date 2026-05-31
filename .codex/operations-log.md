@@ -1,4 +1,4 @@
-# ??????????????
+﻿# ??????????????
 
 ## 移除 GitHub 撰稿人中的 Claude - 修改前检查
 
@@ -955,3 +955,23 @@ epair 可修复语义。
 - Web ????????`3 pass / 0 fail`?
 - workflow ????????`156 passed`?
 - API ????????`326 passed, 6 warnings`?
+
+## 执行 BookRun workflow adapter 计划启动
+
+时间：2026-06-01 03:45:35 +08:00
+
+### 执行环境决策
+
+- 当前分支：codex/bookrun-workflow-adapter，不在 main/master。
+- `.worktrees` 目录存在但未被 gitignore 忽略，按安全规则不在其中创建新 worktree。
+- 本次在当前功能分支执行，并记录该偏离。
+- 计划中的“红灯后提交”会调整为“红灯记录、绿灯后提交”，避免提交不可用状态。
+
+## BookRun workflow adapter 复核验证
+
+时间：2026-06-01 03:52:48 +08:00
+
+- 计划文件 docs/superpowers/plans/2026-06-01-bookrun-workflow-adapter-skill-runs.md 全部任务已勾选完成。
+- 最近提交：ab0a53e 完成 BookRun workflow adapter recorded skill_runs。
+- 本轮重新运行目标测试、lint、workflow/API 全量测试和 Web 审计回归，结果均通过；详见 .codex/verification-report.md 的“BookRun workflow adapter recorded skill_runs 复核记录”。
+- 当前仍存在任务外 .codex 历史未跟踪/修改文件，未纳入本任务结论。
