@@ -110,6 +110,8 @@ function SkillChainSummary({ bookRun }: { readonly bookRun: BookRunRead }) {
         <dd>{formatEvidenceValue(summary?.event_count)}</dd>
         <dt>完成章节</dt>
         <dd>{formatEvidenceValue(summary?.completed_chapter_count)}</dd>
+        <dt>证据来源</dt>
+        <dd>{formatEvidenceValue(summary?.evidence_basis)}</dd>
       </dl>
       {chapters.length > 0 ? (
         <ol>
@@ -198,7 +200,8 @@ function SkillChainEvent({
       </h4>
       <p>
         stage={formatEvidenceValue(event.stage)} / status={formatEvidenceValue(event.status)} /
-        provenance={formatEvidenceValue(event.provenance)}
+        provenance={formatEvidenceValue(event.provenance)} / 证据=
+        {formatRecordedLabel(event.recorded)}
       </p>
       <ReferenceList title="输入引用" refs={asRecord(event.input_refs)} />
       <ReferenceList title="输出引用" refs={asRecord(event.output_refs)} />
@@ -254,6 +257,12 @@ function formatReferenceValue(value: unknown): string {
       .map(([key, item]) => `${key}:${formatReferenceValue(item)}`)
       .join(', ');
   }
+  return '未记录';
+}
+
+function formatRecordedLabel(value: unknown): string {
+  if (value === true) return '实录';
+  if (value === false) return '重建';
   return '未记录';
 }
 

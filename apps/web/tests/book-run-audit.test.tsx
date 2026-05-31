@@ -18,11 +18,14 @@ const bookRun = {
     top_quality_issues: [{ chapter_index: 1, dimension: '??', severity: '?', message: '?????' }],
     manual_review_recommendations: ['? 1 ??????????'],
     skill_chain: {
-      schema_version: 'bookrun_skill_projection.v1',
+      schema_version: 'bookrun_skill_projection.v2',
       book_run_id: 12,
       status: 'completed',
       summary: {
         event_count: 4,
+        recorded_event_count: 0,
+        reconstructed_event_count: 4,
+        evidence_basis: 'reconstructed',
         completed_chapter_count: 1,
         budget: { tokens_used: 120 },
       },
@@ -33,7 +36,8 @@ const bookRun = {
           skill_version: '1.0.0',
           stage: 'chapter',
           status: 'generated',
-          provenance: 'workflow_progress_projection',
+          provenance: 'reconstructed_from_progress',
+          recorded: false,
           input_refs: { compiled_context_id: 'ctx-1' },
           output_refs: { model_run_id: 11, draft_hash: 'sha256:draft' },
           metadata: { budget: { tokens_used: 120 } },
@@ -45,7 +49,8 @@ const bookRun = {
           skill_version: '1.0.0',
           stage: 'chapter',
           status: 'pass',
-          provenance: 'workflow_progress_projection',
+          provenance: 'reconstructed_from_progress',
+          recorded: false,
           output_refs: { judge_report_id: 12 },
           final_draft: '不应进入 Web 审计页的完整正文。',
         },
@@ -55,7 +60,8 @@ const bookRun = {
           skill_version: '1.0.0',
           stage: 'chapter',
           status: 'approved',
-          provenance: 'workflow_progress_projection',
+          provenance: 'reconstructed_from_progress',
+          recorded: false,
           output_refs: { approved_scene_id: 14 },
         },
         {
@@ -64,7 +70,8 @@ const bookRun = {
           skill_version: '1.0.0',
           stage: 'book',
           status: 'completed',
-          provenance: 'workflow_progress_projection',
+          provenance: 'reconstructed_from_progress',
+          recorded: false,
           input_refs: { book_run_id: 12 },
           output_refs: { book_artifact_ref: 'book_run:12:export' },
         },
@@ -115,16 +122,20 @@ test('BookRun 审计面板按章节展示关键证据链', () => {
   assert.ok(html.includes('href="/studio?scene_id=14"'));
   assert.ok(html.includes('memory_extract_id='));
   assert.ok(html.includes('href="/worldbuilding?memory_atom_id=15"'));
-  assert.ok(html.includes('????'));
+  assert.ok(html.includes('\u8bc1\u636e\u6765\u6e90'));
   assert.ok(html.includes('?????'));
   assert.ok(html.includes('89'));
   assert.ok(html.includes('?? 1?91'));
   assert.ok(html.includes('?????'));
   assert.ok(html.includes('? 1 ??????????'));
   assert.ok(html.includes('技能链审计'));
-  assert.ok(html.includes('bookrun_skill_projection.v1'));
+  assert.ok(html.includes('bookrun_skill_projection.v2'));
   assert.ok(html.includes('事件数'));
   assert.ok(html.includes('4'));
+  assert.ok(html.includes('\u8bc1\u636e\u6765\u6e90'));
+  assert.ok(html.includes('reconstructed'));
+  assert.ok(html.includes('\u91cd\u5efa'));
+  assert.ok(html.includes('provenance=reconstructed_from_progress'));
   assert.ok(html.includes('generate'));
   assert.ok(html.includes('judge'));
   assert.ok(html.includes('approve'));

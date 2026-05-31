@@ -10,8 +10,25 @@ from storyforge_workflow.skills.audit import derive_skill_chain_projection
 def _assert_common_event_fields(projection) -> None:
     for event in projection.events:
         assert event.event_name == "skill.post"
-        assert event.provenance == "workflow_progress_projection"
+        assert isinstance(event.recorded, bool)
+        if event.recorded:
+            assert event.provenance == "recorded_skill_run"
+        else:
+            assert event.provenance == "reconstructed_from_progress"
         assert event.skill_version == "1.0.0"
+
+
+def _assert_evidence_summary(
+    projection,
+    *,
+    basis: str,
+    recorded_count: int,
+    reconstructed_count: int,
+) -> None:
+    assert projection.summary["evidence_basis"] == basis
+    assert projection.summary["recorded_event_count"] == recorded_count
+    assert projection.summary["reconstructed_event_count"] == reconstructed_count
+    assert projection.summary["event_count"] == recorded_count + reconstructed_count
 
 
 def test_completed_book_run_progress_derives_chapter_and_export_events() -> None:
@@ -39,7 +56,7 @@ def test_completed_book_run_progress_derives_chapter_and_export_events() -> None
 
     assert projection.book_run_id == 7
     assert projection.status == "completed"
-    assert projection.schema_version == "bookrun_skill_projection.v1"
+    assert projection.schema_version == "bookrun_skill_projection.v2"
     assert [event.skill_name for event in projection.events] == [
         "generate",
         "judge",
@@ -50,6 +67,8 @@ def test_completed_book_run_progress_derives_chapter_and_export_events() -> None
     assert projection.events[0].output_refs["model_run_id"] == 10
     assert projection.events[-1].stage == "book"
     assert projection.summary["event_count"] == 5
+    assert all(event.recorded is False for event in projection.events)
+    _assert_evidence_summary(projection, basis="reconstructed", recorded_count=0, reconstructed_count=5)
     _assert_common_event_fields(projection)
 
 
@@ -101,6 +120,8 @@ def test_completed_chapter_prefers_recorded_skill_runs() -> None:
     assert projection.events[1].output_refs == {"judge_report_id": 11}
     assert "不应进入投影的完整提示词" not in str(projection)
     assert "不应进入投影的完整正文" not in str(projection)
+    assert [event.recorded for event in projection.events] == [True, True, True, False]
+    _assert_evidence_summary(projection, basis="mixed", recorded_count=3, reconstructed_count=1)
     _assert_common_event_fields(projection)
 
 
@@ -153,6 +174,8 @@ def test_blocked_chapter_prefers_recorded_skill_runs() -> None:
     assert projection.events[2].input_refs == {"source_judge_report_id": 21, "attempt": 1}
     assert projection.events[2].output_refs == {"repair_patch_id": 22, "draft_hash": "sha256:repair"}
     assert projection.summary["blocked_chapter_index"] == 2
+    assert all(event.recorded is True for event in projection.events)
+    _assert_evidence_summary(projection, basis="recorded", recorded_count=4, reconstructed_count=0)
     _assert_common_event_fields(projection)
 
 
@@ -169,6 +192,7 @@ def test_projection_accepts_positional_public_signature() -> None:
     assert projection.status == "awaiting_review"
     assert projection.events == ()
     assert projection.summary["budget"] == {"tokens_used": 0, "elapsed_time_sec": 0, "estimated_cost": 0}
+    _assert_evidence_summary(projection, basis="empty", recorded_count=0, reconstructed_count=0)
 
 
 def test_awaiting_review_progress_derives_blocked_chapter_events_without_export() -> None:
@@ -195,6 +219,8 @@ def test_awaiting_review_progress_derives_blocked_chapter_events_without_export(
     assert [event.skill_name for event in projection.events] == ["generate", "judge", "repair"]
     assert projection.events[-1].status == "repair"
     assert projection.summary["blocked_chapter_index"] == 2
+    assert all(event.recorded is False for event in projection.events)
+    _assert_evidence_summary(projection, basis="reconstructed", recorded_count=0, reconstructed_count=3)
     _assert_common_event_fields(projection)
 
 
@@ -219,6 +245,8 @@ def test_blocked_chapter_without_repair_patch_awaits_review_without_repair_event
     assert projection.events[1].status == "awaiting_review"
     assert projection.events[1].output_refs["repair_patch_id"] is None
     assert projection.summary["event_count"] == 2
+    assert all(event.recorded is False for event in projection.events)
+    _assert_evidence_summary(projection, basis="reconstructed", recorded_count=0, reconstructed_count=2)
     _assert_common_event_fields(projection)
 
 
@@ -268,6 +296,8 @@ def test_paused_by_budget_preserves_completed_chapters_without_export_or_provide
     assert projection.summary["budget"] == {"tokens_used": 160, "elapsed_time_sec": 8, "estimated_cost": 0.06}
     assert projection.summary["provider_degradation"] is None
     assert projection.summary["completed_chapter_count"] == 2
+    assert all(event.recorded is False for event in projection.events)
+    _assert_evidence_summary(projection, basis="reconstructed", recorded_count=0, reconstructed_count=8)
     _assert_common_event_fields(projection)
 
 
@@ -330,6 +360,8 @@ def test_projection_does_not_include_full_prompt_or_full_prose() -> None:
     rendered = str(projection)
     assert prompt not in rendered
     assert final_draft not in rendered
+    assert all(event.recorded is False for event in projection.events)
+    _assert_evidence_summary(projection, basis="reconstructed", recorded_count=0, reconstructed_count=5)
     _assert_common_event_fields(projection)
 
 
@@ -362,6 +394,8 @@ def test_projection_events_are_immutable_snapshots() -> None:
         projection.events[0].metadata["fallback_metadata"]["primary_provider_error"] = "changed"  # type: ignore[index]
     with pytest.raises(FrozenInstanceError):
         event.skill_name = "changed"  # type: ignore[misc]
+    assert event.recorded is False
+    _assert_evidence_summary(projection, basis="reconstructed", recorded_count=0, reconstructed_count=5)
     _assert_common_event_fields(projection)
 
 

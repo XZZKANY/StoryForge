@@ -37,9 +37,12 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
-        assert report["skill_chain"]["schema_version"] == "bookrun_skill_projection.v1"
+        assert report["skill_chain"]["schema_version"] == "bookrun_skill_projection.v2"
         assert report["skill_chain"]["book_run_id"] == book_run_id
         assert report["skill_chain"]["summary"]["completed_chapter_count"] == 3
+        assert report["skill_chain"]["summary"]["evidence_basis"] == "reconstructed"
+        assert report["skill_chain"]["summary"]["recorded_event_count"] == 0
+        assert report["skill_chain"]["summary"]["reconstructed_event_count"] == len(report["skill_chain"]["events"])
         assert [event["skill_name"] for event in report["skill_chain"]["events"][:5]] == [
             "generate",
             "judge",
@@ -88,6 +91,13 @@ def test_audit_report_skill_chain_prefers_recorded_skill_runs_without_full_paylo
 
         skill_chain = audit_artifact.payload["skill_chain"]
         assert [event["skill_name"] for event in skill_chain["events"][:3]] == ["generate", "judge", "approve"]
+        assert skill_chain["summary"]["evidence_basis"] == "mixed"
+        assert skill_chain["summary"]["recorded_event_count"] == 3
+        assert skill_chain["summary"]["reconstructed_event_count"] == len(skill_chain["events"]) - 3
+        assert skill_chain["events"][0]["recorded"] is True
+        assert skill_chain["events"][0]["provenance"] == "recorded_skill_run"
+        assert skill_chain["events"][-1]["recorded"] is False
+        assert skill_chain["events"][-1]["provenance"] == "reconstructed_from_progress"
         assert skill_chain["events"][0]["input_refs"] == {"compiled_context_id": "ctx-1"}
         assert skill_chain["events"][0]["output_refs"] == {"model_run_id": 11, "draft_hash": "sha256:draft"}
         assert skill_chain["events"][0]["metadata"] == {"budget": {"tokens_used": 120}}

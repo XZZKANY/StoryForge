@@ -40,7 +40,7 @@ def _skip_memory_extraction(request: NovelLoopRequest, draft: str, approved_scen
 
 
 def _skip_static_quality_check(draft: str) -> list[dict[str, Any]]:
-    """????????????????????????"""
+    """默认不做静态质量检查，测试或生产 adapter 可注入真实实现。"""
 
     return []
 
@@ -174,6 +174,8 @@ def run_single_chapter_loop(
                 skill_runs=_skill_run_audit(skill_runner),
             )
         latest_repair_patch_id = _optional_int(latest_report.get("repair_patch_id"))
+        if latest_report.get("status") not in {"repair", "fail"}:
+            break
         if attempt < max_repairs:
             draft = _run_repair(skill_runner, ports, draft, latest_report, attempt + 1)
 
