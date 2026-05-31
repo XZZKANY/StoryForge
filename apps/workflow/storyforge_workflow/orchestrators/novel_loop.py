@@ -38,6 +38,12 @@ def _skip_memory_extraction(request: NovelLoopRequest, draft: str, approved_scen
     return []
 
 
+def _skip_static_quality(draft: str) -> list[Any]:
+    """默认不做静态质量检查，保持旧调用方无需改造。"""
+
+    return []
+
+
 @dataclass(frozen=True)
 class NovelLoopPorts:
     """NovelLoop 外部依赖端口，测试和生产 adapter 都可注入。"""
@@ -49,6 +55,7 @@ class NovelLoopPorts:
     approve_scene: Callable[[NovelLoopRequest, str, dict[str, Any]], int]
     record_model_run: Callable[[NovelLoopRequest, str], int]
     extract_memory: Callable[[NovelLoopRequest, str, int], list[str]] = _skip_memory_extraction
+    check_static_quality: Callable[[str], list[Any]] = _skip_static_quality
 
 
 def run_single_chapter_loop(
@@ -64,11 +71,21 @@ def run_single_chapter_loop(
     model_run_id = ports.record_model_run(request, draft)
     latest_report: dict[str, Any] = {}
     latest_repair_patch_id: int | None = None
+    static_quality_checked = False
 
     for attempt in range(max_repairs + 1):
         latest_report = ports.judge_scene(draft, attempt)
         judge_report_id = _optional_int(latest_report.get("judge_report_id"))
-        if latest_report.get("status") == "pass":
+        static_issues = [] if static_quality_checked else _static_issues(ports.check_static_quality(draft))
+        static_quality_checked = True
+        if _has_severe_static_issue(static_issues):
+            latest_report = {
+                **latest_report,
+                "status": "awaiting_review",
+                "static_quality_issues": static_issues,
+            }
+            break
+        if latest_report.get("status") == "pass" and not static_issues:
             approved_scene_id = ports.approve_scene(
                 request,
                 draft,
@@ -86,7 +103,15 @@ def run_single_chapter_loop(
             )
         latest_repair_patch_id = _optional_int(latest_report.get("repair_patch_id"))
         if attempt < max_repairs:
-            draft = ports.repair_scene(draft, latest_report, attempt + 1)
+            repair_report = latest_report
+            if static_issues:
+                repair_report = {
+                    **latest_report,
+                    "status": "repair",
+                    "static_quality_issues": static_issues,
+                    "issues": [*_issue_lines(latest_report), *_static_issue_lines(static_issues)],
+                }
+            draft = ports.repair_scene(draft, repair_report, attempt + 1)
 
     return NovelLoopResult(
         status="awaiting_review",
@@ -96,6 +121,56 @@ def run_single_chapter_loop(
         repair_patch_id=latest_repair_patch_id,
         approved_scene_id=None,
     )
+
+
+def _static_issues(raw_issues: list[Any]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for issue in raw_issues or []:
+        if isinstance(issue, dict):
+            issues.append(dict(issue))
+        elif hasattr(issue, "as_report_item"):
+            issues.append(dict(issue.as_report_item()))
+        else:
+            issues.append(
+                {
+                    "dimension": str(getattr(issue, "dimension", "质量")),
+                    "severity": str(getattr(issue, "severity", "中")),
+                    "snippet": str(getattr(issue, "snippet", "")),
+                    "message": str(getattr(issue, "message", "")),
+                    "suggestion": str(getattr(issue, "suggestion", "")),
+                    "revision_strategy": str(getattr(issue, "revision_strategy", "scene_patch")),
+                }
+            )
+    return issues
+
+
+def _has_severe_static_issue(issues: list[dict[str, Any]]) -> bool:
+    return any(str(issue.get("severity")) in {"高", "严重"} for issue in issues)
+
+
+def _static_issue_lines(issues: list[dict[str, Any]]) -> list[str]:
+    return [
+        "｜".join(
+            (
+                str(issue.get("dimension", "质量")),
+                str(issue.get("severity", "中")),
+                str(issue.get("snippet", "")),
+                str(issue.get("message", "")),
+                str(issue.get("revision_strategy", "scene_patch")),
+                "",
+                "",
+                str(issue.get("suggestion", "")),
+            )
+        )
+        for issue in issues
+    ]
+
+
+def _issue_lines(report: dict[str, Any]) -> list[str]:
+    raw = report.get("issues")
+    if isinstance(raw, list):
+        return [str(item) for item in raw if str(item)]
+    return []
 
 
 def _optional_int(value: Any) -> int | None:

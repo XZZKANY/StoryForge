@@ -20,6 +20,11 @@ from storyforge_workflow.prompts.models import (
     ContinuityFact,
     NarrativeContext,
     PacingDirective,
+    QualityIssue,
+    QualityReport,
+    QualityScore,
+    RevisionStrategy,
+    SceneQualityPlan,
     StyleDirective,
 )
 
@@ -28,6 +33,11 @@ __all__ = [
     "ContinuityFact",
     "NarrativeContext",
     "PacingDirective",
+    "QualityIssue",
+    "QualityReport",
+    "QualityScore",
+    "RevisionStrategy",
+    "SceneQualityPlan",
     "StyleDirective",
     "build_strategy_prompt",
     "build_chapter_plan_prompt",

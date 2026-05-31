@@ -54,10 +54,16 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
     book = session.get(Book, book_run.book_id)
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun 审计报告。")
+    chapters = list(book_run.progress.get("completed_chapters", []))
+    quality = _quality_summary(chapters)
     report = {
         "book_run_id": book_run.id,
         "blueprint_id": book_run.blueprint_id,
-        "chapters": list(book_run.progress.get("completed_chapters", [])),
+        "chapters": chapters,
+        "quality_summary": quality["quality_summary"],
+        "chapter_quality_scores": quality["chapter_quality_scores"],
+        "top_quality_issues": quality["top_quality_issues"],
+        "manual_review_recommendations": quality["manual_review_recommendations"],
     }
     for chapter in report["chapters"]:
         if not chapter.get("model_run_id") or not chapter.get("judge_report_id") or not chapter.get("approved_scene_id"):
@@ -77,6 +83,79 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
         ),
     )
 
+
+
+def _quality_summary(chapters: list[dict]) -> dict[str, object]:
+    """从 BookRun 章节进度聚合质量摘要，缺数据时返回空摘要。"""
+
+    chapter_scores: list[dict[str, object]] = []
+    top_issues: list[dict[str, object]] = []
+    recommendations: list[str] = []
+    scores: list[float] = []
+    issue_count = 0
+    severe_count = 0
+    for chapter in chapters:
+        if not isinstance(chapter, dict):
+            continue
+        chapter_index = chapter.get("chapter_index")
+        score = _quality_score(chapter.get("quality_score"))
+        issues = _quality_issues(chapter.get("quality_issues"))
+        issue_count += len(issues)
+        if score is not None:
+            scores.append(score)
+            chapter_scores.append(
+                {
+                    "chapter_index": chapter_index,
+                    "score": int(score) if float(score).is_integer() else score,
+                    "issue_count": len(issues),
+                    "status": _quality_status(score, issues),
+                }
+            )
+        for issue in issues:
+            if issue.get("severity") in {"高", "严重"}:
+                severe_count += 1
+            if len(top_issues) < 10:
+                top_issues.append({"chapter_index": chapter_index, **issue})
+        recommendation = chapter.get("manual_review_recommendation")
+        if isinstance(recommendation, str) and recommendation.strip():
+            recommendations.append(f"第 {chapter_index} 章：{recommendation.strip()}")
+    overall = round(sum(scores) / len(scores)) if scores else None
+    return {
+        "quality_summary": {
+            "overall_quality_score": overall,
+            "chapter_count": len(chapters),
+            "scored_chapter_count": len(scores),
+            "issue_count": issue_count,
+            "severe_issue_count": severe_count,
+        },
+        "chapter_quality_scores": chapter_scores,
+        "top_quality_issues": top_issues,
+        "manual_review_recommendations": recommendations,
+    }
+
+
+def _quality_score(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _quality_issues(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _quality_status(score: float, issues: list[dict[str, object]]) -> str:
+    if any(issue.get("severity") in {"高", "严重"} for issue in issues):
+        return "needs_review"
+    if score >= 85:
+        return "pass"
+    if score >= 70:
+        return "repair_recommended"
+    return "needs_review"
 
 def build_book_run_epub_package(session: Session, book_run_id: int) -> bytes:
     """生成 completed BookRun 的最小 EPUB 二进制包。"""

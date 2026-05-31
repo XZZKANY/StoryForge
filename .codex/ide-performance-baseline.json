@@ -1,21 +1,21 @@
 {
   "baseline": {
-    "generatedAt": "2026-05-28T19:33:28.524Z",
+    "generatedAt": "2026-05-29T20:38:15.531Z",
     "metrics": [
       {
         "name": "1000 Problems SSR render",
-        "durationMs": 27.353700000000003,
-        "measuredAt": "2026-05-28T19:33:28.520Z"
+        "durationMs": 30.605600000000038,
+        "measuredAt": "2026-05-29T20:38:15.526Z"
       },
       {
         "name": "10k ChapterEditor SSR render",
-        "durationMs": 1.1549999999999727,
-        "measuredAt": "2026-05-28T19:33:28.522Z"
+        "durationMs": 1.5112999999999488,
+        "measuredAt": "2026-05-29T20:38:15.529Z"
       },
       {
         "name": "CommandPalette 100 command filter",
-        "durationMs": 2.1546000000000163,
-        "measuredAt": "2026-05-28T19:33:28.524Z"
+        "durationMs": 2.331299999999999,
+        "measuredAt": "2026-05-29T20:38:15.531Z"
       }
     ]
   },

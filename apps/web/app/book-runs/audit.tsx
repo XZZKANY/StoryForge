@@ -9,6 +9,22 @@ type AuditEvent = {
   readonly repairPatchId: string;
   readonly approvedSceneId: string;
   readonly memoryExtractId: string;
+  readonly qualityScore: string;
+  readonly qualityIssues: readonly QualityIssue[];
+  readonly manualReviewRecommendation: string;
+};
+
+type QualityIssue = {
+  readonly dimension: string;
+  readonly severity: string;
+  readonly message: string;
+};
+
+type QualitySummary = {
+  readonly overall_quality_score?: number | null;
+  readonly chapter_count?: number;
+  readonly issue_count?: number;
+  readonly severe_issue_count?: number;
 };
 
 export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead | null }) {
@@ -28,6 +44,7 @@ export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead |
       <p>
         BookRun #{bookRun.id} / Blueprint #{bookRun.blueprint_id}，状态：{bookRun.status}
       </p>
+      <QualitySummarySection bookRun={bookRun} />
       {events.length > 0 ? (
         <ol>
           {events.map((event) => (
@@ -64,6 +81,15 @@ export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead |
                   value={event.memoryExtractId}
                   href={evidenceHref('/worldbuilding', 'memory_atom_id', event.memoryExtractId)}
                 />
+                <li>章节质量分：{event.qualityScore}</li>
+                {event.qualityIssues.map((issue) => (
+                  <li key={`${event.chapterIndex}-${issue.dimension}-${issue.message}`}>
+                    主要问题：{issue.dimension}（{issue.severity}）{issue.message}
+                  </li>
+                ))}
+                {event.manualReviewRecommendation !== '未记录' ? (
+                  <li>人工审查建议：{event.manualReviewRecommendation}</li>
+                ) : null}
               </ul>
             </li>
           ))}
@@ -88,7 +114,40 @@ export function auditEvents(bookRun: BookRunRead): readonly AuditEvent[] {
       repairPatchId: formatEvidenceValue(item.repair_patch_id),
       approvedSceneId: formatEvidenceValue(item.approved_scene_id),
       memoryExtractId: formatEvidenceValue(item.memory_extract_id),
+      qualityScore: formatEvidenceValue(item.quality_score),
+      qualityIssues: qualityIssues(item.quality_issues),
+      manualReviewRecommendation: formatEvidenceValue(item.manual_review_recommendation),
     }));
+}
+
+function QualitySummarySection({ bookRun }: { readonly bookRun: BookRunRead }) {
+  const summary = qualitySummary(bookRun);
+  if (!summary) {
+    return <p>暂无质量摘要</p>;
+  }
+  return (
+    <section aria-labelledby="book-run-quality-title">
+      <h3 id="book-run-quality-title">质量摘要</h3>
+      <dl>
+        <div>
+          <dt>综合质量分</dt>
+          <dd>{formatEvidenceValue(summary.overall_quality_score)}</dd>
+        </div>
+        <div>
+          <dt>章节数</dt>
+          <dd>{formatEvidenceValue(summary.chapter_count)}</dd>
+        </div>
+        <div>
+          <dt>主要问题</dt>
+          <dd>{formatEvidenceValue(summary.issue_count)}</dd>
+        </div>
+        <div>
+          <dt>严重问题</dt>
+          <dd>{formatEvidenceValue(summary.severe_issue_count)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
 }
 
 function EvidenceItem({
@@ -107,6 +166,25 @@ function EvidenceItem({
       {action}：{field}={href ? <a href={href}>{value}</a> : value}
     </li>
   );
+}
+
+function qualitySummary(bookRun: BookRunRead): QualitySummary | null {
+  const raw = (bookRun as unknown as { readonly quality_summary?: unknown }).quality_summary;
+  if (raw && typeof raw === 'object') return raw as QualitySummary;
+  const fromProgress = (bookRun.progress as { readonly quality_summary?: unknown }).quality_summary;
+  if (fromProgress && typeof fromProgress === 'object') return fromProgress as QualitySummary;
+  return null;
+}
+
+function qualityIssues(value: unknown): readonly QualityIssue[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({
+      dimension: formatEvidenceValue(item.dimension),
+      severity: formatEvidenceValue(item.severity),
+      message: formatEvidenceValue(item.message),
+    }));
 }
 
 function evidenceHref(path: string, queryKey: string, value: string): string | null {

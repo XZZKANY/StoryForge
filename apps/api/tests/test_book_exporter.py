@@ -33,6 +33,11 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert report["chapters"][0]["model_run_id"] == 11
         assert report["chapters"][0]["judge_report_id"] == 12
         assert report["chapters"][0]["approved_scene_id"] > 0
+        assert report["quality_summary"]["overall_quality_score"] == 82
+        assert report["chapter_quality_scores"][0]["chapter_index"] == 1
+        assert report["chapter_quality_scores"][0]["score"] == 82
+        assert report["top_quality_issues"][0]["dimension"] == "说明腔"
+        assert report["manual_review_recommendations"] == ["第 2 章：连续性需要人工复核。"]
 
 
 def test_book_run_export_endpoints_return_artifacts(
@@ -53,6 +58,7 @@ def test_book_run_export_endpoints_return_artifacts(
     assert audit_response.status_code == 200, audit_response.text
     assert audit_response.json()["name"] == "audit_report.json"
     assert audit_response.json()["payload"]["book_run_id"] == book_run_id
+    assert "quality_summary" in audit_response.json()["payload"]
 
 
 def _seed_completed_book_run(session: Session) -> int:
@@ -95,6 +101,15 @@ def _seed_completed_book_run(session: Session) -> int:
                 "judge_report_id": index * 10 + 2,
                 "repair_patch_id": None,
                 "approved_scene_id": scene.id,
+                "quality_score": 82 if index == 1 else 68 if index == 2 else 95,
+                "quality_issues": [
+                    {"dimension": "说明腔", "severity": "中", "message": "情绪直述"}
+                ]
+                if index == 1
+                else [{"dimension": "连续性", "severity": "严重", "message": "事实冲突"}]
+                if index == 2
+                else [],
+                "manual_review_recommendation": "连续性需要人工复核。" if index == 2 else None,
             }
         )
     book_run = BookRun(

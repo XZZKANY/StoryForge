@@ -1,0 +1,6 @@
+{
+  "name": "bad_telling_01",
+  "expected_decision": "repair",
+  "draft": "林岚很愤怒，也很害怕，她不知道该怎么办。她不禁心中一震，五味杂陈。",
+  "expected_issue_dimensions": ["说明腔", "情绪直述", "套话"]
+}

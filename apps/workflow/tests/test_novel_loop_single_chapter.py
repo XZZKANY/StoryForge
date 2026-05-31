@@ -99,5 +99,72 @@ def test_single_chapter_loop_pauses_when_repair_budget_exhausted() -> None:
     assert result.repair_patch_id == 91
 
 
+
+def test_single_chapter_loop_repairs_static_quality_issue_before_approval() -> None:
+    """静态质量问题即使 LLM Judge 通过，也应先触发一次修订再批准。"""
+
+    calls: list[str] = []
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "林岚很愤怒，也很害怕。",
+        judge_scene=lambda draft, attempt: calls.append(f"judge:{attempt}:{draft}") or {"status": "pass", "judge_report_id": 11},
+        repair_scene=lambda draft, report, attempt: calls.append(f"repair:{attempt}") or "林岚把指节抵在门缝上，冷汗沿腕骨滑下。",
+        approve_scene=lambda request, draft, evidence: calls.append(f"approve:{draft}") or 21,
+        record_model_run=lambda request, draft: 31,
+        check_static_quality=lambda draft: [
+            {
+                "dimension": "说明腔",
+                "severity": "中",
+                "snippet": "很愤怒，也很害怕",
+                "message": "抽象情绪直述",
+                "suggestion": "用动作呈现恐惧",
+                "revision_strategy": "line_edit",
+            }
+        ],
+    )
+
+    result = run_single_chapter_loop(_request(), ports, max_repairs=1)
+
+    assert result.status == "approved"
+    assert result.final_draft == "林岚把指节抵在门缝上，冷汗沿腕骨滑下。"
+    assert calls == [
+        "judge:0:林岚很愤怒，也很害怕。",
+        "repair:1",
+        "judge:1:林岚把指节抵在门缝上，冷汗沿腕骨滑下。",
+        "approve:林岚把指节抵在门缝上，冷汗沿腕骨滑下。",
+    ]
+
+
+def test_single_chapter_loop_pauses_on_severe_static_quality_issue() -> None:
+    """严重静态质量问题应直接等待人工审查，避免把坏稿送入轻修。"""
+
+    calls: list[str] = []
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "角色突然背叛全部设定。",
+        judge_scene=lambda draft, attempt: calls.append("judge") or {"status": "pass", "judge_report_id": 11},
+        repair_scene=lambda draft, report, attempt: calls.append("repair") or draft,
+        approve_scene=lambda request, draft, evidence: calls.append("approve") or 0,
+        record_model_run=lambda request, draft: 31,
+        check_static_quality=lambda draft: [
+            {
+                "dimension": "连续性",
+                "severity": "严重",
+                "snippet": "背叛全部设定",
+                "message": "与必含事实矛盾",
+                "suggestion": "人工确认连续性",
+                "revision_strategy": "regenerate",
+            }
+        ],
+    )
+
+    result = run_single_chapter_loop(_request(), ports, max_repairs=1)
+
+    assert result.status == "awaiting_review"
+    assert result.judge_report_id == 11
+    assert result.approved_scene_id is None
+    assert calls == ["judge"]
+
 def _request() -> NovelLoopRequest:
     return NovelLoopRequest(book_id=1, chapter_id=2, chapter_index=1, chapter_goal="完成雾港开篇。")
+

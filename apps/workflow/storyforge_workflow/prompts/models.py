@@ -132,6 +132,90 @@ class ContinuityFact:
 
 
 @dataclass(frozen=True)
+class SceneQualityPlan:
+    """生成前的场景质量意图，用于把好场景应具备的推进点前馈给 Draft Writer。"""
+
+    emotional_shift: str = ""
+    conflict_turn: str = ""
+    sensory_anchors: Sequence[str] = field(default_factory=tuple)
+    dialogue_purpose: str = ""
+    reveal_or_payoff: str = ""
+    ending_hook: str = ""
+
+    def has_content(self) -> bool:
+        return bool(
+            _clean(self.emotional_shift)
+            or _clean(self.conflict_turn)
+            or _clean_list(self.sensory_anchors)
+            or _clean(self.dialogue_purpose)
+            or _clean(self.reveal_or_payoff)
+            or _clean(self.ending_hook)
+        )
+
+
+@dataclass(frozen=True)
+class QualityScore:
+    """多维质量评分，服务 Judge 输出、审计汇总和后续趋势对比。"""
+
+    prose_quality: float | None = None
+    show_dont_tell: float | None = None
+    character_consistency: float | None = None
+    continuity_consistency: float | None = None
+    scene_progression: float | None = None
+    pacing_control: float | None = None
+    hook_strength: float | None = None
+    ai_artifact_penalty: float | None = None
+
+
+@dataclass(frozen=True)
+class RevisionStrategy:
+    """问题修订策略，约束 Reviser 是局部改句、场景补丁还是整段重写。"""
+
+    mode: str = "line_edit"
+    must_keep: Sequence[str] = field(default_factory=tuple)
+    must_remove: Sequence[str] = field(default_factory=tuple)
+    target_effect: str = ""
+
+
+@dataclass(frozen=True)
+class QualityIssue:
+    """可执行的质量问题条目，连接静态检查、LLM Judge 和 Repair prompt。"""
+
+    dimension: str = ""
+    severity: str = "低"
+    snippet: str = ""
+    reason: str = ""
+    suggestion: str = ""
+    revision_strategy: RevisionStrategy = field(default_factory=RevisionStrategy)
+
+    def to_contract_line(self) -> str:
+        """渲染为 revision prompt 可消费的单行契约。"""
+
+        strategy = self.revision_strategy
+        return "｜".join(
+            (
+                _clean(self.dimension),
+                _clean(self.severity),
+                _clean(self.snippet),
+                _clean(self.reason),
+                _clean(strategy.mode),
+                "、".join(_clean_list(strategy.must_keep)),
+                "、".join(_clean_list(strategy.must_remove)),
+                _clean(strategy.target_effect) or _clean(self.suggestion),
+            )
+        )
+
+
+@dataclass(frozen=True)
+class QualityReport:
+    """一次场景质量评审结果，可由静态检查和 LLM Judge 共同填充。"""
+
+    decision: str = "pass"
+    score: QualityScore = field(default_factory=QualityScore)
+    issues: Sequence[QualityIssue] = field(default_factory=tuple)
+    summary: str = ""
+
+@dataclass(frozen=True)
 class NarrativeContext:
     """一次生成请求的叙事上下文聚合，构建器的主输入。
 
@@ -155,3 +239,5 @@ class NarrativeContext:
     pacing: PacingDirective = field(default_factory=PacingDirective)
     continuity: Sequence[ContinuityFact] = field(default_factory=tuple)
     required_facts: Sequence[str] = field(default_factory=tuple)
+    scene_quality_plan: SceneQualityPlan = field(default_factory=SceneQualityPlan)
+

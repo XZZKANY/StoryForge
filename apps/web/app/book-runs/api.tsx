@@ -2,6 +2,14 @@ import React from 'react';
 
 import { readJson } from '../../lib/api-client';
 
+export type BookRunQualitySummary = {
+  readonly overall_quality_score?: number | null;
+  readonly chapter_count?: number;
+  readonly scored_chapter_count?: number;
+  readonly issue_count?: number;
+  readonly severe_issue_count?: number;
+};
+
 export type BookRunRead = {
   readonly id: number;
   readonly book_id: number;
@@ -18,6 +26,7 @@ export type BookRunRead = {
   readonly chapter_budget: number | null;
   readonly estimated_cost: number;
   readonly cost_summary: Record<string, unknown>;
+  readonly quality_summary?: BookRunQualitySummary | null;
 };
 
 export type ApiRequest = {

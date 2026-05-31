@@ -1,0 +1,8 @@
+{
+  "name": "bad_pacing_01",
+  "expected_decision": "repair",
+  "draft": "港口很安静。灯塔很高。海面很黑。空气很冷。林岚看着远处。代表站在那里。时间过去了。",
+  "scene_beats": ["代表抬价", "林岚争取维修窗口"],
+  "ending_hook": "灯塔信号突然中断",
+  "expected_issue_dimensions": ["节奏", "推进"]
+}

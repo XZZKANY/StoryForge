@@ -149,6 +149,26 @@ def _position_section(ctx: NarrativeContext) -> str:
     return _section("叙事位置", lines)
 
 
+def _scene_quality_section(ctx: NarrativeContext) -> str:
+    plan = ctx.scene_quality_plan
+    if not plan.has_content():
+        return ""
+    lines = []
+    if _clean(plan.emotional_shift):
+        lines.append(f"情绪变化：{_clean(plan.emotional_shift)}")
+    if _clean(plan.conflict_turn):
+        lines.append(f"冲突转折：{_clean(plan.conflict_turn)}")
+    anchors = [_clean(anchor) for anchor in plan.sensory_anchors if _clean(anchor)]
+    if anchors:
+        lines.append(f"感官锚点：{'、'.join(anchors)}")
+    if _clean(plan.dialogue_purpose):
+        lines.append(f"对白目的：{_clean(plan.dialogue_purpose)}")
+    if _clean(plan.reveal_or_payoff):
+        lines.append(f"伏笔/兑现：{_clean(plan.reveal_or_payoff)}")
+    if _clean(plan.ending_hook):
+        lines.append(f"结尾钩子：{_clean(plan.ending_hook)}")
+    return _section("场景质量计划", lines)
+
 def _continuity_section(ctx: NarrativeContext) -> str:
     lines = [fact.describe() for fact in ctx.continuity if _clean(fact.statement)]
     required = [_clean(item) for item in ctx.required_facts if _clean(item)]
@@ -269,6 +289,7 @@ def build_draft_prompt(ctx: NarrativeContext, *, preview_chars: int = 120) -> st
         _character_section(ctx.characters),
         _style_section(ctx.style),
         _position_section(ctx),
+        _scene_quality_section(ctx),
         _continuity_section(ctx),
         _previous_section(ctx),
         _pacing_section(pacing),
@@ -316,6 +337,7 @@ def build_longform_segment_prompt(
         _character_section(ctx.characters),
         _style_section(ctx.style),
         _position_section(ctx),
+        _scene_quality_section(ctx),
         _continuity_section(ctx),
         _section("上文摘要（保持连续，不要重复已写内容）", [summary]),
         _pacing_section(ctx.pacing),
@@ -331,50 +353,68 @@ def build_longform_segment_prompt(
 
 
 def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
-    """Draft Critic：对照全量约束自检草稿，列出违规清单。
+    """Draft Critic：输出结构化质量评分、决策和可执行修订项。
 
-    返回契约：无问题输出单行"通过"；否则每行一条问题（命中片段 + 维度 + 修法），
-    下游 create_draft_critique 按行解析。
+    兼容旧解析：无问题时仍允许单行“通过”；结构化模式优先使用 DECISION / SCORE / ISSUE。
     """
 
+    score_dimensions = (
+        "prose_quality",
+        "show_dont_tell",
+        "character_consistency",
+        "continuity_consistency",
+        "scene_progression",
+        "pacing_control",
+        "hook_strength",
+        "ai_artifact_penalty",
+    )
     sections = [
         _RETURN_STRUCTURED,
         _section(
             "任务",
             [
                 "你是严格的小说一致性与文笔评审员。对照以下约束逐条检查待审正文。",
-                "只评审、不重写。",
+                "只评审、不重写，必须给出可执行的质量决策。",
             ],
         ),
         _craft_section(),
         _character_section(ctx.characters),
         _style_section(ctx.style),
         _position_section(ctx),
+        _scene_quality_section(ctx),
         _continuity_section(ctx),
         _section("待审正文", [_clean(draft) or "（空）"]),
         _section(
-            "检查维度",
+            "评分维度",
             [
-                "角色一致性：是否 OOC、违反声音约束或禁止特质。",
-                "连续性：是否与必含事实、上文或连续性约束矛盾。",
-                "风格：是否偏离文风要求与目标句长/对白密度。",
-                "文笔：是否出现说明腔、情绪词直述、套话滥用、感官细节缺失。",
+                "prose_quality：文笔质感、具体名词和动词、套话控制。",
+                "show_dont_tell：情绪是否通过动作、触觉、对白和环境显形。",
+                "character_consistency（角色一致性）：是否 OOC、违反声音约束或禁止特质。",
+                "continuity_consistency（连续性）：是否与必含事实、上文或连续性约束矛盾。",
+                "scene_progression：是否完成场景目标和动作 beat。",
+                "pacing_control：句长、对白密度、节奏推进是否稳定。",
+                "hook_strength：结尾是否留下推动下一段的钩子。",
+                "ai_artifact_penalty：说明腔、大纲腔、模板腔和机械重复惩罚。",
             ],
         ),
         _section(
             "输出要求",
             [
-                "若正文满足全部约束，只输出一行：通过。",
-                "否则每行输出一条问题，格式：维度｜命中片段｜应如何修。",
+                "若正文满足全部约束，可只输出一行：通过。",
+                "结构化输出优先使用以下契约：",
+                "旧格式兼容：维度｜命中片段｜应如何修。",
+                "DECISION: pass|repair|regenerate|awaiting_review",
+                "SCORE: " + "; ".join(f"{dimension}=0-100" for dimension in score_dimensions),
+                "ISSUE: 维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果",
+                "修订策略只能是 line_edit、scene_patch、regenerate；严重连续性或角色问题使用 awaiting_review。",
                 "不要加序号、标题或额外解释，只列实际存在的问题。",
             ],
         ),
     ]
     return _join_sections(sections)
 
-
 def build_revision_prompt(ctx: NarrativeContext, draft: str, issues: Iterable[str]) -> str:
-    """Draft Reviser：按问题清单定点重写，保留无问题部分。"""
+    """Draft Reviser：按问题清单和分级策略定点重写。"""
 
     issue_lines = [_clean(issue) for issue in issues if _clean(issue)]
     pacing = ctx.pacing
@@ -388,14 +428,24 @@ def build_revision_prompt(ctx: NarrativeContext, draft: str, issues: Iterable[st
             "任务",
             [
                 "下面是一段小说正文与评审发现的问题。请据问题清单修订正文。",
-                "只改有问题的部分，保留没有问题的内容与原有语感，不要整体重写。",
+                "按修订策略控制改动范围，只改有问题的部分，保留没有问题的内容与原有语感。",
             ],
         ),
         _craft_section(),
+        _section(
+            "修订策略契约",
+            [
+                "line_edit：只改命中句，用动作、触觉或对白替换问题表达。",
+                "scene_patch：补足场景缺口、感官锚点、对白目的或动作 beat，但保留主体。",
+                "regenerate：整段重写，但必须保留事实、连续性、必须保留项和场景目标。",
+                "问题字段含义：维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果。",
+            ],
+        ),
         _section("评审问题清单（逐条修复）", issue_lines or ["（无具体问题，按创作准则润色即可）"]),
         _character_section(ctx.characters),
         _style_section(ctx.style),
         _position_section(ctx),
+        _scene_quality_section(ctx),
         _continuity_section(ctx),
         _previous_section(ctx),
         _pacing_section(pacing),

@@ -1118,6 +1118,46 @@
         "title": "BookRunProgressUpdate",
         "type": "object"
       },
+      "BookRunQualitySummary": {
+        "properties": {
+          "chapter_count": {
+            "default": 0,
+            "title": "Chapter Count",
+            "type": "integer"
+          },
+          "issue_count": {
+            "default": 0,
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "overall_quality_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Quality Score"
+          },
+          "scored_chapter_count": {
+            "default": 0,
+            "title": "Scored Chapter Count",
+            "type": "integer"
+          },
+          "severe_issue_count": {
+            "default": 0,
+            "title": "Severe Issue Count",
+            "type": "integer"
+          }
+        },
+        "title": "BookRunQualitySummary",
+        "type": "object"
+      },
       "BookRunRead": {
         "properties": {
           "blueprint_id": {
@@ -1177,6 +1217,16 @@
             "additionalProperties": true,
             "title": "Progress",
             "type": "object"
+          },
+          "quality_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookRunQualitySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "title": "Status",

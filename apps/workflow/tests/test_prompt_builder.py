@@ -5,6 +5,7 @@ from storyforge_workflow.prompts import (
     ContinuityFact,
     NarrativeContext,
     PacingDirective,
+    SceneQualityPlan,
     StyleDirective,
     build_chapter_plan_prompt,
     build_critique_prompt,
@@ -59,6 +60,14 @@ def _full_context() -> NarrativeContext:
             ContinuityFact(statement="灯塔信号每七分钟重复一次", must_appear=True),
         ),
         required_facts=("维修窗口有限", "港口代表索要代价"),
+        scene_quality_plan=SceneQualityPlan(
+            emotional_shift="林岚从克制到被迫暴露旧伤。",
+            conflict_turn="港口代表临时抬高维修代价。",
+            sensory_anchors=("潮湿铁锈味", "灯塔电流声"),
+            dialogue_purpose="让代表用报价逼出林岚的底线。",
+            reveal_or_payoff="兑现左臂旧伤伏笔。",
+            ending_hook="灯塔信号突然中断。",
+        ),
     )
 
 
@@ -86,6 +95,43 @@ def test_draft_prompt_injects_all_layers() -> None:
     assert "目标篇幅：约 800 个中文字符" in prompt
     assert "段末必须留下推动下一段的钩子" in prompt
 
+
+
+def test_draft_prompt_injects_scene_quality_plan() -> None:
+    prompt = build_draft_prompt(_full_context())
+    assert "【场景质量计划】" in prompt
+    assert "情绪变化：林岚从克制到被迫暴露旧伤。" in prompt
+    assert "冲突转折：港口代表临时抬高维修代价。" in prompt
+    assert "感官锚点：潮湿铁锈味、灯塔电流声" in prompt
+    assert "对白目的：让代表用报价逼出林岚的底线。" in prompt
+    assert "伏笔/兑现：兑现左臂旧伤伏笔。" in prompt
+    assert "结尾钩子：灯塔信号突然中断。" in prompt
+
+
+def test_context_from_state_maps_scene_quality_plan() -> None:
+    ctx = narrative_context_from_state(
+        {
+            "scene_quality_plan": {
+                "emotional_shift": "林岚从克制到被迫暴露旧伤。",
+                "conflict_turn": "港口代表临时抬高维修代价。",
+                "sensory_anchors": ["潮湿铁锈味", "灯塔电流声"],
+                "dialogue_purpose": "让代表用报价逼出林岚的底线。",
+                "reveal_or_payoff": "兑现左臂旧伤伏笔。",
+                "ending_hook": "灯塔信号突然中断。",
+            }
+        }
+    )
+    assert ctx.scene_quality_plan.emotional_shift == "林岚从克制到被迫暴露旧伤。"
+    assert ctx.scene_quality_plan.conflict_turn == "港口代表临时抬高维修代价。"
+    assert ctx.scene_quality_plan.sensory_anchors == ("潮湿铁锈味", "灯塔电流声")
+    assert ctx.scene_quality_plan.dialogue_purpose == "让代表用报价逼出林岚的底线。"
+    assert ctx.scene_quality_plan.reveal_or_payoff == "兑现左臂旧伤伏笔。"
+    assert ctx.scene_quality_plan.ending_hook == "灯塔信号突然中断。"
+
+
+def test_context_from_state_ignores_invalid_scene_quality_plan() -> None:
+    ctx = narrative_context_from_state({"scene_quality_plan": "坏数据"})
+    assert not ctx.scene_quality_plan.has_content()
 
 def test_draft_prompt_omits_empty_sections() -> None:
     prompt = build_draft_prompt(NarrativeContext(premise="孤舟独行。", scene_goal="抵岸。"))
@@ -213,6 +259,38 @@ def test_critique_prompt_states_pass_and_issue_contract() -> None:
     assert "连续性" in prompt
 
 
+
+def test_critique_prompt_requests_structured_quality_scores() -> None:
+    prompt = build_critique_prompt(_full_context(), "林岚很愤怒地进入谈判。")
+    assert "DECISION: pass|repair|regenerate|awaiting_review" in prompt
+    for dimension in (
+        "prose_quality",
+        "show_dont_tell",
+        "character_consistency",
+        "continuity_consistency",
+        "scene_progression",
+        "pacing_control",
+        "hook_strength",
+        "ai_artifact_penalty",
+    ):
+        assert dimension in prompt
+    assert "ISSUE: 维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果" in prompt
+
+
+def test_revision_prompt_supports_revision_strategy_contract() -> None:
+    prompt = build_revision_prompt(
+        _full_context(),
+        "她很害怕地靠近门。",
+        ["文笔｜中｜她很害怕｜直接说明情绪｜line_edit｜她正在靠近门｜很害怕｜用动作和触觉呈现恐惧"],
+    )
+    assert "line_edit" in prompt
+    assert "scene_patch" in prompt
+    assert "regenerate" in prompt
+    assert "必须保留" in prompt
+    assert "必须删除" in prompt
+    assert "目标效果" in prompt
+    assert "只输出修订后的完整正文" in prompt
+
 def test_revision_prompt_lists_issues_and_keeps_clean_parts() -> None:
     prompt = build_revision_prompt(
         _full_context(),
@@ -257,3 +335,5 @@ def test_style_from_state_maps_fingerprint_into_targets() -> None:
     assert ctx.style.target_avg_sentence_length == 18.0
     assert ctx.style.target_dialogue_ratio == 0.4
     assert ctx.style.restraint is True
+
+
