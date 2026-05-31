@@ -117,18 +117,62 @@ def _plan_blueprint_chapters(blueprint: BookBlueprint) -> list[dict]:
     location = str(blueprint.metadata_.get("location") or "待定地点")
     title_seed = str(blueprint.metadata_.get("title_seed") or ("雾港航线" if "雾港" in blueprint.premise else "章节计划"))
     return [
-        {
-            "chapter_index": index,
-            "title": f"{title_seed} {index}",
-            "goal": f"第 {index} 章推进：{blueprint.premise}",
-            "pov": pov,
-            "location": location,
-            "required_beats": [
-                f"建立核心冲突：{blueprint.premise}",
-                f"保持语气：{blueprint.tone}。",
-                f"推进第 {index}/{blueprint.target_chapter_count} 章的阶段目标。",
-            ],
-            "expected_word_count": expected_word_count,
-        }
+        _chapter_plan_item(blueprint, index, title_seed, pov, location, expected_word_count)
         for index in range(1, blueprint.target_chapter_count + 1)
     ]
+
+
+def _chapter_plan_item(
+    blueprint: BookBlueprint, index: int, title_seed: str, pov: str, location: str, expected_word_count: int
+) -> dict:
+    """为单章生成计划项，根据章节序号给出不同的目标与节拍。"""
+
+    total = blueprint.target_chapter_count
+    if total == 1:
+        goal = f"{blueprint.premise}"
+        beats = [
+            f"建立核心冲突：{blueprint.premise}",
+            f"保持语气：{blueprint.tone}。",
+            "完整呈现故事起承转合。",
+        ]
+    elif total == 3:
+        if index == 1:
+            goal = f"发现异常并开始调查：{blueprint.premise}"
+            beats = [
+                f"建立核心冲突：{blueprint.premise}",
+                f"保持语气：{blueprint.tone}。",
+                "主角接触第一手证据，发现问题不简单。",
+                "结尾留下悬念或新线索，推向下一章。",
+            ]
+        elif index == 2:
+            goal = f"深入追查，找到关键人物或物证：{blueprint.premise}"
+            beats = [
+                "承接上一章结尾的线索或悬念。",
+                f"保持语气：{blueprint.tone}。",
+                "主角获得关键突破（人证、物证或新发现）。",
+                "揭示更深层的幕后力量或动机。",
+            ]
+        else:  # index == 3
+            goal = f"收网或揭示真相：{blueprint.premise}"
+            beats = [
+                "承接上一章的突破，推向最终对峙或真相。",
+                f"保持语气：{blueprint.tone}。",
+                "主角完成调查闭环，证据链完整。",
+                "给出结局或为后续留伏笔。",
+            ]
+    else:
+        goal = f"第 {index} 章推进：{blueprint.premise}"
+        beats = [
+            f"建立核心冲突：{blueprint.premise}",
+            f"保持语气：{blueprint.tone}。",
+            f"推进第 {index}/{total} 章的阶段目标。",
+        ]
+    return {
+        "chapter_index": index,
+        "title": f"{title_seed} {index}",
+        "goal": goal,
+        "pov": pov,
+        "location": location,
+        "required_beats": beats,
+        "expected_word_count": expected_word_count,
+    }

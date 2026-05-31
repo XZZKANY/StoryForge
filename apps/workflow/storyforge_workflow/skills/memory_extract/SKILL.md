@@ -1,45 +1,58 @@
-﻿---
-name: memory_extract
+---
+skill_name: memory_extract
 version: 1.0.0
-description: 仅从已批准章节抽取长期记忆引用，并区分真实更新、跳过和失败。
+stage: chapter
+dynamic_execution: false
 ---
 
-## 触发条件
+# memory_extract 小说技能
 
-- 章节已 `approved`。
-- `approve_scene` 写回成功。
+## 意图
 
-## 输入契约
+从已批准场景抽取记忆原子引用；未注入 adapter 时按现有默认返回空列表。
 
+此文件只声明静态技能元数据，用于让注册表、文档和测试共享同一组契约说明；实际执行仍由现有 NovelLoop 或 BookLoop 编排代码负责。
+
+## 输入引用
+
+- `chapter_id`
+- `draft_ref`
 - `approved_scene_id`
-- `final_draft_hash`
-- `chapter_goal`
-- `story_memory_ref`
-- `character_bible_ref`
-- `timeline_ref`
 
-## 输出契约
+输入只保存引用标识和运行上下文键，不在此处内联完整输入提示或完整章节文本。
+
+## 输出引用
 
 - `memory_atom_ids`
-- `timeline_event_ids`
-- `character_state_delta`
-- 阶段状态：`memory_updated`、`memory_extract_skipped`、`memory_extract_failed`
 
-## 硬门禁
+输出字段必须作为下游节点可追踪的引用或状态摘要使用，不在此处承载大段内容载荷。
 
-- 未批准内容不得污染长期记忆。
-- 默认空实现返回空数组时必须记为 `memory_extract_skipped`，不得伪装成已更新。
-- 真实 adapter 抛错时必须保留失败摘要供审计。
+## 门禁
+
+- `approved_scene_id`
+
+门禁字段缺失时，本技能不应被视为满足进入对应流程节点的条件。
 
 ## 审计字段
 
-- `skill_name`
-- `skill_version`
-- `approved_scene_id`
 - `memory_atom_ids`
-- `timeline_event_ids`
-- `character_state_delta`
 
-## 下一步
+审计字段用于记录抽取出的记忆原子引用；跳过抽取时仍保留空列表语义。
 
-- 单章链路结束；全书完成后由 BookRun 进入 `export`。
+## 状态映射
+
+- `success` -> `memory_extracted`
+- `skipped` -> `memory_extracted`
+
+状态映射必须与 `DEFAULT_NOVEL_SKILL_REGISTRY` 中的静态定义保持一致，不额外声明 NovelLoop 或 BookLoop 未承诺的终态。
+
+## 运行边界
+
+- 阶段：chapter
+- 版本：1.0.0
+- 所需能力：无
+- 页面引用：无
+- API 路径：无
+- Workflow 节点：`NovelLoopPorts.extract_memory`, `_skip_memory_extraction`
+- 事实源：`apps/workflow/storyforge_workflow/orchestrators/novel_loop.py:35`, `apps/workflow/storyforge_workflow/orchestrators/novel_loop.py:93`
+- 动态执行：禁用；`dynamic_execution: false` 表示该技能文件仅提供静态说明，不直接触发模型、工具或外部调用。

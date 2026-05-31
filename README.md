@@ -23,12 +23,13 @@ StoryForge 是一个面向中文长篇小说生产的可验证创作流水线。
 - **Evaluations 诊断入口**：读取评测运行、趋势摘要、失败样例和 Studio 反馈入口摘要。
 - **Provider/LLM 诊断**：通过 Provider Gateway 与 workflow provider client 验证真实模型配置、降级边界和调用连通性。
 
-## 进行中但尚未合并的方向
+## 本分支新增内容
 
-这些内容来自当前本地主工作区的未提交进度，属于近期方向，不等同于远端 `master` 已发布能力：
+本分支会把当前本地主工作区的最新进度提交上来，合并前仍以 PR 验证结果为准：
 
-- **模型设置页与 API Key 检测**：新增 `/settings` 入口、Provider 模型检测 API 与页面测试，用于填写 Key、测试连通性并查看可用模型。
-- **首页体验改版**：首页导航、快捷动作、侧栏与最近记录正在向更接近 Claude-like 工作台的体验收敛。
+- **模型设置页与 Provider 检测**：新增 `/settings` 入口、Provider 模型检测 API 与页面测试，用于检测端点连通性并查看可用模型。
+- **首页体验改版**：首页导航、快捷动作、侧栏与最近记录向更接近 Claude-like 工作台的体验收敛。
+- **Blueprint 章节计划增强**：3 章结构会生成更具体的调查推进目标和章节 beat，而不是每章复用同一句推进模板。
 - **Novel Skill Framework 设计**：将现有 generate、judge、repair、approve、memory_extract、export 显式声明为 StoryForge 自己的小说技能契约层，第一阶段只映射现有能力，不新增动态插件。
 - **小说质量总控计划**：规划静态坏味道检查、场景质量计划、分级修订、黄金样例回归和整书质量审计，目标是提升连贯性、人物一致性与文风稳定性。
 
@@ -66,7 +67,7 @@ powershell.exe -NoProfile -Command "pnpm.cmd openapi"
 
 ## 真实 LLM 冒烟入口
 
-设置私有 `STORYFORGE_LLM_API_KEY`、`STORYFORGE_LLM_BASE_URL`、`STORYFORGE_LLM_MODEL` 与 `STORYFORGE_LLM_PROVIDER` 后，可在本地 API 环境执行：
+配置私有真实 LLM 环境变量后，可在本地 API 环境执行：
 
 ```powershell
 cd apps/api
@@ -74,7 +75,7 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 
 uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
 ```
 
-命令只输出脱敏摘要；真实密钥不得写入仓库、日志或验证报告。真实 LLM 冒烟结果必须连同 `book.md`、`audit_report.json`、ModelRun token 用量和 Judge/Repair 证据一起记录，才能升级能力声明。
+命令只输出脱敏摘要；真实凭据不得写入仓库、日志或验证报告。真实 LLM 冒烟结果必须连同 `book.md`、`audit_report.json`、ModelRun token 用量和 Judge/Repair 证据一起记录，才能升级能力声明。
 
 ## 最近验证证据
 
@@ -84,12 +85,12 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 
 ## 发布前门禁
 
-- Web 业务请求必须统一经过 `apps/web/lib/api-client.ts` 注入 `X-StoryForge-API-Key` 和 `cache: "no-store"`。
+- Web 业务请求必须统一经过 `apps/web/lib/api-client.ts` 注入本地 API 访问头并使用 `cache: "no-store"`。
 - 页面级读取验证必须覆盖 `/studio`、`/retrieval`、`/runs?job_run_id=<有效ID>`、`/artifacts`、`/evaluations`、`/book-runs` 和 `/book-runs/[id]/audit`。
 - `scripts/run-e2e.mjs` 必须执行真实 API HTTP pytest 目标，不允许重新降级为补偿验证来掩盖 API 链路失败。
 - 宣称“真实模型下能产出一本最小可审计小说”前，必须补齐真实 LLM 3 章 BookRun completed、远端 `CI`/`E2E` 通过、`book.md` 可读和 `audit_report.json` 完整证据。
 - 宣称“稳定长篇生产闭环”前，必须补齐 3-5 万字短篇、Markdown/EPUB 导出、审计页回放、人工通读无明显一致性矛盾，以及 README/current-phase 能力边界同步。
-- `.codex/verification-report.md` 必须记录自动化测试、页面读取、API Key 注入、Studio 批准写回、BookRun 冒烟、Artifacts/Evaluations 真实读取、远程 LLM 冒烟、未联通能力和 OpenAPI 变化情况。
+- `.codex/verification-report.md` 必须记录自动化测试、页面读取、本地 API 访问头注入、Studio 批准写回、BookRun 冒烟、Artifacts/Evaluations 真实读取、远程 LLM 冒烟、未联通能力和 OpenAPI 变化情况。
 - `pnpm openapi` 如产生 diff，必须解释来源并补充测试证据后才能进入发布判断。
 
 ## 架构事实源

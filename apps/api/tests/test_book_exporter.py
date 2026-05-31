@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
@@ -37,10 +37,64 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
-        assert report["skill_chain"]["skill_chain_version"] == "bookrun-default-v1"
-        assert report["skill_chain"]["chapters"][0]["skills"][0]["skill_name"] == "generate"
-        assert report["skill_chain"]["chapters"][0]["skills"][1]["skill_name"] == "judge"
-        assert report["skill_chain"]["chapters"][0]["skills"][2]["skill_name"] == "approve"
+        assert report["skill_chain"]["schema_version"] == "bookrun_skill_projection.v1"
+        assert report["skill_chain"]["book_run_id"] == book_run_id
+        assert report["skill_chain"]["summary"]["completed_chapter_count"] == 3
+        assert [event["skill_name"] for event in report["skill_chain"]["events"][:5]] == [
+            "generate",
+            "judge",
+            "approve",
+            "memory_extract",
+            "generate",
+        ]
+        assert report["skill_chain"]["events"][-1]["skill_name"] == "export"
+
+
+def test_audit_report_skill_chain_prefers_recorded_skill_runs_without_full_payload(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """审计报告技能链应优先展示真实运行记录，且不复制完整提示词或正文。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(
+            session,
+            skill_runs=[
+                {
+                    "skill_name": "generate",
+                    "skill_version": "1.0.0",
+                    "status": "generated",
+                    "input_refs": {"compiled_context_id": "ctx-1"},
+                    "output_refs": {"model_run_id": 11, "draft_hash": "sha256:draft"},
+                    "budget": {"tokens_used": 120},
+                    "prompt": "不应进入审计报告的完整提示词。",
+                },
+                {
+                    "skill_name": "judge",
+                    "skill_version": "1.0.0",
+                    "status": "pass",
+                    "output_refs": {"judge_report_id": 12},
+                    "final_draft": "不应进入审计报告的完整正文。",
+                },
+                {
+                    "skill_name": "approve",
+                    "skill_version": "1.0.0",
+                    "status": "approved",
+                    "output_refs": {"approved_scene_id": 1},
+                },
+            ],
+        )
+
+        audit_artifact = export_book_run_audit_report(session, book_run_id)
+
+        skill_chain = audit_artifact.payload["skill_chain"]
+        assert [event["skill_name"] for event in skill_chain["events"][:3]] == ["generate", "judge", "approve"]
+        assert skill_chain["events"][0]["input_refs"] == {"compiled_context_id": "ctx-1"}
+        assert skill_chain["events"][0]["output_refs"] == {"model_run_id": 11, "draft_hash": "sha256:draft"}
+        assert skill_chain["events"][0]["metadata"] == {"budget": {"tokens_used": 120}}
+        assert skill_chain["events"][1]["output_refs"] == {"judge_report_id": 12}
+        rendered = str(skill_chain)
+        assert "不应进入审计报告的完整提示词" not in rendered
+        assert "不应进入审计报告的完整正文" not in rendered
 
 
 def test_book_run_export_endpoints_return_artifacts(
@@ -63,7 +117,7 @@ def test_book_run_export_endpoints_return_artifacts(
     assert audit_response.json()["payload"]["book_run_id"] == book_run_id
 
 
-def _seed_completed_book_run(session: Session) -> int:
+def _seed_completed_book_run(session: Session, skill_runs: list[dict[str, object]] | None = None) -> int:
     book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。")
     session.add(book)
     session.flush()
@@ -96,17 +150,24 @@ def _seed_completed_book_run(session: Session) -> int:
         )
         session.add(scene)
         session.flush()
-        completed.append(
-            {
-                "chapter_index": index,
-                "model_run_id": index * 10 + 1,
-                "judge_report_id": index * 10 + 2,
-                "repair_patch_id": None,
-                "approved_scene_id": scene.id,
-                "quality_score": 88 + index,
-                "quality_issues": [{"dimension": "??", "severity": "?", "message": "????"}] if index == 1 else [],
-            }
-        )
+        chapter_progress = {
+            "chapter_index": index,
+            "model_run_id": index * 10 + 1,
+            "judge_report_id": index * 10 + 2,
+            "repair_patch_id": None,
+            "approved_scene_id": scene.id,
+            "quality_score": 88 + index,
+            "quality_issues": [{"dimension": "??", "severity": "?", "message": "????"}] if index == 1 else [],
+        }
+        if index == 1 and skill_runs is not None:
+            normalized_runs = []
+            for run in skill_runs:
+                normalized_run = dict(run)
+                if normalized_run.get("skill_name") == "approve":
+                    normalized_run["output_refs"] = {"approved_scene_id": scene.id}
+                normalized_runs.append(normalized_run)
+            chapter_progress["skill_runs"] = normalized_runs
+        completed.append(chapter_progress)
     book_run = BookRun(
         book_id=book.id,
         blueprint_id=blueprint.id,
@@ -118,52 +179,3 @@ def _seed_completed_book_run(session: Session) -> int:
     session.add(book_run)
     session.commit()
     return book_run.id
-
-
-
-def test_book_run_audit_report_prefers_recorded_skill_chain(session_factory: sessionmaker[Session]) -> None:
-    """audit_report.json 有真实 skill_runs 时应优先输出记录链路。"""
-
-    with session_factory() as session:
-        book_run_id = _seed_completed_book_run(session)
-        book_run = session.get(BookRun, book_run_id)
-        assert book_run is not None
-        progress = dict(book_run.progress)
-        completed = list(progress["completed_chapters"])
-        first = dict(completed[0])
-        first["skill_runs"] = [
-            {"skill_name": "generate", "status": "generated", "output_refs": {"model_run_id": 11}},
-            {"skill_name": "judge", "status": "pass", "output_refs": {"judge_report_id": 12}},
-            {"skill_name": "approve", "status": "approved", "output_refs": {"approved_scene_id": first["approved_scene_id"]}},
-        ]
-        completed[0] = first
-        progress["completed_chapters"] = completed
-        book_run.progress = progress
-        session.commit()
-
-        audit_artifact = export_book_run_audit_report(session, book_run_id)
-
-        skills = audit_artifact.payload["skill_chain"]["chapters"][0]["skills"]
-        assert [skill["skill_name"] for skill in skills[:3]] == ["generate", "judge", "approve"]
-        assert skills[0]["model_run_id"] == 11
-
-
-def test_book_run_audit_report_outputs_empty_skill_chain_for_empty_progress(session_factory: sessionmaker[Session]) -> None:
-    """旧 progress 缺少章节审计数据时，skill_chain 应空数组退化。"""
-
-    with session_factory() as session:
-        book_run_id = _seed_completed_book_run(session)
-        book_run = session.get(BookRun, book_run_id)
-        assert book_run is not None
-        book_run.progress = {"completed_chapters": []}
-        session.commit()
-
-        audit_artifact = export_book_run_audit_report(session, book_run_id)
-
-        assert audit_artifact.payload["chapters"] == []
-        assert audit_artifact.payload["skill_chain"] == {
-            "skill_chain_version": "bookrun-default-v1",
-            "chapters": [],
-            "book_level_skills": [],
-            "book_status_projection": {"status": "completed", "pause_reason": None},
-        }

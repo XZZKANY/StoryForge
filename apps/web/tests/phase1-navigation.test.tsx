@@ -60,6 +60,42 @@ test('首页只保留真实数据流入口并删除占位页', () => {
   }
 });
 
+test('首页采用 Claude-like 深色创作入口并保留 StoryForge 业务动作', () => {
+  const home =
+    read('components/home/HomeShell.tsx') +
+    '\n' +
+    read('components/home/HomeSidebar.tsx') +
+    '\n' +
+    read('components/home/HomeComposer.tsx') +
+    '\n' +
+    read('components/home/HomeQuickActions.tsx') +
+    '\n' +
+    read('components/home/HomeContextStrip.tsx') +
+    '\n' +
+    read('components/home/home-data.ts');
+
+  for (const required of [
+    'grid-cols-[290px_1fr]',
+    'bg-[#1f1f1d]',
+    'font-serif',
+    '今天要锻造哪段故事？',
+    '输入故事想法、章节目标或修订要求',
+    '创建 Blueprint',
+    '启动 BookRun',
+    '审阅并批准',
+    '核对证据',
+    '导出审计',
+    '当前作品',
+    '运行状态',
+    '下一步建议',
+  ] as const) {
+    assert.ok(home.includes(required), `首页应包含 Claude-like StoryForge 元素：${required}`);
+  }
+
+  for (const forbidden of ['Code', 'Learn', 'Life stuff', "Claude's choice"] as const) {
+    assert.ok(!home.includes(forbidden), `首页不应残留无关 Claude 分类：${forbidden}`);
+  }
+});
 test('根布局具备全局样式和错误加载边界', () => {
   assert.ok(read('app/layout.tsx').includes('./globals.css'), 'layout 应导入 globals.css');
   assert.ok(read('app/globals.css').includes('--accent'));
@@ -80,6 +116,23 @@ test('E2E 在刷新 OpenAPI 后检查契约漂移', () => {
     '漂移检查应限定 OpenAPI 契约文件',
   );
   assert.ok(e2eScript.includes('OpenAPI contract is stale'), '契约漂移时应输出明确修复提示');
+});
+
+test('OpenAPI 生成脚本固定使用 LF 行尾写入契约文件', () => {
+  const openApiScript = read('../../scripts/generate-openapi.mjs');
+  const e2eScript = read('../../scripts/run-e2e.mjs');
+
+  for (const [name, script] of [
+    ['generate-openapi.mjs', openApiScript],
+    ['run-e2e.mjs', e2eScript],
+  ] as const) {
+    assert.ok(script.includes('write_bytes'), `${name} 应使用二进制写入避免 Windows newline 翻译`);
+    assert.ok(script.includes('.encode("utf-8")'), `${name} 应显式以 UTF-8 字节写入契约`);
+    assert.ok(
+      !script.includes('output_path.write_text('),
+      `${name} 不应使用会转换行尾的 write_text`,
+    );
+  }
 });
 
 test('Docker Compose 基础服务具备健康检查', () => {

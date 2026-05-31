@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class NovelLoopResult:
     cost_estimate: float = 0.0
     fallback_metadata: dict[str, object] | None = None
     memory_atom_ids: list[str] = field(default_factory=list)
-    skill_runs: list[dict[str, Any]] = field(default_factory=list)
+    skill_runs: tuple[dict[str, Any], ...] = ()
 
 
 def _skip_memory_extraction(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> list[str]:
@@ -59,12 +59,60 @@ class NovelLoopPorts:
     check_static_quality: Callable[[str], Sequence[dict[str, Any] | object]] = _skip_static_quality_check
 
 
+class NovelSkillRunnerPort(Protocol):
+    """NovelLoop 所需的技能 runner 最小协议，避免与 skills.runner 形成循环导入。"""
+
+    def run_generate(
+        self,
+        *,
+        request: NovelLoopRequest,
+        context_id: str,
+        generate_scene: Callable[[NovelLoopRequest, str], str],
+        record_model_run: Callable[[NovelLoopRequest, str], int],
+    ) -> tuple[str, int]: ...
+
+    def run_judge(
+        self,
+        *,
+        draft: str,
+        attempt: int,
+        judge_scene: Callable[[str, int], dict[str, Any]],
+    ) -> dict[str, Any]: ...
+
+    def run_repair(
+        self,
+        *,
+        draft: str,
+        report: Mapping[str, Any],
+        attempt: int,
+        repair_scene: Callable[[str, Mapping[str, Any], int], str],
+    ) -> str: ...
+
+    def run_approve(
+        self,
+        *,
+        request: NovelLoopRequest,
+        draft: str,
+        refs: Mapping[str, Any],
+        approve_scene: Callable[[NovelLoopRequest, str, dict[str, Any]], int],
+    ) -> int: ...
+
+    def run_memory_extract(
+        self,
+        *,
+        request: NovelLoopRequest,
+        draft: str,
+        approved_scene_id: int,
+        extract_memory: Callable[[NovelLoopRequest, str, int], list[str]],
+    ) -> list[str]: ...
+
+
 def run_single_chapter_loop(
     request: NovelLoopRequest,
     ports: NovelLoopPorts,
     *,
     max_repairs: int = 1,
-    skill_runner: Any | None = None,
+    skill_runner: NovelSkillRunnerPort | None = None,
 ) -> NovelLoopResult:
     """执行单章 compile -> generate -> judge -> repair -> approve 闭环。"""
 
@@ -86,49 +134,22 @@ def run_single_chapter_loop(
         static_issues = [_issue_to_dict(issue) for issue in ports.check_static_quality(draft)]
         if _has_high_severity(static_issues):
             latest_report = {"status": "awaiting_review", "static_quality_issues": static_issues}
-            if skill_runner is not None:
-                skill_runner.record_static_gate_blocked(
-                    request=request,
-                    draft=draft,
-                    model_run_id=model_run_id,
-                    static_issues=static_issues,
-                )
             break
         if static_issues and attempt < max_repairs:
             latest_report = {"status": "repair", "static_quality_issues": static_issues}
-            if skill_runner is None:
-                draft = ports.repair_scene(draft, latest_report, attempt + 1)
-            else:
-                draft = skill_runner.run_repair(
-                    draft=draft,
-                    report=latest_report,
-                    attempt=attempt + 1,
-                    repair_scene=ports.repair_scene,
-                    request=request,
-                )
+            draft = _run_repair(skill_runner, ports, draft, latest_report, attempt + 1)
             continue
 
         if skill_runner is None:
             latest_report = ports.judge_scene(draft, attempt)
         else:
-            latest_report = skill_runner.run_judge(
-                draft=draft,
-                attempt=attempt,
-                judge_scene=ports.judge_scene,
-                request=request,
-                model_run_id=model_run_id,
-            )
+            latest_report = skill_runner.run_judge(draft=draft, attempt=attempt, judge_scene=ports.judge_scene)
         judge_report_id = _optional_int(latest_report.get("judge_report_id"))
         if latest_report.get("status") == "pass":
-            refs = {
-                "source_model_run_id": model_run_id,
-                "judge_report_id": judge_report_id,
-                "repair_patch_id": latest_repair_patch_id,
-            }
+            refs = {"source_model_run_id": model_run_id, "judge_report_id": judge_report_id}
             if skill_runner is None:
                 approved_scene_id = ports.approve_scene(request, draft, refs)
                 memory_atom_ids = ports.extract_memory(request, draft, approved_scene_id)
-                skill_runs: list[dict[str, Any]] = []
             else:
                 approved_scene_id = skill_runner.run_approve(
                     request=request,
@@ -142,7 +163,6 @@ def run_single_chapter_loop(
                     approved_scene_id=approved_scene_id,
                     extract_memory=ports.extract_memory,
                 )
-                skill_runs = skill_runner.audit_runs()
             return NovelLoopResult(
                 status="approved",
                 final_draft=draft,
@@ -151,20 +171,11 @@ def run_single_chapter_loop(
                 repair_patch_id=latest_repair_patch_id,
                 approved_scene_id=approved_scene_id,
                 memory_atom_ids=list(memory_atom_ids),
-                skill_runs=skill_runs,
+                skill_runs=_skill_run_audit(skill_runner),
             )
         latest_repair_patch_id = _optional_int(latest_report.get("repair_patch_id"))
         if attempt < max_repairs:
-            if skill_runner is None:
-                draft = ports.repair_scene(draft, latest_report, attempt + 1)
-            else:
-                draft = skill_runner.run_repair(
-                    draft=draft,
-                    report=latest_report,
-                    attempt=attempt + 1,
-                    repair_scene=ports.repair_scene,
-                    request=request,
-                )
+            draft = _run_repair(skill_runner, ports, draft, latest_report, attempt + 1)
 
     return NovelLoopResult(
         status="awaiting_review",
@@ -173,7 +184,7 @@ def run_single_chapter_loop(
         judge_report_id=_optional_int(latest_report.get("judge_report_id")),
         repair_patch_id=latest_repair_patch_id,
         approved_scene_id=None,
-        skill_runs=skill_runner.audit_runs() if skill_runner is not None else [],
+        skill_runs=_skill_run_audit(skill_runner),
     )
 
 
@@ -181,6 +192,24 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _run_repair(
+    skill_runner: NovelSkillRunnerPort | None,
+    ports: NovelLoopPorts,
+    draft: str,
+    report: dict[str, Any],
+    attempt: int,
+) -> str:
+    if skill_runner is None:
+        return ports.repair_scene(draft, report, attempt)
+    return skill_runner.run_repair(draft=draft, report=report, attempt=attempt, repair_scene=ports.repair_scene)
+
+
+def _skill_run_audit(skill_runner: NovelSkillRunnerPort | None) -> tuple[dict[str, Any], ...]:
+    if skill_runner is None or not hasattr(skill_runner, "runs"):
+        return ()
+    return tuple(run.to_audit_dict() for run in skill_runner.runs)
 
 
 def _issue_to_dict(issue: dict[str, Any] | object) -> dict[str, Any]:

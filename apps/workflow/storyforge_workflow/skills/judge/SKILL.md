@@ -1,50 +1,64 @@
-﻿---
-name: judge
+---
+skill_name: judge
 version: 1.0.0
-description: 对候选草稿执行静态质量门与结构化评审，决定通过、修复或人工审查。
+stage: chapter
+dynamic_execution: false
 ---
 
-## 触发条件
+# judge 小说技能
 
-- 草稿已生成。
-- 章节目标存在。
-- 质量约束存在。
+## 意图
 
-## 输入契约
+审阅单章草稿，输出通过、修复或等待人工审阅的判定引用。
 
-- `draft_summary`
-- `draft_hash`
-- `scene_packet_id`
-- `compiled_context_id`
-- `character_bible_ref`
-- `timeline_ref`
-- `style_guide_ref`
+此文件只声明静态技能元数据，用于让注册表、文档和测试共享同一组契约说明；实际执行仍由现有 NovelLoop 或 BookLoop 编排代码负责。
 
-## 输出契约
+## 输入引用
+
+- `chapter_id`
+- `draft_ref`
+- `model_run_id`
+
+输入只保存引用标识和运行上下文键，不在此处内联完整输入提示或完整章节文本。
+
+## 输出引用
 
 - `judge_report_id`
 - `repair_patch_id`
-- `issue_count`
-- `decision`
-- 阶段状态：`static_gate_pass`、`static_gate_blocked`、`pass`、`repair`、`awaiting_review`、`judge_failed`
+- `static_quality_issues`
 
-## 硬门禁
+输出字段必须作为下游节点可追踪的引用或状态摘要使用，不在此处承载大段内容载荷。
 
-- 静态质量门命中高严重度或 regenerate 策略时，直接进入人工审查路径，不调用模型评审。
-- 未评审不得进入 `approve`。
-- 高严重级别问题不得自动批准。
+## 门禁
+
+- `draft_ref`
+- `model_run_id`
+
+门禁字段缺失时，本技能不应被视为满足进入对应流程节点的条件。
 
 ## 审计字段
 
-- `skill_name`
-- `skill_version`
 - `judge_report_id`
-- `issue_count`
-- `max_severity`
-- `decision`
+- `repair_patch_id`
+- `static_quality_issues`
 
-## 下一步
+审计字段用于记录成本、耗时、质量判定、补丁、checkpoint 或结果引用，便于复盘运行链路。
 
-- `pass` 后进入 `approve`。
-- `repair` 且修复次数未耗尽时进入 `repair`。
-- `awaiting_review` 停止自动链路。
+## 状态映射
+
+- `pass` -> `pass`
+- `repair` -> `repair`
+- `awaiting_review` -> `awaiting_review`
+
+状态映射必须与 `DEFAULT_NOVEL_SKILL_REGISTRY` 中的静态定义保持一致，不额外声明 NovelLoop 或 BookLoop 未承诺的终态。
+
+## 运行边界
+
+- 阶段：chapter
+- 版本：1.0.0
+- 所需能力：llm
+- 页面引用：无
+- API 路径：无
+- Workflow 节点：`NovelLoopPorts.check_static_quality`, `NovelLoopPorts.judge_scene`
+- 事实源：`apps/workflow/storyforge_workflow/orchestrators/novel_loop.py:75`, `apps/workflow/storyforge_workflow/orchestrators/novel_loop.py:85`
+- 动态执行：禁用；`dynamic_execution: false` 表示该技能文件仅提供静态说明，不直接触发模型、工具或外部调用。

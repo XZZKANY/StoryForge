@@ -1,15 +1,13 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from storyforge_workflow.orchestrators.novel_loop import NovelLoopRequest
-from storyforge_workflow.skills.definitions import NovelSkillRegistry
+from storyforge_workflow.skills.definitions import DEFAULT_NOVEL_SKILL_REGISTRY
 from storyforge_workflow.skills.runner import NovelSkillRun, NovelSkillRunner
 
 
-def _request() -> NovelLoopRequest:
-    return NovelLoopRequest(book_id=1, chapter_id=2, chapter_index=3, chapter_goal="揭示灯塔异常")
-
-
 def test_skill_run_keeps_reference_fields_without_full_payload() -> None:
+    """技能运行记录只暴露引用和预算，不保存完整正文或提示词。"""
+
     run = NovelSkillRun(
         skill_name="generate",
         skill_version="1.0.0",
@@ -31,7 +29,9 @@ def test_skill_run_keeps_reference_fields_without_full_payload() -> None:
 
 
 def test_skill_runner_resolves_definition_by_name() -> None:
-    runner = NovelSkillRunner(registry=NovelSkillRegistry.default())
+    """runner 应复用既有 NovelSkillRegistry 查询技能定义。"""
+
+    runner = NovelSkillRunner(registry=DEFAULT_NOVEL_SKILL_REGISTRY)
 
     definition = runner.definition_for("judge")
 
@@ -40,72 +40,132 @@ def test_skill_runner_resolves_definition_by_name() -> None:
 
 
 def test_runner_records_generate_skill_run() -> None:
+    """generate 包装应执行端口、记录 ModelRun 引用和草稿 hash。"""
+
     runner = NovelSkillRunner.default()
+    request = _request()
 
     draft, model_run_id = runner.run_generate(
-        request=_request(),
+        request=request,
         context_id="ctx-1",
         generate_scene=lambda req, context_id: "林岚推开灯塔铁门。",
         record_model_run=lambda req, draft: 99,
     )
 
+    payload = runner.runs[-1].to_audit_dict()
+
     assert draft == "林岚推开灯塔铁门。"
     assert model_run_id == 99
-    assert runner.runs[-1].skill_name == "generate"
-    assert runner.runs[-1].status == "generated"
-    assert runner.runs[-1].input_refs == {"compiled_context_id": "ctx-1"}
-    assert runner.runs[-1].output_refs["model_run_id"] == 99
-    assert "draft_hash" in runner.runs[-1].output_refs
-    assert "林岚" not in str(runner.runs[-1].to_audit_dict())
+    assert payload["skill_name"] == "generate"
+    assert payload["status"] == "generated"
+    assert payload["input_refs"] == {"chapter_id": 2, "chapter_index": 3, "compiled_context_id": "ctx-1"}
+    assert payload["output_refs"]["model_run_id"] == 99
+    assert payload["output_refs"]["draft_hash"].startswith("sha256:")
+    assert "draft" not in payload
 
 
-def test_runner_records_judge_repair_approve_and_memory_extract_runs() -> None:
+def test_runner_records_judge_skill_run() -> None:
+    """judge 包装应保留报告、修复补丁和决策引用。"""
+
+    runner = NovelSkillRunner.default()
+
+    report = runner.run_judge(
+        draft="存在节奏问题的草稿。",
+        attempt=1,
+        judge_scene=lambda draft, attempt: {
+            "status": "repair",
+            "judge_report_id": 41,
+            "repair_patch_id": 42,
+            "decision": "需要压缩铺垫",
+        },
+    )
+
+    payload = runner.runs[-1].to_audit_dict()
+
+    assert report["status"] == "repair"
+    assert payload["skill_name"] == "judge"
+    assert payload["status"] == "repair"
+    assert payload["book_id"] is None
+    assert payload["output_refs"] == {"judge_report_id": 41, "repair_patch_id": 42, "decision": "需要压缩铺垫"}
+    assert payload["input_refs"] == {"attempt": 1}
+
+
+def test_runner_records_repair_skill_run() -> None:
+    """repair 包装只记录修复尝试，不制造 NovelLoop 终态。"""
+
+    runner = NovelSkillRunner.default()
+    report = {"judge_report_id": 41, "repair_patch_id": 42, "status": "repair"}
+
+    draft = runner.run_repair(
+        draft="存在节奏问题的草稿。",
+        report=report,
+        attempt=2,
+        repair_scene=lambda draft, report, attempt: "修复后的草稿。",
+    )
+
+    payload = runner.runs[-1].to_audit_dict()
+
+    assert draft == "修复后的草稿。"
+    assert payload["skill_name"] == "repair"
+    assert payload["status"] == "repaired"
+    assert payload["book_id"] is None
+    assert payload["input_refs"] == {"source_judge_report_id": 41, "attempt": 2}
+    assert payload["output_refs"]["repair_patch_id"] == 42
+    assert payload["output_refs"]["draft_hash"].startswith("sha256:")
+
+
+def test_runner_records_approve_skill_run() -> None:
+    """approve 包装应保留批准场景与上游 model/judge 证据。"""
+
     runner = NovelSkillRunner.default()
     request = _request()
 
-    judge_report = runner.run_judge(
-        draft="林岚推开灯塔铁门。",
-        attempt=0,
-        judge_scene=lambda draft, attempt: {"status": "repair", "judge_report_id": 41, "repair_patch_id": 42},
-        request=request,
-        model_run_id=99,
-    )
-    repaired = runner.run_repair(
-        draft="林岚推开灯塔铁门。",
-        report=judge_report,
-        attempt=1,
-        repair_scene=lambda draft, report, attempt: "林岚推开灯塔铁门，听见潮声倒灌。",
-        request=request,
-    )
     approved_scene_id = runner.run_approve(
         request=request,
-        draft=repaired,
-        refs={"source_model_run_id": 99, "judge_report_id": 41, "repair_patch_id": 42},
+        draft="最终草稿。",
+        refs={"source_model_run_id": 31, "judge_report_id": 41},
         approve_scene=lambda request, draft, refs: 51,
     )
-    skipped_memory = runner.run_memory_extract(
+
+    payload = runner.runs[-1].to_audit_dict()
+
+    assert approved_scene_id == 51
+    assert payload["skill_name"] == "approve"
+    assert payload["status"] == "approved"
+    assert payload["input_refs"] == {"chapter_id": 2, "chapter_index": 3, "source_model_run_id": 31, "judge_report_id": 41}
+    assert payload["output_refs"] == {"approved_scene_id": 51}
+
+
+def test_runner_records_memory_extract_statuses() -> None:
+    """memory_extract 应区分默认跳过与真实写入。"""
+
+    skipped_runner = NovelSkillRunner.default()
+    updated_runner = NovelSkillRunner.default()
+    request = _request()
+
+    skipped = skipped_runner.run_memory_extract(
         request=request,
-        draft=repaired,
-        approved_scene_id=approved_scene_id,
+        draft="最终草稿。",
+        approved_scene_id=51,
         extract_memory=lambda request, draft, approved_scene_id: [],
     )
-    updated_memory = runner.run_memory_extract(
+    updated = updated_runner.run_memory_extract(
         request=request,
-        draft=repaired,
-        approved_scene_id=approved_scene_id,
-        extract_memory=lambda request, draft, approved_scene_id: ["mem-1"],
+        draft="最终草稿。",
+        approved_scene_id=51,
+        extract_memory=lambda request, draft, approved_scene_id: ["memory:linlan"],
     )
 
-    assert repaired == "林岚推开灯塔铁门，听见潮声倒灌。"
-    assert approved_scene_id == 51
-    assert skipped_memory == []
-    assert updated_memory == ["mem-1"]
-    assert [run.skill_name for run in runner.runs] == ["judge", "repair", "approve", "memory_extract", "memory_extract"]
-    assert runner.runs[0].output_refs == {"judge_report_id": 41, "repair_patch_id": 42, "decision": "repair"}
-    assert runner.runs[1].output_refs["source_judge_report_id"] == 41
-    assert runner.runs[1].output_refs["attempt"] == 1
-    assert runner.runs[1].output_refs["repair_patch_id"] == 42
-    assert runner.runs[2].output_refs == {"approved_scene_id": 51, "source_model_run_id": 99, "judge_report_id": 41, "repair_patch_id": 42}
-    assert runner.runs[3].status == "memory_extract_skipped"
-    assert runner.runs[4].status == "memory_updated"
-    assert runner.runs[4].output_refs["memory_atom_ids"] == ["mem-1"]
+    skipped_payload = skipped_runner.runs[-1].to_audit_dict()
+    updated_payload = updated_runner.runs[-1].to_audit_dict()
+
+    assert skipped == []
+    assert updated == ["memory:linlan"]
+    assert skipped_payload["status"] == "memory_extract_skipped"
+    assert skipped_payload["output_refs"] == {"memory_atom_ids": ()}
+    assert updated_payload["status"] == "memory_updated"
+    assert updated_payload["output_refs"] == {"memory_atom_ids": ("memory:linlan",)}
+
+
+def _request() -> NovelLoopRequest:
+    return NovelLoopRequest(book_id=1, chapter_id=2, chapter_index=3, chapter_goal="揭示灯塔异常")
