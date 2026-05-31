@@ -1027,3 +1027,12 @@ epair 可修复语义。
 - 综合评分：86/100。
 - 完整性检查：必需章节均存在；未发现 TBD、TODO、待补、占位。
 - 未处理事项：adapter 未接入生产触发路径、progress sink 真实实现缺失、workflow_skill_audit_bridge 动态路径桥接风险、API warnings、phase9b smoke 可维护性。
+
+## BookRun 生产调度接线计划生成
+
+时间：2026-06-01 04:30:30 +08:00
+
+- 当前分支：codex/bookrun-production-dispatch。
+- 新增上下文摘要：.codex/context-summary-bookrun-production-dispatch.md。
+- 新增执行计划：docs/superpowers/plans/2026-06-01-bookrun-production-dispatch.md。
+- 计划约束：API 只生成 dispatch payload，不直接执行 workflow；workflow 消费 payload 并通过 progress sink 回填。
