@@ -53,6 +53,109 @@ def test_completed_book_run_progress_derives_chapter_and_export_events() -> None
     _assert_common_event_fields(projection)
 
 
+def test_completed_chapter_prefers_recorded_skill_runs() -> None:
+    progress = {
+        "completed_chapters": [
+            {
+                "chapter_index": 1,
+                "status": "approved",
+                "model_run_id": 10,
+                "judge_report_id": 11,
+                "approved_scene_id": 12,
+                "skill_runs": [
+                    {
+                        "skill_name": "generate",
+                        "skill_version": "1.0.0",
+                        "status": "generated",
+                        "input_refs": {"compiled_context_id": "ctx-1"},
+                        "output_refs": {"model_run_id": 10, "draft_hash": "sha256:draft"},
+                        "budget": {"token_usage": 120},
+                        "prompt": "不应进入投影的完整提示词。",
+                    },
+                    {
+                        "skill_name": "judge",
+                        "skill_version": "1.0.0",
+                        "status": "pass",
+                        "output_refs": {"judge_report_id": 11},
+                        "final_draft": "不应进入投影的完整正文。",
+                    },
+                    {
+                        "skill_name": "approve",
+                        "skill_version": "1.0.0",
+                        "status": "approved",
+                        "output_refs": {"approved_scene_id": 12},
+                    },
+                ],
+            }
+        ],
+        "checkpoint": [{"chapter_index": 1, "model_run_id": 10, "judge_report_id": 11, "approved_scene_id": 12}],
+        "budget": {"tokens_used": 120, "elapsed_time_sec": 3, "estimated_cost": 0.02},
+    }
+
+    projection = derive_skill_chain_projection(book_run_id=16, status="completed", progress=progress)
+
+    assert [event.skill_name for event in projection.events] == ["generate", "judge", "approve", "export"]
+    assert projection.events[0].input_refs == {"compiled_context_id": "ctx-1"}
+    assert projection.events[0].output_refs == {"model_run_id": 10, "draft_hash": "sha256:draft"}
+    assert projection.events[0].metadata == {"budget": {"token_usage": 120}}
+    assert projection.events[1].output_refs == {"judge_report_id": 11}
+    assert "不应进入投影的完整提示词" not in str(projection)
+    assert "不应进入投影的完整正文" not in str(projection)
+    _assert_common_event_fields(projection)
+
+
+def test_blocked_chapter_prefers_recorded_skill_runs() -> None:
+    progress = {
+        "completed_chapters": [],
+        "checkpoint": [],
+        "blocked_chapter": {
+            "chapter_index": 2,
+            "status": "awaiting_review",
+            "model_run_id": 20,
+            "judge_report_id": 21,
+            "repair_patch_id": 22,
+            "skill_runs": [
+                {
+                    "skill_name": "generate",
+                    "skill_version": "1.0.0",
+                    "status": "generated",
+                    "output_refs": {"model_run_id": 20},
+                },
+                {
+                    "skill_name": "judge",
+                    "skill_version": "1.0.0",
+                    "status": "repair",
+                    "output_refs": {"judge_report_id": 21, "repair_patch_id": 22},
+                },
+                {
+                    "skill_name": "repair",
+                    "skill_version": "1.0.0",
+                    "status": "repaired",
+                    "input_refs": {"source_judge_report_id": 21, "attempt": 1},
+                    "output_refs": {"repair_patch_id": 22, "draft_hash": "sha256:repair"},
+                    "error_summary": None,
+                },
+                {
+                    "skill_name": "judge",
+                    "skill_version": "1.0.0",
+                    "status": "awaiting_review",
+                    "output_refs": {"judge_report_id": 23},
+                },
+            ],
+        },
+        "budget": {"tokens_used": 200, "elapsed_time_sec": 5, "estimated_cost": 0.03},
+    }
+
+    projection = derive_skill_chain_projection(book_run_id=17, status="awaiting_review", progress=progress)
+
+    assert [event.skill_name for event in projection.events] == ["generate", "judge", "repair", "judge"]
+    assert [event.status for event in projection.events] == ["generated", "repair", "repaired", "awaiting_review"]
+    assert projection.events[2].input_refs == {"source_judge_report_id": 21, "attempt": 1}
+    assert projection.events[2].output_refs == {"repair_patch_id": 22, "draft_hash": "sha256:repair"}
+    assert projection.summary["blocked_chapter_index"] == 2
+    _assert_common_event_fields(projection)
+
+
 def test_projection_accepts_positional_public_signature() -> None:
     progress = {
         "completed_chapters": [],

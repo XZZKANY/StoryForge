@@ -56,11 +56,13 @@ def derive_skill_chain_projection(
     events: list[NovelSkillRunEvent] = []
     for chapter in _mapping_items(progress.get("completed_chapters")):
         if chapter.get("status", "approved") == "approved":
-            events.extend(_approved_chapter_events(chapter))
+            recorded_events = _recorded_skill_run_events(chapter)
+            events.extend(recorded_events or _approved_chapter_events(chapter))
 
     blocked_chapter = progress.get("blocked_chapter")
     if isinstance(blocked_chapter, Mapping):
-        events.extend(_blocked_chapter_events(blocked_chapter))
+        recorded_events = _recorded_skill_run_events(blocked_chapter)
+        events.extend(recorded_events or _blocked_chapter_events(blocked_chapter))
 
     if status == "completed":
         events.append(_export_event(book_run_id, progress))
@@ -104,6 +106,34 @@ def _approved_chapter_events(chapter: Mapping[str, Any]) -> tuple[NovelSkillRunE
             chapter=chapter,
             output_refs={"memory_atom_ids": tuple(chapter.get("memory_atom_ids") or ())},
         ),
+    )
+
+
+def _recorded_skill_run_events(chapter: Mapping[str, Any]) -> tuple[NovelSkillRunEvent, ...]:
+    events = []
+    for run in _mapping_items(chapter.get("skill_runs")):
+        event = _recorded_skill_run_event(run)
+        if event is not None:
+            events.append(event)
+    return tuple(events)
+
+
+def _recorded_skill_run_event(run: Mapping[str, Any]) -> NovelSkillRunEvent | None:
+    skill_name = str(run.get("skill_name") or "").strip()
+    status = str(run.get("status") or "").strip()
+    if not skill_name or not status:
+        return None
+
+    return NovelSkillRunEvent(
+        event_name=_EVENT_NAME,
+        skill_name=skill_name,
+        skill_version=str(run.get("skill_version") or _SKILL_VERSION),
+        stage=str(run.get("stage") or "chapter"),
+        status=status,
+        provenance=_PROVENANCE,
+        input_refs=_refs_from_run(run.get("input_refs")),
+        output_refs=_refs_from_run(run.get("output_refs")),
+        metadata=_metadata_from_run(run),
     )
 
 
@@ -198,6 +228,23 @@ def _generation_metadata(chapter: Mapping[str, Any]) -> Mapping[str, object]:
         if field_name in chapter:
             metadata[field_name] = chapter[field_name]
     return metadata
+
+
+def _metadata_from_run(run: Mapping[str, Any]) -> Mapping[str, object]:
+    metadata: dict[str, object] = {}
+    budget = run.get("budget")
+    if isinstance(budget, Mapping):
+        metadata["budget"] = dict(budget)
+    error_summary = run.get("error_summary")
+    if error_summary is not None:
+        metadata["error_summary"] = str(error_summary)
+    return metadata
+
+
+def _refs_from_run(value: object) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): item for key, item in value.items()}
 
 
 def _mapping_items(value: object) -> tuple[Mapping[str, Any], ...]:
