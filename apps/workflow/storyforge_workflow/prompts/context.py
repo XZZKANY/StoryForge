@@ -97,6 +97,14 @@ def _positive_float(value: Any) -> float | None:
     return None
 
 
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    return None
+
+
 def _pacing_from_state(state: Mapping[str, Any]) -> PacingDirective:
     raw = state.get("pacing_directive")
     if isinstance(raw, Mapping):
@@ -166,5 +174,6 @@ def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
         continuity=_continuity_from_state(state),
         required_facts=tuple(_str_list(state.get("required_fact_refs"))),
         scene_quality_plan=_scene_quality_plan_from_state(state),
+        target_word_count_min=_positive_int(state.get("target_word_count_min")),
+        target_word_count_max=_positive_int(state.get("target_word_count_max")),
     )
-

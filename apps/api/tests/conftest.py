@@ -38,6 +38,15 @@ def _reset_rate_limiter() -> None:
     _rate_store.reset()
 
 
+@pytest.fixture(autouse=True)
+def _reset_domain_caches() -> None:
+    """每个测试前清理领域缓存，避免内存数据库 ID 重置后读到旧聚合。"""
+
+    from app.domains.worldbuilding.service import invalidate_worldbuilding_cache
+
+    invalidate_worldbuilding_cache()
+
+
 @pytest.fixture()
 def engine() -> Generator:
     """每个测试使用独立内存数据库，避免跨用例污染。"""
