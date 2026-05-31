@@ -41,8 +41,8 @@ dynamic_execution: false
 
 ## 状态映射
 
-- `success` -> `memory_extracted`
-- `skipped` -> `memory_extracted`
+- `success` -> `memory_updated`
+- `skipped` -> `memory_extract_skipped`
 
 状态映射必须与 `DEFAULT_NOVEL_SKILL_REGISTRY` 中的静态定义保持一致，不额外声明 NovelLoop 或 BookLoop 未承诺的终态。
 

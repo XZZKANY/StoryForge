@@ -5,10 +5,11 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
-_SCHEMA_VERSION = "bookrun_skill_projection.v1"
+_SCHEMA_VERSION = "bookrun_skill_projection.v2"
 _EVENT_NAME = "skill.post"
 _SKILL_VERSION = "1.0.0"
-_PROVENANCE = "workflow_progress_projection"
+_RECORDED_PROVENANCE = "recorded_skill_run"
+_RECONSTRUCTED_PROVENANCE = "reconstructed_from_progress"
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class NovelSkillRunEvent:
     stage: str
     status: str
     provenance: str
+    recorded: bool
     input_refs: Mapping[str, object] = field(default_factory=dict)
     output_refs: Mapping[str, object] = field(default_factory=dict)
     metadata: Mapping[str, object] = field(default_factory=dict)
@@ -102,7 +104,7 @@ def _approved_chapter_events(chapter: Mapping[str, Any]) -> tuple[NovelSkillRunE
         ),
         _chapter_event(
             skill_name="memory_extract",
-            status="memory_extracted",
+            status="memory_updated" if chapter.get("memory_atom_ids") else "memory_extract_skipped",
             chapter=chapter,
             output_refs={"memory_atom_ids": tuple(chapter.get("memory_atom_ids") or ())},
         ),
@@ -130,7 +132,8 @@ def _recorded_skill_run_event(run: Mapping[str, Any]) -> NovelSkillRunEvent | No
         skill_version=str(run.get("skill_version") or _SKILL_VERSION),
         stage=str(run.get("stage") or "chapter"),
         status=status,
-        provenance=_PROVENANCE,
+        provenance=_RECORDED_PROVENANCE,
+        recorded=True,
         input_refs=_refs_from_run(run.get("input_refs")),
         output_refs=_refs_from_run(run.get("output_refs")),
         metadata=_metadata_from_run(run),
@@ -177,7 +180,8 @@ def _export_event(book_run_id: int, progress: Mapping[str, Any]) -> NovelSkillRu
         skill_version=_SKILL_VERSION,
         stage="book",
         status="completed",
-        provenance=_PROVENANCE,
+        provenance=_RECONSTRUCTED_PROVENANCE,
+        recorded=False,
         input_refs={"book_run_id": book_run_id, "checkpoint_count": len(checkpoint)},
         output_refs={"book_artifact_ref": f"book_run:{book_run_id}:export", "checkpoint_count": len(checkpoint)},
         metadata={"budget": progress.get("budget") or {}},
@@ -198,7 +202,8 @@ def _chapter_event(
         skill_version=_SKILL_VERSION,
         stage="chapter",
         status=status,
-        provenance=_PROVENANCE,
+        provenance=_RECONSTRUCTED_PROVENANCE,
+        recorded=False,
         input_refs={"chapter_index": chapter.get("chapter_index")},
         output_refs=output_refs,
         metadata=metadata or {},
@@ -210,13 +215,28 @@ def _summary(progress: Mapping[str, Any], events: Sequence[NovelSkillRunEvent]) 
     blocked_chapter_index = None
     if isinstance(blocked_chapter, Mapping):
         blocked_chapter_index = blocked_chapter.get("chapter_index")
+    recorded_event_count = sum(1 for event in events if event.recorded)
+    reconstructed_event_count = len(events) - recorded_event_count
     return {
         "event_count": len(events),
+        "recorded_event_count": recorded_event_count,
+        "reconstructed_event_count": reconstructed_event_count,
+        "evidence_basis": _evidence_basis(recorded_event_count, reconstructed_event_count),
         "completed_chapter_count": len(tuple(_mapping_items(progress.get("completed_chapters")))),
         "blocked_chapter_index": blocked_chapter_index,
         "provider_degradation": progress.get("provider_degradation"),
         "budget": progress.get("budget") or {},
     }
+
+
+def _evidence_basis(recorded_event_count: int, reconstructed_event_count: int) -> str:
+    if recorded_event_count == 0 and reconstructed_event_count == 0:
+        return "empty"
+    if recorded_event_count > 0 and reconstructed_event_count == 0:
+        return "recorded"
+    if recorded_event_count == 0:
+        return "reconstructed"
+    return "mixed"
 
 
 def _generation_metadata(chapter: Mapping[str, Any]) -> Mapping[str, object]:
