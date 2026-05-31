@@ -17,6 +17,59 @@ const bookRun = {
     chapter_quality_scores: [{ chapter_index: 1, quality_score: 91 }],
     top_quality_issues: [{ chapter_index: 1, dimension: '??', severity: '?', message: '?????' }],
     manual_review_recommendations: ['? 1 ??????????'],
+    skill_chain: {
+      schema_version: 'bookrun_skill_projection.v1',
+      book_run_id: 12,
+      status: 'completed',
+      summary: {
+        event_count: 4,
+        completed_chapter_count: 1,
+        budget: { tokens_used: 120 },
+      },
+      events: [
+        {
+          event_name: 'skill.post',
+          skill_name: 'generate',
+          skill_version: '1.0.0',
+          stage: 'chapter',
+          status: 'generated',
+          provenance: 'workflow_progress_projection',
+          input_refs: { compiled_context_id: 'ctx-1' },
+          output_refs: { model_run_id: 11, draft_hash: 'sha256:draft' },
+          metadata: { budget: { tokens_used: 120 } },
+          prompt: '不应进入 Web 审计页的完整提示词。',
+        },
+        {
+          event_name: 'skill.post',
+          skill_name: 'judge',
+          skill_version: '1.0.0',
+          stage: 'chapter',
+          status: 'pass',
+          provenance: 'workflow_progress_projection',
+          output_refs: { judge_report_id: 12 },
+          final_draft: '不应进入 Web 审计页的完整正文。',
+        },
+        {
+          event_name: 'skill.post',
+          skill_name: 'approve',
+          skill_version: '1.0.0',
+          stage: 'chapter',
+          status: 'approved',
+          provenance: 'workflow_progress_projection',
+          output_refs: { approved_scene_id: 14 },
+        },
+        {
+          event_name: 'skill.post',
+          skill_name: 'export',
+          skill_version: '1.0.0',
+          stage: 'book',
+          status: 'completed',
+          provenance: 'workflow_progress_projection',
+          input_refs: { book_run_id: 12 },
+          output_refs: { book_artifact_ref: 'book_run:12:export' },
+        },
+      ],
+    },
     completed_chapters: [
       {
         chapter_index: 1,
@@ -68,4 +121,20 @@ test('BookRun 审计面板按章节展示关键证据链', () => {
   assert.ok(html.includes('?? 1?91'));
   assert.ok(html.includes('?????'));
   assert.ok(html.includes('? 1 ??????????'));
+  assert.ok(html.includes('技能链审计'));
+  assert.ok(html.includes('bookrun_skill_projection.v1'));
+  assert.ok(html.includes('事件数'));
+  assert.ok(html.includes('4'));
+  assert.ok(html.includes('generate'));
+  assert.ok(html.includes('judge'));
+  assert.ok(html.includes('approve'));
+  assert.ok(html.includes('export'));
+  assert.ok(html.includes('stage=chapter'));
+  assert.ok(html.includes('status=generated'));
+  assert.ok(html.includes('compiled_context_id=ctx-1'));
+  assert.ok(html.includes('model_run_id=11'));
+  assert.ok(html.includes('judge_report_id=12'));
+  assert.ok(html.includes('book_artifact_ref=book_run:12:export'));
+  assert.ok(!html.includes('不应进入 Web 审计页的完整提示词。'));
+  assert.ok(!html.includes('不应进入 Web 审计页的完整正文。'));
 });
