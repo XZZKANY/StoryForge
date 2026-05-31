@@ -1044,3 +1044,11 @@ epair 可修复语义。
 - 已先运行红灯：uv run pytest tests/test_book_run_workflow_dispatch.py -v，失败原因为 uild_book_run_workflow_dispatch 不存在。
 - 已新增 API dispatch schema、service 构造函数和 GET /api/book-runs/{book_run_id}/workflow-dispatch。
 - 验证：uv run pytest tests/test_book_run_workflow_dispatch.py tests/test_book_runs.py -v → 11 passed, 1 warning。
+
+## BookRun workflow dispatch payload 消费入口
+
+时间：2026-06-01 04:38:40 +08:00
+
+- 已先运行红灯：uv run pytest tests/test_book_run_dispatch_payload.py -v，失败原因为 CallableProgressSink / un_book_run_dispatch_payload 不存在。
+- 已新增 CallableProgressSink 与 un_book_run_dispatch_payload()，workflow 可消费 API 形状 dispatch payload。
+- 验证：uv run pytest tests/test_book_run_dispatch_payload.py tests/test_book_run_adapter.py -v → 7 passed。
