@@ -67,9 +67,8 @@ from app.main import app
 
 output_path = Path(${JSON.stringify(outputPath)})
 output_path.parent.mkdir(parents=True, exist_ok=True)
-output_path.write_text(
-    json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n",
-    encoding="utf-8",
+output_path.write_bytes(
+    (json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n").encode("utf-8")
 )
 print(f"已生成 OpenAPI 契约：{output_path}")
 `.trim();
