@@ -1,73 +1,76 @@
-﻿# 项目上下文摘要（novel-skill-framework）
+﻿## 项目上下文摘要（Novel Skill Framework 阶段一）
 
-生成时间：2026-05-31 02:20:00 +08:00
+生成时间：2026-05-31 04:36:48 +08:00
 
-## 1. 相似实现分析
+### 1. 相似实现分析
 
-- **实现1**：D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\orchestrators\novel_loop.py
-  - 模式：NovelLoopRequest、NovelLoopResult 与 NovelLoopPorts 使用 frozen dataclass 和端口注入，把单章 compile_context -> generate_scene -> record_model_run -> judge_scene -> repair_scene -> approve_scene -> extract_memory 串成闭环。
-  - 可复用：第一批 Novel Skill 应直接映射这些端口，而不是新增平行编排器。
-  - 需注意：BookLoop 依赖 NovelLoopResult.status == "approved" 判断章节是否完成，技能化不能破坏该状态契约。
-- **实现2**：D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\orchestrators\book_loop.py
-  - 模式：整书顺序驱动每章 NovelLoop，并按 checkpoint、token/时间/章节预算、provider 连续降级暂停。
-  - 可复用：技能运行记录应进入 completed_chapters、checkpoint、budget 与后续审计报告，而不是保存完整草稿到 workflow checkpoint。
-  - 需注意：暂停原因、章节索引、模型运行引用、评审引用和批准场景引用必须保持可恢复。
-- **实现3**：D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\runtime\runner.py
-  - 模式：WorkflowRuntime 将 provider 执行、checkpoint、ModelRunSink 和 lifecycle 串联，失败时保存运行态证据。
-  - 可复用：Novel Skill Runner 后续应沿用 provider 执行摘要和 ModelRun 记录边界，不直接绕过 runtime 记录。
-  - 需注意：运行态只保存摘要和引用，避免大上下文进入 checkpoint。
-- **实现4**：D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\persistence.py
-  - 模式：summarize_value() 生成稳定摘要，避免检查点保存完整大对象。
-  - 可复用：技能执行记录中的 input/output 应保存摘要、引用和预算，不保存完整 prompt、完整 Scene Packet 或完整正文。
-- **实现5**：D:\StoryForge\1-renovel-ai-ai-rag-tavern\docs\architecture\phase6-workbench-contract.md
-  - 模式：Studio、Retrieval、Runs、Artifacts、Evaluations 均以最小契约、单点读取和明确边界描述能力。
-  - 可复用：技能框架第一阶段只做设计和映射，不宣称完整交互式 Studio 编排器。
+- **实现1**: pps/workflow/storyforge_workflow/tools/registry.py
+  - 模式：dataclass(frozen=True) 描述静态能力，CreativeToolRegistry 用 tuple 保持顺序，用 MappingProxyType 构建只读索引。
+  - 可复用：静态注册表、重复名称校验、明确缺失错误、序列字段归一化。
+  - 需注意：本任务不抽象共享基类，避免扩大阶段一改动半径。
+- **实现2**: pps/workflow/storyforge_workflow/orchestrators/novel_loop.py
+  - 模式：端口注入 + 单章顺序状态机，真实终态只有 pproved 和 waiting_review。
+  - 可复用：NovelLoopResult 字段作为审计摘要的事实来源；memory_atom_ids 只在结果中保留引用。
+  - 需注意：不得引入 epair_required、epair_limit_exceeded、provider_failed、udget_exceeded 等虚构终态。
+- **实现3**: pps/workflow/storyforge_workflow/orchestrators/book_loop.py
+  - 模式：BookLoop 汇总 completed_chapters、checkpoint、udget，在 Book 级处理预算和 provider 降级。
+  - 可复用：progress 的 completed_chapters、locked_chapter、pause_reason、provider_degradation 作为只读派生输入。
+  - 需注意：checkpoint 只保存 chapter_index、model_run_id、judge_report_id、approved_scene_id。
+- **实现4**: pps/workflow/tests/test_creative_tool_registry.py
+  - 模式：pytest plain assert、pytest.raises(..., match=...)、中文测试意图注释，断言内容而非文件存在。
+  - 可复用：注册表顺序、字段完整性、不可变性和缺失错误测试风格。
 
-## 2. 项目约定
+### 2. 项目约定
 
-- **命名约定**：Python 使用 snake_case 函数、PascalCase dataclass；Web/文档保留 StoryForge、BookRun、NovelLoop、Scene Packet 等既有领域名。
-- **文件组织**：设计文档放入 docs/superpowers/specs/；执行计划放入 docs/superpowers/plans/；上下文、日志和验证放入项目本地 .codex/。
-- **导入顺序**：Python 文件使用 from __future__ import annotations、标准库、第三方、项目内模块的现有顺序；本次不改代码。
-- **代码风格**：现有 workflow 倾向 frozen dataclass、纯函数编排、端口注入、本地 deterministic pytest；本次设计应沿用该方向。
+- **命名约定**: Python 包与函数使用 snake_case；类使用 PascalCase；常量使用大写或语义化默认实例名。
+- **文件组织**: workflow 代码位于 pps/workflow/storyforge_workflow/；测试位于 pps/workflow/tests/；新增阶段一模块放入 storyforge_workflow/skills/。
+- **导入顺序**: rom __future__ import annotations 在文件首行；标准库、第三方、项目导入分组；ruff 规则启用 I 排序。
+- **代码风格**: pyproject.toml 设定 Python >=3.11、ruff 行宽 120、pytest testpaths 为 	ests。
 
-## 3. 可复用组件清单
+### 3. 可复用组件清单
 
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\orchestrators\novel_loop.py：单章生成、评审、修复、批准、记忆抽取闭环。
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\orchestrators\book_loop.py：整书章节顺序编排、预算暂停和 checkpoint 记录。
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\runtime\runner.py：provider 执行与运行态记录边界。
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\workflow\storyforge_workflow\persistence.py：审计 checkpoint 和摘要化工具。
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\apps\api\app\domains\book_runs\service.py：BookRun 创建、读取、进度更新和导出边界。
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\docs\architecture\phase5-context-memory-architecture.md：上下文记忆和引用化状态边界。
-- D:\StoryForge\1-renovel-ai-ai-rag-tavern\docs\architecture\workflow-modelrun-adapter-contract.md：ModelRun 与 checkpoint 分层边界。
+- pps/workflow/storyforge_workflow/tools/registry.py: 静态注册表设计模式参考。
+- pps/workflow/storyforge_workflow/orchestrators/book_loop.py: progress 结构和 Book 级状态事实源。
+- pps/workflow/storyforge_workflow/orchestrators/novel_loop.py: 单章状态、端口和引用字段事实源。
+- pps/workflow/tests/test_creative_tool_registry.py: 注册表测试模式。
+- pps/workflow/tests/test_book_loop_three_chapters.py: progress 样例与预算/provider 降级样例。
 
-## 4. 测试策略
+### 4. 测试策略
 
-- **测试框架**：Python 使用 pytest；根级使用 pnpm verify、pnpm e2e、pnpm test；文档级变更至少执行文档存在性、空内容标记、关键章节和路径检查。
-- **本次范围**：只产出设计文档，不改业务代码，不运行全量测试作为代码正确性声明。
-- **后续实现测试建议**：新增或扩展 apps/workflow/tests/test_novel_loop_single_chapter.py、BookRun 审计报告测试、技能注册表测试和技能执行记录测试。
+- **测试框架**: pytest 9.x（Context7 查询确认可用 plain assert 与 pytest.raises(..., match=...)）。
+- **测试模式**: deterministic 单元测试，不依赖真实 LLM、数据库或网络。
+- **参考文件**: pps/workflow/tests/test_creative_tool_registry.py、pps/workflow/tests/test_book_loop_three_chapters.py、pps/workflow/tests/test_generation_state_references.py。
+- **覆盖要求**: 注册表 6 技能顺序与字段完整性；禁止虚构状态；audit 派生覆盖 approved、blocked、预算暂停、provider 降级；输入 progress 深比较不变。
 
-## 5. 依赖和集成点
+### 5. 依赖和集成点
 
-- **外部依赖**：现有 LangGraph、本地兼容 runtime、FastAPI、SQLAlchemy、Next.js；本设计不新增外部依赖。
-- **内部依赖**：BookRun 依赖 Blueprint 锁定状态；NovelLoop 依赖 Scene Packet、Compiled Context、ModelRun、Judge、Repair、Approve 和 Story Memory。
-- **集成方式**：第一阶段把现有 BookRun 步骤声明为技能；第二阶段再引入 Skill Registry / Skill Runner；第三阶段按题材扩展技能包。
-- **配置来源**：当前能力事实以 README.md、current-phase.md、PROJECT_SUMMARY.md、docs/architecture/* 为准。
+- **外部依赖**: Python 标准库 dataclasses、collections.abc、copy；pytest；无新增运行时依赖。
+- **内部依赖**: 新包 storyforge_workflow.skills 不反向依赖 orchestrators；udit.py 只读取 Mapping[str, Any]，避免耦合 BookLoop 类型。
+- **集成方式**: 阶段一为旁路定义和只读派生，不接入运行时，不修改 un_single_chapter_loop() 或 un_book_loop()。
+- **配置来源**: pps/workflow/pyproject.toml 定义 pytest、ruff 和 Python 版本。
 
-## 6. 技术选型理由
+### 6. 技术选型理由
 
-- **为什么采用技能框架**：现有 BookRun 已经是固定流程，技能化能把每一步的触发条件、输入输出、门禁、版本和审计记录显式化。
-- **优势**：提高可复现性、可审计性、可替换性和题材扩展能力。
-- **劣势和风险**：如果过早引入动态插件或多 Agent 并行，会破坏现有稳定闭环；因此第一阶段只做静态技能定义和映射。
+- **为什么用静态 dataclass + registry**: 设计文档要求第一阶段静态注册，不做动态发现；项目已有 CreativeToolRegistry 成熟模式。
+- **优势**: 可审计、确定性强、无 I/O、测试简单；保持未来第二阶段 Runner 可复用这些定义。
+- **劣势和风险**: SKILL.md 与 Python 定义存在重复，需要测试和审查约束关键字段一致；阶段一不自动读取 SKILL.md 是有意限制。
 
-## 7. 关键风险点
+### 7. 关键风险点
 
-- **并发问题**：多技能并行可能破坏章节顺序和记忆回写顺序，第一阶段保持串行。
-- **边界条件**：技能失败、评审不通过、修复超限、预算耗尽、provider 降级必须映射回现有 BookRun 状态。
-- **性能瓶颈**：技能执行记录不能保存完整大对象，必须保存引用和摘要。
-- **安全考虑**：本设计不新增认证、鉴权或密钥处理逻辑；provider 密钥仍按现有运行环境边界处理。
+- **并发问题**: 无共享可变状态；registry 使用 tuple 和不可变 dataclass。
+- **边界条件**: progress 缺少可选 ID 时输出 None 或空数组，不编造引用。
+- **性能瓶颈**: audit 派生 O(n) 遍历章节，n 为章节数，无外部 I/O。
+- **安全考虑**: 阶段一禁止动态扫描或执行技能文件，避免把文件化定义变成插件执行面。
 
-## 8. 工具约束记录
+### 8. 外部检索记录
 
-- 当前 Codex 会话未暴露 sequential-thinking、shrimp-task-manager、desktop-commander、context7、github.search_code 为可调用工具。
-- 已通过 PowerShell 只读检查确认本机 MCP 配置存在且 server 可协议级列出工具；本次文档生成仍使用当前会话可用的本地文件读取作为替代。
+- **Context7**: 查询 /pytest-dev/pytest，确认 pytest plain assert 与 pytest.raises(..., match=...) 用法。
+- **GitHub search_code**: 搜索静态 registry/dataclass 示例；首轮精确搜索无结果，泛化搜索返回 PyTorch、Canonical Operator 等大型项目条目，最终只作为“静态 registry 常见模式”参考，不直接复制实现。
+- **工具回退**: desktop-commander 未在当前工具集中可用（tool_search 结果 0），本地文件检索使用 PowerShell 与 g，已记录。
 
+### 9. 充分性检查
+
+- ✅ 我能定义清晰接口契约：NovelSkillDefinition 与 derive_skill_chain_summary(progress: Mapping[str, Any]) -> dict[str, Any]。
+- ✅ 我理解技术选型理由：静态定义 + 只读派生，符合阶段一不改运行时要求。
+- ✅ 我识别主要风险：状态虚构、输入被修改、SKILL.md/Python 定义漂移。
+- ✅ 我知道如何验证：定向 pytest + ruff，本地执行并生成 .codex/verification-report.md。
