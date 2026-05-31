@@ -103,6 +103,7 @@ def _chapter_progress(chapter_index: int, result: NovelLoopResult) -> dict[str, 
         "elapsed_time_sec": result.elapsed_time_sec,
         "cost_estimate": result.cost_estimate,
         "fallback_metadata": result.fallback_metadata,
+        "skill_runs": list(result.skill_runs),
     }
 
 

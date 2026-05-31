@@ -69,3 +69,43 @@ test('BookRun 审计面板按章节展示关键证据链', () => {
   assert.ok(html.includes('?????'));
   assert.ok(html.includes('? 1 ??????????'));
 });
+
+test('BookRun 审计面板优先展示 skill_chain 技能链', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(BookRunAuditPanel, {
+      bookRun: {
+        ...bookRun,
+        skill_chain: {
+          skill_chain_version: 'bookrun-default-v1',
+          chapters: [
+            {
+              chapter_index: 1,
+              skills: [
+                { skill_name: 'generate', status: 'generated', model_run_id: 31 },
+                { skill_name: 'judge', status: 'pass', judge_report_id: 41 },
+                { skill_name: 'approve', status: 'approved', approved_scene_id: 51 },
+              ],
+            },
+          ],
+        },
+      },
+    }),
+  );
+
+  assert.ok(html.includes('技能链'));
+  assert.ok(html.includes('generate'));
+  assert.ok(html.includes('judge'));
+  assert.ok(html.includes('approve'));
+  assert.ok(html.includes('model_run_id=31'));
+  assert.ok(html.includes('judge_report_id=41'));
+});
+
+test('BookRun 审计面板缺少 skill_chain 时显示空状态', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(BookRunAuditPanel, {
+      bookRun: { ...bookRun, progress: { completed_chapters: [] } },
+    }),
+  );
+
+  assert.ok(html.includes('暂无技能链审计数据'));
+});
