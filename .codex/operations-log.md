@@ -984,3 +984,13 @@ epair 可修复语义。
 - 新增设计方案：docs/superpowers/specs/2026-06-01-project-health-assessment-design.md。
 - 新增执行计划：docs/superpowers/plans/2026-06-01-project-health-assessment.md。
 - 本轮仅生成规划文档，未修改 apps 业务代码，未恢复历史 stash。
+
+## 项目健康评估启动
+
+时间：2026-06-01 04:18:46 +08:00
+
+- 当前分支：codex/project-health-assessment-plan。
+- 最近提交：0de0c4c 新增 StoryForge 项目健康评估计划。
+- 本轮评估目标：主链路、架构边界、测试健康度和下一步路线图。
+- 本轮不修改业务代码，不恢复历史 stash。
+- 已读取关键模块：book_run_adapter.py、book_loop.py、novel_loop.py、skills/audit.py、book_runs/service.py、book_markdown_exporter.py、audit.tsx。
