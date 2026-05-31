@@ -975,3 +975,12 @@ epair 可修复语义。
 - 最近提交：ab0a53e 完成 BookRun workflow adapter recorded skill_runs。
 - 本轮重新运行目标测试、lint、workflow/API 全量测试和 Web 审计回归，结果均通过；详见 .codex/verification-report.md 的“BookRun workflow adapter recorded skill_runs 复核记录”。
 - 当前仍存在任务外 .codex 历史未跟踪/修改文件，未纳入本任务结论。
+
+## 项目健康评估规划文档生成
+
+时间：2026-06-01 04:13:39 +08:00
+
+- 当前分支：codex/project-health-assessment-plan。
+- 新增设计方案：docs/superpowers/specs/2026-06-01-project-health-assessment-design.md。
+- 新增执行计划：docs/superpowers/plans/2026-06-01-project-health-assessment.md。
+- 本轮仅生成规划文档，未修改 apps 业务代码，未恢复历史 stash。
