@@ -1,15 +1,16 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.schemas import ArtifactRead
-from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate, BookRunRead
+from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate, BookRunRead, BookRunWorkflowDispatch
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
     BookRunNotFoundError,
     apply_book_run_progress,
+    build_book_run_workflow_dispatch,
     create_book_run,
     get_book_run,
     resume_book_run,
@@ -56,6 +57,24 @@ def resume_book_run_endpoint(book_run_id: int, session: SessionDependency) -> Bo
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunBlockedError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.get(
+    "/{book_run_id}/workflow-dispatch",
+    response_model=BookRunWorkflowDispatch,
+    summary="读取 BookRun workflow 调度 payload",
+)
+def get_book_run_workflow_dispatch_endpoint(book_run_id: int, session: SessionDependency) -> BookRunWorkflowDispatch:
+    """为外部 workflow worker 生成调度 payload；接口本身不执行 workflow。"""
+
+    try:
+        return build_book_run_workflow_dispatch(session, book_run_id)
+    except BookRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BookRunBlockedError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except BookRunError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.patch("/{book_run_id}/progress", response_model=BookRunRead, summary="回填 BookRun 进度")

@@ -1036,3 +1036,11 @@ epair 可修复语义。
 - 新增上下文摘要：.codex/context-summary-bookrun-production-dispatch.md。
 - 新增执行计划：docs/superpowers/plans/2026-06-01-bookrun-production-dispatch.md。
 - 计划约束：API 只生成 dispatch payload，不直接执行 workflow；workflow 消费 payload 并通过 progress sink 回填。
+
+## BookRun workflow dispatch API 契约
+
+时间：2026-06-01 04:35:36 +08:00
+
+- 已先运行红灯：uv run pytest tests/test_book_run_workflow_dispatch.py -v，失败原因为 uild_book_run_workflow_dispatch 不存在。
+- 已新增 API dispatch schema、service 构造函数和 GET /api/book-runs/{book_run_id}/workflow-dispatch。
+- 验证：uv run pytest tests/test_book_run_workflow_dispatch.py tests/test_book_runs.py -v → 11 passed, 1 warning。

@@ -1,12 +1,18 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
-from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate
-from app.domains.books.models import Book
+from app.domains.book_runs.schemas import (
+    BookRunCreate,
+    BookRunProgressUpdate,
+    BookRunWorkflowChapter,
+    BookRunWorkflowDispatch,
+)
+from app.domains.books.models import Book, Chapter
 
 
 class BookRunError(InputError):
@@ -62,6 +68,45 @@ def get_book_run(session: Session, book_run_id: int) -> BookRun:
     if book_run is None:
         raise BookRunNotFoundError("BookRun 不存在。")
     return book_run
+
+
+def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> BookRunWorkflowDispatch:
+    """生成 workflow worker 可消费的 BookRun 调度 payload，但不执行 workflow。"""
+
+    book_run = get_book_run(session, book_run_id)
+    if book_run.status != "running":
+        raise BookRunBlockedError("只有 running BookRun 可以生成 workflow dispatch。")
+    chapters = session.scalars(
+        select(Chapter)
+        .where(Chapter.book_id == book_run.book_id, Chapter.blueprint_id == book_run.blueprint_id)
+        .order_by(Chapter.ordinal)
+    ).all()
+    chapters_by_index = {chapter.ordinal: chapter for chapter in chapters}
+    start_chapter_index = _dispatch_start_chapter_index(book_run)
+    required_indexes = range(start_chapter_index, book_run.total_chapters + 1)
+    missing = [index for index in required_indexes if index not in chapters_by_index]
+    if missing:
+        raise BookRunBlockedError("BookRun 缺少章节计划，无法生成 workflow dispatch。")
+    return BookRunWorkflowDispatch(
+        book_run_id=book_run.id,
+        book_id=book_run.book_id,
+        blueprint_id=book_run.blueprint_id,
+        total_chapters=book_run.total_chapters,
+        start_chapter_index=start_chapter_index,
+        existing_checkpoint=list(book_run.checkpoint or []),
+        token_budget=book_run.token_budget,
+        time_budget_sec=book_run.time_budget_sec,
+        chapter_budget=book_run.chapter_budget,
+        provider_fallback_pause_threshold=None,
+        chapters=[
+            BookRunWorkflowChapter(
+                chapter_index=index,
+                chapter_id=chapters_by_index[index].id,
+                chapter_goal=_chapter_goal(chapters_by_index[index]),
+            )
+            for index in required_indexes
+        ],
+    )
 
 
 def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRunProgressUpdate) -> BookRun:
@@ -205,3 +250,14 @@ def _non_negative_int(value: object) -> int:
 
 def _non_negative_float(value: object) -> float:
     return float(value) if isinstance(value, int | float) and value > 0 else 0.0
+
+def _dispatch_start_chapter_index(book_run: BookRun) -> int:
+    progress = book_run.progress if isinstance(book_run.progress, dict) else {}
+    resume_index = progress.get("resume_from_chapter_index")
+    if isinstance(resume_index, int) and resume_index >= 1:
+        return resume_index
+    return max(1, book_run.current_chapter_index)
+
+
+def _chapter_goal(chapter: Chapter) -> str:
+    return (chapter.summary or chapter.title or f"第 {chapter.ordinal} 章").strip()
