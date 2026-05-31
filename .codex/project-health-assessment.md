@@ -105,3 +105,87 @@ flowchart TD
 ## 8. 架构评估结论
 
 当前架构的核心边界是健康的：API 保存业务真相源，workflow 执行长任务编排，audit/export 只读投影，Web 只展示投影结果。最大缺口不是 recorded skill_runs 能否产出，而是它尚未接入真实生产触发路径。下一阶段应优先做生产接线设计，而不是继续扩大静态定义或把 smoke 工具主线化。
+
+## 9. 健康评分
+
+| 维度 | 分值 | 得分 | 证据 | 扣分原因 |
+| --- | ---: | ---: | --- | --- |
+| 主链路可验证性 | 25 | 20 | workflow 主链路 27 passed；API 主链路 12 passed；Web audit 3 pass | BookRun adapter 尚未接入真实生产触发路径。 |
+| 架构边界清晰度 | 20 | 17 | API service 未调用 workflow adapter；workflow adapter 未导入 API ORM | API exporter 通过文件路径动态加载 workflow audit.py，属于中期稳定性风险。 |
+| 测试覆盖与本地门禁 | 20 | 18 | workflow 156 passed；API 326 passed；ruff 全通过 | API pytest 有 6 个非阻塞 warning；生产接线端到端测试缺失。 |
+| 审计与数据最小暴露 | 15 | 14 | recorded/reconstructed/mixed 测试覆盖；完整提示词/正文不进入投影 | 真实 UI 上下文的人类可见性仍需周期性验真。 |
+| 维护性与后续扩展成本 | 10 | 8 | ports/dataclass 边界清晰；audit 只读投影 | phase9b_real_llm_smoke.py 体量大；source_refs 维护成本偏高。 |
+| 文档与操作留痕 | 10 | 9 | context-summary、operations-log、verification-report、设计和计划文件齐备 | 历史 .codex 中存在旧乱码段，但本轮新增记录清晰可读。 |
+
+综合评分：86/100
+结论：可推进小范围功能，但需先处理 Top 风险。当前最优下一步是为 BookRun workflow adapter 做真实生产调度与 progress sink 接线计划。
+
+## 10. Top 5 架构风险
+
+1. BookRun adapter 未接入真实生产触发路径：证据为 `rg run_book_run_with_skill_runner apps` 仅发现 tests、__init__、adapter；建议下一步设计生产调度入口和 progress sink。
+2. API exporter 动态加载 workflow audit.py：证据为 apps/api/app/domains/book_runs/workflow_skill_audit_bridge.py:15-36；建议增加 bridge 健康测试或抽出稳定共享包。
+3. LangGraph 节点事件与章节 skill_runs 边界需要继续隔离：证据为当前 adapter 不修改 graph.py；建议若记录节点事件，另建 workflow_node_run.v1。
+4. phase9b_real_llm_smoke.py 不宜成为主线：证据为 apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py 依赖 DB、provider、judge、repair 多域；建议后续拆分为 preflight、runner、judge-repair、reporter。
+5. source_refs 与静态技能定义维护成本偏高：证据为 apps/workflow/storyforge_workflow/skills/definitions.py:44、177-281；建议删除行号型 source_refs，并保留状态词一致性 runtime 校验。
+
+## 11. Top 5 测试或验证缺口
+
+1. 生产触发端到端缺失：当前 adapter 只在 workflow 测试中执行；补偿计划是新增 API/workflow 调度接线测试，验证 BookRun 创建后能触发 adapter 并 patch progress。
+2. progress sink 真实实现缺失：当前 CapturingProgressSink 仅为测试工具；补偿计划是定义 HTTP 或 service sink 契约，并用本地 fake API 验证重试和失败记录。
+3. bridge 路径健康测试不足：workflow_skill_audit_bridge 动态加载 audit.py；补偿计划是增加 API 测试，断言 bridge 能定位文件并输出与 workflow audit 等价的 JSON。
+4. API warning 未治理：JWT 测试密钥长度和 HTTP 422 deprecation 会降低门禁信噪比；补偿计划是单独小任务清理 warning。
+5. 真实 LLM smoke 可维护性不足：phase9b 文件过大且跨域；补偿计划是维护性重构，不改变生产主链路。
+
+## 12. 下一批任务队列
+
+### 必做
+
+1. BookRun workflow adapter 生产调度接线设计与测试
+   - 目标：定义 API 创建 BookRun 后如何触发 workflow adapter，以及 adapter 如何安全回填 progress。
+   - 验收：新增本地测试证明 created/running BookRun 经 adapter 后产生 recorded skill_runs，并通过 API progress patch 进入 audit_report。
+   - 预计影响：关闭当前最大 P0 缺口，让 recorded skill_runs 不只存在于 workflow 测试路径。
+
+2. progress sink 契约与失败语义
+   - 目标：明确 sink 是 HTTP、service adapter 还是队列消费者；定义失败重试、幂等和错误留痕。
+   - 验收：本地 fake sink 覆盖成功、重复提交、失败重试和不可恢复错误。
+   - 预计影响：避免把长任务失败吞掉或污染 API 真相源。
+
+### 高收益
+
+1. workflow_skill_audit_bridge 稳定性测试
+   - 目标：锁定 API 到 workflow audit.py 的动态加载边界。
+   - 验收：API 单测断言 bridge 加载成功、JSON 结构稳定、recorded/reconstructed 统计一致。
+   - 预计影响：降低跨包文件路径桥接的回归风险。
+
+2. skills/definitions.py source_refs 去行号化与状态词 runtime 校验
+   - 目标：减少静态行号腐烂，同时保持状态词和 runner/audit 一致。
+   - 验收：相关 registry 和 adapter 状态词测试通过。
+   - 预计影响：降低技能定义维护成本。
+
+3. API warning 清理
+   - 目标：消除 JWT 测试密钥和 HTTP 422 deprecation warnings。
+   - 验收：API pytest 输出 326 passed 且 warning 数量下降为 0 或仅剩已记录外部 warning。
+   - 预计影响：提升本地门禁信噪比。
+
+### 可延后
+
+1. phase9b_real_llm_smoke.py 维护性拆分
+   - 延后理由：它影响可维护性，但不是 recorded skill_runs 生产接线的前置条件。
+
+2. LangGraph 节点级 telemetry
+   - 延后理由：需要另建 workflow_node_run.v1，不能混入章节 skill_runs；当前主链路更需要生产接线。
+
+### 不建议现在做
+
+1. 动态插件市场或多 Agent 编排平台
+   - 不建议理由：当前主链路生产接线尚未闭合，过早引入平台化会放大复杂度。
+
+2. 在 API service 内直接执行 workflow
+   - 不建议理由：会破坏 API 真相源与 workflow 长任务编排边界，且不利于超时、重试和观测。
+
+3. 把 phase9b smoke 当长期主线
+   - 不建议理由：该文件跨域、重依赖真实 provider，适合烟测，不适合作为主运行架构。
+
+## 13. 推荐决策
+
+建议下一步直接为“BookRun workflow adapter 生产调度接线设计与测试”写 implementation plan。该任务应先设计调度边界和 progress sink 契约，再进入 TDD 实现；不建议继续做更宽泛评估。

@@ -863,3 +863,12 @@ econstructed_event_count 为 1，evidence_basis 为 mixed。
 
 - 阻塞 warning：无。
 - 非阻塞 warning：JWT 测试密钥长度提示、HTTP 422 常量 deprecation。两类 warning 均未影响 BookRun 主链路验证通过，但建议纳入后续治理任务。
+
+## StoryForge 项目健康评估结论
+
+时间：2026-06-01 04:24:03 +08:00
+
+- 综合评分：86/100。
+- 建议：需讨论后通过；评估本身完成，项目可继续小范围推进，但应先处理 P0 生产接线缺口。
+- 下一步推荐：BookRun workflow adapter 生产调度接线设计与测试。
+- 本轮未解决风险：adapter 未接入生产触发路径、progress sink 真实实现缺失、workflow_skill_audit_bridge 动态路径桥接风险、API warnings、phase9b smoke 可维护性。
