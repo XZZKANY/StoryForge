@@ -872,3 +872,12 @@ econstructed_event_count 为 1，evidence_basis 为 mixed。
 - 建议：需讨论后通过；评估本身完成，项目可继续小范围推进，但应先处理 P0 生产接线缺口。
 - 下一步推荐：BookRun workflow adapter 生产调度接线设计与测试。
 - 本轮未解决风险：adapter 未接入生产触发路径、progress sink 真实实现缺失、workflow_skill_audit_bridge 动态路径桥接风险、API warnings、phase9b smoke 可维护性。
+
+## StoryForge 项目健康评估收尾复核
+
+时间：2026-06-01 04:24:50 +08:00
+
+- 完整性检查：`Select-String` 已确认综合评分、Top 5 架构风险、Top 5 测试或验证缺口、下一批任务队列、不建议现在做等章节存在。
+- 占位符检查：未发现 TBD、TODO、待补、占位。
+- 最近提交链路：0de0c4c → 54335d3 → 8fa21e0 → ff1221f → b74038a。
+- 结论：评估计划已执行完毕，可进入下一步推荐任务的 implementation plan 编写。

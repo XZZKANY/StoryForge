@@ -1016,3 +1016,14 @@ epair 可修复语义。
 - 已运行 adapter 使用点搜索：run_book_run_with_skill_runner 当前仅在 tests、orchestrators __init__ 和 adapter 实现中出现。
 - 已运行 recorded/reconstructed 证据边界搜索：workflow/API/Web 均有最小暴露测试覆盖。
 - 主要结论：生产触发接线缺口是 P0；API exporter 动态加载 workflow audit.py 是 P1；source_refs 与 warnings 属于治理项。
+
+## 项目健康评估收尾
+
+时间：2026-06-01 04:24:50 +08:00
+
+- 评估报告：D:\StoryForge\.codex\project-health-assessment.md。
+- 验证报告：D:\StoryForge\.codex\verification-report.md。
+- 推荐下一步：BookRun workflow adapter 生产调度接线设计与测试。
+- 综合评分：86/100。
+- 完整性检查：必需章节均存在；未发现 TBD、TODO、待补、占位。
+- 未处理事项：adapter 未接入生产触发路径、progress sink 真实实现缺失、workflow_skill_audit_bridge 动态路径桥接风险、API warnings、phase9b smoke 可维护性。
