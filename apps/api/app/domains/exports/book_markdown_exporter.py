@@ -12,6 +12,7 @@ from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact
 from app.domains.book_runs.models import BookRun
+from app.domains.book_runs.workflow_skill_audit_bridge import derive_book_run_skill_chain
 from app.domains.books.models import Book, Chapter, Scene
 
 
@@ -63,6 +64,7 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
         "chapter_quality_scores": _chapter_quality_scores(chapters),
         "top_quality_issues": _top_quality_issues(chapters),
         "manual_review_recommendations": _manual_review_recommendations(chapters),
+        "skill_chain": derive_book_run_skill_chain(book_run.id, book_run.status, book_run.progress),
     }
     for chapter in report["chapters"]:
         if not chapter.get("model_run_id") or not chapter.get("judge_report_id") or not chapter.get("approved_scene_id"):
