@@ -844,3 +844,22 @@ econstructed_event_count 为 1，evidence_basis 为 mixed。
 
 综合评分：95/100
 建议：通过
+
+## StoryForge 项目健康评估验证记录
+
+时间：2026-06-01 04:20:41 +08:00
+
+### 命令结果
+
+- workflow ruff：cd D:\StoryForge\apps\workflow; uv run ruff check . → All checks passed。
+- workflow pytest：cd D:\StoryForge\apps\workflow; uv run pytest -q → 156 passed。
+- API ruff：cd D:\StoryForge\apps\api; uv run ruff check . → All checks passed。
+- API pytest：cd D:\StoryForge\apps\api; uv run pytest -q → 326 passed, 6 warnings。
+- Web audit contract：cd D:\StoryForge; pnpm --filter @storyforge/web test -- book-run-audit → 3 pass / 0 fail。
+- workflow 主链路目标测试：uv run pytest tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py tests/test_skill_audit_summary.py tests/test_novel_skill_runner.py -v → 27 passed。
+- API 主链路目标测试：uv run pytest tests/test_book_run_recorded_skill_runs_export.py tests/test_book_exporter.py tests/test_book_runs.py -v → 12 passed, 1 warning。
+
+### warning 分类
+
+- 阻塞 warning：无。
+- 非阻塞 warning：JWT 测试密钥长度提示、HTTP 422 常量 deprecation。两类 warning 均未影响 BookRun 主链路验证通过，但建议纳入后续治理任务。

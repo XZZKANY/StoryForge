@@ -994,3 +994,16 @@ epair 可修复语义。
 - 本轮评估目标：主链路、架构边界、测试健康度和下一步路线图。
 - 本轮不修改业务代码，不恢复历史 stash。
 - 已读取关键模块：book_run_adapter.py、book_loop.py、novel_loop.py、skills/audit.py、book_runs/service.py、book_markdown_exporter.py、audit.tsx。
+
+## 项目健康评估本地验证
+
+时间：2026-06-01 04:20:41 +08:00
+
+- workflow ruff：通过。
+- workflow pytest：156 passed。
+- API ruff：通过。
+- API pytest：326 passed, 6 warnings。
+- Web audit contract：3 pass / 0 fail。
+- workflow 主链路目标测试：27 passed。
+- API 主链路目标测试：12 passed, 1 warning。
+- 结论：当前本地门禁通过；warnings 均为非阻塞治理项。
