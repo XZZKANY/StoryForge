@@ -11,6 +11,11 @@ type AuditEvent = {
   readonly memoryExtractId: string;
 };
 
+type SkillChainChapter = {
+  readonly chapterIndex: string;
+  readonly skills: readonly Record<string, unknown>[];
+};
+
 export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead | null }) {
   if (!bookRun) {
     return (
@@ -29,6 +34,7 @@ export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead |
         BookRun #{bookRun.id} / Blueprint #{bookRun.blueprint_id}，状态：{bookRun.status}
       </p>
       <QualitySummary progress={bookRun.progress} />
+      <SkillChainSummary bookRun={bookRun} />
       {events.length > 0 ? (
         <ol>
           {events.map((event) => (
@@ -76,6 +82,58 @@ export function BookRunAuditPanel({ bookRun }: { readonly bookRun: BookRunRead |
   );
 }
 
+function SkillChainSummary({ bookRun }: { readonly bookRun: BookRunRead }) {
+  const chapters = skillChainChapters(bookRun);
+  return (
+    <section aria-labelledby="skill-chain-title">
+      <h3 id="skill-chain-title">技能链</h3>
+      {chapters.length > 0 ? (
+        <ol>
+          {chapters.map((chapter) => (
+            <li key={chapter.chapterIndex}>
+              <h4>章节 {chapter.chapterIndex}</h4>
+              <ul>
+                {chapter.skills.map((skill, index) => (
+                  <li key={`${formatEvidenceValue(skill.skill_name)}-${index}`}>
+                    {formatEvidenceValue(skill.skill_name)}：状态=
+                    {formatEvidenceValue(skill.status)}
+                    <SkillRef field="model_run_id" skill={skill} />
+                    <SkillRef field="judge_report_id" skill={skill} />
+                    <SkillRef field="repair_patch_id" skill={skill} />
+                    <SkillRef field="approved_scene_id" skill={skill} />
+                    <SkillRef field="memory_atom_ids" skill={skill} />
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p>暂无技能链审计数据。</p>
+      )}
+    </section>
+  );
+}
+
+function SkillRef({
+  field,
+  skill,
+}: {
+  readonly field: string;
+  readonly skill: Record<string, unknown>;
+}) {
+  const value = skill[field];
+  if (value === undefined || value === null) return null;
+  const rendered = Array.isArray(value) ? value.join(',') : formatEvidenceValue(value);
+  if (!rendered) return null;
+  return (
+    <>
+      {' '}
+      {field}={rendered}
+    </>
+  );
+}
+
 export function auditEvents(bookRun: BookRunRead): readonly AuditEvent[] {
   const completed = Array.isArray(bookRun.progress.completed_chapters)
     ? bookRun.progress.completed_chapters
@@ -118,6 +176,15 @@ function evidenceHref(path: string, queryKey: string, value: string): string | n
 function formatEvidenceValue(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'string') return String(value);
   return '未记录';
+}
+
+function skillChainChapters(bookRun: BookRunRead): readonly SkillChainChapter[] {
+  const explicit = asRecord(bookRun.skill_chain) ?? asRecord(bookRun.progress.skill_chain);
+  const chapters = asRecordArray(explicit?.chapters);
+  return chapters.map((chapter) => ({
+    chapterIndex: formatEvidenceValue(chapter.chapter_index),
+    skills: asRecordArray(chapter.skills),
+  }));
 }
 
 function QualitySummary({ progress }: { readonly progress: Record<string, unknown> }) {
