@@ -1007,3 +1007,12 @@ epair 可修复语义。
 - workflow 主链路目标测试：27 passed。
 - API 主链路目标测试：12 passed, 1 warning。
 - 结论：当前本地门禁通过；warnings 均为非阻塞治理项。
+
+## 项目健康评估架构边界分析
+
+时间：2026-06-01 04:22:21 +08:00
+
+- 已运行 API/workflow 边界搜索：workflow 未直接依赖 API ORM；API service 未直接执行 workflow adapter。
+- 已运行 adapter 使用点搜索：run_book_run_with_skill_runner 当前仅在 tests、orchestrators __init__ 和 adapter 实现中出现。
+- 已运行 recorded/reconstructed 证据边界搜索：workflow/API/Web 均有最小暴露测试覆盖。
+- 主要结论：生产触发接线缺口是 P0；API exporter 动态加载 workflow audit.py 是 P1；source_refs 与 warnings 属于治理项。

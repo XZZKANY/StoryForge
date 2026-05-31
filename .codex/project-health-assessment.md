@@ -40,3 +40,68 @@
 - Web 审计路径健康：book-run-audit contract 3 个子测试通过。
 - BookRun recorded skill_runs 主链路有目标测试覆盖：workflow 27 个目标测试和 API 12 个目标测试通过。
 - 当前最大测试风险不是失败，而是生产触发路径尚未有端到端真实接线测试。
+
+## 5. 主链路数据流
+
+```mermaid
+flowchart TD
+    A[API 创建 BookRun] --> B[workflow adapter]
+    B --> C[BookLoop]
+    C --> D[NovelLoop]
+    D --> E[NovelSkillRunner recorded skill_runs]
+    E --> F[BookLoop progress checkpoint]
+    F --> G[API progress patch]
+    G --> H[exporter 生成 audit_report]
+    H --> I[Web 审计面板]
+```
+
+### 证据路径
+
+- API 创建 BookRun：apps/api/app/domains/book_runs/service.py:26。
+- API progress patch：apps/api/app/domains/book_runs/service.py:67。
+- workflow adapter：apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py:61。
+- BookLoop 顺序编排：apps/workflow/storyforge_workflow/orchestrators/book_loop.py:35。
+- BookLoop 写入 skill_runs：apps/workflow/storyforge_workflow/orchestrators/book_loop.py:94-107。
+- NovelLoop 注入 skill_runner：apps/workflow/storyforge_workflow/orchestrators/novel_loop.py:110-190。
+- SkillRunner recorded run：apps/workflow/storyforge_workflow/skills/runner.py:17、46。
+- audit projection：apps/workflow/storyforge_workflow/skills/audit.py:51-78。
+- API audit bridge：apps/api/app/domains/book_runs/workflow_skill_audit_bridge.py:15、23、36。
+- exporter：apps/api/app/domains/exports/book_markdown_exporter.py:51-80。
+- Web 审计展示：apps/web/app/book-runs/audit.tsx:85-130。
+
+## 6. 架构边界评估
+
+### 6.1 API 与 workflow 边界
+
+- workflow adapter 使用 BookRunAdapterPorts 注入外部依赖，未导入 SQLAlchemy Session 或 API ORM。证据：apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py:3-9、35-41。
+- API BookRun service 负责数据库真相源和 progress patch，未直接调用 run_book_run_with_skill_runner。证据：apps/api/app/domains/book_runs/service.py:26-85；`rg run_book_run_with_skill_runner apps` 仅发现 workflow tests、orchestrators __init__ 和 adapter 实现。
+- API exporter 通过 workflow_skill_audit_bridge 动态加载 workflow 的 audit.py 纯函数，避免导入 workflow 顶层运行时。证据：apps/api/app/domains/book_runs/workflow_skill_audit_bridge.py:15-36。
+- 边界结论：当前 API service 与 workflow 编排边界清晰；API exporter 到 workflow audit.py 的文件路径桥接是可控但需要关注的跨包复用点。
+
+### 6.2 recorded/reconstructed 证据边界
+
+- audit.py 定义 recorded_skill_run 与 reconstructed_from_progress 两类 provenance。证据：apps/workflow/storyforge_workflow/skills/audit.py:11-12。
+- derive_skill_chain_projection 优先读取 recorded skill_runs；没有 recorded 时才使用 reconstructed 事件。证据：apps/workflow/storyforge_workflow/skills/audit.py:61-67。
+- completed 状态会追加 export reconstructed 事件，因此 recorded 章节事件和 export 事件可以形成 mixed evidence。证据：apps/workflow/storyforge_workflow/skills/audit.py:69-70、232-238。
+- API 与 Web 测试均断言完整提示词和完整正文不会出现在审计输出。证据：apps/api/tests/test_book_exporter.py:56-107；apps/api/tests/test_book_run_recorded_skill_runs_export.py:20-33；apps/web/tests/book-run-audit.test.tsx:149-150。
+
+### 6.3 生产触发边界
+
+- BookRun adapter 的公开入口已实现，但当前代码搜索显示没有生产服务调用 run_book_run_with_skill_runner。
+- 现有调用点集中在 workflow tests 与 orchestrators __init__。证据：`rg run_book_run_with_skill_runner apps`。
+- 结论：真实 recorded skill_runs 能本地验证，但还不是生产运行路径的默认结果；后续需要设计独立生产调度接线，不应把 API service 改成长任务执行器。
+
+## 7. 架构风险表
+
+| 编号 | 风险 | 证据 | 影响 | 修复成本 | 优先级 | 建议 |
+| --- | --- | --- | --- | --- | --- | --- |
+| R1 | BookRun adapter 尚未接入真实生产触发路径 | `rg run_book_run_with_skill_runner apps` 仅发现 tests、__init__、adapter | 高 | 中 | P0 | 下一批优先设计 workflow adapter 调度入口和 progress sink 接线。 |
+| R2 | API exporter 通过文件路径动态加载 workflow audit.py，长期可能受路径布局影响 | apps/api/app/domains/book_runs/workflow_skill_audit_bridge.py:15-36 | 中 | 中 | P1 | 后续把 audit 投影抽到稳定共享包，或给 bridge 增加路径健康测试。 |
+| R3 | LangGraph 节点事件与章节 skill_runs 仍需保持隔离 | apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py:61；计划明确不修改 graph.py | 中 | 中 | P1 | 若要记录 graph 节点，另建 workflow_node_run.v1，不并入章节 skill_runs。 |
+| R4 | phase9b_real_llm_smoke.py 体量大且依赖 API DB/真实 provider 语义，容易被误用为主线 | apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py:13-86、183-769 | 中 | 中 | P2 | 后续拆 preflight、runner、judge-repair、reporter，并明确 smoke 边界。 |
+| R5 | skills/definitions.py 中 source_refs 与状态映射维护成本偏高 | apps/workflow/storyforge_workflow/skills/definitions.py:44、177-281；apps/workflow/tests/test_book_run_adapter.py:115-130 | 中 | 低 | P2 | 删除易腐烂行号型 source_refs，保留文件级引用，并保留状态词一致性测试。 |
+| R6 | API pytest 有非阻塞 warning，长期会降低门禁信噪比 | API pytest 输出 326 passed, 6 warnings | 低 | 低 | P3 | 后续单独治理 JWT 测试密钥长度和 HTTP 422 deprecation。 |
+
+## 8. 架构评估结论
+
+当前架构的核心边界是健康的：API 保存业务真相源，workflow 执行长任务编排，audit/export 只读投影，Web 只展示投影结果。最大缺口不是 recorded skill_runs 能否产出，而是它尚未接入真实生产触发路径。下一阶段应优先做生产接线设计，而不是继续扩大静态定义或把 smoke 工具主线化。
