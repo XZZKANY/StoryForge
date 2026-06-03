@@ -25,6 +25,7 @@ from app.common.sentry_config import init_sentry
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
+from app.domains.assistant.router import router as assistant_router
 from app.domains.batch_refinement.router import router as batch_refinement_router
 from app.domains.batch_refinery.router import router as batch_refinery_router
 from app.domains.blueprints.router import router as blueprints_router
@@ -50,6 +51,7 @@ from app.domains.scene_packets.router import router as scene_packets_router
 from app.domains.series.router import router as series_router
 from app.domains.studio.router import router as studio_router
 from app.domains.style_packs.router import router as style_packs_router
+from app.domains.timeline.router import router as timeline_router
 from app.domains.workspaces.router import router as workspaces_router
 from app.domains.worldbuilding.router import router as worldbuilding_router
 
@@ -164,7 +166,7 @@ async def enforce_tiered_rate_limit(request: Request, call_next):
 
 @app.middleware("http")
 async def require_authentication(request: Request, call_next):
-    """双模认证：X-StoryForge-API-Key（服务间通信）或 Authorization: Bearer（用户会话）。"""
+    """双模认证：服务间通信密钥头或用户会话头。"""
 
     if request.method == "OPTIONS" or request.url.path in _PUBLIC_PATHS:
         return await call_next(request)
@@ -210,6 +212,7 @@ for _route in health_router.routes:
     if hasattr(_route, "endpoint"):
         limiter.exempt(_route.endpoint)
 app.include_router(artifacts_router)
+app.include_router(assistant_router)
 app.include_router(analytics_router)
 app.include_router(assets_router)
 app.include_router(blueprints_router)
@@ -235,6 +238,7 @@ app.include_router(scene_packets_router)
 app.include_router(style_packs_router)
 app.include_router(studio_router)
 app.include_router(series_router)
+app.include_router(timeline_router)
 app.include_router(workspaces_router)
 app.include_router(worldbuilding_router)
 

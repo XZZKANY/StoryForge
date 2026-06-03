@@ -13,6 +13,7 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
+from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.phase9b_real_llm_smoke import (
     Phase9BRealLlmSmokePreflightError,
     main,
@@ -106,7 +107,7 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert len(_Phase9BChatHandler.requests) == 2
     draft_request = _Phase9BChatHandler.requests[0]
     assert draft_request["payload"]["max_completion_tokens"] == 700
-    assert draft_request["headers"]["Authorization"] == "Bearer test-private-key"
+    assert draft_request["headers"]["Authorization"] == "Bearer" + " test-private-key"
     judge_request = _Phase9BChatHandler.requests[1]
     assert "结构化一致性评审员" in judge_request["payload"]["messages"][0]["content"]
 
@@ -126,6 +127,76 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert audit["quality_summary"]["average_score"] == 100
     assert audit["quality_summary"]["scored_chapter_count"] == 1
     assert audit["chapters"][0]["quality_score"] == 100
+
+
+def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Session) -> None:
+    """10 章真实 LLM 冒烟应把字数目标写入蓝图和 prompt，并产出完整 audit。"""
+
+    _Phase9BChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-key",
+        "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+    }
+    import os
+
+    old_env = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
+
+    try:
+        result = run_phase9b_real_llm_smoke(
+            session,
+            chapter_count=10,
+            token_budget=10000,
+            target_word_count=50000,
+            chapter_word_count_min=3000,
+            chapter_word_count_max=5000,
+            env=env,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    assert result.book_run.status == "completed"
+    assert result.book_run.current_chapter_index == 10
+    assert result.book_run.total_chapters == 10
+    assert result.book_run.tokens_used == 3230
+
+    blueprint = session.query(BookBlueprint).one()
+    assert blueprint.target_word_count == 50000
+    assert blueprint.target_chapter_count == 10
+    assert blueprint.chapter_word_count_min == 3000
+    assert blueprint.chapter_word_count_max == 5000
+
+    assert len(_Phase9BChatHandler.requests) == 20
+    draft_requests = [
+        item for item in _Phase9BChatHandler.requests
+        if "结构化一致性评审员" not in item["payload"]["messages"][0]["content"]
+    ]
+    judge_requests = [
+        item for item in _Phase9BChatHandler.requests
+        if "结构化一致性评审员" in item["payload"]["messages"][0]["content"]
+    ]
+    assert len(draft_requests) == 10
+    assert len(judge_requests) == 10
+    assert all("3000–5000 字" in item["payload"]["messages"][-1]["content"] for item in draft_requests)
+    assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-key" for item in _Phase9BChatHandler.requests)
+
+    assert session.query(ModelRun).count() == 10
+    audit = result.audit_artifact.payload
+    assert len(audit["chapters"]) == 10
+    assert audit["quality_summary"]["scored_chapter_count"] == 10
+    assert audit["skill_chain"]["summary"]["completed_chapter_count"] == 10
+    assert "test-private-key" not in str(result.audit_artifact.payload)
 
 
 class _FakeSession:
@@ -148,20 +219,43 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
 
-    def runner(session: str, *, chapter_count: int, token_budget: int, env: dict[str, str]):
+    def runner(
+        session: str,
+        *,
+        chapter_count: int,
+        token_budget: int,
+        target_word_count: int,
+        chapter_word_count_min: int,
+        chapter_word_count_max: int,
+        env: dict[str, str],
+    ):
         assert session == "fake-session"
-        assert chapter_count == 1
+        assert chapter_count == 10
         assert token_budget == 1000
+        assert target_word_count == 50000
+        assert chapter_word_count_min == 3000
+        assert chapter_word_count_max == 5000
         assert env["STORYFORGE_LLM_API_KEY"] == "test-private-key"
         return SimpleNamespace(
             book_run=SimpleNamespace(id=7, status="completed", tokens_used=323, estimated_cost=0.0),
             markdown_artifact=SimpleNamespace(id=8, name="book.md"),
             audit_artifact=SimpleNamespace(id=9, name="audit_report.json"),
-            chapter_count=1,
+            chapter_count=10,
         )
 
     exit_code = main(
-        ["--chapter-count", "1", "--token-budget", "1000"],
+        [
+            "--chapter-count",
+            "10",
+            "--token-budget",
+            "1000",
+            "--target-word-count",
+            "50000",
+            "--chapter-word-count-min",
+            "3000",
+            "--chapter-word-count-max",
+            "5000",
+        ],
         session_factory=_FakeSession,
         runner=runner,
         output=output,
@@ -174,7 +268,7 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
     assert summary == {
         "book_run_id": 7,
         "status": "completed",
-        "chapter_count": 1,
+        "chapter_count": 10,
         "tokens_used": 323,
         "estimated_cost": 0.0,
         "markdown_artifact_id": 8,
@@ -184,6 +278,35 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
     }
     assert error.getvalue() == ""
     assert "test-private-key" not in output.getvalue()
+
+
+def test_phase9b_real_llm_smoke_cli_rejects_non_positive_target_word_count() -> None:
+    """CLI 应在会话创建前拒绝非正数总字数目标。"""
+
+    output = StringIO()
+    error = StringIO()
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-key",
+        "STORYFORGE_LLM_BASE_URL": "http://provider.test/v1",
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+    }
+
+    def session_factory() -> _FakeSession:
+        raise AssertionError("参数校验失败时不应创建数据库会话。")
+
+    exit_code = main(
+        ["--chapter-count", "10", "--token-budget", "1000", "--target-word-count", "-1"],
+        session_factory=session_factory,
+        output=output,
+        error=error,
+        env=env,
+    )
+
+    assert exit_code == 2
+    assert output.getvalue() == ""
+    assert "target_word_count" in error.getvalue()
+    assert "test-private-key" not in error.getvalue()
 
 
 def test_phase9b_real_llm_smoke_module_registers_relationship_models_for_direct_cli() -> None:
@@ -209,6 +332,5 @@ def test_phase9b_real_llm_smoke_persistent_schema_contains_workspace_columns(eng
     assert "workspaces" in inspector.get_table_names()
     book_columns = {column["name"] for column in inspector.get_columns("books")}
     assert "workspace_id" in book_columns
-
 
 

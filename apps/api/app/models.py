@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.db.base import Base
 from app.domains.artifacts.models import Artifact
 from app.domains.assets.models import Asset, EvidenceLink
+from app.domains.assistant.models import AssistantMessage, AssistantSession
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
@@ -21,6 +22,7 @@ from app.domains.provider_gateway.models import ProviderConfig
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
 from app.domains.series.models import Series, SeriesMemory, SeriesMemoryEvidence
 from app.domains.story_memory.models import MemoryAtomRecord
+from app.domains.timeline.models import TimelineEventRecord
 from app.domains.workspaces.models import Workspace, WorkspaceMember
 
 __all__ = [
@@ -55,8 +57,11 @@ __all__ = [
     "PromptPack",
     "ModelRun",
     "Artifact",
+    "AssistantSession",
+    "AssistantMessage",
     "EvaluationCase",
     "EvaluationRun",
     "MemoryAtomRecord",
+    "TimelineEventRecord",
     "CompiledContextRecord",
 ]
