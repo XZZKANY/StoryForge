@@ -20,6 +20,7 @@ postgres-data/
 redis-data/
 .superpowers/
 *.tsbuildinfo
+.worktrees/
 # 本地缓存
 .cache/
 .codex/tmp/
