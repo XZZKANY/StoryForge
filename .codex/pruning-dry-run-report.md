@@ -303,15 +303,46 @@
 
 ## 10. 本地验证记录
 
-以下命令由 Task 3 先写入待执行状态，Task 4 会回填最终验证结果。
+执行时间：2026-06-04 08:00 +08:00
 
-- 待执行：`git status --short`
-- 待执行：`git log -1 --oneline`
-- 待执行：`Test-Path .codex\pruning-dry-run-report.md`
-- 待执行：`Test-Path .codex\pruning-dry-run-data.json`
-- 待执行：`Select-String -Path .codex\pruning-dry-run-report.md -Pattern "扫描文件数|必须保留|建议归档|可删除|需人工确认|下一步执行选项"`
-- 待执行：`$blockedPattern = ("已" + "删除真实文件") + "|" + ("已" + "移动真实文件") + "|" + ("已" + "归档真实文件"); Select-String -Path .codex\pruning-dry-run-report.md -Pattern $blockedPattern`
-- 待执行：`git add -- .codex/pruning-dry-run-report.md .codex/pruning-dry-run-data.json`
-- 待执行：`git diff --cached --check`
-- 待执行：`git diff --cached --name-only`
-- 待执行：`git commit -m "回填仓库瘦身 dry-run 报告"`
+### 10.1 前置状态
+
+- 命令：`git status --short`
+  - 结果：无输出。
+  - 结论：工作树干净，可以开始 Task 4。
+- 命令：`git log -1 --oneline`
+  - 结果：`0d1086b 修正 dry-run 报告清单字段`
+  - 结论：当前提交符合 Task 4 前置要求。
+
+### 10.2 最终验证命令
+
+- 命令：`Test-Path .codex\pruning-dry-run-report.md`
+  - 结果：`True`
+  - 结论：dry-run 报告存在。
+- 命令：`Select-String -Path .codex\pruning-dry-run-report.md -Pattern "必须保留|建议归档|可删除|需人工确认|下一步执行选项"`
+  - 结果：命中第 21、53、54、55、56、59、95、187、196、291、292、293、294、297、300、322、324 行。
+  - 结论：必要分类、章节与下一步执行选项均可搜索到。
+- 命令：`$dangerPattern = ("已" + "删除") + "|" + ("已" + "移动") + "|" + ("已" + "归档"); Select-String -Path .codex\pruning-dry-run-report.md -Pattern $dangerPattern`
+  - 结果：无输出。
+  - 结论：危险措辞检查无命中。
+- 命令：`Test-Path .codex\pruning-dry-run-data.json`
+  - 结果：`False`
+  - 结论：临时中间数据文件不存在，符合 Task 4 要求。
+- 命令：`git status --short`
+  - 结果：初始执行无输出；回填本节后复验为 ` M .codex/pruning-dry-run-report.md`。
+  - 结论：仅报告文件发生变更，符合 Task 4 修改边界。
+
+### 10.3 暂存与提交前检查
+
+- 命令：`git add -- .codex/pruning-dry-run-report.md`
+  - 结果：命令成功。
+  - 结论：仅暂存 dry-run 报告。
+- 命令：`git diff --cached --check`
+  - 结果：无输出。
+  - 结论：缓存区补丁未发现空白错误。
+- 命令：`git diff --cached --name-only`
+  - 结果：`.codex/pruning-dry-run-report.md`
+  - 结论：缓存区只包含允许修改的报告文件。
+- 命令：`git commit -m "记录 dry-run 报告验证结果"`
+  - 结果：命令成功。
+  - 结论：提交信息符合 Task 4 要求。
