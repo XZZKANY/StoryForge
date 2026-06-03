@@ -1,104 +1,86 @@
+import type { HomeView } from './home-view';
+
 export type HomeNavItem = {
   readonly href: string;
+  readonly view: HomeView;
   readonly label: string;
   readonly description: string;
   readonly icon: string;
 };
 
-export type HomeQuickAction = {
+export type HomeAccountMenuItem = {
   readonly href: string;
   readonly label: string;
-  readonly hint: string;
-  readonly icon: string;
+  readonly description: string;
 };
 
 export type HomeRecentItem = {
   readonly title: string;
   readonly summary: string;
+  readonly href: string;
 };
 
 export const homeNavItems: readonly HomeNavItem[] = [
   {
-    href: '/blueprints',
-    label: '新建作品',
-    description: '从蓝图入口开始新作品或新全书计划',
-    icon: '＋',
+    href: '/?view=projects',
+    view: 'projects',
+    label: 'Projects 项目',
+    description: '管理作品、章节、审阅和批准写回',
+    icon: 'P',
   },
   {
-    href: '/retrieval',
-    label: '搜索作品与证据',
-    description: '查找资料源、命中、证据锚点',
-    icon: '⌕',
+    href: '/?view=artifacts',
+    view: 'artifacts',
+    label: 'Artifacts 产物',
+    description: '查看正文、导出文件、审计报告和版本追溯',
+    icon: 'A',
   },
-  {
-    href: '/studio',
-    label: '作品库',
-    description: '复用 Studio 作品列表能力',
-    icon: '◔',
-  },
-  {
-    href: '/studio',
-    label: 'Studio 审阅',
-    description: '审阅 Scene Packet、Judge、Repair、批准写回',
-    icon: '✦',
-  },
-  {
-    href: '/book-runs',
-    label: 'BookRun 整书运行',
-    description: '查看整书运行状态和章节进度',
-    icon: '▣',
-  },
-  {
-    href: '/retrieval',
-    label: 'Retrieval 证据',
-    description: '核对检索证据链',
-    icon: '⌁',
-  },
-  {
-    href: '/artifacts',
-    label: '工件与导出',
-    description: '查看导出与制品治理',
-    icon: '▤',
-  },
-  {
-    href: '/runs',
-    label: '运行诊断',
-    description: '查看 JobRun、ModelRun、Checkpoint',
-    icon: '◌',
-  },
+] as const;
+
+export const homeAccountMenuItems: readonly HomeAccountMenuItem[] = [
   {
     href: '/settings',
-    label: '模型与 Provider',
-    description: '检测 Provider 连通性并查看可用模型',
-    icon: '⚙',
+    label: 'Settings 设置',
+    description: '模型、Provider、运行环境和语言',
+  },
+  {
+    href: '/settings#provider',
+    label: 'Provider/API Key',
+    description: 'Provider 状态、配置指引和凭据来源说明',
+  },
+  {
+    href: '/docs',
+    label: 'Help 帮助',
+    description: '使用说明和故障排查',
+  },
+  {
+    href: '/settings#upgrade',
+    label: 'Upgrade 升级',
+    description: '工作区能力与商业化入口',
+  },
+  {
+    href: '/settings#sign-out',
+    label: 'Sign out 退出',
+    description: '断开账号或本地工作区',
   },
 ] as const;
 
-export const homeQuickActions: readonly HomeQuickAction[] = [
-  { href: '/blueprints', label: '创建 Blueprint', hint: '跳转到蓝图页面', icon: '✎' },
-  { href: '/book-runs', label: '启动 BookRun', hint: '跳转到整书运行页面', icon: '▶' },
-  { href: '/studio', label: '审阅并批准', hint: '跳转到 Studio 审阅链路', icon: '✓' },
-  { href: '/retrieval', label: '核对证据', hint: '跳转到检索证据页', icon: '⌁' },
-  { href: '/artifacts', label: '导出审计', hint: '跳转到工件与导出页', icon: '▤' },
-] as const;
-
-export const homeComposerPlaceholder =
-  '输入故事想法、章节目标或修订要求，StoryForge 会选择对应创作流程。';
+export const homeComposerPlaceholder = '给 StoryForge Assistant 发送消息';
 
 export const homeMainTitle = '今天要锻造哪段故事？';
 
-export const homeWorkspaceLabel = 'Local workspace';
+export const homeWorkspaceLabel = '本地工作区';
 
 export const homeProviderUncheckedLabel = 'Provider 待检查';
 
-export const homeContextEmpty = {
-  currentBook: '当前暂无作品，请先创建 Blueprint。',
-  bookRun: '尚未启动 BookRun。完成蓝图后可在 BookRun 页面发起整书运行。',
-  nextStep: '建议先在“创建 Blueprint”进入蓝图入口，定义全书目标。',
-} as const;
+export const homeUserFallbackName = '创作者';
 
-export const homeRecentItems: readonly HomeRecentItem[] = [
-  { title: '暂无最近记录', summary: '完成首个 Blueprint 或 BookRun 后将在此显示。' },
-];
+export const homeGreetingSegments = [
+  { startHour: 5, endHour: 8, label: '早上好' },
+  { startHour: 9, endHour: 11, label: '上午好' },
+  { startHour: 11.5, endHour: 13, label: '中午好' },
+  { startHour: 13.5, endHour: 17, label: '下午好' },
+  { startHour: 18, endHour: 28, label: '晚上好' },
+] as const;
 
 export const homeRecentEmpty = '暂无最近记录。完成首个 Blueprint 或 BookRun 后将在此显示。';
