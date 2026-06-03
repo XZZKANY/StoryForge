@@ -40,14 +40,56 @@ const runtimeModules = [
   { src: 'next.config.ts', dst: 'next.config.mjs' },
   { src: 'lib/api-client.ts', dst: 'lib/api-client.mjs' },
   { src: 'app/api/provider-models/route.ts', dst: 'app/api/provider-models/route.mjs' },
-  { src: 'app/api/provider-models/provider-models.ts', dst: 'app/api/provider-models/provider-models.mjs' },
+  {
+    src: 'app/api/provider-models/provider-models.ts',
+    dst: 'app/api/provider-models/provider-models.mjs',
+  },
   { src: 'lib/text-diff.ts', dst: 'lib/text-diff.mjs' },
   { src: 'app/studio/StudioFlow.tsx', dst: 'app/studio/StudioFlow.mjs' },
   { src: 'app/studio/approval-action-core.ts', dst: 'app/studio/approval-action-core.mjs' },
   { src: 'app/studio/validators.ts', dst: 'app/studio/validators.mjs' },
+  { src: 'app/artifacts/types.ts', dst: 'app/artifacts/types.mjs' },
+  { src: 'app/artifacts/validators.ts', dst: 'app/artifacts/validators.mjs' },
+  { src: 'app/artifacts/api.ts', dst: 'app/artifacts/api.mjs' },
+  { src: 'app/artifacts/page-content.tsx', dst: 'app/artifacts/page-content.mjs' },
   { src: 'app/blueprints/api.tsx', dst: 'app/blueprints/api.mjs' },
+  {
+    src: 'app/blueprints/BlueprintWorkspacePanel.tsx',
+    dst: 'app/blueprints/BlueprintWorkspacePanel.mjs',
+  },
   { src: 'app/book-runs/api.tsx', dst: 'app/book-runs/api.mjs' },
   { src: 'app/book-runs/audit.tsx', dst: 'app/book-runs/audit.mjs' },
+  { src: 'components/home/assistant-types.ts', dst: 'components/home/assistant-types.mjs' },
+  { src: 'components/home/assistant-intent.ts', dst: 'components/home/assistant-intent.mjs' },
+  {
+    src: 'components/home/assistant-book-run-actions.ts',
+    dst: 'components/home/assistant-book-run-actions.mjs',
+  },
+  {
+    src: 'components/home/assistant-artifact-export-actions.ts',
+    dst: 'components/home/assistant-artifact-export-actions.mjs',
+  },
+  {
+    src: 'components/home/assistant-chapter-review-actions.ts',
+    dst: 'components/home/assistant-chapter-review-actions.mjs',
+  },
+  {
+    src: 'components/home/assistant-session-store.ts',
+    dst: 'components/home/assistant-session-store.mjs',
+  },
+  {
+    src: 'components/home/assistant-tool-catalog.ts',
+    dst: 'components/home/assistant-tool-catalog.mjs',
+  },
+  {
+    src: 'components/home/assistant-tool-events.ts',
+    dst: 'components/home/assistant-tool-events.mjs',
+  },
+  {
+    src: 'components/home/assistant-tool-node-mapper.ts',
+    dst: 'components/home/assistant-tool-node-mapper.mjs',
+  },
+  { src: 'components/home/assistant-workflows.ts', dst: 'components/home/assistant-workflows.mjs' },
   {
     src: 'components/diff-viewer/RepairDiffViewer.tsx',
     dst: 'components/diff-viewer/RepairDiffViewer.mjs',
@@ -155,9 +197,44 @@ const importRewrites = [
   ['../lib/text-diff', '../lib/text-diff.mjs'],
   ['../app/studio/StudioFlow', '../app/studio/StudioFlow.mjs'],
   ['../app/studio/approval-action-core', '../app/studio/approval-action-core.mjs'],
+  ['../app/artifacts/types', '../app/artifacts/types.mjs'],
+  ['../app/artifacts/validators', '../app/artifacts/validators.mjs'],
+  ['../app/artifacts/api', '../app/artifacts/api.mjs'],
+  ['../app/artifacts/page-content', '../app/artifacts/page-content.mjs'],
   ['../app/blueprints/api', '../app/blueprints/api.mjs'],
+  ['../app/blueprints/BlueprintWorkspacePanel', '../app/blueprints/BlueprintWorkspacePanel.mjs'],
   ['../app/book-runs/api', '../app/book-runs/api.mjs'],
   ['../app/book-runs/audit', '../app/book-runs/audit.mjs'],
+  ['../components/home/assistant-types', '../components/home/assistant-types.mjs'],
+  ['../components/home/assistant-intent', '../components/home/assistant-intent.mjs'],
+  [
+    '../components/home/assistant-book-run-actions',
+    '../components/home/assistant-book-run-actions.mjs',
+  ],
+  [
+    '../components/home/assistant-artifact-export-actions',
+    '../components/home/assistant-artifact-export-actions.mjs',
+  ],
+  [
+    '../components/home/assistant-chapter-review-actions',
+    '../components/home/assistant-chapter-review-actions.mjs',
+  ],
+  ['../components/home/assistant-session-store', '../components/home/assistant-session-store.mjs'],
+  ['../components/home/assistant-tool-catalog', '../components/home/assistant-tool-catalog.mjs'],
+  ['../components/home/assistant-tool-events', '../components/home/assistant-tool-events.mjs'],
+  [
+    '../components/home/assistant-tool-node-mapper',
+    '../components/home/assistant-tool-node-mapper.mjs',
+  ],
+  ['../components/home/assistant-workflows', '../components/home/assistant-workflows.mjs'],
+  ['./assistant-types', './assistant-types.mjs'],
+  ['./assistant-book-run-actions', './assistant-book-run-actions.mjs'],
+  ['./assistant-artifact-export-actions', './assistant-artifact-export-actions.mjs'],
+  ['./assistant-chapter-review-actions', './assistant-chapter-review-actions.mjs'],
+  ['./assistant-session-store', './assistant-session-store.mjs'],
+  ['./assistant-tool-catalog', './assistant-tool-catalog.mjs'],
+  ['./assistant-tool-events', './assistant-tool-events.mjs'],
+  ['./assistant-workflows', './assistant-workflows.mjs'],
   ['../../lib/text-diff', '../../lib/text-diff.mjs'],
   ['../components/diff-viewer/RepairDiffViewer', '../components/diff-viewer/RepairDiffViewer.mjs'],
   ['../components/judge-panel/JudgeIssueList', '../components/judge-panel/JudgeIssueList.mjs'],
@@ -213,7 +290,10 @@ const importRewrites = [
     '../components/ide/views/StoryMemoryExplorer.mjs',
   ],
   ['../components/ide/views/BookRunPanel', '../components/ide/views/BookRunPanel.mjs'],
-  ['../components/ide/views/BookRunEventsClient', '../components/ide/views/BookRunEventsClient.mjs'],
+  [
+    '../components/ide/views/BookRunEventsClient',
+    '../components/ide/views/BookRunEventsClient.mjs',
+  ],
   ['../components/ide/views/BookRunEventsPanel', '../components/ide/views/BookRunEventsPanel.mjs'],
   ['../components/ide/views/ArtifactViewer', '../components/ide/views/ArtifactViewer.mjs'],
   [
@@ -265,6 +345,9 @@ const importRewrites = [
   ['../workflows/JudgeRepairWorkbench', '../workflows/JudgeRepairWorkbench.mjs'],
   ['./approval-action-core', './approval-action-core.mjs'],
   ['./validators', './validators.mjs'],
+  ['./api', './api.mjs'],
+  ['./types', './types.mjs'],
+  ['./page-content', './page-content.mjs'],
 ];
 
 function escapeRegex(value) {
@@ -305,6 +388,26 @@ try {
 
   const tempTestsDir = join(tempDir, 'tests');
   mkdirSync(tempTestsDir, { recursive: true });
+  const nextNavigationStubDir = join(tempDir, 'node_modules/next');
+  mkdirSync(nextNavigationStubDir, { recursive: true });
+  writeFileSync(
+    join(nextNavigationStubDir, 'navigation.js'),
+    'export function redirect(url){ throw new Error(url); }\n',
+    'utf8',
+  );
+  writeFileSync(
+    join(nextNavigationStubDir, 'cache.js'),
+    'export function revalidatePath(){}\n',
+    'utf8',
+  );
+  writeFileSync(
+    join(nextNavigationStubDir, 'package.json'),
+    JSON.stringify({
+      type: 'module',
+      exports: { './navigation': './navigation.js', './cache': './cache.js' },
+    }),
+    'utf8',
+  );
 
   const runnableTests = selectedTestFiles.map((file) => {
     const testFile = join(testsDir, file);

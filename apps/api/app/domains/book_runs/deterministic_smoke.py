@@ -27,21 +27,39 @@ class Phase9ADeterministicSmokeResult:
     audit_artifact: Artifact
 
 
-def run_phase9a_deterministic_smoke(session: Session) -> Phase9ADeterministicSmokeResult:
-    """跑通三章 deterministic BookRun，并导出 Markdown 与审计报告。"""
+def run_phase9a_deterministic_smoke(
+    session: Session,
+    *,
+    chapter_count: int = 3,
+    target_word_count: int = 4500,
+    chapter_content_repetitions: int = 34,
+) -> Phase9ADeterministicSmokeResult:
+    """跑通 deterministic BookRun，并导出 Markdown 与审计报告。"""
 
     book = Book(title="雾港航线", status="draft", premise="林岚在雾港追查失真的灯塔信号。")
     session.add(book)
     session.commit()
     session.refresh(book)
-    blueprint = create_book_blueprint(session, _blueprint_payload(book.id))
+    blueprint = create_book_blueprint(
+        session,
+        _blueprint_payload(
+            book.id,
+            chapter_count=chapter_count,
+            target_word_count=target_word_count,
+        ),
+    )
     lock_book_blueprint(session, blueprint.id)
     trigger_chapter_plan(session, blueprint.id)
     book_run = create_book_run(session, BookRunCreate(book_id=book.id, blueprint_id=blueprint.id))
     completed_chapters = []
-    for chapter_index in range(1, 4):
+    for chapter_index in range(1, chapter_count + 1):
         chapter = _chapter(session, book.id, chapter_index)
-        scene = _approve_deterministic_scene(session, book_run, chapter)
+        scene = _approve_deterministic_scene(
+            session,
+            book_run,
+            chapter,
+            chapter_content_repetitions=chapter_content_repetitions,
+        )
         model_run = _record_deterministic_model_run(session, book_run, scene)
         scene_packet = _record_scene_packet(session, book_run, scene)
         judge = _record_passed_judge(session, book_run, scene, scene_packet)
@@ -59,7 +77,7 @@ def run_phase9a_deterministic_smoke(session: Session) -> Phase9ADeterministicSmo
         book_run.id,
         BookRunProgressUpdate(
             status="completed",
-            current_chapter_index=3,
+            current_chapter_index=chapter_count,
             progress={"completed_chapters": completed_chapters},
         ),
     )
@@ -88,13 +106,18 @@ def count_markdown_body_words(markdown: str) -> int:
     return total
 
 
-def _blueprint_payload(book_id: int) -> BookBlueprintCreate:
+def _blueprint_payload(
+    book_id: int,
+    *,
+    chapter_count: int,
+    target_word_count: int,
+) -> BookBlueprintCreate:
     return BookBlueprintCreate(
         book_id=book_id,
         premise="林岚在雾港追查失真的灯塔信号。",
         tone="克制悬疑",
-        target_word_count=4500,
-        target_chapter_count=3,
+        target_word_count=target_word_count,
+        target_chapter_count=chapter_count,
         chapter_word_count_min=1000,
         chapter_word_count_max=1800,
         metadata={"pov": "林岚", "location": "雾港"},
@@ -112,8 +135,14 @@ def _chapter(session: Session, book_id: int, chapter_index: int) -> Chapter:
     return chapter
 
 
-def _approve_deterministic_scene(session: Session, book_run: BookRun, chapter: Chapter) -> Scene:
-    content = _chapter_content(chapter.ordinal)
+def _approve_deterministic_scene(
+    session: Session,
+    book_run: BookRun,
+    chapter: Chapter,
+    *,
+    chapter_content_repetitions: int,
+) -> Scene:
+    content = _chapter_content(chapter.ordinal, repetitions=chapter_content_repetitions)
     scene = Scene(
         chapter_id=chapter.id,
         ordinal=1,
@@ -176,9 +205,9 @@ def _record_passed_judge(session: Session, book_run: BookRun, scene: Scene, scen
     return judge
 
 
-def _chapter_content(chapter_index: int) -> str:
+def _chapter_content(chapter_index: int, *, repetitions: int) -> str:
     sentence = (
         f"第 {chapter_index} 章里 林岚 沿着 雾港 灯塔 的 潮湿 石阶 前进 她 核对 信号 节拍 记录 船队 损伤 "
         "并 在 克制 的 对话 中 推进 调查 每一次 选择 都 留下 可审计 的 行动 证据 "
     )
-    return " ".join(sentence.strip() for _ in range(34))
+    return " ".join(sentence.strip() for _ in range(repetitions))

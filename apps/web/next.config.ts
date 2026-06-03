@@ -4,10 +4,14 @@ import { withSentryConfig } from '@sentry/nextjs';
 const apiUrl = process.env.STORYFORGE_API_BASE_URL ?? 'http://127.0.0.1:8000';
 const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? '';
 const sentryOrigin = sentryDsn ? new URL(sentryDsn).origin : '';
+const scriptSrcDirective =
+  process.env.NODE_ENV === 'development'
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'";
 
 const cspDirectives = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  scriptSrcDirective,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   `connect-src 'self' ${apiUrl} ${sentryOrigin}`.trim(),
@@ -29,6 +33,10 @@ const securityHeaders = [
 const immutableCacheHeader = {
   key: 'Cache-Control',
   value: 'public, max-age=31536000, immutable',
+};
+const devStaticCacheHeader = {
+  key: 'Cache-Control',
+  value: 'no-store, must-revalidate',
 };
 const standaloneOutput = process.env.STORYFORGE_WEB_STANDALONE === '1' ? 'standalone' : undefined;
 
@@ -70,10 +78,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: 'https', hostname: '**' }],
   },
   async headers() {
+    const staticCacheHeader =
+      process.env.NODE_ENV === 'development' ? devStaticCacheHeader : immutableCacheHeader;
+
     return [
       { source: '/(.*)', headers: securityHeaders },
-      { source: '/_next/static/(.*)', headers: [immutableCacheHeader] },
-      { source: '/_next/image(.*)', headers: [immutableCacheHeader] },
+      { source: '/_next/static/(.*)', headers: [staticCacheHeader] },
+      { source: '/_next/image(.*)', headers: [staticCacheHeader] },
       {
         source: '/favicon.ico',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],

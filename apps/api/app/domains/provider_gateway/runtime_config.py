@@ -40,6 +40,8 @@ class ProviderRuntimeConfig(BaseModel):
             aliases["timeout_seconds"] = self.timeout_seconds
         if self.max_retries is not None:
             aliases["max_retries"] = self.max_retries
+        if self.api_base_url is not None:
+            aliases["api_base_url"] = self.api_base_url
         return aliases
 
 
@@ -63,7 +65,7 @@ def _load_llm_config() -> ProviderRuntimeConfig:
             capability="llm",
             provider_name=provider_name,
             model_name=model_name,
-            api_base_url=_optional_env("STORYFORGE_LLM_API_BASE_URL"),
+            api_base_url=_optional_env_any("STORYFORGE_LLM_API_BASE_URL", "STORYFORGE_LLM_BASE_URL"),
             api_key_configured=api_key_configured,
             timeout_seconds=_int_env("STORYFORGE_LLM_TIMEOUT_SECONDS"),
             max_retries=_int_env("STORYFORGE_LLM_MAX_RETRIES"),
@@ -146,6 +148,16 @@ def _env(name: str, default: str) -> str:
 def _optional_env(name: str) -> str | None:
     value = os.getenv(name)
     return value.strip() if value and value.strip() else None
+
+
+def _optional_env_any(*names: str) -> str | None:
+    """按优先级读取等价环境变量，兼容真实 smoke 与 Provider 预检命名。"""
+
+    for name in names:
+        value = _optional_env(name)
+        if value is not None:
+            return value
+    return None
 
 
 def _int_env(name: str) -> int | None:

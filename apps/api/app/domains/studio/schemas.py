@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StudioBookListItem(BaseModel):
@@ -77,6 +77,12 @@ class StudioRepairPatchRead(BaseModel):
     requires_rejudge: bool
 
 
+class StudioChapterReviewRunRequest(BaseModel):
+    """Assistant 章节审阅主动创建请求，只允许通过 Scene Packet 定位目标。"""
+
+    scene_packet_id: int = Field(gt=0)
+
+
 class StudioApprovalObjectRead(BaseModel):
     """Studio 批准摘要中的可审查对象定位。"""
 
@@ -103,6 +109,15 @@ class StudioApprovalSummaryRead(BaseModel):
     target_chapter: StudioApprovalTargetChapterRead | None
     writeback_status: str
     unavailable_reason: str | None
+
+
+class StudioChapterReviewRunRead(BaseModel):
+    """Assistant 章节审阅主动创建结果，聚合评审、修复和批准摘要。"""
+
+    scene_packet_id: int
+    judge_review: StudioJudgeReviewRead
+    repair_patches: list[StudioRepairPatchRead]
+    approval_summary: StudioApprovalSummaryRead
 
 
 class StudioApprovalExecuteRequest(BaseModel):

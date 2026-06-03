@@ -18,9 +18,13 @@ const apiTests = {
 };
 const webSources = {
   home: readFileSync('apps/web/app/page.tsx', 'utf8'),
+  editorArea: readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8'),
   retrieval: readFileSync('apps/web/app/retrieval/page.tsx', 'utf8'),
   runs: readFileSync('apps/web/app/runs/page.tsx', 'utf8'),
-  artifacts: readFileSync('apps/web/app/artifacts/page.tsx', 'utf8'),
+  artifacts:
+    readFileSync('apps/web/app/artifacts/page.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/app/artifacts/page-content.tsx', 'utf8'),
   evaluations: readFileSync('apps/web/app/evaluations/page.tsx', 'utf8'),
 };
 
@@ -107,13 +111,13 @@ test('Phase 4 后端测试源码保留关键业务证据', () => {
 });
 
 test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面板', () => {
-  assertSourceEvidence(webSources.home, [
+  assertSourceEvidence(webSources.editorArea, [
     '/retrieval',
     '/runs',
     '/artifacts',
     '/evaluations',
-    'Retrieval 证据链路',
-    'Evaluations 评测诊断',
+    'Retrieval 证据检索',
+    'Evaluations 评测系统',
   ]);
   assertSourceEvidence(webSources.retrieval, [
     '资料库',
@@ -127,7 +131,12 @@ test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面
     'Prompt Pack 来源',
     '任务恢复入口',
   ]);
-  assertSourceEvidence(webSources.artifacts, ['导出物', '上传资料', '工作流快照', '评测报告']);
+  assertSourceEvidence(webSources.artifacts, [
+    '导出物',
+    '制品详情',
+    'payload 下载摘要',
+    'ArtifactsWorkbench',
+  ]);
   assertSourceEvidence(webSources.evaluations, [
     '一致性错误率',
     '修复成功率',

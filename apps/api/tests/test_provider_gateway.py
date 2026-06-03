@@ -95,6 +95,24 @@ def test_provider_gateway_uses_environment_llm_when_key_configured(
     assert resolution.credential_status == "configured"
 
 
+def test_provider_gateway_accepts_real_smoke_base_url_alias(
+    session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Provider 预检应识别真实 LLM 冒烟使用的 BASE_URL 变量名。"""
+
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "writer-model")
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "https://provider.example/v1")
+    monkeypatch.delenv("STORYFORGE_LLM_API_BASE_URL", raising=False)
+
+    with session_factory() as session:
+        resolution = resolve_provider(session, "llm")
+
+    assert resolution.provider_name == "openai-compatible"
+    assert resolution.model_aliases["api_base_url"] == "https://provider.example/v1"
+
+
 def test_provider_gateway_falls_back_by_capability_when_key_missing(
     session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
 ) -> None:

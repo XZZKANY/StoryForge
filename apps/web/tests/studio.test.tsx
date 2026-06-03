@@ -4,7 +4,12 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { StudioFlow, type StudioFlowStep } from '../app/studio/StudioFlow';
-import { buildApprovalRequestBody, submitStudioApproval } from '../app/studio/approval-action-core';
+import {
+  buildApprovalRequestBody,
+  buildApprovalResultUrl,
+  type StudioApprovalSessionWrite,
+  submitStudioApproval,
+} from '../app/studio/approval-action-core';
 
 class RedirectSignal extends Error {
   constructor(readonly url: string) {
@@ -71,7 +76,9 @@ test('批准写回表单拒绝空输入', () => {
 test('批准写回提交使用正确 API payload', async () => {
   const formData = new FormData();
   formData.set('repair_patch_id', '17');
+  formData.set('assistant_session_id', '31');
   const calls: Array<{ readonly path: string; readonly init: RequestInit }> = [];
+  const sessionWrites: StudioApprovalSessionWrite[] = [];
   let revalidatedPath: string | undefined;
 
   await assert.rejects(
@@ -93,11 +100,20 @@ test('批准写回提交使用正确 API payload', async () => {
         revalidatePath: (path) => {
           revalidatedPath = path;
         },
+        writeAssistantApprovalSession: async (payload) => {
+          sessionWrites.push(payload);
+        },
         redirect: (url) => {
           throw new RedirectSignal(url);
         },
       }),
-    (error) => error instanceof RedirectSignal && error.url.includes('writeback_status='),
+    (error) => {
+      if (!(error instanceof RedirectSignal)) return false;
+      const params = new URLSearchParams(error.url.replace('/studio?', ''));
+      return (
+        params.get('writeback_status') === '已写回' && params.get('assistant_session_id') === '31'
+      );
+    },
   );
 
   assert.equal(calls.length, 1);
@@ -108,5 +124,162 @@ test('批准写回提交使用正确 API payload', async () => {
     'application/json',
   );
   assert.equal(calls[0].init.body, JSON.stringify({ repair_patch_id: 17 }));
+  assert.deepEqual(sessionWrites, [
+    {
+      assistantSessionId: 31,
+      writebackStatus: '已写回',
+      approvedChapterId: 5,
+      repairPatchId: 17,
+      scenePacketId: undefined,
+      summary: '连续性已更新',
+    },
+  ]);
   assert.equal(revalidatedPath, '/studio');
+});
+
+test('批准写回成功且无 AssistantSession 时请求创建新会话', async () => {
+  const formData = new FormData();
+  formData.set('scene_packet_id', '42');
+  const sessionWrites: StudioApprovalSessionWrite[] = [];
+
+  await assert.rejects(
+    () =>
+      submitStudioApproval(formData, {
+        endpoint: '/api/studio/approve',
+        apiFetch: async () =>
+          new Response(
+            JSON.stringify({
+              writeback_status: '已写回',
+              approved_chapter_id: 9,
+              continuity_update_summary: '只保留短摘要',
+              unavailable_reason: null,
+            }),
+            { status: 200 },
+          ),
+        revalidatePath: () => {},
+        writeAssistantApprovalSession: async (payload) => {
+          sessionWrites.push(payload);
+        },
+        redirect: (url) => {
+          throw new RedirectSignal(url);
+        },
+      }),
+    (error) => error instanceof RedirectSignal,
+  );
+
+  assert.deepEqual(sessionWrites, [
+    {
+      assistantSessionId: undefined,
+      writebackStatus: '已写回',
+      approvedChapterId: 9,
+      repairPatchId: undefined,
+      scenePacketId: 42,
+      summary: '只保留短摘要',
+    },
+  ]);
+});
+
+test('批准写回失败路径不写 AssistantSession', async () => {
+  const invalidFormData = new FormData();
+  invalidFormData.set('scene_packet_id', '42');
+  invalidFormData.set('repair_patch_id', '17');
+  invalidFormData.set('assistant_session_id', '31');
+  const apiFailedFormData = new FormData();
+  apiFailedFormData.set('repair_patch_id', '17');
+  apiFailedFormData.set('assistant_session_id', '31');
+  const invalidResponseFormData = new FormData();
+  invalidResponseFormData.set('repair_patch_id', '18');
+  invalidResponseFormData.set('assistant_session_id', '31');
+  const exceptionFormData = new FormData();
+  exceptionFormData.set('repair_patch_id', '19');
+  exceptionFormData.set('assistant_session_id', '31');
+  const sessionWrites: StudioApprovalSessionWrite[] = [];
+  const writeAssistantApprovalSession = async (payload: StudioApprovalSessionWrite) => {
+    sessionWrites.push(payload);
+  };
+  const redirect = (url: string): never => {
+    throw new RedirectSignal(url);
+  };
+
+  await assert.rejects(
+    () =>
+      submitStudioApproval(invalidFormData, {
+        endpoint: '/api/studio/approve',
+        apiFetch: async () => {
+          throw new Error('不应调用 API');
+        },
+        revalidatePath: () => {},
+        writeAssistantApprovalSession,
+        redirect,
+      }),
+    (error) =>
+      error instanceof RedirectSignal &&
+      new URLSearchParams(error.url.replace('/studio?', '')).get('assistant_session_id') === '31',
+  );
+
+  await assert.rejects(
+    () =>
+      submitStudioApproval(apiFailedFormData, {
+        endpoint: '/api/studio/approve',
+        apiFetch: async () => new Response('{}', { status: 500 }),
+        revalidatePath: () => {},
+        writeAssistantApprovalSession,
+        redirect,
+      }),
+    (error) =>
+      error instanceof RedirectSignal &&
+      new URLSearchParams(error.url.replace('/studio?', '')).get('assistant_session_id') === '31',
+  );
+
+  await assert.rejects(
+    () =>
+      submitStudioApproval(invalidResponseFormData, {
+        endpoint: '/api/studio/approve',
+        apiFetch: async () =>
+          new Response(JSON.stringify({ writeback_status: '缺少字段' }), { status: 200 }),
+        revalidatePath: () => {},
+        writeAssistantApprovalSession,
+        redirect,
+      }),
+    (error) =>
+      error instanceof RedirectSignal &&
+      new URLSearchParams(error.url.replace('/studio?', '')).get('assistant_session_id') === '31',
+  );
+
+  await assert.rejects(
+    () =>
+      submitStudioApproval(exceptionFormData, {
+        endpoint: '/api/studio/approve',
+        apiFetch: async () => {
+          throw new Error('网络异常');
+        },
+        revalidatePath: () => {},
+        writeAssistantApprovalSession,
+        redirect,
+      }),
+    (error) =>
+      error instanceof RedirectSignal &&
+      new URLSearchParams(error.url.replace('/studio?', '')).get('assistant_session_id') === '31',
+  );
+
+  assert.deepEqual(sessionWrites, []);
+});
+
+test('批准写回结果 URL 可注入首页 projects 子页并保留 book_id', () => {
+  const url = buildApprovalResultUrl(
+    {
+      writeback_status: '已写回',
+      approved_chapter_id: 5,
+      continuity_update_summary: '连续性已更新',
+    },
+    { pathname: '/', view: 'projects', bookId: 8, assistantSessionId: 31 },
+  );
+
+  assert.ok(url.startsWith('/?'), '首页 projects 回跳应留在根路径');
+  const params = new URLSearchParams(url.replace('/?', ''));
+  assert.equal(params.get('view'), 'projects');
+  assert.equal(params.get('book_id'), '8');
+  assert.equal(params.get('assistant_session_id'), '31');
+  assert.equal(params.get('approval_submitted'), '1');
+  assert.equal(params.get('writeback_status'), '已写回');
 });

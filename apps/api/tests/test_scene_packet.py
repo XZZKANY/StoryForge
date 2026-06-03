@@ -10,6 +10,8 @@ from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.scene_packets import service as scene_packet_service
+from app.domains.story_memory.schemas import ForeshadowLifecycleTransition
+from app.domains.story_memory.service import apply_foreshadow_lifecycle_transition
 
 
 @pytest.fixture()
@@ -209,6 +211,60 @@ def test_scene_packet_contains_required_slots_evidence_and_budget(
     with session_factory() as session:
         stored = session.get(ScenePacket, packet["id"])
     assert stored is not None
+
+
+def test_scene_packet_excludes_paid_off_foreshadowing_from_open_slot(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    story_context: dict[str, int],
+) -> None:
+    """已回收伏笔不应继续出现在“未回收伏笔”固定槽位。"""
+
+    approve_chapter(client, story_context["chapter_id"])
+    with session_factory() as session:
+        for target_state, chapter_id, evidence_ref, reason in [
+            ("planted", story_context["chapter_id"], "chapter:2#beacon-planted", "灯塔信号作为异常线索出现。"),
+            ("reinforced", story_context["chapter_id"], "chapter:2#beacon-reinforced", "灯塔信号影响谈判节奏。"),
+            (
+                "paid_off",
+                story_context["other_chapter_id"],
+                "chapter:3#beacon-paid-off",
+                "灯塔信号已经揭示为旧航线密钥。",
+            ),
+        ]:
+            apply_foreshadow_lifecycle_transition(
+                session,
+                ForeshadowLifecycleTransition(
+                    novel_id=story_context["book_id"],
+                    foreshadow_id="hook-beacon",
+                    target_state=target_state,
+                    chapter_id=chapter_id,
+                    volume_id=1,
+                    evidence_refs=[evidence_ref],
+                    transition_reason=reason,
+                ),
+            )
+
+    response = client.post(
+        "/api/scene-packets",
+        json={
+            "book_id": story_context["book_id"],
+            "chapter_id": story_context["chapter_id"],
+            "scene_goal": "林岚确认灯塔信号已经被解释。",
+            "active_asset_ids": [
+                story_context["character_id"],
+                story_context["style_id"],
+                story_context["foreshadowing_id"],
+            ],
+            "token_budget": 180,
+            "user_intent": "验证已回收伏笔不再作为未回收信息提示。",
+            "retrieval_snippets": ["灯塔信号已经在上一场景完成回收。"],
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    open_hooks = response.json()["packet"]["未回收伏笔"]
+    assert story_context["foreshadowing_id"] not in {item["id"] for item in open_hooks}
 
 
 def test_scene_packet_compile_result_cache_reuses_same_payload(

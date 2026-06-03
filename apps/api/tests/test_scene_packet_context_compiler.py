@@ -10,6 +10,8 @@ from app.domains.retrieval.service import create_retrieval_source
 from app.domains.scene_packets.schemas import ScenePacketCreate
 from app.domains.scene_packets.service import assemble_scene_packet
 from app.domains.series.models import Series
+from app.domains.story_memory.schemas import ForeshadowLifecycleTransition
+from app.domains.story_memory.service import apply_foreshadow_lifecycle_transition
 
 
 def test_scene_packet_records_compiled_context_debug_fields(session: Session) -> None:
@@ -92,4 +94,74 @@ def test_scene_packet_records_compiled_context_debug_fields(session: Session) ->
     assert retrieval_metadata["chunk_id"] == retrieval_evidence[0].chunk_id
     assert retrieval_metadata["rank"] == 1
     assert retrieval_metadata["context_tokens"] == retrieval_evidence[0].context_tokens
-    assert any("预算" in block["reason"] or "score_threshold" in block["reason"] for block in packet.packet["上下文裁剪"])
+    assert any(
+        "预算" in block["reason"] or "score_threshold" in block["reason"] for block in packet.packet["上下文裁剪"]
+    )
+
+
+def test_scene_packet_excludes_abandoned_foreshadowing_from_compiled_context(session: Session) -> None:
+    """已废弃伏笔不应通过旧资产载荷进入 compiled context。"""
+
+    book = Book(title="灯塔终态", status="draft", premise="林岚追查信号。")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=2, title="终止追查", status="draft", summary="林岚放弃旧信号线索。")
+    session.add(chapter)
+    session.flush()
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="复盘", status="draft", content=None)
+    session.add(scene)
+    session.flush()
+    foreshadowing = Asset(
+        book_id=book.id,
+        scene_id=None,
+        asset_type="foreshadowing",
+        lineage_key="hook-abandoned-beacon",
+        name="废弃的灯塔信号",
+        status="active",
+        payload={"状态": "未回收", "线索": "这段旧 payload 不应进入写作上下文。"},
+        version=1,
+    )
+    session.add(foreshadowing)
+    session.commit()
+    apply_foreshadow_lifecycle_transition(
+        session,
+        ForeshadowLifecycleTransition(
+            novel_id=book.id,
+            foreshadow_id="hook-abandoned-beacon",
+            target_state="planted",
+            chapter_id=chapter.id,
+            volume_id=1,
+            evidence_refs=["chapter:2#abandoned-planted"],
+            transition_reason="旧信号先作为线索出现。",
+        ),
+    )
+    apply_foreshadow_lifecycle_transition(
+        session,
+        ForeshadowLifecycleTransition(
+            novel_id=book.id,
+            foreshadow_id="hook-abandoned-beacon",
+            target_state="abandoned",
+            chapter_id=chapter.id,
+            volume_id=1,
+            evidence_refs=["chapter:2#abandoned-final"],
+            transition_reason="确认该线索不再回收。",
+        ),
+    )
+
+    packet = assemble_scene_packet(
+        session,
+        ScenePacketCreate(
+            book_id=book.id,
+            chapter_id=chapter.id,
+            scene_goal="林岚复盘并排除旧信号线索。",
+            active_asset_ids=[foreshadowing.id],
+            token_budget=160,
+            user_intent="不要使用已废弃伏笔。",
+            retrieval_snippets=["旧信号线索已被排除。"],
+        ),
+    )
+
+    asset_source_ref = f"asset:{foreshadowing.id}"
+    compiled_blocks = packet.packet["上下文注入"] + packet.packet["上下文裁剪"]
+    assert asset_source_ref not in {block["source_ref"] for block in compiled_blocks}
+    assert "这段旧 payload 不应进入写作上下文" not in str(compiled_blocks)

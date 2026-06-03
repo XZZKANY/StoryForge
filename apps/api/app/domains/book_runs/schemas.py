@@ -1,9 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class BookRunCreate(BaseModel):
@@ -14,10 +14,46 @@ class BookRunCreate(BaseModel):
     chapter_budget: int | None = Field(default=None, gt=0)
 
 
+class BookRunControlRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=200)
+
+
+class BookRunChapterRange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: int = Field(ge=1)
+    end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_order(self):
+        if self.start > self.end:
+            raise ValueError("章节范围起点不能大于终点。")
+        return self
+
+
+class BookRunVolumePlanItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    volume_index: int = Field(ge=1)
+    chapter_range: BookRunChapterRange
+
+
+class BookRunVolumeProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_volume: int = Field(ge=1)
+    chapter_range: BookRunChapterRange
+    completed_chapter_count: int = Field(ge=0)
+    next_batch_start_chapter_index: int = Field(ge=1)
+
+
 class BookRunProgressUpdate(BaseModel):
     status: str = Field(min_length=1, max_length=50)
     current_chapter_index: int = Field(ge=1)
     progress: dict[str, Any] = Field(default_factory=dict)
+    volume_progress: BookRunVolumeProgress | None = None
 
 
 class BookRunWorkflowChapter(BaseModel):
@@ -42,6 +78,7 @@ class BookRunWorkflowDispatch(BaseModel):
     chapter_budget: int | None = Field(default=None, gt=0)
     provider_fallback_pause_threshold: int | None = Field(default=None, gt=0)
     chapters: list[BookRunWorkflowChapter] = Field(default_factory=list)
+    volume_plan: list[BookRunVolumePlanItem] = Field(default_factory=list)
 
 
 class BookRunQualitySummary(BaseModel):

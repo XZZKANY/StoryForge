@@ -402,6 +402,133 @@ def test_read_studio_repair_patches_returns_404_when_patch_missing(
     assert response.json() == {"detail": "Repair 修订补丁不存在，无法读取 Studio Repair 修订。"}
 
 
+def test_run_studio_chapter_review_creates_judge_issue_and_repair_patch(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Assistant 主动章节审阅通过 Scene Packet 创建 Judge 与 Repair。"""
+
+    content = "林岚举起左臂，旁人看见左臂完好无损。作者直接解释这说明她早已摆脱旧伤。"
+    with session_factory() as session:
+        book = Book(title="主动审阅", status="draft", premise="验证 Assistant 审阅。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=11, title="主动审阅章节", status="draft", summary="等待审阅。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="主动审阅场景", status="draft", content=content)
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(
+            scene_id=scene.id,
+            status="assembled",
+            packet={
+                "必须包含事实": ["左臂受伤"],
+                "风格规则": [{"rule": "克制"}],
+                "证据链接": [{"source_ref": "asset://character/lin-lan#v1"}],
+            },
+            version=1,
+        )
+        session.add(scene_packet)
+        session.commit()
+        scene_packet_id = scene_packet.id
+
+    response = client.post("/api/studio/chapter-review", json={"scene_packet_id": scene_packet_id})
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["scene_packet_id"] == scene_packet_id
+    assert payload["judge_review"]["scene_packet_id"] == scene_packet_id
+    assert payload["judge_review"]["status"] in {"open", "requires_rejudge"}
+    assert payload["judge_review"]["issue_count"] >= 1
+    assert any(issue["category"] == "setting_conflict" for issue in payload["judge_review"]["issues"])
+    assert payload["repair_patches"]
+    assert payload["repair_patches"][0]["target_span"] == "左臂完好无损"
+    assert payload["repair_patches"][0]["replacement_text"] == "左臂仍然受伤"
+    assert payload["approval_summary"]["approvable_object"]["object_type"] == "repair_patch"
+
+    with session_factory() as session:
+        stored_issues = session.scalars(select(JudgeIssue).where(JudgeIssue.scene_packet_id == scene_packet_id)).all()
+        stored_patches = session.scalars(
+            select(RepairPatch)
+            .join(JudgeIssue, RepairPatch.judge_issue_id == JudgeIssue.id)
+            .where(JudgeIssue.scene_packet_id == scene_packet_id)
+        ).all()
+
+    assert stored_issues
+    assert stored_patches
+
+
+def test_run_studio_chapter_review_returns_clean_without_repair_when_no_issue(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """主动章节审阅无问题时返回 clean，不把空 Judge/Repair 误判为 404。"""
+
+    with session_factory() as session:
+        book = Book(title="主动审阅无问题", status="draft", premise="验证 clean 响应。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=12, title="干净章节", status="draft", summary="等待审阅。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="干净场景", status="draft", content="林岚按住左臂受伤处，低声等风停。")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(
+            scene_id=scene.id,
+            status="assembled",
+            packet={"必须包含事实": ["左臂受伤"], "风格规则": ["克制"], "证据链接": []},
+            version=1,
+        )
+        session.add(scene_packet)
+        session.commit()
+        scene_packet_id = scene_packet.id
+
+    response = client.post("/api/studio/chapter-review", json={"scene_packet_id": scene_packet_id})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["judge_review"] == {
+        "scene_packet_id": scene_packet_id,
+        "status": "clean",
+        "issue_count": 0,
+        "highest_severity": None,
+        "score": 100,
+        "issues": [],
+    }
+    assert response.json()["repair_patches"] == []
+    assert response.json()["approval_summary"]["approvable_object"]["object_type"] == "scene_packet"
+
+
+def test_run_studio_chapter_review_rejects_empty_scene_content(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """主动章节审阅缺少正文时返回可读错误，不创建伪评审。"""
+
+    with session_factory() as session:
+        book = Book(title="主动审阅空正文", status="draft", premise="验证错误。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=13, title="空正文章节", status="draft", summary="等待审阅。")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="空正文场景", status="draft", content="")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"必须包含事实": []}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        scene_packet_id = scene_packet.id
+
+    response = client.post("/api/studio/chapter-review", json={"scene_packet_id": scene_packet_id})
+
+    assert response.status_code == 400, response.text
+    assert response.json() == {"detail": "场景正文为空，无法执行章节审阅。"}
+    with session_factory() as session:
+        assert session.scalars(select(JudgeIssue).where(JudgeIssue.scene_packet_id == scene_packet_id)).all() == []
+
+
 def test_read_studio_approval_summary_returns_scene_packet_eligibility(
     client: TestClient,
     session_factory: sessionmaker[Session],

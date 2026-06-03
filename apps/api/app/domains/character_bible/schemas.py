@@ -43,9 +43,13 @@ class CharacterBibleRead(BaseModel):
     id: int
     book_id: int
     character_id: int | None
+    lineage_key: str
     canonical_name: str
     aliases: list[str]
     voice_traits: dict[str, Any]
     forbidden_traits: dict[str, Any]
+    version: int
+    sync_status: str
+    memory_atom_id: str | None
     created_at: datetime
     updated_at: datetime

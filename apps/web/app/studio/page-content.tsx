@@ -35,10 +35,12 @@ import { StudioFlow, type StudioFlowStep } from './StudioFlow';
 
 export async function StudioPageContent({
   searchParams,
+  variant = 'page',
 }: {
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  readonly variant?: 'page' | 'home';
 }) {
-  const resolvedSearchParams = await searchParams;
+  const resolvedSearchParams = (await searchParams) ?? {};
   const bookListState = await readStudioBooks();
   const requestedBookId = resolvedSearchParams?.book_id
     ? Number(resolvedSearchParams.book_id)
@@ -86,7 +88,11 @@ export async function StudioPageContent({
               {bookListState.books.map((book) => (
                 <li key={book.id}>
                   <Link
-                    href={`/studio?book_id=${book.id}`}
+                    href={
+                      variant === 'home'
+                        ? `/?view=projects&book_id=${book.id}`
+                        : `/studio?book_id=${book.id}`
+                    }
                     className={book.id === selectedBook?.id ? 'font-bold text-amber-700' : ''}
                   >
                     <strong>{book.title}</strong>
@@ -386,6 +392,15 @@ export async function StudioPageContent({
                   </dd>
                 </dl>
                 <form action={approveStudioWritebackAction}>
+                  {variant === 'home' ? (
+                    <>
+                      <input type="hidden" name="result_path" value="/" />
+                      <input type="hidden" name="result_view" value="projects" />
+                    </>
+                  ) : null}
+                  {selectedBook ? (
+                    <input type="hidden" name="book_id" value={selectedBook.id} />
+                  ) : null}
                   {approvalSummaryState.summary.approvable_object.object_type === 'repair_patch' ? (
                     <input
                       type="hidden"
@@ -418,8 +433,8 @@ export async function StudioPageContent({
       ),
     },
   ];
-  return (
-    <main aria-labelledby="studio-title">
+  const content = (
+    <>
       <h1 id="studio-title">Studio 创作工作台</h1>
       <p>Studio 用于核对从作品选择、章节目标到批准回写和失败恢复的连续创作证据链。</p>
       <section aria-labelledby="studio-current-scope-title">
@@ -431,8 +446,6 @@ export async function StudioPageContent({
           <dd>章节目标、检索素材摘要、预算摘要、评审问题、修订差异、批准摘要和恢复摘要。</dd>
           <dt>当前动作</dt>
           <dd>按步骤完成选作品、设目标、生成、评审并批准。</dd>
-          <dt>当前边界</dt>
-          <dd>本页只展示已验证的最小闭环。未联通能力不会伪装为可用操作。</dd>
         </dl>
       </section>
       <section aria-labelledby="generation-chain-title">
@@ -505,6 +518,22 @@ export async function StudioPageContent({
             : undefined
         }
       />
-    </main>
+    </>
   );
+
+  return variant === 'home' ? (
+    <section aria-labelledby="studio-title">{content}</section>
+  ) : (
+    <main aria-labelledby="studio-title">{content}</main>
+  );
+}
+
+export async function StudioWorkbench({
+  searchParams,
+  variant = 'home',
+}: {
+  readonly searchParams?: Record<string, string | string[] | undefined>;
+  readonly variant?: 'page' | 'home';
+}) {
+  return <StudioPageContent searchParams={Promise.resolve(searchParams ?? {})} variant={variant} />;
 }

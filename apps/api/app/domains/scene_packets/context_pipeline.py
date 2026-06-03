@@ -14,7 +14,7 @@ from app.domains.scene_packets.budget import build_packet, estimate_tokens
 from app.domains.scene_packets.retrieval_bridge import attach_compiled_context, build_retrieval_query
 from app.domains.scene_packets.schemas import BudgetStatistics, EvidenceLinkRead, ScenePacketCreate
 from app.domains.story_memory.schemas import MemoryAtom
-from app.domains.story_memory.service import recall_scene_memory_atoms
+from app.domains.story_memory.service import list_foreshadow_lifecycle, recall_scene_memory_atoms
 
 PACING_DIRECTIVES: dict[str, dict[str, str]] = {
     "setup": {
@@ -38,6 +38,7 @@ PACING_DIRECTIVES: dict[str, dict[str, str]] = {
         "instruction": "兑现主要承诺，完成情感落点，并保留必要的余韵。",
     },
 }
+TERMINAL_FORESHADOW_STATES = {"paid_off", "abandoned"}
 
 
 @dataclass(frozen=True)
@@ -62,12 +63,14 @@ def assemble_scene_context(
 ) -> SceneContextAssembly:
     """组装 Scene Packet 上下文，保持服务层只处理实体定位和持久化。"""
 
-    scoped_evidence_links = list(evidence_links)
+    scoped_assets = foreshadow_lifecycle_scoped_assets(session, payload.book_id, assets)
+    scoped_asset_ids = {asset.id for asset in scoped_assets}
+    scoped_evidence_links = [link for link in evidence_links if link.asset_id in scoped_asset_ids or link.asset_id == 0]
     retrieval_hits, payload_with_retrieval = _resolve_retrieval_context(
         session=session,
         payload=payload,
         chapter=chapter,
-        assets=assets,
+        assets=scoped_assets,
         continuity_records=continuity_records,
     )
     scoped_evidence_links.extend(retrieval_evidence_links(retrieval_hits))
@@ -75,13 +78,13 @@ def assemble_scene_context(
         session,
         book_id=payload.book_id,
         chapter=chapter,
-        assets=assets,
+        assets=scoped_assets,
         continuity_records=continuity_records,
     )
     packet, budget_statistics = build_packet(
         payload_with_retrieval,
         chapter,
-        assets,
+        scoped_assets,
         continuity_records,
         scoped_evidence_links,
     )
@@ -97,7 +100,7 @@ def assemble_scene_context(
         payload_with_retrieval,
         chapter,
         scene,
-        assets,
+        scoped_assets,
         continuity_records,
         retrieval_hits,
         memory_atoms,
@@ -107,6 +110,41 @@ def assemble_scene_context(
         budget_statistics=budget_statistics,
         evidence_links=scoped_evidence_links,
         retrieval_hits=retrieval_hits,
+    )
+
+
+def foreshadow_lifecycle_scoped_assets(session: Session, book_id: int, assets: list[Asset]) -> list[Asset]:
+    """按 story memory 最新 lifecycle 过滤终态伏笔，并同步保留伏笔展示状态。"""
+
+    scoped_assets: list[Asset] = []
+    for asset in assets:
+        if asset.asset_type != "foreshadowing" or not asset.lineage_key:
+            scoped_assets.append(asset)
+            continue
+        history = list_foreshadow_lifecycle(session, book_id, asset.lineage_key)
+        latest = history[-1] if history else None
+        if latest is None:
+            scoped_assets.append(asset)
+            continue
+        if latest.state in TERMINAL_FORESHADOW_STATES:
+            continue
+        scoped_assets.append(asset_with_lifecycle_state(asset, latest.state))
+    return scoped_assets
+
+
+def asset_with_lifecycle_state(asset: Asset, lifecycle_state: str) -> Asset:
+    """复制资产用于读侧展示，避免把 lifecycle 状态回写到资产 payload。"""
+
+    return Asset(
+        id=asset.id,
+        book_id=asset.book_id,
+        scene_id=asset.scene_id,
+        asset_type=asset.asset_type,
+        lineage_key=asset.lineage_key,
+        name=asset.name,
+        status=asset.status,
+        payload={**asset.payload, "状态": lifecycle_state},
+        version=asset.version,
     )
 
 

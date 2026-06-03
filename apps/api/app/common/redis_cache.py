@@ -8,6 +8,7 @@ from typing import Any
 import redis
 
 DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
+REDIS_UNAVAILABLE_ERRORS = (AttributeError, TypeError, redis.RedisError)
 
 
 @lru_cache(maxsize=1)
@@ -15,7 +16,12 @@ def _redis_client() -> redis.Redis:
     """按运行时环境创建 Redis 客户端，连接失败由调用方降级处理。"""
 
     redis_url = os.getenv("STORYFORGE_REDIS_URL") or os.getenv("REDIS_URL") or DEFAULT_REDIS_URL
-    return redis.Redis.from_url(redis_url, decode_responses=True)
+    return redis.Redis.from_url(
+        redis_url,
+        decode_responses=True,
+        socket_connect_timeout=0.5,
+        socket_timeout=0.5,
+    )
 
 
 def cache_get_json(key: str) -> dict[str, Any] | None:
@@ -23,7 +29,7 @@ def cache_get_json(key: str) -> dict[str, Any] | None:
 
     try:
         raw_value = _redis_client().get(key)
-    except redis.RedisError:
+    except REDIS_UNAVAILABLE_ERRORS:
         return None
     if not raw_value:
         return None
@@ -39,7 +45,7 @@ def cache_set_json(key: str, value: dict[str, Any], ttl_seconds: int) -> None:
 
     try:
         _redis_client().set(key, json.dumps(value, ensure_ascii=False), ex=ttl_seconds)
-    except (TypeError, redis.RedisError):
+    except REDIS_UNAVAILABLE_ERRORS:
         return
 
 
@@ -48,7 +54,7 @@ def cache_get_value(key: str) -> Any | None:
 
     try:
         raw_value = _redis_client().get(key)
-    except redis.RedisError:
+    except REDIS_UNAVAILABLE_ERRORS:
         return None
     if not raw_value:
         return None
@@ -63,7 +69,7 @@ def cache_set_value(key: str, value: Any, ttl_seconds: int) -> None:
 
     try:
         _redis_client().set(key, json.dumps(value, ensure_ascii=False, default=str), ex=ttl_seconds)
-    except (TypeError, redis.RedisError):
+    except REDIS_UNAVAILABLE_ERRORS:
         return
 
 
@@ -72,7 +78,7 @@ def cache_delete(key: str) -> None:
 
     try:
         _redis_client().delete(key)
-    except redis.RedisError:
+    except REDIS_UNAVAILABLE_ERRORS:
         return
 
 
@@ -83,5 +89,5 @@ def cache_delete_pattern(pattern: str) -> None:
         client = _redis_client()
         for key in client.scan_iter(match=pattern, count=100):
             client.delete(key)
-    except redis.RedisError:
+    except REDIS_UNAVAILABLE_ERRORS:
         return

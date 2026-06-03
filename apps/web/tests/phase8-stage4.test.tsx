@@ -14,8 +14,21 @@ test('retrieval 页面声明 aria-labelledby 和检索证据描述', () => {
 
 test('artifacts 页面通过 readJson 复用 API client', () => {
   const content = read('app/artifacts/page.tsx');
-  assert.ok(content.includes('readJson'));
-  assert.ok(content.includes('aria-labelledby'));
+  const pageContent = read('app/artifacts/page-content.tsx');
+  const api = read('app/artifacts/api.ts');
+  assert.ok(api.includes('readJson'));
+  assert.ok(content.includes('ArtifactsPageContent'));
+  assert.ok(pageContent.includes('aria-labelledby'));
+  assert.ok(
+    pageContent.includes('grid grid-cols-[1.2fr_0.8fr_0.7fr_1fr]'),
+    'Artifacts 应以列表列结构展示制品',
+  );
+  assert.ok(!pageContent.includes('未实现边界'), 'Artifacts 首页工作台不应把未实现说明作为主内容');
+  assert.ok(!pageContent.includes('仍未实现'), 'Artifacts 不应把未实现说明写进主工作台');
+  assert.ok(
+    !pageContent.includes('const artifactSections'),
+    'Artifacts 不应使用静态分类清单伪装产物导航',
+  );
 });
 
 test('evaluations 页面通过 readJson 复用 API client', () => {

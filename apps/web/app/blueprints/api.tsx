@@ -1,6 +1,8 @@
 import React from 'react';
+import { redirect } from 'next/navigation';
 
-import { readJson } from '../../lib/api-client';
+import { apiFetch, readJson, type ApiFetchInit } from '../../lib/api-client';
+import { parseAssistantIntent, type AssistantIntent } from '../../components/home/assistant-intent';
 
 export type BlueprintRead = {
   readonly id: number;
@@ -39,7 +41,28 @@ export type ApiRequest = {
   readonly init: RequestInit;
 };
 
-export function createBlueprintRequest(bookId: number): ApiRequest {
+export type BlueprintWorkflowActionDependencies = {
+  readonly apiFetch: (path: string, init: ApiFetchInit) => Promise<Response>;
+  readonly redirect: (url: string) => never;
+};
+
+export function createBlueprintRequest(bookId: number, intent?: AssistantIntent): ApiRequest {
+  const targetChapterCount = intent?.targetChapterCount ?? 3;
+  const targetWordCount = intent?.targetWordCount ?? targetChapterCount * 1500;
+  const metadata: Record<string, unknown> = intent
+    ? {
+        assistant_task_type: intent.taskType,
+        requested_artifacts: intent.requestedArtifacts,
+        continuation_mode: intent.continuationMode,
+      }
+    : { pov: '林岚', location: '雾港' };
+  if (intent?.batchChapterCount) {
+    metadata.batch_chapter_count = intent.batchChapterCount;
+  }
+  if (intent?.volumeCount) {
+    metadata.volume_count = intent.volumeCount;
+  }
+
   return {
     path: '/api/blueprints',
     init: {
@@ -47,13 +70,13 @@ export function createBlueprintRequest(bookId: number): ApiRequest {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         book_id: bookId,
-        premise: '林岚在雾港追查失真的灯塔信号。',
-        tone: '克制悬疑',
-        target_word_count: 4500,
-        target_chapter_count: 3,
+        premise: intent?.premise ?? '林岚在雾港追查失真的灯塔信号。',
+        tone: intent?.tone ?? '克制悬疑',
+        target_word_count: targetWordCount,
+        target_chapter_count: targetChapterCount,
         chapter_word_count_min: 1000,
         chapter_word_count_max: 1800,
-        metadata: { pov: '林岚', location: '雾港' },
+        metadata,
       }),
     },
   };
@@ -63,13 +86,29 @@ export function triggerChapterPlanRequest(blueprintId: number): ApiRequest {
   return { path: `/api/blueprints/${blueprintId}/chapter-plan`, init: { method: 'POST' } };
 }
 
-export function createBookRunRequest(bookId: number, blueprintId: number): ApiRequest {
+export function lockBlueprintRequest(blueprintId: number): ApiRequest {
+  return { path: `/api/blueprints/${blueprintId}/lock`, init: { method: 'POST' } };
+}
+
+export function createBookRunRequest(
+  bookId: number,
+  blueprintId: number,
+  budget?: {
+    readonly chapterBudget?: number;
+    readonly tokenBudget?: number;
+    readonly timeBudgetSec?: number;
+  },
+): ApiRequest {
+  const body: Record<string, number> = { book_id: bookId, blueprint_id: blueprintId };
+  if (budget?.chapterBudget) body.chapter_budget = budget.chapterBudget;
+  if (budget?.tokenBudget) body.token_budget = budget.tokenBudget;
+  if (budget?.timeBudgetSec) body.time_budget_sec = budget.timeBudgetSec;
   return {
     path: '/api/book-runs',
     init: {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ book_id: bookId, blueprint_id: blueprintId }),
+      body: JSON.stringify(body),
     },
   };
 }
@@ -88,6 +127,67 @@ export async function readBookRun(bookRunId: number): Promise<BookRunRead | null
     invalidMessage: 'BookRun API 返回格式不符合预期',
   });
   return result.status === 'ready' ? result.data : null;
+}
+
+function readFormPositiveInt(formData: FormData, key: string): number | undefined {
+  const value = formData.get(key);
+  const parsed = typeof value === 'string' ? Number.parseInt(value, 10) : Number.NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+async function postAndReadJson<T>(
+  request: ApiRequest,
+  dependencies: BlueprintWorkflowActionDependencies,
+): Promise<T> {
+  const response = await dependencies.apiFetch(request.path, request.init);
+  if (!response.ok) {
+    throw new Error(`API 返回 ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+export async function createBlueprintWorkflowAction(
+  formData: FormData,
+  dependencies: BlueprintWorkflowActionDependencies = { apiFetch, redirect },
+): Promise<never> {
+  'use server';
+
+  const action = formData.get('blueprint_action');
+  const bookId = readFormPositiveInt(formData, 'book_id') ?? 1;
+  const blueprintId = readFormPositiveInt(formData, 'blueprint_id');
+  const rawIntent = formData.get('intent');
+  const assistantIntent =
+    typeof rawIntent === 'string' && rawIntent.trim() ? parseAssistantIntent(rawIntent) : undefined;
+  let nextUrl = '/?view=projects';
+
+  try {
+    if (action === 'create-blueprint') {
+      const created = await postAndReadJson<BlueprintRead>(
+        createBlueprintRequest(bookId, assistantIntent),
+        dependencies,
+      );
+      nextUrl = `/?view=projects&blueprint_id=${created.id}`;
+    } else if (action === 'lock-blueprint' && blueprintId) {
+      const locked = await postAndReadJson<BlueprintRead>(
+        lockBlueprintRequest(blueprintId),
+        dependencies,
+      );
+      nextUrl = `/?view=projects&blueprint_id=${locked.id}`;
+    } else if (action === 'trigger-chapter-plan' && blueprintId) {
+      await postAndReadJson(triggerChapterPlanRequest(blueprintId), dependencies);
+      nextUrl = `/?view=projects&blueprint_id=${blueprintId}`;
+    } else if (action === 'start-book-run' && blueprintId) {
+      const bookRun = await postAndReadJson<BookRunRead>(
+        createBookRunRequest(bookId, blueprintId),
+        dependencies,
+      );
+      nextUrl = `/?view=projects&blueprint_id=${blueprintId}&book_run_id=${bookRun.id}`;
+    }
+  } catch (error) {
+    const message = encodeURIComponent(error instanceof Error ? error.message : '未知错误');
+    nextUrl = `/?view=projects&blueprint_error=${message}`;
+  }
+  return dependencies.redirect(nextUrl);
 }
 
 export function BlueprintWorkbench({

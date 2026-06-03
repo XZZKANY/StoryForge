@@ -757,6 +757,214 @@
         "title": "AssetUpdate",
         "type": "object"
       },
+      "AssistantMessageCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "pattern": "^(user|assistant|system)$",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "AssistantMessageCreate",
+        "type": "object"
+      },
+      "AssistantMessageRead": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "role",
+          "content",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AssistantMessageRead",
+        "type": "object"
+      },
+      "AssistantSessionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "blueprint_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blueprint Id"
+          },
+          "book_run_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Run Id"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessageCreate"
+            },
+            "maxItems": 50,
+            "title": "Messages",
+            "type": "array"
+          },
+          "task_type": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Task Type",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "task_type"
+        ],
+        "title": "AssistantSessionCreate",
+        "type": "object"
+      },
+      "AssistantSessionRead": {
+        "properties": {
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "blueprint_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blueprint Id"
+          },
+          "book_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Run Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessageRead"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "task_type": {
+            "title": "Task Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "task_type",
+          "blueprint_id",
+          "book_run_id",
+          "artifact_id",
+          "messages",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AssistantSessionRead",
+        "type": "object"
+      },
       "BatchRefinementJobCreate": {
         "description": "早期批量精修 API 的同步执行请求。",
         "properties": {
@@ -1124,6 +1332,46 @@
         "title": "BookBlueprintRead",
         "type": "object"
       },
+      "BookRunChapterRange": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "minimum": 1.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 1.0,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "BookRunChapterRange",
+        "type": "object"
+      },
+      "BookRunControlRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "BookRunControlRequest",
+        "type": "object"
+      },
       "BookRunCreate": {
         "properties": {
           "blueprint_id": {
@@ -1197,6 +1445,16 @@
             "minLength": 1,
             "title": "Status",
             "type": "string"
+          },
+          "volume_progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookRunVolumeProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1376,6 +1634,192 @@
           "updated_at"
         ],
         "title": "BookRunRead",
+        "type": "object"
+      },
+      "BookRunVolumePlanItem": {
+        "additionalProperties": false,
+        "properties": {
+          "chapter_range": {
+            "$ref": "#/components/schemas/BookRunChapterRange"
+          },
+          "volume_index": {
+            "minimum": 1.0,
+            "title": "Volume Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "volume_index",
+          "chapter_range"
+        ],
+        "title": "BookRunVolumePlanItem",
+        "type": "object"
+      },
+      "BookRunVolumeProgress": {
+        "additionalProperties": false,
+        "properties": {
+          "chapter_range": {
+            "$ref": "#/components/schemas/BookRunChapterRange"
+          },
+          "completed_chapter_count": {
+            "minimum": 0.0,
+            "title": "Completed Chapter Count",
+            "type": "integer"
+          },
+          "current_volume": {
+            "minimum": 1.0,
+            "title": "Current Volume",
+            "type": "integer"
+          },
+          "next_batch_start_chapter_index": {
+            "minimum": 1.0,
+            "title": "Next Batch Start Chapter Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "current_volume",
+          "chapter_range",
+          "completed_chapter_count",
+          "next_batch_start_chapter_index"
+        ],
+        "title": "BookRunVolumeProgress",
+        "type": "object"
+      },
+      "BookRunWorkflowChapter": {
+        "description": "workflow dispatch 使用的章节映射，避免 worker 查询 API 数据库。",
+        "properties": {
+          "chapter_goal": {
+            "minLength": 1,
+            "title": "Chapter Goal",
+            "type": "string"
+          },
+          "chapter_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "chapter_index": {
+            "minimum": 1.0,
+            "title": "Chapter Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chapter_index",
+          "chapter_id",
+          "chapter_goal"
+        ],
+        "title": "BookRunWorkflowChapter",
+        "type": "object"
+      },
+      "BookRunWorkflowDispatch": {
+        "description": "BookRun workflow worker 的稳定调度 payload。",
+        "properties": {
+          "blueprint_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Blueprint Id",
+            "type": "integer"
+          },
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "book_run_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Run Id",
+            "type": "integer"
+          },
+          "chapter_budget": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Budget"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/BookRunWorkflowChapter"
+            },
+            "title": "Chapters",
+            "type": "array"
+          },
+          "existing_checkpoint": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Existing Checkpoint",
+            "type": "array"
+          },
+          "provider_fallback_pause_threshold": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Fallback Pause Threshold"
+          },
+          "start_chapter_index": {
+            "minimum": 1.0,
+            "title": "Start Chapter Index",
+            "type": "integer"
+          },
+          "time_budget_sec": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Budget Sec"
+          },
+          "token_budget": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Budget"
+          },
+          "total_chapters": {
+            "minimum": 1.0,
+            "title": "Total Chapters",
+            "type": "integer"
+          },
+          "volume_plan": {
+            "items": {
+              "$ref": "#/components/schemas/BookRunVolumePlanItem"
+            },
+            "title": "Volume Plan",
+            "type": "array"
+          }
+        },
+        "required": [
+          "book_run_id",
+          "book_id",
+          "blueprint_id",
+          "total_chapters",
+          "start_chapter_index"
+        ],
+        "title": "BookRunWorkflowDispatch",
         "type": "object"
       },
       "BudgetStatistics": {
@@ -1615,10 +2059,33 @@
             "title": "Id",
             "type": "integer"
           },
+          "lineage_key": {
+            "title": "Lineage Key",
+            "type": "string"
+          },
+          "memory_atom_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Atom Id"
+          },
+          "sync_status": {
+            "title": "Sync Status",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           },
           "voice_traits": {
             "additionalProperties": true,
@@ -1630,10 +2097,14 @@
           "id",
           "book_id",
           "character_id",
+          "lineage_key",
           "canonical_name",
           "aliases",
           "voice_traits",
           "forbidden_traits",
+          "version",
+          "sync_status",
+          "memory_atom_id",
           "created_at",
           "updated_at"
         ],
@@ -6534,6 +7005,51 @@
         "title": "StudioChapterGoalRead",
         "type": "object"
       },
+      "StudioChapterReviewRunRead": {
+        "description": "Assistant 章节审阅主动创建结果，聚合评审、修复和批准摘要。",
+        "properties": {
+          "approval_summary": {
+            "$ref": "#/components/schemas/StudioApprovalSummaryRead"
+          },
+          "judge_review": {
+            "$ref": "#/components/schemas/StudioJudgeReviewRead"
+          },
+          "repair_patches": {
+            "items": {
+              "$ref": "#/components/schemas/StudioRepairPatchRead"
+            },
+            "title": "Repair Patches",
+            "type": "array"
+          },
+          "scene_packet_id": {
+            "title": "Scene Packet Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scene_packet_id",
+          "judge_review",
+          "repair_patches",
+          "approval_summary"
+        ],
+        "title": "StudioChapterReviewRunRead",
+        "type": "object"
+      },
+      "StudioChapterReviewRunRequest": {
+        "description": "Assistant 章节审阅主动创建请求，只允许通过 Scene Packet 定位目标。",
+        "properties": {
+          "scene_packet_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Scene Packet Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scene_packet_id"
+        ],
+        "title": "StudioChapterReviewRunRequest",
+        "type": "object"
+      },
       "StudioJudgeIssueRead": {
         "description": "Studio Judge 评审摘要中的单条问题。",
         "properties": {
@@ -7095,6 +7611,135 @@
           "updated_at"
         ],
         "title": "StyleRuleRead",
+        "type": "object"
+      },
+      "TimelineEventCreate": {
+        "description": "创建时间线事件时由调用方提交的业务事实。",
+        "properties": {
+          "book_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "project_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "summary": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "time_order": {
+            "minimum": 0.0,
+            "title": "Time Order",
+            "type": "integer"
+          },
+          "volume_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Volume Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "book_id",
+          "volume_id",
+          "chapter_id",
+          "time_order",
+          "summary"
+        ],
+        "title": "TimelineEventCreate",
+        "type": "object"
+      },
+      "TimelineEventRead": {
+        "description": "时间线事件响应契约。",
+        "properties": {
+          "book_id": {
+            "title": "Book Id",
+            "type": "integer"
+          },
+          "chapter_id": {
+            "title": "Chapter Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "time_order": {
+            "title": "Time Order",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "volume_id": {
+            "title": "Volume Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "book_id",
+          "volume_id",
+          "chapter_id",
+          "time_order",
+          "summary",
+          "evidence_refs",
+          "payload",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TimelineEventRead",
         "type": "object"
       },
       "ValidationError": {
@@ -8272,6 +8917,190 @@
         ]
       }
     },
+    "/api/assistant/sessions": {
+      "get": {
+        "description": "读取最近会话，供首页最近记录和任务追溯使用。",
+        "operationId": "list_assistant_sessions_endpoint_api_assistant_sessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssistantSessionRead"
+                  },
+                  "title": "Response List Assistant Sessions Endpoint Api Assistant Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取最近 Assistant 会话",
+        "tags": [
+          "Assistant 会话"
+        ]
+      },
+      "post": {
+        "description": "创建 Assistant 会话，保存消息和业务引用，不保存敏感凭据。",
+        "operationId": "create_assistant_session_endpoint_api_assistant_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantSessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantSessionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "创建 Assistant 会话",
+        "tags": [
+          "Assistant 会话"
+        ]
+      }
+    },
+    "/api/assistant/sessions/{assistant_session_id}": {
+      "get": {
+        "description": "读取指定会话的完整消息历史，供最近记录跳回 Assistant 时恢复上下文。",
+        "operationId": "get_assistant_session_endpoint_api_assistant_sessions__assistant_session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assistant_session_id",
+            "required": true,
+            "schema": {
+              "title": "Assistant Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantSessionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 Assistant 会话详情",
+        "tags": [
+          "Assistant 会话"
+        ]
+      }
+    },
+    "/api/assistant/sessions/{assistant_session_id}/messages": {
+      "post": {
+        "description": "向指定会话追加消息。",
+        "operationId": "append_assistant_message_endpoint_api_assistant_sessions__assistant_session_id__messages_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assistant_session_id",
+            "required": true,
+            "schema": {
+              "title": "Assistant Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantMessageCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantMessageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "追加 Assistant 消息",
+        "tags": [
+          "Assistant 会话"
+        ]
+      }
+    },
     "/api/batch-refinement/jobs": {
       "post": {
         "description": "兼容 Phase 2 早期草稿 API，内部复用现有评审与修复事实源。",
@@ -8827,6 +9656,59 @@
         ]
       }
     },
+    "/api/book-runs/{book_run_id}/pause": {
+      "post": {
+        "description": "暂停整书运行，并记录暂停原因供 Assistant 工具树展示。",
+        "operationId": "pause_book_run_endpoint_api_book_runs__book_run_id__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_run_id",
+            "required": true,
+            "schema": {
+              "title": "Book Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookRunControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "暂停 BookRun",
+        "tags": [
+          "整书运行"
+        ]
+      }
+    },
     "/api/book-runs/{book_run_id}/progress": {
       "patch": {
         "description": "接收 workflow BookLoop 回填的状态、当前章节和进度证据。",
@@ -8918,6 +9800,145 @@
           }
         },
         "summary": "恢复 BookRun",
+        "tags": [
+          "整书运行"
+        ]
+      }
+    },
+    "/api/book-runs/{book_run_id}/retry": {
+      "post": {
+        "description": "从最近 checkpoint 的下一章重试整书运行。",
+        "operationId": "retry_book_run_endpoint_api_book_runs__book_run_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_run_id",
+            "required": true,
+            "schema": {
+              "title": "Book Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "从 checkpoint 重试 BookRun",
+        "tags": [
+          "整书运行"
+        ]
+      }
+    },
+    "/api/book-runs/{book_run_id}/stop": {
+      "post": {
+        "description": "停止整书运行，并记录用户停止原因。",
+        "operationId": "stop_book_run_endpoint_api_book_runs__book_run_id__stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_run_id",
+            "required": true,
+            "schema": {
+              "title": "Book Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookRunControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "停止 BookRun",
+        "tags": [
+          "整书运行"
+        ]
+      }
+    },
+    "/api/book-runs/{book_run_id}/workflow-dispatch": {
+      "get": {
+        "description": "为外部 workflow worker 生成调度 payload；接口本身不执行 workflow。",
+        "operationId": "get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_run_id",
+            "required": true,
+            "schema": {
+              "title": "Book Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookRunWorkflowDispatch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 BookRun workflow 调度 payload",
         "tags": [
           "整书运行"
         ]
@@ -9216,6 +10237,53 @@
           }
         },
         "summary": "更新 Character Bible 条目",
+        "tags": [
+          "角色规范"
+        ]
+      }
+    },
+    "/api/character-bible/{entry_id}/history": {
+      "get": {
+        "description": "读取同一角色规范谱系的全部版本历史。",
+        "operationId": "get_character_bible_history_endpoint_api_character_bible__entry_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterBibleRead"
+                  },
+                  "title": "Response Get Character Bible History Endpoint Api Character Bible  Entry Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 Character Bible 版本历史",
         "tags": [
           "角色规范"
         ]
@@ -12031,6 +13099,48 @@
         ]
       }
     },
+    "/api/studio/chapter-review": {
+      "post": {
+        "description": "Assistant 通过 Scene Packet 主动创建 Judge 问题和 Repair 建议。",
+        "operationId": "run_studio_chapter_review_endpoint_api_studio_chapter_review_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioChapterReviewRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioChapterReviewRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "主动执行 Studio 章节审阅",
+        "tags": [
+          "Studio 创作工作台"
+        ]
+      }
+    },
     "/api/studio/judge-reviews": {
       "get": {
         "description": "读取 Studio Judge 评审数据源：状态、分数和关键问题。",
@@ -12412,6 +13522,152 @@
         "summary": "应用风格包到作品",
         "tags": [
           "风格包"
+        ]
+      }
+    },
+    "/api/timeline-events": {
+      "get": {
+        "description": "按项目、作品、卷或章节过滤时间线事件。",
+        "operationId": "list_timeline_events_endpoint_api_timeline_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "book_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Book Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "volume_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Volume Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "chapter_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chapter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimelineEventRead"
+                  },
+                  "title": "Response List Timeline Events Endpoint Api Timeline Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取时间线事件列表",
+        "tags": [
+          "时间线事件"
+        ]
+      },
+      "post": {
+        "description": "创建可排序、可追溯的作品时间线事件。",
+        "operationId": "create_timeline_event_endpoint_api_timeline_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineEventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEventRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "创建时间线事件",
+        "tags": [
+          "时间线事件"
         ]
       }
     },

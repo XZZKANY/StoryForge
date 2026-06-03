@@ -36,6 +36,17 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/web/scripts/verify-*-browser.mjs'],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        window: 'readonly',
+        HTMLButtonElement: 'readonly',
+        HTMLTextAreaElement: 'readonly',
+      },
+    },
+  },
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {

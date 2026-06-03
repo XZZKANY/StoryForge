@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from hashlib import sha1
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.exceptions import InputError
+from app.common.exceptions import ConflictError, InputError
 from app.domains.assets.models import Asset
 from app.domains.books.models import Book, Chapter
 from app.domains.continuity.models import ContinuityRecord
@@ -13,6 +15,9 @@ from app.domains.story_memory.models import MemoryAtomRecord
 from app.domains.story_memory.schemas import (
     AgentProposal,
     ArbitrationDecision,
+    ForeshadowLifecycleSnapshot,
+    ForeshadowLifecycleState,
+    ForeshadowLifecycleTransition,
     MemoryAtom,
     MemoryConflict,
 )
@@ -20,6 +25,26 @@ from app.domains.story_memory.schemas import (
 
 class StoryMemoryInputError(InputError):
     """长效记忆输入引用不存在或区间非法时抛出。"""
+
+
+class ForeshadowLifecycleTransitionError(InputError):
+    """伏笔生命周期转换不符合状态机时抛出。"""
+
+
+class ForeshadowLifecycleConflictError(ConflictError):
+    """伏笔生命周期已处于终态或重复转换时抛出。"""
+
+
+_FORESHADOW_ENTITY_TYPE = "subplot"
+_FORESHADOW_FACT_TYPE = "plot_thread"
+_FORESHADOW_LIFECYCLE_KIND = "foreshadow_lifecycle"
+_FORESHADOW_ALLOWED_TRANSITIONS: dict[str | None, set[str]] = {
+    None: {"planted"},
+    "planted": {"reinforced", "abandoned"},
+    "reinforced": {"reinforced", "paid_off", "abandoned"},
+    "paid_off": set(),
+    "abandoned": set(),
+}
 
 
 def create_memory_atom(session: Session, payload: MemoryAtom) -> MemoryAtom:
@@ -51,6 +76,72 @@ def create_memory_atom(session: Session, payload: MemoryAtom) -> MemoryAtom:
     return _record_to_atom(record)
 
 
+def apply_foreshadow_lifecycle_transition(
+    session: Session,
+    payload: ForeshadowLifecycleTransition,
+) -> ForeshadowLifecycleSnapshot:
+    """按状态机推进伏笔生命周期，并用 plot_thread 记忆事实保留转换历史。"""
+
+    chapter = _require_lifecycle_refs(session, payload)
+    history = list_foreshadow_lifecycle(session, payload.novel_id, payload.foreshadow_id)
+    latest = history[-1] if history else None
+    requested_state = payload.target_state
+    target_state, degraded, reason = _resolve_foreshadow_target(payload)
+    _ensure_foreshadow_transition_allowed(latest, target_state, requested_state)
+    revision = 1 if latest is None else latest.revision + 1
+    snapshot = ForeshadowLifecycleSnapshot(
+        memory_id=f"foreshadow:{payload.foreshadow_id}:{revision}",
+        novel_id=payload.novel_id,
+        foreshadow_id=payload.foreshadow_id,
+        state=target_state,  # type: ignore[arg-type]
+        requested_state=requested_state,
+        chapter_id=payload.chapter_id,
+        volume_id=payload.volume_id,
+        evidence_refs=list(payload.evidence_refs),
+        transition_reason=reason,
+        revision=revision,
+        degraded=degraded,
+    )
+    atom = create_memory_atom(
+        session,
+        MemoryAtom(
+            memory_id=snapshot.memory_id,
+            novel_id=payload.novel_id,
+            entity_type=_FORESHADOW_ENTITY_TYPE,  # type: ignore[arg-type]
+            entity_id=payload.foreshadow_id,
+            fact_type=_FORESHADOW_FACT_TYPE,  # type: ignore[arg-type]
+            value=_dump_lifecycle_snapshot(snapshot),
+            source_ref=_foreshadow_source_ref(payload),
+            source_chapter_id=payload.chapter_id,
+            valid_from_chapter=chapter.ordinal,
+            confidence=0.6 if degraded else 1.0,
+            revision=revision,
+        ),
+    )
+    return snapshot.model_copy(update={"memory_id": atom.memory_id})
+
+
+def list_foreshadow_lifecycle(
+    session: Session,
+    book_id: int,
+    foreshadow_id: str,
+) -> list[ForeshadowLifecycleSnapshot]:
+    """读取同一伏笔的生命周期快照历史，忽略非生命周期 plot_thread 事实。"""
+
+    snapshots: list[ForeshadowLifecycleSnapshot] = []
+    for atom in list_memory_atoms(
+        session,
+        book_id=book_id,
+        entity_type=_FORESHADOW_ENTITY_TYPE,
+        entity_id=foreshadow_id,
+        fact_type=_FORESHADOW_FACT_TYPE,
+    ):
+        snapshot = _load_lifecycle_snapshot(atom)
+        if snapshot is not None:
+            snapshots.append(snapshot)
+    return sorted(snapshots, key=lambda item: (item.revision, item.memory_id))
+
+
 def list_memory_atoms(
     session: Session,
     *,
@@ -69,9 +160,64 @@ def list_memory_atoms(
     if fact_type is not None:
         statement = statement.where(MemoryAtomRecord.fact_type == fact_type)
     records = session.scalars(
-        statement.order_by(MemoryAtomRecord.entity_type, MemoryAtomRecord.entity_id, MemoryAtomRecord.fact_type, MemoryAtomRecord.id)
+        statement.order_by(
+            MemoryAtomRecord.entity_type, MemoryAtomRecord.entity_id, MemoryAtomRecord.fact_type, MemoryAtomRecord.id
+        )
     ).all()
     return [_record_to_atom(record) for record in records]
+
+
+def _require_lifecycle_refs(session: Session, payload: ForeshadowLifecycleTransition) -> Chapter:
+    if session.get(Book, payload.novel_id) is None:
+        raise StoryMemoryInputError("作品不存在，无法推进伏笔生命周期。")
+    chapter = session.get(Chapter, payload.chapter_id)
+    if chapter is None or chapter.book_id != payload.novel_id:
+        raise StoryMemoryInputError("章节不存在或不属于当前作品，无法推进伏笔生命周期。")
+    return chapter
+
+
+def _resolve_foreshadow_target(payload: ForeshadowLifecycleTransition) -> tuple[str, bool, str]:
+    if payload.target_state != "paid_off" or payload.evidence_refs:
+        return payload.target_state, False, payload.transition_reason
+    return "abandoned", True, f"{payload.transition_reason} 缺少证据，已降级为 abandoned。"
+
+
+def _ensure_foreshadow_transition_allowed(
+    latest: ForeshadowLifecycleSnapshot | None,
+    target_state: str,
+    requested_state: ForeshadowLifecycleState,
+) -> None:
+    current_state = latest.state if latest is not None else None
+    if latest is not None and current_state in {"paid_off", "abandoned"}:
+        raise ForeshadowLifecycleConflictError(f"伏笔 {latest.foreshadow_id} 已经处于 {current_state}，不能重复转换。")
+    allowed = _FORESHADOW_ALLOWED_TRANSITIONS[current_state]
+    if target_state not in allowed:
+        raise ForeshadowLifecycleTransitionError(f"不允许从 {current_state or '未开始'} 转换到 {requested_state}。")
+
+
+def _dump_lifecycle_snapshot(snapshot: ForeshadowLifecycleSnapshot) -> str:
+    data = snapshot.model_dump()
+    data["kind"] = _FORESHADOW_LIFECYCLE_KIND
+    return json.dumps(data, ensure_ascii=False, sort_keys=True)
+
+
+def _load_lifecycle_snapshot(atom: MemoryAtom) -> ForeshadowLifecycleSnapshot | None:
+    try:
+        data = json.loads(atom.value)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict) or data.get("kind") != _FORESHADOW_LIFECYCLE_KIND:
+        return None
+    data["memory_id"] = atom.memory_id
+    return ForeshadowLifecycleSnapshot.model_validate(data)
+
+
+def _foreshadow_source_ref(payload: ForeshadowLifecycleTransition) -> str:
+    if payload.source_ref is not None:
+        return payload.source_ref
+    if payload.evidence_refs:
+        return payload.evidence_refs[0][:255]
+    return f"chapter:{payload.chapter_id}"
 
 
 def get_active_memory_atoms(
@@ -119,14 +265,24 @@ def recall_scene_memory_atoms(
         return []
     candidate_terms = _scene_memory_terms(chapter, assets, continuity_records)
     recalled = [atom for atom in active_atoms if _memory_atom_matches_scene(atom, candidate_terms)]
-    return sorted(recalled, key=lambda atom: (_term_rank(atom.entity_id, candidate_terms), atom.entity_type, atom.fact_type, atom.memory_id))
+    return sorted(
+        recalled,
+        key=lambda atom: (
+            _term_rank(atom.entity_id, candidate_terms),
+            atom.entity_type,
+            atom.fact_type,
+            atom.memory_id,
+        ),
+    )
 
 
 def detect_memory_conflicts(atoms: list[MemoryAtom]) -> list[MemoryConflict]:
     """检测同一实体同一事实类型在重叠章节区间的矛盾。"""
 
     conflicts: list[MemoryConflict] = []
-    ordered_atoms = sorted(atoms, key=lambda atom: (atom.entity_id, atom.fact_type, atom.valid_from_chapter, atom.memory_id))
+    ordered_atoms = sorted(
+        atoms, key=lambda atom: (atom.entity_id, atom.fact_type, atom.valid_from_chapter, atom.memory_id)
+    )
     for index, left in enumerate(ordered_atoms):
         for right in ordered_atoms[index + 1 :]:
             if left.entity_id != right.entity_id or left.fact_type != right.fact_type:
@@ -193,6 +349,212 @@ def apply_arbitration_decision(
             revision=int(diff.get("revision", proposal.target_revision) or proposal.target_revision),
         ),
     )
+
+
+def write_memory_extract_atoms(
+    session: Session,
+    *,
+    book_id: int,
+    chapter_id: int,
+    approved_scene_id: int,
+    extraction: Mapping[str, object],
+) -> list[MemoryAtom]:
+    """把 memory_extract 的白名单抽取结果写入 Story Memory。"""
+
+    chapter = session.get(Chapter, chapter_id)
+    if chapter is None or chapter.book_id != book_id:
+        raise StoryMemoryInputError("章节来源不存在或不属于当前作品，无法写入长效记忆。")
+    if session.get(Book, book_id) is None:
+        raise StoryMemoryInputError("作品不存在，无法写入长效记忆。")
+    if approved_scene_id <= 0:
+        raise StoryMemoryInputError("批准场景引用无效，无法写入长效记忆。")
+
+    atoms: list[MemoryAtom] = []
+    for payload in _memory_extract_atom_payloads(
+        book_id=book_id,
+        chapter=chapter,
+        approved_scene_id=approved_scene_id,
+        extraction=extraction,
+    ):
+        atoms.append(create_memory_atom(session, payload))
+    return atoms
+
+
+def _memory_extract_atom_payloads(
+    *,
+    book_id: int,
+    chapter: Chapter,
+    approved_scene_id: int,
+    extraction: Mapping[str, object],
+) -> list[MemoryAtom]:
+    atoms: list[MemoryAtom] = []
+    _append_chapter_summary_atom(atoms, book_id, chapter, approved_scene_id, extraction.get("chapter_summary"))
+    _append_collection_atoms(
+        atoms,
+        book_id=book_id,
+        chapter=chapter,
+        approved_scene_id=approved_scene_id,
+        kind="character_state",
+        raw_items=extraction.get("character_states"),
+        entity_type="character",
+        fact_type="status",
+        entity_keys=("entity_id", "character_id", "name", "character"),
+        value_keys=("status", "state", "value", "summary"),
+    )
+    _append_collection_atoms(
+        atoms,
+        book_id=book_id,
+        chapter=chapter,
+        approved_scene_id=approved_scene_id,
+        kind="world_fact",
+        raw_items=extraction.get("world_facts"),
+        entity_type="world_rule",
+        fact_type="rule",
+        entity_keys=("entity_id", "rule_id", "name", "title"),
+        value_keys=("rule", "fact", "value", "summary"),
+    )
+    _append_collection_atoms(
+        atoms,
+        book_id=book_id,
+        chapter=chapter,
+        approved_scene_id=approved_scene_id,
+        kind="foreshadow_ref",
+        raw_items=extraction.get("foreshadow_refs"),
+        entity_type="subplot",
+        fact_type="plot_thread",
+        entity_keys=("entity_id", "thread_id", "name", "title"),
+        value_keys=("value", "summary", "ref", "status"),
+    )
+    return atoms
+
+
+def _append_chapter_summary_atom(
+    atoms: list[MemoryAtom],
+    book_id: int,
+    chapter: Chapter,
+    approved_scene_id: int,
+    raw_summary: object,
+) -> None:
+    item: Mapping[str, object] = raw_summary if isinstance(raw_summary, Mapping) else {"summary": raw_summary}
+    value = _first_text(item, ("summary", "value", "text"))
+    if value is None:
+        return
+    entity_id = _first_text(item, ("entity_id",)) or f"chapter:{chapter.ordinal}"
+    atoms.append(
+        _memory_extract_atom(
+            book_id=book_id,
+            chapter=chapter,
+            approved_scene_id=approved_scene_id,
+            kind="chapter_summary",
+            index=1,
+            entity_type="subplot",
+            entity_id=entity_id,
+            fact_type="plot_thread",
+            value=value,
+            confidence=_confidence(item),
+            immutable=_bool_value(item.get("immutable")),
+        )
+    )
+
+
+def _append_collection_atoms(
+    atoms: list[MemoryAtom],
+    *,
+    book_id: int,
+    chapter: Chapter,
+    approved_scene_id: int,
+    kind: str,
+    raw_items: object,
+    entity_type: str,
+    fact_type: str,
+    entity_keys: tuple[str, ...],
+    value_keys: tuple[str, ...],
+) -> None:
+    for index, item in enumerate(_mapping_items(raw_items), start=1):
+        entity_id = _first_text(item, entity_keys)
+        value = _first_text(item, value_keys)
+        if entity_id is None or value is None:
+            continue
+        atoms.append(
+            _memory_extract_atom(
+                book_id=book_id,
+                chapter=chapter,
+                approved_scene_id=approved_scene_id,
+                kind=kind,
+                index=index,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                fact_type=fact_type,
+                value=value,
+                confidence=_confidence(item),
+                immutable=_bool_value(item.get("immutable")),
+                valid_to_chapter=_optional_positive_int(item.get("valid_to_chapter")),
+            )
+        )
+
+
+def _memory_extract_atom(
+    *,
+    book_id: int,
+    chapter: Chapter,
+    approved_scene_id: int,
+    kind: str,
+    index: int,
+    entity_type: str,
+    entity_id: str,
+    fact_type: str,
+    value: str,
+    confidence: float,
+    immutable: bool,
+    valid_to_chapter: int | None = None,
+) -> MemoryAtom:
+    return MemoryAtom(
+        memory_id=f"memory_extract:{chapter.id}:{kind}:{index}",
+        novel_id=book_id,
+        entity_type=entity_type,  # type: ignore[arg-type]
+        entity_id=entity_id,
+        fact_type=fact_type,  # type: ignore[arg-type]
+        value=value,
+        source_ref=f"chapter:{chapter.id}#approved_scene:{approved_scene_id}#memory_extract:{kind}:{index}",
+        source_chapter_id=chapter.id,
+        valid_from_chapter=chapter.ordinal,
+        valid_to_chapter=valid_to_chapter,
+        confidence=confidence,
+        immutable=immutable,
+    )
+
+
+def _mapping_items(value: object) -> list[Mapping[str, object]]:
+    if isinstance(value, Mapping):
+        return [value]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, Mapping)]
+    return []
+
+
+def _first_text(item: Mapping[str, object], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = item.get(key)
+        if isinstance(value, str):
+            normalized = value.strip()
+            if normalized:
+                return normalized
+    return None
+
+
+def _confidence(item: Mapping[str, object]) -> float:
+    value = item.get("confidence")
+    if isinstance(value, int | float):
+        return min(1.0, max(0.0, float(value)))
+    return 1.0
+
+
+def _bool_value(value: object) -> bool:
+    return value if isinstance(value, bool) else False
+
+
+def _optional_positive_int(value: object) -> int | None:
+    return value if isinstance(value, int) and value > 0 else None
 
 
 def _scene_memory_terms(

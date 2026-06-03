@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 import app.models  # noqa: F401
 from app.domains.assets.models import Asset
 from app.domains.books.models import Book
+from app.domains.story_memory.service import list_memory_atoms
 
 
 def seed_book(session_factory: sessionmaker[Session], title: str = "雾港角色规则") -> int:
@@ -53,6 +54,10 @@ def test_character_bible_table_has_required_fields(session: Session) -> None:
         "aliases",
         "voice_traits",
         "forbidden_traits",
+        "lineage_key",
+        "version",
+        "sync_status",
+        "memory_atom_id",
     }.issubset(column_names)
 
 
@@ -81,6 +86,10 @@ def test_character_bible_crud_flow(client: TestClient, session_factory: sessionm
     assert created["aliases"] == ["林调查员", "雾港来客"]
     assert created["voice_traits"]["语气"] == "克制"
     assert created["forbidden_traits"]["禁止"] == ["突然健谈", "忘记左臂旧伤"]
+    assert created["lineage_key"]
+    assert created["version"] == 1
+    assert created["sync_status"] == "synced"
+    assert created["memory_atom_id"].startswith("memory:")
 
     list_response = client.get(f"/api/character-bible?book_id={book_id}")
     assert list_response.status_code == 200, list_response.text
@@ -103,12 +112,69 @@ def test_character_bible_crud_flow(client: TestClient, session_factory: sessionm
     assert updated["aliases"] == ["林岚"]
     assert updated["voice_traits"]["语气"] == "冷静"
     assert updated["forbidden_traits"]["禁止"] == ["忘记旧伤"]
+    assert updated["id"] != created["id"]
+    assert updated["lineage_key"] == created["lineage_key"]
+    assert updated["version"] == 2
+    assert updated["memory_atom_id"].startswith("memory:")
+    assert updated["memory_atom_id"] != created["memory_atom_id"]
 
-    delete_response = client.delete(f"/api/character-bible/{created['id']}")
+    delete_response = client.delete(f"/api/character-bible/{updated['id']}")
     assert delete_response.status_code == 204, delete_response.text
 
-    missing_response = client.get(f"/api/character-bible/{created['id']}")
+    missing_response = client.get(f"/api/character-bible/{updated['id']}")
     assert missing_response.status_code == 404, missing_response.text
+
+
+def test_character_bible_keeps_history_and_syncs_story_memory(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Character Bible 更新必须保留版本历史，并同步为 Story Memory 角色规则事实。"""
+
+    book_id = seed_book(session_factory)
+    create_response = client.post(
+        "/api/character-bible",
+        json={
+            "book_id": book_id,
+            "canonical_name": "林岚",
+            "aliases": ["林调查员"],
+            "voice_traits": {"语气": "克制"},
+            "forbidden_traits": {"禁止": ["突然健谈"]},
+        },
+    )
+    assert create_response.status_code == 201, create_response.text
+    created = create_response.json()
+
+    update_response = client.patch(
+        f"/api/character-bible/{created['id']}",
+        json={
+            "voice_traits": {"语气": "冷静", "句式": ["短句"]},
+            "forbidden_traits": {"禁止": ["突然健谈", "忘记旧伤"]},
+        },
+    )
+    assert update_response.status_code == 200, update_response.text
+    updated = update_response.json()
+
+    latest_response = client.get("/api/character-bible", params={"book_id": book_id})
+    assert latest_response.status_code == 200, latest_response.text
+    latest = latest_response.json()
+    assert [item["id"] for item in latest] == [updated["id"]]
+    assert latest[0]["version"] == 2
+
+    history_response = client.get(f"/api/character-bible/{created['id']}/history")
+    assert history_response.status_code == 200, history_response.text
+    history = history_response.json()
+    assert [item["version"] for item in history] == [1, 2]
+    assert [item["id"] for item in history] == [created["id"], updated["id"]]
+
+    with session_factory() as session:
+        atoms = list_memory_atoms(session, book_id=book_id, entity_type="character", entity_id="林岚")
+
+    assert [atom.revision for atom in atoms] == [1, 2]
+    assert atoms[-1].memory_id == updated["memory_atom_id"]
+    assert atoms[-1].fact_type == "rule"
+    assert "突然健谈" in atoms[-1].value
+    assert "STORYFORGE_LLM_API_KEY" not in atoms[-1].value
 
 
 def test_character_bible_rejects_missing_book(client: TestClient) -> None:

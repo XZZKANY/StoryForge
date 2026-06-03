@@ -12,6 +12,7 @@ const apiTests = {
 };
 const webSources = {
   home: readFileSync('apps/web/app/page.tsx', 'utf8'),
+  nav: readFileSync('apps/web/components/site-nav/site-nav-links.ts', 'utf8'),
   refinery: readFileSync('apps/web/app/refinery/page.tsx', 'utf8'),
 };
 
@@ -62,7 +63,7 @@ test('Phase 2 后端测试源码保留当前业务证据', () => {
 });
 
 test('Phase 2 前端边界对齐当前已验证入口', () => {
-  assertSourceEvidence(webSources.home, ['/refinery', 'Refinery 批量精修诊断']);
+  assertSourceEvidence(webSources.nav, ['/refinery', 'Refinery 批量精修']);
   assertSourceEvidence(webSources.refinery, ['Refinery 修订工坊', '评审问题', '修订差异', '补丁']);
   assertNoSourceEvidence(webSources.home, [
     "href: '/world'",

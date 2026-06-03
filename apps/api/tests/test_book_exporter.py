@@ -4,10 +4,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
+from app.domains.artifacts.models import Artifact
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
-from app.domains.exports.book_markdown_exporter import export_book_run_audit_report, export_book_run_markdown
+from app.domains.exports.book_markdown_exporter import (
+    export_book_run_audit_report,
+    export_book_run_epub,
+    export_book_run_markdown,
+)
 
 
 def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: sessionmaker[Session]) -> None:
@@ -18,6 +23,7 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
 
         markdown_artifact = export_book_run_markdown(session, book_run_id)
         audit_artifact = export_book_run_audit_report(session, book_run_id)
+        epub_artifact = export_book_run_epub(session, book_run_id)
 
         assert markdown_artifact.name == "book.md"
         assert markdown_artifact.mime_type == "text/markdown"
@@ -37,6 +43,13 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
+        assert report["manual_read_gate"] == {
+            "status": "passed",
+            "reviewer": "人工通读验收",
+            "reviewed_chapter_count": 10,
+            "word_count": 36000,
+            "conclusion": "通过人工通读门禁。",
+        }
         assert report["skill_chain"]["schema_version"] == "bookrun_skill_projection.v2"
         assert report["skill_chain"]["book_run_id"] == book_run_id
         assert report["skill_chain"]["summary"]["completed_chapter_count"] == 3
@@ -51,6 +64,10 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
             "generate",
         ]
         assert report["skill_chain"]["events"][-1]["skill_name"] == "export"
+
+        assert epub_artifact.name == "book.epub"
+        assert epub_artifact.mime_type == "application/epub+zip"
+        assert epub_artifact.payload["book_run_id"] == book_run_id
 
 
 def test_audit_report_skill_chain_prefers_recorded_skill_runs_without_full_payload(
@@ -117,17 +134,44 @@ def test_book_run_export_endpoints_return_artifacts(
         book_run_id = _seed_completed_book_run(session)
 
     markdown_response = client.post(f"/api/book-runs/{book_run_id}/exports/markdown")
+    epub_response = client.post(f"/api/book-runs/{book_run_id}/exports/epub")
     audit_response = client.post(f"/api/book-runs/{book_run_id}/exports/audit-report")
 
     assert markdown_response.status_code == 200, markdown_response.text
     assert markdown_response.json()["name"] == "book.md"
     assert markdown_response.json()["mime_type"] == "text/markdown"
+    assert epub_response.status_code == 200, epub_response.text
+    assert epub_response.json()["name"] == "book.epub"
+    assert epub_response.json()["mime_type"] == "application/epub+zip"
     assert audit_response.status_code == 200, audit_response.text
     assert audit_response.json()["name"] == "audit_report.json"
     assert audit_response.json()["payload"]["book_run_id"] == book_run_id
 
 
-def _seed_completed_book_run(session: Session, skill_runs: list[dict[str, object]] | None = None) -> int:
+def test_book_run_export_endpoints_reject_non_completed_without_artifacts(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """BookRun 未完成时三类导出 API 都应拒绝，且不创建制品。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(session, status="running")
+        artifact_count_before = session.query(Artifact).count()
+
+    for path in ["markdown", "epub", "audit-report"]:
+        response = client.post(f"/api/book-runs/{book_run_id}/exports/{path}")
+        assert response.status_code == 400, response.text
+        assert "BookRun 尚未完成" in response.json()["detail"]
+
+    with session_factory() as session:
+        assert session.query(Artifact).count() == artifact_count_before
+
+
+def _seed_completed_book_run(
+    session: Session,
+    skill_runs: list[dict[str, object]] | None = None,
+    status: str = "completed",
+) -> int:
     book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。")
     session.add(book)
     session.flush()
@@ -181,10 +225,19 @@ def _seed_completed_book_run(session: Session, skill_runs: list[dict[str, object
     book_run = BookRun(
         book_id=book.id,
         blueprint_id=blueprint.id,
-        status="completed",
+        status=status,
         current_chapter_index=3,
         total_chapters=3,
-        progress={"completed_chapters": completed},
+        progress={
+            "completed_chapters": completed,
+            "manual_read_gate": {
+                "status": "passed",
+                "reviewer": "人工通读验收",
+                "reviewed_chapter_count": 10,
+                "word_count": 36000,
+                "conclusion": "通过人工通读门禁。",
+            },
+        },
     )
     session.add(book_run)
     session.commit()

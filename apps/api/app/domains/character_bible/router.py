@@ -12,6 +12,7 @@ from app.domains.character_bible.service import (
     create_character_bible_entry,
     delete_character_bible_entry,
     get_character_bible_entry,
+    get_character_bible_history,
     list_character_bible_entries,
     update_character_bible_entry,
 )
@@ -83,6 +84,20 @@ def update_character_bible_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except CharacterBibleInputError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get(
+    "/{entry_id}/history",
+    response_model=list[CharacterBibleRead],
+    summary="读取 Character Bible 版本历史",
+)
+def get_character_bible_history_endpoint(entry_id: int, session: SessionDependency) -> list[CharacterBibleRead]:
+    """读取同一角色规范谱系的全部版本历史。"""
+
+    try:
+        return get_character_bible_history(session, entry_id)
+    except CharacterBibleNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.delete(

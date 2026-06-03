@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   BookRunStatusPanel,
   exportAuditReportRequest,
+  exportEpubRequest,
   exportMarkdownRequest,
 } from '../app/book-runs/api';
 
@@ -56,6 +57,10 @@ test('BookRun 导出 helper 使用正确 endpoint', () => {
   });
   assert.deepEqual(exportAuditReportRequest(12), {
     path: '/api/book-runs/12/exports/audit-report',
+    init: { method: 'POST' },
+  });
+  assert.deepEqual(exportEpubRequest(12), {
+    path: '/api/book-runs/12/exports/epub',
     init: { method: 'POST' },
   });
 });

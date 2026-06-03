@@ -11,6 +11,8 @@ from app.domains.studio.schemas import (
     StudioApprovalSummaryRead,
     StudioBookListItem,
     StudioChapterGoalRead,
+    StudioChapterReviewRunRead,
+    StudioChapterReviewRunRequest,
     StudioJudgeReviewRead,
     StudioRecoverySummaryRead,
     StudioRepairPatchRead,
@@ -19,6 +21,7 @@ from app.domains.studio.schemas import (
 from app.domains.studio.service import (
     StudioApprovalSummaryNotFoundError,
     StudioChapterGoalNotFoundError,
+    StudioChapterReviewInputError,
     StudioJudgeReviewNotFoundError,
     StudioRecoverySummaryNotFoundError,
     StudioRepairPatchesNotFoundError,
@@ -31,6 +34,7 @@ from app.domains.studio.service import (
     read_studio_recovery_summary,
     read_studio_repair_patches,
     read_studio_scene_packet,
+    run_studio_chapter_review,
 )
 
 router = APIRouter(prefix="/api/studio", tags=["Studio 创作工作台"])
@@ -140,6 +144,25 @@ def read_studio_approval_summary_endpoint(
         )
     except StudioApprovalSummaryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/chapter-review",
+    response_model=StudioChapterReviewRunRead,
+    summary="主动执行 Studio 章节审阅",
+)
+def run_studio_chapter_review_endpoint(
+    payload: StudioChapterReviewRunRequest,
+    session: SessionDependency,
+) -> StudioChapterReviewRunRead:
+    """Assistant 通过 Scene Packet 主动创建 Judge 问题和 Repair 建议。"""
+
+    try:
+        return run_studio_chapter_review(session, scene_packet_id=payload.scene_packet_id)
+    except StudioJudgeReviewNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except StudioChapterReviewInputError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post(

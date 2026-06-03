@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read Workspace Analytics Endpoint */
+        /**
+         * 读取工作区分析面板
+         * @description 聚合指定工作区维度的关键指标快照，用于运营看板和报表导出。
+         */
         get: operations["read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get"];
         put?: never;
         post?: never;
@@ -28,10 +31,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Artifacts Endpoint */
+        /**
+         * 读取制品列表
+         * @description 制品列表：未指定 limit 时返回兼容的扁平数组；指定 limit 时返回游标分页信封。
+         */
         get: operations["list_artifacts_endpoint_api_artifacts_get"];
         put?: never;
-        /** Create Artifact Endpoint */
+        /**
+         * 创建制品
+         * @description 登记一条制品记录（草稿、章节稿、评测报告等），返回新建后的元数据。
+         */
         post: operations["create_artifact_endpoint_api_artifacts_post"];
         delete?: never;
         options?: never;
@@ -46,7 +55,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Artifact Endpoint */
+        /**
+         * 读取制品详情
+         * @description 按主键读取单个制品的完整元数据。
+         */
         get: operations["get_artifact_endpoint_api_artifacts__artifact_id__get"];
         put?: never;
         post?: never;
@@ -63,7 +75,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download Artifact Endpoint */
+        /**
+         * 读取制品下载摘要
+         * @description 返回制品下载摘要（路径、大小、校验信息），实际签名 URL 由对象存储后端二次签发。
+         */
         get: operations["download_artifact_endpoint_api_artifacts__artifact_id__download_get"];
         put?: never;
         post?: never;
@@ -81,13 +96,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Assets Endpoint
+         * 读取资产列表
          * @description 查询指定作品下每条资产谱系的最新版本列表。
          */
         get: operations["list_assets_endpoint_api_assets_get"];
         put?: never;
         /**
-         * Create Asset Endpoint
+         * 创建资产
          * @description 创建角色、地点、风格规则等资产的首个版本。
          */
         post: operations["create_asset_endpoint_api_assets_post"];
@@ -111,7 +126,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update Asset Endpoint
+         * 更新资产并创建新版本
          * @description 更新资产并创建新版本，旧版本保留在历史中。
          */
         patch: operations["update_asset_endpoint_api_assets__asset_id__patch"];
@@ -125,10 +140,114 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Asset History Endpoint
+         * 读取资产版本历史
          * @description 读取资产同一谱系的全部版本历史。
          */
         get: operations["read_asset_history_endpoint_api_assets__asset_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取最近 Assistant 会话
+         * @description 读取最近会话，供首页最近记录和任务追溯使用。
+         */
+        get: operations["list_assistant_sessions_endpoint_api_assistant_sessions_get"];
+        put?: never;
+        /**
+         * 创建 Assistant 会话
+         * @description 创建 Assistant 会话，保存消息和业务引用，不保存敏感凭据。
+         */
+        post: operations["create_assistant_session_endpoint_api_assistant_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/sessions/{assistant_session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 Assistant 会话详情
+         * @description 读取指定会话的完整消息历史，供最近记录跳回 Assistant 时恢复上下文。
+         */
+        get: operations["get_assistant_session_endpoint_api_assistant_sessions__assistant_session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/sessions/{assistant_session_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 追加 Assistant 消息
+         * @description 向指定会话追加消息。
+         */
+        post: operations["append_assistant_message_endpoint_api_assistant_sessions__assistant_session_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-refinement/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 创建并同步执行批量精修任务
+         * @description 兼容 Phase 2 早期草稿 API，内部复用现有评审与修复事实源。
+         */
+        post: operations["create_batch_refinement_run_api_batch_refinement_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/batch-refinement/jobs/{job_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取批量精修任务
+         * @description 读取兼容 API 创建的批量精修任务。
+         */
+        get: operations["read_batch_refinement_run_api_batch_refinement_jobs__job_run_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -147,7 +266,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Batch Refinery Run
+         * 提交批量精修任务
          * @description 创建排队任务并交给后台执行，客户端通过查询接口读取进度。
          */
         post: operations["create_batch_refinery_run_api_batch_refinery_runs_post"];
@@ -165,10 +284,310 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Batch Refinery Run
+         * 读取批量精修任务状态
          * @description 读取批量精修 JobRun 明细，供恢复和重试前检查。
          */
         get: operations["read_batch_refinery_run_api_batch_refinery_runs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blueprints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 创建全书 Blueprint
+         * @description 创建 Phase 9A 最小全书蓝图，作为章节规划和 BookRun 的输入。
+         */
+        post: operations["create_book_blueprint_endpoint_api_blueprints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blueprints/{blueprint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取全书 Blueprint
+         * @description 读取 Blueprint 详情，供 Web 和 Workflow 判断规划输入。
+         */
+        get: operations["get_book_blueprint_endpoint_api_blueprints__blueprint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blueprints/{blueprint_id}/chapter-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 触发章节规划门禁
+         * @description 校验 Blueprint 已锁定；实际章节写回由 Chapter Planner 步骤补齐。
+         */
+        post: operations["trigger_chapter_plan_endpoint_api_blueprints__blueprint_id__chapter_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blueprints/{blueprint_id}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 锁定全书 Blueprint
+         * @description 锁定 Blueprint；只有 locked 状态才能进入章节规划器。
+         */
+        post: operations["lock_book_blueprint_endpoint_api_blueprints__blueprint_id__lock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 启动 BookRun
+         * @description 基于 locked Blueprint 启动整本书运行记录。
+         */
+        post: operations["create_book_run_endpoint_api_book_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 BookRun
+         * @description 读取整书运行状态、当前章节和进度摘要。
+         */
+        get: operations["get_book_run_endpoint_api_book_runs__book_run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/exports/audit-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导出 BookRun 审计报告
+         * @description 为 completed BookRun 生成 audit_report.json 制品。
+         */
+        post: operations["export_book_run_audit_report_endpoint_api_book_runs__book_run_id__exports_audit_report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/exports/epub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导出 BookRun EPUB
+         * @description 为 completed BookRun 生成 book.epub 制品索引。
+         */
+        post: operations["export_book_run_epub_endpoint_api_book_runs__book_run_id__exports_epub_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/exports/markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导出 BookRun Markdown
+         * @description 为 completed BookRun 生成 book.md 制品。
+         */
+        post: operations["export_book_run_markdown_endpoint_api_book_runs__book_run_id__exports_markdown_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 暂停 BookRun
+         * @description 暂停整书运行，并记录暂停原因供 Assistant 工具树展示。
+         */
+        post: operations["pause_book_run_endpoint_api_book_runs__book_run_id__pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 回填 BookRun 进度
+         * @description 接收 workflow BookLoop 回填的状态、当前章节和进度证据。
+         */
+        patch: operations["update_book_run_progress_endpoint_api_book_runs__book_run_id__progress_patch"];
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 恢复 BookRun
+         * @description 从最近 checkpoint 的下一章恢复整书运行。
+         */
+        post: operations["resume_book_run_endpoint_api_book_runs__book_run_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 从 checkpoint 重试 BookRun
+         * @description 从最近 checkpoint 的下一章重试整书运行。
+         */
+        post: operations["retry_book_run_endpoint_api_book_runs__book_run_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 停止 BookRun
+         * @description 停止整书运行，并记录用户停止原因。
+         */
+        post: operations["stop_book_run_endpoint_api_book_runs__book_run_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/workflow-dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 BookRun workflow 调度 payload
+         * @description 为外部 workflow worker 生成调度 payload；接口本身不执行 workflow。
+         */
+        get: operations["get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -185,7 +604,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Export Book Epub
+         * 导出作品 EPUB
          * @description 导出作品已批准章节正文为最小 EPUB。
          */
         get: operations["export_book_epub_api_books__book_id__exports_epub_get"];
@@ -205,10 +624,82 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Export Book Markdown
+         * 导出作品 Markdown
          * @description 导出作品已批准章节正文为 Markdown。
          */
         get: operations["export_book_markdown_api_books__book_id__exports_markdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/character-bible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取作品 Character Bible 列表
+         * @description 读取指定作品的角色规范列表。
+         */
+        get: operations["list_character_bible_endpoint_api_character_bible_get"];
+        put?: never;
+        /**
+         * 创建 Character Bible 条目
+         * @description 创建角色规范硬规则，供后续一致性检查读取。
+         */
+        post: operations["create_character_bible_endpoint_api_character_bible_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/character-bible/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 Character Bible 条目
+         * @description 按主键读取角色规范。
+         */
+        get: operations["get_character_bible_endpoint_api_character_bible__entry_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * 删除 Character Bible 条目
+         * @description 删除角色规范条目。
+         */
+        delete: operations["delete_character_bible_endpoint_api_character_bible__entry_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * 更新 Character Bible 条目
+         * @description 更新角色规范字段。
+         */
+        patch: operations["update_character_bible_endpoint_api_character_bible__entry_id__patch"];
+        trace?: never;
+    };
+    "/api/character-bible/{entry_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 Character Bible 版本历史
+         * @description 读取同一角色规范谱系的全部版本历史。
+         */
+        get: operations["get_character_bible_history_endpoint_api_character_bible__entry_id__history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -226,7 +717,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Approval Request Endpoint */
+        /**
+         * 发起批准请求
+         * @description 针对场景或章节创建批准请求，等待审核者决议。
+         */
         post: operations["create_approval_request_endpoint_api_collaboration_approvals_post"];
         delete?: never;
         options?: never;
@@ -243,7 +737,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Approval Decision Endpoint */
+        /**
+         * 提交批准决议
+         * @description 对批准请求做出 approve/reject 决议并附带备注。
+         */
         post: operations["create_approval_decision_endpoint_api_collaboration_approvals__approval_request_id__decisions_post"];
         delete?: never;
         options?: never;
@@ -260,7 +757,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Comment Endpoint */
+        /**
+         * 提交工作区评论
+         * @description 对场景或制品添加协作评论；评论与场景绑定，按时间线展示。
+         */
         post: operations["create_comment_endpoint_api_collaboration_comments_post"];
         delete?: never;
         options?: never;
@@ -275,7 +775,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read Scene Timeline Endpoint */
+        /**
+         * 读取场景协作时间线
+         * @description 按时间顺序读取场景下的评论与批准事件，用于协作面板展示。
+         */
         get: operations["read_scene_timeline_endpoint_api_collaboration_scenes__scene_id__timeline_get"];
         put?: never;
         post?: never;
@@ -294,7 +797,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upsert Workspace Policy Endpoint */
+        /**
+         * 更新工作区订阅策略
+         * @description 新建或覆盖工作区的订阅与配额策略。
+         */
         post: operations["upsert_workspace_policy_endpoint_api_commercial_workspaces__workspace_id__policy_post"];
         delete?: never;
         options?: never;
@@ -309,7 +815,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read Workspace Commercial Summary Endpoint */
+        /**
+         * 读取工作区商业化摘要
+         * @description 读取工作区当前商业化用量、剩余配额和订阅状态摘要。
+         */
         get: operations["read_workspace_commercial_summary_endpoint_api_commercial_workspaces__workspace_id__summary_get"];
         put?: never;
         post?: never;
@@ -329,7 +838,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Approve Chapter Endpoint
+         * 提交章节批准并刷新连续性
          * @description 记录章节批准后的摘要、状态变化、伏笔变化和继承约束。
          */
         post: operations["approve_chapter_endpoint_api_continuity_chapter_approval_post"];
@@ -348,7 +857,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Evaluation Case Endpoint */
+        /**
+         * 创建评测样例
+         * @description 登记一条评测样例（输入 / 预期输出），供评测运行批量执行。
+         */
         post: operations["create_evaluation_case_endpoint_api_evaluations_cases_post"];
         delete?: never;
         options?: never;
@@ -363,10 +875,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Evaluation Runs Endpoint */
+        /**
+         * 读取评测运行列表
+         * @description 评测运行列表：未指定 limit 时返回兼容数组；指定 limit 时返回游标分页信封。
+         */
         get: operations["list_evaluation_runs_endpoint_api_evaluations_runs_get"];
         put?: never;
-        /** Create Evaluation Run Endpoint */
+        /**
+         * 启动评测运行
+         * @description 对一批评测样例发起新的评测运行，返回评测运行入口。
+         */
         post: operations["create_evaluation_run_endpoint_api_evaluations_runs_post"];
         delete?: never;
         options?: never;
@@ -381,7 +899,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Evaluation Run Detail Endpoint */
+        /**
+         * 读取评测运行详情
+         * @description 读取单次评测运行的整体指标摘要与子样本统计。
+         */
         get: operations["get_evaluation_run_detail_endpoint_api_evaluations_runs__run_id__get"];
         put?: never;
         post?: never;
@@ -398,7 +919,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Failed Samples Endpoint */
+        /**
+         * 读取评测失败样例
+         * @description 读取指定评测运行下未达标的样例列表，便于排错和反馈。
+         */
         get: operations["list_failed_samples_endpoint_api_evaluations_runs__run_id__failed_samples_get"];
         put?: never;
         post?: never;
@@ -417,7 +941,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Event Endpoint */
+        /**
+         * 记录事件
+         * @description 追加一条工作区级事件流记录，可用于审计和回溯。
+         */
         post: operations["create_event_endpoint_api_events_post"];
         delete?: never;
         options?: never;
@@ -432,8 +959,171 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Workspace Events Endpoint */
+        /**
+         * 读取工作区事件流
+         * @description 按时间倒序读取工作区下的事件流。
+         */
         get: operations["list_workspace_events_endpoint_api_events_workspaces__workspace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/artifacts/{artifact_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 IDE 制品预览
+         * @description 返回 Artifact Viewer 所需的预览、下载摘要、版本和追溯链。
+         */
+        get: operations["read_artifact_preview_api_ide_artifacts__artifact_id__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/commands/{command_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 执行 IDE 命令
+         * @description 执行已注册 IDE 命令，所有写操作都返回审计追踪 ID。
+         */
+        post: operations["execute_ide_command_api_ide_commands__command_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/context-snapshot/{compiled_context_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 IDE 上下文快照
+         * @description 返回 Context Inspector 渲染所需的上下文编译记录。
+         */
+        get: operations["read_context_snapshot_api_ide_context_snapshot__compiled_context_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 IDE 诊断列表
+         * @description 返回指定场景的开放诊断问题。
+         */
+        get: operations["list_diagnostics_api_ide_diagnostics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/runs/{book_run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 IDE BookRun 事件流
+         * @description 返回 BookRun 当前状态投影生成的 SSE 快照事件。
+         */
+        get: operations["stream_run_events_api_ide_runs__book_run_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/scenes/{scene_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 IDE 场景正文
+         * @description 返回 JudgeRepairWorkbench 渲染和修复命令需要的场景正文。
+         */
+        get: operations["read_scene_for_ide_api_ide_scenes__scene_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/story-memory/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 查询 IDE Story Memory
+         * @description 返回 Story Memory Explorer 所需的长效记忆和冲突队列。
+         */
+        post: operations["query_story_memory_endpoint_api_ide_story_memory_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/workspace-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 IDE 工作区树
+         * @description 返回 IDE Explorer 初始渲染所需的作品与章节树。
+         */
+        get: operations["read_workspace_tree_api_ide_workspace_tree_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -452,7 +1142,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Judge Issues Endpoint
+         * 评审 Scene Packet 并生成问题单
          * @description 对章节片段执行本地确定性评审，返回结构化问题单。
          */
         post: operations["create_judge_issues_endpoint_api_judge_issues_post"];
@@ -469,10 +1159,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Model Runs Endpoint */
+        /**
+         * 读取模型运行列表
+         * @description 模型运行列表：未指定 limit 时返回兼容数组；指定 limit 时返回游标分页信封。
+         */
         get: operations["list_model_runs_endpoint_api_model_runs_get"];
         put?: never;
-        /** Create Model Run Endpoint */
+        /**
+         * 记录模型调用
+         * @description 登记一次模型调用的输入、输出、token 用量和成本估计。
+         */
         post: operations["create_model_run_endpoint_api_model_runs_post"];
         delete?: never;
         options?: never;
@@ -487,7 +1183,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Runs Job Run Endpoint */
+        /**
+         * 读取 JobRun 详情
+         * @description 按 job_run_id 读取 JobRun、Checkpoint 和 ModelRun 摘要。
+         */
         get: operations["get_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__get"];
         put?: never;
         post?: never;
@@ -506,7 +1205,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retry Runs Job Run Endpoint */
+        /**
+         * 创建 JobRun 恢复任务
+         * @description 对失败的 JobRun 创建恢复任务（仅登记，不立即续跑 workflow）。
+         */
         post: operations["retry_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__retry_post"];
         delete?: never;
         options?: never;
@@ -521,10 +1223,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Prompt Packs Endpoint */
+        /**
+         * 读取 Prompt Pack 列表
+         * @description Prompt Pack 列表：未指定 limit 时返回兼容数组；指定 limit 时返回游标分页信封。
+         */
         get: operations["list_prompt_packs_endpoint_api_prompt_packs_get"];
         put?: never;
-        /** Create Prompt Pack Endpoint */
+        /**
+         * 创建 Prompt Pack
+         * @description 创建 Prompt Pack 首版本，承载创作链路上可复用的提示词集合。
+         */
         post: operations["create_prompt_pack_endpoint_api_prompt_packs_post"];
         delete?: never;
         options?: never;
@@ -545,7 +1253,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Prompt Pack Endpoint */
+        /**
+         * 更新 Prompt Pack
+         * @description 更新 Prompt Pack 并创建新版本，旧版本保留在历史中。
+         */
         patch: operations["update_prompt_pack_endpoint_api_prompt_packs__pack_id__patch"];
         trace?: never;
     };
@@ -556,7 +1267,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Prompt Pack History Endpoint */
+        /**
+         * 读取 Prompt Pack 历史
+         * @description 读取 Prompt Pack 同一谱系的全部版本历史。
+         */
         get: operations["get_prompt_pack_history_endpoint_api_prompt_packs__pack_id__history_get"];
         put?: never;
         post?: never;
@@ -573,10 +1287,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Provider Configs Endpoint */
+        /**
+         * 读取 Provider 配置列表
+         * @description 按工作区维度列出全部 Provider 配置；不返回明文密钥。
+         */
         get: operations["list_provider_configs_endpoint_api_provider_gateway_providers_get"];
         put?: never;
-        /** Create Provider Config Endpoint */
+        /**
+         * 创建 Provider 配置
+         * @description 登记一条模型 Provider 配置，密钥仅记录引用而不入库明文。
+         */
         post: operations["create_provider_config_endpoint_api_provider_gateway_providers_post"];
         delete?: never;
         options?: never;
@@ -591,7 +1311,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Resolve Provider Endpoint */
+        /**
+         * 按能力解析 Provider
+         * @description 按 capability（如 chat、embedding、rerank）解析出当前生效的 Provider。
+         */
         get: operations["resolve_provider_endpoint_api_provider_gateway_resolve_get"];
         put?: never;
         post?: never;
@@ -609,7 +1332,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Quality Dashboard
+         * 读取质量看板
          * @description 读取指定作品或系列范围下的质量看板。
          */
         get: operations["read_quality_dashboard_api_quality_dashboard_get"];
@@ -631,7 +1354,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Repair Patch Endpoint
+         * 生成定向修复补丁
          * @description 根据结构化问题单生成局部替换补丁，修复后必须重新评审。
          */
         post: operations["create_repair_patch_endpoint_api_repair_patches_post"];
@@ -650,7 +1373,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Retrieval Refresh Run Endpoint */
+        /**
+         * 创建检索索引刷新任务
+         * @description 对指定资料源发起索引刷新任务，返回刷新运行记录。
+         */
         post: operations["create_retrieval_refresh_run_endpoint_api_retrieval_refresh_runs_post"];
         delete?: never;
         options?: never;
@@ -667,7 +1393,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Search Retrieval Endpoint */
+        /**
+         * 基础检索
+         * @description 基础检索接口：仅返回命中列表，不附加工作台需要的摘要字段。
+         */
         post: operations["search_retrieval_endpoint_api_retrieval_search_post"];
         delete?: never;
         options?: never;
@@ -682,10 +1411,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Retrieval Sources Endpoint */
+        /**
+         * 读取检索资料源列表
+         * @description 按作品或系列范围列出已登记的检索资料源。
+         */
         get: operations["list_retrieval_sources_endpoint_api_retrieval_sources_get"];
         put?: never;
-        /** Create Retrieval Source Endpoint */
+        /**
+         * 创建检索资料源
+         * @description 登记一条检索资料源（URL 或文档），可后续触发索引刷新任务。
+         */
         post: operations["create_retrieval_source_endpoint_api_retrieval_sources_post"];
         delete?: never;
         options?: never;
@@ -700,7 +1435,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Retrieval Workbench Refresh Runs Endpoint */
+        /**
+         * 读取检索刷新任务列表
+         * @description 按资料源或作品维度列出索引刷新任务的最近运行记录。
+         */
         get: operations["list_retrieval_workbench_refresh_runs_endpoint_api_retrieval_workbench_refresh_runs_get"];
         put?: never;
         post?: never;
@@ -719,7 +1457,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Search Retrieval Workbench Endpoint */
+        /**
+         * 检索工作台搜索
+         * @description 检索工作台搜索：返回命中、证据锚点和检索摘要，便于核对 Scene Packet 的来源。
+         */
         post: operations["search_retrieval_workbench_endpoint_api_retrieval_workbench_search_post"];
         delete?: never;
         options?: never;
@@ -734,7 +1475,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Retrieval Workbench Sources Endpoint */
+        /**
+         * 读取检索工作台资料源
+         * @description 读取检索工作台需要的资料源摘要：状态、规模、最近一次刷新时间。
+         */
         get: operations["list_retrieval_workbench_sources_endpoint_api_retrieval_workbench_sources_get"];
         put?: never;
         post?: never;
@@ -752,7 +1496,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Runtime Tools Endpoint
+         * 读取运行时工具列表
          * @description 列出 CreativeToolRegistry 声明的运行时工具能力。
          */
         get: operations["list_runtime_tools_endpoint_api_runtime_tools_get"];
@@ -774,7 +1518,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Scene Packet Endpoint
+         * 组装 Scene Packet
          * @description 为章节首个场景组装固定槽位 Scene Packet 并持久化。
          */
         post: operations["create_scene_packet_endpoint_api_scene_packets_post"];
@@ -794,7 +1538,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Series Endpoint
+         * 创建系列
          * @description 创建承载跨书记忆的系列根实体。
          */
         post: operations["create_series_endpoint_api_series_post"];
@@ -818,7 +1562,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update Series Memory Endpoint
+         * 更新系列记忆
          * @description 更新系列级记忆并创建新版本。
          */
         patch: operations["update_series_memory_endpoint_api_series_memories__memory_id__patch"];
@@ -832,7 +1576,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Series Memory History Endpoint
+         * 读取系列记忆历史
          * @description 读取同一系列记忆谱系的全部版本历史。
          */
         get: operations["read_series_memory_history_endpoint_api_series_memories__memory_id__history_get"];
@@ -852,13 +1596,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Series Memories Endpoint
+         * 读取系列记忆列表
          * @description 读取指定系列下每条记忆谱系的最新版本。
          */
         get: operations["list_series_memories_endpoint_api_series__series_id__memories_get"];
         put?: never;
         /**
-         * Create Series Memory Endpoint
+         * 创建系列记忆首版本
          * @description 创建系列级记忆首版本。
          */
         post: operations["create_series_memory_endpoint_api_series__series_id__memories_post"];
@@ -876,7 +1620,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Studio Approval Summary Endpoint
+         * 读取 Studio 批准摘要
          * @description 读取 Studio 批准回写摘要：只返回资格、目标章节和阻塞原因。
          */
         get: operations["read_studio_approval_summary_endpoint_api_studio_approval_summary_get"];
@@ -898,7 +1642,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Approve Studio Writeback Endpoint
+         * 执行 Studio 批准写回
          * @description 执行 Studio 批准写回：更新章节、场景和连续性记录。
          */
         post: operations["approve_studio_writeback_endpoint_api_studio_approve_post"];
@@ -916,7 +1660,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Studio Books Endpoint
+         * 读取 Studio 作品列表
          * @description 读取 Studio 首个数据源：作品 ID、标题和最近章节编号。
          */
         get: operations["list_studio_books_endpoint_api_studio_books_get"];
@@ -936,12 +1680,32 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Studio Chapter Goal Endpoint
+         * 读取 Studio 章节目标
          * @description 读取 Studio 章节目标数据源：目标、上章摘要和连续性约束。
          */
         get: operations["read_studio_chapter_goal_endpoint_api_studio_chapter_goals_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/studio/chapter-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 主动执行 Studio 章节审阅
+         * @description Assistant 通过 Scene Packet 主动创建 Judge 问题和 Repair 建议。
+         */
+        post: operations["run_studio_chapter_review_endpoint_api_studio_chapter_review_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -956,7 +1720,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Studio Judge Review Endpoint
+         * 读取 Studio Judge 评审
          * @description 读取 Studio Judge 评审数据源：状态、分数和关键问题。
          */
         get: operations["read_studio_judge_review_endpoint_api_studio_judge_reviews_get"];
@@ -976,7 +1740,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Studio Recovery Summary Endpoint
+         * 读取 Studio 失败恢复摘要
          * @description 读取 Studio 失败恢复摘要：只返回 checkpoint、可恢复步骤和阻塞原因。
          */
         get: operations["read_studio_recovery_summary_endpoint_api_studio_recovery_summary_get"];
@@ -996,7 +1760,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Studio Repair Patches Endpoint
+         * 读取 Studio 修复补丁
          * @description 读取 Studio Repair 修订数据源：补丁摘要、修订文本和重评状态。
          */
         get: operations["read_studio_repair_patches_endpoint_api_studio_repair_patches_get"];
@@ -1016,8 +1780,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Studio Scene Packet Endpoint
-         * @description 读取 Studio Scene Packet 数据源：证据数量和上下文预算摘要。
+         * 读取 Studio Scene Packet
+         * @description 读取 Studio Scene Packet 数据源:证据数量和上下文预算摘要。
          */
         get: operations["read_studio_scene_packet_endpoint_api_studio_scene_packets_get"];
         put?: never;
@@ -1036,13 +1800,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Style Packs Endpoint
+         * 读取风格包列表
          * @description 读取作品下最新风格包列表。
          */
         get: operations["list_style_packs_endpoint_api_style_packs_get"];
         put?: never;
         /**
-         * Create Style Pack Endpoint
+         * 创建风格包
          * @description 创建风格包首版本。
          */
         post: operations["create_style_pack_endpoint_api_style_packs_post"];
@@ -1066,7 +1830,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update Style Pack Endpoint
+         * 更新风格包
          * @description 更新风格包并创建新版本。
          */
         patch: operations["update_style_pack_endpoint_api_style_packs__asset_id__patch"];
@@ -1082,10 +1846,34 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Apply Style Pack Endpoint
+         * 应用风格包到作品
          * @description 把风格包复制为作品级 style_rule 资产。
          */
         post: operations["apply_style_pack_endpoint_api_style_packs__asset_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/timeline-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取时间线事件列表
+         * @description 按项目、作品、卷或章节过滤时间线事件。
+         */
+        get: operations["list_timeline_events_endpoint_api_timeline_events_get"];
+        put?: never;
+        /**
+         * 创建时间线事件
+         * @description 创建可排序、可追溯的作品时间线事件。
+         */
+        post: operations["create_timeline_event_endpoint_api_timeline_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1099,10 +1887,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Workspaces Endpoint */
+        /**
+         * 读取工作区列表
+         * @description 列出当前用户可见的全部工作区。
+         */
         get: operations["list_workspaces_endpoint_api_workspaces_get"];
         put?: never;
-        /** Create Workspace Endpoint */
+        /**
+         * 创建工作区
+         * @description 创建工作区，承载团队成员、订阅策略、批准流程。
+         */
         post: operations["create_workspace_endpoint_api_workspaces_post"];
         delete?: never;
         options?: never;
@@ -1117,10 +1911,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Workspace Members Endpoint */
+        /**
+         * 读取工作区成员列表
+         * @description 读取工作区下的全部成员清单。
+         */
         get: operations["list_workspace_members_endpoint_api_workspaces__workspace_id__members_get"];
         put?: never;
-        /** Create Workspace Member Endpoint */
+        /**
+         * 添加工作区成员
+         * @description 向工作区添加新成员，受订阅 seat 上限约束。
+         */
         post: operations["create_workspace_member_endpoint_api_workspaces__workspace_id__members_post"];
         delete?: never;
         options?: never;
@@ -1136,7 +1936,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read Worldbuilding Center Endpoint
+         * 读取世界观中心聚合
          * @description 读取系列与作品范围下的世界观中心聚合结果。
          */
         get: operations["read_worldbuilding_center_endpoint_api_worldbuilding_center_get"];
@@ -1156,10 +1956,50 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Health Check
-         * @description 提供无需认证的本地和部署健康检查。
+         * 顶层健康检查
+         * @description 提供无需认证的本地和部署健康检查；仅证明进程存活，不检查外部依赖。
          */
         get: operations["health_check_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 进程存活探针
+         * @description 仅返回 200 表明进程存活，不检查任何外部依赖。供 Kubernetes liveness 调用。
+         */
+        get: operations["liveness_health_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 就绪探针
+         * @description 检查数据库连接 + 核心表存在 + Redis 可达；任一失败则标记为 degraded。
+         */
+        get: operations["readiness_health_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1251,7 +2091,23 @@ export interface components {
             /** Workspace Id */
             workspace_id: number;
         };
-        /** ArtifactCreate */
+        /**
+         * ArtifactCreate
+         * @example {
+         *       "artifact_type": "chapter_draft",
+         *       "book_id": 12,
+         *       "lineage_key": "book-12-ch-3",
+         *       "mime_type": "text/markdown",
+         *       "name": "第三章 - 山门初见",
+         *       "payload": {
+         *         "summary": "主角抵达山门，与守门弟子相遇。"
+         *       },
+         *       "size_bytes": 8421,
+         *       "status": "active",
+         *       "storage_uri": "s3://storyforge/drafts/book-12/ch-3.md",
+         *       "workspace_id": 1
+         *     }
+         */
         ArtifactCreate: {
             /** Artifact Type */
             artifact_type: string;
@@ -1306,7 +2162,42 @@ export interface components {
             /** Storage Uri */
             storage_uri: string;
         };
-        /** ArtifactRead */
+        /**
+         * ArtifactListPage
+         * @description 制品列表的游标分页响应。
+         */
+        ArtifactListPage: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["ArtifactRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * ArtifactRead
+         * @example {
+         *       "artifact_type": "chapter_draft",
+         *       "book_id": 12,
+         *       "created_at": "2026-05-26T08:00:00Z",
+         *       "id": 101,
+         *       "lineage_key": "book-12-ch-3",
+         *       "mime_type": "text/markdown",
+         *       "name": "第三章 - 山门初见",
+         *       "payload": {
+         *         "summary": "主角抵达山门。"
+         *       },
+         *       "size_bytes": 8421,
+         *       "status": "active",
+         *       "storage_uri": "s3://storyforge/drafts/book-12/ch-3.md",
+         *       "updated_at": "2026-05-26T08:00:00Z",
+         *       "version": 1,
+         *       "workspace_id": 1
+         *     }
+         */
         ArtifactRead: {
             /** Artifact Type */
             artifact_type: string;
@@ -1348,6 +2239,20 @@ export interface components {
         /**
          * AssetCreate
          * @description 创建资产时由调用方提供的业务载荷。
+         * @example {
+         *       "asset_type": "character",
+         *       "book_id": 12,
+         *       "name": "墨砚秋",
+         *       "payload": {
+         *         "key_traits": [
+         *           "剑修",
+         *           "外冷内热"
+         *         ],
+         *         "role": "主角",
+         *         "voice": "冷静而克制"
+         *       },
+         *       "status": "active"
+         *     }
          */
         AssetCreate: {
             /** Asset Type */
@@ -1369,8 +2274,37 @@ export interface components {
             status: string;
         };
         /**
+         * AssetListPage
+         * @description 资产列表的游标分页响应。
+         */
+        AssetListPage: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["AssetRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
          * AssetRead
          * @description 资产响应契约，所有路由响应都通过该结构输出。
+         * @example {
+         *       "asset_type": "character",
+         *       "book_id": 12,
+         *       "created_at": "2026-05-20T03:21:00Z",
+         *       "id": 305,
+         *       "lineage_key": "book-12-墨砚秋",
+         *       "name": "墨砚秋",
+         *       "payload": {
+         *         "role": "主角"
+         *       },
+         *       "status": "active",
+         *       "updated_at": "2026-05-26T07:55:00Z",
+         *       "version": 2
+         *     }
          */
         AssetRead: {
             /** Asset Type */
@@ -1421,6 +2355,113 @@ export interface components {
             scene_id?: number | null;
             /** Status */
             status?: string | null;
+        };
+        /** AssistantMessageCreate */
+        AssistantMessageCreate: {
+            /** Content */
+            content: string;
+            /** Role */
+            role: string;
+        };
+        /** AssistantMessageRead */
+        AssistantMessageRead: {
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Role */
+            role: string;
+            /** Session Id */
+            session_id: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AssistantSessionCreate */
+        AssistantSessionCreate: {
+            /** Artifact Id */
+            artifact_id?: number | null;
+            /** Blueprint Id */
+            blueprint_id?: number | null;
+            /** Book Run Id */
+            book_run_id?: number | null;
+            /** Messages */
+            messages?: components["schemas"]["AssistantMessageCreate"][];
+            /** Task Type */
+            task_type: string;
+            /** Title */
+            title: string;
+        };
+        /** AssistantSessionRead */
+        AssistantSessionRead: {
+            /** Artifact Id */
+            artifact_id: number | null;
+            /** Blueprint Id */
+            blueprint_id: number | null;
+            /** Book Run Id */
+            book_run_id: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Messages */
+            messages: components["schemas"]["AssistantMessageRead"][];
+            /** Task Type */
+            task_type: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * BatchRefinementJobCreate
+         * @description 早期批量精修 API 的同步执行请求。
+         */
+        BatchRefinementJobCreate: {
+            /** Book Id */
+            book_id: number;
+            /**
+             * Mode
+             * @default rewrite
+             */
+            mode: string;
+            /** Required Facts */
+            required_facts?: string[];
+            /** Scene Ids */
+            scene_ids: number[];
+            /** Style Rules */
+            style_rules?: string[];
+        };
+        /**
+         * BatchRefinementJobRead
+         * @description 批量精修兼容响应，保留草稿测试约定的字段名。
+         */
+        BatchRefinementJobRead: {
+            /** Issue Ids */
+            issue_ids: number[];
+            /** Job Run Id */
+            job_run_id: number;
+            /** Patch Ids */
+            patch_ids: number[];
+            /** Progress */
+            progress: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
         };
         /**
          * BatchRefineryItemCreate
@@ -1480,6 +2521,236 @@ export interface components {
              */
             updated_at: string;
         };
+        /** BookBlueprintCreate */
+        BookBlueprintCreate: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter Word Count Max */
+            chapter_word_count_max: number;
+            /** Chapter Word Count Min */
+            chapter_word_count_min: number;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Premise */
+            premise: string;
+            /** Target Chapter Count */
+            target_chapter_count: number;
+            /** Target Word Count */
+            target_word_count: number;
+            /** Tone */
+            tone: string;
+        };
+        /** BookBlueprintRead */
+        BookBlueprintRead: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter Word Count Max */
+            chapter_word_count_max: number;
+            /** Chapter Word Count Min */
+            chapter_word_count_min: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Premise */
+            premise: string;
+            /** Status */
+            status: string;
+            /** Target Chapter Count */
+            target_chapter_count: number;
+            /** Target Word Count */
+            target_word_count: number;
+            /** Tone */
+            tone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /** BookRunChapterRange */
+        BookRunChapterRange: {
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+        };
+        /** BookRunControlRequest */
+        BookRunControlRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** BookRunCreate */
+        BookRunCreate: {
+            /** Blueprint Id */
+            blueprint_id: number;
+            /** Book Id */
+            book_id: number;
+            /** Chapter Budget */
+            chapter_budget?: number | null;
+            /** Time Budget Sec */
+            time_budget_sec?: number | null;
+            /** Token Budget */
+            token_budget?: number | null;
+        };
+        /** BookRunProgressUpdate */
+        BookRunProgressUpdate: {
+            /** Current Chapter Index */
+            current_chapter_index: number;
+            /** Progress */
+            progress?: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+            volume_progress?: components["schemas"]["BookRunVolumeProgress"] | null;
+        };
+        /** BookRunQualitySummary */
+        BookRunQualitySummary: {
+            /**
+             * Chapter Count
+             * @default 0
+             */
+            chapter_count: number;
+            /**
+             * Issue Count
+             * @default 0
+             */
+            issue_count: number;
+            /** Overall Quality Score */
+            overall_quality_score?: number | null;
+            /**
+             * Scored Chapter Count
+             * @default 0
+             */
+            scored_chapter_count: number;
+            /**
+             * Severe Issue Count
+             * @default 0
+             */
+            severe_issue_count: number;
+        };
+        /** BookRunRead */
+        BookRunRead: {
+            /** Blueprint Id */
+            blueprint_id: number;
+            /** Book Id */
+            book_id: number;
+            /** Chapter Budget */
+            chapter_budget: number | null;
+            /** Checkpoint */
+            checkpoint: {
+                [key: string]: unknown;
+            }[];
+            /** Cost Summary */
+            cost_summary: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Current Chapter Index */
+            current_chapter_index: number;
+            /** Elapsed Time Sec */
+            elapsed_time_sec: number;
+            /** Estimated Cost */
+            estimated_cost: number;
+            /** Id */
+            id: number;
+            /** Progress */
+            progress: {
+                [key: string]: unknown;
+            };
+            quality_summary?: components["schemas"]["BookRunQualitySummary"] | null;
+            /** Status */
+            status: string;
+            /** Time Budget Sec */
+            time_budget_sec: number | null;
+            /** Token Budget */
+            token_budget: number | null;
+            /** Tokens Used */
+            tokens_used: number;
+            /** Total Chapters */
+            total_chapters: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** BookRunVolumePlanItem */
+        BookRunVolumePlanItem: {
+            chapter_range: components["schemas"]["BookRunChapterRange"];
+            /** Volume Index */
+            volume_index: number;
+        };
+        /** BookRunVolumeProgress */
+        BookRunVolumeProgress: {
+            chapter_range: components["schemas"]["BookRunChapterRange"];
+            /** Completed Chapter Count */
+            completed_chapter_count: number;
+            /** Current Volume */
+            current_volume: number;
+            /** Next Batch Start Chapter Index */
+            next_batch_start_chapter_index: number;
+        };
+        /**
+         * BookRunWorkflowChapter
+         * @description workflow dispatch 使用的章节映射，避免 worker 查询 API 数据库。
+         */
+        BookRunWorkflowChapter: {
+            /** Chapter Goal */
+            chapter_goal: string;
+            /** Chapter Id */
+            chapter_id: number;
+            /** Chapter Index */
+            chapter_index: number;
+        };
+        /**
+         * BookRunWorkflowDispatch
+         * @description BookRun workflow worker 的稳定调度 payload。
+         */
+        BookRunWorkflowDispatch: {
+            /** Blueprint Id */
+            blueprint_id: number;
+            /** Book Id */
+            book_id: number;
+            /** Book Run Id */
+            book_run_id: number;
+            /** Chapter Budget */
+            chapter_budget?: number | null;
+            /** Chapters */
+            chapters?: components["schemas"]["BookRunWorkflowChapter"][];
+            /** Existing Checkpoint */
+            existing_checkpoint?: {
+                [key: string]: unknown;
+            }[];
+            /** Provider Fallback Pause Threshold */
+            provider_fallback_pause_threshold?: number | null;
+            /** Start Chapter Index */
+            start_chapter_index: number;
+            /** Time Budget Sec */
+            time_budget_sec?: number | null;
+            /** Token Budget */
+            token_budget?: number | null;
+            /** Total Chapters */
+            total_chapters: number;
+            /** Volume Plan */
+            volume_plan?: components["schemas"]["BookRunVolumePlanItem"][];
+        };
         /**
          * BudgetStatistics
          * @description 预算统计说明上下文包是否发生检索片段裁剪。
@@ -1531,6 +2802,104 @@ export interface components {
             record_count: number;
             /** Records */
             records: components["schemas"]["ContinuityRecordRead"][];
+        };
+        /**
+         * ChapterPlanTriggerRead
+         * @description 章节规划触发结果只承诺已通过 locked 门禁，具体 planner 在后续步骤执行。
+         */
+        ChapterPlanTriggerRead: {
+            /** Blueprint Id */
+            blueprint_id: number;
+            /** Book Id */
+            book_id: number;
+            /** Chapter Count */
+            chapter_count: number;
+            /** Status */
+            status: string;
+        };
+        /**
+         * CharacterBibleCreate
+         * @description 创建角色规范时提供的最小硬规则。
+         */
+        CharacterBibleCreate: {
+            /** Aliases */
+            aliases?: string[];
+            /** Book Id */
+            book_id: number;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Character Id */
+            character_id?: number | null;
+            /** Forbidden Traits */
+            forbidden_traits?: {
+                [key: string]: unknown;
+            };
+            /** Voice Traits */
+            voice_traits?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * CharacterBibleRead
+         * @description 角色规范响应契约。
+         */
+        CharacterBibleRead: {
+            /** Aliases */
+            aliases: string[];
+            /** Book Id */
+            book_id: number;
+            /** Canonical Name */
+            canonical_name: string;
+            /** Character Id */
+            character_id: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Forbidden Traits */
+            forbidden_traits: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: number;
+            /** Lineage Key */
+            lineage_key: string;
+            /** Memory Atom Id */
+            memory_atom_id: string | null;
+            /** Sync Status */
+            sync_status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** Voice Traits */
+            voice_traits: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * CharacterBibleUpdate
+         * @description 更新角色规范；未提供字段保持原值。
+         */
+        CharacterBibleUpdate: {
+            /** Aliases */
+            aliases?: string[] | null;
+            /** Canonical Name */
+            canonical_name?: string | null;
+            /** Character Id */
+            character_id?: number | null;
+            /** Forbidden Traits */
+            forbidden_traits?: {
+                [key: string]: unknown;
+            } | null;
+            /** Voice Traits */
+            voice_traits?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** CollaborationTimelineItem */
         CollaborationTimelineItem: {
@@ -1605,7 +2974,21 @@ export interface components {
             /** Version */
             version: number;
         };
-        /** EvaluationCaseCreate */
+        /**
+         * EvaluationCaseCreate
+         * @example {
+         *       "book_id": 12,
+         *       "case_name": "连续性 - 主角剑名一致性",
+         *       "case_type": "continuity",
+         *       "expected_payload": {
+         *         "sword_name": "霜河"
+         *       },
+         *       "input_payload": {
+         *         "chapter_id": 33
+         *       },
+         *       "workspace_id": 1
+         *     }
+         */
         EvaluationCaseCreate: {
             /** Book Id */
             book_id?: number | null;
@@ -1675,7 +3058,18 @@ export interface components {
             /** Studio Href */
             studio_href?: string | null;
         };
-        /** EvaluationRunCreate */
+        /**
+         * EvaluationRunCreate
+         * @example {
+         *       "book_id": 12,
+         *       "case_id": 42,
+         *       "observed_payload": {
+         *         "matched": true,
+         *         "sword_name": "霜河"
+         *       },
+         *       "workspace_id": 1
+         *     }
+         */
         EvaluationRunCreate: {
             /** Book Id */
             book_id?: number | null;
@@ -1702,6 +3096,21 @@ export interface components {
             trend_points: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * EvaluationRunListPage
+         * @description 评测运行的游标分页响应。
+         */
+        EvaluationRunListPage: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["EvaluationRunRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** EvaluationRunRead */
         EvaluationRunRead: {
@@ -1824,8 +3233,362 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * IdeArtifactPreview
+         * @description IDE Artifact Viewer 聚合响应。
+         */
+        IdeArtifactPreview: {
+            /** Artifact */
+            artifact: {
+                [key: string]: unknown;
+            };
+            /** Download */
+            download: {
+                [key: string]: unknown;
+            };
+            preview: components["schemas"]["IdeArtifactPreviewContent"];
+            trace: components["schemas"]["IdeArtifactTrace"];
+            /** Versions */
+            versions?: components["schemas"]["IdeArtifactVersion"][];
+        };
+        /**
+         * IdeArtifactPreviewContent
+         * @description IDE Artifact Viewer 使用的预览内容。
+         */
+        IdeArtifactPreviewContent: {
+            /** Content Preview */
+            content_preview: string;
+            /** Format */
+            format: string;
+            /** Summary */
+            summary?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * IdeArtifactTrace
+         * @description 制品到 BookRun、ModelRun、Judge 和 Approve 的反向追溯链。
+         */
+        IdeArtifactTrace: {
+            approve: components["schemas"]["IdeArtifactTraceLink"];
+            book_run: components["schemas"]["IdeArtifactTraceLink"];
+            judge_report: components["schemas"]["IdeArtifactTraceLink"];
+            model_run: components["schemas"]["IdeArtifactTraceLink"];
+        };
+        /**
+         * IdeArtifactTraceLink
+         * @description 制品反向追溯中的单个跳转节点。
+         */
+        IdeArtifactTraceLink: {
+            /** Context Href */
+            context_href?: string | null;
+            /** Href */
+            href?: string | null;
+            /** Id */
+            id?: number | null;
+            /** Label */
+            label: string;
+        };
+        /**
+         * IdeArtifactVersion
+         * @description 同一谱系下可比较的制品版本。
+         */
+        IdeArtifactVersion: {
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * IdeCommandRequest
+         * @description IDE 命令执行请求，所有写操作通过 args 传入参数。
+         */
+        IdeCommandRequest: {
+            /** Args */
+            args?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * IdeCommandResult
+         * @description IDE 命令执行结果，供前端统一处理审计与载荷。
+         */
+        IdeCommandResult: {
+            /** Audit Event Id */
+            audit_event_id?: string | null;
+            /** Command Id */
+            command_id: string;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+        };
+        /**
+         * IdeContextBlockRef
+         * @description Context Inspector 使用的上下文块引用。
+         */
+        IdeContextBlockRef: {
+            /** Block Id */
+            block_id: string;
+            /** Kind */
+            kind: string;
+            /** Order */
+            order?: number | null;
+            /** Priority */
+            priority: string;
+            /** Reason */
+            reason: string;
+            /** Source Ref */
+            source_ref: string;
+            /** Token Count */
+            token_count: number;
+        };
+        /**
+         * IdeContextBudget
+         * @description Context Inspector 使用的 token 预算信息。
+         */
+        IdeContextBudget: {
+            /** Dropped Tokens */
+            dropped_tokens: number;
+            /** Token Budget */
+            token_budget: number;
+            /** Truncated */
+            truncated: boolean;
+            /** Used Tokens */
+            used_tokens: number;
+        };
+        /**
+         * IdeContextSnapshot
+         * @description IDE Context Inspector 快照响应。
+         */
+        IdeContextSnapshot: {
+            /** Book Id */
+            book_id: number;
+            budget: components["schemas"]["IdeContextBudget"];
+            /** Chapter Id */
+            chapter_id: number;
+            /** Compiled Context Id */
+            compiled_context_id: string;
+            /** Debug Summary */
+            debug_summary?: string[];
+            /** Dropped Blocks */
+            dropped_blocks?: components["schemas"]["IdeContextBlockRef"][];
+            /** Injected Blocks */
+            injected_blocks?: components["schemas"]["IdeContextBlockRef"][];
+            /** Scene Id */
+            scene_id: number;
+        };
+        /**
+         * IdeDiagnostic
+         * @description IDE Problems 面板统一诊断契约。
+         */
+        IdeDiagnostic: {
+            /** Code */
+            code: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: string;
+            }[];
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Quickfixes */
+            quickFixes?: components["schemas"]["IdeQuickFix"][];
+            range: components["schemas"]["IdeDiagnosticRange"];
+            /** Severity */
+            severity: string;
+            /**
+             * Source
+             * @default judge
+             */
+            source: string;
+        };
+        /**
+         * IdeDiagnosticRange
+         * @description 诊断在章节或场景正文中的字符范围。
+         */
+        IdeDiagnosticRange: {
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+        };
+        /**
+         * IdeQuickFix
+         * @description Problems 面板展示的快捷修复命令。
+         */
+        IdeQuickFix: {
+            /** Args */
+            args?: {
+                [key: string]: unknown;
+            };
+            /** Command Id */
+            command_id: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * IdeSceneRead
+         * @description IDE 章节编辑器读取的场景正文。
+         */
+        IdeSceneRead: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter Id */
+            chapter_id: number;
+            /** Content */
+            content: string;
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * IdeStoryMemoryConflict
+         * @description IDE 展示的长效记忆冲突。
+         */
+        IdeStoryMemoryConflict: {
+            /** Conflict Id */
+            conflict_id: string;
+            /** Entity Id */
+            entity_id: string;
+            /** Fact Type */
+            fact_type: string;
+            /** Left Memory Id */
+            left_memory_id: string;
+            /** Reason */
+            reason: string;
+            /** Right Memory Id */
+            right_memory_id: string;
+            /** Severity */
+            severity: string;
+            /** Source Refs */
+            source_refs?: string[];
+        };
+        /**
+         * IdeStoryMemoryItem
+         * @description IDE 展示的长效记忆条目。
+         */
+        IdeStoryMemoryItem: {
+            /** Confidence */
+            confidence: number;
+            /** Conflict Ids */
+            conflict_ids?: string[];
+            /** Entity Id */
+            entity_id: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Fact Type */
+            fact_type: string;
+            /** Immutable */
+            immutable: boolean;
+            /** Memory Id */
+            memory_id: string;
+            /** Revision */
+            revision: number;
+            /** Source Chapter Id */
+            source_chapter_id?: number | null;
+            /** Source Ref */
+            source_ref: string;
+            /** Valid From Chapter */
+            valid_from_chapter: number;
+            /** Valid To Chapter */
+            valid_to_chapter?: number | null;
+            /** Value */
+            value: string;
+        };
+        /**
+         * IdeStoryMemoryQuery
+         * @description IDE Story Memory Explorer 查询条件。
+         */
+        IdeStoryMemoryQuery: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter */
+            chapter?: number | null;
+            /**
+             * Conflict Status
+             * @default all
+             */
+            conflict_status: string;
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Entity Type */
+            entity_type?: string | null;
+            /** Fact Type */
+            fact_type?: string | null;
+        };
+        /**
+         * IdeStoryMemoryQueryResult
+         * @description Story Memory Explorer 查询结果。
+         */
+        IdeStoryMemoryQueryResult: {
+            /** Conflict Queue */
+            conflict_queue?: components["schemas"]["IdeStoryMemoryConflict"][];
+            /** Conflicted Count */
+            conflicted_count: number;
+            filters: components["schemas"]["IdeStoryMemoryQuery"];
+            /** Items */
+            items?: components["schemas"]["IdeStoryMemoryItem"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * IdeTreeNode
+         * @description IDE Explorer 使用的统一树节点。
+         */
+        IdeTreeNode: {
+            /** Children */
+            children?: components["schemas"]["IdeTreeNode"][];
+            /** Id */
+            id: string;
+            /** Ref Id */
+            ref_id?: number | null;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * IdeWorkspaceTree
+         * @description 工作区树响应，root 用于渲染，nodes 用于快速索引。
+         */
+        IdeWorkspaceTree: {
+            /** Nodes */
+            nodes?: components["schemas"]["IdeTreeNode"][];
+            root: components["schemas"]["IdeTreeNode"];
+        };
+        /**
          * JudgeIssueCreate
          * @description 结构化评审请求，正文与上下文约束都由调用方显式传入。
+         * @example {
+         *       "content": "墨砚秋拔出佩剑霜河，剑芒在山门前划出一道弧。",
+         *       "evidence_links": [
+         *         {
+         *           "anchor": "ch-2#para-12",
+         *           "source_id": 17
+         *         }
+         *       ],
+         *       "required_facts": [
+         *         "主角剑名为霜河"
+         *       ],
+         *       "scene_id": 501,
+         *       "scene_packet_id": 88,
+         *       "style_rules": [
+         *         "第三人称限知",
+         *         "保持冷静叙述"
+         *       ]
+         *     }
          */
         JudgeIssueCreate: {
             /** Content */
@@ -1927,6 +3690,21 @@ export interface components {
             /** Workspace Id */
             workspace_id?: number | null;
         };
+        /**
+         * ModelRunListPage
+         * @description 模型运行日志的游标分页响应。
+         */
+        ModelRunListPage: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["ModelRunRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** ModelRunRead */
         ModelRunRead: {
             /** Book Id */
@@ -1993,6 +3771,21 @@ export interface components {
             status: string;
             /** Workspace Id */
             workspace_id?: number | null;
+        };
+        /**
+         * PromptPackListPage
+         * @description Prompt Pack 列表的游标分页响应。
+         */
+        PromptPackListPage: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["PromptPackRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** PromptPackRead */
         PromptPackRead: {
@@ -2148,6 +3941,10 @@ export interface components {
         /**
          * RepairPatchCreate
          * @description 请求定向修复某一条评审问题单。
+         * @example {
+         *       "content": "墨砚秋拔出佩剑霜河，剑芒在山门前划出一道弧。",
+         *       "issue_id": 902
+         *     }
          */
         RepairPatchCreate: {
             /** Content */
@@ -2265,7 +4062,14 @@ export interface components {
              */
             updated_at: string;
         };
-        /** RetrievalSearchCreate */
+        /**
+         * RetrievalSearchCreate
+         * @example {
+         *       "book_id": 12,
+         *       "limit": 5,
+         *       "query": "墨砚秋的剑名是什么"
+         *     }
+         */
         RetrievalSearchCreate: {
             /** Book Id */
             book_id?: number | null;
@@ -2279,7 +4083,19 @@ export interface components {
             /** Series Id */
             series_id?: number | null;
         };
-        /** RetrievalSourceCreate */
+        /**
+         * RetrievalSourceCreate
+         * @example {
+         *       "book_id": 12,
+         *       "content_text": "九重山门分内、外两脉……（正文略）",
+         *       "payload": {
+         *         "author": "世界观组",
+         *         "version": 3
+         *       },
+         *       "source_type": "setting_doc",
+         *       "title": "九重山门内门规矩"
+         *     }
+         */
         RetrievalSourceCreate: {
             /** Book Id */
             book_id?: number | null;
@@ -2635,6 +4451,21 @@ export interface components {
         /**
          * ScenePacketCreate
          * @description 组装场景上下文包所需的显式输入。
+         * @example {
+         *       "active_asset_ids": [
+         *         305,
+         *         308,
+         *         412
+         *       ],
+         *       "book_id": 12,
+         *       "chapter_id": 33,
+         *       "retrieval_snippets": [
+         *         "守门弟子规矩见第二章 para-12"
+         *       ],
+         *       "scene_goal": "主角抵达山门，与守门弟子发生冲突，揭示佩剑霜河的身份。",
+         *       "token_budget": 8000,
+         *       "user_intent": "需要强调主角剑名'霜河'与上一章伏笔呼应"
+         *     }
          */
         ScenePacketCreate: {
             /** Active Asset Ids */
@@ -2845,6 +4676,9 @@ export interface components {
         /**
          * StudioApprovalExecuteRequest
          * @description Studio 批准写回执行请求，只允许定位一个可批准对象。
+         * @example {
+         *       "scene_packet_id": 88
+         *     }
          */
         StudioApprovalExecuteRequest: {
             /** Repair Patch Id */
@@ -2925,6 +4759,26 @@ export interface components {
             target_chapter_ordinal: number;
             /** Target Chapter Title */
             target_chapter_title: string;
+        };
+        /**
+         * StudioChapterReviewRunRead
+         * @description Assistant 章节审阅主动创建结果，聚合评审、修复和批准摘要。
+         */
+        StudioChapterReviewRunRead: {
+            approval_summary: components["schemas"]["StudioApprovalSummaryRead"];
+            judge_review: components["schemas"]["StudioJudgeReviewRead"];
+            /** Repair Patches */
+            repair_patches: components["schemas"]["StudioRepairPatchRead"][];
+            /** Scene Packet Id */
+            scene_packet_id: number;
+        };
+        /**
+         * StudioChapterReviewRunRequest
+         * @description Assistant 章节审阅主动创建请求，只允许通过 Scene Packet 定位目标。
+         */
+        StudioChapterReviewRunRequest: {
+            /** Scene Packet Id */
+            scene_packet_id: number;
         };
         /**
          * StudioJudgeIssueRead
@@ -3153,6 +5007,66 @@ export interface components {
             updated_at: string;
             /** Version */
             version: number;
+        };
+        /**
+         * TimelineEventCreate
+         * @description 创建时间线事件时由调用方提交的业务事实。
+         */
+        TimelineEventCreate: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter Id */
+            chapter_id: number;
+            /** Evidence Refs */
+            evidence_refs?: string[];
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Project Id */
+            project_id: number;
+            /** Summary */
+            summary: string;
+            /** Time Order */
+            time_order: number;
+            /** Volume Id */
+            volume_id: number;
+        };
+        /**
+         * TimelineEventRead
+         * @description 时间线事件响应契约。
+         */
+        TimelineEventRead: {
+            /** Book Id */
+            book_id: number;
+            /** Chapter Id */
+            chapter_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence Refs */
+            evidence_refs: string[];
+            /** Id */
+            id: number;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Project Id */
+            project_id: number;
+            /** Summary */
+            summary: string;
+            /** Time Order */
+            time_order: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Volume Id */
+            volume_id: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -3475,6 +5389,8 @@ export interface operations {
             query?: {
                 workspace_id?: number | null;
                 book_id?: number | null;
+                cursor?: string | null;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -3488,7 +5404,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ArtifactRead"][];
+                    "application/json": components["schemas"]["ArtifactRead"][] | components["schemas"]["ArtifactListPage"];
                 };
             };
             /** @description Validation Error */
@@ -3602,6 +5518,8 @@ export interface operations {
             query: {
                 book_id: number;
                 asset_type?: string | null;
+                cursor?: string | null;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -3615,7 +5533,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AssetRead"][];
+                    "application/json": components["schemas"]["AssetRead"][] | components["schemas"]["AssetListPage"];
                 };
             };
             /** @description Validation Error */
@@ -3728,6 +5646,200 @@ export interface operations {
             };
         };
     };
+    list_assistant_sessions_endpoint_api_assistant_sessions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSessionRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_assistant_session_endpoint_api_assistant_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantSessionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSessionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_assistant_session_endpoint_api_assistant_sessions__assistant_session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assistant_session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSessionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    append_assistant_message_endpoint_api_assistant_sessions__assistant_session_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assistant_session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantMessageRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_batch_refinement_run_api_batch_refinement_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRefinementJobCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchRefinementJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_batch_refinement_run_api_batch_refinement_jobs__job_run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchRefinementJobRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_batch_refinery_run_api_batch_refinery_runs_post: {
         parameters: {
             query?: never;
@@ -3792,6 +5904,487 @@ export interface operations {
             };
         };
     };
+    create_book_blueprint_endpoint_api_blueprints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookBlueprintCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookBlueprintRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_book_blueprint_endpoint_api_blueprints__blueprint_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                blueprint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookBlueprintRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_chapter_plan_endpoint_api_blueprints__blueprint_id__chapter_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                blueprint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterPlanTriggerRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lock_book_blueprint_endpoint_api_blueprints__blueprint_id__lock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                blueprint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookBlueprintRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_book_run_endpoint_api_book_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_book_run_endpoint_api_book_runs__book_run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_book_run_audit_report_endpoint_api_book_runs__book_run_id__exports_audit_report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_book_run_epub_endpoint_api_book_runs__book_run_id__exports_epub_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_book_run_markdown_endpoint_api_book_runs__book_run_id__exports_markdown_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pause_book_run_endpoint_api_book_runs__book_run_id__pause_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookRunControlRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_book_run_progress_endpoint_api_book_runs__book_run_id__progress_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookRunProgressUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_book_run_endpoint_api_book_runs__book_run_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_book_run_endpoint_api_book_runs__book_run_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_book_run_endpoint_api_book_runs__book_run_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookRunControlRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunWorkflowDispatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_book_epub_api_books__book_id__exports_epub_get: {
         parameters: {
             query?: never;
@@ -3841,6 +6434,196 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_character_bible_endpoint_api_character_bible_get: {
+        parameters: {
+            query: {
+                book_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterBibleRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_character_bible_endpoint_api_character_bible_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterBibleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterBibleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_character_bible_endpoint_api_character_bible__entry_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterBibleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_character_bible_endpoint_api_character_bible__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_character_bible_endpoint_api_character_bible__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterBibleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterBibleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_character_bible_history_endpoint_api_character_bible__entry_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterBibleRead"][];
                 };
             };
             /** @description Validation Error */
@@ -4123,6 +6906,8 @@ export interface operations {
             query?: {
                 workspace_id?: number | null;
                 book_id?: number | null;
+                cursor?: string | null;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -4136,7 +6921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvaluationRunRead"][];
+                    "application/json": components["schemas"]["EvaluationRunRead"][] | components["schemas"]["EvaluationRunListPage"];
                 };
             };
             /** @description Validation Error */
@@ -4309,6 +7094,249 @@ export interface operations {
             };
         };
     };
+    read_artifact_preview_api_ide_artifacts__artifact_id__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artifact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeArtifactPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_ide_command_api_ide_commands__command_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["IdeCommandRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeCommandResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_context_snapshot_api_ide_context_snapshot__compiled_context_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                compiled_context_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeContextSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_diagnostics_api_ide_diagnostics_get: {
+        parameters: {
+            query: {
+                scene_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeDiagnostic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_run_events_api_ide_runs__book_run_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_scene_for_ide_api_ide_scenes__scene_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scene_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeSceneRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_story_memory_endpoint_api_ide_story_memory_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeStoryMemoryQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeStoryMemoryQueryResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_workspace_tree_api_ide_workspace_tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeWorkspaceTree"];
+                };
+            };
+        };
+    };
     create_judge_issues_endpoint_api_judge_issues_post: {
         parameters: {
             query?: never;
@@ -4348,6 +7376,8 @@ export interface operations {
                 workspace_id?: number | null;
                 book_id?: number | null;
                 job_run_id?: number | null;
+                cursor?: string | null;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -4361,7 +7391,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ModelRunRead"][];
+                    "application/json": components["schemas"]["ModelRunRead"][] | components["schemas"]["ModelRunListPage"];
                 };
             };
             /** @description Validation Error */
@@ -4475,6 +7505,8 @@ export interface operations {
             query?: {
                 workspace_id?: number | null;
                 book_id?: number | null;
+                cursor?: string | null;
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -4488,7 +7520,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PromptPackRead"][];
+                    "application/json": components["schemas"]["PromptPackRead"][] | components["schemas"]["PromptPackListPage"];
                 };
             };
             /** @description Validation Error */
@@ -5339,6 +8371,39 @@ export interface operations {
             };
         };
     };
+    run_studio_chapter_review_endpoint_api_studio_chapter_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioChapterReviewRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioChapterReviewRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_studio_judge_review_endpoint_api_studio_judge_reviews_get: {
         parameters: {
             query: {
@@ -5598,6 +8663,73 @@ export interface operations {
             };
         };
     };
+    list_timeline_events_endpoint_api_timeline_events_get: {
+        parameters: {
+            query?: {
+                project_id?: number | null;
+                book_id?: number | null;
+                volume_id?: number | null;
+                chapter_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineEventRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_timeline_event_endpoint_api_timeline_events_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimelineEventCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineEventRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_workspaces_endpoint_api_workspaces_get: {
         parameters: {
             query?: never;
@@ -5766,6 +8898,52 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    liveness_health_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    readiness_health_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string | {
+                            [key: string]: unknown;
+                        };
                     };
                 };
             };

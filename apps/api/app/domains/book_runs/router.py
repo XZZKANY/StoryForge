@@ -1,10 +1,16 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.schemas import ArtifactRead
-from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate, BookRunRead, BookRunWorkflowDispatch
+from app.domains.book_runs.schemas import (
+    BookRunControlRequest,
+    BookRunCreate,
+    BookRunProgressUpdate,
+    BookRunRead,
+    BookRunWorkflowDispatch,
+)
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
@@ -13,7 +19,10 @@ from app.domains.book_runs.service import (
     build_book_run_workflow_dispatch,
     create_book_run,
     get_book_run,
+    pause_book_run,
     resume_book_run,
+    retry_book_run_from_checkpoint,
+    stop_book_run,
 )
 from app.domains.exports.book_markdown_exporter import (
     BookExportError,
@@ -53,6 +62,50 @@ def resume_book_run_endpoint(book_run_id: int, session: SessionDependency) -> Bo
 
     try:
         return resume_book_run(session, book_run_id)
+    except BookRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BookRunBlockedError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/{book_run_id}/pause", response_model=BookRunRead, summary="暂停 BookRun")
+def pause_book_run_endpoint(
+    book_run_id: int,
+    payload: BookRunControlRequest,
+    session: SessionDependency,
+) -> BookRunRead:
+    """暂停整书运行，并记录暂停原因供 Assistant 工具树展示。"""
+
+    try:
+        return pause_book_run(session, book_run_id, payload.reason)
+    except BookRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BookRunBlockedError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/{book_run_id}/stop", response_model=BookRunRead, summary="停止 BookRun")
+def stop_book_run_endpoint(
+    book_run_id: int,
+    payload: BookRunControlRequest,
+    session: SessionDependency,
+) -> BookRunRead:
+    """停止整书运行，并记录用户停止原因。"""
+
+    try:
+        return stop_book_run(session, book_run_id, payload.reason)
+    except BookRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BookRunBlockedError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/{book_run_id}/retry", response_model=BookRunRead, summary="从 checkpoint 重试 BookRun")
+def retry_book_run_endpoint(book_run_id: int, session: SessionDependency) -> BookRunRead:
+    """从最近 checkpoint 的下一章重试整书运行。"""
+
+    try:
+        return retry_book_run_from_checkpoint(session, book_run_id)
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunBlockedError as exc:

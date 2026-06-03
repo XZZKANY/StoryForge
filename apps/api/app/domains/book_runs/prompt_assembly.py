@@ -179,6 +179,8 @@ def _continuity_facts(session: Session, book_id: int, chapter_id: int | None) ->
     atoms = get_active_memory_atoms(session, book_id=book_id, chapter_id=chapter_id)
     facts: list[dict[str, Any]] = []
     for atom in atoms:
+        if atom.source_ref.startswith("character_bible:"):
+            continue
         statement = _atom_statement(atom)
         if not statement:
             continue

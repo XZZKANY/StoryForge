@@ -14,6 +14,7 @@ const apiTests = {
 };
 const webSources = {
   home: readFileSync('apps/web/app/page.tsx', 'utf8'),
+  settings: readFileSync('apps/web/app/settings/ProviderSettingsPanel.tsx', 'utf8'),
   providers: readFileSync('apps/web/app/providers/page.tsx', 'utf8'),
 };
 
@@ -64,8 +65,13 @@ test('Phase 3 后端测试源码保留当前能力与退役边界证据', () => 
   assertSourceEvidence(apiTests.analytics, ['"/api/analytics/workspaces/', '分析扩展', '404']);
 });
 
-test('Phase 3 前端边界保留 Provider Gateway 诊断入口', () => {
-  assertSourceEvidence(webSources.home, ['/providers', 'Providers 供应商诊断']);
+test('Phase 3 前端边界保留 Provider 与模型检测入口', () => {
+  assertSourceEvidence(webSources.settings, [
+    'Provider 连接',
+    'Provider Base URL',
+    '/api/provider-models',
+    '检测并拉取模型',
+  ]);
   assertSourceEvidence(webSources.providers, [
     'Provider Gateway 模型接入层',
     'LLM',

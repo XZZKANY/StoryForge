@@ -8,6 +8,8 @@
     "build": "next build",
     "test": "node scripts/phase1-contract-test.mjs",
     "lint": "tsc --noEmit",
+    "verify:browser-session": "node scripts/verify-continuous-session-browser.mjs",
+    "verify:settings-browser": "node scripts/verify-settings-browser.mjs",
     "verify:legacy-redirects": "node scripts/verify-legacy-redirects-http.mjs",
     "verify:eventsource-reconnect": "node scripts/verify-bookrun-eventsource-reconnect.mjs"
   },

@@ -8,6 +8,7 @@ MemoryEntityType = Literal["character", "location", "object", "faction", "world_
 MemoryFactType = Literal["appearance", "status", "relationship", "rule", "location", "knowledge", "plot_thread"]
 ConflictSeverity = Literal["low", "medium", "high", "blocking"]
 ProposalOperation = Literal["create", "update", "delete", "annotate"]
+ForeshadowLifecycleState = Literal["planted", "reinforced", "paid_off", "abandoned"]
 
 
 class MemoryAtom(BaseModel):
@@ -102,3 +103,32 @@ class ArbitrationDecision(BaseModel):
     decision: Literal["auto_merge", "needs_human", "reject"]
     reason: str
     blocked_by_conflict_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class ForeshadowLifecycleTransition(BaseModel):
+    """伏笔生命周期转换请求，所有状态变化必须带章节、卷和原因。"""
+
+    novel_id: int = Field(gt=0)
+    foreshadow_id: str = Field(min_length=1, max_length=255)
+    target_state: ForeshadowLifecycleState
+    chapter_id: int = Field(gt=0)
+    volume_id: int = Field(gt=0)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=100)
+    transition_reason: str = Field(min_length=1, max_length=1000)
+    source_ref: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class ForeshadowLifecycleSnapshot(BaseModel):
+    """伏笔生命周期快照，持久化在 story memory 的 plot_thread 事实中。"""
+
+    memory_id: str = Field(min_length=1, max_length=255)
+    novel_id: int = Field(gt=0)
+    foreshadow_id: str = Field(min_length=1, max_length=255)
+    state: ForeshadowLifecycleState
+    requested_state: ForeshadowLifecycleState
+    chapter_id: int = Field(gt=0)
+    volume_id: int = Field(gt=0)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=100)
+    transition_reason: str = Field(min_length=1, max_length=1200)
+    revision: int = Field(ge=1)
+    degraded: bool = False

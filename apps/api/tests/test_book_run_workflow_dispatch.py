@@ -1,17 +1,37 @@
 ﻿from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
+from app.domains.assets.models import Asset
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.blueprints.service import trigger_chapter_plan
 from app.domains.book_runs.models import BookRun
-from app.domains.book_runs.service import build_book_run_workflow_dispatch
-from app.domains.books.models import Book
+from app.domains.book_runs.schemas import BookRunProgressUpdate
+from app.domains.book_runs.service import (
+    BookRunBlockedError,
+    apply_book_run_progress,
+    build_book_run_workflow_dispatch,
+    resume_book_run,
+    retry_book_run_from_checkpoint,
+)
+from app.domains.books.models import Book, Chapter
+from app.domains.character_bible.schemas import CharacterBibleCreate
+from app.domains.character_bible.service import create_character_bible_entry
+from app.domains.story_memory.schemas import ForeshadowLifecycleTransition, MemoryAtom
+from app.domains.story_memory.service import apply_foreshadow_lifecycle_transition, create_memory_atom
+from app.domains.timeline.schemas import TimelineEventCreate
+from app.domains.timeline.service import create_timeline_event
 
 
-def seed_dispatchable_book_run(session_factory: sessionmaker[Session]) -> int:
+def seed_dispatchable_book_run(
+    session_factory: sessionmaker[Session],
+    *,
+    target_chapter_count: int = 2,
+    metadata: dict | None = None,
+) -> int:
     """创建已生成章节计划的 running BookRun，供 workflow dispatch 使用。"""
 
     with session_factory() as session:
@@ -23,12 +43,12 @@ def seed_dispatchable_book_run(session_factory: sessionmaker[Session]) -> int:
             premise="林岚在雾港追查失真的灯塔信号。",
             tone="克制悬疑",
             target_word_count=4500,
-            target_chapter_count=2,
+            target_chapter_count=target_chapter_count,
             chapter_word_count_min=1000,
             chapter_word_count_max=1800,
             status="locked",
             version=2,
-            metadata_={},
+            metadata_=metadata or {},
         )
         session.add(blueprint)
         session.commit()
@@ -38,20 +58,101 @@ def seed_dispatchable_book_run(session_factory: sessionmaker[Session]) -> int:
             blueprint_id=blueprint.id,
             status="running",
             current_chapter_index=1,
-            total_chapters=2,
+            total_chapters=target_chapter_count,
             progress={"completed_chapters": []},
             checkpoint=[],
             token_budget=1000,
             tokens_used=0,
             time_budget_sec=300,
             elapsed_time_sec=0,
-            chapter_budget=2,
+            chapter_budget=target_chapter_count,
             estimated_cost=0.0,
             cost_summary={"estimated_cost": 0.0},
         )
         session.add(book_run)
         session.commit()
         return book_run.id
+
+
+def _book_run_scope(session: Session, book_run_id: int) -> tuple[BookRun, BookBlueprint]:
+    book_run = session.get(BookRun, book_run_id)
+    assert book_run is not None
+    blueprint = session.get(BookBlueprint, book_run.blueprint_id)
+    assert blueprint is not None
+    return book_run, blueprint
+
+
+def _seed_longform_context(session: Session, book_run_id: int) -> None:
+    book_run, blueprint = _book_run_scope(session, book_run_id)
+    chapters = (
+        session.query(Chapter)
+        .filter(Chapter.book_id == book_run.book_id, Chapter.blueprint_id == blueprint.id)
+        .order_by(Chapter.ordinal)
+        .all()
+    )
+    assert len(chapters) >= 2
+    create_memory_atom(
+        session,
+        MemoryAtom(
+            memory_id=f"readiness-world-rule:{book_run.book_id}",
+            novel_id=book_run.book_id,
+            entity_type="world_rule",
+            entity_id="灯塔规约",
+            fact_type="rule",
+            value="所有跨卷航线必须遵守灯塔许可。",
+            source_ref=f"blueprint:{blueprint.id}:longform-readiness",
+            immutable=True,
+        ),
+    )
+    character = Asset(
+        book_id=book_run.book_id,
+        scene_id=None,
+        asset_type="character",
+        lineage_key=f"readiness-character:{book_run.book_id}",
+        name="林岚",
+        status="active",
+        payload={"身份": "调查员"},
+        version=1,
+    )
+    session.add(character)
+    session.commit()
+    session.refresh(character)
+    create_character_bible_entry(
+        session,
+        CharacterBibleCreate(
+            book_id=book_run.book_id,
+            character_id=character.id,
+            canonical_name="林岚",
+            aliases=["林调查员"],
+            voice_traits={"语气": "克制"},
+            forbidden_traits={"禁止": ["忘记灯塔许可"]},
+        ),
+    )
+    create_timeline_event(
+        session,
+        TimelineEventCreate(
+            project_id=1,
+            book_id=book_run.book_id,
+            volume_id=1,
+            chapter_id=chapters[0].id,
+            time_order=10,
+            summary="林岚发现灯塔许可与跨卷航线有关。",
+            evidence_refs=[f"chapter:{chapters[0].id}:summary"],
+            payload={"kind": "longform_readiness"},
+        ),
+    )
+    apply_foreshadow_lifecycle_transition(
+        session,
+        ForeshadowLifecycleTransition(
+            novel_id=book_run.book_id,
+            foreshadow_id="灯塔许可",
+            target_state="planted",
+            chapter_id=chapters[0].id,
+            volume_id=1,
+            evidence_refs=[f"chapter:{chapters[0].id}:signal"],
+            transition_reason="第一卷开端埋下灯塔许可伏笔。",
+        ),
+    )
 
 
 def test_build_book_run_workflow_dispatch_payload(session_factory: sessionmaker[Session]) -> None:
@@ -70,8 +171,202 @@ def test_build_book_run_workflow_dispatch_payload(session_factory: sessionmaker[
     assert dispatch.time_budget_sec == 300
     assert dispatch.chapter_budget == 2
     assert [chapter.chapter_index for chapter in dispatch.chapters] == [1, 2]
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 2}},
+    ]
     assert all(chapter.chapter_id > 0 for chapter in dispatch.chapters)
     assert dispatch.chapters[0].chapter_goal
+
+
+def test_longform_volume_dispatch_requires_context_readiness(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """长篇/分卷 dispatch 必须先具备四类上下文证据，不能只靠扩章节数。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=5,
+        metadata={"volume_count": 2, "longform_context_required": True},
+    )
+
+    with session_factory() as session, pytest.raises(BookRunBlockedError) as exc_info:
+        build_book_run_workflow_dispatch(session, book_run_id)
+
+    message = str(exc_info.value)
+    assert "长篇上下文门禁未满足" in message
+    assert "Story Memory" in message
+    assert "Character Bible" in message
+    assert "Timeline" in message
+    assert "Foreshadow" in message
+
+
+def test_longform_volume_dispatch_passes_after_context_readiness(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """补齐 Story Memory、Character Bible、Timeline 和伏笔状态后，分卷 dispatch 才可生成。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=5,
+        metadata={"volume_count": 2, "longform_context_required": True},
+    )
+
+    with session_factory() as session:
+        _seed_longform_context(session, book_run_id)
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.book_run_id == book_run_id
+    assert [chapter.chapter_index for chapter in dispatch.chapters] == [1, 2, 3, 4, 5]
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 3}},
+        {"volume_index": 2, "chapter_range": {"start": 4, "end": 5}},
+    ]
+
+
+def test_single_volume_dispatch_does_not_require_longform_context(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """普通单卷短篇仍按章节计划生成 dispatch，不被长篇门禁误拦截。"""
+
+    book_run_id = seed_dispatchable_book_run(session_factory, target_chapter_count=5, metadata={})
+
+    with session_factory() as session:
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.book_run_id == book_run_id
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 5}},
+    ]
+
+
+def test_build_book_run_workflow_dispatch_uses_metadata_volume_plan(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """metadata.volume_plan 应优先成为 workflow 的稳定卷计划输入。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=5,
+        metadata={
+            "volume_count": 2,
+            "volume_plan": [
+                {"volume_index": 1, "chapter_range": {"start": 1, "end": 2}},
+                {"volume_index": 2, "chapter_range": {"start": 3, "end": 99}},
+            ],
+        },
+    )
+
+    with session_factory() as session:
+        _seed_longform_context(session, book_run_id)
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 2}},
+        {"volume_index": 2, "chapter_range": {"start": 3, "end": 5}},
+    ]
+
+
+def test_build_book_run_workflow_dispatch_derives_even_volume_plan_from_volume_count(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """缺少 metadata.volume_plan 时，应按 volume_count 均分总章节。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=5,
+        metadata={"volume_count": 2},
+    )
+
+    with session_factory() as session:
+        _seed_longform_context(session, book_run_id)
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 3}},
+        {"volume_index": 2, "chapter_range": {"start": 4, "end": 5}},
+    ]
+
+
+def test_build_book_run_workflow_dispatch_falls_back_single_volume_for_invalid_metadata(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """metadata 卷结构不合法时沿用宽松读取风格，回退为单卷计划。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=4,
+        metadata={"volume_plan": [{"volume_index": 1, "chapter_range": {"start": 3, "end": 2}}]},
+    )
+
+    with session_factory() as session:
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 4}},
+    ]
+
+
+def test_workflow_dispatch_after_resume_starts_after_latest_checkpoint(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """resume 后 dispatch 应从最新 checkpoint 下一章开始，并保留卷计划。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=5,
+        metadata={"volume_count": 2},
+    )
+    progress = {
+        "completed_chapters": [
+            {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13},
+            {"chapter_index": 2, "model_run_id": 21, "judge_report_id": 22, "approved_scene_id": 23},
+        ],
+    }
+
+    with session_factory() as session:
+        _seed_longform_context(session, book_run_id)
+        apply_book_run_progress(
+            session,
+            book_run_id,
+            BookRunProgressUpdate(status="paused_by_budget", current_chapter_index=2, progress=progress),
+        )
+        resume_book_run(session, book_run_id)
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.start_chapter_index == 3
+    assert [checkpoint["chapter_index"] for checkpoint in dispatch.existing_checkpoint] == [1, 2]
+    assert [chapter.chapter_index for chapter in dispatch.chapters] == [3, 4, 5]
+    assert [item.model_dump() for item in dispatch.volume_plan] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 3}},
+        {"volume_index": 2, "chapter_range": {"start": 4, "end": 5}},
+    ]
+
+
+def test_workflow_dispatch_after_retry_prefers_retry_start_over_stale_resume(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """retry 后 dispatch 应使用 retry 起点，不能被陈旧 resume 字段带回旧章节。"""
+
+    book_run_id = seed_dispatchable_book_run(session_factory, target_chapter_count=5)
+    progress = {
+        "completed_chapters": [
+            {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13},
+            {"chapter_index": 2, "model_run_id": 21, "judge_report_id": 22, "approved_scene_id": 23},
+        ],
+        "resume_from_chapter_index": 2,
+    }
+
+    with session_factory() as session:
+        apply_book_run_progress(
+            session,
+            book_run_id,
+            BookRunProgressUpdate(status="paused_by_budget", current_chapter_index=2, progress=progress),
+        )
+        retry_book_run_from_checkpoint(session, book_run_id)
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.start_chapter_index == 3
+    assert [chapter.chapter_index for chapter in dispatch.chapters] == [3, 4, 5]
 
 
 def test_workflow_dispatch_endpoint_returns_payload(client: TestClient, session_factory: sessionmaker[Session]) -> None:
@@ -86,6 +381,9 @@ def test_workflow_dispatch_endpoint_returns_payload(client: TestClient, session_
     assert payload["book_run_id"] == book_run_id
     assert payload["chapters"][0]["chapter_index"] == 1
     assert payload["chapters"][0]["chapter_goal"]
+    assert payload["volume_plan"] == [
+        {"volume_index": 1, "chapter_range": {"start": 1, "end": 2}},
+    ]
 
 
 def test_workflow_dispatch_requires_chapter_plan(session_factory: sessionmaker[Session]) -> None:

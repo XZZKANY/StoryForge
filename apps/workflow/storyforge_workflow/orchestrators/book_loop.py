@@ -110,9 +110,14 @@ def _chapter_progress(chapter_index: int, result: NovelLoopResult) -> dict[str, 
 def _checkpoint_entry(chapter_progress: dict[str, Any]) -> dict[str, Any]:
     return {
         "chapter_index": chapter_progress["chapter_index"],
+        "status": chapter_progress["status"],
         "model_run_id": chapter_progress["model_run_id"],
         "judge_report_id": chapter_progress["judge_report_id"],
         "approved_scene_id": chapter_progress["approved_scene_id"],
+        "token_usage": chapter_progress["token_usage"],
+        "elapsed_time_sec": chapter_progress["elapsed_time_sec"],
+        "cost_estimate": chapter_progress["cost_estimate"],
+        "skill_runs": list(chapter_progress["skill_runs"]),
     }
 
 

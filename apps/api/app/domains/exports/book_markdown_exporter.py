@@ -64,6 +64,7 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
         "chapter_quality_scores": _chapter_quality_scores(chapters),
         "top_quality_issues": _top_quality_issues(chapters),
         "manual_review_recommendations": _manual_review_recommendations(chapters),
+        "manual_read_gate": _manual_read_gate_projection(book_run.progress),
         "skill_chain": derive_book_run_skill_chain(book_run.id, book_run.status, book_run.progress),
     }
     for chapter in report["chapters"]:
@@ -293,6 +294,11 @@ def _manual_review_recommendations(chapters: list[dict[str, object]]) -> list[st
         if str(issue.get("severity")) in {"?", "high", "critical"}:
             recommendations.append(f"? {issue.get('chapter_index')} ????????{issue.get('dimension', '????')}")
     return recommendations
+
+
+def _manual_read_gate_projection(progress: dict[str, object]) -> dict[str, object] | None:
+    gate = progress.get("manual_read_gate") if isinstance(progress, dict) else None
+    return dict(gate) if isinstance(gate, dict) else None
 
 
 def _quality_summary(chapters: list[dict[str, object]]) -> dict[str, object]:

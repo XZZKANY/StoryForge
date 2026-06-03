@@ -175,3 +175,34 @@ def test_invalidate_worldbuilding_cache_explicit_series_only_clears_matching(
     invalidate_worldbuilding_cache(series_id=1)
     assert "storyforge:worldbuilding-center:series:1:all" not in fake_cache.store
     assert "storyforge:worldbuilding-center:series:2:all" in fake_cache.store
+
+
+def test_redis_client_uses_short_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Redis 不可用时缓存降级必须迅速返回，不能拖死本地导出验证。"""
+
+    calls: list[dict[str, object]] = []
+
+    class FakeRedis:
+        @staticmethod
+        def from_url(url: str, **kwargs):
+            calls.append({"url": url, **kwargs})
+            return object()
+
+    monkeypatch.setattr(redis_cache, "redis", type("RedisModule", (), {"Redis": FakeRedis, "RedisError": Exception}))
+    redis_cache._redis_client.cache_clear()
+
+    redis_cache._redis_client()
+
+    assert calls
+    assert calls[0]["socket_connect_timeout"] <= 1.0
+    assert calls[0]["socket_timeout"] <= 1.0
+
+
+def test_cache_delete_pattern_treats_incomplete_client_as_cache_miss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """测试替身只验证连接参数时，缓存删除也必须按 Redis 不可用降级。"""
+
+    monkeypatch.setattr(redis_cache, "_redis_client", lambda: object())
+
+    redis_cache.cache_delete_pattern("storyforge:any:*")

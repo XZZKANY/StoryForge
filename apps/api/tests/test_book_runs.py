@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -7,7 +8,9 @@ import app.models  # noqa: F401
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.schemas import BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress
-from app.domains.books.models import Book
+from app.domains.books.models import Book, Chapter
+from app.domains.timeline.service import list_timeline_events
+from app.main import app
 
 
 def seed_locked_blueprint(session_factory: sessionmaker[Session]) -> dict[str, int]:
@@ -34,8 +37,41 @@ def seed_locked_blueprint(session_factory: sessionmaker[Session]) -> dict[str, i
         return {"book_id": book.id, "blueprint_id": blueprint.id}
 
 
-def test_create_and_read_book_run(client: TestClient, session_factory: sessionmaker[Session]) -> None:
+def seed_planned_chapters(session_factory: sessionmaker[Session], scope: dict[str, int], count: int) -> list[int]:
+    """为 BookRun progress 准备可被 TimelineEvent 校验的真实章节。"""
+
+    with session_factory() as session:
+        chapters = [
+            Chapter(
+                book_id=scope["book_id"],
+                blueprint_id=scope["blueprint_id"],
+                ordinal=index,
+                title=f"第 {index} 章",
+                status="planned",
+                summary=f"第 {index} 章摘要。",
+            )
+            for index in range(1, count + 1)
+        ]
+        session.add_all(chapters)
+        session.commit()
+        return [chapter.id for chapter in chapters]
+
+
+def test_create_and_read_book_run(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """BookRun API 应能启动并读取三章短篇运行记录。"""
+
+    from app.domains.provider_gateway import service as provider_service
+    from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
+
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "deterministic")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "storyforge-deterministic-writer")
+    monkeypatch.delenv("STORYFORGE_LLM_API_KEY", raising=False)
+    load_runtime_provider_config.cache_clear()
+    provider_service.cache_delete_pattern("storyforge:provider-resolution:*")
 
     scope = seed_locked_blueprint(session_factory)
 
@@ -48,7 +84,13 @@ def test_create_and_read_book_run(client: TestClient, session_factory: sessionma
     assert created["status"] == "running"
     assert created["current_chapter_index"] == 1
     assert created["total_chapters"] == 3
-    assert created["progress"] == {"completed_chapters": []}
+    assert created["progress"]["completed_chapters"] == []
+    provider_resolution = created["progress"]["provider_resolution"]
+    assert provider_resolution["provider_name"] == "deterministic"
+    assert provider_resolution["capability"] == "llm"
+    assert provider_resolution["ok"] is True
+    assert provider_resolution["credential_status"] == "not_required"
+    assert "credential_ref" not in provider_resolution
     assert created["checkpoint"] == []
     assert created["tokens_used"] == 0
     assert created["cost_summary"] == {"estimated_cost": 0.0}
@@ -77,6 +119,35 @@ def test_create_book_run_accepts_budget_limits(
     assert created["time_budget_sec"] == 300
     assert created["chapter_budget"] == 2
     assert created["tokens_used"] == 0
+
+
+def test_create_book_run_records_missing_provider_fallback(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """真实 LLM provider 缺少密钥时，BookRun progress 应记录不可用摘要。"""
+
+    from app.domains.provider_gateway import service as provider_service
+    from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
+
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "gpt-5.5")
+    monkeypatch.delenv("STORYFORGE_LLM_API_KEY", raising=False)
+    load_runtime_provider_config.cache_clear()
+    provider_service.cache_delete_pattern("storyforge:provider-resolution:*")
+
+    scope = seed_locked_blueprint(session_factory)
+    response = client.post("/api/book-runs", json=scope)
+
+    assert response.status_code == 201, response.text
+    provider_resolution = response.json()["progress"]["provider_resolution"]
+    assert provider_resolution["ok"] is False
+    assert provider_resolution["provider_name"] == "deterministic"
+    assert provider_resolution["credential_status"] == "missing_fallback"
+    assert provider_resolution["model_aliases"]["configured_provider"] == "openai"
+    assert "缺少密钥" in provider_resolution["unavailable_reason"]
+    assert "credential_ref" not in provider_resolution
 
 
 def test_create_book_run_requires_locked_blueprint(
@@ -137,11 +208,74 @@ def test_apply_book_run_progress_marks_completed(
 
     assert updated.status == "completed"
     assert updated.current_chapter_index == 3
-    assert updated.progress == progress
+    assert updated.progress["completed_chapters"] == progress["completed_chapters"]
+    assert updated.progress["provider_resolution"]["provider_name"] == "deterministic"
 
     read_response = client.get(f"/api/book-runs/{created['id']}")
     assert read_response.status_code == 200, read_response.text
     assert read_response.json()["status"] == "completed"
+
+
+def test_apply_book_run_progress_syncs_completed_chapter_to_timeline_once(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """BookRun 完章进度应同步为 TimelineEvent，并对重复回填保持幂等。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    chapter_ids = seed_planned_chapters(session_factory, scope, 1)
+    created = client.post("/api/book-runs", json=scope).json()
+    completed_chapter = {
+        "chapter_index": 1,
+        "chapter_id": chapter_ids[0],
+        "model_run_id": 11,
+        "judge_report_id": 12,
+        "approved_scene_id": 13,
+        "summary": "林岚确认灯塔信号来自旧航道。",
+    }
+
+    with session_factory() as session:
+        apply_book_run_progress(
+            session,
+            created["id"],
+            BookRunProgressUpdate(
+                status="running",
+                current_chapter_index=1,
+                progress={"completed_chapters": [completed_chapter]},
+            ),
+        )
+        apply_book_run_progress(
+            session,
+            created["id"],
+            BookRunProgressUpdate(
+                status="running",
+                current_chapter_index=1,
+                progress={"completed_chapters": [completed_chapter]},
+            ),
+        )
+        events = list(list_timeline_events(session, book_id=scope["book_id"]))
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.project_id == 1
+    assert event.book_id == scope["book_id"]
+    assert event.volume_id == 1
+    assert event.chapter_id == chapter_ids[0]
+    assert event.time_order == 1
+    assert event.summary == "林岚确认灯塔信号来自旧航道。"
+    assert event.evidence_refs == [
+        f"book_run:{created['id']}",
+        f"chapter:{chapter_ids[0]}",
+        "model_run:11",
+        "judge_report:12",
+        "approved_scene:13",
+    ]
+    assert event.payload["source"] == f"book_run:{created['id']}"
+    assert event.payload["completed_chapter"]["chapter_index"] == 1
+    assert event.payload["defaulted_fields"] == {
+        "project_id": "BookRun progress 未提供 project_id，当前作品模型没有项目字段，使用受控默认 1。",
+        "volume_id": "BookRun progress 未提供 volume_id，当前章节模型没有卷字段，使用受控默认 1。",
+    }
 
 
 def test_apply_book_run_progress_keeps_awaiting_review_chapter(
@@ -153,7 +287,9 @@ def test_apply_book_run_progress_keeps_awaiting_review_chapter(
     scope = seed_locked_blueprint(session_factory)
     created = client.post("/api/book-runs", json=scope).json()
     progress = {
-        "completed_chapters": [{"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13}],
+        "completed_chapters": [
+            {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13}
+        ],
         "blocked_chapter": {"chapter_index": 2, "judge_report_id": 20, "repair_patch_id": 21},
     }
 
@@ -167,6 +303,44 @@ def test_apply_book_run_progress_keeps_awaiting_review_chapter(
     assert updated.status == "awaiting_review"
     assert updated.current_chapter_index == 2
     assert updated.progress["blocked_chapter"]["chapter_index"] == 2
+
+
+def test_patch_book_run_progress_persists_manual_read_gate(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """BookRun progress 应保存人工通读门禁，并用 awaiting_review 表达阻断。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+    manual_read_gate = {
+        "status": "blocked",
+        "reason": "10 章真实 LLM 样章需要人工通读确认。",
+        "required_chapter_count": 10,
+        "word_count_range": {"min": 30000, "max": 50000},
+        "blocked_at_chapter_index": 3,
+    }
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "awaiting_review",
+            "current_chapter_index": 3,
+            "progress": {
+                "completed_chapters": [
+                    {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13},
+                    {"chapter_index": 2, "model_run_id": 21, "judge_report_id": 22, "approved_scene_id": 23},
+                ],
+                "manual_read_gate": manual_read_gate,
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["status"] == "awaiting_review"
+    assert updated["current_chapter_index"] == 3
+    assert updated["progress"]["manual_read_gate"] == manual_read_gate
 
 
 def test_progress_update_persists_checkpoint_and_budget_usage(
@@ -202,6 +376,175 @@ def test_progress_update_persists_checkpoint_and_budget_usage(
     assert "final_draft" not in str(updated["checkpoint"])
 
 
+def test_progress_update_auto_pauses_when_token_budget_is_reached(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Token 预算触顶时服务层应强制暂停并记录原因。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, "token_budget": 1000}).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "running",
+            "current_chapter_index": 2,
+            "progress": {
+                "completed_chapters": [{"chapter_index": 1, "model_run_id": 11}],
+                "budget": {"tokens_used": 1000, "elapsed_time_sec": 120, "estimated_cost": 0.5},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["status"] == "paused_by_budget"
+    assert updated["progress"]["pause_reason"] == "token 预算触顶：已使用 1000/1000 tokens。"
+    assert updated["progress"]["budget_exceeded"] == {
+        "kind": "token",
+        "used": 1000,
+        "limit": 1000,
+    }
+    assert updated["cost_summary"]["tokens_remaining"] == 0
+
+
+def test_progress_update_auto_pauses_when_time_budget_is_reached(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """时间预算触顶时服务层应强制暂停并记录原因。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, "time_budget_sec": 300}).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "running",
+            "current_chapter_index": 2,
+            "progress": {
+                "completed_chapters": [{"chapter_index": 1, "model_run_id": 11}],
+                "budget": {"tokens_used": 100, "elapsed_time_sec": 300, "estimated_cost": 0.05},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["status"] == "paused_by_budget"
+    assert updated["progress"]["pause_reason"] == "时间预算触顶：已用 300/300 秒。"
+    assert updated["progress"]["budget_exceeded"] == {
+        "kind": "time",
+        "used": 300,
+        "limit": 300,
+    }
+
+
+def test_progress_update_keeps_completed_when_token_budget_is_reached(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """completed 状态代表运行闭环已结束，不能被 token 预算门禁误改。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, "token_budget": 1000}).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 3,
+            "progress": {
+                "completed_chapters": [
+                    {"chapter_index": 1, "model_run_id": 11},
+                    {"chapter_index": 2, "model_run_id": 21},
+                    {"chapter_index": 3, "model_run_id": 31},
+                ],
+                "budget": {"tokens_used": 1000, "elapsed_time_sec": 120, "estimated_cost": 0.5},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["status"] == "completed"
+    assert "budget_exceeded" not in updated["progress"]
+    assert "pause_reason" not in updated["progress"]
+
+
+def test_progress_update_keeps_completed_when_time_budget_is_reached(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """completed 状态代表运行闭环已结束，不能被 time 预算门禁误改。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, "time_budget_sec": 300}).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 3,
+            "progress": {
+                "completed_chapters": [
+                    {"chapter_index": 1, "model_run_id": 11},
+                    {"chapter_index": 2, "model_run_id": 21},
+                    {"chapter_index": 3, "model_run_id": 31},
+                ],
+                "budget": {"tokens_used": 100, "elapsed_time_sec": 300, "estimated_cost": 0.05},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["status"] == "completed"
+    assert "budget_exceeded" not in updated["progress"]
+    assert "pause_reason" not in updated["progress"]
+
+
+def test_progress_update_auto_pauses_when_chapter_budget_is_reached_but_not_completed(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """章节预算触顶且 BookRun 未完成时应暂停，completed 不应被误暂停。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, "chapter_budget": 2}).json()
+    progress = {
+        "completed_chapters": [
+            {"chapter_index": 1, "model_run_id": 11},
+            {"chapter_index": 2, "model_run_id": 21},
+        ],
+        "budget": {"tokens_used": 200, "elapsed_time_sec": 60, "estimated_cost": 0.1},
+    }
+
+    paused_response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={"status": "running", "current_chapter_index": 2, "progress": progress},
+    )
+
+    assert paused_response.status_code == 200, paused_response.text
+    paused = paused_response.json()
+    assert paused["status"] == "paused_by_budget"
+    assert paused["progress"]["pause_reason"] == "章节预算触顶：已到第 2/2 章。"
+    assert paused["progress"]["budget_exceeded"] == {
+        "kind": "chapter",
+        "used": 2,
+        "limit": 2,
+    }
+
+    completed_response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={"status": "completed", "current_chapter_index": 3, "progress": progress},
+    )
+
+    assert completed_response.status_code == 200, completed_response.text
+    assert completed_response.json()["status"] == "completed"
+
+
 def test_resume_book_run_continues_after_latest_checkpoint(
     client: TestClient,
     session_factory: sessionmaker[Session],
@@ -232,11 +575,71 @@ def test_resume_book_run_continues_after_latest_checkpoint(
     assert resumed["progress"]["completed_chapters"] == progress["completed_chapters"]
 
 
+def test_book_run_control_endpoints_pause_stop_and_retry(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Assistant 控制按钮必须通过 BookRun 原生端点真实更新状态。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+
+    pause_response = client.post(f"/api/book-runs/{created['id']}/pause", json={"reason": "用户暂停检查"})
+    assert pause_response.status_code == 200, pause_response.text
+    paused = pause_response.json()
+    assert paused["status"] == "paused_by_user"
+    assert paused["progress"]["pause_reason"] == "用户暂停检查"
+
+    resume_response = client.post(f"/api/book-runs/{created['id']}/resume")
+    assert resume_response.status_code == 200, resume_response.text
+    assert resume_response.json()["status"] == "running"
+
+    progress = {
+        "completed_chapters": [{"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13}]
+    }
+    client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={"status": "paused_by_budget", "current_chapter_index": 1, "progress": progress},
+    )
+
+    retry_response = client.post(f"/api/book-runs/{created['id']}/retry")
+    assert retry_response.status_code == 200, retry_response.text
+    retried = retry_response.json()
+    assert retried["status"] == "running"
+    assert retried["current_chapter_index"] == 2
+    assert retried["progress"]["retry_from_chapter_index"] == 2
+
+    stop_response = client.post(f"/api/book-runs/{created['id']}/stop", json={"reason": "用户停止"})
+    assert stop_response.status_code == 200, stop_response.text
+    stopped = stop_response.json()
+    assert stopped["status"] == "stopped"
+    assert stopped["progress"]["stop_reason"] == "用户停止"
+
+
+def test_book_run_control_rejects_extra_sensitive_fields(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """BookRun 控制请求不得静默接收 API Key 等额外敏感字段。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+
+    response = client.post(
+        f"/api/book-runs/{created['id']}/pause",
+        json={"reason": "用户暂停", "api_key": "secret-should-not-enter-control-payload"},
+    )
+
+    assert response.status_code == 422, response.text
+    assert "api_key" in response.text
+
+
 def test_patch_book_run_progress_endpoint(client: TestClient, session_factory: sessionmaker[Session]) -> None:
     """Workflow adapter 可通过 HTTP 回填 BookRun completed 状态。"""
 
     scope = seed_locked_blueprint(session_factory)
     created = client.post("/api/book-runs", json=scope).json()
+    created_provider_resolution = created["progress"]["provider_resolution"]
 
     response = client.patch(
         f"/api/book-runs/{created['id']}/progress",
@@ -248,7 +651,8 @@ def test_patch_book_run_progress_endpoint(client: TestClient, session_factory: s
                     {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13},
                     {"chapter_index": 2, "model_run_id": 21, "judge_report_id": 22, "approved_scene_id": 23},
                     {"chapter_index": 3, "model_run_id": 31, "judge_report_id": 32, "approved_scene_id": 33},
-                ]
+                ],
+                "provider_resolution": {"provider_name": "workflow-shadow", "credential_ref": "secret"},
             },
         },
     )
@@ -256,3 +660,68 @@ def test_patch_book_run_progress_endpoint(client: TestClient, session_factory: s
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "completed"
     assert response.json()["current_chapter_index"] == 3
+    assert response.json()["progress"]["provider_resolution"] == created_provider_resolution
+
+
+def test_patch_book_run_volume_progress_is_controlled_by_volume_contract(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """卷级摘要只能由受控契约写入，普通 progress 字典不能污染。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+    volume_progress = {
+        "current_volume": 1,
+        "chapter_range": {"start": 1, "end": 3},
+        "completed_chapter_count": 1,
+        "next_batch_start_chapter_index": 2,
+    }
+
+    first_response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "running",
+            "current_chapter_index": 2,
+            "progress": {
+                "completed_chapters": [
+                    {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13}
+                ]
+            },
+            "volume_progress": volume_progress,
+        },
+    )
+
+    assert first_response.status_code == 200, first_response.text
+    first_progress = first_response.json()["progress"]
+    assert first_progress["volume"] == volume_progress
+    assert first_progress["current_volume"] == 1
+    assert first_progress["chapter_range"] == {"start": 1, "end": 3}
+    assert first_progress["volume_checkpoint"] == volume_progress
+
+    polluted_response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "awaiting_review",
+            "current_chapter_index": 2,
+            "progress": {
+                "completed_chapters": first_progress["completed_chapters"],
+                "volume": {"current_volume": 99},
+                "current_volume": 99,
+                "chapter_range": {"start": 99, "end": 100},
+                "volume_checkpoint": {"current_volume": 99},
+            },
+        },
+    )
+
+    assert polluted_response.status_code == 200, polluted_response.text
+    polluted_progress = polluted_response.json()["progress"]
+    assert polluted_progress["volume"] == volume_progress
+    assert polluted_progress["current_volume"] == 1
+    assert polluted_progress["chapter_range"] == {"start": 1, "end": 3}
+    assert polluted_progress["volume_checkpoint"] == volume_progress
+
+    schemas = app.openapi()["components"]["schemas"]
+    volume_schema = schemas["BookRunProgressUpdate"]["properties"]["volume_progress"]
+    assert "BookRunVolumeProgress" in schemas
+    assert {"$ref": "#/components/schemas/BookRunVolumeProgress"} in volume_schema["anyOf"]

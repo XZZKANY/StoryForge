@@ -12,14 +12,21 @@ def test_novel_loop_with_skill_runner_keeps_approved_result_contract() -> None:
     """runner 接入后，Judge 通过路径的 NovelLoopResult 契约保持不变。"""
 
     runner = NovelSkillRunner.default()
+    full_draft = "林岚抵达雾港。"
+    memory_calls: list[tuple[int, int, str]] = []
+
+    def extract_memory(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> list[str]:
+        memory_calls.append((request.chapter_id, approved_scene_id, draft))
+        return ["mem-1"]
+
     ports = NovelLoopPorts(
         compile_context=lambda request: "ctx-1",
-        generate_scene=lambda request, context_id: "林岚抵达雾港。",
+        generate_scene=lambda request, context_id: full_draft,
         record_model_run=lambda request, draft: 31,
         judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": 41},
         repair_scene=lambda draft, report, attempt: draft,
         approve_scene=lambda request, draft, refs: 51,
-        extract_memory=lambda request, draft, approved_scene_id: ["mem-1"],
+        extract_memory=extract_memory,
     )
 
     result = run_single_chapter_loop(
@@ -34,7 +41,12 @@ def test_novel_loop_with_skill_runner_keeps_approved_result_contract() -> None:
     assert result.judge_report_id == 41
     assert result.approved_scene_id == 51
     assert result.memory_atom_ids == ["mem-1"]
+    assert memory_calls == [(2, 51, full_draft)]
     assert [run.skill_name for run in runner.runs] == ["generate", "judge", "approve", "memory_extract"]
+    assert result.skill_runs[-1]["skill_name"] == "memory_extract"
+    assert result.skill_runs[-1]["status"] == "memory_updated"
+    assert result.skill_runs[-1]["output_refs"] == {"memory_atom_ids": ("mem-1",)}
+    assert full_draft not in str(result.skill_runs)
 
 
 def test_novel_loop_with_skill_runner_records_repair_chain_then_approves() -> None:

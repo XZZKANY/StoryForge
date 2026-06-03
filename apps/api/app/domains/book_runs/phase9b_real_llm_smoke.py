@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import json
@@ -87,16 +87,35 @@ def run_phase9b_real_llm_smoke(
     *,
     chapter_count: int,
     token_budget: int,
+    target_word_count: int | None = None,
+    chapter_word_count_min: int = 600,
+    chapter_word_count_max: int = 1600,
     env: Mapping[str, str | None] | None = None,
 ) -> Phase9BRealLlmSmokeResult:
-    """用真实 OpenAI 兼容 LLM 跑 1 章或 3 章 BookRun 冒烟。"""
+    """用真实 OpenAI 兼容 LLM 跑受控章节数的 BookRun 冒烟。"""
 
     source = os.environ if env is None else env
-    _assert_preflight(source, chapter_count, token_budget)
+    _assert_preflight(
+        source,
+        chapter_count,
+        token_budget,
+        target_word_count,
+        chapter_word_count_min,
+        chapter_word_count_max,
+    )
     started_at = time.monotonic()
     book = _create_smoke_book(session, chapter_count)
     _seed_consistency_data(session, book.id)
-    blueprint = create_book_blueprint(session, _blueprint_payload(book.id, chapter_count))
+    blueprint = create_book_blueprint(
+        session,
+        _blueprint_payload(
+            book.id,
+            chapter_count,
+            target_word_count=target_word_count,
+            chapter_word_count_min=chapter_word_count_min,
+            chapter_word_count_max=chapter_word_count_max,
+        ),
+    )
     lock_book_blueprint(session, blueprint.id)
     trigger_chapter_plan(session, blueprint.id)
     book_run = create_book_run(
@@ -169,15 +188,28 @@ def run_phase9b_real_llm_smoke(
     )
 
 
-def _assert_preflight(source: Mapping[str, str | None], chapter_count: int, token_budget: int) -> None:
+def _assert_preflight(
+    source: Mapping[str, str | None],
+    chapter_count: int,
+    token_budget: int,
+    target_word_count: int | None = None,
+    chapter_word_count_min: int = 600,
+    chapter_word_count_max: int = 1600,
+) -> None:
     missing = missing_phase9b_real_llm_env(source)
     if missing:
         joined = ", ".join(missing)
         raise Phase9BRealLlmSmokePreflightError(f"缺少真实 LLM 冒烟环境变量：{joined}。")
-    if chapter_count not in {1, 3}:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟只允许 1 章或 3 章。")
+    if chapter_count < 1 or chapter_count > 10:
+        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟只允许 1 到 10 章。")
     if token_budget <= 0:
         raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟必须设置正数 token_budget。")
+    if target_word_count is not None and target_word_count <= 0:
+        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟必须设置正数 target_word_count。")
+    if chapter_word_count_min <= 0 or chapter_word_count_max <= 0:
+        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟章节字数上下限必须为正数。")
+    if chapter_word_count_min > chapter_word_count_max:
+        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟章节最小字数不能大于最大字数。")
 
 
 def _create_smoke_book(session: Session, chapter_count: int) -> Book:
@@ -252,15 +284,22 @@ def _seed_consistency_data(session: Session, book_id: int) -> None:
     )
 
 
-def _blueprint_payload(book_id: int, chapter_count: int) -> BookBlueprintCreate:
+def _blueprint_payload(
+    book_id: int,
+    chapter_count: int,
+    *,
+    target_word_count: int | None = None,
+    chapter_word_count_min: int = 600,
+    chapter_word_count_max: int = 1600,
+) -> BookBlueprintCreate:
     return BookBlueprintCreate(
         book_id=book_id,
         premise="林岚在雾港追查失真的灯塔信号，并把每一步证据写入审计链。",
         tone="克制悬疑",
-        target_word_count=max(1200, chapter_count * 1200),
+        target_word_count=target_word_count or max(1200, chapter_count * 1200),
         target_chapter_count=chapter_count,
-        chapter_word_count_min=600,
-        chapter_word_count_max=1600,
+        chapter_word_count_min=chapter_word_count_min,
+        chapter_word_count_max=chapter_word_count_max,
         metadata={"pov": "林岚", "location": "雾港", "title_seed": "真实冒烟"},
     )
 
@@ -754,14 +793,24 @@ def main(
     """命令行入口：执行 Phase 9B 真实 LLM 冒烟并输出脱敏摘要。"""
 
     parser = argparse.ArgumentParser(description="运行 StoryForge Phase 9B 真实 LLM BookRun 冒烟。")
-    parser.add_argument("--chapter-count", type=int, choices=[1, 3], required=True)
+    parser.add_argument("--chapter-count", type=int, required=True)
     parser.add_argument("--token-budget", type=int, required=True)
+    parser.add_argument("--target-word-count", type=int, default=None)
+    parser.add_argument("--chapter-word-count-min", type=int, default=600)
+    parser.add_argument("--chapter-word-count-max", type=int, default=1600)
     args = parser.parse_args(argv)
     out = sys.stdout if output is None else output
     err = sys.stderr if error is None else error
     source = os.environ if env is None else env
     try:
-        _assert_preflight(source, args.chapter_count, args.token_budget)
+        _assert_preflight(
+            source,
+            args.chapter_count,
+            args.token_budget,
+            args.target_word_count,
+            args.chapter_word_count_min,
+            args.chapter_word_count_max,
+        )
     except Phase9BRealLlmSmokePreflightError as exc:
         print(str(exc), file=err)
         return 2
@@ -775,6 +824,9 @@ def main(
                 session,
                 chapter_count=args.chapter_count,
                 token_budget=args.token_budget,
+                target_word_count=args.target_word_count,
+                chapter_word_count_min=args.chapter_word_count_min,
+                chapter_word_count_max=args.chapter_word_count_max,
                 env=source,
             )
     except Phase9BRealLlmSmokePreflightError as exc:
@@ -806,4 +858,3 @@ def _result_summary(result: object) -> dict[str, object]:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
