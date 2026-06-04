@@ -10,6 +10,7 @@ from alembic.script import ScriptDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKFILL_MIGRATION_PATH = REPO_ROOT / "alembic" / "versions" / "20260528_0001_backfill_current_orm_schema.py"
+PHASE2_MIGRATION_PATH = REPO_ROOT / "alembic" / "versions" / "20260514_phase2_创建_phase_2_领域模型.py"
 
 
 def test_alembic_migration_graph_has_single_head() -> None:
@@ -60,3 +61,27 @@ def test_backfill_phase2_tables_use_real_table_inspection_online(monkeypatch) ->
 
     assert migration._table_exists("series_memories") is False
     assert inspected_tables == ["series_memories"]
+
+
+def test_phase2_migration_skips_existing_tables_online(monkeypatch) -> None:
+    """Phase 2 分支在线迁移必须兼容 backfill 分支已经补过的表。"""
+
+    spec = importlib.util.spec_from_file_location("phase2_memory_schema", PHASE2_MIGRATION_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    inspected_tables: list[str] = []
+
+    class FakeInspector:
+        def has_table(self, table_name: str) -> bool:
+            inspected_tables.append(table_name)
+            return True
+
+    monkeypatch.setattr(migration.context, "is_offline_mode", lambda: False)
+    monkeypatch.setattr(migration.op, "get_bind", lambda: object())
+    monkeypatch.setattr(migration, "inspect", lambda _bind: FakeInspector())
+
+    assert migration._table_exists("series") is True
+    assert inspected_tables == ["series"]
