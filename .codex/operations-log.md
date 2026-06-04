@@ -8782,3 +8782,13 @@ un-metadata.json: present
 
 - 检查了 `.gitignore`、`package.json`、`apps/api/pyproject.toml`、`.github/workflows/e2e.yml` 和既有 `.codex` 审计文档。
 - 本轮只使用 Git、pytest、ruff、py_compile 和 rg，不新增自研推送工具或验证框架。
+
+## 批量提交推送 - 远端推送复核
+
+时间：2026-06-04 18:23:19 +08:00
+
+- 推送命令：`git push origin master`。
+- 推送结果：成功，远端 `master` 从 `590333f` 更新到 `25affda`。
+- 推送后复核：`git fetch origin` 后，`HEAD=25affda8cfe41dde98b42e88416d1e100f302bae`，`origin/master=25affda8cfe41dde98b42e88416d1e100f302bae`。
+- 同步状态：`git status --porcelain=v2 --branch` 显示 `branch.ab +0 -0`。
+- 留痕边界：本段为推送完成后的审计补记；补记提交后需要再次推送最终留痕提交，并以最后一次 `fetch/status` 作为最终交付证据。
