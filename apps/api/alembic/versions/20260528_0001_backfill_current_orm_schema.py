@@ -7,23 +7,29 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
-from alembic import op
+from alembic import context, op
 
 revision: str = "20260528_0001"
 down_revision: str | None = "20260527_0003"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+PHASE2_BRANCH_TABLES = {"series", "series_memories", "series_memory_evidence"}
+
 
 def _table_exists(table_name: str) -> bool:
     """检查表是否已存在，兼容被本地补表过的开发库。"""
 
+    if context.is_offline_mode():
+        return table_name in PHASE2_BRANCH_TABLES
     return inspect(op.get_bind()).has_table(table_name)
 
 
 def _column_exists(table_name: str, column_name: str) -> bool:
     """检查列是否已存在，避免重复添加非破坏性补齐列。"""
 
+    if context.is_offline_mode():
+        return False
     if not _table_exists(table_name):
         return False
     columns = inspect(op.get_bind()).get_columns(table_name)
@@ -33,6 +39,8 @@ def _column_exists(table_name: str, column_name: str) -> bool:
 def _index_exists(table_name: str, index_name: str) -> bool:
     """检查索引是否已存在，保持迁移可在旧开发库重复安全执行。"""
 
+    if context.is_offline_mode():
+        return table_name in PHASE2_BRANCH_TABLES
     if not _table_exists(table_name):
         return False
     indexes = inspect(op.get_bind()).get_indexes(table_name)
@@ -42,6 +50,8 @@ def _index_exists(table_name: str, index_name: str) -> bool:
 def _fk_exists(table_name: str, fk_name: str) -> bool:
     """检查外键约束是否已存在。"""
 
+    if context.is_offline_mode():
+        return False
     if not _table_exists(table_name):
         return False
     foreign_keys = inspect(op.get_bind()).get_foreign_keys(table_name)

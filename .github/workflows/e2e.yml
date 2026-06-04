@@ -84,6 +84,10 @@ jobs:
         working-directory: apps/workflow
         run: uv sync --frozen
 
+      - name: 执行 Alembic 迁移预检
+        working-directory: apps/api
+        run: uv run pytest tests/test_alembic_heads.py -q
+
       - name: 执行数据库迁移
         working-directory: apps/api
         run: uv run alembic upgrade head
