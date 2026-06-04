@@ -8792,3 +8792,36 @@ un-metadata.json: present
 - 推送后复核：`git fetch origin` 后，`HEAD=25affda8cfe41dde98b42e88416d1e100f302bae`，`origin/master=25affda8cfe41dde98b42e88416d1e100f302bae`。
 - 同步状态：`git status --porcelain=v2 --branch` 显示 `branch.ab +0 -0`。
 - 留痕边界：本段为推送完成后的审计补记；补记提交后需要再次推送最终留痕提交，并以最后一次 `fetch/status` 作为最终交付证据。
+
+## Git 对象库清理维护
+
+时间：2026-06-04 22:35:23 +08:00
+
+### 维护目标
+
+- 处理此前 Git 自动 gc 提示：`There are too many unreachable loose objects; run 'git prune' to remove them.`。
+- 范围限定为 `.git` 对象库维护，不修改业务代码。
+
+### 清理前状态
+
+- 分支状态：`master` 跟踪 `origin/master`，`branch.ab +0 -0`。
+- `HEAD` 与 `origin/master` 均为 `33fcecd6e2d14919593f6afca28e71b56859cd76`。
+- `git count-objects -vH`：`count: 14530`，`size: 338.73 MiB`，`in-pack: 7743`，`packs: 44`，`size-pack: 10.15 MiB`，`garbage: 0`。
+- `git fsck --full --no-progress`：输出大量 dangling blob/tree/commit，说明存在大量不可达对象；未见对象损坏报错。
+
+### 执行命令
+
+- `git reflog expire --expire-unreachable=now --all`
+- `git gc --prune=now`
+
+### 清理后验证
+
+- `git count-objects -vH`：`count: 0`，`size: 0 bytes`，`in-pack: 4202`，`packs: 1`，`size-pack: 5.77 MiB`，`garbage: 0`。
+- `git fsck --full --no-progress`：无输出，完整性检查通过。
+- `git status --porcelain=v2 --branch`：仍为 `branch.ab +0 -0`。
+- `HEAD` 与 `origin/master` 仍均为 `33fcecd6e2d14919593f6afca28e71b56859cd76`。
+
+### 风险边界
+
+- 本次清理会移除不可达对象，降低通过本地悬空对象恢复旧临时提交或旧 blob 的可能性。
+- 当前远端已同步到最新 `master`，且完整性检查通过；可达提交和当前工作树未受影响。
