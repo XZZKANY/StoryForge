@@ -2437,3 +2437,54 @@ score: 98
 ```
 
 summary: 'Phase 9 master 远端 E2E 已通过并完成事实源同步：远端 master 快进到 590333f1ccc99234f4244bc7bf4556fd7dee3f4f，E2E run 26944063055 completed/success，关键步骤均 success；事实源测试 13 passed，Ruff、py_compile 和目标 diff 空白检查通过；真实 3-5 万字长程仍未完成。'
+
+## 审查报告 - 批量提交推送
+
+时间：2026-06-04 18:19:09 +08:00
+
+### 需求字段完整性
+
+- **目标**：将当前 `D:/StoryForge` 中大量未提交和未跟踪内容提交并推送到 `origin/master`。
+- **范围**：Git 状态检查、敏感信息与大文件门禁、本地提交、远端提交整合、冲突解决、目标测试验证和推送前审查；不删除用户已有内容，不使用强推。
+- **交付物**：本地提交 `bde76aa 归档本地批量验证产物`、合并提交 `545d252 Merge remote-tracking branch 'origin/master'`、上下文摘要 `.codex/context-summary-git-bulk-push.md`、操作日志和本审查报告。
+- **审查要点**：确认未泄漏疑似密钥原文，确认无未解决冲突，确认 `origin/master` 已纳入当前 `HEAD`，确认本地目标测试通过后再推送。
+
+### 交付物映射
+
+- **代码与文档**：纳入 `.codex` 验证证据、Phase 9 文档、Alembic/E2E 门禁测试、真实 LLM smoke/long 验证脚本与测试、导出和评审服务相关改动。
+- **上下文摘要**：`.codex/context-summary-git-bulk-push.md` 记录相似实现、项目约定、测试策略、依赖和风险点。
+- **操作日志**：`.codex/operations-log.md` 记录风险门禁、冲突处理、本地验证和后续推送策略。
+- **冲突解决**：`apps/api/tests/test_alembic_heads.py` 合并双方测试，保留 4 个 Alembic 迁移门禁断言。
+
+### 本地验证
+
+- 风险门禁：未发现常见依赖/构建目录；未跟踪文件无超过 50MB 文件；未发现 `.env`、私钥、GitHub token、AWS key 或 Slack token；`sk-...` 命中为 `task-5...` 文件名误判。
+- Git 合并验证：`git merge-base --is-ancestor origin/master HEAD` 通过；`git diff --name-only --diff-filter=U` 为空；`git diff --check HEAD~1..HEAD` 通过。
+- 目标 pytest：`uv run pytest tests/test_alembic_heads.py tests/test_e2e_workflow_migration_gate.py tests/test_phase9_fact_sources.py tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py tests/test_real_llm_smoke_gate_document.py tests/test_book_exporter.py tests/test_judge_semantic.py -q`，50 passed，1 warning。
+- Ruff：目标测试与修改过的 API 模块 `uv run ruff check ...`，All checks passed。
+- 编译检查：目标测试与修改过的 API 模块 `uv run python -m py_compile ...`，退出码 0。
+- 推送前状态：`HEAD=545d2528f59ba9b371dfbb03e0d08106378714d0`，本地 `master` 相对 `origin/master` 为 `+14/-0`。
+
+### 风险与边界
+
+- `.codex` 下纳入 sqlite、png、log、Markdown 等大量验证证据，会增加仓库体积；本轮已做敏感与大文件门禁，且用户明确要求推送大量未跟踪内容。
+- 本轮未运行全仓库 `pnpm run verify`，原因是任务目标是批量提交推送且变更集中在 API/Alembic/Phase 9/真实 LLM 证据；已运行高相关度目标测试、ruff、py_compile 和 Git 合并验证。
+- Alembic 警告为配置弃用提示，不影响目标测试结果；后续可单独规划 `alembic.ini` 的 `path_separator` 配置治理。
+- 推送尚需执行；若远端再次更新导致 push 被拒绝，必须重新 fetch、复核并合并后再推送。
+
+### 评分
+
+- **代码质量**：94/100。冲突解决保留双方断言，未新增自研工具；大量 `.codex` 证据入库会增加维护噪音。
+- **测试覆盖**：95/100。覆盖 50 个目标测试、ruff、py_compile、Git 合并验证和风险扫描；未运行全仓库长门禁。
+- **规范遵循**：96/100。全程简体中文，按 sequential-thinking、shrimp-task-manager、verification-before-completion 和本地 `.codex` 留痕执行。
+- **需求匹配**：97/100。已完成大量内容本地提交、远端整合和推送前验证。
+- **架构一致**：94/100。沿用既有 pytest、ruff、`.codex` 审计和 E2E/Alembic 门禁模式。
+- **风险评估**：95/100。敏感信息与大文件风险已筛查，远端再次更新风险留有处理策略。
+- **综合评分**：95/100。
+- **明确建议**：通过推送前审查；允许执行 `git push origin master`，推送后需立即复核 `branch.ab` 为 `+0/-0`。
+
+```Scoring
+score: 95
+```
+
+summary: '批量提交推送已完成推送前审查：本地提交 bde76aa 保存大量验证产物，合并提交 545d252 纳入 origin/master，唯一冲突 test_alembic_heads.py 已合并并保留双方测试；目标 pytest 50 passed，ruff 全通过，py_compile 通过，敏感信息与大文件门禁未发现阻断项。'

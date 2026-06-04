@@ -8725,3 +8725,60 @@ un-metadata.json: present
 - 再合并 `origin/master` 的远端提交 `590333f 修复 Phase9 远端 E2E Alembic 迁移门禁`。
 - 合并时重点处理 `apps/api/tests/test_alembic_heads.py`、`apps/api/tests/test_e2e_workflow_migration_gate.py`、`apps/api/alembic/versions/20260604_0001_merge_phase2_and_current_heads.py`。
 - 合并和提交后运行针对性本地验证；验证通过后推送 `master` 到 `origin/master`。
+
+## 批量提交推送 - 本地提交、合并与验证
+
+时间：2026-06-04 18:19:09 +08:00
+
+### 本地提交
+
+- 暂存命令：`git add -A`。
+- 暂存统计：216 files changed，24164 insertions，6225 deletions。
+- 本地提交：`bde76aa 归档本地批量验证产物`。
+- 提交内容：纳入大量 `.codex` 上下文摘要、真实 LLM 验证证据、UI 截图证据、Phase 9 文档、Alembic/E2E 迁移门禁测试、真实 LLM smoke/long wrapper 测试等。
+
+### 远端整合
+
+- 合并命令：`git merge origin/master --no-edit`。
+- 冲突范围：仅 `apps/api/tests/test_alembic_heads.py` 出现 add/add 冲突。
+- 冲突处理：保留本地的 Alembic 单 head、离线 SQL、backfill 在线表检查测试，同时纳入远端新增的 Phase 2 分支已存在表跳过测试。
+- 合并提交：`545d252 Merge remote-tracking branch 'origin/master'`。
+- 远端纳入验证：`git merge-base --is-ancestor origin/master HEAD` 输出 `origin/master 已纳入 HEAD`。
+- 未合并路径验证：`git diff --name-only --diff-filter=U` 输出为空。
+- 空白检查：`git diff --check HEAD~1..HEAD` 通过。
+
+### 本地验证
+
+- 目标 pytest：`uv run pytest tests/test_alembic_heads.py tests/test_e2e_workflow_migration_gate.py tests/test_phase9_fact_sources.py tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py tests/test_real_llm_smoke_gate_document.py tests/test_book_exporter.py tests/test_judge_semantic.py -q`
+  - 结果：50 passed，1 warning。
+  - 警告：Alembic config 缺少 `path_separator` 的弃用警告，非本轮新增失败。
+- Ruff：`uv run ruff check ...` 覆盖目标测试与修改过的 API 模块，结果 `All checks passed!`。
+- 编译检查：`uv run python -m py_compile ...` 覆盖目标测试与修改过的 API 模块，退出码 0。
+- Git 状态：`HEAD=545d2528f59ba9b371dfbb03e0d08106378714d0`，`master...origin/master` 为 `+14/-0`。
+
+### 编码后声明 - 批量提交推送
+
+### 1. 复用了以下既有组件
+
+- `.gitignore`: 用于识别忽略边界和不应入库目录。
+- `package.json`: 用于确认项目验证入口。
+- `apps/api/pyproject.toml`: 用于确认 pytest、ruff 和 Python 版本约束。
+- `.github/workflows/e2e.yml`: 用于确认 Alembic 迁移门禁链路。
+- `.codex/operations-log.md` 与 `.codex/verification-report.md`: 用于本地审计留痕。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增上下文摘要使用 `.codex/context-summary-git-bulk-push.md`。
+- 代码风格：冲突文件继续保持 Python 测试风格、中文测试说明和既有导入顺序。
+- 文件组织：未新增 Git 包装器或新验证框架，继续使用项目内 `.codex` 审计目录。
+
+### 3. 对比了以下相似实现
+
+- `.codex/operations-log.md`: 本轮沿用“事实来源、命令、结果、边界”的记录格式。
+- `.codex/verification-report.md`: 本轮沿用评分和明确建议结构。
+- `apps/api/tests/test_alembic_heads.py`: 本轮冲突合并保留双方测试职责，不删除远端或本地已有断言。
+
+### 4. 未重复造轮子的证明
+
+- 检查了 `.gitignore`、`package.json`、`apps/api/pyproject.toml`、`.github/workflows/e2e.yml` 和既有 `.codex` 审计文档。
+- 本轮只使用 Git、pytest、ruff、py_compile 和 rg，不新增自研推送工具或验证框架。
