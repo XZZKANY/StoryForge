@@ -1,0 +1,270 @@
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead.
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead.
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead.
+[@sentry/nextjs] Could not find `onRequestError` hook in instrumentation file. This indicates outdated configuration of the Sentry SDK. Use `Sentry.captureRequestError` to instrument the `onRequestError` hook: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#errors-from-nested-react-server-components
+[@sentry/nextjs] DEPRECATION WARNING: It is recommended renaming your `sentry.client.config.ts` file, or moving its content to `instrumentation-client.ts`. When using Turbopack `sentry.client.config.ts` will no longer work. Read more about the `instrumentation-client.ts` file: https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead.
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⨯ ./app/settings/SettingsClient.tsx
+Error: Failed to read source code from D:\StoryForge\apps\web\app\settings\SettingsClient.tsx
+
+Caused by:
+    系统找不到指定的文件。 (os error 2)
+
+Import trace for requested module:
+./app/settings/SettingsClient.tsx
+ ⨯ ./app/settings/SettingsClient.tsx
+Error: Failed to read source code from D:\StoryForge\apps\web\app\settings\SettingsClient.tsx
+
+Caused by:
+    系统找不到指定的文件。 (os error 2)
+
+Import trace for requested module:
+./app/settings/SettingsClient.tsx
+./app/settings/page.tsx
+[@sentry/nextjs] DEPRECATION WARNING: It is recommended renaming your `sentry.client.config.ts` file, or moving its content to `instrumentation-client.ts`. When using Turbopack `sentry.client.config.ts` will no longer work. Read more about the `instrumentation-client.ts` file: https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client
+ ⨯ Error: Cannot find module './116.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\app\_not-found\page.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+    at Object.<anonymous> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+  250 |     typeof item.estimated_cost === 'number' &&
+  251 |     typeof item.cost_summary === 'object' &&
+> 252 |     item.cost_summary !== null
+      |                     ^
+  253 |   );
+  254 | }
+  255 | {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/'
+}
+ ⨯ Error: Cannot find module './336.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\pages\_document.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+    at Object.<anonymous> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+> 1 | module.exports = require("react"); {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ ⨯ Error: Cannot find module './116.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\pages\_document.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+    at Object.<anonymous> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+  250 |     typeof item.estimated_cost === 'number' &&
+  251 |     typeof item.cost_summary === 'object' &&
+> 252 |     item.cost_summary !== null
+      |                     ^
+  253 |   );
+  254 | }
+  255 | {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/'
+}
+ ⨯ Error: Cannot find module './336.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\pages\_document.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+    at Object.<anonymous> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+> 1 | module.exports = require("react"); {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ ⨯ Error: Cannot find module './116.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\app\page.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+    at Object.<anonymous> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+  250 |     typeof item.estimated_cost === 'number' &&
+  251 |     typeof item.cost_summary === 'object' &&
+> 252 |     item.cost_summary !== null
+      |                     ^
+  253 |   );
+  254 | }
+  255 | {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/'
+}
+ ⨯ Error: Cannot find module './336.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\pages\_document.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+    at Object.<anonymous> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+> 1 | module.exports = require("react"); {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ ⨯ Error: Cannot find module './116.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\app\_not-found\page.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+    at Object.<anonymous> (webpack://storyforge/web/app/blueprints/api.tsx:252:21)
+  250 |     typeof item.estimated_cost === 'number' &&
+  251 |     typeof item.cost_summary === 'object' &&
+> 252 |     item.cost_summary !== null
+      |                     ^
+  253 |   );
+  254 | }
+  255 | {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/'
+}
+ ⨯ Error: Cannot find module './336.js'
+Require stack:
+- D:\StoryForge\apps\web\.next\server\webpack-runtime.js
+- D:\StoryForge\apps\web\.next\server\app\_not-found\page.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\require.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\load-components.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\utils.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\options.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\swc\index.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\config.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\next.js
+- D:\StoryForge\node_modules\.pnpm\next@15.3.2_@babel+core@7.29.7_@opentelemetry+api@1.9.1_react-dom@19.1.0_react@19.1.0__react@19.1.0\node_modules\next\dist\server\lib\start-server.js
+    at __webpack_require__.f.require (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:201:28)
+    at <unknown> (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:114:40)
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:113:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (D:\StoryForge\apps\web\.next\server\webpack-runtime.js:165:22)
+    at <unknown> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+    at Object.<anonymous> (webpack://storyforge/web/external%20commonjs%20%22react%22:1:0)
+> 1 | module.exports = require("react"); {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: ENOENT: no such file or directory, open 'D:\StoryForge\apps\web\.next\trace'
+Emitted 'error' event on WriteStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\StoryForge\\apps\\web\\.next\\trace'
+}
+
+Node.js v22.15.0

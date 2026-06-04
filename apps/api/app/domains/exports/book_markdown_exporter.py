@@ -291,9 +291,24 @@ def _top_quality_issues(chapters: list[dict[str, object]]) -> list[dict[str, obj
 def _manual_review_recommendations(chapters: list[dict[str, object]]) -> list[str]:
     recommendations: list[str] = []
     for issue in _top_quality_issues(chapters):
-        if str(issue.get("severity")) in {"?", "high", "critical"}:
-            recommendations.append(f"? {issue.get('chapter_index')} ????????{issue.get('dimension', '????')}")
+        if str(issue.get("severity")) in {"high", "critical"}:
+            chapter_index = issue.get("chapter_index")
+            dimension = _quality_dimension_label(str(issue.get("dimension") or "narrative_quality"))
+            summary = str(issue.get("summary") or issue.get("message") or "需要人工复核。").strip()
+            recommendations.append(f"第 {chapter_index} 章存在高严重度质量问题（{dimension}）：{summary}")
     return recommendations
+
+
+def _quality_dimension_label(dimension: str) -> str:
+    labels = {
+        "system_reliability": "系统可靠性",
+        "narrative_quality": "叙事质量",
+        "character_consistency": "人物一致性",
+        "world_consistency": "世界观一致性",
+        "timeline_consistency": "时间线一致性",
+        "style_consistency": "文风一致性",
+    }
+    return labels.get(dimension, dimension)
 
 
 def _manual_read_gate_projection(progress: dict[str, object]) -> dict[str, object] | None:

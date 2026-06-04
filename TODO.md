@@ -1,48 +1,55 @@
 # StoryForge 待办清单
 
-## 环境配置
+生成时间：2026-06-04 17:50:00 +08:00
 
-- 配置 `STORYFORGE_LLM_API_KEY`、`STORYFORGE_LLM_BASE_URL` 与 `STORYFORGE_LLM_MODEL`，供本地 workflow 和 Judge 使用真实模型。
-- 按部署环境设置 `STORYFORGE_API_KEY`，确保前端 Server Component 与 API 使用同一访问密钥。
-- 为 workflow checkpoint 配置 `STORYFORGE_WORKFLOW_SQLITE_PATH`，必要时后续迁移到官方 PostgreSQL 或 Redis saver。
+## Phase 9 当前执行入口
 
-## 后续改进
+StoryForge 当前处于 Phase 9 真实 LLM 长程验收准备阶段。Phase 9A、Phase 9B 本地控制面和 Phase 9C 本地增强项已有本地验证证据；真实 LLM 1 章、3 章与 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过最终验收；远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。
 
-- 持续收敛 Studio 页面模块边界，确保 `actions.tsx` 只保留 Server Action。
-- 在生成 OpenAPI 后同步更新 `packages/shared/src/index.ts` 的客户端类型。
-- 评估 Judge LLM provider 的生产观测字段，补充模型失败率和 fallback 命中率统计。
+## 当前事实边界
 
-## 本地验证
+- 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集。
+- 历史远端 `master` 定时 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
+- 修复分支 `codex/phase9-e2e-alembic` 的远端 `E2E` run `26941784868`（2026-06-04T08:59:00Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
+- 修复分支已非强制快进合入远端 `master`；最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
+- 本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 E2E 的 API verification 预检；在线 PostgreSQL 迁移已在隔离分支复验，临时库 `storyforge_phase9_e2e_submit_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0。
+- 真实 LLM 1 章 smoke 证据：`.codex/real-llm-1ch-20260603-142925`。
+- 真实 LLM 3 章 smoke 证据：`.codex/real-llm-3ch-20260603-173932`。
+- 真实 LLM 10 章 smoke 证据：`.codex/real-llm-10ch-20260604-110831`，最终门禁 `gate: pass_for_real_10ch_final_acceptance`，10 章 smoke 人工通读完成。
+- 真实 3-5 万字长程仍未完成。
 
-- `pnpm run test:web`
-- `pnpm run test:api`
-- `pnpm run test:workflow`
-- `pnpm run test`
-- `pnpm run verify`
+## 下一步优先级
 
-## 最近迭代记录
+1. 推进真实 3-5 万字短篇长程运行，沿用真实 LLM 长程包装脚本和脱敏证据校验边界。
+2. 对 3-5 万字长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对和人工通读。
+3. 长程通过后，同步 `README.md`、`current-phase.md`、`PROJECT_SUMMARY.md` 和 `.dev_plan.md` 的完成边界。
 
-### 2026-05-24 Phase 7 发布治理到闭环验证
+## 本地验证入口
 
-完成：
+常用本地门禁：`pnpm verify`、`pnpm e2e`、`pnpm test`、`pnpm openapi`。
 
-- 补齐 `.env.example` 本地默认项，新增 API Key、CORS、workflow SQLite 和 provider base URL 默认配置。
-- 更新 `docs/operations/` 启动、发布、故障与 Alembic 文档，明确 `pnpm e2e` 固定执行真实 FastAPI HTTP pytest，不再接受补偿验收替代。
-- 复验 Alembic 干净临时库从空库 `upgrade head` 到 `20260520_0001 (head)`。
-- 复验 workflow-to-api ModelRun adapter 与 API 真表写入测试。
-- 补强端到端冒烟测试，覆盖作品/章节/场景准备、Scene Packet、Judge、Repair、批准写回、导出和评测 run 详情读取。
+```powershell
+cd D:/StoryForge
+pnpm verify
+pnpm e2e
+pnpm test
+pnpm openapi
+```
 
-验证方式：
+真实 LLM smoke 入口只在私有运行时变量已设置时执行，不读取 `.env`，不把 provider 配置或 token 写入仓库：
 
-- `pnpm verify`：通过。
-- `uv run alembic upgrade head` + `uv run alembic current --check-heads`（临时库）：通过。
-- `pnpm openapi`：通过，Worldbuilding Center 生成物 diff 已解释。
-- `uv run pytest tests/test_worldbuilding_center.py tests/test_api_surface.py -q`：3 passed。
-- `uv run pytest tests/test_runtime_runner.py tests/test_generation_state_references.py -q`：9 passed。
-- `uv run pytest tests/test_model_runs.py -q`：10 passed。
-- `pnpm verify && pnpm e2e`：通过。
+```powershell
+cd D:/StoryForge/apps/api
+uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 --token-budget 8000
+uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
+```
 
-下一步建议：
+## 事实来源
 
-- 提交前确认 OpenAPI diff 与 Worldbuilding Center API 代码和测试一起提交。
-- 后续若接入真实外部 LLM，只在本地私有 `.env` 配置真实密钥，不写入仓库。
+- 当前状态以 `current-phase.md` 为准；TODO 只保留下一步执行入口，不作为完整项目总览或历史计划来源。
+- `README.md`
+- `current-phase.md`
+- `.dev_plan.md`
+- `PROJECT_SUMMARY.md`
+- `.codex/operations-log.md`
+- `.codex/verification-report.md`

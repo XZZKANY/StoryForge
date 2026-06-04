@@ -1,10 +1,12 @@
 # StoryForge 故障手册
 
-更新时间：2026-05-18 17:10:00 +08:00
+更新时间：2026-06-04 07:36:00 +08:00
 
 ## 1. 使用原则
 
 本文只记录当前仓库中已经出现或已经由脚本显式处理的故障场景。排查时先保留原始命令和输出，再按下列步骤缩小范围，避免把环境限制误判为功能缺陷。
+
+当前本地仓库路径为 `D:/StoryForge`。本文中的本地命令默认在 Windows PowerShell 中执行；如果使用其他 shell，先等价切换到相同目录。
 
 ## 2. Docker 或基础容器未运行
 
@@ -25,32 +27,68 @@ docker ps --filter "name=storyforge"
 ### 处理
 
 ```powershell
-cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
+cd D:/StoryForge
 docker compose up -d postgres redis minio
 pnpm verify
 ```
 
-如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。
+如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
 
-## 3. FastAPI HTTP pytest 失败
+## 3. FastAPI HTTP pytest 或 API verification 失败
 
 ### 现象
 
-- `pnpm e2e` 在真实 FastAPI HTTP pytest 阶段失败。
+- `pnpm e2e` 在 API verification 或真实 FastAPI HTTP pytest 阶段失败。
 - 直接运行某个 HTTP route pytest 返回非零退出码。
 
 ### 判断
 
-这是当前发布门禁红灯。根级 `scripts/run-e2e.mjs` 已固定执行真实 API HTTP pytest 目标，不再探测或切换到服务层补偿验收。
+这是发布门禁红灯。根级 `scripts/run-e2e.mjs` 会执行真实 API HTTP pytest 与 API verification，不得探测失败后改写为服务层补偿验收。
 
 ### 处理
 
 - 不要删除 HTTP route 测试文件，也不要把失败改写为补偿通过。
-- 在 `apps/api` 下复跑失败目标，例如 `uv run pytest tests/test_model_runs.py -q`。
-- 根据失败信息修复 API router、service、schema、测试夹具或 OpenAPI 契约。
+- 在 `apps/api` 下复跑失败目标，例如 `uv run pytest tests/test_model_runs.py -q` 或日志中点名的具体测试。
+- 根据失败信息修复 API router、service、schema、测试夹具、Alembic 迁移或 OpenAPI 契约。
 - 修复后回到仓库根重新运行 `pnpm e2e`。
 
-## 4. OpenAPI 刷新失败
+## 4. Alembic 多 head 曾导致远端 E2E 失败
+
+### 现象
+
+- 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）失败。
+- 失败点为 `uv run alembic upgrade head`。
+- 错误包含 Alembic `Multiple head revisions`。
+
+### 判断
+
+这是 Phase 9 远端 E2E 的历史失败边界。本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 `pnpm e2e` 的 API verification 预检，用于验证 Alembic 单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0，验证后已删除。修复已合入 `master`，最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z）已通过。
+
+该状态不能替代真实 10 章或 3-5 万字长程验收。
+
+### 排查
+
+```powershell
+cd D:/StoryForge/apps/api
+uv run pytest tests/test_alembic_heads.py -q
+uv run alembic heads --verbose
+```
+
+如需核对远端失败日志：
+
+```powershell
+gh run list --repo XZZKANY/StoryForge --workflow E2E --limit 5
+gh run view 26915457170 --repo XZZKANY/StoryForge --log-failed
+```
+
+### 处理
+
+1. 确认本地迁移图只剩一个 Alembic head。
+2. 确认 `tests/test_alembic_heads.py` 在本地通过，并保留在 `pnpm e2e` 的 API verification 中。
+3. 确认包含 `20260604_0001` 的提交进入远端分支后，再重新运行远端 E2E。
+4. 若未来远端 E2E 再次失败，所有计划、README、TODO、故障手册和验证报告都必须记录新的失败 run、提交和失败步骤。
+
+## 5. OpenAPI 刷新失败
 
 ### 现象
 
@@ -61,7 +99,7 @@ pnpm verify
 ### 排查
 
 ```powershell
-pnpm run test:api
+cd D:/StoryForge
 pnpm openapi
 git diff -- packages/shared/src/contracts/storyforge.openapi.json
 ```
@@ -76,25 +114,25 @@ git diff -- packages/shared/src/contracts/storyforge.openapi.json
 
 OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 
-## 5. Provider、embedding 或 reranker 未配置
+## 6. Provider、embedding 或 reranker 未配置
 
 ### 现象
 
-- Phase 5 真实 AI/RAG 接入前，系统仍使用 deterministic provider、假 embedding 或关键词检索路径。
-- `.env.example` 已提供 `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*` 变量；Provider Gateway 会读取 LLM、embedding、reranker 变量，并在缺少真实密钥时回退。
+- 真实 LLM、embedding 或 reranker 私有变量未在当前进程中提供。
+- Phase 9 真实 LLM smoke 以外的本地启动仍使用 deterministic provider、本地 embedding 或禁用 reranker 路径。
 
 ### 判断
 
-这是当前路线中的已知降级路径，不是 Phase 1 到 Phase 4 的回归缺陷。样例变量已绑定到 Provider Gateway 运行时配置，但未配置真实密钥时会回退到本地默认实现；这不代表真实外部 provider、embedding 或 reranker 已经端到端接入。
+这是本地开发与验证的已知降级路径，不是基础功能回归。真实 provider token、API key、secret 或 password 只能存在于本机私有运行时环境，不得写入仓库、日志、验证报告或截图。
 
 ### 处理
 
 - 当前阶段不要把真实 provider 调用作为本地启动前置条件。
 - 本地保持 `STORYFORGE_LLM_PROVIDER=deterministic`、`STORYFORGE_EMBEDDING_PROVIDER=local`、`STORYFORGE_RERANKER_PROVIDER=disabled`。
 - 调整这些变量后，优先运行 Provider Gateway、Embedding、Reranker 相关本地测试；真实外部密钥不可用时只接受回退路径验证。
-- 文档中不得承诺未接入的真实 AI/RAG 能力已经可用。
+- 真实 LLM smoke 只依据脱敏证据目录记录结果，不能输出 provider token。
 
-## 6. `pnpm verify` 失败
+## 7. `pnpm verify` 失败
 
 ### 现象
 
@@ -105,6 +143,7 @@ OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 ### 排查
 
 ```powershell
+cd D:/StoryForge
 pnpm verify
 node --version
 pnpm --version
@@ -119,7 +158,7 @@ docker compose ps
 - 容器缺失：执行 `docker compose up -d postgres redis minio` 后重试。
 - 若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
 
-## 7. Git 工作区不干净
+## 8. Git 工作区不干净
 
 ### 现象
 
@@ -129,6 +168,7 @@ docker compose ps
 ### 处理
 
 ```powershell
+cd D:/StoryForge
 git status --short --branch
 git diff --stat
 git diff

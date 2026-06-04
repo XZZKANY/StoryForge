@@ -1,0 +1,12 @@
+{
+  "book_run_id": 1,
+  "book_run_status": "completed",
+  "current_chapter_index": 10,
+  "chapter_count": 10,
+  "markdown_artifact_id": 1,
+  "markdown_artifact_name": "book.md",
+  "audit_artifact_id": 2,
+  "audit_artifact_name": "audit_report.json",
+  "body_word_count": 30600,
+  "mode": "deterministic/mock"
+}

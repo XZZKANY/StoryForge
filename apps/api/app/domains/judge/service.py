@@ -435,13 +435,13 @@ def semantic_judge_with_status(
     try:
         with httpx.Client(timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or os.getenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "300"))) as client:
             response = client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
+                _chat_completions_url(base_url),
                 json=request_payload,
                 headers={"Authorization": f"Bearer {api_key}"},
             )
             data = response.json()
         raw_content = data["choices"][0]["message"]["content"]
-        decoded = json.loads(raw_content)
+        decoded = _decode_semantic_judge_content(str(raw_content))
     except Exception as exc:
         log.warning("semantic_judge_failed", error=str(exc), model=model)
         _judge_llm_errors_total.inc()
@@ -453,6 +453,72 @@ def semantic_judge_with_status(
     if len(valid_items) < len(decoded):
         log.warning("semantic_judge_filtered_items", dropped=len(decoded) - len(valid_items))
     return SemanticJudgeOutcome(issues=_issues_from_provider_items(valid_items, payload.content), failed=False)
+
+
+def _decode_semantic_judge_content(raw_content: str) -> object:
+    """从模型响应中提取 JSON，兼容纯 JSON、代码块和前后说明文本。"""
+
+    stripped = raw_content.strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+    fenced = _strip_json_markdown_fence(stripped)
+    if fenced != stripped:
+        try:
+            return json.loads(fenced)
+        except json.JSONDecodeError:
+            pass
+    array_fragment = _first_json_array_fragment(stripped)
+    if array_fragment is not None:
+        return json.loads(array_fragment)
+    return json.loads(stripped)
+
+
+def _chat_completions_url(base_url: str) -> str:
+    """规范化 OpenAI 兼容 Base URL，避免运行时空白污染请求路径。"""
+
+    return f"{base_url.strip().rstrip('/')}/chat/completions"
+
+
+def _strip_json_markdown_fence(content: str) -> str:
+    """去掉模型常见的 ```json 包裹，保留内部 JSON 文本。"""
+
+    lines = content.splitlines()
+    if len(lines) >= 2 and lines[0].strip().lower() in {"```json", "```"} and lines[-1].strip() == "```":
+        return "\n".join(lines[1:-1]).strip()
+    return content
+
+
+def _first_json_array_fragment(content: str) -> str | None:
+    """提取文本中的第一个 JSON 数组片段，支持字符串内括号转义。"""
+
+    start = content.find("[")
+    if start < 0:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(content)):
+        char = content[index]
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                return content[start : index + 1]
+    return None
 
 
 def _issues_from_provider_items(items: Sequence[dict[str, object] | DetectedIssue], content: str) -> list[DetectedIssue]:

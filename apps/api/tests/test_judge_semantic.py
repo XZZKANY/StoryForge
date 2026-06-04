@@ -7,7 +7,7 @@ from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.judge import service as judge_service
 from app.domains.judge.schemas import JudgeIssueCreate
-from app.domains.judge.service import DetectedIssue, semantic_judge
+from app.domains.judge.service import DetectedIssue, semantic_judge, semantic_judge_with_status
 
 
 def test_judge_detects_location_fact_conflict(client: TestClient, session: Session) -> None:
@@ -170,3 +170,110 @@ def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None
     assert "JSON" in system_message["content"]
     assert "character_voice_violation" in system_message["content"]
     assert "地点：灯塔港" in str(request_json["messages"][1]["content"])
+
+
+def test_semantic_judge_parses_markdown_fenced_json_without_degradation(monkeypatch) -> None:
+    """真实模型把 JSON 包在 markdown 代码块中时，Judge 不应降级。"""
+
+    payload = JudgeIssueCreate(
+        scene_id=1,
+        scene_packet_id=None,
+        content="林岚确认地点：荒原城，随后开始寻找失真的灯塔信号。",
+        required_facts=["地点：灯塔港"],
+        style_rules=["克制"],
+        evidence_links=[],
+    )
+
+    class FakeResponse:
+        def json(self) -> dict[str, object]:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "```json\n"
+                                "[{\"category\":\"setting_conflict\",\"severity\":\"high\","
+                                "\"span_start\":4,\"span_end\":10,\"summary\":\"模型识别地点冲突。\","
+                                "\"expected_text\":\"地点：灯塔港\",\"replacement_text\":\"地点：灯塔港\","
+                                "\"matched_text\":\"地点：荒原城\"}]\n"
+                                "```"
+                            )
+                        }
+                    }
+                ]
+            }
+
+    class FakeClient:
+        def __init__(self, *, timeout: float) -> None:
+            self.timeout = timeout
+
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
+            return FakeResponse()
+
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://llm.example/v1/")
+    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
+
+    outcome = semantic_judge_with_status(payload)
+
+    assert outcome.failed is False
+    assert outcome.issues == [
+        DetectedIssue(
+            category="setting_conflict",
+            severity="high",
+            span_start=4,
+            span_end=10,
+            summary="模型识别地点冲突。",
+            recommended_repair_mode="replace_span",
+            expected_text="地点：灯塔港",
+            replacement_text="地点：灯塔港",
+            matched_text="地点：荒原城",
+        )
+    ]
+
+
+def test_semantic_judge_normalizes_base_url_before_request(monkeypatch) -> None:
+    """运行时 Base URL 含空白时，Judge 应清洗后再拼接 chat/completions。"""
+
+    captured: dict[str, str] = {}
+    payload = JudgeIssueCreate(
+        scene_id=1,
+        scene_packet_id=None,
+        content="林岚确认地点：灯塔港。",
+        required_facts=["地点：灯塔港"],
+        style_rules=[],
+        evidence_links=[],
+    )
+
+    class FakeResponse:
+        def json(self) -> dict[str, object]:
+            return {"choices": [{"message": {"content": "[]"}}]}
+
+    class FakeClient:
+        def __init__(self, *, timeout: float) -> None:
+            self.timeout = timeout
+
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
+            captured["url"] = url
+            return FakeResponse()
+
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://llm.example/v1 \n")
+    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
+
+    outcome = semantic_judge_with_status(payload)
+
+    assert outcome.failed is False
+    assert captured["url"] == "https://llm.example/v1/chat/completions"

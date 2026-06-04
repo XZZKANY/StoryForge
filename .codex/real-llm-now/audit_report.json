@@ -1,0 +1,148 @@
+{
+  "book_run_id": 1,
+  "blueprint_id": 1,
+  "chapters": [
+    {
+      "chapter_index": 1,
+      "model_run_id": 1,
+      "judge_report_id": 1,
+      "repair_patch_id": null,
+      "repair_patch_ids": [],
+      "repair_rounds": 0,
+      "approved_scene_id": 1,
+      "token_usage": 5360,
+      "elapsed_time_sec": 46,
+      "cost_estimate": 0.0,
+      "quality_score": 100,
+      "quality_issues": []
+    }
+  ],
+  "quality_summary": {
+    "average_score": 100.0,
+    "scored_chapter_count": 1,
+    "issue_count": 0,
+    "status": "ok"
+  },
+  "chapter_quality_scores": [
+    {
+      "chapter_index": 1,
+      "quality_score": 100
+    }
+  ],
+  "top_quality_issues": [],
+  "manual_review_recommendations": [],
+  "skill_chain": {
+    "schema_version": "bookrun_skill_projection.v2",
+    "book_run_id": 1,
+    "status": "completed",
+    "events": [
+      {
+        "event_name": "skill.post",
+        "skill_name": "generate",
+        "skill_version": "1.0.0",
+        "stage": "chapter",
+        "status": "generated",
+        "provenance": "reconstructed_from_progress",
+        "recorded": false,
+        "input_refs": {
+          "chapter_index": 1
+        },
+        "output_refs": {
+          "model_run_id": 1
+        },
+        "metadata": {
+          "token_usage": 5360,
+          "elapsed_time_sec": 46,
+          "cost_estimate": 0.0
+        }
+      },
+      {
+        "event_name": "skill.post",
+        "skill_name": "judge",
+        "skill_version": "1.0.0",
+        "stage": "chapter",
+        "status": "pass",
+        "provenance": "reconstructed_from_progress",
+        "recorded": false,
+        "input_refs": {
+          "chapter_index": 1
+        },
+        "output_refs": {
+          "judge_report_id": 1,
+          "repair_patch_id": null
+        },
+        "metadata": {}
+      },
+      {
+        "event_name": "skill.post",
+        "skill_name": "approve",
+        "skill_version": "1.0.0",
+        "stage": "chapter",
+        "status": "approved",
+        "provenance": "reconstructed_from_progress",
+        "recorded": false,
+        "input_refs": {
+          "chapter_index": 1
+        },
+        "output_refs": {
+          "approved_scene_id": 1
+        },
+        "metadata": {}
+      },
+      {
+        "event_name": "skill.post",
+        "skill_name": "memory_extract",
+        "skill_version": "1.0.0",
+        "stage": "chapter",
+        "status": "memory_extract_skipped",
+        "provenance": "reconstructed_from_progress",
+        "recorded": false,
+        "input_refs": {
+          "chapter_index": 1
+        },
+        "output_refs": {
+          "memory_atom_ids": []
+        },
+        "metadata": {}
+      },
+      {
+        "event_name": "skill.post",
+        "skill_name": "export",
+        "skill_version": "1.0.0",
+        "stage": "book",
+        "status": "completed",
+        "provenance": "reconstructed_from_progress",
+        "recorded": false,
+        "input_refs": {
+          "book_run_id": 1,
+          "checkpoint_count": 0
+        },
+        "output_refs": {
+          "book_artifact_ref": "book_run:1:export",
+          "checkpoint_count": 0
+        },
+        "metadata": {
+          "budget": {
+            "tokens_used": 5360,
+            "elapsed_time_sec": 46,
+            "estimated_cost": 0.0
+          }
+        }
+      }
+    ],
+    "summary": {
+      "event_count": 5,
+      "recorded_event_count": 0,
+      "reconstructed_event_count": 5,
+      "evidence_basis": "reconstructed",
+      "completed_chapter_count": 1,
+      "blocked_chapter_index": null,
+      "provider_degradation": null,
+      "budget": {
+        "tokens_used": 5360,
+        "elapsed_time_sec": 46,
+        "estimated_cost": 0.0
+      }
+    }
+  }
+}

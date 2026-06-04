@@ -1,0 +1,26 @@
+{
+  "mode": "real_llm_smoke",
+  "generated_at": "2026-06-03 16:35:15 +0800",
+  "output_directory": "D:\\StoryForge\\.codex\\real-llm-3ch-20260603-163412",
+  "runner_exit_code": 1,
+  "summary_present": false,
+  "sensitive_hit_count": 0,
+  "redacted_parameters": {
+    "provider_protocol": "openai-compatible",
+    "model": "mimo-v2.5-pro",
+    "chapter_count": 3,
+    "token_budget": 60000,
+    "target_word_count": 2700,
+    "chapter_word_count_min": 600,
+    "chapter_word_count_max": 1600,
+    "timeout_seconds": 60,
+    "time_budget_seconds": 900,
+    "database_mode": "ephemeral_sqlite"
+  },
+  "files": {
+    "summary_json": "D:\\StoryForge\\.codex\\real-llm-3ch-20260603-163412\\summary.json",
+    "stdout_json": "D:\\StoryForge\\.codex\\real-llm-3ch-20260603-163412\\stdout.json",
+    "stderr_log": "D:\\StoryForge\\.codex\\real-llm-3ch-20260603-163412\\stderr.log"
+  },
+  "elapsed_time_sec": 62
+}

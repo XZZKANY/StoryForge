@@ -1,0 +1,54 @@
+﻿{
+    "mode":  "real_llm_smoke",
+    "generated_at":  "2026-06-03 15:15:28 +08:00",
+    "output_directory":  "D:\\StoryForge\\.codex\\real-llm-1ch-20260603-142925",
+    "runner_exit_code":  0,
+    "summary_present":  true,
+    "sensitive_hit_count":  0,
+    "redacted_parameters":  {
+                                "provider_protocol":  "openai-compatible",
+                                "model":  "mimo-v2.5",
+                                "chapter_count":  1,
+                                "token_budget":  20000,
+                                "target_word_count":  900,
+                                "chapter_word_count_min":  600,
+                                "chapter_word_count_max":  1600,
+                                "timeout_seconds":  60,
+                                "time_budget_seconds":  900,
+                                "database_mode":  "ephemeral_sqlite"
+                            },
+    "files":  {
+                  "summary_json":  "D:\\StoryForge\\.codex\\real-llm-1ch-20260603-142925\\summary.json",
+                  "stdout_json":  "D:\\StoryForge\\.codex\\real-llm-1ch-20260603-142925\\stdout.json",
+                  "stderr_log":  "D:\\StoryForge\\.codex\\real-llm-1ch-20260603-142925\\stderr.log",
+                  "sqlite_database":  "D:\\StoryForge\\.codex\\real-llm-1ch-20260603-142925\\smoke.sqlite3"
+              },
+    "summary":  {
+                    "book_run_id":  1,
+                    "book_run_status":  "completed",
+                    "target_chapter_count":  1,
+                    "actual_chapter_count":  1,
+                    "target_word_count":  900,
+                    "tokens_used":  3047,
+                    "estimated_cost":  0.0,
+                    "actual_total_chars":  2364,
+                    "markdown_artifact_id":  1,
+                    "audit_artifact_id":  2,
+                    "per_chapter_char_counts":  [
+                                                    {
+                                                        "chapter_index":  1,
+                                                        "char_count":  2242
+                                                    }
+                                                ],
+                    "per_chapter_metrics":  [
+                                                {
+                                                    "chapter_index":  1,
+                                                    "token_usage":  3047,
+                                                    "quality_score":  100,
+                                                    "quality_issue_count":  0,
+                                                    "elapsed_time_sec":  66,
+                                                    "repair_rounds":  0
+                                                }
+                                            ]
+                }
+}

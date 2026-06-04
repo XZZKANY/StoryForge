@@ -324,6 +324,24 @@ test('Phase 6 发布前门禁覆盖 Runtime 诊断链路', () => {
   ]);
 });
 
+test('Phase 9 本地 E2E API verification 覆盖 Alembic 迁移预检', () => {
+  const requiredApiTarget = 'tests/test_alembic_heads.py';
+  const apiTargetsStart = gateSources.e2e.indexOf('const httpPytestTargets = [');
+  const workflowTargetsStart = gateSources.e2e.indexOf('const workflowPytestTargets = [');
+  const alembicTargetIndex = gateSources.e2e.indexOf(requiredApiTarget);
+
+  assert.notEqual(apiTargetsStart, -1, 'pnpm e2e 应声明 API pytest 目标清单');
+  assert.notEqual(workflowTargetsStart, -1, 'pnpm e2e 应声明 workflow pytest 目标清单');
+  assert.ok(
+    alembicTargetIndex > apiTargetsStart && alembicTargetIndex < workflowTargetsStart,
+    `pnpm e2e API verification 未纳入 Alembic 迁移预检目标：${requiredApiTarget}`,
+  );
+  assertSourceEvidence(gateSources.e2e, [
+    'Running API verification',
+    "['-m', 'pytest', ...httpPytestTargets, '-q']",
+  ]);
+});
+
 test('Phase 7 Runtime OpenAPI、API schema、Web 字段与 e2e 声明保持一致', () => {
   const liveOpenApi = runApiPythonJson(`
 import json

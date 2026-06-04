@@ -1,0 +1,35 @@
+{
+  "mode": "real_llm_smoke",
+  "book_run_id": 1,
+  "book_run_status": "completed",
+  "target_chapter_count": 1,
+  "actual_chapter_count": 1,
+  "target_word_count": 900,
+  "chapter_word_count_min": 600,
+  "chapter_word_count_max": 1600,
+  "tokens_used": 3047,
+  "estimated_cost": 0.0,
+  "actual_total_chars": 2364,
+  "per_chapter_char_counts": [
+    {
+      "chapter_index": 1,
+      "char_count": 2242
+    }
+  ],
+  "markdown_artifact_id": 1,
+  "audit_artifact_id": 2,
+  "artifact_hashes": {
+    "book_md_sha256": "1d8e3d797ee73ddc9ae302bec5c92ba6691248288c908d704febbae999ec80d3",
+    "audit_report_sha256": "32bc3b47123b484e7ebe16e76a87c4fd3d2107407c037c7c725e88f9e3b4e22d"
+  },
+  "per_chapter_metrics": [
+    {
+      "chapter_index": 1,
+      "token_usage": 3047,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 66,
+      "repair_rounds": 0
+    }
+  ]
+}

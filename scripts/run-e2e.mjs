@@ -13,6 +13,7 @@ const defaultTests = [
   'tests/e2e/ide-judge-repair.spec.ts',
 ];
 const httpPytestTargets = [
+  'tests/test_alembic_heads.py',
   'tests/test_phase1_closed_loop_api.py',
   'tests/test_series_memory.py',
   'tests/test_worldbuilding_center.py',

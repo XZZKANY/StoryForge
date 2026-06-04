@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TextIO
 from urllib import request
 
@@ -55,6 +58,7 @@ REQUIRED_REAL_LLM_ENV = (
 
 REPAIR_THRESHOLD = 70
 MAX_REPAIR_ROUNDS = 3
+MARKDOWN_CHAPTER_HEADING_RE = re.compile(r"^##\s+第\s*(\d+)\s*章\b")
 
 
 class Phase9BRealLlmSmokePreflightError(RuntimeError):
@@ -798,6 +802,7 @@ def main(
     parser.add_argument("--target-word-count", type=int, default=None)
     parser.add_argument("--chapter-word-count-min", type=int, default=600)
     parser.add_argument("--chapter-word-count-max", type=int, default=1600)
+    parser.add_argument("--summary-output", type=str, default=None)
     args = parser.parse_args(argv)
     out = sys.stdout if output is None else output
     err = sys.stderr if error is None else error
@@ -835,7 +840,18 @@ def main(
     except Exception as exc:
         print(f"Phase 9B 真实 LLM 冒烟失败：{exc}", file=err)
         return 1
-    print(json.dumps(_result_summary(result), ensure_ascii=False), file=out)
+    summary = _result_summary(result)
+    if args.summary_output:
+        evidence_summary = _evidence_summary(
+            result,
+            target_word_count=args.target_word_count,
+            chapter_word_count_min=args.chapter_word_count_min,
+            chapter_word_count_max=args.chapter_word_count_max,
+        )
+        summary_path = Path(args.summary_output)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps(evidence_summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(summary, ensure_ascii=False), file=out)
     return 0
 
 
@@ -853,6 +869,119 @@ def _result_summary(result: object) -> dict[str, object]:
         "markdown_artifact_name": markdown_artifact.name,
         "audit_artifact_id": audit_artifact.id,
         "audit_artifact_name": audit_artifact.name,
+    }
+
+
+def _evidence_summary(
+    result: object,
+    *,
+    target_word_count: int | None,
+    chapter_word_count_min: int,
+    chapter_word_count_max: int,
+) -> dict[str, object]:
+    """生成不包含 provider 私密配置的脱敏证据摘要。"""
+
+    book_run = result.book_run
+    markdown_artifact = result.markdown_artifact
+    audit_artifact = result.audit_artifact
+    progress = getattr(book_run, "progress", None)
+    progress = progress if isinstance(progress, dict) else {}
+    completed_chapters = progress.get("completed_chapters")
+    completed_chapters = completed_chapters if isinstance(completed_chapters, list) else []
+    book_md_content = _artifact_text(markdown_artifact)
+    return {
+        "mode": "real_llm_smoke",
+        "book_run_id": book_run.id,
+        "book_run_status": book_run.status,
+        "target_chapter_count": result.chapter_count,
+        "actual_chapter_count": len(completed_chapters) or result.chapter_count,
+        "target_word_count": target_word_count,
+        "chapter_word_count_min": chapter_word_count_min,
+        "chapter_word_count_max": chapter_word_count_max,
+        "tokens_used": book_run.tokens_used,
+        "estimated_cost": book_run.estimated_cost,
+        "actual_total_chars": len(book_md_content),
+        "per_chapter_char_counts": _per_chapter_char_counts(book_md_content, completed_chapters),
+        "markdown_artifact_id": markdown_artifact.id,
+        "audit_artifact_id": audit_artifact.id,
+        "artifact_hashes": {
+            "book_md_sha256": _artifact_payload_sha256(markdown_artifact),
+            "audit_report_sha256": _artifact_payload_sha256(audit_artifact),
+        },
+        "per_chapter_metrics": [_chapter_metric(item) for item in completed_chapters],
+    }
+
+
+def _artifact_payload_sha256(artifact: object) -> str:
+    source = _artifact_text(artifact)
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def _artifact_text(artifact: object) -> str:
+    payload = getattr(artifact, "payload", None)
+    if isinstance(payload, dict) and isinstance(payload.get("content"), str):
+        return payload["content"]
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _per_chapter_char_counts(book_md_content: str, completed_chapters: list[object]) -> list[dict[str, int | None]]:
+    chapters = [_chapter_index(item, index + 1) for index, item in enumerate(completed_chapters)]
+    if len(chapters) <= 1:
+        return [{"chapter_index": chapters[0] if chapters else 1, "char_count": _body_char_count(book_md_content)}]
+    parsed_counts = _markdown_chapter_body_char_counts(book_md_content)
+    return [
+        {"chapter_index": chapter_index, "char_count": parsed_counts.get(chapter_index, 0)}
+        for chapter_index in chapters
+    ]
+
+
+def _markdown_chapter_body_char_counts(content: str) -> dict[int, int]:
+    counts: dict[int, int] = {}
+    current_chapter: int | None = None
+    for line in content.splitlines():
+        heading_match = MARKDOWN_CHAPTER_HEADING_RE.match(line.strip())
+        if heading_match:
+            current_chapter = int(heading_match.group(1))
+            counts.setdefault(current_chapter, 0)
+            continue
+        if current_chapter is None or not line.strip() or line.lstrip().startswith("#"):
+            continue
+        counts[current_chapter] = counts.get(current_chapter, 0) + len(line)
+    return counts
+
+
+def _chapter_index(item: object, fallback: int) -> int:
+    if isinstance(item, dict) and isinstance(item.get("chapter_index"), int):
+        return int(item["chapter_index"])
+    return fallback
+
+
+def _body_char_count(content: str) -> int:
+    lines = content.splitlines()
+    body_lines = [line for line in lines if line.strip() and not line.lstrip().startswith("#")]
+    body = "".join(body_lines) if body_lines else content
+    return len(body)
+
+
+def _chapter_metric(item: object) -> dict[str, object]:
+    if not isinstance(item, dict):
+        return {
+            "chapter_index": None,
+            "token_usage": 0,
+            "quality_score": None,
+            "quality_issue_count": 0,
+            "elapsed_time_sec": 0,
+            "repair_rounds": 0,
+        }
+    issues = item.get("quality_issues")
+    issue_count = len(issues) if isinstance(issues, list) else 0
+    return {
+        "chapter_index": item.get("chapter_index"),
+        "token_usage": item.get("token_usage", 0),
+        "quality_score": item.get("quality_score"),
+        "quality_issue_count": issue_count,
+        "elapsed_time_sec": item.get("elapsed_time_sec", 0),
+        "repair_rounds": item.get("repair_rounds", 0),
     }
 
 

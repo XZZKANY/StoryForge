@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+VALIDATOR_PATH = REPO_ROOT / ".codex" / "validate-real-llm-long-evidence.ps1"
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _write_minimal_long_evidence(
+    run_dir: Path,
+    *,
+    markdown_artifact_id: str | None = "artifact-book-md",
+    audit_artifact_id: str | None = "artifact-audit-json",
+    summary_present: bool = True,
+) -> None:
+    run_dir.mkdir()
+    summary: dict[str, object] = {
+        "book_run_id": 101,
+        "book_run_status": "completed",
+        "target_chapter_count": 10,
+        "actual_chapter_count": 10,
+        "tokens_used": 120000,
+        "estimated_cost": 1.23,
+        "actual_total_chars": 36000,
+        "markdown_artifact_id": markdown_artifact_id,
+        "audit_artifact_id": audit_artifact_id,
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "audit_report_sha256": "audit-hash",
+        },
+        "per_chapter_metrics": [
+            {"chapter_index": index, "quality_score": 95, "quality_issue_count": 0}
+            for index in range(1, 11)
+        ],
+    }
+    metadata = {
+        "runner_exit_code": 0,
+        "summary_present": summary_present,
+        "sensitive_hit_count": 0,
+        "redacted_parameters": {
+            "chapter_count": 10,
+            "target_word_count": 9000,
+            "token_budget": 200000,
+            "timeout_seconds": 300,
+            "time_budget_seconds": 4200,
+            "outer_timeout_seconds": 4800,
+        },
+    }
+    _write_json(run_dir / "summary.json", summary)
+    _write_json(run_dir / "run-metadata.json", metadata)
+    (run_dir / "quality-risk.md").write_text("脱敏质量风险记录", encoding="utf-8")
+    (run_dir / "human-readthrough-todo.md").write_text("人工通读待办", encoding="utf-8")
+    (run_dir / "book.md").write_text("脱敏正文", encoding="utf-8")
+    _write_json(run_dir / "audit_report.json", {"status": "ok"})
+    _write_json(run_dir / "stdout.json", {"status": "ok"})
+    (run_dir / "stderr.log").write_text("", encoding="utf-8")
+
+
+def _run_validator(run_dir: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(VALIDATOR_PATH),
+            "-RunDirectory",
+            str(run_dir),
+            *extra_args,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_long_evidence_validator_rejects_missing_artifact_ids(tmp_path: Path) -> None:
+    """长程证据缺少导出 artifact ID 时，验证器必须失败。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, markdown_artifact_id="", audit_artifact_id=None)
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少 markdown_artifact_id" in result.stdout
+    assert "failure: 缺少 audit_artifact_id" in result.stdout
+
+
+def test_long_evidence_validator_rejects_metadata_summary_present_false(
+    tmp_path: Path,
+) -> None:
+    """metadata 标记 summary 缺失时，即使文件存在也必须拒绝。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, summary_present=False)
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 1
+    assert "summary_present: False" in result.stdout
+    assert "gate: fail" in result.stdout
+    assert "failure: run-metadata.json 标记 summary_present=false" in result.stdout
+
+
+def test_long_evidence_validator_accepts_complete_minimal_evidence(tmp_path: Path) -> None:
+    """长程证据具备完整 artifact ID 和质量门禁时，验证器允许当前 10 章范围通过。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir)
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 0
+    assert "markdown_artifact_id: artifact-book-md" in result.stdout
+    assert "audit_artifact_id: artifact-audit-json" in result.stdout
+    assert "quality_issue_count_total: 0" in result.stdout
+    assert "gate: pass_for_real_10ch_scope" in result.stdout
+
+
+def test_long_evidence_validator_requires_manual_readthrough_for_final_acceptance(tmp_path: Path) -> None:
+    """最终验收模式必须要求独立人工通读完成证据。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir)
+
+    result = _run_validator(run_dir, "-RequireManualReadthrough")
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少 manual-readthrough-completion.md" in result.stdout
+
+
+def test_long_evidence_validator_accepts_final_acceptance_with_manual_readthrough(tmp_path: Path) -> None:
+    """最终验收模式在人工通读通过后输出独立最终 gate。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir)
+    (run_dir / "manual-readthrough-completion.md").write_text(
+        "# 真实 LLM 10 章 smoke 人工通读完成记录\n\n"
+        "- 通读人：Codex\n"
+        "- 结论：通过 10 章 smoke 人工通读，未发现明显人物、世界观或时间线矛盾。\n",
+        encoding="utf-8",
+    )
+
+    result = _run_validator(run_dir, "-RequireManualReadthrough")
+
+    assert result.returncode == 0
+    assert "manual-readthrough-completion.md: present" in result.stdout
+    assert "gate: pass_for_real_10ch_final_acceptance" in result.stdout
+    assert "gate: pass_for_real_10ch_scope" not in result.stdout

@@ -43,6 +43,10 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
+        assert report["manual_review_recommendations"] == [
+            "第 1 章存在高严重度质量问题（系统可靠性）：需人工复核。"
+        ]
+        assert "??" not in str(report["manual_review_recommendations"])
         assert report["manual_read_gate"] == {
             "status": "passed",
             "reviewer": "人工通读验收",
@@ -211,7 +215,15 @@ def _seed_completed_book_run(
             "repair_patch_id": None,
             "approved_scene_id": scene.id,
             "quality_score": 88 + index,
-            "quality_issues": [{"dimension": "??", "severity": "?", "message": "????"}] if index == 1 else [],
+            "quality_issues": [
+                {
+                    "dimension": "system_reliability",
+                    "severity": "high",
+                    "summary": "需人工复核。",
+                }
+            ]
+            if index == 1
+            else [],
         }
         if index == 1 and skill_runs is not None:
             normalized_runs = []

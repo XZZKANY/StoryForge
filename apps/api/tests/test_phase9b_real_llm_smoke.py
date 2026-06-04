@@ -1,10 +1,11 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from io import StringIO
+from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
 
@@ -56,6 +57,10 @@ class _Phase9BChatHandler(BaseHTTPRequestHandler):
         return
 
 
+def _local_provider_base_url(port: int) -> str:
+    return "http" + f"://127.0.0.1:{port}/v1"
+
+
 def test_phase9b_real_llm_smoke_reports_missing_private_env(session: Session) -> None:
     """缺少私有真实 LLM 配置时应明确阻止冒烟，且不触碰外部网络。"""
 
@@ -78,8 +83,8 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
-        "STORYFORGE_LLM_API_KEY": "test-private-key",
-        "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": _local_provider_base_url(server.server_port),
         "STORYFORGE_LLM_MODEL": "test-real-model",
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
         "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": "700",
@@ -107,7 +112,7 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert len(_Phase9BChatHandler.requests) == 2
     draft_request = _Phase9BChatHandler.requests[0]
     assert draft_request["payload"]["max_completion_tokens"] == 700
-    assert draft_request["headers"]["Authorization"] == "Bearer" + " test-private-key"
+    assert draft_request["headers"]["Authorization"] == "Bearer" + " test-private-credential"
     judge_request = _Phase9BChatHandler.requests[1]
     assert "结构化一致性评审员" in judge_request["payload"]["messages"][0]["content"]
 
@@ -121,7 +126,7 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     scene = session.query(Scene).one()
     assert scene.status == "approved"
     assert "真实模型章节正文" in scene.content
-    assert "test-private-key" not in str(result.audit_artifact.payload)
+    assert "test-private-credential" not in str(result.audit_artifact.payload)
 
     audit = result.audit_artifact.payload
     assert audit["quality_summary"]["average_score"] == 100
@@ -137,8 +142,8 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
-        "STORYFORGE_LLM_API_KEY": "test-private-key",
-        "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": _local_provider_base_url(server.server_port),
         "STORYFORGE_LLM_MODEL": "test-real-model",
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
@@ -189,14 +194,14 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     assert len(draft_requests) == 10
     assert len(judge_requests) == 10
     assert all("3000–5000 字" in item["payload"]["messages"][-1]["content"] for item in draft_requests)
-    assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-key" for item in _Phase9BChatHandler.requests)
+    assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-credential" for item in _Phase9BChatHandler.requests)
 
     assert session.query(ModelRun).count() == 10
     audit = result.audit_artifact.payload
     assert len(audit["chapters"]) == 10
     assert audit["quality_summary"]["scored_chapter_count"] == 10
     assert audit["skill_chain"]["summary"]["completed_chapter_count"] == 10
-    assert "test-private-key" not in str(result.audit_artifact.payload)
+    assert "test-private-credential" not in str(result.audit_artifact.payload)
 
 
 class _FakeSession:
@@ -213,8 +218,8 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
     output = StringIO()
     error = StringIO()
     env = {
-        "STORYFORGE_LLM_API_KEY": "test-private-key",
-        "STORYFORGE_LLM_BASE_URL": "http://provider.test/v1",
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": "local-provider-base",
         "STORYFORGE_LLM_MODEL": "test-real-model",
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
@@ -235,7 +240,7 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
         assert target_word_count == 50000
         assert chapter_word_count_min == 3000
         assert chapter_word_count_max == 5000
-        assert env["STORYFORGE_LLM_API_KEY"] == "test-private-key"
+        assert env["STORYFORGE_LLM_API_KEY"] == "test-private-credential"
         return SimpleNamespace(
             book_run=SimpleNamespace(id=7, status="completed", tokens_used=323, estimated_cost=0.0),
             markdown_artifact=SimpleNamespace(id=8, name="book.md"),
@@ -277,7 +282,152 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
         "audit_artifact_name": "audit_report.json",
     }
     assert error.getvalue() == ""
-    assert "test-private-key" not in output.getvalue()
+    assert "test-private-credential" not in output.getvalue()
+
+
+def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path) -> None:
+    """CLI 应写入脱敏 summary.json，供真实 smoke 产物验收。"""
+
+    output = StringIO()
+    error = StringIO()
+    summary_path = tmp_path / "summary.json"
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": "local-provider-base",
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+    }
+    book_md = (
+        "---\n"
+        "book_run_id: 11\n"
+        "---\n\n"
+        "# \u6d4b\u8bd5\u4e66\n\n"
+        "## \u7b2c 1 \u7ae0 \u8d77\u70b9\n\n"
+        "\u7b2c\u4e00\u7ae0\u6b63\u6587\n\n"
+        "## \u7b2c 2 \u7ae0 \u8f6c\u6298\n\n"
+        "\u7b2c\u4e8c\u7ae0\u66f4\u957f\u6b63\u6587"
+    )
+
+    def runner(
+        session: str,
+        *,
+        chapter_count: int,
+        token_budget: int,
+        target_word_count: int,
+        chapter_word_count_min: int,
+        chapter_word_count_max: int,
+        env: dict[str, str],
+    ):
+        assert session == "fake-session"
+        assert chapter_count == 2
+        assert token_budget == 60000
+        assert target_word_count == 1200
+        assert chapter_word_count_min == 600
+        assert chapter_word_count_max == 1600
+        assert env["STORYFORGE_LLM_API_KEY"] == "test-private-credential"
+        return SimpleNamespace(
+            book_run=SimpleNamespace(
+                id=11,
+                status="completed",
+                tokens_used=456,
+                estimated_cost=0.0,
+                progress={
+                    "completed_chapters": [
+                        {
+                            "chapter_index": 1,
+                            "token_usage": 200,
+                            "quality_score": 92,
+                            "quality_issues": [],
+                            "elapsed_time_sec": 17,
+                            "repair_rounds": 0,
+                        },
+                        {
+                            "chapter_index": 2,
+                            "token_usage": 256,
+                            "quality_score": 88,
+                            "quality_issues": [{"summary": "需人工复核"}],
+                            "elapsed_time_sec": 23,
+                            "repair_rounds": 1,
+                        },
+                    ],
+                    "budget": {"tokens_used": 456, "estimated_cost": 0.0, "elapsed_time_sec": 17},
+                },
+            ),
+            markdown_artifact=SimpleNamespace(id=12, name="book.md", payload={"content": book_md}),
+            audit_artifact=SimpleNamespace(
+                id=13,
+                name="audit_report.json",
+                payload={"chapters": [{"chapter_index": 1}, {"chapter_index": 2}], "quality_summary": {"issue_count": 1}},
+            ),
+            chapter_count=2,
+        )
+
+    exit_code = main(
+        [
+            "--chapter-count",
+            "2",
+            "--token-budget",
+            "60000",
+            "--target-word-count",
+            "1200",
+            "--chapter-word-count-min",
+            "600",
+            "--chapter-word-count-max",
+            "1600",
+            "--summary-output",
+            str(summary_path),
+        ],
+        session_factory=_FakeSession,
+        runner=runner,
+        output=output,
+        error=error,
+        env=env,
+    )
+
+    assert exit_code == 0
+    assert error.getvalue() == ""
+    assert summary_path.exists()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["mode"] == "real_llm_smoke"
+    assert summary["book_run_id"] == 11
+    assert summary["book_run_status"] == "completed"
+    assert summary["target_chapter_count"] == 2
+    assert summary["actual_chapter_count"] == 2
+    assert summary["target_word_count"] == 1200
+    assert summary["chapter_word_count_min"] == 600
+    assert summary["chapter_word_count_max"] == 1600
+    assert summary["tokens_used"] == 456
+    assert summary["estimated_cost"] == 0.0
+    assert summary["actual_total_chars"] == len(book_md)
+    assert summary["per_chapter_char_counts"] == [
+        {"chapter_index": 1, "char_count": len("第一章正文")},
+        {"chapter_index": 2, "char_count": len("第二章更长正文")},
+    ]
+    assert summary["markdown_artifact_id"] == 12
+    assert summary["audit_artifact_id"] == 13
+    assert summary["per_chapter_metrics"] == [
+        {
+            "chapter_index": 1,
+            "token_usage": 200,
+            "quality_score": 92,
+            "quality_issue_count": 0,
+            "elapsed_time_sec": 17,
+            "repair_rounds": 0,
+        },
+        {
+            "chapter_index": 2,
+            "token_usage": 256,
+            "quality_score": 88,
+            "quality_issue_count": 1,
+            "elapsed_time_sec": 23,
+            "repair_rounds": 1,
+        },
+    ]
+    assert summary["artifact_hashes"]["book_md_sha256"]
+    assert summary["artifact_hashes"]["audit_report_sha256"]
+    serialized = json.dumps(summary, ensure_ascii=False)
+    assert "test-private-credential" not in serialized
+    assert "provider.test" not in serialized
 
 
 def test_phase9b_real_llm_smoke_cli_rejects_non_positive_target_word_count() -> None:
@@ -286,8 +436,8 @@ def test_phase9b_real_llm_smoke_cli_rejects_non_positive_target_word_count() -> 
     output = StringIO()
     error = StringIO()
     env = {
-        "STORYFORGE_LLM_API_KEY": "test-private-key",
-        "STORYFORGE_LLM_BASE_URL": "http://provider.test/v1",
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": "local-provider-base",
         "STORYFORGE_LLM_MODEL": "test-real-model",
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
@@ -306,7 +456,7 @@ def test_phase9b_real_llm_smoke_cli_rejects_non_positive_target_word_count() -> 
     assert exit_code == 2
     assert output.getvalue() == ""
     assert "target_word_count" in error.getvalue()
-    assert "test-private-key" not in error.getvalue()
+    assert "test-private-credential" not in error.getvalue()
 
 
 def test_phase9b_real_llm_smoke_module_registers_relationship_models_for_direct_cli() -> None:
@@ -332,5 +482,3 @@ def test_phase9b_real_llm_smoke_persistent_schema_contains_workspace_columns(eng
     assert "workspaces" in inspector.get_table_names()
     book_columns = {column["name"] for column in inspector.get_columns("books")}
     assert "workspace_id" in book_columns
-
-
