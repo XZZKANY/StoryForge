@@ -25,9 +25,11 @@ const textFilesWithoutEncodingDamage = [
   'app/page.tsx',
   'components/home/home-data.ts',
   'app/retrieval/page.tsx',
-  'app/runs/page.tsx',
-  'app/artifacts/page.tsx',
-  'app/evaluations/page.tsx',
+  'app/artifacts/page-content.tsx',
+  'app/artifacts/api.ts',
+  'app/ide/page.tsx',
+  'components/ide/views/BookRunPanel.tsx',
+  'components/ide/views/BookRunEventsPanel.tsx',
   'app/studio/actions.tsx',
   'app/studio/api.ts',
   'app/studio/types.ts',
@@ -211,6 +213,8 @@ test('旧页面路由通过 308 重定向进入 IDE 壳层', async () => {
   const expectedRedirects = [
     { source: '/studio', destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio' },
     { source: '/retrieval', destination: '/ide?panel.left=search' },
+    { source: '/refinery', destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio' },
+    { source: '/jobs', destination: '/ide?panel.bottom=runs' },
     { source: '/runs', destination: '/ide?panel.bottom=runs' },
     { source: '/artifacts', destination: '/ide?panel.bottom=artifacts' },
     { source: '/evaluations', destination: '/ide?panel.bottom=evaluation' },
@@ -221,7 +225,7 @@ test('旧页面路由通过 308 重定向进入 IDE 壳层', async () => {
     redirects,
     expectedRedirects.map((redirect) => ({ ...redirect, permanent: true })),
   );
-  assert.equal(redirects.length, 5, '五个旧页面都应声明重定向');
+  assert.equal(redirects.length, 7, '七个旧页面都应声明重定向');
   assert.ok(
     redirects.every((redirect) => redirect.permanent === true),
     'permanent: true 对应 Next HTTP 308',
@@ -280,15 +284,20 @@ test('Web 开发模式不长缓存 Next 静态资源，避免热更新后加载�
   );
 });
 
-test('Retrieval 与 Runs 不再硬编码默认 ID', () => {
+test('Retrieval 不再硬编码默认 ID，Runs 深链进入 IDE 面板', () => {
   const retrieval = read('app/retrieval/page.tsx');
-  const runs = read('app/runs/page.tsx');
+  const idePage = read('app/ide/page.tsx');
+  const bookRunPanel = read('components/ide/views/BookRunPanel.tsx');
+  const bookRunEventsPanel = read('components/ide/views/BookRunEventsPanel.tsx');
   assert.ok(retrieval.includes('searchParams'));
   assert.ok(retrieval.includes('book_id'));
   assert.ok(!retrieval.includes('url.searchParams.set("book_id", "1")'));
-  assert.ok(runs.includes('searchParams'));
-  assert.ok(runs.includes('job_run_id'));
-  assert.ok(!runs.includes('defaultJobRunId = 1'));
+  assert.ok(idePage.includes('state.bottomPanel === \'runs\''));
+  assert.ok(idePage.includes('state.bookRunId !== undefined'));
+  assert.ok(idePage.includes('/api/book-runs/'));
+  assert.ok(idePage.includes('/api/ide/runs/'));
+  assert.ok(bookRunPanel.includes('BookRunPanel'));
+  assert.ok(bookRunEventsPanel.includes('BookRunEventsPanel'));
 });
 
 test('页面复用 API client 并注入 API Key', () => {
@@ -296,9 +305,14 @@ test('页面复用 API client 并注入 API Key', () => {
   const studioApi = read('app/studio/api.ts');
   const studioActions = read('app/studio/actions.tsx');
   const artifactsApi = read('app/artifacts/api.ts');
-  const evaluations = read('app/evaluations/page.tsx');
+  const nextConfig = read('next.config.ts');
+  const editorArea = read('components/ide/shell/EditorArea.tsx');
+  const bottomPanel = read('components/ide/shell/BottomPanel.tsx');
+  const ideUrlState = read('components/ide/url/ide-url-state.ts');
   const retrieval = read('app/retrieval/page.tsx');
-  const runs = read('app/runs/page.tsx');
+  const idePage = read('app/ide/page.tsx');
+  const bookRunPanel = read('components/ide/views/BookRunPanel.tsx');
+  const bookRunEventsPanel = read('components/ide/views/BookRunEventsPanel.tsx');
 
   assert.ok(client.includes('X-StoryForge-API-Key'));
   assert.ok(client.includes('buildApiUrl'));
@@ -313,29 +327,32 @@ test('页面复用 API client 并注入 API Key', () => {
   );
   assert.ok(!studioActions.includes('fetch(new URL'), 'Studio POST 不应绕过统一 API client');
   assert.ok(artifactsApi.includes('readJson'), 'Artifacts 数据读取应复用 readJson');
-  assert.ok(evaluations.includes('readJson'), 'Evaluations 页面应复用 readJson');
   assert.ok(!artifactsApi.includes('fetch(new URL'), 'Artifacts 数据读取不应保留裸业务 fetch');
-  assert.ok(!evaluations.includes('fetch(new URL'), 'Evaluations 页面不应保留裸业务 fetch');
 
   assert.ok(retrieval.includes('apiFetch'), 'Retrieval 页面应复用 apiFetch 注入 API Key');
-  assert.ok(runs.includes('readJson'), 'Runs 页面应复用 readJson 校验响应');
-  assert.ok(runs.includes('readRuntimeTools'), 'Runs 页面应读取 runtime tools API');
-  assert.ok(runs.includes("'/api/runtime-tools'"), 'Runs 页面应通过 API 获取工具事实源');
-  assert.ok(runs.includes('runtimeTools.map'), 'Runs 页面应渲染 API 返回的工具列表');
-  assert.ok(runs.includes('runtime_diagnostics'), 'Runs 页面应读取 JobRun API 返回的运行诊断摘要');
-  assert.ok(runs.includes('运行时诊断摘要'), 'Runs 页面应展示运行时诊断摘要区域');
-  assert.ok(runs.includes('workflow_lifecycle'), 'Runs 页面应展示 WorkflowLifecycle 摘要');
-  assert.ok(runs.includes('failure_kind'), 'Runs 页面应展示失败分类字段');
-  assert.ok(runs.includes('recoverable'), 'Runs 页面应展示可恢复性字段');
+  assert.ok(idePage.includes('readJson<BookRunPanelRun>'), 'IDE Runs 面板应复用 readJson 校验 BookRun 响应');
+  assert.ok(idePage.includes('readSseSnapshot'), 'IDE Runs 面板应通过统一 apiFetch 读取 SSE 快照');
+  assert.ok(idePage.includes('/api/book-runs/'), 'IDE Runs 面板应读取真实 BookRun API');
+  assert.ok(idePage.includes('/api/ide/runs/'), 'IDE Runs 面板应读取真实 runs SSE API');
+  assert.ok(bookRunPanel.includes('modelRunHref'), 'IDE Runs 面板应保留 ModelRun 追溯链接');
+  assert.ok(bookRunEventsPanel.includes('data-event-source="sse"'), 'IDE Runs 面板应暴露 SSE 事件源');
+  assert.ok(nextConfig.includes("source: '/evaluations'"), '/evaluations 深链应继续由 redirect 承接');
   assert.ok(
-    runs.includes('runtime_diagnostics.runtime_tools.map'),
-    'Runs 页面应渲染本次运行命中的工具能力',
+    nextConfig.includes("destination: '/ide?panel.bottom=evaluation'"),
+    '/evaluations redirect 应进入 IDE evaluation 面板',
   );
-  assert.ok(!runs.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'), 'Web 不应直接引用 workflow registry');
-  assert.ok(!runs.includes('runtimeToolList = ['), 'Web 不应维护静态工具清单');
-  assert.ok(!runs.includes('runtimeDiagnosticTools = ['), 'Web 不应维护运行诊断静态工具清单');
+  assert.ok(editorArea.includes("'legacy:evaluations'"), 'IDE 应保留 evaluations legacy tab 元数据');
+  assert.ok(bottomPanel.includes("'evaluation'"), 'IDE 底部面板应保留 evaluation 槽位');
+  assert.ok(ideUrlState.includes("| 'evaluation'"), 'IDE URL 状态应保留 evaluation 面板类型');
+  assert.ok(
+    !bookRunPanel.includes('DEFAULT_CREATIVE_TOOL_REGISTRY') &&
+      !bookRunEventsPanel.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'),
+    'Web 不应直接引用 workflow registry',
+  );
+  assert.ok(!bookRunPanel.includes('runtimeToolList = ['), 'Web 不应维护静态工具清单');
+  assert.ok(!bookRunPanel.includes('runtimeDiagnosticTools = ['), 'Web 不应维护运行诊断静态工具清单');
   assert.ok(!retrieval.includes('await fetch('), 'Retrieval 页面不应保留裸业务 fetch');
-  assert.ok(!runs.includes('await fetch('), 'Runs 页面不应保留裸业务 fetch');
+  assert.ok(!idePage.includes('await fetch('), 'IDE Runs 页面不应保留裸业务 fetch');
 });
 
 test('Studio 保留 Server Action 写回闭环且 page 保持薄入口', () => {
@@ -432,8 +449,10 @@ test('Studio 使用四步流程引导并自动滚动到下一步', () => {
 test('产品文案不应夸大未联通能力', () => {
   const files = [
     'app/page.tsx',
-    'app/artifacts/page.tsx',
-    'app/evaluations/page.tsx',
+    'app/artifacts/page-content.tsx',
+    'app/artifacts/api.ts',
+    'components/ide/shell/EditorArea.tsx',
+    'components/ide/shell/BottomPanel.tsx',
     '../../README.md',
     '../../PROJECT_SUMMARY.md',
     '../api/app/domains/artifacts/__init__.py',

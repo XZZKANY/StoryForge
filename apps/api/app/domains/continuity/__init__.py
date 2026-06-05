@@ -1,3 +1,1 @@
-from app.domains.continuity.models import ContinuityRecord, ScenePacket
-
-__all__ = ["ContinuityRecord", "ScenePacket"]
+"""连续性领域模型请显式从 models.py 导入。"""

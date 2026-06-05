@@ -1,3 +1,1 @@
-from app.domains.context_compiler.service import compile_context
-
-__all__ = ["compile_context"]
+"""上下文编译服务请显式从服务文件导入。"""

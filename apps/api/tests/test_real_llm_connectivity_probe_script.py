@@ -110,6 +110,8 @@ def test_ten_chapter_wrapper_requires_connectivity_probe_before_long_run() -> No
     assert "fail_connectivity_probe" in script
     assert "connectivity_probe_exit_code" in script
     assert "run-real-llm-long-direct.py" in script
+    assert "[int]$MaxChapterCount = 30" in script
+    assert "--max-chapter-count $MaxChapterCount" in script
     assert script.index("-File $connectivityProbePath") < script.index("uv run python $runnerPath")
 
 

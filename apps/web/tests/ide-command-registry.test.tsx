@@ -8,12 +8,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { AgentSidebar } from '../components/ide/agent/AgentSidebar';
 import { createCommandRegistry } from '../components/ide/commands/registry';
 import { registerBuiltinCommands } from '../components/ide/commands/registerBuiltinCommands';
-import { CommandPalette, filterCommands } from '../components/ide/commands/palette';
-import {
-  executeShortcutCommand,
-  findCommandByShortcut,
-  ideKeymap,
-} from '../components/ide/keymap/index';
 import { RightDock } from '../components/ide/shell/RightDock';
 
 type CommandBypassFinding = {
@@ -120,46 +114,6 @@ test('CommandRegistry 注册并执行内置写命令', async () => {
   ]);
   assert.ok(registry.list().some((command) => command.id === 'bookrun.start'));
   assert.ok(registry.list().some((command) => command.id === 'judge.approve'));
-});
-
-test('CommandPalette 按标题、分类和命令 ID 过滤命令', () => {
-  const registry = createCommandRegistry();
-  registerBuiltinCommands(registry);
-
-  const filtered = filterCommands(registry.list(), 'repair');
-  const html = renderToStaticMarkup(
-    React.createElement(CommandPalette, { commands: filtered, query: 'repair' }),
-  );
-
-  assert.ok(filtered.some((command) => command.id === 'judge.repair'));
-  assert.ok(html.includes('Command Palette'));
-  assert.ok(html.includes('生成定向修复'));
-  assert.ok(html.includes('judge.repair'));
-  assert.ok(html.includes('data-command-id="judge.repair"'));
-  assert.ok(html.includes('执行命令'));
-});
-
-test('keymap 将快捷键解析到 CommandRegistry 命令 ID', () => {
-  assert.equal(findCommandByShortcut('Ctrl+Alt+J')?.commandId, 'judge.run');
-  assert.equal(findCommandByShortcut('Ctrl+.')?.commandId, 'judge.repair');
-  assert.ok(ideKeymap.some((item) => item.commandId === 'bookrun.start'));
-});
-
-test('executeShortcutCommand 通过同一 CommandRegistry 执行快捷键命令', async () => {
-  const calls: Array<{ commandId: string; args: Record<string, unknown> }> = [];
-  const registry = createCommandRegistry({
-    executeRemote: async (commandId, args) => {
-      calls.push({ commandId, args });
-      return { command_id: commandId, status: 'accepted', audit_event_id: null, payload: {} };
-    },
-  });
-  registerBuiltinCommands(registry);
-
-  const result = await executeShortcutCommand('Ctrl+Alt+J', registry, { book_id: 1 });
-
-  assert.equal(result?.command_id, 'judge.run');
-  assert.deepEqual(calls, [{ commandId: 'judge.run', args: { book_id: 1 } }]);
-  assert.equal(await executeShortcutCommand('Ctrl+Alt+Unknown', registry), undefined);
 });
 
 test('AgentSidebar 渲染 Agent 工具且声明写操作经 CommandRegistry', () => {

@@ -1,12 +1,6 @@
 from __future__ import annotations
 
 from storyforge_workflow.prompts import (
-    CharacterConstraint,
-    ContinuityFact,
-    NarrativeContext,
-    PacingDirective,
-    SceneQualityPlan,
-    StyleDirective,
     build_chapter_plan_prompt,
     build_critique_prompt,
     build_draft_prompt,
@@ -16,6 +10,14 @@ from storyforge_workflow.prompts import (
     build_strategy_prompt,
 )
 from storyforge_workflow.prompts.context import narrative_context_from_state
+from storyforge_workflow.prompts.models import (
+    CharacterConstraint,
+    ContinuityFact,
+    NarrativeContext,
+    PacingDirective,
+    SceneQualityPlan,
+    StyleDirective,
+)
 
 
 def _full_context() -> NarrativeContext:
@@ -335,5 +337,4 @@ def test_style_from_state_maps_fingerprint_into_targets() -> None:
     assert ctx.style.target_avg_sentence_length == 18.0
     assert ctx.style.target_dialogue_ratio == 0.4
     assert ctx.style.restraint is True
-
 

@@ -216,46 +216,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/batch-refinement/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 创建并同步执行批量精修任务
-         * @description 兼容 Phase 2 早期草稿 API，内部复用现有评审与修复事实源。
-         */
-        post: operations["create_batch_refinement_run_api_batch_refinement_jobs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/batch-refinement/jobs/{job_run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取批量精修任务
-         * @description 读取兼容 API 创建的批量精修任务。
-         */
-        get: operations["read_batch_refinement_run_api_batch_refinement_jobs__job_run_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/batch-refinery/runs": {
         parameters: {
             query?: never;
@@ -1948,26 +1908,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 顶层健康检查
-         * @description 提供无需认证的本地和部署健康检查；仅证明进程存活，不检查外部依赖。
-         */
-        get: operations["health_check_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -2425,43 +2365,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-        };
-        /**
-         * BatchRefinementJobCreate
-         * @description 早期批量精修 API 的同步执行请求。
-         */
-        BatchRefinementJobCreate: {
-            /** Book Id */
-            book_id: number;
-            /**
-             * Mode
-             * @default rewrite
-             */
-            mode: string;
-            /** Required Facts */
-            required_facts?: string[];
-            /** Scene Ids */
-            scene_ids: number[];
-            /** Style Rules */
-            style_rules?: string[];
-        };
-        /**
-         * BatchRefinementJobRead
-         * @description 批量精修兼容响应，保留草稿测试约定的字段名。
-         */
-        BatchRefinementJobRead: {
-            /** Issue Ids */
-            issue_ids: number[];
-            /** Job Run Id */
-            job_run_id: number;
-            /** Patch Ids */
-            patch_ids: number[];
-            /** Progress */
-            progress: {
-                [key: string]: unknown;
-            };
-            /** Status */
-            status: string;
         };
         /**
          * BatchRefineryItemCreate
@@ -5776,70 +5679,6 @@ export interface operations {
             };
         };
     };
-    create_batch_refinement_run_api_batch_refinement_jobs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchRefinementJobCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchRefinementJobRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_batch_refinement_run_api_batch_refinement_jobs__job_run_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_run_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchRefinementJobRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     create_batch_refinery_run_api_batch_refinery_runs_post: {
         parameters: {
             query?: never;
@@ -8877,28 +8716,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    health_check_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
                 };
             };
         };

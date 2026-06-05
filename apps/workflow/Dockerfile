@@ -54,6 +54,5 @@ USER storyforge
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/storyforge-workflow-entrypoint"]
 # Default to an idle loop so the container stays available for `docker compose run`
-# or `docker exec` invocations of the longform CLI. Override with e.g.:
-#   docker run ... storyforge-workflow python -m storyforge_workflow.longform --help
+# or `docker exec` invocations of workflow maintenance commands.
 CMD ["python", "-c", "import signal, time; signal.signal(signal.SIGTERM, lambda *_: exit(0)); print('storyforge-workflow runner idle; exec a CLI to drive it', flush=True); time.sleep(2**31)"]

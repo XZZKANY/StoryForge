@@ -53,6 +53,16 @@ export async function storyforgeLegacyRedirects() {
       permanent: true,
     },
     {
+      source: '/refinery',
+      destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio',
+      permanent: true,
+    },
+    {
+      source: '/jobs',
+      destination: '/ide?panel.bottom=runs',
+      permanent: true,
+    },
+    {
       source: '/runs',
       destination: '/ide?panel.bottom=runs',
       permanent: true,

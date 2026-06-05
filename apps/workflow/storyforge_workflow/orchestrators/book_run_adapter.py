@@ -167,8 +167,26 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         chapter_budget=request.chapter_budget,
         provider_fallback_pause_threshold=request.provider_fallback_pause_threshold,
     )
+    _emit_result_progress(
+        request,
+        ports,
+        BookLoopResult(
+            status="running",
+            current_chapter_index=request.start_chapter_index,
+            progress={
+                "completed_chapters": list(request.existing_checkpoint),
+                "checkpoint": list(request.existing_checkpoint),
+                "budget": _budget_from_checkpoint(request.existing_checkpoint),
+                "dispatch": {"stage": "scheduled", "start_chapter_index": request.start_chapter_index},
+            },
+        ),
+    )
+
+    active_chapter_index = max(1, request.start_chapter_index)
 
     def run_chapter(chapter_index: int):
+        nonlocal active_chapter_index
+        active_chapter_index = chapter_index
         novel_request = NovelLoopRequest(
             book_id=request.book_id,
             chapter_id=ports.chapter_id(chapter_index),
@@ -182,15 +200,86 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             skill_runner=runner,
         )
 
-    result = run_book_loop(book_loop_request, run_chapter)
-    ports.progress_sink.emit(
-        book_run_id=request.book_run_id,
-        status=result.status,
-        current_chapter_index=result.current_chapter_index,
-        progress=result.progress,
-        volume_progress=_volume_progress_from_result(request, result),
+    latest_progress = BookLoopResult(
+        status="running",
+        current_chapter_index=max(1, request.start_chapter_index),
+        progress={
+            "completed_chapters": list(request.existing_checkpoint),
+            "checkpoint": list(request.existing_checkpoint),
+            "budget": _budget_from_checkpoint(request.existing_checkpoint),
+        },
     )
+
+    def emit_chapter_progress(progress_result: BookLoopResult) -> None:
+        nonlocal latest_progress
+        latest_progress = progress_result
+        _emit_result_progress(
+            request,
+            ports,
+            _with_dispatch(progress_result, {"stage": "chapter_completed", "chapter_index": progress_result.current_chapter_index}),
+        )
+
+    try:
+        result = run_book_loop(book_loop_request, run_chapter, progress_callback=emit_chapter_progress)
+    except Exception as exc:
+        _emit_result_progress(
+            request,
+            ports,
+            _failed_result_from_exception(request, latest_progress, active_chapter_index, exc),
+            suppress_errors=True,
+        )
+        raise
+    result = _with_dispatch(result, {"stage": result.status})
+    _emit_result_progress(request, ports, result)
     return result
+
+
+def _emit_result_progress(
+    request: BookRunAdapterRequest,
+    ports: BookRunAdapterPorts,
+    result: BookLoopResult,
+    *,
+    suppress_errors: bool = False,
+) -> None:
+    try:
+        ports.progress_sink.emit(
+            book_run_id=request.book_run_id,
+            status=result.status,
+            current_chapter_index=result.current_chapter_index,
+            progress=result.progress,
+            volume_progress=_volume_progress_from_result(request, result),
+        )
+    except Exception:
+        if suppress_errors:
+            return
+        raise
+
+
+def _with_dispatch(result: BookLoopResult, dispatch: dict[str, Any]) -> BookLoopResult:
+    progress = dict(result.progress)
+    progress["dispatch"] = dispatch
+    return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
+
+
+def _failed_result_from_exception(
+    request: BookRunAdapterRequest,
+    latest_progress: BookLoopResult,
+    active_chapter_index: int,
+    exc: Exception,
+) -> BookLoopResult:
+    progress = dict(latest_progress.progress)
+    progress.setdefault("completed_chapters", list(request.existing_checkpoint))
+    progress.setdefault("checkpoint", list(request.existing_checkpoint))
+    progress.setdefault("budget", _budget_from_checkpoint(request.existing_checkpoint))
+    failed_at_chapter_index = max(1, active_chapter_index)
+    progress["failure"] = {
+        "kind": "workflow_execution_failed",
+        "message": str(exc),
+        "failed_at_chapter_index": failed_at_chapter_index,
+        "recoverable": True,
+    }
+    progress["dispatch"] = {"stage": "failed", "failed_at_chapter_index": failed_at_chapter_index}
+    return BookLoopResult(status="failed", current_chapter_index=failed_at_chapter_index, progress=progress)
 
 
 def _volume_progress_from_result(request: BookRunAdapterRequest, result: BookLoopResult) -> dict[str, Any]:
@@ -265,6 +354,22 @@ def _latest_completed_chapter_index(completed_chapters: list[object]) -> int:
         if isinstance(item, Mapping) and isinstance(item.get("chapter_index"), int)
     ]
     return max(indexes, default=0)
+
+
+def _budget_from_checkpoint(checkpoint: list[dict[str, Any]]) -> dict[str, int | float]:
+    return {
+        "tokens_used": sum(_positive_int_or_zero(item.get("token_usage")) for item in checkpoint),
+        "elapsed_time_sec": sum(_positive_int_or_zero(item.get("elapsed_time_sec")) for item in checkpoint),
+        "estimated_cost": sum(_positive_float_or_zero(item.get("cost_estimate")) for item in checkpoint),
+    }
+
+
+def _positive_int_or_zero(value: object) -> int:
+    return value if isinstance(value, int) and value > 0 else 0
+
+
+def _positive_float_or_zero(value: object) -> float:
+    return float(value) if isinstance(value, int | float) and value > 0 else 0.0
 
 
 def _chapter_dispatch_map(value: object) -> dict[int, dict[str, Any]]:

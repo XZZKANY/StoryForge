@@ -154,68 +154,6 @@ class SceneQualityPlan:
 
 
 @dataclass(frozen=True)
-class QualityScore:
-    """多维质量评分，服务 Judge 输出、审计汇总和后续趋势对比。"""
-
-    prose_quality: float | None = None
-    show_dont_tell: float | None = None
-    character_consistency: float | None = None
-    continuity_consistency: float | None = None
-    scene_progression: float | None = None
-    pacing_control: float | None = None
-    hook_strength: float | None = None
-    ai_artifact_penalty: float | None = None
-
-
-@dataclass(frozen=True)
-class RevisionStrategy:
-    """问题修订策略，约束 Reviser 是局部改句、场景补丁还是整段重写。"""
-
-    mode: str = "line_edit"
-    must_keep: Sequence[str] = field(default_factory=tuple)
-    must_remove: Sequence[str] = field(default_factory=tuple)
-    target_effect: str = ""
-
-
-@dataclass(frozen=True)
-class QualityIssue:
-    """可执行的质量问题条目，连接静态检查、LLM Judge 和 Repair prompt。"""
-
-    dimension: str = ""
-    severity: str = "低"
-    snippet: str = ""
-    reason: str = ""
-    suggestion: str = ""
-    revision_strategy: RevisionStrategy = field(default_factory=RevisionStrategy)
-
-    def to_contract_line(self) -> str:
-        """渲染为 revision prompt 可消费的单行契约。"""
-
-        strategy = self.revision_strategy
-        return "｜".join(
-            (
-                _clean(self.dimension),
-                _clean(self.severity),
-                _clean(self.snippet),
-                _clean(self.reason),
-                _clean(strategy.mode),
-                "、".join(_clean_list(strategy.must_keep)),
-                "、".join(_clean_list(strategy.must_remove)),
-                _clean(strategy.target_effect) or _clean(self.suggestion),
-            )
-        )
-
-
-@dataclass(frozen=True)
-class QualityReport:
-    """一次场景质量评审结果，可由静态检查和 LLM Judge 共同填充。"""
-
-    decision: str = "pass"
-    score: QualityScore = field(default_factory=QualityScore)
-    issues: Sequence[QualityIssue] = field(default_factory=tuple)
-    summary: str = ""
-
-@dataclass(frozen=True)
 class NarrativeContext:
     """一次生成请求的叙事上下文聚合，构建器的主输入。
 

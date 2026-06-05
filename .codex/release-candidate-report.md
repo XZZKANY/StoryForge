@@ -13,7 +13,7 @@
 - Workflow runtime 文件齐备：`session.py`、`lifecycle.py`、`provider_adapter.py`、`provider_execution.py`、`runner.py`。
 - `WorkflowRuntime` 串联 session、lifecycle、provider execution、checkpoint、ModelRun sink 与 graph 执行。
 - API 读侧通过 `/api/model-runs/job-runs/{job_run_id}` 聚合 `runtime_diagnostics`。
-- Web Runs 页面读取 `/api/model-runs/job-runs/{job_run_id}` 与 `/api/runtime-tools`，不维护静态工具清单。
+- API 读侧仍通过 `/api/model-runs/job-runs/{job_run_id}` 聚合 runtime diagnostics，Web 旧 `/runs` 深链通过 redirect 进入 IDE runs 面板；IDE 面板读取 BookRun 与 `/api/ide/runs/{book_run_id}/events` SSE，不维护静态工具清单。
 
 ## 3. 工具清单冻结
 
@@ -25,7 +25,7 @@
 
 - OpenAPI 快照：`packages/shared/src/contracts/storyforge.openapi.json`。
 - API schema：`apps/api/app/domains/runtime_tools/schemas.py` 与 `apps/api/app/domains/model_runs/schemas.py`。
-- Web 消费：`apps/web/app/runs/page.tsx`。
+- Web 入口：`apps/web/app/ide/page.tsx`、`apps/web/components/ide/views/BookRunPanel.tsx`、`apps/web/components/ide/views/BookRunEventsPanel.tsx`。
 - e2e 治理：`tests/e2e/phase5-runtime-diagnostics.spec.ts`。
 - 本地证据：Phase 7 一致性子测试在定向 e2e 和全量 e2e 中均通过。
 

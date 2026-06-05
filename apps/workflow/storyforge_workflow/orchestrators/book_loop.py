@@ -35,6 +35,7 @@ class BookLoopResult:
 def run_book_loop(
     request: BookLoopRequest,
     run_chapter: Callable[[int], NovelLoopResult],
+    progress_callback: Callable[[BookLoopResult], None] | None = None,
 ) -> BookLoopResult:
     """顺序驱动每章 NovelLoop，按 checkpoint、预算和 provider 降级约束暂停。"""
 
@@ -63,6 +64,18 @@ def run_book_loop(
         chapter_progress = _chapter_progress(chapter_index, chapter_result)
         completed.append(chapter_progress)
         checkpoint.append(_checkpoint_entry(chapter_progress))
+        if progress_callback is not None:
+            progress_callback(
+                BookLoopResult(
+                    status="running",
+                    current_chapter_index=chapter_index,
+                    progress={
+                        "completed_chapters": list(completed),
+                        "checkpoint": list(checkpoint),
+                        "budget": dict(budget),
+                    },
+                )
+            )
         if chapter_result.fallback_metadata:
             consecutive_fallbacks += 1
         else:

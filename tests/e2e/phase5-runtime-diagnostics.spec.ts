@@ -9,7 +9,14 @@ const openapi = JSON.parse(
   readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
 );
 const webSources = {
-  runs: readFileSync('apps/web/app/runs/page.tsx', 'utf8'),
+  runs:
+    readFileSync('apps/web/components/ide/views/BookRunPanel.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/components/ide/views/BookRunEventsPanel.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/app/ide/page.tsx', 'utf8'),
 };
 const gateSources = {
   e2e: readFileSync('scripts/run-e2e.mjs', 'utf8'),
@@ -279,14 +286,21 @@ app.dependency_overrides.clear()
   );
 });
 
-test('Phase 5 Runs 页面消费 API 诊断摘要且不维护静态工具清单', () => {
+test('Phase 5 API 契约保留运行诊断摘要，IDE Runs 面板承接 Web 入口', () => {
+  assertSchemaFields('RunsJobRunRead', runsJobRunReadFields);
+  assertSchemaFields('RunsRuntimeDiagnosticsRead', runsRuntimeDiagnosticsFields);
+  assertSchemaFields('RunsWorkflowSessionSummary', runsWorkflowSessionFields);
+  assertSchemaFields('RunsWorkflowLifecycleSummary', runsWorkflowLifecycleFields);
+  assertSchemaFields('RunsProviderSummary', runsProviderFields);
+  assertSchemaFields('RunsModelUsageSummary', runsModelUsageFields);
+  assertSchemaFields('RunsRuntimeToolSummary', runsRuntimeToolSummaryFields);
   assertSourceEvidence(webSources.runs, [
-    'runtime_diagnostics',
-    '运行时诊断摘要',
-    'workflow_lifecycle',
-    'failure_kind',
-    'recoverable',
-    'runtime_diagnostics.runtime_tools.map',
+    'BookRun Run Panel',
+    'checkpoint',
+    'provider fallback',
+    'data-event-source="sse"',
+    '/api/book-runs/',
+    '/api/ide/runs/',
   ]);
   assertNoSourceEvidence(webSources.runs, [
     'DEFAULT_CREATIVE_TOOL_REGISTRY',
@@ -394,7 +408,7 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
     openapi.paths['/api/model-runs'].post.responses['201'],
   );
 
-  assertSourceEvidence(webSources.runs, [
+  assertSourceEvidence(JSON.stringify(openapi), [
     ...runtimeToolReadFields,
     ...runtimeToolReferencesFields,
     ...runsRuntimeDiagnosticsFields,
@@ -403,9 +417,12 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
     ...runsProviderFields,
     ...runsModelUsageFields,
     ...runsRuntimeToolSummaryFields,
-    'runsJobRunEndpoint',
-    'runtimeToolsEndpoint',
-    'isRunsRuntimeDiagnostics',
-    'isRuntimeTool',
+  ]);
+  assertSourceEvidence(webSources.runs, [
+    'readBookRunPanelState',
+    'isBookRunPanelRun',
+    'readSseSnapshot',
+    '/api/book-runs/',
+    '/api/ide/runs/',
   ]);
 });

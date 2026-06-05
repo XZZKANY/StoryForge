@@ -111,7 +111,7 @@ def test_readiness_degraded_when_tables_missing() -> None:
 
 
 def test_health_endpoints_do_not_require_api_key() -> None:
-    """Both /health/live and /health/ready are public (no API key needed)."""
+    """live 与 ready 探针不要求 API Key。"""
     mock_engine, mock_redis = _healthy_probe_dependencies()
     with (
         patch("app.domains.health.router.get_engine", return_value=mock_engine),
@@ -124,8 +124,13 @@ def test_health_endpoints_do_not_require_api_key() -> None:
     assert ready.status_code != 401
 
 
-def test_legacy_health_endpoint_still_works() -> None:
-    with TestClient(app) as client:
-        resp = client.get("/health")
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "ok"
+def test_legacy_top_level_health_endpoint_is_not_registered() -> None:
+    """旧顶层 /health 不应继续作为路由或 OpenAPI 路径注册。"""
+
+    registered_paths = {route.path for route in app.routes}
+    openapi_paths = set(app.openapi()["paths"])
+
+    assert "/health" not in registered_paths
+    assert "/health" not in openapi_paths
+    assert "/health/live" in registered_paths
+    assert "/health/ready" in registered_paths

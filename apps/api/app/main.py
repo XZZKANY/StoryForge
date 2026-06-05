@@ -11,8 +11,6 @@ from fastapi.responses import JSONResponse
 from limits import parse as parse_limit
 from limits.storage import MemoryStorage
 from limits.strategies import FixedWindowRateLimiter
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from app.common.auth import InvalidTokenError, verify_access_token
@@ -26,7 +24,6 @@ from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
 from app.domains.assistant.router import router as assistant_router
-from app.domains.batch_refinement.router import router as batch_refinement_router
 from app.domains.batch_refinery.router import router as batch_refinery_router
 from app.domains.blueprints.router import router as blueprints_router
 from app.domains.book_runs.router import router as book_runs_router
@@ -57,7 +54,7 @@ from app.domains.worldbuilding.router import router as worldbuilding_router
 
 logger = get_logger(__name__)
 
-_PUBLIC_PATHS = {"/health", "/health/live", "/health/ready", "/metrics", "/openapi.json", "/docs", "/redoc"}
+_PUBLIC_PATHS = {"/health/live", "/health/ready", "/metrics", "/openapi.json", "/docs", "/redoc"}
 _API_KEY_HEADER = "x-storyforge-api-key"
 
 
@@ -99,7 +96,7 @@ def _cors_origins() -> list[str]:
 def _rate_limit_key(request: Request) -> str:
     """优先按 API Key 聚合限流，缺少时回退到客户端地址。"""
 
-    return request.headers.get(_API_KEY_HEADER) or get_remote_address(request)
+    return request.headers.get(_API_KEY_HEADER) or (request.client.host if request.client else "unknown")
 
 
 def _request_timeout_seconds() -> float:
@@ -112,8 +109,6 @@ def _request_timeout_seconds() -> float:
         return 120.0
     return timeout if timeout > 0 else 120.0
 
-
-limiter = Limiter(key_func=_rate_limit_key)
 
 _rate_store = MemoryStorage()
 _rate_strategy = FixedWindowRateLimiter(_rate_store)
@@ -128,7 +123,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["content-type", "x-storyforge-api-key", "authorization"],
 )
-app.state.limiter = limiter
 
 
 @app.middleware("http")
@@ -195,22 +189,8 @@ app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-@app.get(
-    "/health",
-    tags=["运行状态"],
-    summary="顶层健康检查",
-)
-@limiter.exempt
-def health_check() -> dict[str, str]:
-    """提供无需认证的本地和部署健康检查；仅证明进程存活，不检查外部依赖。"""
-
-    return {"status": "ok", "service": "storyforge-api"}
-
 app.include_router(health_router)
 app.include_router(ide_router)
-for _route in health_router.routes:
-    if hasattr(_route, "endpoint"):
-        limiter.exempt(_route.endpoint)
 app.include_router(artifacts_router)
 app.include_router(assistant_router)
 app.include_router(analytics_router)
@@ -220,7 +200,6 @@ app.include_router(book_runs_router)
 app.include_router(character_bible_router)
 app.include_router(evaluations_router)
 app.include_router(events_router)
-app.include_router(batch_refinement_router)
 app.include_router(batch_refinery_router)
 app.include_router(collaboration_router)
 app.include_router(commercial_router)

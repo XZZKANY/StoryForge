@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from storyforge_workflow.provider_client import generate_text
 from storyforge_workflow.runtime.provider_adapter import (
     ProviderAdapter,
     ProviderRequest,
@@ -12,7 +11,6 @@ from storyforge_workflow.runtime.provider_adapter import (
 __all__ = [
     "ProviderExecutionResult",
     "execute_provider_text",
-    "generate_text",
 ]
 
 

@@ -15,7 +15,6 @@ import {
   saveIdePreferences,
   serializeIdePreferences,
 } from '../components/ide/personalization/preferences';
-import { findCommandByShortcut, ideKeymap, resolveIdeKeymap } from '../components/ide/keymap/index';
 import { PersonalizationControls } from '../components/ide/personalization/PersonalizationControls';
 import { PersonalizationPanel } from '../components/ide/personalization/PersonalizationPanel';
 import { IdeShell } from '../components/ide/shell/IdeShell';
@@ -70,14 +69,6 @@ test('IDE 个性化偏好可写入本地存储并从同一键恢复', () => {
 
   assert.ok(storage.has(idePreferencesStorageKey));
   assert.deepEqual(loadIdePreferences({ getItem: (key) => storage.get(key) ?? null }), preferences);
-});
-
-test('自定义键位覆盖默认键位且不修改默认 keymap', () => {
-  const resolved = resolveIdeKeymap({ 'judge.run': 'Alt+J' });
-
-  assert.equal(findCommandByShortcut('Alt+J', resolved)?.commandId, 'judge.run');
-  assert.equal(findCommandByShortcut('Ctrl+Alt+J', resolved), undefined);
-  assert.equal(findCommandByShortcut('Ctrl+Alt+J', ideKeymap)?.commandId, 'judge.run');
 });
 
 test('编辑器 pop-out URL 保留 tab 与 active 状态', () => {

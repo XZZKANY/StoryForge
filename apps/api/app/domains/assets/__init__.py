@@ -1,3 +1,1 @@
-from app.domains.assets.models import Asset, EvidenceLink
-
-__all__ = ["Asset", "EvidenceLink"]
+"""资产领域模型请显式从 models.py 导入。"""

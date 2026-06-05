@@ -1,3 +1,1 @@
-from app.domains.worldbuilding.service import build_worldbuilding_center
-
-__all__ = ["build_worldbuilding_center"]
+"""世界观中心服务请显式从服务文件导入。"""

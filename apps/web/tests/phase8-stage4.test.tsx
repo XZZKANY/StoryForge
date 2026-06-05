@@ -12,12 +12,12 @@ test('retrieval 页面声明 aria-labelledby 和检索证据描述', () => {
   assert.ok(content.includes('searchParams'));
 });
 
-test('artifacts 页面通过 readJson 复用 API client', () => {
-  const content = read('app/artifacts/page.tsx');
+test('artifacts 工作台通过 readJson 复用 API client', () => {
   const pageContent = read('app/artifacts/page-content.tsx');
   const api = read('app/artifacts/api.ts');
   assert.ok(api.includes('readJson'));
-  assert.ok(content.includes('ArtifactsPageContent'));
+  assert.ok(pageContent.includes('ArtifactsPageContent'));
+  assert.ok(pageContent.includes('ArtifactsWorkbench'));
   assert.ok(pageContent.includes('aria-labelledby'));
   assert.ok(
     pageContent.includes('grid grid-cols-[1.2fr_0.8fr_0.7fr_1fr]'),
@@ -31,10 +31,18 @@ test('artifacts 页面通过 readJson 复用 API client', () => {
   );
 });
 
-test('evaluations 页面通过 readJson 复用 API client', () => {
-  const content = read('app/evaluations/page.tsx');
-  assert.ok(content.includes('readJson'));
-  assert.ok(content.includes('aria-labelledby'));
+test('IDE evaluation 面板通过 legacy redirect 承接旧评测入口', () => {
+  const nextConfig = read('next.config.ts');
+  const editorArea = read('components/ide/shell/EditorArea.tsx');
+  const bottomPanel = read('components/ide/shell/BottomPanel.tsx');
+  const ideUrlState = read('components/ide/url/ide-url-state.ts');
+
+  assert.ok(nextConfig.includes("source: '/evaluations'"));
+  assert.ok(nextConfig.includes("destination: '/ide?panel.bottom=evaluation'"));
+  assert.ok(editorArea.includes("'legacy:evaluations'"));
+  assert.ok(editorArea.includes('Evaluations 评测系统'));
+  assert.ok(bottomPanel.includes("'evaluation'"));
+  assert.ok(ideUrlState.includes("| 'evaluation'"));
 });
 
 test('worldbuilding 页面声明完整入口与 aria 标签', () => {
@@ -42,9 +50,13 @@ test('worldbuilding 页面声明完整入口与 aria 标签', () => {
   assert.ok(content.includes('aria-labelledby'));
 });
 
-test('runs 页面渲染运行时诊断摘要', () => {
-  const content = read('app/runs/page.tsx');
-  assert.ok(content.includes('运行时诊断'));
+test('IDE runs 面板渲染运行控制台和 SSE 事件摘要', () => {
+  const panel = read('components/ide/views/BookRunPanel.tsx');
+  const eventsPanel = read('components/ide/views/BookRunEventsPanel.tsx');
+  assert.ok(panel.includes('BookRun Run Panel'));
+  assert.ok(panel.includes('checkpoint'));
+  assert.ok(eventsPanel.includes('SSE 快照事件'));
+  assert.ok(eventsPanel.includes('/api/ide/runs/'));
 });
 
 test('layout 加载侧栏导航与主题切换', () => {
@@ -67,6 +79,10 @@ test('JobStatusPoller 客户端组件存在且为 use client', () => {
   assert.ok(content.includes("'use client'"));
   assert.ok(content.includes('parseJobRunSnapshot'));
   assert.ok(content.includes('intervalMs'));
+  assert.ok(
+    content.includes('/api/model-runs/job-runs'),
+    'JobStatusPoller 默认端点应指向真实 JobRun 状态 API',
+  );
 });
 
 test('JobStatusPoller 错误重试会触发新的轮询请求', () => {
@@ -82,20 +98,18 @@ test('JobStatusPoller 错误重试会触发新的轮询请求', () => {
   );
 });
 
-test('evaluations 详情守卫校验 run 与 trend_points 结构', () => {
-  const content = read('app/evaluations/page.tsx');
-  assert.ok(
-    content.includes('readonly trend_points: readonly EvaluationTrendPoint[]'),
-    '详情类型不应把 trend_points 放宽为任意对象数组',
-  );
-  assert.ok(
-    content.includes('isEvaluationRunItem(candidate.run)'),
-    '详情守卫应复用运行记录结构校验',
-  );
-  assert.ok(
-    content.includes('isEvaluationTrendPointList(candidate.trend_points)'),
-    '详情守卫应拒绝 malformed trend_points',
-  );
+test('evaluations 契约由 OpenAPI 保留运行详情和失败样例结构', () => {
+  const openApi = JSON.parse(
+    read('../../packages/shared/src/contracts/storyforge.openapi.json'),
+  ) as {
+    readonly paths?: Record<string, unknown>;
+    readonly components?: { readonly schemas?: Record<string, unknown> };
+  };
+
+  assert.ok(openApi.paths?.['/api/evaluations/runs/{run_id}']);
+  assert.ok(openApi.paths?.['/api/evaluations/runs/{run_id}/failed-samples']);
+  assert.ok(openApi.components?.schemas?.EvaluationRunDetailRead);
+  assert.ok(openApi.components?.schemas?.EvaluationFailedSampleRead);
 });
 
 test('Studio 多步骤向导扩展了预览 Scene Packet 子步骤', () => {

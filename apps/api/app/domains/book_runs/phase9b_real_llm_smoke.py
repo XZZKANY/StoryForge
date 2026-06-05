@@ -59,6 +59,7 @@ REQUIRED_REAL_LLM_ENV = (
 REPAIR_THRESHOLD = 70
 MAX_REPAIR_ROUNDS = 3
 MARKDOWN_CHAPTER_HEADING_RE = re.compile(r"^##\s+第\s*(\d+)\s*章\b")
+MODEL_RUN_SUMMARY_MAX_CHARS = 50000
 
 
 class Phase9BRealLlmSmokePreflightError(RuntimeError):
@@ -94,6 +95,7 @@ def run_phase9b_real_llm_smoke(
     target_word_count: int | None = None,
     chapter_word_count_min: int = 600,
     chapter_word_count_max: int = 1600,
+    max_chapter_count: int = 10,
     env: Mapping[str, str | None] | None = None,
 ) -> Phase9BRealLlmSmokeResult:
     """用真实 OpenAI 兼容 LLM 跑受控章节数的 BookRun 冒烟。"""
@@ -106,6 +108,7 @@ def run_phase9b_real_llm_smoke(
         target_word_count,
         chapter_word_count_min,
         chapter_word_count_max,
+        max_chapter_count=max_chapter_count,
     )
     started_at = time.monotonic()
     book = _create_smoke_book(session, chapter_count)
@@ -199,13 +202,17 @@ def _assert_preflight(
     target_word_count: int | None = None,
     chapter_word_count_min: int = 600,
     chapter_word_count_max: int = 1600,
+    *,
+    max_chapter_count: int = 10,
 ) -> None:
     missing = missing_phase9b_real_llm_env(source)
     if missing:
         joined = ", ".join(missing)
         raise Phase9BRealLlmSmokePreflightError(f"缺少真实 LLM 冒烟环境变量：{joined}。")
-    if chapter_count < 1 or chapter_count > 10:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟只允许 1 到 10 章。")
+    if max_chapter_count <= 0:
+        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟章节上限必须为正数。")
+    if chapter_count < 1 or chapter_count > max_chapter_count:
+        raise Phase9BRealLlmSmokePreflightError(f"真实 LLM 冒烟只允许 1 到 {max_chapter_count} 章。")
     if token_budget <= 0:
         raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟必须设置正数 token_budget。")
     if target_word_count is not None and target_word_count <= 0:
@@ -448,6 +455,8 @@ def _record_model_run(
     source: Mapping[str, str | None],
     generated: dict[str, object],
 ):
+    input_summary = _model_run_summary_text(str(generated["prompt"]))
+    output_summary = _model_run_summary_text(str(generated["content"]))
     return create_model_run(
         session,
         ModelRunCreate(
@@ -458,15 +467,31 @@ def _record_model_run(
             capability="llm",
             latency_ms=int(generated["latency_ms"]),
             token_usage=int(generated["token_usage"]),
-            input_summary=str(generated["prompt"]),
-            output_summary=str(generated["content"]),
+            input_summary=input_summary,
+            output_summary=output_summary,
             payload={
                 "book_run_id": book_run.id,
                 "mode": "phase9b_real_llm_smoke",
                 "token_usage_source": generated["token_usage_source"],
+                "input_summary_original_length": len(str(generated["prompt"])),
+                "output_summary_original_length": len(str(generated["content"])),
+                "input_summary_truncated": len(input_summary) < len(str(generated["prompt"])),
+                "output_summary_truncated": len(output_summary) < len(str(generated["content"])),
             },
         ),
     )
+
+
+def _model_run_summary_text(text: str) -> str:
+    """ModelRun 摘要字段有 50000 字符上限；真实 prompt 本身不在这里裁剪。"""
+
+    if len(text) <= MODEL_RUN_SUMMARY_MAX_CHARS:
+        return text
+    marker = f"\n\n[摘要已截断：原始长度 {len(text)} 字符，仅保留开头和结尾用于审计]\n\n"
+    remaining = MODEL_RUN_SUMMARY_MAX_CHARS - len(marker)
+    head_length = remaining // 2
+    tail_length = remaining - head_length
+    return text[:head_length] + marker + text[-tail_length:]
 
 
 def _record_scene_packet(session: Session, book_run: BookRun, scene: Scene) -> ScenePacket:

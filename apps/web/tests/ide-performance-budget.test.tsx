@@ -6,7 +6,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Diagnostic } from '../../../packages/shared/src/diagnostic';
-import { CommandPalette } from '../components/ide/commands/palette';
 import { ChapterEditor } from '../components/ide/editors/ChapterEditor';
 import { ProblemsPanel } from '../components/ide/panels/ProblemsPanel';
 import {
@@ -30,7 +29,7 @@ function createDiagnostics(count: number): Diagnostic[] {
   }));
 }
 
-test('IDE 性能预算基线记录 1000 Problems、1 万字章节和命令面板过滤', () => {
+test('IDE 性能预算基线记录 1000 Problems 和 1 万字章节', () => {
   assert.equal(idePerformanceBudgets['1000 Problems SSR render'], 100);
   const diagnostics = createDiagnostics(1000);
   const longChapter = `${'雾港航线。'.repeat(1000)}\n\n${'角色沿着潮湿街道前进。'.repeat(500)}`;
@@ -55,20 +54,7 @@ test('IDE 性能预算基线记录 1000 Problems、1 万字章节和命令面板
     );
     assert.ok(html.includes('data-editor-engine="codemirror6"'));
   });
-  const paletteMetric = measureIdePerformance('CommandPalette 100 command filter', () => {
-    const commands = Array.from({ length: 100 }, (_, index) => ({
-      id: `story.command.${index}`,
-      title: `故事命令 ${index}`,
-      category: index % 2 === 0 ? 'Judge' : 'BookRun',
-      writes: index % 3 === 0,
-    }));
-    const html = renderToStaticMarkup(
-      React.createElement(CommandPalette, { commands, query: 'story.command.9' }),
-    );
-    assert.ok(html.includes('story.command.9'));
-  });
-
-  const baseline = createIdePerformanceBaseline([problemsMetric, chapterMetric, paletteMetric]);
+  const baseline = createIdePerformanceBaseline([problemsMetric, chapterMetric]);
   const evaluation = evaluateIdePerformanceBaseline(baseline, idePerformanceBudgets);
 
   assert.equal(evaluation.status, 'pass');

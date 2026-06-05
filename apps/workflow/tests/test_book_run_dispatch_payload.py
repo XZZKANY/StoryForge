@@ -17,15 +17,16 @@ def test_book_run_dispatch_payload_runs_adapter_and_emits_recorded_skill_runs() 
     result = run_book_run_dispatch_payload(_dispatch_payload(), _passing_ports, sink)
 
     assert result.status == "completed"
-    assert sink.payloads[0]["book_run_id"] == 41
-    assert sink.payloads[0]["status"] == "completed"
-    assert sink.payloads[0]["volume_progress"] == {
+    assert [payload["status"] for payload in sink.payloads] == ["running", "running", "completed"]
+    assert sink.payloads[-1]["book_run_id"] == 41
+    assert sink.payloads[-1]["status"] == "completed"
+    assert sink.payloads[-1]["volume_progress"] == {
         "current_volume": 1,
         "chapter_range": {"start": 1, "end": 1},
         "completed_chapter_count": 1,
         "next_batch_start_chapter_index": 2,
     }
-    chapter = sink.payloads[0]["progress"]["completed_chapters"][0]
+    chapter = sink.payloads[-1]["progress"]["completed_chapters"][0]
     assert chapter["chapter_index"] == 1
     assert [run["skill_name"] for run in chapter["skill_runs"]] == [
         "generate",
@@ -67,7 +68,7 @@ def test_book_run_dispatch_payload_passes_volume_plan_to_adapter() -> None:
     result = run_book_run_dispatch_payload(payload, _passing_ports, sink)
 
     assert result.status == "paused_by_budget"
-    assert sink.payloads[0]["volume_progress"] == {
+    assert sink.payloads[-1]["volume_progress"] == {
         "current_volume": 2,
         "chapter_range": {"start": 3, "end": 4},
         "completed_chapter_count": 1,
@@ -116,10 +117,10 @@ def test_book_run_dispatch_payload_resumes_with_historical_completed_chapters() 
     result = run_book_run_dispatch_payload(payload, _passing_ports, sink)
 
     assert result.status == "completed"
-    assert [item["chapter_index"] for item in sink.payloads[0]["progress"]["completed_chapters"]] == [1, 2]
-    assert sink.payloads[0]["progress"]["completed_chapters"][0]["skill_runs"] == historical_skill_runs
-    assert sink.payloads[0]["progress"]["budget"]["tokens_used"] == 60
-    assert sink.payloads[0]["volume_progress"]["completed_chapter_count"] == 2
+    assert [item["chapter_index"] for item in sink.payloads[-1]["progress"]["completed_chapters"]] == [1, 2]
+    assert sink.payloads[-1]["progress"]["completed_chapters"][0]["skill_runs"] == historical_skill_runs
+    assert sink.payloads[-1]["progress"]["budget"]["tokens_used"] == 60
+    assert sink.payloads[-1]["volume_progress"]["completed_chapter_count"] == 2
 
 
 def test_callable_progress_sink_wraps_service_or_http_sender() -> None:

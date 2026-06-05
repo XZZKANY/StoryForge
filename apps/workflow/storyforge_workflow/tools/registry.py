@@ -323,7 +323,11 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=(),
             evidence_fields=("metrics", "summary", "failed_sample_count", "studio_feedback_href"),
             references=_refs(
-                page_refs=("apps/web/app/evaluations/page.tsx",),
+                page_refs=(
+                    "apps/web/next.config.ts",
+                    "apps/web/components/ide/shell/EditorArea.tsx",
+                    "apps/web/components/ide/shell/BottomPanel.tsx",
+                ),
                 api_paths=("POST /api/evaluations/runs", "GET /api/evaluations/runs/{run_id}"),
                 workflow_nodes=("human_approval",),
             ),
@@ -351,7 +355,7 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=("llm", "embedding", "reranker"),
             evidence_fields=("provider_name", "model_aliases", "resolution_source", "credential_status"),
             references=_refs(
-                page_refs=("apps/web/app/providers/page.tsx",),
+                page_refs=("apps/web/app/settings/page.tsx",),
                 api_paths=("GET /api/provider-gateway/resolve",),
                 workflow_nodes=("provider_execution",),
             ),

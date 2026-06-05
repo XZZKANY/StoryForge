@@ -15,13 +15,15 @@ from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
 from app.domains.blueprints.models import BookBlueprint
+from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.phase9b_real_llm_smoke import (
     Phase9BRealLlmSmokePreflightError,
+    _record_model_run,
     main,
     missing_phase9b_real_llm_env,
     run_phase9b_real_llm_smoke,
 )
-from app.domains.books.models import Scene
+from app.domains.books.models import Book, Chapter, Scene
 from app.domains.model_runs.models import ModelRun
 
 
@@ -202,6 +204,83 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     assert audit["quality_summary"]["scored_chapter_count"] == 10
     assert audit["skill_chain"]["summary"]["completed_chapter_count"] == 10
     assert "test-private-credential" not in str(result.audit_artifact.payload)
+
+
+def test_phase9b_real_llm_smoke_truncates_long_model_run_summaries(session: Session) -> None:
+    """长程 prompt 超过 ModelRun schema 上限时，只裁剪入库摘要，不阻断运行。"""
+
+    book = Book(title="长摘要测试", status="draft", premise="验证长程 prompt 入库摘要。")
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+    blueprint = BookBlueprint(
+        book_id=book.id,
+        premise="验证长程 prompt 入库摘要。",
+        tone="克制",
+        target_word_count=35000,
+        target_chapter_count=30,
+        chapter_word_count_min=600,
+        chapter_word_count_max=1600,
+        status="locked",
+        metadata_={},
+    )
+    session.add(blueprint)
+    session.commit()
+    session.refresh(blueprint)
+    chapter = Chapter(book_id=book.id, ordinal=21, title="真实冒烟 21", status="approved")
+    session.add(chapter)
+    session.commit()
+    session.refresh(chapter)
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="真实 LLM 正文", status="approved", content="正文")
+    session.add(scene)
+    session.commit()
+    session.refresh(scene)
+    book_run = BookRun(
+        book_id=book.id,
+        blueprint_id=blueprint.id,
+        status="running",
+        current_chapter_index=1,
+        total_chapters=30,
+        progress={},
+        checkpoint=[],
+        token_budget=800000,
+        tokens_used=0,
+        chapter_budget=30,
+    )
+    session.add(book_run)
+    session.commit()
+    session.refresh(book_run)
+    prompt = "prompt-start-" + ("甲" * 60000) + "-prompt-end"
+    content = "content-start-" + ("乙" * 60000) + "-content-end"
+
+    model_run = _record_model_run(
+        session,
+        book_run,
+        scene,
+        {
+            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+            "STORYFORGE_LLM_MODEL": "local-model",
+        },
+        {
+            "prompt": prompt,
+            "content": content,
+            "latency_ms": 123,
+            "token_usage": 456,
+            "token_usage_source": "provider_usage",
+        },
+    )
+
+    assert len(model_run.input_summary) <= 50000
+    assert len(model_run.output_summary or "") <= 50000
+    assert "prompt-start-" in model_run.input_summary
+    assert "-prompt-end" in model_run.input_summary
+    assert "content-start-" in (model_run.output_summary or "")
+    assert "-content-end" in (model_run.output_summary or "")
+    assert "摘要已截断" in model_run.input_summary
+    assert model_run.payload["input_summary_original_length"] == len(prompt)
+    assert model_run.payload["output_summary_original_length"] == len(content)
+    assert model_run.payload["input_summary_truncated"] is True
+    assert model_run.payload["output_summary_truncated"] is True
 
 
 class _FakeSession:

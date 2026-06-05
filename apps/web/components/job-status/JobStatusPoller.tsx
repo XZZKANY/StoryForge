@@ -22,7 +22,7 @@ type PollState =
   | { readonly status: 'terminal'; readonly snapshot: JobRunSnapshot }
   | { readonly status: 'error'; readonly message: string };
 
-const defaultEndpoint = '/api/v1/jobs';
+const defaultEndpoint = '/api/model-runs/job-runs';
 
 export function JobStatusPoller({
   jobRunId,

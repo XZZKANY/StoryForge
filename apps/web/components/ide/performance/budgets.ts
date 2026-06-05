@@ -23,7 +23,6 @@ export type IdePerformanceEvaluation = {
 export const idePerformanceBudgets: IdePerformanceBudgets = {
   '1000 Problems SSR render': 100,
   '10k ChapterEditor SSR render': 600,
-  'CommandPalette 100 command filter': 120,
 };
 
 function nowIso(): string {

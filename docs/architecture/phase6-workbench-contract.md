@@ -9,9 +9,9 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 ## 代码事实源
 
 - 文档负责定义业务边界、状态区分和验收方式。
-- `apps/web/lib/phase6-data-sources.ts` 中的 `phase6DataSources` 是页面数据源入口 registry，五个页面仍从它渲染数据源契约。
-- 本轮治理事实以 API/Web 实际行为、用户事实基线、本契约矩阵和 `.codex/current-phase.md` 为准；registry 若未拆分到最新端点粒度，应由对应实现子代理后续校准，不作为完整交互完成证明。
-- 后续真实 API 读取仍应优先使用 registry 中的 `page`、`contractSection`、`nextAction` 选择单页面单数据源 spike，避免文档、页面和实现再次分叉。
+- 旧的 `apps/web/lib/phase6-data-sources.ts` 阶段性 registry 已下线；五个页面当前以各自页面 API helper、`apps/web/lib/api-client.ts` 和后端契约读取真实摘要。
+- 本轮治理事实以 API/Web 实际行为、用户事实基线、本契约矩阵和 `.codex/current-phase.md` 为准；历史 registry 不再作为页面数据源事实源。
+- 后续真实 API 读取应优先复用页面已有 API helper、集中 validators 和共享 OpenAPI 类型，避免文档、页面和实现再次分叉。
 
 ## 已实现的最小入口
 

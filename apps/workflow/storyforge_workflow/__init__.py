@@ -1,11 +1,4 @@
-from storyforge_workflow.graph import create_generation_graph
-from storyforge_workflow.persistence import InMemoryWorkflowStore, WorkflowCheckpoint
-from storyforge_workflow.state import GenerationState, initial_generation_state
+"""StoryForge Workflow 包入口。
 
-__all__ = [
-    "GenerationState",
-    "InMemoryWorkflowStore",
-    "WorkflowCheckpoint",
-    "create_generation_graph",
-    "initial_generation_state",
-]
+运行对象请从 graph、persistence、state 等具体模块导入，避免根包 barrel 扩散。
+"""

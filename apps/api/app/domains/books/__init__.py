@@ -1,3 +1,1 @@
-from app.domains.books.models import Book, Chapter, Scene
-
-__all__ = ["Book", "Chapter", "Scene"]
+"""作品领域模型请显式从 models.py 导入。"""

@@ -4,7 +4,9 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from storyforge_workflow import InMemoryWorkflowStore, create_generation_graph, initial_generation_state
+from storyforge_workflow.graph import create_generation_graph
+from storyforge_workflow.persistence import InMemoryWorkflowStore
+from storyforge_workflow.state import initial_generation_state
 
 
 def _stub_llm(monkeypatch) -> None:

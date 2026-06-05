@@ -1,3 +1,1 @@
-from app.domains.judge.models import JudgeIssue, RepairPatch
-
-__all__ = ["JudgeIssue", "RepairPatch"]
+"""评审领域模型请显式从模型文件导入。"""

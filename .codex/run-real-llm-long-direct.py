@@ -127,6 +127,7 @@ def _redacted_parameters(args: argparse.Namespace) -> dict[str, Any]:
         "provider_protocol": "openai-compatible",
         "model": os.environ.get("STORYFORGE_LLM_MODEL", ""),
         "chapter_count": args.chapter_count,
+        "max_chapter_count": args.max_chapter_count,
         "token_budget": args.token_budget,
         "target_word_count": args.target_word_count,
         "chapter_word_count_min": args.chapter_word_count_min,
@@ -253,6 +254,7 @@ def _write_audit_templates(out_dir: Path, metadata: dict[str, Any]) -> None:
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="运行 StoryForge 真实 LLM 长程 smoke，并生成脱敏证据。")
     parser.add_argument("--chapter-count", type=int, required=True)
+    parser.add_argument("--max-chapter-count", type=int, default=30)
     parser.add_argument("--target-word-count", type=int, required=True)
     parser.add_argument("--token-budget", type=int, required=True)
     parser.add_argument("--chapter-word-count-min", type=int, default=600)
@@ -307,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
                 target_word_count=args.target_word_count,
                 chapter_word_count_min=args.chapter_word_count_min,
                 chapter_word_count_max=args.chapter_word_count_max,
+                max_chapter_count=args.max_chapter_count,
                 env=os.environ,
             )
             _raise_if_outer_timeout_exceeded(started_at=started_at, outer_timeout_seconds=args.outer_timeout_seconds)

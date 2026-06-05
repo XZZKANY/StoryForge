@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from storyforge_workflow.quality import check_prose_static_quality
+from storyforge_workflow.quality.prose_static_check import check_prose_static_quality
 
 FIXTURE_DIR = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "quality_cases"
 

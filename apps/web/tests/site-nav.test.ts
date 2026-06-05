@@ -11,7 +11,6 @@ test('primaryNavLinks 包含核心主入口路由', () => {
     '/artifacts',
     '/evaluations',
     '/worldbuilding',
-    '/refinery',
     '/runs',
   ]) {
     assert.ok(hrefs.includes(expected), `应包含 ${expected}`);
@@ -26,6 +25,8 @@ test('primaryNavLinks 不引入占位路由', () => {
     '/commercial',
     '/workspace',
     '/quality',
+    '/jobs',
+    '/refinery',
   ]) {
     assert.equal(hrefs.includes(forbidden), false, `不应包含 ${forbidden}`);
   }

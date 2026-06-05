@@ -20,12 +20,26 @@ const webSources = {
   home: readFileSync('apps/web/app/page.tsx', 'utf8'),
   editorArea: readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8'),
   retrieval: readFileSync('apps/web/app/retrieval/page.tsx', 'utf8'),
-  runs: readFileSync('apps/web/app/runs/page.tsx', 'utf8'),
-  artifacts:
-    readFileSync('apps/web/app/artifacts/page.tsx', 'utf8') +
+  runs:
+    readFileSync('apps/web/components/ide/views/BookRunPanel.tsx', 'utf8') +
     '\n' +
-    readFileSync('apps/web/app/artifacts/page-content.tsx', 'utf8'),
-  evaluations: readFileSync('apps/web/app/evaluations/page.tsx', 'utf8'),
+    readFileSync('apps/web/components/ide/views/BookRunEventsPanel.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/app/ide/page.tsx', 'utf8'),
+  artifacts:
+    readFileSync('apps/web/app/artifacts/page-content.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/app/artifacts/api.ts', 'utf8'),
+  evaluations:
+    readFileSync('apps/web/next.config.ts', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/components/ide/url/ide-url-state.ts', 'utf8'),
 };
 
 function assertOperation(path, method, tag) {
@@ -126,10 +140,11 @@ test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面
     'Scene Packet 检索证据',
   ]);
   assertSourceEvidence(webSources.runs, [
-    '模型运行日志',
-    'Provider 解析结果',
-    'Prompt Pack 来源',
-    '任务恢复入口',
+    'BookRun Run Panel',
+    'checkpoint',
+    'data-event-source="sse"',
+    '/api/ide/runs/',
+    '/api/book-runs/',
   ]);
   assertSourceEvidence(webSources.artifacts, [
     '导出物',
@@ -138,10 +153,10 @@ test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面
     'ArtifactsWorkbench',
   ]);
   assertSourceEvidence(webSources.evaluations, [
-    '一致性错误率',
-    '修复成功率',
-    '用户接受率',
-    '未回收 open loop',
+    "source: '/evaluations'",
+    "destination: '/ide?panel.bottom=evaluation'",
+    'Evaluations 评测系统',
+    "'evaluation'",
   ]);
 });
 
@@ -198,14 +213,14 @@ print(json.dumps([
 `);
 
   assert.deepEqual(apiTools, registryTools);
-  assertSourceEvidence(webSources.runs, [
-    'readRuntimeTools',
-    '/api/runtime-tools',
-    'runtimeTools.map',
-  ]);
+  assertOperation('/api/runtime-tools', 'get', '运行时工具');
+  assert.ok(
+    openapi.components.schemas.RuntimeToolRead,
+    'OpenAPI 必须保留 runtime tools 读取契约',
+  );
   assert.ok(
     !webSources.runs.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'),
-    'Runs 页面不应直接引用 workflow registry',
+    'IDE Runs 面板不应直接引用 workflow registry',
   );
-  assert.ok(!webSources.runs.includes('runtimeToolList = ['), 'Runs 页面不应维护静态工具清单');
+  assert.ok(!webSources.runs.includes('runtimeToolList = ['), 'IDE Runs 面板不应维护静态工具清单');
 });

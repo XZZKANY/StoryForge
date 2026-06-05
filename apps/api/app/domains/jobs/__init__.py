@@ -1,3 +1,1 @@
-from app.domains.jobs.models import JobRun
-
-__all__ = ["JobRun"]
+"""任务领域模型请显式从 models.py 导入。"""

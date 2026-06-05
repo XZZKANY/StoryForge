@@ -22,5 +22,5 @@ batch_refinery_jobs_total = Counter(
 def setup_metrics(app):
     Instrumentator(
         should_group_status_codes=False,
-        excluded_handlers=["/health", "/health/live", "/health/ready", "/metrics"],
+        excluded_handlers=["/health/live", "/health/ready", "/metrics"],
     ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)

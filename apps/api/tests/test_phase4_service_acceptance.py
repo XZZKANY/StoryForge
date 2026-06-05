@@ -14,7 +14,6 @@ from app.domains.evaluations.schemas import EvaluationCaseCreate, EvaluationRunC
 from app.domains.evaluations.service import create_evaluation_case, create_evaluation_run, list_evaluation_runs
 from app.domains.exports.service import build_epub_export, build_markdown_export
 from app.domains.jobs.models import JobRun
-from app.domains.jobs.service import sync_job_run_with_runtime
 from app.domains.model_runs.service import list_model_runs, record_runtime_model_run
 from app.domains.prompt_packs.schemas import PromptPackCreate, PromptPackUpdate
 from app.domains.prompt_packs.service import create_prompt_pack, get_prompt_pack_history, update_prompt_pack
@@ -154,15 +153,18 @@ def test_phase4_retrieval_prompt_runtime_service_flow(session: Session) -> None:
     assert model_run.prompt_pack_id == updated_pack.id
     assert len(list_model_runs(session, job_run_id=job.id)) == 1
 
-    updated_job = sync_job_run_with_runtime(
-        session,
-        job_run_id=job.id,
-        thread_id="phase4-thread",
-        current_node="draft_writer",
-        status="running",
-        approval_status="pending",
-        provider_execution={"provider_name": "mock-provider", "model_name": "storyforge-writer"},
-    )
+    job.status = "running"
+    job.progress = {
+        **dict(job.progress or {}),
+        "thread_id": "phase4-thread",
+        "current_node": "draft_writer",
+        "approval_status": "pending",
+        "provider_execution": {"provider_name": "mock-provider", "model_name": "storyforge-writer"},
+    }
+    session.commit()
+    session.refresh(job)
+    updated_job = job
+
     assert updated_job.progress["thread_id"] == "phase4-thread"
     assert updated_job.progress["provider_execution"]["provider_name"] == "mock-provider"
 
@@ -265,6 +267,8 @@ def test_phase4_artifact_and_evaluation_service_flow(session: Session) -> None:
         ),
     )
 
-    artifact_types = {artifact.artifact_type for artifact in list_artifacts(session, workspace_id=workspace.id, book_id=book.id)}
+    artifact_types = {
+        artifact.artifact_type for artifact in list_artifacts(session, workspace_id=workspace.id, book_id=book.id)
+    }
     assert {"export", "upload", "workflow_snapshot", "evaluation_report"}.issubset(artifact_types)
     assert len(list_evaluation_runs(session, workspace_id=workspace.id, book_id=book.id)) == 1

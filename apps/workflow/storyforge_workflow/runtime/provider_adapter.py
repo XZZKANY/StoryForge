@@ -423,10 +423,6 @@ def _estimate_token_count(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _estimate_token_usage(prompt: str, output_text: str) -> int:
-    return max(1, (len(prompt) + len(output_text)) // 4)
-
-
 # 粗粒度成本估算（USD per 1K token），仅用于内部观测，不参与计费。
 _COST_PER_1K_TOKENS = {
     "gpt-4o-mini": (0.00015, 0.0006),

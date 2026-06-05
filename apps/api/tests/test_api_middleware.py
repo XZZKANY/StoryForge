@@ -19,10 +19,10 @@ def test_protected_api_requires_authentication() -> None:
 
 
 def test_health_endpoint_and_cors_preflight_are_public() -> None:
-    """健康检查与浏览器预检不要求 API Key。"""
+    """live 健康检查与浏览器预检不要求 API Key。"""
 
     with TestClient(app) as client:
-        health = client.get("/health")
+        health = client.get("/health/live")
         preflight = client.options(
             "/api/workspaces",
             headers={
@@ -32,7 +32,7 @@ def test_health_endpoint_and_cors_preflight_are_public() -> None:
         )
 
     assert health.status_code == 200
-    assert health.json()["status"] == "ok"
+    assert health.json()["status"] == "alive"
     assert preflight.status_code == 200
     assert preflight.headers["access-control-allow-origin"] == "http://localhost:3000"
 
@@ -133,10 +133,10 @@ def test_rate_limit_returns_429_when_exceeded() -> None:
 
 
 def test_health_endpoint_bypasses_rate_limit() -> None:
-    """健康检查不受限流影响。"""
+    """live 健康检查不受限流影响。"""
 
     with TestClient(app) as client:
-        resp = client.get("/health")
+        resp = client.get("/health/live")
 
     assert resp.status_code == 200
 
@@ -189,7 +189,7 @@ def test_security_response_headers_present() -> None:
     """所有响应必须包含安全响应头。"""
 
     with TestClient(app) as client:
-        resp = client.get("/health")
+        resp = client.get("/health/live")
 
     assert resp.headers["X-Content-Type-Options"] == "nosniff"
     assert resp.headers["X-Frame-Options"] == "DENY"

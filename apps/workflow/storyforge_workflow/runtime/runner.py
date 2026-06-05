@@ -6,7 +6,6 @@ from typing import Any
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from storyforge_workflow import initial_generation_state
 from storyforge_workflow.graph import WorkflowNodeTimeoutError, create_generation_graph
 from storyforge_workflow.persistence import InMemoryWorkflowStore
 from storyforge_workflow.runtime.checkpoints import ModelRunPayload, ModelRunSink, RuntimeCheckpointStore
@@ -18,6 +17,7 @@ from storyforge_workflow.runtime.lifecycle import (
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text
 from storyforge_workflow.runtime.sentry_config import capture_workflow_exception, init_sentry
 from storyforge_workflow.runtime.session import InMemoryWorkflowSessionStore
+from storyforge_workflow.state import initial_generation_state
 from storyforge_workflow.utils.logging import get_logger
 
 log = get_logger("storyforge_workflow.runtime.runner")

@@ -13,7 +13,9 @@ const apiTests = {
 const webSources = {
   home: readFileSync('apps/web/app/page.tsx', 'utf8'),
   nav: readFileSync('apps/web/components/site-nav/site-nav-links.ts', 'utf8'),
-  refinery: readFileSync('apps/web/app/refinery/page.tsx', 'utf8'),
+  nextConfig: readFileSync('apps/web/next.config.ts', 'utf8'),
+  studioApi: readFileSync('apps/web/app/studio/api.ts', 'utf8'),
+  studioPageContent: readFileSync('apps/web/app/studio/page-content.tsx', 'utf8'),
 };
 
 function assertOperation(path, method, tag) {
@@ -63,8 +65,23 @@ test('Phase 2 后端测试源码保留当前业务证据', () => {
 });
 
 test('Phase 2 前端边界对齐当前已验证入口', () => {
-  assertSourceEvidence(webSources.nav, ['/refinery', 'Refinery 批量精修']);
-  assertSourceEvidence(webSources.refinery, ['Refinery 修订工坊', '评审问题', '修订差异', '补丁']);
+  assertNoSourceEvidence(webSources.nav, ['/refinery', 'Refinery 批量精修']);
+  assertSourceEvidence(webSources.nextConfig, [
+    "source: '/refinery'",
+    "destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio'",
+  ]);
+  assertSourceEvidence(webSources.studioApi, [
+    'studioJudgeReviewsEndpoint',
+    'studioRepairPatchesEndpoint',
+    'studioApprovalSummaryEndpoint',
+  ]);
+  assertSourceEvidence(webSources.studioPageContent, [
+    'JudgeIssueList',
+    'RepairDiffViewer',
+    'readStudioJudgeReview',
+    'readStudioRepairPatches',
+    'readStudioApprovalSummary',
+  ]);
   assertNoSourceEvidence(webSources.home, [
     "href: '/world'",
     "href: '/quality'",

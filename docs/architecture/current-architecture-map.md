@@ -203,7 +203,7 @@ BookRun -> BookLoop -> NovelLoop -> NovelSkillRunner
   book_runs, jobs, model_runs, events, runtime_tools
 
 质量闭环
-  judge, repair, quality, evaluations, batch_refinement, batch_refinery
+  judge, repair, quality, evaluations, batch_refinery
 
 长期记忆和连续性
   story_memory, character_bible, timeline, continuity, worldbuilding, series
@@ -385,4 +385,3 @@ apps/workflow/storyforge_workflow/graph.py
 再处理 .codex 噪声
 最后再继续新功能
 ```
-

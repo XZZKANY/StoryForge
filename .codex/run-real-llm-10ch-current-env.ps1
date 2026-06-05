@@ -1,5 +1,6 @@
 param(
   [int]$ChapterCount = 10,
+  [int]$MaxChapterCount = 30,
   [int]$TargetWordCount = 9000,
   [int]$TokenBudget = 200000,
   [int]$ChapterWordCountMin = 600,
@@ -92,6 +93,7 @@ foreach ($name in $requiredNames) {
 Write-Output "真实 LLM 10 章运行包装"
 Write-Output "env_scope: current_process"
 Write-Output "chapter_count: $ChapterCount"
+Write-Output "max_chapter_count: $MaxChapterCount"
 Write-Output "target_word_count: $TargetWordCount"
 Write-Output "token_budget: $TokenBudget"
 Write-Output "timeout_seconds: $TimeoutSeconds"
@@ -136,6 +138,7 @@ try {
   try {
     uv run python $runnerPath `
       --chapter-count $ChapterCount `
+      --max-chapter-count $MaxChapterCount `
       --target-word-count $TargetWordCount `
       --token-budget $TokenBudget `
       --chapter-word-count-min $ChapterWordCountMin `

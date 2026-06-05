@@ -2438,6 +2438,216 @@ score: 98
 
 summary: 'Phase 9 master 远端 E2E 已通过并完成事实源同步：远端 master 快进到 590333f1ccc99234f4244bc7bf4556fd7dee3f4f，E2E run 26944063055 completed/success，关键步骤均 success；事实源测试 13 passed，Ruff、py_compile 和目标 diff 空白检查通过；真实 3-5 万字长程仍未完成。'
 
+## 审查报告 - 真实长程无密钥安全预检
+
+时间：2026-06-04 22:55:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：推进 Phase 9 下一步真实 3-5 万字长程运行前的安全预检。
+- **范围**：只检查既有真实长程 wrapper、runner、连通性探针、证据验证器和测试；不启动真实外呼。
+- **交付物**：`.codex/context-summary-real-llm-long-safe-preflight.md`、`.codex/operations-log.md` 安全预检记录、本报告。
+- **审查要点**：用户提供的私有运行时配置不得复述、落盘、写入命令、写入 `.env` 或进入验证报告。
+
+### 交付物映射
+
+- **上下文摘要**：记录 `.codex/run-real-llm-long-direct.py`、`.codex/run-real-llm-10ch-current-env.ps1`、`.codex/run-real-llm-connectivity-probe.ps1` 和 `.codex/validate-real-llm-long-evidence.ps1` 的职责。
+- **操作日志**：记录当前进程变量均为 missing、既有脱敏模型名为 `mimo-v2.5-pro`、本轮不启动真实外呼。
+- **本地验证**：覆盖 wrapper、probe、validator、gate document 四组测试和静态检查。
+
+### 本地验证
+
+- 目标 pytest：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py tests/test_real_llm_smoke_gate_document.py -q`，15 passed。
+- Ruff：`cd apps/api; uv run ruff check tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py tests/test_real_llm_smoke_gate_document.py`，All checks passed。
+- 编译检查：`cd apps/api; uv run python -m py_compile tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py tests/test_real_llm_long_evidence_validator.py tests/test_real_llm_smoke_gate_document.py ..\..\.codex\run-real-llm-long-direct.py`，通过。
+- 空环境 wrapper 预检：`powershell -ExecutionPolicy Bypass -File .codex\run-real-llm-10ch-current-env.ps1 -ProbeOnly -TimeoutSeconds 5` 返回非 0，输出 `gate: fail_preflight` 和 missing 变量名，未启动真实外呼。
+- 空环境探针预检：`powershell -ExecutionPolicy Bypass -File .codex\run-real-llm-connectivity-probe.ps1 -TimeoutSeconds 5` 返回非 0，输出 `gate: fail_preflight` 和 missing 变量名，未启动真实外呼。
+- 目标空白检查：`git diff --check -- .codex/context-summary-real-llm-long-safe-preflight.md .codex/operations-log.md`，通过。
+- 本轮敏感模式扫描：目标摘要和本轮操作日志未命中私有令牌、Authorization、明文 key/password/secret 模式。
+
+### 风险与边界
+
+- 当前 Codex 工具进程无法安全注入用户提供的私有值，因此真实外呼尚未执行。
+- 真实长程继续条件是同一 PowerShell 进程中存在 `STORYFORGE_LLM_*` 运行时变量，且 ProbeOnly 通过。
+- 本轮不代表真实 3-5 万字长程完成。
+
+### 评分
+
+- **代码质量**：98/100。未改业务代码，复用既有 wrapper、probe、runner 和 validator。
+- **测试覆盖**：97/100。完成目标 pytest、Ruff、py_compile、空环境安全预检和敏感模式扫描。
+- **规范遵循**：99/100。遵守凭据不落盘、不复述、不写命令的安全边界。
+- **需求匹配**：90/100。已推进到真实长程前置安全门槛；因当前进程变量 missing，真实外呼合理暂停。
+- **架构一致**：98/100。沿用 `.codex` 审计和既有 Phase 9 长程脚本链。
+- **风险评估**：97/100。明确外呼阻塞条件、ProbeOnly 门禁和人工通读边界。
+- **综合评分**：97/100。
+- **明确建议**：通过本轮无密钥安全预检；用户需在同一 PowerShell 进程安全注入运行时变量后，再执行 ProbeOnly 和正式真实长程。
+
+```Scoring
+score: 97
+```
+
+summary: '真实长程无密钥安全预检完成：上下文摘要与操作日志已落盘，目标 pytest 15 passed，Ruff、py_compile、目标空白检查和敏感模式扫描通过；空环境 wrapper/probe 均安全停在 fail_preflight，未启动真实外呼。真实 3-5 万字长程等待同一 PowerShell 进程安全注入 STORYFORGE_LLM_* 变量后继续。'
+
+## 审查报告 - 真实 35k 长程章节上限修复
+
+时间：2026-06-05 00:05:16 +08:00
+
+### 需求字段完整性
+
+- **目标**：修复真实 35k 长程在探针通过后仍被默认 10 章 smoke 上限拒绝的问题。
+- **范围**：只修改章节上限契约、长程 runner 参数透传、wrapper 契约测试和本地审计记录；不运行真实外部 LLM，不读取 `.env`，不写入私有 provider 配置。
+- **交付物**：`.codex/context-summary-real-llm-35k-max-chapter-fix.md`、业务校验参数、长程 runner `--max-chapter-count`、wrapper `-MaxChapterCount`、TDD 回归测试、操作日志和本审查报告。
+- **审查要点**：默认 10 章 smoke 边界必须保持；35k 长程入口必须显式允许 30 章；旧失败目录不得被误判通过；敏感值不得落盘。
+
+### 根因与修复
+
+- 用户本机真实运行目录 `.codex/real-llm-35k-20260604-231327` 的 `stderr.log` 显示：`真实 LLM 冒烟只允许 1 到 10 章。`
+- 连通性探针已通过，说明失败点在本地 runner/业务校验，不在 provider、模型或鉴权。
+- `run_phase9b_real_llm_smoke` 与 `_assert_preflight` 新增 `max_chapter_count`，默认值仍为 `10`。
+- `.codex/run-real-llm-long-direct.py` 新增 `--max-chapter-count`，默认值为 `30`，并传入业务 smoke。
+- `.codex/run-real-llm-10ch-current-env.ps1` 新增 `-MaxChapterCount 30` 并透传给 Python runner。
+
+### 本地验证
+
+- TDD 红灯：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py -q` 初次失败，暴露 `_assert_preflight` 不支持 `max_chapter_count` 与 runner 未透传章节上限。
+- TDD 绿灯：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py -q`，5 passed。
+- 目标回归：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py tests/test_phase9b_real_llm_smoke.py tests/test_real_llm_connectivity_probe_script.py -q`，19 passed。
+- Ruff：目标测试与业务模块 `uv run ruff check ...`，All checks passed。
+- 编译检查：目标测试、业务模块和 `.codex/run-real-llm-long-direct.py` 的 `py_compile` 通过。
+- PowerShell 解析：`.codex/run-real-llm-10ch-current-env.ps1` 解析通过。
+- 空环境 wrapper 预检：缺少运行时变量时仍输出 `gate: fail_preflight`，未启动真实外呼。
+- 旧失败目录验证：验证器对 `.codex/real-llm-35k-20260604-231327` 返回 `gate: fail`，正确拒绝缺少 `summary.json`、`book.md`、`audit_report.json` 且 `runner_exit_code` 非 0 的目录。
+- 敏感扫描：`tp-` 令牌形态命中数为 0；`Authorization: Bearer` 长值命中数为 0。
+
+### 风险与边界
+
+- 本轮不代表真实 35k 长程完成，只解除进入 30 章长程的本地章节上限阻断。
+- 真实 30 章运行仍需重新执行，并在产出 `summary.json`、`book.md`、`audit_report.json`、`run-metadata.json` 后由验证器和人工通读验收。
+- 默认 smoke 调用仍限制 1 到 10 章，避免把所有真实 smoke 默认放宽到高成本长程。
+
+### 评分
+
+- **代码质量**：96/100。通过显式参数复用既有校验点，未复制逻辑，默认行为保持稳定。
+- **测试覆盖**：95/100。红绿测试覆盖默认 10 章边界、30 章长程透传、wrapper 契约和目标回归。
+- **规范遵循**：97/100。全程简体中文，审计落盘到项目 `.codex`，未写入私有配置。
+- **需求匹配**：96/100。直接修复真实 35k 运行被 10 章上限拒绝的根因。
+- **架构一致**：95/100。保持业务校验、runner、wrapper 三层职责清晰。
+- **风险评估**：96/100。明确旧失败目录仍失败，真实 35k 需重跑后才能验收。
+- **综合评分**：96/100。
+- **明确建议**：通过本轮章节上限修复；允许用户重新执行真实 35k 长程，但不得把旧失败目录作为完成证据。
+
+```Scoring
+score: 96
+```
+
+summary: '真实 35k 长程章节上限阻断已修复：默认真实 smoke 仍限制 1..10 章，长程 runner 和 wrapper 显式透传 max_chapter_count=30；TDD 红绿验证完成，目标 pytest 19 passed，Ruff、py_compile、PowerShell 解析和空环境 fail_preflight 均通过。旧 35k 失败目录仍被验证器正确拒绝，真实 35k 长程需要重新运行后再验收。'
+
+## 审查报告 - 真实 35k ModelRun 摘要长度修复
+
+时间：2026-06-05 01:09:42 +08:00
+
+### 需求字段完整性
+
+- **目标**：修复真实 35k 长程在后续章节 prompt 累积后，记录 `ModelRunCreate.input_summary` 超过 50000 字符导致 runner 失败的问题。
+- **范围**：只修改真实 LLM smoke 的 ModelRun 入库摘要处理和对应测试；不放宽通用 schema，不截断真实发送给 LLM 的 prompt，不运行真实外部 LLM。
+- **交付物**：`.codex/context-summary-real-llm-35k-modelrun-summary-fix.md`、`MODEL_RUN_SUMMARY_MAX_CHARS`、`_model_run_summary_text`、长摘要回归测试、操作日志和本审查报告。
+- **审查要点**：长 prompt 仍可用于真实生成；入库摘要不得超过 schema 上限；失败目录不得被误判通过；不得写入私有 provider 配置。
+
+### 根因与修复
+
+- 真实运行目录 `.codex/real-llm-35k-20260605-002357` 已越过章节上限，运行到约第 21 章附近后失败。
+- `stderr.log` 显示 `ModelRunCreate.input_summary` 触发 Pydantic `string_too_long`，最大长度为 50000 字符。
+- `ModelRunCreate` schema 保持不变，继续约束 `input_summary` 和 `output_summary`。
+- `_record_model_run` 在构造 `ModelRunCreate` 前裁剪 `input_summary` 与 `output_summary`，短文本保持原样，长文本保留头尾并插入中文截断说明。
+- `ModelRun.payload` 记录原始长度与是否截断，便于审计。
+
+### 本地验证
+
+- TDD 红灯：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_smoke.py::test_phase9b_real_llm_smoke_truncates_long_model_run_summaries -q`，旧实现因 `input_summary` 和 `output_summary` 超过 50000 字符失败。
+- TDD 绿灯：同一测试通过。
+- 目标回归：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py -q`，20 passed。
+- Ruff：目标测试与业务模块 `uv run ruff check ...`，All checks passed。
+- 编译检查：目标测试、业务模块和 `.codex/run-real-llm-long-direct.py` 的 `py_compile` 通过。
+- 旧失败目录验证：`.codex/real-llm-35k-20260605-002357` 仍返回 `gate: fail`，正确拒绝缺少 `summary.json`、`book.md`、`audit_report.json` 且 `runner_exit_code` 非 0 的目录。
+- 敏感扫描：`tp-` 令牌形态命中数为 0；长 `Bearer` 值命中数为 0；provider 私有 URL 命中数为 0。
+
+### 风险与边界
+
+- 本轮不代表真实 35k 长程完成，只解除第二个本地入库阻断。
+- 入库摘要不再保存完整超长 prompt；完整生成上下文仍只用于模型调用，摘要字段保留头尾和截断说明。
+- 下一次真实 35k 长程仍需重新运行，并以完整产物和人工通读作为最终验收依据。
+
+### 评分
+
+- **代码质量**：96/100。保留 schema 边界，只在具体写入点裁剪摘要，未引入跨域抽象。
+- **测试覆盖**：95/100。红绿测试覆盖真实失败形态，目标回归覆盖 20 个相关测试。
+- **规范遵循**：97/100。简体中文审计、Context7/Pydantic 证据、Shrimp 留痕齐全。
+- **需求匹配**：96/100。直接修复真实 35k 第二个阻断点。
+- **架构一致**：95/100。保持 ModelRun schema、service 和真实 LLM smoke 职责边界。
+- **风险评估**：96/100。明确旧失败目录仍失败，避免误报完成。
+- **综合评分**：96/100。
+- **明确建议**：通过本轮 ModelRun 摘要长度修复；允许重新执行真实 35k 长程，但不得把旧失败目录作为完成证据。
+
+```Scoring
+score: 96
+```
+
+summary: '真实 35k 长程 ModelRun 摘要长度阻断已修复：_record_model_run 现在仅裁剪入库 input_summary/output_summary，真实 LLM prompt 不变；payload 记录原始长度与截断状态。TDD 红绿验证完成，目标 pytest 20 passed，Ruff 和 py_compile 通过；旧 35k 失败目录仍被验证器正确拒绝，真实 35k 需要重新运行后验收。'
+
+## 审查报告 - 真实 35k 第三次运行预算门禁暂停
+
+时间：2026-06-05 02:14:24 +08:00
+
+### 需求字段完整性
+
+- **目标**：复核第三次真实 35k 长程运行结果，判断是否已完成或出现新阻断。
+- **范围**：只读检查 `.codex/real-llm-35k-20260605-012102`、SQLite 进度、脱敏日志、metadata 和验证器结果；不读取 `.env`，不运行真实外呼。
+- **交付物**：本审查报告与操作日志记录。
+- **审查要点**：确认前两项代码修复是否在真实链路生效；确认失败目录不得误判通过；确认下一步是否需要代码修复还是参数调整。
+
+### 运行事实
+
+- 运行目录：`.codex/real-llm-35k-20260605-012102`。
+- 连通性探针通过，runner 已进入真实 30 章长程。
+- SQLite 进度显示 `book_run_status=paused_by_budget`，`current_chapter_index=26`，`total_chapters=30`，`tokens_used=846207`，`token_budget=800000`。
+- 章节进度：已生成 26 章，正文字符数约 80627。
+- ModelRun 记录：26 条，累计 token 846207，`input_summary` 最大长度 50000，12 条记录标记 `input_summary_truncated=1`。
+
+### 结论
+
+- 章节上限修复已在真实链路生效。
+- ModelRun 摘要长度修复已在真实链路生效。
+- 本次失败是预算门禁按设计暂停，不是新增代码缺陷。
+- 因缺少 `summary.json`、`book.md`、`audit_report.json` 且 `runner_exit_code=1`，该目录不能作为完成证据。
+
+### 验证器结果
+
+- 命令：`.codex/validate-real-llm-long-evidence.ps1 -RunDirectory .codex\real-llm-35k-20260605-012102 -ExpectedChapterCount 30 -TokenBudget 800000`
+- 结果：返回非 0，`gate: fail`。
+- 失败原因：缺少最终产物、`runner_exit_code 非 0`、`summary_present=false`。
+
+### 风险与下一步
+
+- 当前 800000 token 预算不足以跑完 30 章真实长程。
+- 下一次应提高 `-TokenBudget`，并保留运行后成功门禁余量；建议至少 `1200000`，更稳妥为 `1300000`。
+- 仍需完整产物、脱敏验证和人工通读后才能声明真实 35k 完成。
+
+### 评分
+
+- **代码质量**：不适用，本轮只读复核。
+- **测试覆盖**：94/100。验证器正确拒绝失败目录，SQLite 进度证据充分。
+- **规范遵循**：97/100。未复述或落盘私有凭据，审计记录完整。
+- **需求匹配**：95/100。明确区分修复生效与预算失败。
+- **风险评估**：96/100。指出旧目录不能作为完成证据，并给出参数调整方向。
+- **综合评分**：95/100。
+- **明确建议**：通过本轮复核；下一步使用更高 token budget 重新执行真实 35k。
+
+```Scoring
+score: 95
+```
+
+summary: '真实 35k 第三次运行已完成只读复核：前两项修复均在真实链路生效，运行推进到 26/30 章，正文约 80627 字符；最终因 tokens_used=846207 超过 token_budget=800000 而 paused_by_budget。验证器正确 gate: fail，该目录不能作为完成证据；下一次需提高 TokenBudget 后重跑。'
+
 ## 审查报告 - 批量提交推送
 
 时间：2026-06-04 18:19:09 +08:00
@@ -2552,3 +2762,2583 @@ score: 98
 ```
 
 summary: 'Git 对象库清理维护完成：loose objects 从 14530 个、338.73 MiB 降至 0 个、0 bytes，packs 从 44 个收敛到 1 个；git fsck --full 无输出，HEAD 与 origin/master 保持一致。'
+
+## 审查报告 - 源码剪枝扫描
+
+时间：2026-06-05 02:41:35 +08:00
+
+### 需求字段完整性
+
+- **目标**：只读识别 API、Workflow、Web/shared 的疑似死代码、重复职责和重构候选。
+- **范围**：覆盖 `apps/api`、`apps/workflow`、`apps/web`、`packages/shared` 的入口、测试和引用关系。
+- **交付物**：`.codex/context-summary-源码剪枝扫描.md`、`.codex/operations-log.md` 追加记录、本审查报告。
+- **审查要点**：只读扫描、证据化候选、误报保护、后续本地验证命令。
+
+### 上下文与入口证据
+
+- FastAPI 入口：`apps/api/app/main.py` 使用 `app.include_router(...)` 汇总领域 router。
+- LangGraph 入口：`apps/workflow/storyforge_workflow/graph.py` 使用 `StateGraph.add_node/add_edge/compile`，`runtime/runner.py` 调用 `graph.stream`。
+- Next.js 入口：`apps/web/app` 的 `page.tsx`、`layout.tsx`、`route.ts`、`loading.tsx`、`error.tsx` 为框架入口。
+- shared 入口：`packages/shared/src/index.ts` 导出 OpenAPI 类型和诊断转换契约。
+
+### 主要发现
+
+- **高置信疑似死代码**：`apps/web/lib/phase6-data-sources.ts`，只命中自身定义，未见生产或测试引用。
+- **中置信待确认**：`apps/web/components/home/assistant-tool-events.ts`、`apps/web/components/home/assistant-workflows.ts`，主要由测试/静态约束引用，未进入当前业务链路。
+- **中置信待确认**：`apps/workflow/storyforge_workflow/longform.py`，作为 CLI/测试入口存在，但未进入主 `WorkflowRuntime` 或 BookRun adapter。
+- **重复职责候选**：`apps/api/app/domains/batch_refinement` 与 `batch_refinery` 并存，兼容路径需要迁移计划。
+- **重复职责候选**：`provider_client.py` 与 `runtime/provider_adapter.py` 存在 provider 调用边界过渡层。
+- **重构候选**：Web 多页面内联验证器和 `isRecord` 可逐步拆到 `types.ts` / `validators.ts`。
+
+### 误报保护
+
+- API router 端点函数低调用计数不代表死代码，因为 FastAPI 装饰器和 `include_router` 是入口。
+- `books`、`jobs`、`context_compiler`、`story_memory` 虽无直接 router，但被 ORM 聚合、领域服务和测试广泛引用。
+- Workflow `SKILL.md` 文件由注册表元数据引用，不能按 Python import 判死。
+- Next.js App Router 入口文件不能按普通 import 判死。
+
+### 本地验证步骤
+
+```powershell
+rg -n 'phase6DataSources|phase6FirstDataSourceSpike|Phase6DataSource|phase6-data-sources' apps/web packages/shared apps/web/tests
+rg -n 'assistant-tool-events|parseAssistantToolEvent|assistant-workflows|planAssistantWorkflow' apps/web/app apps/web/components apps/web/tests
+rg -n 'app\.include_router|from app\.domains\..+\.router' apps/api/app/main.py
+rg -n 'add_node\(|graph\.stream|create_generation_graph' apps/workflow/storyforge_workflow apps/workflow/tests
+git diff --check -- .codex/context-summary-源码剪枝扫描.md .codex/operations-log.md .codex/verification-report.md
+```
+
+### 评分
+
+- **代码质量**：不适用，本轮未修改业务源码。
+- **测试覆盖**：88/100。完成证据化静态扫描与入口规则校验；未运行全量业务测试，原因是本轮只读报告。
+- **规范遵循**：94/100。使用简体中文、Context7、GitHub code search、sequential-thinking、shrimp-task-manager 和本地 `.codex` 留痕；desktop-commander 不可用已记录降级。
+- **需求匹配**：92/100。覆盖 API、Workflow、Web/shared，并给出候选、置信度和后续验证命令。
+- **架构一致**：93/100。候选判断尊重 FastAPI、LangGraph、Next.js 和 monorepo 入口约定。
+- **风险评估**：91/100。明确区分高置信死代码、中置信待确认和重复职责，避免直接删除。
+- **综合评分**：92/100。
+- **明确建议**：通过本轮只读扫描；下一步可从 `phase6-data-sources.ts` 启动最小剪枝 TDD，其余候选先做调用方确认。
+
+```Scoring
+score: 92
+```
+
+summary: '源码剪枝扫描只读完成：已覆盖 API、Workflow、Web/shared，识别出 phase6-data-sources.ts 为高置信疑似死代码，assistant-tool-events.ts、assistant-workflows.ts、workflow longform.py 为中置信待确认候选，并记录 batch_refinement/batch_refinery、provider_client/provider_adapter、Web 内联 validators 等重复职责重构方向。'
+
+## 审查报告 - 源码剪枝 phase6-data-sources
+
+时间：2026-06-05 02:59:14 +08:00
+
+### 需求字段完整性
+
+- **目标**：开始源码剪枝，优先删除上一轮扫描中最高置信未引用 Web 文件。
+- **范围**：`apps/web/lib/phase6-data-sources.ts`、对应剪枝回归测试、架构事实源说明和 `.codex` 留痕。
+- **交付物**：删除目标文件；新增 `apps/web/tests/source-pruning.test.ts`；新增 `.codex/context-summary-源码剪枝-phase6-data-sources.md`；追加操作日志和本审查报告；更新 `docs/architecture/phase6-workbench-contract.md`。
+- **审查要点**：先红灯再删除；删除后无业务引用；Web/shared 本地验证通过；中置信候选未被修改。
+
+### 实施结果
+
+- 已删除 `apps/web/lib/phase6-data-sources.ts`。
+- 已新增 `apps/web/tests/source-pruning.test.ts`，断言已下线的 Phase 6 数据源 registry 不应继续留在 Web lib。
+- 已更新 `docs/architecture/phase6-workbench-contract.md` 的代码事实源，移除“五个页面仍从 registry 渲染”的过期描述。
+- 未修改中置信候选：`assistant-tool-events.ts`、`assistant-workflows.ts`、`apps/workflow/storyforge_workflow/longform.py`。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test source-pruning`，退出码 1，失败原因为 `phase6-data-sources.ts` 仍存在。
+- 绿灯：删除目标文件并修正文档后，`pnpm --filter @storyforge/web test source-pruning`，1 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test`：210 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `pnpm --filter @storyforge/shared test`：`tsc --noEmit` 通过。
+- `rg -n 'phase6DataSources|phase6FirstDataSourceSpike|Phase6DataSource|phase6-data-sources' apps/web packages/shared --glob '!apps/web/tests/source-pruning.test.ts'`：无匹配，退出码 1，符合预期。
+- `git diff --check -- apps/web/lib/phase6-data-sources.ts apps/web/tests/source-pruning.test.ts docs/architecture/phase6-workbench-contract.md .codex/context-summary-源码剪枝-phase6-data-sources.md .codex/operations-log.md .codex/verification-report.md`：通过。
+
+### 风险与边界
+
+- 旧历史计划 `docs/superpowers/plans/2026-05-20-four-risk-closure.md` 仍记录曾经修改该文件的任务，不作为当前事实源，未改动。
+- 本轮没有处理中置信和重构候选，避免一次性扩大剪枝影响面。
+- Web 全量测试输出包含既有 Sentry deprecation warning；不影响本轮验证结论。
+
+### 评分
+
+- **代码质量**：95/100。删除未引用阶段性 registry，新增轻量回归护栏，未引入新生产抽象。
+- **测试覆盖**：96/100。完成红绿测试、Web 全量测试、Web/shared 类型检查和引用搜索。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：96/100。已开始剪枝并完成最高置信项，未误删中置信候选。
+- **架构一致**：95/100。文档事实源同步到当前页面 API helper、`api-client` 和后端契约模式。
+- **风险评估**：94/100。明确历史文档残留和后续候选边界。
+- **综合评分**：96/100。
+- **明确建议**：通过本轮第一批剪枝；下一批应继续按单候选红绿验证推进。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第一批已完成：删除未引用的 apps/web/lib/phase6-data-sources.ts，新增 source-pruning 回归测试并修正 Phase 6 架构事实源；红灯失败原因正确，绿灯通过，Web 210 项测试、Web 类型检查、shared 类型检查、业务引用搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 assistant-workflows
+
+时间：2026-06-05 03:44:47 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，在中置信候选中选择证据充分的最小项执行第二批删除。
+- **范围**：`apps/web/components/home/assistant-workflows.ts`、`apps/web/tests/assistant-workflows.test.ts`、`apps/web/tests/source-pruning.test.ts` 和 `.codex` 留痕。
+- **交付物**：删除未接入的 Assistant 工作流规划模块及其专属测试；更新剪枝回归测试；新增 `.codex/context-summary-源码剪枝-assistant-workflows.md`；追加操作日志和本审查报告。
+- **审查要点**：一次最多剪一个候选；先红灯再删除；保留证据不足候选；Web 本地验证通过。
+
+### 实施结果
+
+- 已删除 `apps/web/components/home/assistant-workflows.ts`。
+- 已删除 `apps/web/tests/assistant-workflows.test.ts`。
+- 已扩展 `apps/web/tests/source-pruning.test.ts`，防止未接入的 Assistant workflow 规划模块回归。
+- 未修改 `apps/web/components/home/assistant-tool-events.ts`。
+- 未修改 `apps/workflow/storyforge_workflow/longform.py`。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test source-pruning`，退出码 1；失败原因是 `assistant-workflows.ts` 仍存在。
+- 绿灯：删除目标模块及其专属测试后，`pnpm --filter @storyforge/web test source-pruning`，2 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test`：207 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `rg -n 'assistant-workflows|planAssistantWorkflow|listAssistantWorkflowTemplates|getAssistantWorkflowTemplate|AssistantWorkflow' apps/web/app apps/web/components apps/web/tests --glob '!apps/web/tests/source-pruning.test.ts'`：无匹配，退出码 1，符合预期。
+- `git diff --check -- apps/web/components/home/assistant-workflows.ts apps/web/tests/assistant-workflows.test.ts apps/web/tests/source-pruning.test.ts .codex/context-summary-源码剪枝-assistant-workflows.md .codex/operations-log.md .codex/verification-report.md`：通过。
+- `git diff --name-status` 目标检查未显示 `assistant-tool-events.ts` 或 `longform.py`，确认保留项未被修改。
+
+### 风险与边界
+
+- `assistant-tool-events.ts` 被 `home-page.test.tsx` 明确要求提供解析函数，仍保留。
+- `longform.py` 有 CLI、恢复、重试和生成测试覆盖，仍保留。
+- 历史计划文档仍含 `assistant-workflows.ts` 创建/修改记录，作为归档保留，不作为当前运行时事实源。
+
+### 评分
+
+- **代码质量**：95/100。删除未接入规划式模块及其自测，保留真实运行链路组件。
+- **测试覆盖**：95/100。完成红绿测试、Web 全量测试、Web 类型检查、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成第二批单候选剪枝，未误删证据不足候选。
+- **架构一致**：95/100。保留首页真实工具目录、节点映射、事件解析和 Server Action 链路。
+- **风险评估**：94/100。明确历史文档归档边界和后续候选保留原因。
+- **综合评分**：95/100。
+- **明确建议**：通过第二批剪枝；后续若继续，应先重新评估 `assistant-tool-events.ts` 或 Workflow `longform.py` 的产品入口和测试契约。
+
+```Scoring
+score: 95
+```
+
+summary: '源码剪枝第二批已完成：删除未接入运行链路的 apps/web/components/home/assistant-workflows.ts 及其专属测试，扩展 source-pruning 防回归护栏；红灯失败原因正确，绿灯通过，Web 207 项测试、Web 类型检查、业务引用搜索和 diff check 均通过；assistant-tool-events.ts 与 workflow longform.py 未被修改。'
+
+## 审查报告 - 源码剪枝 assistant-tool-events
+
+时间：2026-06-05 04:11:33 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Web 中未接入生产运行链路的 Assistant 工具事件解析模块。
+- **范围**：`apps/web/components/home/assistant-tool-events.ts`、`apps/web/tests/home-page.test.tsx` 中对应静态测试块、`apps/web/tests/source-pruning.test.ts` 和 `.codex` 留痕。
+- **交付物**：删除未消费事件解析模块；移除规划式静态断言；扩展剪枝回归测试；新增 `.codex/context-summary-源码剪枝-assistant-tool-events.md`；追加操作日志和本审查报告。
+- **审查要点**：先红灯再删除；保留真实工具树与 BookRun 映射链路；Web 本地验证通过；引用搜索无业务残留。
+
+### 实施结果
+
+- 已删除 `apps/web/components/home/assistant-tool-events.ts`。
+- 已移除 `apps/web/tests/home-page.test.tsx` 中“Assistant 工具事件解析器容忍未知数据并映射真实状态”的静态测试块。
+- 已扩展 `apps/web/tests/source-pruning.test.ts`，防止未接入事件源的解析模块回归。
+- 未修改 `AssistantToolTree.tsx`、`assistant-tool-node-mapper.ts`、Server Actions 或 `apps/workflow/storyforge_workflow/longform.py`。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test source-pruning`，退出码 1；失败原因是 `assistant-tool-events.ts` 仍存在。
+- 绿灯：删除目标模块并移除对应静态测试块后，`pnpm --filter @storyforge/web test source-pruning`，3 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test`：207 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `rg -n 'assistant-tool-events|parseAssistantToolEvent|parseAssistantToolEvents|mapAssistantToolEventsToNodes|AssistantToolEvent' apps/web/app apps/web/components apps/web/tests --glob '!apps/web/tests/source-pruning.test.ts'`：无匹配，退出码 1，符合预期。
+- `git diff --check -- apps/web/components/home/assistant-tool-events.ts apps/web/tests/home-page.test.tsx apps/web/tests/source-pruning.test.ts .codex/context-summary-源码剪枝-assistant-tool-events.md .codex/operations-log.md .codex/verification-report.md`：通过。
+- `git diff --name-status` 目标检查未显示 `AssistantToolTree.tsx`、`assistant-tool-node-mapper.ts` 或 `longform.py`，确认保留项未被修改。
+
+### 风险与边界
+
+- 若后续接入真实 SSE/tool events，应从事件 API 和 UI 消费路径重新设计解析器，并先补真实消费测试。
+- 历史计划文档仍含 `assistant-tool-events.ts` 创建记录，作为归档保留，不作为当前运行时事实源。
+- 本轮不处理 Workflow `longform.py`，因为它有 CLI 与多项 workflow 测试覆盖。
+
+### 评分
+
+- **代码质量**：95/100。删除未消费事件解析模块，保留真实 BookRun 工具节点映射链路。
+- **测试覆盖**：95/100。完成红绿测试、Web 全量测试、Web 类型检查、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成第三批单候选剪枝，未扩大到高风险 Workflow CLI。
+- **架构一致**：95/100。当前工具树仍由真实 BookRun 状态和既有组件驱动。
+- **风险评估**：94/100。明确未来事件流重新接入条件和历史文档归档边界。
+- **综合评分**：95/100。
+- **明确建议**：通过第三批剪枝；下一步若继续，应重新评估 Workflow `longform.py` 或转向重复职责重构候选。
+
+```Scoring
+score: 95
+```
+
+summary: '源码剪枝第三批已完成：删除未接入事件源的 apps/web/components/home/assistant-tool-events.ts，并移除 home-page.test.tsx 中只要求该解析器存在的静态测试块；source-pruning 红绿验证完成，Web 207 项测试、Web 类型检查、业务引用搜索和 diff check 均通过；真实工具树、BookRun 映射和 workflow longform.py 未被修改。'
+
+## 审查报告 - 源码剪枝 workflow-longform
+
+时间：2026-06-05 09:48:43 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Workflow 中未接入正式运行链路的独立长文实验 CLI。
+- **范围**：`apps/workflow/storyforge_workflow/longform.py`、`apps/workflow/tests/test_longform_generation.py`、`apps/workflow/Dockerfile`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：删除独立 CLI；删除只覆盖该 CLI 的专属测试；清理 Dockerfile 示例；新增 workflow 剪枝回归测试；新增 `.codex/context-summary-源码剪枝-workflow-longform.md`；追加操作日志和本审查报告。
+- **审查要点**：先红灯再删除；保留 `build_longform_segment_prompt` 与 prompt builder 测试；workflow 本地验证通过；引用搜索无业务残留。
+
+### 实施结果
+
+- 已删除 `apps/workflow/storyforge_workflow/longform.py`。
+- 已删除 `apps/workflow/tests/test_longform_generation.py`。
+- 已清理 `apps/workflow/Dockerfile` 中 `python -m storyforge_workflow.longform --help` 示例。
+- 已新增 `apps/workflow/tests/test_source_pruning.py`，防止独立 longform CLI 和 Dockerfile 示例回归。
+- 未删除 `apps/workflow/storyforge_workflow/prompts/builder.py` 中的 `build_longform_segment_prompt`。
+- 未修改 workflow runtime、graph、provider adapter 或 BookRun 代码。
+
+### TDD 证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `storyforge_workflow/longform.py` 仍存在。
+- 绿灯：删除目标模块、专属测试并清理 Dockerfile 示例后，`uv run pytest tests/test_source_pruning.py -q`，1 passed。
+
+### 本地验证
+
+- `uv run pytest tests/test_source_pruning.py -q`：1 passed。
+- `uv run pytest tests/test_prompt_builder.py -q`：19 passed。
+- `uv run pytest -q`：158 passed。
+- `uv run ruff check storyforge_workflow tests`：All checks passed。
+- `rg -n "storyforge_workflow\.longform|from storyforge_workflow import longform|from storyforge_workflow\.longform|generate_longform_article|LongformGenerationPlan|python -m storyforge_workflow.longform" apps/workflow apps/api apps/web packages docs scripts`：仅剩 `apps/workflow/tests/test_source_pruning.py` 中的禁止回归断言，无业务引用残留。
+- `git diff --check -- apps/workflow/storyforge_workflow/longform.py apps/workflow/tests/test_longform_generation.py apps/workflow/Dockerfile apps/workflow/tests/test_source_pruning.py .codex/context-summary-源码剪枝-workflow-longform.md .codex/operations-log.md .codex/verification-report.md`：通过。
+
+### 风险与边界
+
+- 删除会移除手动实验式长文生成入口；若后续需要长文能力，应接入正式 workflow runtime / graph / BookRun 链路，而不是恢复独立 CLI。
+- `build_longform_segment_prompt` 仍保留并通过 `test_prompt_builder.py` 覆盖，提示词层能力未削弱。
+- 本轮不处理 API 或 Web 的其他候选，避免扩大改动面。
+
+### 评分
+
+- **代码质量**：96/100。删除未接入正式链路的独立 CLI 和专属测试，保留可复用 prompt builder。
+- **测试覆盖**：96/100。完成红绿测试、prompt builder 回归、workflow 全量测试、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：96/100。完成第四批单候选剪枝，未扩大到运行时主链路。
+- **架构一致**：95/100。Dockerfile 不再暴露已下线 CLI，正式 workflow 链路保持不变。
+- **风险评估**：95/100。明确未来长文能力应走正式 workflow 集成路径。
+- **综合评分**：96/100。
+- **明确建议**：通过第四批剪枝；下一批可继续转向 API 或 Workflow 中其他高置信死代码候选，但仍应单候选红绿推进。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四批已完成：删除未接入正式 workflow 链路的 apps/workflow/storyforge_workflow/longform.py 及其专属测试，清理 Dockerfile longform CLI 示例，并新增 workflow source-pruning 防回归护栏；红灯失败原因正确，绿灯通过，prompt builder 19 项测试、workflow 158 项全量测试、ruff、业务引用搜索和 diff check 均通过；build_longform_segment_prompt 已保留。'
+
+## 审查报告 - 源码剪枝 api-batch-refinement
+
+时间：2026-06-05 10:03:25 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 API 中旧 Phase 2 同步兼容批量精修接口。
+- **范围**：`apps/api/app/domains/batch_refinement`、`apps/api/tests/test_batch_refinement_api.py`、`apps/api/app/main.py`、API source-pruning 测试、OpenAPI/shared 生成契约、当前架构图和 `.codex` 留痕。
+- **交付物**：删除旧兼容域；删除专属兼容测试；移除路由挂载；重新生成 OpenAPI contract 和 shared API types；新增 API 剪枝回归测试；更新当前架构领域清单；新增 `.codex/context-summary-源码剪枝-api-batch-refinement.md`；追加操作日志和本审查报告。
+- **审查要点**：先红灯再删除；保留 `batch_refinery` 主链路；不削弱批量限流、metrics 或后台执行；引用搜索无运行时残留。
+
+### 实施结果
+
+- 已删除 `apps/api/app/domains/batch_refinement` 源码文件和生成缓存空目录。
+- 已删除 `apps/api/tests/test_batch_refinement_api.py`。
+- 已从 `apps/api/app/main.py` 移除 `batch_refinement_router` 导入和挂载。
+- 已新增 `apps/api/tests/test_source_pruning.py`，防止 `/api/batch-refinement`、OpenAPI 路径和旧兼容域回归，同时确认 `/api/batch-refinery` 保持存在。
+- 已用 `pnpm run openapi` 更新 `packages/shared/src/contracts/storyforge.openapi.json`。
+- 已用 `pnpm --filter @storyforge/shared generate:types` 更新 `packages/shared/src/generated/api-types.ts`。
+- 已更新 `docs/architecture/current-architecture-map.md`，从当前质量闭环领域清单移除 `batch_refinement`。
+- 未删除或修改 `apps/api/app/domains/batch_refinery`。
+
+### TDD 证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `apps/api/app/domains/batch_refinement` 仍存在。
+- 绿灯：删除目标域、专属测试、路由挂载并清理缓存目录后，`uv run pytest tests/test_source_pruning.py -q`，1 passed。
+
+### 本地验证
+
+- `uv run pytest tests/test_source_pruning.py tests/test_batch_refinery.py tests/test_api_middleware.py tests/test_api_surface.py -q`：19 passed，4 个既有 JWT 测试密钥长度告警。
+- `uv run pytest -q`：415 passed，7 个既有告警。
+- `uv run ruff check app tests`：All checks passed。
+- `pnpm run openapi`：OpenAPI contract 生成成功。
+- `pnpm --filter @storyforge/shared generate:types`：shared API types 生成成功。
+- `pnpm --filter @storyforge/shared test`：`tsc --noEmit` 通过。
+- `rg -n "batch_refinement|batch-refinement|BatchRefinement" apps/api apps/web packages/shared/src scripts docs --glob '!docs/superpowers/**'`：仅剩 `apps/api/tests/test_source_pruning.py` 中的禁止回归断言，无运行时或当前架构文档残留。
+- `git diff --check -- apps/api/app/main.py apps/api/app/domains/batch_refinement apps/api/tests/test_batch_refinement_api.py apps/api/tests/test_source_pruning.py packages/shared/src/contracts/storyforge.openapi.json packages/shared/src/generated/api-types.ts docs/architecture/current-architecture-map.md .codex/context-summary-源码剪枝-api-batch-refinement.md .codex/operations-log.md .codex/verification-report.md`：通过。
+
+### 风险与边界
+
+- 删除 `/api/batch-refinement` 是破坏式剪枝，会影响仍使用旧 Phase 2 草稿兼容接口的外部客户端；当前仓库 Web、脚本、shared 当前契约和非历史 docs 已无运行时调用残留。
+- `/api/batch-refinery` 保留，且批量限流、后台任务、部分失败进度和 API surface 已通过测试。
+- 历史 `docs/superpowers/**` 计划引用保留为归档，不作为当前运行时事实源。
+
+### 评分
+
+- **代码质量**：96/100。删除重复职责旧兼容域，保留当前主链路并同步架构图。
+- **测试覆盖**：97/100。完成红绿测试、API 定向测试、API 全量测试、ruff、OpenAPI/type 生成、shared 类型检查、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：96/100。完成第五批 API 侧单候选剪枝，符合“疑似死代码、重复职责和重构候选”目标。
+- **架构一致**：96/100。当前批量精修只保留 `batch_refinery` 主链路，OpenAPI/shared 类型与架构文档同步。
+- **风险评估**：95/100。明确破坏旧兼容 API 的影响，并用仓库内引用搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第五批剪枝；后续可继续扫描 provider adapter 双入口或 Web 内联 validators，但应继续单候选红绿推进。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第五批已完成：删除旧 Phase 2 同步兼容批量精修域 apps/api/app/domains/batch_refinement 及其专属测试，移除 main.py 路由挂载，重新生成 OpenAPI contract 和 shared api-types，并同步当前架构图；红灯失败原因正确，绿灯通过，API 定向 19 项测试、API 全量 415 项测试、ruff、shared 类型检查、引用搜索和 diff check 均通过；/api/batch-refinery 主链路保留。'
+
+## 审查报告 - 源码剪枝 workflow-runtime-generate-text-export
+
+时间：2026-06-05 10:14:31 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Workflow runtime 层未使用的 `generate_text` 转导出。
+- **范围**：`apps/workflow/storyforge_workflow/runtime/provider_execution.py`、`apps/workflow/storyforge_workflow/runtime/__init__.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：移除 runtime provider_execution 的 `generate_text` 导入与 `__all__` 项；移除 runtime 包级 `generate_text` 导入与 `__all__` 项；扩展 workflow 剪枝回归测试；新增 `.codex/context-summary-源码剪枝-workflow-runtime-generate-text-export.md`；追加操作日志和本审查报告。
+- **审查要点**：先红灯再删除；保留 `provider_client.generate_text`；保留 `ProviderClientAdapter`、`execute_provider_text` 和节点调用链；验证无 runtime 转导出口残留。
+
+### 实施结果
+
+- 已从 `apps/workflow/storyforge_workflow/runtime/provider_execution.py` 移除 `from storyforge_workflow.provider_client import generate_text`。
+- 已从 `provider_execution.py` 的 `__all__` 中移除 `"generate_text"`。
+- 已从 `apps/workflow/storyforge_workflow/runtime/__init__.py` 移除包级 `generate_text` 导入。
+- 已从 `runtime/__init__.py` 的 `__all__` 中移除 `"generate_text"`。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止 runtime 层重新转导出底层 provider client。
+- 未修改 `apps/workflow/storyforge_workflow/provider_client.py`。
+- 未修改 `ProviderClientAdapter`、`execute_provider_text` 或图节点的 `generate_text` 调用。
+
+### TDD 证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `runtime/provider_execution.py` 仍导入 `generate_text`。
+- 绿灯：移除 runtime 转导出后，`uv run pytest tests/test_source_pruning.py -q`，2 passed。
+
+### 本地验证
+
+- `uv run pytest tests/test_source_pruning.py -q`：2 passed。
+- `uv run pytest tests/test_provider_adapter.py tests/test_provider_fallback.py tests/test_llm_provider.py -q`：27 passed。
+- `uv run pytest -q`：159 passed。
+- `uv run ruff check storyforge_workflow tests`：All checks passed。
+- runtime 转导出口引用搜索：无匹配，退出码 1，符合预期。
+- 底层 `provider_client.generate_text` 引用搜索：确认仍被节点、adapter 和测试引用。
+- `git diff --check -- apps/workflow/storyforge_workflow/runtime/provider_execution.py apps/workflow/storyforge_workflow/runtime/__init__.py apps/workflow/tests/test_source_pruning.py .codex/context-summary-源码剪枝-workflow-runtime-generate-text-export.md .codex/operations-log.md .codex/verification-report.md`：通过。
+
+### 风险与边界
+
+- 删除会破坏外部未记录的 `storyforge_workflow.runtime.generate_text` 或 `storyforge_workflow.runtime.provider_execution.generate_text` 调用；当前仓库内无此调用。
+- 本轮不统一节点 provider 调用链，因为节点仍需要 temperature/model 分层参数，现有 `ProviderRequest` 尚未承载该契约。
+- 底层 `provider_client.generate_text` 和 adapter 行为均保留。
+
+### 评分
+
+- **代码质量**：96/100。删除未使用转导出口，runtime provider 边界更清晰。
+- **测试覆盖**：96/100。完成红绿测试、provider 定向测试、workflow 全量测试、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成第六批小范围重复入口剪枝，未扩大到高风险 provider 架构重构。
+- **架构一致**：96/100。runtime 公共入口保留 adapter/execution，底层 client 回到唯一底层位置。
+- **风险评估**：95/100。明确外部未记录调用风险，并用仓库引用搜索证明当前代码无残留。
+- **综合评分**：96/100。
+- **明确建议**：通过第六批剪枝；后续若继续统一节点 provider 调用，应先扩展 ProviderRequest 的 temperature/model 契约并单独测试。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第六批已完成：移除 Workflow runtime/provider_execution.py 与 runtime/__init__.py 中未使用的 generate_text 转导出，保留底层 provider_client.generate_text、ProviderClientAdapter、execute_provider_text 和节点调用链；红灯失败原因正确，绿灯通过，provider 定向 27 项测试、workflow 全量 159 项测试、ruff、引用搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 web-providers-page
+
+时间：2026-06-05 10:35:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Web 中未接入主导航且与 `/settings` 重复职责的 `/providers` 静态占位页。
+- **范围**：`apps/web/app/providers/page.tsx`、`apps/workflow/storyforge_workflow/tools/registry.py`、Web/Workflow source-pruning 测试和 `.codex` 留痕。
+- **交付物**：删除静态页面；将 `provider_gateway.resolve` 的 `page_refs` 迁移到 `apps/web/app/settings/page.tsx`；扩展 Web 与 Workflow 剪枝护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除 API Provider Gateway；不削弱 `/settings` Provider 设置能力；不处理仍被 `/jobs` 链接的 `/assets`。
+
+### 实施结果
+
+- 已删除 `apps/web/app/providers/page.tsx`。
+- 已将 `apps/workflow/storyforge_workflow/tools/registry.py` 中 `provider_gateway.resolve` 的页面引用从 `apps/web/app/providers/page.tsx` 改为 `apps/web/app/settings/page.tsx`。
+- 已扩展 `apps/web/tests/source-pruning.test.ts`，防止 `/providers` 静态页、导航入口和 registry 旧页面引用回归。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止 Workflow registry 继续引用已下线 providers 静态页。
+- 未修改 `apps/api/app/domains/provider_gateway/`，`/api/provider-gateway/providers` 仍保留。
+- 未修改 `/settings` 设置页交互或模型检测 API。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test source-pruning`，退出码 1；失败原因是 `app/providers/page.tsx` 仍存在。
+- 红灯：`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `registry.py` 仍包含 `apps/web/app/providers/page.tsx`。
+- 绿灯：删除静态页并迁移 registry 后，`pnpm --filter @storyforge/web test source-pruning`，4 passed。
+- 绿灯：迁移 registry 后，`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，3 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test source-pruning`：4 passed。
+- `pnpm --filter @storyforge/web test settings-page`：6 passed。
+- `pnpm --filter @storyforge/web test`：208 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`：3 passed。
+- `cd apps/workflow && uv run pytest tests/test_creative_tool_registry.py -q`：5 passed。
+- `cd apps/workflow && uv run pytest -q`：160 passed。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：All checks passed。
+- `cd apps/api && uv run pytest tests/test_runtime_tools.py tests/test_model_runs.py -q`：14 passed。
+- `cd apps/api && uv run pytest -q`：415 passed，保留既有 7 条依赖警告。
+- 旧 Web providers 标识引用搜索：除剪枝护栏外无匹配，退出码 1，符合预期。
+- registry/settings 引用搜索：确认 `provider_gateway.resolve` 指向 `apps/web/app/settings/page.tsx`。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 删除 `app/providers/page.tsx` 会有意下线 `/providers` Web 路由；当前仓库主导航、首页入口和测试契约未保护该路由。
+- `/settings` 保留为 Provider 设置真实交互入口，已由 settings-page 和 Web 全量测试验证。
+- `/api/provider-gateway/providers` 是 API 路径，不属于本批删除范围，已由 API 全量测试验证保留。
+- `/assets` 虽为静态页，但仍被 `/jobs` 静态任务页链接，本批未处理，避免扩大改动面。
+
+### 评分
+
+- **代码质量**：96/100。删除重复静态入口，runtime tools 页面引用指向真实交互页。
+- **测试覆盖**：97/100。完成红绿测试、Web 全量、Web lint、Workflow 全量、Workflow ruff、API runtime-tools/model-runs 定向、API 全量、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求；desktop-commander 缺失已记录并使用本地只读命令替代。
+- **需求匹配**：96/100。完成第七批 Web 小范围剪枝，聚焦疑似死代码和重复职责候选。
+- **架构一致**：96/100。Provider Gateway API 和 `/settings` 真实入口保留，Workflow registry 继续承担事实源职责。
+- **风险评估**：95/100。明确 `/providers` 外部直达失效风险，并用仓库导航、测试和引用搜索证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第七批剪枝；后续若继续处理 `/assets` 或 `/jobs`，应先评估二者的入口链条和导航契约，不宜直接按静态页面删除。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第七批已完成：删除 Web /providers 静态 Provider Gateway 占位页，将 Workflow CreativeToolRegistry 的 provider_gateway.resolve 页面引用迁移到 /settings 真实 Provider 设置入口；红灯失败原因正确，绿灯通过，Web 全量 208 项测试、Web 类型检查、Workflow 全量 160 项测试、Workflow ruff、API runtime-tools/model-runs 定向 14 项、API 全量 415 项、引用搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 web-test-transpile-stale-assistant
+
+时间：2026-06-05 10:56:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，清理 Web 测试转译脚本中已下线 Assistant 模块的残留引用。
+- **范围**：`apps/web/scripts/phase1-contract-test.mjs`、`apps/web/tests/source-pruning.test.ts` 和 `.codex` 留痕。
+- **交付物**：删除测试转译脚本中的 `assistant-tool-events` 与 `assistant-workflows` runtimeModules/importRewrites 条目；扩展 source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不修改生产 Assistant 链路；不恢复已删除模块；测试脚本仍能转译当前真实测试依赖。
+
+### 实施结果
+
+- 已从 `phase1-contract-test.mjs` 的 `runtimeModules` 删除 `components/home/assistant-tool-events.ts` 与 `components/home/assistant-workflows.ts`。
+- 已从 `importRewrites` 删除 `../components/home/assistant-tool-events`、`../components/home/assistant-workflows`、`./assistant-tool-events`、`./assistant-workflows`。
+- 已扩展 `apps/web/tests/source-pruning.test.ts`，防止测试转译脚本重新保留已下线模块引用。
+- 未修改仍存在的 `assistant-tool-catalog`、`assistant-tool-node-mapper`、Assistant actions 或 session store。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test source-pruning`，退出码 1；失败原因是测试转译脚本仍引用 `components/home/assistant-workflows.ts` 和 `components/home/assistant-tool-events.ts`。
+- 绿灯：删除残留条目后，`pnpm --filter @storyforge/web test source-pruning`，6 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test source-pruning`：6 passed。
+- `pnpm --filter @storyforge/web test`：210 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `assistant-tool-events|assistant-workflows` 引用搜索：仅剩 `apps/web/tests/source-pruning.test.ts` 中的禁止回归护栏文本。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 本批只清理测试基础设施残留，不改变 Web 运行时行为。
+- 若未来重新引入同名模块，必须同时更新 source-pruning 护栏并提供新的生产接入证据。
+- Web 全量测试已证明当前测试转译链路不依赖这些已下线模块 rewrite。
+
+### 评分
+
+- **代码质量**：95/100。测试脚本转译清单与当前源码状态保持一致，减少幽灵引用。
+- **测试覆盖**：96/100。完成红绿测试、Web 全量测试、Web lint、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：94/100。完成一处小范围 Web 测试基础设施残留剪枝，推进源码扫描噪声清理。
+- **架构一致**：95/100。不触碰生产 Assistant 链路，只同步测试运行器事实源。
+- **风险评估**：95/100。风险限于测试脚本；Web 全量测试已覆盖。
+- **综合评分**：95/100。
+- **明确建议**：通过第八批剪枝；后续可继续寻找仅由测试脚本或归档文档保留的已下线模块引用。
+
+```Scoring
+score: 95
+```
+
+summary: '源码剪枝第八批已完成：清理 Web phase1-contract-test.mjs 中已删除 assistant-tool-events 与 assistant-workflows 的 runtimeModules/importRewrites 残留，并扩展 source-pruning 防回归护栏；红灯失败原因正确，绿灯通过，Web 全量 210 项测试、Web 类型检查、引用搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 workflow-tools-package-export
+
+时间：2026-06-05 11:15:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 Workflow `tools` 包级重复转导出。
+- **范围**：`apps/workflow/storyforge_workflow/tools/__init__.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`tools/__init__.py` 不再转导出 CreativeToolRegistry 符号；`tools/registry.py` 保持唯一事实源；扩展 Workflow source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除 `registry.py`；不改变工具清单、schema、API runtime-tools 行为或 Web Runs 展示。
+
+### 实施结果
+
+- 已将 `apps/workflow/storyforge_workflow/tools/__init__.py` 精简为包说明。
+- 已移除包级 `DEFAULT_CREATIVE_TOOL_REGISTRY`、`CreativeToolReferences`、`CreativeToolRegistry`、`CreativeToolSpec`、`get_creative_tool`、`list_creative_tools` 转导出。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/workflow/storyforge_workflow/tools/registry.py`。
+- 未修改 API runtime-tools 的 registry.py 文件路径加载逻辑。
+
+### TDD 证据
+
+- 红灯：`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `tools/__init__.py` 仍包含 `DEFAULT_CREATIVE_TOOL_REGISTRY`。
+- 绿灯：清理包级转导出后，`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，4 passed。
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`：4 passed。
+- `cd apps/workflow && uv run pytest tests/test_creative_tool_registry.py -q`：5 passed。
+- `cd apps/workflow && uv run pytest -q`：161 passed。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：All checks passed。
+- `cd apps/api && uv run pytest tests/test_runtime_tools.py tests/test_model_runs.py -q`：14 passed。
+- `cd apps/api && uv run pytest -q`：415 passed，保留既有 7 条依赖警告。
+- 包级导入搜索：无 `from storyforge_workflow.tools import ...` 或包级 import 调用残留。
+- registry 符号搜索：仅剩 `registry.py` 事实源、直接导入 `tools.registry` 的测试、API/Web 文案和 source-pruning 护栏文本。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from storyforge_workflow.tools import list_creative_tools` 会失效；当前仓库内无此调用。
+- `storyforge_workflow.tools.registry` 仍是稳定事实源，Workflow 测试和 API runtime-tools 均已验证。
+- 本批不改变 CreativeToolRegistry 的内容、排序、schema、capability、page_refs、api_paths 或 workflow_nodes。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，registry 事实源更单一。
+- **测试覆盖**：97/100。完成红绿测试、registry 定向测试、Workflow 全量、ruff、API runtime-tools/model-runs 定向、API 全量、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Workflow 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。API 继续按文件路径读取 registry.py，Workflow registry 本体保持唯一事实源。
+- **风险评估**：95/100。明确外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第九批剪枝；后续可继续审查 Workflow `skills/__init__.py` 或 `orchestrators/__init__.py` 是否存在类似无调用转导出，但需同样先证明外部和仓库内调用边界。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第九批已完成：移除 Workflow tools 包级 CreativeToolRegistry 重复转导出，保留 tools/registry.py 唯一事实源；红灯失败原因正确，绿灯通过，Workflow source-pruning 4 项、CreativeToolRegistry 定向 5 项、Workflow 全量 161 项、ruff、API runtime-tools/model-runs 定向 14 项、API 全量 415 项、引用搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 workflow-orchestrators-package-export
+
+时间：2026-06-05 11:36:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 Workflow `orchestrators` 包级 BookRun adapter 重复转导出。
+- **范围**：`apps/workflow/storyforge_workflow/orchestrators/__init__.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`orchestrators/__init__.py` 不再转导出 BookRun adapter 符号；`book_run_adapter.py`、`book_loop.py`、`novel_loop.py` 保持事实源；扩展 Workflow source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改具体编排器模块；不改变 BookRun adapter、BookLoop、NovelLoop 运行行为；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/workflow/storyforge_workflow/orchestrators/__init__.py` 精简为中文包说明。
+- 已移除包级 `BookRunAdapterPorts`、`BookRunAdapterRequest`、`BookRunProgressSink`、`CallableProgressSink`、`CapturingProgressSink`、`run_book_run_dispatch_payload`、`run_book_run_with_skill_runner` 转导出。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`、`book_loop.py`、`novel_loop.py`。
+
+### TDD 证据
+
+- 红灯：`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `orchestrators/__init__.py` 仍包含 `BookRunAdapterPorts`。
+- 绿灯：清理包级转导出后，`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，5 passed。
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`：5 passed。
+- `cd apps/workflow && uv run pytest tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py tests/test_book_loop_three_chapters.py tests/test_novel_loop_single_chapter.py -q`：22 passed。
+- `cd apps/workflow && uv run pytest -q`：162 passed。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：All checks passed。
+- `cd apps/api && uv run pytest tests/test_runtime_tools.py tests/test_model_runs.py -q`：14 passed。
+- 包级导入搜索：无 `from storyforge_workflow.orchestrators import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from storyforge_workflow.orchestrators import BookRunAdapterRequest` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，BookRun adapter、dispatch payload、BookLoop、NovelLoop 定向测试均已验证。
+- 本批不改变编排器运行逻辑、provider 调用、API 路由、Web 页面或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，编排器事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、编排器定向测试、Workflow 全量、ruff、API runtime-tools/model-runs 抽样、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Workflow 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖具体编排器模块，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十批剪枝；后续可继续审查 Workflow `skills/__init__.py` 是否存在类似无调用转导出，但必须重新取证、红灯和本地验证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十批已完成：移除 Workflow orchestrators 包级 BookRun adapter 重复转导出，保留 book_run_adapter.py、book_loop.py、novel_loop.py 事实源；红灯失败原因正确，绿灯通过，Workflow source-pruning 5 项、编排器定向 22 项、Workflow 全量 162 项、ruff、API runtime-tools/model-runs 抽样 14 项、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 workflow-skills-package-export
+
+时间：2026-06-05 11:18:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 Workflow `skills` 包级 Novel skill 重复转导出。
+- **范围**：`apps/workflow/storyforge_workflow/skills/__init__.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`skills/__init__.py` 不再转导出 audit、definitions、diagnostics 符号；`definitions.py`、`audit.py`、`diagnostics.py`、`runner.py` 保持事实源；扩展 Workflow source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改具体技能模块和技能目录；不改变技能注册表、诊断、审计投影、runner 或 BookRun adapter 行为；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/workflow/storyforge_workflow/skills/__init__.py` 精简为中文包说明。
+- 已移除包级 `BookRunSkillProjection`、`NovelSkillRunEvent`、`derive_skill_chain_projection`、`validate_novel_skill_registry`、`list_novel_skill_diagnostics`、`explain_bookrun_skill_chain`、`DEFAULT_NOVEL_SKILL_REGISTRY`、`NovelSkillDefinition`、`NovelSkillReferences`、`NovelSkillRegistry`、`get_novel_skill`、`list_novel_skills` 转导出。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/workflow/storyforge_workflow/skills/definitions.py`、`audit.py`、`diagnostics.py`、`runner.py` 或具体技能目录。
+
+### TDD 证据
+
+- 红灯：`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `skills/__init__.py` 仍包含 `BookRunSkillProjection`。
+- 绿灯：清理包级转导出后，`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，6 passed。
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`：6 passed。
+- `cd apps/workflow && uv run pytest tests/test_novel_skill_registry.py tests/test_novel_skill_diagnostics.py tests/test_skill_audit_summary.py tests/test_novel_skill_runner.py tests/test_genre_skill_registry.py tests/test_book_run_adapter.py -q`：46 passed。
+- `cd apps/workflow && uv run pytest -q`：163 passed。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：All checks passed。
+- 包级导入搜索：无 `from storyforge_workflow.skills import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from storyforge_workflow.skills import list_novel_skills` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，Novel skill registry、diagnostics、audit、runner、genre registry 和 BookRun adapter 定向测试均已验证。
+- 本批不改变技能定义、状态映射、诊断输出、审计投影、BookRun adapter、API 路由、Web 页面或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，技能模块事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、技能相关定向测试、Workflow 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Workflow 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖具体技能模块，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十一批剪枝；后续可继续从 API/Web 中查找类似无调用公共出口或已下线静态入口，但必须重新取证、红灯和本地验证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十一批已完成：移除 Workflow skills 包级 Novel skill 重复转导出，保留 definitions.py、audit.py、diagnostics.py、runner.py 和具体技能目录事实源；红灯失败原因正确，绿灯通过，Workflow source-pruning 6 项、技能相关定向 46 项、Workflow 全量 163 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 workflow-nodes-package-export
+
+时间：2026-06-05 11:27:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 Workflow `nodes` 包级 generation node 重复转导出。
+- **范围**：`apps/workflow/storyforge_workflow/nodes/__init__.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`nodes/__init__.py` 不再转导出 director、scene_architect、draft_writer 的节点函数；`director.py`、`scene_architect.py`、`draft_writer.py` 和 `graph.py` 保持事实源；扩展 Workflow source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改具体节点模块和图编排；不改变 LangGraph 节点、timeout、checkpoint、审批中断或 provider 调用行为；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/workflow/storyforge_workflow/nodes/__init__.py` 精简为中文包说明。
+- 已移除包级 `create_book_strategy`、`create_draft_excerpt`、`create_chapter_plan`、`create_scene_beats` 转导出。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/workflow/storyforge_workflow/nodes/director.py`、`scene_architect.py`、`draft_writer.py` 或 `graph.py`。
+
+### TDD 证据
+
+- 红灯：`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `nodes/__init__.py` 仍包含 `create_book_strategy`。
+- 绿灯：清理包级转导出后，`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，7 passed。
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`：7 passed。
+- `cd apps/workflow && uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py -q`：15 passed。
+- `cd apps/workflow && uv run pytest -q`：164 passed。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：All checks passed。
+- 包级导入搜索：无 `from storyforge_workflow.nodes import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from storyforge_workflow.nodes import create_book_strategy` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，generation_graph、runtime_runner 和 Workflow 全量测试均已验证。
+- 本批不改变节点逻辑、图结构、模型调用、checkpoint、审批中断、API 路由、Web 页面或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，节点模块事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、图编排定向测试、Workflow 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Workflow 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。图编排继续显式依赖具体节点模块，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十二批剪枝；后续可继续从 API/Web/Workflow 中查找无调用公共出口或已下线静态入口，但必须重新取证、红灯和本地验证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十二批已完成：移除 Workflow nodes 包级 generation node 重复转导出，保留 director.py、scene_architect.py、draft_writer.py 和 graph.py 事实源；红灯失败原因正确，绿灯通过，Workflow source-pruning 7 项、generation_graph/runtime_runner 定向 15 项、Workflow 全量 164 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-books-package-export
+
+时间：2026-06-05 11:38:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `books` 包级 SQLAlchemy 模型重复转导出。
+- **范围**：`apps/api/app/domains/books/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`books/__init__.py` 不再转导出 `Book`、`Chapter`、`Scene`；`books/models.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改模型定义、表结构、关系、路由、服务或全局 ORM 聚合入口；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/books/__init__.py` 精简为中文包说明。
+- 已移除包级 `Book`、`Chapter`、`Scene` 转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/api/app/domains/books/models.py`、`apps/api/app/models.py`、路由、服务或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `books/__init__.py` 仍包含 `Book`。
+- 绿灯：清理包级转导出并将包说明改为纯中文后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，2 passed。
+- 调试说明：第一次绿灯尝试误伤说明文字中的英文包名 `Books`，根因是护栏禁止裸字符串 `Book`；已改为纯中文包说明，保留对转导出符号和 import 语句的覆盖。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：2 passed。
+- `cd apps/api && uv run pytest tests/test_domain_schema.py tests/test_book_runs.py tests/test_studio_book_list_api.py -q`：49 passed，保留既有 1 条 HTTP 422 deprecation warning。
+- `cd apps/api && uv run pytest -q`：416 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 包级导入搜索：无 `from app.domains.books import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.books import Book` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，domain_schema、book_runs、studio_book_list_api 和 API 全量测试均已验证。
+- 本批不改变模型定义、数据库表、关系、查询、API 路由、服务逻辑、认证、鉴权或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，模型事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `books.models` 和 `app.models`，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十三批剪枝；后续可继续审查 assets、continuity、jobs、series 等无包级调用的 API domain 转导出，但必须逐一重新取证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十三批已完成：移除 API books 包级 Book、Chapter、Scene 重复转导出，保留 books/models.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 2 项、domain_schema/book_runs/studio_book_list_api 定向 49 项、API 全量 416 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-assets-package-export
+
+时间：2026-06-05 12:09:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `assets` 包级 SQLAlchemy 模型重复转导出。
+- **范围**：`apps/api/app/domains/assets/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`assets/__init__.py` 不再转导出 `Asset`、`EvidenceLink`；`assets/models.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改模型定义、表结构、关系、路由、服务或全局 ORM 聚合入口；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/assets/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `Asset`、`EvidenceLink` 转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/api/app/domains/assets/models.py`、`apps/api/app/models.py`、路由、服务或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `assets/__init__.py` 仍包含 `Asset`。
+- 绿灯：清理包级转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，3 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：3 passed。
+- `cd apps/api && uv run pytest tests/test_domain_schema.py tests/test_assets_api.py tests/test_scene_packet.py -q`：27 passed。
+- `cd apps/api && uv run pytest -q`：417 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 包级导入搜索：无 `from app.domains.assets import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.assets import Asset` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，domain_schema、assets_api、scene_packet 和 API 全量测试均已验证。
+- 本批不改变模型定义、数据库表、关系、查询、API 路由、服务逻辑、认证、鉴权或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，模型事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `assets.models` 和 `app.models`，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十四批剪枝；后续可继续审查 continuity、jobs、series 等无包级调用的 API domain 转导出，但必须逐一重新取证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十四批已完成：移除 API assets 包级 Asset、EvidenceLink 重复转导出，保留 assets/models.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 3 项、domain_schema/assets_api/scene_packet 定向 27 项、API 全量 417 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-continuity-package-export
+
+时间：2026-06-05 12:17:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `continuity` 包级 SQLAlchemy 模型重复转导出。
+- **范围**：`apps/api/app/domains/continuity/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`continuity/__init__.py` 不再转导出 `ContinuityRecord`、`ScenePacket`；`continuity/models.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改模型定义、表结构、关系、路由、服务或全局 ORM 聚合入口；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/continuity/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `ContinuityRecord`、`ScenePacket` 转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/api/app/domains/continuity/models.py`、`apps/api/app/models.py`、路由、服务或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `continuity/__init__.py` 仍包含 `ContinuityRecord`。
+- 绿灯：清理包级转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，4 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：4 passed。
+- `cd apps/api && uv run pytest tests/test_domain_schema.py tests/test_approval_writeback.py tests/test_scene_packet.py -q`：18 passed。
+- `cd apps/api && uv run pytest -q`：418 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 包级导入搜索：无 `from app.domains.continuity import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.continuity import ScenePacket` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，domain_schema、approval_writeback、scene_packet 和 API 全量测试均已验证。
+- 本批不改变模型定义、数据库表、关系、查询、API 路由、服务逻辑、认证、鉴权或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，模型事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `continuity.models` 和 `app.models`，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十五批剪枝；后续可继续审查 jobs、series 等无包级调用的 API domain 转导出，但必须逐一重新取证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十五批已完成：移除 API continuity 包级 ContinuityRecord、ScenePacket 重复转导出，保留 continuity/models.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 4 项、domain_schema/approval_writeback/scene_packet 定向 18 项、API 全量 418 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-jobs-package-export
+
+时间：2026-06-05 12:25:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `jobs` 包级 SQLAlchemy 模型重复转导出。
+- **范围**：`apps/api/app/domains/jobs/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`jobs/__init__.py` 不再转导出 `JobRun`；`jobs/models.py`、`jobs/service.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改模型定义、表结构、关系、服务、路由或全局 ORM 聚合入口；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/jobs/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `JobRun` 转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/api/app/domains/jobs/models.py`、`jobs/service.py`、`apps/api/app/models.py`、路由或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `jobs/__init__.py` 仍包含 `JobRun`。
+- 绿灯：清理包级转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，5 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：5 passed。
+- `cd apps/api && uv run pytest tests/test_domain_schema.py tests/test_job_runtime_bridge.py tests/test_model_runs.py -q`：20 passed。
+- `cd apps/api && uv run pytest -q`：419 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 包级导入搜索：无 `from app.domains.jobs import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.jobs import JobRun` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，domain_schema、job_runtime_bridge、model_runs 和 API 全量测试均已验证。
+- 本批不改变模型定义、数据库表、关系、查询、服务逻辑、API 路由、认证、鉴权或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，模型事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `jobs.models` 和 `app.models`，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十六批剪枝；后续可继续审查 series 等无包级调用的 API domain 转导出，但必须逐一重新取证。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十六批已完成：移除 API jobs 包级 JobRun 重复转导出，保留 jobs/models.py、jobs/service.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 5 项、domain_schema/job_runtime_bridge/model_runs 定向 20 项、API 全量 419 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-series-package-export
+
+时间：2026-06-05 12:34:31 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `series` 包级 SQLAlchemy 模型重复转导出。
+- **范围**：`apps/api/app/domains/series/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`series/__init__.py` 不再转导出系列领域模型；`series/models.py`、`series/service.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改模型定义、表结构、关系、服务、路由或全局 ORM 聚合入口；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/series/__init__.py` 精简为纯中文包说明。
+- 已移除包级系列领域模型转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/api/app/domains/series/models.py`、`series/service.py`、`series/router.py`、`apps/api/app/models.py`、路由或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `series/__init__.py` 仍包含 `Series`。
+- 绿灯：清理包级转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，6 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：6 passed。
+- `cd apps/api && uv run pytest tests/test_domain_schema.py tests/test_series_memory.py tests/test_series_worldbuilding_api.py -q`：12 passed。
+- `cd apps/api && uv run pytest -q`：420 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 包级导入搜索：无 `from app.domains.series import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.series import ...` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，domain_schema、series_memory、series_worldbuilding_api 和 API 全量测试均已验证。
+- 本批不改变模型定义、数据库表、关系、查询、服务逻辑、API 路由、认证、鉴权或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，模型事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `series.models` 和 `app.models`，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十七批剪枝；后续若继续处理 API domain 包级出口，必须重新取证并避开仍有包语义调用的域。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十七批已完成：移除 API series 包级系列领域模型重复转导出，保留 series/models.py、series/service.py、series/router.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 6 项、domain_schema/series_memory/series_worldbuilding_api 定向 12 项、API 全量 420 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-context-compiler-package-export
+
+时间：2026-06-05 12:46:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `context_compiler` 包级服务函数重复转导出。
+- **范围**：`apps/api/app/domains/context_compiler/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`context_compiler/__init__.py` 不再转导出上下文编译服务函数；`context_compiler/service.py`、`models.py`、`schemas.py`、`scene_packets/retrieval_bridge.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改服务实现、模型定义、schema、Scene Packet 集成点、路由或全局 ORM 聚合入口；确认仓库内无包级导入调用。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/context_compiler/__init__.py` 精简为纯中文包说明。
+- 已移除包级上下文编译服务函数转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级重复转导出回归。
+- 未修改 `apps/api/app/domains/context_compiler/service.py`、`models.py`、`schemas.py`、`scene_packets/retrieval_bridge.py`、`apps/api/app/models.py`、路由或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `context_compiler/__init__.py` 仍包含 `compile_context`。
+- 绿灯：清理包级转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，7 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：7 passed。
+- `cd apps/api && uv run pytest tests/test_context_compiler.py tests/test_context_compiler_persistence.py tests/test_ide_context_snapshot.py -q`：9 passed。
+- `cd apps/api && uv run pytest -q`：421 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 包级导入搜索：无 `from app.domains.context_compiler import ...` 或包级 import 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.context_compiler import compile_context` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，context_compiler、context_compiler_persistence、ide_context_snapshot 和 API 全量测试均已验证。
+- 本批不改变服务实现、模型定义、数据库表、schema、Scene Packet 集成、API 路由、认证、鉴权或共享契约。
+
+### 评分
+
+- **代码质量**：96/100。移除重复公共出口，服务事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `context_compiler.service`，包级入口不再掩盖真实边界。
+- **风险评估**：95/100。已记录外部包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十八批剪枝；后续若继续处理 API domain 包级出口，必须重新取证并避开仍有包语义调用的域。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十八批已完成：移除 API context_compiler 包级上下文编译服务函数重复转导出，保留 context_compiler/service.py、models.py、schemas.py、scene_packets/retrieval_bridge.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 7 项、context_compiler/context_compiler_persistence/ide_context_snapshot 定向 9 项、API 全量 421 项、ruff、包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-judge-package-export
+
+时间：2026-06-05 12:52:55 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `judge` 包级 SQLAlchemy 模型重复转导出。
+- **范围**：`apps/api/app/domains/judge/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`judge/__init__.py` 不再转导出 `JudgeIssue`、`RepairPatch`；`judge/models.py`、`judge/service.py`、`judge/schemas.py`、`judge/router.py`、`repair/service.py`、`quality/service.py` 和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改模型定义、服务实现、schema、路由、修复、质量看板或全局 ORM 聚合入口；确认仓库内无模型包级导入调用；保留现有 `from app.domains.judge import service` 包语义。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/judge/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `JudgeIssue`、`RepairPatch` 模型转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级模型重复转导出回归。
+- 未修改 `apps/api/app/domains/judge/models.py`、`judge/service.py`、`judge/schemas.py`、`judge/router.py`、`repair/service.py`、`quality/service.py`、`apps/api/app/models.py`、路由或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `judge/__init__.py` 仍包含 `JudgeIssue`。
+- 绿灯：清理包级模型转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，8 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：8 passed。
+- `cd apps/api && uv run pytest tests/test_domain_schema.py tests/test_judge_repair.py tests/test_quality_dashboard.py tests/test_judge_semantic.py -q`：16 passed。
+- `cd apps/api && uv run pytest -q`：422 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 模型包级导入搜索：无 `from app.domains.judge import JudgeIssue/RepairPatch` 或 `app.domains.judge.JudgeIssue/RepairPatch` 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.judge import JudgeIssue` 或 `RepairPatch` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，domain_schema、judge_repair、quality_dashboard、judge_semantic 和 API 全量测试均已验证。
+- 本批不改变模型定义、数据库表、关系、查询、服务逻辑、API 路由、认证、鉴权或共享契约。
+- 本批不禁止或清理 `from app.domains.judge import service`，因为仓库内仍有该包语义调用。
+
+### 评分
+
+- **代码质量**：96/100。移除重复模型公共出口，模型事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `judge.models` 和 `judge.service`，包级入口不再掩盖模型边界。
+- **风险评估**：95/100。已记录外部模型包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第十九批剪枝；后续若继续处理 API domain 包级出口，必须区分模型转导出与仍在使用的包级 service 语义。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第十九批已完成：移除 API judge 包级 JudgeIssue、RepairPatch 模型重复转导出，保留 judge/models.py、judge/service.py、judge/schemas.py、judge/router.py、repair/service.py、quality/service.py 和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 8 项、domain_schema/judge_repair/quality_dashboard/judge_semantic 定向 16 项、API 全量 422 项、ruff、模型包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-worldbuilding-package-export
+
+时间：2026-06-05 13:00:38 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `worldbuilding` 包级服务函数重复转导出。
+- **范围**：`apps/api/app/domains/worldbuilding/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`worldbuilding/__init__.py` 不再转导出 `build_worldbuilding_center`；`worldbuilding/service.py`、`router.py`、`schemas.py`、`assets/service.py`、系列领域和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改服务实现、路由、schema、资产服务、系列领域或全局 ORM 聚合入口；确认仓库内无函数包级导入调用；保留现有 `from app.domains.worldbuilding import service` 包语义。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/worldbuilding/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `build_worldbuilding_center` 函数转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级函数重复转导出回归。
+- 未修改 `apps/api/app/domains/worldbuilding/service.py`、`router.py`、`schemas.py`、`assets/service.py`、系列领域、`apps/api/app/models.py`、路由或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `worldbuilding/__init__.py` 仍包含 `build_worldbuilding_center`。
+- 绿灯：清理包级函数转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，9 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：9 passed。
+- `cd apps/api && uv run pytest tests/test_worldbuilding_center.py tests/test_series_worldbuilding_api.py tests/test_redis_cache_strategy.py -q`：11 passed。
+- `cd apps/api && uv run pytest -q`：423 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 函数包级导入搜索：无 `from app.domains.worldbuilding import build_worldbuilding_center` 或 `app.domains.worldbuilding.build_worldbuilding_center` 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.worldbuilding import build_worldbuilding_center` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，worldbuilding_center、series_worldbuilding_api、redis_cache_strategy 和 API 全量测试均已验证。
+- 本批不改变服务实现、缓存策略、数据库查询、API 路由、认证、鉴权或共享契约。
+- 本批不禁止或清理 `from app.domains.worldbuilding import service`，因为仓库内仍有该包语义调用。
+
+### 评分
+
+- **代码质量**：96/100。移除重复函数公共出口，服务事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `worldbuilding.service`，包级入口不再掩盖函数边界。
+- **风险评估**：95/100。已记录外部函数包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十批剪枝；后续若继续处理 API domain 包级出口，必须区分具体函数转导出与仍在使用的包级 service 语义。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十批已完成：移除 API worldbuilding 包级 build_worldbuilding_center 函数重复转导出，保留 worldbuilding/service.py、router.py、schemas.py、assets/service.py、系列领域和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 9 项、worldbuilding_center/series_worldbuilding_api/redis_cache_strategy 定向 11 项、API 全量 423 项、ruff、函数包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-batch-refinery-package-export
+
+时间：2026-06-05 13:07:49 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `batch_refinery` 包级服务函数重复转导出。
+- **范围**：`apps/api/app/domains/batch_refinery/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`batch_refinery/__init__.py` 不再转导出 `run_batch_refinery`；`batch_refinery/service.py`、`router.py`、`schemas.py`、`main.py`、jobs/judge/repair 领域和 `app/models.py` 保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改服务实现、路由、schema、main.py、jobs/judge/repair 领域或全局 ORM 聚合入口；确认仓库内无函数包级导入调用；保留现有 `from app.domains.batch_refinery import service` 包语义。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/batch_refinery/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `run_batch_refinery` 函数转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级函数重复转导出回归。
+- 未修改 `apps/api/app/domains/batch_refinery/service.py`、`router.py`、`schemas.py`、`apps/api/app/main.py`、jobs/judge/repair 领域、`apps/api/app/models.py`、路由或数据库模型定义。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `batch_refinery/__init__.py` 仍包含 `run_batch_refinery`。
+- 绿灯：清理包级函数转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，10 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：10 passed。
+- `cd apps/api && uv run pytest tests/test_batch_refinery.py tests/test_api_middleware.py -q`：17 passed，保留既有 4 条 JWT 测试密钥长度警告。
+- `cd apps/api && uv run pytest -q`：424 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 函数包级导入搜索：无 `from app.domains.batch_refinery import run_batch_refinery` 或 `app.domains.batch_refinery.run_batch_refinery` 调用残留。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.batch_refinery import run_batch_refinery` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，batch_refinery、api_middleware 和 API 全量测试均已验证。
+- 本批不改变服务实现、后台任务会话、JobRun 进度、Judge/Repair 调用、API 路由、认证、鉴权或共享契约。
+- 本批不禁止或清理 `from app.domains.batch_refinery import service`，因为仓库内仍有该包语义调用。
+
+### 评分
+
+- **代码质量**：96/100。移除重复函数公共出口，服务事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `batch_refinery.service`，包级入口不再掩盖函数边界。
+- **风险评估**：95/100。已记录外部函数包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十一批剪枝；后续若继续处理 API domain 包级出口，必须区分具体函数转导出与仍在使用的包级 service 语义。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十一批已完成：移除 API batch_refinery 包级 run_batch_refinery 函数重复转导出，保留 batch_refinery/service.py、router.py、schemas.py、main.py、jobs/judge/repair 领域和 app/models.py 事实源；红灯失败原因正确，绿灯通过，API source-pruning 10 项、batch_refinery/api_middleware 定向 17 项、API 全量 424 项、ruff、函数包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-story-memory-package-export
+
+时间：2026-06-05 13:17:27 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `story_memory` 包级服务函数重复转导出。
+- **范围**：`apps/api/app/domains/story_memory/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`story_memory/__init__.py` 不再转导出 `arbitrate_proposal`、`atoms_active_at_chapter`、`detect_memory_conflicts`；`story_memory/service.py`、`schemas.py`、`models.py`、IDE 路由和安全中间件保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改服务实现、schema、模型、IDE 路由、认证鉴权、安全中间件或共享契约；确认仓库内无具体函数包级导入调用；保留现有 `from app.domains.story_memory import service` 包语义。
+
+### 实施结果
+
+- 已将 `apps/api/app/domains/story_memory/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `arbitrate_proposal`、`atoms_active_at_chapter`、`detect_memory_conflicts` 函数转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级函数重复转导出回归。
+- 未修改 `apps/api/app/domains/story_memory/service.py`、`schemas.py`、`models.py`、IDE 路由、认证鉴权、安全中间件或共享契约。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `story_memory/__init__.py` 仍包含 `arbitrate_proposal` 等具体函数转导出。
+- 绿灯：清理包级函数转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，11 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：11 passed。
+- `cd apps/api && uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py tests/test_ide_story_memory.py -q`：17 passed。
+- `cd apps/api && uv run pytest -q`：425 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 函数包级导入搜索：无 `from app.domains.story_memory import arbitrate_proposal|atoms_active_at_chapter|detect_memory_conflicts` 或 `app.domains.story_memory.<函数>` 调用残留。
+- service 子模块语义搜索：仅 `apps/api/tests/test_story_memory_contract.py:7` 命中 `from app.domains.story_memory import service as story_memory_service`，符合保留边界。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.domains.story_memory import arbitrate_proposal`、`atoms_active_at_chapter` 或 `detect_memory_conflicts` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，story_memory_contract、story_memory_persistence、ide_story_memory 和 API 全量测试均已验证。
+- 本批不改变服务实现、持久化模型、冲突检测逻辑、IDE 查询 API、认证、鉴权、安全响应头或共享契约。
+- 本批不禁止或清理 `from app.domains.story_memory import service`，因为仓库内仍有该包语义调用。
+
+### 评分
+
+- **代码质量**：96/100。移除重复函数公共出口，服务事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `story_memory.service`，包级入口不再掩盖函数边界。
+- **风险评估**：95/100。已记录外部函数包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十二批剪枝；后续若继续处理 API domain 包级出口，必须区分具体函数转导出与仍在使用的包级 service 语义。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十二批已完成：移除 API story_memory 包级 arbitrate_proposal、atoms_active_at_chapter、detect_memory_conflicts 函数重复转导出，保留 story_memory/service.py、schemas.py、models.py、IDE 路由、安全中间件和 service 子模块包语义；红灯失败原因正确，绿灯通过，API source-pruning 11 项、story_memory_contract/story_memory_persistence/ide_story_memory 定向 17 项、API 全量 425 项、ruff、函数包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 api-db-package-export
+
+时间：2026-06-05 13:39:05 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 API `app.db` 包级具体 ORM 符号重复转导出。
+- **范围**：`apps/api/app/db/__init__.py`、`apps/api/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：`app/db/__init__.py` 不再转导出 `Base`、`IdMixin`、`TimestampMixin`、`VersionMixin`；`app/db/base.py`、`app/db/session.py`、domain models、`app/models.py`、alembic、路由和安全中间件保持事实源；扩展 API source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不删除或修改 ORM 基类、公共混入、数据库会话、模型定义、迁移、路由或安全中间件；确认仓库内无具体 ORM 符号包级导入调用；保留现有 `from app.db import session` 包语义。
+
+### 实施结果
+
+- 已将 `apps/api/app/db/__init__.py` 精简为纯中文包说明。
+- 已移除包级 `Base`、`IdMixin`、`TimestampMixin`、`VersionMixin` 具体符号转导出。
+- 已扩展 `apps/api/tests/test_source_pruning.py`，防止包级具体 ORM 符号重复转导出回归。
+- 未修改 `apps/api/app/db/base.py`、`apps/api/app/db/session.py`、domain models、`apps/api/app/models.py`、alembic、路由或安全中间件。
+
+### TDD 证据
+
+- 红灯：`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，退出码 1；失败原因是 `app/db/__init__.py` 仍包含 `Base` 等具体 ORM 符号转导出。
+- 绿灯：清理包级具体符号转导出后，`cd apps/api && uv run pytest tests/test_source_pruning.py -q`，12 passed。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_source_pruning.py -q`：12 passed。
+- `cd apps/api && uv run pytest tests/test_db_session.py tests/test_domain_schema.py tests/test_alembic_schema_current_orm.py -q`：17 passed。
+- `cd apps/api && uv run pytest -q`：426 passed，保留既有 7 条依赖警告。
+- `cd apps/api && uv run ruff check app tests`：All checks passed。
+- 具体符号包级导入搜索：无 `from app.db import Base|IdMixin|TimestampMixin|VersionMixin` 或 `app.db.<符号>` 调用残留。
+- session 子模块语义搜索：仅 `apps/api/tests/test_db_session.py:10` 命中 `from app.db import session as db_session`，符合保留边界。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录调用 `from app.db import Base`、`IdMixin`、`TimestampMixin` 或 `VersionMixin` 会失效；当前仓库内无此调用。
+- 具体模块导入路径仍可用，db_session、domain_schema、alembic_schema_current_orm 和 API 全量测试均已验证。
+- 本批不改变 ORM 基类、公共混入字段、metadata、registry、数据库会话、连接池、迁移、认证、鉴权、安全响应头或共享契约。
+- 本批不禁止或清理 `from app.db import session`，因为仓库内仍有该包语义调用。
+
+### 评分
+
+- **代码质量**：96/100。移除重复具体符号公共出口，ORM 事实源更清晰。
+- **测试覆盖**：96/100。完成红绿测试、API 定向测试、API 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 API 小范围重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。调用方继续显式依赖 `app.db.base`，包级入口不再掩盖 ORM 符号边界。
+- **风险评估**：95/100。已记录外部具体符号包级导入风险，并用仓库搜索和测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十三批剪枝；后续可在候选池中按小步优先处理 workflow planner 或 Web/shared 只测试引用候选。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十三批已完成：移除 API app.db 包级 Base、IdMixin、TimestampMixin、VersionMixin 具体符号重复转导出，保留 app/db/base.py、app/db/session.py、domain models、app/models.py、alembic、路由、安全中间件和 session 子模块包语义；红灯失败原因正确，绿灯通过，API source-pruning 12 项、db_session/domain_schema/alembic_schema_current_orm 定向 17 项、API 全量 426 项、ruff、具体符号包级导入搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 web-assistant-tool-catalog
+
+时间：2026-06-05 13:47:51 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Web 中未接入生产链路的 `assistant-tool-catalog` 规划式模块。
+- **范围**：`apps/web/components/home/assistant-tool-catalog.ts`、`apps/web/tests/assistant-tool-catalog.test.ts`、`apps/web/tests/source-pruning.test.ts`、`apps/web/scripts/phase1-contract-test.mjs` 和 `.codex` 留痕。
+- **交付物**：目标模块和只覆盖该模块自身的专属测试已删除；phase1 转译脚本不再包含该模块转译或 import rewrite 条目；扩展 Web source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不修改 Home 生产组件、BookRun action、session store、tool-node-mapper、runtime tools API、shared contracts 或 Next 路由；确认除 source-pruning 护栏外无 `assistant-tool-catalog` 残留引用。
+
+### 实施结果
+
+- 已删除 `apps/web/components/home/assistant-tool-catalog.ts`。
+- 已删除 `apps/web/tests/assistant-tool-catalog.test.ts`。
+- 已清理 `apps/web/scripts/phase1-contract-test.mjs` 中该模块相关 runtimeModules 和 importRewrites 条目。
+- 已扩展 `apps/web/tests/source-pruning.test.ts`，防止目标模块和转译脚本引用回归。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning`，退出码 1；新增 8 条 source-pruning 中 2 条失败，原因是目标文件仍存在且转译脚本仍引用该模块。
+- 绿灯：清理目标模块和转译引用后，`pnpm --filter @storyforge/web test -- source-pruning`，8 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test -- source-pruning`：8 passed。
+- `pnpm --filter @storyforge/web test`：209 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- 引用搜索：除 `apps/web/tests/source-pruning.test.ts` 护栏自身外，无 `assistant-tool-catalog` 残留引用。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录导入 `assistant-tool-catalog` 的测试或工具会失效；当前仓库生产链路无此调用。
+- 本批不改变 Assistant 首页真实对话链路、BookRun 状态映射、会话读写、runtime tools API、shared contracts 或 Next 路由。
+- 删除目标模块会减少 phase1 转译脚本维护面，不影响运行时性能。
+
+### 评分
+
+- **代码质量**：96/100。删除未接入规划式模块和专属测试，减少维护面。
+- **测试覆盖**：96/100。完成红绿测试、Web 全量 test、Web lint、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Web 小范围死代码剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。生产 Home 链路继续依赖已接入组件和运行状态映射，不保留未接入静态 catalog。
+- **风险评估**：95/100。已记录外部测试导入风险，并用仓库搜索和 Web 全量验证证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十四批剪枝；后续可按候选池继续评估 Workflow planner、Web ErrorCard 或 shared 手写类型。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十四批已完成：删除 Web assistant-tool-catalog 未接入规划式模块、对应专属测试和 phase1 转译脚本相关条目；红灯失败原因正确，绿灯通过，Web source-pruning 8 项、Web 全量 209 项、Web lint、引用搜索和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 web-error-card
+
+时间：2026-06-05 13:57:05 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Web 中未接入生产链路的 `ErrorCard` UI 组件。
+- **范围**：`apps/web/components/ui/ErrorCard.tsx`、`apps/web/tests/ui-components.test.tsx`、`apps/web/tests/source-pruning.test.ts`、`apps/web/scripts/phase1-contract-test.mjs` 和 `.codex` 留痕。
+- **交付物**：目标组件已删除；组件测试中只移除 ErrorCard import 与两条 ErrorCard 测试；phase1 转译脚本不再包含 ErrorCard 转译或 import rewrite 条目；扩展 Web source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：保留 `LoadingSkeleton` 组件、生产 loading 入口、LoadingSkeleton 测试和转译脚本条目；不修改真实错误页 `apps/web/app/error.tsx`。
+
+### 实施结果
+
+- 已删除 `apps/web/components/ui/ErrorCard.tsx`。
+- 已清理 `apps/web/tests/ui-components.test.tsx` 中 `ErrorCard` import 和两条只覆盖该组件自身的测试。
+- 已清理 `apps/web/scripts/phase1-contract-test.mjs` 中 `components/ui/ErrorCard.tsx` runtimeModules 条目和 `../components/ui/ErrorCard` importRewrites 条目。
+- 已扩展 `apps/web/tests/source-pruning.test.ts`，防止目标组件和转译脚本引用回归。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning`，退出码 1；10 条 source-pruning 中 2 条失败，原因是 `ErrorCard.tsx` 仍存在且转译脚本仍引用该组件。
+- 绿灯：清理目标组件和转译引用后，`pnpm --filter @storyforge/web test -- source-pruning`，10 passed。
+- 组合验证：`pnpm --filter @storyforge/web test -- ui-components source-pruning`，13 passed，`LoadingSkeleton` 3 条测试继续通过。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test -- source-pruning`：10 passed。
+- `pnpm --filter @storyforge/web test -- ui-components source-pruning`：13 passed。
+- `pnpm --filter @storyforge/web test`：209 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- 引用搜索：除 `apps/web/tests/source-pruning.test.ts` 护栏自身外，无 `ErrorCard` 或 `components/ui/ErrorCard` 残留引用。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录导入 `ErrorCard` 的测试或工具会失效；当前仓库生产链路无此调用。
+- 本批不改变 `apps/web/app/error.tsx` 的真实错误页渲染逻辑，也不改变 `apps/web/app/loading.tsx` 和 `LoadingSkeleton`。
+- 删除目标组件会减少 UI 组件库和 phase1 转译脚本维护面，不影响运行时性能。
+
+### 评分
+
+- **代码质量**：96/100。删除未接入 UI 组件和测试转译残留，职责边界更清晰。
+- **测试覆盖**：96/100。完成红绿测试、组件组合测试、Web 全量 test、Web lint、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Web 小范围死代码剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。真实错误页和 loading 边界保持清晰，不保留未接入共享 UI 组件。
+- **风险评估**：95/100。已记录外部导入风险，并用仓库搜索和 Web 全量验证证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十五批剪枝；后续可按候选池继续评估 Workflow chapter planner、Web IDE command palette/keymap 或 shared 手写类型。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十五批已完成：删除 Web ErrorCard 未接入 UI 组件、组件测试中的 ErrorCard 专属覆盖和 phase1 转译脚本相关条目；红灯失败原因正确，绿灯通过，Web source-pruning 10 项、ui-components/source-pruning 组合 13 项、Web 全量 209 项、Web lint、引用搜索和 diff check 均通过，同时保留 LoadingSkeleton 生产入口与测试。'
+
+## 审查报告 - 源码剪枝 shared-root-handwritten-types
+
+时间：2026-06-05 14:09:23 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，移除 shared 根出口中无消费者的手写 API/Provider/Job 类型。
+- **范围**：`packages/shared/src/index.ts`、`packages/shared/src/source-pruning.test.ts` 和 `.codex` 留痕。
+- **交付物**：`ApiErrorResponse`、`ProviderCapability`、`ProviderResolution`、`JobRunSummary` 已从 shared 根出口删除；新增 TypeScript 编译型 source-pruning 护栏；保留 OpenAPI 生成类型与 diagnostic 转导出；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：不修改 `packages/shared/src/diagnostic.ts`、API 生产代码、Web 生产代码或 OpenAPI 生成逻辑；区分 API 领域自己的 `ProviderCapability`/`ProviderResolutionRead` 与 shared 根出口手写类型。
+
+### 实施结果
+
+- 已将 `packages/shared/src/index.ts` 精简为生成 API 类型和 diagnostic 适配转导出。
+- 已删除四个无消费者手写类型定义。
+- 已新增 `packages/shared/src/source-pruning.test.ts`，用 `@ts-expect-error` 防止这些类型重新从 shared 根出口导出。
+- 已修正 `packages/shared/src/index.ts` 的 UTF-8 BOM，符合仓库编码规范。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/shared test`，退出码 1；4 条 TS2578 `Unused '@ts-expect-error' directive`，证明 shared 根出口仍导出四个目标类型。
+- 绿灯：删除目标类型后，`pnpm --filter @storyforge/shared test` 通过，`tsc --noEmit` 退出码 0。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/shared test`：通过。
+- `pnpm --filter @storyforge/web test -- diagnostic-adapter`：1 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm --filter @storyforge/web test`：209 passed。
+- shared 根出口与 Web 消费侧残留搜索：无 `ApiErrorResponse`、`ProviderCapability`、`ProviderResolution`、`JobRunSummary` 目标手写类型残留。
+- 扩展残留搜索：除 `packages/shared/src/source-pruning.test.ts` 护栏和允许的 OpenAPI 生成契约外，无目标符号残留。
+- 编码检查：`packages/shared/src/index.ts` 首字节为 `101 120 112`，确认 UTF-8 无 BOM。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录导入 `@storyforge/shared` 中四个旧手写类型的消费者会失效；当前仓库内无此调用。
+- API 领域 `apps/api/app/domains/provider_gateway/runtime_config.py` 中的 `ProviderCapability` 和 schema 中的 `ProviderResolutionRead` 是真实后端领域类型，不属于本批剪枝目标。
+- `packages/shared/src/contracts/storyforge.openapi.json` 与 `packages/shared/src/generated/api-types.ts` 当前工作树已有前序 batch_refinement 剪枝相关 diff，本批未编辑这两个文件，也未修改生成逻辑。
+- 本批不改变运行时代码、API client、认证、鉴权、OpenAPI contract 生成脚本或 Web 页面。
+
+### 评分
+
+- **代码质量**：96/100。移除 shared 根出口重复手写类型，公共契约事实源更清晰。
+- **测试覆盖**：96/100。完成 TypeScript 红绿护栏、shared 编译、Web diagnostic-adapter、Web lint、Web 全量、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 shared 重复职责剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。shared 根出口继续暴露生成契约和 diagnostic 适配，不再维护与 OpenAPI/API 领域重复的手写类型。
+- **风险评估**：94/100。已记录仓库外导入风险，以及工作树中前序生成契约 diff 与本批边界。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十六批剪枝；后续可继续评估 Workflow chapter planner 或 Web IDE command palette/keymap 只测试引用候选。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十六批已完成：删除 shared 根出口 ApiErrorResponse、ProviderCapability、ProviderResolution、JobRunSummary 四个无消费者手写类型，保留 generated api-types 与 diagnostic 转导出；红灯失败原因正确，绿灯通过，shared tsc、Web diagnostic-adapter、Web lint、Web 全量 209 项、残留搜索、UTF-8 无 BOM 检查和 diff check 均通过。'
+
+## 审查报告 - 源码剪枝 workflow-chapter-planner
+
+时间：2026-06-05 14:21:43 +08:00
+
+### 需求字段完整性
+
+- **目标**：继续源码剪枝，删除 Workflow 中未接入主图运行链路的 deterministic chapter planner。
+- **范围**：`apps/workflow/storyforge_workflow/planners/chapter_planner.py`、`apps/workflow/storyforge_workflow/planners/__init__.py`、`apps/workflow/tests/test_chapter_planner.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：目标 planner 模块、planner 包入口和专属测试已删除；扩展 Workflow source-pruning 护栏；新增上下文摘要；追加操作日志和本审查报告。
+- **审查要点**：保留 `graph.py` 中的 `"chapter_planner"` LangGraph 节点名，保留 `scene_architect.create_chapter_plan` 主链路，不修改 prompt builder、runtime runner 或当前架构图节点名。
+
+### 实施结果
+
+- 已删除 `apps/workflow/storyforge_workflow/planners/chapter_planner.py`。
+- 已删除 `apps/workflow/storyforge_workflow/planners/__init__.py`。
+- 已删除 `apps/workflow/tests/test_chapter_planner.py`。
+- 已扩展 `apps/workflow/tests/test_source_pruning.py`，防止未接入 planner 包和专属测试回归。
+
+### TDD 证据
+
+- 红灯：`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，退出码 1；8 条 source-pruning 中 1 条失败，原因是 `planners/chapter_planner.py` 仍存在。
+- 绿灯：删除 planner 包和专属测试后，`cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`，8 passed。
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest tests/test_source_pruning.py -q`：8 passed。
+- `cd apps/workflow && uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_prompt_builder.py -q`：34 passed。
+- `cd apps/workflow && uv run pytest -q`：168 passed。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：All checks passed。
+- 引用搜索：除 `apps/workflow/tests/test_source_pruning.py` 护栏自身外，无 `BlueprintPlanInput`、`ChapterPlanItem`、`plan_chapters_deterministic` 或 `storyforge_workflow.planners` 残留引用。
+- 主图边界复核：`graph.py` 仍保留 `"chapter_planner"` 节点名，并绑定 `scene_architect.create_chapter_plan`。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 外部未记录导入 `storyforge_workflow.planners.chapter_planner` 的消费者会失效；当前仓库内无此调用。
+- 主图节点名 `"chapter_planner"` 是 LangGraph 节点 key，不属于本批删除目标，已明确保留。
+- 本批不改变 provider、prompt、runtime runner、API dispatch、认证、鉴权或外呼逻辑。
+
+### 评分
+
+- **代码质量**：96/100。删除未接入 planner 包和专属测试，减少误导性双入口。
+- **测试覆盖**：96/100。完成红绿测试、主图/运行时/prompt 定向测试、Workflow 全量、ruff、引用搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地 `.codex` 留痕与简体中文要求。
+- **需求匹配**：95/100。完成一处 Workflow 小范围死代码剪枝，符合源码剪枝目标。
+- **架构一致**：96/100。真实章节计划继续由 `scene_architect.create_chapter_plan` 和 LangGraph 主图承担。
+- **风险评估**：95/100。已记录仓库外导入风险，并用主图定向测试和全量测试证明当前主链路无损。
+- **综合评分**：96/100。
+- **明确建议**：通过第二十七批剪枝；后续可继续评估 Web IDE command palette/keymap 或新的 API/Workflow 包级重复入口。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十七批已完成：删除 Workflow deterministic chapter planner 未接入模块、planner 包入口和只覆盖自身的专属测试；红灯失败原因正确，绿灯通过，Workflow source-pruning 8 项、generation_graph/runtime_runner/prompt_builder 定向 34 项、Workflow 全量 168 项、ruff、引用搜索和 diff check 均通过，同时保留 graph.py 的 chapter_planner 节点名与 scene_architect.create_chapter_plan 主链路。'
+
+## 审查报告 - 主链路精修 BookRun workflow adapter
+
+时间：2026-06-05 14:34:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：优先完善 BookRun workflow adapter 的生产调度、progress sink、失败语义。
+- **范围**：`apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`、`apps/workflow/storyforge_workflow/orchestrators/book_loop.py`、workflow adapter/dispatch 测试和 `.codex` 留痕。
+- **交付物**：新增 scheduled/running/final/failed progress 投递；新增失败异常语义化 progress；新增失败 sink 隔离；新增上下文摘要和本审查报告。
+- **审查要点**：不引入 API ORM 依赖，不新增队列或调度框架，不修改 API schema，不写入完整正文或完整提示词。
+
+### 实施结果
+
+- `run_book_loop()` 增加可选 `progress_callback`，旧调用保持不变。
+- adapter 开始执行时投递 `status=running` 和 `dispatch.stage=scheduled`。
+- 每章批准后投递 `status=running` 和 `dispatch.stage=chapter_completed`，包含已完成章节、checkpoint 和预算摘要。
+- 正常终态投递最终 `status`，并保留既有 `volume_progress` 受控入口。
+- 异常终态投递 `status=failed`，`progress.failure` 包含失败类型、原始错误摘要、失败章节和可恢复标记。
+- 第 2 章及后续章节失败时，failed progress 使用当前正在执行章节，而不是上一条完章 progress。
+- 失败回填 sink 二次失败时不覆盖原始业务异常；正常路径 sink 失败仍会抛出，避免假成功。
+
+### TDD 证据
+
+- 红灯：`cd apps/workflow; uv run pytest tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py -v`，退出码 1；4 个新增/调整测试失败，证明缺少 scheduled、chapter_completed、failed progress。
+- 边界红灯：`cd apps/workflow; uv run pytest tests/test_book_run_adapter.py::test_book_run_adapter_failed_progress_points_to_active_chapter_after_partial_success -v`，退出码 1；第 2 章失败被错误记录为第 1 章。
+- 绿灯：目标测试通过，15 passed。
+
+### 本地验证
+
+- `cd apps/workflow; uv run pytest tests/test_book_run_adapter.py::test_book_run_adapter_failed_progress_points_to_active_chapter_after_partial_success -v`：1 passed。
+- `cd apps/workflow; uv run pytest tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py -v`：15 passed。
+- `cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_loop_resume.py tests/test_provider_degradation_pause.py tests/test_skill_audit_summary.py tests/test_novel_skill_runner.py tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py -v`：41 passed。
+- `cd apps/workflow; uv run ruff check .`：All checks passed。
+- `cd apps/workflow; uv run pytest -q`：168 passed。
+- `git diff --check -- apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py apps/workflow/storyforge_workflow/orchestrators/book_loop.py apps/workflow/tests/test_book_run_adapter.py apps/workflow/tests/test_book_run_dispatch_payload.py .codex/context-summary-主链路精修.md .codex/operations-log.md .codex/verification-report.md`：通过。
+
+### 风险与边界
+
+- progress sink 消费者会收到多条 payload；本仓库测试已改为按顺序和最终 payload 判断，外部消费者应按 `status` 或 `progress.dispatch.stage` 过滤。
+- 本轮不实现真实队列 worker、HTTP progress client 或 API 端失败状态枚举收窄；API 当前 `BookRunProgressUpdate.status` 接受字符串，普通 failure 证据可落入 `progress`。
+- `.codex/operations-log.md` 和 `.codex/verification-report.md` 本轮开始前已有前序未提交追加内容；本报告只追加主链路精修审查结论。
+
+### 评分
+
+- **代码质量**：94/100。实现保持 adapter 边界清晰，以小型 helper 封装 progress 投递和失败构造。
+- **测试覆盖**：96/100。覆盖开始调度、完章中间进度、最终进度、异常失败、失败章节定位、sink 失败隔离和 dispatch payload 回归。
+- **规范遵循**：95/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕要求；desktop-commander 不可用已记录替代方案。
+- **需求匹配**：96/100。直接覆盖生产调度、progress sink、失败语义三项主目标。
+- **架构一致**：95/100。继续使用 ports/dataclass/Protocol，不引入 API ORM 或新框架。
+- **风险评估**：93/100。已识别多 payload 消费者迁移风险，并通过 dispatch.stage 提供过滤依据。
+- **综合评分**：95/100。
+- **明确建议**：通过。本轮可作为 BookRun workflow adapter 主链路精修交付；后续可独立补 HTTP/队列生产 worker 和 API 端失败状态枚举治理。
+
+```Scoring
+score: 95
+```
+
+summary: '主链路精修已完成：BookRun workflow adapter 现在会投递 scheduled 开始信号、每章完章 running progress、最终状态 progress 和异常 failed progress；失败语义包含原始错误摘要、失败章节和可恢复标记，并保证失败回填 sink 二次失败不覆盖原始业务异常。目标测试 15 passed，相关回归 41 passed，workflow ruff 全量通过，workflow pytest 全量 168 passed。'
+
+## 审查报告 - 源码剪枝第二十八批 Web IDE palette/keymap
+
+时间：2026-06-05 14:34:56 +08:00
+
+### 需求字段完整性
+
+- **目标**：删除 Web IDE 中未接入生产链路的 CommandPalette 组件和 keymap 辅助模块，清理测试、性能预算和 phase1 转译残留。
+- **范围**：`apps/web/components/ide/commands/palette.tsx`、`apps/web/components/ide/keymap/index.ts`、相关 Web 测试、性能预算、phase1 转译脚本和 `.codex` 留痕。
+- **交付物**：红灯 source-pruning 护栏、目标文件删除、测试残留收窄、性能预算收窄、转译脚本残留删除、本地验证记录和本审查报告。
+- **审查要点**：不得修改 `registry.ts`、`registerBuiltinCommands.ts`、`command-client.ts`、内置命令 shortcut 元数据或生产 IDE 命令链路。
+
+### 实施结果
+
+- 删除 `CommandPalette` / `filterCommands` 所在孤立组件文件。
+- 删除 `ideKeymap` / `resolveIdeKeymap` / `findCommandByShortcut` / `executeShortcutCommand` 所在孤立 keymap 文件。
+- 删除 `ide-command-registry` 中只覆盖 palette/keymap 的 3 条专属测试，保留真实 CommandRegistry 链路测试。
+- 删除 `ide-personalization` 中默认 keymap 覆盖测试，保留任意键位偏好写入、展示和水合测试。
+- 删除 `ide-performance-budget` 中 CommandPalette 过滤预算，保留 ProblemsPanel 与 ChapterEditor 预算。
+- 从 `phase1-contract-test.mjs` 删除 palette/keymap 的 runtimeModules 与 importRewrites。
+- 新增 `source-pruning` 双护栏，防止目标文件和 phase1 转译残留回归。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning`，退出码 1；12 项中 10 passed、2 failed。
+- 红灯失败点：目标文件存在性断言命中 `palette.tsx`，phase1 残留断言命中 `components/ide/commands/palette.tsx`。
+- 绿灯：删除目标文件和残留后，`source-pruning` 12 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test -- source-pruning`：12 passed。
+- `pnpm --filter @storyforge/web test -- ide-command-registry ide-personalization ide-performance-budget source-pruning`：25 passed。
+- `pnpm --filter @storyforge/web test`：207 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- 残留搜索：除 `apps/web/tests/source-pruning.test.ts` 护栏外，`CommandPalette`、`filterCommands`、`ideKeymap`、`resolveIdeKeymap`、`findCommandByShortcut`、`executeShortcutCommand` 和目标路径无匹配。
+- `git diff --check`：通过。
+- 核心命令链路 diff 检查：`registry.ts`、`registerBuiltinCommands.ts`、`command-client.ts` 无本批 diff。
+
+### 风险与边界
+
+- `builtinCommands.shortcut` 字段作为命令元数据保留，但当前没有运行时快捷键事件监听入口；本批不伪造快捷键支持。
+- 个性化仍允许保存任意 keybindings，后续若要接入真实快捷键监听，应基于生产事件入口重新设计，而不是恢复孤立 keymap。
+- Web 全量测试从 209 项变为 207 项，减少项均为已下线模块的专属测试；生产命令链路和个性化偏好测试仍覆盖。
+
+### 评分
+
+- **代码质量**：96/100。删除范围精准，未触碰真实命令链路。
+- **测试覆盖**：96/100。具备红灯、绿灯、相关定向、全量、lint、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕要求。
+- **需求匹配**：97/100。完整覆盖 palette/keymap 文件、测试、预算和转译残留。
+- **架构一致**：96/100。保留 CommandRegistry 作为唯一真实命令执行链路。
+- **风险评估**：94/100。明确区分 shortcut 元数据、偏好保存和运行时快捷键执行入口。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web IDE 未接入 palette/keymap 辅助模块剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十八批已完成：删除 Web IDE 未接入生产链路的 CommandPalette/filterCommands 与 keymap 辅助模块，清理相关测试、性能预算和 phase1 转译残留；保留真实 CommandRegistry 命令执行链路和个性化偏好保存能力。红灯失败原因正确，绿灯后 source-pruning 12 passed、相关定向 25 passed、Web 全量 207 passed、lint 通过、残留搜索无命中、diff check 通过。'
+
+## 审查报告 - 源码剪枝第二十九批 Web JobStatusPoller 默认端点
+
+时间：2026-06-05 14:45:44 +08:00
+
+### 需求字段完整性
+
+- **目标**：剪掉 `JobStatusPoller` 无真实后端契约的旧默认端点 `/api/v1/jobs`，改为真实 JobRun 状态 API 前缀。
+- **范围**：`apps/web/components/job-status/JobStatusPoller.tsx`、`apps/web/tests/source-pruning.test.ts`、`apps/web/tests/phase8-stage4.test.tsx` 和 `.codex` 留痕。
+- **交付物**：红灯护栏、默认端点收敛、定向与全量验证、残留搜索、审查报告。
+- **审查要点**：不得删除或修改 Studio 调用、`job-status-core`、`/jobs` 页面、`site-nav` 或轮询重试逻辑。
+
+### 实施结果
+
+- `JobStatusPoller` 默认端点改为 `/api/model-runs/job-runs`。
+- 保留 `endpoint` prop 覆盖能力，默认请求仍按 `${endpoint}/${jobRunId}` 拼接。
+- 保留 `retryAttempt`、`fetchSnapshot`、`parseJobRunSnapshot()` 和终态停止轮询逻辑。
+- 新增 source-pruning 护栏，防止旧 jobs API 默认端点回归。
+- 增强 phase8-stage4 组件契约测试，要求组件声明真实 JobRun API 前缀。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning phase8-stage4`，退出码 1；25 项中 23 passed、2 failed。
+- 红灯失败点：`JobStatusPoller 客户端组件存在且为 use client` 缺少真实 API 前缀；`JobStatusPoller 不应默认轮询无后端契约的旧 jobs API` 命中旧 `/api/v1/jobs`。
+- 绿灯：默认端点改为真实 JobRun API 后，定向测试 31 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test -- source-pruning phase8-stage4 job-status-core`：31 passed。
+- `pnpm --filter @storyforge/web test`：208 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `rg -n "/api/v1/jobs" apps/web apps/api packages docs tests scripts --glob '!**/.next/**' --glob '!**/node_modules/**' --glob '!docs/superpowers/**'`：无匹配。
+- `git diff --check`：通过。
+- 保留边界检查：`apps/web/app/studio/page-content.tsx`、`apps/web/components/job-status/job-status-core.ts`、`apps/web/app/jobs/page.tsx`、`apps/web/components/site-nav/site-nav-links.ts` 无本批 diff。
+
+### 风险与边界
+
+- 本批没有删除 `/jobs` 静态页面；该页面仍是后续候选，需单独取证和红灯护栏。
+- 默认端点是浏览器相对路径，仍依赖现有 Web/API 部署转发方式；`endpoint` prop 保留，可由调用方覆盖。
+- 本批不新增后端路由，不改变轮询间隔或重试语义。
+
+### 评分
+
+- **代码质量**：97/100。业务代码只改一行默认端点，边界清晰。
+- **测试覆盖**：96/100。覆盖红灯、绿灯、核心解析、全量、lint、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：97/100。精准剪掉过期默认契约，保留生产组件。
+- **架构一致**：96/100。默认端点与现有 Runs 页面和 model_runs API 契约对齐。
+- **风险评估**：94/100。明确保留 `/jobs` 页面为后续候选，避免扩大范围。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web JobStatusPoller 过期默认端点剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第二十九批已完成：JobStatusPoller 默认端点从无真实契约的旧 jobs API 收敛到 /api/model-runs/job-runs，保留 Studio 调用、endpoint prop、重试逻辑和 job-status-core。红灯失败原因正确，绿灯后定向测试 31 passed、Web 全量 208 passed、lint 通过、旧端点残留搜索无命中、diff check 通过。'
+
+## 审查报告 - 源码剪枝第三十批 Web jobs 静态页面
+
+时间：2026-06-05 14:56:29 +08:00
+
+### 需求字段完整性
+
+- **目标**：下线 Web `/jobs` 静态任务中心壳，从主导航移除 `/jobs`，并将旧深链重定向到真实 Runs 面板。
+- **范围**：`apps/web/app/jobs/page.tsx`、`apps/web/components/site-nav/site-nav-links.ts`、`apps/web/next.config.ts`、相关 Web 测试和 `.codex` 留痕。
+- **交付物**：红灯护栏、页面删除、导航收敛、legacy redirect、本地验证记录和本审查报告。
+- **审查要点**：不得删除或修改 `JobStatusPoller`、`job-status-core`、API jobs 模型、model_runs API、`/runs` 页面或 IDE runs 面板。
+
+### 实施结果
+
+- 删除 `apps/web/app/jobs/page.tsx`，移除硬编码任务清单和静态任务中心页面。
+- 从 `primaryNavLinks` 移除 `/jobs` 主导航入口。
+- 在 `storyforgeLegacyRedirects()` 中新增 `/jobs -> /ide?panel.bottom=runs` permanent redirect。
+- 新增 source-pruning 护栏，防止静态 jobs 页面和导航入口回归。
+- 更新 site-nav 和 phase1-navigation 测试，明确 `/jobs` 不应作为主导航入口，但应作为旧链接进入真实 Runs 面板。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning site-nav phase1-navigation`，退出码 1；35 项中 32 passed、3 failed。
+- 红灯失败点：缺少 `/jobs` redirect、导航仍包含 `/jobs`、`app/jobs/page.tsx` 仍存在。
+- 绿灯：删除页面、移除导航并新增 redirect 后，定向测试 35 passed。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test -- source-pruning site-nav phase1-navigation`：35 passed。
+- `pnpm --filter @storyforge/web test`：209 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `/jobs` 残留搜索：仅命中 `next.config.ts` redirect、`phase1-navigation` 期望、`site-nav` forbidden 断言和 `source-pruning` 护栏；不再命中静态页面或导航事实源。
+- `git diff --check`：通过。
+- 边界复查：`app/jobs/page.tsx` 已删除；`primaryNavLinks` 不含 `/jobs`；`storyforgeLegacyRedirects()` 含 `/jobs -> /ide?panel.bottom=runs`。
+
+### 风险与边界
+
+- API jobs 模型仍存在并被后端 analytics、quality、model_runs 等链路使用，本批不删除后端 JobRun 存储能力。
+- `/jobs` 旧 URL 仍可通过 308 进入 IDE runs 面板，避免深链直接失效。
+- `/refinery` 仍是后续候选，本批不处理 Refinery 静态演示壳。
+
+### 评分
+
+- **代码质量**：96/100。删除静态壳并复用现有 redirect 模式，改动边界清晰。
+- **测试覆盖**：96/100。覆盖红灯、绿灯、导航、redirect、全量、lint、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：97/100。精准处理 `/jobs` 静态主入口并保留深链到真实 Runs。
+- **架构一致**：96/100。与既有旧页面重定向到 IDE 壳层的架构保持一致。
+- **风险评估**：95/100。明确保留后端 JobRun 能力和 `/runs` 真实入口。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web `/jobs` 静态任务中心壳剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十批已完成：删除 Web /jobs 静态任务中心页面，从主导航移除 /jobs，并新增 /jobs 到 /ide?panel.bottom=runs 的 permanent redirect；保留 JobStatusPoller、job-status-core、API jobs 模型、model_runs API、/runs 页面和 IDE runs 面板。红灯失败原因正确，绿灯后定向测试 35 passed、Web 全量 209 passed、lint 通过、残留搜索仅剩预期护栏/redirect/测试期望、diff check 通过。'
+
+## 审查报告 - 源码剪枝第三十一批 Web refinery 静态演示页
+
+时间：2026-06-05 15:11:48 +08:00
+
+### 需求字段完整性
+
+- **目标**：下线 Web `/refinery` 静态演示壳，从主导航移除 `/refinery`，并将旧深链重定向到真实 Studio legacy tab。
+- **范围**：`apps/web/app/refinery/page.tsx`、`apps/web/components/site-nav/site-nav-links.ts`、`apps/web/next.config.ts`、相关 Web 测试、Phase2 合同和 `.codex` 留痕。
+- **交付物**：红灯护栏、页面删除、导航收敛、legacy redirect、本地验证记录、子代理候选摘要和本审查报告。
+- **审查要点**：不得删除或修改 `JudgeIssueList`、`RepairDiffViewer`、`apps/web/app/studio/page-content.tsx`、IDE `JudgeRepairWorkbench` 或后端 batch-refinery API。
+
+### 实施结果
+
+- 删除 `apps/web/app/refinery/page.tsx`，移除硬编码文本、空评审问题和静态修订差异演示页。
+- 从 `primaryNavLinks` 移除 `/refinery` 主导航入口。
+- 在 `storyforgeLegacyRedirects()` 中新增 `/refinery -> /ide?tab=legacy%3Astudio&active=legacy%3Astudio` permanent redirect。
+- 新增 source-pruning 护栏，防止静态 refinery 页面和导航入口回归。
+- 更新 site-nav 和 phase1-navigation 测试，明确 `/refinery` 不应作为主导航入口，但应作为旧链接进入真实 Studio 链路。
+- 更新 Phase2 合同，前端边界改为验证 Studio API endpoint、Studio page-content 的 `JudgeIssueList`、`RepairDiffViewer` 和读写链路。
+
+### TDD 证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning site-nav phase1-navigation`，退出码 1；36 项中 33 passed、3 failed。
+- 红灯失败点：缺少 `/refinery` redirect、导航仍包含 `/refinery`、`app/refinery/page.tsx` 仍存在。
+- 绿灯：删除页面、移除导航并新增 redirect 后，定向测试 36 passed。
+- 运行器修正：裸 `node --test tests/e2e/phase2-contract.spec.ts` 因 `.ts` 扩展名不可直接执行失败；最终使用项目既有 `node scripts/run-e2e.mjs tests/e2e/phase2-contract.spec.ts` 验证通过。
+
+### 本地验证
+
+- `pnpm --filter @storyforge/web test -- source-pruning site-nav phase1-navigation`：36 passed。
+- `node scripts/run-e2e.mjs tests/e2e/phase2-contract.spec.ts`：OpenAPI refresh passed、contract drift check passed、Phase2 contract 3 passed、API verification 63 passed、Workflow verification 37 passed。
+- `pnpm --filter @storyforge/web test`：210 passed。
+- `pnpm --filter @storyforge/web lint`：`tsc --noEmit` 通过。
+- `/refinery` 残留搜索：仅命中 `next.config.ts` redirect、`phase1-navigation` 期望、`site-nav` forbidden 断言、`source-pruning` 护栏和 Phase2 合同；不再命中静态页面或导航事实源。
+- `git diff --check`：通过。
+- 边界复查：`app/refinery/page.tsx` 已删除；`primaryNavLinks` 不含 `/refinery`；`storyforgeLegacyRedirects()` 含 `/refinery -> /ide?tab=legacy%3Astudio&active=legacy%3Astudio`。
+
+### 风险与边界
+
+- 本批不删除后端 `/api/batch-refinery/runs`，不修改 Studio API 和 IDE JudgeRepairWorkbench。
+- `/refinery` 旧 URL 仍可通过 308 进入真实 Studio legacy tab，避免深链直接失效。
+- `packages/shared/src/contracts/storyforge.openapi.json` 在本轮验证后处于修改状态，diff 显示为 OpenAPI 快照中的批量精修兼容 schema 变化；该文件不是本批 Web `/refinery` 清理范围，需在后续 API 剪枝或契约刷新任务中单独判定。
+- 子代理发现的下一批候选为 API 旧 `/health` 顶层入口和 Workflow 题材 NovelSkill 预留包，尚未在本批处理。
+
+### 评分
+
+- **代码质量**：96/100。删除静态壳并复用现有 redirect 模式，改动边界清晰。
+- **测试覆盖**：97/100。覆盖红灯、绿灯、导航、redirect、Phase2 合同、全量、lint、残留搜索和 diff check。
+- **规范遵循**：95/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕；shrimp 任务面板在验收时已被刷新为下一批候选，已记录该工具状态异常。
+- **需求匹配**：97/100。精准处理 `/refinery` 静态主入口并保留深链到真实 Studio。
+- **架构一致**：96/100。与既有旧页面重定向到 IDE 壳层的架构保持一致。
+- **风险评估**：94/100。明确保留真实 Studio/IDE/后端批量精修链路，并标注 OpenAPI 快照旁路变更。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web `/refinery` 静态演示壳剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十一批已完成：删除 Web /refinery 静态演示页，从主导航移除 /refinery，并新增 /refinery 到 /ide?tab=legacy%3Astudio&active=legacy%3Astudio 的 permanent redirect；保留 JudgeIssueList、RepairDiffViewer、Studio page-content、IDE JudgeRepairWorkbench 和后端 batch-refinery API。红灯失败原因正确，绿灯后定向测试 36 passed、Phase2 合同脚本通过并顺带验证 API 63 passed 与 Workflow 37 passed、Web 全量 210 passed、lint 通过、残留搜索仅剩预期护栏/redirect/测试期望、diff check 通过。'
+
+## 审查报告 - 源码剪枝第三十二批 Workflow 题材 NovelSkill 预留包
+
+时间：2026-06-05 15:19:44 +08:00
+
+### 需求字段完整性
+
+- **目标**：收敛未接入默认运行链路的题材 NovelSkill 预留包，减少 Workflow 静态合同和重复 judge 职责维护面。
+- **范围**：`apps/workflow/storyforge_workflow/skills/definitions.py`、三个 `genre_*` 静态技能目录、`apps/workflow/tests/test_genre_skill_registry.py`、`apps/workflow/tests/test_source_pruning.py` 和 `.codex` 留痕。
+- **交付物**：红灯护栏、题材预留入口删除、静态合同删除、专属测试删除、本地验证记录和本审查报告。
+- **审查要点**：不得删除默认六个通用技能，不修改 NovelLoop、BookLoop、NovelSkillRunner 或 BookRun adapter 的真实运行行为。
+
+### 实施结果
+
+- 从 `NovelSkillRegistry` 删除 `with_genre_pack()`。
+- 从 `definitions.py` 删除三个题材技能定义和 `GENRE_NOVEL_SKILL_PACKS`。
+- 删除三个题材静态技能合同和空目录：`genre_mystery`、`genre_xuanhuan`、`genre_romance`。
+- 删除只覆盖题材预留包的 `tests/test_genre_skill_registry.py`。
+- 新增 `test_genre_novel_skill_preview_pack_stays_pruned` 护栏，防止题材预留入口、目录和 marker 回归。
+- 保留默认 `generate`、`judge`、`repair`、`approve`、`memory_extract`、`export` 技能链。
+
+### TDD 证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py tests/test_novel_skill_registry.py tests/test_novel_loop_single_chapter.py tests/test_novel_loop_skill_runner_integration.py tests/test_book_run_adapter.py`，退出码 1；36 项中 35 passed、1 failed。
+- 红灯失败点：`test_genre_novel_skill_preview_pack_stays_pruned` 命中 `definitions.py 不应继续保留题材技能预留符号：with_genre_pack`。
+- 绿灯：删除题材预留包和专属测试后，同一命令 36 passed。
+
+### 本地验证
+
+- `uv run pytest tests/test_source_pruning.py tests/test_novel_skill_registry.py tests/test_novel_loop_single_chapter.py tests/test_novel_loop_skill_runner_integration.py tests/test_book_run_adapter.py`：36 passed。
+- `pnpm run test:workflow`：158 passed。
+- 残留搜索：题材入口和三个题材技能 marker 仅剩 `test_source_pruning.py` 护栏文本。
+- 目录复查：三个 `genre_*` 目录和 `tests/test_genre_skill_registry.py` 均不存在。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 本批不处理默认 `SKILL.md` 与 `definitions.py` 的双事实源问题，该候选仍可作为后续 Workflow 边界治理项。
+- 本批不删除 `skills/diagnostics.py`，因为它仍有 `test_novel_skill_diagnostics.py` 覆盖，是否保留需要单独确认运行诊断入口。
+- 若未来需要题材技能，应基于真实运行入口重新引入，并补充 BookLoop/NovelLoop 集成测试，而不是恢复静态预留包。
+
+### 评分
+
+- **代码质量**：96/100。删除未接入默认链路的静态预留包，保留真实默认技能链。
+- **测试覆盖**：97/100。覆盖红灯、绿灯、默认 registry、NovelLoop、SkillRunner、BookRun adapter、Workflow 全量、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：97/100。精准收敛 Workflow 疑似死代码和重复职责候选。
+- **架构一致**：96/100。默认运行链路继续以六个通用技能为事实源，避免题材预留技能与通用 judge 重叠。
+- **风险评估**：95/100。明确保留真实运行端口，并记录后续默认 Markdown 双事实源和 diagnostics 候选。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow 题材 NovelSkill 预留包剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十二批已完成：删除 Workflow 题材 NovelSkill 预留包，包括 with_genre_pack、GENRE_NOVEL_SKILL_PACKS、三个题材静态技能定义、三个 genre_* SKILL.md 和专属 test_genre_skill_registry.py；保留默认 generate/judge/repair/approve/memory_extract/export 技能链、NovelLoop、SkillRunner 和 BookRun adapter。红灯失败原因正确，绿灯后定向测试 36 passed、Workflow 全量 158 passed、残留搜索仅剩 source-pruning 护栏、diff check 通过。'
+
+## 审查报告 - 源码剪枝第三十三批 API 旧顶层 health 入口
+
+时间：2026-06-05 15:30:07 +08:00
+
+### 需求字段完整性
+
+- **目标**：下线重复的 API 顶层 `/health` 入口，保留 `/health/live` 与 `/health/ready` 作为当前健康探针。
+- **范围**：`apps/api/app/main.py`、`apps/api/app/common/metrics.py`、API 健康/中间件/剪枝测试、OpenAPI JSON、shared generated 类型和 `.codex` 留痕。
+- **交付物**：红灯护栏、旧路由删除、公开路径和 metrics 排除列表收敛、OpenAPI/generated type 刷新、本地验证记录和本审查报告。
+- **审查要点**：不得破坏 `/health/live`、`/health/ready`、Dockerfile liveness 探针或 `verify-local.ps1` 检查。
+
+### 实施结果
+
+- 删除 `main.py` 中顶层 `@app.get("/health") health_check()`。
+- 从 `_PUBLIC_PATHS` 移除精确 `/health`，保留 `/health/live` 和 `/health/ready`。
+- 从 Prometheus `excluded_handlers` 移除精确 `/health`，保留 live/ready。
+- 将 API 中间件测试从旧 `/health` 迁移到 `/health/live`。
+- 将旧兼容测试改为路由/OpenAPI 下线护栏。
+- 刷新 `packages/shared/src/contracts/storyforge.openapi.json` 和 `packages/shared/src/generated/api-types.ts`，精确 `"/health"` 不再出现在契约路径中。
+
+### TDD 证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py tests/test_health_probes.py tests/test_api_middleware.py`，退出码 1；34 项中 32 passed、2 failed。
+- 红灯失败点：旧 `/health` 仍在 `app.routes` 中。
+- 绿灯：删除旧路由并刷新中间件边界后，同一命令 34 passed。
+
+### 本地验证
+
+- `uv run pytest tests/test_source_pruning.py tests/test_health_probes.py tests/test_api_middleware.py`：34 passed。
+- `pnpm run openapi`：通过。
+- `pnpm --filter @storyforge/shared generate:types`：通过。
+- `pnpm --filter @storyforge/shared test`：通过。
+- `pnpm run test:api`：427 passed。
+- 残留搜索：精确 `"/health":` 不再存在于 OpenAPI JSON 或 generated API types；残留仅为 `/health/live`、`/health/ready`、health router prefix、测试护栏和部署探针。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 旧 `/health` 不再作为公开健康检查保留；未认证访问旧路径可能由认证中间件返回 401，这是下线旧入口后的边界行为，验收以不注册路由和不进入 OpenAPI 为准。
+- Dockerfile 与 verify-local 均继续使用 `/health/live`，部署探针不受影响。
+- 本批不修改 `/health/ready` 的 DB/Redis 检查逻辑。
+- 当前工作树仍包含前序 `batch_refinement` 清理和 OpenAPI 快照变化；本批只记录 `/health` 精确路径收敛。
+
+### 评分
+
+- **代码质量**：96/100。删除重复旧路由，保留 health router 事实源。
+- **测试覆盖**：97/100。覆盖红灯、绿灯、live/ready 行为、中间件边界、OpenAPI/generated、API 全量、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：97/100。精准收敛 API 疑似旧兼容入口。
+- **架构一致**：96/100。健康探针回归 `app/domains/health/router.py` 单一事实源。
+- **风险评估**：95/100。明确保留部署实际使用的 live/ready，并说明旧路径下线后的认证边界。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 API 旧顶层 `/health` 剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十三批已完成：删除 API 顶层旧 /health 路由，从 _PUBLIC_PATHS 和 metrics excluded_handlers 移除精确 /health，并将中间件测试迁移到 /health/live；保留 /health/live、/health/ready、Dockerfile liveness 和 verify-local 探针。红灯失败原因正确，绿灯后 API 定向 34 passed、OpenAPI 刷新通过、shared generated types 刷新通过、shared tsc 通过、API 全量 427 passed、精确 /health 契约残留清零、diff check 通过。'
+
+## 源码剪枝第三十四批 - Workflow NovelSkill diagnostics 静态投影
+
+时间：2026-06-05 15:50:43 +08:00
+
+### 审查范围
+
+- 删除 `apps/workflow/storyforge_workflow/skills/diagnostics.py`。
+- 删除 `apps/workflow/tests/test_novel_skill_diagnostics.py`。
+- 扩展 `apps/workflow/tests/test_source_pruning.py`，防止旧静态诊断投影和旧函数名回潮。
+- 不修改 `definitions.py`、`runner.py`、`audit.py`、orchestrators、API/Web diagnostics。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py tests/test_novel_skill_registry.py tests/test_skill_audit_summary.py tests/test_novel_skill_diagnostics.py`，32 项中 31 passed、1 failed，唯一失败命中 `skills/diagnostics.py` 仍存在。
+- 定向绿灯：`uv run pytest tests/test_source_pruning.py tests/test_novel_skill_registry.py tests/test_skill_audit_summary.py`，29 passed。
+- Workflow 全量：`pnpm run test:workflow`，156 passed。
+- 路径复查：`skills/diagnostics.py` 与 `tests/test_novel_skill_diagnostics.py` 均不存在。
+- 残留搜索：旧模块导入和三个旧函数名只剩 `tests/test_source_pruning.py` 护栏文本。
+- `git diff --check`：第34批相关文件通过。
+
+### 风险与边界
+
+- 本批删除的是静态 registry 投影，不删除默认 NovelSkill registry。
+- 默认六技能完整性仍由 `test_novel_skill_registry.py` 覆盖。
+- 技能链审计仍由 `skills.audit` 和 `test_skill_audit_summary.py` 覆盖。
+- 若未来需要对外技能诊断，应从运行审计事实源重建，不应恢复静态 `diagnostics.py`。
+
+### 评分
+
+- **代码质量**：96/100。删除重复静态投影，保留真实 registry 与 audit 事实源。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Workflow 全量、路径复查、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Workflow 疑似重复职责模块。
+- **架构一致**：95/100。技能诊断职责回归 registry 测试和 runtime audit，不新增兼容壳。
+- **风险评估**：95/100。明确保留默认技能链、SkillRunner、BookRun adapter 和 API/Web runtime diagnostics。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow NovelSkill diagnostics 静态投影剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十四批已完成：删除 Workflow NovelSkill diagnostics 静态投影模块和专属测试，新增 source-pruning 防回潮护栏。红灯失败原因正确，绿灯后 Workflow 定向 29 passed、Workflow 全量 156 passed、旧模块和旧函数名残留只剩护栏文本、diff check 通过。'
+
+## 源码剪枝第三十五批 - Workflow quality 包级转导出入口
+
+时间：2026-06-05 16:21:55 +08:00
+
+### 审查范围
+
+- 收敛 `apps/workflow/storyforge_workflow/quality/__init__.py` 包级转导出。
+- 将 `apps/workflow/tests/test_prose_static_check.py` 迁移为具体模块导入。
+- 扩展 `apps/workflow/tests/test_source_pruning.py`，防止 `quality/__init__.py` 重新转导出静态质量检查符号。
+- 保留 `apps/workflow/storyforge_workflow/quality/prose_static_check.py` 和全部静态质量检查行为。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py tests/test_prose_static_check.py tests/test_novel_loop_single_chapter.py tests/test_novel_loop_skill_runner_integration.py`，24 项中 23 passed、1 failed，唯一失败命中 `quality/__init__.py` 仍转导出 `StaticProseIssue`。
+- 定向绿灯：同一命令，24 passed。
+- Workflow 全量：`pnpm run test:workflow`，157 passed。
+- 残留搜索：旧包入口导入和 `__all__` 转导出无命中；宽搜索只剩 source-pruning 护栏、具体模块导入和真实实现。
+- 路径复查：`prose_static_check.py` 仍存在。
+- `git diff --check`：第35批相关文件通过。
+
+### 风险与边界
+
+- 本批不删除静态质量检查能力，只删除便利转导出入口。
+- 若后续有外部包把 `storyforge_workflow.quality` 当公共 API，需要迁移到具体模块导入；当前仓库内已完成迁移。
+- NovelLoop 与 SkillRunner 行为由定向测试和全量测试覆盖，不受影响。
+
+### 评分
+
+- **代码质量**：96/100。包入口职责收敛，事实源唯一。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Workflow 全量、残留搜索、路径复查和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：95/100。精准收敛 Workflow 重复职责入口。
+- **架构一致**：96/100。与 tools、skills 等包级转导出收敛模式一致。
+- **风险评估**：95/100。保留真实实现和运行链路，边界明确。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow quality 包级转导出剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十五批已完成：收敛 Workflow quality 包级转导出入口，保留 prose_static_check 真实实现，并将测试迁移到具体模块导入。红灯失败原因正确，绿灯后定向 24 passed、Workflow 全量 157 passed、旧包入口导入和 __all__ 转导出清零、diff check 通过。'
+
+## 源码剪枝第三十六批 - Workflow provider token usage 未调用 helper
+
+时间：2026-06-05 16:33:36 +08:00
+
+### 审查范围
+
+- 删除 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py` 中未调用的 `_estimate_token_usage`。
+- 扩展 `apps/workflow/tests/test_source_pruning.py`，防止未调用 helper 回潮。
+- 保留 `_estimate_token_count`、`_estimate_cost` 和 `ProviderClientAdapter.generate()` 的真实 token/cost 路径。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py tests/test_provider_adapter.py tests/test_provider_fallback.py tests/test_model_run_token_tracking.py`，36 项中 35 passed、1 failed，唯一失败命中 `def _estimate_token_usage(` 仍存在。
+- 定向绿灯：同一命令，36 passed。
+- Workflow 全量：`pnpm run test:workflow`，158 passed。
+- 残留搜索：生产和普通测试中 `def _estimate_token_usage(` 无命中；宽搜索只剩 source-pruning 护栏文本。
+- 路径复查：`_estimate_token_count`、`_estimate_cost` 及 ProviderClientAdapter.generate 中的 prompt/completion token 调用仍存在。
+- `git diff --check`：第36批相关文件通过。
+
+### 风险与边界
+
+- 本批删除的是未调用私有 helper，不改变 provider adapter 公开响应结构。
+- Provider parity harness、fallback adapter、runtime runner 均未修改。
+- token_usage 仍由 prompt/completion token 相加得出，成本估算仍由 `_estimate_cost` 承担。
+
+### 评分
+
+- **代码质量**：97/100。删除强证据死函数，保留真实计算路径。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Workflow 全量、残留搜索、路径复查和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Workflow 疑似死代码。
+- **架构一致**：96/100。Provider runtime 模块职责更集中，不引入新抽象。
+- **风险评估**：96/100。保留 provider token/cost 行为并通过定向测试覆盖。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow provider token usage 未调用 helper 剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十六批已完成：删除 Workflow provider_adapter.py 中未调用的 _estimate_token_usage 私有 helper，保留 _estimate_token_count、_estimate_cost 和 ProviderClientAdapter.generate 的真实 token/cost 路径。红灯失败原因正确，绿灯后定向 36 passed、Workflow 全量 158 passed、生产残留清零、diff check 通过。'
+
+## 源码剪枝第三十七批 - Web assets 孤儿静态页
+
+时间：2026-06-05 16:49:26 +08:00
+
+### 审查范围
+
+- 删除 `apps/web/app/assets/page.tsx`。
+- 扩展 `apps/web/tests/source-pruning.test.ts`，防止 Web `/assets` 硬编码静态页回潮。
+- 保留 `apps/api/app/domains/assets`、`/api/assets` OpenAPI 契约、shared generated types 和 `app/artifacts` 产物链路。
+
+### 验证证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning site-nav`，19 项中 18 passed、1 failed，唯一失败命中 `app/assets/page.tsx` 仍存在。
+- 定向绿灯：同一命令，19 passed。
+- 路径复查：`apps/web/app/assets/page.tsx` 不存在。
+- Web 全量：`pnpm --filter @storyforge/web test`，211 passed。
+- Web lint：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 通过。
+- Web 页面残留搜索：`AssetsPage` 与 `Asset Center` 静态页证据只剩 source-pruning 护栏文本。
+- `/api/assets` 保留搜索：API router、OpenAPI、shared generated types、API 测试、E2E 和文档仍有命中。
+- `git diff --check`：第37批相关文件通过。
+
+### 风险与边界
+
+- 本批删除的是无入口的 Web 静态页，不删除后端资产 API。
+- 当前没有 `/assets` 导航或 redirect 需求，因此不新增兼容重定向。
+- 若未来需要资产中心，应基于真实 `/api/assets` 或 IDE/Home 实际视图重建，而不是恢复硬编码页面。
+
+### 评分
+
+- **代码质量**：96/100。删除孤儿静态页面，减少硬编码演示数据。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Web 全量、lint、残留搜索、API 契约保留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Web 疑似死页面，保留 API 资产链路。
+- **架构一致**：95/100。前端不再维护与后端资产事实源分叉的孤儿页。
+- **风险评估**：95/100。明确保留 `/api/assets`、OpenAPI、shared types 和 artifacts 产物链路。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web `/assets` 孤儿静态页剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十七批已完成：删除 Web app/assets/page.tsx 孤儿静态素材页，保留后端 /api/assets 契约和 artifacts 产物链路。红灯失败原因正确，绿灯后定向 19 passed、Web 全量 211 passed、Web lint 通过、Web 静态页残留只剩护栏文本、/api/assets 契约仍存在、diff check 通过。'
+
+## 源码剪枝第三十八批 - API SlowAPI Limiter 空壳
+
+时间：2026-06-05 17:19:40 +08:00
+
+### 审查范围
+
+- 删除 `apps/api/app/main.py` 中 SlowAPI import、`Limiter` 实例、`app.state.limiter` 和 health router `limiter.exempt` 循环。
+- 删除 `apps/api/pyproject.toml` 与 `apps/api/uv.lock` 中的 `slowapi` 依赖残留。
+- 保留 `limits` 直接依赖，以及 `FixedWindowRateLimiter`、`_rate_store`、`_rate_strategy`、`_READ_LIMIT`、`_WRITE_LIMIT`、`_BATCH_LIMIT` 和 `enforce_tiered_rate_limit` 真实分层限流。
+- 保留认证、健康探针、CORS、安全响应头、请求超时和 metrics 行为。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py tests/test_api_middleware.py tests/test_health_probes.py tests/test_metrics.py`，37 项中 36 passed、1 failed，唯一失败命中 SlowAPI Limiter 空壳仍存在。
+- 定向绿灯：同一命令，37 passed、4 warnings。
+- API 全量：`pnpm run test:api`，428 passed、7 warnings。
+- SlowAPI 残留搜索：生产代码、依赖配置和锁文件中无 `slowapi`、`from slowapi`、`limiter = Limiter`、`app.state.limiter`、`limiter.exempt` 命中；仅 `apps/api/tests/test_source_pruning.py` 保留护栏文本。
+- 真实限流保留搜索：`apps/api/app/main.py` 仍保留 `FixedWindowRateLimiter`、`_rate_store`、`_rate_strategy`、读写批量限流常量和 `enforce_tiered_rate_limit`。
+- 依赖保留搜索：`apps/api/pyproject.toml` 仍声明 `limits>=3.13.0`，`apps/api/uv.lock` 锁定 `limits 5.8.0`。
+- `git diff --check`：第38批相关文件通过。
+- 警告说明：JWT 测试短密钥、Alembic path_separator 和 HTTP_422 deprecation 均为既有告警，本批未引入。
+
+### 风险与边界
+
+- 本批删除的是无真实消费方的 SlowAPI 空壳，不删除项目自有 `limits` 分层限流。
+- `_rate_limit_key` 继续优先按 API Key 聚合，缺少 API Key 时回退客户端地址，保留原有限流聚合语义。
+- 健康探针和 metrics 仍在 `_PUBLIC_PATHS` 中绕过认证与限流，不再依赖 SlowAPI exempt。
+- 如果未来需要路由级细粒度限流，应基于当前 `limits` 中间件扩展，而不是恢复 SlowAPI 空壳。
+
+### 评分
+
+- **代码质量**：96/100。删除未消费的第二套限流空壳，保留真实限流路径，依赖声明更准确。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、API 全量、残留搜索、真实限流保留搜索、依赖搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 API 疑似死代码和依赖残留。
+- **架构一致**：96/100。限流职责集中到既有 `limits` 中间件，减少重复职责。
+- **风险评估**：95/100。认证、健康、CORS、安全响应头、metrics 和分层限流均由测试覆盖；剩余风险仅为既有测试告警。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 API SlowAPI Limiter 空壳剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十八批已完成：删除 API main.py 中 SlowAPI import、Limiter 实例、app.state.limiter 与 limiter.exempt 空壳，从 pyproject.toml 和 uv.lock 移除 slowapi，并保留 limits 直接依赖和 FixedWindowRateLimiter 分层限流。红灯失败原因正确，绿灯后定向 37 passed、API 全量 428 passed、SlowAPI 残留只剩护栏文本、真实限流符号仍存在、diff check 通过。'
+
+## 源码剪枝第三十九批 - Web artifacts redirect 页面壳
+
+时间：2026-06-05 17:41:54 +08:00
+
+### 审查范围
+
+- 删除 `apps/web/app/artifacts/page.tsx` 被 `/artifacts` 308 redirect 遮蔽的 App Router page 壳。
+- 扩展 `apps/web/tests/source-pruning.test.ts`，防止该 page 壳回潮。
+- 将 `phase1-navigation`、`phase8-stage4` 和 `phase4-contract` 中对 page 壳的旧事实源读取迁移到 `page-content.tsx` 与 `api.ts`。
+- 保留 `apps/web/app/artifacts/page-content.tsx`、`api.ts`、`types.ts`、`validators.ts`、`apps/web/next.config.ts` redirect、HomeShell 复用、IDE legacy URL、后端 `/api/artifacts`、OpenAPI 和 generated types。
+
+### 验证证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning`，17 项中 16 passed、1 failed，唯一失败命中 `app/artifacts/page.tsx` 仍存在。
+- 定向绿灯：`pnpm --filter @storyforge/web test -- source-pruning phase1-navigation phase8-stage4`，47 passed。
+- 合同验证：`node scripts/run-e2e.mjs tests/e2e/phase4-contract.spec.ts`，Phase 4 合同 4 passed；脚本附带 API verification 63 passed、Workflow verification 37 passed。
+- Web 全量：`pnpm --filter @storyforge/web test`，212 passed。
+- Web lint：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 通过。
+- 路径复查：`apps/web/app/artifacts/page.tsx` 不存在；`page-content.tsx`、`api.ts`、`types.ts`、`validators.ts` 均存在。
+- 保留搜索：`ArtifactsPageContent`、`ArtifactsWorkbench`、`/artifacts` redirect、`/api/artifacts` 后端 router、OpenAPI 和 generated types 均仍有命中。
+- 旧 page 壳残留搜索：生产代码和当前测试不再读取 `app/artifacts/page.tsx`；剩余命中为历史文档、归档摘要、本批上下文摘要和 source-pruning 护栏文本。
+- `git diff --check`：第39批相关文件通过。
+- 工具说明：`pnpm exec tsx tests/e2e/phase4-contract.spec.ts` 因仓库未提供 `tsx` 命令失败，已改用项目既有 `node scripts/run-e2e.mjs` 合同入口。
+
+### 风险与边界
+
+- 本批删除的是被 redirect 遮蔽的页面薄壳，不删除 Artifacts 工作台内容。
+- `/artifacts` 深链仍由 `next.config.ts` redirect 到 IDE artifacts 面板。
+- HomeShell 仍直接复用 `ArtifactsPageContent`，首页 artifacts 子视图不受影响。
+- 后端 `/api/artifacts`、共享 OpenAPI 和 generated types 均保留。
+- `apps/web/app/evaluations/page.tsx` 经子代理只读侦察后被记录为“迁移后剪枝候选”，本批不删除。
+
+### 评分
+
+- **代码质量**：96/100。删除重复入口薄壳，保留真实 Artifacts 内容与契约。
+- **测试覆盖**：97/100。覆盖红灯、定向绿灯、合同验证、Web 全量、lint、路径复查、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Web 疑似死页面壳，不误删真实 API/Workflow/Web 链路。
+- **架构一致**：96/100。旧 URL 继续由 redirect 进入 IDE，内容复用留在 HomeShell 与 Artifacts 工作台。
+- **风险评估**：95/100。主要风险为历史文档仍提及旧 page 路径，已归类为历史记录而非运行时残留。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web `/artifacts` redirect 页面壳剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第三十九批已完成：删除 Web app/artifacts/page.tsx 被 /artifacts 308 redirect 遮蔽的页面薄壳，保留 ArtifactsPageContent、ArtifactsWorkbench、api/types/validators、/artifacts redirect、HomeShell 复用、后端 /api/artifacts、OpenAPI 和 generated types。红灯失败原因正确，绿灯后定向 47 passed、Phase 4 合同 4 passed 且附带 API 63 passed/Workflow 37 passed、Web 全量 212 passed、Web lint 通过、diff check 通过。'
+
+## 源码剪枝第四十批 - Workflow runtime ProviderParity 包级转导出
+
+时间：2026-06-05 17:58:50 +08:00
+
+### 审查范围
+
+- 删除 `apps/workflow/storyforge_workflow/runtime/__init__.py` 中 `ProviderParityCase`、`ProviderParityHarness`、`ProviderParityResult` 的 import 和 `__all__` 转导出。
+- 保留 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py` 中 provider parity harness 本体。
+- 保留 `apps/workflow/tests/test_provider_parity_harness.py` 从具体模块导入和行为覆盖。
+- 保留 runtime 包级入口中仍被 runner、lifecycle、session 测试使用的真实公共类型。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py`，13 项中 12 passed、1 failed，唯一失败命中 `runtime/__init__.py` 仍含 `ProviderParityCase`。
+- 定向绿灯：`uv run pytest tests/test_source_pruning.py tests/test_provider_parity_harness.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py tests/test_workflow_session.py`，33 passed。
+- Workflow 全量：`pnpm run test:workflow`，159 passed。
+- 残留搜索：`ProviderParity*` 只剩 `provider_adapter.py` 本体、`test_provider_parity_harness.py` 专项测试、`test_source_pruning.py` 护栏和本批上下文摘要；`runtime/__init__.py` 无命中。
+- `git diff --check`：第40批相关文件通过。
+
+### 风险与边界
+
+- 本批只收缩包级入口，不删除 provider parity harness 工具本体。
+- 专项测试仍直接从 `runtime.provider_adapter` 导入，后续验收工具可继续使用。
+- runtime 包级入口仍保留 `WorkflowRuntime`、checkpoint、lifecycle、session、provider adapter 等真实公共类型。
+- 若仓库外存在包级 `ProviderParity*` 导入，将受破坏式剪枝影响；仓库内无此消费者，且当前项目规则要求收缩重复入口。
+
+### 评分
+
+- **代码质量**：97/100。包级入口职责更聚焦，provider parity 工具留在具体模块。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Workflow 全量、残留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Workflow 重复转导出候选，不误删真实 harness。
+- **架构一致**：97/100。与 tools、orchestrators、skills、nodes、quality 包级入口剪枝模式一致。
+- **风险评估**：96/100。真实 runtime 包级导入由定向测试覆盖，provider parity 行为由专项测试覆盖。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow runtime ProviderParity 包级转导出剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十批已完成：删除 Workflow runtime/__init__.py 中 ProviderParityCase、ProviderParityHarness、ProviderParityResult 的包级转导出，保留 provider_adapter.py 本体和 test_provider_parity_harness.py 专项行为覆盖。红灯失败原因正确，绿灯后定向 33 passed、Workflow 全量 159 passed、ProviderParity* 残留只在具体模块/专项测试/护栏/摘要中出现、diff check 通过。'
+
+## 源码剪枝第四十一批 - API jobs.service 旧 runtime bridge helper
+
+时间：2026-06-05 18:14:48 +08:00
+
+### 审查范围
+
+- 删除 `apps/api/app/domains/jobs/service.py` 中旧 `JobRuntimeBridgeError` 与 `sync_job_run_with_runtime()` helper。
+- 将 `apps/api/tests/test_job_runtime_bridge.py` 迁移到现行 `model_runs.service.get_runs_job_run()` 读侧验证。
+- 将 `apps/api/tests/test_phase4_service_acceptance.py` 中旧 helper 调用改为直接写入 `JobRun.status/progress`。
+- 保留 `JobRun.progress`、`get_runs_job_run()`、`runtime_diagnostics`、`record_workflow_model_run_payload()` 与 `ApiModelRunAdapter`。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py`，15 项中 14 passed、1 failed，唯一失败命中 `jobs/service.py` 仍保留 `JobRuntimeBridgeError`。
+- 定向绿灯：`uv run pytest tests/test_source_pruning.py tests/test_model_runs.py tests/test_job_runtime_bridge.py tests/test_phase4_service_acceptance.py`，30 passed。
+- API 全量：`pnpm run test:api`，429 passed，7 warnings。
+- 残留搜索：`sync_job_run_with_runtime|JobRuntimeBridgeError|app.domains.jobs.service|from app.domains.jobs import|jobs/service.py` 只剩本批上下文摘要和 source-pruning 护栏文本。
+- 保留搜索：`JobRun.progress`、`get_runs_job_run()`、`runtime_diagnostics`、`record_workflow_model_run_payload()`、`ApiModelRunAdapter` 均仍命中真实链路。
+- `git diff --check`：第41批相关文件通过。初次失败来自两个测试文件 CRLF 行尾，已做 UTF-8 无 BOM 与 LF 行尾机械归一化后复查通过。
+
+### 风险与边界
+
+- 本批只删除无生产调用的旧测试 helper，不删除 jobs 模型、`JobRun.progress` 或 model_runs API。
+- Phase 4 验收测试仍覆盖运行态 progress 写入和后续断言，只是不再通过旧 helper 间接写入。
+- Runs 读侧仍由 `get_runs_job_run()` 派生 `checkpoint` 和 `runtime_diagnostics`，并由定向测试覆盖。
+- Workflow 到 API 的真实 ModelRun 桥仍由 `record_workflow_model_run_payload()` 与 `ApiModelRunAdapter` 保留。
+- 仓库外若存在对 `app.domains.jobs.service` 的直接导入会受破坏式剪枝影响；仓库内搜索无生产消费者，且项目规则要求删除旧入口。
+
+### 评分
+
+- **代码质量**：97/100。删除无生产入口的旧 helper，测试转向真实读侧与持久化契约。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、API 全量、残留搜索、保留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：97/100。精准收敛 API 疑似死代码，不误删真实 workflow/model_runs 桥。
+- **架构一致**：96/100。旧 jobs service helper 下线后，运行态读取统一落在 model_runs 读侧。
+- **风险评估**：95/100。主要风险是仓库外直接导入旧 helper；仓库内无消费者，且已有护栏防止回潮。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 API jobs.service 旧 runtime bridge helper 剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十一批已完成：删除 API apps/api/app/domains/jobs/service.py 旧 JobRuntimeBridgeError 与 sync_job_run_with_runtime helper，旧测试迁移到 get_runs_job_run 读侧或直接写入 JobRun.progress，保留 JobRun.progress、runtime_diagnostics、record_workflow_model_run_payload 与 ApiModelRunAdapter。红灯失败原因正确，绿灯后定向 30 passed、API 全量 429 passed、旧 helper 残留只剩护栏/上下文摘要、diff check 通过。'
+
+## 源码剪枝第四十二批 - Web runs redirect 页面壳
+
+时间：2026-06-05 18:30:44 +08:00
+
+### 审查范围
+
+- 删除 `apps/web/app/runs/page.tsx` 被 `/runs -> /ide?panel.bottom=runs` permanent redirect 遮蔽的旧 App Router page 壳。
+- 扩展 `apps/web/tests/source-pruning.test.ts`，防止 `/runs` 旧 page 壳回潮。
+- 迁移 `phase1-navigation`、`phase8-stage4`、Phase4 合同和 Phase5 runtime diagnostics 合同中对旧 page 的源码证据。
+- 保留 `/runs` redirect、`BookRunPanel`、`BookRunEventsPanel`、`BottomPanel` runs 分支、`app/ide/page.tsx`、`/api/model-runs/job-runs/{job_run_id}`、`/api/runtime-tools` 与 OpenAPI `RunsRuntimeDiagnosticsRead`。
+
+### 验证证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning`，18 项中 17 passed、1 failed，唯一失败命中 `app/runs/page.tsx` 仍存在。
+- 定向绿灯：`pnpm --filter @storyforge/web test -- source-pruning phase1-navigation phase8-stage4 ide-components ide-page`，79 passed。
+- 合同验证：`node scripts/run-e2e.mjs tests/e2e/phase4-contract.spec.ts tests/e2e/phase5-runtime-diagnostics.spec.ts`，合同 10 passed；附带 API verification 63 passed、Workflow verification 37 passed。
+- Web 全量：`pnpm --filter @storyforge/web test`，213 passed。
+- Web lint：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 通过。
+- 路径复查：`apps/web/app/runs/page.tsx` 不存在；`apps/web/app/ide/page.tsx`、`BookRunPanel.tsx`、`BookRunEventsPanel.tsx` 均存在。
+- 残留搜索：`app/runs/page.tsx` 在生产代码和当前测试中不再作为读取目标；剩余命中为历史计划/归档摘要、source-pruning 护栏、本批上下文摘要和既有历史日志。
+- 保留搜索：`/runs` redirect、`BookRunPanel`、`BookRunEventsPanel`、`BottomPanel` runs 分支、`app/ide/page.tsx`、`/api/model-runs/job-runs`、`/api/runtime-tools`、`RunsRuntimeDiagnosticsRead` 均仍命中。
+- `git diff --check`：第42批相关文件通过。期间 `app/ide/page.tsx` 和 `.codex/current-phase.md` 分别因被纳入守卫/差异检查暴露既有 BOM 或 CRLF，已做 UTF-8 无 BOM 与 LF 机械归一化。
+
+### 风险与边界
+
+- 旧 `/runs/page.tsx` 是 ModelRun/runtime diagnostics UI，当前 IDE runs 面板是 BookRun/SSE 运行控制台；本批没有伪称二者 UI 完全等价。
+- runtime diagnostics 的字段和 API 行为继续由 `/api/model-runs/job-runs/{job_run_id}`、OpenAPI 和 Phase5 合同验证。
+- Web 旧深链 `/runs` 仍通过 redirect 进入 IDE runs 面板。
+- 不修改 `BookRunPanel`、`BookRunEventsPanel`、`BottomPanel`、`app/ide/page.tsx` 的业务语义。
+- 历史文档仍可能提及旧 page 路径，作为历史计划/归档记录保留。
+
+### 评分
+
+- **代码质量**：96/100。删除被 redirect 遮蔽的厚旧 page，测试证据转向真实入口和 API 契约。
+- **测试覆盖**：97/100。覆盖红灯、定向绿灯、Phase4/Phase5 合同、Web 全量、lint、残留搜索、保留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Web 疑似死页面壳，不误删 API runtime diagnostics 或 IDE runs 面板。
+- **架构一致**：96/100。旧 URL 继续由 redirect 进入 IDE，runtime diagnostics 仍由 API/OpenAPI 事实源承担。
+- **风险评估**：95/100。主要风险是旧 ModelRun diagnostics UI 不再有独立 Web page；已通过合同拆分为 IDE 入口与 API/OpenAPI 诊断契约。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web `/runs` redirect 页面壳剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十二批已完成：删除 Web apps/web/app/runs/page.tsx 被 /runs -> /ide?panel.bottom=runs redirect 遮蔽的旧页面壳，迁移 phase1-navigation、phase8-stage4、Phase4/Phase5 合同中的旧 page 源码证据，保留 /runs redirect、IDE BookRunPanel/BookRunEventsPanel/BottomPanel runs 分支、app/ide/page.tsx、/api/model-runs/job-runs、/api/runtime-tools 与 RunsRuntimeDiagnosticsRead。红灯失败原因正确，绿灯后定向 79 passed、Phase4/Phase5 合同 10 passed 且附带 API 63 passed/Workflow 37 passed、Web 全量 213 passed、Web lint 通过、diff check 通过。'
+
+## 源码剪枝第四十三批 - Workflow prompt 未接入质量结构模型
+
+时间：2026-06-05 18:49:30 +08:00
+
+### 审查范围
+
+- 删除 `apps/workflow/storyforge_workflow/prompts/models.py` 中未接入真实运行链路的 `QualityScore`、`RevisionStrategy`、`QualityIssue`、`QualityIssue.to_contract_line()`、`QualityReport`。
+- 删除 `apps/workflow/storyforge_workflow/prompts/__init__.py` 中对应导入与 `__all__` 转导出。
+- 扩展 `apps/workflow/tests/test_source_pruning.py`，防止上述未接入结构模型回潮。
+- 保留 `SceneQualityPlan`、`NarrativeContext`、`build_critique_prompt()`、`build_revision_prompt()`、`draft_issues: list[str]`、`workflow_prompt_bridge.py` 动态文件加载边界。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py`，14 项中 13 passed、1 failed，唯一失败命中 `prompts.models 不应保留未接入质量结构模型：class QualityScore`。
+- 定向绿灯：`uv run pytest tests/test_source_pruning.py tests/test_prompt_builder.py tests/test_generation_graph.py tests/test_runtime_runner.py`，48 passed。
+- Workflow 全量：`pnpm run test:workflow`，160 passed。
+- 精确残留搜索：`class QualityScore|class RevisionStrategy|class QualityIssue|class QualityReport|def to_contract_line\(|from storyforge_workflow\.prompts\.models import .*Quality|from storyforge_workflow\.prompts import .*Quality` 在生产代码中无命中；当前测试中仅剩 source-pruning 护栏文本。
+- 宽泛残留搜索：`QualityScore|RevisionStrategy|QualityIssue|QualityReport|to_contract_line` 剩余命中为 source-pruning 护栏、`.codex` 本批留痕，以及 `.codex/validate-real-llm-long-evidence.ps1` 中无关参数名。
+- 保留搜索：`SceneQualityPlan`、`build_critique_prompt`、`build_revision_prompt`、`draft_issues` 仍命中真实 Workflow 链路和测试。
+- `git diff --check`：通过。
+- 子代理 Halley 只读复核：四个结构化质量模型和 `to_contract_line()` 可剪；`SceneQualityPlan` 必须保留；API bridge 不按这些对象名动态取值。
+
+### 风险与边界
+
+- 仓库外若直接从 `storyforge_workflow.prompts` 导入已删除名称，会受到破坏式剪枝影响；仓库内生产代码与当前测试无消费者。
+- 本批没有删除 builder 的质量评审/修订 prompt，也没有改变 critic→reviser 的 `draft_issues` 字符串协议。
+- `SceneQualityPlan` 当前仍是 prompt 层活模型；它的 API 上游注入链路不足是后续候选，不与本批混合处理。
+- `prompts/__init__.py` 只同步删除四个未接入符号；其他包级转导出是否过宽留待后续批次单独取证。
+
+### 评分
+
+- **代码质量**：97/100。删除未接入 dataclass 和同步转导出，保留真实 prompt 字符串契约与活模型边界。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Workflow 全量、精确残留搜索、保留搜索、diff check 和子代理复核。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：97/100。精准收敛 Workflow 疑似死代码，不误删 `SceneQualityPlan` 或运行链路。
+- **架构一致**：96/100。公共 prompt API 暴露面缩小，评审/修订职责继续由 builder 字符串契约承担。
+- **风险评估**：95/100。主要风险是仓库外直接导入旧名称；仓库内无消费者，且源码护栏防止回潮。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow prompt 未接入质量结构模型剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十三批已完成：删除 Workflow prompts.models 中未接入运行链路的 QualityScore、RevisionStrategy、QualityIssue、QualityIssue.to_contract_line 与 QualityReport，并同步删除 prompts/__init__.py 对应转导出；新增 source-pruning 护栏防止回潮，保留 SceneQualityPlan、NarrativeContext、build_critique_prompt、build_revision_prompt、draft_issues 字符串链路和 API workflow_prompt_bridge 文件加载边界。红灯失败原因正确，绿灯后定向 48 passed、Workflow 全量 160 passed、精确残留搜索仅剩护栏文本、保留搜索命中真实链路、diff check 通过。'
+
+## 源码剪枝第四十四批 - Workflow prompts 包级模型转导出
+
+时间：2026-06-05 18:55:41 +08:00
+
+### 审查范围
+
+- 删除 `apps/workflow/storyforge_workflow/prompts/__init__.py` 中 prompt 模型 dataclass 的导入与 `__all__` 转导出。
+- 将 `apps/workflow/tests/test_prompt_builder.py` 中模型类导入迁移到 `storyforge_workflow.prompts.models`。
+- 扩展 `apps/workflow/tests/test_source_pruning.py`，防止 `prompts` 包级入口重新转导出模型。
+- 保留 `build_strategy_prompt`、`build_chapter_plan_prompt`、`build_scene_beats_prompt`、`build_draft_prompt`、`build_longform_segment_prompt`、`build_critique_prompt`、`build_revision_prompt` 包级构建器入口。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py`，15 项中 14 passed、1 failed，唯一失败命中 `from storyforge_workflow.prompts.models import` 仍在包级入口。
+- 定向绿灯：`uv run pytest tests/test_source_pruning.py tests/test_prompt_builder.py tests/test_generation_graph.py tests/test_runtime_runner.py`，49 passed。
+- Workflow 全量：`pnpm run test:workflow`，161 passed。
+- 包级导入复查：`from storyforge_workflow.prompts import` 只剩生产节点与 `test_prompt_builder.py` 导入 `build_*` 构建器。
+- `prompts/__init__.py` 内容复查：不再包含模型导入/模型符号；仍包含全部 `build_*` 构建器。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 仓库外若从 `storyforge_workflow.prompts` 导入模型类，会受破坏式剪枝影响；仓库内生产代码无此消费者。
+- 本批不删除 `prompts.models` 中任何活模型，也不改变生产节点使用的 `build_*` 包级入口。
+- Dirac 子代理建议的根包 barrel 与 Web evaluations redirect 页面仅作为后续候选，本批未处理。
+
+### 评分
+
+- **代码质量**：97/100。包级入口职责更聚焦，模型事实源回到具体模块。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、Workflow 全量、导入复查和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Workflow 重复职责候选，不误删构建器入口。
+- **架构一致**：97/100。与 runtime、quality、tools 等包级入口收缩模式一致。
+- **风险评估**：95/100。主要风险是仓库外旧包级模型导入；仓库内无生产消费者。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow prompts 包级模型转导出剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十四批已完成：收缩 Workflow prompts 包级入口，删除 prompt 模型 dataclass 的包级导入与 __all__ 转导出，将 test_prompt_builder.py 的模型导入迁移到 storyforge_workflow.prompts.models，保留 build_* 构建器包级入口。红灯失败原因正确，绿灯后定向 49 passed、Workflow 全量 161 passed、包级入口不再含模型符号、diff check 通过。'
+
+## 源码剪枝第四十五批 - Workflow 根包 barrel 出口
+
+时间：2026-06-05 19:12:20 +08:00
+
+### 审查范围
+
+- 收缩 `apps/workflow/storyforge_workflow/__init__.py`，删除 `create_generation_graph`、`InMemoryWorkflowStore`、`WorkflowCheckpoint`、`GenerationState`、`initial_generation_state` 根包转导出。
+- 将 `apps/workflow/storyforge_workflow/runtime/runner.py` 与 `apps/workflow/tests/test_generation_graph.py` 中的根包导入迁移到具体模块。
+- 扩展 `apps/workflow/tests/test_source_pruning.py`，防止 Workflow 根包重新转导出运行对象。
+- 保留 `graph.py`、`persistence.py`、`state.py` 中真实定义与运行行为。
+
+### 验证证据
+
+- 红灯：`uv run pytest tests/test_source_pruning.py`，16 项中 15 passed、1 failed，唯一失败命中 `from storyforge_workflow.graph import` 仍在根包入口。
+- 定向绿灯：`uv run pytest tests/test_source_pruning.py tests/test_generation_graph.py tests/test_runtime_runner.py`，31 passed。
+- 编译检查：`uv run python -m compileall storyforge_workflow tests/test_generation_graph.py`，通过。
+- Workflow 全量：`pnpm run test:workflow`，162 passed。
+- 残留搜索：根包导入与 `storyforge_workflow.create_generation_graph`、`storyforge_workflow.InMemoryWorkflowStore`、`storyforge_workflow.WorkflowCheckpoint`、`storyforge_workflow.GenerationState`、`storyforge_workflow.initial_generation_state` 属性访问在 `apps/workflow`、`apps/api`、`tests`、`packages` 无命中。
+- 保留搜索：`create_generation_graph`、`InMemoryWorkflowStore`、`WorkflowCheckpoint`、`GenerationState`、`initial_generation_state` 仍命中具体模块和 source-pruning 护栏。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 仓库外若从 `storyforge_workflow` 根包导入运行对象，会受破坏式剪枝影响；仓库内生产代码和测试已迁移到具体模块。
+- 本批不删除 `graph.py`、`persistence.py`、`state.py` 的真实定义，不改变 Workflow 运行逻辑。
+- 根包保留中文 docstring 作为包入口说明，避免把具体运行对象伪装为公共根 API。
+
+### 评分
+
+- **代码质量**：97/100。根包职责收敛，运行对象事实源回到具体模块。
+- **测试覆盖**：96/100。覆盖红灯、定向绿灯、compileall、Workflow 全量、残留搜索、保留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准收敛 Workflow 重复职责候选，不误删运行对象本体。
+- **架构一致**：97/100。与 runtime、prompts、quality 等包级入口收缩模式一致。
+- **风险评估**：95/100。主要风险是仓库外旧根包导入；仓库内无剩余消费者。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Workflow 根包 barrel 出口剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十五批已完成：收缩 Workflow 根包 barrel 出口，删除 storyforge_workflow/__init__.py 对 create_generation_graph、InMemoryWorkflowStore、WorkflowCheckpoint、GenerationState、initial_generation_state 的转导出，将 runtime/runner.py 与 test_generation_graph.py 迁移到 graph、persistence、state 具体模块。红灯失败原因正确，绿灯后定向 31 passed、compileall 通过、Workflow 全量 162 passed、根包残留导入无命中、具体模块定义仍保留、diff check 通过。'
+
+## 源码剪枝第四十六批 - Web evaluations redirect 旧页面
+
+时间：2026-06-05 19:20:11 +08:00
+
+### 审查范围
+
+- 删除 `apps/web/app/evaluations/page.tsx`，该旧页面已被 `next.config.ts` 的 `/evaluations -> /ide?panel.bottom=evaluation` permanent redirect 遮蔽。
+- 扩展 `apps/web/tests/source-pruning.test.ts`，防止旧 evaluations page 和 Workflow registry 旧 page 引用回潮。
+- 迁移 `apps/web/tests/phase1-navigation.test.tsx`、`apps/web/tests/phase8-stage4.test.tsx`、`tests/e2e/phase4-contract.spec.ts` 中旧 page 源码事实源。
+- 将 `apps/workflow/storyforge_workflow/tools/registry.py` 的 `evaluations.create_run` page refs 迁移到 redirect 与 IDE 入口事实源。
+- 保留 `/evaluations` redirect、EditorArea `legacy:evaluations`、BottomPanel/URL state `evaluation` 槽位、后端 `/api/evaluations/*` 与 OpenAPI `Evaluation*` schema。
+
+### 验证证据
+
+- 红灯：`pnpm --filter @storyforge/web test -- source-pruning`，19 项中 18 passed、1 failed，唯一失败命中 `app/evaluations/page.tsx` 仍存在。
+- 定向绿灯：`pnpm --filter @storyforge/web test -- source-pruning phase1-navigation phase8-stage4 ide-components ide-page`，80 passed。
+- Phase4 合同：`node scripts/run-e2e.mjs tests/e2e/phase4-contract.spec.ts`，合同 4 passed；附带 API 63 passed、Workflow 37 passed，OpenAPI refresh 与 drift check 均通过。
+- Web 全量：`pnpm --filter @storyforge/web test`，214 passed。
+- Web lint：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 通过。
+- Workflow registry 定向：`uv run pytest tests/test_creative_tool_registry.py tests/test_source_pruning.py`，21 passed。
+- 当前代码残留搜索：`app/evaluations/page.tsx` 在生产代码和当前测试中不再作为读取目标；剩余命中为历史 docs 与 source-pruning 护栏文本。
+- 保留搜索：`/evaluations` redirect、`legacy:evaluations`、`Evaluations 评测系统`、`evaluation` 面板槽位、`/api/evaluations/*`、`EvaluationRunRead`、`EvaluationRunDetailRead`、`EvaluationFailedSampleRead` 均仍命中真实事实源。
+- `git diff --check`：通过。
+
+### 风险与边界
+
+- 旧 `app/evaluations/page.tsx` 的独立评测摘要 UI 被删除；当前 `/evaluations` 深链进入 IDE `evaluation` 面板槽位，而不是保留旧 page UI。
+- 评测业务读写契约仍由后端 `/api/evaluations/*`、OpenAPI 与 API 测试覆盖。
+- 本批不实现新的 evaluation 详情面板，不修改认证、安全头、API client 或后端评测路由。
+- 历史计划文档仍可能提及旧 page 路径，作为历史记录保留。
+
+### 评分
+
+- **代码质量**：96/100。删除被 redirect 遮蔽的旧评测页面，事实源转向当前真实入口和 API/OpenAPI 契约。
+- **测试覆盖**：97/100。覆盖红灯、定向绿灯、Phase4 合同、Web 全量、lint、Workflow registry 定向、残留搜索、保留搜索和 diff check。
+- **规范遵循**：96/100。遵循 sequential-thinking、shrimp-task-manager、TDD、本地验证和简体中文留痕。
+- **需求匹配**：96/100。精准完成 Web 最后一个 redirect 旧页面候选，不误删评测 API 或 IDE legacy 入口。
+- **架构一致**：96/100。旧 URL 继续由 redirect 进入 IDE，评测数据契约继续由 API/OpenAPI 承担。
+- **风险评估**：95/100。主要风险是旧独立评测 UI 下线；已通过 redirect、IDE 入口和 API/OpenAPI 契约留痕。
+- **综合评分**：96/100。
+- **明确建议**：通过。本批可作为 Web `/evaluations` redirect 旧页面剪枝交付。
+
+```Scoring
+score: 96
+```
+
+summary: '源码剪枝第四十六批已完成：删除 Web apps/web/app/evaluations/page.tsx 被 /evaluations -> /ide?panel.bottom=evaluation redirect 遮蔽的旧页面，迁移 phase1-navigation、phase8-stage4、Phase4 合同和 Workflow registry 中对旧 page 的事实源引用，保留 /evaluations redirect、EditorArea legacy:evaluations、BottomPanel/URL state evaluation 槽位、/api/evaluations/* 与 OpenAPI Evaluation* schema。红灯失败原因正确，绿灯后定向 80 passed、Phase4 合同 4 passed 且附带 API 63 passed/Workflow 37 passed、Web 全量 214 passed、Web lint 通过、Workflow registry 定向 21 passed、残留搜索仅剩历史 docs 与护栏文本、diff check 通过。'
