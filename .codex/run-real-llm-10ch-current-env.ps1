@@ -9,6 +9,7 @@ param(
   [int]$TimeBudgetSeconds = 4200,
   [int]$OuterTimeoutSeconds = 4800,
   [string]$Label = "10ch",
+  [string]$ResumeRunDirectory = "",
   [switch]$ProbeOnly,
   [switch]$Interactive
 )
@@ -99,6 +100,9 @@ Write-Output "token_budget: $TokenBudget"
 Write-Output "timeout_seconds: $TimeoutSeconds"
 Write-Output "time_budget_seconds: $TimeBudgetSeconds"
 Write-Output "outer_timeout_seconds: $OuterTimeoutSeconds"
+if (-not [string]::IsNullOrWhiteSpace($ResumeRunDirectory)) {
+  Write-Output "resume_run_directory: $ResumeRunDirectory"
+}
 Write-Output "probe_only: $ProbeOnly"
 Write-Output "interactive: $Interactive"
 
@@ -136,17 +140,23 @@ try {
 
   Push-Location $apiRoot
   try {
-    uv run python $runnerPath `
-      --chapter-count $ChapterCount `
-      --max-chapter-count $MaxChapterCount `
-      --target-word-count $TargetWordCount `
-      --token-budget $TokenBudget `
-      --chapter-word-count-min $ChapterWordCountMin `
-      --chapter-word-count-max $ChapterWordCountMax `
-      --timeout-seconds $TimeoutSeconds `
-      --time-budget-seconds $TimeBudgetSeconds `
-      --outer-timeout-seconds $OuterTimeoutSeconds `
-      --label $Label
+    $runnerArgs = @(
+      $runnerPath,
+      "--chapter-count", $ChapterCount,
+      "--max-chapter-count", $MaxChapterCount,
+      "--target-word-count", $TargetWordCount,
+      "--token-budget", $TokenBudget,
+      "--chapter-word-count-min", $ChapterWordCountMin,
+      "--chapter-word-count-max", $ChapterWordCountMax,
+      "--timeout-seconds", $TimeoutSeconds,
+      "--time-budget-seconds", $TimeBudgetSeconds,
+      "--outer-timeout-seconds", $OuterTimeoutSeconds,
+      "--label", $Label
+    )
+    if (-not [string]::IsNullOrWhiteSpace($ResumeRunDirectory)) {
+      $runnerArgs += @("--resume-run-directory", $ResumeRunDirectory)
+    }
+    uv run python @runnerArgs
     exit $LASTEXITCODE
   } finally {
     Pop-Location

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from threading import Event
+
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from storyforge_workflow.graph import create_generation_graph
+from storyforge_workflow.nodes.director import create_book_strategy
+from storyforge_workflow.nodes.draft_writer import _parse_issues
+from storyforge_workflow.nodes.scene_architect import create_chapter_plan
 from storyforge_workflow.persistence import InMemoryWorkflowStore
 from storyforge_workflow.state import initial_generation_state
 
@@ -21,8 +26,12 @@ def _stub_llm(monkeypatch) -> None:
         ]
     )
     monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt, **kwargs: next(responses))
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(responses)
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt, **kwargs: next(responses)
+    )
 
 
 def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monkeypatch) -> None:
@@ -125,6 +134,70 @@ def test_generation_graph_requires_explicit_checkpointer_for_local_tests() -> No
 
     with pytest.raises(ValueError, match="checkpointer"):
         create_generation_graph(store=InMemoryWorkflowStore())
+
+
+def test_generation_graph_reuses_node_executor_across_nodes(monkeypatch) -> None:
+    """节点 timeout 包装应复用执行器，避免每个节点重复创建线程池。"""
+
+    import storyforge_workflow.graph as graph_module
+
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
+    _stub_llm(monkeypatch)
+    graph_module.close_workflow_node_executor()
+    real_executor = graph_module.ThreadPoolExecutor
+    created_prefixes: list[str | None] = []
+
+    class CountingExecutor(real_executor):
+        def __init__(self, *args, **kwargs) -> None:
+            created_prefixes.append(kwargs.get("thread_name_prefix"))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(graph_module, "ThreadPoolExecutor", CountingExecutor)
+    store = InMemoryWorkflowStore()
+    graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
+
+    try:
+        list(
+            graph.stream(_state("thread-executor", "job-executor"), {"configurable": {"thread_id": "thread-executor"}})
+        )
+    finally:
+        graph_module.close_workflow_node_executor()
+
+    assert created_prefixes == ["storyforge-node"]
+
+
+def test_generation_graph_timeout_rotates_executor_so_healthy_node_can_run(monkeypatch) -> None:
+    """节点超时后应轮换 executor，避免卡死任务耗尽 worker 后拖垮健康节点。"""
+
+    import storyforge_workflow.graph as graph_module
+
+    release = Event()
+    graph_module.close_workflow_node_executor()
+    monkeypatch.setenv("STORYFORGE_WORKFLOW_NODE_EXECUTOR_WORKERS", "1")
+    real_executor = graph_module.ThreadPoolExecutor
+    created_prefixes: list[str | None] = []
+
+    class CountingExecutor(real_executor):
+        def __init__(self, *args, **kwargs) -> None:
+            created_prefixes.append(kwargs.get("thread_name_prefix"))
+            super().__init__(*args, **kwargs)
+
+    def blocking_node(state: dict) -> dict:
+        release.wait(timeout=2)
+        return {"current_node": "blocked"}
+
+    monkeypatch.setattr(graph_module, "ThreadPoolExecutor", CountingExecutor)
+
+    try:
+        with pytest.raises(graph_module.WorkflowNodeTimeoutError):
+            graph_module._run_node_with_timeout("blocked_once", blocking_node, {}, 0.01)
+        result = graph_module._run_node_with_timeout("healthy_after_timeout", lambda state: {"ok": True}, {}, 0.2)
+    finally:
+        release.set()
+        graph_module.close_workflow_node_executor()
+
+    assert result == {"ok": True}
+    assert created_prefixes == ["storyforge-node", "storyforge-node"]
 
 
 def test_generation_graph_runs_critique_revision_loop(monkeypatch) -> None:
@@ -258,6 +331,49 @@ def test_generation_graph_caps_revisions_at_max(monkeypatch) -> None:
         "__interrupt__",
     ]
     assert graph.get_state(config).values["draft_revision_round"] == 1
+
+
+def test_parse_issues_treats_pass_token_in_first_line_as_approved() -> None:
+    """critic 首行明确给出通过结论时视为无问题。"""
+
+    assert _parse_issues("审核通过：正文满足全部约束。\n无须修订。") == []
+    assert _parse_issues("结论：通过\n无须修订。") == []
+
+
+def test_parse_issues_keeps_negative_pass_phrases_as_issues() -> None:
+    """critic 首行是否定结论时不能被“通过”二字误放行。"""
+
+    assert _parse_issues("未通过：节奏松散\n文笔｜问题｜修订") == ["未通过：节奏松散", "文笔｜问题｜修订"]
+    assert _parse_issues("不通过：连续性断裂\n连续性｜问题｜修订") == [
+        "不通过：连续性断裂",
+        "连续性｜问题｜修订",
+    ]
+
+
+def test_planning_nodes_raise_on_malformed_llm_output(monkeypatch) -> None:
+    """规划节点输出结构不足时应显式失败，不能静默把垃圾规划传给下游。"""
+
+    warnings: list[tuple[str, dict[str, int]]] = []
+
+    class FakeLog:
+        def warning(self, event: str, **fields: int) -> None:
+            warnings.append((event, fields))
+
+    monkeypatch.setattr("storyforge_workflow.nodes.director.log", FakeLog())
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.log", FakeLog())
+    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: "只有标题")
+    with pytest.raises(RuntimeError, match="Book Director"):
+        create_book_strategy(_state("thread-bad-director", "job-bad-director"))
+
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: "标题\n目标"
+    )
+    with pytest.raises(RuntimeError, match="Chapter Plan"):
+        create_chapter_plan(_state("thread-bad-plan", "job-bad-plan"))
+    assert warnings == [
+        ("book_director_malformed_output", {"line_count": 1}),
+        ("chapter_plan_malformed_output", {"line_count": 2}),
+    ]
 
 
 def _state(thread_id: str, job_run_id: str) -> dict:

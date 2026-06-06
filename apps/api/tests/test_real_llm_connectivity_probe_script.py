@@ -45,6 +45,42 @@ class _ProbeProviderHandler(BaseHTTPRequestHandler):
         return
 
 
+class _EmptyThenOkProbeProviderHandler(BaseHTTPRequestHandler):
+    """模拟推理模型偶发空正文：首次 chat 为空，重试后返回 OK。"""
+
+    requests: list[str] = []
+    chat_count = 0
+
+    def do_GET(self) -> None:  # noqa: N802
+        self.__class__.requests.append(self.path)
+        if self.path != "/v1/models":
+            self.send_error(404)
+            return
+        body = json.dumps({"data": [{"id": "local-probe-model"}]}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self) -> None:  # noqa: N802
+        self.__class__.requests.append(self.path)
+        if self.path != "/v1/chat/completions":
+            self.send_error(404)
+            return
+        self.__class__.chat_count += 1
+        content = "" if self.__class__.chat_count == 1 else "OK"
+        body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
 def test_real_llm_connectivity_probe_script_contract() -> None:
     """真实长程前应有低成本连通性探针，先发现网络、鉴权和模型问题。"""
 
@@ -98,6 +134,58 @@ def test_real_llm_connectivity_probe_fails_preflight_without_runtime_env() -> No
     assert "chat_probe: ok" not in result.stdout
     assert "外部令牌计划端点" not in result.stdout
     assert "tp-" not in result.stdout
+
+
+def test_real_llm_connectivity_probe_retries_once_when_chat_content_is_empty() -> None:
+    """chat HTTP 成功但正文偶发为空时，探针应重试一次后再决定 gate。"""
+
+    _EmptyThenOkProbeProviderHandler.requests = []
+    _EmptyThenOkProbeProviderHandler.chat_count = 0
+    server = HTTPServer(("127.0.0.1", 0), _EmptyThenOkProbeProviderHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = os.environ.copy()
+    env.update(
+        {
+            "STORYFORGE_LLM_API_KEY": "test-local-credential",
+            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+            "STORYFORGE_LLM_MODEL": "local-probe-model",
+        }
+    )
+
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(SCRIPT_PATH),
+                "-TimeoutSeconds",
+                "5",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+            timeout=20,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "chat_content: empty" in result.stdout
+    assert "chat_empty_retry: start" in result.stdout
+    assert "chat_retry_probe: ok" in result.stdout
+    assert "chat_retry_content: present" in result.stdout
+    assert "gate: pass_connectivity_probe" in result.stdout
+    assert "test-local-credential" not in result.stdout
+    assert _EmptyThenOkProbeProviderHandler.requests == [
+        "/v1/models",
+        "/v1/chat/completions",
+        "/v1/chat/completions",
+    ]
 
 
 def test_ten_chapter_wrapper_requires_connectivity_probe_before_long_run() -> None:

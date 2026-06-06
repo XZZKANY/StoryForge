@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -21,6 +22,7 @@ from app.domains.book_runs.phase9b_real_llm_smoke import (  # noqa: E402
     REQUIRED_REAL_LLM_ENV,
     _artifact_text,
     _evidence_summary,
+    resume_phase9b_real_llm_smoke,
     run_phase9b_real_llm_smoke,
 )
 
@@ -147,6 +149,7 @@ def _metadata(
     started_at: float,
     args: argparse.Namespace,
     summary: dict[str, Any] | None,
+    failure_message: str = "",
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "mode": "real_llm_long_smoke",
@@ -160,6 +163,12 @@ def _metadata(
         "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
         "gate_scope": "真实 10 章 smoke 证据，不代表 3-5 万字长程完成。",
     }
+    if failure_message:
+        payload["failure_message"] = failure_message
+        quality_gate_prefix = "运行后成功门禁未通过："
+        if failure_message.startswith(quality_gate_prefix):
+            payload["quality_gate_failed"] = True
+            payload["quality_gate_failures"] = failure_message.removeprefix(quality_gate_prefix).split("；")
     if summary is not None:
         payload["summary"] = {
             "book_run_id": summary.get("book_run_id"),
@@ -176,6 +185,9 @@ def _metadata(
             "per_chapter_metrics": summary.get("per_chapter_metrics"),
             "artifact_hashes": summary.get("artifact_hashes"),
         }
+    resume_source = getattr(args, "resume_run_directory", None)
+    if resume_source:
+        payload["resume_source_directory"] = str(Path(resume_source))
     return payload
 
 
@@ -263,7 +275,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--time-budget-seconds", type=int, default=4200)
     parser.add_argument("--outer-timeout-seconds", type=int, default=4800)
     parser.add_argument("--label", type=str, default="10ch")
+    parser.add_argument("--resume-run-directory", type=str, default=None)
     return parser.parse_args(argv)
+
+
+def _resolve_resume_run_directory(value: str | None) -> Path | None:
+    """恢复源目录相对路径按仓库根目录解析，避免受 apps/api 工作目录影响。"""
+
+    if value is None or not value.strip():
+        return None
+    path = Path(value)
+    if path.is_absolute():
+        return path.resolve()
+    return (ROOT / path).resolve()
 
 
 def _text_artifact_paths(out_dir: Path) -> list[Path]:
@@ -285,6 +309,13 @@ def main(argv: list[str] | None = None) -> int:
     out_dir = ROOT / ".codex" / f"real-llm-{safe_label}-{run_id}"
     out_dir.mkdir(parents=True, exist_ok=True)
     sqlite_path = out_dir / "smoke.sqlite3"
+    resume_source_dir = _resolve_resume_run_directory(args.resume_run_directory)
+    if resume_source_dir is not None:
+        source_sqlite_path = resume_source_dir / "smoke.sqlite3"
+        if not source_sqlite_path.exists():
+            print(f"resume_source_sqlite_missing={source_sqlite_path}")
+            return 2
+        shutil.copy2(source_sqlite_path, sqlite_path)
     started_at = time.monotonic()
     private_values = [
         os.environ.get("STORYFORGE_LLM_BASE_URL", ""),
@@ -293,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
     summary: dict[str, Any] | None = None
     exit_code = 0
     stderr_text = ""
+    failure_message = ""
     stdout_payload: dict[str, Any] = {"mode": "real_llm_long_smoke", "run_directory": str(out_dir)}
 
     engine = create_engine(f"sqlite+pysqlite:///{sqlite_path.as_posix()}", connect_args={"check_same_thread": False})
@@ -302,16 +334,29 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _raise_if_outer_timeout_exceeded(started_at=started_at, outer_timeout_seconds=args.outer_timeout_seconds)
         with SessionLocal() as session:
-            result = run_phase9b_real_llm_smoke(
-                session,
-                chapter_count=args.chapter_count,
-                token_budget=args.token_budget,
-                target_word_count=args.target_word_count,
-                chapter_word_count_min=args.chapter_word_count_min,
-                chapter_word_count_max=args.chapter_word_count_max,
-                max_chapter_count=args.max_chapter_count,
-                env=os.environ,
-            )
+            if resume_source_dir is None:
+                result = run_phase9b_real_llm_smoke(
+                    session,
+                    chapter_count=args.chapter_count,
+                    token_budget=args.token_budget,
+                    target_word_count=args.target_word_count,
+                    chapter_word_count_min=args.chapter_word_count_min,
+                    chapter_word_count_max=args.chapter_word_count_max,
+                    max_chapter_count=args.max_chapter_count,
+                    env=os.environ,
+                )
+            else:
+                result = resume_phase9b_real_llm_smoke(
+                    session,
+                    book_run_id=1,
+                    chapter_count=args.chapter_count,
+                    token_budget=args.token_budget,
+                    target_word_count=args.target_word_count,
+                    chapter_word_count_min=args.chapter_word_count_min,
+                    chapter_word_count_max=args.chapter_word_count_max,
+                    max_chapter_count=args.max_chapter_count,
+                    env=os.environ,
+                )
             _raise_if_outer_timeout_exceeded(started_at=started_at, outer_timeout_seconds=args.outer_timeout_seconds)
             summary = _evidence_summary(
                 result,
@@ -319,10 +364,10 @@ def main(argv: list[str] | None = None) -> int:
                 chapter_word_count_min=args.chapter_word_count_min,
                 chapter_word_count_max=args.chapter_word_count_max,
             )
-            _raise_for_gate_failures(summary, token_budget=args.token_budget)
             _write_json(out_dir / "summary.json", summary)
             _write_text(out_dir / "book.md", _artifact_text(result.markdown_artifact))
             _write_text(out_dir / "audit_report.json", _artifact_text(result.audit_artifact))
+            _raise_for_gate_failures(summary, token_budget=args.token_budget)
             stdout_payload.update(
                 {
                     "book_run_id": summary["book_run_id"],
@@ -336,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         exit_code = 1
         stderr_text = _redact(str(exc), private_values)
+        failure_message = stderr_text
     finally:
         engine.dispose()
 
@@ -349,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         started_at=started_at,
         args=args,
         summary=summary,
+        failure_message=failure_message,
     )
     _write_json(out_dir / "run-metadata.json", metadata)
     _write_audit_templates(out_dir, metadata)
@@ -360,6 +407,7 @@ def main(argv: list[str] | None = None) -> int:
         started_at=started_at,
         args=args,
         summary=summary,
+        failure_message=failure_message,
     )
     _write_json(out_dir / "run-metadata.json", metadata)
     sensitive_hit_count = _sensitive_hit_count(_text_artifact_paths(out_dir), private_values)

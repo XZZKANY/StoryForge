@@ -1,0 +1,424 @@
+{
+  "mode": "real_llm_long_smoke",
+  "generated_at": "2026-06-05 20:55:14 +0800",
+  "output_directory": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004",
+  "runner_exit_code": 1,
+  "summary_present": true,
+  "sensitive_hit_count": 0,
+  "redacted_parameters": {
+    "provider_protocol": "openai-compatible",
+    "model": "mimo-v2.5-pro",
+    "chapter_count": 30,
+    "max_chapter_count": 30,
+    "token_budget": 1300000,
+    "target_word_count": 35000,
+    "chapter_word_count_min": 600,
+    "chapter_word_count_max": 1600,
+    "timeout_seconds": 600,
+    "time_budget_seconds": 14400,
+    "outer_timeout_seconds": 18000,
+    "database_mode": "ephemeral_sqlite"
+  },
+  "files": {
+    "summary_json": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\summary.json",
+    "stdout_json": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\stdout.json",
+    "stderr_log": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\stderr.log",
+    "book_md": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\book.md",
+    "audit_report_json": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\audit_report.json",
+    "run_metadata_json": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\run-metadata.json",
+    "quality_risk_md": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\quality-risk.md",
+    "human_readthrough_todo_md": "D:\\StoryForge\\.codex\\real-llm-35k-20260605-195004\\human-readthrough-todo.md"
+  },
+  "elapsed_time_sec": 3910,
+  "gate_scope": "真实 10 章 smoke 证据，不代表 3-5 万字长程完成。",
+  "summary": {
+    "book_run_id": 1,
+    "book_run_status": "completed",
+    "target_chapter_count": 30,
+    "actual_chapter_count": 30,
+    "target_word_count": 35000,
+    "tokens_used": 972589,
+    "estimated_cost": 0.0,
+    "actual_total_chars": 79141,
+    "markdown_artifact_id": 1,
+    "audit_artifact_id": 2,
+    "per_chapter_char_counts": [
+      {
+        "chapter_index": 1,
+        "char_count": 1044
+      },
+      {
+        "chapter_index": 2,
+        "char_count": 3030
+      },
+      {
+        "chapter_index": 3,
+        "char_count": 3537
+      },
+      {
+        "chapter_index": 4,
+        "char_count": 2230
+      },
+      {
+        "chapter_index": 5,
+        "char_count": 1387
+      },
+      {
+        "chapter_index": 6,
+        "char_count": 2247
+      },
+      {
+        "chapter_index": 7,
+        "char_count": 3432
+      },
+      {
+        "chapter_index": 8,
+        "char_count": 2265
+      },
+      {
+        "chapter_index": 9,
+        "char_count": 2220
+      },
+      {
+        "chapter_index": 10,
+        "char_count": 2290
+      },
+      {
+        "chapter_index": 11,
+        "char_count": 3192
+      },
+      {
+        "chapter_index": 12,
+        "char_count": 3030
+      },
+      {
+        "chapter_index": 13,
+        "char_count": 2111
+      },
+      {
+        "chapter_index": 14,
+        "char_count": 2595
+      },
+      {
+        "chapter_index": 15,
+        "char_count": 4712
+      },
+      {
+        "chapter_index": 16,
+        "char_count": 3338
+      },
+      {
+        "chapter_index": 17,
+        "char_count": 2723
+      },
+      {
+        "chapter_index": 18,
+        "char_count": 2593
+      },
+      {
+        "chapter_index": 19,
+        "char_count": 2224
+      },
+      {
+        "chapter_index": 20,
+        "char_count": 2177
+      },
+      {
+        "chapter_index": 21,
+        "char_count": 1568
+      },
+      {
+        "chapter_index": 22,
+        "char_count": 2287
+      },
+      {
+        "chapter_index": 23,
+        "char_count": 3270
+      },
+      {
+        "chapter_index": 24,
+        "char_count": 3503
+      },
+      {
+        "chapter_index": 25,
+        "char_count": 2022
+      },
+      {
+        "chapter_index": 26,
+        "char_count": 2739
+      },
+      {
+        "chapter_index": 27,
+        "char_count": 2646
+      },
+      {
+        "chapter_index": 28,
+        "char_count": 1303
+      },
+      {
+        "chapter_index": 29,
+        "char_count": 2757
+      },
+      {
+        "chapter_index": 30,
+        "char_count": 1265
+      }
+    ],
+    "per_chapter_metrics": [
+      {
+        "chapter_index": 1,
+        "token_usage": 1808,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 49,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 2,
+        "token_usage": 4698,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 159,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 3,
+        "token_usage": 7920,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 274,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 4,
+        "token_usage": 9037,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 350,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 5,
+        "token_usage": 11938,
+        "quality_score": 84,
+        "quality_issue_count": 2,
+        "elapsed_time_sec": 534,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 6,
+        "token_usage": 12032,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 650,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 7,
+        "token_usage": 14834,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 887,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 8,
+        "token_usage": 16600,
+        "quality_score": 84,
+        "quality_issue_count": 2,
+        "elapsed_time_sec": 1074,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 9,
+        "token_usage": 18209,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 1167,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 10,
+        "token_usage": 20097,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 1267,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 11,
+        "token_usage": 22277,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 1371,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 12,
+        "token_usage": 24799,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 1545,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 13,
+        "token_usage": 26462,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 1638,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 14,
+        "token_usage": 28346,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 1737,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 15,
+        "token_usage": 31765,
+        "quality_score": 84,
+        "quality_issue_count": 2,
+        "elapsed_time_sec": 1872,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 16,
+        "token_usage": 34389,
+        "quality_score": 84,
+        "quality_issue_count": 2,
+        "elapsed_time_sec": 2029,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 17,
+        "token_usage": 36394,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 2097,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 18,
+        "token_usage": 38499,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 2197,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 19,
+        "token_usage": 40123,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 2384,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 20,
+        "token_usage": 42669,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 2483,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 21,
+        "token_usage": 43126,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 2630,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 22,
+        "token_usage": 45030,
+        "quality_score": 84,
+        "quality_issue_count": 2,
+        "elapsed_time_sec": 2821,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 23,
+        "token_usage": 47397,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 2933,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 24,
+        "token_usage": 49982,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 3101,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 25,
+        "token_usage": 51375,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 3276,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 26,
+        "token_usage": 53727,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 3385,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 27,
+        "token_usage": 55539,
+        "quality_score": 92,
+        "quality_issue_count": 1,
+        "elapsed_time_sec": 3504,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 28,
+        "token_usage": 56592,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 3567,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 29,
+        "token_usage": 58376,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 3693,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 30,
+        "token_usage": 68549,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 3908,
+        "repair_rounds": 0
+      }
+    ],
+    "artifact_hashes": {
+      "book_md_sha256": "858a6586ab73614a00780a4650f2d007c12fc0b8daf9a1514d1d00bf46b48ed8",
+      "audit_report_sha256": "6b793b4e7ddc7aa787f747fa95206575018f5f5e0b05eb3bad4f42c4561b8d14"
+    }
+  },
+  "failure_message": "运行后成功门禁未通过：第 5 章 quality_score 低于 90；第 8 章 quality_score 低于 90；第 15 章 quality_score 低于 90；第 16 章 quality_score 低于 90；第 22 章 quality_score 低于 90；累计 quality_issue_count 超过 3",
+  "quality_gate_failed": true,
+  "quality_gate_failures": [
+    "第 5 章 quality_score 低于 90",
+    "第 8 章 quality_score 低于 90",
+    "第 15 章 quality_score 低于 90",
+    "第 16 章 quality_score 低于 90",
+    "第 22 章 quality_score 低于 90",
+    "累计 quality_issue_count 超过 3"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run *)",
+      "Read(//d/d/StoryForge/.codex/**)",
+      "Bash(xargs grep *)",
+      "Bash(python -c ' *)",
+      "Bash(claude update *)",
+      "Bash(winget upgrade *)"
+    ]
+  }
+}

@@ -6,8 +6,9 @@ from typing import Any
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from storyforge_workflow.graph import WorkflowNodeTimeoutError, create_generation_graph
+from storyforge_workflow.graph import WorkflowNodeTimeoutError, close_workflow_node_executor, create_generation_graph
 from storyforge_workflow.persistence import InMemoryWorkflowStore
+from storyforge_workflow.provider_client import close_provider_connections
 from storyforge_workflow.runtime.checkpoints import ModelRunPayload, ModelRunSink, RuntimeCheckpointStore
 from storyforge_workflow.runtime.lifecycle import (
     InMemoryWorkflowLifecycleStore,
@@ -51,6 +52,24 @@ class WorkflowRuntime:
         self.lifecycle_store = lifecycle_store or InMemoryWorkflowLifecycleStore()
         self.session_store = session_store or InMemoryWorkflowSessionStore()
         self.graph = create_generation_graph(store=self.audit_store, checkpointer=InMemorySaver())
+
+    def close(self) -> None:
+        """释放运行器持有的进程级和连接级资源。"""
+
+        errors: list[Exception] = []
+        for close_resource in (close_workflow_node_executor, close_provider_connections):
+            try:
+                close_resource()
+            except Exception as exc:
+                errors.append(exc)
+        checkpoint_close = getattr(self.checkpoint_store, "close", None)
+        if callable(checkpoint_close):
+            try:
+                checkpoint_close()
+            except Exception as exc:
+                errors.append(exc)
+        if errors:
+            raise errors[0]
 
     def start(self, *, thread_id: str, job_run_id: str, premise: str, user_intent: str, scene_packet: dict[str, Any], prompt_injection: dict[str, Any] | None = None) -> WorkflowRuntimeResult:
         bound = log.bind(workflow_id=job_run_id, thread_id=thread_id)
@@ -399,6 +418,13 @@ class WorkflowRuntime:
                     self.checkpoint_store.save_state(thread_id, running_state)
         except WorkflowNodeTimeoutError as exc:
             running_state.update({"current_node": exc.node_name, "error_code": "node_timeout", "approval_status": "failed"})
+            self.checkpoint_store.save_state(thread_id, running_state)
+            raise _GraphNodeFailure(error=exc, state=running_state) from exc
+        except Exception as exc:
+            current_node = getattr(exc, "node_name", running_state.get("current_node", "unknown"))
+            running_state.update(
+                {"current_node": current_node, "error_code": "node_execution_failed", "approval_status": "failed"}
+            )
             self.checkpoint_store.save_state(thread_id, running_state)
             raise _GraphNodeFailure(error=exc, state=running_state) from exc
         return chunks

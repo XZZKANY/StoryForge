@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -140,3 +141,165 @@ def test_long_runner_passes_explicit_max_chapter_count_to_real_smoke(
     assert result == 0
     assert captured == {"chapter_count": 30, "max_chapter_count": 30, "token_budget": 800000}
     assert os.environ["STORYFORGE_LLM_API_KEY"] == "test-private-credential"
+
+
+def test_long_runner_exports_evidence_when_quality_gate_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """质量门禁失败仍应导出脱敏证据，但运行结果必须保持失败。"""
+
+    module = _load_long_wrapper()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+
+    def fake_run_real_smoke(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            book_run=SimpleNamespace(
+                id=1,
+                status="completed",
+                tokens_used=1200,
+                estimated_cost=0.0,
+                progress={
+                    "completed_chapters": [
+                        {
+                            "chapter_index": 1,
+                            "token_usage": 1200,
+                            "quality_score": 84,
+                            "quality_issues": [{"summary": "需人工复核"}, {"summary": "节奏偏弱"}],
+                            "elapsed_time_sec": 12,
+                            "repair_rounds": 0,
+                        }
+                    ]
+                },
+            ),
+            markdown_artifact=SimpleNamespace(id=2, payload={"content": "## 第 1 章\n正文"}),
+            audit_artifact=SimpleNamespace(id=3, payload={"quality_summary": {"issue_count": 2}}),
+            chapter_count=1,
+        )
+
+    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fake_run_real_smoke)
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
+    monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "1")
+
+    result = module.main(
+        [
+            "--chapter-count",
+            "1",
+            "--target-word-count",
+            "1000",
+            "--token-budget",
+            "800000",
+            "--label",
+            "pytest-quality-fail",
+        ]
+    )
+
+    assert result == 1
+    run_dirs = sorted((tmp_path / ".codex").glob("real-llm-pytest-quality-fail-*"))
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
+    assert (run_dir / "summary.json").exists()
+    assert (run_dir / "book.md").read_text(encoding="utf-8") == "## 第 1 章\n正文"
+    assert (run_dir / "audit_report.json").exists()
+    metadata = module.json.loads((run_dir / "run-metadata.json").read_text(encoding="utf-8"))
+    assert metadata["runner_exit_code"] == 1
+    assert metadata["summary_present"] is True
+    assert metadata["quality_gate_failed"] is True
+    assert "第 1 章 quality_score 低于 90" in metadata["quality_gate_failures"]
+    assert "test-private-credential" not in (run_dir / "stderr.log").read_text(encoding="utf-8")
+
+
+def test_long_runner_resume_copies_failed_sqlite_and_calls_resume_runner(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """断点续跑应复制失败目录 SQLite 到新目录，并调用业务 resume 入口补完剩余章节。"""
+
+    module = _load_long_wrapper()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    failed_dir = tmp_path / ".codex" / "real-llm-failed"
+    failed_dir.mkdir(parents=True)
+    source_db = failed_dir / "smoke.sqlite3"
+    sqlite3.connect(source_db).close()
+    captured: dict[str, object] = {}
+
+    def fake_resume_real_smoke(*_args: object, **kwargs: object) -> SimpleNamespace:
+        captured["book_run_id"] = kwargs["book_run_id"]
+        captured["chapter_count"] = kwargs["chapter_count"]
+        captured["max_chapter_count"] = kwargs["max_chapter_count"]
+        return SimpleNamespace(
+            book_run=SimpleNamespace(
+                id=1,
+                status="completed",
+                tokens_used=1200,
+                estimated_cost=0.0,
+                progress={
+                    "completed_chapters": [
+                        {
+                            "chapter_index": chapter_index,
+                            "token_usage": 1200,
+                            "quality_score": 100,
+                            "quality_issues": [],
+                            "elapsed_time_sec": 12,
+                            "repair_rounds": 0,
+                        }
+                        for chapter_index in range(1, 31)
+                    ]
+                },
+            ),
+            markdown_artifact=SimpleNamespace(id=2, payload={"content": "## 第 1 章\n正文"}),
+            audit_artifact=SimpleNamespace(id=3, payload={"quality_summary": {"issue_count": 0}}),
+            chapter_count=30,
+        )
+
+    monkeypatch.setattr(module, "resume_phase9b_real_llm_smoke", fake_resume_real_smoke)
+    monkeypatch.setattr(module, "_raise_for_gate_failures", lambda *_args, **_kwargs: None)
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
+    monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "1")
+
+    result = module.main(
+        [
+            "--chapter-count",
+            "30",
+            "--max-chapter-count",
+            "30",
+            "--target-word-count",
+            "35000",
+            "--token-budget",
+            "800000",
+            "--label",
+            "pytest-resume",
+            "--resume-run-directory",
+            str(failed_dir),
+        ]
+    )
+
+    assert result == 0
+    assert captured == {"book_run_id": 1, "chapter_count": 30, "max_chapter_count": 30}
+    run_dirs = sorted((tmp_path / ".codex").glob("real-llm-pytest-resume-*"))
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
+    assert (run_dir / "smoke.sqlite3").exists()
+    assert (run_dir / "smoke.sqlite3") != source_db
+    metadata = module.json.loads((run_dir / "run-metadata.json").read_text(encoding="utf-8"))
+    assert metadata["resume_source_directory"] == str(failed_dir)
+
+
+def test_long_runner_resolves_relative_resume_directory_from_repo_root(tmp_path: Path) -> None:
+    """恢复源相对路径必须按仓库根目录解析，不能受当前工作目录影响。"""
+
+    module = _load_long_wrapper()
+    original_root = module.ROOT
+    module.ROOT = tmp_path
+    try:
+        resolved = module._resolve_resume_run_directory(".codex/real-llm-failed")
+    finally:
+        module.ROOT = original_root
+
+    assert resolved == (tmp_path / ".codex" / "real-llm-failed").resolve()

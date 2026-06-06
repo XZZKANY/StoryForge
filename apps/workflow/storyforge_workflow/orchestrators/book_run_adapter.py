@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from storyforge_workflow.orchestrators.book_loop import BookLoopRequest, BookLoopResult, run_book_loop
+from storyforge_workflow.orchestrators.book_loop import (
+    BookLoopRequest,
+    BookLoopResult,
+    ChapterExecutionError,
+    ConsistencyBarrier,
+    run_book_loop,
+)
 from storyforge_workflow.orchestrators.novel_loop import NovelLoopPorts, NovelLoopRequest, run_single_chapter_loop
 from storyforge_workflow.skills.runner import NovelSkillRunner
+
+MemoryExtractor = Callable[[NovelLoopRequest, str, int], list[str]]
 
 
 @dataclass(frozen=True)
@@ -39,6 +48,7 @@ class BookRunAdapterRequest:
     time_budget_sec: int | None = None
     chapter_budget: int | None = None
     provider_fallback_pause_threshold: int | None = None
+    chapter_parallelism: int = 1
     volume_plan: list[BookRunVolumePlanItem | dict[str, Any]] = field(default_factory=list)
 
 
@@ -64,6 +74,8 @@ class BookRunAdapterPorts:
     chapter_id: Callable[[int], int]
     novel_loop_ports_factory: Callable[[NovelLoopRequest], NovelLoopPorts]
     progress_sink: BookRunProgressSink
+    memory_extractor: MemoryExtractor | None = None
+    consistency_barrier: ConsistencyBarrier | None = None
 
 
 class CapturingProgressSink:
@@ -122,6 +134,7 @@ def run_book_run_dispatch_payload(
     payload: Mapping[str, Any],
     novel_loop_ports_factory: Callable[[NovelLoopRequest], NovelLoopPorts],
     progress_sink: BookRunProgressSink,
+    consistency_barrier: ConsistencyBarrier | None = None,
 ) -> BookLoopResult:
     """消费 API 生成的 dispatch payload，运行 BookRun adapter 并回填 progress。"""
 
@@ -137,6 +150,7 @@ def run_book_run_dispatch_payload(
         time_budget_sec=_optional_positive_int(payload.get("time_budget_sec")),
         chapter_budget=_optional_positive_int(payload.get("chapter_budget")),
         provider_fallback_pause_threshold=_optional_positive_int(payload.get("provider_fallback_pause_threshold")),
+        chapter_parallelism=_optional_positive_int(payload.get("chapter_parallelism")) or _env_chapter_parallelism(),
         volume_plan=_volume_plan_or_single(payload.get("volume_plan"), _required_int(payload, "total_chapters")),
     )
     required_indexes = range(request.start_chapter_index, request.total_chapters + 1)
@@ -148,6 +162,7 @@ def run_book_run_dispatch_payload(
         chapter_id=lambda chapter_index: chapters[chapter_index]["chapter_id"],
         novel_loop_ports_factory=novel_loop_ports_factory,
         progress_sink=progress_sink,
+        consistency_barrier=consistency_barrier,
     )
     return run_book_run_with_skill_runner(request, ports)
 
@@ -166,6 +181,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         time_budget_sec=request.time_budget_sec,
         chapter_budget=request.chapter_budget,
         provider_fallback_pause_threshold=request.provider_fallback_pause_threshold,
+        chapter_parallelism=request.chapter_parallelism,
     )
     _emit_result_progress(
         request,
@@ -182,11 +198,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         ),
     )
 
-    active_chapter_index = max(1, request.start_chapter_index)
-
     def run_chapter(chapter_index: int):
-        nonlocal active_chapter_index
-        active_chapter_index = chapter_index
         novel_request = NovelLoopRequest(
             book_id=request.book_id,
             chapter_id=ports.chapter_id(chapter_index),
@@ -196,7 +208,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         runner = NovelSkillRunner.default()
         return run_single_chapter_loop(
             novel_request,
-            ports.novel_loop_ports_factory(novel_request),
+            _novel_loop_ports_with_memory_extractor(ports.novel_loop_ports_factory(novel_request), ports),
             skill_runner=runner,
         )
 
@@ -216,16 +228,31 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         _emit_result_progress(
             request,
             ports,
-            _with_dispatch(progress_result, {"stage": "chapter_completed", "chapter_index": progress_result.current_chapter_index}),
+            _with_dispatch(
+                progress_result, {"stage": "chapter_completed", "chapter_index": progress_result.current_chapter_index}
+            ),
         )
 
     try:
-        result = run_book_loop(book_loop_request, run_chapter, progress_callback=emit_chapter_progress)
+        result = run_book_loop(
+            book_loop_request,
+            run_chapter,
+            progress_callback=emit_chapter_progress,
+            consistency_barrier=ports.consistency_barrier,
+        )
+    except ChapterExecutionError as exc:
+        _emit_result_progress(
+            request,
+            ports,
+            _failed_result_from_exception(request, latest_progress, exc.chapter_index, exc),
+            suppress_errors=True,
+        )
+        raise exc.original from exc
     except Exception as exc:
         _emit_result_progress(
             request,
             ports,
-            _failed_result_from_exception(request, latest_progress, active_chapter_index, exc),
+            _failed_result_from_exception(request, latest_progress, latest_progress.current_chapter_index, exc),
             suppress_errors=True,
         )
         raise
@@ -261,17 +288,32 @@ def _with_dispatch(result: BookLoopResult, dispatch: dict[str, Any]) -> BookLoop
     return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
 
 
+def _novel_loop_ports_with_memory_extractor(novel_ports: NovelLoopPorts, ports: BookRunAdapterPorts) -> NovelLoopPorts:
+    if ports.memory_extractor is None:
+        return novel_ports
+    return NovelLoopPorts(
+        compile_context=novel_ports.compile_context,
+        generate_scene=novel_ports.generate_scene,
+        judge_scene=novel_ports.judge_scene,
+        repair_scene=novel_ports.repair_scene,
+        approve_scene=novel_ports.approve_scene,
+        record_model_run=novel_ports.record_model_run,
+        extract_memory=ports.memory_extractor,
+        check_static_quality=novel_ports.check_static_quality,
+    )
+
+
 def _failed_result_from_exception(
     request: BookRunAdapterRequest,
     latest_progress: BookLoopResult,
-    active_chapter_index: int,
+    failed_chapter_index: int,
     exc: Exception,
 ) -> BookLoopResult:
     progress = dict(latest_progress.progress)
     progress.setdefault("completed_chapters", list(request.existing_checkpoint))
     progress.setdefault("checkpoint", list(request.existing_checkpoint))
     progress.setdefault("budget", _budget_from_checkpoint(request.existing_checkpoint))
-    failed_at_chapter_index = max(1, active_chapter_index)
+    failed_at_chapter_index = max(1, failed_chapter_index)
     progress["failure"] = {
         "kind": "workflow_execution_failed",
         "message": str(exc),
@@ -397,6 +439,17 @@ def _required_int(payload: Mapping[str, Any], key: str) -> int:
 
 def _optional_positive_int(value: object) -> int | None:
     return value if isinstance(value, int) and value > 0 else None
+
+
+def _env_chapter_parallelism() -> int:
+    raw = os.getenv("STORYFORGE_BOOK_RUN_CHAPTER_PARALLELISM")
+    if raw is None:
+        return 1
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return 1
+    return parsed if parsed > 0 else 1
 
 
 def _int_or_default(value: object, default: int) -> int:

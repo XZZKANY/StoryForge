@@ -195,10 +195,37 @@ try {
     $content = $chatResult.payload.choices[0].message.content
     if ([string]::IsNullOrWhiteSpace([string]$content)) {
       Write-Output "chat_content: empty"
-      Write-Output "gate: fail_empty_chat"
-      exit 3
+      Write-Output "chat_empty_retry: start"
+      $chatRetryBody = @{
+        model = $Model
+        messages = @(
+          @{ role = "system"; content = "You are a strict connectivity probe. Output exactly the text OK. Do not explain." },
+          @{ role = "user"; content = "Return exactly: OK" }
+        )
+        temperature = 0
+        max_completion_tokens = 256
+      }
+      $chatRetryResult = Invoke-ProviderJson -Uri $chatUri -Method "POST" -Headers $headers -Body $chatRetryBody -TimeoutSeconds $TimeoutSeconds
+      Write-Output "chat_retry_probe: $($chatRetryResult.status)"
+      Write-Output "chat_retry_latency_ms: $($chatRetryResult.latency_ms)"
+      if ($chatRetryResult.ok) {
+        $retryContent = $chatRetryResult.payload.choices[0].message.content
+        if ([string]::IsNullOrWhiteSpace([string]$retryContent)) {
+          Write-Output "chat_retry_content: empty"
+          Write-Output "gate: fail_empty_chat"
+          exit 3
+        }
+        Write-Output "chat_retry_content: present"
+      } else {
+        $safeMessage = Redact-PrivateRuntimeText -Text $chatRetryResult.error_message -PrivateBaseUrl $baseUrl -PrivateCredential $plainCredential
+        Write-Output "chat_retry_error_type: $($chatRetryResult.error_type)"
+        Write-Output "chat_retry_error_message: $safeMessage"
+        Write-Output "gate: fail_chat"
+        exit 4
+      }
+    } else {
+      Write-Output "chat_content: present"
     }
-    Write-Output "chat_content: present"
   } else {
     $safeMessage = Redact-PrivateRuntimeText -Text $chatResult.error_message -PrivateBaseUrl $baseUrl -PrivateCredential $plainCredential
     Write-Output "chat_error_type: $($chatResult.error_type)"

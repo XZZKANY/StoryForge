@@ -4,20 +4,24 @@ from storyforge_workflow.prompts import build_chapter_plan_prompt, build_scene_b
 from storyforge_workflow.prompts.context import narrative_context_from_state
 from storyforge_workflow.provider_client import generate_text, planning_model, planning_temperature
 from storyforge_workflow.state import GenerationState, advance_status
+from storyforge_workflow.utils.logging import get_logger
+
+log = get_logger("storyforge_workflow.nodes.scene_architect")
 
 
 def create_chapter_plan(state: GenerationState) -> dict:
     """Scene Architect 只产出章节引用摘要，避免保存完整章节计划。"""
 
-    chapter_title = str(state.get("chapter_title_ref", "第一章：启航"))
-    chapter_goal = str(state.get("chapter_goal_ref") or state.get("strategy_question_ref", "完成章节目标。"))
     prompt = build_chapter_plan_prompt(narrative_context_from_state(state))
     raw = generate_text(prompt, temperature=planning_temperature(), model=planning_model())
     lines = [line.strip(" -：:") for line in raw.splitlines() if line.strip()]
+    if len(lines) < 3:
+        log.warning("chapter_plan_malformed_output", line_count=len(lines))
+        raise RuntimeError("Chapter Plan 输出结构无效：需要章节标题、章节目标和冲突轴三行。")
     return {
-        "chapter_title_ref": lines[0] if lines else chapter_title,
-        "chapter_goal_ref": lines[1] if len(lines) > 1 else chapter_goal,
-        "conflict_axis_ref": lines[2] if len(lines) > 2 else "外部任务压力与角色隐秘状态互相挤压",
+        "chapter_title_ref": lines[0],
+        "chapter_goal_ref": lines[1],
+        "conflict_axis_ref": lines[2],
         "current_status": "chapter_plan_created",
         "status_history": advance_status(state, "chapter_plan_created"),
         "current_node": "scene_architect.chapter_plan",

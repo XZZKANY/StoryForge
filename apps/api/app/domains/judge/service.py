@@ -579,14 +579,20 @@ def _approved_style_sources(session: Session, scene_id: int) -> list[tuple[int, 
     return [(int(scene_id), str(content).strip()) for scene_id, content in rows if str(content).strip()]
 
 
-def compute_book_style_baseline(session: Session, book_id: int) -> dict[str, float | int] | None:
-    """用作品下全部已批准章节正文算出 StyleFingerprint 基线，供生成前前馈对齐。
+def compute_book_style_baseline(
+    session: Session,
+    book_id: int,
+    *,
+    chapter_window: int | None = None,
+) -> dict[str, float | int] | None:
+    """用作品下已批准章节正文算出 StyleFingerprint 基线，供生成前前馈对齐。
 
     无已批准章节时返回 None，交由调用方省略注入，绝不伪造空指纹。
+    chapter_window 给定正整数时只取最近 N 个已批准章节，避免长程逐章全量重算。
     """
 
     rows = session.execute(
-        select(Scene.content)
+        select(Scene.content, Chapter.ordinal)
         .join(Chapter, Scene.chapter_id == Chapter.id)
         .where(
             Chapter.book_id == book_id,
@@ -595,7 +601,9 @@ def compute_book_style_baseline(session: Session, book_id: int) -> dict[str, flo
         )
         .order_by(Chapter.ordinal, Scene.ordinal, Scene.id)
     ).all()
-    contents = [str(content).strip() for (content,) in rows if str(content).strip()]
+    contents = [str(content).strip() for (content, _ordinal) in rows if str(content).strip()]
+    if chapter_window is not None and chapter_window > 0:
+        contents = contents[-chapter_window:]
     if not contents:
         return None
     return _style_fingerprint("\n".join(contents)).as_payload()

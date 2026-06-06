@@ -6,7 +6,7 @@ import app.models  # noqa: F401
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.judge.schemas import JudgeIssueCreate
-from app.domains.judge.service import create_judge_issues
+from app.domains.judge.service import compute_book_style_baseline, create_judge_issues
 
 
 def test_judge_style_guard_scores_drift_against_approved_chapter_fingerprint(session: Session) -> None:
@@ -65,3 +65,42 @@ def test_judge_style_guard_scores_drift_against_approved_chapter_fingerprint(ses
     assert style_issue.payload["style_score"] < style_issue.payload["style_threshold"]
     assert style_issue.payload["style_fingerprint"]["source_scene_ids"] == [approved_scene.id]
     assert style_issue.payload["matched_text"] == "作者直接解释"
+
+
+def test_compute_book_style_baseline_chapter_window_limits_corpus(session: Session) -> None:
+    """chapter_window 给定时只指纹化最近 N 章，避免长程全量重算。"""
+
+    book = Book(title="窗口基线", status="draft", premise="验证文风窗口。")
+    session.add(book)
+    session.flush()
+    # 早期章节为长说明腔（高 sentence 长度），最近章节为短句克制腔。
+    early_content = "作者用一整段冗长的说明文字解释背景设定并铺陈所有动机以及世界观细节直到读者完全理解为止"
+    recent_content = "雾散了。她转身。门开着。"
+    for ordinal in range(1, 5):
+        chapter = Chapter(book_id=book.id, ordinal=ordinal, title=f"第{ordinal}章", status="approved")
+        session.add(chapter)
+        session.flush()
+        body = early_content if ordinal <= 2 else recent_content
+        session.add(Scene(chapter_id=chapter.id, ordinal=1, title="正文", status="approved", content=body))
+    session.commit()
+
+    full = compute_book_style_baseline(session, book.id)
+    windowed = compute_book_style_baseline(session, book.id, chapter_window=2)
+    assert full is not None and windowed is not None
+    # 窗口只取最近两章短句，平均句长应明显短于全量基线。
+    assert windowed["average_sentence_length"] < full["average_sentence_length"]
+
+
+def test_compute_book_style_baseline_window_none_matches_full(session: Session) -> None:
+    book = Book(title="无窗口", status="draft", premise="默认全量。")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=1, title="第1章", status="approved")
+    session.add(chapter)
+    session.flush()
+    session.add(Scene(chapter_id=chapter.id, ordinal=1, title="正文", status="approved", content="雾散了。她转身。"))
+    session.commit()
+
+    assert compute_book_style_baseline(session, book.id) == compute_book_style_baseline(
+        session, book.id, chapter_window=None
+    )

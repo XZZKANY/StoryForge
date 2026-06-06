@@ -66,6 +66,15 @@ def _parse_issues(raw: str) -> list[str]:
     lines = [line.strip(" -：:") for line in raw.splitlines() if line.strip()]
     if not lines:
         return []
-    if len(lines) == 1 and lines[0].startswith(_CRITIQUE_PASS_TOKEN):
+    if _is_critique_pass_line(lines[0]):
         return []
     return [line for line in lines if not line.startswith(_CRITIQUE_PASS_TOKEN)]
+
+
+def _is_critique_pass_line(line: str) -> bool:
+    """只接受明确正向通过结论，避免“未通过/不通过”被误判为放行。"""
+
+    normalized = line.strip()
+    if any(token in normalized for token in ("未通过", "不通过", "无法通过", "未能通过", "没有通过")):
+        return False
+    return normalized.startswith(("通过", "审核通过", "已通过", "结论：通过", "结论:通过"))

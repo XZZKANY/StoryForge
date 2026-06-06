@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from collections.abc import Callable
@@ -8,7 +9,7 @@ from time import perf_counter
 from typing import Protocol
 from urllib.error import HTTPError
 
-from storyforge_workflow.provider_client import generate_text, provider_config
+from storyforge_workflow.provider_client import _post_chat_completion, generate_text, provider_config
 
 logger = logging.getLogger(__name__)
 
@@ -217,9 +218,7 @@ def _default_fallback_observer(error: ProviderError, metadata: dict[str, object]
         pass
 
 
-def _attach_fallback_metadata(
-    response: ProviderResponse, metadata: dict[str, object]
-) -> ProviderResponse:
+def _attach_fallback_metadata(response: ProviderResponse, metadata: dict[str, object]) -> ProviderResponse:
     return ProviderResponse(
         provider_name=response.provider_name,
         model_name=response.model_name,
@@ -259,9 +258,7 @@ def _default_fallback_factory() -> ProviderAdapter:
     fallback_provider = (os.getenv("STORYFORGE_LLM_FALLBACK_PROVIDER") or "").strip()
     fallback_model = (os.getenv("STORYFORGE_LLM_FALLBACK_MODEL") or "").strip()
     fallback_api_key = (
-        os.getenv("STORYFORGE_LLM_FALLBACK_API_KEY")
-        or os.getenv("STORYFORGE_LLM_API_KEY")
-        or ""
+        os.getenv("STORYFORGE_LLM_FALLBACK_API_KEY") or os.getenv("STORYFORGE_LLM_API_KEY") or ""
     ).strip()
     fallback_base_url = (
         os.getenv("STORYFORGE_LLM_FALLBACK_BASE_URL")
@@ -293,9 +290,6 @@ def _call_openai_compatible(prompt: str, *, api_key: str, base_url: str, model: 
 
     if not api_key:
         raise ProviderError("缺少 fallback provider 的 API key。")
-    import json
-    from urllib import request as urlrequest
-
     body = json.dumps(
         {
             "model": model,
@@ -307,19 +301,18 @@ def _call_openai_compatible(prompt: str, *, api_key: str, base_url: str, model: 
         },
         ensure_ascii=False,
     ).encode("utf-8")
-    http_request = urlrequest.Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     timeout = float(os.getenv("STORYFORGE_LLM_FALLBACK_TIMEOUT_SECONDS", "30"))
     try:
-        with urlrequest.urlopen(http_request, timeout=timeout) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        data = _post_chat_completion(
+            config={
+                "api_key": api_key,
+                "base_url": base_url,
+                "model": model,
+                "provider_name": "fallback",
+            },
+            body=body,
+            timeout=timeout,
+        )
     except HTTPError as exc:
         raise ProviderError(_http_error_message(exc.code), status_code=exc.code) from exc
     except TimeoutError as exc:

@@ -4,6 +4,8 @@
 workflow prompts.context.narrative_context_from_state 可消费的注入键字典。
 本层只读数据库、产出纯 dict，不 import workflow（API venv 无 langgraph），
 真正的分层 prompt 渲染由 workflow_prompt_bridge 跨进程边界完成。
+
+Phase 1 Context 增量化：引入 BookContext 单例缓存，消除每章全量重建的 O(N²) 问题。
 """
 
 from __future__ import annotations
@@ -13,9 +15,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.domains.blueprints.models import BookBlueprint
+from app.domains.book_runs.book_context import get_book_context
 from app.domains.character_bible.models import CharacterBibleEntry
 from app.domains.character_bible.service import list_character_bible_entries
-from app.domains.judge.service import compute_book_style_baseline
 from app.domains.story_memory.schemas import MemoryAtom
 from app.domains.story_memory.service import get_active_memory_atoms
 from app.domains.style_packs.service import list_style_packs
@@ -33,11 +35,16 @@ def assemble_prompt_injection(
     *,
     book_id: int,
     chapter_id: int | None = None,
+    chapter_ordinal: int | None = None,
     chapter_title: str | None = None,
     chapter_goal: str | None = None,
     prior_chapter_text: str | None = None,
+    style_baseline_chapter_window: int | None = None,
 ) -> dict[str, Any]:
     """读取作品级一致性数据，产出 narrative_context_from_state 注入键字典。
+
+    Phase 1 Context 增量化：优先使用 BookContext 缓存获取前文语料与风格指纹，
+    回退到传统 prior_chapter_text 参数（兼容现有调用方）。
 
     缺失的源（无 Character Bible / Style Pack / Blueprint / Memory Atom）直接省略对应键，
     交由 context 适配层退化处理，绝不伪造空对象。
@@ -57,10 +64,29 @@ def assemble_prompt_injection(
     if style:
         state["style_directive"] = style
 
-    # 风格指纹前馈：已批准章节存在时，把基线指纹注入 style_directive，让续写主动对齐既定声音。
-    fingerprint = compute_book_style_baseline(session, book_id)
-    if fingerprint:
-        state.setdefault("style_directive", {})["fingerprint"] = fingerprint
+    # Phase 1 优化：优先使用 BookContext 缓存获取风格指纹与前文
+    if chapter_ordinal is not None:
+        context = get_book_context(session, book_id)
+
+        # 风格指纹：从缓存计算（不再每次全表扫描）
+        fingerprint = context.compute_style_fingerprint(chapter_window=style_baseline_chapter_window)
+        if fingerprint:
+            state.setdefault("style_directive", {})["fingerprint"] = fingerprint
+
+        # 前文语料：从缓存编译（不再每次查询 Scene 表）
+        recap = context.compile_for_chapter(chapter_ordinal, full_chapters=2, max_chars=12000)
+        if recap:
+            state["previous_summary_ref"] = recap
+    else:
+        # 回退：传统实现（兼容现有调用方）
+        from app.domains.judge.service import compute_book_style_baseline
+        fingerprint = compute_book_style_baseline(session, book_id, chapter_window=style_baseline_chapter_window)
+        if fingerprint:
+            state.setdefault("style_directive", {})["fingerprint"] = fingerprint
+
+        prior_chapter_text = _clean(prior_chapter_text)
+        if prior_chapter_text:
+            state["previous_summary_ref"] = prior_chapter_text
 
     continuity = _continuity_facts(session, book_id, chapter_id)
     if continuity:
@@ -78,10 +104,6 @@ def assemble_prompt_injection(
     chapter_goal = _clean(chapter_goal)
     if chapter_goal:
         state["chapter_goal_ref"] = chapter_goal
-
-    prior_chapter_text = _clean(prior_chapter_text)
-    if prior_chapter_text:
-        state["previous_summary_ref"] = prior_chapter_text
 
     return state
 

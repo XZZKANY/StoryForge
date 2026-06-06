@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
@@ -278,6 +279,56 @@ def test_apply_book_run_progress_syncs_completed_chapter_to_timeline_once(
     }
 
 
+def test_apply_book_run_progress_syncs_timeline_without_per_chapter_queries(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    engine,
+) -> None:
+    """批量完章回填应预取章节和已有事件，避免 Timeline 同步随章节数 N+1 放大。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    chapter_ids = seed_planned_chapters(session_factory, scope, 8)
+    created = client.post("/api/book-runs", json=scope).json()
+    progress = {
+        "completed_chapters": [
+            {
+                "chapter_index": index,
+                "chapter_id": chapter_id,
+                "model_run_id": index * 10 + 1,
+                "judge_report_id": index * 10 + 2,
+                "approved_scene_id": index * 10 + 3,
+                "summary": f"第 {index} 章完成。",
+            }
+            for index, chapter_id in enumerate(chapter_ids, start=1)
+        ]
+    }
+    statements: list[str] = []
+
+    def record_statement(conn, cursor, statement, parameters, context, executemany) -> None:  # noqa: ANN001
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        with session_factory() as session:
+            apply_book_run_progress(
+                session,
+                created["id"],
+                BookRunProgressUpdate(status="completed", current_chapter_index=3, progress=progress),
+            )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_statement)
+
+    timeline_events = [statement for statement in statements if "timeline_events" in statement]
+    assert len(statements) <= 20
+    assert len(timeline_events) <= 10
+
+    with session_factory() as session:
+        events = list(list_timeline_events(session, book_id=scope["book_id"]))
+
+    assert len(events) == 8
+    assert [event.chapter_id for event in events] == chapter_ids
+
+
 def test_apply_book_run_progress_keeps_awaiting_review_chapter(
     client: TestClient,
     session_factory: sessionmaker[Session],
@@ -374,6 +425,51 @@ def test_progress_update_persists_checkpoint_and_budget_usage(
         {"chapter_index": 2, "model_run_id": 21, "judge_report_id": 22, "approved_scene_id": 23},
     ]
     assert "final_draft" not in str(updated["checkpoint"])
+
+
+def test_progress_update_persists_memory_atom_references_without_draft(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """memory_extract 的真实写入引用应进入 checkpoint 和时间线，但不能保存正文。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    chapter_ids = seed_planned_chapters(session_factory, scope, 1)
+    created = client.post("/api/book-runs", json=scope).json()
+    completed_chapter = {
+        "chapter_index": 1,
+        "chapter_id": chapter_ids[0],
+        "model_run_id": 11,
+        "judge_report_id": 12,
+        "approved_scene_id": 13,
+        "memory_atom_ids": ["memory_extract:1:chapter_summary:1"],
+        "final_draft": "完整正文不应进入 checkpoint。",
+    }
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "running",
+            "current_chapter_index": 1,
+            "progress": {"completed_chapters": [completed_chapter]},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["checkpoint"] == [
+        {
+            "chapter_index": 1,
+            "model_run_id": 11,
+            "judge_report_id": 12,
+            "approved_scene_id": 13,
+            "memory_atom_ids": ["memory_extract:1:chapter_summary:1"],
+        }
+    ]
+    assert "完整正文" not in str(updated["checkpoint"])
+    with session_factory() as session:
+        events = list(list_timeline_events(session, book_id=scope["book_id"]))
+    assert "memory:memory_extract:1:chapter_summary:1" in events[0].evidence_refs
 
 
 def test_progress_update_auto_pauses_when_token_budget_is_reached(

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import http.client
+import io
 import json
 import os
-from urllib import request
+import threading
+from random import random
+from time import sleep
+from urllib.error import HTTPError
+from urllib.parse import urlsplit
+
+_thread_connections = threading.local()
 
 
 def generate_text(
@@ -19,7 +27,9 @@ def generate_text(
     """
 
     config = provider_config()
-    resolved_temperature = temperature if temperature is not None else float(os.getenv("STORYFORGE_LLM_TEMPERATURE", "0.7"))
+    resolved_temperature = (
+        temperature if temperature is not None else float(os.getenv("STORYFORGE_LLM_TEMPERATURE", "0.7"))
+    )
     payload = {
         "model": model or config["model"],
         "messages": [
@@ -31,23 +41,116 @@ def generate_text(
     max_tokens = os.getenv("STORYFORGE_LLM_MAX_TOKENS")
     if max_tokens:
         payload["max_tokens"] = int(max_tokens)
+    prompt_cache_key = os.getenv("STORYFORGE_LLM_PROMPT_CACHE_KEY", "").strip()
+    if prompt_cache_key:
+        payload["prompt_cache_key"] = prompt_cache_key
+    prompt_cache_retention = os.getenv("STORYFORGE_LLM_PROMPT_CACHE_RETENTION", "").strip()
+    if prompt_cache_retention:
+        payload["prompt_cache_retention"] = prompt_cache_retention
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    http_request = request.Request(
-        f"{config['base_url'].rstrip('/')}/chat/completions",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {config['api_key']}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     timeout = float(os.getenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "30"))
-    with request.urlopen(http_request, timeout=timeout) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    data = _post_chat_completion(config=config, body=body, timeout=timeout)
     content = data["choices"][0]["message"]["content"]
     if not isinstance(content, str) or not content.strip():
         raise RuntimeError("LLM 返回内容为空，无法继续工作流。")
     return content.strip()
+
+
+def close_provider_connections() -> None:
+    """关闭当前线程缓存的 provider 连接，供测试和 worker 收尾阶段释放资源。"""
+
+    connections = getattr(_thread_connections, "connections", {})
+    for connection in connections.values():
+        connection.close()
+    _thread_connections.connections = {}
+
+
+def _post_chat_completion(*, config: dict[str, str], body: bytes, timeout: float) -> dict[str, object]:
+    url = _chat_completion_url(config["base_url"])
+    headers = {
+        "Authorization": f"Bearer {config['api_key']}",
+        "Content-Type": "application/json",
+        "Content-Length": str(len(body)),
+    }
+    max_attempts = _int_env("STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3)
+    base_delay = _float_env("STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS", 0.5)
+    jitter = _float_env("STORYFORGE_LLM_RETRY_JITTER_SECONDS", 0.25)
+    for attempt in range(1, max(1, max_attempts) + 1):
+        try:
+            return _request_json_with_reused_connection(url=url, body=body, headers=headers, timeout=timeout)
+        except HTTPError as exc:
+            if not _is_retryable_http_error(exc) or attempt >= max_attempts:
+                raise
+            _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter)
+        except (http.client.CannotSendRequest, http.client.RemoteDisconnected, ConnectionError, OSError):
+            _close_cached_connection(url=url, timeout=timeout)
+            if attempt >= max_attempts:
+                raise
+            _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter)
+    raise RuntimeError("LLM provider 重试状态异常。")
+
+
+def _request_json_with_reused_connection(
+    *,
+    url: str,
+    body: bytes,
+    headers: dict[str, str],
+    timeout: float,
+) -> dict[str, object]:
+    parts = urlsplit(url)
+    connection = _connection_for(parts.scheme, parts.hostname or "", parts.port, timeout)
+    path = parts.path or "/"
+    if parts.query:
+        path = f"{path}?{parts.query}"
+    connection.request("POST", path, body=body, headers=headers)
+    response = connection.getresponse()
+    response_body = response.read()
+    if response.status >= 400:
+        _close_cached_connection(url=url, timeout=timeout)
+        raise HTTPError(
+            url=url,
+            code=response.status,
+            msg=response.reason,
+            hdrs=response.headers,
+            fp=io.BytesIO(response_body),
+        )
+    return json.loads(response_body.decode("utf-8"))
+
+
+def _connection_for(
+    scheme: str,
+    host: str,
+    port: int | None,
+    timeout: float,
+) -> http.client.HTTPConnection:
+    if scheme not in {"http", "https"}:
+        raise RuntimeError(f"不支持的 LLM provider 协议：{scheme}。")
+    if not host:
+        raise RuntimeError("LLM provider base_url 缺少主机名。")
+    key = (scheme, host, port, timeout)
+    connections = getattr(_thread_connections, "connections", None)
+    if connections is None:
+        connections = {}
+        _thread_connections.connections = connections
+    connection = connections.get(key)
+    if connection is None:
+        cls = http.client.HTTPSConnection if scheme == "https" else http.client.HTTPConnection
+        connection = cls(host, port=port, timeout=timeout)
+        connections[key] = connection
+    return connection
+
+
+def _close_cached_connection(*, url: str, timeout: float) -> None:
+    parts = urlsplit(url)
+    key = (parts.scheme, parts.hostname or "", parts.port, timeout)
+    connections = getattr(_thread_connections, "connections", {})
+    connection = connections.pop(key, None)
+    if connection is not None:
+        connection.close()
+
+
+def _chat_completion_url(base_url: str) -> str:
+    return f"{base_url.rstrip('/')}/chat/completions"
 
 
 def provider_config() -> dict[str, str]:
@@ -85,6 +188,28 @@ def _float_env(name: str, default: float) -> float:
         return float(raw)
     except ValueError:
         return default
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _is_retryable_http_error(error: HTTPError) -> bool:
+    return error.code == 429 or 500 <= error.code <= 599
+
+
+def _sleep_before_retry(*, attempt: int, base_delay: float, jitter: float) -> None:
+    delay = max(0.0, base_delay) * (2 ** (attempt - 1))
+    if jitter > 0:
+        delay += random() * jitter
+    sleep(delay)
 
 
 def planning_temperature() -> float:

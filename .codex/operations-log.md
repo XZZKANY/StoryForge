@@ -9033,6 +9033,52 @@ un-metadata.json: present
 - 该目录仍不能作为真实 35k 完成证据。
 - 下一次真实 35k 建议提高 `-TokenBudget`，至少覆盖当前 26 章已消耗 846207 token，并为剩余 4 章、导出和成功门禁保留余量。
 
+## 编码前检查 - 连通性探针空正文重试
+
+时间：2026-06-05 19:46:02 +08:00
+
+### 根因证据
+
+- 用户使用 `-TokenBudget 1300000` 重新执行真实 35k 长程前置 wrapper。
+- `/models` 探针成功，`model_available=true`。
+- `/chat/completions` 探针 HTTP 成功，但返回 `chat_content: empty`。
+- wrapper 因 `gate: fail_empty_chat` 和 `gate: fail_connectivity_probe` 停止，未启动真实长程 runner。
+- 结论：这是连通性探针偶发空正文阻断，不是长程 runner、章节上限、ModelRun 摘要或 token 预算问题。
+
+### 已查阅上下文
+
+- `.codex/context-summary-real-llm-connectivity-empty-retry.md`
+- `.codex/run-real-llm-connectivity-probe.ps1`：探针脚本原先在首次 chat content 为空时直接 `fail_empty_chat`。
+- `.codex/run-real-llm-10ch-current-env.ps1`：wrapper 只接受 `gate: pass_connectivity_probe`，无需修改。
+- `apps/api/tests/test_real_llm_connectivity_probe_script.py`：本地 HTTPServer fake provider 测试模式。
+
+### 实施决策
+
+- 保留 `/models` 和 `/chat/completions` 必须成功的安全门禁。
+- 首次 chat HTTP 成功但正文为空时，不直接放行；只增加一次更明确、更大输出空间的低成本重试。
+- 第二次仍为空时继续 `gate: fail_empty_chat` 并退出 3。
+- chat HTTP 失败仍 `gate: fail_chat` 并退出 4。
+- 不修改真实长程 runner，不绕过探针，不输出或落盘私有 provider 值。
+
+### 红绿验证
+
+- 红灯：新增 `test_real_llm_connectivity_probe_retries_once_when_chat_content_is_empty` 后，旧脚本失败，输出 `chat_content: empty` 与 `gate: fail_empty_chat`，退出码 3。
+- 绿灯：脚本增加一次空正文重试后，同一测试通过；本地 fake provider 请求顺序为 `/models`、第一次 `/chat/completions`、第二次 `/chat/completions`。
+
+### 最终本地验证
+
+- 目标 pytest：`cd apps/api; uv run pytest tests/test_real_llm_connectivity_probe_script.py tests/test_phase9b_real_llm_long_wrapper.py -q`，12 passed。
+- Ruff：`cd apps/api; uv run ruff check tests/test_real_llm_connectivity_probe_script.py tests/test_phase9b_real_llm_long_wrapper.py`，All checks passed。
+- PowerShell 解析：`.codex/run-real-llm-connectivity-probe.ps1` 解析通过。
+- 空环境探针：`powershell -ExecutionPolicy Bypass -File .codex\run-real-llm-connectivity-probe.ps1 -TimeoutSeconds 5` 返回非 0，仍在 `gate: fail_preflight` 停止。
+- 敏感扫描：`tp-` 令牌形态命中数为 0；长 `Bearer` 值命中数为 0；provider 私有 URL 命中数为 0。
+
+### 当前边界
+
+- 本轮只修复前置连通性探针的一次空正文误阻断。
+- 不代表真实 35k 长程完成。
+- 下一步需要使用 `-TokenBudget 1300000` 重新执行真实 35k 长程。
+
 ## 源码剪枝扫描 - 只读审计记录
 
 时间：2026-06-05 02:41:35 +08:00
@@ -13247,3 +13293,501 @@ un-metadata.json: present
 - 当前 IDE 已有 `evaluation` 面板槽位和 legacy 元数据，本批没有新建重复 UI。
 - 后端和 OpenAPI 已有 `/api/evaluations/*` 评测契约，本批没有复制前端类型守卫。
 - 旧 page 路径在当前生产代码和测试读取中已无残留，registry 也不再指向旧 page。
+
+## 真实 35k 长程运行与质量门禁证据导出修复
+
+时间：2026-06-05 21:02:09 +08:00
+
+### 真实运行事实
+
+- 运行目录：`.codex/real-llm-35k-20260605-195004`
+- 前置连通性探针已通过：`gate: pass_connectivity_probe`。
+- BookRun 已完成：`book_run_status=completed`。
+- 章节完成度：`actual_chapter_count=30/30`。
+- token 使用：`tokens_used=972589`，低于 `token_budget=1300000`。
+- 正文字数证据：`actual_total_chars=79141`。
+- `ModelRun.input_summary` 后半程稳定裁剪到 `50000`，旧的 50000 字符入库错误未复现。
+- 敏感扫描：`sensitive_hit_count=0`。
+
+### 失败原因
+
+- runner 最终 `runner_exit_code=1`。
+- `stderr.log` 显示运行后成功门禁未通过：
+  - 第 5 章 `quality_score` 低于 90。
+  - 第 8 章 `quality_score` 低于 90。
+  - 第 15 章 `quality_score` 低于 90。
+  - 第 16 章 `quality_score` 低于 90。
+  - 第 22 章 `quality_score` 低于 90。
+  - 累计 `quality_issue_count=17`，超过上限 3。
+- 结论：本次真实 35k 证明了 30 章生成链路、token 预算、章节上限与摘要裁剪均已跑通，但不能作为 35k 质量验收通过证据。
+
+### 根因与修复
+
+- 根因：`.codex/run-real-llm-long-direct.py` 在生成 `summary` 后先执行质量门禁，再写出 `summary.json`、`book.md`、`audit_report.json`。
+- 当质量门禁失败时，异常跳到外层 `except`，导致 SQLite 中已经存在的正文 artifact 与审计 artifact 没有导出成必要证据文件。
+- 修复：先写出 `summary.json`、`book.md`、`audit_report.json`，再执行质量门禁。
+- 修复后仍保持质量失败为失败：`runner_exit_code=1`，验证器仍 `gate: fail`。
+- `run-metadata.json` 增加脱敏失败信息：`failure_message`、`quality_gate_failed=true`、`quality_gate_failures`。
+
+### 当前运行目录证据恢复
+
+- 已从 `.codex/real-llm-35k-20260605-195004/smoke.sqlite3` 的 `artifacts` 表恢复：
+  - `summary.json`
+  - `book.md`
+  - `audit_report.json`
+- 保持 `run-metadata.json` 中 `runner_exit_code=1`。
+- 更新 `quality-risk.md` 中 `summary_present=True`，与当前恢复后的事实一致。
+- 验证器复跑后仍为 `gate: fail`，失败原因不再包含缺少必要产物，而是质量门禁失败。
+
+### 本地验证
+
+- 定向回归：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py::test_long_runner_exports_evidence_when_quality_gate_fails -q`，1 passed。
+- 相关测试组：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py tests/test_phase9b_real_llm_smoke.py -q`，15 passed。
+- Ruff：`cd apps/api; uv run ruff check tests/test_phase9b_real_llm_long_wrapper.py tests/test_phase9b_real_llm_smoke.py`，All checks passed。
+- Python 编译：`python -m py_compile .codex/run-real-llm-long-direct.py`，通过。
+- PowerShell 解析：`.codex/validate-real-llm-long-evidence.ps1` 解析通过。
+- 当前目录验证：`.codex/real-llm-35k-20260605-195004` 仍 `gate: fail`，原因是 `runner_exit_code 非 0` 与质量门禁失败。
+- 旧失败目录验证：`.codex/real-llm-35k-20260605-012102` 与 `.codex/real-llm-35k-20260605-002357` 仍 `gate: fail`。
+- 敏感扫描：私有 key 形态、长 `Bearer` 形态、私有 provider URL 形态命中数均为 0。
+
+### 下一步决策
+
+- 不建议立刻把本次记为 Phase 9 通过。
+- 下一步应审查 `audit_report.json` 与 `book.md` 中第 5、8、15、16、22 章质量问题，判断是内容生成策略需要修复，还是质量评估阈值或修复轮次策略需要调整。
+- 若要继续推进真实验收，应先针对低分章节做质量门禁根因分析，再决定局部修复、增加修复轮次或重跑。
+
+## 真实 35k 低分章节只读质量审查
+
+时间：2026-06-05 21:23:35 +08:00
+
+### 审查范围
+
+- 运行目录：`.codex/real-llm-35k-20260605-195004`
+- 只读文件：
+  - `summary.json`
+  - `audit_report.json`
+  - `book.md`
+- 聚焦章节：第 5、8、15、16、22 章。
+- 本阶段未修改 `summary.json`、`audit_report.json`、`book.md` 或 SQLite 运行证据。
+
+### 总体结论
+
+- 低分章节全部由 `style_drift / style_consistency` 触发。
+- 没有发现低分原因来自章节缺失、预算不足、入库摘要长度、artifact 缺失或敏感信息泄露。
+- 失败类型可分三类：
+  - **风格禁用词命中**：第 8、22 章。
+  - **心理描写或解释性旁白**：第 5、16 章。
+  - **正文重复与元写作痕迹进入成稿**：第 15 章，属于最需要优先修复的真实硬伤。
+
+### 分章问题地图
+
+- 第 5 章：`quality_score=84`，`quality_issue_count=2`，正文约 1439 字符。
+  - 问题：直接说明林岚“知道”底层信号仍被篡改，以及“稳了，但只是表面”这类心理判断。
+  - 判断：正文结构没有崩，但违反“避免心理描写、保持克制”的风格门禁。
+  - 建议：改为外部动作和可观察信号表达，例如通过计时器、哈希记录、灯塔光柱偏差暗示不安，不直接写内心结论。
+
+- 第 8 章：`quality_score=84`，`quality_issue_count=2`，正文约 2359 字符。
+  - 问题：命中禁用词“忽然”“缓缓”。
+  - 判断：问题偏机械，正文主体可用。
+  - 建议：在生成后增加禁用词自动替换或 repair 前置检查；该类不必重跑整章。
+
+- 第 15 章：`quality_score=84`，`quality_issue_count=2`，正文约 4890 字符。
+  - 问题：有心理/情绪隐喻；更严重的是结尾出现整组重复段落，并把“标题键入：真实冒烟。第十五章。”“正文开始：雾没有散的迹象。”写进成稿。
+  - 判断：这是本次质量失败的核心硬伤，属于模型续写时把写作过程/标题指令混入正文，并出现段落回环。
+  - 建议：优先修复 prompt 末尾约束和后处理检测：禁止“标题键入”“正文开始”等元写作痕迹；增加重复段落检测；第 15 章需要局部重写或修复后重新审计。
+
+- 第 16 章：`quality_score=84`，`quality_issue_count=2`，正文约 3454 字符。
+  - 问题：解释性旁白、作者直接解释，例如“光下面的东西”“证据链锁死了操作”等抽象概括。
+  - 判断：章节可读，但结尾从动作叙事滑向主题阐释，违反克制悬疑语气。
+  - 建议：将抽象解释改成现场物证、人物动作或对话留白。
+
+- 第 22 章：`quality_score=84`，`quality_issue_count=2`，正文约 2369 字符。
+  - 问题：命中禁用词“忽然”“缓缓”。
+  - 判断：与第 8 章同类，属于可自动化修复的小问题。
+  - 建议：同第 8 章，加入禁用词后处理或 repair 前置检查。
+
+### 修复优先级建议
+
+1. 先修第 15 章问题：重复段落和元写作痕迹是明确硬伤，会影响人工通读结论。
+2. 再加自动化风格后处理：禁用词“忽然”“缓缓”等命中应在质量门禁前被替换或触发局部 repair。
+3. 最后处理心理描写/解释性旁白：增强 prompt 或 repair 指令，把内心判断改为外部可观察动作。
+4. 不建议直接降低 `MinQualityScore` 或 `MaxQualityIssueCount`，因为第 15 章证明质量门禁捕捉到了真实问题。
+## 编码前检查 - 真实 LLM 断点续跑
+
+时间：2026-06-05 23:20:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-real-llm-breakpoint-resume.md`
+□ 将使用以下可复用组件：
+
+- `apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py`: 复用章节生成、记录 ModelRun、ScenePacket、Judge/Repair、导出结果的既有函数。
+- `.codex/run-real-llm-long-direct.py`: 复用长程运行目录、脱敏 metadata、敏感扫描和质量门禁逻辑。
+- `apps/api/app/domains/exports/book_markdown_exporter.py`: 复用 completed BookRun 的 Markdown/audit 导出器。
+  □ 将遵循命名约定：Python 函数/变量使用 snake_case，测试函数使用 `test_` 前缀。
+  □ 将遵循代码风格：类型标注、简体中文注释、pytest 定向测试优先。
+  □ 确认不重复造轮子，证明：已检查真实 smoke 主循环、长程 wrapper、BookRun 导出器和 BookRun progress 服务；不存在现成 `--resume-run-directory` 或业务层 resume 入口。
+
+## 编码后声明 - 真实 LLM 断点续跑
+
+时间：2026-06-05 23:45:00
+
+### 1. 复用了以下既有组件
+
+- `phase9b_real_llm_smoke.py`: 复用 `_generate_chapter`、`_approve_scene`、`_record_model_run`、`_record_scene_packet`、`_judge_and_repair_loop`、`_pause_by_budget`，用于补写剩余章节。
+- `apply_book_run_progress`: 用于统一写回 completed 状态、预算、checkpoint 和 progress。
+- `export_book_run_markdown` / `export_book_run_audit_report`: 用于恢复完成后继续走既有导出路径。
+- `.codex/run-real-llm-long-direct.py`: 复用既有脱敏 metadata、敏感扫描、质量门禁和证据文件输出。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `resume_phase9b_real_llm_smoke`、`_reconstruct_completed_chapters`、`--resume-run-directory`、`-ResumeRunDirectory`，保持 Python snake_case 和 PowerShell PascalCase 参数风格。
+- 代码风格：新增注释均为简体中文，解释断点续跑的审计约束；测试继续使用 pytest 和既有 fake provider。
+- 文件组织：业务恢复逻辑放在 `apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py`，长程运行目录逻辑留在 `.codex` wrapper。
+
+### 3. 对比了以下相似实现
+
+- 原全量真实 smoke 主循环：恢复逻辑复用相同的章节生成与审计链，仅跳过已批准章节。
+- 长程 wrapper 一次性 SQLite 模式：恢复逻辑复制失败 SQLite 到新目录，避免污染旧失败证据。
+- BookRun 导出器：恢复完成后仍必须满足 `BookRun.status == "completed"` 与 `completed_chapters` 审计字段完整性。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `phase9b_real_llm_smoke.py`、`.codex/run-real-llm-long-direct.py`、`.codex/run-real-llm-10ch-current-env.ps1`、BookRun service 与导出器，确认不存在可直接使用的真实 LLM 长程恢复入口。
+- 新增逻辑只补齐断点恢复编排，不替代现有导出、评审、修复或数据库会话机制。
+## 编码前检查 - 真实 LLM 补章性能优化
+
+时间：2026-06-06 01:57:35 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-real-llm-performance.md`
+□ desktop-commander 工具未在当前会话可用；已记录工具缺失，并使用 `rg`、PowerShell、Context7 和 GitHub code search 替代完成本地与外部检索。
+□ 已分析至少三个相似实现：
+
+- `apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py`: 真实长程 smoke 主循环与 Judge/Repair 集成。
+- `apps/workflow/storyforge_workflow/orchestrators/novel_loop.py`: 单章静态质量、Judge、Repair、Approve 闭环。
+- `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`: 多章顺序调度、预算和 checkpoint 语义。
+- `apps/api/tests/test_phase9b_real_llm_smoke.py`: fake provider 请求计数测试模式。
+
+□ 将使用以下可复用组件：
+
+- `deterministic_judge_fallback`: 用于低成本本地确定性预检。
+- `_detect_character_bible_violations`、`_detect_timeline_conflicts`、`_detect_style_fingerprint_drift`: 用于保留本地一致性门禁。
+- `_record_summary_judge`: 用于无问题章节仍落 Judge 通过审计。
+- `_quality_score` 与 `_CATEGORY_DIMENSION`: 用于保持质量评分与 summary 结构一致。
+
+□ 将遵循命名约定：Python 函数/变量使用 snake_case，pytest 测试使用 `test_` 前缀。
+□ 将遵循代码风格：类型标注、简体中文注释、已有服务函数复用、最小范围改动。
+□ 确认不重复造轮子，证明：已检查 workflow 静态门禁、API Judge 服务、phase9b 真实 smoke 和现有测试；当前缺口是 phase9b 每章无条件语义 Judge，没有现成快速通过策略。
+
+### 根因结论
+
+- 正文生成串行来自 `run_phase9b_real_llm_smoke` 和 `resume_phase9b_real_llm_smoke` 中逐章 `_generate_chapter`。
+- Judge/后处理过重来自 `_judge_and_repair_loop` 每轮调用 `_run_real_judge`，而 `_run_real_judge` 当前总是先执行 `semantic_judge_with_status`。
+- 本轮优先实现 Judge 快速路径：先跑确定性和本地一致性检测；若无问题，则记录通过审计并跳过语义 Judge；若有问题或显式关闭快速路径，则进入完整语义 Judge。
+- 本轮不做章节并发，因为章节并发会影响 recap、checkpoint、预算和断点续跑语义，需要单独设计。
+
+## 需求分析与上下文检索 - 真实 LLM 瓶颈优化
+
+时间：2026-06-06 02:23:07 +08:00
+
+### 工具链可用性
+
+- sequential-thinking：当前会话未暴露该工具；已用显式阶段化分析替代，并在本日志留痕。
+- shrimp-task-manager：当前会话未暴露该工具；已用 `update_plan` 维护任务状态。
+- desktop-commander：当前会话未暴露该工具；已用 PowerShell 与 `rg` 做本地文件扫描。
+- context7：当前会话未暴露该工具；已尝试工具发现，未返回 context7 工具；官方文档检索改用可访问官方来源。
+- github.search_code：已执行，参考成熟项目中并发任务完成与结果顺序消费分离的实践。
+
+### 检索证据
+
+- 文件名搜索：通过 `rg --files` 找到 workflow、API、测试与 `.codex` 证据文件。
+- 内容搜索：通过 `rg -n "urllib|urlopen|ThreadPoolExecutor|sqlite|checkpoint|timeline|chapter|progress"` 定位 provider、BookLoop、SQLite checkpoint 和 Timeline 同步路径。
+- 相似实现：
+  - `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`
+  - `apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`
+  - `apps/workflow/storyforge_workflow/provider_client.py`
+  - `apps/api/app/domains/book_runs/service.py`
+- 测试模式：
+  - `apps/workflow/tests/test_llm_provider.py`
+  - `apps/workflow/tests/test_provider_adapter.py`
+  - `apps/workflow/tests/test_book_loop_three_chapters.py`
+  - `apps/workflow/tests/test_book_run_adapter.py`
+  - `apps/api/tests/test_book_runs.py`
+
+### 充分性检查
+
+- 能定义接口契约：第一阶段保持 `generate_text` 函数签名不变，内部替换为线程本地 HTTP 连接复用。
+- 理解技术选型理由：workflow 未声明 `httpx` 或 `requests`，先使用 Python 标准库 `http.client`，避免新增依赖和锁文件变更。
+- 已识别风险：连接不能跨线程共享；HTTP 错误需继续映射为现有调用方可处理的异常；响应必须完整读取。
+- 知道如何验证：新增本地 HTTP/1.1 server 测试，记录客户端端口，证明两次请求复用同一 TCP 连接。
+
+## 编码前检查 - provider HTTP 连接复用
+
+时间：2026-06-06 02:23:07 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-real-llm-bottleneck-optimization.md`
+□ 将使用以下可复用组件：
+
+- `provider_config`: 继续解析 provider base_url、api_key、model。
+- `_normalize_model_id`: 保留模型别名归一。
+- `generate_text` 既有测试模式：继续使用 monkeypatch 与本地 HTTPServer。
+
+□ 将遵循命名约定：Python 函数/变量使用 snake_case，测试函数使用 `test_` 前缀。
+□ 将遵循代码风格：标准库优先、类型标注、中文注释说明复用连接的线程边界。
+□ 确认不重复造轮子，证明：workflow 当前未引入 `httpx` 或 `requests`；标准库可满足 OpenAI 兼容 JSON POST 与连接复用需求。
+
+## 编码后声明 - 真实 LLM 瓶颈优化
+
+时间：2026-06-06 02:50:15 +08:00
+
+### 1. 复用了以下既有组件
+
+- `apps/workflow/storyforge_workflow/provider_client.py`: 保持 `generate_text`、`provider_config`、分层温度与模型覆盖接口不变，内部改为线程本地 HTTP 连接复用。
+- `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`: 复用 `ProviderClientAdapter`、`FallbackProviderAdapter`、`ProviderError` 映射；fallback provider 改走同一连接复用传输层。
+- `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`: 复用 BookLoop 预算、checkpoint、progress 结构；新增显式 `chapter_parallelism` 的顺序提交并发预取。
+- `apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`: 复用 `BookRunProgressSink` 和失败回填路径；并发异常用 `ChapterExecutionError` 保留真实失败章节号。
+- `apps/api/app/domains/book_runs/service.py`: 复用 TimelineEvent payload 生成与 BookRun progress 真相源，改为批量预取章节和既有事件。
+- `apps/workflow/storyforge_workflow/runtime/checkpoints.py`: 复用现有 SQLite schema 和事务语义，改为 store 实例级连接复用。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 函数、字段与测试继续使用 snake_case；新增 `chapter_parallelism`、`close_provider_connections`、`close_workflow_node_executor` 均按现有风格命名。
+- 代码风格：新增注释均为简体中文；使用 ruff format/check 清理 import、空白和换行。
+- 文件组织：provider 传输逻辑仍在 workflow provider client；BookRun 数据库事务仍在 API service；未把 API ORM 引入 workflow。
+
+### 3. 对比了以下相似实现
+
+- `book_loop.py` 原串行循环：并发路径只在显式开启且无硬预算/降级暂停约束时启用，默认保持原串行语义。
+- `book_run_adapter.py` 原失败回填：并发异常继续先回填 failed progress，再抛出原始异常；额外补齐失败章节号。
+- `test_llm_provider.py` 原本地 HTTP 测试：新增 HTTP/1.1 keep-alive 测试，证明同 provider 连续调用复用 TCP 客户端端口。
+- `test_book_runs.py` 原 Timeline 幂等测试：新增 SQL 计数测试，锁住批量同步不再 N+1。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 workflow 依赖未声明 `httpx`/`requests`，因此选择标准库 `http.client`，未新增依赖和锁文件变更。
+- 已检查 BookRun、Timeline、RuntimeCheckpointStore、Graph timeout 包装，没有现成连接池或共享执行器；本轮仅补齐这些局部能力。
+- 未改动 `.codex/run-real-llm-*` 和 `phase9b_real_llm_smoke.py` 的既有用户改动，避免覆盖真实长程实验状态。
+
+### 5. 验证结果
+
+- `git diff --check`：通过，无输出。
+- `apps/workflow`: `uv run ruff check storyforge_workflow/provider_client.py storyforge_workflow/runtime/provider_adapter.py storyforge_workflow/orchestrators/book_loop.py storyforge_workflow/orchestrators/book_run_adapter.py storyforge_workflow/graph.py storyforge_workflow/runtime/checkpoints.py tests/test_llm_provider.py tests/test_provider_fallback.py tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_generation_graph.py tests/test_workflow_lifecycle.py`：通过。
+- `apps/api`: `uv run ruff check app/domains/book_runs/service.py tests/test_book_runs.py`：通过。
+- `apps/workflow`: `uv run pytest tests/test_llm_provider.py tests/test_provider_fallback.py tests/test_book_loop_three_chapters.py tests/test_book_loop_resume.py tests/test_provider_degradation_pause.py tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py tests/test_generation_graph.py tests/test_workflow_lifecycle.py tests/test_runtime_runner.py -q`：66 passed。
+- `apps/api`: `uv run pytest tests/test_book_runs.py -q`：20 passed，1 个来自 anyio/Starlette 的 `HTTP_422_UNPROCESSABLE_ENTITY` deprecation warning。
+
+## Code Review 操作记录 - 当前工作区审查
+
+时间：2026-06-06 03:58:36 +08:00
+
+### 1. 审查范围
+
+- 分支状态：`master...origin/master`，当前工作区存在 25 个已修改文件和多个未跟踪 `.codex` 证据目录。
+- 重点文件：`apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py`、`.codex/run-real-llm-10ch-current-env.ps1`、`apps/workflow/storyforge_workflow/orchestrators/book_loop.py`、`apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`。
+- 审查方式：读取 git diff、项目测试入口、相关实现和新增测试；使用 Context7 查询 Pydantic、pytest、LangGraph 文档；使用 GitHub search_code 搜索并发 Future 与 pytest 环境隔离示例。
+
+### 2. 工具偏差记录
+
+- AGENTS.md 要求优先使用 `desktop-commander`，但当前可用工具中未暴露该工具；已记录偏差，并使用 PowerShell、`rg`、Context7、GitHub search_code 替代。
+- 代码审查子代理入口未授权使用，因为多代理工具要求用户显式请求 sub-agent；本次由 Codex 本地独立执行审查。
+
+### 3. 本地验证
+
+- `git diff --check`：通过，无输出。
+- `cd apps/workflow && uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_generation_graph.py tests/test_llm_provider.py tests/test_workflow_lifecycle.py -q`：34 passed。
+- `cd apps/api && uv run pytest tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_connectivity_probe_script.py tests/test_book_runs.py tests/test_judge_style_guard.py -q`：失败，5 failed、47 passed、1 warning。
+
+### 4. 审查结论
+
+- 发现阻断级缺陷：Phase9B Judge/Repair 循环引用未定义变量 `quality_score` 与 `issues`，导致真实 LLM smoke 主路径直接失败。
+- 发现验证契约失败：10 章包装脚本与测试对 `--max-chapter-count` 参数传递形式的断言不一致，当前本地测试红灯。
+- 发现重要设计风险：章节并发预取只保证 checkpoint/progress 顺序提交，不能证明后续已启动章节没有持久化副作用。
+
+### 5. 后续任务
+
+- 已通过 shrimp-task-manager 拆分 3 个返工任务：修复 Phase9B 变量回归、修正包装脚本测试契约、收敛章节并发副作用语义。
+
+## 需求分析与上下文检索 - 并发资源收口
+
+时间：2026-06-06 04:20:00 +08:00
+
+### 工具链可用性
+
+- sequential-thinking：已调用，用于确认并发章节号与 executor timeout 根因。
+- shrimp-task-manager：已调用 `analyze_task`、`reflect_task`、`split_tasks`，拆为 5 个可验证任务。
+- desktop-commander：当前会话未暴露该工具；已用 `tool_search` 确认可用工具中没有对应读写/搜索能力，降级使用 PowerShell 与 `rg`。
+- context7：已查询 pytest monkeypatch/tmp_path 文档，用于确认测试写法。
+- github.search_code：已搜索 Python ThreadPoolExecutor timeout 相关开源测试，作为线程池超时边界参考。
+
+### 检索证据
+
+- 文件名搜索：通过 `rg --files` 找到 workflow、API、测试与 `.codex` 文件。
+- 内容搜索：通过 `rg -n "active_chapter_index|ChapterExecutionError|ThreadPoolExecutor|shutdown|close_provider_connections|RuntimeCheckpointStore|_non_negative_int"` 定位相关实现。
+- 相似实现：
+  - `apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`
+  - `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`
+  - `apps/workflow/storyforge_workflow/graph.py`
+  - `apps/workflow/storyforge_workflow/provider_client.py`
+  - `apps/workflow/storyforge_workflow/runtime/checkpoints.py`
+- 测试模式：
+  - `apps/workflow/tests/test_book_run_adapter.py`
+  - `apps/workflow/tests/test_book_loop_three_chapters.py`
+  - `apps/workflow/tests/test_generation_graph.py`
+  - `apps/workflow/tests/test_llm_provider.py`
+  - `apps/workflow/tests/test_workflow_lifecycle.py`
+
+### 充分性检查
+
+- 能定义接口契约：adapter 失败 payload 保持 `failure.failed_at_chapter_index` 与 `current_chapter_index`；graph timeout 保持抛出 `WorkflowNodeTimeoutError`。
+- 理解技术选型理由：章节执行异常复用 `ChapterExecutionError`；executor 生命周期继续由 `close_workflow_node_executor` 控制。
+- 已识别风险：Python 线程不可中断；progress sink 普通异常不能读取并发 worker 共享变量。
+- 知道如何验证：新增 pytest 回归测试，先确认 RED，再修复并跑定向测试。
+
+## 编码前检查 - 并发资源收口
+
+时间：2026-06-06 04:20:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-并发资源收口.md`
+□ 将使用以下可复用组件：
+
+- `ChapterExecutionError`: 并发章节执行失败的真实章节号来源。
+- `BookLoopResult`: progress callback 和失败回填的稳定进度载体。
+- `close_workflow_node_executor`: graph executor 显式释放入口。
+- `close_provider_connections` 与 `RuntimeCheckpointStore.close`: 后续低优先级资源关闭入口。
+
+□ 将遵循命名约定：Python 函数和变量使用 snake_case，测试函数使用 `test_` 前缀。
+□ 将遵循代码风格：简体中文注释，pytest monkeypatch/Event 控制边界，不新增依赖。
+□ 确认不重复造轮子，证明：已检查 `book_loop.py` 存在 `ChapterExecutionError`，`graph.py` 存在 executor close API，provider/checkpoint 均已有 close 函数。
+
+## 编码后声明 - 并发资源收口
+
+时间：2026-06-06 04:52:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`: 复用 `ChapterExecutionError`，让串行和并发章节执行异常都携带真实章节号。
+- `apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`: 复用 `_failed_result_from_exception` 和 progress sink 结构，删除跨 worker 共享章节状态。
+- `apps/workflow/storyforge_workflow/graph.py`: 复用进程级节点 executor 与 `close_workflow_node_executor`，timeout 后不再丢弃并重建 executor。
+- `apps/workflow/storyforge_workflow/provider_client.py`: 复用 `close_provider_connections`，由 `WorkflowRuntime.close()` 接入生产运行器收尾边界。
+- `apps/workflow/storyforge_workflow/runtime/checkpoints.py`: 复用 `RuntimeCheckpointStore.close`，并在 SQLite 错误后丢弃坏连接供下一次重连。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 函数、测试和局部变量继续使用 snake_case；测试函数仍以 `test_` 开头。
+- 代码风格：新增注释和测试说明均为简体中文；使用 pytest、Event、monkeypatch，不新增依赖。
+- 文件组织：并发章节逻辑仍在 `book_loop.py`，adapter 仍只负责回填，runtime 资源释放仍在运行器边界。
+
+### 3. 对比了以下相似实现
+
+- `test_book_run_adapter_parallel_failure_progress_uses_failed_chapter_index`: 已有并发章节执行异常测试，本轮新增普通异常兜底测试，覆盖原测试未触达的 progress sink 异常路径。
+- `test_generation_graph_reuses_node_executor_across_nodes`: 已有 executor 复用测试，本轮新增连续 timeout 不重复创建 executor 测试。
+- `test_runtime_checkpoint_store_reuses_sqlite_connection`: 已有连接复用测试，本轮新增坏连接下一次操作重连测试。
+
+### 4. 未重复造轮子的证明
+
+- 已确认 workflow 内无其他 active chapter 状态组件；直接删除共享变量，改用已有 `ChapterExecutionError`。
+- 已确认 graph 已有统一 close API；没有新增线程池管理框架。
+- 已确认 provider/checkpoint 均已有 close 函数；只在 `WorkflowRuntime.close()` 统一调用。
+
+### 5. 验证结果
+
+- `cd apps/workflow && uv run pytest tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py -q`：`42 passed`。
+- `cd apps/workflow && uv run pytest -q`：`172 passed`。
+- `cd apps/workflow && uv run ruff check storyforge_workflow/orchestrators/book_run_adapter.py storyforge_workflow/orchestrators/book_loop.py storyforge_workflow/graph.py storyforge_workflow/runtime/runner.py storyforge_workflow/runtime/checkpoints.py tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py`：`All checks passed!`
+- `git diff --check`：通过，无输出。
+
+## 审查返工记录 - 并发资源收口
+
+时间：2026-06-06 05:07:00 +08:00
+
+### 1. 只读审查反馈
+
+- graph timeout 后完全复用同一个 executor 会让不可中断的超时任务耗尽 worker，后续健康节点也可能排队超时。
+- BookLoop 并发失败或 awaiting_review 时，`ThreadPoolExecutor` context manager 默认等待已启动任务自然结束，失败返回会被后续阻塞章节拖慢。
+- `WorkflowRuntime.close()` 关闭顺序与异常处理不够稳健，任一步失败会跳过后续资源释放。
+
+### 2. 返工实现
+
+- `graph.py`：超时后退役当前 executor，并创建新的 active executor，保证后续健康节点可运行；新增 `STORYFORGE_WORKFLOW_RETIRED_NODE_EXECUTOR_LIMIT` 上限，默认最多保留 4 个退役 executor，避免持续超时下无限轮换。
+- `book_loop.py`：并发路径改为手动管理 executor；失败或 awaiting_review 时调用 `shutdown(wait=False, cancel_futures=True)`，不再被已启动但不可取消的后续章节拖住返回。
+- `runtime/runner.py`：`WorkflowRuntime.close()` 改为先关闭 graph executor，再关闭 provider 主线程连接，最后关闭 checkpoint store；任一步失败仍继续执行后续 close，并在最后抛出首个异常。
+
+### 3. 新增验证
+
+- `test_generation_graph_timeout_rotates_executor_so_healthy_node_can_run`
+- `test_book_loop_parallel_failure_returns_without_waiting_for_started_later_chapter`
+- `test_workflow_runtime_close_continues_cleanup_when_provider_close_fails`
+
+### 4. 最终验证结果
+
+- `cd apps/workflow && uv run pytest tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py -q`：`44 passed`。
+- `cd apps/workflow && uv run pytest -q`：`174 passed`。
+- `cd apps/workflow && uv run ruff check storyforge_workflow/orchestrators/book_run_adapter.py storyforge_workflow/orchestrators/book_loop.py storyforge_workflow/graph.py storyforge_workflow/runtime/runner.py storyforge_workflow/runtime/checkpoints.py tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py`：`All checks passed!`
+- `git diff --check`：通过，无输出。
+
+## 编码前检查 - 性能与质量高优先级修复
+
+时间：2026-06-06 15:51:55 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-performance-quality.md`
+
+□ 将使用以下可复用组件：
+
+- `provider_client._post_chat_completion` 与连接复用函数：用于在现有 provider 边界内增加有限重试。
+- `RuntimeCheckpointStore._connect` 与 `save_state`：用于配置 SQLite WAL 和保持 checkpoint 存储边界。
+- `draft_writer._parse_issues`：用于修正 critique 通过判定。
+- `director.create_book_strategy` / `scene_architect.create_chapter_plan`：用于补规划结构验证。
+
+□ 将遵循命名约定：Python snake_case，pytest `test_`，异常消息保持简体中文。
+
+□ 将遵循代码风格：不新增外部依赖，保留 workflow 节点 dict 输出协议和中文 docstring。
+
+□ 确认不重复造轮子，证明：已检查 provider、runtime、checkpoint、graph、context compiler、provider fallback；仓库内无通用 retry/backoff 或 SQLite WAL 配置，规划结构验证未在 workflow 节点中落地。
+
+## 操作记录 - 剩余四项性能质量修复
+
+时间：2026-06-06 18:22:51 +08:00
+
+### 本轮目标
+
+- 给 workflow provider client 增加 OpenAI 兼容 prompt caching payload 字段。
+- 给 RuntimeCheckpointStore 增加可配置 write-behind 缓冲与 flush 边界。
+- 给 BookRun adapter 增加真实 memory extraction 注入点，并保留 memory 引用进度。
+- 给 continuity facts 增加预算排序截断，优先保留 must、POV/主角和近章事实。
+
+### 编码前检查
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-remaining-four.md`
+
+□ 使用以下可复用组件：
+
+- `provider_client.generate_text()`：组装 OpenAI 兼容 payload。
+- `RuntimeCheckpointStore._connect()`：复用 SQLite 单连接和 WAL 配置。
+- `NovelLoopPorts.extract_memory` / `NovelSkillRunner.run_memory_extract()`：复用 memory_extract 端口和技能审计。
+- `write_memory_extract_atoms()`：API 侧真实 Story Memory 写入桥，由生产端口工厂注入，不在 workflow 中直接导入。
+- `narrative_context_from_state()`：在 prompt context 边界做 continuity 排序截断。
+
+□ 遵循命名约定：Python snake_case，pytest `test_`，配置项统一 `STORYFORGE_*`。
+
+□ 遵循代码风格：简体中文注释与测试说明，不新增外部依赖，不改跨进程 dispatch 架构。
+
+□ 未重复造轮子证明：已检查 provider、checkpoint、NovelLoop ports、BookRun progress、prompt context；仓库中没有已落地的 prompt cache 字段、checkpoint write-behind、continuity 预算截断。
+
+### 编码后声明
+
+- Provider：新增 `STORYFORGE_LLM_PROMPT_CACHE_KEY` / `STORYFORGE_LLM_PROMPT_CACHE_RETENTION`，默认不发送额外字段，不发送 Anthropic `cache_control`。
+- Checkpoint：新增 `flush()`，开启 `STORYFORGE_CHECKPOINT_WRITE_BEHIND` 后 `save_state()` 先写内存 buffer，后台与读/关路径刷盘；同一 thread_id 连续状态合并为最新态。
+- Memory：`BookRunAdapterPorts` 新增 `memory_extractor` 可选端口；BookLoop progress/checkpoint 保留 `memory_atom_ids`；API BookRun checkpoint/timeline 保留 memory id 引用且不保存正文。
+- Continuity：`_continuity_from_state()` 按 must、POV/主角、近章、原顺序稳定排序，并按 `STORYFORGE_CONTINUITY_FACT_TOKEN_BUDGET` 截断。
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest tests/test_llm_provider.py tests/test_workflow_lifecycle.py tests/test_book_run_adapter.py tests/test_prompt_builder.py -q`：`54 passed`。
+- `cd apps/workflow && uv run pytest -q`：`189 passed`。
+- `cd apps/workflow && uv run ruff check storyforge_workflow tests`：`All checks passed!`
+- `cd apps/api && uv run pytest tests/test_book_runs.py::test_progress_update_persists_memory_atom_references_without_draft tests/test_book_runs.py::test_progress_update_persists_checkpoint_and_budget_usage tests/test_book_runs.py::test_apply_book_run_progress_syncs_completed_chapter_to_timeline_once tests/test_story_memory_contract.py::test_memory_extract_bridge_writes_auditable_atoms_without_provider_credentials -q`：`4 passed`。
+- `cd apps/api && uv run ruff check app/domains/book_runs/service.py tests/test_book_runs.py`：`All checks passed!`
+- `git diff --check -- [本轮修改文件]`：通过，无输出。
+
+### 验证边界与风险
+
+- `cd apps/api && uv run pytest -q` 当前失败 `8 failed, 434 passed`，失败集中在既有脏工作树：`phase9b_real_llm_smoke.py` 中 `_judge_and_repair_loop()` 的 `quality_score/issues` 未定义或测试签名不匹配，以及 `run-real-llm-10ch-current-env.ps1` 包装脚本断言缺失 `--max-chapter-count $MaxChapterCount`。这些文件在本轮改动前已处于修改状态，本轮未回退或修复。
+- `cd apps/api && uv run ruff check app tests` 当前失败同样来自 `phase9b_real_llm_smoke.py` 既有 `F821`，本轮 API 定向 ruff 已通过。

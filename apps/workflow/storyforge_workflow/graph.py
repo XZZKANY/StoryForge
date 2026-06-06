@@ -1,4 +1,5 @@
 import os
+import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -26,6 +27,11 @@ log = get_logger("storyforge_workflow.graph")
 NodeFunction = Callable[[GenerationState], dict[str, Any]]
 DEFAULT_NODE_TIMEOUT_SECONDS = 120.0
 DEFAULT_MAX_REVISIONS = 2
+DEFAULT_NODE_EXECUTOR_WORKERS = 4
+DEFAULT_RETIRED_NODE_EXECUTOR_LIMIT = 4
+_node_executor_lock = threading.Lock()
+_node_executor: ThreadPoolExecutor | None = None
+_retired_node_executors: list[ThreadPoolExecutor] = []
 
 
 class WorkflowNodeTimeoutError(TimeoutError):
@@ -51,18 +57,32 @@ def create_generation_graph(
     resolved_node_timeout_seconds = _resolve_node_timeout_seconds(node_timeout_seconds)
     log.info("graph_created", node_timeout_seconds=resolved_node_timeout_seconds)
     builder = StateGraph(GenerationState)
-    builder.add_node("book_director", _audited_node("book_director", create_book_strategy, workflow_store, resolved_node_timeout_seconds))
+    builder.add_node(
+        "book_director",
+        _audited_node("book_director", create_book_strategy, workflow_store, resolved_node_timeout_seconds),
+    )
     builder.add_node(
         "chapter_planner",
-        _audited_node("scene_architect.chapter_plan", create_chapter_plan, workflow_store, resolved_node_timeout_seconds),
+        _audited_node(
+            "scene_architect.chapter_plan", create_chapter_plan, workflow_store, resolved_node_timeout_seconds
+        ),
     )
     builder.add_node(
         "scene_beats",
         _audited_node("scene_architect.scene_beats", create_scene_beats, workflow_store, resolved_node_timeout_seconds),
     )
-    builder.add_node("draft_writer", _audited_node("draft_writer", create_draft_excerpt, workflow_store, resolved_node_timeout_seconds))
-    builder.add_node("draft_critic", _audited_node("draft_critic", create_draft_critique, workflow_store, resolved_node_timeout_seconds))
-    builder.add_node("draft_reviser", _audited_node("draft_reviser", create_draft_revision, workflow_store, resolved_node_timeout_seconds))
+    builder.add_node(
+        "draft_writer",
+        _audited_node("draft_writer", create_draft_excerpt, workflow_store, resolved_node_timeout_seconds),
+    )
+    builder.add_node(
+        "draft_critic",
+        _audited_node("draft_critic", create_draft_critique, workflow_store, resolved_node_timeout_seconds),
+    )
+    builder.add_node(
+        "draft_reviser",
+        _audited_node("draft_reviser", create_draft_revision, workflow_store, resolved_node_timeout_seconds),
+    )
     builder.add_node("human_approval", _approval_node(workflow_store))
 
     builder.add_edge(START, "book_director")
@@ -120,8 +140,9 @@ def _audited_node(node_name: str, node: NodeFunction, store: InMemoryWorkflowSto
         t0 = perf_counter()
         try:
             output = _run_node_with_timeout(node_name, node, state, timeout_seconds)
-        except Exception:
+        except Exception as exc:
             duration_ms = (perf_counter() - t0) * 1000
+            exc.node_name = node_name
             bound.error("node_failed", duration_ms=round(duration_ms, 1), status="failed")
             raise
         duration_ms = (perf_counter() - t0) * 1000
@@ -178,7 +199,10 @@ def _node_input(state: GenerationState, node_name: str) -> dict[str, Any]:
     if node_name == "book_director":
         return {"premise": state.get("premise"), "user_intent": state.get("user_intent")}
     if node_name == "scene_architect.chapter_plan":
-        return {"strategy_question_ref": state.get("strategy_question_ref"), "scene_packet_id": state.get("scene_packet_id")}
+        return {
+            "strategy_question_ref": state.get("strategy_question_ref"),
+            "scene_packet_id": state.get("scene_packet_id"),
+        }
     if node_name == "scene_architect.scene_beats":
         return {"chapter_goal_ref": state.get("chapter_goal_ref"), "scene_packet_id": state.get("scene_packet_id")}
     return {"scene_packet_id": state.get("scene_packet_id"), "scene_beat_refs": state.get("scene_beat_refs")}
@@ -196,17 +220,82 @@ def _approval_status(decision: Any) -> str:
     return "rejected"
 
 
-def _run_node_with_timeout(node_name: str, node: NodeFunction, state: GenerationState, timeout_seconds: float) -> dict[str, Any]:
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"storyforge-{node_name}")
+def _run_node_with_timeout(
+    node_name: str, node: NodeFunction, state: GenerationState, timeout_seconds: float
+) -> dict[str, Any]:
+    executor = _workflow_node_executor()
     future = executor.submit(node, state)
     try:
         return future.result(timeout=timeout_seconds)
     except FutureTimeoutError as exc:
         future.cancel()
+        _retire_workflow_node_executor(executor)
         log.error("node_timeout", node_id=node_name, timeout_seconds=timeout_seconds)
         raise WorkflowNodeTimeoutError(node_name=node_name, timeout_seconds=timeout_seconds) from exc
-    finally:
+
+
+def close_workflow_node_executor() -> None:
+    """关闭当前进程复用的节点执行器，测试和 worker 退出时可显式释放线程。"""
+
+    _reset_workflow_node_executor()
+
+
+def _workflow_node_executor() -> ThreadPoolExecutor:
+    global _node_executor
+    with _node_executor_lock:
+        if _node_executor is None:
+            _node_executor = ThreadPoolExecutor(
+                max_workers=_resolve_node_executor_workers(),
+                thread_name_prefix="storyforge-node",
+            )
+        return _node_executor
+
+
+def _reset_workflow_node_executor() -> None:
+    global _node_executor
+    with _node_executor_lock:
+        executor = _node_executor
+        _node_executor = None
+        retired_executors = list(_retired_node_executors)
+        _retired_node_executors.clear()
+    if executor is not None:
         executor.shutdown(wait=False, cancel_futures=True)
+    for retired_executor in retired_executors:
+        retired_executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _retire_workflow_node_executor(executor: ThreadPoolExecutor) -> None:
+    global _node_executor
+    should_shutdown = False
+    with _node_executor_lock:
+        if _node_executor is executor and len(_retired_node_executors) < _resolve_retired_node_executor_limit():
+            _node_executor = None
+            _retired_node_executors.append(executor)
+            should_shutdown = True
+    if should_shutdown:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _resolve_node_executor_workers() -> int:
+    raw = os.getenv("STORYFORGE_WORKFLOW_NODE_EXECUTOR_WORKERS")
+    if raw is None:
+        return DEFAULT_NODE_EXECUTOR_WORKERS
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_NODE_EXECUTOR_WORKERS
+    return parsed if parsed > 0 else DEFAULT_NODE_EXECUTOR_WORKERS
+
+
+def _resolve_retired_node_executor_limit() -> int:
+    raw = os.getenv("STORYFORGE_WORKFLOW_RETIRED_NODE_EXECUTOR_LIMIT")
+    if raw is None:
+        return DEFAULT_RETIRED_NODE_EXECUTOR_LIMIT
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_RETIRED_NODE_EXECUTOR_LIMIT
+    return parsed if parsed >= 0 else DEFAULT_RETIRED_NODE_EXECUTOR_LIMIT
 
 
 def _resolve_node_timeout_seconds(value: float | None) -> float:

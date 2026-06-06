@@ -219,6 +219,47 @@ def test_context_from_state_handles_bare_continuity_strings() -> None:
     assert all(fact.must_appear is False for fact in ctx.continuity)
 
 
+def test_context_from_state_sorts_and_truncates_continuity_facts_by_budget(monkeypatch) -> None:
+    """连续性事实应在 prompt 边界按重要性截断，避免长书事实撑爆上下文。"""
+
+    monkeypatch.setenv("STORYFORGE_CONTINUITY_FACT_TOKEN_BUDGET", "12")
+    state = {
+        "chapter_index": 10,
+        "style_directive": {"pov": "林岚"},
+        "continuity_facts": [
+            {
+                "statement": "远章配角事实会被预算截断",
+                "source_ref": "chapter:1",
+                "character_role": "配角",
+            },
+            {
+                "statement": "林岚近章必须体现",
+                "source_ref": "chapter:9",
+                "must_appear": True,
+                "pov": "林岚",
+            },
+            {
+                "statement": "林岚近章普通事实",
+                "source_ref": "chapter:8",
+                "pov": "林岚",
+            },
+            {
+                "statement": "反派近章普通事实",
+                "source_ref": "chapter:9",
+                "character_role": "配角",
+            },
+        ],
+    }
+
+    ctx = narrative_context_from_state(state)
+
+    assert [fact.statement for fact in ctx.continuity] == [
+        "林岚近章必须体现",
+        "林岚近章普通事实",
+    ]
+    assert ctx.continuity[0].must_appear is True
+
+
 def test_draft_prompt_injects_craft_guidelines() -> None:
     prompt = build_draft_prompt(_full_context())
     assert "【创作准则" in prompt
@@ -337,4 +378,3 @@ def test_style_from_state_maps_fingerprint_into_targets() -> None:
     assert ctx.style.target_avg_sentence_length == 18.0
     assert ctx.style.target_dialogue_ratio == 0.4
     assert ctx.style.restraint is True
-

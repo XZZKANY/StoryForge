@@ -30,7 +30,7 @@ from app.domains.character_bible.schemas import CharacterBibleCreate
 from app.domains.character_bible.service import create_character_bible_entry
 from app.domains.continuity.models import ScenePacket
 from app.domains.exports.book_markdown_exporter import export_book_run_audit_report, export_book_run_markdown
-from app.domains.judge.models import JudgeIssue
+from app.domains.judge.models import JudgeIssue, RepairPatch
 from app.domains.judge.schemas import JudgeIssueCreate
 from app.domains.judge.service import (
     JUDGE_SYSTEM_FAILURE_CATEGORY,
@@ -42,6 +42,7 @@ from app.domains.judge.service import (
     deterministic_judge_fallback,
     semantic_judge_with_status,
 )
+from app.domains.model_runs.models import ModelRun
 from app.domains.model_runs.schemas import ModelRunCreate
 from app.domains.model_runs.service import create_model_run
 from app.domains.repair.schemas import RepairPatchCreate
@@ -60,6 +61,11 @@ REPAIR_THRESHOLD = 70
 MAX_REPAIR_ROUNDS = 3
 MARKDOWN_CHAPTER_HEADING_RE = re.compile(r"^##\s+第\s*(\d+)\s*章\b")
 MODEL_RUN_SUMMARY_MAX_CHARS = 50000
+# 续写上文 recap 的默认上限：最近 N 章给完整正文，更早章节压缩成前情提要，
+# 避免逐章拼接全部前文导致 prompt 与本地查询开销随章数平方增长。
+RECAP_FULL_CHAPTERS_DEFAULT = 2
+RECAP_MAX_CHARS_DEFAULT = 6000
+RECAP_OLDER_SUMMARY_MAX_CHARS = 160
 
 
 class Phase9BRealLlmSmokePreflightError(RuntimeError):
@@ -78,6 +84,16 @@ class Phase9BRealLlmSmokeResult:
     markdown_artifact: Artifact
     audit_artifact: Artifact
     chapter_count: int
+
+
+@dataclass(frozen=True)
+class _JudgeRunResult:
+    """单轮 Judge 的持久化结果，附带是否走快速路径的审计原因。"""
+
+    issues: list[JudgeIssue]
+    quality_score: int
+    quality_issues: list[dict[str, object]]
+    fast_path_reason: str | None = None
 
 
 def missing_phase9b_real_llm_env(env: Mapping[str, str | None] | None = None) -> list[str]:
@@ -144,7 +160,7 @@ def run_phase9b_real_llm_smoke(
         scene = _approve_scene(session, chapter, str(generated["content"]))
         model_run = _record_model_run(session, book_run, scene, source, generated)
         scene_packet = _record_scene_packet(session, book_run, scene)
-        outcome = _judge_and_repair_loop(session, book_run, scene, scene_packet)
+        outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
         completed_chapters.append(
             {
                 "chapter_index": chapter_index,
@@ -181,6 +197,121 @@ def run_phase9b_real_llm_smoke(
                     "provider_name": _required_env(source, "STORYFORGE_LLM_PROVIDER"),
                     "model_name": _required_env(source, "STORYFORGE_LLM_MODEL"),
                     "chapter_count": chapter_count,
+                },
+            },
+        ),
+    )
+    markdown_artifact = export_book_run_markdown(session, book_run.id)
+    audit_artifact = export_book_run_audit_report(session, book_run.id)
+    return Phase9BRealLlmSmokeResult(
+        book_run=book_run,
+        markdown_artifact=markdown_artifact,
+        audit_artifact=audit_artifact,
+        chapter_count=chapter_count,
+    )
+
+
+def resume_phase9b_real_llm_smoke(
+    session: Session,
+    *,
+    book_run_id: int,
+    chapter_count: int,
+    token_budget: int,
+    target_word_count: int | None = None,
+    chapter_word_count_min: int = 600,
+    chapter_word_count_max: int = 1600,
+    max_chapter_count: int = 10,
+    env: Mapping[str, str | None] | None = None,
+) -> Phase9BRealLlmSmokeResult:
+    """从已保留的真实 LLM smoke SQLite 继续补完剩余章节。"""
+
+    source = os.environ if env is None else env
+    _assert_preflight(
+        source,
+        chapter_count,
+        token_budget,
+        target_word_count,
+        chapter_word_count_min,
+        chapter_word_count_max,
+        max_chapter_count=max_chapter_count,
+    )
+    started_at = time.monotonic()
+    book_run = session.get(BookRun, book_run_id)
+    if book_run is None:
+        raise Phase9BRealLlmSmokeError(f"BookRun {book_run_id} 不存在，无法断点续跑。")
+    if book_run.status == "completed":
+        markdown_artifact = export_book_run_markdown(session, book_run.id)
+        audit_artifact = export_book_run_audit_report(session, book_run.id)
+        return Phase9BRealLlmSmokeResult(
+            book_run=book_run,
+            markdown_artifact=markdown_artifact,
+            audit_artifact=audit_artifact,
+            chapter_count=chapter_count,
+        )
+    if book_run.total_chapters != chapter_count:
+        book_run.total_chapters = chapter_count
+        book_run.chapter_budget = chapter_count
+        session.commit()
+        session.refresh(book_run)
+
+    completed_chapters = _reconstruct_completed_chapters(session, book_run.id)
+    completed_ordinals = {
+        int(item["chapter_index"])
+        for item in completed_chapters
+        if isinstance(item.get("chapter_index"), int)
+    }
+    tokens_used = sum(int(item.get("token_usage") or 0) for item in completed_chapters)
+
+    for chapter_index in range(1, chapter_count + 1):
+        if chapter_index in completed_ordinals:
+            continue
+        chapter = _chapter(session, book_run.book_id, chapter_index)
+        generated = _generate_chapter(session, source, chapter_index, chapter)
+        tokens_used += int(generated["token_usage"])
+        scene = _approve_scene(session, chapter, str(generated["content"]))
+        model_run = _record_model_run(session, book_run, scene, source, generated)
+        scene_packet = _record_scene_packet(session, book_run, scene)
+        outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+        completed_chapters.append(
+            {
+                "chapter_index": chapter_index,
+                "model_run_id": model_run.id,
+                "judge_report_id": outcome["judge_report_id"],
+                "repair_patch_id": outcome["repair_patch_id"],
+                "repair_patch_ids": outcome["repair_patch_ids"],
+                "repair_rounds": outcome["repair_rounds"],
+                "approved_scene_id": scene.id,
+                "token_usage": generated["token_usage"],
+                "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
+                "cost_estimate": 0.0,
+                "quality_score": outcome["quality_score"],
+                "quality_issues": outcome["quality_issues"],
+            }
+        )
+        completed_ordinals.add(chapter_index)
+        if tokens_used > token_budget:
+            _pause_by_budget(session, book_run.id, chapter_index, completed_chapters, tokens_used)
+            raise Phase9BRealLlmSmokeError("真实 LLM 断点续跑触发 token 预算暂停，不能标记为 completed。")
+
+    completed_chapters.sort(key=lambda item: int(item.get("chapter_index") or 0))
+    book_run = apply_book_run_progress(
+        session,
+        book_run.id,
+        BookRunProgressUpdate(
+            status="completed",
+            current_chapter_index=chapter_count,
+            progress={
+                "completed_chapters": completed_chapters,
+                "budget": {
+                    "tokens_used": tokens_used,
+                    "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
+                    "estimated_cost": 0.0,
+                },
+                "real_llm_smoke": {
+                    "provider_name": _required_env(source, "STORYFORGE_LLM_PROVIDER"),
+                    "model_name": _required_env(source, "STORYFORGE_LLM_MODEL"),
+                    "chapter_count": chapter_count,
+                    "resume": True,
                 },
             },
         ),
@@ -326,6 +457,73 @@ def _chapter(session: Session, book_id: int, chapter_index: int) -> Chapter:
     return chapter
 
 
+def _reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[dict[str, object]]:
+    """从中断前已落库的章节证据重建 BookRun 进度。"""
+
+    book_run = session.get(BookRun, book_run_id)
+    if book_run is None:
+        raise Phase9BRealLlmSmokeError(f"BookRun {book_run_id} 不存在，无法重建进度。")
+    rows = session.execute(
+        select(Chapter, Scene, ModelRun, ScenePacket)
+        .join(Scene, Scene.chapter_id == Chapter.id)
+        .join(ModelRun, ModelRun.scene_id == Scene.id)
+        .join(ScenePacket, ScenePacket.scene_id == Scene.id)
+        .where(
+            Chapter.book_id == book_run.book_id,
+            Chapter.status == "approved",
+            Scene.status == "approved",
+            Scene.content.is_not(None),
+            ModelRun.book_id == book_run.book_id,
+        )
+        .order_by(Chapter.ordinal, Scene.ordinal, Scene.id)
+    ).all()
+
+    completed: list[dict[str, object]] = []
+    seen_ordinals: set[int] = set()
+    for chapter, scene, model_run, scene_packet in rows:
+        if chapter.ordinal in seen_ordinals:
+            continue
+        judge_issues = session.scalars(
+            select(JudgeIssue)
+            .where(JudgeIssue.scene_id == scene.id, JudgeIssue.scene_packet_id == scene_packet.id)
+            .order_by(JudgeIssue.id)
+        ).all()
+        if not judge_issues:
+            raise Phase9BRealLlmSmokeError(f"第 {chapter.ordinal} 章缺少 Judge 证据，无法断点续跑。")
+        repair_patches = session.scalars(
+            select(RepairPatch).where(RepairPatch.scene_id == scene.id).order_by(RepairPatch.id)
+        ).all()
+        blocking_issues = [issue for issue in judge_issues if issue.issue_type != "phase9b_real_judge_pass"]
+        quality_score = _quality_score(list(blocking_issues))
+        completed.append(
+            {
+                "chapter_index": chapter.ordinal,
+                "model_run_id": model_run.id,
+                "judge_report_id": judge_issues[0].id,
+                "repair_patch_id": repair_patches[-1].id if repair_patches else None,
+                "repair_patch_ids": [patch.id for patch in repair_patches],
+                "repair_rounds": len(repair_patches),
+                "approved_scene_id": scene.id,
+                "token_usage": model_run.token_usage,
+                "elapsed_time_sec": 0,
+                "cost_estimate": 0.0,
+                "quality_score": quality_score,
+                "quality_issues": [
+                    {
+                        "issue_id": issue.id,
+                        "category": issue.issue_type,
+                        "severity": issue.severity,
+                        "summary": issue.description,
+                        "dimension": _CATEGORY_DIMENSION.get(issue.issue_type, "narrative_quality"),
+                    }
+                    for issue in blocking_issues
+                ],
+            }
+        )
+        seen_ordinals.add(chapter.ordinal)
+    return completed
+
+
 def _call_llm(
     source: Mapping[str, str | None],
     *,
@@ -380,13 +578,18 @@ def _generate_chapter(
     chapter_index: int,
     chapter: Chapter,
 ) -> dict[str, object]:
+    recap_full_chapters = _optional_int(source, "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS", RECAP_FULL_CHAPTERS_DEFAULT)
+    recap_max_chars = _optional_int(source, "STORYFORGE_LLM_SMOKE_RECAP_MAX_CHARS", RECAP_MAX_CHARS_DEFAULT)
+
+    # Phase 1 Context 增量化：传入 chapter_ordinal 触发 BookContext 缓存路径
     injection = assemble_prompt_injection(
         session,
         book_id=chapter.book_id,
         chapter_id=chapter.id,
+        chapter_ordinal=chapter.ordinal,  # Phase 1: 新增参数触发缓存
         chapter_title=chapter.title,
         chapter_goal=chapter.summary or "推进主线调查。",
-        prior_chapter_text=_prior_chapters_text(session, chapter.book_id, chapter.ordinal),
+        style_baseline_chapter_window=recap_full_chapters if recap_full_chapters > 0 else None,
     )
     prompt = build_draft_prompt_from_state(injection, full_chapter=True)
 
@@ -409,29 +612,66 @@ def _generate_chapter(
     return {"prompt": prompt, **result}
 
 
-def _prior_chapters_text(session: Session, book_id: int, ordinal: int) -> str | None:
-    """拼接本章之前所有已批准章节正文，作为续写的上文衔接，让人物与情节状态可跨章接续。"""
+def _prior_chapters_recap(
+    session: Session,
+    book_id: int,
+    ordinal: int,
+    *,
+    full_chapters: int = RECAP_FULL_CHAPTERS_DEFAULT,
+    max_chars: int = RECAP_MAX_CHARS_DEFAULT,
+) -> str | None:
+    """构建有界的续写上文：最近 N 章给完整正文，更早章节压成前情提要。
+
+    一次 JOIN 取回全部前序章节及其首个已批准 scene，避免逐章 N+1 查询；
+    总长度受 max_chars 限制，让 prompt 与查询开销不随章数线性膨胀。
+    """
 
     if ordinal <= 1:
         return None
-    prior_chapters = (
-        session.query(Chapter)
-        .filter(Chapter.book_id == book_id, Chapter.ordinal < ordinal)
-        .order_by(Chapter.ordinal)
-        .all()
-    )
-    blocks: list[str] = []
-    for prior in prior_chapters:
-        scene = (
-            session.query(Scene)
-            .filter(Scene.chapter_id == prior.id, Scene.status == "approved")
-            .order_by(Scene.ordinal, Scene.id)
-            .first()
+    rows = session.execute(
+        select(Chapter.ordinal, Chapter.title, Chapter.summary, Scene.content)
+        .join(Scene, Scene.chapter_id == Chapter.id)
+        .where(
+            Chapter.book_id == book_id,
+            Chapter.ordinal < ordinal,
+            Scene.status == "approved",
+            Scene.content.is_not(None),
         )
-        if scene is None or not scene.content or not scene.content.strip():
+        .order_by(Chapter.ordinal, Scene.ordinal, Scene.id)
+    ).all()
+
+    # 同章多个已批准 scene 时只取序最靠前的一个，保持与原行为一致。
+    seen: set[int] = set()
+    chapters: list[tuple[str, str, str]] = []  # (title, summary, content)
+    for chap_ordinal, title, summary, content in rows:
+        if chap_ordinal in seen:
             continue
-        blocks.append(f"【{prior.title}】\n{scene.content.strip()}")
-    return "\n\n".join(blocks) if blocks else None
+        body = str(content).strip() if content else ""
+        if not body:
+            continue
+        seen.add(chap_ordinal)
+        chapters.append((str(title or f"第{chap_ordinal}章"), str(summary or "").strip(), body))
+    if not chapters:
+        return None
+
+    full = chapters[-full_chapters:] if full_chapters > 0 else []
+    older = chapters[: len(chapters) - len(full)]
+
+    sections: list[str] = []
+    if older:
+        digest_lines = [
+            f"- {title}：{(summary or body)[:RECAP_OLDER_SUMMARY_MAX_CHARS]}"
+            for title, summary, body in older
+        ]
+        sections.append("【前情提要（更早章节梗概）】\n" + "\n".join(digest_lines))
+    for title, _summary, body in full:
+        sections.append(f"【最近章节原文 · {title}】\n{body}")
+
+    recap = "\n\n".join(sections)
+    if len(recap) <= max_chars:
+        return recap
+    # 超限时优先保留最近章节原文（位于末尾），从头截断。
+    return recap[-max_chars:]
 
 
 def _approve_scene(session: Session, chapter: Chapter, content: str) -> Scene:
@@ -445,6 +685,19 @@ def _approve_scene(session: Session, chapter: Chapter, content: str) -> Scene:
     session.add(scene)
     session.commit()
     session.refresh(scene)
+
+    # Phase 1 Context 增量化：章节批准后追加进 BookContext 缓存
+    from app.domains.book_runs.book_context import get_book_context
+    context = get_book_context(session, chapter.book_id)
+    context.append_chapter(
+        session=session,
+        chapter_id=chapter.id,
+        ordinal=chapter.ordinal,
+        title=chapter.title or f"第{chapter.ordinal}章",
+        summary=chapter.summary or "",
+        content=content,
+    )
+
     return scene
 
 
@@ -523,6 +776,7 @@ _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 def _judge_and_repair_loop(
     session: Session,
+    source: Mapping[str, str | None],
     book_run: BookRun,
     scene: Scene,
     scene_packet: ScenePacket,
@@ -533,13 +787,15 @@ def _judge_and_repair_loop(
     final_issues: list[JudgeIssue] = []
     final_quality_score = 100
     final_quality_issues: list[dict[str, object]] = []
+    final_fast_path_reason: str | None = None
 
     for _round_num in range(MAX_REPAIR_ROUNDS):
         session.refresh(scene)
-        issues, quality_score, quality_issues = _run_real_judge(session, book_run, scene, scene_packet)
-        final_issues = issues
-        final_quality_score = quality_score
-        final_quality_issues = quality_issues
+        judge_result = _run_real_judge(session, source, book_run, scene, scene_packet)
+        final_issues = judge_result.issues
+        final_quality_score = judge_result.quality_score
+        final_quality_issues = judge_result.quality_issues
+        final_fast_path_reason = judge_result.fast_path_reason
 
         if quality_score >= REPAIR_THRESHOLD or not issues:
             break
@@ -550,7 +806,13 @@ def _judge_and_repair_loop(
         else:
             break
 
-    judge_report_id = final_issues[0].id if final_issues else _record_summary_judge(session, scene, scene_packet, final_quality_score).id
+    judge_report_id = final_issues[0].id if final_issues else _record_summary_judge(
+        session,
+        scene,
+        scene_packet,
+        final_quality_score,
+        fast_path_reason=final_fast_path_reason,
+    ).id
 
     return {
         "judge_report_id": judge_report_id,
@@ -564,10 +826,11 @@ def _judge_and_repair_loop(
 
 def _run_real_judge(
     session: Session,
+    source: Mapping[str, str | None],
     book_run: BookRun,
     scene: Scene,
     scene_packet: ScenePacket,
-) -> tuple[list[JudgeIssue], int, list[dict[str, object]]]:
+) -> _JudgeRunResult:
     """对生成正文跑真实 Judge（语义模型 + 确定性检测器），算出质量分与问题清单。"""
 
     payload = _build_judge_payload(session, scene, scene_packet)
@@ -587,18 +850,36 @@ def _run_real_judge(
                     "forbidden_traits": forbidden,
                 })
 
+    deterministic_issues = deterministic_judge_fallback(payload)
+    local_issues = [
+        *deterministic_issues,
+        *_detect_character_bible_violations(session, payload),
+        *_detect_timeline_conflicts(session, payload),
+        *_detect_style_fingerprint_drift(session, payload),
+    ]
+    if _fast_judge_enabled(source) and not local_issues:
+        return _JudgeRunResult(
+            issues=[],
+            quality_score=100,
+            quality_issues=[],
+            fast_path_reason="local_gate_passed",
+        )
+
     # 传递 character_voice_constraints 给 create_judge_issues
     # 注意：create_judge_issues 内部会调用 semantic_judge_with_status，
     # 但它用的是 _load_voice_constraints 读 voice_traits，不读 forbidden_traits。
     # 我们需要直接调用 semantic_judge_with_status 并传入 character_voice_constraints。
     # 手动执行 Judge 流程（复制 create_judge_issues 的逻辑，但传入 character_voice_constraints）
     outcome = semantic_judge_with_status(payload, character_voice_constraints=character_voice_constraints)
-    detected = outcome.issues or deterministic_judge_fallback(payload)
+    detected = outcome.issues or deterministic_issues
     detected = [
         *detected,
-        *_detect_character_bible_violations(session, payload),
-        *_detect_timeline_conflicts(session, payload),
-        *_detect_style_fingerprint_drift(session, payload),
+        *[
+            issue
+            for issue in local_issues
+            if issue.category not in {item.category for item in detected}
+            or issue.matched_text not in {item.matched_text for item in detected}
+        ],
     ]
 
     # 注入失败标记
@@ -656,7 +937,14 @@ def _run_real_judge(
         }
         for issue in issues
     ]
-    return issues, quality_score, quality_issues
+    return _JudgeRunResult(issues=issues, quality_score=quality_score, quality_issues=quality_issues)
+
+
+def _fast_judge_enabled(source: Mapping[str, str | None]) -> bool:
+    """默认启用本地快速 Judge；显式设为 0/false/no/off 时恢复全量语义评审。"""
+
+    value = _env_value(source, "STORYFORGE_LLM_SMOKE_FAST_JUDGE").lower()
+    return value not in {"0", "false", "no", "off"}
 
 
 def _quality_score(issues: list[JudgeIssue]) -> int:
@@ -734,9 +1022,19 @@ def _maybe_repair(
     return repair_patch.id, repaired_content
 
 
-def _record_summary_judge(session: Session, scene: Scene, scene_packet: ScenePacket, quality_score: int) -> JudgeIssue:
+def _record_summary_judge(
+    session: Session,
+    scene: Scene,
+    scene_packet: ScenePacket,
+    quality_score: int,
+    *,
+    fast_path_reason: str | None = None,
+) -> JudgeIssue:
     """Judge 未发现问题时仍落一条通过记录，作为审计链的 judge_report_id。"""
 
+    payload: dict[str, object] = {"score": quality_score, "mode": "phase9b_real_llm_smoke"}
+    if fast_path_reason is not None:
+        payload["judge_fast_path"] = fast_path_reason
     judge = JudgeIssue(
         scene_id=scene.id,
         scene_packet_id=scene_packet.id,
@@ -745,7 +1043,7 @@ def _record_summary_judge(session: Session, scene: Scene, scene_packet: ScenePac
         severity="low",
         status="resolved",
         description="真实 Judge 未发现一致性或文风问题，章节通过。",
-        payload={"score": quality_score, "mode": "phase9b_real_llm_smoke"},
+        payload=payload,
     )
     session.add(judge)
     session.commit()

@@ -18,12 +18,15 @@ from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.phase9b_real_llm_smoke import (
     Phase9BRealLlmSmokePreflightError,
+    _prior_chapters_recap,
     _record_model_run,
     main,
     missing_phase9b_real_llm_env,
+    resume_phase9b_real_llm_smoke,
     run_phase9b_real_llm_smoke,
 )
 from app.domains.books.models import Book, Chapter, Scene
+from app.domains.judge.models import JudgeIssue
 from app.domains.model_runs.models import ModelRun
 
 
@@ -134,6 +137,47 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert audit["quality_summary"]["average_score"] == 100
     assert audit["quality_summary"]["scored_chapter_count"] == 1
     assert audit["chapters"][0]["quality_score"] == 100
+
+
+def test_phase9b_real_llm_smoke_fast_path_skips_semantic_judge_when_local_gate_passes(session: Session) -> None:
+    """确定性与本地一致性门禁通过时，应跳过昂贵语义 Judge 并保留通过审计。"""
+
+    _Phase9BChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": _local_provider_base_url(server.server_port),
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+    }
+    import os
+
+    old_env = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
+
+    try:
+        result = run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env=env)
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    assert result.book_run.status == "completed"
+    assert len(_Phase9BChatHandler.requests) == 1
+    only_request = _Phase9BChatHandler.requests[0]
+    assert "结构化一致性评审员" not in only_request["payload"]["messages"][0]["content"]
+
+    judge = session.query(JudgeIssue).one()
+    assert judge.issue_type == "phase9b_real_judge_pass"
+    assert judge.payload["judge_fast_path"] == "local_gate_passed"
+    assert result.book_run.progress["completed_chapters"][0]["quality_score"] == 100
+    assert result.book_run.progress["completed_chapters"][0]["quality_issues"] == []
 
 
 def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Session) -> None:
@@ -283,12 +327,154 @@ def test_phase9b_real_llm_smoke_truncates_long_model_run_summaries(session: Sess
     assert model_run.payload["output_summary_truncated"] is True
 
 
+def test_phase9b_real_llm_resume_continues_after_existing_approved_chapters(session: Session) -> None:
+    """断点续跑应复用已批准章节，只从下一章继续生成并导出完整证据。"""
+
+    _Phase9BChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": _local_provider_base_url(server.server_port),
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+    }
+    import os
+
+    old_env = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
+    try:
+        partial = run_phase9b_real_llm_smoke(
+            session,
+            chapter_count=2,
+            token_budget=10000,
+            target_word_count=3000,
+            max_chapter_count=4,
+            env=env,
+        )
+        partial.book_run.status = "running"
+        partial.book_run.total_chapters = 4
+        partial.book_run.chapter_budget = 4
+        partial.book_run.progress = {"completed_chapters": []}
+        for chapter in session.query(Chapter).order_by(Chapter.ordinal).all():
+            chapter.blueprint_id = partial.book_run.blueprint_id
+        session.commit()
+
+        for ordinal in (3, 4):
+            session.add(
+                Chapter(
+                    book_id=partial.book_run.book_id,
+                    blueprint_id=partial.book_run.blueprint_id,
+                    ordinal=ordinal,
+                    title=f"真实冒烟 {ordinal}",
+                    status="planned",
+                    summary=f"第 {ordinal} 章继续推进调查。",
+                    required_beats=[],
+                )
+            )
+        session.commit()
+        _Phase9BChatHandler.requests = []
+
+        result = resume_phase9b_real_llm_smoke(
+            session,
+            book_run_id=partial.book_run.id,
+            chapter_count=4,
+            token_budget=10000,
+            target_word_count=3000,
+            max_chapter_count=4,
+            env=env,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    assert result.book_run.status == "completed"
+    assert result.book_run.current_chapter_index == 4
+    assert result.book_run.total_chapters == 4
+    assert len(result.book_run.progress["completed_chapters"]) == 4
+    assert [item["chapter_index"] for item in result.book_run.progress["completed_chapters"]] == [1, 2, 3, 4]
+    assert [item["quality_score"] for item in result.book_run.progress["completed_chapters"][:2]] == [100, 100]
+    assert session.query(ModelRun).count() == 4
+    assert len(_Phase9BChatHandler.requests) == 4
+    assert "第 3 章" in str(result.markdown_artifact.payload)
+    assert "第 4 章" in str(result.markdown_artifact.payload)
+
+
 class _FakeSession:
     def __enter__(self) -> str:
         return "fake-session"
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         return None
+
+
+def _seed_recap_chapters(session: Session, *, count: int, body_chars: int) -> int:
+    book = Book(title="recap", status="draft", premise="验证有界 recap。")
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+    for ordinal in range(1, count + 1):
+        chapter = Chapter(
+            book_id=book.id,
+            ordinal=ordinal,
+            title=f"第{ordinal}章",
+            status="approved",
+            summary=f"第{ordinal}章梗概：林岚推进调查到阶段{ordinal}。",
+        )
+        session.add(chapter)
+        session.commit()
+        session.refresh(chapter)
+        scene = Scene(
+            chapter_id=chapter.id,
+            ordinal=1,
+            title=f"第{ordinal}章正文",
+            status="approved",
+            content=f"CH{ordinal}_BODY_" + ("正" * body_chars),
+        )
+        session.add(scene)
+    session.commit()
+    return book.id
+
+
+def test_prior_chapters_recap_is_bounded_and_keeps_recent_full_text(session: Session) -> None:
+    """有界 recap：最近 N 章给完整正文，更早章节只出梗概，总长受上限约束。"""
+
+    book_id = _seed_recap_chapters(session, count=5, body_chars=2000)
+
+    # 为第 6 章构建上文（前 5 章已批准）。
+    recap = _prior_chapters_recap(session, book_id, ordinal=6, full_chapters=2, max_chars=6000)
+    assert recap is not None
+    assert len(recap) <= 6000
+
+    # 最近 2 章（第 4、5 章）正文必须在内。
+    assert "CH5_BODY_" in recap
+    assert "CH4_BODY_" in recap
+    # 更早章节（第 1-3 章）只出梗概，不出完整正文。
+    assert "CH3_BODY_" not in recap
+    assert "CH1_BODY_" not in recap
+    assert "前情提要" in recap
+    assert "第3章梗概" in recap
+
+
+def test_prior_chapters_recap_length_stays_bounded_as_chapters_grow(session: Session) -> None:
+    """章数从 5 增到 20 时，recap 长度仍受同一上限约束，不随章数膨胀。"""
+
+    book_id = _seed_recap_chapters(session, count=20, body_chars=2000)
+    recap = _prior_chapters_recap(session, book_id, ordinal=21, full_chapters=2, max_chars=6000)
+    assert recap is not None
+    assert len(recap) <= 6000
+
+
+def test_prior_chapters_recap_returns_none_for_first_chapter(session: Session) -> None:
+    book_id = _seed_recap_chapters(session, count=3, body_chars=50)
+    assert _prior_chapters_recap(session, book_id, ordinal=1) is None
+
 
 
 def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:

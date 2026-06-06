@@ -1,0 +1,1 @@
+运行后成功门禁未通过：第 12 章 quality_score 低于 90；第 22 章 quality_score 低于 90；第 27 章 quality_score 低于 90；第 30 章 quality_score 低于 90；累计 quality_issue_count 超过 3

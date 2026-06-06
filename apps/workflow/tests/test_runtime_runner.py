@@ -16,6 +16,17 @@ from storyforge_workflow.runtime.checkpoints import ApiModelRunAdapter
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
 
 
+class CloseableCheckpointStore(InMemoryRuntimeCheckpointStore):
+    """测试用 checkpoint store，记录运行器关闭时是否释放连接。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class CapturingModelRunSink:
     """测试用 sink，模拟后续 API ModelRun 真表 adapter。"""
 
@@ -126,6 +137,50 @@ def test_workflow_runtime_start_and_resume_records_provider_execution(monkeypatc
     assert session.prompt_history[-1].prompt_summary == str({"approved": True, "comment": "继续进入后续润色。"})
 
 
+def test_workflow_runtime_close_releases_provider_executor_and_checkpoint_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """运行器关闭时应统一释放 provider 连接、节点 executor 与 checkpoint store。"""
+
+    import storyforge_workflow.runtime.runner as runner_module
+
+    closed: list[str] = []
+    checkpoint_store = CloseableCheckpointStore()
+    monkeypatch.setattr(runner_module, "close_provider_connections", lambda: closed.append("provider"))
+    monkeypatch.setattr(runner_module, "close_workflow_node_executor", lambda: closed.append("executor"))
+    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store)
+
+    runtime.close()
+
+    assert closed == ["executor", "provider"]
+    assert checkpoint_store.closed is True
+
+
+def test_workflow_runtime_close_continues_cleanup_when_provider_close_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """单个 close 步骤失败时，运行器仍应继续释放后续资源。"""
+
+    import storyforge_workflow.runtime.runner as runner_module
+
+    closed: list[str] = []
+    checkpoint_store = CloseableCheckpointStore()
+
+    def fail_provider_close() -> None:
+        closed.append("provider")
+        raise RuntimeError("provider close failed")
+
+    monkeypatch.setattr(runner_module, "close_workflow_node_executor", lambda: closed.append("executor"))
+    monkeypatch.setattr(runner_module, "close_provider_connections", fail_provider_close)
+    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store)
+
+    with pytest.raises(RuntimeError, match="provider close failed"):
+        runtime.close()
+
+    assert closed == ["executor", "provider"]
+    assert checkpoint_store.closed is True
+
+
 def test_workflow_runtime_ignores_model_run_sink_error_after_provider_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -204,7 +259,9 @@ def test_workflow_runtime_keeps_provider_failure_when_model_run_sink_fails(
     assert failure_event.failure_kind == "provider_timeout"
 
 
-def test_workflow_runtime_flushes_sqlite_snapshot_after_each_graph_node(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_workflow_runtime_flushes_sqlite_snapshot_after_each_graph_node(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     """运行器应在每个图节点完成后把当前引用状态刷新到 SQLite。"""
 
     def provider_execution(**kwargs: object) -> ProviderExecutionResult:
@@ -334,8 +391,12 @@ def test_workflow_runtime_marks_timed_out_node_as_failed(monkeypatch: pytest.Mon
     monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
     monkeypatch.setenv("STORYFORGE_WORKFLOW_NODE_TIMEOUT_SECONDS", "0.001")
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
-    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(quick_responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(quick_responses))
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(quick_responses)
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(quick_responses)
+    )
     monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", slow_draft_response)
     checkpoint_store = InMemoryRuntimeCheckpointStore()
     lifecycle_store = InMemoryWorkflowLifecycleStore()
@@ -372,6 +433,69 @@ def test_workflow_runtime_marks_timed_out_node_as_failed(monkeypatch: pytest.Mon
     assert session is not None
     assert session.status == "recoverable_failed"
 
+
+def test_workflow_runtime_marks_plain_node_error_as_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """普通节点异常也应收敛为可恢复失败，避免运行态停在上一节点。"""
+
+    def provider_execution(**kwargs: object) -> ProviderExecutionResult:
+        return ProviderExecutionResult(
+            capability=str(kwargs["capability"]),
+            provider_name="openai-compatible",
+            model_name="storyforge-writer",
+            latency_ms=20,
+            token_usage=30,
+            summary=f"真实模型摘要：{kwargs['prompt_summary']}",
+        )
+
+    plan_responses = iter(
+        [
+            "灯塔远航\n舰队如何找到新家园\n克制\n兑现迁徙史诗",
+            "畸形章纲\n只有两行",
+        ]
+    )
+
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(plan_responses)
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(plan_responses)
+    )
+    checkpoint_store = InMemoryRuntimeCheckpointStore()
+    lifecycle_store = InMemoryWorkflowLifecycleStore()
+    session_store = InMemoryWorkflowSessionStore()
+    runtime = WorkflowRuntime(
+        checkpoint_store=checkpoint_store,
+        lifecycle_store=lifecycle_store,
+        session_store=session_store,
+    )
+
+    failed = runtime.start(
+        thread_id="phase-node-error-thread",
+        job_run_id="phase-node-error-job",
+        premise="远航舰队寻找新家园。",
+        user_intent="验证普通节点异常收敛。",
+        scene_packet={"scene_goal": "林岚争取维修窗口。"},
+    )
+
+    checkpoint_state = checkpoint_store.load_state("phase-node-error-thread")
+    latest_record = checkpoint_store.latest("phase-node-error-thread")
+    failure_event = lifecycle_store.latest("phase-node-error-thread")
+    session = session_store.latest_for_thread("phase-node-error-thread")
+
+    assert failed.status == "failed"
+    assert failed.current_node == "scene_architect.chapter_plan"
+    assert checkpoint_state is not None
+    assert checkpoint_state["current_node"] == "scene_architect.chapter_plan"
+    assert checkpoint_state["error_code"] == "node_execution_failed"
+    assert latest_record is not None
+    assert latest_record.approval_status == "failed"
+    assert failure_event is not None
+    assert failure_event.status == "recoverable_failed"
+    assert failure_event.failure_kind == "unknown_runtime_error"
+    assert failure_event.current_node == "scene_architect.chapter_plan"
+    assert session is not None
+    assert session.status == "recoverable_failed"
 
 
 def test_model_run_payload_requires_persisted_api_job_run_id() -> None:
@@ -478,8 +602,12 @@ def test_workflow_runtime_threads_prompt_injection_into_draft_writer(monkeypatch
         return "林岚把左臂藏进披风，没有解释。"
 
     monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
-    monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(plan_responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(plan_responses))
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(plan_responses)
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(plan_responses)
+    )
     monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", capture_draft_prompt)
     monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", provider_execution)
     checkpoint_store = InMemoryRuntimeCheckpointStore()
@@ -529,5 +657,9 @@ def _stub_node_llm(monkeypatch: pytest.MonkeyPatch) -> None:
         ]
     )
     monkeypatch.setattr("storyforge_workflow.nodes.director.generate_text", lambda prompt, **kwargs: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(responses))
-    monkeypatch.setattr("storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt, **kwargs: next(responses))
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.scene_architect.generate_text", lambda prompt, **kwargs: next(responses)
+    )
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.draft_writer.generate_text", lambda prompt, **kwargs: next(responses)
+    )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from threading import Event
+
 import pytest
 
 from storyforge_workflow.orchestrators.book_run_adapter import (
@@ -226,9 +228,7 @@ def test_book_run_adapter_skill_run_statuses_match_registry_status_mapping() -> 
 
     result = run_book_run_with_skill_runner(request, ports)
 
-    allowed_by_skill = {
-        skill.name: set(skill.status_mapping.values()) for skill in DEFAULT_NOVEL_SKILL_REGISTRY.all()
-    }
+    allowed_by_skill = {skill.name: set(skill.status_mapping.values()) for skill in DEFAULT_NOVEL_SKILL_REGISTRY.all()}
     for run in result.progress["completed_chapters"][0]["skill_runs"]:
         assert run["status"] in allowed_by_skill[run["skill_name"]]
     assert result.status in {
@@ -237,6 +237,34 @@ def test_book_run_adapter_skill_run_statuses_match_registry_status_mapping() -> 
         "paused_by_budget",
         "paused_by_provider_degradation",
     }
+
+
+def test_book_run_adapter_wraps_memory_extractor_into_novel_loop_ports() -> None:
+    """生产 adapter 应能把 API 侧真实 memory 写入函数接到 NovelLoopPorts。"""
+
+    extracted: list[tuple[int, int, int, str]] = []
+
+    def memory_extractor(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> list[str]:
+        extracted.append((request.book_id, request.chapter_id, approved_scene_id, draft))
+        return [f"memory:{request.chapter_id}:{approved_scene_id}"]
+
+    sink = CapturingProgressSink()
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=lambda chapter_index: chapter_index + 100,
+        novel_loop_ports_factory=_ports_without_memory_extractor,
+        progress_sink=sink,
+        memory_extractor=memory_extractor,
+    )
+    request = BookRunAdapterRequest(book_run_id=101, book_id=102, blueprint_id=103, total_chapters=1)
+
+    result = run_book_run_with_skill_runner(request, ports)
+
+    assert extracted == [(102, 101, 701, "林岚抵达雾港。")]
+    chapter = result.progress["completed_chapters"][0]
+    assert chapter["memory_atom_ids"] == ["memory:101:701"]
+    assert chapter["skill_runs"][-1]["status"] == "memory_updated"
+    assert chapter["skill_runs"][-1]["output_refs"]["memory_atom_ids"] == ("memory:101:701",)
 
 
 def test_book_run_adapter_emits_running_progress_after_each_completed_chapter() -> None:
@@ -321,6 +349,75 @@ def test_book_run_adapter_failed_progress_points_to_active_chapter_after_partial
     assert failed["volume_progress"]["next_batch_start_chapter_index"] == 2
 
 
+def test_book_run_adapter_parallel_failure_progress_uses_failed_chapter_index() -> None:
+    """章节并发执行失败时，failed progress 必须指向实际失败章节。"""
+
+    sink = CapturingProgressSink()
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=lambda chapter_index: chapter_index + 100,
+        novel_loop_ports_factory=_fail_second_chapter_ports,
+        progress_sink=sink,
+    )
+    request = BookRunAdapterRequest(
+        book_run_id=92,
+        book_id=93,
+        blueprint_id=94,
+        total_chapters=3,
+        chapter_parallelism=3,
+    )
+
+    with pytest.raises(RuntimeError, match="第二章生成超时"):
+        run_book_run_with_skill_runner(request, ports)
+
+    failed = sink.payloads[-1]
+    assert failed["status"] == "failed"
+    assert failed["current_chapter_index"] == 2
+    assert failed["progress"]["failure"]["failed_at_chapter_index"] == 2
+
+
+def test_book_run_adapter_parallel_plain_exception_uses_latest_progress_chapter() -> None:
+    """并发 progress 回填抛普通异常时，失败章节号不应读取 worker 共享活动章节。"""
+
+    third_chapter_started = Event()
+    sent: list[dict[str, object]] = []
+
+    def chapter_id(chapter_index: int) -> int:
+        if chapter_index == 3:
+            third_chapter_started.set()
+        if chapter_index == 1:
+            assert third_chapter_started.wait(timeout=2)
+        return chapter_index + 100
+
+    def fail_on_first_chapter_progress(payload: dict[str, object]) -> None:
+        sent.append(payload)
+        dispatch = payload.get("progress", {}).get("dispatch", {})
+        if dispatch == {"stage": "chapter_completed", "chapter_index": 1}:
+            raise RuntimeError("progress sink 写入失败")
+
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=chapter_id,
+        novel_loop_ports_factory=_passing_ports,
+        progress_sink=CallableProgressSink(fail_on_first_chapter_progress),
+    )
+    request = BookRunAdapterRequest(
+        book_run_id=93,
+        book_id=94,
+        blueprint_id=95,
+        total_chapters=3,
+        chapter_parallelism=3,
+    )
+
+    with pytest.raises(RuntimeError, match="progress sink 写入失败"):
+        run_book_run_with_skill_runner(request, ports)
+
+    failed = sent[-1]
+    assert failed["status"] == "failed"
+    assert failed["current_chapter_index"] == 1
+    assert failed["progress"]["failure"]["failed_at_chapter_index"] == 1
+
+
 def test_book_run_adapter_failure_progress_sink_error_does_not_hide_original_error() -> None:
     """失败回填链路异常时，adapter 仍应暴露章节执行的原始错误。"""
 
@@ -353,6 +450,17 @@ def _review_ports(request: NovelLoopRequest) -> NovelLoopPorts:
         judge_scene=lambda draft, attempt: {"status": "awaiting_review", "judge_report_id": 901},
         repair_scene=lambda draft, report, attempt: draft,
         approve_scene=lambda novel_request, draft, refs: 0,
+    )
+
+
+def _ports_without_memory_extractor(request: NovelLoopRequest) -> NovelLoopPorts:
+    return NovelLoopPorts(
+        compile_context=lambda novel_request: f"ctx-{novel_request.chapter_index}",
+        generate_scene=lambda novel_request, context_id: "林岚抵达雾港。",
+        record_model_run=lambda novel_request, draft: 500 + novel_request.chapter_index,
+        judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": 600 + attempt},
+        repair_scene=lambda draft, report, attempt: draft,
+        approve_scene=lambda novel_request, draft, refs: 700 + novel_request.chapter_index,
     )
 
 

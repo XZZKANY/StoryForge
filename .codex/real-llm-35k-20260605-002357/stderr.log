@@ -1,0 +1,4 @@
+1 validation error for ModelRunCreate
+input_summary
+  String should have at most 50000 characters [type=string_too_long, input_value="Task: Write part of a Ch...性与角色约束。", input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long

@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 from collections.abc import Callable
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -130,7 +132,9 @@ class InMemoryRuntimeCheckpointStore:
         self._model_runs: list[RuntimeModelRunRecord] = []
         self._state: dict[str, dict[str, Any]] = {}
 
-    def record(self, *, thread_id: str, job_run_id: str, current_node: str, summary: str, approval_status: str) -> RuntimeRecord:
+    def record(
+        self, *, thread_id: str, job_run_id: str, current_node: str, summary: str, approval_status: str
+    ) -> RuntimeRecord:
         record = RuntimeRecord(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -215,9 +219,41 @@ class RuntimeCheckpointStore:
     def __init__(self, *, sqlite_path: str | os.PathLike[str] | None = None) -> None:
         self.sqlite_path = Path(sqlite_path) if sqlite_path is not None else _default_sqlite_path()
         self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection: sqlite3.Connection | None = None
+        self._connection_lock = threading.RLock()
+        self._write_behind_enabled = _truthy_env("STORYFORGE_CHECKPOINT_WRITE_BEHIND")
+        self._write_behind_interval = _float_env("STORYFORGE_CHECKPOINT_WRITE_BEHIND_FLUSH_INTERVAL_SECONDS", 1.0)
+        self._pending_states: dict[str, tuple[dict[str, Any], str, str]] = {}
+        self._write_behind_condition = threading.Condition(self._connection_lock)
+        self._write_behind_closed = False
+        self._write_behind_thread: threading.Thread | None = None
         self._setup()
+        if self._write_behind_enabled:
+            self._write_behind_thread = threading.Thread(
+                target=self._write_behind_loop,
+                name="storyforge-checkpoint-writer",
+                daemon=True,
+            )
+            self._write_behind_thread.start()
 
-    def record(self, *, thread_id: str, job_run_id: str, current_node: str, summary: str, approval_status: str) -> RuntimeRecord:
+    def close(self) -> None:
+        """关闭当前 store 持有的 SQLite 连接，供 worker 退出和测试清理使用。"""
+
+        self.flush()
+        with self._write_behind_condition:
+            self._write_behind_closed = True
+            self._write_behind_condition.notify_all()
+        if self._write_behind_thread is not None:
+            self._write_behind_thread.join(timeout=2)
+        with self._connection_lock:
+            connection = self._connection
+            self._connection = None
+        if connection is not None:
+            connection.close()
+
+    def record(
+        self, *, thread_id: str, job_run_id: str, current_node: str, summary: str, approval_status: str
+    ) -> RuntimeRecord:
         record = RuntimeRecord(
             thread_id=thread_id,
             job_run_id=job_run_id,
@@ -304,6 +340,39 @@ class RuntimeCheckpointStore:
         reference_state = checkpoint_reference_state(state)
         state_json = json.dumps(reference_state, ensure_ascii=False, sort_keys=True, default=str)
         updated_at = _format_datetime(datetime.now(UTC))
+        if self._write_behind_enabled:
+            with self._write_behind_condition:
+                self._pending_states[thread_id] = (reference_state, state_json, updated_at)
+                self._write_behind_condition.notify_all()
+            return
+        self._write_state(
+            thread_id=thread_id,
+            reference_state=reference_state,
+            state_json=state_json,
+            updated_at=updated_at,
+        )
+
+    def flush(self) -> None:
+        """把 write-behind 缓冲中的最新 checkpoint 刷入 SQLite。"""
+
+        with self._connection_lock:
+            pending = self._drain_pending_states_locked()
+            for thread_id, (reference_state, state_json, updated_at) in pending.items():
+                self._write_state(
+                    thread_id=thread_id,
+                    reference_state=reference_state,
+                    state_json=state_json,
+                    updated_at=updated_at,
+                )
+
+    def _write_state(
+        self,
+        *,
+        thread_id: str,
+        reference_state: dict[str, Any],
+        state_json: str,
+        updated_at: str,
+    ) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
@@ -335,14 +404,18 @@ class RuntimeCheckpointStore:
             )
 
     def load_state(self, thread_id: str) -> dict[str, Any] | None:
+        self.flush()
         with self._connect() as connection:
-            row = connection.execute("SELECT state_json FROM runtime_states WHERE thread_id = ?", (thread_id,)).fetchone()
+            row = connection.execute(
+                "SELECT state_json FROM runtime_states WHERE thread_id = ?", (thread_id,)
+            ).fetchone()
         if row is None:
             return None
         state = json.loads(str(row["state_json"]))
         return dict(state)
 
     def latest(self, thread_id: str) -> RuntimeRecord | None:
+        self.flush()
         with self._connect() as connection:
             row = connection.execute(
                 """
@@ -357,6 +430,7 @@ class RuntimeCheckpointStore:
         return None if row is None else _record_from_row(row)
 
     def list_records(self, thread_id: str) -> list[RuntimeRecord]:
+        self.flush()
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -370,6 +444,7 @@ class RuntimeCheckpointStore:
         return [_record_from_row(row) for row in rows]
 
     def list_model_runs(self, thread_id: str) -> list[RuntimeModelRunRecord]:
+        self.flush()
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -386,6 +461,7 @@ class RuntimeCheckpointStore:
     def list_state_snapshots(self, thread_id: str) -> list[RuntimeStateSnapshot]:
         """按写入顺序返回指定线程的状态快照历史。"""
 
+        self.flush()
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -401,6 +477,7 @@ class RuntimeCheckpointStore:
     def list_incomplete_workflows(self) -> list[RuntimeStateSnapshot]:
         """返回启动时可恢复的未完成 workflow 最新 checkpoint。"""
 
+        self.flush()
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -412,10 +489,23 @@ class RuntimeCheckpointStore:
         snapshots = [_snapshot_from_latest_state_row(row) for row in rows]
         return [snapshot for snapshot in snapshots if snapshot.approval_status != "approved"]
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.sqlite_path)
-        connection.row_factory = sqlite3.Row
-        return connection
+    @contextmanager
+    def _connect(self):
+        with self._connection_lock:
+            if self._connection is None:
+                self._connection = sqlite3.connect(self.sqlite_path, check_same_thread=False)
+                self._connection.row_factory = sqlite3.Row
+                _configure_sqlite_connection(self._connection)
+            connection = self._connection
+            try:
+                with connection:
+                    yield connection
+            except sqlite3.Error:
+                if self._connection is connection:
+                    self._connection = None
+                with suppress(sqlite3.Error):
+                    connection.close()
+                raise
 
     def _setup(self) -> None:
         with self._connect() as connection:
@@ -465,12 +555,52 @@ class RuntimeCheckpointStore:
                 """
             )
 
+    def _write_behind_loop(self) -> None:
+        while True:
+            with self._write_behind_condition:
+                if not self._pending_states and not self._write_behind_closed:
+                    self._write_behind_condition.wait(timeout=max(0.1, self._write_behind_interval))
+                if self._write_behind_closed:
+                    return
+                if not self._pending_states:
+                    continue
+                self._write_behind_condition.wait(timeout=max(0.1, self._write_behind_interval))
+                if self._write_behind_closed:
+                    return
+            self.flush()
+
+    def _drain_pending_states_locked(self) -> dict[str, tuple[dict[str, Any], str, str]]:
+        pending = dict(self._pending_states)
+        self._pending_states.clear()
+        return pending
+
 
 def _default_sqlite_path() -> Path:
     configured = os.getenv("STORYFORGE_WORKFLOW_SQLITE_PATH")
     if configured:
         return Path(configured)
     return Path(__file__).resolve().parents[2] / ".runtime" / "workflow-runtime.sqlite3"
+
+
+def _configure_sqlite_connection(connection: sqlite3.Connection) -> None:
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA synchronous=NORMAL")
+    connection.execute("PRAGMA busy_timeout=5000")
+
+
+def _truthy_env(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        parsed = float(raw)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
 
 
 def _format_datetime(value: datetime) -> str:
