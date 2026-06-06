@@ -4,7 +4,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
-from app.domains.books.models import Book
+from app.domains.blueprints.models import BookBlueprint
+from app.domains.books.models import Book, Chapter
 
 
 def seed_book(session_factory: sessionmaker[Session]) -> int:
@@ -121,6 +122,150 @@ def test_locked_blueprint_writes_chapter_plan_to_existing_chapters(
     payload = chapter_goal.json()
     assert payload["target_chapter_title"] == "雾港航线 1"
     assert payload["chapter_goal"] == "发现异常并开始调查：林岚在雾港追查失真的灯塔信号。"
+
+
+def test_chapter_plan_persists_lightweight_planning_arc_summary(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """章节规划应把结构化弧线压缩为章节轻量引用和 Blueprint 摘要。"""
+
+    book_id = seed_book(session_factory)
+    created = client.post(
+        "/api/blueprints",
+        json={
+            "book_id": book_id,
+            "premise": "林岚在雾港追查失真的灯塔信号。",
+            "tone": "克制悬疑",
+            "target_word_count": 7500,
+            "target_chapter_count": 5,
+            "chapter_word_count_min": 1000,
+            "chapter_word_count_max": 1800,
+            "metadata": {
+                "planning_arcs": [
+                    {
+                        "arc_id": "旧港信号",
+                        "title": "旧港信号真相",
+                        "target_chapters": [1, 2, 3],
+                        "payoff_chapter": 3,
+                    },
+                    {
+                        "arc_id": "灯塔许可",
+                        "title": "灯塔许可代价",
+                        "target_chapters": [4],
+                        "payoff_chapter": 4,
+                    },
+                ],
+            },
+        },
+    ).json()
+    client.post(f"/api/blueprints/{created['id']}/lock")
+
+    response = client.post(f"/api/blueprints/{created['id']}/chapter-plan")
+
+    assert response.status_code == 200, response.text
+    with session_factory() as session:
+        blueprint = session.get(BookBlueprint, created["id"])
+        assert blueprint is not None
+        summary = blueprint.metadata_["planning_summary"]
+        chapters = (
+            session.query(Chapter)
+            .filter(Chapter.book_id == book_id, Chapter.blueprint_id == created["id"])
+            .order_by(Chapter.ordinal)
+            .all()
+        )
+
+    assert summary == {
+        "schema_version": 1,
+        "arc_count": 2,
+        "linked_chapter_count": 4,
+        "target_chapter_count": 5,
+        "arc_completion_ratio": 0.8,
+        "chapter_arc_links": {
+            "1": ["旧港信号"],
+            "2": ["旧港信号"],
+            "3": ["旧港信号"],
+            "4": ["灯塔许可"],
+        },
+    }
+    assert chapters[0].required_beats[-1] == "弧线推进：旧港信号真相"
+    assert chapters[2].required_beats[-1] == "弧线推进：旧港信号真相"
+    assert chapters[3].required_beats[-1] == "弧线推进：灯塔许可代价"
+    assert all("planning_arcs" not in beat for chapter in chapters for beat in chapter.required_beats)
+
+
+def test_chapter_plan_ignores_invalid_planning_arcs_and_deduplicates_targets(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """章节规划遇到坏弧线数据时应跳过无效项，并保留有效轻量引用。"""
+
+    book_id = seed_book(session_factory)
+    created = client.post(
+        "/api/blueprints",
+        json={
+            "book_id": book_id,
+            "premise": "林岚在雾港追查混乱的灯塔信号。",
+            "tone": "克制悬疑",
+            "target_word_count": 4500,
+            "target_chapter_count": 3,
+            "chapter_word_count_min": 1000,
+            "chapter_word_count_max": 1800,
+            "metadata": {
+                "planning_arcs": [
+                    "不是对象",
+                    {
+                        "arc_id": "   ",
+                        "title": "空白弧线",
+                        "target_chapters": [1],
+                        "payoff_chapter": 1,
+                    },
+                    {
+                        "arc_id": "回退标题",
+                        "title": "   ",
+                        "target_chapters": [1, 1, 0, 999, "2"],
+                        "payoff_chapter": 1,
+                    },
+                    {
+                        "arc_id": "有效弧线",
+                        "title": "有效弧线标题",
+                        "target_chapters": [2],
+                    },
+                ],
+            },
+        },
+    ).json()
+    client.post(f"/api/blueprints/{created['id']}/lock")
+
+    response = client.post(f"/api/blueprints/{created['id']}/chapter-plan")
+
+    assert response.status_code == 200, response.text
+    with session_factory() as session:
+        blueprint = session.get(BookBlueprint, created["id"])
+        assert blueprint is not None
+        summary = blueprint.metadata_["planning_summary"]
+        chapters = (
+            session.query(Chapter)
+            .filter(Chapter.book_id == book_id, Chapter.blueprint_id == created["id"])
+            .order_by(Chapter.ordinal)
+            .all()
+        )
+
+    assert summary == {
+        "schema_version": 1,
+        "arc_count": 2,
+        "linked_chapter_count": 2,
+        "target_chapter_count": 3,
+        "arc_completion_ratio": 0.67,
+        "chapter_arc_links": {
+            "1": ["回退标题"],
+            "2": ["有效弧线"],
+        },
+    }
+    assert chapters[0].required_beats.count("弧线推进：回退标题") == 1
+    assert chapters[1].required_beats.count("弧线推进：有效弧线标题") == 1
+    assert all("空白弧线" not in beat for chapter in chapters for beat in chapter.required_beats)
+    assert all("弧线推进：" not in beat for beat in chapters[2].required_beats)
 
 
 def test_create_blueprint_rejects_missing_book(client: TestClient) -> None:

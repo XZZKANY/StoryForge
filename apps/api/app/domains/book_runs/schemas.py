@@ -56,12 +56,20 @@ class BookRunProgressUpdate(BaseModel):
     volume_progress: BookRunVolumeProgress | None = None
 
 
+class BookRunWorkflowPlanningRefs(BaseModel):
+    """workflow 只需要轻量规划引用，不接收完整规划对象。"""
+
+    arc_ids: list[str] = Field(default_factory=list)
+    arc_completion_ratio: float = Field(ge=0, le=1)
+
+
 class BookRunWorkflowChapter(BaseModel):
     """workflow dispatch 使用的章节映射，避免 worker 查询 API 数据库。"""
 
     chapter_index: int = Field(ge=1)
     chapter_id: int = Field(gt=0)
     chapter_goal: str = Field(min_length=1)
+    planning_refs: BookRunWorkflowPlanningRefs | None = None
 
 
 class BookRunWorkflowDispatch(BaseModel):

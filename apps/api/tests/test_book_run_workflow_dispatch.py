@@ -178,6 +178,143 @@ def test_build_book_run_workflow_dispatch_payload(session_factory: sessionmaker[
     assert dispatch.chapters[0].chapter_goal
 
 
+def test_workflow_dispatch_includes_lightweight_planning_refs(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """dispatch 每章只携带 planning arc 的轻量引用，不能泄露完整规划对象。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=5,
+        metadata={
+            "planning_arcs": [
+                {
+                    "arc_id": "旧港信号",
+                    "title": "旧港信号真相",
+                    "target_chapters": [1, 2, 3],
+                    "payoff_chapter": 3,
+                },
+                {
+                    "arc_id": "灯塔许可",
+                    "title": "灯塔许可代价",
+                    "target_chapters": [4],
+                    "payoff_chapter": 4,
+                },
+            ],
+        },
+    )
+
+    with session_factory() as session:
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.chapters[0].planning_refs is not None
+    assert dispatch.chapters[0].planning_refs.model_dump() == {
+        "arc_ids": ["旧港信号"],
+        "arc_completion_ratio": 0.8,
+    }
+    assert dispatch.chapters[3].planning_refs is not None
+    assert dispatch.chapters[3].planning_refs.model_dump() == {
+        "arc_ids": ["灯塔许可"],
+        "arc_completion_ratio": 0.8,
+    }
+    assert dispatch.chapters[4].planning_refs is None
+    assert "planning_arcs" not in dispatch.model_dump_json()
+
+
+def test_workflow_dispatch_ignores_corrupt_planning_summary_refs(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """损坏的 planning_summary 不应让 dispatch 抛错或输出异常 refs。"""
+
+    with session_factory() as session:
+        book = Book(title="损坏摘要作品", status="draft", premise="测试损坏规划摘要。")
+        session.add(book)
+        session.flush()
+        blueprint = BookBlueprint(
+            book_id=book.id,
+            premise="测试损坏规划摘要。",
+            tone="克制",
+            target_word_count=3000,
+            target_chapter_count=3,
+            chapter_word_count_min=800,
+            chapter_word_count_max=1200,
+            status="locked",
+            version=1,
+            metadata_={
+                "planning_summary": {
+                    "schema_version": 1,
+                    "arc_completion_ratio": "坏比例",
+                    "chapter_arc_links": {
+                        "1": "不是列表",
+                        "2": ["有效弧线"],
+                    },
+                },
+            },
+        )
+        session.add(blueprint)
+        session.flush()
+        for index in range(1, 4):
+            session.add(
+                Chapter(
+                    book_id=book.id,
+                    blueprint_id=blueprint.id,
+                    ordinal=index,
+                    title=f"第 {index} 章",
+                    status="planned",
+                    summary=f"第 {index} 章目标",
+                    required_beats=[],
+                )
+            )
+        book_run = BookRun(
+            book_id=book.id,
+            blueprint_id=blueprint.id,
+            status="running",
+            current_chapter_index=1,
+            total_chapters=3,
+            progress={"completed_chapters": []},
+            checkpoint=[],
+            cost_summary={"estimated_cost": 0.0},
+        )
+        session.add(book_run)
+        session.commit()
+        book_run_id = book_run.id
+
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+        blueprint.metadata_ = {
+            "planning_summary": {
+                "schema_version": 1,
+                "arc_completion_ratio": -0.5,
+                "chapter_arc_links": {"2": ["有效弧线"]},
+            },
+        }
+        session.commit()
+        negative_dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+        blueprint.metadata_ = {
+            "planning_summary": {
+                "schema_version": 1,
+                "arc_completion_ratio": 2.5,
+                "chapter_arc_links": {"2": ["有效弧线"]},
+            },
+        }
+        session.commit()
+        capped_dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+        blueprint.metadata_ = {"planning_summary": {"arc_completion_ratio": 0.5, "chapter_arc_links": "坏链接"}}
+        session.commit()
+        corrupt_links_dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.chapters[0].planning_refs is None
+    assert dispatch.chapters[1].planning_refs is not None
+    assert dispatch.chapters[1].planning_refs.model_dump() == {
+        "arc_ids": ["有效弧线"],
+        "arc_completion_ratio": 0.0,
+    }
+    assert negative_dispatch.chapters[1].planning_refs is not None
+    assert negative_dispatch.chapters[1].planning_refs.arc_completion_ratio == 0.0
+    assert capped_dispatch.chapters[1].planning_refs is not None
+    assert capped_dispatch.chapters[1].planning_refs.arc_completion_ratio == 1.0
+    assert all(chapter.planning_refs is None for chapter in corrupt_links_dispatch.chapters)
+
+
 def test_longform_volume_dispatch_requires_context_readiness(
     session_factory: sessionmaker[Session],
 ) -> None:

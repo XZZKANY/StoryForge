@@ -14,6 +14,7 @@ from app.domains.book_runs.schemas import (
     BookRunVolumeProgress,
     BookRunWorkflowChapter,
     BookRunWorkflowDispatch,
+    BookRunWorkflowPlanningRefs,
 )
 from app.domains.books.models import Book, Chapter
 from app.domains.character_bible.service import list_character_bible_entries
@@ -127,6 +128,7 @@ def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> Book
                 chapter_index=index,
                 chapter_id=chapters_by_index[index].id,
                 chapter_goal=_chapter_goal(chapters_by_index[index]),
+                planning_refs=_chapter_planning_refs(blueprint, index),
             )
             for index in required_indexes
         ],
@@ -614,6 +616,32 @@ def _dispatch_start_chapter_index(book_run: BookRun) -> int:
 
 def _chapter_goal(chapter: Chapter) -> str:
     return (chapter.summary or chapter.title or f"第 {chapter.ordinal} 章").strip()
+
+
+def _chapter_planning_refs(blueprint: BookBlueprint, chapter_index: int) -> BookRunWorkflowPlanningRefs | None:
+    metadata = blueprint.metadata_ if isinstance(blueprint.metadata_, dict) else {}
+    summary = metadata.get("planning_summary")
+    if not isinstance(summary, dict):
+        return None
+    chapter_arc_links = summary.get("chapter_arc_links")
+    if not isinstance(chapter_arc_links, dict):
+        return None
+    arc_ids = chapter_arc_links.get(str(chapter_index))
+    if not isinstance(arc_ids, list):
+        return None
+    valid_arc_ids = [arc_id for arc_id in arc_ids if isinstance(arc_id, str) and arc_id.strip()]
+    if not valid_arc_ids:
+        return None
+    ratio = summary.get("arc_completion_ratio")
+    return BookRunWorkflowPlanningRefs(
+        arc_ids=valid_arc_ids,
+        arc_completion_ratio=_bounded_ratio(ratio),
+    )
+
+
+def _bounded_ratio(value: object) -> float:
+    ratio = _non_negative_float(value)
+    return min(ratio, 1.0)
 
 
 def _volume_plan_from_blueprint(blueprint: BookBlueprint, total_chapters: int) -> list[BookRunVolumePlanItem]:

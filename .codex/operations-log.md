@@ -13791,3 +13791,261 @@ un-metadata.json: present
 
 - `cd apps/api && uv run pytest -q` 当前失败 `8 failed, 434 passed`，失败集中在既有脏工作树：`phase9b_real_llm_smoke.py` 中 `_judge_and_repair_loop()` 的 `quality_score/issues` 未定义或测试签名不匹配，以及 `run-real-llm-10ch-current-env.ps1` 包装脚本断言缺失 `--max-chapter-count $MaxChapterCount`。这些文件在本轮改动前已处于修改状态，本轮未回退或修复。
 - `cd apps/api && uv run ruff check app tests` 当前失败同样来自 `phase9b_real_llm_smoke.py` 既有 `F821`，本轮 API 定向 ruff 已通过。
+
+## 操作记录 - Phase 3 subagent 模式启动
+
+时间：2026-06-06 21:08:11 +08:00
+
+### 本轮目标
+
+- 按用户要求开启后续开发的 subagent-driven-development 模式。
+- 为 Phase 3 Planning 持久化创建隔离工作区和调度留痕。
+- 只建立调度基线，不修改业务代码。
+
+### 编码前检查
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-phase3-subagent-mode.md`
+
+□ 使用以下可复用组件：
+
+- `.worktrees/`: 项目本地隔离工作区，已由 `git check-ignore` 确认为忽略目录。
+- `.codex/operations-log.md`: 追加本轮调度记录。
+- `package.json`: 根验证入口，包含 `verify`、`test`、`lint`。
+- `apps/api/pyproject.toml`: API pytest 与 ruff 配置。
+- `apps/workflow/pyproject.toml`: Workflow pytest 与 ruff 配置。
+
+□ 遵循命名约定：任务文件使用既有 `.codex/context-summary-*` 命名；分支使用 `codex/phase3-planning-persistence`。
+
+□ 遵循代码风格：所有说明、日志和报告使用简体中文；不新增外部依赖。
+
+□ 未重复造轮子证明：已检查 `.codex` 中既有 context summary、operations log、verification report 模式，本轮复用既有留痕结构。
+
+### 工具限制记录
+
+- 当前工具面板未提供 AGENTS 中提到的 `desktop-commander`，本轮本地文件检查使用 PowerShell、`rg` 与 Git 命令替代。
+- 当前已按要求使用 `sequential-thinking`、`shrimp-task-manager` 与 subagent 工具链。
+
+### 子代理调度规则
+
+- 主线程负责上下文摘要、任务拆解、验收契约、验证报告和最终整合。
+- explorer 子代理仅做只读探查，不修改文件。
+- worker 子代理必须拥有明确且互不重叠的写入范围。
+- 每个 worker 完成后必须先由 spec reviewer 审查需求符合性，再由 code quality reviewer 审查实现质量。
+- reviewer 未通过时，必须回到对应 worker 修复并重新审查。
+
+### 当前状态
+
+- 主仓库：`D:\StoryForge`，分支 `master`，HEAD `05cd519`，本地领先 `origin/master` 3 个提交。
+- 隔离工作区：`D:\StoryForge\.worktrees\phase3-planning-persistence`。
+- 隔离分支：`codex/phase3-planning-persistence`。
+- 已派发只读 explorer：Planning 模块与集成点探查、测试与验证入口探查。
+
+### 本地验证计划
+
+- `git status --short --branch`
+- `git diff --name-only`
+- `git diff --check`
+
+## 操作记录 - Phase 3 Planning 持久化第一批 API 能力
+
+时间：2026-06-06 21:39:55 +08:00
+
+### 本轮目标
+
+- 以 TDD 实现 Blueprint `metadata.planning_arcs` 的 API 侧持久化摘要。
+- 将章节关联弧线以轻量文本写入 `Chapter.required_beats`。
+- 在 BookRun workflow dispatch 中新增轻量 `planning_refs`，只携带 `arc_ids` 和 `arc_completion_ratio`。
+- 保持 workflow checkpoint 不保存完整 planning 大对象，不新增数据库表和 Alembic 迁移。
+
+### 工具限制记录
+
+- 当前工具面板未提供 AGENTS 中提到的 `desktop-commander`，本轮本地文件分析使用 PowerShell、`rg` 与 Git 命令替代。
+- 已按顺序使用 `sequential-thinking`、`shrimp-task-manager`，并在编码前完成 Context7 与 GitHub 代码检索。
+- GitHub `search_code` 对 `required_beats JSON chapter_goal SQLAlchemy` 未找到可直接复用实现；本轮以仓库既有 API 模式为准。
+
+### 编码前检查 - Phase 3 Planning 持久化
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-phase3-planning-persistence.md`
+
+□ 使用以下可复用组件：
+
+- `BookBlueprint.metadata_`: 存储输入 `planning_arcs` 与派生 `planning_summary`。
+- `Chapter.required_beats`: 写入每章轻量“弧线推进”节拍。
+- `BookRunWorkflowChapter`: 扩展 workflow dispatch 每章轻量引用。
+- `trigger_chapter_plan()`: 复用现有章节规划写回入口。
+- `build_book_run_workflow_dispatch()`: 复用现有 workflow dispatch 构建入口。
+
+□ 遵循命名约定：Python `snake_case` 私有 helper，Pydantic schema 使用 PascalCase，pytest 使用 `test_`。
+
+□ 遵循代码风格：简体中文 docstring 和测试说明；不新增外部依赖；不修改 `apps/workflow`。
+
+□ 确认不重复造轮子，证明：已检查 `blueprints.service`、`book_runs.service`、`book_runs.schemas`、现有 blueprint/dispatch 测试与 Context7 SQLAlchemy/Pydantic 文档；仓库中无现成 `planning_arcs` 持久化实现。
+
+### TDD 红灯记录
+
+- 命令：`cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`
+- 结果：`2 failed, 15 passed, 1 warning`
+- 预期失败：
+  - `test_chapter_plan_persists_lightweight_planning_arc_summary` 因 `KeyError: 'planning_summary'` 失败。
+  - `test_workflow_dispatch_includes_lightweight_planning_refs` 因 `BookRunWorkflowChapter` 缺少 `planning_refs` 属性失败。
+
+### 编码中监控
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用 `BookBlueprint.metadata_`、`Chapter.required_beats`、`BookRunWorkflowChapter` 与 `build_book_run_workflow_dispatch()`。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `_planning_arcs_by_chapter()`、`_metadata_with_planning_summary()`、`_chapter_planning_refs()` 等私有 helper 均为 `snake_case`。
+
+□ 代码风格是否一致？
+✅ 是：新增注释和测试说明均为简体中文，Pydantic schema 与既有 `Field(default_factory=...)` 风格一致。
+
+### 编码后声明 - Phase 3 Planning 持久化
+
+#### 1. 复用了以下既有组件
+
+- `BookBlueprint.metadata_`: 用于保存原始 `planning_arcs` 和派生 `planning_summary`。
+- `Chapter.required_beats`: 用于保存每章轻量弧线推进文字，不保存完整 arc 对象。
+- `BookRunWorkflowDispatch`: 用于向 workflow worker 输出轻量调度 payload。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：服务 helper 使用 `snake_case`，schema 使用 PascalCase。
+- 代码风格：中文 docstring，直接 pytest 断言，不新增依赖。
+- 文件组织：Blueprint 解析与写回留在 `blueprints.service`；dispatch schema/service 留在 `book_runs` 域。
+
+#### 3. 对比了以下相似实现
+
+- `trigger_chapter_plan()`: 本轮沿用其章节写回循环，只在 beats 和 metadata summary 处扩展。
+- `_volume_plan_from_blueprint()`: 本轮沿用其对 metadata 的宽松读取方式，非法结构不阻断现有流程。
+- `test_book_run_workflow_dispatch.py`: 本轮沿用 `seed_dispatchable_book_run()` 夹具创建已规划 BookRun。
+
+#### 4. 未重复造轮子的证明
+
+- 检查了 `apps/api/app/domains/blueprints`、`apps/api/app/domains/book_runs`、`apps/api/tests/test_blueprint_api.py`、`apps/api/tests/test_book_run_workflow_dispatch.py`，确认不存在同等 `planning_arcs` 到 Chapter/dispatch 的轻量持久化实现。
+
+### 本地验证记录
+
+- `cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`：实现后 `17 passed, 1 warning`。
+- `cd apps/api && uv run ruff check app/domains/blueprints/service.py app/domains/book_runs/schemas.py app/domains/book_runs/service.py tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py`：`All checks passed!`
+- `git diff --check`：通过，无输出。
+- 用户建议目录级命令 `cd apps/api && uv run ruff check app/domains/blueprints app/domains/book_runs tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py` 当前失败于既有未授权文件：
+  - `app/domains/book_runs/phase9b_real_llm_smoke.py`: `F841 recap_max_chars`、`F821 quality_score/issues`。
+  - `app/domains/book_runs/prompt_assembly.py`: `I001` 局部 import 排序。
+
+### 剩余风险
+
+- 目录级 ruff 仍被既有 Phase9B 相关文件阻塞，本轮未授权修改这些文件。
+- `planning_summary` 第一批仍存于 JSON，后续如需复杂统计，应单独设计结构化表或索引。
+
+## 操作记录 - Phase 3 Planning 质量审查退回修复
+
+时间：2026-06-06 22:05:35 +08:00
+
+### 本轮目标
+
+- 按质量审查退回意见补齐 `planning_arcs` 混合坏数据边界测试。
+- 修正 `_planning_arc_count()`，让有效 arc 口径与 `_planning_arcs_by_chapter()` 一致。
+- 为 dispatch `planning_refs.arc_completion_ratio` 增加 `0..1` 双层防护。
+- 增加损坏 `planning_summary` dispatch 测试，确保不抛错、不输出异常 refs。
+
+### TDD 红灯记录
+
+- 命令：`cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`
+- 结果：`2 failed, 17 passed, 1 warning`
+- 失败摘要：
+  - `test_chapter_plan_ignores_invalid_planning_arcs_and_deduplicates_targets`：`arc_count` 实际为 `3`，期望为 `2`，说明空白 `arc_id` 被错误计数。
+  - `test_workflow_dispatch_ignores_corrupt_planning_summary_refs`：ratio `2.5` 未裁剪为 `1.0`。
+
+### 实现记录
+
+- `_planning_arc_count()` 改为只统计 `arc_id` 是字符串且 `strip()` 后非空的 arc。
+- `BookRunWorkflowPlanningRefs.arc_completion_ratio` 增加 `Field(ge=0, le=1)`。
+- `_chapter_planning_refs()` 改用 `_bounded_ratio()`，把非数字和负数归零，把大于 `1` 的比例裁剪为 `1.0`。
+
+### 编码后声明 - 退回修复
+
+#### 1. 复用了以下既有组件
+
+- `_planning_arcs_by_chapter()`: 作为有效 arc 口径来源。
+- `_non_negative_float()`: 复用既有非负数解析，再增加上界裁剪。
+- `seed_dispatchable_book_run()` 和现有 dispatch 测试模式：保持测试夹具风格一致。
+
+#### 2. 遵循了以下项目约定
+
+- 测试说明、日志和报告继续使用简体中文。
+- 只修改授权 API service/schema/test 文件和 `.codex` 留痕。
+- 不新增依赖、不新增表、不修改 workflow。
+
+#### 3. 对比了以下相似实现
+
+- `_arc_target_chapters()` 已对重复、越界和非 int 章节进行去重过滤；新增测试显式覆盖这些边界。
+- `_chapter_planning_refs()` 原有坏结构返回 `None` 的宽松风格保留，只补 ratio 上界。
+
+#### 4. 未重复造轮子的证明
+
+- 检查了当前 `blueprints.service` 与 `book_runs.service` 中已有 helper；本轮仅复用和收紧既有 helper，没有新增跨模块工具。
+
+### 本地验证记录
+
+- `cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`：`19 passed, 1 warning`。
+- `cd apps/api && uv run ruff check app/domains/blueprints/service.py app/domains/book_runs/schemas.py app/domains/book_runs/service.py tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py`：`All checks passed!`
+- `git diff --check`：通过，无输出。
+
+## 操作记录 - Phase 3 Planning 主线程最终验证
+
+时间：2026-06-06 22:16:47 +08:00
+
+### 审查链路
+
+- worker 第一轮实现：`DONE_WITH_CONCERNS`，正常路径定向测试通过。
+- spec reviewer：通过。
+- code quality reviewer：第一次退回，要求补边界测试与 `arc_count` 口径修复。
+- worker 退回修复：`DONE`，边界红绿测试通过。
+- code quality reviewer 复审：通过，评分 95/100。
+
+### 主线程验证结果
+
+- `cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`：`19 passed, 1 warning`。
+- `cd apps/workflow && uv run pytest tests/test_generation_state_references.py -q`：`5 passed`。
+- `cd apps/api && uv run ruff check app/domains/blueprints/service.py app/domains/book_runs/schemas.py app/domains/book_runs/service.py tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py`：`All checks passed!`
+- `cd apps/api && uv run pytest tests/test_book_context_cache.py tests/test_phase2_memory_recall_fix.py tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q`：`29 passed`。
+- `cd apps/workflow && uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py tests/test_workflow_session.py -q`：`35 passed`。
+- `git diff --check`：通过，无输出。
+
+### 收口结论
+
+- Phase 3 Planning 持久化第一批 API 能力通过本地验证。
+- 本轮不声明完整 Phase 3 全链路完成；后续仍需视目标推进结构化存储、OpenAPI/前端同步或 30 章端到端验证。
+
+## 编码前检查 - Phase 3 Planning 持久化
+
+时间：2026-06-06 21:25:37 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-phase3-planning-persistence.md`
+
+□ 将使用以下可复用组件：
+
+- `BookBlueprint.metadata_`: 存储 `planning_arcs` 输入与 `planning_summary` 派生指标。
+- `trigger_chapter_plan()`: 复用 locked 门禁和章节规划写回边界。
+- `Chapter.required_beats`: 存储每章轻量弧线推进节拍。
+- `BookRunWorkflowDispatch`: 输出 workflow worker 可消费的轻量调度 payload。
+- `test_generation_state_references.py`: 保持 workflow checkpoint 不保存完整 planning 大对象的边界证据。
+
+□ 将遵循命名约定：Python `snake_case`，pytest `test_`，Pydantic schema PascalCase。
+
+□ 将遵循代码风格：中文测试说明和日志，不新增外部依赖，不新增数据库迁移。
+
+□ 确认不重复造轮子，证明：已检查 `blueprints/service.py`、`book_runs/service.py`、`books/models.py`、`workflow/state.py` 与 `test_generation_state_references.py`；现有 `apps/workflow/storyforge_workflow/planners/chapter_planner.py` 源码不存在，不能基于缓存残留设计。
+
+### 外部资料记录
+
+- Context7 SQLAlchemy：JSON ORM 字段原地修改不一定被追踪，整体重赋值可触发变更检测。
+- Context7 Pydantic：沿用 v2 `Field`、`model_validator`、`model_dump` 和嵌套 schema 模式。
+- GitHub `search_code`：检索 AI novel / plot pipeline / arc planning 实现作为参考；本轮仅吸收结构化规划事实源思路，不复制实现。
+
+### 子代理分派
+
+- worker：负责 API planning persistence 首批实现，写入范围限定在 `apps/api/app/domains/blueprints`、`apps/api/app/domains/book_runs` 和相关测试。
+- spec reviewer：worker 完成后只读审查规格符合性。
+- code quality reviewer：规格通过后只读审查质量、边界、测试与性能。

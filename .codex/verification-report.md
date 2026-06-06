@@ -6042,3 +6042,196 @@ cd apps/api && uv run pytest tests/test_book_context_cache.py -v
 - 建议：立即提交 Phase 1，启动 Phase 2 Memory 召回修复。
 
 **详细架构蓝图见：** `.codex/phase1-context-optimization-report.md`
+
+---
+
+## 2026-06-06 Phase 3 Planning 持久化第一批 API 能力
+
+**目标：** 让 API 数据库成为 Planning 事实源，支持 `planning_arcs` 结构化输入、章节轻量弧线节拍、Blueprint 规划摘要，以及 workflow dispatch 轻量 `planning_refs`。
+
+### 需求字段完整性
+
+- **目标**：实现 Phase 3 Planning 持久化第一批 API 能力。
+- **范围**：仅修改授权的 blueprints/book_runs service、schema 与相关测试文件。
+- **交付物**：API 代码、TDD 测试、上下文摘要、操作日志、验证报告。
+- **审查要点**：不新增迁移；不改 workflow；不把完整 outline/arc 大对象写入 checkpoint；metadata 写回整体重赋值。
+
+### 交付物映射
+
+- `apps/api/app/domains/blueprints/service.py`
+  - 解析 `metadata.planning_arcs`。
+  - 向 `Chapter.required_beats` 追加“弧线推进：{title}”。
+  - 整体重赋值 `blueprint.metadata_`，写入 `planning_summary`。
+- `apps/api/app/domains/book_runs/schemas.py`
+  - 新增 `BookRunWorkflowPlanningRefs`。
+  - `BookRunWorkflowChapter` 新增可选 `planning_refs`。
+- `apps/api/app/domains/book_runs/service.py`
+  - dispatch 每章从 `planning_summary` 派生轻量 `planning_refs`。
+- `apps/api/tests/test_blueprint_api.py`
+  - 覆盖 5 章中 4 章被 arc 覆盖时 `arc_completion_ratio == 0.8`。
+  - 覆盖 Chapter beats 不保存完整 `planning_arcs`。
+- `apps/api/tests/test_book_run_workflow_dispatch.py`
+  - 覆盖 dispatch 只携带 `arc_ids` 和 `arc_completion_ratio`，不携带完整 `planning_arcs`。
+
+### TDD 证据
+
+- 红灯命令：`cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`
+- 红灯结果：`2 failed, 15 passed, 1 warning`
+- 红灯失败摘要：
+  - `KeyError: 'planning_summary'`
+  - `AttributeError: 'BookRunWorkflowChapter' object has no attribute 'planning_refs'`
+- 绿灯命令：`cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`
+- 绿灯结果：`17 passed, 1 warning`
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`：`17 passed, 1 warning`。
+- `cd apps/api && uv run ruff check app/domains/blueprints/service.py app/domains/book_runs/schemas.py app/domains/book_runs/service.py tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py`：`All checks passed!`
+- `git diff --check`：通过，无输出。
+- 用户建议目录级 ruff 命令当前失败于既有未授权文件：
+  - `app/domains/book_runs/phase9b_real_llm_smoke.py`: `F841 recap_max_chars`、`F821 quality_score/issues`。
+  - `app/domains/book_runs/prompt_assembly.py`: `I001` 局部 import 排序。
+
+### 依赖与风险评估
+
+- **依赖**：SQLAlchemy JSON、Pydantic v2、pytest、ruff，均为既有依赖。
+- **架构风险**：第一批复用 JSON 字段，后续如需复杂查询或跨书统计，需要独立设计结构化存储。
+- **验证风险**：目录级 ruff 被既有未授权文件阻塞；本轮触及文件 ruff 和定向 pytest 均通过。
+- **运行风险**：无 `planning_arcs` 时 `planning_summary` ratio 为 0，dispatch 不输出 arc ids，保持现有行为。
+
+### 技术维度评分
+
+- 代码质量：93/100。实现集中在现有服务边界，metadata 使用整体重赋值，dispatch 不扫描完整 arcs。
+- 测试覆盖：94/100。红绿测试覆盖 summary、beats、ratio、dispatch 轻量引用和完整对象泄露防护。
+- 规范遵循：91/100。简体中文留痕完整，未改未授权 workflow；目录级 ruff 受既有文件阻塞。
+
+### 战略维度评分
+
+- 需求匹配：95/100。用户列出的 6 项目标行为均已覆盖。
+- 架构一致：94/100。API DB 作为事实源，workflow dispatch 只拿轻量引用。
+- 风险评估：90/100。JSON 方案适合第一批能力，长期结构化能力需后续规划。
+
+### 综合评分与建议
+
+- 综合评分：93/100。
+- 建议：通过本轮 Phase 3 Planning 持久化第一批 API 能力；既有 Phase9B ruff 问题应由单独任务处理。
+
+### 审查结论
+
+- 结论：通过。
+- 时间戳：2026-06-06 21:39:55 +08:00。
+
+---
+
+## 2026-06-06 Phase 3 Planning 质量审查退回修复
+
+**目标：** 按质量审查退回意见补齐坏数据边界与 ratio 防护，确保 Planning 持久化口径一致、dispatch 对损坏摘要具备安全降级能力。
+
+### 退回项处理结果
+
+- **混合坏数据边界测试**：已新增。
+  - 覆盖非 dict、空白 `arc_id`、空 title、重复 `[1,1]`、`payoff_chapter=1`、越界 `0/999`、字符串章节号。
+  - 断言 `chapter-plan` 返回 200。
+  - 断言只写有效章节、重复 target 去重、空 title 回退 `arc_id`、空白 `arc_id` 不计数且不写入。
+- **`_planning_arc_count()` 口径修正**：已完成。
+  - 仅统计 `arc_id` 为字符串且 `strip()` 后非空的 arc，与 `_planning_arcs_by_chapter()` 一致。
+- **`BookRunWorkflowPlanningRefs.arc_completion_ratio` 上界**：已完成。
+  - schema 增加 `Field(ge=0, le=1)`。
+- **dispatch 损坏摘要测试与裁剪**：已完成。
+  - 覆盖 `chapter_arc_links` 非 dict、章节链接非 list、ratio 非数字、负数、大于 1。
+  - 非数字和负数归零，大于 1 裁剪为 1，不输出异常 refs。
+
+### TDD 证据
+
+- 红灯命令：`cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`
+- 红灯结果：`2 failed, 17 passed, 1 warning`
+- 红灯失败摘要：
+  - `arc_count` 实际为 `3`，期望 `2`，证明空白 `arc_id` 被错误计数。
+  - ratio `2.5` 未裁剪为 `1.0`，证明 dispatch 防护缺失。
+- 绿灯命令：`cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`
+- 绿灯结果：`19 passed, 1 warning`
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`：`19 passed, 1 warning`。
+- `cd apps/api && uv run ruff check app/domains/blueprints/service.py app/domains/book_runs/schemas.py app/domains/book_runs/service.py tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py`：`All checks passed!`
+- `git diff --check`：通过，无输出。
+
+### 技术维度评分
+
+- 代码质量：95/100。坏数据口径统一，ratio 具备 schema 与 service 双层约束。
+- 测试覆盖：96/100。新增边界测试直接覆盖退回项和损坏 summary 场景。
+- 规范遵循：94/100。保持授权范围，未改 workflow、未新增迁移。
+
+### 战略维度评分
+
+- 需求匹配：96/100。质量审查必修与建议项均已处理。
+- 架构一致：95/100。继续保持 API DB 事实源与 workflow 轻量 dispatch 边界。
+- 风险评估：93/100。损坏 JSON 摘要可安全降级，长期结构化存储仍需后续规划。
+
+### 综合评分与建议
+
+- 综合评分：95/100。
+- 建议：通过退回修复。
+
+### 审查结论
+
+- 结论：通过。
+- 时间戳：2026-06-06 22:05:35 +08:00。
+
+---
+
+## 2026-06-06 Phase 3 Planning 持久化主线程最终验证
+
+**目标：** 在 worker 修复与双层子代理审查通过后，由主线程重新运行本地验证，确认 Phase 3 第一批 Planning 持久化能力可交付。
+
+### 双层审查结果
+
+- **规格符合性审查**：通过。
+  - 确认 API 数据库为 Planning 事实源。
+  - 确认 `planning_summary` 字段完整。
+  - 确认 `arc_completion_ratio == 0.8` 的 70%+ 目标可由测试复现。
+  - 确认未新增 Alembic 迁移、未修改 workflow 文件。
+- **代码质量审查**：第一次退回，修复后通过，评分 95/100。
+  - 已补混合坏数据边界测试。
+  - 已修正空白 `arc_id` 计数口径。
+  - 已补 ratio `0..1` 防护和损坏 summary 降级测试。
+
+### 主线程本地验证
+
+- `cd apps/api && uv run pytest tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py -q`：`19 passed, 1 warning`。
+- `cd apps/workflow && uv run pytest tests/test_generation_state_references.py -q`：`5 passed`。
+- `cd apps/api && uv run ruff check app/domains/blueprints/service.py app/domains/book_runs/schemas.py app/domains/book_runs/service.py tests/test_blueprint_api.py tests/test_book_run_workflow_dispatch.py`：`All checks passed!`
+- `cd apps/api && uv run pytest tests/test_book_context_cache.py tests/test_phase2_memory_recall_fix.py tests/test_story_memory_contract.py tests/test_story_memory_persistence.py -q`：`29 passed`。
+- `cd apps/workflow && uv run pytest tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_workflow_lifecycle.py tests/test_workflow_session.py -q`：`35 passed`。
+- `git diff --check`：通过，无输出。
+
+### 需求映射
+
+- **Planning 事实源**：`BookBlueprint.metadata_.planning_summary` 和 `Chapter.required_beats` 承载 API 侧持久化结果。
+- **arc completion**：5 章中 4 章覆盖时 `arc_completion_ratio` 为 `0.8`，满足 70%+ 可验证目标。
+- **dispatch 轻量引用**：`BookRunWorkflowChapter.planning_refs` 仅携带 `arc_ids` 与 `arc_completion_ratio`。
+- **checkpoint 边界**：workflow 引用化测试通过，完整 `chapter_plan` / `book_strategy` 仍不进入 checkpoint。
+- **边界防御**：非法 arc、空白 arc、重复/越界章节、损坏 summary 与异常 ratio 均有测试覆盖。
+
+### 综合评分与建议
+
+- 代码质量：95/100。
+- 测试覆盖：96/100。
+- 规范遵循：95/100。
+- 需求匹配：96/100。
+- 架构一致：95/100。
+- 风险评估：93/100。
+- **综合评分：95/100。**
+- **建议：通过 Phase 3 Planning 持久化第一批 API 能力。**
+
+### 验证边界
+
+- 本轮未宣称完整 Phase 3 全链路结束；当前完成的是 Planning 持久化第一批 API 能力与 dispatch 轻量引用。
+- 目录级 API ruff 仍可能受既有 Phase9B 文件阻塞，本轮未修改未授权文件。
+- 若后续需要跨书统计、复杂查询或运营看板，应单独设计结构化 `planning_arcs` 表或索引。
+
+### 审查结论
+
+- 结论：通过。
+- 时间戳：2026-06-06 22:16:47 +08:00。

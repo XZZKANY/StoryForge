@@ -72,6 +72,7 @@ def trigger_chapter_plan(session: Session, blueprint_id: int) -> ChapterPlanTrig
     blueprint = get_book_blueprint(session, blueprint_id)
     if blueprint.status != "locked":
         raise BlueprintPlanningBlockedError("Blueprint 尚未锁定，不能触发章节规划。")
+    arcs_by_chapter = _planning_arcs_by_chapter(blueprint)
     for item in _plan_blueprint_chapters(blueprint):
         chapter = _get_or_create_chapter(session, blueprint, item["chapter_index"])
         chapter.title = item["title"]
@@ -81,8 +82,12 @@ def trigger_chapter_plan(session: Session, blueprint_id: int) -> ChapterPlanTrig
         chapter.planning_source = "blueprint_planner"
         chapter.pov = item["pov"]
         chapter.location = item["location"]
-        chapter.required_beats = item["required_beats"]
+        chapter.required_beats = _required_beats_with_arc_refs(
+            item["required_beats"],
+            arcs_by_chapter.get(item["chapter_index"], []),
+        )
         chapter.expected_word_count = item["expected_word_count"]
+    blueprint.metadata_ = _metadata_with_planning_summary(blueprint, arcs_by_chapter)
     session.commit()
     return ChapterPlanTriggerRead(
         blueprint_id=blueprint.id,
@@ -176,3 +181,81 @@ def _chapter_plan_item(
         "required_beats": beats,
         "expected_word_count": expected_word_count,
     }
+
+
+def _planning_arcs_by_chapter(blueprint: BookBlueprint) -> dict[int, list[dict[str, str]]]:
+    """把 Blueprint 结构化弧线压缩为按章节索引的轻量引用。"""
+
+    metadata = blueprint.metadata_ if isinstance(blueprint.metadata_, dict) else {}
+    raw_arcs = metadata.get("planning_arcs")
+    if not isinstance(raw_arcs, list):
+        return {}
+    arcs_by_chapter: dict[int, list[dict[str, str]]] = {}
+    for raw_arc in raw_arcs:
+        if not isinstance(raw_arc, dict):
+            continue
+        arc_id = raw_arc.get("arc_id")
+        title = raw_arc.get("title")
+        if not isinstance(arc_id, str) or not arc_id.strip():
+            continue
+        if not isinstance(title, str) or not title.strip():
+            title = arc_id
+        for chapter_index in _arc_target_chapters(raw_arc, blueprint.target_chapter_count):
+            arcs_by_chapter.setdefault(chapter_index, []).append(
+                {
+                    "arc_id": arc_id.strip(),
+                    "title": title.strip(),
+                }
+            )
+    return arcs_by_chapter
+
+
+def _arc_target_chapters(raw_arc: dict, target_chapter_count: int) -> list[int]:
+    raw_targets = raw_arc.get("target_chapters")
+    chapters: list[int] = []
+    if isinstance(raw_targets, list):
+        chapters.extend(item for item in raw_targets if isinstance(item, int))
+    payoff_chapter = raw_arc.get("payoff_chapter")
+    if isinstance(payoff_chapter, int):
+        chapters.append(payoff_chapter)
+    unique_chapters = sorted({chapter for chapter in chapters if 1 <= chapter <= target_chapter_count})
+    return unique_chapters
+
+
+def _required_beats_with_arc_refs(required_beats: list[str], arc_refs: list[dict[str, str]]) -> list[str]:
+    beats = list(required_beats)
+    for arc_ref in arc_refs:
+        beats.append(f"弧线推进：{arc_ref['title']}")
+    return beats
+
+
+def _metadata_with_planning_summary(blueprint: BookBlueprint, arcs_by_chapter: dict[int, list[dict[str, str]]]) -> dict:
+    metadata = dict(blueprint.metadata_ if isinstance(blueprint.metadata_, dict) else {})
+    chapter_arc_links = {
+        str(chapter_index): [arc_ref["arc_id"] for arc_ref in arc_refs]
+        for chapter_index, arc_refs in sorted(arcs_by_chapter.items())
+        if arc_refs
+    }
+    linked_chapter_count = len(chapter_arc_links)
+    target_chapter_count = blueprint.target_chapter_count
+    metadata["planning_summary"] = {
+        "schema_version": 1,
+        "arc_count": _planning_arc_count(metadata.get("planning_arcs")),
+        "linked_chapter_count": linked_chapter_count,
+        "target_chapter_count": target_chapter_count,
+        "arc_completion_ratio": round(linked_chapter_count / target_chapter_count, 2)
+        if target_chapter_count
+        else 0,
+        "chapter_arc_links": chapter_arc_links,
+    }
+    return metadata
+
+
+def _planning_arc_count(raw_arcs: object) -> int:
+    if not isinstance(raw_arcs, list):
+        return 0
+    return sum(
+        1
+        for raw_arc in raw_arcs
+        if isinstance(raw_arc, dict) and isinstance(raw_arc.get("arc_id"), str) and raw_arc["arc_id"].strip()
+    )
