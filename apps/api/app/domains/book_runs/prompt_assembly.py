@@ -196,9 +196,22 @@ def _style_directive(session: Session, book_id: int) -> dict[str, Any]:
 
 
 def _continuity_facts(session: Session, book_id: int, chapter_id: int | None) -> list[dict[str, Any]]:
+    """获取当前章节的连续性事实（从 Story Memory 召回）。
+
+    Phase 2 修复：chapter_id 是 PK，需要查询 Chapter 表获取 ordinal 传给 get_active_memory_atoms。
+    """
     if chapter_id is None:
         return []
-    atoms = get_active_memory_atoms(session, book_id=book_id, chapter_id=chapter_id)
+
+    # Phase 2: 查询 Chapter.ordinal 传给 get_active_memory_atoms
+    from sqlalchemy import select
+    from app.domains.books.models import Chapter
+
+    chapter = session.execute(select(Chapter).where(Chapter.id == chapter_id)).scalar_one_or_none()
+    if chapter is None:
+        return []
+
+    atoms = get_active_memory_atoms(session, book_id=book_id, chapter_ordinal=chapter.ordinal)
     facts: list[dict[str, Any]] = []
     for atom in atoms:
         if atom.source_ref.startswith("character_bible:"):

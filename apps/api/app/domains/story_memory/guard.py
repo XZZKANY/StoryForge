@@ -33,13 +33,25 @@ def check_story_memory_continuity(
     chapter_id: int,
     draft: str,
 ) -> list[dict[str, str]]:
-    """用 Story Memory 的当前有效事实拦截高置信连续性硬冲突。"""
+    """用 Story Memory 的当前有效事实拦截高置信连续性硬冲突。
+
+    Phase 2 修复：chapter_id 是 PK，需要查询 Chapter 表获取 ordinal 传给 get_active_memory_atoms。
+    """
 
     prose = draft.strip() if isinstance(draft, str) else ""
     if not prose:
         return []
+
+    # Phase 2: 查询 Chapter.ordinal 传给 get_active_memory_atoms
+    from sqlalchemy import select
+    from app.domains.books.models import Chapter
+
+    chapter = session.execute(select(Chapter).where(Chapter.id == chapter_id)).scalar_one_or_none()
+    if chapter is None:
+        return []
+
     issues: list[dict[str, str]] = []
-    for atom in get_active_memory_atoms(session, book_id=book_id, chapter_id=chapter_id):
+    for atom in get_active_memory_atoms(session, book_id=book_id, chapter_ordinal=chapter.ordinal):
         if not _should_guard(atom):
             continue
         if (

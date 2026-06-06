@@ -224,12 +224,15 @@ def get_active_memory_atoms(
     session: Session,
     *,
     book_id: int,
-    chapter_id: int,
+    chapter_ordinal: int,
     entity_type: str | None = None,
     entity_id: str | None = None,
     fact_type: str | None = None,
 ) -> list[MemoryAtom]:
-    """从数据库读取指定章节有效的长效记忆事实。"""
+    """从数据库读取指定章节序号有效的长效记忆事实。
+
+    Phase 2 修复：参数改名为 chapter_ordinal，明确语义为章节序号（1,2,3...）。
+    """
 
     return [
         atom
@@ -240,14 +243,17 @@ def get_active_memory_atoms(
             entity_id=entity_id,
             fact_type=fact_type,
         )
-        if _is_active(atom, chapter_id)
+        if _is_active(atom, chapter_ordinal)
     ]
 
 
-def atoms_active_at_chapter(atoms: list[MemoryAtom], chapter_id: int) -> list[MemoryAtom]:
-    """按章节读取有效事实，避免后期设定覆盖前期状态。"""
+def atoms_active_at_chapter(atoms: list[MemoryAtom], chapter_ordinal: int) -> list[MemoryAtom]:
+    """按章节序号读取有效事实，避免后期设定覆盖前期状态。
 
-    return [atom for atom in atoms if _is_active(atom, chapter_id)]
+    Phase 2 修复：参数改名为 chapter_ordinal，明确语义。
+    """
+
+    return [atom for atom in atoms if _is_active(atom, chapter_ordinal)]
 
 
 def recall_scene_memory_atoms(
@@ -604,10 +610,14 @@ def _term_rank(entity_id: str, candidate_terms: list[str]) -> int:
     return len(candidate_terms)
 
 
-def _is_active(atom: MemoryAtom, chapter_id: int) -> bool:
-    if chapter_id < atom.valid_from_chapter:
+def _is_active(atom: MemoryAtom, chapter_ordinal: int) -> bool:
+    """判断 memory atom 在指定章节序号是否有效。
+
+    Phase 2 修复：统一使用 ordinal（章节序号 1,2,3...）而非 PK（数据库 ID）。
+    """
+    if chapter_ordinal < atom.valid_from_chapter:
         return False
-    return atom.valid_to_chapter is None or chapter_id <= atom.valid_to_chapter
+    return atom.valid_to_chapter is None or chapter_ordinal <= atom.valid_to_chapter
 
 
 def _ranges_overlap(left: MemoryAtom, right: MemoryAtom) -> bool:

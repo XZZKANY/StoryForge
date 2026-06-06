@@ -222,7 +222,7 @@ def test_story_memory_guard_flags_active_high_confidence_fact_violation(session:
     issues = check_story_memory_continuity(
         session,
         book_id=book.id,
-        chapter_id=chapter.ordinal,
+        chapter_id=chapter.id,  # Phase 2: 传入 chapter.id (PK)，函数内部会查询 ordinal
         draft="林岚推开舱门，呼吸一顿，随后开口说她会亲自带队穿越灯塔。",
     )
 

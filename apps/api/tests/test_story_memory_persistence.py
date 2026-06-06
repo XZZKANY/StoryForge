@@ -87,7 +87,7 @@ def test_memory_atom_persists_source_chapter_id_and_confidence(session: Session)
         ),
     )
     saved = session.get(MemoryAtomRecord, int(atom.memory_id.removeprefix("memory:")))
-    active_atoms = get_active_memory_atoms(session, book_id=book.id, chapter_id=chapter.ordinal, entity_id="林岚")
+    active_atoms = get_active_memory_atoms(session, book_id=book.id, chapter_ordinal=chapter.ordinal, entity_id="林岚")
 
     assert saved is not None
     assert saved.source_chapter_id == chapter.id
@@ -133,7 +133,7 @@ def test_memory_atom_crud_returns_contract_and_filters_active_chapter(session: S
     )
 
     all_atoms = list_memory_atoms(session, book_id=book.id, entity_id="linlan")
-    active_atoms = get_active_memory_atoms(session, book_id=book.id, chapter_id=5, entity_id="linlan")
+    active_atoms = get_active_memory_atoms(session, book_id=book.id, chapter_ordinal=5, entity_id="linlan")
 
     assert len(all_atoms) == 2
     assert current_atom.memory_id.startswith("memory:")
@@ -175,7 +175,7 @@ def test_auto_merge_arbitration_decision_writes_memory_atom(session: Session) ->
     assert atom is not None
     assert atom.value == "左臂有旧伤"
     assert atom.novel_id == book.id
-    assert get_active_memory_atoms(session, book_id=book.id, chapter_id=5, entity_id="linlan")[0].value == "左臂有旧伤"
+    assert get_active_memory_atoms(session, book_id=book.id, chapter_ordinal=5, entity_id="linlan")[0].value == "左臂有旧伤"
 
 
 def test_needs_human_arbitration_decision_does_not_write_memory_atom(session: Session) -> None:
