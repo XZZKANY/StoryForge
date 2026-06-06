@@ -13,6 +13,7 @@ from storyforge_workflow.orchestrators.book_loop import (
     run_book_loop,
 )
 from storyforge_workflow.orchestrators.novel_loop import NovelLoopPorts, NovelLoopRequest, run_single_chapter_loop
+from storyforge_workflow.quality.arc_consistency import ArcConsistencyBarrier
 from storyforge_workflow.skills.runner import NovelSkillRunner
 
 MemoryExtractor = Callable[[NovelLoopRequest, str, int], list[str]]
@@ -76,6 +77,7 @@ class BookRunAdapterPorts:
     progress_sink: BookRunProgressSink
     memory_extractor: MemoryExtractor | None = None
     consistency_barrier: ConsistencyBarrier | None = None
+    chapter_planning_refs: Callable[[int], dict[str, Any] | None] | None = None
 
 
 class CapturingProgressSink:
@@ -157,12 +159,14 @@ def run_book_run_dispatch_payload(
     missing = [index for index in required_indexes if index not in chapters]
     if missing:
         raise ValueError("BookRun dispatch payload 缺少待执行章节映射。")
+    barrier = consistency_barrier or _build_arc_barrier_if_planning_present(chapters)
     ports = BookRunAdapterPorts(
         chapter_goal=lambda chapter_index: chapters[chapter_index]["chapter_goal"],
         chapter_id=lambda chapter_index: chapters[chapter_index]["chapter_id"],
         novel_loop_ports_factory=novel_loop_ports_factory,
         progress_sink=progress_sink,
-        consistency_barrier=consistency_barrier,
+        consistency_barrier=barrier,
+        chapter_planning_refs=lambda chapter_index: chapters[chapter_index].get("planning_refs"),
     )
     return run_book_run_with_skill_runner(request, ports)
 
@@ -204,6 +208,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             chapter_id=ports.chapter_id(chapter_index),
             chapter_index=chapter_index,
             chapter_goal=ports.chapter_goal(chapter_index),
+            planning_refs=ports.chapter_planning_refs(chapter_index) if ports.chapter_planning_refs else None,
         )
         runner = NovelSkillRunner.default()
         return run_single_chapter_loop(
@@ -426,8 +431,38 @@ def _chapter_dispatch_map(value: object) -> dict[int, dict[str, Any]]:
         chapter_goal = item.get("chapter_goal")
         if chapter_index is None or chapter_id is None or not isinstance(chapter_goal, str) or not chapter_goal.strip():
             continue
-        chapters[chapter_index] = {"chapter_id": chapter_id, "chapter_goal": chapter_goal}
+        chapters[chapter_index] = {
+            "chapter_id": chapter_id,
+            "chapter_goal": chapter_goal,
+            "planning_refs": _planning_refs_or_none(item.get("planning_refs")),
+        }
     return chapters
+
+
+def _build_arc_barrier_if_planning_present(chapters: dict[int, dict[str, Any]]) -> ConsistencyBarrier | None:
+    """dispatch 含弧线引用时默认启用弧线到期检查；无规划则保持现有行为。"""
+
+    if any(isinstance(chapter.get("planning_refs"), Mapping) for chapter in chapters.values()):
+        return ArcConsistencyBarrier(chapters)
+    return None
+
+
+def _planning_refs_or_none(value: object) -> dict[str, Any] | None:
+    """只保留轻量 arc 引用，损坏字段一律降级为 None，保持现有放行行为。"""
+
+    if not isinstance(value, Mapping):
+        return None
+    raw_arc_ids = value.get("arc_ids")
+    arc_ids = (
+        [arc_id for arc_id in raw_arc_ids if isinstance(arc_id, str) and arc_id.strip()]
+        if isinstance(raw_arc_ids, list)
+        else []
+    )
+    if not arc_ids:
+        return None
+    ratio = value.get("arc_completion_ratio")
+    bounded = float(ratio) if isinstance(ratio, int | float) and 0 <= ratio <= 1 else 0.0
+    return {"arc_ids": arc_ids, "arc_completion_ratio": bounded}
 
 
 def _required_int(payload: Mapping[str, Any], key: str) -> int:

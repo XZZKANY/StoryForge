@@ -6,7 +6,9 @@
       "Bash(xargs grep *)",
       "Bash(python -c ' *)",
       "Bash(claude update *)",
-      "Bash(winget upgrade *)"
+      "Bash(winget upgrade *)",
+      "Bash(git *)",
+      "Bash(python _write_phase3_report.py)"
     ]
   }
 }

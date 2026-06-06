@@ -82,6 +82,9 @@ def run_book_loop(
         except Exception as exc:
             raise ChapterExecutionError(chapter_index, exc) from exc
         _accumulate_budget(budget, chapter_result)
+        consistency_report = _run_consistency_barrier(consistency_barrier, chapter_index, chapter_result, completed)
+        if consistency_report is not None and consistency_report.has_conflict:
+            return _consistency_blocked_result(chapter_index, chapter_result, completed, checkpoint, budget, consistency_report)
         if chapter_result.status != "approved":
             return BookLoopResult(
                 status="awaiting_review",
@@ -93,9 +96,6 @@ def run_book_loop(
                     "budget": dict(budget),
                 },
             )
-        consistency_report = _run_consistency_barrier(consistency_barrier, chapter_index, chapter_result, completed)
-        if consistency_report is not None and consistency_report.has_conflict:
-            return _consistency_blocked_result(chapter_index, chapter_result, completed, checkpoint, budget, consistency_report)
         chapter_progress = _chapter_progress(chapter_index, chapter_result)
         completed.append(chapter_progress)
         checkpoint.append(_checkpoint_entry(chapter_progress))
@@ -166,6 +166,15 @@ def _run_book_loop_parallel(
             while next_commit_index in pending_results:
                 chapter_result = pending_results.pop(next_commit_index)
                 _accumulate_budget(budget, chapter_result)
+                consistency_report = _run_consistency_barrier(
+                    consistency_barrier, next_commit_index, chapter_result, completed
+                )
+                if consistency_report is not None and consistency_report.has_conflict:
+                    _shutdown_pending_chapters(executor, futures)
+                    executor_closed = True
+                    return _consistency_blocked_result(
+                        next_commit_index, chapter_result, completed, checkpoint, budget, consistency_report
+                    )
                 if chapter_result.status != "approved":
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
@@ -178,15 +187,6 @@ def _run_book_loop_parallel(
                             "blocked_chapter": _chapter_progress(next_commit_index, chapter_result),
                             "budget": dict(budget),
                         },
-                    )
-                consistency_report = _run_consistency_barrier(
-                    consistency_barrier, next_commit_index, chapter_result, completed
-                )
-                if consistency_report is not None and consistency_report.has_conflict:
-                    _shutdown_pending_chapters(executor, futures)
-                    executor_closed = True
-                    return _consistency_blocked_result(
-                        next_commit_index, chapter_result, completed, checkpoint, budget, consistency_report
                     )
                 chapter_progress = _chapter_progress(next_commit_index, chapter_result)
                 completed.append(chapter_progress)

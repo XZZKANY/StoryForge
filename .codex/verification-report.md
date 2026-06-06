@@ -6235,3 +6235,51 @@ cd apps/api && uv run pytest tests/test_book_context_cache.py -v
 
 - 结论：通过。
 - 时间戳：2026-06-06 22:16:47 +08:00。
+
+
+---
+
+## 2026-06-07 00:17:46 +08:00 Phase 3 Arc Consistency Barrier 全链路验证
+
+**目标：** 修复 planning_refs 在 adapter 处被截断的问题；实现 ArcConsistencyBarrier 作为跨章弧线到期检查。
+
+### 需求字段完整性
+
+- **目标**：让 workflow 消费 dispatch 的 planning_refs；让弧线 planted -> progressed -> reinforced 状态机在 BookRun 中生效。
+- **范围**：仅修改 workflow 侧 orchestrator/adapter/node、新增 quality/arc_consistency.py。
+- **交付物**：adapter 透传修复、ArcConsistencyBarrier、端到端测试、本报告。
+- **审查要点**：不改 API DB schema；不新增迁移；不把完整 arcs 塞入 checkpoint；非 approved 章节也经 barrier 判断。
+
+### 交付物映射
+
+- `novel_loop.py` — NovelLoopRequest 新增 planning_refs 可选字段
+- `book_run_adapter.py` — _chapter_dispatch_map 解析 planning_refs；_build_arc_barrier_if_planning_present 自动启用 barrier
+- `book_loop.py` — consistency_barrier 调用从 status 检查后移至 status 检查前（两路径均改）
+- `quality/arc_consistency.py` — ArcConsistencyBarrier：弧线状态机 planted/progressed/reinforced，payoff 到期检查
+
+### TDD 证据
+
+- 绿灯命令：`cd apps/workflow && uv run pytest tests/test_arc_consistency_barrier.py tests/test_phase3_arc_consistency.py -xvs`
+- 绿灯结果：8 passed
+- 端到端覆盖：3 章全 approved (arc reinforced)、单章废弃 (arc stalled 阻断)、无 planning_refs (barrier 不介入)
+
+### 本地验证
+
+- `cd apps/workflow && uv run pytest -q`：202 passed
+- `cd apps/api && uv run pytest -q`：129 passed（1 预存失败非本批引入）
+
+### 依赖与风险评估
+
+- **依赖**：langgraph、pydantic、pytest，均为既有依赖。
+- **架构风险**：book_loop barrier 调用顺序变更会影响所有 barrier 实现；已确认现有 barrier 测试全部通过。
+- **运行风险**：无 planning_refs 时 barrier 不介入，行为等同于 Phase 2。
+
+### 综合评分与建议
+
+- 综合评分：93/100。
+- 建议：通过本轮 Phase 3 第二批（弧线一致性屏障）；后续需真实 LLM 端到端验证 arc 推进效果。
+
+### 审查结论
+
+- 结论：通过。
+- 时间戳：2026-06-07 00:17:46 +08:00。

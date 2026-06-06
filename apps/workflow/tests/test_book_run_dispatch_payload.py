@@ -168,6 +168,57 @@ def test_book_run_dispatch_payload_requires_chapter_mapping() -> None:
         run_book_run_dispatch_payload(payload, _passing_ports, CapturingProgressSink())
 
 
+def test_book_run_dispatch_payload_threads_planning_refs_into_novel_request() -> None:
+    """dispatch payload 中的 planning_refs 应透传到每章 NovelLoopRequest，不再在 adapter 处丢弃。"""
+
+    captured: list[NovelLoopRequest] = []
+
+    def capturing_ports(request: NovelLoopRequest) -> NovelLoopPorts:
+        captured.append(request)
+        return _passing_ports(request)
+
+    payload = _dispatch_payload(
+        chapters=[
+            {
+                "chapter_index": 1,
+                "chapter_id": 101,
+                "chapter_goal": "林岚抵达雾港并确认灯塔信号异常。",
+                "planning_refs": {"arc_ids": ["旧港信号"], "arc_completion_ratio": 0.8},
+            }
+        ],
+    )
+
+    run_book_run_dispatch_payload(payload, capturing_ports, CapturingProgressSink())
+
+    assert len(captured) == 1
+    assert captured[0].planning_refs == {"arc_ids": ["旧港信号"], "arc_completion_ratio": 0.8}
+
+
+def test_book_run_dispatch_payload_drops_corrupt_planning_refs() -> None:
+    """损坏的 planning_refs（无有效 arc_id 或坏比例）应降级为 None，保持现有放行行为。"""
+
+    captured: list[NovelLoopRequest] = []
+
+    def capturing_ports(request: NovelLoopRequest) -> NovelLoopPorts:
+        captured.append(request)
+        return _passing_ports(request)
+
+    payload = _dispatch_payload(
+        chapters=[
+            {
+                "chapter_index": 1,
+                "chapter_id": 101,
+                "chapter_goal": "林岚抵达雾港并确认灯塔信号异常。",
+                "planning_refs": {"arc_ids": ["", "  "], "arc_completion_ratio": 2.5},
+            }
+        ],
+    )
+
+    run_book_run_dispatch_payload(payload, capturing_ports, CapturingProgressSink())
+
+    assert captured[0].planning_refs is None
+
+
 def _dispatch_payload(
     *,
     total_chapters: int = 1,

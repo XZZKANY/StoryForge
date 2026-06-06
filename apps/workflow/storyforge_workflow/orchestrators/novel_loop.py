@@ -13,6 +13,7 @@ class NovelLoopRequest:
     chapter_id: int
     chapter_index: int
     chapter_goal: str
+    planning_refs: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
