@@ -73,11 +73,22 @@ class GenerationState(TypedDict, total=False):
     error_code: str
     # 以下为 prompt 工程层的可选注入键：由上游编译上下文后写入，属大上下文，
     # 不纳入 _REFERENCE_STATE_KEYS，因此不会被持久化进 checkpoint。
+    strategy_title_ref: str
+    strategy_question_ref: str
+    strategy_reader_promise_ref: str
+    strategy_tone_ref: str
+    chapter_title_ref: str
+    chapter_goal_ref: str
+    conflict_axis_ref: str
+    scene_goal_ref: str
+    scene_beat_refs: list[str]
+    previous_summary_ref: str
+    protagonist_ref: str
+    required_fact_refs: list[str]
     character_constraints: list[dict[str, Any]]
     style_directive: dict[str, Any]
     pacing_directive: dict[str, Any]
     continuity_facts: list[dict[str, Any]]
-    previous_summary_ref: str
     # 评审→修订环的工作键：在单次执行内 draft_writer→critic→reviser 间流转，
     # 同样不纳入 _REFERENCE_STATE_KEYS（环在 human_approval 中断前闭合，无需跨 checkpoint 续存）。
     draft_preview_ref: str

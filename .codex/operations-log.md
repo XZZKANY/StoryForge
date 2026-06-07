@@ -14049,3 +14049,180 @@ un-metadata.json: present
 - worker：负责 API planning persistence 首批实现，写入范围限定在 `apps/api/app/domains/blueprints`、`apps/api/app/domains/book_runs` 和相关测试。
 - spec reviewer：worker 完成后只读审查规格符合性。
 - code quality reviewer：规格通过后只读审查质量、边界、测试与性能。
+## PH4 并发层重构 - 编码前检查
+
+时间：2026-06-07 01:45:00 +08:00
+
+### 需求与范围
+
+- 用户目标：PH1-3 已完成，继续执行 PH4。
+- PH4 来源：用户附件定义为并发层重构，包含预算感知章节并行、章节内规划并发、异步 checkpoint 写入。
+- 本轮可安全落地范围：BookLoop 在 token/time/provider 预算存在时仍可按窗口并发启动章节，并在预算或降级触发后停止补充窗口；补充 RuntimeCheckpointStore write-behind 本地验证。
+- 本轮明确不宣称完成范围：章节内 LangGraph `director/planner/beats` 并发拓扑。当前运行图为线性 checkpoint 节点序，直接改拓扑会影响 runtime 契约，先记录为高风险后续任务。
+
+### 工具与检索记录
+
+- 已先调用 `sequential-thinking` 梳理问题与风险。
+- 已调用 `shrimp-task-manager plan_task/analyze_task/reflect_task/split_tasks/execute_task` 建立执行任务。
+- `desktop-commander` 未在当前会话暴露；本轮使用 PowerShell、`rg`、Context7 和 GitHub MCP 替代，并记录该工具缺口。
+- Context7 查询 LangGraph 文档，结论：并行 superstep 的写入会汇总后 checkpoint，与项目“并发执行、按序集中提交”的设计一致。
+- GitHub `search_code` 查询 `ThreadPoolExecutor FIRST_COMPLETED futures pending_results commit in order Python`，无可直接复用的同域高质量实现；本轮以项目内既有实现为主。
+
+### 已查阅上下文摘要文件
+
+- `.codex/context-summary-ph4.md`
+
+### 将使用以下可复用组件
+
+- `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`：复用 `_run_book_loop_parallel`、`_fill_chapter_window`、`_budget_pause_reason`、`_fallback_limit_reached`、`_shutdown_pending_chapters`。
+- `apps/workflow/tests/test_book_loop_three_chapters.py`：复用 `threading.Event` 验证并发启动、按章节顺序提交的测试模式。
+- `apps/workflow/storyforge_workflow/runtime/checkpoints.py`：复用 `RuntimeCheckpointStore.save_state`、`flush`、`load_state`、`close` 的 write-behind 实现。
+
+### 将遵循的项目约定
+
+- Python 命名使用 `snake_case`，数据类使用 `PascalCase`，状态字符串使用小写下划线。
+- 测试使用 pytest plain `assert`，中文 docstring 描述行为意图。
+- 文件组织保持在 workflow orchestrator/runtime/test 边界内，不新增外部调度框架。
+
+### 不重复造轮子的证明
+
+- 已检查 `book_loop.py`，确认已有并发窗口和按序提交能力，缺口只是预算存在时被入口禁用。
+- 已检查 `RuntimeCheckpointStore`，确认已有 write-behind 机制，本轮只补验证。
+- 已检查 `graph.py`，确认章节内规划节点当前是线性 LangGraph 拓扑，不以临时 helper 伪造并发。
+
+## PH4 BookLoop 预算感知章节并行 - TDD 记录
+
+时间：2026-06-07 02:05:00 +08:00
+
+### 红灯
+
+- 新增测试：`apps/workflow/tests/test_book_loop_three_chapters.py::test_book_loop_parallel_token_budget_starts_window_then_pauses_without_refill`。
+- 命令：`cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py::test_book_loop_parallel_token_budget_starts_window_then_pauses_without_refill -q`。
+- 结果：失败 1 项，断言 `set(started) == {1, 2, 3}` 时实际为 `{1, 2}`。
+- 结论：当前实现因为 `token_budget` 存在而退回串行路径，符合 PH4 红灯预期。
+
+### 根因与实现
+
+- 第一版放宽 `_parallelism_enabled` 后，测试失败变为实际启动 `{1, 2, 3, 4}`。
+- 根因：并发循环在第 1 章尚未提交前收到第 2/3 章结果，会无条件补窗启动第 4 章；预算检查只有按序提交时才发生。
+- 修复：保留 `chapter_budget` 的硬上限语义；`token_budget`、`time_budget_sec`、`provider_fallback_pause_threshold` 不再关闭并发入口，而是在并发路径按序提交章节后判定暂停。若存在预算/降级门禁且已有乱序待提交结果，则先不补窗，让前序章节提交并检查预算。
+
+### 绿灯与回归
+
+- `cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py::test_book_loop_parallel_token_budget_starts_window_then_pauses_without_refill -q`：1 passed。
+- `cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_loop_resume.py -q`：14 passed。
+- 审查补测：新增 `apps/workflow/tests/test_book_loop_three_chapters.py::test_book_loop_parallel_provider_degradation_starts_window_then_pauses`，验证 provider 降级门禁存在时仍可并发启动窗口，并在连续 fallback 达阈值后按序暂停。
+- 补测命令：`cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py::test_book_loop_parallel_provider_degradation_starts_window_then_pauses -q`：1 passed。
+
+## PH4 Runtime write-behind 补充验证 - TDD 记录
+
+时间：2026-06-07 02:25:00 +08:00
+
+### 红灯与断言校正
+
+- 新增测试：`apps/workflow/tests/test_runtime_runner.py::test_runtime_checkpoint_write_behind_flushes_on_read_and_close`。
+- 命令：`cd apps/workflow; uv run pytest tests/test_runtime_runner.py::test_runtime_checkpoint_write_behind_flushes_on_read_and_close -q`。
+- 初次结果：失败 1 项，`KeyError: 'draft_preview_ref'`。
+- 根因：`draft_preview_ref` 按 `checkpoint_reference_state` 设计属于执行内工作键，不在 checkpoint 引用白名单中；测试应验证 `draft_artifact_id` 持久化，而不是要求预览文本进 checkpoint。
+- 校正：测试改为断言 `draft_artifact_id` 保留，`draft_excerpt` 与 `draft_preview_ref` 都被裁剪。
+
+### 绿灯
+
+- `cd apps/workflow; uv run pytest tests/test_runtime_runner.py::test_runtime_checkpoint_write_behind_flushes_on_read_and_close -q`：1 passed。
+
+## PH4 最终本地验证
+
+时间：2026-06-07 02:45:00 +08:00
+
+- `cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_loop_resume.py tests/test_runtime_runner.py -q`：29 passed。
+- `cd apps/workflow; uv run python -m compileall storyforge_workflow tests`：通过。
+- `cd apps/workflow; uv run ruff check storyforge_workflow/orchestrators/book_loop.py tests/test_book_loop_three_chapters.py tests/test_runtime_runner.py`：All checks passed。
+- `git diff --check -- apps/workflow/storyforge_workflow/orchestrators/book_loop.py apps/workflow/tests/test_book_loop_three_chapters.py apps/workflow/tests/test_runtime_runner.py .codex/context-summary-ph4.md`：通过。
+
+## 编码后声明 - PH4 并发层重构
+
+时间：2026-06-07 02:50:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `BookLoopRequest`：继续作为章节并发和预算输入契约，位于 `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`。
+- `_run_book_loop_parallel`：复用既有并发窗口和按序提交机制，没有新增调度框架。
+- `_budget_pause_reason` 与 `_fallback_limit_reached`：复用既有预算与 provider 降级判定函数，在并发路径补齐相同暂停语义。
+- `RuntimeCheckpointStore`：复用已有 write-behind 缓冲、`flush`、`load_state` 和 `close` 行为，仅新增测试验证。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 函数与变量保持 `snake_case`，测试名使用行为描述。
+- 代码风格：测试继续使用 pytest plain `assert` 与中文 docstring。
+- 文件组织：改动限定在 workflow orchestrator/runtime 测试和 `.codex` 记录，未新增跨层依赖。
+
+### 3. 对比了以下相似实现
+
+- `test_book_loop_can_prefetch_chapters_but_commit_progress_in_order`：本轮沿用事件门闩验证并发启动，但新增预算和 provider 门禁下的暂停断言。
+- 串行预算路径：本轮保持 `_budget_pause_reason` 和 `_paused_by_budget` 输出结构一致，差异是并发路径也能使用相同语义。
+- `RuntimeCheckpointStore.load_state` 读前 flush 模式：本轮测试证明 write-behind 开启后读路径和 close 路径都能持久化引用状态。
+
+### 4. 未重复造轮子的证明
+
+- 已确认 BookLoop 已有并发窗口，本轮只解除预算门禁的入口限制并补齐停止补窗逻辑。
+- 已确认 RuntimeCheckpointStore 已有异步 write-behind，本轮未重写，只补充本地验证。
+- 已确认章节内 LangGraph 并发需要拓扑级设计，本轮未用临时 helper 伪造完成。
+
+## PH4B 章节内规划 fan-out - TDD 记录
+
+时间：2026-06-07 03:15:00 +08:00
+
+### 上下文补充
+
+- 已补充 `.codex/context-summary-ph4.md` 第 9 节，记录当前图式链路、LangGraph fan-in 能力和共享 state key 风险。
+- 关键事实：当前 `scene_beats` 可使用初始 `scene_packet` 中的章节目标、场景目标和连续性约束生成，不必等待 `chapter_plan` 输出；但两个节点若直接作为 LangGraph 并行节点，会同时写 `current_status/status_history/current_node`。
+- 实施选择：新增 `scene_architect.parallel_plan` 合并节点，内部并发复用 `create_chapter_plan` 与 `create_scene_beats`，再统一合并轻量引用状态。
+
+### 红灯
+
+- 新增测试：`apps/workflow/tests/test_generation_graph.py::test_generation_graph_parallel_scene_plan_runs_plan_and_beats_together`。
+- 命令：`cd apps/workflow; uv run pytest tests/test_generation_graph.py::test_generation_graph_parallel_scene_plan_runs_plan_and_beats_together -q`。
+- 首次测试断言校正：真实 prompt 文案是“章节标题、章节目标、冲突轴”，测试匹配由“和冲突轴”修正为顿号版本。
+- 红灯结果：失败 1 项，`scene_beats 应在 chapter_plan 等待期间并发启动。`，证明旧图仍为 `chapter_planner -> scene_beats` 串行。
+
+### 实现
+
+- `apps/workflow/storyforge_workflow/graph.py`：
+  - 图边从 `book_director -> chapter_planner -> scene_beats -> draft_writer` 改为 `book_director -> scene_planner -> draft_writer`。
+  - 新增 `scene_architect.parallel_plan` 合并节点，内部使用 `ThreadPoolExecutor(max_workers=2)` 并发调用现有 `create_chapter_plan` 与 `create_scene_beats`。
+  - 合并输出保留 `chapter_title_ref`、`chapter_goal_ref`、`conflict_axis_ref`、`scene_beat_refs`，并统一设置 `current_node=scene_architect.parallel_plan`。
+- `apps/workflow/storyforge_workflow/state.py`：
+  - 补齐 prompt 工程层轻量引用字段类型声明，确保 LangGraph 不过滤规划引用输出。
+  - 这些字段仍未加入 `_REFERENCE_STATE_KEYS`，不会进入持久化 checkpoint。
+
+### 绿灯与局部回归
+
+- `cd apps/workflow; uv run pytest tests/test_generation_graph.py::test_generation_graph_parallel_scene_plan_runs_plan_and_beats_together -q`：1 passed。
+- `cd apps/workflow; uv run pytest tests/test_generation_graph.py -q`：11 passed。
+- `cd apps/workflow; uv run pytest tests/test_runtime_runner.py::test_workflow_runtime_flushes_sqlite_snapshot_after_each_graph_node tests/test_runtime_runner.py::test_workflow_runtime_marks_plain_node_error_as_failed tests/test_runtime_runner.py::test_workflow_runtime_threads_prompt_injection_into_draft_writer -q`：3 passed。
+- `cd apps/workflow; uv run pytest tests/test_generation_state_references.py -q`：5 passed。
+
+## PH4B 最终复验与空白修复
+
+时间：2026-06-07 03:45:00 +08:00
+
+### 空白检查阻塞
+
+- 复现命令：`git diff --check -- apps/workflow/storyforge_workflow/state.py`。
+- 失败现象：Git 将 `state.py` 整文件 CRLF 行尾识别为 trailing whitespace，导致每一行都报错。
+- 根因：此前格式化保留了文件当前行尾，未按仓库期望归一为 LF。
+- 修复：执行 `cd apps/workflow; uv run ruff format --config "format.line-ending = 'lf'" storyforge_workflow/state.py`，只归一行尾并保持业务差异为轻量引用字段声明。
+
+### 最终本地验证
+
+- `cd apps/workflow; uv run pytest -q`：206 passed。
+- `cd apps/workflow; uv run ruff check storyforge_workflow tests/test_generation_graph.py tests/test_runtime_runner.py tests/test_generation_state_references.py`：All checks passed。
+- `cd apps/workflow; uv run python -m compileall storyforge_workflow tests`：通过。
+- `git diff --check -- apps/workflow/storyforge_workflow/graph.py apps/workflow/storyforge_workflow/state.py apps/workflow/storyforge_workflow/orchestrators/book_loop.py apps/workflow/tests/test_generation_graph.py apps/workflow/tests/test_runtime_runner.py apps/workflow/tests/test_book_loop_three_chapters.py .codex/context-summary-ph4.md .codex/verification-report.md`：通过。
+
+### 编码后声明补充
+
+- `state.py` 最终有效差异为新增 `strategy_*`、`chapter_*`、`conflict_axis_ref`、`scene_*`、`previous_summary_ref`、`protagonist_ref`、`required_fact_refs` 等运行态轻量字段类型声明。
+- 这些字段未加入 `_REFERENCE_STATE_KEYS`，因此仍由 `checkpoint_reference_state` 自动剔除，不进入持久化 checkpoint。
+- 本轮未触碰 `apps/api/app/domains/story_memory/service.py` 中既有未归属修改。
+

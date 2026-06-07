@@ -217,6 +217,95 @@ def test_book_loop_can_prefetch_chapters_but_commit_progress_in_order() -> None:
     assert completed[0] != 1
     assert progress_indexes == [1, 2, 3]
     assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2, 3]
+    assert result.progress["integration_metrics"]["concurrent_chapter_utilization"] > 0.6
+    assert result.progress["integration_metrics"]["metric_scope"] == "workflow_book_loop_parallel"
+
+
+def test_book_loop_parallel_token_budget_starts_window_then_pauses_without_refill() -> None:
+    """存在 token 预算时仍应并发启动窗口，预算触顶后停止补充新章节。"""
+
+    first_chapter_can_finish = Event()
+    started: list[int] = []
+    lock = Lock()
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        with lock:
+            started.append(chapter_index)
+            if len(started) == 3:
+                first_chapter_can_finish.set()
+        if chapter_index == 1:
+            first_chapter_can_finish.wait(timeout=2)
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章正文。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+            token_usage=80,
+        )
+
+    result = run_book_loop(
+        BookLoopRequest(
+            book_run_id=1,
+            book_id=2,
+            blueprint_id=3,
+            total_chapters=5,
+            token_budget=100,
+            chapter_parallelism=3,
+        ),
+        run_chapter,
+    )
+
+    assert result.status == "paused_by_budget"
+    assert result.current_chapter_index == 2
+    assert set(started) == {1, 2, 3}
+    assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2]
+    assert result.progress["budget"]["tokens_used"] == 160
+    assert result.progress["pause_reason"] == "token_budget_exceeded"
+
+
+def test_book_loop_parallel_provider_degradation_starts_window_then_pauses() -> None:
+    """存在 provider 降级门禁时仍应并发启动窗口，并在连续 fallback 达阈值后暂停。"""
+
+    first_chapter_can_finish = Event()
+    started: list[int] = []
+    lock = Lock()
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        with lock:
+            started.append(chapter_index)
+            if len(started) == 3:
+                first_chapter_can_finish.set()
+        if chapter_index == 1:
+            first_chapter_can_finish.wait(timeout=2)
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章正文。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+            fallback_metadata={"primary_provider_error": "主 provider 超时"},
+        )
+
+    result = run_book_loop(
+        BookLoopRequest(
+            book_run_id=1,
+            book_id=2,
+            blueprint_id=3,
+            total_chapters=5,
+            provider_fallback_pause_threshold=2,
+            chapter_parallelism=3,
+        ),
+        run_chapter,
+    )
+
+    assert result.status == "paused_by_provider_degradation"
+    assert result.current_chapter_index == 2
+    assert set(started) == {1, 2, 3}
+    assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2]
+    assert result.progress["provider_degradation"]["consecutive_fallbacks"] == 2
 
 
 def test_book_loop_parallel_awaiting_review_accumulates_blocked_chapter_budget() -> None:

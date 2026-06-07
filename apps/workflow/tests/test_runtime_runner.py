@@ -298,14 +298,57 @@ def test_workflow_runtime_flushes_sqlite_snapshot_after_each_graph_node(
     snapshots = reopened_store.list_state_snapshots("phase-f1-snapshot-thread")
     snapshot_nodes = [snapshot.current_node for snapshot in snapshots]
 
-    assert snapshot_nodes[:4] == [
+    assert snapshot_nodes[:3] == [
         "book_director",
-        "scene_architect.chapter_plan",
-        "scene_architect.scene_beats",
+        "scene_architect.parallel_plan",
         "draft_writer",
     ]
     assert snapshots[-1].state["current_node"] == "draft_writer"
     assert "draft_excerpt" not in snapshots[-1].state
+
+
+def test_runtime_checkpoint_write_behind_flushes_on_read_and_close(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """write-behind 开启时，读路径和 close 都必须把缓冲状态持久化。"""
+
+    monkeypatch.setenv("STORYFORGE_CHECKPOINT_WRITE_BEHIND", "1")
+    monkeypatch.setenv("STORYFORGE_CHECKPOINT_WRITE_BEHIND_FLUSH_INTERVAL_SECONDS", "60")
+    sqlite_path = tmp_path / "runtime-write-behind.sqlite3"
+    checkpoint_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+
+    checkpoint_store.save_state(
+        "phase4-write-behind-thread",
+        {
+            "thread_id": "phase4-write-behind-thread",
+            "job_run_id": "phase4-write-behind-job",
+            "current_node": "draft_writer",
+            "approval_status": "pending",
+            "draft_artifact_id": 808,
+            "draft_excerpt": "这段草稿正文不应进入引用化 checkpoint。",
+            "draft_preview_ref": "artifact://draft-preview",
+        },
+    )
+
+    loaded = checkpoint_store.load_state("phase4-write-behind-thread")
+    assert loaded is not None
+    assert loaded["current_node"] == "draft_writer"
+    assert loaded["draft_artifact_id"] == 808
+    assert "draft_excerpt" not in loaded
+    assert "draft_preview_ref" not in loaded
+    checkpoint_store.close()
+
+    reopened_store = RuntimeCheckpointStore(sqlite_path=sqlite_path)
+    try:
+        reopened = reopened_store.load_state("phase4-write-behind-thread")
+        snapshots = reopened_store.list_state_snapshots("phase4-write-behind-thread")
+    finally:
+        reopened_store.close()
+
+    assert reopened is not None
+    assert reopened["draft_artifact_id"] == 808
+    assert "draft_preview_ref" not in reopened
+    assert [snapshot.current_node for snapshot in snapshots] == ["draft_writer"]
 
 
 def test_workflow_runtime_keeps_recoverable_checkpoint_when_provider_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -484,16 +527,16 @@ def test_workflow_runtime_marks_plain_node_error_as_failed(monkeypatch: pytest.M
     session = session_store.latest_for_thread("phase-node-error-thread")
 
     assert failed.status == "failed"
-    assert failed.current_node == "scene_architect.chapter_plan"
+    assert failed.current_node == "scene_architect.parallel_plan"
     assert checkpoint_state is not None
-    assert checkpoint_state["current_node"] == "scene_architect.chapter_plan"
+    assert checkpoint_state["current_node"] == "scene_architect.parallel_plan"
     assert checkpoint_state["error_code"] == "node_execution_failed"
     assert latest_record is not None
     assert latest_record.approval_status == "failed"
     assert failure_event is not None
     assert failure_event.status == "recoverable_failed"
     assert failure_event.failure_kind == "unknown_runtime_error"
-    assert failure_event.current_node == "scene_architect.chapter_plan"
+    assert failure_event.current_node == "scene_architect.parallel_plan"
     assert session is not None
     assert session.status == "recoverable_failed"
 

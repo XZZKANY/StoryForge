@@ -19,7 +19,7 @@ from storyforge_workflow.nodes.draft_writer import (
 )
 from storyforge_workflow.nodes.scene_architect import create_chapter_plan, create_scene_beats
 from storyforge_workflow.persistence import InMemoryWorkflowStore, summarize_value
-from storyforge_workflow.state import GenerationState
+from storyforge_workflow.state import GenerationState, WorkflowStatus
 from storyforge_workflow.utils.logging import get_logger
 
 log = get_logger("storyforge_workflow.graph")
@@ -62,14 +62,13 @@ def create_generation_graph(
         _audited_node("book_director", create_book_strategy, workflow_store, resolved_node_timeout_seconds),
     )
     builder.add_node(
-        "chapter_planner",
+        "scene_planner",
         _audited_node(
-            "scene_architect.chapter_plan", create_chapter_plan, workflow_store, resolved_node_timeout_seconds
+            "scene_architect.parallel_plan",
+            _parallel_scene_plan_node(resolved_node_timeout_seconds),
+            workflow_store,
+            resolved_node_timeout_seconds,
         ),
-    )
-    builder.add_node(
-        "scene_beats",
-        _audited_node("scene_architect.scene_beats", create_scene_beats, workflow_store, resolved_node_timeout_seconds),
     )
     builder.add_node(
         "draft_writer",
@@ -86,9 +85,8 @@ def create_generation_graph(
     builder.add_node("human_approval", _approval_node(workflow_store))
 
     builder.add_edge(START, "book_director")
-    builder.add_edge("book_director", "chapter_planner")
-    builder.add_edge("chapter_planner", "scene_beats")
-    builder.add_edge("scene_beats", "draft_writer")
+    builder.add_edge("book_director", "scene_planner")
+    builder.add_edge("scene_planner", "draft_writer")
     # 评审→修订环：默认开（env 可关）。critic 发现问题且未超轮数则回到 reviser 重写后再评审。
     builder.add_conditional_edges(
         "draft_writer",
@@ -103,6 +101,56 @@ def create_generation_graph(
     builder.add_edge("draft_reviser", "draft_critic")
     builder.add_edge("human_approval", END)
     return builder.compile(checkpointer=checkpointer)
+
+
+def _parallel_scene_plan_node(timeout_seconds: float) -> NodeFunction:
+    def run(state: GenerationState) -> dict[str, Any]:
+        """并发生成章节规划与场景 beat，再统一合并共享状态字段。"""
+
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="storyforge-plan") as executor:
+            chapter_plan_future = executor.submit(create_chapter_plan, state)
+            scene_beats_future = executor.submit(create_scene_beats, state)
+            try:
+                chapter_plan = chapter_plan_future.result(timeout=timeout_seconds)
+                scene_beats = scene_beats_future.result(timeout=timeout_seconds)
+            except FutureTimeoutError as exc:
+                chapter_plan_future.cancel()
+                scene_beats_future.cancel()
+                raise WorkflowNodeTimeoutError(
+                    node_name="scene_architect.parallel_plan",
+                    timeout_seconds=timeout_seconds,
+                ) from exc
+            except Exception:
+                chapter_plan_future.cancel()
+                scene_beats_future.cancel()
+                raise
+        return _merge_scene_plan_outputs(state, chapter_plan, scene_beats)
+
+    return run
+
+
+def _merge_scene_plan_outputs(
+    state: GenerationState,
+    chapter_plan: dict[str, Any],
+    scene_beats: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "chapter_title_ref": chapter_plan["chapter_title_ref"],
+        "chapter_goal_ref": chapter_plan["chapter_goal_ref"],
+        "conflict_axis_ref": chapter_plan["conflict_axis_ref"],
+        "scene_beat_refs": list(scene_beats["scene_beat_refs"]),
+        "current_status": "scene_beats_created",
+        "status_history": _planning_status_history(state),
+        "current_node": "scene_architect.parallel_plan",
+    }
+
+
+def _planning_status_history(state: GenerationState) -> list[WorkflowStatus]:
+    history = list(state.get("status_history", ["premise_received"]))
+    for status in ("chapter_plan_created", "scene_beats_created"):
+        if not history or history[-1] != status:
+            history.append(status)
+    return history
 
 
 def _critique_enabled() -> bool:

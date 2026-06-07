@@ -154,6 +154,8 @@ def _run_book_loop_parallel(
     futures: dict[Future[NovelLoopResult], int] = {}
     chapter_indexes = iter(range(request.start_chapter_index, request.total_chapters + 1))
     next_commit_index = request.start_chapter_index
+    consecutive_fallbacks = 0
+    max_in_flight = 0
 
     executor = ThreadPoolExecutor(
         max_workers=max(1, request.chapter_parallelism),
@@ -162,6 +164,7 @@ def _run_book_loop_parallel(
     executor_closed = False
     try:
         _fill_chapter_window(executor, run_chapter, chapter_indexes, futures, request.chapter_parallelism)
+        max_in_flight = max(max_in_flight, len(futures))
         while futures or pending_results:
             while next_commit_index in pending_results:
                 chapter_result = pending_results.pop(next_commit_index)
@@ -172,36 +175,66 @@ def _run_book_loop_parallel(
                 if consistency_report is not None and consistency_report.has_conflict:
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
-                    return _consistency_blocked_result(
-                        next_commit_index, chapter_result, completed, checkpoint, budget, consistency_report
+                    return _with_integration_metrics(
+                        _consistency_blocked_result(
+                            next_commit_index, chapter_result, completed, checkpoint, budget, consistency_report
+                        ),
+                        _parallel_integration_metrics(request, max_in_flight),
                     )
                 if chapter_result.status != "approved":
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
-                    return BookLoopResult(
-                        status="awaiting_review",
-                        current_chapter_index=next_commit_index,
-                        progress={
-                            "completed_chapters": completed,
-                            "checkpoint": checkpoint,
-                            "blocked_chapter": _chapter_progress(next_commit_index, chapter_result),
-                            "budget": dict(budget),
-                        },
+                    return _with_integration_metrics(
+                        BookLoopResult(
+                            status="awaiting_review",
+                            current_chapter_index=next_commit_index,
+                            progress={
+                                "completed_chapters": completed,
+                                "checkpoint": checkpoint,
+                                "blocked_chapter": _chapter_progress(next_commit_index, chapter_result),
+                                "budget": dict(budget),
+                            },
+                        ),
+                        _parallel_integration_metrics(request, max_in_flight),
                     )
                 chapter_progress = _chapter_progress(next_commit_index, chapter_result)
                 completed.append(chapter_progress)
                 checkpoint.append(_checkpoint_entry(chapter_progress))
                 if progress_callback is not None:
                     progress_callback(
-                        BookLoopResult(
-                            status="running",
-                            current_chapter_index=next_commit_index,
-                            progress={
-                                "completed_chapters": list(completed),
-                                "checkpoint": list(checkpoint),
-                                "budget": dict(budget),
-                            },
+                        _with_integration_metrics(
+                            BookLoopResult(
+                                status="running",
+                                current_chapter_index=next_commit_index,
+                                progress={
+                                    "completed_chapters": list(completed),
+                                    "checkpoint": list(checkpoint),
+                                    "budget": dict(budget),
+                                },
+                            ),
+                            _parallel_integration_metrics(request, max_in_flight),
                         )
+                    )
+                if chapter_result.fallback_metadata:
+                    consecutive_fallbacks += 1
+                else:
+                    consecutive_fallbacks = 0
+                if _fallback_limit_reached(request, consecutive_fallbacks):
+                    _shutdown_pending_chapters(executor, futures)
+                    executor_closed = True
+                    return _with_integration_metrics(
+                        _provider_degradation_result(
+                            next_commit_index, completed, checkpoint, budget, consecutive_fallbacks, chapter_result
+                        ),
+                        _parallel_integration_metrics(request, max_in_flight),
+                    )
+                pause_reason = _budget_pause_reason(request, budget)
+                if pause_reason is not None:
+                    _shutdown_pending_chapters(executor, futures)
+                    executor_closed = True
+                    return _with_integration_metrics(
+                        _paused_by_budget(next_commit_index, completed, checkpoint, budget, pause_reason),
+                        _parallel_integration_metrics(request, max_in_flight),
                     )
                 next_commit_index += 1
             if not futures:
@@ -215,15 +248,20 @@ def _run_book_loop_parallel(
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
                     raise ChapterExecutionError(chapter_index, exc) from exc
-            _fill_chapter_window(executor, run_chapter, chapter_indexes, futures, request.chapter_parallelism)
+            if not (_preemptive_pause_enabled(request) and pending_results):
+                _fill_chapter_window(executor, run_chapter, chapter_indexes, futures, request.chapter_parallelism)
+                max_in_flight = max(max_in_flight, len(futures))
     finally:
         if not executor_closed:
             executor.shutdown(wait=True)
 
-    return BookLoopResult(
-        status="completed",
-        current_chapter_index=request.total_chapters,
-        progress={"completed_chapters": completed, "checkpoint": checkpoint, "budget": dict(budget)},
+    return _with_integration_metrics(
+        BookLoopResult(
+            status="completed",
+            current_chapter_index=request.total_chapters,
+            progress={"completed_chapters": completed, "checkpoint": checkpoint, "budget": dict(budget)},
+        ),
+        _parallel_integration_metrics(request, max_in_flight),
     )
 
 
@@ -297,12 +335,36 @@ def _consistency_blocked_result(
 def _parallelism_enabled(request: BookLoopRequest) -> bool:
     if request.chapter_parallelism <= 1:
         return False
+    return request.chapter_budget is None
+
+
+def _preemptive_pause_enabled(request: BookLoopRequest) -> bool:
     return (
-        request.token_budget is None
-        and request.time_budget_sec is None
-        and request.chapter_budget is None
-        and request.provider_fallback_pause_threshold is None
+        request.token_budget is not None
+        or request.time_budget_sec is not None
+        or request.provider_fallback_pause_threshold is not None
     )
+
+
+def _with_integration_metrics(result: BookLoopResult, metrics: dict[str, Any]) -> BookLoopResult:
+    progress = dict(result.progress)
+    progress["integration_metrics"] = metrics
+    return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
+
+
+def _parallel_integration_metrics(request: BookLoopRequest, max_in_flight: int) -> dict[str, Any]:
+    target_window = min(
+        max(1, request.chapter_parallelism),
+        max(1, request.total_chapters - request.start_chapter_index + 1),
+    )
+    utilization = max(0.0, min(1.0, max_in_flight / target_window))
+    return {
+        "concurrent_chapter_utilization": round(utilization, 4),
+        "metric_scope": "workflow_book_loop_parallel",
+        "chapter_parallelism": request.chapter_parallelism,
+        "max_in_flight_chapters": max_in_flight,
+        "target_parallel_window": target_window,
+    }
 
 
 def _chapter_progress(chapter_index: int, result: NovelLoopResult) -> dict[str, Any]:
@@ -374,6 +436,29 @@ def _paused_by_budget(
             "checkpoint": checkpoint,
             "budget": dict(budget),
             "pause_reason": reason,
+        },
+    )
+
+
+def _provider_degradation_result(
+    chapter_index: int,
+    completed: list[dict[str, Any]],
+    checkpoint: list[dict[str, Any]],
+    budget: dict[str, int | float],
+    consecutive_fallbacks: int,
+    chapter_result: NovelLoopResult,
+) -> BookLoopResult:
+    return BookLoopResult(
+        status="paused_by_provider_degradation",
+        current_chapter_index=chapter_index,
+        progress={
+            "completed_chapters": completed,
+            "checkpoint": checkpoint,
+            "budget": dict(budget),
+            "provider_degradation": {
+                "consecutive_fallbacks": consecutive_fallbacks,
+                "latest_fallback": chapter_result.fallback_metadata,
+            },
         },
     )
 

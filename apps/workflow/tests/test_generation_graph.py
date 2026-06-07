@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from threading import Event
+from time import perf_counter
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
@@ -49,8 +50,7 @@ def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monke
 
     assert [next(iter(chunk)) for chunk in chunks] == [
         "book_director",
-        "chapter_planner",
-        "scene_beats",
+        "scene_planner",
         "draft_writer",
         "__interrupt__",
     ]
@@ -69,8 +69,7 @@ def test_generation_graph_pauses_at_human_approval_and_records_checkpoints(monke
     records = store.list_records(thread_id=thread_id)
     assert [record.current_node for record in records] == [
         "book_director",
-        "scene_architect.chapter_plan",
-        "scene_architect.scene_beats",
+        "scene_architect.parallel_plan",
         "draft_writer",
     ]
     assert {record.thread_id for record in records} == {thread_id}
@@ -163,7 +162,54 @@ def test_generation_graph_reuses_node_executor_across_nodes(monkeypatch) -> None
     finally:
         graph_module.close_workflow_node_executor()
 
-    assert created_prefixes == ["storyforge-node"]
+    assert created_prefixes == ["storyforge-node", "storyforge-plan"]
+
+
+def test_generation_graph_parallel_scene_plan_runs_plan_and_beats_together(monkeypatch) -> None:
+    """PH4B：章节规划与场景 beat 应在同一 planning fan-out 节点内并发执行。"""
+
+    monkeypatch.setenv("STORYFORGE_DRAFT_CRITIQUE_ENABLED", "0")
+    scene_beats_started = Event()
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.director.generate_text",
+        lambda prompt, **kwargs: "灯塔远航\n核心问题\n克制\n承诺",
+    )
+
+    def fake_scene_architect_llm(prompt: str, **kwargs) -> str:
+        if "章节标题、章节目标、冲突轴" in prompt:
+            calls.append("chapter_plan")
+            assert scene_beats_started.wait(timeout=0.5), "scene_beats 应在 chapter_plan 等待期间并发启动。"
+            return "暗潮\n林岚争取维修窗口\n谈判压力与伤势互相挤压"
+        if "动作 beat" in prompt:
+            calls.append("scene_beats")
+            scene_beats_started.set()
+            return "林岚压住左臂旧伤进入谈判。\n灯塔信号每七分钟重复一次。\n港口代表提出代价。"
+        raise AssertionError(f"未识别的 scene architect prompt：{prompt[:80]}")
+
+    monkeypatch.setattr("storyforge_workflow.nodes.scene_architect.generate_text", fake_scene_architect_llm)
+    monkeypatch.setattr(
+        "storyforge_workflow.nodes.draft_writer.generate_text",
+        lambda prompt, **kwargs: "林岚把左臂藏进披风，听见灯塔信号第七分钟再次回响。",
+    )
+    store = InMemoryWorkflowStore()
+    graph = create_generation_graph(store=store, checkpointer=InMemorySaver())
+    thread_id = "thread-parallel-plan"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    started_at = perf_counter()
+    chunks = list(graph.stream(_state(thread_id, "job-parallel-plan"), config))
+    elapsed = perf_counter() - started_at
+    visited = [next(iter(chunk)) for chunk in chunks]
+
+    assert "scene_planner" in visited
+    assert calls[:2] == ["chapter_plan", "scene_beats"]
+    assert elapsed < 0.5
+    planning_chunk = next(chunk["scene_planner"] for chunk in chunks if "scene_planner" in chunk)
+    assert planning_chunk["current_node"] == "scene_architect.parallel_plan"
+    assert planning_chunk["chapter_goal_ref"] == "林岚争取维修窗口"
+    assert planning_chunk["scene_beat_refs"][0].startswith("林岚压住左臂旧伤")
 
 
 def test_generation_graph_timeout_rotates_executor_so_healthy_node_can_run(monkeypatch) -> None:
@@ -255,8 +301,7 @@ def test_generation_graph_runs_critique_revision_loop(monkeypatch) -> None:
 
     assert visited == [
         "book_director",
-        "chapter_planner",
-        "scene_beats",
+        "scene_planner",
         "draft_writer",
         "draft_critic",
         "draft_reviser",
@@ -322,8 +367,7 @@ def test_generation_graph_caps_revisions_at_max(monkeypatch) -> None:
     # max=1：draft → critic(报问题) → reviser → critic(仍报问题，但已达上限) → approval
     assert visited == [
         "book_director",
-        "chapter_planner",
-        "scene_beats",
+        "scene_planner",
         "draft_writer",
         "draft_critic",
         "draft_reviser",
