@@ -5,6 +5,12 @@ param(
   [int]$TokenBudget = 200000,
   [int]$MinQualityScore = 90,
   [int]$MaxQualityIssueCount = 3,
+  [double]$MinContextCacheHitRate = 0.95,
+  [int]$MaxMemoryRecallBudgetUsed = 8000,
+  [double]$MinArcCompletionRate = 0.7,
+  [double]$MaxDbQueryCountPerChapter = 3,
+  [double]$MaxChapterGenerationTimeP50 = 20,
+  [double]$MinConcurrentChapterUtilization = 0.6,
   [switch]$RequireManualReadthrough
 )
 
@@ -142,6 +148,71 @@ if ($null -eq $summary) {
   if ($totalIssues -gt $MaxQualityIssueCount) {
     $failures += "累计 quality_issue_count 超过 $MaxQualityIssueCount"
   }
+
+  $integrationMetrics = $summary.integration_metrics
+  if ($null -eq $integrationMetrics) {
+    $failures += "缺少 integration_metrics"
+  } else {
+    $contextCacheHitRate = $integrationMetrics.context_cache_hit_rate
+    if ($null -eq $contextCacheHitRate) {
+      $failures += "缺少 context_cache_hit_rate"
+    } else {
+      Write-Output "context_cache_hit_rate: $contextCacheHitRate"
+      if ([double]$contextCacheHitRate -le $MinContextCacheHitRate) {
+        $failures += "context_cache_hit_rate 未超过 $MinContextCacheHitRate"
+      }
+    }
+
+    $memoryRecallBudgetUsed = $integrationMetrics.memory_recall_budget_used
+    if ($null -eq $memoryRecallBudgetUsed) {
+      $failures += "缺少 memory_recall_budget_used"
+    } else {
+      Write-Output "memory_recall_budget_used: $memoryRecallBudgetUsed"
+      if ([double]$memoryRecallBudgetUsed -ge $MaxMemoryRecallBudgetUsed) {
+        $failures += "memory_recall_budget_used 未低于 $MaxMemoryRecallBudgetUsed"
+      }
+    }
+
+    $arcCompletionRate = $integrationMetrics.arc_completion_rate
+    if ($null -eq $arcCompletionRate) {
+      $failures += "缺少 arc_completion_rate"
+    } else {
+      Write-Output "arc_completion_rate: $arcCompletionRate"
+      if ([double]$arcCompletionRate -lt $MinArcCompletionRate) {
+        $failures += "arc_completion_rate 低于 $MinArcCompletionRate"
+      }
+    }
+
+    $dbQueryCountPerChapter = $integrationMetrics.db_query_count_per_chapter
+    if ($null -eq $dbQueryCountPerChapter) {
+      $failures += "缺少 db_query_count_per_chapter"
+    } else {
+      Write-Output "db_query_count_per_chapter: $dbQueryCountPerChapter"
+      if ([double]$dbQueryCountPerChapter -gt $MaxDbQueryCountPerChapter) {
+        $failures += "db_query_count_per_chapter 超过 $MaxDbQueryCountPerChapter"
+      }
+    }
+
+    $chapterGenerationTimeP50 = $integrationMetrics.chapter_generation_time_p50
+    if ($null -eq $chapterGenerationTimeP50) {
+      $failures += "缺少 chapter_generation_time_p50"
+    } else {
+      Write-Output "chapter_generation_time_p50: $chapterGenerationTimeP50"
+      if ([double]$chapterGenerationTimeP50 -ge $MaxChapterGenerationTimeP50) {
+        $failures += "chapter_generation_time_p50 未低于 $MaxChapterGenerationTimeP50 秒"
+      }
+    }
+
+    $concurrentChapterUtilization = $integrationMetrics.concurrent_chapter_utilization
+    if ($null -eq $concurrentChapterUtilization) {
+      $failures += "缺少 concurrent_chapter_utilization"
+    } else {
+      Write-Output "concurrent_chapter_utilization: $concurrentChapterUtilization"
+      if ([double]$concurrentChapterUtilization -le $MinConcurrentChapterUtilization) {
+        $failures += "concurrent_chapter_utilization 未超过 $MinConcurrentChapterUtilization"
+      }
+    }
+  }
 }
 
 if ($RequireManualReadthrough) {
@@ -157,11 +228,21 @@ if ($RequireManualReadthrough) {
 
 if ($failures.Count -eq 0) {
   if ($RequireManualReadthrough) {
-    Write-Output "gate: pass_for_real_10ch_final_acceptance"
-    Write-Output "note: 该结论覆盖当前真实 10 章 smoke 的技术证据与人工通读完成证据；仍不代表 3-5 万字长程完成。"
+    if ($ExpectedChapterCount -ge 30) {
+      Write-Output "gate: pass_for_real_30ch_final_acceptance"
+      Write-Output "note: 该结论覆盖当前真实 30 章集成验证的技术证据与人工通读完成证据。"
+    } else {
+      Write-Output "gate: pass_for_real_10ch_final_acceptance"
+      Write-Output "note: 该结论覆盖当前真实 10 章 smoke 的技术证据与人工通读完成证据；仍不代表 3-5 万字长程完成。"
+    }
   } else {
-    Write-Output "gate: pass_for_real_10ch_scope"
-    Write-Output "note: 该结论只覆盖当前真实 10 章 smoke；人工通读完成前不得声明 10 章最终验收完成，也不代表 3-5 万字长程完成。"
+    if ($ExpectedChapterCount -ge 30) {
+      Write-Output "gate: pass_for_real_30ch_integration_scope"
+      Write-Output "note: 该结论只覆盖当前真实 30 章集成验证技术证据；人工通读完成前不得声明最终验收完成。"
+    } else {
+      Write-Output "gate: pass_for_real_10ch_scope"
+      Write-Output "note: 该结论只覆盖当前真实 10 章 smoke；人工通读完成前不得声明 10 章最终验收完成，也不代表 3-5 万字长程完成。"
+    }
   }
   exit 0
 }

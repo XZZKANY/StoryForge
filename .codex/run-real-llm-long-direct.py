@@ -107,7 +107,61 @@ def _gate_failures(summary: dict[str, Any], *, token_budget: int) -> list[str]:
             total_issue_count += int(issue_count)
     if total_issue_count > 3:
         failures.append("累计 quality_issue_count 超过 3")
+
+    failures.extend(_integration_metric_failures(summary.get("integration_metrics")))
     return failures
+
+
+def _integration_metric_failures(metrics: Any) -> list[str]:
+    failures: list[str] = []
+    if not isinstance(metrics, dict):
+        return ["缺少 integration_metrics"]
+
+    context_cache_hit_rate = _number_or_none(metrics.get("context_cache_hit_rate"))
+    if context_cache_hit_rate is None:
+        failures.append("缺少 context_cache_hit_rate")
+    elif context_cache_hit_rate <= 0.95:
+        failures.append("context_cache_hit_rate 未超过 0.95")
+
+    memory_recall_budget_used = _number_or_none(metrics.get("memory_recall_budget_used"))
+    if memory_recall_budget_used is None:
+        failures.append("缺少 memory_recall_budget_used")
+    elif memory_recall_budget_used >= 8000:
+        failures.append("memory_recall_budget_used 未低于 8000")
+
+    arc_completion_rate = _number_or_none(metrics.get("arc_completion_rate"))
+    if arc_completion_rate is None:
+        failures.append("缺少 arc_completion_rate")
+    elif arc_completion_rate < 0.7:
+        failures.append("arc_completion_rate 低于 0.7")
+
+    db_query_count_per_chapter = _number_or_none(metrics.get("db_query_count_per_chapter"))
+    if db_query_count_per_chapter is None:
+        failures.append("缺少 db_query_count_per_chapter")
+    elif db_query_count_per_chapter > 3:
+        failures.append("db_query_count_per_chapter 超过 3")
+
+    chapter_generation_time_p50 = _number_or_none(metrics.get("chapter_generation_time_p50"))
+    if chapter_generation_time_p50 is None:
+        failures.append("缺少 chapter_generation_time_p50")
+    elif chapter_generation_time_p50 >= 20:
+        failures.append("chapter_generation_time_p50 未低于 20 秒")
+
+    concurrent_chapter_utilization = _number_or_none(metrics.get("concurrent_chapter_utilization"))
+    if concurrent_chapter_utilization is None:
+        failures.append("缺少 concurrent_chapter_utilization")
+    elif concurrent_chapter_utilization <= 0.6:
+        failures.append("concurrent_chapter_utilization 未超过 0.6")
+
+    return failures
+
+
+def _number_or_none(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
 
 
 def _raise_for_gate_failures(summary: dict[str, Any], *, token_budget: int) -> None:
@@ -184,6 +238,7 @@ def _metadata(
             "per_chapter_char_counts": summary.get("per_chapter_char_counts"),
             "per_chapter_metrics": summary.get("per_chapter_metrics"),
             "artifact_hashes": summary.get("artifact_hashes"),
+            "integration_metrics": summary.get("integration_metrics"),
         }
     resume_source = getattr(args, "resume_run_directory", None)
     if resume_source:
@@ -290,8 +345,48 @@ def _resolve_resume_run_directory(value: str | None) -> Path | None:
     return (ROOT / path).resolve()
 
 
+def _direct_serial_ph5_block_reason(args: argparse.Namespace) -> str:
+    if args.chapter_count < 30:
+        return ""
+    if os.environ.get("STORYFORGE_ALLOW_DIRECT_SERIAL_PH5") == "1":
+        return ""
+    return (
+        "PH5 30 章集成验证不能走 direct 串行 runner；"
+        "请改用 workflow BookLoop 并发入口，或仅在调试旧路径时设置 STORYFORGE_ALLOW_DIRECT_SERIAL_PH5=1。"
+    )
+
+
 def _text_artifact_paths(out_dir: Path) -> list[Path]:
     return [out_dir / name for name in TEXT_ARTIFACT_NAMES]
+
+
+def _integration_metrics_from_result(result: Any) -> dict[str, Any]:
+    """从审计报告透传 PH5 集成指标，缺失时让门禁显式失败。"""
+
+    audit_payload = getattr(result.audit_artifact, "payload", None)
+    if isinstance(audit_payload, dict):
+        metrics = audit_payload.get("integration_metrics")
+        if isinstance(metrics, dict):
+            return dict(metrics)
+        quality_summary = audit_payload.get("quality_summary")
+        if isinstance(quality_summary, dict):
+            metrics = quality_summary.get("integration_metrics")
+            if isinstance(metrics, dict):
+                return dict(metrics)
+    try:
+        parsed = json.loads(_artifact_text(result.audit_artifact))
+    except (TypeError, ValueError):
+        return {}
+    if isinstance(parsed, dict):
+        metrics = parsed.get("integration_metrics")
+        if isinstance(metrics, dict):
+            return dict(metrics)
+        quality_summary = parsed.get("quality_summary")
+        if isinstance(quality_summary, dict):
+            metrics = quality_summary.get("integration_metrics")
+            if isinstance(metrics, dict):
+                return dict(metrics)
+    return {}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -299,6 +394,10 @@ def main(argv: list[str] | None = None) -> int:
     missing = [name for name in REQUIRED_REAL_LLM_ENV if not os.environ.get(name)]
     if missing:
         print("missing_env=" + ",".join(missing))
+        return 2
+    direct_serial_block_reason = _direct_serial_ph5_block_reason(args)
+    if direct_serial_block_reason:
+        print(direct_serial_block_reason)
         return 2
 
     os.environ["STORYFORGE_LLM_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
@@ -364,6 +463,7 @@ def main(argv: list[str] | None = None) -> int:
                 chapter_word_count_min=args.chapter_word_count_min,
                 chapter_word_count_max=args.chapter_word_count_max,
             )
+            summary["integration_metrics"] = _integration_metrics_from_result(result)
             _write_json(out_dir / "summary.json", summary)
             _write_text(out_dir / "book.md", _artifact_text(result.markdown_artifact))
             _write_text(out_dir / "audit_report.json", _artifact_text(result.audit_artifact))

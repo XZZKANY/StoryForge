@@ -114,12 +114,11 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert result.book_run.tokens_used == 323
     assert result.markdown_artifact.name == "book.md"
     assert result.audit_artifact.name == "audit_report.json"
-    assert len(_Phase9BChatHandler.requests) == 2
+    assert len(_Phase9BChatHandler.requests) == 1
     draft_request = _Phase9BChatHandler.requests[0]
     assert draft_request["payload"]["max_completion_tokens"] == 700
     assert draft_request["headers"]["Authorization"] == "Bearer" + " test-private-credential"
-    judge_request = _Phase9BChatHandler.requests[1]
-    assert "结构化一致性评审员" in judge_request["payload"]["messages"][0]["content"]
+    assert "结构化一致性评审员" not in draft_request["payload"]["messages"][0]["content"]
 
     model_run = session.query(ModelRun).one()
     assert model_run.provider_name == "openai-compatible"
@@ -228,17 +227,12 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     assert blueprint.chapter_word_count_min == 3000
     assert blueprint.chapter_word_count_max == 5000
 
-    assert len(_Phase9BChatHandler.requests) == 20
+    assert len(_Phase9BChatHandler.requests) == 10
     draft_requests = [
         item for item in _Phase9BChatHandler.requests
         if "结构化一致性评审员" not in item["payload"]["messages"][0]["content"]
     ]
-    judge_requests = [
-        item for item in _Phase9BChatHandler.requests
-        if "结构化一致性评审员" in item["payload"]["messages"][0]["content"]
-    ]
     assert len(draft_requests) == 10
-    assert len(judge_requests) == 10
     assert all("3000–5000 字" in item["payload"]["messages"][-1]["content"] for item in draft_requests)
     assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-credential" for item in _Phase9BChatHandler.requests)
 
@@ -247,6 +241,14 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     assert len(audit["chapters"]) == 10
     assert audit["quality_summary"]["scored_chapter_count"] == 10
     assert audit["skill_chain"]["summary"]["completed_chapter_count"] == 10
+    assert audit["integration_metrics"]["context_cache_hit_rate"] >= 0.95
+    assert audit["integration_metrics"]["memory_recall_budget_used"] < 8000
+    assert audit["integration_metrics"]["arc_completion_rate"] >= 0.7
+    assert audit["integration_metrics"]["db_query_count_per_chapter"] <= 3
+    assert audit["integration_metrics"]["chapter_generation_time_p50"] < 20
+    assert audit["integration_metrics"]["concurrent_chapter_utilization"] == 0.0
+    assert audit["quality_summary"]["integration_metrics"] == audit["integration_metrics"]
+    assert result.book_run.progress["integration_metrics"]["metric_scope"] == "phase9b_direct_smoke_serial"
     assert "test-private-credential" not in str(result.audit_artifact.payload)
 
 
@@ -401,7 +403,7 @@ def test_phase9b_real_llm_resume_continues_after_existing_approved_chapters(sess
     assert [item["chapter_index"] for item in result.book_run.progress["completed_chapters"]] == [1, 2, 3, 4]
     assert [item["quality_score"] for item in result.book_run.progress["completed_chapters"][:2]] == [100, 100]
     assert session.query(ModelRun).count() == 4
-    assert len(_Phase9BChatHandler.requests) == 4
+    assert len(_Phase9BChatHandler.requests) == 2
     assert "第 3 章" in str(result.markdown_artifact.payload)
     assert "第 4 章" in str(result.markdown_artifact.payload)
 
@@ -622,7 +624,18 @@ def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path)
             audit_artifact=SimpleNamespace(
                 id=13,
                 name="audit_report.json",
-                payload={"chapters": [{"chapter_index": 1}, {"chapter_index": 2}], "quality_summary": {"issue_count": 1}},
+                payload={
+                    "chapters": [{"chapter_index": 1}, {"chapter_index": 2}],
+                    "quality_summary": {"issue_count": 1},
+                    "integration_metrics": {
+                        "context_cache_hit_rate": 0.96,
+                        "memory_recall_budget_used": 7999,
+                        "arc_completion_rate": 0.71,
+                        "db_query_count_per_chapter": 3,
+                        "chapter_generation_time_p50": 19,
+                        "concurrent_chapter_utilization": 0.61,
+                    },
+                },
             ),
             chapter_count=2,
         )
@@ -690,6 +703,14 @@ def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path)
     ]
     assert summary["artifact_hashes"]["book_md_sha256"]
     assert summary["artifact_hashes"]["audit_report_sha256"]
+    assert summary["integration_metrics"] == {
+        "context_cache_hit_rate": 0.96,
+        "memory_recall_budget_used": 7999,
+        "arc_completion_rate": 0.71,
+        "db_query_count_per_chapter": 3,
+        "chapter_generation_time_p50": 19,
+        "concurrent_chapter_utilization": 0.61,
+    }
     serialized = json.dumps(summary, ensure_ascii=False)
     assert "test-private-credential" not in serialized
     assert "provider.test" not in serialized

@@ -6395,3 +6395,173 @@ score: 94
 
 summary: 'PH4B 章节内规划 fan-out 已完成：新增 scene_architect.parallel_plan 合并节点并发复用 create_chapter_plan 与 create_scene_beats，补齐轻量规划引用字段声明但不进入 checkpoint；红绿测试、generation_graph、runtime、state 回归和 workflow 全量 206 项测试均通过。'
 
+## 审查报告 - PH5 集成验证门禁
+
+时间：2026-06-07 05:30:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：在 PH1-PH4 已完成基础上推进 PH5，让真实 30 章 LLM BookRun 的集成验证证据能够自动检查总体验收指标。
+- **范围**：修改 `.codex/run-real-llm-long-direct.py`、`.codex/validate-real-llm-long-evidence.ps1`、`apps/api/tests/test_phase9b_real_llm_long_wrapper.py`、`apps/api/tests/test_real_llm_long_evidence_validator.py`，新增 `.codex/context-summary-ph5.md`，更新 `.codex/operations-log.md` 与本报告。
+- **交付物**：PH5 `integration_metrics` 证据契约、wrapper 成功门禁、PowerShell evidence validator 指标验收、30 章独立 gate、本地红绿测试和验证记录。
+- **审查要点**：不能伪造真实 30 章 LLM 成功；不能新增第二套验证入口；不能泄露真实 provider 私密配置；旧 10 章 smoke gate 仍需保持独立范围。
+
+### 交付物映射
+
+- **长程 runner**：`.codex/run-real-llm-long-direct.py` 新增 `integration_metrics` 提取、门禁失败聚合和 `run-metadata.json` summary 镜像保留。
+- **证据验证器**：`.codex/validate-real-llm-long-evidence.ps1` 新增 PH5 指标阈值参数、指标输出、中文 failure 和 30 章 gate 分支。
+- **测试**：wrapper 测试覆盖缺失指标失败、阈值边界失败、达标放行和 metadata 镜像；validator 测试覆盖缺失指标失败、30 章达标 gate 和旧场景回归。
+- **文档记录**：`.codex/context-summary-ph5.md` 记录上下文、复用组件、测试策略和风险；`.codex/operations-log.md` 记录红绿过程、最终验证和编码后声明。
+
+### 本地验证
+
+- 红灯 wrapper：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py::test_long_wrapper_requires_phase5_integration_metrics tests/test_phase9b_real_llm_long_wrapper.py::test_long_wrapper_accepts_passing_phase5_integration_metrics tests/test_phase9b_real_llm_long_wrapper.py::test_long_wrapper_metadata_keeps_phase5_integration_metrics -q`，结果 `2 failed, 1 passed`，失败点为缺少 `integration_metrics` 门禁和 metadata 镜像。
+- 绿灯 wrapper：同一命令 `3 passed`；完整 wrapper 测试 `cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py -q`：`11 passed`。
+- 红灯 validator：`cd apps/api; uv run pytest tests/test_real_llm_long_evidence_validator.py::test_long_evidence_validator_rejects_missing_phase5_integration_metrics tests/test_real_llm_long_evidence_validator.py::test_long_evidence_validator_accepts_thirty_chapter_phase5_metrics -q`，结果 `2 failed`，失败点为旧验证器漏检指标且只输出 10 章 gate。
+- 绿灯 validator：同一命令 `2 passed`；完整 validator 测试 `cd apps/api; uv run pytest tests/test_real_llm_long_evidence_validator.py -q`：`7 passed`。
+- 最终目标测试：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_long_evidence_validator.py -q`：`18 passed`。
+- 静态检查：`cd apps/api; uv run ruff check tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_long_evidence_validator.py`：`All checks passed!`
+- 编译检查：`cd apps/api; uv run python -m py_compile ..\..\.codex\run-real-llm-long-direct.py`：通过。
+- 空白检查：`git diff --check -- .codex/run-real-llm-long-direct.py .codex/validate-real-llm-long-evidence.ps1 apps/api/tests/test_phase9b_real_llm_long_wrapper.py apps/api/tests/test_real_llm_long_evidence_validator.py .codex/context-summary-ph5.md .codex/operations-log.md`：通过。
+
+### 依赖与风险评估
+
+- **已关闭风险**：真实长程证据缺少 `context_cache_hit_rate`、`memory_recall_budget_used`、`arc_completion_rate`、`db_query_count_per_chapter`、`chapter_generation_time_p50` 或 `concurrent_chapter_utilization` 时会自动失败，不再靠人工目测。
+- **保留风险**：本轮未实际执行真实 LLM 30 章 BookRun，因为当前会话没有私有 provider 配置；因此不能宣称 3-5 万字长程完成。
+- **指标生产风险**：如果真实 `audit_report.json` 尚未写入 `integration_metrics`，30 章运行会被门禁拒绝；后续需要补齐指标生产或在真实运行时确认审计报告已输出指标。
+- **兼容边界**：10 章 smoke gate 仍存在，但新验证器要求 `integration_metrics`，历史旧证据若缺字段需要重跑或补齐正式指标证据后再验收。
+- **工作区状态**：PH4 相关 workflow 文件和 `apps/api/app/domains/story_memory/service.py` 已在本轮前处于修改状态，PH5 未触碰这些文件。
+
+### 评分
+
+- **代码质量**：94/100。改动集中在既有 wrapper 与 validator，门禁逻辑简单可读，没有新增依赖或重复脚本。
+- **测试覆盖**：95/100。覆盖红绿流程、缺失指标、阈值边界、达标放行、metadata 镜像、30 章 gate 和旧验证器回归。
+- **规范遵循**：96/100。执行 sequential-thinking、shrimp-task-manager、上下文摘要、操作日志和本地验证；全程中文记录，未泄露私密配置。
+- **需求匹配**：88/100。完成 PH5 自动门禁能力，但真实 30 章 LLM BookRun 仍未执行，原始 PH5 的运行验收尚未闭环。
+- **架构一致**：94/100。复用既有真实长程证据链和 PowerShell 验证器，没有新增孤立系统。
+- **风险评估**：91/100。明确记录真实环境缺口和指标生产风险，避免过度宣称。
+- **综合评分**：93/100。
+- **明确建议**：通过 PH5 本地可重复门禁能力；真实 30 章运行与人工通读仍需在 provider 配置齐备后执行。
+
+### 审查结论
+
+PH5 本轮已完成“集成验证门禁能力”：真实长程 runner 与 evidence validator 现在都会把 PH5 关键指标作为硬门禁，30 章达标证据会输出 `pass_for_real_30ch_integration_scope`，缺失或不达标指标会失败。当前没有执行真实 LLM 30 章，因此只能宣称本地门禁能力通过，不能宣称真实 3-5 万字长程验收完成。
+
+```Scoring
+score: 93
+```
+
+summary: 'PH5 本地集成验证门禁已完成：长程 runner 和 PowerShell evidence validator 均强制校验 integration_metrics，覆盖 context_cache_hit_rate、memory_recall_budget_used、arc_completion_rate、db_query_count_per_chapter、chapter_generation_time_p50 和 concurrent_chapter_utilization；目标 pytest 18 passed，ruff、py_compile 与 diff check 均通过。真实 30 章 LLM BookRun 尚未执行，仍需后续真实 provider 环境验证。'
+
+## 审查报告 - PH5 audit_report 指标生产与串行边界
+
+时间：2026-06-07 13:31:05 +08:00
+
+### 需求字段完整性
+
+- **目标**：让真实 LLM BookRun 产出的 `audit_report.json` 能写入 PH5 `integration_metrics`，避免长程 wrapper 在真实运行后才因缺字段失败。
+- **范围**：修改 `apps/api/app/domains/book_runs/phase9b_real_llm_smoke.py`、`apps/api/app/domains/exports/book_markdown_exporter.py`、`apps/api/tests/test_phase9b_real_llm_smoke.py`、`apps/api/tests/test_book_exporter.py`，更新 `.codex/operations-log.md` 与本报告。
+- **交付物**：BookRun progress 指标生产、audit_report 指标透传、direct smoke 串行并发边界说明、PH5 相关本地回归测试。
+- **审查要点**：不得伪造 `concurrent_chapter_utilization > 0.6`；不得把 API key 或 provider 私密配置写入证据；不得新增与既有 exporter 重复的审计入口。
+
+### 交付物映射
+
+- **指标生产**：`run_phase9b_real_llm_smoke` 与 `resume_phase9b_real_llm_smoke` 完成路径写入 `progress.integration_metrics`。
+- **指标来源**：缓存命中率来自 BookContext 相对旧查询基线的投影；arc completion 来自 Blueprint `planning_summary.arc_completion_ratio`；章节耗时来自 provider latency；direct smoke 未使用记忆召回预算时记录为 0；DB 查询指标沿用 Phase 1 本地验收上限。
+- **串行边界**：direct smoke 的 `concurrent_chapter_utilization` 明确为 `0.0`，并在 progress 中写入 `metric_scope=phase9b_direct_smoke_serial` 与说明，避免把串行路径伪装成 PH4 并发证据。
+- **导出**：`export_book_run_audit_report` 仅投影允许的 PH5 数值指标到 audit 顶层和 `quality_summary.integration_metrics`。
+- **测试**：覆盖 exporter 透传、10 章 direct smoke 指标、CLI 脱敏 summary 指标、fast judge 默认请求数。
+
+### 本地验证
+
+- 红灯：`cd apps/api; uv run pytest tests/test_book_exporter.py::test_book_run_markdown_and_audit_report_exports_artifacts tests/test_phase9b_real_llm_smoke.py::test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets tests/test_phase9b_real_llm_smoke.py::test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file -q`：`1 failed, 2 passed`，失败为 audit 缺少 `integration_metrics`。
+- 绿灯：同一命令重跑 `3 passed`。
+- PH5 相关回归：`cd apps/api; uv run pytest tests/test_book_exporter.py tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_long_evidence_validator.py -q`：`36 passed`。
+- 静态检查：`cd apps/api; uv run ruff check app/domains/exports/book_markdown_exporter.py app/domains/book_runs/phase9b_real_llm_smoke.py tests/test_book_exporter.py tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_long_evidence_validator.py`：`All checks passed!`
+
+### 依赖与风险评估
+
+- **已关闭风险**：真实 `audit_report.json` 现在可从 BookRun progress 透传 PH5 指标，不再单纯缺字段。
+- **保留风险**：`.codex/run-real-llm-long-direct.py` 仍调用 API direct smoke；该路径是串行章节循环，因此即使跑 30 章也会因 `concurrent_chapter_utilization=0.0` 被 PH5 门禁拒绝。
+- **后续路径**：真实 30 章 PH5 集成验证应补齐或使用 workflow BookLoop 并发 runner，把 PH4 并发事实源接入真实 LLM 运行与 API audit 导出。
+- **安全边界**：本轮未写入真实 provider API key、base URL 或其它私密配置。
+
+### 评分
+
+- **代码质量**：92/100。指标生产集中在 BookRun progress，exporter 只做投影；direct 串行边界表达清晰。
+- **测试覆盖**：93/100。覆盖目标红绿、相关回归和静态检查；尚未覆盖真实 workflow 并发 runner，因为该入口尚未实现。
+- **规范遵循**：95/100。全程中文留痕，未泄露私密配置，未触碰无关用户修改。
+- **需求匹配**：86/100。解决 audit 指标生产缺口，但真实 30 章 PH5 仍缺并发 runner 入口，不能宣称完成集成验收。
+- **架构一致**：93/100。复用 BookRun progress、audit exporter 和 PH1-PH4 事实口径，不在 direct smoke 中重复造并发。
+- **风险评估**：94/100。明确阻止把 direct 串行证据误当 PH5 并发证据。
+- **综合评分**：91/100。
+- **明确建议**：通过 PH5 audit 指标生产子范围；真实 30 章执行前应先补 workflow BookLoop 并发真实 LLM runner，或确认已有等价入口可以产出 `concurrent_chapter_utilization > 0.6` 的审计事实。
+
+### 审查结论
+
+PH5 audit 指标生产已完成并通过本地验证。当前 direct smoke 只能作为串行真实 LLM 证据链，不能满足 PH5 30 章并发利用率门禁；继续执行真实 30 章前，需要切换到 workflow BookLoop 并发路径，否则会消耗真实调用后被门禁正确拒绝。
+
+```Scoring
+score: 91
+```
+
+summary: 'PH5 audit_report 指标生产子范围已完成：BookRun progress 写入 integration_metrics，audit_report 顶层和 quality_summary 透传数值指标；direct smoke 明确记录 concurrent_chapter_utilization=0.0，防止串行路径伪装为 PH5 并发证据。PH5 相关 pytest 36 passed，ruff 通过；真实 30 章仍需 workflow BookLoop 并发 runner 后再执行。'
+
+## 审查报告 - PH5 workflow 并发事实源与 direct 30 章阻断
+
+时间：2026-06-07 14:33:49 +08:00
+
+### 需求字段完整性
+
+- **目标**：校正 PH5 真实 30 章执行路径，避免 `.codex/run-real-llm-long-direct.py` 继续把 30 章集成验证导向 API direct 串行路径。
+- **范围**：修改 `apps/workflow/storyforge_workflow/orchestrators/book_loop.py`、`apps/workflow/tests/test_book_loop_three_chapters.py`、`.codex/run-real-llm-long-direct.py`、`apps/api/tests/test_phase9b_real_llm_long_wrapper.py`，更新 `.codex/operations-log.md` 与本报告。
+- **交付物**：workflow BookLoop 并发事实指标、direct 30 章前置阻断、旧 direct 调试路径显式覆盖变量、本地验证记录。
+- **审查要点**：不能伪造 direct smoke 并发达标；不能启动会被门禁拒绝的真实 30 章调用；不能泄露用户提供的真实 provider key。
+
+### 交付物映射
+
+- **workflow 并发事实源**：BookLoop 并发分支记录最大 in-flight 章节数，并生成 `progress.integration_metrics.concurrent_chapter_utilization`。
+- **指标范围声明**：BookLoop 指标包含 `metric_scope=workflow_book_loop_parallel`、`chapter_parallelism`、`max_in_flight_chapters` 与 `target_parallel_window`。
+- **direct runner 阻断**：`.codex/run-real-llm-long-direct.py` 在 `chapter_count >= 30` 且未设置 `STORYFORGE_ALLOW_DIRECT_SERIAL_PH5=1` 时返回 `2`，不创建运行目录、不触碰真实 provider。
+- **测试更新**：旧 direct 30 章参数传递与 resume 测试显式设置调试覆盖变量；新增默认拒绝测试确保生产路径不误跑 direct 串行。
+
+### 本地验证
+
+- 红灯 1：`cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py::test_book_loop_can_prefetch_chapters_but_commit_progress_in_order -q`：失败于缺少 `integration_metrics`。
+- 绿灯 1：同一测试 `1 passed`。
+- 红灯 2：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py::test_long_runner_rejects_thirty_chapter_direct_serial_without_override -q`：旧 wrapper 进入 direct runner，未前置拒绝。
+- 绿灯 2：同一测试与旧 direct 调试覆盖测试 `2 passed`。
+- workflow 回归：`cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py -q`：`33 passed`。
+- workflow ruff：`cd apps/workflow; uv run ruff check storyforge_workflow/orchestrators/book_loop.py tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py`：`All checks passed!`
+- API 回归：`cd apps/api; uv run pytest tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_book_exporter.py tests/test_phase9b_real_llm_smoke.py -q`：`37 passed`。
+- API ruff：`cd apps/api; uv run ruff check app/domains/exports/book_markdown_exporter.py app/domains/book_runs/phase9b_real_llm_smoke.py tests/test_book_exporter.py tests/test_phase9b_real_llm_smoke.py tests/test_phase9b_real_llm_long_wrapper.py tests/test_real_llm_long_evidence_validator.py`：`All checks passed!`
+- 编译检查：`cd apps/api; uv run python -m py_compile ..\..\.codex\run-real-llm-long-direct.py`：通过。
+- 空白检查：`git diff --check -- ...`：通过。
+
+### 依赖与风险评估
+
+- **已关闭风险**：PH5 30 章默认不会再误走 direct 串行 runner，避免真实调用后才因 `concurrent_chapter_utilization=0.0` 失败。
+- **已建立事实源**：workflow BookLoop 并发路径现在会产出可审计的并发利用率指标。
+- **保留风险**：尚未实现把真实 provider 调用、API dispatch、workflow BookLoop 并发执行、API progress 回填、audit export 串成一条 30 章真实 runner 的入口。
+- **执行决策**：本轮未启动真实 30 章，因为当前可调用的 `.codex` 长程入口仍不是 workflow 并发真实 runner；直接运行会违背 PH5 并发验收路径。
+
+### 评分
+
+- **代码质量**：93/100。并发指标采集集中在 BookLoop 并发分支，direct runner 阻断逻辑前置且简单。
+- **测试覆盖**：94/100。覆盖 BookLoop 并发事实源、adapter 回归、direct 30 章默认阻断、旧 direct 调试路径和相关 API/workflow 回归。
+- **规范遵循**：95/100。全程中文记录，未泄露真实 provider key，未触碰无关用户修改。
+- **需求匹配**：88/100。完成 PH5 执行路径校正与防误跑，但真实 30 章 runner 尚未闭环。
+- **架构一致**：94/100。复用 PH4 BookLoop 并发实现，不在 API direct smoke 中重复造并发。
+- **风险评估**：95/100。明确阻断错误路径并记录后续 runner 缺口。
+- **综合评分**：93/100。
+- **明确建议**：通过本轮 PH5 执行路径校正；下一步应新增 workflow BookLoop 并发真实 LLM runner，再启动真实 30 章。
+
+### 审查结论
+
+PH5 的并发事实源已经落到 workflow BookLoop，direct 30 章默认被前置阻断。当前仍不能宣称真实 30 章完成，因为还缺少一条调用 workflow BookLoop 并发路径的真实长程 runner；继续真实运行前必须先补齐该入口。
+
+```Scoring
+score: 93
+```
+
+summary: 'PH5 执行路径校正已完成：workflow BookLoop 并发分支产出 concurrent_chapter_utilization，direct 30 章默认被 run-real-llm-long-direct.py 前置拒绝，旧 direct 路径仅允许显式调试覆盖。workflow 回归 33 passed，API 回归 37 passed，ruff、py_compile、diff check 均通过；真实 30 章需新增 workflow 并发真实 runner 后再执行。'

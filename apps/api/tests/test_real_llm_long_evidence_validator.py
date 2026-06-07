@@ -18,13 +18,24 @@ def _write_minimal_long_evidence(
     markdown_artifact_id: str | None = "artifact-book-md",
     audit_artifact_id: str | None = "artifact-audit-json",
     summary_present: bool = True,
+    chapter_count: int = 10,
+    integration_metrics: dict[str, object] | None = None,
 ) -> None:
     run_dir.mkdir()
+    if integration_metrics is None:
+        integration_metrics = {
+            "context_cache_hit_rate": 0.96,
+            "memory_recall_budget_used": 7999,
+            "arc_completion_rate": 0.71,
+            "db_query_count_per_chapter": 3,
+            "chapter_generation_time_p50": 19,
+            "concurrent_chapter_utilization": 0.61,
+        }
     summary: dict[str, object] = {
         "book_run_id": 101,
         "book_run_status": "completed",
-        "target_chapter_count": 10,
-        "actual_chapter_count": 10,
+        "target_chapter_count": chapter_count,
+        "actual_chapter_count": chapter_count,
         "tokens_used": 120000,
         "estimated_cost": 1.23,
         "actual_total_chars": 36000,
@@ -36,15 +47,16 @@ def _write_minimal_long_evidence(
         },
         "per_chapter_metrics": [
             {"chapter_index": index, "quality_score": 95, "quality_issue_count": 0}
-            for index in range(1, 11)
+            for index in range(1, chapter_count + 1)
         ],
+        "integration_metrics": integration_metrics,
     }
     metadata = {
         "runner_exit_code": 0,
         "summary_present": summary_present,
         "sensitive_hit_count": 0,
         "redacted_parameters": {
-            "chapter_count": 10,
+            "chapter_count": chapter_count,
             "target_word_count": 9000,
             "token_budget": 200000,
             "timeout_seconds": 300,
@@ -123,6 +135,36 @@ def test_long_evidence_validator_accepts_complete_minimal_evidence(tmp_path: Pat
     assert "audit_artifact_id: artifact-audit-json" in result.stdout
     assert "quality_issue_count_total: 0" in result.stdout
     assert "gate: pass_for_real_10ch_scope" in result.stdout
+
+
+def test_long_evidence_validator_rejects_missing_phase5_integration_metrics(tmp_path: Path) -> None:
+    """PH5 集成证据缺少指标时，验证器必须失败。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, integration_metrics={})
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少 context_cache_hit_rate" in result.stdout
+    assert "failure: 缺少 memory_recall_budget_used" in result.stdout
+    assert "failure: 缺少 arc_completion_rate" in result.stdout
+
+
+def test_long_evidence_validator_accepts_thirty_chapter_phase5_metrics(tmp_path: Path) -> None:
+    """30 章集成指标达标时，验证器输出 PH5 专属 gate。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, chapter_count=30)
+
+    result = _run_validator(run_dir, "-ExpectedChapterCount", "30")
+
+    assert result.returncode == 0
+    assert "context_cache_hit_rate: 0.96" in result.stdout
+    assert "memory_recall_budget_used: 7999" in result.stdout
+    assert "arc_completion_rate: 0.71" in result.stdout
+    assert "gate: pass_for_real_30ch_integration_scope" in result.stdout
 
 
 def test_long_evidence_validator_requires_manual_readthrough_for_final_acceptance(tmp_path: Path) -> None:

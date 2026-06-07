@@ -266,7 +266,7 @@ def recall_scene_memory_atoms(
 ) -> list[MemoryAtom]:
     """按 POV、地点、活跃角色和前章约束召回当前场景需要的长效记忆。"""
 
-    active_atoms = get_active_memory_atoms(session, book_id=book_id, chapter_id=chapter.ordinal)
+    active_atoms = get_active_memory_atoms(session, book_id=book_id, chapter_ordinal=chapter.ordinal)
     if not active_atoms:
         return []
     candidate_terms = _scene_memory_terms(chapter, assets, continuity_records)

@@ -54,6 +54,15 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
             "word_count": 36000,
             "conclusion": "通过人工通读门禁。",
         }
+        assert report["integration_metrics"] == {
+            "context_cache_hit_rate": 0.96,
+            "memory_recall_budget_used": 7999,
+            "arc_completion_rate": 0.71,
+            "db_query_count_per_chapter": 3,
+            "chapter_generation_time_p50": 19,
+            "concurrent_chapter_utilization": 0.61,
+        }
+        assert report["quality_summary"]["integration_metrics"] == report["integration_metrics"]
         assert report["skill_chain"]["schema_version"] == "bookrun_skill_projection.v2"
         assert report["skill_chain"]["book_run_id"] == book_run_id
         assert report["skill_chain"]["summary"]["completed_chapter_count"] == 3
@@ -248,6 +257,14 @@ def _seed_completed_book_run(
                 "reviewed_chapter_count": 10,
                 "word_count": 36000,
                 "conclusion": "通过人工通读门禁。",
+            },
+            "integration_metrics": {
+                "context_cache_hit_rate": 0.96,
+                "memory_recall_budget_used": 7999,
+                "arc_completion_rate": 0.71,
+                "db_query_count_per_chapter": 3,
+                "chapter_generation_time_p50": 19,
+                "concurrent_chapter_utilization": 0.61,
             },
         },
     )

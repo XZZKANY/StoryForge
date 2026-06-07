@@ -79,6 +79,113 @@ def test_long_wrapper_reports_quality_and_audit_gate_failures() -> None:
     assert "累计 quality_issue_count 超过 3" in failures
 
 
+def test_long_wrapper_requires_phase5_integration_metrics() -> None:
+    """PH5 长程门禁必须拒绝缺失或不达标的集成指标。"""
+
+    module = _load_long_wrapper()
+    summary = {
+        "tokens_used": 120000,
+        "artifact_hashes": {"book_md_sha256": "book-hash", "audit_report_sha256": "audit-hash"},
+        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+    }
+
+    missing_failures = module._gate_failures(summary, token_budget=200000)
+
+    assert "缺少 integration_metrics" in missing_failures
+
+    summary["integration_metrics"] = {
+        "context_cache_hit_rate": 0.95,
+        "memory_recall_budget_used": 8000,
+        "arc_completion_rate": 0.69,
+        "db_query_count_per_chapter": 4,
+        "chapter_generation_time_p50": 20,
+        "concurrent_chapter_utilization": 0.6,
+    }
+
+    failures = module._gate_failures(summary, token_budget=200000)
+
+    assert "context_cache_hit_rate 未超过 0.95" in failures
+    assert "memory_recall_budget_used 未低于 8000" in failures
+    assert "arc_completion_rate 低于 0.7" in failures
+    assert "db_query_count_per_chapter 超过 3" in failures
+    assert "chapter_generation_time_p50 未低于 20 秒" in failures
+    assert "concurrent_chapter_utilization 未超过 0.6" in failures
+
+
+def test_long_wrapper_accepts_passing_phase5_integration_metrics() -> None:
+    """PH5 集成指标达标时，长程包装脚本不应新增门禁失败。"""
+
+    module = _load_long_wrapper()
+    summary = {
+        "tokens_used": 120000,
+        "artifact_hashes": {"book_md_sha256": "book-hash", "audit_report_sha256": "audit-hash"},
+        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+        "integration_metrics": {
+            "context_cache_hit_rate": 0.96,
+            "memory_recall_budget_used": 7999,
+            "arc_completion_rate": 0.71,
+            "db_query_count_per_chapter": 3,
+            "chapter_generation_time_p50": 19,
+            "concurrent_chapter_utilization": 0.61,
+        },
+    }
+
+    assert module._gate_failures(summary, token_budget=200000) == []
+
+
+def test_long_wrapper_metadata_keeps_phase5_integration_metrics(tmp_path: Path) -> None:
+    """run-metadata.json 的 summary 镜像必须保留 PH5 集成指标。"""
+
+    module = _load_long_wrapper()
+    args = SimpleNamespace(
+        chapter_count=30,
+        max_chapter_count=30,
+        token_budget=800000,
+        target_word_count=35000,
+        chapter_word_count_min=600,
+        chapter_word_count_max=1600,
+        timeout_seconds=300,
+        time_budget_seconds=4200,
+        outer_timeout_seconds=4800,
+        resume_run_directory=None,
+    )
+    summary = {
+        "book_run_id": 1,
+        "book_run_status": "completed",
+        "target_chapter_count": 30,
+        "actual_chapter_count": 30,
+        "target_word_count": 35000,
+        "tokens_used": 120000,
+        "estimated_cost": 1.23,
+        "actual_total_chars": 36000,
+        "markdown_artifact_id": "artifact-book-md",
+        "audit_artifact_id": "artifact-audit-json",
+        "per_chapter_char_counts": [],
+        "per_chapter_metrics": [],
+        "artifact_hashes": {"book_md_sha256": "book-hash", "audit_report_sha256": "audit-hash"},
+        "integration_metrics": {
+            "context_cache_hit_rate": 0.96,
+            "memory_recall_budget_used": 7999,
+            "arc_completion_rate": 0.71,
+            "db_query_count_per_chapter": 3,
+            "chapter_generation_time_p50": 19,
+            "concurrent_chapter_utilization": 0.61,
+        },
+    }
+
+    metadata = module._metadata(
+        out_dir=tmp_path,
+        runner_exit_code=0,
+        sensitive_hit_count=0,
+        started_at=100.0,
+        args=args,
+        summary=summary,
+        failure_message="",
+    )
+
+    assert metadata["summary"]["integration_metrics"] == summary["integration_metrics"]
+
+
 def test_long_wrapper_keeps_default_smoke_limit_but_allows_explicit_long_limit() -> None:
     """默认 smoke 仍限制 10 章，真实长程入口可显式放宽到 30 章。"""
 
@@ -124,6 +231,7 @@ def test_long_runner_passes_explicit_max_chapter_count_to_real_smoke(
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
     monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
     monkeypatch.setenv("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "1")
+    monkeypatch.setenv("STORYFORGE_ALLOW_DIRECT_SERIAL_PH5", "1")
 
     result = module.main(
         [
@@ -141,6 +249,41 @@ def test_long_runner_passes_explicit_max_chapter_count_to_real_smoke(
     assert result == 0
     assert captured == {"chapter_count": 30, "max_chapter_count": 30, "token_budget": 800000}
     assert os.environ["STORYFORGE_LLM_API_KEY"] == "test-private-credential"
+
+
+def test_long_runner_rejects_thirty_chapter_direct_serial_without_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """PH5 30 章不能默认走 direct 串行 runner，避免真实调用后才被并发门禁拒绝。"""
+
+    module = _load_long_wrapper()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        raise AssertionError("30 章 PH5 不应调用 direct 串行 runner")
+
+    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fail_if_called)
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
+    monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "1")
+
+    result = module.main(
+        [
+            "--chapter-count",
+            "30",
+            "--target-word-count",
+            "35000",
+            "--token-budget",
+            "800000",
+            "--label",
+            "pytest-direct-serial-block",
+        ]
+    )
+
+    assert result == 2
 
 
 def test_long_runner_exports_evidence_when_quality_gate_fails(
@@ -183,6 +326,7 @@ def test_long_runner_exports_evidence_when_quality_gate_fails(
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
     monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
     monkeypatch.setenv("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "1")
+    monkeypatch.setenv("STORYFORGE_ALLOW_DIRECT_SERIAL_PH5", "1")
 
     result = module.main(
         [
@@ -262,6 +406,7 @@ def test_long_runner_resume_copies_failed_sqlite_and_calls_resume_runner(
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
     monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai-compatible")
     monkeypatch.setenv("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "1")
+    monkeypatch.setenv("STORYFORGE_ALLOW_DIRECT_SERIAL_PH5", "1")
 
     result = module.main(
         [

@@ -56,17 +56,23 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun 审计报告。")
     chapters = list(book_run.progress.get("completed_chapters", []))
+    integration_metrics = _integration_metrics_projection(book_run.progress)
+    quality_summary = _quality_summary(chapters)
+    if integration_metrics:
+        quality_summary["integration_metrics"] = integration_metrics
     report = {
         "book_run_id": book_run.id,
         "blueprint_id": book_run.blueprint_id,
         "chapters": chapters,
-        "quality_summary": _quality_summary(chapters),
+        "quality_summary": quality_summary,
         "chapter_quality_scores": _chapter_quality_scores(chapters),
         "top_quality_issues": _top_quality_issues(chapters),
         "manual_review_recommendations": _manual_review_recommendations(chapters),
         "manual_read_gate": _manual_read_gate_projection(book_run.progress),
         "skill_chain": derive_book_run_skill_chain(book_run.id, book_run.status, book_run.progress),
     }
+    if integration_metrics:
+        report["integration_metrics"] = integration_metrics
     for chapter in report["chapters"]:
         if not chapter.get("model_run_id") or not chapter.get("judge_report_id") or not chapter.get("approved_scene_id"):
             raise BookExportError("BookRun 审计证据不完整，无法导出 audit_report.json。")
@@ -314,6 +320,21 @@ def _quality_dimension_label(dimension: str) -> str:
 def _manual_read_gate_projection(progress: dict[str, object]) -> dict[str, object] | None:
     gate = progress.get("manual_read_gate") if isinstance(progress, dict) else None
     return dict(gate) if isinstance(gate, dict) else None
+
+
+def _integration_metrics_projection(progress: dict[str, object]) -> dict[str, object]:
+    metrics = progress.get("integration_metrics") if isinstance(progress, dict) else None
+    if not isinstance(metrics, dict):
+        return {}
+    allowed = {
+        "context_cache_hit_rate",
+        "memory_recall_budget_used",
+        "arc_completion_rate",
+        "db_query_count_per_chapter",
+        "chapter_generation_time_p50",
+        "concurrent_chapter_utilization",
+    }
+    return {key: value for key, value in metrics.items() if key in allowed and isinstance(value, int | float)}
 
 
 def _quality_summary(chapters: list[dict[str, object]]) -> dict[str, object]:
