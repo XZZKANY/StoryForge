@@ -1,0 +1,1 @@
+运行后成功门禁未通过：context_cache_hit_rate 未超过 0.95；chapter_generation_time_p50 未低于 20 秒；concurrent_chapter_utilization 未超过 0.6

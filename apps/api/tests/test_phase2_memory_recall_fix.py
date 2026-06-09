@@ -8,7 +8,6 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.domains.books.models import Book, Chapter
-from app.domains.story_memory.models import MemoryAtomRecord
 from app.domains.story_memory.schemas import MemoryAtom
 from app.domains.story_memory.service import create_memory_atom, get_active_memory_atoms
 
@@ -76,7 +75,7 @@ def test_phase2_memory_recall_chapter10_finds_chapter5_atoms(session: Session) -
     assert recalled.valid_from_chapter == 5
     assert recalled.valid_to_chapter is None
 
-    print(f"✅ Phase 2 Memory 召回修复验证通过：chapter 10 成功召回 chapter 5 植入的 atom")
+    print("✅ Phase 2 Memory 召回修复验证通过：chapter 10 成功召回 chapter 5 植入的 atom")
 
 
 def test_phase2_memory_recall_respects_valid_from_boundary(session: Session) -> None:
@@ -116,7 +115,7 @@ def test_phase2_memory_recall_respects_valid_from_boundary(session: Session) -> 
     assert len(atoms_ch5) == 1, "chapter 5 应该召回 valid_from_chapter=5 的 atom"
     assert atoms_ch5[0].value == "获得线索"
 
-    print(f"✅ Phase 2 召回边界验证通过：valid_from_chapter 正确生效")
+    print("✅ Phase 2 召回边界验证通过：valid_from_chapter 正确生效")
 
 
 def test_phase2_memory_recall_respects_valid_to_boundary(session: Session) -> None:
@@ -156,4 +155,4 @@ def test_phase2_memory_recall_respects_valid_to_boundary(session: Session) -> No
     atoms_ch10 = get_active_memory_atoms(session, book_id=book.id, chapter_ordinal=10, entity_id="李四")
     assert len(atoms_ch10) == 0, "chapter 10 不应召回 valid_to_chapter=8 的过期 atom"
 
-    print(f"✅ Phase 2 过期边界验证通过：valid_to_chapter 正确生效")
+    print("✅ Phase 2 过期边界验证通过：valid_to_chapter 正确生效")

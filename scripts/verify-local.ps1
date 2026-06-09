@@ -203,6 +203,27 @@ function Test-DockerProdComposeConfig {
             Write-Ok "生产 Docker Compose 配置未暴露基础服务端口：$PortMarker。"
         }
     }
+
+    $ForbiddenSecrets = @(
+        'STORYFORGE_API_KEY: local-dev-key',
+        'STORYFORGE_API_KEY: CHANGE_ME',
+        'STORYFORGE_JWT_SECRET: CHANGE_ME',
+        'S3_SECRET_KEY: storyforge-dev-only',
+        'S3_SECRET_KEY: CHANGE_ME'
+    )
+    foreach ($SecretMarker in $ForbiddenSecrets) {
+        if ($Result.Output -like "*$SecretMarker*") {
+            Write-Fail "生产 Docker Compose 配置包含禁止的凭据或占位值：$SecretMarker。"
+        } else {
+            Write-Ok "生产 Docker Compose 配置未包含禁止凭据标记：$SecretMarker。"
+        }
+    }
+
+    if ($Result.Output -like "*REDIS_URL:*" -or $Result.Output -like "*STORYFORGE_RATE_LIMIT_REDIS_URL:*") {
+        Write-Ok "生产 Docker Compose 配置包含共享限流 Redis 来源。"
+    } else {
+        Write-Fail "生产 Docker Compose 配置缺少 REDIS_URL 或 STORYFORGE_RATE_LIMIT_REDIS_URL，无法支撑多 worker 全局限流。"
+    }
 }
 
 function Test-DockerComposeBuildGate {

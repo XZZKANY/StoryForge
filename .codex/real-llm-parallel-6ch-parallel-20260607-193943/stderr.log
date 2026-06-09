@@ -1,0 +1,1 @@
+运行后成功门禁未通过：缺少 context_cache_hit_rate；缺少 db_query_count_per_chapter；chapter_generation_time_p50 未低于 20 秒

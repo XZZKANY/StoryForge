@@ -56,7 +56,7 @@ test('IDE runs 面板渲染运行控制台和 SSE 事件摘要', () => {
   assert.ok(panel.includes('BookRun Run Panel'));
   assert.ok(panel.includes('checkpoint'));
   assert.ok(eventsPanel.includes('SSE 快照事件'));
-  assert.ok(eventsPanel.includes('/api/ide/runs/'));
+  assert.ok(eventsPanel.includes('/api/book-runs/${run.id}/events'));
 });
 
 test('layout 加载侧栏导航与主题切换', () => {

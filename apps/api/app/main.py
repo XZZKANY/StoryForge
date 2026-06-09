@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from limits import parse as parse_limit
-from limits.storage import MemoryStorage
+from limits.storage import MemoryStorage, storage_from_string
 from limits.strategies import FixedWindowRateLimiter
 from starlette.requests import Request
 
@@ -110,7 +110,25 @@ def _request_timeout_seconds() -> float:
     return timeout if timeout > 0 else 120.0
 
 
-_rate_store = MemoryStorage()
+def _rate_limit_storage_url() -> str | None:
+    """生产限流必须使用共享存储，避免多 worker 分片。"""
+
+    redis_url = os.getenv("STORYFORGE_RATE_LIMIT_REDIS_URL") or os.getenv("REDIS_URL")
+    if os.getenv("STORYFORGE_ENV", "development") == "production":
+        if not redis_url:
+            raise RuntimeError("生产环境必须配置 REDIS_URL 或 STORYFORGE_RATE_LIMIT_REDIS_URL 用于共享限流。")
+        return redis_url
+    return redis_url or None
+
+
+def _build_rate_limit_storage():
+    storage_url = _rate_limit_storage_url()
+    if storage_url:
+        return storage_from_string(storage_url)
+    return MemoryStorage()
+
+
+_rate_store = _build_rate_limit_storage()
 _rate_strategy = FixedWindowRateLimiter(_rate_store)
 _READ_LIMIT = parse_limit("120/minute")
 _WRITE_LIMIT = parse_limit("60/minute")

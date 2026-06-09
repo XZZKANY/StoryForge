@@ -255,6 +255,27 @@ MEMORY_EXTRACT_SKILL = NovelSkillDefinition(
     ),
 )
 
+SUBMIT_CONTINUITY_SKILL = NovelSkillDefinition(
+    name="submit_continuity",
+    version="1.0.0",
+    stage="chapter",
+    description="把已批准章节的结构化连续性边提交到 API 批准门禁；未注入 adapter 时按默认不提交、不产边。",
+    input_refs=("chapter_id", "draft_ref", "approved_scene_id"),
+    output_refs=("continuity_edge_count",),
+    gates=("approved_scene_id",),
+    audit_fields=("continuity_edge_count",),
+    status_mapping={"success": "continuity_submitted", "skipped": "continuity_skipped"},
+    required_capabilities=(),
+    references=_refs(
+        api_paths=("POST /api/continuity/chapter-approval",),
+        workflow_nodes=("NovelLoopPorts.submit_continuity", "_skip_submit_continuity"),
+        source_refs=(
+            "apps/workflow/storyforge_workflow/orchestrators/novel_loop.py:48",
+            "apps/workflow/storyforge_workflow/storyforge_api_client.py:34",
+        ),
+    ),
+)
+
 EXPORT_SKILL = NovelSkillDefinition(
     name="export",
     version="1.0.0",
@@ -281,6 +302,7 @@ DEFAULT_NOVEL_SKILLS = (
     REPAIR_SKILL,
     APPROVE_SKILL,
     MEMORY_EXTRACT_SKILL,
+    SUBMIT_CONTINUITY_SKILL,
     EXPORT_SKILL,
 )
 DEFAULT_NOVEL_SKILL_REGISTRY = NovelSkillRegistry(DEFAULT_NOVEL_SKILLS)

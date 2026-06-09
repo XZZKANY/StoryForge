@@ -8,6 +8,7 @@ from app.domains.assets.models import Asset
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord
+from app.domains.retrieval.embedding_client import EmbeddingClient, resolve_embedding_client
 from app.domains.retrieval.schemas import RetrievalHitRead, RetrievalSearchCreate
 from app.domains.retrieval.service import search_retrieval
 from app.domains.scene_packets.budget import build_packet, estimate_tokens
@@ -60,9 +61,12 @@ def assemble_scene_context(
     assets: list[Asset],
     continuity_records: list[ContinuityRecord],
     evidence_links: list[EvidenceLinkRead],
+    embedding_client: EmbeddingClient | None = None,
 ) -> SceneContextAssembly:
     """组装 Scene Packet 上下文，保持服务层只处理实体定位和持久化。"""
 
+    # BYOK：配置了真实 embedding provider 时自动接通语义检索/召回，未配置时解析为 None 走关键词路径。
+    client = resolve_embedding_client(embedding_client)
     scoped_assets = foreshadow_lifecycle_scoped_assets(session, payload.book_id, assets)
     scoped_asset_ids = {asset.id for asset in scoped_assets}
     scoped_evidence_links = [link for link in evidence_links if link.asset_id in scoped_asset_ids or link.asset_id == 0]
@@ -72,6 +76,7 @@ def assemble_scene_context(
         chapter=chapter,
         assets=scoped_assets,
         continuity_records=continuity_records,
+        embedding_client=client,
     )
     scoped_evidence_links.extend(retrieval_evidence_links(retrieval_hits))
     memory_atoms = recall_scene_memory_atoms(
@@ -80,6 +85,7 @@ def assemble_scene_context(
         chapter=chapter,
         assets=scoped_assets,
         continuity_records=continuity_records,
+        embedding_client=client,
     )
     packet, budget_statistics = build_packet(
         payload_with_retrieval,
@@ -216,6 +222,7 @@ def _resolve_retrieval_context(
     chapter: Chapter,
     assets: list[Asset],
     continuity_records: list[ContinuityRecord],
+    embedding_client: EmbeddingClient | None = None,
 ) -> tuple[list[RetrievalHitRead], ScenePacketCreate]:
     """缺少手工检索片段时执行检索，并返回带片段的 payload 副本。"""
 
@@ -230,6 +237,7 @@ def _resolve_retrieval_context(
             book_id=payload.book_id,
             limit=3,
         ),
+        embedding_client=embedding_client,
     )
     payload_with_retrieval = payload.model_copy(update={"retrieval_snippets": [hit.excerpt for hit in retrieval_hits]})
     return retrieval_hits, payload_with_retrieval

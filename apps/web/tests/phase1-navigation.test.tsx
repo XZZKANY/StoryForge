@@ -151,17 +151,20 @@ test('E2E 在刷新 OpenAPI 后检查契约漂移', () => {
   assert.ok(e2eScript.includes('OpenAPI contract is stale'), '契约漂移时应输出明确修复提示');
 });
 
-test('verify:ci 使用刷新前后内容对比检查 OpenAPI 契约漂移', () => {
-  const verifyScript = read('../../scripts/verify-ci.mjs');
-  assert.ok(verifyScript.includes('openApiDigestBeforeRefresh'), 'verify:ci 应记录刷新前契约摘要');
-  assert.ok(verifyScript.includes('readFileDigest'), 'verify:ci 应使用文件内容摘要判断漂移');
+test('verify:local 使用刷新前后内容对比检查 OpenAPI 契约漂移', () => {
+  const verifyScript = read('../../scripts/verify-local.mjs');
+  assert.ok(
+    verifyScript.includes('openApiDigestBeforeRefresh'),
+    'verify:local 应记录刷新前契约摘要',
+  );
+  assert.ok(verifyScript.includes('readFileDigest'), 'verify:local 应使用文件内容摘要判断漂移');
   assert.ok(
     verifyScript.includes('openApiDigestAfterRefresh !== openApiDigestBeforeRefresh'),
-    'verify:ci 应比较刷新前后内容，而不是比较未提交状态',
+    'verify:local 应比较刷新前后内容，而不是比较未提交状态',
   );
   assert.ok(
     !verifyScript.includes("args: ['diff', '--exit-code'"),
-    'verify:ci 不应在本地未提交功能分支中用 git diff 误判已同步契约',
+    'verify:local 不应在本地未提交功能分支中用 git diff 误判已同步契约',
   );
 });
 
@@ -292,7 +295,7 @@ test('Retrieval 不再硬编码默认 ID，Runs 深链进入 IDE 面板', () => 
   assert.ok(retrieval.includes('searchParams'));
   assert.ok(retrieval.includes('book_id'));
   assert.ok(!retrieval.includes('url.searchParams.set("book_id", "1")'));
-  assert.ok(idePage.includes('state.bottomPanel === \'runs\''));
+  assert.ok(idePage.includes("state.bottomPanel === 'runs'"));
   assert.ok(idePage.includes('state.bookRunId !== undefined'));
   assert.ok(idePage.includes('/api/book-runs/'));
   assert.ok(idePage.includes('/api/ide/runs/'));
@@ -311,6 +314,7 @@ test('页面复用 API client 并注入 API Key', () => {
   const ideUrlState = read('components/ide/url/ide-url-state.ts');
   const retrieval = read('app/retrieval/page.tsx');
   const idePage = read('app/ide/page.tsx');
+  const bookRunEventsRoute = read('app/api/book-runs/[bookRunId]/events/route.ts');
   const bookRunPanel = read('components/ide/views/BookRunPanel.tsx');
   const bookRunEventsPanel = read('components/ide/views/BookRunEventsPanel.tsx');
 
@@ -330,18 +334,42 @@ test('页面复用 API client 并注入 API Key', () => {
   assert.ok(!artifactsApi.includes('fetch(new URL'), 'Artifacts 数据读取不应保留裸业务 fetch');
 
   assert.ok(retrieval.includes('apiFetch'), 'Retrieval 页面应复用 apiFetch 注入 API Key');
-  assert.ok(idePage.includes('readJson<BookRunPanelRun>'), 'IDE Runs 面板应复用 readJson 校验 BookRun 响应');
+  assert.ok(
+    idePage.includes('readJson<BookRunPanelRun>'),
+    'IDE Runs 面板应复用 readJson 校验 BookRun 响应',
+  );
   assert.ok(idePage.includes('readSseSnapshot'), 'IDE Runs 面板应通过统一 apiFetch 读取 SSE 快照');
   assert.ok(idePage.includes('/api/book-runs/'), 'IDE Runs 面板应读取真实 BookRun API');
   assert.ok(idePage.includes('/api/ide/runs/'), 'IDE Runs 面板应读取真实 runs SSE API');
+  assert.ok(
+    bookRunEventsPanel.includes('/api/book-runs/${run.id}/events'),
+    '浏览器 EventSource 应连接 Web 同源代理，不能直接连接受保护 FastAPI SSE 路由',
+  );
+  assert.ok(
+    bookRunEventsRoute.includes('apiFetch(`/api/ide/runs/${bookRunId}/events`)'),
+    'Web SSE 代理应在服务端复用 apiFetch 注入 API Key 后转发 FastAPI SSE',
+  );
+  assert.ok(
+    bookRunEventsRoute.includes("'Content-Type': 'text/event-stream'"),
+    'Web SSE 代理应保留 text/event-stream 响应类型',
+  );
   assert.ok(bookRunPanel.includes('modelRunHref'), 'IDE Runs 面板应保留 ModelRun 追溯链接');
-  assert.ok(bookRunEventsPanel.includes('data-event-source="sse"'), 'IDE Runs 面板应暴露 SSE 事件源');
-  assert.ok(nextConfig.includes("source: '/evaluations'"), '/evaluations 深链应继续由 redirect 承接');
+  assert.ok(
+    bookRunEventsPanel.includes('data-event-source="sse"'),
+    'IDE Runs 面板应暴露 SSE 事件源',
+  );
+  assert.ok(
+    nextConfig.includes("source: '/evaluations'"),
+    '/evaluations 深链应继续由 redirect 承接',
+  );
   assert.ok(
     nextConfig.includes("destination: '/ide?panel.bottom=evaluation'"),
     '/evaluations redirect 应进入 IDE evaluation 面板',
   );
-  assert.ok(editorArea.includes("'legacy:evaluations'"), 'IDE 应保留 evaluations legacy tab 元数据');
+  assert.ok(
+    editorArea.includes("'legacy:evaluations'"),
+    'IDE 应保留 evaluations legacy tab 元数据',
+  );
   assert.ok(bottomPanel.includes("'evaluation'"), 'IDE 底部面板应保留 evaluation 槽位');
   assert.ok(ideUrlState.includes("| 'evaluation'"), 'IDE URL 状态应保留 evaluation 面板类型');
   assert.ok(
@@ -350,7 +378,10 @@ test('页面复用 API client 并注入 API Key', () => {
     'Web 不应直接引用 workflow registry',
   );
   assert.ok(!bookRunPanel.includes('runtimeToolList = ['), 'Web 不应维护静态工具清单');
-  assert.ok(!bookRunPanel.includes('runtimeDiagnosticTools = ['), 'Web 不应维护运行诊断静态工具清单');
+  assert.ok(
+    !bookRunPanel.includes('runtimeDiagnosticTools = ['),
+    'Web 不应维护运行诊断静态工具清单',
+  );
   assert.ok(!retrieval.includes('await fetch('), 'Retrieval 页面不应保留裸业务 fetch');
   assert.ok(!idePage.includes('await fetch('), 'IDE Runs 页面不应保留裸业务 fetch');
 });

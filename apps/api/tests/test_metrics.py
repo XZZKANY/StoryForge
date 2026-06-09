@@ -14,6 +14,7 @@ def test_metrics_endpoint_returns_prometheus_format() -> None:
     assert "judge_calls_total" in body
     assert "repair_patches_total" in body
     assert "batch_refinery_jobs_total" in body
+    assert "continuity_conflicts_total" in body
 
 
 def test_metrics_endpoint_does_not_require_api_key() -> None:

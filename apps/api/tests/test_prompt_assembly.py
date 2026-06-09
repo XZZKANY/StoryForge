@@ -110,8 +110,39 @@ def test_assemble_reads_all_consistency_sources(session: Session) -> None:
     assert style["forbidden_phrases"] == ["不禁", "情不自禁"]
 
     facts = state["continuity_facts"]
-    assert facts[0]["statement"] == "林岚：左臂受伤未愈"
-    assert facts[0]["must_appear"] is True
+    assert any(fact["statement"] == "林岚：左臂受伤未愈" and fact["must_appear"] is True for fact in facts)
+    assert any(fact["source_ref"].startswith("character_bible:") for fact in facts)
+
+
+def test_assemble_injects_character_bible_memory_atoms_as_continuity(session: Session) -> None:
+    """Character Bible 同步出来的 memory atom 也必须进入后续章节 prompt。"""
+
+    book_id, chapter_id = _seed_book(session)
+    create_memory_atom(
+        session,
+        MemoryAtom(
+            memory_id="character-bible-memory",
+            novel_id=book_id,
+            entity_type="character",
+            entity_id="林岚",
+            fact_type="rule",
+            value='{"kind":"character_bible","canonical_name":"林岚","forbidden_traits":{"禁止":["哭泣"]}}',
+            source_ref="character_bible:1:v1",
+            valid_from_chapter=1,
+            immutable=True,
+        ),
+    )
+
+    state = assemble_prompt_injection(session, book_id=book_id, chapter_id=chapter_id)
+
+    facts = state["continuity_facts"]
+    assert facts == [
+        {
+            "statement": '林岚：{"kind":"character_bible","canonical_name":"林岚","forbidden_traits":{"禁止":["哭泣"]}}',
+            "must_appear": True,
+            "source_ref": "character_bible:1:v1",
+        }
+    ]
 
 
 def test_assemble_injects_prior_chapter_text_as_previous_summary(session: Session) -> None:

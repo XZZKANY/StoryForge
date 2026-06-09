@@ -57,6 +57,81 @@ def test_book_context_from_db_with_approved_chapters(session: Session) -> None:
     assert context.approved_chapters[1].content == "第二章正文内容"
 
 
+def test_book_context_from_db_concatenates_approved_scenes_by_ordinal(session: Session) -> None:
+    """同一章多个 approved scene 必须按场景顺序拼接为章节全文。"""
+
+    book = Book(title="多场景作品", status="draft")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=1, title="第一章", summary="摘要", status="approved")
+    session.add(chapter)
+    session.flush()
+    session.add_all(
+        [
+            Scene(chapter_id=chapter.id, ordinal=2, title="第二场", status="approved", content="第二场正文"),
+            Scene(chapter_id=chapter.id, ordinal=1, title="第一场", status="approved", content="第一场正文"),
+            Scene(chapter_id=chapter.id, ordinal=3, title="草稿场", status="draft", content="不应进入缓存"),
+        ]
+    )
+    session.commit()
+
+    context = BookContext.from_db(session, book.id)
+
+    assert len(context.approved_chapters) == 1
+    assert context.approved_chapters[0].content == "第一场正文\n\n第二场正文"
+
+
+def test_book_context_cache_clears_when_approved_scene_changes_directly(session: Session) -> None:
+    """绕过服务层直接修改 approved scene 后，BookContext 缓存也必须失效。"""
+
+    clear_book_context_cache()
+    book = Book(title="直接编辑缓存兜底", status="draft")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=1, title="第一章", summary="摘要", status="approved")
+    session.add(chapter)
+    session.flush()
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="第一场", status="approved", content="旧正文")
+    session.add(scene)
+    session.commit()
+
+    cached_before = get_book_context(session, book.id)
+    assert cached_before.approved_chapters[0].content == "旧正文"
+
+    scene.content = "新正文"
+    session.commit()
+
+    cached_after = get_book_context(session, book.id)
+    assert cached_after is not cached_before
+    assert cached_after.approved_chapters[0].content == "新正文"
+
+
+def test_book_context_cache_clears_when_scene_becomes_approved_directly(session: Session) -> None:
+    """绕过服务层直接批准 draft scene 后，BookContext 缓存不能继续返回旧快照。"""
+
+    clear_book_context_cache()
+    book = Book(title="直接批准缓存兜底", status="draft")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=1, title="第一章", summary="摘要", status="draft")
+    session.add(chapter)
+    session.flush()
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="第一场", status="draft", content="新正文")
+    session.add(scene)
+    session.commit()
+
+    cached_before = get_book_context(session, book.id)
+    assert cached_before.approved_chapters == []
+
+    chapter.status = "approved"
+    scene.status = "approved"
+    session.commit()
+
+    cached_after = get_book_context(session, book.id)
+    assert cached_after is not cached_before
+    assert cached_after.approved_chapters[0].content == "新正文"
+
+
 def test_book_context_append_chapter(session: Session) -> None:
     """章节批准后追加进缓存（增量更新）。"""
 
@@ -124,6 +199,44 @@ def test_book_context_compile_for_chapter_truncation(session: Session) -> None:
     assert len(recap) == 8000
     # 最近章节（第 5 章）内容应该保留
     assert "第5章" in recap
+
+
+def test_compile_blocks_for_chapter_drops_older_under_budget(session: Session) -> None:
+    """超预算时丢弃低优先的 older 梗概块，最近章原文（required）完整保留、不被腰斩。"""
+
+    context = BookContext(book_id=1)
+    context.approved_chapters = [
+        type("Ch", (), {"ordinal": 1, "title": "第1章", "summary": "梗概1", "content": "正文1"})(),
+        type("Ch", (), {"ordinal": 2, "title": "第2章", "summary": "梗概2", "content": "正文2"})(),
+        type("Ch", (), {"ordinal": 3, "title": "第3章", "summary": "梗概3", "content": "正文3"})(),
+        type("Ch", (), {"ordinal": 4, "title": "第4章", "summary": "梗概4", "content": "正文4"})(),
+        type("Ch", (), {"ordinal": 5, "title": "第5章", "summary": "", "content": "锚点正文" + "Z" * 200})(),
+    ]
+
+    # token_budget=36：required(第5章 ≈34 token) + 仅容一个 older(第4章 ≈2 token)，其余 older 被丢
+    recap = context.compile_blocks_for_chapter(ordinal=6, chapter_id=42, full_chapters=1, token_budget=36)
+    assert recap is not None
+    # 最近章原文完整保留（未被从句腰斩）
+    assert "锚点正文" in recap
+    assert "Z" * 200 in recap
+    assert "【最近章节原文 · 第5章】" in recap
+    # score 最高的 older 保留，更早的被有序丢弃（而非无差别从头截断）
+    assert "第4章" in recap
+    assert "第1章" not in recap
+
+
+def test_compile_blocks_for_chapter_oversized_required_falls_back(session: Session) -> None:
+    """required（最近章原文）单块即超预算时回退裸截断，不抛异常、热路径不崩。"""
+
+    context = BookContext(book_id=1)
+    context.approved_chapters = [
+        type("Ch", (), {"ordinal": 1, "title": "第1章", "summary": "", "content": "Y" * 60000})(),
+    ]
+
+    # required 单块 ≈10000 token，远超 token_budget=100 → 回退 compile_for_chapter(max_chars=600)
+    recap = context.compile_blocks_for_chapter(ordinal=2, chapter_id=7, full_chapters=1, token_budget=100)
+    assert recap is not None
+    assert len(recap) == 600
 
 
 def test_book_context_compute_style_fingerprint(session: Session) -> None:

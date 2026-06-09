@@ -578,7 +578,8 @@ test('BookRunEventsPanel 暴露 SSE 快照入口和事件摘要', () => {
   );
 
   assert.ok(html.includes('data-event-source="sse"'));
-  assert.ok(html.includes('data-events-url="/api/ide/runs/12/events"'));
+  assert.ok(html.includes('data-events-url="/api/book-runs/12/events"'));
+  assert.ok(!html.includes('data-events-url="/api/ide/runs/12/events"'));
   assert.ok(html.includes('data-eventsource-client="book-run"'));
   assert.ok(html.includes('data-initial-event-count="4"'));
   assert.ok(html.includes('text/event-stream'));

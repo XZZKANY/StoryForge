@@ -1,0 +1,152 @@
+{
+  "mode": "real_llm_parallel_smoke",
+  "book_run_id": 1,
+  "book_run_status": "completed",
+  "target_chapter_count": 6,
+  "actual_chapter_count": 6,
+  "target_word_count": 7200,
+  "chapter_word_count_min": 600,
+  "chapter_word_count_max": 1600,
+  "tokens_used": 40826,
+  "estimated_cost": 0.0,
+  "actual_total_chars": 15205,
+  "per_chapter_char_counts": [
+    {
+      "chapter_index": 1,
+      "char_count": 1301
+    },
+    {
+      "chapter_index": 2,
+      "char_count": 2265
+    },
+    {
+      "chapter_index": 3,
+      "char_count": 2648
+    },
+    {
+      "chapter_index": 4,
+      "char_count": 3008
+    },
+    {
+      "chapter_index": 5,
+      "char_count": 2794
+    },
+    {
+      "chapter_index": 6,
+      "char_count": 2240
+    }
+  ],
+  "markdown_artifact_id": 1,
+  "audit_artifact_id": 2,
+  "artifact_hashes": {
+    "book_md_sha256": "0efccc1d7794caf9c6897d4e18d18fbbc86ff30e855b92ff094f8ba773506c3f",
+    "audit_report_sha256": "08fef168ff2d6e8d28590777cfe4a481b25ff489a74cd943b3bcc5a5f505df6f"
+  },
+  "per_chapter_metrics": [
+    {
+      "chapter_index": 1,
+      "token_usage": 2182,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 96,
+      "repair_rounds": 0
+    },
+    {
+      "chapter_index": 2,
+      "token_usage": 4921,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 158,
+      "repair_rounds": 0
+    },
+    {
+      "chapter_index": 3,
+      "token_usage": 6816,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 226,
+      "repair_rounds": 0
+    },
+    {
+      "chapter_index": 4,
+      "token_usage": 8692,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 303,
+      "repair_rounds": 0
+    },
+    {
+      "chapter_index": 5,
+      "token_usage": 9179,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 376,
+      "repair_rounds": 0
+    },
+    {
+      "chapter_index": 6,
+      "token_usage": 9036,
+      "quality_score": 100,
+      "quality_issue_count": 0,
+      "elapsed_time_sec": 431,
+      "repair_rounds": 0
+    }
+  ],
+  "integration_metrics": {
+    "concurrent_chapter_utilization": 0.8549,
+    "chapter_correction_count": 6,
+    "memory_recall_budget_used": 4757,
+    "arc_completion_rate": 1.0,
+    "chapter_generation_time_p50": 65.12,
+    "context_cache_hit_rate": 0.944,
+    "db_query_count_per_chapter": 5.167,
+    "dependency_mode": "precommit_revision",
+    "metric_scope": "workflow_book_loop_parallel_runtime_overlap",
+    "memory_recall_budget_scope": "phase9b_parallel_story_memory_recall"
+  },
+  "chapter_parallelism": 3,
+  "metric_results": {
+    "context_cache_hit_rate": {
+      "status": "failed",
+      "passed": false,
+      "value": 0.944,
+      "threshold": 0.95,
+      "operator": ">"
+    },
+    "memory_recall_budget_used": {
+      "status": "passed",
+      "passed": true,
+      "value": 4757.0,
+      "threshold": 8000,
+      "operator": "<"
+    },
+    "arc_completion_rate": {
+      "status": "passed",
+      "passed": true,
+      "value": 1.0,
+      "threshold": 0.7,
+      "operator": ">="
+    },
+    "db_query_count_per_chapter": {
+      "status": "failed",
+      "passed": false,
+      "value": 5.167,
+      "threshold": 3,
+      "operator": "<="
+    },
+    "chapter_generation_time_p50": {
+      "status": "failed",
+      "passed": false,
+      "value": 65.12,
+      "threshold": 20,
+      "operator": "<"
+    },
+    "concurrent_chapter_utilization": {
+      "status": "passed",
+      "passed": true,
+      "value": 0.8549,
+      "threshold": 0.6,
+      "operator": ">"
+    }
+  }
+}

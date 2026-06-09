@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.common.exceptions import NotFoundError
 from app.db.queries import latest_by_lineage
 from app.domains.assets.models import Asset, EvidenceLink
+from app.domains.book_runs.book_context import clear_book_context_cache
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord
 
@@ -151,6 +152,7 @@ def approve_chapter_writeback(session: Session, payload: ChapterWritebackApprova
             continuity_record_id=continuity_record.id,
         )
         session.commit()
+        clear_book_context_cache(book.id)
         return result
     except Exception:
         session.rollback()

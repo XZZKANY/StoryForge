@@ -83,14 +83,14 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 - 远端 `master` 历史 schedule run `26915457170`（2026-06-03T21:55:39Z）曾失败，失败点为 `uv run alembic upgrade head`，错误为 `Multiple head revisions are present for given argument 'head'`；修复分支远端 `E2E` run `26941784868` 已证明本轮最小 Alembic 修复可在远端跑通；修复已合入 `master`，最新远端 `master` E2E run `26944063055` 已成功。
 - 本地迁移图修复：新增 Alembic merge revision `20260604_0001` 合并 `20260514_phase2` 与 `20260602_0003`，`uv run alembic heads --verbose` 只显示一个 mergepoint head；本地 `pnpm e2e` 的 `API verification` 已纳入 `tests/test_alembic_heads.py`，会先验证单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0，验证后已删除。
 - 隔离 worktree 验证：`apps/api` 全量 pytest 为 `313 passed, 6 warnings`；`apps/workflow` 全量 pytest 为 `110 passed`。
-- 本地快速验证仍建议运行 `pnpm verify`、`pnpm test`、`pnpm e2e` 与 `pnpm openapi`，并把结果写入 `.codex/verification-report.md`。
+- 本地快速验证仍建议运行 `pnpm verify`、`pnpm test`、`pnpm e2e` 与 `pnpm openapi`，并把结果写入 `.codex/verification-report.md`。远程 GitHub workflow 只作为手动提示检查，不替代本地 AI 验证门禁。
 
 ## 发布前门禁
 
 - Web 业务请求必须统一经过 `apps/web/lib/api-client.ts` 注入本地 API 访问头并使用 `cache: "no-store"`。
 - 页面级读取验证必须覆盖 `/studio`、`/retrieval`、`/runs?job_run_id=<有效ID>`、`/artifacts`、`/evaluations`、`/book-runs` 和 `/book-runs/[id]/audit`。
 - `scripts/run-e2e.mjs` 必须执行真实 API HTTP pytest 目标，不允许重新降级为补偿验证来掩盖 API 链路失败。
-- 宣称“真实模型下能产出一本最小可审计小说”时，必须同时引用远端 `CI` run `26857864662`、远端 `master` E2E run `26944063055`、真实 10 章 smoke BookRun completed、`quality_summary.status=ok`、`book.md` 可读、`audit_report.json` 完整、人工通读完成和 `gate: pass_for_real_10ch_final_acceptance` 证据。
+- 宣称“真实模型下能产出一本最小可审计小说”时，必须同时引用本地 `pnpm verify` / `pnpm e2e` 结果、历史远端手动提示检查证据、真实 10 章 smoke BookRun completed、`quality_summary.status=ok`、`book.md` 可读、`audit_report.json` 完整、人工通读完成和 `gate: pass_for_real_10ch_final_acceptance` 证据。
 - 宣称“稳定长篇生产闭环”前，必须补齐 3-5 万字短篇、Markdown/EPUB 导出、审计页回放、人工通读无明显一致性矛盾，以及 README/current-phase 能力边界同步。
 - `.codex/verification-report.md` 必须记录自动化测试、页面读取、本地 API 访问头注入、Studio 批准写回、BookRun 冒烟、Artifacts/Evaluations 真实读取、远程 LLM 冒烟、未联通能力和 OpenAPI 变化情况。
 - `pnpm openapi` 如产生 diff，必须解释来源并补充测试证据后才能进入发布判断。

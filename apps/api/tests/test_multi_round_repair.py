@@ -95,7 +95,7 @@ def test_judge_and_repair_loop_performs_multiple_rounds_when_issues_persist(sess
 
     book_run = _create_test_book_run(session, book)
 
-    outcome = _judge_and_repair_loop(session, book_run, scene, scene_packet)
+    outcome = _judge_and_repair_loop(session, {}, book_run, scene, scene_packet)
 
     assert outcome["repair_rounds"] >= 1, "应至少触发一轮修复（检测到词A/B/C）"
     assert outcome["quality_score"] >= REPAIR_THRESHOLD, "修复后 score 应 ≥ 阈值（循环停止条件）"
@@ -157,7 +157,7 @@ def test_judge_and_repair_loop_stops_at_max_rounds(session: Session) -> None:
 
     book_run = _create_test_book_run(session, book)
 
-    outcome = _judge_and_repair_loop(session, book_run, scene, scene_packet)
+    outcome = _judge_and_repair_loop(session, {}, book_run, scene, scene_packet)
 
     assert outcome["repair_rounds"] <= MAX_REPAIR_ROUNDS, f"修复轮数不应超过 {MAX_REPAIR_ROUNDS}"
     assert len(outcome["repair_patch_ids"]) <= MAX_REPAIR_ROUNDS, "repair_patch_ids 长度不应超过最大轮数"
@@ -200,7 +200,7 @@ def test_judge_and_repair_loop_stops_when_score_above_threshold(session: Session
 
     book_run = _create_test_book_run(session, book)
 
-    outcome = _judge_and_repair_loop(session, book_run, scene, scene_packet)
+    outcome = _judge_and_repair_loop(session, {}, book_run, scene, scene_packet)
 
     assert outcome["repair_rounds"] == 0, "无问题时不应触发修复"
     assert outcome["quality_score"] >= REPAIR_THRESHOLD, f"质量分应 ≥ {REPAIR_THRESHOLD}"

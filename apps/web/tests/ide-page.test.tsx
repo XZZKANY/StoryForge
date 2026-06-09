@@ -338,7 +338,8 @@ test('IdePage 根据 runs 面板和 book_run query 读取 BookRun 与 SSE 快照
   }
   assert.ok(html.includes('BookRun #12'));
   assert.ok(html.includes('awaiting_review'));
-  assert.ok(html.includes('data-events-url="/api/ide/runs/12/events"'));
+  assert.ok(html.includes('data-events-url="/api/book-runs/12/events"'));
+  assert.ok(!html.includes('data-events-url="/api/ide/runs/12/events"'));
   assert.ok(html.includes('data-run-event="progress"'));
   assert.ok(html.includes('data-run-event="checkpoint"'));
   assert.ok(html.includes('data-run-event="budget"'));

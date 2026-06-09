@@ -235,12 +235,18 @@ test('Web artifacts redirect 页面壳不应继续保留', () => {
     !existsSync(staleArtifactsPagePath),
     'app/artifacts/page.tsx 已被 next.config.ts 的 /artifacts 308 重定向遮蔽，应删除页面薄壳',
   );
-  assert.ok(nextConfigSource.includes("source: '/artifacts'"), '/artifacts 深链必须继续由 redirect 承接');
+  assert.ok(
+    nextConfigSource.includes("source: '/artifacts'"),
+    '/artifacts 深链必须继续由 redirect 承接',
+  );
   assert.ok(
     nextConfigSource.includes("destination: '/ide?panel.bottom=artifacts'"),
     '/artifacts redirect 必须进入 IDE artifacts 面板',
   );
-  assert.ok(pageContentSource.includes('ArtifactsPageContent'), '首页复用的 ArtifactsPageContent 必须保留');
+  assert.ok(
+    pageContentSource.includes('ArtifactsPageContent'),
+    '首页复用的 ArtifactsPageContent 必须保留',
+  );
   assert.ok(pageContentSource.includes('ArtifactsWorkbench'), 'Artifacts 真实工作台内容必须保留');
   assert.ok(artifactsApiSource.includes('readJson'), 'Artifacts API 读取必须继续复用 readJson');
   assert.ok(
@@ -278,10 +284,13 @@ test('Web runs redirect 页面壳不应继续保留', () => {
     bookRunPanelSource.includes('modelRunHref'),
     'IDE runs 面板必须继续提供 ModelRun 追溯链接',
   );
-  assert.ok(bookRunEventsPanelSource.includes('BookRunEventsPanel'), 'IDE BookRunEventsPanel 必须保留');
   assert.ok(
-    bookRunEventsPanelSource.includes('/api/ide/runs/'),
-    'IDE runs 面板必须继续读取 BookRun SSE 事件',
+    bookRunEventsPanelSource.includes('BookRunEventsPanel'),
+    'IDE BookRunEventsPanel 必须保留',
+  );
+  assert.ok(
+    bookRunEventsPanelSource.includes('/api/book-runs/${run.id}/events'),
+    'IDE runs 面板必须通过 Web 同源代理暴露浏览器 SSE 事件',
   );
   assert.ok(
     bottomPanelSource.includes("activePanel === 'runs'"),
@@ -334,10 +343,7 @@ test('Web evaluations redirect 旧页面不应继续保留', () => {
     editorAreaSource.includes('Evaluations 评测系统'),
     'EditorArea 必须保留 Evaluations 评测系统标题',
   );
-  assert.ok(
-    bottomPanelSource.includes("'evaluation'"),
-    'BottomPanel 必须保留 evaluation 面板槽位',
-  );
+  assert.ok(bottomPanelSource.includes("'evaluation'"), 'BottomPanel 必须保留 evaluation 面板槽位');
   assert.ok(
     ideUrlStateSource.includes("| 'evaluation'"),
     'IDE URL 状态必须继续识别 evaluation 面板',

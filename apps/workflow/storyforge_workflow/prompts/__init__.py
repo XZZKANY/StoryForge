@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from storyforge_workflow.prompts.builder import (
     build_chapter_plan_prompt,
+    build_continuity_edges_prompt,
     build_critique_prompt,
     build_draft_prompt,
     build_longform_segment_prompt,
@@ -24,4 +25,5 @@ __all__ = [
     "build_longform_segment_prompt",
     "build_critique_prompt",
     "build_revision_prompt",
+    "build_continuity_edges_prompt",
 ]

@@ -19,12 +19,14 @@ def approve_chapter_endpoint(payload: ChapterApprovalCreate, session: SessionDep
     """记录章节批准后的摘要、状态变化、伏笔变化和继承约束。"""
 
     try:
-        records = list(approve_chapter(session, payload))
+        result = approve_chapter(session, payload)
     except ChapterNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    records = list(result.records)
     return ChapterApprovalRead(
         chapter_id=payload.chapter_id,
         book_id=records[0].book_id,
         record_count=len(records),
         records=records,
+        continuity_edge_count=result.edge_count,
     )

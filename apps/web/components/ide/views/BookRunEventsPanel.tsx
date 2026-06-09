@@ -20,7 +20,7 @@ export function BookRunEventsPanel({
   events = [],
   onExecuteCommand,
 }: BookRunEventsPanelProps) {
-  const eventsUrl = run ? `/api/ide/runs/${run.id}/events` : '';
+  const eventsUrl = run ? `/api/book-runs/${run.id}/events` : '';
 
   return (
     <section
@@ -38,7 +38,7 @@ export function BookRunEventsPanel({
           <span className="font-mono text-xs text-stone-400">{eventsUrl || '未选择 BookRun'}</span>
         </div>
         <p className="mt-2 text-xs text-stone-400">
-          text/event-stream 快照来自 /api/ide/runs/{'{book_run_id}'}/events。
+          text/event-stream 实时连接经 /api/book-runs/{'{book_run_id}'}/events 同源代理转发。
         </p>
         {events.length === 0 ? (
           <p className="mt-3 rounded border border-dashed border-stone-700 p-3 text-sm text-stone-400">

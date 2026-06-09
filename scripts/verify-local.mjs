@@ -86,7 +86,7 @@ const gates = [
       const openApiDigestAfterRefresh = readFileDigest(openApiContractPath);
       if (openApiDigestAfterRefresh !== openApiDigestBeforeRefresh) {
         console.error(
-          "[verify:ci] OpenAPI contract is stale. Run 'pnpm run openapi' and commit packages/shared/src/contracts/storyforge.openapi.json.",
+          "[verify:local] OpenAPI contract is stale. Run 'pnpm run openapi' and commit packages/shared/src/contracts/storyforge.openapi.json.",
         );
         process.exit(1);
       }
@@ -95,13 +95,13 @@ const gates = [
 ];
 
 for (const gate of gates) {
-  console.log(`\n[verify:ci] ${gate.name}`);
+  console.log(`\n[verify:local] ${gate.name}`);
   if ('run' in gate) {
     gate.run();
     continue;
   }
 
-  console.log(`[verify:ci] $ ${gate.command} ${gate.args.join(' ')}`);
+  console.log(`[verify:local] $ ${gate.command} ${gate.args.join(' ')}`);
   const result = spawnSync(gate.command, gate.args, {
     cwd: gate.cwd,
     shell: process.platform === 'win32',
@@ -109,14 +109,14 @@ for (const gate of gates) {
   });
 
   if (result.error) {
-    console.error(`[verify:ci] ${gate.name} 启动失败：${result.error.message}`);
+    console.error(`[verify:local] ${gate.name} 启动失败：${result.error.message}`);
     process.exit(1);
   }
 
   if (result.status !== 0) {
-    console.error(`[verify:ci] ${gate.name} 失败，退出码 ${result.status ?? 'unknown'}。`);
+    console.error(`[verify:local] ${gate.name} 失败，退出码 ${result.status ?? 'unknown'}。`);
     process.exit(result.status ?? 1);
   }
 }
 
-console.log('\n[verify:ci] 所有核心门禁通过。');
+console.log('\n[verify:local] 所有本地核心门禁通过。');

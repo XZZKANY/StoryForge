@@ -41,6 +41,10 @@ const runtimeModules = [
   { src: 'lib/api-client.ts', dst: 'lib/api-client.mjs' },
   { src: 'app/api/provider-models/route.ts', dst: 'app/api/provider-models/route.mjs' },
   {
+    src: 'app/api/book-runs/[bookRunId]/events/route.ts',
+    dst: 'app/api/book-runs/[bookRunId]/events/route.mjs',
+  },
+  {
     src: 'app/api/provider-models/provider-models.ts',
     dst: 'app/api/provider-models/provider-models.mjs',
   },
@@ -179,8 +183,13 @@ const runtimeModules = [
 const importRewrites = [
   ['../next.config', '../next.config.mjs'],
   ['../lib/api-client', '../lib/api-client.mjs'],
+  ['../../../../../lib/api-client', '../../../../../lib/api-client.mjs'],
   ['../app/api/provider-models/provider-models', '../app/api/provider-models/provider-models.mjs'],
   ['../app/api/provider-models/route', '../app/api/provider-models/route.mjs'],
+  [
+    '../app/api/book-runs/[bookRunId]/events/route',
+    '../app/api/book-runs/[bookRunId]/events/route.mjs',
+  ],
   ['./provider-models', './provider-models.mjs'],
   ['../lib/text-diff', '../lib/text-diff.mjs'],
   ['../app/studio/StudioFlow', '../app/studio/StudioFlow.mjs'],

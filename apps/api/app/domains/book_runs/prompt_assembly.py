@@ -73,8 +73,10 @@ def assemble_prompt_injection(
         if fingerprint:
             state.setdefault("style_directive", {})["fingerprint"] = fingerprint
 
-        # 前文语料：从缓存编译（不再每次查询 Scene 表）
-        recap = context.compile_for_chapter(chapter_ordinal, full_chapters=2, max_chars=12000)
+        # 前文语料：从缓存编译（预算感知裁剪，取代裸字符截断）
+        recap = context.compile_blocks_for_chapter(
+            chapter_ordinal, chapter_id=chapter_id, full_chapters=2, token_budget=2000
+        )
         if recap:
             state["previous_summary_ref"] = recap
     else:
@@ -205,6 +207,7 @@ def _continuity_facts(session: Session, book_id: int, chapter_id: int | None) ->
 
     # Phase 2: 查询 Chapter.ordinal 传给 get_active_memory_atoms
     from sqlalchemy import select
+
     from app.domains.books.models import Chapter
 
     chapter = session.execute(select(Chapter).where(Chapter.id == chapter_id)).scalar_one_or_none()
@@ -214,8 +217,6 @@ def _continuity_facts(session: Session, book_id: int, chapter_id: int | None) ->
     atoms = get_active_memory_atoms(session, book_id=book_id, chapter_ordinal=chapter.ordinal)
     facts: list[dict[str, Any]] = []
     for atom in atoms:
-        if atom.source_ref.startswith("character_bible:"):
-            continue
         statement = _atom_statement(atom)
         if not statement:
             continue

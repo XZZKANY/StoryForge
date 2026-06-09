@@ -35,7 +35,9 @@ def _reset_rate_limiter() -> None:
 
     from app.main import _rate_store
 
-    _rate_store.reset()
+    reset = getattr(_rate_store, "reset", None)
+    if callable(reset):
+        reset()
 
 
 @pytest.fixture(autouse=True)

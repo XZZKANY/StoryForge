@@ -1615,6 +1615,16 @@
             "minimum": 1.0,
             "title": "Chapter Index",
             "type": "integer"
+          },
+          "planning_refs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookRunWorkflowPlanningRefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1734,6 +1744,29 @@
         "title": "BookRunWorkflowDispatch",
         "type": "object"
       },
+      "BookRunWorkflowPlanningRefs": {
+        "description": "workflow 只需要轻量规划引用，不接收完整规划对象。",
+        "properties": {
+          "arc_completion_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Arc Completion Ratio",
+            "type": "number"
+          },
+          "arc_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Arc Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "arc_completion_ratio"
+        ],
+        "title": "BookRunWorkflowPlanningRefs",
+        "type": "object"
+      },
       "BudgetStatistics": {
         "description": "预算统计说明上下文包是否发生检索片段裁剪。",
         "properties": {
@@ -1781,6 +1814,14 @@
             "title": "Character State Changes",
             "type": "object"
           },
+          "continuity_edges": {
+            "items": {
+              "$ref": "#/components/schemas/ContinuityEdgeInput"
+            },
+            "maxItems": 200,
+            "title": "Continuity Edges",
+            "type": "array"
+          },
           "foreshadowing_changes": {
             "additionalProperties": true,
             "title": "Foreshadowing Changes",
@@ -1824,6 +1865,11 @@
           },
           "chapter_id": {
             "title": "Chapter Id",
+            "type": "integer"
+          },
+          "continuity_edge_count": {
+            "default": 0,
+            "title": "Continuity Edge Count",
             "type": "integer"
           },
           "record_count": {
@@ -2184,6 +2230,69 @@
           "status_summary"
         ],
         "title": "CommercialSummaryRead",
+        "type": "object"
+      },
+      "ContinuityEdgeInput": {
+        "description": "批准时随章节显式提交的结构化连续性边（关系/时间线/状态）。",
+        "properties": {
+          "edge_kind": {
+            "enum": [
+              "relationship",
+              "timeline_order",
+              "status"
+            ],
+            "title": "Edge Kind",
+            "type": "string"
+          },
+          "object_ref": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Object Ref",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "predicate": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Predicate",
+            "type": "string"
+          },
+          "subject_ref": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Subject Ref",
+            "type": "string"
+          },
+          "valid_from_chapter": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Valid From Chapter",
+            "type": "integer"
+          },
+          "valid_to_chapter": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To Chapter"
+          }
+        },
+        "required": [
+          "edge_kind",
+          "subject_ref",
+          "predicate",
+          "object_ref"
+        ],
+        "title": "ContinuityEdgeInput",
         "type": "object"
       },
       "ContinuityRecordRead": {

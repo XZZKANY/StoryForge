@@ -185,6 +185,33 @@ class NovelSkillRunner:
         )
         return memory_atom_ids
 
+    def run_submit_continuity(
+        self,
+        *,
+        request: NovelLoopRequest,
+        draft: str,
+        approved_scene_id: int,
+        submit_continuity: Callable[[NovelLoopRequest, str, int], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """执行 submit_continuity 端口，并区分默认跳过与真实提交。"""
+
+        result = submit_continuity(request, draft, approved_scene_id) or {}
+        edge_count = result.get("continuity_edge_count")
+        edge_count = int(edge_count) if isinstance(edge_count, int) else 0
+        status = "continuity_submitted" if edge_count > 0 else "continuity_skipped"
+        self._append_run(
+            request=request,
+            skill_name="submit_continuity",
+            status=status,
+            input_refs={
+                "chapter_id": request.chapter_id,
+                "chapter_index": request.chapter_index,
+                "approved_scene_id": approved_scene_id,
+            },
+            output_refs={"continuity_edge_count": edge_count},
+        )
+        return result
+
     def _append_run(
         self,
         *,

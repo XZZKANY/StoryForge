@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import pytest
 
@@ -33,6 +33,7 @@ def test_book_run_dispatch_payload_runs_adapter_and_emits_recorded_skill_runs() 
         "judge",
         "approve",
         "memory_extract",
+        "submit_continuity",
     ]
     assert chapter["skill_runs"][0]["output_refs"]["model_run_id"] == 501
     assert "完整正文" not in str(chapter["skill_runs"])
@@ -217,6 +218,41 @@ def test_book_run_dispatch_payload_drops_corrupt_planning_refs() -> None:
     run_book_run_dispatch_payload(payload, capturing_ports, CapturingProgressSink())
 
     assert captured[0].planning_refs is None
+
+
+def test_book_run_dispatch_payload_threads_injected_memory_extractor() -> None:
+    """dispatch 入口注入的 memory_extractor 必须真正驱动章末记忆写入，而非被静默丢弃。"""
+
+    recorded: list[tuple[int, int]] = []
+
+    def extractor(novel_request: NovelLoopRequest, draft: str, approved_scene_id: int) -> list[str]:
+        recorded.append((novel_request.chapter_index, approved_scene_id))
+        return ["memory:旧港信号"]
+
+    sink = CapturingProgressSink()
+    run_book_run_dispatch_payload(_dispatch_payload(), _passing_ports, sink, memory_extractor=extractor)
+
+    assert recorded == [(1, 701)]
+    memory_run = _skill_run(sink, chapter_index=1, skill_name="memory_extract")
+    assert memory_run["status"] == "memory_updated"
+    assert memory_run["output_refs"]["memory_atom_ids"] == ("memory:旧港信号",)
+
+
+def test_book_run_dispatch_payload_without_memory_extractor_stays_skipped() -> None:
+    """未注入 memory_extractor 时保持既有跳过行为，守住回归基线。"""
+
+    sink = CapturingProgressSink()
+    run_book_run_dispatch_payload(_dispatch_payload(), _passing_ports, sink)
+
+    memory_run = _skill_run(sink, chapter_index=1, skill_name="memory_extract")
+    assert memory_run["status"] == "memory_extract_skipped"
+    assert memory_run["output_refs"]["memory_atom_ids"] == ()
+
+
+def _skill_run(sink: CapturingProgressSink, *, chapter_index: int, skill_name: str) -> dict[str, object]:
+    completed = sink.payloads[-1]["progress"]["completed_chapters"]
+    chapter = next(item for item in completed if item["chapter_index"] == chapter_index)
+    return next(run for run in chapter["skill_runs"] if run["skill_name"] == skill_name)
 
 
 def _dispatch_payload(

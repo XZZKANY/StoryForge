@@ -13,13 +13,54 @@ Phase 1 Context 增量化核心组件：
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import event, inspect, select
 from sqlalchemy.orm import Session
 
 from app.domains.books.models import Chapter, Scene
+
+
+@dataclass(frozen=True)
+class BookContextCacheSnapshot:
+    """BookContext 缓存观测快照，用于真实 runner 产出可审计指标。"""
+
+    hits: int
+    misses: int
+
+    @property
+    def total(self) -> int:
+        return self.hits + self.misses
+
+    @property
+    def hit_rate(self) -> float | None:
+        if self.total == 0:
+            return None
+        return round(self.hits / self.total, 3)
+
+
+class BookContextCacheObserver:
+    """线程安全记录 BookContext 缓存命中情况。"""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._hits = 0
+        self._misses = 0
+
+    def record(self, *, hit: bool) -> None:
+        with self._lock:
+            if hit:
+                self._hits += 1
+            else:
+                self._misses += 1
+
+    def snapshot(self) -> BookContextCacheSnapshot:
+        with self._lock:
+            return BookContextCacheSnapshot(hits=self._hits, misses=self._misses)
 
 
 @dataclass
@@ -30,7 +71,7 @@ class ApprovedChapter:
     chapter_id: int
     title: str
     summary: str
-    content: str  # 首个 approved scene 的 content
+    content: str  # 同章 approved scenes 按序拼接后的章节正文
 
 
 @dataclass
@@ -46,6 +87,7 @@ class BookContext:
     book_id: int
     approved_chapters: list[ApprovedChapter] = field(default_factory=list)
     _cache_version: int = 0  # Scene.updated_at 的 max，用于失效检测
+    _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
     def append_chapter(
         self,
@@ -58,16 +100,17 @@ class BookContext:
     ) -> None:
         """章节批准后追加进缓存（增量更新）。"""
 
-        self.approved_chapters.append(
-            ApprovedChapter(
-                ordinal=ordinal,
-                chapter_id=chapter_id,
-                title=title,
-                summary=summary,
-                content=content,
+        with self._lock:
+            self.approved_chapters.append(
+                ApprovedChapter(
+                    ordinal=ordinal,
+                    chapter_id=chapter_id,
+                    title=title,
+                    summary=summary,
+                    content=content,
+                )
             )
-        )
-        self._cache_version += 1
+            self._cache_version += 1
 
     def compile_for_chapter(
         self,
@@ -87,7 +130,8 @@ class BookContext:
             前文 recap 字符串，无前文时返回 None
         """
 
-        prior = [ch for ch in self.approved_chapters if ch.ordinal < ordinal]
+        with self._lock:
+            prior = [ch for ch in self.approved_chapters if ch.ordinal < ordinal]
         if not prior:
             return None
 
@@ -112,6 +156,103 @@ class BookContext:
         # 超限时优先保留最近章节原文（位于末尾），从头截断
         return recap[-max_chars:]
 
+    def compile_blocks_for_chapter(
+        self,
+        ordinal: int,
+        *,
+        chapter_id: int | None = None,
+        full_chapters: int = 2,
+        token_budget: int = 2000,
+    ) -> str | None:
+        """预算感知编译章节 N 的前文上下文，取代 compile_for_chapter 的裸字符截断。
+
+        用 context_compiler.compile_context 做有序裁剪：最近章原文标 required 保连续，
+        更早章节梗概按预算从低优先丢弃，而非无差别从头截断。required 单块即超预算时
+        （极长章）回退 compile_for_chapter，保证热路径不崩。
+        """
+
+        # 延迟 import：避免与 context_compiler 的潜在循环，沿用本类 compute_style_fingerprint 先例
+        from pydantic import ValidationError
+
+        from app.domains.context_compiler.schemas import ContextBlock, ContextCompileRequest
+        from app.domains.context_compiler.service import compile_context
+        from app.domains.scene_packets.budget import estimate_tokens
+
+        with self._lock:
+            prior = [ch for ch in self.approved_chapters if ch.ordinal < ordinal]
+        if not prior:
+            return None
+
+        full = prior[-full_chapters:] if full_chapters > 0 else []
+        older = prior[: len(prior) - len(full)]
+
+        blocks: list[ContextBlock] = []
+        for ch in older:
+            digest = f"{ch.title}：{(ch.summary or ch.content)[:200]}".strip()
+            if not digest:
+                continue
+            blocks.append(
+                ContextBlock(
+                    block_id=f"older-{ch.ordinal}",
+                    kind="memory_atom",
+                    title=str(ch.title or f"第{ch.ordinal}章")[:200],
+                    content=digest[:100000],
+                    source_ref=f"chapter:{ch.ordinal}:digest",
+                    token_count=estimate_tokens(digest),
+                    priority="low",
+                    injection_position="memory",
+                    score=float(ch.ordinal),
+                )
+            )
+
+        last_ordinal = full[-1].ordinal if full else None
+        for ch in full:
+            body = (ch.content or "").strip()
+            if not body:
+                continue
+            blocks.append(
+                ContextBlock(
+                    block_id=f"full-{ch.ordinal}",
+                    kind="scene_goal",
+                    title=str(ch.title or f"第{ch.ordinal}章")[:200],
+                    content=body[:100000],
+                    source_ref=f"chapter:{ch.ordinal}:content",
+                    token_count=estimate_tokens(body),
+                    priority="required" if ch.ordinal == last_ordinal else "high",
+                    injection_position="scene",
+                    score=float(ch.ordinal),
+                )
+            )
+
+        if not blocks:
+            return self.compile_for_chapter(ordinal, full_chapters=full_chapters, max_chars=token_budget * 6)
+
+        try:
+            compiled = compile_context(
+                ContextCompileRequest(
+                    novel_id=self.book_id,
+                    chapter_id=chapter_id or 1,  # 仅用于算 context_id 与回填，不影响裁剪
+                    scene_id=chapter_id or 1,  # 章级 recap 无当前 scene，借 chapter_id 占位
+                    token_budget=token_budget,
+                    blocks=blocks,
+                    score_threshold=0.0,
+                )
+            )
+        except (ValidationError, ValueError):
+            # required（最近章原文）单块即超预算 → 回退裸截断，热路径不崩
+            return self.compile_for_chapter(ordinal, full_chapters=full_chapters, max_chars=token_budget * 6)
+
+        ordered = sorted(compiled.injected_blocks, key=lambda block: block.order)
+        sections: list[str] = []
+        digest_lines = [f"- {block.content}" for block in ordered if block.injection_position == "memory"]
+        if digest_lines:
+            sections.append("【前情提要（更早章节梗概）】\n" + "\n".join(digest_lines))
+        for block in ordered:
+            if block.injection_position == "scene":
+                sections.append(f"【最近章节原文 · {block.title}】\n{block.content}")
+        recap = "\n\n".join(sections)
+        return recap or None
+
     def compute_style_fingerprint(
         self,
         *,
@@ -126,10 +267,8 @@ class BookContext:
             StyleFingerprint.as_payload() 格式的 dict，无章节时返回 None
         """
 
-        if not self.approved_chapters:
-            return None
-
-        contents = [ch.content for ch in self.approved_chapters]
+        with self._lock:
+            contents = [ch.content for ch in self.approved_chapters]
         if chapter_window is not None and chapter_window > 0:
             contents = contents[-chapter_window:]
 
@@ -145,26 +284,28 @@ class BookContext:
     def invalidate(self) -> None:
         """强制失效缓存（用户编辑已批准 scene 时触发）。"""
 
-        self.approved_chapters.clear()
-        self._cache_version = 0
+        with self._lock:
+            self.approved_chapters.clear()
+            self._cache_version = 0
 
     def serialize(self) -> dict[str, Any]:
         """序列化为 Artifact（BookRun 完成时保存快照）。"""
 
-        return {
-            "book_id": self.book_id,
-            "approved_chapters": [
-                {
-                    "ordinal": ch.ordinal,
-                    "chapter_id": ch.chapter_id,
-                    "title": ch.title,
-                    "summary": ch.summary,
-                    "content_preview": ch.content[:500],  # 仅保留预览，不存全文
-                }
-                for ch in self.approved_chapters
-            ],
-            "cache_version": self._cache_version,
-        }
+        with self._lock:
+            return {
+                "book_id": self.book_id,
+                "approved_chapters": [
+                    {
+                        "ordinal": ch.ordinal,
+                        "chapter_id": ch.chapter_id,
+                        "title": ch.title,
+                        "summary": ch.summary,
+                        "content_preview": ch.content[:500],  # 仅保留预览，不存全文
+                    }
+                    for ch in self.approved_chapters
+                ],
+                "cache_version": self._cache_version,
+            }
 
     @classmethod
     def from_db(
@@ -204,22 +345,32 @@ class BookContext:
 
         rows = session.execute(query).all()
 
-        # 同章多个已批准 scene 时只取序最靠前的一个
-        seen: set[int] = set()
+        chapters: dict[int, ApprovedChapter] = {}
+        scene_bodies: dict[int, list[str]] = {}
         for ordinal, chapter_id, title, summary, content in rows:
-            if ordinal in seen:
-                continue
             body = str(content).strip() if content else ""
             if not body:
                 continue
-            seen.add(ordinal)
-            context.approved_chapters.append(
-                ApprovedChapter(
+            if ordinal not in chapters:
+                chapters[ordinal] = ApprovedChapter(
                     ordinal=ordinal,
                     chapter_id=chapter_id,
                     title=str(title or f"第{ordinal}章"),
                     summary=str(summary or "").strip(),
-                    content=body,
+                    content="",
+                )
+                scene_bodies[ordinal] = []
+            scene_bodies[ordinal].append(body)
+
+        for ordinal in sorted(chapters):
+            chapter = chapters[ordinal]
+            context.approved_chapters.append(
+                ApprovedChapter(
+                    ordinal=chapter.ordinal,
+                    chapter_id=chapter.chapter_id,
+                    title=chapter.title,
+                    summary=chapter.summary,
+                    content="\n\n".join(scene_bodies[ordinal]),
                 )
             )
 
@@ -228,6 +379,30 @@ class BookContext:
 
 # Module-level 缓存：key 是 book_id，避免单 BookRun 内多次查询
 _context_cache: dict[int, BookContext] = {}
+_context_cache_lock = threading.Lock()
+_context_cache_observer_lock = threading.Lock()
+_context_cache_observer: BookContextCacheObserver | None = None
+
+
+def _active_cache_observer() -> BookContextCacheObserver | None:
+    with _context_cache_observer_lock:
+        return _context_cache_observer
+
+
+@contextmanager
+def observe_book_context_cache() -> Iterator[BookContextCacheObserver]:
+    """在当前进程临时启用 BookContext 命中率观测，覆盖并发章节线程。"""
+
+    global _context_cache_observer
+    observer = BookContextCacheObserver()
+    with _context_cache_observer_lock:
+        previous = _context_cache_observer
+        _context_cache_observer = observer
+    try:
+        yield observer
+    finally:
+        with _context_cache_observer_lock:
+            _context_cache_observer = previous
 
 
 def get_book_context(session: Session, book_id: int) -> BookContext:
@@ -236,9 +411,14 @@ def get_book_context(session: Session, book_id: int) -> BookContext:
     首次访问时从 DB 加载，后续访问直接返回缓存实例。
     """
 
-    if book_id not in _context_cache:
-        _context_cache[book_id] = BookContext.from_db(session, book_id)
-    return _context_cache[book_id]
+    with _context_cache_lock:
+        hit = book_id in _context_cache
+        observer = _active_cache_observer()
+        if observer is not None:
+            observer.record(hit=hit)
+        if not hit:
+            _context_cache[book_id] = BookContext.from_db(session, book_id)
+        return _context_cache[book_id]
 
 
 def clear_book_context_cache(book_id: int | None = None) -> None:
@@ -249,6 +429,96 @@ def clear_book_context_cache(book_id: int | None = None) -> None:
     """
 
     if book_id is None:
-        _context_cache.clear()
+        with _context_cache_lock:
+            _context_cache.clear()
     else:
-        _context_cache.pop(book_id, None)
+        with _context_cache_lock:
+            _context_cache.pop(book_id, None)
+
+
+_BOOK_CONTEXT_INVALIDATION_KEY = "book_context_invalidate_book_ids"
+_BOOK_CONTEXT_SKIP_INVALIDATION_KEY = "book_context_skip_invalidate_book_ids"
+
+
+def skip_book_context_invalidation_once(session: Session, book_id: int) -> None:
+    """当前事务将自行维护 BookContext 时，跳过提交后的兜底清理。"""
+
+    book_ids = session.info.setdefault(_BOOK_CONTEXT_SKIP_INVALIDATION_KEY, set())
+    book_ids.add(book_id)
+
+
+@event.listens_for(Session, "after_flush")
+def _collect_book_context_invalidations(session: Session, _flush_context: object) -> None:
+    """收集会影响已批准前文快照的直接 ORM 写入，提交后统一清缓存。"""
+
+    book_ids = session.info.setdefault(_BOOK_CONTEXT_INVALIDATION_KEY, set())
+    for obj in list(session.dirty):
+        if isinstance(obj, Chapter) and _chapter_affects_book_context(obj, deleted=False):
+            book_ids.add(obj.book_id)
+        elif isinstance(obj, Scene) and _scene_affects_book_context(obj, deleted=False):
+            book_id = _book_id_for_scene(session, obj)
+            if book_id is not None:
+                book_ids.add(book_id)
+    for obj in list(session.deleted):
+        if isinstance(obj, Chapter) and _chapter_affects_book_context(obj, deleted=True):
+            book_ids.add(obj.book_id)
+        elif isinstance(obj, Scene) and _scene_affects_book_context(obj, deleted=True):
+            book_id = _book_id_for_scene(session, obj)
+            if book_id is not None:
+                book_ids.add(book_id)
+
+
+@event.listens_for(Session, "after_commit")
+def _clear_book_context_after_commit(session: Session) -> None:
+    """事务成功后再清缓存，避免失败回滚路径误删可用快照。"""
+
+    book_ids = session.info.pop(_BOOK_CONTEXT_INVALIDATION_KEY, set())
+    skip_book_ids = session.info.pop(_BOOK_CONTEXT_SKIP_INVALIDATION_KEY, set())
+    for book_id in book_ids:
+        if book_id in skip_book_ids:
+            continue
+        clear_book_context_cache(int(book_id))
+
+
+@event.listens_for(Session, "after_rollback")
+def _discard_book_context_invalidations(session: Session) -> None:
+    """事务回滚时丢弃待清理标记。"""
+
+    session.info.pop(_BOOK_CONTEXT_INVALIDATION_KEY, None)
+    session.info.pop(_BOOK_CONTEXT_SKIP_INVALIDATION_KEY, None)
+
+
+def _chapter_affects_book_context(chapter: Chapter, *, deleted: bool) -> bool:
+    state = inspect(chapter)
+    if deleted:
+        return chapter.status == "approved"
+    status_history = state.attrs.status.history
+    if status_history.has_changes():
+        statuses = [value for value in (*status_history.deleted, *status_history.added) if value is not None]
+        return "approved" in statuses
+    if chapter.status == "approved":
+        return any(state.attrs[name].history.has_changes() for name in ("summary", "title"))
+    return False
+
+
+def _scene_affects_book_context(scene: Scene, *, deleted: bool) -> bool:
+    state = inspect(scene)
+    if deleted:
+        return scene.status == "approved"
+    status_history = state.attrs.status.history
+    if status_history.has_changes():
+        statuses = [value for value in (*status_history.deleted, *status_history.added) if value is not None]
+        return "approved" in statuses
+    if scene.status == "approved":
+        return any(state.attrs[name].history.has_changes() for name in ("content", "chapter_id", "ordinal", "title"))
+    return False
+
+
+def _book_id_for_scene(session: Session, scene: Scene) -> int | None:
+    if scene.chapter is not None:
+        return scene.chapter.book_id
+    chapter_id = scene.chapter_id
+    if chapter_id is None:
+        return None
+    chapter = session.get(Chapter, chapter_id)
+    return chapter.book_id if chapter is not None else None

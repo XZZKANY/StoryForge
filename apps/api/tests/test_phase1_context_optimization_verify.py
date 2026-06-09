@@ -65,7 +65,7 @@ def test_phase1_context_optimization_query_count(session: Session, query_counter
 
     with patch.dict(os.environ, env_overrides):
         try:
-            result = run_book_run_with_real_llm_smoke(
+            run_book_run_with_real_llm_smoke(
                 session=session,
                 book_id=book.id,
                 num_chapters=10,
@@ -79,7 +79,7 @@ def test_phase1_context_optimization_query_count(session: Session, query_counter
     # 断言：Scene 表查询次数应显著降低
     scene_queries = [q for q in query_counter if "scenes" in q.lower()]
     print(f"\n[Phase 1 验证] Scene 表查询次数：{len(scene_queries)}")
-    print(f"前 5 条查询：")
+    print("前 5 条查询：")
     for q in scene_queries[:5]:
         print(f"  {q[:200]}")
 

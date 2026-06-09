@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, ForeignKey, String, Text
+from sqlalchemy import JSON, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin, VersionMixin
@@ -43,6 +43,27 @@ class ScenePacket(IdMixin, TimestampMixin, VersionMixin, Base):
     scene: Mapped[Scene] = relationship(back_populates="scene_packets")
     job_run: Mapped[JobRun | None] = relationship(back_populates="scene_packets")
     judge_issues: Mapped[list[JudgeIssue]] = relationship(back_populates="scene_packet")
+
+
+class ContinuityEdge(IdMixin, TimestampMixin, VersionMixin, Base):
+    """结构化连续性边：人物关系、事件先后与状态，供写入前做可判定的矛盾校验。
+
+    与 ContinuityRecord（扁平摘要事实）互补：边表承载记录间的可达性结构，
+    时间窗语义对齐 MemoryAtomRecord（valid_from_chapter / valid_to_chapter）。
+    """
+
+    __tablename__ = "continuity_edges"
+
+    book_id: Mapped[int] = mapped_column(ForeignKey("books.id", ondelete="CASCADE"), index=True, nullable=False)
+    edge_kind: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
+    subject_ref: Mapped[str] = mapped_column(String(160), nullable=False)
+    predicate: Mapped[str] = mapped_column(String(80), nullable=False)
+    object_ref: Mapped[str] = mapped_column(String(160), nullable=False)
+    valid_from_chapter: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    valid_to_chapter: Mapped[int | None] = mapped_column(Integer)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    book: Mapped[Book] = relationship()
 
 
 # 单独导入连续性领域时，预加载关系目标模型，保证 configure_mappers 可独立执行。

@@ -366,8 +366,8 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
   assertSourceEvidence(contractSources.packageJson, [
     '"openapi": "node scripts/generate-openapi.mjs"',
     '"e2e": "node scripts/run-e2e.mjs"',
-    '"verify": "pnpm run verify:ci"',
-    '"verify:ci": "node scripts/verify-ci.mjs"',
+    '"verify": "pnpm run verify:local"',
+    '"verify:local": "node scripts/verify-local.mjs"',
     '"verify:infra": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1"',
   ]);
   assertSourceEvidence(contractSources.generateOpenApi, ['app.openapi()', sharedOpenApiPath]);

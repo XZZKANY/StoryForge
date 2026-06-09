@@ -44,6 +44,7 @@ def check_story_memory_continuity(
 
     # Phase 2: 查询 Chapter.ordinal 传给 get_active_memory_atoms
     from sqlalchemy import select
+
     from app.domains.books.models import Chapter
 
     chapter = session.execute(select(Chapter).where(Chapter.id == chapter_id)).scalar_one_or_none()

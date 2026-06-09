@@ -333,8 +333,14 @@ def _integration_metrics_projection(progress: dict[str, object]) -> dict[str, ob
         "db_query_count_per_chapter",
         "chapter_generation_time_p50",
         "concurrent_chapter_utilization",
+        "chapter_correction_count",
     }
-    return {key: value for key, value in metrics.items() if key in allowed and isinstance(value, int | float)}
+    projected = {key: value for key, value in metrics.items() if key in allowed and isinstance(value, int | float)}
+    for key in ("dependency_mode", "metric_scope", "memory_recall_budget_scope"):
+        value = metrics.get(key)
+        if isinstance(value, str) and value.strip():
+            projected[key] = value
+    return projected
 
 
 def _quality_summary(chapters: list[dict[str, object]]) -> dict[str, object]:

@@ -154,5 +154,43 @@ def test_high_static_issue_pauses_for_manual_review() -> None:
     assert result.judge_report_id is None
 
 
+def test_novel_loop_treats_invalid_judge_report_id_as_awaiting_review() -> None:
+    """Judge 返回非法 ID 时，章节应进入待审而不是抛出 ValueError 中断 workflow。"""
+
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "正文。",
+        judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": "bad-id"},
+        repair_scene=lambda draft, report, attempt: draft,
+        approve_scene=lambda request, draft, evidence: 100,
+        record_model_run=lambda request, draft: 10,
+    )
+
+    result = run_single_chapter_loop(_request(), ports)
+
+    assert result.status == "awaiting_review"
+    assert result.approved_scene_id is None
+    assert result.judge_report_id is None
+
+
+def test_novel_loop_ignores_invalid_continuity_edge_count() -> None:
+    """连续性提交返回非法计数字段时，应按 0 条边处理。"""
+
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "正文。",
+        judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": 20},
+        repair_scene=lambda draft, report, attempt: draft,
+        approve_scene=lambda request, draft, evidence: 100,
+        record_model_run=lambda request, draft: 10,
+        submit_continuity=lambda request, draft, approved_scene_id: {"continuity_edge_count": "bad-count"},
+    )
+
+    result = run_single_chapter_loop(_request(), ports)
+
+    assert result.status == "approved"
+    assert result.continuity_edge_count == 0
+
+
 def _request() -> NovelLoopRequest:
     return NovelLoopRequest(book_id=1, chapter_id=2, chapter_index=1, chapter_goal="完成雾港开篇。")

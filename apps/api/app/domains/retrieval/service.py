@@ -13,6 +13,7 @@ from app.common.exceptions import InputError
 from app.common.scope import ScopeNotFoundError, validate_scope
 from app.domains.retrieval.embedding_client import EmbeddingClient, EmbeddingResult, LocalEmbeddingClient
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
+from app.domains.retrieval.pgvector import PGVECTOR_ENGAGED, evaluate_pgvector_decision, pgvector_dimensions
 from app.domains.retrieval.reranker_client import RerankerClient
 from app.domains.retrieval.schemas import (
     RetrievalHitRead,
@@ -334,17 +335,20 @@ def _load_search_candidates(
 
 
 def _should_use_pgvector_candidates(session: Session, query_embedding: Sequence[float] | None) -> bool:
-    if query_embedding is None or len(query_embedding) != _pgvector_dimensions():
-        return False
-    try:
-        dialect_name = session.get_bind().dialect.name
-    except Exception:
-        return False
-    return dialect_name == "postgresql"
+    expected_dims = _pgvector_dimensions()
+    reason = evaluate_pgvector_decision(session, query_embedding, expected_dims=expected_dims)
+    if reason != PGVECTOR_ENGAGED and query_embedding is not None:
+        logger.info(
+            "retrieval pgvector 未启用，回退关键词候选：reason=%s expected_dims=%s got_dims=%s",
+            reason,
+            expected_dims,
+            len(query_embedding),
+        )
+    return reason == PGVECTOR_ENGAGED
 
 
 def _pgvector_dimensions() -> int:
-    return _positive_int_env("STORYFORGE_RETRIEVAL_PGVECTOR_DIMENSIONS", DEFAULT_PGVECTOR_DIMENSIONS)
+    return pgvector_dimensions("STORYFORGE_RETRIEVAL_PGVECTOR_DIMENSIONS", DEFAULT_PGVECTOR_DIMENSIONS)
 
 
 def _vector_candidate_limit(limit: int | None) -> int:

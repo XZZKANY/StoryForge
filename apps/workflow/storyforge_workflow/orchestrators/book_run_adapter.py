@@ -17,6 +17,7 @@ from storyforge_workflow.quality.arc_consistency import ArcConsistencyBarrier
 from storyforge_workflow.skills.runner import NovelSkillRunner
 
 MemoryExtractor = Callable[[NovelLoopRequest, str, int], list[str]]
+ContinuitySubmitter = Callable[[NovelLoopRequest, str, int], dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class BookRunAdapterRequest:
     chapter_budget: int | None = None
     provider_fallback_pause_threshold: int | None = None
     chapter_parallelism: int = 1
+    require_budget_guard_before_prefetch: bool = False
     volume_plan: list[BookRunVolumePlanItem | dict[str, Any]] = field(default_factory=list)
 
 
@@ -76,6 +78,7 @@ class BookRunAdapterPorts:
     novel_loop_ports_factory: Callable[[NovelLoopRequest], NovelLoopPorts]
     progress_sink: BookRunProgressSink
     memory_extractor: MemoryExtractor | None = None
+    continuity_submitter: ContinuitySubmitter | None = None
     consistency_barrier: ConsistencyBarrier | None = None
     chapter_planning_refs: Callable[[int], dict[str, Any] | None] | None = None
 
@@ -137,6 +140,8 @@ def run_book_run_dispatch_payload(
     novel_loop_ports_factory: Callable[[NovelLoopRequest], NovelLoopPorts],
     progress_sink: BookRunProgressSink,
     consistency_barrier: ConsistencyBarrier | None = None,
+    memory_extractor: MemoryExtractor | None = None,
+    continuity_submitter: ContinuitySubmitter | None = None,
 ) -> BookLoopResult:
     """消费 API 生成的 dispatch payload，运行 BookRun adapter 并回填 progress。"""
 
@@ -153,6 +158,10 @@ def run_book_run_dispatch_payload(
         chapter_budget=_optional_positive_int(payload.get("chapter_budget")),
         provider_fallback_pause_threshold=_optional_positive_int(payload.get("provider_fallback_pause_threshold")),
         chapter_parallelism=_optional_positive_int(payload.get("chapter_parallelism")) or _env_chapter_parallelism(),
+        require_budget_guard_before_prefetch=_bool_value(
+            payload.get("require_budget_guard_before_prefetch"),
+            default=_env_budget_guard_before_prefetch(),
+        ),
         volume_plan=_volume_plan_or_single(payload.get("volume_plan"), _required_int(payload, "total_chapters")),
     )
     required_indexes = range(request.start_chapter_index, request.total_chapters + 1)
@@ -165,6 +174,8 @@ def run_book_run_dispatch_payload(
         chapter_id=lambda chapter_index: chapters[chapter_index]["chapter_id"],
         novel_loop_ports_factory=novel_loop_ports_factory,
         progress_sink=progress_sink,
+        memory_extractor=memory_extractor,
+        continuity_submitter=continuity_submitter,
         consistency_barrier=barrier,
         chapter_planning_refs=lambda chapter_index: chapters[chapter_index].get("planning_refs"),
     )
@@ -186,6 +197,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         chapter_budget=request.chapter_budget,
         provider_fallback_pause_threshold=request.provider_fallback_pause_threshold,
         chapter_parallelism=request.chapter_parallelism,
+        require_budget_guard_before_prefetch=request.require_budget_guard_before_prefetch,
     )
     _emit_result_progress(
         request,
@@ -213,7 +225,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         runner = NovelSkillRunner.default()
         return run_single_chapter_loop(
             novel_request,
-            _novel_loop_ports_with_memory_extractor(ports.novel_loop_ports_factory(novel_request), ports),
+            _novel_loop_ports_with_injected_ports(ports.novel_loop_ports_factory(novel_request), ports),
             skill_runner=runner,
         )
 
@@ -293,8 +305,8 @@ def _with_dispatch(result: BookLoopResult, dispatch: dict[str, Any]) -> BookLoop
     return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
 
 
-def _novel_loop_ports_with_memory_extractor(novel_ports: NovelLoopPorts, ports: BookRunAdapterPorts) -> NovelLoopPorts:
-    if ports.memory_extractor is None:
+def _novel_loop_ports_with_injected_ports(novel_ports: NovelLoopPorts, ports: BookRunAdapterPorts) -> NovelLoopPorts:
+    if ports.memory_extractor is None and ports.continuity_submitter is None:
         return novel_ports
     return NovelLoopPorts(
         compile_context=novel_ports.compile_context,
@@ -303,7 +315,8 @@ def _novel_loop_ports_with_memory_extractor(novel_ports: NovelLoopPorts, ports: 
         repair_scene=novel_ports.repair_scene,
         approve_scene=novel_ports.approve_scene,
         record_model_run=novel_ports.record_model_run,
-        extract_memory=ports.memory_extractor,
+        extract_memory=ports.memory_extractor or novel_ports.extract_memory,
+        submit_continuity=ports.continuity_submitter or novel_ports.submit_continuity,
         check_static_quality=novel_ports.check_static_quality,
     )
 
@@ -485,6 +498,18 @@ def _env_chapter_parallelism() -> int:
     except ValueError:
         return 1
     return parsed if parsed > 0 else 1
+
+
+def _bool_value(value: object, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+def _env_budget_guard_before_prefetch() -> bool:
+    return _bool_value(os.getenv("STORYFORGE_BOOK_RUN_BUDGET_GUARD_PREFETCH"), default=False)
 
 
 def _int_or_default(value: object, default: int) -> int:

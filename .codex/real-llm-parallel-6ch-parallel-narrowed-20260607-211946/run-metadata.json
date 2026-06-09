@@ -1,0 +1,36 @@
+{
+  "mode": "real_llm_parallel_smoke",
+  "generated_at": "2026-06-07 21:19:54 +0800",
+  "output_directory": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946",
+  "runner_exit_code": 1,
+  "summary_present": false,
+  "sensitive_hit_count": 0,
+  "redacted_parameters": {
+    "provider_protocol": "openai-compatible",
+    "model": "mimo-v2.5-pro",
+    "chapter_count": 6,
+    "chapter_parallelism": 3,
+    "max_chapter_count": 8,
+    "token_budget": 120000,
+    "target_word_count": 7200,
+    "chapter_word_count_min": 600,
+    "chapter_word_count_max": 1600,
+    "timeout_seconds": 300,
+    "time_budget_seconds": 1800,
+    "outer_timeout_seconds": 2400,
+    "database_mode": "ephemeral_sqlite"
+  },
+  "files": {
+    "summary_json": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\summary.json",
+    "stdout_json": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\stdout.json",
+    "stderr_log": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\stderr.log",
+    "book_md": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\book.md",
+    "audit_report_json": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\audit_report.json",
+    "run_metadata_json": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\run-metadata.json",
+    "quality_risk_md": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\quality-risk.md",
+    "human_readthrough_todo_md": "D:\\StoryForge\\.codex\\real-llm-parallel-6ch-parallel-narrowed-20260607-211946\\human-readthrough-todo.md"
+  },
+  "elapsed_time_sec": 7,
+  "gate_scope": "真实 6-8 章并发 smoke 证据，指标按实测记录，不代表长程 30 章完成。",
+  "failure_message": "cannot import name 'CharacterConstraint' from 'storyforge_workflow.prompts.models' (D:\\StoryForge\\apps\\workflow\\storyforge_workflow\\prompts\\models.py)"
+}

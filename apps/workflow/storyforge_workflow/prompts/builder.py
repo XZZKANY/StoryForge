@@ -28,6 +28,10 @@ _RETURN_STRUCTURED = (
     "Task: Produce a structured Chinese planning result. Return only the requested lines. "
     "Do not add numbering, commentary, or blank lines."
 )
+_RETURN_JSON = (
+    "Task: Extract structured facts from a Chinese novel chapter. "
+    "Return only a valid JSON array. No markdown fences, no commentary, no blank lines before or after."
+)
 
 # 软禁用套话：与 StyleDirective.forbidden_phrases（硬禁用）分开，这里是高频陈词，
 # 措辞为"避免滥用"而非"绝不出现"，否则会误伤正常用词。
@@ -353,6 +357,58 @@ def build_longform_segment_prompt(
             [
                 "保持叙事连续，包含具体场景、行动、对话和细节。",
                 "只输出正文，不要写大纲、不要提前完结、不要解释。",
+            ],
+        ),
+    ]
+    return _join_sections(sections)
+
+
+def build_continuity_edges_prompt(ctx: NarrativeContext, draft: str) -> str:
+    """连续性结构边抽取：把章节正文解析为可判定的 relationship/timeline_order/status 三元组。
+
+    输出契约（JSON 数组）由本段显式约定；下游 parse_continuity_edges 按此 schema 解析并对坏项 fail-soft。
+    已知角色/连续性锚点注入，引导模型用一致的实体引用前缀，减少同名实体漂移。
+    """
+
+    sections = [
+        _RETURN_JSON,
+        _section(
+            "任务",
+            [
+                "你是小说连续性事实抽取器。只从下面这章正文里抽取“能被结构化判定”的客观事实边。",
+                "只抽取正文明确陈述或强暗示的事实，不要推测、不要脑补未写出的关系。",
+                "正文没有可抽取的结构事实时，返回空数组 []。",
+            ],
+        ),
+        _character_section(ctx.characters),
+        _position_section(ctx),
+        _continuity_section(ctx),
+        _section("待抽取正文", [_clean(draft) or "（空）"]),
+        _section(
+            "抽取的三类边",
+            [
+                "relationship：人物之间的稳定关系（如 父子、师徒、上下级、夫妻）。",
+                "timeline_order：两个事件的先后顺序，predicate 固定用“早于”。",
+                "status：某主体在某方面的状态（如 生死=已死亡/活动、所在地=港口）。",
+            ],
+        ),
+        _section(
+            "实体引用约定",
+            [
+                "人物用 character:名 前缀（如 character:林岚）。",
+                "事件用 event:简述 前缀（如 event:港口爆炸）。",
+                "尽量复用上面【角色约束】【连续性】里出现过的实体名，避免同义另起新名。",
+            ],
+        ),
+        _section(
+            "输出要求",
+            [
+                "只输出一个 JSON 数组，每个元素是一个对象，字段如下：",
+                '{"edge_kind":"relationship|timeline_order|status","subject_ref":"...","predicate":"中文谓词","object_ref":"...","valid_from_chapter":整数或省略,"valid_to_chapter":整数或null}',
+                "edge_kind 只能是 relationship、timeline_order、status 三者之一。",
+                "subject_ref、predicate、object_ref 三个字段必填且非空。",
+                "valid_from_chapter 不确定就省略；valid_to_chapter 未结束就用 null 或省略。",
+                "不要输出 markdown 代码围栏，不要任何解释文字，无事实就输出 []。",
             ],
         ),
     ]

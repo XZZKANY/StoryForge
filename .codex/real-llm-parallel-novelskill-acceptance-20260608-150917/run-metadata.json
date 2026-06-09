@@ -1,0 +1,191 @@
+{
+  "mode": "real_llm_parallel_smoke",
+  "generated_at": "2026-06-08 15:18:14 +0800",
+  "output_directory": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917",
+  "runner_exit_code": 1,
+  "summary_present": true,
+  "sensitive_hit_count": 0,
+  "redacted_parameters": {
+    "provider_protocol": "openai-compatible",
+    "model": "mimo-v2.5-pro",
+    "chapter_count": 6,
+    "chapter_parallelism": 3,
+    "max_chapter_count": 8,
+    "token_budget": 120000,
+    "target_word_count": 7200,
+    "chapter_word_count_min": 600,
+    "chapter_word_count_max": 1600,
+    "timeout_seconds": 300,
+    "time_budget_seconds": 1800,
+    "outer_timeout_seconds": 2400,
+    "database_mode": "ephemeral_sqlite"
+  },
+  "files": {
+    "summary_json": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\summary.json",
+    "stdout_json": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\stdout.json",
+    "stderr_log": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\stderr.log",
+    "book_md": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\book.md",
+    "audit_report_json": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\audit_report.json",
+    "run_metadata_json": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\run-metadata.json",
+    "quality_risk_md": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\quality-risk.md",
+    "human_readthrough_todo_md": "D:\\StoryForge\\.codex\\real-llm-parallel-novelskill-acceptance-20260608-150917\\human-readthrough-todo.md"
+  },
+  "elapsed_time_sec": 537,
+  "gate_scope": "真实 6-8 章并发 smoke 证据，指标按实测记录，不代表长程 30 章完成。",
+  "failure_message": "运行后成功门禁未通过：context_cache_hit_rate 未超过 0.95；db_query_count_per_chapter 超过 3；chapter_generation_time_p50 未低于 20 秒",
+  "quality_gate_failed": true,
+  "quality_gate_failures": [
+    "context_cache_hit_rate 未超过 0.95",
+    "db_query_count_per_chapter 超过 3",
+    "chapter_generation_time_p50 未低于 20 秒"
+  ],
+  "summary": {
+    "book_run_id": 1,
+    "book_run_status": "completed",
+    "target_chapter_count": 6,
+    "actual_chapter_count": 6,
+    "chapter_parallelism": 3,
+    "target_word_count": 7200,
+    "tokens_used": 45814,
+    "estimated_cost": 0.0,
+    "actual_total_chars": 18859,
+    "markdown_artifact_id": 1,
+    "audit_artifact_id": 2,
+    "per_chapter_char_counts": [
+      {
+        "chapter_index": 1,
+        "char_count": 1473
+      },
+      {
+        "chapter_index": 2,
+        "char_count": 1961
+      },
+      {
+        "chapter_index": 3,
+        "char_count": 2876
+      },
+      {
+        "chapter_index": 4,
+        "char_count": 3674
+      },
+      {
+        "chapter_index": 5,
+        "char_count": 2983
+      },
+      {
+        "chapter_index": 6,
+        "char_count": 4749
+      }
+    ],
+    "per_chapter_metrics": [
+      {
+        "chapter_index": 1,
+        "token_usage": 2295,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 113,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 2,
+        "token_usage": 4724,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 175,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 3,
+        "token_usage": 7396,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 251,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 4,
+        "token_usage": 9375,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 346,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 5,
+        "token_usage": 10108,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 423,
+        "repair_rounds": 0
+      },
+      {
+        "chapter_index": 6,
+        "token_usage": 11916,
+        "quality_score": 100,
+        "quality_issue_count": 0,
+        "elapsed_time_sec": 535,
+        "repair_rounds": 0
+      }
+    ],
+    "artifact_hashes": {
+      "book_md_sha256": "8467ef3c20e598027642b5109eee8b48cbb9c80913a8ef2c5ba2eb6e76731c39",
+      "audit_report_sha256": "ed70bb649e1428d2e309152640bfb191e770aa4f7af474cb425380555ad16dc0"
+    },
+    "integration_metrics": {
+      "concurrent_chapter_utilization": 0.8502,
+      "chapter_correction_count": 6,
+      "memory_recall_budget_used": 4760,
+      "arc_completion_rate": 1.0,
+      "chapter_generation_time_p50": 76.868,
+      "context_cache_hit_rate": 0.944,
+      "db_query_count_per_chapter": 5.167,
+      "dependency_mode": "precommit_revision",
+      "metric_scope": "workflow_book_loop_parallel_runtime_overlap",
+      "memory_recall_budget_scope": "phase9b_parallel_story_memory_recall"
+    },
+    "metric_results": {
+      "context_cache_hit_rate": {
+        "status": "failed",
+        "passed": false,
+        "value": 0.944,
+        "threshold": 0.95,
+        "operator": ">"
+      },
+      "memory_recall_budget_used": {
+        "status": "passed",
+        "passed": true,
+        "value": 4760.0,
+        "threshold": 8000,
+        "operator": "<"
+      },
+      "arc_completion_rate": {
+        "status": "passed",
+        "passed": true,
+        "value": 1.0,
+        "threshold": 0.7,
+        "operator": ">="
+      },
+      "db_query_count_per_chapter": {
+        "status": "failed",
+        "passed": false,
+        "value": 5.167,
+        "threshold": 3,
+        "operator": "<="
+      },
+      "chapter_generation_time_p50": {
+        "status": "failed",
+        "passed": false,
+        "value": 76.868,
+        "threshold": 20,
+        "operator": "<"
+      },
+      "concurrent_chapter_utilization": {
+        "status": "passed",
+        "passed": true,
+        "value": 0.8502,
+        "threshold": 0.6,
+        "operator": ">"
+      }
+    }
+  }
+}

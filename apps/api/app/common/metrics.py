@@ -18,6 +18,11 @@ batch_refinery_jobs_total = Counter(
     "Total batch refinery job submissions",
 )
 
+continuity_conflicts_total = Counter(
+    "continuity_conflicts_total",
+    "Total continuity edge constraint conflicts detected",
+)
+
 
 def setup_metrics(app):
     Instrumentator(

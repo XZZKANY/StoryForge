@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
 from app.domains.assets.models import Asset, EvidenceLink
+from app.domains.book_runs.book_context import get_book_context
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord
 
@@ -129,6 +130,46 @@ def test_approval_writeback_creates_version_diff_continuity_and_evidence(
         and record.payload.get("chapter_id") == approval_context["next_chapter_id"]
     )
     assert propagated_constraints.payload["value"] == ["林岚必须隐藏伤势", "灯塔信号仍需保留"]
+
+
+def test_approval_writeback_clears_book_context_cache(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """批准回写后必须清除 BookContext 旧快照，避免后续章节读到旧正文。"""
+
+    with session_factory() as session:
+        book = Book(title="缓存失效", status="draft", premise="验证批准后缓存。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="approved", summary="旧摘要")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="旧场景", status="approved", content="旧正文")
+        session.add(scene)
+        session.commit()
+        book_id = book.id
+        chapter_id = chapter.id
+
+        cached_before = get_book_context(session, book_id)
+        assert cached_before.approved_chapters[0].content == "旧正文"
+
+        from app.domains.books.lineage_service import ChapterWritebackApproval, approve_chapter_writeback
+
+        approve_chapter_writeback(
+            session,
+            ChapterWritebackApproval(
+                book_id=book_id,
+                chapter_id=chapter_id,
+                approved_content="新正文",
+                diff_summary="更新正文。",
+                approved_by="测试审批员",
+            ),
+        )
+
+        cached_after = get_book_context(session, book_id)
+
+    assert cached_after is not cached_before
+    assert cached_after.approved_chapters[0].content == "新正文"
 
 
 def _assert_approval_writeback_state_clean(

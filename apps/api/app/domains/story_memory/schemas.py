@@ -27,6 +27,7 @@ class MemoryAtom(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     immutable: bool = False
     revision: int = Field(default=1, ge=1)
+    embedding: list[float] = Field(default_factory=list, max_length=4096)
 
     @model_validator(mode="after")
     def validate_chapter_range(self) -> MemoryAtom:

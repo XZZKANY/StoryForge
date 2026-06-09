@@ -217,8 +217,156 @@ def test_book_loop_can_prefetch_chapters_but_commit_progress_in_order() -> None:
     assert completed[0] != 1
     assert progress_indexes == [1, 2, 3]
     assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2, 3]
-    assert result.progress["integration_metrics"]["concurrent_chapter_utilization"] > 0.6
-    assert result.progress["integration_metrics"]["metric_scope"] == "workflow_book_loop_parallel"
+    assert result.progress["integration_metrics"]["max_in_flight_chapters"] == 3
+    assert result.progress["integration_metrics"]["metric_scope"] == "workflow_book_loop_parallel_runtime_overlap"
+
+
+def test_book_loop_parallel_utilization_uses_runtime_overlap_not_submitted_window() -> None:
+    """并发利用率必须来自实际执行重叠时间，不能只看提交过几个 future。"""
+
+    started: list[int] = []
+    lock = Lock()
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        with lock:
+            started.append(chapter_index)
+        # 任务几乎立即完成：旧口径因一次性提交 3 个 future 会报 1.0，
+        # 新口径应按 worker 实际运行重叠面积给出很低的利用率。
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章正文。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+        )
+
+    result = run_book_loop(
+        BookLoopRequest(
+            book_run_id=1,
+            book_id=2,
+            blueprint_id=3,
+            total_chapters=3,
+            chapter_parallelism=3,
+        ),
+        run_chapter,
+    )
+
+    metrics = result.progress["integration_metrics"]
+    assert result.status == "completed"
+    assert set(started) == {1, 2, 3}
+    assert metrics["max_in_flight_chapters"] == 3
+    assert metrics["concurrent_chapter_utilization"] < 1.0
+    assert metrics["metric_scope"] == "workflow_book_loop_parallel_runtime_overlap"
+
+
+def test_book_loop_parallel_can_wait_for_prior_commit_before_starting_next_chapter() -> None:
+    """启用前序提交依赖时，第 N 章启动前必须已经提交第 N-1 章。"""
+
+    committed_indexes: list[int] = []
+    start_observations: dict[int, int] = {}
+    lock = Lock()
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        with lock:
+            start_observations[chapter_index] = len(committed_indexes)
+        if chapter_index == 1:
+            # 当前旧实现会在第一章提交前预启动后续章节，红灯应能稳定暴露。
+            first_chapter_can_commit.wait(timeout=0.2)
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章正文。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+        )
+
+    first_chapter_can_commit = Event()
+
+    def record_progress(progress) -> None:
+        with lock:
+            committed_indexes.append(progress.current_chapter_index)
+        if progress.current_chapter_index == 1:
+            first_chapter_can_commit.set()
+
+    result = run_book_loop(
+        BookLoopRequest(
+            book_run_id=1,
+            book_id=2,
+            blueprint_id=3,
+            total_chapters=3,
+            chapter_parallelism=3,
+            require_prior_chapter_commit_before_start=True,
+        ),
+        run_chapter,
+        progress_callback=record_progress,
+    )
+
+    assert result.status == "completed"
+    assert start_observations == {1: 0, 2: 1, 3: 2}
+    assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2, 3]
+
+
+def test_book_loop_parallel_can_prefetch_then_revise_before_commit() -> None:
+    """P1.5 两段式模式应允许并发起草，并在按序提交前用已提交前文校正。"""
+
+    all_chapters_started = Event()
+    committed_indexes: list[int] = []
+    start_observations: dict[int, int] = {}
+    revision_observations: dict[int, int] = {}
+    lock = Lock()
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        with lock:
+            start_observations[chapter_index] = len(committed_indexes)
+            if len(start_observations) == 3:
+                all_chapters_started.set()
+        if chapter_index == 1:
+            all_chapters_started.wait(timeout=2)
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章初稿。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+            token_usage=chapter_index,
+        )
+
+    def revise_before_commit(
+        chapter_index: int,
+        chapter_result: NovelLoopResult,
+        committed_chapters: list[dict[str, object]],
+    ) -> NovelLoopResult:
+        with lock:
+            revision_observations[chapter_index] = len(committed_chapters)
+        return NovelLoopResult(
+            status=chapter_result.status,
+            final_draft=f"第 {chapter_index} 章校正稿。",
+            source_model_run_id=1000 + chapter_index,
+            judge_report_id=2000 + chapter_index,
+            repair_patch_id=chapter_result.repair_patch_id,
+            approved_scene_id=3000 + chapter_index,
+            token_usage=chapter_result.token_usage + 10,
+        )
+
+    def record_progress(progress) -> None:
+        with lock:
+            committed_indexes.append(progress.current_chapter_index)
+
+    result = run_book_loop(
+        BookLoopRequest(book_run_id=1, book_id=2, blueprint_id=3, total_chapters=3, chapter_parallelism=3),
+        run_chapter,
+        progress_callback=record_progress,
+        precommit_chapter=revise_before_commit,
+    )
+
+    assert result.status == "completed"
+    assert start_observations == {1: 0, 2: 0, 3: 0}
+    assert revision_observations == {1: 0, 2: 1, 3: 2}
+    assert [item["model_run_id"] for item in result.progress["checkpoint"]] == [1001, 1002, 1003]
+    assert result.progress["budget"]["tokens_used"] == 36
 
 
 def test_book_loop_parallel_token_budget_starts_window_then_pauses_without_refill() -> None:
@@ -263,6 +411,43 @@ def test_book_loop_parallel_token_budget_starts_window_then_pauses_without_refil
     assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2]
     assert result.progress["budget"]["tokens_used"] == 160
     assert result.progress["pause_reason"] == "token_budget_exceeded"
+
+
+def test_book_loop_parallel_budget_guard_can_disable_prefetch_window() -> None:
+    """启用预算保守模式时，token 预算触顶前不得预启动窗口外章节。"""
+
+    started: list[int] = []
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        started.append(chapter_index)
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章正文。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+            token_usage=80,
+        )
+
+    result = run_book_loop(
+        BookLoopRequest(
+            book_run_id=1,
+            book_id=2,
+            blueprint_id=3,
+            total_chapters=5,
+            token_budget=100,
+            chapter_parallelism=3,
+            require_budget_guard_before_prefetch=True,
+        ),
+        run_chapter,
+    )
+
+    assert result.status == "paused_by_budget"
+    assert result.current_chapter_index == 2
+    assert started == [1, 2]
+    assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1, 2]
+    assert result.progress["integration_metrics"]["prefetch_mode"] == "budget_guarded"
 
 
 def test_book_loop_parallel_provider_degradation_starts_window_then_pauses() -> None:

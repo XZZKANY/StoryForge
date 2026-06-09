@@ -14,7 +14,7 @@ from storyforge_workflow.skills.definitions import (
     list_novel_skills,
 )
 
-REQUIRED_SKILLS = ("generate", "judge", "repair", "approve", "memory_extract", "export")
+REQUIRED_SKILLS = ("generate", "judge", "repair", "approve", "memory_extract", "submit_continuity", "export")
 
 
 def _parse_skill_frontmatter(text: str) -> tuple[dict[str, object], str]:
@@ -58,7 +58,7 @@ def test_default_registry_covers_required_novel_skills() -> None:
     skills = DEFAULT_NOVEL_SKILL_REGISTRY.all()
 
     assert tuple(skill.name for skill in skills) == REQUIRED_SKILLS
-    assert tuple(skill.stage for skill in skills) == ("chapter", "chapter", "chapter", "chapter", "chapter", "book")
+    assert tuple(skill.stage for skill in skills) == ("chapter", "chapter", "chapter", "chapter", "chapter", "chapter", "book")
     assert len({skill.name for skill in skills}) == len(skills)
 
 
@@ -93,6 +93,7 @@ def test_registry_queries_by_stage_and_capability() -> None:
         "repair",
         "approve",
         "memory_extract",
+        "submit_continuity",
     )
     assert {skill.name for skill in llm_skills} == {"generate", "judge", "repair"}
     assert get_novel_skill("approve") == DEFAULT_NOVEL_SKILL_REGISTRY.require("approve")

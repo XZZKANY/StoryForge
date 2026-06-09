@@ -31,6 +31,7 @@ class NovelLoopResult:
     cost_estimate: float = 0.0
     fallback_metadata: dict[str, object] | None = None
     memory_atom_ids: list[str] = field(default_factory=list)
+    continuity_edge_count: int = 0
     skill_runs: tuple[dict[str, Any], ...] = ()
 
 
@@ -38,6 +39,12 @@ def _skip_memory_extraction(request: NovelLoopRequest, draft: str, approved_scen
     """默认不抽取记忆，生产 adapter 或测试可注入真实实现。"""
 
     return []
+
+
+def _skip_submit_continuity(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> dict[str, Any]:
+    """默认不提交连续性结构边，不调 API、不产边；生产 adapter 或测试可注入真实实现。"""
+
+    return {}
 
 
 def _skip_static_quality_check(draft: str) -> list[dict[str, Any]]:
@@ -57,6 +64,7 @@ class NovelLoopPorts:
     approve_scene: Callable[[NovelLoopRequest, str, dict[str, Any]], int]
     record_model_run: Callable[[NovelLoopRequest, str], int]
     extract_memory: Callable[[NovelLoopRequest, str, int], list[str]] = _skip_memory_extraction
+    submit_continuity: Callable[[NovelLoopRequest, str, int], dict[str, Any]] = _skip_submit_continuity
     check_static_quality: Callable[[str], Sequence[dict[str, Any] | object]] = _skip_static_quality_check
 
 
@@ -107,6 +115,15 @@ class NovelSkillRunnerPort(Protocol):
         extract_memory: Callable[[NovelLoopRequest, str, int], list[str]],
     ) -> list[str]: ...
 
+    def run_submit_continuity(
+        self,
+        *,
+        request: NovelLoopRequest,
+        draft: str,
+        approved_scene_id: int,
+        submit_continuity: Callable[[NovelLoopRequest, str, int], dict[str, Any]],
+    ) -> dict[str, Any]: ...
+
 
 def run_single_chapter_loop(
     request: NovelLoopRequest,
@@ -147,10 +164,17 @@ def run_single_chapter_loop(
             latest_report = skill_runner.run_judge(draft=draft, attempt=attempt, judge_scene=ports.judge_scene)
         judge_report_id = _optional_int(latest_report.get("judge_report_id"))
         if latest_report.get("status") == "pass":
+            if latest_report.get("judge_report_id") is not None and judge_report_id is None:
+                latest_report = {
+                    "status": "awaiting_review",
+                    "invalid_judge_report_id": latest_report.get("judge_report_id"),
+                }
+                break
             refs = {"source_model_run_id": model_run_id, "judge_report_id": judge_report_id}
             if skill_runner is None:
                 approved_scene_id = ports.approve_scene(request, draft, refs)
                 memory_atom_ids = ports.extract_memory(request, draft, approved_scene_id)
+                continuity_result = ports.submit_continuity(request, draft, approved_scene_id)
             else:
                 approved_scene_id = skill_runner.run_approve(
                     request=request,
@@ -164,6 +188,12 @@ def run_single_chapter_loop(
                     approved_scene_id=approved_scene_id,
                     extract_memory=ports.extract_memory,
                 )
+                continuity_result = skill_runner.run_submit_continuity(
+                    request=request,
+                    draft=draft,
+                    approved_scene_id=approved_scene_id,
+                    submit_continuity=ports.submit_continuity,
+                )
             return NovelLoopResult(
                 status="approved",
                 final_draft=draft,
@@ -172,6 +202,7 @@ def run_single_chapter_loop(
                 repair_patch_id=latest_repair_patch_id,
                 approved_scene_id=approved_scene_id,
                 memory_atom_ids=list(memory_atom_ids),
+                continuity_edge_count=_optional_int(continuity_result.get("continuity_edge_count")) or 0,
                 skill_runs=_skill_run_audit(skill_runner),
             )
         latest_repair_patch_id = _optional_int(latest_report.get("repair_patch_id"))
@@ -194,7 +225,15 @@ def run_single_chapter_loop(
 def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
-    return int(value)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.isdigit():
+            return int(stripped)
+    return None
 
 
 def _run_repair(

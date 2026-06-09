@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-from storyforge_workflow.orchestrators.book_loop import ChapterConsistencyReport
 from storyforge_workflow.orchestrators.novel_loop import NovelLoopResult
 from storyforge_workflow.quality.arc_consistency import (
     ARC_STATE_PLANTED,

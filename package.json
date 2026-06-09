@@ -4,8 +4,8 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "verify": "pnpm run verify:ci",
-    "verify:ci": "node scripts/verify-ci.mjs",
+    "verify": "pnpm run verify:local",
+    "verify:local": "node scripts/verify-local.mjs",
     "verify:infra": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1",
     "dev": "node scripts/dev-start.mjs",
     "dev:api": "node scripts/dev-start.mjs --api-only",

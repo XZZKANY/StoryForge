@@ -719,11 +719,13 @@ def _approve_scene(session: Session, chapter: Chapter, content: str) -> Scene:
         content=content,
     )
     session.add(scene)
+    from app.domains.book_runs.book_context import get_book_context, skip_book_context_invalidation_once
+
+    skip_book_context_invalidation_once(session, chapter.book_id)
     session.commit()
     session.refresh(scene)
 
     # Phase 1 Context 增量化：章节批准后追加进 BookContext 缓存
-    from app.domains.book_runs.book_context import get_book_context
     context = get_book_context(session, chapter.book_id)
     context.append_chapter(
         session=session,

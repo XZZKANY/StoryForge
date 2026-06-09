@@ -61,6 +61,9 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
             "db_query_count_per_chapter": 3,
             "chapter_generation_time_p50": 19,
             "concurrent_chapter_utilization": 0.61,
+            "chapter_correction_count": 3,
+            "dependency_mode": "prior_chapter_commit",
+            "metric_scope": "workflow_book_loop_parallel_runtime_overlap",
         }
         assert report["quality_summary"]["integration_metrics"] == report["integration_metrics"]
         assert report["skill_chain"]["schema_version"] == "bookrun_skill_projection.v2"
@@ -265,6 +268,9 @@ def _seed_completed_book_run(
                 "db_query_count_per_chapter": 3,
                 "chapter_generation_time_p50": 19,
                 "concurrent_chapter_utilization": 0.61,
+                "chapter_correction_count": 3,
+                "dependency_mode": "prior_chapter_commit",
+                "metric_scope": "workflow_book_loop_parallel_runtime_overlap",
             },
         },
     )

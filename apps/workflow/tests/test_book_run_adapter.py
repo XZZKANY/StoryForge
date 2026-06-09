@@ -4,11 +4,13 @@ from threading import Event
 
 import pytest
 
+from storyforge_workflow.orchestrators.book_loop import BookLoopResult
 from storyforge_workflow.orchestrators.book_run_adapter import (
     BookRunAdapterPorts,
     BookRunAdapterRequest,
     CallableProgressSink,
     CapturingProgressSink,
+    run_book_run_dispatch_payload,
     run_book_run_with_skill_runner,
 )
 from storyforge_workflow.orchestrators.novel_loop import NovelLoopPorts, NovelLoopRequest
@@ -54,6 +56,7 @@ def test_book_run_adapter_runs_book_loop_and_emits_progress_with_recorded_skill_
         "judge",
         "approve",
         "memory_extract",
+        "submit_continuity",
     ]
     assert chapter["skill_runs"][0]["output_refs"]["model_run_id"] == 501
     assert chapter["skill_runs"][0]["skill_version"] == "1.0.0"
@@ -263,8 +266,38 @@ def test_book_run_adapter_wraps_memory_extractor_into_novel_loop_ports() -> None
     assert extracted == [(102, 101, 701, "林岚抵达雾港。")]
     chapter = result.progress["completed_chapters"][0]
     assert chapter["memory_atom_ids"] == ["memory:101:701"]
-    assert chapter["skill_runs"][-1]["status"] == "memory_updated"
-    assert chapter["skill_runs"][-1]["output_refs"]["memory_atom_ids"] == ("memory:101:701",)
+    memory_run = [run for run in chapter["skill_runs"] if run["skill_name"] == "memory_extract"][-1]
+    assert memory_run["status"] == "memory_updated"
+    assert memory_run["output_refs"]["memory_atom_ids"] == ("memory:101:701",)
+
+
+def test_book_run_adapter_wraps_continuity_submitter_into_novel_loop_ports() -> None:
+    """生产 adapter 应能把连续性提交函数接到 NovelLoopPorts，并回填 continuity 边数与审计。"""
+
+    submitted: list[tuple[int, int, int, str]] = []
+
+    def continuity_submitter(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> dict:
+        submitted.append((request.book_id, request.chapter_id, approved_scene_id, draft))
+        return {"continuity_edge_count": 2}
+
+    sink = CapturingProgressSink()
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=lambda chapter_index: chapter_index + 100,
+        novel_loop_ports_factory=_ports_without_memory_extractor,
+        progress_sink=sink,
+        continuity_submitter=continuity_submitter,
+    )
+    request = BookRunAdapterRequest(book_run_id=201, book_id=202, blueprint_id=203, total_chapters=1)
+
+    result = run_book_run_with_skill_runner(request, ports)
+
+    assert submitted == [(202, 101, 701, "林岚抵达雾港。")]
+    chapter = result.progress["completed_chapters"][0]
+    assert chapter["continuity_edge_count"] == 2
+    submit_runs = [run for run in chapter["skill_runs"] if run["skill_name"] == "submit_continuity"]
+    assert submit_runs[-1]["status"] == "continuity_submitted"
+    assert submit_runs[-1]["output_refs"]["continuity_edge_count"] == 2
 
 
 def test_book_run_adapter_emits_running_progress_after_each_completed_chapter() -> None:
@@ -416,6 +449,45 @@ def test_book_run_adapter_parallel_plain_exception_uses_latest_progress_chapter(
     assert failed["status"] == "failed"
     assert failed["current_chapter_index"] == 1
     assert failed["progress"]["failure"]["failed_at_chapter_index"] == 1
+
+
+def test_book_run_adapter_passes_budget_guard_prefetch_flag(monkeypatch) -> None:
+    """dispatch payload 可以要求 BookLoop 在预算门禁下禁用并发预取窗口。"""
+
+    captured: dict[str, object] = {}
+
+    def fake_run_book_loop(
+        request,
+        run_chapter,
+        progress_callback=None,
+        consistency_barrier=None,
+        precommit_chapter=None,
+    ):
+        captured["require_budget_guard_before_prefetch"] = request.require_budget_guard_before_prefetch
+        return BookLoopResult(status="completed", current_chapter_index=1, progress={"completed_chapters": []})
+
+    monkeypatch.setattr(
+        "storyforge_workflow.orchestrators.book_run_adapter.run_book_loop",
+        fake_run_book_loop,
+    )
+
+    run_book_run_dispatch_payload(
+        {
+            "book_run_id": 1,
+            "book_id": 2,
+            "blueprint_id": 3,
+            "total_chapters": 1,
+            "start_chapter_index": 1,
+            "token_budget": 100,
+            "chapter_parallelism": 3,
+            "require_budget_guard_before_prefetch": True,
+            "chapters": [{"chapter_index": 1, "chapter_id": 10, "chapter_goal": "完成第一章。"}],
+        },
+        novel_loop_ports_factory=_passing_ports,
+        progress_sink=CapturingProgressSink(),
+    )
+
+    assert captured == {"require_budget_guard_before_prefetch": True}
 
 
 def test_book_run_adapter_failure_progress_sink_error_does_not_hide_original_error() -> None:

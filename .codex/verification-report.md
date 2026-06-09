@@ -514,6 +514,54 @@ summary: '真实 10 章长程包装脚本已补齐运行后成功门禁：token 
 score: 94
 ```
 
+## 审查报告 - 项目加固计划补充验证
+
+生成时间：2026-06-09 12:20:10 +08:00
+
+### 补充验证范围
+
+- 计划状态同步：`docs/superpowers/plans/2026-06-09-project-hardening-plan.md`。
+- Docker 本地验证补齐：`scripts/verify-local.ps1`。
+- 审计留痕：`.codex/operations-log.md`、`.codex/verification-report.md`。
+
+### 审查结论
+
+建议：通过。
+
+- 计划文件中 Task 1-7 的 37 个步骤已同步为 `[x]`，并追加执行完成记录。
+- Docker 验证缺口已补齐：启动已有 `storyforge-minio` 容器后，`postgres`、`redis`、`minio` 均处于 running/healthy 状态。
+- `scripts/verify-local.ps1` 已通过，输出 `StoryForge 本地验证通过。`
+- 本轮未删除或重建跨项目 Docker 容器，避免破坏既有环境。
+
+### 本地验证结果
+
+- `docker --version`：通过，Docker 29.2.1 可用。
+- `docker ps --filter name=storyforge`：`storyforge-postgres`、`storyforge-redis`、`storyforge-minio` 均运行且 healthy。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1`：通过。
+- `rg -n "^- \[ \]" docs/superpowers/plans/2026-06-09-project-hardening-plan.md`：无输出，确认无未勾选步骤。
+- `rg -n "^- \[x\]" docs/superpowers/plans/2026-06-09-project-hardening-plan.md | Measure-Object`：37 项。
+
+### 风险与边界
+
+- 同名 Docker 容器的 compose 标签来自 `1-renovel-ai-ai-rag-tavern`，不是当前 `D:\StoryForge` compose 项目；本轮只复用运行状态完成验证。
+- 若后续要让当前仓库完全接管基础服务生命周期，需要单独处理容器命名冲突或迁移策略。
+- 工作区仍包含大量既有改动和未跟踪文件，本报告只覆盖项目加固计划和补充验证。
+
+### 评分
+
+- **代码质量**：93/100。
+- **测试覆盖**：95/100。新增补齐 Docker 本地验证脚本通过证据。
+- **规范遵循**：94/100。计划状态、操作日志和验证报告已同步。
+- **需求匹配**：95/100。
+- **架构一致性**：94/100。
+- **风险评估**：93/100。
+- **综合评分**：95/100。
+- **明确建议**：通过。
+
+```Scoring
+score: 95
+```
+
 建议：通过本轮状态恢复；真实 10 章调用仍需安全运行时变量注入后才能继续。
 
 summary: '已恢复 StoryForge 总计划当前状态：真实 1 章与 3 章 smoke 有受限证据，两个历史 10 章目录均因 SSL 握手超时失败且无 summary.json；当前 Codex 工具进程缺少真实 LLM 运行时变量，因此本轮不能安全启动真实 10 章或 3-5 万字长程调用。'
@@ -6565,3 +6613,439 @@ score: 93
 ```
 
 summary: 'PH5 执行路径校正已完成：workflow BookLoop 并发分支产出 concurrent_chapter_utilization，direct 30 章默认被 run-real-llm-long-direct.py 前置拒绝，旧 direct 路径仅允许显式调试覆盖。workflow 回归 33 passed，API 回归 37 passed，ruff、py_compile、diff check 均通过；真实 30 章需新增 workflow 并发真实 runner 后再执行。'
+
+## StoryForge 整体项目审查报告
+
+生成时间：2026-06-09 01:13:16 +08:00
+
+### 审查范围
+
+- 后端：FastAPI 入口、中间件、认证、配置、数据库会话、BookRun、Assistant、Retrieval、Provider Gateway、IDE SSE。
+- 前端：Next.js App Router 页面、统一 API client、HomeShell、IdeShell、BookRun SSE 客户端、测试脚本。
+- 共享包：OpenAPI 类型导出与 Diagnostic 映射。
+- Workflow：BookLoop、BookRun adapter、Provider adapter 与对应测试。
+- 验证：执行仓库核心门禁和分项测试/静态检查。
+
+### 主要发现
+
+#### 1. 完整核心门禁当前失败
+
+- 证据：执行 `pnpm run verify:ci`，在第一步 `pnpm run lint` 失败。
+- 失败文件：
+  - `apps/web/tests/phase1-navigation.test.tsx`
+  - `apps/web/tests/source-pruning.test.ts`
+- 失败原因：Prettier 检查发现格式问题。
+- 影响：仓库当前不能通过自身定义的核心 CI 门禁，按本地验证规则不能确认可交付。
+
+#### 2. API 与 Workflow Ruff 分项检查失败
+
+- API Ruff：`uv run ruff check .` 在 `apps/api` 下失败，报告 9 个问题。
+- 典型问题：
+  - `alembic/versions/20260608_0001_add_memory_atom_embeddings.py` 导入块未排序。
+  - `app/models.py` 未使用 `ContinuityEdge`。
+  - `tests/test_phase1_context_optimization_verify.py` 未使用变量 `result`。
+  - 多处无占位符 f-string。
+- Workflow Ruff：`uv run ruff check .` 在 `apps/workflow` 下失败，`tests/test_arc_consistency_barrier.py` 未使用 `ChapterConsistencyReport`。
+- 影响：Python 静态质量门禁与 `scripts/verify-ci.mjs` 中声明的门禁不一致。
+
+#### 3. 浏览器 BookRun SSE 实时连接存在认证链路缺口
+
+- 后端事实：`apps/api/app/main.py` 的 `require_authentication()` 只放行 `_PUBLIC_PATHS`，`/api/ide/runs/{book_run_id}/events` 不在公开路径内；缺少 API Key 或 Bearer 时返回 401。
+- 前端事实：`apps/web/components/ide/views/BookRunEventsPanel.tsx` 生成 `eventsUrl = /api/ide/runs/{id}/events`；`BookRunEventsClient.tsx` 使用 `new EventSource(eventsUrl)`。
+- 集成事实：`apps/web/next.config.ts` 未看到将 `/api/ide/**` rewrite 到 FastAPI 的配置；原生 EventSource 不能设置 `X-StoryForge-API-Key`。
+- 测试盲区：`apps/web/tests/ide-page.test.tsx` 覆盖服务端 `apiFetch` 快照；`apps/web/scripts/verify-bookrun-eventsource-reconnect.mjs` 覆盖独立假 SSE 服务；未覆盖真实浏览器 EventSource 访问受保护 FastAPI 路由。
+- 影响：IDE Run Panel 的首屏 SSE 快照可由服务端渲染拿到，但浏览器实时事件连接在真实部署中很可能 404 或 401。
+
+#### 4. UTF-8 无 BOM 规范未完全执行
+
+- 证据：BOM 扫描发现多个文件以 UTF-8 BOM 开头，包括：
+  - `packages/shared/src/diagnostic.ts`
+  - `apps/web/components/ide/views/StoryMemoryExplorer.tsx`
+  - `apps/web/components/ide/views/ContextInspector.tsx`
+  - `apps/web/components/ide/url/ide-url-state.ts`
+  - `apps/web/components/ide/shell/IdeShell.tsx`
+  - `apps/web/components/ide/commands/command-client.ts`
+  - 多个 API/Web/Workflow 测试文件。
+- 影响：违反仓库 AGENTS.md 的“所有代码文件必须使用 UTF-8 无 BOM 编码”要求，也会削弱编码规范测试的可信度。
+
+### 正向观察
+
+- 后端领域路由和服务层边界清晰，错误映射模式一致。
+- API 测试覆盖很广，`apps/api` pytest 结果为 520 passed、1 skipped。
+- Workflow BookLoop/adapter 抽象较干净，端口隔离明确，预算、并发、checkpoint、fallback 都有测试。
+- Web 侧统一 API client 已覆盖大量 Server Component/Server Action 取数场景。
+- OpenAPI 契约漂移检查被纳入 `scripts/verify-ci.mjs`。
+
+### 评分
+
+- 代码质量：72/100
+- 测试覆盖：82/100
+- 规范遵循：58/100
+- 需求匹配：76/100
+- 架构一致性：80/100
+- 风险评估：70/100
+- 综合评分：73/100
+
+### 建议
+
+结论：退回。
+
+理由：完整核心门禁失败，Ruff 分项失败，并且存在浏览器 SSE 实时链路的认证/代理缺口。建议先修复格式与 Ruff，再补齐 BookRun EventSource 的真实集成方案和测试。
+
+### 可重复验证步骤
+
+- `pnpm run verify:ci`
+- `pnpm --filter @storyforge/web test`
+- `pnpm --filter @storyforge/shared test`
+- `cd apps/api && uv run pytest`
+- `cd apps/api && uv run ruff check .`
+- `cd apps/workflow && uv run pytest`
+- `cd apps/workflow && uv run ruff check .`
+
+## CI 本地化复验报告
+
+生成时间：2026-06-09 01:31:15 +08:00
+
+### 审查范围
+
+- 本地验证入口：`package.json`、`scripts/verify-local.mjs`。
+- 远程提示检查：`.github/workflows/ci.yml`、`.github/workflows/e2e.yml`。
+- 契约测试：Web 契约测试、API workflow 迁移门禁测试、E2E 源码契约断言。
+- 静态质量阻断项：API/Workflow Ruff 报告的最小修复。
+
+### 结论
+
+建议：通过。
+
+- 本地核心门禁已从 `verify:ci` 收敛为 `verify:local`。
+- `pnpm verify` 已确认调用链为 `verify -> verify:local -> scripts/verify-local.mjs`。
+- 远程 GitHub workflow 已降级为手动提示检查，不再自动监听 `push`、`pull_request` 或 `schedule`。
+- 本地验证能力未删除，且完整 `pnpm verify` 已通过。
+
+### 评分
+
+- 代码质量：91/100
+- 测试覆盖：92/100
+- 规范遵循：90/100
+- 需求匹配：95/100
+- 架构一致性：93/100
+- 风险评估：90/100
+- 综合评分：92/100
+
+### 本地验证结果
+
+- `node --check scripts/verify-local.mjs`：通过。
+- `cd apps/api && uv run ruff check .`：通过。
+- `cd apps/workflow && uv run ruff check .`：通过。
+- `cd apps/api && uv run pytest tests/test_e2e_workflow_migration_gate.py -q`：通过，2 passed。
+- `pnpm --filter @storyforge/web test`：通过，214 passed。
+- `pnpm --filter @storyforge/shared test`：通过。
+- `pnpm verify`：通过；API pytest 为 521 passed、1 skipped、7 warnings；Workflow pytest 为 240 passed；OpenAPI 漂移检查通过。
+
+### 残余风险
+
+- 工作区仍包含大量与本轮任务无关的既有改动和未跟踪文件，本轮未回滚或整理这些内容。
+
+## BookContext 直接批准状态缓存失效复验报告
+
+生成时间：2026-06-09 02:49:16 +08:00
+
+### 审查范围
+
+- 缓存实现：`apps/api/app/domains/book_runs/book_context.py`。
+- 缓存测试：`apps/api/tests/test_book_context_cache.py`。
+- 集成入口对照：`apps/api/app/domains/books/lineage_service.py`、`apps/api/app/domains/studio/service.py`、`apps/api/app/domains/book_runs/prompt_assembly.py`。
+
+### 结论
+
+建议：通过。
+
+- `BookContext` 现在能覆盖直接把 draft 改成 approved、编辑/删除 approved 内容等通用 ORM 路径。
+- 主审批路径仍保留显式清缓存，事件监听作为兜底防线，不削弱既有事务边界。
+- 新增测试先复现旧缺陷，再验证修复后缓存对象刷新且读取到新批准正文。
+
+### 评分
+
+- 代码质量：92/100
+- 测试覆盖：92/100
+- 规范遵循：93/100
+- 需求匹配：94/100
+- 架构一致性：92/100
+- 风险评估：91/100
+- 综合评分：92/100
+
+### 本地验证结果
+
+- `cd apps/api && uv run pytest tests/test_book_context_cache.py::test_book_context_cache_clears_when_scene_becomes_approved_directly -q`：红灯验证失败，旧缓存对象未失效。
+- `cd apps/api && uv run pytest tests/test_book_context_cache.py -q`：通过，17 passed。
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_context.py tests/test_book_context_cache.py`：通过。
+- `pnpm verify` 首次失败于 phase9b 并发真实 runner 指标：过宽清理 `session.new` 使 `context_cache_hit_rate` 为 `0.0`，已据此撤回新建 approved 的通用清理。
+- 收窄后 phase9b 指标仍失败，原因是 `_chapter()` 的 `draft -> approved` 兜底清理与 `_approve_scene()` 后续 `append_chapter` 增量维护冲突。
+- 已新增 `skip_book_context_invalidation_once(session, book_id)`，仅供提交后自行维护 BookContext 的路径跳过一次兜底清理。
+- `cd apps/api && uv run pytest tests/test_phase9b_parallel_ports.py::test_phase9b_parallel_runner_uses_workflow_metrics_and_exports_audit -q`：通过，1 passed。
+- `cd apps/api && uv run pytest tests/test_book_context_cache.py::test_book_context_cache_clears_when_scene_becomes_approved_directly -q`：通过，1 passed。
+- `cd apps/api && uv run pytest tests/test_book_context_cache.py tests/test_phase9b_parallel_ports.py tests/test_approval_writeback.py tests/test_studio_book_list_api.py -q`：通过，56 passed。
+- `pnpm verify`：通过；Web 契约测试 216 passed；API pytest 522 passed、1 skipped、7 warnings；Workflow pytest 240 passed；API/Workflow Ruff 和 OpenAPI 漂移检查通过。
+
+### 残余风险
+
+- 新建 approved 章节/场景仍由现有主路径的 append 或显式清缓存负责，事件监听不再通用拦截 `session.new`，以避免破坏并发真实 runner 的缓存命中率契约。
+- `skip_book_context_invalidation_once` 是内部逃生口，调用方必须只在同一事务提交后确实会增量维护 BookContext 时使用；滥用会导致旧缓存保留。
+- 本轮修复了进程内 SQLAlchemy ORM 事件兜底；如果存在绕过 ORM 的原生 SQL 更新，仍需调用方显式清理缓存或重启进程。
+- 工作区仍包含大量与本轮任务无关的既有改动和未跟踪文件，本轮未回滚或整理这些内容。
+
+## 连续性边默认生效章节落库漂移复验报告
+
+生成时间：2026-06-09 03:09:49 +08:00
+
+### 审查范围
+
+- 服务实现：`apps/api/app/domains/continuity/service.py`。
+- 约束引擎：`apps/api/app/domains/continuity/edge_constraints.py`。
+- API 回归测试：`apps/api/tests/test_chapter_approval_edges.py`、`apps/api/tests/test_continuity_edges.py`。
+
+### 结论
+
+建议：通过。
+
+- 默认连续性边窗口现在在服务层先归一化，再用于结构校验和数据库落库。
+- 第 N 章提交且未显式传 `valid_from_chapter` 的边，不再被保存成第 1 章起生效。
+- 显式传入大于 1 的 `valid_from_chapter` 仍保持调用方指定值。
+
+### 评分
+
+- 代码质量：92/100
+- 测试覆盖：91/100
+- 规范遵循：93/100
+- 需求匹配：94/100
+- 架构一致性：92/100
+- 风险评估：91/100
+- 综合评分：92/100
+
+### 本地验证结果
+
+- `cd apps/api && uv run pytest tests/test_chapter_approval_edges.py::test_approval_persists_default_edge_window_as_chapter_ordinal -q`：红灯验证失败，旧实现落库为 `valid_from_chapter=1`。
+- `cd apps/api && uv run pytest tests/test_chapter_approval_edges.py tests/test_continuity_edges.py -q`：通过，16 passed。
+- `cd apps/api && uv run ruff check app/domains/continuity/service.py tests/test_chapter_approval_edges.py`：通过。
+- `git diff --check -- apps/api/app/domains/continuity/service.py apps/api/tests/test_chapter_approval_edges.py`：通过。
+- `pnpm verify`：通过；Web 契约测试 216 passed；API pytest 523 passed、1 skipped、7 warnings；Workflow pytest 240 passed；API/Workflow Ruff 和 OpenAPI 漂移检查通过。
+
+### 残余风险
+
+- 当前规则沿用既有约定：`valid_from_chapter <= 1` 被视为默认窗口并归一到当前章节。若未来需要表达“从第 1 章起一直有效”的显式语义，需要在 schema 中区分字段是否由调用方提供。
+- 工作区仍包含大量与本轮任务无关的既有改动和未跟踪文件，本轮未回滚或整理这些内容。
+- 早前整体审查发现的浏览器 `EventSource` 真实认证链路风险仍需单独处理；本轮只处理 CI/本地验证边界。
+
+## BookRun SSE 浏览器认证链路复验报告
+
+生成时间：2026-06-09 01:43:02 +08:00
+
+### 审查范围
+
+- Web 浏览器 SSE 入口：`apps/web/components/ide/views/BookRunEventsPanel.tsx`。
+- Web 同源代理：`apps/web/app/api/book-runs/[bookRunId]/events/route.ts`。
+- 测试转译器：`apps/web/scripts/phase1-contract-test.mjs`。
+- 契约测试：`book-run-events-route`、`ide-components`、`ide-page`、`phase1-navigation`、`phase8-stage4`、`source-pruning`。
+
+### 结论
+
+建议：通过。
+
+- 浏览器 `EventSource` 已改为连接 Web 同源代理 `/api/book-runs/{bookRunId}/events`。
+- Web 代理在服务端通过 `apiFetch` 转发到 FastAPI `/api/ide/runs/{bookRunId}/events`，不会把 API Key 下发给浏览器。
+- FastAPI 认证基线未放开，服务端首屏 SSE 快照读取仍保留原有 `apiFetch` 路径。
+
+### 评分
+
+- 代码质量：92/100
+- 测试覆盖：94/100
+- 规范遵循：92/100
+- 需求匹配：95/100
+- 架构一致性：93/100
+- 风险评估：92/100
+- 综合评分：93/100
+
+### 本地验证结果
+
+- `pnpm --filter @storyforge/web test -- book-run-events-route`：通过，1 passed。
+- `pnpm --filter @storyforge/web test -- ide-components`：通过，26 passed。
+- `pnpm --filter @storyforge/web test -- ide-page`：通过，5 passed。
+- `pnpm --filter @storyforge/web test -- phase1-navigation`：通过，18 passed。
+- `pnpm --filter @storyforge/web test`：通过，215 passed。
+- `pnpm --filter @storyforge/web lint`：通过。
+- `pnpm run lint`：通过。
+- `pnpm verify`：通过；API pytest 为 521 passed、1 skipped、7 warnings；Workflow pytest 为 240 passed；OpenAPI 漂移检查通过。
+
+### 残余风险
+
+- 本轮验证覆盖 route handler 行为和源码契约，未启动真实浏览器访问本地开发服务器做端到端长连接截图验证。
+- 工作区仍包含大量与本轮任务无关的既有改动和未跟踪文件，本轮未回滚或整理这些内容。
+
+## 审计留痕与 pgvector 迁移复验报告
+
+生成时间：2026-06-09 02:44:25 +08:00
+
+### 审查范围
+
+- 审计文件：`.codex/operations-log.md`、`.codex/verification-report.md`。
+- API 迁移：`apps/api/alembic/versions/20260608_0001_add_memory_atom_embeddings.py`。
+- API 测试：`apps/api/tests/test_pgvector_migration.py`。
+- Web SSE 代理：`apps/web/app/api/book-runs/[bookRunId]/events/route.ts`。
+- Web 测试：`apps/web/tests/book-run-events-route.test.ts`。
+
+### 结论
+
+建议：通过。
+
+- `.codex` 审计历史已恢复，新增记录以追加方式保留在文件末尾。
+- memory pgvector generated column 已增加维度保护，空 embedding 或维度不匹配数据不再直接 cast 到固定维度 vector。
+- Web SSE 代理已区分成功事件流和上游错误响应，404/401/500 不再被伪装为 `text/event-stream`。
+
+### 评分
+
+- 代码质量：93/100
+- 测试覆盖：93/100
+- 规范遵循：94/100
+- 需求匹配：95/100
+- 架构一致性：93/100
+- 风险评估：92/100
+- 综合评分：93/100
+
+### 本地验证结果
+
+- `cd apps/api && uv run pytest tests/test_pgvector_migration.py::test_pgvector_memory_migration_declares_embedding_column_and_index -q`：红绿验证完成，最终通过。
+- `cd apps/api && uv run pytest tests/test_pgvector_migration.py -q`：通过，2 passed。
+- `cd apps/api && uv run ruff check alembic/versions/20260608_0001_add_memory_atom_embeddings.py tests/test_pgvector_migration.py`：通过。
+- `pnpm --filter @storyforge/web test -- book-run-events-route`：红绿验证完成，最终 2 passed。
+- `pnpm run lint`：通过。
+- `git diff --check -- .codex/operations-log.md .codex/verification-report.md apps/api/alembic/versions/20260608_0001_add_memory_atom_embeddings.py apps/api/tests/test_pgvector_migration.py`：通过。
+- `pnpm verify`：通过；Web 契约测试 216 passed；API pytest 521 passed、1 skipped、7 warnings；Workflow pytest 240 passed；OpenAPI 漂移检查通过。
+
+### 残余风险
+
+- memory pgvector 迁移现在具备静态防护和全量本地门禁，但本轮没有启动真实 Docker PostgreSQL 执行 `alembic upgrade head` 的在线迁移验证。
+- 工作区仍包含大量与本轮任务无关的既有改动和未跟踪文件，本轮未回滚或整理这些内容。
+
+## 审查报告 - 整体项目代码审查
+
+时间：2026-06-09 03:50:00 +08:00
+
+### 需求字段完整性
+
+- **目标**：深入代码审查 StoryForge 整体项目现状，不只看文档。
+- **范围**：API、Workflow、Web、Shared 契约、部署配置、本地测试门禁。
+- **交付物**：`.codex/context-summary-整体项目代码审查.md`、本操作记录、本审查报告。
+- **审查要点**：真实实现分层、测试覆盖、生产配置、安全基线、长程运行风险。
+
+### 代码事实
+
+- API 入口 `apps/api/app/main.py` 集中挂载认证、限流、超时、安全头、指标和领域 router。
+- BookRun 领域 `apps/api/app/domains/book_runs/service.py` 是整书运行状态机和进度回填真相源。
+- Workflow `apps/workflow/storyforge_workflow/orchestrators/book_loop.py` 支持串行/并发章节调度、checkpoint、预算暂停和一致性屏障。
+- NovelLoop `apps/workflow/storyforge_workflow/orchestrators/novel_loop.py` 使用端口注入实现单章闭环。
+- Web `apps/web/lib/api-client.ts` 是服务端统一 API 访问入口，注入 API Key 并禁用缓存。
+
+### 主要发现
+
+1. **生产限流不是全局限流，存在绕过窗口**：`apps/api/app/main.py` 使用 `MemoryStorage`；`apps/api/docker/entrypoint.sh` 会按 `WORKERS` 注入多 uvicorn worker；`.env.production.example` 配置 `WORKERS=4`。实际生产限流会按 worker 分片，不是 Redis/共享存储级别的全局限流。
+2. **并发章节预取会造成预算触顶前的额外启动成本**：`book_loop.py` 并发路径先填充窗口，测试也证明 token/provider 门禁场景会先启动 1、2、3 章再在第 2 章暂停。真实 LLM 下这会带来额外 token/费用和不可取消请求。
+3. **外部 payload 整数解析缺少容错**：`novel_loop.py::_optional_int` 直接 `int(value)`；如果 judge/continuity/provider payload 返回非整数字符串，会把可审查失败升级成异常中断。
+4. **默认 API Key 回退仍分布在 Web/workflow/API 多处**：API 生产启动校验能阻止默认 key，但 Web 和 workflow 仍有 `local-dev-key` 回退，发布前需要用 compose config 或启动验证确认三端配置一致。
+
+### 正向结论
+
+- 架构边界清楚：API 领域服务、Workflow 编排、Web 展示和 Shared 契约职责分离明显。
+- 测试资产丰富：API、Workflow、Web 都有针对核心链路的自动化测试，且本轮定向验证通过。
+- 审计意识强：BookRun progress、checkpoint、skill_runs、artifact/audit 报告和 `.codex` 记录已形成可追踪链路。
+### 本地验证结果
+
+- `cd apps/api; uv run pytest tests/test_api_middleware.py tests/test_config.py tests/test_book_runs.py -q`：41 passed，5 warnings。
+- `cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py tests/test_novel_loop_submit_continuity.py -q`：20 passed。
+- `pnpm --filter @storyforge/web test -- book-run-events-route api-client`：5 passed。
+- 未运行全量 `pnpm verify`、`pnpm test`、`pnpm e2e`、`pnpm openapi`，因此本报告不声明全量门禁通过。
+
+### 评分
+
+- **代码质量**：86/100。分层和端口化做得扎实，但生产限流存储和 payload 容错需要补强。
+- **测试覆盖**：88/100。核心链路覆盖强，本轮定向测试通过；全量门禁与真实长程链路未在本轮执行。
+- **规范遵循**：84/100。整体遵循本地验证与中文审计，但工作区已有大量未提交改动，审计日志存在历史乱码片段。
+- **需求匹配**：87/100。项目围绕可审计小说生成闭环展开，现有能力和 README 边界基本一致。
+- **架构一致**：86/100。API/Workflow/Web/Shared 边界清楚，少量配置事实源仍分散在 `os.getenv` 和前端回退默认值中。
+- **风险评估**：80/100。生产限流、并发成本、默认凭据一致性和真实长程证据仍是发布前重点风险。
+- **综合评分**：85/100。
+- **明确建议**：需讨论。当前适合继续工程迭代和局部验收，不建议直接按生产发布通过。
+
+### 建议优先级
+
+1. P0：把 API 限流存储切到 Redis 或明确生产 `WORKERS=1` 并记录容量边界；同时补多 worker 限流验证。
+2. P0：为真实 LLM 并发预取增加预算预估/保守窗口/可配置禁用策略，避免预算触顶时仍启动额外章节。
+3. P1：让 `_optional_int` 及类似外部 payload 解析走安全解析函数，异常转为 `awaiting_review` 或结构化错误。
+4. P1：增加 compose config 级测试，证明 API/Web/workflow 在 production 覆盖下不会使用 `local-dev-key` 或占位值。
+
+```Scoring
+score: 85
+```
+
+summary: '本轮完成代码级整体审查：项目架构分层清晰、测试资产较强，API/Workflow/Web 定向验证共 66 个用例通过。主要风险集中在生产多 worker 下进程内限流失效、真实 LLM 并发预取造成预算外启动、外部 payload 整数解析缺少容错、默认 API Key 回退分散。综合评分 85，建议需讨论，不建议直接发布通过。'
+
+## 审查报告 - 项目加固计划执行
+
+生成时间：2026-06-09 04:22:21 +08:00
+
+### 需求字段完整性
+
+- **目标**：执行整体代码审查后的第 1 轮项目加固计划，降低生产限流、并发预算、外部 payload 和生产占位配置风险。
+- **范围**：API 入口与测试、Workflow 编排与 adapter、NovelLoop payload 解析、生产配置示例、本地验证脚本、Shared OpenAPI 契约刷新。
+- **交付物**：代码改动、回归测试、`.codex/operations-log.md`、本验证报告、计划文档 `docs/superpowers/plans/2026-06-09-project-hardening-plan.md`。
+- **审查要点**：安全门禁是否变强、并发预算行为是否可控、异常 payload 是否降级为审查状态、测试与本地门禁是否可重复执行。
+
+### 交付物映射
+
+- API 限流：`apps/api/app/main.py`、`apps/api/tests/test_api_middleware.py`、`apps/api/tests/conftest.py`。
+- 生产配置门禁：`scripts/verify-local.ps1`、`.env.production.example`。
+- Workflow 并发预算：`apps/workflow/storyforge_workflow/orchestrators/book_loop.py`、`apps/workflow/tests/test_book_loop_three_chapters.py`。
+- Adapter 透传：`apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py`、`apps/workflow/tests/test_book_run_adapter.py`。
+- NovelLoop 容错：`apps/workflow/storyforge_workflow/orchestrators/novel_loop.py`、`apps/workflow/tests/test_novel_loop_single_chapter.py`。
+- 契约刷新：`packages/shared/src/contracts/storyforge.openapi.json`。
+
+### 审查结论
+
+建议：通过。
+
+- 生产环境下 API 限流不再默认使用进程内 `MemoryStorage`，缺少 Redis URL 会启动失败，避免多 worker 下伪全局限流。
+- Workflow 增加预算门禁下的保守预取策略，能避免预算/降级门禁触发前额外预启动下一章。
+- NovelLoop 对外部 payload 中的无效整数值转为可审查状态或忽略无效边数，不再把格式问题直接升级为异常中断。
+- 生产 compose 验证增加占位凭据和 Redis 限流配置检查，`.env.production.example` 不再继续使用开发密钥占位。
+
+### 本地验证结果
+
+- `cd apps/api; uv run pytest tests/test_api_middleware.py tests/test_config.py tests/test_book_runs.py -q`：通过，43 passed，5 warnings。
+- `cd apps/workflow; uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_novel_loop_single_chapter.py tests/test_novel_loop_submit_continuity.py -q`：通过，44 passed。
+- `pnpm --filter @storyforge/web test -- book-run-events-route api-client`：通过，5 passed。
+- `pnpm openapi`：通过，刷新 `packages/shared/src/contracts/storyforge.openapi.json`。
+- `cd apps/workflow; uv run ruff check .`：通过。
+- `git diff --check -- <本轮关注文件>`：通过。
+- `pnpm verify`：通过，退出码 0，运行约 176.63 秒；Web 契约测试 216 passed；API pytest 525 passed、1 skipped、7 warnings；API Ruff 通过；Workflow pytest 244 items；整体本地核心门禁通过。
+- `powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1 -SkipBuild`：新增生产 compose 门禁通过后，因本地 MinIO 容器未运行而终止；需启动 Docker 基础服务后复跑该额外验证。
+
+### 风险评估
+
+- 生产部署必须同步提供 `STORYFORGE_RATE_LIMIT_REDIS_URL` 或 `REDIS_URL`，否则 API 会按新门禁启动失败。
+- 保守预取策略通过 request/payload/env 透传启用，调用方需要在真实预算敏感场景显式开启。
+- OpenAPI 刷新包含既有 schema 漂移补齐，主要为 `planning_refs`、`ContinuityEdgeInput`、`continuity_edges`、`continuity_edge_count`，不是本轮限流代码直接引起。
+- 工作区仍有大量既有改动和未跟踪文件，本报告只覆盖本轮关注文件和执行过的本地门禁。
+
+### 评分
+
+- **代码质量**：93/100。改动沿用既有模块边界和测试风格，未引入新的自研框架。
+- **测试覆盖**：94/100。API、Workflow、Web 定向测试和根级 `pnpm verify` 均已通过；Docker 服务验证受 MinIO 未启动限制。
+- **规范遵循**：93/100。简体中文留痕、本地验证和 `.codex` 记录已补齐；工作区既有脏改动需后续单独治理。
+- **需求匹配**：95/100。覆盖审查中列出的 P0/P1 风险点。
+- **架构一致性**：94/100。继续使用 API 入口、Workflow request/adapter、测试夹具与 OpenAPI 生成链路。
+- **风险评估**：92/100。主要剩余风险已明确为部署配置和 Docker 服务复跑。
+- **综合评分**：94/100。
+- **明确建议**：通过。
+
+```Scoring
+score: 94
+```

@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
+from threading import Lock
+from time import perf_counter
 from typing import Any
 
 from storyforge_workflow.orchestrators.novel_loop import NovelLoopResult
@@ -23,6 +25,8 @@ class BookLoopRequest:
     chapter_budget: int | None = None
     provider_fallback_pause_threshold: int | None = None
     chapter_parallelism: int = 1
+    require_prior_chapter_commit_before_start: bool = False
+    require_budget_guard_before_prefetch: bool = False
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,7 @@ class ChapterConsistencyReport:
 # 屏障入参：待提交章节号、该章结果、已按序提交的章节进度快照。
 # 返回 None 视为通过；返回带 conflicts 的报告则阻断该章。
 ConsistencyBarrier = Callable[[int, NovelLoopResult, list[dict[str, Any]]], ChapterConsistencyReport | None]
+PrecommitChapter = Callable[[int, NovelLoopResult, list[dict[str, Any]]], NovelLoopResult]
 
 
 def run_book_loop(
@@ -64,11 +69,12 @@ def run_book_loop(
     run_chapter: Callable[[int], NovelLoopResult],
     progress_callback: Callable[[BookLoopResult], None] | None = None,
     consistency_barrier: ConsistencyBarrier | None = None,
+    precommit_chapter: PrecommitChapter | None = None,
 ) -> BookLoopResult:
     """顺序驱动每章 NovelLoop，按 checkpoint、预算和 provider 降级约束暂停。"""
 
     if _parallelism_enabled(request):
-        return _run_book_loop_parallel(request, run_chapter, progress_callback, consistency_barrier)
+        return _run_book_loop_parallel(request, run_chapter, progress_callback, consistency_barrier, precommit_chapter)
 
     completed = list(request.existing_checkpoint)
     checkpoint = list(request.existing_checkpoint)
@@ -81,6 +87,7 @@ def run_book_loop(
             chapter_result = run_chapter(chapter_index)
         except Exception as exc:
             raise ChapterExecutionError(chapter_index, exc) from exc
+        chapter_result = _run_precommit_chapter(precommit_chapter, chapter_index, chapter_result, completed)
         _accumulate_budget(budget, chapter_result)
         consistency_report = _run_consistency_barrier(consistency_barrier, chapter_index, chapter_result, completed)
         if consistency_report is not None and consistency_report.has_conflict:
@@ -144,6 +151,7 @@ def _run_book_loop_parallel(
     run_chapter: Callable[[int], NovelLoopResult],
     progress_callback: Callable[[BookLoopResult], None] | None,
     consistency_barrier: ConsistencyBarrier | None = None,
+    precommit_chapter: PrecommitChapter | None = None,
 ) -> BookLoopResult:
     """并发预取章节结果，但只按章节顺序提交 checkpoint 和 progress。"""
 
@@ -156,6 +164,9 @@ def _run_book_loop_parallel(
     next_commit_index = request.start_chapter_index
     consecutive_fallbacks = 0
     max_in_flight = 0
+    precommit_revision_count = 0
+    runtime_tracker = _ParallelRuntimeTracker()
+    tracked_run_chapter = runtime_tracker.wrap(run_chapter)
 
     executor = ThreadPoolExecutor(
         max_workers=max(1, request.chapter_parallelism),
@@ -163,11 +174,16 @@ def _run_book_loop_parallel(
     )
     executor_closed = False
     try:
-        _fill_chapter_window(executor, run_chapter, chapter_indexes, futures, request.chapter_parallelism)
+        _fill_chapter_window(executor, tracked_run_chapter, chapter_indexes, futures, _chapter_window_size(request))
         max_in_flight = max(max_in_flight, len(futures))
         while futures or pending_results:
             while next_commit_index in pending_results:
                 chapter_result = pending_results.pop(next_commit_index)
+                if precommit_chapter is not None:
+                    chapter_result = _run_precommit_chapter(
+                        precommit_chapter, next_commit_index, chapter_result, completed
+                    )
+                    precommit_revision_count += 1
                 _accumulate_budget(budget, chapter_result)
                 consistency_report = _run_consistency_barrier(
                     consistency_barrier, next_commit_index, chapter_result, completed
@@ -179,7 +195,7 @@ def _run_book_loop_parallel(
                         _consistency_blocked_result(
                             next_commit_index, chapter_result, completed, checkpoint, budget, consistency_report
                         ),
-                        _parallel_integration_metrics(request, max_in_flight),
+                        _parallel_integration_metrics(request, max_in_flight, runtime_tracker, precommit_revision_count),
                     )
                 if chapter_result.status != "approved":
                     _shutdown_pending_chapters(executor, futures)
@@ -195,7 +211,7 @@ def _run_book_loop_parallel(
                                 "budget": dict(budget),
                             },
                         ),
-                        _parallel_integration_metrics(request, max_in_flight),
+                        _parallel_integration_metrics(request, max_in_flight, runtime_tracker, precommit_revision_count),
                     )
                 chapter_progress = _chapter_progress(next_commit_index, chapter_result)
                 completed.append(chapter_progress)
@@ -212,7 +228,7 @@ def _run_book_loop_parallel(
                                     "budget": dict(budget),
                                 },
                             ),
-                            _parallel_integration_metrics(request, max_in_flight),
+                            _parallel_integration_metrics(request, max_in_flight, runtime_tracker, precommit_revision_count),
                         )
                     )
                 if chapter_result.fallback_metadata:
@@ -226,7 +242,7 @@ def _run_book_loop_parallel(
                         _provider_degradation_result(
                             next_commit_index, completed, checkpoint, budget, consecutive_fallbacks, chapter_result
                         ),
-                        _parallel_integration_metrics(request, max_in_flight),
+                        _parallel_integration_metrics(request, max_in_flight, runtime_tracker, precommit_revision_count),
                     )
                 pause_reason = _budget_pause_reason(request, budget)
                 if pause_reason is not None:
@@ -234,11 +250,14 @@ def _run_book_loop_parallel(
                     executor_closed = True
                     return _with_integration_metrics(
                         _paused_by_budget(next_commit_index, completed, checkpoint, budget, pause_reason),
-                        _parallel_integration_metrics(request, max_in_flight),
+                        _parallel_integration_metrics(request, max_in_flight, runtime_tracker, precommit_revision_count),
                     )
                 next_commit_index += 1
             if not futures:
-                break
+                _fill_chapter_window(executor, tracked_run_chapter, chapter_indexes, futures, _chapter_window_size(request))
+                max_in_flight = max(max_in_flight, len(futures))
+                if not futures:
+                    break
             done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
             for future in done:
                 chapter_index = futures.pop(future)
@@ -249,7 +268,7 @@ def _run_book_loop_parallel(
                     executor_closed = True
                     raise ChapterExecutionError(chapter_index, exc) from exc
             if not (_preemptive_pause_enabled(request) and pending_results):
-                _fill_chapter_window(executor, run_chapter, chapter_indexes, futures, request.chapter_parallelism)
+                _fill_chapter_window(executor, tracked_run_chapter, chapter_indexes, futures, _chapter_window_size(request))
                 max_in_flight = max(max_in_flight, len(futures))
     finally:
         if not executor_closed:
@@ -261,7 +280,7 @@ def _run_book_loop_parallel(
             current_chapter_index=request.total_chapters,
             progress={"completed_chapters": completed, "checkpoint": checkpoint, "budget": dict(budget)},
         ),
-        _parallel_integration_metrics(request, max_in_flight),
+        _parallel_integration_metrics(request, max_in_flight, runtime_tracker, precommit_revision_count),
     )
 
 
@@ -278,6 +297,47 @@ def _fill_chapter_window(
         except StopIteration:
             return
         futures[executor.submit(run_chapter, chapter_index)] = chapter_index
+
+
+class _ParallelRuntimeTracker:
+    """记录章节 worker 实际运行区间，用于计算真实重叠利用率。"""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._intervals: list[tuple[float, float]] = []
+
+    def wrap(self, run_chapter: Callable[[int], NovelLoopResult]) -> Callable[[int], NovelLoopResult]:
+        def tracked(chapter_index: int) -> NovelLoopResult:
+            started_at = perf_counter()
+            try:
+                return run_chapter(chapter_index)
+            finally:
+                ended_at = perf_counter()
+                with self._lock:
+                    self._intervals.append((started_at, ended_at))
+
+        return tracked
+
+    def metrics(self, target_window: int) -> dict[str, Any]:
+        with self._lock:
+            intervals = list(self._intervals)
+        if not intervals:
+            return {
+                "parallel_runtime_wall_sec": 0.0,
+                "parallel_worker_busy_sec": 0.0,
+                "parallel_runtime_utilization": 0.0,
+            }
+        first_start = min(start for start, _end in intervals)
+        last_end = max(end for _start, end in intervals)
+        wall_seconds = max(0.0, last_end - first_start)
+        busy_seconds = sum(max(0.0, end - start) for start, end in intervals)
+        denominator = wall_seconds * max(1, target_window)
+        utilization = 0.0 if denominator <= 0 else max(0.0, min(1.0, busy_seconds / denominator))
+        return {
+            "parallel_runtime_wall_sec": round(wall_seconds, 4),
+            "parallel_worker_busy_sec": round(busy_seconds, 4),
+            "parallel_runtime_utilization": round(utilization, 4),
+        }
 
 
 def _cancel_pending_chapters(futures: dict[Future[NovelLoopResult], int]) -> None:
@@ -302,6 +362,17 @@ def _run_consistency_barrier(
     if consistency_barrier is None:
         return None
     return consistency_barrier(chapter_index, chapter_result, list(committed_chapters))
+
+
+def _run_precommit_chapter(
+    precommit_chapter: PrecommitChapter | None,
+    chapter_index: int,
+    chapter_result: NovelLoopResult,
+    committed_chapters: list[dict[str, Any]],
+) -> NovelLoopResult:
+    if precommit_chapter is None:
+        return chapter_result
+    return precommit_chapter(chapter_index, chapter_result, list(committed_chapters))
 
 
 def _consistency_blocked_result(
@@ -346,25 +417,47 @@ def _preemptive_pause_enabled(request: BookLoopRequest) -> bool:
     )
 
 
+def _chapter_window_size(request: BookLoopRequest) -> int:
+    if request.require_prior_chapter_commit_before_start:
+        return 1
+    if request.require_budget_guard_before_prefetch and _preemptive_pause_enabled(request):
+        return 1
+    return request.chapter_parallelism
+
+
 def _with_integration_metrics(result: BookLoopResult, metrics: dict[str, Any]) -> BookLoopResult:
     progress = dict(result.progress)
     progress["integration_metrics"] = metrics
     return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
 
 
-def _parallel_integration_metrics(request: BookLoopRequest, max_in_flight: int) -> dict[str, Any]:
+def _parallel_integration_metrics(
+    request: BookLoopRequest,
+    max_in_flight: int,
+    runtime_tracker: _ParallelRuntimeTracker,
+    precommit_revision_count: int = 0,
+) -> dict[str, Any]:
     target_window = min(
         max(1, request.chapter_parallelism),
         max(1, request.total_chapters - request.start_chapter_index + 1),
     )
-    utilization = max(0.0, min(1.0, max_in_flight / target_window))
-    return {
-        "concurrent_chapter_utilization": round(utilization, 4),
-        "metric_scope": "workflow_book_loop_parallel",
+    runtime_metrics = runtime_tracker.metrics(target_window)
+    metrics = {
+        "concurrent_chapter_utilization": runtime_metrics["parallel_runtime_utilization"],
+        "metric_scope": "workflow_book_loop_parallel_runtime_overlap",
         "chapter_parallelism": request.chapter_parallelism,
         "max_in_flight_chapters": max_in_flight,
         "target_parallel_window": target_window,
+        **runtime_metrics,
     }
+    if request.require_prior_chapter_commit_before_start:
+        metrics["dependency_mode"] = "prior_chapter_commit"
+    if request.require_budget_guard_before_prefetch and _preemptive_pause_enabled(request):
+        metrics["prefetch_mode"] = "budget_guarded"
+    if precommit_revision_count:
+        metrics["dependency_mode"] = "precommit_revision"
+        metrics["chapter_correction_count"] = precommit_revision_count
+    return metrics
 
 
 def _chapter_progress(chapter_index: int, result: NovelLoopResult) -> dict[str, Any]:
@@ -380,6 +473,7 @@ def _chapter_progress(chapter_index: int, result: NovelLoopResult) -> dict[str, 
         "cost_estimate": result.cost_estimate,
         "fallback_metadata": result.fallback_metadata,
         "memory_atom_ids": list(result.memory_atom_ids),
+        "continuity_edge_count": result.continuity_edge_count,
         "skill_runs": list(result.skill_runs),
     }
 
@@ -395,6 +489,7 @@ def _checkpoint_entry(chapter_progress: dict[str, Any]) -> dict[str, Any]:
         "elapsed_time_sec": chapter_progress["elapsed_time_sec"],
         "cost_estimate": chapter_progress["cost_estimate"],
         "memory_atom_ids": list(chapter_progress.get("memory_atom_ids") or []),
+        "continuity_edge_count": chapter_progress.get("continuity_edge_count", 0),
         "skill_runs": list(chapter_progress["skill_runs"]),
     }
 

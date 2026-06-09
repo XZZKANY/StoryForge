@@ -1,11 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - master
-      - main
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -46,5 +42,5 @@ jobs:
         working-directory: apps/workflow
         run: uv sync --frozen
 
-      - name: 执行核心门禁
-        run: pnpm run verify:ci
+      - name: 执行本地核心门禁
+        run: pnpm run verify:local

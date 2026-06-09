@@ -132,6 +132,39 @@ def test_rate_limit_returns_429_when_exceeded() -> None:
     assert resp.status_code == 429
 
 
+def test_rate_limit_storage_uses_redis_in_production(monkeypatch) -> None:
+    """生产多 worker 场景必须使用共享 Redis 限流存储，而不是进程内 MemoryStorage。"""
+
+    monkeypatch.setenv("STORYFORGE_ENV", "production")
+    monkeypatch.setenv("REDIS_URL", "redis://redis:6379/0")
+
+    from limits.storage import MemoryStorage
+    from limits.storage.redis import RedisStorage
+
+    from app.main import _build_rate_limit_storage
+
+    storage = _build_rate_limit_storage()
+
+    assert not isinstance(storage, MemoryStorage)
+    assert isinstance(storage, RedisStorage)
+
+
+def test_rate_limit_storage_allows_memory_storage_in_development(monkeypatch) -> None:
+    """开发环境未配置 Redis 时允许使用进程内限流，保持本地启动简单。"""
+
+    monkeypatch.setenv("STORYFORGE_ENV", "development")
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("STORYFORGE_RATE_LIMIT_REDIS_URL", raising=False)
+
+    from limits.storage import MemoryStorage
+
+    from app.main import _build_rate_limit_storage
+
+    storage = _build_rate_limit_storage()
+
+    assert isinstance(storage, MemoryStorage)
+
+
 def test_health_endpoint_bypasses_rate_limit() -> None:
     """live 健康检查不受限流影响。"""
 

@@ -42,10 +42,16 @@ def test_novel_loop_with_skill_runner_keeps_approved_result_contract() -> None:
     assert result.approved_scene_id == 51
     assert result.memory_atom_ids == ["mem-1"]
     assert memory_calls == [(2, 51, full_draft)]
-    assert [run.skill_name for run in runner.runs] == ["generate", "judge", "approve", "memory_extract"]
-    assert result.skill_runs[-1]["skill_name"] == "memory_extract"
-    assert result.skill_runs[-1]["status"] == "memory_updated"
-    assert result.skill_runs[-1]["output_refs"] == {"memory_atom_ids": ("mem-1",)}
+    assert [run.skill_name for run in runner.runs] == [
+        "generate",
+        "judge",
+        "approve",
+        "memory_extract",
+        "submit_continuity",
+    ]
+    memory_run = [run for run in result.skill_runs if run["skill_name"] == "memory_extract"][-1]
+    assert memory_run["status"] == "memory_updated"
+    assert memory_run["output_refs"] == {"memory_atom_ids": ("mem-1",)}
     assert full_draft not in str(result.skill_runs)
 
 
@@ -88,8 +94,10 @@ def test_novel_loop_with_skill_runner_records_repair_chain_then_approves() -> No
         "judge",
         "approve",
         "memory_extract",
+        "submit_continuity",
     ]
-    assert runner.runs[-1].status == "memory_extract_skipped"
+    memory_run = [run for run in runner.runs if run.skill_name == "memory_extract"][-1]
+    assert memory_run.status == "memory_extract_skipped"
 
 
 def test_novel_loop_with_skill_runner_static_gate_blocks_before_judge() -> None:

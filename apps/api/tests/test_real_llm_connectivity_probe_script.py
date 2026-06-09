@@ -10,6 +10,7 @@ from threading import Thread
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = ROOT / ".codex" / "run-real-llm-connectivity-probe.ps1"
 TEN_CHAPTER_WRAPPER_PATH = ROOT / ".codex" / "run-real-llm-10ch-current-env.ps1"
+ACCEPTANCE_WRAPPER_PATH = ROOT / ".codex" / "run-real-llm-acceptance-interactive.ps1"
 
 
 class _ProbeProviderHandler(BaseHTTPRequestHandler):
@@ -199,8 +200,8 @@ def test_ten_chapter_wrapper_requires_connectivity_probe_before_long_run() -> No
     assert "connectivity_probe_exit_code" in script
     assert "run-real-llm-long-direct.py" in script
     assert "[int]$MaxChapterCount = 30" in script
-    assert "--max-chapter-count $MaxChapterCount" in script
-    assert script.index("-File $connectivityProbePath") < script.index("uv run python $runnerPath")
+    assert '"--max-chapter-count", $MaxChapterCount' in script
+    assert script.index("-File $connectivityProbePath") < script.index("uv run python @runnerArgs")
 
 
 def test_ten_chapter_wrapper_supports_interactive_secure_runtime_input() -> None:
@@ -267,5 +268,103 @@ def test_ten_chapter_wrapper_probe_only_passes_with_local_provider() -> None:
     assert "gate: pass_connectivity_probe" in result.stdout
     assert "gate: pass_probe_only" in result.stdout
     assert "run-real-llm-long-direct.py" not in result.stdout
+    assert "test-local-credential" not in result.stdout
+    assert _ProbeProviderHandler.requests == ["/v1/models", "/v1/chat/completions"]
+
+
+def test_acceptance_wrapper_supports_interactive_secure_runtime_input() -> None:
+    """真实验收包装必须支持安全交互注入，并先通过连通性探针。"""
+
+    script = ACCEPTANCE_WRAPPER_PATH.read_text(encoding="utf-8")
+
+    assert "[switch]$Interactive" in script
+    assert "[switch]$ProbeOnly" in script
+    assert "Read-Host" in script
+    assert "-AsSecureString" in script
+    assert "Convert-SecureStringToPlainText" in script
+    assert "Set-InteractiveRuntimeEnv" in script
+    assert "run-real-llm-connectivity-probe.ps1" in script
+    assert "pass_connectivity_probe" in script
+    assert "run-real-llm-parallel.py" in script
+    assert "interactiveInjectedNames" in script
+    assert "finally" in script
+    assert "$env:STORYFORGE_LLM_API_KEY = $null" in script
+    assert "不要把凭据写入文件" in script
+    assert "外部令牌计划端点" not in script
+    assert "tp-" not in script
+
+
+def test_acceptance_wrapper_fails_preflight_without_runtime_env() -> None:
+    """缺少运行时变量且非交互时，验收包装必须在外呼前停止。"""
+
+    result = subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(ACCEPTANCE_WRAPPER_PATH),
+            "-ProbeOnly",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "gate: fail_preflight" in result.stdout
+    assert "missing_env=" in result.stdout
+    assert "models_probe: ok" not in result.stdout
+    assert "chat_probe: ok" not in result.stdout
+    assert "run-real-llm-parallel.py" not in result.stdout
+    assert "外部令牌计划端点" not in result.stdout
+    assert "tp-" not in result.stdout
+
+
+def test_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
+    """验收 ProbeOnly 模式应只验证本地假 provider，不启动并发 runner。"""
+
+    _ProbeProviderHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _ProbeProviderHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = os.environ.copy()
+    env.update(
+        {
+            "STORYFORGE_LLM_API_KEY": "test-local-credential",
+            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+            "STORYFORGE_LLM_MODEL": "local-probe-model",
+            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+        }
+    )
+
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(ACCEPTANCE_WRAPPER_PATH),
+                "-ProbeOnly",
+                "-TimeoutSeconds",
+                "5",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+            timeout=20,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "models_probe: ok" in result.stdout
+    assert "chat_probe: ok" in result.stdout
+    assert "gate: pass_connectivity_probe" in result.stdout
+    assert "gate: pass_probe_only" in result.stdout
+    assert "run-real-llm-parallel.py" not in result.stdout
     assert "test-local-credential" not in result.stdout
     assert _ProbeProviderHandler.requests == ["/v1/models", "/v1/chat/completions"]

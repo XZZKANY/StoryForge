@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
+from app.domains.book_runs.book_context import clear_book_context_cache, get_book_context
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.jobs.models import JobRun
@@ -691,6 +692,45 @@ def test_approve_studio_scene_packet_writes_back_chapter_state(
     assert scene_packet.status == "approved"
     assert approval_record is not None
     assert approval_record.payload["approved_content"] == "林岚按住仍在发疼的左臂。"
+
+
+def test_approve_studio_scene_packet_clears_book_context_cache(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Studio 批准 Scene Packet 后必须清除 BookContext 旧快照。"""
+
+    clear_book_context_cache()
+    with session_factory() as session:
+        book = Book(title="Studio 缓存失效", status="draft", premise="验证批准后缓存。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="draft", summary="旧摘要")
+        session.add(chapter)
+        session.flush()
+        scene = Scene(chapter_id=chapter.id, ordinal=1, title="执行场景", status="approved", content="旧正文")
+        session.add(scene)
+        session.flush()
+        scene_packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"章节目标": "批准当前正文。"}, version=1)
+        session.add(scene_packet)
+        session.commit()
+        book_id = book.id
+        scene_id = scene.id
+        scene_packet_id = scene_packet.id
+
+        cached_before = get_book_context(session, book_id)
+        assert cached_before.approved_chapters == []
+
+    response = client.post("/api/studio/approve", json={"scene_packet_id": scene_packet_id})
+    assert response.status_code == 200, response.text
+
+    with session_factory() as session:
+        scene = session.get(Scene, scene_id)
+        assert scene is not None
+        cached_after = get_book_context(session, book_id)
+
+    assert cached_after is not cached_before
+    assert cached_after.approved_chapters[0].content == scene.content
 
 
 def test_approve_studio_repair_patch_applies_patch_and_writes_back_chapter(

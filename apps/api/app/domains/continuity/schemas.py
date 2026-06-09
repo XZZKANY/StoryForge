@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class ContinuityEdgeInput(BaseModel):
+    """批准时随章节显式提交的结构化连续性边（关系/时间线/状态）。"""
+
+    edge_kind: Literal["relationship", "timeline_order", "status"]
+    subject_ref: str = Field(min_length=1, max_length=160)
+    predicate: str = Field(min_length=1, max_length=80)
+    object_ref: str = Field(min_length=1, max_length=160)
+    valid_from_chapter: int = Field(default=1, ge=1)
+    valid_to_chapter: int | None = Field(default=None, ge=1)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChapterApprovalCreate(BaseModel):
@@ -15,6 +27,7 @@ class ChapterApprovalCreate(BaseModel):
     foreshadowing_changes: dict[str, Any] = Field(default_factory=dict)
     style_drift: str = Field(min_length=1, max_length=5000)
     next_chapter_constraints: list[str] = Field(default_factory=list, max_length=100)
+    continuity_edges: list[ContinuityEdgeInput] = Field(default_factory=list, max_length=200)
 
 
 class ContinuityRecordRead(BaseModel):
@@ -41,3 +54,4 @@ class ChapterApprovalRead(BaseModel):
     book_id: int
     record_count: int
     records: list[ContinuityRecordRead]
+    continuity_edge_count: int = 0

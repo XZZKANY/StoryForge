@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -26,6 +26,7 @@ class MemoryAtomRecord(IdMixin, TimestampMixin, Base):
     immutable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0, server_default="1")
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    embedding: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     source_ref: Mapped[str] = mapped_column(String(255), nullable=False)
     source_chapter_id: Mapped[int | None] = mapped_column(
         ForeignKey("chapters.id", ondelete="SET NULL"),
