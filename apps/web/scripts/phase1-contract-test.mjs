@@ -103,6 +103,14 @@ const runtimeModules = [
     dst: 'components/job-status/job-status-core.mjs',
   },
   { src: 'components/site-nav/site-nav-links.ts', dst: 'components/site-nav/site-nav-links.mjs' },
+  {
+    src: 'components/site-nav/RecentItemsList.tsx',
+    dst: 'components/site-nav/RecentItemsList.mjs',
+  },
+  {
+    src: 'components/site-nav/recent-items-store.ts',
+    dst: 'components/site-nav/recent-items-store.mjs',
+  },
   { src: '../../packages/shared/src/diagnostic.ts', dst: 'packages/shared/src/diagnostic.mjs' },
   {
     src: 'components/ide/commands/command-client.ts',
@@ -217,6 +225,8 @@ const importRewrites = [
     '../components/home/assistant-chapter-review-actions.mjs',
   ],
   ['../components/home/assistant-session-store', '../components/home/assistant-session-store.mjs'],
+  ['../components/site-nav/RecentItemsList', '../components/site-nav/RecentItemsList.mjs'],
+  ['../components/site-nav/recent-items-store', '../components/site-nav/recent-items-store.mjs'],
   [
     '../components/home/assistant-tool-node-mapper',
     '../components/home/assistant-tool-node-mapper.mjs',
@@ -236,6 +246,7 @@ const importRewrites = [
   ['../components/ui/LoadingSkeleton', '../components/ui/LoadingSkeleton.mjs'],
   ['../components/job-status/job-status-core', '../components/job-status/job-status-core.mjs'],
   ['../components/site-nav/site-nav-links', '../components/site-nav/site-nav-links.mjs'],
+  ['./recent-items-store', './recent-items-store.mjs'],
   ['../../../packages/shared/src/diagnostic', '../packages/shared/src/diagnostic.mjs'],
   ['../../../../../packages/shared/src/diagnostic', '../packages/shared/src/diagnostic.mjs'],
   ['../../../../../../packages/shared/src/diagnostic', '../packages/shared/src/diagnostic.mjs'],

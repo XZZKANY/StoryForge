@@ -1,23 +1,21 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
 
-import { SiteNav } from './SiteNav';
-import { ThemeToggle } from './ThemeToggle';
+import { UnifiedSidebar } from './UnifiedSidebar';
+import type { RecentItem } from './recent-items-store';
 
-export function Chrome({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  if (pathname === '/') {
-    return <>{children}</>;
-  }
+export function Chrome({
+  children,
+  initialRecentItems = [],
+}: {
+  readonly children: ReactNode;
+  readonly initialRecentItems?: readonly RecentItem[];
+}) {
   return (
-    <div className="md:grid md:grid-cols-[18rem_1fr]">
-      <SiteNav />
-      <div className="min-w-0">
-        <ThemeToggle />
-        {children}
-      </div>
+    <div className="flex h-screen">
+      <UnifiedSidebar initialRecentItems={initialRecentItems} />
+      <main className="min-w-0 flex-1 overflow-auto bg-[#171715]">{children}</main>
     </div>
   );
 }

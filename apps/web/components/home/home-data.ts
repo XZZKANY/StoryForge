@@ -18,6 +18,7 @@ export type HomeRecentItem = {
   readonly title: string;
   readonly summary: string;
   readonly href: string;
+  readonly updatedAt?: string;
 };
 
 export const homeNavItems: readonly HomeNavItem[] = [

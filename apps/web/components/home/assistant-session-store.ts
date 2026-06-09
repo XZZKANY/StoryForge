@@ -74,10 +74,12 @@ export function mapAssistantSessionToHomeRecentItem(session: AssistantSessionRea
   const referenceSummary =
     references.length > 0 ? `，关联 ${references.join(' / ')}` : '，暂无关联任务';
 
+  const updatedAt = session.updated_at ?? session.created_at;
   return {
     title: session.title,
     summary: `${formatAssistantTaskType(session.task_type)}${referenceSummary}`,
     href: buildAssistantSessionHref(session),
+    ...(updatedAt ? { updatedAt } : {}),
   };
 }
 
