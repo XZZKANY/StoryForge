@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -29,6 +30,11 @@ class AssistantSession(IdMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="AssistantMessage.id",
     )
+    tool_calls: Mapped[list[AssistantToolCall]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="AssistantToolCall.id",
+    )
     blueprint: Mapped[BookBlueprint | None] = relationship()
     book_run: Mapped[BookRun | None] = relationship()
     artifact: Mapped[Artifact | None] = relationship()
@@ -48,3 +54,26 @@ class AssistantMessage(IdMixin, TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
     session: Mapped[AssistantSession] = relationship(back_populates="messages")
+
+
+class AssistantToolCall(IdMixin, TimestampMixin, Base):
+    """Assistant 工具调用事实源，用短摘要追溯执行状态和业务对象。"""
+
+    __tablename__ = "assistant_tool_calls"
+
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("assistant_sessions.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    tool_name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    input_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    output_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    related_type: Mapped[str | None] = mapped_column(String(80))
+    related_id: Mapped[int | None] = mapped_column(index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    session: Mapped[AssistantSession] = relationship(back_populates="tool_calls")

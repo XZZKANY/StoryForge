@@ -3,12 +3,21 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.domains.assistant.models import AssistantMessage, AssistantSession
-from app.domains.assistant.schemas import AssistantMessageCreate, AssistantSessionCreate
+from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
+from app.domains.assistant.schemas import (
+    AssistantMessageCreate,
+    AssistantSessionCreate,
+    AssistantToolCallCreate,
+    AssistantToolCallUpdate,
+)
 
 
 class AssistantSessionNotFoundError(RuntimeError):
     """找不到指定 Assistant 会话。"""
+
+
+class AssistantToolCallNotFoundError(RuntimeError):
+    """找不到指定 Assistant 工具调用。"""
 
 
 def create_assistant_session(session: Session, payload: AssistantSessionCreate) -> AssistantSession:
@@ -42,6 +51,52 @@ def append_assistant_message(
     session.commit()
     session.refresh(message)
     return message
+
+
+def create_assistant_tool_call(
+    session: Session,
+    assistant_session_id: int,
+    payload: AssistantToolCallCreate,
+) -> AssistantToolCall:
+    """为 Assistant 会话追加一条工具调用事实。"""
+
+    assistant_session = get_assistant_session(session, assistant_session_id)
+    tool_call = AssistantToolCall(session_id=assistant_session.id, **payload.model_dump())
+    session.add(tool_call)
+    session.commit()
+    session.refresh(tool_call)
+    return tool_call
+
+
+def update_assistant_tool_call(
+    session: Session,
+    tool_call_id: int,
+    payload: AssistantToolCallUpdate,
+) -> AssistantToolCall:
+    """更新工具调用状态和摘要，保留未提交字段。"""
+
+    tool_call = session.get(AssistantToolCall, tool_call_id)
+    if tool_call is None:
+        raise AssistantToolCallNotFoundError(f"Assistant 工具调用不存在：{tool_call_id}。")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(tool_call, key, value)
+    session.add(tool_call)
+    session.commit()
+    session.refresh(tool_call)
+    return tool_call
+
+
+def list_assistant_tool_calls(session: Session, assistant_session_id: int) -> list[AssistantToolCall]:
+    """按创建顺序读取会话内工具调用事实，用于重放工具树。"""
+
+    assistant_session = get_assistant_session(session, assistant_session_id)
+    return list(
+        session.scalars(
+            select(AssistantToolCall)
+            .where(AssistantToolCall.session_id == assistant_session.id)
+            .order_by(AssistantToolCall.id.asc())
+        )
+    )
 
 
 def get_assistant_session(session: Session, assistant_session_id: int) -> AssistantSession:

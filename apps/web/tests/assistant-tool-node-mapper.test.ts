@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { mapBookRunToAssistantToolNodes } from '../components/home/assistant-tool-node-mapper';
+import {
+  mapAssistantToolCallsToAssistantToolNodes,
+  mapBookRunToAssistantToolNodes,
+} from '../components/home/assistant-tool-node-mapper';
 
 const baseBookRun = {
   id: 12,
@@ -171,4 +174,104 @@ test('mapBookRunToAssistantToolNodes 对预算暂停缺少原因时使用兜底�
   const chapterNode = nodes.find((node) => node.tool === 'Chapter.generate');
   assert.equal(chapterNode?.status, 'failed');
   assert.match(chapterNode?.summary ?? '', /预算触顶/);
+});
+
+test('mapAssistantToolCallsToAssistantToolNodes 优先使用 tool call 事实源', () => {
+  const nodes = mapAssistantToolCallsToAssistantToolNodes([
+    {
+      id: 7,
+      session_id: 31,
+      tool_name: 'book_run.pause',
+      status: 'completed',
+      input_summary: { summary: '暂停 BookRun #12' },
+      output_summary: { summary: 'BookRun #12 已暂停。' },
+      error_message: null,
+      related_type: 'book_run',
+      related_id: 12,
+      started_at: null,
+      finished_at: '2026-06-09T21:30:00',
+      created_at: '2026-06-09T21:29:00',
+      updated_at: '2026-06-09T21:30:00',
+    },
+    {
+      id: 8,
+      session_id: 31,
+      tool_name: 'chapter.review',
+      status: 'needs_approval',
+      input_summary: { summary: '审阅第二章' },
+      output_summary: {},
+      error_message: null,
+      related_type: 'scene_packet',
+      related_id: 42,
+      started_at: null,
+      finished_at: null,
+      created_at: '2026-06-09T21:31:00',
+      updated_at: '2026-06-09T21:31:00',
+    },
+    {
+      id: 9,
+      session_id: 31,
+      tool_name: 'artifact.export',
+      status: 'failed',
+      input_summary: {},
+      output_summary: {},
+      error_message: '导出接口返回 500',
+      related_type: 'book_run',
+      related_id: 12,
+      started_at: null,
+      finished_at: null,
+      created_at: '2026-06-09T21:32:00',
+      updated_at: '2026-06-09T21:32:00',
+    },
+  ]);
+
+  assert.deepEqual(
+    nodes.map((node) => [node.id, node.tool, node.status, node.summary]),
+    [
+      ['assistant-tool-call-7', 'book_run.pause', 'completed', 'BookRun #12 已暂停。'],
+      ['assistant-tool-call-8', 'chapter.review', 'needs_approval', '审阅第二章'],
+      ['assistant-tool-call-9', 'artifact.export', 'failed', '导出接口返回 500'],
+    ],
+  );
+  assert.equal(nodes[0].label, 'book_run.pause');
+});
+
+test('mapAssistantToolCallsToAssistantToolNodes 将 planned 和 paused 映射为等待', () => {
+  const nodes = mapAssistantToolCallsToAssistantToolNodes([
+    {
+      id: 10,
+      session_id: 31,
+      tool_name: 'book_run.retry',
+      status: 'planned',
+      input_summary: {},
+      output_summary: {},
+      error_message: null,
+      related_type: null,
+      related_id: null,
+      started_at: null,
+      finished_at: null,
+      created_at: '2026-06-09T21:33:00',
+      updated_at: '2026-06-09T21:33:00',
+    },
+    {
+      id: 11,
+      session_id: 31,
+      tool_name: 'book_run.stop',
+      status: 'paused',
+      input_summary: {},
+      output_summary: {},
+      error_message: null,
+      related_type: null,
+      related_id: null,
+      started_at: null,
+      finished_at: null,
+      created_at: '2026-06-09T21:34:00',
+      updated_at: '2026-06-09T21:34:00',
+    },
+  ]);
+
+  assert.deepEqual(
+    nodes.map((node) => node.status),
+    ['waiting', 'waiting'],
+  );
 });

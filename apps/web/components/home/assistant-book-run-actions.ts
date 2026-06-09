@@ -2,7 +2,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { apiFetch, type ApiFetchInit } from '../../lib/api-client';
-import { appendAssistantSessionMessage, createAssistantSession } from './assistant-session-store';
+import {
+  appendAssistantSessionMessage,
+  createAssistantSession,
+  createAssistantToolCall,
+} from './assistant-session-store';
 
 type AssistantBookRunCommand = 'pause' | 'resume' | 'stop' | 'retry';
 
@@ -13,6 +17,17 @@ type AssistantBookRunSessionWrite = {
   readonly assistantSessionId?: number;
 };
 
+type AssistantToolCallWrite = {
+  readonly assistantSessionId: number;
+  readonly toolName: string;
+  readonly status: 'completed' | 'failed';
+  readonly inputSummary: Record<string, unknown>;
+  readonly outputSummary?: Record<string, unknown>;
+  readonly errorMessage?: string;
+  readonly relatedType?: string;
+  readonly relatedId?: number;
+};
+
 type AssistantBookRunActionDependencies = {
   readonly apiFetch: (path: string, init: ApiFetchInit) => Promise<Response>;
   readonly revalidatePath: (path: string) => void;
@@ -20,6 +35,7 @@ type AssistantBookRunActionDependencies = {
   readonly writeAssistantBookRunSession?: (
     payload: AssistantBookRunSessionWrite,
   ) => Promise<number | void>;
+  readonly writeAssistantToolCall?: (payload: AssistantToolCallWrite) => Promise<void>;
 };
 
 function readPositiveInt(formData: FormData, key: string): number | undefined {
@@ -100,6 +116,40 @@ async function writeAssistantBookRunSession({
   return result.data.id;
 }
 
+async function writeAssistantBookRunToolCall(payload: AssistantToolCallWrite): Promise<void> {
+  const result = await createAssistantToolCall(payload.assistantSessionId, {
+    tool_name: payload.toolName,
+    status: payload.status,
+    input_summary: payload.inputSummary,
+    output_summary: payload.outputSummary ?? {},
+    error_message: payload.errorMessage,
+    related_type: payload.relatedType,
+    related_id: payload.relatedId,
+  });
+  if (result.status === 'error') {
+    throw new Error(result.message);
+  }
+}
+
+async function writeBookRunFailureToolCall(
+  dependencies: AssistantBookRunActionDependencies,
+  assistantSessionId: number | undefined,
+  bookRunId: number,
+  command: AssistantBookRunCommand,
+  message: string,
+): Promise<void> {
+  if (!assistantSessionId) return;
+  await (dependencies.writeAssistantToolCall ?? writeAssistantBookRunToolCall)({
+    assistantSessionId,
+    toolName: `book_run.${command}`,
+    status: 'failed',
+    inputSummary: { book_run_id: bookRunId, command },
+    errorMessage: message,
+    relatedType: 'book_run',
+    relatedId: bookRunId,
+  });
+}
+
 export async function submitAssistantBookRunCommand(
   formData: FormData,
   dependencies: AssistantBookRunActionDependencies = {
@@ -135,16 +185,14 @@ export async function submitAssistantBookRunCommand(
     response = await dependencies.apiFetch(`/api/book-runs/${bookRunId}/${command}`, init);
   } catch (error) {
     const message = error instanceof Error ? error.message : '未知错误';
+    await writeBookRunFailureToolCall(dependencies, assistantSessionId, bookRunId, command, message);
     return dependencies.redirect(buildResultUrl(bookRunId, 'failed', message, assistantSessionId));
   }
   if (!response.ok) {
+    const message = `BookRun API 返回 ${response.status}`;
+    await writeBookRunFailureToolCall(dependencies, assistantSessionId, bookRunId, command, message);
     return dependencies.redirect(
-      buildResultUrl(
-        bookRunId,
-        'failed',
-        `BookRun API 返回 ${response.status}`,
-        assistantSessionId,
-      ),
+      buildResultUrl(bookRunId, 'failed', message, assistantSessionId),
     );
   }
 
@@ -159,6 +207,17 @@ export async function submitAssistantBookRunCommand(
       assistantSessionId,
     });
     redirectAssistantSessionId = writtenAssistantSessionId ?? assistantSessionId;
+    if (redirectAssistantSessionId) {
+      await (dependencies.writeAssistantToolCall ?? writeAssistantBookRunToolCall)({
+        assistantSessionId: redirectAssistantSessionId,
+        toolName: `book_run.${command}`,
+        status: 'completed',
+        inputSummary: { book_run_id: bookRunId, command },
+        outputSummary: { summary: `已${formatCommandLabel(command)} BookRun #${bookRunId}。` },
+        relatedType: 'book_run',
+        relatedId: bookRunId,
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : '未知错误';
     return dependencies.redirect(buildResultUrl(bookRunId, 'failed', message, assistantSessionId));

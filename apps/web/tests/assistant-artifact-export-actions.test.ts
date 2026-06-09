@@ -8,6 +8,7 @@ test('submitAssistantArtifactExport 对 completed BookRun 依次导出 Markdown�
   formData.set('book_run_id', '12');
   const calls: string[] = [];
   const sessionWrites: unknown[] = [];
+  const toolCallWrites: unknown[] = [];
 
   await assert.rejects(
     () =>
@@ -52,6 +53,9 @@ test('submitAssistantArtifactExport 对 completed BookRun 依次导出 Markdown�
         writeAssistantArtifactExportSession: async (payload) => {
           sessionWrites.push(payload);
         },
+        writeAssistantToolCall: async (payload) => {
+          toolCallWrites.push(payload);
+        },
         redirect: (url) => {
           const redirected = new URL(url, 'http://storyforge.local');
           assert.equal(redirected.searchParams.get('book_run_id'), '12');
@@ -91,6 +95,7 @@ test('submitAssistantArtifactExport 对 completed BookRun 依次导出 Markdown�
       ],
     },
   ]);
+  assert.deepEqual(toolCallWrites, []);
 });
 
 test('submitAssistantArtifactExport 成功后向已有 AssistantSession 追加导出摘要', async () => {
@@ -141,6 +146,9 @@ test('submitAssistantArtifactExport 成功后向已有 AssistantSession 追加�
           events.push(`session ${JSON.stringify(payload)}`);
           return payload.assistantSessionId;
         },
+        writeAssistantToolCall: async (payload) => {
+          events.push(`tool ${JSON.stringify(payload)}`);
+        },
         redirect: (url) => {
           events.push(`redirect ${url}`);
           throw new Error(url);
@@ -157,6 +165,7 @@ test('submitAssistantArtifactExport 成功后向已有 AssistantSession 追加�
     'POST /api/book-runs/12/exports/epub',
     'POST /api/book-runs/12/exports/audit-report',
     'session {"bookRunId":12,"assistantSessionId":31,"artifacts":[{"id":1,"name":"artifact-1","version":1,"mimeType":"application/json","bookRunId":12},{"id":2,"name":"artifact-2","version":2,"mimeType":"application/json","bookRunId":12},{"id":3,"name":"artifact-3","version":3,"mimeType":"application/json","bookRunId":12}]}',
+    'tool {"assistantSessionId":31,"toolName":"artifact.export","status":"completed","inputSummary":{"book_run_id":12},"outputSummary":{"summary":"artifact-1#1 v1（BookRun #12，Artifacts 下载摘要可查看）、artifact-2#2 v2（BookRun #12，Artifacts 下载摘要可查看）、artifact-3#3 v3（BookRun #12，Artifacts 下载摘要可查看）","artifact_ids":[1,2,3]},"relatedType":"book_run","relatedId":12}',
     'revalidate /',
     'redirect /?book_run_id=12&artifact_export_status=ok&artifact_export_summary=artifact-1%231+v1%EF%BC%88BookRun+%2312%EF%BC%8CArtifacts+%E4%B8%8B%E8%BD%BD%E6%91%98%E8%A6%81%E5%8F%AF%E6%9F%A5%E7%9C%8B%EF%BC%89%E3%80%81artifact-2%232+v2%EF%BC%88BookRun+%2312%EF%BC%8CArtifacts+%E4%B8%8B%E8%BD%BD%E6%91%98%E8%A6%81%E5%8F%AF%E6%9F%A5%E7%9C%8B%EF%BC%89%E3%80%81artifact-3%233+v3%EF%BC%88BookRun+%2312%EF%BC%8CArtifacts+%E4%B8%8B%E8%BD%BD%E6%91%98%E8%A6%81%E5%8F%AF%E6%9F%A5%E7%9C%8B%EF%BC%89&assistant_session_id=31',
   ]);
@@ -190,6 +199,11 @@ test('submitAssistantArtifactExport 新建会话后在 redirect 中回传 Assist
           new Response(JSON.stringify({ id: 1, name: 'artifact' }), { status: 200 }),
         revalidatePath: () => {},
         writeAssistantArtifactExportSession: async () => 44,
+        writeAssistantToolCall: async (payload) => {
+          assert.equal(payload.assistantSessionId, 44);
+          assert.equal(payload.toolName, 'artifact.export');
+          assert.equal(payload.status, 'completed');
+        },
         redirect: (url) => {
           const redirected = new URL(url, 'http://storyforge.local');
           assert.equal(redirected.searchParams.get('assistant_session_id'), '44');
@@ -218,6 +232,9 @@ test('submitAssistantArtifactExport 对缺失参数返回 invalid 且不写 Assi
         revalidatePath: () => {},
         writeAssistantArtifactExportSession: async () => {
           wroteSession = true;
+        },
+        writeAssistantToolCall: async () => {
+          throw new Error('缺少 book_run_id 时不应写 tool call');
         },
         redirect: (url) => {
           throw new Error(url);
@@ -264,6 +281,9 @@ test('submitAssistantArtifactExport 拒绝非 completed BookRun', async () => {
         writeAssistantArtifactExportSession: async () => {
           wroteSession = true;
         },
+        writeAssistantToolCall: async () => {
+          throw new Error('非 completed BookRun 不应写 tool call');
+        },
         redirect: (url) => {
           throw new Error(url);
         },
@@ -282,6 +302,7 @@ test('submitAssistantArtifactExport 对导出 POST 失败回流 failed 状态', 
   const calls: string[] = [];
   let revalidated = false;
   let wroteSession = false;
+  const toolCallWrites: unknown[] = [];
 
   await assert.rejects(
     () =>
@@ -313,6 +334,9 @@ test('submitAssistantArtifactExport 对导出 POST 失败回流 failed 状态', 
         writeAssistantArtifactExportSession: async () => {
           wroteSession = true;
         },
+        writeAssistantToolCall: async (payload) => {
+          toolCallWrites.push(payload);
+        },
         redirect: (url) => {
           const redirected = new URL(url, 'http://storyforge.local');
           assert.equal(redirected.searchParams.get('book_run_id'), '12');
@@ -329,4 +353,15 @@ test('submitAssistantArtifactExport 对导出 POST 失败回流 failed 状态', 
   assert.deepEqual(calls, ['POST /api/book-runs/12/exports/markdown']);
   assert.equal(revalidated, false, '导出失败时不应刷新首页缓存');
   assert.equal(wroteSession, false, '导出失败时不应写入 AssistantSession');
+  assert.deepEqual(toolCallWrites, [
+    {
+      assistantSessionId: 31,
+      toolName: 'artifact.export',
+      status: 'failed',
+      inputSummary: { book_run_id: 12 },
+      errorMessage: '导出失败：/api/book-runs/12/exports/markdown 返回 500',
+      relatedType: 'book_run',
+      relatedId: 12,
+    },
+  ]);
 });

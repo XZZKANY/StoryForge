@@ -4,7 +4,11 @@ import { redirect as nextRedirect } from 'next/navigation';
 import { revalidatePath as nextRevalidatePath } from 'next/cache';
 
 import { apiFetch, type ApiFetchInit } from '../../lib/api-client';
-import { appendAssistantSessionMessage, createAssistantSession } from './assistant-session-store';
+import {
+  appendAssistantSessionMessage,
+  createAssistantSession,
+  createAssistantToolCall,
+} from './assistant-session-store';
 
 type AssistantChapterReviewDeps = {
   readonly apiFetch?: (path: string, init: ApiFetchInit) => Promise<Response>;
@@ -13,6 +17,7 @@ type AssistantChapterReviewDeps = {
   readonly writeAssistantChapterReviewSession?: (
     payload: AssistantChapterReviewSessionWrite,
   ) => Promise<number | void>;
+  readonly writeAssistantToolCall?: (payload: AssistantToolCallWrite) => Promise<void>;
 };
 
 type AssistantChapterReviewSessionWrite = {
@@ -20,6 +25,17 @@ type AssistantChapterReviewSessionWrite = {
   readonly repairPatchId?: number;
   readonly summary: ChapterReviewRedirectSummary;
   readonly assistantSessionId?: number;
+};
+
+type AssistantToolCallWrite = {
+  readonly assistantSessionId: number;
+  readonly toolName: string;
+  readonly status: 'completed' | 'failed';
+  readonly inputSummary: Record<string, unknown>;
+  readonly outputSummary?: Record<string, unknown>;
+  readonly errorMessage?: string;
+  readonly relatedType?: string;
+  readonly relatedId?: number;
 };
 
 type RepairPatchSummary = {
@@ -46,6 +62,41 @@ const studioScenePacketsEndpoint = '/api/studio/scene-packets';
 const maxChapterReviewSummaryUrlLength = 700;
 const maxSummaryTextLength = 80;
 const maxSummaryIssueCount = 2;
+
+async function writeAssistantChapterReviewToolCall(
+  payload: AssistantToolCallWrite,
+): Promise<void> {
+  const result = await createAssistantToolCall(payload.assistantSessionId, {
+    tool_name: payload.toolName,
+    status: payload.status,
+    input_summary: payload.inputSummary,
+    output_summary: payload.outputSummary ?? {},
+    error_message: payload.errorMessage,
+    related_type: payload.relatedType,
+    related_id: payload.relatedId,
+  });
+  if (result.status === 'error') {
+    throw new Error(result.message);
+  }
+}
+
+async function writeChapterReviewFailureToolCall(
+  deps: AssistantChapterReviewDeps,
+  assistantSessionId: number | undefined,
+  scenePacketId: number | undefined,
+  message: string,
+): Promise<void> {
+  if (!assistantSessionId || !scenePacketId) return;
+  await (deps.writeAssistantToolCall ?? writeAssistantChapterReviewToolCall)({
+    assistantSessionId,
+    toolName: 'chapter.review',
+    status: 'failed',
+    inputSummary: { scene_packet_id: scenePacketId },
+    errorMessage: message,
+    relatedType: 'scene_packet',
+    relatedId: scenePacketId,
+  });
+}
 
 export async function submitAssistantChapterReview(
   formData: FormData,
@@ -150,14 +201,30 @@ export async function submitAssistantChapterReview(
       assistantSessionId,
     });
     redirectAssistantSessionId = writtenAssistantSessionId ?? assistantSessionId;
+    if (redirectAssistantSessionId) {
+      await (deps.writeAssistantToolCall ?? writeAssistantChapterReviewToolCall)({
+        assistantSessionId: redirectAssistantSessionId,
+        toolName: 'chapter.review',
+        status: 'completed',
+        inputSummary: { scene_packet_id: scenePacketId },
+        outputSummary: {
+          summary: formatChapterReviewSessionSummary(chapterReviewSummary),
+          ...(repairPatchId ? { repair_patch_id: repairPatchId } : {}),
+        },
+        relatedType: 'scene_packet',
+        relatedId: scenePacketId,
+      });
+    }
   } catch (error) {
+    const message = error instanceof Error ? error.message : '章节审阅链路返回失败';
+    await writeChapterReviewFailureToolCall(deps, assistantSessionId, scenePacketId, message);
     return redirect(
       buildChapterReviewResultUrl({
         scenePacketId,
         bookId,
         targetChapterOrdinal,
         status: 'failed',
-        error: error instanceof Error ? error.message : '章节审阅链路返回失败',
+        error: message,
         summary: chapterReviewSummary,
         assistantSessionId,
       }),

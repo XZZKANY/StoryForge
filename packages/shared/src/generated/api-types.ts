@@ -216,6 +216,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assistant/sessions/{assistant_session_id}/tool-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 Assistant 会话工具调用事实
+         * @description 按写入顺序读取会话 tool call，供前端工具树优先消费。
+         */
+        get: operations["list_assistant_tool_calls_endpoint_api_assistant_sessions__assistant_session_id__tool_calls_get"];
+        put?: never;
+        /**
+         * 创建 Assistant 工具调用事实
+         * @description 为指定会话追加工具调用事实，用于重放工具树状态。
+         */
+        post: operations["create_assistant_tool_call_endpoint_api_assistant_sessions__assistant_session_id__tool_calls_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/tool-calls/{tool_call_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 更新 Assistant 工具调用事实
+         * @description 更新工具调用状态、摘要和关联对象，不接收敏感凭据。
+         */
+        patch: operations["update_assistant_tool_call_endpoint_api_assistant_tool_calls__tool_call_id__patch"];
+        trace?: never;
+    };
     "/api/batch-refinery/runs": {
         parameters: {
             query?: never;
@@ -2366,6 +2410,93 @@ export interface components {
              */
             updated_at: string;
         };
+        /** AssistantToolCallCreate */
+        AssistantToolCallCreate: {
+            /** Error Message */
+            error_message?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Input Summary */
+            input_summary?: {
+                [key: string]: unknown;
+            };
+            /** Output Summary */
+            output_summary?: {
+                [key: string]: unknown;
+            };
+            /** Related Id */
+            related_id?: number | null;
+            /** Related Type */
+            related_type?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+            /** Tool Name */
+            tool_name: string;
+        };
+        /** AssistantToolCallRead */
+        AssistantToolCallRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Message */
+            error_message: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number;
+            /** Input Summary */
+            input_summary: {
+                [key: string]: unknown;
+            };
+            /** Output Summary */
+            output_summary: {
+                [key: string]: unknown;
+            };
+            /** Related Id */
+            related_id: number | null;
+            /** Related Type */
+            related_type: string | null;
+            /** Session Id */
+            session_id: number;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Tool Name */
+            tool_name: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AssistantToolCallUpdate */
+        AssistantToolCallUpdate: {
+            /** Error Message */
+            error_message?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Input Summary */
+            input_summary?: {
+                [key: string]: unknown;
+            } | null;
+            /** Output Summary */
+            output_summary?: {
+                [key: string]: unknown;
+            } | null;
+            /** Related Id */
+            related_id?: number | null;
+            /** Related Type */
+            related_type?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status?: string | null;
+        };
         /**
          * BatchRefineryItemCreate
          * @description 批量精修中的单个场景输入。
@@ -2621,6 +2752,7 @@ export interface components {
             chapter_id: number;
             /** Chapter Index */
             chapter_index: number;
+            planning_refs?: components["schemas"]["BookRunWorkflowPlanningRefs"] | null;
         };
         /**
          * BookRunWorkflowDispatch
@@ -2655,6 +2787,16 @@ export interface components {
             volume_plan?: components["schemas"]["BookRunVolumePlanItem"][];
         };
         /**
+         * BookRunWorkflowPlanningRefs
+         * @description workflow 只需要轻量规划引用，不接收完整规划对象。
+         */
+        BookRunWorkflowPlanningRefs: {
+            /** Arc Completion Ratio */
+            arc_completion_ratio: number;
+            /** Arc Ids */
+            arc_ids?: string[];
+        };
+        /**
          * BudgetStatistics
          * @description 预算统计说明上下文包是否发生检索片段裁剪。
          */
@@ -2681,6 +2823,8 @@ export interface components {
             character_state_changes?: {
                 [key: string]: unknown;
             };
+            /** Continuity Edges */
+            continuity_edges?: components["schemas"]["ContinuityEdgeInput"][];
             /** Foreshadowing Changes */
             foreshadowing_changes?: {
                 [key: string]: unknown;
@@ -2701,6 +2845,11 @@ export interface components {
             book_id: number;
             /** Chapter Id */
             chapter_id: number;
+            /**
+             * Continuity Edge Count
+             * @default 0
+             */
+            continuity_edge_count: number;
             /** Record Count */
             record_count: number;
             /** Records */
@@ -2842,6 +2991,34 @@ export interface components {
             within_limits: boolean;
             /** Workspace Id */
             workspace_id: number;
+        };
+        /**
+         * ContinuityEdgeInput
+         * @description 批准时随章节显式提交的结构化连续性边（关系/时间线/状态）。
+         */
+        ContinuityEdgeInput: {
+            /**
+             * Edge Kind
+             * @enum {string}
+             */
+            edge_kind: "relationship" | "timeline_order" | "status";
+            /** Object Ref */
+            object_ref: string;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Predicate */
+            predicate: string;
+            /** Subject Ref */
+            subject_ref: string;
+            /**
+             * Valid From Chapter
+             * @default 1
+             */
+            valid_from_chapter: number;
+            /** Valid To Chapter */
+            valid_to_chapter?: number | null;
         };
         /**
          * ContinuityRecordRead
@@ -5666,6 +5843,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantMessageRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_assistant_tool_calls_endpoint_api_assistant_sessions__assistant_session_id__tool_calls_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assistant_session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantToolCallRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_assistant_tool_call_endpoint_api_assistant_sessions__assistant_session_id__tool_calls_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assistant_session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantToolCallCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantToolCallRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_assistant_tool_call_endpoint_api_assistant_tool_calls__tool_call_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_call_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantToolCallUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantToolCallRead"];
                 };
             };
             /** @description Validation Error */

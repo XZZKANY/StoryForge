@@ -4,8 +4,15 @@ import { readBookRun } from '../../app/book-runs/api';
 import { AssistantActionBar } from './AssistantActionBar';
 import { AssistantMessageList } from './AssistantMessageList';
 import { parseAssistantIntent } from './assistant-intent';
-import { readAssistantSession, type AssistantSessionDetail } from './assistant-session-store';
-import { mapBookRunToAssistantToolNodes } from './assistant-tool-node-mapper';
+import {
+  readAssistantSession,
+  readAssistantToolCalls,
+  type AssistantSessionDetail,
+} from './assistant-session-store';
+import {
+  mapAssistantToolCallsToAssistantToolNodes,
+  mapBookRunToAssistantToolNodes,
+} from './assistant-tool-node-mapper';
 import type { AssistantMessage } from './assistant-types';
 import type { HomeSearchParams } from './home-view';
 
@@ -91,6 +98,7 @@ async function buildConversationState(
   const messages: AssistantMessage[] = [];
   let bookRunStatus: string | undefined;
   let targetChapterOrdinal = queryTargetChapterOrdinal;
+  let toolCallNodes: AssistantMessage['toolNodes'] = [];
   if (
     !assistantSessionId &&
     !intentText &&
@@ -114,6 +122,10 @@ async function buildConversationState(
           content: `没有读取到 Assistant 会话 #${assistantSessionId} 的历史消息：${sessionResult.message}`,
           createdAt: 'assistant-session-query',
         });
+      }
+      const toolCallResult = await readAssistantToolCalls(assistantSessionId);
+      if (toolCallResult.status === 'ready' && toolCallResult.data.length > 0) {
+        toolCallNodes = mapAssistantToolCallsToAssistantToolNodes(toolCallResult.data);
       }
     }
     if (intentText) {
@@ -148,7 +160,7 @@ async function buildConversationState(
           content: `BookRun #${bookRun.id} 当前状态：${bookRun.status}。`,
           createdAt: 'book-run-query',
           taskType: 'trial_generation',
-          toolNodes: mapBookRunToAssistantToolNodes(bookRun),
+          toolNodes: toolCallNodes.length > 0 ? toolCallNodes : mapBookRunToAssistantToolNodes(bookRun),
         });
       } else {
         messages.push({
@@ -159,6 +171,15 @@ async function buildConversationState(
           taskType: 'trial_generation',
         });
       }
+    }
+    if (!bookRunId && toolCallNodes.length > 0) {
+      messages.push({
+        id: `assistant-session-${assistantSessionId}-tool-calls`,
+        role: 'assistant',
+        content: '已读取 Assistant 工具调用事实源。工具树优先展示可重放的 tool call 状态。',
+        createdAt: 'assistant-tool-calls-query',
+        toolNodes: toolCallNodes,
+      });
     }
     const chapterReviewMessage = chapterReviewMessageFor(
       chapterReviewStatus,

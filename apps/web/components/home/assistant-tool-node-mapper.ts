@@ -1,4 +1,5 @@
 import type { AssistantToolNode, AssistantToolStatus } from './assistant-types';
+import type { AssistantToolCallRead, AssistantToolCallStatus } from './assistant-session-store';
 
 export type AssistantBookRun = {
   readonly id: number;
@@ -16,6 +17,18 @@ export type AssistantBookRun = {
   readonly estimated_cost: number;
   readonly cost_summary: Record<string, unknown>;
 };
+
+export function mapAssistantToolCallsToAssistantToolNodes(
+  toolCalls: readonly AssistantToolCallRead[],
+): AssistantToolNode[] {
+  return toolCalls.map((toolCall) => ({
+    id: `assistant-tool-call-${toolCall.id}`,
+    label: toolCall.tool_name,
+    tool: toolCall.tool_name,
+    status: mapToolCallStatus(toolCall.status),
+    summary: toolCallSummary(toolCall),
+  }));
+}
 
 export function mapBookRunToAssistantToolNodes(bookRun: AssistantBookRun): AssistantToolNode[] {
   const providerAvailable = isProviderAvailable(bookRun);
@@ -75,6 +88,27 @@ export function mapBookRunToAssistantToolNodes(bookRun: AssistantBookRun): Assis
       summary: exportSummary(bookRun, auditExport),
     },
   ];
+}
+
+function mapToolCallStatus(status: AssistantToolCallStatus): AssistantToolStatus {
+  if (status === 'planned' || status === 'paused') return 'waiting';
+  return status;
+}
+
+function toolCallSummary(toolCall: AssistantToolCallRead): string {
+  return (
+    readString(toolCall.output_summary.summary) ??
+    readString(toolCall.error_message) ??
+    readString(toolCall.input_summary.summary) ??
+    relatedToolCallSummary(toolCall)
+  );
+}
+
+function relatedToolCallSummary(toolCall: AssistantToolCallRead): string {
+  if (toolCall.related_type && toolCall.related_id) {
+    return `${toolCall.tool_name} 关联 ${toolCall.related_type} #${toolCall.related_id}。`;
+  }
+  return `${toolCall.tool_name} 已记录为 ${toolCall.status}。`;
 }
 
 function providerSummary(bookRun: AssistantBookRun): string {

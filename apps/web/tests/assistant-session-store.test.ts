@@ -3,10 +3,13 @@ import { afterEach, test } from 'node:test';
 
 import {
   appendAssistantSessionMessage,
+  createAssistantToolCall,
   createAssistantSession,
   mapAssistantSessionToHomeRecentItem,
   readAssistantSession,
+  readAssistantToolCalls,
   readRecentAssistantSessions,
+  updateAssistantToolCall,
 } from '../components/home/assistant-session-store';
 
 const originalFetch = globalThis.fetch;
@@ -234,4 +237,112 @@ test('createAssistantSession 对异常写入响应返回错误状态', async () 
   if (result.status === 'error') {
     assert.equal(result.message, 'Assistant 会话创建响应格式不正确');
   }
+});
+
+test('readAssistantToolCalls 读取会话工具调用事实源', async () => {
+  const requestedUrls: string[] = [];
+
+  globalThis.fetch = async (input) => {
+    requestedUrls.push(String(input));
+    return new Response(
+      JSON.stringify([
+        {
+          id: 7,
+          session_id: 31,
+          tool_name: 'book_run.pause',
+          status: 'completed',
+          input_summary: { book_run_id: 12 },
+          output_summary: { summary: 'BookRun #12 已暂停。' },
+          error_message: null,
+          related_type: 'book_run',
+          related_id: 12,
+          started_at: null,
+          finished_at: null,
+          created_at: '2026-06-09T21:29:00',
+          updated_at: '2026-06-09T21:30:00',
+        },
+      ]),
+      { status: 200 },
+    );
+  };
+
+  const result = await readAssistantToolCalls(31);
+
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(requestedUrls, [
+    'http://127.0.0.1:8000/api/assistant/sessions/31/tool-calls',
+  ]);
+  if (result.status === 'ready') {
+    assert.equal(result.data[0].tool_name, 'book_run.pause');
+    assert.equal(result.data[0].output_summary.summary, 'BookRun #12 已暂停。');
+  }
+});
+
+test('createAssistantToolCall 和 updateAssistantToolCall 使用统一 API client', async () => {
+  const requests: { url: string; method: string; body: unknown; contentType: string | null }[] = [];
+
+  globalThis.fetch = async (input, init) => {
+    requests.push({
+      url: String(input),
+      method: String(init?.method ?? 'GET'),
+      body: JSON.parse(String(init?.body)),
+      contentType: new Headers(init?.headers).get('content-type'),
+    });
+    return new Response(
+      JSON.stringify({
+        id: requests.length,
+        session_id: 31,
+        tool_name: 'artifact.export',
+        status: requests.length === 1 ? 'running' : 'completed',
+        input_summary: { book_run_id: 12 },
+        output_summary: requests.length === 1 ? {} : { summary: '导出完成。' },
+        error_message: null,
+        related_type: 'book_run',
+        related_id: 12,
+        started_at: null,
+        finished_at: null,
+        created_at: '2026-06-09T21:29:00',
+        updated_at: '2026-06-09T21:30:00',
+      }),
+      { status: requests.length === 1 ? 201 : 200 },
+    );
+  };
+
+  const created = await createAssistantToolCall(31, {
+    tool_name: 'artifact.export',
+    status: 'running',
+    input_summary: { book_run_id: 12 },
+    related_type: 'book_run',
+    related_id: 12,
+  });
+  const updated = await updateAssistantToolCall(1, {
+    status: 'completed',
+    output_summary: { summary: '导出完成。' },
+  });
+
+  assert.equal(created.status, 'ready');
+  assert.equal(updated.status, 'ready');
+  assert.deepEqual(requests, [
+    {
+      url: 'http://127.0.0.1:8000/api/assistant/sessions/31/tool-calls',
+      method: 'POST',
+      contentType: 'application/json',
+      body: {
+        tool_name: 'artifact.export',
+        status: 'running',
+        input_summary: { book_run_id: 12 },
+        related_type: 'book_run',
+        related_id: 12,
+      },
+    },
+    {
+      url: 'http://127.0.0.1:8000/api/assistant/tool-calls/1',
+      method: 'PATCH',
+      contentType: 'application/json',
+      body: {
+        status: 'completed',
+        output_summary: { summary: '导出完成。' },
+      },
+    },
+  ]);
 });

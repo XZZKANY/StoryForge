@@ -10,6 +10,7 @@ test('submitAssistantBookRunCommand 通过统一 API client 提交暂停命令',
   formData.set('book_run_command', 'pause');
   const revalidated: string[] = [];
   const sessionWrites: unknown[] = [];
+  const toolCallWrites: unknown[] = [];
 
   await assert.rejects(
     () =>
@@ -27,6 +28,9 @@ test('submitAssistantBookRunCommand 通过统一 API client 提交暂停命令',
         writeAssistantBookRunSession: async (payload) => {
           sessionWrites.push(payload);
         },
+        writeAssistantToolCall: async (payload) => {
+          toolCallWrites.push(payload);
+        },
         redirect: (url) => {
           throw new Error(url);
         },
@@ -42,6 +46,7 @@ test('submitAssistantBookRunCommand 通过统一 API client 提交暂停命令',
       assistantSessionId: undefined,
     },
   ]);
+  assert.deepEqual(toolCallWrites, []);
   assert.deepEqual(revalidated, ['/']);
 });
 
@@ -67,6 +72,9 @@ test('submitAssistantBookRunCommand 成功后向已有 AssistantSession 追加�
           events.push(`session ${JSON.stringify(payload)}`);
           return payload.assistantSessionId;
         },
+        writeAssistantToolCall: async (payload) => {
+          events.push(`tool ${JSON.stringify(payload)}`);
+        },
         redirect: (url) => {
           events.push(`redirect ${url}`);
           throw new Error(url);
@@ -80,6 +88,7 @@ test('submitAssistantBookRunCommand 成功后向已有 AssistantSession 追加�
   assert.deepEqual(events, [
     'POST /api/book-runs/12/resume',
     'session {"bookRunId":12,"blueprintId":9,"command":"resume","assistantSessionId":31}',
+    'tool {"assistantSessionId":31,"toolName":"book_run.resume","status":"completed","inputSummary":{"book_run_id":12,"command":"resume"},"outputSummary":{"summary":"已恢复 BookRun #12。"},"relatedType":"book_run","relatedId":12}',
     'revalidate /',
     'redirect /?book_run_id=12&book_run_command_status=ok&assistant_session_id=31',
   ]);
@@ -96,6 +105,11 @@ test('submitAssistantBookRunCommand 新建会话后在 redirect 中回传 Assist
         apiFetch: async () => new Response(JSON.stringify({ id: 12 }), { status: 200 }),
         revalidatePath: () => {},
         writeAssistantBookRunSession: async () => 44,
+        writeAssistantToolCall: async (payload) => {
+          assert.equal(payload.assistantSessionId, 44);
+          assert.equal(payload.toolName, 'book_run.retry');
+          assert.equal(payload.status, 'completed');
+        },
         redirect: (url) => {
           throw new Error(url);
         },
@@ -122,6 +136,7 @@ test('submitAssistantBookRunCommand 对无正文命令不发送多余 payload', 
         },
         revalidatePath: () => {},
         writeAssistantBookRunSession: async () => {},
+        writeAssistantToolCall: async () => {},
         redirect: (url) => {
           throw new Error(url);
         },
@@ -142,10 +157,51 @@ test('submitAssistantBookRunCommand 对缺失参数返回 invalid 状态', async
           throw new Error('不应调用 API');
         },
         revalidatePath: () => {},
+        writeAssistantToolCall: async () => {
+          throw new Error('invalid 参数不应写 tool call');
+        },
         redirect: (url) => {
           throw new Error(url);
         },
       }),
     (error) => error instanceof Error && error.message === '/?book_run_command_status=invalid',
   );
+});
+
+test('submitAssistantBookRunCommand 在已有会话下记录失败 tool call', async () => {
+  const formData = new FormData();
+  formData.set('book_run_id', '12');
+  formData.set('assistant_session_id', '31');
+  formData.set('book_run_command', 'pause');
+  const toolCallWrites: unknown[] = [];
+
+  await assert.rejects(
+    () =>
+      submitAssistantBookRunCommand(formData, {
+        apiFetch: async () => new Response('服务异常', { status: 500 }),
+        revalidatePath: () => {},
+        writeAssistantToolCall: async (payload) => {
+          toolCallWrites.push(payload);
+        },
+        redirect: (url) => {
+          throw new Error(url);
+        },
+      }),
+    (error) =>
+      error instanceof Error &&
+      error.message ===
+        '/?book_run_id=12&book_run_command_status=failed&assistant_session_id=31&book_run_command_message=BookRun+API+%E8%BF%94%E5%9B%9E+500',
+  );
+
+  assert.deepEqual(toolCallWrites, [
+    {
+      assistantSessionId: 31,
+      toolName: 'book_run.pause',
+      status: 'failed',
+      inputSummary: { book_run_id: 12, command: 'pause' },
+      errorMessage: 'BookRun API 返回 500',
+      relatedType: 'book_run',
+      relatedId: 12,
+    },
+  ]);
 });

@@ -12,7 +12,11 @@ import {
   type BookRunRead,
 } from '../../app/book-runs/api';
 import { apiFetch } from '../../lib/api-client';
-import { appendAssistantSessionMessage, createAssistantSession } from './assistant-session-store';
+import {
+  appendAssistantSessionMessage,
+  createAssistantSession,
+  createAssistantToolCall,
+} from './assistant-session-store';
 
 type AssistantArtifactExportDeps = {
   readonly readBookRun?: (bookRunId: number) => Promise<BookRunRead | null>;
@@ -22,6 +26,7 @@ type AssistantArtifactExportDeps = {
   readonly writeAssistantArtifactExportSession?: (
     payload: AssistantArtifactExportSessionWrite,
   ) => Promise<number | void>;
+  readonly writeAssistantToolCall?: (payload: AssistantToolCallWrite) => Promise<void>;
 };
 
 type AssistantArtifactExportSessionWrite = {
@@ -30,11 +35,57 @@ type AssistantArtifactExportSessionWrite = {
   readonly artifacts: readonly ExportedArtifactSummary[];
 };
 
+type AssistantToolCallWrite = {
+  readonly assistantSessionId: number;
+  readonly toolName: string;
+  readonly status: 'completed' | 'failed';
+  readonly inputSummary: Record<string, unknown>;
+  readonly outputSummary?: Record<string, unknown>;
+  readonly errorMessage?: string;
+  readonly relatedType?: string;
+  readonly relatedId?: number;
+};
+
 const exportRequests = [
   exportMarkdownRequest,
   exportEpubRequest,
   exportAuditReportRequest,
 ] as const;
+
+async function writeAssistantArtifactExportToolCall(
+  payload: AssistantToolCallWrite,
+): Promise<void> {
+  const result = await createAssistantToolCall(payload.assistantSessionId, {
+    tool_name: payload.toolName,
+    status: payload.status,
+    input_summary: payload.inputSummary,
+    output_summary: payload.outputSummary ?? {},
+    error_message: payload.errorMessage,
+    related_type: payload.relatedType,
+    related_id: payload.relatedId,
+  });
+  if (result.status === 'error') {
+    throw new Error(result.message);
+  }
+}
+
+async function writeArtifactExportFailureToolCall(
+  deps: AssistantArtifactExportDeps,
+  assistantSessionId: number | undefined,
+  bookRunId: number,
+  message: string,
+): Promise<void> {
+  if (!assistantSessionId) return;
+  await (deps.writeAssistantToolCall ?? writeAssistantArtifactExportToolCall)({
+    assistantSessionId,
+    toolName: 'artifact.export',
+    status: 'failed',
+    inputSummary: { book_run_id: bookRunId },
+    errorMessage: message,
+    relatedType: 'book_run',
+    relatedId: bookRunId,
+  });
+}
 
 export async function submitAssistantArtifactExport(
   formData: FormData,
@@ -73,8 +124,25 @@ export async function submitAssistantArtifactExport(
       artifacts: exportedArtifacts,
     });
     redirectAssistantSessionId = writtenAssistantSessionId ?? assistantSessionId;
+    if (redirectAssistantSessionId) {
+      await (deps.writeAssistantToolCall ?? writeAssistantArtifactExportToolCall)({
+        assistantSessionId: redirectAssistantSessionId,
+        toolName: 'artifact.export',
+        status: 'completed',
+        inputSummary: { book_run_id: bookRunId },
+        outputSummary: {
+          summary: formatArtifactExportSummary(exportedArtifacts),
+          artifact_ids: exportedArtifacts
+            .map((artifact) => artifact.id)
+            .filter((id): id is number => typeof id === 'number'),
+        },
+        relatedType: 'book_run',
+        relatedId: bookRunId,
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : '导出链路返回失败。';
+    await writeArtifactExportFailureToolCall(deps, assistantSessionId, bookRunId, message);
     return redirect(
       buildArtifactExportResultUrl(
         bookRunId,

@@ -965,6 +965,315 @@
         "title": "AssistantSessionRead",
         "type": "object"
       },
+      "AssistantToolCallCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "error_message": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "input_summary": {
+            "additionalProperties": true,
+            "title": "Input Summary",
+            "type": "object"
+          },
+          "output_summary": {
+            "additionalProperties": true,
+            "title": "Output Summary",
+            "type": "object"
+          },
+          "related_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Id"
+          },
+          "related_type": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Type"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "pattern": "^(planned|running|completed|failed|needs_approval|paused)$",
+            "title": "Status",
+            "type": "string"
+          },
+          "tool_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_name",
+          "status"
+        ],
+        "title": "AssistantToolCallCreate",
+        "type": "object"
+      },
+      "AssistantToolCallRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "input_summary": {
+            "additionalProperties": true,
+            "title": "Input Summary",
+            "type": "object"
+          },
+          "output_summary": {
+            "additionalProperties": true,
+            "title": "Output Summary",
+            "type": "object"
+          },
+          "related_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Id"
+          },
+          "related_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Type"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "tool_name",
+          "status",
+          "input_summary",
+          "output_summary",
+          "error_message",
+          "related_type",
+          "related_id",
+          "started_at",
+          "finished_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AssistantToolCallRead",
+        "type": "object"
+      },
+      "AssistantToolCallUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "error_message": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "input_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Summary"
+          },
+          "output_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Summary"
+          },
+          "related_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Id"
+          },
+          "related_type": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Type"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "pattern": "^(planned|running|completed|failed|needs_approval|paused)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "AssistantToolCallUpdate",
+        "type": "object"
+      },
       "BatchRefineryItemCreate": {
         "description": "批量精修中的单个场景输入。",
         "properties": {
@@ -9117,6 +9426,157 @@
           }
         },
         "summary": "追加 Assistant 消息",
+        "tags": [
+          "Assistant 会话"
+        ]
+      }
+    },
+    "/api/assistant/sessions/{assistant_session_id}/tool-calls": {
+      "get": {
+        "description": "按写入顺序读取会话 tool call，供前端工具树优先消费。",
+        "operationId": "list_assistant_tool_calls_endpoint_api_assistant_sessions__assistant_session_id__tool_calls_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assistant_session_id",
+            "required": true,
+            "schema": {
+              "title": "Assistant Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssistantToolCallRead"
+                  },
+                  "title": "Response List Assistant Tool Calls Endpoint Api Assistant Sessions  Assistant Session Id  Tool Calls Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 Assistant 会话工具调用事实",
+        "tags": [
+          "Assistant 会话"
+        ]
+      },
+      "post": {
+        "description": "为指定会话追加工具调用事实，用于重放工具树状态。",
+        "operationId": "create_assistant_tool_call_endpoint_api_assistant_sessions__assistant_session_id__tool_calls_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assistant_session_id",
+            "required": true,
+            "schema": {
+              "title": "Assistant Session Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantToolCallCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantToolCallRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "创建 Assistant 工具调用事实",
+        "tags": [
+          "Assistant 会话"
+        ]
+      }
+    },
+    "/api/assistant/tool-calls/{tool_call_id}": {
+      "patch": {
+        "description": "更新工具调用状态、摘要和关联对象，不接收敏感凭据。",
+        "operationId": "update_assistant_tool_call_endpoint_api_assistant_tool_calls__tool_call_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tool_call_id",
+            "required": true,
+            "schema": {
+              "title": "Tool Call Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantToolCallUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantToolCallRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "更新 Assistant 工具调用事实",
         "tags": [
           "Assistant 会话"
         ]

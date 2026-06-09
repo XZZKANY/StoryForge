@@ -25,6 +25,30 @@ type AssistantMessageRead = AssistantMessageCreate & {
   readonly updated_at?: string;
 };
 
+export type AssistantToolCallStatus =
+  | 'planned'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'needs_approval'
+  | 'paused';
+
+export type AssistantToolCallRead = {
+  readonly id: number;
+  readonly session_id: number;
+  readonly tool_name: string;
+  readonly status: AssistantToolCallStatus;
+  readonly input_summary: Record<string, unknown>;
+  readonly output_summary: Record<string, unknown>;
+  readonly error_message: string | null;
+  readonly related_type: string | null;
+  readonly related_id: number | null;
+  readonly started_at: string | null;
+  readonly finished_at: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+};
+
 export type AssistantSessionDetail = Omit<AssistantSessionRead, 'messages'> & {
   readonly messages: readonly AssistantMessageRead[];
 };
@@ -37,6 +61,20 @@ export type AssistantSessionCreate = {
   readonly artifact_id?: number | null;
   readonly messages?: readonly AssistantMessageCreate[];
 };
+
+export type AssistantToolCallCreate = {
+  readonly tool_name: string;
+  readonly status: AssistantToolCallStatus;
+  readonly input_summary?: Record<string, unknown>;
+  readonly output_summary?: Record<string, unknown>;
+  readonly error_message?: string | null;
+  readonly related_type?: string | null;
+  readonly related_id?: number | null;
+  readonly started_at?: string | null;
+  readonly finished_at?: string | null;
+};
+
+export type AssistantToolCallUpdate = Partial<AssistantToolCallCreate>;
 
 function formatAssistantTaskType(taskType: string): string {
   const labels: Record<string, string> = {
@@ -117,14 +155,63 @@ function isAssistantMessageRead(value: unknown): value is AssistantMessageRead {
   );
 }
 
+function isAssistantToolCallStatus(value: unknown): value is AssistantToolCallStatus {
+  return (
+    value === 'planned' ||
+    value === 'running' ||
+    value === 'completed' ||
+    value === 'failed' ||
+    value === 'needs_approval' ||
+    value === 'paused'
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || typeof value === 'number';
+}
+
+function isAssistantToolCallRead(value: unknown): value is AssistantToolCallRead {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'number' &&
+    typeof value.session_id === 'number' &&
+    typeof value.tool_name === 'string' &&
+    isAssistantToolCallStatus(value.status) &&
+    isRecord(value.input_summary) &&
+    isRecord(value.output_summary) &&
+    isNullableString(value.error_message) &&
+    isNullableString(value.related_type) &&
+    isNullableNumber(value.related_id) &&
+    isNullableString(value.started_at) &&
+    isNullableString(value.finished_at) &&
+    typeof value.created_at === 'string' &&
+    typeof value.updated_at === 'string'
+  );
+}
+
+function isAssistantToolCallList(value: unknown): value is readonly AssistantToolCallRead[] {
+  return Array.isArray(value) && value.every(isAssistantToolCallRead);
+}
+
 async function postAssistantJson<T>(
   path: string,
   body: unknown,
   validate: (value: unknown) => value is T,
   invalidMessage: string,
+  method: 'POST' | 'PATCH' = 'POST',
 ): Promise<ApiResult<T>> {
   const init: ApiFetchInit = {
-    method: 'POST',
+    method,
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   };
@@ -192,4 +279,41 @@ export async function readAssistantSession(
     validate: isAssistantSessionDetail,
     invalidMessage: 'Assistant 会话详情响应格式不正确',
   });
+}
+
+export async function readAssistantToolCalls(
+  assistantSessionId: number,
+): Promise<ApiResult<readonly AssistantToolCallRead[]>> {
+  return readJson<readonly AssistantToolCallRead[]>(
+    `/api/assistant/sessions/${assistantSessionId}/tool-calls`,
+    {
+      validate: isAssistantToolCallList,
+      invalidMessage: 'Assistant 工具调用响应格式不正确',
+    },
+  );
+}
+
+export async function createAssistantToolCall(
+  assistantSessionId: number,
+  payload: AssistantToolCallCreate,
+): Promise<ApiResult<AssistantToolCallRead>> {
+  return postAssistantJson(
+    `/api/assistant/sessions/${assistantSessionId}/tool-calls`,
+    payload,
+    isAssistantToolCallRead,
+    'Assistant 工具调用创建响应格式不正确',
+  );
+}
+
+export async function updateAssistantToolCall(
+  toolCallId: number,
+  payload: AssistantToolCallUpdate,
+): Promise<ApiResult<AssistantToolCallRead>> {
+  return postAssistantJson(
+    `/api/assistant/tool-calls/${toolCallId}`,
+    payload,
+    isAssistantToolCallRead,
+    'Assistant 工具调用更新响应格式不正确',
+    'PATCH',
+  );
 }

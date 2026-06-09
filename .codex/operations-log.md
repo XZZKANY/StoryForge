@@ -1,5 +1,148 @@
 # ??????????????
 
+## 根因修复 - 首页与导航回归
+
+时间：2026-06-09 16:58:24 +08:00
+
+### 问题复现
+
+- 用户反馈：`assistant好像没有做好`。
+- 本地复现命令：`pnpm.cmd --filter @storyforge/web test`。
+- 红灯结果：217 个契约测试中 6 项失败。
+- 失败集中点：
+  - 首页入口没有导入 `HomeShell`。
+  - `HomeShell` 丢失 `!w-full`、`!m-0`、`!p-0` 和首页 grid 壳。
+  - 首页没有读取真实 `readRecentAssistantSessions`，而是绕过最近记录。
+  - `Chrome` 丢失 `usePathname` 与 `pathname === '/'` 首页分流契约。
+  - 新增 `app/runs/page.tsx` 与 `next.config.ts` 既有 `/runs` 308 重定向冲突。
+
+### 编码前检查 - 首页与导航回归
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-fix-home-regression.md`
+
+□ 将使用以下可复用组件：
+
+- `HomeShell`: 恢复首页唯一布局壳。
+- `readRecentAssistantSessions`: 恢复真实最近会话读取。
+- `parseHomeView`: 保持首页 query 到子页的统一解析。
+- `UnifiedSidebar`: 继续作为非首页全局侧栏。
+- `storyforgeLegacyRedirects`: 保持 `/runs` 由 IDE runs 面板承接。
+
+□ 将遵循命名约定：React 组件 PascalCase，helper camelCase，测试与记录使用简体中文。
+
+□ 将遵循代码风格：Next App Router 服务端组件直接读取数据，客户端 Chrome 使用 `usePathname`，不新增自研路由壳。
+
+□ 确认不重复造轮子，证明：已对照 `HEAD` 中 `app/page.tsx`、`HomeShell.tsx`、`Chrome.tsx` 和现有 `next.config.ts` 重定向，失败源是绕过既有组件和新增冲突页面。
+
+### 根因与修复
+
+- 根因1：首页入口从 `HomeShell` 被简化为 `AssistantConversation`，导致首页侧栏、最近记录和子页承载契约丢失。
+- 修复1：`apps/web/app/page.tsx` 恢复 `HomeShell`、`parseHomeView` 和 `readRecentAssistantSessions`。
+- 根因2：`HomeShell` 保留 Projects 真实 API 读取时丢失外层首页壳。
+- 修复2：`apps/web/components/home/HomeShell.tsx` 恢复 `HomeSidebar`、首页 grid、移动端导航和 main 覆盖 class，同时保留 `readHomeProjects` 与 `projectListState`。
+- 根因3：`Chrome` 丢失首页路径分流。
+- 修复3：`apps/web/components/site-nav/Chrome.tsx` 恢复 `usePathname` 与 `pathname === '/'`，非首页仍使用 `UnifiedSidebar`。
+- 根因4：新增 `/runs` 页面壳与既有重定向冲突。
+- 修复4：删除未跟踪新增的 `apps/web/app/runs/page.tsx` 与 `apps/web/app/runs/RunsClient.tsx`。
+
+### 绿灯验证
+
+- `pnpm.cmd --filter @storyforge/web test`：217/217 passed，退出码 0。
+- `pnpm.cmd --filter @storyforge/web lint`：`tsc --noEmit` 退出码 0。
+- in-app Browser 不可用，返回 `Browser is not available: iab`；已按插件技能降级为 Playwright。
+- `pnpm.cmd exec next dev -p 3002` 启动干净本地服务后，Playwright 验证首页、设置页和 `/runs` 重定向，控制台错误 0 条。
+
+### 编码后声明 - 首页与导航回归
+
+#### 1. 复用了以下既有组件
+
+- `HomeShell`: 首页布局与子页承载。
+- `HomeSidebar`: 首页最近记录和账号菜单。
+- `readRecentAssistantSessions`: Assistant 最近会话真实读取。
+- `readHomeProjects`: Projects 子页真实 Workspace 列表读取。
+- `UnifiedSidebar`: 非首页全局导航。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：组件与 helper 命名沿用既有文件。
+- 代码风格：只恢复入口和壳层契约，不扩展无关 UI。
+- 文件组织：删除被 `/runs` 重定向遮蔽的新增页面壳，保留真实 Projects API 相关组件。
+
+#### 3. 对比了以下相似实现
+
+- `HEAD:apps/web/app/page.tsx`: 恢复真实最近会话读取和 `HomeShell` 入口。
+- `HEAD:apps/web/components/home/HomeShell.tsx`: 恢复首页 grid 壳，同时合并新的 `readHomeProjects` 数据路径。
+- `HEAD:apps/web/components/site-nav/Chrome.tsx`: 恢复路径判断，但保留新的 `UnifiedSidebar` 非首页导航。
+
+#### 4. 未重复造轮子的证明
+
+- 已检查 `HomeShell`、`HomeSidebar`、`Chrome`、`next.config.ts`、`home-projects-api.ts`，确认已有组件能满足需求。
+- 没有新增路由框架、导航抽象或 API client。
+
+## 编码前检查 - 修复侧栏按钮嵌套
+
+时间：2026-06-09 16:41:58 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-fix-sidebar-button-nesting.md`
+
+□ 将使用以下可复用组件：
+
+- `apps/web/components/site-nav/ThemeToggle.tsx`: 继续作为独立主题切换按钮。
+- `apps/web/components/site-nav/UnifiedSidebar.tsx`: 调整账号菜单底部布局。
+- `apps/web/components/home/HomeSidebar.tsx`: 参考同类账号菜单触发器不嵌套其他按钮的结构。
+
+□ 将遵循命名约定：React 组件 PascalCase，状态变量 camelCase，测试描述使用简体中文。
+
+□ 将遵循代码风格：TypeScript + JSX，Tailwind class 沿用现有色值和布局密度，测试继续使用 `node:test` 与 `assert`。
+
+□ 确认不重复造轮子，证明：已搜索 `ThemeToggle`、`account-menu`、`aria-controls` 与按钮结构；问题仅来自 `UnifiedSidebar` 将独立 `ThemeToggle` 放进账号触发 `button` 内。
+
+### 工具链记录
+
+- 已按要求调用 `sequential-thinking` 梳理问题与风险。
+- 已调用 `shrimp-task-manager.process_thought` 建立任务目标、验收标准与充分性检查；当前工具集没有创建新任务接口，本轮以本地 `.codex` 记录补足任务留痕。
+- 已使用 `desktop-commander` 执行文件检索、读取与本地命令准备。
+- 已使用 Context7 查询 Next.js hydration error 官方说明，确认 `button` 嵌套 `button` 属于错误原因。
+- 已使用 `github.search_code` 搜索主题切换按钮开源示例，确认主题切换通常作为独立按钮存在。
+
+### TDD 与实现记录
+
+时间：2026-06-09 16:48:12 +08:00
+
+- 红灯：新增 `UnifiedSidebar 账号菜单触发按钮不嵌套主题切换按钮` 测试后运行 `pnpm.cmd --filter @storyforge/web test phase8-stage4`，失败原因为 `ThemeToggle` 仍在账号触发按钮片段内，符合预期。
+- 实现：调整 `apps/web/components/site-nav/UnifiedSidebar.tsx` 底部账号区域，将账号菜单触发 `button` 与 `ThemeToggle` 改为同一外层 flex 容器下的兄弟控件。
+- 测试维护：将 `phase8-stage4` 中陈旧的 `Chrome` 导航契约从 `SiteNav` 更新为当前 `UnifiedSidebar`，并继续断言 `UnifiedSidebar` 装配 `ThemeToggle`。
+- 绿灯：再次运行 `pnpm.cmd --filter @storyforge/web test phase8-stage4`，13/13 个子测试通过。
+- 类型检查：运行 `pnpm.cmd --filter @storyforge/web lint`，`tsc --noEmit` 退出码 0。
+- 页面验证：in-app Browser 返回 `Browser is not available: iab`；改用 Playwright 打开 `http://localhost:3001/settings`，控制台未出现按钮嵌套或 hydration 相关错误。
+
+### 编码后声明 - 修复侧栏按钮嵌套
+
+时间：2026-06-09 16:48:12 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `ThemeToggle`: 保持独立主题切换按钮职责，不修改其 API。
+- `UnifiedSidebar`: 保留账号菜单状态、`aria-controls`、`aria-expanded` 与菜单面板结构。
+- `HomeSidebar`: 参考同类账号触发器不嵌套其他交互控件的结构。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：React 组件使用 PascalCase，状态变量继续使用 camelCase。
+- 代码风格：沿用现有 Tailwind class、中文测试描述、`node:test` + `assert` 测试方式。
+- 文件组织：修复限定在站点导航组件和既有导航契约测试内。
+
+#### 3. 对比了以下相似实现
+
+- `ThemeToggle`: 本轮不改变组件内部按钮，只改变父级布局，保持按钮语义清晰。
+- `HomeSidebar`: 同类账号菜单触发按钮内部只放非交互内容；本轮让主题按钮成为兄弟控件。
+- `SiteNav`: 移动端打开按钮和遮罩关闭按钮互为独立控件，未发生按钮嵌套。
+
+#### 4. 未重复造轮子的证明
+
+- 已检查 `ThemeToggle`、`UnifiedSidebar`、`HomeSidebar`、`SiteNav` 和 `aria-controls` 使用点，确认现有组件足够支撑修复。
+- 未新增依赖、未新增通用抽象、未创建替代主题切换实现。
+
 ## BookRun 分卷章节范围契约 - TDD 与验证记录
 
 时间：2026-06-02 18:45:18 +08:00
@@ -14783,3 +14926,271 @@ un-metadata.json: present
 
 - 本轮没有删除、重命名或重建 Docker 容器。
 - 现有同名容器来自另一个 compose 项目，后续若需要当前仓库完全接管 Docker 生命周期，应单独规划容器命名或清理策略。
+
+## 编码前检查 - apps/web 真实 API 项目列表
+
+时间：2026-06-09 14:22:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-apps-web-real-api.md`
+□ 将使用以下可复用组件：
+- `apps/web/lib/api-client.ts`: 统一 API 请求、认证头和错误读取。
+- `packages/shared/src/generated/api-types.ts`: 复用 `WorkspaceRead` OpenAPI 类型。
+- `apps/web/app/artifacts/api.ts`: 参考真实 API 列表读取状态转换模式。
+- `apps/web/app/studio/api.ts`: 参考页面 API helper 和 idle/error 状态模式。
+□ 将遵循命名约定：`readHomeProjects`、`createHomeProjectAction`、`HomeProjectItem`。
+□ 将遵循代码风格：TypeScript readonly 类型、中文界面文案、`node:test` 契约测试。
+□ 确认不重复造轮子：已检查 `lib/api-client.ts`、`artifacts/api.ts`、`studio/api.ts`、`workspaces/router.py`。
+
+工具记录：`desktop-commander.list_directory` 仅返回目录自身，已改用 `desktop-commander.start_process` 执行结构化 PowerShell 查询；`shrimp-task-manager` 当前未暴露 create task 工具，已使用 `process_thought` 和本日志补偿任务规划记录。
+
+## 编码中监控 - Projects 真实 API 接线
+
+时间：2026-06-09 14:28:00
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：`home-projects-api.ts` 复用 `readJson` 和 `ApiResponseSchema<'WorkspaceRead'>`；`home-project-actions.ts` 复用 `apiFetch`。
+
+□ 命名是否符合项目约定？
+✅ 是：新增 `readHomeProjects`、`mapWorkspaceToHomeProject`、`createHomeProjectAction`，与既有 `readStudioBooks`、`submitAssistantBookRunCommand` 命名模式一致。
+
+□ 代码风格是否一致？
+✅ 是：保持 readonly 类型、Server Action 文件顶部 `'use server'`、客户端组件顶部 `'use client'`。
+
+决策记录：后端当前有 `/api/workspaces` 列表和创建接口，没有 `/api/projects` 或 `/api/books` 列表接口；本次将首页 Projects 映射到真实工作区列表，避免继续使用 localStorage 伪项目。
+
+## 编码后声明 - apps/web 真实 API 项目列表
+
+时间：2026-06-09 14:59:00
+
+### 1. 复用了以下既有组件
+
+- `apps/web/lib/api-client.ts`: 用于真实读取 `/api/workspaces` 和创建工作区，保留 API Key 注入与 no-store 请求。
+- `packages/shared/src/generated/api-types.ts`: 用于 `WorkspaceRead` 响应类型。
+- `apps/web/app/artifacts/api.ts`、`apps/web/app/studio/api.ts`: 作为页面 API helper 和错误状态转换模式参考。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `readHomeProjects`、`mapWorkspaceToHomeProject`、`createHomeProjectAction`。
+- 代码风格：保留 readonly 类型、中文错误文案、Server Action 独立文件和客户端组件交互。
+- 文件组织：API helper 与 action 放在 `components/home`，与首页 Projects 所属模块一致。
+
+### 3. 对比了以下相似实现
+
+- `artifacts/api.ts`: 同样使用 `readJson` 和响应校验；本次增加 Workspace 到首页项目项的映射。
+- `studio/api.ts`: 同样将 API 状态转换为页面 state；本次保持失败时展示错误，不回退假数据。
+- `assistant-book-run-actions.ts`: 同样使用 Server Action 调后端并重定向回首页。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `api-client.ts`、`artifacts/api.ts`、`studio/api.ts`、`workspaces/router.py`，确认可复用统一 HTTP 层和后端 workspaces 契约。
+- 已删除 Projects localStorage 读写路径，没有新增自研持久化方案。
+
+## 旧首页界面回归修复 - 统一侧栏
+
+时间：2026-06-09 17:35:00 +08:00
+
+### 根因调查
+
+- 用户反馈首页又出现旧界面后，复核发现上一轮为了让旧契约测试变绿，恢复了首页专属 `HomeShell/HomeSidebar` 旧壳。
+- `Chrome.tsx` 曾对 `/` 做特殊放行，首页绕过新的 `UnifiedSidebar`，而 `/settings` 使用新侧栏，导致首页和设置页界面分裂。
+- 旧契约测试仍把 `HomeSidebar`、首页自建双栏壳和 `readRecentAssistantSessions` 传入当成正确答案，是旧界面被重新拉回的直接原因。
+- 新增红灯：把 `Chrome 不应再依赖路径为首页分叉布局` 写入 `home-page` 契约后，测试按预期失败，定位到 `usePathname` 残留。
+### 执行
+
+- 删除 `apps/web/components/home/HomeSidebar.tsx`，移除旧首页专属侧栏组件。
+- 修改 `apps/web/components/site-nav/Chrome.tsx`：全站始终渲染 `UnifiedSidebar` 和右侧 `main`，删除 `usePathname`、`pathname === '/'` 与 `return <>{children}</>` 残留。
+- 修改 `apps/web/components/home/HomeShell.tsx`：只负责首页右侧内容，不再自建旧双栏壳，不再导入 `HomeSidebar`。
+- 修改 `apps/web/app/page.tsx`：首页入口只解析 `HomeView` 并渲染 `HomeShell`，不再读取旧首页最近会话并传给旧侧栏。
+- 更新 `home-page`、`phase1-navigation`、`phase8-stage4`、`settings-page` 测试，禁止旧首页侧栏和首页绕过统一 `Chrome`。
+- 还原 `.codex/ide-performance-baseline.json` 的全量测试副作用，避免时间戳和耗时噪声进入本次 diff。
+### 验证
+
+- `pnpm.cmd --filter @storyforge/web test home-page`：通过，13/13 passed。
+- `pnpm.cmd --filter @storyforge/web test phase8-stage4`：通过，13/13 passed。
+- `pnpm.cmd --filter @storyforge/web test settings-page`：通过，6/6 passed。
+- `pnpm.cmd --filter @storyforge/web test phase1-navigation`：通过，18/18 passed。
+- `pnpm.cmd --filter @storyforge/web test`：通过，217/217 passed。
+- `pnpm.cmd --filter @storyforge/web lint`：通过，`tsc --noEmit` 退出码 0。
+- in-app Browser 不可用，返回 `Browser is not available: iab`；已降级使用本地 Playwright。
+- Playwright 验证 `http://localhost:3000/` 与 `/settings`：两页截图均显示同一套 `StoryForge / 助手对话 / 我的项目 / 创作工作台 / ... / 运行与设置 / 最近记录` 左侧统一导航，无旧 `P / A` 简化导航。
+
+### 风险与边界
+
+- `UnifiedSidebar` 仍使用 `usePathname` 标记当前导航，这是合理的 active 状态逻辑，不是首页布局分叉。
+- `settings` 页面正文仍包含 `Customize 创作偏好`，这是设置页内容，不是首页旧一级导航回归。
+- 当前工作区还有大量既有未提交变更，本轮没有回滚或清理无关文件。
+
+## Projects chunk 与侧栏项目列表 404 修复
+
+时间：2026-06-09 18:08:00 +08:00
+
+### 根因调查
+
+- `/projects` 运行时报 `ChunkLoadError: Loading chunk app/projects/page failed`，原因是侧栏“我的项目”跳到了新增的独立 `/projects` 页面，浏览器尝试加载 `/_next/static/chunks/app/projects/page.js`，但当前开发服务没有稳定提供该 chunk。
+- 侧栏“创作工作台”展开后显示 `加载失败：HTTP 404`，原因是 `StudioProjectsList` 在浏览器端直接请求 `/api/workspaces`，但 Web 应用原本没有对应同源 route handler。
+- 后续复验中发现后端不可达时同源代理会返回 504，浏览器控制台仍出现红色资源错误，因此进一步改为静默空数组降级。
+
+### 执行
+
+- `UnifiedSidebar` 的“我的项目”入口改为 `/?view=projects`，复用首页 Projects 子视图。
+- `next.config.ts` 新增 `/projects -> /?view=projects` 308 重定向，旧链接不再触发独立 page chunk。
+- 删除独立 `apps/web/app/projects/page.tsx`，避免继续生成或请求 `app/projects/page.js`。
+- 新增 `apps/web/app/api/workspaces/route.ts`，在服务端通过 `apiFetch` 代理真实后端并注入 API Key。
+- `StudioProjectsList` 去掉浏览器端硬编码 API Key；请求失败时显示静默空状态，不暴露 HTTP 细节。
+- `UnifiedSidebar` 增加 `useSearchParams`，让 `/?view=projects` 高亮“我的项目”，普通 `/` 高亮“助手对话”。
+### 验证
+
+- 红灯：`pnpm.cmd --filter @storyforge/web test phase8-stage4` 初次失败，提示缺少 `app/api/workspaces/route.ts`。
+- 红灯：新增“侧栏不应暴露 HTTP 细节”断言后，`phase8-stage4` 按预期失败。
+- 绿灯：`pnpm.cmd --filter @storyforge/web test phase8-stage4` 通过，13/13 passed。
+- 绿灯：`pnpm.cmd --filter @storyforge/web test phase1-navigation` 通过，18/18 passed。
+- 绿灯：`pnpm.cmd --filter @storyforge/web test home-page` 通过，13/13 passed。
+- 全量：`pnpm.cmd --filter @storyforge/web test` 通过，217/217 passed。
+- 类型检查：`pnpm.cmd --filter @storyforge/web lint` 通过，`tsc --noEmit` 退出码 0。
+- HTTP 验证：`http://localhost:3000/projects` 返回后落到 `http://localhost:3000/?view=projects`，且未请求 `/_next/static/chunks/app/projects/page.js`。
+- HTTP 验证：`http://localhost:3000/api/workspaces` 返回 `200 []`，不再向主导航暴露 404/504。
+- 浏览器验证：展开“创作工作台”后侧栏显示 `暂无项目`，未出现 `HTTP 404` 或 `HTTP 504`。
+
+### 边界
+
+- 当后端未启动或不可达时，侧栏项目列表静默降级为空；首页 Projects 主面板仍会展示更完整的 Projects API 错误状态。
+- `.codex/ide-performance-baseline.json` 被全量测试刷新后已恢复，避免无关性能时间戳进入本次 diff。
+
+## 编码前检查 - StoryForge Assistant Phase 0
+
+时间：2026-06-09 00:00:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-storyforge-assistant-phase0.md`
+□ 将使用以下可复用组件：
+
+- `readRecentAssistantSessions`: `apps/web/components/home/assistant-session-store.ts` - 读取真实 Assistant 最近会话
+- `RecentItemsList`: `apps/web/components/site-nav/RecentItemsList.tsx` - 渲染最近记录
+- `recent-items-store`: `apps/web/components/site-nav/recent-items-store.ts` - 保留 localStorage 补充记录
+
+□ 将遵循命名约定：组件 PascalCase，函数 camelCase，props 使用 readonly 类型。
+□ 将遵循代码风格：Next.js App Router server/client component 边界，可序列化 props。
+□ 确认不重复造轮子：已检查 Assistant session helper、RecentItemsList、UnifiedSidebar、Chrome、HomeShell。
+
+工具偏差记录：已调用 sequential-thinking 和 shrimp。shrimp 当前任务列表存在历史任务，但未暴露创建新任务接口；本任务使用 `.codex/context-summary-storyforge-assistant-phase0.md`、本日志和后续验证报告补偿留痕。Context7 已查询 Next.js Server Component 向 Client Component 传 props 的官方模式。GitHub 已搜索 Next.js 官方仓库示例。
+
+## 编码前检查 - Phase 1 AssistantToolCall 事实源
+
+时间：2026-06-09 21:24:48 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-phase1-assistant-tool-call.md`
+
+□ 将使用以下可复用组件：
+
+- `AssistantSession`: 作为 tool call 父会话，位于 `apps/api/app/domains/assistant/models.py`。
+- `get_assistant_session`: 创建和列表读取前校验会话存在，位于 `apps/api/app/domains/assistant/service.py`。
+- `EventLog.payload`: JSON 摘要字段参考，位于 `apps/api/app/domains/events/models.py`。
+- `assistant-session-store.ts`: 前端 API helper 与 type guard 模式。
+- `assistant-tool-node-mapper.ts`: 工具事实到 UI 节点的映射边界。
+
+□ 将遵循命名约定：Python 使用 snake_case 与 PascalCase ORM 类；TypeScript 使用 camelCase helper 和 readonly 类型；测试描述使用简体中文。
+
+□ 将遵循代码风格：Pydantic v2 `ConfigDict`、SQLAlchemy 2.0 `Mapped/mapped_column`、FastAPI router/service 分层、前端 `node:test` 依赖注入测试。
+
+□ 确认不重复造轮子，证明：已检查 AssistantMessage、EventLog、BookRun 推导工具树和三个 action 写会话路径；现有功能不能提供 session 内可重放 tool call 事实源。
+
+### TDD 记录 - 后端 AssistantToolCall 事实源
+
+时间：2026-06-09 21:36:30 +08:00
+
+- 红灯：新增 `apps/api/tests/test_assistant_tool_calls.py` 与迁移静态断言后运行 `cd apps/api && uv run pytest tests/test_assistant_tool_calls.py tests/test_assistant_sessions_migration.py`，5 项失败，失败原因为新 API 路由返回 `Not Found`、迁移文件不存在，符合预期。
+- 实现：扩展 `AssistantToolCall` ORM、Pydantic schema、service、router、`app/models.py` metadata 导入，并新增 `20260609_0002_add_assistant_tool_calls.py` Alembic 迁移。
+- 调试：首次绿灯前剩余 1 项失败，根因为 SQLite 测试库不会保留 `DateTime(timezone=True)` 的原始 `+08:00` 偏移；将断言收窄为验证时间被保存并返回。
+- 绿灯：再次运行 `cd apps/api && uv run pytest tests/test_assistant_tool_calls.py tests/test_assistant_sessions_migration.py`，6/6 passed，退出码 0。
+
+### 编码中监控 - 后端 AssistantToolCall 事实源
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用了 `AssistantSession`、`get_assistant_session`、`AssistantSessionNotFoundError`、JSON 摘要字段模式。
+
+□ 命名是否符合项目约定？
+✅ 是：Python ORM 类使用 PascalCase，字段与 API JSON 使用 snake_case。
+
+□ 代码风格是否一致？
+✅ 是：沿用 assistant 域 router/service/schema 分层，测试使用 pytest + TestClient。
+
+### TDD 记录 - 前端 ToolCall 读取与工具树优先映射
+
+时间：2026-06-09 21:42:10 +08:00
+
+- 红灯：扩展 `apps/web/tests/assistant-session-store.test.ts` 与 `apps/web/tests/assistant-tool-node-mapper.test.ts` 后运行 `pnpm --filter @storyforge/web test -- assistant-tool-node-mapper.test.ts assistant-session-store.test.ts`，失败原因为缺少 `createAssistantToolCall`、`updateAssistantToolCall`、`readAssistantToolCalls` 和 `mapAssistantToolCallsToAssistantToolNodes` 导出，符合预期。
+- 实现：在 `assistant-session-store.ts` 新增 AssistantToolCall 类型、type guard、读取/创建/更新 helper；在 `assistant-tool-node-mapper.ts` 新增 tool call 到工具节点的映射；在 `AssistantConversation.tsx` 增加 tool calls 优先、BookRun 推导兜底的数据源选择。
+- 绿灯：再次运行 `pnpm --filter @storyforge/web test -- assistant-tool-node-mapper.test.ts assistant-session-store.test.ts`，21/21 passed，退出码 0。
+
+### 编码中监控 - 前端 ToolCall 读取与工具树优先映射
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用了 `readJson`、`postAssistantJson` 风格、现有 `AssistantToolNode` 映射边界和 BookRun 兜底路径。
+
+□ 命名是否符合项目约定？
+✅ 是：前端类型和 helper 使用现有命名风格，API 字段保持 snake_case 以匹配后端契约。
+
+□ 代码风格是否一致？
+✅ 是：未改动 `AssistantToolTree` UI，只调整数据来源和映射 helper。
+
+### TDD 记录 - 三个 Assistant action 写入 tool call
+
+时间：2026-06-09 21:48:20 +08:00
+
+- 红灯：扩展 `assistant-book-run-actions.test.ts`、`assistant-chapter-review-actions.test.ts`、`assistant-artifact-export-actions.test.ts` 后运行 `pnpm --filter @storyforge/web test -- assistant-book-run-actions.test.ts assistant-chapter-review-actions.test.ts assistant-artifact-export-actions.test.ts`，6 项失败，失败点均为 action 未写入 tool call，符合预期。
+- 实现：三个 action dependency 增加 `writeAssistantToolCall` 注入点；默认调用 `createAssistantToolCall`；成功路径写 `completed`，已有会话下真实 API 失败写 `failed`，invalid 参数和缺少上下文路径不写 tool call。
+- 绿灯：再次运行同一定向命令，21/21 passed，退出码 0。
+
+### 编码中监控 - 三个 Assistant action 写入 tool call
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用了 `createAssistantToolCall`、现有 session 写入函数、三个 action 的依赖注入测试结构。
+
+□ 命名是否符合项目约定？
+✅ 是：前端 helper 使用 camelCase，后端契约字段在 payload 内保持 snake_case 摘要。
+
+□ 代码风格是否一致？
+✅ 是：保留现有 redirect 行为和 revalidate 时机，只新增 tool call 写入事实源。
+
+## 编码后声明 - Phase 1 AssistantToolCall 事实源
+
+时间：2026-06-09 22:08:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `AssistantSession`: 作为 Assistant tool call 父会话。
+- `AssistantSessionNotFoundError` 与 `get_assistant_session`: 保持后端 404 行为一致。
+- `EventLog.payload` 的 JSON 摘要模式：用于 `input_summary` 与 `output_summary`。
+- `assistant-session-store.ts` 的 `readJson/postAssistantJson` 模式：新增 tool call helper。
+- `assistant-tool-node-mapper.ts` 的工具树映射边界：新增 tool call mapper，不改 UI。
+- 三个 action 的依赖注入测试模式：新增 `writeAssistantToolCall` 注入点。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：Python 使用 snake_case 字段和 PascalCase ORM 类，TypeScript helper 使用 camelCase。
+- 代码风格：后端保持 model/schema/service/router 分层；前端保持 API helper、mapper、Server Action 分层。
+- 文件组织：新增迁移和测试放在既有 API/Web 测试目录；工作文件写入项目 `.codex/`。
+
+### 3. 对比了以下相似实现
+
+- `apps/api/app/domains/assistant/*`: 保持 Assistant 会话薄层扩展方式。
+- `apps/api/app/domains/events/*`: 参考 JSON 摘要字段和事件追溯思路，但没有复用 workspace 级事件流。
+- `apps/web/components/home/assistant-session-store.ts`: 复用统一 API client 与 type guard 模式。
+- `apps/web/components/home/assistant-tool-node-mapper.ts`: 保持工具树只消费 `AssistantToolNode[]`。
+- `apps/web/components/home/*-actions.ts`: 保留现有 redirect、revalidate、session 写入行为。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `AssistantMessage`，其职责是自然语言消息，不适合作工具状态事实源。
+- 已检查 `EventLog`，其职责是工作区事件流且依赖 workspace，不适合作 Assistant 会话内 tool call。
+- 已检查 BookRun 工具树推导，保留为兜底，不再作为唯一来源。
+
+### 5. 最终验证
+
+- 后端定向 pytest：6/6 passed。
+- 前端定向 node:test：42/42 passed。
+- Web TypeScript：通过。
+- Shared TypeScript：通过。
+- Ruff：通过。
+- OpenAPI JSON 与 generated api-types：已重新生成。
+- `git diff --check`：通过。
+- `.codex/verification-report.md`：综合 92/100，建议通过。
