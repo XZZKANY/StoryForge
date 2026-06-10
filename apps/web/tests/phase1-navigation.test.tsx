@@ -136,6 +136,38 @@ test('根布局具备全局样式和错误加载边界', () => {
   assert.ok(read('app/loading.tsx').includes('正在加载 StoryForge 工作台'));
 });
 
+test('统一侧边栏导航的明暗主题颜色契约', () => {
+  const globals = read('app/globals.css');
+  const sidebarSources = [
+    'components/site-nav/UnifiedSidebar.tsx',
+    'components/site-nav/CollapsibleNavItem.tsx',
+    'components/site-nav/StudioProjectsList.tsx',
+    'components/site-nav/RecentItemsList.tsx',
+    'components/site-nav/ThemeToggle.tsx',
+  ] as const;
+  const sidebar = sidebarSources.map((sourcePath) => read(sourcePath)).join('\n');
+
+  for (const forbidden of ['bg-nav-active', 'bg-nav-hover', 'text-accent'] as const) {
+    assert.ok(!sidebar.includes(forbidden), `侧边栏不应继续使用独立暖色导航 token：${forbidden}`);
+  }
+
+  assert.ok(sidebar.includes('text-muted-foreground'), '普通侧边栏文字应使用 muted foreground');
+  assert.ok(sidebar.includes('text-foreground'), '标题与激活侧边栏文字应使用 foreground');
+  assert.ok(sidebar.includes('bg-muted'), '侧边栏 hover/active 背景应跟随 muted 语义 token');
+  assert.ok(!sidebar.includes('dark:bg-foreground'), '白天模式不应复用黑夜反向色块');
+  assert.ok(globals.includes('.bg-background { background-color: var(--bg) !important; }'), '语义背景类应读取运行时主题变量');
+  assert.ok(globals.includes('.text-foreground { color: var(--text) !important; }'), '语义前景类应读取运行时主题变量');
+  assert.ok(globals.includes('.text-muted-foreground { color: var(--muted) !important; }'), '普通导航文字应读取 muted 运行时变量');
+  assert.ok(!globals.includes('--color-nav-active'), '全局主题不应保留侧栏专属 active 颜色 token');
+  assert.ok(!globals.includes('--color-nav-hover'), '全局主题不应保留侧栏专属 hover 颜色 token');
+  assert.ok(!globals.includes('a { color: var(--accent);'), '全局链接颜色不应覆盖侧边栏文字 token');
+  assert.ok(!globals.includes('a { font-weight: 700;'), '全局链接字重不应覆盖侧边栏字重 token');
+
+  for (const retiredWarmColor of ['#f5f3ee', '#fffaf2', '#211a16', '#6e6259', '#dfd4c5', '#8a4b2a'] as const) {
+    assert.ok(!globals.includes(retiredWarmColor), `全局主题不应保留旧暖棕色值：${retiredWarmColor}`);
+  }
+});
+
 test('E2E 在刷新 OpenAPI 后检查契约漂移', () => {
   const e2eScript = read('../../scripts/run-e2e.mjs');
   assert.ok(e2eScript.includes('checkOpenApiContractDrift'), 'e2e 应在刷新 OpenAPI 后检查契约漂移');

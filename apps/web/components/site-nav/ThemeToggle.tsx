@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { Moon, Sun } from 'lucide-react';
 
 type Theme = 'light' | 'dark';
 
@@ -72,11 +73,10 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-pressed={theme === 'dark'}
-      aria-label="切换暗色模式"
-      className="fixed right-3 top-3 z-30 inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white/90 px-3 py-1 text-sm font-semibold shadow dark:border-stone-700 dark:bg-stone-900/80"
+      aria-label={theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}
+      className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/10 hover:text-foreground dark:hover:bg-muted/15"
     >
-      <span aria-hidden>{theme === 'dark' ? '🌙' : '☀'}</span>
-      <span>{theme === 'dark' ? '暗色' : '亮色'}</span>
+      {theme === 'dark' ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
     </button>
   );
 }

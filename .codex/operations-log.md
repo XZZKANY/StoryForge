@@ -15194,3 +15194,68 @@ un-metadata.json: present
 - OpenAPI JSON 与 generated api-types：已重新生成。
 - `git diff --check`：通过。
 - `.codex/verification-report.md`：综合 92/100，建议通过。
+## 编码前检查 - 侧边栏主题颜色修复
+
+时间：2026-06-10 11:06:42 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-sidebar-theme.md`
+□ 将使用以下可复用组件：
+
+- `UnifiedSidebar`: `apps/web/components/site-nav/UnifiedSidebar.tsx` - 主侧边栏容器与普通导航项。
+- `CollapsibleNavItem`: `apps/web/components/site-nav/CollapsibleNavItem.tsx` - “创作工作台”折叠导航项。
+- `StudioProjectsList`: `apps/web/components/site-nav/StudioProjectsList.tsx` - 工作台子导航。
+- `RecentItemsList`: `apps/web/components/site-nav/RecentItemsList.tsx` - 最近记录导航。
+- `ThemeToggle`: `apps/web/components/site-nav/ThemeToggle.tsx` - 底部主题切换按钮。
+
+□ 将遵循命名约定：React 组件 PascalCase，布尔状态 `is*`，测试描述使用简体中文。
+□ 将遵循代码风格：沿用 Tailwind className 字符串、`node:test` 与 `assert.ok` 契约测试。
+□ 确认不重复造轮子，证明：检查了 `site-nav` 目录和 `globals.css`，无需新增主题系统，只替换旧导航专属 token。
+
+## 编码后声明 - 侧边栏主题颜色修复
+
+时间：2026-06-10 11:20:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `UnifiedSidebar`: 主侧栏导航与底部账号区。
+- `CollapsibleNavItem`: “创作工作台”激活态与折叠按钮。
+- `StudioProjectsList`: 工作台子项目 hover 状态。
+- `RecentItemsList`: 最近记录 hover 状态。
+- `ThemeToggle`: 主题切换按钮 hover 状态。
+
+### 2. 遵循了以下项目约定
+
+- 命名约定：组件和状态命名保持原样，测试描述使用简体中文。
+- 代码风格：继续使用 Tailwind 语义 token 与 `node:test` 源码契约测试。
+- 文件组织：改动限定在 `site-nav`、`globals.css` 和既有导航契约测试。
+
+### 3. 对比了以下相似实现
+
+- `UnifiedSidebar`: 普通导航改为 `text-muted-foreground` / `text-foreground` 和 `bg-muted` 状态层。
+- `CollapsibleNavItem`: 与普通导航保持一致，覆盖“创作工作台”路径。
+- `RecentItemsList` 与 `StudioProjectsList`: 子导航保留轻量字重，hover 只使用灰阶语义状态。
+
+### 4. 未重复造轮子的证明
+
+- 已检查 `site-nav` 目录和 `globals.css`，没有新增主题框架或重复导航抽象。
+- 已删除 `nav-active/nav-hover` 专属主题 token，统一回全局语义灰阶。
+
+### 最终验证记录 - 侧边栏主题颜色修复
+
+时间：2026-06-10 11:44:04 +08:00
+
+- 定向契约：`pnpm --filter @storyforge/web test -- phase1-navigation`，19/19 passed，退出码 0。
+- 静态检查：`pnpm --filter @storyforge/web lint`，`tsc --noEmit` 通过，退出码 0。
+- 空白检查：`git diff --check -- <本轮相关文件>`，无空白错误，退出码 0。
+- 组合边界：`pnpm --filter @storyforge/web test -- phase1-navigation home-page`，31/32 passed，唯一失败为 `HomeComposer` 旧快捷动作契约，非侧栏主题范围。
+- 浏览器验证：`http://localhost:3002` 浅色下侧栏与主内容背景均为 `rgb(248, 250, 253)`；深色下均为 `rgb(19, 19, 20)`；普通导航字重 400，激活项字重 500，字体族一致。
+- 文档与参考：Context7 查询 Tailwind CSS v4 `@theme` / CSS 变量；GitHub 搜索语义 token 组合；`.codex/verification-report.md` 已更新为本轮报告，综合评分 91/100，建议通过。
+
+### 提交边界复核 - 侧边栏主题颜色修复
+
+时间：2026-06-10 12:20:00 +08:00
+
+- 纳入本次提交：`globals.css` 主题 token、`Chrome`/`UnifiedSidebar`/`RecentItemsList`/`ThemeToggle`、新增 `CollapsibleNavItem` 与 `StudioProjectsList`、`HomeShell` 背景 token 单行、相关导航契约测试与 `.codex` 审计文件。
+- 明确排除：`BreadcrumbNav.tsx`、`HomeComposer` 输入框契约、`/projects` 重定向、`HomeSidebar` 删除、`HomeProjectsPanel`/`home-projects-api`/`app/api/workspaces` 项目读取链路、设置页、IDE、API action 与锁文件等其他工作区改动。
+- 暂存区复核：`git diff --cached --name-only` 未包含上述排除项；`phase1-navigation.test.tsx` 未包含 `/projects` 重定向改动；`home-page.test.tsx` 未包含 `HomeComposer` 断言改动。
+- 验证结果：`pnpm --filter @storyforge/web test -- phase1-navigation` 19/19 passed；`pnpm --filter @storyforge/web lint` 通过；`git diff --cached --check` 通过。

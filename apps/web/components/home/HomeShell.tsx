@@ -23,7 +23,7 @@ export async function HomeShell({
       <HomeSidebar activeView={activeView} recentItems={recentItems} />
       <main
         aria-labelledby="home-assistant-title"
-        className="!m-0 flex min-h-screen !w-full flex-col overflow-x-hidden bg-[#171715] !p-0"
+        className="!m-0 flex min-h-screen !w-full flex-col overflow-x-hidden bg-background !p-0"
       >
         <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:hidden">
           <nav aria-label="移动端主导航" className="flex flex-wrap gap-2 md:hidden">
