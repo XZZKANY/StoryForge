@@ -68,6 +68,11 @@ export async function storyforgeLegacyRedirects() {
       permanent: true,
     },
     {
+      source: '/projects',
+      destination: '/?view=projects',
+      permanent: true,
+    },
+    {
       source: '/artifacts',
       destination: '/ide?panel.bottom=artifacts',
       permanent: true,

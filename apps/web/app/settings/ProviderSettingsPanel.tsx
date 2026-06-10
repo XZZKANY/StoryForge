@@ -106,7 +106,7 @@ export function ProviderSettingsPanel() {
     <>
       <section
         aria-labelledby="provider-form-title"
-        className="mt-8 rounded-3xl border border-[#3b3a37] bg-[#2b2b29] p-6 shadow-2xl shadow-black/20"
+        className="mt-8 rounded-3xl border border-border bg-panel p-6 shadow-2xl shadow-black/20"
       >
         <h2 id="provider-form-title" className="text-lg font-semibold">
           Provider 连接
@@ -119,7 +119,7 @@ export function ProviderSettingsPanel() {
               value={baseUrl}
               onChange={(event) => setBaseUrl(event.target.value)}
               placeholder="https://api.openai.com"
-              className="rounded-2xl border border-[#4a4945] bg-[#1b1b19] px-4 py-3 text-[#f3eadf] outline-none focus:border-[#d8cab8]"
+              className="rounded-2xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:border-foreground/50"
             />
           </label>
         </div>
@@ -128,7 +128,7 @@ export function ProviderSettingsPanel() {
           <button
             type="button"
             onClick={saveProviderSettings}
-            className="rounded-full border border-[#6a655d] px-5 py-2.5 text-sm font-semibold text-[#f3eadf] hover:border-[#d8cab8]"
+            className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:border-foreground/50"
           >
             保存设置
           </button>
@@ -136,32 +136,32 @@ export function ProviderSettingsPanel() {
             type="button"
             onClick={testProviderEndpoint}
             disabled={testing}
-            className="rounded-full bg-[#e8decb] px-5 py-2.5 text-sm font-semibold text-[#1f1f1d] disabled:cursor-wait disabled:opacity-70"
+            className="rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background disabled:cursor-wait disabled:opacity-70"
           >
             {testing ? '检测中……' : '检测并拉取模型'}
           </button>
-          <span className="text-sm text-[#aaa39a]">{saveStatus}</span>
+          <span className="text-sm text-muted">{saveStatus}</span>
         </div>
       </section>
 
       <section
         aria-live="polite"
         aria-labelledby="provider-result-title"
-        className="mt-6 rounded-3xl border border-[#3b3a37] bg-[#171715] p-6"
+        className="mt-6 rounded-3xl border border-border bg-panel p-6"
       >
         <h2 id="provider-result-title" className="text-lg font-semibold">
           检测结果
         </h2>
-        <p className="mt-3 text-sm text-[#d8cab8]">{status}</p>
-        {endpoint ? <p className="mt-2 text-xs text-[#8f887f]">检测端点：{endpoint}</p> : null}
+        <p className="mt-3 text-sm text-muted">{status}</p>
+        {endpoint ? <p className="mt-2 text-xs text-muted/70">检测端点：{endpoint}</p> : null}
         {models.length > 0 ? (
           <div className="mt-5">
-            <h3 className="text-sm font-semibold text-[#f3eadf]">可用模型</h3>
+            <h3 className="text-sm font-semibold text-foreground">可用模型</h3>
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
               {models.map((model) => (
                 <li
                   key={model}
-                  className="rounded-2xl border border-[#3b3a37] bg-[#242421] px-3 py-2 text-sm text-[#ddd4c8]"
+                  className="rounded-2xl border border-border bg-background px-3 py-2 text-sm text-foreground"
                 >
                   {model}
                 </li>

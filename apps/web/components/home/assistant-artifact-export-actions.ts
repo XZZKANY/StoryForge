@@ -15,8 +15,11 @@ import { apiFetch } from '../../lib/api-client';
 import {
   appendAssistantSessionMessage,
   createAssistantSession,
-  createAssistantToolCall,
 } from './assistant-session-store';
+import {
+  writeAssistantToolCall,
+  type AssistantToolCallWrite,
+} from './assistant-tools/tool-call-writer';
 
 type AssistantArtifactExportDeps = {
   readonly readBookRun?: (bookRunId: number) => Promise<BookRunRead | null>;
@@ -35,39 +38,11 @@ type AssistantArtifactExportSessionWrite = {
   readonly artifacts: readonly ExportedArtifactSummary[];
 };
 
-type AssistantToolCallWrite = {
-  readonly assistantSessionId: number;
-  readonly toolName: string;
-  readonly status: 'completed' | 'failed';
-  readonly inputSummary: Record<string, unknown>;
-  readonly outputSummary?: Record<string, unknown>;
-  readonly errorMessage?: string;
-  readonly relatedType?: string;
-  readonly relatedId?: number;
-};
-
 const exportRequests = [
   exportMarkdownRequest,
   exportEpubRequest,
   exportAuditReportRequest,
 ] as const;
-
-async function writeAssistantArtifactExportToolCall(
-  payload: AssistantToolCallWrite,
-): Promise<void> {
-  const result = await createAssistantToolCall(payload.assistantSessionId, {
-    tool_name: payload.toolName,
-    status: payload.status,
-    input_summary: payload.inputSummary,
-    output_summary: payload.outputSummary ?? {},
-    error_message: payload.errorMessage,
-    related_type: payload.relatedType,
-    related_id: payload.relatedId,
-  });
-  if (result.status === 'error') {
-    throw new Error(result.message);
-  }
-}
 
 async function writeArtifactExportFailureToolCall(
   deps: AssistantArtifactExportDeps,
@@ -76,7 +51,7 @@ async function writeArtifactExportFailureToolCall(
   message: string,
 ): Promise<void> {
   if (!assistantSessionId) return;
-  await (deps.writeAssistantToolCall ?? writeAssistantArtifactExportToolCall)({
+  await (deps.writeAssistantToolCall ?? writeAssistantToolCall)({
     assistantSessionId,
     toolName: 'artifact.export',
     status: 'failed',
@@ -125,7 +100,7 @@ export async function submitAssistantArtifactExport(
     });
     redirectAssistantSessionId = writtenAssistantSessionId ?? assistantSessionId;
     if (redirectAssistantSessionId) {
-      await (deps.writeAssistantToolCall ?? writeAssistantArtifactExportToolCall)({
+      await (deps.writeAssistantToolCall ?? writeAssistantToolCall)({
         assistantSessionId: redirectAssistantSessionId,
         toolName: 'artifact.export',
         status: 'completed',

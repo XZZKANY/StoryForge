@@ -31,10 +31,13 @@ export function IdeShell({
   const [bottomPanel, setBottomPanel] = useState(initial.bottomPanel);
   const [tabs, setTabs] = useState<readonly string[]>(initial.tabs);
   const [activeTabId, setActiveTabId] = useState<string | undefined>(initial.activeTabId);
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+
   const layoutStyle = {
-    '--ide-left-panel-width': `${initialPreferences.layout.leftPanelWidth}px`,
+    '--ide-left-panel-width': isLeftPanelOpen ? `${initialPreferences.layout.leftPanelWidth}px` : '0px',
     '--ide-bottom-panel-height': `${initialPreferences.layout.bottomPanelHeight}px`,
-    '--ide-right-dock-width': `${initialPreferences.layout.rightDockWidth}px`,
+    '--ide-right-dock-width': isRightPanelOpen ? `${initialPreferences.layout.rightDockWidth}px` : '0px',
   } as CSSProperties;
 
   const urlState = useMemo(
@@ -115,48 +118,78 @@ export function IdeShell({
     <div
       data-testid="ide-shell"
       data-ide-theme={initialPreferences.theme}
-      className="min-h-screen bg-stone-950 text-stone-100"
+      className="min-h-screen bg-stone-950 text-stone-100 flex flex-col"
       style={layoutStyle}
       data-active-left-panel={leftPanel}
       data-active-bottom-panel={bottomPanel}
     >
-      <header className="flex items-start justify-between gap-4 border-b border-stone-800 bg-stone-950 px-4 py-2">
-        <h1 className="text-lg font-bold">StoryForge IDE</h1>
-        <PersonalizationPanel preferences={initialPreferences} />
+      <header className="flex items-center justify-between gap-4 border-b border-stone-800 bg-stone-950 px-4 py-2 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsLeftPanelOpen((v) => !v)}
+            className="rounded px-2 py-1 text-stone-400 hover:bg-stone-800 hover:text-stone-100 transition-colors"
+            aria-label="Toggle Left Panel"
+            title="Toggle Left Panel"
+          >
+            ☰
+          </button>
+          <h1 className="text-lg font-bold">StoryForge IDE</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <PersonalizationPanel preferences={initialPreferences} />
+          <button
+            type="button"
+            onClick={() => setIsRightPanelOpen((v) => !v)}
+            className="rounded px-2 py-1 text-stone-400 hover:bg-stone-800 hover:text-stone-100 transition-colors"
+            aria-label="Toggle Right Panel"
+            title="Toggle Right Panel"
+          >
+            ☰
+          </button>
+        </div>
       </header>
-      <div className="grid min-h-[calc(100vh-3rem)] grid-cols-[4.5rem_var(--ide-left-panel-width)_minmax(0,1fr)_var(--ide-right-dock-width)] grid-rows-[1fr_var(--ide-bottom-panel-height)]">
+      <div className="grid flex-1 overflow-hidden grid-cols-[4.5rem_var(--ide-left-panel-width)_minmax(0,1fr)_var(--ide-right-dock-width)] transition-[grid-template-columns] duration-300">
         <ActivityBar
           activePanel={leftPanel}
           onSelectPanel={selectLeftPanel}
           panelHrefs={leftPanelHrefs}
         />
-        <SidePanel
-          activePanel={leftPanel}
-          onOpenTab={openTab}
-          storyMemoryResult={initial.storyMemoryResult}
-        />
-        <EditorArea
-          tabs={tabs}
-          activeTabId={activeTabId}
-          popoutUrl={popoutUrl}
-          inspectorId={initial.inspectorId}
-          contextSnapshot={initial.contextSnapshot}
-          contextSnapshotEvictedAt={initial.contextSnapshotEvictedAt}
-          sceneId={initial.sceneId}
-          sceneContent={initial.sceneContent}
-          diagnostics={initial.diagnostics}
-        />
-        <RightDock />
-        <div className="col-span-4">
-          <BottomPanel
-            activePanel={bottomPanel}
-            artifactPreview={initial.artifactPreview}
-            bookRun={initial.bookRun}
-            bookRunEvents={initial.bookRunEvents}
-            diagnostics={initial.diagnostics}
-            onSelectPanel={selectBottomPanel}
-            panelHrefs={bottomPanelHrefs}
+        <div className="overflow-hidden flex flex-col border-r border-stone-800">
+          <SidePanel
+            activePanel={leftPanel}
+            onOpenTab={openTab}
+            storyMemoryResult={initial.storyMemoryResult}
           />
+        </div>
+        <div className="overflow-hidden flex flex-col">
+          <EditorArea
+            tabs={tabs}
+            activeTabId={activeTabId}
+            popoutUrl={popoutUrl}
+            inspectorId={initial.inspectorId}
+            contextSnapshot={initial.contextSnapshot}
+            contextSnapshotEvictedAt={initial.contextSnapshotEvictedAt}
+            sceneId={initial.sceneId}
+            sceneContent={initial.sceneContent}
+            diagnostics={initial.diagnostics}
+          />
+        </div>
+        <div className="overflow-hidden flex flex-col border-l border-stone-800 bg-stone-900">
+          <div className="flex-1 overflow-auto">
+            <RightDock />
+          </div>
+          <div className="shrink-0 border-t border-stone-800">
+            <BottomPanel
+              activePanel={bottomPanel}
+              artifactPreview={initial.artifactPreview}
+              bookRun={initial.bookRun}
+              bookRunEvents={initial.bookRunEvents}
+              diagnostics={initial.diagnostics}
+              onSelectPanel={selectBottomPanel}
+              panelHrefs={bottomPanelHrefs}
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -68,7 +68,7 @@ export function CreativePreferencesPanel({
   return (
     <section
       aria-labelledby="creative-preferences-title"
-      className="mt-8 border-t border-[#3b3a37] pt-6"
+      className="mt-8 border-t border-border pt-6"
     >
       <h2 id="creative-preferences-title" className="text-lg font-semibold">
         {title}
@@ -89,7 +89,7 @@ export function CreativePreferencesPanel({
               )
             }
             placeholder="尚未设置"
-            className="border-b border-[#4a4945] bg-transparent px-0 py-3 text-[#f3eadf] outline-none placeholder:text-[#8f877d] focus:border-[#d8cab8]"
+            className="border-b border-border bg-transparent px-0 py-3 text-foreground outline-none placeholder:text-muted focus:border-foreground/50"
           />
         </label>
         <label className="grid gap-2 text-sm font-medium" htmlFor="creative-style">
@@ -99,7 +99,7 @@ export function CreativePreferencesPanel({
             value={preferences.style}
             onChange={(event) => updateField('style', event.target.value)}
             placeholder="尚未设置"
-            className="border-b border-[#4a4945] bg-transparent px-0 py-3 text-[#f3eadf] outline-none placeholder:text-[#8f877d] focus:border-[#d8cab8]"
+            className="border-b border-border bg-transparent px-0 py-3 text-foreground outline-none placeholder:text-muted focus:border-foreground/50"
           />
         </label>
         <label className="grid gap-2 text-sm font-medium" htmlFor="creative-assistant-behavior">
@@ -110,12 +110,12 @@ export function CreativePreferencesPanel({
             onChange={(event) => updateField('assistantBehavior', event.target.value)}
             rows={3}
             placeholder="尚未设置"
-            className="border-b border-[#4a4945] bg-transparent px-0 py-3 text-[#f3eadf] outline-none placeholder:text-[#8f877d] focus:border-[#d8cab8]"
+            className="border-b border-border bg-transparent px-0 py-3 text-foreground outline-none placeholder:text-muted focus:border-foreground/50"
           />
         </label>
-        <fieldset className="border-t border-[#3b3a37] pt-4">
+        <fieldset className="border-t border-border pt-4">
           <legend className="text-sm font-medium">默认流程</legend>
-          <div className="mt-3 grid gap-2 text-sm text-[#ddd4c8]">
+          <div className="mt-3 grid gap-2 text-sm text-foreground">
             {defaultPreferences.defaultFlow.map((step) => (
               <label key={step} className="flex items-center gap-2">
                 <input
@@ -140,11 +140,11 @@ export function CreativePreferencesPanel({
         <button
           type="button"
           onClick={savePreferences}
-          className="bg-[#e8decb] px-5 py-2.5 text-sm font-semibold text-[#1f1f1d]"
+          className="bg-foreground px-5 py-2.5 text-sm font-semibold text-background"
         >
           保存创作偏好
         </button>
-        <span className="text-sm text-[#aaa39a]">{status}</span>
+        <span className="text-sm text-muted">{status}</span>
       </div>
     </section>
   );

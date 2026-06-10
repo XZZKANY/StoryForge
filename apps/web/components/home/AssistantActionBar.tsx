@@ -63,7 +63,7 @@ export function AssistantActionBar({
           type="submit"
           disabled={Boolean(reviewReason)}
           title={reviewReason}
-          className="rounded-lg border border-[#4b4943] px-2.5 py-1 text-xs text-[#ddd4c8] hover:border-[#d8cab8] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground hover:border-foreground/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           审阅章节
         </button>
@@ -77,7 +77,7 @@ export function AssistantActionBar({
           type="submit"
           disabled={Boolean(writebackReason)}
           title={writebackReason}
-          className="rounded-lg border border-[#4b4943] px-2.5 py-1 text-xs text-[#ddd4c8] hover:border-[#d8cab8] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground hover:border-foreground/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           应用修复
         </button>
@@ -92,7 +92,7 @@ export function AssistantActionBar({
             disabled={Boolean(reason)}
             data-endpoint={bookRunId ? `/api/book-runs/${bookRunId}/${item.action}` : undefined}
             title={reason}
-            className="rounded-lg border border-[#4b4943] px-2.5 py-1 text-xs text-[#ddd4c8] hover:border-[#d8cab8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground hover:border-foreground/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {item.label}
           </button>
@@ -107,20 +107,20 @@ export function AssistantActionBar({
               type="submit"
               disabled={Boolean(exportReason)}
               title={exportReason}
-              className="rounded-lg border border-[#4b4943] px-2.5 py-1 text-xs text-[#ddd4c8] hover:border-[#d8cab8] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground hover:border-foreground/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               导出交付物
             </button>
           </form>
           <a
             href={`/book-runs/${bookRunId}/audit`}
-            className="rounded-lg border border-[#4b4943] px-2.5 py-1 text-xs text-[#ddd4c8] no-underline hover:border-[#d8cab8]"
+            className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground no-underline hover:border-foreground/50"
           >
             查看审计
           </a>
         </>
       ) : (
-        <span className="text-xs text-[#8f877d]">{reason}</span>
+        <span className="text-xs text-muted">{reason}</span>
       )}
     </div>
   );

@@ -7,8 +7,11 @@ import { apiFetch, type ApiFetchInit } from '../../lib/api-client';
 import {
   appendAssistantSessionMessage,
   createAssistantSession,
-  createAssistantToolCall,
 } from './assistant-session-store';
+import {
+  writeAssistantToolCall,
+  type AssistantToolCallWrite,
+} from './assistant-tools/tool-call-writer';
 
 type AssistantChapterReviewDeps = {
   readonly apiFetch?: (path: string, init: ApiFetchInit) => Promise<Response>;
@@ -25,17 +28,6 @@ type AssistantChapterReviewSessionWrite = {
   readonly repairPatchId?: number;
   readonly summary: ChapterReviewRedirectSummary;
   readonly assistantSessionId?: number;
-};
-
-type AssistantToolCallWrite = {
-  readonly assistantSessionId: number;
-  readonly toolName: string;
-  readonly status: 'completed' | 'failed';
-  readonly inputSummary: Record<string, unknown>;
-  readonly outputSummary?: Record<string, unknown>;
-  readonly errorMessage?: string;
-  readonly relatedType?: string;
-  readonly relatedId?: number;
 };
 
 type RepairPatchSummary = {
@@ -63,23 +55,6 @@ const maxChapterReviewSummaryUrlLength = 700;
 const maxSummaryTextLength = 80;
 const maxSummaryIssueCount = 2;
 
-async function writeAssistantChapterReviewToolCall(
-  payload: AssistantToolCallWrite,
-): Promise<void> {
-  const result = await createAssistantToolCall(payload.assistantSessionId, {
-    tool_name: payload.toolName,
-    status: payload.status,
-    input_summary: payload.inputSummary,
-    output_summary: payload.outputSummary ?? {},
-    error_message: payload.errorMessage,
-    related_type: payload.relatedType,
-    related_id: payload.relatedId,
-  });
-  if (result.status === 'error') {
-    throw new Error(result.message);
-  }
-}
-
 async function writeChapterReviewFailureToolCall(
   deps: AssistantChapterReviewDeps,
   assistantSessionId: number | undefined,
@@ -87,7 +62,7 @@ async function writeChapterReviewFailureToolCall(
   message: string,
 ): Promise<void> {
   if (!assistantSessionId || !scenePacketId) return;
-  await (deps.writeAssistantToolCall ?? writeAssistantChapterReviewToolCall)({
+  await (deps.writeAssistantToolCall ?? writeAssistantToolCall)({
     assistantSessionId,
     toolName: 'chapter.review',
     status: 'failed',
@@ -202,7 +177,7 @@ export async function submitAssistantChapterReview(
     });
     redirectAssistantSessionId = writtenAssistantSessionId ?? assistantSessionId;
     if (redirectAssistantSessionId) {
-      await (deps.writeAssistantToolCall ?? writeAssistantChapterReviewToolCall)({
+      await (deps.writeAssistantToolCall ?? writeAssistantToolCall)({
         assistantSessionId: redirectAssistantSessionId,
         toolName: 'chapter.review',
         status: 'completed',

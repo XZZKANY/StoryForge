@@ -1,11 +1,11 @@
 import type { AssistantToolNode } from './assistant-types';
 
 const statusClass = {
-  completed: 'border-[#5a725a] bg-[#213022] text-[#bfe3c1]',
-  running: 'border-[#b1774d] bg-[#332417] text-[#ffd4b5]',
-  waiting: 'border-[#45433e] bg-[#252523] text-[#aaa39a]',
-  failed: 'border-[#8c4a4a] bg-[#331e1e] text-[#f4bbbb]',
-  needs_approval: 'border-[#7a6ab0] bg-[#29243a] text-[#d8ccff]',
+  completed: 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400',
+  running: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  waiting: 'border-border bg-panel text-muted',
+  failed: 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400',
+  needs_approval: 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400',
 } as const;
 
 const statusLabel = {
@@ -24,14 +24,14 @@ export function AssistantToolTree({
   return (
     <section
       aria-labelledby="assistant-tool-tree-title"
-      className="!rounded-2xl !border !border-[#373631] !bg-[#20201e] !p-3 !shadow-none md:!p-4"
+      className="!rounded-2xl !border !border-border !bg-panel !p-3 !shadow-none md:!p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 id="assistant-tool-tree-title" className="m-0 text-sm font-semibold text-[#f2e8d8]">
+          <h2 id="assistant-tool-tree-title" className="m-0 text-sm font-semibold text-foreground">
             Assistant 工具流程树
           </h2>
-          <p className="m-0 mt-1 text-xs text-[#8f887f]">
+          <p className="m-0 mt-1 text-xs text-muted">
             耗时、token、预算和成本只来自真实工具节点。
           </p>
         </div>
@@ -40,7 +40,7 @@ export function AssistantToolTree({
             <button
               key={label}
               type="button"
-              className="rounded-lg border border-[#4b4943] px-2.5 py-1 text-xs text-[#ddd4c8] hover:border-[#d8cab8]"
+              className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground hover:border-foreground/50"
             >
               {label}
             </button>
@@ -50,7 +50,7 @@ export function AssistantToolTree({
       <ol className="!m-0 mt-4 !grid !gap-3 !p-0">
         {toolNodes.length === 0 ? (
           <li className="!m-0 !border-0 !bg-transparent !p-0 !shadow-none">
-            <div className="rounded-xl border border-[#34332f] bg-[#181817] p-3 text-sm leading-6 text-[#d5ccbf]">
+            <div className="rounded-xl border border-border bg-panel p-3 text-sm leading-6 text-foreground">
               等待真实任务开始后展示 Goal.analyze、Blueprint.create、Chapter.generate、Judge.review
               和 Repair.suggest 等工具状态。
             </div>
@@ -63,23 +63,23 @@ export function AssistantToolTree({
             data-tool-status={node.status}
           >
             <div className="flex gap-2 md:gap-3">
-              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#d96f43]" aria-hidden />
-              <div className="min-w-0 flex-1 rounded-xl border border-[#34332f] bg-[#181817] p-3">
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
+              <div className="min-w-0 flex-1 rounded-xl border border-border bg-panel p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-[#eee4d2]">{node.label}</span>
+                  <span className="text-sm font-semibold text-foreground">{node.label}</span>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[11px] ${statusClass[node.status]}`}
                   >
                     {statusLabel[node.status]}
                   </span>
                 </div>
-                <p className="m-0 mt-1 text-xs text-[#b7afa4]">
+                <p className="m-0 mt-1 text-xs text-muted">
                   {node.tool}
                   {node.elapsedLabel ? ` · ${node.elapsedLabel}` : ''}
                   {node.tokenLabel ? ` · ${node.tokenLabel}` : ''}
                   {node.toolUseLabel ? ` · ${node.toolUseLabel}` : ''}
                 </p>
-                <p className="m-0 mt-2 text-sm leading-6 text-[#d5ccbf]">{node.summary}</p>
+                <p className="m-0 mt-2 text-sm leading-6 text-foreground">{node.summary}</p>
               </div>
             </div>
           </li>

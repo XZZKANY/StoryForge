@@ -62,10 +62,40 @@ test('IDE runs 面板渲染运行控制台和 SSE 事件摘要', () => {
 test('layout 加载侧栏导航与主题切换', () => {
   const layout = read('app/layout.tsx');
   const chrome = read('components/site-nav/Chrome.tsx');
+  const sidebar = read('components/site-nav/UnifiedSidebar.tsx');
+  const studioProjects = read('components/site-nav/StudioProjectsList.tsx');
+  const workspacesRoute = read('app/api/workspaces/route.ts');
   assert.ok(layout.includes('Chrome'), 'layout 应通过 Chrome 包装侧栏与主题切换');
   assert.ok(layout.includes('./globals.css'));
-  assert.ok(chrome.includes('SiteNav'), 'Chrome 应继续装配 SiteNav');
-  assert.ok(chrome.includes('ThemeToggle'), 'Chrome 应继续装配 ThemeToggle');
+  assert.ok(chrome.includes('UnifiedSidebar'), 'Chrome 应装配统一侧栏');
+  assert.ok(!chrome.includes("pathname === '/'"), '首页也应使用统一侧栏，不能回退旧 HomeSidebar');
+  assert.ok(sidebar.includes("href: '/?view=projects'"), '我的项目入口应复用首页 Projects 子视图，避免独立 /projects chunk 404');
+  assert.ok(sidebar.includes('ThemeToggle'), 'UnifiedSidebar 应继续装配 ThemeToggle');
+  assert.ok(studioProjects.includes("fetch('/api/workspaces'"), '侧栏项目列表应请求 Web 同源 workspaces 代理');
+  assert.ok(!studioProjects.includes("'X-StoryForge-API-Key': 'local-dev-key'"), '浏览器端不应硬编码 API Key');
+  assert.ok(!studioProjects.includes('加载失败：{error}'), '侧栏项目列表不应把 HTTP 细节暴露到主导航');
+  assert.ok(studioProjects.includes('项目暂不可用'), '侧栏项目列表失败时应静默降级为中文空状态');
+  assert.ok(workspacesRoute.includes('apiFetch'), 'workspaces 代理应在服务端复用 apiFetch 注入 API Key');
+  assert.ok(workspacesRoute.includes('AbortSignal.timeout'), 'workspaces 代理应设置超时，避免后端不可达时侧栏长时间挂起');
+  assert.ok(!workspacesRoute.includes('status: 504'), 'workspaces 代理不应向主导航暴露上游超时状态');
+  assert.ok(workspacesRoute.includes('NextResponse.json([], { status: 200 })'), 'workspaces 代理失败时应返回空数组让侧栏静默降级');
+  assert.ok(workspacesRoute.includes('NextResponse.json'), 'workspaces 代理应返回同源 JSON 响应');
+});
+
+test('UnifiedSidebar 账号菜单触发按钮不嵌套主题切换按钮', () => {
+  const sidebar = read('components/site-nav/UnifiedSidebar.tsx');
+  const triggerStart = sidebar.indexOf('aria-controls="account-menu"');
+  assert.notEqual(triggerStart, -1, '应存在账号菜单触发按钮');
+
+  const triggerEnd = sidebar.indexOf('</button>', triggerStart);
+  assert.notEqual(triggerEnd, -1, '账号菜单触发按钮应正确闭合');
+
+  const triggerSource = sidebar.slice(triggerStart, triggerEnd);
+  assert.equal(
+    triggerSource.includes('<ThemeToggle />'),
+    false,
+    'ThemeToggle 必须是账号触发按钮的兄弟控件，避免 button 嵌套 button',
+  );
 });
 
 test('globals.css 包含 data-theme="dark" 暗色模式覆盖', () => {

@@ -60,7 +60,7 @@ export function HomeComposer({
         return value ? <input key={key} type="hidden" name={key} value={value} /> : null;
       })}
       <input ref={fileInputRef} type="file" className="hidden" aria-label="附加资料文件" />
-      <div className="rounded-lg border-0 bg-[#30302d] p-3">
+      <div className="rounded-lg border-0 bg-panel p-3">
         <label htmlFor="home-composer-input" className="sr-only">
           给 StoryForge Assistant 发送消息
         </label>
@@ -72,14 +72,14 @@ export function HomeComposer({
           value={value}
           onChange={(event) => setValue(event.target.value)}
           rows={3}
-          className="min-h-[48px] w-full resize-none bg-transparent px-1 py-1 text-base leading-6 text-[#e8decb] placeholder:text-[#aaa196] focus:outline-none"
+          className="min-h-[48px] w-full resize-none bg-transparent px-1 py-1 text-base leading-6 text-foreground placeholder:text-muted focus:outline-none"
         />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             aria-label="附加资料"
             onClick={() => fileInputRef.current?.click()}
-            className="grid h-8 w-8 place-items-center rounded-lg text-xl text-[#e8decb] hover:bg-[#3a3935]"
+            className="grid h-8 w-8 place-items-center rounded-lg text-xl text-foreground hover:bg-muted/20"
           >
             +
           </button>
@@ -87,7 +87,7 @@ export function HomeComposer({
             type="submit"
             aria-label="发送"
             disabled={!value.trim()}
-            className="grid h-9 w-9 place-items-center rounded-full bg-[#f8f3eb] text-lg font-bold text-[#171715] hover:bg-white disabled:cursor-not-allowed disabled:bg-[#3a3935] disabled:text-[#888177]"
+            className="grid h-9 w-9 place-items-center rounded-full bg-foreground text-lg font-bold text-background hover:opacity-90 disabled:cursor-not-allowed disabled:bg-muted/20 disabled:text-muted/70"
           >
             ↑
           </button>
@@ -98,7 +98,7 @@ export function HomeComposer({
           <Link
             key={action.label}
             href={createHomeViewHref(action.view)}
-            className="rounded-lg bg-[#3a3935] px-[clamp(12px,1.2vw,16px)] py-[clamp(7px,0.8vw,10px)] text-[clamp(12px,0.85vw,14px)] font-semibold text-[#f1e6d8] hover:bg-[#4a4842]"
+            className="rounded-lg bg-panel px-[clamp(12px,1.2vw,16px)] py-[clamp(7px,0.8vw,10px)] text-[clamp(12px,0.85vw,14px)] font-semibold text-foreground no-underline hover:bg-muted/20"
           >
             {action.label}
           </Link>

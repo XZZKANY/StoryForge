@@ -69,13 +69,13 @@ test('设置入口接入首页和全局导航', () => {
   const nav = read('components/site-nav/site-nav-links.ts');
   const home = read('components/home/home-data.ts');
   const shell = read('components/home/HomeShell.tsx');
-  const sidebar = read('components/home/HomeSidebar.tsx');
+  const sidebar = read('components/site-nav/UnifiedSidebar.tsx');
 
   assert.ok(nav.includes("href: '/settings'"), '全局导航应包含 /settings');
   assert.ok(nav.includes('模型设置'), '全局导航应展示模型设置入口');
   assert.ok(home.includes("href: '/settings'"), '首页账号菜单应包含 /settings');
   assert.ok(home.includes('Provider/API Key'), '首页账号菜单应展示 Provider/API Key 系统设置入口');
-  assert.ok(sidebar.includes('homeAccountMenuItems'), '首页设置入口应收纳在左侧账号菜单');
+  assert.ok(sidebar.includes('href="/settings"'), '设置入口应收纳在统一侧栏账号菜单');
   assert.ok(sidebar.includes('isAccountMenuOpen &&'), '账号菜单应点击后弹出设置入口');
   assert.ok(!shell.includes('href="/settings"'), '首页右侧顶部不应再展示 Provider 状态胶囊');
 });

@@ -66,11 +66,11 @@ test('首页只保留 Assistant 入口并删除占位页', () => {
   }
 });
 
-test('首页采用 Assistant 对话式深色入口并保留 StoryForge 业务动作', () => {
+test('首页采用 Assistant 对话式主题入口并保留 StoryForge 业务动作', () => {
   const home =
     read('components/home/HomeShell.tsx') +
     '\n' +
-    read('components/home/HomeSidebar.tsx') +
+    read('components/site-nav/UnifiedSidebar.tsx') +
     '\n' +
     read('components/home/HomeComposer.tsx') +
     '\n' +
@@ -81,9 +81,8 @@ test('首页采用 Assistant 对话式深色入口并保留 StoryForge 业务动
     read('components/home/home-data.ts');
 
   for (const required of [
-    'md:grid-cols-[288px_minmax(0,1fr)]',
     'max-w-[770px]',
-    'bg-[#171715]',
+    'bg-background',
     'max-w-none',
     'font-serif',
     'StoryForge Assistant',
@@ -102,6 +101,9 @@ test('首页采用 Assistant 对话式深色入口并保留 StoryForge 业务动
     assert.ok(home.includes(required), `首页应包含 Assistant StoryForge 元素：${required}`);
   }
 
+  assert.ok(!home.includes('bg-[#171715]'), '首页不应继续硬编码黑夜模式入口背景');
+  assert.ok(!home.includes('HomeSidebar'), '首页不应再拉回旧版专属侧栏');
+  assert.ok(!home.includes('md:grid-cols-[288px_minmax(0,1fr)]'), '首页不应自建旧版双栏壳');
   assert.ok(!home.includes('Customize 创作偏好'), 'Customize 不应作为首页一级导航');
   assert.ok(!home.includes('当前项目工作台</h2>'), 'Projects 不应默认追加解释型工作台区块');
   assert.ok(home.includes('HomeProjectsPanel'), 'Projects 应使用本地可交互项目面板');
@@ -251,6 +253,7 @@ test('旧页面路由通过 308 重定向进入 IDE 壳层', async () => {
     { source: '/refinery', destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio' },
     { source: '/jobs', destination: '/ide?panel.bottom=runs' },
     { source: '/runs', destination: '/ide?panel.bottom=runs' },
+    { source: '/projects', destination: '/?view=projects' },
     { source: '/artifacts', destination: '/ide?panel.bottom=artifacts' },
     { source: '/evaluations', destination: '/ide?panel.bottom=evaluation' },
   ] as const;
@@ -260,7 +263,7 @@ test('旧页面路由通过 308 重定向进入 IDE 壳层', async () => {
     redirects,
     expectedRedirects.map((redirect) => ({ ...redirect, permanent: true })),
   );
-  assert.equal(redirects.length, 7, '七个旧页面都应声明重定向');
+  assert.equal(redirects.length, 8, '八个旧页面都应声明重定向');
   assert.ok(
     redirects.every((redirect) => redirect.permanent === true),
     'permanent: true 对应 Next HTTP 308',

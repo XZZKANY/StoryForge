@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 
 import { ScenePacketPanel } from '../../components/scene-packet/ScenePacketPanel';
 import { JobStatusPoller } from '../../components/job-status/JobStatusPoller';
+import { BreadcrumbNav } from '../../components/site-nav/BreadcrumbNav';
 
 const JudgeIssueList = dynamic(() =>
   import('../../components/judge-panel/JudgeIssueList').then((mod) => mod.JudgeIssueList),
@@ -433,8 +434,13 @@ export async function StudioPageContent({
       ),
     },
   ];
+  const breadcrumbs = [
+    { label: '创作工作台', href: '/studio' },
+    ...(selectedBook ? [{ label: selectedBook.title }] : []),
+  ];
   const content = (
     <>
+      {variant === 'page' && <BreadcrumbNav items={breadcrumbs} />}
       <h1 id="studio-title">Studio 创作工作台</h1>
       <p>Studio 用于核对从作品选择、章节目标到批准回写和失败恢复的连续创作证据链。</p>
       <section aria-labelledby="studio-current-scope-title">

@@ -78,6 +78,10 @@ const runtimeModules = [
     dst: 'components/home/assistant-chapter-review-actions.mjs',
   },
   {
+    src: 'components/home/assistant-tools/tool-call-writer.ts',
+    dst: 'components/home/assistant-tools/tool-call-writer.mjs',
+  },
+  {
     src: 'components/home/assistant-session-store.ts',
     dst: 'components/home/assistant-session-store.mjs',
   },
@@ -235,7 +239,9 @@ const importRewrites = [
   ['./assistant-book-run-actions', './assistant-book-run-actions.mjs'],
   ['./assistant-artifact-export-actions', './assistant-artifact-export-actions.mjs'],
   ['./assistant-chapter-review-actions', './assistant-chapter-review-actions.mjs'],
+  ['./assistant-tools/tool-call-writer', './assistant-tools/tool-call-writer.mjs'],
   ['./assistant-session-store', './assistant-session-store.mjs'],
+  ['../assistant-session-store', '../assistant-session-store.mjs'],
   ['../../lib/text-diff', '../../lib/text-diff.mjs'],
   ['../components/diff-viewer/RepairDiffViewer', '../components/diff-viewer/RepairDiffViewer.mjs'],
   ['../components/judge-panel/JudgeIssueList', '../components/judge-panel/JudgeIssueList.mjs'],

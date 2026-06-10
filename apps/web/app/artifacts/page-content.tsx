@@ -27,7 +27,7 @@ export function ArtifactsWorkbench({ data }: { readonly data: ArtifactWorkbenchD
           <p>空列表：当前没有可展示的制品记录。</p>
         ) : (
           <div>
-            <div className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1fr] gap-4 border-y border-[#34332f] py-2 text-xs font-semibold uppercase text-[#8f877d]">
+            <div className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1fr] gap-4 border-y border-border py-2 text-xs font-semibold uppercase text-muted">
               <span>名称</span>
               <span>类型</span>
               <span>版本</span>
@@ -36,13 +36,13 @@ export function ArtifactsWorkbench({ data }: { readonly data: ArtifactWorkbenchD
             {artifactListState.artifacts.map((artifact) => (
               <div
                 key={artifact.id}
-                className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1fr] gap-4 border-b border-[#2b2a26] py-3 text-sm"
+                className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1fr] gap-4 border-b border-border py-3 text-sm"
               >
                 <strong>Artifact #{artifact.id}</strong>
                 <span>{artifact.artifact_type}</span>
                 <span>v{artifact.version}</span>
                 <span>关联作品：{formatOptionalId('Book', artifact.book_id)}</span>
-                <span className="col-span-4 text-[#b7afa4]">
+                <span className="col-span-4 text-muted">
                   {artifact.name} · 状态：{artifact.status} · 关联任务：
                   {formatOptionalId('Job', readArtifactJobId(artifact))}
                 </span>

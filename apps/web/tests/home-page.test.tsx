@@ -433,8 +433,8 @@ test('HomeComposer 是底部 Assistant 输入框且没有模式按钮', () => {
   );
   assert.ok(composer.includes('className="w-full"'), 'Assistant 输入框应跟随主界面 770px 内容宽度');
   assert.ok(
-    composer.includes('rounded-lg border-0 bg-[#30302d] p-3'),
-    'Assistant 输入框应恢复旧版灰色输入面板',
+    composer.includes('rounded-lg border-0 bg-panel p-3'),
+    'Assistant 输入框应使用语义面板背景',
   );
   assert.ok(!composer.includes('shadow-[0_18px_50px'), 'Assistant 输入框不应保留厚重阴影');
   assert.ok(composer.includes('aria-label="附加资料"'), 'Assistant 输入框应恢复旧版附加资料按钮');
