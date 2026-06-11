@@ -24,3 +24,7 @@ redis-data/
 # 本地缓存
 .cache/
 .codex/tmp/
+
+# 本地工具噪声
+.claude/settings.local.json
+.codex-fix-phase9b-*.patch
