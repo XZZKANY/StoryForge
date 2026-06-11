@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import sqlite3
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,6 +32,7 @@ def test_long_wrapper_scans_all_text_artifacts_for_private_runtime_values(tmp_pa
         "stdout.json",
         "stderr.log",
         "book.md",
+        "book.epub",
         "audit_report.json",
         "run-metadata.json",
         "quality-risk.md",
@@ -43,6 +45,18 @@ def test_long_wrapper_scans_all_text_artifacts_for_private_runtime_values(tmp_pa
     (tmp_path / "audit_report.json").write_text("审计误含 private-runtime-value", encoding="utf-8")
 
     assert module._sensitive_hit_count(paths, ["private-runtime-value"]) == 2
+
+
+def test_long_wrapper_scans_epub_text_metadata_for_private_runtime_values(tmp_path: Path) -> None:
+    """EPUB 是 zip 容器，敏感扫描必须覆盖内部文本元数据。"""
+
+    module = _load_long_wrapper()
+    epub_path = tmp_path / "book.epub"
+    with zipfile.ZipFile(epub_path, "w") as archive:
+        archive.writestr("EPUB/content.opf", "<dc:title>private-runtime-value</dc:title>")
+        archive.writestr("EPUB/chapter.xhtml", "<p>正文</p>")
+
+    assert module._sensitive_hit_count([epub_path], ["private-runtime-value"]) == 1
 
 
 def test_long_wrapper_rejects_success_when_outer_timeout_is_exceeded() -> None:
@@ -64,7 +78,7 @@ def test_long_wrapper_reports_quality_and_audit_gate_failures() -> None:
     module = _load_long_wrapper()
     summary = {
         "tokens_used": 200000,
-        "artifact_hashes": {"book_md_sha256": ""},
+        "artifact_hashes": {"book_md_sha256": "", "book_epub_sha256": ""},
         "per_chapter_metrics": [
             {"chapter_index": 1, "quality_score": 89, "quality_issue_count": 1},
             {"chapter_index": 2, "quality_score": 92, "quality_issue_count": 4},
@@ -75,22 +89,47 @@ def test_long_wrapper_reports_quality_and_audit_gate_failures() -> None:
 
     assert "tokens_used 达到或超过 token_budget" in failures
     assert "缺少 audit_report_sha256" in failures
+    assert "缺少 book_epub_sha256" in failures
     assert "第 1 章 quality_score 低于 90" in failures
     assert "累计 quality_issue_count 超过 3" in failures
 
 
-def test_long_wrapper_requires_phase5_integration_metrics() -> None:
-    """PH5 长程门禁必须拒绝缺失或不达标的集成指标。"""
+def test_long_wrapper_default_gate_records_but_does_not_require_phase5_integration_metrics() -> None:
+    """默认 30 章技术门禁不应因缺失 PH5 集成指标失败。"""
 
     module = _load_long_wrapper()
     summary = {
         "tokens_used": 120000,
-        "artifact_hashes": {"book_md_sha256": "book-hash", "audit_report_sha256": "audit-hash"},
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash",
+            "audit_report_sha256": "audit-hash",
+        },
         "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
     }
 
-    missing_failures = module._gate_failures(summary, token_budget=200000)
+    assert module._gate_failures(summary, token_budget=200000) == []
 
+
+def test_long_wrapper_requires_phase5_integration_metrics_when_explicitly_requested() -> None:
+    """显式要求 PH5 长程门禁时，必须拒绝缺失或不达标的集成指标。"""
+
+    module = _load_long_wrapper()
+    summary = {
+        "tokens_used": 120000,
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash",
+            "audit_report_sha256": "audit-hash",
+        },
+        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+    }
+
+    missing_failures = module._gate_failures(
+        summary,
+        token_budget=200000,
+        require_integration_gate=True,
+    )
     assert "缺少 integration_metrics" in missing_failures
 
     summary["integration_metrics"] = {
@@ -102,7 +141,11 @@ def test_long_wrapper_requires_phase5_integration_metrics() -> None:
         "concurrent_chapter_utilization": 0.6,
     }
 
-    failures = module._gate_failures(summary, token_budget=200000)
+    failures = module._gate_failures(
+        summary,
+        token_budget=200000,
+        require_integration_gate=True,
+    )
 
     assert "context_cache_hit_rate 未超过 0.95" in failures
     assert "memory_recall_budget_used 未低于 8000" in failures
@@ -118,7 +161,11 @@ def test_long_wrapper_accepts_passing_phase5_integration_metrics() -> None:
     module = _load_long_wrapper()
     summary = {
         "tokens_used": 120000,
-        "artifact_hashes": {"book_md_sha256": "book-hash", "audit_report_sha256": "audit-hash"},
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash",
+            "audit_report_sha256": "audit-hash",
+        },
         "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
         "integration_metrics": {
             "context_cache_hit_rate": 0.96,
@@ -147,6 +194,7 @@ def test_long_wrapper_metadata_keeps_phase5_integration_metrics(tmp_path: Path) 
         timeout_seconds=300,
         time_budget_seconds=4200,
         outer_timeout_seconds=4800,
+        require_integration_gate=False,
         resume_run_directory=None,
     )
     summary = {
@@ -159,10 +207,16 @@ def test_long_wrapper_metadata_keeps_phase5_integration_metrics(tmp_path: Path) 
         "estimated_cost": 1.23,
         "actual_total_chars": 36000,
         "markdown_artifact_id": "artifact-book-md",
+        "epub_artifact_id": "artifact-book-epub",
         "audit_artifact_id": "artifact-audit-json",
+        "epub_size_bytes": 128,
         "per_chapter_char_counts": [],
         "per_chapter_metrics": [],
-        "artifact_hashes": {"book_md_sha256": "book-hash", "audit_report_sha256": "audit-hash"},
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash",
+            "audit_report_sha256": "audit-hash",
+        },
         "integration_metrics": {
             "context_cache_hit_rate": 0.96,
             "memory_recall_budget_used": 7999,
@@ -219,6 +273,7 @@ def test_long_runner_passes_explicit_max_chapter_count_to_real_smoke(
         return SimpleNamespace(
             book_run=SimpleNamespace(id=1, status="completed", tokens_used=1200, estimated_cost=0.0),
             markdown_artifact=SimpleNamespace(id=2, payload={"content": "## 第 1 章\n正文"}),
+            epub_artifact=SimpleNamespace(id=4, payload={"format": "epub", "book_run_id": 1}, size_bytes=128),
             audit_artifact=SimpleNamespace(id=3, payload={"status": "ok"}),
             chapter_count=30,
         )
@@ -251,19 +306,28 @@ def test_long_runner_passes_explicit_max_chapter_count_to_real_smoke(
     assert os.environ["STORYFORGE_LLM_API_KEY"] == "test-private-credential"
 
 
-def test_long_runner_rejects_thirty_chapter_direct_serial_without_override(
+def test_long_runner_allows_thirty_chapter_direct_technical_gate(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """PH5 30 章不能默认走 direct 串行 runner，避免真实调用后才被并发门禁拒绝。"""
+    """30 章真实长跑默认走 technical gate，不再被 PH5 并发门禁预先拦截。"""
 
     module = _load_long_wrapper()
     monkeypatch.setattr(module, "ROOT", tmp_path)
+    captured: dict[str, int] = {}
 
-    def fail_if_called(*_args: object, **_kwargs: object) -> SimpleNamespace:
-        raise AssertionError("30 章 PH5 不应调用 direct 串行 runner")
+    def fake_run_real_smoke(*_args: object, **kwargs: object) -> SimpleNamespace:
+        captured["chapter_count"] = int(kwargs["chapter_count"])
+        return SimpleNamespace(
+            book_run=SimpleNamespace(id=1, status="completed", tokens_used=1200, estimated_cost=0.0),
+            markdown_artifact=SimpleNamespace(id=2, payload={"content": "## 第 1 章\n正文"}),
+            epub_artifact=SimpleNamespace(id=4, payload={"format": "epub", "book_run_id": 1}, size_bytes=128),
+            audit_artifact=SimpleNamespace(id=3, payload={"status": "ok"}),
+            chapter_count=30,
+        )
 
-    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fail_if_called)
+    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fake_run_real_smoke)
+    monkeypatch.setattr(module, "_raise_for_gate_failures", lambda *_args, **_kwargs: None)
     monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
     monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
@@ -283,7 +347,8 @@ def test_long_runner_rejects_thirty_chapter_direct_serial_without_override(
         ]
     )
 
-    assert result == 2
+    assert result == 0
+    assert captured == {"chapter_count": 30}
 
 
 def test_long_runner_exports_evidence_when_quality_gate_fails(
@@ -316,6 +381,7 @@ def test_long_runner_exports_evidence_when_quality_gate_fails(
                 },
             ),
             markdown_artifact=SimpleNamespace(id=2, payload={"content": "## 第 1 章\n正文"}),
+            epub_artifact=SimpleNamespace(id=4, payload={"format": "epub", "book_run_id": 1}, size_bytes=128),
             audit_artifact=SimpleNamespace(id=3, payload={"quality_summary": {"issue_count": 2}}),
             chapter_count=1,
         )
@@ -347,10 +413,17 @@ def test_long_runner_exports_evidence_when_quality_gate_fails(
     run_dir = run_dirs[0]
     assert (run_dir / "summary.json").exists()
     assert (run_dir / "book.md").read_text(encoding="utf-8") == "## 第 1 章\n正文"
+    assert (run_dir / "book.epub").exists()
     assert (run_dir / "audit_report.json").exists()
+    summary = module.json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["epub_artifact_id"] == 4
+    assert summary["artifact_hashes"]["book_epub_sha256"]
+    assert summary["epub_size_bytes"] == 128
+    assert "cost_breakdown" in summary
     metadata = module.json.loads((run_dir / "run-metadata.json").read_text(encoding="utf-8"))
     assert metadata["runner_exit_code"] == 1
     assert metadata["summary_present"] is True
+    assert metadata["summary"]["epub_artifact_id"] == 4
     assert metadata["quality_gate_failed"] is True
     assert "第 1 章 quality_score 低于 90" in metadata["quality_gate_failures"]
     assert "test-private-credential" not in (run_dir / "stderr.log").read_text(encoding="utf-8")
@@ -395,6 +468,7 @@ def test_long_runner_resume_copies_failed_sqlite_and_calls_resume_runner(
                 },
             ),
             markdown_artifact=SimpleNamespace(id=2, payload={"content": "## 第 1 章\n正文"}),
+            epub_artifact=SimpleNamespace(id=4, payload={"format": "epub", "book_run_id": 1}, size_bytes=128),
             audit_artifact=SimpleNamespace(id=3, payload={"quality_summary": {"issue_count": 0}}),
             chapter_count=30,
         )

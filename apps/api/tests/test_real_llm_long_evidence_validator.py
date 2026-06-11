@@ -16,10 +16,13 @@ def _write_minimal_long_evidence(
     run_dir: Path,
     *,
     markdown_artifact_id: str | None = "artifact-book-md",
+    epub_artifact_id: str | None = "artifact-book-epub",
     audit_artifact_id: str | None = "artifact-audit-json",
     summary_present: bool = True,
     chapter_count: int = 10,
     integration_metrics: dict[str, object] | None = None,
+    include_epub: bool = True,
+    include_cost_breakdown: bool = True,
 ) -> None:
     run_dir.mkdir()
     if integration_metrics is None:
@@ -40,9 +43,14 @@ def _write_minimal_long_evidence(
         "estimated_cost": 1.23,
         "actual_total_chars": 36000,
         "markdown_artifact_id": markdown_artifact_id,
+        "epub_artifact_id": epub_artifact_id,
         "audit_artifact_id": audit_artifact_id,
+        "prompt_tokens_used": 40000,
+        "completion_tokens_used": 80000,
+        "cost_cny_estimated": 0.6,
         "artifact_hashes": {
             "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash" if include_epub else "",
             "audit_report_sha256": "audit-hash",
         },
         "per_chapter_metrics": [
@@ -51,6 +59,14 @@ def _write_minimal_long_evidence(
         ],
         "integration_metrics": integration_metrics,
     }
+    if include_cost_breakdown:
+        summary["cost_breakdown"] = {
+            "currency": "CNY",
+            "input_cny": 0.12,
+            "output_cny": 0.48,
+            "total_cny": 0.6,
+            "source": "provider_usage",
+        }
     metadata = {
         "runner_exit_code": 0,
         "summary_present": summary_present,
@@ -69,6 +85,8 @@ def _write_minimal_long_evidence(
     (run_dir / "quality-risk.md").write_text("脱敏质量风险记录", encoding="utf-8")
     (run_dir / "human-readthrough-todo.md").write_text("人工通读待办", encoding="utf-8")
     (run_dir / "book.md").write_text("脱敏正文", encoding="utf-8")
+    if include_epub:
+        (run_dir / "book.epub").write_bytes(b"epub-bytes")
     _write_json(run_dir / "audit_report.json", {"status": "ok"})
     _write_json(run_dir / "stdout.json", {"status": "ok"})
     (run_dir / "stderr.log").write_text("", encoding="utf-8")
@@ -128,13 +146,37 @@ def test_long_evidence_validator_accepts_complete_minimal_evidence(tmp_path: Pat
     run_dir = tmp_path / "long-evidence"
     _write_minimal_long_evidence(run_dir)
 
-    result = _run_validator(run_dir)
+    result = _run_validator(run_dir, "-RequireIntegrationGate")
 
     assert result.returncode == 0
     assert "markdown_artifact_id: artifact-book-md" in result.stdout
+    assert "epub_artifact_id: artifact-book-epub" in result.stdout
     assert "audit_artifact_id: artifact-audit-json" in result.stdout
+    assert "cost_cny_estimated: 0.6" in result.stdout
     assert "quality_issue_count_total: 0" in result.stdout
     assert "gate: pass_for_real_10ch_scope" in result.stdout
+
+
+def test_long_evidence_validator_rejects_missing_epub_and_cost_breakdown(tmp_path: Path) -> None:
+    """30 章长跑证据必须包含 EPUB 文件、EPUB hash 和 cost breakdown。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(
+        run_dir,
+        chapter_count=30,
+        epub_artifact_id="",
+        include_epub=False,
+        include_cost_breakdown=False,
+    )
+
+    result = _run_validator(run_dir, "-ExpectedChapterCount", "30")
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少必需产物：book.epub" in result.stdout
+    assert "failure: 缺少 epub_artifact_id" in result.stdout
+    assert "failure: 缺少 book_epub_sha256" in result.stdout
+    assert "failure: 缺少 cost_breakdown" in result.stdout
 
 
 def test_long_evidence_validator_rejects_missing_phase5_integration_metrics(tmp_path: Path) -> None:
@@ -143,7 +185,7 @@ def test_long_evidence_validator_rejects_missing_phase5_integration_metrics(tmp_
     run_dir = tmp_path / "long-evidence"
     _write_minimal_long_evidence(run_dir, integration_metrics={})
 
-    result = _run_validator(run_dir)
+    result = _run_validator(run_dir, "-RequireIntegrationGate")
 
     assert result.returncode == 1
     assert "gate: fail" in result.stdout

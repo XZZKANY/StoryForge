@@ -10,6 +10,7 @@ param(
   [int]$OuterTimeoutSeconds = 4800,
   [string]$Label = "10ch",
   [string]$ResumeRunDirectory = "",
+  [switch]$RequireIntegrationGate,
   [switch]$ProbeOnly,
   [switch]$Interactive
 )
@@ -91,7 +92,7 @@ foreach ($name in $requiredNames) {
   }
 }
 
-Write-Output "真实 LLM 10 章运行包装"
+Write-Output "真实 LLM 长跑运行包装"
 Write-Output "env_scope: current_process"
 Write-Output "chapter_count: $ChapterCount"
 Write-Output "max_chapter_count: $MaxChapterCount"
@@ -100,6 +101,7 @@ Write-Output "token_budget: $TokenBudget"
 Write-Output "timeout_seconds: $TimeoutSeconds"
 Write-Output "time_budget_seconds: $TimeBudgetSeconds"
 Write-Output "outer_timeout_seconds: $OuterTimeoutSeconds"
+Write-Output "require_integration_gate: $RequireIntegrationGate"
 if (-not [string]::IsNullOrWhiteSpace($ResumeRunDirectory)) {
   Write-Output "resume_run_directory: $ResumeRunDirectory"
 }
@@ -128,13 +130,13 @@ try {
 
   if ($probeExitCode -ne 0 -or -not (($probeOutput -join "`n") -match "gate:\s*pass_connectivity_probe")) {
     Write-Output "gate: fail_connectivity_probe"
-    Write-Output "note: Provider 连通性探针未通过，已停止 10 章长程运行。"
+    Write-Output "note: Provider 连通性探针未通过，已停止真实 LLM 长跑。"
     exit $probeExitCode
   }
 
   if ($ProbeOnly) {
     Write-Output "gate: pass_probe_only"
-    Write-Output "note: Provider 连通性探针已通过，ProbeOnly 模式不会启动 10 章长程。"
+    Write-Output "note: Provider 连通性探针已通过，ProbeOnly 模式不会启动真实 LLM 长跑。"
     exit 0
   }
 
@@ -155,6 +157,9 @@ try {
     )
     if (-not [string]::IsNullOrWhiteSpace($ResumeRunDirectory)) {
       $runnerArgs += @("--resume-run-directory", $ResumeRunDirectory)
+    }
+    if ($RequireIntegrationGate) {
+      $runnerArgs += "--require-integration-gate"
     }
     uv run python @runnerArgs
     exit $LASTEXITCODE

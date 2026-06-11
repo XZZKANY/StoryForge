@@ -18,6 +18,7 @@ from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.phase9b_real_llm_smoke import (
     Phase9BRealLlmSmokePreflightError,
+    _evidence_summary,
     _prior_chapters_recap,
     _record_model_run,
     main,
@@ -136,6 +137,74 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert audit["quality_summary"]["average_score"] == 100
     assert audit["quality_summary"]["scored_chapter_count"] == 1
     assert audit["chapters"][0]["quality_score"] == 100
+
+
+def test_phase9b_real_llm_smoke_supports_api_key_auth_and_cost_breakdown(session: Session) -> None:
+    """Token Plan 路径应支持 api-key 鉴权，并按输入/输出 token 估算人民币成本。"""
+
+    _Phase9BChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": _local_provider_base_url(server.server_port),
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+        "STORYFORGE_LLM_AUTH_HEADER": "api-key",
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": "3.00",
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": "6.00",
+        "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS": "0.025",
+    }
+    import os
+
+    old_env = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
+
+    try:
+        result = run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env=env)
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    draft_request = _Phase9BChatHandler.requests[0]
+    request_headers = {str(key).lower(): value for key, value in draft_request["headers"].items()}
+    assert request_headers["api-key"] == "test-private-credential"
+    assert "authorization" not in request_headers
+
+    model_run = session.query(ModelRun).one()
+    assert model_run.payload["prompt_tokens"] == 101
+    assert model_run.payload["completion_tokens"] == 222
+    assert model_run.payload["total_tokens"] == 323
+    assert model_run.payload["cost_cny_estimated"] == pytest.approx(0.001635, rel=1e-6)
+    assert model_run.payload["cost_source"] == "provider_usage"
+
+    completed = result.book_run.progress["completed_chapters"][0]
+    assert completed["prompt_tokens"] == 101
+    assert completed["completion_tokens"] == 222
+    assert completed["generation_latency_ms"] >= 0
+    assert completed["cost_estimate"] == pytest.approx(0.001635, rel=1e-6)
+    assert result.book_run.estimated_cost == pytest.approx(0.001635, rel=1e-6)
+
+    summary = _evidence_summary(
+        result,
+        target_word_count=1000,
+        chapter_word_count_min=600,
+        chapter_word_count_max=1600,
+    )
+    assert summary["prompt_tokens_used"] == 101
+    assert summary["completion_tokens_used"] == 222
+    assert summary["cost_cny_estimated"] == pytest.approx(0.001635, rel=1e-6)
+    assert summary["cost_breakdown"]["input_cny"] == pytest.approx(0.000303, rel=1e-6)
+    assert summary["cost_breakdown"]["output_cny"] == pytest.approx(0.001332, rel=1e-6)
+    assert summary["total_latency_ms"] >= 0
+    assert summary["failure_count"] == 0
+    assert summary["repair_round_count"] == 0
 
 
 def test_phase9b_real_llm_smoke_fast_path_skips_semantic_judge_when_local_gate_passes(session: Session) -> None:
@@ -683,7 +752,20 @@ def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path)
     ]
     assert summary["markdown_artifact_id"] == 12
     assert summary["audit_artifact_id"] == 13
-    assert summary["per_chapter_metrics"] == [
+    assert [
+        {
+            key: metric[key]
+            for key in (
+                "chapter_index",
+                "token_usage",
+                "quality_score",
+                "quality_issue_count",
+                "elapsed_time_sec",
+                "repair_rounds",
+            )
+        }
+        for metric in summary["per_chapter_metrics"]
+    ] == [
         {
             "chapter_index": 1,
             "token_usage": 200,
@@ -701,6 +783,11 @@ def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path)
             "repair_rounds": 1,
         },
     ]
+    assert summary["prompt_tokens_used"] == 0
+    assert summary["completion_tokens_used"] == 0
+    assert summary["cost_breakdown"]["currency"] == "CNY"
+    assert summary["failure_count"] == 0
+    assert summary["repair_round_count"] == 1
     assert summary["artifact_hashes"]["book_md_sha256"]
     assert summary["artifact_hashes"]["audit_report_sha256"]
     assert summary["integration_metrics"] == {
