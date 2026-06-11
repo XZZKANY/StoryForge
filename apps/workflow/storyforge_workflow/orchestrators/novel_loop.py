@@ -14,6 +14,9 @@ class NovelLoopRequest:
     chapter_index: int
     chapter_goal: str
     planning_refs: dict[str, Any] | None = None
+    current_chapter_beat: dict[str, Any] | None = None
+    phase_policy_summary: dict[str, Any] | None = None
+    entity_budget_summary: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

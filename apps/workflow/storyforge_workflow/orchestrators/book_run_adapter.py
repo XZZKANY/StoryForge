@@ -53,6 +53,12 @@ class BookRunAdapterRequest:
     chapter_parallelism: int = 1
     require_budget_guard_before_prefetch: bool = False
     volume_plan: list[BookRunVolumePlanItem | dict[str, Any]] = field(default_factory=list)
+    narrative_plan: dict[str, Any] | None = None
+    chapter_beats: list[dict[str, Any]] = field(default_factory=list)
+    entity_budget: dict[str, Any] | None = None
+    phase_policy: dict[str, Any] | None = None
+    beat_sheet_gate: dict[str, Any] | None = None
+    narrative_risk_summary: dict[str, Any] | None = None
 
 
 class BookRunProgressSink(Protocol):
@@ -145,6 +151,15 @@ def run_book_run_dispatch_payload(
 ) -> BookLoopResult:
     """消费 API 生成的 dispatch payload，运行 BookRun adapter 并回填 progress。"""
 
+    narrative_plan = _locked_narrative_plan_or_raise(payload.get("narrative_plan"))
+    entity_budget = _mapping_summary(payload.get("entity_budget")) or _mapping_summary(narrative_plan.get("entity_budget"))
+    phase_policy = _mapping_summary(payload.get("phase_policy")) or _mapping_summary(narrative_plan.get("phase_policy"))
+    beat_sheet_gate = _mapping_summary(payload.get("beat_sheet_gate")) or _mapping_summary(
+        narrative_plan.get("beat_sheet_gate")
+    )
+    narrative_risk_summary = _mapping_summary(payload.get("narrative_risk_summary")) or _mapping_summary(
+        narrative_plan.get("narrative_risk_summary")
+    )
     chapters = _chapter_dispatch_map(payload.get("chapters"))
     request = BookRunAdapterRequest(
         book_run_id=_required_int(payload, "book_run_id"),
@@ -163,6 +178,12 @@ def run_book_run_dispatch_payload(
             default=_env_budget_guard_before_prefetch(),
         ),
         volume_plan=_volume_plan_or_single(payload.get("volume_plan"), _required_int(payload, "total_chapters")),
+        narrative_plan=_narrative_plan_progress_summary(narrative_plan, beat_sheet_gate=beat_sheet_gate),
+        chapter_beats=_chapter_beats_summary(narrative_plan),
+        entity_budget=entity_budget,
+        phase_policy=phase_policy,
+        beat_sheet_gate=beat_sheet_gate,
+        narrative_risk_summary=narrative_risk_summary,
     )
     required_indexes = range(request.start_chapter_index, request.total_chapters + 1)
     missing = [index for index in required_indexes if index not in chapters]
@@ -221,6 +242,9 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             chapter_index=chapter_index,
             chapter_goal=ports.chapter_goal(chapter_index),
             planning_refs=ports.chapter_planning_refs(chapter_index) if ports.chapter_planning_refs else None,
+            current_chapter_beat=_chapter_beat_for_index(request, chapter_index),
+            phase_policy_summary=dict(request.phase_policy) if request.phase_policy is not None else None,
+            entity_budget_summary=dict(request.entity_budget) if request.entity_budget is not None else None,
         )
         runner = NovelSkillRunner.default()
         return run_single_chapter_loop(
@@ -286,11 +310,12 @@ def _emit_result_progress(
     suppress_errors: bool = False,
 ) -> None:
     try:
+        progress = _with_narrative_progress(request, result.progress)
         ports.progress_sink.emit(
             book_run_id=request.book_run_id,
             status=result.status,
             current_chapter_index=result.current_chapter_index,
-            progress=result.progress,
+            progress=progress,
             volume_progress=_volume_progress_from_result(request, result),
         )
     except Exception:
@@ -303,6 +328,17 @@ def _with_dispatch(result: BookLoopResult, dispatch: dict[str, Any]) -> BookLoop
     progress = dict(result.progress)
     progress["dispatch"] = dispatch
     return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
+
+
+def _with_narrative_progress(request: BookRunAdapterRequest, progress: Mapping[str, Any]) -> dict[str, Any]:
+    enriched = dict(progress)
+    if request.narrative_plan is not None:
+        enriched["narrative_plan"] = dict(request.narrative_plan)
+    if request.entity_budget is not None:
+        enriched["entity_usage"] = dict(request.entity_budget)
+    if request.narrative_risk_summary is not None:
+        enriched["narrative_risk_summary"] = dict(request.narrative_risk_summary)
+    return enriched
 
 
 def _novel_loop_ports_with_injected_ports(novel_ports: NovelLoopPorts, ports: BookRunAdapterPorts) -> NovelLoopPorts:
@@ -476,6 +512,117 @@ def _planning_refs_or_none(value: object) -> dict[str, Any] | None:
     ratio = value.get("arc_completion_ratio")
     bounded = float(ratio) if isinstance(ratio, int | float) and 0 <= ratio <= 1 else 0.0
     return {"arc_ids": arc_ids, "arc_completion_ratio": bounded}
+
+
+def _locked_narrative_plan_or_raise(value: object) -> dict[str, Any]:
+    narrative_plan = _object_mapping(value)
+    if narrative_plan is None or narrative_plan.get("locked") is not True:
+        raise ValueError("BookRun dispatch payload requires narrative_plan locked=True before generation.")
+    return narrative_plan
+
+
+def _narrative_plan_progress_summary(
+    narrative_plan: Mapping[str, Any],
+    *,
+    beat_sheet_gate: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {"locked": True}
+    for source_key, target_key in (
+        ("plan_id", "plan_id"),
+        ("id", "plan_id"),
+        ("summary", "summary"),
+        ("premise", "premise"),
+        ("truth", "truth"),
+        ("protagonist_arc", "protagonist_arc"),
+        ("antagonist_motive", "antagonist_motive"),
+    ):
+        if target_key in summary:
+            continue
+        value = narrative_plan.get(source_key)
+        if value is not None and _is_light_scalar(value):
+            summary[target_key] = value
+    if beat_sheet_gate is not None:
+        summary["beat_sheet_gate"] = dict(beat_sheet_gate)
+    return summary
+
+
+def _chapter_beats_summary(narrative_plan: Mapping[str, Any]) -> list[dict[str, Any]]:
+    raw_beats = narrative_plan.get("chapter_beats")
+    if not isinstance(raw_beats, list | tuple):
+        return []
+    beats: list[dict[str, Any]] = []
+    for raw_beat in raw_beats:
+        beat = _object_mapping(raw_beat)
+        if beat is None:
+            continue
+        summary = _mapping_summary(beat)
+        if summary is not None:
+            beats.append(summary)
+    return beats
+
+
+def _chapter_beat_for_index(request: BookRunAdapterRequest, chapter_index: int) -> dict[str, Any] | None:
+    for beat in request.chapter_beats:
+        raw_index = beat.get("chapter_index", beat.get("chapter"))
+        if raw_index == chapter_index:
+            return dict(beat)
+    return None
+
+
+def _mapping_summary(value: object) -> dict[str, Any] | None:
+    mapping = _object_mapping(value)
+    if mapping is None:
+        return None
+    summary: dict[str, Any] = {}
+    for key, raw_value in mapping.items():
+        if not isinstance(key, str) or _is_full_text_key(key):
+            continue
+        sanitized = _sanitize_summary_value(raw_value)
+        if sanitized is not None:
+            summary[key] = sanitized
+    return summary
+
+
+def _sanitize_summary_value(value: object) -> Any:
+    if _is_light_scalar(value):
+        return value
+    if isinstance(value, Mapping):
+        return _mapping_summary(value)
+    if _is_dataclass_like(value):
+        return _mapping_summary(value)
+    if isinstance(value, list | tuple):
+        items = [_sanitize_summary_value(item) for item in value]
+        return [item for item in items if item is not None]
+    return None
+
+
+def _object_mapping(value: object) -> dict[str, Any] | None:
+    if isinstance(value, Mapping):
+        return dict(value)
+    compact_summary = getattr(value, "compact_summary", None)
+    if callable(compact_summary):
+        summary = compact_summary()
+        if isinstance(summary, Mapping):
+            mapping = dict(summary)
+            if hasattr(value, "locked"):
+                mapping.setdefault("locked", value.locked)
+            return mapping
+    if _is_dataclass_like(value):
+        return dict(vars(value))
+    return None
+
+
+def _is_dataclass_like(value: object) -> bool:
+    return hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
+
+
+def _is_light_scalar(value: object) -> bool:
+    return isinstance(value, bool | int | float) or (isinstance(value, str) and len(value) <= 240)
+
+
+def _is_full_text_key(key: str) -> bool:
+    normalized = key.lower()
+    return any(fragment in normalized for fragment in ("full", "draft", "正文", "prompt", "manuscript"))
 
 
 def _required_int(payload: Mapping[str, Any], key: str) -> int:

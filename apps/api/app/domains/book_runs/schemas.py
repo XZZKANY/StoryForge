@@ -139,6 +139,10 @@ class BookRunWorkflowDispatch(BaseModel):
     provider_fallback_pause_threshold: int | None = Field(default=None, gt=0)
     chapters: list[BookRunWorkflowChapter] = Field(default_factory=list)
     volume_plan: list[BookRunVolumePlanItem] = Field(default_factory=list)
+    narrative_plan: dict[str, Any] = Field(default_factory=dict)
+    entity_budget: dict[str, Any] = Field(default_factory=dict)
+    phase_policy: dict[str, Any] = Field(default_factory=dict)
+    beat_sheet_gate: dict[str, Any] = Field(default_factory=dict)
 
 
 class BookRunQualitySummary(BaseModel):

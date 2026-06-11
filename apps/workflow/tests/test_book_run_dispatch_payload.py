@@ -169,6 +169,41 @@ def test_book_run_dispatch_payload_requires_chapter_mapping() -> None:
         run_book_run_dispatch_payload(payload, _passing_ports, CapturingProgressSink())
 
 
+def test_book_run_dispatch_payload_requires_locked_narrative_plan_before_ports_factory() -> None:
+    """dispatch 缺少 locked NarrativePlan 时应在生成前失败，且不能调用端口工厂。"""
+
+    called = False
+    payload = _dispatch_payload()
+    payload.pop("narrative_plan")
+
+    def ports_factory(request: NovelLoopRequest) -> NovelLoopPorts:
+        nonlocal called
+        called = True
+        return _passing_ports(request)
+
+    with pytest.raises(ValueError, match="narrative_plan.*locked"):
+        run_book_run_dispatch_payload(payload, ports_factory, CapturingProgressSink())
+
+    assert called is False
+
+
+def test_book_run_dispatch_payload_rejects_unlocked_narrative_plan_before_ports_factory() -> None:
+    """dispatch 中 NarrativePlan 未锁定时应拒绝运行，避免基于漂移规划开写。"""
+
+    called = False
+    payload = _dispatch_payload(narrative_plan={**_locked_narrative_plan(), "locked": False})
+
+    def ports_factory(request: NovelLoopRequest) -> NovelLoopPorts:
+        nonlocal called
+        called = True
+        return _passing_ports(request)
+
+    with pytest.raises(ValueError, match="narrative_plan.*locked"):
+        run_book_run_dispatch_payload(payload, ports_factory, CapturingProgressSink())
+
+    assert called is False
+
+
 def test_book_run_dispatch_payload_threads_planning_refs_into_novel_request() -> None:
     """dispatch payload 中的 planning_refs 应透传到每章 NovelLoopRequest，不再在 adapter 处丢弃。"""
 
@@ -193,6 +228,141 @@ def test_book_run_dispatch_payload_threads_planning_refs_into_novel_request() ->
 
     assert len(captured) == 1
     assert captured[0].planning_refs == {"arc_ids": ["旧港信号"], "arc_completion_ratio": 0.8}
+
+
+def test_book_run_dispatch_payload_threads_current_chapter_beat_into_novel_request() -> None:
+    """locked NarrativePlan 的当前章 ChapterBeat 应挂到对应 NovelLoopRequest。"""
+
+    captured: list[NovelLoopRequest] = []
+
+    def capturing_ports(request: NovelLoopRequest) -> NovelLoopPorts:
+        captured.append(request)
+        return _passing_ports(request)
+
+    payload = _dispatch_payload(
+        total_chapters=2,
+        chapters=[
+            {
+                "chapter_index": 1,
+                "chapter_id": 101,
+                "chapter_goal": "第一章建立雾港信号。",
+            },
+            {
+                "chapter_index": 2,
+                "chapter_id": 102,
+                "chapter_goal": "第二章把灯塔风险推到台前。",
+            },
+        ],
+        narrative_plan={
+            **_locked_narrative_plan(),
+            "beat_sheet_gate": {"status": "passed", "risk_level": "low"},
+            "chapter_beats": [
+                {"chapter_index": 1, "beat_id": "beat-1", "goal": "发现信号异常", "full_text": "完整正文不应下发"},
+                {"chapter_index": 2, "beat_id": "beat-2", "goal": "确认灯塔有人篡改"},
+            ],
+            "phase_policy": {"current_phase": "setup", "allowed_tension": "low"},
+            "entity_budget": {"max_new_entities": 2, "used_entities": 1},
+        },
+    )
+
+    run_book_run_dispatch_payload(payload, capturing_ports, CapturingProgressSink())
+
+    assert [request.current_chapter_beat for request in captured] == [
+        {"chapter_index": 1, "beat_id": "beat-1", "goal": "发现信号异常"},
+        {"chapter_index": 2, "beat_id": "beat-2", "goal": "确认灯塔有人篡改"},
+    ]
+    assert captured[0].phase_policy_summary == {"current_phase": "setup", "allowed_tension": "low"}
+    assert captured[0].entity_budget_summary == {"max_new_entities": 2, "used_entities": 1}
+
+
+def test_book_run_dispatch_payload_uses_top_level_narrative_control_summaries() -> None:
+    """API dispatch 顶层叙事预算和阶段策略应成为 workflow 的运行约束摘要。"""
+
+    captured: list[NovelLoopRequest] = []
+    sink = CapturingProgressSink()
+
+    def capturing_ports(request: NovelLoopRequest) -> NovelLoopPorts:
+        captured.append(request)
+        return _passing_ports(request)
+
+    payload = _dispatch_payload(
+        narrative_plan={
+            "locked": True,
+            "source": "generated_default",
+            "chapter_beats": [
+                {"chapter_index": 1, "beat": "确认灯塔信号失真。"},
+            ],
+        },
+    )
+    payload["entity_budget"] = {
+        "key_characters": 5,
+        "core_locations": 3,
+        "core_evidence": 3,
+        "major_reversals": 2,
+    }
+    payload["phase_policy"] = {
+        "phases": [
+            {"name": "setup", "chapter_range": {"start": 1, "end": 6}},
+        ]
+    }
+    payload["beat_sheet_gate"] = {"status": "pass", "locked": True, "chapter_count": 1}
+
+    run_book_run_dispatch_payload(payload, capturing_ports, sink)
+
+    assert captured[0].entity_budget_summary == {
+        "key_characters": 5,
+        "core_locations": 3,
+        "core_evidence": 3,
+        "major_reversals": 2,
+    }
+    assert captured[0].phase_policy_summary == {
+        "phases": [
+            {"name": "setup", "chapter_range": {"start": 1, "end": 6}},
+        ]
+    }
+    assert sink.payloads[-1]["progress"]["entity_usage"] == captured[0].entity_budget_summary
+    assert sink.payloads[-1]["progress"]["narrative_plan"]["beat_sheet_gate"] == {
+        "status": "pass",
+        "locked": True,
+        "chapter_count": 1,
+    }
+
+
+def test_book_run_dispatch_payload_progress_has_narrative_summaries_without_full_draft_text() -> None:
+    """progress 应包含规划/风险/实体摘要，但不能携带完整正文或 draft。"""
+
+    sink = CapturingProgressSink()
+    payload = _dispatch_payload(
+        narrative_plan={
+            **_locked_narrative_plan(),
+            "summary": "雾港灯塔长线推进",
+            "full_text": "完整正文不应进入 progress",
+            "draft": "full draft must not enter progress",
+            "beat_sheet_gate": {"status": "passed", "risk_level": "medium", "notes": "节奏可控"},
+            "narrative_risk_summary": {"risk_level": "medium", "open_risks": ["灯塔动机需回收"]},
+            "entity_budget": {"max_new_entities": 2, "used_entities": 1, "remaining_entities": 1},
+        },
+    )
+
+    run_book_run_dispatch_payload(payload, _passing_ports, sink)
+
+    first_progress = sink.payloads[0]["progress"]
+    final_progress = sink.payloads[-1]["progress"]
+    for progress in (first_progress, final_progress):
+        assert progress["narrative_plan"] == {
+            "locked": True,
+            "plan_id": "np-locked",
+            "summary": "雾港灯塔长线推进",
+            "beat_sheet_gate": {"status": "passed", "risk_level": "medium", "notes": "节奏可控"},
+        }
+        assert progress["entity_usage"] == {"max_new_entities": 2, "used_entities": 1, "remaining_entities": 1}
+        assert progress["narrative_risk_summary"] == {
+            "risk_level": "medium",
+            "open_risks": ["灯塔动机需回收"],
+        }
+        assert "完整正文不应进入 progress" not in str(progress)
+        assert "full draft must not enter progress" not in str(progress)
+        assert "final_draft" not in str(progress)
 
 
 def test_book_run_dispatch_payload_drops_corrupt_planning_refs() -> None:
@@ -263,6 +433,7 @@ def _dispatch_payload(
     existing_checkpoint: list[dict[str, object]] | None = None,
     chapters: list[dict[str, object]] | None = None,
     volume_plan: list[dict[str, object]] | None = None,
+    narrative_plan: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "book_run_id": 41,
@@ -284,6 +455,22 @@ def _dispatch_payload(
             }
         ],
         "volume_plan": volume_plan,
+        "narrative_plan": narrative_plan or _locked_narrative_plan(),
+    }
+
+
+def _locked_narrative_plan() -> dict[str, object]:
+    return {
+        "plan_id": "np-locked",
+        "locked": True,
+        "summary": "雾港灯塔长线推进",
+        "beat_sheet_gate": {"status": "passed", "risk_level": "low"},
+        "narrative_risk_summary": {"risk_level": "low", "open_risks": []},
+        "entity_budget": {"max_new_entities": 2, "used_entities": 0, "remaining_entities": 2},
+        "phase_policy": {"current_phase": "setup"},
+        "chapter_beats": [
+            {"chapter_index": 1, "beat_id": "beat-1", "goal": "林岚发现异常信号"},
+        ],
     }
 
 

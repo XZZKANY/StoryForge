@@ -619,6 +619,61 @@ def test_book_loop_parallel_consistency_barrier_blocks_on_conflict() -> None:
     assert result.progress["consistency_conflict"]["chapter_index"] == 2
 
 
+def test_book_loop_parallel_discard_generated_later_chapter_when_gate_blocks() -> None:
+    """后续章节即使已生成，也不能越过阻断章写入 checkpoint。"""
+
+    first_chapter_can_finish = Event()
+    started: list[int] = []
+    progress_indexes: list[int] = []
+    lock = Lock()
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        with lock:
+            started.append(chapter_index)
+            if len(started) == 3:
+                first_chapter_can_finish.set()
+        if chapter_index == 1:
+            first_chapter_can_finish.wait(timeout=2)
+        return _approved_chapter(chapter_index)
+
+    def consistency_barrier(chapter_index, chapter_result, committed_chapters):
+        if chapter_index == 2:
+            return ChapterConsistencyReport(conflicts=[{"kind": "gate_block"}])
+        return ChapterConsistencyReport(conflicts=[])
+
+    result = run_book_loop(
+        BookLoopRequest(book_run_id=1, book_id=2, blueprint_id=3, total_chapters=3, chapter_parallelism=3),
+        run_chapter,
+        progress_callback=lambda progress: progress_indexes.append(progress.current_chapter_index),
+        consistency_barrier=consistency_barrier,
+    )
+
+    assert result.status == "awaiting_review"
+    assert set(started) == {1, 2, 3}
+    assert progress_indexes == [1]
+    assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1]
+    assert result.progress["blocked_chapter"]["chapter_index"] == 2
+
+
+def test_book_loop_parallel_metrics_record_phase_aware_window_decisions() -> None:
+    """长篇并发调度指标应记录 P1-3 阶段窗口。"""
+
+    result = run_book_loop(
+        BookLoopRequest(book_run_id=1, book_id=2, blueprint_id=3, total_chapters=30, chapter_parallelism=5),
+        lambda chapter_index: _approved_chapter(chapter_index),
+    )
+
+    metrics = result.progress["integration_metrics"]
+    decisions = metrics["chapter_schedule_windows"]
+
+    assert result.status == "completed"
+    assert metrics["target_parallel_window"] == 3
+    assert metrics["phase_aware_parallel_windows"] == {"early": 3, "middle": 2, "final": 1}
+    assert {"next_chapter_index": 1, "phase": "early", "target_window": 3, "actual_window": 3} in decisions
+    assert {"next_chapter_index": 16, "phase": "middle", "target_window": 2, "actual_window": 2} in decisions
+    assert {"next_chapter_index": 25, "phase": "final", "target_window": 1, "actual_window": 1} in decisions
+
+
 def test_book_loop_sequential_consistency_barrier_blocks_on_conflict() -> None:
     """串行路径同样应受屏障约束，在冲突章节停止并保留前序已批准章节。"""
 

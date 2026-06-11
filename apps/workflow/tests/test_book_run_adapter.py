@@ -482,6 +482,7 @@ def test_book_run_adapter_passes_budget_guard_prefetch_flag(monkeypatch) -> None
             "chapter_parallelism": 3,
             "require_budget_guard_before_prefetch": True,
             "chapters": [{"chapter_index": 1, "chapter_id": 10, "chapter_goal": "完成第一章。"}],
+            "narrative_plan": {"locked": True, "summary": "预算门禁测试规划。"},
         },
         novel_loop_ports_factory=_passing_ports,
         progress_sink=CapturingProgressSink(),

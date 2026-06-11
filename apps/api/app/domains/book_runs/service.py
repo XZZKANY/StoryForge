@@ -33,6 +33,20 @@ CONTROLLED_PROGRESS_KEYS = frozenset(
 STICKY_PROGRESS_KEYS = frozenset({"manual_read_gate", "manual_read_review"})
 DEFAULT_TIMELINE_PROJECT_ID = 1
 DEFAULT_TIMELINE_VOLUME_ID = 1
+DEFAULT_ENTITY_BUDGET = {
+    "key_characters": 5,
+    "core_locations": 3,
+    "core_evidence": 3,
+    "major_reversals": 2,
+}
+DEFAULT_PHASE_POLICY = {
+    "phases": [
+        {"name": "setup", "chapter_range": {"start": 1, "end": 6}},
+        {"name": "investigation", "chapter_range": {"start": 7, "end": 15}},
+        {"name": "reversal", "chapter_range": {"start": 16, "end": 24}},
+        {"name": "resolution", "chapter_range": {"start": 25, "end": 30}},
+    ]
+}
 
 
 class BookRunError(InputError):
@@ -115,6 +129,7 @@ def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> Book
         raise BookRunBlockedError("BookRun 缺少章节计划，无法生成 workflow dispatch。")
     volume_plan = _volume_plan_from_blueprint(blueprint, book_run.total_chapters)
     _require_longform_context_ready(session, book_run=book_run, blueprint=blueprint, volume_plan=volume_plan)
+    narrative_plan = _workflow_narrative_plan(blueprint, chapters_by_index, book_run.total_chapters)
     return BookRunWorkflowDispatch(
         book_run_id=book_run.id,
         book_id=book_run.book_id,
@@ -136,6 +151,10 @@ def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> Book
             for index in required_indexes
         ],
         volume_plan=volume_plan,
+        narrative_plan=narrative_plan,
+        entity_budget=_default_entity_budget(),
+        phase_policy=_default_phase_policy(),
+        beat_sheet_gate=_beat_sheet_gate(narrative_plan),
     )
 
 
@@ -673,6 +692,183 @@ def _chapter_planning_refs(blueprint: BookBlueprint, chapter_index: int) -> Book
         arc_ids=valid_arc_ids,
         arc_completion_ratio=_bounded_ratio(ratio),
     )
+
+
+def _workflow_narrative_plan(
+    blueprint: BookBlueprint,
+    chapters_by_index: dict[int, Chapter],
+    total_chapters: int,
+) -> dict[str, object]:
+    metadata = blueprint.metadata_ if isinstance(blueprint.metadata_, dict) else {}
+    raw_plan = metadata.get("narrative_plan")
+    if isinstance(raw_plan, dict) and raw_plan.get("locked") is True:
+        return _metadata_narrative_plan_summary(raw_plan)
+    return _generated_default_narrative_plan(blueprint, chapters_by_index, total_chapters)
+
+
+def _metadata_narrative_plan_summary(raw_plan: dict) -> dict[str, object]:
+    summary: dict[str, object] = {
+        "locked": True,
+        "source": "metadata",
+        "generated": False,
+    }
+    for key in ("premise", "truth", "protagonist_arc", "antagonist_motive"):
+        value = _compact_text(raw_plan.get(key))
+        if value:
+            summary[key] = value
+    summary["allowed_entities"] = _allowed_entities_summary(raw_plan.get("allowed_entities"))
+    summary["major_reversals"] = _major_reversals_summary(raw_plan.get("major_reversals"))
+    summary["chapter_beats"] = _chapter_beats_summary(raw_plan.get("chapter_beats"))
+    return summary
+
+
+def _generated_default_narrative_plan(
+    blueprint: BookBlueprint,
+    chapters_by_index: dict[int, Chapter],
+    total_chapters: int,
+) -> dict[str, object]:
+    locations = sorted(
+        {
+            location
+            for chapter in chapters_by_index.values()
+            if (location := _compact_text(getattr(chapter, "location", None), max_length=120))
+        }
+    )
+    chapter_beats = [
+        {
+            "chapter_index": index,
+            "beat": _chapter_goal(chapters_by_index[index]),
+        }
+        for index in sorted(chapters_by_index)
+        if 1 <= index <= total_chapters
+    ]
+    return {
+        "locked": True,
+        "source": "generated_default",
+        "generated": True,
+        "premise": _compact_text(blueprint.premise),
+        "truth": _compact_text(f"围绕核心前提完成证据闭环：{blueprint.premise}"),
+        "protagonist_arc": "主角按章节计划从发现问题推进到完成关键验证。",
+        "antagonist_motive": "反对力量围绕核心冲突阻止真相被确认。",
+        "allowed_entities": {
+            "characters": [],
+            "locations": locations[: DEFAULT_ENTITY_BUDGET["core_locations"]],
+            "evidence": [],
+        },
+        "major_reversals": _default_major_reversals(chapter_beats, total_chapters),
+        "chapter_beats": chapter_beats,
+    }
+
+
+def _allowed_entities_summary(value: object) -> dict[str, list[str]]:
+    source = value if isinstance(value, dict) else {}
+    return {
+        "characters": _compact_text_list(
+            source.get("characters", source.get("key_characters")),
+            DEFAULT_ENTITY_BUDGET["key_characters"],
+        ),
+        "locations": _compact_text_list(
+            source.get("locations", source.get("core_locations")),
+            DEFAULT_ENTITY_BUDGET["core_locations"],
+        ),
+        "evidence": _compact_text_list(
+            source.get("evidence", source.get("core_evidence")),
+            DEFAULT_ENTITY_BUDGET["core_evidence"],
+        ),
+    }
+
+
+def _major_reversals_summary(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    reversals: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        chapter_index = _positive_int(item.get("chapter_index"))
+        summary = _compact_text(item.get("summary") or item.get("beat") or item.get("title"))
+        if chapter_index is None or not summary:
+            continue
+        reversals.append({"chapter_index": chapter_index, "summary": summary})
+        if len(reversals) >= DEFAULT_ENTITY_BUDGET["major_reversals"]:
+            break
+    return reversals
+
+
+def _chapter_beats_summary(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    beats: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        chapter_index = _positive_int(item.get("chapter_index"))
+        beat = _compact_text(item.get("beat") or item.get("summary") or item.get("goal"))
+        if chapter_index is None or not beat:
+            continue
+        beats.append({"chapter_index": chapter_index, "beat": beat})
+    return beats
+
+
+def _default_major_reversals(chapter_beats: list[dict[str, object]], total_chapters: int) -> list[dict[str, object]]:
+    if not chapter_beats:
+        return []
+    indexes = sorted({max(1, min(total_chapters, round(total_chapters * ratio))) for ratio in (0.5, 0.8)})
+    by_index = {beat["chapter_index"]: beat["beat"] for beat in chapter_beats}
+    reversals: list[dict[str, object]] = []
+    for index in indexes:
+        beat = by_index.get(index)
+        if isinstance(beat, str) and beat:
+            reversals.append({"chapter_index": index, "summary": beat})
+    return reversals[: DEFAULT_ENTITY_BUDGET["major_reversals"]]
+
+
+def _default_entity_budget() -> dict[str, int]:
+    return dict(DEFAULT_ENTITY_BUDGET)
+
+
+def _default_phase_policy() -> dict[str, object]:
+    return {
+        "phases": [
+            {
+                "name": phase["name"],
+                "chapter_range": dict(phase["chapter_range"]),
+            }
+            for phase in DEFAULT_PHASE_POLICY["phases"]
+        ]
+    }
+
+
+def _beat_sheet_gate(narrative_plan: dict[str, object]) -> dict[str, object]:
+    chapter_beats = narrative_plan.get("chapter_beats")
+    return {
+        "status": "pass",
+        "locked": narrative_plan.get("locked") is True,
+        "chapter_count": len(chapter_beats) if isinstance(chapter_beats, list) else 0,
+        "source": narrative_plan.get("source") or "unknown",
+    }
+
+
+def _compact_text_list(value: object, limit: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in value:
+        text = _compact_text(item, max_length=120)
+        if text and text not in items:
+            items.append(text)
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _compact_text(value: object, *, max_length: int = 500) -> str:
+    if not isinstance(value, str):
+        return ""
+    text = " ".join(value.split())
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rstrip()
 
 
 def _bounded_ratio(value: object) -> float:

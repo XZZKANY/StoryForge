@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
@@ -176,6 +178,111 @@ def test_build_book_run_workflow_dispatch_payload(session_factory: sessionmaker[
     ]
     assert all(chapter.chapter_id > 0 for chapter in dispatch.chapters)
     assert dispatch.chapters[0].chapter_goal
+
+
+def test_workflow_dispatch_includes_generated_locked_narrative_plan(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """缺少 metadata narrative_plan 时，dispatch 应从章节计划生成锁定的轻量默认计划。"""
+
+    book_run_id = seed_dispatchable_book_run(session_factory, target_chapter_count=3)
+
+    with session_factory() as session:
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    payload = dispatch.model_dump()
+    assert payload["narrative_plan"]["locked"] is True
+    assert payload["narrative_plan"]["source"] == "generated_default"
+    assert payload["narrative_plan"]["generated"] is True
+    assert [beat["chapter_index"] for beat in payload["narrative_plan"]["chapter_beats"]] == [1, 2, 3]
+    assert all(beat["beat"] for beat in payload["narrative_plan"]["chapter_beats"])
+    assert payload["entity_budget"] == {
+        "key_characters": 5,
+        "core_locations": 3,
+        "core_evidence": 3,
+        "major_reversals": 2,
+    }
+    assert payload["phase_policy"] == {
+        "phases": [
+            {"name": "setup", "chapter_range": {"start": 1, "end": 6}},
+            {"name": "investigation", "chapter_range": {"start": 7, "end": 15}},
+            {"name": "reversal", "chapter_range": {"start": 16, "end": 24}},
+            {"name": "resolution", "chapter_range": {"start": 25, "end": 30}},
+        ]
+    }
+    assert payload["beat_sheet_gate"] == {
+        "status": "pass",
+        "locked": True,
+        "chapter_count": 3,
+        "source": "generated_default",
+    }
+
+
+def test_workflow_dispatch_sanitizes_locked_metadata_narrative_plan(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """dispatch 只传递锁定 NarrativePlan 的结构化摘要，不能泄露正文、草稿或 prompt。"""
+
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        target_chapter_count=3,
+        metadata={
+            "narrative_plan": {
+                "locked": True,
+                "premise": "雾港灯塔信号被人伪造。",
+                "truth": "真正的信号来自旧港沉船。",
+                "protagonist_arc": "林岚从孤证执念转向协作求证。",
+                "antagonist_motive": "沈砚隐藏事故责任。",
+                "allowed_entities": {
+                    "characters": ["林岚", "沈砚"],
+                    "locations": ["雾港灯塔"],
+                    "evidence": ["失真电报码"],
+                    "extra_notes": "SHOULD_NOT_LEAK",
+                },
+                "major_reversals": [
+                    {"chapter_index": 2, "summary": "沈砚提供的证词反向指向自己。", "draft": "SHOULD_NOT_LEAK"},
+                ],
+                "chapter_beats": [
+                    {"chapter_index": 1, "beat": "发现灯塔信号失真。", "prompt": "SHOULD_NOT_LEAK"},
+                    {"chapter_index": 2, "beat": "证词出现反转。", "full_prose": "SHOULD_NOT_LEAK"},
+                    {"chapter_index": 3, "beat": "公开旧港沉船真相。", "draft_text": "SHOULD_NOT_LEAK"},
+                ],
+                "full_prose": "SHOULD_NOT_LEAK",
+                "draft": "SHOULD_NOT_LEAK",
+                "prompt": "SHOULD_NOT_LEAK",
+            }
+        },
+    )
+
+    with session_factory() as session:
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    payload = dispatch.model_dump()
+    assert payload["narrative_plan"] == {
+        "locked": True,
+        "source": "metadata",
+        "generated": False,
+        "premise": "雾港灯塔信号被人伪造。",
+        "truth": "真正的信号来自旧港沉船。",
+        "protagonist_arc": "林岚从孤证执念转向协作求证。",
+        "antagonist_motive": "沈砚隐藏事故责任。",
+        "allowed_entities": {
+            "characters": ["林岚", "沈砚"],
+            "locations": ["雾港灯塔"],
+            "evidence": ["失真电报码"],
+        },
+        "major_reversals": [{"chapter_index": 2, "summary": "沈砚提供的证词反向指向自己。"}],
+        "chapter_beats": [
+            {"chapter_index": 1, "beat": "发现灯塔信号失真。"},
+            {"chapter_index": 2, "beat": "证词出现反转。"},
+            {"chapter_index": 3, "beat": "公开旧港沉船真相。"},
+        ],
+    }
+    serialized = dispatch.model_dump_json()
+    assert "SHOULD_NOT_LEAK" not in serialized
+    assert "full_prose" not in serialized
+    assert "draft_text" not in serialized
+    assert "prompt" not in serialized
 
 
 def test_workflow_dispatch_includes_lightweight_planning_refs(
@@ -509,7 +616,25 @@ def test_workflow_dispatch_after_retry_prefers_retry_start_over_stale_resume(
 def test_workflow_dispatch_endpoint_returns_payload(client: TestClient, session_factory: sessionmaker[Session]) -> None:
     """内部调度接口只返回 dispatch payload，不执行 workflow。"""
 
-    book_run_id = seed_dispatchable_book_run(session_factory)
+    book_run_id = seed_dispatchable_book_run(
+        session_factory,
+        metadata={
+            "narrative_plan": {
+                "locked": True,
+                "premise": "接口返回轻量计划。",
+                "truth": "只返回摘要。",
+                "protagonist_arc": "从怀疑到验证。",
+                "antagonist_motive": "隐藏事故。",
+                "allowed_entities": {"characters": ["林岚"], "locations": ["雾港"], "evidence": ["电报码"]},
+                "major_reversals": [{"chapter_index": 2, "summary": "证词反转。"}],
+                "chapter_beats": [
+                    {"chapter_index": 1, "beat": "发现异常。"},
+                    {"chapter_index": 2, "beat": "揭露真相。"},
+                ],
+                "prompt": "SHOULD_NOT_LEAK",
+            }
+        },
+    )
 
     response = client.get(f"/api/book-runs/{book_run_id}/workflow-dispatch")
 
@@ -521,6 +646,17 @@ def test_workflow_dispatch_endpoint_returns_payload(client: TestClient, session_
     assert payload["volume_plan"] == [
         {"volume_index": 1, "chapter_range": {"start": 1, "end": 2}},
     ]
+    assert payload["narrative_plan"]["locked"] is True
+    assert payload["narrative_plan"]["source"] == "metadata"
+    assert payload["entity_budget"]["key_characters"] == 5
+    assert payload["phase_policy"]["phases"][0] == {"name": "setup", "chapter_range": {"start": 1, "end": 6}}
+    assert payload["beat_sheet_gate"] == {
+        "status": "pass",
+        "locked": True,
+        "chapter_count": 2,
+        "source": "metadata",
+    }
+    assert "SHOULD_NOT_LEAK" not in json.dumps(payload, ensure_ascii=False)
 
 
 def test_workflow_dispatch_requires_chapter_plan(session_factory: sessionmaker[Session]) -> None:
