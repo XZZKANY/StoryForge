@@ -1,108 +1,122 @@
 # StoryForge
 
-StoryForge 是一个面向中文长篇小说生产的可验证创作流水线。它把 Blueprint、检索证据、章节生成、Judge 评审、Repair 修复、批准写回、Story Memory、导出制品与审计报告串成可复盘的 BookRun，而不是只产出一段孤立文本。
+面向**长篇小说生产**的可验证创作流水线——每一次生成、评审、修复与回写都留下可追溯证据，而不是只产出一段孤立文本。
 
-## 当前状态
+## 设计立场
 
-- 远端 `master` 已合并 Phase 9B 真实 LLM 冒烟调用链修复和 Phase 9 Alembic 多 head 修复。最新 GitHub Actions `CI / Core verification` run `26857864662` 已通过；历史远端 `master` 定时 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`；修复分支 `codex/phase9-e2e-alembic` 的远端 `E2E` run `26941784868` 已成功；修复已非强制快进合入 `master`，最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功，且 `执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
-- Phase 9A 本地 deterministic/mock 闭环已实现：BookRun 可从锁定 Blueprint 生成 3 章最小可审计小说，并导出 `book.md` 与 `audit_report.json`。
-- Phase 9B 控制面已实现：BookRun 支持 checkpoint resume、token/时间/章节预算暂停、provider 连续降级自动暂停，以及真实 LLM 冒烟入口。
-- Phase 9C 本地增强已实现：Story Memory 注入/抽取、Character Bible、Timeline Guard、Style Guard、EPUB 导出和全书审计页已纳入本地测试。
-- 当前已有真实 LLM 10 章 smoke 最终验收证据：`.codex/real-llm-10ch-20260604-110831`。该次运行实际 10 章、tokens_used=145668、`quality_summary.status=ok`、`gate: pass_for_real_10ch_final_acceptance`，并已补 10 章 smoke 人工通读完成记录；它不能外推为 3-5 万字长程完成。
+**先做诊断控制台，再做生成器。** 任何生成路径都先经过"读取证据 → 评审 → 修复 → 批准"的闭环，确认控制面可观测、可追踪之后，才接真实模型。所以 StoryForge 不是"输入提示词就出小说"的黑箱——它是给你看每一步判据、每一条检索锚点、每一次 Judge 打分与 Repair 修订记录的工作台。
 
-## 当前能做什么
+## 技术栈
 
-- **BookRun 最小全书闭环**：从 Blueprint 章节计划顺序驱动 NovelLoop，完成 generate、Judge、Repair、approve、checkpoint 与导出登记。
-- **真实 LLM 冒烟门禁**：提供 Phase 9B 真实 LLM 1 章、3 章和 10 章 smoke 证据，支持 token 预算、章节预算、Judge/Repair 证据记录和脱敏摘要输出。
-- **BookRun 控制面**：支持暂停/恢复、预算硬上限、provider 降级暂停和成本摘要展示，避免真实模型运行失控。
-- **全书制品与审计**：生成 Markdown、EPUB 与 `audit_report.json`，并通过 `/book-runs/[id]/audit` 回看 generate/judge/repair/approve/memory_extract 证据链。
-- **Studio 创作链路**：读取作品、章节目标、Scene Packet、Judge 评审、Repair 修订、批准摘要与失败恢复摘要；批准写回通过 Server Action 提交到后端真实端点。
-- **Retrieval 证据链路**：读取资料源、刷新任务、搜索命中和证据锚点，用于核对 Scene Packet 的检索来源。
-- **Runs 运行链路**：读取指定 `job_run_id` 的 JobRun、Checkpoint 和 ModelRun 摘要，并说明 retry 只创建恢复任务。
-- **Artifacts 治理入口**：读取制品列表、首个制品详情和 payload 下载摘要。
-- **Evaluations 诊断入口**：读取评测运行、趋势摘要、失败样例和 Studio 反馈入口摘要。
-- **Provider/LLM 诊断**：通过 Provider Gateway 与 workflow provider client 验证真实模型配置、降级边界和调用连通性。
+| 层 | 技术 | 为什么 |
+|---|---|---|
+| API（业务真相源） | FastAPI + SQLAlchemy + Alembic + Pydantic v2 | 所有判定在服务端完成，前端不私自计算业务结论 |
+| Web（工作台） | Next.js 15 (App Router) + React 19 + Tailwind v4 | 只展示已验证页面级闭环，请求经 `api-client.ts` 注入 `X-StoryForge-API-Key` |
+| Workflow（编排） | LangGraph | 长任务、checkpoint、真实模型调用——保持 API 事务边界清晰 |
+| 共享契约 | `packages/shared`（TypeScript） | OpenAPI 快照 + `api-types.ts` 生成类型，前后端硬约束 |
+| 基础设施 | PostgreSQL + pgvector + Redis + MinIO + Sentry + Prometheus | 向量检索、缓存、对象存储、错误追踪、业务指标 |
+| 包管理 | pnpm 9.x（workspace）+ `uv sync` | monorepo 统一依赖，Python 侧用 uv 锁定环境 |
 
-## 本分支新增内容
+## 快速开始
 
-本分支会把当前本地主工作区的最新进度提交上来，合并前仍以 PR 验证结果为准：
-
-- **模型设置页与 Provider 检测**：新增 `/settings` 入口、Provider 模型检测 API 与页面测试，用于检测端点连通性并查看可用模型。
-- **首页体验改版**：首页导航、快捷动作、侧栏与最近记录向更接近 Claude-like 工作台的体验收敛。
-- **Blueprint 章节计划增强**：3 章结构会生成更具体的调查推进目标和章节 beat，而不是每章复用同一句推进模板。
-- **Novel Skill Framework 设计**：将现有 generate、judge、repair、approve、memory_extract、export 显式声明为 StoryForge 自己的小说技能契约层，第一阶段只映射现有能力，不新增动态插件。
-- **小说质量总控计划**：规划静态坏味道检查、场景质量计划、分级修订、黄金样例回归和整书质量审计，目标是提升连贯性、人物一致性与文风稳定性。
-
-## 当前不能做什么
-
-- 不能宣称真实 LLM 下 3-5 万字长程已完成；当前真实证据只覆盖 1 章、3 章与 10 章 smoke。
-- 不能宣称已具备稳定生产级长篇闭环；3-5 万字短篇、Markdown/EPUB 导出验收、审计页回放和长程人工通读仍是发布前门禁。
-- 不提供全步骤 Studio 编排器，也不提供跨步骤草稿编辑器。
-- 不提供完整检索请求表单、命中详情弹层或 Retrieval 独立证据跳转路由。
-- 不把 Runs retry 描述为立即续跑 workflow。
-- 不提供对象存储签名 URL 下载、上传资料执行流、快照 diff 或评测报告详情页。
-- 不提供复杂趋势图、自动反馈执行或外部 LLM 生产端到端质量承诺。
-
-## 如何本地跑通
-
-```powershell
+```bash
 git clone https://github.com/XZZKANY/StoryForge.git
 cd StoryForge
 pnpm install
 docker compose up -d postgres redis minio
-pnpm verify
-pnpm e2e
-pnpm test
-pnpm openapi
+pnpm dev          # 全栈启动（API + Web + 迁移）
+pnpm verify       # 本地全链路门禁
+pnpm test         # 全套单元/契约测试
+pnpm e2e          # OpenAPI 刷新 + 契约 diff + 真实 HTTP 测试
 ```
 
-如 PowerShell 执行策略阻止 `pnpm.ps1`，使用：
+Windows 下如遇 `pnpm.ps1` 被 PowerShell 执行策略阻止，使用 `pnpm.cmd` 替代或：
 
 ```powershell
-powershell.exe -NoProfile -Command "pnpm.cmd run verify"
-powershell.exe -NoProfile -Command "pnpm.cmd run e2e"
-powershell.exe -NoProfile -Command "pnpm.cmd run test"
-powershell.exe -NoProfile -Command "pnpm.cmd openapi"
+powershell.exe -NoProfile -Command "pnpm.cmd run dev"
 ```
 
-## 真实 LLM 冒烟入口
+## 当前能力
 
-配置私有真实 LLM 环境变量后，可在本地 API 环境执行：
+- **BookRun 整书闭环**：从 Blueprint 章节计划驱动生成 → Judge 评审 → Repair 修复 → 批准 → checkpoint → 导出，全程可追溯。
+- **诊断工作台**：Studio 创作链路、Retrieval 证据检索、Runs 运行追踪、Artifacts 制品治理、Evaluations 评测诊断、Provider/模型诊断——每个模块都是只读诊断控制台，不在前端私自计算业务结论。
+- **控制面**：BookRun 支持 checkpoint 暂停/恢复、token/章节预算硬上限、provider 连续降级自动暂停、成本摘要。
+- **制品导出**：Markdown、EPUB、`audit_report.json`（含 generate/judge/repair/approve/memory_extract 完整证据链）。
+- **真实 LLM 冒烟门禁**：10 章真实 LLM smoke 已通过最终验收（`quality_summary.status=ok`），含人工通读完成记录。
+- **P0/P1 安全硬化**：Web 侧 API Key 已脱离客户端、下载与导出链路接入 workspace 作用域校验、ModelRun 与 BookRun 可观测性已补全。
 
-```powershell
-cd apps/api
-uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 --token-budget 8000
-uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
+## 当前边界
+
+StoryForge 仍在向 3–5 万字长程稳定生产推进中，以下能力**尚未就绪**：
+
+- 真实 LLM 下 3–5 万字长程闭环（当前真实证据最高覆盖 10 章 smoke）
+- 全步骤 Studio 编排器、跨步骤草稿编辑器
+- 对象存储签名 URL 下载、上传资料执行流
+- Runs retry 即时续跑 workflow
+- 多租户用户认证、streaming 响应
+- 外部 LLM 端到端质量承诺
+
+## 架构
+
+StoryForge 是三层的严格分层架构，每层有明确定义的数据流向和契约约束：
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Web (Next.js)         用户工作台，只读展示 + BFF    │
+│                         /studio /runs /artifacts ...  │
+│                         lib/api-client.ts             │
+└────────────────────────────┬─────────────────────────┘
+                             │ X-StoryForge-API-Key
+                             │ OpenAPI 硬契约（快照 → 类型生成）
+                             ▼
+┌──────────────────────────────────────────────────────┐
+│  API (FastAPI)          业务真相源，~25 个域          │
+│                         domain/router → service       │
+│                         → models (SQLAlchemy + pg)    │
+│                         /health/ready  /metrics       │
+└────────────────────────────┬─────────────────────────┘
+                             │ 写入 JobRun / Checkpoint
+                             │ 读写 ModelRun
+                             ▼
+┌──────────────────────────────────────────────────────┐
+│  Workflow (LangGraph)    长任务编排 + 真实模型边界    │
+│                         generation_graph              │
+│                         provider_adapter              │
+│                         creative_tool_registry        │
+└──────────────────────────────────────────────────────┘
 ```
 
-命令只输出脱敏摘要；真实凭据不得写入仓库、日志或验证报告。真实 LLM 冒烟结果必须连同 `book.md`、`audit_report.json`、ModelRun token 用量和 Judge/Repair 证据一起记录，才能升级能力声明。
+### 关键设计不变式
 
-## 最近验证证据
+- **API 是单一真相源。** 任何流程的判定都在 FastAPI `router → service` 完成；前端不允许私自计算业务结论。
+- **OpenAPI 是硬契约。** API 路由签名变化 → `pnpm openapi` 刷新快照 → `generate:types` 更新 TS 类型 → 消费侧类型检查捕获契约漂移。
+- **Web 只做 BFF + 展示。** 浏览器请求经 `lib/api-client.ts` 注入服务间认证头与 `cache: "no-store"`，不绕过 API 直连数据库或 workflow。
+- **Workflow 隔离长任务。** 真实模型调用、checkpoint、ModelRun 记录都在 workflow 侧，确保 API 始终保持事务边界清晰、不因长时间外部调用阻塞 HTTP 连接池。
+- **证据链不丢失。** 每次生成、评审、修复、批准都写入结构化记录（非 markdown 摘要），导出时聚合成 `audit_report.json` 供人工通读回溯。
 
-- PR #4：修复 Phase 9B 真实 LLM 冒烟调用链；最新远端 `CI / Core verification` run `26857864662` 已通过。
-- 远端 `master` 历史 schedule run `26915457170`（2026-06-03T21:55:39Z）曾失败，失败点为 `uv run alembic upgrade head`，错误为 `Multiple head revisions are present for given argument 'head'`；修复分支远端 `E2E` run `26941784868` 已证明本轮最小 Alembic 修复可在远端跑通；修复已合入 `master`，最新远端 `master` E2E run `26944063055` 已成功。
-- 本地迁移图修复：新增 Alembic merge revision `20260604_0001` 合并 `20260514_phase2` 与 `20260602_0003`，`uv run alembic heads --verbose` 只显示一个 mergepoint head；本地 `pnpm e2e` 的 `API verification` 已纳入 `tests/test_alembic_heads.py`，会先验证单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0，验证后已删除。
-- 隔离 worktree 验证：`apps/api` 全量 pytest 为 `313 passed, 6 warnings`；`apps/workflow` 全量 pytest 为 `110 passed`。
-- 本地快速验证仍建议运行 `pnpm verify`、`pnpm test`、`pnpm e2e` 与 `pnpm openapi`，并把结果写入 `.codex/verification-report.md`。远程 GitHub workflow 只作为手动提示检查，不替代本地 AI 验证门禁。
+### BookRun 生命周期
 
-## 发布前门禁
+```
+Blueprint（章节计划）
+  → NovelLoop 逐章驱动
+    → generate（Scene Architect → Draft Writer）
+    → judge（6 维质量评分 + 人工盲评门禁）
+    → repair（分级修订、去重回退）
+    → approve（写入章节 + Story Memory 注入）
+    → checkpoint（LangGraph 持久化）
+  → 导出（Markdown / EPUB / audit_report.json）
+```
 
-- Web 业务请求必须统一经过 `apps/web/lib/api-client.ts` 注入本地 API 访问头并使用 `cache: "no-store"`。
-- 页面级读取验证必须覆盖 `/studio`、`/retrieval`、`/runs?job_run_id=<有效ID>`、`/artifacts`、`/evaluations`、`/book-runs` 和 `/book-runs/[id]/audit`。
-- `scripts/run-e2e.mjs` 必须执行真实 API HTTP pytest 目标，不允许重新降级为补偿验证来掩盖 API 链路失败。
-- 宣称“真实模型下能产出一本最小可审计小说”时，必须同时引用本地 `pnpm verify` / `pnpm e2e` 结果、历史远端手动提示检查证据、真实 10 章 smoke BookRun completed、`quality_summary.status=ok`、`book.md` 可读、`audit_report.json` 完整、人工通读完成和 `gate: pass_for_real_10ch_final_acceptance` 证据。
-- 宣称“稳定长篇生产闭环”前，必须补齐 3-5 万字短篇、Markdown/EPUB 导出、审计页回放、人工通读无明显一致性矛盾，以及 README/current-phase 能力边界同步。
-- `.codex/verification-report.md` 必须记录自动化测试、页面读取、本地 API 访问头注入、Studio 批准写回、BookRun 冒烟、Artifacts/Evaluations 真实读取、远程 LLM 冒烟、未联通能力和 OpenAPI 变化情况。
-- `pnpm openapi` 如产生 diff，必须解释来源并补充测试证据后才能进入发布判断。
+### 仓库布局
 
-## 架构事实源
+```
+apps/api/         FastAPI 业务真相源（domain-driven，每域 router/service/schemas/models）
+apps/web/         Next.js 工作台（/studio /runs /artifacts /evaluations /retrieval /book-runs）
+apps/workflow/    LangGraph 编排器（generation_graph / provider_adapter / creative_tool_registry）
+packages/shared/  TS 共享契约（src/contracts/storyforge.openapi.json + generated/api-types.ts）
+scripts/          dev-start.mjs / generate-openapi.mjs / run-e2e.mjs
+tests/            顶层 E2E 契约测试
+.codex/           验证报告与证据目录
+```
 
-- 当前阶段主事实源：`current-phase.md`；README 只保留入口摘要，详细阶段判定和禁止宣称范围以 `current-phase.md` 为准。
-- API：`apps/api` 是业务真相源。
-- Web：`apps/web` 只展示已验证的页面级闭环和明确边界。
-- Workflow：`apps/workflow` 负责长任务编排、checkpoint、运行态记录和真实模型调用边界。
-- BookRun：`apps/api/app/domains/book_runs` 与 `apps/workflow/storyforge_workflow/orchestrators` 共同承载整书闭环。
-- 共享契约：`packages/shared/src/contracts/storyforge.openapi.json`。
-- 工作台契约：`docs/architecture/phase6-workbench-contract.md`。
-- 当前阶段事实源：`current-phase.md`。
-- 本地验证报告：`.codex/verification-report.md`。
+详细架构见 `CLAUDE.md`，当前阶段状态与未完成验收项见 `current-phase.md`。
