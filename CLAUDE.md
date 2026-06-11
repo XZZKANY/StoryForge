@@ -1,7 +1,7 @@
 # CLAUDE.md — StoryForge 项目上下文
 
 > 本文件帮助新一轮 Claude Code 会话快速理解 StoryForge 仓库。
-> 上位规范见 `D:\StoryForge\AGENTS.md`、日常执行版见 `AI_ITERATION_GUIDE.md`。
+> 上位规范见 `docs/internal/AGENTS.md`、日常执行版见 `docs/internal/AI_ITERATION_GUIDE.md`。
 
 ## 1. 项目定位
 
@@ -38,7 +38,7 @@ deploy/          Nginx、部署相关配置
 scripts/         dev-start.mjs / generate-openapi.mjs / run-e2e.mjs / verify-local.ps1 / migrate.sh
 tests/           顶层 e2e 契约测试（Node --test 风格）
 docs/            架构与工作台契约文档
-.codex/          验证报告（verification-report.md），所有变更必须留痕
+docs/internal/codex/  验证报告（verification-report.md），所有变更必须留痕
 ```
 
 ## 4. 常用命令
@@ -89,7 +89,7 @@ cd apps/web && pnpm test
 ## 6. 协作约定
 
 - **语言：** 所有回复、文档、注释、日志、提交信息默认简体中文；代码标识符、包名、API 名称保留英文。
-- **证据链：** 所有变更必须在 `.codex/verification-report.md` 留下验证记录（命令、输出摘要、未联通能力）。
+- **证据链：** 所有变更必须在 `docs/internal/codex/verification-report.md` 留下验证记录（命令、输出摘要、未联通能力）。
 - **小步推进：** 一次只解决一个明确问题，禁止顺手重构无关代码。
 - **不写多余注释：** 只在 WHY 不明显时加一行；不要描述代码做了什么。
 - **不写无关 README：** 除非用户明确要求。

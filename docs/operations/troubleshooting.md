@@ -32,7 +32,7 @@ docker compose up -d postgres redis minio
 pnpm verify
 ```
 
-如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
+如果 Docker 本身不可用，先启动 Docker Desktop 或安装 Docker，再重新运行验证。若失败属于当前环境限制，必须写入 `docs/internal/codex/verification-report.md`，不能声称完整通过。
 
 ## 3. FastAPI HTTP pytest 或 API verification 失败
 
@@ -156,7 +156,7 @@ docker compose ps
 - 工具缺失：安装对应工具后重试。
 - 文件缺失：检查 Git 工作区是否误删文件，必要时从当前分支恢复。
 - 容器缺失：执行 `docker compose up -d postgres redis minio` 后重试。
-- 若失败属于当前环境限制，必须写入 `.codex/verification-report.md`，不能声称完整通过。
+- 若失败属于当前环境限制，必须写入 `docs/internal/codex/verification-report.md`，不能声称完整通过。
 
 ## 8. Git 工作区不干净
 

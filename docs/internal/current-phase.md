@@ -6,14 +6,14 @@
 
 | 文件 | 职责 | 更新规则 |
 | --- | --- | --- |
-| `current-phase.md` | 当前阶段唯一事实源，记录最新状态、已完成能力、未完成门禁和禁止宣称范围。 | 远端 E2E、真实 LLM 长程、人工通读或发布门禁状态变化时必须先更新。 |
-| `README.md` | 面向使用者的入口摘要，保留能力边界、本地运行入口和关键证据指针。 | 只摘要当前状态，不复制完整门禁细节；当前事实以 `current-phase.md` 为准。 |
-| `TODO.md` | 当前下一步执行入口，记录剩余门禁、优先级和本地验证命令。 | 只保留下一步动作，不承载完整项目总览。 |
-| `PROJECT_SUMMARY.md` | 项目总览和验证状态摘要，面向交接和健康概览。 | 同步关键验证状态，但不替代当前阶段判定。 |
-| `.dev_plan.md` | 历史计划和阶段 DoD，保留 Phase 9 任务拆解与完成条件。 | 可记录阶段完成证据，但不能单独作为最新状态来源。 |
+| `docs/internal/current-phase.md` | 当前阶段唯一事实源，记录最新状态、已完成能力、未完成门禁和禁止宣称范围。 | 远端 E2E、真实 LLM 长程、人工通读或发布门禁状态变化时必须先更新。 |
+| `README.md` | 面向使用者的入口摘要，保留能力边界、本地运行入口和关键证据指针。 | 只摘要当前状态，不复制完整门禁细节；当前事实以 `docs/internal/current-phase.md` 为准。 |
+| `docs/internal/TODO.md` | 当前下一步执行入口，记录剩余门禁、优先级和本地验证命令。 | 只保留下一步动作，不承载完整项目总览。 |
+| `docs/internal/PROJECT_SUMMARY.md` | 项目总览和验证状态摘要，面向交接和健康概览。 | 同步关键验证状态，但不替代当前阶段判定。 |
+| `docs/internal/dev-plan.md` | 历史计划和阶段 DoD，保留 Phase 9 任务拆解与完成条件。 | 可记录阶段完成证据，但不能单独作为最新状态来源。 |
 | `docs/superpowers/plans/*` | 历史实施计划归档，保留设计和执行语境。 | 只作追溯参考，不参与当前状态判定。 |
 
-推荐读取顺序：先读 `current-phase.md`，再读 `TODO.md` 获取下一步，按需读 `PROJECT_SUMMARY.md`、`README.md` 和 `.dev_plan.md`。
+推荐读取顺序：先读 `docs/internal/current-phase.md`，再读 `docs/internal/TODO.md` 获取下一步，按需读 `docs/internal/PROJECT_SUMMARY.md`、`README.md` 和 `docs/internal/dev-plan.md`。
 
 ## 当前阶段
 
@@ -38,11 +38,11 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 
 最新脱敏证据目录：
 
-- 1 章真实 smoke：`.codex/real-llm-1ch-20260603-142925`，BookRun completed，已补人工通读。
-- 3 章真实 smoke：`.codex/real-llm-3ch-20260603-173932`，BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读完成记录已补齐。
-- 10 章真实 smoke：`.codex/real-llm-10ch-20260604-110831`，BookRun completed，实际 10 章，tokens_used=145668，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，10 章 smoke 人工通读完成，最终门禁 `gate: pass_for_real_10ch_final_acceptance`。
+- 1 章真实 smoke：`docs/internal/codex/real-llm-1ch-20260603-142925`，BookRun completed，已补人工通读。
+- 3 章真实 smoke：`docs/internal/codex/real-llm-3ch-20260603-173932`，BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读完成记录已补齐。
+- 10 章真实 smoke：`docs/internal/codex/real-llm-10ch-20260604-110831`，BookRun completed，实际 10 章，tokens_used=145668，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，10 章 smoke 人工通读完成，最终门禁 `gate: pass_for_real_10ch_final_acceptance`。
 
-历史限制：旧 3 章目录 `.codex/real-llm-3ch-20260603-163715` 曾出现语义 Judge 降级，只能证明真实生成与导出链路。最新 10 章 smoke 已完成最终验收，但仍不能外推为 3-5 万字长程完成。
+历史限制：旧 3 章目录 `docs/internal/codex/real-llm-3ch-20260603-163715` 曾出现语义 Judge 降级，只能证明真实生成与导出链路。最新 10 章 smoke 已完成最终验收，但仍不能外推为 3-5 万字长程完成。
 
 ## 已完成的远端门禁
 
@@ -56,7 +56,7 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 ## 仍未完成的验收项
 
 - 真实 LLM 跑完 3-5 万字短篇。
-- 3-5 万字长程人工通读记录写入 `.codex/verification-report.md`，且无明显人物、世界观或时间线矛盾。
+- 3-5 万字长程人工通读记录写入 `docs/internal/codex/verification-report.md`，且无明显人物、世界观或时间线矛盾。
 
 ## 禁止宣称范围
 
@@ -64,6 +64,6 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 
 ## 证据源
 
-- `.dev_plan.md`：Phase 9 计划、勾选状态和完成判定。
-- `.codex/verification-report.md`：本地测试、红绿记录、真实 LLM 环境缺口和质量评分。
+- `docs/internal/dev-plan.md`：Phase 9 计划、勾选状态和完成判定。
+- `docs/internal/codex/verification-report.md`：本地测试、红绿记录、真实 LLM 环境缺口和质量评分。
 - `README.md`：面向使用者的能力边界摘要。

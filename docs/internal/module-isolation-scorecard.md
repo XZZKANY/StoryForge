@@ -137,7 +137,7 @@
 **隔离建议**：
 
 1. 保持根命令不变，内部把 `run-e2e.mjs` 拆成可复用函数或子脚本：OpenAPI、契约、API、Workflow 四段。
-2. 在 `.codex/verification-report.md` 中持续记录每次验证的命令和失败补偿，不要只写“通过”。
+2. 在 `docs/internal/codex/verification-report.md` 中持续记录每次验证的命令和失败补偿，不要只写“通过”。
 3. 不新增第二套验证入口，避免门禁口径分裂。
 
 ### 5. 世界观设定：73/100

@@ -21,7 +21,7 @@ function readComposeServiceBlock(compose: string, serviceName: string) {
 const homeAssistantViews = ['projects', 'artifacts'] as const;
 const removedRoutes = ['analytics', 'collaboration', 'commercial', 'workspace', 'quality'] as const;
 const textFilesWithoutEncodingDamage = [
-  '../../TODO.md',
+  '../../docs/internal/TODO.md',
   'app/page.tsx',
   'components/home/home-data.ts',
   'app/retrieval/page.tsx',
@@ -539,7 +539,7 @@ test('产品文案不应夸大未联通能力', () => {
     'components/ide/shell/EditorArea.tsx',
     'components/ide/shell/BottomPanel.tsx',
     '../../README.md',
-    '../../PROJECT_SUMMARY.md',
+    '../../docs/internal/PROJECT_SUMMARY.md',
     '../api/app/domains/artifacts/__init__.py',
     '../../scripts/run-e2e.mjs',
   ] as const;

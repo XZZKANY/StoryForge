@@ -14,7 +14,6 @@ export default tseslint.config(
       '**/.pytest-tmp/',
       '**/.pytest_cache/',
       '**/__pycache__/',
-      '.codex/',
       'apps/api/',
       'apps/workflow/',
       'docs/',

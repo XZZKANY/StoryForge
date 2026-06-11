@@ -10,7 +10,7 @@
 
 1. **每个 Stage 独立可交付** — 完成一个 Stage 即可发布该层能力，不依赖后续 Stage。
 2. **向后兼容** — 现有 `pnpm verify && pnpm e2e && pnpm test` 门禁在每个 Stage 完成后仍必须通过。
-3. **证据链不断** — 所有变更必须在 `.codex/verification-report.md` 留下验证记录。
+3. **证据链不断** — 所有变更必须在 `docs/internal/codex/verification-report.md` 留下验证记录。
 4. **渐进式复杂度** — Stage 1-2 为基础设施，Stage 3-4 为能力补全，Stage 5 为生产发布。
 
 ---
@@ -548,7 +548,7 @@ curl -s http://localhost/api/v1/health/ready
 > 核心目标：先让 StoryForge 产出一本可审计的短篇小说，再逐层补强恢复、成本、长程一致性与出版级导出。
 > 总预估：18-28 工作日，按 9A/9B/9C 三段推进；任一段未通过验收，不进入下一段。
 
-> 事实源边界：本计划是历史阶段计划和 Definition of Done 记录，当前阶段事实以 `current-phase.md` 为准；不能把本计划中的历史验收文字单独作为最新状态来源。
+> 事实源边界：本计划是历史阶段计划和 Definition of Done 记录，当前阶段事实以 `docs/internal/current-phase.md` 为准；不能把本计划中的历史验收文字单独作为最新状态来源。
 
 ---
 
@@ -684,7 +684,7 @@ curl -s http://localhost/api/v1/health/ready
 3. deterministic/mock provider 下启动一个 3 章 BookRun，状态到 `completed`。
 4. 产出 `book.md`，总字数 3000-6000 字。
 5. 产出 `audit_report.json`，每章至少能追溯到 model_run、judge 和 approve 写回。
-6. `.codex/verification-report.md` 记录 9A 冒烟证据。
+6. `docs/internal/codex/verification-report.md` 记录 9A 冒烟证据。
 
 ---
 
@@ -727,17 +727,17 @@ curl -s http://localhost/api/v1/health/ready
   - 使用私有 `.env` 配置真实 `STORYFORGE_LLM_API_KEY`，不提交密钥。
   - 只跑 1 章，预算上限必须开启。
   - 验证：章节生成、Judge、Repair/Approve、model_run token 记录均成功。
-  - 证据：`.codex/real-llm-1ch-20260603-142925`；BookRun completed，实际 1 章，tokens_used=3047，`markdown_artifact_id=1`，`audit_artifact_id=2`，quality_score=100，quality_issue_count=0，人工通读已完成。该证据只覆盖 1 章 smoke，不能据此声明 10 章或 3-5 万字长程完成。
+  - 证据：`docs/internal/codex/real-llm-1ch-20260603-142925`；BookRun completed，实际 1 章，tokens_used=3047，`markdown_artifact_id=1`，`audit_artifact_id=2`，quality_score=100，quality_issue_count=0，人工通读已完成。该证据只覆盖 1 章 smoke，不能据此声明 10 章或 3-5 万字长程完成。
 
 - [x] **Step 9B-4b：真实 LLM 3 章短篇冒烟**
   - 在 1 章通过后再跑 3 章。
   - 验收：BookRun completed，成本不超过预算，导出 `book.md` 可读。
-  - 验证报告写入 `.codex/verification-report.md`。
-  - 证据：`.codex/real-llm-3ch-20260603-173932`；BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读已完成。该证据允许评估 10 章真实短篇 smoke；不能据此声明 10 章或 3-5 万字长程完成。
+  - 验证报告写入 `docs/internal/codex/verification-report.md`。
+  - 证据：`docs/internal/codex/real-llm-3ch-20260603-173932`；BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读已完成。该证据允许评估 10 章真实短篇 smoke；不能据此声明 10 章或 3-5 万字长程完成。
 
 - [x] **Step 9B-4c：真实 LLM 10 章 smoke 最终验收**
   - 在 3 章 smoke 通过后，执行真实 10 章短篇 smoke，并保留预算上限、脱敏摘要、导出制品和人工通读记录。
-  - 证据：`.codex/real-llm-10ch-20260604-110831`；BookRun completed，实际 10 章，tokens_used=145668，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读已完成。
+  - 证据：`docs/internal/codex/real-llm-10ch-20260604-110831`；BookRun completed，实际 10 章，tokens_used=145668，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读已完成。
   - 最终门禁：`gate: pass_for_real_10ch_final_acceptance`。该证据只覆盖真实 10 章 smoke，不能据此声明真实 3-5 万字长程完成。
 
 ---
@@ -803,8 +803,8 @@ curl -s http://localhost/api/v1/health/ready
 
 1. 真实 LLM 跑完 3-5 万字短篇。
 2. `book.md`、`book.epub`、`audit_report.json` 均生成并登记到 artifacts。
-3. 人工通读记录写入 `.codex/verification-report.md`，无明显人物、世界观或时间线矛盾。
-4. `current-phase.md` 删除“完整交互式 Studio 编排器完全不存在”的表述，改为记录已完成边界和剩余增强。
+3. 人工通读记录写入 `docs/internal/codex/verification-report.md`，无明显人物、世界观或时间线矛盾。
+4. `docs/internal/current-phase.md` 删除“完整交互式 Studio 编排器完全不存在”的表述，改为记录已完成边界和剩余增强。
 
 ---
 
@@ -852,7 +852,7 @@ uv run pytest tests/test_context_compiler_memory_injection.py tests/test_charact
 - 修复分支 `codex/phase9-e2e-alembic` 的远端 `E2E` run `26941784868`（2026-06-04T08:59:00Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
 - 修复分支已非强制快进合入远端 `master`；最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
 - 本地已新增 Alembic merge revision `20260604_0001` 合并 `20260514_phase2` 与 `20260602_0003`，并将 `tests/test_alembic_heads.py` 纳入本地 `pnpm e2e` 的 `API verification` 预检；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0，验证后已删除。
-- 真实 10 章 smoke 已完成最终验收，证据目录为 `.codex/real-llm-10ch-20260604-110831`，最终门禁输出 `gate: pass_for_real_10ch_final_acceptance`。
+- 真实 10 章 smoke 已完成最终验收，证据目录为 `docs/internal/codex/real-llm-10ch-20260604-110831`，最终门禁输出 `gate: pass_for_real_10ch_final_acceptance`。
 - 主分支远端 `E2E` 已通过；真实 3-5 万字长程仍未完成。
 
 ---
@@ -881,7 +881,7 @@ uv run pytest tests/test_context_compiler_memory_injection.py tests/test_charact
 3. `book.md` 可读，`audit_report.json` 完整。
 4. 本地 `pnpm verify && pnpm test && pnpm e2e` 通过。
 5. 远端 `CI` 与 `E2E` 通过。
-6. `.codex/verification-report.md` 有完整证据。
+6. `docs/internal/codex/verification-report.md` 有完整证据。
 
 ### 可以宣称“StoryForge 具备稳定长篇生产闭环”的条件
 
@@ -891,6 +891,6 @@ uv run pytest tests/test_context_compiler_memory_injection.py tests/test_charact
 2. 导出 Markdown 与 EPUB。
 3. 审计页能回放关键事件。
 4. 人工通读无明显人物、世界观或时间线矛盾。
-5. `current-phase.md` 与 README 同步更新能力边界。
+5. `docs/internal/current-phase.md` 与 README 同步更新能力边界。
 
 在此之前，禁止对外宣称 StoryForge 已经具备稳定生产级整本小说生成能力。

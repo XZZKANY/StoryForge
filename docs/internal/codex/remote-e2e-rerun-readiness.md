@@ -19,7 +19,7 @@
 
 ## 本地已具备的修复证据
 
-- `.codex/real-llm-10ch-20260604-110831`
+- `docs/internal/codex/real-llm-10ch-20260604-110831`
   - 真实 10 章 smoke 已完成最终验收。
   - BookRun completed，实际 10 章，tokens_used=145668。
   - 最终门禁为 `gate: pass_for_real_10ch_final_acceptance`。

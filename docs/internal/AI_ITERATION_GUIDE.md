@@ -20,12 +20,12 @@ D:\StoryForge\1-renovel-ai-ai-rag-tavern
 D:\StoryForge\AGENTS.md
 ```
 
-本文件是 `AGENTS.md` 在当前项目中的日常执行版。
+本文件是 `docs/internal/AGENTS.md` 在当前项目中的日常执行版。
 
 执行规则：
 
-- `AGENTS.md` 是上位规范，本文件负责把它落成可重复执行的流程。
-- 如两者冲突，优先遵循 `AGENTS.md`。
+- `docs/internal/AGENTS.md` 是上位规范，本文件负责把它落成可重复执行的流程。
+- 如两者冲突，优先遵循 `docs/internal/AGENTS.md`。
 - 所有回复、文档、注释、日志、提交信息默认使用简体中文。
 - 代码标识符、命令、包名、API 名称按项目和生态习惯保留英文。
 - 所有结论必须有证据，禁止凭感觉改代码。
@@ -76,7 +76,7 @@ apps/
 packages/
 docs/
 tests/
-.codex/
+docs/internal/codex/
 ```
 
 如果某些文件不存在，应说明缺失情况，并判断是否需要创建。
@@ -111,7 +111,7 @@ tests/
 TODO.md
 ```
 
-`TODO.md` 至少包含：
+`docs/internal/TODO.md` 至少包含：
 
 - 项目目标
 - 当前版本状态
@@ -121,9 +121,9 @@ TODO.md
 - 最近迭代记录
 - 下一轮建议
 
-如果 `TODO.md` 不存在，本轮优先创建。
+如果 `docs/internal/TODO.md` 不存在，本轮优先创建。
 
-如果 `TODO.md` 已存在，不要覆盖，应在原有内容基础上整理、归并、补充和更新。
+如果 `docs/internal/TODO.md` 已存在，不要覆盖，应在原有内容基础上整理、归并、补充和更新。
 
 ---
 
@@ -221,7 +221,7 @@ Git 工作区是否已有未提交改动
 中等及以上任务，或任何跨模块代码任务，必须生成或更新：
 
 ```text
-.codex/context-summary-[任务名].md
+docs/internal/codex/context-summary-[任务名].md
 ```
 
 摘要至少包含：
@@ -407,12 +407,12 @@ Git 工作区是否已有未提交改动
 - 优先复用已有模块、工具和依赖。
 - 遵循项目既有命名、目录、导入、测试和格式风格。
 - 所有中文说明、注释、文档、日志必须使用简体中文。
-- 若发现新问题，先记录到 `TODO.md` 或 `.codex/operations-log.md`，不要擅自扩大范围。
+- 若发现新问题，先记录到 `docs/internal/TODO.md` 或 `docs/internal/codex/operations-log.md`，不要擅自扩大范围。
 
 执行过程中的重要决策应记录到：
 
 ```text
-.codex/operations-log.md
+docs/internal/codex/operations-log.md
 ```
 
 ---
@@ -441,14 +441,14 @@ pnpm --filter <app-or-package> lint
 
 - 不得声称完成。
 - 必须记录失败命令、失败摘要、可能原因。
-- 判断是继续修复，还是写入 `TODO.md` 作为后续任务。
+- 判断是继续修复，还是写入 `docs/internal/TODO.md` 作为后续任务。
 - 连续三次验证失败，必须暂停实现，回到找问题和计划阶段。
 
 如果命令不存在或工具缺失：
 
 - 说明缺失原因。
 - 给出替代验证方式。
-- 在 `TODO.md` 或 `.codex/verification-report.md` 记录补足计划。
+- 在 `docs/internal/TODO.md` 或 `docs/internal/codex/verification-report.md` 记录补足计划。
 
 ---
 
@@ -468,7 +468,7 @@ pnpm --filter <app-or-package> lint
   中等及以上任务应生成或更新：
 
 ```text
-.codex/verification-report.md
+docs/internal/codex/verification-report.md
 ```
 
 建议评分维度：
@@ -516,7 +516,7 @@ pnpm --filter <app-or-package> lint
 ## 下一步建议：
 ```
 
-每轮必须更新 `TODO.md` 的最近迭代记录。
+每轮必须更新 `docs/internal/TODO.md` 的最近迭代记录。
 
 记录格式：
 
@@ -565,8 +565,8 @@ AI 必须说明：
 如果用户要求提交，提交前必须确认：
 
 1. 验证已经完成，或失败原因已记录。
-2. `TODO.md` 已更新。
-3. `.codex/operations-log.md` 或验证报告已按需更新。
+2. `docs/internal/TODO.md` 已更新。
+3. `docs/internal/codex/operations-log.md` 或验证报告已按需更新。
 4. 没有无关文件混入。
 5. 提交信息为简体中文。
 
@@ -710,7 +710,7 @@ AI 在推进项目时禁止：
 - 同时处理大量无关任务。
 - 修改后不测试。
 - 测试失败却声称完成。
-- 不更新 `TODO.md`。
+- 不更新 `docs/internal/TODO.md`。
 - 不检查 Git 状态。
 - 自动提交未经用户确认的改动。
 - 把临时文件、缓存、私密配置提交进仓库。

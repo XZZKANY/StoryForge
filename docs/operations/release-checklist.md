@@ -39,7 +39,7 @@ pnpm verify
 
 - Node.js、pnpm、Python 3.11+、Docker 可用。
 - PostgreSQL、Redis、MinIO 容器状态明确。
-- `pnpm verify` 若失败，失败原因和下一步动作必须记录到 `.codex/verification-report.md`。
+- `pnpm verify` 若失败，失败原因和下一步动作必须记录到 `docs/internal/codex/verification-report.md`。
 
 ## 4. OpenAPI 契约门禁
 
@@ -74,9 +74,9 @@ pnpm e2e
 发布前至少检查：
 
 - `README.md`：当前状态、常用命令、验证策略仍与实际脚本一致。
-- `TODO.md`：任务状态和最近迭代记录已更新。
-- `.codex/operations-log.md`：记录了本轮问题、计划、执行和验证。
-- `.codex/verification-report.md`：记录了本轮验证命令、结果、风险和结论。
+- `docs/internal/TODO.md`：任务状态和最近迭代记录已更新。
+- `docs/internal/codex/operations-log.md`：记录了本轮问题、计划、执行和验证。
+- `docs/internal/codex/verification-report.md`：记录了本轮验证命令、结果、风险和结论。
 - `docs/operations/local-start.md`：本地启动流程仍有效。
 
 ## 7. 回滚门禁
@@ -91,8 +91,8 @@ pnpm e2e
 ## 8. 不得发布的情况
 
 - 本地验证未运行，或失败但未记录原因。
-- `TODO.md` 未更新。
-- `.codex/verification-report.md` 缺少本轮结论。
+- `docs/internal/TODO.md` 未更新。
+- `docs/internal/codex/verification-report.md` 缺少本轮结论。
 - Git 工作区混入无关文件。
 - OpenAPI 生成失败却继续使用旧契约。
 - 文档承诺了当前代码尚未实现的真实 AI/RAG 能力。

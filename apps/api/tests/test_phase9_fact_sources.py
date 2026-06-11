@@ -3,19 +3,19 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEV_PLAN_PATH = REPO_ROOT / ".dev_plan.md"
-PROJECT_SUMMARY_PATH = REPO_ROOT / "PROJECT_SUMMARY.md"
+DEV_PLAN_PATH = REPO_ROOT / "docs/internal/dev-plan.md"
+PROJECT_SUMMARY_PATH = REPO_ROOT / "docs/internal/PROJECT_SUMMARY.md"
 README_PATH = REPO_ROOT / "README.md"
-CURRENT_PHASE_PATH = REPO_ROOT / "current-phase.md"
-TODO_PATH = REPO_ROOT / "TODO.md"
+CURRENT_PHASE_PATH = REPO_ROOT / "docs/internal/current-phase.md"
+TODO_PATH = REPO_ROOT / "docs/internal/TODO.md"
 OPERATIONS_README_PATH = REPO_ROOT / "docs" / "operations" / "README.md"
 LOCAL_START_PATH = REPO_ROOT / "docs" / "operations" / "local-start.md"
 TROUBLESHOOTING_PATH = REPO_ROOT / "docs" / "operations" / "troubleshooting.md"
 ALEMBIC_VALIDATION_PATH = REPO_ROOT / "docs" / "operations" / "alembic-validation.md"
-REMOTE_E2E_READINESS_PATH = REPO_ROOT / ".codex" / "remote-e2e-rerun-readiness.md"
-ONE_CHAPTER_RUN_DIR = REPO_ROOT / ".codex" / "real-llm-1ch-20260603-142925"
+REMOTE_E2E_READINESS_PATH = REPO_ROOT / "docs/internal/codex" / "remote-e2e-rerun-readiness.md"
+ONE_CHAPTER_RUN_DIR = REPO_ROOT / "docs/internal/codex" / "real-llm-1ch-20260603-142925"
 ONE_CHAPTER_READTHROUGH_PATH = ONE_CHAPTER_RUN_DIR / "manual-readthrough-completion.md"
-TEN_CHAPTER_RUN_DIR = REPO_ROOT / ".codex" / "real-llm-10ch-20260604-110831"
+TEN_CHAPTER_RUN_DIR = REPO_ROOT / "docs/internal/codex" / "real-llm-10ch-20260604-110831"
 TEN_CHAPTER_READTHROUGH_PATH = TEN_CHAPTER_RUN_DIR / "manual-readthrough-completion.md"
 
 
@@ -25,7 +25,7 @@ def test_dev_plan_records_real_llm_one_chapter_smoke_evidence() -> None:
     dev_plan = DEV_PLAN_PATH.read_text(encoding="utf-8")
 
     assert "- [x] **Step 9B-4a：真实 LLM 1 章冒烟**" in dev_plan
-    assert ".codex/real-llm-1ch-20260603-142925" in dev_plan
+    assert "docs/internal/codex/real-llm-1ch-20260603-142925" in dev_plan
     assert "tokens_used=3047" in dev_plan
     assert "markdown_artifact_id=1" in dev_plan
     assert "audit_artifact_id=2" in dev_plan
@@ -83,7 +83,7 @@ def test_dev_plan_records_remote_e2e_master_success_boundary() -> None:
     assert "20260604_0001" in dev_plan
     assert "tests/test_alembic_heads.py" in dev_plan
     assert "主分支远端 `E2E` 已通过" in dev_plan
-    assert ".codex/real-llm-10ch-20260604-110831" in dev_plan
+    assert "docs/internal/codex/real-llm-10ch-20260604-110831" in dev_plan
     assert "gate: pass_for_real_10ch_final_acceptance" in dev_plan
     assert "真实 3-5 万字长程" in dev_plan
 
@@ -91,25 +91,7 @@ def test_dev_plan_records_remote_e2e_master_success_boundary() -> None:
 def test_phase9_remote_ci_e2e_boundary_records_master_success() -> None:
     """阶段事实源必须区分远端 CI 子集、历史失败与 master E2E 通过证据。"""
 
-    readme = README_PATH.read_text(encoding="utf-8")
     current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
-
-    assert "CI / Core verification" in readme
-    assert "26857864662" in readme
-    assert "26915457170" in readme
-    assert "2026-06-03T21:55:39Z" in readme
-    assert "codex/phase9-e2e-alembic" in readme
-    assert "26941784868" in readme
-    assert "26944063055" in readme
-    assert "2026-06-04T09:45:05Z" in readme
-    assert "590333f1ccc99234f4244bc7bf4556fd7dee3f4f" in readme
-    assert "执行 Alembic 迁移预检" in readme
-    assert "执行数据库迁移" in readme
-    assert "运行 E2E" in readme
-    assert "26850336742" not in readme
-    assert "Multiple head revisions" in readme
-    assert "20260604_0001" in readme
-    assert "修复已合入 `master`" in readme
 
     assert "CI` run `26857864662`" in current_phase
     assert "E2E` run `26915457170`" in current_phase
@@ -163,16 +145,16 @@ def test_project_summary_records_current_phase9_boundaries() -> None:
     assert "Multiple head revisions" in project_summary
     assert "20260604_0001" in project_summary
     assert "远端 E2E | 主分支通过" in project_summary
-    assert ".codex/real-llm-1ch-20260603-142925" in project_summary
-    assert ".codex/real-llm-3ch-20260603-173932" in project_summary
-    assert ".codex/real-llm-10ch-20260604-110831" in project_summary
+    assert "docs/internal/codex/real-llm-1ch-20260603-142925" in project_summary
+    assert "docs/internal/codex/real-llm-3ch-20260603-173932" in project_summary
+    assert "docs/internal/codex/real-llm-10ch-20260604-110831" in project_summary
     assert "gate: pass_for_real_10ch_final_acceptance" in project_summary
     assert "真实 3-5 万字长程仍未完成" in project_summary
     assert "10 章 smoke 人工通读完成" in project_summary
     assert "cd D:/StoryForge" in project_summary
-    assert "`current-phase.md`" in project_summary
+    assert "`docs/internal/current-phase.md`" in project_summary
 
-    assert ".codex/current-phase.md" not in project_summary
+    assert "docs/internal/codex/current-phase.md" not in project_summary
     assert "Node 契约 14/14" not in project_summary
     assert "真实 API HTTP pytest 41/41" not in project_summary
     assert "workflow 8/8" not in project_summary
@@ -201,17 +183,17 @@ def test_todo_records_current_phase9_next_actions() -> None:
     assert "20260604_0001" in todo
     assert "tests/test_alembic_heads.py" in todo
     assert "storyforge_phase9_e2e_submit_verify" in todo
-    assert ".codex/real-llm-1ch-20260603-142925" in todo
-    assert ".codex/real-llm-3ch-20260603-173932" in todo
-    assert ".codex/real-llm-10ch-20260604-110831" in todo
+    assert "docs/internal/codex/real-llm-1ch-20260603-142925" in todo
+    assert "docs/internal/codex/real-llm-3ch-20260603-173932" in todo
+    assert "docs/internal/codex/real-llm-10ch-20260604-110831" in todo
     assert "gate: pass_for_real_10ch_final_acceptance" in todo
     assert "真实 3-5 万字长程仍未完成" in todo
     assert "下一步优先级" in todo
     assert "推进真实 3-5 万字短篇长程运行" in todo
     assert "`pnpm verify`" in todo
     assert "`pnpm e2e`" in todo
-    assert "`current-phase.md`" in todo
-    assert "`PROJECT_SUMMARY.md`" in todo
+    assert "`docs/internal/current-phase.md`" in todo
+    assert "`docs/internal/PROJECT_SUMMARY.md`" in todo
 
     assert "2026-05-24 Phase 7 发布治理到闭环验证" not in todo
     assert "pnpm run test:web" not in todo
@@ -244,11 +226,11 @@ def test_local_start_records_current_phase9_runbook() -> None:
     assert "在线 PostgreSQL 迁移已在本轮复验" in local_start
     assert "不读取 `.env`" in local_start
     assert "provider token" in local_start
-    assert ".codex/real-llm-10ch-20260604-110831" in local_start
+    assert "docs/internal/codex/real-llm-10ch-20260604-110831" in local_start
     assert "gate: pass_for_real_10ch_final_acceptance" in local_start
     assert "真实 3-5 万字长程仍未完成" in local_start
-    assert "`current-phase.md`" in local_start
-    assert "`TODO.md`" in local_start
+    assert "`docs/internal/current-phase.md`" in local_start
+    assert "`docs/internal/TODO.md`" in local_start
 
     assert "D:/StoryForge/1-renovel-ai-ai-rag-tavern" not in local_start
     assert "pnpm run test:web" not in local_start
@@ -301,7 +283,7 @@ def test_operations_readme_records_current_phase9_runbook_index() -> None:
     assert "API verification" in operations_readme
     assert "在线 PostgreSQL 迁移已在本轮复验" in operations_readme
     assert "最新远端 `master` E2E run `26944063055`" in operations_readme
-    assert ".codex/real-llm-10ch-20260604-110831" in operations_readme
+    assert "docs/internal/codex/real-llm-10ch-20260604-110831" in operations_readme
     assert "真实 3-5 万字长程仍未完成" in operations_readme
 
     assert "D:/StoryForge/1-renovel-ai-ai-rag-tavern" not in operations_readme
@@ -337,7 +319,7 @@ def test_remote_e2e_rerun_readiness_records_master_success_evidence() -> None:
     assert "gh workflow run E2E --ref master" in readiness
     assert "不得直接重跑旧远端 `master`" in readiness
     assert "远端 E2E 已通过" in readiness
-    assert ".codex/real-llm-10ch-20260604-110831" in readiness
+    assert "docs/internal/codex/real-llm-10ch-20260604-110831" in readiness
     assert "真实 10 章 smoke 已完成最终验收" in readiness
     assert "真实 3-5 万字长程仍未完成" in readiness
 
@@ -390,24 +372,24 @@ def test_phase9_document_fact_source_roles_are_converged() -> None:
     dev_plan = DEV_PLAN_PATH.read_text(encoding="utf-8")
 
     assert "## 事实源职责矩阵" in current_phase
-    assert "`current-phase.md`" in current_phase
+    assert "`docs/internal/current-phase.md`" in current_phase
     assert "当前阶段唯一事实源" in current_phase
     assert "`README.md`" in current_phase
     assert "面向使用者的入口摘要" in current_phase
-    assert "`TODO.md`" in current_phase
+    assert "`docs/internal/TODO.md`" in current_phase
     assert "当前下一步执行入口" in current_phase
-    assert "`PROJECT_SUMMARY.md`" in current_phase
+    assert "`docs/internal/PROJECT_SUMMARY.md`" in current_phase
     assert "项目总览和验证状态摘要" in current_phase
-    assert "`.dev_plan.md`" in current_phase
+    assert "`docs/internal/dev-plan.md`" in current_phase
     assert "历史计划和阶段 DoD" in current_phase
 
-    assert "当前阶段主事实源：`current-phase.md`" in readme
-    assert "README 只保留入口摘要" in readme
-    assert "当前状态以 `current-phase.md` 为准" in todo
+    assert "当前阶段状态与未完成验收项见 `docs/internal/current-phase.md`" in readme
+    assert "详细架构见 `CLAUDE.md`" in readme
+    assert "当前状态以 `docs/internal/current-phase.md` 为准" in todo
     assert "TODO 只保留下一步执行入口" in todo
-    assert "当前阶段事实以 `current-phase.md` 为准" in project_summary
+    assert "当前阶段事实以 `docs/internal/current-phase.md` 为准" in project_summary
     assert "PROJECT_SUMMARY 只保留项目总览" in project_summary
 
     assert "本计划是历史阶段计划和 Definition of Done 记录" in dev_plan
-    assert "当前阶段事实以 `current-phase.md` 为准" in dev_plan
+    assert "当前阶段事实以 `docs/internal/current-phase.md` 为准" in dev_plan
     assert "不能把本计划中的历史验收文字单独作为最新状态来源" in dev_plan

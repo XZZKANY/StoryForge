@@ -116,7 +116,7 @@ apps/workflow/    LangGraph 编排器（generation_graph / provider_adapter / cr
 packages/shared/  TS 共享契约（src/contracts/storyforge.openapi.json + generated/api-types.ts）
 scripts/          dev-start.mjs / generate-openapi.mjs / run-e2e.mjs
 tests/            顶层 E2E 契约测试
-.codex/           验证报告与证据目录
+docs/             架构文档 + 内部验证记录（internal/codex/）
 ```
 
-详细架构见 `CLAUDE.md`，当前阶段状态与未完成验收项见 `current-phase.md`。
+详细架构见 `CLAUDE.md`，当前阶段状态与未完成验收项见 `docs/internal/current-phase.md`。

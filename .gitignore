@@ -23,7 +23,7 @@ redis-data/
 .worktrees/
 # 本地缓存
 .cache/
-.codex/tmp/
+docs/internal/codex/tmp/
 
 # 本地工具噪声
 .claude/settings.local.json

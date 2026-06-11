@@ -443,7 +443,7 @@ def test_long_runner_resolves_relative_resume_directory_from_repo_root(tmp_path:
     original_root = module.ROOT
     module.ROOT = tmp_path
     try:
-        resolved = module._resolve_resume_run_directory(".codex/real-llm-failed")
+        resolved = module._resolve_resume_run_directory("docs/internal/codex/real-llm-failed")
     finally:
         module.ROOT = original_root
 

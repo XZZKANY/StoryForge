@@ -158,7 +158,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="测量 IDE SSE 本地 TestClient p95 延迟。")
     parser.add_argument("--samples", type=int, default=25)
-    parser.add_argument("--out", type=Path, default=Path("../../.codex/ide-sse-latency-baseline.json"))
+    parser.add_argument("--out", type=Path, default=Path("../../docs/internal/codex/ide-sse-latency-baseline.json"))
     args = parser.parse_args(argv)
 
     client, session_factory = _create_client()

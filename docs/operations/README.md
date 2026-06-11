@@ -6,7 +6,7 @@
 
 本目录收纳 StoryForge 本地启动、发布、故障排查和迁移验证相关文档。后续代理接手发布治理时，应优先阅读本索引，再进入具体手册。
 
-当前本地仓库路径为 `D:/StoryForge`。所有本地验证结论必须基于可重复命令，并写入 `.codex/verification-report.md`。
+当前本地仓库路径为 `D:/StoryForge`。所有本地验证结论必须基于可重复命令，并写入 `docs/internal/codex/verification-report.md`。
 
 ## 2. 文档列表
 
@@ -29,7 +29,7 @@
 - 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集，不等于远端 E2E 总门禁通过。
 - 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
 - 本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 `pnpm e2e` 的 API verification 预检；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0；修复已合入远端 `master`，最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z）已通过。
-- 真实 LLM 1 章、3 章与 10 章 smoke 已有脱敏证据；10 章 smoke 证据目录为 `.codex/real-llm-10ch-20260604-110831`，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`；真实 3-5 万字长程仍未完成。
+- 真实 LLM 1 章、3 章与 10 章 smoke 已有脱敏证据；10 章 smoke 证据目录为 `docs/internal/codex/real-llm-10ch-20260604-110831`，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`；真实 3-5 万字长程仍未完成。
 - 当前环境中 Docker 服务不可查询时，`pnpm verify` 会失败；本轮已启动 Docker Desktop 并完成在线 PostgreSQL 迁移复验，后续若 Docker Desktop 被关闭仍需重新启动后补跑。
 - `pnpm openapi` 会按 `uv`、`python3`、`python` 顺序选择可用运行时；三者都不可用时才会失败。
 - FastAPI HTTP pytest 和 API verification 是 `pnpm e2e` 的固定发布门禁；失败时必须修复，不得切换到服务层补偿验收。
@@ -39,5 +39,5 @@
 
 - 新增运维文档后，必须在本索引中登记。
 - 修改启动、发布、迁移或故障流程后，必须同步检查 `README.md` 的重要文档入口。
-- 远端 E2E、真实 3-5 万字长程、人工通读或发布门禁状态变化后，必须同步 `README.md`、`current-phase.md`、`TODO.md`、`PROJECT_SUMMARY.md`、`.dev_plan.md` 和本目录相关手册。
-- 所有验证结论必须写入 `.codex/verification-report.md`。
+- 远端 E2E、真实 3-5 万字长程、人工通读或发布门禁状态变化后，必须同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md`、`docs/internal/dev-plan.md` 和本目录相关手册。
+- 所有验证结论必须写入 `docs/internal/codex/verification-report.md`。

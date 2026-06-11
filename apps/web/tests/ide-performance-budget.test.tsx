@@ -61,7 +61,7 @@ test('IDE 性能预算基线记录 1000 Problems 和 1 万字章节', () => {
   assert.equal(evaluation.violations.length, 0);
   assert.ok(baseline.metrics.some((metric) => metric.name === '1000 Problems SSR render'));
 
-  const reportPath = resolve(process.cwd(), '../../.codex/ide-performance-baseline.json');
+  const reportPath = resolve(process.cwd(), '../../docs/internal/codex/ide-performance-baseline.json');
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, JSON.stringify({ baseline, evaluation }, null, 2), 'utf8');
 });

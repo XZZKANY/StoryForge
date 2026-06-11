@@ -6,7 +6,7 @@
 
 本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
 
-当前阶段仍处于 Phase 9 真实 LLM 长程验收准备阶段：本地 Phase 9A/9B/9C 能力已有验证证据，真实 10 章 smoke 已完成最终验收，远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。详细阶段边界以 `current-phase.md`、`TODO.md`、`PROJECT_SUMMARY.md` 和 `README.md` 为准。
+当前阶段仍处于 Phase 9 真实 LLM 长程验收准备阶段：本地 Phase 9A/9B/9C 能力已有验证证据，真实 10 章 smoke 已完成最终验收，远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。详细阶段边界以 `docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `README.md` 为准。
 
 ## 2. 前置工具
 
@@ -108,9 +108,9 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 
 当前脱敏证据：
 
-- 1 章 smoke：`.codex/real-llm-1ch-20260603-142925`。
-- 3 章 smoke：`.codex/real-llm-3ch-20260603-173932`。
-- 10 章 smoke：`.codex/real-llm-10ch-20260604-110831`，最终门禁 `gate: pass_for_real_10ch_final_acceptance`，人工通读已完成。
+- 1 章 smoke：`docs/internal/codex/real-llm-1ch-20260603-142925`。
+- 3 章 smoke：`docs/internal/codex/real-llm-3ch-20260603-173932`。
+- 10 章 smoke：`docs/internal/codex/real-llm-10ch-20260604-110831`，最终门禁 `gate: pass_for_real_10ch_final_acceptance`，人工通读已完成。
 
 这些证据只覆盖 1 章、3 章与 10 章 smoke。真实 3-5 万字长程仍未完成。
 
@@ -176,4 +176,4 @@ git log --oneline --decorate -5
 git diff --stat
 ```
 
-通过条件：清楚知道当前未提交文件归属；如果准备提交，必须先完成本地验证、更新 `TODO.md` 和 `.codex/verification-report.md`。
+通过条件：清楚知道当前未提交文件归属；如果准备提交，必须先完成本地验证、更新 `docs/internal/TODO.md` 和 `docs/internal/codex/verification-report.md`。
