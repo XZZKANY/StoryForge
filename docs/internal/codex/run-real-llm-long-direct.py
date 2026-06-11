@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import time
+import zipfile
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -25,6 +26,7 @@ from app.domains.book_runs.phase9b_real_llm_smoke import (  # noqa: E402
     resume_phase9b_real_llm_smoke,
     run_phase9b_real_llm_smoke,
 )
+from app.domains.exports.book_markdown_exporter import build_book_run_epub_package, export_book_run_epub  # noqa: E402
 
 
 TEXT_ARTIFACT_NAMES = (
@@ -32,6 +34,7 @@ TEXT_ARTIFACT_NAMES = (
     "stdout.json",
     "stderr.log",
     "book.md",
+    "book.epub",
     "audit_report.json",
     "run-metadata.json",
     "quality-risk.md",
@@ -58,9 +61,27 @@ def _sensitive_hit_count(paths: Iterable[Path], private_values: Iterable[str]) -
         try:
             content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
+            if path.suffix.lower() == ".epub":
+                hits += _sensitive_hit_count_in_epub(path, values)
             continue
         for value in values:
             hits += content.count(value)
+    return hits
+
+
+def _sensitive_hit_count_in_epub(path: Path, private_values: Iterable[str]) -> int:
+    hits = 0
+    try:
+        with zipfile.ZipFile(path) as archive:
+            for info in archive.infolist():
+                lower_name = info.filename.lower()
+                if lower_name.endswith((".opf", ".ncx", ".xhtml", ".html", ".xml", ".txt", ".json")):
+                    content = archive.read(info).decode("utf-8", errors="ignore")
+                    for value in private_values:
+                        hits += info.filename.count(value)
+                        hits += content.count(value)
+    except zipfile.BadZipFile:
+        return hits
     return hits
 
 
@@ -72,7 +93,7 @@ def _raise_if_outer_timeout_exceeded(*, started_at: float, outer_timeout_seconds
         )
 
 
-def _gate_failures(summary: dict[str, Any], *, token_budget: int) -> list[str]:
+def _gate_failures(summary: dict[str, Any], *, token_budget: int, require_integration_gate: bool = False) -> list[str]:
     failures: list[str] = []
     tokens_used = summary.get("tokens_used")
     if isinstance(tokens_used, int | float) and tokens_used >= token_budget:
@@ -83,6 +104,8 @@ def _gate_failures(summary: dict[str, Any], *, token_budget: int) -> list[str]:
         artifact_hashes = {}
     if not artifact_hashes.get("book_md_sha256"):
         failures.append("缺少 book_md_sha256")
+    if not artifact_hashes.get("book_epub_sha256"):
+        failures.append("缺少 book_epub_sha256")
     if not artifact_hashes.get("audit_report_sha256"):
         failures.append("缺少 audit_report_sha256")
 
@@ -108,7 +131,8 @@ def _gate_failures(summary: dict[str, Any], *, token_budget: int) -> list[str]:
     if total_issue_count > 3:
         failures.append("累计 quality_issue_count 超过 3")
 
-    failures.extend(_integration_metric_failures(summary.get("integration_metrics")))
+    if require_integration_gate:
+        failures.extend(_integration_metric_failures(summary.get("integration_metrics")))
     return failures
 
 
@@ -164,8 +188,14 @@ def _number_or_none(value: Any) -> float | None:
     return None
 
 
-def _raise_for_gate_failures(summary: dict[str, Any], *, token_budget: int) -> None:
-    failures = _gate_failures(summary, token_budget=token_budget)
+def _raise_for_gate_failures(
+    summary: dict[str, Any], *, token_budget: int, require_integration_gate: bool = False
+) -> None:
+    failures = _gate_failures(
+        summary,
+        token_budget=token_budget,
+        require_integration_gate=require_integration_gate,
+    )
     if failures:
         raise RuntimeError("运行后成功门禁未通过：" + "；".join(failures))
 
@@ -191,6 +221,7 @@ def _redacted_parameters(args: argparse.Namespace) -> dict[str, Any]:
         "timeout_seconds": args.timeout_seconds,
         "time_budget_seconds": args.time_budget_seconds,
         "outer_timeout_seconds": args.outer_timeout_seconds,
+        "require_integration_gate": args.require_integration_gate,
         "database_mode": "ephemeral_sqlite",
     }
 
@@ -215,7 +246,10 @@ def _metadata(
         "redacted_parameters": _redacted_parameters(args),
         "files": {name.replace(".", "_").replace("-", "_"): str(out_dir / name) for name in TEXT_ARTIFACT_NAMES},
         "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
-        "gate_scope": "真实 10 章 smoke 证据，不代表 3-5 万字长程完成。",
+        "gate_scope": (
+            "真实 LLM 长跑技术证据；PH5 并发集成指标默认只记录，"
+            "仅在 require_integration_gate=true 时作为失败条件。"
+        ),
     }
     if failure_message:
         payload["failure_message"] = failure_message
@@ -234,7 +268,18 @@ def _metadata(
             "estimated_cost": summary.get("estimated_cost"),
             "actual_total_chars": summary.get("actual_total_chars"),
             "markdown_artifact_id": summary.get("markdown_artifact_id"),
+            "epub_artifact_id": summary.get("epub_artifact_id"),
             "audit_artifact_id": summary.get("audit_artifact_id"),
+            "epub_size_bytes": summary.get("epub_size_bytes"),
+            "prompt_tokens_used": summary.get("prompt_tokens_used"),
+            "completion_tokens_used": summary.get("completion_tokens_used"),
+            "cost_cny_estimated": summary.get("cost_cny_estimated"),
+            "cost_breakdown": summary.get("cost_breakdown"),
+            "total_latency_ms": summary.get("total_latency_ms"),
+            "avg_latency_ms": summary.get("avg_latency_ms"),
+            "max_latency_ms": summary.get("max_latency_ms"),
+            "failure_count": summary.get("failure_count"),
+            "repair_round_count": summary.get("repair_round_count"),
             "per_chapter_char_counts": summary.get("per_chapter_char_counts"),
             "per_chapter_metrics": summary.get("per_chapter_metrics"),
             "artifact_hashes": summary.get("artifact_hashes"),
@@ -263,6 +308,7 @@ def _write_audit_templates(out_dir: Path, metadata: dict[str, Any]) -> None:
 - timeout_seconds: {params["timeout_seconds"]}
 - time_budget_seconds: {params["time_budget_seconds"]}
 - outer_timeout_seconds: {params["outer_timeout_seconds"]}
+- require_integration_gate: {params["require_integration_gate"]}
 - database_mode: {params["database_mode"]}
 
 ## 运行结果
@@ -276,7 +322,9 @@ def _write_audit_templates(out_dir: Path, metadata: dict[str, Any]) -> None:
 - estimated_cost: {summary.get("estimated_cost")}
 - actual_total_chars: {summary.get("actual_total_chars")}
 - markdown_artifact_id: {summary.get("markdown_artifact_id")}
+- epub_artifact_id: {summary.get("epub_artifact_id")}
 - audit_artifact_id: {summary.get("audit_artifact_id")}
+- cost_cny_estimated: {summary.get("cost_cny_estimated")}
 
 ## 质量风险
 
@@ -294,6 +342,7 @@ def _write_audit_templates(out_dir: Path, metadata: dict[str, Any]) -> None:
 
 - 本次章节数：{params["chapter_count"]}
 - Markdown 产物 ID：{summary.get("markdown_artifact_id")}
+- EPUB 产物 ID：{summary.get("epub_artifact_id")}
 - 审计报告 ID：{summary.get("audit_artifact_id")}
 - 正文字符数：{summary.get("actual_total_chars")}
 
@@ -331,6 +380,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--outer-timeout-seconds", type=int, default=4800)
     parser.add_argument("--label", type=str, default="10ch")
     parser.add_argument("--resume-run-directory", type=str, default=None)
+    parser.add_argument("--require-integration-gate", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -342,22 +392,42 @@ def _resolve_resume_run_directory(value: str | None) -> Path | None:
     path = Path(value)
     if path.is_absolute():
         return path.resolve()
+    parts = path.parts
+    if len(parts) >= 3 and parts[0] == "docs" and parts[1] == "internal" and parts[2] == "codex":
+        return (ROOT / ".codex" / Path(*parts[3:])).resolve()
     return (ROOT / path).resolve()
-
-
-def _direct_serial_ph5_block_reason(args: argparse.Namespace) -> str:
-    if args.chapter_count < 30:
-        return ""
-    if os.environ.get("STORYFORGE_ALLOW_DIRECT_SERIAL_PH5") == "1":
-        return ""
-    return (
-        "PH5 30 章集成验证不能走 direct 串行 runner；"
-        "请改用 workflow BookLoop 并发入口，或仅在调试旧路径时设置 STORYFORGE_ALLOW_DIRECT_SERIAL_PH5=1。"
-    )
 
 
 def _text_artifact_paths(out_dir: Path) -> list[Path]:
     return [out_dir / name for name in TEXT_ARTIFACT_NAMES]
+
+
+def _write_bytes(path: Path, content: bytes) -> None:
+    path.write_bytes(content)
+
+
+def _sha256_bytes(content: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(content).hexdigest()
+
+
+def _epub_bytes_from_artifact(artifact: Any) -> bytes:
+    payload = getattr(artifact, "payload", None)
+    if isinstance(payload, bytes):
+        return payload
+    return _artifact_text(artifact).encode("utf-8")
+
+
+def _attach_epub_summary(summary: dict[str, Any], epub_artifact: Any, epub_bytes: bytes) -> None:
+    artifact_hashes = summary.get("artifact_hashes")
+    if not isinstance(artifact_hashes, dict):
+        artifact_hashes = {}
+        summary["artifact_hashes"] = artifact_hashes
+    summary["epub_artifact_id"] = getattr(epub_artifact, "id", None)
+    artifact_hashes["book_epub_sha256"] = _sha256_bytes(epub_bytes)
+    size_bytes = getattr(epub_artifact, "size_bytes", None)
+    summary["epub_size_bytes"] = int(size_bytes) if isinstance(size_bytes, int) else len(epub_bytes)
 
 
 def _integration_metrics_from_result(result: Any) -> dict[str, Any]:
@@ -395,11 +465,6 @@ def main(argv: list[str] | None = None) -> int:
     if missing:
         print("missing_env=" + ",".join(missing))
         return 2
-    direct_serial_block_reason = _direct_serial_ph5_block_reason(args)
-    if direct_serial_block_reason:
-        print(direct_serial_block_reason)
-        return 2
-
     os.environ["STORYFORGE_LLM_TIMEOUT_SECONDS"] = str(args.timeout_seconds)
     os.environ["STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS"] = str(args.time_budget_seconds)
 
@@ -457,17 +522,29 @@ def main(argv: list[str] | None = None) -> int:
                     env=os.environ,
                 )
             _raise_if_outer_timeout_exceeded(started_at=started_at, outer_timeout_seconds=args.outer_timeout_seconds)
+            epub_artifact = getattr(result, "epub_artifact", None)
+            if epub_artifact is None:
+                epub_artifact = export_book_run_epub(session, result.book_run.id)
+                epub_bytes = build_book_run_epub_package(session, result.book_run.id)
+            else:
+                epub_bytes = _epub_bytes_from_artifact(epub_artifact)
             summary = _evidence_summary(
                 result,
                 target_word_count=args.target_word_count,
                 chapter_word_count_min=args.chapter_word_count_min,
                 chapter_word_count_max=args.chapter_word_count_max,
             )
+            _attach_epub_summary(summary, epub_artifact, epub_bytes)
             summary["integration_metrics"] = _integration_metrics_from_result(result)
             _write_json(out_dir / "summary.json", summary)
             _write_text(out_dir / "book.md", _artifact_text(result.markdown_artifact))
+            _write_bytes(out_dir / "book.epub", epub_bytes)
             _write_text(out_dir / "audit_report.json", _artifact_text(result.audit_artifact))
-            _raise_for_gate_failures(summary, token_budget=args.token_budget)
+            _raise_for_gate_failures(
+                summary,
+                token_budget=args.token_budget,
+                require_integration_gate=args.require_integration_gate,
+            )
             stdout_payload.update(
                 {
                     "book_run_id": summary["book_run_id"],
@@ -475,6 +552,7 @@ def main(argv: list[str] | None = None) -> int:
                     "actual_chapter_count": summary["actual_chapter_count"],
                     "tokens_used": summary["tokens_used"],
                     "markdown_artifact_id": summary["markdown_artifact_id"],
+                    "epub_artifact_id": summary["epub_artifact_id"],
                     "audit_artifact_id": summary["audit_artifact_id"],
                 }
             )

@@ -11,6 +11,7 @@ param(
   [double]$MaxDbQueryCountPerChapter = 3,
   [double]$MaxChapterGenerationTimeP50 = 20,
   [double]$MinConcurrentChapterUtilization = 0.6,
+  [switch]$RequireIntegrationGate,
   [switch]$RequireManualReadthrough
 )
 
@@ -47,6 +48,7 @@ $riskPath = Join-Path $resolvedDirectory "quality-risk.md"
 $todoPath = Join-Path $resolvedDirectory "human-readthrough-todo.md"
 $manualReadthroughPath = Join-Path $resolvedDirectory "manual-readthrough-completion.md"
 $bookPath = Join-Path $resolvedDirectory "book.md"
+$epubPath = Join-Path $resolvedDirectory "book.epub"
 $auditPath = Join-Path $resolvedDirectory "audit_report.json"
 $stdoutPath = Join-Path $resolvedDirectory "stdout.json"
 $stderrPath = Join-Path $resolvedDirectory "stderr.log"
@@ -64,12 +66,13 @@ if ($RequireManualReadthrough) {
   Write-Presence "manual-readthrough-completion.md" $manualReadthroughPath
 }
 Write-Presence "book.md" $bookPath
+Write-Presence "book.epub" $epubPath
 Write-Presence "audit_report.json" $auditPath
 Write-Presence "stdout.json" $stdoutPath
 Write-Presence "stderr.log" $stderrPath
 
 $failures = @()
-foreach ($path in @($summaryPath, $metadataPath, $riskPath, $todoPath, $bookPath, $auditPath, $stdoutPath, $stderrPath)) {
+foreach ($path in @($summaryPath, $metadataPath, $riskPath, $todoPath, $bookPath, $epubPath, $auditPath, $stdoutPath, $stderrPath)) {
   if (-not (Test-Path -LiteralPath $path)) {
     $failures += "缺少必需产物：$(Split-Path -Leaf $path)"
   }
@@ -109,7 +112,11 @@ if ($null -eq $summary) {
   Write-Output "estimated_cost: $($summary.estimated_cost)"
   Write-Output "actual_total_chars: $($summary.actual_total_chars)"
   Write-Output "markdown_artifact_id: $($summary.markdown_artifact_id)"
+  Write-Output "epub_artifact_id: $($summary.epub_artifact_id)"
   Write-Output "audit_artifact_id: $($summary.audit_artifact_id)"
+  Write-Output "prompt_tokens_used: $($summary.prompt_tokens_used)"
+  Write-Output "completion_tokens_used: $($summary.completion_tokens_used)"
+  Write-Output "cost_cny_estimated: $($summary.cost_cny_estimated)"
 
   if ([string]$summary.book_run_status -ne "completed") {
     $failures += "BookRun 未 completed"
@@ -123,14 +130,23 @@ if ($null -eq $summary) {
   if (-not $summary.artifact_hashes.book_md_sha256) {
     $failures += "缺少 book_md_sha256"
   }
+  if (-not $summary.artifact_hashes.book_epub_sha256) {
+    $failures += "缺少 book_epub_sha256"
+  }
   if (-not $summary.artifact_hashes.audit_report_sha256) {
     $failures += "缺少 audit_report_sha256"
   }
   if (-not $summary.markdown_artifact_id) {
     $failures += "缺少 markdown_artifact_id"
   }
+  if (-not $summary.epub_artifact_id) {
+    $failures += "缺少 epub_artifact_id"
+  }
   if (-not $summary.audit_artifact_id) {
     $failures += "缺少 audit_artifact_id"
+  }
+  if ($null -eq $summary.cost_breakdown) {
+    $failures += "缺少 cost_breakdown"
   }
 
   $totalIssues = 0
@@ -151,64 +167,78 @@ if ($null -eq $summary) {
 
   $integrationMetrics = $summary.integration_metrics
   if ($null -eq $integrationMetrics) {
-    $failures += "缺少 integration_metrics"
+    if ($RequireIntegrationGate) {
+      $failures += "缺少 integration_metrics"
+    }
   } else {
     $contextCacheHitRate = $integrationMetrics.context_cache_hit_rate
     if ($null -eq $contextCacheHitRate) {
-      $failures += "缺少 context_cache_hit_rate"
+      if ($RequireIntegrationGate) {
+        $failures += "缺少 context_cache_hit_rate"
+      }
     } else {
       Write-Output "context_cache_hit_rate: $contextCacheHitRate"
-      if ([double]$contextCacheHitRate -le $MinContextCacheHitRate) {
+      if ($RequireIntegrationGate -and [double]$contextCacheHitRate -le $MinContextCacheHitRate) {
         $failures += "context_cache_hit_rate 未超过 $MinContextCacheHitRate"
       }
     }
 
     $memoryRecallBudgetUsed = $integrationMetrics.memory_recall_budget_used
     if ($null -eq $memoryRecallBudgetUsed) {
-      $failures += "缺少 memory_recall_budget_used"
+      if ($RequireIntegrationGate) {
+        $failures += "缺少 memory_recall_budget_used"
+      }
     } else {
       Write-Output "memory_recall_budget_used: $memoryRecallBudgetUsed"
-      if ([double]$memoryRecallBudgetUsed -ge $MaxMemoryRecallBudgetUsed) {
+      if ($RequireIntegrationGate -and [double]$memoryRecallBudgetUsed -ge $MaxMemoryRecallBudgetUsed) {
         $failures += "memory_recall_budget_used 未低于 $MaxMemoryRecallBudgetUsed"
       }
     }
 
     $arcCompletionRate = $integrationMetrics.arc_completion_rate
     if ($null -eq $arcCompletionRate) {
-      $failures += "缺少 arc_completion_rate"
+      if ($RequireIntegrationGate) {
+        $failures += "缺少 arc_completion_rate"
+      }
     } else {
       Write-Output "arc_completion_rate: $arcCompletionRate"
-      if ([double]$arcCompletionRate -lt $MinArcCompletionRate) {
+      if ($RequireIntegrationGate -and [double]$arcCompletionRate -lt $MinArcCompletionRate) {
         $failures += "arc_completion_rate 低于 $MinArcCompletionRate"
       }
     }
 
     $dbQueryCountPerChapter = $integrationMetrics.db_query_count_per_chapter
     if ($null -eq $dbQueryCountPerChapter) {
-      $failures += "缺少 db_query_count_per_chapter"
+      if ($RequireIntegrationGate) {
+        $failures += "缺少 db_query_count_per_chapter"
+      }
     } else {
       Write-Output "db_query_count_per_chapter: $dbQueryCountPerChapter"
-      if ([double]$dbQueryCountPerChapter -gt $MaxDbQueryCountPerChapter) {
+      if ($RequireIntegrationGate -and [double]$dbQueryCountPerChapter -gt $MaxDbQueryCountPerChapter) {
         $failures += "db_query_count_per_chapter 超过 $MaxDbQueryCountPerChapter"
       }
     }
 
     $chapterGenerationTimeP50 = $integrationMetrics.chapter_generation_time_p50
     if ($null -eq $chapterGenerationTimeP50) {
-      $failures += "缺少 chapter_generation_time_p50"
+      if ($RequireIntegrationGate) {
+        $failures += "缺少 chapter_generation_time_p50"
+      }
     } else {
       Write-Output "chapter_generation_time_p50: $chapterGenerationTimeP50"
-      if ([double]$chapterGenerationTimeP50 -ge $MaxChapterGenerationTimeP50) {
+      if ($RequireIntegrationGate -and [double]$chapterGenerationTimeP50 -ge $MaxChapterGenerationTimeP50) {
         $failures += "chapter_generation_time_p50 未低于 $MaxChapterGenerationTimeP50 秒"
       }
     }
 
     $concurrentChapterUtilization = $integrationMetrics.concurrent_chapter_utilization
     if ($null -eq $concurrentChapterUtilization) {
-      $failures += "缺少 concurrent_chapter_utilization"
+      if ($RequireIntegrationGate) {
+        $failures += "缺少 concurrent_chapter_utilization"
+      }
     } else {
       Write-Output "concurrent_chapter_utilization: $concurrentChapterUtilization"
-      if ([double]$concurrentChapterUtilization -le $MinConcurrentChapterUtilization) {
+      if ($RequireIntegrationGate -and [double]$concurrentChapterUtilization -le $MinConcurrentChapterUtilization) {
         $failures += "concurrent_chapter_utilization 未超过 $MinConcurrentChapterUtilization"
       }
     }

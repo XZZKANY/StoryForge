@@ -154,9 +154,21 @@ try {
     exit 2
   }
 
+  $authHeader = [Environment]::GetEnvironmentVariable("STORYFORGE_LLM_AUTH_HEADER", "Process")
+  if ([string]::IsNullOrWhiteSpace($authHeader)) {
+    $authHeader = "api-key"
+  }
   $headers = @{
-    Authorization = "Bearer $plainCredential"
     Accept = "application/json"
+  }
+  if ($authHeader.Trim().ToLowerInvariant() -eq "api-key") {
+    $headers["api-key"] = $plainCredential
+  } elseif ($authHeader.Trim().ToLowerInvariant() -eq "bearer") {
+    $headers["Authorization"] = "Bearer $plainCredential"
+  } else {
+    Write-Output "gate: fail_preflight"
+    Write-Output "failure: STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer"
+    exit 2
   }
   $modelsUri = Join-ProviderPath -BaseUrl $baseUrl -Path "/models"
   $chatUri = Join-ProviderPath -BaseUrl $baseUrl -Path "/chat/completions"
@@ -193,7 +205,13 @@ try {
   Write-Output "chat_latency_ms: $($chatResult.latency_ms)"
   if ($chatResult.ok) {
     $content = $chatResult.payload.choices[0].message.content
-    if ([string]::IsNullOrWhiteSpace([string]$content)) {
+  } else {
+    $safeMessage = Redact-PrivateRuntimeText -Text $chatResult.error_message -PrivateBaseUrl $baseUrl -PrivateCredential $plainCredential
+    Write-Output "chat_error_type: $($chatResult.error_type)"
+    Write-Output "chat_error_message: $safeMessage"
+    $content = ""
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$content)) {
       Write-Output "chat_content: empty"
       Write-Output "chat_empty_retry: start"
       $chatRetryBody = @{
@@ -223,15 +241,8 @@ try {
         Write-Output "gate: fail_chat"
         exit 4
       }
-    } else {
-      Write-Output "chat_content: present"
-    }
   } else {
-    $safeMessage = Redact-PrivateRuntimeText -Text $chatResult.error_message -PrivateBaseUrl $baseUrl -PrivateCredential $plainCredential
-    Write-Output "chat_error_type: $($chatResult.error_type)"
-    Write-Output "chat_error_message: $safeMessage"
-    Write-Output "gate: fail_chat"
-    exit 4
+    Write-Output "chat_content: present"
   }
 
   Write-Output "gate: pass_connectivity_probe"

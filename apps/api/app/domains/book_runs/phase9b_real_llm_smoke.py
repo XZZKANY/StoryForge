@@ -174,10 +174,13 @@ def run_phase9b_real_llm_smoke(
                 "repair_rounds": outcome["repair_rounds"],
                 "approved_scene_id": scene.id,
                 "token_usage": generated["token_usage"],
+                "prompt_tokens": generated["prompt_tokens"],
+                "completion_tokens": generated["completion_tokens"],
                 "generation_latency_ms": generated["latency_ms"],
                 "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
                 "chapter_elapsed_time_sec": max(0, int(time.monotonic() - chapter_started_at)),
-                "cost_estimate": 0.0,
+                "cost_estimate": generated["cost_cny_estimated"],
+                "cost_breakdown": generated["cost_breakdown"],
                 "quality_score": outcome["quality_score"],
                 "quality_issues": outcome["quality_issues"],
             }
@@ -196,7 +199,7 @@ def run_phase9b_real_llm_smoke(
                 "budget": {
                     "tokens_used": tokens_used,
                     "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
-                    "estimated_cost": 0.0,
+                    "estimated_cost": _total_cost_estimate(completed_chapters),
                 },
                 "integration_metrics": _direct_smoke_integration_metrics(
                     session,
@@ -293,10 +296,13 @@ def resume_phase9b_real_llm_smoke(
                 "repair_rounds": outcome["repair_rounds"],
                 "approved_scene_id": scene.id,
                 "token_usage": generated["token_usage"],
+                "prompt_tokens": generated["prompt_tokens"],
+                "completion_tokens": generated["completion_tokens"],
                 "generation_latency_ms": generated["latency_ms"],
                 "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
                 "chapter_elapsed_time_sec": max(0, int(time.monotonic() - chapter_started_at)),
-                "cost_estimate": 0.0,
+                "cost_estimate": generated["cost_cny_estimated"],
+                "cost_breakdown": generated["cost_breakdown"],
                 "quality_score": outcome["quality_score"],
                 "quality_issues": outcome["quality_issues"],
             }
@@ -318,7 +324,7 @@ def resume_phase9b_real_llm_smoke(
                 "budget": {
                     "tokens_used": tokens_used,
                     "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
-                    "estimated_cost": 0.0,
+                    "estimated_cost": _total_cost_estimate(completed_chapters),
                 },
                 "integration_metrics": _direct_smoke_integration_metrics(
                     session,
@@ -587,10 +593,7 @@ def _call_llm(
     http_request = request.Request(
         f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/chat/completions",
         data=body,
-        headers={
-            "Authorization": f"Bearer {_required_env(source, 'STORYFORGE_LLM_API_KEY')}",
-            "Content-Type": "application/json",
-        },
+        headers=_llm_request_headers(source),
         method="POST",
     )
     timeout = _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 60.0)
@@ -600,11 +603,13 @@ def _call_llm(
     content = data["choices"][0]["message"]["content"]
     if not isinstance(content, str) or not content.strip():
         raise Phase9BRealLlmSmokeError("真实 LLM 返回内容为空，不能继续 BookRun 冒烟。")
-    token_usage, token_usage_source = _token_usage(data, user_prompt, content)
+    usage = _token_usage(data, user_prompt, content)
+    cost_breakdown = _cost_breakdown(source, usage)
     return {
         "content": content.strip(),
-        "token_usage": token_usage,
-        "token_usage_source": token_usage_source,
+        **usage,
+        "cost_cny_estimated": cost_breakdown["total_cny"],
+        "cost_breakdown": cost_breakdown,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
 
@@ -764,6 +769,16 @@ def _record_model_run(
                 "book_run_id": book_run.id,
                 "mode": "phase9b_real_llm_smoke",
                 "token_usage_source": generated["token_usage_source"],
+                "prompt_tokens": generated.get("prompt_tokens", 0),
+                "completion_tokens": generated.get("completion_tokens", 0),
+                "total_tokens": generated["token_usage"],
+                "cost_cny_estimated": generated.get("cost_cny_estimated", 0.0),
+                "cost_source": (
+                    generated.get("cost_breakdown", {}).get("source", "unavailable")
+                    if isinstance(generated.get("cost_breakdown"), dict)
+                    else "unavailable"
+                ),
+                "cost_breakdown": generated.get("cost_breakdown", {}),
                 "input_summary_original_length": len(str(generated["prompt"])),
                 "output_summary_original_length": len(str(generated["content"])),
                 "input_summary_truncated": len(input_summary) < len(str(generated["prompt"])),
@@ -1178,17 +1193,84 @@ def _chapter_generation_time_p50(completed_chapters: list[dict[str, object]]) ->
     return round(float(median(seconds)), 3) if seconds else 0.0
 
 
-def _token_usage(data: object, prompt: str, content: str) -> tuple[int, str]:
+def _llm_request_headers(source: Mapping[str, str | None]) -> dict[str, str]:
+    credential = _required_env(source, "STORYFORGE_LLM_API_KEY")
+    auth_header = _env_value(source, "STORYFORGE_LLM_AUTH_HEADER").lower() or "bearer"
+    headers = {"Content-Type": "application/json"}
+    if auth_header == "api-key":
+        headers["api-key"] = credential
+        return headers
+    if auth_header != "bearer":
+        raise Phase9BRealLlmSmokePreflightError("STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。")
+    headers["Authorization"] = f"Bearer {credential}"
+    return headers
+
+
+def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str]:
     usage = data.get("usage") if isinstance(data, dict) else None
     if isinstance(usage, dict):
         total = usage.get("total_tokens")
-        if isinstance(total, int) and total > 0:
-            return total, "provider_usage"
         prompt_tokens = usage.get("prompt_tokens")
         completion_tokens = usage.get("completion_tokens")
         if isinstance(prompt_tokens, int) and isinstance(completion_tokens, int):
-            return max(1, prompt_tokens + completion_tokens), "provider_usage"
-    return max(1, (len(prompt) + len(content)) // 4), "estimated"
+            resolved_total = total if isinstance(total, int) and total > 0 else prompt_tokens + completion_tokens
+            return {
+                "token_usage": max(1, resolved_total),
+                "prompt_tokens": max(0, prompt_tokens),
+                "completion_tokens": max(0, completion_tokens),
+                "token_usage_source": "provider_usage",
+            }
+        if isinstance(total, int) and total > 0:
+            estimated_prompt = max(0, len(prompt) // 4)
+            estimated_completion = max(0, total - estimated_prompt)
+            return {
+                "token_usage": total,
+                "prompt_tokens": estimated_prompt,
+                "completion_tokens": estimated_completion,
+                "token_usage_source": "estimated_split",
+            }
+    prompt_tokens = max(1, len(prompt) // 4)
+    completion_tokens = max(1, len(content) // 4)
+    return {
+        "token_usage": prompt_tokens + completion_tokens,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "token_usage_source": "estimated_split",
+    }
+
+
+def _cost_breakdown(source: Mapping[str, str | None], usage: dict[str, int | str]) -> dict[str, float | str]:
+    prompt_tokens = int(usage.get("prompt_tokens") or 0)
+    completion_tokens = int(usage.get("completion_tokens") or 0)
+    input_rate = _optional_float(source, "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS", 0.0)
+    output_rate = _optional_float(source, "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS", 0.0)
+    cache_hit_rate = _optional_float(source, "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS", 0.0)
+    input_cny = (prompt_tokens / 1_000_000) * input_rate
+    output_cny = (completion_tokens / 1_000_000) * output_rate
+    return {
+        "currency": "CNY",
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "input_cny": input_cny,
+        "output_cny": output_cny,
+        "total_cny": input_cny + output_cny,
+        "input_cny_per_m_tokens": input_rate,
+        "output_cny_per_m_tokens": output_rate,
+        "cache_hit_input_cny_per_m_tokens": cache_hit_rate,
+        "source": str(usage.get("token_usage_source") or "estimated_split"),
+    }
+
+
+def _total_cost_estimate(completed_chapters: list[dict[str, object]]) -> float:
+    return sum(_float_value(item.get("cost_estimate")) for item in completed_chapters if isinstance(item, dict))
+
+
+def _float_value(value: object) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, int | float):
+        return float(value)
+    return 0.0
 
 
 def _env_value(source: Mapping[str, str | None], name: str) -> str:
@@ -1317,6 +1399,8 @@ def _evidence_summary(
     completed_chapters = progress.get("completed_chapters")
     completed_chapters = completed_chapters if isinstance(completed_chapters, list) else []
     book_md_content = _artifact_text(markdown_artifact)
+    cost_breakdown = _aggregate_cost_breakdown(completed_chapters, book_run.estimated_cost)
+    latency = _latency_summary(completed_chapters)
     return {
         "mode": "real_llm_smoke",
         "book_run_id": book_run.id,
@@ -1328,6 +1412,13 @@ def _evidence_summary(
         "chapter_word_count_max": chapter_word_count_max,
         "tokens_used": book_run.tokens_used,
         "estimated_cost": book_run.estimated_cost,
+        "prompt_tokens_used": _sum_chapter_int(completed_chapters, "prompt_tokens"),
+        "completion_tokens_used": _sum_chapter_int(completed_chapters, "completion_tokens"),
+        "cost_cny_estimated": cost_breakdown["total_cny"],
+        "cost_breakdown": cost_breakdown,
+        **latency,
+        "failure_count": _failure_count(completed_chapters),
+        "repair_round_count": _sum_chapter_int(completed_chapters, "repair_rounds"),
         "actual_total_chars": len(book_md_content),
         "per_chapter_char_counts": _per_chapter_char_counts(book_md_content, completed_chapters),
         "markdown_artifact_id": markdown_artifact.id,
@@ -1411,6 +1502,9 @@ def _chapter_metric(item: object) -> dict[str, object]:
         return {
             "chapter_index": None,
             "token_usage": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "generation_latency_ms": 0,
             "quality_score": None,
             "quality_issue_count": 0,
             "elapsed_time_sec": 0,
@@ -1421,10 +1515,79 @@ def _chapter_metric(item: object) -> dict[str, object]:
     return {
         "chapter_index": item.get("chapter_index"),
         "token_usage": item.get("token_usage", 0),
+        "prompt_tokens": item.get("prompt_tokens", 0),
+        "completion_tokens": item.get("completion_tokens", 0),
+        "generation_latency_ms": item.get("generation_latency_ms", 0),
         "quality_score": item.get("quality_score"),
         "quality_issue_count": issue_count,
         "elapsed_time_sec": item.get("elapsed_time_sec", 0),
         "repair_rounds": item.get("repair_rounds", 0),
+    }
+
+
+def _sum_chapter_int(chapters: list[object], field_name: str) -> int:
+    total = 0
+    for item in chapters:
+        if isinstance(item, dict):
+            value = item.get(field_name)
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, int | float):
+                total += int(value)
+    return total
+
+
+def _latency_summary(chapters: list[object]) -> dict[str, int]:
+    latencies = []
+    for item in chapters:
+        if not isinstance(item, dict):
+            continue
+        value = item.get("generation_latency_ms")
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int | float) and value >= 0:
+            latencies.append(int(value))
+    total = sum(latencies)
+    return {
+        "total_latency_ms": total,
+        "avg_latency_ms": round(total / len(latencies)) if latencies else 0,
+        "max_latency_ms": max(latencies) if latencies else 0,
+    }
+
+
+def _failure_count(chapters: list[object]) -> int:
+    count = 0
+    for item in chapters:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status") or "").lower()
+        if status in {"failed", "error"} or item.get("error_message"):
+            count += 1
+    return count
+
+
+def _aggregate_cost_breakdown(chapters: list[object], fallback_total: float) -> dict[str, object]:
+    input_cny = 0.0
+    output_cny = 0.0
+    source = "unavailable"
+    for item in chapters:
+        if not isinstance(item, dict):
+            continue
+        breakdown = item.get("cost_breakdown")
+        if not isinstance(breakdown, dict):
+            continue
+        input_cny += _float_value(breakdown.get("input_cny"))
+        output_cny += _float_value(breakdown.get("output_cny"))
+        source = str(breakdown.get("source") or source)
+    total = input_cny + output_cny
+    if total == 0 and fallback_total:
+        total = float(fallback_total)
+    return {
+        "currency": "CNY",
+        "input_cny": input_cny,
+        "output_cny": output_cny,
+        "total_cny": total,
+        "source": source,
     }
 
 
