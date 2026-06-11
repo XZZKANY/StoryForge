@@ -1,0 +1,8 @@
+﻿uv : Phase 9B 真实 LLM 冒烟失败：(psycopg.errors.ConnectionTimeout) connection timeout expired
+At line:22 char:1
++ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke `
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Phase 9B 真实 LLM...timeout expired:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

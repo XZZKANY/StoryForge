@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { dirname, join, resolve } from 'node:path';
@@ -12,7 +12,7 @@ const ttiBlockingMs = 2500;
 function parseArgs(argv) {
   const args = {
     nextDir: resolve(process.cwd(), '.next'),
-    out: resolve(process.cwd(), '../../docs/internal/codex/ide-build-baseline.json'),
+    out: resolve(process.cwd(), '../../.codex/ide-build-baseline.json'),
     route: '/ide/page',
   };
   for (let index = 0; index < argv.length; index += 1) {

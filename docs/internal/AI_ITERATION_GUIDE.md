@@ -76,7 +76,7 @@ apps/
 packages/
 docs/
 tests/
-docs/internal/codex/
+.codex/
 ```
 
 如果某些文件不存在，应说明缺失情况，并判断是否需要创建。
@@ -221,7 +221,7 @@ Git 工作区是否已有未提交改动
 中等及以上任务，或任何跨模块代码任务，必须生成或更新：
 
 ```text
-docs/internal/codex/context-summary-[任务名].md
+.codex/context-summary-[任务名].md
 ```
 
 摘要至少包含：
@@ -407,12 +407,12 @@ docs/internal/codex/context-summary-[任务名].md
 - 优先复用已有模块、工具和依赖。
 - 遵循项目既有命名、目录、导入、测试和格式风格。
 - 所有中文说明、注释、文档、日志必须使用简体中文。
-- 若发现新问题，先记录到 `docs/internal/TODO.md` 或 `docs/internal/codex/operations-log.md`，不要擅自扩大范围。
+- 若发现新问题，先记录到 `docs/internal/TODO.md` 或 `.codex/operations-log.md`，不要擅自扩大范围。
 
 执行过程中的重要决策应记录到：
 
 ```text
-docs/internal/codex/operations-log.md
+.codex/operations-log.md
 ```
 
 ---
@@ -448,7 +448,7 @@ pnpm --filter <app-or-package> lint
 
 - 说明缺失原因。
 - 给出替代验证方式。
-- 在 `docs/internal/TODO.md` 或 `docs/internal/codex/verification-report.md` 记录补足计划。
+- 在 `docs/internal/TODO.md` 或 `.codex/verification-report.md` 记录补足计划。
 
 ---
 
@@ -468,7 +468,7 @@ pnpm --filter <app-or-package> lint
   中等及以上任务应生成或更新：
 
 ```text
-docs/internal/codex/verification-report.md
+.codex/verification-report.md
 ```
 
 建议评分维度：
@@ -566,7 +566,7 @@ AI 必须说明：
 
 1. 验证已经完成，或失败原因已记录。
 2. `docs/internal/TODO.md` 已更新。
-3. `docs/internal/codex/operations-log.md` 或验证报告已按需更新。
+3. `.codex/operations-log.md` 或验证报告已按需更新。
 4. 没有无关文件混入。
 5. 提交信息为简体中文。
 

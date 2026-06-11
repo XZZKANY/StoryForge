@@ -38,11 +38,11 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 
 最新脱敏证据目录：
 
-- 1 章真实 smoke：`docs/internal/codex/real-llm-1ch-20260603-142925`，BookRun completed，已补人工通读。
-- 3 章真实 smoke：`docs/internal/codex/real-llm-3ch-20260603-173932`，BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读完成记录已补齐。
-- 10 章真实 smoke：`docs/internal/codex/real-llm-10ch-20260604-110831`，BookRun completed，实际 10 章，tokens_used=145668，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，10 章 smoke 人工通读完成，最终门禁 `gate: pass_for_real_10ch_final_acceptance`。
+- 1 章真实 smoke：`.codex/real-llm-1ch-20260603-142925`，BookRun completed，已补人工通读。
+- 3 章真实 smoke：`.codex/real-llm-3ch-20260603-173932`，BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，人工通读完成记录已补齐。
+- 10 章真实 smoke：`.codex/real-llm-10ch-20260604-110831`，BookRun completed，实际 10 章，tokens_used=145668，`book.md` 与 `audit_report.json` 已落盘，`quality_summary.status=ok`，10 章 smoke 人工通读完成，最终门禁 `gate: pass_for_real_10ch_final_acceptance`。
 
-历史限制：旧 3 章目录 `docs/internal/codex/real-llm-3ch-20260603-163715` 曾出现语义 Judge 降级，只能证明真实生成与导出链路。最新 10 章 smoke 已完成最终验收，但仍不能外推为 3-5 万字长程完成。
+历史限制：旧 3 章目录 `.codex/real-llm-3ch-20260603-163715` 曾出现语义 Judge 降级，只能证明真实生成与导出链路。最新 10 章 smoke 已完成最终验收，但仍不能外推为 3-5 万字长程完成。
 
 ## 已完成的远端门禁
 
@@ -56,7 +56,7 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 ## 仍未完成的验收项
 
 - 真实 LLM 跑完 3-5 万字短篇。
-- 3-5 万字长程人工通读记录写入 `docs/internal/codex/verification-report.md`，且无明显人物、世界观或时间线矛盾。
+- 3-5 万字长程人工通读记录写入 `.codex/verification-report.md`，且无明显人物、世界观或时间线矛盾。
 
 ## 禁止宣称范围
 
@@ -65,5 +65,5 @@ uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 
 ## 证据源
 
 - `docs/internal/dev-plan.md`：Phase 9 计划、勾选状态和完成判定。
-- `docs/internal/codex/verification-report.md`：本地测试、红绿记录、真实 LLM 环境缺口和质量评分。
+- `.codex/verification-report.md`：本地测试、红绿记录、真实 LLM 环境缺口和质量评分。
 - `README.md`：面向使用者的能力边界摘要。

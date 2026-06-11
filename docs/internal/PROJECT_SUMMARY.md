@@ -14,7 +14,7 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 | 本地端到端契约 | 通过 | `pnpm e2e` 已重新跑通；Node 29 passed，API verification 61 passed，workflow verification 37 passed，OpenAPI refresh/drift 检查通过。 |
 | 远端 CI 子集 | 通过 | GitHub Actions `CI / Core verification` run `26857864662` 已成功；该结果只覆盖 CI 子集，远端 E2E 证据见下一行。 |
 | 远端 E2E | 主分支通过 | 历史远端 `master` 定时 E2E run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`；修复分支 `codex/phase9-e2e-alembic` 的远端 E2E run `26941784868` 已成功；修复已非强制快进合入 `master`，本轮 Alembic merge revision 为 `20260604_0001`，最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功，关键步骤 `执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均通过。 |
-| 真实 LLM smoke | 通过 | 1 章 smoke 证据位于 `docs/internal/codex/real-llm-1ch-20260603-142925`；3 章 smoke 证据位于 `docs/internal/codex/real-llm-3ch-20260603-173932`；10 章 smoke 证据位于 `docs/internal/codex/real-llm-10ch-20260604-110831`，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`，10 章 smoke 人工通读完成。 |
+| 真实 LLM smoke | 通过 | 1 章 smoke 证据位于 `.codex/real-llm-1ch-20260603-142925`；3 章 smoke 证据位于 `.codex/real-llm-3ch-20260603-173932`；10 章 smoke 证据位于 `.codex/real-llm-10ch-20260604-110831`，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`，10 章 smoke 人工通读完成。 |
 | 真实长程验收 | 未完成 | 真实 3-5 万字长程仍未完成，不能据此宣称稳定生产级长篇闭环。 |
 | 空白与编码检查 | 本地通过 | 本轮只对目标文件和新增上下文摘要执行窄范围 `git diff --check`、UTF-8 文本读取、敏感扫描和尾随空白检查。 |
 
@@ -59,7 +59,7 @@ pnpm test
 pnpm openapi
 ```
 
-验证报告必须写入 `docs/internal/codex/verification-report.md`，并单独列出页面级读取、API Key 注入、Studio 批准写回、Artifacts/Evaluations 读取、真实 API e2e、远程 LLM smoke、真实长程验收、远端 CI/E2E 状态、未联通能力和 OpenAPI 变化说明。
+验证报告必须写入 `.codex/verification-report.md`，并单独列出页面级读取、API Key 注入、Studio 批准写回、Artifacts/Evaluations 读取、真实 API e2e、远程 LLM smoke、真实长程验收、远端 CI/E2E 状态、未联通能力和 OpenAPI 变化说明。
 
 ## 7. 事实来源
 
@@ -69,5 +69,5 @@ pnpm openapi
 - `docs/internal/dev-plan.md`
 - `docs/architecture/phase6-workbench-contract.md`
 - `docs/internal/TODO.md`
-- `docs/internal/codex/operations-log.md`
-- `docs/internal/codex/verification-report.md`
+- `.codex/operations-log.md`
+- `.codex/verification-report.md`

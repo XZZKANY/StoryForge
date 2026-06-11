@@ -1,0 +1,7 @@
+﻿uv : Phase 9B 真实 LLM 冒烟失败：The read operation timed out
+At line:28 char:3
++   uv run python -m app.domains.book_runs.phase9b_real_llm_smoke `
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Phase 9B 真实 LLM...ation timed out:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

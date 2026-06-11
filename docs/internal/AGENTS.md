@@ -34,7 +34,7 @@
 - 输出技术维度评分（代码质量、测试覆盖、规范遵循）
 - 输出战略维度评分（需求匹配、架构一致、风险评估）
 - 输出综合评分（0-100）和明确建议（通过/退回/需讨论）
-- 生成 `docs/internal/codex/verification-report.md` 审查报告
+- 生成 `.codex/verification-report.md` 审查报告
 
 **审查清单必须包含：**
 
@@ -62,7 +62,7 @@
 
 - 不得删除、削弱或绕过仓库中已经由代码和测试验证的安全基线，包括认证、鉴权、限流、请求超时、安全响应头、配置校验和审计留痕。
 - 安全相关改动必须服务于现有业务闭环与发布门禁，禁止引入脱离当前架构的大型自研安全框架。
-- 如发现安全规范与现有测试、发布门禁或运行时事实冲突，必须优先保留已验证的运行时行为，并在 `docs/internal/codex/verification-report.md` 中记录冲突与修正方案。
+- 如发现安全规范与现有测试、发布门禁或运行时事实冲突，必须优先保留已验证的运行时行为，并在 `.codex/verification-report.md` 中记录冲突与修正方案。
 - 引入外部依赖时必须确认其默认安全行为不会破坏本地开发、测试和部署流程；如需调整，必须提供本地可重复验证。
 - 讨论安全问题时必须落到可验证的工程边界，不能以抽象口号替代代码、测试和配置证据。
 
@@ -383,7 +383,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 
 #### 📄 上下文摘要文件（编码前必须生成）
 
-**路径**：`docs/internal/codex/context-summary-[任务名].md`
+**路径**：`.codex/context-summary-[任务名].md`
 
 **模板**：
 
@@ -462,7 +462,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 
 时间：[YYYY-MM-DD HH:mm:ss]
 
-□ 已查阅上下文摘要文件：docs/internal/codex/context-summary-[任务名].md
+□ 已查阅上下文摘要文件：.codex/context-summary-[任务名].md
 □ 将使用以下可复用组件：
 
 - [组件1]: [路径] - [用途]
@@ -559,11 +559,11 @@ sequential-thinking  # 分析检索结果，提取项目模式
 
 ### 📋 文件结构规范
 
-所有任务执行产生的工作文件必须写入项目本地 `docs/internal/codex/` 目录（而非全局 `~/docs/internal/codex/`）：
+所有任务执行产生的工作文件必须写入项目本地 `.codex/` 目录（而非全局 `~/.codex/`）：
 
 ##### ```
 
-<project>/docs/internal/codex/
+<project>/.codex/
 ├── context-summary-[任务名].md   ← 上下文摘要（GPT Codex 输出）
 ├── operations-log.md             ← 决策和操作记录（GPT Codex 输出）
 └── verification-report.md        ← 验证报告（GPT Codex 输出）
@@ -596,7 +596,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 - 上下文收集：
   1. **强制检索清单**（7步，编码前必做）
   2. **充分性验证**（7项检查，必须全部通过）
-  3. **生成上下文摘要**（`docs/internal/codex/context-summary-[任务名].md`）
+  3. **生成上下文摘要**（`.codex/context-summary-[任务名].md`）
 
 **阶段1：任务规划**
 
@@ -613,7 +613,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 **阶段3：质量验证**
 
 - 使用 sequential-thinking 进行深度审查
-- 生成评分和建议（写入 `docs/internal/codex/verification-report.md`）
+- 生成评分和建议（写入 `.codex/verification-report.md`）
 - 根据评分决策：
   - ≥90分 → 通过
   - <80分 → 退回修改
@@ -636,7 +636,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 
 #### 步骤1：结构化快速扫描（必须）
 
-执行框架式收集，记录到 `docs/internal/codex/context-summary-[任务名].md`：
+执行框架式收集，记录到 `.codex/context-summary-[任务名].md`：
 
 - 位置：功能在哪个模块/文件？
 - 现状：现在如何实现？找到1-2个相似案例
@@ -662,7 +662,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 
 - 聚焦单个疑问，不发散
 - 提供代码片段证据，而非猜测
-- 更新 `docs/internal/codex/context-summary-[任务名].md`
+- 更新 `.codex/context-summary-[任务名].md`
 - **成本提醒**：第3次深挖时提醒"评估成本"，第4次及以上警告"建议停止，避免过度收集"
 
 #### 步骤4：充分性检查（必须）
@@ -692,7 +692,7 @@ sequential-thinking  # 分析检索结果，提取项目模式
 - ❌ 跳过步骤1（结构化快速扫描）或步骤2（识别关键疑问）
 - ❌ 跳过步骤4（充分性检查），在信息不足时强行规划
 - ❌ 深挖时不说明"为什么需要"和"解决什么疑问"
-- ❌ 上下文文件写入错误路径（必须是 `docs/internal/codex/` 而非 `~/docs/internal/codex/`）
+- ❌ 上下文文件写入错误路径（必须是 `.codex/` 而非 `~/.codex/`）
 
 ## 💡 开发哲学（强制遵循）
 

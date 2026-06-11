@@ -1,4 +1,4 @@
-# Phase 9 远端 E2E 重跑与通过记录
+﻿# Phase 9 远端 E2E 重跑与通过记录
 
 生成时间：2026-06-04 09:33:37 +08:00
 
@@ -19,7 +19,7 @@
 
 ## 本地已具备的修复证据
 
-- `docs/internal/codex/real-llm-10ch-20260604-110831`
+- `.codex/real-llm-10ch-20260604-110831`
   - 真实 10 章 smoke 已完成最终验收。
   - BookRun completed，实际 10 章，tokens_used=145668。
   - 最终门禁为 `gate: pass_for_real_10ch_final_acceptance`。
