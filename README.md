@@ -2,22 +2,36 @@
 
 长篇小说最难的不是写一章，是写到第三十章时角色不崩、伏笔不丢、时间线不乱。
 
-StoryForge 把这个问题拆成可检查的环节：**设定 → 章节目标 → 检索证据 → 生成 → 审稿 → 修复 → 记忆注入 → 导出**。它不是让模型一次性写完整本书，而是把每一章都变成可检查、可修复、可追踪的生产单元——每一步判据、每一条检索锚点、每一次审稿打分和修订记录都留底，可随时回溯。
+StoryForge 把这个问题拆成可检查的环节：**设定 → 章节目标 → 检索证据 → 生成 → 审稿 → 修复 → 记忆注入 → 导出**。它不是让模型一次性写完整本书，而是把每一章变成可检查、可修复、可追踪的生产单元。
 
-## 设计立场
+---
 
-**先做诊断控制台，再做生成器。** 每一条生成链路都先跑通"读取证据 → 评审 → 修复 → 批准"的闭环，确认控制面可观测、可追踪之后，才接真实模型。所以 StoryForge 不是"输入提示词就出小说"的黑箱——它是给你看每一步判据、每一条检索锚点、每一次 Judge 打分与 Repair 修订记录的工作台。
+## 当前状态
 
-## 技术栈
+StoryForge 是**长篇小说 AI 创作流水线原型**。已完成 1 章、3 章、10 章真实 LLM 端到端验证，10 章验证已通过人工通读。尚未证明可在 3–5 万字尺度上稳定生产。欢迎开发者参与验证和改进。
 
-| 层 | 技术 | 为什么 |
-|---|---|---|
-| API（业务真相源） | FastAPI + SQLAlchemy + Alembic + Pydantic v2 | 所有判定在服务端完成，前端不私自计算业务结论 |
-| Web（工作台） | Next.js 15 (App Router) + React 19 + Tailwind v4 | 只展示已验证页面级闭环，请求经 `api-client.ts` 注入 `X-StoryForge-API-Key` |
-| Workflow（编排） | LangGraph | 长任务、checkpoint、真实模型调用——保持 API 事务边界清晰 |
-| 共享契约 | `packages/shared`（TypeScript） | OpenAPI 快照 + `api-types.ts` 生成类型，前后端硬约束 |
-| 基础设施 | PostgreSQL + pgvector + Redis + MinIO + Sentry + Prometheus | 向量检索、缓存、对象存储、错误追踪、业务指标 |
-| 包管理 | pnpm 9.x（workspace）+ `uv sync` | monorepo 统一依赖，Python 侧用 uv 锁定环境 |
+## Demo
+
+10 章真实模型验证产出的完整样例（`book.md` + `audit_report.json`）见：
+
+[`docs/internal/codex/real-llm-10ch-20260604-110831/`](docs/internal/codex/real-llm-10ch-20260604-110831/)
+
+## 能做什么
+
+- **故事设定**：创建作品、角色、世界观
+- **章节计划**：从 Blueprint 拆解章节目标与检索锚点
+- **逐章生成**：Scene Architect → Draft Writer 顺序驱动
+- **自动审稿**：6 维质量评分（叙事、人物、世界观、时间线、风格、系统可靠度）
+- **定向修复**：根据评分触发分级修订
+- **记忆注入**：提取关键信息写入 Story Memory，贯穿后续章节
+- **成品导出**：Markdown、EPUB、完整审计报告（`audit_report.json`）
+
+## 不能做什么
+
+- 不保证商用级长篇质量（当前为原型验证阶段）
+- 不提供完整多人协作
+- 不提供生产级对象存储签名 URL 下载
+- 不承诺外部 LLM 端到端质量稳定
 
 ## 快速开始
 
@@ -27,98 +41,63 @@ cd StoryForge
 pnpm install
 docker compose up -d postgres redis minio
 pnpm dev          # 全栈启动（API + Web + 迁移）
-pnpm verify       # 本地全链路门禁
-pnpm test         # 全套单元/契约测试
-pnpm e2e          # OpenAPI 刷新 + 契约 diff + 真实 HTTP 测试
+pnpm verify       # 本地门禁
+pnpm test         # 单元 / 契约测试
+pnpm e2e          # OpenAPI 刷新 + 真实 HTTP 测试
 ```
 
-Windows 下如遇 `pnpm.ps1` 被 PowerShell 执行策略阻止，使用 `pnpm.cmd` 替代或：
-
-```powershell
-powershell.exe -NoProfile -Command "pnpm.cmd run dev"
-```
-
-## 当前能力
-
-- **BookRun 整书闭环**：从 Blueprint 章节计划驱动生成 → Judge 评审 → Repair 修复 → 批准 → checkpoint → 导出，全程可追溯。
-- **诊断工作台**：Studio 创作链路、Retrieval 证据检索、Runs 运行追踪、Artifacts 制品治理、Evaluations 评测诊断、Provider/模型诊断——每个模块都是只读诊断控制台，不在前端私自计算业务结论。
-- **控制面**：BookRun 支持 checkpoint 暂停/恢复、token/章节预算硬上限、provider 连续降级自动暂停、成本摘要。
-- **制品导出**：Markdown、EPUB、`audit_report.json`（含 generate/judge/repair/approve/memory_extract 完整证据链）。
-- **真实 LLM 长程验证**：已完成 10 章真实模型端到端验收，含人工通读记录——证明管线在真实模型下可跑通多章连续生产。
-- **安全与可观测性**：API Key 与鉴权链路已加固，生成消耗（token/成本）与运行状态可追踪到每次调用。
-
-## 当前边界
-
-StoryForge 仍在向 3–5 万字长程稳定生产推进中，以下能力**尚未就绪**：
-
-- 真实 LLM 下 3–5 万字长程闭环（当前真实模型端到端验证最高覆盖 10 章）
-- 全步骤 Studio 编排器、跨步骤草稿编辑器
-- 对象存储签名 URL 下载、上传资料执行流
-- Runs retry 即时续跑 workflow
-- 多租户用户认证、streaming 响应
-- 外部 LLM 端到端质量承诺
+Windows 下若 `pnpm.ps1` 被阻止，改用 `pnpm.cmd`。
 
 ## 架构
 
-StoryForge 是三层的严格分层架构，每层有明确定义的数据流向和契约约束：
-
 ```
-┌──────────────────────────────────────────────────────┐
-│  Web (Next.js)         用户工作台，只读展示 + BFF    │
-│                         /studio /runs /artifacts ...  │
-│                         lib/api-client.ts             │
-└────────────────────────────┬─────────────────────────┘
-                             │ X-StoryForge-API-Key
-                             │ OpenAPI 硬契约（快照 → 类型生成）
-                             ▼
-┌──────────────────────────────────────────────────────┐
-│  API (FastAPI)          业务真相源，~25 个域          │
-│                         domain/router → service       │
-│                         → models (SQLAlchemy + pg)    │
-│                         /health/ready  /metrics       │
-└────────────────────────────┬─────────────────────────┘
-                             │ 写入 JobRun / Checkpoint
-                             │ 读写 ModelRun
-                             ▼
-┌──────────────────────────────────────────────────────┐
-│  Workflow (LangGraph)    长任务编排 + 真实模型边界    │
-│                         generation_graph              │
-│                         provider_adapter              │
-│                         creative_tool_registry        │
-└──────────────────────────────────────────────────────┘
+Web (Next.js)  → 只读工作台 + BFF，不私自计算业务结论
+       │  X-StoryForge-API-Key + OpenAPI 硬契约
+       ▼
+API (FastAPI)  → 业务真相源，~25 个业务域
+       │  JobRun / Checkpoint / ModelRun
+       ▼
+Workflow       → 长任务编排，真实模型调用边界
+(LangGraph)
 ```
 
-### 关键设计不变式
-
-- **API 是单一真相源。** 任何流程的判定都在 FastAPI `router → service` 完成；前端不允许私自计算业务结论。
-- **OpenAPI 是硬契约。** API 路由签名变化 → `pnpm openapi` 刷新快照 → `generate:types` 更新 TS 类型 → 消费侧类型检查捕获契约漂移。
-- **Web 只做 BFF + 展示。** 浏览器请求经 `lib/api-client.ts` 注入服务间认证头与 `cache: "no-store"`，不绕过 API 直连数据库或 workflow。
-- **Workflow 隔离长任务。** 真实模型调用、checkpoint、ModelRun 记录都在 workflow 侧，确保 API 始终保持事务边界清晰、不因长时间外部调用阻塞 HTTP 连接池。
-- **证据链不丢失。** 每次生成、评审、修复、批准都写入结构化记录（非 markdown 摘要），导出时聚合成 `audit_report.json` 供人工通读回溯。
-
-### BookRun 生命周期
+一条完整的 BookRun：
 
 ```
-Blueprint（章节计划）
-  → NovelLoop 逐章驱动
-    → generate（Scene Architect → Draft Writer）
-    → judge（6 维质量评分 + 人工盲评门禁）
-    → repair（分级修订、去重回退）
-    → approve（写入章节 + Story Memory 注入）
-    → checkpoint（LangGraph 持久化）
-  → 导出（Markdown / EPUB / audit_report.json）
+Blueprint → generate → judge → repair → approve → memory → checkpoint → 导出
 ```
 
-### 仓库布局
+详细架构见 [`CLAUDE.md`](CLAUDE.md)。
 
-```
-apps/api/         FastAPI 业务真相源（domain-driven，每域 router/service/schemas/models）
-apps/web/         Next.js 工作台（/studio /runs /artifacts /evaluations /retrieval /book-runs）
-apps/workflow/    LangGraph 编排器（generation_graph / provider_adapter / creative_tool_registry）
-packages/shared/  TS 共享契约（src/contracts/storyforge.openapi.json + generated/api-types.ts）
-scripts/          dev-start.mjs / generate-openapi.mjs / run-e2e.mjs
-tests/            顶层 E2E 契约测试
-docs/             架构文档 + 内部验证记录（internal/codex/）
-```
+## 质量验证
 
-详细架构见 `CLAUDE.md`，当前阶段状态与未完成验收项见 `docs/internal/current-phase.md`。
+| 验证轮次 | 章节 | Token 消耗 | 状态 | 人工通读 |
+|---------|------|-----------|------|---------|
+| 1 章 smoke | 1 | — | ✅ | ✅ |
+| 3 章 smoke | 3 | 14,158 | ✅ | ✅ |
+| 10 章 smoke | 10 | 145,668 | ✅ | ✅ |
+
+10 章验证产出 `book.md`（~34,000 字）、完整 `audit_report.json`，已通过人工通读。
+
+> 以上为真实 LLM 冒烟验证，3–5 万字长程仍在推进中。
+
+## 路线图
+
+**当前优先：**
+1. 跑通 3–5 万字真实 LLM 长程
+2. 长程产物人工通读 + Markdown/EPUB/审计报告验收
+3. 补齐 streaming 响应与多租户认证
+
+**持续进行：**
+- Studio 全步骤交互编排
+- 检索精度与 RAG 质量提升
+- CI/CD 与部署自动化
+
+## 贡献
+
+欢迎 Issue 和 PR。
+
+- 提交前请运行 `pnpm verify && pnpm test && pnpm e2e`
+- 代码风格：Python 侧 `ruff`，TypeScript 侧 `tsc --noEmit` + ESLint
+- 验证证据写入 `.codex/verification-report.md` 或在 PR 中附带命令输出
+- 更多约定见 [`CLAUDE.md`](CLAUDE.md)
