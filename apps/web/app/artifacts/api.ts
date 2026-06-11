@@ -26,12 +26,16 @@ export async function readArtifacts(): Promise<ArtifactListState> {
 }
 
 export async function readArtifactDetail(
-  artifactId: number | undefined,
+  artifact: ArtifactWorkbenchItem | undefined,
 ): Promise<ArtifactDetailState> {
-  if (artifactId === undefined) {
+  if (artifact === undefined) {
     return { status: 'idle', message: '读取制品详情需要先获得制品列表。' };
   }
-  const result = await readJson(`${artifactsEndpoint}/${artifactId}`, {
+  if (artifact.workspace_id === null) {
+    return { status: 'error', message: '制品详情需要有效工作区作用域。' };
+  }
+  const result = await readJson(`${artifactsEndpoint}/${artifact.id}`, {
+    params: { workspace_id: artifact.workspace_id },
     validate: isArtifactWorkbenchItem,
     invalidMessage: '制品详情 API 返回格式不符合预期',
   });
@@ -41,12 +45,16 @@ export async function readArtifactDetail(
 }
 
 export async function readArtifactDownload(
-  artifactId: number | undefined,
+  artifact: ArtifactWorkbenchItem | undefined,
 ): Promise<ArtifactDownloadState> {
-  if (artifactId === undefined) {
+  if (artifact === undefined) {
     return { status: 'idle', message: '读取制品下载摘要需要先获得制品列表。' };
   }
-  const result = await readJson(`${artifactsEndpoint}/${artifactId}/download`, {
+  if (artifact.workspace_id === null) {
+    return { status: 'error', message: '制品下载摘要需要有效工作区作用域。' };
+  }
+  const result = await readJson(`${artifactsEndpoint}/${artifact.id}/download`, {
+    params: { workspace_id: artifact.workspace_id },
     validate: isArtifactDownloadSummary,
     invalidMessage: '制品下载摘要 API 返回格式不符合预期',
   });
@@ -57,11 +65,11 @@ export async function readArtifactDownload(
 
 export async function readArtifactWorkbenchData(): Promise<ArtifactWorkbenchData> {
   const artifactListState = await readArtifacts();
-  const firstArtifactId =
-    artifactListState.status === 'ready' ? artifactListState.artifacts[0]?.id : undefined;
+  const firstArtifact =
+    artifactListState.status === 'ready' ? artifactListState.artifacts[0] : undefined;
   const [artifactDetailState, artifactDownloadState] = await Promise.all([
-    readArtifactDetail(firstArtifactId),
-    readArtifactDownload(firstArtifactId),
+    readArtifactDetail(firstArtifact),
+    readArtifactDownload(firstArtifact),
   ]);
   return { artifactListState, artifactDetailState, artifactDownloadState };
 }

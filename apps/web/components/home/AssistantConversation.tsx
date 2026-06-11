@@ -160,7 +160,8 @@ async function buildConversationState(
           content: `BookRun #${bookRun.id} 当前状态：${bookRun.status}。`,
           createdAt: 'book-run-query',
           taskType: 'trial_generation',
-          toolNodes: toolCallNodes.length > 0 ? toolCallNodes : mapBookRunToAssistantToolNodes(bookRun),
+          toolNodes:
+            toolCallNodes.length > 0 ? toolCallNodes : mapBookRunToAssistantToolNodes(bookRun),
         });
       } else {
         messages.push({

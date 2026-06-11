@@ -20,6 +20,7 @@ export type BlueprintRead = {
 
 export type BookRunRead = {
   readonly id: number;
+  readonly workspace_id: number | null;
   readonly book_id: number;
   readonly blueprint_id: number;
   readonly status: string;
@@ -266,6 +267,7 @@ function isBookRunRead(value: unknown): value is BookRunRead {
   const item = value as Partial<BookRunRead>;
   return (
     typeof item.id === 'number' &&
+    (typeof item.workspace_id === 'number' || item.workspace_id === null) &&
     typeof item.book_id === 'number' &&
     typeof item.blueprint_id === 'number' &&
     typeof item.status === 'string' &&

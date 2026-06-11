@@ -10,6 +10,7 @@
 
 export type IdeUrlState = {
   readonly workspace?: string;
+  readonly workspaceId?: number;
   readonly bookId?: number;
   readonly tabs: readonly string[];
   readonly activeTabId?: string;
@@ -24,6 +25,7 @@ export type IdeUrlState = {
 export function parseIdeUrlState(input: string | URLSearchParams): IdeUrlState {
   const params = typeof input === 'string' ? new URLSearchParams(input) : input;
   const book = params.get('book');
+  const workspaceId = parsePositiveInt(params.get('workspace_id'));
   const artifact = params.get('artifact');
   const scene = params.get('scene');
   const bookRun = params.get('book_run');
@@ -31,6 +33,7 @@ export function parseIdeUrlState(input: string | URLSearchParams): IdeUrlState {
   const sceneId = scene ? Number(scene) : parseSceneTabId(firstSceneTab);
   return {
     workspace: params.get('workspace') ?? undefined,
+    ...(workspaceId !== undefined ? { workspaceId } : {}),
     bookId: book ? Number(book) : undefined,
     tabs: params.getAll('tab'),
     activeTabId: params.get('active') ?? params.getAll('tab')[0] ?? undefined,
@@ -46,6 +49,7 @@ export function parseIdeUrlState(input: string | URLSearchParams): IdeUrlState {
 export function serializeIdeUrlState(state: IdeUrlState): string {
   const params = new URLSearchParams();
   if (state.workspace) params.set('workspace', state.workspace);
+  if (state.workspaceId !== undefined) params.set('workspace_id', String(state.workspaceId));
   if (state.bookId !== undefined) params.set('book', String(state.bookId));
   for (const tab of state.tabs) params.append('tab', tab);
   if (state.activeTabId) params.set('active', state.activeTabId);
@@ -67,4 +71,10 @@ function parseSceneTabId(tabId: string | undefined): number | undefined {
   if (!tabId?.startsWith('scene:')) return undefined;
   const id = Number(tabId.slice('scene:'.length));
   return Number.isFinite(id) ? id : undefined;
+}
+
+function parsePositiveInt(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

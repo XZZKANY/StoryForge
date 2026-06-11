@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
-from app.domains.books.models import Book, Scene
+from app.domains.book_runs.models import BookRun
+from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
 from app.domains.model_runs.models import ModelRun
 from app.domains.model_runs.schemas import ModelRunCreate, RunsJobRunRetryRead
@@ -86,6 +87,15 @@ def get_runs_job_run(session: Session, *, job_run_id: int) -> dict[str, Any]:
                 "status": model_run.status,
                 "latency_ms": model_run.latency_ms,
                 "token_usage": model_run.token_usage,
+                "input_tokens": model_run.input_tokens,
+                "output_tokens": model_run.output_tokens,
+                "cost_estimate": model_run.cost_estimate,
+                "finish_reason": model_run.finish_reason,
+                "error_kind": model_run.error_kind,
+                "retry_count": model_run.retry_count,
+                "repair_count": model_run.repair_count,
+                "prompt_template_version": model_run.prompt_template_version,
+                "prompt_hash": model_run.prompt_hash,
                 "error_message": model_run.error_message,
             }
             for model_run in model_runs
@@ -301,7 +311,17 @@ def record_runtime_model_run(
     workspace_id: int | None = None,
     book_id: int | None = None,
     scene_id: int | None = None,
+    book_run_id: int | None = None,
+    chapter_id: int | None = None,
     prompt_pack_id: int | None = None,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    cost_estimate: float = 0.0,
+    finish_reason: str | None = None,
+    retry_count: int = 0,
+    repair_count: int = 0,
+    prompt_template_version: str | None = None,
+    prompt_hash: str | None = None,
     payload: dict | None = None,
 ) -> ModelRun:
     return create_model_run(
@@ -309,6 +329,8 @@ def record_runtime_model_run(
         ModelRunCreate(
             workspace_id=workspace_id,
             book_id=book_id,
+            book_run_id=book_run_id,
+            chapter_id=chapter_id,
             scene_id=scene_id,
             job_run_id=job_run_id,
             prompt_pack_id=prompt_pack_id,
@@ -318,6 +340,14 @@ def record_runtime_model_run(
             status="completed",
             latency_ms=latency_ms,
             token_usage=token_usage,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_estimate=cost_estimate,
+            finish_reason=finish_reason,
+            retry_count=retry_count,
+            repair_count=repair_count,
+            prompt_template_version=prompt_template_version,
+            prompt_hash=prompt_hash,
             input_summary=input_summary,
             output_summary=output_summary,
             payload=payload or {},
@@ -337,7 +367,14 @@ def record_failed_runtime_model_run(
     workspace_id: int | None = None,
     book_id: int | None = None,
     scene_id: int | None = None,
+    book_run_id: int | None = None,
+    chapter_id: int | None = None,
     prompt_pack_id: int | None = None,
+    error_kind: str | None = None,
+    retry_count: int = 0,
+    repair_count: int = 0,
+    prompt_template_version: str | None = None,
+    prompt_hash: str | None = None,
     payload: dict | None = None,
 ) -> ModelRun:
     return create_model_run(
@@ -345,6 +382,8 @@ def record_failed_runtime_model_run(
         ModelRunCreate(
             workspace_id=workspace_id,
             book_id=book_id,
+            book_run_id=book_run_id,
+            chapter_id=chapter_id,
             scene_id=scene_id,
             job_run_id=job_run_id,
             prompt_pack_id=prompt_pack_id,
@@ -354,6 +393,11 @@ def record_failed_runtime_model_run(
             status="failed",
             latency_ms=0,
             token_usage=0,
+            error_kind=error_kind,
+            retry_count=retry_count,
+            repair_count=repair_count,
+            prompt_template_version=prompt_template_version,
+            prompt_hash=prompt_hash,
             input_summary=input_summary,
             output_summary=None,
             error_message=error_message,
@@ -371,6 +415,13 @@ def record_workflow_model_run_payload(session: Session, payload: Mapping[str, ob
     capability = _require_text(payload, "capability")
     input_summary = _require_text(payload, "input_summary")
     metadata = _payload_metadata(payload)
+    input_tokens = _optional_nonnegative_int(metadata.get("prompt_tokens")) or _optional_nonnegative_int(metadata.get("input_tokens")) or 0
+    output_tokens = _optional_nonnegative_int(metadata.get("completion_tokens")) or _optional_nonnegative_int(metadata.get("output_tokens")) or 0
+    cost_estimate = _optional_nonnegative_float(metadata.get("cost_estimate"))
+    error_kind = _optional_text(metadata.get("error_kind"))
+    retry_after_seconds = _optional_nonnegative_int(metadata.get("retry_after_seconds"))
+    if retry_after_seconds is not None:
+        metadata["retry_after_seconds"] = retry_after_seconds
     status = _require_text(payload, "status")
     if status == "completed":
         return record_runtime_model_run(
@@ -381,6 +432,14 @@ def record_workflow_model_run_payload(session: Session, payload: Mapping[str, ob
             capability=capability,
             latency_ms=_require_nonnegative_int(payload, "latency_ms"),
             token_usage=_require_nonnegative_int(payload, "token_usage"),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_estimate=cost_estimate,
+            finish_reason=_optional_text(metadata.get("finish_reason")),
+            retry_count=_optional_nonnegative_int(metadata.get("retry_count")) or 0,
+            repair_count=_optional_nonnegative_int(metadata.get("repair_count")) or 0,
+            prompt_template_version=_optional_text(metadata.get("prompt_template_version")),
+            prompt_hash=_optional_text(metadata.get("prompt_hash")),
             input_summary=input_summary,
             output_summary=_require_text(payload, "output_summary"),
             payload=metadata,
@@ -394,6 +453,11 @@ def record_workflow_model_run_payload(session: Session, payload: Mapping[str, ob
             capability=capability,
             input_summary=input_summary,
             error_message=_require_text(payload, "error_message"),
+            error_kind=error_kind,
+            retry_count=_optional_nonnegative_int(metadata.get("retry_count")) or 0,
+            repair_count=_optional_nonnegative_int(metadata.get("repair_count")) or 0,
+            prompt_template_version=_optional_text(metadata.get("prompt_template_version")),
+            prompt_hash=_optional_text(metadata.get("prompt_hash")),
             payload=metadata,
         )
     raise ModelRunError("不支持的 workflow ModelRun 状态，无法记录模型运行日志。")
@@ -404,6 +468,10 @@ def _validate_references(session: Session, payload: ModelRunCreate) -> None:
         raise ModelRunError("工作区不存在，无法记录模型运行日志。")
     if payload.book_id is not None and session.get(Book, payload.book_id) is None:
         raise ModelRunError("作品不存在，无法记录模型运行日志。")
+    if payload.book_run_id is not None and session.get(BookRun, payload.book_run_id) is None:
+        raise ModelRunError("BookRun 不存在，无法记录模型运行日志。")
+    if payload.chapter_id is not None and session.get(Chapter, payload.chapter_id) is None:
+        raise ModelRunError("章节不存在，无法记录模型运行日志。")
     if payload.scene_id is not None and session.get(Scene, payload.scene_id) is None:
         raise ModelRunError("场景不存在，无法记录模型运行日志。")
     if payload.job_run_id is not None and session.get(JobRun, payload.job_run_id) is None:
@@ -440,6 +508,12 @@ def _optional_nonnegative_int(value: object) -> int | None:
     if type(value) is int and value >= 0:
         return value
     return None
+
+
+def _optional_nonnegative_float(value: object) -> float:
+    if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0:
+        return float(value)
+    return 0.0
 
 
 def _string_list(value: object) -> list[str]:

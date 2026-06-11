@@ -11,6 +11,7 @@ from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.exports.book_markdown_exporter import build_book_run_epub_package, export_book_run_epub
+from app.domains.workspaces.models import Workspace
 
 
 def test_book_run_epub_export_writes_artifact_with_valid_structure(
@@ -50,8 +51,9 @@ def test_book_run_epub_export_endpoint_returns_artifact(
 
     with session_factory() as session:
         book_run_id = _seed_completed_book_run(session)
+        workspace_id = session.get(BookRun, book_run_id).workspace_id
 
-    response = client.post(f"/api/book-runs/{book_run_id}/exports/epub")
+    response = client.post(f"/api/book-runs/{book_run_id}/exports/epub", params={"workspace_id": workspace_id})
 
     assert response.status_code == 200, response.text
     payload = response.json()
@@ -62,7 +64,10 @@ def test_book_run_epub_export_endpoint_returns_artifact(
 
 
 def _seed_completed_book_run(session: Session) -> int:
-    book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。")
+    workspace = Workspace(title="EPUB 导出工作区", slug="epub-export-workspace", status="active")
+    session.add(workspace)
+    session.flush()
+    book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。", workspace_id=workspace.id)
     session.add(book)
     session.flush()
     blueprint = BookBlueprint(

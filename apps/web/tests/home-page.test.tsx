@@ -347,7 +347,8 @@ test('首页最近记录不得使用静态伪历史', () => {
     'layout 应把真实最近会话传给客户端 Chrome',
   );
   assert.ok(
-    sidebar.includes('initialRecentItems') && sidebar.includes('<RecentItemsList initialItems={initialRecentItems} />'),
+    sidebar.includes('initialRecentItems') &&
+      sidebar.includes('<RecentItemsList initialItems={initialRecentItems} />'),
     'UnifiedSidebar 应把真实最近会话传给 RecentItemsList',
   );
   assert.ok(
@@ -562,18 +563,12 @@ test('HomeProjectsPanel 通过 API 展示真实 Projects 而不是 localStorage 
       api.includes('`/?view=projects&workspace_id=${workspace.id}`'),
     'Projects API helper 应生成已有首页深链，避免跳到不存在的工作区详情路由',
   );
-  assert.ok(
-    panel.includes('projectListState'),
-    'Projects 面板应从父组件接收真实项目列表状态',
-  );
+  assert.ok(panel.includes('projectListState'), 'Projects 面板应从父组件接收真实项目列表状态');
   assert.ok(
     panel.includes('projectListState.status ===') && panel.includes('projectListState.projects'),
     'Projects 面板应只从 API 状态稳定派生项目数组',
   );
-  assert.ok(
-    actions.includes("'use server'"),
-    '新建 Project 应通过 Server Action 调用真实后端',
-  );
+  assert.ok(actions.includes("'use server'"), '新建 Project 应通过 Server Action 调用真实后端');
   assert.ok(
     actions.includes("apiFetch('/api/workspaces'"),
     '新建 Project Server Action 应 POST 到 /api/workspaces',
@@ -585,10 +580,7 @@ test('HomeProjectsPanel 通过 API 展示真实 Projects 而不是 localStorage 
   assert.ok(!panel.includes('localStorage'), 'Projects 不应再读取或写入 localStorage');
   assert.ok(!panel.includes('readLocalProjects'), 'Projects 不应再保留本地读取函数');
   assert.ok(!panel.includes('writeLocalProjects'), 'Projects 不应再保留本地写入函数');
-  assert.ok(
-    !panel.includes('local-'),
-    'Projects 不应再生成本地伪项目 ID',
-  );
+  assert.ok(!panel.includes('local-'), 'Projects 不应再生成本地伪项目 ID');
   assert.ok(
     panel.includes('!m-0 !border-0 !bg-transparent !p-0 !shadow-none'),
     'Projects 外层不应继承全局 section 大卡片样式',

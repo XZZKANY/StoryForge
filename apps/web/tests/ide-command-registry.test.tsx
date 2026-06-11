@@ -6,6 +6,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { AgentSidebar } from '../components/ide/agent/AgentSidebar';
+import { executeIdeCommand } from '../components/ide/commands/command-client';
 import { createCommandRegistry } from '../components/ide/commands/registry';
 import { registerBuiltinCommands } from '../components/ide/commands/registerBuiltinCommands';
 import { RightDock } from '../components/ide/shell/RightDock';
@@ -138,4 +139,40 @@ test('RightDock 接入 AgentSidebar', () => {
 
 test('IDE 写操作按钮不得绕过 CommandRegistry 直接调用 API', () => {
   assert.deepEqual(assertIdeWriteButtonsUseCommandsExecute(), []);
+});
+
+test('command-client 只调用同源 IDE 命令 BFF，不导入服务端 api-client', async () => {
+  const source = readFileSync(
+    join(process.cwd(), 'components', 'ide', 'commands', 'command-client.ts'),
+    'utf8',
+  );
+  assert.ok(!source.includes('../../../lib/api-client'));
+  assert.ok(source.includes('fetch(`/api/ide/commands/'));
+
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ readonly url: string; readonly init: RequestInit }> = [];
+  globalThis.fetch = (async (url: URL | RequestInfo, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    return new Response(
+      JSON.stringify({
+        command_id: 'judge.run',
+        status: 'accepted',
+        audit_event_id: 'audit:judge.run',
+        payload: { ok: true },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const result = await executeIdeCommand('judge.run', { scene_packet_id: 42 });
+
+    assert.equal(result.audit_event_id, 'audit:judge.run');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, '/api/ide/commands/judge.run');
+    assert.equal(calls[0].init.method, 'POST');
+    assert.equal(calls[0].init.body, JSON.stringify({ args: { scene_packet_id: 42 } }));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

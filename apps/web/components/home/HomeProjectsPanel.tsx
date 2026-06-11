@@ -80,7 +80,11 @@ export function HomeProjectsPanel({
                 placeholder="项目名称"
                 className="h-9 w-28 rounded-lg border-0 bg-panel px-3 text-foreground outline-none placeholder:text-muted focus:ring-1 focus:ring-border"
               />
-              <input type="hidden" name="description" value="从 StoryForge 首页创建的真实工作区。" />
+              <input
+                type="hidden"
+                name="description"
+                value="从 StoryForge 首页创建的真实工作区。"
+              />
               <button
                 type="submit"
                 className="rounded-lg border-0 bg-foreground px-4 py-2 font-semibold text-background hover:opacity-90"
@@ -106,7 +110,10 @@ export function HomeProjectsPanel({
         {projectListState.status === 'pending' || projectListState.status === 'loading' ? (
           <div className="mt-7 grid grid-cols-1 gap-6 md:grid-cols-2">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="min-h-[120px] rounded-lg border border-border bg-panel px-4 py-4">
+              <div
+                key={index}
+                className="min-h-[120px] rounded-lg border border-border bg-panel px-4 py-4"
+              >
                 <LoadingSkeleton lines={1} className="w-1/2 opacity-70" />
                 <LoadingSkeleton lines={2} className="mt-4 opacity-50" />
                 <LoadingSkeleton lines={1} className="mt-5 w-1/3 opacity-30" />
@@ -115,10 +122,18 @@ export function HomeProjectsPanel({
           </div>
         ) : projectListState.status === 'error' ? (
           <div className="mt-7 flex flex-col items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-10 text-center">
-            <span aria-hidden="true" className="mb-3 text-3xl">⚠️</span>
+            <span aria-hidden="true" className="mb-3 text-3xl">
+              ⚠️
+            </span>
             <h3 className="m-0 text-base font-semibold text-foreground">Failed to load projects</h3>
-            <p className="mt-2 text-sm text-red-500">{projectListState.message || 'An unexpected error occurred while fetching projects.'}</p>
-            <button type="button" onClick={() => window.location.reload()} className="mt-6 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-semibold text-foreground hover:bg-red-500/30">
+            <p className="mt-2 text-sm text-red-500">
+              {projectListState.message || 'An unexpected error occurred while fetching projects.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-6 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-semibold text-foreground hover:bg-red-500/30"
+            >
               Try Again
             </button>
           </div>
@@ -145,7 +160,11 @@ export function HomeProjectsPanel({
                 placeholder="项目名称"
                 className="h-9 w-32 rounded-lg border-0 bg-panel px-3 text-foreground outline-none placeholder:text-muted focus:ring-1 focus:ring-border"
               />
-              <input type="hidden" name="description" value="从 StoryForge 首页创建的真实工作区。" />
+              <input
+                type="hidden"
+                name="description"
+                value="从 StoryForge 首页创建的真实工作区。"
+              />
               <button
                 type="submit"
                 className="rounded-lg border-0 bg-panel px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/20"
@@ -155,9 +174,7 @@ export function HomeProjectsPanel({
             </form>
           </div>
         ) : filteredProjects.length === 0 ? (
-          <p className="mt-7 border border-border px-4 py-5 text-muted">
-            没有匹配的真实项目。
-          </p>
+          <p className="mt-7 border border-border px-4 py-5 text-muted">没有匹配的真实项目。</p>
         ) : (
           <div className="mt-7 grid grid-cols-1 gap-6 md:grid-cols-2">
             {filteredProjects.map((project) => (

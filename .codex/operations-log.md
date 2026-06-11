@@ -15259,3 +15259,186 @@ un-metadata.json: present
 - 明确排除：`BreadcrumbNav.tsx`、`HomeComposer` 输入框契约、`/projects` 重定向、`HomeSidebar` 删除、`HomeProjectsPanel`/`home-projects-api`/`app/api/workspaces` 项目读取链路、设置页、IDE、API action 与锁文件等其他工作区改动。
 - 暂存区复核：`git diff --cached --name-only` 未包含上述排除项；`phase1-navigation.test.tsx` 未包含 `/projects` 重定向改动；`home-page.test.tsx` 未包含 `HomeComposer` 断言改动。
 - 验证结果：`pnpm --filter @storyforge/web test -- phase1-navigation` 19/19 passed；`pnpm --filter @storyforge/web lint` 通过；`git diff --cached --check` 通过。
+## 编码前检查 - P0/P1 安全与可观测性修复
+
+时间：2026-06-10 22:12:55 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-p0-p1-hardening.md`
+
+□ 将使用以下可复用组件：
+
+- `apps/web/lib/api-client.ts`: 服务端统一 FastAPI client，本轮加 `server-only` 并移除 Web 侧默认 API key。
+- `apps/web/app/api/book-runs/[bookRunId]/events/route.ts`: BFF Route Handler 代理模式参考。
+- `apps/web/app/api/workspaces/route.ts`: 服务端 `apiFetch` 注入 API key 的同源代理参考。
+- `apps/api/app/domains/artifacts/service.py`: 制品读取与下载摘要入口，本轮增加 workspace 归属校验。
+- `apps/api/app/domains/exports/service.py`: 作品导出来源读取入口，本轮增加 workspace 归属校验。
+- `apps/api/app/domains/model_runs/service.py`: ModelRun 真表写入和 workflow payload 接收入口。
+- `apps/api/app/domains/book_runs/service.py`: BookRun progress、预算和 checkpoint 聚合入口。
+- `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`: ProviderResponse、ProviderError、FallbackProviderAdapter 和成本估算边界。
+- `apps/workflow/storyforge_workflow/runtime/checkpoints.py`: Workflow 到 API ModelRun payload 的转换边界。
+
+□ 将遵循命名约定：TypeScript 使用 camelCase helper 和 PascalCase 组件；Python 使用 snake_case 字段/函数和 PascalCase schema/ORM 类；API JSON 字段保持 snake_case。
+
+□ 将遵循代码风格：测试、注释、错误提示和文档全部使用简体中文；Web 使用 `node:test` + `assert`；API/Workflow 使用 pytest plain assert；迁移文件沿用中文 docstring 和单链 revision。
+
+□ 确认不重复造轮子，证明：已检查 Web BFF、Artifacts/Exports、ModelRun/BookRun、ProviderAdapter/ModelRunPayload 现有实现，确认本轮只扩展既有边界，不新增认证框架或 provider 框架。
+
+### 工具链记录
+
+- 已按要求先调用 `sequential-thinking` 梳理目标、风险和执行顺序。
+- 已调用 `tool_search` 搜索 `desktop-commander` 与 `github.search_code`，结果为 0 个可用工具。
+- 因上述工具不可用，本轮用 PowerShell、`rg`、`Get-Content` 做本地检索和读取；该偏差已写入上下文摘要。
+- 已使用 Context7 查询 Next.js、FastAPI、SQLAlchemy 官方文档，用于确认 server-only、Route Handler、必填 Query 422、SQLAlchemy 2.0 ORM 字段模式。
+- 已调用 shrimp-task-manager 的 `plan_task`、`analyze_task`、`reflect_task`、`split_tasks` 完成任务拆解。
+
+### 编码前验收条件
+
+- Web：`api-client.ts` 必须是 server-only；无硬编码 `local-dev-key`；缺少 `STORYFORGE_API_KEY` 时中文报错；`command-client.ts` 不导入 `api-client`，IDE 命令走 `/api/ide/commands/{commandId}` BFF。
+- API：Artifact 下载和 Book markdown/epub 导出强制 `workspace_id` 查询参数；缺参 422，错作用域 403，不存在 404。
+- 可观测性：ModelRun 新字段和 BookRun latency 字段落库、读写、Runs 摘要、OpenAPI/shared types 一致；`token_usage` 保持总 token 兼容。
+- Workflow：真实 provider usage 优先；错误分类写入 `ProviderError.kind`、fallback metadata 和失败 ModelRun `error_kind`；解析 `Retry-After`。
+- 清理：仅删除未引用的 `apps/workflow/tests/fixtures/quality_cases` 乱码 fixture；Studio accept/reject 只显示“不持久化”提示，不实现写回。
+
+### 计划顺序
+
+1. 先补 Web/API/Workflow 红灯测试。
+2. 实现 P0 Web API key 与 BFF、下载/导出 workspace_id 校验。
+3. 实现 ModelRun/BookRun 迁移与读写聚合。
+4. 实现 provider usage 和错误分类。
+5. 执行低风险清理、OpenAPI/shared types 生成和本地验证。
+
+### TDD 记录 - Web API Key 与 IDE 命令 BFF
+
+时间：2026-06-10 22:22:00 +08:00
+
+- 环境准备：隔离工作树初次运行 Web 测试时缺少 `node_modules`，执行 `pnpm install` 后恢复本地测试能力，锁文件未因安装改变。
+- 红灯命令：`pnpm --filter @storyforge/web test -- api-client ide-command-registry ide-command-route judge-panel`。
+- 红灯结果：失败 5 项，分别证明 `api-client.ts` 未声明 `server-only`、缺少 `STORYFORGE_API_KEY` 时仍发起请求、`command-client.ts` 未使用同源 BFF、新 IDE command route 不存在、`JudgeIssueList` 未显示“不持久化”提示。
+- 实现：
+  - `apps/web/lib/api-client.ts` 增加 `import 'server-only'`，删除 `local-dev-key`，缺少 `STORYFORGE_API_KEY` 时抛出中文错误。
+  - `apps/web/components/ide/commands/command-client.ts` 改为浏览器侧 `fetch('/api/ide/commands/...')`。
+  - 新增 `apps/web/app/api/ide/commands/[commandId]/route.ts`，服务端代理 FastAPI IDE command 并透传上游状态。
+  - `JudgeIssueList` 新增 `decisionNotice`，Studio 传入“仅本页标记，不会写回后端。”。
+  - `apps/web/scripts/phase1-contract-test.mjs` 增加新 route 转译和 `server-only` 测试 stub。
+  - `apps/web/package.json` 增加官方 `server-only` 依赖。
+- 绿灯命令：`pnpm --filter @storyforge/web test -- api-client ide-command-registry ide-command-route judge-panel`。
+- 绿灯结果：17/17 passed，退出码 0。
+
+### 编码中监控 - Web API Key 与 IDE 命令 BFF
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用了 `apiFetch`、既有 Route Handler 代理模式、`JudgeIssueList` 共享组件和 Studio 动态导入边界。
+
+□ 命名是否符合项目约定？
+✅ 是：TypeScript helper 使用 camelCase，Route Handler 保持 `POST` 导出，测试描述使用简体中文。
+
+□ 代码风格是否一致？
+✅ 是：Web 测试继续使用 `node:test` + `assert`，Route Handler 使用标准 `Response`，未新增认证框架。
+
+### TDD 记录 - Workflow provider usage 与错误分类
+
+时间：2026-06-11 00:18:58 +08:00
+
+- 红灯命令：`cd apps/workflow && uv run pytest tests/test_provider_adapter.py tests/test_provider_fallback.py tests/test_runtime_runner.py tests/test_model_run_token_tracking.py -q`。
+- 红灯结果：收集阶段 3 项 ImportError，分别证明 `ChatCompletionResult`、`ChatCompletionUsage`、`ProviderErrorKind` 尚不存在，符合本阶段预期。
+- 实现：
+  - `provider_client.py` 新增 `ChatCompletionUsage`、`ChatCompletionResult` 和 `generate_chat_completion()`，旧 `generate_text()` 继续返回字符串。
+  - `provider_adapter.py` 新增 `ProviderErrorKind`、`ProviderError.retry_after_seconds`，分类 HTTP/timeout/network/unknown 错误，并解析 `Retry-After`。
+  - `ProviderClientAdapter` 优先使用完整 Chat Completion usage，缺失时回落到旧估算；fallback metadata 增加错误 kind 与 retry-after。
+  - `ProviderExecutionResult`、`WorkflowRuntime._emit_model_run_payload()` 与 `ModelRunPayload.to_api_payload()` 串起 `finish_reason`、`error_kind`、`retry_after_seconds` 和 token/cost 顶层字段。
+- 绿灯命令：`cd apps/workflow && uv run pytest tests/test_provider_adapter.py tests/test_provider_fallback.py tests/test_runtime_runner.py tests/test_model_run_token_tracking.py -q`。
+- 绿灯结果：49/49 passed，退出码 0。
+
+### 编码中监控 - Workflow provider usage 与错误分类
+
+□ 是否使用了摘要中列出的可复用组件？
+✅ 是：复用了 `ProviderClientAdapter`、`FallbackProviderAdapter`、`ProviderExecutionResult`、`ModelRunPayload` 和 runner 的 `model_run_sink` 边界。
+
+□ 命名是否符合项目约定？
+✅ 是：Python 使用 snake_case 字段和 PascalCase dataclass/枚举，错误 kind 字符串与 API JSON 字段保持 snake_case。
+
+□ 代码风格是否一致？
+✅ 是：测试继续使用 pytest plain assert；旧 `generate_text()` 兼容路径保留；没有引入新 provider 框架。
+
+### 低风险清理 - Workflow 重复质量 fixture
+
+时间：2026-06-11 00:18:58 +08:00
+
+- 引用检查：`rg -n "quality_cases|fixtures/quality_cases|fixtures\\quality_cases" apps/workflow tests apps -g "!*.pyc"`。
+- 结果：仅 `apps/workflow/tests/test_prose_static_check.py` 引用仓库根目录 `tests/fixtures/quality_cases`。
+- 清理：删除 `apps/workflow/tests/fixtures/quality_cases` 下 5 个未引用重复 fixture，保留根目录 `tests/fixtures/quality_cases`。
+- 验证计划：运行 `tests/test_prose_static_check.py` 覆盖根目录 fixture 读取。
+
+### 调试记录 - Web Assistant session 测试适配 API Key 安全基线
+
+时间：2026-06-11 00:20:32 +08:00
+
+- 失败命令：`pnpm --filter @storyforge/web test`。
+- 失败结果：231 项中 8 项失败，集中在 `assistant-session-store.test.ts`，错误均为 `缺少 STORYFORGE_API_KEY，无法调用 StoryForge API。`。
+- 根因：这组测试仍依赖旧的 Web 侧 `local-dev-key` 默认值；本轮 P0 安全要求已移除该默认值，测试必须显式设置 `STORYFORGE_API_KEY`。
+- 修复：仅更新测试，在相关 API client 测试中设置 `unit-test-key` 并断言该 key 被注入；生产代码保持缺 key 失败。
+- 局部验证：`pnpm --filter @storyforge/web test -- assistant-session-store`，9/9 passed。
+- 全量验证：`pnpm --filter @storyforge/web test`，231/231 passed。
+
+## 编码前检查 - workspace_id 导出与预览旁路续修
+
+时间：2026-06-11 00:33:00 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-p0-p1-hardening.md`
+□ 将使用以下可复用组件：
+
+- `apps/api/app/domains/artifacts/service.py::read_artifact_download`：复用制品下载归属校验，IDE 预览通过该入口收敛。
+- `apps/api/app/domains/exports/book_markdown_exporter.py`：复用 BookRun 导出构建逻辑，仅补充 workspace 作用域校验。
+- `apps/web/components/ide/url/ide-url-state.ts`：复用 IDE URL 解析/序列化边界承载 `workspace_id`。
+- `apps/web/app/book-runs/api.tsx` 与 `apps/web/app/blueprints/api.tsx`：复用 BookRunRead 校验模式，确保导出 helper 读取已加载元数据。
+
+□ 将遵循命名约定：后端 Python 使用 snake_case 字段 `workspace_id`，前端 TypeScript URL 状态使用 camelCase `workspaceId`，API payload 保持 snake_case。
+□ 将遵循代码风格：测试继续使用 `node:test`/pytest plain assert；FastAPI Query 使用 `Annotated[int, Query(gt=0)]`；Web fetch 通过既有 `readJson` 参数机制传 query。
+□ 确认不重复造轮子，证明：已检查 artifact download、book exports、book-run exports、IDE artifact preview、BookRunRead 校验和 IDE URL state 模块，未新增认证框架，仅沿用本轮确认的 workspace_id 作用域边界。
+
+### TDD 记录 - workspace_id 导出与预览旁路续修
+
+时间：2026-06-11 00:58:00 +08:00
+
+- 红灯命令一：`cd apps/api && uv run pytest tests/test_book_exporter.py tests/test_ide_artifact_preview.py -q`。
+- 红灯结果一：2 个旁路用例失败，证明 `POST /api/book-runs/{id}/exports/*` 与 `GET /api/ide/artifacts/{id}/preview` 仍允许缺失或错误 `workspace_id`。
+- 红灯命令二：`cd apps/api && uv run pytest tests/test_artifacts.py::test_artifact_create_rejects_book_workspace_mismatch tests/test_ide_artifact_preview.py::test_read_ide_artifact_preview_versions_stay_in_workspace -q`。
+- 红灯结果二：错域 Artifact 创建返回 201、IDE preview versions 泄露同 lineage 的其他工作区版本，证明读写两端仍有作用域缺口。
+- 实现：
+  - `apps/api/app/domains/book_runs/router.py` 三个 BookRun 导出端点强制 `workspace_id`，导出服务校验 BookRun 所属作品工作区。
+  - `apps/api/app/domains/ide/router.py` 的 artifact preview 强制 `workspace_id`，service 复用 `read_artifact_download` 校验下载摘要，并按解析出的所属工作区过滤 versions。
+  - `apps/api/app/domains/artifacts/router.py` 的详情与下载端点均强制 `workspace_id`；service 通过 `resolve_artifact_workspace_id()` 支持显式字段和历史 book 关联派生。
+  - `create_artifact()` 在创建时拒绝 `book_id` 与 `workspace_id` 错域组合，缺省时从 Book 派生工作区。
+  - Web Artifact 详情、下载摘要、BookRun 导出、IDE preview 均从已加载元数据或 URL state 传递 `workspace_id`。
+- 绿灯命令：
+  - `cd apps/api && uv run pytest tests/test_artifacts.py tests/test_book_exporter.py tests/test_ide_artifact_preview.py tests/test_exports.py -q`。
+  - `pnpm --filter @storyforge/web test -- book-runs assistant-artifact-export-actions ide-page ide-url-state blueprints phase8-stage4 source-pruning artifacts`。
+- 绿灯结果：API 21/21 passed；Web 54/54 passed。
+
+### 编码后声明 - workspace_id 导出与预览旁路续修
+
+时间：2026-06-11 00:58:00 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `read_artifact_download()`：用于 IDE 预览复用下载摘要作用域校验，避免重复实现下载鉴权分支。
+- `ArtifactForbiddenError` / FastAPI `HTTPException` 映射模式：用于错域资源统一返回 403。
+- `readJson(..., params)`：用于 Web 服务端读取 Artifact 详情、下载摘要和 IDE preview 时传递查询参数。
+- `BookRunRead` 与 Assistant 导出 helper：用于从已加载 BookRun 元数据构造带 `workspace_id` 的导出请求。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：API payload 使用 `workspace_id`，Web URL state 使用 `workspaceId`，与现有 `bookId`、`artifactId` camelCase 约定一致。
+- 代码风格：后端继续使用 pytest plain assert 和 FastAPI `Annotated[int, Query(gt=0)]`；前端继续使用 `node:test`、`assert` 与静态契约测试。
+- 文件组织：安全边界留在对应 domain service/router，Web 只传递已加载元数据，不引入新认证框架。
+
+#### 3. 对比了以下相似实现
+
+- `apps/api/app/domains/exports/service.py`：作品导出按 `book.workspace_id` 拒绝错域，本次 Artifact 与 BookRun 导出沿用同类 403 行为。
+- `apps/api/app/domains/artifacts/service.py`：下载摘要已有 payload preview 模式，本次仅把读取和预览都接入同一所属工作区解析。
+- `apps/web/app/book-runs/api.tsx`：导出 helper 从 BookRun 元数据构造 endpoint，本次 Artifacts API 采用相同“先读元数据再传 scope”的方式。
+
+#### 4. 未重复造轮子的证明
+
+- 已检查 `artifacts`、`exports`、`book_runs`、`ide`、`book-runs` Web helper 与 `ide-url-state` 模块，没有引入重复鉴权框架。
+- 子代理只读审计发现的 preview versions 和 Artifact detail 旁路已纳入同一套测试与实现，未另起独立机制。

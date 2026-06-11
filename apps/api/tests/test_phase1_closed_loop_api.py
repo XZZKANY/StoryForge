@@ -20,7 +20,10 @@ def phase1_story(session_factory: sessionmaker[Session]) -> dict[str, int]:
     """直接准备作品、两章和场景；当前阶段还没有作品创建路由。"""
 
     with session_factory() as session:
-        book = Book(title="灯塔闭环", status="draft", premise="林岚追查失真的灯塔信号。")
+        workspace = Workspace(title="闭环导出工作区", slug="closed-loop-export", status="active", seat_limit=2)
+        session.add(workspace)
+        session.flush()
+        book = Book(title="灯塔闭环", status="draft", premise="林岚追查失真的灯塔信号。", workspace_id=workspace.id)
         session.add(book)
         session.flush()
         chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="draft", summary="林岚抵达灯塔港。")
@@ -33,6 +36,7 @@ def phase1_story(session_factory: sessionmaker[Session]) -> dict[str, int]:
         session.commit()
         return {
             "book_id": book.id,
+            "workspace_id": workspace.id,
             "chapter_id": chapter.id,
             "scene_id": scene.id,
             "next_chapter_id": next_chapter.id,
@@ -145,12 +149,18 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
     assert "灯塔信号仍需保留" in next_packet["packet"]["必须包含事实"]
     assert "林岚抵达灯塔港。" in next_packet["packet"]["上一章摘要"]
 
-    markdown_response = client.get(f"/api/books/{phase1_story['book_id']}/exports/markdown")
+    markdown_response = client.get(
+        f"/api/books/{phase1_story['book_id']}/exports/markdown",
+        params={"workspace_id": phase1_story["workspace_id"]},
+    )
     assert markdown_response.status_code == 200, markdown_response.text
     assert "# 灯塔闭环" in markdown_response.text
     assert approved_content in markdown_response.text
 
-    epub_response = client.get(f"/api/books/{phase1_story['book_id']}/exports/epub")
+    epub_response = client.get(
+        f"/api/books/{phase1_story['book_id']}/exports/epub",
+        params={"workspace_id": phase1_story["workspace_id"]},
+    )
     assert epub_response.status_code == 200, epub_response.text
     assert epub_response.headers["content-type"] == "application/epub+zip"
     with ZipFile(BytesIO(epub_response.content)) as epub:

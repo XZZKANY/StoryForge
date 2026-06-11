@@ -275,6 +275,7 @@ export async function StudioPageContent({
                 </dl>
                 {judgeReviewState.review.issues.length > 0 && (
                   <JudgeIssueList
+                    decisionNotice="仅本页标记，不会写回后端。"
                     issues={judgeReviewState.review.issues.map((issue) => ({
                       id: String(issue.id),
                       severity:

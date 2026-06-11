@@ -45,6 +45,10 @@ const runtimeModules = [
     dst: 'app/api/book-runs/[bookRunId]/events/route.mjs',
   },
   {
+    src: 'app/api/ide/commands/[commandId]/route.ts',
+    dst: 'app/api/ide/commands/[commandId]/route.mjs',
+  },
+  {
     src: 'app/api/provider-models/provider-models.ts',
     dst: 'app/api/provider-models/provider-models.mjs',
   },
@@ -201,6 +205,10 @@ const importRewrites = [
   [
     '../app/api/book-runs/[bookRunId]/events/route',
     '../app/api/book-runs/[bookRunId]/events/route.mjs',
+  ],
+  [
+    '../app/api/ide/commands/[commandId]/route',
+    '../app/api/ide/commands/[commandId]/route.mjs',
   ],
   ['./provider-models', './provider-models.mjs'],
   ['../lib/text-diff', '../lib/text-diff.mjs'],
@@ -395,6 +403,14 @@ try {
   mkdirSync(tempTestsDir, { recursive: true });
   const nextNavigationStubDir = join(tempDir, 'node_modules/next');
   mkdirSync(nextNavigationStubDir, { recursive: true });
+  const serverOnlyStubDir = join(tempDir, 'node_modules/server-only');
+  mkdirSync(serverOnlyStubDir, { recursive: true });
+  writeFileSync(join(serverOnlyStubDir, 'index.js'), '', 'utf8');
+  writeFileSync(
+    join(serverOnlyStubDir, 'package.json'),
+    JSON.stringify({ type: 'module', main: './index.js' }),
+    'utf8',
+  );
   writeFileSync(
     join(nextNavigationStubDir, 'navigation.js'),
     'export function redirect(url){ throw new Error(url); }\n',

@@ -12,6 +12,7 @@ from storyforge_workflow.runtime.provider_adapter import (
     ProviderAdapter,
     ProviderClientAdapter,
     ProviderError,
+    ProviderErrorKind,
     ProviderRequest,
     ProviderResponse,
     build_default_provider_adapter,
@@ -76,7 +77,12 @@ def test_fallback_provider_adapter_returns_primary_response_when_primary_succeed
 def test_fallback_provider_adapter_routes_to_fallback_on_provider_error() -> None:
     class FailingPrimary:
         def generate(self, request: ProviderRequest) -> ProviderResponse:
-            raise ProviderError("主 provider 超时", status_code=504)
+            raise ProviderError(
+                "主 provider 限流",
+                status_code=429,
+                kind=ProviderErrorKind.RATE_LIMIT,
+                retry_after_seconds=9,
+            )
 
     fallback = MockProviderAdapter(
         provider_name="fallback",
@@ -95,11 +101,13 @@ def test_fallback_provider_adapter_routes_to_fallback_on_provider_error() -> Non
     assert response.provider_name == "fallback"
     assert response.output_text == "备用 provider 响应"
     assert response.fallback_metadata is not None
-    assert response.fallback_metadata["primary_provider_error"] == "主 provider 超时"
-    assert response.fallback_metadata["primary_provider_status_code"] == 504
+    assert response.fallback_metadata["primary_provider_error"] == "主 provider 限流"
+    assert response.fallback_metadata["primary_provider_status_code"] == 429
+    assert response.fallback_metadata["primary_provider_error_kind"] == "rate_limit"
+    assert response.fallback_metadata["primary_provider_retry_after_seconds"] == 9
     assert response.fallback_metadata["request_id"] == "req-fallback-1"
     assert response.fallback_metadata["capability"] == "llm"
-    assert observed and observed[0][0] == "主 provider 超时"
+    assert observed and observed[0][0] == "主 provider 限流"
     assert adapter.last_fallback_metadata == response.fallback_metadata
 
 

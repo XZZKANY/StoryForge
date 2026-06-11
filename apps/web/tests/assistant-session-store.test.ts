@@ -13,9 +13,15 @@ import {
 } from '../components/home/assistant-session-store';
 
 const originalFetch = globalThis.fetch;
+const originalApiKey = process.env.STORYFORGE_API_KEY;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  if (originalApiKey === undefined) {
+    delete process.env.STORYFORGE_API_KEY;
+  } else {
+    process.env.STORYFORGE_API_KEY = originalApiKey;
+  }
 });
 
 test('mapAssistantSessionToHomeRecentItem 保留任务类型和追溯引用', () => {
@@ -35,6 +41,7 @@ test('mapAssistantSessionToHomeRecentItem 保留任务类型和追溯引用', ()
 });
 
 test('readRecentAssistantSessions 通过统一 API client 读取最近会话', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   const requestedUrls: string[] = [];
   const requestedHeaders: string[] = [];
 
@@ -61,7 +68,7 @@ test('readRecentAssistantSessions 通过统一 API client 读取最近会话', a
 
   assert.equal(result.status, 'ready');
   assert.deepEqual(requestedUrls, ['http://127.0.0.1:8000/api/assistant/sessions?limit=5']);
-  assert.deepEqual(requestedHeaders, ['local-dev-key']);
+  assert.deepEqual(requestedHeaders, ['unit-test-key']);
   if (result.status === 'ready') {
     assert.deepEqual(result.data, [
       {
@@ -74,6 +81,7 @@ test('readRecentAssistantSessions 通过统一 API client 读取最近会话', a
 });
 
 test('readRecentAssistantSessions 对异常响应返回错误状态', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ invalid: true }), {
       status: 200,
@@ -88,6 +96,7 @@ test('readRecentAssistantSessions 对异常响应返回错误状态', async () =
 });
 
 test('readAssistantSession 通过 assistant_session_id 读取完整历史消息', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   const requestedUrls: string[] = [];
 
   globalThis.fetch = async (input) => {
@@ -132,6 +141,7 @@ test('readAssistantSession 通过 assistant_session_id 读取完整历史消息'
 });
 
 test('createAssistantSession 写入真实任务引用和初始消息', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   const requests: { url: string; body: unknown; contentType: string | null }[] = [];
 
   globalThis.fetch = async (input, init) => {
@@ -184,6 +194,7 @@ test('createAssistantSession 写入真实任务引用和初始消息', async () 
 });
 
 test('appendAssistantSessionMessage 向已有会话追加可追溯消息', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   const requests: { url: string; body: unknown; contentType: string | null }[] = [];
 
   globalThis.fetch = async (input, init) => {
@@ -222,6 +233,7 @@ test('appendAssistantSessionMessage 向已有会话追加可追溯消息', async
 });
 
 test('createAssistantSession 对异常写入响应返回错误状态', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ invalid: true }), {
       status: 201,
@@ -240,6 +252,7 @@ test('createAssistantSession 对异常写入响应返回错误状态', async () 
 });
 
 test('readAssistantToolCalls 读取会话工具调用事实源', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   const requestedUrls: string[] = [];
 
   globalThis.fetch = async (input) => {
@@ -269,9 +282,7 @@ test('readAssistantToolCalls 读取会话工具调用事实源', async () => {
   const result = await readAssistantToolCalls(31);
 
   assert.equal(result.status, 'ready');
-  assert.deepEqual(requestedUrls, [
-    'http://127.0.0.1:8000/api/assistant/sessions/31/tool-calls',
-  ]);
+  assert.deepEqual(requestedUrls, ['http://127.0.0.1:8000/api/assistant/sessions/31/tool-calls']);
   if (result.status === 'ready') {
     assert.equal(result.data[0].tool_name, 'book_run.pause');
     assert.equal(result.data[0].output_summary.summary, 'BookRun #12 已暂停。');
@@ -279,6 +290,7 @@ test('readAssistantToolCalls 读取会话工具调用事实源', async () => {
 });
 
 test('createAssistantToolCall 和 updateAssistantToolCall 使用统一 API client', async () => {
+  process.env.STORYFORGE_API_KEY = 'unit-test-key';
   const requests: { url: string; method: string; body: unknown; contentType: string | null }[] = [];
 
   globalThis.fetch = async (input, init) => {

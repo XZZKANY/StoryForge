@@ -17,6 +17,7 @@ test('submitAssistantArtifactExport 对 completed BookRun 依次导出 Markdown�
           assert.equal(bookRunId, 12);
           return {
             id: 12,
+            workspace_id: 3,
             book_id: 5,
             blueprint_id: 9,
             status: 'completed',
@@ -74,9 +75,9 @@ test('submitAssistantArtifactExport 对 completed BookRun 依次导出 Markdown�
   );
 
   assert.deepEqual(calls, [
-    'POST /api/book-runs/12/exports/markdown',
-    'POST /api/book-runs/12/exports/epub',
-    'POST /api/book-runs/12/exports/audit-report',
+    'POST /api/book-runs/12/exports/markdown?workspace_id=3',
+    'POST /api/book-runs/12/exports/epub?workspace_id=3',
+    'POST /api/book-runs/12/exports/audit-report?workspace_id=3',
   ]);
   assert.deepEqual(sessionWrites, [
     {
@@ -109,6 +110,7 @@ test('submitAssistantArtifactExport 成功后向已有 AssistantSession 追加�
       submitAssistantArtifactExport(formData, {
         readBookRun: async () => ({
           id: 12,
+          workspace_id: 3,
           book_id: 5,
           blueprint_id: 9,
           status: 'completed',
@@ -161,9 +163,9 @@ test('submitAssistantArtifactExport 成功后向已有 AssistantSession 追加�
   );
 
   assert.deepEqual(events, [
-    'POST /api/book-runs/12/exports/markdown',
-    'POST /api/book-runs/12/exports/epub',
-    'POST /api/book-runs/12/exports/audit-report',
+    'POST /api/book-runs/12/exports/markdown?workspace_id=3',
+    'POST /api/book-runs/12/exports/epub?workspace_id=3',
+    'POST /api/book-runs/12/exports/audit-report?workspace_id=3',
     'session {"bookRunId":12,"assistantSessionId":31,"artifacts":[{"id":1,"name":"artifact-1","version":1,"mimeType":"application/json","bookRunId":12},{"id":2,"name":"artifact-2","version":2,"mimeType":"application/json","bookRunId":12},{"id":3,"name":"artifact-3","version":3,"mimeType":"application/json","bookRunId":12}]}',
     'tool {"assistantSessionId":31,"toolName":"artifact.export","status":"completed","inputSummary":{"book_run_id":12},"outputSummary":{"summary":"artifact-1#1 v1（BookRun #12，Artifacts 下载摘要可查看）、artifact-2#2 v2（BookRun #12，Artifacts 下载摘要可查看）、artifact-3#3 v3（BookRun #12，Artifacts 下载摘要可查看）","artifact_ids":[1,2,3]},"relatedType":"book_run","relatedId":12}',
     'revalidate /',
@@ -180,6 +182,7 @@ test('submitAssistantArtifactExport 新建会话后在 redirect 中回传 Assist
       submitAssistantArtifactExport(formData, {
         readBookRun: async () => ({
           id: 12,
+          workspace_id: 3,
           book_id: 5,
           blueprint_id: 9,
           status: 'completed',
@@ -259,6 +262,7 @@ test('submitAssistantArtifactExport 拒绝非 completed BookRun', async () => {
       submitAssistantArtifactExport(formData, {
         readBookRun: async () => ({
           id: 12,
+          workspace_id: 3,
           book_id: 5,
           blueprint_id: 9,
           status: 'running',
@@ -309,6 +313,7 @@ test('submitAssistantArtifactExport 对导出 POST 失败回流 failed 状态', 
       submitAssistantArtifactExport(formData, {
         readBookRun: async () => ({
           id: 12,
+          workspace_id: 3,
           book_id: 5,
           blueprint_id: 9,
           status: 'completed',
@@ -350,7 +355,7 @@ test('submitAssistantArtifactExport 对导出 POST 失败回流 failed 状态', 
     (error) => error instanceof Error && error.message === 'redirect-failed',
   );
 
-  assert.deepEqual(calls, ['POST /api/book-runs/12/exports/markdown']);
+  assert.deepEqual(calls, ['POST /api/book-runs/12/exports/markdown?workspace_id=3']);
   assert.equal(revalidated, false, '导出失败时不应刷新首页缓存');
   assert.equal(wroteSession, false, '导出失败时不应写入 AssistantSession');
   assert.deepEqual(toolCallWrites, [
@@ -359,7 +364,7 @@ test('submitAssistantArtifactExport 对导出 POST 失败回流 failed 状态', 
       toolName: 'artifact.export',
       status: 'failed',
       inputSummary: { book_run_id: 12 },
-      errorMessage: '导出失败：/api/book-runs/12/exports/markdown 返回 500',
+      errorMessage: '导出失败：/api/book-runs/12/exports/markdown?workspace_id=3 返回 500',
       relatedType: 'book_run',
       relatedId: 12,
     },

@@ -106,10 +106,7 @@ export function UnifiedSidebar({
             }
 
             return (
-              <li
-                key={item.href}
-                className="!m-0 !border-0 !bg-transparent !p-0 !shadow-none"
-              >
+              <li key={item.href} className="!m-0 !border-0 !bg-transparent !p-0 !shadow-none">
                 <Link
                   href={item.href}
                   title={item.description}

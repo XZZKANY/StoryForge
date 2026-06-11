@@ -28,6 +28,17 @@ test('JudgeIssueList 渲染批量操作工具栏', () => {
   assert.ok(html.includes('全选'));
 });
 
+test('JudgeIssueList 可显示仅本页标记的不持久化提示', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(JudgeIssueList, {
+      issues: sampleIssues,
+      decisionNotice: '仅本页标记，不会写回后端。',
+    }),
+  );
+
+  assert.ok(html.includes('仅本页标记，不会写回后端。'));
+});
+
 test('JudgeIssueList 渲染每个问题的可选与可展开控件', () => {
   const html = renderToStaticMarkup(React.createElement(JudgeIssueList, { issues: sampleIssues }));
   assert.ok(html.includes('严重级别：高'));

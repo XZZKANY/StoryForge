@@ -25,9 +25,7 @@ def _artifact_list_cache_key(workspace_id: int | None, book_id: int | None) -> s
 
 
 def _artifact_list_cache_ttl_seconds() -> int:
-    raw_value = os.getenv(
-        "STORYFORGE_ARTIFACT_CACHE_TTL_SECONDS", str(DEFAULT_ARTIFACT_LIST_CACHE_TTL)
-    )
+    raw_value = os.getenv("STORYFORGE_ARTIFACT_CACHE_TTL_SECONDS", str(DEFAULT_ARTIFACT_LIST_CACHE_TTL))
     try:
         value = int(raw_value)
     except ValueError:
@@ -47,16 +45,25 @@ class ArtifactNotFoundError(ArtifactError):
     """制品不存在时由路由层转换为可重试的 404。"""
 
 
+class ArtifactForbiddenError(ArtifactError):
+    """制品不属于请求工作区时由路由层转换为 403。"""
+
+
 def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:
     if payload.workspace_id is not None and session.get(Workspace, payload.workspace_id) is None:
         raise ArtifactError("工作区不存在，无法创建制品。")
-    if payload.book_id is not None and session.get(Book, payload.book_id) is None:
+    book = session.get(Book, payload.book_id) if payload.book_id is not None else None
+    if payload.book_id is not None and book is None:
         raise ArtifactError("作品不存在，无法创建制品。")
+    book_workspace_id = _artifact_book_workspace_id(book)
+    if payload.workspace_id is not None and book_workspace_id is not None and payload.workspace_id != book_workspace_id:
+        raise ArtifactError("作品与制品工作区不匹配，无法创建制品。")
+    workspace_id = payload.workspace_id if payload.workspace_id is not None else book_workspace_id
     lineage_key = payload.lineage_key or str(uuid4())
     latest_versions = latest_by_lineage(Artifact, filters=[Artifact.lineage_key == lineage_key])
     next_version = int(session.scalar(select(latest_versions.c.latest_version)) or 0) + 1
     artifact = Artifact(
-        workspace_id=payload.workspace_id,
+        workspace_id=workspace_id,
         book_id=payload.book_id,
         artifact_type=payload.artifact_type,
         lineage_key=lineage_key,
@@ -75,7 +82,9 @@ def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:
     return artifact
 
 
-def list_artifacts(session: Session, *, workspace_id: int | None = None, book_id: int | None = None) -> Sequence[Artifact]:
+def list_artifacts(
+    session: Session, *, workspace_id: int | None = None, book_id: int | None = None
+) -> Sequence[Artifact]:
     query = build_artifact_list_query(workspace_id=workspace_id, book_id=book_id)
     return session.scalars(query).all()
 
@@ -124,19 +133,30 @@ def build_artifact_list_query(*, workspace_id: int | None = None, book_id: int |
     return query
 
 
-def get_artifact(session: Session, artifact_id: int) -> Artifact:
+def get_artifact(session: Session, artifact_id: int, *, workspace_id: int | None = None) -> Artifact:
     """按 ID 读取单个制品详情，不触发对象存储下载。"""
 
     artifact = session.get(Artifact, artifact_id)
     if artifact is None:
         raise ArtifactNotFoundError("制品不存在，无法读取详情。")
+    artifact_workspace_id = resolve_artifact_workspace_id(session, artifact)
+    if workspace_id is not None and artifact_workspace_id != workspace_id:
+        raise ArtifactForbiddenError("制品工作区不匹配，禁止读取。")
     return artifact
 
 
-def read_artifact_download(session: Session, artifact_id: int) -> ArtifactDownloadRead:
+def read_artifact_download(
+    session: Session,
+    artifact_id: int,
+    *,
+    workspace_id: int | None = None,
+) -> ArtifactDownloadRead:
     """返回可下载内容摘要；对象存储签名 URL 仍由后续存储层接入。"""
 
     artifact = get_artifact(session, artifact_id)
+    artifact_workspace_id = resolve_artifact_workspace_id(session, artifact)
+    if workspace_id is not None and artifact_workspace_id != workspace_id:
+        raise ArtifactForbiddenError("制品工作区不匹配，禁止下载。")
     payload_summary = dict(artifact.payload or {})
     return ArtifactDownloadRead(
         id=artifact.id,
@@ -157,3 +177,15 @@ def _artifact_content_preview(artifact: Artifact) -> str:
         if isinstance(value, str) and value:
             return value[:500]
     return f"{artifact.name}（{artifact.artifact_type}，v{artifact.version}）"
+
+
+def resolve_artifact_workspace_id(session: Session, artifact: Artifact) -> int | None:
+    if artifact.workspace_id is not None:
+        return artifact.workspace_id
+    if artifact.book_id is None:
+        return None
+    return _artifact_book_workspace_id(session.get(Book, artifact.book_id))
+
+
+def _artifact_book_workspace_id(book: Book | None) -> int | None:
+    return book.workspace_id if book is not None else None

@@ -4,10 +4,7 @@ import { redirect as nextRedirect } from 'next/navigation';
 import { revalidatePath as nextRevalidatePath } from 'next/cache';
 
 import { apiFetch, type ApiFetchInit } from '../../lib/api-client';
-import {
-  appendAssistantSessionMessage,
-  createAssistantSession,
-} from './assistant-session-store';
+import { appendAssistantSessionMessage, createAssistantSession } from './assistant-session-store';
 import {
   writeAssistantToolCall,
   type AssistantToolCallWrite,

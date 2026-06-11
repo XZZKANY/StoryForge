@@ -35,9 +35,13 @@ export function IdeShell({
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   const layoutStyle = {
-    '--ide-left-panel-width': isLeftPanelOpen ? `${initialPreferences.layout.leftPanelWidth}px` : '0px',
+    '--ide-left-panel-width': isLeftPanelOpen
+      ? `${initialPreferences.layout.leftPanelWidth}px`
+      : '0px',
     '--ide-bottom-panel-height': `${initialPreferences.layout.bottomPanelHeight}px`,
-    '--ide-right-dock-width': isRightPanelOpen ? `${initialPreferences.layout.rightDockWidth}px` : '0px',
+    '--ide-right-dock-width': isRightPanelOpen
+      ? `${initialPreferences.layout.rightDockWidth}px`
+      : '0px',
   } as CSSProperties;
 
   const urlState = useMemo(

@@ -42,9 +42,7 @@ export function CollapsibleNavItem({
           <span
             aria-hidden
             className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${
-              isActive
-                ? 'text-foreground'
-                : 'text-muted-foreground group-hover:text-foreground'
+              isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
             }`}
           >
             {icon}

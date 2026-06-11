@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class ModelRunCreate(BaseModel):
     workspace_id: int | None = Field(default=None, gt=0)
     book_id: int | None = Field(default=None, gt=0)
+    book_run_id: int | None = Field(default=None, gt=0)
+    chapter_id: int | None = Field(default=None, gt=0)
     scene_id: int | None = Field(default=None, gt=0)
     job_run_id: int | None = Field(default=None, gt=0)
     prompt_pack_id: int | None = Field(default=None, gt=0)
@@ -18,6 +20,15 @@ class ModelRunCreate(BaseModel):
     status: str = Field(default="completed", min_length=1, max_length=50)
     latency_ms: int = Field(default=0, ge=0)
     token_usage: int = Field(default=0, ge=0)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    cost_estimate: float = Field(default=0.0, ge=0)
+    finish_reason: str | None = Field(default=None, max_length=80)
+    error_kind: str | None = Field(default=None, max_length=80)
+    retry_count: int = Field(default=0, ge=0)
+    repair_count: int = Field(default=0, ge=0)
+    prompt_template_version: str | None = Field(default=None, max_length=120)
+    prompt_hash: str | None = Field(default=None, max_length=128)
     input_summary: str = Field(min_length=1, max_length=50000)
     output_summary: str | None = Field(default=None, max_length=50000)
     error_message: str | None = Field(default=None, max_length=10000)
@@ -30,6 +41,8 @@ class ModelRunRead(BaseModel):
     id: int
     workspace_id: int | None
     book_id: int | None
+    book_run_id: int | None
+    chapter_id: int | None
     scene_id: int | None
     job_run_id: int | None
     prompt_pack_id: int | None
@@ -39,6 +52,15 @@ class ModelRunRead(BaseModel):
     status: str
     latency_ms: int
     token_usage: int
+    input_tokens: int
+    output_tokens: int
+    cost_estimate: float
+    finish_reason: str | None
+    error_kind: str | None
+    retry_count: int
+    repair_count: int
+    prompt_template_version: str | None
+    prompt_hash: str | None
     input_summary: str
     output_summary: str | None
     error_message: str | None
@@ -63,6 +85,15 @@ class RunsModelRunSummary(BaseModel):
     status: str
     latency_ms: int
     token_usage: int
+    input_tokens: int
+    output_tokens: int
+    cost_estimate: float
+    finish_reason: str | None
+    error_kind: str | None
+    retry_count: int
+    repair_count: int
+    prompt_template_version: str | None
+    prompt_hash: str | None
     error_message: str | None
 
 

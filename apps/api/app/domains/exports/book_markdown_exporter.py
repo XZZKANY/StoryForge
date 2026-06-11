@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.common.exceptions import InputError
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
-from app.domains.artifacts.service import create_artifact
+from app.domains.artifacts.service import ArtifactForbiddenError, create_artifact
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.workflow_skill_audit_bridge import derive_book_run_skill_chain
 from app.domains.books.models import Book, Chapter, Scene
@@ -20,13 +20,14 @@ class BookExportError(InputError):
     """BookRun 导出前置条件不满足。"""
 
 
-def export_book_run_markdown(session: Session, book_run_id: int) -> Artifact:
+def export_book_run_markdown(session: Session, book_run_id: int, *, workspace_id: int | None = None) -> Artifact:
     """导出 completed BookRun 的 Markdown 正文并登记到 artifacts。"""
 
     book_run = _completed_book_run(session, book_run_id)
     book = session.get(Book, book_run.book_id)
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun。")
+    _validate_book_run_workspace(book, workspace_id)
     scenes = _approved_scenes(session, book_run)
     lines = ["---", f"book_run_id: {book_run.id}", f"blueprint_id: {book_run.blueprint_id}", "---", "", f"# {book.title}", ""]
     for chapter, scene in scenes:
@@ -48,13 +49,14 @@ def export_book_run_markdown(session: Session, book_run_id: int) -> Artifact:
     )
 
 
-def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact:
+def export_book_run_audit_report(session: Session, book_run_id: int, *, workspace_id: int | None = None) -> Artifact:
     """导出 9A 最小审计 JSON，确保每章有生成、评审和批准索引。"""
 
     book_run = _completed_book_run(session, book_run_id)
     book = session.get(Book, book_run.book_id)
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun 审计报告。")
+    _validate_book_run_workspace(book, workspace_id)
     chapters = list(book_run.progress.get("completed_chapters", []))
     integration_metrics = _integration_metrics_projection(book_run.progress)
     quality_summary = _quality_summary(chapters)
@@ -69,6 +71,7 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
         "top_quality_issues": _top_quality_issues(chapters),
         "manual_review_recommendations": _manual_review_recommendations(chapters),
         "manual_read_gate": _manual_read_gate_projection(book_run.progress),
+        "manual_read_review": _manual_read_review_projection(book_run.progress),
         "skill_chain": derive_book_run_skill_chain(book_run.id, book_run.status, book_run.progress),
     }
     if integration_metrics:
@@ -92,24 +95,26 @@ def export_book_run_audit_report(session: Session, book_run_id: int) -> Artifact
     )
 
 
-def build_book_run_epub_package(session: Session, book_run_id: int) -> bytes:
+def build_book_run_epub_package(session: Session, book_run_id: int, *, workspace_id: int | None = None) -> bytes:
     """生成 completed BookRun 的最小 EPUB 二进制包。"""
 
     book_run = _completed_book_run(session, book_run_id)
     book = session.get(Book, book_run.book_id)
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun EPUB。")
+    _validate_book_run_workspace(book, workspace_id)
     scenes = _approved_scenes(session, book_run)
     return _build_epub_bytes(book, scenes)
 
 
-def export_book_run_epub(session: Session, book_run_id: int) -> Artifact:
+def export_book_run_epub(session: Session, book_run_id: int, *, workspace_id: int | None = None) -> Artifact:
     """导出 completed BookRun 的 EPUB 并登记到 artifacts。"""
 
     book_run = _completed_book_run(session, book_run_id)
     book = session.get(Book, book_run.book_id)
     if book is None:
         raise BookExportError("作品不存在，无法导出 BookRun EPUB。")
+    _validate_book_run_workspace(book, workspace_id)
     scenes = _approved_scenes(session, book_run)
     content = _build_epub_bytes(book, scenes)
     chapter_manifest = [
@@ -149,6 +154,11 @@ def _completed_book_run(session: Session, book_run_id: int) -> BookRun:
     if book_run.status != "completed":
         raise BookExportError("BookRun 尚未完成，无法导出。")
     return book_run
+
+
+def _validate_book_run_workspace(book: Book, workspace_id: int | None) -> None:
+    if workspace_id is not None and book.workspace_id != workspace_id:
+        raise ArtifactForbiddenError("BookRun 工作区不匹配，禁止导出。")
 
 
 def _approved_scenes(session: Session, book_run: BookRun) -> list[tuple[Chapter, Scene]]:
@@ -320,6 +330,47 @@ def _quality_dimension_label(dimension: str) -> str:
 def _manual_read_gate_projection(progress: dict[str, object]) -> dict[str, object] | None:
     gate = progress.get("manual_read_gate") if isinstance(progress, dict) else None
     return dict(gate) if isinstance(gate, dict) else None
+
+
+def _manual_read_review_projection(progress: dict[str, object]) -> dict[str, object] | None:
+    review = progress.get("manual_read_review") if isinstance(progress, dict) else None
+    if not isinstance(review, dict):
+        return None
+    raw_scores = review.get("dimension_scores")
+    dimension_scores: list[dict[str, object]] = []
+    if isinstance(raw_scores, list):
+        for item in raw_scores:
+            if not isinstance(item, dict):
+                continue
+            dimension = item.get("dimension")
+            score = item.get("score")
+            if not isinstance(dimension, str) or not isinstance(score, int | float):
+                continue
+            entry: dict[str, object] = {
+                "dimension": dimension,
+                "dimension_label": _quality_dimension_label(dimension),
+                "score": score,
+            }
+            comment = item.get("comment")
+            if isinstance(comment, str) and comment.strip():
+                entry["comment"] = comment
+            dimension_scores.append(entry)
+    projected: dict[str, object] = {"dimension_scores": dimension_scores}
+    for key in ("status", "reviewer", "conclusion"):
+        value = review.get(key)
+        if isinstance(value, str) and value.strip():
+            projected[key] = value
+    for key in ("reviewed_chapter_count", "word_count"):
+        value = review.get(key)
+        if isinstance(value, int):
+            projected[key] = value
+    overall = review.get("overall_score")
+    if isinstance(overall, int | float):
+        projected["overall_score"] = overall
+    blind = review.get("blind")
+    if isinstance(blind, bool):
+        projected["blind"] = blind
+    return projected
 
 
 def _integration_metrics_projection(progress: dict[str, object]) -> dict[str, object]:

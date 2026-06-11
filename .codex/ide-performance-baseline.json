@@ -1,16 +1,16 @@
 {
   "baseline": {
-    "generatedAt": "2026-06-10T10:01:58.961Z",
+    "generatedAt": "2026-06-11T02:58:15.919Z",
     "metrics": [
       {
         "name": "1000 Problems SSR render",
-        "durationMs": 30.447599999999966,
-        "measuredAt": "2026-06-10T10:01:58.958Z"
+        "durationMs": 29.38530000000003,
+        "measuredAt": "2026-06-11T02:58:15.917Z"
       },
       {
         "name": "10k ChapterEditor SSR render",
-        "durationMs": 1.2034000000001015,
-        "measuredAt": "2026-06-10T10:01:58.961Z"
+        "durationMs": 1.116800000000012,
+        "measuredAt": "2026-06-11T02:58:15.919Z"
       }
     ]
   },

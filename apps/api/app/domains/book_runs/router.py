@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.schemas import ArtifactRead
+from app.domains.artifacts.service import ArtifactForbiddenError
 from app.domains.book_runs.schemas import (
     BookRunControlRequest,
     BookRunCreate,
@@ -147,30 +150,54 @@ def update_book_run_progress_endpoint(
 
 
 @router.post("/{book_run_id}/exports/markdown", response_model=ArtifactRead, summary="导出 BookRun Markdown")
-def export_book_run_markdown_endpoint(book_run_id: int, session: SessionDependency) -> ArtifactRead:
+def export_book_run_markdown_endpoint(
+    book_run_id: int,
+    workspace_id: Annotated[int, Query(gt=0)],
+    session: SessionDependency,
+) -> ArtifactRead:
     """为 completed BookRun 生成 book.md 制品。"""
 
     try:
-        return export_book_run_markdown(session, book_run_id)
+        return export_book_run_markdown(session, book_run_id, workspace_id=workspace_id)
+    except ArtifactForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except BookExportError as exc:
+        if "BookRun 不存在" in str(exc):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/{book_run_id}/exports/audit-report", response_model=ArtifactRead, summary="导出 BookRun 审计报告")
-def export_book_run_audit_report_endpoint(book_run_id: int, session: SessionDependency) -> ArtifactRead:
+def export_book_run_audit_report_endpoint(
+    book_run_id: int,
+    workspace_id: Annotated[int, Query(gt=0)],
+    session: SessionDependency,
+) -> ArtifactRead:
     """为 completed BookRun 生成 audit_report.json 制品。"""
 
     try:
-        return export_book_run_audit_report(session, book_run_id)
+        return export_book_run_audit_report(session, book_run_id, workspace_id=workspace_id)
+    except ArtifactForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except BookExportError as exc:
+        if "BookRun 不存在" in str(exc):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/{book_run_id}/exports/epub", response_model=ArtifactRead, summary="导出 BookRun EPUB")
-def export_book_run_epub_endpoint(book_run_id: int, session: SessionDependency) -> ArtifactRead:
+def export_book_run_epub_endpoint(
+    book_run_id: int,
+    workspace_id: Annotated[int, Query(gt=0)],
+    session: SessionDependency,
+) -> ArtifactRead:
     """为 completed BookRun 生成 book.epub 制品索引。"""
 
     try:
-        return export_book_run_epub(session, book_run_id)
+        return export_book_run_epub(session, book_run_id, workspace_id=workspace_id)
+    except ArtifactForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except BookExportError as exc:
+        if "BookRun 不存在" in str(exc):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

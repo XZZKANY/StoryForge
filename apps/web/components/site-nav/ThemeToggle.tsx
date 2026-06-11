@@ -76,7 +76,11 @@ export function ThemeToggle() {
       aria-label={theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'}
       className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/10 hover:text-foreground dark:hover:bg-muted/15"
     >
-      {theme === 'dark' ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
+      {theme === 'dark' ? (
+        <Sun className="h-4 w-4" aria-hidden />
+      ) : (
+        <Moon className="h-4 w-4" aria-hidden />
+      )}
     </button>
   );
 }
