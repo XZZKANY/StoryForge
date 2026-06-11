@@ -186,6 +186,7 @@ test('Blueprint 工作台 Server Action 串联创建、锁定、章节计划和 
           return new Response(
             JSON.stringify({
               id: 12,
+              workspace_id: 3,
               book_id: 5,
               blueprint_id: 9,
               status: 'queued',
@@ -231,6 +232,7 @@ test('BlueprintWorkbench 渲染 Blueprint 和 BookRun 状态', () => {
       },
       bookRun: {
         id: 12,
+        workspace_id: 3,
         book_id: 5,
         blueprint_id: 9,
         status: 'completed',

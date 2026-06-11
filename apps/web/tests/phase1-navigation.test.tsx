@@ -157,16 +157,35 @@ test('统一侧边栏导航的明暗主题颜色契约', () => {
   assert.ok(sidebar.includes('text-foreground'), '标题与激活侧边栏文字应使用 foreground');
   assert.ok(sidebar.includes('bg-muted'), '侧边栏 hover/active 背景应跟随 muted 语义 token');
   assert.ok(!sidebar.includes('dark:bg-foreground'), '白天模式不应复用黑夜反向色块');
-  assert.ok(globals.includes('.bg-background { background-color: var(--bg) !important; }'), '语义背景类应读取运行时主题变量');
-  assert.ok(globals.includes('.text-foreground { color: var(--text) !important; }'), '语义前景类应读取运行时主题变量');
-  assert.ok(globals.includes('.text-muted-foreground { color: var(--muted) !important; }'), '普通导航文字应读取 muted 运行时变量');
+  assert.ok(
+    globals.includes('.bg-background { background-color: var(--bg) !important; }'),
+    '语义背景类应读取运行时主题变量',
+  );
+  assert.ok(
+    globals.includes('.text-foreground { color: var(--text) !important; }'),
+    '语义前景类应读取运行时主题变量',
+  );
+  assert.ok(
+    globals.includes('.text-muted-foreground { color: var(--muted) !important; }'),
+    '普通导航文字应读取 muted 运行时变量',
+  );
   assert.ok(!globals.includes('--color-nav-active'), '全局主题不应保留侧栏专属 active 颜色 token');
   assert.ok(!globals.includes('--color-nav-hover'), '全局主题不应保留侧栏专属 hover 颜色 token');
   assert.ok(!globals.includes('a { color: var(--accent);'), '全局链接颜色不应覆盖侧边栏文字 token');
   assert.ok(!globals.includes('a { font-weight: 700;'), '全局链接字重不应覆盖侧边栏字重 token');
 
-  for (const retiredWarmColor of ['#f5f3ee', '#fffaf2', '#211a16', '#6e6259', '#dfd4c5', '#8a4b2a'] as const) {
-    assert.ok(!globals.includes(retiredWarmColor), `全局主题不应保留旧暖棕色值：${retiredWarmColor}`);
+  for (const retiredWarmColor of [
+    '#f5f3ee',
+    '#fffaf2',
+    '#211a16',
+    '#6e6259',
+    '#dfd4c5',
+    '#8a4b2a',
+  ] as const) {
+    assert.ok(
+      !globals.includes(retiredWarmColor),
+      `全局主题不应保留旧暖棕色值：${retiredWarmColor}`,
+    );
   }
 });
 

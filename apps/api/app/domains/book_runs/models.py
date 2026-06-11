@@ -24,9 +24,18 @@ class BookRun(IdMixin, TimestampMixin, Base):
     tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     time_budget_sec: Mapped[int | None] = mapped_column(Integer)
     elapsed_time_sec: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    total_latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    max_latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    avg_latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     chapter_budget: Mapped[int | None] = mapped_column(Integer)
     estimated_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")
     cost_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     book: Mapped[Book] = relationship()
     blueprint: Mapped[BookBlueprint] = relationship()
+
+    @property
+    def workspace_id(self) -> int | None:
+        """从关联作品派生工作区作用域，供读侧和导出调用方显式传递。"""
+
+        return self.book.workspace_id if self.book is not None else None

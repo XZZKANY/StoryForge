@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+MANUAL_READ_DIMENSIONS = frozenset(
+    {
+        "narrative_quality",
+        "character_consistency",
+        "world_consistency",
+        "timeline_consistency",
+        "style_consistency",
+        "system_reliability",
+    }
+)
 
 
 class BookRunCreate(BaseModel):
@@ -49,11 +60,52 @@ class BookRunVolumeProgress(BaseModel):
     next_batch_start_chapter_index: int = Field(ge=1)
 
 
+class ManualReadDimensionScore(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dimension: str = Field(min_length=1, max_length=80)
+    score: int = Field(ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_dimension(self):
+        if self.dimension not in MANUAL_READ_DIMENSIONS:
+            allowed = "、".join(sorted(MANUAL_READ_DIMENSIONS))
+            raise ValueError(f"盲评维度 {self.dimension} 不在允许集合内：{allowed}")
+        return self
+
+
+class ManualReadReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["passed", "failed", "needs_revision"]
+    reviewer: str = Field(min_length=1, max_length=120)
+    reviewed_chapter_count: int = Field(ge=0)
+    word_count: int = Field(ge=0)
+    dimension_scores: list[ManualReadDimensionScore] = Field(min_length=1)
+    overall_score: float | None = Field(default=None, ge=1, le=5)
+    conclusion: str = Field(min_length=1, max_length=2000)
+    blind: bool = False
+
+    @model_validator(mode="after")
+    def validate_review(self):
+        seen: set[str] = set()
+        for item in self.dimension_scores:
+            if item.dimension in seen:
+                raise ValueError(f"盲评维度 {item.dimension} 重复评分。")
+            seen.add(item.dimension)
+        if self.overall_score is None:
+            mean = sum(item.score for item in self.dimension_scores) / len(self.dimension_scores)
+            self.overall_score = round(mean, 2)
+        return self
+
+
 class BookRunProgressUpdate(BaseModel):
     status: str = Field(min_length=1, max_length=50)
     current_chapter_index: int = Field(ge=1)
     progress: dict[str, Any] = Field(default_factory=dict)
     volume_progress: BookRunVolumeProgress | None = None
+    manual_read_review: ManualReadReview | None = None
 
 
 class BookRunWorkflowPlanningRefs(BaseModel):
@@ -101,6 +153,7 @@ class BookRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    workspace_id: int | None = None
     book_id: int
     blueprint_id: int
     status: str
@@ -112,6 +165,9 @@ class BookRunRead(BaseModel):
     tokens_used: int
     time_budget_sec: int | None
     elapsed_time_sec: int
+    total_latency_ms: int
+    max_latency_ms: int
+    avg_latency_ms: int
     chapter_budget: int | None
     estimated_cost: float
     cost_summary: dict[str, Any]

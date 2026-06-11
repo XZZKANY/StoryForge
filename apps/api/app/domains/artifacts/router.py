@@ -15,6 +15,7 @@ from app.domains.artifacts.schemas import (
 )
 from app.domains.artifacts.service import (
     ArtifactError,
+    ArtifactForbiddenError,
     ArtifactNotFoundError,
     build_artifact_list_query,
     create_artifact,
@@ -77,11 +78,17 @@ def list_artifacts_endpoint(
     response_model=ArtifactRead,
     summary="读取制品详情",
 )
-def get_artifact_endpoint(artifact_id: int, session: SessionDependency) -> ArtifactRead:
+def get_artifact_endpoint(
+    artifact_id: int,
+    workspace_id: Annotated[int, Query(gt=0)],
+    session: SessionDependency,
+) -> ArtifactRead:
     """按主键读取单个制品的完整元数据。"""
 
     try:
-        return get_artifact(session, artifact_id)
+        return get_artifact(session, artifact_id, workspace_id=workspace_id)
+    except ArtifactForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ArtifactNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -91,10 +98,16 @@ def get_artifact_endpoint(artifact_id: int, session: SessionDependency) -> Artif
     response_model=ArtifactDownloadRead,
     summary="读取制品下载摘要",
 )
-def download_artifact_endpoint(artifact_id: int, session: SessionDependency) -> ArtifactDownloadRead:
+def download_artifact_endpoint(
+    artifact_id: int,
+    workspace_id: Annotated[int, Query(gt=0)],
+    session: SessionDependency,
+) -> ArtifactDownloadRead:
     """返回制品下载摘要（路径、大小、校验信息），实际签名 URL 由对象存储后端二次签发。"""
 
     try:
-        return read_artifact_download(session, artifact_id)
+        return read_artifact_download(session, artifact_id, workspace_id=workspace_id)
+    except ArtifactForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ArtifactNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

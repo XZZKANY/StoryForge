@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 from fastapi.responses import StreamingResponse
 
 from app.db.deps import SessionDependency
-from app.domains.artifacts.service import ArtifactNotFoundError
+from app.domains.artifacts.service import ArtifactForbiddenError, ArtifactNotFoundError
 from app.domains.book_runs.service import BookRunNotFoundError, get_book_run
 from app.domains.ide.schemas import (
     IdeArtifactPreview,
@@ -111,11 +111,17 @@ def query_story_memory_endpoint(session: SessionDependency, payload: IdeStoryMem
     response_model=IdeArtifactPreview,
     summary="读取 IDE 制品预览",
 )
-def read_artifact_preview(session: SessionDependency, artifact_id: int) -> IdeArtifactPreview:
+def read_artifact_preview(
+    session: SessionDependency,
+    artifact_id: int,
+    workspace_id: Annotated[int, Query(gt=0)],
+) -> IdeArtifactPreview:
     """返回 Artifact Viewer 所需的预览、下载摘要、版本和追溯链。"""
 
     try:
-        return get_artifact_preview(session, artifact_id)
+        return get_artifact_preview(session, artifact_id, workspace_id=workspace_id)
+    except ArtifactForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ArtifactNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -144,7 +150,9 @@ def stream_run_events(session: SessionDependency, book_run_id: int) -> Streaming
     response_model=IdeCommandResult,
     summary="执行 IDE 命令",
 )
-def execute_ide_command(session: SessionDependency, command_id: str, payload: IdeCommandRequest | None = None) -> IdeCommandResult:
+def execute_ide_command(
+    session: SessionDependency, command_id: str, payload: IdeCommandRequest | None = None
+) -> IdeCommandResult:
     """执行已注册 IDE 命令，所有写操作都返回审计追踪 ID。"""
 
     try:
@@ -164,7 +172,9 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
         while True:
             message = await websocket.receive_json()
             if message.get("type") != "command":
-                await websocket.send_json({"type": "error", "session_id": session_id, "detail": "Agent 仅支持 command 消息。"})
+                await websocket.send_json(
+                    {"type": "error", "session_id": session_id, "detail": "Agent 仅支持 command 消息。"}
+                )
                 continue
             command_id = str(message.get("command_id", ""))
             args = message.get("args") if isinstance(message.get("args"), dict) else {}
@@ -173,6 +183,8 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
             except (IdeCommandNotFoundError, IdeCommandExecutionError) as exc:
                 await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
                 continue
-            await websocket.send_json({"type": "command_result", "session_id": session_id, "result": result.model_dump()})
+            await websocket.send_json(
+                {"type": "command_result", "session_id": session_id, "result": result.model_dump()}
+            )
     except WebSocketDisconnect:
         return

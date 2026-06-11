@@ -25,6 +25,9 @@ class ProviderExecutionResult:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cost_estimate: float = 0.0
+    finish_reason: str | None = None
+    error_kind: str | None = None
+    retry_after_seconds: int | None = None
     fallback_metadata: dict[str, object] | None = field(default=None)
 
 
@@ -55,5 +58,6 @@ def execute_provider_text(
         prompt_tokens=response.prompt_tokens,
         completion_tokens=response.completion_tokens,
         cost_estimate=response.cost_estimate,
+        finish_reason=response.finish_reason,
         fallback_metadata=response.fallback_metadata,
     )

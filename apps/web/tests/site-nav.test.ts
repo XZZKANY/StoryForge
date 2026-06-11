@@ -86,5 +86,8 @@ test('mergeRecentItems 合并真实会话和本地记录时去重、排序并截
       'local-8',
     ],
   );
-  assert.equal(merged.some((item) => item.title === '本地重复版本'), false);
+  assert.equal(
+    merged.some((item) => item.title === '本地重复版本'),
+    false,
+  );
 });

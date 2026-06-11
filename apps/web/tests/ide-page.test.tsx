@@ -125,6 +125,7 @@ test('IdePage 根据 artifacts 面板和 artifact query 读取 Artifact Preview'
       JSON.stringify({
         artifact: {
           id: 7,
+          workspace_id: 3,
           artifact_type: 'book_export',
           lineage_key: 'book-run:42:markdown',
           name: 'book.md',
@@ -176,12 +177,19 @@ test('IdePage 根据 artifacts 面板和 artifact query 读取 Artifact Preview'
   }) as typeof fetch;
 
   const node = await IdePage({
-    searchParams: Promise.resolve({ artifact: '7', 'panel.bottom': 'artifacts' }),
+    searchParams: Promise.resolve({
+      artifact: '7',
+      workspace_id: '3',
+      'panel.bottom': 'artifacts',
+    }),
   });
   const html = renderToStaticMarkup(node);
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url.toString(), 'https://api.storyforge.test/api/ide/artifacts/7/preview');
+  assert.equal(
+    calls[0].url.toString(),
+    'https://api.storyforge.test/api/ide/artifacts/7/preview?workspace_id=3',
+  );
   assert.equal(calls[0].init.method, undefined);
   assert.ok(html.includes('Artifact #7'));
   assert.ok(html.includes('# 雾港航线'));

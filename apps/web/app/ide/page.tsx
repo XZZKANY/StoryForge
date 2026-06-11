@@ -33,8 +33,10 @@ export default async function IdePage({
       ? await readStoryMemoryResult(state.bookId)
       : {};
   const artifactState =
-    state.bottomPanel === 'artifacts' && state.artifactId !== undefined
-      ? await readArtifactPreview(state.artifactId)
+    state.bottomPanel === 'artifacts' &&
+    state.artifactId !== undefined &&
+    state.workspaceId !== undefined
+      ? await readArtifactPreview(state.artifactId, state.workspaceId)
       : {};
   const bookRunState =
     state.bottomPanel === 'runs' && state.bookRunId !== undefined
@@ -384,10 +386,14 @@ function isArtifactVersion(value: unknown): boolean {
   );
 }
 
-async function readArtifactPreview(artifactId: number): Promise<{
+async function readArtifactPreview(
+  artifactId: number,
+  workspaceId: number,
+): Promise<{
   readonly artifactPreview?: ArtifactViewerPreview;
 }> {
   const result = await readJson<ArtifactViewerPreview>(`/api/ide/artifacts/${artifactId}/preview`, {
+    params: { workspace_id: workspaceId },
     validate: isArtifactViewerPreview,
     invalidMessage: 'Artifact Preview 响应格式错误',
   });

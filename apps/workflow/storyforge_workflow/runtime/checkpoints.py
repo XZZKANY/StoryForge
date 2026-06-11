@@ -82,7 +82,7 @@ class ModelRunPayload:
         }
         if self.extras:
             payload_metadata.update(self.extras)
-        return {
+        api_payload: dict[str, object] = {
             "job_run_id": validated_job_run_id,
             "provider_name": self.provider_name,
             "model_name": self.model_name,
@@ -95,6 +95,8 @@ class ModelRunPayload:
             "error_message": self.error_message,
             "payload": payload_metadata,
         }
+        _promote_observability_fields(api_payload, payload_metadata)
+        return api_payload
 
 
 class ModelRunSink(Protocol):
@@ -122,6 +124,45 @@ def _validate_api_job_run_id(api_job_run_id: object) -> int:
     if type(api_job_run_id) is not int or api_job_run_id <= 0:
         raise ValueError("API ModelRun 的 job_run_id 必须是已持久化 JobRun 的正整数 ID。")
     return api_job_run_id
+
+
+def _promote_observability_fields(api_payload: dict[str, object], metadata: dict[str, object]) -> None:
+    input_tokens = _optional_nonnegative_int(metadata.get("prompt_tokens"))
+    if input_tokens is None:
+        input_tokens = _optional_nonnegative_int(metadata.get("input_tokens"))
+    output_tokens = _optional_nonnegative_int(metadata.get("completion_tokens"))
+    if output_tokens is None:
+        output_tokens = _optional_nonnegative_int(metadata.get("output_tokens"))
+    field_map = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost_estimate": _optional_nonnegative_float(metadata.get("cost_estimate")),
+        "finish_reason": _optional_text(metadata.get("finish_reason")),
+        "error_kind": _optional_text(metadata.get("error_kind")),
+        "retry_count": _optional_nonnegative_int(metadata.get("retry_count")),
+        "repair_count": _optional_nonnegative_int(metadata.get("repair_count")),
+        "prompt_template_version": _optional_text(metadata.get("prompt_template_version")),
+        "prompt_hash": _optional_text(metadata.get("prompt_hash")),
+    }
+    for key, value in field_map.items():
+        if value is not None:
+            api_payload[key] = value
+
+
+def _optional_nonnegative_int(value: object) -> int | None:
+    if type(value) is int and value >= 0:
+        return value
+    return None
+
+
+def _optional_nonnegative_float(value: object) -> float | None:
+    if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0:
+        return float(value)
+    return None
+
+
+def _optional_text(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 class InMemoryRuntimeCheckpointStore:

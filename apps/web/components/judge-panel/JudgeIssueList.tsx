@@ -14,6 +14,7 @@ export type JudgeIssue = {
 
 export type JudgeIssueListProps = {
   issues: JudgeIssue[];
+  decisionNotice?: string;
   onDecisionsChange?: (decisions: Record<string, JudgeIssueDecision>) => void;
   onNotesChange?: (notes: Record<string, string>) => void;
 };
@@ -30,7 +31,12 @@ const decisionLabel: Record<JudgeIssueDecision, string> = {
   pending: '未决',
 };
 
-export function JudgeIssueList({ issues, onDecisionsChange, onNotesChange }: JudgeIssueListProps) {
+export function JudgeIssueList({
+  issues,
+  decisionNotice,
+  onDecisionsChange,
+  onNotesChange,
+}: JudgeIssueListProps) {
   const [decisions, setDecisions] = useState<Record<string, JudgeIssueDecision>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -124,6 +130,9 @@ export function JudgeIssueList({ issues, onDecisionsChange, onNotesChange }: Jud
   return (
     <section aria-labelledby="judge-issue-title" data-testid="judge-issue-list">
       <h2 id="judge-issue-title">评审问题</h2>
+      {decisionNotice ? (
+        <p className="text-sm text-stone-600 dark:text-stone-400">{decisionNotice}</p>
+      ) : null}
       <div
         className="mb-3 flex flex-wrap items-center gap-2"
         role="toolbar"

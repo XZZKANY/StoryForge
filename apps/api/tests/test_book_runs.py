@@ -394,6 +394,115 @@ def test_patch_book_run_progress_persists_manual_read_gate(
     assert updated["progress"]["manual_read_gate"] == manual_read_gate
 
 
+def test_patch_book_run_progress_persists_manual_read_review(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """结构化人工盲评应携带各维度数值评分，并写入 progress。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 3,
+            "manual_read_review": {
+                "status": "passed",
+                "reviewer": "人工盲评 A",
+                "reviewed_chapter_count": 10,
+                "word_count": 36000,
+                "blind": True,
+                "dimension_scores": [
+                    {"dimension": "narrative_quality", "score": 4, "comment": "推进顺畅。"},
+                    {"dimension": "character_consistency", "score": 5},
+                ],
+                "conclusion": "通过人工盲评门禁。",
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    review = response.json()["progress"]["manual_read_review"]
+    assert review["status"] == "passed"
+    assert review["blind"] is True
+    assert [item["dimension"] for item in review["dimension_scores"]] == [
+        "narrative_quality",
+        "character_consistency",
+    ]
+    # overall_score 未显式提供，按各维度均值自动计算 (4 + 5) / 2 = 4.5
+    assert review["overall_score"] == 4.5
+
+
+def test_patch_book_run_progress_rejects_invalid_review_dimension(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """非法盲评维度应被 schema 拒绝。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 1,
+            "manual_read_review": {
+                "status": "passed",
+                "reviewer": "人工盲评 A",
+                "reviewed_chapter_count": 1,
+                "word_count": 3000,
+                "dimension_scores": [{"dimension": "not_a_dimension", "score": 3}],
+                "conclusion": "结论。",
+            },
+        },
+    )
+
+    assert response.status_code == 422, response.text
+
+
+def test_manual_read_review_is_sticky_across_progress_updates(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """后续不带盲评的 progress 回填不应冲掉已写入的人工盲评记录。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+
+    client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 1,
+            "manual_read_review": {
+                "status": "passed",
+                "reviewer": "人工盲评 A",
+                "reviewed_chapter_count": 1,
+                "word_count": 3000,
+                "dimension_scores": [{"dimension": "narrative_quality", "score": 4}],
+                "conclusion": "通过。",
+            },
+        },
+    )
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 2,
+            "progress": {"completed_chapters": []},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    review = response.json()["progress"]["manual_read_review"]
+    assert review["reviewer"] == "人工盲评 A"
+    assert review["overall_score"] == 4.0
+
+
 def test_progress_update_persists_checkpoint_and_budget_usage(
     client: TestClient,
     session_factory: sessionmaker[Session],
@@ -757,6 +866,38 @@ def test_patch_book_run_progress_endpoint(client: TestClient, session_factory: s
     assert response.json()["status"] == "completed"
     assert response.json()["current_chapter_index"] == 3
     assert response.json()["progress"]["provider_resolution"] == created_provider_resolution
+
+
+def test_progress_update_persists_book_run_latency_aggregates(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """BookRun 应从已完成章节记录中持久化总、最大和平均 latency。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json=scope).json()
+
+    response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={
+            "status": "completed",
+            "current_chapter_index": 3,
+            "progress": {
+                "completed_chapters": [
+                    {"chapter_index": 1, "model_run_id": 11, "generation_latency_ms": 120},
+                    {"chapter_index": 2, "model_run_id": 21, "generation_latency_ms": 80},
+                    {"chapter_index": 3, "model_run_id": 31, "generation_latency_ms": 100},
+                ],
+                "budget": {"tokens_used": 300, "elapsed_time_sec": 9, "estimated_cost": 0.03},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["total_latency_ms"] == 300
+    assert updated["max_latency_ms"] == 120
+    assert updated["avg_latency_ms"] == 100
 
 
 def test_patch_book_run_volume_progress_is_controlled_by_volume_contract(

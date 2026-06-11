@@ -1656,6 +1656,16 @@
             "title": "Current Chapter Index",
             "type": "integer"
           },
+          "manual_read_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualReadReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "progress": {
             "additionalProperties": true,
             "title": "Progress",
@@ -1727,6 +1737,10 @@
       },
       "BookRunRead": {
         "properties": {
+          "avg_latency_ms": {
+            "title": "Avg Latency Ms",
+            "type": "integer"
+          },
           "blueprint_id": {
             "title": "Blueprint Id",
             "type": "integer"
@@ -1780,6 +1794,10 @@
             "title": "Id",
             "type": "integer"
           },
+          "max_latency_ms": {
+            "title": "Max Latency Ms",
+            "type": "integer"
+          },
           "progress": {
             "additionalProperties": true,
             "title": "Progress",
@@ -1829,10 +1847,25 @@
             "title": "Total Chapters",
             "type": "integer"
           },
+          "total_latency_ms": {
+            "title": "Total Latency Ms",
+            "type": "integer"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
           }
         },
         "required": [
@@ -1848,6 +1881,9 @@
           "tokens_used",
           "time_budget_sec",
           "elapsed_time_sec",
+          "total_latency_ms",
+          "max_latency_ms",
+          "avg_latency_ms",
           "chapter_budget",
           "estimated_cost",
           "cost_summary",
@@ -4349,6 +4385,113 @@
         "title": "JudgeIssueRead",
         "type": "object"
       },
+      "ManualReadDimensionScore": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "dimension": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Dimension",
+            "type": "string"
+          },
+          "score": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Score",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dimension",
+          "score"
+        ],
+        "title": "ManualReadDimensionScore",
+        "type": "object"
+      },
+      "ManualReadReview": {
+        "additionalProperties": false,
+        "properties": {
+          "blind": {
+            "default": false,
+            "title": "Blind",
+            "type": "boolean"
+          },
+          "conclusion": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Conclusion",
+            "type": "string"
+          },
+          "dimension_scores": {
+            "items": {
+              "$ref": "#/components/schemas/ManualReadDimensionScore"
+            },
+            "minItems": 1,
+            "title": "Dimension Scores",
+            "type": "array"
+          },
+          "overall_score": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Score"
+          },
+          "reviewed_chapter_count": {
+            "minimum": 0.0,
+            "title": "Reviewed Chapter Count",
+            "type": "integer"
+          },
+          "reviewer": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Reviewer",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "needs_revision"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "word_count": {
+            "minimum": 0.0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "reviewer",
+          "reviewed_chapter_count",
+          "word_count",
+          "dimension_scores",
+          "conclusion"
+        ],
+        "title": "ManualReadReview",
+        "type": "object"
+      },
       "ModelRunCreate": {
         "properties": {
           "book_id": {
@@ -4363,11 +4506,53 @@
             ],
             "title": "Book Id"
           },
+          "book_run_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Run Id"
+          },
           "capability": {
             "maxLength": 80,
             "minLength": 1,
             "title": "Capability",
             "type": "string"
+          },
+          "chapter_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Id"
+          },
+          "cost_estimate": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Cost Estimate",
+            "type": "number"
+          },
+          "error_kind": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Kind"
           },
           "error_message": {
             "anyOf": [
@@ -4381,11 +4566,29 @@
             ],
             "title": "Error Message"
           },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
           "input_summary": {
             "maxLength": 50000,
             "minLength": 1,
             "title": "Input Summary",
             "type": "string"
+          },
+          "input_tokens": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Input Tokens",
+            "type": "integer"
           },
           "job_run_id": {
             "anyOf": [
@@ -4423,10 +4626,28 @@
             ],
             "title": "Output Summary"
           },
+          "output_tokens": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
           "payload": {
             "additionalProperties": true,
             "title": "Payload",
             "type": "object"
+          },
+          "prompt_hash": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Hash"
           },
           "prompt_pack_id": {
             "anyOf": [
@@ -4440,11 +4661,35 @@
             ],
             "title": "Prompt Pack Id"
           },
+          "prompt_template_version": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Template Version"
+          },
           "provider_name": {
             "maxLength": 80,
             "minLength": 1,
             "title": "Provider Name",
             "type": "string"
+          },
+          "repair_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Repair Count",
+            "type": "integer"
+          },
+          "retry_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Retry Count",
+            "type": "integer"
           },
           "scene_id": {
             "anyOf": [
@@ -4539,14 +4784,51 @@
             ],
             "title": "Book Id"
           },
+          "book_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Run Id"
+          },
           "capability": {
             "title": "Capability",
             "type": "string"
+          },
+          "chapter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Id"
+          },
+          "cost_estimate": {
+            "title": "Cost Estimate",
+            "type": "number"
           },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "error_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Kind"
           },
           "error_message": {
             "anyOf": [
@@ -4559,6 +4841,17 @@
             ],
             "title": "Error Message"
           },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -4566,6 +4859,10 @@
           "input_summary": {
             "title": "Input Summary",
             "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
           },
           "job_run_id": {
             "anyOf": [
@@ -4597,10 +4894,25 @@
             ],
             "title": "Output Summary"
           },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
           "payload": {
             "additionalProperties": true,
             "title": "Payload",
             "type": "object"
+          },
+          "prompt_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Hash"
           },
           "prompt_pack_id": {
             "anyOf": [
@@ -4613,9 +4925,28 @@
             ],
             "title": "Prompt Pack Id"
           },
+          "prompt_template_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Template Version"
+          },
           "provider_name": {
             "title": "Provider Name",
             "type": "string"
+          },
+          "repair_count": {
+            "title": "Repair Count",
+            "type": "integer"
+          },
+          "retry_count": {
+            "title": "Retry Count",
+            "type": "integer"
           },
           "scene_id": {
             "anyOf": [
@@ -4657,6 +4988,8 @@
           "id",
           "workspace_id",
           "book_id",
+          "book_run_id",
+          "chapter_id",
           "scene_id",
           "job_run_id",
           "prompt_pack_id",
@@ -4666,6 +4999,15 @@
           "status",
           "latency_ms",
           "token_usage",
+          "input_tokens",
+          "output_tokens",
+          "cost_estimate",
+          "finish_reason",
+          "error_kind",
+          "retry_count",
+          "repair_count",
+          "prompt_template_version",
+          "prompt_hash",
           "input_summary",
           "output_summary",
           "error_message",
@@ -6142,6 +6484,21 @@
             "title": "Capability",
             "type": "string"
           },
+          "cost_estimate": {
+            "title": "Cost Estimate",
+            "type": "number"
+          },
+          "error_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Kind"
+          },
           "error_message": {
             "anyOf": [
               {
@@ -6153,8 +6510,23 @@
             ],
             "title": "Error Message"
           },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
           "id": {
             "title": "Id",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
             "type": "integer"
           },
           "latency_ms": {
@@ -6165,9 +6537,43 @@
             "title": "Model Name",
             "type": "string"
           },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Hash"
+          },
+          "prompt_template_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Template Version"
+          },
           "provider_name": {
             "title": "Provider Name",
             "type": "string"
+          },
+          "repair_count": {
+            "title": "Repair Count",
+            "type": "integer"
+          },
+          "retry_count": {
+            "title": "Retry Count",
+            "type": "integer"
           },
           "status": {
             "title": "Status",
@@ -6186,6 +6592,15 @@
           "status",
           "latency_ms",
           "token_usage",
+          "input_tokens",
+          "output_tokens",
+          "cost_estimate",
+          "finish_reason",
+          "error_kind",
+          "retry_count",
+          "repair_count",
+          "prompt_template_version",
+          "prompt_hash",
           "error_message"
         ],
         "title": "RunsModelRunSummary",
@@ -8926,6 +9341,16 @@
               "title": "Artifact Id",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -8967,6 +9392,16 @@
             "required": true,
             "schema": {
               "title": "Artifact Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
               "type": "integer"
             }
           }
@@ -9936,6 +10371,16 @@
               "title": "Book Run Id",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -9979,6 +10424,16 @@
               "title": "Book Run Id",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -10020,6 +10475,16 @@
             "required": true,
             "schema": {
               "title": "Book Run Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
               "type": "integer"
             }
           }
@@ -10353,6 +10818,16 @@
               "title": "Book Id",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -10392,6 +10867,16 @@
             "required": true,
             "schema": {
               "title": "Book Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
               "type": "integer"
             }
           }
@@ -11393,6 +11878,16 @@
             "required": true,
             "schema": {
               "title": "Artifact Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Workspace Id",
               "type": "integer"
             }
           }

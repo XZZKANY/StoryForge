@@ -4,6 +4,7 @@ import { readJson } from '../../lib/api-client';
 
 export type BookRunRead = {
   readonly id: number;
+  readonly workspace_id: number | null;
   readonly book_id: number;
   readonly blueprint_id: number;
   readonly status: string;
@@ -33,16 +34,16 @@ export async function readBookRun(bookRunId: number): Promise<BookRunRead | null
   return result.status === 'ready' ? result.data : null;
 }
 
-export function exportMarkdownRequest(bookRunId: number): ApiRequest {
-  return { path: `/api/book-runs/${bookRunId}/exports/markdown`, init: { method: 'POST' } };
+export function exportMarkdownRequest(bookRun: BookRunRead): ApiRequest {
+  return buildBookRunExportRequest(bookRun, 'markdown');
 }
 
-export function exportAuditReportRequest(bookRunId: number): ApiRequest {
-  return { path: `/api/book-runs/${bookRunId}/exports/audit-report`, init: { method: 'POST' } };
+export function exportAuditReportRequest(bookRun: BookRunRead): ApiRequest {
+  return buildBookRunExportRequest(bookRun, 'audit-report');
 }
 
-export function exportEpubRequest(bookRunId: number): ApiRequest {
-  return { path: `/api/book-runs/${bookRunId}/exports/epub`, init: { method: 'POST' } };
+export function exportEpubRequest(bookRun: BookRunRead): ApiRequest {
+  return buildBookRunExportRequest(bookRun, 'epub');
 }
 
 export function BookRunStatusPanel({ bookRun }: { readonly bookRun: BookRunRead | null }) {
@@ -110,6 +111,7 @@ function isBookRunRead(value: unknown): value is BookRunRead {
   const item = value as Partial<BookRunRead>;
   return (
     typeof item.id === 'number' &&
+    (typeof item.workspace_id === 'number' || item.workspace_id === null) &&
     typeof item.book_id === 'number' &&
     typeof item.blueprint_id === 'number' &&
     typeof item.status === 'string' &&
@@ -127,6 +129,21 @@ function isBookRunRead(value: unknown): value is BookRunRead {
     typeof item.cost_summary === 'object' &&
     item.cost_summary !== null
   );
+}
+
+function buildBookRunExportRequest(
+  bookRun: BookRunRead,
+  format: 'markdown' | 'audit-report' | 'epub',
+): ApiRequest {
+  const params = new URLSearchParams();
+  if (typeof bookRun.workspace_id === 'number') {
+    params.set('workspace_id', String(bookRun.workspace_id));
+  }
+  const query = params.toString();
+  return {
+    path: `/api/book-runs/${bookRun.id}/exports/${format}${query ? `?${query}` : ''}`,
+    init: { method: 'POST' },
+  };
 }
 
 function formatOptionalNumber(value: unknown): string {

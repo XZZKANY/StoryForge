@@ -6,33 +6,47 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
 from app.domains.books.models import Book, Chapter, Scene
+from app.domains.workspaces.models import Workspace
 
 
 @pytest.fixture()
 def artifact_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
     with session_factory() as session:
-        book = Book(title="灯塔余烬", status="approved", premise="林岚追查信号。")
+        workspace = Workspace(title="灯塔团队", slug="lighthouse-team", status="active", seat_limit=3)
+        other_workspace = Workspace(title="错域团队", slug="other-team", status="active", seat_limit=3)
+        session.add_all([workspace, other_workspace])
+        session.flush()
+        book = Book(title="灯塔余烬", status="approved", premise="林岚追查信号。", workspace_id=workspace.id)
         session.add(book)
         session.flush()
         chapter = Chapter(book_id=book.id, ordinal=1, title="旧港", status="approved", summary="林岚抵达港口。")
         session.add(chapter)
         session.flush()
-        scene = Scene(chapter_id=chapter.id, ordinal=1, title="谈判", status="approved", content="林岚克制地完成港口谈判。")
+        scene = Scene(
+            chapter_id=chapter.id, ordinal=1, title="谈判", status="approved", content="林岚克制地完成港口谈判。"
+        )
         session.add(scene)
         session.commit()
-        return {"book_id": book.id}
+        return {"workspace_id": workspace.id, "other_workspace_id": other_workspace.id, "book_id": book.id}
 
 
 def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifact_scope: dict[str, int]) -> None:
-    markdown = client.get(f"/api/books/{artifact_scope['book_id']}/exports/markdown")
+    markdown = client.get(
+        f"/api/books/{artifact_scope['book_id']}/exports/markdown",
+        params={"workspace_id": artifact_scope["workspace_id"]},
+    )
     assert markdown.status_code == 200, markdown.text
-    epub = client.get(f"/api/books/{artifact_scope['book_id']}/exports/epub")
+    epub = client.get(
+        f"/api/books/{artifact_scope['book_id']}/exports/epub",
+        params={"workspace_id": artifact_scope["workspace_id"]},
+    )
     assert epub.status_code == 200, epub.text
 
     upload = client.post(
         "/api/artifacts",
         json={
             "book_id": artifact_scope["book_id"],
+            "workspace_id": artifact_scope["workspace_id"],
             "artifact_type": "upload",
             "lineage_key": "upload-archive",
             "name": "灯塔港设定附件",
@@ -50,31 +64,75 @@ def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifac
     assert {"export", "upload"}.issubset(artifact_types)
 
     artifact_id = upload.json()["id"]
-    detail = client.get(f"/api/artifacts/{artifact_id}")
+    detail = client.get(
+        f"/api/artifacts/{artifact_id}",
+        params={"workspace_id": artifact_scope["workspace_id"]},
+    )
     assert detail.status_code == 200, detail.text
     assert detail.json()["name"] == "灯塔港设定附件"
     assert detail.json()["payload"]["purpose"] == "reference"
 
-    download = client.get(f"/api/artifacts/{artifact_id}/download")
+    missing_detail_scope = client.get(f"/api/artifacts/{artifact_id}")
+    assert missing_detail_scope.status_code == 422
+
+    wrong_detail_scope = client.get(
+        f"/api/artifacts/{artifact_id}",
+        params={"workspace_id": artifact_scope["other_workspace_id"]},
+    )
+    assert wrong_detail_scope.status_code == 403
+    assert "工作区不匹配" in wrong_detail_scope.json()["detail"]
+
+    missing_scope = client.get(f"/api/artifacts/{artifact_id}/download")
+    assert missing_scope.status_code == 422
+
+    wrong_scope = client.get(
+        f"/api/artifacts/{artifact_id}/download",
+        params={"workspace_id": artifact_scope["other_workspace_id"]},
+    )
+    assert wrong_scope.status_code == 403
+    assert "工作区不匹配" in wrong_scope.json()["detail"]
+
+    download = client.get(
+        f"/api/artifacts/{artifact_id}/download",
+        params={"workspace_id": artifact_scope["workspace_id"]},
+    )
     assert download.status_code == 200, download.text
     assert download.json()["download_mode"] == "payload_preview"
     assert download.json()["payload_summary"]["purpose"] == "reference"
     assert "灯塔港设定附件" in download.json()["content_preview"]
 
 
+def test_artifact_create_rejects_book_workspace_mismatch(client: TestClient, artifact_scope: dict[str, int]) -> None:
+    """创建制品时 workspace_id 与 book_id 必须同域，避免写入后续下载可绕过的错域元数据。"""
+
+    response = client.post(
+        "/api/artifacts",
+        json={
+            "book_id": artifact_scope["book_id"],
+            "workspace_id": artifact_scope["other_workspace_id"],
+            "artifact_type": "upload",
+            "lineage_key": "upload-wrong-scope",
+            "name": "错域附件",
+            "storage_uri": "memory://uploads/wrong-scope.txt",
+            "mime_type": "text/plain",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "作品与制品工作区不匹配" in response.json()["detail"]
+
+
 def test_artifact_detail_returns_404_for_missing_artifact(client: TestClient) -> None:
-    detail = client.get("/api/artifacts/999999")
+    detail = client.get("/api/artifacts/999999", params={"workspace_id": 1})
     assert detail.status_code == 404
     assert "制品不存在" in detail.json()["detail"]
 
-    download = client.get("/api/artifacts/999999/download")
+    download = client.get("/api/artifacts/999999/download", params={"workspace_id": 1})
     assert download.status_code == 404
     assert "制品不存在" in download.json()["detail"]
 
 
-def test_artifact_list_supports_cursor_pagination_envelope(
-    client: TestClient, artifact_scope: dict[str, int]
-) -> None:
+def test_artifact_list_supports_cursor_pagination_envelope(client: TestClient, artifact_scope: dict[str, int]) -> None:
     for index in range(3):
         upload = client.post(
             "/api/artifacts",

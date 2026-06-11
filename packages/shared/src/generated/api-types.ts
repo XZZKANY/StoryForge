@@ -2642,6 +2642,7 @@ export interface components {
         BookRunProgressUpdate: {
             /** Current Chapter Index */
             current_chapter_index: number;
+            manual_read_review?: components["schemas"]["ManualReadReview"] | null;
             /** Progress */
             progress?: {
                 [key: string]: unknown;
@@ -2677,6 +2678,8 @@ export interface components {
         };
         /** BookRunRead */
         BookRunRead: {
+            /** Avg Latency Ms */
+            avg_latency_ms: number;
             /** Blueprint Id */
             blueprint_id: number;
             /** Book Id */
@@ -2704,6 +2707,8 @@ export interface components {
             estimated_cost: number;
             /** Id */
             id: number;
+            /** Max Latency Ms */
+            max_latency_ms: number;
             /** Progress */
             progress: {
                 [key: string]: unknown;
@@ -2719,11 +2724,15 @@ export interface components {
             tokens_used: number;
             /** Total Chapters */
             total_chapters: number;
+            /** Total Latency Ms */
+            total_latency_ms: number;
             /**
              * Updated At
              * Format: date-time
              */
             updated_at: string;
+            /** Workspace Id */
+            workspace_id?: number | null;
         };
         /** BookRunVolumePlanItem */
         BookRunVolumePlanItem: {
@@ -3726,16 +3735,68 @@ export interface components {
              */
             updated_at: string;
         };
+        /** ManualReadDimensionScore */
+        ManualReadDimensionScore: {
+            /** Comment */
+            comment?: string | null;
+            /** Dimension */
+            dimension: string;
+            /** Score */
+            score: number;
+        };
+        /** ManualReadReview */
+        ManualReadReview: {
+            /**
+             * Blind
+             * @default false
+             */
+            blind: boolean;
+            /** Conclusion */
+            conclusion: string;
+            /** Dimension Scores */
+            dimension_scores: components["schemas"]["ManualReadDimensionScore"][];
+            /** Overall Score */
+            overall_score?: number | null;
+            /** Reviewed Chapter Count */
+            reviewed_chapter_count: number;
+            /** Reviewer */
+            reviewer: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "needs_revision";
+            /** Word Count */
+            word_count: number;
+        };
         /** ModelRunCreate */
         ModelRunCreate: {
             /** Book Id */
             book_id?: number | null;
+            /** Book Run Id */
+            book_run_id?: number | null;
             /** Capability */
             capability: string;
+            /** Chapter Id */
+            chapter_id?: number | null;
+            /**
+             * Cost Estimate
+             * @default 0
+             */
+            cost_estimate: number;
+            /** Error Kind */
+            error_kind?: string | null;
             /** Error Message */
             error_message?: string | null;
+            /** Finish Reason */
+            finish_reason?: string | null;
             /** Input Summary */
             input_summary: string;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
             /** Job Run Id */
             job_run_id?: number | null;
             /**
@@ -3747,14 +3808,33 @@ export interface components {
             model_name: string;
             /** Output Summary */
             output_summary?: string | null;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
             /** Payload */
             payload?: {
                 [key: string]: unknown;
             };
+            /** Prompt Hash */
+            prompt_hash?: string | null;
             /** Prompt Pack Id */
             prompt_pack_id?: number | null;
+            /** Prompt Template Version */
+            prompt_template_version?: string | null;
             /** Provider Name */
             provider_name: string;
+            /**
+             * Repair Count
+             * @default 0
+             */
+            repair_count: number;
+            /**
+             * Retry Count
+             * @default 0
+             */
+            retry_count: number;
             /** Scene Id */
             scene_id?: number | null;
             /**
@@ -3789,19 +3869,31 @@ export interface components {
         ModelRunRead: {
             /** Book Id */
             book_id: number | null;
+            /** Book Run Id */
+            book_run_id: number | null;
             /** Capability */
             capability: string;
+            /** Chapter Id */
+            chapter_id: number | null;
+            /** Cost Estimate */
+            cost_estimate: number;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Error Kind */
+            error_kind: string | null;
             /** Error Message */
             error_message: string | null;
+            /** Finish Reason */
+            finish_reason: string | null;
             /** Id */
             id: number;
             /** Input Summary */
             input_summary: string;
+            /** Input Tokens */
+            input_tokens: number;
             /** Job Run Id */
             job_run_id: number | null;
             /** Latency Ms */
@@ -3810,14 +3902,24 @@ export interface components {
             model_name: string;
             /** Output Summary */
             output_summary: string | null;
+            /** Output Tokens */
+            output_tokens: number;
             /** Payload */
             payload: {
                 [key: string]: unknown;
             };
+            /** Prompt Hash */
+            prompt_hash: string | null;
             /** Prompt Pack Id */
             prompt_pack_id: number | null;
+            /** Prompt Template Version */
+            prompt_template_version: string | null;
             /** Provider Name */
             provider_name: string;
+            /** Repair Count */
+            repair_count: number;
+            /** Retry Count */
+            retry_count: number;
             /** Scene Id */
             scene_id: number | null;
             /** Status */
@@ -4378,16 +4480,34 @@ export interface components {
         RunsModelRunSummary: {
             /** Capability */
             capability: string;
+            /** Cost Estimate */
+            cost_estimate: number;
+            /** Error Kind */
+            error_kind: string | null;
             /** Error Message */
             error_message: string | null;
+            /** Finish Reason */
+            finish_reason: string | null;
             /** Id */
             id: number;
+            /** Input Tokens */
+            input_tokens: number;
             /** Latency Ms */
             latency_ms: number;
             /** Model Name */
             model_name: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Prompt Hash */
+            prompt_hash: string | null;
+            /** Prompt Template Version */
+            prompt_template_version: string | null;
             /** Provider Name */
             provider_name: string;
+            /** Repair Count */
+            repair_count: number;
+            /** Retry Count */
+            retry_count: number;
             /** Status */
             status: string;
             /** Token Usage */
@@ -5533,7 +5653,9 @@ export interface operations {
     };
     get_artifact_endpoint_api_artifacts__artifact_id__get: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 artifact_id: number;
@@ -5564,7 +5686,9 @@ export interface operations {
     };
     download_artifact_endpoint_api_artifacts__artifact_id__download_get: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 artifact_id: number;
@@ -6213,7 +6337,9 @@ export interface operations {
     };
     export_book_run_audit_report_endpoint_api_book_runs__book_run_id__exports_audit_report_post: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 book_run_id: number;
@@ -6244,7 +6370,9 @@ export interface operations {
     };
     export_book_run_epub_endpoint_api_book_runs__book_run_id__exports_epub_post: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 book_run_id: number;
@@ -6275,7 +6403,9 @@ export interface operations {
     };
     export_book_run_markdown_endpoint_api_book_runs__book_run_id__exports_markdown_post: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 book_run_id: number;
@@ -6504,7 +6634,9 @@ export interface operations {
     };
     export_book_epub_api_books__book_id__exports_epub_get: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 book_id: number;
@@ -6535,7 +6667,9 @@ export interface operations {
     };
     export_book_markdown_api_books__book_id__exports_markdown_get: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 book_id: number;
@@ -7213,7 +7347,9 @@ export interface operations {
     };
     read_artifact_preview_api_ide_artifacts__artifact_id__preview_get: {
         parameters: {
-            query?: never;
+            query: {
+                workspace_id: number;
+            };
             header?: never;
             path: {
                 artifact_id: number;

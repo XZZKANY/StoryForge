@@ -13,9 +13,7 @@ export async function HomeShell({
 }) {
   const isAssistantView = activeView === 'assistant';
   const projectListState: HomeProjectListState =
-    activeView === 'projects'
-      ? await readHomeProjects()
-      : { status: 'ready', projects: [] };
+    activeView === 'projects' ? await readHomeProjects() : { status: 'ready', projects: [] };
 
   return (
     <main

@@ -9,8 +9,7 @@ export async function executeIdeCommand(
   commandId: string,
   args: Record<string, unknown> = {},
 ): Promise<IdeCommandResponse> {
-  const { apiFetch } = await import('../../../lib/api-client');
-  const response = await apiFetch(`/api/ide/commands/${encodeURIComponent(commandId)}`, {
+  const response = await fetch(`/api/ide/commands/${encodeURIComponent(commandId)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ args }),

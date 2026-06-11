@@ -5,12 +5,33 @@ import io
 import json
 import os
 import threading
+from dataclasses import dataclass
 from random import random
 from time import sleep
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
 _thread_connections = threading.local()
+
+
+@dataclass(frozen=True)
+class ChatCompletionUsage:
+    """OpenAI 兼容 Chat Completions 的 token usage 快照。"""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+@dataclass(frozen=True)
+class ChatCompletionResult:
+    """保留完整生成结果，供 runtime 记录真实 usage 与完成原因。"""
+
+    content: str
+    usage: ChatCompletionUsage | None = None
+    finish_reason: str | None = None
+    request_id: str | None = None
+    model: str | None = None
 
 
 def generate_text(
@@ -25,6 +46,23 @@ def generate_text(
     temperature/model 为 None 时回退到全局 env 默认，保证旧调用方行为不变；
     传入显式值即可按节点角色（规划低温、正文高温）分层采样。
     """
+
+    return generate_chat_completion(
+        prompt,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        model=model,
+    ).content
+
+
+def generate_chat_completion(
+    prompt: str,
+    *,
+    system_prompt: str = "You are a creative writing engine for StoryForge. Return only the requested Chinese prose or structured result.",
+    temperature: float | None = None,
+    model: str | None = None,
+) -> ChatCompletionResult:
+    """调用 OpenAI 兼容 Chat Completions 端点，并保留 usage 等观测字段。"""
 
     config = provider_config()
     resolved_temperature = (
@@ -50,10 +88,7 @@ def generate_text(
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     timeout = float(os.getenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "30"))
     data = _post_chat_completion(config=config, body=body, timeout=timeout)
-    content = data["choices"][0]["message"]["content"]
-    if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("LLM 返回内容为空，无法继续工作流。")
-    return content.strip()
+    return _parse_chat_completion_result(data)
 
 
 def close_provider_connections() -> None:
@@ -115,6 +150,56 @@ def _request_json_with_reused_connection(
             fp=io.BytesIO(response_body),
         )
     return json.loads(response_body.decode("utf-8"))
+
+
+def _parse_chat_completion_result(data: dict[str, object]) -> ChatCompletionResult:
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise RuntimeError("LLM 返回内容为空，无法继续工作流。")
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        raise RuntimeError("LLM 返回内容为空，无法继续工作流。")
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        raise RuntimeError("LLM 返回内容为空，无法继续工作流。")
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("LLM 返回内容为空，无法继续工作流。")
+    usage = _parse_chat_completion_usage(data.get("usage"))
+    request_id = data.get("id")
+    model = data.get("model")
+    finish_reason = first_choice.get("finish_reason")
+    return ChatCompletionResult(
+        content=content.strip(),
+        usage=usage,
+        finish_reason=finish_reason if isinstance(finish_reason, str) and finish_reason else None,
+        request_id=request_id if isinstance(request_id, str) and request_id else None,
+        model=model if isinstance(model, str) and model else None,
+    )
+
+
+def _parse_chat_completion_usage(value: object) -> ChatCompletionUsage | None:
+    if not isinstance(value, dict):
+        return None
+    prompt_tokens = _nonnegative_int(value.get("prompt_tokens"))
+    completion_tokens = _nonnegative_int(value.get("completion_tokens"))
+    total_tokens = _nonnegative_int(value.get("total_tokens"))
+    if prompt_tokens is None and completion_tokens is None and total_tokens is None:
+        return None
+    resolved_prompt = prompt_tokens or 0
+    resolved_completion = completion_tokens or 0
+    resolved_total = total_tokens if total_tokens is not None else resolved_prompt + resolved_completion
+    return ChatCompletionUsage(
+        prompt_tokens=resolved_prompt,
+        completion_tokens=resolved_completion,
+        total_tokens=resolved_total,
+    )
+
+
+def _nonnegative_int(value: object) -> int | None:
+    if type(value) is int and value >= 0:
+        return value
+    return None
 
 
 def _connection_for(

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
 from app.domains.books.models import Book, Chapter, Scene
+from app.domains.workspaces.models import Workspace
 
 
 @pytest.fixture()
@@ -17,7 +18,11 @@ def approved_story(session_factory: sessionmaker[Session]) -> dict[str, int | st
 
     approved_content = "林岚按住仍在发疼的左臂，克制地完成港口谈判。"
     with session_factory() as session:
-        book = Book(title="灯塔余烬", status="draft", premise="林岚追查失真的灯塔信号。")
+        workspace = Workspace(title="灯塔团队", slug="export-team", status="active", seat_limit=3)
+        other_workspace = Workspace(title="错域团队", slug="export-other-team", status="active", seat_limit=3)
+        session.add_all([workspace, other_workspace])
+        session.flush()
+        book = Book(title="灯塔余烬", status="draft", premise="林岚追查失真的灯塔信号。", workspace_id=workspace.id)
         session.add(book)
         session.flush()
         chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="approved", summary="林岚抵达港口。")
@@ -26,7 +31,12 @@ def approved_story(session_factory: sessionmaker[Session]) -> dict[str, int | st
         scene = Scene(chapter_id=chapter.id, ordinal=1, title="港口谈判", status="approved", content=approved_content)
         session.add(scene)
         session.commit()
-        return {"book_id": book.id, "approved_content": approved_content}
+        return {
+            "workspace_id": workspace.id,
+            "other_workspace_id": other_workspace.id,
+            "book_id": book.id,
+            "approved_content": approved_content,
+        }
 
 def test_markdown_export_contains_book_title_chapter_title_and_approved_body(
     client: TestClient,
@@ -34,7 +44,10 @@ def test_markdown_export_contains_book_title_chapter_title_and_approved_body(
 ) -> None:
     """Markdown 导出包含作品名、章节标题和已批准正文。"""
 
-    response = client.get(f"/api/books/{approved_story['book_id']}/exports/markdown")
+    response = client.get(
+        f"/api/books/{approved_story['book_id']}/exports/markdown",
+        params={"workspace_id": approved_story["workspace_id"]},
+    )
 
     assert response.status_code == 200, response.text
     assert response.headers["content-type"].startswith("text/markdown")
@@ -49,7 +62,10 @@ def test_epub_export_creates_minimal_valid_zip_with_approved_body(
 ) -> None:
     """EPUB 导出使用标准 zip 结构并包含已批准正文。"""
 
-    response = client.get(f"/api/books/{approved_story['book_id']}/exports/epub")
+    response = client.get(
+        f"/api/books/{approved_story['book_id']}/exports/epub",
+        params={"workspace_id": approved_story["workspace_id"]},
+    )
 
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/epub+zip"
@@ -65,10 +81,27 @@ def test_epub_export_creates_minimal_valid_zip_with_approved_body(
     assert str(approved_story["approved_content"]) in content
 
 
+def test_book_exports_require_workspace_scope_and_reject_mismatch(
+    client: TestClient,
+    approved_story: dict[str, int | str],
+) -> None:
+    """作品导出必须显式传入匹配的 workspace_id。"""
+
+    missing_scope = client.get(f"/api/books/{approved_story['book_id']}/exports/markdown")
+    wrong_scope = client.get(
+        f"/api/books/{approved_story['book_id']}/exports/markdown",
+        params={"workspace_id": approved_story["other_workspace_id"]},
+    )
+
+    assert missing_scope.status_code == 422
+    assert wrong_scope.status_code == 403
+    assert wrong_scope.json()["detail"] == "作品与请求工作区不匹配，禁止导出。"
+
+
 def test_markdown_export_returns_404_when_book_missing(client: TestClient) -> None:
     """作品不存在时导出返回 404。"""
 
-    response = client.get("/api/books/9999/exports/markdown")
+    response = client.get("/api/books/9999/exports/markdown", params={"workspace_id": 1})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "作品不存在，无法导出。"
@@ -81,7 +114,10 @@ def test_markdown_export_returns_404_when_no_approved_body(
     """作品没有已批准正文时导出返回 404。"""
 
     with session_factory() as session:
-        book = Book(title="空白草稿", status="draft", premise="尚未批准。")
+        workspace = Workspace(title="空白团队", slug="empty-export-team", status="active", seat_limit=1)
+        session.add(workspace)
+        session.flush()
+        book = Book(title="空白草稿", status="draft", premise="尚未批准。", workspace_id=workspace.id)
         session.add(book)
         session.flush()
         chapter = Chapter(book_id=book.id, ordinal=1, title="草稿章", status="draft", summary="未批准。")
@@ -91,8 +127,9 @@ def test_markdown_export_returns_404_when_no_approved_body(
         session.add(scene)
         session.commit()
         book_id = book.id
+        workspace_id = workspace.id
 
-    response = client.get(f"/api/books/{book_id}/exports/markdown")
+    response = client.get(f"/api/books/{book_id}/exports/markdown", params={"workspace_id": workspace_id})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "作品没有可导出的已批准正文。"
@@ -105,7 +142,10 @@ def test_markdown_export_filters_unapproved_chapters_and_scenes(
     """未批准章节和未批准场景不会出现在导出内容中。"""
 
     with session_factory() as session:
-        book = Book(title="过滤测试", status="draft", premise="验证导出过滤。")
+        workspace = Workspace(title="过滤团队", slug="filter-export-team", status="active", seat_limit=1)
+        session.add(workspace)
+        session.flush()
+        book = Book(title="过滤测试", status="draft", premise="验证导出过滤。", workspace_id=workspace.id)
         session.add(book)
         session.flush()
         approved_chapter = Chapter(book_id=book.id, ordinal=1, title="可导出章", status="approved", summary="已批准。")
@@ -121,8 +161,9 @@ def test_markdown_export_filters_unapproved_chapters_and_scenes(
         )
         session.commit()
         book_id = book.id
+        workspace_id = workspace.id
 
-    response = client.get(f"/api/books/{book_id}/exports/markdown")
+    response = client.get(f"/api/books/{book_id}/exports/markdown", params={"workspace_id": workspace_id})
 
     assert response.status_code == 200, response.text
     assert "应该导出的正文" in response.text
@@ -138,7 +179,10 @@ def test_markdown_export_orders_chapters_and_scenes_by_ordinal(
     """多章节多场景按章节序号和场景序号稳定排序。"""
 
     with session_factory() as session:
-        book = Book(title="排序测试", status="draft", premise="验证导出排序。")
+        workspace = Workspace(title="排序团队", slug="order-export-team", status="active", seat_limit=1)
+        session.add(workspace)
+        session.flush()
+        book = Book(title="排序测试", status="draft", premise="验证导出排序。", workspace_id=workspace.id)
         session.add(book)
         session.flush()
         chapter_two = Chapter(book_id=book.id, ordinal=2, title="第二章", status="approved", summary="后导出。")
@@ -155,8 +199,9 @@ def test_markdown_export_orders_chapters_and_scenes_by_ordinal(
         )
         session.commit()
         book_id = book.id
+        workspace_id = workspace.id
 
-    response = client.get(f"/api/books/{book_id}/exports/markdown")
+    response = client.get(f"/api/books/{book_id}/exports/markdown", params={"workspace_id": workspace_id})
 
     assert response.status_code == 200, response.text
     ordered_markers = ["## 第 1 章 第一章", "一号正文", "二号正文", "## 第 2 章 第二章", "三号正文", "四号正文"]

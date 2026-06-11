@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
-from app.domains.books.models import Book
+from app.domains.blueprints.models import BookBlueprint
+from app.domains.book_runs.models import BookRun
+from app.domains.books.models import Book, Chapter
 from app.domains.jobs.models import JobRun
 from app.domains.prompt_packs.models import PromptPack
 from app.domains.workspaces.models import Workspace
@@ -21,6 +23,32 @@ def run_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
         session.add_all([workspace, book])
         session.flush()
         job = JobRun(book_id=book.id, job_type="generation_runtime", status="running", progress={})
+        blueprint = BookBlueprint(
+            book_id=book.id,
+            premise="林岚追查信号。",
+            tone="克制悬疑",
+            target_word_count=3000,
+            target_chapter_count=1,
+            chapter_word_count_min=1000,
+            chapter_word_count_max=1500,
+            status="locked",
+            version=1,
+            metadata_={},
+        )
+        session.add(blueprint)
+        session.flush()
+        chapter = Chapter(book_id=book.id, blueprint_id=blueprint.id, ordinal=1, title="旧港", status="planned")
+        session.add(chapter)
+        session.flush()
+        book_run = BookRun(
+            book_id=book.id,
+            blueprint_id=blueprint.id,
+            status="running",
+            current_chapter_index=1,
+            total_chapters=1,
+            progress={},
+            checkpoint=[],
+        )
         prompt_pack = PromptPack(
             workspace_id=workspace.id,
             book_id=book.id,
@@ -31,9 +59,16 @@ def run_scope(session_factory: sessionmaker[Session]) -> dict[str, int]:
             payload={"system": "保持克制"},
             version=1,
         )
-        session.add_all([job, prompt_pack])
+        session.add_all([job, book_run, prompt_pack])
         session.commit()
-        return {"workspace_id": workspace.id, "book_id": book.id, "job_run_id": job.id, "prompt_pack_id": prompt_pack.id}
+        return {
+            "workspace_id": workspace.id,
+            "book_id": book.id,
+            "chapter_id": chapter.id,
+            "book_run_id": book_run.id,
+            "job_run_id": job.id,
+            "prompt_pack_id": prompt_pack.id,
+        }
 
 
 def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestClient, run_scope: dict[str, int]) -> None:
@@ -42,6 +77,8 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
         json={
             "workspace_id": run_scope["workspace_id"],
             "book_id": run_scope["book_id"],
+            "book_run_id": run_scope["book_run_id"],
+            "chapter_id": run_scope["chapter_id"],
             "job_run_id": run_scope["job_run_id"],
             "prompt_pack_id": run_scope["prompt_pack_id"],
             "provider_name": "openai-global",
@@ -49,6 +86,15 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
             "capability": "llm",
             "latency_ms": 420,
             "token_usage": 180,
+            "input_tokens": 80,
+            "output_tokens": 100,
+            "cost_estimate": 0.000072,
+            "finish_reason": "stop",
+            "error_kind": None,
+            "retry_count": 1,
+            "repair_count": 2,
+            "prompt_template_version": "draft.v2",
+            "prompt_hash": "sha256:testprompt",
             "input_summary": "生成港口谈判场景。",
             "output_summary": "模型返回首稿摘要。",
             "payload": {"resolved_provider": "openai-global"},
@@ -58,6 +104,16 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
     result = created.json()
     assert result["provider_name"] == "openai-global"
     assert result["token_usage"] == 180
+    assert result["input_tokens"] == 80
+    assert result["output_tokens"] == 100
+    assert result["cost_estimate"] == 0.000072
+    assert result["finish_reason"] == "stop"
+    assert result["retry_count"] == 1
+    assert result["repair_count"] == 2
+    assert result["prompt_template_version"] == "draft.v2"
+    assert result["prompt_hash"] == "sha256:testprompt"
+    assert result["book_run_id"] == run_scope["book_run_id"]
+    assert result["chapter_id"] == run_scope["chapter_id"]
     assert result["prompt_pack_id"] == run_scope["prompt_pack_id"]
 
     listing = client.get("/api/model-runs", params={"job_run_id": run_scope["job_run_id"]})
@@ -135,6 +191,9 @@ def test_runs_job_run_endpoint_includes_model_run_summaries(
     assert model_runs[0]["provider_name"] == "mock-provider"
     assert model_runs[0]["model_name"] == "storyforge-writer"
     assert model_runs[0]["token_usage"] == 42
+    assert model_runs[0]["input_tokens"] == 0
+    assert model_runs[0]["output_tokens"] == 0
+    assert model_runs[0]["cost_estimate"] == 0.0
     assert model_runs[1]["error_message"] == "provider timeout"
 
 

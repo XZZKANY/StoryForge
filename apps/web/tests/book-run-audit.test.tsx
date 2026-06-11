@@ -7,6 +7,7 @@ import { BookRunAuditPanel } from '../app/book-runs/audit';
 
 const bookRun = {
   id: 12,
+  workspace_id: 3,
   book_id: 5,
   blueprint_id: 9,
   status: 'completed',

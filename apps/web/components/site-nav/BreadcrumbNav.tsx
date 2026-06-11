@@ -23,16 +23,11 @@ export function BreadcrumbNav({ items }: BreadcrumbNavProps) {
           return (
             <li key={index} className="flex items-center gap-2">
               {item.href && !isLast ? (
-                <Link
-                  href={item.href}
-                  className="hover:text-foreground hover:underline"
-                >
+                <Link href={item.href} className="hover:text-foreground hover:underline">
                   {item.label}
                 </Link>
               ) : (
-                <span className={isLast ? 'font-semibold text-foreground' : ''}>
-                  {item.label}
-                </span>
+                <span className={isLast ? 'font-semibold text-foreground' : ''}>{item.label}</span>
               )}
               {!isLast && <ChevronRight className="h-3.5 w-3.5 text-muted" aria-hidden />}
             </li>

@@ -16,6 +16,7 @@ from storyforge_workflow.runtime.lifecycle import (
     WorkflowLifecycleStatus,
 )
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult, execute_provider_text
+from storyforge_workflow.runtime.provider_adapter import ProviderError
 from storyforge_workflow.runtime.sentry_config import capture_workflow_exception, init_sentry
 from storyforge_workflow.runtime.session import InMemoryWorkflowSessionStore
 from storyforge_workflow.state import initial_generation_state
@@ -231,7 +232,7 @@ class WorkflowRuntime:
             status="failed",
             error_message=str(error),
         )
-        persisted_model_run_id = self._emit_model_run_payload(model_run)
+        persisted_model_run_id = self._emit_model_run_payload(model_run, provider_error=error)
         state.update(
             {
                 "model_run_id": persisted_model_run_id if persisted_model_run_id is not None else model_run.model_run_id,
@@ -363,7 +364,11 @@ class WorkflowRuntime:
         )
 
     def _emit_model_run_payload(
-        self, model_run: Any, *, provider_execution: Any | None = None
+        self,
+        model_run: Any,
+        *,
+        provider_execution: Any | None = None,
+        provider_error: Exception | None = None,
     ) -> int | None:
         if self.model_run_sink is None:
             return None
@@ -377,9 +382,16 @@ class WorkflowRuntime:
                 extras["cost_estimate"] = float(cost_estimate or 0.0)
             except (TypeError, ValueError):
                 extras["cost_estimate"] = 0.0
+            finish_reason = getattr(provider_execution, "finish_reason", None)
+            if isinstance(finish_reason, str) and finish_reason:
+                extras["finish_reason"] = finish_reason
             fallback_metadata = getattr(provider_execution, "fallback_metadata", None)
             if isinstance(fallback_metadata, dict):
                 extras["fallback"] = dict(fallback_metadata)
+        if isinstance(provider_error, ProviderError):
+            extras["error_kind"] = provider_error.kind.value
+            if provider_error.retry_after_seconds is not None:
+                extras["retry_after_seconds"] = provider_error.retry_after_seconds
         payload = ModelRunPayload(
             thread_id=model_run.thread_id,
             job_run_id=model_run.job_run_id,

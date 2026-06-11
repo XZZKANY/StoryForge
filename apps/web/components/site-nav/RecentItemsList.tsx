@@ -52,7 +52,10 @@ export function RecentItemsList({
   return (
     <ul className="!m-0 mt-3 !grid !grid-cols-1 !gap-2 !p-0 text-sm text-foreground">
       {mergedItems.map((item) => (
-        <li key={`${item.type}-${item.id}`} className="!m-0 !border-0 !bg-transparent !p-0 !shadow-none">
+        <li
+          key={`${item.type}-${item.id}`}
+          className="!m-0 !border-0 !bg-transparent !p-0 !shadow-none"
+        >
           <Link
             href={item.href}
             title={item.title}

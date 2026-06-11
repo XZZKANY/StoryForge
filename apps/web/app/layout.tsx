@@ -10,14 +10,16 @@ async function readRecentAssistantSidebarItems(): Promise<readonly RecentItem[]>
   if (result.status === 'error') {
     return [];
   }
-  return result.data.map((item): RecentItem => ({
-    id: item.href,
-    type: 'conversation',
-    title: item.title,
-    href: item.href,
-    timestamp: item.updatedAt ? Date.parse(item.updatedAt) || 0 : 0,
-    metadata: { status: item.summary },
-  }));
+  return result.data.map(
+    (item): RecentItem => ({
+      id: item.href,
+      type: 'conversation',
+      title: item.title,
+      href: item.href,
+      timestamp: item.updatedAt ? Date.parse(item.updatedAt) || 0 : 0,
+      metadata: { status: item.summary },
+    }),
+  );
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

@@ -18,6 +18,10 @@ class ExportNotFoundError(NotFoundError):
     """作品或可导出的已批准正文不存在时抛出。"""
 
 
+class ExportForbiddenError(NotFoundError):
+    """作品不属于请求工作区时抛出，由路由层转换为 403。"""
+
+
 @dataclass(frozen=True)
 class ApprovedScene:
     """导出时使用的已批准章节场景快照。"""
@@ -29,10 +33,10 @@ class ApprovedScene:
     content: str
 
 
-def build_markdown_export(session: Session, book_id: int) -> str:
+def build_markdown_export(session: Session, book_id: int, *, workspace_id: int | None = None) -> str:
     """生成包含书名、章节标题和已批准正文的 Markdown。"""
 
-    book, scenes = _load_export_source(session, book_id)
+    book, scenes = _load_export_source(session, book_id, workspace_id=workspace_id)
     lines = [f"# {book.title}", ""]
     chapter_scene_counts: dict[tuple[int, str], int] = {}
     for scene in scenes:
@@ -70,10 +74,10 @@ def build_markdown_export(session: Session, book_id: int) -> str:
     )
     return content
 
-def build_epub_export(session: Session, book_id: int) -> bytes:
+def build_epub_export(session: Session, book_id: int, *, workspace_id: int | None = None) -> bytes:
     """生成最小有效 EPUB 文件，Phase 1 不引入额外依赖。"""
 
-    book, scenes = _load_export_source(session, book_id)
+    book, scenes = _load_export_source(session, book_id, workspace_id=workspace_id)
     xhtml = _build_content_xhtml(book, scenes)
     opf = _build_content_opf(book)
     buffer = BytesIO()
@@ -110,12 +114,19 @@ def build_epub_export(session: Session, book_id: int) -> bytes:
     return output
 
 
-def _load_export_source(session: Session, book_id: int) -> tuple[Book, list[ApprovedScene]]:
+def _load_export_source(
+    session: Session,
+    book_id: int,
+    *,
+    workspace_id: int | None = None,
+) -> tuple[Book, list[ApprovedScene]]:
     """读取作品及其已批准正文，缺失时交由路由层转换为 404。"""
 
     book = session.get(Book, book_id)
     if book is None:
         raise ExportNotFoundError("作品不存在，无法导出。")
+    if workspace_id is not None and book.workspace_id != workspace_id:
+        raise ExportForbiddenError("作品与请求工作区不匹配，禁止导出。")
 
     rows = session.execute(
         select(Chapter, Scene)

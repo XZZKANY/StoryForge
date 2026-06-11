@@ -31,9 +31,7 @@ export function AssistantToolTree({
           <h2 id="assistant-tool-tree-title" className="m-0 text-sm font-semibold text-foreground">
             Assistant 工具流程树
           </h2>
-          <p className="m-0 mt-1 text-xs text-muted">
-            耗时、token、预算和成本只来自真实工具节点。
-          </p>
+          <p className="m-0 mt-1 text-xs text-muted">耗时、token、预算和成本只来自真实工具节点。</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {['展开全部', '只看当前步骤', '暂停流程', '查看审计'].map((label) => (

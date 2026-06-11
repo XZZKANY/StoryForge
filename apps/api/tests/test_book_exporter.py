@@ -13,6 +13,7 @@ from app.domains.exports.book_markdown_exporter import (
     export_book_run_epub,
     export_book_run_markdown,
 )
+from app.domains.workspaces.models import Workspace
 
 
 def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: sessionmaker[Session]) -> None:
@@ -43,9 +44,7 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
-        assert report["manual_review_recommendations"] == [
-            "第 1 章存在高严重度质量问题（系统可靠性）：需人工复核。"
-        ]
+        assert report["manual_review_recommendations"] == ["第 1 章存在高严重度质量问题（系统可靠性）：需人工复核。"]
         assert "??" not in str(report["manual_review_recommendations"])
         assert report["manual_read_gate"] == {
             "status": "passed",
@@ -53,6 +52,28 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
             "reviewed_chapter_count": 10,
             "word_count": 36000,
             "conclusion": "通过人工通读门禁。",
+        }
+        assert report["manual_read_review"] == {
+            "status": "passed",
+            "reviewer": "人工盲评 A",
+            "reviewed_chapter_count": 10,
+            "word_count": 36000,
+            "blind": True,
+            "overall_score": 4.5,
+            "conclusion": "通过人工盲评门禁。",
+            "dimension_scores": [
+                {
+                    "dimension": "narrative_quality",
+                    "dimension_label": "叙事质量",
+                    "score": 4,
+                    "comment": "推进顺畅。",
+                },
+                {
+                    "dimension": "character_consistency",
+                    "dimension_label": "人物一致性",
+                    "score": 5,
+                },
+            ],
         }
         assert report["integration_metrics"] == {
             "context_cache_hit_rate": 0.96,
@@ -147,11 +168,20 @@ def test_book_run_export_endpoints_return_artifacts(
     """BookRun 导出 API 应返回 book.md 与 audit_report.json 制品。"""
 
     with session_factory() as session:
-        book_run_id = _seed_completed_book_run(session)
+        book_run_id, workspace_id = _seed_completed_book_run_with_workspace(session)
 
-    markdown_response = client.post(f"/api/book-runs/{book_run_id}/exports/markdown")
-    epub_response = client.post(f"/api/book-runs/{book_run_id}/exports/epub")
-    audit_response = client.post(f"/api/book-runs/{book_run_id}/exports/audit-report")
+    markdown_response = client.post(
+        f"/api/book-runs/{book_run_id}/exports/markdown",
+        params={"workspace_id": workspace_id},
+    )
+    epub_response = client.post(
+        f"/api/book-runs/{book_run_id}/exports/epub",
+        params={"workspace_id": workspace_id},
+    )
+    audit_response = client.post(
+        f"/api/book-runs/{book_run_id}/exports/audit-report",
+        params={"workspace_id": workspace_id},
+    )
 
     assert markdown_response.status_code == 200, markdown_response.text
     assert markdown_response.json()["name"] == "book.md"
@@ -164,6 +194,39 @@ def test_book_run_export_endpoints_return_artifacts(
     assert audit_response.json()["payload"]["book_run_id"] == book_run_id
 
 
+def test_book_run_export_endpoints_require_workspace_scope(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """BookRun 导出 API 必须显式传入匹配的 workspace_id，避免跨工作区旁路导出。"""
+
+    with session_factory() as session:
+        book_run_id, workspace_id = _seed_completed_book_run_with_workspace(session)
+        other_workspace = Workspace(title="其他工作区", slug="other-bookrun-export-scope", status="active")
+        session.add(other_workspace)
+        session.commit()
+        other_workspace_id = other_workspace.id
+
+    missing_scope = client.post(f"/api/book-runs/{book_run_id}/exports/markdown")
+    wrong_scope = client.post(
+        f"/api/book-runs/{book_run_id}/exports/markdown",
+        params={"workspace_id": other_workspace_id},
+    )
+    correct_scope = client.post(
+        f"/api/book-runs/{book_run_id}/exports/markdown",
+        params={"workspace_id": workspace_id},
+    )
+    missing_book_run = client.post(
+        "/api/book-runs/999999/exports/markdown",
+        params={"workspace_id": workspace_id},
+    )
+
+    assert missing_scope.status_code == 422
+    assert wrong_scope.status_code == 403
+    assert correct_scope.status_code == 200
+    assert missing_book_run.status_code == 404
+
+
 def test_book_run_export_endpoints_reject_non_completed_without_artifacts(
     client: TestClient,
     session_factory: sessionmaker[Session],
@@ -171,11 +234,14 @@ def test_book_run_export_endpoints_reject_non_completed_without_artifacts(
     """BookRun 未完成时三类导出 API 都应拒绝，且不创建制品。"""
 
     with session_factory() as session:
-        book_run_id = _seed_completed_book_run(session, status="running")
+        book_run_id, workspace_id = _seed_completed_book_run_with_workspace(session, status="running")
         artifact_count_before = session.query(Artifact).count()
 
     for path in ["markdown", "epub", "audit-report"]:
-        response = client.post(f"/api/book-runs/{book_run_id}/exports/{path}")
+        response = client.post(
+            f"/api/book-runs/{book_run_id}/exports/{path}",
+            params={"workspace_id": workspace_id},
+        )
         assert response.status_code == 400, response.text
         assert "BookRun 尚未完成" in response.json()["detail"]
 
@@ -187,8 +253,9 @@ def _seed_completed_book_run(
     session: Session,
     skill_runs: list[dict[str, object]] | None = None,
     status: str = "completed",
+    workspace_id: int | None = None,
 ) -> int:
-    book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。")
+    book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。", workspace_id=workspace_id)
     session.add(book)
     session.flush()
     blueprint = BookBlueprint(
@@ -261,6 +328,19 @@ def _seed_completed_book_run(
                 "word_count": 36000,
                 "conclusion": "通过人工通读门禁。",
             },
+            "manual_read_review": {
+                "status": "passed",
+                "reviewer": "人工盲评 A",
+                "reviewed_chapter_count": 10,
+                "word_count": 36000,
+                "blind": True,
+                "overall_score": 4.5,
+                "dimension_scores": [
+                    {"dimension": "narrative_quality", "score": 4, "comment": "推进顺畅。"},
+                    {"dimension": "character_consistency", "score": 5},
+                ],
+                "conclusion": "通过人工盲评门禁。",
+            },
             "integration_metrics": {
                 "context_cache_hit_rate": 0.96,
                 "memory_recall_budget_used": 7999,
@@ -277,3 +357,15 @@ def _seed_completed_book_run(
     session.add(book_run)
     session.commit()
     return book_run.id
+
+
+def _seed_completed_book_run_with_workspace(
+    session: Session,
+    skill_runs: list[dict[str, object]] | None = None,
+    status: str = "completed",
+) -> tuple[int, int]:
+    workspace = Workspace(title="BookRun 导出工作区", slug="bookrun-export-scope", status="active")
+    session.add(workspace)
+    session.flush()
+    book_run_id = _seed_completed_book_run(session, skill_runs=skill_runs, status=status, workspace_id=workspace.id)
+    return book_run_id, workspace.id

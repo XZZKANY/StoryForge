@@ -1,3 +1,5 @@
+import 'server-only';
+
 import type { components } from '@storyforge/shared';
 
 export type ApiSchemas = components['schemas'];
@@ -8,7 +10,6 @@ export type ApiResult<T> =
   | { readonly status: 'error'; readonly message: string };
 
 const defaultApiBaseUrl = 'http://127.0.0.1:8000';
-const defaultApiKey = 'local-dev-key';
 type ApiQueryParams = Record<string, string | number | undefined | null>;
 
 export type ApiFetchInit = RequestInit & {
@@ -29,10 +30,18 @@ export function buildApiUrl(path: string, params: ApiQueryParams = {}): URL {
   return url;
 }
 
+function getApiKey(): string {
+  const apiKey = process.env.STORYFORGE_API_KEY;
+  if (!apiKey) {
+    throw new Error('缺少 STORYFORGE_API_KEY，无法调用 StoryForge API。');
+  }
+  return apiKey;
+}
+
 export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<Response> {
   const { params, headers, ...requestInit } = init;
   const apiHeaders = new Headers(headers);
-  apiHeaders.set('X-StoryForge-API-Key', process.env.STORYFORGE_API_KEY ?? defaultApiKey);
+  apiHeaders.set('X-StoryForge-API-Key', getApiKey());
 
   return fetch(buildApiUrl(path, params), {
     ...requestInit,

@@ -2,10 +2,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { apiFetch, type ApiFetchInit } from '../../lib/api-client';
-import {
-  appendAssistantSessionMessage,
-  createAssistantSession,
-} from './assistant-session-store';
+import { appendAssistantSessionMessage, createAssistantSession } from './assistant-session-store';
 import {
   writeAssistantToolCall,
   type AssistantToolCallWrite,
@@ -162,15 +159,25 @@ export async function submitAssistantBookRunCommand(
     response = await dependencies.apiFetch(`/api/book-runs/${bookRunId}/${command}`, init);
   } catch (error) {
     const message = error instanceof Error ? error.message : '未知错误';
-    await writeBookRunFailureToolCall(dependencies, assistantSessionId, bookRunId, command, message);
+    await writeBookRunFailureToolCall(
+      dependencies,
+      assistantSessionId,
+      bookRunId,
+      command,
+      message,
+    );
     return dependencies.redirect(buildResultUrl(bookRunId, 'failed', message, assistantSessionId));
   }
   if (!response.ok) {
     const message = `BookRun API 返回 ${response.status}`;
-    await writeBookRunFailureToolCall(dependencies, assistantSessionId, bookRunId, command, message);
-    return dependencies.redirect(
-      buildResultUrl(bookRunId, 'failed', message, assistantSessionId),
+    await writeBookRunFailureToolCall(
+      dependencies,
+      assistantSessionId,
+      bookRunId,
+      command,
+      message,
     );
+    return dependencies.redirect(buildResultUrl(bookRunId, 'failed', message, assistantSessionId));
   }
 
   let redirectAssistantSessionId: number | undefined;

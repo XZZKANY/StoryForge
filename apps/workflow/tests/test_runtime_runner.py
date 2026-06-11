@@ -13,6 +13,7 @@ from storyforge_workflow.runtime import (
     WorkflowRuntime,
 )
 from storyforge_workflow.runtime.checkpoints import ApiModelRunAdapter
+from storyforge_workflow.runtime.provider_adapter import ProviderError, ProviderErrorKind
 from storyforge_workflow.runtime.provider_execution import ProviderExecutionResult
 
 
@@ -257,6 +258,42 @@ def test_workflow_runtime_keeps_provider_failure_when_model_run_sink_fails(
     failure_event = lifecycle_store.latest("phase8-sink-failure-thread")
     assert failure_event is not None
     assert failure_event.failure_kind == "provider_timeout"
+
+
+def test_workflow_runtime_records_provider_error_kind_in_failed_model_run_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """provider 失败时，错误分类和 Retry-After 必须进入 ModelRun sink payload。"""
+
+    def fail_provider_execution(**kwargs: object) -> ProviderExecutionResult:
+        raise ProviderError(
+            "provider 返回 HTTP 429，触发限流。",
+            status_code=429,
+            kind=ProviderErrorKind.RATE_LIMIT,
+            retry_after_seconds=15,
+        )
+
+    monkeypatch.setattr("storyforge_workflow.runtime.runner.execute_provider_text", fail_provider_execution)
+    checkpoint_store = InMemoryRuntimeCheckpointStore()
+    sink = CapturingModelRunSink()
+    runtime = WorkflowRuntime(checkpoint_store=checkpoint_store, model_run_sink=sink)
+
+    failed = runtime.start(
+        thread_id="phase-provider-kind-thread",
+        job_run_id="phase-provider-kind-job",
+        premise="远航舰队寻找新家园。",
+        user_intent="验证 provider 错误分类。",
+        scene_packet={"scene_goal": "林岚争取维修窗口。"},
+    )
+
+    assert failed.status == "failed"
+    assert sink.payloads[0].status == "failed"
+    assert sink.payloads[0].extras["error_kind"] == "rate_limit"
+    assert sink.payloads[0].extras["retry_after_seconds"] == 15
+    api_payload = sink.payloads[0].to_api_payload(api_job_run_id=44)
+    assert api_payload["error_kind"] == "rate_limit"
+    assert api_payload["payload"]["error_kind"] == "rate_limit"
+    assert api_payload["payload"]["retry_after_seconds"] == 15
 
 
 def test_workflow_runtime_flushes_sqlite_snapshot_after_each_graph_node(

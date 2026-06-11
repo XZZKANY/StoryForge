@@ -250,6 +250,10 @@ test('Web artifacts redirect 页面壳不应继续保留', () => {
   assert.ok(pageContentSource.includes('ArtifactsWorkbench'), 'Artifacts 真实工作台内容必须保留');
   assert.ok(artifactsApiSource.includes('readJson'), 'Artifacts API 读取必须继续复用 readJson');
   assert.ok(
+    artifactsApiSource.match(/params: \{ workspace_id: artifact\.workspace_id \}/g)?.length === 2,
+    'Artifacts 详情和下载摘要必须传递 workspace_id 作用域，避免后端拒绝读取',
+  );
+  assert.ok(
     artifactsApiSource.includes("artifactsEndpoint = '/api/artifacts'"),
     'Artifacts 工作台必须继续读取真实 /api/artifacts 契约',
   );

@@ -15,6 +15,7 @@ test('BookRun 状态页组件展示运行进度和最近事件', () => {
     React.createElement(BookRunStatusPanel, {
       bookRun: {
         id: 12,
+        workspace_id: 3,
         book_id: 5,
         blueprint_id: 9,
         status: 'completed',
@@ -50,17 +51,36 @@ test('BookRun 状态页组件展示运行进度和最近事件', () => {
   assert.ok(html.includes('judge_report_id=32'));
 });
 
-test('BookRun 导出 helper 使用正确 endpoint', () => {
-  assert.deepEqual(exportMarkdownRequest(12), {
-    path: '/api/book-runs/12/exports/markdown',
+test('BookRun 导出 helper 使用 workspace_id 作用域 endpoint', () => {
+  const bookRun = {
+    id: 12,
+    workspace_id: 3,
+    book_id: 5,
+    blueprint_id: 9,
+    status: 'completed',
+    current_chapter_index: 3,
+    total_chapters: 3,
+    progress: {},
+    checkpoint: [],
+    token_budget: null,
+    tokens_used: 840,
+    time_budget_sec: null,
+    elapsed_time_sec: 120,
+    chapter_budget: 3,
+    estimated_cost: 0.42,
+    cost_summary: {},
+  };
+
+  assert.deepEqual(exportMarkdownRequest(bookRun), {
+    path: '/api/book-runs/12/exports/markdown?workspace_id=3',
     init: { method: 'POST' },
   });
-  assert.deepEqual(exportAuditReportRequest(12), {
-    path: '/api/book-runs/12/exports/audit-report',
+  assert.deepEqual(exportAuditReportRequest(bookRun), {
+    path: '/api/book-runs/12/exports/audit-report?workspace_id=3',
     init: { method: 'POST' },
   });
-  assert.deepEqual(exportEpubRequest(12), {
-    path: '/api/book-runs/12/exports/epub',
+  assert.deepEqual(exportEpubRequest(bookRun), {
+    path: '/api/book-runs/12/exports/epub?workspace_id=3',
     init: { method: 'POST' },
   });
 });

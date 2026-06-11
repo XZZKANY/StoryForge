@@ -12,10 +12,7 @@ import {
   type BookRunRead,
 } from '../../app/book-runs/api';
 import { apiFetch } from '../../lib/api-client';
-import {
-  appendAssistantSessionMessage,
-  createAssistantSession,
-} from './assistant-session-store';
+import { appendAssistantSessionMessage, createAssistantSession } from './assistant-session-store';
 import {
   writeAssistantToolCall,
   type AssistantToolCallWrite,
@@ -88,7 +85,7 @@ export async function submitAssistantArtifactExport(
   let redirectAssistantSessionId: number | undefined;
   try {
     for (const buildRequest of exportRequests) {
-      const request = buildRequest(bookRunId);
+      const request = buildRequest(run);
       exportedArtifacts.push(await submitExportRequest(fetcher, request));
     }
     const writtenAssistantSessionId = await (

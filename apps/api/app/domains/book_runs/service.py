@@ -28,6 +28,9 @@ from app.domains.timeline.service import list_timeline_events
 CONTROLLED_PROGRESS_KEYS = frozenset(
     {"provider_resolution", "volume", "current_volume", "chapter_range", "volume_checkpoint"}
 )
+
+# 人工盲评门禁：本批 patch 提供则更新，未提供则保留旧值，避免后续进度回填把验收记录冲掉。
+STICKY_PROGRESS_KEYS = frozenset({"manual_read_gate", "manual_read_review"})
 DEFAULT_TIMELINE_PROJECT_ID = 1
 DEFAULT_TIMELINE_VOLUME_ID = 1
 
@@ -142,7 +145,10 @@ def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRun
     book_run = get_book_run(session, book_run_id)
     if payload.current_chapter_index > book_run.total_chapters:
         raise BookRunError("当前章节不能超过 BookRun 总章节数。")
-    progress = _progress_with_controlled_summaries(book_run.progress, payload.progress, payload.volume_progress)
+    incoming_progress = dict(payload.progress)
+    if payload.manual_read_review is not None:
+        incoming_progress["manual_read_review"] = payload.manual_read_review.model_dump()
+    progress = _progress_with_controlled_summaries(book_run.progress, incoming_progress, payload.volume_progress)
     book_run.status = payload.status
     book_run.current_chapter_index = payload.current_chapter_index
     book_run.progress = progress
@@ -150,6 +156,10 @@ def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRun
     budget = _budget_from_progress(progress)
     book_run.tokens_used = budget["tokens_used"]
     book_run.elapsed_time_sec = budget["elapsed_time_sec"]
+    latency = _latency_from_progress(progress)
+    book_run.total_latency_ms = latency["total_latency_ms"]
+    book_run.max_latency_ms = latency["max_latency_ms"]
+    book_run.avg_latency_ms = latency["avg_latency_ms"]
     book_run.estimated_cost = budget["estimated_cost"]
     book_run.cost_summary = {"estimated_cost": budget["estimated_cost"]}
     if book_run.token_budget is not None:
@@ -517,6 +527,26 @@ def _budget_from_progress(progress: dict) -> dict[str, int | float]:
     }
 
 
+def _latency_from_progress(progress: dict) -> dict[str, int]:
+    completed_chapters = progress.get("completed_chapters")
+    if not isinstance(completed_chapters, list):
+        return {"total_latency_ms": 0, "max_latency_ms": 0, "avg_latency_ms": 0}
+    latencies = [
+        latency
+        for item in completed_chapters
+        if isinstance(item, dict)
+        and (latency := _non_negative_int(item.get("generation_latency_ms"))) > 0
+    ]
+    if not latencies:
+        return {"total_latency_ms": 0, "max_latency_ms": 0, "avg_latency_ms": 0}
+    total = sum(latencies)
+    return {
+        "total_latency_ms": total,
+        "max_latency_ms": max(latencies),
+        "avg_latency_ms": round(total / len(latencies)),
+    }
+
+
 def _budget_exceeded(
     book_run: BookRun,
     budget: dict[str, int | float],
@@ -574,6 +604,12 @@ def _progress_with_controlled_summaries(
     progress = {key: value for key, value in next_progress.items() if key not in CONTROLLED_PROGRESS_KEYS}
     existing = existing_progress if isinstance(existing_progress, dict) else {}
     for key in CONTROLLED_PROGRESS_KEYS:
+        existing_value = existing.get(key)
+        if existing_value is not None:
+            progress[key] = existing_value
+    for key in STICKY_PROGRESS_KEYS:
+        if key in next_progress:
+            continue
         existing_value = existing.get(key)
         if existing_value is not None:
             progress[key] = existing_value
