@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any, Protocol
 
 from storyforge_workflow.orchestrators.book_loop import (
@@ -12,7 +13,12 @@ from storyforge_workflow.orchestrators.book_loop import (
     ConsistencyBarrier,
     run_book_loop,
 )
-from storyforge_workflow.orchestrators.novel_loop import NovelLoopPorts, NovelLoopRequest, run_single_chapter_loop
+from storyforge_workflow.orchestrators.novel_loop import (
+    NovelLoopPorts,
+    NovelLoopRequest,
+    NovelLoopResult,
+    run_single_chapter_loop,
+)
 from storyforge_workflow.quality.arc_consistency import ArcConsistencyBarrier
 from storyforge_workflow.skills.runner import NovelSkillRunner
 
@@ -235,8 +241,13 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         ),
     )
 
-    def run_chapter(chapter_index: int):
-        novel_request = NovelLoopRequest(
+    defer_commit_side_effects = ports.memory_extractor is not None or ports.continuity_submitter is not None
+    novel_requests_by_chapter: dict[int, NovelLoopRequest] = {}
+    novel_ports_by_chapter: dict[int, NovelLoopPorts] = {}
+    novel_loop_cache_lock = Lock()
+
+    def novel_request_for_chapter(chapter_index: int) -> NovelLoopRequest:
+        return NovelLoopRequest(
             book_id=request.book_id,
             chapter_id=ports.chapter_id(chapter_index),
             chapter_index=chapter_index,
@@ -246,11 +257,19 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             phase_policy_summary=dict(request.phase_policy) if request.phase_policy is not None else None,
             entity_budget_summary=dict(request.entity_budget) if request.entity_budget is not None else None,
         )
+
+    def run_chapter(chapter_index: int):
+        novel_request = novel_request_for_chapter(chapter_index)
+        novel_ports = ports.novel_loop_ports_factory(novel_request)
+        with novel_loop_cache_lock:
+            novel_requests_by_chapter[chapter_index] = novel_request
+            novel_ports_by_chapter[chapter_index] = novel_ports
         runner = NovelSkillRunner.default()
         return run_single_chapter_loop(
             novel_request,
-            _novel_loop_ports_with_injected_ports(ports.novel_loop_ports_factory(novel_request), ports),
+            _novel_loop_ports_with_injected_ports(novel_ports, ports),
             skill_runner=runner,
+            defer_commit_side_effects=defer_commit_side_effects,
         )
 
     latest_progress = BookLoopResult(
@@ -274,12 +293,41 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             ),
         )
 
+    def commit_chapter_side_effects(
+        chapter_index: int,
+        chapter_result: NovelLoopResult,
+        committed_chapters: list[dict[str, Any]],
+    ) -> NovelLoopResult:
+        with novel_loop_cache_lock:
+            novel_request = novel_requests_by_chapter.get(chapter_index)
+            novel_ports = novel_ports_by_chapter.get(chapter_index)
+        if novel_request is None:
+            novel_request = novel_request_for_chapter(chapter_index)
+        if novel_ports is None:
+            novel_ports = ports.novel_loop_ports_factory(novel_request)
+        injected_ports = _novel_loop_ports_with_injected_ports(novel_ports, ports)
+        runner = NovelSkillRunner.default()
+        memory_atom_ids = runner.run_memory_extract(
+            request=novel_request,
+            draft=chapter_result.final_draft,
+            approved_scene_id=chapter_result.approved_scene_id or 0,
+            extract_memory=injected_ports.extract_memory,
+        )
+        continuity_result = runner.run_submit_continuity(
+            request=novel_request,
+            draft=chapter_result.final_draft,
+            approved_scene_id=chapter_result.approved_scene_id or 0,
+            submit_continuity=injected_ports.submit_continuity,
+        )
+        return _with_committed_side_effects(chapter_result, memory_atom_ids, continuity_result, runner)
+
     try:
         result = run_book_loop(
             book_loop_request,
             run_chapter,
             progress_callback=emit_chapter_progress,
             consistency_barrier=ports.consistency_barrier,
+            commit_chapter_side_effects=commit_chapter_side_effects if defer_commit_side_effects else None,
         )
     except ChapterExecutionError as exc:
         _emit_result_progress(
@@ -328,6 +376,29 @@ def _with_dispatch(result: BookLoopResult, dispatch: dict[str, Any]) -> BookLoop
     progress = dict(result.progress)
     progress["dispatch"] = dispatch
     return BookLoopResult(status=result.status, current_chapter_index=result.current_chapter_index, progress=progress)
+
+
+def _with_committed_side_effects(
+    chapter_result: NovelLoopResult,
+    memory_atom_ids: list[str],
+    continuity_result: dict[str, Any],
+    runner: NovelSkillRunner,
+) -> NovelLoopResult:
+    return NovelLoopResult(
+        status=chapter_result.status,
+        final_draft=chapter_result.final_draft,
+        source_model_run_id=chapter_result.source_model_run_id,
+        judge_report_id=chapter_result.judge_report_id,
+        repair_patch_id=chapter_result.repair_patch_id,
+        approved_scene_id=chapter_result.approved_scene_id,
+        token_usage=chapter_result.token_usage,
+        elapsed_time_sec=chapter_result.elapsed_time_sec,
+        cost_estimate=chapter_result.cost_estimate,
+        fallback_metadata=chapter_result.fallback_metadata,
+        memory_atom_ids=list(memory_atom_ids),
+        continuity_edge_count=_positive_int_or_zero(continuity_result.get("continuity_edge_count")),
+        skill_runs=tuple([*chapter_result.skill_runs, *(run.to_audit_dict() for run in runner.runs)]),
+    )
 
 
 def _with_narrative_progress(request: BookRunAdapterRequest, progress: Mapping[str, Any]) -> dict[str, Any]:

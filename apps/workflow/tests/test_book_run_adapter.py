@@ -300,6 +300,57 @@ def test_book_run_adapter_wraps_continuity_submitter_into_novel_loop_ports() -> 
     assert submit_runs[-1]["output_refs"]["continuity_edge_count"] == 2
 
 
+def test_book_run_adapter_defers_memory_and_continuity_until_commit_boundary() -> None:
+    side_effect_calls: list[tuple[str, int, int]] = []
+
+    def memory_extractor(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> list[str]:
+        side_effect_calls.append(("memory", request.chapter_index, approved_scene_id))
+        return [f"memory:{request.chapter_index}"]
+
+    def continuity_submitter(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> dict:
+        side_effect_calls.append(("continuity", request.chapter_index, approved_scene_id))
+        return {"continuity_edge_count": request.chapter_index}
+
+    def consistency_barrier(chapter_index, chapter_result, committed_chapters):
+        if chapter_index == 2:
+            from storyforge_workflow.orchestrators.book_loop import ChapterConsistencyReport
+
+            return ChapterConsistencyReport(conflicts=[{"kind": "gate_block"}])
+        return None
+
+    sink = CapturingProgressSink()
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=lambda chapter_index: chapter_index + 100,
+        novel_loop_ports_factory=_ports_without_memory_extractor,
+        progress_sink=sink,
+        memory_extractor=memory_extractor,
+        continuity_submitter=continuity_submitter,
+        consistency_barrier=consistency_barrier,
+    )
+    request = BookRunAdapterRequest(
+        book_run_id=301,
+        book_id=302,
+        blueprint_id=303,
+        total_chapters=3,
+        chapter_parallelism=3,
+    )
+
+    result = run_book_run_with_skill_runner(request, ports)
+
+    assert result.status == "awaiting_review"
+    assert side_effect_calls == [("memory", 1, 701), ("continuity", 1, 701)]
+    assert result.progress["checkpoint"][0]["memory_atom_ids"] == ["memory:1"]
+    assert result.progress["checkpoint"][0]["continuity_edge_count"] == 1
+    blocked = result.progress["blocked_chapter"]
+    assert blocked["chapter_index"] == 2
+    assert blocked["memory_atom_ids"] == []
+    assert blocked["continuity_edge_count"] == 0
+    assert result.progress["generated_but_uncommitted"] == [{"chapter_index": 3, "status": "generated"}]
+    committed_skill_names = [run["skill_name"] for run in result.progress["completed_chapters"][0]["skill_runs"]]
+    assert committed_skill_names[-2:] == ["memory_extract", "submit_continuity"]
+
+
 def test_book_run_adapter_emits_running_progress_after_each_completed_chapter() -> None:
     """adapter 应把每章完章作为 running progress 投递，供生产调度面板实时推进。"""
 
@@ -462,6 +513,7 @@ def test_book_run_adapter_passes_budget_guard_prefetch_flag(monkeypatch) -> None
         progress_callback=None,
         consistency_barrier=None,
         precommit_chapter=None,
+        commit_chapter_side_effects=None,
     ):
         captured["require_budget_guard_before_prefetch"] = request.require_budget_guard_before_prefetch
         return BookLoopResult(status="completed", current_chapter_index=1, progress={"completed_chapters": []})

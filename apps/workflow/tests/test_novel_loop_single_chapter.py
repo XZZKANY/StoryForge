@@ -53,6 +53,32 @@ def test_single_chapter_loop_extracts_memory_after_approval() -> None:
     assert calls == ["approve", "extract:21:2"]
 
 
+def test_single_chapter_loop_can_defer_memory_and_continuity_side_effects() -> None:
+    memory_calls: list[int] = []
+    continuity_calls: list[int] = []
+
+    ports = NovelLoopPorts(
+        compile_context=lambda request: "ctx-1",
+        generate_scene=lambda request, context_id: "正文。",
+        record_model_run=lambda request, draft: 10,
+        judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": 20},
+        repair_scene=lambda draft, report, attempt: draft,
+        approve_scene=lambda request, draft, refs: 30,
+        extract_memory=lambda request, draft, approved_scene_id: memory_calls.append(approved_scene_id) or ["m1"],
+        submit_continuity=lambda request, draft, approved_scene_id: continuity_calls.append(approved_scene_id)
+        or {"continuity_edge_count": 2},
+    )
+
+    result = run_single_chapter_loop(_request(), ports, defer_commit_side_effects=True)
+
+    assert result.status == "approved"
+    assert result.approved_scene_id == 30
+    assert result.memory_atom_ids == []
+    assert result.continuity_edge_count == 0
+    assert memory_calls == []
+    assert continuity_calls == []
+
+
 def test_single_chapter_loop_repairs_once_then_approves() -> None:
     """首次 Judge 失败但修复后通过时，应批准修复稿。"""
 

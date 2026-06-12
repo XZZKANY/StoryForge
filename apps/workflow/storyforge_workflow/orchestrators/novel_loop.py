@@ -134,6 +134,7 @@ def run_single_chapter_loop(
     *,
     max_repairs: int = 1,
     skill_runner: NovelSkillRunnerPort | None = None,
+    defer_commit_side_effects: bool = False,
 ) -> NovelLoopResult:
     """执行单章 compile -> generate -> judge -> repair -> approve 闭环。"""
 
@@ -176,8 +177,6 @@ def run_single_chapter_loop(
             refs = {"source_model_run_id": model_run_id, "judge_report_id": judge_report_id}
             if skill_runner is None:
                 approved_scene_id = ports.approve_scene(request, draft, refs)
-                memory_atom_ids = ports.extract_memory(request, draft, approved_scene_id)
-                continuity_result = ports.submit_continuity(request, draft, approved_scene_id)
             else:
                 approved_scene_id = skill_runner.run_approve(
                     request=request,
@@ -185,6 +184,13 @@ def run_single_chapter_loop(
                     refs=refs,
                     approve_scene=ports.approve_scene,
                 )
+            if defer_commit_side_effects:
+                memory_atom_ids = []
+                continuity_result = {}
+            elif skill_runner is None:
+                memory_atom_ids = ports.extract_memory(request, draft, approved_scene_id)
+                continuity_result = ports.submit_continuity(request, draft, approved_scene_id)
+            else:
                 memory_atom_ids = skill_runner.run_memory_extract(
                     request=request,
                     draft=draft,
