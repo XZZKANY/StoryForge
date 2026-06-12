@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from storyforge_workflow.narrative.collapse_judge import NarrativeCollapseJudge
 from storyforge_workflow.narrative.extract import NarrativeSceneFact
 from storyforge_workflow.narrative.plan import NarrativePlan
+from storyforge_workflow.narrative.repetition_ledger import RepetitionLedger
 from storyforge_workflow.narrative.verdict import GateVerdict
 
 
@@ -19,6 +20,7 @@ class NarrativeGateHarness:
     def __init__(self, plan: NarrativePlan) -> None:
         self.plan = plan
         self.collapse_judge = NarrativeCollapseJudge()
+        self.repetition_ledger = RepetitionLedger(policy=plan.repetition_policy)
 
     def evaluate(self, gate_input: NarrativeGateInput) -> GateVerdict:
         if gate_input.narrative_fact is None:

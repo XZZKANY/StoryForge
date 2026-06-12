@@ -44,3 +44,22 @@ def test_narrative_plan_normalizes_dicts_and_summarizes_without_full_text() -> N
     assert summary["chapter_count"] == 1
     assert summary["allowed_characters"] == ["林岚", "周砚"]
     assert "林岚在灯塔底层发现芯片" not in str(summary)
+
+
+def test_narrative_plan_parses_repetition_policy() -> None:
+    plan = NarrativePlan.from_dict(
+        {
+            "premise": "x",
+            "truth": "y",
+            "protagonist_arc": "z",
+            "antagonist_motive": "m",
+            "repetition_policy": {
+                "tracked_motifs": [{"key": "old_wound", "terms": ["旧伤"], "threshold": 2}],
+                "tracked_action_patterns": [{"key": "archive_loop", "terms": ["归档", "同步"], "threshold": 1}],
+            },
+        }
+    )
+
+    assert plan.repetition_policy.tracked_motifs[0].key == "old_wound"
+    assert plan.repetition_policy.tracked_motifs[0].terms == ("旧伤",)
+    assert plan.repetition_policy.tracked_action_patterns[0].threshold == 1

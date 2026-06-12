@@ -71,6 +71,49 @@ class NarrativePhasePolicy:
 
 
 @dataclass(frozen=True)
+class RepetitionPattern:
+    key: str
+    terms: tuple[str, ...] = ()
+    threshold: int = 3
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> RepetitionPattern:
+        if not data:
+            return cls(key="")
+        return cls(
+            key=str(data.get("key") or "").strip(),
+            terms=_string_tuple(data.get("terms")),
+            threshold=_positive_int(data.get("threshold"), default=3),
+        )
+
+
+@dataclass(frozen=True)
+class RepetitionPolicy:
+    tracked_motifs: tuple[RepetitionPattern, ...] = ()
+    tracked_action_patterns: tuple[RepetitionPattern, ...] = ()
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> RepetitionPolicy:
+        if not data:
+            return cls()
+        return cls(
+            tracked_motifs=tuple(
+                RepetitionPattern.from_dict(item) for item in _mapping_sequence(data.get("tracked_motifs"))
+            ),
+            tracked_action_patterns=tuple(
+                RepetitionPattern.from_dict(item)
+                for item in _mapping_sequence(data.get("tracked_action_patterns"))
+            ),
+        )
+
+    def compact_summary(self) -> dict[str, int]:
+        return {
+            "tracked_motifs": len(self.tracked_motifs),
+            "tracked_action_patterns": len(self.tracked_action_patterns),
+        }
+
+
+@dataclass(frozen=True)
 class ChapterBeat:
     chapter: int
     function: str
@@ -114,6 +157,7 @@ class NarrativePlan:
     chapter_beats: tuple[ChapterBeat, ...] = ()
     phase_policy: NarrativePhasePolicy = field(default_factory=NarrativePhasePolicy)
     entity_budget: EntityBudget = field(default_factory=EntityBudget)
+    repetition_policy: RepetitionPolicy = field(default_factory=RepetitionPolicy)
     locked: bool = False
 
     @classmethod
@@ -131,6 +175,7 @@ class NarrativePlan:
             chapter_beats=tuple(ChapterBeat.from_dict(item) for item in _mapping_sequence(data.get("chapter_beats"))),
             phase_policy=NarrativePhasePolicy.from_dict(_maybe_mapping(data.get("phase_policy"))),
             entity_budget=EntityBudget.from_dict(_maybe_mapping(data.get("entity_budget"))),
+            repetition_policy=RepetitionPolicy.from_dict(_maybe_mapping(data.get("repetition_policy"))),
             locked=bool(data.get("locked", False)),
         )
 
@@ -150,6 +195,7 @@ class NarrativePlan:
             "chapter_beats": [beat.compact_summary() for beat in self.chapter_beats],
             "phase_policy": self.phase_policy.compact_summary(),
             "entity_budget": self.entity_budget.compact_summary(),
+            "repetition_policy": self.repetition_policy.compact_summary(),
         }
 
 
@@ -171,6 +217,13 @@ def _maybe_mapping(value: Any) -> Mapping[str, Any] | None:
 
 def _string_tuple(value: Any) -> tuple[str, ...]:
     return tuple(str(item).strip() for item in _sequence(value) if str(item).strip())
+
+
+def _positive_int(value: Any, *, default: int) -> int:
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return default
 
 
 def _normalize_entity_delta(value: Any) -> dict[str, tuple[str, ...]]:
