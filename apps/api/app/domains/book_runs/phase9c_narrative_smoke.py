@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 
-
 _CHAPTER_HEADING_RE = re.compile(r"^\s*##\s*第\s*(\d+)\s*章(?:\s+.*)?\s*$")
 
 _REQUIRED_CONTRACT_FIELDS = [

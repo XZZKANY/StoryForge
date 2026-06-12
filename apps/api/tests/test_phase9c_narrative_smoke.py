@@ -2,7 +2,6 @@ from app.domains.book_runs.phase9c_narrative_smoke import (
     _auto_gate_results_from_book_export,
 )
 
-
 REQUIRED_FIELDS = [
     "cost",
     "relationship_delta",
