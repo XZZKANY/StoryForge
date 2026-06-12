@@ -110,6 +110,31 @@ def test_prompt_injection_keys_reach_state_but_stay_out_of_checkpoint() -> None:
         assert injected_key not in checkpoint_state
 
 
+def test_prompt_injection_accepts_narrative_contract_fields_without_checkpointing() -> None:
+    state = initial_generation_state(
+        thread_id="thread-narrative-contract",
+        job_run_id="job-narrative-contract",
+        premise="雾港旧案。",
+        user_intent="验证叙事合同注入。",
+        prompt_injection={
+            "scene_quality_plan": {"conflict_turn": "周砚拒绝交出旧记录。"},
+            "current_chapter_beat": {
+                "primary_scene_mode": "character_conflict",
+                "protagonist_mistake": "林岚误信灯塔账本",
+                "irreversible_consequence": "证人保护资格被撤销",
+            },
+        },
+    )
+
+    assert state["scene_quality_plan"]["conflict_turn"] == "周砚拒绝交出旧记录。"
+    assert state["current_chapter_beat"]["primary_scene_mode"] == "character_conflict"
+
+    checkpoint = checkpoint_reference_state(dict(state))
+
+    assert "scene_quality_plan" not in checkpoint
+    assert "current_chapter_beat" not in checkpoint
+
+
 def test_runtime_checkpoint_store_saves_reference_state_only() -> None:
     """运行时 checkpoint 仓库必须在边界处强制引用化。"""
 

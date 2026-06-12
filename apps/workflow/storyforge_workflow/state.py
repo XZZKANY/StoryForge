@@ -49,6 +49,9 @@ _PROMPT_INJECTION_KEYS = {
     "style_directive",
     "pacing_directive",
     "continuity_facts",
+    "scene_quality_plan",
+    "current_chapter_beat",
+    "chapter_beat_directive",
 }
 
 
@@ -89,6 +92,9 @@ class GenerationState(TypedDict, total=False):
     style_directive: dict[str, Any]
     pacing_directive: dict[str, Any]
     continuity_facts: list[dict[str, Any]]
+    scene_quality_plan: dict[str, Any]
+    current_chapter_beat: dict[str, Any]
+    chapter_beat_directive: dict[str, Any]
     # 评审→修订环的工作键：在单次执行内 draft_writer→critic→reviser 间流转，
     # 同样不纳入 _REFERENCE_STATE_KEYS（环在 human_approval 中断前闭合，无需跨 checkpoint 续存）。
     draft_preview_ref: str

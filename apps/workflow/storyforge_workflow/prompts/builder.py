@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 
 from storyforge_workflow.prompts.models import (
     CharacterConstraint,
@@ -172,6 +173,37 @@ def _scene_quality_section(ctx: NarrativeContext) -> str:
     if _clean(plan.ending_hook):
         lines.append(f"结尾钩子：{_clean(plan.ending_hook)}")
     return _section("场景质量计划", lines)
+
+
+def _beat_value(beat: Any, key: str) -> Any:
+    if isinstance(beat, dict):
+        return beat.get(key)
+    return getattr(beat, key, None)
+
+
+def _chapter_beat_section(ctx: NarrativeContext) -> str:
+    beat = getattr(ctx, "chapter_beat", None) or getattr(ctx, "current_chapter_beat", None)
+    if not beat:
+        return ""
+    fields = (
+        "primary_scene_mode",
+        "forbidden_action_pattern",
+        "required_conflict_type",
+        "required_turning_point",
+        "protagonist_mistake",
+        "irreversible_consequence",
+        "relationship_shift",
+        "clue_usage_mode",
+        "new_evidence_allowed",
+    )
+    lines = []
+    for field in fields:
+        value = _beat_value(beat, field)
+        if value is None or value == "":
+            continue
+        lines.append(f"{field}：{value}")
+    return _section("ChapterBeat 结构门槛", lines)
+
 
 def _continuity_section(ctx: NarrativeContext) -> str:
     lines = [fact.describe() for fact in ctx.continuity if _clean(fact.statement)]
@@ -429,6 +461,8 @@ def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
         "scene_progression",
         "pacing_control",
         "hook_strength",
+        "beat_fulfillment",
+        "narrative_collapse",
         "ai_artifact_penalty",
     )
     sections = [
@@ -445,6 +479,7 @@ def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
         _style_section(ctx.style),
         _position_section(ctx),
         _scene_quality_section(ctx),
+        _chapter_beat_section(ctx),
         _continuity_section(ctx),
         _section("待审正文", [_clean(draft) or "（空）"]),
         _section(
@@ -457,6 +492,8 @@ def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
                 "scene_progression：是否完成场景目标和动作 beat。",
                 "pacing_control：句长、对白密度、节奏推进是否稳定。",
                 "hook_strength：结尾是否留下推动下一段的钩子。",
+                "beat_fulfillment：正文是否兑现 ChapterBeat 中的冲突、误判、代价、关系变化、旧线索解释与不可逆后果。",
+                "narrative_collapse：是否落入到新地点、问询、取得物证、收好、转向下一处的默认调查模板，或删掉本章也不影响主线。",
                 "ai_artifact_penalty：说明腔、大纲腔、模板腔和机械重复惩罚。",
             ],
         ),
@@ -468,8 +505,10 @@ def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
                 "旧格式兼容：维度｜命中片段｜应如何修。",
                 "DECISION: pass|repair|regenerate|awaiting_review",
                 "SCORE: " + "; ".join(f"{dimension}=0-100" for dimension in score_dimensions),
+                "BEAT_FULFILLMENT: yes|partial|no",
+                "NARRATIVE_COLLAPSE: none|warning|soft_fail|hard_fail",
                 "ISSUE: 维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果",
-                "修订策略只能是 line_edit、scene_patch、regenerate；严重连续性或角色问题使用 awaiting_review。",
+                "修订策略只能是 line_edit、scene_patch、regenerate、structure_repair、convert_process_to_scene、reinterpret_existing_clue；严重连续性或角色问题使用 awaiting_review。",
                 "不要加序号、标题或额外解释，只列实际存在的问题。",
             ],
         ),
