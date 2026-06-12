@@ -202,6 +202,11 @@ def _chapter_beat_section(ctx: NarrativeContext) -> str:
         if value is None or value == "":
             continue
         lines.append(f"{field}：{value}")
+    if _beat_value(beat, "primary_scene_mode") != "investigation_fetch_loop":
+        pattern = _beat_value(beat, "forbidden_action_pattern") or "到新地点/问询/取得小物证/收入口袋/转向下一处"
+        lines.append(f"禁止使用默认调查推进模板：{pattern}")
+        lines.append("不得把本章写成到新地点/问询/取得小物证/收入口袋/转向下一处的流程。")
+        lines.append("生成前先在内部确认：误判、主动阻碍、代价、旧线索重释和不可逆变化都已成立；最终只输出正文。")
     return _section("ChapterBeat 结构门槛", lines)
 
 
@@ -333,6 +338,7 @@ def build_draft_prompt(ctx: NarrativeContext, *, preview_chars: int = 120, full_
         _style_section(ctx.style),
         _position_section(ctx),
         _scene_quality_section(ctx),
+        _chapter_beat_section(ctx),
         _continuity_section(ctx),
         _previous_section(ctx),
         _pacing_section(pacing),
@@ -381,6 +387,7 @@ def build_longform_segment_prompt(
         _style_section(ctx.style),
         _position_section(ctx),
         _scene_quality_section(ctx),
+        _chapter_beat_section(ctx),
         _continuity_section(ctx),
         _section("上文摘要（保持连续，不要重复已写内容）", [summary]),
         _pacing_section(ctx.pacing),

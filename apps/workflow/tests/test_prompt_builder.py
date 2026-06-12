@@ -72,6 +72,17 @@ def _full_context() -> NarrativeContext:
             reveal_or_payoff="兑现左臂旧伤伏笔。",
             ending_hook="灯塔信号突然中断。",
         ),
+        current_chapter_beat=SimpleNamespace(
+            primary_scene_mode="character_conflict",
+            forbidden_action_pattern="到新地点-问询-取得小物证-收入口袋-转向下一处",
+            required_conflict_type="人物冲突",
+            required_turning_point="港口代表拒绝默认维修协议",
+            protagonist_mistake="林岚误判港口代表会遵守旧盟约",
+            irreversible_consequence="备用维修窗口被取消",
+            relationship_shift="林岚与港口代表公开决裂",
+            clue_usage_mode="reinterpret_existing",
+            new_evidence_allowed=False,
+        ),
     )
 
 
@@ -110,6 +121,26 @@ def test_draft_prompt_injects_scene_quality_plan() -> None:
     assert "对白目的：让代表用报价逼出林岚的底线。" in prompt
     assert "伏笔/兑现：兑现左臂旧伤伏笔。" in prompt
     assert "结尾钩子：灯塔信号突然中断。" in prompt
+
+
+def test_draft_prompt_injects_chapter_beat_contract() -> None:
+    prompt = build_draft_prompt(_full_context())
+    assert "【ChapterBeat 结构门槛】" in prompt
+    assert "primary_scene_mode：character_conflict" in prompt
+    assert "禁止使用默认调查推进模板" in prompt
+
+
+def test_longform_prompt_injects_chapter_beat_contract() -> None:
+    prompt = build_longform_segment_prompt(
+        _full_context(),
+        title="灯塔余烬",
+        segment_index=2,
+        segment_target_chars=900,
+        remaining_chars=4500,
+    )
+    assert "【ChapterBeat 结构门槛】" in prompt
+    assert "primary_scene_mode：character_conflict" in prompt
+    assert "禁止使用默认调查推进模板" in prompt
 
 
 def test_context_from_state_maps_scene_quality_plan() -> None:
@@ -320,6 +351,15 @@ def test_critique_prompt_requests_structured_quality_scores() -> None:
     ):
         assert dimension in prompt
     assert "ISSUE: 维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果" in prompt
+    assert "BEAT_FULFILLMENT: yes|partial|no" in prompt
+    assert "NARRATIVE_COLLAPSE: none|warning|soft_fail|hard_fail" in prompt
+
+
+def test_critique_prompt_score_contract_has_unique_dimensions() -> None:
+    prompt = build_critique_prompt(_full_context(), "林岚很愤怒地进入谈判。")
+    score_line = next(line for line in prompt.splitlines() if line.startswith("SCORE: "))
+    dimensions = [part.split("=", 1)[0].strip() for part in score_line.removeprefix("SCORE: ").split(";")]
+    assert len(dimensions) == len(set(dimensions))
 
 
 def test_critique_prompt_injects_chapter_beat_contract() -> None:
