@@ -48,19 +48,6 @@ class NarrativeCollapseJudge:
         phase_policy: NarrativePhasePolicy | None = None,
         new_core_entities: Mapping[str, Sequence[str]] | None = None,
     ) -> GateVerdict:
-        if fact.extraction_failed:
-            return verdict_from_issues(
-                [
-                    issue(
-                        "叙事塌缩",
-                        f"fact extraction failed: {fact.extraction_error}",
-                        severity="低",
-                        revision_strategy="manual_review",
-                    )
-                ],
-                warn_only=True,
-            )
-
         hard_issues: list[dict[str, str]] = []
         soft_issues: list[dict[str, str]] = []
         if (
@@ -70,6 +57,19 @@ class NarrativeCollapseJudge:
             and any(values for values in (new_core_entities or {}).values())
         ):
             hard_issues.append(issue("叙事塌缩", "phase says收束 but chapter expands"))
+
+        if fact.extraction_failed:
+            soft_issues.append(
+                issue(
+                    "叙事塌缩",
+                    f"fact extraction failed: {fact.extraction_error}",
+                    severity="低",
+                    revision_strategy="manual_review",
+                )
+            )
+            if hard_issues:
+                return verdict_from_issues(hard_issues + soft_issues)
+            return verdict_from_issues(soft_issues, warn_only=True)
 
         if fact.deletable:
             soft_issues.append(
@@ -88,6 +88,7 @@ class NarrativeCollapseJudge:
                 issue(
                     "叙事塌缩",
                     "正文调查模板: investigation actions lack cost, relationship delta, or irreversible consequence",
+                    severity="中",
                     snippet="-".join(fact.action_sequence),
                     revision_strategy="convert_process_to_scene",
                 )

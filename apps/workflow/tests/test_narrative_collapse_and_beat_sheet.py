@@ -57,6 +57,9 @@ def test_collapse_judge_fact_warns_on_weighted_fetch_loop_without_cost() -> None
     assert verdict.status == "warn"
     assert any("正文调查模板" in issue["message"] for issue in verdict.issues)
     assert any(issue["revision_strategy"] == "convert_process_to_scene" for issue in verdict.issues)
+    assert all(
+        issue["severity"] != "高" for issue in verdict.issues if "正文调查模板" in issue["message"]
+    )
 
 
 def test_collapse_judge_fact_passes_fetch_actions_with_real_cost_and_relationship_delta() -> None:
@@ -76,6 +79,32 @@ def test_collapse_judge_fact_passes_fetch_actions_with_real_cost_and_relationshi
     verdict = NarrativeCollapseJudge().judge_fact(fact)
 
     assert verdict.status == "pass"
+
+
+def test_collapse_judge_fact_extraction_failure_warns_for_manual_review() -> None:
+    fact = NarrativeSceneFact.failed(chapter=8, error="invalid_json")
+
+    verdict = NarrativeCollapseJudge().judge_fact(fact)
+
+    assert verdict.status == "warn"
+    assert any(
+        issue["revision_strategy"] == "manual_review" and "invalid_json" in issue["message"]
+        for issue in verdict.issues
+    )
+
+
+def test_collapse_judge_fact_extraction_failure_does_not_mask_closing_phase_expansion() -> None:
+    fact = NarrativeSceneFact.failed(chapter=29, error="invalid_json")
+
+    verdict = NarrativeCollapseJudge().judge_fact(
+        fact,
+        phase_policy=NarrativePhasePolicy(phase="收束", allowed_expansion=False),
+        new_core_entities={"evidence": ("登记表",)},
+    )
+
+    assert verdict.status == "fail"
+    assert any("phase says收束 but chapter expands" in issue["message"] for issue in verdict.issues)
+    assert any(issue["revision_strategy"] == "manual_review" for issue in verdict.issues)
 
 
 def test_beat_sheet_gate_fails_long_tracking_run_and_missing_five_chapter_turn() -> None:
@@ -120,6 +149,28 @@ def test_narrative_gate_harness_surfaces_fact_collapse_issues() -> None:
 
     assert verdict.status == "warn"
     assert any("正文调查模板" in issue["message"] for issue in verdict.issues)
+
+
+def test_narrative_gate_harness_fails_fact_new_evidence_in_closing_phase() -> None:
+    plan = NarrativePlan(
+        premise="旧航线失踪。",
+        truth="舰队被藏起。",
+        protagonist_arc="承担代价。",
+        antagonist_motive="掩盖真相。",
+        phase_policy=NarrativePhasePolicy(phase="收束", allowed_expansion=False),
+    )
+    fact = NarrativeSceneFact(
+        chapter=29,
+        primary_scene_mode="investigation_fetch_loop",
+        action_sequence=("来到档案室", "查看记录"),
+        clue_usage_mode="introduce_new",
+        new_evidence=("登记表",),
+    )
+
+    verdict = NarrativeGateHarness(plan).evaluate(NarrativeGateInput(narrative_fact=fact))
+
+    assert verdict.status == "fail"
+    assert any("phase says收束 but chapter expands" in issue["message"] for issue in verdict.issues)
 
 
 def test_beat_sheet_gate_fails_late_expansion_and_chapter_30_not_closing() -> None:
