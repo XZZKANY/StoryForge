@@ -394,6 +394,34 @@ def test_parse_issues_keeps_negative_pass_phrases_as_issues() -> None:
     ]
 
 
+def test_parse_issues_treats_structured_pass_metadata_as_approved() -> None:
+    """结构化 critic 元数据给出 pass 时不应进入修订问题清单。"""
+
+    assert (
+        _parse_issues(
+            "DECISION: pass\n"
+            "SCORE: 92\n"
+            "BEAT_FULFILLMENT: yes\n"
+            "NARRATIVE_COLLAPSE: none"
+        )
+        == []
+    )
+
+
+def test_parse_issues_filters_metadata_and_keeps_issue_lines() -> None:
+    """结构化 critic 输出中只有 ISSUE 行应作为修订问题保留。"""
+
+    assert _parse_issues(
+        "DECISION: repair\n"
+        "SCORE: prose_quality=72; beat_fulfillment=40\n"
+        "BEAT_FULFILLMENT: partial\n"
+        "NARRATIVE_COLLAPSE: warning\n"
+        "ISSUE: beat_fulfillment｜高｜问完话后把记录收进口袋｜缺少误判代价｜structure_repair｜周砚拒绝交出旧记录｜新物证｜让冲突兑现"
+    ) == [
+        "beat_fulfillment｜高｜问完话后把记录收进口袋｜缺少误判代价｜structure_repair｜周砚拒绝交出旧记录｜新物证｜让冲突兑现"
+    ]
+
+
 def test_planning_nodes_raise_on_malformed_llm_output(monkeypatch) -> None:
     """规划节点输出结构不足时应显式失败，不能静默把垃圾规划传给下游。"""
 

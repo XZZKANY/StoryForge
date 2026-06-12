@@ -256,11 +256,9 @@ def _scene_quality_plan_from_state(state: Mapping[str, Any]) -> SceneQualityPlan
     )
 
 
-def _chapter_beat_from_state(state: Mapping[str, Any]) -> dict[str, Any]:
+def _chapter_beat_from_state(state: Mapping[str, Any]) -> Any | None:
     raw = state.get("current_chapter_beat") or state.get("chapter_beat_directive")
-    if not isinstance(raw, Mapping):
-        return {}
-    return dict(raw)
+    return raw or None
 
 
 def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
@@ -284,10 +282,8 @@ def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
         continuity=_continuity_from_state(state),
         required_facts=tuple(_str_list(state.get("required_fact_refs"))),
         scene_quality_plan=_scene_quality_plan_from_state(state),
+        current_chapter_beat=_chapter_beat_from_state(state),
         target_word_count_min=_positive_int(state.get("target_word_count_min")),
         target_word_count_max=_positive_int(state.get("target_word_count_max")),
     )
-    chapter_beat = _chapter_beat_from_state(state)
-    if chapter_beat:
-        object.__setattr__(ctx, "current_chapter_beat", chapter_beat)
     return ctx

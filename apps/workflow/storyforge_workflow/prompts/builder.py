@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from storyforge_workflow.prompts.models import (
@@ -176,7 +176,7 @@ def _scene_quality_section(ctx: NarrativeContext) -> str:
 
 
 def _beat_value(beat: Any, key: str) -> Any:
-    if isinstance(beat, dict):
+    if isinstance(beat, Mapping):
         return beat.get(key)
     return getattr(beat, key, None)
 

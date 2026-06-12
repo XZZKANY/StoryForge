@@ -13,6 +13,13 @@ from storyforge_workflow.state import GenerationState, advance_status
 
 # critic 判定"通过"的哨兵：见到即视为无问题，结束评审环。
 _CRITIQUE_PASS_TOKEN = "通过"
+_CRITIQUE_METADATA_PREFIXES = (
+    "DECISION:",
+    "SCORE:",
+    "BEAT_FULFILLMENT:",
+    "NARRATIVE_COLLAPSE:",
+)
+_CRITIQUE_ISSUE_PREFIX = "ISSUE:"
 
 
 def create_draft_excerpt(state: GenerationState) -> dict:
@@ -68,7 +75,19 @@ def _parse_issues(raw: str) -> list[str]:
         return []
     if _is_critique_pass_line(lines[0]):
         return []
-    return [line for line in lines if not line.startswith(_CRITIQUE_PASS_TOKEN)]
+    issues: list[str] = []
+    for line in lines:
+        if line.startswith(_CRITIQUE_PASS_TOKEN) or _is_critique_metadata_line(line):
+            continue
+        if line.startswith(_CRITIQUE_ISSUE_PREFIX):
+            issues.append(line.removeprefix(_CRITIQUE_ISSUE_PREFIX).strip(" -：:"))
+            continue
+        issues.append(line)
+    return issues
+
+
+def _is_critique_metadata_line(line: str) -> bool:
+    return line.upper().startswith(_CRITIQUE_METADATA_PREFIXES)
 
 
 def _is_critique_pass_line(line: str) -> bool:

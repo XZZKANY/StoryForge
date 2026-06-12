@@ -326,11 +326,7 @@ def test_critique_prompt_injects_chapter_beat_contract() -> None:
     ctx = NarrativeContext(
         chapter_title="第八章：裂痕",
         scene_goal="林岚在对峙中为误判付出代价。",
-    )
-    object.__setattr__(
-        ctx,
-        "chapter_beat",
-        SimpleNamespace(
+        current_chapter_beat=SimpleNamespace(
             primary_scene_mode="character_conflict",
             forbidden_action_pattern="到新地点-问询-取得小物证-收入口袋-转向下一处",
             required_conflict_type="人物冲突",
