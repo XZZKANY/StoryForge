@@ -90,3 +90,19 @@
 - **未联通能力**：完整 `pnpm e2e` 的真实 HTTP pytest 需起 docker 服务，本机服务未启动；本轮以 API/web 单元+契约测试与 OpenAPI/types 生成链路覆盖增量。
 
 收尾时间戳：2026-06-11 10:55:00 +08:00。
+
+---
+
+## 13. Narrative Contract Closure Implementation（2026-06-12）
+
+- **目标**：实现 StoryForge 总计划改造 P0/P1 第一批：critic 合同核验、prompt 注入键统一、正文级 narrative extract、fact-based collapse judge、Phase9C contract evidence、commit-time memory/continuity side effects、repetition ledger 参数化。
+- **本地验证**：
+  - `cd apps/workflow && uv run pytest tests/test_prompt_builder.py tests/test_generation_state_references.py tests/test_narrative_extract.py tests/test_narrative_collapse_and_beat_sheet.py tests/test_novel_loop_single_chapter.py tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_narrative_registries.py -q`：103 passed。
+  - `cd apps/api && uv run pytest tests/test_phase9c_narrative_smoke.py tests/test_phase9b_real_llm_smoke.py tests/test_book_runs.py -q`：45 passed，1 warning（FastAPI/Starlette 422 常量 deprecation）。
+  - `cd apps/workflow && uv run ruff check storyforge_workflow/prompts storyforge_workflow/state.py storyforge_workflow/narrative storyforge_workflow/orchestrators tests/test_prompt_builder.py tests/test_narrative_extract.py tests/test_narrative_collapse_and_beat_sheet.py tests/test_book_loop_three_chapters.py tests/test_narrative_registries.py`：All checks passed。
+  - `cd apps/api && uv run ruff check app/domains/book_runs/phase9c_narrative_smoke.py tests/test_phase9c_narrative_smoke.py`：All checks passed。
+- **范围说明**：`tests/test_narrative_30ch_regression_fixtures.py` 在当前 worktree 不存在，未纳入本轮命令；`tests/test_phase3_arc_consistency.py` 仍有 3 个基线失败，原因是测试 payload 缺少既有 guard 要求的 `narrative_plan.locked=True`，已由 Task 5 审查确认不是本批改动引入。
+- **未联通能力**：未重跑真实 6/15/30 章 narrative smoke；满足本批单元/契约门槛后再执行真实 smoke。
+- **下一步**：先跑 6 章 Phase9C narrative smoke，模板章 <=1 且人工抽读通过后进入 15 章。
+
+记录时间戳：2026-06-13 00:23:47 +08:00。
