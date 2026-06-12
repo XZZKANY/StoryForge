@@ -255,10 +255,18 @@ def _scene_quality_plan_from_state(state: Mapping[str, Any]) -> SceneQualityPlan
         ending_hook=_str(raw.get("ending_hook")),
     )
 
+
+def _chapter_beat_from_state(state: Mapping[str, Any]) -> dict[str, Any]:
+    raw = state.get("current_chapter_beat") or state.get("chapter_beat_directive")
+    if not isinstance(raw, Mapping):
+        return {}
+    return dict(raw)
+
+
 def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
     """从引用型 GenerationState（含可选注入键）构造构建器输入。"""
 
-    return NarrativeContext(
+    ctx = NarrativeContext(
         premise=_str(state.get("premise")),
         user_intent=_str(state.get("user_intent")),
         strategy_title=_str(state.get("strategy_title_ref")),
@@ -279,3 +287,7 @@ def narrative_context_from_state(state: Mapping[str, Any]) -> NarrativeContext:
         target_word_count_min=_positive_int(state.get("target_word_count_min")),
         target_word_count_max=_positive_int(state.get("target_word_count_max")),
     )
+    chapter_beat = _chapter_beat_from_state(state)
+    if chapter_beat:
+        object.__setattr__(ctx, "current_chapter_beat", chapter_beat)
+    return ctx
