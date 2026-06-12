@@ -71,6 +71,59 @@ class NarrativePhasePolicy:
 
 
 @dataclass(frozen=True)
+class RepetitionPattern:
+    key: str
+    terms: tuple[str, ...] = ()
+    threshold: int = 3
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> RepetitionPattern:
+        if not data:
+            return cls(key="")
+        return cls(
+            key=str(data.get("key") or "").strip(),
+            terms=_string_tuple(data.get("terms")),
+            threshold=_positive_int(data.get("threshold"), default=3),
+        )
+
+
+@dataclass(frozen=True)
+class RepetitionPolicy:
+    tracked_motifs: tuple[RepetitionPattern, ...] = ()
+    tracked_action_patterns: tuple[RepetitionPattern, ...] = ()
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> RepetitionPolicy:
+        if not data:
+            return cls()
+        motifs = tuple(
+            pattern
+            for pattern in (
+                RepetitionPattern.from_dict(item) for item in _mapping_sequence(data.get("tracked_motifs"))
+            )
+            if pattern.key
+        )
+        action_patterns = tuple(
+            pattern
+            for pattern in (
+                RepetitionPattern.from_dict(item)
+                for item in _mapping_sequence(data.get("tracked_action_patterns"))
+            )
+            if pattern.key
+        )
+        return cls(
+            tracked_motifs=motifs,
+            tracked_action_patterns=action_patterns,
+        )
+
+    def compact_summary(self) -> dict[str, int]:
+        return {
+            "tracked_motifs": len(self.tracked_motifs),
+            "tracked_action_patterns": len(self.tracked_action_patterns),
+        }
+
+
+@dataclass(frozen=True)
 class ChapterBeat:
     chapter: int
     function: str
@@ -78,6 +131,14 @@ class ChapterBeat:
     relationship_change: str = ""
     irreversible_consequence: str = ""
     new_core_entities: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    primary_scene_mode: str = ""
+    forbidden_action_pattern: str = ""
+    required_conflict_type: str = ""
+    required_turning_point: str = ""
+    protagonist_mistake: str = ""
+    relationship_shift: str = ""
+    clue_usage_mode: str = ""
+    new_evidence_allowed: bool | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ChapterBeat:
@@ -88,16 +149,39 @@ class ChapterBeat:
             relationship_change=str(data.get("relationship_change") or "").strip(),
             irreversible_consequence=str(data.get("irreversible_consequence") or "").strip(),
             new_core_entities=_normalize_entity_delta(data.get("new_core_entities")),
+            primary_scene_mode=str(data.get("primary_scene_mode") or "").strip(),
+            forbidden_action_pattern=str(data.get("forbidden_action_pattern") or "").strip(),
+            required_conflict_type=str(data.get("required_conflict_type") or "").strip(),
+            required_turning_point=str(data.get("required_turning_point") or "").strip(),
+            protagonist_mistake=str(data.get("protagonist_mistake") or "").strip(),
+            relationship_shift=str(data.get("relationship_shift") or "").strip(),
+            clue_usage_mode=str(data.get("clue_usage_mode") or "").strip(),
+            new_evidence_allowed=_optional_bool(data.get("new_evidence_allowed")),
         )
 
     def compact_summary(self) -> dict[str, Any]:
-        return {
+        summary: dict[str, Any] = {
             "chapter": self.chapter,
             "function": self.function,
             "has_relationship_change": bool(self.relationship_change),
             "has_irreversible_consequence": bool(self.irreversible_consequence),
             "new_core_entities": {key: list(values) for key, values in self.new_core_entities.items() if values},
         }
+        for key in (
+            "primary_scene_mode",
+            "forbidden_action_pattern",
+            "required_conflict_type",
+            "required_turning_point",
+            "protagonist_mistake",
+            "relationship_shift",
+            "clue_usage_mode",
+        ):
+            value = getattr(self, key)
+            if value:
+                summary[key] = value
+        if self.new_evidence_allowed is not None:
+            summary["new_evidence_allowed"] = self.new_evidence_allowed
+        return summary
 
 
 @dataclass(frozen=True)
@@ -114,6 +198,7 @@ class NarrativePlan:
     chapter_beats: tuple[ChapterBeat, ...] = ()
     phase_policy: NarrativePhasePolicy = field(default_factory=NarrativePhasePolicy)
     entity_budget: EntityBudget = field(default_factory=EntityBudget)
+    repetition_policy: RepetitionPolicy = field(default_factory=RepetitionPolicy)
     locked: bool = False
 
     @classmethod
@@ -131,6 +216,7 @@ class NarrativePlan:
             chapter_beats=tuple(ChapterBeat.from_dict(item) for item in _mapping_sequence(data.get("chapter_beats"))),
             phase_policy=NarrativePhasePolicy.from_dict(_maybe_mapping(data.get("phase_policy"))),
             entity_budget=EntityBudget.from_dict(_maybe_mapping(data.get("entity_budget"))),
+            repetition_policy=RepetitionPolicy.from_dict(_maybe_mapping(data.get("repetition_policy"))),
             locked=bool(data.get("locked", False)),
         )
 
@@ -150,6 +236,7 @@ class NarrativePlan:
             "chapter_beats": [beat.compact_summary() for beat in self.chapter_beats],
             "phase_policy": self.phase_policy.compact_summary(),
             "entity_budget": self.entity_budget.compact_summary(),
+            "repetition_policy": self.repetition_policy.compact_summary(),
         }
 
 
@@ -171,6 +258,17 @@ def _maybe_mapping(value: Any) -> Mapping[str, Any] | None:
 
 def _string_tuple(value: Any) -> tuple[str, ...]:
     return tuple(str(item).strip() for item in _sequence(value) if str(item).strip())
+
+
+def _positive_int(value: Any, *, default: int) -> int:
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 def _normalize_entity_delta(value: Any) -> dict[str, tuple[str, ...]]:

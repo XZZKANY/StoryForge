@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 
 def _clean(value: str | None) -> str:
@@ -178,6 +179,7 @@ class NarrativeContext:
     continuity: Sequence[ContinuityFact] = field(default_factory=tuple)
     required_facts: Sequence[str] = field(default_factory=tuple)
     scene_quality_plan: SceneQualityPlan = field(default_factory=SceneQualityPlan)
+    current_chapter_beat: Any | None = None
     target_word_count_min: int | None = None
     target_word_count_max: int | None = None
 

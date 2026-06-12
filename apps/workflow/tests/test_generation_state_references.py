@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import get_type_hints
 
 import storyforge_workflow.runtime as runtime_module
+from storyforge_workflow.prompts import build_critique_prompt
+from storyforge_workflow.prompts.context import narrative_context_from_state
 from storyforge_workflow.runtime import RuntimeCheckpointStore
 from storyforge_workflow.state import GenerationState, checkpoint_reference_state, initial_generation_state
+
+
+@dataclass(frozen=True)
+class _ObjectLikeChapterBeat:
+    primary_scene_mode: str
+    protagonist_mistake: str
+    irreversible_consequence: str
 
 
 def test_generation_state_contract_exposes_references_not_large_payload_fields() -> None:
@@ -108,6 +118,88 @@ def test_prompt_injection_keys_reach_state_but_stay_out_of_checkpoint() -> None:
         "previous_summary_ref",
     ):
         assert injected_key not in checkpoint_state
+
+
+def test_prompt_injection_accepts_narrative_contract_fields_without_checkpointing() -> None:
+    state = initial_generation_state(
+        thread_id="thread-narrative-contract",
+        job_run_id="job-narrative-contract",
+        premise="雾港旧案。",
+        user_intent="验证叙事合同注入。",
+        prompt_injection={
+            "scene_quality_plan": {"conflict_turn": "周砚拒绝交出旧记录。"},
+            "current_chapter_beat": {
+                "primary_scene_mode": "character_conflict",
+                "protagonist_mistake": "林岚误信灯塔账本",
+                "irreversible_consequence": "证人保护资格被撤销",
+            },
+        },
+    )
+
+    assert state["scene_quality_plan"]["conflict_turn"] == "周砚拒绝交出旧记录。"
+    assert state["current_chapter_beat"]["primary_scene_mode"] == "character_conflict"
+
+    checkpoint = checkpoint_reference_state(dict(state))
+
+    assert "scene_quality_plan" not in checkpoint
+    assert "current_chapter_beat" not in checkpoint
+
+
+def test_prompt_injected_chapter_beat_reaches_runtime_critique_prompt() -> None:
+    state = initial_generation_state(
+        thread_id="thread-runtime-contract",
+        job_run_id="job-runtime-contract",
+        premise="雾港旧案。",
+        user_intent="验证叙事合同注入。",
+        prompt_injection={
+            "current_chapter_beat": {
+                "primary_scene_mode": "character_conflict",
+                "forbidden_action_pattern": "到新地点-问询-取得小物证-收入口袋-转向下一处",
+                "required_turning_point": "周砚拒绝交出旧记录",
+                "protagonist_mistake": "林岚误信灯塔账本",
+                "irreversible_consequence": "证人保护资格被撤销",
+                "clue_usage_mode": "reinterpret_existing",
+                "new_evidence_allowed": False,
+            },
+        },
+    )
+
+    prompt = build_critique_prompt(
+        narrative_context_from_state(state),
+        "林岚走进档案室，问完话后把记录收进口袋。",
+    )
+
+    assert "【ChapterBeat 结构门槛】" in prompt
+    assert "primary_scene_mode：character_conflict" in prompt
+    assert "protagonist_mistake：林岚误信灯塔账本" in prompt
+    assert "BEAT_FULFILLMENT: yes|partial|no" in prompt
+    assert "NARRATIVE_COLLAPSE: none|warning|soft_fail|hard_fail" in prompt
+
+
+def test_prompt_injected_object_chapter_beat_reaches_runtime_critique_prompt() -> None:
+    state = initial_generation_state(
+        thread_id="thread-runtime-object-contract",
+        job_run_id="job-runtime-object-contract",
+        premise="雾港旧案。",
+        user_intent="验证对象式叙事合同注入。",
+        prompt_injection={
+            "current_chapter_beat": _ObjectLikeChapterBeat(
+                primary_scene_mode="character_conflict",
+                protagonist_mistake="林岚误信灯塔账本",
+                irreversible_consequence="证人保护资格被撤销",
+            ),
+        },
+    )
+
+    prompt = build_critique_prompt(
+        narrative_context_from_state(state),
+        "林岚走进档案室，问完话后把记录收进口袋。",
+    )
+
+    assert "【ChapterBeat 结构门槛】" in prompt
+    assert "primary_scene_mode：character_conflict" in prompt
+    assert "protagonist_mistake：林岚误信灯塔账本" in prompt
+    assert "irreversible_consequence：证人保护资格被撤销" in prompt
 
 
 def test_runtime_checkpoint_store_saves_reference_state_only() -> None:

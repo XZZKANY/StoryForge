@@ -66,6 +66,7 @@ class ChapterConsistencyReport:
 # 返回 None 视为通过；返回带 conflicts 的报告则阻断该章。
 ConsistencyBarrier = Callable[[int, NovelLoopResult, list[dict[str, Any]]], ChapterConsistencyReport | None]
 PrecommitChapter = Callable[[int, NovelLoopResult, list[dict[str, Any]]], NovelLoopResult]
+CommitChapterSideEffects = Callable[[int, NovelLoopResult, list[dict[str, Any]]], NovelLoopResult]
 
 
 def run_book_loop(
@@ -74,11 +75,19 @@ def run_book_loop(
     progress_callback: Callable[[BookLoopResult], None] | None = None,
     consistency_barrier: ConsistencyBarrier | None = None,
     precommit_chapter: PrecommitChapter | None = None,
+    commit_chapter_side_effects: CommitChapterSideEffects | None = None,
 ) -> BookLoopResult:
     """顺序驱动每章 NovelLoop，按 checkpoint、预算和 provider 降级约束暂停。"""
 
     if _parallelism_enabled(request):
-        return _run_book_loop_parallel(request, run_chapter, progress_callback, consistency_barrier, precommit_chapter)
+        return _run_book_loop_parallel(
+            request,
+            run_chapter,
+            progress_callback,
+            consistency_barrier,
+            precommit_chapter,
+            commit_chapter_side_effects,
+        )
 
     completed = list(request.existing_checkpoint)
     checkpoint = list(request.existing_checkpoint)
@@ -92,11 +101,12 @@ def run_book_loop(
         except Exception as exc:
             raise ChapterExecutionError(chapter_index, exc) from exc
         chapter_result = _run_precommit_chapter(precommit_chapter, chapter_index, chapter_result, completed)
-        _accumulate_budget(budget, chapter_result)
         consistency_report = _run_consistency_barrier(consistency_barrier, chapter_index, chapter_result, completed)
         if consistency_report is not None and consistency_report.has_conflict:
+            _accumulate_budget(budget, chapter_result)
             return _consistency_blocked_result(chapter_index, chapter_result, completed, checkpoint, budget, consistency_report)
         if chapter_result.status != "approved":
+            _accumulate_budget(budget, chapter_result)
             return BookLoopResult(
                 status="awaiting_review",
                 current_chapter_index=chapter_index,
@@ -107,6 +117,10 @@ def run_book_loop(
                     "budget": dict(budget),
                 },
             )
+        chapter_result = _run_commit_chapter_side_effects(
+            commit_chapter_side_effects, chapter_index, chapter_result, completed
+        )
+        _accumulate_budget(budget, chapter_result)
         chapter_progress = _chapter_progress(chapter_index, chapter_result)
         completed.append(chapter_progress)
         checkpoint.append(_checkpoint_entry(chapter_progress))
@@ -156,6 +170,7 @@ def _run_book_loop_parallel(
     progress_callback: Callable[[BookLoopResult], None] | None,
     consistency_barrier: ConsistencyBarrier | None = None,
     precommit_chapter: PrecommitChapter | None = None,
+    commit_chapter_side_effects: CommitChapterSideEffects | None = None,
 ) -> BookLoopResult:
     """并发预取章节结果，但只按章节顺序提交 checkpoint 和 progress。"""
 
@@ -191,22 +206,31 @@ def _run_book_loop_parallel(
                         precommit_chapter, next_commit_index, chapter_result, completed
                     )
                     precommit_revision_count += 1
-                _accumulate_budget(budget, chapter_result)
                 consistency_report = _run_consistency_barrier(
                     consistency_barrier, next_commit_index, chapter_result, completed
                 )
                 if consistency_report is not None and consistency_report.has_conflict:
+                    _accumulate_budget(budget, chapter_result)
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
                     return _with_integration_metrics(
                         _consistency_blocked_result(
-                            next_commit_index, chapter_result, completed, checkpoint, budget, consistency_report
+                            next_commit_index,
+                            chapter_result,
+                            completed,
+                            checkpoint,
+                            budget,
+                            consistency_report,
+                            generated_but_uncommitted=_generated_but_uncommitted_after(
+                                next_commit_index, pending_results
+                            ),
                         ),
                         _parallel_integration_metrics(
                             request, max_in_flight, runtime_tracker, precommit_revision_count, schedule_decisions
                         ),
                     )
                 if chapter_result.status != "approved":
+                    _accumulate_budget(budget, chapter_result)
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
                     return _with_integration_metrics(
@@ -224,6 +248,10 @@ def _run_book_loop_parallel(
                             request, max_in_flight, runtime_tracker, precommit_revision_count, schedule_decisions
                         ),
                     )
+                chapter_result = _run_commit_chapter_side_effects(
+                    commit_chapter_side_effects, next_commit_index, chapter_result, completed
+                )
+                _accumulate_budget(budget, chapter_result)
                 chapter_progress = _chapter_progress(next_commit_index, chapter_result)
                 completed.append(chapter_progress)
                 checkpoint.append(_checkpoint_entry(chapter_progress))
@@ -399,6 +427,17 @@ def _run_precommit_chapter(
     return precommit_chapter(chapter_index, chapter_result, list(committed_chapters))
 
 
+def _run_commit_chapter_side_effects(
+    commit_chapter_side_effects: CommitChapterSideEffects | None,
+    chapter_index: int,
+    chapter_result: NovelLoopResult,
+    committed_chapters: list[dict[str, Any]],
+) -> NovelLoopResult:
+    if commit_chapter_side_effects is None:
+        return chapter_result
+    return commit_chapter_side_effects(chapter_index, chapter_result, list(committed_chapters))
+
+
 def _consistency_blocked_result(
     chapter_index: int,
     chapter_result: NovelLoopResult,
@@ -406,25 +445,40 @@ def _consistency_blocked_result(
     checkpoint: list[dict[str, Any]],
     budget: dict[str, int | float],
     report: ChapterConsistencyReport,
+    generated_but_uncommitted: list[dict[str, Any]] | None = None,
 ) -> BookLoopResult:
     """跨章一致性冲突时阻断该章，沿用 awaiting_review 流程并附带冲突明细。"""
 
     blocked_chapter = _chapter_progress(chapter_index, chapter_result)
     blocked_chapter["consistency_conflicts"] = list(report.conflicts)
+    progress = {
+        "completed_chapters": completed,
+        "checkpoint": checkpoint,
+        "blocked_chapter": blocked_chapter,
+        "budget": dict(budget),
+        "consistency_conflict": {
+            "chapter_index": chapter_index,
+            "conflicts": list(report.conflicts),
+        },
+    }
+    if generated_but_uncommitted:
+        progress["generated_but_uncommitted"] = list(generated_but_uncommitted)
     return BookLoopResult(
         status="awaiting_review",
         current_chapter_index=chapter_index,
-        progress={
-            "completed_chapters": completed,
-            "checkpoint": checkpoint,
-            "blocked_chapter": blocked_chapter,
-            "budget": dict(budget),
-            "consistency_conflict": {
-                "chapter_index": chapter_index,
-                "conflicts": list(report.conflicts),
-            },
-        },
+        progress=progress,
     )
+
+
+def _generated_but_uncommitted_after(
+    blocked_chapter_index: int,
+    pending_results: dict[int, NovelLoopResult],
+) -> list[dict[str, Any]]:
+    return [
+        {"chapter_index": chapter_index, "status": "generated"}
+        for chapter_index in sorted(pending_results)
+        if chapter_index > blocked_chapter_index
+    ]
 
 
 def _parallelism_enabled(request: BookLoopRequest) -> bool:

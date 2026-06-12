@@ -13,6 +13,13 @@ from storyforge_workflow.state import GenerationState, advance_status
 
 # critic 判定"通过"的哨兵：见到即视为无问题，结束评审环。
 _CRITIQUE_PASS_TOKEN = "通过"
+_CRITIQUE_METADATA_PREFIXES = (
+    "DECISION:",
+    "SCORE:",
+    "BEAT_FULFILLMENT:",
+    "NARRATIVE_COLLAPSE:",
+)
+_CRITIQUE_ISSUE_PREFIX = "ISSUE:"
 
 
 def create_draft_excerpt(state: GenerationState) -> dict:
@@ -68,7 +75,50 @@ def _parse_issues(raw: str) -> list[str]:
         return []
     if _is_critique_pass_line(lines[0]):
         return []
-    return [line for line in lines if not line.startswith(_CRITIQUE_PASS_TOKEN)]
+    issues: list[str] = []
+    for line in lines:
+        if line.startswith(_CRITIQUE_PASS_TOKEN) or _is_critique_metadata_line(line):
+            continue
+        if line.startswith(_CRITIQUE_ISSUE_PREFIX):
+            issues.append(line.removeprefix(_CRITIQUE_ISSUE_PREFIX).strip(" -：:"))
+            continue
+        issues.append(line)
+    return issues or _structured_metadata_fallback_issue(lines)
+
+
+def _is_critique_metadata_line(line: str) -> bool:
+    return line.upper().startswith(_CRITIQUE_METADATA_PREFIXES)
+
+
+def _structured_metadata_fallback_issue(lines: list[str]) -> list[str]:
+    metadata = _critique_metadata(lines)
+    if not metadata:
+        return []
+    decision = metadata.get("DECISION", "").lower()
+    beat = metadata.get("BEAT_FULFILLMENT", "").lower()
+    collapse = metadata.get("NARRATIVE_COLLAPSE", "").lower()
+    needs_issue = (
+        decision in {"repair", "regenerate", "awaiting_review"}
+        or beat in {"partial", "no"}
+        or collapse in {"warning", "soft_fail", "hard_fail"}
+    )
+    if not needs_issue:
+        return []
+    parts = [f"{key}={metadata[key]}" for key in ("DECISION", "BEAT_FULFILLMENT", "NARRATIVE_COLLAPSE") if key in metadata]
+    return ["structured_critique｜高｜元数据｜critic 未提供 ISSUE 行｜regenerate｜原有事实与角色约束｜结构坍塌与未兑现 beat｜" + "；".join(parts)]
+
+
+def _critique_metadata(lines: list[str]) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    for line in lines:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        normalized_key = key.strip().upper()
+        if f"{normalized_key}:" not in _CRITIQUE_METADATA_PREFIXES:
+            continue
+        metadata[normalized_key] = value.strip()
+    return metadata
 
 
 def _is_critique_pass_line(line: str) -> bool:

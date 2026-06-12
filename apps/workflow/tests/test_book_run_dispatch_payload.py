@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from storyforge_workflow.narrative.plan import NarrativePlan
 from storyforge_workflow.orchestrators.book_run_adapter import (
     CallableProgressSink,
     CapturingProgressSink,
@@ -273,6 +274,57 @@ def test_book_run_dispatch_payload_threads_current_chapter_beat_into_novel_reque
     ]
     assert captured[0].phase_policy_summary == {"current_phase": "setup", "allowed_tension": "low"}
     assert captured[0].entity_budget_summary == {"max_new_entities": 2, "used_entities": 1}
+
+
+def test_book_run_dispatch_payload_preserves_normalized_chapter_beat_contract_fields() -> None:
+    """NarrativePlan compact summary must not strip ChapterBeat contract fields before prompt injection."""
+
+    captured: list[NovelLoopRequest] = []
+
+    def capturing_ports(request: NovelLoopRequest) -> NovelLoopPorts:
+        captured.append(request)
+        return _passing_ports(request)
+
+    normalized_plan = NarrativePlan.from_dict(
+        {
+            **_locked_narrative_plan(),
+            "chapter_beats": [
+                {
+                    "chapter": 1,
+                    "function": "对峙",
+                    "primary_scene_mode": "character_conflict",
+                    "forbidden_action_pattern": "到新地点-问询-取得小物证-收入口袋-转向下一处",
+                    "required_conflict_type": "人物冲突",
+                    "required_turning_point": "周砚拒绝交出旧记录",
+                    "protagonist_mistake": "林岚误信灯塔账本",
+                    "irreversible_consequence": "证人保护资格被撤销",
+                    "relationship_shift": "林岚与周砚信任破裂",
+                    "clue_usage_mode": "reinterpret_existing",
+                    "new_evidence_allowed": False,
+                }
+            ],
+        }
+    ).compact_summary()
+
+    payload = _dispatch_payload(narrative_plan=normalized_plan)
+
+    run_book_run_dispatch_payload(payload, capturing_ports, CapturingProgressSink())
+
+    assert captured[0].current_chapter_beat == {
+        "chapter": 1,
+        "function": "对峙",
+        "has_relationship_change": False,
+        "has_irreversible_consequence": True,
+        "new_core_entities": {},
+        "primary_scene_mode": "character_conflict",
+        "forbidden_action_pattern": "到新地点-问询-取得小物证-收入口袋-转向下一处",
+        "required_conflict_type": "人物冲突",
+        "required_turning_point": "周砚拒绝交出旧记录",
+        "protagonist_mistake": "林岚误信灯塔账本",
+        "relationship_shift": "林岚与周砚信任破裂",
+        "clue_usage_mode": "reinterpret_existing",
+        "new_evidence_allowed": False,
+    }
 
 
 def test_book_run_dispatch_payload_uses_top_level_narrative_control_summaries() -> None:

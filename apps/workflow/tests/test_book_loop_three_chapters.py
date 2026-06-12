@@ -619,6 +619,86 @@ def test_book_loop_parallel_consistency_barrier_blocks_on_conflict() -> None:
     assert result.progress["consistency_conflict"]["chapter_index"] == 2
 
 
+def test_book_loop_runs_commit_side_effects_only_for_committed_chapters() -> None:
+    committed_side_effects: list[int] = []
+
+    def run_chapter(chapter_index: int) -> NovelLoopResult:
+        return NovelLoopResult(
+            status="approved",
+            final_draft=f"第 {chapter_index} 章正文。",
+            source_model_run_id=chapter_index,
+            judge_report_id=chapter_index,
+            repair_patch_id=None,
+            approved_scene_id=chapter_index,
+        )
+
+    def consistency_barrier(chapter_index, chapter_result, committed_chapters):
+        if chapter_index == 2:
+            return ChapterConsistencyReport(conflicts=[{"kind": "gate_block"}])
+        return ChapterConsistencyReport(conflicts=[])
+
+    def commit_side_effects(chapter_index, chapter_result, committed_chapters):
+        committed_side_effects.append(chapter_index)
+        return NovelLoopResult(
+            status=chapter_result.status,
+            final_draft=chapter_result.final_draft,
+            source_model_run_id=chapter_result.source_model_run_id,
+            judge_report_id=chapter_result.judge_report_id,
+            repair_patch_id=chapter_result.repair_patch_id,
+            approved_scene_id=chapter_result.approved_scene_id,
+            token_usage=chapter_result.token_usage,
+            elapsed_time_sec=chapter_result.elapsed_time_sec,
+            cost_estimate=chapter_result.cost_estimate,
+            fallback_metadata=chapter_result.fallback_metadata,
+            memory_atom_ids=[f"m{chapter_index}"],
+            continuity_edge_count=chapter_index,
+            skill_runs=chapter_result.skill_runs,
+        )
+
+    result = run_book_loop(
+        BookLoopRequest(book_run_id=1, book_id=2, blueprint_id=3, total_chapters=3, chapter_parallelism=3),
+        run_chapter,
+        consistency_barrier=consistency_barrier,
+        commit_chapter_side_effects=commit_side_effects,
+    )
+
+    assert result.status == "awaiting_review"
+    assert committed_side_effects == [1]
+    assert result.progress["checkpoint"][0]["memory_atom_ids"] == ["m1"]
+    assert result.progress["generated_but_uncommitted"] == [{"chapter_index": 3, "status": "generated"}]
+
+
+def test_book_loop_budget_uses_post_commit_chapter_result() -> None:
+    def commit_side_effects(chapter_index, chapter_result, committed_chapters):
+        return NovelLoopResult(
+            status=chapter_result.status,
+            final_draft=chapter_result.final_draft,
+            source_model_run_id=chapter_result.source_model_run_id,
+            judge_report_id=chapter_result.judge_report_id,
+            repair_patch_id=chapter_result.repair_patch_id,
+            approved_scene_id=chapter_result.approved_scene_id,
+            token_usage=100,
+            elapsed_time_sec=7,
+            cost_estimate=0.5,
+            fallback_metadata=chapter_result.fallback_metadata,
+            memory_atom_ids=chapter_result.memory_atom_ids,
+            continuity_edge_count=chapter_result.continuity_edge_count,
+            skill_runs=chapter_result.skill_runs,
+        )
+
+    result = run_book_loop(
+        BookLoopRequest(book_run_id=1, book_id=2, blueprint_id=3, total_chapters=1),
+        lambda chapter_index: _approved_chapter(chapter_index),
+        commit_chapter_side_effects=commit_side_effects,
+    )
+
+    assert result.status == "completed"
+    assert result.progress["checkpoint"][0]["token_usage"] == 100
+    assert result.progress["checkpoint"][0]["elapsed_time_sec"] == 7
+    assert result.progress["checkpoint"][0]["cost_estimate"] == 0.5
+    assert result.progress["budget"] == {"tokens_used": 100, "elapsed_time_sec": 7, "estimated_cost": 0.5}
+
+
 def test_book_loop_parallel_discard_generated_later_chapter_when_gate_blocks() -> None:
     """后续章节即使已生成，也不能越过阻断章写入 checkpoint。"""
 

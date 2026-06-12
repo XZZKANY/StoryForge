@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from storyforge_workflow.prompts import (
     build_chapter_plan_prompt,
     build_critique_prompt,
@@ -318,6 +320,37 @@ def test_critique_prompt_requests_structured_quality_scores() -> None:
     ):
         assert dimension in prompt
     assert "ISSUE: 维度｜严重级别｜命中片段｜原因｜修订策略｜必须保留｜必须删除｜目标效果" in prompt
+
+
+def test_critique_prompt_injects_chapter_beat_contract() -> None:
+    ctx = NarrativeContext(
+        chapter_title="第八章：裂痕",
+        scene_goal="林岚在对峙中为误判付出代价。",
+        current_chapter_beat=SimpleNamespace(
+            primary_scene_mode="character_conflict",
+            forbidden_action_pattern="到新地点-问询-取得小物证-收入口袋-转向下一处",
+            required_conflict_type="人物冲突",
+            required_turning_point="周砚拒绝交出旧记录",
+            protagonist_mistake="林岚误信灯塔账本",
+            irreversible_consequence="证人保护资格被撤销",
+            relationship_shift="林岚与周砚信任破裂",
+            clue_usage_mode="reinterpret_existing",
+            new_evidence_allowed=False,
+        ),
+    )
+
+    prompt = build_critique_prompt(ctx, "林岚走进档案室，问完话后把记录收进口袋。")
+
+    assert "【ChapterBeat 结构门槛】" in prompt
+    assert "primary_scene_mode：character_conflict" in prompt
+    assert "protagonist_mistake：林岚误信灯塔账本" in prompt
+    assert "beat_fulfillment" in prompt
+    assert "narrative_collapse" in prompt
+    assert "BEAT_FULFILLMENT: yes|partial|no" in prompt
+    assert "NARRATIVE_COLLAPSE: none|warning|soft_fail|hard_fail" in prompt
+    assert "structure_repair" in prompt
+    assert "convert_process_to_scene" in prompt
+    assert "reinterpret_existing_clue" in prompt
 
 
 def test_revision_prompt_supports_revision_strategy_contract() -> None:
