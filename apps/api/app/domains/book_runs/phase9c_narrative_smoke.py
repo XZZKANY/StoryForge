@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 
-_CHAPTER_HEADING_RE = re.compile(r"^\s*##\s*第\s*(\d+)\s*章\s*$")
+_CHAPTER_HEADING_RE = re.compile(r"^\s*##\s*第\s*(\d+)\s*章(?:\s+.*)?\s*$")
 
 _REQUIRED_CONTRACT_FIELDS = [
     "cost",
@@ -23,6 +23,18 @@ _INVESTIGATION_TEMPLATE_BUCKETS = (
 
 def _auto_gate_results_from_book_export(book_export: str) -> list[dict[str, object]]:
     chapters = _parse_markdown_chapters(book_export)
+    if not chapters:
+        return [
+            {
+                "gate": "collapse_judge",
+                "status": "fail",
+                "reason": "no_chapters_parsed",
+                "message": "No markdown chapter headings were parsed from book export.",
+                "revision_type": "structure_revision",
+                "contract_evidence": _contract_evidence([]),
+            }
+        ]
+
     template_chapters = [
         chapter_number
         for chapter_number, chapter_text in chapters
@@ -34,11 +46,7 @@ def _auto_gate_results_from_book_export(book_export: str) -> list[dict[str, obje
             "gate": "collapse_judge",
             "status": "fail" if template_chapters else "pass",
             "revision_type": "structure_revision",
-            "contract_evidence": {
-                "source": "narrative_fact_heuristic",
-                "template_chapters": template_chapters,
-                "required_fields": _REQUIRED_CONTRACT_FIELDS,
-            },
+            "contract_evidence": _contract_evidence(template_chapters),
         }
     ]
 
@@ -69,3 +77,11 @@ def _investigation_template_score(chapter_text: str) -> int:
         for terms in _INVESTIGATION_TEMPLATE_BUCKETS
         if any(term in chapter_text for term in terms)
     )
+
+
+def _contract_evidence(template_chapters: list[int]) -> dict[str, object]:
+    return {
+        "source": "narrative_fact_heuristic",
+        "template_chapters": list(template_chapters),
+        "required_fields": list(_REQUIRED_CONTRACT_FIELDS),
+    }
