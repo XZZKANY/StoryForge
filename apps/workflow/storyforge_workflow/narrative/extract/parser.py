@@ -20,7 +20,7 @@ def parse_narrative_scene_fact(raw: str, *, default_chapter: int) -> NarrativeSc
         return NarrativeSceneFact.failed(chapter=default_chapter, error="invalid_json")
 
     if isinstance(payload, list):
-        payload = next((item for item in payload if isinstance(item, Mapping)), None)
+        payload = payload[0] if payload else None
 
     if not isinstance(payload, Mapping):
         return NarrativeSceneFact.failed(chapter=default_chapter, error="invalid_shape")

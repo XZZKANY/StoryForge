@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 
@@ -13,7 +14,7 @@ def clean_tuple(value: object) -> tuple[str, ...]:
     if isinstance(value, str):
         item = clean_text(value)
         return (item,) if item else ()
-    if not isinstance(value, (list, tuple, set)):
+    if not isinstance(value, Sequence):
         return ()
 
     cleaned: list[str] = []
