@@ -1,5 +1,6 @@
 from app.domains.book_runs.phase9c_narrative_smoke import (
     _auto_gate_results_from_book_export,
+    _chapter_template_fact,
 )
 
 REQUIRED_FIELDS = [
@@ -48,11 +49,9 @@ def test_phase9c_auto_gate_results_fail_when_no_chapters_are_parsed() -> None:
     collapse = next(item for item in results if item["gate"] == "collapse_judge")
     assert collapse["status"] != "pass"
     assert collapse["reason"] == "no_chapters_parsed"
-    assert collapse["contract_evidence"] == {
-        "source": "narrative_fact_heuristic",
-        "template_chapters": [],
-        "required_fields": REQUIRED_FIELDS,
-    }
+    assert collapse["contract_evidence"]["source"] == "narrative_fact_heuristic"
+    assert collapse["contract_evidence"]["template_chapters"] == []
+    assert collapse["contract_evidence"]["required_fields"] == REQUIRED_FIELDS
 
 
 def test_phase9c_auto_gate_results_pass_valid_non_template_chapters_with_evidence() -> None:
@@ -65,11 +64,51 @@ def test_phase9c_auto_gate_results_pass_valid_non_template_chapters_with_evidenc
 
     collapse = next(item for item in results if item["gate"] == "collapse_judge")
     assert collapse["status"] == "pass"
-    assert collapse["contract_evidence"] == {
-        "source": "narrative_fact_heuristic",
-        "template_chapters": [],
-        "required_fields": REQUIRED_FIELDS,
-    }
+    assert collapse["contract_evidence"]["source"] == "narrative_fact_heuristic"
+    assert collapse["contract_evidence"]["template_chapters"] == []
+    assert collapse["contract_evidence"]["required_fields"] == REQUIRED_FIELDS
+
+
+def test_phase9c_auto_gate_results_do_not_flag_conflict_cost_and_reinterpretation_as_template() -> None:
+    chapter = (
+        "林岚走进冷库，把旧航图摊在桌上。账房问她为什么还查第五区。\n"
+        "她没有收新物证，只把黑盒里已有的失真曲线和旧航图空白处重新对上。\n"
+        "账房当场撤回维修窗口，陈伯也拒绝再替她作证。\n"
+        "她把纸袋按回桌面，意识到自己误判了旧盟约的效力。\n"
+    )
+    book_export = "\n".join(f"## 第 {index} 章\n{chapter}" for index in range(1, 7))
+
+    results = _auto_gate_results_from_book_export(book_export)
+    collapse = next(item for item in results if item["gate"] == "collapse_judge")
+    fact = _chapter_template_fact(chapter)
+
+    assert collapse["status"] == "pass"
+    assert collapse["contract_evidence"]["template_chapters"] == []
+    assert fact["is_template"] is False
+    assert fact["cost"]
+    assert fact["relationship_delta"]
+    assert fact["existing_clues_reinterpreted"]
+
+
+def test_phase9c_auto_gate_results_include_raw_bucket_evidence_for_template_chapters() -> None:
+    book_export = "\n".join(
+        f"## 第 {index} 章\n林岚到了码头。她问完人，查看登记表，把纸页收进内袋，转去下一处。"
+        for index in range(1, 4)
+    )
+
+    results = _auto_gate_results_from_book_export(book_export)
+    collapse = next(item for item in results if item["gate"] == "collapse_judge")
+    evidence = collapse["contract_evidence"]
+
+    assert collapse["template_chapters"] == [1, 2, 3]
+    assert evidence["template_chapters"] == [1, 2, 3]
+    assert set(evidence["chapter_facts"]) == {"1", "2", "3"}
+    first_fact = evidence["chapter_facts"]["1"]
+    assert first_fact["bucket_hit_count"] >= 3
+    assert first_fact["is_template"] is True
+    assert "arrival" in first_fact["bucket_hits"]
+    assert "inquiry" in first_fact["bucket_hits"]
+    assert first_fact["raw_evidence"]["arrival"]
 
 
 def test_phase9c_auto_gate_results_required_fields_are_fresh_per_call() -> None:
