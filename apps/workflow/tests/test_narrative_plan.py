@@ -84,3 +84,39 @@ def test_narrative_plan_drops_repetition_policy_entries_with_blank_keys() -> Non
 
     assert [pattern.key for pattern in plan.repetition_policy.tracked_motifs] == ["old_wound"]
     assert plan.repetition_policy.tracked_action_patterns == ()
+
+
+def test_narrative_plan_preserves_chapter_beat_contract_fields_in_summary() -> None:
+    plan = NarrativePlan.from_dict(
+        {
+            "premise": "x",
+            "truth": "y",
+            "protagonist_arc": "z",
+            "antagonist_motive": "m",
+            "chapter_beats": [
+                {
+                    "chapter": 8,
+                    "function": "对峙",
+                    "primary_scene_mode": "character_conflict",
+                    "forbidden_action_pattern": "到新地点-问询-取得小物证-收入口袋-转向下一处",
+                    "required_conflict_type": "人物冲突",
+                    "required_turning_point": "周砚拒绝交出旧记录",
+                    "protagonist_mistake": "林岚误信灯塔账本",
+                    "relationship_shift": "林岚与周砚信任破裂",
+                    "clue_usage_mode": "reinterpret_existing",
+                    "new_evidence_allowed": False,
+                }
+            ],
+        }
+    )
+
+    beat = plan.compact_summary()["chapter_beats"][0]
+
+    assert beat["primary_scene_mode"] == "character_conflict"
+    assert beat["forbidden_action_pattern"] == "到新地点-问询-取得小物证-收入口袋-转向下一处"
+    assert beat["required_conflict_type"] == "人物冲突"
+    assert beat["required_turning_point"] == "周砚拒绝交出旧记录"
+    assert beat["protagonist_mistake"] == "林岚误信灯塔账本"
+    assert beat["relationship_shift"] == "林岚与周砚信任破裂"
+    assert beat["clue_usage_mode"] == "reinterpret_existing"
+    assert beat["new_evidence_allowed"] is False
