@@ -63,3 +63,24 @@ def test_narrative_plan_parses_repetition_policy() -> None:
     assert plan.repetition_policy.tracked_motifs[0].key == "old_wound"
     assert plan.repetition_policy.tracked_motifs[0].terms == ("旧伤",)
     assert plan.repetition_policy.tracked_action_patterns[0].threshold == 1
+
+
+def test_narrative_plan_drops_repetition_policy_entries_with_blank_keys() -> None:
+    plan = NarrativePlan.from_dict(
+        {
+            "premise": "x",
+            "truth": "y",
+            "protagonist_arc": "z",
+            "antagonist_motive": "m",
+            "repetition_policy": {
+                "tracked_motifs": [
+                    {"key": " ", "terms": ["旧伤"], "threshold": 1},
+                    {"key": "old_wound", "terms": ["旧伤"], "threshold": 2},
+                ],
+                "tracked_action_patterns": [{"terms": ["归档", "同步"], "threshold": 1}],
+            },
+        }
+    )
+
+    assert [pattern.key for pattern in plan.repetition_policy.tracked_motifs] == ["old_wound"]
+    assert plan.repetition_policy.tracked_action_patterns == ()

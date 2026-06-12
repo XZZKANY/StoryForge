@@ -96,14 +96,24 @@ class RepetitionPolicy:
     def from_dict(cls, data: Mapping[str, Any] | None) -> RepetitionPolicy:
         if not data:
             return cls()
-        return cls(
-            tracked_motifs=tuple(
+        motifs = tuple(
+            pattern
+            for pattern in (
                 RepetitionPattern.from_dict(item) for item in _mapping_sequence(data.get("tracked_motifs"))
-            ),
-            tracked_action_patterns=tuple(
+            )
+            if pattern.key
+        )
+        action_patterns = tuple(
+            pattern
+            for pattern in (
                 RepetitionPattern.from_dict(item)
                 for item in _mapping_sequence(data.get("tracked_action_patterns"))
-            ),
+            )
+            if pattern.key
+        )
+        return cls(
+            tracked_motifs=motifs,
+            tracked_action_patterns=action_patterns,
         )
 
     def compact_summary(self) -> dict[str, int]:

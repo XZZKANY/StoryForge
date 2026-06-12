@@ -16,8 +16,10 @@ class RepetitionLedger:
         self._action_counts: defaultdict[str, int] = defaultdict(int)
 
     @classmethod
-    def from_dict(cls, data: dict[str, object], *, policy: RepetitionPolicy | None = None) -> RepetitionLedger:
+    def from_dict(cls, data: object, *, policy: RepetitionPolicy | None = None) -> RepetitionLedger:
         ledger = cls(policy=policy)
+        if not isinstance(data, Mapping):
+            return ledger
         ledger._static_motif_counts.update(_count_mapping(data.get("static_motif_counts")))
         ledger._action_counts.update(_count_mapping(data.get("action_counts")))
         return ledger
@@ -31,9 +33,10 @@ class RepetitionLedger:
     def record_motif(self, *, chapter: int, motif: str, changes_action: bool) -> GateVerdict:
         if changes_action:
             return GateVerdict(status="pass", issues=[])
-        self._static_motif_counts[motif] += 1
         policy_pattern = _matching_pattern(motif, self.policy.tracked_motifs)
-        if policy_pattern and self._static_motif_counts[motif] > policy_pattern.threshold:
+        key = policy_pattern.key if policy_pattern else motif
+        self._static_motif_counts[key] += 1
+        if policy_pattern and self._static_motif_counts[key] > policy_pattern.threshold:
             return GateVerdict(
                 status="fail",
                 issues=[
@@ -44,7 +47,7 @@ class RepetitionLedger:
                     )
                 ],
             )
-        if _is_left_arm_old_injury(motif) and self._static_motif_counts[motif] > 5:
+        if not policy_pattern and _is_left_arm_old_injury(motif) and self._static_motif_counts[key] > 5:
             return GateVerdict(
                 status="fail",
                 issues=[
@@ -103,7 +106,7 @@ def _action_key(pattern: str) -> str:
 def _matching_pattern(text: str, patterns: tuple[RepetitionPattern, ...]) -> RepetitionPattern | None:
     normalized = text.lower()
     for pattern in patterns:
-        if pattern.terms and all(term in text or term.lower() in normalized for term in pattern.terms):
+        if pattern.key and pattern.terms and all(term in text or term.lower() in normalized for term in pattern.terms):
             return pattern
     return None
 

@@ -78,3 +78,33 @@ def test_repetition_ledger_uses_plan_thresholds_and_restores_state() -> None:
 
     assert restored.record_action_pattern(chapter=4, pattern="归档并同步").status == "pass"
     assert restored.record_action_pattern(chapter=5, pattern="归档并同步").status == "fail"
+
+
+def test_repetition_ledger_counts_policy_motif_variants_by_key_and_restores_state() -> None:
+    policy = RepetitionPolicy(
+        tracked_motifs=(RepetitionPattern(key="old_wound", terms=("旧伤",), threshold=2),),
+    )
+    ledger = RepetitionLedger(policy=policy)
+
+    assert ledger.record_motif(chapter=1, motif="旧伤隐隐作痛", changes_action=False).status == "pass"
+    assert ledger.record_motif(chapter=2, motif="旧伤在雨夜发作", changes_action=False).status == "pass"
+
+    persisted = ledger.to_dict()
+    assert persisted["static_motif_counts"] == {"old_wound": 2}
+
+    restored = RepetitionLedger.from_dict(persisted, policy=policy)
+    verdict = restored.record_motif(chapter=3, motif="旧伤又一次拖慢脚步", changes_action=False)
+
+    assert verdict.status == "fail"
+    assert "old_wound motif repeated >2" in verdict.issues[0]["message"]
+
+
+def test_repetition_ledger_from_dict_tolerates_malformed_top_level_state() -> None:
+    policy = RepetitionPolicy(
+        tracked_motifs=(RepetitionPattern(key="old_wound", terms=("旧伤",), threshold=1),),
+    )
+
+    for malformed in (None, [], "not a ledger"):
+        ledger = RepetitionLedger.from_dict(malformed, policy=policy)
+
+        assert ledger.to_dict() == {"static_motif_counts": {}, "action_counts": {}}
