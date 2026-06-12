@@ -351,6 +351,86 @@ def test_book_run_adapter_defers_memory_and_continuity_until_commit_boundary() -
     assert committed_skill_names[-2:] == ["memory_extract", "submit_continuity"]
 
 
+def test_book_run_adapter_defers_factory_side_effect_ports_until_commit_boundary() -> None:
+    side_effect_calls: list[tuple[str, int, int]] = []
+
+    def ports_factory(request: NovelLoopRequest) -> NovelLoopPorts:
+        return NovelLoopPorts(
+            compile_context=lambda novel_request: f"ctx-{novel_request.chapter_index}",
+            generate_scene=lambda novel_request, context_id: "林岚抵达雾港。",
+            record_model_run=lambda novel_request, draft: 500 + novel_request.chapter_index,
+            judge_scene=lambda draft, attempt: {"status": "pass", "judge_report_id": 600 + attempt},
+            repair_scene=lambda draft, report, attempt: draft,
+            approve_scene=lambda novel_request, draft, refs: 700 + novel_request.chapter_index,
+            extract_memory=lambda novel_request, draft, approved_scene_id: side_effect_calls.append(
+                ("memory", novel_request.chapter_index, approved_scene_id)
+            )
+            or [f"factory-memory:{novel_request.chapter_index}"],
+            submit_continuity=lambda novel_request, draft, approved_scene_id: side_effect_calls.append(
+                ("continuity", novel_request.chapter_index, approved_scene_id)
+            )
+            or {"continuity_edge_count": novel_request.chapter_index},
+        )
+
+    def consistency_barrier(chapter_index, chapter_result, committed_chapters):
+        if chapter_index == 2:
+            from storyforge_workflow.orchestrators.book_loop import ChapterConsistencyReport
+
+            return ChapterConsistencyReport(conflicts=[{"kind": "gate_block"}])
+        return None
+
+    sink = CapturingProgressSink()
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=lambda chapter_index: chapter_index + 100,
+        novel_loop_ports_factory=ports_factory,
+        progress_sink=sink,
+        consistency_barrier=consistency_barrier,
+    )
+    request = BookRunAdapterRequest(
+        book_run_id=311,
+        book_id=312,
+        blueprint_id=313,
+        total_chapters=3,
+        chapter_parallelism=3,
+    )
+
+    result = run_book_run_with_skill_runner(request, ports)
+
+    assert result.status == "awaiting_review"
+    assert side_effect_calls == [("memory", 1, 701), ("continuity", 1, 701)]
+    assert result.progress["checkpoint"][0]["memory_atom_ids"] == ["factory-memory:1"]
+    assert result.progress["checkpoint"][0]["continuity_edge_count"] == 1
+    assert result.progress["blocked_chapter"]["memory_atom_ids"] == []
+    assert result.progress["generated_but_uncommitted"] == [{"chapter_index": 3, "status": "generated"}]
+
+
+def test_book_run_adapter_failed_progress_uses_commit_side_effect_chapter() -> None:
+    def memory_extractor(request: NovelLoopRequest, draft: str, approved_scene_id: int) -> list[str]:
+        if request.chapter_index == 2:
+            raise RuntimeError("第二章记忆提交失败")
+        return [f"memory:{request.chapter_index}"]
+
+    sink = CapturingProgressSink()
+    ports = BookRunAdapterPorts(
+        chapter_goal=lambda chapter_index: f"第 {chapter_index} 章目标",
+        chapter_id=lambda chapter_index: chapter_index + 100,
+        novel_loop_ports_factory=_ports_without_memory_extractor,
+        progress_sink=sink,
+        memory_extractor=memory_extractor,
+    )
+    request = BookRunAdapterRequest(book_run_id=321, book_id=322, blueprint_id=323, total_chapters=2)
+
+    with pytest.raises(RuntimeError, match="第二章记忆提交失败"):
+        run_book_run_with_skill_runner(request, ports)
+
+    failed = sink.payloads[-1]
+    assert failed["status"] == "failed"
+    assert failed["current_chapter_index"] == 2
+    assert failed["progress"]["failure"]["failed_at_chapter_index"] == 2
+    assert [item["chapter_index"] for item in failed["progress"]["completed_chapters"]] == [1]
+
+
 def test_book_run_adapter_emits_running_progress_after_each_completed_chapter() -> None:
     """adapter 应把每章完章作为 running progress 投递，供生产调度面板实时推进。"""
 

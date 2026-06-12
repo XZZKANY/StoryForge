@@ -101,11 +101,12 @@ def run_book_loop(
         except Exception as exc:
             raise ChapterExecutionError(chapter_index, exc) from exc
         chapter_result = _run_precommit_chapter(precommit_chapter, chapter_index, chapter_result, completed)
-        _accumulate_budget(budget, chapter_result)
         consistency_report = _run_consistency_barrier(consistency_barrier, chapter_index, chapter_result, completed)
         if consistency_report is not None and consistency_report.has_conflict:
+            _accumulate_budget(budget, chapter_result)
             return _consistency_blocked_result(chapter_index, chapter_result, completed, checkpoint, budget, consistency_report)
         if chapter_result.status != "approved":
+            _accumulate_budget(budget, chapter_result)
             return BookLoopResult(
                 status="awaiting_review",
                 current_chapter_index=chapter_index,
@@ -119,6 +120,7 @@ def run_book_loop(
         chapter_result = _run_commit_chapter_side_effects(
             commit_chapter_side_effects, chapter_index, chapter_result, completed
         )
+        _accumulate_budget(budget, chapter_result)
         chapter_progress = _chapter_progress(chapter_index, chapter_result)
         completed.append(chapter_progress)
         checkpoint.append(_checkpoint_entry(chapter_progress))
@@ -204,11 +206,11 @@ def _run_book_loop_parallel(
                         precommit_chapter, next_commit_index, chapter_result, completed
                     )
                     precommit_revision_count += 1
-                _accumulate_budget(budget, chapter_result)
                 consistency_report = _run_consistency_barrier(
                     consistency_barrier, next_commit_index, chapter_result, completed
                 )
                 if consistency_report is not None and consistency_report.has_conflict:
+                    _accumulate_budget(budget, chapter_result)
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
                     return _with_integration_metrics(
@@ -228,6 +230,7 @@ def _run_book_loop_parallel(
                         ),
                     )
                 if chapter_result.status != "approved":
+                    _accumulate_budget(budget, chapter_result)
                     _shutdown_pending_chapters(executor, futures)
                     executor_closed = True
                     return _with_integration_metrics(
@@ -248,6 +251,7 @@ def _run_book_loop_parallel(
                 chapter_result = _run_commit_chapter_side_effects(
                     commit_chapter_side_effects, next_commit_index, chapter_result, completed
                 )
+                _accumulate_budget(budget, chapter_result)
                 chapter_progress = _chapter_progress(next_commit_index, chapter_result)
                 completed.append(chapter_progress)
                 checkpoint.append(_checkpoint_entry(chapter_progress))

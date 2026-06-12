@@ -241,7 +241,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
         ),
     )
 
-    defer_commit_side_effects = ports.memory_extractor is not None or ports.continuity_submitter is not None
+    defer_commit_side_effects = True
     novel_requests_by_chapter: dict[int, NovelLoopRequest] = {}
     novel_ports_by_chapter: dict[int, NovelLoopPorts] = {}
     novel_loop_cache_lock = Lock()
@@ -307,18 +307,21 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             novel_ports = ports.novel_loop_ports_factory(novel_request)
         injected_ports = _novel_loop_ports_with_injected_ports(novel_ports, ports)
         runner = NovelSkillRunner.default()
-        memory_atom_ids = runner.run_memory_extract(
-            request=novel_request,
-            draft=chapter_result.final_draft,
-            approved_scene_id=chapter_result.approved_scene_id or 0,
-            extract_memory=injected_ports.extract_memory,
-        )
-        continuity_result = runner.run_submit_continuity(
-            request=novel_request,
-            draft=chapter_result.final_draft,
-            approved_scene_id=chapter_result.approved_scene_id or 0,
-            submit_continuity=injected_ports.submit_continuity,
-        )
+        try:
+            memory_atom_ids = runner.run_memory_extract(
+                request=novel_request,
+                draft=chapter_result.final_draft,
+                approved_scene_id=chapter_result.approved_scene_id or 0,
+                extract_memory=injected_ports.extract_memory,
+            )
+            continuity_result = runner.run_submit_continuity(
+                request=novel_request,
+                draft=chapter_result.final_draft,
+                approved_scene_id=chapter_result.approved_scene_id or 0,
+                submit_continuity=injected_ports.submit_continuity,
+            )
+        except Exception as exc:
+            raise ChapterExecutionError(chapter_index, exc) from exc
         return _with_committed_side_effects(chapter_result, memory_atom_ids, continuity_result, runner)
 
     try:
@@ -327,7 +330,7 @@ def run_book_run_with_skill_runner(request: BookRunAdapterRequest, ports: BookRu
             run_chapter,
             progress_callback=emit_chapter_progress,
             consistency_barrier=ports.consistency_barrier,
-            commit_chapter_side_effects=commit_chapter_side_effects if defer_commit_side_effects else None,
+            commit_chapter_side_effects=commit_chapter_side_effects,
         )
     except ChapterExecutionError as exc:
         _emit_result_progress(
