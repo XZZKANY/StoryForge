@@ -1,0 +1,11 @@
+{
+  "output_dir": "D:\\StoryForge\\.codex\\narrative-smoke-6ch-contract-20260613-021736",
+  "chapter_count": 6,
+  "sidecars": {
+    "summary": "D:\\StoryForge\\.codex\\narrative-smoke-6ch-contract-20260613-021736\\summary.json",
+    "gate_results": "D:\\StoryForge\\.codex\\narrative-smoke-6ch-contract-20260613-021736\\gate-results.json",
+    "progress_snapshot": "D:\\StoryForge\\.codex\\narrative-smoke-6ch-contract-20260613-021736\\progress-snapshot.json",
+    "narrative_risk_summary": "D:\\StoryForge\\.codex\\narrative-smoke-6ch-contract-20260613-021736\\narrative-risk-summary.md",
+    "manual_readthrough": "D:\\StoryForge\\.codex\\narrative-smoke-6ch-contract-20260613-021736\\manual-readthrough.md"
+  }
+}

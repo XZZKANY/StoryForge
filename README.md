@@ -1,103 +1,189 @@
 # StoryForge
 
-长篇小说最难的不是写一章，是写到第三十章时角色不崩、伏笔不丢、时间线不乱。
+StoryForge 是一个面向长篇小说创作的 AI 工作流原型。它把“写一章”拆成可审计的流水线：设定、章节目标、检索证据、生成、审稿、修复、记忆回写和制品导出。
 
-StoryForge 把这个问题拆成可检查的环节：**设定 → 章节目标 → 检索证据 → 生成 → 审稿 → 修复 → 记忆注入 → 导出**。它不是让模型一次性写完整本书，而是把每一章变成可检查、可修复、可追踪的生产单元。
+它的目标不是让模型一次性吐出一本书，而是让每一章都能被检查、追踪、恢复和修正。
 
----
+> 当前状态：StoryForge 已完成本地最小整书闭环、真实 LLM 1/3/10 章 smoke 验证和一次 30 章真实长程运行。30 章运行链路与制品导出完成，但人工通读结论为“退回重跑”，因此还不能宣称具备稳定生产级长篇质量。
 
-## 当前状态
+## 目录
 
-StoryForge 是**长篇小说 AI 创作流水线原型**。已完成 1 章、3 章、10 章真实 LLM 端到端验证，10 章验证已通过人工通读。尚未证明可在 3–5 万字尺度上稳定生产。欢迎开发者参与验证和改进。
+- [核心能力](#核心能力)
+- [当前边界](#当前边界)
+- [技术栈](#技术栈)
+- [仓库结构](#仓库结构)
+- [快速开始](#快速开始)
+- [常用命令](#常用命令)
+- [真实 LLM 验证](#真实-llm-验证)
+- [验证记录](#验证记录)
+- [路线图](#路线图)
+- [贡献](#贡献)
 
-## Demo
+## 核心能力
 
-10 章真实模型验证产出的完整样例（`book.md` + `audit_report.json`）见：
+- **作品设定**：管理作品、角色、世界观、时间线和风格包。
+- **章节规划**：从 Blueprint 拆解章节目标、节奏约束和检索锚点。
+- **上下文检索**：通过 Story Memory、Character Bible、Scene Packet 和 RAG 证据组织章节上下文。
+- **逐章生成**：由 Scene Architect、Draft Writer 等节点驱动章节草稿生成。
+- **自动审稿**：覆盖叙事、人物、世界观、时间线、风格和系统可靠度等质量维度。
+- **定向修复**：根据 Judge 结果触发 Repair Patch，保留修订前后差异。
+- **记忆注入**：抽取章节新增事实，写回 Story Memory，供后续章节复用。
+- **制品导出**：导出 Markdown、EPUB 和 `audit_report.json`。
 
-[`.codex/real-llm-10ch-20260604-110831/`](.codex/real-llm-10ch-20260604-110831/)
+## 当前边界
 
-## 能做什么
+StoryForge 仍处在真实长程验收整改阶段。它适合用来研究和改进可验证的 AI 小说生产流水线，但不应该被视为成熟的商用写作平台。
 
-- **故事设定**：创建作品、角色、世界观
-- **章节计划**：从 Blueprint 拆解章节目标与检索锚点
-- **逐章生成**：Scene Architect → Draft Writer 顺序驱动
-- **自动审稿**：6 维质量评分（叙事、人物、世界观、时间线、风格、系统可靠度）
-- **定向修复**：根据评分触发分级修订
-- **记忆注入**：提取关键信息写入 Story Memory，贯穿后续章节
-- **成品导出**：Markdown、EPUB、完整审计报告（`audit_report.json`）
+当前可以宣称：
 
-## 不能做什么
+- 本地 deterministic/mock provider 可以跑通最小整书闭环。
+- API、Web、Workflow、OpenAPI 契约和 Alembic 单 head 已纳入本地验证。
+- 真实 LLM 1 章、3 章和 10 章 smoke 已有脱敏证据，其中 10 章 smoke 已通过人工通读。
+- 30 章真实长程运行已经完成并导出 `book.md`、`book.epub` 和审计报告。
 
-- 不保证商用级长篇质量（当前为原型验证阶段）
-- 不提供完整多人协作
-- 不提供生产级对象存储签名 URL 下载
-- 不承诺外部 LLM 端到端质量稳定
+当前不能宣称：
+
+- 不能宣称真实 3-5 万字长程质量验收通过。
+- 不能把自动审计满分等同于人工通读通过。
+- 不能承诺稳定生产级长篇小说生成质量。
+- 不能承诺完整多人协作、生产级对象存储签名下载或全步骤 Studio 编排已经完成。
+
+最新阶段事实以 [`docs/internal/current-phase.md`](docs/internal/current-phase.md) 为准。
+
+## 技术栈
+
+- **Web**：Next.js App Router、React、TypeScript、CodeMirror、Zustand
+- **API**：FastAPI、Pydantic、SQLAlchemy、Alembic
+- **Workflow**：LangGraph、本地兼容运行时、checkpoint、provider adapter
+- **基础设施**：PostgreSQL + pgvector、Redis、MinIO、Docker Compose
+- **共享契约**：OpenAPI、`@storyforge/shared`
+- **工具链**：pnpm、uv、pytest、Ruff、ESLint、Prettier、Playwright
+
+## 仓库结构
+
+```text
+StoryForge/
+├── apps/
+│   ├── api/          # FastAPI 业务 API、领域模型、迁移和测试
+│   ├── web/          # Next.js 工作台、Studio、Runs、Artifacts 等页面
+│   └── workflow/     # 小说生成工作流、技能节点、运行时和质量门禁
+├── packages/
+│   └── shared/       # OpenAPI 生成类型、共享契约和工具
+├── docs/
+│   ├── architecture/ # 架构和接口约束
+│   ├── internal/     # 当前阶段、TODO、项目摘要等事实源
+│   └── operations/   # 本地启动、故障排查、发布检查
+├── scripts/          # 本地验证、OpenAPI 生成、开发启动脚本
+└── tests/            # 跨服务 e2e 与契约测试
+```
 
 ## 快速开始
 
-```bash
+### 前置条件
+
+- Node.js
+- pnpm 9.15.4
+- Python 3.11+
+- uv
+- Docker / Docker Compose
+
+### 启动本地环境
+
+```powershell
 git clone https://github.com/XZZKANY/StoryForge.git
 cd StoryForge
+Copy-Item .env.example .env
 pnpm install
 docker compose up -d postgres redis minio
-pnpm dev          # 全栈启动（API + Web + 迁移）
-pnpm verify       # 本地门禁
-pnpm test         # 单元 / 契约测试
-pnpm e2e          # OpenAPI 刷新 + 真实 HTTP 测试
+pnpm dev
 ```
 
-Windows 下若 `pnpm.ps1` 被阻止，改用 `pnpm.cmd`。
+默认入口：
 
-## 架构
+- Web：http://localhost:3000
+- API：http://localhost:8000
+- MinIO Console：http://localhost:9001
 
-```
-Web (Next.js)  → 只读工作台 + BFF，不私自计算业务结论
-       │  X-StoryForge-API-Key + OpenAPI 硬契约
-       ▼
-API (FastAPI)  → 业务真相源，~25 个业务域
-       │  JobRun / Checkpoint / ModelRun
-       ▼
-Workflow       → 长任务编排，真实模型调用边界
-(LangGraph)
-```
+本地默认使用 deterministic/mock provider，不需要真实 LLM 密钥即可启动和跑基础验证。
 
-一条完整的 BookRun：
+Windows PowerShell 如果阻止 `pnpm.ps1`，可以改用 `pnpm.cmd`：
 
-```
-Blueprint → generate → judge → repair → approve → memory → checkpoint → 导出
+```powershell
+pnpm.cmd dev
 ```
 
-详细架构见 [`CLAUDE.md`](CLAUDE.md)。
+## 常用命令
 
-## 质量验证
+```powershell
+pnpm dev          # 同时启动 API 和 Web，并执行必要迁移
+pnpm dev:api      # 只启动 API
+pnpm dev:web      # 只启动 Web
+pnpm verify       # 本地核心门禁
+pnpm test         # Web、API、Workflow 测试
+pnpm e2e          # OpenAPI 刷新 + 真实 HTTP / 契约测试
+pnpm openapi      # 重新生成 OpenAPI 契约
+pnpm lint         # ESLint + Prettier 检查
+pnpm lint:fix     # 自动修复可修复的格式和 lint 问题
+```
 
-| 验证轮次 | 章节 | Token 消耗 | 状态 | 人工通读 |
-|---------|------|-----------|------|---------|
-| 1 章 smoke | 1 | — | ✅ | ✅ |
-| 3 章 smoke | 3 | 14,158 | ✅ | ✅ |
-| 10 章 smoke | 10 | 145,668 | ✅ | ✅ |
+更多启动和故障排查说明见 [`docs/operations/local-start.md`](docs/operations/local-start.md) 与 [`docs/operations/troubleshooting.md`](docs/operations/troubleshooting.md)。
 
-10 章验证产出 `book.md`（~34,000 字）、完整 `audit_report.json`，已通过人工通读。
+## 真实 LLM 验证
 
-> 以上为真实 LLM 冒烟验证，3–5 万字长程仍在推进中。
+真实 provider 配置必须来自本机私有环境变量，不要把 API key、token、secret 或 password 写入仓库、日志或验证报告。
+
+```powershell
+cd apps/api
+uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 --token-budget 8000
+uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
+```
+
+已落盘的脱敏验证样例：
+
+- 1 章 smoke：`.codex/real-llm-1ch-20260603-142925`
+- 3 章 smoke：`.codex/real-llm-3ch-20260603-173932`
+- 10 章 smoke：`.codex/real-llm-10ch-20260604-110831`
+- 30 章长程：`.codex/real-llm-30ch-mimo25pro-20260611-192356`
+
+10 章样例已经通过人工通读；30 章样例只能证明运行链路和制品导出完成，质量验收尚未通过。
+
+## 验证记录
+
+| 验证轮次 | 章节 | Token 消耗 | 运行链路 | 人工通读 |
+| --- | ---: | ---: | --- | --- |
+| 1 章 smoke | 1 | - | 通过 | 通过 |
+| 3 章 smoke | 3 | 14,158 | 通过 | 通过 |
+| 10 章 smoke | 10 | 145,668 | 通过 | 通过 |
+| 30 章长程 | 30 | 261,436 | 通过 | 退回重跑 |
+
+30 章长程的主要阻塞包括测试痕迹残留、章节结构模板化、重复表达、人物称谓混乱、17/18 章时间线冲突、线索膨胀和结尾收束不足。
 
 ## 路线图
 
-**当前优先：**
-1. 跑通 3–5 万字真实 LLM 长程
-2. 长程产物人工通读 + Markdown/EPUB/审计报告验收
-3. 补齐 streaming 响应与多租户认证
+当前优先级：
 
-**持续进行：**
-- Studio 全步骤交互编排
-- 检索精度与 RAG 质量提升
-- CI/CD 与部署自动化
+1. 基于 30 章人工通读意见整改长程生成策略。
+2. 重跑真实 3-5 万字长程，并执行人工通读、Markdown、EPUB 和审计报告验收。
+3. 补齐 streaming 响应、多租户认证和生产级制品下载能力。
+4. 完善 Studio 全步骤交互编排。
+5. 提升 RAG 检索质量、证据详情和重排可观测性。
 
 ## 贡献
 
-欢迎 Issue 和 PR。
+欢迎 Issue 和 PR。提交前建议至少运行：
 
-- 提交前请运行 `pnpm verify && pnpm test && pnpm e2e`
-- 代码风格：Python 侧 `ruff`，TypeScript 侧 `tsc --noEmit` + ESLint
-- 验证证据写入 `.codex/verification-report.md` 或在 PR 中附带命令输出
-- 更多约定见 [`CLAUDE.md`](CLAUDE.md)
+```powershell
+pnpm verify
+pnpm test
+pnpm e2e
+```
+
+贡献时请注意：
+
+- Python 代码遵循 Ruff，TypeScript 代码遵循 TypeScript、ESLint 和 Prettier。
+- API 变更需要同步 OpenAPI，并检查 `packages/shared/src/contracts/storyforge.openapi.json` 是否产生预期 diff。
+- 涉及迁移时必须确认 Alembic 仍为单 head。
+- 验证结论应记录到 `.codex/verification-report.md` 或在 PR 中附带关键命令输出。
+- 不要提交真实 provider token、API key、secret、password 或未脱敏运行日志。
+
+更多工程约定见 [`CLAUDE.md`](CLAUDE.md)。

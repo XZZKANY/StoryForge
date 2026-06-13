@@ -1,0 +1,116 @@
+[
+  {
+    "chapter": 1,
+    "has_chapterbeat_section": true,
+    "section_nonempty": true,
+    "has_forbidden_template_line": false,
+    "current_chapter_beat_keys": [
+      "clue_usage_mode",
+      "forbidden_action_pattern",
+      "irreversible_consequence",
+      "new_evidence_allowed",
+      "primary_scene_mode",
+      "protagonist_mistake",
+      "relationship_shift",
+      "required_conflict_type",
+      "required_turning_point"
+    ],
+    "looks_like_investigation_template": true,
+    "section_preview": "。"
+  },
+  {
+    "chapter": 2,
+    "has_chapterbeat_section": true,
+    "section_nonempty": true,
+    "has_forbidden_template_line": false,
+    "current_chapter_beat_keys": [
+      "clue_usage_mode",
+      "forbidden_action_pattern",
+      "irreversible_consequence",
+      "new_evidence_allowed",
+      "primary_scene_mode",
+      "protagonist_mistake",
+      "relationship_shift",
+      "required_conflict_type",
+      "required_turning_point"
+    ],
+    "looks_like_investigation_template": true,
+    "section_preview": "。"
+  },
+  {
+    "chapter": 3,
+    "has_chapterbeat_section": true,
+    "section_nonempty": true,
+    "has_forbidden_template_line": false,
+    "current_chapter_beat_keys": [
+      "clue_usage_mode",
+      "forbidden_action_pattern",
+      "irreversible_consequence",
+      "new_evidence_allowed",
+      "primary_scene_mode",
+      "protagonist_mistake",
+      "relationship_shift",
+      "required_conflict_type",
+      "required_turning_point"
+    ],
+    "looks_like_investigation_template": true,
+    "section_preview": "。"
+  },
+  {
+    "chapter": 4,
+    "has_chapterbeat_section": true,
+    "section_nonempty": true,
+    "has_forbidden_template_line": false,
+    "current_chapter_beat_keys": [
+      "clue_usage_mode",
+      "forbidden_action_pattern",
+      "irreversible_consequence",
+      "new_evidence_allowed",
+      "primary_scene_mode",
+      "protagonist_mistake",
+      "relationship_shift",
+      "required_conflict_type",
+      "required_turning_point"
+    ],
+    "looks_like_investigation_template": true,
+    "section_preview": "。"
+  },
+  {
+    "chapter": 5,
+    "has_chapterbeat_section": true,
+    "section_nonempty": true,
+    "has_forbidden_template_line": false,
+    "current_chapter_beat_keys": [
+      "clue_usage_mode",
+      "forbidden_action_pattern",
+      "irreversible_consequence",
+      "new_evidence_allowed",
+      "primary_scene_mode",
+      "protagonist_mistake",
+      "relationship_shift",
+      "required_conflict_type",
+      "required_turning_point"
+    ],
+    "looks_like_investigation_template": true,
+    "section_preview": "。"
+  },
+  {
+    "chapter": 6,
+    "has_chapterbeat_section": true,
+    "section_nonempty": true,
+    "has_forbidden_template_line": false,
+    "current_chapter_beat_keys": [
+      "clue_usage_mode",
+      "forbidden_action_pattern",
+      "irreversible_consequence",
+      "new_evidence_allowed",
+      "primary_scene_mode",
+      "protagonist_mistake",
+      "relationship_shift",
+      "required_conflict_type",
+      "required_turning_point"
+    ],
+    "looks_like_investigation_template": true,
+    "section_preview": "。"
+  }
+]
