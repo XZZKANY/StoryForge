@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from html import escape
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
@@ -8,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
+from app.common.s3_client import upload_bytes
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import ArtifactForbiddenError, create_artifact
@@ -33,6 +36,17 @@ def export_book_run_markdown(session: Session, book_run_id: int, *, workspace_id
     for chapter, scene in scenes:
         lines.extend([f"## 第 {chapter.ordinal} 章 {chapter.title}", "", str(scene.content).strip(), ""])
     content = "\n".join(lines).strip() + "\n"
+    content_bytes = content.encode("utf-8")
+
+    # 尝试上传到 S3；失败或客户端不可用时回退到 memory:// + inline payload。
+    s3_uri = upload_bytes(f"book-runs/{book_run_id}/book.md", content_bytes, "text/markdown")
+    if s3_uri:
+        storage_uri = s3_uri
+        payload = {"uploaded_at": datetime.now(UTC).isoformat()}
+    else:
+        storage_uri = f"memory://book-runs/{book_run_id}/book.md"
+        payload = {"content": content}
+
     return create_artifact(
         session,
         ArtifactCreate(
@@ -41,10 +55,10 @@ def export_book_run_markdown(session: Session, book_run_id: int, *, workspace_id
             artifact_type="book_export",
             lineage_key=f"book-run:{book_run.id}:markdown",
             name="book.md",
-            storage_uri=f"memory://book-runs/{book_run.id}/book.md",
+            storage_uri=storage_uri,
             mime_type="text/markdown",
-            size_bytes=len(content.encode("utf-8")),
-            payload={"content": content},
+            size_bytes=len(content_bytes),
+            payload=payload,
         ),
     )
 
@@ -79,6 +93,19 @@ def export_book_run_audit_report(session: Session, book_run_id: int, *, workspac
     for chapter in report["chapters"]:
         if not chapter.get("model_run_id") or not chapter.get("judge_report_id") or not chapter.get("approved_scene_id"):
             raise BookExportError("BookRun 审计证据不完整，无法导出 audit_report.json。")
+
+    report_json = json.dumps(report, ensure_ascii=False, indent=2)
+    report_bytes = report_json.encode("utf-8")
+
+    # 尝试上传到 S3；失败时回退到 memory:// + inline payload。
+    s3_uri = upload_bytes(f"book-runs/{book_run_id}/audit_report.json", report_bytes, "application/json")
+    if s3_uri:
+        storage_uri = s3_uri
+        payload = {"uploaded_at": datetime.now(UTC).isoformat()}
+    else:
+        storage_uri = f"memory://book-runs/{book_run_id}/audit_report.json"
+        payload = report
+
     return create_artifact(
         session,
         ArtifactCreate(
@@ -87,10 +114,10 @@ def export_book_run_audit_report(session: Session, book_run_id: int, *, workspac
             artifact_type="book_audit_report",
             lineage_key=f"book-run:{book_run.id}:audit-report",
             name="audit_report.json",
-            storage_uri=f"memory://book-runs/{book_run.id}/audit_report.json",
+            storage_uri=storage_uri,
             mime_type="application/json",
-            size_bytes=len(str(report).encode("utf-8")),
-            payload=report,
+            size_bytes=len(report_bytes),
+            payload=payload,
         ),
     )
 
@@ -125,6 +152,26 @@ def export_book_run_epub(session: Session, book_run_id: int, *, workspace_id: in
         }
         for chapter, scene in scenes
     ]
+
+    # 尝试上传到 S3；失败时回退到 memory:// + inline payload。
+    s3_uri = upload_bytes(f"book-runs/{book_run_id}/book.epub", content, "application/epub+zip")
+    if s3_uri:
+        storage_uri = s3_uri
+        payload = {
+            "uploaded_at": datetime.now(UTC).isoformat(),
+            "format": "epub",
+            "chapter_count": len({chapter.ordinal for chapter, _scene in scenes}),
+        }
+    else:
+        storage_uri = f"memory://book-runs/{book_run.id}/book.epub"
+        payload = {
+            "format": "epub",
+            "book_run_id": book_run.id,
+            "blueprint_id": book_run.blueprint_id,
+            "chapter_count": len({chapter.ordinal for chapter, _scene in scenes}),
+            "manifest": chapter_manifest,
+        }
+
     return create_artifact(
         session,
         ArtifactCreate(
@@ -133,16 +180,10 @@ def export_book_run_epub(session: Session, book_run_id: int, *, workspace_id: in
             artifact_type="book_epub_export",
             lineage_key=f"book-run:{book_run.id}:epub",
             name="book.epub",
-            storage_uri=f"memory://book-runs/{book_run.id}/book.epub",
+            storage_uri=storage_uri,
             mime_type="application/epub+zip",
             size_bytes=len(content),
-            payload={
-                "format": "epub",
-                "book_run_id": book_run.id,
-                "blueprint_id": book_run.blueprint_id,
-                "chapter_count": len({chapter.ordinal for chapter, _scene in scenes}),
-                "manifest": chapter_manifest,
-            },
+            payload=payload,
         ),
     )
 

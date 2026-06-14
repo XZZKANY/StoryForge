@@ -304,7 +304,7 @@
         "type": "object"
       },
       "ArtifactDownloadRead": {
-        "description": "制品下载摘要在没有对象存储签名时返回可审查内容。",
+        "description": "制品下载摘要；download_mode 决定返回内联预览或 presigned URL。\n\ndownload_mode 取值：\n- \"payload_preview\": 无对象存储或 memory:// URI，返回 content_preview 与 payload_summary。\n- \"presigned_url\": S3 URI，返回 presigned_url 与 expires_at（5 分钟有效期）。",
         "properties": {
           "artifact_type": {
             "title": "Artifact Type",
@@ -317,6 +317,17 @@
           "download_mode": {
             "title": "Download Mode",
             "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
           },
           "id": {
             "title": "Id",
@@ -334,6 +345,17 @@
             "additionalProperties": true,
             "title": "Payload Summary",
             "type": "object"
+          },
+          "presigned_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presigned Url"
           },
           "storage_uri": {
             "title": "Storage Uri",
@@ -1893,6 +1915,32 @@
         "title": "BookRunRead",
         "type": "object"
       },
+      "BookRunStartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "max_chapters": {
+            "default": 6,
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Max Chapters",
+            "type": "integer"
+          },
+          "token_budget": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Budget"
+          }
+        },
+        "title": "BookRunStartRequest",
+        "type": "object"
+      },
       "BookRunVolumePlanItem": {
         "additionalProperties": false,
         "properties": {
@@ -1983,6 +2031,11 @@
       "BookRunWorkflowDispatch": {
         "description": "BookRun workflow worker 的稳定调度 payload。",
         "properties": {
+          "beat_sheet_gate": {
+            "additionalProperties": true,
+            "title": "Beat Sheet Gate",
+            "type": "object"
+          },
           "blueprint_id": {
             "exclusiveMinimum": 0.0,
             "title": "Blueprint Id",
@@ -2017,6 +2070,11 @@
             "title": "Chapters",
             "type": "array"
           },
+          "entity_budget": {
+            "additionalProperties": true,
+            "title": "Entity Budget",
+            "type": "object"
+          },
           "existing_checkpoint": {
             "items": {
               "additionalProperties": true,
@@ -2024,6 +2082,16 @@
             },
             "title": "Existing Checkpoint",
             "type": "array"
+          },
+          "narrative_plan": {
+            "additionalProperties": true,
+            "title": "Narrative Plan",
+            "type": "object"
+          },
+          "phase_policy": {
+            "additionalProperties": true,
+            "title": "Phase Policy",
+            "type": "object"
           },
           "provider_fallback_pause_threshold": {
             "anyOf": [
@@ -10103,6 +10171,30 @@
       }
     },
     "/api/blueprints": {
+      "get": {
+        "description": "列出所有 Blueprints，按创建时间倒序。",
+        "operationId": "list_book_blueprints_endpoint_api_blueprints_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookBlueprintRead"
+                  },
+                  "title": "Response List Book Blueprints Endpoint Api Blueprints Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "列出所有 Blueprints",
+        "tags": [
+          "全书蓝图"
+        ]
+      },
       "post": {
         "description": "创建 Phase 9A 最小全书蓝图，作为章节规划和 BookRun 的输入。",
         "operationId": "create_book_blueprint_endpoint_api_blueprints_post",
@@ -10704,6 +10796,59 @@
           }
         },
         "summary": "从 checkpoint 重试 BookRun",
+        "tags": [
+          "整书运行"
+        ]
+      }
+    },
+    "/api/book-runs/{book_run_id}/start": {
+      "post": {
+        "description": "对已创建的 running BookRun 发起后台生成（封顶 6 章，复用 Phase 9B 串行编排）。\n\n会消耗真实 LLM 预算；缺少 STORYFORGE_LLM_* 凭据时立即返回 422。",
+        "operationId": "start_book_run_endpoint_api_book_runs__book_run_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_run_id",
+            "required": true,
+            "schema": {
+              "title": "Book Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookRunStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "发起 BookRun 后台生成",
         "tags": [
           "整书运行"
         ]

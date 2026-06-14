@@ -29,6 +29,15 @@ _STYLE_PACK_RULE_KEYS = ("规则", "rules")
 _STYLE_PACK_FORBIDDEN_KEYS = ("禁用表达", "forbidden_phrases")
 _STYLE_PACK_EXAMPLE_KEYS = ("示例句", "example_sentences")
 
+# 前文 recap 注入预算。
+# 实测：full_chapters=2 + token_budget=2000 时 recap 长期顶满预算（≈2000 token ≈ 12000 字符），
+# 占去 prompt 大头（15 章长跑 prompt 88944 token vs completion 49373 token），并把「两整章原文」
+# 当成长度范例，系统性诱导模型把后续章节越写越长。续写真正需要的连续性只来自「紧邻上一章」，
+# 更早章节由 digest 梗概承接即可。故收敛为：只给 1 章完整原文 + 更紧的 token 预算，
+# 既砍掉一半 prompt 成本，又移除长度范例压力，让每章 prompt 体量稳定不随章数膨胀。
+_RECAP_FULL_CHAPTERS = 1
+_RECAP_TOKEN_BUDGET = 1200
+
 
 def assemble_prompt_injection(
     session: Session,
@@ -75,7 +84,10 @@ def assemble_prompt_injection(
 
         # 前文语料：从缓存编译（预算感知裁剪，取代裸字符截断）
         recap = context.compile_blocks_for_chapter(
-            chapter_ordinal, chapter_id=chapter_id, full_chapters=2, token_budget=2000
+            chapter_ordinal,
+            chapter_id=chapter_id,
+            full_chapters=_RECAP_FULL_CHAPTERS,
+            token_budget=_RECAP_TOKEN_BUDGET,
         )
         if recap:
             state["previous_summary_ref"] = recap

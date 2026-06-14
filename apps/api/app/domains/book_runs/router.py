@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.schemas import ArtifactRead
@@ -12,6 +13,7 @@ from app.domains.book_runs.schemas import (
     BookRunCreate,
     BookRunProgressUpdate,
     BookRunRead,
+    BookRunStartRequest,
     BookRunWorkflowDispatch,
 )
 from app.domains.book_runs.service import (
@@ -19,12 +21,15 @@ from app.domains.book_runs.service import (
     BookRunError,
     BookRunNotFoundError,
     apply_book_run_progress,
+    assert_book_run_startable,
     build_book_run_workflow_dispatch,
     create_book_run,
     get_book_run,
+    mark_book_run_generation_dispatched,
     pause_book_run,
     resume_book_run,
     retry_book_run_from_checkpoint,
+    run_book_run_generation_blocking,
     stop_book_run,
 )
 from app.domains.exports.book_markdown_exporter import (
@@ -57,6 +62,48 @@ def get_book_run_endpoint(book_run_id: int, session: SessionDependency) -> BookR
         return get_book_run(session, book_run_id)
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{book_run_id}/start",
+    response_model=BookRunRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="发起 BookRun 后台生成",
+)
+def start_book_run_endpoint(
+    book_run_id: int,
+    payload: BookRunStartRequest,
+    session: SessionDependency,
+    background_tasks: BackgroundTasks,
+) -> BookRunRead:
+    """对已创建的 running BookRun 发起后台生成（封顶 6 章，复用 Phase 9B 串行编排）。
+
+    会消耗真实 LLM 预算；缺少 STORYFORGE_LLM_* 凭据时立即返回 422。
+    """
+
+    env = dict(os.environ)
+    try:
+        _, chapter_count, token_budget = assert_book_run_startable(
+            session,
+            book_run_id,
+            max_chapters=payload.max_chapters,
+            token_budget=payload.token_budget,
+            env=env,
+        )
+    except BookRunNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BookRunBlockedError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    book_run = mark_book_run_generation_dispatched(session, book_run_id)
+    background_tasks.add_task(
+        run_book_run_generation_blocking,
+        book_run_id,
+        chapter_count=chapter_count,
+        token_budget=token_budget,
+        env=env,
+    )
+    return book_run
 
 
 @router.post("/{book_run_id}/resume", response_model=BookRunRead, summary="恢复 BookRun")

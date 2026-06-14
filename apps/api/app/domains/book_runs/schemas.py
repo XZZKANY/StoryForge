@@ -31,6 +31,14 @@ class BookRunControlRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=200)
 
 
+class BookRunStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # 上限 6 章：单进程后台触发的安全闸，避免长跑阻塞 worker（5-13 分钟级）。
+    max_chapters: int = Field(default=6, ge=1, le=6)
+    token_budget: int | None = Field(default=None, gt=0)
+
+
 class BookRunChapterRange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

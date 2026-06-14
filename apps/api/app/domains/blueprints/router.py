@@ -10,11 +10,23 @@ from app.domains.blueprints.service import (
     BlueprintPlanningBlockedError,
     create_book_blueprint,
     get_book_blueprint,
+    list_book_blueprints,
     lock_book_blueprint,
     trigger_chapter_plan,
 )
 
 router = APIRouter(prefix="/api/blueprints", tags=["全书蓝图"])
+
+
+@router.get(
+    "",
+    response_model=list[BookBlueprintRead],
+    summary="列出所有 Blueprints",
+)
+def list_book_blueprints_endpoint(session: SessionDependency) -> list[BookBlueprintRead]:
+    """列出所有 Blueprints，按创建时间倒序。"""
+
+    return list_book_blueprints(session)
 
 
 @router.post(

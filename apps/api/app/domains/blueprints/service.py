@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
@@ -47,11 +48,22 @@ def create_book_blueprint(session: Session, payload: BookBlueprintCreate) -> Boo
 
 def get_book_blueprint(session: Session, blueprint_id: int) -> BookBlueprint:
     """按主键读取 Blueprint。"""
-
     blueprint = session.get(BookBlueprint, blueprint_id)
     if blueprint is None:
         raise BlueprintNotFoundError("Blueprint 不存在。")
     return blueprint
+
+
+def list_book_blueprints(session: Session, limit: int = 100) -> list[BookBlueprint]:
+    """列出所有 Blueprints，按创建时间倒序。"""
+
+    return list(
+        session.scalars(
+            select(BookBlueprint)
+            .order_by(BookBlueprint.created_at.desc())
+            .limit(limit)
+        ).all()
+    )
 
 
 def lock_book_blueprint(session: Session, blueprint_id: int) -> BookBlueprint:

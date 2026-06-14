@@ -49,6 +49,13 @@ def _reset_domain_caches() -> None:
     invalidate_worldbuilding_cache()
 
 
+@pytest.fixture(autouse=True)
+def _disable_s3_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """默认禁用 S3 客户端，避免测试尝试连接真实 MinIO；需要时显式打桩。"""
+
+    monkeypatch.setattr("app.common.s3_client.get_s3_client", lambda: None)
+
+
 @pytest.fixture()
 def engine() -> Generator:
     """每个测试使用独立内存数据库，避免跨用例污染。"""

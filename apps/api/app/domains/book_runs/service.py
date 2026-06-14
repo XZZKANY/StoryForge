@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
+from app.db.session import SessionLocal
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.schemas import (
@@ -105,6 +110,103 @@ def get_book_run(session: Session, book_run_id: int) -> BookRun:
     if book_run is None:
         raise BookRunNotFoundError("BookRun 不存在。")
     return book_run
+
+
+_logger = logging.getLogger(__name__)
+
+# 单进程后台触发的章节上限：与 BookRunStartRequest.max_chapters 的上界保持一致。
+START_TRIGGER_CHAPTER_CAP = 6
+# 未显式提供预算时，按每章给一份保守 token 预算，避免立刻触发预算暂停。
+DEFAULT_TOKENS_PER_CHAPTER = 4000
+
+
+def assert_book_run_startable(
+    session: Session,
+    book_run_id: int,
+    *,
+    max_chapters: int = START_TRIGGER_CHAPTER_CAP,
+    token_budget: int | None = None,
+    env: Mapping[str, str | None] | None = None,
+) -> tuple[BookRun, int, int]:
+    """同步前置校验：存在性、状态、LLM 凭据与重复触发，返回 (run, 章节数, token 预算)。
+
+    由 start 端点在返回 202 之前内联调用，让缺凭据 / 状态不符立即得到反馈，
+    而不是沉默地在后台任务里失败。
+    """
+
+    from app.domains.book_runs.book_generation import missing_book_generation_env
+
+    book_run = get_book_run(session, book_run_id)
+    if book_run.status != "running":
+        raise BookRunBlockedError(
+            f"BookRun 状态为 {book_run.status}，只能对 running 的运行发起生成；"
+            "已暂停或停止的运行请用 resume / retry。"
+        )
+    generation = (book_run.progress or {}).get("generation")
+    if isinstance(generation, Mapping) and generation.get("state") in {"dispatched", "running"}:
+        raise BookRunBlockedError("BookRun 生成已在进行中，请勿重复发起。")
+    missing = missing_book_generation_env(env)
+    if missing:
+        raise BookRunBlockedError(
+            "缺少真实 LLM 生成所需环境变量：" + ", ".join(missing) + "。"
+        )
+    chapter_count = min(book_run.total_chapters, max_chapters)
+    if chapter_count < 1:
+        raise BookRunBlockedError("BookRun 总章节数无效，无法发起生成。")
+    resolved_budget = token_budget or book_run.token_budget or (chapter_count * DEFAULT_TOKENS_PER_CHAPTER)
+    return book_run, chapter_count, resolved_budget
+
+
+def mark_book_run_generation_dispatched(session: Session, book_run_id: int) -> BookRun:
+    """在 progress 下挂 generation 派发标记，用于拒绝并发重复触发。
+
+    直接写 progress 子键并提交，不走 apply_book_run_progress——后者会按 payload
+    重算 status / 预算 / checkpoint，会覆盖真实运行状态。
+    """
+
+    book_run = get_book_run(session, book_run_id)
+    progress = dict(book_run.progress or {})
+    progress["generation"] = {
+        "state": "dispatched",
+        "dispatched_at": datetime.now(UTC).isoformat(),
+    }
+    book_run.progress = progress
+    session.commit()
+    session.refresh(book_run)
+    return book_run
+
+
+def run_book_run_generation_blocking(
+    book_run_id: int,
+    *,
+    chapter_count: int,
+    token_budget: int,
+    env: Mapping[str, str | None] | None = None,
+) -> None:
+    """后台任务体：用独立 Session 驱动顺序生成（复用 Phase 9B 串行编排）。
+
+    请求级 Session 在后台任务运行时已关闭，故此处自行开 SessionLocal。
+    生成失败时 resume_book_generation 已记录失败证据并翻转状态，
+    这里仅记录日志并吞掉异常，避免后台任务崩溃 worker。
+    """
+
+    # 延迟导入：phase9b 模块在导入期依赖本模块，顶层导入会形成循环。
+    from app.domains.book_runs.book_generation import resume_book_generation
+
+    session = SessionLocal()
+    try:
+        resume_book_generation(
+            session,
+            book_run_id=book_run_id,
+            chapter_count=chapter_count,
+            token_budget=token_budget,
+            max_chapter_count=START_TRIGGER_CHAPTER_CAP,
+            env=env,
+        )
+    except Exception:  # noqa: BLE001 - 失败证据已落库，避免后台任务向上抛
+        _logger.exception("BookRun %s 后台生成失败", book_run_id)
+    finally:
+        session.close()
 
 
 def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> BookRunWorkflowDispatch:

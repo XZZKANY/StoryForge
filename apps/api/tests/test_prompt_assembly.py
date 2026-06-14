@@ -282,3 +282,54 @@ def test_assembled_state_renders_layered_prompt_via_bridge(session: Session) -> 
     assert "禁止表现：突然健谈" in prompt
     assert "禁用表达（绝不能出现）：不禁" in prompt
     assert "当前章节：第一章 雾港" in prompt
+
+
+def test_assemble_recap_stays_bounded_across_long_run(session: Session) -> None:
+    """长跑回归：前文章节越积越多、单章越写越长时，注入的 recap 必须保持有界并收敛到预算上限，
+    不随章数线性膨胀（旧 full_chapters=2 + budget=2000 让 recap 顶满 ≈12000 字符，
+    既吃满 prompt 成本又把「两整章原文」当成长度范例诱导越写越长）。"""
+
+    book = Book(title="长跑回归", status="draft", premise="收敛验证")
+    session.add(book)
+    session.flush()
+
+    # 模块级 _context_cache 按 book_id 缓存，跨测试 DB 重置后 id 会复用 → 先清，保证读本测试自己的章
+    from app.domains.book_runs.book_context import clear_book_context_cache
+
+    clear_book_context_cache()
+
+    # 造 45 章已批准长正文（每章 ~2500 字），逐章追加进 BookContext 缓存
+    for ordinal in range(1, 46):
+        chapter = Chapter(book_id=book.id, ordinal=ordinal, title=f"第{ordinal}章", status="approved", summary=None)
+        session.add(chapter)
+        session.flush()
+        session.add(
+            Scene(
+                chapter_id=chapter.id,
+                ordinal=1,
+                title=f"第{ordinal}章正文",
+                status="approved",
+                content=f"第{ordinal}章开端。" + "线索推进。" * 500,
+            )
+        )
+    cur = Chapter(book_id=book.id, ordinal=46, title="第46章", status="draft", summary=None)
+    session.add(cur)
+    session.commit()
+
+    # 取两个「digest 早已填满预算」的晚期点位，验证 recap 已收敛到上限、不再随章数增长
+    recap_30 = assemble_prompt_injection(
+        session, book_id=book.id, chapter_id=cur.id, chapter_ordinal=30, chapter_title="第30章",
+    )["previous_summary_ref"]
+    recap_45 = assemble_prompt_injection(
+        session, book_id=book.id, chapter_id=cur.id, chapter_ordinal=45, chapter_title="第45章",
+    )["previous_summary_ref"]
+
+    ceiling = 1200 * 6  # budget(1200 token) × 6 字符/token，与 estimate_tokens 的字符密度一致
+    # 有界：被预算上限钳住，远低于旧 ≈12000
+    assert len(recap_30) <= ceiling
+    assert len(recap_45) <= ceiling
+    # 收敛：饱和后第 45 章 recap 不比第 30 章长（不随章数膨胀）
+    assert abs(len(recap_45) - len(recap_30)) <= 50
+    # 只保留 1 章完整原文（full_chapters=1）：紧邻上一章在，更早章节降级为梗概行
+    assert "【最近章节原文 · 第44章】" in recap_45
+    assert "【最近章节原文 · 第43章】" not in recap_45
