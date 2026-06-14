@@ -6,7 +6,7 @@ from pathlib import Path
 
 import app.models  # noqa: F401
 from app.db.session import SessionLocal
-from app.domains.book_runs.phase9b_real_llm_smoke import run_phase9b_real_llm_smoke
+from app.domains.book_runs.book_generation import run_book_generation
 
 OUT_DIR = Path(__file__).resolve().parents[2] / ".codex" / "real-llm-smoke"
 
@@ -26,7 +26,7 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     with SessionLocal() as session:
-        result = run_phase9b_real_llm_smoke(
+        result = run_book_generation(
             session,
             chapter_count=chapter_count,
             token_budget=token_budget,

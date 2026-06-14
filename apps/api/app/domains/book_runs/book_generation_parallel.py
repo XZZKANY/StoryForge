@@ -1,4 +1,4 @@
-"""Phase9B 真实 LLM 并发 runner 的 workflow 桥接层。
+"""真实 LLM 并发整书生成 runner 的 workflow 桥接层。
 
 API 环境不直接安装 workflow 包；本模块沿用既有桥接模式，只加载
 BookLoop/NovelLoop 所需的纯 Python 编排模块，不触发 workflow 顶层依赖。
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact
-from app.domains.book_runs import phase9b_real_llm_smoke as smoke
+from app.domains.book_runs import book_generation as generation
 from app.domains.book_runs.book_context import clear_book_context_cache, observe_book_context_cache
 from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress, create_book_run
@@ -193,7 +193,7 @@ def run_book_loop_with_thread_sessions(
     )
 
 
-def run_phase9b_real_llm_parallel(
+def run_book_generation_parallel(
     session: Session,
     *,
     session_factory: Callable[[], object],
@@ -206,9 +206,9 @@ def run_phase9b_real_llm_parallel(
     max_chapter_count: int = 8,
     env: dict[str, str | None] | None = None,
 ) -> Any:
-    """用 workflow BookLoop 并发执行 Phase9B 真实 LLM 小规模实测。"""
+    """用 workflow BookLoop 并发执行 真实 LLM 小规模实测。"""
 
-    source = dict(env) if env is not None else dict(smoke.os.environ)
+    source = dict(env) if env is not None else dict(generation.os.environ)
     _assert_parallel_preflight(
         source,
         chapter_count=chapter_count,
@@ -220,11 +220,11 @@ def run_phase9b_real_llm_parallel(
         max_chapter_count=max_chapter_count,
     )
     started_at = time.monotonic()
-    book = smoke._create_smoke_book(session, chapter_count)
-    smoke._seed_consistency_data(session, book.id)
-    blueprint = smoke.create_book_blueprint(
+    book = generation._create_generation_book(session, chapter_count)
+    generation._seed_consistency_data(session, book.id)
+    blueprint = generation.create_book_blueprint(
         session,
-        smoke._blueprint_payload(
+        generation._blueprint_payload(
             book.id,
             chapter_count,
             target_word_count=target_word_count,
@@ -232,15 +232,15 @@ def run_phase9b_real_llm_parallel(
             chapter_word_count_max=chapter_word_count_max,
         ),
     )
-    smoke.lock_book_blueprint(session, blueprint.id)
-    smoke.trigger_chapter_plan(session, blueprint.id)
+    generation.lock_book_blueprint(session, blueprint.id)
+    generation.trigger_chapter_plan(session, blueprint.id)
     book_run = create_book_run(
         session,
         BookRunCreate(
             book_id=book.id,
             blueprint_id=blueprint.id,
             token_budget=token_budget,
-            time_budget_sec=smoke._optional_int(source, "STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS", 900),
+            time_budget_sec=generation._optional_int(source, "STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS", 900),
             chapter_budget=None,
         ),
     )
@@ -251,8 +251,8 @@ def run_phase9b_real_llm_parallel(
     def run_chapter(chapter_session: Session, chapter_index: int) -> Any:
         chapter_started_at = time.monotonic()
         with db_write_lock:
-            chapter = smoke._chapter(chapter_session, book.id, chapter_index)
-        generated = smoke._generate_chapter(chapter_session, source, chapter_index, chapter)
+            chapter = generation._chapter(chapter_session, book.id, chapter_index)
+        generated = generation._generate_chapter(chapter_session, source, chapter_index, chapter)
         with extras_lock:
             chapter_extras[chapter_index] = {
                 "generation_latency_ms": int(generated.get("latency_ms") or 0),
@@ -279,17 +279,21 @@ def run_phase9b_real_llm_parallel(
     ) -> Any:
         chapter_started_at = time.monotonic()
         with db_write_lock:
-            chapter = smoke._chapter(chapter_session, book.id, chapter_index)
+            chapter = generation._chapter(chapter_session, book.id, chapter_index)
             memory_recall_chars = _memory_recall_chars_for_chapter(chapter_session, book.id, chapter.ordinal)
-        generated = smoke._generate_chapter(chapter_session, source, chapter_index, chapter)
+        generated = generation._generate_chapter(chapter_session, source, chapter_index, chapter)
         with db_write_lock:
-            scene = smoke._approve_scene(chapter_session, chapter, str(generated["content"]))
-            current_book_run = chapter_session.get(smoke.BookRun, book_run.id)
-            model_run = smoke._record_model_run(chapter_session, current_book_run, scene, source, generated)
-            scene_packet = smoke._record_scene_packet(chapter_session, current_book_run, scene)
-        outcome = smoke._judge_and_repair_loop(chapter_session, source, current_book_run, scene, scene_packet)
+            scene = generation._persist_draft_scene(chapter_session, chapter, str(generated["content"]))
+            current_book_run = chapter_session.get(generation.BookRun, book_run.id)
+            model_run = generation._record_model_run(chapter_session, current_book_run, scene, source, generated)
+            scene_packet = generation._record_scene_packet(chapter_session, current_book_run, scene)
+        outcome = generation._judge_and_repair_loop(chapter_session, source, current_book_run, scene, scene_packet)
+        with db_write_lock:
+            approved = generation._finalize_scene_decision(
+                chapter_session, chapter, scene, int(outcome.get("quality_score") or 0)
+            )
         memory_atom_ids: list[str] = []
-        if int(outcome.get("quality_score") or 0) >= smoke.REPAIR_THRESHOLD:
+        if approved:
             with db_write_lock:
                 memory_atom_ids = _extract_memory_atoms_for_chapter(
                     chapter_session,
@@ -309,7 +313,7 @@ def run_phase9b_real_llm_parallel(
                 "quality_issues": list(outcome.get("quality_issues") or []),
                 "memory_recall_chars": memory_recall_chars,
             }
-        status = "approved" if int(outcome.get("quality_score") or 0) >= smoke.REPAIR_THRESHOLD else "awaiting_review"
+        status = "approved" if approved else "awaiting_review"
         return NovelLoopResult(
             status=status,
             final_draft=str(generated["content"]),
@@ -366,7 +370,7 @@ def run_phase9b_real_llm_parallel(
         audit_artifact = export_book_run_audit_report(session, completed_book_run.id)
     else:
         markdown_artifact, audit_artifact = _blocked_run_artifacts(session, completed_book_run)
-    return smoke.Phase9BRealLlmSmokeResult(
+    return generation.BookGenerationResult(
         book_run=completed_book_run,
         markdown_artifact=markdown_artifact,
         audit_artifact=audit_artifact,
@@ -385,7 +389,7 @@ def _assert_parallel_preflight(
     chapter_word_count_max: int,
     max_chapter_count: int,
 ) -> None:
-    smoke._assert_preflight(
+    generation._assert_preflight(
         source,
         chapter_count,
         token_budget,
@@ -395,12 +399,12 @@ def _assert_parallel_preflight(
         max_chapter_count=max_chapter_count,
     )
     if chapter_parallelism <= 1:
-        raise smoke.Phase9BRealLlmSmokePreflightError("Phase9B 并发真实 LLM runner 的并发度必须大于 1。")
+        raise generation.BookGenerationPreflightError("并发真实 LLM runner 的并发度必须大于 1。")
 
 
 def _chapter_request(session: Session, book_run_id: int, book_id: int, chapter_index: int) -> Any:
-    book_run = session.get(smoke.BookRun, book_run_id)
-    chapter = smoke._chapter(session, book_id, chapter_index)
+    book_run = session.get(generation.BookRun, book_run_id)
+    chapter = generation._chapter(session, book_id, chapter_index)
     return NovelLoopRequest(
         book_id=book_id,
         chapter_id=chapter.id,
@@ -486,7 +490,7 @@ def _world_fact_extracts(content: str) -> list[dict[str, object]]:
 def _arc_consistency_barrier_from_blueprint(session: Session, blueprint_id: int, total_chapters: int) -> Any:
     """从 Blueprint 章节弧线摘要构建 workflow 弧线屏障；无规划时保持放行。"""
 
-    blueprint = session.get(smoke.BookBlueprint, blueprint_id)
+    blueprint = session.get(generation.BookBlueprint, blueprint_id)
     metadata = blueprint.metadata_ if blueprint is not None and isinstance(blueprint.metadata_, dict) else {}
     summary = metadata.get("planning_summary") if isinstance(metadata, dict) else None
     if not isinstance(summary, dict):
@@ -517,7 +521,7 @@ def _bounded_ratio(value: object) -> float:
 def _blocked_run_artifacts(session: Session, book_run: Any) -> tuple[Any, Any]:
     """为被屏障或评审阻断的并发 runner 留下可审计证据，不伪装为完整导出。"""
 
-    book = session.get(smoke.Book, book_run.book_id)
+    book = session.get(generation.Book, book_run.book_id)
     workspace_id = book.workspace_id if book is not None else None
     content = _blocked_markdown_content(book_run)
     markdown_artifact = create_artifact(
@@ -603,8 +607,8 @@ def _parallel_progress(
     metrics.update(db_query_metrics)
     next_progress["integration_metrics"] = metrics
     next_progress["real_llm_smoke"] = {
-        "provider_name": smoke._required_env(source, "STORYFORGE_LLM_PROVIDER"),
-        "model_name": smoke._required_env(source, "STORYFORGE_LLM_MODEL"),
+        "provider_name": generation._required_env(source, "STORYFORGE_LLM_PROVIDER"),
+        "model_name": generation._required_env(source, "STORYFORGE_LLM_MODEL"),
         "chapter_count": len(completed),
         "runner": "phase9b_parallel_workflow",
     }
@@ -629,9 +633,9 @@ def _parallel_observed_metrics(
     completed_chapters: list[dict[str, object]],
 ) -> dict[str, object]:
     return {
-        "memory_recall_budget_used": smoke._direct_memory_recall_budget_used(completed_chapters),
-        "arc_completion_rate": smoke._arc_completion_rate(session, blueprint_id),
-        "chapter_generation_time_p50": smoke._chapter_generation_time_p50(completed_chapters),
+        "memory_recall_budget_used": generation._direct_memory_recall_budget_used(completed_chapters),
+        "arc_completion_rate": generation._arc_completion_rate(session, blueprint_id),
+        "chapter_generation_time_p50": generation._chapter_generation_time_p50(completed_chapters),
         "memory_recall_budget_scope": "phase9b_parallel_story_memory_recall",
         "book_run_id": book_run_id,
     }

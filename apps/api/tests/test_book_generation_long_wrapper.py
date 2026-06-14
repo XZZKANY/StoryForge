@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.domains.book_runs.phase9b_real_llm_smoke import Phase9BRealLlmSmokePreflightError, _assert_preflight
+from app.domains.book_runs.book_generation import BookGenerationPreflightError, _assert_preflight
 
 
 def _load_long_wrapper():
@@ -250,7 +250,7 @@ def test_long_wrapper_keeps_default_smoke_limit_but_allows_explicit_long_limit()
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
 
-    with pytest.raises(Phase9BRealLlmSmokePreflightError, match="只允许 1 到 10 章"):
+    with pytest.raises(BookGenerationPreflightError, match="只允许 1 到 10 章"):
         _assert_preflight(env, 11, 1000, 9000)
 
     _assert_preflight(env, 30, 800000, 35000, max_chapter_count=30)
@@ -278,7 +278,7 @@ def test_long_runner_passes_explicit_max_chapter_count_to_real_smoke(
             chapter_count=30,
         )
 
-    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fake_run_real_smoke)
+    monkeypatch.setattr(module, "run_book_generation", fake_run_real_smoke)
     monkeypatch.setattr(module, "_raise_for_gate_failures", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "_artifact_text", lambda artifact: str(artifact.payload))
     monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
@@ -326,7 +326,7 @@ def test_long_runner_allows_thirty_chapter_direct_technical_gate(
             chapter_count=30,
         )
 
-    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fake_run_real_smoke)
+    monkeypatch.setattr(module, "run_book_generation", fake_run_real_smoke)
     monkeypatch.setattr(module, "_raise_for_gate_failures", lambda *_args, **_kwargs: None)
     monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
     monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
@@ -386,7 +386,7 @@ def test_long_runner_exports_evidence_when_quality_gate_fails(
             chapter_count=1,
         )
 
-    monkeypatch.setattr(module, "run_phase9b_real_llm_smoke", fake_run_real_smoke)
+    monkeypatch.setattr(module, "run_book_generation", fake_run_real_smoke)
     monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
     monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")
@@ -473,7 +473,7 @@ def test_long_runner_resume_copies_failed_sqlite_and_calls_resume_runner(
             chapter_count=30,
         )
 
-    monkeypatch.setattr(module, "resume_phase9b_real_llm_smoke", fake_resume_real_smoke)
+    monkeypatch.setattr(module, "resume_book_generation", fake_resume_real_smoke)
     monkeypatch.setattr(module, "_raise_for_gate_failures", lambda *_args, **_kwargs: None)
     monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
     monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")

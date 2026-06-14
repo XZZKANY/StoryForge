@@ -4,14 +4,14 @@ import threading
 import time
 from collections.abc import Mapping
 
-from app.domains.book_runs.phase9b_parallel_ports import (
+from app.domains.book_runs.book_generation import BookGenerationPreflightError
+from app.domains.book_runs.book_generation_parallel import (
     NovelLoopResult,
     _memory_recall_chars_for_chapter,
     _SceneSelectQueryCounter,
+    run_book_generation_parallel,
     run_book_loop_with_thread_sessions,
-    run_phase9b_real_llm_parallel,
 )
-from app.domains.book_runs.phase9b_real_llm_smoke import Phase9BRealLlmSmokePreflightError
 from app.domains.books.models import Book, Chapter
 from app.domains.model_runs.models import ModelRun
 from app.domains.story_memory.schemas import MemoryAtom
@@ -142,7 +142,7 @@ def test_parallel_book_loop_threads_consistency_barrier_to_workflow() -> None:
     assert [item["chapter_index"] for item in result.progress["checkpoint"]] == [1]
 
 
-def test_phase9b_memory_recall_chars_counts_relevant_recalled_atoms_only(session) -> None:
+def test_book_generation_memory_recall_chars_counts_relevant_recalled_atoms_only(session) -> None:
     """P2.5 预算指标应统计相关召回，而不是把所有 active 记忆都算进 prompt。"""
 
     book = Book(title="召回预算", status="draft", premise="验证相关记忆预算。")
@@ -193,7 +193,7 @@ def test_phase9b_memory_recall_chars_counts_relevant_recalled_atoms_only(session
 
 
 def test_parallel_book_loop_can_require_prior_commit_before_chapter_start() -> None:
-    """Phase9B 胶水应能要求后续章节在前序提交后再启动，避免生成时缺前文。"""
+    """整书生成胶水应能要求后续章节在前序提交后再启动，避免生成时缺前文。"""
 
     events: list[tuple[str, str]] = []
     committed_indexes: list[int] = []
@@ -239,12 +239,12 @@ def test_parallel_book_loop_can_require_prior_commit_before_chapter_start() -> N
     assert result.progress["integration_metrics"]["dependency_mode"] == "prior_chapter_commit"
 
 
-def test_phase9b_parallel_runner_uses_workflow_metrics_and_exports_audit(
+def test_book_generation_parallel_runner_uses_workflow_metrics_and_exports_audit(
     session,
     session_factory,
     monkeypatch,
 ) -> None:
-    """并发真实 runner 应复用 phase9b 单章链路、独立 session，并导出真实 audit 指标。"""
+    """并发真实 runner 应复用 book_generation 单章链路、独立 session，并导出真实 audit 指标。"""
 
     seen_session_ids: dict[int, int] = {}
     seen_thread_ids: dict[int, int] = {}
@@ -280,13 +280,13 @@ def test_phase9b_parallel_runner_uses_workflow_metrics_and_exports_audit(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.phase9b_real_llm_smoke._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.phase9b_real_llm_smoke._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation._judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
-    result = run_phase9b_real_llm_parallel(
+    result = run_book_generation_parallel(
         session,
         session_factory=session_factory,
         chapter_count=3,
@@ -328,7 +328,7 @@ def test_phase9b_parallel_runner_uses_workflow_metrics_and_exports_audit(
     assert "test-private-credential" not in str(result.audit_artifact.payload)
 
 
-def test_phase9b_parallel_runner_defaults_to_precommit_revision_dependency(
+def test_book_generation_parallel_runner_defaults_to_precommit_revision_dependency(
     session,
     session_factory,
     monkeypatch,
@@ -365,13 +365,13 @@ def test_phase9b_parallel_runner_defaults_to_precommit_revision_dependency(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.phase9b_real_llm_smoke._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.phase9b_real_llm_smoke._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation._judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
-    result = run_phase9b_real_llm_parallel(
+    result = run_book_generation_parallel(
         session,
         session_factory=session_factory,
         chapter_count=3,
@@ -388,7 +388,7 @@ def test_phase9b_parallel_runner_defaults_to_precommit_revision_dependency(
     assert metrics["chapter_correction_count"] == 3
 
 
-def test_phase9b_parallel_runner_prefetches_then_revises_before_commit(
+def test_book_generation_parallel_runner_prefetches_then_revises_before_commit(
     session,
     session_factory,
     monkeypatch,
@@ -439,13 +439,13 @@ def test_phase9b_parallel_runner_prefetches_then_revises_before_commit(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.phase9b_real_llm_smoke._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.phase9b_real_llm_smoke._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation._judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
-    result = run_phase9b_real_llm_parallel(
+    result = run_book_generation_parallel(
         session,
         session_factory=session_factory,
         chapter_count=3,
@@ -465,7 +465,7 @@ def test_phase9b_parallel_runner_prefetches_then_revises_before_commit(
     assert metrics["concurrent_chapter_utilization"] > 0.6
 
 
-def test_phase9b_parallel_runner_extracts_and_recalls_story_memory(
+def test_book_generation_parallel_runner_extracts_and_recalls_story_memory(
     session,
     session_factory,
     monkeypatch,
@@ -498,13 +498,13 @@ def test_phase9b_parallel_runner_extracts_and_recalls_story_memory(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.phase9b_real_llm_smoke._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.phase9b_real_llm_smoke._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation._judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
-    result = run_phase9b_real_llm_parallel(
+    result = run_book_generation_parallel(
         session,
         session_factory=session_factory,
         chapter_count=3,
@@ -529,7 +529,7 @@ def test_phase9b_parallel_runner_extracts_and_recalls_story_memory(
     assert metrics["memory_recall_budget_scope"] == "phase9b_parallel_story_memory_recall"
 
 
-def test_phase9b_parallel_runner_enables_arc_barrier_from_blueprint(
+def test_book_generation_parallel_runner_enables_arc_barrier_from_blueprint(
     session,
     session_factory,
     monkeypatch,
@@ -581,14 +581,14 @@ def test_phase9b_parallel_runner_enables_arc_barrier_from_blueprint(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.phase9b_real_llm_smoke._smoke_planning_arcs", fake_planning_arcs)
-    monkeypatch.setattr("app.domains.book_runs.phase9b_real_llm_smoke._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation._default_planning_arcs", fake_planning_arcs)
+    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.phase9b_real_llm_smoke._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation._judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
-    result = run_phase9b_real_llm_parallel(
+    result = run_book_generation_parallel(
         session,
         session_factory=session_factory,
         chapter_count=2,
@@ -634,7 +634,7 @@ def test_scene_select_counter_only_counts_join_business_queries() -> None:
     assert metrics["db_query_count_scope"] == "scene_business_join_select"
 
 
-def test_phase9b_parallel_runner_requires_positive_parallelism(session, session_factory) -> None:
+def test_book_generation_parallel_runner_requires_positive_parallelism(session, session_factory) -> None:
     """并发 runner 应拒绝非并发配置，避免误产串行证据。"""
 
     env = {
@@ -645,7 +645,7 @@ def test_phase9b_parallel_runner_requires_positive_parallelism(session, session_
     }
 
     try:
-        run_phase9b_real_llm_parallel(
+        run_book_generation_parallel(
             session,
             session_factory=session_factory,
             chapter_count=3,
@@ -653,7 +653,7 @@ def test_phase9b_parallel_runner_requires_positive_parallelism(session, session_
             token_budget=10000,
             env=env,
         )
-    except Phase9BRealLlmSmokePreflightError as exc:
+    except BookGenerationPreflightError as exc:
         assert "并发度必须大于 1" in str(exc)
     else:
         raise AssertionError("非并发配置应被前置拒绝。")

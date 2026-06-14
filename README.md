@@ -134,8 +134,8 @@ pnpm lint:fix     # 自动修复可修复的格式和 lint 问题
 
 ```powershell
 cd apps/api
-uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 --token-budget 8000
-uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
+uv run python -m app.domains.book_runs.book_generation --chapter-count 1 --token-budget 8000
+uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token-budget 24000
 ```
 
 已落盘的脱敏验证样例：

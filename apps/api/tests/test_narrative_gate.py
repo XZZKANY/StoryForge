@@ -1,4 +1,4 @@
-from app.domains.book_runs.phase9c_narrative_smoke import (
+from app.domains.book_runs.narrative_gate import (
     _auto_gate_results_from_book_export,
     _chapter_template_fact,
 )
@@ -11,7 +11,7 @@ REQUIRED_FIELDS = [
 ]
 
 
-def test_phase9c_auto_gate_results_include_contract_evidence_fields() -> None:
+def test_narrative_gate_auto_gate_results_include_contract_evidence_fields() -> None:
     book_export = """
 ## 第 1 章
 林岚来到档案室，询问管理员，查看记录，把登记表收进口袋，转身前往旧港。
@@ -29,7 +29,7 @@ def test_phase9c_auto_gate_results_include_contract_evidence_fields() -> None:
     assert collapse["contract_evidence"]["source"] == "narrative_fact_heuristic"
 
 
-def test_phase9c_auto_gate_results_parse_title_bearing_chapter_headings() -> None:
+def test_narrative_gate_auto_gate_results_parse_title_bearing_chapter_headings() -> None:
     book_export = """
 ## 第 4 章 旧伤
 林岚抵达档案室，询问管理员，查看日志，收好纸页，转身离开。
@@ -43,7 +43,7 @@ def test_phase9c_auto_gate_results_parse_title_bearing_chapter_headings() -> Non
     assert collapse["contract_evidence"]["template_chapters"] == [4, 7]
 
 
-def test_phase9c_auto_gate_results_fail_when_no_chapters_are_parsed() -> None:
+def test_narrative_gate_auto_gate_results_fail_when_no_chapters_are_parsed() -> None:
     results = _auto_gate_results_from_book_export("not a chapter\n# 第 一 章")
 
     collapse = next(item for item in results if item["gate"] == "collapse_judge")
@@ -54,7 +54,7 @@ def test_phase9c_auto_gate_results_fail_when_no_chapters_are_parsed() -> None:
     assert collapse["contract_evidence"]["required_fields"] == REQUIRED_FIELDS
 
 
-def test_phase9c_auto_gate_results_pass_valid_non_template_chapters_with_evidence() -> None:
+def test_narrative_gate_auto_gate_results_pass_valid_non_template_chapters_with_evidence() -> None:
     book_export = """
 ## 第 1 章 安静早晨
 林岚在窗边整理书架，给朋友写信，随后坐下喝茶。
@@ -69,7 +69,7 @@ def test_phase9c_auto_gate_results_pass_valid_non_template_chapters_with_evidenc
     assert collapse["contract_evidence"]["required_fields"] == REQUIRED_FIELDS
 
 
-def test_phase9c_auto_gate_results_do_not_flag_conflict_cost_and_reinterpretation_as_template() -> None:
+def test_narrative_gate_auto_gate_results_do_not_flag_conflict_cost_and_reinterpretation_as_template() -> None:
     chapter = (
         "林岚走进冷库，把旧航图摊在桌上。账房问她为什么还查第五区。\n"
         "她没有收新物证，只把黑盒里已有的失真曲线和旧航图空白处重新对上。\n"
@@ -90,7 +90,7 @@ def test_phase9c_auto_gate_results_do_not_flag_conflict_cost_and_reinterpretatio
     assert fact["existing_clues_reinterpreted"]
 
 
-def test_phase9c_auto_gate_results_include_raw_bucket_evidence_for_template_chapters() -> None:
+def test_narrative_gate_auto_gate_results_include_raw_bucket_evidence_for_template_chapters() -> None:
     book_export = "\n".join(
         f"## 第 {index} 章\n林岚到了码头。她问完人，查看登记表，把纸页收进内袋，转去下一处。"
         for index in range(1, 4)
@@ -111,7 +111,30 @@ def test_phase9c_auto_gate_results_include_raw_bucket_evidence_for_template_chap
     assert first_fact["raw_evidence"]["arrival"]
 
 
-def test_phase9c_auto_gate_results_required_fields_are_fresh_per_call() -> None:
+def test_narrative_gate_does_not_flag_concrete_investigation_chapter_with_action_verbs() -> None:
+    """回归（30 章长跑 CH3/4 误报）：含具体锚点（数字证据/时间戳/对话）的实写侦查章，
+    即便命中≥3 个动作桶（回到/查看/转身离开等高频动词），也不应被判套路化。"""
+
+    chapter = (
+        "她回到七号浮标，推开检修舱门。线缆盘绕，控制箱盖板打开着。\n"
+        "“去七号浮标。”她对驾驶员说。审计链记录时间戳跳动：17:09。\n"
+        "她比对序列号，记录划痕：48 块电路板，差额 28 块，单价 4200 元。\n"
+        "拍完最后一张照，时间显示 18:47，她转身离开。"
+    )
+    book_export = "\n".join(f"## 第 {index} 章\n{chapter}" for index in range(1, 7))
+
+    results = _auto_gate_results_from_book_export(book_export)
+    collapse = next(item for item in results if item["gate"] == "collapse_judge")
+    fact = _chapter_template_fact(chapter)
+
+    assert fact["bucket_hit_count"] >= 3  # 确实命中多个动作桶
+    assert fact["concrete_detail"]  # 但含具体锚点
+    assert fact["is_template"] is False
+    assert collapse["status"] == "pass"
+    assert collapse["contract_evidence"]["template_chapters"] == []
+
+
+def test_narrative_gate_auto_gate_results_required_fields_are_fresh_per_call() -> None:
     first = _auto_gate_results_from_book_export("## 第 1 章\n林岚整理书架。")
     second = _auto_gate_results_from_book_export("## 第 2 章\n林岚整理书架。")
 

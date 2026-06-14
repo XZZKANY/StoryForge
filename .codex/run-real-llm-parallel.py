@@ -18,8 +18,8 @@ sys.path.insert(0, str(API_ROOT))
 
 import app.models  # noqa: E402,F401
 from app.db.base import Base  # noqa: E402
-from app.domains.book_runs.phase9b_parallel_ports import run_phase9b_real_llm_parallel  # noqa: E402
-from app.domains.book_runs.phase9b_real_llm_smoke import (  # noqa: E402
+from app.domains.book_runs.book_generation_parallel import run_book_generation_parallel  # noqa: E402
+from app.domains.book_runs.book_generation import (  # noqa: E402
     REQUIRED_REAL_LLM_ENV,
     _artifact_text,
     _evidence_summary,
@@ -398,7 +398,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _raise_if_outer_timeout_exceeded(started_at=started_at, outer_timeout_seconds=args.outer_timeout_seconds)
         with SessionLocal() as session:
-            result = run_phase9b_real_llm_parallel(
+            result = run_book_generation_parallel(
                 session,
                 session_factory=SessionLocal,
                 chapter_count=args.chapter_count,

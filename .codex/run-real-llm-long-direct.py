@@ -19,12 +19,12 @@ sys.path.insert(0, str(API_ROOT))
 
 import app.models  # noqa: E402,F401
 from app.db.base import Base  # noqa: E402
-from app.domains.book_runs.phase9b_real_llm_smoke import (  # noqa: E402
+from app.domains.book_runs.book_generation import (  # noqa: E402
     REQUIRED_REAL_LLM_ENV,
     _artifact_text,
     _evidence_summary,
-    resume_phase9b_real_llm_smoke,
-    run_phase9b_real_llm_smoke,
+    resume_book_generation,
+    run_book_generation,
 )
 from app.domains.exports.book_markdown_exporter import build_book_run_epub_package, export_book_run_epub  # noqa: E402
 
@@ -499,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
         _raise_if_outer_timeout_exceeded(started_at=started_at, outer_timeout_seconds=args.outer_timeout_seconds)
         with SessionLocal() as session:
             if resume_source_dir is None:
-                result = run_phase9b_real_llm_smoke(
+                result = run_book_generation(
                     session,
                     chapter_count=args.chapter_count,
                     token_budget=args.token_budget,
@@ -510,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
                     env=os.environ,
                 )
             else:
-                result = resume_phase9b_real_llm_smoke(
+                result = resume_book_generation(
                     session,
                     book_run_id=1,
                     chapter_count=args.chapter_count,
