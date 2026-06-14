@@ -47,6 +47,20 @@ services:
       timeout: 3s
       retries: 5
 
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    container_name: storyforge-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 storyforge storyforge-dev-only &&
+      mc mb --ignore-existing local/storyforge &&
+      echo 'storyforge bucket ready'
+      "
+    restart: 'no'
+
   api:
     build:
       context: ./apps/api

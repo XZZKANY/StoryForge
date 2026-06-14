@@ -76,7 +76,12 @@ class ArtifactRead(BaseModel):
 
 
 class ArtifactDownloadRead(BaseModel):
-    """制品下载摘要在没有对象存储签名时返回可审查内容。"""
+    """制品下载摘要；download_mode 决定返回内联预览或 presigned URL。
+
+    download_mode 取值：
+    - "payload_preview": 无对象存储或 memory:// URI，返回 content_preview 与 payload_summary。
+    - "presigned_url": S3 URI，返回 presigned_url 与 expires_at（5 分钟有效期）。
+    """
 
     id: int
     artifact_type: str
@@ -86,6 +91,8 @@ class ArtifactDownloadRead(BaseModel):
     download_mode: str
     content_preview: str
     payload_summary: dict[str, Any]
+    presigned_url: str | None = None
+    expires_at: str | None = None  # ISO 8601
 
 
 class ArtifactListPage(BaseModel):

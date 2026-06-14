@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { HomeComposer } from './HomeComposer';
 import { HomeGreeting } from './HomeGreeting';
 import { readBookRun } from '../../app/book-runs/api';
@@ -36,7 +37,13 @@ export async function AssistantConversation({
   const artifactExportStatus = firstParam(searchParams.artifact_export_status);
   const artifactExportSummary = firstParam(searchParams.artifact_export_summary);
   const artifactExportError = firstParam(searchParams.artifact_export_error);
-  const { messages, bookRunStatus, targetChapterOrdinal } = await buildConversationState(
+  const {
+    messages,
+    bookRunStatus,
+    targetChapterOrdinal,
+    resolvedBookRunId,
+    resolvedAssistantSessionId,
+  } = await buildConversationState(
     assistantSessionId,
     intentText,
     queryTargetChapterOrdinal,
@@ -70,7 +77,9 @@ export async function AssistantConversation({
           </div>
         ) : null}
         <div className="mt-5 md:mt-6">
-          <HomeComposer initialSearchParams={searchParams} />
+          <Suspense fallback={<div className="h-32" />}>
+            <HomeComposer initialSearchParams={searchParams} />
+          </Suspense>
         </div>
       </div>
     </div>
@@ -94,11 +103,15 @@ async function buildConversationState(
   messages: AssistantMessage[];
   bookRunStatus?: string;
   targetChapterOrdinal?: number;
+  resolvedBookRunId?: number;
+  resolvedAssistantSessionId?: number;
 }> {
   const messages: AssistantMessage[] = [];
   let bookRunStatus: string | undefined;
   let targetChapterOrdinal = queryTargetChapterOrdinal;
   let toolCallNodes: AssistantMessage['toolNodes'] = [];
+  let resolvedBookRunId = bookRunId;
+  let resolvedAssistantSessionId = assistantSessionId;
   if (
     !assistantSessionId &&
     !intentText &&
@@ -106,7 +119,7 @@ async function buildConversationState(
     !chapterReviewStatus &&
     !artifactExportStatus
   ) {
-    return { messages };
+    return { messages, resolvedBookRunId, resolvedAssistantSessionId };
   }
   try {
     let restoredSession: AssistantSessionDetail | undefined;
@@ -132,50 +145,86 @@ async function buildConversationState(
       const intent = parseAssistantIntent(intentText);
       targetChapterOrdinal = intent.targetChapterOrdinal ?? targetChapterOrdinal;
       if (!restoredSession || !sessionContainsMessage(restoredSession, intentText)) {
-        messages.push(
-          {
-            id: 'assistant-user-intent',
-            role: 'user',
-            content: intentText,
-            createdAt: 'query-intent',
-            taskType: intent.taskType,
-          },
-          {
+        messages.push({
+          id: 'assistant-user-intent',
+          role: 'user',
+          content: intentText,
+          createdAt: 'query-intent',
+          taskType: intent.taskType,
+        });
+
+        // 自动执行 trial_generation 意图
+        if (intent.taskType === 'trial_generation' && !bookRunId) {
+          const executionResult = await executeTrialGenerationIntent(intent, resolvedAssistantSessionId);
+          if (executionResult.status === 'ok') {
+            // 执行成功：更新上下文，让 ActionBar 可以操作
+            resolvedBookRunId = executionResult.bookRunId;
+            resolvedAssistantSessionId = executionResult.assistantSessionId;
+            messages.push({
+              id: 'assistant-intent-execution-ok',
+              role: 'assistant',
+              content: executionResult.message,
+              createdAt: 'query-intent',
+              taskType: intent.taskType,
+            });
+            // 重新读取 tool calls 来显示工具树
+            if (resolvedAssistantSessionId) {
+              const toolCallResult = await readAssistantToolCalls(resolvedAssistantSessionId);
+              if (toolCallResult.status === 'ready' && toolCallResult.data.length > 0) {
+                toolCallNodes = mapAssistantToolCallsToAssistantToolNodes(toolCallResult.data);
+              }
+            }
+          } else {
+            messages.push({
+              id: 'assistant-intent-execution-failed',
+              role: 'assistant',
+              content: `执行失败：${executionResult.message}`,
+              createdAt: 'query-intent',
+              taskType: intent.taskType,
+            });
+          }
+        } else {
+          // 其他任务类型保持原有确认逻辑
+          messages.push({
             id: 'assistant-intent-confirmation',
             role: 'assistant',
             content: formatIntentConfirmation(intent),
             createdAt: 'query-intent',
             taskType: intent.taskType,
-          },
-        );
+          });
+        }
       }
     }
-    if (bookRunId) {
+    if (resolvedBookRunId) {
+      const bookRunId = resolvedBookRunId;
       const bookRun = await readBookRun(bookRunId);
       if (bookRun) {
         bookRunStatus = bookRun.status;
-        messages.push({
-          id: `assistant-book-run-${bookRun.id}`,
-          role: 'assistant',
-          content: `BookRun #${bookRun.id} 当前状态：${bookRun.status}。`,
-          createdAt: 'book-run-query',
-          taskType: 'trial_generation',
-          toolNodes:
-            toolCallNodes.length > 0 ? toolCallNodes : mapBookRunToAssistantToolNodes(bookRun),
-        });
+        const existingBookRunMessage = messages.find((m) => m.id === `assistant-book-run-${bookRun.id}`);
+        if (!existingBookRunMessage) {
+          messages.push({
+            id: `assistant-book-run-${bookRun.id}`,
+            role: 'assistant',
+            content: `BookRun #${bookRun.id} 当前状态：${bookRun.status}。`,
+            createdAt: 'book-run-query',
+            taskType: 'trial_generation',
+            toolNodes:
+              toolCallNodes.length > 0 ? toolCallNodes : mapBookRunToAssistantToolNodes(bookRun),
+          });
+        }
       } else {
         messages.push({
-          id: `assistant-book-run-${bookRunId}-missing`,
+          id: `assistant-book-run-${resolvedBookRunId}-missing`,
           role: 'assistant',
-          content: `没有读取到 BookRun #${bookRunId}，请确认运行 ID 是否存在。`,
+          content: `没有读取到 BookRun #${resolvedBookRunId}，请确认运行 ID 是否存在。`,
           createdAt: 'book-run-query',
           taskType: 'trial_generation',
         });
       }
     }
-    if (!bookRunId && toolCallNodes.length > 0) {
+    if (!resolvedBookRunId && toolCallNodes.length > 0) {
       messages.push({
-        id: `assistant-session-${assistantSessionId}-tool-calls`,
+        id: `assistant-session-${resolvedAssistantSessionId}-tool-calls`,
         role: 'assistant',
         content: '已读取 Assistant 工具调用事实源。工具树优先展示可重放的 tool call 状态。',
         createdAt: 'assistant-tool-calls-query',
@@ -197,7 +246,13 @@ async function buildConversationState(
       artifactExportError,
     );
     if (artifactMessage) messages.push(artifactMessage);
-    return { messages, bookRunStatus, targetChapterOrdinal };
+    return {
+      messages,
+      bookRunStatus,
+      targetChapterOrdinal,
+      resolvedBookRunId,
+      resolvedAssistantSessionId,
+    };
   } catch (error) {
     return {
       messages: [
@@ -209,6 +264,8 @@ async function buildConversationState(
           taskType: 'trial_generation',
         },
       ],
+      resolvedBookRunId,
+      resolvedAssistantSessionId,
     };
   }
 }

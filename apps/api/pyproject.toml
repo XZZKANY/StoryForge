@@ -19,11 +19,15 @@ dependencies = [
   "ruff>=0.11.0",
   "prometheus-fastapi-instrumentator>=7.1.0",
   "pyjwt>=2.9.0",
+  "boto3>=1.35.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "integration: 需要真实外部服务（如 MinIO）的测试，默认 skip，设 STORYFORGE_S3_INTEGRATION=1 启用。",
+]
 
 [tool.ruff]
 target-version = "py311"

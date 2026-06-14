@@ -151,12 +151,33 @@ def read_artifact_download(
     *,
     workspace_id: int | None = None,
 ) -> ArtifactDownloadRead:
-    """返回可下载内容摘要；对象存储签名 URL 仍由后续存储层接入。"""
+    """返回可下载内容摘要；S3 artifact 返回 presigned URL，memory:// 返回内联预览。"""
+
+    from app.common.s3_client import generate_presigned_get_url, presigned_url_expires_at
 
     artifact = get_artifact(session, artifact_id)
     artifact_workspace_id = resolve_artifact_workspace_id(session, artifact)
     if workspace_id is not None and artifact_workspace_id != workspace_id:
         raise ArtifactForbiddenError("制品工作区不匹配，禁止下载。")
+
+    # S3 artifact → presigned URL (5 分钟有效期)
+    if artifact.storage_uri.startswith("s3://"):
+        presigned_url = generate_presigned_get_url(artifact.storage_uri, ttl_seconds=300)
+        if presigned_url:
+            return ArtifactDownloadRead(
+                id=artifact.id,
+                artifact_type=artifact.artifact_type,
+                name=artifact.name,
+                mime_type=artifact.mime_type,
+                storage_uri=artifact.storage_uri,
+                download_mode="presigned_url",
+                content_preview="",
+                payload_summary={},
+                presigned_url=presigned_url,
+                expires_at=presigned_url_expires_at(300),
+            )
+
+    # memory:// 或 presigned 失败 → payload_preview
     payload_summary = dict(artifact.payload or {})
     return ArtifactDownloadRead(
         id=artifact.id,

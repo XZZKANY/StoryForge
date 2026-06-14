@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
 from app.domains.blueprints.models import BookBlueprint
-from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.book_generation import MAX_REPAIR_ROUNDS, REPAIR_THRESHOLD, _judge_and_repair_loop
+from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.character_bible.schemas import CharacterBibleCreate
 from app.domains.character_bible.service import create_character_bible_entry
