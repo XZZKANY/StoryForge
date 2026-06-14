@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 import app.models  # noqa: F401
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
-from app.domains.book_runs.phase9b_real_llm_smoke import MAX_REPAIR_ROUNDS, REPAIR_THRESHOLD, _judge_and_repair_loop
+from app.domains.book_runs.book_generation import MAX_REPAIR_ROUNDS, REPAIR_THRESHOLD, _judge_and_repair_loop
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.character_bible.schemas import CharacterBibleCreate
 from app.domains.character_bible.service import create_character_bible_entry
@@ -76,7 +76,7 @@ def test_judge_and_repair_loop_performs_multiple_rounds_when_issues_persist(sess
         ordinal=1,
         title="测试场景",
         status="approved",
-        content="这段正文包含词A和词B还有词C，应该触发多轮修复。",
+        content="这段正文包含词A和词B还有词C，应该触发多轮修复。" + "她沿着走廊核对线索并逐条登记。" * 40,
     )
     session.add(scene)
     session.commit()
@@ -181,7 +181,7 @@ def test_judge_and_repair_loop_stops_when_score_above_threshold(session: Session
         ordinal=1,
         title="测试场景",
         status="approved",
-        content="这段正文没有违规内容，应该直接通过。",
+        content="这段正文没有违规内容，应该直接通过。" + "她沿着走廊核对线索并逐条登记。" * 40,
     )
     session.add(scene)
     session.commit()

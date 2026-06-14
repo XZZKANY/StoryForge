@@ -40,7 +40,7 @@ def test_schema_backfill_migration_mentions_current_orm_gaps() -> None:
     assert missing_fragments == set()
 
 
-def test_current_orm_metadata_still_declares_phase9b_required_schema() -> None:
+def test_current_orm_metadata_still_declares_book_generation_required_schema() -> None:
     """测试清单与当前 ORM 元数据保持同源，防止迁移测试脱离模型事实。"""
 
     expected_tables = {

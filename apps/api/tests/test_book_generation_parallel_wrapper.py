@@ -70,7 +70,7 @@ def test_parallel_wrapper_writes_evidence_and_records_metric_failures(monkeypatc
             chapter_count=2,
         )
 
-    monkeypatch.setattr(module, "run_phase9b_real_llm_parallel", fake_runner)
+    monkeypatch.setattr(module, "run_book_generation_parallel", fake_runner)
     monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-private-credential")
     monkeypatch.setenv("STORYFORGE_LLM_BASE_URL", "http://127.0.0.1:1/v1")
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "local-model")

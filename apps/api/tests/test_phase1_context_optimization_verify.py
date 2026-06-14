@@ -47,7 +47,7 @@ def test_phase1_context_optimization_query_count(session: Session, query_counter
     if not os.getenv("STORYFORGE_LLM_BASE_URL"):
         pytest.skip("缺少 STORYFORGE_LLM_BASE_URL，跳过真实 LLM 验证")
 
-    from app.domains.book_runs.phase9b_real_llm_smoke import run_book_run_with_real_llm_smoke
+    from app.domains.book_runs.book_generation import run_book_run_with_real_llm_smoke
 
     # 创建测试作品（10 章）
     book = Book(title="Phase1验证作品", status="draft")

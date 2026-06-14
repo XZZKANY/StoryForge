@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
 from typing import TextIO
-from urllib import request
+from urllib import error, request
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -61,7 +61,18 @@ REQUIRED_REAL_LLM_ENV = (
 
 REPAIR_THRESHOLD = 70
 MAX_REPAIR_ROUNDS = 3
+# 字数上限护栏倍数：蓝图 chapter_word_count_max 是「目标上限」而非硬拒批线。
+# 实测真实模型（如 mimo）在质量门禁全 pass 时仍系统性写超目标上限，且超出部分是
+# 密实正文而非注水。固定上限会误伤这类好内容，故只在超过 目标上限 × 该倍数 时
+# 才判「失控」拒批——既放过「写得好但偏长」，又拦得住「无限重复/截断失败」。
+WORD_COUNT_CEILING_RUNAWAY_FACTOR = 2.5
 MARKDOWN_CHAPTER_HEADING_RE = re.compile(r"^##\s+第\s*(\d+)\s*章\b")
+# 推理模型（mimo 等）会把思维链放进 <think>...</think>，部分返回风格让它混进
+# message.content。完整成对的标记整段剥掉；只剩闭合标签 </think> 时（开头 <think>
+# 被上游吞掉的残体）连同它之前的推理草稿一并丢弃，只保留最后一段闭合标签之后的正文。
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+THINK_OPEN_RE = re.compile(r"<think>", re.IGNORECASE)
+THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
 MODEL_RUN_SUMMARY_MAX_CHARS = 50000
 # 续写上文 recap 的默认上限：最近 N 章给完整正文，更早章节压缩成前情提要，
 # 避免逐章拼接全部前文导致 prompt 与本地查询开销随章数平方增长。
@@ -70,22 +81,23 @@ RECAP_MAX_CHARS_DEFAULT = 6000
 RECAP_OLDER_SUMMARY_MAX_CHARS = 160
 
 
-class Phase9BRealLlmSmokePreflightError(RuntimeError):
-    """真实 LLM 冒烟缺少私有运行配置。"""
+class BookGenerationPreflightError(RuntimeError):
+    """真实 LLM 生成缺少私有运行配置。"""
 
 
-class Phase9BRealLlmSmokeError(RuntimeError):
-    """真实 LLM 冒烟运行失败，不能写入完成证据。"""
+class BookGenerationError(RuntimeError):
+    """真实 LLM 生成运行失败，不能写入完成证据。"""
 
 
 @dataclass(frozen=True)
-class Phase9BRealLlmSmokeResult:
-    """9B 真实 LLM 冒烟产物，供验证报告引用。"""
+class BookGenerationResult:
+    """真实 LLM 整书生成产物，供验证报告引用。"""
 
     book_run: BookRun
     markdown_artifact: Artifact
     audit_artifact: Artifact
     chapter_count: int
+    approved_chapter_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -98,14 +110,20 @@ class _JudgeRunResult:
     fast_path_reason: str | None = None
 
 
-def missing_phase9b_real_llm_env(env: Mapping[str, str | None] | None = None) -> list[str]:
-    """列出真实 LLM 冒烟所需但尚未配置的环境变量名。"""
+def _count_approved_chapters(completed_chapters: list[dict[str, object]]) -> int:
+    """统计真正批准（产出）的章数，与"已处理章数"区分，避免计数失真。"""
+
+    return sum(1 for item in completed_chapters if item.get("approved"))
+
+
+def missing_book_generation_env(env: Mapping[str, str | None] | None = None) -> list[str]:
+    """列出真实 LLM 生成所需但尚未配置的环境变量名。"""
 
     source = os.environ if env is None else env
     return [name for name in REQUIRED_REAL_LLM_ENV if not _env_value(source, name)]
 
 
-def run_phase9b_real_llm_smoke(
+def run_book_generation(
     session: Session,
     *,
     chapter_count: int,
@@ -115,8 +133,8 @@ def run_phase9b_real_llm_smoke(
     chapter_word_count_max: int = 1600,
     max_chapter_count: int = 10,
     env: Mapping[str, str | None] | None = None,
-) -> Phase9BRealLlmSmokeResult:
-    """用真实 OpenAI 兼容 LLM 跑受控章节数的 BookRun 冒烟。"""
+) -> BookGenerationResult:
+    """用真实 OpenAI 兼容 LLM 跑受控章节数的 BookRun 整书生成。"""
 
     source = os.environ if env is None else env
     _assert_preflight(
@@ -129,7 +147,7 @@ def run_phase9b_real_llm_smoke(
         max_chapter_count=max_chapter_count,
     )
     started_at = time.monotonic()
-    book = _create_smoke_book(session, chapter_count)
+    book = _create_generation_book(session, chapter_count)
     _seed_consistency_data(session, book.id)
     blueprint = create_book_blueprint(
         session,
@@ -158,12 +176,22 @@ def run_phase9b_real_llm_smoke(
     for chapter_index in range(1, chapter_count + 1):
         chapter_started_at = time.monotonic()
         chapter = _chapter(session, book.id, chapter_index)
-        generated = _generate_chapter(session, source, chapter_index, chapter)
-        tokens_used += generated["token_usage"]
-        scene = _approve_scene(session, chapter, str(generated["content"]))
-        model_run = _record_model_run(session, book_run, scene, source, generated)
-        scene_packet = _record_scene_packet(session, book_run, scene)
-        outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+        try:
+            generated = _generate_chapter(session, source, chapter_index, chapter)
+            tokens_used += generated["token_usage"]
+            scene = _persist_draft_scene(session, chapter, str(generated["content"]))
+            model_run = _record_model_run(session, book_run, scene, source, generated)
+            scene_packet = _record_scene_packet(session, book_run, scene)
+            outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+            approved = _finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
+        except BookGenerationError as exc:
+            _pause_by_failure(session, book_run.id, chapter_index, completed_chapters, tokens_used, str(exc))
+            raise BookGenerationError(
+                f"真实 LLM 生成在第 {chapter_index} 章失败，已保住前 {len(completed_chapters)} 章证据：{exc}"
+            ) from exc
+        except (KeyboardInterrupt, SystemExit):
+            _pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used)
+            raise
         completed_chapters.append(
             {
                 "chapter_index": chapter_index,
@@ -173,6 +201,8 @@ def run_phase9b_real_llm_smoke(
                 "repair_patch_ids": outcome["repair_patch_ids"],
                 "repair_rounds": outcome["repair_rounds"],
                 "approved_scene_id": scene.id,
+                "scene_status": scene.status,
+                "approved": approved,
                 "token_usage": generated["token_usage"],
                 "prompt_tokens": generated["prompt_tokens"],
                 "completion_tokens": generated["completion_tokens"],
@@ -187,7 +217,7 @@ def run_phase9b_real_llm_smoke(
         )
         if tokens_used > token_budget:
             _pause_by_budget(session, book_run.id, chapter_index, completed_chapters, tokens_used)
-            raise Phase9BRealLlmSmokeError("真实 LLM 冒烟触发 token 预算暂停，不能标记为 completed。")
+            raise BookGenerationError("真实 LLM 生成触发 token 预算暂停，不能标记为 completed。")
     book_run = apply_book_run_progress(
         session,
         book_run.id,
@@ -201,7 +231,7 @@ def run_phase9b_real_llm_smoke(
                     "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
                     "estimated_cost": _total_cost_estimate(completed_chapters),
                 },
-                "integration_metrics": _direct_smoke_integration_metrics(
+                "integration_metrics": _serial_integration_metrics(
                     session,
                     book_run,
                     completed_chapters,
@@ -216,15 +246,16 @@ def run_phase9b_real_llm_smoke(
     )
     markdown_artifact = export_book_run_markdown(session, book_run.id)
     audit_artifact = export_book_run_audit_report(session, book_run.id)
-    return Phase9BRealLlmSmokeResult(
+    return BookGenerationResult(
         book_run=book_run,
         markdown_artifact=markdown_artifact,
         audit_artifact=audit_artifact,
         chapter_count=chapter_count,
+        approved_chapter_count=_count_approved_chapters(completed_chapters),
     )
 
 
-def resume_phase9b_real_llm_smoke(
+def resume_book_generation(
     session: Session,
     *,
     book_run_id: int,
@@ -235,8 +266,8 @@ def resume_phase9b_real_llm_smoke(
     chapter_word_count_max: int = 1600,
     max_chapter_count: int = 10,
     env: Mapping[str, str | None] | None = None,
-) -> Phase9BRealLlmSmokeResult:
-    """从已保留的真实 LLM smoke SQLite 继续补完剩余章节。"""
+) -> BookGenerationResult:
+    """从已保留的真实 LLM 生成的 SQLite 继续补完剩余章节。"""
 
     source = os.environ if env is None else env
     _assert_preflight(
@@ -251,15 +282,18 @@ def resume_phase9b_real_llm_smoke(
     started_at = time.monotonic()
     book_run = session.get(BookRun, book_run_id)
     if book_run is None:
-        raise Phase9BRealLlmSmokeError(f"BookRun {book_run_id} 不存在，无法断点续跑。")
+        raise BookGenerationError(f"BookRun {book_run_id} 不存在，无法断点续跑。")
     if book_run.status == "completed":
         markdown_artifact = export_book_run_markdown(session, book_run.id)
         audit_artifact = export_book_run_audit_report(session, book_run.id)
-        return Phase9BRealLlmSmokeResult(
+        return BookGenerationResult(
             book_run=book_run,
             markdown_artifact=markdown_artifact,
             audit_artifact=audit_artifact,
             chapter_count=chapter_count,
+            approved_chapter_count=_count_approved_chapters(
+                _reconstruct_completed_chapters(session, book_run.id)
+            ),
         )
     if book_run.total_chapters != chapter_count:
         book_run.total_chapters = chapter_count
@@ -280,12 +314,17 @@ def resume_phase9b_real_llm_smoke(
             continue
         chapter_started_at = time.monotonic()
         chapter = _chapter(session, book_run.book_id, chapter_index)
-        generated = _generate_chapter(session, source, chapter_index, chapter)
+        try:
+            generated = _generate_chapter(session, source, chapter_index, chapter)
+        except (KeyboardInterrupt, SystemExit):
+            _pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used)
+            raise
         tokens_used += int(generated["token_usage"])
-        scene = _approve_scene(session, chapter, str(generated["content"]))
+        scene = _persist_draft_scene(session, chapter, str(generated["content"]))
         model_run = _record_model_run(session, book_run, scene, source, generated)
         scene_packet = _record_scene_packet(session, book_run, scene)
         outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+        approved = _finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
         completed_chapters.append(
             {
                 "chapter_index": chapter_index,
@@ -295,6 +334,8 @@ def resume_phase9b_real_llm_smoke(
                 "repair_patch_ids": outcome["repair_patch_ids"],
                 "repair_rounds": outcome["repair_rounds"],
                 "approved_scene_id": scene.id,
+                "scene_status": scene.status,
+                "approved": approved,
                 "token_usage": generated["token_usage"],
                 "prompt_tokens": generated["prompt_tokens"],
                 "completion_tokens": generated["completion_tokens"],
@@ -310,7 +351,7 @@ def resume_phase9b_real_llm_smoke(
         completed_ordinals.add(chapter_index)
         if tokens_used > token_budget:
             _pause_by_budget(session, book_run.id, chapter_index, completed_chapters, tokens_used)
-            raise Phase9BRealLlmSmokeError("真实 LLM 断点续跑触发 token 预算暂停，不能标记为 completed。")
+            raise BookGenerationError("真实 LLM 断点续跑触发 token 预算暂停，不能标记为 completed。")
 
     completed_chapters.sort(key=lambda item: int(item.get("chapter_index") or 0))
     book_run = apply_book_run_progress(
@@ -326,7 +367,7 @@ def resume_phase9b_real_llm_smoke(
                     "elapsed_time_sec": max(0, int(time.monotonic() - started_at)),
                     "estimated_cost": _total_cost_estimate(completed_chapters),
                 },
-                "integration_metrics": _direct_smoke_integration_metrics(
+                "integration_metrics": _serial_integration_metrics(
                     session,
                     book_run,
                     completed_chapters,
@@ -342,11 +383,12 @@ def resume_phase9b_real_llm_smoke(
     )
     markdown_artifact = export_book_run_markdown(session, book_run.id)
     audit_artifact = export_book_run_audit_report(session, book_run.id)
-    return Phase9BRealLlmSmokeResult(
+    return BookGenerationResult(
         book_run=book_run,
         markdown_artifact=markdown_artifact,
         audit_artifact=audit_artifact,
         chapter_count=chapter_count,
+        approved_chapter_count=_count_approved_chapters(completed_chapters),
     )
 
 
@@ -360,27 +402,27 @@ def _assert_preflight(
     *,
     max_chapter_count: int = 10,
 ) -> None:
-    missing = missing_phase9b_real_llm_env(source)
+    missing = missing_book_generation_env(source)
     if missing:
         joined = ", ".join(missing)
-        raise Phase9BRealLlmSmokePreflightError(f"缺少真实 LLM 冒烟环境变量：{joined}。")
+        raise BookGenerationPreflightError(f"缺少真实 LLM 生成环境变量：{joined}。")
     if max_chapter_count <= 0:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟章节上限必须为正数。")
+        raise BookGenerationPreflightError("真实 LLM 生成章节上限必须为正数。")
     if chapter_count < 1 or chapter_count > max_chapter_count:
-        raise Phase9BRealLlmSmokePreflightError(f"真实 LLM 冒烟只允许 1 到 {max_chapter_count} 章。")
+        raise BookGenerationPreflightError(f"真实 LLM 生成只允许 1 到 {max_chapter_count} 章。")
     if token_budget <= 0:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟必须设置正数 token_budget。")
+        raise BookGenerationPreflightError("真实 LLM 生成必须设置正数 token_budget。")
     if target_word_count is not None and target_word_count <= 0:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟必须设置正数 target_word_count。")
+        raise BookGenerationPreflightError("真实 LLM 生成必须设置正数 target_word_count。")
     if chapter_word_count_min <= 0 or chapter_word_count_max <= 0:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟章节字数上下限必须为正数。")
+        raise BookGenerationPreflightError("真实 LLM 生成章节字数上下限必须为正数。")
     if chapter_word_count_min > chapter_word_count_max:
-        raise Phase9BRealLlmSmokePreflightError("真实 LLM 冒烟章节最小字数不能大于最大字数。")
+        raise BookGenerationPreflightError("真实 LLM 生成章节最小字数不能大于最大字数。")
 
 
-def _create_smoke_book(session: Session, chapter_count: int) -> Book:
+def _create_generation_book(session: Session, chapter_count: int) -> Book:
     book = Book(
-        title=f"Phase 9B 真实 LLM 冒烟 {chapter_count} 章",
+        title=f"真实 LLM 整书生成 {chapter_count} 章",
         status="draft",
         premise="林岚在雾港追查失真的灯塔信号，并把每一步证据写入审计链。",
     )
@@ -391,7 +433,7 @@ def _create_smoke_book(session: Session, chapter_count: int) -> Book:
 
 
 def _seed_consistency_data(session: Session, book_id: int) -> None:
-    """为冒烟书写入一条 Character Bible 与一个 Style Pack，让真实一致性数据进入 prompt。"""
+    """为生成书写入一条 Character Bible 与一个 Style Pack，让真实一致性数据进入 prompt。"""
 
     create_character_bible_entry(
         session,
@@ -469,14 +511,14 @@ def _blueprint_payload(
         metadata={
             "pov": "林岚",
             "location": "雾港",
-            "title_seed": "真实冒烟",
-            "planning_arcs": _smoke_planning_arcs(chapter_count),
+            "title_seed": "真实生成",
+            "planning_arcs": _default_planning_arcs(chapter_count),
         },
     )
 
 
-def _smoke_planning_arcs(chapter_count: int) -> list[dict[str, object]]:
-    """为真实冒烟写入结构化弧线，让 arc completion 指标来自 Blueprint 事实源。"""
+def _default_planning_arcs(chapter_count: int) -> list[dict[str, object]]:
+    """为真实生成写入结构化弧线，让 arc completion 指标来自 Blueprint 事实源。"""
 
     targets = list(range(1, chapter_count + 1))
     return [
@@ -496,7 +538,6 @@ def _chapter(session: Session, book_id: int, chapter_index: int) -> Chapter:
         .order_by(Chapter.id)
         .one()
     )
-    chapter.status = "approved"
     return chapter
 
 
@@ -505,7 +546,7 @@ def _reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[
 
     book_run = session.get(BookRun, book_run_id)
     if book_run is None:
-        raise Phase9BRealLlmSmokeError(f"BookRun {book_run_id} 不存在，无法重建进度。")
+        raise BookGenerationError(f"BookRun {book_run_id} 不存在，无法重建进度。")
     rows = session.execute(
         select(Chapter, Scene, ModelRun, ScenePacket)
         .join(Scene, Scene.chapter_id == Chapter.id)
@@ -532,7 +573,7 @@ def _reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[
             .order_by(JudgeIssue.id)
         ).all()
         if not judge_issues:
-            raise Phase9BRealLlmSmokeError(f"第 {chapter.ordinal} 章缺少 Judge 证据，无法断点续跑。")
+            raise BookGenerationError(f"第 {chapter.ordinal} 章缺少 Judge 证据，无法断点续跑。")
         repair_patches = session.scalars(
             select(RepairPatch).where(RepairPatch.scene_id == scene.id).order_by(RepairPatch.id)
         ).all()
@@ -567,6 +608,18 @@ def _reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[
     return completed
 
 
+def _strip_reasoning_leak(content: str) -> str:
+    """剥离混进正文的思维链：成对 <think>…</think> 整段删除；只剩残缺闭合标签时，
+    丢弃最后一个 </think> 及其之前的全部内容（即被泄漏的推理草稿），只留其后的正文。"""
+
+    cleaned = THINK_BLOCK_RE.sub("", content)
+    if THINK_CLOSE_RE.search(cleaned):
+        cleaned = cleaned[cleaned.rfind("</think>") + len("</think>") :]
+    # 残留的孤立开标签（极少见：有开无闭）直接抹掉标记本身，避免标签裸露在成稿里。
+    cleaned = THINK_OPEN_RE.sub("", cleaned)
+    return cleaned.strip()
+
+
 def _call_llm(
     source: Mapping[str, str | None],
     *,
@@ -596,17 +649,83 @@ def _call_llm(
         headers=_llm_request_headers(source),
         method="POST",
     )
-    timeout = _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 60.0)
+    timeout = _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
     started_at = time.monotonic()
-    with request.urlopen(http_request, timeout=timeout) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    print(
+        f"[_call_llm] url={http_request.full_url} timeout={timeout}s body_bytes={len(body)} "
+        f"prompt_chars={len(user_prompt)} max_completion_tokens={payload.get('max_completion_tokens', 'unset')} "
+        f"reasoning_effort={payload.get('reasoning_effort', 'unset')}",
+        file=sys.stderr,
+        flush=True,
+    )
+    try:
+        with request.urlopen(http_request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        try:
+            error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+        except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
+            error_body = "<无法读取响应体>"
+        print(
+            f"[_call_llm] HTTPError code={exc.code} elapsed={elapsed_ms}ms body={error_body}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise BookGenerationError(
+            f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms）：{error_body}"
+        ) from exc
+    except (error.URLError, TimeoutError) as exc:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        reason = getattr(exc, "reason", exc)
+        print(
+            f"[_call_llm] 连接失败/超时 elapsed={elapsed_ms}ms timeout={timeout}s reason={reason}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise BookGenerationError(
+            f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s）：{reason}"
+        ) from exc
+    finish_reason = None
+    choices = data.get("choices") if isinstance(data, dict) else None
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        finish_reason = choices[0].get("finish_reason")
     content = data["choices"][0]["message"]["content"]
     if not isinstance(content, str) or not content.strip():
-        raise Phase9BRealLlmSmokeError("真实 LLM 返回内容为空，不能继续 BookRun 冒烟。")
+        raw_usage = data.get("usage") if isinstance(data, dict) else None
+        print(
+            f"[_call_llm] 空返回 finish_reason={finish_reason} usage={raw_usage} "
+            f"elapsed={int((time.monotonic() - started_at) * 1000)}ms",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise BookGenerationError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
+    raw_chars = len(content)
+    content = _strip_reasoning_leak(content)
+    if not content:
+        print(
+            f"[_call_llm] 思维链剥离后内容为空 finish_reason={finish_reason} raw_chars={raw_chars} "
+            f"elapsed={int((time.monotonic() - started_at) * 1000)}ms",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise BookGenerationError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
+    if len(content) != raw_chars:
+        print(
+            f"[_call_llm] 剥离思维链泄漏 raw_chars={raw_chars} clean_chars={len(content)}",
+            file=sys.stderr,
+            flush=True,
+        )
     usage = _token_usage(data, user_prompt, content)
     cost_breakdown = _cost_breakdown(source, usage)
+    print(
+        f"[_call_llm] ok finish_reason={finish_reason} completion_tokens={usage.get('completion_tokens')} "
+        f"content_chars={len(content)} elapsed={int((time.monotonic() - started_at) * 1000)}ms",
+        file=sys.stderr,
+        flush=True,
+    )
     return {
-        "content": content.strip(),
+        "content": content,
         **usage,
         "cost_cny_estimated": cost_breakdown["total_cny"],
         "cost_breakdown": cost_breakdown,
@@ -715,22 +834,48 @@ def _prior_chapters_recap(
     return recap[-max_chars:]
 
 
-def _approve_scene(session: Session, chapter: Chapter, content: str) -> Scene:
+def _persist_draft_scene(session: Session, chapter: Chapter, content: str) -> Scene:
+    """先把生成正文落为 draft 场景（不批准、不进 BookContext），供 Judge/Repair 操作。"""
+
     scene = Scene(
         chapter_id=chapter.id,
         ordinal=1,
         title=f"{chapter.title} 真实 LLM 正文",
-        status="approved",
+        status="draft",
         content=content,
     )
     session.add(scene)
+    session.commit()
+    session.refresh(scene)
+    return scene
+
+
+def _finalize_scene_decision(
+    session: Session,
+    chapter: Chapter,
+    scene: Scene,
+    quality_score: int,
+) -> bool:
+    """门禁后置：仅当 Judge 评分达标才批准并追加进 BookContext；否则标 needs_revision 且不进上下文。
+
+    坏章不进上下文是关键——否则它会污染后续每一章的 recap，把劣质蔓延到全书。
+    """
+
     from app.domains.book_runs.book_context import get_book_context, skip_book_context_invalidation_once
 
+    if quality_score < REPAIR_THRESHOLD:
+        scene.status = "needs_revision"
+        session.commit()
+        session.refresh(scene)
+        return False
+
+    scene.status = "approved"
+    chapter.status = "approved"
     skip_book_context_invalidation_once(session, chapter.book_id)
     session.commit()
     session.refresh(scene)
 
-    # Phase 1 Context 增量化：章节批准后追加进 BookContext 缓存
+    # Phase 1 Context 增量化：仅达标章节追加进 BookContext 缓存，喂下一章 recap。
     context = get_book_context(session, chapter.book_id)
     context.append_chapter(
         session=session,
@@ -738,10 +883,9 @@ def _approve_scene(session: Session, chapter: Chapter, content: str) -> Scene:
         ordinal=chapter.ordinal,
         title=chapter.title or f"第{chapter.ordinal}章",
         summary=chapter.summary or "",
-        content=content,
+        content=scene.content or "",
     )
-
-    return scene
+    return True
 
 
 def _record_model_run(
@@ -805,7 +949,7 @@ def _record_scene_packet(session: Session, book_run: BookRun, scene: Scene) -> S
         scene_id=scene.id,
         job_run_id=None,
         status="assembled",
-        packet={"book_run_id": book_run.id, "真实 LLM 冒烟": True, "证据链接": []},
+        packet={"book_run_id": book_run.id, "真实 LLM 生成": True, "证据链接": []},
         version=1,
     )
     session.add(packet)
@@ -859,6 +1003,10 @@ def _judge_and_repair_loop(
         else:
             break
 
+    final_quality_score, final_quality_issues = _apply_word_count_floor(
+        session, book_run, scene, final_quality_score, final_quality_issues
+    )
+
     judge_report_id = final_issues[0].id if final_issues else _record_summary_judge(
         session,
         scene,
@@ -875,6 +1023,57 @@ def _judge_and_repair_loop(
         "quality_score": final_quality_score,
         "quality_issues": final_quality_issues,
     }
+
+
+def _apply_word_count_floor(
+    session: Session,
+    book_run: BookRun,
+    scene: Scene,
+    quality_score: int,
+    quality_issues: list[dict[str, object]],
+) -> tuple[int, list[dict[str, object]]]:
+    """字数门禁：下限硬拒（防截断/太短），上限按护栏倍数放宽（只拦失控，不拦偏长）。
+
+    Judge 评分管一致性/文风，但管不住「正文被截断/太短」这种结构性残缺——
+    一段 50 字的占位正文可能毫无一致性问题却拿满分。下限给 score=100 加一道真实约束。
+
+    上限不再用蓝图目标值直接拒批：真实模型在质量全 pass 时仍系统性写超目标，且超出
+    部分多为密实正文。改为 目标上限 × WORD_COUNT_CEILING_RUNAWAY_FACTOR 作为失控线，
+    只拦「无限重复/明显失控」，放过「写得好但偏长」。
+    """
+
+    blueprint = session.get(BookBlueprint, book_run.blueprint_id) if book_run.blueprint_id else None
+    if blueprint is None:
+        return quality_score, quality_issues
+
+    char_count = len((scene.content or "").strip())
+    floor = int(blueprint.chapter_word_count_min or 0)
+    ceiling = int(blueprint.chapter_word_count_max or 0)
+    runaway_ceiling = int(ceiling * WORD_COUNT_CEILING_RUNAWAY_FACTOR) if ceiling > 0 else 0
+    violation: str | None = None
+    if floor > 0 and char_count < floor:
+        violation = f"正文 {char_count} 字低于下限 {floor} 字，疑似截断或未完成。"
+    elif runaway_ceiling > 0 and char_count > runaway_ceiling:
+        violation = (
+            f"正文 {char_count} 字超过失控线 {runaway_ceiling} 字"
+            f"（目标上限 {ceiling} × {WORD_COUNT_CEILING_RUNAWAY_FACTOR}），疑似重复或失控。"
+        )
+
+    if violation is None:
+        return quality_score, quality_issues
+
+    quality_issues = [
+        *quality_issues,
+        {
+            "issue_id": None,
+            "category": "word_count_violation",
+            "severity": "high",
+            "summary": violation,
+            "dimension": "structural_completeness",
+        },
+    ]
+    # 直接压到阈值以下，确保 _finalize_scene_decision 拒批，而非仅扣几分仍可能过线。
+    return min(quality_score, REPAIR_THRESHOLD - 1), quality_issues
 
 
 def _run_real_judge(
@@ -910,7 +1109,10 @@ def _run_real_judge(
         *_detect_timeline_conflicts(session, payload),
         *_detect_style_fingerprint_drift(session, payload),
     ]
-    if _fast_judge_enabled(source) and not local_issues:
+    # 旁路诚实性：本地门禁只有在「确实有可校验的本地规则」时才算数。
+    # required_facts 与 style_rules 都为空 → 本地门禁等于没查，score=100 是假象，必须走语义 Judge。
+    local_coverage = bool(payload.required_facts) or bool(payload.style_rules)
+    if _fast_judge_enabled(source) and local_coverage and not local_issues:
         return _JudgeRunResult(
             issues=[],
             quality_score=100,
@@ -1104,6 +1306,57 @@ def _record_summary_judge(
     return judge
 
 
+def _pause_by_failure(
+    session: Session,
+    book_run_id: int,
+    chapter_index: int,
+    completed_chapters: list[dict[str, object]],
+    tokens_used: int,
+    error_message: str,
+) -> None:
+    """单章生成失败时落库已完成证据，便于断点诊断与续跑，而非整进程零证据退出。"""
+
+    session.rollback()
+    apply_book_run_progress(
+        session,
+        book_run_id,
+        BookRunProgressUpdate(
+            status="failed",
+            current_chapter_index=chapter_index,
+            progress={
+                "completed_chapters": completed_chapters,
+                "budget": {"tokens_used": tokens_used, "elapsed_time_sec": 0, "estimated_cost": 0.0},
+                "failure": {"chapter_index": chapter_index, "error": error_message[:2000]},
+            },
+        ),
+    )
+
+
+def _pause_by_interrupt(
+    session: Session,
+    book_run_id: int,
+    chapter_index: int,
+    completed_chapters: list[dict[str, object]],
+    tokens_used: int,
+) -> None:
+    """进程被中断（Ctrl-C / SystemExit）时把 run 落为可续跑的 paused，避免孤儿 running。"""
+
+    session.rollback()
+    apply_book_run_progress(
+        session,
+        book_run_id,
+        BookRunProgressUpdate(
+            status="paused_by_user",
+            current_chapter_index=chapter_index,
+            progress={
+                "completed_chapters": completed_chapters,
+                "budget": {"tokens_used": tokens_used, "elapsed_time_sec": 0, "estimated_cost": 0.0},
+                "pause_reason": f"在第 {chapter_index} 章生成期间被中断，已保住前 {len(completed_chapters)} 章证据。",
+            },
+        ),
+    )
+
+
 def _pause_by_budget(
     session: Session,
     book_run_id: int,
@@ -1126,12 +1379,12 @@ def _pause_by_budget(
     )
 
 
-def _direct_smoke_integration_metrics(
+def _serial_integration_metrics(
     session: Session,
     book_run: BookRun,
     completed_chapters: list[dict[str, object]],
 ) -> dict[str, object]:
-    """从 direct smoke 可观测事实生成集成指标，不把串行路径伪装成并发路径。"""
+    """从串行直跑可观测事实生成集成指标，不把串行路径伪装成并发路径。"""
 
     chapter_count = max(1, len(completed_chapters))
     legacy_scene_query_count = max(1, chapter_count * 2)
@@ -1147,13 +1400,13 @@ def _direct_smoke_integration_metrics(
         "metric_notes": {
             "context_cache_hit_rate": "按旧基线每章风格和前文各一次 Scene 查询、当前 BookContext 一次初始化查询投影。",
             "db_query_count_per_chapter": "沿用 Phase 1 Context 优化本地验收上限，真实查询计数由专门回归测试覆盖。",
-            "concurrent_chapter_utilization": "direct smoke 为串行章节循环；PH5 并发门禁必须由 workflow BookLoop 并发 runner 证明。",
+            "concurrent_chapter_utilization": "串行直跑为串行章节循环；PH5 并发门禁必须由 workflow BookLoop 并发 runner 证明。",
         },
     }
 
 
 def _direct_memory_recall_budget_used(completed_chapters: list[dict[str, object]]) -> int:
-    """direct smoke 未注入 Story Memory 召回预算，按当前运行事实记为 0。"""
+    """串行直跑未注入 Story Memory 召回预算，按当前运行事实记为 0。"""
 
     return sum(int(item.get("memory_recall_chars") or 0) for item in completed_chapters if isinstance(item, dict))
 
@@ -1201,7 +1454,7 @@ def _llm_request_headers(source: Mapping[str, str | None]) -> dict[str, str]:
         headers["api-key"] = credential
         return headers
     if auth_header != "bearer":
-        raise Phase9BRealLlmSmokePreflightError("STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。")
+        raise BookGenerationPreflightError("STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。")
     headers["Authorization"] = f"Bearer {credential}"
     return headers
 
@@ -1281,7 +1534,7 @@ def _env_value(source: Mapping[str, str | None], name: str) -> str:
 def _required_env(source: Mapping[str, str | None], name: str) -> str:
     value = _env_value(source, name)
     if not value:
-        raise Phase9BRealLlmSmokePreflightError(f"缺少真实 LLM 冒烟环境变量：{name}。")
+        raise BookGenerationPreflightError(f"缺少真实 LLM 生成环境变量：{name}。")
     return value
 
 
@@ -1299,14 +1552,14 @@ def main(
     argv: list[str] | None = None,
     *,
     session_factory: Callable[[], object] | None = None,
-    runner: Callable[..., object] = run_phase9b_real_llm_smoke,
+    runner: Callable[..., object] = run_book_generation,
     output: TextIO | None = None,
     error: TextIO | None = None,
     env: Mapping[str, str | None] | None = None,
 ) -> int:
-    """命令行入口：执行 Phase 9B 真实 LLM 冒烟并输出脱敏摘要。"""
+    """命令行入口：执行 真实 LLM 整书生成并输出脱敏摘要。"""
 
-    parser = argparse.ArgumentParser(description="运行 StoryForge Phase 9B 真实 LLM BookRun 冒烟。")
+    parser = argparse.ArgumentParser(description="运行 StoryForge 真实 LLM 整书生成。")
     parser.add_argument("--chapter-count", type=int, required=True)
     parser.add_argument("--token-budget", type=int, required=True)
     parser.add_argument("--target-word-count", type=int, default=None)
@@ -1326,7 +1579,7 @@ def main(
             args.chapter_word_count_min,
             args.chapter_word_count_max,
         )
-    except Phase9BRealLlmSmokePreflightError as exc:
+    except BookGenerationPreflightError as exc:
         print(str(exc), file=err)
         return 2
     if session_factory is None:
@@ -1344,11 +1597,11 @@ def main(
                 chapter_word_count_max=args.chapter_word_count_max,
                 env=source,
             )
-    except Phase9BRealLlmSmokePreflightError as exc:
+    except BookGenerationPreflightError as exc:
         print(str(exc), file=err)
         return 2
     except Exception as exc:
-        print(f"Phase 9B 真实 LLM 冒烟失败：{exc}", file=err)
+        print(f"真实 LLM 整书生成失败：{exc}", file=err)
         return 1
     summary = _result_summary(result)
     if args.summary_output:

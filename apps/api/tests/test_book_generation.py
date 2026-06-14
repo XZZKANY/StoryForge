@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -15,23 +16,27 @@ from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
 from app.domains.blueprints.models import BookBlueprint
-from app.domains.book_runs.models import BookRun
-from app.domains.book_runs.phase9b_real_llm_smoke import (
-    Phase9BRealLlmSmokePreflightError,
+from app.domains.book_runs.book_generation import (
+    BookGenerationPreflightError,
+    _apply_word_count_floor,
+    _count_approved_chapters,
     _evidence_summary,
+    _finalize_scene_decision,
     _prior_chapters_recap,
     _record_model_run,
+    _strip_reasoning_leak,
     main,
-    missing_phase9b_real_llm_env,
-    resume_phase9b_real_llm_smoke,
-    run_phase9b_real_llm_smoke,
+    missing_book_generation_env,
+    resume_book_generation,
+    run_book_generation,
 )
+from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.judge.models import JudgeIssue
 from app.domains.model_runs.models import ModelRun
 
 
-class _Phase9BChatHandler(BaseHTTPRequestHandler):
+class _BookGenerationChatHandler(BaseHTTPRequestHandler):
     """模拟 OpenAI 兼容 Chat Completions，用于验证真实协议边界（生成 + Judge）。"""
 
     requests: list[dict[str, object]] = []
@@ -45,7 +50,14 @@ class _Phase9BChatHandler(BaseHTTPRequestHandler):
         if "结构化一致性评审员" in system_prompt:
             response_content = "[]"
         else:
-            response_content = f"真实模型章节正文：{user_prompt[:32]}。林岚完成调查并留下审计证据。"
+            # 按 prompt 中的「N–M 字」区间生成足量正文，确保通过字数硬门禁。
+            target_chars = 800
+            match = re.search(r"（(\d+)[–\-](\d+)\s*字）", user_prompt)
+            if match:
+                target_chars = (int(match.group(1)) + int(match.group(2))) // 2
+            head = f"真实模型章节正文：{user_prompt[:32]}。林岚完成调查并留下审计证据。"
+            filler = "她沿着走廊核对每一处线索，把证据逐条登记入册。" * 200
+            response_content = (head + filler)[:target_chars]
         body = json.dumps(
             {
                 "choices": [{"message": {"content": response_content}}],
@@ -67,25 +79,25 @@ def _local_provider_base_url(port: int) -> str:
     return "http" + f"://127.0.0.1:{port}/v1"
 
 
-def test_phase9b_real_llm_smoke_reports_missing_private_env(session: Session) -> None:
+def test_book_generation_reports_missing_private_env(session: Session) -> None:
     """缺少私有真实 LLM 配置时应明确阻止冒烟，且不触碰外部网络。"""
 
-    assert missing_phase9b_real_llm_env({}) == [
+    assert missing_book_generation_env({}) == [
         "STORYFORGE_LLM_API_KEY",
         "STORYFORGE_LLM_BASE_URL",
         "STORYFORGE_LLM_MODEL",
         "STORYFORGE_LLM_PROVIDER",
     ]
 
-    with pytest.raises(Phase9BRealLlmSmokePreflightError, match="STORYFORGE_LLM_API_KEY"):
-        run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env={})
+    with pytest.raises(BookGenerationPreflightError, match="STORYFORGE_LLM_API_KEY"):
+        run_book_generation(session, chapter_count=1, token_budget=1000, env={})
 
 
-def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: Session) -> None:
-    """1 章真实 LLM 冒烟应完成 BookRun、记录 token，并导出可审计制品。"""
+def test_book_generation_runs_one_chapter_and_records_evidence(session: Session) -> None:
+    """1 章真实 LLM 生成应完成 BookRun、记录 token，并导出可审计制品。"""
 
-    _Phase9BChatHandler.requests = []
-    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    _BookGenerationChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _BookGenerationChatHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
@@ -100,7 +112,7 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     os.environ.update(env)
 
     try:
-        result = run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env=env)
+        result = run_book_generation(session, chapter_count=1, token_budget=1000, env=env)
     finally:
         server.shutdown()
         thread.join(timeout=2)
@@ -115,8 +127,8 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert result.book_run.tokens_used == 323
     assert result.markdown_artifact.name == "book.md"
     assert result.audit_artifact.name == "audit_report.json"
-    assert len(_Phase9BChatHandler.requests) == 1
-    draft_request = _Phase9BChatHandler.requests[0]
+    assert len(_BookGenerationChatHandler.requests) == 1
+    draft_request = _BookGenerationChatHandler.requests[0]
     assert draft_request["payload"]["max_completion_tokens"] == 700
     assert draft_request["headers"]["Authorization"] == "Bearer" + " test-private-credential"
     assert "结构化一致性评审员" not in draft_request["payload"]["messages"][0]["content"]
@@ -139,11 +151,11 @@ def test_phase9b_real_llm_smoke_runs_one_chapter_and_records_evidence(session: S
     assert audit["chapters"][0]["quality_score"] == 100
 
 
-def test_phase9b_real_llm_smoke_supports_api_key_auth_and_cost_breakdown(session: Session) -> None:
+def test_book_generation_supports_api_key_auth_and_cost_breakdown(session: Session) -> None:
     """Token Plan 路径应支持 api-key 鉴权，并按输入/输出 token 估算人民币成本。"""
 
-    _Phase9BChatHandler.requests = []
-    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    _BookGenerationChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _BookGenerationChatHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
@@ -162,7 +174,7 @@ def test_phase9b_real_llm_smoke_supports_api_key_auth_and_cost_breakdown(session
     os.environ.update(env)
 
     try:
-        result = run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env=env)
+        result = run_book_generation(session, chapter_count=1, token_budget=1000, env=env)
     finally:
         server.shutdown()
         thread.join(timeout=2)
@@ -172,7 +184,7 @@ def test_phase9b_real_llm_smoke_supports_api_key_auth_and_cost_breakdown(session
             else:
                 os.environ[key] = value
 
-    draft_request = _Phase9BChatHandler.requests[0]
+    draft_request = _BookGenerationChatHandler.requests[0]
     request_headers = {str(key).lower(): value for key, value in draft_request["headers"].items()}
     assert request_headers["api-key"] == "test-private-credential"
     assert "authorization" not in request_headers
@@ -207,11 +219,11 @@ def test_phase9b_real_llm_smoke_supports_api_key_auth_and_cost_breakdown(session
     assert summary["repair_round_count"] == 0
 
 
-def test_phase9b_real_llm_smoke_fast_path_skips_semantic_judge_when_local_gate_passes(session: Session) -> None:
+def test_book_generation_fast_path_skips_semantic_judge_when_local_gate_passes(session: Session) -> None:
     """确定性与本地一致性门禁通过时，应跳过昂贵语义 Judge 并保留通过审计。"""
 
-    _Phase9BChatHandler.requests = []
-    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    _BookGenerationChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _BookGenerationChatHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
@@ -226,7 +238,7 @@ def test_phase9b_real_llm_smoke_fast_path_skips_semantic_judge_when_local_gate_p
     os.environ.update(env)
 
     try:
-        result = run_phase9b_real_llm_smoke(session, chapter_count=1, token_budget=1000, env=env)
+        result = run_book_generation(session, chapter_count=1, token_budget=1000, env=env)
     finally:
         server.shutdown()
         thread.join(timeout=2)
@@ -237,8 +249,8 @@ def test_phase9b_real_llm_smoke_fast_path_skips_semantic_judge_when_local_gate_p
                 os.environ[key] = value
 
     assert result.book_run.status == "completed"
-    assert len(_Phase9BChatHandler.requests) == 1
-    only_request = _Phase9BChatHandler.requests[0]
+    assert len(_BookGenerationChatHandler.requests) == 1
+    only_request = _BookGenerationChatHandler.requests[0]
     assert "结构化一致性评审员" not in only_request["payload"]["messages"][0]["content"]
 
     judge = session.query(JudgeIssue).one()
@@ -248,11 +260,11 @@ def test_phase9b_real_llm_smoke_fast_path_skips_semantic_judge_when_local_gate_p
     assert result.book_run.progress["completed_chapters"][0]["quality_issues"] == []
 
 
-def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Session) -> None:
-    """10 章真实 LLM 冒烟应把字数目标写入蓝图和 prompt，并产出完整 audit。"""
+def test_book_generation_runs_ten_chapters_with_word_targets(session: Session) -> None:
+    """10 章真实 LLM 生成应把字数目标写入蓝图和 prompt，并产出完整 audit。"""
 
-    _Phase9BChatHandler.requests = []
-    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    _BookGenerationChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _BookGenerationChatHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
@@ -267,7 +279,7 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     os.environ.update(env)
 
     try:
-        result = run_phase9b_real_llm_smoke(
+        result = run_book_generation(
             session,
             chapter_count=10,
             token_budget=10000,
@@ -296,14 +308,14 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     assert blueprint.chapter_word_count_min == 3000
     assert blueprint.chapter_word_count_max == 5000
 
-    assert len(_Phase9BChatHandler.requests) == 10
+    assert len(_BookGenerationChatHandler.requests) == 10
     draft_requests = [
-        item for item in _Phase9BChatHandler.requests
+        item for item in _BookGenerationChatHandler.requests
         if "结构化一致性评审员" not in item["payload"]["messages"][0]["content"]
     ]
     assert len(draft_requests) == 10
     assert all("3000–5000 字" in item["payload"]["messages"][-1]["content"] for item in draft_requests)
-    assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-credential" for item in _Phase9BChatHandler.requests)
+    assert all(item["headers"]["Authorization"] == "Bearer" + " test-private-credential" for item in _BookGenerationChatHandler.requests)
 
     assert session.query(ModelRun).count() == 10
     audit = result.audit_artifact.payload
@@ -321,7 +333,187 @@ def test_phase9b_real_llm_smoke_runs_ten_chapters_with_word_targets(session: Ses
     assert "test-private-credential" not in str(result.audit_artifact.payload)
 
 
-def test_phase9b_real_llm_smoke_truncates_long_model_run_summaries(session: Session) -> None:
+def _seed_gate_fixture(
+    session: Session,
+    *,
+    content: str,
+    word_min: int = 600,
+    word_max: int = 1600,
+) -> tuple[BookRun, Chapter, Scene]:
+    """搭一套最小 book/blueprint/chapter/draft-scene/book_run，用于直接验证门禁函数。"""
+
+    book = Book(title="门禁测试", status="draft", premise="验证门禁。")
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+    blueprint = BookBlueprint(
+        book_id=book.id,
+        premise="验证门禁。",
+        tone="克制",
+        target_word_count=12000,
+        target_chapter_count=10,
+        chapter_word_count_min=word_min,
+        chapter_word_count_max=word_max,
+        status="locked",
+        metadata_={},
+    )
+    session.add(blueprint)
+    session.commit()
+    session.refresh(blueprint)
+    chapter = Chapter(book_id=book.id, ordinal=1, title="第一章", status="planned")
+    session.add(chapter)
+    session.commit()
+    session.refresh(chapter)
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="正文", status="draft", content=content)
+    session.add(scene)
+    session.commit()
+    session.refresh(scene)
+    book_run = BookRun(
+        book_id=book.id,
+        blueprint_id=blueprint.id,
+        status="running",
+        current_chapter_index=1,
+        total_chapters=10,
+        progress={},
+        checkpoint=[],
+        token_budget=800000,
+        tokens_used=0,
+        chapter_budget=10,
+    )
+    session.add(book_run)
+    session.commit()
+    session.refresh(book_run)
+    return book_run, chapter, scene
+
+
+def test_word_count_floor_caps_score_for_short_chapter(session: Session) -> None:
+    """正文低于蓝图下限时，字数硬门禁应把分数压到批准阈值以下并记结构性问题。"""
+
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="太短的占位正文。", word_min=600)
+    score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
+    assert score < 70
+    assert any(item["category"] == "word_count_violation" for item in issues)
+
+
+def test_count_approved_chapters_excludes_unapproved() -> None:
+    """计数失真回归：处理过但未批准的章（如失控被拒批）不应计入产出章数，
+    避免 run 报「30/30 completed」却丢章而 failure_count=0 误导审计。"""
+
+    completed = [
+        {"chapter_index": 1, "approved": True},
+        {"chapter_index": 2, "approved": True},
+        {"chapter_index": 3, "approved": False},  # 失控/截断被拒批，仅处理未产出
+        {"chapter_index": 4, "approved": True},
+    ]
+    assert _count_approved_chapters(completed) == 3
+    assert len(completed) == 4  # 处理数仍是 4，与产出数 3 区分
+
+
+def test_count_approved_chapters_empty_is_zero() -> None:
+    assert _count_approved_chapters([]) == 0
+
+
+def test_strip_reasoning_leak_removes_paired_think_block() -> None:
+    """成对 <think>…</think> 整段剥掉，只留正文。"""
+
+    raw = "<think>我先规划一下本章节奏</think>林岚走进码头，海风很冷。"
+    assert _strip_reasoning_leak(raw) == "林岚走进码头，海风很冷。"
+
+
+def test_strip_reasoning_leak_handles_orphan_closing_tag() -> None:
+    """第29章真实事故形态：开标签被上游吞掉，只剩 </think>，其前的推理草稿
+    与重写的第一遍正文都应丢弃，只保留最后一个闭合标签之后的成稿。"""
+
+    raw = "审计链又多了一环，准备重写。</think>林岚的冲锋舟切开夜色里的海面。"
+    assert _strip_reasoning_leak(raw) == "林岚的冲锋舟切开夜色里的海面。"
+    assert "</think>" not in _strip_reasoning_leak(raw)
+
+
+def test_strip_reasoning_leak_keeps_last_segment_with_multiple_closings() -> None:
+    """多个闭合标签时只保留最后一段，避免中间的推理残体混入。"""
+
+    raw = "草稿A</think>草稿B</think>最终正文。"
+    assert _strip_reasoning_leak(raw) == "最终正文。"
+
+
+def test_strip_reasoning_leak_preserves_clean_content() -> None:
+    """无泄漏的干净正文除首尾空白外原样保留。"""
+
+    raw = "  林岚点了点头。她没追问。  "
+    assert _strip_reasoning_leak(raw) == "林岚点了点头。她没追问。"
+
+
+def test_strip_reasoning_leak_removes_orphan_opening_tag() -> None:
+    """有开无闭的孤立 <think> 标记本身抹掉，不让标签裸露在成稿里。"""
+
+    raw = "<think>正文其实从这里开始，标记本不该出现。"
+    assert _strip_reasoning_leak(raw) == "正文其实从这里开始，标记本不该出现。"
+
+
+def test_word_count_floor_passes_chapter_within_bounds(session: Session) -> None:
+    """正文落在区间内时，字数门禁不动分数也不加问题。"""
+
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="字" * 900, word_min=600, word_max=1600)
+    score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
+    assert score == 100
+    assert issues == []
+
+
+def test_word_count_floor_over_target_within_runaway_factor_passes(session: Session) -> None:
+    """超目标上限但在失控线（上限 × 2.5）内的密实正文应通过，不再误伤偏长好内容。"""
+
+    # word_max=1600 → 失控线 4000；2400 字超目标上限但远低于失控线。
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="字" * 2400, word_min=600, word_max=1600)
+    score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
+    assert score == 100
+    assert issues == []
+
+
+def test_word_count_floor_caps_score_for_runaway_chapter(session: Session) -> None:
+    """正文超过失控线（上限 × 2.5）时，仍判失控并压分拒批，保留防重复/失控护栏。"""
+
+    # word_max=1600 → 失控线 4000；4500 字判失控。
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="字" * 4500, word_min=600, word_max=1600)
+    score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
+    assert score < 70
+    assert any(item["category"] == "word_count_violation" for item in issues)
+
+
+def test_finalize_scene_decision_refuses_subthreshold_chapter(session: Session) -> None:
+    """门禁后置：评分低于阈值的章节不批准、不进上下文、不进导出。"""
+
+    from app.domains.book_runs.book_context import clear_book_context_cache, get_book_context
+
+    book_run, chapter, scene = _seed_gate_fixture(session, content="字" * 900)
+    clear_book_context_cache(chapter.book_id)
+    approved = _finalize_scene_decision(session, chapter, scene, 40)
+    assert approved is False
+    session.refresh(scene)
+    session.refresh(chapter)
+    assert scene.status == "needs_revision"
+    assert chapter.status != "approved"
+    context = get_book_context(session, chapter.book_id)
+    assert all(ch.chapter_id != chapter.id for ch in context.approved_chapters)
+
+
+def test_finalize_scene_decision_approves_passing_chapter(session: Session) -> None:
+    """评分达标的章节批准、章节状态置 approved 并进上下文。"""
+
+    from app.domains.book_runs.book_context import clear_book_context_cache, get_book_context
+
+    book_run, chapter, scene = _seed_gate_fixture(session, content="字" * 900)
+    clear_book_context_cache(chapter.book_id)
+    approved = _finalize_scene_decision(session, chapter, scene, 100)
+    assert approved is True
+    session.refresh(scene)
+    session.refresh(chapter)
+    assert scene.status == "approved"
+    assert chapter.status == "approved"
+    context = get_book_context(session, chapter.book_id)
+    assert any(ch.chapter_id == chapter.id for ch in context.approved_chapters)
+
+
+def test_book_generation_truncates_long_model_run_summaries(session: Session) -> None:
     """长程 prompt 超过 ModelRun schema 上限时，只裁剪入库摘要，不阻断运行。"""
 
     book = Book(title="长摘要测试", status="draft", premise="验证长程 prompt 入库摘要。")
@@ -342,7 +534,7 @@ def test_phase9b_real_llm_smoke_truncates_long_model_run_summaries(session: Sess
     session.add(blueprint)
     session.commit()
     session.refresh(blueprint)
-    chapter = Chapter(book_id=book.id, ordinal=21, title="真实冒烟 21", status="approved")
+    chapter = Chapter(book_id=book.id, ordinal=21, title="真实生成 21", status="approved")
     session.add(chapter)
     session.commit()
     session.refresh(chapter)
@@ -398,11 +590,11 @@ def test_phase9b_real_llm_smoke_truncates_long_model_run_summaries(session: Sess
     assert model_run.payload["output_summary_truncated"] is True
 
 
-def test_phase9b_real_llm_resume_continues_after_existing_approved_chapters(session: Session) -> None:
+def test_book_generation_resume_continues_after_existing_approved_chapters(session: Session) -> None:
     """断点续跑应复用已批准章节，只从下一章继续生成并导出完整证据。"""
 
-    _Phase9BChatHandler.requests = []
-    server = HTTPServer(("127.0.0.1", 0), _Phase9BChatHandler)
+    _BookGenerationChatHandler.requests = []
+    server = HTTPServer(("127.0.0.1", 0), _BookGenerationChatHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     env = {
@@ -416,7 +608,7 @@ def test_phase9b_real_llm_resume_continues_after_existing_approved_chapters(sess
     old_env = {key: os.environ.get(key) for key in env}
     os.environ.update(env)
     try:
-        partial = run_phase9b_real_llm_smoke(
+        partial = run_book_generation(
             session,
             chapter_count=2,
             token_budget=10000,
@@ -438,16 +630,16 @@ def test_phase9b_real_llm_resume_continues_after_existing_approved_chapters(sess
                     book_id=partial.book_run.book_id,
                     blueprint_id=partial.book_run.blueprint_id,
                     ordinal=ordinal,
-                    title=f"真实冒烟 {ordinal}",
+                    title=f"真实生成 {ordinal}",
                     status="planned",
                     summary=f"第 {ordinal} 章继续推进调查。",
                     required_beats=[],
                 )
             )
         session.commit()
-        _Phase9BChatHandler.requests = []
+        _BookGenerationChatHandler.requests = []
 
-        result = resume_phase9b_real_llm_smoke(
+        result = resume_book_generation(
             session,
             book_run_id=partial.book_run.id,
             chapter_count=4,
@@ -472,7 +664,7 @@ def test_phase9b_real_llm_resume_continues_after_existing_approved_chapters(sess
     assert [item["chapter_index"] for item in result.book_run.progress["completed_chapters"]] == [1, 2, 3, 4]
     assert [item["quality_score"] for item in result.book_run.progress["completed_chapters"][:2]] == [100, 100]
     assert session.query(ModelRun).count() == 4
-    assert len(_Phase9BChatHandler.requests) == 2
+    assert len(_BookGenerationChatHandler.requests) == 2
     assert "第 3 章" in str(result.markdown_artifact.payload)
     assert "第 4 章" in str(result.markdown_artifact.payload)
 
@@ -548,7 +740,7 @@ def test_prior_chapters_recap_returns_none_for_first_chapter(session: Session) -
 
 
 
-def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
+def test_book_generation_cli_prints_summary_without_secret() -> None:
     """CLI 入口应输出可粘贴到验证报告的摘要，且不能泄露密钥。"""
 
     output = StringIO()
@@ -621,7 +813,7 @@ def test_phase9b_real_llm_smoke_cli_prints_summary_without_secret() -> None:
     assert "test-private-credential" not in output.getvalue()
 
 
-def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path) -> None:
+def test_book_generation_cli_writes_redacted_summary_file(tmp_path: Path) -> None:
     """CLI 应写入脱敏 summary.json，供真实 smoke 产物验收。"""
 
     output = StringIO()
@@ -803,7 +995,7 @@ def test_phase9b_real_llm_smoke_cli_writes_redacted_summary_file(tmp_path: Path)
     assert "provider.test" not in serialized
 
 
-def test_phase9b_real_llm_smoke_cli_rejects_non_positive_target_word_count() -> None:
+def test_book_generation_cli_rejects_non_positive_target_word_count() -> None:
     """CLI 应在会话创建前拒绝非正数总字数目标。"""
 
     output = StringIO()
@@ -832,12 +1024,12 @@ def test_phase9b_real_llm_smoke_cli_rejects_non_positive_target_word_count() -> 
     assert "test-private-credential" not in error.getvalue()
 
 
-def test_phase9b_real_llm_smoke_module_registers_relationship_models_for_direct_cli() -> None:
+def test_book_generation_module_registers_relationship_models_for_direct_cli() -> None:
     """直接导入 CLI 模块后应能配置 mapper，覆盖真实命令行入口路径。"""
 
     script = (
         "from sqlalchemy.orm import configure_mappers; "
-        "import app.domains.book_runs.phase9b_real_llm_smoke; "
+        "import app.domains.book_runs.book_generation; "
         "configure_mappers()"
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
@@ -847,7 +1039,7 @@ def test_phase9b_real_llm_smoke_module_registers_relationship_models_for_direct_
 
 
 
-def test_phase9b_real_llm_smoke_persistent_schema_contains_workspace_columns(engine) -> None:
+def test_book_generation_persistent_schema_contains_workspace_columns(engine) -> None:
     """持久化迁移路径需要包含工作区表和 books.workspace_id，匹配真实 CLI 使用的 ORM 模型。"""
 
     inspector = inspect(engine)
@@ -855,3 +1047,31 @@ def test_phase9b_real_llm_smoke_persistent_schema_contains_workspace_columns(eng
     assert "workspaces" in inspector.get_table_names()
     book_columns = {column["name"] for column in inspector.get_columns("books")}
     assert "workspace_id" in book_columns
+
+
+def test_book_generation_interrupt_marks_paused_not_orphan_running(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """生成期间被 Ctrl-C / SystemExit 中断时，BookRun 应落为 paused_by_user，而非孤儿 running。"""
+
+    import app.domains.book_runs.book_generation as generation
+
+    def _interrupt(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(generation, "_generate_chapter", _interrupt)
+    env = {
+        "STORYFORGE_LLM_API_KEY": "test-private-credential",
+        "STORYFORGE_LLM_BASE_URL": "http://127.0.0.1:1/v1",
+        "STORYFORGE_LLM_MODEL": "test-real-model",
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+    }
+
+    with pytest.raises(KeyboardInterrupt):
+        run_book_generation(session, chapter_count=3, token_budget=1000, env=env)
+
+    book_run = session.query(BookRun).one()
+    assert book_run.status == "paused_by_user"
+    assert book_run.current_chapter_index == 1
+    assert book_run.progress["completed_chapters"] == []
+    assert "中断" in book_run.progress["pause_reason"]

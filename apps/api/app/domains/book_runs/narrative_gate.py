@@ -99,6 +99,7 @@ def _chapter_template_fact(chapter_text: str) -> dict[str, object]:
         or irreversible_consequence
         or existing_clues_reinterpreted
     )
+    concrete_detail = _concrete_detail_signals(chapter_text)
     return {
         "bucket_hits": bucket_hits,
         "bucket_hit_count": len(bucket_hits),
@@ -107,8 +108,34 @@ def _chapter_template_fact(chapter_text: str) -> dict[str, object]:
         "relationship_delta": relationship_delta,
         "irreversible_consequence": irreversible_consequence,
         "existing_clues_reinterpreted": existing_clues_reinterpreted,
-        "is_template": len(bucket_hits) >= 3 and not has_structural_protection,
+        "concrete_detail": concrete_detail,
+        # 套路化的真信号是「流程骨架重复且空洞」。命中≥3 动作桶只是骨架嫌疑；
+        # 但含具体锚点（多个数字证据 / 时间戳 / 直接对话）的章节是不可互换的实写正文，
+        # 仅因含「回到/查看/转身离开」这类高频动词就判套路会系统性误报真章（30 章长跑 CH3/4 即此）。
+        # 故判套路要求：动作桶≥3 且 无剧情推进 且 无具体锚点。
+        "is_template": (
+            len(bucket_hits) >= 3
+            and not has_structural_protection
+            and not concrete_detail
+        ),
     }
+
+
+def _concrete_detail_signals(text: str) -> list[str]:
+    """检测「章节独有的具体事实锚点」——区分实写正文与可互换的流程占位骨架。
+
+    占位骨架（如「林岚来到X，询问Y，查看Z，收好W，转去下一处」）抽象、无数字、无对话；
+    实写正文含具体数字证据、时间戳、直接引语。任一信号命中即视为有具体内容，不判套路。
+    """
+
+    signals: list[str] = []
+    if len(re.findall(r"\d+", text)) >= 3:
+        signals.append("multiple_numeric_evidence")
+    if re.search(r"\d{1,2}[:：]\d{2}", text):
+        signals.append("timestamp")
+    if len(re.findall(r"[“”「」]", text)) >= 2:
+        signals.append("direct_dialogue")
+    return signals
 
 
 def _literal_hits(text: str, needles: tuple[str, ...]) -> list[str]:

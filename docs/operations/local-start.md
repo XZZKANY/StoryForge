@@ -102,8 +102,8 @@ pnpm openapi
 
 ```powershell
 cd D:/StoryForge/apps/api
-uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 1 --token-budget 8000
-uv run python -m app.domains.book_runs.phase9b_real_llm_smoke --chapter-count 3 --token-budget 24000
+uv run python -m app.domains.book_runs.book_generation --chapter-count 1 --token-budget 8000
+uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token-budget 24000
 ```
 
 当前脱敏证据：
