@@ -6,12 +6,15 @@ export default async function BlueprintsPage({
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = (await searchParams) ?? {};
+  const blueprintId = params.blueprint_id ? Number(params.blueprint_id) : undefined;
+  const bookRunId = params.book_run_id ? Number(params.book_run_id) : undefined;
+  const intent = typeof params.intent === 'string' ? params.intent : undefined;
 
   return (
-    <main aria-labelledby="blueprints-title">
-      <h1 id="blueprints-title">Blueprint 全书编排</h1>
-      <p>创建、锁定并触发三章章节计划后，启动 BookRun 查看整书生成状态。</p>
-      <BlueprintWorkspacePanel searchParams={params} />
-    </main>
+    <BlueprintWorkspacePanel
+      blueprintId={blueprintId}
+      bookRunId={bookRunId}
+      intent={intent}
+    />
   );
 }
