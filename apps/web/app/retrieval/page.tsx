@@ -1,4 +1,6 @@
 import { apiFetch } from '../../lib/api-client';
+export const dynamic = 'force-dynamic';
+
 
 type RetrievalWorkbenchSource = {
   readonly id: number;

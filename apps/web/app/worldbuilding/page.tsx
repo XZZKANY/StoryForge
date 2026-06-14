@@ -1,5 +1,7 @@
 import { readJson } from '../../lib/api-client';
 
+export const dynamic = 'force-dynamic';
+
 type WorldbuildingItem = {
   readonly id: number;
   readonly name: string;

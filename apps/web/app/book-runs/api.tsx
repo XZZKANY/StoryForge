@@ -16,6 +16,9 @@ export type BookRunRead = {
   readonly tokens_used: number;
   readonly time_budget_sec: number | null;
   readonly elapsed_time_sec: number;
+  readonly total_latency_ms: number;
+  readonly max_latency_ms: number;
+  readonly avg_latency_ms: number;
   readonly chapter_budget: number | null;
   readonly estimated_cost: number;
   readonly cost_summary: Record<string, unknown>;
@@ -124,6 +127,9 @@ function isBookRunRead(value: unknown): value is BookRunRead {
     typeof item.tokens_used === 'number' &&
     (typeof item.time_budget_sec === 'number' || item.time_budget_sec === null) &&
     typeof item.elapsed_time_sec === 'number' &&
+    typeof item.total_latency_ms === 'number' &&
+    typeof item.max_latency_ms === 'number' &&
+    typeof item.avg_latency_ms === 'number' &&
     (typeof item.chapter_budget === 'number' || item.chapter_budget === null) &&
     typeof item.estimated_cost === 'number' &&
     typeof item.cost_summary === 'object' &&

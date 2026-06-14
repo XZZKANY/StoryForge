@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { readRecentAssistantSessions } from '../components/home/assistant-session-store';
 import { Chrome } from '../components/site-nav/Chrome';
 import type { RecentItem } from '../components/site-nav/recent-items-store';
+import { ToastProvider } from '../components/ui';
 import './globals.css';
 
 async function readRecentAssistantSidebarItems(): Promise<readonly RecentItem[]> {
@@ -32,7 +33,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             __html: `try{var t=localStorage.getItem('storyforge-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.dataset.theme='dark';}catch(e){}`,
           }}
         />
-        <Chrome initialRecentItems={recentAssistantItems}>{children}</Chrome>
+        <ToastProvider>
+          <Chrome initialRecentItems={recentAssistantItems}>{children}</Chrome>
+        </ToastProvider>
       </body>
     </html>
   );
