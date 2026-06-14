@@ -40,8 +40,12 @@ const primaryNavItems: readonly NavItem[] = [
 
 export function UnifiedSidebar({
   initialRecentItems = [],
+  isOpen = false,
+  onClose,
 }: {
   readonly initialRecentItems?: readonly RecentItem[];
+  readonly isOpen?: boolean;
+  readonly onClose?: () => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -51,23 +55,47 @@ export function UnifiedSidebar({
   return (
     <aside
       aria-label="StoryForge 主导航"
-      className="sticky top-0 flex h-screen min-h-screen flex-col overflow-hidden border-r border-border bg-background px-4 pb-6 pt-4 text-foreground transition-colors duration-200"
+      className={`
+        flex h-screen min-h-screen flex-col overflow-hidden
+        border-r border-border bg-background px-4 pb-6 pt-4
+        text-foreground transition-all duration-300
+        ${isOpen ? 'fixed inset-y-0 left-0 z-50 w-64' : 'hidden lg:sticky lg:top-0 lg:block lg:w-64'}
+      `}
     >
       {/* Logo + New Project */}
       <div className="flex h-9 items-center justify-between">
         <Link
           href="/"
           className="font-serif text-[clamp(21px,1.55vw,26px)] font-semibold leading-none text-foreground no-underline"
+          onClick={onClose}
         >
           StoryForge
         </Link>
-        <button
-          type="button"
-          aria-label="新建项目"
-          className="grid h-7 w-7 place-items-center rounded-lg border border-transparent bg-panel text-lg text-foreground transition-colors hover:border-border hover:bg-muted/10 dark:hover:bg-muted/15"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="新建项目"
+            className="grid h-7 w-7 place-items-center rounded-lg border border-transparent bg-panel text-lg text-foreground transition-colors hover:border-border hover:bg-muted/10 dark:hover:bg-muted/15"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          {/* 移动端关闭按钮 */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-7 w-7 place-items-center rounded-lg text-foreground hover:bg-muted/10 lg:hidden"
+            aria-label="关闭侧边栏"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Primary Navigation */}
@@ -111,6 +139,7 @@ export function UnifiedSidebar({
                   href={item.href}
                   title={item.description}
                   aria-current={isActive ? 'page' : undefined}
+                  onClick={onClose}
                   className={`group flex min-h-[clamp(36px,4.4vh,42px)] items-center gap-3 rounded-full px-4 py-2 text-[clamp(13px,0.9vw,15px)] no-underline transition-colors ${
                     isActive
                       ? 'bg-muted/15 font-medium text-foreground shadow-sm dark:bg-muted/20'
@@ -138,7 +167,7 @@ export function UnifiedSidebar({
       {/* Recent Items - Collapsible */}
       <section
         aria-labelledby="recent-title"
-        className="mt-[clamp(24px,3vh,34px)] min-h-0 !border-0 !bg-transparent !p-0 !shadow-none"
+        className="mt-[clamp(24px,3vh,34px)] flex-1 overflow-y-auto min-h-0 !border-0 !bg-transparent !p-0 !shadow-none"
       >
         <button
           type="button"

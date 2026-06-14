@@ -102,3 +102,109 @@ dt { color: var(--muted); font-size: 0.9rem; }
 dd { margin: 0; font-weight: 700; }
 
 [role="status"] { color: #d97757; font-weight: 700; }
+
+/* 动画 */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes zoom-in-95 {
+  from { transform: scale(0.95); }
+  to { transform: scale(1); }
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+.zoom-in-95 {
+  animation-name: zoom-in-95;
+}
+
+.duration-200 {
+  animation-duration: 200ms;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  main {
+    width: 100%;
+    margin: 0;
+    padding: 24px 0 48px;
+  }
+
+  section {
+    margin: 12px 0;
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  h1 {
+    font-size: clamp(1.75rem, 6vw, 2.5rem);
+  }
+}
+
+/* 触摸优化 */
+@media (hover: none) {
+  /* 移除移动端的 hover 效果，使用 active 代替 */
+  button:hover {
+    background-color: inherit;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+}
+
+/* 触摸目标最小尺寸（WCAG AA） */
+@media (pointer: coarse) {
+  button,
+  a,
+  input,
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 链接类按钮例外 */
+  a[role="link"] {
+    min-height: auto;
+    min-width: auto;
+  }
+}
+
+/* 防止文本选择干扰触摸手势 */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 平滑滚动 */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* 减少动画（用户偏好） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 安全区域（刘海屏、底部导航栏） */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

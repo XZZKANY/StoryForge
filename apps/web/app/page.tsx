@@ -1,6 +1,8 @@
 import { HomeShell } from '../components/home/HomeShell';
 import { parseHomeView, type HomeSearchParams } from '../components/home/home-view';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage({
   searchParams,
 }: {

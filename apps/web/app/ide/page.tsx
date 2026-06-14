@@ -1,4 +1,6 @@
 import type { Diagnostic } from '@storyforge/shared';
+export const dynamic = 'force-dynamic';
+
 import { IdeShellPreferencesHydrator } from '../../components/ide/shell/IdeShellPreferencesHydrator';
 import type { ArtifactViewerPreview } from '../../components/ide/views/ArtifactViewer';
 import type { ContextSnapshot } from '../../components/ide/views/ContextInspector';

@@ -8,7 +8,7 @@ import {
   type AssistantToolCallWrite,
 } from './assistant-tools/tool-call-writer';
 
-type AssistantBookRunCommand = 'pause' | 'resume' | 'stop' | 'retry';
+type AssistantBookRunCommand = 'start' | 'pause' | 'resume' | 'stop' | 'retry';
 
 type AssistantBookRunSessionWrite = {
   readonly bookRunId: number;
@@ -35,7 +35,11 @@ function readPositiveInt(formData: FormData, key: string): number | undefined {
 
 function readCommand(formData: FormData): AssistantBookRunCommand | undefined {
   const value = formData.get('book_run_command');
-  return value === 'pause' || value === 'resume' || value === 'stop' || value === 'retry'
+  return value === 'start' ||
+    value === 'pause' ||
+    value === 'resume' ||
+    value === 'stop' ||
+    value === 'retry'
     ? value
     : undefined;
 }
@@ -61,6 +65,7 @@ function buildResultUrl(
 
 function formatCommandLabel(command: AssistantBookRunCommand): string {
   const labels: Record<AssistantBookRunCommand, string> = {
+    start: '启动',
     pause: '暂停',
     resume: '恢复',
     stop: '停止',
@@ -147,7 +152,10 @@ export async function submitAssistantBookRunCommand(
   }
 
   const init: ApiFetchInit = { method: 'POST' };
-  if (command === 'pause' || command === 'stop') {
+  if (command === 'start') {
+    init.headers = { 'content-type': 'application/json' };
+    init.body = JSON.stringify({ max_chapters: 6 });
+  } else if (command === 'pause' || command === 'stop') {
     init.headers = { 'content-type': 'application/json' };
     init.body = JSON.stringify({
       reason: command === 'pause' ? '用户从 Assistant 暂停' : '用户从 Assistant 停止',
