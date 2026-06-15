@@ -24,7 +24,7 @@ interface SwipeOptions {
  */
 export function useSwipe<T extends HTMLElement = HTMLDivElement>(
   handlers: SwipeHandlers,
-  options: SwipeOptions = {}
+  options: SwipeOptions = {},
 ) {
   const { threshold = 50, timeThreshold = 300 } = options;
   const elementRef = useRef<T>(null);
@@ -92,7 +92,7 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>(
  */
 export function useLongPress<T extends HTMLElement = HTMLDivElement>(
   onLongPress: () => void,
-  duration = 500
+  duration = 500,
 ) {
   const elementRef = useRef<T>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);

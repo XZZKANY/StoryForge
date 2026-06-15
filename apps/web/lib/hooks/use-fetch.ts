@@ -15,7 +15,7 @@ interface UsePollingOptions {
 
 export function usePolling<T>(
   fetcher: () => Promise<T>,
-  { interval = 3000, enabled = true }: UsePollingOptions = {}
+  { interval = 3000, enabled = true }: UsePollingOptions = {},
 ): FetchState<T> & { refetch: () => void } {
   const [state, setState] = useState<FetchState<T>>({ status: 'idle' });
 

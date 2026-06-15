@@ -31,6 +31,20 @@ def _dispatch_payload(*, chapters: list[dict[str, object]]) -> dict[str, object]
         "provider_fallback_pause_threshold": None,
         "chapters": [dict(ch) for ch in chapters],
         "volume_plan": None,
+        "narrative_plan": _locked_narrative_plan(),
+    }
+
+
+def _locked_narrative_plan() -> dict[str, object]:
+    return {
+        "plan_id": "np-locked",
+        "locked": True,
+        "summary": "Phase 3 arc consistency test plan.",
+        "chapter_beats": [
+            {"chapter_index": 1, "beat": "setup"},
+            {"chapter_index": 2, "beat": "payoff"},
+            {"chapter_index": 3, "beat": "resolution"},
+        ],
     }
 
 

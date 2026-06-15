@@ -193,9 +193,13 @@ async function main() {
 
   if (!flags.webOnly) {
     info('启动 API dev server（uvicorn :8000）…');
+    // Windows: 使用 run_windows.py 避免 uvloop 问题
+    const isWindows = process.platform === 'win32';
     spawnBackground(
       'uv',
-      ['run', 'uvicorn', 'app.main:app', '--reload', '--host', '127.0.0.1', '--port', '8000'],
+      isWindows
+        ? ['run', 'python', 'run_windows.py']
+        : ['run', 'uvicorn', 'app.main:app', '--reload', '--host', '127.0.0.1', '--port', '8000'],
       apiRoot,
       'api',
     );

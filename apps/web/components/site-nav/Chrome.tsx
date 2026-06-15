@@ -17,18 +17,21 @@ export function Chrome({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // 触摸手势支持：在主内容区向右滑动打开侧边栏
-  const mainRef = useSwipe<HTMLDivElement>({
-    onSwipeRight: () => {
-      if (!isSidebarOpen && window.innerWidth < 1024) {
-        setIsSidebarOpen(true);
-      }
+  const mainRef = useSwipe<HTMLDivElement>(
+    {
+      onSwipeRight: () => {
+        if (!isSidebarOpen && window.innerWidth < 1024) {
+          setIsSidebarOpen(true);
+        }
+      },
+      onSwipeLeft: () => {
+        if (isSidebarOpen) {
+          setIsSidebarOpen(false);
+        }
+      },
     },
-    onSwipeLeft: () => {
-      if (isSidebarOpen) {
-        setIsSidebarOpen(false);
-      }
-    },
-  }, { threshold: 100 });
+    { threshold: 100 },
+  );
 
   return (
     <div className="flex h-screen">

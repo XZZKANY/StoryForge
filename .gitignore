@@ -4,6 +4,10 @@ dist/
 build/
 .next/
 .turbo/
+apps/desktop/frontend/dist/
+apps/desktop/frontend/node_modules/
+apps/desktop/src-tauri/target/
+apps/web/out/
 .venv/
 __pycache__/
 .pytest_cache/
@@ -24,7 +28,9 @@ redis-data/
 # 本地缓存
 .cache/
 .codex/tmp/
+.codex/narrative-smoke-*/
 
 # 本地工具噪声
 .claude/settings.local.json
 .codex-fix-phase9b-*.patch
+/desktop/

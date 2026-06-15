@@ -1,0 +1,18 @@
+{
+  "name": "@storyforge/desktop",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "StoryForge 桌面 IDE 应用",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.3.1"
+  }
+}
