@@ -183,3 +183,139 @@ fn create_file_entry(path: &Path) -> Result<FileEntry, String> {
         extension,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock should be after Unix epoch")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "storyforge-desktop-fs-{}-{}-{}",
+                name,
+                std::process::id(),
+                unique
+            ));
+            fs::create_dir_all(&path).expect("temp dir should be created");
+            Self { path }
+        }
+
+        fn join(&self, relative: &str) -> String {
+            self.path.join(relative).to_string_lossy().to_string()
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn write_file_creates_parent_dirs_and_read_file_returns_content() {
+        let temp = TempDir::new("read-write");
+        let file_path = temp.join("chapters/chapter-001.md");
+
+        write_file(file_path.clone(), "# Chapter 1\n\nOpening.".to_string())
+            .expect("write should succeed");
+
+        let content = read_file(file_path).expect("read should succeed");
+        assert_eq!(content, "# Chapter 1\n\nOpening.");
+    }
+
+    #[test]
+    fn list_dir_orders_directories_before_files_and_sorts_by_name() {
+        let temp = TempDir::new("list-dir");
+        create_dir(temp.join("b-dir"), true).expect("b-dir should be created");
+        create_dir(temp.join("a-dir"), true).expect("a-dir should be created");
+        write_file(temp.join("b.md"), "b".to_string()).expect("b.md should be written");
+        write_file(temp.join("a.md"), "a".to_string()).expect("a.md should be written");
+
+        let entries = list_dir(temp.path.to_string_lossy().to_string(), false)
+            .expect("list_dir should succeed");
+        let names: Vec<String> = entries.into_iter().map(|entry| entry.name).collect();
+
+        assert_eq!(names, vec!["a-dir", "b-dir", "a.md", "b.md"]);
+    }
+
+    #[test]
+    fn recursive_list_dir_includes_nested_files() {
+        let temp = TempDir::new("recursive-list");
+        write_file(temp.join("drafts/arc/chapter-002.md"), "nested".to_string())
+            .expect("nested file should be written");
+
+        let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
+            .expect("recursive list_dir should succeed");
+
+        assert!(entries.iter().any(|entry| entry.name == "chapter-002.md"));
+    }
+
+    #[test]
+    fn rename_path_moves_file_and_path_exists_tracks_it() {
+        let temp = TempDir::new("rename");
+        let from = temp.join("old.md");
+        let to = temp.join("new.md");
+        write_file(from.clone(), "draft".to_string()).expect("source file should be written");
+
+        rename_path(from.clone(), to.clone()).expect("rename should succeed");
+
+        assert!(!path_exists(from));
+        assert!(path_exists(to.clone()));
+        assert_eq!(read_file(to).expect("renamed file should be readable"), "draft");
+    }
+
+    #[test]
+    fn delete_path_removes_files_and_recursive_dirs() {
+        let temp = TempDir::new("delete");
+        let file_path = temp.join("delete-me.md");
+        let dir_path = temp.join("folder");
+        write_file(file_path.clone(), "temporary".to_string()).expect("file should be written");
+        write_file(temp.join("folder/nested.md"), "nested".to_string())
+            .expect("nested file should be written");
+
+        delete_path(file_path.clone(), false).expect("file delete should succeed");
+        delete_path(dir_path.clone(), true).expect("recursive dir delete should succeed");
+
+        assert!(!path_exists(file_path));
+        assert!(!path_exists(dir_path));
+    }
+
+    #[test]
+    fn get_file_info_reports_file_metadata() {
+        let temp = TempDir::new("file-info");
+        let file_path = temp.join("chapter.markdown");
+        write_file(file_path.clone(), "hello".to_string()).expect("file should be written");
+
+        let info = get_file_info(file_path.clone()).expect("file info should be available");
+
+        assert_eq!(info.name, "chapter.markdown");
+        assert_eq!(info.path, file_path);
+        assert!(!info.is_dir);
+        assert_eq!(info.size, 5);
+        assert_eq!(info.extension, Some("markdown".to_string()));
+    }
+
+    #[test]
+    fn list_dir_rejects_missing_paths_and_files() {
+        let temp = TempDir::new("list-errors");
+        let file_path = temp.join("not-a-dir.md");
+        write_file(file_path.clone(), "file".to_string()).expect("file should be written");
+
+        assert!(list_dir(temp.join("missing"), false)
+            .expect_err("missing path should fail")
+            .contains("路径不存在"));
+        assert!(list_dir(file_path, false)
+            .expect_err("file path should fail")
+            .contains("路径不是目录"));
+    }
+}

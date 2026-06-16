@@ -841,6 +841,109 @@
         "title": "AssistantMessageRead",
         "type": "object"
       },
+      "AssistantReviseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assistant_session_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Session Id"
+          },
+          "content": {
+            "maxLength": 120000,
+            "title": "Content",
+            "type": "string"
+          },
+          "file_path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "File Path",
+            "type": "string"
+          },
+          "instruction": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Instruction",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          }
+        },
+        "required": [
+          "file_path",
+          "content",
+          "instruction"
+        ],
+        "title": "AssistantReviseRequest",
+        "type": "object"
+      },
+      "AssistantReviseResponse": {
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "string"
+          },
+          "assistant_session_id": {
+            "title": "Assistant Session Id",
+            "type": "integer"
+          },
+          "before": {
+            "title": "Before",
+            "type": "string"
+          },
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Tokens"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "summary",
+          "model",
+          "latency_ms",
+          "completion_tokens",
+          "assistant_session_id"
+        ],
+        "title": "AssistantReviseResponse",
+        "type": "object"
+      },
       "AssistantSessionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9747,6 +9850,48 @@
         "summary": "读取资产版本历史",
         "tags": [
           "资产中心"
+        ]
+      }
+    },
+    "/api/assistant/revise": {
+      "post": {
+        "description": "桌面 AI 交互区调用：输入文件全文 + 指令，返回真实 LLM 修订后全文。\n\nLLM 未配置返回 422，调用失败返回 502，错误原样透出，不伪造兜底。",
+        "operationId": "revise_file_content_endpoint_api_assistant_revise_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantReviseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReviseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "对当前文件按指令做真实 LLM 修订",
+        "tags": [
+          "Assistant 会话"
         ]
       }
     },

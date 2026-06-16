@@ -9,8 +9,11 @@ use anyhow::{Context, Result};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::net::TcpStream;
+use std::fs as std_fs;
+use std::path::PathBuf;
+use tauri::Manager;
 
 /// 全局状态：保存所有启动的子进程，用于退出时清理
 struct ServiceManager {
@@ -188,6 +191,409 @@ fn find_project_root() -> Result<String> {
     )
 }
 
+fn should_skip_services() -> bool {
+    std::env::var("STORYFORGE_DESKTOP_SKIP_SERVICES")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+fn is_smoke_mode() -> bool {
+    std::env::var("STORYFORGE_DESKTOP_SMOKE")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+fn eval_window_json<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    script: &str,
+    timeout: Duration,
+) -> Result<serde_json::Value, String> {
+    let (tx, rx) = mpsc::channel();
+    window
+        .eval_with_callback(script, move |result| {
+            let _ = tx.send(result);
+        })
+        .map_err(|error| format!("无法执行窗口脚本: {}", error))?;
+
+    let result = rx
+        .recv_timeout(timeout)
+        .map_err(|_| "窗口脚本执行超时".to_string())?;
+
+    serde_json::from_str(&result).map_err(|error| format!("无法解析窗口脚本结果: {}", error))
+}
+
+fn wait_for_window_state<R, F>(
+    window: &tauri::WebviewWindow<R>,
+    script: &str,
+    attempts: usize,
+    delay: Duration,
+    predicate: F,
+) -> Result<serde_json::Value, String>
+where
+    R: tauri::Runtime,
+    F: Fn(&serde_json::Value) -> bool,
+{
+    let mut last_value = None;
+    let mut last_error = None;
+
+    for _ in 0..attempts {
+        match eval_window_json(window, script, Duration::from_millis(1500)) {
+            Ok(value) => {
+                if predicate(&value) {
+                    return Ok(value);
+                }
+                last_value = Some(value);
+            }
+            Err(error) => {
+                last_error = Some(error);
+            }
+        }
+        thread::sleep(delay);
+    }
+
+    if let Some(value) = last_value {
+        Err(format!("窗口状态未达到预期，最后状态: {}", value))
+    } else {
+        Err(last_error.unwrap_or_else(|| "窗口探针失败".to_string()))
+    }
+}
+
+fn has_bool(value: &serde_json::Value, key: &str, expected: bool) -> bool {
+    value
+        .get(key)
+        .and_then(|entry| entry.as_bool())
+        .map(|actual| actual == expected)
+        .unwrap_or(false)
+}
+
+fn click_window_test_id<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    test_id: &str,
+) -> Result<(), String> {
+    let script = format!(
+        r#"
+            (() => {{
+              const target = document.querySelector('[data-testid="{}"]');
+              if (!target) {{
+                return {{ clicked: false }};
+              }}
+              target.click();
+              return {{ clicked: true }};
+            }})()
+        "#,
+        test_id
+    );
+
+    let result = eval_window_json(window, &script, Duration::from_millis(1500))?;
+    if has_bool(&result, "clicked", true) {
+        Ok(())
+    } else {
+        Err(format!("找不到可点击元素: {}", test_id))
+    }
+}
+
+fn click_first_file_item<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), String> {
+    let script = r#"
+        (() => {
+          const items = Array.from(document.querySelectorAll('[data-testid="file-item"]'));
+          const target = items.find((item) => item.getAttribute('data-file-name') === 'chapter-001.md') ?? items[0];
+          if (!target) {
+            return { clicked: false, count: items.length };
+          }
+          target.click();
+          return {
+            clicked: true,
+            count: items.length,
+            filePath: target.getAttribute('data-file-path'),
+            fileName: target.getAttribute('data-file-name')
+          };
+        })()
+    "#;
+
+    let result = eval_window_json(window, script, Duration::from_millis(1500))?;
+    if has_bool(&result, "clicked", true) {
+        Ok(())
+    } else {
+        Err("找不到可点击文件条目".to_string())
+    }
+}
+
+fn create_smoke_project() -> Result<PathBuf> {
+    let mut root = std::env::temp_dir();
+    root.push(format!(
+        "storyforge-desktop-smoke-{}",
+        chrono::Utc::now().timestamp_millis()
+    ));
+
+    let drafts = root.join("drafts");
+    std_fs::create_dir_all(&drafts).context("创建 smoke 项目目录失败")?;
+    std_fs::write(root.join("chapter-001.md"), "# Chapter 1\n\nSmoke content\n")
+        .context("写入 chapter-001.md 失败")?;
+    std_fs::write(drafts.join("chapter-002.markdown"), "# Chapter 2\n\nNested smoke content\n")
+        .context("写入 chapter-002.markdown 失败")?;
+    std_fs::write(root.join("ignore.txt"), "ignore me").context("写入 ignore.txt 失败")?;
+
+    Ok(root)
+}
+
+fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: tauri::AppHandle<R>) {
+    thread::spawn(move || {
+        let smoke_project = match create_smoke_project() {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("Smoke 失败: 无法创建临时项目: {}", error);
+                std::process::exit(1);
+            }
+        };
+        let smoke_project_string = smoke_project.to_string_lossy().to_string();
+
+        let snapshot_script = r#"
+            (() => {
+              const shell = document.querySelector('[data-testid="desktop-shell"]');
+              const editor = document.querySelector('[data-testid="editor-root"]');
+              return {
+                hasShell: Boolean(shell),
+                isTauri: shell?.getAttribute('data-tauri-runtime') === 'true',
+                tauriMenuReady: shell?.getAttribute('data-tauri-menu-ready') === 'true',
+                smokeApiReady: shell?.getAttribute('data-smoke-api-ready') === 'true',
+                smokeHookReady: typeof window.__STORYFORGE_SMOKE__?.openProject === 'function',
+                title: document.title,
+                hasFilePanel: Boolean(document.querySelector('[data-testid="file-tree-panel"]')),
+                hasAssistantPanel: Boolean(document.querySelector('[data-testid="assistant-panel"]')),
+                hasExpandFileTree: Boolean(document.querySelector('[data-testid="expand-file-tree"]')),
+                hasExpandAssistant: Boolean(document.querySelector('[data-testid="expand-assistant"]')),
+                fileCount: Number(document.querySelector('[data-testid="file-list"]')?.getAttribute('data-file-count') ?? '0'),
+                fileItemCount: document.querySelectorAll('[data-testid="file-item"]').length,
+                projectPath: document.querySelector('[data-testid="file-list"]')?.getAttribute('data-project-path') ?? '',
+                editorLoaded: editor?.getAttribute('data-editor-loaded') === 'true',
+                editorReady: editor?.getAttribute('data-editor-ready') === 'true',
+                currentFile: editor?.getAttribute('data-current-file') ?? '',
+                renderHasFile: editor?.getAttribute('data-render-has-file') === 'true',
+                loadAttemptFile: editor?.getAttribute('data-load-attempt-file') ?? '',
+                loadError: editor?.getAttribute('data-load-error') ?? '',
+                editorInitError: editor?.getAttribute('data-editor-init-error') ?? '',
+                editorPreview: editor?.getAttribute('data-content-preview') ?? '',
+              };
+            })()
+        "#;
+
+        let shell = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            40,
+            Duration::from_millis(250),
+            |value| {
+                has_bool(value, "hasShell", true)
+                    && has_bool(value, "isTauri", true)
+                    && has_bool(value, "tauriMenuReady", true)
+                    && value.get("title").and_then(|entry| entry.as_str()) == Some("StoryForge IDE")
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: Tauri 窗口未就绪: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        let initial = shell.clone();
+
+        let file_tree_was_open = has_bool(&initial, "hasFilePanel", true);
+        let file_tree_toggle = if file_tree_was_open {
+            "collapse-file-tree"
+        } else {
+            "expand-file-tree"
+        };
+        if let Err(error) = click_window_test_id(&window, file_tree_toggle) {
+            eprintln!("Smoke 失败: 无法触发文件树窗口交互: {}", error);
+            std::process::exit(1);
+        }
+        thread::sleep(Duration::from_millis(400));
+
+        let _sidebar_state = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            10,
+            Duration::from_millis(150),
+            |value| {
+                has_bool(value, "hasFilePanel", !file_tree_was_open)
+                    && has_bool(value, "hasExpandFileTree", file_tree_was_open)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 切换侧边栏后探针失败: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        if file_tree_was_open {
+            if let Err(error) = click_window_test_id(&window, "expand-file-tree") {
+                eprintln!("Smoke 失败: 无法重新打开文件树面板: {}", error);
+                std::process::exit(1);
+            }
+        }
+
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            10,
+            Duration::from_millis(150),
+            |value| {
+                has_bool(value, "hasFilePanel", true)
+                    && has_bool(value, "tauriMenuReady", true)
+            },
+        ) {
+            eprintln!("Smoke 失败: 无法恢复文件树面板: {}", error);
+            std::process::exit(1);
+        }
+
+        let assistant_was_open = has_bool(&initial, "hasAssistantPanel", true);
+        let assistant_toggle = if assistant_was_open {
+            "collapse-assistant"
+        } else {
+            "expand-assistant"
+        };
+        if let Err(error) = click_window_test_id(&window, assistant_toggle) {
+            eprintln!("Smoke 失败: 无法触发助手窗口交互: {}", error);
+            std::process::exit(1);
+        }
+        thread::sleep(Duration::from_millis(400));
+
+        let _assistant_state = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            10,
+            Duration::from_millis(150),
+            |value| {
+                has_bool(value, "hasAssistantPanel", !assistant_was_open)
+                    && has_bool(value, "hasExpandAssistant", assistant_was_open)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 切换助手后探针失败: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        let _smoke_ready = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| value.get("smokeHookReady").and_then(|entry| entry.as_bool()) == Some(true),
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: smoke hook 未就绪: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        let open_project_script = format!(
+            r#"
+                (() => {{
+                  const smoke = window.__STORYFORGE_SMOKE__;
+                  if (!smoke || typeof smoke.openProject !== 'function') {{
+                    return {{ opened: false, reason: 'missing-smoke-api' }};
+                  }}
+                  smoke.openProject({});
+                  return {{ opened: true }};
+                }})()
+            "#,
+            serde_json::to_string(&smoke_project_string).unwrap_or_else(|_| "\"\"".to_string())
+        );
+        let open_project_result = match eval_window_json(
+            &window,
+            &open_project_script,
+            Duration::from_millis(1500),
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 无法调用 smoke 打开项目入口: {}", error);
+                std::process::exit(1);
+            }
+        };
+        if !has_bool(&open_project_result, "opened", true) {
+            eprintln!("Smoke 失败: smoke 打开项目入口不可用: {}", open_project_result);
+            std::process::exit(1);
+        }
+
+        let file_list_state = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            40,
+            Duration::from_millis(250),
+            |value| {
+                value.get("projectPath").and_then(|entry| entry.as_str())
+                    == Some(smoke_project.to_string_lossy().as_ref())
+                    && value.get("fileCount").and_then(|entry| entry.as_u64()) == Some(2)
+                    && value.get("fileItemCount").and_then(|entry| entry.as_u64()) == Some(2)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 文件列表未加载预期项目: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        if let Err(error) = click_first_file_item(&window) {
+            eprintln!("Smoke 失败: 无法点击文件条目: {}", error);
+            std::process::exit(1);
+        }
+
+        let editor_state = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            40,
+            Duration::from_millis(250),
+            |value| {
+                value.get("editorLoaded").and_then(|entry| entry.as_bool()) == Some(true)
+                    && value.get("editorReady").and_then(|entry| entry.as_bool()) == Some(true)
+                    && value
+                        .get("currentFile")
+                        .and_then(|entry| entry.as_str())
+                        .map(|path| path.ends_with("chapter-001.md"))
+                        .unwrap_or(false)
+                    && value
+                        .get("editorPreview")
+                        .and_then(|entry| entry.as_str())
+                        .map(|preview| preview.contains("Smoke content"))
+                        .unwrap_or(false)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 编辑器未加载文件: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        println!(
+            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}",
+            file_list_state
+                .get("projectPath")
+                .and_then(|entry| entry.as_str())
+                .unwrap_or(""),
+            file_list_state
+                .get("fileCount")
+                .and_then(|entry| entry.as_u64())
+                .unwrap_or(0),
+            editor_state
+                .get("currentFile")
+                .and_then(|entry| entry.as_str())
+                .unwrap_or(""),
+            editor_state
+                .get("editorPreview")
+                .and_then(|entry| entry.as_str())
+                .unwrap_or("")
+        );
+        let _ = app.exit(0);
+    });
+}
+
 fn main() {
     println!("=== StoryForge 桌面 IDE 启动中 ===\n");
 
@@ -215,24 +621,28 @@ fn main() {
         }
     };
 
-    // 1. 启动 Docker 服务
-    if let Err(e) = start_docker_services(&project_root) {
-        eprintln!("Docker 服务启动失败: {}", e);
-        std::process::exit(1);
-    }
+    if should_skip_services() {
+        println!("跳过 Docker / 数据库迁移 / API 启动（STORYFORGE_DESKTOP_SKIP_SERVICES=1）");
+    } else {
+        // 1. 启动 Docker 服务
+        if let Err(e) = start_docker_services(&project_root) {
+            eprintln!("Docker 服务启动失败: {}", e);
+            std::process::exit(1);
+        }
 
-    // 2. 执行数据库迁移
-    if let Err(e) = run_migrations(&project_root) {
-        eprintln!("数据库迁移失败: {}", e);
-        manager.lock().unwrap().shutdown();
-        std::process::exit(1);
-    }
+        // 2. 执行数据库迁移
+        if let Err(e) = run_migrations(&project_root) {
+            eprintln!("数据库迁移失败: {}", e);
+            manager.lock().unwrap().shutdown();
+            std::process::exit(1);
+        }
 
-    // 3. 启动 API 服务
-    if let Err(e) = start_api_server(&project_root, &manager) {
-        eprintln!("API 服务启动失败: {}", e);
-        manager.lock().unwrap().shutdown();
-        std::process::exit(1);
+        // 3. 启动 API 服务
+        if let Err(e) = start_api_server(&project_root, &manager) {
+            eprintln!("API 服务启动失败: {}", e);
+            manager.lock().unwrap().shutdown();
+            std::process::exit(1);
+        }
     }
 
     // 4. 检查桌面前端是否已经在运行。
@@ -277,6 +687,15 @@ fn main() {
             app.on_menu_event(|app, event| {
                 menu::handle_menu_event(app, event.id().as_ref());
             });
+
+            if is_smoke_mode() {
+                println!("Desktop Tauri smoke mode enabled");
+                let Some(window) = app.get_webview_window("main") else {
+                    eprintln!("Smoke 失败: 未找到 main 窗口");
+                    std::process::exit(1);
+                };
+                run_smoke_probe(window, app.handle().clone());
+            }
 
             Ok(())
         })

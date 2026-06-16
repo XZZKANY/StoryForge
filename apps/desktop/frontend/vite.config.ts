@@ -14,5 +14,16 @@ export default defineConfig({
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_DEBUG,
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'monaco-editor': ['monaco-editor'],
+          'react-vendor': ['react', 'react-dom'],
+        },
+      },
+    },
+  },
+  optimizeDeps: {
+    include: ['monaco-editor'],
   },
 });

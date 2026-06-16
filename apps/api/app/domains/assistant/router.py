@@ -6,6 +6,8 @@ from app.db.deps import SessionDependency
 from app.domains.assistant.schemas import (
     AssistantMessageCreate,
     AssistantMessageRead,
+    AssistantReviseRequest,
+    AssistantReviseResponse,
     AssistantSessionCreate,
     AssistantSessionRead,
     AssistantToolCallCreate,
@@ -13,6 +15,8 @@ from app.domains.assistant.schemas import (
     AssistantToolCallUpdate,
 )
 from app.domains.assistant.service import (
+    AssistantLlmNotConfiguredError,
+    AssistantReviseError,
     AssistantSessionNotFoundError,
     AssistantToolCallNotFoundError,
     append_assistant_message,
@@ -21,6 +25,7 @@ from app.domains.assistant.service import (
     get_assistant_session,
     list_assistant_tool_calls,
     list_recent_assistant_sessions,
+    revise_file_content,
     update_assistant_tool_call,
 )
 
@@ -124,6 +129,29 @@ def list_assistant_tool_calls_endpoint(
         return list_assistant_tool_calls(session, assistant_session_id)
     except AssistantSessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/revise",
+    response_model=AssistantReviseResponse,
+    summary="对当前文件按指令做真实 LLM 修订",
+)
+def revise_file_content_endpoint(
+    payload: AssistantReviseRequest,
+    session: SessionDependency,
+) -> AssistantReviseResponse:
+    """桌面 AI 交互区调用：输入文件全文 + 指令，返回真实 LLM 修订后全文。
+
+    LLM 未配置返回 422，调用失败返回 502，错误原样透出，不伪造兜底。"""
+
+    try:
+        return revise_file_content(session, payload)
+    except AssistantLlmNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except AssistantSessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except AssistantReviseError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 @router.patch(

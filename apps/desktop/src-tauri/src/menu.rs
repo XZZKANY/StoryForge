@@ -95,50 +95,70 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Err
 
 /// 菜单事件处理
 pub fn handle_menu_event(app: &AppHandle<Wry>, event: &str) {
+    if let Some(frontend_event) = frontend_event_for_menu_id(event) {
+        let _ = app.emit(frontend_event, ());
+        return;
+    }
+
     match event {
-        "open_project" => {
-            let _ = app.emit("menu:open-project", ());
-        }
-        "new_file" => {
-            let _ = app.emit("menu:new-file", ());
-        }
-        "save" => {
-            let _ = app.emit("menu:save", ());
-        }
-        "save_as" => {
-            let _ = app.emit("menu:save-as", ());
-        }
-        "close" => {
-            let _ = app.emit("menu:close", ());
-        }
-        "undo" => {
-            let _ = app.emit("menu:undo", ());
-        }
-        "redo" => {
-            let _ = app.emit("menu:redo", ());
-        }
-        "toggle_sidebar" => {
-            let _ = app.emit("menu:toggle-sidebar", ());
-        }
         "toggle_fullscreen" => {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_fullscreen(!window.is_fullscreen().unwrap_or(false));
             }
         }
-        "zoom_in" => {
-            let _ = app.emit("menu:zoom-in", ());
-        }
-        "zoom_out" => {
-            let _ = app.emit("menu:zoom-out", ());
-        }
-        "zoom_reset" => {
-            let _ = app.emit("menu:zoom-reset", ());
-        }
-        "help_docs" => {
-            let _ = app.emit("menu:help-docs", ());
-        }
         _ => {
             println!("未处理的菜单事件: {}", event);
         }
+    }
+}
+
+pub fn frontend_event_for_menu_id(event: &str) -> Option<&'static str> {
+    match event {
+        "open_project" => Some("menu:open-project"),
+        "new_file" => Some("menu:new-file"),
+        "save" => Some("menu:save"),
+        "save_as" => Some("menu:save-as"),
+        "close" => Some("menu:close"),
+        "undo" => Some("menu:undo"),
+        "redo" => Some("menu:redo"),
+        "toggle_sidebar" => Some("menu:toggle-sidebar"),
+        "zoom_in" => Some("menu:zoom-in"),
+        "zoom_out" => Some("menu:zoom-out"),
+        "zoom_reset" => Some("menu:zoom-reset"),
+        "help_docs" => Some("menu:help-docs"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::frontend_event_for_menu_id;
+
+    #[test]
+    fn maps_native_menu_ids_to_frontend_events() {
+        let cases = [
+            ("open_project", "menu:open-project"),
+            ("new_file", "menu:new-file"),
+            ("save", "menu:save"),
+            ("save_as", "menu:save-as"),
+            ("close", "menu:close"),
+            ("undo", "menu:undo"),
+            ("redo", "menu:redo"),
+            ("toggle_sidebar", "menu:toggle-sidebar"),
+            ("zoom_in", "menu:zoom-in"),
+            ("zoom_out", "menu:zoom-out"),
+            ("zoom_reset", "menu:zoom-reset"),
+            ("help_docs", "menu:help-docs"),
+        ];
+
+        for (menu_id, frontend_event) in cases {
+            assert_eq!(frontend_event_for_menu_id(menu_id), Some(frontend_event));
+        }
+    }
+
+    #[test]
+    fn keeps_fullscreen_and_unknown_events_out_of_frontend_event_mapping() {
+        assert_eq!(frontend_event_for_menu_id("toggle_fullscreen"), None);
+        assert_eq!(frontend_event_for_menu_id("unknown"), None);
     }
 }

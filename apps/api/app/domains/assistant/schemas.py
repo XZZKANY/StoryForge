@@ -95,3 +95,23 @@ class AssistantToolCallRead(BaseModel):
     finished_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class AssistantReviseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_path: str = Field(min_length=1, max_length=1024)
+    content: str = Field(max_length=120000)
+    instruction: str = Field(min_length=1, max_length=4000)
+    project_name: str | None = Field(default=None, max_length=255)
+    assistant_session_id: int | None = Field(default=None, gt=0)
+
+
+class AssistantReviseResponse(BaseModel):
+    before: str
+    after: str
+    summary: str
+    model: str
+    latency_ms: int
+    completion_tokens: int | None
+    assistant_session_id: int

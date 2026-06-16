@@ -31,7 +31,7 @@ try {
   const title = await page.title();
   const bodyText = await page.locator('body').innerText();
 
-  const requiredText = ['文件', '打开', 'AI 助手'];
+  const requiredText = ['项目', '打开', 'AI 交互'];
   const missingText = requiredText.filter((text) => !bodyText.includes(text));
 
   if (title !== 'StoryForge IDE') {

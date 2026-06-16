@@ -11,6 +11,7 @@ import type {
   StoryMemoryItem,
   StoryMemoryResult,
 } from '../../components/ide/views/StoryMemoryExplorer';
+import { StoryForgeWorkbenchPrototype } from '../../components/ide/prototypes/StoryForgeWorkbenchPrototype';
 import { parseIdeUrlState } from '../../components/ide/url/ide-url-state';
 import { apiFetch, readJson } from '../../lib/api-client';
 
@@ -20,6 +21,10 @@ export default async function IdePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedParams = await searchParams;
+  const prototype = getFirstParam(resolvedParams.prototype);
+  if (prototype === 'storyforge-ui') {
+    return <StoryForgeWorkbenchPrototype initialVariant={getFirstParam(resolvedParams.variant)} />;
+  }
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(resolvedParams)) {
     if (Array.isArray(value)) {
@@ -58,6 +63,11 @@ export default async function IdePage({
       }}
     />
   );
+}
+
+function getFirstParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
 }
 
 type IdeSceneRead = {

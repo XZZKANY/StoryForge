@@ -4,12 +4,17 @@
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
+  isTauri?: boolean;
 };
 
 export function isTauriRuntime(): boolean {
+  const globalScope = globalThis as unknown as TauriWindow;
   return (
     typeof window !== 'undefined' &&
-    typeof (window as TauriWindow).__TAURI_INTERNALS__ !== 'undefined'
+    (
+      globalScope.isTauri === true ||
+      typeof (window as TauriWindow).__TAURI_INTERNALS__ !== 'undefined'
+    )
   );
 }
 

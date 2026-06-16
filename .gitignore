@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 dist/
 build/
+target/
 .next/
 .turbo/
 apps/desktop/frontend/dist/
