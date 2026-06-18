@@ -779,6 +779,86 @@
         "title": "AssetUpdate",
         "type": "object"
       },
+      "AssistantContextBundle": {
+        "additionalProperties": false,
+        "properties": {
+          "current_file": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Current File",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantContextBundleFile"
+            },
+            "maxItems": 12,
+            "title": "Files",
+            "type": "array"
+          },
+          "project_root": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Project Root",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "project_root",
+          "current_file"
+        ],
+        "title": "AssistantContextBundle",
+        "type": "object"
+      },
+      "AssistantContextBundleFile": {
+        "additionalProperties": false,
+        "properties": {
+          "excerpt": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "kind": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "relative_path": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Relative Path",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "relative_path",
+          "kind",
+          "title",
+          "excerpt"
+        ],
+        "title": "AssistantContextBundleFile",
+        "type": "object"
+      },
       "AssistantMessageCreate": {
         "additionalProperties": false,
         "properties": {
@@ -860,6 +940,16 @@
             "maxLength": 120000,
             "title": "Content",
             "type": "string"
+          },
+          "context_bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantContextBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "file_path": {
             "maxLength": 1024,

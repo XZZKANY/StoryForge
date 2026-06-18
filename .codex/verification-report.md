@@ -333,3 +333,182 @@
 - **未联通 / 下一步**：超长 4.3% 中除第29章外的 8 章（4083-4749字）尚未逐章确认是「密实好正文」还是「真注水」——若要进一步收紧护栏需先做这个采样；repair 修篇幅经本程数据论证为低收益，除非短章率随更大规模 run 上升，否则不安排。
 
 记录时间戳：2026-06-14 +08:00。
+
+---
+
+# Desktop 项目工作台 UI 对齐（cursor-like plan Stage 2）
+
+生成时间：2026-06-15 +08:00
+
+## 目标与范围
+
+- 依据 `docs/architecture/cursor-like-project-workbench-ui-plan.md`，把 Desktop IDE 主体验从旧布局
+  `文件树(左) | 编辑器(中) | Assistant(右)` 改为方案三栏：
+  `项目(左) | AI 交互(中) | 文件工作区[文件树 + 编辑器](右)`。
+- Stage 1（Web 原型）此前已收口：`apps/web/components/ide/prototypes/StoryForgeWorkbenchPrototype.tsx`
+  已是三栏 + 三焦点模式，本程不再投入 Web。
+
+## 交付物
+
+- `apps/desktop/frontend/src/components/ProjectPanel.tsx`：新增左侧"项目"面板。项目列表为用户真实打开过的本地目录
+  （localStorage `recent-projects`），名称取目录 basename、副标题为真实路径，不伪造"长篇/修订中"状态标签。
+  保留 `#open-project-btn` / `data-testid=open-project`（菜单 `menu:open-project` 与冒烟依赖）。
+- `apps/desktop/frontend/src/App.tsx`：重写为三栏布局，项目/当前文件状态上提到 App；右侧文件工作区内嵌
+  可调宽文件树 + 编辑器。保留全部冒烟 testid：`desktop-shell`、`assistant-panel`、`file-tree-panel`、
+  `editor-panel`、`collapse-/expand-file-tree`、`collapse-/expand-assistant`。
+- `apps/desktop/frontend/src/components/FileTree.tsx`：改为受控组件（`projectPath` 由上层注入），
+  按项目根下第一层目录分组（大纲/人物/设定/正文/质量 语义），根目录文件优先，保留 `file-list` / `file-item` testid。
+- `apps/desktop/frontend/src/components/Composer.tsx`：作为中间 AI 交互区，标题显示《项目名》项目会话、
+  上下文条显示当前文件相对路径、回复显式引用该路径；有项目上下文即可输入。
+- `apps/desktop/frontend/src/lib/smoke.ts`：抽出 `__STORYFORGE_SMOKE__.openProject` 与 `registerSmokeProjectLoader`，
+  与渲染组件解耦，App 注册 loader → `selectProject`。
+- `apps/desktop/frontend/scripts/verify-smoke.mjs`：断言文案随新布局更新为 `['项目', '打开', 'AI 交互']`。
+
+## 本地验证结果
+
+- `npm run typecheck`（apps/desktop/frontend）：通过，无错误。
+- `npm run verify:smoke`（playwright 无头）：`Desktop frontend smoke passed`，无控制台错误，`#open-project-btn` 存在。
+- `npm run build`：构建成功（`built in 9.61s`，monaco 大 chunk 警告为既有现象）。
+- Rust 侧未改动；冒烟探针流程与新 DOM 对应关系：
+  `collapse-file-tree`→收起文件工作区→出现 `expand-file-tree`；`collapse-assistant`→收起 AI 区→`expand-assistant`；
+  `openProject(path)`→`selectProject` 重新打开工作区并加载 2 个 md；分组排序保证 `chapter-001.md` 为首个 `file-item`。
+
+## 未联通 / 下一步
+
+- Stage 3（AI 建议落地为文件 diff、接受/拒绝/旁注、版本记录）与 Stage 4（项目模板、文件类型语义、关联索引、命令面板）尚未实现。
+- Composer 仍为占位回复，真实 Assistant API / 流式 / 自动审查触发待 Stage 3 接入。
+- 建议在真实 Tauri 运行时跑一次 `apps/desktop/scripts/verify-tauri-smoke.mjs` 端到端复核（需本机 cargo + 桌面环境）。
+
+---
+
+# Desktop 版本记录 + 命令面板（cursor-like plan Stage 3/4 起步）
+
+生成时间：2026-06-15 +08:00
+
+## 目标与范围
+
+- Stage 3：让保存产生可追溯版本记录，支持历史查看与恢复（方案验收"写回文件后保留版本记录 / 可撤回或查看历史版本"）。
+- Stage 4：命令面板（打开文件 / 审查当前文件 / 切换面板），文件类型语义化文件树分组。
+- 明确未做：AI 结构化建议补丁与待应用 diff 仍需真实 Assistant API，本程不伪造 diff；Composer 审查为占位回复（已显式标注 TODO）。
+
+## 交付物
+
+- `apps/desktop/frontend/src/lib/versions.ts`：版本快照库。保存覆盖前把磁盘旧内容写入
+  `<project>/.storyforge/versions/<相对路径>/<unix毫秒>.snapshot.md`（真实 FS，无伪造）；提供 `listVersions`/`readVersion`。
+- `apps/desktop/frontend/src/components/Editor.tsx`：保存时先快照后写入；新增"历史"面板，按时间倒序列出版本，可恢复到编辑器（标脏待用户确认保存）。新增 `projectPath` prop。
+- `apps/desktop/frontend/src/components/FileTree.tsx`：递归列表排除 `.storyforge/` 内部目录，避免快照污染文件树。
+- `apps/desktop/frontend/src/components/CommandPalette.tsx`：Ctrl+P 打开文件（按真实项目文件列表过滤）/ Ctrl+Shift+P 命令；键盘上下选择、Enter 执行、Esc/点击遮罩关闭。
+- `apps/desktop/frontend/src/lib/assistant-events.ts`：`storyforge:review-current-file` 事件桥，命令面板"审查当前文件"→展开 AI 区并由 Composer 响应。
+- `apps/desktop/frontend/src/App.tsx`：接入命令面板状态、快捷键、动作回调，并把 `activeProject` 透传给 Editor。
+- `apps/desktop/frontend/src/components/Composer.tsx`：监听审查事件，围绕当前文件相对路径产出回复。
+
+## 本地验证结果
+
+- `npm run typecheck`：通过。
+- `npm run verify:smoke`：`Desktop frontend smoke passed`，无控制台错误。
+- `npm run build`：成功（9.62s）。
+
+## 未联通 / 下一步
+
+- AI 建议 → 结构化 diff → 接受/拒绝/旁注闭环，需接真实 Assistant/Workflow API（Stage 3 核心仍待）。
+- Stage 4 剩余：项目模板、关联文件索引（人物出场章节/设定引用/伏笔绑定）、按文件类型切换审查策略的真实后端。
+- 真实 Tauri 运行时端到端：建议跑 `apps/desktop/scripts/verify-tauri-smoke.mjs`（需本机 cargo + 桌面环境）复核冒烟探针与版本/命令面板交互。
+
+---
+
+# Desktop IDE UI 打磨（自有暖调 + 配色地基修复）
+
+生成时间：2026-06-16 +08:00
+
+## 目标与范围
+
+- 打磨桌面 IDE（`apps/desktop/frontend`）视觉 / 交互 / 布局 / 细节四方面。
+- 用户选定方向：换成 StoryForge 自有暖色深调；验证只跑 typecheck + 冒烟。
+- 约束：保留全部 `data-testid` 与 `#open-project-btn`/`#editor-save-btn`，不破坏冒烟脚本依赖文案；Monaco 内部主题暂留。
+
+## 根因与交付物
+
+- **配色系统半失效（地基 bug）**：`tailwind.config.js` 的 `theme.extend` 为空，导致代码中大量透明度修饰类（`hover:bg-muted/20`、`border-border/50`、`bg-error/10`、`border-accent/30 border-t-accent` 等）不生成 CSS——hover 无反馈、错误卡无底色、loading 转圈无色。
+  - `tailwind.config.js`：颜色接入 `theme.extend.colors`，采用 `rgb(var(--x) / <alpha-value>)` 通道格式使透明度修饰符生效；新增 `surface` 卡片层；新增 `fade-in`/`slide-up-fade` keyframes + animation。
+  - `src/index.css`：CSS 变量改为空格分隔 RGB 通道；换成暖调（背景 #1b1917、面板 #23201b、surface #2b2721、accent 赭橙 #c8804a、accent-foreground 深色）；删除原手写颜色工具类（改由 Tailwind 生成）；滚动条引用新变量；加 `prefers-reduced-motion` 关闭动效。
+- **面板宽度恢复 bug**：`ResizablePanel` 原用 `useState(defaultWidth)` 只取初始值，localStorage 恢复的宽度无法反映。改为受控于父级 `defaultWidth`，拖拽仅经 `onWidthChange` 回传；合并重复的两层拖拽手柄为单层（hover 显示 accent 细线 / 拖拽加宽高亮），拖拽时锁 body cursor/userSelect。
+- **视觉 + 布局统一**：四个面板 header 统一 `h-10 px-3` 对齐成一条水平线；层次 background→panel→surface；列表选中态 / 主按钮收敛到 accent + 深字；hover 统一 `hover:bg-foreground/10` + `active:` 轻按下态；圆角统一（列表项 `rounded-md`、卡片 `rounded-lg`）。涉及 `App.tsx`、`Composer.tsx`、`ProjectPanel.tsx`、`FileTree.tsx`、`Editor.tsx`、`CommandPalette.tsx`。
+- **交互反馈**：命令面板遮罩淡入 + 面板滑入；消息气泡 / 建议审查面板 / 版本记录 / suggestionStatus 淡入；FileTree loading/空/错误态统一为 surface 卡；DiffColumn before/after 加 success/error 淡色块区分；Editor `✕`、版本记录关闭按钮统一为图标按钮规格。
+
+## 本地验证结果
+
+- `pnpm.cmd typecheck`：通过（tsc --noEmit 无错）。
+- `pnpm.cmd run verify:smoke`：`Desktop frontend smoke passed`，无控制台错误（兜住 Tailwind 类名与运行时报错）。
+
+## 未联通 / 下一步
+
+- Monaco 编辑器内部主题仍为 `vs-dark`，与新外壳暖调略有出入，留作下一轮单独适配。
+- 真实 Tauri 运行时端到端复核（需本机 cargo + 桌面环境）未跑。
+- 未做浅色 / 双主题（用户选定单一自有深调）。
+
+---
+
+# 桌面端 Assistant 接入真实 LLM 修订链路（2026-06-16）
+
+## 问题
+
+桌面 IDE 中间「AI 交互区」（Composer）是纯占位空壳：`Composer.tsx` 标 `// TODO: 接入真实 Assistant API`，只回显固定话术；所谓「补丁」是 `assistant-suggestions.ts` 在文件末尾字符串拼接的假旁注；桌面前端无任何 API client；后端 assistant 域只存会话/消息/工具调用，无「文本+指令→LLM 修订」接口。右侧 Editor 的 diff 评审 UI（接受/拒绝/存旁注）本已做好，缺的是中间这条真·AI 修订链路。
+
+## 交付物
+
+- **后端新增 `POST /api/assistant/revise`**：
+  - `apps/api/app/domains/assistant/schemas.py`：`AssistantReviseRequest` / `AssistantReviseResponse`。
+  - `apps/api/app/domains/assistant/service.py`：`revise_file_content()` 复用 `book_runs.book_generation` 的 `_call_llm` + `missing_book_generation_env`（不重构 book_generation）；落会话 + `assistant.revise` tool-call（running→completed/failed）。LLM 未配置 `AssistantLlmNotConfiguredError`、调用失败 `AssistantReviseError`，均不伪造兜底。
+  - `apps/api/app/domains/assistant/router.py`：env 缺失→422，LLM 失败→502，错误原样透出。
+- **桌面前端**：新增 `apps/desktop/frontend/src/lib/api-client.ts`（renderer fetch，`X-StoryForge-API-Key` + `no-store`，base/key 走 Vite env）；`src/vite-env.d.ts` 补 `import.meta.env` 类型。
+- **Editor**：`onRequest` 改 async 调 `requestRevision`，加载态 + 真实 before/after 走评审 UI；`assistant-suggestions.ts` 加 `createRemoteFileSuggestion`；`assistant-events.ts` 加 `SUGGESTION_RESULT_EVENT` / `emitSuggestionResult`。
+- **Composer**：删除 `setTimeout` 固定话术与 TODO；有文件时任意指令走真实修订；监听结果事件显示成功/真实错误。
+
+## 验证结果
+
+- **后端单测**（mock `_call_llm`）：`uv run pytest tests/test_assistant_revise.py -q` → 3 passed（正常返回 diff + tool-call completed；env 缺失 422；LLM 抛错 502 + tool-call failed）。assistant 全套 `test_assistant_*` → 10 passed。
+- **契约**：`pnpm openapi` → diff 纯新增 `/api/assistant/revise`（+145 行，0 删除），无漂移。
+- **桌面前端门禁**：`npm run typecheck` 通过；`npm run build` 通过；`npm run verify:smoke` → `Desktop frontend smoke passed`，无控制台错误。
+- **真实 mimo 端到端**（`.codex/run-assistant-revise-e2e-probe.py`，真实 DB + 真实 mimo-v2.5-pro）：`http=200`，`changed=True`，返回真实修订正文（133 字、completion_tokens=828、latency≈24s）。命令：
+  ```
+  STORYFORGE_LLM_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1 STORYFORGE_LLM_MODEL=mimo-v2.5-pro \
+  uv run python ../../.codex/run-assistant-revise-e2e-probe.py
+  ```
+
+## 未联通 / 说明
+
+- 本机 venv 的 uvicorn 无条件 import uvloop（Windows 无 uvloop），无法经真实 HTTP socket 起服务；端到端改用 Starlette `TestClient` 挂载 `app.main:app`，仍走完整中间件/鉴权/DB/`_call_llm`→mimo，仅少 socket 一跳。
+- 桌面 smoke 在非 Tauri 浏览器跑，不覆盖真实修订路径（需真实 Tauri 运行时 + 本机 cargo）；修订链路的端到端由上面的 API 探针覆盖。
+- mimo 对长 prompt 有 500/超时前科（见生成质量真相记录）；本端点 prompt 短，若真打失败会原样透出 502（不兜底）。
+- API key 在本地 localhost 用默认 `local-dev-key`；硬化为 Rust 命令读 env 留作后续。
+
+---
+
+# 桌面 IDE Agent 编排链路（自然语言意图 → 复用命令注册表，2026-06-19）
+
+## 问题
+
+上一轮把「文本+指令 → LLM 修订」单端点 `POST /api/assistant/revise` 接通后，桌面中间「AI 交互区」仍只能做单文件修订一件事。IDE WebSocket 通道 `/api/ide/agent/sessions/{id}` 此前只接受 `command` 消息（前端需自己拼命令），没有「自然语言 → 选意图 → 调对应工具 → 落 tool-call → 等确认」的编排层；桌面 ChatWindow 也无法把作者一句话路由到 revise / 审查 / 启动生成。
+
+## 交付物
+
+- **后端编排器** `apps/api/app/domains/ide/orchestrator.py`（新增，660 行）：
+  - `SUPPORTED_INTENTS = {chat.explain, file.revise, chapter.review, chapter.repair, bookrun.start}`。
+  - `orchestrate_agent_message(session, agent_session_id, message)`：按意图分派，**全部复用现有真相源**——`file.revise` 复用 `assistant_service.revise_file_content`（同一 `_call_llm`）；`chapter.review`/`chapter.repair` 复用 `judge.run`/`judge.repair` 命令注册表；`bookrun.start` 复用 `ide.service.execute_ide_command_by_id` 的 `bookrun.start`。
+  - 落 `assistant_session` + 每步 `assistant_tool_call`（running→completed/failed），返回 `agent_result` / `proposed_patch` / `tool_trace`；写操作 `requires_user_confirmation=True`，由作者在右侧 diff 面板确认后才走既有 approve 命令，不擅自写回。输入不足或下游失败抛 `AgentOrchestrationError`，不伪造兜底。
+- **WebSocket 接入** `apps/api/app/domains/ide/router.py`：新增 `user_message` 消息类型走编排器；新增 `_accept_or_reject_agent_socket`（`x-storyforge-api-key` header 或 `api_key` query，校验失败 1008 关闭）；`finally` 兜底关闭仍连接的 socket。保留原 `command` 路径。
+- **桌面前端**：`lib/api-client.ts` 新增 `sendAgentUserMessage` + `AgentResult`/`AgentProposedPatch`/`AgentToolTrace` 类型与 `agent_result` 守卫；`components/ChatWindow.tsx` 用 `detectConversationIntent` 把作者输入路由到 `file.revise`/`chat.explain`/`file.export`，展示 `tool_trace` 步骤树、`requires_user_confirmation` 时引导到右侧 diff；`lib/assistant-events.ts` 新增导出/作者循环结果事件桥；`lib/smoke.ts` 暴露 `getApiConfig` 快照供冒烟读取。
+
+## 本地验证结果
+
+- 后端单测：`uv run pytest tests/test_ide_agent_orchestrator.py -q` → 4 passed（意图注册表一致；`file.revise` 返回待确认补丁 + tool-call completed；`chapter.review` 经 judge.run→judge.repair 返回待确认 repair_patch + approve 命令；`bookrun.start` 复用命令注册表，status=running、audit_event_id 带 `ide-command-event:` 前缀）。assistant + ide_agent 合并 `-k "assistant or ide_agent"` → 17 passed。
+- 桌面前端门禁：`pnpm.cmd run typecheck` 通过；`pnpm.cmd run verify:smoke` → `Desktop frontend smoke passed`，无控制台错误。
+- 契约：`pnpm openapi` 刷新后 diff 为纯新增 schema（`AssistantContextBundle` 等，+90/-0），**无 path 变化、无删除**（WebSocket 不进 OpenAPI，确认无意外漂移）。
+
+## 未联通 / 下一步
+
+- 真实 Tauri 运行时端到端（作者一句话→编排→右侧 diff 确认→写回）未跑，需本机 cargo + 桌面环境；本轮由后端 WebSocket 测试 + 前端冒烟覆盖。
+- `chat.explain` 当前为编排层直答，未接独立解释型 LLM 调用；`chapter.repair` 独立入口与 `chapter.review` 复用同一 judge 链路。
+- 桌面 UI 四栏重构与暖调打磨（App.tsx 等）属另一摊改动，本笔不含。
+
+记录时间戳：2026-06-19 +08:00。

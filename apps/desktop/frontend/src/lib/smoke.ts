@@ -4,8 +4,14 @@
  * 这里把它与具体组件解耦：组件挂载时注册一个 loader，hook 收到的路径会转发给它。
  */
 
+import { getApiConfig } from './api-client';
+
+type SmokeApiConfig = Awaited<ReturnType<typeof getApiConfig>>;
+
 type SmokeController = {
   openProject: (path: string) => void;
+  getApiConfig: () => ReturnType<typeof getApiConfig>;
+  getApiConfigSnapshot: () => SmokeApiConfig | null;
 };
 
 declare global {
@@ -16,12 +22,24 @@ declare global {
 
 let pendingSmokeProjectPath: string | null = null;
 let smokeProjectLoader: ((path: string) => Promise<void> | void) | null = null;
+let apiConfigSnapshot: SmokeApiConfig | null = null;
+
+function refreshApiConfigSnapshot() {
+  void getApiConfig().then((config) => {
+    apiConfigSnapshot = config;
+  });
+}
 
 if (typeof window !== 'undefined') {
+  refreshApiConfigSnapshot();
   window.__STORYFORGE_SMOKE__ = {
     openProject(path: string) {
       pendingSmokeProjectPath = path;
       void smokeProjectLoader?.(path);
+    },
+    getApiConfig,
+    getApiConfigSnapshot() {
+      return apiConfigSnapshot;
     },
   };
 }

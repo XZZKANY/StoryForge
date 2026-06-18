@@ -97,6 +97,25 @@ class AssistantToolCallRead(BaseModel):
     updated_at: datetime
 
 
+class AssistantContextBundleFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(min_length=1, max_length=1024)
+    relative_path: str = Field(min_length=1, max_length=512)
+    kind: str = Field(min_length=1, max_length=40)
+    title: str = Field(min_length=1, max_length=255)
+    excerpt: str = Field(min_length=1, max_length=4000)
+
+
+class AssistantContextBundle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_root: str = Field(min_length=1, max_length=1024)
+    current_file: str = Field(min_length=1, max_length=1024)
+    files: list[AssistantContextBundleFile] = Field(default_factory=list, max_length=12)
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
 class AssistantReviseRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -105,6 +124,7 @@ class AssistantReviseRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=4000)
     project_name: str | None = Field(default=None, max_length=255)
     assistant_session_id: int | None = Field(default=None, gt=0)
+    context_bundle: AssistantContextBundle | None = None
 
 
 class AssistantReviseResponse(BaseModel):

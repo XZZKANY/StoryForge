@@ -7,25 +7,37 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   APPLY_FILE_SUGGESTION_EVENT,
-  REQUEST_FILE_SUGGESTION_EVENT,
-  emitSuggestionResult,
-  type FileSuggestionRequest,
+  EXPORT_CURRENT_FILE_EVENT,
+  SUGGESTION_RESULT_EVENT,
+  type SuggestionResult,
 } from '../lib/assistant-events';
-import { createRemoteFileSuggestion } from '../lib/assistant-suggestions';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
-import { requestRevision } from '../lib/api-client';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { listVersions, readVersion, snapshotBeforeWrite, VersionEntry } from '../lib/versions';
+import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
+import { emitAuthorLoopResult } from '../lib/assistant-events';
 
 type EditorProps = {
   projectPath: string | null;
   filePath: string | null;
+  editorFontSize?: number;
+  autoSave?: boolean;
   onClose: () => void;
   onToggleSidebar?: () => void;
   sidebarVisible?: boolean;
+  onExportCurrent?: () => void;
 };
 
-export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sidebarVisible }: EditorProps) {
+export function Editor({
+  projectPath,
+  filePath,
+  editorFontSize = 14,
+  autoSave = false,
+  onClose,
+  onToggleSidebar,
+  sidebarVisible,
+  onExportCurrent,
+}: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const loadRequestIdRef = useRef(0);
@@ -43,6 +55,8 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
   const [isReviseLoading, setIsReviseLoading] = useState(false);
   const assistantSessionIdRef = useRef<number | null>(null);
   const cleanVersionIdRef = useRef<number | null>(null);
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const autoSaveRef = useRef(autoSave);
 
   // 用 ref 持有最新值，避免 Monaco 命令/回调闭包读到旧状态。
   const originalContentRef = useRef('');
@@ -53,6 +67,7 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
   filePathRef.current = filePath;
   projectPathRef.current = projectPath;
   isDirtyRef.current = isDirty;
+  autoSaveRef.current = autoSave;
 
   // 加载文件内容
   useLayoutEffect(() => {
@@ -129,7 +144,7 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
           value: loadedContent,
           language: 'markdown',
           theme: 'vs-dark',
-          fontSize: 14,
+          fontSize: editorFontSize,
           lineNumbers: 'on',
           minimap: { enabled: true },
           wordWrap: 'on',
@@ -149,7 +164,14 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
       editor.onDidChangeModelContent(() => {
         const model = editorRef.current?.getModel();
         if (filePathRef.current && model) {
-          setIsDirty(model.getAlternativeVersionId() !== cleanVersionIdRef.current);
+          const dirty = model.getAlternativeVersionId() !== cleanVersionIdRef.current;
+          setIsDirty(dirty);
+          if (autoSaveRef.current && dirty) {
+            if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = window.setTimeout(() => {
+              if (filePathRef.current && editorRef.current) void handleSave();
+            }, 900);
+          }
         }
       });
 
@@ -162,12 +184,17 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
 
     return () => {
       disposed = true;
+      if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
       window.cancelAnimationFrame(frame);
       editor?.dispose();
       editorRef.current = null;
       setEditorReady(false);
     };
   }, []);
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({ fontSize: editorFontSize });
+  }, [editorFontSize]);
 
   useEffect(() => {
     if (!editorReady || !editorRef.current || loadedFilePath !== filePath) return;
@@ -183,59 +210,9 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
       setPendingSuggestion(suggestion);
       setSuggestionStatus('');
     };
-    const onRequest = (event: Event) => {
-      const request = (event as CustomEvent<FileSuggestionRequest>).detail;
-      const path = filePathRef.current;
-      if (!request || !path || request.filePath !== path || !editorRef.current) return;
-      const content = editorRef.current.getValue();
-      const project = projectPathRef.current;
-      const projectName = project ? project.split(/[/\\]/).pop() ?? null : null;
-
-      setPendingSuggestion(null);
-      setSuggestionStatus('正在请求 AI 修订…');
-      setIsReviseLoading(true);
-
-      void (async () => {
-        try {
-          const result = await requestRevision({
-            filePath: path,
-            content,
-            instruction: request.userIntent,
-            projectName,
-            assistantSessionId: assistantSessionIdRef.current,
-          });
-          assistantSessionIdRef.current = result.assistantSessionId;
-          // 文件在请求期间被切换则丢弃结果，避免把建议套到别的文件上。
-          if (filePathRef.current !== path) return;
-          const suggestion = createRemoteFileSuggestion({
-            filePath: path,
-            before: result.before,
-            after: result.after,
-            summary: result.summary,
-            model: result.model,
-            userIntent: request.userIntent,
-          });
-          setPendingSuggestion(suggestion);
-          setSuggestionStatus('');
-          emitSuggestionResult({ filePath: path, status: 'ready', message: result.summary });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          if (filePathRef.current === path) {
-            setSuggestionStatus(`AI 修订失败：${message}`);
-          }
-          emitSuggestionResult({ filePath: path, status: 'error', message });
-        } finally {
-          if (filePathRef.current === path) {
-            setIsReviseLoading(false);
-          }
-        }
-      })();
-    };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
-    window.addEventListener(REQUEST_FILE_SUGGESTION_EVENT, onRequest);
     return () => {
       window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
-      window.removeEventListener(REQUEST_FILE_SUGGESTION_EVENT, onRequest);
     };
   }, []);
 
@@ -279,17 +256,99 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
         }
       }
       await TauriFileSystem.writeFile(path, suggestion.after);
+      const loopRecord = await recordRevisionLoop({
+        projectPath: projectPathRef.current,
+        filePath: path,
+        before: suggestion.before,
+        after: suggestion.after,
+        summary: suggestion.summary,
+        note: suggestion.note,
+        userIntent: suggestion.note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+        assistantSessionId: assistantSessionIdRef.current,
+      });
       editorRef.current.setValue(suggestion.after);
       originalContentRef.current = suggestion.after;
       cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
       setLoadedContentPreview(suggestion.after.slice(0, 120));
       setIsDirty(false);
       setPendingSuggestion(null);
-      setSuggestionStatus('已接受并写入当前文件');
+      setSuggestionStatus(
+        loopRecord.recordPath
+          ? `已接受并写入当前文件，闭环记录已保存`
+          : '已接受并写入当前文件',
+      );
+      emitAuthorLoopResult({
+        filePath: path,
+        status: 'completed',
+        action: 'revision_accepted',
+        message: loopRecord.recordPath ? '修订已写回并记录闭环' : '修订已写回',
+        recordPath: loopRecord.recordPath ?? undefined,
+      });
     } catch (err) {
       setSuggestionStatus(`接受失败: ${err instanceof Error ? err.message : String(err)}`);
+      emitAuthorLoopResult({
+        filePath: path,
+        status: 'error',
+        action: 'revision_accepted',
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   };
+
+  const handleExport = async () => {
+    const path = filePathRef.current;
+    const project = projectPathRef.current;
+    if (!path || !project || !editorRef.current) return;
+
+    try {
+      const result = await exportCurrentFile({
+        projectPath: project,
+        filePath: path,
+        content: editorRef.current.getValue(),
+      });
+      setSuggestionStatus(`已导出到 ${result.exportPath}`);
+      emitAuthorLoopResult({
+        filePath: path,
+        status: 'completed',
+        action: 'exported',
+        message: `已导出到 ${result.exportPath}`,
+        artifactPath: result.exportPath,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSuggestionStatus(`导出失败: ${message}`);
+      emitAuthorLoopResult({
+        filePath: path,
+        status: 'error',
+        action: 'exported',
+        message,
+      });
+    }
+  };
+
+  useEffect(() => {
+    const onSuggestionResult = (event: Event) => {
+      const result = (event as CustomEvent<SuggestionResult>).detail;
+      const path = filePathRef.current;
+      if (!result || !path || result.filePath !== path) return;
+      setIsReviseLoading(false);
+      setSuggestionStatus(result.status === 'ready' ? '' : `AI 修订失败：${result.message}`);
+      if (result.assistantSessionId) {
+        assistantSessionIdRef.current = result.assistantSessionId;
+      }
+    };
+    window.addEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
+    return () => window.removeEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
+  }, []);
+
+  useEffect(() => {
+    const onExportCurrent = () => {
+      if (!filePathRef.current) return;
+      void handleExport();
+    };
+    window.addEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
+    return () => window.removeEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
+  }, []);
 
   const handleSaveSuggestionNote = async () => {
     const suggestion = pendingSuggestion;
@@ -357,6 +416,12 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
     onClose();
   };
 
+  const emptyStateHint = !projectPath
+    ? '打开项目后即可开始编辑'
+    : sidebarVisible === false
+      ? '展开资源管理器后选择文件'
+      : '在资源管理器中双击文件开始编辑';
+
   return (
     <div
       className="h-full flex flex-col bg-background relative"
@@ -371,41 +436,51 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
       data-content-preview={loadedContentPreview}
     >
       {!filePath && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background text-muted" data-testid="editor-empty">
+        <div className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background text-muted" data-testid="editor-empty">
           <div className="text-center">
-            <svg className="w-10 h-10 mx-auto mb-3 text-muted/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg className="w-10 h-10 mx-auto mb-3 text-muted/60" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
             </svg>
-            <p className="text-base mb-1 text-foreground">未打开文件</p>
-            <p className="text-sm">从右侧文件树选择一个文件</p>
+            <p className="text-base mb-1 text-foreground">未选择文件</p>
+            <p className="text-sm">{emptyStateHint}</p>
           </div>
         </div>
       )}
 
       {/* 顶部工具栏 */}
-      <div className="h-10 px-3 border-b border-border flex items-center justify-between bg-panel flex-shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium truncate max-w-md" title={filePath ?? undefined}>
+      <div className="sf-panel-header border-border bg-panel">
+        <div className="flex min-w-[96px] flex-1 items-center gap-2 overflow-hidden">
+          <span className="sf-topbar-title" title={filePath ?? undefined}>
             {filePath ? filePath.split(/[/\\]/).pop() : '未打开文件'}
           </span>
           {isDirty && <span className="text-warning text-lg leading-none" title="未保存的修改">●</span>}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="sf-topbar-actions">
+          {onExportCurrent && (
+            <button
+              onClick={handleExport}
+              data-testid="editor-export-btn"
+              title="导出当前稿"
+              className="sf-toolbar-button"
+            >
+              导出
+            </button>
+          )}
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
               title={sidebarVisible ? "收起侧边栏" : "展开侧边栏"}
-              className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${sidebarVisible ? 'text-muted hover:text-foreground hover:bg-foreground/10' : 'text-foreground bg-foreground/10 hover:bg-foreground/20'}`}
+              className={`sf-icon-button ${sidebarVisible ? '' : 'bg-foreground/10 text-foreground'}`}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarVisible ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                <path d={sidebarVisible ? "M6 4l4 4-4 4V4z" : "M10 4l-4 4 4 4V4z"} />
               </svg>
             </button>
           )}
           <button
             data-testid="editor-history-btn"
             onClick={() => setShowHistory((v) => !v)}
-            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-foreground/10 transition-colors"
+            className="sf-toolbar-button"
             title="查看版本记录"
           >
             历史
@@ -414,17 +489,19 @@ export function Editor({ projectPath, filePath, onClose, onToggleSidebar, sideba
             id="editor-save-btn"
             onClick={handleSave}
             disabled={!isDirty}
-            className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+            title="保存 (Ctrl+S)"
+            className="sf-toolbar-button disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent disabled:hover:text-muted"
           >
             保存 (Ctrl+S)
           </button>
           <button
+            id="editor-close-btn"
             onClick={handleClose}
             title="关闭文件"
-            className="w-7 h-7 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-foreground/10 transition-colors"
+            className="sf-icon-button"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeWidth="1.5" d="M2 2l12 12M2 14L14 2" />
             </svg>
           </button>
         </div>
@@ -596,13 +673,13 @@ function VersionHistory({
   };
 
   return (
-    <div className="absolute top-10 right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade" data-testid="version-history">
-      <div className="h-10 px-3 border-b border-border flex items-center justify-between flex-shrink-0">
+    <div className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade" data-testid="version-history">
+      <div className="sf-panel-header border-border">
         <span className="text-sm font-semibold">版本记录</span>
         <button
           onClick={onClose}
           title="关闭"
-          className="w-7 h-7 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-foreground/10 transition-colors"
+          className="sf-icon-button text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

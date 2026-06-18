@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from starlette.websockets import WebSocketState
 from fastapi.responses import StreamingResponse
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.service import ArtifactForbiddenError, ArtifactNotFoundError
 from app.domains.book_runs.service import BookRunNotFoundError, get_book_run
+from app.domains.ide.orchestrator import AgentOrchestrationError, orchestrate_agent_message
 from app.domains.ide.schemas import (
     IdeArtifactPreview,
     IdeCommandRequest,
@@ -34,6 +37,21 @@ from app.domains.ide.service import (
 )
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
+
+_API_KEY_HEADER = "x-storyforge-api-key"
+
+
+def _expected_api_key() -> str:
+    return os.getenv("STORYFORGE_API_KEY", "local-dev-key")
+
+
+async def _accept_or_reject_agent_socket(websocket: WebSocket) -> bool:
+    provided_key = websocket.headers.get(_API_KEY_HEADER) or websocket.query_params.get("api_key")
+    if provided_key != _expected_api_key():
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return False
+    await websocket.accept()
+    return True
 
 
 @router.get(
@@ -165,15 +183,30 @@ def execute_ide_command(
 
 @router.websocket("/agent/sessions/{session_id}")
 async def agent_session(websocket: WebSocket, session_id: str, session: SessionDependency) -> None:
-    """Agent 双向通道；写操作只能转发给 IDE 命令执行器。"""
+    """Agent 双向通道；自然语言编排和写命令都必须复用现有工具目录。"""
 
-    await websocket.accept()
+    if not await _accept_or_reject_agent_socket(websocket):
+        return
     try:
         while True:
             message = await websocket.receive_json()
-            if message.get("type") != "command":
+            message_type = message.get("type")
+            if message_type == "user_message":
+                try:
+                    result = orchestrate_agent_message(session, agent_session_id=session_id, message=message)
+                except AgentOrchestrationError as exc:
+                    await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
+                    continue
+                await websocket.send_json(result)
+                continue
+
+            if message_type != "command":
                 await websocket.send_json(
-                    {"type": "error", "session_id": session_id, "detail": "Agent 仅支持 command 消息。"}
+                    {
+                        "type": "error",
+                        "session_id": session_id,
+                        "detail": "Agent 仅支持 user_message 或 command 消息。",
+                    }
                 )
                 continue
             command_id = str(message.get("command_id", ""))
@@ -188,3 +221,6 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
             )
     except WebSocketDisconnect:
         return
+    finally:
+        if websocket.client_state == WebSocketState.CONNECTED:
+            await websocket.close()

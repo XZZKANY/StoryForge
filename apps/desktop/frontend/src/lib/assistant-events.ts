@@ -6,9 +6,11 @@
 import type { AssistantFileSuggestion } from './assistant-suggestions';
 
 export const REVIEW_CURRENT_EVENT = 'storyforge:review-current-file';
+export const EXPORT_CURRENT_FILE_EVENT = 'storyforge:export-current-file';
 export const APPLY_FILE_SUGGESTION_EVENT = 'storyforge:apply-file-suggestion';
 export const REQUEST_FILE_SUGGESTION_EVENT = 'storyforge:request-file-suggestion';
 export const SUGGESTION_RESULT_EVENT = 'storyforge:suggestion-result';
+export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
 
 export type FileSuggestionRequest = {
   filePath: string;
@@ -19,11 +21,27 @@ export type SuggestionResult = {
   filePath: string;
   status: 'ready' | 'error';
   message: string;
+  assistantSessionId?: number | null;
+};
+
+export type AuthorLoopResult = {
+  filePath: string;
+  status: 'completed' | 'error';
+  action: 'revision_accepted' | 'exported';
+  message: string;
+  artifactPath?: string;
+  recordPath?: string;
 };
 
 export function emitReviewCurrentFile(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(REVIEW_CURRENT_EVENT));
+  }
+}
+
+export function emitExportCurrentFile(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(EXPORT_CURRENT_FILE_EVENT));
   }
 }
 
@@ -46,6 +64,14 @@ export function emitFileSuggestionRequest(request: FileSuggestionRequest): void 
 export function emitSuggestionResult(result: SuggestionResult): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent<SuggestionResult>(SUGGESTION_RESULT_EVENT, {
+      detail: result,
+    }));
+  }
+}
+
+export function emitAuthorLoopResult(result: AuthorLoopResult): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<AuthorLoopResult>(AUTHOR_LOOP_RESULT_EVENT, {
       detail: result,
     }));
   }

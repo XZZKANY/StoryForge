@@ -42,6 +42,61 @@ def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypat
     assert tool_calls[0]["status"] == "completed"
 
 
+def test_revise_includes_desktop_context_bundle_in_prompt(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """桌面 IDE 传入的项目上下文摘录要进入 revise prompt，并记录上下文文件数。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    captured: dict[str, str] = {}
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        captured["user_prompt"] = user_prompt
+        return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
+
+    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "file_path": "正文/第02章.md",
+            "content": "当前正文",
+            "instruction": "检查人物动机",
+            "context_bundle": {
+                "project_root": "D:/books/雾港回声",
+                "current_file": "D:/books/雾港回声/正文/第02章.md",
+                "files": [
+                    {
+                        "path": "D:/books/雾港回声/人物/周眠.md",
+                        "relative_path": "人物/周眠.md",
+                        "kind": "character",
+                        "title": "周眠.md",
+                        "excerpt": "周眠怕水，但必须回到雾港。",
+                    },
+                    {
+                        "path": "D:/books/雾港回声/大纲/第02章节点.md",
+                        "relative_path": "大纲/第02章节点.md",
+                        "kind": "outline",
+                        "title": "第02章节点.md",
+                        "excerpt": "本章要揭示旧电台。",
+                    },
+                ],
+                "summary": {"hasStoryStructure": True, "counts": {"character": 1, "outline": 1}},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert "项目上下文摘录" in captured["user_prompt"]
+    assert "人物/周眠.md" in captured["user_prompt"]
+    assert "周眠怕水" in captured["user_prompt"]
+
+    session_id = response.json()["assistant_session_id"]
+    tool_calls = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
+    assert tool_calls[0]["input_summary"]["context_file_count"] == 2
+
+
 def test_revise_returns_422_when_llm_not_configured(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """LLM 环境缺失时明确返回 422，不伪造兜底。"""
 

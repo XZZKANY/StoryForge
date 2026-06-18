@@ -154,10 +154,32 @@ _REVISE_SYSTEM_PROMPT = (
 
 def _build_revise_prompt(payload: AssistantReviseRequest) -> str:
     project_line = f"项目：{payload.project_name}\n" if payload.project_name else ""
+    context_block = ""
+    if payload.context_bundle and payload.context_bundle.files:
+        context_entries = []
+        for item in payload.context_bundle.files:
+            context_entries.append(
+                "\n".join(
+                    [
+                        f"### {item.relative_path}",
+                        f"- 类型：{item.kind}",
+                        "<<<CONTEXT",
+                        item.excerpt,
+                        "CONTEXT>>>",
+                    ]
+                )
+            )
+        context_block = (
+            "\n项目上下文摘录：这些文件来自同一小说项目，请用于保持大纲、人物、设定与正文连贯；"
+            "如果摘录与当前文件冲突，优先保留明确的当前文件事实，并在修订中避免扩大矛盾。\n"
+            + "\n\n".join(context_entries)
+            + "\n"
+        )
     return (
         f"{project_line}"
         f"文件：{payload.file_path}\n"
         f"修订指令：{payload.instruction}\n\n"
+        f"{context_block}"
         "以下是文件的当前全文，请按指令修订后整体返回：\n"
         "<<<FILE\n"
         f"{payload.content}\n"
@@ -201,6 +223,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
                 "file_path": payload.file_path,
                 "instruction": payload.instruction[:500],
                 "content_chars": len(payload.content),
+                "context_file_count": len(payload.context_bundle.files) if payload.context_bundle else 0,
             },
         ),
     )

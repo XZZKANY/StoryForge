@@ -128,8 +128,8 @@ export function Composer({ projectPath, currentFile, onToggleCollapse }: Compose
       {/* 顶部：项目会话标题 */}
       <div className="h-10 px-3 border-b border-border flex items-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <svg className="w-4 h-4 text-accent flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          <svg className="w-4 h-4 text-accent flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 2h12v9H8l-3 3v-3H2V2zm1 1v7h3v2l2-2h5V3H3z" />
           </svg>
           <h2 className="text-sm font-semibold text-foreground truncate">
             {projectName ? `《${projectName}》项目会话` : 'AI 交互'}
@@ -143,8 +143,8 @@ export function Composer({ projectPath, currentFile, onToggleCollapse }: Compose
             className="w-7 h-7 rounded-md hover:bg-foreground/10 flex items-center justify-center text-muted hover:text-foreground transition-colors"
             title="折叠 AI 交互区"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeWidth="1.5" d="M2 2l12 12M2 14L14 2" />
             </svg>
           </button>
         )}
