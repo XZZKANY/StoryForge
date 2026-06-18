@@ -1,5 +1,6 @@
 export type ProviderModelsRequest = {
   readonly baseUrl?: string;
+  readonly apiKey?: string;
 };
 
 export type ProviderModelsResult =
@@ -33,19 +34,24 @@ export async function probeProviderModels(
 ): Promise<ProviderModelsResult> {
   const baseUrl = normalizeProviderBaseUrl(input.baseUrl ?? 'https://api.openai.com');
   const endpoint = `${baseUrl}/v1/models`;
+  const apiKey = input.apiKey?.trim() ?? '';
+
+  if (!apiKey) {
+    return { ok: false, endpoint, message: '请先填写 Provider API Key。' };
+  }
 
   try {
     const response = await fetchImpl(endpoint, {
       method: 'GET',
       cache: 'no-store',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
     });
 
     if (response.status === 401 || response.status === 403) {
       return {
         ok: false,
         endpoint,
-        message: `Provider 端点可达，但返回 ${response.status}，需要服务端凭据配置。`,
+        message: `Provider 端点可达，但返回 ${response.status}，请检查 API Key。`,
       };
     }
 

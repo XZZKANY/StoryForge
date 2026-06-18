@@ -19,8 +19,7 @@ const messages = {
 const providerStorageKey = 'storyforge-provider-settings';
 const creativeStorageKey = 'storyforge-creative-preferences';
 const providerBaseUrl = 'https://provider.example.test';
-const credentialKeyPattern = /api.?key|key|token|authorization|bearer|secret|credential|password/i;
-const credentialValuePattern = /authorization|bearer|secret|credential|password/i;
+const providerApiKey = 'sk-storyforge-browser-test';
 
 function parseArgs(argv) {
   const args = { port: 3192, timeoutMs: 60_000, baseUrl: '' };
@@ -120,29 +119,6 @@ function assertOnlyKeys(value, expectedKeys, label) {
   assert.deepEqual(Object.keys(value).sort(), [...expectedKeys].sort(), `${label} 字段集合应严格匹配`);
 }
 
-function assertNoCredentialShape(value, label) {
-  const stack = [{ path: label, value }];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) continue;
-    if (credentialKeyPattern.test(current.path)) {
-      throw new Error(`${current.path} 不应包含凭据字段`);
-    }
-    if (typeof current.value === 'string' && credentialValuePattern.test(current.value)) {
-      throw new Error(`${current.path} 不应包含凭据形态文本`);
-    }
-    if (Array.isArray(current.value)) {
-      current.value.forEach((item, index) => stack.push({ path: `${current.path}.${index}`, value: item }));
-      continue;
-    }
-    if (current.value && typeof current.value === 'object') {
-      for (const [key, nestedValue] of Object.entries(current.value)) {
-        stack.push({ path: `${current.path}.${key}`, value: nestedValue });
-      }
-    }
-  }
-}
-
 async function readJsonStorage(page, key) {
   const raw = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey), key);
   assert.ok(raw, `${key} 应写入 localStorage`);
@@ -150,8 +126,10 @@ async function readJsonStorage(page, key) {
 }
 
 async function verifyProviderSettings(page) {
-  const input = page.getByLabel('Provider Base URL');
-  await input.waitFor({ state: 'visible', timeout: 10_000 });
+  const baseUrlInput = page.getByLabel('Provider Base URL');
+  const apiKeyInput = page.getByLabel('Provider API Key');
+  await baseUrlInput.waitFor({ state: 'visible', timeout: 10_000 });
+  await apiKeyInput.waitFor({ state: 'visible', timeout: 10_000 });
   await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => undefined);
 
   const saveButton = page
@@ -159,39 +137,38 @@ async function verifyProviderSettings(page) {
     .first();
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
-    await input.fill(`  ${providerBaseUrl}  `);
+    await baseUrlInput.fill(`  ${providerBaseUrl}  `);
+    await apiKeyInput.fill(`  ${providerApiKey}  `);
     await saveButton.click();
     const saved = await page.evaluate(
-      ({ key, expected }) => {
+      ({ key, expectedBaseUrl, expectedApiKey }) => {
         const raw = window.localStorage.getItem(key);
         if (!raw) return false;
         try {
-          return JSON.parse(raw).baseUrl === expected;
+          const value = JSON.parse(raw);
+          return value.baseUrl === expectedBaseUrl && value.apiKey === expectedApiKey;
         } catch {
           return false;
         }
       },
-      { key: providerStorageKey, expected: providerBaseUrl },
+      { key: providerStorageKey, expectedBaseUrl: providerBaseUrl, expectedApiKey: providerApiKey },
     );
     if (saved) break;
     await delay(250);
   }
 
   const stored = await readJsonStorage(page, providerStorageKey);
-  assertOnlyKeys(stored, ['baseUrl'], providerStorageKey);
+  assertOnlyKeys(stored, ['apiKey', 'baseUrl', 'model'], providerStorageKey);
   assert.equal(stored.baseUrl, providerBaseUrl, 'Provider Base URL 应 trim 后保存');
-  assertNoCredentialShape(stored, providerStorageKey);
+  assert.equal(stored.apiKey, providerApiKey, 'Provider API Key 应 trim 后保存');
 }
 
 async function verifyProviderProbe(page) {
-  let capturedBody = null;
+  const capturedBodies = [];
   await page.route('**/api/provider-models', async (route) => {
     const request = route.request();
     assert.equal(request.method(), 'POST', '模型检测应使用 POST');
-    capturedBody = request.postDataJSON();
-    assertOnlyKeys(capturedBody, ['baseUrl'], '/api/provider-models 请求体');
-    assert.equal(capturedBody.baseUrl, providerBaseUrl, '模型检测应发送当前 Base URL');
-    assertNoCredentialShape(capturedBody, '/api/provider-models 请求体');
+    capturedBodies.push(request.postDataJSON());
     await route.fulfill({
       json: {
         ok: true,
@@ -201,12 +178,24 @@ async function verifyProviderProbe(page) {
     });
   });
 
-  await page.getByRole('button', { name: '检测并拉取模型' }).click();
+  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => undefined);
+  await page.getByLabel('Provider Base URL').fill(`  ${providerBaseUrl}  `);
+  await page.getByLabel('Provider API Key').fill(`  ${providerApiKey}  `);
   await page.getByText('Provider 可连接，发现 2 个模型。').waitFor({ timeout: 10_000 });
-  await page.getByRole('heading', { name: '可用模型' }).waitFor({ timeout: 10_000 });
-  await page.getByText('storyforge-browser-alpha').waitFor({ timeout: 10_000 });
-  await page.getByText('storyforge-browser-beta').waitFor({ timeout: 10_000 });
+  const resultSection = page.locator('section[aria-labelledby="provider-result-title"]');
+  await resultSection.getByRole('heading', { name: '可用模型' }).waitFor({ timeout: 10_000 });
+  await resultSection.getByText('storyforge-browser-alpha').waitFor({ timeout: 10_000 });
+  await resultSection.getByText('storyforge-browser-beta').waitFor({ timeout: 10_000 });
+  await page.locator('#provider-model').selectOption('storyforge-browser-beta');
+
+  const capturedBody = capturedBodies.at(-1);
   assert.ok(capturedBody, '应捕获模型检测请求体');
+  assertOnlyKeys(capturedBody, ['apiKey', 'baseUrl', 'model'], '/api/provider-models 请求体');
+  assert.equal(capturedBody.baseUrl, providerBaseUrl, '模型检测应发送当前 Base URL');
+  assert.equal(capturedBody.apiKey, providerApiKey, '模型检测应发送当前 API Key');
+
+  const stored = await readJsonStorage(page, providerStorageKey);
+  assert.equal(stored.model, 'storyforge-browser-beta', '选择模型后应保存当前模型');
 }
 
 async function verifyCreativePreferences(page) {
@@ -223,7 +212,7 @@ async function verifyCreativePreferences(page) {
 
   const providerSettings = await readJsonStorage(page, providerStorageKey);
   const creativePreferences = await readJsonStorage(page, creativeStorageKey);
-  assertOnlyKeys(providerSettings, ['baseUrl'], providerStorageKey);
+  assertOnlyKeys(providerSettings, ['apiKey', 'baseUrl', 'model'], providerStorageKey);
   assertOnlyKeys(
     creativePreferences,
     ['genres', 'style', 'assistantBehavior', 'defaultFlow'],
@@ -240,7 +229,6 @@ async function verifyCreativePreferences(page) {
     !creativePreferences.defaultFlow.includes('Repair.suggest'),
     '取消勾选的默认流程不应保存',
   );
-  assertNoCredentialShape(creativePreferences, creativeStorageKey);
   assert.ok(!('baseUrl' in creativePreferences), '创作偏好不得混入 Provider Base URL');
   assert.ok(!('genres' in providerSettings), 'Provider 设置不得混入创作偏好');
 }
@@ -264,10 +252,9 @@ async function verifySettingsPage(baseUrl) {
     await assert.doesNotReject(async () => {
       await page.getByLabel('Provider Base URL').waitFor({ state: 'visible', timeout: 10_000 });
     }, 'Provider Base URL 输入框应可见');
-    assert.equal(await page.locator('input[id*="key" i], textarea[id*="key" i]').count(), 0, '页面不应渲染密钥输入控件');
 
-    await verifyProviderSettings(page);
     await verifyProviderProbe(page);
+    await verifyProviderSettings(page);
     await verifyCreativePreferences(page);
 
     assert.deepEqual(pageErrors, [], '页面不应产生运行时错误');

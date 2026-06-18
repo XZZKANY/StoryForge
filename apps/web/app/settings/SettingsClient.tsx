@@ -15,8 +15,8 @@ export function SettingsClient() {
           模型与 Provider 设置
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-          在这里配置兼容 OpenAI 协议的 Provider Base URL。StoryForge 会通过服务端代理访问
-          `/v1/models`，检测端点连通性并展示可读取的模型列表。
+          在这里配置兼容 OpenAI 协议的 Provider Base URL 和 API Key。StoryForge 会通过服务端代理访问
+          `/v1/models`，并在凭据完整后自动展示可读取的模型列表。
         </p>
         <ProviderSettingsPanel />
         <CreativePreferencesPanel />

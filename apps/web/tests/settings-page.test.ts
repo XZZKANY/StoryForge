@@ -20,12 +20,14 @@ test('设置页提供 Provider 地址保存、检测和模型列表能力', () =
   assert.ok(client.includes("'use client'"), '设置表单需要客户端交互');
   assert.ok(provider.includes('storyforge-provider-settings'), '设置应保存到浏览器 localStorage');
   assert.ok(provider.includes('Provider Base URL'), '页面应提供 Provider Base URL 字段');
-  assert.ok(!provider.includes('provider-api-key'), '页面不应渲染密钥输入框');
+  assert.ok(provider.includes('provider-api-key'), '页面应提供 Provider API Key 字段');
+  assert.ok(provider.includes('provider-model'), '页面应提供模型选择字段');
   assert.ok(provider.includes('保存设置'), '页面应提供显式保存按钮');
   assert.ok(provider.includes('saveProviderSettings'), '保存按钮应调用保存函数');
   assert.ok(provider.includes('检测并拉取模型'), '页面应提供检测按钮');
   assert.ok(provider.includes('/api/provider-models'), '检测按钮应调用模型检测 API');
   assert.ok(provider.includes('readCurrentFormSettings'), '检测时应从表单读取当前值');
+  assert.ok(provider.includes('scheduleAutoProbe'), 'URL 和 API Key 完整后应自动拉取模型');
   assert.ok(provider.includes('可用模型'), '成功后应展示模型列表');
 });
 
@@ -54,7 +56,10 @@ test('模型检测核心逻辑能规范化地址并提取模型', async () => {
     );
   }) as typeof fetch;
 
-  const result = await probeProviderModels({ baseUrl: 'https://api.example.com/v1' }, fakeFetch);
+  const result = await probeProviderModels(
+    { baseUrl: 'https://api.example.com/v1', apiKey: 'test-key' },
+    fakeFetch,
+  );
 
   assert.deepEqual(result, {
     ok: true,
@@ -63,6 +68,7 @@ test('模型检测核心逻辑能规范化地址并提取模型', async () => {
   });
   assert.equal(calls[0].url, 'https://api.example.com/v1/models');
   assert.equal(new Headers(calls[0].init.headers).get('Accept'), 'application/json');
+  assert.equal(new Headers(calls[0].init.headers).get('Authorization'), 'Bearer test-key');
 });
 
 test('设置入口接入首页和全局导航', () => {
@@ -96,7 +102,6 @@ test('创作偏好独立于 Provider 设置并并入首页项目工作台', () =
     'storyforge-provider-settings',
     'Provider Base URL',
     '/api/provider-models',
-    'provider-api-key',
   ]) {
     assert.ok(!panel.includes(forbidden), `创作偏好不得混入系统设置 ${forbidden}`);
   }
