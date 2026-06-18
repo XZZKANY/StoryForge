@@ -2,13 +2,20 @@
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
-    AppHandle, Manager, Runtime, Wry, Emitter,
+    AppHandle, Emitter, Manager, Runtime, Wry,
 };
 
 /// 创建应用菜单栏
+#[allow(dead_code)]
 pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Error> {
     // File 菜单
-    let open_project = MenuItem::with_id(app, "open_project", "打开项目...", true, Some("CmdOrCtrl+O"))?;
+    let open_project = MenuItem::with_id(
+        app,
+        "open_project",
+        "添加项目...",
+        true,
+        Some("CmdOrCtrl+O"),
+    )?;
     let new_file = MenuItem::with_id(app, "new_file", "新建文件", true, Some("CmdOrCtrl+N"))?;
     let save = MenuItem::with_id(app, "save", "保存", true, Some("CmdOrCtrl+S"))?;
     let save_as = MenuItem::with_id(app, "save_as", "另存为...", true, Some("CmdOrCtrl+Shift+S"))?;
@@ -56,7 +63,13 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Err
     )?;
 
     // View 菜单
-    let toggle_sidebar = MenuItem::with_id(app, "toggle_sidebar", "切换侧边栏", true, Some("CmdOrCtrl+B"))?;
+    let toggle_sidebar = MenuItem::with_id(
+        app,
+        "toggle_sidebar",
+        "切换侧边栏",
+        true,
+        Some("CmdOrCtrl+B"),
+    )?;
     let toggle_fullscreen = MenuItem::with_id(app, "toggle_fullscreen", "全屏", true, Some("F11"))?;
     let zoom_in = MenuItem::with_id(app, "zoom_in", "放大", true, Some("CmdOrCtrl+Plus"))?;
     let zoom_out = MenuItem::with_id(app, "zoom_out", "缩小", true, Some("CmdOrCtrl+Minus"))?;
@@ -94,6 +107,7 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Err
 }
 
 /// 菜单事件处理
+#[allow(dead_code)]
 pub fn handle_menu_event(app: &AppHandle<Wry>, event: &str) {
     if let Some(frontend_event) = frontend_event_for_menu_id(event) {
         let _ = app.emit(frontend_event, ());

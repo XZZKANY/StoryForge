@@ -2,17 +2,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod fs;
-mod watcher;
+#[cfg(test)]
 mod menu;
+mod watcher;
 
 use anyhow::{Context, Result};
+use serde::Serialize;
+use std::fs as std_fs;
+use std::net::TcpStream;
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use std::sync::{mpsc, Arc, Mutex};
-use std::net::TcpStream;
-use std::fs as std_fs;
-use std::path::PathBuf;
 use tauri::Manager;
 
 /// 全局状态：保存所有启动的子进程，用于退出时清理
@@ -20,9 +22,18 @@ struct ServiceManager {
     children: Vec<Child>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiConfig {
+    base_url: String,
+    api_key: String,
+}
+
 impl ServiceManager {
     fn new() -> Self {
-        Self { children: Vec::new() }
+        Self {
+            children: Vec::new(),
+        }
     }
 
     fn add(&mut self, child: Child) {
@@ -54,7 +65,11 @@ fn check_port(host: &str, port: u16, timeout_secs: u64) -> bool {
 
 /// 检测命令是否存在
 fn command_exists(cmd: &str) -> bool {
-    let checker = if cfg!(target_os = "windows") { "where" } else { "which" };
+    let checker = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
     Command::new(checker)
         .arg(cmd)
         .stdout(Stdio::null())
@@ -125,8 +140,19 @@ fn run_migrations(project_root: &str) -> Result<()> {
     Ok(())
 }
 
+fn is_api_ready() -> bool {
+    reqwest::blocking::get("http://localhost:8000/health/ready")
+        .map(|resp| resp.status().is_success())
+        .unwrap_or(false)
+}
+
 /// 启动 FastAPI 服务
 fn start_api_server(project_root: &str, manager: &Arc<Mutex<ServiceManager>>) -> Result<()> {
+    if is_api_ready() {
+        println!("✓ 复用已有 FastAPI 服务 (http://localhost:8000/health/ready)");
+        return Ok(());
+    }
+
     println!("启动 FastAPI 服务 (uvicorn :8000)...");
 
     let api_dir = format!("{}/apps/api", project_root);
@@ -138,7 +164,7 @@ fn start_api_server(project_root: &str, manager: &Arc<Mutex<ServiceManager>>) ->
     };
 
     let child = Command::new(&venv_python)
-        .args(&["run_windows.py"])  // 使用 Windows 兼容脚本
+        .args(&["run_windows.py"]) // 使用 Windows 兼容脚本
         .current_dir(&api_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -150,11 +176,9 @@ fn start_api_server(project_root: &str, manager: &Arc<Mutex<ServiceManager>>) ->
     println!("等待 API 服务就绪 (http://localhost:8000/health/ready)...");
     for i in 0..30 {
         thread::sleep(Duration::from_secs(2));
-        if let Ok(resp) = reqwest::blocking::get("http://localhost:8000/health/ready") {
-            if resp.status().is_success() {
-                println!("✓ FastAPI 已就绪");
-                return Ok(());
-            }
+        if is_api_ready() {
+            println!("✓ FastAPI 已就绪");
+            return Ok(());
         }
         if i % 5 == 4 {
             println!("等待中... ({}/30)", i + 1);
@@ -166,8 +190,7 @@ fn start_api_server(project_root: &str, manager: &Arc<Mutex<ServiceManager>>) ->
 
 /// 获取项目根目录（从当前可执行文件向上查找）
 fn find_project_root() -> Result<String> {
-    let mut current = std::env::current_exe()
-        .context("无法获取当前可执行文件路径")?;
+    let mut current = std::env::current_exe().context("无法获取当前可执行文件路径")?;
 
     // 开发模式：apps/desktop/src-tauri/target/debug/storyforge-desktop.exe
     // 向上查找包含 package.json 和 docker-compose.yml 的目录
@@ -186,9 +209,7 @@ fn find_project_root() -> Result<String> {
         return Ok(root);
     }
 
-    anyhow::bail!(
-        "无法找到项目根目录。请设置环境变量 STORYFORGE_ROOT 或从项目目录运行"
-    )
+    anyhow::bail!("无法找到项目根目录。请设置环境变量 STORYFORGE_ROOT 或从项目目录运行")
 }
 
 fn should_skip_services() -> bool {
@@ -201,6 +222,28 @@ fn is_smoke_mode() -> bool {
     std::env::var("STORYFORGE_DESKTOP_SMOKE")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
+}
+
+fn desktop_api_base_url() -> String {
+    std::env::var("STORYFORGE_API_BASE_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:8000".to_string())
+}
+
+fn desktop_api_key() -> String {
+    std::env::var("STORYFORGE_API_KEY")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "local-dev-key".to_string())
+}
+
+#[tauri::command]
+fn get_api_config() -> ApiConfig {
+    ApiConfig {
+        base_url: desktop_api_base_url(),
+        api_key: desktop_api_key(),
+    }
 }
 
 fn eval_window_json<R: tauri::Runtime>(
@@ -292,7 +335,9 @@ fn click_window_test_id<R: tauri::Runtime>(
     }
 }
 
-fn click_first_file_item<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), String> {
+fn click_first_file_item<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+) -> Result<(), String> {
     let script = r#"
         (() => {
           const items = Array.from(document.querySelectorAll('[data-testid="file-item"]'));
@@ -327,10 +372,16 @@ fn create_smoke_project() -> Result<PathBuf> {
 
     let drafts = root.join("drafts");
     std_fs::create_dir_all(&drafts).context("创建 smoke 项目目录失败")?;
-    std_fs::write(root.join("chapter-001.md"), "# Chapter 1\n\nSmoke content\n")
-        .context("写入 chapter-001.md 失败")?;
-    std_fs::write(drafts.join("chapter-002.markdown"), "# Chapter 2\n\nNested smoke content\n")
-        .context("写入 chapter-002.markdown 失败")?;
+    std_fs::write(
+        root.join("chapter-001.md"),
+        "# Chapter 1\n\nSmoke content\n",
+    )
+    .context("写入 chapter-001.md 失败")?;
+    std_fs::write(
+        drafts.join("chapter-002.markdown"),
+        "# Chapter 2\n\nNested smoke content\n",
+    )
+    .context("写入 chapter-002.markdown 失败")?;
     std_fs::write(root.join("ignore.txt"), "ignore me").context("写入 ignore.txt 失败")?;
 
     Ok(root)
@@ -358,11 +409,31 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
                 smokeApiReady: shell?.getAttribute('data-smoke-api-ready') === 'true',
                 smokeHookReady: typeof window.__STORYFORGE_SMOKE__?.openProject === 'function',
                 title: document.title,
+                layoutMode: shell?.getAttribute('data-layout-mode') ?? '',
                 hasFilePanel: Boolean(document.querySelector('[data-testid="file-tree-panel"]')),
                 hasAssistantPanel: Boolean(document.querySelector('[data-testid="assistant-panel"]')),
+                hasEditorPanel: Boolean(document.querySelector('[data-testid="editor-panel"]')),
                 hasExpandFileTree: Boolean(document.querySelector('[data-testid="expand-file-tree"]')),
                 hasExpandAssistant: Boolean(document.querySelector('[data-testid="expand-assistant"]')),
-                fileCount: Number(document.querySelector('[data-testid="file-list"]')?.getAttribute('data-file-count') ?? '0'),
+                hasFocusWorkspaceOnly: Boolean(document.querySelector('[data-testid="focus-workspace-only"]')),
+                hasFocusAssistantOnly: Boolean(document.querySelector('[data-testid="focus-assistant-only"]')),
+                hasRestoreLayout: Boolean(document.querySelector('[data-testid="restore-layout"]')),
+                hasWelcomeWorkspace: Boolean(document.querySelector('[data-testid="welcome-workspace"]')),
+                hasWelcomeShowWorkbench: Boolean(document.querySelector('[data-testid="welcome-show-workbench"]')),
+                visualTone: (() => {
+                  const workspace = document.querySelector('[data-testid="welcome-workspace"]');
+                  const composer = document.querySelector('[data-testid="welcome-workspace"] textarea[aria-label="Agent 输入"]')?.closest('div');
+                  const rgb = (element) => {
+                    if (!element) return null;
+                    const match = getComputedStyle(element).backgroundColor.match(/\d+/g);
+                    return match ? match.slice(0, 3).map(Number) : null;
+                  };
+                  return {
+                    workspace: rgb(workspace),
+                    composer: rgb(composer),
+                  };
+                })(),
+                fileCount: Number(document.querySelector('[data-testid="file-list"]')?.getAttribute('data-file-count') ?? document.querySelectorAll('[data-testid="file-item"]').length),
                 fileItemCount: document.querySelectorAll('[data-testid="file-item"]').length,
                 projectPath: document.querySelector('[data-testid="file-list"]')?.getAttribute('data-project-path') ?? '',
                 editorLoaded: editor?.getAttribute('data-editor-loaded') === 'true',
@@ -396,7 +467,102 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             }
         };
 
-        let initial = shell.clone();
+        if !has_bool(&shell, "hasWelcomeWorkspace", true)
+            || !has_bool(&shell, "hasWelcomeShowWorkbench", true)
+        {
+            eprintln!("Smoke 失败: 初始欢迎工作区不可见: {}", shell);
+            std::process::exit(1);
+        }
+
+        let tone_is_readable = shell
+            .get("visualTone")
+            .and_then(|entry| {
+                let workspace = entry.get("workspace")?.as_array()?;
+                let composer = entry.get("composer")?.as_array()?;
+                let workspace_ok = workspace
+                    .iter()
+                    .all(|channel| channel.as_u64().map(|value| value >= 24).unwrap_or(false));
+                let composer_ok = composer
+                    .iter()
+                    .all(|channel| channel.as_u64().map(|value| value >= 36).unwrap_or(false));
+                let layered = workspace
+                    .first()
+                    .and_then(|channel| channel.as_u64())
+                    .zip(composer.first().and_then(|channel| channel.as_u64()))
+                    .map(|(workspace_value, composer_value)| composer_value > workspace_value)
+                    .unwrap_or(false);
+                Some(workspace_ok && composer_ok && layered)
+            })
+            .unwrap_or(false);
+        if !tone_is_readable {
+            eprintln!("Smoke 失败: 初始欢迎工作区仍然接近黑屏: {}", shell);
+            std::process::exit(1);
+        }
+
+        if let Err(error) = click_window_test_id(&window, "welcome-show-workbench") {
+            eprintln!("Smoke 失败: 无法打开文件树与编辑分栏: {}", error);
+            std::process::exit(1);
+        }
+
+        let initial = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| {
+                value.get("layoutMode").and_then(|entry| entry.as_str()) == Some("custom")
+                    && has_bool(value, "hasFilePanel", true)
+                    && has_bool(value, "hasAssistantPanel", true)
+                    && has_bool(value, "hasEditorPanel", true)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 无法进入文件树与编辑分栏: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        let expected_api_base_url = desktop_api_base_url();
+        let expected_api_key = desktop_api_key();
+        let api_config_script = r#"
+            (() => {
+              const config = window.__STORYFORGE_SMOKE__?.getApiConfigSnapshot?.();
+              return {
+                baseUrl: config?.baseUrl ?? '',
+                hasApiKey: Boolean(config?.apiKey),
+                apiKey: config?.apiKey ?? ''
+              };
+            })()
+        "#;
+        let api_config = match wait_for_window_state(
+            &window,
+            api_config_script,
+            20,
+            Duration::from_millis(150),
+            |value| {
+                value
+                    .get("baseUrl")
+                    .and_then(|entry| entry.as_str())
+                    .map(|entry| !entry.is_empty())
+                    .unwrap_or(false)
+                    && has_bool(value, "hasApiKey", true)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 无法读取 API 配置: {}", error);
+                std::process::exit(1);
+            }
+        };
+        if api_config.get("baseUrl").and_then(|entry| entry.as_str())
+            != Some(expected_api_base_url.as_str())
+            || api_config.get("apiKey").and_then(|entry| entry.as_str())
+                != Some(expected_api_key.as_str())
+        {
+            eprintln!("Smoke 失败: API 配置不符合预期: {}", api_config);
+            std::process::exit(1);
+        }
 
         let file_tree_was_open = has_bool(&initial, "hasFilePanel", true);
         let file_tree_toggle = if file_tree_was_open {
@@ -440,49 +606,72 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             10,
             Duration::from_millis(150),
             |value| {
-                has_bool(value, "hasFilePanel", true)
-                    && has_bool(value, "tauriMenuReady", true)
+                has_bool(value, "hasFilePanel", true) && has_bool(value, "tauriMenuReady", true)
             },
         ) {
             eprintln!("Smoke 失败: 无法恢复文件树面板: {}", error);
             std::process::exit(1);
         }
 
-        let assistant_was_open = has_bool(&initial, "hasAssistantPanel", true);
-        let assistant_toggle = if assistant_was_open {
-            "collapse-assistant"
-        } else {
-            "expand-assistant"
-        };
-        if let Err(error) = click_window_test_id(&window, assistant_toggle) {
-            eprintln!("Smoke 失败: 无法触发助手窗口交互: {}", error);
+        if let Err(error) = click_window_test_id(&window, "focus-workspace-only") {
+            eprintln!("Smoke 失败: 无法进入文件工作区独占模式: {}", error);
             std::process::exit(1);
         }
-        thread::sleep(Duration::from_millis(400));
-
-        let _assistant_state = match wait_for_window_state(
+        let _workspace_only_state = match wait_for_window_state(
             &window,
             snapshot_script,
             10,
             Duration::from_millis(150),
             |value| {
-                has_bool(value, "hasAssistantPanel", !assistant_was_open)
-                    && has_bool(value, "hasExpandAssistant", assistant_was_open)
+                value.get("layoutMode").and_then(|entry| entry.as_str()) == Some("workspace-only")
+                    && has_bool(value, "hasFilePanel", true)
+                    && has_bool(value, "hasEditorPanel", true)
+                    && has_bool(value, "hasAssistantPanel", false)
+                    && has_bool(value, "hasExpandAssistant", true)
+                    && has_bool(value, "hasRestoreLayout", true)
             },
         ) {
             Ok(value) => value,
             Err(error) => {
-                eprintln!("Smoke 失败: 切换助手后探针失败: {}", error);
+                eprintln!("Smoke 失败: 文件工作区独占模式探针失败: {}", error);
                 std::process::exit(1);
             }
         };
+
+        if let Err(error) = click_window_test_id(&window, "restore-layout") {
+            eprintln!("Smoke 失败: 无法从文件工作区独占模式恢复布局: {}", error);
+            std::process::exit(1);
+        }
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            10,
+            Duration::from_millis(150),
+            |value| {
+                value.get("layoutMode").and_then(|entry| entry.as_str()) == Some("normal")
+                    && has_bool(value, "hasFilePanel", true)
+                    && has_bool(value, "hasAssistantPanel", true)
+                    && has_bool(value, "hasEditorPanel", true)
+            },
+        ) {
+            eprintln!(
+                "Smoke 失败: 无法从文件工作区独占模式恢复完整布局: {}",
+                error
+            );
+            std::process::exit(1);
+        }
 
         let _smoke_ready = match wait_for_window_state(
             &window,
             snapshot_script,
             20,
             Duration::from_millis(150),
-            |value| value.get("smokeHookReady").and_then(|entry| entry.as_bool()) == Some(true),
+            |value| {
+                value
+                    .get("smokeHookReady")
+                    .and_then(|entry| entry.as_bool())
+                    == Some(true)
+            },
         ) {
             Ok(value) => value,
             Err(error) => {
@@ -504,19 +693,34 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             "#,
             serde_json::to_string(&smoke_project_string).unwrap_or_else(|_| "\"\"".to_string())
         );
-        let open_project_result = match eval_window_json(
-            &window,
-            &open_project_script,
-            Duration::from_millis(1500),
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("Smoke 失败: 无法调用 smoke 打开项目入口: {}", error);
-                std::process::exit(1);
-            }
-        };
+        let open_project_result =
+            match eval_window_json(&window, &open_project_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法调用 smoke 打开项目入口: {}", error);
+                    std::process::exit(1);
+                }
+            };
         if !has_bool(&open_project_result, "opened", true) {
-            eprintln!("Smoke 失败: smoke 打开项目入口不可用: {}", open_project_result);
+            eprintln!(
+                "Smoke 失败: smoke 打开项目入口不可用: {}",
+                open_project_result
+            );
+            std::process::exit(1);
+        }
+
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| has_bool(value, "hasWelcomeShowWorkbench", true),
+        ) {
+            eprintln!("Smoke 失败: 打开项目后欢迎工作区未恢复: {}", error);
+            std::process::exit(1);
+        }
+        if let Err(error) = click_window_test_id(&window, "welcome-show-workbench") {
+            eprintln!("Smoke 失败: 打开项目后无法显示文件树与编辑分栏: {}", error);
             std::process::exit(1);
         }
 
@@ -528,7 +732,6 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             |value| {
                 value.get("projectPath").and_then(|entry| entry.as_str())
                     == Some(smoke_project.to_string_lossy().as_ref())
-                    && value.get("fileCount").and_then(|entry| entry.as_u64()) == Some(2)
                     && value.get("fileItemCount").and_then(|entry| entry.as_u64()) == Some(2)
             },
         ) {
@@ -674,20 +877,12 @@ fn main() {
             fs::rename_path,
             fs::path_exists,
             fs::get_file_info,
+            get_api_config,
             // 文件监听命令
             watcher::watch_file,
             watcher::stop_watching,
         ])
         .setup(|app| {
-            // 创建菜单
-            let menu = menu::create_menu(app.handle())?;
-            app.set_menu(menu)?;
-
-            // 监听菜单事件
-            app.on_menu_event(|app, event| {
-                menu::handle_menu_event(app, event.id().as_ref());
-            });
-
             if is_smoke_mode() {
                 println!("Desktop Tauri smoke mode enabled");
                 let Some(window) = app.get_webview_window("main") else {

@@ -512,3 +512,36 @@
 - 桌面 UI 四栏重构与暖调打磨（App.tsx 等）属另一摊改动，本笔不含。
 
 记录时间戳：2026-06-19 +08:00。
+
+---
+
+# 桌面 IDE 四栏暖调收口（Rust get_api_config 硬化）+ Web Provider API Key 探测（2026-06-19）
+
+本笔与同日「IDE Agent 编排链路」是同一工作树拆分的另两摊，单独记录验证。
+
+## ③ 桌面 IDE：API 配置硬化 + 无边框窗口 + 冒烟升级
+
+- **Rust 端从 env 读 API 配置**（`apps/desktop/src-tauri/src/main.rs`）：新增 `#[tauri::command] get_api_config()`，`base_url` 读 `STORYFORGE_API_BASE_URL`、`api_key` 读 `STORYFORGE_API_KEY`（兜底 `local-dev-key`），renderer 经 `lib/api-client.getApiConfig` 取用，替代前端硬编码——落实上一轮报告所列「API key 硬化为 Rust 命令读 env」。`is_api_ready` 复用已有 `:8000/health/ready`，找不到项目根时明确报错（提示设 `STORYFORGE_ROOT`），不静默兜底。
+- **窗口**（`tauri.conf.json`）：`decorations:false` 无边框 + 自绘标题栏拖拽，补 `core:window:allow-*` 权限。
+- **冒烟升级**：`scripts/verify-tauri-smoke.mjs` 改为断言前端 `getApiConfigSnapshot()` 与 Rust `get_api_config` 同源（base_url/api_key 一致），`lib/smoke.ts` 暴露快照；`frontend/scripts/verify-smoke.mjs` 文案随四栏布局更新。
+- 其余为四栏暖调延续（`App.tsx`/`index.css`/`CommandPalette`/`ResourceExplorer`/`ProjectPanel`/`FileTree`/`menu.rs`/`fs.rs`），删除已废弃 `ProjectList.tsx`。
+
+## ④ Web 设置：Provider 探测带 API Key
+
+- `app/api/provider-models/provider-models.ts`：`probeProviderModels` 入参加 `apiKey`，请求带 `Authorization: Bearer <key>`；缺 key 直接返回明确错误「请先填写 Provider API Key」，不匿名探测。
+- `app/settings/ProviderSettingsPanel.tsx`：新增 API Key 字段 + 模型选择，URL+Key 齐备后 `scheduleAutoProbe` 自动拉取模型列表，配置存 `storyforge-provider-settings` localStorage。
+- **方向反转（有意决策）**：旧测试断言「不渲染密钥框、不存密钥」，现反转为「必须提供 API Key 字段并存入 localStorage」；`tests/settings-page.test.ts` 已同步，并断言 `Authorization: Bearer test-key` 与 `scheduleAutoProbe`。
+
+## 本地验证结果
+
+- 桌面前端：`pnpm.cmd run typecheck` 通过；`pnpm.cmd run verify:smoke` → `Desktop frontend smoke passed`，无控制台错误。
+- 桌面 Rust：`cargo check` 通过（16.74s，无 error/warning 阻断）。
+- Web：`pnpm --filter @storyforge/web test` → 226 passed / 1 failed。唯一失败为 **预先存在、与本笔无关** 的 `ide-page.test.mjs`（phase1 契约转译把 `.tsx` prototype 写入临时目录后 `ERR_MODULE_NOT_FOUND` 丢扩展名）——已 stash 全部 web 改动复跑确认同样 fail 1、pass 226 不变，故非本笔回归。
+- 真实 Tauri 运行时端到端（无边框窗口拖拽 + get_api_config 同源 + 四栏交互）需本机 cargo + 桌面环境逐项手测，本轮由 cargo check + 前端冒烟 + 同源断言覆盖。
+
+## 未联通 / 下一步
+
+- 既有失败 `ide-page.test.mjs`（prototype `.tsx` 转译丢扩展名）值得单独修，不属本笔范围。
+- Web Provider API Key 存浏览器 localStorage（明文），生产环境密钥落服务端的方案待定。
+
+记录时间戳：2026-06-19 +08:00。

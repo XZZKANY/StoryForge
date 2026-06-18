@@ -35,8 +35,8 @@ export function ProjectPanel({
             className="w-7 h-7 rounded-md hover:bg-foreground/10 flex items-center justify-center text-muted hover:text-foreground transition-colors"
             title="折叠项目栏"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeWidth="1.5" d="M2 4h12M2 8h12M2 12h12" />
             </svg>
           </button>
         )}
@@ -53,8 +53,8 @@ export function ProjectPanel({
           title="打开项目目录"
           className="w-7 h-7 rounded-md hover:bg-foreground/10 flex items-center justify-center text-muted hover:text-foreground transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 2v3h3v9h6V5h3V2H2zm8 3H6v8h4V5z" />
           </svg>
         </button>
       </div>

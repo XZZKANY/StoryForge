@@ -205,8 +205,8 @@ function TreeNodeItem({
           
           {/* Chevron 容器，固定宽度保证对齐 */}
           <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-            <svg className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            <svg className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6 4l4 4-4 4V4z" />
             </svg>
           </div>
           
@@ -243,8 +243,8 @@ function TreeNodeItem({
 
       {/* 文件图标容器，尺寸与 Chevron 容器严格一致以保证文字左对齐 */}
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-         <svg className={`w-3 h-3 ${isActive ? 'text-accent' : 'opacity-50 group-hover:opacity-80'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+         <svg className={`w-3 h-3 ${isActive ? 'text-accent' : 'opacity-50 group-hover:opacity-80'}`} viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
          </svg>
       </div>
       

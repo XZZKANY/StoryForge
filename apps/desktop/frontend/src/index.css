@@ -3,20 +3,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* StoryForge 桌面 IDE 暖色深调 —— 颜色 token 以空格分隔 RGB 通道暴露，
+/* StoryForge 桌面 IDE 中性深色调 —— 颜色 token 以空格分隔 RGB 通道暴露，
    供 Tailwind 的 rgb(var(--x) / <alpha-value>) 透明度修饰符使用。 */
 :root {
-  --background: 27 25 23;        /* #1b1917 深暖炭 */
-  --panel: 35 32 27;            /* #23201b 侧栏面板 */
-  --surface: 43 39 33;          /* #2b2721 悬浮/卡片层 */
-  --border: 43 43 43;           /* #2b2b2b 极暗的分割线 */
-  --foreground: 231 225 213;    /* #e7e1d5 暖白 */
-  --muted: 154 145 131;         /* #9a9183 次要文字 */
-  --accent: 200 128 74;         /* #c8804a 赭橙/琥珀，写作台灯气质 */
-  --accent-foreground: 27 25 23;/* 深色文字压在亮 accent 上 */
-  --error: 224 108 90;          /* #e06c5a 暖红 */
-  --warning: 217 160 91;        /* #d9a05b 琥珀黄 */
-  --success: 127 170 127;       /* #7faa7f 鼠尾草绿 */
+  --background: 24 24 27;       /* #18181b */
+  --panel: 31 31 35;            /* #1f1f23 */
+  --surface: 39 39 44;          /* #27272c */
+  --border: 58 58 64;           /* #3a3a40 */
+  --foreground: 237 237 237;    /* #ededed */
+  --muted: 150 150 150;         /* #969696 */
+  --accent: 232 132 72;         /* muted composer orange */
+  --accent-foreground: 17 17 17;
+  --error: 229 91 91;
+  --warning: 235 201 126;
+  --success: 115 202 128;
+
+  --sf-bar-height: 36px;
+  --sf-row-height: 30px;
+  --sf-tree-row-height: 26px;
+  --sf-control-height: 28px;
+  --sf-panel-x: 12px;
+  --sf-item-gap: 8px;
 }
 
 body {
@@ -46,6 +53,120 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.vertical-rl {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.sf-panel-header {
+  display: flex;
+  height: var(--sf-bar-height);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sf-item-gap);
+  border-bottom: 1px solid #2a2a2a;
+  padding: 0 var(--sf-panel-x);
+}
+
+.sf-sidebar-row {
+  display: flex;
+  height: var(--sf-row-height);
+  width: 100%;
+  align-items: center;
+  gap: var(--sf-item-gap);
+  border-radius: 6px;
+  padding: 0 var(--sf-panel-x);
+  text-align: left;
+}
+
+.sf-tree-row {
+  display: flex;
+  height: var(--sf-tree-row-height);
+  width: 100%;
+  align-items: center;
+  overflow: hidden;
+  padding-right: var(--sf-panel-x);
+  text-align: left;
+}
+
+.sf-toolbar-button {
+  display: inline-flex;
+  height: var(--sf-control-height);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.025);
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 1;
+  color: #a1a1aa;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.sf-toolbar-button:hover {
+  border-color: rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.055);
+  color: #e4e4e7;
+}
+
+.sf-icon-button {
+  display: inline-flex;
+  height: var(--sf-control-height);
+  width: var(--sf-control-height);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #8f8f8f;
+  line-height: 1;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.sf-icon-button:hover {
+  border-color: rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.055);
+  color: #e4e4e7;
+}
+
+.sf-topbar-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.sf-topbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+.sf-window-tools {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
   width: 10px;
@@ -57,13 +178,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--surface));
+  background: #4b4b4b;
   border: 2px solid rgb(var(--background));
   border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--border));
+  background: #666666;
 }
 
 /* 降低动效偏好下关闭过场动画 */

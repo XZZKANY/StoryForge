@@ -14,10 +14,52 @@ function runProcess(command, args, options = {}) {
     windowsHide: true,
   });
 
-  child.stdout.on('data', (chunk) => process.stdout.write(chunk));
-  child.stderr.on('data', (chunk) => process.stderr.write(chunk));
+  child.output = '';
+  child.stdout.on('data', (chunk) => {
+    child.output += chunk.toString();
+    process.stdout.write(chunk);
+  });
+  child.stderr.on('data', (chunk) => {
+    child.output += chunk.toString();
+    process.stderr.write(chunk);
+  });
 
   return child;
+}
+
+function killProcessTree(child) {
+  if (!child || child.exitCode !== null) return;
+  if (process.platform === 'win32') {
+    spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    return;
+  }
+  child.kill('SIGTERM');
+}
+
+async function waitForExit(child, label, timeoutMs) {
+  let timeout;
+  const exit = new Promise((resolve, reject) => {
+    child.on('exit', (code) => resolve(code ?? 0));
+    child.on('error', reject);
+  });
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      if (child.exitCode === null) {
+        killProcessTree(child);
+      }
+      const tail = child.output?.slice(-4000) ?? '';
+      reject(new Error(`${label} timed out after ${timeoutMs}ms\n--- output tail ---\n${tail}`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([exit, timeoutPromise]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function waitForUrl(url, timeoutMs = 30000) {
@@ -51,10 +93,7 @@ try {
   const build = runProcess('cmd.exe', ['/c', 'npm', 'run', 'build'], {
     cwd: frontendDir,
   });
-  const buildExitCode = await new Promise((resolve, reject) => {
-    build.on('exit', (code) => resolve(code ?? 0));
-    build.on('error', reject);
-  });
+  const buildExitCode = await waitForExit(build, 'Desktop frontend build', 120000);
   if (buildExitCode !== 0) {
     throw new Error(`Desktop frontend build exited with code ${buildExitCode}`);
   }
@@ -69,19 +108,20 @@ try {
 
   await waitForUrl('http://127.0.0.1:3007');
 
-  tauri = runProcess('cargo', ['run', '--manifest-path', 'src-tauri/Cargo.toml'], {
-    cwd: tauriDir,
-    env: {
-      ...process.env,
-      STORYFORGE_DESKTOP_SKIP_SERVICES: '1',
-      STORYFORGE_DESKTOP_SMOKE: '1',
+  tauri = runProcess(
+    'cargo',
+    ['run', '--manifest-path', 'src-tauri/Cargo.toml', '--target-dir', '.tauri-target-smoke'],
+    {
+      cwd: tauriDir,
+      env: {
+        ...process.env,
+        STORYFORGE_DESKTOP_SKIP_SERVICES: '1',
+        STORYFORGE_DESKTOP_SMOKE: '1',
+      },
     },
-  });
+  );
 
-  const exitCode = await new Promise((resolve, reject) => {
-    tauri.on('exit', (code) => resolve(code ?? 0));
-    tauri.on('error', reject);
-  });
+  const exitCode = await waitForExit(tauri, 'Desktop Tauri smoke', 300000);
 
   if (exitCode !== 0) {
     throw new Error(`Tauri smoke exited with code ${exitCode}`);
@@ -89,10 +129,6 @@ try {
 
   console.log('Desktop Tauri smoke passed');
 } finally {
-  if (tauri && tauri.exitCode === null) {
-    tauri.kill();
-  }
-  if (frontend && frontend.exitCode === null) {
-    frontend.kill();
-  }
+  killProcessTree(tauri);
+  killProcessTree(frontend);
 }

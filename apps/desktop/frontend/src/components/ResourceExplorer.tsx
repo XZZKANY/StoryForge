@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
+import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
 
 type ResourceExplorerProps = {
   projectPath: string | null;
@@ -127,24 +128,28 @@ export function ResourceExplorer({ projectPath, currentFile, onFileSelect }: Res
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-[#252526]">
+    <div className="flex h-full flex-col bg-[#111111]">
       {/* 标题栏 */}
-      <div className="h-[36px] px-3 border-b border-[#2D2D30] flex items-center justify-between flex-shrink-0">
+      <div className="sf-panel-header border-[#2D2D30]">
         <span className="text-xs font-medium text-[#CCCCCC]">资源管理器</span>
         <button
           onClick={handleCollapse}
-          className="w-5 h-5 rounded hover:bg-[#2D2D30] flex items-center justify-center text-[#CCCCCC]"
+          className="sf-icon-button text-[#CCCCCC] hover:bg-[#2D2D30]"
           title={collapsed ? '展开' : '折叠'}
         >
-          <svg className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <svg className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4 6l4 4 4-4H4z" />
           </svg>
         </button>
       </div>
 
       {/* 文件树 */}
       {!collapsed && (
-        <div className="flex-1 overflow-y-auto py-1">
+        <div
+          className="flex-1 overflow-y-auto py-2"
+          data-testid="file-list"
+          data-project-path={projectPath ?? ''}
+        >
           {!projectPath ? (
             <div className="mt-8 mx-4 text-center">
               <p className="text-sm text-[#858585]">尚未打开项目</p>
@@ -158,16 +163,18 @@ export function ResourceExplorer({ projectPath, currentFile, onFileSelect }: Res
               <p className="text-sm text-[#858585]">空空如也</p>
             </div>
           ) : (
-            <div className="flex flex-col">
-              {tree.map(node => (
-                <TreeNodeItem
-                  key={node.path}
-                  node={node}
-                  level={0}
-                  currentFile={currentFile}
-                  onFileSelect={onFileSelect}
-                />
-              ))}
+            <div className="flex flex-col gap-0.5">
+              <div className="pl-2">
+                {tree.map(node => (
+                  <TreeNodeItem
+                    key={node.path}
+                    node={node}
+                    level={0}
+                    currentFile={currentFile}
+                    onFileSelect={onFileSelect}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -207,19 +214,22 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <div className="flex flex-col">
         <button
           onClick={handleToggle}
-          className="flex items-center w-full text-left h-[22px] hover:bg-[#2A2D2E] text-[#CCCCCC] transition-colors group cursor-pointer"
+      className="sf-tree-row text-[#CCCCCC] transition-colors hover:bg-[#2A2D2E] group cursor-pointer"
         >
           <div className="flex items-center h-full pl-[4px]">
             {indentBlocks}
           </div>
 
           <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-            <svg className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            <svg className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6 4l4 4-4 4V4z" />
             </svg>
           </div>
+          <span className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-[#DCDCDC]' : 'text-[#A8A8A8] group-hover:text-[#DCDCDC]'}`}>
+            <FolderIcon className="h-3.5 w-3.5" />
+          </span>
 
-          <span className="text-[13px] truncate">{node.name}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
         </button>
         {isOpen && (
           <div className="flex flex-col">
@@ -241,8 +251,11 @@ const TreeNodeItem = memo(function TreeNodeItem({
   return (
     <button
       onClick={handleSelect}
+      data-testid="file-item"
+      data-file-name={node.name}
+      data-file-path={node.path}
       className={`
-        flex items-center w-full text-left h-[22px] transition-colors group cursor-pointer
+        sf-tree-row transition-colors group cursor-pointer
         ${isActive ? 'bg-[#37373D] text-white' : 'text-[#CCCCCC] hover:bg-[#2A2D2E]'}
       `}
     >
@@ -251,12 +264,10 @@ const TreeNodeItem = memo(function TreeNodeItem({
       </div>
 
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-        <svg className={`w-3 h-3 ${isActive ? 'text-[#4A9EFF]' : 'opacity-50 group-hover:opacity-80'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
+        <MarkdownFileIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[#7FB1FF]' : 'text-[#A8A8A8] opacity-70 group-hover:opacity-100'}`} />
       </div>
 
-      <span className="text-[13px] truncate flex-1">{node.name}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
     </button>
   );
 });

@@ -23,9 +23,13 @@ type CommandPaletteProps = {
   onOpenFile: (path: string) => void;
   onOpenProject: () => void;
   onReviewCurrent: () => void;
-  onToggleProject: () => void;
+  onExportCurrent: () => void;
   onToggleAssistant: () => void;
   onToggleWorkspace: () => void;
+  onOpenSettings: () => void;
+  onFocusAssistantOnly: () => void;
+  onFocusWorkspaceOnly: () => void;
+  onRestoreLayout: () => void;
 };
 
 function basename(path: string): string {
@@ -46,9 +50,13 @@ export function CommandPalette({
   onOpenFile,
   onOpenProject,
   onReviewCurrent,
-  onToggleProject,
+  onExportCurrent,
   onToggleAssistant,
   onToggleWorkspace,
+  onOpenSettings,
+  onFocusAssistantOnly,
+  onFocusWorkspaceOnly,
+  onRestoreLayout,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -90,14 +98,35 @@ export function CommandPalette({
         hint: relativeToProject(projectPath, currentFile),
         run: onReviewCurrent,
       });
+      list.push({
+        id: 'export-current',
+        title: '导出当前稿',
+        hint: relativeToProject(projectPath, currentFile),
+        run: onExportCurrent,
+      });
     }
     list.push(
-      { id: 'toggle-project', title: '切换：项目栏', run: onToggleProject },
       { id: 'toggle-assistant', title: '切换：AI 交互区', run: onToggleAssistant },
       { id: 'toggle-workspace', title: '切换：文件工作区', run: onToggleWorkspace },
+      { id: 'open-settings', title: '打开：设置', run: onOpenSettings },
+      { id: 'focus-assistant-only', title: '只保留：AI 交互区', run: onFocusAssistantOnly },
+      { id: 'focus-workspace-only', title: '只保留：文件工作区', run: onFocusWorkspaceOnly },
+      { id: 'restore-layout', title: '恢复：完整布局', run: onRestoreLayout },
     );
     return list;
-  }, [currentFile, projectPath, onOpenProject, onReviewCurrent, onToggleProject, onToggleAssistant, onToggleWorkspace]);
+  }, [
+    currentFile,
+    projectPath,
+    onOpenProject,
+    onReviewCurrent,
+    onExportCurrent,
+    onToggleAssistant,
+    onToggleWorkspace,
+    onOpenSettings,
+    onFocusAssistantOnly,
+    onFocusWorkspaceOnly,
+    onRestoreLayout,
+  ]);
 
   const fileItems = useMemo(() => {
     const q = query.trim().toLowerCase();

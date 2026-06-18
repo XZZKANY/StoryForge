@@ -27,8 +27,7 @@ pub struct FileEntry {
 /// 读取文件内容
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path)
-        .map_err(|e| format!("无法读取文件 {}: {}", path, e))
+    fs::read_to_string(&path).map_err(|e| format!("无法读取文件 {}: {}", path, e))
 }
 
 /// 写入文件内容
@@ -40,8 +39,7 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
             .map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
     }
 
-    fs::write(&path, content)
-        .map_err(|e| format!("无法写入文件 {}: {}", path, e))
+    fs::write(&path, content).map_err(|e| format!("无法写入文件 {}: {}", path, e))
 }
 
 /// 列出目录内容
@@ -72,9 +70,7 @@ pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String>
         }
     } else {
         // 只列出直接子项
-        for entry in fs::read_dir(path)
-            .map_err(|e| format!("无法读取目录: {}", e))?
-        {
+        for entry in fs::read_dir(path).map_err(|e| format!("无法读取目录: {}", e))? {
             let entry = entry.map_err(|e| format!("无法读取目录条目: {}", e))?;
             if let Ok(file_entry) = create_file_entry(&entry.path()) {
                 entries.push(file_entry);
@@ -83,12 +79,10 @@ pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String>
     }
 
     // 按名称排序：目录在前，文件在后
-    entries.sort_by(|a, b| {
-        match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
+    entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
 
     Ok(entries)
@@ -105,15 +99,12 @@ pub fn delete_path(path: String, recursive: bool) -> Result<(), String> {
 
     if path.is_dir() {
         if recursive {
-            fs::remove_dir_all(path)
-                .map_err(|e| format!("无法删除目录: {}", e))
+            fs::remove_dir_all(path).map_err(|e| format!("无法删除目录: {}", e))
         } else {
-            fs::remove_dir(path)
-                .map_err(|e| format!("无法删除目录（非空）: {}", e))
+            fs::remove_dir(path).map_err(|e| format!("无法删除目录（非空）: {}", e))
         }
     } else {
-        fs::remove_file(path)
-            .map_err(|e| format!("无法删除文件: {}", e))
+        fs::remove_file(path).map_err(|e| format!("无法删除文件: {}", e))
     }
 }
 
@@ -131,8 +122,7 @@ pub fn create_dir(path: String, recursive: bool) -> Result<(), String> {
 /// 重命名/移动文件或目录
 #[tauri::command]
 pub fn rename_path(from: String, to: String) -> Result<(), String> {
-    fs::rename(&from, &to)
-        .map_err(|e| format!("无法重命名 {} -> {}: {}", from, to, e))
+    fs::rename(&from, &to).map_err(|e| format!("无法重命名 {} -> {}: {}", from, to, e))
 }
 
 /// 检查路径是否存在
@@ -151,8 +141,7 @@ pub fn get_file_info(path: String) -> Result<FileEntry, String> {
 
 /// 从路径创建 FileEntry
 fn create_file_entry(path: &Path) -> Result<FileEntry, String> {
-    let metadata = fs::metadata(path)
-        .map_err(|e| format!("无法读取文件元数据: {}", e))?;
+    let metadata = fs::metadata(path).map_err(|e| format!("无法读取文件元数据: {}", e))?;
 
     let name = path
         .file_name()
@@ -271,7 +260,10 @@ mod tests {
 
         assert!(!path_exists(from));
         assert!(path_exists(to.clone()));
-        assert_eq!(read_file(to).expect("renamed file should be readable"), "draft");
+        assert_eq!(
+            read_file(to).expect("renamed file should be readable"),
+            "draft"
+        );
     }
 
     #[test]
