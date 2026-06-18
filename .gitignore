@@ -7,7 +7,9 @@ target/
 .turbo/
 apps/desktop/frontend/dist/
 apps/desktop/frontend/node_modules/
+apps/desktop/.tauri-target-smoke/
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/target-smoke/
 apps/web/out/
 .venv/
 __pycache__/

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "verify": "npm --prefix frontend run typecheck && npm --prefix frontend run build && npm --prefix frontend run verify:smoke && npm run test:rust && npm run verify:tauri-smoke",
+    "verify": "npm --prefix frontend run typecheck && npm --prefix frontend run test && npm --prefix frontend run build && npm --prefix frontend run verify:smoke && npm run test:rust && npm run verify:tauri-smoke",
     "verify:tauri-smoke": "node scripts/verify-tauri-smoke.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri": "tauri"
