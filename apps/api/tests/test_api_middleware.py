@@ -37,6 +37,22 @@ def test_health_endpoint_and_cors_preflight_are_public() -> None:
     assert preflight.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
+def test_desktop_frontend_cors_preflight_is_public() -> None:
+    """桌面 Vite 前端预检不要求 API Key。"""
+
+    with TestClient(app) as client:
+        preflight = client.options(
+            "/api/workspaces",
+            headers={
+                "Origin": "http://localhost:3007",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "http://localhost:3007"
+
+
 def test_cors_preflight_uses_explicit_method_and_header_allowlists() -> None:
     """浏览器预检只能公开计划内的方法和请求头。"""
 

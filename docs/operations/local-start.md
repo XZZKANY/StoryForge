@@ -4,7 +4,7 @@
 
 ## 1. 适用范围
 
-本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
+本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。当前默认开发入口是 Desktop IDE；Web 只作为维护、调试、兼容和契约验证入口。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
 
 当前阶段仍处于 Phase 9 真实 LLM 长程验收准备阶段：本地 Phase 9A/9B/9C 能力已有验证证据，真实 10 章 smoke 已完成最终验收，远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。详细阶段边界以 `docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `README.md` 为准。
 
@@ -32,9 +32,9 @@ Copy-Item .env.example .env
 - `DATABASE_URL`：对应 `docker-compose.yml` 中的 PostgreSQL。
 - `REDIS_URL`：对应本地 Redis。
 - `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`：对应本地 MinIO。
-- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`、`WEB_BASE_URL`：对应本地 API 与 Web 入口。
-- `STORYFORGE_API_KEY`：本地默认值与 API 和 Web 默认访问密钥保持一致。
-- `STORYFORGE_CORS_ORIGINS`：默认允许本地 Web 访问。
+- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`、`WEB_BASE_URL`：对应本地 API、Desktop IDE 和 Web 维护入口。
+- `STORYFORGE_API_KEY`：本地默认值与 API、Desktop IDE 和 Web 默认访问密钥保持一致。
+- `STORYFORGE_CORS_ORIGINS`：默认允许本地 Desktop Vite `3007` 和 Web 维护入口 `3000` 访问。
 - `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`、`STORYFORGE_WORKFLOW_SQLITE_PATH`：workflow 本地 runtime checkpoint。
 - `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*`、`STORYFORGE_RAG_*`：真实模型、embedding、reranker 与 RAG 预算预留；缺少真实私有配置时不得宣称真实外部 provider 端到端完成。
 
@@ -62,7 +62,27 @@ pnpm install
 
 Python 依赖由各应用目录的 `pyproject.toml` 和 `uv.lock` 管理；执行 `pnpm e2e`、`pnpm openapi` 或 API pytest 时会通过 `uv` 或本机 Python 运行相关验证。
 
-## 6. 本地验证顺序
+## 6. 启动 Desktop IDE 主体验
+
+```powershell
+cd D:/StoryForge
+pnpm dev
+```
+
+等价显式命令：
+
+```powershell
+pnpm desktop:dev
+```
+
+该入口会启动桌面 Vite dev server（`http://localhost:3007`）、Tauri 桌面窗口，并由 Tauri 主进程检查 Docker 服务、执行 Alembic 迁移和启动或复用 API。旧的 API + Web 联合启动只作为维护入口保留：
+
+```powershell
+pnpm dev:maintenance
+pnpm dev:web
+```
+
+## 7. 本地验证顺序
 
 常用本地门禁：
 
@@ -89,14 +109,14 @@ pnpm openapi
 - `pnpm test` 用于补充执行 Web、API、workflow 的测试集合。
 - `pnpm openapi` 用于刷新 `packages/shared/src/contracts/storyforge.openapi.json`；如果产生 diff，必须解释来源并补充测试证据。
 
-## 7. 当前远端门禁边界
+## 8. 当前远端门禁边界
 
 - 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集。
 - 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
 - 最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
 - 本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 E2E 的 API verification 预检；在线 PostgreSQL 迁移已在本轮复验。
 
-## 8. 真实 LLM smoke 入口
+## 9. 真实 LLM smoke 入口
 
 真实 LLM smoke 只在私有运行时变量已经由当前进程提供时执行；命令不读取 `.env`，不得输出或保存 provider token。
 
@@ -114,7 +134,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 这些证据只覆盖 1 章、3 章与 10 章 smoke。真实 3-5 万字长程仍未完成。
 
-## 9. 常见失败处理
+## 10. 常见失败处理
 
 ### Docker 容器未运行
 
@@ -164,7 +184,7 @@ gh run view <run-id> --repo XZZKANY/StoryForge --log-failed
 
 如果失败点仍是 Alembic `Multiple head revisions`，先确认包含本地 `20260604_0001` 修复的提交已经进入远端分支，再重新运行远端 E2E。当前已知通过证据为 `master` run `26944063055`。
 
-## 10. Git 检查
+## 11. Git 检查
 
 每轮启动或提交前执行：
 

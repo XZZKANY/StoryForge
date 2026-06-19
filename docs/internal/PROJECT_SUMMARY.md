@@ -6,6 +6,8 @@
 
 StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成、检索、评审、修复、批准、回写、运行日志、制品和评测摘要串成可追溯证据链，目标是支撑可审计、可恢复、可验证的长篇创作流程，而不是只输出孤立文本。
 
+当前产品重心已转为 Desktop IDE-first：`apps/desktop` 是主产品入口，`apps/web` 保留为维护、调试、兼容和契约验证入口。
+
 ## 2. 当前验证状态
 
 | 验证项 | 当前结果 | 说明 |
@@ -23,7 +25,8 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 - 仓库：`https://github.com/XZZKANY/StoryForge.git`，主分支 `master`。
 - 包管理器：`pnpm@9.15.4`。
 - API：FastAPI、Pydantic、SQLAlchemy、Alembic、PostgreSQL/pgvector、Redis。
-- Web：Next.js App Router、React、TypeScript。
+- Desktop IDE：Tauri、Vite、React、Monaco Editor、本地文件系统集成。
+- Web：Next.js App Router、React、TypeScript，维护模式。
 - Workflow：LangGraph 或本地兼容运行时，负责长任务、checkpoint、运行态记录和模型调用边界。
 - 共享契约：`packages/shared/src/contracts/storyforge.openapi.json`。
 
@@ -53,6 +56,7 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 ```powershell
 cd D:/StoryForge
 docker compose up -d postgres redis minio
+pnpm dev
 pnpm verify
 pnpm e2e
 pnpm test

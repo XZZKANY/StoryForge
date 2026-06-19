@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import re
-import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -57,6 +56,25 @@ REQUIRED_REAL_LLM_ENV = (
     "STORYFORGE_LLM_BASE_URL",
     "STORYFORGE_LLM_MODEL",
     "STORYFORGE_LLM_PROVIDER",
+)
+
+LLM_SETTINGS_ENV_KEYS = (
+    "STORYFORGE_LLM_API_KEY",
+    "STORYFORGE_LLM_BASE_URL",
+    "STORYFORGE_LLM_API_BASE_URL",
+    "STORYFORGE_LLM_MODEL",
+    "STORYFORGE_LLM_PROVIDER",
+    "STORYFORGE_LLM_TEMPERATURE",
+    "STORYFORGE_LLM_TIMEOUT_SECONDS",
+    "STORYFORGE_LLM_MAX_COMPLETION_TOKENS",
+    "STORYFORGE_LLM_REASONING_EFFORT",
+    "STORYFORGE_LLM_AUTH_HEADER",
+    "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS",
+    "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS",
+    "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS",
+    "STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS",
+    "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS",
+    "STORYFORGE_LLM_SMOKE_FAST_JUDGE",
 )
 
 REPAIR_THRESHOLD = 70
@@ -116,10 +134,61 @@ def _count_approved_chapters(completed_chapters: list[dict[str, object]]) -> int
     return sum(1 for item in completed_chapters if item.get("approved"))
 
 
+def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str, str | None]:
+    """返回真实 LLM 调用使用的配置源。
+
+    显式传入 ``env`` 时保持原样，便于测试和 CLI 覆盖；否则以进程环境为优先，
+    再用 pydantic-settings 从 .env/.env.local 读取的值补齐缺口。这样桌面端
+    直接启动 API、没有先 source .env 时，修订和整书生成也能看到同一份配置。
+    """
+
+    if env is not None:
+        return env
+
+    source: dict[str, str | None] = {key: os.environ.get(key) for key in LLM_SETTINGS_ENV_KEYS}
+    from app.common.config import get_settings
+
+    settings = get_settings()
+    settings_values: dict[str, object] = {
+        "STORYFORGE_LLM_API_KEY": getattr(settings, "storyforge_llm_api_key", ""),
+        "STORYFORGE_LLM_BASE_URL": getattr(settings, "storyforge_llm_base_url", ""),
+        "STORYFORGE_LLM_API_BASE_URL": getattr(settings, "storyforge_llm_api_base_url", ""),
+        "STORYFORGE_LLM_MODEL": getattr(settings, "storyforge_llm_model", ""),
+        "STORYFORGE_LLM_PROVIDER": getattr(settings, "storyforge_llm_provider", ""),
+        "STORYFORGE_LLM_TEMPERATURE": getattr(settings, "storyforge_llm_temperature", ""),
+        "STORYFORGE_LLM_TIMEOUT_SECONDS": getattr(settings, "storyforge_llm_timeout_seconds", ""),
+        "STORYFORGE_LLM_MAX_COMPLETION_TOKENS": getattr(settings, "storyforge_llm_max_completion_tokens", ""),
+        "STORYFORGE_LLM_REASONING_EFFORT": getattr(settings, "storyforge_llm_reasoning_effort", ""),
+        "STORYFORGE_LLM_AUTH_HEADER": getattr(settings, "storyforge_llm_auth_header", ""),
+        "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS": getattr(settings, "storyforge_llm_input_cny_per_m_tokens", ""),
+        "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS": getattr(settings, "storyforge_llm_output_cny_per_m_tokens", ""),
+        "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS": getattr(
+            settings, "storyforge_llm_cache_hit_input_cny_per_m_tokens", ""
+        ),
+        "STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS": getattr(
+            settings, "storyforge_llm_smoke_time_budget_seconds", ""
+        ),
+        "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS": getattr(
+            settings, "storyforge_llm_smoke_recap_full_chapters", ""
+        ),
+        "STORYFORGE_LLM_SMOKE_FAST_JUDGE": getattr(settings, "storyforge_llm_smoke_fast_judge", ""),
+    }
+    for key, value in settings_values.items():
+        if not _env_value(source, key) and value not in (None, ""):
+            source[key] = str(value)
+
+    if not _env_value(source, "STORYFORGE_LLM_BASE_URL"):
+        source["STORYFORGE_LLM_BASE_URL"] = _env_value(source, "STORYFORGE_LLM_API_BASE_URL")
+    if not _env_value(source, "STORYFORGE_LLM_API_BASE_URL"):
+        source["STORYFORGE_LLM_API_BASE_URL"] = _env_value(source, "STORYFORGE_LLM_BASE_URL")
+
+    return source
+
+
 def missing_book_generation_env(env: Mapping[str, str | None] | None = None) -> list[str]:
     """列出真实 LLM 生成所需但尚未配置的环境变量名。"""
 
-    source = os.environ if env is None else env
+    source = resolved_llm_env(env)
     return [name for name in REQUIRED_REAL_LLM_ENV if not _env_value(source, name)]
 
 
@@ -136,7 +205,7 @@ def run_book_generation(
 ) -> BookGenerationResult:
     """用真实 OpenAI 兼容 LLM 跑受控章节数的 BookRun 整书生成。"""
 
-    source = os.environ if env is None else env
+    source = resolved_llm_env(env)
     _assert_preflight(
         source,
         chapter_count,
@@ -651,13 +720,6 @@ def _call_llm(
     )
     timeout = _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
     started_at = time.monotonic()
-    print(
-        f"[_call_llm] url={http_request.full_url} timeout={timeout}s body_bytes={len(body)} "
-        f"prompt_chars={len(user_prompt)} max_completion_tokens={payload.get('max_completion_tokens', 'unset')} "
-        f"reasoning_effort={payload.get('reasoning_effort', 'unset')}",
-        file=sys.stderr,
-        flush=True,
-    )
     try:
         with request.urlopen(http_request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -667,22 +729,12 @@ def _call_llm(
             error_body = exc.read().decode("utf-8", errors="replace")[:2000]
         except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
             error_body = "<无法读取响应体>"
-        print(
-            f"[_call_llm] HTTPError code={exc.code} elapsed={elapsed_ms}ms body={error_body}",
-            file=sys.stderr,
-            flush=True,
-        )
         raise BookGenerationError(
             f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms）：{error_body}"
         ) from exc
     except (error.URLError, TimeoutError) as exc:
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         reason = getattr(exc, "reason", exc)
-        print(
-            f"[_call_llm] 连接失败/超时 elapsed={elapsed_ms}ms timeout={timeout}s reason={reason}",
-            file=sys.stderr,
-            flush=True,
-        )
         raise BookGenerationError(
             f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s）：{reason}"
         ) from exc
@@ -692,38 +744,13 @@ def _call_llm(
         finish_reason = choices[0].get("finish_reason")
     content = data["choices"][0]["message"]["content"]
     if not isinstance(content, str) or not content.strip():
-        raw_usage = data.get("usage") if isinstance(data, dict) else None
-        print(
-            f"[_call_llm] 空返回 finish_reason={finish_reason} usage={raw_usage} "
-            f"elapsed={int((time.monotonic() - started_at) * 1000)}ms",
-            file=sys.stderr,
-            flush=True,
-        )
         raise BookGenerationError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
     raw_chars = len(content)
     content = _strip_reasoning_leak(content)
     if not content:
-        print(
-            f"[_call_llm] 思维链剥离后内容为空 finish_reason={finish_reason} raw_chars={raw_chars} "
-            f"elapsed={int((time.monotonic() - started_at) * 1000)}ms",
-            file=sys.stderr,
-            flush=True,
-        )
         raise BookGenerationError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
-    if len(content) != raw_chars:
-        print(
-            f"[_call_llm] 剥离思维链泄漏 raw_chars={raw_chars} clean_chars={len(content)}",
-            file=sys.stderr,
-            flush=True,
-        )
     usage = _token_usage(data, user_prompt, content)
     cost_breakdown = _cost_breakdown(source, usage)
-    print(
-        f"[_call_llm] ok finish_reason={finish_reason} completion_tokens={usage.get('completion_tokens')} "
-        f"content_chars={len(content)} elapsed={int((time.monotonic() - started_at) * 1000)}ms",
-        file=sys.stderr,
-        flush=True,
-    )
     return {
         "content": content,
         **usage,

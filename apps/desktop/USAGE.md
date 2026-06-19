@@ -6,14 +6,16 @@
 
 ```bash
 # 在项目根目录运行
+npm --prefix apps/desktop/frontend install
 pnpm desktop:dev
 ```
 
 **首次运行**会自动：
+
 1. 下载并编译 Rust 依赖（5-10 分钟，仅首次）
 2. 启动 Docker 服务（PostgreSQL、Redis、MinIO）
 3. 执行数据库迁移
-4. 启动 FastAPI，并检查 Vite 桌面前端
+4. 启动 FastAPI，并自动启动/检查 Vite 桌面前端
 5. 打开桌面应用窗口
 
 **后续运行**：秒开（约 2-3 秒）
@@ -72,11 +74,12 @@ pnpm desktop:dev
 - **方法 1**：关闭桌面窗口（推荐）
 - **方法 2**：在启动终端按 `Ctrl+C`
 
-两种方式都会自动停止由桌面进程管理的 API 服务。当前 Vite 桌面前端如由独立终端启动，需要在对应终端停止。
+两种方式都会自动停止由桌面 dev 工作流拉起的前端和桌面进程；API 服务由桌面主进程管理时也会随之停止。
 
 ### 查看日志
 
 启动终端会显示所有服务的日志：
+
 - Docker Compose 输出
 - 数据库迁移日志
 - FastAPI 日志（API 请求）
@@ -90,6 +93,7 @@ pnpm tauri build
 ```
 
 生成文件：
+
 - Windows: `src-tauri/target/release/bundle/msi/StoryForge IDE_0.1.0_x64_en-US.msi`
 - macOS: `src-tauri/target/release/bundle/dmg/StoryForge IDE_0.1.0_x64.dmg`
 - Linux: `src-tauri/target/release/bundle/deb/storyforge-ide_0.1.0_amd64.deb`
@@ -99,11 +103,13 @@ pnpm tauri build
 ### 问题：找不到项目根目录
 
 **错误信息**：
+
 ```
 无法找到项目根目录。请设置环境变量 STORYFORGE_ROOT 或从项目目录运行
 ```
 
 **解决方案**：
+
 ```bash
 # 方法 1：从项目根目录运行
 cd /path/to/StoryForge
@@ -117,11 +123,13 @@ pnpm desktop:dev
 ### 问题：Docker 服务启动失败
 
 **错误信息**：
+
 ```
 Docker 服务启动失败: 执行 docker compose up 失败
 ```
 
 **解决方案**：
+
 1. 确保 Docker Desktop 正在运行
 2. 检查 Docker 守护进程：`docker ps`
 3. 手动启动服务测试：`docker compose up -d postgres redis minio`
@@ -129,11 +137,13 @@ Docker 服务启动失败: 执行 docker compose up 失败
 ### 问题：端口被占用
 
 **错误信息**：
+
 ```
 Bind for 0.0.0.0:8000 failed: port is already allocated
 ```
 
 **解决方案**：
+
 ```bash
 # Windows
 netstat -ano | findstr "8000"
@@ -146,11 +156,13 @@ lsof -ti:8000 | xargs kill -9
 ### 问题：API 服务启动失败
 
 **错误信息**：
+
 ```
 API 服务启动失败: API 服务未在 60 秒内就绪
 ```
 
 **解决方案**：
+
 1. 检查数据库是否正常：`docker compose ps postgres`
 2. 手动启动 API 查看详细错误：
    ```bash
@@ -161,11 +173,13 @@ API 服务启动失败: API 服务未在 60 秒内就绪
 ### 问题：数据库迁移失败
 
 **错误信息**：
+
 ```
 数据库迁移失败: 执行 alembic upgrade 失败
 ```
 
 **解决方案**：
+
 1. 检查 PostgreSQL 连接：
    ```bash
    docker compose exec postgres psql -U storyforge -d storyforge -c "SELECT 1;"
@@ -179,11 +193,13 @@ API 服务启动失败: API 服务未在 60 秒内就绪
 ### 问题：Rust 编译失败
 
 **错误信息**：
+
 ```
 error: failed to compile `storyforge-desktop`
 ```
 
 **解决方案**：
+
 1. 更新 Rust：`rustup update`
 2. 清理缓存：`cd apps/desktop/src-tauri && cargo clean`
 3. 重新编译：`cargo build`
@@ -224,7 +240,7 @@ pnpm tauri dev
 
 ```bash
 cd apps/desktop
-pnpm tauri dev
+STORYFORGE_DESKTOP_SKIP_SERVICES=1 pnpm tauri dev
 ```
 
 ## 📚 相关文档

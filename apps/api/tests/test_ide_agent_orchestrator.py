@@ -89,6 +89,61 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
     assert tool_calls[0]["status"] == "completed"
 
 
+def test_agent_user_message_reuses_existing_assistant_session(client: TestClient) -> None:
+    with client.websocket_connect("/api/ide/agent/sessions/session-multi-turn") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "user_message": "先解释这一段",
+                "intent": "chat.explain",
+                "args": {"context": "第一轮上下文"},
+            }
+        )
+        first = websocket.receive_json()
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "assistant_session_id": first["assistant_session_id"],
+                "user_message": "继续，换个角度",
+                "intent": "chat.explain",
+                "args": {"context": "第二轮上下文"},
+            }
+        )
+        second = websocket.receive_json()
+
+    assert second["type"] == "agent_result"
+    assert second["assistant_session_id"] == first["assistant_session_id"]
+
+    session_id = first["assistant_session_id"]
+    session_detail = client.get(f"/api/assistant/sessions/{session_id}").json()
+    assert [message["role"] for message in session_detail["messages"]] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert session_detail["messages"][0]["content"] == "先解释这一段"
+    assert session_detail["messages"][2]["content"] == "继续，换个角度"
+
+
+def test_agent_user_message_returns_error_for_missing_assistant_session(client: TestClient) -> None:
+    with client.websocket_connect("/api/ide/agent/sessions/session-missing-assistant") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "assistant_session_id": 999999,
+                "user_message": "继续上一轮",
+                "intent": "chat.explain",
+                "args": {"context": "正文"},
+            }
+        )
+        message = websocket.receive_json()
+
+    assert message["type"] == "error"
+    assert message["session_id"] == "session-missing-assistant"
+    assert "Assistant 会话不存在" in message["detail"]
+
+
 def test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirmation(
     client: TestClient,
     session_factory: sessionmaker[Session],

@@ -4,7 +4,7 @@
 
 ## 1. 使用方式
 
-本目录收纳 StoryForge 本地启动、发布、故障排查和迁移验证相关文档。后续代理接手发布治理时，应优先阅读本索引，再进入具体手册。
+本目录收纳 StoryForge 本地启动、发布、故障排查和迁移验证相关文档。当前默认开发入口是 Desktop IDE；Web 只作为维护、调试、兼容和契约验证入口。后续代理接手发布治理时，应优先阅读本索引，再进入具体手册。
 
 当前本地仓库路径为 `D:/StoryForge`。所有本地验证结论必须基于可重复命令，并写入 `.codex/verification-report.md`。
 
@@ -12,7 +12,7 @@
 
 | 文档 | 用途 | 何时阅读 |
 | --- | --- | --- |
-| `local-start.md` | 本地工具、环境文件、Docker 服务、依赖安装、`pnpm verify`、`pnpm e2e`、`pnpm test` 和 `pnpm openapi` 验证顺序。 | 新机器启动、环境重建、首次接手项目、复跑本地门禁。 |
+| `local-start.md` | 本地工具、环境文件、Docker 服务、依赖安装、Desktop IDE 默认启动、`pnpm verify`、`pnpm e2e`、`pnpm test` 和 `pnpm openapi` 验证顺序。 | 新机器启动、环境重建、首次接手项目、复跑本地门禁。 |
 | `troubleshooting.md` | Docker、API verification、FastAPI HTTP pytest、Alembic 多 head、远端 E2E、OpenAPI、provider 未配置、`pnpm verify` 和 Git 工作区故障排查。 | 本地验证失败、远端 E2E 失败或环境行为不确定时。 |
 | `alembic-validation.md` | Alembic 迁移脚本、head、离线 SQL 和在线数据库验证状态。 | 处理数据库迁移、升级或发布前数据库门禁时。 |
 | `release-checklist.md` | 发布前 Git、环境、OpenAPI、测试、文档和回滚门禁。 | 准备提交、推送、发布或交接前。 |

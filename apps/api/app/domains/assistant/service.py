@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,6 +16,7 @@ from app.domains.book_runs.book_generation import (
     BookGenerationError,
     _call_llm,
     missing_book_generation_env,
+    resolved_llm_env,
 )
 
 
@@ -192,6 +191,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
 
     LLM 未配置或调用失败时明确抛错，不伪造兜底内容。"""
 
+    llm_env = resolved_llm_env()
     missing = missing_book_generation_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
@@ -230,7 +230,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
 
     try:
         result = _call_llm(
-            os.environ,
+            llm_env,
             system_prompt=_REVISE_SYSTEM_PROMPT,
             user_prompt=_build_revise_prompt(payload),
         )
@@ -243,7 +243,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         raise AssistantReviseError(str(exc)) from exc
 
     after = str(result["content"])
-    model = os.environ.get("STORYFORGE_LLM_MODEL", "")
+    model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
     completion_tokens = result.get("completion_tokens")
     latency_ms = int(result.get("latency_ms", 0) or 0)
     summary = f"已按指令修订 {payload.file_path}，修订后约 {len(after)} 字。"

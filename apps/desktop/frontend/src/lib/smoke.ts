@@ -10,6 +10,7 @@ type SmokeApiConfig = Awaited<ReturnType<typeof getApiConfig>>;
 
 type SmokeController = {
   openProject: (path: string) => void;
+  openFile: (path: string) => void;
   getApiConfig: () => ReturnType<typeof getApiConfig>;
   getApiConfigSnapshot: () => SmokeApiConfig | null;
 };
@@ -21,7 +22,9 @@ declare global {
 }
 
 let pendingSmokeProjectPath: string | null = null;
+let pendingSmokeFilePath: string | null = null;
 let smokeProjectLoader: ((path: string) => Promise<void> | void) | null = null;
+let smokeFileLoader: ((path: string) => Promise<void> | void) | null = null;
 let apiConfigSnapshot: SmokeApiConfig | null = null;
 
 function refreshApiConfigSnapshot() {
@@ -37,10 +40,29 @@ if (typeof window !== 'undefined') {
       pendingSmokeProjectPath = path;
       void smokeProjectLoader?.(path);
     },
+    openFile(path: string) {
+      pendingSmokeFilePath = path;
+      void smokeFileLoader?.(path);
+    },
     getApiConfig,
     getApiConfigSnapshot() {
       return apiConfigSnapshot;
     },
+  };
+}
+
+export function registerSmokeFileLoader(loader: (path: string) => Promise<void> | void) {
+  smokeFileLoader = loader;
+  if (pendingSmokeFilePath) {
+    const path = pendingSmokeFilePath;
+    pendingSmokeFilePath = null;
+    void loader(path);
+  }
+
+  return () => {
+    if (smokeFileLoader === loader) {
+      smokeFileLoader = null;
+    }
   };
 }
 

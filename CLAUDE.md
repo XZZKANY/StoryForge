@@ -13,7 +13,8 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 ## 2. 技术栈
 
 - **API（后端事实源）：** FastAPI（Python 3.11+） + SQLAlchemy + Alembic + Pydantic v2，依赖管理走 `uv`。
-- **Web（前端工作台）：** Next.js 15（App Router） + React 19 + Tailwind v4 + TypeScript 5.8。
+- **Desktop IDE（主产品入口）：** Tauri 2 + Vite + React 18 + Monaco Editor + 本地文件系统集成。
+- **Web（维护/调试入口）：** Next.js 15（App Router） + React 19 + Tailwind v4 + TypeScript 5.8。
 - **Workflow（编排）：** LangGraph，承载长任务、checkpoint、真实模型调用边界。
 - **共享契约：** `packages/shared`（TypeScript 包），其中 `src/contracts/storyforge.openapi.json` 是后端 OpenAPI 快照，必须随后端变化同步刷新。
 - **基础设施：** PostgreSQL（+ pgvector） + Redis + MinIO（对象存储） + Sentry（错误追踪） + Prometheus 指标。
@@ -30,7 +31,8 @@ apps/
       domains/   ~25 个业务域，每个含 router.py / service.py / schemas.py / models.py
       main.py    FastAPI 应用装配 + 全局中间件
     alembic/     数据库迁移
-  web/           Next.js 前端工作台（/studio /retrieval /artifacts /evaluations /runs /worldbuilding /refinery）
+  desktop/      Tauri 桌面 IDE（当前主产品体验）
+  web/          Next.js 维护入口（/studio /retrieval /artifacts /evaluations /runs /worldbuilding /refinery）
   workflow/      LangGraph 编排器（generation_graph、provider_adapter、creative_tool_registry）
 packages/
   shared/        TS 共享契约 + 类型，src/contracts/storyforge.openapi.json 为后端契约快照
@@ -46,9 +48,11 @@ docs/            架构与工作台契约文档
 ### 一键开发环境
 
 ```bash
-pnpm dev               # docker compose + alembic + API + Web 全启动
+pnpm dev               # 桌面 IDE 主体验（含桌面 Vite、Docker、迁移、API、Tauri 窗口）
+pnpm desktop:dev       # 同上，显式桌面端入口
+pnpm dev:maintenance   # docker compose + alembic + API + Web 维护入口
 pnpm dev:api           # 只启基础服务 + API
-pnpm dev:web           # 只启基础服务 + Web
+pnpm dev:web           # 只启基础服务 + Web 维护入口
 node scripts/dev-start.mjs --skip-docker --skip-migrate    # 已有服务时快速重启
 ```
 
@@ -82,7 +86,8 @@ cd apps/web && pnpm test
 ## 5. 架构事实源
 
 - **API 是业务真相源。** 任何流程的判定都在 FastAPI 路由 + service 层完成；前端不允许私自计算业务结论。
-- **Web 只展示已验证页面级闭环。** 业务请求必须经 `apps/web/lib/api-client.ts` 注入 `X-StoryForge-API-Key` 与 `cache: "no-store"`。
+- **Desktop IDE 是主体验。** 新的用户工作流默认落在 `apps/desktop`；Tauri 主进程负责本地文件系统、服务启动和 API 配置注入。
+- **Web 只保留维护、调试和契约验证职责。** 业务请求必须经 `apps/web/lib/api-client.ts` 注入 `X-StoryForge-API-Key` 与 `cache: "no-store"`。
 - **Workflow 负责长任务边界。** 真实模型调用、checkpoint、ModelRun 记录都在 workflow，确保 API 始终保持事务边界清晰。
 - **OpenAPI 是 Web/API 之间的硬契约。** 任何路由签名变化都必须 `pnpm openapi` 刷新快照，并解释 diff 来源。
 
@@ -128,5 +133,5 @@ cd apps/web && pnpm test
 - **PowerShell 执行策略：** Windows 下 `pnpm.ps1` 可能被阻塞，改用 `pnpm.cmd` 或 `powershell.exe -NoProfile -Command "pnpm.cmd run X"`。
 - **OpenAPI 漂移：** 改了路由没跑 `pnpm openapi` → CI 立刻挂。
 - **API Key：** 默认 `local-dev-key`，生产环境如未配置 `STORYFORGE_API_KEY` 会触发 warn_default_credentials 日志告警。
-- **CORS：** 默认允许 `http://localhost:3000` 和 `http://127.0.0.1:3000`，自定义前端域名要改 `STORYFORGE_CORS_ORIGINS`。
+- **CORS：** 默认允许桌面 Vite `http://localhost:3007` / `http://127.0.0.1:3007` 和 Web 维护入口 `http://localhost:3000` / `http://127.0.0.1:3000`，自定义前端域名要改 `STORYFORGE_CORS_ORIGINS`。
 - **migration 锁：** docker entrypoint 自动获取 advisory lock，多实例并发部署时不要绕开。

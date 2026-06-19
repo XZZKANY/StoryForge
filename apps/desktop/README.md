@@ -6,7 +6,7 @@
 
 - **一键启动**：自动管理基础服务、API 和桌面前端
 - **原生体验**：独立桌面窗口，无需浏览器
-- **IDE-first**：桌面 IDE 是后续主产品体验，Web 保留为维护和调试入口
+- **IDE-first**：桌面 IDE 是当前主产品体验，Web 保留为维护和调试入口
 
 ## 环境要求
 
@@ -20,15 +20,17 @@
 
 ```bash
 # 从项目根目录运行
+npm --prefix apps/desktop/frontend install
 pnpm desktop:dev
 ```
 
 **自动完成**：
+
 1. ✅ 启动 Docker Compose（PostgreSQL、Redis、MinIO）
 2. ✅ 等待基础服务就绪
 3. ✅ 执行数据库迁移（alembic upgrade head）
 4. ✅ 启动 FastAPI（:8000）
-5. ✅ 检查 Vite 桌面前端（:3007）
+5. ✅ 自动启动并检查 Vite 桌面前端（:3007）
 6. ✅ 打开桌面应用窗口
 
 **首次运行**需要等待 Rust 编译（5-10 分钟），之后秒开。
@@ -77,13 +79,14 @@ desktop/
 └── package.json     npm 脚本
 ```
 
-前端通过 `devUrl: http://localhost:3007` 加载 `apps/desktop/frontend` 的 Vite + Monaco IDE。Web 版入口不再作为桌面 IDE 的主体验来源。
+前端通过 `devUrl: http://localhost:3007` 加载 `apps/desktop/frontend` 的 Vite + Monaco IDE。`tauri dev` 会通过 `beforeDevCommand` 自动启动或复用该 Vite 服务；Web 版入口不再作为桌面 IDE 的主体验来源。
 
 ## 故障排查
 
 ### 找不到项目根目录
 
 设置环境变量：
+
 ```bash
 export STORYFORGE_ROOT=/path/to/StoryForge
 pnpm desktop:dev
@@ -92,6 +95,7 @@ pnpm desktop:dev
 ### Docker 服务启动失败
 
 确保 Docker Desktop 正在运行：
+
 ```bash
 docker ps
 ```
@@ -99,6 +103,7 @@ docker ps
 ### API/桌面前端端口被占用
 
 检查并关闭占用端口的进程：
+
 ```bash
 # Windows
 netstat -ano | findstr "8000"
@@ -111,6 +116,7 @@ taskkill /PID <PID> /F
 ### 数据库迁移失败
 
 手动执行迁移查看详细错误：
+
 ```bash
 cd apps/api
 uv run alembic upgrade head

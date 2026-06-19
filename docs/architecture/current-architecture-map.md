@@ -2,7 +2,7 @@
 
 生成时间：2026-06-15 +08:00
 
-StoryForge 采用 IDE-first 产品方向：Desktop IDE 是后续主体验，Web 进入维护模式，API 和 Workflow 继续作为共享后端能力。
+StoryForge 采用 IDE-first 产品方向：Desktop IDE 是当前主体验，Web 进入维护模式，API 和 Workflow 继续作为共享后端能力。
 
 ## 产品入口
 

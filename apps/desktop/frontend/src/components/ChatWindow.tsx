@@ -16,6 +16,7 @@ import {
 } from '../lib/assistant-events';
 import { createRemoteFileSuggestion } from '../lib/assistant-suggestions';
 import {
+  getAssistantSession,
   sendAgentUserMessage,
   toAssistantContextBundlePayload,
   isAgentErrorMessage,
@@ -26,14 +27,17 @@ import {
 } from '../lib/api-client';
 import { buildContextBundle } from '../lib/project-context';
 import { TauriFileSystem } from '../lib/tauri-fs';
+import { AgentStepsPanel } from './AgentStepsPanel';
 
 type ChatWindowProps = {
   projectPath: string | null;
   currentFile: string | null;
+  assistantSessionId?: number | null;
   layoutMode?: 'normal' | 'custom' | 'assistant-only' | 'workspace-only';
   onCollapse?: () => void;
   onFocusOnly?: () => void;
   onRestoreLayout?: () => void;
+  onAssistantSessionChange?: (assistantSessionId: number | null) => void;
 };
 
 type Message = {
@@ -59,6 +63,11 @@ type AgentRun = {
 };
 
 type ConversationIntent = 'chat.explain' | 'file.revise' | 'file.export';
+
+type RetryRequest = {
+  goal: string;
+  intent: ConversationIntent;
+};
 
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
@@ -162,6 +171,17 @@ function deriveConversationTitle(text: string): string {
   return title || '新的创作会话';
 }
 
+function toConversationMessage(role: string, content: string): Message | null {
+  if (role !== 'user' && role !== 'assistant') return null;
+  return { role, content };
+}
+
+function compactConversationMessages(messages: Array<{ role: string; content: string }>): Message[] {
+  return messages
+    .map((message) => toConversationMessage(message.role, message.content))
+    .filter((message): message is Message => message !== null);
+}
+
 function detectConversationIntent(text: string): ConversationIntent {
   if (/导出|交付|发布/.test(text) && !/修|改|审|润|检查|问题|一致|节奏|结构/.test(text)) {
     return 'file.export';
@@ -191,15 +211,18 @@ function runStatusText(run: AgentRun | null): string | null {
 export function ChatWindow({
   projectPath,
   currentFile,
+  assistantSessionId,
   layoutMode: _layoutMode = 'normal',
   onCollapse: _onCollapse,
   onFocusOnly: _onFocusOnly,
   onRestoreLayout: _onRestoreLayout,
+  onAssistantSessionChange,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [agentRun, setAgentRun] = useState<AgentRun | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
+  const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
   const [conversationTitle, setConversationTitle] = useState('新的创作会话');
 
   const projectName = projectPath ? basename(projectPath) : null;
@@ -209,9 +232,36 @@ export function ChatWindow({
   const currentFileRef = useRef<string | null>(currentFile);
   const projectPathRef = useRef<string | null>(projectPath);
   const agentRunIdRef = useRef<string | null>(null);
+  const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
   contextRefRef.current = contextRef;
   currentFileRef.current = currentFile;
   projectPathRef.current = projectPath;
+  assistantSessionIdRef.current = assistantSessionId ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!assistantSessionId) {
+      setMessages([]);
+      setConversationTitle('新的创作会话');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void getAssistantSession(assistantSessionId)
+      .then((session) => {
+        if (cancelled) return;
+        setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
+        setMessages(compactConversationMessages(session.messages));
+      })
+      .catch(() => {
+        if (!cancelled) onAssistantSessionChange?.(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assistantSessionId, onAssistantSessionChange]);
 
   const updateAgentStep = useCallback((stepId: string, patch: Partial<AgentStep>) => {
     setAgentRun((run) => {
@@ -258,6 +308,7 @@ export function ChatWindow({
     const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     agentRunIdRef.current = runId;
     setAgentBusy(true);
+    setRetryRequest(null);
     setAgentRun({
       id: runId,
       goal,
@@ -311,6 +362,7 @@ export function ChatWindow({
       });
       const response = await sendAgentUserMessage({
         sessionId: runId,
+        assistantSessionId: assistantSessionIdRef.current,
         userMessage: goal,
         intent: reviseFile ? 'file.revise' : 'chat.explain',
         args: {
@@ -323,6 +375,7 @@ export function ChatWindow({
       if (isAgentErrorMessage(response)) {
         updateAgentStep('orchestrate', { status: 'failed', detail: response.detail });
         updateAgentStatus('failed');
+        setRetryRequest({ goal, intent });
         setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${response.detail}` }]);
         return;
       }
@@ -331,9 +384,13 @@ export function ChatWindow({
         const detail = `Agent 返回了暂不支持的消息：${response.type}`;
         updateAgentStep('orchestrate', { status: 'failed', detail });
         updateAgentStatus('failed');
+        setRetryRequest({ goal, intent });
         setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
         return;
       }
+
+      assistantSessionIdRef.current = response.assistant_session_id;
+      onAssistantSessionChange?.(response.assistant_session_id);
 
       const agentSteps = stepsFromAgentResult(response);
       setAgentRun((run) => run ? {
@@ -384,9 +441,16 @@ export function ChatWindow({
       const message = error instanceof Error ? error.message : String(error);
       updateAgentStep('orchestrate', { status: 'failed', detail: message });
       updateAgentStatus('failed');
+      setRetryRequest({ goal, intent });
       setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
     }
-  }, [agentBusy, projectName, updateAgentStatus, updateAgentStep]);
+  }, [agentBusy, onAssistantSessionChange, projectName, updateAgentStatus, updateAgentStep]);
+
+  const retryLastFailedRun = useCallback(() => {
+    if (!retryRequest || agentBusy) return;
+    setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
+    void runAuthorAgent(retryRequest.goal, retryRequest.intent);
+  }, [agentBusy, retryRequest, runAuthorAgent]);
 
   // 命令面板触发"审查当前文件"
   useEffect(() => {
@@ -490,10 +554,15 @@ export function ChatWindow({
         currentFileLabel={contextRef}
         disabled={!projectPath || agentBusy}
         onSubmit={handleComposerSubmit}
+        agentRun={agentRun}
       />
 
       {runStatusText(agentRun) && (
-        <LightweightStatus text={runStatusText(agentRun) ?? ''} />
+        <LightweightStatus
+          text={runStatusText(agentRun) ?? ''}
+          retryVisible={agentRun?.status === 'failed' && retryRequest !== null && !agentBusy}
+          onRetry={retryLastFailedRun}
+        />
       )}
 
       {messages.length > 0 && (
@@ -531,12 +600,14 @@ function MessageList({
   currentFileLabel,
   disabled,
   onSubmit,
+  agentRun,
 }: {
   messages: Message[];
   projectName: string | null;
   currentFileLabel: string | null;
   disabled: boolean;
   onSubmit: (value: string) => void;
+  agentRun: AgentRun | null;
 }) {
   if (messages.length === 0) {
     return (
@@ -557,6 +628,13 @@ function MessageList({
         {messages.map((message, index) => (
           <MessageItem key={index} message={message} />
         ))}
+
+        {/* Agent 执行步骤面板 */}
+        {agentRun && agentRun.steps.length > 0 && (
+          <div className="animate-slide-up-fade">
+            <AgentStepsPanel run={agentRun} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -626,10 +704,29 @@ function EmptyConversation({
   );
 }
 
-function LightweightStatus({ text }: { text: string }) {
+function LightweightStatus({
+  text,
+  retryVisible = false,
+  onRetry,
+}: {
+  text: string;
+  retryVisible?: boolean;
+  onRetry?: () => void;
+}) {
   return (
     <div className="flex-shrink-0 border-t border-[#333338] bg-[#202024] px-5 py-2">
-      <div className="mx-auto max-w-[800px] truncate text-xs text-[#A8A8B0]">{text}</div>
+      <div className="mx-auto flex max-w-[800px] items-center gap-3">
+        <div className="min-w-0 flex-1 truncate text-xs text-[#A8A8B0]">{text}</div>
+        {retryVisible && (
+          <button
+            type="button"
+            className="h-7 flex-shrink-0 rounded-md border border-[#4A4A52] px-2.5 text-xs text-[#EDEDED] hover:bg-[#2A2A30]"
+            onClick={onRetry}
+          >
+            重试本轮
+          </button>
+        )}
+      </div>
     </div>
   );
 }

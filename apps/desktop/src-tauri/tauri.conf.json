@@ -4,8 +4,15 @@
   "version": "0.1.0",
   "identifier": "com.storyforge.ide",
   "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "beforeDevCommand": {
+      "script": "node ../scripts/dev-frontend.mjs",
+      "cwd": "../frontend",
+      "wait": false
+    },
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "../frontend"
+    },
     "devUrl": "http://localhost:3007",
     "frontendDist": "../frontend/dist"
   },

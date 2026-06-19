@@ -151,8 +151,31 @@ export type AgentSocketMessage = AgentResultMessage | AgentErrorMessage | {
 export type AgentUserMessageRequest = {
   sessionId: string;
   userMessage: string;
+  assistantSessionId?: number | null;
   intent?: string;
   args?: Record<string, unknown>;
+  timeoutMs?: number;
+};
+
+export type AssistantMessageRecord = {
+  id: number;
+  session_id: number;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssistantSessionRecord = {
+  id: number;
+  title: string;
+  task_type: string;
+  blueprint_id: number | null;
+  book_run_id: number | null;
+  artifact_id: number | null;
+  messages: AssistantMessageRecord[];
+  created_at: string;
+  updated_at: string;
 };
 
 export function toAssistantContextBundlePayload(
@@ -236,6 +259,26 @@ export async function requestRevision(request: ReviseRequest): Promise<ReviseRes
   };
 }
 
+export async function getAssistantSession(assistantSessionId: number): Promise<AssistantSessionRecord> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const response = await fetch(
+    `${baseUrl.replace(/\/+$/, '')}/api/assistant/sessions/${assistantSessionId}`,
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        'X-StoryForge-API-Key': apiKey,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+
+  return await response.json() as AssistantSessionRecord;
+}
+
 export async function sendAgentUserMessage(request: AgentUserMessageRequest): Promise<AgentSocketMessage> {
   const { baseUrl, apiKey } = await getApiConfig();
   const socketUrl = websocketUrlFromBaseUrl(
@@ -247,10 +290,14 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
   return await new Promise((resolve, reject) => {
     const socket = new WebSocket(socketUrl);
     let settled = false;
+    const timeout = window.setTimeout(() => {
+      finish(() => reject(new Error('Agent WebSocket 响应超时。')));
+    }, request.timeoutMs ?? 120000);
 
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
+      window.clearTimeout(timeout);
       try {
         socket.close();
       } catch {
@@ -263,6 +310,7 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
       socket.send(JSON.stringify({
         type: 'user_message',
         user_message: request.userMessage,
+        assistant_session_id: request.assistantSessionId ?? undefined,
         intent: request.intent,
         args: request.args ?? {},
       }));
@@ -282,8 +330,9 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
     };
 
     socket.onclose = (event) => {
-      if (!settled && event.code !== 1000) {
-        finish(() => reject(new Error(`Agent WebSocket 已关闭：${event.reason || event.code}`)));
+      if (!settled) {
+        const detail = event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
+        finish(() => reject(new Error(`Agent WebSocket 已关闭：${detail}`)));
       }
     };
   });

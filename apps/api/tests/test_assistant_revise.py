@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -95,6 +97,58 @@ def test_revise_includes_desktop_context_bundle_in_prompt(
     session_id = response.json()["assistant_session_id"]
     tool_calls = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
     assert tool_calls[0]["input_summary"]["context_file_count"] == 2
+
+
+def test_revise_uses_settings_llm_config_when_env_not_exported(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """桌面 API 启动未 source .env 时，修订也要使用 settings 读到的 LLM 配置。"""
+
+    for name in (
+        "STORYFORGE_LLM_API_KEY",
+        "STORYFORGE_LLM_BASE_URL",
+        "STORYFORGE_LLM_API_BASE_URL",
+        "STORYFORGE_LLM_MODEL",
+        "STORYFORGE_LLM_PROVIDER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    from app.common import config as config_module
+
+    config_module.get_settings.cache_clear()
+    monkeypatch.setattr(
+        config_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            storyforge_llm_api_key="settings-private-credential",
+            storyforge_llm_base_url="http://provider.test/v1",
+            storyforge_llm_api_base_url="",
+            storyforge_llm_model="settings-model",
+            storyforge_llm_provider="openai-compatible",
+            storyforge_llm_temperature=0.4,
+            storyforge_llm_timeout_seconds=17.0,
+        ),
+    )
+    captured: dict[str, str | None] = {}
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        captured.update(dict(source))
+        assert source["STORYFORGE_LLM_API_KEY"] == "settings-private-credential"
+        assert source["STORYFORGE_LLM_BASE_URL"] == "http://provider.test/v1"
+        assert source["STORYFORGE_LLM_MODEL"] == "settings-model"
+        return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
+
+    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={"file_path": "draft.md", "content": "正文", "instruction": "改写"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["model"] == "settings-model"
+    assert captured["STORYFORGE_LLM_TIMEOUT_SECONDS"] == "17.0"
 
 
 def test_revise_returns_422_when_llm_not_configured(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

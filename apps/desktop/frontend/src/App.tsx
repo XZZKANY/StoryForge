@@ -14,7 +14,7 @@ import { SettingsView } from './components/SettingsView';
 import { HomeStoryIcon, ProjectIcon } from './components/StoryIcons';
 import { isTauriRuntime } from './lib/tauri-env';
 import { TauriFileSystem } from './lib/tauri-fs';
-import { registerSmokeProjectLoader } from './lib/smoke';
+import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { emitExportCurrentFile, emitReviewCurrentFile } from './lib/assistant-events';
 import { loadAppSettings, saveAppSettings, type AppSettings } from './lib/user-settings';
 
@@ -22,6 +22,7 @@ type LayoutMode = 'normal' | 'custom' | 'assistant-only' | 'workspace-only';
 
 const RECENT_PROJECTS_KEY = 'recent-projects';
 const RECENT_FILES_KEY = 'recent-files';
+const PROJECT_ASSISTANT_SESSIONS_KEY = 'project-assistant-sessions';
 
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
@@ -42,11 +43,32 @@ function normalizeMarkdownFileName(input: string): string {
   return /\.(md|markdown)$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
 }
 
+function loadProjectAssistantSessions(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(PROJECT_ASSISTANT_SESSIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, number] => (
+        typeof entry[0] === 'string' && typeof entry[1] === 'number' && entry[1] > 0
+      )),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function saveProjectAssistantSessions(sessions: Record<string, number>) {
+  localStorage.setItem(PROJECT_ASSISTANT_SESSIONS_KEY, JSON.stringify(sessions));
+}
+
 export function App() {
   const [projects, setProjects] = useState<string[]>([]);
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [currentFile, setCurrentFile] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
+  const [projectAssistantSessions, setProjectAssistantSessions] = useState<Record<string, number>>(
+    () => loadProjectAssistantSessions(),
+  );
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
@@ -137,6 +159,12 @@ export function App() {
     });
   }, []);
 
+  useEffect(() => {
+    return registerSmokeFileLoader((path: string) => {
+      handleFileSelect(path);
+    });
+  }, [handleFileSelect]);
+
   const handleFileClose = useCallback(() => {
     setCurrentFile(null);
     setEmptyWorkbenchVisible(false);
@@ -196,6 +224,21 @@ export function App() {
     setLayoutMode('custom');
     setEditorVisible(true);
   }, []);
+
+  const setActiveProjectAssistantSession = useCallback((assistantSessionId: number | null) => {
+    const project = activeProject;
+    if (!project) return;
+    setProjectAssistantSessions((prev) => {
+      const next = { ...prev };
+      if (assistantSessionId) {
+        next[project] = assistantSessionId;
+      } else {
+        delete next[project];
+      }
+      saveProjectAssistantSessions(next);
+      return next;
+    });
+  }, [activeProject]);
 
   const handleComposerModeChange = useCallback((mode: ComposerLayoutMode) => {
     setSettingsVisible(false);
@@ -326,6 +369,7 @@ export function App() {
             <CodexSidebar
               projects={projects}
               activeProject={activeProject}
+              projectAssistantSessions={projectAssistantSessions}
               onSelectProject={selectProject}
               onOpenProject={handleOpenProject}
               onOpenSettings={openSettings}
@@ -350,8 +394,10 @@ export function App() {
                 <AgentWorkspace
                   projectPath={activeProject}
                   currentFile={currentFile}
+                  assistantSessionId={activeProject ? projectAssistantSessions[activeProject] ?? null : null}
                   exposeWorkspaceToggle={!workbenchPanelVisible}
                   layoutMode={layoutMode}
+                  onAssistantSessionChange={setActiveProjectAssistantSession}
                   onFocusOnly={focusAssistantOnly}
                   onRestoreLayout={restoreFullLayout}
                   onCollapse={() => handleComposerModeChange('floating')}
@@ -588,12 +634,14 @@ function LayoutSplitIcon() {
 function CodexSidebar({
   projects,
   activeProject,
+  projectAssistantSessions,
   onSelectProject,
   onOpenProject,
   onOpenSettings,
 }: {
   projects: string[];
   activeProject: string | null;
+  projectAssistantSessions: Record<string, number>;
   onSelectProject: (path: string) => void;
   onOpenProject: () => void;
   onOpenSettings: () => void;
@@ -656,7 +704,10 @@ function CodexSidebar({
           const label = project.includes('\\') || project.includes('/') ? basename(project) : project;
           const isActive = activeProject === path;
           const isExpanded = expandedProjects.has(path);
-          const sessions: Array<{ id: string; title: string }> = [];
+          const sessionId = projectAssistantSessions[path];
+          const sessions: Array<{ id: number; title: string }> = sessionId
+            ? [{ id: sessionId, title: '最近创作会话' }]
+            : [];
           return (
             <div key={project}>
               <button
@@ -712,6 +763,8 @@ function CodexSidebar({
                       <button
                         key={session.id}
                         className="flex h-7 w-full items-center rounded px-2 text-left text-xs text-[#BDBDBD] hover:bg-[#222222] hover:text-white"
+                        onClick={() => onSelectProject(path)}
+                        title={`Assistant 会话 #${session.id}`}
                       >
                         <span className="min-w-0 flex-1 truncate">{session.title}</span>
                       </button>
@@ -818,16 +871,20 @@ function SidebarButton({ icon, label }: { icon: React.ReactNode; label: string }
 function AgentWorkspace({
   projectPath,
   currentFile,
+  assistantSessionId,
   exposeWorkspaceToggle,
   layoutMode,
+  onAssistantSessionChange,
   onFocusOnly,
   onRestoreLayout,
   onCollapse,
 }: {
   projectPath: string | null;
   currentFile: string | null;
+  assistantSessionId: number | null;
   exposeWorkspaceToggle: boolean;
   layoutMode: LayoutMode;
+  onAssistantSessionChange: (assistantSessionId: number | null) => void;
   onFocusOnly: () => void;
   onRestoreLayout: () => void;
   onCollapse: () => void;
@@ -846,7 +903,9 @@ function AgentWorkspace({
           <ChatWindow
             projectPath={projectPath}
             currentFile={currentFile}
+            assistantSessionId={assistantSessionId}
             layoutMode={layoutMode}
+            onAssistantSessionChange={onAssistantSessionChange}
             onFocusOnly={onFocusOnly}
             onRestoreLayout={onRestoreLayout}
             onCollapse={onCollapse}

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// StoryForge 本地开发一键启动脚本。
+// StoryForge Web 维护入口本地启动脚本。
 //
 // 用法：
-//   node scripts/dev-start.mjs              启动基础服务 + API + Web
+//   node scripts/dev-start.mjs              启动基础服务 + API + Web 维护入口
 //   node scripts/dev-start.mjs --api-only   只启动基础服务 + API
-//   node scripts/dev-start.mjs --web-only   只启动基础服务 + Web
+//   node scripts/dev-start.mjs --web-only   只启动基础服务 + Web 维护入口
 //   node scripts/dev-start.mjs --skip-docker 跳过 docker compose，假设服务已起
 //   node scripts/dev-start.mjs --skip-migrate 跳过 alembic 迁移
 //
@@ -33,8 +33,8 @@ if (flags.help) {
   console.log(`Usage: node scripts/dev-start.mjs [options]
 
 Options:
-  --api-only       仅启动基础服务和 API（不启 Web dev server）
-  --web-only       仅启动基础服务和 Web（不启 API dev server）
+  --api-only       仅启动基础服务和 API（不启 Web 维护入口）
+  --web-only       仅启动基础服务和 Web 维护入口（不启 API dev server）
   --skip-docker    跳过 docker compose 启动（前提：postgres/redis 已就绪）
   --skip-migrate   跳过 alembic upgrade head
   -h, --help       显示本帮助
@@ -206,7 +206,7 @@ async function main() {
   }
 
   if (!flags.apiOnly) {
-    info('启动 Web dev server（next dev :3000）…');
+    info('启动 Web 维护入口（next dev :3000）…');
     spawnBackground('pnpm', ['--filter', '@storyforge/web', 'dev'], root, 'web');
   }
 

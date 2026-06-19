@@ -9,7 +9,8 @@
     "test": "node scripts/verify-unit.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "verify:smoke": "node scripts/verify-smoke.mjs"
+    "verify:smoke": "node scripts/verify-smoke.mjs",
+    "verify:agent-conversation": "node scripts/verify-agent-conversation.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.3.0",

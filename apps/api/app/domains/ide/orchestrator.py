@@ -82,14 +82,7 @@ def orchestrate_agent_message(
     user_message = _message_text(message)
     args = _message_args(message)
     intent = _detect_intent(user_message, args, message.get("intent"))
-    assistant_session = assistant_service.create_assistant_session(
-        session,
-        AssistantSessionCreate(
-            title=f"IDE Agent: {user_message[:120]}",
-            task_type="ide_agent_orchestration",
-            messages=[],
-        ),
-    )
+    assistant_session = _resolve_assistant_session(session, user_message=user_message, message=message, args=args)
     if intent != "file.revise":
         assistant_service.append_assistant_message(
             session,
@@ -138,6 +131,32 @@ def orchestrate_agent_message(
             args=args,
         )
     raise AgentOrchestrationError(f"暂不支持的 Agent intent：{intent}")
+
+
+def _resolve_assistant_session(
+    session: Session,
+    *,
+    user_message: str,
+    message: dict[str, Any],
+    args: dict[str, Any],
+):
+    requested_id = _optional_positive_int(message.get("assistant_session_id")) or _optional_positive_int(
+        args.get("assistant_session_id")
+    )
+    if requested_id is not None:
+        try:
+            return assistant_service.get_assistant_session(session, requested_id)
+        except assistant_service.AssistantSessionNotFoundError as exc:
+            raise AgentOrchestrationError(str(exc)) from exc
+
+    return assistant_service.create_assistant_session(
+        session,
+        AssistantSessionCreate(
+            title=f"IDE Agent: {user_message[:120]}",
+            task_type="ide_agent_orchestration",
+            messages=[],
+        ),
+    )
 
 
 def _base_response(
@@ -559,6 +578,14 @@ def _required_int(args: dict[str, Any], key: str) -> int:
     if isinstance(value, int) and value > 0:
         return value
     raise AgentOrchestrationError(f"Agent intent 缺少参数：{key}。")
+
+
+def _optional_positive_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    return None
 
 
 def _optional_string(value: object) -> str | None:

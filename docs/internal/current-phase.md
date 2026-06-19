@@ -17,7 +17,7 @@
 
 ## 当前阶段
 
-StoryForge 当前处于 Phase 9 真实 LLM 长程验收准备阶段。Phase 9A、Phase 9B 本地控制面、Phase 9C 本地增强项已有本地验证证据；真实 LLM 1 章、3 章与 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过最终验收；远端 `master` E2E 已在 head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f` 上通过，真实 3-5 万字长程仍未完成。
+StoryForge 当前处于 Phase 9 真实 LLM 长程验收准备阶段，同时产品重心已转为 Desktop IDE-first。Phase 9A、Phase 9B 本地控制面、Phase 9C 本地增强项已有本地验证证据；真实 LLM 1 章、3 章与 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过最终验收；远端 `master` E2E 已在 head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f` 上通过，真实 3-5 万字长程仍未完成。默认开发入口为 `pnpm dev` / `pnpm desktop:dev` 的桌面 IDE；Web 仅保留维护、调试、兼容和契约验证入口。
 
 ## 已完成的本地能力边界
 

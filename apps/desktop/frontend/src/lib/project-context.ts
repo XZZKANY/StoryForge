@@ -75,6 +75,14 @@ const DIR_KIND: Record<string, SemanticKind> = {
 };
 
 const STORY_DIRS = ['大纲', '人物', '设定', '正文', '质量', '导出'];
+const CONTEXT_BUNDLE_CACHE_TTL_MS = 30000;
+
+type ContextBundleCacheEntry = {
+  createdAt: number;
+  bundle: ContextBundle;
+};
+
+const contextBundleCache = new Map<string, ContextBundleCacheEntry>();
 
 function normalizeRoot(path: string): string {
   return path.replace(/[/\\]+$/, '');
@@ -190,6 +198,17 @@ export async function buildContextBundle(params: {
   maxExcerptChars?: number;
 }): Promise<ContextBundle> {
   const { projectPath, currentFile, maxFiles = 8, maxExcerptChars = 1200 } = params;
+  const cacheKey = [
+    normalizeRoot(projectPath),
+    currentFile,
+    maxFiles,
+    maxExcerptChars,
+  ].join('\u0000');
+  const cached = contextBundleCache.get(cacheKey);
+  if (cached && Date.now() - cached.createdAt < CONTEXT_BUNDLE_CACHE_TTL_MS) {
+    return cached.bundle;
+  }
+
   const index = await buildProjectIndex(projectPath);
   const candidates = index.files
     .filter((file) => file.path !== currentFile)
@@ -219,10 +238,12 @@ export async function buildContextBundle(params: {
     }
   }
 
-  return {
+  const bundle = {
     projectRoot: projectPath,
     currentFile,
     files,
     summary: index.summary,
   };
+  contextBundleCache.set(cacheKey, { createdAt: Date.now(), bundle });
+  return bundle;
 }

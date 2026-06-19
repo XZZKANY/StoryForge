@@ -187,6 +187,71 @@ body {
   background: #666666;
 }
 
+/* Agent 步骤面板动画 */
+@keyframes slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-slide-up-fade {
+  animation: slide-up-fade 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 步骤状态颜色 */
+.step-pending {
+  color: #8A8A90;
+}
+
+.step-running {
+  color: #4A9EFF;
+}
+
+.step-waiting {
+  color: #FFA726;
+}
+
+.step-completed {
+  color: #66BB6A;
+}
+
+.step-failed {
+  color: #EF5350;
+}
+
+/* 文本截断 */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* 降低动效偏好下关闭过场动画 */
 @media (prefers-reduced-motion: reduce) {
   *,

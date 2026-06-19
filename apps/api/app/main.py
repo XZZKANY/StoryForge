@@ -87,9 +87,12 @@ setup_metrics(app)
 
 
 def _cors_origins() -> list[str]:
-    """从环境变量读取允许的 Web 来源，默认覆盖本地开发端口。"""
+    """从环境变量读取允许的前端来源，默认覆盖桌面和 Web 本地端口。"""
 
-    raw_value = os.getenv("STORYFORGE_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+    raw_value = os.getenv(
+        "STORYFORGE_CORS_ORIGINS",
+        "http://localhost:3007,http://127.0.0.1:3007,http://localhost:3000,http://127.0.0.1:3000",
+    )
     return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
 
 

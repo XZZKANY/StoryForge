@@ -4,7 +4,7 @@
 
 ## 决策
 
-StoryForge 后续主产品体验以 Desktop IDE 为中心。Web 不再作为主体验继续扩展，而是进入维护模式，承担调试、兼容、契约验证和后端能力观察职责。
+StoryForge 主产品体验转为以 Desktop IDE 为中心。Web 不再作为主体验继续扩展，而是进入维护模式，承担调试、兼容、契约验证和后端能力观察职责。
 
 ## 背景
 
@@ -53,10 +53,16 @@ API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
 4. 文档以 `docs/architecture/ide-first-product-direction.md` 记录产品方向，以 `docs/internal/current-phase.md` 记录阶段事实。
 5. 新功能默认落在 Desktop IDE；只有后端调试、契约验证或兼容入口才优先落在 Web。
 
+## 默认入口
+
+- `pnpm dev` 与 `pnpm desktop:dev` 均启动 Desktop IDE 主体验。
+- `tauri dev` 通过 `beforeDevCommand` 自动启动 `apps/desktop/frontend` 的 Vite dev server，默认 devUrl 为 `http://localhost:3007`。
+- 旧的 API + Web 联合启动保留为 `pnpm dev:maintenance`；`pnpm dev:web` 只用于 Web 维护入口。
+
 ## 短期收口任务
 
-- 将 Desktop 文档统一为 Vite frontend `http://localhost:3007`，不再描述为加载 Web `/ide`。
-- 将 README 标注 Desktop IDE 为主体验，Web 为维护/调试/契约层。
+- 持续保持 Desktop 文档统一为 Vite frontend `http://localhost:3007`，不再描述为加载 Web `/ide`。
+- 持续保持 README 标注 Desktop IDE 为主体验，Web 为维护/调试/契约层。
 - 修复当前 Web、API、Workflow 红灯门禁，避免架构转向时带着红灯继续堆功能。
 - 为 Desktop IDE 增加最小冒烟验证：页面非空、Tauri 命令可用、打开目录、读取文件、保存文件。
 
