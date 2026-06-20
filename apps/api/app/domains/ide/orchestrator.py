@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +18,13 @@ from app.domains.assistant.schemas import (
 )
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
+from app.domains.ide import review_reasoning
+from app.domains.ide.review_reasoning import HeuristicReviewReasoner, LlmReviewReasoner, ReviewSubagentResult
+from app.domains.ide.review_skills import (
+    REVIEW_SKILLS,
+    review_context_summary,
+    suggested_actions_for_review,
+)
 from app.domains.ide.service import (
     IdeCommandExecutionError,
     IdeCommandNotFoundError,
@@ -25,6 +34,7 @@ from app.domains.ide.service import (
 SUPPORTED_INTENTS = frozenset(
     {
         "chat.explain",
+        "file.review",
         "file.revise",
         "chapter.review",
         "chapter.repair",
@@ -92,6 +102,14 @@ def orchestrate_agent_message(
 
     if intent == "chat.explain":
         return _orchestrate_chat_explain(
+            session,
+            agent_session_id=agent_session_id,
+            assistant_session_id=assistant_session.id,
+            user_message=user_message,
+            args=args,
+        )
+    if intent == "file.review":
+        return _orchestrate_file_review(
             session,
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session.id,
@@ -224,6 +242,10 @@ def _orchestrate_file_revise(
     file_path = _required_string(args, "file_path")
     content = _required_string(args, "content")
     instruction = _optional_string(args.get("instruction")) or user_message
+    review_report = args.get("review_report") if isinstance(args.get("review_report"), dict) else None
+    scope = _resolve_revise_scope(review_report, {**args, "instruction": instruction})
+    public_scope = _public_revise_scope(scope)
+    effective_instruction = _scoped_revise_instruction(instruction, review_report, scope)
     tool_trace: list[AgentToolTrace] = []
     try:
         response = assistant_service.revise_file_content(
@@ -231,7 +253,7 @@ def _orchestrate_file_revise(
             AssistantReviseRequest(
                 file_path=file_path,
                 content=content,
-                instruction=instruction,
+                instruction=effective_instruction,
                 project_name=_optional_string(args.get("project_name")),
                 assistant_session_id=assistant_session_id,
                 context_bundle=args.get("context_bundle") if isinstance(args.get("context_bundle"), dict) else None,
@@ -248,15 +270,22 @@ def _orchestrate_file_revise(
         AgentToolTrace(
             tool_name="assistant.revise",
             status="completed",
-            input_summary={"file_path": file_path, "content_chars": len(content)},
+            input_summary={
+                "file_path": file_path,
+                "content_chars": len(content),
+                "review_issue_count": len(_scope_issues(scope)),
+                "applied_scope": public_scope,
+            },
             output_summary={
                 "after_chars": len(response.after),
                 "model": response.model,
                 "latency_ms": response.latency_ms,
                 "completion_tokens": response.completion_tokens,
+                "applied_scope": public_scope,
             },
         )
     )
+    summary = _revise_summary_with_scope(response.summary, scope)
     return _base_response(
         agent_session_id=agent_session_id,
         assistant_session_id=assistant_session_id,
@@ -268,12 +297,14 @@ def _orchestrate_file_revise(
             _plan_step("approval", "等待 Desktop IDE 用户确认后再写回文件。", "needs_approval"),
         ],
         agent_result={
-            "summary": response.summary,
+            "summary": summary,
             "requires_user_confirmation": True,
             "writeback_blocked_until_user_confirms": True,
+            "applied_scope": public_scope,
         },
         tool_trace=tool_trace,
         proposed_patch={
+            "id": f"file-revision-{uuid.uuid4().hex}",
             "kind": "file_revision",
             "file_path": file_path,
             "before": response.before,
@@ -281,6 +312,90 @@ def _orchestrate_file_revise(
             "requires_confirmation": True,
             "approval_action": "desktop.confirm_file_writeback",
         },
+    )
+
+
+def _orchestrate_file_review(
+    session: Session,
+    *,
+    agent_session_id: str,
+    assistant_session_id: int,
+    user_message: str,
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    file_path = _required_string(args, "file_path")
+    content = _required_string(args, "content")
+    context_bundle = args.get("context_bundle") if isinstance(args.get("context_bundle"), dict) else None
+    review_report = _build_multi_agent_review_report(
+        file_path=file_path,
+        content=content,
+        context_bundle=context_bundle,
+        user_message=user_message,
+    )
+    summary = _review_report_summary(review_report)
+    assistant_service.append_assistant_message(
+        session,
+        assistant_session_id,
+        AssistantMessageCreate(role="assistant", content=summary),
+    )
+
+    tool_trace = [
+        AgentToolTrace(
+            tool_name="subagent.context",
+            status="completed",
+            input_summary={"file_path": file_path},
+            output_summary={
+                "context_file_count": review_report["context"]["file_count"],
+                "context_kinds": review_report["context"]["kinds"],
+            },
+        ),
+        AgentToolTrace(
+            tool_name="subagent.plot",
+            status="completed",
+            input_summary={"content_chars": len(content)},
+            output_summary=_subagent_output_summary(review_report, "plot"),
+        ),
+        AgentToolTrace(
+            tool_name="subagent.character",
+            status="completed",
+            input_summary={"content_chars": len(content)},
+            output_summary=_subagent_output_summary(review_report, "character"),
+        ),
+        AgentToolTrace(
+            tool_name="subagent.prose",
+            status="completed",
+            input_summary={"content_chars": len(content)},
+            output_summary=_subagent_output_summary(review_report, "prose"),
+        ),
+        AgentToolTrace(
+            tool_name="subagent.synthesizer",
+            status="completed",
+            input_summary={"issue_count": len(review_report["issues"])},
+            output_summary={
+                "suggested_action_count": len(review_report["suggested_actions"]),
+                "strategy": "deterministic_merge",
+            },
+        ),
+    ]
+
+    return _base_response(
+        agent_session_id=agent_session_id,
+        assistant_session_id=assistant_session_id,
+        intent="file.review",
+        user_message=user_message,
+        plan=[
+            _plan_step("context-agent", "选择当前稿和项目上下文，不写入文件。", "completed"),
+            _plan_step("plot-agent", "检查剧情结构、冲突推进和章尾钩子。", "completed"),
+            _plan_step("character-agent", "检查人物动机、称谓和关系一致性。", "completed"),
+            _plan_step("prose-agent", "检查文风、节奏、信息密度和叙述方式。", "completed"),
+            _plan_step("synthesizer-agent", "合并多视角意见为结构化审稿报告。", "completed"),
+        ],
+        agent_result={
+            "summary": summary,
+            "requires_user_confirmation": False,
+            "review_report": review_report,
+        },
+        tool_trace=tool_trace,
     )
 
 
@@ -529,24 +644,76 @@ def _judge_run_args_from_scene_packet(session: Session, scene_packet_id: int) ->
 
 
 def _detect_intent(user_message: str, args: dict[str, Any], explicit_intent: object) -> str:
+    if _is_confirm_writeback_request(user_message):
+        return "chat.explain"
     if isinstance(explicit_intent, str) and explicit_intent in SUPPORTED_INTENTS:
         return explicit_intent
     text = user_message.lower()
+    has_file_context = _optional_string(args.get("file_path")) is not None and isinstance(args.get("content"), str)
     if _has_positive_int(args, "book_id") and _has_positive_int(args, "blueprint_id"):
         return "bookrun.start"
     if _has_positive_int(args, "issue_id"):
         return "chapter.repair"
-    if _has_positive_int(args, "scene_packet_id") or "章节审阅" in user_message or "审阅" in user_message:
-        return "chapter.review"
-    if _optional_string(args.get("file_path")) and isinstance(args.get("content"), str):
+    if has_file_context and _is_file_review_request(user_message):
+        return "file.review"
+    if has_file_context and _is_file_revise_request(user_message):
         return "file.revise"
-    if any(keyword in text for keyword in ("revise", "rewrite")) or any(
-        keyword in user_message for keyword in ("修订", "改写", "润色")
+    if _has_positive_int(args, "scene_packet_id") or "章节审阅" in user_message or (
+        "审阅" in user_message and not has_file_context
     ):
+        return "chapter.review"
+    if _is_file_revise_request(user_message):
         return "file.revise"
     if "bookrun" in text or "启动整书" in user_message:
         return "bookrun.start"
     return "chat.explain"
+
+
+def _is_file_review_request(user_message: str) -> bool:
+    return any(
+        keyword in user_message
+        for keyword in ("审查", "审一下", "审稿", "审阅", "评审", "检查", "问题", "一致性", "节奏", "结构")
+    )
+
+
+def _is_file_revise_request(user_message: str) -> bool:
+    text = user_message.lower()
+    if any(keyword in text for keyword in ("revise", "rewrite", "diff")):
+        return True
+    return any(
+        keyword in user_message
+        for keyword in (
+            "写回",
+            "应用",
+            "保存",
+            "直接改",
+            "直接修",
+            "改写",
+            "修订",
+            "润色",
+            "修改",
+            "改得",
+            "改成",
+            "改一版",
+            "修一版",
+            "紧一点",
+        )
+    )
+
+
+def _is_confirm_writeback_request(user_message: str) -> bool:
+    text = user_message.strip().lower()
+    if any(keyword in text for keyword in ("accept this", "apply this", "confirm writeback")):
+        return True
+    if any(keyword in user_message for keyword in ("确认写回", "接受这版", "就这版写回", "应用这版", "确认应用")):
+        return True
+    if any(keyword in user_message for keyword in ("确认", "接受")) and any(
+        keyword in user_message for keyword in ("当前补丁", "当前修订")
+    ):
+        return True
+    return ("写回" in user_message or "应用" in user_message) and any(
+        keyword in user_message for keyword in ("确认", "接受", "这版", "当前补丁", "当前修订")
+    )
 
 
 def _message_text(message: dict[str, Any]) -> str:
@@ -564,6 +731,387 @@ def _message_args(message: dict[str, Any]) -> dict[str, Any]:
 
 def _plan_step(step: str, detail: str, status: str) -> dict[str, str]:
     return {"step": step, "detail": detail, "status": status}
+
+
+def _build_multi_agent_review_report(
+    *,
+    file_path: str,
+    content: str,
+    context_bundle: dict[str, Any] | None,
+    user_message: str,
+) -> dict[str, Any]:
+    context = review_context_summary(context_bundle)
+    paragraphs = [paragraph.strip() for paragraph in content.splitlines() if paragraph.strip()]
+    issues: list[dict[str, str]] = []
+
+    reasoner = _select_review_reasoner()
+    subagent_results = reasoner.review_all(content=content, paragraphs=paragraphs, context_bundle=context_bundle)
+    results_by_key = {key: result for key, result in zip(review_reasoning.REVIEW_AGENT_KEYS, subagent_results, strict=True)}
+
+    plot_issues = _assign_issue_ids("plot", results_by_key["plot"].issues)
+    character_issues = _assign_issue_ids("character", results_by_key["character"].issues)
+    prose_issues = _assign_issue_ids("prose", results_by_key["prose"].issues)
+    issues.extend(plot_issues)
+    issues.extend(character_issues)
+    issues.extend(prose_issues)
+    suggested_actions = suggested_actions_for_review(
+        plot_issues=plot_issues,
+        character_issues=character_issues,
+        prose_issues=prose_issues,
+    )
+
+    return {
+        "kind": "review_report",
+        "file_path": file_path,
+        "user_goal": user_message,
+        "mode": _review_report_mode(subagent_results),
+        "context": context,
+        "agent_findings": {
+            "plot": _agent_finding("plot", results_by_key["plot"]),
+            "character": _agent_finding("character", results_by_key["character"]),
+            "prose": _agent_finding("prose", results_by_key["prose"]),
+        },
+        "issues": issues,
+        "suggested_actions": suggested_actions,
+    }
+
+
+def _assign_issue_ids(category: str, issues: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [{**issue, "id": f"{category}-{index}", "category": category} for index, issue in enumerate(issues, start=1)]
+
+
+def _select_review_reasoner() -> review_reasoning.ReviewReasoner:
+    missing = review_reasoning.missing_book_generation_env()
+    if missing:
+        return HeuristicReviewReasoner()
+    return LlmReviewReasoner(review_reasoning.resolved_llm_env())
+
+
+def _review_report_mode(results: list[ReviewSubagentResult]) -> str:
+    modes = {result.mode for result in results}
+    if modes == {"llm"}:
+        return "llm"
+    if "llm" in modes:
+        return "mixed"
+    # 全部 heuristic：区分"没配 LLM"与"配了但全部子代理调用失败"。
+    if any(result.degraded_reason for result in results):
+        return "llm_failed"
+    return "heuristic_only"
+
+
+def _agent_finding(key: str, result: ReviewSubagentResult) -> dict[str, Any]:
+    finding: dict[str, Any] = {
+        "agent": REVIEW_SKILLS[key].agent,
+        "focus": REVIEW_SKILLS[key].focus,
+        "issue_count": len(result.issues),
+        "mode": result.mode,
+    }
+    if result.model is not None:
+        finding["model"] = result.model
+    if result.latency_ms is not None:
+        finding["latency_ms"] = result.latency_ms
+    if result.degraded_reason is not None:
+        finding["degraded_reason"] = result.degraded_reason
+    return finding
+
+
+def _subagent_output_summary(report: dict[str, Any], key: str) -> dict[str, Any]:
+    finding = report["agent_findings"][key]
+    summary: dict[str, Any] = {
+        "issue_count": finding["issue_count"],
+        "mode": finding["mode"],
+    }
+    for optional_key in ("model", "latency_ms", "degraded_reason"):
+        if optional_key in finding:
+            summary[optional_key] = finding[optional_key]
+    return summary
+
+
+def _scoped_revise_instruction(
+    instruction: str,
+    review_report: dict[str, Any] | None,
+    scope: dict[str, Any],
+) -> str:
+    issues = _scope_issues(scope)
+    actions = _review_report_actions(review_report)
+    constraints = _scope_string_list(scope, "constraints")
+    if not review_report and not constraints:
+        return instruction
+
+    blocks = [instruction]
+    if constraints:
+        blocks.append(
+            "\n".join(
+                [
+                    "硬约束（必须遵守）：",
+                    *(f"{index}. {constraint}" for index, constraint in enumerate(constraints, start=1)),
+                ]
+            )
+        )
+    if not issues and not actions:
+        return "\n\n".join(blocks)[:4000]
+
+    issue_lines = []
+    for index, issue in enumerate(issues[:8], start=1):
+        issue_id = _optional_string(issue.get("id"))
+        category = _optional_string(issue.get("category")) or _issue_category(issue) or "review"
+        agent = issue_id or _optional_string(issue.get("agent")) or category
+        severity = _optional_string(issue.get("severity")) or "info"
+        message = _optional_string(issue.get("message")) or "未命名问题"
+        evidence = _optional_string(issue.get("evidence"))
+        suffix = f" 证据：{evidence}" if evidence else ""
+        issue_lines.append(f"{index}. [{agent}/{category}/{severity}] {message}{suffix}")
+    action_lines = [f"{index}. {action}" for index, action in enumerate(actions[:6], start=1)]
+    review_block = "\n".join(
+        [
+            "上一轮多视角审稿报告（已按本轮指令筛选范围）：",
+            "有效问题：",
+            *(issue_lines or ["无有效审稿问题。"]),
+            "建议：",
+            *(action_lines or ["按用户当前指令修订。"]),
+        ]
+    )
+    blocks.append(review_block)
+    blocks.append("请只处理上述有效审稿范围内的问题，并保持原有事实连续。")
+    combined = "\n\n".join(blocks)
+    return combined[:4000]
+
+
+def _resolve_revise_scope(review_report: dict[str, Any] | None, args: dict[str, Any]) -> dict[str, Any]:
+    issues = _review_report_issues(review_report)
+    instruction = _optional_string(args.get("instruction")) or ""
+    valid_by_id = {
+        issue_id: issue
+        for issue in issues
+        if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()
+    }
+
+    explicit_selected_ids = _string_arg_list(args.get("selected_issue_ids"))
+    inferred_selected_ids, unknown_ordinals = _selected_issue_ids_from_instruction(instruction, issues)
+    selected_ids = explicit_selected_ids or inferred_selected_ids
+    dropped_unknown_ids = [issue_id for issue_id in selected_ids if issue_id not in valid_by_id]
+    dropped_unknown_ids.extend(unknown_ordinals)
+
+    explicit_included_categories = _valid_categories(_string_arg_list(args.get("included_categories")))
+    inferred_included_categories = _included_categories_from_instruction(instruction)
+    included_categories = explicit_included_categories or inferred_included_categories
+    excluded_categories = _valid_categories(_string_arg_list(args.get("excluded_categories")))
+    excluded_categories = _ordered_unique([*excluded_categories, *_excluded_categories_from_instruction(instruction)])
+    constraints = _ordered_unique(
+        [*_string_arg_list(args.get("revision_constraints")), *_revision_constraints_from_instruction(instruction)]
+    )
+
+    if selected_ids:
+        scoped_issues = [valid_by_id[issue_id] for issue_id in selected_ids if issue_id in valid_by_id]
+    elif included_categories:
+        included = set(included_categories)
+        scoped_issues = [issue for issue in issues if _issue_category(issue) in included]
+    else:
+        scoped_issues = issues
+
+    if excluded_categories:
+        excluded = set(excluded_categories)
+        scoped_issues = [issue for issue in scoped_issues if _issue_category(issue) not in excluded]
+
+    issue_ids = [
+        issue_id
+        for issue in scoped_issues
+        if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()
+    ]
+    categories = [
+        category
+        for category in review_reasoning.REVIEW_AGENT_KEYS
+        if any(_issue_category(issue) == category for issue in scoped_issues)
+    ]
+    return {
+        "issues": scoped_issues,
+        "issue_ids": issue_ids,
+        "categories": categories,
+        "constraints": constraints,
+        "dropped_unknown_ids": _ordered_unique(dropped_unknown_ids),
+    }
+
+
+def _public_revise_scope(scope: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "issue_ids": _scope_string_list(scope, "issue_ids"),
+        "categories": _scope_string_list(scope, "categories"),
+        "constraints": _scope_string_list(scope, "constraints"),
+        "dropped_unknown_ids": _scope_string_list(scope, "dropped_unknown_ids"),
+    }
+
+
+def _scope_issues(scope: dict[str, Any]) -> list[dict[str, Any]]:
+    issues = scope.get("issues")
+    return [item for item in issues if isinstance(item, dict)] if isinstance(issues, list) else []
+
+
+def _scope_string_list(scope: dict[str, Any], key: str) -> list[str]:
+    return _string_arg_list(scope.get(key))
+
+
+def _string_arg_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def _valid_categories(values: list[str]) -> list[str]:
+    allowed = set(review_reasoning.REVIEW_AGENT_KEYS)
+    return _ordered_unique([value for value in values if value in allowed])
+
+
+def _issue_category(issue: dict[str, Any]) -> str | None:
+    category = issue.get("category")
+    if isinstance(category, str) and category in review_reasoning.REVIEW_AGENT_KEYS:
+        return category
+    agent = issue.get("agent")
+    if isinstance(agent, str):
+        for key in review_reasoning.REVIEW_AGENT_KEYS:
+            if agent == REVIEW_SKILLS[key].agent:
+                return key
+    return None
+
+
+def _selected_issue_ids_from_instruction(instruction: str, issues: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
+    selected: list[str] = []
+    unknown: list[str] = []
+    for raw in re.findall(r"第\s*([一二两三四五六七八九十\d]+)\s*[条项个]", instruction):
+        index = _parse_ordinal(raw)
+        if index is None:
+            continue
+        issue = issues[index - 1] if 0 < index <= len(issues) else None
+        issue_id = issue.get("id") if isinstance(issue, dict) else None
+        if isinstance(issue_id, str) and issue_id.strip():
+            selected.append(issue_id)
+        else:
+            unknown.append(f"第{index}条")
+    return _ordered_unique(selected), _ordered_unique(unknown)
+
+
+def _parse_ordinal(raw: str) -> int | None:
+    if raw.isdigit():
+        value = int(raw)
+        return value if value > 0 else None
+    digits = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+    if raw == "十":
+        return 10
+    if raw.startswith("十") and len(raw) == 2:
+        return 10 + digits.get(raw[1], 0)
+    if raw.endswith("十") and len(raw) == 2:
+        return digits.get(raw[0], 0) * 10
+    if "十" in raw and len(raw) == 3:
+        return digits.get(raw[0], 0) * 10 + digits.get(raw[2], 0)
+    return digits.get(raw)
+
+
+def _included_categories_from_instruction(instruction: str) -> list[str]:
+    categories: list[str] = []
+    if any(keyword in instruction for keyword in ("剧情", "结构", "冲突", "钩子", "主线")):
+        categories.append("plot")
+    if any(keyword in instruction for keyword in ("人物", "角色", "动机", "称谓", "关系")):
+        categories.append("character")
+    if any(keyword in instruction for keyword in ("文风", "语言", "行文", "润色", "节奏", "信息密度", "解释性")):
+        categories.append("prose")
+    if "只" not in instruction and "仅" not in instruction and "单独" not in instruction:
+        return []
+    return _ordered_unique(categories)
+
+
+def _excluded_categories_from_instruction(instruction: str) -> list[str]:
+    categories: list[str] = []
+    exclusion_patterns = {
+        "plot": ("不改剧情", "别改剧情", "不要改剧情", "不动剧情", "不改结构", "不要动结构"),
+        "character": ("不改人物", "别改人物", "不要改人物", "不动人物", "不改角色"),
+        "prose": ("不改文风", "别改文风", "不要改文风", "不动文风", "不改语言", "不动语言"),
+    }
+    for category, patterns in exclusion_patterns.items():
+        if any(pattern in instruction for pattern in patterns):
+            categories.append(category)
+    return categories
+
+
+def _revision_constraints_from_instruction(instruction: str) -> list[str]:
+    constraints = []
+    for match in re.findall(r"(保留|不动|不要改|别改)([^，。；;,.!?！？\n]{1,20})", instruction):
+        constraint = "".join(match).strip()
+        if constraint:
+            constraints.append(constraint)
+    return _ordered_unique(constraints[:8])
+
+
+def _ordered_unique(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
+def _revise_summary_with_scope(summary: str, scope: dict[str, Any]) -> str:
+    dropped = _scope_string_list(scope, "dropped_unknown_ids")
+    if not dropped:
+        return summary
+    return f"{summary} 已忽略不存在的审稿条目：{', '.join(dropped)}。"
+
+
+def _review_report_issue_count(review_report: dict[str, Any] | None) -> int:
+    return len(_review_report_issues(review_report))
+
+
+def _review_report_issues(review_report: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not review_report:
+        return []
+    issues = review_report.get("issues")
+    return [item for item in issues if isinstance(item, dict)] if isinstance(issues, list) else []
+
+
+def _review_report_actions(review_report: dict[str, Any] | None) -> list[str]:
+    if not review_report:
+        return []
+    actions = review_report.get("suggested_actions")
+    return [item for item in actions if isinstance(item, str) and item.strip()] if isinstance(actions, list) else []
+
+
+def _review_report_summary(report: dict[str, Any]) -> str:
+    issues = report.get("issues") if isinstance(report.get("issues"), list) else []
+    findings = report.get("agent_findings") if isinstance(report.get("agent_findings"), dict) else {}
+    plot = _agent_issue_count(findings, "plot")
+    character = _agent_issue_count(findings, "character")
+    prose = _agent_issue_count(findings, "prose")
+    summary = (
+        f"多视角审稿完成：发现 {len(issues)} 个问题。"
+        f"剧情 {plot} 个，人物 {character} 个，文风节奏 {prose} 个。"
+    )
+    mode = report.get("mode")
+    if mode == "heuristic_only":
+        return f"{summary} 未配置 LLM，本轮为启发式预扫，非模型审稿。"
+    if mode == "llm_failed":
+        degraded = _degraded_review_agents(findings)
+        suffix = f" 失败视角：{', '.join(degraded)}。" if degraded else ""
+        return f"{summary} 已配置 LLM，但全部子代理调用失败，已整体降级为启发式预扫。{suffix}"
+    if mode == "mixed":
+        degraded = _degraded_review_agents(findings)
+        suffix = f" 降级视角：{', '.join(degraded)}。" if degraded else ""
+        return f"{summary} 部分 LLM 子代理失败，已按单项降级为启发式预扫。{suffix}"
+    return summary
+
+
+def _agent_issue_count(findings: dict[str, Any], key: str) -> int:
+    item = findings.get(key)
+    count = item.get("issue_count") if isinstance(item, dict) else None
+    return count if isinstance(count, int) else 0
+
+
+def _degraded_review_agents(findings: dict[str, Any]) -> list[str]:
+    degraded: list[str] = []
+    for key in review_reasoning.REVIEW_AGENT_KEYS:
+        item = findings.get(key)
+        if isinstance(item, dict) and item.get("mode") == "heuristic" and item.get("degraded_reason"):
+            degraded.append(str(item.get("agent") or key))
+    return degraded
 
 
 def _required_string(args: dict[str, Any], key: str) -> str:

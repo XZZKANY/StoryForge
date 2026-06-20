@@ -4,8 +4,8 @@ import os
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
-from starlette.websockets import WebSocketState
 from fastapi.responses import StreamingResponse
+from starlette.websockets import WebSocketState
 
 from app.db.deps import SessionDependency
 from app.domains.artifacts.service import ArtifactForbiddenError, ArtifactNotFoundError

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -738,14 +739,9 @@ def _call_llm(
         raise BookGenerationError(
             f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s）：{reason}"
         ) from exc
-    finish_reason = None
-    choices = data.get("choices") if isinstance(data, dict) else None
-    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
-        finish_reason = choices[0].get("finish_reason")
     content = data["choices"][0]["message"]["content"]
     if not isinstance(content, str) or not content.strip():
         raise BookGenerationError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
-    raw_chars = len(content)
     content = _strip_reasoning_leak(content)
     if not content:
         raise BookGenerationError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")

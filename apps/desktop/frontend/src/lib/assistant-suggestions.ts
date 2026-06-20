@@ -26,6 +26,7 @@ function appendSuggestionBlock(content: string, userIntent: string): string {
 }
 
 export function createRemoteFileSuggestion(params: {
+  id?: string;
   filePath: string;
   before: string;
   after: string;
@@ -33,9 +34,9 @@ export function createRemoteFileSuggestion(params: {
   model: string;
   userIntent: string;
 }): AssistantFileSuggestion {
-  const { filePath, before, after, summary, model, userIntent } = params;
+  const { id, filePath, before, after, summary, model, userIntent } = params;
   return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     filePath,
     title: 'AI 修订建议',
     summary,

@@ -10,6 +10,7 @@ import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
 type ResourceExplorerProps = {
   projectPath: string | null;
   currentFile: string | null;
+  refreshVersion?: number;
   onFileSelect: (filePath: string) => void;
 };
 
@@ -75,7 +76,12 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
   return rootNodes;
 }
 
-export function ResourceExplorer({ projectPath, currentFile, onFileSelect }: ResourceExplorerProps) {
+export function ResourceExplorer({
+  projectPath,
+  currentFile,
+  refreshVersion = 0,
+  onFileSelect,
+}: ResourceExplorerProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +122,7 @@ export function ResourceExplorer({ projectPath, currentFile, onFileSelect }: Res
     return () => {
       cancelled = true;
     };
-  }, [projectPath]);
+  }, [projectPath, refreshVersion]);
 
   const tree = useMemo(() => {
     if (!projectPath) return [];

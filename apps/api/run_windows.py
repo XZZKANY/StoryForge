@@ -2,8 +2,8 @@
 Windows 兼容的 uvicorn 启动脚本
 绕过 uvloop 问题
 """
-import sys
 import asyncio
+import sys
 
 # 在 Windows 上设置事件循环策略
 if sys.platform == "win32":

@@ -515,6 +515,93 @@
 
 ---
 
+# IDE Agent 评审推理缝 + 真 LLM 子代理降级（阶段 1，2026-06-20）
+
+## 交付物
+
+- 新增 `apps/api/app/domains/ide/review_reasoning.py`：定义 `ReviewSubagentResult` / `ReviewReasoner`，提供 `HeuristicReviewReasoner` 与 `LlmReviewReasoner`。LLM 模式按 plot / character / prose 三个视角并发调用 `_call_llm`，只接受 JSON 数组；单项 LLM 异常或解析失败时仅该视角降级到启发式，并带 `degraded_reason`。
+- `apps/api/app/domains/ide/orchestrator.py`：`file.review` 改为通过推理缝生成报告；报告顶层新增 `mode`（`llm` / `mixed` / `heuristic_only`），每个 `agent_findings` 新增 `mode`、可选 `model` / `latency_ms` / `degraded_reason`；`subagent.synthesizer` 明确标注 `strategy=deterministic_merge`。
+- `apps/api/tests/test_ide_agent_orchestrator.py`：补齐三条路径测试：未配置 LLM 时启发式预扫、配置 LLM 时三子代理结果来自模型、单个子代理失败时局部降级且整轮不挂。
+- 为通过全量 API ruff，顺手最小修复既有静态问题：`book_generation.py` 补 `sys` import 并移除两个未使用局部变量，`ide/router.py` 与 `run_windows.py` 仅整理 import。
+
+## 本地验证结果
+
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q` → 10 passed。
+- `cd apps/api && uv run ruff check .` → All checks passed。
+
+## 未联通 / 说明
+
+- 本轮 LLM 路径使用 monkeypatch `_call_llm` 覆盖成功与失败隔离；未跑真实 Provider 端到端。真实端到端仍需带 `STORYFORGE_LLM_*` 凭据，用 TestClient 探针验证 file.review，避免 Windows 本机 uvicorn/uvloop 启动坑。
+
+记录时间戳：2026-06-20 01:57:19 +08:00。
+
+---
+
+# IDE Agent 后端意图源收口 + 前端移除重复业务判定（阶段 2，2026-06-20）
+
+## 交付物
+
+- `apps/api/app/domains/ide/orchestrator.py`：收紧 `_detect_intent`。当前文件上下文不再自动等价为 `file.revise`；后端根据用户原话判断 `file.review` / `file.revise` / `chat.explain`，避免前端移除本地判定后普通解释误触发修订。
+- `apps/desktop/frontend/src/components/ChatWindow.tsx`：移除本地 `detectConversationIntent` 的业务分流，只保留纯本地副作用 `file.export`；其他用户输入统一把原话、当前文件正文、项目上下文交给后端 Agent Orchestrator，最终 UI 使用后端返回的 `response.intent` 展示链路。
+- `apps/api/tests/test_ide_agent_orchestrator.py`：新增回归测试，覆盖“带 file_path/content 的普通解释仍应返回 `chat.explain`，且不生成 proposed_patch”。
+
+## 本地验证结果
+
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q` → 11 passed。
+- `cd apps/api && uv run ruff check .` → All checks passed。
+- `cd apps/desktop/frontend && pnpm.cmd run typecheck` → 通过。
+- `cd apps/desktop/frontend && pnpm.cmd run test` → 8 passed。
+- `cd apps/desktop/frontend && pnpm.cmd run verify:smoke` → Desktop frontend smoke passed。
+- `cd apps/desktop/frontend && pnpm.cmd run verify:agent-conversation` → Agent conversation verification passed。
+
+## 未联通 / 说明
+
+- 阶段 3（WebSocket 流式）与阶段 4（LLM 综合评审）在计划中标为可选，本轮未执行；当前仍是一轮 WebSocket 返回完整 `agent_result`。
+- 真实桌面 Tauri 写回确认链路未跑；本轮覆盖后端 WebSocket 编排、前端 typecheck/unit、浏览器 smoke 与 agent conversation 预览验证。
+
+记录时间戳：2026-06-20 02:03:17 +08:00。
+
+---
+
+# IDE Agent 对话化范围控制（阶段 5 v2a/v2b/v2c，2026-06-20）
+
+## 交付物
+
+- `apps/api/app/domains/ide/orchestrator.py`：review report issue 增加报告内稳定 `id` 与 `category`（如 `plot-1` / `character-1`）；`file.revise` 增加确定性范围解析，支持 `selected_issue_ids`、`included_categories`、`excluded_categories`、`revision_constraints`，并把 `applied_scope` 回显到 `agent_result` 与 `tool_trace`。未知 issue id / 越界“第 N 条”进入 `dropped_unknown_ids`，summary 明确说明已忽略，不静默吞。
+- `apps/api/app/domains/ide/orchestrator.py`：`file_revision` proposed patch 增加不可变 `id`；`_detect_intent` 在 revise 前识别“确认写回 / 接受这版 / 就这版写回”等纯确认话术，后端防御性路由到 `chat.explain`，不重新生成修订。
+- `apps/desktop/frontend/src/components/ChatWindow.tsx` + `Editor.tsx` + `lib/assistant-events.ts`：前端只把“确认写回”作为客户端动词处理，发出 `storyforge:accept-current-file-suggestion`，由 Editor 接受用户已经看过的 pending diff；无 pending suggestion 时回传“当前没有待写回的修订”，不写文件。
+- `apps/desktop/frontend/src/lib/api-client.ts` / `assistant-suggestions.ts`：透传后端 `proposed_patch.id` 到本地 `AssistantFileSuggestion.id`，保持待确认补丁可追踪。
+- `apps/api/tests/test_ide_agent_orchestrator.py`：新增/扩展覆盖稳定 issue id、选中 issue 范围、硬约束入 prompt、未知 issue id 回显、确认写回不被判成 `file.revise`。
+- `apps/desktop/frontend/tests/assistant-events.test.ts`：新增事件桥单测，覆盖确认写回事件发出。
+
+## 小修：确认写回短语前后端一致（2026-06-20）
+
+- `apps/desktop/frontend/src/lib/local-conversation-action.ts`：抽出可测试的本地对话动作识别器，并拓宽 `file.writeback` 识别，覆盖 `应用当前补丁`、`确认一下写回`、`接受当前修订`、`accept/apply this`、`confirm writeback` 等说法；`ChatWindow.tsx` 改为复用该函数，避免确认话术漏到后端变成只解释不写回。
+- `apps/api/app/domains/ide/orchestrator.py`：同步拓宽 `_is_confirm_writeback_request` 防御网，`接受当前修订` 不会因“修订”关键词误入 `file.revise` 重新生成。
+- `apps/desktop/frontend/tests/local-conversation-action.test.ts`：新增表测，覆盖确认写回、导出、普通 agent 请求三类本地动作。
+- `apps/api/tests/test_ide_agent_orchestrator.py`：确认写回回归测试扩展为多短语表测，覆盖 `确认写回`、`应用当前补丁`、`接受当前修订`。
+
+## 本地验证结果
+
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q` → 17 passed。
+- `cd apps/api && uv run ruff check app/domains/ide/orchestrator.py tests/test_ide_agent_orchestrator.py` → All checks passed。
+- `cd apps/api && uv run ruff check .` → All checks passed。
+- `cd apps/desktop/frontend && pnpm.cmd typecheck` → 通过。
+- `cd apps/desktop/frontend && pnpm.cmd test` → 9 passed。
+- `cd apps/desktop/frontend && node scripts/verify-unit.mjs` → 11 passed。
+- `cd apps/desktop/frontend && npx tsc --noEmit -p tsconfig.json` → 通过。
+- `pnpm.cmd --filter @storyforge/desktop-frontend typecheck/test` → 未匹配 workspace package；当前 `pnpm-workspace.yaml` 只含 `apps/*` / `packages/*`，不包含嵌套的 `apps/desktop/frontend`。已改为在前端目录直接运行脚本。
+
+## 未联通 / 说明
+
+- `pnpm.cmd lint` 在根目录失败，原因是 ESLint 扫到 `.cache/external/cherry-studio/eslint.config.mjs` 并缺少外部缓存项目依赖 `@electron-toolkit/eslint-config-ts`；非本轮代码 lint 错误。
+- `pnpm.cmd test` 在 Web 阶段失败，Web 结果为 226 passed / 1 failed；失败为既有 `apps/web` phase1 转译临时目录里的 `tests/ide-page.test.mjs` 找不到 `components/ide/prototypes/StoryForgeWorkbenchPrototype` 扩展名（此前报告已记录同类问题）。因此根测试未继续跑到 API / workflow 全量。
+- 未跑真实 Tauri UI 手测；本轮用前端 typecheck/unit 覆盖事件桥，用后端 WebSocket TestClient 覆盖范围解析与 proposed patch。
+
+记录时间戳：2026-06-20 03:15:56 +08:00；小修复核验：2026-06-20 16:29:24 +08:00。
+
+---
+
 # 桌面 IDE 四栏暖调收口（Rust get_api_config 硬化）+ Web Provider API Key 探测（2026-06-19）
 
 本笔与同日「IDE Agent 编排链路」是同一工作树拆分的另两摊，单独记录验证。
@@ -545,3 +632,21 @@
 - Web Provider API Key 存浏览器 localStorage（明文），生产环境密钥落服务端的方案待定。
 
 记录时间戳：2026-06-19 +08:00。
+
+---
+
+## IDE Agent 重构 · 阶段 1（真·多视角审稿 + 两处诚实性修复）
+
+设计与实施计划见 `.codex/agent-redesign-plan.md`。阶段 1 把 `file.review` 的伪启发式「子代理」改为可注入推理缝 + 真 LLM 并发子代理 + 单项降级。
+
+**Review 结论**：阶段 1 实现对照计划到位（缝 `review_reasoning.py`、`ThreadPoolExecutor` 并发、单项 try/except 降级、tool_trace 诚实标 `mode`/`model`/`latency_ms`、synthesizer 标 `deterministic_merge`、`review_skills.py` 保留为降级兜底）。`book_generation.py` 的 `import sys` 修了 `:1593-1594` 真实使用但缺导入的潜在 NameError；删 `finish_reason`/`raw_chars` 为行为中性死代码清理。
+
+**修复两处「叙事 vs 真相」隐患（本轮）**：
+1. `_review_report_mode`（`orchestrator.py`）：env 配了但三子代理全失败时原会判 `heuristic_only` → summary 谎报「未配置 LLM」。新增 `llm_failed` 模式（凭 `degraded_reason` 区分「没配」与「配了全失败」），summary 改为「已配置 LLM，但全部子代理调用失败，已整体降级」。
+2. `_parse_llm_issues`（`review_reasoning.py`）：原 `json.loads` 裸解析，模型把数组裹进代码块围栏即必失败→静默全降级。新增 `_strip_code_fence` + `_extract_first_json_array` 容错。
+
+**验证**：`cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q` → **13 passed**（含新增 `test_file_review_parses_fenced_json_as_llm`、`test_file_review_reports_llm_failed_when_all_subagents_fail`）；`uv run ruff check app/domains/ide/ app/domains/book_runs/book_generation.py` → All checks passed。
+
+**未联通 / 下一步**：真 LLM 端到端（带 `STORYFORGE_LLM_*` 凭据）未在本环境跑，仅 stub 覆盖（本机 uvloop 起服坑见 project_desktop_assistant，需 TestClient 探针）；`book_runs` 全套件未复跑（改动行为中性）；前端 file.review 触发链路与流式 UX 属阶段 2/3，未动。
+
+记录时间戳：2026-06-20 +08:00。

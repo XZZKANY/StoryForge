@@ -37,6 +37,12 @@ export type ContextBundle = {
   summary: ProjectSemanticSummary;
 };
 
+export type StoryProjectInitializationPlan = {
+  directories: string[];
+  readmePath: string;
+  readmeContent: string;
+};
+
 const KIND_LABELS: Record<SemanticKind, string> = {
   outline: '大纲',
   character: '人物',
@@ -151,29 +157,36 @@ export async function buildProjectIndex(projectPath: string): Promise<ProjectInd
   return buildProjectIndexFromEntries(projectPath, entries);
 }
 
-export async function initializeStoryProject(projectPath: string): Promise<void> {
+export function buildStoryProjectInitializationPlan(projectPath: string): StoryProjectInitializationPlan {
   const separator = projectPath.includes('\\') ? '\\' : '/';
   const root = normalizeRoot(projectPath);
-  for (const dir of STORY_DIRS) {
-    await TauriFileSystem.createDir(`${root}${separator}${dir}`, true);
+  const readmePath = `${root}${separator}大纲${separator}项目说明.md`;
+  return {
+    directories: STORY_DIRS.map((dir) => `${root}${separator}${dir}`),
+    readmePath,
+    readmeContent: [
+      '# 项目说明',
+      '',
+      '- 大纲：存放总纲、章节节点、反转表。',
+      '- 人物：存放角色小传、关系、成长线。',
+      '- 设定：存放世界观、地点、物件、规则。',
+      '- 正文：存放章节正文。',
+      '- 质量：存放审查报告、伏笔表、版本记录。',
+      '- 导出：存放交付稿和发布制品。',
+    ].join('\n'),
+  };
+}
+
+export async function initializeStoryProject(projectPath: string): Promise<void> {
+  const plan = buildStoryProjectInitializationPlan(projectPath);
+  for (const dir of plan.directories) {
+    await TauriFileSystem.createDir(dir, true);
   }
 
-  const readmePath = `${root}${separator}大纲${separator}项目说明.md`;
+  const readmePath = plan.readmePath;
   const exists = await TauriFileSystem.pathExists(readmePath);
   if (!exists) {
-    await TauriFileSystem.writeFile(
-      readmePath,
-      [
-        '# 项目说明',
-        '',
-        '- 大纲：存放总纲、章节节点、反转表。',
-        '- 人物：存放角色小传、关系、成长线。',
-        '- 设定：存放世界观、地点、物件、规则。',
-        '- 正文：存放章节正文。',
-        '- 质量：存放审查报告、伏笔表、版本记录。',
-        '- 导出：存放交付稿和发布制品。',
-      ].join('\n'),
-    );
+    await TauriFileSystem.writeFile(readmePath, plan.readmeContent);
   }
 }
 

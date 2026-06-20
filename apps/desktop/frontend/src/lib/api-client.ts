@@ -103,6 +103,7 @@ export type AgentToolTrace = {
 
 export type AgentProposedPatch =
   | {
+      id?: string;
       kind: 'file_revision';
       file_path: string;
       before: string;

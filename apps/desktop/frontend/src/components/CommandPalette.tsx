@@ -22,6 +22,7 @@ type CommandPaletteProps = {
   onClose: () => void;
   onOpenFile: (path: string) => void;
   onOpenProject: () => void;
+  onInitializeProject: () => void;
   onReviewCurrent: () => void;
   onExportCurrent: () => void;
   onToggleAssistant: () => void;
@@ -49,6 +50,7 @@ export function CommandPalette({
   onClose,
   onOpenFile,
   onOpenProject,
+  onInitializeProject,
   onReviewCurrent,
   onExportCurrent,
   onToggleAssistant,
@@ -91,6 +93,14 @@ export function CommandPalette({
     const list: Command[] = [
       { id: 'open-project', title: '打开项目…', hint: 'Ctrl+O', run: onOpenProject },
     ];
+    if (projectPath) {
+      list.push({
+        id: 'initialize-story-project',
+        title: '初始化小说项目结构',
+        hint: basename(projectPath),
+        run: onInitializeProject,
+      });
+    }
     if (currentFile) {
       list.push({
         id: 'review-current',
@@ -118,6 +128,7 @@ export function CommandPalette({
     currentFile,
     projectPath,
     onOpenProject,
+    onInitializeProject,
     onReviewCurrent,
     onExportCurrent,
     onToggleAssistant,

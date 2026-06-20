@@ -6,6 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
+  ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
   APPLY_FILE_SUGGESTION_EVENT,
   EXPORT_CURRENT_FILE_EVENT,
   SUGGESTION_RESULT_EVENT,
@@ -54,6 +55,7 @@ export function Editor({
   const [suggestionStatus, setSuggestionStatus] = useState('');
   const [isReviseLoading, setIsReviseLoading] = useState(false);
   const assistantSessionIdRef = useRef<number | null>(null);
+  const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
   const cleanVersionIdRef = useRef<number | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
@@ -67,6 +69,7 @@ export function Editor({
   filePathRef.current = filePath;
   projectPathRef.current = projectPath;
   isDirtyRef.current = isDirty;
+  pendingSuggestionRef.current = pendingSuggestion;
   autoSaveRef.current = autoSave;
 
   // 加载文件内容
@@ -242,9 +245,17 @@ export function Editor({
   };
 
   const handleAcceptSuggestion = async () => {
-    const suggestion = pendingSuggestion;
+    const suggestion = pendingSuggestionRef.current;
     const path = filePathRef.current;
-    if (!suggestion || !path || !editorRef.current) return;
+    if (!suggestion || !path || !editorRef.current) {
+      emitAuthorLoopResult({
+        filePath: path ?? '',
+        status: 'error',
+        action: 'revision_accepted',
+        message: '当前没有待写回的修订。',
+      });
+      return;
+    }
 
     try {
       const previous = originalContentRef.current;
@@ -348,6 +359,14 @@ export function Editor({
     };
     window.addEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
     return () => window.removeEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
+  }, []);
+
+  useEffect(() => {
+    const onAcceptCurrentSuggestion = () => {
+      void handleAcceptSuggestion();
+    };
+    window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
+    return () => window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
   }, []);
 
   const handleSaveSuggestionNote = async () => {

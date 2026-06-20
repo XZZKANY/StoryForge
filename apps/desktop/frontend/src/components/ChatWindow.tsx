@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   AUTHOR_LOOP_RESULT_EVENT,
+  emitAcceptCurrentFileSuggestion,
   emitExportCurrentFile,
   emitFileSuggestion,
   emitSuggestionResult,
@@ -25,6 +26,7 @@ import {
   type AgentResultMessage,
   type AgentToolTrace,
 } from '../lib/api-client';
+import { detectLocalConversationAction, type LocalConversationAction } from '../lib/local-conversation-action';
 import { buildContextBundle } from '../lib/project-context';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { AgentStepsPanel } from './AgentStepsPanel';
@@ -62,12 +64,12 @@ type AgentRun = {
   steps: AgentStep[];
 };
 
-type ConversationIntent = 'chat.explain' | 'file.revise' | 'file.export';
-
 type RetryRequest = {
   goal: string;
-  intent: ConversationIntent;
+  action: LocalConversationAction;
 };
+
+type ReviewReport = Record<string, unknown>;
 
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
@@ -100,6 +102,11 @@ function planStepTitle(step: string): string {
     'judge.run': '运行 Judge',
     'judge.repair': '生成修复建议',
     'bookrun.start': '启动 BookRun',
+    'context-agent': '选择上下文',
+    'plot-agent': '剧情结构审稿',
+    'character-agent': '人物一致性审稿',
+    'prose-agent': '文风节奏审稿',
+    'synthesizer-agent': '合并审稿报告',
     audit: '记录审计',
   };
   return titleByStep[step] ?? step;
@@ -111,7 +118,10 @@ function toolTraceDetail(trace: AgentToolTrace): string {
   const audit = trace.audit_event_id ? `；审计 ${trace.audit_event_id}` : '';
   const model = typeof output.model === 'string' ? `；模型 ${output.model}` : '';
   const latency = typeof output.latency_ms === 'number' ? `；${output.latency_ms}ms` : '';
-  return `${trace.status}${model}${latency}${audit}`;
+  const contextCount = typeof output.context_file_count === 'number' ? `；上下文 ${output.context_file_count} 个` : '';
+  const issueCount = typeof output.issue_count === 'number' ? `；问题 ${output.issue_count} 个` : '';
+  const actionCount = typeof output.suggested_action_count === 'number' ? `；建议 ${output.suggested_action_count} 条` : '';
+  return `${trace.status}${model}${latency}${contextCount}${issueCount}${actionCount}${audit}`;
 }
 
 function stepsFromAgentResult(message: AgentResultMessage): AgentStep[] {
@@ -133,6 +143,7 @@ function stepsFromAgentResult(message: AgentResultMessage): AgentStep[] {
 }
 
 function fileRevisionPatch(message: AgentResultMessage): {
+  id?: string;
   file_path: string;
   before: string;
   after: string;
@@ -144,7 +155,12 @@ function fileRevisionPatch(message: AgentResultMessage): {
     && typeof patch.before === 'string'
     && typeof patch.after === 'string'
   ) {
-    return { file_path: patch.file_path, before: patch.before, after: patch.after };
+    return {
+      id: typeof patch.id === 'string' ? patch.id : undefined,
+      file_path: patch.file_path,
+      before: patch.before,
+      after: patch.after,
+    };
   }
   return null;
 }
@@ -182,14 +198,47 @@ function compactConversationMessages(messages: Array<{ role: string; content: st
     .filter((message): message is Message => message !== null);
 }
 
-function detectConversationIntent(text: string): ConversationIntent {
-  if (/导出|交付|发布/.test(text) && !/修|改|审|润|检查|问题|一致|节奏|结构/.test(text)) {
-    return 'file.export';
-  }
-  if (/写回|应用|保存|直接改|直接修|改写|修订|润色|生成diff|给我一版diff|给一版diff/.test(text)) {
-    return 'file.revise';
-  }
-  return 'chat.explain';
+function reviewReportSummary(message: AgentResultMessage): string | null {
+  const report = message.agent_result.review_report;
+  if (!report || typeof report !== 'object') return null;
+  const record = report as {
+    issues?: unknown;
+    suggested_actions?: unknown;
+    context?: { file_count?: unknown; kinds?: unknown };
+    agent_findings?: Record<string, { issue_count?: unknown }>;
+  };
+  const issues = Array.isArray(record.issues) ? record.issues as Array<Record<string, unknown>> : [];
+  const actions = Array.isArray(record.suggested_actions)
+    ? record.suggested_actions.filter((item): item is string => typeof item === 'string')
+    : [];
+  const contextFileCount = typeof record.context?.file_count === 'number' ? record.context.file_count : 0;
+  const kinds = Array.isArray(record.context?.kinds)
+    ? record.context.kinds.filter((item): item is string => typeof item === 'string')
+    : [];
+  const finding = (key: string) => {
+    const count = record.agent_findings?.[key]?.issue_count;
+    return typeof count === 'number' ? count : 0;
+  };
+
+  const issueLines = issues.slice(0, 5).map((issue, index) => {
+    const agent = typeof issue.agent === 'string' ? issue.agent : 'agent';
+    const severity = typeof issue.severity === 'string' ? issue.severity : 'info';
+    const text = typeof issue.message === 'string' ? issue.message : '未命名问题';
+    return `${index + 1}. [${agent}/${severity}] ${text}`;
+  });
+
+  return [
+    message.agent_result.summary ?? '多视角审稿完成。',
+    `上下文：读取 ${contextFileCount} 个文件${kinds.length ? `（${kinds.join('、')}）` : ''}。`,
+    `视角：剧情 ${finding('plot')} 个，人物 ${finding('character')} 个，文风节奏 ${finding('prose')} 个。`,
+    issueLines.length ? `问题：\n${issueLines.join('\n')}` : '问题：未发现明显结构性问题。',
+    actions.length ? `建议：\n${actions.map((action, index) => `${index + 1}. ${action}`).join('\n')}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
+function reviewReportFromMessage(message: AgentResultMessage): ReviewReport | null {
+  const report = message.agent_result.review_report;
+  return report && typeof report === 'object' ? report as ReviewReport : null;
 }
 
 function runStatusText(run: AgentRun | null): string | null {
@@ -224,6 +273,7 @@ export function ChatWindow({
   const [agentBusy, setAgentBusy] = useState(false);
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
   const [conversationTitle, setConversationTitle] = useState('新的创作会话');
+  const [lastReviewReport, setLastReviewReport] = useState<ReviewReport | null>(null);
 
   const projectName = projectPath ? basename(projectPath) : null;
   const contextRef = currentFile ? relativePath(projectPath, currentFile) : null;
@@ -243,6 +293,7 @@ export function ChatWindow({
     if (!assistantSessionId) {
       setMessages([]);
       setConversationTitle('新的创作会话');
+      setLastReviewReport(null);
       return () => {
         cancelled = true;
       };
@@ -278,7 +329,10 @@ export function ChatWindow({
     setAgentBusy(status === 'running');
   }, []);
 
-  const runAuthorAgent = useCallback(async (goal: string, intent: ConversationIntent = detectConversationIntent(goal)) => {
+  const runAuthorAgent = useCallback(async (
+    goal: string,
+    action: LocalConversationAction = detectLocalConversationAction(goal),
+  ) => {
     if (agentBusy) {
       setMessages((prev) => [
         ...prev,
@@ -287,20 +341,31 @@ export function ChatWindow({
       return;
     }
 
+    const writebackOnly = action === 'file.writeback';
     const project = projectPathRef.current;
     const file = currentFileRef.current;
     const ref = contextRefRef.current;
     if (!project) {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: '我需要先知道这是哪个项目。打开本地项目目录后，我们就可以直接围绕稿件聊。' },
+        {
+          role: 'assistant',
+          content: writebackOnly
+            ? '当前没有待写回的修订。'
+            : '我需要先知道这是哪个项目。打开本地项目目录后，我们就可以直接围绕稿件聊。',
+        },
       ]);
       return;
     }
     if (!file || !ref) {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: '我需要先看到右侧当前稿件。打开正文文件后，我会按你的问题来审、聊或给方案。' },
+        {
+          role: 'assistant',
+          content: writebackOnly
+            ? '当前没有待写回的修订。'
+            : '我需要先看到右侧当前稿件。打开正文文件后，我会按你的问题来审、聊或给方案。',
+        },
       ]);
       return;
     }
@@ -322,18 +387,27 @@ export function ChatWindow({
       ],
     });
 
-    const exportOnly = intent === 'file.export';
-    const reviseFile = intent === 'file.revise';
+    const exportOnly = action === 'file.export';
     updateAgentStep('plan', {
       status: 'completed',
       detail: exportOnly
         ? '目标判断为导出当前稿'
-        : reviseFile
-          ? '目标判断为生成可确认的修订'
-          : '目标判断为先对话、分析或给方案，不写回文件',
+        : writebackOnly
+          ? '目标判断为确认写回当前待审补丁'
+        : '目标交给后端 Agent Orchestrator 判定',
     });
 
     try {
+      if (writebackOnly) {
+        updateAgentStep('context', { status: 'completed', detail: '确认写回不重新读取项目上下文' });
+        updateAgentStep('draft', { status: 'completed', detail: '复用作者已查看的 diff' });
+        updateAgentStep('orchestrate', { status: 'completed', detail: '无需后端重新生成修订' });
+        updateAgentStep('approval', { status: 'running', detail: '正在写回当前待审补丁' });
+        emitAcceptCurrentFileSuggestion();
+        updateAgentStatus('waiting');
+        return;
+      }
+
       updateAgentStep('context', { status: 'running', detail: '读取大纲、人物、设定、正文摘要' });
       const contextBundle = await buildContextBundle({ projectPath: project, currentFile: file });
       updateAgentStep('context', {
@@ -358,24 +432,28 @@ export function ChatWindow({
 
       updateAgentStep('orchestrate', {
         status: 'running',
-        detail: reviseFile ? '生成待确认修订' : '整理创作判断',
+        detail: '发送原文、当前稿和项目上下文，等待后端判定意图',
       });
       const response = await sendAgentUserMessage({
         sessionId: runId,
         assistantSessionId: assistantSessionIdRef.current,
         userMessage: goal,
-        intent: reviseFile ? 'file.revise' : 'chat.explain',
         args: {
-          ...(reviseFile ? { file_path: file, content, instruction: goal } : { context: content, selection: content }),
+          file_path: file,
+          content,
+          instruction: goal,
+          context: content,
+          selection: content,
           project_name: projectName,
           context_bundle: toAssistantContextBundlePayload(contextBundle),
+          ...(lastReviewReport ? { review_report: lastReviewReport } : {}),
         },
       });
 
       if (isAgentErrorMessage(response)) {
         updateAgentStep('orchestrate', { status: 'failed', detail: response.detail });
         updateAgentStatus('failed');
-        setRetryRequest({ goal, intent });
+        setRetryRequest({ goal, action });
         setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${response.detail}` }]);
         return;
       }
@@ -384,7 +462,7 @@ export function ChatWindow({
         const detail = `Agent 返回了暂不支持的消息：${response.type}`;
         updateAgentStep('orchestrate', { status: 'failed', detail });
         updateAgentStatus('failed');
-        setRetryRequest({ goal, intent });
+        setRetryRequest({ goal, action });
         setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
         return;
       }
@@ -415,6 +493,7 @@ export function ChatWindow({
       const proposed = fileRevisionPatch(response);
       if (proposed) {
         emitFileSuggestion(createRemoteFileSuggestion({
+          id: proposed.id,
           filePath: proposed.file_path,
           before: proposed.before,
           after: proposed.after,
@@ -432,6 +511,14 @@ export function ChatWindow({
         return;
       }
 
+      const reviewSummary = reviewReportSummary(response);
+      if (reviewSummary) {
+        setLastReviewReport(reviewReportFromMessage(response));
+        setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
+        updateAgentStatus('completed');
+        return;
+      }
+
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
@@ -441,15 +528,15 @@ export function ChatWindow({
       const message = error instanceof Error ? error.message : String(error);
       updateAgentStep('orchestrate', { status: 'failed', detail: message });
       updateAgentStatus('failed');
-      setRetryRequest({ goal, intent });
+      setRetryRequest({ goal, action });
       setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
     }
-  }, [agentBusy, onAssistantSessionChange, projectName, updateAgentStatus, updateAgentStep]);
+  }, [agentBusy, lastReviewReport, onAssistantSessionChange, projectName, updateAgentStatus, updateAgentStep]);
 
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
     setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
-    void runAuthorAgent(retryRequest.goal, retryRequest.intent);
+    void runAuthorAgent(retryRequest.goal, retryRequest.action);
   }, [agentBusy, retryRequest, runAuthorAgent]);
 
   // 命令面板触发"审查当前文件"
@@ -467,7 +554,7 @@ export function ChatWindow({
           content: `可以。我按商业连载节奏看，重点检查冲突进入、信息密度和章尾钩子。\n\n我会先看当前稿和项目上下文；这轮只给判断和建议，不直接写回文件。`,
         },
       ]);
-      void runAuthorAgent(ask, 'chat.explain');
+      void runAuthorAgent(ask);
     };
     window.addEventListener(REVIEW_CURRENT_EVENT, onReview);
     return () => window.removeEventListener(REVIEW_CURRENT_EVENT, onReview);

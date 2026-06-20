@@ -14,6 +14,7 @@ import { SettingsView } from './components/SettingsView';
 import { HomeStoryIcon, ProjectIcon } from './components/StoryIcons';
 import { isTauriRuntime } from './lib/tauri-env';
 import { TauriFileSystem } from './lib/tauri-fs';
+import { initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { emitExportCurrentFile, emitReviewCurrentFile } from './lib/assistant-events';
 import { loadAppSettings, saveAppSettings, type AppSettings } from './lib/user-settings';
@@ -77,6 +78,7 @@ export function App() {
   const [composerMode, setComposerMode] = useState<ComposerLayoutMode>('panel');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal');
   const [emptyWorkbenchVisible, setEmptyWorkbenchVisible] = useState(false);
+  const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
 
   const [isDesktopRuntime, setIsDesktopRuntime] = useState(false);
   const [tauriMenuReady, setTauriMenuReady] = useState(false);
@@ -198,6 +200,28 @@ export function App() {
       window.alert(`新建文件失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [activeProject, handleFileSelect, handleOpenProject]);
+
+  const handleInitializeStoryProject = useCallback(async (projectOverride?: string) => {
+    const targetProject = projectOverride ?? activeProject;
+    if (!targetProject) {
+      await handleOpenProject();
+      return;
+    }
+
+    try {
+      await initializeStoryProject(targetProject);
+      setProjectRefreshVersion((version) => version + 1);
+      setEmptyWorkbenchVisible(true);
+      setSettingsVisible(false);
+      setWorkspaceVisible(true);
+      setEditorVisible(true);
+      setComposerMode('panel');
+      setLayoutMode('custom');
+    } catch (error) {
+      console.error('初始化项目结构失败', error);
+      window.alert(`初始化项目结构失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [activeProject, handleOpenProject]);
 
   const restoreFullLayout = useCallback(() => {
     setWorkspaceVisible(true);
@@ -372,6 +396,7 @@ export function App() {
               projectAssistantSessions={projectAssistantSessions}
               onSelectProject={selectProject}
               onOpenProject={handleOpenProject}
+              onInitializeProject={handleInitializeStoryProject}
               onOpenSettings={openSettings}
             />
           }
@@ -380,6 +405,7 @@ export function App() {
               <WelcomeWorkspace
                 activeProject={activeProject}
                 onOpenProject={handleOpenProject}
+                onInitializeProject={handleInitializeStoryProject}
                 onBrowseFiles={() => setPalette('files')}
                 onShowWorkbench={() => {
                   setEmptyWorkbenchVisible(true);
@@ -400,6 +426,7 @@ export function App() {
                   onAssistantSessionChange={setActiveProjectAssistantSession}
                   onFocusOnly={focusAssistantOnly}
                   onRestoreLayout={restoreFullLayout}
+                  onInitializeProject={handleInitializeStoryProject}
                   onCollapse={() => handleComposerModeChange('floating')}
                 />
               </section>
@@ -419,6 +446,7 @@ export function App() {
               currentFile={currentFile}
               recentFiles={recentFiles}
               workspaceVisible={workspaceVisible}
+              projectRefreshVersion={projectRefreshVersion}
               editorFontSize={settings.editorFontSize}
               autoSave={settings.autoSave}
               onFileSelect={handleFileSelect}
@@ -452,6 +480,7 @@ export function App() {
           onClose={() => setPalette(null)}
           onOpenFile={handleFileSelect}
           onOpenProject={handleOpenProject}
+          onInitializeProject={handleInitializeStoryProject}
           onReviewCurrent={() => emitReviewCurrentFile()}
           onExportCurrent={() => emitExportCurrentFile()}
           onToggleAssistant={() => {
@@ -579,6 +608,20 @@ function MessagePlusIcon() {
   );
 }
 
+function StoryStructureIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M2.5 3.25h4.25v3.5H2.5v-3.5ZM9.25 3.25h4.25v3.5H9.25v-3.5ZM2.5 9.25h4.25v3.5H2.5v-3.5ZM9.25 9.25h4.25v3.5H9.25v-3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+      <path d="M6.75 5h2.5M6.75 11h2.5M4.6 6.75v2.5M11.4 6.75v2.5" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ChevronRightIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -637,6 +680,7 @@ function CodexSidebar({
   projectAssistantSessions,
   onSelectProject,
   onOpenProject,
+  onInitializeProject,
   onOpenSettings,
 }: {
   projects: string[];
@@ -644,6 +688,7 @@ function CodexSidebar({
   projectAssistantSessions: Record<string, number>;
   onSelectProject: (path: string) => void;
   onOpenProject: () => void;
+  onInitializeProject: (projectPath?: string) => void;
   onOpenSettings: () => void;
 }) {
   const [projectLibraryExpanded, setProjectLibraryExpanded] = useState(true);
@@ -747,6 +792,15 @@ function CodexSidebar({
                     }}
                   >
                     <MessagePlusIcon />
+                  </IconToolButton>
+                  <IconToolButton
+                    title="初始化小说项目结构"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onInitializeProject(path);
+                    }}
+                  >
+                    <StoryStructureIcon />
                   </IconToolButton>
                 </span>
               </button>
@@ -877,6 +931,7 @@ function AgentWorkspace({
   onAssistantSessionChange,
   onFocusOnly,
   onRestoreLayout,
+  onInitializeProject,
   onCollapse,
 }: {
   projectPath: string | null;
@@ -887,6 +942,7 @@ function AgentWorkspace({
   onAssistantSessionChange: (assistantSessionId: number | null) => void;
   onFocusOnly: () => void;
   onRestoreLayout: () => void;
+  onInitializeProject: (projectPath?: string) => void;
   onCollapse: () => void;
 }) {
   return (
@@ -916,6 +972,7 @@ function AgentWorkspace({
             compact
             onBrowseFiles={onRestoreLayout}
             onOpenProject={onRestoreLayout}
+            onInitializeProject={onInitializeProject}
           />
         )}
       </div>
@@ -972,11 +1029,13 @@ function TopRightTools({
 function WelcomeWorkspace({
   activeProject,
   onOpenProject,
+  onInitializeProject,
   onBrowseFiles,
   onShowWorkbench,
 }: {
   activeProject: string | null;
   onOpenProject: () => void;
+  onInitializeProject: (projectPath?: string) => void;
   onBrowseFiles: () => void;
   onShowWorkbench: () => void;
 }) {
@@ -1016,6 +1075,7 @@ function WelcomeWorkspace({
         activeProject={activeProject}
         onBrowseFiles={onBrowseFiles}
         onOpenProject={onOpenProject}
+        onInitializeProject={onInitializeProject}
       />
     </section>
   );
@@ -1026,11 +1086,13 @@ function AgentComposerHome({
   compact = false,
   onBrowseFiles,
   onOpenProject,
+  onInitializeProject,
 }: {
   activeProject: string | null;
   compact?: boolean;
   onBrowseFiles: () => void;
   onOpenProject: () => void;
+  onInitializeProject: (projectPath?: string) => void;
 }) {
   return (
     <div className="flex h-full items-center justify-center bg-[#18181B] px-4 py-10">
@@ -1083,6 +1145,15 @@ function AgentComposerHome({
               打开项目
             </button>
           )}
+          {activeProject && (
+            <button
+              className="h-10 rounded-full border border-[#303030] px-3 text-sm text-[#A8A8A8] transition-colors hover:border-[#464646] hover:bg-[#1B1B1B] hover:text-[#EDEDED]"
+              onClick={() => onInitializeProject(activeProject)}
+              data-testid="welcome-initialize-project"
+            >
+              初始化项目结构
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1094,6 +1165,7 @@ function RightWorkspace({
   currentFile,
   recentFiles,
   workspaceVisible,
+  projectRefreshVersion,
   editorFontSize,
   autoSave,
   onFileSelect,
@@ -1108,6 +1180,7 @@ function RightWorkspace({
   currentFile: string | null;
   recentFiles: string[];
   workspaceVisible: boolean;
+  projectRefreshVersion: number;
   editorFontSize: number;
   autoSave: boolean;
   onFileSelect: (filePath: string) => void;
@@ -1206,7 +1279,12 @@ function RightWorkspace({
             </button>
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <ResourceExplorer projectPath={activeProject} currentFile={currentFile} onFileSelect={onFileSelect} />
+            <ResourceExplorer
+              projectPath={activeProject}
+              currentFile={currentFile}
+              refreshVersion={projectRefreshVersion}
+              onFileSelect={onFileSelect}
+            />
           </div>
           <div className="hidden" aria-hidden="true" data-recent-count={recentFiles.length} />
         </section>

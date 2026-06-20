@@ -8,6 +8,7 @@ import type { AssistantFileSuggestion } from './assistant-suggestions';
 export const REVIEW_CURRENT_EVENT = 'storyforge:review-current-file';
 export const EXPORT_CURRENT_FILE_EVENT = 'storyforge:export-current-file';
 export const APPLY_FILE_SUGGESTION_EVENT = 'storyforge:apply-file-suggestion';
+export const ACCEPT_CURRENT_FILE_SUGGESTION_EVENT = 'storyforge:accept-current-file-suggestion';
 export const REQUEST_FILE_SUGGESTION_EVENT = 'storyforge:request-file-suggestion';
 export const SUGGESTION_RESULT_EVENT = 'storyforge:suggestion-result';
 export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
@@ -50,6 +51,12 @@ export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
     window.dispatchEvent(new CustomEvent<AssistantFileSuggestion>(APPLY_FILE_SUGGESTION_EVENT, {
       detail: suggestion,
     }));
+  }
+}
+
+export function emitAcceptCurrentFileSuggestion(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT));
   }
 }
 
