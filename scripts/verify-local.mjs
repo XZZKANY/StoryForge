@@ -27,9 +27,9 @@ const gates = [
     cwd: root,
   },
   {
-    name: 'Web 类型检查',
-    command: 'pnpm',
-    args: ['--filter', '@storyforge/web', 'lint'],
+    name: 'Desktop frontend 类型检查',
+    command: 'npm',
+    args: ['--prefix', 'apps/desktop/frontend', 'run', 'typecheck'],
     cwd: root,
   },
   {
@@ -39,9 +39,9 @@ const gates = [
     cwd: root,
   },
   {
-    name: 'Web 契约测试',
-    command: 'pnpm',
-    args: ['--filter', '@storyforge/web', 'test'],
+    name: 'Desktop frontend 单元测试',
+    command: 'npm',
+    args: ['--prefix', 'apps/desktop/frontend', 'run', 'test'],
     cwd: root,
   },
   {

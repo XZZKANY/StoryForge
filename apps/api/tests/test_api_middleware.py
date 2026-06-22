@@ -26,7 +26,7 @@ def test_health_endpoint_and_cors_preflight_are_public() -> None:
         preflight = client.options(
             "/api/workspaces",
             headers={
-                "Origin": "http://localhost:3000",
+                "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "GET",
             },
         )
@@ -34,7 +34,7 @@ def test_health_endpoint_and_cors_preflight_are_public() -> None:
     assert health.status_code == 200
     assert health.json()["status"] == "alive"
     assert preflight.status_code == 200
-    assert preflight.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert preflight.headers["access-control-allow-origin"] == "http://localhost:3007"
 
 
 def test_desktop_frontend_cors_preflight_is_public() -> None:
@@ -60,7 +60,7 @@ def test_cors_preflight_uses_explicit_method_and_header_allowlists() -> None:
         preflight = client.options(
             "/api/workspaces",
             headers={
-                "Origin": "http://localhost:3000",
+                "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "PATCH",
                 "Access-Control-Request-Headers": "content-type,x-storyforge-api-key",
             },
@@ -68,7 +68,7 @@ def test_cors_preflight_uses_explicit_method_and_header_allowlists() -> None:
         rejected_header = client.options(
             "/api/workspaces",
             headers={
-                "Origin": "http://localhost:3000",
+                "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "PATCH",
                 "Access-Control-Request-Headers": "x-debug-token",
             },

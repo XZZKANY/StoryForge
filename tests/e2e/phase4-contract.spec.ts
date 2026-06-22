@@ -16,30 +16,12 @@ const apiTests = {
   artifacts: readFileSync('apps/api/tests/test_artifacts.py', 'utf8'),
   evaluations: readFileSync('apps/api/tests/test_evaluations.py', 'utf8'),
 };
-const webSources = {
-  home: readFileSync('apps/web/app/page.tsx', 'utf8'),
-  editorArea: readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8'),
-  retrieval: readFileSync('apps/web/app/retrieval/page.tsx', 'utf8'),
-  runs:
-    readFileSync('apps/web/components/ide/views/BookRunPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/views/BookRunEventsPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/app/ide/page.tsx', 'utf8'),
-  artifacts:
-    readFileSync('apps/web/app/artifacts/page-content.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/app/artifacts/api.ts', 'utf8'),
-  evaluations:
-    readFileSync('apps/web/next.config.ts', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/url/ide-url-state.ts', 'utf8'),
+const desktopSources = {
+  app: readFileSync('apps/desktop/frontend/src/App.tsx', 'utf8'),
+  apiClient: readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8'),
+  authorLoop: readFileSync('apps/desktop/frontend/src/lib/author-loop.ts', 'utf8'),
+  agentSteps: readFileSync('apps/desktop/frontend/src/components/AgentStepsPanel.tsx', 'utf8'),
+  settings: readFileSync('apps/desktop/frontend/src/components/SettingsView.tsx', 'utf8'),
 };
 
 function assertOperation(path, method, tag) {
@@ -124,39 +106,35 @@ test('Phase 4 后端测试源码保留关键业务证据', () => {
   ]);
 });
 
-test('Phase 4 前端入口包含检索、运行日志、制品中心和评测面板', () => {
-  assertSourceEvidence(webSources.editorArea, [
-    '/retrieval',
-    '/runs',
-    '/artifacts',
-    '/evaluations',
-    'Retrieval 证据检索',
-    'Evaluations 评测系统',
+test('Phase 4 Desktop 入口承接本地项目、Agent、制品导出和设置能力', () => {
+  assertSourceEvidence(desktopSources.app, [
+    'DynamicIDELayout',
+    'ChatWindow',
+    'ResourceExplorer',
+    'Editor',
+    'SettingsView',
   ]);
-  assertSourceEvidence(webSources.retrieval, [
-    '资料库',
-    'Embedding 刷新任务',
-    '检索命中与重排',
-    'Scene Packet 检索证据',
+  assertSourceEvidence(desktopSources.apiClient, [
+    '/api/assistant/revise',
+    '/api/assistant/sessions/',
+    '/api/ide/agent/sessions/',
+    'X-StoryForge-API-Key',
+    "cache: 'no-store'",
   ]);
-  assertSourceEvidence(webSources.runs, [
-    'BookRun Run Panel',
-    'checkpoint',
-    'data-event-source="sse"',
-    '/api/ide/runs/',
-    '/api/book-runs/',
+  assertSourceEvidence(desktopSources.authorLoop, [
+    'recordRevisionLoop',
+    'exportCurrentFile',
+    'buildExportPath',
   ]);
-  assertSourceEvidence(webSources.artifacts, [
-    '导出物',
-    '制品详情',
-    'payload 下载摘要',
-    'ArtifactsWorkbench',
+  assertSourceEvidence(desktopSources.agentSteps, [
+    'AgentStepStatus',
+    'completed',
+    'failed',
   ]);
-  assertSourceEvidence(webSources.evaluations, [
-    "source: '/evaluations'",
-    "destination: '/ide?panel.bottom=evaluation'",
-    'Evaluations 评测系统',
-    "'evaluation'",
+  assertSourceEvidence(desktopSources.settings, [
+    '模型服务',
+    '默认模型',
+    '密钥引用',
   ]);
 });
 
@@ -219,8 +197,8 @@ print(json.dumps([
     'OpenAPI 必须保留 runtime tools 读取契约',
   );
   assert.ok(
-    !webSources.runs.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'),
-    'IDE Runs 面板不应直接引用 workflow registry',
+    !desktopSources.apiClient.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'),
+    'Desktop API client 不应直接引用 workflow registry',
   );
-  assert.ok(!webSources.runs.includes('runtimeToolList = ['), 'IDE Runs 面板不应维护静态工具清单');
+  assert.ok(!desktopSources.apiClient.includes('runtimeToolList = ['), 'Desktop API client 不应维护静态工具清单');
 });

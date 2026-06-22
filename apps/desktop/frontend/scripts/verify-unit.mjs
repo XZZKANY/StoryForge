@@ -91,11 +91,11 @@ function writeModule(file, source) {
 }
 
 function createRuntimeStubs() {
-  const webNodeModules = join(cwd, '..', '..', 'web', 'node_modules');
-  const reactUrl = moduleUrl(webNodeModules, 'react', 'index.js');
-  const jsxRuntimeUrl = moduleUrl(webNodeModules, 'react', 'jsx-runtime.js');
-  const jsxDevRuntimeUrl = moduleUrl(webNodeModules, 'react', 'jsx-dev-runtime.js');
-  const reactDomServerUrl = moduleUrl(webNodeModules, 'react-dom', 'server.node.js');
+  const requireFromFrontend = createRequire(join(cwd, 'package.json'));
+  const reactUrl = pathToFileURL(requireFromFrontend.resolve('react')).href;
+  const jsxRuntimeUrl = pathToFileURL(requireFromFrontend.resolve('react/jsx-runtime')).href;
+  const jsxDevRuntimeUrl = pathToFileURL(requireFromFrontend.resolve('react/jsx-dev-runtime')).href;
+  const reactDomServerUrl = pathToFileURL(requireFromFrontend.resolve('react-dom/server')).href;
 
   writeModule(
     join(tempNodeModules, 'react', 'package.json'),

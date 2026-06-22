@@ -47,7 +47,7 @@ def test_registry_exposes_schema_capability_and_mapping_metadata() -> None:
     assert "embedding" in retrieval.required_capabilities
     assert "source_ref" in retrieval.evidence_fields
     assert "POST /api/retrieval/search" in retrieval.references.api_paths
-    assert "apps/web/app/retrieval/page.tsx" in retrieval.references.page_refs
+    assert "apps/desktop/frontend/src/lib/project-context.ts" in retrieval.references.page_refs
     assert retrieval.references.workflow_nodes
 
     assert scene_packet.input_schema["title"] == "ScenePacketCreate"
@@ -80,7 +80,7 @@ def test_registry_returns_immutable_snapshots() -> None:
         required_capabilities=["llm"],
         evidence_fields=["request_id"],
         references=CreativeToolReferences(
-            page_refs=["apps/web/app/unit/page.tsx"],
+            page_refs=["apps/desktop/frontend/src/unit.ts"],
             api_paths=["POST /api/unit"],
             workflow_nodes=["unit.node"],
         ),

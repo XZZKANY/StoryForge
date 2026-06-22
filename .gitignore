@@ -32,6 +32,15 @@ redis-data/
 .cache/
 .codex/tmp/
 .codex/narrative-smoke-*/
+.codex/*.log
+.codex/**/*.log
+.codex/*.sqlite
+.codex/**/*.sqlite
+.codex/*.sqlite3
+.codex/**/*.sqlite3
+.codex/*.png
+.codex/**/*.png
+output/
 
 # 本地工具噪声
 .claude/settings.local.json

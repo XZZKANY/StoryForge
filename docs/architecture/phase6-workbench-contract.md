@@ -1,5 +1,7 @@
 # Phase 6 工作台最小契约
 
+> 历史说明：本契约记录 Phase 6 Web 工作台时期的能力边界。2026-06-21 起 `apps/web` 已退场，当前产品入口和前端验证以 Desktop IDE 为准；本文件只作历史契约追溯，不再作为当前运行或验收入口。
+
 ## 目标
 
 本契约记录当前 Phase 6 页面入口、真实摘要读取、最小执行能力与后续边界。当前仍保持模块化单体，不新增大型前端架构、不拆微服务、不把治理文档写成新运行时能力。
@@ -10,7 +12,7 @@ Phase 6 的目标是把 StoryForge 从能力展示页推进为可连续操作的
 
 - 文档负责定义业务边界、状态区分和验收方式。
 - 旧的 `apps/web/lib/phase6-data-sources.ts` 阶段性 registry 已下线；五个页面当前以各自页面 API helper、`apps/web/lib/api-client.ts` 和后端契约读取真实摘要。
-- 本轮治理事实以 API/Web 实际行为、用户事实基线、本契约矩阵和 `.codex/current-phase.md` 为准；历史 registry 不再作为页面数据源事实源。
+- 本轮治理事实以 API、历史 Web 实际行为、用户事实基线、本契约矩阵和 `.codex/current-phase.md` 为准；历史 registry 不再作为页面数据源事实源。
 - 后续真实 API 读取应优先复用页面已有 API helper、集中 validators 和共享 OpenAPI 类型，避免文档、页面和实现再次分叉。
 
 ## 已实现的最小入口
@@ -144,12 +146,12 @@ uv run pytest tests/test_retrieval_workbench_api.py tests/test_model_runs.py -q
 uv run pytest tests/test_artifacts.py tests/test_evaluations.py -q
 uv run python -m compileall app tests/test_studio_book_list_api.py
 
-cd D:/StoryForge/1-renovel-ai-ai-rag-tavern
-pnpm --filter @storyforge/web test
-pnpm --filter @storyforge/web exec tsc --noEmit
+cd D:/StoryForge
+npm --prefix apps/desktop/frontend run typecheck
+npm --prefix apps/desktop/frontend run test
 pnpm run test:api
 pnpm run test:workflow
 git diff --check
 ```
 
-通过条件：Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API、Repair 修订 API、批准回写 API、批准执行 API 与失败恢复 API 最小契约测试通过；Retrieval 资料源、刷新任务、搜索命中预览测试通过；Runs JobRun/checkpoint/ModelRun 摘要与 retry 恢复任务测试通过；Artifacts 导出物 API、详情/download 摘要和 Evaluations 运行列表/详情/失败样例测试通过；API 与 Workflow compileall 通过；Web 中文契约与 TypeScript 编译无错误；文档 diff 不含空白错误。
+通过条件：Studio 作品列表 API、章节目标 API、Scene Packet API、Judge 评审 API、Repair 修订 API、批准回写 API、批准执行 API 与失败恢复 API 最小契约测试通过；Retrieval 资料源、刷新任务、搜索命中预览测试通过；Runs JobRun/checkpoint/ModelRun 摘要与 retry 恢复任务测试通过；Artifacts 导出物 API、详情/download 摘要和 Evaluations 运行列表/详情/失败样例测试通过；API 与 Workflow compileall 通过；Desktop frontend TypeScript 与单元测试通过；文档 diff 不含空白错误。

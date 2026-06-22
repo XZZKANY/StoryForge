@@ -10,13 +10,6 @@ const apiTests = {
   batchRefinery: readFileSync('apps/api/tests/test_batch_refinery.py', 'utf8'),
   stylePacks: readFileSync('apps/api/tests/test_style_packs.py', 'utf8'),
 };
-const webSources = {
-  home: readFileSync('apps/web/app/page.tsx', 'utf8'),
-  nav: readFileSync('apps/web/components/site-nav/site-nav-links.ts', 'utf8'),
-  nextConfig: readFileSync('apps/web/next.config.ts', 'utf8'),
-  studioApi: readFileSync('apps/web/app/studio/api.ts', 'utf8'),
-  studioPageContent: readFileSync('apps/web/app/studio/page-content.tsx', 'utf8'),
-};
 
 function assertOperation(path, method, tag) {
   const operation = openapi.paths?.[path]?.[method];
@@ -27,12 +20,6 @@ function assertOperation(path, method, tag) {
 function assertSourceEvidence(source, markers) {
   for (const marker of markers) {
     assert.ok(source.includes(marker), `缺少 Phase 2 证据：${marker}`);
-  }
-}
-
-function assertNoSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(!source.includes(marker), `Phase 2 前端不应暴露未验证旧入口：${marker}`);
   }
 }
 
@@ -61,31 +48,5 @@ test('Phase 2 后端测试源码保留当前业务证据', () => {
     'style_pack',
     'style_rule',
     '保持克制而具画面感',
-  ]);
-});
-
-test('Phase 2 前端边界对齐当前已验证入口', () => {
-  assertNoSourceEvidence(webSources.nav, ['/refinery', 'Refinery 批量精修']);
-  assertSourceEvidence(webSources.nextConfig, [
-    "source: '/refinery'",
-    "destination: '/ide?tab=legacy%3Astudio&active=legacy%3Astudio'",
-  ]);
-  assertSourceEvidence(webSources.studioApi, [
-    'studioJudgeReviewsEndpoint',
-    'studioRepairPatchesEndpoint',
-    'studioApprovalSummaryEndpoint',
-  ]);
-  assertSourceEvidence(webSources.studioPageContent, [
-    'JudgeIssueList',
-    'RepairDiffViewer',
-    'readStudioJudgeReview',
-    'readStudioRepairPatches',
-    'readStudioApprovalSummary',
-  ]);
-  assertNoSourceEvidence(webSources.home, [
-    "href: '/world'",
-    "href: '/quality'",
-    'World Center 世界观中心',
-    'Quality Dashboard 质量看板',
   ]);
 });

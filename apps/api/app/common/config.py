@@ -72,8 +72,8 @@ class StoryForgeSettings(BaseSettings):
 
     # ---- CORS ----
     storyforge_cors_origins: str = Field(
-        default="http://localhost:3007,http://127.0.0.1:3007,http://localhost:3000,http://127.0.0.1:3000",
-        description="允许的桌面前端和 Web 维护入口跨域来源，逗号分隔。",
+        default="http://localhost:3007,http://127.0.0.1:3007",
+        description="允许的桌面前端跨域来源，逗号分隔。",
     )
 
     # ---- 请求处理 ----

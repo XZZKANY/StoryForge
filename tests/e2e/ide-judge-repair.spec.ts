@@ -3,14 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const sources = {
-  problems: readFileSync('apps/web/components/ide/panels/ProblemsPanel.tsx', 'utf8'),
-  editor: readFileSync('apps/web/components/ide/editors/ChapterEditor.tsx', 'utf8'),
-  diff: readFileSync('apps/web/components/ide/views/DiffViewer.tsx', 'utf8'),
-  contextInspector: readFileSync('apps/web/components/ide/views/ContextInspector.tsx', 'utf8'),
-  editorArea: readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8'),
-  idePage: readFileSync('apps/web/app/ide/page.tsx', 'utf8'),
-  artifactViewer: readFileSync('apps/web/components/ide/views/ArtifactViewer.tsx', 'utf8'),
-  ideUrlState: readFileSync('apps/web/components/ide/url/ide-url-state.ts', 'utf8'),
+  chat: readFileSync('apps/desktop/frontend/src/components/ChatWindow.tsx', 'utf8'),
+  editor: readFileSync('apps/desktop/frontend/src/components/Editor.tsx', 'utf8'),
+  suggestions: readFileSync('apps/desktop/frontend/src/lib/assistant-suggestions.ts', 'utf8'),
+  apiClient: readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8'),
+  assistantEvents: readFileSync('apps/desktop/frontend/src/lib/assistant-events.ts', 'utf8'),
   artifactPreviewApi: readFileSync('apps/api/app/domains/ide/service.py', 'utf8'),
   artifactPreviewSchema: readFileSync('apps/api/app/domains/ide/schemas.py', 'utf8'),
   diagnosticsApi: readFileSync('apps/api/app/domains/ide/router.py', 'utf8'),
@@ -25,69 +22,38 @@ function assertSourceEvidence(source, markers) {
   }
 }
 
-test('IDE P1 Problems 面板覆盖空状态和列表状态', () => {
-  assertSourceEvidence(sources.problems, [
-    '当前没有诊断问题',
-    'diagnostic.severity',
-    'diagnostic.code',
-    'diagnostic.message',
-    'onSelectDiagnostic',
-    'onQuickFix',
+test('Desktop IDE Agent 保留工具轨迹、待确认补丁和错误状态', () => {
+  assertSourceEvidence(sources.chat, [
+    'tool_trace',
+    'proposed_patch',
+    'requires_user_confirmation',
+    'isAgentErrorMessage',
+    'isAgentResultMessage',
   ]);
 });
 
-test('IDE P1 章节编辑器和 Diff 视图保留最小闭环展示', () => {
+test('Desktop IDE 编辑器和建议模型保留最小修订闭环', () => {
   assertSourceEvidence(sources.editor, [
-    '@codemirror',
-    'data-editor-engine="codemirror6"',
-    '诊断装饰数量',
+    'requestRevision',
+    'recordRevisionLoop',
+    'emitAuthorLoopResult',
+    'editor-save-btn',
   ]);
-  assertSourceEvidence(sources.diff, ['修复前', '修复后', 'before', 'after']);
-});
-
-test('IDE P1 Workbench 串联 Judge 到 Approve 的命令闭环', () => {
-  const workbench = readFileSync(
-    'apps/web/components/ide/workflows/JudgeRepairWorkbench.tsx',
-    'utf8',
-  );
-  assertSourceEvidence(workbench, [
-    'judge.run',
-    'judge.repair',
-    'judge.approve',
-    'commands.execute',
-    'audit_event_id',
+  assertSourceEvidence(sources.suggestions, [
+    'createRemoteFileSuggestion',
+    'createLocalFileSuggestion',
+    'before',
+    'after',
   ]);
 });
 
-test('IDE P2 Context Inspector 支持 inspector URL 回放和 evicted 降级', () => {
-  assertSourceEvidence(sources.ideUrlState, [
-    'inspectorId',
-    "params.get('inspector')",
-    "params.set('inspector'",
-  ]);
-  assertSourceEvidence(sources.contextInspector, [
-    'data-context-entry-kind',
-    'data-compiled-context-id',
-    'data-context-entry-href',
-    'snapshot evicted at',
-  ]);
-  assertSourceEvidence(sources.idePage, [
-    'readJson<ContextSnapshot>',
-    '`/api/ide/context-snapshot/${inspectorId}`',
-    'readContextSnapshot(state.inspectorId)',
-  ]);
-  assertSourceEvidence(sources.editorArea, [
-    'data-active-inspector-id',
-    '<ContextInspector',
-    'contextSnapshotEvictedAt',
-  ]);
+test('IDE P2 Context Snapshot API 保留上下文回放契约', () => {
   assertSourceEvidence(sources.artifactPreviewSchema, ['context_href']);
   assertSourceEvidence(sources.artifactPreviewApi, [
     'compiled_context_id',
     '_context_href',
     '/ide?inspector=',
   ]);
-  assertSourceEvidence(sources.artifactViewer, ['data-context-href', 'context_href', '上下文']);
   assertSourceEvidence(sources.contextSnapshotTest, [
     '/api/ide/context-snapshot/',
     'injected_blocks',
@@ -116,5 +82,11 @@ test('IDE P1 diagnostics API 从 JudgeIssue 映射 Problems 契约', () => {
     'setting_conflict',
     '生成定向修复',
     'response.json() == []',
+  ]);
+  assertSourceEvidence(sources.apiClient, ['/api/ide/agent/sessions/', 'intent', 'tool_trace']);
+  assertSourceEvidence(sources.assistantEvents, [
+    'REVIEW_CURRENT_EVENT',
+    'APPLY_FILE_SUGGESTION_EVENT',
+    'ACCEPT_CURRENT_FILE_SUGGESTION_EVENT',
   ]);
 });

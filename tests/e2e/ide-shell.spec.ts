@@ -3,12 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const shellSources = {
-  page: readFileSync('apps/web/app/ide/page.tsx', 'utf8'),
-  shell: readFileSync('apps/web/components/ide/shell/IdeShell.tsx', 'utf8'),
-  activityBar: readFileSync('apps/web/components/ide/shell/ActivityBar.tsx', 'utf8'),
-  bottomPanel: readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8'),
-  editorArea: readFileSync('apps/web/components/ide/shell/EditorArea.tsx', 'utf8'),
-  sidePanel: readFileSync('apps/web/components/ide/shell/SidePanel.tsx', 'utf8'),
+  app: readFileSync('apps/desktop/frontend/src/App.tsx', 'utf8'),
+  layout: readFileSync('apps/desktop/frontend/src/components/DynamicIDELayout.tsx', 'utf8'),
+  explorer: readFileSync('apps/desktop/frontend/src/components/ResourceExplorer.tsx', 'utf8'),
+  editor: readFileSync('apps/desktop/frontend/src/components/Editor.tsx', 'utf8'),
+  chat: readFileSync('apps/desktop/frontend/src/components/ChatWindow.tsx', 'utf8'),
 };
 
 function assertSourceEvidence(source, markers) {
@@ -17,35 +16,31 @@ function assertSourceEvidence(source, markers) {
   }
 }
 
-test('IDE shell 页面暴露 /ide 入口和 VS Code 式基础布局', () => {
-  assertSourceEvidence(shellSources.page, ['IdeShell', 'parseIdeUrlState', 'searchParams']);
-  assertSourceEvidence(shellSources.shell, [
-    'data-testid="ide-shell"',
-    'StoryForge IDE',
-    'ActivityBar',
-    'SidePanel',
-    'EditorArea',
-    'RightDock',
-    'BottomPanel',
+test('Desktop IDE shell 暴露本地创作主入口和基础布局', () => {
+  assertSourceEvidence(shellSources.app, [
+    'data-testid="desktop-shell"',
+    'WindowMenu',
+    'CodexSidebar',
+    'AgentWorkspace',
+    'RightWorkspace',
+  ]);
+  assertSourceEvidence(shellSources.layout, [
+    'data-testid="dynamic-ide-layout"',
+    'conversation-full',
+    'editor-floating',
+    'split',
   ]);
 });
 
-test('IDE shell 支持运行和 diff 面板交互入口', () => {
-  assertSourceEvidence(shellSources.activityBar, ['运行', "id: 'runs'"]);
-  assertSourceEvidence(shellSources.bottomPanel, ["'diff'", '当前底部面板']);
+test('Desktop IDE shell 支持文件树、编辑器和 Agent 交互入口', () => {
+  assertSourceEvidence(shellSources.explorer, ['ResourceExplorer', 'projectPath', 'onFileSelect']);
+  assertSourceEvidence(shellSources.editor, ['data-testid="editor-panel"', 'editor-save-btn', 'editor-export-btn']);
+  assertSourceEvidence(shellSources.chat, ['sendAgentUserMessage', 'tool_trace', 'proposed_patch']);
 });
 
-test('IDE shell 暴露五个 legacy 页面入口', () => {
-  for (const marker of [
-    'legacy:studio',
-    'legacy:retrieval',
-    'legacy:runs',
-    'legacy:artifacts',
-    'legacy:evaluations',
-  ]) {
-    assert.ok(shellSources.sidePanel.includes(marker) || shellSources.editorArea.includes(marker), `缺少 ${marker}`);
-  }
-  for (const href of ['/studio', '/retrieval', '/runs', '/artifacts', '/evaluations']) {
-    assert.ok(shellSources.editorArea.includes(href), `缺少旧路由链接 ${href}`);
+test('Desktop IDE shell 不保留 Web legacy 路由入口', () => {
+  const allDesktopSources = Object.values(shellSources).join('\n');
+  for (const marker of ['/studio', '/retrieval', '/runs', '/artifacts', '/evaluations', 'legacy:']) {
+    assert.ok(!allDesktopSources.includes(marker), `Desktop shell 不应继续暴露 Web legacy 入口：${marker}`);
   }
 });

@@ -8,15 +8,10 @@ import { join } from 'node:path';
 const openapi = JSON.parse(
   readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
 );
-const webSources = {
-  runs:
-    readFileSync('apps/web/components/ide/views/BookRunPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/views/BookRunEventsPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/components/ide/shell/BottomPanel.tsx', 'utf8') +
-    '\n' +
-    readFileSync('apps/web/app/ide/page.tsx', 'utf8'),
+const desktopSources = {
+  apiClient: readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8'),
+  app: readFileSync('apps/desktop/frontend/src/App.tsx', 'utf8'),
+  agentSteps: readFileSync('apps/desktop/frontend/src/components/AgentStepsPanel.tsx', 'utf8'),
 };
 const gateSources = {
   e2e: readFileSync('scripts/run-e2e.mjs', 'utf8'),
@@ -286,7 +281,7 @@ app.dependency_overrides.clear()
   );
 });
 
-test('Phase 5 API 契约保留运行诊断摘要，IDE Runs 面板承接 Web 入口', () => {
+test('Phase 5 API 契约保留运行诊断摘要，Desktop 端不维护静态 runtime tools 清单', () => {
   assertSchemaFields('RunsJobRunRead', runsJobRunReadFields);
   assertSchemaFields('RunsRuntimeDiagnosticsRead', runsRuntimeDiagnosticsFields);
   assertSchemaFields('RunsWorkflowSessionSummary', runsWorkflowSessionFields);
@@ -294,15 +289,13 @@ test('Phase 5 API 契约保留运行诊断摘要，IDE Runs 面板承接 Web 入
   assertSchemaFields('RunsProviderSummary', runsProviderFields);
   assertSchemaFields('RunsModelUsageSummary', runsModelUsageFields);
   assertSchemaFields('RunsRuntimeToolSummary', runsRuntimeToolSummaryFields);
-  assertSourceEvidence(webSources.runs, [
-    'BookRun Run Panel',
-    'checkpoint',
-    'provider fallback',
-    'data-event-source="sse"',
-    '/api/book-runs/',
-    '/api/ide/runs/',
+  assertSourceEvidence(desktopSources.apiClient, [
+    '/api/ide/agent/sessions/',
+    'tool_trace',
+    'proposed_patch',
+    'assistant_session_id',
   ]);
-  assertNoSourceEvidence(webSources.runs, [
+  assertNoSourceEvidence(desktopSources.apiClient + desktopSources.app + desktopSources.agentSteps, [
     'DEFAULT_CREATIVE_TOOL_REGISTRY',
     'runtimeToolList = [',
     'runtimeDiagnosticTools = [',
@@ -418,11 +411,10 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
     ...runsModelUsageFields,
     ...runsRuntimeToolSummaryFields,
   ]);
-  assertSourceEvidence(webSources.runs, [
-    'readBookRunPanelState',
-    'isBookRunPanelRun',
-    'readSseSnapshot',
-    '/api/book-runs/',
-    '/api/ide/runs/',
+  assertSourceEvidence(desktopSources.apiClient, [
+    'sendAgentUserMessage',
+    'isAgentResultMessage',
+    '/api/ide/agent/sessions/',
+    'X-StoryForge-API-Key',
   ]);
 });

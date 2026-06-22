@@ -10,18 +10,18 @@
     "dev": "pnpm desktop:dev",
     "dev:maintenance": "node scripts/dev-start.mjs",
     "dev:api": "node scripts/dev-start.mjs --api-only",
-    "dev:web": "node scripts/dev-start.mjs --web-only",
     "desktop:dev": "pnpm --filter @storyforge/desktop dev",
     "desktop:build": "pnpm --filter @storyforge/desktop build",
-    "test": "pnpm run test:web && pnpm run test:api && pnpm run test:workflow",
-    "test:web": "pnpm --filter @storyforge/web test && pnpm --filter @storyforge/shared test",
+    "test": "pnpm run test:desktop && pnpm run test:shared && pnpm run test:api && pnpm run test:workflow",
+    "test:desktop": "npm --prefix apps/desktop/frontend run typecheck && npm --prefix apps/desktop/frontend run test",
+    "test:shared": "pnpm --filter @storyforge/shared test",
     "test:api": "cd apps/api && uv run pytest",
     "test:workflow": "cd apps/workflow && uv run pytest",
     "e2e": "node scripts/run-e2e.mjs",
     "golden": "node scripts/run-golden.mjs",
     "openapi": "node scripts/generate-openapi.mjs",
-    "lint": "eslint . && prettier --check \"apps/web/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\"",
-    "lint:fix": "eslint . --fix && prettier --write \"apps/web/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\""
+    "lint": "eslint . && prettier --check \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\"",
+    "lint:fix": "eslint . --fix && prettier --write \"apps/desktop/frontend/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"scripts/**/*.mjs\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

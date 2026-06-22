@@ -89,31 +89,36 @@ def test_dev_plan_records_remote_e2e_master_success_boundary() -> None:
 
 
 def test_phase9_remote_ci_e2e_boundary_records_master_success() -> None:
-    """阶段事实源必须区分远端 CI 子集、历史失败与 master E2E 通过证据。"""
+    """阶段事实源必须区分当前长程整改边界与历史远端证据。"""
 
     current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
 
-    assert "CI` run `26857864662`" in current_phase
-    assert "E2E` run `26915457170`" in current_phase
-    assert "2026-06-03T21:55:39Z" in current_phase
-    assert "codex/phase9-e2e-alembic" in current_phase
-    assert "26941784868" in current_phase
-    assert "2026-06-04T08:59:00Z" in current_phase
+    assert "2026-06-21" in current_phase
+    assert "真实长程验收整改与 Desktop IDE Agent 收口阶段" in current_phase
+    assert ".codex/real-llm-30ch-mimo25pro-20260611-192356" in current_phase
+    assert "人工通读退回重跑" in current_phase
+    assert "运行链路可达" in current_phase
+    assert "测试痕迹残留" in current_phase
+    assert "17/18 章时间线冲突" in current_phase
+    assert "recap 膨胀" in current_phase
+    assert "reasoning token 泄漏" in current_phase
+    assert "Desktop IDE Agent" in current_phase
+    assert "自然语言意图路由" in current_phase
+    assert "多视角 file.review 推理缝" in current_phase
+    assert "确认写回防重复生成" in current_phase
+    assert "pnpm.cmd lint" in current_phase
+    assert "apps/web` 已退场" in current_phase
+    assert "Desktop frontend typecheck/unit/smoke" in current_phase
+    assert "不代表 2026-06-20 最新远端状态" in current_phase
     assert "26944063055" in current_phase
-    assert "2026-06-04T09:45:05Z" in current_phase
-    assert "590333f1ccc99234f4244bc7bf4556fd7dee3f4f" in current_phase
-    assert "执行 Alembic 迁移预检" in current_phase
-    assert "执行数据库迁移" in current_phase
-    assert "运行 E2E" in current_phase
-    assert "26850336742" not in current_phase
-    assert "Alembic 多 head" in current_phase
-    assert "20260604_0001" in current_phase
-    assert "本地 `pnpm e2e`" in current_phase
-    assert "tests/test_alembic_heads.py" in current_phase
-    assert "API verification" in current_phase
-    assert "storyforge_phase9_e2e_submit_verify" in current_phase
-    assert "`master` 远端 E2E 通过证据" in current_phase
-    assert "不能宣称真实模型下已完成 3-5 万字长程" in current_phase
+    assert "不能宣称真实 3-5 万字长程质量验收通过" in current_phase
+    assert "不能宣称稳定生产级长篇生产闭环" in current_phase
+    assert "真实 Tauri 桌面端到端" in current_phase
+    assert "10 章 smoke 已通过人工通读" in current_phase
+
+    assert "CI` run `26857864662`" not in current_phase
+    assert "E2E` run `26915457170`" not in current_phase
+    assert "codex/phase9-e2e-alembic" not in current_phase
 
 
 def test_project_summary_records_current_phase9_boundaries() -> None:
@@ -121,36 +126,23 @@ def test_project_summary_records_current_phase9_boundaries() -> None:
 
     project_summary = PROJECT_SUMMARY_PATH.read_text(encoding="utf-8")
 
-    assert "2026-06-04" in project_summary
-    assert "`pnpm verify`" in project_summary
-    assert "Web 209 passed" in project_summary
-    assert "API 405 passed" in project_summary
-    assert "Workflow 164 passed" in project_summary
-    assert "`pnpm e2e`" in project_summary
-    assert "Node 29 passed" in project_summary
-    assert "API verification 61 passed" in project_summary
-    assert "workflow verification 37 passed" in project_summary
-    assert "CI / Core verification" in project_summary
-    assert "26857864662" in project_summary
-    assert "26915457170" in project_summary
-    assert "2026-06-03T21:55:39Z" in project_summary
-    assert "codex/phase9-e2e-alembic" in project_summary
-    assert "26941784868" in project_summary
+    assert "2026-06-21" in project_summary
+    assert "本地 lint 门禁 | 通过" in project_summary
+    assert "pnpm.cmd lint" in project_summary
+    assert "Desktop 定向契约 | 收口中" in project_summary
+    assert "Web 源码契约已从当前门禁退场" in project_summary
+    assert "Desktop frontend typecheck/unit/smoke" in project_summary
+    assert "真实长程链路 | 链路通过、质量退回" in project_summary
+    assert "30 章真实长程运行已完成" in project_summary
+    assert "人工通读结论为“退回重跑”" in project_summary
+    assert "Desktop IDE Agent | 本地验证通过" in project_summary
+    assert "真实 Tauri 写回端到端未跑" in project_summary
+    assert "远端 E2E | 有历史通过证据" in project_summary
     assert "26944063055" in project_summary
-    assert "2026-06-04T09:45:05Z" in project_summary
-    assert "590333f1ccc99234f4244bc7bf4556fd7dee3f4f" in project_summary
-    assert "执行 Alembic 迁移预检" in project_summary
-    assert "执行数据库迁移" in project_summary
-    assert "运行 E2E" in project_summary
-    assert "Multiple head revisions" in project_summary
-    assert "20260604_0001" in project_summary
-    assert "远端 E2E | 主分支通过" in project_summary
-    assert ".codex/real-llm-1ch-20260603-142925" in project_summary
-    assert ".codex/real-llm-3ch-20260603-173932" in project_summary
-    assert ".codex/real-llm-10ch-20260604-110831" in project_summary
     assert "gate: pass_for_real_10ch_final_acceptance" in project_summary
-    assert "真实 3-5 万字长程仍未完成" in project_summary
-    assert "10 章 smoke 人工通读完成" in project_summary
+    assert "不能宣称真实 3-5 万字长程质量验收通过" in project_summary
+    assert "不能把自动审计、golden gate 或模型自评等同于人工通读通过" in project_summary
+    assert "Desktop IDE Agent" in project_summary
     assert "cd D:/StoryForge" in project_summary
     assert "`docs/internal/current-phase.md`" in project_summary
 
@@ -167,34 +159,28 @@ def test_todo_records_current_phase9_next_actions() -> None:
 
     todo = TODO_PATH.read_text(encoding="utf-8")
 
-    assert "Phase 9 当前执行入口" in todo
-    assert "远端 `CI` run `26857864662`" in todo
-    assert "远端 `master` 定时 `E2E` run `26915457170`" in todo
-    assert "2026-06-03T21:55:39Z" in todo
-    assert "codex/phase9-e2e-alembic" in todo
-    assert "26941784868" in todo
-    assert "26944063055" in todo
-    assert "2026-06-04T09:45:05Z" in todo
-    assert "590333f1ccc99234f4244bc7bf4556fd7dee3f4f" in todo
-    assert "执行 Alembic 迁移预检" in todo
-    assert "执行数据库迁移" in todo
-    assert "运行 E2E" in todo
-    assert "Multiple head revisions" in todo
-    assert "20260604_0001" in todo
-    assert "tests/test_alembic_heads.py" in todo
-    assert "storyforge_phase9_e2e_submit_verify" in todo
-    assert ".codex/real-llm-1ch-20260603-142925" in todo
-    assert ".codex/real-llm-3ch-20260603-173932" in todo
-    assert ".codex/real-llm-10ch-20260604-110831" in todo
-    assert "gate: pass_for_real_10ch_final_acceptance" in todo
-    assert "真实 3-5 万字长程仍未完成" in todo
+    assert "当前执行入口" in todo
+    assert "真实长程验收整改与 Desktop IDE Agent 收口阶段" in todo
+    assert "apps/web` 已退场" in todo
+    assert ".codex/real-llm-30ch-mimo25pro-20260611-192356" in todo
+    assert "人工通读退回重跑" in todo
+    assert "recap 膨胀" in todo
+    assert "reasoning token 泄漏" in todo
+    assert "Desktop IDE Agent" in todo
+    assert "proposed patch" in todo
+    assert "2026-06-21 本轮正在执行 `apps/web` 退场" in todo
     assert "下一步优先级" in todo
-    assert "推进真实 3-5 万字短篇长程运行" in todo
-    assert "`pnpm verify`" in todo
-    assert "`pnpm e2e`" in todo
+    assert "跑真实 Tauri 桌面端到端" in todo
+    assert "重跑真实 3-5 万字长程" in todo
+    assert "pnpm.cmd lint" in todo
+    assert "npm --prefix apps/desktop/frontend run typecheck" in todo
+    assert "npm --prefix apps/desktop/frontend run test" in todo
+    assert "uv run pytest tests/test_ide_agent_orchestrator.py -q" in todo
+    assert "pnpm.cmd run verify:agent-conversation" in todo
     assert "`docs/internal/current-phase.md`" in todo
     assert "`docs/internal/PROJECT_SUMMARY.md`" in todo
 
+    assert "Phase 9 当前执行入口" not in todo
     assert "2026-05-24 Phase 7 发布治理到闭环验证" not in todo
     assert "pnpm run test:web" not in todo
     assert "pnpm run test:api" not in todo

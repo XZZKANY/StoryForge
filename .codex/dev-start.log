@@ -1,7 +1,0 @@
-
-> storyforge@0.1.0 dev:web D:\StoryForge
-> node scripts/dev-start.mjs --web-only
-
-[10:40:33] [dev-start] 项目根目录：D:\StoryForge
-[10:40:33] [dev-start] 启动基础服务：postgres、redis、minio…
- ELIFECYCLE  Command failed with exit code 1.

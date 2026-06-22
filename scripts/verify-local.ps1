@@ -230,7 +230,6 @@ function Test-DockerComposeBuildGate {
     $ComposePath = Join-Path $Root "docker-compose.yml"
     $RequiredDockerfiles = @(
         "apps/api/Dockerfile",
-        "apps/web/Dockerfile",
         "apps/workflow/Dockerfile"
     )
 
@@ -240,7 +239,7 @@ function Test-DockerComposeBuildGate {
     }
 
     $ComposeContent = Get-Content -LiteralPath $ComposePath -Raw -Encoding UTF8
-    foreach ($Marker in @("context: ./apps/api", "dockerfile: apps/web/Dockerfile", "context: ./apps/workflow")) {
+    foreach ($Marker in @("context: ./apps/api", "context: ./apps/workflow")) {
         if ($ComposeContent -like "*$Marker*") {
             Write-Ok "Docker build 门禁已确认 compose 包含 $Marker。"
         } else {
@@ -264,11 +263,11 @@ function Test-DockerComposeBuildGate {
 
     Push-Location $Root
     try {
-        & docker compose -f docker-compose.yml -f docker-compose.prod.yml build api web workflow
+        & docker compose -f docker-compose.yml -f docker-compose.prod.yml build api workflow
         if ($LASTEXITCODE -eq 0) {
-            Write-Ok "Docker build 门禁通过：api、web、workflow 镜像可构建。"
+            Write-Ok "Docker build 门禁通过：api、workflow 镜像可构建。"
         } else {
-            Write-Fail "Docker build 门禁失败：api、web、workflow 镜像构建退出码 $LASTEXITCODE。"
+            Write-Fail "Docker build 门禁失败：api、workflow 镜像构建退出码 $LASTEXITCODE。"
         }
     } finally {
         Pop-Location
@@ -279,16 +278,12 @@ function Test-DockerComposeHealthGate {
     $ComposeContent = Get-Content -LiteralPath (Join-Path $Root "docker-compose.yml") -Raw -Encoding UTF8
     $ProdComposeContent = Get-Content -LiteralPath (Join-Path $Root "docker-compose.prod.yml") -Raw -Encoding UTF8
     $ApiDockerfileContent = Get-Content -LiteralPath (Join-Path $Root "apps/api/Dockerfile") -Raw -Encoding UTF8
-    $WebDockerfileContent = Get-Content -LiteralPath (Join-Path $Root "apps/web/Dockerfile") -Raw -Encoding UTF8
 
     $RequiredMarkers = @(
         @{ Source = $ComposeContent; Marker = "http://localhost:8000/health/live"; Display = "docker-compose.yml API healthcheck" },
-        @{ Source = $ComposeContent; Marker = "http://localhost:3000/"; Display = "docker-compose.yml Web healthcheck" },
         @{ Source = $ProdComposeContent; Marker = "condition: service_healthy"; Display = "docker-compose.prod.yml service_healthy 依赖" },
         @{ Source = $ApiDockerfileContent; Marker = "HEALTHCHECK"; Display = "apps/api/Dockerfile healthcheck" },
-        @{ Source = $ApiDockerfileContent; Marker = "http://127.0.0.1:8000/health/live"; Display = "apps/api/Dockerfile liveness 探针" },
-        @{ Source = $WebDockerfileContent; Marker = "HEALTHCHECK"; Display = "apps/web/Dockerfile healthcheck" },
-        @{ Source = $WebDockerfileContent; Marker = "http://127.0.0.1:3000/"; Display = "apps/web/Dockerfile 首页探针" }
+        @{ Source = $ApiDockerfileContent; Marker = "http://127.0.0.1:8000/health/live"; Display = "apps/api/Dockerfile liveness 探针" }
     )
 
     foreach ($Requirement in $RequiredMarkers) {
@@ -336,7 +331,8 @@ Test-RequiredPath "package.json"
 Test-RequiredPath "pnpm-workspace.yaml"
 Test-RequiredPath "docker-compose.yml"
 Test-RequiredPath ".env.example"
-Test-RequiredPath "apps/web/package.json"
+Test-RequiredPath "apps/desktop/package.json"
+Test-RequiredPath "apps/desktop/frontend/package.json"
 Test-RequiredPath "apps/api/pyproject.toml"
 Test-RequiredPath "apps/workflow/pyproject.toml"
 Test-RequiredPath "packages/shared/package.json"

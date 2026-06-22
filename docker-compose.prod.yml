@@ -65,17 +65,6 @@ services:
           cpus: '0.5'
       replicas: 1
 
-  web:
-    restart: always
-    env_file: *storyforge-prod-env
-    environment: !reset {}
-    logging: *storyforge-logging
-    deploy:
-      resources:
-        limits:
-          memory: 768m
-          cpus: '1.0'
-
   workflow:
     restart: always
     env_file: *storyforge-prod-env
@@ -93,8 +82,6 @@ services:
     restart: always
     depends_on:
       api:
-        condition: service_healthy
-      web:
         condition: service_healthy
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro

@@ -1,2 +1,0 @@
-unable to get image 'minio/minio:RELEASE.2025-04-22T22-12-26Z': failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
-[10:40:34] [dev-start] ERROR docker compose up 执行失败（退出码 1）。

@@ -4,7 +4,7 @@
 
 ## 1. 适用范围
 
-本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。当前默认开发入口是 Desktop IDE；Web 只作为维护、调试、兼容和契约验证入口。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
+本文用于在本地 Windows PowerShell 环境启动和验证 `D:/StoryForge`。当前默认开发入口是 Desktop IDE；旧 Web 入口已退场。内容只引用当前仓库中已经存在的脚本、配置和服务，不把真实外部 LLM、embedding 或 reranker 作为本地启动前置条件。
 
 当前阶段仍处于 Phase 9 真实 LLM 长程验收准备阶段：本地 Phase 9A/9B/9C 能力已有验证证据，真实 10 章 smoke 已完成最终验收，远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。详细阶段边界以 `docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `README.md` 为准。
 
@@ -32,9 +32,9 @@ Copy-Item .env.example .env
 - `DATABASE_URL`：对应 `docker-compose.yml` 中的 PostgreSQL。
 - `REDIS_URL`：对应本地 Redis。
 - `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`：对应本地 MinIO。
-- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`、`WEB_BASE_URL`：对应本地 API、Desktop IDE 和 Web 维护入口。
+- `API_BASE_URL`、`STORYFORGE_API_BASE_URL`：对应本地 API 与 Desktop IDE。
 - `STORYFORGE_API_KEY`：本地默认值与 API、Desktop IDE 和 Web 默认访问密钥保持一致。
-- `STORYFORGE_CORS_ORIGINS`：默认允许本地 Desktop Vite `3007` 和 Web 维护入口 `3000` 访问。
+- `STORYFORGE_CORS_ORIGINS`：默认允许本地 Desktop Vite `3007` 访问。
 - `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`、`STORYFORGE_WORKFLOW_SQLITE_PATH`：workflow 本地 runtime checkpoint。
 - `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*`、`STORYFORGE_RAG_*`：真实模型、embedding、reranker 与 RAG 预算预留；缺少真实私有配置时不得宣称真实外部 provider 端到端完成。
 
@@ -75,11 +75,11 @@ pnpm dev
 pnpm desktop:dev
 ```
 
-该入口会启动桌面 Vite dev server（`http://localhost:3007`）、Tauri 桌面窗口，并由 Tauri 主进程检查 Docker 服务、执行 Alembic 迁移和启动或复用 API。旧的 API + Web 联合启动只作为维护入口保留：
+该入口会启动桌面 Vite dev server（`http://localhost:3007`）、Tauri 桌面窗口，并由 Tauri 主进程检查 Docker 服务、执行 Alembic 迁移和启动或复用 API。API 维护入口仍可单独启动：
 
 ```powershell
 pnpm dev:maintenance
-pnpm dev:web
+pnpm dev:api
 ```
 
 ## 7. 本地验证顺序
@@ -106,7 +106,7 @@ pnpm openapi
 - `pnpm verify` 执行本地核心门禁；最近一次完整复验记录为 Web 209 passed、API 405 passed、Workflow 164 passed，Ruff 与 OpenAPI drift 检查通过，API pytest 仍有 7 个非阻塞 warning。
 - `pnpm e2e` 会刷新 OpenAPI，并执行 Node 端契约、API verification 和 workflow verification；最近一次完整复验记录为 Node 29 passed、API verification 61 passed、workflow verification 37 passed。
 - `pnpm e2e` 的 API verification 已纳入 `tests/test_alembic_heads.py`，会先验证 Alembic 单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0。
-- `pnpm test` 用于补充执行 Web、API、workflow 的测试集合。
+- `pnpm test` 用于补充执行 Desktop、shared、API、workflow 的测试集合。
 - `pnpm openapi` 用于刷新 `packages/shared/src/contracts/storyforge.openapi.json`；如果产生 diff，必须解释来源并补充测试证据。
 
 ## 8. 当前远端门禁边界

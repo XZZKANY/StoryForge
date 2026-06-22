@@ -3,6 +3,7 @@
 > 首席架构师签发 | 2026-05-26
 > 前置条件：Phase 7 Closing Audit 全部 P0-P3 已完成并验证通过
 > 目标：将 StoryForge 从"本地可验证原型"升级为"可部署、可观测、可协作的生产系统"
+> 历史说明：本文件保留早期 Web-first / Phase 9 规划和 DoD 记录，不能单独作为当前事实源。当前阶段事实以 `docs/internal/current-phase.md` 为准。2026-06-21 起 `apps/web` 已退场，后续前端能力默认进入 `apps/desktop`，验证入口以 Desktop/API/Workflow/Shared 为准。
 
 ---
 
@@ -33,8 +34,9 @@
     jobs:
       lint-and-typecheck:
         # Node 20 + pnpm install + tsc --noEmit + eslint
-      test-web:
-        # pnpm --filter @storyforge/web test
+      test-desktop:
+        # npm --prefix apps/desktop/frontend run typecheck
+        # npm --prefix apps/desktop/frontend run test
       test-shared:
         # pnpm --filter @storyforge/shared test
       test-api:
@@ -581,7 +583,7 @@ curl -s http://localhost/api/v1/health/ready
 3. **先 deterministic，后真实 LLM。** 9A 必须用 deterministic/mock provider 稳定复现；9B 再接真实 LLM 冒烟。
 4. **自动化不跳过证据。** generate/judge/repair/approve/export 都必须能追溯到 `job_runs`、`model_runs`、`artifacts` 或 `evaluations`。
 5. **人审插桩保留。** 自动批准只允许在 Judge 通过时执行；失败、预算超限、连续降级和漂移异常必须 pause。
-6. **不引入新微服务。** Phase 9 仍落在 `apps/api`、`apps/workflow`、`apps/web` 与 `packages/shared` 内。
+6. **不引入新微服务。** Phase 9 仍落在 `apps/api`、`apps/workflow`、`apps/desktop` 与 `packages/shared` 内；旧 `apps/web` 已退场。
 
 ---
 

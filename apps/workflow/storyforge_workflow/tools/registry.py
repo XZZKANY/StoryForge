@@ -174,7 +174,7 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=("embedding", "reranker"),
             evidence_fields=("source_ref", "source_id", "chunk_id", "score", "rank", "score_source"),
             references=_refs(
-                page_refs=("apps/web/app/retrieval/page.tsx",),
+                page_refs=("apps/desktop/frontend/src/lib/project-context.ts",),
                 api_paths=("POST /api/retrieval/search", "POST /api/retrieval/workbench/search"),
                 workflow_nodes=("scene_packets.retrieval_context",),
             ),
@@ -206,8 +206,8 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             evidence_fields=("evidence_links", "budget_statistics", "compiled_context_id", "retrieval_hits"),
             references=_refs(
                 page_refs=(
-                    "apps/web/app/studio/api.ts",
-                    "apps/web/components/scene-packet/ScenePacketPanel.tsx",
+                    "apps/desktop/frontend/src/lib/api-client.ts",
+                    "apps/desktop/frontend/src/lib/project-context.ts",
                 ),
                 api_paths=("POST /api/scene-packets", "GET /api/studio/scene-packets"),
                 workflow_nodes=("scene_architect.chapter_plan", "scene_architect.scene_beats"),
@@ -235,7 +235,10 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=("llm",),
             evidence_fields=("span_start", "span_end", "evidence_links", "recommended_repair_mode", "status"),
             references=_refs(
-                page_refs=("apps/web/app/studio/api.ts", "apps/web/components/judge-panel/JudgeIssueList.tsx"),
+                page_refs=(
+                    "apps/desktop/frontend/src/components/ChatWindow.tsx",
+                    "apps/desktop/frontend/src/components/Editor.tsx",
+                ),
                 api_paths=("POST /api/judge/issues", "GET /api/studio/judge-reviews"),
                 workflow_nodes=("draft_writer", "human_approval"),
             ),
@@ -262,7 +265,10 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=(),
             evidence_fields=("target_span", "replacement_text", "reason", "requires_rejudge", "status"),
             references=_refs(
-                page_refs=("apps/web/app/studio/api.ts", "apps/web/components/diff-viewer/RepairDiffViewer.tsx"),
+                page_refs=(
+                    "apps/desktop/frontend/src/components/Editor.tsx",
+                    "apps/desktop/frontend/src/lib/assistant-suggestions.ts",
+                ),
                 api_paths=("POST /api/repair/patches", "GET /api/studio/repair-patches"),
                 workflow_nodes=("human_approval",),
             ),
@@ -295,7 +301,7 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=(),
             evidence_fields=("lineage_key", "storage_uri", "version", "payload", "artifact_type"),
             references=_refs(
-                page_refs=("apps/web/app/artifacts/page.tsx",),
+                page_refs=("apps/desktop/frontend/src/lib/author-loop.ts",),
                 api_paths=("POST /api/artifacts", "GET /api/artifacts/{artifact_id}/download"),
                 workflow_nodes=("draft_writer",),
             ),
@@ -323,11 +329,7 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=(),
             evidence_fields=("metrics", "summary", "failed_sample_count", "studio_feedback_href"),
             references=_refs(
-                page_refs=(
-                    "apps/web/next.config.ts",
-                    "apps/web/components/ide/shell/EditorArea.tsx",
-                    "apps/web/components/ide/shell/BottomPanel.tsx",
-                ),
+                page_refs=("apps/desktop/frontend/src/components/AgentStepsPanel.tsx",),
                 api_paths=("POST /api/evaluations/runs", "GET /api/evaluations/runs/{run_id}"),
                 workflow_nodes=("human_approval",),
             ),
@@ -355,7 +357,7 @@ DEFAULT_CREATIVE_TOOL_REGISTRY = CreativeToolRegistry(
             required_capabilities=("llm", "embedding", "reranker"),
             evidence_fields=("provider_name", "model_aliases", "resolution_source", "credential_status"),
             references=_refs(
-                page_refs=("apps/web/app/settings/page.tsx",),
+                page_refs=("apps/desktop/frontend/src/components/SettingsView.tsx",),
                 api_paths=("GET /api/provider-gateway/resolve",),
                 workflow_nodes=("provider_execution",),
             ),

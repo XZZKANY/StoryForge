@@ -12,10 +12,9 @@ const apiTests = {
   providerGateway: readFileSync('apps/api/tests/test_provider_gateway.py', 'utf8'),
   analytics: readFileSync('apps/api/tests/test_phase3_analytics.py', 'utf8'),
 };
-const webSources = {
-  home: readFileSync('apps/web/app/page.tsx', 'utf8'),
-  settings: readFileSync('apps/web/app/settings/ProviderSettingsPanel.tsx', 'utf8'),
-  providers: readFileSync('apps/web/app/providers/page.tsx', 'utf8'),
+const desktopSources = {
+  settings: readFileSync('apps/desktop/frontend/src/components/SettingsView.tsx', 'utf8'),
+  providerConfig: readFileSync('apps/desktop/frontend/src/lib/provider-config.ts', 'utf8'),
 };
 
 function assertOperation(path, method, tag) {
@@ -27,12 +26,6 @@ function assertOperation(path, method, tag) {
 function assertSourceEvidence(source, markers) {
   for (const marker of markers) {
     assert.ok(source.includes(marker), `缺少 Phase 3 证据：${marker}`);
-  }
-}
-
-function assertNoSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(!source.includes(marker), `Phase 3 前端不应暴露未验证旧入口：${marker}`);
   }
 }
 
@@ -65,26 +58,18 @@ test('Phase 3 后端测试源码保留当前能力与退役边界证据', () => 
   assertSourceEvidence(apiTests.analytics, ['"/api/analytics/workspaces/', '分析扩展', '404']);
 });
 
-test('Phase 3 前端边界保留 Provider 与模型检测入口', () => {
-  assertSourceEvidence(webSources.settings, [
-    'Provider 连接',
-    'Provider Base URL',
-    '/api/provider-models',
-    '检测并拉取模型',
+test('Phase 3 Desktop 设置保留 Provider 配置入口', () => {
+  assertSourceEvidence(desktopSources.settings, [
+    '模型服务',
+    '服务类型',
+    '服务地址',
+    '默认模型',
+    '密钥引用',
   ]);
-  assertSourceEvidence(webSources.providers, [
-    'Provider Gateway 模型接入层',
-    'LLM',
-    'Embedding',
-    'Reranker',
-    '图片生成或封面生成能力',
-  ]);
-  assertNoSourceEvidence(webSources.home, [
-    '/workspace',
-    '/collaboration',
-    '/commercial',
-    '/analytics',
-    'Workspace Hub 团队工作区',
-    'Commercial Controls 商业化控制',
+  assertSourceEvidence(desktopSources.providerConfig, [
+    'openai',
+    'deepseek',
+    'ollama',
+    'custom',
   ]);
 });

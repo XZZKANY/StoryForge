@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/.next/',
       '**/generated/',
       '**/.git/',
+      '**/.cache/',
       '**/.pytest-tmp/',
       '**/.pytest_cache/',
       '**/__pycache__/',
@@ -40,18 +41,17 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/web/scripts/verify-*-browser.mjs'],
+    files: ['apps/desktop/frontend/scripts/verify-*.mjs'],
     languageOptions: {
       globals: {
         document: 'readonly',
+        getComputedStyle: 'readonly',
         window: 'readonly',
-        HTMLButtonElement: 'readonly',
-        HTMLTextAreaElement: 'readonly',
       },
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}'],
+    files: ['apps/desktop/frontend/src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {
       ...reactHooks.configs.recommended.rules,

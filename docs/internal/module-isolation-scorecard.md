@@ -82,9 +82,11 @@
 2. 对 `models.py` 增加模型导入覆盖测试，避免新增领域模型没有进入 Alembic 元数据。
 3. 清理迁移乱码注释，保证数据库审计材料干净。
 
-### 3. 前端界面：82/100
+### 3. 前端界面：82/100（历史 Web 评分，已退场）
 
-**覆盖范围**：Next.js App Router 页面、诊断入口、共享组件、API 读取。
+**当前状态**：本节记录早期 Web 前端评分，2026-06-21 起 `apps/web` 已退场。当前前端事实源转为 `apps/desktop`、Desktop frontend tests 和 Tauri smoke。
+
+**历史覆盖范围**：Next.js App Router 页面、诊断入口、共享组件、API 读取。
 
 **关键证据**：
 
@@ -107,9 +109,9 @@
 
 **隔离建议**：
 
-1. 继续把页面分成“只读诊断页”和“可写操作页”，不要混在同一个组件里。
-2. 将复杂响应 validate 函数下沉到 `apps/web/lib` 或 `packages/shared`，页面只做状态渲染。
-3. 对 Studio / Retrieval / Runs 维持独立页面契约测试，避免一个入口坏掉拖垮全站判断。
+1. Desktop 继续把“只读诊断”和“可写操作”拆成清晰视图或本地工作流。
+2. 将复杂响应 validate 函数下沉到 `packages/shared` 或 Desktop 专用 client/helper，视图只做状态渲染。
+3. 对 Agent、编辑器、设置、导出和 API client 维持独立契约测试，避免一个入口坏掉拖垮全局判断。
 
 ### 4. 自动化脚本：88/100
 
@@ -117,14 +119,14 @@
 
 **关键证据**：
 
-- `package.json`：定义 `verify`、`test`、`test:web`、`test:api`、`test:workflow`、`e2e`、`openapi`。
+- `package.json`：定义 `verify`、`test`、`test:desktop`、`test:shared`、`test:api`、`test:workflow`、`e2e`、`openapi`。
 - `scripts/verify-local.ps1`：检查 Node.js、pnpm、Python、Docker、关键路径和 postgres/redis/minio 容器。
 - `scripts/run-e2e.mjs`：刷新 OpenAPI 契约后执行 Node contract tests，再执行 API pytest 和 workflow pytest。
 - `scripts/generate-openapi.ps1`：负责 OpenAPI 产物刷新。
 
 **优点**：
 
-- 自动化不是摆设，已经把 Web、shared、API、Workflow、E2E 串起来。
+- 自动化不是摆设，已经把 Desktop、shared、API、Workflow、E2E 串起来。
 - `run-e2e.mjs` 会先刷新 OpenAPI，再跑契约，避免拿陈旧快照自欺欺人。
 - 本地验证脚本明确检查 Docker 容器，失败原因可读。
 

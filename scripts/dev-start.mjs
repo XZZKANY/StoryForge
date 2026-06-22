@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-// StoryForge Web 维护入口本地启动脚本。
+// StoryForge API 维护入口本地启动脚本。
 //
 // 用法：
-//   node scripts/dev-start.mjs              启动基础服务 + API + Web 维护入口
+//   node scripts/dev-start.mjs              启动基础服务 + API
 //   node scripts/dev-start.mjs --api-only   只启动基础服务 + API
-//   node scripts/dev-start.mjs --web-only   只启动基础服务 + Web 维护入口
 //   node scripts/dev-start.mjs --skip-docker 跳过 docker compose，假设服务已起
 //   node scripts/dev-start.mjs --skip-migrate 跳过 alembic 迁移
 //
@@ -23,7 +22,6 @@ const apiRoot = join(root, 'apps', 'api');
 const args = new Set(process.argv.slice(2));
 const flags = {
   apiOnly: args.has('--api-only'),
-  webOnly: args.has('--web-only'),
   skipDocker: args.has('--skip-docker'),
   skipMigrate: args.has('--skip-migrate'),
   help: args.has('-h') || args.has('--help'),
@@ -33,18 +31,12 @@ if (flags.help) {
   console.log(`Usage: node scripts/dev-start.mjs [options]
 
 Options:
-  --api-only       仅启动基础服务和 API（不启 Web 维护入口）
-  --web-only       仅启动基础服务和 Web 维护入口（不启 API dev server）
+  --api-only       仅启动基础服务和 API
   --skip-docker    跳过 docker compose 启动（前提：postgres/redis 已就绪）
   --skip-migrate   跳过 alembic upgrade head
   -h, --help       显示本帮助
 `);
   process.exit(0);
-}
-
-if (flags.apiOnly && flags.webOnly) {
-  console.error('[dev-start] --api-only 与 --web-only 互斥。');
-  process.exit(1);
 }
 
 const launched = [];
@@ -184,31 +176,24 @@ async function main() {
     info('已跳过 docker compose（--skip-docker）。');
   }
 
-  if (!flags.skipMigrate && !flags.webOnly) {
+  if (!flags.skipMigrate) {
     info('执行 alembic upgrade head…');
     runForeground('uv', ['run', 'alembic', 'upgrade', 'head'], apiRoot, 'alembic upgrade head');
   } else if (flags.skipMigrate) {
     info('已跳过数据库迁移（--skip-migrate）。');
   }
 
-  if (!flags.webOnly) {
-    info('启动 API dev server（uvicorn :8000）…');
-    // Windows: 使用 run_windows.py 避免 uvloop 问题
-    const isWindows = process.platform === 'win32';
-    spawnBackground(
-      'uv',
-      isWindows
-        ? ['run', 'python', 'run_windows.py']
-        : ['run', 'uvicorn', 'app.main:app', '--reload', '--host', '127.0.0.1', '--port', '8000'],
-      apiRoot,
-      'api',
-    );
-  }
-
-  if (!flags.apiOnly) {
-    info('启动 Web 维护入口（next dev :3000）…');
-    spawnBackground('pnpm', ['--filter', '@storyforge/web', 'dev'], root, 'web');
-  }
+  info('启动 API dev server（uvicorn :8000）…');
+  // Windows: 使用 run_windows.py 避免 uvloop 问题
+  const isWindows = process.platform === 'win32';
+  spawnBackground(
+    'uv',
+    isWindows
+      ? ['run', 'python', 'run_windows.py']
+      : ['run', 'uvicorn', 'app.main:app', '--reload', '--host', '127.0.0.1', '--port', '8000'],
+    apiRoot,
+    'api',
+  );
 
   if (launched.length === 0) {
     info('未启动任何长进程，任务结束。');

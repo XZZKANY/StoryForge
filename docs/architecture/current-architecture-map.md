@@ -2,12 +2,12 @@
 
 生成时间：2026-06-15 +08:00
 
-StoryForge 采用 IDE-first 产品方向：Desktop IDE 是当前主体验，Web 进入维护模式，API 和 Workflow 继续作为共享后端能力。
+StoryForge 采用 IDE-first 产品方向：Desktop IDE 是当前主体验，旧 Web 入口已退场，API 和 Workflow 继续作为共享后端能力。
 
 ## 产品入口
 
 - `apps/desktop`：主产品入口。Tauri + Vite + Monaco，负责本地文件、编辑器、Assistant、菜单和桌面集成。
-- `apps/web`：维护模式。保留调试、兼容入口、契约测试和未迁移页面，不再作为主体验继续扩展。
+- `apps/web`：已退场。历史 Next.js 页面只保留在 git 历史和归档文档中，不再参与运行、容器、验证或当前产品入口。
 
 ## 后端能力
 

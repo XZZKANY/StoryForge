@@ -30,13 +30,13 @@ def test_runtime_does_not_reexport_provider_generate_text() -> None:
 
 
 def test_provider_gateway_registry_points_to_settings_instead_of_static_page() -> None:
-    """Provider Gateway 运行时工具应指向真实设置页，而不是静态占位页。"""
+    """Provider Gateway 运行时工具应指向桌面端设置页，而不是已退场 Web 页。"""
 
     registry = WORKFLOW_ROOT / "storyforge_workflow" / "tools" / "registry.py"
     registry_source = registry.read_text(encoding="utf-8")
 
-    assert "apps/web/app/providers/page.tsx" not in registry_source
-    assert "apps/web/app/settings/page.tsx" in registry_source
+    assert "apps/web/" not in registry_source
+    assert "apps/desktop/frontend/src/components/SettingsView.tsx" in registry_source
 
 
 def test_tools_package_does_not_reexport_creative_tool_registry() -> None:
