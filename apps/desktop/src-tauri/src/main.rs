@@ -370,10 +370,14 @@ fn create_smoke_project() -> Result<PathBuf> {
         chrono::Utc::now().timestamp_millis()
     ));
 
-    let drafts = root.join("drafts");
+    let drafts = root.join("正文");
+    let outline = root.join("大纲");
+    let character = root.join("人物");
     std_fs::create_dir_all(&drafts).context("创建 smoke 项目目录失败")?;
+    std_fs::create_dir_all(&outline).context("创建 smoke 大纲目录失败")?;
+    std_fs::create_dir_all(&character).context("创建 smoke 人物目录失败")?;
     std_fs::write(
-        root.join("chapter-001.md"),
+        drafts.join("chapter-001.md"),
         "# Chapter 1\n\nSmoke content\n",
     )
     .context("写入 chapter-001.md 失败")?;
@@ -382,9 +386,37 @@ fn create_smoke_project() -> Result<PathBuf> {
         "# Chapter 2\n\nNested smoke content\n",
     )
     .context("写入 chapter-002.markdown 失败")?;
+    std_fs::write(outline.join("总纲.md"), "Smoke outline\n").context("写入 总纲.md 失败")?;
+    std_fs::write(character.join("林岚.md"), "Smoke character\n").context("写入 林岚.md 失败")?;
     std_fs::write(root.join("ignore.txt"), "ignore me").context("写入 ignore.txt 失败")?;
 
     Ok(root)
+}
+
+fn count_files_under(path: &std::path::Path) -> usize {
+    if !path.exists() {
+        return 0;
+    }
+    walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().is_file())
+        .count()
+}
+
+fn contains_file_content_under(path: &std::path::Path, expected: &str) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().is_file())
+        .any(|entry| {
+            std_fs::read_to_string(entry.path())
+                .map(|content| content.contains(expected))
+                .unwrap_or(false)
+        })
 }
 
 fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: tauri::AppHandle<R>) {
@@ -420,6 +452,8 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
                 hasRestoreLayout: Boolean(document.querySelector('[data-testid="restore-layout"]')),
                 hasWelcomeWorkspace: Boolean(document.querySelector('[data-testid="welcome-workspace"]')),
                 hasWelcomeShowWorkbench: Boolean(document.querySelector('[data-testid="welcome-show-workbench"]')),
+                hasSuggestionReview: Boolean(document.querySelector('[data-testid="suggestion-review"]')),
+                suggestionStatus: document.querySelector('[data-testid="suggestion-status"]')?.textContent ?? '',
                 visualTone: (() => {
                   const workspace = document.querySelector('[data-testid="welcome-workspace"]');
                   const composer = document.querySelector('[data-testid="welcome-workspace"] textarea[aria-label="Agent 输入"]')?.closest('div');
@@ -732,7 +766,7 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             |value| {
                 value.get("projectPath").and_then(|entry| entry.as_str())
                     == Some(smoke_project.to_string_lossy().as_ref())
-                    && value.get("fileItemCount").and_then(|entry| entry.as_u64()) == Some(2)
+                    && value.get("fileItemCount").and_then(|entry| entry.as_u64()) == Some(4)
             },
         ) {
             Ok(value) => value,
@@ -774,8 +808,139 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             }
         };
 
+        let smoke_file = smoke_project.join("正文").join("chapter-001.md");
+        let smoke_file_string = smoke_file.to_string_lossy().to_string();
+        let before_revision = "# Chapter 1\n\nSmoke content\n";
+        let after_revision = "# Chapter 1\n\nSmoke content revised by Agent\n";
+        let propose_script = format!(
+            r#"
+                (() => {{
+                  const smoke = window.__STORYFORGE_SMOKE__;
+                  if (!smoke || typeof smoke.proposeRevision !== 'function') {{
+                    return {{ proposed: false, reason: 'missing-propose-revision' }};
+                  }}
+                  smoke.proposeRevision({{
+                    filePath: {},
+                    before: {},
+                    after: {},
+                    summary: 'Smoke Agent proposed patch',
+                    userIntent: 'smoke writeback'
+                  }});
+                  return {{ proposed: true }};
+                }})()
+            "#,
+            serde_json::to_string(&smoke_file_string).unwrap_or_else(|_| "\"\"".to_string()),
+            serde_json::to_string(before_revision).unwrap_or_else(|_| "\"\"".to_string()),
+            serde_json::to_string(after_revision).unwrap_or_else(|_| "\"\"".to_string())
+        );
+        let propose_result =
+            match eval_window_json(&window, &propose_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法注入建议补丁: {}", error);
+                    std::process::exit(1);
+                }
+            };
+        if !has_bool(&propose_result, "proposed", true) {
+            eprintln!("Smoke 失败: 建议补丁入口不可用: {}", propose_result);
+            std::process::exit(1);
+        }
+
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| has_bool(value, "hasSuggestionReview", true),
+        ) {
+            eprintln!("Smoke 失败: proposed patch diff 未显示: {}", error);
+            std::process::exit(1);
+        }
+
+        let disk_before_accept = std_fs::read_to_string(&smoke_file).unwrap_or_default();
+        if disk_before_accept != before_revision {
+            eprintln!(
+                "Smoke 失败: proposed patch 未确认前不应写盘，实际内容: {}",
+                disk_before_accept
+            );
+            std::process::exit(1);
+        }
+
+        let accept_script = r#"
+            (() => {
+              const smoke = window.__STORYFORGE_SMOKE__;
+              if (!smoke || typeof smoke.acceptCurrentSuggestion !== 'function') {
+                return { accepted: false, reason: 'missing-accept-current-suggestion' };
+              }
+              smoke.acceptCurrentSuggestion();
+              return { accepted: true };
+            })()
+        "#;
+        let accept_result =
+            match eval_window_json(&window, accept_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法确认写回建议补丁: {}", error);
+                    std::process::exit(1);
+                }
+            };
+        if !has_bool(&accept_result, "accepted", true) {
+            eprintln!("Smoke 失败: 确认写回入口不可用: {}", accept_result);
+            std::process::exit(1);
+        }
+
+        let writeback_state = match wait_for_window_state(
+            &window,
+            snapshot_script,
+            30,
+            Duration::from_millis(200),
+            |value| {
+                value
+                    .get("editorPreview")
+                    .and_then(|entry| entry.as_str())
+                    .map(|preview| preview.contains("revised by Agent"))
+                    .unwrap_or(false)
+                    && value
+                        .get("suggestionStatus")
+                        .and_then(|entry| entry.as_str())
+                        .map(|status| status.contains("已接受并写入当前文件"))
+                        .unwrap_or(false)
+            },
+        ) {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("Smoke 失败: 确认写回后编辑器未刷新: {}", error);
+                std::process::exit(1);
+            }
+        };
+
+        let disk_after_accept = std_fs::read_to_string(&smoke_file).unwrap_or_default();
+        if disk_after_accept != after_revision {
+            eprintln!(
+                "Smoke 失败: 确认写回后磁盘内容未变化，实际内容: {}",
+                disk_after_accept
+            );
+            std::process::exit(1);
+        }
+        let versions_dir = smoke_project.join(".storyforge").join("versions");
+        let author_loop_dir = smoke_project.join(".storyforge").join("author-loop");
+        if count_files_under(&versions_dir) == 0
+            || !contains_file_content_under(&versions_dir, "Smoke content")
+            || !contains_file_content_under(&versions_dir, "Agent")
+            || !contains_file_content_under(&versions_dir, "Smoke Agent proposed patch")
+        {
+            eprintln!("Smoke 失败: 写回前版本快照或 Agent 元数据缺失");
+            std::process::exit(1);
+        }
+        if count_files_under(&author_loop_dir) == 0
+            || !contains_file_content_under(&author_loop_dir, "Smoke Agent proposed patch")
+        {
+            eprintln!("Smoke 失败: 作者闭环记录缺失或内容不正确");
+            std::process::exit(1);
+        }
+
         println!(
-            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}",
+            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}",
             file_list_state
                 .get("projectPath")
                 .and_then(|entry| entry.as_str())
@@ -789,6 +954,10 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
                 .and_then(|entry| entry.as_str())
                 .unwrap_or(""),
             editor_state
+                .get("editorPreview")
+                .and_then(|entry| entry.as_str())
+                .unwrap_or(""),
+            writeback_state
                 .get("editorPreview")
                 .and_then(|entry| entry.as_str())
                 .unwrap_or("")

@@ -27,7 +27,13 @@ import {
   type AgentToolTrace,
 } from '../lib/api-client';
 import { detectLocalConversationAction, type LocalConversationAction } from '../lib/local-conversation-action';
-import { buildContextBundle } from '../lib/project-context';
+import {
+  buildContextBundle,
+  classifyRelativePath,
+  relativeToProject,
+  type ContextBundle,
+  type ContextBundleFile,
+} from '../lib/project-context';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { AgentStepsPanel } from './AgentStepsPanel';
 
@@ -70,6 +76,31 @@ type RetryRequest = {
 };
 
 type ReviewReport = Record<string, unknown>;
+type ReviewCategory = 'plot' | 'character' | 'prose';
+type ReviewIssue = {
+  id: string;
+  category: ReviewCategory;
+  severity: string;
+  message: string;
+  evidence: string;
+  suggestedAction: string;
+};
+
+export type StableAgentRequestPayload = {
+  project_path: string;
+  current_file: string;
+  file_path: string;
+  content: string;
+  instruction: string;
+  context: string;
+  selection: string;
+  project_name: string | null;
+  assistant_session_id: number | null;
+  context_bundle: ReturnType<typeof toAssistantContextBundlePayload>;
+  review_report?: ReviewReport;
+  selected_issue_ids?: string[];
+  included_categories?: ReviewCategory[];
+};
 
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
@@ -82,6 +113,22 @@ function relativePath(projectPath: string | null, filePath: string): string {
     return filePath.slice(root.length).replace(/^[/\\]+/, '');
   }
   return basename(filePath);
+}
+
+function joinProjectPath(projectPath: string, child: string): string {
+  const separator = projectPath.includes('\\') ? '\\' : '/';
+  return `${projectPath.replace(/[/\\]+$/, '')}${separator}${child.replace(/^[/\\]+/, '')}`;
+}
+
+function looksAbsolutePath(path: string): boolean {
+  return /^[a-zA-Z]:[/\\]/.test(path) || path.startsWith('/') || path.startsWith('\\');
+}
+
+function extractContextReferences(text: string): string[] {
+  const matches = Array.from(text.matchAll(/@([^\s，。！？!?；;：:,、]+)/g));
+  return matches
+    .map((match) => match[1]?.trim())
+    .filter((value): value is string => Boolean(value));
 }
 
 function mapAgentStepStatus(status: string): AgentStepStatus {
@@ -207,7 +254,7 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
     context?: { file_count?: unknown; kinds?: unknown };
     agent_findings?: Record<string, { issue_count?: unknown }>;
   };
-  const issues = Array.isArray(record.issues) ? record.issues as Array<Record<string, unknown>> : [];
+  const issues = reviewIssuesFromReport(report as ReviewReport);
   const actions = Array.isArray(record.suggested_actions)
     ? record.suggested_actions.filter((item): item is string => typeof item === 'string')
     : [];
@@ -221,10 +268,7 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
   };
 
   const issueLines = issues.slice(0, 5).map((issue, index) => {
-    const agent = typeof issue.agent === 'string' ? issue.agent : 'agent';
-    const severity = typeof issue.severity === 'string' ? issue.severity : 'info';
-    const text = typeof issue.message === 'string' ? issue.message : '未命名问题';
-    return `${index + 1}. [${agent}/${severity}] ${text}`;
+    return `${index + 1}. [${issue.id}/${issue.severity}] ${issue.message}\n   建议：${issue.suggestedAction}`;
   });
 
   return [
@@ -239,6 +283,124 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
 function reviewReportFromMessage(message: AgentResultMessage): ReviewReport | null {
   const report = message.agent_result.review_report;
   return report && typeof report === 'object' ? report as ReviewReport : null;
+}
+
+function reviewCategoryLabel(category: ReviewCategory): string {
+  if (category === 'plot') return '剧情';
+  if (category === 'character') return '人物';
+  return '文风';
+}
+
+function isReviewCategory(value: unknown): value is ReviewCategory {
+  return value === 'plot' || value === 'character' || value === 'prose';
+}
+
+export function reviewIssuesFromReport(report: ReviewReport | null): ReviewIssue[] {
+  const rawIssues = report?.issues;
+  if (!Array.isArray(rawIssues)) return [];
+  return rawIssues.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : '';
+    const category = isReviewCategory(record.category) ? record.category : null;
+    const message = typeof record.message === 'string' && record.message.trim() ? record.message.trim() : '';
+    if (!id || !category || !message) return [];
+    const suggestedAction = typeof record.suggested_action === 'string' && record.suggested_action.trim()
+      ? record.suggested_action.trim()
+      : typeof record.suggestedAction === 'string' && record.suggestedAction.trim()
+        ? record.suggestedAction.trim()
+        : '按该问题做定向修订，并保持原有事实连续。';
+    return [{
+      id,
+      category,
+      severity: typeof record.severity === 'string' && record.severity.trim() ? record.severity.trim() : 'info',
+      message,
+      evidence: typeof record.evidence === 'string' && record.evidence.trim() ? record.evidence.trim() : '未提供证据。',
+      suggestedAction,
+    }];
+  });
+}
+
+export function extractIssueScopeFromInstruction(
+  instruction: string,
+  report: ReviewReport | null,
+): Pick<StableAgentRequestPayload, 'selected_issue_ids' | 'included_categories'> {
+  const issues = reviewIssuesFromReport(report);
+  if (issues.length === 0) return {};
+  const normalized = instruction.toLowerCase();
+  const selectedIssueIds = issues
+    .map((issue) => issue.id)
+    .filter((id) => normalized.includes(id.toLowerCase()));
+  const includedCategories: ReviewCategory[] = [];
+  const wantsOnly = /只|仅|单独|only/.test(instruction);
+  if (wantsOnly && /剧情|结构|冲突|钩子|plot/.test(instruction)) includedCategories.push('plot');
+  if (wantsOnly && /人物|角色|动机|称谓|关系|character/.test(instruction)) includedCategories.push('character');
+  if (wantsOnly && /文风|语言|行文|润色|节奏|prose/.test(instruction)) includedCategories.push('prose');
+  return {
+    ...(selectedIssueIds.length ? { selected_issue_ids: selectedIssueIds } : {}),
+    ...(includedCategories.length ? { included_categories: Array.from(new Set(includedCategories)) } : {}),
+  };
+}
+
+export function buildStableAgentRequestPayload(params: {
+  projectPath: string;
+  currentFile: string;
+  content: string;
+  instruction: string;
+  projectName: string | null;
+  assistantSessionId: number | null;
+  contextBundle: ContextBundle;
+  reviewReport: ReviewReport | null;
+}): StableAgentRequestPayload {
+  const scope = extractIssueScopeFromInstruction(params.instruction, params.reviewReport);
+  return {
+    project_path: params.projectPath,
+    current_file: params.currentFile,
+    file_path: params.currentFile,
+    content: params.content,
+    instruction: params.instruction,
+    context: params.content,
+    selection: params.content,
+    project_name: params.projectName,
+    assistant_session_id: params.assistantSessionId,
+    context_bundle: toAssistantContextBundlePayload(params.contextBundle),
+    ...(params.reviewReport ? { review_report: params.reviewReport } : {}),
+    ...scope,
+  };
+}
+
+async function appendExplicitContextFiles(
+  bundle: ContextBundle,
+  projectPath: string,
+  explicitPaths: string[],
+): Promise<ContextBundle> {
+  const seen = new Set(bundle.files.map((file) => file.path));
+  const added: ContextBundleFile[] = [];
+  for (const rawPath of explicitPaths) {
+    const trimmed = rawPath.trim();
+    if (!trimmed) continue;
+    const path = looksAbsolutePath(trimmed) ? trimmed : joinProjectPath(projectPath, trimmed);
+    if (seen.has(path)) continue;
+    try {
+      const content = await TauriFileSystem.readFile(path);
+      const relative = relativeToProject(projectPath, path);
+      added.push({
+        path,
+        relativePath: relative,
+        kind: classifyRelativePath(relative),
+        title: basename(path),
+        excerpt: content.trim().slice(0, 1200),
+      });
+      seen.add(path);
+    } catch {
+      // 显式上下文不可读时跳过，让当前 Agent 轮次继续。
+    }
+  }
+  if (added.length === 0) return bundle;
+  return {
+    ...bundle,
+    files: [...added, ...bundle.files].slice(0, 12),
+  };
 }
 
 function runStatusText(run: AgentRun | null): string | null {
@@ -274,6 +436,7 @@ export function ChatWindow({
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
   const [conversationTitle, setConversationTitle] = useState('新的创作会话');
   const [lastReviewReport, setLastReviewReport] = useState<ReviewReport | null>(null);
+  const [explicitContextPaths, setExplicitContextPaths] = useState<string[]>([]);
 
   const projectName = projectPath ? basename(projectPath) : null;
   const contextRef = currentFile ? relativePath(projectPath, currentFile) : null;
@@ -294,6 +457,7 @@ export function ChatWindow({
       setMessages([]);
       setConversationTitle('新的创作会话');
       setLastReviewReport(null);
+      setExplicitContextPaths([]);
       return () => {
         cancelled = true;
       };
@@ -327,6 +491,15 @@ export function ChatWindow({
   const updateAgentStatus = useCallback((status: AgentRun['status']) => {
     setAgentRun((run) => run ? { ...run, status } : run);
     setAgentBusy(status === 'running');
+  }, []);
+
+  const addExplicitContext = useCallback(() => {
+    const inputPath = window.prompt('添加项目上下文文件', '大纲/总纲.md');
+    const nextPath = inputPath?.trim();
+    if (!nextPath) return;
+    setExplicitContextPaths((prev) => (
+      prev.includes(nextPath) ? prev : [...prev, nextPath].slice(-8)
+    ));
   }, []);
 
   const runAuthorAgent = useCallback(async (
@@ -408,8 +581,16 @@ export function ChatWindow({
         return;
       }
 
-      updateAgentStep('context', { status: 'running', detail: '读取大纲、人物、设定、正文摘要' });
-      const contextBundle = await buildContextBundle({ projectPath: project, currentFile: file });
+      updateAgentStep('context', { status: 'running', detail: '读取大纲、人物、设定、世界观、时间线和伏笔摘要' });
+      const contextRefs = Array.from(new Set([
+        ...explicitContextPaths,
+        ...extractContextReferences(goal),
+      ]));
+      const contextBundle = await appendExplicitContextFiles(
+        await buildContextBundle({ projectPath: project, currentFile: file }),
+        project,
+        contextRefs,
+      );
       updateAgentStep('context', {
         status: 'completed',
         detail: `载入 ${contextBundle.files.length} 个上下文文件；正文 ${contextBundle.summary.counts.draft ?? 0} 个`,
@@ -434,20 +615,21 @@ export function ChatWindow({
         status: 'running',
         detail: '发送原文、当前稿和项目上下文，等待后端判定意图',
       });
+      const payload = buildStableAgentRequestPayload({
+        projectPath: project,
+        currentFile: file,
+        content,
+        instruction: goal,
+        projectName,
+        assistantSessionId: assistantSessionIdRef.current,
+        contextBundle,
+        reviewReport: lastReviewReport,
+      });
       const response = await sendAgentUserMessage({
         sessionId: runId,
         assistantSessionId: assistantSessionIdRef.current,
         userMessage: goal,
-        args: {
-          file_path: file,
-          content,
-          instruction: goal,
-          context: content,
-          selection: content,
-          project_name: projectName,
-          context_bundle: toAssistantContextBundlePayload(contextBundle),
-          ...(lastReviewReport ? { review_report: lastReviewReport } : {}),
-        },
+        args: payload,
       });
 
       if (isAgentErrorMessage(response)) {
@@ -531,13 +713,25 @@ export function ChatWindow({
       setRetryRequest({ goal, action });
       setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
     }
-  }, [agentBusy, lastReviewReport, onAssistantSessionChange, projectName, updateAgentStatus, updateAgentStep]);
+  }, [agentBusy, explicitContextPaths, lastReviewReport, onAssistantSessionChange, projectName, updateAgentStatus, updateAgentStep]);
 
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
     setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
     void runAuthorAgent(retryRequest.goal, retryRequest.action);
   }, [agentBusy, retryRequest, runAuthorAgent]);
+
+  const reviseReviewIssue = useCallback((issue: ReviewIssue) => {
+    const ask = `只修 ${issue.id}：${issue.message}`;
+    setMessages((prev) => [...prev, { role: 'user', content: ask }]);
+    void runAuthorAgent(ask);
+  }, [runAuthorAgent]);
+
+  const reviseReviewCategory = useCallback((category: ReviewCategory) => {
+    const ask = `只修${reviewCategoryLabel(category)}问题`;
+    setMessages((prev) => [...prev, { role: 'user', content: ask }]);
+    void runAuthorAgent(ask);
+  }, [runAuthorAgent]);
 
   // 命令面板触发"审查当前文件"
   useEffect(() => {
@@ -642,6 +836,11 @@ export function ChatWindow({
         disabled={!projectPath || agentBusy}
         onSubmit={handleComposerSubmit}
         agentRun={agentRun}
+        explicitContextPaths={explicitContextPaths}
+        onAddContext={addExplicitContext}
+        reviewIssues={reviewIssuesFromReport(lastReviewReport)}
+        onReviseIssue={reviseReviewIssue}
+        onReviseCategory={reviseReviewCategory}
       />
 
       {runStatusText(agentRun) && (
@@ -658,6 +857,8 @@ export function ChatWindow({
           disabled={!projectPath}
           busy={agentBusy}
           currentFileLabel={contextRef}
+          explicitContextPaths={explicitContextPaths}
+          onAddContext={addExplicitContext}
           onChange={setInput}
           onSubmit={handleSubmit}
         />
@@ -688,6 +889,11 @@ function MessageList({
   disabled,
   onSubmit,
   agentRun,
+  explicitContextPaths,
+  onAddContext,
+  reviewIssues,
+  onReviseIssue,
+  onReviseCategory,
 }: {
   messages: Message[];
   projectName: string | null;
@@ -695,6 +901,11 @@ function MessageList({
   disabled: boolean;
   onSubmit: (value: string) => void;
   agentRun: AgentRun | null;
+  explicitContextPaths: string[];
+  onAddContext: () => void;
+  reviewIssues: ReviewIssue[];
+  onReviseIssue: (issue: ReviewIssue) => void;
+  onReviseCategory: (category: ReviewCategory) => void;
 }) {
   if (messages.length === 0) {
     return (
@@ -704,6 +915,8 @@ function MessageList({
           currentFileLabel={currentFileLabel}
           disabled={disabled}
           onSubmit={onSubmit}
+          explicitContextPaths={explicitContextPaths}
+          onAddContext={onAddContext}
         />
       </div>
     );
@@ -722,8 +935,71 @@ function MessageList({
             <AgentStepsPanel run={agentRun} />
           </div>
         )}
+
+        {reviewIssues.length > 0 && (
+          <ReviewIssueActions
+            issues={reviewIssues}
+            onReviseIssue={onReviseIssue}
+            onReviseCategory={onReviseCategory}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+function ReviewIssueActions({
+  issues,
+  onReviseIssue,
+  onReviseCategory,
+}: {
+  issues: ReviewIssue[];
+  onReviseIssue: (issue: ReviewIssue) => void;
+  onReviseCategory: (category: ReviewCategory) => void;
+}) {
+  const categories = Array.from(new Set(issues.map((issue) => issue.category)));
+  return (
+    <section className="animate-slide-up-fade border-t border-[#333338] pt-4" data-testid="review-issue-actions">
+      <div className="mb-2 flex flex-wrap gap-2">
+        {categories.map((category) => (
+          <button
+            key={category}
+            type="button"
+            className="h-7 rounded-md border border-[#45454C] px-2.5 text-xs text-[#D8D8DD] hover:bg-[#2A2A30]"
+            onClick={() => onReviseCategory(category)}
+          >
+            只修{reviewCategoryLabel(category)}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        {issues.map((issue) => (
+          <div
+            key={issue.id}
+            className="rounded-md border border-[#333338] bg-[#202024] px-3 py-2"
+            data-testid="review-issue"
+            data-issue-id={issue.id}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-semibold text-[#EDEDED]">
+                  {issue.id} · {reviewCategoryLabel(issue.category)} · {issue.severity}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-[#CFCFD4]">{issue.message}</p>
+                <p className="mt-1 text-xs leading-5 text-[#92929A]">{issue.suggestedAction}</p>
+              </div>
+              <button
+                type="button"
+                className="h-7 flex-shrink-0 rounded-md bg-[#E6E6E6] px-2.5 text-xs text-[#111111] hover:bg-white"
+                onClick={() => onReviseIssue(issue)}
+              >
+                只修此条
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -753,11 +1029,15 @@ function EmptyConversation({
   currentFileLabel,
   disabled,
   onSubmit,
+  explicitContextPaths,
+  onAddContext,
 }: {
   projectName: string | null;
   currentFileLabel: string | null;
   disabled: boolean;
   onSubmit: (value: string) => void;
+  explicitContextPaths: string[];
+  onAddContext: () => void;
 }) {
   const [value, setValue] = useState('');
 
@@ -783,6 +1063,8 @@ function EmptyConversation({
           disabled={disabled}
           busy={false}
           currentFileLabel={currentFileLabel}
+          explicitContextPaths={explicitContextPaths}
+          onAddContext={onAddContext}
           onChange={setValue}
           onSubmit={submit}
         />
@@ -825,11 +1107,15 @@ function ComposerBox({
   currentFileLabel,
   onChange,
   onSubmit,
+  explicitContextPaths,
+  onAddContext,
 }: {
   value: string;
   disabled: boolean;
   busy: boolean;
   currentFileLabel: string | null;
+  explicitContextPaths: string[];
+  onAddContext: () => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
 }) {
@@ -847,6 +1133,8 @@ function ComposerBox({
             disabled={disabled}
             busy={busy}
             currentFileLabel={currentFileLabel}
+            explicitContextPaths={explicitContextPaths}
+            onAddContext={onAddContext}
             onChange={onChange}
             onSubmit={onSubmit}
           />
@@ -863,11 +1151,15 @@ function ComposerSurface({
   currentFileLabel,
   onChange,
   onSubmit,
+  explicitContextPaths,
+  onAddContext,
 }: {
   value: string;
   disabled: boolean;
   busy: boolean;
   currentFileLabel: string | null;
+  explicitContextPaths: string[];
+  onAddContext: () => void;
   onChange: (value: string) => void;
   onSubmit?: () => void;
 }) {
@@ -895,12 +1187,22 @@ function ComposerSurface({
           type="button"
           className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#333333] text-lg leading-none text-[#BDBDBD] transition-colors hover:bg-[#3D3D3D] hover:text-white"
           title="添加上下文"
+          onClick={onAddContext}
         >
           +
         </button>
         <span className="max-w-[38%] truncate rounded-md border border-[#333333] px-2 py-1 text-xs text-[#BDBDBD]">
           @ {currentFileLabel ?? '当前文件'}
         </span>
+        {explicitContextPaths.slice(-2).map((path) => (
+          <span
+            key={path}
+            className="max-w-[22%] truncate rounded-md border border-[#333333] px-2 py-1 text-xs text-[#BDBDBD]"
+            title={path}
+          >
+            @ {path}
+          </span>
+        ))}
         <span className="ml-auto min-w-0 truncate text-xs text-[#8F8F8F]">
           StoryForge · Claude · 编辑模式
         </span>

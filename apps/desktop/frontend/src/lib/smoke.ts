@@ -5,12 +5,22 @@
  */
 
 import { getApiConfig } from './api-client';
+import { createRemoteFileSuggestion } from './assistant-suggestions';
+import { emitAcceptCurrentFileSuggestion, emitFileSuggestion } from './assistant-events';
 
 type SmokeApiConfig = Awaited<ReturnType<typeof getApiConfig>>;
 
 type SmokeController = {
   openProject: (path: string) => void;
   openFile: (path: string) => void;
+  proposeRevision: (params: {
+    filePath: string;
+    before: string;
+    after: string;
+    summary?: string;
+    userIntent?: string;
+  }) => void;
+  acceptCurrentSuggestion: () => void;
   getApiConfig: () => ReturnType<typeof getApiConfig>;
   getApiConfigSnapshot: () => SmokeApiConfig | null;
 };
@@ -43,6 +53,20 @@ if (typeof window !== 'undefined') {
     openFile(path: string) {
       pendingSmokeFilePath = path;
       void smokeFileLoader?.(path);
+    },
+    proposeRevision(params) {
+      emitFileSuggestion(createRemoteFileSuggestion({
+        id: 'smoke-file-revision',
+        filePath: params.filePath,
+        before: params.before,
+        after: params.after,
+        summary: params.summary ?? 'Smoke proposed patch',
+        model: 'smoke',
+        userIntent: params.userIntent ?? 'smoke revision writeback',
+      }));
+    },
+    acceptCurrentSuggestion() {
+      emitAcceptCurrentFileSuggestion();
     },
     getApiConfig,
     getApiConfigSnapshot() {

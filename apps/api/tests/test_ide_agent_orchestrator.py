@@ -107,6 +107,7 @@ def test_agent_user_message_file_review_returns_multi_agent_report(
     issue_ids = [issue["id"] for issue in report["issues"]]
     assert len(issue_ids) == len(set(issue_ids))
     assert all(issue["id"].startswith(f"{issue['category']}-") for issue in report["issues"])
+    assert all(issue["suggested_action"] for issue in report["issues"])
     assert "启发式预扫" in message["agent_result"]["summary"]
 
     assert [item["tool_name"] for item in message["tool_trace"]] == [
@@ -362,6 +363,9 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
     assert message["intent"] == "file.revise"
     assert message["agent_result"]["requires_user_confirmation"] is True
     assert message["proposed_patch"]["kind"] == "file_revision"
+    assert message["proposed_patch"]["file_path"] == "正文/第02章.md"
+    assert message["proposed_patch"]["before"] == "当前正文"
+    assert message["proposed_patch"]["after"] == "修订后正文"
     assert message["proposed_patch"]["requires_confirmation"] is True
     assert message["tool_trace"][0]["tool_name"] == "assistant.revise"
     assert message["tool_trace"][0]["status"] == "completed"
@@ -755,5 +759,8 @@ def test_agent_user_message_bookrun_start_reuses_command_registry(
     assert message["intent"] == "bookrun.start"
     assert message["agent_result"]["book_run"]["status"] == "running"
     assert message["agent_result"]["requires_user_confirmation"] is False
+    assert message["agent_result"]["bookrun_plan"]["chapters"] == "按锁定蓝图继续生成下一批章节"
+    assert message["agent_result"]["bookrun_plan"]["budget"] == "900 tokens"
+    assert "后台工具" in message["agent_result"]["summary"]
     assert message["tool_trace"][0]["tool_name"] == "bookrun.start"
     assert message["tool_trace"][0]["audit_event_id"].startswith("ide-command-event:")

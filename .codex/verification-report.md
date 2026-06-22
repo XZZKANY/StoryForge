@@ -650,3 +650,77 @@
 **未联通 / 下一步**：真 LLM 端到端（带 `STORYFORGE_LLM_*` 凭据）未在本环境跑，仅 stub 覆盖（本机 uvloop 起服坑见 project_desktop_assistant，需 TestClient 探针）；`book_runs` 全套件未复跑（改动行为中性）；前端 file.review 触发链路与流式 UX 属阶段 2/3，未动。
 
 记录时间戳：2026-06-20 +08:00。
+
+---
+
+# P0 项目真相与门禁复位（2026-06-20）
+
+## 目标
+
+- 把内部事实源从 2026-06-04 的“真实 3-5 万字长程仍未完成”更新为当前真实边界：30 章真实长程已跑完并导出制品，但人工通读退回重跑；当前不能宣称稳定生产级长篇质量。
+- 修复根门禁里已知红灯：`pnpm.cmd lint` 被 `.cache/external/cherry-studio` 外部缓存项目绊住，Web `ide-page` phase1 转译缺少 `StoryForgeWorkbenchPrototype.mjs`。
+- 保持事实源契约测试继续报警，但对齐新的 2026-06-20 边界。
+
+## 交付物
+
+- `eslint.config.mjs`：忽略 `.cache/`，并为 `apps/desktop/frontend/scripts/verify-*.mjs` 声明浏览器全局，避免验证脚本被 `no-undef` 误判。
+- `apps/web/scripts/phase1-contract-test.mjs`：把 `components/ide/prototypes/StoryForgeWorkbenchPrototype.tsx` 加入临时转译列表，并补齐 import rewrite。
+- `apps/web/app/settings/ProviderSettingsPanel.tsx`：把首次读取 localStorage 从 render 阶段读 ref 改为 `useState` 懒初始化，满足 React hooks refs 规则。
+- `docs/internal/current-phase.md`、`docs/internal/TODO.md`、`docs/internal/PROJECT_SUMMARY.md`：同步 30 章长程退回、Desktop IDE Agent 当前能力、门禁状态和下一步优先级。
+- `apps/api/tests/test_phase9_fact_sources.py`：把文档事实源契约从旧 6 月 4 日远端 E2E 快照，更新为 6 月 20 日真实长程整改 + Desktop IDE Agent 边界。
+
+## 本地验证结果
+
+- `pnpm.cmd lint`：通过；仍有 4 个非阻断 warning（IDE prototype/use-fetch hook warning、`home-page.test.tsx` 未使用变量）。
+- `pnpm.cmd --filter @storyforge/web test -- settings-page ide-page`：11/11 passed。
+- `pnpm.cmd --filter @storyforge/web test`：231/231 passed。
+- `cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q`：13 passed。
+- `cd apps/api && uv run ruff check tests/test_phase9_fact_sources.py`：All checks passed。
+- `cd apps/api && uv run pytest`：609 passed，3 skipped，8 warnings。
+- `cd apps/workflow && uv run pytest`：322 passed。
+- `pnpm.cmd --filter @storyforge/shared test`：通过。
+- `pnpm.cmd test`：通过；Web 231 passed，shared typecheck 通过，API 609 passed / 3 skipped / 8 warnings，Workflow 322 passed。
+- `git diff --check`：通过。
+
+## 未联通 / 说明
+
+- 本轮没有重跑 `pnpm verify`、`pnpm e2e`、`pnpm openapi`，因为本次没有 API 路由/OpenAPI 契约变更；已用根 `pnpm.cmd lint` 与 `pnpm.cmd test` 覆盖 P0 门禁复位。
+- 未跑真实 Tauri 桌面端到端；该项已列为下一步优先级：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 写回 -> 版本记录。
+- 远端 E2E 仍只引用已记录的历史通过 run `26944063055`，不声明 2026-06-20 最新远端状态。
+
+记录时间戳：2026-06-20 17:30:00 +08:00。
+
+---
+
+# Cursor for Fiction Phase 1 收口（2026-06-22）
+
+## 目标
+
+完成 `docs/superpowers/plans/2026-06-22-cursor-for-fiction-phase1.md`：StoryForge 第一阶段收口为面向本地小说项目的 Cursor-like Desktop IDE，覆盖本地文件编辑、Agent 多视角审稿、定向修订、proposed patch/diff 确认、真实写回和版本记录。
+
+## 交付物
+
+- P0 文档契约：`README.md`、`docs/architecture/ide-first-product-direction.md`、`docs/internal/current-phase.md`、`docs/internal/TODO.md` 明确 `StoryForge = Cursor for Fiction`、`apps/desktop` 是唯一主体验，BookRun 是 Agent tool / 后台重型引擎。
+- P1/P5 桌面上下文：`project-context.ts` 约定 `正文/`、`大纲/`、`人物/`、`设定/`、`世界观/`、`时间线/`、`伏笔/`，生成轻量 context bundle；`ChatWindow.tsx` 使用稳定 Agent payload，包含 `project_path`、`current_file`、`content`、`selection`、`assistant_session_id` 和 context bundle。
+- P2 审稿产品化：`file.review` 保持 plot / character / prose 三视角，issue 稳定 id，且每条 issue 包含 `category`、`severity`、`message`、`evidence`、`suggested_action`；前端渲染 issue 操作区，支持“只修此条”和按 category 修订。
+- P3 proposed patch：`file.revise` 只返回 `kind=file_revision` 的 proposed patch，包含 `before`、`after`、`file_path`、`requires_confirmation`；前端确认写回走本地 accept event，不重新触发 revise。
+- P4 Tauri 写回与版本记录：真实 Tauri smoke 注入 proposed patch，验证未确认前磁盘不变；确认后磁盘内容变化、Editor 刷新、`.storyforge/versions` 有写回前快照和 Agent 来源/摘要 meta、`.storyforge/author-loop` 有本次 Agent 修订来源记录。
+- P6 BookRun 工具化：`bookrun.start` 继续复用 command registry，返回 tool trace/audit id，并在 Agent 摘要中说明章节计划和预算，不抢主界面。
+
+## 本地验证结果
+
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run test`：15 passed。
+- `npm --prefix apps/desktop/frontend run verify:smoke`：Desktop frontend smoke passed。
+- `npm --prefix apps/desktop/frontend run verify:agent-conversation`：通过；验证 Agent payload 携带当前项目、当前文件、正文内容、人物上下文摘录，并验证“只修此条”发送 `selected_issue_ids=["character-1"]`。
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q`：17 passed。
+- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`：通过。
+- `node apps/desktop/scripts/verify-tauri-smoke.mjs`：通过；真实 Tauri 端到端输出 `writebackPreview=# Chapter 1 ... Smoke content revised by Agent`，并在脚本内检查未确认不写盘、确认后磁盘写回、版本快照、版本 Agent meta 和作者闭环记录。
+
+## 说明
+
+- Tauri smoke 使用临时小说项目，目录含 `正文/`、`大纲/`、`人物/`，不污染用户项目。
+- 浏览器版 `verify:agent-conversation` 使用受控 mock WebSocket 和 mock 文件系统验证 Desktop 前端 payload；真实写盘责任由 Tauri smoke 覆盖。
+- Vite build 仍提示 Monaco chunk 体积较大，这是既有构建警告，不阻塞 Phase 1 闭环。
+
+记录时间戳：2026-06-22 20:08:21 +08:00。

@@ -229,7 +229,10 @@ export function Editor({
       const previous = originalContentRef.current;
       if (previous !== '' && previous !== content) {
         try {
-          await snapshotBeforeWrite(projectPathRef.current, path, previous);
+          await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+            source: 'Editor',
+            summary: '手动保存前快照',
+          });
         } catch (snapshotErr) {
           console.error('写入版本快照失败:', snapshotErr);
         }
@@ -261,7 +264,10 @@ export function Editor({
       const previous = originalContentRef.current;
       if (previous !== suggestion.after) {
         try {
-          await snapshotBeforeWrite(projectPathRef.current, path, previous);
+          await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+            source: 'Agent',
+            summary: suggestion.summary,
+          });
         } catch (snapshotErr) {
           console.error('写入版本快照失败:', snapshotErr);
         }
@@ -720,6 +726,9 @@ function VersionHistory({
             >
               <span className="text-xs text-foreground truncate" title={formatTimestamp(v.timestamp)}>
                 {formatTimestamp(v.timestamp)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={v.summary ?? v.file ?? ''}>
+                {v.source ? `${v.source} · ` : ''}{v.summary ?? v.file ?? '版本快照'}
               </span>
               <button
                 disabled={busy}

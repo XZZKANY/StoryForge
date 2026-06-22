@@ -536,7 +536,12 @@ def _orchestrate_bookrun_start(
         related_id=command_args["book_id"],
     )
     book_run = result.payload.get("book_run") if isinstance(result.payload.get("book_run"), dict) else {}
-    summary = f"BookRun 已启动：book_run_id={book_run.get('id')}，状态 {book_run.get('status')}。"
+    chapter_plan = _bookrun_chapter_plan_summary(command_args)
+    budget_summary = _bookrun_budget_summary(command_args)
+    summary = (
+        f"BookRun 已作为后台工具启动：book_run_id={book_run.get('id')}，状态 {book_run.get('status')}。"
+        f"计划：{chapter_plan}。预算：{budget_summary}。进度会作为 Agent tool trace 返回，不切换主界面。"
+    )
     assistant_service.append_assistant_message(
         session,
         assistant_session_id,
@@ -551,9 +556,32 @@ def _orchestrate_bookrun_start(
             _plan_step("bookrun.start", "通过 IDE command registry 启动 BookRun。", "completed"),
             _plan_step("audit", "返回 command audit_event_id 供 IDE 追溯。", "completed"),
         ],
-        agent_result={"summary": summary, "book_run": book_run, "requires_user_confirmation": False},
+        agent_result={
+            "summary": summary,
+            "book_run": book_run,
+            "bookrun_plan": {"chapters": chapter_plan, "budget": budget_summary},
+            "requires_user_confirmation": False,
+        },
         tool_trace=tool_trace,
     )
+
+
+def _bookrun_chapter_plan_summary(command_args: dict[str, Any]) -> str:
+    chapter_budget = command_args.get("chapter_budget")
+    if isinstance(chapter_budget, int) and chapter_budget > 0:
+        return f"生成最多 {chapter_budget} 章"
+    return "按锁定蓝图继续生成下一批章节"
+
+
+def _bookrun_budget_summary(command_args: dict[str, Any]) -> str:
+    parts: list[str] = []
+    token_budget = command_args.get("token_budget")
+    time_budget_sec = command_args.get("time_budget_sec")
+    if isinstance(token_budget, int) and token_budget > 0:
+        parts.append(f"{token_budget} tokens")
+    if isinstance(time_budget_sec, int) and time_budget_sec > 0:
+        parts.append(f"{time_budget_sec} 秒")
+    return "，".join(parts) if parts else "使用系统默认预算"
 
 
 def _execute_command_with_tool_audit(
@@ -777,7 +805,34 @@ def _build_multi_agent_review_report(
 
 
 def _assign_issue_ids(category: str, issues: list[dict[str, str]]) -> list[dict[str, str]]:
-    return [{**issue, "id": f"{category}-{index}", "category": category} for index, issue in enumerate(issues, start=1)]
+    return [
+        {
+            **issue,
+            "id": f"{category}-{index}",
+            "category": category,
+            "suggested_action": _issue_suggested_action(category, issue),
+        }
+        for index, issue in enumerate(issues, start=1)
+    ]
+
+
+def _issue_suggested_action(category: str, issue: dict[str, str]) -> str:
+    code = issue.get("code", "")
+    if category == "plot":
+        if "hook" in code:
+            return "重写章尾最后一段，加入新的悬念、阻碍或行动压力。"
+        if "conflict" in code:
+            return "补一个明确的对抗、阻碍或代价，让本章目标被迫推进。"
+        return "补清章节目标、冲突推进和转折，避免只交代状态。"
+    if category == "character":
+        if "context" in code:
+            return "先补充或引用人物小传，再校准行动动机和关系称谓。"
+        return "为角色选择增加可见动机，用动作或对白证明其决定。"
+    if category == "prose":
+        if "paragraph" in code:
+            return "拆分长段落，调整信息密度，保证移动端阅读节奏。"
+        return "把解释性句子改成动作、对话或感官细节。"
+    return "按该问题做定向修订，并保持原有事实连续。"
 
 
 def _select_review_reasoner() -> review_reasoning.ReviewReasoner:

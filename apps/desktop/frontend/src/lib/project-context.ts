@@ -1,6 +1,15 @@
 import { TauriFileSystem, type FileEntry } from './tauri-fs';
 
-export type SemanticKind = 'outline' | 'character' | 'setting' | 'draft' | 'quality' | 'export' | 'other';
+export type SemanticKind =
+  | 'outline'
+  | 'character'
+  | 'setting'
+  | 'timeline'
+  | 'foreshadowing'
+  | 'draft'
+  | 'quality'
+  | 'export'
+  | 'other';
 
 export type SemanticFile = {
   path: string;
@@ -47,6 +56,8 @@ const KIND_LABELS: Record<SemanticKind, string> = {
   outline: '大纲',
   character: '人物',
   setting: '设定',
+  timeline: '时间线',
+  foreshadowing: '伏笔',
   draft: '正文',
   quality: '质量',
   export: '导出',
@@ -66,6 +77,15 @@ const DIR_KIND: Record<string, SemanticKind> = {
   settings: 'setting',
   world: 'setting',
   worldbuilding: 'setting',
+  '世界观': 'setting',
+  '时间线': 'timeline',
+  timeline: 'timeline',
+  timelines: 'timeline',
+  chronology: 'timeline',
+  '伏笔': 'foreshadowing',
+  foreshadowing: 'foreshadowing',
+  foreshadows: 'foreshadowing',
+  seeds: 'foreshadowing',
   '正文': 'draft',
   draft: 'draft',
   drafts: 'draft',
@@ -80,7 +100,7 @@ const DIR_KIND: Record<string, SemanticKind> = {
   exports: 'export',
 };
 
-const STORY_DIRS = ['大纲', '人物', '设定', '正文', '质量', '导出'];
+const STORY_DIRS = ['正文', '大纲', '人物', '设定', '世界观', '时间线', '伏笔'];
 const CONTEXT_BUNDLE_CACHE_TTL_MS = 30000;
 
 type ContextBundleCacheEntry = {
@@ -118,6 +138,8 @@ function emptyCounts(): Record<SemanticKind, number> {
     outline: 0,
     character: 0,
     setting: 0,
+    timeline: 0,
+    foreshadowing: 0,
     draft: 0,
     quality: 0,
     export: 0,
@@ -148,7 +170,7 @@ export function buildProjectIndexFromEntries(projectPath: string, entries: FileE
     counts[file.kind] += 1;
   }
 
-  const hasStoryStructure = counts.outline + counts.character + counts.setting + counts.draft > 0;
+  const hasStoryStructure = counts.outline + counts.character + counts.setting + counts.timeline + counts.foreshadowing + counts.draft > 0;
   return { projectPath, files, summary: { hasStoryStructure, counts } };
 }
 
@@ -170,9 +192,10 @@ export function buildStoryProjectInitializationPlan(projectPath: string): StoryP
       '- 大纲：存放总纲、章节节点、反转表。',
       '- 人物：存放角色小传、关系、成长线。',
       '- 设定：存放世界观、地点、物件、规则。',
+      '- 世界观：存放世界底层规则、势力、历史和专有名词。',
+      '- 时间线：存放事件顺序、回忆、伏笔兑现节点。',
+      '- 伏笔：存放埋线、回收计划、读者预期管理。',
       '- 正文：存放章节正文。',
-      '- 质量：存放审查报告、伏笔表、版本记录。',
-      '- 导出：存放交付稿和发布制品。',
     ].join('\n'),
   };
 }
@@ -196,10 +219,12 @@ function contextPriority(file: SemanticFile, currentFile: string): number {
     outline: 0,
     character: 1,
     setting: 2,
-    quality: 3,
-    draft: 4,
-    export: 5,
-    other: 6,
+    timeline: 3,
+    foreshadowing: 4,
+    quality: 5,
+    draft: 6,
+    export: 7,
+    other: 8,
   };
   return kindPriority[file.kind];
 }
@@ -225,7 +250,7 @@ export async function buildContextBundle(params: {
   const index = await buildProjectIndex(projectPath);
   const candidates = index.files
     .filter((file) => file.path !== currentFile)
-    .filter((file) => file.kind !== 'export' && file.kind !== 'other')
+    .filter((file) => file.kind !== 'export' && file.kind !== 'quality' && file.kind !== 'other')
     .sort((a, b) => {
       const priority = contextPriority(a, currentFile) - contextPriority(b, currentFile);
       return priority !== 0 ? priority : a.relativePath.localeCompare(b.relativePath);

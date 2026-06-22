@@ -11,13 +11,22 @@ const server = await createServer({
 
 let browser;
 let smokeProjectPath;
+let draftPath;
+let characterPath;
+let draftContent;
+let characterContent;
 
 try {
   smokeProjectPath = await mkdtemp(join(tmpdir(), 'storyforge-agent-conversation-'));
   const draftDir = join(smokeProjectPath, '正文');
-  const draftPath = join(draftDir, '第三章.md');
+  draftPath = join(draftDir, '第三章.md');
+  characterPath = join(smokeProjectPath, '人物', '林岚.md');
+  draftContent = '# 第三章\n\n她推开门，风声灌进来。\n\n旧设定解释在这里铺开。';
+  characterContent = '# 林岚\n\n害怕再次失去证据。';
   await mkdir(draftDir, { recursive: true });
-  await writeFile(draftPath, '# 第三章\n\n她推开门，风声灌进来。\n\n旧设定解释在这里铺开。', 'utf8');
+  await mkdir(join(smokeProjectPath, '人物'), { recursive: true });
+  await writeFile(draftPath, draftContent, 'utf8');
+  await writeFile(characterPath, characterContent, 'utf8');
 
   await server.listen();
   const url = server.resolvedUrls.local[0];
@@ -35,6 +44,133 @@ try {
   });
   page.on('pageerror', (error) => {
     if (!isExpectedBrowserRuntimeNoise(error.message)) errors.push(error.message);
+  });
+
+  await page.addInitScript(
+    ({ projectPath, filePath, fileContent, characterFilePath, characterFileContent }) => {
+    window.__STORYFORGE_MOCK_FS__ = {
+      readFile(path) {
+        if (path === filePath) return fileContent;
+        if (path === characterFilePath) return characterFileContent;
+        throw new Error(`mock fs missing file: ${path}`);
+      },
+      listDir(path) {
+        if (path !== projectPath) return [];
+        return [
+          {
+            name: '正文',
+            path: `${projectPath}\\正文`,
+            isDir: true,
+            size: 0,
+            modified: 1,
+          },
+          {
+            name: '第三章.md',
+            path: filePath,
+            isDir: false,
+            size: fileContent.length,
+            modified: 1,
+            extension: 'md',
+          },
+          {
+            name: '人物',
+            path: `${projectPath}\\人物`,
+            isDir: true,
+            size: 0,
+            modified: 1,
+          },
+          {
+            name: '林岚.md',
+            path: characterFilePath,
+            isDir: false,
+            size: characterFileContent.length,
+            modified: 1,
+            extension: 'md',
+          },
+        ];
+      },
+    };
+
+    class MockWebSocket extends EventTarget {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static CLOSING = 2;
+      static CLOSED = 3;
+      readyState = MockWebSocket.CONNECTING;
+      url;
+      onopen = null;
+      onmessage = null;
+      onerror = null;
+      onclose = null;
+
+      constructor(url) {
+        super();
+        this.url = url;
+        setTimeout(() => {
+          this.readyState = MockWebSocket.OPEN;
+          this.onopen?.(new Event('open'));
+        }, 0);
+      }
+
+      send(raw) {
+        const payload = JSON.parse(String(raw));
+        window.__STORYFORGE_AGENT_MESSAGES__ = [
+          ...(window.__STORYFORGE_AGENT_MESSAGES__ ?? []),
+          payload,
+        ];
+        const response = {
+          type: 'agent_result',
+          session_id: 'mock-session',
+          assistant_session_id: 101,
+          intent: 'file.review',
+          user_message: payload.user_message,
+          plan: [{ step: 'context-agent', detail: 'mock context', status: 'completed' }],
+          agent_result: {
+            summary: '多视角审稿完成：发现 1 个问题。未配置 LLM，本轮为启发式预扫，非模型审稿。',
+            requires_user_confirmation: false,
+            review_report: {
+              kind: 'review_report',
+              mode: 'heuristic_only',
+              context: { file_count: 1, kinds: ['character'] },
+              agent_findings: {
+                plot: { issue_count: 0 },
+                character: { issue_count: 1 },
+                prose: { issue_count: 0 },
+              },
+              issues: [
+                {
+                  id: 'character-1',
+                  category: 'character',
+                  severity: 'medium',
+                  message: '人物动机需要补证据。',
+                  evidence: '她推开门。',
+                  suggested_action: '用动作或对白证明决定。',
+                },
+              ],
+              suggested_actions: ['修订前核对人物小传和关系线，避免动机断裂。'],
+            },
+          },
+          tool_trace: [],
+          proposed_patch: null,
+        };
+        setTimeout(() => {
+          this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(response) }));
+        }, 0);
+      }
+
+      close() {
+        this.readyState = MockWebSocket.CLOSED;
+        this.onclose?.(new CloseEvent('close', { code: 1000 }));
+      }
+    }
+    window.WebSocket = MockWebSocket;
+  },
+  {
+    projectPath: smokeProjectPath,
+    filePath: draftPath,
+    fileContent: draftContent,
+    characterFilePath: characterPath,
+    characterFileContent: characterContent,
   });
 
   await page.goto(url, { waitUntil: 'networkidle' });
@@ -80,9 +216,36 @@ try {
     throw new Error('Expected user message to render as a right-side bubble');
   }
 
+  await page.getByText('扫描项目上下文').waitFor({ timeout: 5000 });
   const bodyText = await page.locator('[data-testid="assistant-panel"]').innerText();
-  if (!bodyText.includes('扫描项目上下文') || !bodyText.includes('调用 Agent Orchestrator')) {
-    throw new Error('Expected Agent execution steps to render in the conversation');
+  if (!bodyText.includes('扫描项目上下文') || !(bodyText.includes('调用 Agent Orchestrator') || bodyText.includes('整理回复'))) {
+    throw new Error(`Expected Agent execution steps to render in the conversation:\n${bodyText}`);
+  }
+  await page.getByTestId('review-issue-actions').waitFor({ timeout: 5000 });
+  await page.locator('[data-testid="review-issue"][data-issue-id="character-1"]').waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: '只修此条' }).click();
+  await page.waitForFunction(() => (window.__STORYFORGE_AGENT_MESSAGES__ ?? []).length >= 2, null, { timeout: 5000 });
+
+  const payloads = await page.evaluate(() => window.__STORYFORGE_AGENT_MESSAGES__);
+  const firstArgs = payloads[0]?.args;
+  const secondArgs = payloads[1]?.args;
+  if (firstArgs?.project_path !== smokeProjectPath) {
+    throw new Error(`Expected Agent payload project_path to match project: ${JSON.stringify(firstArgs)}`);
+  }
+  if (firstArgs?.current_file !== draftPath || firstArgs?.file_path !== draftPath) {
+    throw new Error(`Expected Agent payload to carry current file: ${JSON.stringify(firstArgs)}`);
+  }
+  if (!String(firstArgs?.content ?? '').includes('旧设定解释在这里铺开。')) {
+    throw new Error('Expected Agent payload to include current file content');
+  }
+  if (!Array.isArray(firstArgs?.context_bundle?.files) || firstArgs.context_bundle.files.length < 1) {
+    throw new Error(`Expected Agent payload to include project context bundle: ${JSON.stringify(firstArgs?.context_bundle)}`);
+  }
+  if (!String(firstArgs.context_bundle.files[0]?.excerpt ?? '').includes('害怕再次失去证据')) {
+    throw new Error(`Expected context bundle to include character file excerpt: ${JSON.stringify(firstArgs.context_bundle.files)}`);
+  }
+  if (!Array.isArray(secondArgs?.selected_issue_ids) || secondArgs.selected_issue_ids[0] !== 'character-1') {
+    throw new Error(`Expected issue action to send selected issue id: ${JSON.stringify(secondArgs)}`);
   }
   if (bodyText.includes('你\n审一下第三章')) {
     throw new Error('Expected user bubble to omit user name label');

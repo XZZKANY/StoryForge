@@ -20,18 +20,42 @@ export interface FileChangeEvent {
   paths: string[];
 }
 
+type SmokeFileSystem = {
+  readFile?: (path: string) => Promise<string> | string;
+  writeFile?: (path: string, content: string) => Promise<void> | void;
+  listDir?: (path: string, recursive?: boolean) => Promise<FileEntry[]> | FileEntry[];
+  createDir?: (path: string, recursive?: boolean) => Promise<void> | void;
+  pathExists?: (path: string) => Promise<boolean> | boolean;
+};
+
+declare global {
+  interface Window {
+    __STORYFORGE_MOCK_FS__?: SmokeFileSystem;
+  }
+}
+
+function mockFs(): SmokeFileSystem | null {
+  return typeof window !== 'undefined' ? window.__STORYFORGE_MOCK_FS__ ?? null : null;
+}
+
 export class TauriFileSystem {
   static async readFile(path: string): Promise<string> {
+    const mock = mockFs();
+    if (mock?.readFile) return await mock.readFile(path);
     assertTauriRuntime('TauriFileSystem.readFile');
     return await invoke<string>('read_file', { path });
   }
 
   static async writeFile(path: string, content: string): Promise<void> {
+    const mock = mockFs();
+    if (mock?.writeFile) return await mock.writeFile(path, content);
     assertTauriRuntime('TauriFileSystem.writeFile');
     await invoke('write_file', { path, content });
   }
 
   static async listDir(path: string, recursive = false): Promise<FileEntry[]> {
+    const mock = mockFs();
+    if (mock?.listDir) return await mock.listDir(path, recursive);
     assertTauriRuntime('TauriFileSystem.listDir');
     return await invoke<FileEntry[]>('list_dir', { path, recursive });
   }
@@ -42,6 +66,8 @@ export class TauriFileSystem {
   }
 
   static async createDir(path: string, recursive = true): Promise<void> {
+    const mock = mockFs();
+    if (mock?.createDir) return await mock.createDir(path, recursive);
     assertTauriRuntime('TauriFileSystem.createDir');
     await invoke('create_dir', { path, recursive });
   }
@@ -52,6 +78,8 @@ export class TauriFileSystem {
   }
 
   static async pathExists(path: string): Promise<boolean> {
+    const mock = mockFs();
+    if (mock?.pathExists) return await mock.pathExists(path);
     assertTauriRuntime('TauriFileSystem.pathExists');
     return await invoke<boolean>('path_exists', { path });
   }

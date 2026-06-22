@@ -10,12 +10,25 @@ import { TauriFileSystem, FileEntry } from './tauri-fs';
 
 const VERSION_ROOT = '.storyforge/versions';
 const SNAPSHOT_SUFFIX = '.snapshot.md';
+const META_SUFFIX = '.meta.json';
 
 export type VersionEntry = {
   /** 快照文件完整路径 */
   path: string;
   /** 保存时间（unix 毫秒） */
   timestamp: number;
+  /** 写回来源，如 Agent 或 Editor */
+  source?: string;
+  /** 本次写回摘要 */
+  summary?: string;
+  /** 被写回文件的项目相对路径 */
+  file?: string;
+};
+
+export type VersionSnapshotMetadata = {
+  source?: string;
+  summary?: string;
+  file?: string;
 };
 
 function sep(projectPath: string): string {
@@ -50,15 +63,26 @@ export async function snapshotBeforeWrite(
   projectPath: string | null,
   filePath: string,
   previousContent: string,
+  metadata: VersionSnapshotMetadata = {},
 ): Promise<string | null> {
   if (!projectPath) return null;
   const dir = versionDirFor(projectPath, filePath);
   if (!dir) return null;
 
   const s = sep(projectPath);
-  const snapshotPath = `${dir}${s}${Date.now()}${SNAPSHOT_SUFFIX}`;
+  const timestamp = Date.now();
+  const snapshotPath = `${dir}${s}${timestamp}${SNAPSHOT_SUFFIX}`;
   // write_file 会自动创建父目录。
   await TauriFileSystem.writeFile(snapshotPath, previousContent);
+  const meta = {
+    source: metadata.source ?? 'Editor',
+    summary: metadata.summary ?? '手动保存前快照',
+    file: metadata.file ?? relativeToProject(projectPath, filePath) ?? filePath,
+  };
+  await TauriFileSystem.writeFile(
+    `${dir}${s}${timestamp}${META_SUFFIX}`,
+    `${JSON.stringify(meta, null, 2)}\n`,
+  );
   return snapshotPath;
 }
 
@@ -81,12 +105,34 @@ export async function listVersions(
 
   return entries
     .filter((e) => !e.isDir && e.name.endsWith(SNAPSHOT_SUFFIX))
-    .map((e) => ({
-      path: e.path,
-      timestamp: Number.parseInt(e.name.slice(0, e.name.length - SNAPSHOT_SUFFIX.length), 10),
-    }))
+    .map((e) => {
+      const timestamp = Number.parseInt(e.name.slice(0, e.name.length - SNAPSHOT_SUFFIX.length), 10);
+      const metaPath = e.path.slice(0, e.path.length - SNAPSHOT_SUFFIX.length) + META_SUFFIX;
+      return {
+        path: e.path,
+        timestamp,
+        metaPath,
+      };
+    })
     .filter((e) => Number.isFinite(e.timestamp))
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .reduce<Promise<VersionEntry[]>>(async (promise, entry) => {
+      const list = await promise;
+      let metadata: VersionSnapshotMetadata = {};
+      try {
+        metadata = JSON.parse(await TauriFileSystem.readFile(entry.metaPath)) as VersionSnapshotMetadata;
+      } catch {
+        // 旧快照没有 meta sidecar 时仍可展示时间与恢复按钮。
+      }
+      list.push({
+        path: entry.path,
+        timestamp: entry.timestamp,
+        source: metadata.source,
+        summary: metadata.summary,
+        file: metadata.file,
+      });
+      return list;
+    }, Promise.resolve([]));
 }
 
 /** 读取某个版本快照内容。 */

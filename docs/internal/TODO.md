@@ -1,43 +1,59 @@
 # StoryForge 待办清单
 
-生成时间：2026-06-04 17:50:00 +08:00
+生成时间：2026-06-21 00:00:00 +08:00
 
-## Phase 9 当前执行入口
+## 当前执行入口
 
-StoryForge 当前处于 Phase 9 真实 LLM 长程验收准备阶段，同时产品重心已转为 Desktop IDE-first。Phase 9A、Phase 9B 本地控制面和 Phase 9C 本地增强项已有本地验证证据；真实 LLM 1 章、3 章与 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过最终验收；远端 `master` E2E 已通过，真实 3-5 万字长程仍未完成。默认开发入口为 `pnpm dev` / `pnpm desktop:dev`，Web 只作为维护、调试、兼容和契约验证入口。
+StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase 1 最小闭环已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场。BookRun 是 Agent tool / 后台重型引擎，不是第一阶段主产品控制台。
+
+真实 LLM 1/3/10 章 smoke 已通过记录，其中 10 章 smoke 已完成人工通读；一次 30 章真实长程已跑完并导出制品，但人工通读结论为“退回重跑”。
 
 ## 当前事实边界
 
-- 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集。
-- 历史远端 `master` 定时 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
-- 修复分支 `codex/phase9-e2e-alembic` 的远端 `E2E` run `26941784868`（2026-06-04T08:59:00Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
-- 修复分支已非强制快进合入远端 `master`；最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
-- 本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 E2E 的 API verification 预检；在线 PostgreSQL 迁移已在隔离分支复验，临时库 `storyforge_phase9_e2e_submit_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0。
-- 真实 LLM 1 章 smoke 证据：`.codex/real-llm-1ch-20260603-142925`。
-- 真实 LLM 3 章 smoke 证据：`.codex/real-llm-3ch-20260603-173932`。
-- 真实 LLM 10 章 smoke 证据：`.codex/real-llm-10ch-20260604-110831`，最终门禁 `gate: pass_for_real_10ch_final_acceptance`，10 章 smoke 人工通读完成。
-- 真实 3-5 万字长程仍未完成。
+- 30 章真实长程证据目录：`.codex/real-llm-30ch-mimo25pro-20260611-192356`；运行链路、Markdown、EPUB 和审计报告导出完成，但人工通读退回重跑。
+- 30 章退回阻塞：测试痕迹残留、章节结构模板化、重复表达、人物称谓混乱、17/18 章时间线冲突、线索膨胀和结尾收束不足。
+- 后续工程修复已覆盖 recap 膨胀、计数失真、collapse_judge 误报、S3 bucket 缺失和 reasoning token 泄漏；这些修复需要通过新一轮长程运行与人工通读验证。
+- Desktop IDE Agent 已支持后端意图源收口、真实文件修订、多视角审稿、稳定 issue id、修订范围控制、proposed patch、确认写回防重复生成和真实 Tauri 写回端到端。
+- 第一阶段验收链路已经通过本地验证：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录。
+- `apps/web` 不再作为主体验、维护入口、调试入口、兼容入口或契约验证入口；BookRun 控制台也不作为主产品入口。
 
 ## 下一步优先级
 
-1. 推进真实 3-5 万字短篇长程运行，沿用真实 LLM 长程包装脚本和脱敏证据校验边界。
-2. 对 3-5 万字长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对和人工通读。
-3. 将新增产品体验默认落到 Desktop IDE，Web 只承接维护、调试、兼容和契约验证事项。
-4. 长程通过后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `docs/internal/dev-plan.md` 的完成边界。
+1. 基于 30 章人工通读意见整理重跑策略，重跑真实 3-5 万字长程并执行人工通读。
+2. 将新一轮长程的 Markdown、EPUB、`audit_report.json`、summary 和人工盲评写入 `.codex/verification-report.md`。
+3. 将 Desktop IDE Agent 的可选增强拆小：WebSocket 流式响应、真实 LLM file.review 探针、更细的修订范围 UI 和更完整的上下文选择器。
+4. 将 BookRun 保持为 Agent tool / 后台重型引擎：可由 Agent 发起、解释预算和展示 tool trace，但不抢占 Desktop IDE 主界面。
+5. 长程通过后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `docs/internal/dev-plan.md` 的完成边界。
 
 ## 本地验证入口
 
-常用本地门禁：`pnpm verify`、`pnpm e2e`、`pnpm test`、`pnpm openapi`。
+常用本地门禁：
 
 ```powershell
 cd D:/StoryForge
+pnpm.cmd lint
+npm --prefix apps/desktop/frontend run typecheck
+npm --prefix apps/desktop/frontend run test
 pnpm verify
 pnpm e2e
 pnpm test
 pnpm openapi
 ```
 
-真实 LLM smoke 入口只在私有运行时变量已设置时执行，不读取 `.env`，不把 provider 配置或 token 写入仓库：
+Desktop IDE Agent 定向验证：
+
+```powershell
+cd D:/StoryForge/apps/api
+uv run pytest tests/test_ide_agent_orchestrator.py -q
+
+cd D:/StoryForge/apps/desktop/frontend
+pnpm.cmd run typecheck
+pnpm.cmd run test
+pnpm.cmd run verify:smoke
+pnpm.cmd run verify:agent-conversation
+```
+
+真实 LLM 入口只在私有运行时变量已设置时执行，不读取 `.env`，不把 provider 配置或 token 写入仓库：
 
 ```powershell
 cd D:/StoryForge/apps/api
@@ -50,7 +66,6 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - 当前状态以 `docs/internal/current-phase.md` 为准；TODO 只保留下一步执行入口，不作为完整项目总览或历史计划来源。
 - `README.md`
 - `docs/internal/current-phase.md`
-- `docs/internal/dev-plan.md`
 - `docs/internal/PROJECT_SUMMARY.md`
-- `.codex/operations-log.md`
 - `.codex/verification-report.md`
+- `.codex/operations-log.md`
