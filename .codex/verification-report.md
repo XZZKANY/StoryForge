@@ -724,3 +724,41 @@
 - Vite build 仍提示 Monaco chunk 体积较大，这是既有构建警告，不阻塞 Phase 1 闭环。
 
 记录时间戳：2026-06-22 20:08:21 +08:00。
+
+---
+
+# Cursor for Fiction Phase 2 收口（2026-06-23）
+
+## 目标
+
+完成 `docs/superpowers/plans/2026-06-22-cursor-for-fiction-phase2.md`：在 Phase 1 本地写回闭环之上，把 Desktop IDE Agent 升级为可观察、可控、可追溯的日常协作体验；BookRun 继续作为 Agent tool / 后台引擎，不抢主界面。
+
+## 交付物
+
+- P1 事件流：`apps/api/app/domains/ide/router.py` 支持 opt-in `stream: true`，发送 `agent_run_started`、`agent_step`、`tool_trace`、最终 `agent_result` 和带 `run_id` 的 `error`；`apps/desktop/frontend/src/lib/api-client.ts` 支持 `onEvent`，最终只在 `agent_result` / `error` resolve。
+- P2 上下文选择器：`project-context.ts` 增加 pinned files、预算、截断和 missing pins；`ChatWindow.tsx` 增加上下文摘要、项目文件选择、pin/unpin、预算展示和 `@文件` 缺失提示。
+- P3 审稿问题工作流：review issue 卡片支持多选、category 过滤、修选中问题、只修本类问题；定向修订 payload 继续发送 `selected_issue_ids` / `included_categories` 并由后端回显 `applied_scope`。
+- P4 Patch 审阅工作台：新增 `PatchReviewPanel`，展示 patch id、文件路径、增删行、模型、session、issue scope 和展开全文；Editor 接受前检测当前内容是否仍等于 `suggestion.before`，冲突时不写盘；拒绝不写正文。
+- P5 BookRun 工具化：`bookrun.start` 改成预检/确认两段式，未确认时返回计划、预算、风险和 `confirmation_action`；确认后返回 `book_run_id` / `events_url`，前端订阅 run events 并展示轻量进度。
+- P6 追溯闭环：`assistant-suggestions.ts`、`versions.ts`、`author-loop.ts` 透传 patch id、assistant session id、issue ids、context files；版本面板支持来源筛选并展示 Agent meta。
+- P7 验证：`verify-agent-conversation.mjs` 覆盖流式事件、上下文 pin/budget 和 issue 多选；`verify-tauri-smoke.mjs` 覆盖拒绝不写盘、旧 patch 冲突保护、确认写回、版本 meta 和 author-loop meta。
+
+## 本地验证结果
+
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run test`：20 passed。
+- `npm --prefix apps/desktop/frontend run verify:smoke`：Desktop frontend smoke passed。
+- `npm --prefix apps/desktop/frontend run verify:agent-conversation`：Agent conversation verification passed；验证流式 step 在最终回复前出现、pinned context 进入 payload、`context_bundle.budget.pinned_file_count >= 1`、多选 issue 发送 `selected_issue_ids=["character-1"]`。
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_ide_run_events.py -q`：24 passed。
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q`：20 passed。
+- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`：通过。
+- `node apps/desktop/scripts/verify-tauri-smoke.mjs`：通过；真实 Tauri smoke 验证未确认不写盘、拒绝不写盘、旧 patch 内容冲突被阻止、确认后磁盘写回、`.storyforge/versions` 含 Agent/patch/session/issue/context meta、`.storyforge/author-loop` 含同源 meta。
+
+## 说明
+
+- 后端当前中间 step/tool 事件由编排结果投影生成，协议、前端状态推进和 smoke 已成立；真正逐 token / 逐工具实时事件可作为 Phase 2 之后增强。
+- 本轮没有改变 `apps/web` 退场结论，也没有把 BookRun 控制台重新设为主产品入口。
+- 本轮不证明真实 3-5 万字长程质量验收通过；该项仍按 `docs/internal/TODO.md` 的长程整改优先级推进。
+- Tauri smoke 构建仍提示 Monaco chunk 体积较大，命令退出码为 0，不阻塞验收。
+
+记录时间戳：2026-06-23 00:33:51 +08:00。

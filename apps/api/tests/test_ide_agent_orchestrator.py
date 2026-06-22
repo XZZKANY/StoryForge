@@ -128,6 +128,65 @@ def test_agent_user_message_file_review_returns_multi_agent_report(
     assert message["tool_trace"][4]["output_summary"]["strategy"] == "deterministic_merge"
 
 
+def test_agent_user_message_file_review_can_stream_intermediate_events(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "stream": True,
+                "run_id": "run-review-stream",
+                "user_message": "审查当前章节的结构、人物和节奏",
+                "intent": "file.review",
+                "args": {
+                    "file_path": "正文/第01章.md",
+                    "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。众人沉默地离开。",
+                    "context_bundle": {"files": []},
+                },
+            }
+        )
+        started = websocket.receive_json()
+        first_step = websocket.receive_json()
+        events = [first_step]
+        while events[-1]["type"] != "agent_result":
+            events.append(websocket.receive_json())
+
+    assert started["type"] == "agent_run_started"
+    assert started["run_id"] == "run-review-stream"
+    assert first_step["type"] == "agent_step"
+    assert first_step["run_id"] == "run-review-stream"
+    assert events[-1]["type"] == "agent_result"
+    assert events[-1]["run_id"] == "run-review-stream"
+    assert events[-1]["intent"] == "file.review"
+    assert any(event["type"] == "tool_trace" for event in events)
+    assert events[-1]["agent_result"]["review_report"]["kind"] == "review_report"
+
+
+def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> None:
+    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-stream-error") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "stream": True,
+                "run_id": "run-review-error",
+                "user_message": "审查当前章节",
+                "intent": "file.review",
+                "args": {"content": "缺少 file_path"},
+            }
+        )
+        started = websocket.receive_json()
+        error = websocket.receive_json()
+
+    assert started["type"] == "agent_run_started"
+    assert error["type"] == "error"
+    assert error["run_id"] == "run-review-error"
+    assert "file_path" in error["detail"]
+
+
 def test_file_review_uses_llm_when_configured(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -725,7 +784,40 @@ def test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirma
     assert {item["tool_name"] for item in tool_calls[1:]} == {"judge.repair"}
 
 
-def test_agent_user_message_bookrun_start_reuses_command_registry(
+def test_agent_user_message_bookrun_start_preflight_requires_confirmation(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    scope = seed_locked_blueprint(session_factory)
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-bookrun-preflight") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "user_message": "启动这本书的生成流程",
+                "args": {
+                    "book_id": scope["book_id"],
+                    "blueprint_id": scope["blueprint_id"],
+                    "token_budget": 900,
+                    "chapter_budget": 8,
+                },
+            }
+        )
+        message = websocket.receive_json()
+
+    assert message["type"] == "agent_result"
+    assert message["intent"] == "bookrun.start"
+    assert message["agent_result"]["requires_user_confirmation"] is True
+    assert message["agent_result"]["confirmation_required"] is True
+    assert "book_run" not in message["agent_result"]
+    assert message["agent_result"]["confirmation_action"]["args"]["confirmed"] is True
+    assert message["agent_result"]["bookrun_plan"]["budget_details"]["token_budget"] == 900
+    assert message["agent_result"]["bookrun_plan"]["budget_details"]["chapter_budget"] == 8
+    assert message["agent_result"]["bookrun_plan"]["risk_summary"]
+    assert message["tool_trace"][0]["status"] == "needs_confirmation"
+
+
+def test_agent_user_message_bookrun_start_confirmed_reuses_command_registry(
     client: TestClient,
     session_factory: sessionmaker[Session],
     monkeypatch: pytest.MonkeyPatch,
@@ -750,6 +842,7 @@ def test_agent_user_message_bookrun_start_reuses_command_registry(
                     "book_id": scope["book_id"],
                     "blueprint_id": scope["blueprint_id"],
                     "token_budget": 900,
+                    "confirmed": True,
                 },
             }
         )
@@ -758,9 +851,12 @@ def test_agent_user_message_bookrun_start_reuses_command_registry(
     assert message["type"] == "agent_result"
     assert message["intent"] == "bookrun.start"
     assert message["agent_result"]["book_run"]["status"] == "running"
+    assert message["agent_result"]["book_run_id"] == message["agent_result"]["book_run"]["id"]
+    assert message["agent_result"]["events_url"] == f"/api/ide/runs/{message['agent_result']['book_run_id']}/events"
     assert message["agent_result"]["requires_user_confirmation"] is False
     assert message["agent_result"]["bookrun_plan"]["chapters"] == "按锁定蓝图继续生成下一批章节"
     assert message["agent_result"]["bookrun_plan"]["budget"] == "900 tokens"
+    assert message["agent_result"]["bookrun_plan"]["budget_details"]["token_budget"] == 900
     assert "后台工具" in message["agent_result"]["summary"]
     assert message["tool_trace"][0]["tool_name"] == "bookrun.start"
     assert message["tool_trace"][0]["audit_event_id"].startswith("ide-command-event:")

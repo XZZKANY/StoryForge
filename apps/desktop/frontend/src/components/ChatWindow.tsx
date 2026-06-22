@@ -19,20 +19,29 @@ import { createRemoteFileSuggestion } from '../lib/assistant-suggestions';
 import {
   getAssistantSession,
   sendAgentUserMessage,
+  subscribeBookRunEvents,
   toAssistantContextBundlePayload,
   isAgentErrorMessage,
+  isAgentRunStartedMessage,
+  isAgentStepEventMessage,
+  isAgentToolTraceEventMessage,
   isAgentResultMessage,
   type AgentPlanStep,
   type AgentResultMessage,
+  type AgentSocketMessage,
   type AgentToolTrace,
+  type BookRunEvent,
 } from '../lib/api-client';
 import { detectLocalConversationAction, type LocalConversationAction } from '../lib/local-conversation-action';
 import {
   buildContextBundle,
+  buildProjectIndex,
   classifyRelativePath,
   relativeToProject,
+  semanticKindLabel,
   type ContextBundle,
   type ContextBundleFile,
+  type SemanticFile,
 } from '../lib/project-context';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { AgentStepsPanel } from './AgentStepsPanel';
@@ -75,6 +84,16 @@ type RetryRequest = {
   action: LocalConversationAction;
 };
 
+type BookRunProjection = {
+  bookRunId: number;
+  status: string;
+  currentChapterIndex: number | null;
+  totalChapters: number | null;
+  completedCount: number | null;
+  latestEvent: string;
+  failureReason?: string | null;
+};
+
 type ReviewReport = Record<string, unknown>;
 type ReviewCategory = 'plot' | 'character' | 'prose';
 type ReviewIssue = {
@@ -84,6 +103,11 @@ type ReviewIssue = {
   message: string;
   evidence: string;
   suggestedAction: string;
+};
+
+type ContextAppendResult = {
+  bundle: ContextBundle;
+  missingPaths: string[];
 };
 
 export type StableAgentRequestPayload = {
@@ -134,7 +158,7 @@ function extractContextReferences(text: string): string[] {
 function mapAgentStepStatus(status: string): AgentStepStatus {
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'failed';
-  if (status === 'needs_approval' || status === 'paused') return 'waiting';
+  if (status === 'needs_approval' || status === 'needs_confirmation' || status === 'paused') return 'waiting';
   if (status === 'running') return 'running';
   return 'pending';
 }
@@ -189,6 +213,47 @@ function stepsFromAgentResult(message: AgentResultMessage): AgentStep[] {
   return [...planSteps, ...toolSteps];
 }
 
+function stepFromAgentPlanEvent(index: number, step: string, detail: string, status: string): AgentStep {
+  return {
+    id: `plan-${index}-${step}`,
+    title: planStepTitle(step),
+    tool: step,
+    status: mapAgentStepStatus(status),
+    detail,
+  };
+}
+
+function stepFromToolTraceEvent(index: number, trace: AgentToolTrace): AgentStep {
+  return {
+    id: `tool-${index}-${trace.tool_name}`,
+    title: trace.tool_name,
+    tool: trace.tool_name,
+    status: mapAgentStepStatus(trace.status),
+    detail: toolTraceDetail(trace),
+  };
+}
+
+function contextBudgetText(bundle: ContextBundle | null): string {
+  if (!bundle) return '上下文尚未生成';
+  const kinds = Object.entries(bundle.summary.counts)
+    .filter(([, count]) => count > 0)
+    .slice(0, 4)
+    .map(([kind, count]) => `${semanticKindLabel(kind as ContextBundleFile['kind'])}${count}`)
+    .join('、');
+  const budget = bundle.budget;
+  const truncated = budget.truncated ? '；已截断' : '';
+  const pinned = budget.pinnedFileCount ? `；pin ${budget.pinnedFileCount}` : '';
+  return `上下文 ${budget.fileCount}/${budget.maxFiles} 文件，${budget.charCount} 字符${pinned}${truncated}${kinds ? `；${kinds}` : ''}`;
+}
+
+function selectedContextPreview(bundle: ContextBundle | null): string {
+  if (!bundle || bundle.files.length === 0) return '本轮还没有选入额外上下文';
+  return bundle.files
+    .slice(0, 4)
+    .map((file) => file.relativePath)
+    .join('、');
+}
+
 function fileRevisionPatch(message: AgentResultMessage): {
   id?: string;
   file_path: string;
@@ -218,6 +283,53 @@ function modelFromToolTrace(message: AgentResultMessage): string {
     if (typeof model === 'string' && model.trim()) return model;
   }
   return 'StoryForge Agent';
+}
+
+function issueIdsFromAgentResult(message: AgentResultMessage): string[] {
+  const scope = message.agent_result.applied_scope;
+  if (!scope || typeof scope !== 'object') return [];
+  const ids = (scope as { issue_ids?: unknown }).issue_ids;
+  return Array.isArray(ids) ? ids.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function bookRunIdFromResult(message: AgentResultMessage): number | null {
+  const value = message.agent_result.book_run_id;
+  return typeof value === 'number' ? value : null;
+}
+
+export function applyBookRunEventProjection(current: BookRunProjection | null, event: BookRunEvent): BookRunProjection | null {
+  const bookRunId = numberOrNull(event.data.book_run_id) ?? current?.bookRunId ?? null;
+  if (bookRunId === null) return current;
+  if (event.event === 'progress') {
+    return {
+      bookRunId,
+      status: typeof event.data.status === 'string' ? event.data.status : current?.status ?? 'running',
+      currentChapterIndex: numberOrNull(event.data.current_chapter_index) ?? current?.currentChapterIndex ?? null,
+      totalChapters: numberOrNull(event.data.total_chapters) ?? current?.totalChapters ?? null,
+      completedCount: numberOrNull(event.data.completed_count) ?? current?.completedCount ?? null,
+      latestEvent: 'progress',
+      failureReason: current?.failureReason ?? null,
+    };
+  }
+  const blocked = event.data.blocked_chapter;
+  const failureReason = typeof event.data.pause_reason === 'string'
+    ? event.data.pause_reason
+    : blocked && typeof blocked === 'object'
+      ? '存在阻塞章节'
+      : current?.failureReason ?? null;
+  return {
+    bookRunId,
+    status: current?.status ?? 'running',
+    currentChapterIndex: current?.currentChapterIndex ?? null,
+    totalChapters: current?.totalChapters ?? null,
+    completedCount: current?.completedCount ?? null,
+    latestEvent: event.event,
+    failureReason,
+  };
 }
 
 function deriveConversationTitle(text: string): string {
@@ -373,33 +485,61 @@ async function appendExplicitContextFiles(
   bundle: ContextBundle,
   projectPath: string,
   explicitPaths: string[],
-): Promise<ContextBundle> {
+): Promise<ContextAppendResult> {
   const seen = new Set(bundle.files.map((file) => file.path));
+  const seenRelative = new Set(bundle.files.map((file) => file.relativePath.replace(/\\/g, '/').toLowerCase()));
   const added: ContextBundleFile[] = [];
+  const missingPaths: string[] = [];
   for (const rawPath of explicitPaths) {
     const trimmed = rawPath.trim();
     if (!trimmed) continue;
     const path = looksAbsolutePath(trimmed) ? trimmed : joinProjectPath(projectPath, trimmed);
-    if (seen.has(path)) continue;
+    const relativeCandidate = relativeToProject(projectPath, path);
+    if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase())) continue;
     try {
       const content = await TauriFileSystem.readFile(path);
-      const relative = relativeToProject(projectPath, path);
       added.push({
         path,
-        relativePath: relative,
-        kind: classifyRelativePath(relative),
+        relativePath: relativeCandidate,
+        kind: classifyRelativePath(relativeCandidate),
         title: basename(path),
         excerpt: content.trim().slice(0, 1200),
       });
       seen.add(path);
+      seenRelative.add(relativeCandidate.replace(/\\/g, '/').toLowerCase());
     } catch {
-      // 显式上下文不可读时跳过，让当前 Agent 轮次继续。
+      missingPaths.push(trimmed);
     }
   }
-  if (added.length === 0) return bundle;
+  if (added.length === 0) {
+    return {
+      bundle: {
+        ...bundle,
+        budget: {
+          ...bundle.budget,
+          missingPinnedFiles: Array.from(new Set([...bundle.budget.missingPinnedFiles, ...missingPaths])),
+        },
+      },
+      missingPaths,
+    };
+  }
+  const files = [...added, ...bundle.files].slice(0, 12);
+  const missing = Array.from(new Set([...bundle.budget.missingPinnedFiles, ...missingPaths]));
   return {
-    ...bundle,
-    files: [...added, ...bundle.files].slice(0, 12),
+    bundle: {
+      ...bundle,
+      files,
+      budget: {
+        ...bundle.budget,
+        fileCount: files.length,
+        charCount: files.reduce((total, file) => total + file.excerpt.length, 0),
+        maxFiles: Math.max(bundle.budget.maxFiles, 12),
+        truncated: bundle.budget.truncated || added.length + bundle.files.length > files.length,
+        pinnedFileCount: Math.min(files.length, bundle.budget.pinnedFileCount + added.length),
+        missingPinnedFiles: missing,
+      },
+    },
+    missingPaths: missing,
   };
 }
 
@@ -436,7 +576,13 @@ export function ChatWindow({
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
   const [conversationTitle, setConversationTitle] = useState('新的创作会话');
   const [lastReviewReport, setLastReviewReport] = useState<ReviewReport | null>(null);
+  const [lastReviewReportFile, setLastReviewReportFile] = useState<string | null>(null);
   const [explicitContextPaths, setExplicitContextPaths] = useState<string[]>([]);
+  const [contextCandidates, setContextCandidates] = useState<SemanticFile[]>([]);
+  const [contextPickerOpen, setContextPickerOpen] = useState(false);
+  const [lastContextBundle, setLastContextBundle] = useState<ContextBundle | null>(null);
+  const [missingContextPaths, setMissingContextPaths] = useState<string[]>([]);
+  const [bookRunProjection, setBookRunProjection] = useState<BookRunProjection | null>(null);
 
   const projectName = projectPath ? basename(projectPath) : null;
   const contextRef = currentFile ? relativePath(projectPath, currentFile) : null;
@@ -446,10 +592,18 @@ export function ChatWindow({
   const projectPathRef = useRef<string | null>(projectPath);
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
+  const unsubscribeBookRunRef = useRef<(() => void) | null>(null);
   contextRefRef.current = contextRef;
   currentFileRef.current = currentFile;
   projectPathRef.current = projectPath;
   assistantSessionIdRef.current = assistantSessionId ?? null;
+
+  useEffect(() => {
+    return () => {
+      unsubscribeBookRunRef.current?.();
+      unsubscribeBookRunRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -457,6 +611,7 @@ export function ChatWindow({
       setMessages([]);
       setConversationTitle('新的创作会话');
       setLastReviewReport(null);
+      setLastReviewReportFile(null);
       setExplicitContextPaths([]);
       return () => {
         cancelled = true;
@@ -478,6 +633,39 @@ export function ChatWindow({
     };
   }, [assistantSessionId, onAssistantSessionChange]);
 
+  useEffect(() => {
+    if (!projectPath) {
+      setContextCandidates([]);
+      setLastContextBundle(null);
+      setMissingContextPaths([]);
+      setContextPickerOpen(false);
+      return;
+    }
+
+    let cancelled = false;
+    void buildProjectIndex(projectPath)
+      .then((index) => {
+        if (cancelled) return;
+        setContextCandidates(index.files.filter((file) => file.kind !== 'export' && file.kind !== 'quality'));
+      })
+      .catch(() => {
+        if (!cancelled) setContextCandidates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath]);
+
+  useEffect(() => {
+    setLastContextBundle(null);
+    setMissingContextPaths([]);
+    setContextPickerOpen(false);
+    if (lastReviewReportFile && currentFile && lastReviewReportFile !== currentFile) {
+      setLastReviewReport(null);
+      setLastReviewReportFile(null);
+    }
+  }, [currentFile, lastReviewReportFile]);
+
   const updateAgentStep = useCallback((stepId: string, patch: Partial<AgentStep>) => {
     setAgentRun((run) => {
       if (!run) return run;
@@ -494,13 +682,53 @@ export function ChatWindow({
   }, []);
 
   const addExplicitContext = useCallback(() => {
-    const inputPath = window.prompt('添加项目上下文文件', '大纲/总纲.md');
-    const nextPath = inputPath?.trim();
-    if (!nextPath) return;
+    setContextPickerOpen((open) => !open);
+  }, []);
+
+  const togglePinnedContext = useCallback((path: string) => {
     setExplicitContextPaths((prev) => (
-      prev.includes(nextPath) ? prev : [...prev, nextPath].slice(-8)
+      prev.includes(path)
+        ? prev.filter((item) => item !== path)
+        : [...prev, path].slice(-12)
     ));
   }, []);
+
+  const applyAgentStreamEvent = useCallback((message: AgentSocketMessage) => {
+    if (isAgentRunStartedMessage(message)) {
+      updateAgentStep('orchestrate', {
+        status: 'running',
+        detail: `Agent run ${message.run_id} 已开始`,
+      });
+      return;
+    }
+    if (isAgentStepEventMessage(message)) {
+      const nextStep = stepFromAgentPlanEvent(message.index, message.step, message.detail, message.status);
+      setAgentRun((run) => {
+        if (!run) return run;
+        const exists = run.steps.some((step) => step.id === nextStep.id);
+        return {
+          ...run,
+          steps: exists
+            ? run.steps.map((step) => step.id === nextStep.id ? nextStep : step)
+            : [...run.steps, nextStep],
+        };
+      });
+      return;
+    }
+    if (isAgentToolTraceEventMessage(message)) {
+      const nextStep = stepFromToolTraceEvent(message.index, message.trace);
+      setAgentRun((run) => {
+        if (!run) return run;
+        const exists = run.steps.some((step) => step.id === nextStep.id);
+        return {
+          ...run,
+          steps: exists
+            ? run.steps.map((step) => step.id === nextStep.id ? nextStep : step)
+            : [...run.steps, nextStep],
+        };
+      });
+    }
+  }, [updateAgentStep]);
 
   const runAuthorAgent = useCallback(async (
     goal: string,
@@ -586,15 +814,27 @@ export function ChatWindow({
         ...explicitContextPaths,
         ...extractContextReferences(goal),
       ]));
-      const contextBundle = await appendExplicitContextFiles(
-        await buildContextBundle({ projectPath: project, currentFile: file }),
+      const appendedContext = await appendExplicitContextFiles(
+        await buildContextBundle({ projectPath: project, currentFile: file, pinnedFiles: explicitContextPaths }),
         project,
         contextRefs,
       );
+      const contextBundle = appendedContext.bundle;
+      setLastContextBundle(contextBundle);
+      setMissingContextPaths(appendedContext.missingPaths);
       updateAgentStep('context', {
         status: 'completed',
-        detail: `载入 ${contextBundle.files.length} 个上下文文件；正文 ${contextBundle.summary.counts.draft ?? 0} 个`,
+        detail: `${contextBudgetText(contextBundle)}；${selectedContextPreview(contextBundle)}`,
       });
+      if (appendedContext.missingPaths.length > 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `这些 @上下文没有读到：${appendedContext.missingPaths.join('、')}。我会继续用已选上下文处理这一轮。`,
+          },
+        ]);
+      }
 
       updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
       const content = await TauriFileSystem.readFile(file);
@@ -627,9 +867,12 @@ export function ChatWindow({
       });
       const response = await sendAgentUserMessage({
         sessionId: runId,
+        runId,
+        stream: true,
         assistantSessionId: assistantSessionIdRef.current,
         userMessage: goal,
         args: payload,
+        onEvent: applyAgentStreamEvent,
       });
 
       if (isAgentErrorMessage(response)) {
@@ -651,6 +894,36 @@ export function ChatWindow({
 
       assistantSessionIdRef.current = response.assistant_session_id;
       onAssistantSessionChange?.(response.assistant_session_id);
+      const startedBookRunId = bookRunIdFromResult(response);
+      if (startedBookRunId !== null) {
+        unsubscribeBookRunRef.current?.();
+        setBookRunProjection({
+          bookRunId: startedBookRunId,
+          status: 'running',
+          currentChapterIndex: null,
+          totalChapters: null,
+          completedCount: null,
+          latestEvent: 'started',
+          failureReason: null,
+        });
+        void subscribeBookRunEvents(
+          startedBookRunId,
+          (event) => setBookRunProjection((current) => applyBookRunEventProjection(current, event)),
+          () => setBookRunProjection((current) => current ? {
+            ...current,
+            latestEvent: 'error',
+            failureReason: 'BookRun 进度订阅失败',
+          } : current),
+        ).then((unsubscribe) => {
+          unsubscribeBookRunRef.current = unsubscribe;
+        }).catch(() => {
+          setBookRunProjection((current) => current ? {
+            ...current,
+            latestEvent: 'error',
+            failureReason: 'BookRun 进度订阅失败',
+          } : current);
+        });
+      }
 
       const agentSteps = stepsFromAgentResult(response);
       setAgentRun((run) => run ? {
@@ -682,6 +955,9 @@ export function ChatWindow({
           summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
           model: modelFromToolTrace(response),
           userIntent: goal,
+          assistantSessionId: response.assistant_session_id,
+          issueIds: issueIdsFromAgentResult(response),
+          contextFiles: contextBundle.files.map((file) => file.relativePath),
         }));
         emitSuggestionResult({
           filePath: proposed.file_path,
@@ -696,6 +972,7 @@ export function ChatWindow({
       const reviewSummary = reviewReportSummary(response);
       if (reviewSummary) {
         setLastReviewReport(reviewReportFromMessage(response));
+        setLastReviewReportFile(file);
         setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
         updateAgentStatus('completed');
         return;
@@ -713,7 +990,16 @@ export function ChatWindow({
       setRetryRequest({ goal, action });
       setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
     }
-  }, [agentBusy, explicitContextPaths, lastReviewReport, onAssistantSessionChange, projectName, updateAgentStatus, updateAgentStep]);
+  }, [
+    agentBusy,
+    applyAgentStreamEvent,
+    explicitContextPaths,
+    lastReviewReport,
+    onAssistantSessionChange,
+    projectName,
+    updateAgentStatus,
+    updateAgentStep,
+  ]);
 
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
@@ -723,6 +1009,13 @@ export function ChatWindow({
 
   const reviseReviewIssue = useCallback((issue: ReviewIssue) => {
     const ask = `只修 ${issue.id}：${issue.message}`;
+    setMessages((prev) => [...prev, { role: 'user', content: ask }]);
+    void runAuthorAgent(ask);
+  }, [runAuthorAgent]);
+
+  const reviseSelectedReviewIssues = useCallback((issues: ReviewIssue[]) => {
+    if (issues.length === 0) return;
+    const ask = `修选中问题：${issues.map((issue) => issue.id).join(' ')}。`;
     setMessages((prev) => [...prev, { role: 'user', content: ask }]);
     void runAuthorAgent(ask);
   }, [runAuthorAgent]);
@@ -836,10 +1129,17 @@ export function ChatWindow({
         disabled={!projectPath || agentBusy}
         onSubmit={handleComposerSubmit}
         agentRun={agentRun}
+        bookRunProjection={bookRunProjection}
         explicitContextPaths={explicitContextPaths}
+        contextCandidates={contextCandidates}
+        contextPickerOpen={contextPickerOpen}
+        lastContextBundle={lastContextBundle}
+        missingContextPaths={missingContextPaths}
         onAddContext={addExplicitContext}
+        onTogglePinnedContext={togglePinnedContext}
         reviewIssues={reviewIssuesFromReport(lastReviewReport)}
         onReviseIssue={reviseReviewIssue}
+        onReviseIssues={reviseSelectedReviewIssues}
         onReviseCategory={reviseReviewCategory}
       />
 
@@ -889,10 +1189,17 @@ function MessageList({
   disabled,
   onSubmit,
   agentRun,
+  bookRunProjection,
   explicitContextPaths,
+  contextCandidates,
+  contextPickerOpen,
+  lastContextBundle,
+  missingContextPaths,
   onAddContext,
+  onTogglePinnedContext,
   reviewIssues,
   onReviseIssue,
+  onReviseIssues,
   onReviseCategory,
 }: {
   messages: Message[];
@@ -901,10 +1208,17 @@ function MessageList({
   disabled: boolean;
   onSubmit: (value: string) => void;
   agentRun: AgentRun | null;
+  bookRunProjection: BookRunProjection | null;
   explicitContextPaths: string[];
+  contextCandidates: SemanticFile[];
+  contextPickerOpen: boolean;
+  lastContextBundle: ContextBundle | null;
+  missingContextPaths: string[];
   onAddContext: () => void;
+  onTogglePinnedContext: (path: string) => void;
   reviewIssues: ReviewIssue[];
   onReviseIssue: (issue: ReviewIssue) => void;
+  onReviseIssues: (issues: ReviewIssue[]) => void;
   onReviseCategory: (category: ReviewCategory) => void;
 }) {
   if (messages.length === 0) {
@@ -916,7 +1230,12 @@ function MessageList({
           disabled={disabled}
           onSubmit={onSubmit}
           explicitContextPaths={explicitContextPaths}
+          contextCandidates={contextCandidates}
+          contextPickerOpen={contextPickerOpen}
+          lastContextBundle={lastContextBundle}
+          missingContextPaths={missingContextPaths}
           onAddContext={onAddContext}
+          onTogglePinnedContext={onTogglePinnedContext}
         />
       </div>
     );
@@ -936,10 +1255,26 @@ function MessageList({
           </div>
         )}
 
+        {bookRunProjection && (
+          <BookRunProgressPanel projection={bookRunProjection} />
+        )}
+
+        <ContextSummaryPanel
+          currentFileLabel={currentFileLabel}
+          explicitContextPaths={explicitContextPaths}
+          contextCandidates={contextCandidates}
+          contextPickerOpen={contextPickerOpen}
+          lastContextBundle={lastContextBundle}
+          missingContextPaths={missingContextPaths}
+          onAddContext={onAddContext}
+          onTogglePinnedContext={onTogglePinnedContext}
+        />
+
         {reviewIssues.length > 0 && (
           <ReviewIssueActions
             issues={reviewIssues}
             onReviseIssue={onReviseIssue}
+            onReviseIssues={onReviseIssues}
             onReviseCategory={onReviseCategory}
           />
         )}
@@ -951,29 +1286,74 @@ function MessageList({
 function ReviewIssueActions({
   issues,
   onReviseIssue,
+  onReviseIssues,
   onReviseCategory,
 }: {
   issues: ReviewIssue[];
   onReviseIssue: (issue: ReviewIssue) => void;
+  onReviseIssues: (issues: ReviewIssue[]) => void;
   onReviseCategory: (category: ReviewCategory) => void;
 }) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<ReviewCategory | 'all'>('all');
   const categories = Array.from(new Set(issues.map((issue) => issue.category)));
+  const visibleIssues = categoryFilter === 'all'
+    ? issues
+    : issues.filter((issue) => issue.category === categoryFilter);
+  const selectedIssues = issues.filter((issue) => selectedIds.has(issue.id));
+  const toggleIssue = (issueId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(issueId)) next.delete(issueId);
+      else next.add(issueId);
+      return next;
+    });
+  };
   return (
     <section className="animate-slide-up-fade border-t border-[#333338] pt-4" data-testid="review-issue-actions">
       <div className="mb-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={`h-7 rounded-md border px-2.5 text-xs ${categoryFilter === 'all' ? 'border-[#7FB1FF] bg-[#253044] text-[#EAF2FF]' : 'border-[#45454C] text-[#D8D8DD] hover:bg-[#2A2A30]'}`}
+          onClick={() => setCategoryFilter('all')}
+          data-testid="review-category-all"
+        >
+          全部
+        </button>
         {categories.map((category) => (
           <button
             key={category}
             type="button"
+            className={`h-7 rounded-md border px-2.5 text-xs ${categoryFilter === category ? 'border-[#7FB1FF] bg-[#253044] text-[#EAF2FF]' : 'border-[#45454C] text-[#D8D8DD] hover:bg-[#2A2A30]'}`}
+            onClick={() => setCategoryFilter(category)}
+            data-testid={`review-category-${category}`}
+          >
+            {reviewCategoryLabel(category)}
+          </button>
+        ))}
+        {categories.map((category) => (
+          <button
+            key={`revise-${category}`}
+            type="button"
             className="h-7 rounded-md border border-[#45454C] px-2.5 text-xs text-[#D8D8DD] hover:bg-[#2A2A30]"
             onClick={() => onReviseCategory(category)}
+            data-testid={`review-revise-category-${category}`}
           >
             只修{reviewCategoryLabel(category)}
           </button>
         ))}
+        <button
+          type="button"
+          className="h-7 rounded-md bg-[#E6E6E6] px-2.5 text-xs text-[#111111] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={selectedIssues.length === 0}
+          onClick={() => onReviseIssues(selectedIssues)}
+          data-testid="review-revise-selected"
+        >
+          修选中问题
+        </button>
       </div>
       <div className="flex flex-col gap-2">
-        {issues.map((issue) => (
+        {visibleIssues.map((issue) => (
           <div
             key={issue.id}
             className="rounded-md border border-[#333338] bg-[#202024] px-3 py-2"
@@ -981,6 +1361,15 @@ function ReviewIssueActions({
             data-issue-id={issue.id}
           >
             <div className="flex min-w-0 items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 flex-shrink-0"
+                checked={selectedIds.has(issue.id)}
+                onChange={() => toggleIssue(issue.id)}
+                aria-label={`选择 ${issue.id}`}
+                data-testid="review-issue-checkbox"
+                data-issue-id={issue.id}
+              />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-semibold text-[#EDEDED]">
                   {issue.id} · {reviewCategoryLabel(issue.category)} · {issue.severity}
@@ -999,6 +1388,135 @@ function ReviewIssueActions({
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+export function BookRunProgressPanel({ projection }: { projection: BookRunProjection }) {
+  const chapters = projection.totalChapters
+    ? `${projection.completedCount ?? 0}/${projection.totalChapters}`
+    : projection.completedCount !== null
+      ? `${projection.completedCount} 已完成`
+      : '等待章节进度';
+  return (
+    <section
+      className="animate-slide-up-fade rounded-md border border-[#333338] bg-[#202024] px-3 py-2"
+      data-testid="bookrun-progress"
+    >
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold text-[#EDEDED]">
+            BookRun #{projection.bookRunId} · {projection.status}
+          </div>
+          <div className="mt-1 truncate text-xs text-[#92929A]">
+            章节：{chapters}；最近事件：{projection.latestEvent}
+            {projection.currentChapterIndex !== null ? `；当前第 ${projection.currentChapterIndex} 章` : ''}
+          </div>
+        </div>
+        <span className="rounded-md border border-[#3E4B64] px-2 py-1 text-xs text-[#D8E7FF]">后台工具</span>
+      </div>
+      {projection.failureReason && (
+        <div className="mt-2 text-xs text-[#FFB86B]" data-testid="bookrun-failure-reason">
+          {projection.failureReason}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ContextSummaryPanel({
+  currentFileLabel,
+  explicitContextPaths,
+  contextCandidates,
+  contextPickerOpen,
+  lastContextBundle,
+  missingContextPaths,
+  onAddContext,
+  onTogglePinnedContext,
+}: {
+  currentFileLabel: string | null;
+  explicitContextPaths: string[];
+  contextCandidates: SemanticFile[];
+  contextPickerOpen: boolean;
+  lastContextBundle: ContextBundle | null;
+  missingContextPaths: string[];
+  onAddContext: () => void;
+  onTogglePinnedContext: (path: string) => void;
+}) {
+  const visibleCandidates = contextCandidates
+    .filter((file) => file.relativePath !== currentFileLabel)
+    .slice(0, 24);
+  return (
+    <section
+      className="animate-slide-up-fade rounded-md border border-[#333338] bg-[#202024] px-3 py-2"
+      data-testid="context-summary"
+    >
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold text-[#EDEDED]">
+            {contextBudgetText(lastContextBundle)}
+          </div>
+          <div className="mt-1 truncate text-xs text-[#92929A]">
+            当前：{currentFileLabel ?? '未选择文件'}；已选：{selectedContextPreview(lastContextBundle)}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="h-7 flex-shrink-0 rounded-md border border-[#45454C] px-2.5 text-xs text-[#D8D8DD] hover:bg-[#2A2A30]"
+          onClick={onAddContext}
+          data-testid="context-picker-toggle"
+        >
+          添加上下文
+        </button>
+      </div>
+
+      {explicitContextPaths.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5" data-testid="pinned-context-list">
+          {explicitContextPaths.map((path) => (
+            <button
+              key={path}
+              type="button"
+              className="max-w-full truncate rounded-md border border-[#3E4B64] bg-[#253044] px-2 py-1 text-xs text-[#D8E7FF] hover:bg-[#2F3C55]"
+              title="取消 pin"
+              onClick={() => onTogglePinnedContext(path)}
+            >
+              pin {path}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {missingContextPaths.length > 0 && (
+        <div className="mt-2 text-xs text-[#FFB86B]" data-testid="missing-context-warning">
+          未读到：{missingContextPaths.join('、')}
+        </div>
+      )}
+
+      {contextPickerOpen && (
+        <div className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-[#333338] pt-2" data-testid="context-picker">
+          {visibleCandidates.length === 0 ? (
+            <div className="px-2 py-1 text-xs text-[#92929A]">当前项目还没有可选的 Markdown 上下文。</div>
+          ) : visibleCandidates.map((file) => {
+            const pinned = explicitContextPaths.includes(file.relativePath) || explicitContextPaths.includes(file.path);
+            return (
+              <button
+                key={file.path}
+                type="button"
+                className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${
+                  pinned ? 'bg-[#2F3C55] text-[#EAF2FF]' : 'text-[#CFCFD4] hover:bg-[#2A2A30]'
+                }`}
+                onClick={() => onTogglePinnedContext(file.relativePath)}
+                data-testid="context-candidate"
+                data-context-path={file.relativePath}
+              >
+                <span className="w-10 flex-shrink-0 text-[#92929A]">{semanticKindLabel(file.kind)}</span>
+                <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
+                <span className="flex-shrink-0 text-[#8F8F8F]">{pinned ? 'pinned' : 'pin'}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -1030,14 +1548,24 @@ function EmptyConversation({
   disabled,
   onSubmit,
   explicitContextPaths,
+  contextCandidates,
+  contextPickerOpen,
+  lastContextBundle,
+  missingContextPaths,
   onAddContext,
+  onTogglePinnedContext,
 }: {
   projectName: string | null;
   currentFileLabel: string | null;
   disabled: boolean;
   onSubmit: (value: string) => void;
   explicitContextPaths: string[];
+  contextCandidates: SemanticFile[];
+  contextPickerOpen: boolean;
+  lastContextBundle: ContextBundle | null;
+  missingContextPaths: string[];
   onAddContext: () => void;
+  onTogglePinnedContext: (path: string) => void;
 }) {
   const [value, setValue] = useState('');
 
@@ -1068,6 +1596,18 @@ function EmptyConversation({
           onChange={setValue}
           onSubmit={submit}
         />
+        <div className="mt-3">
+          <ContextSummaryPanel
+            currentFileLabel={currentFileLabel}
+            explicitContextPaths={explicitContextPaths}
+            contextCandidates={contextCandidates}
+            contextPickerOpen={contextPickerOpen}
+            lastContextBundle={lastContextBundle}
+            missingContextPaths={missingContextPaths}
+            onAddContext={onAddContext}
+            onTogglePinnedContext={onTogglePinnedContext}
+          />
+        </div>
       </div>
     </div>
   );

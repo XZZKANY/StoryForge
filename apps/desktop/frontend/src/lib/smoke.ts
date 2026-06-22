@@ -19,10 +19,20 @@ type SmokeController = {
     after: string;
     summary?: string;
     userIntent?: string;
+    assistantSessionId?: number | null;
+    issueIds?: string[];
+    contextFiles?: string[];
   }) => void;
   acceptCurrentSuggestion: () => void;
+  setCurrentEditorContent: (content: string) => boolean;
+  getCurrentEditorContent: () => string | null;
   getApiConfig: () => ReturnType<typeof getApiConfig>;
   getApiConfigSnapshot: () => SmokeApiConfig | null;
+};
+
+type SmokeEditorController = {
+  setContent: (content: string) => boolean;
+  getContent: () => string | null;
 };
 
 declare global {
@@ -35,6 +45,7 @@ let pendingSmokeProjectPath: string | null = null;
 let pendingSmokeFilePath: string | null = null;
 let smokeProjectLoader: ((path: string) => Promise<void> | void) | null = null;
 let smokeFileLoader: ((path: string) => Promise<void> | void) | null = null;
+let smokeEditorController: SmokeEditorController | null = null;
 let apiConfigSnapshot: SmokeApiConfig | null = null;
 
 function refreshApiConfigSnapshot() {
@@ -63,15 +74,33 @@ if (typeof window !== 'undefined') {
         summary: params.summary ?? 'Smoke proposed patch',
         model: 'smoke',
         userIntent: params.userIntent ?? 'smoke revision writeback',
+        assistantSessionId: params.assistantSessionId ?? null,
+        issueIds: params.issueIds ?? [],
+        contextFiles: params.contextFiles ?? [],
       }));
     },
     acceptCurrentSuggestion() {
       emitAcceptCurrentFileSuggestion();
     },
+    setCurrentEditorContent(content: string) {
+      return smokeEditorController?.setContent(content) ?? false;
+    },
+    getCurrentEditorContent() {
+      return smokeEditorController?.getContent() ?? null;
+    },
     getApiConfig,
     getApiConfigSnapshot() {
       return apiConfigSnapshot;
     },
+  };
+}
+
+export function registerSmokeEditorController(controller: SmokeEditorController) {
+  smokeEditorController = controller;
+  return () => {
+    if (smokeEditorController === controller) {
+      smokeEditorController = null;
+    }
   };
 }
 

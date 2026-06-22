@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Annotated
+import uuid
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import StreamingResponse
@@ -39,6 +40,43 @@ from app.domains.ide.service import (
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
 _API_KEY_HEADER = "x-storyforge-api-key"
+
+
+def _agent_stream_events_from_result(result: dict[str, Any], *, run_id: str) -> list[dict[str, Any]]:
+    """Project the final orchestrator payload into lightweight stream events."""
+
+    session_id = str(result.get("session_id") or "")
+    assistant_session_id = result.get("assistant_session_id")
+    events: list[dict[str, Any]] = []
+    for index, step in enumerate(result.get("plan") if isinstance(result.get("plan"), list) else []):
+        if not isinstance(step, dict):
+            continue
+        events.append(
+            {
+                "type": "agent_step",
+                "session_id": session_id,
+                "run_id": run_id,
+                "assistant_session_id": assistant_session_id,
+                "index": index,
+                "step": step.get("step"),
+                "detail": step.get("detail"),
+                "status": step.get("status"),
+            }
+        )
+    for index, trace in enumerate(result.get("tool_trace") if isinstance(result.get("tool_trace"), list) else []):
+        if not isinstance(trace, dict):
+            continue
+        events.append(
+            {
+                "type": "tool_trace",
+                "session_id": session_id,
+                "run_id": run_id,
+                "assistant_session_id": assistant_session_id,
+                "index": index,
+                "trace": trace,
+            }
+        )
+    return events
 
 
 def _expected_api_key() -> str:
@@ -192,11 +230,29 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
             message = await websocket.receive_json()
             message_type = message.get("type")
             if message_type == "user_message":
+                stream_events = message.get("stream") is True
+                run_id = str(message.get("run_id") or uuid.uuid4().hex)
+                if stream_events:
+                    await websocket.send_json(
+                        {
+                            "type": "agent_run_started",
+                            "session_id": session_id,
+                            "run_id": run_id,
+                            "user_message": message.get("user_message") or message.get("message") or message.get("content"),
+                        }
+                    )
                 try:
                     result = orchestrate_agent_message(session, agent_session_id=session_id, message=message)
                 except AgentOrchestrationError as exc:
-                    await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
+                    error_payload = {"type": "error", "session_id": session_id, "detail": str(exc)}
+                    if stream_events:
+                        error_payload["run_id"] = run_id
+                    await websocket.send_json(error_payload)
                     continue
+                if stream_events:
+                    result["run_id"] = run_id
+                    for event in _agent_stream_events_from_result(result, run_id=run_id):
+                        await websocket.send_json(event)
                 await websocket.send_json(result)
                 continue
 

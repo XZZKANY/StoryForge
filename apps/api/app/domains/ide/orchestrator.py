@@ -525,6 +525,62 @@ def _orchestrate_bookrun_start(
         if isinstance(value, int) and value > 0:
             command_args[key] = value
 
+    chapter_plan = _bookrun_chapter_plan_summary(command_args)
+    budget_summary = _bookrun_budget_summary(command_args)
+    structured_budget = _bookrun_budget_details(command_args)
+    risk_summary = _bookrun_risk_summary(command_args)
+    confirmed = args.get("confirmed") is True or args.get("user_confirmed") is True
+    if not confirmed:
+        summary = (
+            f"BookRun 启动前计划：{chapter_plan}。预算：{budget_summary}。"
+            f"风险：{'；'.join(risk_summary)}。需要作者确认后才会作为后台工具启动。"
+        )
+        assistant_service.append_assistant_message(
+            session,
+            assistant_session_id,
+            AssistantMessageCreate(role="assistant", content=summary),
+        )
+        return _base_response(
+            agent_session_id=agent_session_id,
+            assistant_session_id=assistant_session_id,
+            intent="bookrun.start",
+            user_message=user_message,
+            plan=[
+                _plan_step("bookrun.preflight", "展示 BookRun 章节计划、预算和风险，不启动后台运行。", "needs_approval"),
+                _plan_step("approval", "等待作者二次确认后再执行 bookrun.start。", "needs_approval"),
+            ],
+            agent_result={
+                "summary": summary,
+                "bookrun_plan": {
+                    "chapters": chapter_plan,
+                    "budget": budget_summary,
+                    "budget_details": structured_budget,
+                    "risk_summary": risk_summary,
+                },
+                "confirmation_required": True,
+                "confirmation_action": {
+                    "intent": "bookrun.start",
+                    "args": {**command_args, "confirmed": True},
+                },
+                "requires_user_confirmation": True,
+            },
+            tool_trace=[
+                AgentToolTrace(
+                    tool_name="bookrun.start",
+                    status="needs_confirmation",
+                    input_summary=_safe_summary(command_args),
+                    output_summary={
+                        "bookrun_plan": {
+                            "chapters": chapter_plan,
+                            "budget": budget_summary,
+                            "budget_details": structured_budget,
+                            "risk_summary": risk_summary,
+                        }
+                    },
+                )
+            ],
+        )
+
     tool_trace: list[AgentToolTrace] = []
     result = _execute_command_with_tool_audit(
         session,
@@ -536,8 +592,8 @@ def _orchestrate_bookrun_start(
         related_id=command_args["book_id"],
     )
     book_run = result.payload.get("book_run") if isinstance(result.payload.get("book_run"), dict) else {}
-    chapter_plan = _bookrun_chapter_plan_summary(command_args)
-    budget_summary = _bookrun_budget_summary(command_args)
+    book_run_id = book_run.get("id")
+    events_url = f"/api/ide/runs/{book_run_id}/events" if isinstance(book_run_id, int) else None
     summary = (
         f"BookRun 已作为后台工具启动：book_run_id={book_run.get('id')}，状态 {book_run.get('status')}。"
         f"计划：{chapter_plan}。预算：{budget_summary}。进度会作为 Agent tool trace 返回，不切换主界面。"
@@ -559,7 +615,14 @@ def _orchestrate_bookrun_start(
         agent_result={
             "summary": summary,
             "book_run": book_run,
-            "bookrun_plan": {"chapters": chapter_plan, "budget": budget_summary},
+            "book_run_id": book_run_id,
+            "events_url": events_url,
+            "bookrun_plan": {
+                "chapters": chapter_plan,
+                "budget": budget_summary,
+                "budget_details": structured_budget,
+                "risk_summary": risk_summary,
+            },
             "requires_user_confirmation": False,
         },
         tool_trace=tool_trace,
@@ -582,6 +645,38 @@ def _bookrun_budget_summary(command_args: dict[str, Any]) -> str:
     if isinstance(time_budget_sec, int) and time_budget_sec > 0:
         parts.append(f"{time_budget_sec} 秒")
     return "，".join(parts) if parts else "使用系统默认预算"
+
+
+def _bookrun_budget_details(command_args: dict[str, Any]) -> dict[str, int | None | bool]:
+    return {
+        "token_budget": command_args.get("token_budget") if isinstance(command_args.get("token_budget"), int) else None,
+        "time_budget_sec": command_args.get("time_budget_sec")
+        if isinstance(command_args.get("time_budget_sec"), int)
+        else None,
+        "chapter_budget": command_args.get("chapter_budget")
+        if isinstance(command_args.get("chapter_budget"), int)
+        else None,
+        "uses_default_budget": not any(isinstance(command_args.get(key), int) for key in ("token_budget", "time_budget_sec", "chapter_budget")),
+    }
+
+
+def _bookrun_risk_summary(command_args: dict[str, Any]) -> list[str]:
+    risks: list[str] = []
+    token_budget = command_args.get("token_budget")
+    time_budget_sec = command_args.get("time_budget_sec")
+    chapter_budget = command_args.get("chapter_budget")
+    if not isinstance(token_budget, int):
+        risks.append("未设置 token_budget，可能使用系统默认预算")
+    elif token_budget >= 8000:
+        risks.append("token_budget 较高，可能产生更长运行时间和更高成本")
+    if not isinstance(chapter_budget, int):
+        risks.append("未设置 chapter_budget，将按锁定蓝图继续生成")
+    elif chapter_budget >= 6:
+        risks.append("chapter_budget 较高，建议确认章节范围")
+    if isinstance(time_budget_sec, int) and time_budget_sec >= 1800:
+        risks.append("time_budget_sec 较长，运行会停留在后台")
+    risks.append("BookRun 只作为 Agent 后台工具启动，不会写入当前 Desktop 草稿或 pending patch")
+    return risks
 
 
 def _execute_command_with_tool_audit(

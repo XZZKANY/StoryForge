@@ -17,6 +17,8 @@ import { TauriFileSystem } from '../lib/tauri-fs';
 import { listVersions, readVersion, snapshotBeforeWrite, VersionEntry } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
+import { PatchReviewPanel } from './PatchReviewPanel';
+import { registerSmokeEditorController } from '../lib/smoke';
 
 type EditorProps = {
   projectPath: string | null;
@@ -199,6 +201,18 @@ export function Editor({
     editorRef.current?.updateOptions({ fontSize: editorFontSize });
   }, [editorFontSize]);
 
+  useEffect(() => registerSmokeEditorController({
+    setContent(content: string) {
+      if (!editorRef.current) return false;
+      editorRef.current.setValue(content);
+      setLoadedContentPreview(content.slice(0, 120));
+      return true;
+    },
+    getContent() {
+      return editorRef.current?.getValue() ?? null;
+    },
+  }), []);
+
   useEffect(() => {
     if (!editorReady || !editorRef.current || loadedFilePath !== filePath) return;
     editorRef.current.setValue(loadedContent);
@@ -261,12 +275,29 @@ export function Editor({
     }
 
     try {
-      const previous = originalContentRef.current;
+      const currentContent = editorRef.current.getValue();
+      if (currentContent !== suggestion.before) {
+        const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
+        setSuggestionStatus(message);
+        emitAuthorLoopResult({
+          filePath: path,
+          status: 'error',
+          action: 'revision_accepted',
+          message,
+        });
+        return;
+      }
+
+      const previous = currentContent;
       if (previous !== suggestion.after) {
         try {
           await snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Agent',
             summary: suggestion.summary,
+            patchId: suggestion.id,
+            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            issueIds: suggestion.issueIds,
+            contextFiles: suggestion.contextFiles,
           });
         } catch (snapshotErr) {
           console.error('写入版本快照失败:', snapshotErr);
@@ -281,7 +312,10 @@ export function Editor({
         summary: suggestion.summary,
         note: suggestion.note,
         userIntent: suggestion.note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-        assistantSessionId: assistantSessionIdRef.current,
+        assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+        patchId: suggestion.id,
+        issueIds: suggestion.issueIds,
+        contextFiles: suggestion.contextFiles,
       });
       editorRef.current.setValue(suggestion.after);
       originalContentRef.current = suggestion.after;
@@ -549,7 +583,7 @@ export function Editor({
       )}
 
       {pendingSuggestion && (
-        <SuggestionReviewPanel
+        <PatchReviewPanel
           suggestion={pendingSuggestion}
           onAccept={handleAcceptSuggestion}
           onReject={() => {
@@ -577,78 +611,6 @@ export function Editor({
   );
 }
 
-function SuggestionReviewPanel({
-  suggestion,
-  onAccept,
-  onReject,
-  onSaveNote,
-}: {
-  suggestion: AssistantFileSuggestion;
-  onAccept: () => void;
-  onReject: () => void;
-  onSaveNote: () => void;
-}) {
-  return (
-    <div className="border-b border-border bg-surface animate-slide-up-fade flex-shrink-0" data-testid="suggestion-review">
-      <div className="px-3 py-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-warning">{suggestion.title}</p>
-          <p className="mt-1 text-xs text-muted">{suggestion.summary}</p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={onAccept}
-            data-testid="suggestion-accept"
-            className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 transition-opacity"
-          >
-            接受
-          </button>
-          <button
-            onClick={onSaveNote}
-            data-testid="suggestion-note"
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-foreground/10 transition-colors"
-          >
-            保存旁注
-          </button>
-          <button
-            onClick={onReject}
-            data-testid="suggestion-reject"
-            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-foreground/10 transition-colors"
-          >
-            拒绝
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 border-t border-border text-xs">
-        <DiffColumn title="当前内容" content={suggestion.before} tone="before" />
-        <DiffColumn title="建议后" content={suggestion.after} tone="after" />
-      </div>
-    </div>
-  );
-}
-
-function DiffColumn({
-  title,
-  content,
-  tone,
-}: {
-  title: string;
-  content: string;
-  tone: 'before' | 'after';
-}) {
-  return (
-    <div className={`min-w-0 border-r last:border-r-0 border-border ${tone === 'after' ? 'bg-success/[0.06]' : 'bg-error/[0.05]'}`}>
-      <div className={`px-3 py-1.5 font-semibold ${tone === 'after' ? 'text-success' : 'text-muted'}`}>
-        {title}
-      </div>
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap px-3 pb-3 text-[11px] leading-5 text-foreground">
-        {content.slice(0, 2400)}
-        {content.length > 2400 ? '\n...' : ''}
-      </pre>
-    </div>
-  );
-}
-
 function formatTimestamp(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -669,6 +631,7 @@ function VersionHistory({
   const [versions, setVersions] = useState<VersionEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'Editor' | 'Agent'>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -696,6 +659,9 @@ function VersionHistory({
       setBusy(false);
     }
   };
+  const visibleVersions = versions?.filter((version) => (
+    sourceFilter === 'all' ? true : version.source === sourceFilter
+  ));
 
   return (
     <div className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade" data-testid="version-history">
@@ -711,32 +677,56 @@ function VersionHistory({
           </svg>
         </button>
       </div>
+      <div className="flex flex-shrink-0 gap-1 border-b border-border p-2" data-testid="version-source-filter">
+        {(['all', 'Editor', 'Agent'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
+            onClick={() => setSourceFilter(value)}
+            data-testid={`version-filter-${value}`}
+          >
+            {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'Agent'}
+          </button>
+        ))}
+      </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {error ? (
           <p className="text-sm text-error p-2">{error}</p>
         ) : versions === null ? (
           <p className="text-sm text-muted p-2">加载中...</p>
-        ) : versions.length === 0 ? (
+        ) : visibleVersions?.length === 0 ? (
           <p className="text-sm text-muted p-2">还没有历史版本。保存修改后会自动记录。</p>
         ) : (
-          versions.map((v) => (
+          visibleVersions?.map((v) => (
             <div
               key={v.path}
-              className="rounded-md border border-border bg-surface p-2 flex items-center justify-between gap-2"
+              className="rounded-md border border-border bg-surface p-2"
+              data-testid="version-entry"
+              data-version-source={v.source ?? ''}
             >
-              <span className="text-xs text-foreground truncate" title={formatTimestamp(v.timestamp)}>
-                {formatTimestamp(v.timestamp)}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={v.summary ?? v.file ?? ''}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-foreground truncate" title={formatTimestamp(v.timestamp)}>
+                  {formatTimestamp(v.timestamp)}
+                </span>
+                <button
+                  disabled={busy}
+                  onClick={() => restore(v.path)}
+                  className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 flex-shrink-0 transition-opacity"
+                >
+                  恢复
+                </button>
+              </div>
+              <div className="mt-1 truncate text-[11px] text-muted" title={v.summary ?? v.file ?? ''}>
                 {v.source ? `${v.source} · ` : ''}{v.summary ?? v.file ?? '版本快照'}
-              </span>
-              <button
-                disabled={busy}
-                onClick={() => restore(v.path)}
-                className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 flex-shrink-0 transition-opacity"
-              >
-                恢复
-              </button>
+              </div>
+              {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
+                <div className="mt-1 truncate text-[11px] text-muted" data-testid="version-agent-meta">
+                  {v.patchId ? `patch ${v.patchId}` : ''}
+                  {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
+                  {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
+                </div>
+              )}
             </div>
           ))
         )}

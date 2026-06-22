@@ -17,7 +17,7 @@ type TauriApiConfig = {
 };
 
 function getPreviewApiConfig(): ApiConfig {
-  const env = import.meta.env;
+  const env = import.meta.env ?? {};
   return {
     baseUrl: env.VITE_STORYFORGE_API_BASE_URL ?? 'http://127.0.0.1:8000',
     apiKey: env.VITE_STORYFORGE_API_KEY ?? 'local-dev-key',
@@ -56,6 +56,15 @@ export type ReviseRequest = {
       hasStoryStructure: boolean;
       counts: Record<string, number>;
     };
+    budget?: {
+      fileCount: number;
+      charCount: number;
+      maxFiles: number;
+      maxExcerptChars: number;
+      truncated: boolean;
+      pinnedFileCount: number;
+      missingPinnedFiles: string[];
+    };
   } | null;
 };
 
@@ -72,6 +81,15 @@ type AssistantContextBundlePayload = {
   summary: {
     hasStoryStructure: boolean;
     counts: Record<string, number>;
+  };
+  budget?: {
+    file_count: number;
+    char_count: number;
+    max_files: number;
+    max_excerpt_chars: number;
+    truncated: boolean;
+    pinned_file_count: number;
+    missing_pinned_files: string[];
   };
 };
 
@@ -125,6 +143,7 @@ export type AgentProposedPatch =
 export type AgentResultMessage = {
   type: 'agent_result';
   session_id: string;
+  run_id?: string;
   assistant_session_id: number;
   intent: string;
   user_message: string;
@@ -141,10 +160,43 @@ export type AgentResultMessage = {
 export type AgentErrorMessage = {
   type: 'error';
   session_id: string;
+  run_id?: string;
   detail: string;
 };
 
-export type AgentSocketMessage = AgentResultMessage | AgentErrorMessage | {
+export type AgentRunStartedMessage = {
+  type: 'agent_run_started';
+  session_id: string;
+  run_id: string;
+  user_message?: string;
+};
+
+export type AgentStepEventMessage = {
+  type: 'agent_step';
+  session_id: string;
+  run_id: string;
+  assistant_session_id?: number;
+  index: number;
+  step: string;
+  detail: string;
+  status: string;
+};
+
+export type AgentToolTraceEventMessage = {
+  type: 'tool_trace';
+  session_id: string;
+  run_id: string;
+  assistant_session_id?: number;
+  index: number;
+  trace: AgentToolTrace;
+};
+
+export type AgentStreamEventMessage =
+  | AgentRunStartedMessage
+  | AgentStepEventMessage
+  | AgentToolTraceEventMessage;
+
+export type AgentSocketMessage = AgentResultMessage | AgentErrorMessage | AgentStreamEventMessage | {
   type: string;
   [key: string]: unknown;
 };
@@ -156,6 +208,14 @@ export type AgentUserMessageRequest = {
   intent?: string;
   args?: Record<string, unknown>;
   timeoutMs?: number;
+  stream?: boolean;
+  runId?: string;
+  onEvent?: (event: AgentSocketMessage) => void;
+};
+
+export type BookRunEvent = {
+  event: string;
+  data: Record<string, unknown>;
 };
 
 export type AssistantMessageRecord = {
@@ -194,6 +254,15 @@ export function toAssistantContextBundlePayload(
       excerpt: file.excerpt,
     })),
     summary: contextBundle.summary,
+    budget: contextBundle.budget ? {
+      file_count: contextBundle.budget.fileCount,
+      char_count: contextBundle.budget.charCount,
+      max_files: contextBundle.budget.maxFiles,
+      max_excerpt_chars: contextBundle.budget.maxExcerptChars,
+      truncated: contextBundle.budget.truncated,
+      pinned_file_count: contextBundle.budget.pinnedFileCount,
+      missing_pinned_files: contextBundle.budget.missingPinnedFiles,
+    } : undefined,
   };
 }
 
@@ -310,6 +379,8 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
     socket.onopen = () => {
       socket.send(JSON.stringify({
         type: 'user_message',
+        stream: request.stream ?? Boolean(request.onEvent),
+        run_id: request.runId,
         user_message: request.userMessage,
         assistant_session_id: request.assistantSessionId ?? undefined,
         intent: request.intent,
@@ -320,7 +391,10 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
     socket.onmessage = (event) => {
       try {
         const message = JSON.parse(String(event.data)) as AgentSocketMessage;
-        finish(() => resolve(message));
+        request.onEvent?.(message);
+        if (isAgentResultMessage(message) || isAgentErrorMessage(message)) {
+          finish(() => resolve(message));
+        }
       } catch (error) {
         finish(() => reject(error));
       }
@@ -339,6 +413,35 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
   });
 }
 
+export async function subscribeBookRunEvents(
+  bookRunId: number,
+  onEvent: (event: BookRunEvent) => void,
+  onError?: (error: Event) => void,
+): Promise<() => void> {
+  const { baseUrl } = await getApiConfig();
+  const url = new URL(`/api/ide/runs/${bookRunId}/events`, baseUrl.replace(/\/+$/, ''));
+  const source = new EventSource(url.toString());
+  const eventNames = ['progress', 'checkpoint', 'blocked', 'budget', 'provider_fallback', 'completed'];
+  const listeners = eventNames.map((eventName) => {
+    const listener = (event: MessageEvent) => {
+      try {
+        onEvent({ event: eventName, data: JSON.parse(String(event.data)) as Record<string, unknown> });
+      } catch {
+        onEvent({ event: eventName, data: { raw: String(event.data) } });
+      }
+    };
+    source.addEventListener(eventName, listener);
+    return { eventName, listener };
+  });
+  if (onError) source.onerror = onError;
+  return () => {
+    for (const item of listeners) {
+      source.removeEventListener(item.eventName, item.listener);
+    }
+    source.close();
+  };
+}
+
 export function isAgentErrorMessage(message: AgentSocketMessage): message is AgentErrorMessage {
   return message.type === 'error' && typeof (message as AgentErrorMessage).detail === 'string';
 }
@@ -348,4 +451,21 @@ export function isAgentResultMessage(message: AgentSocketMessage): message is Ag
     && typeof (message as AgentResultMessage).assistant_session_id === 'number'
     && Array.isArray((message as AgentResultMessage).plan)
     && Array.isArray((message as AgentResultMessage).tool_trace);
+}
+
+export function isAgentRunStartedMessage(message: AgentSocketMessage): message is AgentRunStartedMessage {
+  return message.type === 'agent_run_started'
+    && typeof (message as AgentRunStartedMessage).run_id === 'string';
+}
+
+export function isAgentStepEventMessage(message: AgentSocketMessage): message is AgentStepEventMessage {
+  return message.type === 'agent_step'
+    && typeof (message as AgentStepEventMessage).step === 'string'
+    && typeof (message as AgentStepEventMessage).status === 'string';
+}
+
+export function isAgentToolTraceEventMessage(message: AgentSocketMessage): message is AgentToolTraceEventMessage {
+  return message.type === 'tool_trace'
+    && typeof (message as AgentToolTraceEventMessage).trace === 'object'
+    && (message as AgentToolTraceEventMessage).trace !== null;
 }

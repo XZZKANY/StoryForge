@@ -452,7 +452,8 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
                 hasRestoreLayout: Boolean(document.querySelector('[data-testid="restore-layout"]')),
                 hasWelcomeWorkspace: Boolean(document.querySelector('[data-testid="welcome-workspace"]')),
                 hasWelcomeShowWorkbench: Boolean(document.querySelector('[data-testid="welcome-show-workbench"]')),
-                hasSuggestionReview: Boolean(document.querySelector('[data-testid="suggestion-review"]')),
+                hasPatchReview: Boolean(document.querySelector('[data-testid="patch-review"]')),
+                hasSuggestionReview: Boolean(document.querySelector('[data-testid="patch-review"], [data-testid="suggestion-review"]')),
                 suggestionStatus: document.querySelector('[data-testid="suggestion-status"]')?.textContent ?? '',
                 visualTone: (() => {
                   const workspace = document.querySelector('[data-testid="welcome-workspace"]');
@@ -824,7 +825,10 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
                     before: {},
                     after: {},
                     summary: 'Smoke Agent proposed patch',
-                    userIntent: 'smoke writeback'
+                    userIntent: 'smoke writeback',
+                    assistantSessionId: 4242,
+                    issueIds: ['character-1'],
+                    contextFiles: ['人物/林岚.md']
                   }});
                   return {{ proposed: true }};
                 }})()
@@ -851,7 +855,7 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             snapshot_script,
             20,
             Duration::from_millis(150),
-            |value| has_bool(value, "hasSuggestionReview", true),
+            |value| has_bool(value, "hasPatchReview", true),
         ) {
             eprintln!("Smoke 失败: proposed patch diff 未显示: {}", error);
             std::process::exit(1);
@@ -862,6 +866,170 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             eprintln!(
                 "Smoke 失败: proposed patch 未确认前不应写盘，实际内容: {}",
                 disk_before_accept
+            );
+            std::process::exit(1);
+        }
+
+        if let Err(error) = click_window_test_id(&window, "suggestion-reject") {
+            eprintln!("Smoke 失败: 无法拒绝建议补丁: {}", error);
+            std::process::exit(1);
+        }
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| has_bool(value, "hasPatchReview", false),
+        ) {
+            eprintln!("Smoke 失败: 拒绝补丁后审阅面板未关闭: {}", error);
+            std::process::exit(1);
+        }
+        let disk_after_reject = std_fs::read_to_string(&smoke_file).unwrap_or_default();
+        if disk_after_reject != before_revision {
+            eprintln!(
+                "Smoke 失败: 拒绝补丁不应写盘，实际内容: {}",
+                disk_after_reject
+            );
+            std::process::exit(1);
+        }
+
+        let repropose_result =
+            match eval_window_json(&window, &propose_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法重新注入建议补丁: {}", error);
+                    std::process::exit(1);
+                }
+            };
+        if !has_bool(&repropose_result, "proposed", true) {
+            eprintln!(
+                "Smoke 失败: 重新注入建议补丁入口不可用: {}",
+                repropose_result
+            );
+            std::process::exit(1);
+        }
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| has_bool(value, "hasPatchReview", true),
+        ) {
+            eprintln!("Smoke 失败: 重新注入 proposed patch diff 未显示: {}", error);
+            std::process::exit(1);
+        }
+
+        let local_edit_revision = "# Chapter 1\n\nSmoke content locally edited\n";
+        let local_edit_script = format!(
+            r#"
+                (() => {{
+                  const smoke = window.__STORYFORGE_SMOKE__;
+                  if (!smoke || typeof smoke.setCurrentEditorContent !== 'function') {{
+                    return {{ changed: false, reason: 'missing-editor-smoke-hook' }};
+                  }}
+                  const changed = smoke.setCurrentEditorContent({});
+                  return {{
+                    changed,
+                    content: smoke.getCurrentEditorContent?.() ?? ''
+                  }};
+                }})()
+            "#,
+            serde_json::to_string(local_edit_revision).unwrap_or_else(|_| "\"\"".to_string())
+        );
+        let local_edit_result =
+            match eval_window_json(&window, &local_edit_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法模拟补丁后本地编辑: {}", error);
+                    std::process::exit(1);
+                }
+            };
+        if !has_bool(&local_edit_result, "changed", true) {
+            eprintln!(
+                "Smoke 失败: 编辑器 smoke 改稿入口不可用: {}",
+                local_edit_result
+            );
+            std::process::exit(1);
+        }
+
+        let accept_conflict_script = r#"
+            (() => {
+              const smoke = window.__STORYFORGE_SMOKE__;
+              if (!smoke || typeof smoke.acceptCurrentSuggestion !== 'function') {
+                return { accepted: false, reason: 'missing-accept-current-suggestion' };
+              }
+              smoke.acceptCurrentSuggestion();
+              return { accepted: true };
+            })()
+        "#;
+        let accept_conflict_result =
+            match eval_window_json(&window, accept_conflict_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法触发冲突补丁写回: {}", error);
+                    std::process::exit(1);
+                }
+            };
+        if !has_bool(&accept_conflict_result, "accepted", true) {
+            eprintln!(
+                "Smoke 失败: 冲突补丁确认入口不可用: {}",
+                accept_conflict_result
+            );
+            std::process::exit(1);
+        }
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| {
+                value
+                    .get("suggestionStatus")
+                    .and_then(|entry| entry.as_str())
+                    .map(|status| status.contains("旧补丁不能直接写回"))
+                    .unwrap_or(false)
+            },
+        ) {
+            eprintln!("Smoke 失败: 旧补丁冲突未被阻止: {}", error);
+            std::process::exit(1);
+        }
+
+        let disk_after_conflict = std_fs::read_to_string(&smoke_file).unwrap_or_default();
+        if disk_after_conflict != before_revision {
+            eprintln!(
+                "Smoke 失败: 冲突补丁不应写盘，实际内容: {}",
+                disk_after_conflict
+            );
+            std::process::exit(1);
+        }
+
+        let reset_edit_script = format!(
+            r#"
+                (() => {{
+                  const smoke = window.__STORYFORGE_SMOKE__;
+                  if (!smoke || typeof smoke.setCurrentEditorContent !== 'function') {{
+                    return {{ changed: false, reason: 'missing-editor-smoke-hook' }};
+                  }}
+                  return {{
+                    changed: smoke.setCurrentEditorContent({}),
+                    content: smoke.getCurrentEditorContent?.() ?? ''
+                  }};
+                }})()
+            "#,
+            serde_json::to_string(before_revision).unwrap_or_else(|_| "\"\"".to_string())
+        );
+        let reset_edit_result =
+            match eval_window_json(&window, &reset_edit_script, Duration::from_millis(1500)) {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Smoke 失败: 无法恢复编辑器内容以继续写回验证: {}", error);
+                    std::process::exit(1);
+                }
+            };
+        if !has_bool(&reset_edit_result, "changed", true) {
+            eprintln!(
+                "Smoke 失败: 编辑器内容恢复入口不可用: {}",
+                reset_edit_result
             );
             std::process::exit(1);
         }
@@ -928,12 +1096,20 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             || !contains_file_content_under(&versions_dir, "Smoke content")
             || !contains_file_content_under(&versions_dir, "Agent")
             || !contains_file_content_under(&versions_dir, "Smoke Agent proposed patch")
+            || !contains_file_content_under(&versions_dir, "smoke-file-revision")
+            || !contains_file_content_under(&versions_dir, "4242")
+            || !contains_file_content_under(&versions_dir, "character-1")
+            || !contains_file_content_under(&versions_dir, "人物/林岚.md")
         {
             eprintln!("Smoke 失败: 写回前版本快照或 Agent 元数据缺失");
             std::process::exit(1);
         }
         if count_files_under(&author_loop_dir) == 0
             || !contains_file_content_under(&author_loop_dir, "Smoke Agent proposed patch")
+            || !contains_file_content_under(&author_loop_dir, "smoke-file-revision")
+            || !contains_file_content_under(&author_loop_dir, "4242")
+            || !contains_file_content_under(&author_loop_dir, "character-1")
+            || !contains_file_content_under(&author_loop_dir, "人物/林岚.md")
         {
             eprintln!("Smoke 失败: 作者闭环记录缺失或内容不正确");
             std::process::exit(1);

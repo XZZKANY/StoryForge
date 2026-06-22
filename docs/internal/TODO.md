@@ -1,10 +1,10 @@
 # StoryForge 待办清单
 
-生成时间：2026-06-21 00:00:00 +08:00
+生成时间：2026-06-23 00:33:51 +08:00
 
 ## 当前执行入口
 
-StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase 1 最小闭环已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场。BookRun 是 Agent tool / 后台重型引擎，不是第一阶段主产品控制台。
+StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场。BookRun 是 Agent tool / 后台重型引擎，不是主产品控制台。
 
 真实 LLM 1/3/10 章 smoke 已通过记录，其中 10 章 smoke 已完成人工通读；一次 30 章真实长程已跑完并导出制品，但人工通读结论为“退回重跑”。
 
@@ -14,6 +14,7 @@ StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase
 - 30 章退回阻塞：测试痕迹残留、章节结构模板化、重复表达、人物称谓混乱、17/18 章时间线冲突、线索膨胀和结尾收束不足。
 - 后续工程修复已覆盖 recap 膨胀、计数失真、collapse_judge 误报、S3 bucket 缺失和 reasoning token 泄漏；这些修复需要通过新一轮长程运行与人工通读验证。
 - Desktop IDE Agent 已支持后端意图源收口、真实文件修订、多视角审稿、稳定 issue id、修订范围控制、proposed patch、确认写回防重复生成和真实 Tauri 写回端到端。
+- Desktop IDE Agent Phase 2 已完成本地验收：WebSocket 事件流、显式上下文 pin/budget、审稿 issue 多选/分类修订、PatchReviewPanel 冲突保护、版本/author-loop 元数据追踪，以及 BookRun 预检/确认/轻量进度投影。
 - 第一阶段验收链路已经通过本地验证：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录。
 - `apps/web` 不再作为主体验、维护入口、调试入口、兼容入口或契约验证入口；BookRun 控制台也不作为主产品入口。
 
@@ -21,8 +22,8 @@ StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase
 
 1. 基于 30 章人工通读意见整理重跑策略，重跑真实 3-5 万字长程并执行人工通读。
 2. 将新一轮长程的 Markdown、EPUB、`audit_report.json`、summary 和人工盲评写入 `.codex/verification-report.md`。
-3. 将 Desktop IDE Agent 的可选增强拆小：WebSocket 流式响应、真实 LLM file.review 探针、更细的修订范围 UI 和更完整的上下文选择器。
-4. 将 BookRun 保持为 Agent tool / 后台重型引擎：可由 Agent 发起、解释预算和展示 tool trace，但不抢占 Desktop IDE 主界面。
+3. 继续将 BookRun 保持为 Agent tool / 后台重型引擎：可由 Agent 发起、解释预算和展示 tool trace，但不抢占 Desktop IDE 主界面。
+4. Phase 2 之后的可选增强应聚焦真实 provider 探针、交互打磨和更长会话稳定性，不改变 Desktop-first 产品方向。
 5. 长程通过后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `docs/internal/dev-plan.md` 的完成边界。
 
 ## 本地验证入口

@@ -118,9 +118,39 @@ try {
           ...(window.__STORYFORGE_AGENT_MESSAGES__ ?? []),
           payload,
         ];
+        const sequence = [
+          {
+            type: 'agent_run_started',
+            session_id: 'mock-session',
+            run_id: payload.run_id ?? 'mock-run',
+            user_message: payload.user_message,
+          },
+          {
+            type: 'agent_step',
+            session_id: 'mock-session',
+            run_id: payload.run_id ?? 'mock-run',
+            index: 0,
+            step: 'context-agent',
+            detail: 'mock streamed context step',
+            status: 'completed',
+          },
+          {
+            type: 'tool_trace',
+            session_id: 'mock-session',
+            run_id: payload.run_id ?? 'mock-run',
+            index: 0,
+            trace: {
+              tool_name: 'subagent.context',
+              status: 'completed',
+              input_summary: {},
+              output_summary: { context_file_count: 1 },
+            },
+          },
+        ];
         const response = {
           type: 'agent_result',
           session_id: 'mock-session',
+          run_id: payload.run_id ?? 'mock-run',
           assistant_session_id: 101,
           intent: 'file.review',
           user_message: payload.user_message,
@@ -153,9 +183,11 @@ try {
           tool_trace: [],
           proposed_patch: null,
         };
-        setTimeout(() => {
-          this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(response) }));
-        }, 0);
+        [...sequence, response].forEach((message, index) => {
+          setTimeout(() => {
+            this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(message) }));
+          }, index * 20);
+        });
       }
 
       close() {
@@ -189,6 +221,10 @@ try {
   await page.getByRole('heading', { name: '新的创作会话' }).waitFor({ timeout: 5000 });
   await page.getByText('StoryForge · Claude · 编辑模式').waitFor({ timeout: 5000 });
   await page.getByText('@ 正文').waitFor({ timeout: 5000 });
+  await page.getByTestId('context-summary').waitFor({ timeout: 5000 });
+  await page.getByTestId('context-picker-toggle').click();
+  await page.locator('[data-testid="context-candidate"]').filter({ hasText: '林岚.md' }).click();
+  await page.getByTestId('pinned-context-list').filter({ hasText: '林岚.md' }).waitFor({ timeout: 5000 });
 
   const modelInHeader = await page.locator('header').filter({ hasText: 'Claude' }).count();
   if (modelInHeader !== 0) {
@@ -217,13 +253,15 @@ try {
   }
 
   await page.getByText('扫描项目上下文').waitFor({ timeout: 5000 });
+  await page.getByText('mock streamed context step').waitFor({ timeout: 5000 });
   const bodyText = await page.locator('[data-testid="assistant-panel"]').innerText();
   if (!bodyText.includes('扫描项目上下文') || !(bodyText.includes('调用 Agent Orchestrator') || bodyText.includes('整理回复'))) {
     throw new Error(`Expected Agent execution steps to render in the conversation:\n${bodyText}`);
   }
   await page.getByTestId('review-issue-actions').waitFor({ timeout: 5000 });
   await page.locator('[data-testid="review-issue"][data-issue-id="character-1"]').waitFor({ timeout: 5000 });
-  await page.getByRole('button', { name: '只修此条' }).click();
+  await page.locator('[data-testid="review-issue-checkbox"][data-issue-id="character-1"]').check();
+  await page.getByTestId('review-revise-selected').click();
   await page.waitForFunction(() => (window.__STORYFORGE_AGENT_MESSAGES__ ?? []).length >= 2, null, { timeout: 5000 });
 
   const payloads = await page.evaluate(() => window.__STORYFORGE_AGENT_MESSAGES__);
@@ -240,6 +278,12 @@ try {
   }
   if (!Array.isArray(firstArgs?.context_bundle?.files) || firstArgs.context_bundle.files.length < 1) {
     throw new Error(`Expected Agent payload to include project context bundle: ${JSON.stringify(firstArgs?.context_bundle)}`);
+  }
+  if (payloads[0]?.stream !== true || !payloads[0]?.run_id) {
+    throw new Error(`Expected Agent websocket payload to opt into stream events: ${JSON.stringify(payloads[0])}`);
+  }
+  if (firstArgs?.context_bundle?.budget?.pinned_file_count < 1) {
+    throw new Error(`Expected context bundle budget to record pinned context: ${JSON.stringify(firstArgs?.context_bundle?.budget)}`);
   }
   if (!String(firstArgs.context_bundle.files[0]?.excerpt ?? '').includes('害怕再次失去证据')) {
     throw new Error(`Expected context bundle to include character file excerpt: ${JSON.stringify(firstArgs.context_bundle.files)}`);

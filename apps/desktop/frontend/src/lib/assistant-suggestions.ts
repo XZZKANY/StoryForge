@@ -7,6 +7,10 @@ export type AssistantFileSuggestion = {
   after: string;
   note: string;
   createdAt: number;
+  model?: string;
+  assistantSessionId?: number | null;
+  issueIds?: string[];
+  contextFiles?: string[];
 };
 
 function appendSuggestionBlock(content: string, userIntent: string): string {
@@ -33,8 +37,11 @@ export function createRemoteFileSuggestion(params: {
   summary: string;
   model: string;
   userIntent: string;
+  assistantSessionId?: number | null;
+  issueIds?: string[];
+  contextFiles?: string[];
 }): AssistantFileSuggestion {
-  const { id, filePath, before, after, summary, model, userIntent } = params;
+  const { id, filePath, before, after, summary, model, userIntent, assistantSessionId, issueIds = [], contextFiles = [] } = params;
   return {
     id: id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     filePath,
@@ -45,9 +52,15 @@ export function createRemoteFileSuggestion(params: {
     note: [
       `用户意图：${userIntent.trim() || '审查并改进当前文件'}`,
       `模型：${model || '未知'}`,
+      issueIds.length ? `Issue Scope：${issueIds.join(', ')}` : '',
+      contextFiles.length ? `上下文：${contextFiles.join(', ')}` : '',
       '接受会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。',
-    ].join('\n'),
+    ].filter(Boolean).join('\n'),
     createdAt: Date.now(),
+    model,
+    assistantSessionId: assistantSessionId ?? null,
+    issueIds,
+    contextFiles,
   };
 }
 
@@ -70,5 +83,7 @@ export function createLocalFileSuggestion(params: {
       '接受后会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。',
     ].join('\n'),
     createdAt: Date.now(),
+    issueIds: [],
+    contextFiles: [],
   };
 }

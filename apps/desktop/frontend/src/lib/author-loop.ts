@@ -10,6 +10,9 @@ export type RevisionLoopRecord = {
   note: string;
   userIntent: string;
   assistantSessionId: number | null;
+  patchId?: string | null;
+  issueIds?: string[];
+  contextFiles?: string[];
 };
 
 export type RevisionLoopResult = {
@@ -80,7 +83,19 @@ export function buildExportPath(projectPath: string, filePath: string, stamp = n
 }
 
 export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<RevisionLoopResult> {
-  const { projectPath, filePath, before, after, summary, note, userIntent, assistantSessionId } = record;
+  const {
+    projectPath,
+    filePath,
+    before,
+    after,
+    summary,
+    note,
+    userIntent,
+    assistantSessionId,
+    patchId,
+    issueIds = [],
+    contextFiles = [],
+  } = record;
   if (!projectPath) return { recordPath: null };
 
   const relativePath = relativeToProject(projectPath, filePath);
@@ -92,6 +107,9 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     `- 时间：${new Date().toISOString()}`,
     `- 动作：接受 AI 修订并写回正文`,
     `- Assistant Session：${assistantSessionId ?? '本地未记录'}`,
+    `- Patch ID：${patchId ?? '本地未记录'}`,
+    `- Issue IDs：${issueIds.length ? issueIds.join(', ') : '未限定'}`,
+    `- 上下文文件：${contextFiles.length ? contextFiles.join(', ') : '未记录'}`,
     `- 修改前字数：${countCjkChars(before)}`,
     `- 修改后字数：${countCjkChars(after)}`,
     `- 修改后段落：${countParagraphs(after)}`,

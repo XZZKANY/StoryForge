@@ -25,6 +25,16 @@ export type ProjectSemanticSummary = {
   counts: Record<SemanticKind, number>;
 };
 
+export type ContextBundleBudget = {
+  fileCount: number;
+  charCount: number;
+  maxFiles: number;
+  maxExcerptChars: number;
+  truncated: boolean;
+  pinnedFileCount: number;
+  missingPinnedFiles: string[];
+};
+
 export type ProjectIndex = {
   projectPath: string;
   files: SemanticFile[];
@@ -44,6 +54,7 @@ export type ContextBundle = {
   currentFile: string;
   files: ContextBundleFile[];
   summary: ProjectSemanticSummary;
+  budget: ContextBundleBudget;
 };
 
 export type StoryProjectInitializationPlan = {
@@ -229,18 +240,90 @@ function contextPriority(file: SemanticFile, currentFile: string): number {
   return kindPriority[file.kind];
 }
 
+function normalizePathForMatch(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
+}
+
+function pinnedIndexByPath(file: SemanticFile, projectPath: string, pinnedFiles: string[]): number {
+  const normalizedProject = normalizePathForMatch(projectPath).replace(/\/+$/, '');
+  const aliases = [
+    normalizePathForMatch(file.path),
+    normalizePathForMatch(file.relativePath),
+    normalizePathForMatch(file.name),
+  ];
+  return pinnedFiles.findIndex((raw) => {
+    const normalized = normalizePathForMatch(raw.trim());
+    if (!normalized) return false;
+    const projectRelative = normalized.startsWith(`${normalizedProject}/`)
+      ? normalized.slice(normalizedProject.length + 1)
+      : normalized;
+    return aliases.includes(normalized) || aliases.includes(projectRelative);
+  });
+}
+
+export function selectContextBundleFiles(params: {
+  index: ProjectIndex;
+  currentFile: string;
+  maxFiles: number;
+  pinnedFiles?: string[];
+}): {
+  files: SemanticFile[];
+  truncated: boolean;
+  missingPinnedFiles: string[];
+} {
+  const { index, currentFile, maxFiles, pinnedFiles = [] } = params;
+  const eligible = index.files
+    .filter((file) => file.path !== currentFile)
+    .filter((file) => file.kind !== 'export' && file.kind !== 'quality');
+  const pinnedMatches = new Set<string>();
+  const pinned = eligible
+    .map((file) => ({ file, pinIndex: pinnedIndexByPath(file, index.projectPath, pinnedFiles) }))
+    .filter((item) => item.pinIndex >= 0)
+    .sort((a, b) => a.pinIndex - b.pinIndex || a.file.relativePath.localeCompare(b.file.relativePath))
+    .map((item) => {
+      pinnedMatches.add(normalizePathForMatch(item.file.path));
+      pinnedMatches.add(normalizePathForMatch(item.file.relativePath));
+      pinnedMatches.add(normalizePathForMatch(item.file.name));
+      return item.file;
+    });
+  const missingPinnedFiles = pinnedFiles.filter((raw) => {
+    const normalized = normalizePathForMatch(raw.trim());
+    if (!normalized) return false;
+    const normalizedProject = normalizePathForMatch(index.projectPath).replace(/\/+$/, '');
+    const projectRelative = normalized.startsWith(`${normalizedProject}/`)
+      ? normalized.slice(normalizedProject.length + 1)
+      : normalized;
+    return !pinnedMatches.has(normalized) && !pinnedMatches.has(projectRelative);
+  });
+  const pinnedPaths = new Set(pinned.map((file) => file.path));
+  const automatic = eligible
+    .filter((file) => !pinnedPaths.has(file.path) && file.kind !== 'other')
+    .sort((a, b) => {
+      const priority = contextPriority(a, currentFile) - contextPriority(b, currentFile);
+      return priority !== 0 ? priority : a.relativePath.localeCompare(b.relativePath);
+    });
+  const candidates = [...pinned, ...automatic];
+  return {
+    files: candidates.slice(0, maxFiles),
+    truncated: candidates.length > maxFiles,
+    missingPinnedFiles,
+  };
+}
+
 export async function buildContextBundle(params: {
   projectPath: string;
   currentFile: string;
   maxFiles?: number;
   maxExcerptChars?: number;
+  pinnedFiles?: string[];
 }): Promise<ContextBundle> {
-  const { projectPath, currentFile, maxFiles = 8, maxExcerptChars = 1200 } = params;
+  const { projectPath, currentFile, maxFiles = 8, maxExcerptChars = 1200, pinnedFiles = [] } = params;
   const cacheKey = [
     normalizeRoot(projectPath),
     currentFile,
     maxFiles,
     maxExcerptChars,
+    ...pinnedFiles.map((item) => item.trim()).sort(),
   ].join('\u0000');
   const cached = contextBundleCache.get(cacheKey);
   if (cached && Date.now() - cached.createdAt < CONTEXT_BUNDLE_CACHE_TTL_MS) {
@@ -248,17 +331,10 @@ export async function buildContextBundle(params: {
   }
 
   const index = await buildProjectIndex(projectPath);
-  const candidates = index.files
-    .filter((file) => file.path !== currentFile)
-    .filter((file) => file.kind !== 'export' && file.kind !== 'quality' && file.kind !== 'other')
-    .sort((a, b) => {
-      const priority = contextPriority(a, currentFile) - contextPriority(b, currentFile);
-      return priority !== 0 ? priority : a.relativePath.localeCompare(b.relativePath);
-    })
-    .slice(0, maxFiles);
+  const selection = selectContextBundleFiles({ index, currentFile, maxFiles, pinnedFiles });
 
   const files: ContextBundleFile[] = [];
-  for (const file of candidates) {
+  for (const file of selection.files) {
     try {
       const content = await TauriFileSystem.readFile(file.path);
       const excerpt = content.trim().slice(0, maxExcerptChars);
@@ -281,6 +357,22 @@ export async function buildContextBundle(params: {
     currentFile,
     files,
     summary: index.summary,
+    budget: {
+      fileCount: files.length,
+      charCount: files.reduce((total, file) => total + file.excerpt.length, 0),
+      maxFiles,
+      maxExcerptChars,
+      truncated: selection.truncated || selection.files.length > files.length,
+      pinnedFileCount: files.filter((file) => pinnedIndexByPath({
+        path: file.path,
+        relativePath: file.relativePath,
+        name: file.title,
+        kind: file.kind,
+        modified: 0,
+        size: 0,
+      }, projectPath, pinnedFiles) >= 0).length,
+      missingPinnedFiles: selection.missingPinnedFiles,
+    },
   };
   contextBundleCache.set(cacheKey, { createdAt: Date.now(), bundle });
   return bundle;

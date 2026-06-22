@@ -2,6 +2,24 @@
 
 生成时间：2026-06-22 +08:00
 
+## 完成状态
+
+完成时间：2026-06-22 20:56:33 +08:00
+
+本阶段已按 Definition of Done 重新验收通过。下方 P0-P6 保留原始计划拆解；实际完成证据以本节和 `.codex/verification-report.md` 的「Cursor for Fiction Phase 1 收口（2026-06-22）」为准。
+
+本轮重跑结果：
+
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run test`：15 passed。
+- `npm --prefix apps/desktop/frontend run verify:smoke`：Desktop frontend smoke passed。
+- `npm --prefix apps/desktop/frontend run verify:agent-conversation`：通过，Agent conversation verification passed。
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q`：17 passed。
+- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`：通过。
+- `node apps/desktop/scripts/verify-tauri-smoke.mjs`：通过；覆盖临时小说项目、未确认不写盘、确认后真实写回、版本快照和 author-loop 记录。
+
+补充说明：Tauri smoke 构建期间仍有 Monaco chunk 体积提示和 Chromium 退出清理日志，命令退出码为 0，不阻塞 Phase 1 验收。
+
 ## 目标
 
 把 StoryForge 第一阶段收口为“面向小说项目的 Cursor”：
@@ -290,4 +308,3 @@ uv run pytest tests/test_ide_agent_orchestrator.py -q
 - 稳定生产级长篇自动生成闭环完成。
 - 真实 3-5 万字长程质量验收通过。
 - BookRun 已成为成熟批量生产系统。
-

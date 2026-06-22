@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 import {
+  applyBookRunEventProjection,
+  BookRunProgressPanel,
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   reviewIssuesFromReport,
@@ -96,4 +100,36 @@ test('stable agent request payload carries project, file, content, selection, se
   assert.equal(payload.assistant_session_id, 42);
   assert.deepEqual(payload.selected_issue_ids, ['character-1']);
   assert.equal(payload.context_bundle?.files[0].relative_path, '人物\\林岚.md');
+});
+
+test('BookRun mock SSE progress renders lightweight tool progress', () => {
+  const progress = applyBookRunEventProjection(null, {
+    event: 'progress',
+    data: {
+      book_run_id: 7,
+      status: 'running',
+      current_chapter_index: 3,
+      total_chapters: 8,
+      completed_count: 2,
+    },
+  });
+  assert.ok(progress);
+
+  const progressMarkup = renderToStaticMarkup(React.createElement(BookRunProgressPanel, { projection: progress }));
+  assert.match(progressMarkup, /BookRun #7/);
+  assert.match(progressMarkup, /running/);
+  assert.match(progressMarkup, /2\/8/);
+  assert.match(progressMarkup, /当前第 3 章/);
+
+  const failed = applyBookRunEventProjection(progress, {
+    event: 'failed',
+    data: {
+      book_run_id: 7,
+      pause_reason: '预算不足',
+    },
+  });
+  assert.ok(failed);
+  const failedMarkup = renderToStaticMarkup(React.createElement(BookRunProgressPanel, { projection: failed }));
+  assert.match(failedMarkup, /最近事件：failed/);
+  assert.match(failedMarkup, /预算不足/);
 });

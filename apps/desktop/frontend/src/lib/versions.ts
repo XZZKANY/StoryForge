@@ -23,12 +23,20 @@ export type VersionEntry = {
   summary?: string;
   /** 被写回文件的项目相对路径 */
   file?: string;
+  patchId?: string;
+  assistantSessionId?: number | null;
+  issueIds?: string[];
+  contextFiles?: string[];
 };
 
 export type VersionSnapshotMetadata = {
   source?: string;
   summary?: string;
   file?: string;
+  patchId?: string;
+  assistantSessionId?: number | null;
+  issueIds?: string[];
+  contextFiles?: string[];
 };
 
 function sep(projectPath: string): string {
@@ -78,6 +86,10 @@ export async function snapshotBeforeWrite(
     source: metadata.source ?? 'Editor',
     summary: metadata.summary ?? '手动保存前快照',
     file: metadata.file ?? relativeToProject(projectPath, filePath) ?? filePath,
+    patchId: metadata.patchId,
+    assistantSessionId: metadata.assistantSessionId,
+    issueIds: metadata.issueIds,
+    contextFiles: metadata.contextFiles,
   };
   await TauriFileSystem.writeFile(
     `${dir}${s}${timestamp}${META_SUFFIX}`,
@@ -130,6 +142,10 @@ export async function listVersions(
         source: metadata.source,
         summary: metadata.summary,
         file: metadata.file,
+        patchId: metadata.patchId,
+        assistantSessionId: metadata.assistantSessionId,
+        issueIds: metadata.issueIds,
+        contextFiles: metadata.contextFiles,
       });
       return list;
     }, Promise.resolve([]));
