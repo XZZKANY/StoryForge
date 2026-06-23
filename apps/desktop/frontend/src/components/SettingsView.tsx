@@ -18,17 +18,9 @@ type SettingsViewProps = {
   onClose: () => void;
 };
 
-const settingsNav = [
-  '返回',
-  '模型服务',
-  '编辑器',
-] as const;
+const settingsNav = ['返回', '模型服务', '编辑器'] as const;
 
-export function SettingsView({
-  settings,
-  onChange,
-  onClose,
-}: SettingsViewProps) {
+export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
   const safeSettings = sanitizeAppSettings(settings);
   const providerConnection = describeProviderConnection(safeSettings.provider);
   const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
@@ -36,7 +28,10 @@ export function SettingsView({
   };
 
   return (
-    <section className="flex h-full min-w-0 bg-[#101010] text-[#EDEDED]" data-testid="settings-view">
+    <section
+      className="flex h-full min-w-0 bg-[#101010] text-[#EDEDED]"
+      data-testid="settings-view"
+    >
       <aside className="flex w-[278px] flex-shrink-0 flex-col border-r border-[#2A2A2A] bg-[#121212] px-3 py-3">
         <button
           className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-[#BDBDBD] hover:bg-[#1F1F1F] hover:text-white"
@@ -54,7 +49,9 @@ export function SettingsView({
               href={`#${navAnchor(item)}`}
               className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-[#A8A8A8] no-underline hover:bg-[#1F1F1F] hover:text-white"
             >
-              <span className="grid h-5 w-5 place-items-center text-[#8A8A8A]">{navIcon(item)}</span>
+              <span className="grid h-5 w-5 place-items-center text-[#8A8A8A]">
+                {navIcon(item)}
+              </span>
               <span className="truncate">{item}</span>
             </a>
           ))}
@@ -62,7 +59,9 @@ export function SettingsView({
 
         <div className="mt-auto space-y-3">
           <button className="flex h-10 w-full items-center gap-2 rounded-md border border-[#303030] bg-[#1E1E1E] px-2 text-left text-sm text-[#EDEDED] hover:bg-[#252525]">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-[#2F2F2F] text-xs">SF</span>
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-[#2F2F2F] text-xs">
+              SF
+            </span>
             <span className="truncate">本地创作环境</span>
           </button>
           <div className="flex items-center gap-2 rounded-md bg-[#1A1A1A] px-2 py-2">
@@ -92,7 +91,10 @@ export function SettingsView({
                 value={safeSettings.provider.kind}
                 onChange={(value) => {
                   const nextKind = toProviderKind(value);
-                  update('provider', applyProviderPreset(safeSettings.provider, nextKind, { preserveModel: true }));
+                  update(
+                    'provider',
+                    applyProviderPreset(safeSettings.provider, nextKind, { preserveModel: true }),
+                  );
                 }}
                 options={PROVIDER_OPTIONS}
                 testId="provider-kind"
@@ -102,7 +104,9 @@ export function SettingsView({
                 description="填写兼容 OpenAI 协议的端点，或本地模型网关地址。"
                 value={safeSettings.provider.baseUrl}
                 placeholder="https://api.openai.com"
-                onChange={(value) => update('provider', { ...safeSettings.provider, baseUrl: value })}
+                onChange={(value) =>
+                  update('provider', { ...safeSettings.provider, baseUrl: value })
+                }
                 testId="provider-base-url"
               />
               <TextRow
@@ -118,7 +122,9 @@ export function SettingsView({
                 description="只保存环境变量名或密钥引用，不保存明文密钥。"
                 value={safeSettings.provider.apiKeyRef}
                 placeholder="例如 OPENAI_API_KEY"
-                onChange={(value) => update('provider', { ...safeSettings.provider, apiKeyRef: value })}
+                onChange={(value) =>
+                  update('provider', { ...safeSettings.provider, apiKeyRef: value })
+                }
                 testId="provider-api-key-ref"
               />
             </SettingCard>
@@ -167,7 +173,15 @@ function SettingCard({ children }: { children: ReactNode }) {
   return <div className="overflow-hidden rounded-xl bg-[#1A1A1A]">{children}</div>;
 }
 
-function RowShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function RowShell({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex min-h-[76px] items-center gap-4 border-b border-[#292929] px-4 py-3 last:border-b-0">
       <div className="min-w-0 flex-1">

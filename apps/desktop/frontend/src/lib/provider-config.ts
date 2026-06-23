@@ -69,12 +69,12 @@ export const PROVIDER_PRESETS: Record<ProviderKind, ProviderPreset> = {
   },
 };
 
-export const PROVIDER_OPTIONS: Array<{ value: ProviderKind; label: string }> = Object.values(PROVIDER_PRESETS).map(
-  (preset) => ({
-    value: preset.kind,
-    label: preset.label,
-  }),
-);
+export const PROVIDER_OPTIONS: Array<{ value: ProviderKind; label: string }> = Object.values(
+  PROVIDER_PRESETS,
+).map((preset) => ({
+  value: preset.kind,
+  label: preset.label,
+}));
 
 export function isProviderKind(value: unknown): value is ProviderKind {
   return Object.prototype.hasOwnProperty.call(PROVIDER_PRESETS, String(value));

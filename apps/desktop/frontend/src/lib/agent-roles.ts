@@ -22,10 +22,12 @@ export const BUILTIN_AGENT_ROLE_ALIASES: Record<string, string> = {
   '@资料': 'external_scout',
 };
 
-export const AGENT_ROLE_SUGGESTIONS = Object.entries(BUILTIN_AGENT_ROLE_ALIASES).map(([mention, roleName]) => ({
-  mention,
-  roleName,
-}));
+export const AGENT_ROLE_SUGGESTIONS = Object.entries(BUILTIN_AGENT_ROLE_ALIASES).map(
+  ([mention, roleName]) => ({
+    mention,
+    roleName,
+  }),
+);
 
 export function extractAgentRoleMentions(input: string): string[] {
   const aliases = new Set(Object.keys(BUILTIN_AGENT_ROLE_ALIASES));
@@ -35,7 +37,10 @@ export function extractAgentRoleMentions(input: string): string[] {
   return orderedUnique(mentions);
 }
 
-export function mapAgentRoleMentionsToHints(mentions: string[], roles: AgentRoleRead[] = []): string[] {
+export function mapAgentRoleMentionsToHints(
+  mentions: string[],
+  roles: AgentRoleRead[] = [],
+): string[] {
   const roleByAlias = new Map<string, string>();
   for (const role of roles) {
     if (!role.can_be_mentioned) continue;

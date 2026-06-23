@@ -35,7 +35,7 @@ declare global {
 }
 
 function mockFs(): SmokeFileSystem | null {
-  return typeof window !== 'undefined' ? window.__STORYFORGE_MOCK_FS__ ?? null : null;
+  return typeof window !== 'undefined' ? (window.__STORYFORGE_MOCK_FS__ ?? null) : null;
 }
 
 export class TauriFileSystem {
@@ -91,7 +91,7 @@ export class TauriFileSystem {
 
   static async watchFile(
     path: string,
-    callback: (event: FileChangeEvent) => void
+    callback: (event: FileChangeEvent) => void,
   ): Promise<() => void> {
     assertTauriRuntime('TauriFileSystem.watchFile');
     const unlisten = await listen<FileChangeEvent>('file-change', (event) => {

@@ -48,9 +48,11 @@ export function emitExportCurrentFile(): void {
 
 export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<AssistantFileSuggestion>(APPLY_FILE_SUGGESTION_EVENT, {
-      detail: suggestion,
-    }));
+    window.dispatchEvent(
+      new CustomEvent<AssistantFileSuggestion>(APPLY_FILE_SUGGESTION_EVENT, {
+        detail: suggestion,
+      }),
+    );
   }
 }
 
@@ -62,24 +64,30 @@ export function emitAcceptCurrentFileSuggestion(): void {
 
 export function emitFileSuggestionRequest(request: FileSuggestionRequest): void {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<FileSuggestionRequest>(REQUEST_FILE_SUGGESTION_EVENT, {
-      detail: request,
-    }));
+    window.dispatchEvent(
+      new CustomEvent<FileSuggestionRequest>(REQUEST_FILE_SUGGESTION_EVENT, {
+        detail: request,
+      }),
+    );
   }
 }
 
 export function emitSuggestionResult(result: SuggestionResult): void {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<SuggestionResult>(SUGGESTION_RESULT_EVENT, {
-      detail: result,
-    }));
+    window.dispatchEvent(
+      new CustomEvent<SuggestionResult>(SUGGESTION_RESULT_EVENT, {
+        detail: result,
+      }),
+    );
   }
 }
 
 export function emitAuthorLoopResult(result: AuthorLoopResult): void {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<AuthorLoopResult>(AUTHOR_LOOP_RESULT_EVENT, {
-      detail: result,
-    }));
+    window.dispatchEvent(
+      new CustomEvent<AuthorLoopResult>(AUTHOR_LOOP_RESULT_EVENT, {
+        detail: result,
+      }),
+    );
   }
 }

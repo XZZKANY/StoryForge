@@ -41,9 +41,11 @@ function sanitizeProviderSettings(value: unknown): ProviderSettings {
   if (!value || typeof value !== 'object') return fallback;
 
   const candidate = value as Partial<ProviderSettings>;
-  const baseUrl = typeof candidate.baseUrl === 'string' ? candidate.baseUrl.trim() : fallback.baseUrl;
+  const baseUrl =
+    typeof candidate.baseUrl === 'string' ? candidate.baseUrl.trim() : fallback.baseUrl;
   const model = typeof candidate.model === 'string' ? candidate.model.trim() : fallback.model;
-  const apiKeyRef = typeof candidate.apiKeyRef === 'string' ? candidate.apiKeyRef.trim() : fallback.apiKeyRef;
+  const apiKeyRef =
+    typeof candidate.apiKeyRef === 'string' ? candidate.apiKeyRef.trim() : fallback.apiKeyRef;
 
   return {
     kind: isProviderKind(candidate.kind) ? candidate.kind : fallback.kind,
@@ -64,7 +66,8 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
 
   return {
     editorFontSize,
-    autoSave: typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
+    autoSave:
+      typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
     provider: sanitizeProviderSettings(candidate.provider),
   };
 }

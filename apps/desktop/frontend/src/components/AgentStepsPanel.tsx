@@ -138,9 +138,7 @@ function AgentStepItem({
         <div className="flex-shrink-0">
           <StepStatusIcon status={step.status} />
         </div>
-        {!compact && (
-          <div className="flex-1 w-px bg-[#3A3A40] mt-1" />
-        )}
+        {!compact && <div className="flex-1 w-px bg-[#3A3A40] mt-1" />}
       </div>
 
       {/* 内容 */}
@@ -172,9 +170,7 @@ function AgentStepItem({
 
               {/* 简短详情（未展开时） */}
               {!expanded && hasDetail && (
-                <div className="text-xs text-[#A8A8B0] mt-1 line-clamp-1">
-                  {step.detail}
-                </div>
+                <div className="text-xs text-[#A8A8B0] mt-1 line-clamp-1">{step.detail}</div>
               )}
             </div>
 
@@ -186,7 +182,12 @@ function AgentStepItem({
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             )}
           </div>
@@ -223,7 +224,11 @@ function AgentRunIcon({ status }: { status: AgentRunStatus }) {
     return (
       <div className="w-6 h-6 rounded-full bg-[#4A4A2F] flex items-center justify-center">
         <svg className="w-4 h-4 text-[#FFA726]" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+          <path
+            fillRule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+            clipRule="evenodd"
+          />
         </svg>
       </div>
     );
@@ -233,7 +238,11 @@ function AgentRunIcon({ status }: { status: AgentRunStatus }) {
     return (
       <div className="w-6 h-6 rounded-full bg-[#2A4A2F] flex items-center justify-center">
         <svg className="w-4 h-4 text-[#66BB6A]" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          <path
+            fillRule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+            clipRule="evenodd"
+          />
         </svg>
       </div>
     );
@@ -243,7 +252,11 @@ function AgentRunIcon({ status }: { status: AgentRunStatus }) {
   return (
     <div className="w-6 h-6 rounded-full bg-[#4A2F2F] flex items-center justify-center">
       <svg className="w-4 h-4 text-[#EF5350]" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+        <path
+          fillRule="evenodd"
+          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+          clipRule="evenodd"
+        />
       </svg>
     </div>
   );
@@ -288,7 +301,12 @@ function StepStatusIcon({ status }: { status: AgentStepStatus }) {
   return (
     <div className="w-6 h-6 rounded-full bg-[#EF5350] flex items-center justify-center">
       <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={3}
+          d="M6 18L18 6M6 6l12 12"
+        />
       </svg>
     </div>
   );

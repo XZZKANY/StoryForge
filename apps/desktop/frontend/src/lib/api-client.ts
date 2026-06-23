@@ -226,10 +226,14 @@ export type AgentStreamEventMessage =
   | AgentPermissionRequiredMessage
   | AgentControlAckMessage;
 
-export type AgentSocketMessage = AgentResultMessage | AgentErrorMessage | AgentStreamEventMessage | {
-  type: string;
-  [key: string]: unknown;
-};
+export type AgentSocketMessage =
+  | AgentResultMessage
+  | AgentErrorMessage
+  | AgentStreamEventMessage
+  | {
+      type: string;
+      [key: string]: unknown;
+    };
 
 export type AgentUserMessageRequest = {
   sessionId: string;
@@ -294,15 +298,17 @@ export function toAssistantContextBundlePayload(
       excerpt: file.excerpt,
     })),
     summary: contextBundle.summary,
-    budget: contextBundle.budget ? {
-      file_count: contextBundle.budget.fileCount,
-      char_count: contextBundle.budget.charCount,
-      max_files: contextBundle.budget.maxFiles,
-      max_excerpt_chars: contextBundle.budget.maxExcerptChars,
-      truncated: contextBundle.budget.truncated,
-      pinned_file_count: contextBundle.budget.pinnedFileCount,
-      missing_pinned_files: contextBundle.budget.missingPinnedFiles,
-    } : undefined,
+    budget: contextBundle.budget
+      ? {
+          file_count: contextBundle.budget.fileCount,
+          char_count: contextBundle.budget.charCount,
+          max_files: contextBundle.budget.maxFiles,
+          max_excerpt_chars: contextBundle.budget.maxExcerptChars,
+          truncated: contextBundle.budget.truncated,
+          pinned_file_count: contextBundle.budget.pinnedFileCount,
+          missing_pinned_files: contextBundle.budget.missingPinnedFiles,
+        }
+      : undefined,
   };
 }
 
@@ -369,7 +375,9 @@ export async function requestRevision(request: ReviseRequest): Promise<ReviseRes
   };
 }
 
-export async function getAssistantSession(assistantSessionId: number): Promise<AssistantSessionRecord> {
+export async function getAssistantSession(
+  assistantSessionId: number,
+): Promise<AssistantSessionRecord> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(
     `${baseUrl.replace(/\/+$/, '')}/api/assistant/sessions/${assistantSessionId}`,
@@ -386,7 +394,7 @@ export async function getAssistantSession(assistantSessionId: number): Promise<A
     throw new Error(await readErrorDetail(response));
   }
 
-  return await response.json() as AssistantSessionRecord;
+  return (await response.json()) as AssistantSessionRecord;
 }
 
 export async function listAgentRoles(): Promise<AgentRoleRead[]> {
@@ -403,10 +411,12 @@ export async function listAgentRoles(): Promise<AgentRoleRead[]> {
     throw new Error(await readErrorDetail(response));
   }
 
-  return await response.json() as AgentRoleRead[];
+  return (await response.json()) as AgentRoleRead[];
 }
 
-export async function sendAgentUserMessage(request: AgentUserMessageRequest): Promise<AgentSocketMessage> {
+export async function sendAgentUserMessage(
+  request: AgentUserMessageRequest,
+): Promise<AgentSocketMessage> {
   const { baseUrl, apiKey } = await getApiConfig();
   const socketUrl = websocketUrlFromBaseUrl(
     baseUrl,
@@ -439,15 +449,17 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
         ...(request.agentRoleHints ? { agent_role_hints: request.agentRoleHints } : {}),
         ...(request.agentRoleMentions ? { agent_role_mentions: request.agentRoleMentions } : {}),
       };
-      socket.send(JSON.stringify({
-        type: 'user_message',
-        stream: request.stream ?? Boolean(request.onEvent),
-        run_id: request.runId,
-        user_message: request.userMessage,
-        assistant_session_id: request.assistantSessionId ?? undefined,
-        intent: request.intent,
-        args,
-      }));
+      socket.send(
+        JSON.stringify({
+          type: 'user_message',
+          stream: request.stream ?? Boolean(request.onEvent),
+          run_id: request.runId,
+          user_message: request.userMessage,
+          assistant_session_id: request.assistantSessionId ?? undefined,
+          intent: request.intent,
+          args,
+        }),
+      );
     };
 
     socket.onmessage = (event) => {
@@ -468,14 +480,17 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
 
     socket.onclose = (event) => {
       if (!settled) {
-        const detail = event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
+        const detail =
+          event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
         finish(() => reject(new Error(`Agent WebSocket 已关闭：${detail}`)));
       }
     };
   });
 }
 
-export async function sendAgentControlMessage(request: AgentControlMessageRequest): Promise<AgentControlAckMessage | AgentErrorMessage> {
+export async function sendAgentControlMessage(
+  request: AgentControlMessageRequest,
+): Promise<AgentControlAckMessage | AgentErrorMessage> {
   const { baseUrl, apiKey } = await getApiConfig();
   const socketUrl = websocketUrlFromBaseUrl(
     baseUrl,
@@ -503,11 +518,13 @@ export async function sendAgentControlMessage(request: AgentControlMessageReques
     };
 
     socket.onopen = () => {
-      socket.send(JSON.stringify({
-        type: request.type,
-        run_id: request.runId,
-        payload: request.payload ?? {},
-      }));
+      socket.send(
+        JSON.stringify({
+          type: request.type,
+          run_id: request.runId,
+          payload: request.payload ?? {},
+        }),
+      );
     };
 
     socket.onmessage = (event) => {
@@ -527,7 +544,8 @@ export async function sendAgentControlMessage(request: AgentControlMessageReques
 
     socket.onclose = (event) => {
       if (!settled) {
-        const detail = event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
+        const detail =
+          event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
         finish(() => reject(new Error(`Agent 控制 WebSocket 已关闭：${detail}`)));
       }
     };
@@ -542,11 +560,21 @@ export async function subscribeBookRunEvents(
   const { baseUrl } = await getApiConfig();
   const url = new URL(`/api/ide/runs/${bookRunId}/events`, baseUrl.replace(/\/+$/, ''));
   const source = new EventSource(url.toString());
-  const eventNames = ['progress', 'checkpoint', 'blocked', 'budget', 'provider_fallback', 'completed'];
+  const eventNames = [
+    'progress',
+    'checkpoint',
+    'blocked',
+    'budget',
+    'provider_fallback',
+    'completed',
+  ];
   const listeners = eventNames.map((eventName) => {
     const listener = (event: MessageEvent) => {
       try {
-        onEvent({ event: eventName, data: JSON.parse(String(event.data)) as Record<string, unknown> });
+        onEvent({
+          event: eventName,
+          data: JSON.parse(String(event.data)) as Record<string, unknown>,
+        });
       } catch {
         onEvent({ event: eventName, data: { raw: String(event.data) } });
       }
@@ -568,40 +596,61 @@ export function isAgentErrorMessage(message: AgentSocketMessage): message is Age
 }
 
 export function isAgentResultMessage(message: AgentSocketMessage): message is AgentResultMessage {
-  return message.type === 'agent_result'
-    && typeof (message as AgentResultMessage).assistant_session_id === 'number'
-    && Array.isArray((message as AgentResultMessage).plan)
-    && Array.isArray((message as AgentResultMessage).tool_trace);
-}
-
-export function isAgentRunStartedMessage(message: AgentSocketMessage): message is AgentRunStartedMessage {
-  return message.type === 'agent_run_started'
-    && typeof (message as AgentRunStartedMessage).run_id === 'string';
-}
-
-export function isAgentStepEventMessage(message: AgentSocketMessage): message is AgentStepEventMessage {
-  return message.type === 'agent_step'
-    && typeof (message as AgentStepEventMessage).step === 'string'
-    && typeof (message as AgentStepEventMessage).status === 'string';
-}
-
-export function isAgentToolTraceEventMessage(message: AgentSocketMessage): message is AgentToolTraceEventMessage {
-  return message.type === 'tool_trace'
-    && typeof (message as AgentToolTraceEventMessage).trace === 'object'
-    && (message as AgentToolTraceEventMessage).trace !== null;
-}
-
-export function isAgentPermissionRequiredMessage(message: AgentSocketMessage): message is AgentPermissionRequiredMessage {
-  return message.type === 'permission_required'
-    && typeof (message as AgentPermissionRequiredMessage).run_id === 'string';
-}
-
-export function isAgentControlAckMessage(message: AgentSocketMessage): message is AgentControlAckMessage {
   return (
-    message.type === 'permission_approved'
-    || message.type === 'permission_denied'
-    || message.type === 'pause_run'
-    || message.type === 'resume_run'
-    || message.type === 'stop_run'
-  ) && (message as AgentControlAckMessage).status === 'recorded';
+    message.type === 'agent_result' &&
+    typeof (message as AgentResultMessage).assistant_session_id === 'number' &&
+    Array.isArray((message as AgentResultMessage).plan) &&
+    Array.isArray((message as AgentResultMessage).tool_trace)
+  );
+}
+
+export function isAgentRunStartedMessage(
+  message: AgentSocketMessage,
+): message is AgentRunStartedMessage {
+  return (
+    message.type === 'agent_run_started' &&
+    typeof (message as AgentRunStartedMessage).run_id === 'string'
+  );
+}
+
+export function isAgentStepEventMessage(
+  message: AgentSocketMessage,
+): message is AgentStepEventMessage {
+  return (
+    message.type === 'agent_step' &&
+    typeof (message as AgentStepEventMessage).step === 'string' &&
+    typeof (message as AgentStepEventMessage).status === 'string'
+  );
+}
+
+export function isAgentToolTraceEventMessage(
+  message: AgentSocketMessage,
+): message is AgentToolTraceEventMessage {
+  return (
+    message.type === 'tool_trace' &&
+    typeof (message as AgentToolTraceEventMessage).trace === 'object' &&
+    (message as AgentToolTraceEventMessage).trace !== null
+  );
+}
+
+export function isAgentPermissionRequiredMessage(
+  message: AgentSocketMessage,
+): message is AgentPermissionRequiredMessage {
+  return (
+    message.type === 'permission_required' &&
+    typeof (message as AgentPermissionRequiredMessage).run_id === 'string'
+  );
+}
+
+export function isAgentControlAckMessage(
+  message: AgentSocketMessage,
+): message is AgentControlAckMessage {
+  return (
+    (message.type === 'permission_approved' ||
+      message.type === 'permission_denied' ||
+      message.type === 'pause_run' ||
+      message.type === 'resume_run' ||
+      message.type === 'stop_run') &&
+    (message as AgentControlAckMessage).status === 'recorded'
+  );
 }

@@ -41,7 +41,18 @@ export function createRemoteFileSuggestion(params: {
   issueIds?: string[];
   contextFiles?: string[];
 }): AssistantFileSuggestion {
-  const { id, filePath, before, after, summary, model, userIntent, assistantSessionId, issueIds = [], contextFiles = [] } = params;
+  const {
+    id,
+    filePath,
+    before,
+    after,
+    summary,
+    model,
+    userIntent,
+    assistantSessionId,
+    issueIds = [],
+    contextFiles = [],
+  } = params;
   return {
     id: id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     filePath,
@@ -55,7 +66,9 @@ export function createRemoteFileSuggestion(params: {
       issueIds.length ? `Issue Scope：${issueIds.join(', ')}` : '',
       contextFiles.length ? `上下文：${contextFiles.join(', ')}` : '',
       '接受会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。',
-    ].filter(Boolean).join('\n'),
+    ]
+      .filter(Boolean)
+      .join('\n'),
     createdAt: Date.now(),
     model,
     assistantSessionId: assistantSessionId ?? null,

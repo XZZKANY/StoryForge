@@ -109,7 +109,8 @@ async function loadFileTree(path: string) {
       .sort((a, b) => a.path.localeCompare(b.path));
 
     if (markdownFiles.length === 0) {
-      fileTree.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c6c6c;">此目录下没有 Markdown 文件</div>';
+      fileTree.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: #6c6c6c;">此目录下没有 Markdown 文件</div>';
       return;
     }
 

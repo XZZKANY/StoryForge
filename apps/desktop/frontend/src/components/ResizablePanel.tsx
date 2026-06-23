@@ -38,14 +38,10 @@ export function ResizablePanel({
     if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const delta = position === 'left'
-        ? e.clientX - startXRef.current
-        : startXRef.current - e.clientX;
+      const delta =
+        position === 'left' ? e.clientX - startXRef.current : startXRef.current - e.clientX;
 
-      const newWidth = Math.max(
-        minWidth,
-        Math.min(maxWidth, startWidthRef.current + delta)
-      );
+      const newWidth = Math.max(minWidth, Math.min(maxWidth, startWidthRef.current + delta));
 
       onWidthChange(newWidth);
     };
@@ -68,10 +64,7 @@ export function ResizablePanel({
   }, [isDragging, minWidth, maxWidth, onWidthChange, position]);
 
   return (
-    <div
-      style={{ width: `${defaultWidth}px` }}
-      className="relative flex-shrink-0"
-    >
+    <div style={{ width: `${defaultWidth}px` }} className="relative flex-shrink-0">
       {children}
 
       {/* 拖拽手柄：透明命中区加宽，hover/拖拽时显示 accent 高亮线 */}

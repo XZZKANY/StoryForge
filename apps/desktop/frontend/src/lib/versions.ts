@@ -118,7 +118,10 @@ export async function listVersions(
   return entries
     .filter((e) => !e.isDir && e.name.endsWith(SNAPSHOT_SUFFIX))
     .map((e) => {
-      const timestamp = Number.parseInt(e.name.slice(0, e.name.length - SNAPSHOT_SUFFIX.length), 10);
+      const timestamp = Number.parseInt(
+        e.name.slice(0, e.name.length - SNAPSHOT_SUFFIX.length),
+        10,
+      );
       const metaPath = e.path.slice(0, e.path.length - SNAPSHOT_SUFFIX.length) + META_SUFFIX;
       return {
         path: e.path,
@@ -132,7 +135,9 @@ export async function listVersions(
       const list = await promise;
       let metadata: VersionSnapshotMetadata = {};
       try {
-        metadata = JSON.parse(await TauriFileSystem.readFile(entry.metaPath)) as VersionSnapshotMetadata;
+        metadata = JSON.parse(
+          await TauriFileSystem.readFile(entry.metaPath),
+        ) as VersionSnapshotMetadata;
       } catch {
         // 旧快照没有 meta sidecar 时仍可展示时间与恢复按钮。
       }

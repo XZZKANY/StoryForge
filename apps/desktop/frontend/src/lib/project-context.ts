@@ -76,37 +76,37 @@ const KIND_LABELS: Record<SemanticKind, string> = {
 };
 
 const DIR_KIND: Record<string, SemanticKind> = {
-  '大纲': 'outline',
+  大纲: 'outline',
   outline: 'outline',
   outlines: 'outline',
-  '人物': 'character',
+  人物: 'character',
   character: 'character',
   characters: 'character',
-  '角色': 'character',
-  '设定': 'setting',
+  角色: 'character',
+  设定: 'setting',
   setting: 'setting',
   settings: 'setting',
   world: 'setting',
   worldbuilding: 'setting',
-  '世界观': 'setting',
-  '时间线': 'timeline',
+  世界观: 'setting',
+  时间线: 'timeline',
   timeline: 'timeline',
   timelines: 'timeline',
   chronology: 'timeline',
-  '伏笔': 'foreshadowing',
+  伏笔: 'foreshadowing',
   foreshadowing: 'foreshadowing',
   foreshadows: 'foreshadowing',
   seeds: 'foreshadowing',
-  '正文': 'draft',
+  正文: 'draft',
   draft: 'draft',
   drafts: 'draft',
   chapter: 'draft',
   chapters: 'draft',
   manuscript: 'draft',
-  '质量': 'quality',
+  质量: 'quality',
   quality: 'quality',
   reports: 'quality',
-  '导出': 'export',
+  导出: 'export',
   export: 'export',
   exports: 'export',
 };
@@ -158,7 +158,10 @@ function emptyCounts(): Record<SemanticKind, number> {
   };
 }
 
-export function buildProjectIndexFromEntries(projectPath: string, entries: FileEntry[]): ProjectIndex {
+export function buildProjectIndexFromEntries(
+  projectPath: string,
+  entries: FileEntry[],
+): ProjectIndex {
   const files = entries
     .filter((entry) => !entry.isDir)
     .filter((entry) => entry.extension === 'md' || entry.extension === 'markdown')
@@ -181,7 +184,14 @@ export function buildProjectIndexFromEntries(projectPath: string, entries: FileE
     counts[file.kind] += 1;
   }
 
-  const hasStoryStructure = counts.outline + counts.character + counts.setting + counts.timeline + counts.foreshadowing + counts.draft > 0;
+  const hasStoryStructure =
+    counts.outline +
+      counts.character +
+      counts.setting +
+      counts.timeline +
+      counts.foreshadowing +
+      counts.draft >
+    0;
   return { projectPath, files, summary: { hasStoryStructure, counts } };
 }
 
@@ -190,7 +200,9 @@ export async function buildProjectIndex(projectPath: string): Promise<ProjectInd
   return buildProjectIndexFromEntries(projectPath, entries);
 }
 
-export function buildStoryProjectInitializationPlan(projectPath: string): StoryProjectInitializationPlan {
+export function buildStoryProjectInitializationPlan(
+  projectPath: string,
+): StoryProjectInitializationPlan {
   const separator = projectPath.includes('\\') ? '\\' : '/';
   const root = normalizeRoot(projectPath);
   const readmePath = `${root}${separator}大纲${separator}项目说明.md`;
@@ -279,7 +291,9 @@ export function selectContextBundleFiles(params: {
   const pinned = eligible
     .map((file) => ({ file, pinIndex: pinnedIndexByPath(file, index.projectPath, pinnedFiles) }))
     .filter((item) => item.pinIndex >= 0)
-    .sort((a, b) => a.pinIndex - b.pinIndex || a.file.relativePath.localeCompare(b.file.relativePath))
+    .sort(
+      (a, b) => a.pinIndex - b.pinIndex || a.file.relativePath.localeCompare(b.file.relativePath),
+    )
     .map((item) => {
       pinnedMatches.add(normalizePathForMatch(item.file.path));
       pinnedMatches.add(normalizePathForMatch(item.file.relativePath));
@@ -317,7 +331,13 @@ export async function buildContextBundle(params: {
   maxExcerptChars?: number;
   pinnedFiles?: string[];
 }): Promise<ContextBundle> {
-  const { projectPath, currentFile, maxFiles = 8, maxExcerptChars = 1200, pinnedFiles = [] } = params;
+  const {
+    projectPath,
+    currentFile,
+    maxFiles = 8,
+    maxExcerptChars = 1200,
+    pinnedFiles = [],
+  } = params;
   const cacheKey = [
     normalizeRoot(projectPath),
     currentFile,
@@ -363,14 +383,21 @@ export async function buildContextBundle(params: {
       maxFiles,
       maxExcerptChars,
       truncated: selection.truncated || selection.files.length > files.length,
-      pinnedFileCount: files.filter((file) => pinnedIndexByPath({
-        path: file.path,
-        relativePath: file.relativePath,
-        name: file.title,
-        kind: file.kind,
-        modified: 0,
-        size: 0,
-      }, projectPath, pinnedFiles) >= 0).length,
+      pinnedFileCount: files.filter(
+        (file) =>
+          pinnedIndexByPath(
+            {
+              path: file.path,
+              relativePath: file.relativePath,
+              name: file.title,
+              kind: file.kind,
+              modified: 0,
+              size: 0,
+            },
+            projectPath,
+            pinnedFiles,
+          ) >= 0,
+      ).length,
       missingPinnedFiles: selection.missingPinnedFiles,
     },
   };

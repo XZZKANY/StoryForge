@@ -68,7 +68,11 @@ function projectChildPath(projectPath: string, segments: string[]): string {
   return [normalizeRoot(projectPath), ...segments].join(s);
 }
 
-export function buildRevisionLoopRecordPath(projectPath: string, filePath: string, stamp = new Date()): string {
+export function buildRevisionLoopRecordPath(
+  projectPath: string,
+  filePath: string,
+  stamp = new Date(),
+): string {
   const sourceName = stripMarkdownExtension(basename(filePath));
   return projectChildPath(projectPath, [
     '.storyforge',

@@ -39,7 +39,11 @@ const HistoryItem = memo(function HistoryItem({
       `}
       title={file}
     >
-      <svg className={`w-3 h-3 flex-shrink-0 ${isActive ? 'text-[#4A9EFF]' : 'opacity-50'}`} viewBox="0 0 16 16" fill="currentColor">
+      <svg
+        className={`w-3 h-3 flex-shrink-0 ${isActive ? 'text-[#4A9EFF]' : 'opacity-50'}`}
+        viewBox="0 0 16 16"
+        fill="currentColor"
+      >
         <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
       </svg>
       <span className="truncate flex-1">{name}</span>

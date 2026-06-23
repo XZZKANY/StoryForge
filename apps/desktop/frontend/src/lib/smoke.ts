@@ -66,18 +66,20 @@ if (typeof window !== 'undefined') {
       void smokeFileLoader?.(path);
     },
     proposeRevision(params) {
-      emitFileSuggestion(createRemoteFileSuggestion({
-        id: 'smoke-file-revision',
-        filePath: params.filePath,
-        before: params.before,
-        after: params.after,
-        summary: params.summary ?? 'Smoke proposed patch',
-        model: 'smoke',
-        userIntent: params.userIntent ?? 'smoke revision writeback',
-        assistantSessionId: params.assistantSessionId ?? null,
-        issueIds: params.issueIds ?? [],
-        contextFiles: params.contextFiles ?? [],
-      }));
+      emitFileSuggestion(
+        createRemoteFileSuggestion({
+          id: 'smoke-file-revision',
+          filePath: params.filePath,
+          before: params.before,
+          after: params.after,
+          summary: params.summary ?? 'Smoke proposed patch',
+          model: 'smoke',
+          userIntent: params.userIntent ?? 'smoke revision writeback',
+          assistantSessionId: params.assistantSessionId ?? null,
+          issueIds: params.issueIds ?? [],
+          contextFiles: params.contextFiles ?? [],
+        }),
+      );
     },
     acceptCurrentSuggestion() {
       emitAcceptCurrentFileSuggestion();
