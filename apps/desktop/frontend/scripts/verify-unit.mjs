@@ -81,10 +81,6 @@ function transpile(sourcePath) {
   return outputPath;
 }
 
-function moduleUrl(...segments) {
-  return pathToFileURL(join(...segments)).href;
-}
-
 function writeModule(file, source) {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, source, 'utf8');
