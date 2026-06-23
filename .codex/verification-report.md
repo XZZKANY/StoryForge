@@ -762,3 +762,75 @@
 - Tauri smoke 构建仍提示 Monaco chunk 体积较大，命令退出码为 0，不阻塞验收。
 
 记录时间戳：2026-06-23 00:33:51 +08:00。
+
+---
+
+# Agent Runtime 控制平面基座（2026-06-23）
+
+## 目标
+
+执行 `docs/architecture/agent-runtime-control-plane-plan.md` 的首批后端闭环：新增 AgentRun 统一控制平面事实源，让 IDE Agent WebSocket 用户请求创建或续接 AgentRun，并把计划、工具轨迹、子代理结果、权限请求和 artifact 写入同一套事件存储。
+
+## 交付物
+
+- 新增 `apps/api/app/domains/agent_runs/`：`AgentRun`、`AgentRunEvent`、`SubagentRun`、`AgentArtifact` 模型，service 和 REST/SSE 读取接口。
+- 新增 `apps/api/alembic/versions/20260623_0001_add_agent_runs.py`：创建四张控制平面表和索引。
+- `apps/api/app/domains/ide/router.py`：WebSocket `user_message` 改为调用 AgentRun runtime service；保留现有 `agent_result` 返回形状和 stream 兼容事件。
+- `apps/api/app/domains/ide/router.py`：新增 `approve_permission`、`deny_permission`、`pause_run`、`resume_run`、`stop_run` 控制消息事件化；携带 `run_id` 的 `command` 结果也写入 `tool_trace`。
+- `apps/api/app/domains/book_runs/router.py`：BookRun create/start/pause/resume/stop/retry/progress 均投影到 `bookrun-{id}` long-running AgentRun，checkpoint 写入 `bookrun_checkpoint` artifact。
+- `apps/api/app/domains/agent_runs/service.py`、`router.py`：新增 Skills v1 静态清单与 `/api/agent-runs/skills`，Root Agent 在 `agent_plan_created` 事件中记录 `selected_skill`、`skill_version` 和 skill plan template。
+- `apps/api/app/domains/runtime_tools/service.py`、`schemas.py`：Runtime Tool Registry 补充 `permission_level`、`requires_confirmation`、`read_only`、`event_store_required`、`origin` 和 MCP 元数据；MCP v1 仅注册 `mcp.project.search`、`mcp.context.inspect` 两个只读分析工具。
+- `packages/shared/src/contracts/storyforge.openapi.json`、`packages/shared/src/generated/api-types.ts`：刷新 AgentRun REST 契约和 TypeScript 类型。
+- `apps/api/tests/test_agent_runs.py`：覆盖 AgentRun 元数据、WebSocket 事件持久化、review artifact、proposed_patch 权限事件、SSE 回放、Skills v1 catalog、selected skill 和 404。
+- `apps/api/tests/test_runtime_tools.py`：覆盖内部工具权限元数据和 MCP v1 只读工具注册。
+- `.codex/context-summary-agent-runtime-control-plane.md`、`.codex/operations-log.md`：补充本轮上下文和操作留痕。
+
+## 本地验证结果
+
+- `cd apps/api && uv run ruff check app/domains/agent_runs app/domains/runtime_tools app/domains/ide/router.py app/domains/book_runs/router.py tests/test_agent_runs.py tests/test_runtime_tools.py alembic/versions/20260623_0001_add_agent_runs.py`：All checks passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_runtime_tools.py -q`：13 passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_book_runs.py tests/test_ide_agent_orchestrator.py -q`：53 passed，1 个既有 FastAPI/Starlette 422 deprecation warning。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_runtime_tools.py tests/test_api_surface.py tests/test_alembic_heads.py tests/test_ide_agent_orchestrator.py tests/test_ide_run_events.py tests/test_assistant_tool_calls.py tests/test_book_runs.py -q`：71 passed，2 个既有 warning。
+- `pnpm.cmd openapi`：通过，已生成 OpenAPI 契约。
+- `pnpm.cmd --filter @storyforge/shared generate:types`：通过，已生成 shared API types。
+- `pnpm.cmd --filter @storyforge/shared test`：通过。
+- `git diff --check`：通过。
+
+## 未联通 / 说明
+
+- 本轮实现的是控制平面基座、IDE Agent 单轮请求事件化、WebSocket 控制消息事件化、BookRun 路由级快照投影、Skills v1 选择记录和 MCP v1 只读注册骨架；workflow 后台内部逐章增量广播和真实 MCP 执行仍未实现。
+- 文件写回仍保持 proposed patch + Desktop PatchReviewPanel 确认路径，未新增任何绕过作者确认的写盘能力。
+- MCP v1 当前只暴露只读/分析工具定义，不执行外部 MCP；写入、联网或高成本 MCP 仍必须先进入 Permission Gate 并写 AgentRunEvent。
+- SSE 端点当前回放已有 AgentRunEvent 快照，不做后台长连接增量推送；后续可在 event store 写入时扩展增量广播。
+- `cd apps/api && uv run pytest -q` 全量运行结果：617 passed / 3 skipped / 3 failed / 8 warnings。3 个失败均为本轮控制平面之外的相邻事实源或探针断言：`tests/test_phase9_fact_sources.py` 仍要求 2026-06-21 文档措辞，而当前文档生成时间为 2026-06-23；`tests/test_real_llm_connectivity_probe_script.py::test_ten_chapter_wrapper_probe_only_passes_with_local_provider` 未在 wrapper 输出中看到 `chat_probe: ok`。本轮未扩大范围修改这些历史事实源/探针脚本。
+- `pnpm.cmd lint` 当前失败于桌面前端既有 React 规则与脚本 DOM 全局问题（如 `react-hooks/set-state-in-effect`、`react-hooks/refs`、`EventTarget` 未定义），不由本轮 API 控制平面改动引入；本轮仍以 API ruff、pytest 和 shared typecheck 覆盖增量。
+
+记录时间戳：2026-06-23 02:49:00 +08:00。
+
+---
+
+# Agent Role Catalog v1 与控制平面收口提交（2026-06-24）
+
+## 目标
+
+在 2026-06-23 Agent Runtime 控制平面基座之上落地 OpenCode 启发的 Agent Role Catalog v1，并把累计未提交的控制平面工作收口提交。本轮同时明确产品定位为 Cursor for Fiction（作者辅助 IDE），BookRun 维持后台 Agent tool 角色。
+
+## 交付物
+
+- 新增 `apps/api/app/domains/agent_runs/role_catalog.py`：静态 Agent Role 目录（root_agent 唯一 primary + 9 个 subagent），含 @剧情/@人物/@文风/@伏笔/@设定/@修复/@BookRun/@探索/@资料 别名解析、只读角色禁止绑定写入工具的不变式校验、Desktop role hint/mention 归一化。
+- `apps/api/app/domains/agent_runs/schemas.py`：新增 `AgentRoleRead`。
+- `apps/desktop/frontend/src/lib/agent-roles.ts` 与 `tests/agent-roles.test.ts`：前端 role 目录消费与 @mention 解析。
+- `docs/architecture/agent-runtime-*.md` 系列设计计划文档（控制平面、v1 gap、runtime facade、post-facade master plan、next-session 实施指南、desktop control plane、role consumption）。
+
+## 本地验证结果
+
+- `cd apps/api && uv run ruff check`（agent_runs/runtime_tools/ide.router/book_runs.router/main/models/相关测试/迁移）：自动修复 `book_runs/router.py` 1 处 import 排序后 All checks passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_runtime_tools.py -q`：29 passed（含 Agent Role Catalog v1 角色目录、别名解析、只读角色写入工具禁用断言）。
+- `git check-ignore apps/api/app/domains/agent_runs/__pycache__/`：确认 `__pycache__` 已被忽略，收口提交不含编译缓存。
+
+## 未联通 / 说明
+
+- `pnpm.cmd lint` 当前 28 errors + 4 warnings（exit 1），全部为桌面前端既有组件违反新版 react-hooks 规则（refs / set-state-in-effect / immutability / exhaustive-deps），跨 App/ChatWindow/CommandPalette/Composer/DynamicIDELayout/Editor/FileTree/ResourceExplorer 8 个文件。经逐项核对，本批改动未引入新 lint error：ChatWindow 唯一 error 位于既有 line 618 ref 赋值，本批新增的是事件处理器内 setState。该 react-hooks 债务为独立前端清理任务，本轮按“禁止顺手重构无关代码”未一并处理。
+- 文件写回、MCP 写入边界与 6-23 记录一致，未新增绕过作者确认或写入型 MCP 能力。
+
+记录时间戳：2026-06-24（控制平面收口提交）。

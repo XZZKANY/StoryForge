@@ -4,6 +4,166 @@
  */
 
 export interface paths {
+    "/api/agent-runs/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 Agent role catalog v1
+         * @description 列出 Primary Agent 与 Subagents 的只读角色目录。
+         */
+        get: operations["list_agent_roles_endpoint_api_agent_runs_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/roles/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 解析 Agent role alias
+         * @description 按 @剧情 这类用户可输入别名解析 role；未知 alias 返回 null。
+         */
+        get: operations["resolve_agent_role_alias_endpoint_api_agent_runs_roles_resolve_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 Agent skills v1 清单
+         * @description 列出 Root Agent 可选择的流程 skills；端点只读，不执行工具。
+         */
+        get: operations["list_agent_skills_endpoint_api_agent_runs_skills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 AgentRun
+         * @description 按 WebSocket 暴露的 run_id 读取一次 AgentRun。
+         */
+        get: operations["get_agent_run_endpoint_api_agent_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 AgentRun artifacts
+         * @description 读取 AgentRun 产物，包括审稿报告、待确认补丁和 checkpoint。
+         */
+        get: operations["list_agent_artifacts_endpoint_api_agent_runs__run_id__artifacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/checkpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 AgentRun checkpoints
+         * @description 读取 AgentRun 派生的 BookRun checkpoint artifacts。
+         */
+        get: operations["list_agent_checkpoints_endpoint_api_agent_runs__run_id__checkpoints_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 AgentRun 事件
+         * @description 按写入顺序读取 AgentRunEvent，用于断线后恢复。
+         */
+        get: operations["list_agent_run_events_endpoint_api_agent_runs__run_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 AgentRun SSE 事件流
+         * @description 从 AgentRunEvent Store 生成 SSE 快照，端点本身不做任何决策。
+         */
+        get: operations["stream_agent_run_events_endpoint_api_agent_runs__run_id__events_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/workspaces/{workspace_id}/dashboard": {
         parameters: {
             query?: never;
@@ -146,6 +306,28 @@ export interface paths {
         get: operations["read_asset_history_endpoint_api_assets__asset_id__history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 对当前文件按指令做真实 LLM 修订
+         * @description 桌面 AI 交互区调用：输入文件全文 + 指令，返回真实 LLM 修订后全文。
+         *
+         *     LLM 未配置返回 422，调用失败返回 502，错误原样透出，不伪造兜底。
+         */
+        post: operations["revise_file_content_endpoint_api_assistant_revise_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -307,7 +489,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 列出所有 Blueprints
+         * @description 列出所有 Blueprints，按创建时间倒序。
+         */
+        get: operations["list_book_blueprints_endpoint_api_blueprints_get"];
         put?: never;
         /**
          * 创建全书 Blueprint
@@ -554,6 +740,28 @@ export interface paths {
          * @description 从最近 checkpoint 的下一章重试整书运行。
          */
         post: operations["retry_book_run_endpoint_api_book_runs__book_run_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/book-runs/{book_run_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 发起 BookRun 后台生成
+         * @description 对已创建的 running BookRun 发起后台生成（封顶 6 章，复用 Phase 9B 串行编排）。
+         *
+         *     会消耗真实 LLM 预算；缺少 STORYFORGE_LLM_* 凭据时立即返回 422。
+         */
+        post: operations["start_book_run_endpoint_api_book_runs__book_run_id__start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1996,6 +2204,151 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AgentArtifactRead */
+        AgentArtifactRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Requires Confirmation */
+            requires_confirmation: boolean;
+            /** Run Id */
+            run_id: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * AgentRoleRead
+         * @description Agent Runtime 的只读角色目录，用于 Root Agent 调度和权限边界判断。
+         */
+        AgentRoleRead: {
+            /** Aliases */
+            aliases: string[];
+            /** Allowed Tools */
+            allowed_tools: string[];
+            /** Can Be Mentioned */
+            can_be_mentioned: boolean;
+            /** Default Permission Profile */
+            default_permission_profile: string;
+            /** Description */
+            description: string;
+            /** Display Name */
+            display_name: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Output Artifacts */
+            output_artifacts: string[];
+            /** Read Only */
+            read_only: boolean;
+        };
+        /** AgentRunEventRead */
+        AgentRunEventRead: {
+            /** Actor */
+            actor: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Type */
+            event_type: string;
+            /** Id */
+            id: number;
+            /** Message */
+            message: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Run Id */
+            run_id: number;
+            /** Sequence */
+            sequence: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AgentRunRead */
+        AgentRunRead: {
+            /** Assistant Session Id */
+            assistant_session_id: number | null;
+            /** Book Run Id */
+            book_run_id: number | null;
+            /** Budget */
+            budget: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Current Step */
+            current_step: string | null;
+            /** Goal */
+            goal: string;
+            /** Id */
+            id: number;
+            /** Permission Profile */
+            permission_profile: string;
+            /** Public Id */
+            public_id: string;
+            /** Root Plan */
+            root_plan: {
+                [key: string]: unknown;
+            }[];
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * AgentSkillRead
+         * @description Root Agent 可选择的流程 skill；skill 只描述计划知识，不直接执行工具。
+         */
+        AgentSkillRead: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+            /** Output Artifacts */
+            output_artifacts: string[];
+            /** Permission Profile */
+            permission_profile: string;
+            /** Plan Template */
+            plan_template: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Sequence */
+            tool_sequence: string[];
+            /** Trigger Intents */
+            trigger_intents: string[];
+        };
         /** AnalyticsFailureCategoryRead */
         AnalyticsFailureCategoryRead: {
             /** Count */
@@ -2124,7 +2477,11 @@ export interface components {
         };
         /**
          * ArtifactDownloadRead
-         * @description 制品下载摘要在没有对象存储签名时返回可审查内容。
+         * @description 制品下载摘要；download_mode 决定返回内联预览或 presigned URL。
+         *
+         *     download_mode 取值：
+         *     - "payload_preview": 无对象存储或 memory:// URI，返回 content_preview 与 payload_summary。
+         *     - "presigned_url": S3 URI，返回 presigned_url 与 expires_at（5 分钟有效期）。
          */
         ArtifactDownloadRead: {
             /** Artifact Type */
@@ -2133,6 +2490,8 @@ export interface components {
             content_preview: string;
             /** Download Mode */
             download_mode: string;
+            /** Expires At */
+            expires_at?: string | null;
             /** Id */
             id: number;
             /** Mime Type */
@@ -2143,6 +2502,8 @@ export interface components {
             payload_summary: {
                 [key: string]: unknown;
             };
+            /** Presigned Url */
+            presigned_url?: string | null;
             /** Storage Uri */
             storage_uri: string;
         };
@@ -2340,6 +2701,32 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /** AssistantContextBundle */
+        AssistantContextBundle: {
+            /** Current File */
+            current_file: string;
+            /** Files */
+            files?: components["schemas"]["AssistantContextBundleFile"][];
+            /** Project Root */
+            project_root: string;
+            /** Summary */
+            summary?: {
+                [key: string]: unknown;
+            };
+        };
+        /** AssistantContextBundleFile */
+        AssistantContextBundleFile: {
+            /** Excerpt */
+            excerpt: string;
+            /** Kind */
+            kind: string;
+            /** Path */
+            path: string;
+            /** Relative Path */
+            relative_path: string;
+            /** Title */
+            title: string;
+        };
         /** AssistantMessageCreate */
         AssistantMessageCreate: {
             /** Content */
@@ -2367,6 +2754,37 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** AssistantReviseRequest */
+        AssistantReviseRequest: {
+            /** Assistant Session Id */
+            assistant_session_id?: number | null;
+            /** Content */
+            content: string;
+            context_bundle?: components["schemas"]["AssistantContextBundle"] | null;
+            /** File Path */
+            file_path: string;
+            /** Instruction */
+            instruction: string;
+            /** Project Name */
+            project_name?: string | null;
+        };
+        /** AssistantReviseResponse */
+        AssistantReviseResponse: {
+            /** After */
+            after: string;
+            /** Assistant Session Id */
+            assistant_session_id: number;
+            /** Before */
+            before: string;
+            /** Completion Tokens */
+            completion_tokens: number | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model */
+            model: string;
+            /** Summary */
+            summary: string;
         };
         /** AssistantSessionCreate */
         AssistantSessionCreate: {
@@ -2734,6 +3152,16 @@ export interface components {
             /** Workspace Id */
             workspace_id?: number | null;
         };
+        /** BookRunStartRequest */
+        BookRunStartRequest: {
+            /**
+             * Max Chapters
+             * @default 6
+             */
+            max_chapters: number;
+            /** Token Budget */
+            token_budget?: number | null;
+        };
         /** BookRunVolumePlanItem */
         BookRunVolumePlanItem: {
             chapter_range: components["schemas"]["BookRunChapterRange"];
@@ -2768,6 +3196,10 @@ export interface components {
          * @description BookRun workflow worker 的稳定调度 payload。
          */
         BookRunWorkflowDispatch: {
+            /** Beat Sheet Gate */
+            beat_sheet_gate?: {
+                [key: string]: unknown;
+            };
             /** Blueprint Id */
             blueprint_id: number;
             /** Book Id */
@@ -2778,10 +3210,22 @@ export interface components {
             chapter_budget?: number | null;
             /** Chapters */
             chapters?: components["schemas"]["BookRunWorkflowChapter"][];
+            /** Entity Budget */
+            entity_budget?: {
+                [key: string]: unknown;
+            };
             /** Existing Checkpoint */
             existing_checkpoint?: {
                 [key: string]: unknown;
             }[];
+            /** Narrative Plan */
+            narrative_plan?: {
+                [key: string]: unknown;
+            };
+            /** Phase Policy */
+            phase_policy?: {
+                [key: string]: unknown;
+            };
             /** Provider Fallback Pause Threshold */
             provider_fallback_pause_threshold?: number | null;
             /** Start Chapter Index */
@@ -4620,21 +5064,35 @@ export interface components {
         RuntimeToolRead: {
             /** Domain */
             domain: string;
+            /** Event Store Required */
+            event_store_required: boolean;
             /** Evidence Fields */
             evidence_fields: string[];
             /** Input Schema */
             input_schema: {
                 [key: string]: unknown;
             };
+            /** Mcp Server */
+            mcp_server?: string | null;
+            /** Mcp Tool Name */
+            mcp_tool_name?: string | null;
             /** Name */
             name: string;
+            /** Origin */
+            origin: string;
             /** Output Schema */
             output_schema: {
                 [key: string]: unknown;
             };
+            /** Permission Level */
+            permission_level: string;
+            /** Read Only */
+            read_only: boolean;
             references: components["schemas"]["RuntimeToolReferencesRead"];
             /** Required Capabilities */
             required_capabilities: string[];
+            /** Requires Confirmation */
+            requires_confirmation: boolean;
         };
         /**
          * RuntimeToolReferencesRead
@@ -5553,6 +6011,232 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_agent_roles_endpoint_api_agent_runs_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRoleRead"][];
+                };
+            };
+        };
+    };
+    resolve_agent_role_alias_endpoint_api_agent_runs_roles_resolve_get: {
+        parameters: {
+            query: {
+                alias: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRoleRead"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_skills_endpoint_api_agent_runs_skills_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSkillRead"][];
+                };
+            };
+        };
+    };
+    get_agent_run_endpoint_api_agent_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_artifacts_endpoint_api_agent_runs__run_id__artifacts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentArtifactRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_checkpoints_endpoint_api_agent_runs__run_id__checkpoints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentArtifactRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_run_events_endpoint_api_agent_runs__run_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunEventRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_agent_run_events_endpoint_api_agent_runs__run_id__events_stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get: {
         parameters: {
             query?: never;
@@ -5837,6 +6521,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssetRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revise_file_content_endpoint_api_assistant_revise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantReviseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantReviseResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6141,6 +6858,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_book_blueprints_endpoint_api_blueprints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookBlueprintRead"][];
                 };
             };
         };
@@ -6548,6 +7285,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_book_run_endpoint_api_book_runs__book_run_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookRunStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

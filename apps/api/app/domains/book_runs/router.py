@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 
 from app.db.deps import SessionDependency
+from app.domains.agent_runs.service import record_book_run_snapshot
 from app.domains.artifacts.schemas import ArtifactRead
 from app.domains.artifacts.service import ArtifactForbiddenError
 from app.domains.book_runs.schemas import (
@@ -47,7 +48,9 @@ def create_book_run_endpoint(payload: BookRunCreate, session: SessionDependency)
     """基于 locked Blueprint 启动整本书运行记录。"""
 
     try:
-        return create_book_run(session, payload)
+        book_run = create_book_run(session, payload)
+        record_book_run_snapshot(session, book_run=book_run, source="bookrun.create")
+        return book_run
     except BookRunBlockedError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except BookRunError as exc:
@@ -96,6 +99,7 @@ def start_book_run_endpoint(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     book_run = mark_book_run_generation_dispatched(session, book_run_id)
+    record_book_run_snapshot(session, book_run=book_run, source="bookrun.start")
     background_tasks.add_task(
         run_book_run_generation_blocking,
         book_run_id,
@@ -111,7 +115,9 @@ def resume_book_run_endpoint(book_run_id: int, session: SessionDependency) -> Bo
     """从最近 checkpoint 的下一章恢复整书运行。"""
 
     try:
-        return resume_book_run(session, book_run_id)
+        book_run = resume_book_run(session, book_run_id)
+        record_book_run_snapshot(session, book_run=book_run, source="bookrun.resume")
+        return book_run
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunBlockedError as exc:
@@ -127,7 +133,9 @@ def pause_book_run_endpoint(
     """暂停整书运行，并记录暂停原因供 Assistant 工具树展示。"""
 
     try:
-        return pause_book_run(session, book_run_id, payload.reason)
+        book_run = pause_book_run(session, book_run_id, payload.reason)
+        record_book_run_snapshot(session, book_run=book_run, source="bookrun.pause")
+        return book_run
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunBlockedError as exc:
@@ -143,7 +151,9 @@ def stop_book_run_endpoint(
     """停止整书运行，并记录用户停止原因。"""
 
     try:
-        return stop_book_run(session, book_run_id, payload.reason)
+        book_run = stop_book_run(session, book_run_id, payload.reason)
+        record_book_run_snapshot(session, book_run=book_run, source="bookrun.stop")
+        return book_run
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunBlockedError as exc:
@@ -155,7 +165,9 @@ def retry_book_run_endpoint(book_run_id: int, session: SessionDependency) -> Boo
     """从最近 checkpoint 的下一章重试整书运行。"""
 
     try:
-        return retry_book_run_from_checkpoint(session, book_run_id)
+        book_run = retry_book_run_from_checkpoint(session, book_run_id)
+        record_book_run_snapshot(session, book_run=book_run, source="bookrun.retry_from_checkpoint")
+        return book_run
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunBlockedError as exc:
@@ -189,7 +201,9 @@ def update_book_run_progress_endpoint(
     """接收 workflow BookLoop 回填的状态、当前章节和进度证据。"""
 
     try:
-        return apply_book_run_progress(session, book_run_id, payload)
+        book_run = apply_book_run_progress(session, book_run_id, payload)
+        record_book_run_snapshot(session, book_run=book_run, source="bookrun.progress")
+        return book_run
     except BookRunNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BookRunError as exc:

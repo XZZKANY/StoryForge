@@ -10,6 +10,77 @@ from typing import Any
 
 from app.domains.runtime_tools.schemas import RuntimeToolRead, RuntimeToolReferencesRead
 
+_MCP_READONLY_TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "mcp.project.search",
+        "domain": "mcp",
+        "mcp_server": "project-context",
+        "mcp_tool_name": "search",
+        "input_schema": {
+            "title": "McpProjectSearchInput",
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "minLength": 1},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+            },
+            "required": ["query"],
+        },
+        "output_schema": {
+            "title": "McpProjectSearchResultList",
+            "type": "array",
+            "items": {"type": "object", "required": ["source_ref", "excerpt"]},
+        },
+        "required_capabilities": ["mcp", "read"],
+        "evidence_fields": ["source_ref", "excerpt", "rank"],
+        "references": RuntimeToolReferencesRead(
+            page_refs=[],
+            api_paths=[],
+            workflow_nodes=["agent_runtime.mcp_readonly"],
+        ),
+    },
+    {
+        "name": "mcp.context.inspect",
+        "domain": "mcp",
+        "mcp_server": "project-context",
+        "mcp_tool_name": "inspect",
+        "input_schema": {
+            "title": "McpContextInspectInput",
+            "type": "object",
+            "properties": {
+                "source_ref": {"type": "string", "minLength": 1},
+                "max_chars": {"type": "integer", "minimum": 1, "maximum": 8000},
+            },
+            "required": ["source_ref"],
+        },
+        "output_schema": {
+            "title": "McpContextInspectResult",
+            "type": "object",
+            "properties": {
+                "source_ref": {"type": "string"},
+                "content_excerpt": {"type": "string"},
+                "metadata": {"type": "object"},
+            },
+            "required": ["source_ref", "content_excerpt"],
+        },
+        "required_capabilities": ["mcp", "read"],
+        "evidence_fields": ["source_ref", "content_excerpt", "metadata"],
+        "references": RuntimeToolReferencesRead(
+            page_refs=[],
+            api_paths=[],
+            workflow_nodes=["agent_runtime.mcp_readonly"],
+        ),
+    },
+)
+
+_INTERNAL_WRITE_OR_HIGH_COST_TOOLS = frozenset(
+    {
+        "repair.create_patch",
+        "artifacts.create",
+        "evaluations.create_run",
+        "provider_gateway.resolve",
+    }
+)
+
 
 def _registry_file_path() -> Path:
     """定位相邻 workflow registry 文件，避免导入 workflow 顶层运行时依赖。"""
@@ -60,8 +131,13 @@ def list_runtime_tools() -> list[RuntimeToolRead]:
             RuntimeToolRead(
                 name=tool.name,
                 domain=tool.domain,
+                origin="internal",
                 input_schema=_to_jsonable(tool.input_schema),
                 output_schema=_to_jsonable(tool.output_schema),
+                permission_level=_internal_permission_level(tool.name),
+                requires_confirmation=_requires_confirmation(tool.name),
+                read_only=not _requires_confirmation(tool.name),
+                event_store_required=True,
                 required_capabilities=list(tool.required_capabilities),
                 evidence_fields=list(tool.evidence_fields),
                 references=RuntimeToolReferencesRead(
@@ -71,4 +147,33 @@ def list_runtime_tools() -> list[RuntimeToolRead]:
                 ),
             )
         )
+    for tool in _MCP_READONLY_TOOL_DEFINITIONS:
+        runtime_tools.append(
+            RuntimeToolRead(
+                name=str(tool["name"]),
+                domain=str(tool["domain"]),
+                origin="mcp",
+                input_schema=dict(tool["input_schema"]),
+                output_schema=dict(tool["output_schema"]),
+                permission_level="read",
+                requires_confirmation=False,
+                read_only=True,
+                event_store_required=True,
+                mcp_server=str(tool["mcp_server"]),
+                mcp_tool_name=str(tool["mcp_tool_name"]),
+                required_capabilities=list(tool["required_capabilities"]),
+                evidence_fields=list(tool["evidence_fields"]),
+                references=tool["references"],
+            )
+        )
     return runtime_tools
+
+
+def _requires_confirmation(tool_name: str) -> bool:
+    return tool_name in _INTERNAL_WRITE_OR_HIGH_COST_TOOLS
+
+
+def _internal_permission_level(tool_name: str) -> str:
+    if tool_name in _INTERNAL_WRITE_OR_HIGH_COST_TOOLS:
+        return "risk_confirm"
+    return "read"

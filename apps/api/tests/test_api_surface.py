@@ -8,6 +8,7 @@ def test_main_registers_domain_router_surface() -> None:
 
     registered_paths = {route.path for route in app.routes}
 
+    assert any(path.startswith("/api/agent-runs") for path in registered_paths)
     assert any(path.startswith("/api/studio") for path in registered_paths)
     assert any(path.startswith("/api/retrieval") for path in registered_paths)
     assert any(path.startswith("/api/model-runs") for path in registered_paths)

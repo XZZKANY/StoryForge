@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -9,9 +8,17 @@ from fastapi.responses import StreamingResponse
 from starlette.websockets import WebSocketState
 
 from app.db.deps import SessionDependency
+from app.domains.agent_runs.service import (
+    AgentRuntimeError,
+    AgentRuntimeUserMessageError,
+    record_agent_command_event,
+    record_agent_control_event,
+    run_agent_user_message,
+    websocket_control_event,
+    websocket_started_event,
+)
 from app.domains.artifacts.service import ArtifactForbiddenError, ArtifactNotFoundError
 from app.domains.book_runs.service import BookRunNotFoundError, get_book_run
-from app.domains.ide.orchestrator import AgentOrchestrationError, orchestrate_agent_message
 from app.domains.ide.schemas import (
     IdeArtifactPreview,
     IdeCommandRequest,
@@ -42,7 +49,12 @@ router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 _API_KEY_HEADER = "x-storyforge-api-key"
 
 
-def _agent_stream_events_from_result(result: dict[str, Any], *, run_id: str) -> list[dict[str, Any]]:
+def _agent_stream_events_from_result(
+    result: dict[str, Any],
+    *,
+    run_id: str,
+    permission_profile: str = "risk_confirm",
+) -> list[dict[str, Any]]:
     """Project the final orchestrator payload into lightweight stream events."""
 
     session_id = str(result.get("session_id") or "")
@@ -74,6 +86,20 @@ def _agent_stream_events_from_result(result: dict[str, Any], *, run_id: str) -> 
                 "assistant_session_id": assistant_session_id,
                 "index": index,
                 "trace": trace,
+            }
+        )
+    agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
+    proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
+    if agent_result.get("requires_user_confirmation") or agent_result.get("confirmation_required") or proposed_patch:
+        events.append(
+            {
+                "type": "permission_required",
+                "session_id": session_id,
+                "run_id": run_id,
+                "assistant_session_id": assistant_session_id,
+                "permission_profile": permission_profile,
+                "reason": "requires_user_confirmation",
+                "proposed_patch": proposed_patch,
             }
         )
     return events
@@ -231,29 +257,62 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
             message_type = message.get("type")
             if message_type == "user_message":
                 stream_events = message.get("stream") is True
-                run_id = str(message.get("run_id") or uuid.uuid4().hex)
-                if stream_events:
-                    await websocket.send_json(
-                        {
-                            "type": "agent_run_started",
-                            "session_id": session_id,
-                            "run_id": run_id,
-                            "user_message": message.get("user_message") or message.get("message") or message.get("content"),
-                        }
-                    )
                 try:
-                    result = orchestrate_agent_message(session, agent_session_id=session_id, message=message)
-                except AgentOrchestrationError as exc:
-                    error_payload = {"type": "error", "session_id": session_id, "detail": str(exc)}
+                    runtime_result = run_agent_user_message(session, agent_session_id=session_id, message=message)
+                    run = runtime_result.run
+                    result = runtime_result.result
                     if stream_events:
-                        error_payload["run_id"] = run_id
+                        await websocket.send_json(websocket_started_event(run, runtime_result.started_event))
+                except AgentRuntimeError as exc:
+                    error_payload = {"type": "error", "session_id": session_id, "detail": str(exc)}
+                    if stream_events and isinstance(exc, AgentRuntimeUserMessageError):
+                        error_payload["run_id"] = exc.run.public_id
+                        await websocket.send_json(websocket_started_event(exc.run, exc.started_event))
                     await websocket.send_json(error_payload)
                     continue
                 if stream_events:
-                    result["run_id"] = run_id
-                    for event in _agent_stream_events_from_result(result, run_id=run_id):
+                    for event in _agent_stream_events_from_result(
+                        result,
+                        run_id=run.public_id,
+                        permission_profile=run.permission_profile,
+                    ):
                         await websocket.send_json(event)
                 await websocket.send_json(result)
+                continue
+
+            if message_type in {
+                "approve_permission",
+                "deny_permission",
+                "pause_run",
+                "resume_run",
+                "stop_run",
+                "retry_from_checkpoint",
+            }:
+                run_id = str(message.get("run_id") or "")
+                if not run_id:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "session_id": session_id,
+                            "detail": f"{message_type} 消息缺少 run_id。",
+                        }
+                    )
+                    continue
+                payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
+                try:
+                    event = record_agent_control_event(
+                        session,
+                        public_id=run_id,
+                        session_id=session_id,
+                        control_type=message_type,
+                        payload=payload,
+                    )
+                except Exception as exc:  # noqa: BLE001 - WebSocket 必须把领域错误转为消息
+                    await websocket.send_json(
+                        {"type": "error", "session_id": session_id, "run_id": run_id, "detail": str(exc)}
+                    )
+                    continue
+                await websocket.send_json(websocket_control_event(event))
                 continue
 
             if message_type != "command":
@@ -272,9 +331,23 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
             except (IdeCommandNotFoundError, IdeCommandExecutionError) as exc:
                 await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
                 continue
-            await websocket.send_json(
-                {"type": "command_result", "session_id": session_id, "result": result.model_dump()}
-            )
+            result_payload = result.model_dump()
+            run_id = str(message.get("run_id") or "")
+            if run_id:
+                try:
+                    record_agent_command_event(
+                        session,
+                        public_id=run_id,
+                        session_id=session_id,
+                        command_id=command_id,
+                        result_payload=result_payload,
+                    )
+                except Exception as exc:  # noqa: BLE001 - 命令已执行，事件失败需返回给前端
+                    await websocket.send_json(
+                        {"type": "error", "session_id": session_id, "run_id": run_id, "detail": str(exc)}
+                    )
+                    continue
+            await websocket.send_json({"type": "command_result", "session_id": session_id, "result": result_payload})
     except WebSocketDisconnect:
         return
     finally:

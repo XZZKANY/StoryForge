@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.db.base import Base
+from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
 from app.domains.artifacts.models import Artifact
 from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
@@ -57,6 +58,10 @@ __all__ = [
     "PromptPack",
     "ModelRun",
     "Artifact",
+    "AgentArtifact",
+    "AgentRun",
+    "AgentRunEvent",
+    "SubagentRun",
     "AssistantSession",
     "AssistantMessage",
     "AssistantToolCall",

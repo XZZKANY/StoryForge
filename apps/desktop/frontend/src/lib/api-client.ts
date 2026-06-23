@@ -4,6 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import type { AgentRoleRead } from './agent-roles';
 import { isTauriRuntime } from './tauri-env';
 
 type ApiConfig = {
@@ -169,6 +170,8 @@ export type AgentRunStartedMessage = {
   session_id: string;
   run_id: string;
   user_message?: string;
+  agent_role_hints?: string[];
+  agent_role_mentions?: string[];
 };
 
 export type AgentStepEventMessage = {
@@ -191,10 +194,37 @@ export type AgentToolTraceEventMessage = {
   trace: AgentToolTrace;
 };
 
+export type AgentPermissionRequiredMessage = {
+  type: 'permission_required';
+  session_id: string;
+  run_id: string;
+  assistant_session_id?: number;
+  permission_profile?: string;
+  reason?: string;
+  proposed_patch?: AgentProposedPatch | null;
+};
+
+export type AgentControlMessageType =
+  | 'approve_permission'
+  | 'deny_permission'
+  | 'pause_run'
+  | 'resume_run'
+  | 'stop_run';
+
+export type AgentControlAckMessage = {
+  type: 'permission_approved' | 'permission_denied' | 'pause_run' | 'resume_run' | 'stop_run';
+  session_id: string;
+  run_id: string;
+  event_id?: number;
+  status: 'recorded';
+};
+
 export type AgentStreamEventMessage =
   | AgentRunStartedMessage
   | AgentStepEventMessage
-  | AgentToolTraceEventMessage;
+  | AgentToolTraceEventMessage
+  | AgentPermissionRequiredMessage
+  | AgentControlAckMessage;
 
 export type AgentSocketMessage = AgentResultMessage | AgentErrorMessage | AgentStreamEventMessage | {
   type: string;
@@ -207,10 +237,20 @@ export type AgentUserMessageRequest = {
   assistantSessionId?: number | null;
   intent?: string;
   args?: Record<string, unknown>;
+  agentRoleHints?: string[];
+  agentRoleMentions?: string[];
   timeoutMs?: number;
   stream?: boolean;
   runId?: string;
   onEvent?: (event: AgentSocketMessage) => void;
+};
+
+export type AgentControlMessageRequest = {
+  sessionId: string;
+  runId: string;
+  type: AgentControlMessageType;
+  payload?: Record<string, unknown>;
+  timeoutMs?: number;
 };
 
 export type BookRunEvent = {
@@ -349,6 +389,23 @@ export async function getAssistantSession(assistantSessionId: number): Promise<A
   return await response.json() as AssistantSessionRecord;
 }
 
+export async function listAgentRoles(): Promise<AgentRoleRead[]> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/agent-runs/roles`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      'X-StoryForge-API-Key': apiKey,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+
+  return await response.json() as AgentRoleRead[];
+}
+
 export async function sendAgentUserMessage(request: AgentUserMessageRequest): Promise<AgentSocketMessage> {
   const { baseUrl, apiKey } = await getApiConfig();
   const socketUrl = websocketUrlFromBaseUrl(
@@ -377,6 +434,11 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
     };
 
     socket.onopen = () => {
+      const args = {
+        ...(request.args ?? {}),
+        ...(request.agentRoleHints ? { agent_role_hints: request.agentRoleHints } : {}),
+        ...(request.agentRoleMentions ? { agent_role_mentions: request.agentRoleMentions } : {}),
+      };
       socket.send(JSON.stringify({
         type: 'user_message',
         stream: request.stream ?? Boolean(request.onEvent),
@@ -384,7 +446,7 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
         user_message: request.userMessage,
         assistant_session_id: request.assistantSessionId ?? undefined,
         intent: request.intent,
-        args: request.args ?? {},
+        args,
       }));
     };
 
@@ -408,6 +470,65 @@ export async function sendAgentUserMessage(request: AgentUserMessageRequest): Pr
       if (!settled) {
         const detail = event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
         finish(() => reject(new Error(`Agent WebSocket 已关闭：${detail}`)));
+      }
+    };
+  });
+}
+
+export async function sendAgentControlMessage(request: AgentControlMessageRequest): Promise<AgentControlAckMessage | AgentErrorMessage> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const socketUrl = websocketUrlFromBaseUrl(
+    baseUrl,
+    `/api/ide/agent/sessions/${encodeURIComponent(request.sessionId)}`,
+    apiKey,
+  );
+
+  return await new Promise((resolve, reject) => {
+    const socket = new WebSocket(socketUrl);
+    let settled = false;
+    const timeout = window.setTimeout(() => {
+      finish(() => reject(new Error('Agent 控制消息响应超时。')));
+    }, request.timeoutMs ?? 30000);
+
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      try {
+        socket.close();
+      } catch {
+        // Ignore close errors after the response is received.
+      }
+      callback();
+    };
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        type: request.type,
+        run_id: request.runId,
+        payload: request.payload ?? {},
+      }));
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(String(event.data)) as AgentSocketMessage;
+        if (isAgentControlAckMessage(message) || isAgentErrorMessage(message)) {
+          finish(() => resolve(message));
+        }
+      } catch (error) {
+        finish(() => reject(error));
+      }
+    };
+
+    socket.onerror = () => {
+      finish(() => reject(new Error('Agent 控制 WebSocket 连接失败。')));
+    };
+
+    socket.onclose = (event) => {
+      if (!settled) {
+        const detail = event.reason || (event.code === 1000 ? '返回结果前关闭' : String(event.code));
+        finish(() => reject(new Error(`Agent 控制 WebSocket 已关闭：${detail}`)));
       }
     };
   });
@@ -468,4 +589,19 @@ export function isAgentToolTraceEventMessage(message: AgentSocketMessage): messa
   return message.type === 'tool_trace'
     && typeof (message as AgentToolTraceEventMessage).trace === 'object'
     && (message as AgentToolTraceEventMessage).trace !== null;
+}
+
+export function isAgentPermissionRequiredMessage(message: AgentSocketMessage): message is AgentPermissionRequiredMessage {
+  return message.type === 'permission_required'
+    && typeof (message as AgentPermissionRequiredMessage).run_id === 'string';
+}
+
+export function isAgentControlAckMessage(message: AgentSocketMessage): message is AgentControlAckMessage {
+  return (
+    message.type === 'permission_approved'
+    || message.type === 'permission_denied'
+    || message.type === 'pause_run'
+    || message.type === 'resume_run'
+    || message.type === 'stop_run'
+  ) && (message as AgentControlAckMessage).status === 'recorded';
 }

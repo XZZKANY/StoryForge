@@ -1,6 +1,340 @@
 {
   "components": {
     "schemas": {
+      "AgentArtifactRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "requires_confirmation": {
+            "title": "Requires Confirmation",
+            "type": "boolean"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "kind",
+          "payload",
+          "requires_confirmation",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentArtifactRead",
+        "type": "object"
+      },
+      "AgentRoleRead": {
+        "description": "Agent Runtime 的只读角色目录，用于 Root Agent 调度和权限边界判断。",
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "allowed_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Tools",
+            "type": "array"
+          },
+          "can_be_mentioned": {
+            "title": "Can Be Mentioned",
+            "type": "boolean"
+          },
+          "default_permission_profile": {
+            "title": "Default Permission Profile",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Output Artifacts",
+            "type": "array"
+          },
+          "read_only": {
+            "title": "Read Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "kind",
+          "description",
+          "aliases",
+          "read_only",
+          "default_permission_profile",
+          "allowed_tools",
+          "output_artifacts",
+          "can_be_mentioned"
+        ],
+        "title": "AgentRoleRead",
+        "type": "object"
+      },
+      "AgentRunEventRead": {
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "event_type",
+          "actor",
+          "message",
+          "payload",
+          "sequence",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentRunEventRead",
+        "type": "object"
+      },
+      "AgentRunRead": {
+        "properties": {
+          "assistant_session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Session Id"
+          },
+          "book_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Run Id"
+          },
+          "budget": {
+            "additionalProperties": true,
+            "title": "Budget",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "permission_profile": {
+            "title": "Permission Profile",
+            "type": "string"
+          },
+          "public_id": {
+            "title": "Public Id",
+            "type": "string"
+          },
+          "root_plan": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Root Plan",
+            "type": "array"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "title": "Scope",
+            "type": "object"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "public_id",
+          "session_id",
+          "assistant_session_id",
+          "book_run_id",
+          "goal",
+          "scope",
+          "permission_profile",
+          "budget",
+          "status",
+          "root_plan",
+          "current_step",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentRunRead",
+        "type": "object"
+      },
+      "AgentSkillRead": {
+        "description": "Root Agent 可选择的流程 skill；skill 只描述计划知识，不直接执行工具。",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Output Artifacts",
+            "type": "array"
+          },
+          "permission_profile": {
+            "title": "Permission Profile",
+            "type": "string"
+          },
+          "plan_template": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Plan Template",
+            "type": "array"
+          },
+          "tool_sequence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tool Sequence",
+            "type": "array"
+          },
+          "trigger_intents": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Trigger Intents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "trigger_intents",
+          "plan_template",
+          "tool_sequence",
+          "output_artifacts",
+          "permission_profile"
+        ],
+        "title": "AgentSkillRead",
+        "type": "object"
+      },
       "AnalyticsFailureCategoryRead": {
         "properties": {
           "count": {
@@ -7162,6 +7496,10 @@
             "title": "Domain",
             "type": "string"
           },
+          "event_store_required": {
+            "title": "Event Store Required",
+            "type": "boolean"
+          },
           "evidence_fields": {
             "items": {
               "type": "string"
@@ -7174,14 +7512,48 @@
             "title": "Input Schema",
             "type": "object"
           },
+          "mcp_server": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcp Server"
+          },
+          "mcp_tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcp Tool Name"
+          },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "origin": {
+            "title": "Origin",
             "type": "string"
           },
           "output_schema": {
             "additionalProperties": true,
             "title": "Output Schema",
             "type": "object"
+          },
+          "permission_level": {
+            "title": "Permission Level",
+            "type": "string"
+          },
+          "read_only": {
+            "title": "Read Only",
+            "type": "boolean"
           },
           "references": {
             "$ref": "#/components/schemas/RuntimeToolReferencesRead"
@@ -7192,13 +7564,22 @@
             },
             "title": "Required Capabilities",
             "type": "array"
+          },
+          "requires_confirmation": {
+            "title": "Requires Confirmation",
+            "type": "boolean"
           }
         },
         "required": [
           "name",
           "domain",
+          "origin",
           "input_schema",
           "output_schema",
+          "permission_level",
+          "requires_confirmation",
+          "read_only",
+          "event_store_required",
           "required_capabilities",
           "evidence_fields",
           "references"
@@ -9392,6 +9773,334 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/agent-runs/roles": {
+      "get": {
+        "description": "列出 Primary Agent 与 Subagents 的只读角色目录。",
+        "operationId": "list_agent_roles_endpoint_api_agent_runs_roles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRoleRead"
+                  },
+                  "title": "Response List Agent Roles Endpoint Api Agent Runs Roles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "读取 Agent role catalog v1",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/roles/resolve": {
+      "get": {
+        "description": "按 @剧情 这类用户可输入别名解析 role；未知 alias 返回 null。",
+        "operationId": "resolve_agent_role_alias_endpoint_api_agent_runs_roles_resolve_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "alias",
+            "required": true,
+            "schema": {
+              "title": "Alias",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AgentRoleRead"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Resolve Agent Role Alias Endpoint Api Agent Runs Roles Resolve Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "解析 Agent role alias",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/skills": {
+      "get": {
+        "description": "列出 Root Agent 可选择的流程 skills；端点只读，不执行工具。",
+        "operationId": "list_agent_skills_endpoint_api_agent_runs_skills_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSkillRead"
+                  },
+                  "title": "Response List Agent Skills Endpoint Api Agent Runs Skills Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "读取 Agent skills v1 清单",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}": {
+      "get": {
+        "description": "按 WebSocket 暴露的 run_id 读取一次 AgentRun。",
+        "operationId": "get_agent_run_endpoint_api_agent_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 AgentRun",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/artifacts": {
+      "get": {
+        "description": "读取 AgentRun 产物，包括审稿报告、待确认补丁和 checkpoint。",
+        "operationId": "list_agent_artifacts_endpoint_api_agent_runs__run_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentArtifactRead"
+                  },
+                  "title": "Response List Agent Artifacts Endpoint Api Agent Runs  Run Id  Artifacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 AgentRun artifacts",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/checkpoints": {
+      "get": {
+        "description": "读取 AgentRun 派生的 BookRun checkpoint artifacts。",
+        "operationId": "list_agent_checkpoints_endpoint_api_agent_runs__run_id__checkpoints_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentArtifactRead"
+                  },
+                  "title": "Response List Agent Checkpoints Endpoint Api Agent Runs  Run Id  Checkpoints Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 AgentRun checkpoints",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/events": {
+      "get": {
+        "description": "按写入顺序读取 AgentRunEvent，用于断线后恢复。",
+        "operationId": "list_agent_run_events_endpoint_api_agent_runs__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRunEventRead"
+                  },
+                  "title": "Response List Agent Run Events Endpoint Api Agent Runs  Run Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 AgentRun 事件",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/events/stream": {
+      "get": {
+        "description": "从 AgentRunEvent Store 生成 SSE 快照，端点本身不做任何决策。",
+        "operationId": "stream_agent_run_events_endpoint_api_agent_runs__run_id__events_stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 AgentRun SSE 事件流",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
     "/api/analytics/workspaces/{workspace_id}/dashboard": {
       "get": {
         "description": "聚合指定工作区维度的关键指标快照，用于运营看板和报表导出。",

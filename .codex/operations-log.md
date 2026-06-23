@@ -15442,3 +15442,13 @@ un-metadata.json: present
 
 - 已检查 `artifacts`、`exports`、`book_runs`、`ide`、`book-runs` Web helper 与 `ide-url-state` 模块，没有引入重复鉴权框架。
 - 子代理只读审计发现的 preview versions 和 Artifact detail 旁路已纳入同一套测试与实现，未另起独立机制。
+
+---
+
+## Agent Runtime 控制平面（2026-06-23）
+
+- 新增 `.codex/context-summary-agent-runtime-control-plane.md`，记录本轮代码检索、复用组件、测试策略和风险。
+- 新增 `agent_runs` 控制平面事实源，WebSocket `user_message` 通过 AgentRun service 创建/续接 run 并记录事件。
+- 运行 `uv run ruff check ...`、`uv run pytest tests/test_agent_runs.py tests/test_api_surface.py tests/test_ide_agent_orchestrator.py tests/test_ide_run_events.py tests/test_assistant_tool_calls.py -q`、`pnpm.cmd openapi` 进行验证和契约刷新。
+- 追加 Skills v1 与 MCP v1 收尾：`/api/agent-runs/skills` 暴露 `chapter_polish`、`short_story_draft`、`long_chapter_generate`、`consistency_review`、`bookrun_generation`；`agent_plan_created` 记录 `selected_skill`；`/api/runtime-tools` 增加权限字段并只注册只读 MCP v1 工具 `mcp.project.search`、`mcp.context.inspect`。
+- 收尾验证：`uv run ruff check app/domains/agent_runs app/domains/runtime_tools tests/test_agent_runs.py tests/test_runtime_tools.py` 通过；`uv run pytest tests/test_agent_runs.py tests/test_runtime_tools.py -q` 13 passed；控制平面目标回归 71 passed；`pnpm.cmd openapi`、`pnpm.cmd --filter @storyforge/shared generate:types`、`pnpm.cmd --filter @storyforge/shared test`、`git diff --check` 均通过。

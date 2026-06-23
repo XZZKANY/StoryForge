@@ -20,8 +20,15 @@ class RuntimeToolRead(BaseModel):
 
     name: str
     domain: str
+    origin: str
     input_schema: dict[str, Any]
     output_schema: dict[str, Any]
+    permission_level: str
+    requires_confirmation: bool
+    read_only: bool
+    event_store_required: bool
+    mcp_server: str | None = None
+    mcp_tool_name: str | None = None
     required_capabilities: list[str]
     evidence_fields: list[str]
     references: RuntimeToolReferencesRead

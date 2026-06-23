@@ -20,6 +20,7 @@ from app.common.logging_config import configure_logging, get_logger
 from app.common.metrics import setup_metrics
 from app.common.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
 from app.common.sentry_config import init_sentry
+from app.domains.agent_runs.router import router as agent_runs_router
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
@@ -211,6 +212,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 
 app.include_router(health_router)
+app.include_router(agent_runs_router)
 app.include_router(ide_router)
 app.include_router(artifacts_router)
 app.include_router(assistant_router)

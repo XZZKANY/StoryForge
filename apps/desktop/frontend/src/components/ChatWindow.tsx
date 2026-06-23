@@ -17,15 +17,25 @@ import {
 } from '../lib/assistant-events';
 import { createRemoteFileSuggestion } from '../lib/assistant-suggestions';
 import {
+  AGENT_ROLE_SUGGESTIONS,
+  extractAgentRoleMentions,
+  isKnownAgentRoleMention,
+  mapAgentRoleMentionsToHints,
+} from '../lib/agent-roles';
+import {
   getAssistantSession,
+  sendAgentControlMessage,
   sendAgentUserMessage,
   subscribeBookRunEvents,
   toAssistantContextBundlePayload,
+  isAgentControlAckMessage,
   isAgentErrorMessage,
+  isAgentPermissionRequiredMessage,
   isAgentRunStartedMessage,
   isAgentStepEventMessage,
   isAgentToolTraceEventMessage,
   isAgentResultMessage,
+  type AgentControlMessageType,
   type AgentPlanStep,
   type AgentResultMessage,
   type AgentSocketMessage,
@@ -74,6 +84,7 @@ type AgentStep = {
 
 type AgentRun = {
   id: string;
+  sessionId: string;
   goal: string;
   status: 'running' | 'waiting' | 'completed' | 'failed';
   steps: AgentStep[];
@@ -94,8 +105,16 @@ type BookRunProjection = {
   failureReason?: string | null;
 };
 
+type AgentRunControlHandlers = {
+  onApprovePermission: () => void;
+  onDenyPermission: () => void;
+  onPauseRun: () => void;
+  onResumeRun: () => void;
+  onStopRun: () => void;
+};
+
 type ReviewReport = Record<string, unknown>;
-type ReviewCategory = 'plot' | 'character' | 'prose';
+type ReviewCategory = 'plot' | 'character' | 'prose' | 'continuity';
 type ReviewIssue = {
   id: string;
   category: ReviewCategory;
@@ -152,7 +171,8 @@ function extractContextReferences(text: string): string[] {
   const matches = Array.from(text.matchAll(/@([^\s，。！？!?；;：:,、]+)/g));
   return matches
     .map((match) => match[1]?.trim())
-    .filter((value): value is string => Boolean(value));
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => !isKnownAgentRoleMention(`@${value}`));
 }
 
 function mapAgentStepStatus(status: string): AgentStepStatus {
@@ -386,7 +406,7 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
   return [
     message.agent_result.summary ?? '多视角审稿完成。',
     `上下文：读取 ${contextFileCount} 个文件${kinds.length ? `（${kinds.join('、')}）` : ''}。`,
-    `视角：剧情 ${finding('plot')} 个，人物 ${finding('character')} 个，文风节奏 ${finding('prose')} 个。`,
+    `视角：剧情 ${finding('plot')} 个，人物 ${finding('character')} 个，文风节奏 ${finding('prose')} 个，连续性 ${finding('continuity')} 个。`,
     issueLines.length ? `问题：\n${issueLines.join('\n')}` : '问题：未发现明显结构性问题。',
     actions.length ? `建议：\n${actions.map((action, index) => `${index + 1}. ${action}`).join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
@@ -400,11 +420,12 @@ function reviewReportFromMessage(message: AgentResultMessage): ReviewReport | nu
 function reviewCategoryLabel(category: ReviewCategory): string {
   if (category === 'plot') return '剧情';
   if (category === 'character') return '人物';
+  if (category === 'continuity') return '连续性';
   return '文风';
 }
 
 function isReviewCategory(value: unknown): value is ReviewCategory {
-  return value === 'plot' || value === 'character' || value === 'prose';
+  return value === 'plot' || value === 'character' || value === 'prose' || value === 'continuity';
 }
 
 export function reviewIssuesFromReport(report: ReviewReport | null): ReviewIssue[] {
@@ -448,6 +469,7 @@ export function extractIssueScopeFromInstruction(
   if (wantsOnly && /剧情|结构|冲突|钩子|plot/.test(instruction)) includedCategories.push('plot');
   if (wantsOnly && /人物|角色|动机|称谓|关系|character/.test(instruction)) includedCategories.push('character');
   if (wantsOnly && /文风|语言|行文|润色|节奏|prose/.test(instruction)) includedCategories.push('prose');
+  if (wantsOnly && /一致性|设定|伏笔|时间线|前后文|continuity/.test(instruction)) includedCategories.push('continuity');
   return {
     ...(selectedIssueIds.length ? { selected_issue_ids: selectedIssueIds } : {}),
     ...(includedCategories.length ? { included_categories: Array.from(new Set(includedCategories)) } : {}),
@@ -727,6 +749,43 @@ export function ChatWindow({
             : [...run.steps, nextStep],
         };
       });
+      return;
+    }
+    if (isAgentPermissionRequiredMessage(message)) {
+      const nextStep: AgentStep = {
+        id: 'permission-required',
+        title: '等待权限确认',
+        tool: 'permission-gate',
+        status: 'waiting',
+        detail: message.proposed_patch
+          ? '已生成待确认补丁，写回前需要作者批准。'
+          : '该步骤需要作者批准后才能继续。',
+      };
+      setAgentRun((run) => {
+        if (!run) return run;
+        const exists = run.steps.some((step) => step.id === nextStep.id);
+        return {
+          ...run,
+          status: 'waiting',
+          steps: exists
+            ? run.steps.map((step) => step.id === nextStep.id ? nextStep : step)
+            : [...run.steps, nextStep],
+        };
+      });
+      setAgentBusy(false);
+      return;
+    }
+    if (isAgentControlAckMessage(message)) {
+      const nextStatus: AgentRun['status'] =
+        message.type === 'stop_run' || message.type === 'permission_denied'
+          ? 'failed'
+          : message.type === 'pause_run'
+            ? 'waiting'
+            : message.type === 'resume_run'
+              ? 'running'
+              : 'completed';
+      setAgentRun((run) => run ? { ...run, status: nextStatus } : run);
+      setAgentBusy(nextStatus === 'running');
     }
   }, [updateAgentStep]);
 
@@ -777,6 +836,7 @@ export function ChatWindow({
     setRetryRequest(null);
     setAgentRun({
       id: runId,
+      sessionId: runId,
       goal,
       status: 'running',
       steps: [
@@ -865,6 +925,8 @@ export function ChatWindow({
         contextBundle,
         reviewReport: lastReviewReport,
       });
+      const agentRoleMentions = extractAgentRoleMentions(goal);
+      const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
       const response = await sendAgentUserMessage({
         sessionId: runId,
         runId,
@@ -872,6 +934,8 @@ export function ChatWindow({
         assistantSessionId: assistantSessionIdRef.current,
         userMessage: goal,
         args: payload,
+        agentRoleHints,
+        agentRoleMentions,
         onEvent: applyAgentStreamEvent,
       });
 
@@ -1026,6 +1090,48 @@ export function ChatWindow({
     void runAuthorAgent(ask);
   }, [runAuthorAgent]);
 
+  const sendAgentRunControl = useCallback(async (type: AgentControlMessageType) => {
+    const run = agentRun;
+    if (!run) return;
+    try {
+      const ack = await sendAgentControlMessage({
+        sessionId: run.sessionId,
+        runId: run.id,
+        type,
+        payload: { source: 'desktop.timeline' },
+      });
+      if (isAgentErrorMessage(ack)) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Agent 控制失败：${ack.detail}` }]);
+        return;
+      }
+      applyAgentStreamEvent(ack);
+      if (type === 'approve_permission') {
+        updateAgentStep('permission-required', { status: 'completed', detail: '作者已批准权限请求。' });
+        updateAgentStatus('completed');
+      } else if (type === 'deny_permission') {
+        updateAgentStep('permission-required', { status: 'failed', detail: '作者已拒绝权限请求。' });
+        updateAgentStatus('failed');
+      } else if (type === 'pause_run') {
+        updateAgentStatus('waiting');
+      } else if (type === 'resume_run') {
+        updateAgentStatus('running');
+      } else if (type === 'stop_run') {
+        updateAgentStatus('failed');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Agent 控制失败：${message}` }]);
+    }
+  }, [agentRun, applyAgentStreamEvent, updateAgentStatus, updateAgentStep]);
+
+  const agentRunControls: AgentRunControlHandlers = {
+    onApprovePermission: () => void sendAgentRunControl('approve_permission'),
+    onDenyPermission: () => void sendAgentRunControl('deny_permission'),
+    onPauseRun: () => void sendAgentRunControl('pause_run'),
+    onResumeRun: () => void sendAgentRunControl('resume_run'),
+    onStopRun: () => void sendAgentRunControl('stop_run'),
+  };
+
   // 命令面板触发"审查当前文件"
   useEffect(() => {
     const onReview = () => {
@@ -1141,6 +1247,7 @@ export function ChatWindow({
         onReviseIssue={reviseReviewIssue}
         onReviseIssues={reviseSelectedReviewIssues}
         onReviseCategory={reviseReviewCategory}
+        agentRunControls={agentRunControls}
       />
 
       {runStatusText(agentRun) && (
@@ -1201,6 +1308,7 @@ function MessageList({
   onReviseIssue,
   onReviseIssues,
   onReviseCategory,
+  agentRunControls,
 }: {
   messages: Message[];
   projectName: string | null;
@@ -1220,6 +1328,7 @@ function MessageList({
   onReviseIssue: (issue: ReviewIssue) => void;
   onReviseIssues: (issues: ReviewIssue[]) => void;
   onReviseCategory: (category: ReviewCategory) => void;
+  agentRunControls: AgentRunControlHandlers;
 }) {
   if (messages.length === 0) {
     return (
@@ -1250,7 +1359,8 @@ function MessageList({
 
         {/* Agent 执行步骤面板 */}
         {agentRun && agentRun.steps.length > 0 && (
-          <div className="animate-slide-up-fade">
+          <div className="animate-slide-up-fade space-y-2">
+            <AgentRunControlBar run={agentRun} controls={agentRunControls} />
             <AgentStepsPanel run={agentRun} />
           </div>
         )}
@@ -1389,6 +1499,73 @@ function ReviewIssueActions({
         ))}
       </div>
     </section>
+  );
+}
+
+function AgentRunControlBar({
+  run,
+  controls,
+}: {
+  run: AgentRun;
+  controls: AgentRunControlHandlers;
+}) {
+  const waitingForPermission = run.steps.some((step) => step.id === 'permission-required' && step.status === 'waiting');
+  const canPause = run.status === 'running';
+  const canResume = run.status === 'waiting' && !waitingForPermission;
+  const canStop = run.status === 'running' || run.status === 'waiting';
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#333338] bg-[#202024] px-3 py-2">
+      <div className="min-w-0 flex-1 text-xs text-[#A8A8B0]">
+        AgentRun #{run.id}
+      </div>
+      {waitingForPermission && (
+        <>
+          <button
+            type="button"
+            className="h-7 rounded-md bg-[#E6E6E6] px-2.5 text-xs text-[#111111] hover:bg-white"
+            onClick={controls.onApprovePermission}
+            title="批准权限请求"
+          >
+            批准
+          </button>
+          <button
+            type="button"
+            className="h-7 rounded-md border border-[#5A2F2F] px-2.5 text-xs text-[#FFB8B0] hover:bg-[#3A1F1F]"
+            onClick={controls.onDenyPermission}
+            title="拒绝权限请求"
+          >
+            拒绝
+          </button>
+        </>
+      )}
+      <button
+        type="button"
+        className="h-7 rounded-md border border-[#45454C] px-2.5 text-xs text-[#D8D8DD] hover:bg-[#2A2A30] disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={controls.onPauseRun}
+        disabled={!canPause}
+        title="暂停 AgentRun"
+      >
+        暂停
+      </button>
+      <button
+        type="button"
+        className="h-7 rounded-md border border-[#45454C] px-2.5 text-xs text-[#D8D8DD] hover:bg-[#2A2A30] disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={controls.onResumeRun}
+        disabled={!canResume}
+        title="恢复 AgentRun"
+      >
+        恢复
+      </button>
+      <button
+        type="button"
+        className="h-7 rounded-md border border-[#5A2F2F] px-2.5 text-xs text-[#FFB8B0] hover:bg-[#3A1F1F] disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={controls.onStopRun}
+        disabled={!canStop}
+        title="停止 AgentRun"
+      >
+        停止
+      </button>
+    </div>
   );
 }
 
@@ -1684,6 +1861,11 @@ function ComposerBox({
   );
 }
 
+function roleMentionQuery(value: string): string | null {
+  const match = value.match(/@[^\s，。！？!?；;：:,、]*$/);
+  return match?.[0] ?? null;
+}
+
 function ComposerSurface({
   value,
   disabled,
@@ -1704,16 +1886,45 @@ function ComposerSurface({
   onSubmit?: () => void;
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
+  const roleQuery = roleMentionQuery(value);
+  const roleSuggestions = roleQuery === null
+    ? []
+    : AGENT_ROLE_SUGGESTIONS.filter((item) => item.mention.toLowerCase().startsWith(roleQuery.toLowerCase()));
+  const insertRoleMention = (mention: string) => {
+    const nextValue = roleQuery === null
+      ? `${value}${value.endsWith(' ') || !value ? '' : ' '}${mention} `
+      : value.replace(/@[^\s，。！？!?；;：:,、]*$/, `${mention} `);
+    onChange(nextValue);
+  };
 
   return (
-    <div className="min-h-[118px] rounded-xl border border-[#45454C] bg-[#2A2A30] shadow-[0_18px_64px_rgba(0,0,0,0.24)]">
+    <div className="relative min-h-[118px] rounded-xl border border-[#45454C] bg-[#2A2A30] shadow-[0_18px_64px_rgba(0,0,0,0.24)]">
+      {roleSuggestions.length > 0 && !disabled && !busy && (
+        <div
+          className="absolute bottom-[108px] left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-1.5 rounded-md border border-[#3A3A40] bg-[#202024] px-2 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.28)]"
+          data-testid="agent-role-suggestions"
+        >
+          {roleSuggestions.map((item) => (
+            <button
+              key={item.mention}
+              type="button"
+              className="h-7 rounded-md border border-[#45454C] px-2.5 text-xs text-[#D8D8DD] hover:border-[#7FB1FF] hover:bg-[#253044] hover:text-[#EAF2FF]"
+              onClick={() => insertRoleMention(item.mention)}
+              data-testid="agent-role-suggestion"
+              data-role-name={item.roleName}
+            >
+              {item.mention}
+            </button>
+          ))}
+        </div>
+      )}
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || busy}
         rows={3}
         className="h-[70px] w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-6 text-[#F1F1F2] outline-none placeholder:text-[#9A9AA2] disabled:cursor-not-allowed disabled:opacity-50"
-        placeholder={disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @ 引用上下文...'}
+        placeholder={disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色...'}
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {

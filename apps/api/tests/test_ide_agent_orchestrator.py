@@ -111,21 +111,20 @@ def test_agent_user_message_file_review_returns_multi_agent_report(
     assert "启发式预扫" in message["agent_result"]["summary"]
 
     assert [item["tool_name"] for item in message["tool_trace"]] == [
-        "subagent.context",
-        "subagent.plot",
-        "subagent.character",
-        "subagent.prose",
+        "context.load",
+        "subagent.plot_reviewer",
+        "subagent.character_reviewer",
+        "subagent.prose_reviewer",
+        "subagent.continuity_reviewer",
         "subagent.synthesizer",
     ]
     assert [step["step"] for step in message["plan"]] == [
-        "context-agent",
-        "plot-agent",
-        "character-agent",
-        "prose-agent",
-        "synthesizer-agent",
+        "context.load",
+        "subagents.review",
+        "synthesizer.merge",
     ]
     assert message["tool_trace"][1]["output_summary"]["mode"] == "heuristic"
-    assert message["tool_trace"][4]["output_summary"]["strategy"] == "deterministic_merge"
+    assert message["tool_trace"][5]["output_summary"]["strategy"] == "deterministic_merge"
 
 
 def test_agent_user_message_file_review_can_stream_intermediate_events(
@@ -426,9 +425,10 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
     assert message["proposed_patch"]["before"] == "当前正文"
     assert message["proposed_patch"]["after"] == "修订后正文"
     assert message["proposed_patch"]["requires_confirmation"] is True
-    assert message["tool_trace"][0]["tool_name"] == "assistant.revise"
-    assert message["tool_trace"][0]["status"] == "completed"
-    assert message["tool_trace"][0]["output_summary"]["latency_ms"] == 10
+    revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")
+    assert revise_trace["status"] == "completed"
+    assert revise_trace["output_summary"]["latency_ms"] == 10
+    assert [item["tool_name"] for item in message["tool_trace"]][-2:] == ["file.revise", "judge.run"]
 
     session_id = message["assistant_session_id"]
     tool_calls = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
@@ -481,7 +481,8 @@ def test_agent_file_revise_can_use_previous_review_report(
     assert message["intent"] == "file.revise"
     assert "上一轮多视角审稿报告" in captured["user_prompt"]
     assert "没有明显冲突信号" in captured["user_prompt"]
-    assert message["tool_trace"][0]["input_summary"]["review_issue_count"] == 1
+    revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")
+    assert revise_trace["input_summary"]["review_issue_count"] == 1
 
 
 def test_revise_scope_selected_ids_only_lists_those(
@@ -651,7 +652,8 @@ def test_revise_unknown_issue_id_is_reported(
     assert scope["issue_ids"] == []
     assert scope["dropped_unknown_ids"] == ["plot-99"]
     assert "忽略不存在" in message["agent_result"]["summary"]
-    assert message["tool_trace"][0]["input_summary"]["applied_scope"]["dropped_unknown_ids"] == ["plot-99"]
+    revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")
+    assert revise_trace["input_summary"]["applied_scope"]["dropped_unknown_ids"] == ["plot-99"]
 
 
 def test_confirm_writeback_phrases_not_classified_as_revise(client: TestClient) -> None:
