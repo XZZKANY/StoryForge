@@ -30,38 +30,38 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
   for (const entry of entries) {
     const relative = entry.path.slice(normalizedRoot.length).replace(/^[/\\]+/, '');
     const segments = relative.split(/[/\\]/);
-    
+
     let currentLevel = rootNodes;
     let currentPath = normalizedRoot;
 
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       currentPath = `${currentPath}/${segment}`;
-      
+
       const isFile = i === segments.length - 1 && !entry.isDir;
-      
+
       // If it's a file, or if it's a directory and we are at the last segment
       if (isFile) {
-         currentLevel.push({
-           name: segment,
-           path: entry.path,
-           isDir: false,
-           children: []
-         });
+        currentLevel.push({
+          name: segment,
+          path: entry.path,
+          isDir: false,
+          children: [],
+        });
       } else {
-         // It's a directory segment
-         let dirNode = dirMap.get(currentPath);
-         if (!dirNode) {
-           dirNode = {
-             name: segment,
-             path: currentPath,
-             isDir: true,
-             children: []
-           };
-           dirMap.set(currentPath, dirNode);
-           currentLevel.push(dirNode);
-         }
-         currentLevel = dirNode.children;
+        // It's a directory segment
+        let dirNode = dirMap.get(currentPath);
+        if (!dirNode) {
+          dirNode = {
+            name: segment,
+            path: currentPath,
+            isDir: true,
+            children: [],
+          };
+          dirMap.set(currentPath, dirNode);
+          currentLevel.push(dirNode);
+        }
+        currentLevel = dirNode.children;
       }
     }
   }
@@ -73,9 +73,9 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
       if (!a.isDir && b.isDir) return 1;
       return a.name.localeCompare(b.name);
     });
-    nodes.forEach(node => sortNodes(node.children));
+    nodes.forEach((node) => sortNodes(node.children));
   };
-  
+
   sortNodes(rootNodes);
   return rootNodes;
 }
@@ -87,6 +87,7 @@ export function FileTree({ projectPath, currentFile, onFileSelect }: FileTreePro
 
   useEffect(() => {
     if (!projectPath) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步清空文件树派生态，React18 合法模式
       setFiles([]);
       setError(null);
       return;
@@ -102,7 +103,7 @@ export function FileTree({ projectPath, currentFile, onFileSelect }: FileTreePro
         const filteredEntries = entries
           .filter((e) => !/[/\\]\.storyforge[/\\]/.test(e.path)) // Exclude internal dirs
           .filter((e) => e.isDir || e.extension === 'md' || e.extension === 'markdown');
-        
+
         if (!cancelled) {
           setFiles(filteredEntries);
         }
@@ -123,17 +124,17 @@ export function FileTree({ projectPath, currentFile, onFileSelect }: FileTreePro
   }, [projectPath]);
 
   const tree = useMemo(() => {
-     if (!projectPath) return [];
-     return buildTree(files, projectPath);
+    if (!projectPath) return [];
+    return buildTree(files, projectPath);
   }, [files, projectPath]);
 
   return (
     <div className="h-full flex flex-col bg-panel">
       {/* 标题 */}
       <div className="h-10 px-3 border-b border-border/5 flex items-center justify-between flex-shrink-0">
-         <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-            {projectPath ? `资源管理器` : '文件'}
-         </span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+          {projectPath ? `资源管理器` : '文件'}
+        </span>
       </div>
 
       {/* 文件树 */}
@@ -156,7 +157,7 @@ export function FileTree({ projectPath, currentFile, onFileSelect }: FileTreePro
           </div>
         ) : (
           <div className="flex flex-col">
-            {tree.map(node => (
+            {tree.map((node) => (
               <TreeNodeItem
                 key={node.path}
                 node={node}
@@ -176,16 +177,16 @@ function TreeNodeItem({
   node,
   level,
   currentFile,
-  onFileSelect
+  onFileSelect,
 }: {
   node: TreeNode;
   level: number;
   currentFile: string | null;
   onFileSelect: (filePath: string) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(true); 
+  const [isOpen, setIsOpen] = useState(true);
   const isActive = node.path === currentFile;
-  
+
   // 每一级缩进12px
   const indentBlocks = Array.from({ length: level }).map((_, i) => (
     <div key={i} className="w-[12px] h-full flex-shrink-0 border-l border-border/20 ml-[6px]" />
@@ -199,31 +200,33 @@ function TreeNodeItem({
           className="flex items-center w-full text-left h-[22px] hover:bg-white/[0.04] text-muted/70 hover:text-muted transition-colors group cursor-pointer"
         >
           {/* 占位缩进区域 */}
-          <div className="flex items-center h-full pl-[4px]">
-             {indentBlocks}
-          </div>
-          
+          <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
+
           {/* Chevron 容器，固定宽度保证对齐 */}
           <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-            <svg className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
               <path d="M6 4l4 4-4 4V4z" />
             </svg>
           </div>
-          
+
           <span className="text-[13px] truncate">{node.name}</span>
         </button>
         {isOpen && (
-           <div className="flex flex-col">
-              {node.children.map(child => (
-                 <TreeNodeItem
-                    key={child.path}
-                    node={child}
-                    level={level + 1}
-                    currentFile={currentFile}
-                    onFileSelect={onFileSelect}
-                 />
-              ))}
-           </div>
+          <div className="flex flex-col">
+            {node.children.map((child) => (
+              <TreeNodeItem
+                key={child.path}
+                node={child}
+                level={level + 1}
+                currentFile={currentFile}
+                onFileSelect={onFileSelect}
+              />
+            ))}
+          </div>
         )}
       </div>
     );
@@ -237,20 +240,20 @@ function TreeNodeItem({
         ${isActive ? 'bg-[#37373D] text-[#ffffff]' : 'text-muted hover:bg-white/[0.04] hover:text-[#cccccc]'}
       `}
     >
-      <div className="flex items-center h-full pl-[4px]">
-         {indentBlocks}
-      </div>
+      <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
       {/* 文件图标容器，尺寸与 Chevron 容器严格一致以保证文字左对齐 */}
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-         <svg className={`w-3 h-3 ${isActive ? 'text-accent' : 'opacity-50 group-hover:opacity-80'}`} viewBox="0 0 16 16" fill="currentColor">
-            <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
-         </svg>
+        <svg
+          className={`w-3 h-3 ${isActive ? 'text-accent' : 'opacity-50 group-hover:opacity-80'}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
+        </svg>
       </div>
-      
+
       <span className="text-[13px] truncate flex-1">{node.name}</span>
     </button>
   );
 }
-
-

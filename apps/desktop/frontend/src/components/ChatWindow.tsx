@@ -42,7 +42,10 @@ import {
   type AgentToolTrace,
   type BookRunEvent,
 } from '../lib/api-client';
-import { detectLocalConversationAction, type LocalConversationAction } from '../lib/local-conversation-action';
+import {
+  detectLocalConversationAction,
+  type LocalConversationAction,
+} from '../lib/local-conversation-action';
 import {
   buildContextBundle,
   buildProjectIndex,
@@ -178,7 +181,8 @@ function extractContextReferences(text: string): string[] {
 function mapAgentStepStatus(status: string): AgentStepStatus {
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'failed';
-  if (status === 'needs_approval' || status === 'needs_confirmation' || status === 'paused') return 'waiting';
+  if (status === 'needs_approval' || status === 'needs_confirmation' || status === 'paused')
+    return 'waiting';
   if (status === 'running') return 'running';
   return 'pending';
 }
@@ -209,9 +213,14 @@ function toolTraceDetail(trace: AgentToolTrace): string {
   const audit = trace.audit_event_id ? `；审计 ${trace.audit_event_id}` : '';
   const model = typeof output.model === 'string' ? `；模型 ${output.model}` : '';
   const latency = typeof output.latency_ms === 'number' ? `；${output.latency_ms}ms` : '';
-  const contextCount = typeof output.context_file_count === 'number' ? `；上下文 ${output.context_file_count} 个` : '';
-  const issueCount = typeof output.issue_count === 'number' ? `；问题 ${output.issue_count} 个` : '';
-  const actionCount = typeof output.suggested_action_count === 'number' ? `；建议 ${output.suggested_action_count} 条` : '';
+  const contextCount =
+    typeof output.context_file_count === 'number' ? `；上下文 ${output.context_file_count} 个` : '';
+  const issueCount =
+    typeof output.issue_count === 'number' ? `；问题 ${output.issue_count} 个` : '';
+  const actionCount =
+    typeof output.suggested_action_count === 'number'
+      ? `；建议 ${output.suggested_action_count} 条`
+      : '';
   return `${trace.status}${model}${latency}${contextCount}${issueCount}${actionCount}${audit}`;
 }
 
@@ -233,7 +242,12 @@ function stepsFromAgentResult(message: AgentResultMessage): AgentStep[] {
   return [...planSteps, ...toolSteps];
 }
 
-function stepFromAgentPlanEvent(index: number, step: string, detail: string, status: string): AgentStep {
+function stepFromAgentPlanEvent(
+  index: number,
+  step: string,
+  detail: string,
+  status: string,
+): AgentStep {
   return {
     id: `plan-${index}-${step}`,
     title: planStepTitle(step),
@@ -283,9 +297,9 @@ function fileRevisionPatch(message: AgentResultMessage): {
   const patch = message.proposed_patch;
   if (!patch || patch.kind !== 'file_revision') return null;
   if (
-    typeof patch.file_path === 'string'
-    && typeof patch.before === 'string'
-    && typeof patch.after === 'string'
+    typeof patch.file_path === 'string' &&
+    typeof patch.before === 'string' &&
+    typeof patch.after === 'string'
   ) {
     return {
       id: typeof patch.id === 'string' ? patch.id : undefined,
@@ -321,14 +335,19 @@ function bookRunIdFromResult(message: AgentResultMessage): number | null {
   return typeof value === 'number' ? value : null;
 }
 
-export function applyBookRunEventProjection(current: BookRunProjection | null, event: BookRunEvent): BookRunProjection | null {
+export function applyBookRunEventProjection(
+  current: BookRunProjection | null,
+  event: BookRunEvent,
+): BookRunProjection | null {
   const bookRunId = numberOrNull(event.data.book_run_id) ?? current?.bookRunId ?? null;
   if (bookRunId === null) return current;
   if (event.event === 'progress') {
     return {
       bookRunId,
-      status: typeof event.data.status === 'string' ? event.data.status : current?.status ?? 'running',
-      currentChapterIndex: numberOrNull(event.data.current_chapter_index) ?? current?.currentChapterIndex ?? null,
+      status:
+        typeof event.data.status === 'string' ? event.data.status : (current?.status ?? 'running'),
+      currentChapterIndex:
+        numberOrNull(event.data.current_chapter_index) ?? current?.currentChapterIndex ?? null,
       totalChapters: numberOrNull(event.data.total_chapters) ?? current?.totalChapters ?? null,
       completedCount: numberOrNull(event.data.completed_count) ?? current?.completedCount ?? null,
       latestEvent: 'progress',
@@ -336,11 +355,12 @@ export function applyBookRunEventProjection(current: BookRunProjection | null, e
     };
   }
   const blocked = event.data.blocked_chapter;
-  const failureReason = typeof event.data.pause_reason === 'string'
-    ? event.data.pause_reason
-    : blocked && typeof blocked === 'object'
-      ? '存在阻塞章节'
-      : current?.failureReason ?? null;
+  const failureReason =
+    typeof event.data.pause_reason === 'string'
+      ? event.data.pause_reason
+      : blocked && typeof blocked === 'object'
+        ? '存在阻塞章节'
+        : (current?.failureReason ?? null);
   return {
     bookRunId,
     status: current?.status ?? 'running',
@@ -371,7 +391,9 @@ function toConversationMessage(role: string, content: string): Message | null {
   return { role, content };
 }
 
-function compactConversationMessages(messages: Array<{ role: string; content: string }>): Message[] {
+function compactConversationMessages(
+  messages: Array<{ role: string; content: string }>,
+): Message[] {
   return messages
     .map((message) => toConversationMessage(message.role, message.content))
     .filter((message): message is Message => message !== null);
@@ -390,7 +412,8 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
   const actions = Array.isArray(record.suggested_actions)
     ? record.suggested_actions.filter((item): item is string => typeof item === 'string')
     : [];
-  const contextFileCount = typeof record.context?.file_count === 'number' ? record.context.file_count : 0;
+  const contextFileCount =
+    typeof record.context?.file_count === 'number' ? record.context.file_count : 0;
   const kinds = Array.isArray(record.context?.kinds)
     ? record.context.kinds.filter((item): item is string => typeof item === 'string')
     : [];
@@ -408,13 +431,17 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
     `上下文：读取 ${contextFileCount} 个文件${kinds.length ? `（${kinds.join('、')}）` : ''}。`,
     `视角：剧情 ${finding('plot')} 个，人物 ${finding('character')} 个，文风节奏 ${finding('prose')} 个，连续性 ${finding('continuity')} 个。`,
     issueLines.length ? `问题：\n${issueLines.join('\n')}` : '问题：未发现明显结构性问题。',
-    actions.length ? `建议：\n${actions.map((action, index) => `${index + 1}. ${action}`).join('\n')}` : '',
-  ].filter(Boolean).join('\n\n');
+    actions.length
+      ? `建议：\n${actions.map((action, index) => `${index + 1}. ${action}`).join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function reviewReportFromMessage(message: AgentResultMessage): ReviewReport | null {
   const report = message.agent_result.review_report;
-  return report && typeof report === 'object' ? report as ReviewReport : null;
+  return report && typeof report === 'object' ? (report as ReviewReport) : null;
 }
 
 function reviewCategoryLabel(category: ReviewCategory): string {
@@ -436,21 +463,31 @@ export function reviewIssuesFromReport(report: ReviewReport | null): ReviewIssue
     const record = item as Record<string, unknown>;
     const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : '';
     const category = isReviewCategory(record.category) ? record.category : null;
-    const message = typeof record.message === 'string' && record.message.trim() ? record.message.trim() : '';
+    const message =
+      typeof record.message === 'string' && record.message.trim() ? record.message.trim() : '';
     if (!id || !category || !message) return [];
-    const suggestedAction = typeof record.suggested_action === 'string' && record.suggested_action.trim()
-      ? record.suggested_action.trim()
-      : typeof record.suggestedAction === 'string' && record.suggestedAction.trim()
-        ? record.suggestedAction.trim()
-        : '按该问题做定向修订，并保持原有事实连续。';
-    return [{
-      id,
-      category,
-      severity: typeof record.severity === 'string' && record.severity.trim() ? record.severity.trim() : 'info',
-      message,
-      evidence: typeof record.evidence === 'string' && record.evidence.trim() ? record.evidence.trim() : '未提供证据。',
-      suggestedAction,
-    }];
+    const suggestedAction =
+      typeof record.suggested_action === 'string' && record.suggested_action.trim()
+        ? record.suggested_action.trim()
+        : typeof record.suggestedAction === 'string' && record.suggestedAction.trim()
+          ? record.suggestedAction.trim()
+          : '按该问题做定向修订，并保持原有事实连续。';
+    return [
+      {
+        id,
+        category,
+        severity:
+          typeof record.severity === 'string' && record.severity.trim()
+            ? record.severity.trim()
+            : 'info',
+        message,
+        evidence:
+          typeof record.evidence === 'string' && record.evidence.trim()
+            ? record.evidence.trim()
+            : '未提供证据。',
+        suggestedAction,
+      },
+    ];
   });
 }
 
@@ -467,12 +504,17 @@ export function extractIssueScopeFromInstruction(
   const includedCategories: ReviewCategory[] = [];
   const wantsOnly = /只|仅|单独|only/.test(instruction);
   if (wantsOnly && /剧情|结构|冲突|钩子|plot/.test(instruction)) includedCategories.push('plot');
-  if (wantsOnly && /人物|角色|动机|称谓|关系|character/.test(instruction)) includedCategories.push('character');
-  if (wantsOnly && /文风|语言|行文|润色|节奏|prose/.test(instruction)) includedCategories.push('prose');
-  if (wantsOnly && /一致性|设定|伏笔|时间线|前后文|continuity/.test(instruction)) includedCategories.push('continuity');
+  if (wantsOnly && /人物|角色|动机|称谓|关系|character/.test(instruction))
+    includedCategories.push('character');
+  if (wantsOnly && /文风|语言|行文|润色|节奏|prose/.test(instruction))
+    includedCategories.push('prose');
+  if (wantsOnly && /一致性|设定|伏笔|时间线|前后文|continuity/.test(instruction))
+    includedCategories.push('continuity');
   return {
     ...(selectedIssueIds.length ? { selected_issue_ids: selectedIssueIds } : {}),
-    ...(includedCategories.length ? { included_categories: Array.from(new Set(includedCategories)) } : {}),
+    ...(includedCategories.length
+      ? { included_categories: Array.from(new Set(includedCategories)) }
+      : {}),
   };
 }
 
@@ -509,7 +551,9 @@ async function appendExplicitContextFiles(
   explicitPaths: string[],
 ): Promise<ContextAppendResult> {
   const seen = new Set(bundle.files.map((file) => file.path));
-  const seenRelative = new Set(bundle.files.map((file) => file.relativePath.replace(/\\/g, '/').toLowerCase()));
+  const seenRelative = new Set(
+    bundle.files.map((file) => file.relativePath.replace(/\\/g, '/').toLowerCase()),
+  );
   const added: ContextBundleFile[] = [];
   const missingPaths: string[] = [];
   for (const rawPath of explicitPaths) {
@@ -517,7 +561,8 @@ async function appendExplicitContextFiles(
     if (!trimmed) continue;
     const path = looksAbsolutePath(trimmed) ? trimmed : joinProjectPath(projectPath, trimmed);
     const relativeCandidate = relativeToProject(projectPath, path);
-    if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase())) continue;
+    if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase()))
+      continue;
     try {
       const content = await TauriFileSystem.readFile(path);
       added.push({
@@ -539,7 +584,9 @@ async function appendExplicitContextFiles(
         ...bundle,
         budget: {
           ...bundle.budget,
-          missingPinnedFiles: Array.from(new Set([...bundle.budget.missingPinnedFiles, ...missingPaths])),
+          missingPinnedFiles: Array.from(
+            new Set([...bundle.budget.missingPinnedFiles, ...missingPaths]),
+          ),
         },
       },
       missingPaths,
@@ -571,11 +618,13 @@ function runStatusText(run: AgentRun | null): string | null {
   if (run.status === 'completed') return '本轮已完成。';
   if (run.status === 'failed') return '本轮遇到问题，详情在回复里。';
 
-  const active = run.steps.find((step) => step.status === 'running')
-    ?? run.steps.find((step) => step.status === 'waiting')
-    ?? run.steps.find((step) => step.status === 'pending');
+  const active =
+    run.steps.find((step) => step.status === 'running') ??
+    run.steps.find((step) => step.status === 'waiting') ??
+    run.steps.find((step) => step.status === 'pending');
   if (!active) return '正在整理这一轮回复。';
-  if (active.id === 'context') return active.detail.startsWith('读取') ? active.detail : `正在读取：${active.detail}`;
+  if (active.id === 'context')
+    return active.detail.startsWith('读取') ? active.detail : `正在读取：${active.detail}`;
   if (active.id === 'draft') return `正在读取：${active.detail.replace(/^读取\s*/, '')}`;
   if (active.id === 'orchestrate') return '正在整理：创作判断与下一步建议';
   return active.detail || active.title;
@@ -615,10 +664,13 @@ export function ChatWindow({
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
   const unsubscribeBookRunRef = useRef<(() => void) | null>(null);
-  contextRefRef.current = contextRef;
-  currentFileRef.current = currentFile;
-  projectPathRef.current = projectPath;
-  assistantSessionIdRef.current = assistantSessionId ?? null;
+  // 每次渲染后把最新值同步到 ref，供 WebSocket / 异步回调读取最新 props，避免闭包读到旧值。
+  useEffect(() => {
+    contextRefRef.current = contextRef;
+    currentFileRef.current = currentFile;
+    projectPathRef.current = projectPath;
+    assistantSessionIdRef.current = assistantSessionId ?? null;
+  });
 
   useEffect(() => {
     return () => {
@@ -630,6 +682,7 @@ export function ChatWindow({
   useEffect(() => {
     let cancelled = false;
     if (!assistantSessionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 会话切空时同步重置会话派生态，React18 合法模式
       setMessages([]);
       setConversationTitle('新的创作会话');
       setLastReviewReport(null);
@@ -657,6 +710,7 @@ export function ChatWindow({
 
   useEffect(() => {
     if (!projectPath) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步重置上下文派生态，React18 合法模式
       setContextCandidates([]);
       setLastContextBundle(null);
       setMissingContextPaths([]);
@@ -668,7 +722,9 @@ export function ChatWindow({
     void buildProjectIndex(projectPath)
       .then((index) => {
         if (cancelled) return;
-        setContextCandidates(index.files.filter((file) => file.kind !== 'export' && file.kind !== 'quality'));
+        setContextCandidates(
+          index.files.filter((file) => file.kind !== 'export' && file.kind !== 'quality'),
+        );
       })
       .catch(() => {
         if (!cancelled) setContextCandidates([]);
@@ -679,6 +735,7 @@ export function ChatWindow({
   }, [projectPath]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 当前文件变化时同步重置上下文/审稿派生态，React18 合法模式
     setLastContextBundle(null);
     setMissingContextPaths([]);
     setContextPickerOpen(false);
@@ -693,13 +750,13 @@ export function ChatWindow({
       if (!run) return run;
       return {
         ...run,
-        steps: run.steps.map((step) => step.id === stepId ? { ...step, ...patch } : step),
+        steps: run.steps.map((step) => (step.id === stepId ? { ...step, ...patch } : step)),
       };
     });
   }, []);
 
   const updateAgentStatus = useCallback((status: AgentRun['status']) => {
-    setAgentRun((run) => run ? { ...run, status } : run);
+    setAgentRun((run) => (run ? { ...run, status } : run));
     setAgentBusy(status === 'running');
   }, []);
 
@@ -708,362 +765,458 @@ export function ChatWindow({
   }, []);
 
   const togglePinnedContext = useCallback((path: string) => {
-    setExplicitContextPaths((prev) => (
-      prev.includes(path)
-        ? prev.filter((item) => item !== path)
-        : [...prev, path].slice(-12)
-    ));
+    setExplicitContextPaths((prev) =>
+      prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path].slice(-12),
+    );
   }, []);
 
-  const applyAgentStreamEvent = useCallback((message: AgentSocketMessage) => {
-    if (isAgentRunStartedMessage(message)) {
-      updateAgentStep('orchestrate', {
-        status: 'running',
-        detail: `Agent run ${message.run_id} 已开始`,
-      });
-      return;
-    }
-    if (isAgentStepEventMessage(message)) {
-      const nextStep = stepFromAgentPlanEvent(message.index, message.step, message.detail, message.status);
-      setAgentRun((run) => {
-        if (!run) return run;
-        const exists = run.steps.some((step) => step.id === nextStep.id);
-        return {
-          ...run,
-          steps: exists
-            ? run.steps.map((step) => step.id === nextStep.id ? nextStep : step)
-            : [...run.steps, nextStep],
-        };
-      });
-      return;
-    }
-    if (isAgentToolTraceEventMessage(message)) {
-      const nextStep = stepFromToolTraceEvent(message.index, message.trace);
-      setAgentRun((run) => {
-        if (!run) return run;
-        const exists = run.steps.some((step) => step.id === nextStep.id);
-        return {
-          ...run,
-          steps: exists
-            ? run.steps.map((step) => step.id === nextStep.id ? nextStep : step)
-            : [...run.steps, nextStep],
-        };
-      });
-      return;
-    }
-    if (isAgentPermissionRequiredMessage(message)) {
-      const nextStep: AgentStep = {
-        id: 'permission-required',
-        title: '等待权限确认',
-        tool: 'permission-gate',
-        status: 'waiting',
-        detail: message.proposed_patch
-          ? '已生成待确认补丁，写回前需要作者批准。'
-          : '该步骤需要作者批准后才能继续。',
-      };
-      setAgentRun((run) => {
-        if (!run) return run;
-        const exists = run.steps.some((step) => step.id === nextStep.id);
-        return {
-          ...run,
-          status: 'waiting',
-          steps: exists
-            ? run.steps.map((step) => step.id === nextStep.id ? nextStep : step)
-            : [...run.steps, nextStep],
-        };
-      });
-      setAgentBusy(false);
-      return;
-    }
-    if (isAgentControlAckMessage(message)) {
-      const nextStatus: AgentRun['status'] =
-        message.type === 'stop_run' || message.type === 'permission_denied'
-          ? 'failed'
-          : message.type === 'pause_run'
-            ? 'waiting'
-            : message.type === 'resume_run'
-              ? 'running'
-              : 'completed';
-      setAgentRun((run) => run ? { ...run, status: nextStatus } : run);
-      setAgentBusy(nextStatus === 'running');
-    }
-  }, [updateAgentStep]);
-
-  const runAuthorAgent = useCallback(async (
-    goal: string,
-    action: LocalConversationAction = detectLocalConversationAction(goal),
-  ) => {
-    if (agentBusy) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: '这轮还在整理。我先把当前读取、修订或确认收口，再接新的问题。' },
-      ]);
-      return;
-    }
-
-    const writebackOnly = action === 'file.writeback';
-    const project = projectPathRef.current;
-    const file = currentFileRef.current;
-    const ref = contextRefRef.current;
-    if (!project) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: writebackOnly
-            ? '当前没有待写回的修订。'
-            : '我需要先知道这是哪个项目。打开本地项目目录后，我们就可以直接围绕稿件聊。',
-        },
-      ]);
-      return;
-    }
-    if (!file || !ref) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: writebackOnly
-            ? '当前没有待写回的修订。'
-            : '我需要先看到右侧当前稿件。打开正文文件后，我会按你的问题来审、聊或给方案。',
-        },
-      ]);
-      return;
-    }
-
-    const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    agentRunIdRef.current = runId;
-    setAgentBusy(true);
-    setRetryRequest(null);
-    setAgentRun({
-      id: runId,
-      sessionId: runId,
-      goal,
-      status: 'running',
-      steps: [
-        { id: 'plan', title: '理解目标并制定步骤', tool: 'agent.orchestrator', status: 'pending', detail: '等待后端 Agent 编排' },
-        { id: 'context', title: '扫描项目上下文', tool: 'project.context', status: 'pending', detail: '等待执行' },
-        { id: 'draft', title: '读取当前稿件', tool: 'filesystem.read_file', status: 'pending', detail: '等待执行' },
-        { id: 'orchestrate', title: '调用 Agent Orchestrator', tool: 'ide.agent.websocket', status: 'pending', detail: '等待执行' },
-        { id: 'approval', title: '等待作者确认并收口', tool: 'author.approval', status: 'pending', detail: '等待执行' },
-      ],
-    });
-
-    const exportOnly = action === 'file.export';
-    updateAgentStep('plan', {
-      status: 'completed',
-      detail: exportOnly
-        ? '目标判断为导出当前稿'
-        : writebackOnly
-          ? '目标判断为确认写回当前待审补丁'
-        : '目标交给后端 Agent Orchestrator 判定',
-    });
-
-    try {
-      if (writebackOnly) {
-        updateAgentStep('context', { status: 'completed', detail: '确认写回不重新读取项目上下文' });
-        updateAgentStep('draft', { status: 'completed', detail: '复用作者已查看的 diff' });
-        updateAgentStep('orchestrate', { status: 'completed', detail: '无需后端重新生成修订' });
-        updateAgentStep('approval', { status: 'running', detail: '正在写回当前待审补丁' });
-        emitAcceptCurrentFileSuggestion();
-        updateAgentStatus('waiting');
+  const applyAgentStreamEvent = useCallback(
+    (message: AgentSocketMessage) => {
+      if (isAgentRunStartedMessage(message)) {
+        updateAgentStep('orchestrate', {
+          status: 'running',
+          detail: `Agent run ${message.run_id} 已开始`,
+        });
         return;
       }
+      if (isAgentStepEventMessage(message)) {
+        const nextStep = stepFromAgentPlanEvent(
+          message.index,
+          message.step,
+          message.detail,
+          message.status,
+        );
+        setAgentRun((run) => {
+          if (!run) return run;
+          const exists = run.steps.some((step) => step.id === nextStep.id);
+          return {
+            ...run,
+            steps: exists
+              ? run.steps.map((step) => (step.id === nextStep.id ? nextStep : step))
+              : [...run.steps, nextStep],
+          };
+        });
+        return;
+      }
+      if (isAgentToolTraceEventMessage(message)) {
+        const nextStep = stepFromToolTraceEvent(message.index, message.trace);
+        setAgentRun((run) => {
+          if (!run) return run;
+          const exists = run.steps.some((step) => step.id === nextStep.id);
+          return {
+            ...run,
+            steps: exists
+              ? run.steps.map((step) => (step.id === nextStep.id ? nextStep : step))
+              : [...run.steps, nextStep],
+          };
+        });
+        return;
+      }
+      if (isAgentPermissionRequiredMessage(message)) {
+        const nextStep: AgentStep = {
+          id: 'permission-required',
+          title: '等待权限确认',
+          tool: 'permission-gate',
+          status: 'waiting',
+          detail: message.proposed_patch
+            ? '已生成待确认补丁，写回前需要作者批准。'
+            : '该步骤需要作者批准后才能继续。',
+        };
+        setAgentRun((run) => {
+          if (!run) return run;
+          const exists = run.steps.some((step) => step.id === nextStep.id);
+          return {
+            ...run,
+            status: 'waiting',
+            steps: exists
+              ? run.steps.map((step) => (step.id === nextStep.id ? nextStep : step))
+              : [...run.steps, nextStep],
+          };
+        });
+        setAgentBusy(false);
+        return;
+      }
+      if (isAgentControlAckMessage(message)) {
+        const nextStatus: AgentRun['status'] =
+          message.type === 'stop_run' || message.type === 'permission_denied'
+            ? 'failed'
+            : message.type === 'pause_run'
+              ? 'waiting'
+              : message.type === 'resume_run'
+                ? 'running'
+                : 'completed';
+        setAgentRun((run) => (run ? { ...run, status: nextStatus } : run));
+        setAgentBusy(nextStatus === 'running');
+      }
+    },
+    [updateAgentStep],
+  );
 
-      updateAgentStep('context', { status: 'running', detail: '读取大纲、人物、设定、世界观、时间线和伏笔摘要' });
-      const contextRefs = Array.from(new Set([
-        ...explicitContextPaths,
-        ...extractContextReferences(goal),
-      ]));
-      const appendedContext = await appendExplicitContextFiles(
-        await buildContextBundle({ projectPath: project, currentFile: file, pinnedFiles: explicitContextPaths }),
-        project,
-        contextRefs,
-      );
-      const contextBundle = appendedContext.bundle;
-      setLastContextBundle(contextBundle);
-      setMissingContextPaths(appendedContext.missingPaths);
-      updateAgentStep('context', {
-        status: 'completed',
-        detail: `${contextBudgetText(contextBundle)}；${selectedContextPreview(contextBundle)}`,
-      });
-      if (appendedContext.missingPaths.length > 0) {
+  const runAuthorAgent = useCallback(
+    async (goal: string, action: LocalConversationAction = detectLocalConversationAction(goal)) => {
+      if (agentBusy) {
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: `这些 @上下文没有读到：${appendedContext.missingPaths.join('、')}。我会继续用已选上下文处理这一轮。`,
+            content: '这轮还在整理。我先把当前读取、修订或确认收口，再接新的问题。',
           },
         ]);
-      }
-
-      updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
-      const content = await TauriFileSystem.readFile(file);
-      updateAgentStep('draft', {
-        status: 'completed',
-        detail: `当前稿件 ${content.length} 字符，约 ${content.split(/\n\s*\n/).filter(Boolean).length} 段`,
-      });
-
-      if (exportOnly) {
-        updateAgentStep('orchestrate', { status: 'completed', detail: '无需后端修订，进入导出动作' });
-        updateAgentStep('approval', { status: 'running', detail: '正在导出当前稿' });
-        emitExportCurrentFile();
-        updateAgentStatus('waiting');
         return;
       }
 
-      updateAgentStep('orchestrate', {
-        status: 'running',
-        detail: '发送原文、当前稿和项目上下文，等待后端判定意图',
-      });
-      const payload = buildStableAgentRequestPayload({
-        projectPath: project,
-        currentFile: file,
-        content,
-        instruction: goal,
-        projectName,
-        assistantSessionId: assistantSessionIdRef.current,
-        contextBundle,
-        reviewReport: lastReviewReport,
-      });
-      const agentRoleMentions = extractAgentRoleMentions(goal);
-      const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
-      const response = await sendAgentUserMessage({
+      const writebackOnly = action === 'file.writeback';
+      const project = projectPathRef.current;
+      const file = currentFileRef.current;
+      const ref = contextRefRef.current;
+      if (!project) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: writebackOnly
+              ? '当前没有待写回的修订。'
+              : '我需要先知道这是哪个项目。打开本地项目目录后，我们就可以直接围绕稿件聊。',
+          },
+        ]);
+        return;
+      }
+      if (!file || !ref) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: writebackOnly
+              ? '当前没有待写回的修订。'
+              : '我需要先看到右侧当前稿件。打开正文文件后，我会按你的问题来审、聊或给方案。',
+          },
+        ]);
+        return;
+      }
+
+      const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      agentRunIdRef.current = runId;
+      setAgentBusy(true);
+      setRetryRequest(null);
+      setAgentRun({
+        id: runId,
         sessionId: runId,
-        runId,
-        stream: true,
-        assistantSessionId: assistantSessionIdRef.current,
-        userMessage: goal,
-        args: payload,
-        agentRoleHints,
-        agentRoleMentions,
-        onEvent: applyAgentStreamEvent,
-      });
-
-      if (isAgentErrorMessage(response)) {
-        updateAgentStep('orchestrate', { status: 'failed', detail: response.detail });
-        updateAgentStatus('failed');
-        setRetryRequest({ goal, action });
-        setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${response.detail}` }]);
-        return;
-      }
-
-      if (!isAgentResultMessage(response)) {
-        const detail = `Agent 返回了暂不支持的消息：${response.type}`;
-        updateAgentStep('orchestrate', { status: 'failed', detail });
-        updateAgentStatus('failed');
-        setRetryRequest({ goal, action });
-        setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
-        return;
-      }
-
-      assistantSessionIdRef.current = response.assistant_session_id;
-      onAssistantSessionChange?.(response.assistant_session_id);
-      const startedBookRunId = bookRunIdFromResult(response);
-      if (startedBookRunId !== null) {
-        unsubscribeBookRunRef.current?.();
-        setBookRunProjection({
-          bookRunId: startedBookRunId,
-          status: 'running',
-          currentChapterIndex: null,
-          totalChapters: null,
-          completedCount: null,
-          latestEvent: 'started',
-          failureReason: null,
-        });
-        void subscribeBookRunEvents(
-          startedBookRunId,
-          (event) => setBookRunProjection((current) => applyBookRunEventProjection(current, event)),
-          () => setBookRunProjection((current) => current ? {
-            ...current,
-            latestEvent: 'error',
-            failureReason: 'BookRun 进度订阅失败',
-          } : current),
-        ).then((unsubscribe) => {
-          unsubscribeBookRunRef.current = unsubscribe;
-        }).catch(() => {
-          setBookRunProjection((current) => current ? {
-            ...current,
-            latestEvent: 'error',
-            failureReason: 'BookRun 进度订阅失败',
-          } : current);
-        });
-      }
-
-      const agentSteps = stepsFromAgentResult(response);
-      setAgentRun((run) => run ? {
-        ...run,
-        status: response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
+        goal,
+        status: 'running',
         steps: [
-          { id: 'context', title: '扫描项目上下文', tool: 'project.context', status: 'completed', detail: `载入 ${contextBundle.files.length} 个上下文文件` },
-          { id: 'draft', title: '读取当前稿件', tool: 'filesystem.read_file', status: 'completed', detail: `当前稿件 ${content.length} 字符` },
-          { id: 'orchestrate', title: '整理回复', tool: 'ide.agent.websocket', status: 'completed', detail: `intent=${response.intent}；assistant_session=${response.assistant_session_id}` },
-          ...agentSteps,
+          {
+            id: 'plan',
+            title: '理解目标并制定步骤',
+            tool: 'agent.orchestrator',
+            status: 'pending',
+            detail: '等待后端 Agent 编排',
+          },
+          {
+            id: 'context',
+            title: '扫描项目上下文',
+            tool: 'project.context',
+            status: 'pending',
+            detail: '等待执行',
+          },
+          {
+            id: 'draft',
+            title: '读取当前稿件',
+            tool: 'filesystem.read_file',
+            status: 'pending',
+            detail: '等待执行',
+          },
+          {
+            id: 'orchestrate',
+            title: '调用 Agent Orchestrator',
+            tool: 'ide.agent.websocket',
+            status: 'pending',
+            detail: '等待执行',
+          },
           {
             id: 'approval',
             title: '等待作者确认并收口',
             tool: 'author.approval',
-            status: response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
-            detail: response.agent_result.requires_user_confirmation ? '等待作者在右侧 diff 面板确认' : '无需写回确认',
+            status: 'pending',
+            detail: '等待执行',
           },
         ],
-      } : run);
-      setAgentBusy(false);
+      });
 
-      const proposed = fileRevisionPatch(response);
-      if (proposed) {
-        emitFileSuggestion(createRemoteFileSuggestion({
-          id: proposed.id,
-          filePath: proposed.file_path,
-          before: proposed.before,
-          after: proposed.after,
-          summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
-          model: modelFromToolTrace(response),
-          userIntent: goal,
-          assistantSessionId: response.assistant_session_id,
-          issueIds: issueIdsFromAgentResult(response),
-          contextFiles: contextBundle.files.map((file) => file.relativePath),
-        }));
-        emitSuggestionResult({
-          filePath: proposed.file_path,
-          status: 'ready',
-          message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
-          assistantSessionId: response.assistant_session_id,
+      const exportOnly = action === 'file.export';
+      updateAgentStep('plan', {
+        status: 'completed',
+        detail: exportOnly
+          ? '目标判断为导出当前稿'
+          : writebackOnly
+            ? '目标判断为确认写回当前待审补丁'
+            : '目标交给后端 Agent Orchestrator 判定',
+      });
+
+      try {
+        if (writebackOnly) {
+          updateAgentStep('context', {
+            status: 'completed',
+            detail: '确认写回不重新读取项目上下文',
+          });
+          updateAgentStep('draft', { status: 'completed', detail: '复用作者已查看的 diff' });
+          updateAgentStep('orchestrate', { status: 'completed', detail: '无需后端重新生成修订' });
+          updateAgentStep('approval', { status: 'running', detail: '正在写回当前待审补丁' });
+          emitAcceptCurrentFileSuggestion();
+          updateAgentStatus('waiting');
+          return;
+        }
+
+        updateAgentStep('context', {
+          status: 'running',
+          detail: '读取大纲、人物、设定、世界观、时间线和伏笔摘要',
         });
-        updateAgentStatus('waiting');
-        return;
-      }
+        const contextRefs = Array.from(
+          new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
+        );
+        const appendedContext = await appendExplicitContextFiles(
+          await buildContextBundle({
+            projectPath: project,
+            currentFile: file,
+            pinnedFiles: explicitContextPaths,
+          }),
+          project,
+          contextRefs,
+        );
+        const contextBundle = appendedContext.bundle;
+        setLastContextBundle(contextBundle);
+        setMissingContextPaths(appendedContext.missingPaths);
+        updateAgentStep('context', {
+          status: 'completed',
+          detail: `${contextBudgetText(contextBundle)}；${selectedContextPreview(contextBundle)}`,
+        });
+        if (appendedContext.missingPaths.length > 0) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `这些 @上下文没有读到：${appendedContext.missingPaths.join('、')}。我会继续用已选上下文处理这一轮。`,
+            },
+          ]);
+        }
 
-      const reviewSummary = reviewReportSummary(response);
-      if (reviewSummary) {
-        setLastReviewReport(reviewReportFromMessage(response));
-        setLastReviewReportFile(file);
-        setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
-        updateAgentStatus('completed');
-        return;
-      }
+        updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
+        const content = await TauriFileSystem.readFile(file);
+        updateAgentStep('draft', {
+          status: 'completed',
+          detail: `当前稿件 ${content.length} 字符，约 ${content.split(/\n\s*\n/).filter(Boolean).length} 段`,
+        });
 
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
-      ]);
-      updateAgentStatus(response.agent_result.requires_user_confirmation ? 'waiting' : 'completed');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      updateAgentStep('orchestrate', { status: 'failed', detail: message });
-      updateAgentStatus('failed');
-      setRetryRequest({ goal, action });
-      setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
-    }
-  }, [
-    agentBusy,
-    applyAgentStreamEvent,
-    explicitContextPaths,
-    lastReviewReport,
-    onAssistantSessionChange,
-    projectName,
-    updateAgentStatus,
-    updateAgentStep,
-  ]);
+        if (exportOnly) {
+          updateAgentStep('orchestrate', {
+            status: 'completed',
+            detail: '无需后端修订，进入导出动作',
+          });
+          updateAgentStep('approval', { status: 'running', detail: '正在导出当前稿' });
+          emitExportCurrentFile();
+          updateAgentStatus('waiting');
+          return;
+        }
+
+        updateAgentStep('orchestrate', {
+          status: 'running',
+          detail: '发送原文、当前稿和项目上下文，等待后端判定意图',
+        });
+        const payload = buildStableAgentRequestPayload({
+          projectPath: project,
+          currentFile: file,
+          content,
+          instruction: goal,
+          projectName,
+          assistantSessionId: assistantSessionIdRef.current,
+          contextBundle,
+          reviewReport: lastReviewReport,
+        });
+        const agentRoleMentions = extractAgentRoleMentions(goal);
+        const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
+        const response = await sendAgentUserMessage({
+          sessionId: runId,
+          runId,
+          stream: true,
+          assistantSessionId: assistantSessionIdRef.current,
+          userMessage: goal,
+          args: payload,
+          agentRoleHints,
+          agentRoleMentions,
+          onEvent: applyAgentStreamEvent,
+        });
+
+        if (isAgentErrorMessage(response)) {
+          updateAgentStep('orchestrate', { status: 'failed', detail: response.detail });
+          updateAgentStatus('failed');
+          setRetryRequest({ goal, action });
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `这轮没跑通：${response.detail}` },
+          ]);
+          return;
+        }
+
+        if (!isAgentResultMessage(response)) {
+          const detail = `Agent 返回了暂不支持的消息：${response.type}`;
+          updateAgentStep('orchestrate', { status: 'failed', detail });
+          updateAgentStatus('failed');
+          setRetryRequest({ goal, action });
+          setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
+          return;
+        }
+
+        assistantSessionIdRef.current = response.assistant_session_id;
+        onAssistantSessionChange?.(response.assistant_session_id);
+        const startedBookRunId = bookRunIdFromResult(response);
+        if (startedBookRunId !== null) {
+          unsubscribeBookRunRef.current?.();
+          setBookRunProjection({
+            bookRunId: startedBookRunId,
+            status: 'running',
+            currentChapterIndex: null,
+            totalChapters: null,
+            completedCount: null,
+            latestEvent: 'started',
+            failureReason: null,
+          });
+          void subscribeBookRunEvents(
+            startedBookRunId,
+            (event) =>
+              setBookRunProjection((current) => applyBookRunEventProjection(current, event)),
+            () =>
+              setBookRunProjection((current) =>
+                current
+                  ? {
+                      ...current,
+                      latestEvent: 'error',
+                      failureReason: 'BookRun 进度订阅失败',
+                    }
+                  : current,
+              ),
+          )
+            .then((unsubscribe) => {
+              unsubscribeBookRunRef.current = unsubscribe;
+            })
+            .catch(() => {
+              setBookRunProjection((current) =>
+                current
+                  ? {
+                      ...current,
+                      latestEvent: 'error',
+                      failureReason: 'BookRun 进度订阅失败',
+                    }
+                  : current,
+              );
+            });
+        }
+
+        const agentSteps = stepsFromAgentResult(response);
+        setAgentRun((run) =>
+          run
+            ? {
+                ...run,
+                status: response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
+                steps: [
+                  {
+                    id: 'context',
+                    title: '扫描项目上下文',
+                    tool: 'project.context',
+                    status: 'completed',
+                    detail: `载入 ${contextBundle.files.length} 个上下文文件`,
+                  },
+                  {
+                    id: 'draft',
+                    title: '读取当前稿件',
+                    tool: 'filesystem.read_file',
+                    status: 'completed',
+                    detail: `当前稿件 ${content.length} 字符`,
+                  },
+                  {
+                    id: 'orchestrate',
+                    title: '整理回复',
+                    tool: 'ide.agent.websocket',
+                    status: 'completed',
+                    detail: `intent=${response.intent}；assistant_session=${response.assistant_session_id}`,
+                  },
+                  ...agentSteps,
+                  {
+                    id: 'approval',
+                    title: '等待作者确认并收口',
+                    tool: 'author.approval',
+                    status: response.agent_result.requires_user_confirmation
+                      ? 'waiting'
+                      : 'completed',
+                    detail: response.agent_result.requires_user_confirmation
+                      ? '等待作者在右侧 diff 面板确认'
+                      : '无需写回确认',
+                  },
+                ],
+              }
+            : run,
+        );
+        setAgentBusy(false);
+
+        const proposed = fileRevisionPatch(response);
+        if (proposed) {
+          emitFileSuggestion(
+            createRemoteFileSuggestion({
+              id: proposed.id,
+              filePath: proposed.file_path,
+              before: proposed.before,
+              after: proposed.after,
+              summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
+              model: modelFromToolTrace(response),
+              userIntent: goal,
+              assistantSessionId: response.assistant_session_id,
+              issueIds: issueIdsFromAgentResult(response),
+              contextFiles: contextBundle.files.map((file) => file.relativePath),
+            }),
+          );
+          emitSuggestionResult({
+            filePath: proposed.file_path,
+            status: 'ready',
+            message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
+            assistantSessionId: response.assistant_session_id,
+          });
+          updateAgentStatus('waiting');
+          return;
+        }
+
+        const reviewSummary = reviewReportSummary(response);
+        if (reviewSummary) {
+          setLastReviewReport(reviewReportFromMessage(response));
+          setLastReviewReportFile(file);
+          setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
+          updateAgentStatus('completed');
+          return;
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
+        ]);
+        updateAgentStatus(
+          response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        updateAgentStep('orchestrate', { status: 'failed', detail: message });
+        updateAgentStatus('failed');
+        setRetryRequest({ goal, action });
+        setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
+      }
+    },
+    [
+      agentBusy,
+      applyAgentStreamEvent,
+      explicitContextPaths,
+      lastReviewReport,
+      onAssistantSessionChange,
+      projectName,
+      updateAgentStatus,
+      updateAgentStep,
+    ],
+  );
 
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
@@ -1071,58 +1224,82 @@ export function ChatWindow({
     void runAuthorAgent(retryRequest.goal, retryRequest.action);
   }, [agentBusy, retryRequest, runAuthorAgent]);
 
-  const reviseReviewIssue = useCallback((issue: ReviewIssue) => {
-    const ask = `只修 ${issue.id}：${issue.message}`;
-    setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-    void runAuthorAgent(ask);
-  }, [runAuthorAgent]);
+  const reviseReviewIssue = useCallback(
+    (issue: ReviewIssue) => {
+      const ask = `只修 ${issue.id}：${issue.message}`;
+      setMessages((prev) => [...prev, { role: 'user', content: ask }]);
+      void runAuthorAgent(ask);
+    },
+    [runAuthorAgent],
+  );
 
-  const reviseSelectedReviewIssues = useCallback((issues: ReviewIssue[]) => {
-    if (issues.length === 0) return;
-    const ask = `修选中问题：${issues.map((issue) => issue.id).join(' ')}。`;
-    setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-    void runAuthorAgent(ask);
-  }, [runAuthorAgent]);
+  const reviseSelectedReviewIssues = useCallback(
+    (issues: ReviewIssue[]) => {
+      if (issues.length === 0) return;
+      const ask = `修选中问题：${issues.map((issue) => issue.id).join(' ')}。`;
+      setMessages((prev) => [...prev, { role: 'user', content: ask }]);
+      void runAuthorAgent(ask);
+    },
+    [runAuthorAgent],
+  );
 
-  const reviseReviewCategory = useCallback((category: ReviewCategory) => {
-    const ask = `只修${reviewCategoryLabel(category)}问题`;
-    setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-    void runAuthorAgent(ask);
-  }, [runAuthorAgent]);
+  const reviseReviewCategory = useCallback(
+    (category: ReviewCategory) => {
+      const ask = `只修${reviewCategoryLabel(category)}问题`;
+      setMessages((prev) => [...prev, { role: 'user', content: ask }]);
+      void runAuthorAgent(ask);
+    },
+    [runAuthorAgent],
+  );
 
-  const sendAgentRunControl = useCallback(async (type: AgentControlMessageType) => {
-    const run = agentRun;
-    if (!run) return;
-    try {
-      const ack = await sendAgentControlMessage({
-        sessionId: run.sessionId,
-        runId: run.id,
-        type,
-        payload: { source: 'desktop.timeline' },
-      });
-      if (isAgentErrorMessage(ack)) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: `Agent 控制失败：${ack.detail}` }]);
-        return;
+  const sendAgentRunControl = useCallback(
+    async (type: AgentControlMessageType) => {
+      const run = agentRun;
+      if (!run) return;
+      try {
+        const ack = await sendAgentControlMessage({
+          sessionId: run.sessionId,
+          runId: run.id,
+          type,
+          payload: { source: 'desktop.timeline' },
+        });
+        if (isAgentErrorMessage(ack)) {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `Agent 控制失败：${ack.detail}` },
+          ]);
+          return;
+        }
+        applyAgentStreamEvent(ack);
+        if (type === 'approve_permission') {
+          updateAgentStep('permission-required', {
+            status: 'completed',
+            detail: '作者已批准权限请求。',
+          });
+          updateAgentStatus('completed');
+        } else if (type === 'deny_permission') {
+          updateAgentStep('permission-required', {
+            status: 'failed',
+            detail: '作者已拒绝权限请求。',
+          });
+          updateAgentStatus('failed');
+        } else if (type === 'pause_run') {
+          updateAgentStatus('waiting');
+        } else if (type === 'resume_run') {
+          updateAgentStatus('running');
+        } else if (type === 'stop_run') {
+          updateAgentStatus('failed');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `Agent 控制失败：${message}` },
+        ]);
       }
-      applyAgentStreamEvent(ack);
-      if (type === 'approve_permission') {
-        updateAgentStep('permission-required', { status: 'completed', detail: '作者已批准权限请求。' });
-        updateAgentStatus('completed');
-      } else if (type === 'deny_permission') {
-        updateAgentStep('permission-required', { status: 'failed', detail: '作者已拒绝权限请求。' });
-        updateAgentStatus('failed');
-      } else if (type === 'pause_run') {
-        updateAgentStatus('waiting');
-      } else if (type === 'resume_run') {
-        updateAgentStatus('running');
-      } else if (type === 'stop_run') {
-        updateAgentStatus('failed');
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Agent 控制失败：${message}` }]);
-    }
-  }, [agentRun, applyAgentStreamEvent, updateAgentStatus, updateAgentStep]);
+    },
+    [agentRun, applyAgentStreamEvent, updateAgentStatus, updateAgentStep],
+  );
 
   const agentRunControls: AgentRunControlHandlers = {
     onApprovePermission: () => void sendAgentRunControl('approve_permission'),
@@ -1216,13 +1393,16 @@ export function ChatWindow({
     await runAuthorAgent(instruction);
   }, [input, messages.length, projectPath, runAuthorAgent]);
 
-  const handleComposerSubmit = useCallback(async (value: string) => {
-    const instruction = value.trim();
-    if (!instruction || !projectPath) return;
-    if (messages.length === 0) setConversationTitle(deriveConversationTitle(instruction));
-    setMessages((prev) => [...prev, { role: 'user', content: instruction }]);
-    await runAuthorAgent(instruction);
-  }, [messages.length, projectPath, runAuthorAgent]);
+  const handleComposerSubmit = useCallback(
+    async (value: string) => {
+      const instruction = value.trim();
+      if (!instruction || !projectPath) return;
+      if (messages.length === 0) setConversationTitle(deriveConversationTitle(instruction));
+      setMessages((prev) => [...prev, { role: 'user', content: instruction }]);
+      await runAuthorAgent(instruction);
+    },
+    [messages.length, projectPath, runAuthorAgent],
+  );
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-[#18181B]">
@@ -1365,9 +1545,7 @@ function MessageList({
           </div>
         )}
 
-        {bookRunProjection && (
-          <BookRunProgressPanel projection={bookRunProjection} />
-        )}
+        {bookRunProjection && <BookRunProgressPanel projection={bookRunProjection} />}
 
         <ContextSummaryPanel
           currentFileLabel={currentFileLabel}
@@ -1407,9 +1585,8 @@ function ReviewIssueActions({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<ReviewCategory | 'all'>('all');
   const categories = Array.from(new Set(issues.map((issue) => issue.category)));
-  const visibleIssues = categoryFilter === 'all'
-    ? issues
-    : issues.filter((issue) => issue.category === categoryFilter);
+  const visibleIssues =
+    categoryFilter === 'all' ? issues : issues.filter((issue) => issue.category === categoryFilter);
   const selectedIssues = issues.filter((issue) => selectedIds.has(issue.id));
   const toggleIssue = (issueId: string) => {
     setSelectedIds((prev) => {
@@ -1420,7 +1597,10 @@ function ReviewIssueActions({
     });
   };
   return (
-    <section className="animate-slide-up-fade border-t border-[#333338] pt-4" data-testid="review-issue-actions">
+    <section
+      className="animate-slide-up-fade border-t border-[#333338] pt-4"
+      data-testid="review-issue-actions"
+    >
       <div className="mb-2 flex flex-wrap gap-2">
         <button
           type="button"
@@ -1509,15 +1689,15 @@ function AgentRunControlBar({
   run: AgentRun;
   controls: AgentRunControlHandlers;
 }) {
-  const waitingForPermission = run.steps.some((step) => step.id === 'permission-required' && step.status === 'waiting');
+  const waitingForPermission = run.steps.some(
+    (step) => step.id === 'permission-required' && step.status === 'waiting',
+  );
   const canPause = run.status === 'running';
   const canResume = run.status === 'waiting' && !waitingForPermission;
   const canStop = run.status === 'running' || run.status === 'waiting';
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#333338] bg-[#202024] px-3 py-2">
-      <div className="min-w-0 flex-1 text-xs text-[#A8A8B0]">
-        AgentRun #{run.id}
-      </div>
+      <div className="min-w-0 flex-1 text-xs text-[#A8A8B0]">AgentRun #{run.id}</div>
       {waitingForPermission && (
         <>
           <button
@@ -1587,10 +1767,14 @@ export function BookRunProgressPanel({ projection }: { projection: BookRunProjec
           </div>
           <div className="mt-1 truncate text-xs text-[#92929A]">
             章节：{chapters}；最近事件：{projection.latestEvent}
-            {projection.currentChapterIndex !== null ? `；当前第 ${projection.currentChapterIndex} 章` : ''}
+            {projection.currentChapterIndex !== null
+              ? `；当前第 ${projection.currentChapterIndex} 章`
+              : ''}
           </div>
         </div>
-        <span className="rounded-md border border-[#3E4B64] px-2 py-1 text-xs text-[#D8E7FF]">后台工具</span>
+        <span className="rounded-md border border-[#3E4B64] px-2 py-1 text-xs text-[#D8E7FF]">
+          后台工具
+        </span>
       </div>
       {projection.failureReason && (
         <div className="mt-2 text-xs text-[#FFB86B]" data-testid="bookrun-failure-reason">
@@ -1634,7 +1818,8 @@ function ContextSummaryPanel({
             {contextBudgetText(lastContextBundle)}
           </div>
           <div className="mt-1 truncate text-xs text-[#92929A]">
-            当前：{currentFileLabel ?? '未选择文件'}；已选：{selectedContextPreview(lastContextBundle)}
+            当前：{currentFileLabel ?? '未选择文件'}；已选：
+            {selectedContextPreview(lastContextBundle)}
           </div>
         </div>
         <button
@@ -1670,28 +1855,39 @@ function ContextSummaryPanel({
       )}
 
       {contextPickerOpen && (
-        <div className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-[#333338] pt-2" data-testid="context-picker">
+        <div
+          className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-[#333338] pt-2"
+          data-testid="context-picker"
+        >
           {visibleCandidates.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-[#92929A]">当前项目还没有可选的 Markdown 上下文。</div>
-          ) : visibleCandidates.map((file) => {
-            const pinned = explicitContextPaths.includes(file.relativePath) || explicitContextPaths.includes(file.path);
-            return (
-              <button
-                key={file.path}
-                type="button"
-                className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${
-                  pinned ? 'bg-[#2F3C55] text-[#EAF2FF]' : 'text-[#CFCFD4] hover:bg-[#2A2A30]'
-                }`}
-                onClick={() => onTogglePinnedContext(file.relativePath)}
-                data-testid="context-candidate"
-                data-context-path={file.relativePath}
-              >
-                <span className="w-10 flex-shrink-0 text-[#92929A]">{semanticKindLabel(file.kind)}</span>
-                <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
-                <span className="flex-shrink-0 text-[#8F8F8F]">{pinned ? 'pinned' : 'pin'}</span>
-              </button>
-            );
-          })}
+            <div className="px-2 py-1 text-xs text-[#92929A]">
+              当前项目还没有可选的 Markdown 上下文。
+            </div>
+          ) : (
+            visibleCandidates.map((file) => {
+              const pinned =
+                explicitContextPaths.includes(file.relativePath) ||
+                explicitContextPaths.includes(file.path);
+              return (
+                <button
+                  key={file.path}
+                  type="button"
+                  className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${
+                    pinned ? 'bg-[#2F3C55] text-[#EAF2FF]' : 'text-[#CFCFD4] hover:bg-[#2A2A30]'
+                  }`}
+                  onClick={() => onTogglePinnedContext(file.relativePath)}
+                  data-testid="context-candidate"
+                  data-context-path={file.relativePath}
+                >
+                  <span className="w-10 flex-shrink-0 text-[#92929A]">
+                    {semanticKindLabel(file.kind)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
+                  <span className="flex-shrink-0 text-[#8F8F8F]">{pinned ? 'pinned' : 'pin'}</span>
+                </button>
+              );
+            })
+          )}
         </div>
       )}
     </section>
@@ -1759,7 +1955,9 @@ function EmptyConversation({
         <div className="mb-4 px-1">
           <div className="text-[13px] font-medium text-[#EDEDED]">StoryForge</div>
           <div className="mt-1 truncate text-xs text-[#8F8F8F]">
-            {projectName ? `${projectName}${currentFileLabel ? ` · ${currentFileLabel}` : ''}` : '打开项目后即可开始创作会话'}
+            {projectName
+              ? `${projectName}${currentFileLabel ? ` · ${currentFileLabel}` : ''}`
+              : '打开项目后即可开始创作会话'}
           </div>
         </div>
 
@@ -1887,13 +2085,17 @@ function ComposerSurface({
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
   const roleQuery = roleMentionQuery(value);
-  const roleSuggestions = roleQuery === null
-    ? []
-    : AGENT_ROLE_SUGGESTIONS.filter((item) => item.mention.toLowerCase().startsWith(roleQuery.toLowerCase()));
+  const roleSuggestions =
+    roleQuery === null
+      ? []
+      : AGENT_ROLE_SUGGESTIONS.filter((item) =>
+          item.mention.toLowerCase().startsWith(roleQuery.toLowerCase()),
+        );
   const insertRoleMention = (mention: string) => {
-    const nextValue = roleQuery === null
-      ? `${value}${value.endsWith(' ') || !value ? '' : ' '}${mention} `
-      : value.replace(/@[^\s，。！？!?；;：:,、]*$/, `${mention} `);
+    const nextValue =
+      roleQuery === null
+        ? `${value}${value.endsWith(' ') || !value ? '' : ' '}${mention} `
+        : value.replace(/@[^\s，。！？!?；;：:,、]*$/, `${mention} `);
     onChange(nextValue);
   };
 
@@ -1924,7 +2126,9 @@ function ComposerSurface({
         disabled={disabled || busy}
         rows={3}
         className="h-[70px] w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-6 text-[#F1F1F2] outline-none placeholder:text-[#9A9AA2] disabled:cursor-not-allowed disabled:opacity-50"
-        placeholder={disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色...'}
+        placeholder={
+          disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色...'
+        }
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {

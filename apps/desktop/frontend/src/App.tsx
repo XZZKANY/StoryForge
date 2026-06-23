@@ -47,11 +47,12 @@ function normalizeMarkdownFileName(input: string): string {
 function loadProjectAssistantSessions(): Record<string, number> {
   try {
     const raw = localStorage.getItem(PROJECT_ASSISTANT_SESSIONS_KEY);
-    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
     return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, number] => (
-        typeof entry[0] === 'string' && typeof entry[1] === 'number' && entry[1] > 0
-      )),
+      Object.entries(parsed).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[0] === 'string' && typeof entry[1] === 'number' && entry[1] > 0,
+      ),
     );
   } catch {
     return {};
@@ -93,6 +94,7 @@ export function App() {
       try {
         const list = JSON.parse(savedProjects) as string[];
         if (Array.isArray(list)) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- 启动时从 localStorage 恢复项目列表，React18 合法模式
           setProjects(list);
           if (list.length > 0) setActiveProject(list[0]);
         }
@@ -172,56 +174,64 @@ export function App() {
     setEmptyWorkbenchVisible(false);
   }, []);
 
-  const handleNewFile = useCallback(async (projectOverride?: string) => {
-    const targetProject = projectOverride ?? activeProject;
-    if (!targetProject) {
-      await handleOpenProject();
-      return;
-    }
-
-    const input = window.prompt('新建文件名', 'untitled.md');
-    if (input === null) return;
-
-    const relativePath = normalizeMarkdownFileName(input);
-    if (!relativePath) return;
-
-    const filePath = joinPath(targetProject, relativePath);
-    try {
-      const exists = await TauriFileSystem.pathExists(filePath);
-      if (exists) {
-        const shouldOpen = window.confirm('文件已存在，是否直接打开？');
-        if (!shouldOpen) return;
-      } else {
-        await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
+  const handleNewFile = useCallback(
+    async (projectOverride?: string) => {
+      const targetProject = projectOverride ?? activeProject;
+      if (!targetProject) {
+        await handleOpenProject();
+        return;
       }
-      handleFileSelect(filePath);
-    } catch (error) {
-      console.error('新建文件失败', error);
-      window.alert(`新建文件失败: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }, [activeProject, handleFileSelect, handleOpenProject]);
 
-  const handleInitializeStoryProject = useCallback(async (projectOverride?: string) => {
-    const targetProject = projectOverride ?? activeProject;
-    if (!targetProject) {
-      await handleOpenProject();
-      return;
-    }
+      const input = window.prompt('新建文件名', 'untitled.md');
+      if (input === null) return;
 
-    try {
-      await initializeStoryProject(targetProject);
-      setProjectRefreshVersion((version) => version + 1);
-      setEmptyWorkbenchVisible(true);
-      setSettingsVisible(false);
-      setWorkspaceVisible(true);
-      setEditorVisible(true);
-      setComposerMode('panel');
-      setLayoutMode('custom');
-    } catch (error) {
-      console.error('初始化项目结构失败', error);
-      window.alert(`初始化项目结构失败: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }, [activeProject, handleOpenProject]);
+      const relativePath = normalizeMarkdownFileName(input);
+      if (!relativePath) return;
+
+      const filePath = joinPath(targetProject, relativePath);
+      try {
+        const exists = await TauriFileSystem.pathExists(filePath);
+        if (exists) {
+          const shouldOpen = window.confirm('文件已存在，是否直接打开？');
+          if (!shouldOpen) return;
+        } else {
+          await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
+        }
+        handleFileSelect(filePath);
+      } catch (error) {
+        console.error('新建文件失败', error);
+        window.alert(`新建文件失败: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    },
+    [activeProject, handleFileSelect, handleOpenProject],
+  );
+
+  const handleInitializeStoryProject = useCallback(
+    async (projectOverride?: string) => {
+      const targetProject = projectOverride ?? activeProject;
+      if (!targetProject) {
+        await handleOpenProject();
+        return;
+      }
+
+      try {
+        await initializeStoryProject(targetProject);
+        setProjectRefreshVersion((version) => version + 1);
+        setEmptyWorkbenchVisible(true);
+        setSettingsVisible(false);
+        setWorkspaceVisible(true);
+        setEditorVisible(true);
+        setComposerMode('panel');
+        setLayoutMode('custom');
+      } catch (error) {
+        console.error('初始化项目结构失败', error);
+        window.alert(
+          `初始化项目结构失败: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [activeProject, handleOpenProject],
+  );
 
   const restoreFullLayout = useCallback(() => {
     setWorkspaceVisible(true);
@@ -249,25 +259,30 @@ export function App() {
     setEditorVisible(true);
   }, []);
 
-  const setActiveProjectAssistantSession = useCallback((assistantSessionId: number | null) => {
-    const project = activeProject;
-    if (!project) return;
-    setProjectAssistantSessions((prev) => {
-      const next = { ...prev };
-      if (assistantSessionId) {
-        next[project] = assistantSessionId;
-      } else {
-        delete next[project];
-      }
-      saveProjectAssistantSessions(next);
-      return next;
-    });
-  }, [activeProject]);
+  const setActiveProjectAssistantSession = useCallback(
+    (assistantSessionId: number | null) => {
+      const project = activeProject;
+      if (!project) return;
+      setProjectAssistantSessions((prev) => {
+        const next = { ...prev };
+        if (assistantSessionId) {
+          next[project] = assistantSessionId;
+        } else {
+          delete next[project];
+        }
+        saveProjectAssistantSessions(next);
+        return next;
+      });
+    },
+    [activeProject],
+  );
 
   const handleComposerModeChange = useCallback((mode: ComposerLayoutMode) => {
     setSettingsVisible(false);
     setComposerMode(mode);
-    setLayoutMode(mode === 'full' ? 'assistant-only' : mode === 'floating' ? 'workspace-only' : 'custom');
+    setLayoutMode(
+      mode === 'full' ? 'assistant-only' : mode === 'floating' ? 'workspace-only' : 'custom',
+    );
     if (mode === 'full') {
       setWorkspaceVisible(false);
       setEditorVisible(false);
@@ -305,6 +320,7 @@ export function App() {
       shell?.setAttribute('data-smoke-api-ready', ready ? 'true' : 'false');
     };
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- API 就绪后同步标记 smoke 状态，React18 合法模式
     setSmokeApiReady(true);
     setSmokeReadyAttribute(true);
 
@@ -313,7 +329,9 @@ export function App() {
       try {
         ({ listen } = await import('@tauri-apps/api/event'));
       } catch (error) {
-        setTauriMenuError(error instanceof Error ? error.message : 'Failed to import Tauri event API');
+        setTauriMenuError(
+          error instanceof Error ? error.message : 'Failed to import Tauri event API',
+        );
         return;
       }
       if (isCancelled) return;
@@ -323,8 +341,12 @@ export function App() {
       try {
         unlistenFns.push(await listen('menu:open-project', () => void handleOpenProject()));
         unlistenFns.push(await listen('menu:new-file', () => void handleNewFile()));
-        unlistenFns.push(await listen('menu:save', () => document.getElementById('editor-save-btn')?.click()));
-        unlistenFns.push(await listen('menu:close', () => document.getElementById('editor-close-btn')?.click()));
+        unlistenFns.push(
+          await listen('menu:save', () => document.getElementById('editor-save-btn')?.click()),
+        );
+        unlistenFns.push(
+          await listen('menu:close', () => document.getElementById('editor-close-btn')?.click()),
+        );
         unlistenFns.push(
           await listen('menu:toggle-sidebar', () => {
             markCustomLayout();
@@ -336,7 +358,9 @@ export function App() {
         setTauriMenuError('');
         setTauriMenuReady(true);
       } catch (error) {
-        setTauriMenuError(error instanceof Error ? error.message : 'Failed to register Tauri menu listeners');
+        setTauriMenuError(
+          error instanceof Error ? error.message : 'Failed to register Tauri menu listeners',
+        );
       }
     };
 
@@ -360,7 +384,9 @@ export function App() {
   const effectiveComposerMode: ComposerLayoutMode = welcomeVisible
     ? 'full'
     : rightPanelVisible
-      ? composerMode === 'full' ? 'panel' : composerMode
+      ? composerMode === 'full'
+        ? 'panel'
+        : composerMode
       : 'full';
 
   return (
@@ -420,7 +446,9 @@ export function App() {
                 <AgentWorkspace
                   projectPath={activeProject}
                   currentFile={currentFile}
-                  assistantSessionId={activeProject ? projectAssistantSessions[activeProject] ?? null : null}
+                  assistantSessionId={
+                    activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
+                  }
                   exposeWorkspaceToggle={!workbenchPanelVisible}
                   layoutMode={layoutMode}
                   onAssistantSessionChange={setActiveProjectAssistantSession}
@@ -535,12 +563,7 @@ function WindowMenu({
         void runWindowAction('drag');
       }}
     >
-      <img
-        src="/favicon.png"
-        alt=""
-        className="mr-2 h-4 w-4 flex-shrink-0"
-        draggable={false}
-      />
+      <img src="/favicon.png" alt="" className="mr-2 h-4 w-4 flex-shrink-0" draggable={false} />
       <span className="mr-6">文件</span>
       <span className="mr-6">编辑</span>
       <span className="mr-6">视图</span>
@@ -582,7 +605,12 @@ function FolderPlusIcon() {
         strokeWidth="1.3"
         strokeLinejoin="round"
       />
-      <path d="M8 7.25v3.5M6.25 9h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M8 7.25v3.5M6.25 9h3.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -617,7 +645,12 @@ function StoryStructureIcon() {
         strokeWidth="1.15"
         strokeLinejoin="round"
       />
-      <path d="M6.75 5h2.5M6.75 11h2.5M4.6 6.75v2.5M11.4 6.75v2.5" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
+      <path
+        d="M6.75 5h2.5M6.75 11h2.5M4.6 6.75v2.5M11.4 6.75v2.5"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -625,7 +658,13 @@ function StoryStructureIcon() {
 function ChevronRightIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="m6 3.5 4.25 4.5L6 12.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="m6 3.5 4.25 4.5L6 12.5"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -633,7 +672,12 @@ function ChevronRightIcon() {
 function TaskIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M3 4h10M3 8h6M3 12h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path
+        d="M3 4h10M3 8h6M3 12h8"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -641,7 +685,12 @@ function TaskIcon() {
 function SparkleIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M8 1.75l1.1 3.15L12.25 6l-3.15 1.1L8 10.25 6.9 7.1 3.75 6l3.15-1.1L8 1.75Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+      <path
+        d="M8 1.75l1.1 3.15L12.25 6l-3.15 1.1L8 10.25 6.9 7.1 3.75 6l3.15-1.1L8 1.75Z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -709,8 +758,12 @@ function CodexSidebar({
   return (
     <div className="h-full flex flex-col text-[13px]">
       <div className="h-9 px-3 flex items-center gap-4 text-[#999999]">
-        <button className="hover:text-white" title="侧边栏">▣</button>
-        <button className="hover:text-white" title="搜索">⌕</button>
+        <button className="hover:text-white" title="侧边栏">
+          ▣
+        </button>
+        <button className="hover:text-white" title="搜索">
+          ⌕
+        </button>
         <span className="ml-auto text-[#666666]">‹</span>
         <span className="text-[#666666]">›</span>
       </div>
@@ -729,7 +782,11 @@ function CodexSidebar({
           data-testid="toggle-project-library"
           aria-expanded={projectLibraryExpanded}
         >
-          <span className={projectLibraryExpanded ? 'rotate-90 transition-transform' : 'transition-transform'}>
+          <span
+            className={
+              projectLibraryExpanded ? 'rotate-90 transition-transform' : 'transition-transform'
+            }
+          >
             <ChevronRightIcon />
           </span>
         </button>
@@ -743,92 +800,102 @@ function CodexSidebar({
           <FolderPlusIcon />
         </button>
       </div>
-      <div className={projectLibraryExpanded ? 'mt-2 space-y-1 px-2' : 'hidden'} data-testid="project-library-list">
-        {projects.length > 0 ? projects.slice(0, 5).map((project) => {
-          const path = project;
-          const label = project.includes('\\') || project.includes('/') ? basename(project) : project;
-          const isActive = activeProject === path;
-          const isExpanded = expandedProjects.has(path);
-          const sessionId = projectAssistantSessions[path];
-          const sessions: Array<{ id: number; title: string }> = sessionId
-            ? [{ id: sessionId, title: '最近创作会话' }]
-            : [];
-          return (
-            <div key={project}>
-              <button
-                onClick={() => {
-                  if (project.includes('\\') || project.includes('/')) onSelectProject(path);
-                }}
-                className={`sf-sidebar-row group ${
-                  isActive ? 'text-white' : 'text-[#CFCFCF] hover:bg-[#222222]'
-                }`}
-                title={path}
-              >
-                <span
-                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[#A8A8A8] transition-colors group-hover:text-[#DCDCDC] ${
-                    isActive ? 'bg-[#2A2A2A] text-[#DCDCDC]' : ''
+      <div
+        className={projectLibraryExpanded ? 'mt-2 space-y-1 px-2' : 'hidden'}
+        data-testid="project-library-list"
+      >
+        {projects.length > 0 ? (
+          projects.slice(0, 5).map((project) => {
+            const path = project;
+            const label =
+              project.includes('\\') || project.includes('/') ? basename(project) : project;
+            const isActive = activeProject === path;
+            const isExpanded = expandedProjects.has(path);
+            const sessionId = projectAssistantSessions[path];
+            const sessions: Array<{ id: number; title: string }> = sessionId
+              ? [{ id: sessionId, title: '最近创作会话' }]
+              : [];
+            return (
+              <div key={project}>
+                <button
+                  onClick={() => {
+                    if (project.includes('\\') || project.includes('/')) onSelectProject(path);
+                  }}
+                  className={`sf-sidebar-row group ${
+                    isActive ? 'text-white' : 'text-[#CFCFCF] hover:bg-[#222222]'
                   }`}
+                  title={path}
                 >
-                  <ProjectIcon />
-                </span>
-                <span className="min-w-0 flex-1 truncate">{label}</span>
-                <span className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                  <IconToolButton
-                    title={isExpanded ? '收起会话' : '展开会话'}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleProjectSessions(path);
-                    }}
+                  <span
+                    className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[#A8A8A8] transition-colors group-hover:text-[#DCDCDC] ${
+                      isActive ? 'bg-[#2A2A2A] text-[#DCDCDC]' : ''
+                    }`}
                   >
-                    <span className={isExpanded ? 'rotate-90 transition-transform' : 'transition-transform'}>
-                      <ChevronRightIcon />
-                    </span>
-                  </IconToolButton>
-                  <IconToolButton
-                    title="新建会话"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectProject(path);
-                    }}
-                  >
-                    <MessagePlusIcon />
-                  </IconToolButton>
-                  <IconToolButton
-                    title="初始化小说项目结构"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onInitializeProject(path);
-                    }}
-                  >
-                    <StoryStructureIcon />
-                  </IconToolButton>
-                </span>
-              </button>
-              {isExpanded && (
-                <div
-                  className="mb-1 ml-10 mr-2 py-1"
-                  data-testid="project-session-list"
-                  data-project-path={path}
-                >
-                  {sessions.length === 0 ? (
-                    <div className="px-2 py-1 text-xs text-[#777777]">暂无会话</div>
-                  ) : (
-                    sessions.map((session) => (
-                      <button
-                        key={session.id}
-                        className="flex h-7 w-full items-center rounded px-2 text-left text-xs text-[#BDBDBD] hover:bg-[#222222] hover:text-white"
-                        onClick={() => onSelectProject(path)}
-                        title={`Assistant 会话 #${session.id}`}
+                    <ProjectIcon />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                  <span className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    <IconToolButton
+                      title={isExpanded ? '收起会话' : '展开会话'}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleProjectSessions(path);
+                      }}
+                    >
+                      <span
+                        className={
+                          isExpanded ? 'rotate-90 transition-transform' : 'transition-transform'
+                        }
                       >
-                        <span className="min-w-0 flex-1 truncate">{session.title}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        }) : (
+                        <ChevronRightIcon />
+                      </span>
+                    </IconToolButton>
+                    <IconToolButton
+                      title="新建会话"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectProject(path);
+                      }}
+                    >
+                      <MessagePlusIcon />
+                    </IconToolButton>
+                    <IconToolButton
+                      title="初始化小说项目结构"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onInitializeProject(path);
+                      }}
+                    >
+                      <StoryStructureIcon />
+                    </IconToolButton>
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div
+                    className="mb-1 ml-10 mr-2 py-1"
+                    data-testid="project-session-list"
+                    data-project-path={path}
+                  >
+                    {sessions.length === 0 ? (
+                      <div className="px-2 py-1 text-xs text-[#777777]">暂无会话</div>
+                    ) : (
+                      sessions.map((session) => (
+                        <button
+                          key={session.id}
+                          className="flex h-7 w-full items-center rounded px-2 text-left text-xs text-[#BDBDBD] hover:bg-[#222222] hover:text-white"
+                          onClick={() => onSelectProject(path)}
+                          title={`Assistant 会话 #${session.id}`}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
           <button
             className="w-full rounded-md border border-dashed border-[#303030] px-3 py-2 text-left text-xs text-[#777777] hover:border-[#3A3A3A] hover:text-[#BDBDBD]"
             onClick={onOpenProject}
@@ -852,7 +919,9 @@ function IconToolButton({
   children,
 }: {
   title: string;
-  onClick: (event: React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => void;
+  onClick: (
+    event: React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>,
+  ) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -873,11 +942,7 @@ function IconToolButton({
   );
 }
 
-function ProviderSettingsCard({
-  onOpenSettings,
-}: {
-  onOpenSettings: () => void;
-}) {
+function ProviderSettingsCard({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <button
       className="group flex w-full items-center gap-2 rounded-xl border border-[#303030] bg-[#1B1B1B] px-2 py-2 text-left transition-colors hover:border-[#3E3E3E] hover:bg-[#222222]"
@@ -993,34 +1058,23 @@ function TopRightTools({
     <div className="sf-panel-header bg-[#18181B]">
       <span className="sf-topbar-title">编辑窗口</span>
       <div className="sf-topbar-actions">
-      <button
-        className="sf-toolbar-button"
-        onClick={onShowWorkspace}
-        title="编辑窗口"
-      >
-        编辑窗口 ↗
-      </button>
-      <button
-        className="sf-icon-button icon-button"
-        title="更多"
-      >
-        <MoreIcon />
-      </button>
-      <button
-        data-testid={exposeExpandTestId ? 'expand-file-tree' : undefined}
-        className="sf-icon-button icon-button"
-        onClick={onShowPanel}
-        title="显示面板 (Ctrl Alt B)"
-      >
-        <PanelIcon />
-      </button>
-      <button
-        className="sf-icon-button icon-button"
-        onClick={onShowWorkspace}
-        title="恢复分栏"
-      >
-        <LayoutSplitIcon />
-      </button>
+        <button className="sf-toolbar-button" onClick={onShowWorkspace} title="编辑窗口">
+          编辑窗口 ↗
+        </button>
+        <button className="sf-icon-button icon-button" title="更多">
+          <MoreIcon />
+        </button>
+        <button
+          data-testid={exposeExpandTestId ? 'expand-file-tree' : undefined}
+          className="sf-icon-button icon-button"
+          onClick={onShowPanel}
+          title="显示面板 (Ctrl Alt B)"
+        >
+          <PanelIcon />
+        </button>
+        <button className="sf-icon-button icon-button" onClick={onShowWorkspace} title="恢复分栏">
+          <LayoutSplitIcon />
+        </button>
       </div>
     </div>
   );
@@ -1047,28 +1101,21 @@ function WelcomeWorkspace({
       <div className="sf-panel-header bg-[#18181B]">
         <span className="sf-topbar-title">编辑窗口</span>
         <div className="sf-topbar-actions">
-        <button
-          className="sf-toolbar-button"
-          onClick={onBrowseFiles}
-          title="打开编辑窗口"
-        >
-          编辑窗口 ↗
-        </button>
-        <button
-          className="sf-icon-button"
-          title="更多"
-        >
-          <MoreIcon />
-        </button>
-        <button
-          className="sf-icon-button"
-          onClick={onShowWorkbench}
-          title="显示文件树与编辑分栏"
-          data-testid="welcome-show-workbench"
-        >
-          <LayoutSplitIcon />
-        </button>
-      </div>
+          <button className="sf-toolbar-button" onClick={onBrowseFiles} title="打开编辑窗口">
+            编辑窗口 ↗
+          </button>
+          <button className="sf-icon-button" title="更多">
+            <MoreIcon />
+          </button>
+          <button
+            className="sf-icon-button"
+            onClick={onShowWorkbench}
+            title="显示文件树与编辑分栏"
+            data-testid="welcome-show-workbench"
+          >
+            <LayoutSplitIcon />
+          </button>
+        </div>
       </div>
 
       <AgentComposerHome
@@ -1096,16 +1143,25 @@ function AgentComposerHome({
 }) {
   return (
     <div className="flex h-full items-center justify-center bg-[#18181B] px-4 py-10">
-      <div className={`flex w-full ${compact ? 'max-w-xl' : 'max-w-[760px]'} translate-y-[-4vh] flex-col items-stretch`}>
+      <div
+        className={`flex w-full ${compact ? 'max-w-xl' : 'max-w-[760px]'} translate-y-[-4vh] flex-col items-stretch`}
+      >
         <div className="mb-6 flex min-w-0 items-center gap-2 text-xs text-zinc-400">
-          <button className="text-zinc-300 transition-colors hover:text-white" onClick={onBrowseFiles}>
+          <button
+            className="text-zinc-300 transition-colors hover:text-white"
+            onClick={onBrowseFiles}
+          >
             首页⌄
           </button>
           <span className="text-[#777777]">▱</span>
-          <span className="min-w-0 truncate text-[#CFCFCF]">{activeProject ? basename(activeProject) : '本地'}</span>
+          <span className="min-w-0 truncate text-[#CFCFCF]">
+            {activeProject ? basename(activeProject) : '本地'}
+          </span>
         </div>
 
-        <div className={`w-full ${compact ? 'min-h-[116px]' : 'min-h-[126px]'} rounded-2xl border border-[#45454C] bg-[#2A2A30] shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}>
+        <div
+          className={`w-full ${compact ? 'min-h-[116px]' : 'min-h-[126px]'} rounded-2xl border border-[#45454C] bg-[#2A2A30] shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
+        >
           <textarea
             className={`${compact ? 'h-[66px] text-[15px]' : 'h-[72px] text-[17px]'} w-full resize-none bg-transparent px-4 py-3 leading-6 text-[#EDEDED] outline-none placeholder:text-[#707070]`}
             placeholder="规划、构建，输入 / 调用技能，输入 @ 引用上下文"
@@ -1210,6 +1266,7 @@ function RightWorkspace({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 布局变化时按容器夹紧文件树宽度，React18 合法模式
     setFileTreeWidth((width) => clampFileTreeWidth(width));
   }, [clampFileTreeWidth, workspaceVisible]);
 
@@ -1289,7 +1346,12 @@ function RightWorkspace({
           <div className="hidden" aria-hidden="true" data-recent-count={recentFiles.length} />
         </section>
       ) : (
-        <CollapsedRail testId="expand-file-tree" label="文件" title="展开文件树" onClick={onRestoreWorkspace} />
+        <CollapsedRail
+          testId="expand-file-tree"
+          label="文件"
+          title="展开文件树"
+          onClick={onRestoreWorkspace}
+        />
       )}
 
       {workspaceVisible && (
@@ -1361,13 +1423,19 @@ function FloatingComposer({
         >
           恢复布局
         </button>
-        <button className="text-[#8A8A8A] hover:text-white" onClick={onFullConversation} title="回到完整对话">
+        <button
+          className="text-[#8A8A8A] hover:text-white"
+          onClick={onFullConversation}
+          title="回到完整对话"
+        >
           还原对话
         </button>
       </div>
       <div className="flex h-10 items-center gap-3 rounded-[18px] border border-[#333333] bg-[#252525] px-3">
         <span className="sf-icon-button rounded-full bg-[#353535] text-lg text-[#BDBDBD]">+</span>
-        <span className="min-w-0 flex-1 truncate text-sm text-[#8F8F8F]">输入内容，或 @ 引用文件上下文</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-[#8F8F8F]">
+          输入内容，或 @ 引用文件上下文
+        </span>
         <span className="text-sm text-[#EDEDED]">StoryForge 助手 · 快速</span>
         <button className="sf-icon-button rounded-full bg-[#EEEEEE] text-[#111111]" title="发送">
           ◖
@@ -1395,7 +1463,9 @@ function CollapsedRail({
       title={title}
       className="group w-9 h-full flex-shrink-0 border-r border-[#3A3A40] bg-[#202024] text-[#B0B0B8] hover:text-white hover:bg-[#2A2A30] transition-colors flex flex-col items-center justify-start py-3 gap-2"
     >
-      <span className="text-lg leading-none opacity-80 transition-opacity group-hover:opacity-100">›</span>
+      <span className="text-lg leading-none opacity-80 transition-opacity group-hover:opacity-100">
+        ›
+      </span>
       <span className="vertical-rl text-[12px] tracking-wide">{label}</span>
     </button>
   );

@@ -40,7 +40,9 @@ function basename(path: string): string {
 function relativeToProject(projectPath: string | null, filePath: string): string {
   if (!projectPath) return basename(filePath);
   const root = projectPath.replace(/[/\\]+$/, '');
-  return filePath.startsWith(root) ? filePath.slice(root.length).replace(/^[/\\]+/, '') : basename(filePath);
+  return filePath.startsWith(root)
+    ? filePath.slice(root.length).replace(/^[/\\]+/, '')
+    : basename(filePath);
 }
 
 export function CommandPalette({
@@ -141,7 +143,10 @@ export function CommandPalette({
 
   const fileItems = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const mapped = files.map((f) => ({ path: f.path, label: relativeToProject(projectPath, f.path) }));
+    const mapped = files.map((f) => ({
+      path: f.path,
+      label: relativeToProject(projectPath, f.path),
+    }));
     if (!q) return mapped.slice(0, 50);
     return mapped.filter((f) => f.label.toLowerCase().includes(q)).slice(0, 50);
   }, [files, query, projectPath]);
@@ -155,6 +160,7 @@ export function CommandPalette({
   const itemCount = mode === 'files' ? fileItems.length : commandItems.length;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- query/mode 变化时重置高亮项，React18 合法模式
     setActive(0);
   }, [query, mode]);
 
@@ -221,7 +227,9 @@ export function CommandPalette({
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
                 className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
-                  index === active ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-foreground/10'
+                  index === active
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-foreground hover:bg-foreground/10'
                 }`}
               >
                 <span className="truncate">{item.label}</span>
@@ -235,12 +243,16 @@ export function CommandPalette({
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
                 className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between gap-2 ${
-                  index === active ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-foreground/10'
+                  index === active
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-foreground hover:bg-foreground/10'
                 }`}
               >
                 <span className="truncate">{item.title}</span>
                 {item.hint && (
-                  <span className={`text-xs flex-shrink-0 ${index === active ? 'text-accent-foreground/70' : 'text-muted'}`}>
+                  <span
+                    className={`text-xs flex-shrink-0 ${index === active ? 'text-accent-foreground/70' : 'text-muted'}`}
+                  >
                     {item.hint}
                   </span>
                 )}

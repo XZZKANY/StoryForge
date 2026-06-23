@@ -834,3 +834,37 @@
 - 文件写回、MCP 写入边界与 6-23 记录一致，未新增绕过作者确认或写入型 MCP 能力。
 
 记录时间戳：2026-06-24（控制平面收口提交）。
+
+---
+
+# 桌面前端 lint 门禁转绿（2026-06-24）
+
+## 目标
+
+清理桌面前端 `pnpm lint` 门禁的两层既有债务，使根 lint 真正 exit 0。
+
+## 背景
+
+`pnpm lint` = `eslint . && prettier --check ...`。此前 eslint 直接以 28 个 error 退出，`&&` 短路使 prettier 从未执行，长期掩盖了底层 prettier 债务。本轮 eslint 转绿后该层才浮现。
+
+## 交付物
+
+- **eslint 层（28 error → 0）**：
+  - `eslint.config.mjs`：为 `verify-*.mjs` 补 `EventTarget`/`Event`/`MessageEvent`/`CloseEvent` globals，消除 4 个 `no-undef`。
+  - `react-hooks/refs`（12，ChatWindow/Composer/Editor）：render 期 latest-ref 赋值移入无依赖 `useEffect`（这些 ref 仅被 Monaco/WebSocket 等异步回调读取，行为等价、零回归）。
+  - `react-hooks/set-state-in-effect`（11）+ `react-hooks/immutability`（1）：均为「输入变化→同步重置派生 state」或定时器回调，属 React18 合法模式（项目未上 React Compiler），逐处 `eslint-disable-next-line` + 中文理由，规则仍约束新代码。
+- **prettier 层**：`prettier --write` 桌面前端 `src/**` 既有未格式化文件（30 个，含本轮编辑的 8 个组件），统一代码风格。
+
+## 本地验证结果
+
+- `npx eslint .`（JSON 统计）：err=0 warn=4（4 warning 为既有 `react-hooks/exhaustive-deps`×3 + `@typescript-eslint/no-unused-vars`×1，不阻塞门禁）。
+- `pnpm.cmd run lint`：exit 0，eslint 0 error + “All matched files use Prettier code style!”。
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run test`：25 passed / 0 failed（refs 移 effect 与格式化均零回归）。
+
+## 说明
+
+- 12 个 compiler-readiness 规则按用户确认采用「分而治之」：refs 真改代码，set-state-in-effect/immutability 精准豁免，待未来上 React Compiler 再统一处理。
+- 余下 4 个 warning 不阻塞门禁，本轮按最小范围未一并处理。
+
+记录时间戳：2026-06-24（lint 门禁转绿）。

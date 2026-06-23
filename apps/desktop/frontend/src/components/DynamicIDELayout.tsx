@@ -40,7 +40,10 @@ export function DynamicIDELayout({
 
   const clampComposerWidth = (nextWidth: number, availableWidth = mainWidth) => {
     const measuredWidth = availableWidth || mainRef.current?.getBoundingClientRect().width || 0;
-    const maxComposerWidth = Math.max(minComposerWidth, measuredWidth - minRightWidth - resizerWidth);
+    const maxComposerWidth = Math.max(
+      minComposerWidth,
+      measuredWidth - minRightWidth - resizerWidth,
+    );
     return Math.min(Math.max(nextWidth, minComposerWidth), maxComposerWidth);
   };
 
@@ -60,6 +63,7 @@ export function DynamicIDELayout({
 
   useEffect(() => {
     if (composerMode === 'panel') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 布局/模式变化时夹紧 composer 宽度，React18 合法模式
       setComposerWidth((width) => clampComposerWidth(width));
     }
   }, [composerMode, minComposerWidth, mainWidth]);
@@ -113,12 +117,21 @@ export function DynamicIDELayout({
     setIsDragging(false);
   };
 
-  const effectiveComposerMode = composerMode === 'panel' && mainWidth > 0 && mainWidth < splitMinWidth ? 'floating' : composerMode;
-  const layoutState = !rightPanelVisible ? 'conversation-full' : effectiveComposerMode === 'floating' ? 'editor-floating' : 'split';
+  const effectiveComposerMode =
+    composerMode === 'panel' && mainWidth > 0 && mainWidth < splitMinWidth
+      ? 'floating'
+      : composerMode;
+  const layoutState = !rightPanelVisible
+    ? 'conversation-full'
+    : effectiveComposerMode === 'floating'
+      ? 'editor-floating'
+      : 'split';
 
   return (
     <div className="flex flex-1 min-h-0">
-      <aside className="w-[258px] flex-shrink-0 border-r border-[#3A3A40] bg-[#1F1F23]">{sidebar}</aside>
+      <aside className="w-[258px] flex-shrink-0 border-r border-[#3A3A40] bg-[#1F1F23]">
+        {sidebar}
+      </aside>
 
       <main
         ref={mainRef}

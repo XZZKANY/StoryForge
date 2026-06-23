@@ -42,9 +42,12 @@ export function Composer({ projectPath, currentFile, onToggleCollapse }: Compose
   const contextRefRef = useRef<string | null>(contextRef);
   const currentFileRef = useRef<string | null>(currentFile);
   const projectPathRef = useRef<string | null>(projectPath);
-  contextRefRef.current = contextRef;
-  currentFileRef.current = currentFile;
-  projectPathRef.current = projectPath;
+  // 每次渲染后同步最新值到 ref，供事件处理器读取最新 props，避免闭包读到旧值。
+  useEffect(() => {
+    contextRefRef.current = contextRef;
+    currentFileRef.current = currentFile;
+    projectPathRef.current = projectPath;
+  });
 
   const requestSuggestionForCurrentFile = (userIntent: string) => {
     const filePath = currentFileRef.current;
@@ -128,7 +131,11 @@ export function Composer({ projectPath, currentFile, onToggleCollapse }: Compose
       {/* 顶部：项目会话标题 */}
       <div className="h-10 px-3 border-b border-border flex items-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <svg className="w-4 h-4 text-accent flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
+          <svg
+            className="w-4 h-4 text-accent flex-shrink-0"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+          >
             <path d="M2 2h12v9H8l-3 3v-3H2V2zm1 1v7h3v2l2-2h5V3H3z" />
           </svg>
           <h2 className="text-sm font-semibold text-foreground truncate">
@@ -234,9 +241,7 @@ export function Composer({ projectPath, currentFile, onToggleCollapse }: Compose
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              canChat
-                ? '和 StoryForge 讨论当前项目或右侧文件...'
-                : '打开项目后即可使用 AI 助手'
+              canChat ? '和 StoryForge 讨论当前项目或右侧文件...' : '打开项目后即可使用 AI 助手'
             }
             disabled={!canChat}
             rows={3}

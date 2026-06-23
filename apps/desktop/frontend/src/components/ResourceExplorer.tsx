@@ -44,7 +44,7 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
           name: segment,
           path: entry.path,
           isDir: false,
-          children: []
+          children: [],
         });
       } else {
         let dirNode = dirMap.get(currentPath);
@@ -53,7 +53,7 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
             name: segment,
             path: currentPath,
             isDir: true,
-            children: []
+            children: [],
           };
           dirMap.set(currentPath, dirNode);
           currentLevel.push(dirNode);
@@ -69,7 +69,7 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
       if (!a.isDir && b.isDir) return 1;
       return a.name.localeCompare(b.name);
     });
-    nodes.forEach(node => sortNodes(node.children));
+    nodes.forEach((node) => sortNodes(node.children));
   };
 
   sortNodes(rootNodes);
@@ -89,6 +89,7 @@ export function ResourceExplorer({
 
   useEffect(() => {
     if (!projectPath) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步清空资源树派生态，React18 合法模式
       setFiles([]);
       setError(null);
       return;
@@ -130,7 +131,7 @@ export function ResourceExplorer({
   }, [files, projectPath]);
 
   const handleCollapse = useCallback(() => {
-    setCollapsed(prev => !prev);
+    setCollapsed((prev) => !prev);
   }, []);
 
   return (
@@ -143,7 +144,11 @@ export function ResourceExplorer({
           className="sf-icon-button text-[#CCCCCC] hover:bg-[#2D2D30]"
           title={collapsed ? '展开' : '折叠'}
         >
-          <svg className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+          <svg
+            className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+            viewBox="0 0 16 16"
+            fill="currentColor"
+          >
             <path d="M4 6l4 4 4-4H4z" />
           </svg>
         </button>
@@ -171,7 +176,7 @@ export function ResourceExplorer({
           ) : (
             <div className="flex flex-col gap-0.5">
               <div className="pl-2">
-                {tree.map(node => (
+                {tree.map((node) => (
                   <TreeNodeItem
                     key={node.path}
                     node={node}
@@ -193,7 +198,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   node,
   level,
   currentFile,
-  onFileSelect
+  onFileSelect,
 }: {
   node: TreeNode;
   level: number;
@@ -204,7 +209,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   const isActive = node.path === currentFile;
 
   const handleToggle = useCallback(() => {
-    setIsOpen(prev => !prev);
+    setIsOpen((prev) => !prev);
   }, []);
 
   const handleSelect = useCallback(() => {
@@ -220,18 +225,22 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <div className="flex flex-col">
         <button
           onClick={handleToggle}
-      className="sf-tree-row text-[#CCCCCC] transition-colors hover:bg-[#2A2D2E] group cursor-pointer"
+          className="sf-tree-row text-[#CCCCCC] transition-colors hover:bg-[#2A2D2E] group cursor-pointer"
         >
-          <div className="flex items-center h-full pl-[4px]">
-            {indentBlocks}
-          </div>
+          <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
           <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-            <svg className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 16 16" fill="currentColor">
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
               <path d="M6 4l4 4-4 4V4z" />
             </svg>
           </div>
-          <span className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-[#DCDCDC]' : 'text-[#A8A8A8] group-hover:text-[#DCDCDC]'}`}>
+          <span
+            className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-[#DCDCDC]' : 'text-[#A8A8A8] group-hover:text-[#DCDCDC]'}`}
+          >
             <FolderIcon className="h-3.5 w-3.5" />
           </span>
 
@@ -239,7 +248,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
         </button>
         {isOpen && (
           <div className="flex flex-col">
-            {node.children.map(child => (
+            {node.children.map((child) => (
               <TreeNodeItem
                 key={child.path}
                 node={child}
@@ -265,12 +274,12 @@ const TreeNodeItem = memo(function TreeNodeItem({
         ${isActive ? 'bg-[#37373D] text-white' : 'text-[#CCCCCC] hover:bg-[#2A2D2E]'}
       `}
     >
-      <div className="flex items-center h-full pl-[4px]">
-        {indentBlocks}
-      </div>
+      <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-        <MarkdownFileIcon className={`h-3.5 w-3.5 ${isActive ? 'text-[#7FB1FF]' : 'text-[#A8A8A8] opacity-70 group-hover:opacity-100'}`} />
+        <MarkdownFileIcon
+          className={`h-3.5 w-3.5 ${isActive ? 'text-[#7FB1FF]' : 'text-[#A8A8A8] opacity-70 group-hover:opacity-100'}`}
+        />
       </div>
 
       <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>

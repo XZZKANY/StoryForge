@@ -68,11 +68,14 @@ export function Editor({
   const projectPathRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
 
-  filePathRef.current = filePath;
-  projectPathRef.current = projectPath;
-  isDirtyRef.current = isDirty;
-  pendingSuggestionRef.current = pendingSuggestion;
-  autoSaveRef.current = autoSave;
+  // 每次渲染后同步最新值到 ref（见上注释），供 Monaco 命令/回调闭包读取最新状态。
+  useEffect(() => {
+    filePathRef.current = filePath;
+    projectPathRef.current = projectPath;
+    isDirtyRef.current = isDirty;
+    pendingSuggestionRef.current = pendingSuggestion;
+    autoSaveRef.current = autoSave;
+  });
 
   // 加载文件内容
   useLayoutEffect(() => {
@@ -81,6 +84,7 @@ export function Editor({
 
     if (!filePath) {
       originalContentRef.current = '';
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置加载态，React18 合法模式
       setLoadedFilePath(null);
       setLoadedContent('');
       setLoadedContentPreview('');
@@ -115,7 +119,8 @@ export function Editor({
         setLoadedContent(content);
         if (editorRef.current) {
           editorRef.current.setValue(content);
-          cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
+          cleanVersionIdRef.current =
+            editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
         }
         setIsDirty(false);
         setLoadedFilePath(filePath);
@@ -174,6 +179,7 @@ export function Editor({
           if (autoSaveRef.current && dirty) {
             if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
             autoSaveTimerRef.current = window.setTimeout(() => {
+              // eslint-disable-next-line react-hooks/immutability -- 自动保存定时器回调，非渲染期触发保存
               if (filePathRef.current && editorRef.current) void handleSave();
             }, 900);
           }
@@ -201,17 +207,21 @@ export function Editor({
     editorRef.current?.updateOptions({ fontSize: editorFontSize });
   }, [editorFontSize]);
 
-  useEffect(() => registerSmokeEditorController({
-    setContent(content: string) {
-      if (!editorRef.current) return false;
-      editorRef.current.setValue(content);
-      setLoadedContentPreview(content.slice(0, 120));
-      return true;
-    },
-    getContent() {
-      return editorRef.current?.getValue() ?? null;
-    },
-  }), []);
+  useEffect(
+    () =>
+      registerSmokeEditorController({
+        setContent(content: string) {
+          if (!editorRef.current) return false;
+          editorRef.current.setValue(content);
+          setLoadedContentPreview(content.slice(0, 120));
+          return true;
+        },
+        getContent() {
+          return editorRef.current?.getValue() ?? null;
+        },
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!editorReady || !editorRef.current || loadedFilePath !== filePath) return;
@@ -311,7 +321,8 @@ export function Editor({
         after: suggestion.after,
         summary: suggestion.summary,
         note: suggestion.note,
-        userIntent: suggestion.note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+        userIntent:
+          suggestion.note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
         assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
         patchId: suggestion.id,
         issueIds: suggestion.issueIds,
@@ -324,9 +335,7 @@ export function Editor({
       setIsDirty(false);
       setPendingSuggestion(null);
       setSuggestionStatus(
-        loopRecord.recordPath
-          ? `已接受并写入当前文件，闭环记录已保存`
-          : '已接受并写入当前文件',
+        loopRecord.recordPath ? `已接受并写入当前文件，闭环记录已保存` : '已接受并写入当前文件',
       );
       emitAuthorLoopResult({
         filePath: path,
@@ -406,7 +415,8 @@ export function Editor({
       void handleAcceptSuggestion();
     };
     window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
-    return () => window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
+    return () =>
+      window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
   }, []);
 
   const handleSaveSuggestionNote = async () => {
@@ -495,9 +505,16 @@ export function Editor({
       data-content-preview={loadedContentPreview}
     >
       {!filePath && (
-        <div className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background text-muted" data-testid="editor-empty">
+        <div
+          className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background text-muted"
+          data-testid="editor-empty"
+        >
           <div className="text-center">
-            <svg className="w-10 h-10 mx-auto mb-3 text-muted/60" viewBox="0 0 16 16" fill="currentColor">
+            <svg
+              className="w-10 h-10 mx-auto mb-3 text-muted/60"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
               <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
             </svg>
             <p className="text-base mb-1 text-foreground">未选择文件</p>
@@ -512,7 +529,11 @@ export function Editor({
           <span className="sf-topbar-title" title={filePath ?? undefined}>
             {filePath ? filePath.split(/[/\\]/).pop() : '未打开文件'}
           </span>
-          {isDirty && <span className="text-warning text-lg leading-none" title="未保存的修改">●</span>}
+          {isDirty && (
+            <span className="text-warning text-lg leading-none" title="未保存的修改">
+              ●
+            </span>
+          )}
         </div>
         <div className="sf-topbar-actions">
           {onExportCurrent && (
@@ -528,11 +549,11 @@ export function Editor({
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
-              title={sidebarVisible ? "收起侧边栏" : "展开侧边栏"}
+              title={sidebarVisible ? '收起侧边栏' : '展开侧边栏'}
               className={`sf-icon-button ${sidebarVisible ? '' : 'bg-foreground/10 text-foreground'}`}
             >
               <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d={sidebarVisible ? "M6 4l4 4-4 4V4z" : "M10 4l-4 4 4 4V4z"} />
+                <path d={sidebarVisible ? 'M6 4l4 4-4 4V4z' : 'M10 4l-4 4 4 4V4z'} />
               </svg>
             </button>
           )}
@@ -567,7 +588,10 @@ export function Editor({
       </div>
 
       {isReviseLoading && (
-        <div className="px-3 py-2 border-b border-border bg-panel text-xs text-accent animate-fade-in flex-shrink-0 flex items-center gap-2" data-testid="suggestion-loading">
+        <div
+          className="px-3 py-2 border-b border-border bg-panel text-xs text-accent animate-fade-in flex-shrink-0 flex items-center gap-2"
+          data-testid="suggestion-loading"
+        >
           <span className="inline-block w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           正在请求 AI 修订…
         </div>
@@ -597,16 +621,15 @@ export function Editor({
       {/* Monaco Editor */}
       <div ref={containerRef} className="flex-1" data-testid="editor-container" />
 
-      {showHistory && (
-        filePath ? (
+      {showHistory &&
+        (filePath ? (
           <VersionHistory
             projectPath={projectPath}
             filePath={filePath}
             onRestore={handleRestore}
             onClose={() => setShowHistory(false)}
           />
-        ) : null
-      )}
+        ) : null)}
     </div>
   );
 }
@@ -659,12 +682,15 @@ function VersionHistory({
       setBusy(false);
     }
   };
-  const visibleVersions = versions?.filter((version) => (
-    sourceFilter === 'all' ? true : version.source === sourceFilter
-  ));
+  const visibleVersions = versions?.filter((version) =>
+    sourceFilter === 'all' ? true : version.source === sourceFilter,
+  );
 
   return (
-    <div className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade" data-testid="version-history">
+    <div
+      className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade"
+      data-testid="version-history"
+    >
       <div className="sf-panel-header border-border">
         <span className="text-sm font-semibold">版本记录</span>
         <button
@@ -673,11 +699,19 @@ function VersionHistory({
           className="sf-icon-button text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
-      <div className="flex flex-shrink-0 gap-1 border-b border-border p-2" data-testid="version-source-filter">
+      <div
+        className="flex flex-shrink-0 gap-1 border-b border-border p-2"
+        data-testid="version-source-filter"
+      >
         {(['all', 'Editor', 'Agent'] as const).map((value) => (
           <button
             key={value}
@@ -706,7 +740,10 @@ function VersionHistory({
               data-version-source={v.source ?? ''}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-foreground truncate" title={formatTimestamp(v.timestamp)}>
+                <span
+                  className="text-xs text-foreground truncate"
+                  title={formatTimestamp(v.timestamp)}
+                >
                   {formatTimestamp(v.timestamp)}
                 </span>
                 <button
@@ -717,11 +754,18 @@ function VersionHistory({
                   恢复
                 </button>
               </div>
-              <div className="mt-1 truncate text-[11px] text-muted" title={v.summary ?? v.file ?? ''}>
-                {v.source ? `${v.source} · ` : ''}{v.summary ?? v.file ?? '版本快照'}
+              <div
+                className="mt-1 truncate text-[11px] text-muted"
+                title={v.summary ?? v.file ?? ''}
+              >
+                {v.source ? `${v.source} · ` : ''}
+                {v.summary ?? v.file ?? '版本快照'}
               </div>
               {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
-                <div className="mt-1 truncate text-[11px] text-muted" data-testid="version-agent-meta">
+                <div
+                  className="mt-1 truncate text-[11px] text-muted"
+                  data-testid="version-agent-meta"
+                >
                   {v.patchId ? `patch ${v.patchId}` : ''}
                   {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
                   {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
