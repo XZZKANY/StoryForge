@@ -201,6 +201,7 @@ export function Editor({
       editorRef.current = null;
       setEditorReady(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性创建 Monaco 实例，仅取 loadedContent/editorFontSize 初始值；二者后续变化分别由下方 fontSize updateOptions effect 和 loadedContent setValue effect 接管，列入依赖会销毁重建编辑器、丢失光标与撤销历史
   }, []);
 
   useEffect(() => {

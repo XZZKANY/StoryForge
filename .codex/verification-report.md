@@ -868,3 +868,34 @@
 - 余下 4 个 warning 不阻塞门禁，本轮按最小范围未一并处理。
 
 记录时间戳：2026-06-24（lint 门禁转绿）。
+
+# 桌面前端 exhaustive-deps 三处收口（2026-06-24，lint 门禁转绿续）
+
+## 目标
+
+逐个评估并清理上一轮明确推迟的 3 个 `react-hooks/exhaustive-deps` 警告（非阻塞），按 effect 意图区分「真漏依赖」与「有意省略」，不机械补全。
+
+## 交付物
+
+- **DynamicIDELayout.tsx（:69 & :102，缺 `clampComposerWidth`）—— 真修复**：
+  - `clampComposerWidth` 原为每次渲染重建的普通函数，两个 effect 闭包调用却未列入依赖；直接塞进 deps 会因「每帧新函数」导致 effect 每次渲染重跑。改用 `useCallback` 包裹（deps：`mainWidth`/`minComposerWidth`/`minRightWidth`/`resizerWidth`）稳定引用，两个 effect 依赖改为该稳定引用，`import` 补 `useCallback`。
+  - 顺带修正手写 deps 漏掉的真实 prop 依赖 `minRightWidth`（此前 `minRightWidth` 变化不会重新夹紧 composer 宽度，属潜在 bug）。
+  - 不会循环：`clampComposerWidth` 不读 `composerWidth`，`setComposerWidth` 用 functional update，故 `useCallback` 不因 `composerWidth` 变化重建、effect 不自触发。
+- **Editor.tsx（:204，缺 `editorFontSize` + `loadedContent`）—— 有意省略，精确 disable**：
+  - 该 effect 为挂载期一次性创建 Monaco 实例（空 deps 刻意为之），仅取二者初始值作种子。列入依赖会在改字号/换内容时销毁重建整个编辑器，丢失光标、滚动与撤销历史。
+  - 二者后续变化已分别由 `:206`（`updateOptions({ fontSize })`）与 `:226`（`setValue(loadedContent)`）两个专门 effect 接管。
+  - 处理：`eslint-disable-next-line react-hooks/exhaustive-deps` + 中文理由，规则仍约束新代码。
+
+## 本地验证结果
+
+- `npx eslint DynamicIDELayout.tsx Editor.tsx`（JSON 全量）：`CLEAN: 0 problems`（三处 exhaustive-deps 全消，`resizerWidth` 未被判 unnecessary，无新警告）。
+- `npx eslint .`（全仓 JSON 统计）：`err=0 warn=0 — ALL CLEAN`（连同上一轮已清的 `no-unused-vars`，桌面前端 eslint 现零 error 零 warning）。
+- `npm --prefix apps/desktop/frontend run typecheck`：通过（exit 0）。
+- `npm --prefix apps/desktop/frontend run test`：25 passed / 0 failed（零回归）。
+
+## 说明
+
+- 至此桌面前端 `react-hooks` 三类规则全部收口：refs 真改、set-state-in-effect/immutability 精准豁免、exhaustive-deps 一真修复（DynamicIDELayout）一有意豁免（Editor）。
+- 真修复 vs 豁免按 effect 意图逐个判定，未盲目补依赖（盲目补全可能引入多余重渲染、循环或销毁重建）。
+
+记录时间戳：2026-06-24（exhaustive-deps 三处收口）。

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 export type ComposerLayoutMode = 'full' | 'panel' | 'floating';
 
@@ -38,14 +38,17 @@ export function DynamicIDELayout({
   const splitMinWidth = minComposerWidth + resizerWidth + minRightWidth;
   const collapseThreshold = Math.max(floatingThreshold, minComposerWidth);
 
-  const clampComposerWidth = (nextWidth: number, availableWidth = mainWidth) => {
-    const measuredWidth = availableWidth || mainRef.current?.getBoundingClientRect().width || 0;
-    const maxComposerWidth = Math.max(
-      minComposerWidth,
-      measuredWidth - minRightWidth - resizerWidth,
-    );
-    return Math.min(Math.max(nextWidth, minComposerWidth), maxComposerWidth);
-  };
+  const clampComposerWidth = useCallback(
+    (nextWidth: number, availableWidth = mainWidth) => {
+      const measuredWidth = availableWidth || mainRef.current?.getBoundingClientRect().width || 0;
+      const maxComposerWidth = Math.max(
+        minComposerWidth,
+        measuredWidth - minRightWidth - resizerWidth,
+      );
+      return Math.min(Math.max(nextWidth, minComposerWidth), maxComposerWidth);
+    },
+    [mainWidth, minComposerWidth, minRightWidth, resizerWidth],
+  );
 
   useEffect(() => {
     const main = mainRef.current;
@@ -66,7 +69,7 @@ export function DynamicIDELayout({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 布局/模式变化时夹紧 composer 宽度，React18 合法模式
       setComposerWidth((width) => clampComposerWidth(width));
     }
-  }, [composerMode, minComposerWidth, mainWidth]);
+  }, [composerMode, clampComposerWidth]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -99,7 +102,7 @@ export function DynamicIDELayout({
       window.removeEventListener('pointerup', stopResize);
       window.removeEventListener('pointercancel', stopResize);
     };
-  }, [isDragging, collapseThreshold, onComposerModeChange]);
+  }, [isDragging, collapseThreshold, onComposerModeChange, clampComposerWidth]);
 
   const beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!rightPanelVisible || composerMode !== 'panel' || mainWidth < splitMinWidth) return;
