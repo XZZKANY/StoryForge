@@ -17,7 +17,7 @@
 
 ## 当前阶段
 
-StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强均已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场，不再作为维护、调试、兼容或契约验证入口。
+StoryForge 当前处于真实长程验收整改与 Desktop IDE Agent 收口阶段（当前项目真相边界：2026-06-21）；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强均已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场，不再作为维护、调试、兼容或契约验证入口。
 
 Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff / patch 审阅 -> 冲突保护 -> 用户确认真实写回 -> 版本记录与 author-loop 记录。长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 只作为 managed full-book run 的内部兼容实现，保留长程生成、审计和导出能力，但不作为主产品控制台。
 
@@ -64,6 +64,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 仍未完成的验收项
 
+- 跑通真实 Tauri 桌面端到端：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 真实写回 -> 版本记录。
 - 基于 30 章人工通读意见整改后，重跑真实 3-5 万字长程。
 - 对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对和人工通读。
 - 将人工通读记录写入 `.codex/verification-report.md`，并确认无明显人物、世界观或时间线矛盾。

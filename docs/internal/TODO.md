@@ -4,9 +4,9 @@
 
 ## 当前执行入口
 
-StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场。长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 是 managed full-book run 的内部兼容实现，不是主产品控制台。
+StoryForge 当前处于真实长程验收整改与 Desktop IDE Agent 收口阶段；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场。长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 是 managed full-book run 的内部兼容实现，不是主产品控制台。
 
-真实 LLM 1/3/10 章 smoke 已通过记录，其中 10 章 smoke 已完成人工通读；一次 30 章真实长程已跑完并导出制品，但人工通读结论为“退回重跑”。
+真实 LLM 1/3/10 章 smoke 已通过记录，其中 10 章 smoke 已完成人工通读；一次 30 章真实长程已跑完并导出制品，但人工通读结论为“退回重跑”。2026-06-21 本轮正在执行 `apps/web` 退场收口，默认开发、验证、容器编排和 CORS 均转向 Desktop/API/Workflow。
 
 ## 当前事实边界
 
@@ -20,11 +20,12 @@ StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase
 
 ## 下一步优先级
 
-1. 基于 30 章人工通读意见整理重跑策略，重跑真实 3-5 万字长程并执行人工通读。
-2. 将新一轮长程的 Markdown、EPUB、`audit_report.json`、summary 和人工盲评写入 `.codex/verification-report.md`。
-3. 继续将 BookRun 保持为 managed Writing Run 的内部兼容实现：可由 Agent 发起、解释预算和展示 tool trace，但不抢占 Desktop IDE 主界面。
-4. Phase 2 之后的可选增强应聚焦真实 provider 探针、交互打磨和更长会话稳定性，不改变 Desktop-first 产品方向。
-5. 长程通过后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `docs/internal/dev-plan.md` 的完成边界。
+1. 跑真实 Tauri 桌面端到端：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 真实写回 -> 版本记录。
+2. 基于 30 章人工通读意见整理重跑策略，重跑真实 3-5 万字长程并执行人工通读。
+3. 将新一轮长程的 Markdown、EPUB、`audit_report.json`、summary 和人工盲评写入 `.codex/verification-report.md`。
+4. 继续将 BookRun 保持为 managed Writing Run 的内部兼容实现：可由 Agent 发起、解释预算和展示 tool trace，但不抢占 Desktop IDE 主界面。
+5. Phase 2 之后的可选增强应聚焦真实 provider 探针、交互打磨和更长会话稳定性，不改变 Desktop-first 产品方向。
+6. 长程通过后，同步 `README.md`、`docs/internal/current-phase.md`、`docs/internal/PROJECT_SUMMARY.md` 和 `docs/internal/dev-plan.md` 的完成边界。
 
 ## 本地验证入口
 
