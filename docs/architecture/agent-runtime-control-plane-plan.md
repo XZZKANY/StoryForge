@@ -73,7 +73,7 @@ flowchart TD
 3. SSE/REST 只读 AgentRun Event Store，不另建事实来源。
 4. 子代理可以并行或串行执行，但最终决策回到 Root Agent。
 5. 所有工具调用、子代理结果、权限请求和 artifact 都写入同一个 event store。
-6. 用户可以通过 `@剧情`、`@人物`、`@文风`、`@伏笔`、`@BookRun` 等方式建议调用子代理，但不能绕过 Root Agent、Permission Gate 和 Event Store。
+6. 用户可以通过 `@剧情`、`@人物`、`@文风`、`@伏笔`、`@写作任务` 等方式建议调用子代理，但不能绕过 Root Agent、Permission Gate 和 Event Store。
 
 ## 核心对象
 

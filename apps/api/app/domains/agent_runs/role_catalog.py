@@ -105,10 +105,10 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "bookrun_agent",
-        "display_name": "BookRun agent",
+        "display_name": "Writing Run agent",
         "kind": "subagent",
-        "description": "管理长程整书生成、checkpoint、暂停、恢复和从 checkpoint 重试。",
-        "aliases": ["@BookRun"],
+        "description": "管理长程写作任务、checkpoint、暂停、恢复和从 checkpoint 重试。",
+        "aliases": ["@写作任务"],
         "read_only": False,
         "default_permission_profile": DEFAULT_PERMISSION_PROFILE,
         "allowed_tools": ["bookrun.start", "bookrun.pause", "bookrun.resume", "bookrun.retry_from_checkpoint"],

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatWindow } from './components/ChatWindow';
-import { ResourceExplorer } from './components/ResourceExplorer';
+import { StoryNavigator } from './components/StoryNavigator';
 import { Editor } from './components/Editor';
 import { CommandPalette, PaletteMode } from './components/CommandPalette';
 import { DynamicIDELayout, type ComposerLayoutMode } from './components/DynamicIDELayout';
@@ -1336,7 +1336,7 @@ function RightWorkspace({
             </button>
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <ResourceExplorer
+            <StoryNavigator
               projectPath={activeProject}
               currentFile={currentFile}
               refreshVersion={projectRefreshVersion}

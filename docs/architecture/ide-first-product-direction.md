@@ -6,7 +6,7 @@
 
 StoryForge = Cursor for Fiction。主产品体验转为以 `apps/desktop` 为唯一入口的 Desktop IDE：本地小说项目、文件树、Monaco Editor、Agent 对话、审稿、修订、diff 确认、真实写回和版本记录都优先在桌面端完成。
 
-`apps/web` 已完成退场，不再承担主体验、维护入口、调试入口、兼容入口或契约验证职责。BookRun、Judge、Repair、Story Memory 和导出能力保留为 Agent tool / 后台重型引擎，不作为第一阶段主产品控制台。
+`apps/web` 已完成退场，不再承担主体验、维护入口、调试入口、兼容入口或契约验证职责。写作、审稿、修订、长篇和短篇输出统一通过 Cursor for Fiction 的 Writing Run 体验呈现；BookRun 只作为 managed full-book run 的内部兼容实现，不作为第一阶段主产品控制台。
 
 ## 背景
 
@@ -14,7 +14,7 @@ StoryForge = Cursor for Fiction。主产品体验转为以 `apps/desktop` 为唯
 
 - `apps/web`：旧 Next.js 工作台，曾承载 Home、Studio、Blueprints、Runs、Artifacts、IDE 等页面和大量契约测试，现已退场。
 - `apps/desktop`：Tauri 桌面 IDE，正在形成本地文件树、Monaco Editor、Assistant 面板、原生菜单和本地文件系统能力。
-- BookRun 控制台：保留后端长程生成能力，但不再作为第一阶段主产品入口。
+- BookRun 控制台：保留后端长程生成能力，但用户侧表达为 managed Writing Run，不再作为第一阶段主产品入口。
 
 继续让 Web IDE 和 Desktop IDE 同时作为主体验，会导致入口、文档、测试、端口、组件职责和用户心智持续分裂。因此需要明确产品重心。
 
@@ -27,16 +27,16 @@ StoryForge = Cursor for Fiction。主产品体验转为以 `apps/desktop` 为唯
 - 本地项目打开、文件树、编辑器、保存和监听。
 - Assistant 对话、当前文件理解、章节审稿、定向修订和续写。
 - proposed patch / diff 预览、用户确认、真实写回和版本记录。
-- BookRun 工具调用入口、轻量进度和 tool trace；不把 BookRun 控制台作为主界面。
+- Writing Run 工具调用入口、轻量进度和 tool trace；不把 BookRun 控制台作为主界面。
 - 与本地 API、workflow、文件系统和未来离线能力的集成。
 
 第一阶段验收链路固定为：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录。
 
-### Agent tools / 后台引擎
+### Agent tools / Writing Run engines
 
-BookRun、Judge、Repair、Story Memory、Timeline Guard、Style Guard 和导出能力是 Agent 可调用工具或后台重型引擎：
+Judge、Repair、Story Memory、Timeline Guard、Style Guard、导出能力，以及 BookRun 兼容实现，都是 Agent 可调用工具或 Writing Run 引擎：
 
-- BookRun 负责长程生成、checkpoint、预算暂停、审计和制品导出。
+- managed Writing Run 负责长程生成、checkpoint、预算暂停、审计和制品导出；当前 full-book 实现仍落在 BookRun 兼容模块。
 - Agent 可以解释将调用的工具、预算和风险，并把结果以 tool trace 或轻量面板反馈给 Desktop IDE。
 - API / Workflow 负责后台运行记录、质量门禁和制品索引；不直接写用户本地文件。
 - Tauri / Desktop 前端负责读取、diff 确认后的本地写回和版本记录。
@@ -51,7 +51,7 @@ API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
 
 - `apps/api` 负责业务 API、OpenAPI、数据模型、运行记录和制品。
 - `apps/workflow` 负责生成编排、checkpoint、provider adapter 和质量门禁。
-- Desktop IDE、Agent orchestration 和后台工具通过稳定契约访问这些能力。
+- Desktop IDE、Agent orchestration 和 Writing Run 工具通过稳定契约访问这些能力。
 
 ## 迁移原则
 
@@ -60,7 +60,7 @@ API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
 3. 后端契约由 API pytest、OpenAPI 快照、workflow pytest 和 shared 类型检查承接。
 4. 文档以 `docs/architecture/ide-first-product-direction.md` 记录产品方向，以 `docs/internal/current-phase.md` 记录阶段事实。
 5. 不恢复 `apps/web` 作为临时前端；确需浏览器预览时使用 `apps/desktop/frontend` 的 Vite 入口。
-6. 不把 BookRun 页面化为第一优先级；BookRun 以 Agent tool / 后台引擎形态接入 Desktop。
+6. 不把 BookRun 页面化为第一优先级；长短篇输出统一表达为 Writing Run，BookRun 仅以 managed full-book 兼容实现接入 Desktop。
 
 ## 默认入口
 

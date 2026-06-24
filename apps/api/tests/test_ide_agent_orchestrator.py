@@ -852,13 +852,18 @@ def test_agent_user_message_bookrun_start_confirmed_reuses_command_registry(
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "bookrun.start"
+    assert message["agent_result"]["writing_run"]["scope"] == "full_book"
+    assert message["agent_result"]["writing_run"]["mode"] == "managed"
+    assert message["agent_result"]["writing_run"]["status"] == "running"
+    assert message["agent_result"]["writing_run_id"] == message["agent_result"]["book_run_id"]
     assert message["agent_result"]["book_run"]["status"] == "running"
     assert message["agent_result"]["book_run_id"] == message["agent_result"]["book_run"]["id"]
+    assert message["agent_result"]["writing_run"]["book_run_id"] == message["agent_result"]["book_run"]["id"]
     assert message["agent_result"]["events_url"] == f"/api/ide/runs/{message['agent_result']['book_run_id']}/events"
     assert message["agent_result"]["requires_user_confirmation"] is False
     assert message["agent_result"]["bookrun_plan"]["chapters"] == "按锁定蓝图继续生成下一批章节"
     assert message["agent_result"]["bookrun_plan"]["budget"] == "900 tokens"
     assert message["agent_result"]["bookrun_plan"]["budget_details"]["token_budget"] == 900
-    assert "后台工具" in message["agent_result"]["summary"]
+    assert "managed 模式" in message["agent_result"]["summary"]
     assert message["tool_trace"][0]["tool_name"] == "bookrun.start"
     assert message["tool_trace"][0]["audit_event_id"].startswith("ide-command-event:")

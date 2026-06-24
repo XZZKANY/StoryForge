@@ -71,7 +71,7 @@ Implement Agent Role Catalog v1
 这个目录服务后续三件事：
 
 1. Root Agent 调度子代理。
-2. Desktop 支持 `@剧情`、`@人物`、`@文风`、`@伏笔`、`@BookRun`。
+2. Desktop 支持 `@剧情`、`@人物`、`@文风`、`@伏笔`、`@写作任务`。
 3. Permission Gate 判断只读代理不能调用写入类工具。
 
 ### 不做事项
@@ -145,7 +145,7 @@ external_scout
 @伏笔 -> continuity_reviewer
 @设定 -> continuity_reviewer
 @修复 -> repair_agent
-@BookRun -> bookrun_agent
+@写作任务 -> bookrun_agent
 @探索 -> context_explorer
 @资料 -> external_scout
 ```
@@ -364,4 +364,3 @@ npm test -- --runInBand
 5. 每一阶段只做一条竖切，避免一次性重构 runtime、router、frontend。
 6. 文件写回仍必须保持作者确认边界。
 7. MCP 写入能力继续禁止，直到 readonly executor 和 Permission Gate 稳定。
-

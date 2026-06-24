@@ -9,16 +9,10 @@ from sqlalchemy.orm import Session
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.service import get_artifact, read_artifact_download, resolve_artifact_workspace_id
 from app.domains.book_runs.models import BookRun
-from app.domains.book_runs.schemas import BookRunCreate, BookRunRead
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
     BookRunNotFoundError,
-    create_book_run,
-    pause_book_run,
-    resume_book_run,
-    retry_book_run_from_checkpoint,
-    stop_book_run,
 )
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.context_compiler.service import get_compiled_context_record
@@ -55,6 +49,16 @@ from app.domains.story_memory.service import detect_memory_conflicts, list_memor
 from app.domains.studio.schemas import StudioApprovalExecuteRequest
 from app.domains.studio.service import StudioApprovalSummaryNotFoundError, approve_studio_writeback
 from app.domains.workspaces.models import Workspace
+from app.domains.writing_runs.schemas import WritingRunStart
+from app.domains.writing_runs.service import (
+    full_book_writing_run_event_data,
+    pause_writing_run,
+    resume_writing_run,
+    retry_writing_run_from_checkpoint,
+    start_writing_run,
+    stop_writing_run,
+    writing_run_payload,
+)
 
 
 @dataclass(frozen=True)
@@ -73,11 +77,11 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="judge.run", title="运行 Judge", category="Judge"),
         IdeCommandDefinition(id="judge.repair", title="生成定向修复", category="Judge"),
         IdeCommandDefinition(id="judge.approve", title="批准修复写回", category="Judge"),
-        IdeCommandDefinition(id="bookrun.start", title="启动 BookRun", category="BookRun"),
-        IdeCommandDefinition(id="bookrun.pause", title="暂停 BookRun", category="BookRun"),
-        IdeCommandDefinition(id="bookrun.resume", title="恢复 BookRun", category="BookRun"),
-        IdeCommandDefinition(id="bookrun.stop", title="停止 BookRun", category="BookRun"),
-        IdeCommandDefinition(id="bookrun.retry_from_checkpoint", title="从 checkpoint 重试", category="BookRun"),
+        IdeCommandDefinition(id="bookrun.start", title="启动写作任务", category="Writing Run"),
+        IdeCommandDefinition(id="bookrun.pause", title="暂停写作任务", category="Writing Run"),
+        IdeCommandDefinition(id="bookrun.resume", title="恢复写作任务", category="Writing Run"),
+        IdeCommandDefinition(id="bookrun.stop", title="停止写作任务", category="Writing Run"),
+        IdeCommandDefinition(id="bookrun.retry_from_checkpoint", title="从 checkpoint 重试写作任务", category="Writing Run"),
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
         IdeCommandDefinition(id="memory.resolve_conflict", title="仲裁记忆冲突", category="Story Memory"),
     ]
@@ -259,19 +263,22 @@ def _execute_bookrun_command(
     audit_event_id: str | None,
     session: Session,
 ) -> IdeCommandResult:
-    """把 IDE bookrun.* 命令转交给 BookRun 领域状态机。"""
+    """把 IDE bookrun.* 兼容命令转交给 Writing Run seam。"""
 
     try:
         if command.id == "bookrun.start":
-            book_run = create_book_run(session, BookRunCreate(**args))
+            result = start_writing_run(
+                session,
+                WritingRunStart(scope="full_book", mode="managed", **args),
+            )
         elif command.id == "bookrun.pause":
-            book_run = pause_book_run(session, _required_book_run_id(args), _optional_reason(args))
+            result = pause_writing_run(session, book_run_id=_required_book_run_id(args), reason=_optional_reason(args))
         elif command.id == "bookrun.resume":
-            book_run = resume_book_run(session, _required_book_run_id(args))
+            result = resume_writing_run(session, book_run_id=_required_book_run_id(args))
         elif command.id == "bookrun.stop":
-            book_run = stop_book_run(session, _required_book_run_id(args), _optional_reason(args))
+            result = stop_writing_run(session, book_run_id=_required_book_run_id(args), reason=_optional_reason(args))
         elif command.id == "bookrun.retry_from_checkpoint":
-            book_run = retry_book_run_from_checkpoint(session, _required_book_run_id(args))
+            result = retry_writing_run_from_checkpoint(session, book_run_id=_required_book_run_id(args))
         else:
             raise IdeCommandExecutionError(f"未知 BookRun 命令：{command.id}")
     except (TypeError, ValueError, BookRunError, BookRunBlockedError, BookRunNotFoundError) as exc:
@@ -281,7 +288,7 @@ def _execute_bookrun_command(
         command,
         args,
         audit_event_id,
-        {"book_run": BookRunRead.model_validate(book_run).model_dump(mode="json")},
+        writing_run_payload(result),
     )
 
 
@@ -382,7 +389,7 @@ def _artifact_trace(artifact: Artifact) -> IdeArtifactTrace:
         book_run=IdeArtifactTraceLink(
             id=book_run_id,
             href=f"/ide?panel.bottom=runs&book_run={book_run_id}" if book_run_id is not None else None,
-            label="BookRun",
+            label="Writing Run",
         ),
         model_run=IdeArtifactTraceLink(
             id=model_run_id,
@@ -663,12 +670,12 @@ def build_run_events(book_run: BookRun) -> list[IdeRunEvent]:
 
     progress = book_run.progress or {}
     completed = [item for item in progress.get("completed_chapters", []) if isinstance(item, dict)]
+    writing_run = full_book_writing_run_event_data(book_run.id, book_run.status)
     events = [
         IdeRunEvent(
             event="progress",
             data={
-                "book_run_id": book_run.id,
-                "status": book_run.status,
+                **writing_run,
                 "current_chapter_index": book_run.current_chapter_index,
                 "total_chapters": book_run.total_chapters,
                 "completed_count": len(completed),
@@ -680,7 +687,7 @@ def build_run_events(book_run: BookRun) -> list[IdeRunEvent]:
             IdeRunEvent(
                 event="checkpoint",
                 data={
-                    "book_run_id": book_run.id,
+                    **writing_run,
                     "latest_checkpoint": book_run.checkpoint[-1],
                     "checkpoint": book_run.checkpoint,
                 },
@@ -689,13 +696,13 @@ def build_run_events(book_run: BookRun) -> list[IdeRunEvent]:
     blocked_chapter = progress.get("blocked_chapter")
     if isinstance(blocked_chapter, dict):
         events.append(
-            IdeRunEvent(event="blocked", data={"book_run_id": book_run.id, "blocked_chapter": blocked_chapter})
+            IdeRunEvent(event="blocked", data={**writing_run, "blocked_chapter": blocked_chapter})
         )
     events.append(
         IdeRunEvent(
             event="budget",
             data={
-                "book_run_id": book_run.id,
+                **writing_run,
                 "token_budget": book_run.token_budget,
                 "tokens_used": book_run.tokens_used,
                 "tokens_remaining": _tokens_remaining(book_run),
@@ -709,12 +716,12 @@ def build_run_events(book_run: BookRun) -> list[IdeRunEvent]:
     if isinstance(provider_fallback, dict):
         events.append(
             IdeRunEvent(
-                event="provider_fallback", data={"book_run_id": book_run.id, "provider_fallback": provider_fallback}
+                event="provider_fallback", data={**writing_run, "provider_fallback": provider_fallback}
             )
         )
     if book_run.status == "completed":
         events.append(
-            IdeRunEvent(event="completed", data={"book_run_id": book_run.id, "completed_count": len(completed)})
+            IdeRunEvent(event="completed", data={**writing_run, "completed_count": len(completed)})
         )
     return events
 

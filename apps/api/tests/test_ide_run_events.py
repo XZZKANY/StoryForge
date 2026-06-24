@@ -38,13 +38,18 @@ def test_build_run_events_projects_progress_checkpoint_blocked_and_budget(
 
     assert [event.event for event in events] == ["progress", "checkpoint", "blocked", "budget", "provider_fallback"]
     progress_event = events[0].data
+    assert progress_event["writing_run_id"] == created["id"]
+    assert progress_event["scope"] == "full_book"
+    assert progress_event["mode"] == "managed"
     assert progress_event["book_run_id"] == created["id"]
     assert progress_event["status"] == "awaiting_review"
     assert progress_event["current_chapter_index"] == 3
     assert progress_event["total_chapters"] == 3
     assert progress_event["completed_count"] == 2
     assert events[1].data["latest_checkpoint"]["chapter_index"] == 2
+    assert events[1].data["writing_run_id"] == created["id"]
     assert events[2].data["blocked_chapter"]["chapter_index"] == 3
+    assert events[2].data["scope"] == "full_book"
     assert events[3].data["tokens_used"] == 840
     assert events[3].data["tokens_remaining"] == 160
     assert events[4].data["provider_fallback"]["to"] == "backup"
@@ -94,6 +99,9 @@ def test_read_run_events_endpoint_returns_sse_snapshot(
     assert "event: checkpoint" in body
     assert "event: budget" in body
     assert "event: completed" in body
+    assert '"writing_run_id":' in body
+    assert '"scope": "full_book"' in body
+    assert '"mode": "managed"' in body
     assert '"book_run_id":' in body
     assert '"tokens_remaining": 80' in body
 

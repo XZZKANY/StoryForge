@@ -19,19 +19,19 @@
 
 StoryForge 当前处于真实长程验收整改阶段；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强均已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场，不再作为维护、调试、兼容或契约验证入口。
 
-Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff / patch 审阅 -> 冲突保护 -> 用户确认真实写回 -> 版本记录与 author-loop 记录。BookRun 是 Agent tool / 后台重型引擎，保留长程生成、审计和导出能力，但不作为主产品控制台。
+Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff / patch 审阅 -> 冲突保护 -> 用户确认真实写回 -> 版本记录与 author-loop 记录。长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 只作为 managed full-book run 的内部兼容实现，保留长程生成、审计和导出能力，但不作为主产品控制台。
 
 真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过人工通读。一次 30 章真实长程运行已经完成，链路、Markdown、EPUB 和审计报告导出成立，但人工通读结论为“退回重跑”。因此当前只能证明真实长程运行链路可达，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。
 
 ## 已完成的能力边界
 
-- **BookRun 后台引擎 / Agent tool**：本地 deterministic/mock provider 可从 Blueprint 章节计划驱动 BookRun，并导出 `book.md` 与 `audit_report.json`；BookRun 已具备 checkpoint resume、token/时间/章节预算暂停、provider 连续降级暂停和成本摘要，但不作为主产品入口。
+- **managed Writing Run / BookRun 兼容实现**：本地 deterministic/mock provider 可从 Blueprint 章节计划驱动 managed full-book run，并导出 `book.md` 与 `audit_report.json`；当前 BookRun 兼容实现已具备 checkpoint resume、token/时间/章节预算暂停、provider 连续降级暂停和成本摘要，但不作为主产品入口。
 - **长程质量增强**：Story Memory 注入/抽取、Character Bible、Timeline Guard、Style Guard、章节 pacing、叙事 gate、思维链泄漏剥离和审计页已纳入本地测试或真实 run 验证。
 - **真实长程链路证据**：30 章真实长程完成运行与制品导出，但人工通读退回重跑；该证据不得外推为质量通过。
 - **出版制品**：BookRun 可生成 Markdown、EPUB 与审计报告制品索引；S3/MinIO 真路径已有 client 层建桶、上传、presigned URL 集成测试证据，导出失败仍可降级到 `memory://`。
 - **Desktop IDE 主体验**：`apps/desktop` 是唯一主体验；Tauri/Vite/React/Monaco 桌面 IDE 已形成项目库、文件树、编辑器、版本记录、命令面板、无边框窗口和 Rust `get_api_config` 注入。
 - **Desktop IDE Agent Phase 1**：后端 IDE Agent Orchestrator 已支持自然语言意图路由、真实 LLM 文件修订、多视角 file.review 推理缝、稳定 issue id、范围控制、待确认 proposed patch 和确认写回防重复生成；前端已接入对话、步骤树、待确认 diff 和本地确认写回事件。
-- **Desktop IDE Agent Phase 2**：Agent WebSocket 支持 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 事件流；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；审稿 issue 支持多选、按 category 过滤和定向修订；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files；`bookrun.start` 以预检/确认方式作为 Agent tool 投影轻量进度，不新增主控制台。
+- **Desktop IDE Agent Phase 2**：Agent WebSocket 支持 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 事件流；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；审稿 issue 支持多选、按 category 过滤和定向修订；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files；managed Writing Run 以预检/确认方式投影轻量进度，不新增 BookRun 主控制台。
 
 ## 真实 LLM 证据
 

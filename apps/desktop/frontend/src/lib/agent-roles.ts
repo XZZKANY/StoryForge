@@ -17,7 +17,7 @@ export const BUILTIN_AGENT_ROLE_ALIASES: Record<string, string> = {
   '@文风': 'prose_reviewer',
   '@伏笔': 'continuity_reviewer',
   '@设定': 'continuity_reviewer',
-  '@BookRun': 'bookrun_agent',
+  '@写作任务': 'bookrun_agent',
   '@探索': 'context_explorer',
   '@资料': 'external_scout',
 };

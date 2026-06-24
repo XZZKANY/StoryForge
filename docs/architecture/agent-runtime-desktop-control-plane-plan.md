@@ -4,12 +4,12 @@
 
 这份文档是 `Agent Role Catalog / @角色消费` 已基本落地之后的下一阶段计划。
 
-本阶段不再继续补角色目录，而是把已经存在的 AgentRun 事件、权限请求、控制消息和 BookRun 投影，收敛成一个稳定、可恢复、可解释的桌面端控制平面。
+本阶段不再继续补角色目录，而是把已经存在的 AgentRun 事件、权限请求、控制消息和 managed Writing Run 投影，收敛成一个稳定、可恢复、可解释的桌面端控制平面。
 
 核心判断：
 
 - `root_agent / subagent` 角色目录已经存在。
-- `@剧情 / @人物 / @文风 / @伏笔 / @BookRun` 解析已经进入 Desktop 与 Runtime。
+- `@剧情 / @人物 / @文风 / @伏笔 / @写作任务` 解析已经进入 Desktop 与 Runtime。
 - `AgentRunEvent`、`tool_trace`、`permission_required`、`subagent_started`、`subagent_completed`、`agent_artifact` 已经有后端事件基础。
 - Desktop 已经能展示轻量步骤面板，并发送 `approve_permission / deny_permission / pause_run / resume_run / stop_run`。
 - 下一阶段的真实缺口是体验闭环：事件类型覆盖、权限档位选择、断线恢复、BookRun 控制收敛、测试固定。
@@ -250,7 +250,7 @@ BookRun 不再像旁路后台任务，而是 AgentRun 的 long-running tool / su
 
 ### 验收标准
 
-- `@BookRun` 启动后，timeline 出现 BookRun 相关 tool/subagent 步骤。
+- `@写作任务` 启动后，timeline 出现 managed Writing Run 相关 tool/subagent 步骤。
 - BookRun progress panel 与 AgentRun control bar 状态一致。
 - pause/resume/stop 不出现双通道状态冲突。
 
