@@ -378,12 +378,26 @@ def test_book_run_progress_is_projected_to_agent_run_event_store(
 
     events = client.get(f"/api/agent-runs/{run_id}/events").json()
     assert [event["event_type"] for event in events].count("agent_run_started") == 1
-    assert any(event["event_type"] == "tool_trace" and event["actor"] == "bookrun-agent" for event in events)
+    started_event = next(event for event in events if event["event_type"] == "agent_run_started")
+    assert started_event["payload"]["writing_run_id"] == created["id"]
+    assert started_event["payload"]["scope"] == "full_book"
+    assert started_event["payload"]["mode"] == "managed"
+    assert started_event["payload"]["book_run_id"] == created["id"]
+    tool_trace_event = next(
+        event for event in events if event["event_type"] == "tool_trace" and event["actor"] == "bookrun-agent"
+    )
+    assert tool_trace_event["payload"]["writing_run_id"] == created["id"]
+    assert tool_trace_event["payload"]["scope"] == "full_book"
+    assert tool_trace_event["payload"]["mode"] == "managed"
+    assert tool_trace_event["payload"]["book_run_id"] == created["id"]
     assert events[-1]["event_type"] == "agent_run_completed"
 
     checkpoints = client.get(f"/api/agent-runs/{run_id}/checkpoints").json()
     assert len(checkpoints) == 1
     assert checkpoints[0]["kind"] == "bookrun_checkpoint"
+    assert checkpoints[0]["payload"]["writing_run_id"] == created["id"]
+    assert checkpoints[0]["payload"]["scope"] == "full_book"
+    assert checkpoints[0]["payload"]["mode"] == "managed"
     assert checkpoints[0]["payload"]["checkpoint"][0]["chapter_index"] == 1
 
 
@@ -433,8 +447,14 @@ def test_agent_run_control_channel_updates_bound_bookrun_status(
         if event["actor"] == "desktop-ide" and event["event_type"] in {"pause_run", "resume_run", "stop_run"}
     ]
     assert [event["event_type"] for event in control_events] == ["pause_run", "resume_run", "stop_run"]
+    assert control_events[0]["payload"]["writing_run"]["scope"] == "full_book"
+    assert control_events[0]["payload"]["writing_run"]["mode"] == "managed"
+    assert control_events[0]["payload"]["writing_run_id"] == created["id"]
+    assert control_events[0]["payload"]["book_run_id"] == created["id"]
     assert control_events[0]["payload"]["book_run"]["status"] == "paused_by_user"
+    assert control_events[1]["payload"]["writing_run"]["status"] == "running"
     assert control_events[1]["payload"]["book_run"]["status"] == "running"
+    assert control_events[2]["payload"]["writing_run"]["status"] == "stopped"
     assert control_events[2]["payload"]["book_run"]["status"] == "stopped"
 
 
@@ -493,7 +513,7 @@ def test_agent_role_aliases_resolve_to_expected_subagents(client: TestClient) ->
         "@伏笔": "continuity_reviewer",
         "@设定": "continuity_reviewer",
         "@修复": "repair_agent",
-        "@BookRun": "bookrun_agent",
+        "@写作任务": "bookrun_agent",
         "@探索": "context_explorer",
         "@资料": "external_scout",
     }
@@ -768,11 +788,11 @@ def test_multiple_role_hints_run_requested_reviewers(
     assert {"subagent.character_reviewer", "subagent.prose_reviewer"}.issubset(requested)
 
 
-def test_bookrun_role_hint_does_not_bypass_permission_gate(
+def test_writing_run_role_hint_does_not_bypass_permission_gate(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """@BookRun 不能在普通 file.revise 中直接启动 BookRun 或绕过权限确认。"""
+    """@写作任务 不能在普通 file.revise 中直接启动 managed run 或绕过权限确认。"""
 
     from app.domains.assistant import service as assistant_service
 
@@ -792,13 +812,13 @@ def test_bookrun_role_hint_does_not_bypass_permission_gate(
             {
                 "type": "user_message",
                 "run_id": "run-agent-role-bookrun",
-                "user_message": "@BookRun 把这个文件改得更紧一点",
+                "user_message": "@写作任务 把这个文件改得更紧一点",
                 "intent": "file.revise",
                 "args": {
                     "file_path": "正文/第08章.md",
                     "content": "当前正文",
                     "agent_role_hints": ["bookrun_agent"],
-                    "agent_role_mentions": ["@BookRun"],
+                    "agent_role_mentions": ["@写作任务"],
                 },
             }
         )

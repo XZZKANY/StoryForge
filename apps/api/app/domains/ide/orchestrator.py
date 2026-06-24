@@ -532,8 +532,8 @@ def _orchestrate_bookrun_start(
     confirmed = args.get("confirmed") is True or args.get("user_confirmed") is True
     if not confirmed:
         summary = (
-            f"BookRun 启动前计划：{chapter_plan}。预算：{budget_summary}。"
-            f"风险：{'；'.join(risk_summary)}。需要作者确认后才会作为后台工具启动。"
+            f"写作任务启动前计划：{chapter_plan}。预算：{budget_summary}。"
+            f"风险：{'；'.join(risk_summary)}。需要作者确认后才会以 managed 模式启动。"
         )
         assistant_service.append_assistant_message(
             session,
@@ -546,7 +546,7 @@ def _orchestrate_bookrun_start(
             intent="bookrun.start",
             user_message=user_message,
             plan=[
-                _plan_step("bookrun.preflight", "展示 BookRun 章节计划、预算和风险，不启动后台运行。", "needs_approval"),
+                _plan_step("bookrun.preflight", "展示写作任务章节计划、预算和风险，暂不启动。", "needs_approval"),
                 _plan_step("approval", "等待作者二次确认后再执行 bookrun.start。", "needs_approval"),
             ],
             agent_result={
@@ -592,10 +592,12 @@ def _orchestrate_bookrun_start(
         related_id=command_args["book_id"],
     )
     book_run = result.payload.get("book_run") if isinstance(result.payload.get("book_run"), dict) else {}
-    book_run_id = book_run.get("id")
+    writing_run = result.payload.get("writing_run") if isinstance(result.payload.get("writing_run"), dict) else {}
+    book_run_id = result.payload.get("book_run_id") if isinstance(result.payload.get("book_run_id"), int) else book_run.get("id")
+    writing_run_id = result.payload.get("writing_run_id") if isinstance(result.payload.get("writing_run_id"), int) else book_run_id
     events_url = f"/api/ide/runs/{book_run_id}/events" if isinstance(book_run_id, int) else None
     summary = (
-        f"BookRun 已作为后台工具启动：book_run_id={book_run.get('id')}，状态 {book_run.get('status')}。"
+        f"写作任务已以 managed 模式启动：run_id={writing_run_id}，状态 {book_run.get('status')}。"
         f"计划：{chapter_plan}。预算：{budget_summary}。进度会作为 Agent tool trace 返回，不切换主界面。"
     )
     assistant_service.append_assistant_message(
@@ -609,11 +611,13 @@ def _orchestrate_bookrun_start(
         intent="bookrun.start",
         user_message=user_message,
         plan=[
-            _plan_step("bookrun.start", "通过 IDE command registry 启动 BookRun。", "completed"),
+            _plan_step("bookrun.start", "通过 IDE command registry 启动 managed 写作任务。", "completed"),
             _plan_step("audit", "返回 command audit_event_id 供 IDE 追溯。", "completed"),
         ],
         agent_result={
             "summary": summary,
+            "writing_run": writing_run,
+            "writing_run_id": writing_run_id,
             "book_run": book_run,
             "book_run_id": book_run_id,
             "events_url": events_url,
@@ -675,7 +679,7 @@ def _bookrun_risk_summary(command_args: dict[str, Any]) -> list[str]:
         risks.append("chapter_budget 较高，建议确认章节范围")
     if isinstance(time_budget_sec, int) and time_budget_sec >= 1800:
         risks.append("time_budget_sec 较长，运行会停留在后台")
-    risks.append("BookRun 只作为 Agent 后台工具启动，不会写入当前 Desktop 草稿或 pending patch")
+    risks.append("写作任务以 managed 模式运行，不会写入当前 Desktop 草稿或 pending patch")
     return risks
 
 

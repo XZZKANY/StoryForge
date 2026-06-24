@@ -35,12 +35,16 @@ from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunNotFoundError,
-    pause_book_run,
-    resume_book_run,
-    retry_book_run_from_checkpoint,
-    stop_book_run,
 )
 from app.domains.ide.orchestrator import AgentOrchestrationError
+from app.domains.writing_runs.service import (
+    full_book_writing_run_event_data,
+    pause_writing_run,
+    resume_writing_run,
+    retry_writing_run_from_checkpoint,
+    stop_writing_run,
+    writing_run_payload,
+)
 
 AGENT_RUN_TERMINAL_STATUSES = frozenset({"completed", "failed", "stopped"})
 
@@ -100,11 +104,11 @@ _AGENT_SKILL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "bookrun_generation",
-        "description": "BookRun 长任务流程：按 checkpoint 推进整书生成、暂停、恢复和失败重试。",
+        "description": "managed Writing Run 长任务流程：按 checkpoint 推进长篇写作、暂停、恢复和失败重试。",
         "trigger_intents": ["bookrun.start"],
         "plan_template": [
             {"step": "bookrun.preflight", "detail": "确认蓝图、预算和章节范围。", "status": "planned"},
-            {"step": "bookrun.start", "detail": "启动 long-running BookRun 子代理。", "status": "planned"},
+            {"step": "bookrun.start", "detail": "启动 managed Writing Run。", "status": "planned"},
             {"step": "bookrun.checkpoint", "detail": "每章生成后写入事件和 checkpoint。", "status": "planned"},
             {"step": "bookrun.resume", "detail": "支持暂停、恢复和从 checkpoint 重试。", "status": "planned"},
         ],
@@ -235,11 +239,12 @@ def create_or_resume_bookrun_agent_run(
 ) -> AgentRun:
     """为 BookRun 旁路进度建立对应 AgentRun，让进度也进入统一事件源。"""
 
+    writing_run = full_book_writing_run_event_data(book_run.id, book_run.status)
     run = create_or_resume_agent_run(
         session,
         public_id=f"bookrun-{book_run.id}",
         session_id=f"bookrun:{book_run.id}",
-        goal=f"BookRun #{book_run.id} 后台生成",
+        goal=f"写作任务 #{book_run.id} managed 运行",
         scope={"book_id": book_run.book_id, "blueprint_id": book_run.blueprint_id, "book_run_id": book_run.id},
         permission_profile=DEFAULT_PERMISSION_PROFILE,
         budget=_book_run_budget(book_run),
@@ -250,8 +255,8 @@ def create_or_resume_bookrun_agent_run(
             run,
             event_type="agent_run_started",
             actor="bookrun-agent",
-            message="BookRun 子代理已进入 AgentRun 控制平面。",
-            payload={"book_run_id": book_run.id, "source": event_source},
+            message="写作任务已进入 AgentRun 控制平面。",
+            payload={**writing_run, "source": event_source},
         )
     if not _has_event(run, "agent_plan_created"):
         record_agent_event(
@@ -259,7 +264,7 @@ def create_or_resume_bookrun_agent_run(
             run,
             event_type="agent_plan_created",
             actor="root-agent",
-            message="Root Agent 已为 BookRun 选择长任务 skill。",
+            message="Root Agent 已为写作任务选择 managed run skill。",
             payload=_agent_plan_payload(
                 intent="bookrun.start",
                 goal=run.goal,
@@ -334,7 +339,7 @@ def record_agent_control_event(
     """记录 WebSocket 控制消息，避免权限与暂停指令停留在瞬时通道里。"""
 
     run = get_agent_run(session, public_id)
-    book_run_control_payload = _apply_book_run_control_if_needed(
+    writing_run_control_payload = _apply_book_run_control_if_needed(
         session,
         run=run,
         control_type=control_type,
@@ -347,8 +352,8 @@ def record_agent_control_event(
         "control_type": control_type,
         **(payload or {}),
     }
-    if book_run_control_payload:
-        event_payload["book_run"] = book_run_control_payload
+    if writing_run_control_payload:
+        event_payload.update(writing_run_control_payload)
     event = record_agent_event(
         session,
         run,
@@ -433,7 +438,7 @@ def record_book_run_snapshot(
         run,
         event_type="tool_trace",
         actor="bookrun-agent",
-        message=f"BookRun #{book_run.id} 状态更新为 {book_run.status}。",
+        message=f"写作任务 #{book_run.id} 状态更新为 {book_run.status}。",
         payload=payload,
     )
     if book_run.checkpoint:
@@ -441,7 +446,11 @@ def record_book_run_snapshot(
             session,
             run,
             kind="bookrun_checkpoint",
-            payload={"book_run_id": book_run.id, "checkpoint": book_run.checkpoint, "source": source},
+            payload={
+                **full_book_writing_run_event_data(book_run.id, book_run.status),
+                "checkpoint": book_run.checkpoint,
+                "source": source,
+            },
             requires_confirmation=False,
         )
     if book_run.status == "completed":
@@ -454,7 +463,7 @@ def record_book_run_snapshot(
             run,
             event_type="agent_run_completed",
             actor="bookrun-agent",
-            message=f"BookRun #{book_run.id} 已完成。",
+            message=f"写作任务 #{book_run.id} 已完成。",
             payload=payload,
         )
     elif book_run.status == "stopped":
@@ -467,11 +476,11 @@ def record_book_run_snapshot(
             run,
             event_type="stop_run",
             actor="bookrun-agent",
-            message=f"BookRun #{book_run.id} 已停止。",
+            message=f"写作任务 #{book_run.id} 已停止。",
             payload=payload,
         )
     elif book_run.status == "failed":
-        fail_agent_run(session, run, message=f"BookRun #{book_run.id} 状态为 {book_run.status}。", payload=payload)
+        fail_agent_run(session, run, message=f"写作任务 #{book_run.id} 状态为 {book_run.status}。", payload=payload)
     return run
 
 
@@ -1146,28 +1155,24 @@ def _apply_book_run_control_if_needed(
     reason = _optional_string(payload.get("reason")) or _optional_string(payload.get("source"))
     try:
         if control_type == "pause_run":
-            book_run = pause_book_run(session, run.book_run_id, reason)
+            result = pause_writing_run(session, book_run_id=run.book_run_id, reason=reason)
             source = "agentrun.pause"
         elif control_type == "resume_run":
-            book_run = resume_book_run(session, run.book_run_id)
+            result = resume_writing_run(session, book_run_id=run.book_run_id)
             source = "agentrun.resume"
         elif control_type == "stop_run":
-            book_run = stop_book_run(session, run.book_run_id, reason)
+            result = stop_writing_run(session, book_run_id=run.book_run_id, reason=reason)
             source = "agentrun.stop"
         elif control_type == "retry_from_checkpoint":
-            book_run = retry_book_run_from_checkpoint(session, run.book_run_id)
+            result = retry_writing_run_from_checkpoint(session, book_run_id=run.book_run_id)
             source = "agentrun.retry_from_checkpoint"
         else:
             return None
     except (BookRunBlockedError, BookRunNotFoundError) as exc:
         raise AgentRuntimeError(str(exc)) from exc
+    book_run = result.book_run
     record_book_run_snapshot(session, book_run=book_run, source=source)
-    return {
-        "id": book_run.id,
-        "status": book_run.status,
-        "current_chapter_index": book_run.current_chapter_index,
-        "total_chapters": book_run.total_chapters,
-    }
+    return writing_run_payload(result)
 
 
 def _book_run_id_from_result(result: dict[str, Any]) -> int | None:
@@ -1195,11 +1200,10 @@ def _book_run_budget(book_run: BookRun) -> dict[str, Any]:
 def _book_run_snapshot_payload(book_run: BookRun, *, source: str) -> dict[str, Any]:
     completed = [item for item in (book_run.progress or {}).get("completed_chapters", []) if isinstance(item, dict)]
     return {
+        **full_book_writing_run_event_data(book_run.id, book_run.status),
         "source": source,
-        "book_run_id": book_run.id,
         "book_id": book_run.book_id,
         "blueprint_id": book_run.blueprint_id,
-        "status": book_run.status,
         "current_chapter_index": book_run.current_chapter_index,
         "total_chapters": book_run.total_chapters,
         "completed_count": len(completed),

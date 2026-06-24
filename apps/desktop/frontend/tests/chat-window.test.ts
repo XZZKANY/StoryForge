@@ -4,11 +4,12 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import {
-  applyBookRunEventProjection,
-  BookRunProgressPanel,
+  applyWritingRunEventProjection,
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   reviewIssuesFromReport,
+  WritingRunProgressPanel,
+  writingRunIdFromResult,
 } from '../src/components/ChatWindow';
 
 const reviewReport = {
@@ -102,10 +103,11 @@ test('stable agent request payload carries project, file, content, selection, se
   assert.equal(payload.context_bundle?.files[0].relative_path, '人物\\林岚.md');
 });
 
-test('BookRun mock SSE progress renders lightweight tool progress', () => {
-  const progress = applyBookRunEventProjection(null, {
+test('managed Writing Run mock SSE progress renders lightweight tool progress', () => {
+  const progress = applyWritingRunEventProjection(null, {
     event: 'progress',
     data: {
+      writing_run_id: 700,
       book_run_id: 7,
       status: 'running',
       current_chapter_index: 3,
@@ -115,13 +117,13 @@ test('BookRun mock SSE progress renders lightweight tool progress', () => {
   });
   assert.ok(progress);
 
-  const progressMarkup = renderToStaticMarkup(React.createElement(BookRunProgressPanel, { projection: progress }));
-  assert.match(progressMarkup, /BookRun #7/);
+  const progressMarkup = renderToStaticMarkup(React.createElement(WritingRunProgressPanel, { projection: progress }));
+  assert.match(progressMarkup, /写作任务 #700/);
   assert.match(progressMarkup, /running/);
   assert.match(progressMarkup, /2\/8/);
   assert.match(progressMarkup, /当前第 3 章/);
 
-  const failed = applyBookRunEventProjection(progress, {
+  const failed = applyWritingRunEventProjection(progress, {
     event: 'failed',
     data: {
       book_run_id: 7,
@@ -129,7 +131,57 @@ test('BookRun mock SSE progress renders lightweight tool progress', () => {
     },
   });
   assert.ok(failed);
-  const failedMarkup = renderToStaticMarkup(React.createElement(BookRunProgressPanel, { projection: failed }));
+  const failedMarkup = renderToStaticMarkup(React.createElement(WritingRunProgressPanel, { projection: failed }));
   assert.match(failedMarkup, /最近事件：failed/);
   assert.match(failedMarkup, /预算不足/);
+});
+
+test('managed Writing Run result id prefers canonical id and falls back to legacy book_run_id', () => {
+  const canonical = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    assistant_session_id: 1,
+    intent: 'bookrun.start',
+    user_message: '启动写作任务',
+    plan: [],
+    agent_result: {
+      writing_run_id: 700,
+      writing_run: {
+        writing_run_id: 701,
+        scope: 'full_book',
+        mode: 'managed',
+        status: 'running',
+        book_run_id: 7,
+      },
+      book_run_id: 7,
+      book_run: { id: 7 },
+    },
+    tool_trace: [],
+  };
+  assert.equal(writingRunIdFromResult(canonical), 700);
+
+  const nestedCanonical = {
+    ...canonical,
+    agent_result: {
+      writing_run: {
+        writing_run_id: 701,
+        scope: 'full_book',
+        mode: 'managed',
+        status: 'running',
+        book_run_id: 7,
+      },
+      book_run_id: 7,
+      book_run: { id: 7 },
+    },
+  };
+  assert.equal(writingRunIdFromResult(nestedCanonical), 701);
+
+  const legacy = {
+    ...canonical,
+    agent_result: {
+      book_run_id: 7,
+      book_run: { id: 8 },
+    },
+  };
+  assert.equal(writingRunIdFromResult(legacy), 7);
 });

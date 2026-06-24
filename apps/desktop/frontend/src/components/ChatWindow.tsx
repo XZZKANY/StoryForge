@@ -26,7 +26,7 @@ import {
   getAssistantSession,
   sendAgentControlMessage,
   sendAgentUserMessage,
-  subscribeBookRunEvents,
+  subscribeWritingRunEvents,
   toAssistantContextBundlePayload,
   isAgentControlAckMessage,
   isAgentErrorMessage,
@@ -40,7 +40,7 @@ import {
   type AgentResultMessage,
   type AgentSocketMessage,
   type AgentToolTrace,
-  type BookRunEvent,
+  type WritingRunEvent,
 } from '../lib/api-client';
 import {
   detectLocalConversationAction,
@@ -98,8 +98,8 @@ type RetryRequest = {
   action: LocalConversationAction;
 };
 
-type BookRunProjection = {
-  bookRunId: number;
+type WritingRunProjection = {
+  writingRunId: number;
   status: string;
   currentChapterIndex: number | null;
   totalChapters: number | null;
@@ -196,7 +196,7 @@ function planStepTitle(step: string): string {
     load_scene_packet: '读取场景包',
     'judge.run': '运行 Judge',
     'judge.repair': '生成修复建议',
-    'bookrun.start': '启动 BookRun',
+    'bookrun.start': '启动写作任务',
     'context-agent': '选择上下文',
     'plot-agent': '剧情结构审稿',
     'character-agent': '人物一致性审稿',
@@ -330,20 +330,31 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function bookRunIdFromResult(message: AgentResultMessage): number | null {
-  const value = message.agent_result.book_run_id;
-  return typeof value === 'number' ? value : null;
+export function writingRunIdFromResult(message: AgentResultMessage): number | null {
+  return (
+    numberOrNull(message.agent_result.writing_run_id) ??
+    numberOrNull(message.agent_result.writing_run?.writing_run_id) ??
+    numberOrNull(message.agent_result.book_run_id) ??
+    numberOrNull(message.agent_result.book_run?.id)
+  );
 }
 
-export function applyBookRunEventProjection(
-  current: BookRunProjection | null,
-  event: BookRunEvent,
-): BookRunProjection | null {
-  const bookRunId = numberOrNull(event.data.book_run_id) ?? current?.bookRunId ?? null;
-  if (bookRunId === null) return current;
+export function applyWritingRunEventProjection(
+  current: WritingRunProjection | null,
+  event: WritingRunEvent,
+): WritingRunProjection | null {
+  const writingRun = event.data.writing_run;
+  const writingRunId =
+    numberOrNull(event.data.writing_run_id) ??
+    (writingRun && typeof writingRun === 'object'
+      ? numberOrNull((writingRun as { writing_run_id?: unknown }).writing_run_id)
+      : null);
+  const resolvedWritingRunId =
+    writingRunId ?? numberOrNull(event.data.book_run_id) ?? current?.writingRunId ?? null;
+  if (resolvedWritingRunId === null) return current;
   if (event.event === 'progress') {
     return {
-      bookRunId,
+      writingRunId: resolvedWritingRunId,
       status:
         typeof event.data.status === 'string' ? event.data.status : (current?.status ?? 'running'),
       currentChapterIndex:
@@ -362,7 +373,7 @@ export function applyBookRunEventProjection(
         ? '存在阻塞章节'
         : (current?.failureReason ?? null);
   return {
-    bookRunId,
+    writingRunId: resolvedWritingRunId,
     status: current?.status ?? 'running',
     currentChapterIndex: current?.currentChapterIndex ?? null,
     totalChapters: current?.totalChapters ?? null,
@@ -653,7 +664,9 @@ export function ChatWindow({
   const [contextPickerOpen, setContextPickerOpen] = useState(false);
   const [lastContextBundle, setLastContextBundle] = useState<ContextBundle | null>(null);
   const [missingContextPaths, setMissingContextPaths] = useState<string[]>([]);
-  const [bookRunProjection, setBookRunProjection] = useState<BookRunProjection | null>(null);
+  const [writingRunProjection, setWritingRunProjection] = useState<WritingRunProjection | null>(
+    null,
+  );
 
   const projectName = projectPath ? basename(projectPath) : null;
   const contextRef = currentFile ? relativePath(projectPath, currentFile) : null;
@@ -663,7 +676,7 @@ export function ChatWindow({
   const projectPathRef = useRef<string | null>(projectPath);
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
-  const unsubscribeBookRunRef = useRef<(() => void) | null>(null);
+  const unsubscribeWritingRunRef = useRef<(() => void) | null>(null);
   // 每次渲染后把最新值同步到 ref，供 WebSocket / 异步回调读取最新 props，避免闭包读到旧值。
   useEffect(() => {
     contextRefRef.current = contextRef;
@@ -674,8 +687,8 @@ export function ChatWindow({
 
   useEffect(() => {
     return () => {
-      unsubscribeBookRunRef.current?.();
-      unsubscribeBookRunRef.current = null;
+      unsubscribeWritingRunRef.current?.();
+      unsubscribeWritingRunRef.current = null;
     };
   }, []);
 
@@ -1067,11 +1080,11 @@ export function ChatWindow({
 
         assistantSessionIdRef.current = response.assistant_session_id;
         onAssistantSessionChange?.(response.assistant_session_id);
-        const startedBookRunId = bookRunIdFromResult(response);
-        if (startedBookRunId !== null) {
-          unsubscribeBookRunRef.current?.();
-          setBookRunProjection({
-            bookRunId: startedBookRunId,
+        const startedWritingRunId = writingRunIdFromResult(response);
+        if (startedWritingRunId !== null) {
+          unsubscribeWritingRunRef.current?.();
+          setWritingRunProjection({
+            writingRunId: startedWritingRunId,
             status: 'running',
             currentChapterIndex: null,
             totalChapters: null,
@@ -1079,31 +1092,31 @@ export function ChatWindow({
             latestEvent: 'started',
             failureReason: null,
           });
-          void subscribeBookRunEvents(
-            startedBookRunId,
+          void subscribeWritingRunEvents(
+            startedWritingRunId,
             (event) =>
-              setBookRunProjection((current) => applyBookRunEventProjection(current, event)),
+              setWritingRunProjection((current) => applyWritingRunEventProjection(current, event)),
             () =>
-              setBookRunProjection((current) =>
+              setWritingRunProjection((current) =>
                 current
                   ? {
                       ...current,
                       latestEvent: 'error',
-                      failureReason: 'BookRun 进度订阅失败',
+                      failureReason: '写作任务进度订阅失败',
                     }
                   : current,
               ),
           )
             .then((unsubscribe) => {
-              unsubscribeBookRunRef.current = unsubscribe;
+              unsubscribeWritingRunRef.current = unsubscribe;
             })
             .catch(() => {
-              setBookRunProjection((current) =>
+              setWritingRunProjection((current) =>
                 current
                   ? {
                       ...current,
                       latestEvent: 'error',
-                      failureReason: 'BookRun 进度订阅失败',
+                      failureReason: '写作任务进度订阅失败',
                     }
                   : current,
               );
@@ -1415,7 +1428,7 @@ export function ChatWindow({
         disabled={!projectPath || agentBusy}
         onSubmit={handleComposerSubmit}
         agentRun={agentRun}
-        bookRunProjection={bookRunProjection}
+        writingRunProjection={writingRunProjection}
         explicitContextPaths={explicitContextPaths}
         contextCandidates={contextCandidates}
         contextPickerOpen={contextPickerOpen}
@@ -1476,7 +1489,7 @@ function MessageList({
   disabled,
   onSubmit,
   agentRun,
-  bookRunProjection,
+  writingRunProjection,
   explicitContextPaths,
   contextCandidates,
   contextPickerOpen,
@@ -1496,7 +1509,7 @@ function MessageList({
   disabled: boolean;
   onSubmit: (value: string) => void;
   agentRun: AgentRun | null;
-  bookRunProjection: BookRunProjection | null;
+  writingRunProjection: WritingRunProjection | null;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
   contextPickerOpen: boolean;
@@ -1545,7 +1558,7 @@ function MessageList({
           </div>
         )}
 
-        {bookRunProjection && <BookRunProgressPanel projection={bookRunProjection} />}
+        {writingRunProjection && <WritingRunProgressPanel projection={writingRunProjection} />}
 
         <ContextSummaryPanel
           currentFileLabel={currentFileLabel}
@@ -1749,7 +1762,7 @@ function AgentRunControlBar({
   );
 }
 
-export function BookRunProgressPanel({ projection }: { projection: BookRunProjection }) {
+export function WritingRunProgressPanel({ projection }: { projection: WritingRunProjection }) {
   const chapters = projection.totalChapters
     ? `${projection.completedCount ?? 0}/${projection.totalChapters}`
     : projection.completedCount !== null
@@ -1758,12 +1771,12 @@ export function BookRunProgressPanel({ projection }: { projection: BookRunProjec
   return (
     <section
       className="animate-slide-up-fade rounded-md border border-[#333338] bg-[#202024] px-3 py-2"
-      data-testid="bookrun-progress"
+      data-testid="writing-run-progress"
     >
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-semibold text-[#EDEDED]">
-            BookRun #{projection.bookRunId} · {projection.status}
+            写作任务 #{projection.writingRunId} · {projection.status}
           </div>
           <div className="mt-1 truncate text-xs text-[#92929A]">
             章节：{chapters}；最近事件：{projection.latestEvent}
@@ -1773,11 +1786,11 @@ export function BookRunProgressPanel({ projection }: { projection: BookRunProjec
           </div>
         </div>
         <span className="rounded-md border border-[#3E4B64] px-2 py-1 text-xs text-[#D8E7FF]">
-          后台工具
+          managed
         </span>
       </div>
       {projection.failureReason && (
-        <div className="mt-2 text-xs text-[#FFB86B]" data-testid="bookrun-failure-reason">
+        <div className="mt-2 text-xs text-[#FFB86B]" data-testid="writing-run-failure-reason">
           {projection.failureReason}
         </div>
       )}

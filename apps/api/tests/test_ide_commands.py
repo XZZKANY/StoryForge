@@ -181,7 +181,13 @@ def test_bookrun_control_ide_commands_update_real_status(
     started = start_response.json()
     assert started["command_id"] == "bookrun.start"
     assert started["audit_event_id"].startswith("ide-command-event:")
+    assert started["payload"]["writing_run"]["scope"] == "full_book"
+    assert started["payload"]["writing_run"]["mode"] == "managed"
+    assert started["payload"]["writing_run"]["status"] == "running"
+    assert started["payload"]["writing_run_id"] == started["payload"]["book_run_id"]
     book_run_id = started["payload"]["book_run"]["id"]
+    assert started["payload"]["book_run_id"] == book_run_id
+    assert started["payload"]["writing_run"]["book_run_id"] == book_run_id
     assert started["payload"]["book_run"]["status"] == "running"
     assert started["payload"]["book_run"]["token_budget"] == 900
 
@@ -193,6 +199,8 @@ def test_bookrun_control_ide_commands_update_real_status(
     assert pause_response.status_code == 200, pause_response.text
     paused = pause_response.json()
     assert paused["audit_event_id"].startswith("ide-command-event:")
+    assert paused["payload"]["writing_run"]["status"] == "paused_by_user"
+    assert paused["payload"]["writing_run_id"] == book_run_id
     assert paused["payload"]["book_run"]["status"] == "paused_by_user"
     assert paused["payload"]["book_run"]["progress"]["pause_reason"] == "人工暂停"
 
@@ -203,6 +211,7 @@ def test_bookrun_control_ide_commands_update_real_status(
 
     assert resume_response.status_code == 200, resume_response.text
     resumed = resume_response.json()
+    assert resumed["payload"]["writing_run"]["status"] == "running"
     assert resumed["payload"]["book_run"]["status"] == "running"
     assert resumed["payload"]["book_run"]["progress"]["resume_from_chapter_index"] == 1
 
@@ -214,6 +223,7 @@ def test_bookrun_control_ide_commands_update_real_status(
     assert stop_response.status_code == 200, stop_response.text
     stopped = stop_response.json()
     assert stopped["audit_event_id"].startswith("ide-command-event:")
+    assert stopped["payload"]["writing_run"]["status"] == "stopped"
     assert stopped["payload"]["book_run"]["status"] == "stopped"
     assert stopped["payload"]["book_run"]["progress"]["stop_reason"] == "人工停止"
 
@@ -255,7 +265,11 @@ def test_bookrun_retry_from_checkpoint_command_resumes_next_chapter(
     body = response.json()
     assert body["command_id"] == "bookrun.retry_from_checkpoint"
     assert body["audit_event_id"].startswith("ide-command-event:")
+    assert body["payload"]["writing_run"]["status"] == "running"
+    assert body["payload"]["writing_run"]["scope"] == "full_book"
+    assert body["payload"]["writing_run"]["mode"] == "managed"
     book_run = body["payload"]["book_run"]
+    assert body["payload"]["writing_run_id"] == book_run["id"]
     assert book_run["status"] == "running"
     assert book_run["current_chapter_index"] == 3
     assert book_run["progress"]["retry_from_checkpoint"]["chapter_index"] == 2

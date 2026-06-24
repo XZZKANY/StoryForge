@@ -11,6 +11,7 @@ type ResourceExplorerProps = {
   projectPath: string | null;
   currentFile: string | null;
   refreshVersion?: number;
+  showHeader?: boolean;
   onFileSelect: (filePath: string) => void;
 };
 
@@ -80,6 +81,7 @@ export function ResourceExplorer({
   projectPath,
   currentFile,
   refreshVersion = 0,
+  showHeader = true,
   onFileSelect,
 }: ResourceExplorerProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -137,22 +139,24 @@ export function ResourceExplorer({
   return (
     <div className="flex h-full flex-col bg-[#111111]">
       {/* 标题栏 */}
-      <div className="sf-panel-header border-[#2D2D30]">
-        <span className="text-xs font-medium text-[#CCCCCC]">资源管理器</span>
-        <button
-          onClick={handleCollapse}
-          className="sf-icon-button text-[#CCCCCC] hover:bg-[#2D2D30]"
-          title={collapsed ? '展开' : '折叠'}
-        >
-          <svg
-            className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-            viewBox="0 0 16 16"
-            fill="currentColor"
+      {showHeader && (
+        <div className="sf-panel-header border-[#2D2D30]">
+          <span className="text-xs font-medium text-[#CCCCCC]">资源管理器</span>
+          <button
+            onClick={handleCollapse}
+            className="sf-icon-button text-[#CCCCCC] hover:bg-[#2D2D30]"
+            title={collapsed ? '展开' : '折叠'}
           >
-            <path d="M4 6l4 4 4-4H4z" />
-          </svg>
-        </button>
-      </div>
+            <svg
+              className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+              viewBox="0 0 16 16"
+              fill="currentColor"
+            >
+              <path d="M4 6l4 4 4-4H4z" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* 文件树 */}
       {!collapsed && (

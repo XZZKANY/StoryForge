@@ -141,6 +141,16 @@ export type AgentProposedPatch =
     }
   | Record<string, unknown>;
 
+export type WritingRunHandle = {
+  writing_run_id: number;
+  scope: string;
+  mode: string;
+  status: string;
+  book_run_id?: number | null;
+  book_run?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 export type AgentResultMessage = {
   type: 'agent_result';
   session_id: string;
@@ -152,6 +162,10 @@ export type AgentResultMessage = {
   agent_result: {
     summary?: string;
     requires_user_confirmation?: boolean;
+    writing_run?: WritingRunHandle | null;
+    writing_run_id?: number | null;
+    book_run?: Record<string, unknown> | null;
+    book_run_id?: number | null;
     [key: string]: unknown;
   };
   tool_trace: AgentToolTrace[];
@@ -261,6 +275,8 @@ export type BookRunEvent = {
   event: string;
   data: Record<string, unknown>;
 };
+
+export type WritingRunEvent = BookRunEvent;
 
 export type AssistantMessageRecord = {
   id: number;
@@ -589,6 +605,14 @@ export async function subscribeBookRunEvents(
     }
     source.close();
   };
+}
+
+export async function subscribeWritingRunEvents(
+  writingRunId: number,
+  onEvent: (event: WritingRunEvent) => void,
+  onError?: (error: Event) => void,
+): Promise<() => void> {
+  return subscribeBookRunEvents(writingRunId, onEvent, onError);
 }
 
 export function isAgentErrorMessage(message: AgentSocketMessage): message is AgentErrorMessage {

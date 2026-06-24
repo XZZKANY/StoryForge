@@ -899,3 +899,39 @@
 - 真修复 vs 豁免按 effect 意图逐个判定，未盲目补依赖（盲目补全可能引入多余重渲染、循环或销毁重建）。
 
 记录时间戳：2026-06-24（exhaustive-deps 三处收口）。
+
+---
+
+# Writing Run seam 收口验证（2026-06-25）
+
+## 目标
+
+继续推进统一 `Writing Run / 写作任务` seam（决策见 `docs/architecture/writing-run-seam-decision.md`），确认 Agent / IDE 控制面已全部通过 `writing_runs.service` 间接驱动 BookRun，且无新调用点直连 BookRun lifecycle。
+
+## 现状核对
+
+- seam 本体完整：`app/domains/writing_runs/{schemas,service}.py` + `adapters/bookrun_full_book.py`，v1 仅放行 `scope=full_book, mode=managed`，`writing_run_id == book_run_id`。
+- IDE 控制面：`ide/service.py` 的 `bookrun.*` 兼容命令（start/pause/resume/stop/retry）全部转交 `writing_runs.service`，返回 canonical `writing_run` + 兼容 `book_run` 字段。
+- Agent runtime：`agent_runs/service.py`、`runtime.py` 的长程控制与快照均走 seam helper（`writing_run_payload` / `full_book_writing_run_event_data`）。
+- 前端产品层干净：`writingRunIdFromResult` 先读 `writing_run_id` 再 fallback `book_run_id`；`bookrun.start` 仅作 legacy command id，文案为「启动写作任务」；无用户可见 BookRun 命名。
+- 护栏达标：`grep` 确认 seam/legacy-REST 之外无任何 `create_book_run/pause_book_run/resume_book_run/stop_book_run/retry_book_run_from_checkpoint` 直接调用点。
+
+## 本轮改动
+
+- `ide/service.py`：ruff `--fix` 清掉 seam 接入后已无引用的 legacy import（`create_book_run` 等 5 个 lifecycle 函数 + `BookRunCreate/BookRunRead`），并将 `writing_runs` import 归位。佐证 IDE 层已彻底不直连 BookRun lifecycle。
+
+## 本地验证结果
+
+- `uv run pytest tests/test_writing_runs.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_ide_commands.py tests/test_ide_run_events.py -q` → 60 passed。
+- `uv run pytest tests/test_book_runs.py -q` → 25 passed（seam 重度依赖 BookRun，确认无回归）。
+- `uv run pytest tests/test_ide_commands.py tests/test_ide_agent_orchestrator.py tests/test_ide_run_events.py -q`（import 清理后复跑）→ 31 passed。
+- `npm --prefix apps/desktop/frontend run test` → 27 passed（含 story-navigator、chat-window writing-run 投影）。
+- `uv run ruff check app/domains/writing_runs app/domains/ide/service.py app/domains/agent_runs tests/test_writing_runs.py` → All checks passed。
+
+## 未联通 / 暂不做
+
+- 仍保留 `writing_run_id` 与 `book_run_id` 双字段，未迁表、未新增 `/api/writing-runs` 公共路由（按决策护栏，需第二个真实 adapter 或 inline 引擎落地后再做）。
+- `mode=inline` 仍为类型预留，未实现短任务 run 引擎。
+- 未瘦身 `book_runs/service.py` 内部实现（决策要求 seam 稳定后再议）。
+
+记录时间戳：2026-06-25（Writing Run seam 收口验证）。

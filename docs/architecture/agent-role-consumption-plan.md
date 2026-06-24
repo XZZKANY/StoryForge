@@ -9,7 +9,7 @@
 - 后端已有 `/api/agent-runs/roles`。
 - 后端已有 `/api/agent-runs/roles/resolve`。
 - 后端已有 `AgentRoleRead`、`list_agent_roles()`、`resolve_agent_role_alias()`。
-- 后端已有 `@剧情`、`@人物`、`@文风`、`@伏笔`、`@设定`、`@BookRun`、`@探索`、`@资料` 映射。
+- 后端已有 `@剧情`、`@人物`、`@文风`、`@伏笔`、`@设定`、`@写作任务`、`@探索`、`@资料` 映射。
 - `AgentRuntime` 内部仍硬编码 `SubagentDefinition`。
 - Desktop 还没有解析 `@角色`，也没有把 `agent_role_hints` 传给后端。
 
@@ -142,7 +142,7 @@ Root Agent 将用户显式 `@角色` 作为调度偏好。
 - `@人物` 明确要求 `character_reviewer` 参与。
 - `@文风` 明确要求 `prose_reviewer` 参与。
 - `@伏笔` / `@设定` 明确要求 `continuity_reviewer` 参与。
-- `@BookRun` 只在 BookRun intent 或 long-running 任务中生效。
+- `@写作任务` 只在 `bookrun.start` 兼容 intent 或 managed Writing Run 中生效。
 - Root Agent 可以增加必要子代理，但不能跳过用户显式点名的只读 reviewer。
 - 用户显式点名也不能绕过 Permission Gate。
 
@@ -150,7 +150,7 @@ Root Agent 将用户显式 `@角色` 作为调度偏好。
 
 - 用户只输入 `@剧情` 时，run events 至少出现 `subagent.plot_reviewer`。
 - 用户输入 `@人物 @文风` 时，run events 出现对应两个 subagent。
-- `@BookRun` 不会在普通 file.revise 中直接启动 BookRun，除非 intent/权限允许。
+- `@写作任务` 不会在普通 file.revise 中直接启动 managed run，除非 intent/权限允许。
 - role hints 写入 `agent_plan_created` 或 `tool_trace` payload，便于回放解释。
 
 ### 测试建议
@@ -226,7 +226,7 @@ unknown mentions stay in message but are not sent as hints
   - `@文风`
   - `@伏笔`
   - `@设定`
-  - `@BookRun`
+  - `@写作任务`
   - `@探索`
   - `@资料`
 
@@ -283,4 +283,3 @@ npm test -- --runInBand
 - AgentRun 能记录用户显式角色意图。
 - Runtime 会尊重显式 role hints，但不绕过权限系统。
 - 文件写回仍默认由作者确认。
-
