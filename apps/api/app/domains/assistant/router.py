@@ -13,6 +13,7 @@ from app.domains.assistant.schemas import (
     AssistantToolCallCreate,
     AssistantToolCallRead,
     AssistantToolCallUpdate,
+    ProviderHealthResponse,
 )
 from app.domains.assistant.service import (
     AssistantLlmNotConfiguredError,
@@ -25,6 +26,7 @@ from app.domains.assistant.service import (
     get_assistant_session,
     list_assistant_tool_calls,
     list_recent_assistant_sessions,
+    probe_provider_health,
     revise_file_content,
     update_assistant_tool_call,
 )
@@ -152,6 +154,19 @@ def revise_file_content_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except AssistantReviseError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.get(
+    "/provider-health",
+    response_model=ProviderHealthResponse,
+    summary="探测后端实际使用的模型服务连通性",
+)
+def provider_health_endpoint() -> ProviderHealthResponse:
+    """桌面设置「测试连接」调用：对后端 resolved_llm_env 的 /models 发只读探测。
+
+    始终 200 返回结构化诊断（ok / unauthorized / unreachable / misconfigured），不回显凭据。"""
+
+    return probe_provider_health()
 
 
 @router.patch(

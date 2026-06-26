@@ -4,8 +4,10 @@ import { test } from 'node:test';
 import {
   applyProviderPreset,
   describeProviderConnection,
+  describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
+  type ProviderHealth,
 } from '../src/lib/provider-config';
 import { sanitizeAppSettings } from '../src/lib/user-settings';
 
@@ -77,4 +79,48 @@ test('app settings sanitizer shares provider kind validation with provider confi
   assert.equal(settings.autoSave, true);
   assert.equal(settings.provider.kind, 'openai');
   assert.equal(settings.provider.baseUrl, 'https://api.openai.com');
+});
+
+function health(overrides: Partial<ProviderHealth>): ProviderHealth {
+  return {
+    status: 'ok',
+    reachable: true,
+    baseUrl: 'https://provider.test/v1',
+    model: null,
+    latencyMs: null,
+    modelCount: null,
+    detail: null,
+    missingEnv: [],
+    ...overrides,
+  };
+}
+
+test('describeProviderHealth renders ok with model, latency and model count', () => {
+  const display = describeProviderHealth(
+    health({ status: 'ok', model: 'deepseek-v4-flash', latencyMs: 1407, modelCount: 2 }),
+  );
+  assert.equal(display.tone, 'ok');
+  assert.ok(display.label.includes('deepseek-v4-flash'));
+  assert.ok(display.label.includes('1407ms'));
+  assert.ok(display.label.includes('2 个模型'));
+});
+
+test('describeProviderHealth surfaces unauthorized and unreachable as errors', () => {
+  assert.equal(
+    describeProviderHealth(health({ status: 'unauthorized', detail: 'HTTP 401' })).tone,
+    'error',
+  );
+  assert.equal(
+    describeProviderHealth(health({ status: 'unreachable', reachable: false, detail: '连接被拒' }))
+      .tone,
+    'error',
+  );
+});
+
+test('describeProviderHealth marks misconfigured with missing env as a warning', () => {
+  const display = describeProviderHealth(
+    health({ status: 'misconfigured', reachable: false, missingEnv: ['STORYFORGE_LLM_API_KEY'] }),
+  );
+  assert.equal(display.tone, 'warn');
+  assert.ok(display.label.includes('STORYFORGE_LLM_API_KEY'));
 });
