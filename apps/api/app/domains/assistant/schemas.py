@@ -114,6 +114,8 @@ class AssistantContextBundle(BaseModel):
     current_file: str = Field(min_length=1, max_length=1024)
     files: list[AssistantContextBundleFile] = Field(default_factory=list, max_length=12)
     summary: dict[str, Any] = Field(default_factory=dict)
+    # 前端上下文预算（file_count/char_count/truncated 等展示用元数据）；后端不消费，宽松接收避免契约错配。
+    budget: dict[str, Any] | None = None
 
 
 class AssistantReviseRequest(BaseModel):

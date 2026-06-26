@@ -9,8 +9,11 @@ import {
   emitAcceptCurrentFileSuggestion,
   emitExportCurrentFile,
   emitFileSuggestion,
+  emitReviewIssues,
   emitSuggestionResult,
+  flushActiveEditorToDisk,
   REVIEW_CURRENT_EVENT,
+  REVISE_ISSUE_EVENT,
   SUGGESTION_RESULT_EVENT,
   type AuthorLoopResult,
   type SuggestionResult,
@@ -410,6 +413,34 @@ function compactConversationMessages(
     .filter((message): message is Message => message !== null);
 }
 
+// 审稿可能在真实模型未配置或调用失败时静默降级为启发式关键词检查；
+// 把来源标注透出来，避免把启发式结果误当成真模型审稿。
+function reviewSourceLine(
+  mode: unknown,
+  agentFindings: Record<string, { degraded_reason?: unknown }> | undefined,
+): string | null {
+  const reasons = agentFindings
+    ? Object.values(agentFindings)
+        .map((finding) =>
+          finding && typeof finding.degraded_reason === 'string' ? finding.degraded_reason : null,
+        )
+        .filter((reason): reason is string => Boolean(reason))
+    : [];
+  const reasonTail = reasons.length ? `（${reasons[0]}）` : '';
+  switch (mode) {
+    case 'llm':
+      return '审稿来源：真实模型三视角（剧情 / 人物 / 文风）。';
+    case 'mixed':
+      return `⚠ 审稿来源：部分视角真实模型、部分降级为启发式关键词检查${reasonTail}。`;
+    case 'llm_failed':
+      return `⚠ 审稿来源：真实模型调用全部失败，已降级为启发式关键词检查；以下结论仅供参考，不等于真模型审稿${reasonTail}。`;
+    case 'heuristic_only':
+      return 'ℹ 审稿来源：未配置真实模型，当前为启发式关键词检查。';
+    default:
+      return null;
+  }
+}
+
 function reviewReportSummary(message: AgentResultMessage): string | null {
   const report = message.agent_result.review_report;
   if (!report || typeof report !== 'object') return null;
@@ -417,7 +448,8 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
     issues?: unknown;
     suggested_actions?: unknown;
     context?: { file_count?: unknown; kinds?: unknown };
-    agent_findings?: Record<string, { issue_count?: unknown }>;
+    mode?: unknown;
+    agent_findings?: Record<string, { issue_count?: unknown; degraded_reason?: unknown }>;
   };
   const issues = reviewIssuesFromReport(report as ReviewReport);
   const actions = Array.isArray(record.suggested_actions)
@@ -437,8 +469,11 @@ function reviewReportSummary(message: AgentResultMessage): string | null {
     return `${index + 1}. [${issue.id}/${issue.severity}] ${issue.message}\n   建议：${issue.suggestedAction}`;
   });
 
+  const sourceLine = reviewSourceLine(record.mode, record.agent_findings);
+
   return [
     message.agent_result.summary ?? '多视角审稿完成。',
+    sourceLine,
     `上下文：读取 ${contextFileCount} 个文件${kinds.length ? `（${kinds.join('、')}）` : ''}。`,
     `视角：剧情 ${finding('plot')} 个，人物 ${finding('character')} 个，文风节奏 ${finding('prose')} 个，连续性 ${finding('continuity')} 个。`,
     issueLines.length ? `问题：\n${issueLines.join('\n')}` : '问题：未发现明显结构性问题。',
@@ -1013,6 +1048,7 @@ export function ChatWindow({
         }
 
         updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
+        await flushActiveEditorToDisk(file);
         const content = await TauriFileSystem.readFile(file);
         updateAgentStep('draft', {
           status: 'completed',
@@ -1197,8 +1233,10 @@ export function ChatWindow({
 
         const reviewSummary = reviewReportSummary(response);
         if (reviewSummary) {
-          setLastReviewReport(reviewReportFromMessage(response));
+          const reviewReportForMarkers = reviewReportFromMessage(response);
+          setLastReviewReport(reviewReportForMarkers);
           setLastReviewReportFile(file);
+          emitReviewIssues(file, reviewIssuesFromReport(reviewReportForMarkers));
           setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
           updateAgentStatus('completed');
           return;
@@ -1264,6 +1302,26 @@ export function ChatWindow({
     },
     [runAuthorAgent],
   );
+
+  useEffect(() => {
+    const onReviseIssue = (event: Event) => {
+      const detail = (event as CustomEvent<{ issueId: string }>).detail;
+      if (!detail?.issueId) return;
+      if (
+        lastReviewReportFile &&
+        currentFileRef.current &&
+        lastReviewReportFile !== currentFileRef.current
+      ) {
+        return;
+      }
+      const issue = reviewIssuesFromReport(lastReviewReport).find(
+        (item) => item.id === detail.issueId,
+      );
+      if (issue) reviseReviewIssue(issue);
+    };
+    window.addEventListener(REVISE_ISSUE_EVENT, onReviseIssue);
+    return () => window.removeEventListener(REVISE_ISSUE_EVENT, onReviseIssue);
+  }, [lastReviewReport, lastReviewReportFile, reviseReviewIssue]);
 
   const sendAgentRunControl = useCallback(
     async (type: AgentControlMessageType) => {

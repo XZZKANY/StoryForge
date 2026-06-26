@@ -18,6 +18,7 @@ import { initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { emitExportCurrentFile, emitReviewCurrentFile } from './lib/assistant-events';
 import { loadAppSettings, saveAppSettings, type AppSettings } from './lib/user-settings';
+import { describeProviderConnection, getProviderPreset } from './lib/provider-config';
 
 type LayoutMode = 'normal' | 'custom' | 'assistant-only' | 'workspace-only';
 
@@ -419,6 +420,7 @@ export function App() {
             <CodexSidebar
               projects={projects}
               activeProject={activeProject}
+              settings={settings}
               projectAssistantSessions={projectAssistantSessions}
               onSelectProject={selectProject}
               onOpenProject={handleOpenProject}
@@ -726,6 +728,7 @@ function LayoutSplitIcon() {
 function CodexSidebar({
   projects,
   activeProject,
+  settings,
   projectAssistantSessions,
   onSelectProject,
   onOpenProject,
@@ -734,6 +737,7 @@ function CodexSidebar({
 }: {
   projects: string[];
   activeProject: string | null;
+  settings: AppSettings;
   projectAssistantSessions: Record<string, number>;
   onSelectProject: (path: string) => void;
   onOpenProject: () => void;
@@ -907,7 +911,7 @@ function CodexSidebar({
       </div>
 
       <div className="mt-auto p-2">
-        <ProviderSettingsCard onOpenSettings={onOpenSettings} />
+        <ProviderSettingsCard settings={settings} onOpenSettings={onOpenSettings} />
       </div>
     </div>
   );
@@ -942,7 +946,20 @@ function IconToolButton({
   );
 }
 
-function ProviderSettingsCard({ onOpenSettings }: { onOpenSettings: () => void }) {
+function ProviderSettingsCard({
+  settings,
+  onOpenSettings,
+}: {
+  settings: AppSettings;
+  onOpenSettings: () => void;
+}) {
+  const providerPreset = getProviderPreset(settings.provider.kind);
+  const providerConnection = describeProviderConnection(settings.provider);
+  const modelLabel = settings.provider.model.trim();
+  const subtitle = modelLabel
+    ? `${providerConnection.label} · ${modelLabel}`
+    : `${providerConnection.label} · ${providerPreset.label}`;
+
   return (
     <button
       className="group flex w-full items-center gap-2 rounded-xl border border-[#303030] bg-[#1B1B1B] px-2 py-2 text-left transition-colors hover:border-[#3E3E3E] hover:bg-[#222222]"
@@ -955,7 +972,7 @@ function ProviderSettingsCard({ onOpenSettings }: { onOpenSettings: () => void }
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-semibold text-[#EDEDED]">本地创作环境</div>
-        <div className="truncate text-[12px] text-[#A8A8A8]">模型服务未检测</div>
+        <div className="truncate text-[12px] text-[#A8A8A8]">{subtitle}</div>
       </div>
       <span className="flex h-7 w-5 flex-shrink-0 items-center justify-center text-[#777777] transition-colors group-hover:text-[#BDBDBD]">
         <SettingsIcon />

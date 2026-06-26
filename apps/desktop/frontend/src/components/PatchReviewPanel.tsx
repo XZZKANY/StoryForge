@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
+import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
   onAccept: () => void;
+  onAcceptHunk: (hunk: PatchHunk) => void;
   onReject: () => void;
   onSaveNote: () => void;
 };
@@ -42,6 +45,7 @@ function diffStats(before: string, after: string): DiffStats {
 export function PatchReviewPanel({
   suggestion,
   onAccept,
+  onAcceptHunk,
   onReject,
   onSaveNote,
 }: PatchReviewPanelProps) {
@@ -50,6 +54,64 @@ export function PatchReviewPanel({
     () => diffStats(suggestion.before, suggestion.after),
     [suggestion.before, suggestion.after],
   );
+  const hunks = useMemo(
+    () => buildPatchHunks(suggestion.before, suggestion.after),
+    [suggestion.before, suggestion.after],
+  );
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
+  const originalModelRef = useRef<monaco.editor.ITextModel | null>(null);
+  const modifiedModelRef = useRef<monaco.editor.ITextModel | null>(null);
+
+  // 挂载期创建只读内联 diff 编辑器；suggestion 变化时只更新 model 内容，不销毁重建（保留滚动位置）。
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const diffEditor = monaco.editor.createDiffEditor(containerRef.current, {
+      readOnly: true,
+      renderSideBySide: false,
+      automaticLayout: true,
+      theme: 'vs-dark',
+      minimap: { enabled: false },
+      wordWrap: 'on',
+      scrollBeyondLastLine: false,
+      renderOverviewRuler: false,
+      lineNumbers: 'off',
+      folding: false,
+      fontSize: 12,
+    });
+    const original = monaco.editor.createModel(suggestion.before, 'markdown');
+    const modified = monaco.editor.createModel(suggestion.after, 'markdown');
+    diffEditor.setModel({ original, modified });
+    diffEditorRef.current = diffEditor;
+    originalModelRef.current = original;
+    modifiedModelRef.current = modified;
+    return () => {
+      diffEditor.dispose();
+      original.dispose();
+      modified.dispose();
+      diffEditorRef.current = null;
+      originalModelRef.current = null;
+      modifiedModelRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性创建 diff 编辑器；before/after 后续变化由下方 effect 同步到 model，避免销毁重建
+  }, []);
+
+  // 同一面板实例上换了新补丁时，只刷新两个 model 的内容。
+  useEffect(() => {
+    if (originalModelRef.current && originalModelRef.current.getValue() !== suggestion.before) {
+      originalModelRef.current.setValue(suggestion.before);
+    }
+    if (modifiedModelRef.current && modifiedModelRef.current.getValue() !== suggestion.after) {
+      modifiedModelRef.current.setValue(suggestion.after);
+    }
+  }, [suggestion.before, suggestion.after]);
+
+  // 展开/收起改变容器高度后，立即让 Monaco 重新布局。
+  useEffect(() => {
+    diffEditorRef.current?.layout();
+  }, [expanded]);
+
   return (
     <div
       className="border-b border-border bg-surface animate-slide-up-fade flex-shrink-0"
@@ -76,7 +138,7 @@ export function PatchReviewPanel({
             data-testid="patch-expand"
             className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-foreground/10 transition-colors"
           >
-            {expanded ? '收起' : '展开全文'}
+            {expanded ? '收起' : '展开'}
           </button>
           <button
             onClick={onAccept}
@@ -101,46 +163,28 @@ export function PatchReviewPanel({
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-2 border-t border-border text-xs">
-        <DiffColumn
-          title="当前内容"
-          content={suggestion.before}
-          tone="before"
-          expanded={expanded}
-        />
-        <DiffColumn title="建议后" content={suggestion.after} tone="after" expanded={expanded} />
-      </div>
-    </div>
-  );
-}
-
-function DiffColumn({
-  title,
-  content,
-  tone,
-  expanded,
-}: {
-  title: string;
-  content: string;
-  tone: 'before' | 'after';
-  expanded: boolean;
-}) {
-  const visibleContent = expanded ? content : content.slice(0, 2400);
-  return (
-    <div
-      className={`min-w-0 border-r last:border-r-0 border-border ${tone === 'after' ? 'bg-success/[0.06]' : 'bg-error/[0.05]'}`}
-    >
+      {hunks.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-[11px] text-muted">
+          {hunks.map((hunk, index) => (
+            <button
+              key={hunk.id}
+              type="button"
+              onClick={() => onAcceptHunk(hunk)}
+              data-testid="suggestion-accept-hunk"
+              className="rounded-md border border-border px-2 py-1 text-foreground transition-colors hover:bg-foreground/10"
+              title={`第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
+            >
+              接受块 {index + 1}
+            </button>
+          ))}
+        </div>
+      )}
       <div
-        className={`px-3 py-1.5 font-semibold ${tone === 'after' ? 'text-success' : 'text-muted'}`}
-      >
-        {title}
-      </div>
-      <pre
-        className={`${expanded ? 'max-h-96' : 'max-h-40'} overflow-auto whitespace-pre-wrap px-3 pb-3 text-[11px] leading-5 text-foreground`}
-      >
-        {visibleContent}
-        {!expanded && content.length > 2400 ? '\n...' : ''}
-      </pre>
+        ref={containerRef}
+        data-testid="patch-diff"
+        className="border-t border-border w-full"
+        style={{ height: expanded ? 420 : 200 }}
+      />
     </div>
   );
 }
