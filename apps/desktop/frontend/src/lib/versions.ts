@@ -15,7 +15,7 @@ const META_SUFFIX = '.meta.json';
 export type VersionEntry = {
   /** 快照文件完整路径 */
   path: string;
-  /** 保存时间（unix 毫秒） */
+  /** 保存时间（unix 毫秒）。同时作为该文件版本目录内唯一的节点 id。 */
   timestamp: number;
   /** 写回来源，如 Agent 或 Editor */
   source?: string;
@@ -27,6 +27,12 @@ export type VersionEntry = {
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
+  /** 剧情分支画布血缘：父节点 timestamp；null/缺省表示分支起点或旧线性快照。 */
+  parentId?: number | null;
+  /** 所属分支 id；缺省按 main 处理。 */
+  branchId?: string;
+  /** 分支展示名。 */
+  branchLabel?: string;
 };
 
 export type VersionSnapshotMetadata = {
@@ -37,6 +43,9 @@ export type VersionSnapshotMetadata = {
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
+  parentId?: number | null;
+  branchId?: string;
+  branchLabel?: string;
 };
 
 function sep(projectPath: string): string {
@@ -54,8 +63,8 @@ function relativeToProject(projectPath: string, filePath: string): string | null
   return filePath.slice(root.length).replace(/^[/\\]+/, '');
 }
 
-/** 某个文件的版本目录。 */
-function versionDirFor(projectPath: string, filePath: string): string | null {
+/** 某个文件的版本目录。剧情分支画布的分支清单也落在这里。 */
+export function versionDirFor(projectPath: string, filePath: string): string | null {
   const relative = relativeToProject(projectPath, filePath);
   if (!relative) return null;
   const s = sep(projectPath);
@@ -65,14 +74,14 @@ function versionDirFor(projectPath: string, filePath: string): string | null {
 
 /**
  * 在覆盖写入前，把当前磁盘内容存为一份快照。
- * 若文件尚不存在（首次创建）则跳过。返回快照路径或 null。
+ * 若文件尚不存在（首次创建）则跳过。返回快照路径与节点时间戳，或 null。
  */
 export async function snapshotBeforeWrite(
   projectPath: string | null,
   filePath: string,
   previousContent: string,
   metadata: VersionSnapshotMetadata = {},
-): Promise<string | null> {
+): Promise<{ path: string; timestamp: number } | null> {
   if (!projectPath) return null;
   const dir = versionDirFor(projectPath, filePath);
   if (!dir) return null;
@@ -90,12 +99,15 @@ export async function snapshotBeforeWrite(
     assistantSessionId: metadata.assistantSessionId,
     issueIds: metadata.issueIds,
     contextFiles: metadata.contextFiles,
+    parentId: metadata.parentId,
+    branchId: metadata.branchId,
+    branchLabel: metadata.branchLabel,
   };
   await TauriFileSystem.writeFile(
     `${dir}${s}${timestamp}${META_SUFFIX}`,
     `${JSON.stringify(meta, null, 2)}\n`,
   );
-  return snapshotPath;
+  return { path: snapshotPath, timestamp };
 }
 
 /** 列出某文件的历史版本，按时间倒序。 */
@@ -151,6 +163,9 @@ export async function listVersions(
         assistantSessionId: metadata.assistantSessionId,
         issueIds: metadata.issueIds,
         contextFiles: metadata.contextFiles,
+        parentId: metadata.parentId,
+        branchId: metadata.branchId,
+        branchLabel: metadata.branchLabel,
       });
       return list;
     }, Promise.resolve([]));
