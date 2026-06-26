@@ -99,6 +99,43 @@ def test_revise_includes_desktop_context_bundle_in_prompt(
     assert tool_calls[0]["input_summary"]["context_file_count"] == 2
 
 
+def test_revise_accepts_context_bundle_budget_metadata(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """桌面 context_bundle 携带前端预算元数据（budget）时必须被宽松接收，不得 422。
+
+    回归守卫：AssistantContextBundle 曾为 extra=forbid 且无 budget 字段，前端 file.revise
+    带 budget 会 422；schemas 放宽后这里固定该契约，避免再次错配。
+    """
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
+
+    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "file_path": "正文/第02章.md",
+            "content": "当前正文",
+            "instruction": "检查人物动机",
+            "context_bundle": {
+                "project_root": "D:/books/雾港回声",
+                "current_file": "D:/books/雾港回声/正文/第02章.md",
+                "files": [],
+                "summary": {"hasStoryStructure": True},
+                "budget": {"file_count": 2, "char_count": 1280, "truncated": True},
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["after"].strip()
+
+
 def test_revise_uses_settings_llm_config_when_env_not_exported(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

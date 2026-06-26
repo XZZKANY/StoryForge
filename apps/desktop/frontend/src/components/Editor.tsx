@@ -3,13 +3,18 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
   APPLY_FILE_SUGGESTION_EVENT,
   EXPORT_CURRENT_FILE_EVENT,
+  emitReviseIssue,
+  REQUEST_SAVE_ACTIVE_FILE_EVENT,
+  REVIEW_ISSUES_EVENT,
+  SAVE_ACTIVE_FILE_DONE_EVENT,
   SUGGESTION_RESULT_EVENT,
+  type ReviewIssueMarker,
   type SuggestionResult,
 } from '../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
@@ -19,6 +24,55 @@ import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
 import { registerSmokeEditorController } from '../lib/smoke';
+import { applyPatchHunk, type PatchHunk } from '../lib/patch-hunks';
+
+// Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
+// 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
+function normalizeEol(text: string): string {
+  return text.replace(/\r\n/g, '\n');
+}
+
+const ISSUE_SEVERITY_COLOR: Record<'high' | 'medium' | 'low', string> = {
+  high: '#f87171',
+  medium: '#fbbf24',
+  low: '#60a5fa',
+};
+
+function normalizeIssueSeverity(severity: string): 'high' | 'medium' | 'low' {
+  return severity === 'high' || severity === 'low' ? severity : 'medium';
+}
+
+// 审稿 issue 只带 evidence 文本、无字符范围；按 evidence 在正文里就近定位一个范围用于打标记。
+function locateEvidence(model: monaco.editor.ITextModel, evidence: string): monaco.IRange | null {
+  const cleaned = evidence
+    .replace(/\.{3,}$/, '')
+    .replace(/^[\s"'「『（(]+|[\s"'」』）)]+$/g, '')
+    .trim();
+  const candidates = [cleaned, cleaned.slice(0, 40), cleaned.slice(0, 20)];
+  for (const candidate of candidates) {
+    if (candidate.length < 4) continue;
+    const matches = model.findMatches(candidate, false, false, false, null, false, 1);
+    if (matches.length > 0) return matches[0].range;
+  }
+  return null;
+}
+
+function issueDecorationOptions(issue: ReviewIssueMarker): monaco.editor.IModelDecorationOptions {
+  const severity = normalizeIssueSeverity(issue.severity);
+  const hover = {
+    value: `**[${issue.id}] ${issue.severity}** ${issue.message}\n\n建议：${issue.suggestedAction}`,
+  };
+  return {
+    className: `sf-issue-underline sf-issue-${severity}`,
+    glyphMarginClassName: `sf-issue-glyph sf-issue-glyph-${severity}`,
+    glyphMarginHoverMessage: hover,
+    hoverMessage: hover,
+    overviewRuler: {
+      color: ISSUE_SEVERITY_COLOR[severity],
+      position: monaco.editor.OverviewRulerLane.Right,
+    },
+  };
+}
 
 type EditorProps = {
   projectPath: string | null;
@@ -59,6 +113,8 @@ export function Editor({
   const assistantSessionIdRef = useRef<number | null>(null);
   const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
   const cleanVersionIdRef = useRef<number | null>(null);
+  const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
+  const issueByLineRef = useRef<Map<number, string>>(new Map());
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
 
@@ -77,10 +133,31 @@ export function Editor({
     autoSaveRef.current = autoSave;
   });
 
+  const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+    const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+    const issueByLine = new Map<number, string>();
+    for (const issue of issues) {
+      const range = locateEvidence(model, issue.evidence);
+      if (!range) continue;
+      decorations.push({ range, options: issueDecorationOptions(issue) });
+      issueByLine.set(range.startLineNumber, issue.id);
+    }
+    issueByLineRef.current = issueByLine;
+    if (issueDecorationsRef.current) {
+      issueDecorationsRef.current.set(decorations);
+    } else {
+      issueDecorationsRef.current = editor.createDecorationsCollection(decorations);
+    }
+  }, []);
+
   // 加载文件内容
   useLayoutEffect(() => {
     loadRequestIdRef.current += 1;
     const requestId = loadRequestIdRef.current;
+    issueDecorationsRef.current?.clear();
 
     if (!filePath) {
       originalContentRef.current = '';
@@ -156,6 +233,7 @@ export function Editor({
           theme: 'vs-dark',
           fontSize: editorFontSize,
           lineNumbers: 'on',
+          glyphMargin: true,
           minimap: { enabled: true },
           wordWrap: 'on',
           automaticLayout: true,
@@ -190,6 +268,14 @@ export function Editor({
         if (filePathRef.current && isDirtyRef.current) {
           void handleSave();
         }
+      });
+
+      editor.onMouseDown((event) => {
+        if (event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+        const lineNumber = event.target.position?.lineNumber;
+        if (!lineNumber) return;
+        const issueId = issueByLineRef.current.get(lineNumber);
+        if (issueId) emitReviseIssue(issueId);
       });
     });
 
@@ -244,6 +330,18 @@ export function Editor({
     };
   }, []);
 
+  // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。
+  useEffect(() => {
+    const onIssues = (event: Event) => {
+      const detail = (event as CustomEvent<{ filePath: string; issues: ReviewIssueMarker[] }>)
+        .detail;
+      if (!detail || detail.filePath !== filePathRef.current) return;
+      applyIssueDecorations(detail.issues);
+    };
+    window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
+    return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
+  }, [applyIssueDecorations]);
+
   // 保存文件：先快照旧内容，再写入新内容
   const handleSave = async () => {
     const path = filePathRef.current;
@@ -252,7 +350,7 @@ export function Editor({
     try {
       const content = editorRef.current.getValue();
       const previous = originalContentRef.current;
-      if (previous !== '' && previous !== content) {
+      if (previous !== '' && normalizeEol(previous) !== normalizeEol(content)) {
         try {
           await snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Editor',
@@ -272,6 +370,76 @@ export function Editor({
     }
   };
 
+  // 审稿/修订读盘前，外部请活动编辑器先落盘，避免后端读到未保存的旧内容。
+  useEffect(() => {
+    const onRequestSave = (event: Event) => {
+      const detail = (event as CustomEvent<{ filePath: string }>).detail;
+      const respond = () =>
+        window.dispatchEvent(
+          new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
+            detail: { filePath: detail?.filePath ?? null },
+          }),
+        );
+      if (
+        !detail ||
+        detail.filePath !== filePathRef.current ||
+        !editorRef.current ||
+        !isDirtyRef.current
+      ) {
+        respond();
+        return;
+      }
+      void handleSave().finally(respond);
+    };
+    window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
+    return () => window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
+  }, []);
+
+  const writeAcceptedSuggestion = async (
+    suggestion: AssistantFileSuggestion,
+    path: string,
+    previous: string,
+    nextContent: string,
+    overrides: { summary?: string; note?: string } = {},
+  ) => {
+    const summary = overrides.summary ?? suggestion.summary;
+    const note = overrides.note ?? suggestion.note;
+    if (normalizeEol(previous) !== normalizeEol(nextContent)) {
+      try {
+        await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          source: 'Agent',
+          summary,
+          patchId: suggestion.id,
+          assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+          issueIds: suggestion.issueIds,
+          contextFiles: suggestion.contextFiles,
+        });
+      } catch (snapshotErr) {
+        console.error('写入版本快照失败:', snapshotErr);
+      }
+    }
+    await TauriFileSystem.writeFile(path, nextContent);
+    const loopRecord = await recordRevisionLoop({
+      projectPath: projectPathRef.current,
+      filePath: path,
+      before: previous,
+      after: nextContent,
+      summary,
+      note,
+      userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+      assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+      patchId: suggestion.id,
+      issueIds: suggestion.issueIds,
+      contextFiles: suggestion.contextFiles,
+    });
+    editorRef.current?.setValue(nextContent);
+    originalContentRef.current = nextContent;
+    cleanVersionIdRef.current = editorRef.current?.getModel()?.getAlternativeVersionId() ?? null;
+    setLoadedContentPreview(nextContent.slice(0, 120));
+    setIsDirty(false);
+    return loopRecord;
+  };
+
   const handleAcceptSuggestion = async () => {
     const suggestion = pendingSuggestionRef.current;
     const path = filePathRef.current;
@@ -287,7 +455,7 @@ export function Editor({
 
     try {
       const currentContent = editorRef.current.getValue();
-      if (currentContent !== suggestion.before) {
+      if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
         const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
         setSuggestionStatus(message);
         emitAuthorLoopResult({
@@ -299,41 +467,12 @@ export function Editor({
         return;
       }
 
-      const previous = currentContent;
-      if (previous !== suggestion.after) {
-        try {
-          await snapshotBeforeWrite(projectPathRef.current, path, previous, {
-            source: 'Agent',
-            summary: suggestion.summary,
-            patchId: suggestion.id,
-            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
-            issueIds: suggestion.issueIds,
-            contextFiles: suggestion.contextFiles,
-          });
-        } catch (snapshotErr) {
-          console.error('写入版本快照失败:', snapshotErr);
-        }
-      }
-      await TauriFileSystem.writeFile(path, suggestion.after);
-      const loopRecord = await recordRevisionLoop({
-        projectPath: projectPathRef.current,
-        filePath: path,
-        before: suggestion.before,
-        after: suggestion.after,
-        summary: suggestion.summary,
-        note: suggestion.note,
-        userIntent:
-          suggestion.note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-        assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
-        patchId: suggestion.id,
-        issueIds: suggestion.issueIds,
-        contextFiles: suggestion.contextFiles,
-      });
-      editorRef.current.setValue(suggestion.after);
-      originalContentRef.current = suggestion.after;
-      cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
-      setLoadedContentPreview(suggestion.after.slice(0, 120));
-      setIsDirty(false);
+      const loopRecord = await writeAcceptedSuggestion(
+        suggestion,
+        path,
+        currentContent,
+        suggestion.after,
+      );
       setPendingSuggestion(null);
       setSuggestionStatus(
         loopRecord.recordPath ? `已接受并写入当前文件，闭环记录已保存` : '已接受并写入当前文件',
@@ -353,6 +492,46 @@ export function Editor({
         action: 'revision_accepted',
         message: err instanceof Error ? err.message : String(err),
       });
+    }
+  };
+
+  const handleAcceptHunk = async (hunk: PatchHunk) => {
+    const suggestion = pendingSuggestionRef.current;
+    const path = filePathRef.current;
+    if (!suggestion || !path || !editorRef.current) {
+      setSuggestionStatus('当前没有待写回的修订。');
+      return;
+    }
+
+    try {
+      const currentContent = editorRef.current.getValue();
+      if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
+        setSuggestionStatus('当前文件内容已变化，请重新生成修订后再分块接受。');
+        return;
+      }
+      const nextContent = applyPatchHunk(suggestion.before, suggestion.after, hunk);
+      const loopRecord = await writeAcceptedSuggestion(
+        suggestion,
+        path,
+        currentContent,
+        nextContent,
+        {
+          summary: `${suggestion.summary}（接受分块）`,
+          note: `${suggestion.note}\n\n分块接受：第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`,
+        },
+      );
+      if (normalizeEol(nextContent) === normalizeEol(suggestion.after)) {
+        setPendingSuggestion(null);
+      } else {
+        setPendingSuggestion({ ...suggestion, before: nextContent });
+      }
+      setSuggestionStatus(
+        loopRecord.recordPath
+          ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
+          : '已接受该修改块并写入当前文件',
+      );
+    } catch (err) {
+      setSuggestionStatus(`接受分块失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -418,6 +597,7 @@ export function Editor({
     window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
     return () =>
       window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性注册窗口监听；handleAcceptSuggestion 经 ref 读取待写回补丁/文件路径，闭包不读旧值；列入依赖会因其每渲染重建（现调用抽出的 writeAcceptedSuggestion）而反复重挂监听
   }, []);
 
   const handleSaveSuggestionNote = async () => {
@@ -611,6 +791,7 @@ export function Editor({
         <PatchReviewPanel
           suggestion={pendingSuggestion}
           onAccept={handleAcceptSuggestion}
+          onAcceptHunk={handleAcceptHunk}
           onReject={() => {
             setPendingSuggestion(null);
             setSuggestionStatus('已拒绝建议补丁');

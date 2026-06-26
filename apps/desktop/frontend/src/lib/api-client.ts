@@ -7,6 +7,11 @@ import { invoke } from '@tauri-apps/api/core';
 import type { AgentRoleRead } from './agent-roles';
 import { isTauriRuntime } from './tauri-env';
 
+// Agent WebSocket 等待 LLM 编排返回的默认上限。必须大于后端 _call_llm 的
+// STORYFORGE_LLM_TIMEOUT_SECONDS（默认 300s）——审稿会并行发 3 路真模型调用，
+// DeepSeek 等慢响应下 120s 远不够，会在后端还没返回时被前端误判超时。
+const DEFAULT_AGENT_TIMEOUT_MS = 360_000;
+
 type ApiConfig = {
   baseUrl: string;
   apiKey: string;
@@ -443,9 +448,16 @@ export async function sendAgentUserMessage(
   return await new Promise((resolve, reject) => {
     const socket = new WebSocket(socketUrl);
     let settled = false;
+    const effectiveTimeoutMs = request.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS;
     const timeout = window.setTimeout(() => {
-      finish(() => reject(new Error('Agent WebSocket 响应超时。')));
-    }, request.timeoutMs ?? 120000);
+      finish(() =>
+        reject(
+          new Error(
+            `Agent 响应超时（已等待 ${Math.round(effectiveTimeoutMs / 1000)}s）。真实模型较慢时可调大 timeoutMs，并确认后端 STORYFORGE_LLM_TIMEOUT_SECONDS 设置。`,
+          ),
+        ),
+      );
+    }, effectiveTimeoutMs);
 
     const finish = (callback: () => void) => {
       if (settled) return;

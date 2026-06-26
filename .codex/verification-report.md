@@ -935,3 +935,82 @@
 - 未瘦身 `book_runs/service.py` 内部实现（决策要求 seam 稳定后再议）。
 
 记录时间戳：2026-06-25（Writing Run seam 收口验证）。
+
+---
+
+# 桌面 Agent 审稿→修订→写回闭环：首次真实 Tauri + 真模型人工端到端（2026-06-25）
+
+## 背景与目标
+
+此前 Cursor-for-Fiction Phase 1/2 的 Tauri 写回闭环仅由 `verify-tauri-smoke.mjs` 自动注入 proposed patch（mock WS / 注入补丁）验证；CLAUDE.md 仍把「真实 Tauri 桌面端到端写回确认链路」列为不能宣称完成。本轮目标：先硬化首次真实运行最易翻车的缝，再用真实 LLM（DeepSeek）在真实运行的 Tauri 窗口里**由人工**完整跑通 审稿 → 指定修订 → diff → 接受 → 写回 → 版本记录。
+
+## 交付物（A1 跑前硬化）
+
+- **EOL/CRLF 冲突门归一化** `apps/desktop/frontend/src/components/Editor.tsx`：`handleAcceptSuggestion` 的 `getValue() === suggestion.before` 冲突门、写回前快照判断、`handleSave` 快照判断三处统一 `normalizeEol`（按 LF 归一比较）。修因：ChatWindow 经 `TauriFileSystem.readFile` 读磁盘原文（Windows CRLF）做 `before`，Monaco `getValue()` 可能为 LF，EOL 差异会被误判「内容已变化」挡写回；归一仅作用于比较，不影响真实内容变更检测。
+- **审稿/修订前 flush 编辑器缓冲** `lib/assistant-events.ts`（新增可 await 的 `flushActiveEditorToDisk`，带 2s 超时放行）+ `Editor.tsx`（监听 `REQUEST_SAVE_ACTIVE_FILE_EVENT`，active 且 dirty 才 `handleSave` 后回 done）+ `ChatWindow.tsx`（读盘前 `await flushActiveEditorToDisk(file)`）。修因：审稿读磁盘，`autoSave` 默认关 + 900ms debounce 有竞态，未保存编辑会被审旧内容。
+- **前端 Agent WS 超时对齐后端** `lib/api-client.ts`：`sendAgentUserMessage` 默认超时 120s → `DEFAULT_AGENT_TIMEOUT_MS=360_000`（≥ 后端 `_call_llm` 300s 默认），超时文案提示模型慢可调大。修因：后端 300s / 前端 120s 倒挂，慢模型会在后端还没返回时被前端误判超时。
+- **审稿降级可见性** `ChatWindow.tsx`：`reviewReportSummary` 增加「审稿来源」行（`reviewSourceLine`），读 review_report 的 `mode` / `agent_findings.degraded_reason`，`llm` 正向标注、`mixed`/`llm_failed` ⚠ 明示降级+原因、`heuristic_only` 标未配模型。修因：真模型未按 JSON 输出而静默退启发式时，前端原样把启发式结果当真审稿展示。
+- **两条确认路径审计**（只读结论）：文件修订写回确认走本地 `PatchReviewPanel` 接受；WS `approve_permission`/pause/resume/stop 服务长 run 控制；流式 `permission_required` 仅在步骤树加「等待确认」步，无并行写回分支。记一个 Phase B UX 冗余：文件修订时步骤树的「批准」按钮对 file_revision 不触发写回（真正写回在右侧 diff 面板）。
+
+## 真实运行暴露并修复的 bug
+
+- **`context_bundle.budget` 契约错配** `apps/api/app/domains/assistant/schemas.py`：前端 context_bundle 携带 `budget`（file_count/char_count/truncated 等展示元数据），后端 `AssistantContextBundle` 为 `extra="forbid"` 且无该字段，`file.revise` 构造 `AssistantReviseRequest` 时 422（`file.review` 走原始 dict 不校验故无碍）。修法：给 `AssistantContextBundle` 加宽松 `budget: dict[str, Any] | None = None`（与既有 `summary: dict[str, Any]` 一致），REST 与 agent 两路同时修好。
+
+## 真实 Tauri + 真模型人工端到端结果
+
+- 环境：真实运行的 Tauri 窗口（`pnpm desktop:dev`，Docker postgres/redis/minio + 迁移 + uvicorn 全栈）；后端 LLM = DeepSeek `deepseek-v4-flash`（OpenAI 兼容，`STORYFORGE_LLM_*` 走本机 gitignored `.env.local`；`/models` 实测仅 `deepseek-v4-flash` / `deepseek-v4-pro`，旧 `deepseek-chat` 已退役）。
+- 审稿（`file.review`）：四视角真模型并发返回，tool_trace 实测 `模型 deepseek-v4-flash`、plot 1886ms / character 1407ms / prose 2786ms；在 8 行目录说明文件上正确返回 0 结构问题。
+- 修订（`file.revise`）：指令「润色并删除多余字符」→ `deepseek-v4-flash` 11002ms 返回 proposed patch；右侧 `PatchReviewPanel` 显示 `+6/-6`、patch id、session、`deepseek-v4-flash`、before/after，「建议后」正确删除多余字符并逐行润色。
+- 接受写回（人工点「接受」）：**无误报「内容已变化」**（A1a 验证）、磁盘文件更新为润色后内容、状态「已接受并写入…闭环记录已保存」、`历史` 面板新增 source=Agent 版本记录（A1d flush 的未保存编辑也正确进入了本轮）。三点均由用户人工确认通过。
+
+## 本地验证结果
+
+- `npm --prefix apps/desktop/frontend run typecheck`：用户经 `!` 运行，`tsc --noEmit` 无报错（成功静默）。
+- 真实端到端：如上，真实 Tauri 窗口 + 真 DeepSeek + 人工点击，审稿 / 修订 / 接受 / 写回 / 版本全程跑通。
+
+## 未联通 / 待办
+
+- 本轮因 Claude Code Bash 分类器临时不可用，**未由 AI 侧运行** `npm ... run test`、`pnpm.cmd lint`；typecheck 由用户代跑确认。test/lint 待补。
+- 改了请求 schema（`AssistantContextBundle` 加 budget），**`pnpm openapi` 未刷新**契约快照，CI / 契约 diff 会报漂移；待跑（只影响契约，不影响运行时）。
+- A1c「审稿来源」行渲染未经用户显式确认（数据层已由 tool_trace 的 `deepseek-v4-flash` 佐证 mode=llm）；建议下次纯审稿时核对该行。
+- 仅在 8 行目录说明文件上跑通机制；真实正文章节（`正文/`）的有料三视角审稿 + 长章修订未跑，建议作为下一步。
+- 左下「模型服务未检测」为 `App.tsx:958` 写死占位标签（非真实健康检查），与实际可用状态不符，记为 Phase B 待修。
+- 区别于 Phase 1/2 的 `verify-tauri-smoke.mjs`（注入补丁 / mock WS）：本轮是真实 LLM 生成 + 人工点击的真实端到端，二者互补。
+
+记录时间戳：2026-06-25（首次真实 Tauri + 真模型人工端到端）。
+
+---
+
+# 桌面 Agent 审稿→修订→写回闭环：静态门禁收口（2026-06-26）
+
+## 背景与目标
+
+承接 2026-06-25 那轮——真实 Tauri + 真模型人工端到端已由人工跑通，但「未联通 / 待办」明确遗留三项静态门禁未由 AI 侧补齐：`npm ... run test`、`pnpm.cmd lint` 未跑；`pnpm openapi` 未刷新（`AssistantContextBundle` 加了 `budget`，契约会漂移）。本轮只做这批静态收口与回归守卫，不重复人工端到端。
+
+## 交付物
+
+- **lint 转绿（修 2 处 `react-hooks/exhaustive-deps` 回归 + 格式）** `apps/desktop/frontend/src/components/Editor.tsx`、`src/lib/patch-hunks.ts`：
+  - HEAD 上 `Editor.tsx` lint 本为零警告（`git stash` 对照确认），本轮工作树引入 2 处警告，均为本批改动的回归。
+  - `:396` 那处 `eslint-disable react-hooks/exhaustive-deps` 经判定为 **unused**——该 effect 引用的 `handleSave` 只读 ref/import/setter，eslint-plugin-react-hooks v7 的响应式分析判其稳定、本不报警；`eslint --fix` 已删除该冗余 disable。
+  - `ACCEPT_CURRENT_FILE_SUGGESTION_EVENT` 那处 effect 报缺 `handleAcceptSuggestion`：根因是本批把 `handleAcceptSuggestion` 内联逻辑抽成局部函数 `writeAcceptedSuggestion`，v7 因其调用未 memo 的局部函数而判 `handleAcceptSuggestion` 不稳定。按 `157d44b` 既定房规（逐 effect 判「真漏」/「有意省略」）判为**有意省略**：该 effect 为挂载期一次性注册窗口监听，`handleAcceptSuggestion` 经 ref 读待写回补丁/文件路径、闭包不读旧值，列入依赖会每渲染重挂监听——加精确 `eslint-disable-next-line` + 中文理由，与同文件 Monaco 挂载 effect 一致。
+  - 两文件 prettier 格式问题由 `lint:fix` 一并修正。
+- **OpenAPI 契约刷新** `packages/shared/src/contracts/storyforge.openapi.json`：`pnpm openapi` 重生，diff 仅 `AssistantContextBundle` 新增 `budget`（`anyOf: [object(additionalProperties:true), null]`），与 `schemas.py` 改动一一对应，无其它漂移。
+- **后端 `budget` 回归守卫** `apps/api/tests/test_assistant_revise.py` 新增 `test_revise_accepts_context_bundle_budget_metadata`：POST `/api/assistant/revise` 携带带 `budget` 的 `context_bundle`，断言 200。固定该契约——`AssistantContextBundle` 原 `extra=forbid`（契约里仍是 `additionalProperties:false`），放宽前带 `budget` 会 422，此前仅有前端「snake_case 序列化」测试覆盖发送侧、无后端接收侧守卫。
+
+## 本地验证结果（均由 AI 侧实跑）
+
+- `npm --prefix apps/desktop/frontend run typecheck`：通过（`tsc --noEmit` 静默）。
+- `npm --prefix apps/desktop/frontend run test`：**31 passed / 0 failed**（含新增 `patch-hunks`、`tauri-fs` 缓存合流/失效、`budget` snake_case、provider 连接态四组）。
+- `pnpm.cmd -w run lint`：`eslint .` 零 error 零 warning；`prettier --check` 全部符合。
+- `pnpm.cmd --filter @storyforge/shared test`：通过（`tsc --noEmit`）。
+- `pnpm.cmd -w run openapi`：重生成成功，契约 diff 仅 `budget`（见上）。
+- `cd apps/api && uv run pytest tests/test_assistant_revise.py -q`：6 passed；`uv run ruff check tests/test_assistant_revise.py`：All checks passed。
+- `cd apps/api && uv run pytest -q`（全量）：**643 passed / 3 skipped**，7m46s——additive `budget` 字段对全后端零回归。
+
+## 未联通 / 待办（沿用上轮，本轮未触）
+
+- 真实正文章节（`正文/`）有料三视角审稿 + 长章修订、真模型「审稿来源」行的人工核对——仍未跑，作为下一步。
+- 左下 provider 卡片：上轮「模型服务未检测」写死占位本轮已由 `App.tsx` 改为按 `describeProviderConnection(settings.provider)` 显示真实连接态（`app-icons` 测试已断言「缺少密钥引用」、否定旧占位），但仍非真实健康探针。
+- `pnpm e2e`（真实 HTTP 契约回归）需 docker 全栈，本轮未起；契约 diff 已用 `pnpm openapi` 静态核对仅 `budget`。
+
+记录时间戳：2026-06-26（静态门禁收口：lint 转绿 + OpenAPI 刷新 + budget 后端回归守卫）。
