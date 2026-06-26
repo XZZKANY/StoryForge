@@ -5984,6 +5984,93 @@
         "title": "ProviderConfigRead",
         "type": "object"
       },
+      "ProviderHealthResponse": {
+        "description": "探测后端实际使用的模型服务连通性（resolved_llm_env），仅用于诊断展示，绝不回显凭据。",
+        "properties": {
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "missing_env": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Env",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "model_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Count"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "unreachable",
+              "unauthorized",
+              "misconfigured"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reachable"
+        ],
+        "title": "ProviderHealthResponse",
+        "type": "object"
+      },
       "ProviderResolutionRead": {
         "properties": {
           "capability": {
@@ -10661,6 +10748,28 @@
         "summary": "读取资产版本历史",
         "tags": [
           "资产中心"
+        ]
+      }
+    },
+    "/api/assistant/provider-health": {
+      "get": {
+        "description": "桌面设置「测试连接」调用：对后端 resolved_llm_env 的 /models 发只读探测。\n\n始终 200 返回结构化诊断（ok / unauthorized / unreachable / misconfigured），不回显凭据。",
+        "operationId": "provider_health_endpoint_api_assistant_provider_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderHealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "探测后端实际使用的模型服务连通性",
+        "tags": [
+          "Assistant 会话"
         ]
       }
     },

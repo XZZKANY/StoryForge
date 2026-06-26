@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -137,3 +137,16 @@ class AssistantReviseResponse(BaseModel):
     latency_ms: int
     completion_tokens: int | None
     assistant_session_id: int
+
+
+class ProviderHealthResponse(BaseModel):
+    """探测后端实际使用的模型服务连通性（resolved_llm_env），仅用于诊断展示，绝不回显凭据。"""
+
+    status: Literal["ok", "unreachable", "unauthorized", "misconfigured"]
+    reachable: bool
+    base_url: str | None = None
+    model: str | None = None
+    latency_ms: int | None = None
+    model_count: int | None = None
+    detail: str | None = None
+    missing_env: list[str] = Field(default_factory=list)

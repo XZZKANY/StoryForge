@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import json
+import time
+from collections.abc import Mapping
+from urllib import error, request
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -11,10 +16,16 @@ from app.domains.assistant.schemas import (
     AssistantSessionCreate,
     AssistantToolCallCreate,
     AssistantToolCallUpdate,
+    ProviderHealthResponse,
 )
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
+    BookGenerationPreflightError,
     _call_llm,
+    _env_value,
+    _llm_request_headers,
+    _optional_float,
+    _required_env,
     missing_book_generation_env,
     resolved_llm_env,
 )
@@ -274,4 +285,93 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         latency_ms=latency_ms,
         completion_tokens=completion_tokens if isinstance(completion_tokens, int) else None,
         assistant_session_id=assistant_session.id,
+    )
+
+
+_PROBE_TIMEOUT_CAP_SECONDS = 15.0
+
+
+def _fetch_provider_models(source: Mapping[str, str | None], *, timeout: float) -> object:
+    """对 {BASE_URL}/models 发一次只读探测并返回解析后的 JSON。
+
+    镜像 _call_llm 的 urllib 调用与鉴权（_llm_request_headers），但只读不生成；
+    失败按 urllib 异常向上抛，由 probe_provider_health 归类为 unauthorized / unreachable。"""
+
+    url = f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/models"
+    http_request = request.Request(url, headers=_llm_request_headers(source), method="GET")
+    with request.urlopen(http_request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def probe_provider_health() -> ProviderHealthResponse:
+    """探测后端实际使用的模型服务连通性（resolved_llm_env），用于桌面「测试连接」。
+
+    始终返回结构化诊断（不抛 HTTP 错误），且绝不回显任何凭据。"""
+
+    missing = missing_book_generation_env()
+    if missing:
+        return ProviderHealthResponse(
+            status="misconfigured",
+            reachable=False,
+            missing_env=missing,
+            detail="真实 LLM 未配置，缺少环境变量：" + ", ".join(missing),
+        )
+
+    source = resolved_llm_env()
+    base_url = _env_value(source, "STORYFORGE_LLM_BASE_URL") or None
+    model = _env_value(source, "STORYFORGE_LLM_MODEL") or None
+    timeout = min(_optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0), _PROBE_TIMEOUT_CAP_SECONDS)
+
+    started_at = time.monotonic()
+    try:
+        data = _fetch_provider_models(source, timeout=timeout)
+    except error.HTTPError as exc:
+        elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
+        if exc.code in (401, 403):
+            return ProviderHealthResponse(
+                status="unauthorized",
+                reachable=True,
+                base_url=base_url,
+                model=model,
+                latency_ms=elapsed_ms,
+                detail=f"鉴权失败：HTTP {exc.code}（检查密钥引用对应的环境变量是否有效）。",
+            )
+        try:
+            error_body = exc.read().decode("utf-8", errors="replace")[:500]
+        except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不掩盖原始状态码
+            error_body = "<无法读取响应体>"
+        return ProviderHealthResponse(
+            status="unreachable",
+            reachable=False,
+            base_url=base_url,
+            model=model,
+            latency_ms=elapsed_ms,
+            detail=f"HTTP {exc.code}：{error_body}",
+        )
+    except (error.URLError, TimeoutError) as exc:
+        elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
+        reason = getattr(exc, "reason", exc)
+        return ProviderHealthResponse(
+            status="unreachable",
+            reachable=False,
+            base_url=base_url,
+            model=model,
+            latency_ms=elapsed_ms,
+            detail=f"连接失败或超时（timeout={timeout}s）：{reason}",
+        )
+    except BookGenerationPreflightError as exc:
+        # 理论上 missing 检查已覆盖；兜底归为未配置，避免 500。
+        return ProviderHealthResponse(status="misconfigured", reachable=False, detail=str(exc))
+
+    elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
+    model_count = (
+        len(data["data"]) if isinstance(data, dict) and isinstance(data.get("data"), list) else None
+    )
+    return ProviderHealthResponse(
+        status="ok",
+        reachable=True,
+        base_url=base_url,
+        model=model,
+        latency_ms=elapsed_ms,
+        model_count=model_count,
     )

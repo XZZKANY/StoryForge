@@ -1,15 +1,18 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   DEFAULT_APP_SETTINGS,
   sanitizeAppSettings,
   type AppSettings,
   type ProviderKind,
 } from '../lib/user-settings';
+import { probeProviderHealth } from '../lib/api-client';
 import {
   applyProviderPreset,
   describeProviderConnection,
+  describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
+  type ProviderHealth,
 } from '../lib/provider-config';
 
 type SettingsViewProps = {
@@ -18,6 +21,8 @@ type SettingsViewProps = {
   onClose: () => void;
 };
 
+type ProbeState = 'idle' | 'loading' | ProviderHealth;
+
 const settingsNav = ['返回', '模型服务', '编辑器'] as const;
 
 export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
@@ -25,6 +30,25 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
   const providerConnection = describeProviderConnection(safeSettings.provider);
   const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
     onChange({ ...safeSettings, [key]: value });
+  };
+
+  const [probe, setProbe] = useState<ProbeState>('idle');
+  const runProbe = async () => {
+    setProbe('loading');
+    try {
+      setProbe(await probeProviderHealth());
+    } catch (err) {
+      setProbe({
+        status: 'unreachable',
+        reachable: false,
+        baseUrl: null,
+        model: null,
+        latencyMs: null,
+        modelCount: null,
+        detail: err instanceof Error ? err.message : String(err),
+        missingEnv: [],
+      });
+    }
   };
 
   return (
@@ -127,6 +151,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                 }
                 testId="provider-api-key-ref"
               />
+              <ProbeRow state={probe} onProbe={runProbe} />
             </SettingCard>
           </SettingGroup>
 
@@ -157,6 +182,45 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
         </div>
       </main>
     </section>
+  );
+}
+
+function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }) {
+  const display = state === 'idle' || state === 'loading' ? null : describeProviderHealth(state);
+  const toneColor =
+    display?.tone === 'ok'
+      ? '#43B373'
+      : display?.tone === 'warn'
+        ? '#E0A33E'
+        : display?.tone === 'error'
+          ? '#E5544B'
+          : '#8E8E8E';
+  return (
+    <RowShell
+      title="测试连接"
+      description="探测后端实际使用的模型服务（resolved_llm_env），可能与上方刚填字段不同。"
+    >
+      <div className="flex items-center gap-3">
+        {state !== 'idle' && (
+          <span
+            className="max-w-[280px] truncate text-xs"
+            style={{ color: state === 'loading' ? '#8E8E8E' : toneColor }}
+            data-testid="provider-health-status"
+          >
+            {state === 'loading' ? '检测中…' : display?.label}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onProbe}
+          disabled={state === 'loading'}
+          className="h-8 flex-shrink-0 rounded-md border border-[#343434] bg-[#151515] px-3 text-sm text-[#EDEDED] hover:bg-[#242424] disabled:opacity-50"
+          data-testid="provider-health-probe"
+        >
+          测试连接
+        </button>
+      </div>
+    </RowShell>
   );
 }
 

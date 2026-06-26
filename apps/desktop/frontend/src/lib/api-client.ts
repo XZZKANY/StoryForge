@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { AgentRoleRead } from './agent-roles';
+import type { ProviderHealth } from './provider-config';
 import { isTauriRuntime } from './tauri-env';
 
 // Agent WebSocket 等待 LLM 编排返回的默认上限。必须大于后端 _call_llm 的
@@ -433,6 +434,43 @@ export async function listAgentRoles(): Promise<AgentRoleRead[]> {
   }
 
   return (await response.json()) as AgentRoleRead[];
+}
+
+export async function probeProviderHealth(): Promise<ProviderHealth> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/assistant/provider-health`, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      'X-StoryForge-API-Key': apiKey,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+
+  const data = (await response.json()) as {
+    status: ProviderHealth['status'];
+    reachable: boolean;
+    base_url: string | null;
+    model: string | null;
+    latency_ms: number | null;
+    model_count: number | null;
+    detail: string | null;
+    missing_env: string[];
+  };
+
+  return {
+    status: data.status,
+    reachable: data.reachable,
+    baseUrl: data.base_url,
+    model: data.model,
+    latencyMs: data.latency_ms,
+    modelCount: data.model_count,
+    detail: data.detail,
+    missingEnv: data.missing_env ?? [],
+  };
 }
 
 export async function sendAgentUserMessage(

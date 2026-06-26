@@ -1014,3 +1014,42 @@
 - `pnpm e2e`（真实 HTTP 契约回归）需 docker 全栈，本轮未起；契约 diff 已用 `pnpm openapi` 静态核对仅 `budget`。
 
 记录时间戳：2026-06-26（静态门禁收口：lint 转绿 + OpenAPI 刷新 + budget 后端回归守卫）。
+
+---
+
+# Provider 真实健康探针（Desktop IDE 设置→测试连接）（2026-06-27）
+
+## 背景与目标
+
+桌面 provider 卡片此前是写死/静态状态：`describeProviderConnection(settings.provider)` 只看 localStorage 里用户填的 `kind/baseUrl/model/apiKeyRef`，并不真的连接任何模型服务；验证报告两次标为 Phase B 待修。本轮补一个**真实**健康探针。
+
+关键架构事实（已核实）：桌面 localStorage 的 provider 设置**当前并不驱动后端真实 LLM 调用**——`apps/desktop/src-tauri/src/main.rs` 只把 API 通道（base_url/api_key）注入前端，不注入 `STORYFORGE_LLM_*`；后端 `revise`/`review` 真正用 `resolved_llm_env()`（进程环境 + pydantic settings，`book_generation.py:138`）。因此探针探的是**后端实际使用的那份配置**，回答「我的 Agent 现在真能连上模型吗」。用户拍板：**只在设置页加「测试连接」按钮**、**只打 GET `/models`**（免费、快）。
+
+## 交付物
+
+- **后端新端点 `GET /api/assistant/provider-health`**（始终 200 返回结构化诊断，不抛 HTTP 错误、不回显凭据）：
+  - `schemas.py`：新增 `ProviderHealthResponse`（status: ok/unreachable/unauthorized/misconfigured、reachable、base_url、model、latency_ms、model_count、detail、missing_env）。
+  - `service.py`：新增 `probe_provider_health()` + 可注入 `_fetch_provider_models(source,*,timeout)`。复用现成件不加依赖：`missing_book_generation_env()`（缺环境变量直接 misconfigured，**不发网络**）、`resolved_llm_env()`、`_llm_request_headers()`（鉴权）、`_required_env`/`_env_value`/`_optional_float`，并镜像 `_call_llm` 的 `urllib` + 错误处理。timeout 取 `min(STORYFORGE_LLM_TIMEOUT_SECONDS, 15)`。映射：2xx→ok（带 model_count/latency）、401/403→unauthorized、其它 HTTP/连接失败/超时→unreachable。
+  - `router.py`：注册端点；无 `SessionDependency`（不读库），鉴权/限流走全局中间件。
+- **前端「测试连接」UI**：
+  - `provider-config.ts`：新增 `ProviderHealth` 类型 + 纯函数 `describeProviderHealth()`（status→{tone,label}）。
+  - `api-client.ts`：新增 `probeProviderHealth()`，镜像既有 GET 模式（`getApiConfig()` + `X-StoryForge-API-Key` + `readErrorDetail`），snake→camel 映射。
+  - `SettingsView.tsx`：模型服务卡片底部加 `ProbeRow`（按钮 + idle/检测中/可达/鉴权失败/不可达/未配置 实时态，`data-testid=provider-health-probe|provider-health-status`），文案明确「探后端实际配置，可能与上方刚填字段不同」。
+- **安全**：密钥只在请求头、绝不进响应体；`detail` 截断（≤500），`base_url` 可回显（无密钥）。有一条「不泄密」测试固定该不变量。
+
+## 本地验证结果（均 AI 侧实跑）
+
+- 后端 `uv run pytest tests/test_assistant_provider_health.py -q`：**5 passed**（ok / misconfigured 不发网络 / unauthorized / unreachable / 不泄密）；`uv run ruff check tests + app/domains/assistant`：All checks passed。
+- 前端 `npm run typecheck`：通过；`npm run test`：**34 passed / 0 failed**（含新增 3 个 `describeProviderHealth` 用例）。
+- `pnpm.cmd -w run lint`：eslint 零 error 零 warning + prettier 全绿。
+- `pnpm.cmd -w run openapi`：契约 diff **纯增 109 行 / 0 删**——仅 `/api/assistant/provider-health` path + `ProviderHealthResponse` schema，无其它漂移。
+- 全量 API 回归 `uv run pytest -q`：复跑 **648 passed / 3 skipped / 0 failed**（= 原 643 + 本轮新增 5）。首跑曾偶发 1 例失败 `test_book_generation_parallel.py::...defaults_to_precommit_revision_dependency`，核为**既有并发计时 flaky**：该用例断言并发 runner 逐章提交交错顺序 `committed_before_generate == {1:0,2:1,3:2}`，重负载下线程抢占即失败；单测隔离稳过、仓库无 pytest-randomly 故新增测试文件不改既有用例相对顺序、本轮改动均为 assistant 域纯增量未触 book_generation 并发 runner；同序复跑即全绿。判为无关 flaky，按「不顺手改无关代码」未动该用例，仅在此留痕。
+
+## 不做 / 诚实边界
+
+- 不改常驻侧栏 provider 卡片（仍静态 `describeProviderConnection`）；不做自动探/缓存。
+- 不打 chat/completions（只验可达+鉴权+列模型，不验模型名真能生成）。
+- 不把 localStorage provider 设置接进后端真实调用链路（更大的独立改动）；探针只探后端 env 配置。
+- 未跑真机 Tauri 手动点按（需真 provider）；机制由单测 + 契约覆盖，真机点按建议下次随真实审稿一并核对。
+
+记录时间戳：2026-06-27（Provider 真实健康探针：后端 /provider-health + 设置页测试连接）。
