@@ -26,6 +26,8 @@ const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const child = spawn(npmCommand, ['run', 'dev', '--', '--host', '127.0.0.1'], {
   stdio: 'inherit',
   env: process.env,
+  // Windows 下 Node 收紧了对 .cmd shim 的 spawn（CVE-2024-27980 修复），不经 shell 直接 spawn npm.cmd 会抛 EINVAL
+  shell: process.platform === 'win32',
 });
 
 function stopChild() {
