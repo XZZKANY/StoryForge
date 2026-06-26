@@ -465,6 +465,7 @@ export function Editor({
     };
     window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
     return () => window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性注册窗口监听；handleSave 经 ref 读取文件路径/编辑器/dirty 态，闭包不读旧值；列入依赖会因其含分支血缘逻辑、每渲染重建为不稳定引用而反复重挂监听
   }, []);
 
   const writeAcceptedSuggestion = async (
