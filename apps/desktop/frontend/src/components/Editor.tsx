@@ -3,7 +3,7 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
@@ -25,6 +25,19 @@ import { emitAuthorLoopResult } from '../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
 import { registerSmokeEditorController } from '../lib/smoke';
 import { applyPatchHunk, type PatchHunk } from '../lib/patch-hunks';
+import {
+  buildGraph,
+  createBranch,
+  emptyManifest,
+  getActiveBranch,
+  loadBranchManifest,
+  saveBranchManifest,
+  setActiveBranch,
+  setBranchHead,
+  type BranchManifest,
+  type GraphNode,
+} from '../lib/branches';
+import { BranchCanvas } from './BranchCanvas';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -117,6 +130,9 @@ export function Editor({
   const issueByLineRef = useRef<Map<number, string>>(new Map());
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
+  // 剧情分支画布：当前文件的分支清单与活动分支（新保存挂在活动分支 tip 之后）。
+  const [branchManifest, setBranchManifest] = useState<BranchManifest>(() => emptyManifest());
+  const branchManifestRef = useRef<BranchManifest>(branchManifest);
 
   // 用 ref 持有最新值，避免 Monaco 命令/回调闭包读到旧状态。
   const originalContentRef = useRef('');
@@ -131,7 +147,58 @@ export function Editor({
     isDirtyRef.current = isDirty;
     pendingSuggestionRef.current = pendingSuggestion;
     autoSaveRef.current = autoSave;
+    branchManifestRef.current = branchManifest;
   });
+
+  // 打开文件时加载该文件的分支清单；缺失则回退到仅含主线的默认清单。
+  useEffect(() => {
+    if (!filePath) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置分支清单，React18 合法模式
+      setBranchManifest(emptyManifest());
+      branchManifestRef.current = emptyManifest();
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const manifest = await loadBranchManifest(projectPath, filePath);
+      if (cancelled) return;
+      setBranchManifest(manifest);
+      branchManifestRef.current = manifest;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath, filePath]);
+
+  // 在活动分支上提交一份新快照后，把该分支 tip 推进到新节点并落盘分支清单。
+  const advanceBranchHead = useCallback(async (timestamp: number) => {
+    const project = projectPathRef.current;
+    const path = filePathRef.current;
+    if (!project || !path) return;
+    const current = branchManifestRef.current;
+    const next = setBranchHead(current, current.activeBranchId, timestamp);
+    branchManifestRef.current = next;
+    setBranchManifest(next);
+    try {
+      await saveBranchManifest(project, path, next);
+    } catch (err) {
+      console.error('写入分支清单失败:', err);
+    }
+  }, []);
+
+  const handleSelectBranch = useCallback(async (branchId: string) => {
+    const next = setActiveBranch(branchManifestRef.current, branchId);
+    branchManifestRef.current = next;
+    setBranchManifest(next);
+    const project = projectPathRef.current;
+    const path = filePathRef.current;
+    if (!project || !path) return;
+    try {
+      await saveBranchManifest(project, path, next);
+    } catch (err) {
+      console.error('写入分支清单失败:', err);
+    }
+  }, []);
 
   const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
     const editor = editorRef.current;
@@ -352,10 +419,15 @@ export function Editor({
       const previous = originalContentRef.current;
       if (previous !== '' && normalizeEol(previous) !== normalizeEol(content)) {
         try {
-          await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          const branch = getActiveBranch(branchManifestRef.current);
+          const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Editor',
             summary: '手动保存前快照',
+            branchId: branch.id,
+            branchLabel: branch.label,
+            parentId: branch.headNodeId,
           });
+          if (snapshot) await advanceBranchHead(snapshot.timestamp);
         } catch (snapshotErr) {
           console.error('写入版本快照失败:', snapshotErr);
         }
@@ -406,14 +478,19 @@ export function Editor({
     const note = overrides.note ?? suggestion.note;
     if (normalizeEol(previous) !== normalizeEol(nextContent)) {
       try {
-        await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+        const branch = getActiveBranch(branchManifestRef.current);
+        const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
           source: 'Agent',
           summary,
           patchId: suggestion.id,
           assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
           issueIds: suggestion.issueIds,
           contextFiles: suggestion.contextFiles,
+          branchId: branch.id,
+          branchLabel: branch.label,
+          parentId: branch.headNodeId,
         });
+        if (snapshot) await advanceBranchHead(snapshot.timestamp);
       } catch (snapshotErr) {
         console.error('写入版本快照失败:', snapshotErr);
       }
@@ -658,6 +735,34 @@ export function Editor({
     setShowHistory(false);
   };
 
+  // 分支画布：把某节点正文恢复到编辑器（checkout）。
+  const handleCheckoutNode = async (node: GraphNode) => {
+    try {
+      const content = await readVersion(node.path);
+      handleRestore(content);
+    } catch (err) {
+      console.error('读取版本快照失败:', err);
+    }
+  };
+
+  // 分支画布：从某节点开一条新分支并设为活动分支，随后把该节点正文带入编辑器。
+  const handleBranchFromNode = async (node: GraphNode) => {
+    const project = projectPathRef.current;
+    const path = filePathRef.current;
+    if (!project || !path) return;
+    const label = window.prompt('新分支名称', `分支 @ ${formatTimestamp(node.timestamp)}`);
+    if (label === null) return;
+    const next = createBranch(branchManifestRef.current, node.id, label);
+    branchManifestRef.current = next;
+    setBranchManifest(next);
+    try {
+      await saveBranchManifest(project, path, next);
+    } catch (err) {
+      console.error('写入分支清单失败:', err);
+    }
+    await handleCheckoutNode(node);
+  };
+
   const handleClose = () => {
     if (isDirty) {
       const confirmed = confirm('文件有未保存的修改，确定关闭吗？');
@@ -808,7 +913,11 @@ export function Editor({
           <VersionHistory
             projectPath={projectPath}
             filePath={filePath}
+            manifest={branchManifest}
             onRestore={handleRestore}
+            onCheckoutNode={handleCheckoutNode}
+            onBranchFromNode={handleBranchFromNode}
+            onSelectBranch={handleSelectBranch}
             onClose={() => setShowHistory(false)}
           />
         ) : null)}
@@ -825,18 +934,28 @@ function formatTimestamp(ms: number): string {
 function VersionHistory({
   projectPath,
   filePath,
+  manifest,
   onRestore,
+  onCheckoutNode,
+  onBranchFromNode,
+  onSelectBranch,
   onClose,
 }: {
   projectPath: string | null;
   filePath: string;
+  manifest: BranchManifest;
   onRestore: (content: string) => void;
+  onCheckoutNode: (node: GraphNode) => void;
+  onBranchFromNode: (node: GraphNode) => void;
+  onSelectBranch: (branchId: string) => void;
   onClose: () => void;
 }) {
   const [versions, setVersions] = useState<VersionEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<'all' | 'Editor' | 'Agent'>('all');
+  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -864,6 +983,7 @@ function VersionHistory({
       setBusy(false);
     }
   };
+  const graph = useMemo(() => buildGraph(versions ?? [], manifest), [versions, manifest]);
   const visibleVersions = versions?.filter((version) =>
     sourceFilter === 'all' ? true : version.source === sourceFilter,
   );
@@ -875,6 +995,19 @@ function VersionHistory({
     >
       <div className="sf-panel-header border-border">
         <span className="text-sm font-semibold">版本记录</span>
+        <div className="ml-auto flex items-center gap-1" data-testid="version-view-toggle">
+          {(['list', 'graph'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`rounded-md px-2 py-1 text-xs ${viewMode === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
+              onClick={() => setViewMode(value)}
+              data-testid={`version-view-${value}`}
+            >
+              {value === 'list' ? '列表' : '分支图'}
+            </button>
+          ))}
+        </div>
         <button
           onClick={onClose}
           title="关闭"
@@ -890,73 +1023,96 @@ function VersionHistory({
           </svg>
         </button>
       </div>
-      <div
-        className="flex flex-shrink-0 gap-1 border-b border-border p-2"
-        data-testid="version-source-filter"
-      >
-        {(['all', 'Editor', 'Agent'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
-            onClick={() => setSourceFilter(value)}
-            data-testid={`version-filter-${value}`}
+      {viewMode === 'graph' ? (
+        <div className="min-h-0 flex-1">
+          {error ? (
+            <p className="p-2 text-sm text-error">{error}</p>
+          ) : versions === null ? (
+            <p className="p-2 text-sm text-muted">加载中...</p>
+          ) : (
+            <BranchCanvas
+              graph={graph}
+              activeBranchId={manifest.activeBranchId}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={setSelectedNodeId}
+              onSelectBranch={onSelectBranch}
+              onCheckout={onCheckoutNode}
+              onBranchFrom={onBranchFromNode}
+              readNodeContent={readVersion}
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          <div
+            className="flex flex-shrink-0 gap-1 border-b border-border p-2"
+            data-testid="version-source-filter"
           >
-            {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'Agent'}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {error ? (
-          <p className="text-sm text-error p-2">{error}</p>
-        ) : versions === null ? (
-          <p className="text-sm text-muted p-2">加载中...</p>
-        ) : visibleVersions?.length === 0 ? (
-          <p className="text-sm text-muted p-2">还没有历史版本。保存修改后会自动记录。</p>
-        ) : (
-          visibleVersions?.map((v) => (
-            <div
-              key={v.path}
-              className="rounded-md border border-border bg-surface p-2"
-              data-testid="version-entry"
-              data-version-source={v.source ?? ''}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className="text-xs text-foreground truncate"
-                  title={formatTimestamp(v.timestamp)}
-                >
-                  {formatTimestamp(v.timestamp)}
-                </span>
-                <button
-                  disabled={busy}
-                  onClick={() => restore(v.path)}
-                  className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 flex-shrink-0 transition-opacity"
-                >
-                  恢复
-                </button>
-              </div>
-              <div
-                className="mt-1 truncate text-[11px] text-muted"
-                title={v.summary ?? v.file ?? ''}
+            {(['all', 'Editor', 'Agent'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
+                onClick={() => setSourceFilter(value)}
+                data-testid={`version-filter-${value}`}
               >
-                {v.source ? `${v.source} · ` : ''}
-                {v.summary ?? v.file ?? '版本快照'}
-              </div>
-              {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
+                {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'Agent'}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {error ? (
+              <p className="text-sm text-error p-2">{error}</p>
+            ) : versions === null ? (
+              <p className="text-sm text-muted p-2">加载中...</p>
+            ) : visibleVersions?.length === 0 ? (
+              <p className="text-sm text-muted p-2">还没有历史版本。保存修改后会自动记录。</p>
+            ) : (
+              visibleVersions?.map((v) => (
                 <div
-                  className="mt-1 truncate text-[11px] text-muted"
-                  data-testid="version-agent-meta"
+                  key={v.path}
+                  className="rounded-md border border-border bg-surface p-2"
+                  data-testid="version-entry"
+                  data-version-source={v.source ?? ''}
                 >
-                  {v.patchId ? `patch ${v.patchId}` : ''}
-                  {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
-                  {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="text-xs text-foreground truncate"
+                      title={formatTimestamp(v.timestamp)}
+                    >
+                      {formatTimestamp(v.timestamp)}
+                    </span>
+                    <button
+                      disabled={busy}
+                      onClick={() => restore(v.path)}
+                      className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 flex-shrink-0 transition-opacity"
+                    >
+                      恢复
+                    </button>
+                  </div>
+                  <div
+                    className="mt-1 truncate text-[11px] text-muted"
+                    title={v.summary ?? v.file ?? ''}
+                  >
+                    {v.source ? `${v.source} · ` : ''}
+                    {v.summary ?? v.file ?? '版本快照'}
+                  </div>
+                  {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
+                    <div
+                      className="mt-1 truncate text-[11px] text-muted"
+                      data-testid="version-agent-meta"
+                    >
+                      {v.patchId ? `patch ${v.patchId}` : ''}
+                      {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
+                      {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

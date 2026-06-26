@@ -1053,3 +1053,32 @@
 - 未跑真机 Tauri 手动点按（需真 provider）；机制由单测 + 契约覆盖，真机点按建议下次随真实审稿一并核对。
 
 记录时间戳：2026-06-27（Provider 真实健康探针：后端 /provider-health + 设置页测试连接）。
+
+---
+
+# 剧情分支画布（Source Control Graph for Fiction）Phase 1
+
+## 做了什么
+
+把桌面 IDE 现有「每文件、扁平、按时间倒序」的版本快照（`.storyforge/versions/<相对文件>/<时间戳>.snapshot.md`）升级为**可分支的树/图**，给作者「平行宇宙」上帝视角。纯桌面本地，不动后端、不改 OpenAPI 契约。
+
+- **血缘进 meta**（`src/lib/versions.ts`）：`VersionEntry`/`VersionSnapshotMetadata` 增 `parentId`/`branchId`/`branchLabel`；`snapshotBeforeWrite` 落盘这三字段并改为返回 `{ path, timestamp }`（e2e 未消费旧返回值，安全）。
+- **分支清单与血缘工具**（新 `src/lib/branches.ts`）：每文件一份 `.storyforge/versions/<相对文件>/branches.json`（activeBranchId + branches[id,label,color,baseNodeId,headNodeId]）；`loadBranchManifest`/`saveBranchManifest`/`createBranch`/`setActiveBranch`/`setBranchHead`/`getActiveBranch`/`buildGraph`。缺清单/旧线性快照按 timestamp 顺序回退为单条主线，不伪造数据。
+- **画布视图**（新 `src/components/BranchCanvas.tsx`）：按 branchId 分泳道的 git-graph 式列表，节点显示时间/来源/摘要；选中后出「恢复到编辑器 / 从此开分支 / 对比父版本」，对比复用 `patch-hunks.ts` 的 `buildPatchHunks`。
+- **接线**（`src/components/Editor.tsx`）：编辑器持 per-file `branchManifest`；`handleSave` 与 `writeAcceptedSuggestion`（既有规范写回路径）落快照时带 `branchId=活动分支`、`parentId=分支当前 head`，写盘后推进 `branches.json` 的 head；`VersionHistory` 面板加「列表 / 分支图」切换；「从此开分支」「checkout」复用既有 `handleRestore`（载入标脏、由作者确认保存）。
+
+## 本地验证结果（均 AI 侧实跑）
+
+- `npm --prefix apps/desktop/frontend run typecheck`：通过（0 error）。
+- `npm --prefix apps/desktop/frontend run test`：**42 passed / 0 failed**（含新增 8 个 `branches.test.ts` 用例：建分支、活动分支切换、tip 推进、normalize 保 main、buildGraph 旧线性回退、显式血缘分泳道、缺清单回退、清单写盘往返）。
+- `pnpm.cmd lint`：**exit 0**，eslint 0 error + prettier 全绿；仅余 1 条**既有非阻断** warning（`Editor.tsx` `onRequestSave` effect 的 `handleSave` 缺依赖，经 `git show HEAD` 核实为改动前即存在，非本轮引入）。
+
+## 不做 / 诚实边界
+
+- **单章文件粒度**：分支是某一章正文的平行修订线；跨章节「整条剧情线」的故事级时间线留 Phase 2。
+- **节点即真实保存快照**：节点按保存时的活动分支着色与连线，是对真实保存的如实表达，非内容寻址的完美 git fork；从某节点开分支后的首次保存仍快照当时磁盘内容。
+- **未接 AI 生成分支**：Phase 1 只做手动开分支 + 导航/回放/对比；让 AI 写一条替代分支留 Phase 2（接 assistant/ide 修订端点 + 登记 AgentRun）。
+- **Fact-Ledger 级 diff / auto-merge** 留 Phase 2（作后端业务判定）。
+- 未跑真机 Tauri 手动点按；机制由单测覆盖，真机走查（打开章 → 历史 → 分支图 → 从某版本开分支 → 编辑保存 → 确认新节点挂新分支、主线不受影响 → checkout 回主线）建议下次随真实审稿一并核对。
+
+记录时间戳：2026-06-27（剧情分支画布 Phase 1：单章版本分支图，纯桌面本地）。
