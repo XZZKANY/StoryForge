@@ -176,6 +176,16 @@ export type AgentResultMessage = {
   };
   tool_trace: AgentToolTrace[];
   proposed_patch?: AgentProposedPatch | null;
+  system_jobs?: {
+    title?: {
+      title?: string;
+      updated_session_title?: boolean;
+      [key: string]: unknown;
+    };
+    summary?: Record<string, unknown>;
+    compaction?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
 };
 
 export type AgentErrorMessage = {

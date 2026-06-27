@@ -63,6 +63,10 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert started["type"] == "agent_run_started"
     assert started["run_id"] == "run-agent-review"
     assert received[-1]["run_id"] == "run-agent-review"
+    assert received[-1]["system_jobs"]["title"]["job_name"] == "conversation.title.generate"
+    assert received[-1]["system_jobs"]["title"]["hidden"] is True
+    assert received[-1]["system_jobs"]["title"]["title"] == "审查当前章节审稿"
+    assert received[-1]["system_jobs"]["summary"]["job_name"] == "conversation.summary.update"
 
     run_response = client.get("/api/agent-runs/run-agent-review")
     assert run_response.status_code == 200, run_response.text
@@ -83,12 +87,19 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert "subagent_started" in event_types
     assert "subagent_completed" in event_types
     assert "agent_artifact" in event_types
+    assert "system_job" in event_types
     assert event_types[-1] == "agent_run_completed"
     assert [event["sequence"] for event in events] == list(range(1, len(events) + 1))
     plan_event = next(event for event in events if event["event_type"] == "agent_plan_created")
     assert plan_event["payload"]["skill_version"] == "skills_v1"
     assert plan_event["payload"]["selected_skill"]["name"] == "chapter_polish"
     assert "file.review" in plan_event["payload"]["selected_skill"]["tool_sequence"]
+    system_events = [event for event in events if event["event_type"] == "system_job"]
+    assert [event["payload"]["job_name"] for event in system_events] == [
+        "conversation.title.generate",
+        "conversation.summary.update",
+    ]
+    assert all(event["payload"]["hidden"] is True for event in system_events)
 
     artifacts_response = client.get("/api/agent-runs/run-agent-review/artifacts")
     assert artifacts_response.status_code == 200, artifacts_response.text
@@ -96,6 +107,10 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert [artifact["kind"] for artifact in artifacts] == ["review_report"]
     assert artifacts[0]["requires_confirmation"] is False
     assert artifacts[0]["payload"]["kind"] == "review_report"
+
+    session_response = client.get(f"/api/assistant/sessions/{received[-1]['assistant_session_id']}")
+    assert session_response.status_code == 200, session_response.text
+    assert session_response.json()["title"] == "审查当前章节审稿"
 
 
 def test_agent_run_records_permission_required_for_proposed_patch(
@@ -154,6 +169,61 @@ def test_agent_run_records_permission_required_for_proposed_patch(
     artifacts = client.get("/api/agent-runs/run-agent-revise/artifacts").json()
     assert [artifact["kind"] for artifact in artifacts] == ["review_report", "proposed_patch"]
     assert artifacts[-1]["requires_confirmation"] is True
+
+
+def test_hidden_compaction_system_job_runs_for_long_sessions(
+    client: TestClient,
+) -> None:
+    """长会话自动产出隐藏 compaction 事件，但不污染普通 artifact 列表。"""
+
+    create_response = client.post(
+        "/api/assistant/sessions",
+        json={
+            "title": "IDE Agent: 初始长会话",
+            "task_type": "ide_agent_orchestration",
+            "messages": [
+                {
+                    "role": "user" if index % 2 == 0 else "assistant",
+                    "content": f"第 {index} 条历史消息：" + ("林岚在灯塔港继续追查旧案。" * 80),
+                }
+                for index in range(14)
+            ],
+        },
+    )
+    assert create_response.status_code == 201, create_response.text
+    assistant_session_id = create_response.json()["id"]
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-long-compaction") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "run_id": "run-long-compaction",
+                "user_message": "解释这一段",
+                "intent": "chat.explain",
+                "assistant_session_id": assistant_session_id,
+                "args": {"context": "林岚走进港口。"},
+            }
+        )
+        message = websocket.receive_json()
+
+    assert message["type"] == "agent_result"
+    assert message["system_jobs"]["compaction"]["job_name"] == "conversation.compact"
+    assert message["system_jobs"]["compaction"]["hidden"] is True
+    assert message["system_jobs"]["compaction"]["compacted_message_count"] > 0
+
+    events = client.get("/api/agent-runs/run-long-compaction/events").json()
+    system_events = [event for event in events if event["event_type"] == "system_job"]
+    assert [event["payload"]["job_name"] for event in system_events] == [
+        "conversation.title.generate",
+        "conversation.summary.update",
+        "conversation.compact",
+    ]
+    compaction_event = system_events[-1]
+    assert compaction_event["actor"] == "system-compaction-agent"
+    assert compaction_event["payload"]["retained_message_count"] == 4
+
+    artifacts = client.get("/api/agent-runs/run-long-compaction/artifacts").json()
+    assert artifacts == []
 
 
 def test_agent_runtime_chapter_polish_does_not_call_legacy_orchestrator(

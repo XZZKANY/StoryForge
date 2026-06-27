@@ -421,6 +421,11 @@ function compactConversationMessages(
     .filter((message): message is Message => message !== null);
 }
 
+function titleFromSystemJobs(message: AgentResultMessage): string | null {
+  const title = message.system_jobs?.title?.title;
+  return typeof title === 'string' && title.trim() ? title.trim() : null;
+}
+
 // 审稿可能在真实模型未配置或调用失败时静默降级为启发式关键词检查；
 // 把来源标注透出来，避免把启发式结果误当成真模型审稿。
 function reviewSourceLine(
@@ -1131,6 +1136,8 @@ export function ChatWindow({
 
         assistantSessionIdRef.current = response.assistant_session_id;
         onAssistantSessionChange?.(response.assistant_session_id);
+        const systemTitle = titleFromSystemJobs(response);
+        if (systemTitle) setConversationTitle(systemTitle);
         const startedWritingRunId = writingRunIdFromResult(response);
         if (startedWritingRunId !== null) {
           unsubscribeWritingRunRef.current?.();

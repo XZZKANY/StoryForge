@@ -31,6 +31,7 @@ from app.domains.agent_runs.role_catalog import (
 )
 from app.domains.agent_runs.runtime import AgentRuntime, AgentToolTrace
 from app.domains.agent_runs.schemas import AgentRoleRead, AgentSkillRead
+from app.domains.agent_runs.system_jobs import HIDDEN_SYSTEM_ARTIFACT_KINDS
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.service import (
     BookRunBlockedError,
@@ -742,7 +743,9 @@ def list_agent_artifacts(session: Session, public_id: str) -> list[AgentArtifact
     run = get_agent_run(session, public_id)
     return list(
         session.scalars(
-            select(AgentArtifact).where(AgentArtifact.run_id == run.id).order_by(AgentArtifact.id.asc())
+            select(AgentArtifact)
+            .where(AgentArtifact.run_id == run.id, AgentArtifact.kind.not_in(HIDDEN_SYSTEM_ARTIFACT_KINDS))
+            .order_by(AgentArtifact.id.asc())
         )
     )
 
@@ -918,6 +921,34 @@ class _AgentRunEventSink:
                 "confirmation_action": agent_result.get("confirmation_action"),
                 "blocked_tool": "file.revise" if proposed_patch else result.get("intent"),
             },
+        )
+
+    def record_system_job(
+        self,
+        run: AgentRun,
+        *,
+        key: str,
+        payload: dict[str, Any],
+        artifact_kind: str | None = None,
+        artifact_payload: dict[str, Any] | None = None,
+    ) -> None:
+        if artifact_kind and artifact_payload is not None:
+            record_agent_artifact(
+                self._session,
+                run,
+                kind=artifact_kind,
+                payload=artifact_payload,
+                requires_confirmation=False,
+            )
+        actor = str(payload.get("actor") or f"system-{key}-agent")
+        message = str(payload.get("message") or f"隐藏系统任务 {key} 已完成。")
+        record_agent_event(
+            self._session,
+            run,
+            event_type="system_job",
+            actor=actor,
+            message=message,
+            payload={item_key: item_value for item_key, item_value in payload.items() if item_key != "message"},
         )
 
     def complete(self, run: AgentRun, result: dict[str, Any]) -> None:
