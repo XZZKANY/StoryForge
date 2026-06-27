@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
 
-from app.domains.agent_runs.runtime import (
+from app.domains.agent_runs.revise_scope import (
     _is_broad_revise,
     _resolve_revise_scope,
     _revise_drift_ratio,
