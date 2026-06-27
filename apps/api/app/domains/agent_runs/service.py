@@ -29,9 +29,10 @@ from app.domains.agent_runs.role_catalog import (
 from app.domains.agent_runs.role_catalog import (
     resolve_agent_role_alias as _catalog_resolve_agent_role_alias,
 )
-from app.domains.agent_runs.runtime import AgentRuntime, AgentToolTrace
+from app.domains.agent_runs.runtime import AgentRuntime
 from app.domains.agent_runs.schemas import AgentRoleRead, AgentSkillRead
 from app.domains.agent_runs.system_jobs import HIDDEN_SYSTEM_ARTIFACT_KINDS
+from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.service import (
     BookRunBlockedError,

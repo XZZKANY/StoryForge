@@ -23,3 +23,10 @@ def _ordered_unique(values: list[str]) -> list[str]:
             seen.add(value)
             result.append(value)
     return result
+
+
+def _compact_text(value: object, *, limit: int) -> str:
+    if not isinstance(value, str):
+        return ""
+    text = " ".join(value.split())
+    return text if len(text) <= limit else f"{text[:limit].rstrip()}..."

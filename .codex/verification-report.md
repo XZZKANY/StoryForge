@@ -1237,3 +1237,129 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - 行尾纠偏：runtime.py 统一为 LF（与仓库主流一致），消除 CRLF↔LF 噪声，diff 收敛为 −293/+9。
 
 **产出**：PR #19（拆分）、PR #20（计划文档 `docs/internal/refactor-elegance-plan.md`，分级 backlog A-F + 执行原则 + 推荐顺序 + 验证门禁）均已合入 master。
+
+---
+
+## 2026-06-27 架构优雅化整改 · A3 + A1
+
+**目标**：执行 `docs/internal/refactor-elegance-plan.md` 的 A3、A1，小步继续收敛 live `agent_runs/runtime.py`。
+
+**范围**：
+- A3：抽出 `agent_runs/bookrun_summary.py`，承载 bookrun 章节计划、预算摘要、结构化预算、风险摘要 helper。
+- A1：抽出 `agent_runs/intent.py`，承载 intent 识别、消息参数解析、角色 hints/mentions 解析 helper。
+- `runtime.py` 改为 import 新模块，保留 `SUPPORTED_INTENTS` re-export 兼容；未触碰 `apps/web`，未改 legacy `ide/orchestrator.py`。
+
+**交付物映射**：
+- `apps/api/app/domains/agent_runs/bookrun_summary.py`：A3 纯函数簇。
+- `apps/api/app/domains/agent_runs/intent.py`：A1 纯函数簇。
+- `apps/api/app/domains/agent_runs/runtime.py`：删除本地重复定义，行数约 **1412 → 1315**。
+- `apps/api/tests/test_agent_runs.py`：新增 live Agent Runtime intent、role hint、bookrun summary 直接覆盖。
+- `.codex/context-summary-refactor-elegance-a1-a3.md`、`.codex/operations-log.md`、`.codex/verification-report.md`：证据链留痕。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py` → All checks passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **59 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_assistant_revise.py tests/test_ide_commands.py tests/test_ide_context_snapshot.py tests/test_ide_run_events.py tests/test_runtime_tools.py -q` → **81 passed, 1 warning**。
+- `cd apps/api && uv run python -c "import app.main; print('OK')"` → OK。
+- `git diff --check -- apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/intent.py apps/api/app/domains/agent_runs/bookrun_summary.py apps/api/tests/test_agent_runs.py` → 通过。
+- `rg` 复核：A1/A3 目标函数已不在 `runtime.py` 内定义。
+
+**风险与边界**：
+- `test_assistant_revise.py` 仍有既有 `HTTP_422_UNPROCESSABLE_ENTITY` deprecation warning，不阻断本轮。
+- `intent.py` 复用 `AgentOrchestrationError`，通过 `import app.main` 验证无 import 环。
+- 这是零行为变更结构拆分，不包含 A2/A4，也不处理 legacy `ide/orchestrator.py` 收口。
+
+**评分**：
+- 代码质量：95/100。纯函数簇外移，runtime facade 更薄，未引入新抽象。
+- 测试覆盖：93/100。新增直接单测并跑相邻 runtime/IDE/assistant 测试；未跑 API 全量，因本轮只触 agent runtime 纯拆分。
+- 规范遵循：95/100。遵循小步、零行为变更、不碰 web、证据链回填。
+- 需求匹配：96/100。完成计划推荐顺序中的 A3 与 A1。
+- 架构一致：95/100。沿用 `revise_scope.py` 同款模块深ening 手法。
+- 风险评估：94/100。主要风险为 import 环与 legacy/live 测试语义混淆，均已验证或规避。
+
+综合评分：95/100。
+
+明确建议：通过。下一刀建议按计划继续 A2（多视角审稿报告构建簇），但需先确认 `SubagentExecutor`/`AgentToolTrace` import 边界避免循环。
+
+---
+
+## 2026-06-27 架构优雅化整改 · A2
+
+**目标**：执行 `docs/internal/refactor-elegance-plan.md` 的 A2，把多视角审稿报告构建簇从 live `runtime.py` 外移。
+
+**范围**：
+- 新增 `apps/api/app/domains/agent_runs/review_report.py`，承载 `_build_multi_agent_review_report_with_executor`、review subagent handlers、report mode/finding/summary helpers。
+- 新增 `apps/api/app/domains/agent_runs/trace.py`，承载 `AgentToolTrace`，避免 `review_report.py` 反向 import runtime。
+- `_compact_text` 下沉到 `agent_runs/_text.py`，供 runtime 与 review_report 共用。
+- `runtime.py` 改为 import review report helper，继续保留 runtime facade/tool 注册职责。
+- `service.py` 改为直接从 `trace.py` import `AgentToolTrace`；`AgentRuntime` 仍从 runtime import。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py` → All checks passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **59 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_assistant_revise.py tests/test_ide_commands.py tests/test_ide_context_snapshot.py tests/test_ide_run_events.py tests/test_runtime_tools.py -q` → **81 passed, 1 warning**。
+- `cd apps/api && uv run python -c "import app.main; print('OK')"` → OK。
+- `git diff --check -- apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/review_report.py apps/api/app/domains/agent_runs/trace.py apps/api/app/domains/agent_runs/_text.py apps/api/app/domains/agent_runs/service.py apps/api/tests/test_agent_runs.py` → 通过。
+- `rg` 复核：A2 目标函数定义仅在 `review_report.py`，`AgentToolTrace` 定义仅在 `trace.py`。
+
+**结果**：
+- `runtime.py` 行数约 **1315 → 1018**，从第一刀后的 1412 行继续收敛为更薄的 Runtime facade。
+- 多视角审稿相关行为路径未改，已有 heuristic/llm/mixed/llm_failed 测试保持通过。
+
+**风险与边界**：
+- `test_assistant_revise.py` 仍有既有 422 deprecation warning，不阻断本轮。
+- 本轮为必要解环只抽 `AgentToolTrace`，未提前执行 A4 的 `ToolDefinition` / `ToolRegistry` / `PermissionGate` / `SubagentExecutor` 全量下沉。
+- 未触碰 legacy `ide/orchestrator.py`。
+
+**评分**：
+- 代码质量：95/100。审稿报告构建 locality 明显提升，runtime 职责更清。
+- 测试覆盖：94/100。复用现有多模式审稿测试，覆盖 A2 主要分支。
+- 规范遵循：96/100。小步、零行为变更、不碰 web、证据链完整。
+- 需求匹配：96/100。完成计划 A2，并用 trace 解环控制风险。
+- 架构一致：95/100。沿用 agent_runs 内薄模块拆分方式。
+- 风险评估：94/100。主要风险 import 环已由 `import app.main` 和 focused tests 验证。
+
+综合评分：95/100。
+
+明确建议：通过。下一刀可进入 A4，但 A4 涉及 runtime 工具/权限骨架，应单独审计 import 边界后再动。
+
+---
+
+## 2026-06-27 架构优雅化整改 · A4
+
+**目标**：执行 `docs/internal/refactor-elegance-plan.md` 的 A4，把 Agent Runtime tool/permission 脚手架下沉到独立模块。
+
+**范围**：
+- 新增 `apps/api/app/domains/agent_runs/tooling.py`，承载 `ToolDefinition`、`ToolResult`、`ToolExecutionContext`、`PermissionDecision`、`SubagentDefinition`、`ToolRegistry`、`PermissionGate`、`SubagentExecutor`、`ToolHandler`。
+- `runtime.py` 改为 import tooling 类型并继续负责 facade、tool 注册、执行与事件记录。
+- `EventSink` 保留在 `runtime.py`，不扩大 A4 范围。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py` → All checks passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **59 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_assistant_revise.py tests/test_ide_commands.py tests/test_ide_context_snapshot.py tests/test_ide_run_events.py tests/test_runtime_tools.py -q` → **81 passed, 1 warning**。
+- `cd apps/api && uv run python -c "import app.main; print('OK')"` → OK。
+- `git diff --check` → 通过。
+- `rg` 复核：A4 目标类定义只在 `tooling.py`。
+
+**结果**：
+- A 区完成：A3、A1、A2、A4 均落地。
+- `runtime.py` 从计划时 **1412 行** 收敛到约 **920 行**；若从 PR #19 前 1696 行计，累计收敛约 776 行。
+- live Agent 路径仍保留原工具注册和执行流程，未改 OpenAPI/路由/前端。
+
+**风险与边界**：
+- `test_assistant_revise.py` 仍有既有 422 deprecation warning，不阻断本轮。
+- 本轮未执行 B/E/C 等审计型条目；按计划后续应先做 E1 或大文件范围审计。
+- 未触碰 legacy `ide/orchestrator.py`。
+
+**评分**：
+- 代码质量：96/100。tooling locality 提升，runtime facade 显著变薄。
+- 测试覆盖：94/100。权限、子代理、WebSocket、审稿/修订、runtime tools 相邻链路均通过 focused regression。
+- 规范遵循：96/100。小步拆分、零行为变更、不碰 web、证据链完整。
+- 需求匹配：97/100。完成 A 区推荐顺序全部条目。
+- 架构一致：96/100。遵循前几刀同款薄模块拆分方式，未引入新框架。
+- 风险评估：95/100。import 环与权限/子代理行为已由 import smoke 和相关测试验证。
+
+综合评分：96/100。
+
+明确建议：通过。`agent_runs/runtime.py` 已从最大 live god-file 收敛为 Runtime facade + tool 注册骨架；下一阶段按计划进入 E1 legacy 边界审计或 C1/B1 范围审计。
