@@ -198,6 +198,84 @@ test('agent websocket user message includes agent role hints in args', async () 
   }
 });
 
+test('agent websocket user message forwards explicit revise intent to the backend', async () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
+  const sentPayloads: Array<Record<string, unknown>> = [];
+
+  class MockWebSocket {
+    onopen: ((event: Event) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+    onclose: ((event: CloseEvent) => void) | null = null;
+
+    constructor(readonly url: string) {
+      setTimeout(() => this.onopen?.(new Event('open')), 0);
+    }
+
+    send(raw: string) {
+      sentPayloads.push(JSON.parse(raw) as Record<string, unknown>);
+      setTimeout(() => {
+        this.onmessage?.({
+          data: JSON.stringify({
+            type: 'agent_result',
+            session_id: 'agent-session',
+            run_id: 'run-1',
+            assistant_session_id: 42,
+            intent: 'file.revise',
+            user_message: '修选中问题：plot-1',
+            plan: [],
+            agent_result: { summary: '完成', requires_user_confirmation: true },
+            tool_trace: [],
+            proposed_patch: null,
+          }),
+        } as MessageEvent);
+      }, 0);
+    }
+
+    close() {
+      this.onclose?.({ code: 1000, reason: '' } as CloseEvent);
+    }
+  }
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      setTimeout,
+      clearTimeout,
+    },
+  });
+  Object.defineProperty(globalThis, 'WebSocket', {
+    configurable: true,
+    value: MockWebSocket,
+  });
+
+  try {
+    // 含「问题」的修订话术若靠后端关键词分类会被判成 file.review；
+    // 桌面端显式传 intent，必须原样发上线（后端据此跳过关键词分类）。
+    await sendAgentUserMessage({
+      sessionId: 'agent-session',
+      runId: 'run-1',
+      userMessage: '修选中问题：plot-1',
+      intent: 'file.revise',
+      args: { file_path: '正文/第01章.md' },
+    });
+
+    assert.equal(sentPayloads[0].intent, 'file.revise');
+  } finally {
+    if (previousWindow) {
+      Object.defineProperty(globalThis, 'window', previousWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, 'window');
+    }
+    if (previousWebSocket) {
+      Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
+    } else {
+      Reflect.deleteProperty(globalThis, 'WebSocket');
+    }
+  }
+});
+
 test('agent control websocket sends control message and resolves ack', async () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');

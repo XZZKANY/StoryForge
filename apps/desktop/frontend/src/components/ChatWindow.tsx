@@ -99,6 +99,7 @@ type AgentRun = {
 type RetryRequest = {
   goal: string;
   action: LocalConversationAction;
+  intent?: 'file.revise';
 };
 
 type WritingRunProjection = {
@@ -901,7 +902,13 @@ export function ChatWindow({
   );
 
   const runAuthorAgent = useCallback(
-    async (goal: string, action: LocalConversationAction = detectLocalConversationAction(goal)) => {
+    async (
+      goal: string,
+      action: LocalConversationAction = detectLocalConversationAction(goal),
+      // 前端已知用户点的是「修订」时显式带上 intent，绕开后端 _detect_intent 关键词分类
+      // （「问题/节奏/结构」恰是 file.review 关键词，会把修订指令误判成再次审稿）。
+      intent?: 'file.revise',
+    ) => {
       if (agentBusy) {
         setMessages((prev) => [
           ...prev,
@@ -1088,6 +1095,7 @@ export function ChatWindow({
           stream: true,
           assistantSessionId: assistantSessionIdRef.current,
           userMessage: goal,
+          intent,
           args: payload,
           agentRoleHints,
           agentRoleMentions,
@@ -1097,7 +1105,7 @@ export function ChatWindow({
         if (isAgentErrorMessage(response)) {
           updateAgentStep('orchestrate', { status: 'failed', detail: response.detail });
           updateAgentStatus('failed');
-          setRetryRequest({ goal, action });
+          setRetryRequest({ goal, action, intent });
           setMessages((prev) => [
             ...prev,
             { role: 'assistant', content: `这轮没跑通：${response.detail}` },
@@ -1109,7 +1117,7 @@ export function ChatWindow({
           const detail = `Agent 返回了暂不支持的消息：${response.type}`;
           updateAgentStep('orchestrate', { status: 'failed', detail });
           updateAgentStatus('failed');
-          setRetryRequest({ goal, action });
+          setRetryRequest({ goal, action, intent });
           setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
           return;
         }
@@ -1272,14 +1280,14 @@ export function ChatWindow({
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
     setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
-    void runAuthorAgent(retryRequest.goal, retryRequest.action);
+    void runAuthorAgent(retryRequest.goal, retryRequest.action, retryRequest.intent);
   }, [agentBusy, retryRequest, runAuthorAgent]);
 
   const reviseReviewIssue = useCallback(
     (issue: ReviewIssue) => {
       const ask = `只修 ${issue.id}：${issue.message}`;
       setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-      void runAuthorAgent(ask);
+      void runAuthorAgent(ask, undefined, 'file.revise');
     },
     [runAuthorAgent],
   );
@@ -1289,7 +1297,7 @@ export function ChatWindow({
       if (issues.length === 0) return;
       const ask = `修选中问题：${issues.map((issue) => issue.id).join(' ')}。`;
       setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-      void runAuthorAgent(ask);
+      void runAuthorAgent(ask, undefined, 'file.revise');
     },
     [runAuthorAgent],
   );
@@ -1298,7 +1306,7 @@ export function ChatWindow({
     (category: ReviewCategory) => {
       const ask = `只修${reviewCategoryLabel(category)}问题`;
       setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-      void runAuthorAgent(ask);
+      void runAuthorAgent(ask, undefined, 'file.revise');
     },
     [runAuthorAgent],
   );
