@@ -121,6 +121,11 @@ export function PatchReviewPanel({
         <div className="min-w-0">
           <p className="text-xs font-semibold text-warning">{suggestion.title}</p>
           <p className="mt-1 text-xs text-muted">{suggestion.summary}</p>
+          {suggestion.scopeWarning && (
+            <p className="mt-1 text-xs text-warning" data-testid="patch-scope-warning">
+              ⚠ {suggestion.scopeWarning}
+            </p>
+          )}
           <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted">
             <span data-testid="patch-id">Patch {suggestion.id}</span>
             <span>{suggestion.filePath}</span>
