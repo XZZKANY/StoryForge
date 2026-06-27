@@ -10,7 +10,7 @@ from app.domains.book_runs.book_generation import BookGenerationError
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.ide import review_reasoning
-from app.domains.ide.orchestrator import SUPPORTED_INTENTS
+from app.domains.ide.orchestrator import SUPPORTED_INTENTS, _detect_intent
 
 
 def _seed_chapter_review_context(session_factory: sessionmaker[Session]) -> dict[str, int | str]:
@@ -49,6 +49,21 @@ def test_supported_intents_are_registered() -> None:
         "chapter.repair",
         "bookrun.start",
     } == SUPPORTED_INTENTS
+
+
+def test_detect_intent_prefers_explicit_revise_over_review_keywords() -> None:
+    """桌面修订按钮的话术含「问题/节奏」等 file.review 关键词，_detect_intent 会误判为审稿；
+    前端显式传 intent=file.revise 必须压过关键词分类，否则定向修订塌成再次审稿。"""
+
+    file_args = {"file_path": "正文/第01章.md", "content": "正文内容"}
+
+    # 复现 bug：不带显式 intent 时，「修选中问题…」「只修剧情问题」因含「问题」被判成审稿
+    assert _detect_intent("修选中问题：plot-1 prose-1", file_args, None) == "file.review"
+    assert _detect_intent("只修剧情问题", file_args, None) == "file.review"
+
+    # 修复契约：显式 intent=file.revise 覆盖关键词分类
+    assert _detect_intent("修选中问题：plot-1 prose-1", file_args, "file.revise") == "file.revise"
+    assert _detect_intent("只修剧情问题", file_args, "file.revise") == "file.revise"
 
 
 def test_agent_user_message_file_review_returns_multi_agent_report(
