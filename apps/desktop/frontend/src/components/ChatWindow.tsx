@@ -330,6 +330,13 @@ function issueIdsFromAgentResult(message: AgentResultMessage): string[] {
   return Array.isArray(ids) ? ids.filter((item): item is string => typeof item === 'string') : [];
 }
 
+export function scopeWarningFromAgentResult(message: AgentResultMessage): string | null {
+  const warning = message.agent_result.scope_warning;
+  if (!warning || typeof warning !== 'object') return null;
+  const text = (warning as { message?: unknown }).message;
+  return typeof text === 'string' && text.trim() ? text : null;
+}
+
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -1227,6 +1234,7 @@ export function ChatWindow({
               assistantSessionId: response.assistant_session_id,
               issueIds: issueIdsFromAgentResult(response),
               contextFiles: contextBundle.files.map((file) => file.relativePath),
+              scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
             }),
           );
           emitSuggestionResult({

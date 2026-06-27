@@ -1173,13 +1173,13 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 ## 暴露的真 bug
 
 1. **意图误路由（已修，PR #16）**：审稿报告「只修此条／修选中问题／只修剧情·文风」三个修订按钮的话术含「问题/节奏/结构」，恰是后端 `_detect_intent` 的 `file.review` 关键词且 review 判定先于 revise，导致点修订按钮恒被判成再次审稿、出不了补丁；轮 1 能改纯属 issue 文本碰巧含「保存」。修复让前端显式传 `intent=file.revise`（后端 `orchestrator.py:776` 早已支持显式 intent 覆盖关键词）。轮 2 的 workaround 是在聊天框打含「改写」、避开审稿关键词的话术，手动触发 `file.revise`。
-2. **`file.revise` 范围越界（待办）**：接口是「整文件进→整文件出」，模型即便拿到窄指令也倾向重写——轮 1 单条指令重写全篇（含 metadata），轮 2 虽方向对但「其余别动」未严格守住（顺手删了与指令无关的「手绘」等词）。真正的范围闸是 PatchReviewPanel 逐 hunk 接受；轮 1 点了全量接受即放掉了闸。建议后续：revise 提示词/服务层加范围约束，或 UI 默认只勾命中 issue 的 hunk。
+2. **`file.revise` 范围越界（已缓解 + 可见，PR #18）**：接口是「整文件进→整文件出」，模型即便拿到窄指令也倾向重写——轮 1 单条指令重写全篇（含 metadata），轮 2 虽方向对但「其余别动」未严格守住（顺手删了与指令无关的「手绘」等词）。**根因**：service 层修订契约只说「只输出修订后的完整正文」，无「未点名处逐字照抄」约束；且 narrow 检测有洞——轮 2 那条「…其余别动」既无 review_report 又不匹配 `别改X` 正则，scope 完全没生效、原样进模型。**修复（live 路径 `agent_runs/runtime.py`）**：① 除非指令显式要求全文重写（全文/通篇/整体重写…），否则一律按 narrow 处理，向指令注入**最小改动契约**（未点名段落/标题/frontmatter 逐字保留）；② 落地后按行级前后缀裁剪算改动比例，narrow 但改动 >50% 即在 `agent_result.scope_warning`、`tool_trace` 与 summary 里挂越界提醒；③ service 系统提示加一句默认最小改动。前端把 `scope_warning` 透到 `PatchReviewPanel`，引导逐 hunk 复核（hunk 闸 PR #12 已具备）。**诚实边界**：这是「降低概率 + 越界可见」的软约束，非结构化硬保证——仍可能漂移，故保留逐 hunk 接受作为最终闸；未上 search/replace 结构化协议（中端模型可靠性差、违反小步）。`ide/orchestrator.py` 内同名 legacy 实现仅 `legacy.orchestrator` 工具可达、file.revise 不路由到它，本次未改（既有重复逻辑，未顺手去重）。
 3. **审稿非确定性（观察）**：同一 `test.md` 连审三次，剧情视角问题数 1→6→0 来回跳，且首轮 `plot-agent` 降级为启发式预扫。`deepseek-v4-flash` 在当前温度下 run-to-run 漂移明显，issue id 不跨轮稳定（故「修选中 plot-1…」可能指向已失效的旧 id）。
 
 ## 里程碑状态与诚实边界
 
 - **端到端写回确认链路（开文件→真模型审稿→定向修订→diff→接受→写回→版本记录）这次在真机/真模型/真磁盘上完整执行成立**，含写回前快照。
-- 但有三个星号：经聊天 workaround 触发（修订按钮在 PR #16 前坏，**修后经按钮路径的复跑尚未做**）；受测对象是合成 smoke 草稿 `test.md` 而非真实 `正文/` 章节项目；范围越界 bug#2 未治。
+- 但有两个星号：经聊天 workaround 触发（修订按钮在 PR #16 前坏，**修后经按钮路径的复跑尚未做**）；受测对象是合成 smoke 草稿 `test.md` 而非真实 `正文/` 章节项目。范围越界 bug#2 已在 PR #18 缓解 + 可见（软约束，非硬保证）。
 - 因此 CLAUDE.md 第 8 节「不能宣称真实 Tauri 端到端写回确认链路已经完成」**是否改写，留待作者确认**——本报告只记录链路已演示，不擅改上位规范。
 - **仍不能宣称**：真实 3-5 万字长程质量验收；真实 `正文/` 章节的人工通读结论（test.md 非真稿，且修订质量判断仍是作者待办）；也不等于「judge 给 0 = 人工通读通过」。
 
@@ -1189,3 +1189,32 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - PR #15 修复 `spawn EINVAL`：同机 `spawnSync('npm.cmd')` `shell=false→EINVAL`、`shell=true→status 0`。
 
 记录时间戳：2026-06-27（真机审稿通读执行结果：机制端到端跑通于 `D:\testsf\test.md`；发现并修复意图误路由 PR #16，范围越界与审稿非确定性待办；真实 `正文/` 人工通读未完成）。
+
+# file.revise 范围越界收口（bug#2，2026-06-27，PR #18）
+
+承接上节 bug#2。**只改 live 路径**：定位发现桌面 WS 修订实际由 `apps/api/app/domains/agent_runs/runtime.py::_file_revise` 服务（`ide/orchestrator.py` 仅 `legacy.orchestrator` 工具可达，file.revise 不路由到它，是死路）；故修复落在 runtime，未动 legacy 死路（既有重复逻辑未顺手去重）。
+
+## 改动
+
+- `agent_runs/runtime.py`
+  - `_resolve_revise_scope`：新增 `narrow` 判定 + `_is_broad_revise`。有显式 scope 信号（selected_ids/included/excluded/constraints）或指令非「全文/通篇/整体重写…」即视为 narrow。补上轮 2「…其余别动」那类自由窄指令的洞。
+  - `_scoped_revise_instruction`：narrow 时无条件注入**最小改动契约**（未点名段落/句子/标题/空行逐字保留，不动 frontmatter/导出头，未点名处与原文逐字一致）——即使无 review_report。
+  - 新增 `_revise_drift_ratio`（按行裁前后缀，与前端 diff 同口径）+ `_scope_warning`（narrow 且改动 >50% → 返回含 message/drift_ratio/changed_lines 的提醒）。
+  - `_file_revise` 落地后挂 `scope_warning` 到 output、`tool_trace.output_summary` 与 summary；chapter_polish 结果装配处透到 `agent_result.scope_warning`。
+- `assistant/service.py`：`_REVISE_SYSTEM_PROMPT` 加一句默认最小改动、不扩大范围（直连 `/api/assistant/revise` 也受益）。
+- 前端：`assistant-suggestions.ts` 加 `scopeWarning` 字段并写入 note；`ChatWindow.tsx` 导出 `scopeWarningFromAgentResult` 并传入 suggestion；`PatchReviewPanel.tsx` 在 summary 下渲染 ⚠ 范围提醒，引导逐 hunk 复核。
+
+## 诚实边界
+
+- 软约束 + 越界可见，**非结构化硬保证**：模型仍可能漂移，逐 hunk 接受（PR #12）是最终闸。未上 search/replace 结构化协议（中端模型可靠性差、违反小步推进）。
+- 仅 live 路径已修；legacy `ide/orchestrator.py` 同名实现未改（死路）。
+- 未在真机/真模型复跑按钮路径（需作者本机），本轮为 AI 侧代码 + 单测收口。
+
+## 验证（AI 侧实跑）
+
+- 后端 `cd apps/api && uv run pytest -q` → **656 passed, 3 skipped**（全量回归）。新增 7 例：narrow 自由指令注入最小改动契约 / 全文重写跳过 / drift ratio 小改与全改 / scope_warning 仅 narrow+大改触发 / WS narrow 挂警告 + summary + tool_trace / WS broad 不挂警告。
+- `uv run ruff check app/domains/agent_runs/runtime.py app/domains/assistant/service.py tests/test_ide_agent_orchestrator.py` → All checks passed。
+- 前端 `npm --prefix apps/desktop/frontend run typecheck` 干净；`run test` → **46 测试全过**（+3：`scopeWarningFromAgentResult` 提取、suggestion note 含/不含范围提醒）。
+- `pnpm.cmd -w run lint` 全绿；`pnpm.cmd -w run openapi` → 快照零 diff（未动路由签名；`scope_warning` 走 WS agent_result 自由字段，不入 OpenAPI）。
+
+记录时间戳：2026-06-27（bug#2 file.revise 范围越界收口：runtime 最小改动契约 + narrow 检测补洞 + 行级 drift scope_warning + 前端补丁面板提醒；软约束非硬保证，逐 hunk 闸保留；按钮路径真机复跑仍待作者）。

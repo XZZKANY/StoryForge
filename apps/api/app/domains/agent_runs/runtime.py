@@ -397,6 +397,15 @@ class AgentRuntime:
         )
         traces.append(judge.trace)
         proposed_patch = revise.output["proposed_patch"]
+        revise_agent_result: dict[str, Any] = {
+            "summary": revise.output["summary"],
+            "requires_user_confirmation": True,
+            "writeback_blocked_until_user_confirms": True,
+            "applied_scope": revise.output["applied_scope"],
+            "review_report": review_report,
+        }
+        if revise.output.get("scope_warning") is not None:
+            revise_agent_result["scope_warning"] = revise.output["scope_warning"]
         return _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,
@@ -409,13 +418,7 @@ class AgentRuntime:
                 _plan_step("judge.run", "对待确认修订执行轻量自检。", "completed"),
                 _plan_step("permission.confirm", "文件写回前等待作者确认。", "needs_approval"),
             ],
-            agent_result={
-                "summary": revise.output["summary"],
-                "requires_user_confirmation": True,
-                "writeback_blocked_until_user_confirms": True,
-                "applied_scope": revise.output["applied_scope"],
-                "review_report": review_report,
-            },
+            agent_result=revise_agent_result,
             tool_trace=traces,
             proposed_patch=proposed_patch,
             runtime_mode="agent_runtime",
@@ -696,6 +699,9 @@ class AgentRuntime:
             raise AgentOrchestrationError(str(exc)) from exc
 
         summary = _revise_summary_with_scope(response.summary, scope)
+        scope_warning = _scope_warning(scope, response.before, response.after)
+        if scope_warning is not None:
+            summary = f"{summary} {scope_warning['message']}"
         proposed_patch = {
             "id": f"file-revision-{uuid.uuid4().hex}",
             "kind": "file_revision",
@@ -717,6 +723,16 @@ class AgentRuntime:
             "applied_scope": public_scope,
             "proposed_patch": proposed_patch,
         }
+        revise_output_summary: dict[str, Any] = {
+            "after_chars": len(response.after),
+            "model": response.model,
+            "latency_ms": response.latency_ms,
+            "completion_tokens": response.completion_tokens,
+            "applied_scope": public_scope,
+        }
+        if scope_warning is not None:
+            output["scope_warning"] = scope_warning
+            revise_output_summary["scope_warning"] = scope_warning
         return ToolResult(
             status="completed",
             output=output,
@@ -729,13 +745,7 @@ class AgentRuntime:
                     "review_issue_count": len(_scope_issues(scope)),
                     "applied_scope": public_scope,
                 },
-                output_summary={
-                    "after_chars": len(response.after),
-                    "model": response.model,
-                    "latency_ms": response.latency_ms,
-                    "completion_tokens": response.completion_tokens,
-                    "applied_scope": public_scope,
-                },
+                output_summary=revise_output_summary,
             ),
         )
 
@@ -1219,16 +1229,33 @@ def _subagent_output_summary(report: dict[str, Any], key: str) -> dict[str, Any]
     return summary
 
 
+# revise 默认「整文件进、整文件出」，模型容易顺手重写未点名处；narrow 修订统一附最小改动契约约束范围。
+_MINIMAL_EDIT_CONTRACT = "\n".join(
+    [
+        "最小改动约束（必须严格遵守）：",
+        "1. 只改动与本次指令直接相关的字句；其余段落、句子、标题与空行必须逐字原样保留，不得改写、润色、重排或调整标点。",
+        "2. 不要改动文件开头的标题、frontmatter 或导出元信息。",
+        "3. 仍输出修订后的完整正文，但未点名处必须与原文逐字一致。",
+    ]
+)
+
+# narrow 修订却改动了大半原文，多半是模型越界重写；超过该比例即在结果里挂 scope_warning 让作者逐块复核。
+_NARROW_REVISE_DRIFT_WARN_RATIO = 0.5
+
+
 def _scoped_revise_instruction(instruction: str, review_report: dict[str, Any] | None, scope: dict[str, Any]) -> str:
     issues = _scope_issues(scope)
     actions = _review_report_actions(review_report)
     constraints = _scope_string_list(scope, "constraints")
-    if not review_report and not constraints:
+    narrow = bool(scope.get("narrow"))
+    if not narrow and not review_report and not constraints:
         return instruction
     blocks = [instruction]
+    if narrow:
+        blocks.append(_MINIMAL_EDIT_CONTRACT)
     if constraints:
         blocks.append("\n".join(["硬约束（必须遵守）：", *(f"{index}. {constraint}" for index, constraint in enumerate(constraints, start=1))]))
-    if not issues and not actions:
+    if not review_report or (not issues and not actions):
         return "\n\n".join(blocks)[:4000]
     issue_lines = []
     for index, issue in enumerate(issues[:8], start=1):
@@ -1282,13 +1309,25 @@ def _resolve_revise_scope(review_report: dict[str, Any] | None, args: dict[str, 
         scoped_issues = [issue for issue in scoped_issues if _issue_category(issue) not in excluded]
     issue_ids = [issue_id for issue in scoped_issues if isinstance((issue_id := issue.get("id")), str) and issue_id.strip()]
     categories = [category for category in (*review_reasoning.REVIEW_AGENT_KEYS, "continuity") if any(_issue_category(issue) == category for issue in scoped_issues)]
+    has_explicit_scope = bool(selected_ids or included_categories or excluded_categories or constraints)
+    narrow = has_explicit_scope or not _is_broad_revise(instruction)
     return {
         "issues": scoped_issues,
         "issue_ids": issue_ids,
         "categories": categories,
         "constraints": constraints,
         "dropped_unknown_ids": _ordered_unique(dropped_unknown_ids),
+        "narrow": narrow,
     }
+
+
+def _is_broad_revise(instruction: str) -> bool:
+    """识别明确要求全文/通篇重写的指令；这类指令不应被最小改动契约束缚。"""
+
+    return any(
+        keyword in instruction
+        for keyword in ("全文", "通篇", "整篇", "整体重写", "全部重写", "重写全文", "逐段重写", "推倒重来", "大改")
+    )
 
 
 def _public_revise_scope(scope: dict[str, Any]) -> dict[str, Any]:
@@ -1297,6 +1336,49 @@ def _public_revise_scope(scope: dict[str, Any]) -> dict[str, Any]:
         "categories": _scope_string_list(scope, "categories"),
         "constraints": _scope_string_list(scope, "constraints"),
         "dropped_unknown_ids": _scope_string_list(scope, "dropped_unknown_ids"),
+    }
+
+
+def _revise_drift_ratio(before: str, after: str) -> tuple[int, int, float]:
+    """按行裁掉公共前后缀，返回（原文被改动行数, 原文总行数, 改动比例）。
+
+    与前端 diff 面板同口径，用于判断 narrow 修订是否越界改了大半原文。"""
+
+    before_lines = before.split("\n")
+    after_lines = after.split("\n")
+    prefix = 0
+    while prefix < len(before_lines) and prefix < len(after_lines) and before_lines[prefix] == after_lines[prefix]:
+        prefix += 1
+    suffix = 0
+    while (
+        suffix + prefix < len(before_lines)
+        and suffix + prefix < len(after_lines)
+        and before_lines[len(before_lines) - 1 - suffix] == after_lines[len(after_lines) - 1 - suffix]
+    ):
+        suffix += 1
+    total = len(before_lines)
+    changed = max(0, total - prefix - suffix)
+    ratio = changed / total if total else (1.0 if changed else 0.0)
+    return changed, total, ratio
+
+
+def _scope_warning(scope: dict[str, Any], before: str, after: str) -> dict[str, Any] | None:
+    """narrow 修订改动比例超阈值时，给出可见的越界提醒（不阻断，仅提示逐块复核）。"""
+
+    if not scope.get("narrow"):
+        return None
+    changed, total, ratio = _revise_drift_ratio(before, after)
+    if ratio <= _NARROW_REVISE_DRIFT_WARN_RATIO:
+        return None
+    return {
+        "message": (
+            f"本次定向修订改动了约 {round(ratio * 100)}% 的原文行（{changed}/{total} 行），"
+            "可能超出指定范围，请在 diff 面板逐块核对后再接受。"
+        ),
+        "drift_ratio": round(ratio, 4),
+        "changed_lines": changed,
+        "total_lines": total,
+        "narrow": True,
     }
 
 

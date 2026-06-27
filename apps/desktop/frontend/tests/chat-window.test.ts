@@ -8,6 +8,7 @@ import {
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   reviewIssuesFromReport,
+  scopeWarningFromAgentResult,
   WritingRunProgressPanel,
   writingRunIdFromResult,
 } from '../src/components/ChatWindow';
@@ -134,6 +135,30 @@ test('managed Writing Run mock SSE progress renders lightweight tool progress', 
   const failedMarkup = renderToStaticMarkup(React.createElement(WritingRunProgressPanel, { projection: failed }));
   assert.match(failedMarkup, /最近事件：failed/);
   assert.match(failedMarkup, /预算不足/);
+});
+
+test('scope warning is extracted from agent_result for the patch panel', () => {
+  const base = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    assistant_session_id: 1,
+    intent: 'file.revise',
+    user_message: '只压缩雾气意象，其余别动',
+    plan: [],
+    tool_trace: [],
+  };
+  const withWarning = {
+    ...base,
+    agent_result: {
+      summary: '已修订。',
+      scope_warning: {
+        message: '本次定向修订改动了约 100% 的原文行（4/4 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。',
+        drift_ratio: 1.0,
+      },
+    },
+  };
+  assert.match(scopeWarningFromAgentResult(withWarning), /逐块核对/);
+  assert.equal(scopeWarningFromAgentResult({ ...base, agent_result: { summary: '已修订。' } }), null);
 });
 
 test('managed Writing Run result id prefers canonical id and falls back to legacy book_run_id', () => {

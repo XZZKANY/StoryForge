@@ -11,6 +11,7 @@ export type AssistantFileSuggestion = {
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
+  scopeWarning?: string;
 };
 
 function appendSuggestionBlock(content: string, userIntent: string): string {
@@ -40,6 +41,7 @@ export function createRemoteFileSuggestion(params: {
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
+  scopeWarning?: string;
 }): AssistantFileSuggestion {
   const {
     id,
@@ -52,6 +54,7 @@ export function createRemoteFileSuggestion(params: {
     assistantSessionId,
     issueIds = [],
     contextFiles = [],
+    scopeWarning,
   } = params;
   return {
     id: id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -65,6 +68,7 @@ export function createRemoteFileSuggestion(params: {
       `模型：${model || '未知'}`,
       issueIds.length ? `Issue Scope：${issueIds.join(', ')}` : '',
       contextFiles.length ? `上下文：${contextFiles.join(', ')}` : '',
+      scopeWarning ? `⚠ 范围提醒：${scopeWarning}` : '',
       '接受会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。',
     ]
       .filter(Boolean)
@@ -74,6 +78,7 @@ export function createRemoteFileSuggestion(params: {
     assistantSessionId: assistantSessionId ?? null,
     issueIds,
     contextFiles,
+    scopeWarning,
   };
 }
 

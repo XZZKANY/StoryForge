@@ -5,6 +5,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
 
+from app.domains.agent_runs.runtime import (
+    _is_broad_revise,
+    _resolve_revise_scope,
+    _revise_drift_ratio,
+    _scope_warning,
+    _scoped_revise_instruction,
+)
 from app.domains.assistant import service as assistant_service
 from app.domains.book_runs.book_generation import BookGenerationError
 from app.domains.books.models import Book, Chapter, Scene
@@ -882,3 +889,120 @@ def test_agent_user_message_bookrun_start_confirmed_reuses_command_registry(
     assert "managed 模式" in message["agent_result"]["summary"]
     assert message["tool_trace"][0]["tool_name"] == "bookrun.start"
     assert message["tool_trace"][0]["audit_event_id"].startswith("ide-command-event:")
+
+
+def test_resolve_revise_scope_marks_freeform_targeted_instruction_narrow() -> None:
+    # bug#2 的洞：无 review_report、用「其余别动」式自由指令，旧逻辑既不算约束也不缩范围，整文件直送模型。
+    scope = _resolve_revise_scope(None, {"instruction": "压缩雾气意象和旧伤细节，其余别动"})
+    assert scope["narrow"] is True
+    out = _scoped_revise_instruction("压缩雾气意象和旧伤细节，其余别动", None, scope)
+    assert "最小改动约束" in out
+    assert "逐字" in out
+    assert "压缩雾气意象和旧伤细节，其余别动" in out
+
+
+def test_resolve_revise_scope_marks_whole_file_rewrite_broad() -> None:
+    assert _is_broad_revise("把全文通篇润色重写一遍") is True
+    scope = _resolve_revise_scope(None, {"instruction": "把全文通篇润色重写一遍"})
+    assert scope["narrow"] is False
+    out = _scoped_revise_instruction("把全文通篇润色重写一遍", None, scope)
+    # 明确要求全文重写时不附最小改动契约，原样下发。
+    assert out == "把全文通篇润色重写一遍"
+    assert "最小改动约束" not in out
+
+
+def test_revise_drift_ratio_small_targeted_edit_stays_low() -> None:
+    before = "\n".join(["第一段保持不变。", "第二段要压缩。", "第三段保持不变。", "第四段保持不变。"])
+    after = "\n".join(["第一段保持不变。", "第二段压缩了。", "第三段保持不变。", "第四段保持不变。"])
+    changed, total, ratio = _revise_drift_ratio(before, after)
+    assert (changed, total, ratio) == (1, 4, 0.25)
+
+
+def test_revise_drift_ratio_whole_file_rewrite_is_high() -> None:
+    before = "\n".join(["甲", "乙", "丙", "丁"])
+    after = "\n".join(["完全不同一", "完全不同二", "完全不同三", "完全不同四"])
+    _changed, _total, ratio = _revise_drift_ratio(before, after)
+    assert ratio == 1.0
+
+
+def test_scope_warning_only_fires_for_narrow_large_drift() -> None:
+    before = "\n".join(["甲", "乙", "丙", "丁"])
+    big = "\n".join(["改一", "改二", "改三", "改四"])
+    small = "\n".join(["甲", "改二", "丙", "丁"])
+    warning = _scope_warning({"narrow": True}, before, big)
+    assert warning is not None
+    assert warning["drift_ratio"] == 1.0
+    assert warning["changed_lines"] == 4
+    assert "逐块核对" in warning["message"]
+    # narrow 但小改动不报警；明确全文重写（narrow=False）即便整文件变也不报警。
+    assert _scope_warning({"narrow": True}, before, small) is None
+    assert _scope_warning({"narrow": False}, before, big) is None
+
+
+def test_narrow_revise_flags_scope_warning_when_drift_large(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    before = "\n".join(["第一段。", "第二段。", "第三段。", "第四段。"])
+    after = "\n".join(["改写一。", "改写二。", "改写三。", "改写四。"])
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
+        return {"content": after, "completion_tokens": 8, "latency_ms": 10}
+
+    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-revise-scope-warning") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "user_message": "只压缩雾气意象，其余别动",
+                "intent": "file.revise",
+                "args": {
+                    "file_path": "正文/第01章.md",
+                    "content": before,
+                    "instruction": "只压缩雾气意象，其余别动",
+                },
+            }
+        )
+        message = websocket.receive_json()
+
+    warning = message["agent_result"]["scope_warning"]
+    assert warning["drift_ratio"] == 1.0
+    assert "逐块核对" in warning["message"]
+    assert "逐块核对" in message["agent_result"]["summary"]
+    revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")
+    assert revise_trace["output_summary"]["scope_warning"]["drift_ratio"] == 1.0
+
+
+def test_broad_revise_does_not_flag_scope_warning(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    before = "\n".join(["第一段。", "第二段。", "第三段。", "第四段。"])
+    after = "\n".join(["改写一。", "改写二。", "改写三。", "改写四。"])
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
+        return {"content": after, "completion_tokens": 8, "latency_ms": 10}
+
+    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-revise-broad-no-warning") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "user_message": "把全文通篇重写一遍",
+                "intent": "file.revise",
+                "args": {
+                    "file_path": "正文/第01章.md",
+                    "content": before,
+                    "instruction": "把全文通篇重写一遍",
+                },
+            }
+        )
+        message = websocket.receive_json()
+
+    assert "scope_warning" not in message["agent_result"]
+    revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")
+    assert "scope_warning" not in revise_trace["output_summary"]
