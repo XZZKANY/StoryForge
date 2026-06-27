@@ -1153,3 +1153,39 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - 本节结果为「待填」时，上述边界**维持原状不得宣称**。
 
 记录时间戳：2026-06-27（真机审稿通读证据骨架；AI 侧预检完成，真机点按 + 人工通读待作者回填）。
+
+---
+
+# 真机审稿通读 执行结果（2026-06-27，作者本机实跑 + AI 协查）
+
+## 环境
+
+- 真机 Tauri 桌面端，真模型 `deepseek-v4-flash`，凭据经根目录 `.env.local`（gitignore）注入后端 `resolved_llm_env`。
+- 设置→模型服务→测试连接探针返回 `ok`，审稿全程子代理均标 `模型 deepseek-v4-flash`、审稿来源行为「真实模型三视角」，确认走真模型而非降级。
+- `pnpm dev` 首次启动撞 `spawn EINVAL`（Windows + Node 22 对 `.cmd` shim 收紧），已由 PR #15 修复后方可起栈。
+
+## 跑了两轮
+
+**轮 1（对象错，已回滚）**：作者误把 `.codex` 目录当项目根打开，审/改的是 `.codex/导出/20260627-033920-book.md`——一份旧 BookRun 导出制品，非 `正文/` 源章节。对单条 prose 指令，`file.revise` 把整篇 841 行连同导出头/frontmatter 全量重写（`+835/-842`）。已 AI 侧从写回前快照逐字节还原该导出，并清除误写入证据目录的 `.codex/.storyforge/` 整棵树（snapshot/meta/branches.json/author-loop 共 4 文件）。
+
+**轮 2（机制跑通，独立文件 `D:\testsf\test.md`）**：真模型三视角审稿 → `file.revise`（scope 到 prose-1..5）→ judge 自检(0) → PatchReviewPanel diff → 接受 → 写回落盘 → 写回前版本快照生成。AI 比对快照与改后文件：确实只压缩了点名的雾气意象与旧伤细节（如「撕开浓雾／像被雾水泡胀的铜钟」删减、「颜色比周围皮肤浅／疤痕表面微微发紧」删除），净缩约 2%；`+394/-394` 是中文整行计差噪声而非全篇重写。
+
+## 暴露的真 bug
+
+1. **意图误路由（已修，PR #16）**：审稿报告「只修此条／修选中问题／只修剧情·文风」三个修订按钮的话术含「问题/节奏/结构」，恰是后端 `_detect_intent` 的 `file.review` 关键词且 review 判定先于 revise，导致点修订按钮恒被判成再次审稿、出不了补丁；轮 1 能改纯属 issue 文本碰巧含「保存」。修复让前端显式传 `intent=file.revise`（后端 `orchestrator.py:776` 早已支持显式 intent 覆盖关键词）。轮 2 的 workaround 是在聊天框打含「改写」、避开审稿关键词的话术，手动触发 `file.revise`。
+2. **`file.revise` 范围越界（待办）**：接口是「整文件进→整文件出」，模型即便拿到窄指令也倾向重写——轮 1 单条指令重写全篇（含 metadata），轮 2 虽方向对但「其余别动」未严格守住（顺手删了与指令无关的「手绘」等词）。真正的范围闸是 PatchReviewPanel 逐 hunk 接受；轮 1 点了全量接受即放掉了闸。建议后续：revise 提示词/服务层加范围约束，或 UI 默认只勾命中 issue 的 hunk。
+3. **审稿非确定性（观察）**：同一 `test.md` 连审三次，剧情视角问题数 1→6→0 来回跳，且首轮 `plot-agent` 降级为启发式预扫。`deepseek-v4-flash` 在当前温度下 run-to-run 漂移明显，issue id 不跨轮稳定（故「修选中 plot-1…」可能指向已失效的旧 id）。
+
+## 里程碑状态与诚实边界
+
+- **端到端写回确认链路（开文件→真模型审稿→定向修订→diff→接受→写回→版本记录）这次在真机/真模型/真磁盘上完整执行成立**，含写回前快照。
+- 但有三个星号：经聊天 workaround 触发（修订按钮在 PR #16 前坏，**修后经按钮路径的复跑尚未做**）；受测对象是合成 smoke 草稿 `test.md` 而非真实 `正文/` 章节项目；范围越界 bug#2 未治。
+- 因此 CLAUDE.md 第 8 节「不能宣称真实 Tauri 端到端写回确认链路已经完成」**是否改写，留待作者确认**——本报告只记录链路已演示，不擅改上位规范。
+- **仍不能宣称**：真实 3-5 万字长程质量验收；真实 `正文/` 章节的人工通读结论（test.md 非真稿，且修订质量判断仍是作者待办）；也不等于「judge 给 0 = 人工通读通过」。
+
+## 验证（AI 侧实跑）
+
+- PR #16 修复：前端 `typecheck` + `verify-unit` **43 测试**（含新增 api-client intent 转发断言）+ `pnpm.cmd -w run lint` 全绿；后端 `test_ide_agent_orchestrator` **21 passed**（含新增 `_detect_intent` 显式 intent 覆盖关键词单测）。
+- PR #15 修复 `spawn EINVAL`：同机 `spawnSync('npm.cmd')` `shell=false→EINVAL`、`shell=true→status 0`。
+
+记录时间戳：2026-06-27（真机审稿通读执行结果：机制端到端跑通于 `D:\testsf\test.md`；发现并修复意图误路由 PR #16，范围越界与审稿非确定性待办；真实 `正文/` 人工通读未完成）。
