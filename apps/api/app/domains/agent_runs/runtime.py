@@ -1,15 +1,35 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domains.agent_runs._text import _optional_string, _ordered_unique, _string_arg_list
+from app.domains.agent_runs._text import _compact_text, _optional_string
+from app.domains.agent_runs.bookrun_summary import (
+    _bookrun_budget_details,
+    _bookrun_budget_summary,
+    _bookrun_chapter_plan_summary,
+    _bookrun_risk_summary,
+)
+from app.domains.agent_runs.intent import (
+    SUPPORTED_INTENTS as SUPPORTED_INTENTS,
+)
+from app.domains.agent_runs.intent import (
+    _detect_intent,
+    _message_args,
+    _message_text,
+    _role_hints,
+    _role_mentions,
+)
 from app.domains.agent_runs.models import AgentRun
+from app.domains.agent_runs.review_report import (
+    _build_multi_agent_review_report_with_executor,
+    _continuity_subagent_handler,
+    _review_report_summary,
+    _review_subagent_handler,
+)
 from app.domains.agent_runs.revise_scope import (
     _public_revise_scope,
     _resolve_revise_scope,
@@ -18,13 +38,18 @@ from app.domains.agent_runs.revise_scope import (
     _scope_warning,
     _scoped_revise_instruction,
 )
-from app.domains.agent_runs.role_catalog import (
-    get_agent_role,
-    is_role_allowed_tool,
-    list_subagent_roles,
-    resolve_agent_role_alias,
-)
 from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
+from app.domains.agent_runs.tooling import (
+    PermissionGate,
+    SubagentDefinition,
+    SubagentExecutor,
+    ToolDefinition,
+    ToolExecutionContext,
+    ToolHandler,
+    ToolRegistry,
+    ToolResult,
+)
+from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
     AssistantMessageCreate,
@@ -35,104 +60,13 @@ from app.domains.assistant.schemas import (
 )
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
-from app.domains.ide import review_reasoning
 from app.domains.ide.orchestrator import AgentOrchestrationError, orchestrate_agent_message
-from app.domains.ide.review_reasoning import HeuristicReviewReasoner, LlmReviewReasoner, ReviewSubagentResult
-from app.domains.ide.review_skills import (
-    REVIEW_SKILLS,
-    review_context_summary,
-    suggested_actions_for_review,
-)
+from app.domains.ide.review_skills import review_context_summary
 from app.domains.ide.service import (
     IdeCommandExecutionError,
     IdeCommandNotFoundError,
     execute_ide_command_by_id,
 )
-
-ToolHandler = Callable[["ToolExecutionContext", dict[str, Any]], "ToolResult"]
-
-SUPPORTED_INTENTS = frozenset(
-    {
-        "chat.explain",
-        "file.review",
-        "file.revise",
-        "chapter.review",
-        "chapter.repair",
-        "bookrun.start",
-    }
-)
-
-
-@dataclass(frozen=True)
-class AgentToolTrace:
-    """WebSocket 响应中的轻量工具调用轨迹。"""
-
-    tool_name: str
-    status: str
-    input_summary: dict[str, Any]
-    output_summary: dict[str, Any] | None = None
-    audit_event_id: str | None = None
-    assistant_tool_call_id: int | None = None
-    error_message: str | None = None
-
-    def as_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "tool_name": self.tool_name,
-            "status": self.status,
-            "input_summary": self.input_summary,
-        }
-        if self.output_summary is not None:
-            payload["output_summary"] = self.output_summary
-        if self.audit_event_id is not None:
-            payload["audit_event_id"] = self.audit_event_id
-        if self.assistant_tool_call_id is not None:
-            payload["assistant_tool_call_id"] = self.assistant_tool_call_id
-        if self.error_message is not None:
-            payload["error_message"] = self.error_message
-        return payload
-
-
-@dataclass(frozen=True)
-class ToolDefinition:
-    name: str
-    description: str
-    input_schema: dict[str, Any]
-    output_schema: dict[str, Any]
-    permission_level: str
-    risk_level: str
-    requires_confirmation: bool
-    handler: ToolHandler
-
-
-@dataclass(frozen=True)
-class ToolResult:
-    status: str
-    output: dict[str, Any]
-    trace: AgentToolTrace
-
-
-@dataclass
-class ToolExecutionContext:
-    session: Session
-    run: AgentRun
-    agent_session_id: str
-    assistant_session_id: int
-    user_message: str
-    args: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class PermissionDecision:
-    status: str
-    reason: str
-
-
-@dataclass(frozen=True)
-class SubagentDefinition:
-    role: str
-    input_schema: dict[str, Any]
-    output_schema: dict[str, Any]
-    handler: Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class EventSink(Protocol):
@@ -157,63 +91,6 @@ class EventSink(Protocol):
     def complete(self, run: AgentRun, result: dict[str, Any]) -> None: ...
 
     def fail(self, run: AgentRun, *, message: str, payload: dict[str, Any] | None = None) -> None: ...
-
-
-class ToolRegistry:
-    def __init__(self) -> None:
-        self._tools: dict[str, ToolDefinition] = {}
-
-    def register(self, definition: ToolDefinition) -> None:
-        self._tools[definition.name] = definition
-
-    def get(self, name: str) -> ToolDefinition:
-        try:
-            return self._tools[name]
-        except KeyError as exc:
-            raise AgentOrchestrationError(f"Agent Runtime 工具未注册：{name}") from exc
-
-
-class PermissionGate:
-    """Runtime tool execution gate with the v1 permission profiles."""
-
-    _RISKY_LEVELS = frozenset({"propose_patch", "write_pending", "long_running", "network", "high_cost"})
-
-    def decide(self, run: AgentRun, tool: ToolDefinition) -> PermissionDecision:
-        profile = run.permission_profile or "risk_confirm"
-        if profile == "full_allow":
-            return PermissionDecision("allow", "full_allow")
-        if profile == "autonomous_approval" and tool.risk_level not in {"write_pending", "high_cost"}:
-            return PermissionDecision("allow", "autonomous_approval")
-        if profile == "risk_confirm" and tool.risk_level not in self._RISKY_LEVELS and not tool.requires_confirmation:
-            return PermissionDecision("allow", "risk_confirm_safe_tool")
-        if profile == "step_confirm" or tool.requires_confirmation or tool.risk_level in self._RISKY_LEVELS:
-            return PermissionDecision("require_approval", f"{profile}:{tool.risk_level}")
-        return PermissionDecision("allow", profile)
-
-
-class SubagentExecutor:
-    def __init__(self, definitions: list[SubagentDefinition]) -> None:
-        self._definitions = {definition.role: definition for definition in definitions}
-        known_subagent_roles = {role.name for role in list_subagent_roles()}
-        missing_roles = [definition.role for definition in definitions if definition.role not in known_subagent_roles]
-        if missing_roles:
-            raise AgentOrchestrationError(f"子代理未登记到 role catalog：{', '.join(missing_roles)}")
-
-    @property
-    def roles(self) -> list[str]:
-        return list(self._definitions)
-
-    def run(self, role: str, payload: dict[str, Any], *, tool_name: str) -> dict[str, Any]:
-        catalog_role = get_agent_role(role)
-        if catalog_role is None or catalog_role.kind != "subagent":
-            raise AgentOrchestrationError(f"未知子代理 role catalog 条目：{role}")
-        if not is_role_allowed_tool(role, tool_name):
-            raise AgentOrchestrationError(f"子代理 {role} 不允许调用工具 {tool_name}")
-        try:
-            definition = self._definitions[role]
-        except KeyError as exc:
-            raise AgentOrchestrationError(f"未知子代理：{role}") from exc
-        return definition.handler(payload)
 
 
 class AgentRuntime:
@@ -933,149 +810,6 @@ def _base_response(
     }
 
 
-def _build_multi_agent_review_report_with_executor(
-    executor: SubagentExecutor,
-    *,
-    file_path: str,
-    content: str,
-    context_bundle: dict[str, Any] | None,
-    user_message: str,
-    requested_role_hints: list[str] | None = None,
-    requested_role_mentions: list[str] | None = None,
-) -> tuple[dict[str, Any], list[AgentToolTrace]]:
-    context = review_context_summary(context_bundle)
-    role_hints = requested_role_hints or []
-    role_mentions = requested_role_mentions or []
-    paragraphs = [paragraph.strip() for paragraph in content.splitlines() if paragraph.strip()]
-    reasoner = _select_review_reasoner()
-    subagent_results = reasoner.review_all(content=content, paragraphs=paragraphs, context_bundle=context_bundle)
-    results_by_key = {key: result for key, result in zip(review_reasoning.REVIEW_AGENT_KEYS, subagent_results, strict=True)}
-
-    plot_issues = _assign_issue_ids(
-        "plot",
-        executor.run("plot_reviewer", {"result": results_by_key["plot"]}, tool_name="file.review")["issues"],
-    )
-    character_issues = _assign_issue_ids(
-        "character",
-        executor.run("character_reviewer", {"result": results_by_key["character"]}, tool_name="file.review")["issues"],
-    )
-    prose_issues = _assign_issue_ids(
-        "prose",
-        executor.run("prose_reviewer", {"result": results_by_key["prose"]}, tool_name="file.review")["issues"],
-    )
-    continuity = executor.run(
-        "continuity_reviewer",
-        {"content": content, "context_bundle": context_bundle},
-        tool_name="file.review",
-    )
-    issues = [*plot_issues, *character_issues, *prose_issues, *_assign_issue_ids("continuity", continuity["issues"])]
-    suggested_actions = suggested_actions_for_review(
-        plot_issues=plot_issues,
-        character_issues=character_issues,
-        prose_issues=prose_issues,
-    )
-    if continuity["issues"]:
-        suggested_actions.append("先核对设定、伏笔、人物关系和时间线，再处理语言层润色。")
-    report = {
-        "kind": "review_report",
-        "file_path": file_path,
-        "user_goal": user_message,
-        "mode": _review_report_mode(subagent_results),
-        "requested_role_hints": role_hints,
-        "requested_role_mentions": role_mentions,
-        "context": context,
-        "agent_findings": {
-            "plot": _agent_finding("plot", results_by_key["plot"]),
-            "character": _agent_finding("character", results_by_key["character"]),
-            "prose": _agent_finding("prose", results_by_key["prose"]),
-            "continuity": {
-                "agent": "continuity-agent",
-                "focus": "设定、伏笔、人物关系、时间线和前后文事实冲突",
-                "issue_count": len(continuity["issues"]),
-                "mode": "heuristic",
-            },
-        },
-        "issues": issues,
-        "suggested_actions": suggested_actions,
-    }
-    traces = [
-        AgentToolTrace(
-            tool_name="subagent.plot_reviewer",
-            status="completed",
-            input_summary={
-                "content_chars": len(content),
-                "requested_role_hints": role_hints,
-                "explicitly_requested": "plot_reviewer" in role_hints,
-            },
-            output_summary=_subagent_output_summary(report, "plot"),
-        ),
-        AgentToolTrace(
-            tool_name="subagent.character_reviewer",
-            status="completed",
-            input_summary={
-                "content_chars": len(content),
-                "requested_role_hints": role_hints,
-                "explicitly_requested": "character_reviewer" in role_hints,
-            },
-            output_summary=_subagent_output_summary(report, "character"),
-        ),
-        AgentToolTrace(
-            tool_name="subagent.prose_reviewer",
-            status="completed",
-            input_summary={
-                "content_chars": len(content),
-                "requested_role_hints": role_hints,
-                "explicitly_requested": "prose_reviewer" in role_hints,
-            },
-            output_summary=_subagent_output_summary(report, "prose"),
-        ),
-        AgentToolTrace(
-            tool_name="subagent.continuity_reviewer",
-            status="completed",
-            input_summary={
-                "content_chars": len(content),
-                "context_file_count": context["file_count"],
-                "requested_role_hints": role_hints,
-                "explicitly_requested": "continuity_reviewer" in role_hints,
-            },
-            output_summary=_subagent_output_summary(report, "continuity"),
-        ),
-        AgentToolTrace(
-            tool_name="subagent.synthesizer",
-            status="completed",
-            input_summary={"issue_count": len(issues), "requested_role_hints": role_hints},
-            output_summary={"suggested_action_count": len(suggested_actions), "strategy": "deterministic_merge"},
-        ),
-    ]
-    return report, traces
-
-
-def _review_subagent_handler(key: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
-    def handler(payload: dict[str, Any]) -> dict[str, Any]:
-        result = payload.get("result")
-        if not isinstance(result, ReviewSubagentResult):
-            raise AgentOrchestrationError(f"{key} 子代理缺少 ReviewSubagentResult。")
-        return {"issues": result.issues}
-
-    return handler
-
-
-def _continuity_subagent_handler(payload: dict[str, Any]) -> dict[str, Any]:
-    content = _compact_text(payload.get("content"), limit=120000)
-    issues: list[dict[str, str]] = []
-    if any(keyword in content for keyword in ("昨天才第一次", "第十天", "前后矛盾", "不一致")):
-        issues.append(
-            {
-                "agent": "continuity-agent",
-                "severity": "medium",
-                "code": "continuity.timeline_conflict_signal",
-                "message": "正文存在时间线或前后文冲突信号，建议核对章节事实。",
-                "evidence": _compact_text(content, limit=120),
-            }
-        )
-    return {"issues": issues}
-
-
 def _trace_objects(result: dict[str, Any]) -> list[AgentToolTrace]:
     traces = result.get("tool_trace") if isinstance(result.get("tool_trace"), list) else []
     objects: list[AgentToolTrace] = []
@@ -1107,223 +841,8 @@ def _result_requires_confirmation(result: dict[str, Any]) -> bool:
     )
 
 
-def _detect_intent(user_message: str, args: dict[str, Any], explicit_intent: object) -> str:
-    if _is_confirm_writeback_request(user_message):
-        return "chat.explain"
-    if isinstance(explicit_intent, str) and explicit_intent in SUPPORTED_INTENTS:
-        return explicit_intent
-    text = user_message.lower()
-    has_file_context = _optional_string(args.get("file_path")) is not None and isinstance(args.get("content"), str)
-    if _has_positive_int(args, "book_id") and _has_positive_int(args, "blueprint_id"):
-        return "bookrun.start"
-    if _has_positive_int(args, "issue_id"):
-        return "chapter.repair"
-    if has_file_context and _has_reviewer_role_hint(args):
-        return "file.review"
-    if has_file_context and _is_file_review_request(user_message):
-        return "file.review"
-    if has_file_context and _is_file_revise_request(user_message):
-        return "file.revise"
-    if _has_positive_int(args, "scene_packet_id") or "章节审阅" in user_message or ("审阅" in user_message and not has_file_context):
-        return "chapter.review"
-    if _is_file_revise_request(user_message):
-        return "file.revise"
-    if "bookrun" in text or "启动整书" in user_message:
-        return "bookrun.start"
-    return "chat.explain"
-
-
-def _is_file_review_request(user_message: str) -> bool:
-    return any(keyword in user_message for keyword in ("审查", "审一下", "审稿", "审阅", "评审", "检查", "问题", "一致性", "节奏", "结构"))
-
-
-def _has_reviewer_role_hint(args: dict[str, Any]) -> bool:
-    return bool({"plot_reviewer", "character_reviewer", "prose_reviewer", "continuity_reviewer"} & set(_role_hints(args)))
-
-
-def _is_file_revise_request(user_message: str) -> bool:
-    text = user_message.lower()
-    if any(keyword in text for keyword in ("revise", "rewrite", "diff")):
-        return True
-    return any(
-        keyword in user_message
-        for keyword in ("写回", "应用", "保存", "直接改", "直接修", "改写", "修订", "润色", "修改", "改得", "改成", "改一版", "修一版", "紧一点")
-    )
-
-
-def _is_confirm_writeback_request(user_message: str) -> bool:
-    text = user_message.strip().lower()
-    if any(keyword in text for keyword in ("accept this", "apply this", "confirm writeback")):
-        return True
-    if any(keyword in user_message for keyword in ("确认写回", "接受这版", "就这版写回", "应用这版", "确认应用")):
-        return True
-    if any(keyword in user_message for keyword in ("确认", "接受")) and any(keyword in user_message for keyword in ("当前补丁", "当前修订")):
-        return True
-    return ("写回" in user_message or "应用" in user_message) and any(keyword in user_message for keyword in ("确认", "接受", "这版", "当前补丁", "当前修订"))
-
-
-def _message_text(message: dict[str, Any]) -> str:
-    for key in ("user_message", "message", "content"):
-        value = message.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    raise AgentOrchestrationError("Agent user_message 不能为空。")
-
-
-def _message_args(message: dict[str, Any]) -> dict[str, Any]:
-    args = message.get("args")
-    return dict(args) if isinstance(args, dict) else {}
-
-
-def _role_hints(args: dict[str, Any]) -> list[str]:
-    hints = _string_arg_list(args.get("agent_role_hints"))
-    mentions = _string_arg_list(args.get("agent_role_mentions"))
-    candidates = list(hints)
-    for mention in mentions:
-        role = _resolve_role_mention(mention)
-        if role is not None and role.can_be_mentioned:
-            candidates.append(role.name)
-
-    resolved: list[str] = []
-    for hint in candidates:
-        role = get_agent_role(hint) or resolve_agent_role_alias(hint)
-        if role is not None and role.can_be_mentioned:
-            resolved.append(role.name)
-    return _ordered_unique(resolved)
-
-
-def _role_mentions(args: dict[str, Any]) -> list[str]:
-    return _ordered_unique(_string_arg_list(args.get("agent_role_mentions")))
-
-
-def _resolve_role_mention(mention: str):
-    role = get_agent_role(mention) or resolve_agent_role_alias(mention)
-    if role is not None:
-        return role
-    return None
-
-
 def _plan_step(step: str, detail: str, status: str) -> dict[str, str]:
     return {"step": step, "detail": detail, "status": status}
-
-
-def _assign_issue_ids(category: str, issues: list[dict[str, str]]) -> list[dict[str, str]]:
-    return [
-        {
-            **issue,
-            "id": f"{category}-{index}",
-            "category": category,
-            "suggested_action": _issue_suggested_action(category, issue),
-        }
-        for index, issue in enumerate(issues, start=1)
-    ]
-
-
-def _issue_suggested_action(category: str, issue: dict[str, str]) -> str:
-    code = issue.get("code", "")
-    if category == "plot":
-        if "hook" in code:
-            return "重写章尾最后一段，加入新的悬念、阻碍或行动压力。"
-        if "conflict" in code:
-            return "补一个明确的对抗、阻碍或代价，让本章目标被迫推进。"
-        return "补清章节目标、冲突推进和转折，避免只交代状态。"
-    if category == "character":
-        if "context" in code:
-            return "先补充或引用人物小传，再校准行动动机和关系称谓。"
-        return "为角色选择增加可见动机，用动作或对白证明其决定。"
-    if category == "prose":
-        if "paragraph" in code:
-            return "拆分长段落，调整信息密度，保证移动端阅读节奏。"
-        return "把解释性句子改成动作、对话或感官细节。"
-    if category == "continuity":
-        return "核对设定、伏笔、人物关系和时间线，先修正事实冲突。"
-    return "按该问题做定向修订，并保持原有事实连续。"
-
-
-def _select_review_reasoner() -> review_reasoning.ReviewReasoner:
-    missing = review_reasoning.missing_book_generation_env()
-    if missing:
-        return HeuristicReviewReasoner()
-    return LlmReviewReasoner(review_reasoning.resolved_llm_env())
-
-
-def _review_report_mode(results: list[ReviewSubagentResult]) -> str:
-    modes = {result.mode for result in results}
-    if modes == {"llm"}:
-        return "llm"
-    if "llm" in modes:
-        return "mixed"
-    if any(result.degraded_reason for result in results):
-        return "llm_failed"
-    return "heuristic_only"
-
-
-def _agent_finding(key: str, result: ReviewSubagentResult) -> dict[str, Any]:
-    finding: dict[str, Any] = {
-        "agent": REVIEW_SKILLS[key].agent,
-        "focus": REVIEW_SKILLS[key].focus,
-        "issue_count": len(result.issues),
-        "mode": result.mode,
-    }
-    if result.model is not None:
-        finding["model"] = result.model
-    if result.latency_ms is not None:
-        finding["latency_ms"] = result.latency_ms
-    if result.degraded_reason is not None:
-        finding["degraded_reason"] = result.degraded_reason
-    return finding
-
-
-def _subagent_output_summary(report: dict[str, Any], key: str) -> dict[str, Any]:
-    finding = report["agent_findings"][key]
-    summary: dict[str, Any] = {
-        "issue_count": finding["issue_count"],
-        "mode": finding["mode"],
-    }
-    for optional_key in ("model", "latency_ms", "degraded_reason"):
-        if optional_key in finding:
-            summary[optional_key] = finding[optional_key]
-    return summary
-
-
-def _review_report_summary(report: dict[str, Any]) -> str:
-    issues = report.get("issues") if isinstance(report.get("issues"), list) else []
-    findings = report.get("agent_findings") if isinstance(report.get("agent_findings"), dict) else {}
-    plot = _agent_issue_count(findings, "plot")
-    character = _agent_issue_count(findings, "character")
-    prose = _agent_issue_count(findings, "prose")
-    continuity = _agent_issue_count(findings, "continuity")
-    summary = (
-        f"多视角审稿完成：发现 {len(issues)} 个问题。"
-        f"剧情 {plot} 个，人物 {character} 个，文风节奏 {prose} 个，连续性 {continuity} 个。"
-    )
-    mode = report.get("mode")
-    if mode == "heuristic_only":
-        return f"{summary} 未配置 LLM，本轮为启发式预扫，非模型审稿。"
-    if mode == "llm_failed":
-        degraded = _degraded_review_agents(findings)
-        suffix = f" 失败视角：{', '.join(degraded)}。" if degraded else ""
-        return f"{summary} 已配置 LLM，但全部子代理调用失败，已整体降级为启发式预扫。{suffix}"
-    if mode == "mixed":
-        degraded = _degraded_review_agents(findings)
-        suffix = f" 降级视角：{', '.join(degraded)}。" if degraded else ""
-        return f"{summary} 部分 LLM 子代理失败，已按单项降级为启发式预扫。{suffix}"
-    return summary
-
-
-def _agent_issue_count(findings: dict[str, Any], key: str) -> int:
-    item = findings.get(key)
-    count = item.get("issue_count") if isinstance(item, dict) else None
-    return count if isinstance(count, int) else 0
-
-
-def _degraded_review_agents(findings: dict[str, Any]) -> list[str]:
-    degraded: list[str] = []
-    for key in review_reasoning.REVIEW_AGENT_KEYS:
-        item = findings.get(key)
-        if isinstance(item, dict) and item.get("mode") == "heuristic" and item.get("degraded_reason"):
-            degraded.append(str(item.get("agent") or key))
-    return degraded
 
 
 def _required_string(args: dict[str, Any], key: str) -> str:
@@ -1348,18 +867,6 @@ def _optional_positive_int(value: object) -> int | None:
     return None
 
 
-def _has_positive_int(args: dict[str, Any], key: str) -> bool:
-    value = args.get(key)
-    return isinstance(value, int) and value > 0
-
-
-def _compact_text(value: object, *, limit: int) -> str:
-    if not isinstance(value, str):
-        return ""
-    text = " ".join(value.split())
-    return text if len(text) <= limit else f"{text[:limit].rstrip()}..."
-
-
 def _safe_summary(payload: dict[str, Any]) -> dict[str, Any]:
     summary: dict[str, Any] = {}
     for key, value in payload.items():
@@ -1374,54 +881,6 @@ def _safe_summary(payload: dict[str, Any]) -> dict[str, Any]:
         elif isinstance(value, dict):
             summary[key] = {"keys": sorted(str(item) for item in value)[:20]}
     return summary
-
-
-def _bookrun_chapter_plan_summary(command_args: dict[str, Any]) -> str:
-    chapter_budget = command_args.get("chapter_budget")
-    if isinstance(chapter_budget, int) and chapter_budget > 0:
-        return f"生成最多 {chapter_budget} 章"
-    return "按锁定蓝图继续生成下一批章节"
-
-
-def _bookrun_budget_summary(command_args: dict[str, Any]) -> str:
-    parts: list[str] = []
-    token_budget = command_args.get("token_budget")
-    time_budget_sec = command_args.get("time_budget_sec")
-    if isinstance(token_budget, int) and token_budget > 0:
-        parts.append(f"{token_budget} tokens")
-    if isinstance(time_budget_sec, int) and time_budget_sec > 0:
-        parts.append(f"{time_budget_sec} 秒")
-    return "，".join(parts) if parts else "使用系统默认预算"
-
-
-def _bookrun_budget_details(command_args: dict[str, Any]) -> dict[str, int | None | bool]:
-    return {
-        "token_budget": command_args.get("token_budget") if isinstance(command_args.get("token_budget"), int) else None,
-        "time_budget_sec": command_args.get("time_budget_sec") if isinstance(command_args.get("time_budget_sec"), int) else None,
-        "chapter_budget": command_args.get("chapter_budget") if isinstance(command_args.get("chapter_budget"), int) else None,
-        "uses_default_budget": not any(
-            isinstance(command_args.get(key), int) for key in ("token_budget", "time_budget_sec", "chapter_budget")
-        ),
-    }
-
-
-def _bookrun_risk_summary(command_args: dict[str, Any]) -> list[str]:
-    risks: list[str] = []
-    token_budget = command_args.get("token_budget")
-    time_budget_sec = command_args.get("time_budget_sec")
-    chapter_budget = command_args.get("chapter_budget")
-    if not isinstance(token_budget, int):
-        risks.append("未设置 token_budget，可能使用系统默认预算")
-    elif token_budget >= 8000:
-        risks.append("token_budget 较高，可能产生更长运行时间和更高成本")
-    if not isinstance(chapter_budget, int):
-        risks.append("未设置 chapter_budget，将按锁定蓝图继续生成")
-    elif chapter_budget >= 6:
-        risks.append("chapter_budget 较高，建议确认章节范围")
-    if isinstance(time_budget_sec, int) and time_budget_sec >= 1800:
-        risks.append("time_budget_sec 较长，运行会停留在后台")
-    risks.append("写作任务以 managed 模式运行，不会写入当前 Desktop 草稿或 pending patch")
-    return risks
 
 
 def _judge_run_args_from_scene_packet(session: Session, scene_packet_id: int) -> dict[str, Any]:

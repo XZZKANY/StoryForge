@@ -15452,3 +15452,108 @@ un-metadata.json: present
 - 运行 `uv run ruff check ...`、`uv run pytest tests/test_agent_runs.py tests/test_api_surface.py tests/test_ide_agent_orchestrator.py tests/test_ide_run_events.py tests/test_assistant_tool_calls.py -q`、`pnpm.cmd openapi` 进行验证和契约刷新。
 - 追加 Skills v1 与 MCP v1 收尾：`/api/agent-runs/skills` 暴露 `chapter_polish`、`short_story_draft`、`long_chapter_generate`、`consistency_review`、`bookrun_generation`；`agent_plan_created` 记录 `selected_skill`；`/api/runtime-tools` 增加权限字段并只注册只读 MCP v1 工具 `mcp.project.search`、`mcp.context.inspect`。
 - 收尾验证：`uv run ruff check app/domains/agent_runs app/domains/runtime_tools tests/test_agent_runs.py tests/test_runtime_tools.py` 通过；`uv run pytest tests/test_agent_runs.py tests/test_runtime_tools.py -q` 13 passed；控制平面目标回归 71 passed；`pnpm.cmd openapi`、`pnpm.cmd --filter @storyforge/shared generate:types`、`pnpm.cmd --filter @storyforge/shared test`、`git diff --check` 均通过。
+
+---
+
+## 编码前检查 - 架构优雅化 A1/A3
+
+时间：2026-06-27 21:30:35 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-refactor-elegance-a1-a3.md`
+□ 将使用以下可复用组件：
+
+- `apps/api/app/domains/agent_runs/revise_scope.py`：复用前一刀“纯函数簇外移 + runtime import”的结构模式。
+- `apps/api/app/domains/agent_runs/_text.py`：复用 `_optional_string`、`_string_arg_list`、`_ordered_unique`。
+- `apps/api/app/domains/agent_runs/role_catalog.py`：复用 role name / mention / alias 解析事实源。
+- `apps/api/app/domains/ide/orchestrator.py::AgentOrchestrationError`：保留 runtime 原异常类型。
+
+□ 将遵循命名约定：新增 `agent_runs/intent.py` 与 `agent_runs/bookrun_summary.py`，内部 helper 继续使用下划线前缀。
+□ 将遵循代码风格：零行为变更，只移动函数与 import，不改返回结构和错误文案。
+□ 确认不重复造轮子：已检查 `revise_scope.py`、`_text.py`、`role_catalog.py`、`runtime.py` 与相关测试，确认 A1/A3 没有既有独立模块承载。
+
+### 编码后声明 - 架构优雅化 A1/A3
+
+时间：2026-06-27 21:30:35 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `_text.py`：继续为 intent helper 提供字符串清洗与有序去重。
+- `role_catalog.py`：继续解析 `agent_role_hints` 与 `agent_role_mentions`。
+- `AgentOrchestrationError`：保留 runtime 错误捕获链路。
+
+#### 2. 遵循了以下项目约定
+
+- `runtime.py` 继续是 facade，不新增业务逻辑。
+- 新模块留在同 domain 下，保持私有 helper 命名。
+- 未触碰 `apps/web` 与 legacy `ide/orchestrator.py` 的实现。
+
+#### 3. 对比了以下相似实现
+
+- `revise_scope.py`：同样从 runtime 抽出内聚纯函数簇。
+- `_text.py`：同样提供 runtime 周边无状态 helper。
+- `role_catalog.py`：同样把 agent role 规则集中到单一事实源。
+
+#### 4. 未重复造轮子的证明
+
+- `rg` 确认 A1/A3 目标函数已不在 `runtime.py` 内定义。
+- 新增测试直接覆盖 live Agent Runtime intent 与 bookrun summary helper，不挪用 legacy orchestrator 测试语义。
+
+---
+
+## 编码后声明 - 架构优雅化 A2
+
+时间：2026-06-27 21:45:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `review_reasoning.py`：review report 构建仍使用既有 LLM/heuristic reasoner。
+- `review_skills.py`：agent finding 的 agent/focus 与 suggested actions 继续来自既有 REVIEW_SKILLS。
+- `_text.py::_compact_text`：连续性 handler 与 runtime safe summary 共用同一文本压缩原语。
+- `trace.py::AgentToolTrace`：runtime、review_report、service 共用同一 trace 类型。
+
+### 2. 遵循了以下项目约定
+
+- `runtime.py` 继续只调度工具和记录事件；多视角审稿报告构建集中到 `review_report.py`。
+- `review_report.py` 通过 `ReviewSubagentExecutor` Protocol 依赖 `run()` 接口，不反向 import runtime。
+- 未改 `ide/orchestrator.py` legacy 路径，未触碰 `apps/web`。
+
+### 3. 对比了以下相似实现
+
+- `revise_scope.py`：同样把一个内聚的业务纯函数簇从 runtime 中外移。
+- `role_catalog.py`：同样通过小接口/事实源降低 runtime 直接持有的规则复杂度。
+- `system_jobs.py`：同样让 runtime 消费已构建好的结构化 payload，而不是内联所有组装细节。
+
+### 4. 未重复造轮子的证明
+
+- A2 目标函数已从 `runtime.py` 移到 `review_report.py`；`rg` 仅在新模块中找到定义。
+- `AgentToolTrace` 移到 `trace.py` 后，`service.py` 直接 import trace 类型，runtime 保持可兼容 re-export。
+- 验证覆盖 `test_ide_agent_orchestrator.py` 的 heuristic、llm、mixed、llm_failed 多模式审稿路径。
+
+---
+
+## 编码后声明 - 架构优雅化 A4
+
+时间：2026-06-27 22:00:00 +08:00
+
+### 1. 复用了以下既有组件
+
+- `role_catalog.py`：`SubagentExecutor` 继续通过 role catalog 校验子代理存在性与工具权限。
+- `trace.py::AgentToolTrace`：`ToolResult` 继续使用同一 trace 类型。
+- `AgentRun` 模型：`PermissionGate` 继续读取 `permission_profile`。
+
+### 2. 遵循了以下项目约定
+
+- `EventSink` 保留在 `runtime.py`，因为它是 runtime 与事件存储的接口，不属于 A4 计划中的工具脚手架。
+- `tooling.py` 只承载 `ToolDefinition`、`ToolResult`、`ToolRegistry`、`PermissionGate`、`SubagentExecutor` 及其必要配套 dataclass/type alias。
+- 未改工具注册清单、权限 profile 规则、错误文案或子代理执行语义。
+
+### 3. 对比了以下相似实现
+
+- `trace.py`：同样把共享轻量类型从 runtime 中下沉，减少跨模块反向依赖。
+- `review_report.py`：同样通过薄模块提升 locality，让 runtime 只消费结果。
+- `role_catalog.py`：继续作为子代理名称与权限事实源，`tooling.py` 不复制角色规则。
+
+### 4. 未重复造轮子的证明
+
+- `rg` 确认 A4 目标类定义只存在于 `tooling.py`。
+- `runtime.py` 仍持有实例并注册工具，避免新增并行 registry 或权限系统。

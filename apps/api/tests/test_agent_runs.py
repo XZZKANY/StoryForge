@@ -8,6 +8,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
 
+from app.domains.agent_runs.bookrun_summary import (
+    _bookrun_budget_details,
+    _bookrun_budget_summary,
+    _bookrun_chapter_plan_summary,
+    _bookrun_risk_summary,
+)
+from app.domains.agent_runs.intent import SUPPORTED_INTENTS as RUNTIME_SUPPORTED_INTENTS
+from app.domains.agent_runs.intent import _detect_intent as detect_runtime_intent
+from app.domains.agent_runs.intent import _role_hints, _role_mentions
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
 from app.domains.ide import review_reasoning
 from app.domains.ide import router as ide_router
@@ -30,6 +39,53 @@ def test_websocket_user_message_enters_through_runtime_facade() -> None:
     assert "run_agent_user_message(" in source
     assert "start_agent_user_message_run(" not in source
     assert "execute_agent_user_message_run(" not in source
+
+
+def test_agent_runtime_supported_intents_are_registered() -> None:
+    assert {
+        "chat.explain",
+        "file.review",
+        "file.revise",
+        "chapter.review",
+        "chapter.repair",
+        "bookrun.start",
+    } == RUNTIME_SUPPORTED_INTENTS
+
+
+def test_agent_runtime_detect_intent_prefers_explicit_revise_over_review_keywords() -> None:
+    file_args = {"file_path": "正文/第01章.md", "content": "正文内容"}
+
+    assert detect_runtime_intent("修选中问题：plot-1 prose-1", file_args, None) == "file.review"
+    assert detect_runtime_intent("修选中问题：plot-1 prose-1", file_args, "file.revise") == "file.revise"
+
+
+def test_agent_runtime_role_hints_resolve_mentions_and_filter_unknowns() -> None:
+    args = {
+        "agent_role_hints": ["plot_reviewer", "unknown_reviewer", "@人物"],
+        "agent_role_mentions": ["@剧情", "@文风", "@未知"],
+    }
+
+    assert _role_hints(args) == ["plot_reviewer", "character_reviewer", "prose_reviewer"]
+    assert _role_mentions(args) == ["@剧情", "@文风", "@未知"]
+
+
+def test_agent_runtime_bookrun_summary_helpers_describe_budget_and_risks() -> None:
+    command_args = {"chapter_budget": 6, "token_budget": 9000, "time_budget_sec": 1800}
+
+    assert _bookrun_chapter_plan_summary(command_args) == "生成最多 6 章"
+    assert _bookrun_budget_summary(command_args) == "9000 tokens，1800 秒"
+    assert _bookrun_budget_details(command_args) == {
+        "token_budget": 9000,
+        "time_budget_sec": 1800,
+        "chapter_budget": 6,
+        "uses_default_budget": False,
+    }
+    assert _bookrun_risk_summary(command_args) == [
+        "token_budget 较高，可能产生更长运行时间和更高成本",
+        "chapter_budget 较高，建议确认章节范围",
+        "time_budget_sec 较长，运行会停留在后台",
+        "写作任务以 managed 模式运行，不会写入当前 Desktop 草稿或 pending patch",
+    ]
 
 
 def test_websocket_user_message_persists_agent_run_events_and_artifacts(
