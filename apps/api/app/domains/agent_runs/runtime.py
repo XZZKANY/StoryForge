@@ -24,6 +24,7 @@ from app.domains.agent_runs.role_catalog import (
     list_subagent_roles,
     resolve_agent_role_alias,
 )
+from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
     AssistantMessageCreate,
@@ -142,6 +143,16 @@ class EventSink(Protocol):
     def record_artifact(self, run: AgentRun, *, kind: str, payload: dict[str, Any], requires_confirmation: bool) -> None: ...
 
     def record_permission_required(self, run: AgentRun, result: dict[str, Any], *, reason: str) -> None: ...
+
+    def record_system_job(
+        self,
+        run: AgentRun,
+        *,
+        key: str,
+        payload: dict[str, Any],
+        artifact_kind: str | None = None,
+        artifact_payload: dict[str, Any] | None = None,
+    ) -> None: ...
 
     def complete(self, run: AgentRun, result: dict[str, Any]) -> None: ...
 
@@ -289,18 +300,56 @@ class AgentRuntime:
         result.setdefault("agent_role_hints", _role_hints(args))
         result.setdefault("agent_role_mentions", _role_mentions(args))
         if result.get("_events_recorded") is True:
+            self._run_hidden_system_jobs(session, run=run, assistant_session_id=assistant_session.id, result=result)
             result.pop("_events_recorded", None)
             return result
         self._event_sink.record_plan(run, result)
         for index, trace in enumerate(_trace_objects(result)):
             self._event_sink.record_tool_trace(run, trace, index)
         self._record_result_artifacts(run, result)
+        self._run_hidden_system_jobs(session, run=run, assistant_session_id=assistant_session.id, result=result)
         if _result_requires_confirmation(result):
             self._event_sink.record_permission_required(run, result, reason="requires_user_confirmation")
             result.setdefault("agent_result", {})["writeback_blocked_until_user_confirms"] = True
             return result
         self._event_sink.complete(run, result)
         return result
+
+    def _run_hidden_system_jobs(
+        self,
+        session: Session,
+        *,
+        run: AgentRun,
+        assistant_session_id: int,
+        result: dict[str, Any],
+    ) -> None:
+        assistant_session = assistant_service.get_assistant_session(session, assistant_session_id)
+        jobs = build_conversation_system_jobs(
+            assistant_session_id=assistant_session.id,
+            current_title=assistant_session.title,
+            messages=assistant_session.messages,
+            result=result,
+        )
+        if not jobs:
+            return
+        result_jobs: dict[str, Any] = {}
+        for job in jobs:
+            result_jobs[job.key] = job.result_payload
+            if job.key == "title" and job.result_payload.get("updated_session_title") is True:
+                title = job.result_payload.get("title")
+                if isinstance(title, str) and title.strip():
+                    assistant_session.title = title[:160]
+                    session.add(assistant_session)
+                    session.commit()
+                    session.refresh(assistant_session)
+            self._event_sink.record_system_job(
+                run,
+                key=job.key,
+                payload=job.event_payload,
+                artifact_kind=job.artifact_kind,
+                artifact_payload=job.artifact_payload,
+            )
+        result["system_jobs"] = result_jobs
 
     def _run_chat_explain(
         self,
