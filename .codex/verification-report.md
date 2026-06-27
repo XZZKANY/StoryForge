@@ -1363,3 +1363,32 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 综合评分：96/100。
 
 明确建议：通过。`agent_runs/runtime.py` 已从最大 live god-file 收敛为 Runtime facade + tool 注册骨架；下一阶段按计划进入 E1 legacy 边界审计或 C1/B1 范围审计。
+
+---
+
+## 2026-06-27 架构优雅化整改 · E1（审计型，零代码改动）
+
+**目标**：执行 `docs/internal/refactor-elegance-plan.md` 第 E 区 E1，画出 legacy `ide/orchestrator.py`（1389 行 / 53KB）内部「live 被引用」与「仅 legacy 兜底分支可达」的边界，作为 E2 的前提。
+
+**范围**：
+- 新增审计文档 `docs/internal/e1-ide-orchestrator-boundary.md`（跨边界符号表、路由边界、函数级 live/死集分区、漂移风险、E2 落点建议）。
+- 未改任何 `.py`；orchestrator.py 与 agent_runs 源码原样保留。
+
+**核心结论**：
+- 跨边界进 live 的符号仅两个：`AgentOrchestrationError`（恒被 runtime/service/intent/review_report/tooling 5 处引用）、`orchestrate_agent_message`（仅 `chapter.review`/`chapter.repair` 落 `else` 分支时经 `legacy.orchestrator` 工具触发）。
+- live runtime 已直接接管 `chat.explain`/`file.review`/`file.revise`/`bookrun.start`；对应的 4 个 `_orchestrate_*` 入口及其独占 helper 簇（multi-agent 审稿、revise-scope 解析、bookrun 摘要）经 live 路径**恒不可达**。
+- legacy 实际仍在服务的净资产只有 `chapter.review`/`chapter.repair` 两条 `judge.run`/`judge.repair` 编排。
+- 发现行为漂移：live `intent.py._detect_intent` 比 legacy 多一条 `_has_reviewer_role_hint → file.review` 分支，两份判定已不等价（不改变本轮可达集，但是 E2 必须对账的风险）。
+
+**本地验证（佐证边界，非行为变更验证）**：
+- `cd apps/api && uv run python -c "import app.main"` → `import ok`（无 import 环、文件可载）。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **59 passed（60.89s）**，覆盖 live 分流、`legacy.orchestrator` fallback monkeypatch、legacy `_detect_intent` 语义。
+- 全仓 `rg 'ide\.orchestrator|orchestrate_agent_message'`：live 引用仅 `agent_runs/{runtime,service,intent,review_report,tooling}.py` + 测试；`ide/router.py`、`ide/service.py` 不引用 orchestrator。
+
+**风险与边界**：
+- 「死集」指经 live 运行路径不可达，仍可能被测试或未来直接调用方触达，删除须随 E2 一并评估，本条目不删任何代码。
+- 行号以当前 master（A 区合并后）为准；plan 中 E1 原列的 runtime.py:30/624/809 是 A 区前旧行号，已漂移，本审计采用当前行号。
+
+**结果**：E1 完成，产出 `docs/internal/e1-ide-orchestrator-boundary.md`，为 E2 提供可执行的迁移顺序（先迁 `AgentOrchestrationError` 解 5 处依赖 → 再迁 `chapter.*` 编排收缩 fallback → 死集随迁随删）。
+
+**明确建议**：通过。E1 为审计型条目，零行为变更、证据链完整；E2 涉及对外行为收缩，按 plan 须单独评审后再动刀。

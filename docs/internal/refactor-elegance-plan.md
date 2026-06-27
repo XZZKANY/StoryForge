@@ -18,6 +18,8 @@
 | # | 条目 | 证据 |
 |---|------|------|
 | ✅ | 从 `agent_runs/runtime.py` 抽出 `revise_scope.py` + `_text.py`（revise 范围/指令解析纯函数） | PR #19，runtime.py 1696→1412 行，60+16 测试通过，ruff 全绿 |
+| ✅ | A 区全部（A3/A1/A2/A4）：`bookrun_summary.py` / `intent.py` / `review_report.py`+`trace.py` / `tooling.py` 从 runtime 外移，runtime 退为 facade + tool 注册 | PR #23，runtime.py 1412→约 920 行，59 测试通过，ruff 全绿，零行为变更 |
+| ✅ | E1：legacy `ide/orchestrator.py` 边界审计（审计型，零代码改动） | `docs/internal/e1-ide-orchestrator-boundary.md`；import smoke + 59 测试佐证；结论：跨边界 live 符号仅 `AgentOrchestrationError` + `orchestrate_agent_message` 两个 |
 
 ## 2. 分级 backlog
 
@@ -70,8 +72,8 @@
 
 | # | 条目 | 证据 | 工时 | 风险 |
 |---|------|------|------|------|
-| E1 | 画出 `ide/orchestrator.py` 内部「live 被引用」vs「仅 `legacy.orchestrator` 兜底分支可达」的边界 | runtime.py:30, 624, 809；service.py:39 | M | 中 |
-| E2 | 基于 E1，把仍被 live 引用的少量符号迁到稳定位置，再逐步收缩 legacy 分支；最终评估 `legacy.orchestrator` 工具能否下线 | 同上 | L | 高（涉及对外行为，需单独评审） |
+| ✅ E1 | 画出 `ide/orchestrator.py` 内部「live 被引用」vs「仅 `legacy.orchestrator` 兜底分支可达」的边界 | 已完成 → `docs/internal/e1-ide-orchestrator-boundary.md`（2026-06-27） | M | 中 |
+| E2 | 基于 E1，把仍被 live 引用的少量符号迁到稳定位置，再逐步收缩 legacy 分支；最终评估 `legacy.orchestrator` 工具能否下线 | 见 E1 边界图 §6 落点建议 | L | 高（涉及对外行为，需单独评审） |
 
 ### F. 横切一致性（审计为主，输出规则而非大改）
 
