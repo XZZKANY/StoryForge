@@ -1218,3 +1218,22 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - `pnpm.cmd -w run lint` 全绿；`pnpm.cmd -w run openapi` → 快照零 diff（未动路由签名；`scope_warning` 走 WS agent_result 自由字段，不入 OpenAPI）。
 
 记录时间戳：2026-06-27（bug#2 file.revise 范围越界收口：runtime 最小改动契约 + narrow 检测补洞 + 行级 drift scope_warning + 前端补丁面板提醒；软约束非硬保证，逐 hunk 闸保留；按钮路径真机复跑仍待作者）。
+
+---
+
+## 2026-06-27 架构优雅化整改 · 第 1 刀 + 计划文档
+
+**范围**：`agent_runs/runtime.py`（live Agent 路径，1696 行 god-file）零行为变更结构拆分；并把后续 backlog 落成计划文档。
+
+- 抽出 `agent_runs/revise_scope.py`（file.revise 范围/指令解析纯函数：最小改动契约、scope 解析、类别/序号识别、drift 越界 `scope_warning`）+ `agent_runs/_text.py`（通用文本原语）。
+- `runtime.py` 改为 import，**1696 → 1412 行（−293）**；`test_ide_agent_orchestrator.py` 被测函数 import 指向新模块。
+- 纯文件级移动，无逻辑/签名/契约变更；确认未触碰仍被 live 引用的 legacy `ide/orchestrator.py`。
+
+**验证**：
+- `uv run ruff check app/domains/agent_runs/ tests/test_ide_agent_orchestrator.py` → All checks passed。
+- `uv run pytest test_ide_agent_orchestrator.py test_agent_runs.py test_assistant_revise.py` → **60 passed**。
+- `uv run pytest test_ide_commands.py test_ide_context_snapshot.py test_ide_run_events.py test_runtime_tools.py` → **16 passed**。
+- `uv run python -c "import app.main"` → OK。
+- 行尾纠偏：runtime.py 统一为 LF（与仓库主流一致），消除 CRLF↔LF 噪声，diff 收敛为 −293/+9。
+
+**产出**：PR #19（拆分）、PR #20（计划文档 `docs/internal/refactor-elegance-plan.md`，分级 backlog A-F + 执行原则 + 推荐顺序 + 验证门禁）均已合入 master。
