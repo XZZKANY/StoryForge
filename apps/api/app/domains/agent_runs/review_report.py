@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from app.domains.agent_runs._text import _compact_text
+from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.ide import review_reasoning
-from app.domains.ide.orchestrator import AgentOrchestrationError
 from app.domains.ide.review_reasoning import HeuristicReviewReasoner, LlmReviewReasoner, ReviewSubagentResult
 from app.domains.ide.review_skills import (
     REVIEW_SKILLS,

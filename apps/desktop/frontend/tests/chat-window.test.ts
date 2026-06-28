@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   applyWritingRunEventProjection,
   buildStableAgentRequestPayload,
+  ChatWindow,
   extractIssueScopeFromInstruction,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
@@ -209,4 +210,32 @@ test('managed Writing Run result id prefers canonical id and falls back to legac
     },
   };
   assert.equal(writingRunIdFromResult(legacy), 7);
+});
+
+// G2 护栏：ChatWindow 主外壳 renderToStaticMarkup 快照（拆分前固定 trunk 结构）。
+// 此处不做 useEffect 级别行为测试（session 相关调用依赖后端），仅固化 launch/empty-trunk 外壳。
+
+test('ChatWindow 主外壳渲染 ConversationHeader 并展示「新的创作会话」标题', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(ChatWindow, {
+      projectPath: 'D:\\Books\\雾港回声',
+      currentFile: 'D:\\Books\\雾港回声\\正文\\第01章.md',
+      assistantSessionId: null,
+    }),
+  );
+  assert.match(html, /新的创作会话/);
+  assert.match(html, /雾港回声 · 正文\\第01章\.md/);
+  assert.match(html, /上下文尚未生成/);
+  assert.match(html, /data-testid="context-summary"/);
+});
+
+test('ChatWindow 在无项目时禁用 composer 并提示打开项目后即可使用 StoryForge', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(ChatWindow, {
+      projectPath: null,
+      currentFile: null,
+      assistantSessionId: null,
+    }),
+  );
+  assert.match(html, /打开项目后即可使用 StoryForge/);
 });

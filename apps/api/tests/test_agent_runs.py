@@ -22,6 +22,24 @@ from app.domains.ide import review_reasoning
 from app.domains.ide import router as ide_router
 
 
+def _seed_agent_run(session: Session, public_id: str = "run-low-level-events") -> AgentRun:
+    run = AgentRun(
+        public_id=public_id,
+        session_id=f"session-{public_id}",
+        goal="验证 AgentRun 底层事件顺序。",
+        scope={},
+        permission_profile="risk_confirm",
+        budget={},
+        status="running",
+        root_plan=[],
+        current_step=None,
+    )
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
 def test_agent_run_models_are_registered_in_metadata() -> None:
     """Agent Runtime 控制平面表必须进入统一 ORM 元数据。"""
 
@@ -29,6 +47,82 @@ def test_agent_run_models_are_registered_in_metadata() -> None:
     assert AgentRunEvent.__tablename__ == "agent_run_events"
     assert SubagentRun.__tablename__ == "subagent_runs"
     assert AgentArtifact.__tablename__ == "agent_artifacts"
+
+
+def test_record_agent_event_sequences_increment_from_existing_max(session: Session) -> None:
+    """底层事件写入必须按 run 内最大 sequence 递增，给 service.py 拆分提供顺序护栏。"""
+
+    from app.domains.agent_runs.service import record_agent_event
+
+    run = _seed_agent_run(session)
+    session.add(
+        AgentRunEvent(
+            run_id=run.id,
+            event_type="seeded",
+            actor="test",
+            message="已有事件",
+            payload={"seed": True},
+            sequence=7,
+        )
+    )
+    session.commit()
+
+    first = record_agent_event(
+        session,
+        run,
+        event_type="tool_trace",
+        actor="root-agent",
+        message="第一条新增事件",
+        payload={"step": 1},
+    )
+    second = record_agent_event(
+        session,
+        run,
+        event_type="agent_run_completed",
+        actor="root-agent",
+        message="第二条新增事件",
+        payload={"step": 2},
+    )
+
+    assert [first.sequence, second.sequence] == [8, 9]
+    stored_sequences = [
+        event.sequence
+        for event in session.query(AgentRunEvent).filter_by(run_id=run.id).order_by(AgentRunEvent.sequence)
+    ]
+    assert stored_sequences == [7, 8, 9]
+
+
+def test_encode_agent_run_sse_event_is_stable_json_snapshot(session: Session) -> None:
+    """SSE 编码必须只投影 AgentRunEvent 事实源，不引入额外运行态。"""
+
+    from app.domains.agent_runs.service import encode_agent_run_sse_event, record_agent_event
+
+    run = _seed_agent_run(session, public_id="run-sse-encoder")
+    event = record_agent_event(
+        session,
+        run,
+        event_type="tool_trace",
+        actor="tool-registry",
+        message="命令 audit.open 已执行。",
+        payload={"command_id": "audit.open", "result": {"ok": True}},
+    )
+
+    encoded = encode_agent_run_sse_event(event)
+
+    assert encoded.startswith("event: tool_trace\n")
+    assert encoded.endswith("\n\n")
+    assert encoded.count("\ndata: ") == 1
+    payload = json.loads(encoded.split("data: ", 1)[1].split("\n\n", 1)[0])
+    assert payload == {
+        "id": event.id,
+        "run_id": run.id,
+        "event_type": "tool_trace",
+        "actor": "tool-registry",
+        "message": "命令 audit.open 已执行。",
+        "payload": {"command_id": "audit.open", "result": {"ok": True}},
+        "sequence": 1,
+        "created_at": event.created_at.isoformat(),
+    }
 
 
 def test_websocket_user_message_enters_through_runtime_facade() -> None:

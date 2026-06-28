@@ -3,88 +3,32 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
-  ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
-  APPLY_FILE_SUGGESTION_EVENT,
   EXPORT_CURRENT_FILE_EVENT,
   emitReviseIssue,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
-  SUGGESTION_RESULT_EVENT,
   type ReviewIssueMarker,
-  type SuggestionResult,
 } from '../lib/assistant-events';
-import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { TauriFileSystem } from '../lib/tauri-fs';
-import { listVersions, readVersion, snapshotBeforeWrite, VersionEntry } from '../lib/versions';
+import { readVersion, snapshotBeforeWrite } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
 import { registerSmokeEditorController } from '../lib/smoke';
-import { applyPatchHunk, type PatchHunk } from '../lib/patch-hunks';
-import {
-  buildGraph,
-  createBranch,
-  emptyManifest,
-  getActiveBranch,
-  loadBranchManifest,
-  saveBranchManifest,
-  setActiveBranch,
-  setBranchHead,
-  type BranchManifest,
-  type GraphNode,
-} from '../lib/branches';
-import { BranchCanvas } from './BranchCanvas';
+import { type GraphNode } from '../lib/branches';
+import { issueDecorationOptions, locateEvidence } from './editor/decorations';
+import { useBranchManifest } from './editor/useBranchManifest';
+import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
+import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
 function normalizeEol(text: string): string {
   return text.replace(/\r\n/g, '\n');
-}
-
-const ISSUE_SEVERITY_COLOR: Record<'high' | 'medium' | 'low', string> = {
-  high: '#f87171',
-  medium: '#fbbf24',
-  low: '#60a5fa',
-};
-
-function normalizeIssueSeverity(severity: string): 'high' | 'medium' | 'low' {
-  return severity === 'high' || severity === 'low' ? severity : 'medium';
-}
-
-// 审稿 issue 只带 evidence 文本、无字符范围；按 evidence 在正文里就近定位一个范围用于打标记。
-function locateEvidence(model: monaco.editor.ITextModel, evidence: string): monaco.IRange | null {
-  const cleaned = evidence
-    .replace(/\.{3,}$/, '')
-    .replace(/^[\s"'「『（(]+|[\s"'」』）)]+$/g, '')
-    .trim();
-  const candidates = [cleaned, cleaned.slice(0, 40), cleaned.slice(0, 20)];
-  for (const candidate of candidates) {
-    if (candidate.length < 4) continue;
-    const matches = model.findMatches(candidate, false, false, false, null, false, 1);
-    if (matches.length > 0) return matches[0].range;
-  }
-  return null;
-}
-
-function issueDecorationOptions(issue: ReviewIssueMarker): monaco.editor.IModelDecorationOptions {
-  const severity = normalizeIssueSeverity(issue.severity);
-  const hover = {
-    value: `**[${issue.id}] ${issue.severity}** ${issue.message}\n\n建议：${issue.suggestedAction}`,
-  };
-  return {
-    className: `sf-issue-underline sf-issue-${severity}`,
-    glyphMarginClassName: `sf-issue-glyph sf-issue-glyph-${severity}`,
-    glyphMarginHoverMessage: hover,
-    hoverMessage: hover,
-    overviewRuler: {
-      color: ISSUE_SEVERITY_COLOR[severity],
-      position: monaco.editor.OverviewRulerLane.Right,
-    },
-  };
 }
 
 type EditorProps = {
@@ -120,85 +64,55 @@ export function Editor({
   const [loadError, setLoadError] = useState('');
   const [editorInitError, setEditorInitError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
-  const [suggestionStatus, setSuggestionStatus] = useState('');
-  const [isReviseLoading, setIsReviseLoading] = useState(false);
-  const assistantSessionIdRef = useRef<number | null>(null);
-  const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
   const cleanVersionIdRef = useRef<number | null>(null);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const issueByLineRef = useRef<Map<number, string>>(new Map());
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
-  // 剧情分支画布：当前文件的分支清单与活动分支（新保存挂在活动分支 tip 之后）。
-  const [branchManifest, setBranchManifest] = useState<BranchManifest>(() => emptyManifest());
-  const branchManifestRef = useRef<BranchManifest>(branchManifest);
-
   // 用 ref 持有最新值，避免 Monaco 命令/回调闭包读到旧状态。
   const originalContentRef = useRef('');
   const filePathRef = useRef<string | null>(null);
   const projectPathRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
+  const {
+    branchManifest,
+    advanceBranchHead,
+    createBranchFromNode,
+    getActiveBranchSnapshot,
+    selectBranch,
+  } = useBranchManifest(projectPath, filePath);
+  const {
+    handleAcceptHunk,
+    handleAcceptSuggestion,
+    handleSaveSuggestionNote,
+    isReviseLoading,
+    pendingSuggestion,
+    rejectPendingSuggestion,
+    resetSuggestionWriteback,
+    setSuggestionStatus,
+    suggestionStatus,
+  } = useSuggestionWriteback({
+    editorRef,
+    originalContentRef,
+    cleanVersionIdRef,
+    filePathRef,
+    projectPathRef,
+    setLoadedContentPreview,
+    setIsDirty,
+    normalizeEol,
+    getActiveBranchSnapshot,
+    advanceBranchHead,
+    recordRevisionLoop,
+    emitAuthorLoopResult,
+  });
 
   // 每次渲染后同步最新值到 ref（见上注释），供 Monaco 命令/回调闭包读取最新状态。
   useEffect(() => {
     filePathRef.current = filePath;
     projectPathRef.current = projectPath;
     isDirtyRef.current = isDirty;
-    pendingSuggestionRef.current = pendingSuggestion;
     autoSaveRef.current = autoSave;
-    branchManifestRef.current = branchManifest;
   });
-
-  // 打开文件时加载该文件的分支清单；缺失则回退到仅含主线的默认清单。
-  useEffect(() => {
-    if (!filePath) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置分支清单，React18 合法模式
-      setBranchManifest(emptyManifest());
-      branchManifestRef.current = emptyManifest();
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const manifest = await loadBranchManifest(projectPath, filePath);
-      if (cancelled) return;
-      setBranchManifest(manifest);
-      branchManifestRef.current = manifest;
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, filePath]);
-
-  // 在活动分支上提交一份新快照后，把该分支 tip 推进到新节点并落盘分支清单。
-  const advanceBranchHead = useCallback(async (timestamp: number) => {
-    const project = projectPathRef.current;
-    const path = filePathRef.current;
-    if (!project || !path) return;
-    const current = branchManifestRef.current;
-    const next = setBranchHead(current, current.activeBranchId, timestamp);
-    branchManifestRef.current = next;
-    setBranchManifest(next);
-    try {
-      await saveBranchManifest(project, path, next);
-    } catch (err) {
-      console.error('写入分支清单失败:', err);
-    }
-  }, []);
-
-  const handleSelectBranch = useCallback(async (branchId: string) => {
-    const next = setActiveBranch(branchManifestRef.current, branchId);
-    branchManifestRef.current = next;
-    setBranchManifest(next);
-    const project = projectPathRef.current;
-    const path = filePathRef.current;
-    if (!project || !path) return;
-    try {
-      await saveBranchManifest(project, path, next);
-    } catch (err) {
-      console.error('写入分支清单失败:', err);
-    }
-  }, []);
 
   const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
     const editor = editorRef.current;
@@ -235,9 +149,7 @@ export function Editor({
       setLoadAttemptFilePath(null);
       setLoadError('');
       setShowHistory(false);
-      setPendingSuggestion(null);
-      setSuggestionStatus('');
-      setIsReviseLoading(false);
+      resetSuggestionWriteback();
       setIsDirty(false);
       editorRef.current?.setValue('');
       return;
@@ -249,9 +161,7 @@ export function Editor({
     setLoadedContentPreview('');
     setLoadError('');
     setShowHistory(false);
-    setPendingSuggestion(null);
-    setSuggestionStatus('');
-    setIsReviseLoading(false);
+    resetSuggestionWriteback();
 
     const loadFile = async () => {
       try {
@@ -383,20 +293,6 @@ export function Editor({
     cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
   }, [editorReady, filePath, loadedContent, loadedFilePath]);
 
-  // 接收中间 AI 交互区生成的文件建议补丁。
-  useEffect(() => {
-    const onSuggestion = (event: Event) => {
-      const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
-      if (!suggestion || suggestion.filePath !== filePathRef.current) return;
-      setPendingSuggestion(suggestion);
-      setSuggestionStatus('');
-    };
-    window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
-    return () => {
-      window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
-    };
-  }, []);
-
   // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。
   useEffect(() => {
     const onIssues = (event: Event) => {
@@ -419,7 +315,7 @@ export function Editor({
       const previous = originalContentRef.current;
       if (previous !== '' && normalizeEol(previous) !== normalizeEol(content)) {
         try {
-          const branch = getActiveBranch(branchManifestRef.current);
+          const branch = getActiveBranchSnapshot();
           const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Editor',
             summary: '手动保存前快照',
@@ -468,151 +364,6 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性注册窗口监听；handleSave 经 ref 读取文件路径/编辑器/dirty 态，闭包不读旧值；列入依赖会因其含分支血缘逻辑、每渲染重建为不稳定引用而反复重挂监听
   }, []);
 
-  const writeAcceptedSuggestion = async (
-    suggestion: AssistantFileSuggestion,
-    path: string,
-    previous: string,
-    nextContent: string,
-    overrides: { summary?: string; note?: string } = {},
-  ) => {
-    const summary = overrides.summary ?? suggestion.summary;
-    const note = overrides.note ?? suggestion.note;
-    if (normalizeEol(previous) !== normalizeEol(nextContent)) {
-      try {
-        const branch = getActiveBranch(branchManifestRef.current);
-        const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
-          source: 'Agent',
-          summary,
-          patchId: suggestion.id,
-          assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
-          issueIds: suggestion.issueIds,
-          contextFiles: suggestion.contextFiles,
-          branchId: branch.id,
-          branchLabel: branch.label,
-          parentId: branch.headNodeId,
-        });
-        if (snapshot) await advanceBranchHead(snapshot.timestamp);
-      } catch (snapshotErr) {
-        console.error('写入版本快照失败:', snapshotErr);
-      }
-    }
-    await TauriFileSystem.writeFile(path, nextContent);
-    const loopRecord = await recordRevisionLoop({
-      projectPath: projectPathRef.current,
-      filePath: path,
-      before: previous,
-      after: nextContent,
-      summary,
-      note,
-      userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-      assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
-      patchId: suggestion.id,
-      issueIds: suggestion.issueIds,
-      contextFiles: suggestion.contextFiles,
-    });
-    editorRef.current?.setValue(nextContent);
-    originalContentRef.current = nextContent;
-    cleanVersionIdRef.current = editorRef.current?.getModel()?.getAlternativeVersionId() ?? null;
-    setLoadedContentPreview(nextContent.slice(0, 120));
-    setIsDirty(false);
-    return loopRecord;
-  };
-
-  const handleAcceptSuggestion = async () => {
-    const suggestion = pendingSuggestionRef.current;
-    const path = filePathRef.current;
-    if (!suggestion || !path || !editorRef.current) {
-      emitAuthorLoopResult({
-        filePath: path ?? '',
-        status: 'error',
-        action: 'revision_accepted',
-        message: '当前没有待写回的修订。',
-      });
-      return;
-    }
-
-    try {
-      const currentContent = editorRef.current.getValue();
-      if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
-        const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
-        setSuggestionStatus(message);
-        emitAuthorLoopResult({
-          filePath: path,
-          status: 'error',
-          action: 'revision_accepted',
-          message,
-        });
-        return;
-      }
-
-      const loopRecord = await writeAcceptedSuggestion(
-        suggestion,
-        path,
-        currentContent,
-        suggestion.after,
-      );
-      setPendingSuggestion(null);
-      setSuggestionStatus(
-        loopRecord.recordPath ? `已接受并写入当前文件，闭环记录已保存` : '已接受并写入当前文件',
-      );
-      emitAuthorLoopResult({
-        filePath: path,
-        status: 'completed',
-        action: 'revision_accepted',
-        message: loopRecord.recordPath ? '修订已写回并记录闭环' : '修订已写回',
-        recordPath: loopRecord.recordPath ?? undefined,
-      });
-    } catch (err) {
-      setSuggestionStatus(`接受失败: ${err instanceof Error ? err.message : String(err)}`);
-      emitAuthorLoopResult({
-        filePath: path,
-        status: 'error',
-        action: 'revision_accepted',
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
-  const handleAcceptHunk = async (hunk: PatchHunk) => {
-    const suggestion = pendingSuggestionRef.current;
-    const path = filePathRef.current;
-    if (!suggestion || !path || !editorRef.current) {
-      setSuggestionStatus('当前没有待写回的修订。');
-      return;
-    }
-
-    try {
-      const currentContent = editorRef.current.getValue();
-      if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
-        setSuggestionStatus('当前文件内容已变化，请重新生成修订后再分块接受。');
-        return;
-      }
-      const nextContent = applyPatchHunk(suggestion.before, suggestion.after, hunk);
-      const loopRecord = await writeAcceptedSuggestion(
-        suggestion,
-        path,
-        currentContent,
-        nextContent,
-        {
-          summary: `${suggestion.summary}（接受分块）`,
-          note: `${suggestion.note}\n\n分块接受：第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`,
-        },
-      );
-      if (normalizeEol(nextContent) === normalizeEol(suggestion.after)) {
-        setPendingSuggestion(null);
-      } else {
-        setPendingSuggestion({ ...suggestion, before: nextContent });
-      }
-      setSuggestionStatus(
-        loopRecord.recordPath
-          ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
-          : '已接受该修改块并写入当前文件',
-      );
-    } catch (err) {
-      setSuggestionStatus(`接受分块失败: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
-
   const handleExport = async () => {
     const path = filePathRef.current;
     const project = projectPathRef.current;
@@ -645,21 +396,6 @@ export function Editor({
   };
 
   useEffect(() => {
-    const onSuggestionResult = (event: Event) => {
-      const result = (event as CustomEvent<SuggestionResult>).detail;
-      const path = filePathRef.current;
-      if (!result || !path || result.filePath !== path) return;
-      setIsReviseLoading(false);
-      setSuggestionStatus(result.status === 'ready' ? '' : `AI 修订失败：${result.message}`);
-      if (result.assistantSessionId) {
-        assistantSessionIdRef.current = result.assistantSessionId;
-      }
-    };
-    window.addEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
-    return () => window.removeEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
-  }, []);
-
-  useEffect(() => {
     const onExportCurrent = () => {
       if (!filePathRef.current) return;
       void handleExport();
@@ -667,66 +403,6 @@ export function Editor({
     window.addEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
     return () => window.removeEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
   }, []);
-
-  useEffect(() => {
-    const onAcceptCurrentSuggestion = () => {
-      void handleAcceptSuggestion();
-    };
-    window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
-    return () =>
-      window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性注册窗口监听；handleAcceptSuggestion 经 ref 读取待写回补丁/文件路径，闭包不读旧值；列入依赖会因其每渲染重建（现调用抽出的 writeAcceptedSuggestion）而反复重挂监听
-  }, []);
-
-  const handleSaveSuggestionNote = async () => {
-    const suggestion = pendingSuggestion;
-    const project = projectPathRef.current;
-    if (!suggestion || !project) return;
-
-    try {
-      const separator = project.includes('\\') ? '\\' : '/';
-      const fileName = suggestion.filePath.split(/[/\\]/).pop() ?? 'file';
-      const notePath = [
-        project.replace(/[/\\]+$/, ''),
-        '.storyforge',
-        'notes',
-        `${Date.now()}-${fileName}.md`,
-      ].join(separator);
-      const note = [
-        `# ${suggestion.title}`,
-        '',
-        `- 文件：${suggestion.filePath}`,
-        `- 时间：${new Date(suggestion.createdAt).toISOString()}`,
-        '',
-        '## 摘要',
-        '',
-        suggestion.summary,
-        '',
-        '## 旁注',
-        '',
-        suggestion.note,
-        '',
-        '## 当前内容摘录',
-        '',
-        '```markdown',
-        suggestion.before.slice(0, 2000),
-        suggestion.before.length > 2000 ? '...' : '',
-        '```',
-        '',
-        '## 建议后摘录',
-        '',
-        '```markdown',
-        suggestion.after.slice(0, 2000),
-        suggestion.after.length > 2000 ? '...' : '',
-        '```',
-      ].join('\n');
-      await TauriFileSystem.writeFile(notePath, note);
-      setPendingSuggestion(null);
-      setSuggestionStatus(`已保存旁注: ${notePath}`);
-    } catch (err) {
-      setSuggestionStatus(`保存旁注失败: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
 
   // 恢复某个历史版本到编辑器（不立即写盘，标记为脏，由用户确认保存）
   const handleRestore = (content: string) => {
@@ -753,14 +429,7 @@ export function Editor({
     if (!project || !path) return;
     const label = window.prompt('新分支名称', `分支 @ ${formatTimestamp(node.timestamp)}`);
     if (label === null) return;
-    const next = createBranch(branchManifestRef.current, node.id, label);
-    branchManifestRef.current = next;
-    setBranchManifest(next);
-    try {
-      await saveBranchManifest(project, path, next);
-    } catch (err) {
-      console.error('写入分支清单失败:', err);
-    }
+    await createBranchFromNode(node.id, label);
     await handleCheckoutNode(node);
   };
 
@@ -898,10 +567,7 @@ export function Editor({
           suggestion={pendingSuggestion}
           onAccept={handleAcceptSuggestion}
           onAcceptHunk={handleAcceptHunk}
-          onReject={() => {
-            setPendingSuggestion(null);
-            setSuggestionStatus('已拒绝建议补丁');
-          }}
+          onReject={rejectPendingSuggestion}
           onSaveNote={handleSaveSuggestionNote}
         />
       )}
@@ -918,202 +584,10 @@ export function Editor({
             onRestore={handleRestore}
             onCheckoutNode={handleCheckoutNode}
             onBranchFromNode={handleBranchFromNode}
-            onSelectBranch={handleSelectBranch}
+            onSelectBranch={selectBranch}
             onClose={() => setShowHistory(false)}
           />
         ) : null)}
-    </div>
-  );
-}
-
-function formatTimestamp(ms: number): string {
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function VersionHistory({
-  projectPath,
-  filePath,
-  manifest,
-  onRestore,
-  onCheckoutNode,
-  onBranchFromNode,
-  onSelectBranch,
-  onClose,
-}: {
-  projectPath: string | null;
-  filePath: string;
-  manifest: BranchManifest;
-  onRestore: (content: string) => void;
-  onCheckoutNode: (node: GraphNode) => void;
-  onBranchFromNode: (node: GraphNode) => void;
-  onSelectBranch: (branchId: string) => void;
-  onClose: () => void;
-}) {
-  const [versions, setVersions] = useState<VersionEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'Editor' | 'Agent'>('all');
-  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const list = await listVersions(projectPath, filePath);
-        if (!cancelled) setVersions(list);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '读取版本失败');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, filePath]);
-
-  const restore = async (snapshotPath: string) => {
-    setBusy(true);
-    try {
-      const content = await readVersion(snapshotPath);
-      onRestore(content);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '恢复版本失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const graph = useMemo(() => buildGraph(versions ?? [], manifest), [versions, manifest]);
-  const visibleVersions = versions?.filter((version) =>
-    sourceFilter === 'all' ? true : version.source === sourceFilter,
-  );
-
-  return (
-    <div
-      className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade"
-      data-testid="version-history"
-    >
-      <div className="sf-panel-header border-border">
-        <span className="text-sm font-semibold">版本记录</span>
-        <div className="ml-auto flex items-center gap-1" data-testid="version-view-toggle">
-          {(['list', 'graph'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={`rounded-md px-2 py-1 text-xs ${viewMode === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
-              onClick={() => setViewMode(value)}
-              data-testid={`version-view-${value}`}
-            >
-              {value === 'list' ? '列表' : '分支图'}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={onClose}
-          title="关闭"
-          className="sf-icon-button text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-      {viewMode === 'graph' ? (
-        <div className="min-h-0 flex-1">
-          {error ? (
-            <p className="p-2 text-sm text-error">{error}</p>
-          ) : versions === null ? (
-            <p className="p-2 text-sm text-muted">加载中...</p>
-          ) : (
-            <BranchCanvas
-              graph={graph}
-              activeBranchId={manifest.activeBranchId}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
-              onSelectBranch={onSelectBranch}
-              onCheckout={onCheckoutNode}
-              onBranchFrom={onBranchFromNode}
-              readNodeContent={readVersion}
-            />
-          )}
-        </div>
-      ) : (
-        <>
-          <div
-            className="flex flex-shrink-0 gap-1 border-b border-border p-2"
-            data-testid="version-source-filter"
-          >
-            {(['all', 'Editor', 'Agent'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={`rounded-md px-2 py-1 text-xs ${sourceFilter === value ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-foreground/10'}`}
-                onClick={() => setSourceFilter(value)}
-                data-testid={`version-filter-${value}`}
-              >
-                {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'Agent'}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {error ? (
-              <p className="text-sm text-error p-2">{error}</p>
-            ) : versions === null ? (
-              <p className="text-sm text-muted p-2">加载中...</p>
-            ) : visibleVersions?.length === 0 ? (
-              <p className="text-sm text-muted p-2">还没有历史版本。保存修改后会自动记录。</p>
-            ) : (
-              visibleVersions?.map((v) => (
-                <div
-                  key={v.path}
-                  className="rounded-md border border-border bg-surface p-2"
-                  data-testid="version-entry"
-                  data-version-source={v.source ?? ''}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className="text-xs text-foreground truncate"
-                      title={formatTimestamp(v.timestamp)}
-                    >
-                      {formatTimestamp(v.timestamp)}
-                    </span>
-                    <button
-                      disabled={busy}
-                      onClick={() => restore(v.path)}
-                      className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 flex-shrink-0 transition-opacity"
-                    >
-                      恢复
-                    </button>
-                  </div>
-                  <div
-                    className="mt-1 truncate text-[11px] text-muted"
-                    title={v.summary ?? v.file ?? ''}
-                  >
-                    {v.source ? `${v.source} · ` : ''}
-                    {v.summary ?? v.file ?? '版本快照'}
-                  </div>
-                  {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
-                    <div
-                      className="mt-1 truncate text-[11px] text-muted"
-                      data-testid="version-agent-meta"
-                    >
-                      {v.patchId ? `patch ${v.patchId}` : ''}
-                      {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
-                      {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

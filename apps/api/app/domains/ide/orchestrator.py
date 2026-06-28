@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs.errors import AgentOrchestrationError  # re-export
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
     AssistantMessageCreate,
@@ -41,10 +42,6 @@ SUPPORTED_INTENTS = frozenset(
         "bookrun.start",
     }
 )
-
-
-class AgentOrchestrationError(RuntimeError):
-    """Agent 编排输入不足或下游工具执行失败。"""
 
 
 @dataclass(frozen=True)

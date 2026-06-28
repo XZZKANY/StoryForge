@@ -6,10 +6,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.role_catalog import get_agent_role, is_role_allowed_tool, list_subagent_roles
 from app.domains.agent_runs.trace import AgentToolTrace
-from app.domains.ide.orchestrator import AgentOrchestrationError
 
 ToolHandler = Callable[["ToolExecutionContext", dict[str, Any]], "ToolResult"]
 

@@ -13,6 +13,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_chapter_plan_summary,
     _bookrun_risk_summary,
 )
+from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.intent import (
     SUPPORTED_INTENTS as SUPPORTED_INTENTS,
 )
@@ -60,7 +61,7 @@ from app.domains.assistant.schemas import (
 )
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
-from app.domains.ide.orchestrator import AgentOrchestrationError, orchestrate_agent_message
+from app.domains.ide.orchestrator import orchestrate_agent_message
 from app.domains.ide.review_skills import review_context_summary
 from app.domains.ide.service import (
     IdeCommandExecutionError,

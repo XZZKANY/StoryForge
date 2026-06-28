@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.domains.agent_runs._text import _optional_string, _ordered_unique, _string_arg_list
+from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.role_catalog import get_agent_role, resolve_agent_role_alias
-from app.domains.ide.orchestrator import AgentOrchestrationError
 
 SUPPORTED_INTENTS = frozenset(
     {
