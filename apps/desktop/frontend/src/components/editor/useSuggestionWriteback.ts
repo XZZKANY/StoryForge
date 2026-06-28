@@ -1,0 +1,328 @@
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import type * as monaco from 'monaco-editor';
+
+import {
+  ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
+  APPLY_FILE_SUGGESTION_EVENT,
+  SUGGESTION_RESULT_EVENT,
+  type AuthorLoopResult,
+  type SuggestionResult,
+} from '../../lib/assistant-events';
+import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
+import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
+import type { BranchInfo } from '../../lib/branches';
+import { applyPatchHunk, type PatchHunk } from '../../lib/patch-hunks';
+import { TauriFileSystem } from '../../lib/tauri-fs';
+import { snapshotBeforeWrite } from '../../lib/versions';
+
+type UseSuggestionWritebackParams = {
+  editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
+  originalContentRef: MutableRefObject<string>;
+  cleanVersionIdRef: MutableRefObject<number | null>;
+  filePathRef: MutableRefObject<string | null>;
+  projectPathRef: MutableRefObject<string | null>;
+  setLoadedContentPreview: (preview: string) => void;
+  setIsDirty: (dirty: boolean) => void;
+  normalizeEol: (text: string) => string;
+  getActiveBranchSnapshot: () => BranchInfo;
+  advanceBranchHead: (timestamp: number) => Promise<void>;
+  recordRevisionLoop: (record: RevisionLoopRecord) => Promise<RevisionLoopResult>;
+  emitAuthorLoopResult: (result: AuthorLoopResult) => void;
+};
+
+export function useSuggestionWriteback({
+  editorRef,
+  originalContentRef,
+  cleanVersionIdRef,
+  filePathRef,
+  projectPathRef,
+  setLoadedContentPreview,
+  setIsDirty,
+  normalizeEol,
+  getActiveBranchSnapshot,
+  advanceBranchHead,
+  recordRevisionLoop,
+  emitAuthorLoopResult,
+}: UseSuggestionWritebackParams) {
+  const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
+  const [suggestionStatus, setSuggestionStatus] = useState('');
+  const [isReviseLoading, setIsReviseLoading] = useState(false);
+  const assistantSessionIdRef = useRef<number | null>(null);
+  const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
+
+  useEffect(() => {
+    pendingSuggestionRef.current = pendingSuggestion;
+  });
+
+  const resetSuggestionWriteback = useCallback(() => {
+    setPendingSuggestion(null);
+    setSuggestionStatus('');
+    setIsReviseLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const onSuggestion = (event: Event) => {
+      const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
+      if (!suggestion || suggestion.filePath !== filePathRef.current) return;
+      setPendingSuggestion(suggestion);
+      setSuggestionStatus('');
+    };
+    window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
+    return () => {
+      window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
+    };
+  }, [filePathRef]);
+
+  const writeAcceptedSuggestion = useCallback(
+    async (
+      suggestion: AssistantFileSuggestion,
+      path: string,
+      previous: string,
+      nextContent: string,
+      overrides: { summary?: string; note?: string } = {},
+    ) => {
+      const summary = overrides.summary ?? suggestion.summary;
+      const note = overrides.note ?? suggestion.note;
+      if (normalizeEol(previous) !== normalizeEol(nextContent)) {
+        try {
+          const branch = getActiveBranchSnapshot();
+          const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+            source: 'Agent',
+            summary,
+            patchId: suggestion.id,
+            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            issueIds: suggestion.issueIds,
+            contextFiles: suggestion.contextFiles,
+            branchId: branch.id,
+            branchLabel: branch.label,
+            parentId: branch.headNodeId,
+          });
+          if (snapshot) await advanceBranchHead(snapshot.timestamp);
+        } catch (snapshotErr) {
+          console.error('写入版本快照失败:', snapshotErr);
+        }
+      }
+      await TauriFileSystem.writeFile(path, nextContent);
+      const loopRecord = await recordRevisionLoop({
+        projectPath: projectPathRef.current,
+        filePath: path,
+        before: previous,
+        after: nextContent,
+        summary,
+        note,
+        userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+        assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+        patchId: suggestion.id,
+        issueIds: suggestion.issueIds,
+        contextFiles: suggestion.contextFiles,
+      });
+      editorRef.current?.setValue(nextContent);
+      originalContentRef.current = nextContent;
+      cleanVersionIdRef.current = editorRef.current?.getModel()?.getAlternativeVersionId() ?? null;
+      setLoadedContentPreview(nextContent.slice(0, 120));
+      setIsDirty(false);
+      return loopRecord;
+    },
+    [
+      advanceBranchHead,
+      cleanVersionIdRef,
+      editorRef,
+      getActiveBranchSnapshot,
+      normalizeEol,
+      originalContentRef,
+      projectPathRef,
+      recordRevisionLoop,
+      setIsDirty,
+      setLoadedContentPreview,
+    ],
+  );
+
+  const handleAcceptSuggestion = useCallback(async () => {
+    const suggestion = pendingSuggestionRef.current;
+    const path = filePathRef.current;
+    if (!suggestion || !path || !editorRef.current) {
+      emitAuthorLoopResult({
+        filePath: path ?? '',
+        status: 'error',
+        action: 'revision_accepted',
+        message: '当前没有待写回的修订。',
+      });
+      return;
+    }
+
+    try {
+      const currentContent = editorRef.current.getValue();
+      if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
+        const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
+        setSuggestionStatus(message);
+        emitAuthorLoopResult({
+          filePath: path,
+          status: 'error',
+          action: 'revision_accepted',
+          message,
+        });
+        return;
+      }
+
+      const loopRecord = await writeAcceptedSuggestion(
+        suggestion,
+        path,
+        currentContent,
+        suggestion.after,
+      );
+      setPendingSuggestion(null);
+      setSuggestionStatus(
+        loopRecord.recordPath ? `已接受并写入当前文件，闭环记录已保存` : '已接受并写入当前文件',
+      );
+      emitAuthorLoopResult({
+        filePath: path,
+        status: 'completed',
+        action: 'revision_accepted',
+        message: loopRecord.recordPath ? '修订已写回并记录闭环' : '修订已写回',
+        recordPath: loopRecord.recordPath ?? undefined,
+      });
+    } catch (err) {
+      setSuggestionStatus(`接受失败: ${err instanceof Error ? err.message : String(err)}`);
+      emitAuthorLoopResult({
+        filePath: path,
+        status: 'error',
+        action: 'revision_accepted',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [editorRef, emitAuthorLoopResult, filePathRef, normalizeEol, writeAcceptedSuggestion]);
+
+  const handleAcceptHunk = useCallback(
+    async (hunk: PatchHunk) => {
+      const suggestion = pendingSuggestionRef.current;
+      const path = filePathRef.current;
+      if (!suggestion || !path || !editorRef.current) {
+        setSuggestionStatus('当前没有待写回的修订。');
+        return;
+      }
+
+      try {
+        const currentContent = editorRef.current.getValue();
+        if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
+          setSuggestionStatus('当前文件内容已变化，请重新生成修订后再分块接受。');
+          return;
+        }
+        const nextContent = applyPatchHunk(suggestion.before, suggestion.after, hunk);
+        const loopRecord = await writeAcceptedSuggestion(
+          suggestion,
+          path,
+          currentContent,
+          nextContent,
+          {
+            summary: `${suggestion.summary}（接受分块）`,
+            note: `${suggestion.note}\n\n分块接受：第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`,
+          },
+        );
+        if (normalizeEol(nextContent) === normalizeEol(suggestion.after)) {
+          setPendingSuggestion(null);
+        } else {
+          setPendingSuggestion({ ...suggestion, before: nextContent });
+        }
+        setSuggestionStatus(
+          loopRecord.recordPath
+            ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
+            : '已接受该修改块并写入当前文件',
+        );
+      } catch (err) {
+        setSuggestionStatus(`接受分块失败: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [editorRef, filePathRef, normalizeEol, writeAcceptedSuggestion],
+  );
+
+  useEffect(() => {
+    const onSuggestionResult = (event: Event) => {
+      const result = (event as CustomEvent<SuggestionResult>).detail;
+      const path = filePathRef.current;
+      if (!result || !path || result.filePath !== path) return;
+      setIsReviseLoading(false);
+      setSuggestionStatus(result.status === 'ready' ? '' : `AI 修订失败：${result.message}`);
+      if (result.assistantSessionId) {
+        assistantSessionIdRef.current = result.assistantSessionId;
+      }
+    };
+    window.addEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
+    return () => window.removeEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
+  }, [filePathRef]);
+
+  useEffect(() => {
+    const onAcceptCurrentSuggestion = () => {
+      void handleAcceptSuggestion();
+    };
+    window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
+    return () =>
+      window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
+  }, [handleAcceptSuggestion]);
+
+  const handleSaveSuggestionNote = useCallback(async () => {
+    const suggestion = pendingSuggestion;
+    const project = projectPathRef.current;
+    if (!suggestion || !project) return;
+
+    try {
+      const separator = project.includes('\\') ? '\\' : '/';
+      const fileName = suggestion.filePath.split(/[/\\]/).pop() ?? 'file';
+      const notePath = [
+        project.replace(/[/\\]+$/, ''),
+        '.storyforge',
+        'notes',
+        `${Date.now()}-${fileName}.md`,
+      ].join(separator);
+      const note = [
+        `# ${suggestion.title}`,
+        '',
+        `- 文件：${suggestion.filePath}`,
+        `- 时间：${new Date(suggestion.createdAt).toISOString()}`,
+        '',
+        '## 摘要',
+        '',
+        suggestion.summary,
+        '',
+        '## 旁注',
+        '',
+        suggestion.note,
+        '',
+        '## 当前内容摘录',
+        '',
+        '```markdown',
+        suggestion.before.slice(0, 2000),
+        suggestion.before.length > 2000 ? '...' : '',
+        '```',
+        '',
+        '## 建议后摘录',
+        '',
+        '```markdown',
+        suggestion.after.slice(0, 2000),
+        suggestion.after.length > 2000 ? '...' : '',
+        '```',
+      ].join('\n');
+      await TauriFileSystem.writeFile(notePath, note);
+      setPendingSuggestion(null);
+      setSuggestionStatus(`已保存旁注: ${notePath}`);
+    } catch (err) {
+      setSuggestionStatus(`保存旁注失败: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [pendingSuggestion, projectPathRef]);
+
+  const rejectPendingSuggestion = useCallback(() => {
+    setPendingSuggestion(null);
+    setSuggestionStatus('已拒绝建议补丁');
+  }, []);
+
+  return {
+    handleAcceptHunk,
+    handleAcceptSuggestion,
+    handleSaveSuggestionNote,
+    isReviseLoading,
+    pendingSuggestion,
+    rejectPendingSuggestion,
+    resetSuggestionWriteback,
+    setSuggestionStatus,
+    suggestionStatus,
+  };
+}

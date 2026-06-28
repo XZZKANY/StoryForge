@@ -1392,3 +1392,629 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 **结果**：E1 完成，产出 `docs/internal/e1-ide-orchestrator-boundary.md`，为 E2 提供可执行的迁移顺序（先迁 `AgentOrchestrationError` 解 5 处依赖 → 再迁 `chapter.*` 编排收缩 fallback → 死集随迁随删）。
 
 **明确建议**：通过。E1 为审计型条目，零行为变更、证据链完整；E2 涉及对外行为收缩，按 plan 须单独评审后再动刀。
+
+## B1 重构验证（2026-06-28）
+
+**条目**：Wave 1 B1 — book_generation.py evidence/metrics 簇提取（零行为变更）
+
+**执行刀**：
+1. 新建 book_generation_metrics.py，迁入 17 个纯函数（_result_summary、_evidence_summary、_artifact_*、_per_chapter_*、_latency_*、_aggregate_cost_breakdown 等）及 MARKDOWN_CHAPTER_HEADING_RE。
+2. book_generation.py 顶层 facade re-export 全部 17 符号（宪法第 4/5/6 条）。
+3. 删除 book_generation.py 内重复定义（原 1654-1879 行）。
+
+**验证门禁**：
+- uv run ruff check app/domains/book_runs/book_generation*.py → 通过
+- uv run pytest tests/test_book_generation*.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py -v → 65 passed, 1 skipped (真实 LLM 测试，与重构无关)
+
+**import 环验证**：import app.domains.book_runs.book_generation as generation → book_generation_parallel.py 通过 generation.name 访问的 30+ 符号全部可达。
+
+**monkeypatch 目标验证**：
+- tests/test_book_generation.py 直接 import _evidence_summary → 通过 facade 可达
+- .codex/run-real-llm-long-direct.py import _artifact_text, _evidence_summary → 通过 facade 可达
+- tests/test_book_generation_long_wrapper.py monkeypatch module._artifact_text → wrapper 模块内的符号，非 book_generation 命名空间，不受影响
+
+**行为变更**：无（零行为变更，纯移动 + facade re-export）。风险高（import 拓扑复杂）但实际落地零破坏。
+
+## E2-1 重构验证（2026-06-28）
+
+**条目**：第 3 层 E2-1 — `AgentOrchestrationError` 迁移到 `agent_runs/errors.py`（零行为变更）
+
+**背景**：E1 审计发现 `AgentOrchestrationError` 是跨 legacy/live 边界的 5 处 live 引用根节点，且「薄模块反向依赖胖模块」的环点。E2-1 是低风险首刀，解除反向依赖。
+
+**执行刀**：
+1. 新建 `agent_runs/errors.py`（上一轮已创建），承载 `AgentOrchestrationError` 单类。
+2. 5 处 live import 切源：`agent_runs/{tooling,intent,review_report,service,runtime}.py` 全部从 `from app.domains.ide.orchestrator import AgentOrchestrationError` 改为 `from app.domains.agent_runs.errors import AgentOrchestrationError`。
+3. runtime.py 同时保留 `from app.domains.ide.orchestrator import orchestrate_agent_message`（legacy fallback，E2-3 时再迁）。
+4. `ide/orchestrator.py` 删除本地类定义，改为 `from app.domains.agent_runs.errors import AgentOrchestrationError` re-export（宪法第 5 条兼容契约）。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check ...` → 6 个 I001 import 排序错误，`--fix` 一次性修齐后 All checks passed。
+- `cd apps/api && uv run python -c "import app.main"` → OK（无 import 环）。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **59 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_assistant_revise.py tests/test_ide_commands.py tests/test_ide_context_snapshot.py tests/test_ide_run_events.py tests/test_runtime_tools.py -q` → **81 passed, 1 warning**（422 deprecation，既有，非本轮引入）。
+
+**identity 验证**：`orchestrator.AgentOrchestrationError is errors.AgentOrchestrationError is tooling.AgentOrchestrationError` → 全部 `True`，facade re-export 完整保留 monkeypatch/测试 import 可达性。
+
+**行为变更**：无（纯文件级移动 + facade re-export）。
+
+**影响**：解除 agent_runs 薄模块对 ide/orchestrator 胖模块的反向依赖；为 E2-2（live/legacy `_detect_intent` 对账）、E2-3（迁 chapter.review/chapter.repair 入 live）、E2-4（删死集收尾）铺路。
+
+## B1 LLM cluster 重构验证（2026-06-28）
+
+**条目**：Wave 1 B1 — book_generation.py LLM 簇提取 + errors.py 共享叶子底座（零行为变更）
+
+**执行刀**：
+1. 新建 `book_runs/errors.py`，迁入 `BookGenerationError`/`BookGenerationPreflightError` 两个异常类，作为共享叶子底座（避免 LLM/metrics 子模块反向依赖 god-file）。
+2. 新建 `book_generation_llm.py`，迁入 LLM 调用辅助函数簇：
+   - 正则常量：`THINK_BLOCK_RE`/`THINK_OPEN_RE`/`THINK_CLOSE_RE`
+   - 函数：`_strip_reasoning_leak`、`_call_llm`、`_llm_request_headers`、`_token_usage`、`_cost_breakdown`、`_total_cost_estimate`、`_env_value`、`_required_env`、`_optional_int`、`_optional_float`
+3. `book_generation.py` 顶层 facade re-export 全部符号（宪法第 4/5/6 条），包括 metrics 簇 16 符号 + LLM 簇 14 符号 + errors 2 符号。
+4. 删除 `book_generation.py` 内所有重复定义（异常类 2 个 + 常量 4 个 + 函数 25 个）。
+5. 清理遗留 orphan imports（`hashlib`/`urllib.error`/`urllib.request`/`re`）。
+
+**验证门禁**：
+- `uv run ruff check app/domains/book_runs/book_generation*.py app/domains/book_runs/errors.py` → All checks passed。
+- `uv run python -c "import app.main"` → OK（无 import 环）。
+- 42 个符号经 `generation.<name>` 属性访问全部可达（含 `book_generation_parallel.py` 的 20+ 私有符号）。
+- `uv run pytest tests/test_book_generation*.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py -q` → **65 passed, 1 skipped**（skip 是真实 LLM 测试）。
+
+**import 拓扑验证**：
+- `book_generation.py`（facade）→ imports `book_generation_metrics.py`（叶子）+ `book_generation_llm.py`（叶子）+ `errors.py`（叶子）
+- `book_generation_llm.py` → imports `book_generation_metrics.py`（仅 `_float_value`）+ `errors.py`
+- 无反向依赖，无环。
+
+**monkeypatch 目标验证**：
+- `tests/test_multi_round_repair.py` 直接 import `_judge_and_repair_loop`、`MAX_REPAIR_ROUNDS`、`REPAIR_THRESHOLD` → 仍在 god-file，可达。
+- `tests/test_book_generation.py` 直接 import 多个符号 → 通过 facade 可达。
+
+**行为变更**：无（纯文件级移动 + facade re-export）。1871 行 → 1484 行 god-file + 264 行 metrics + 192 行 llm + 15 行 errors。
+
+## B1 Judge cluster 重构验证（2026-06-28）
+
+**条目**：Wave 1 B1 — `book_generation.py` Judge & Repair 簇提取（零行为变更）
+
+**执行刀**：
+1. 修正并接入 `book_generation_judge.py`，承载 Judge & Repair 深模块：
+   - 常量：`REPAIR_THRESHOLD` / `MAX_REPAIR_ROUNDS` / `WORD_COUNT_CEILING_RUNAWAY_FACTOR`
+   - 内部评分表：`_SEVERITY_PENALTY` / `_CATEGORY_DIMENSION` / `_SEVERITY_ORDER`
+   - 类型：`_JudgeRunResult`
+   - 函数：`_judge_and_repair_loop`、`_apply_word_count_floor`、`_run_real_judge`、`_fast_judge_enabled`、`_quality_score`、`_build_judge_payload`、`_book_id_for_scene`、`_maybe_repair`、`_record_summary_judge`
+2. `book_generation.py` 顶层 facade re-export 上述符号，保留旧 import 路径和 `generation.<name>` 属性访问。
+3. 删除 `book_generation.py` 内重复 Judge & Repair 实现；`book_generation.py` 当前约 1018 行，`book_generation_judge.py` 约 342 行。
+4. 保持 `book_generation_parallel.py` monkeypatch/属性访问契约不变。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_generation*.py app/domains/book_runs/errors.py` → All checks passed。
+- `cd apps/api && uv run python -c "import app.main; import app.domains.book_runs.book_generation as generation; import app.domains.book_runs.book_generation_judge as judge; assert generation._judge_and_repair_loop is judge._judge_and_repair_loop; assert generation._apply_word_count_floor is judge._apply_word_count_floor; assert generation.REPAIR_THRESHOLD == 70; assert generation.MAX_REPAIR_ROUNDS == 3; print('book_generation_judge_facade_ok')"` → `book_generation_judge_facade_ok`。
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py -q` → **65 passed, 1 skipped**。
+
+**命令纠偏**：
+- `uv run pytest tests/test_book_generation*.py ...` 在 Windows/pytest 参数中未展开，返回 “file or directory not found”；已改为显式文件列表重跑并通过。
+
+**import 拓扑验证**：
+- `book_generation.py`（facade）→ imports `book_generation_judge.py` / `book_generation_llm.py` / `book_generation_metrics.py` / `errors.py`。
+- `book_generation_judge.py` → imports `book_generation_llm.py`（仅 `_env_value`），不反向 import `book_generation.py`。
+- 无反向依赖，无环。
+
+**行为变更**：无（纯文件级移动 + facade re-export）。`tests/test_multi_round_repair.py` 继续从 `book_generation` import `_judge_and_repair_loop`、`REPAIR_THRESHOLD`、`MAX_REPAIR_ROUNDS` 并通过。
+
+## E2-2 对账验证（2026-06-28）
+
+**条目**：第 3 层 E2-2 — live/legacy `_detect_intent` 与 chapter helper 对账（不改码）
+
+**目标**：为 E2-3 迁移 `chapter.review` / `chapter.repair` 入 live 前确认两份实现的行为差异，避免把 `runtime.py` 中的半成品 helper 原样转活造成隐性行为变更。
+
+**对账范围**：
+- live intent：`apps/api/app/domains/agent_runs/intent.py::_detect_intent`
+- legacy intent：`apps/api/app/domains/ide/orchestrator.py::_detect_intent`
+- live chapter helper：`apps/api/app/domains/agent_runs/runtime.py::_judge_run_args_from_scene_packet` 及 `_string_list` / `_dict_list` / `_style_rules`
+- legacy chapter helper：`apps/api/app/domains/ide/orchestrator.py::_judge_run_args_from_scene_packet` 及同名 helper
+
+**结论**：
+- `SUPPORTED_INTENTS` 集合一致，显式 intent、bookrun args、issue_id、file review/revise 关键词、scene_packet_id、章节审阅关键词等样例分类一致。
+- intent 唯一已确认漂移：live 在 `has_file_context + reviewer role hint/mention + 中性话术` 时会返回 `file.review`，legacy 返回 `chat.explain`。这来自 live 新增的 `_has_reviewer_role_hint(args)` 分支。
+- `_judge_run_args_from_scene_packet` 主体源码一致：同样查询 `ScenePacket -> Scene -> Chapter`，同样校验 packet 存在和 scene content 非空，同样返回 `scene_id`、`scene_packet_id`、`content`、`required_facts`、`style_rules`、`evidence_links`。
+- chapter helper 依赖的三个小 helper 不一致：
+  - live `_string_list` 保留原字符串空白与空字符串；legacy 会 `strip()` 并丢弃空字符串。
+  - live `_style_rules` 只透传字符串列表；legacy 额外支持 `{"rule": "..."}` dict 项并做 strip/空值过滤。
+  - `_dict_list` 在可观测返回上等价，源码形态不同但样例输出一致。
+
+**本地验证（对账 smoke）**：
+- `cd apps/api && @'...intent sample matrix...'@ | uv run python -` → 12 个样例中仅 reviewer role hint/mention 漂移，其余 OK。
+- `cd apps/api && @'...helper source/output compare...'@ | uv run python -` → `_judge_run_args_from_scene_packet` 为 `IDENTICAL`；`_string_list` / `_style_rules` 漂移样例复现。
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_generation*.py app/domains/book_runs/errors.py` → All checks passed（本轮同步复验 B1 touched files）。
+- `cd apps/api && uv run python -c "...judge facade identity..."` → `judge facade identity OK`（本轮同步复验 B1 facade identity）。
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py -q` → **65 passed, 1 skipped**（本轮同步复验 B1 focused regression）。
+- `git diff --check -- docs/internal/refactor-master-plan.md .codex/verification-report.md apps/api/app/domains/book_runs/book_generation.py apps/api/app/domains/book_runs/book_generation_judge.py` → 通过（修复上一轮 CRLF/尾随空白噪声）。
+
+**E2-3 约束**：
+- 迁 `chapter.review` / `chapter.repair` 入 live 时不能直接把 `runtime.py` 现有 `_style_rules` 转活，否则会丢失 legacy 对 dict 风格规则的支持，并改变字符串 trim/空值过滤。
+- 建议 E2-3 先把 legacy chapter helper 语义迁入 `agent_runs/chapter_review.py`，再用 `tests/test_ide_agent_orchestrator.py` 端到端锁定 `judge.run` / `judge.repair` payload。
+
+**行为变更**：无。本条为审计/验证记录，仅更新文档和验证报告。
+
+## B1 Preflight cluster 重构验证（2026-06-28）
+
+**条目**：Wave 1 B1-next — `book_generation.py` env/preflight 簇提取（零行为变更）
+
+**范围审计结论**：
+- 选择下沉 `resolved_llm_env` / `missing_book_generation_env` / `_assert_preflight` / `REQUIRED_REAL_LLM_ENV` / `LLM_SETTINGS_ENV_KEYS`，因为该簇被 book generation、assistant、IDE review reasoning、parallel runner、CLI wrapper 共同引用，是真实复用点。
+- 暂不拆 pause/failure 记账、CLI `main()`、章节落库/断点重建。它们仍与 `run_book_generation` / `resume_book_generation` 主循环强耦合，贸然外移容易形成浅模块。
+
+**执行刀**：
+1. 新建 `apps/api/app/domains/book_runs/book_generation_preflight.py`，承载：
+   - `REQUIRED_REAL_LLM_ENV`
+   - `LLM_SETTINGS_ENV_KEYS`
+   - `resolved_llm_env`
+   - `missing_book_generation_env`
+   - `_assert_preflight`
+2. `book_generation.py` 顶层 facade re-export 上述符号，保持旧路径：
+   - `from app.domains.book_runs.book_generation import resolved_llm_env`
+   - `from app.domains.book_runs.book_generation import _assert_preflight`
+   - `generation.<name>` 属性访问
+3. 删除 `book_generation.py` 内重复 env/preflight 定义；`book_generation.py` 当前约 **928 行**，`book_generation_preflight.py` 约 **102 行**。
+4. 补 `apps/api/tests/conftest.py` 的测试隔离：autouse fixture 现在清理完整 `STORYFORGE_LLM_*` 配置组，避免 `.codex/run-real-llm-long-direct.py` 测试调用 `main()` 后把 `STORYFORGE_LLM_TIMEOUT_SECONDS=300` 泄漏到 assistant settings fallback 测试。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_generation*.py app/domains/book_runs/errors.py tests/conftest.py` → All checks passed。
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`。
+- `cd apps/api && uv run python -c "from app.domains.book_runs import book_generation as generation; from app.domains.book_runs import book_generation_preflight as preflight; assert generation.resolved_llm_env is preflight.resolved_llm_env; assert generation.missing_book_generation_env is preflight.missing_book_generation_env; assert generation._assert_preflight is preflight._assert_preflight; assert generation.REQUIRED_REAL_LLM_ENV is preflight.REQUIRED_REAL_LLM_ENV; print('preflight facade identity OK')"` → `preflight facade identity OK`。
+- `cd apps/api && uv run pytest tests/test_assistant_revise.py::test_revise_uses_settings_llm_config_when_env_not_exported -q` → **1 passed**（确认 settings fallback 可读到 monkeypatch 后的 `17.0`）。
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py tests/test_ide_agent_orchestrator.py -q` → **104 passed, 1 skipped, 1 warning**（warning 为既有 422 deprecation）。
+- `git diff --check -- docs/internal/refactor-master-plan.md .codex/verification-report.md apps/api/app/domains/book_runs/book_generation.py apps/api/app/domains/book_runs/book_generation_preflight.py apps/api/app/domains/book_runs/book_generation_judge.py apps/api/tests/conftest.py` → 通过。
+
+**测试污染发现**：
+- 宽回归首次失败在 `test_revise_uses_settings_llm_config_when_env_not_exported`：期望 `STORYFORGE_LLM_TIMEOUT_SECONDS=17.0`，实际读到 `300`。
+- 根因不是 preflight 拆分行为变化，而是长跑 wrapper 测试调用 `.codex/run-real-llm-long-direct.py::main()`，该函数直接写 `os.environ["STORYFORGE_LLM_TIMEOUT_SECONDS"] = str(args.timeout_seconds)`；测试夹具此前只清理 API key/base URL，未清理同组 timeout/model/provider 等变量。
+- 修复测试隔离后同一宽回归通过。
+
+**import 拓扑验证**：
+- `book_generation.py`（facade）→ imports `book_generation_preflight.py` / `book_generation_judge.py` / `book_generation_llm.py` / `book_generation_metrics.py` / `errors.py`。
+- `book_generation_preflight.py` → imports `book_generation_llm._env_value` + `errors.py`，不反向 import `book_generation.py`。
+- assistant/service 与 ide/review_reasoning 仍从旧 facade 路径 import，identity 验证通过。
+
+**行为变更**：无（纯移动 + facade re-export）。测试隔离修复只影响 pytest 进程，防止跨用例环境污染。
+
+## B1 Progress/CLI cluster 重构验证（2026-06-28）
+
+**条目**：Wave 1 B1-next — `book_generation.py` pause/progress 与 CLI 壳提取（零行为变更）
+
+**范围审计结论**：
+- `pause/failure/budget` 三个状态转移函数是一组真实 BookRun 进度写回能力，依赖 `apply_book_run_progress` 与 `BookRunProgressUpdate`，可以作为叶子模块下沉。
+- CLI `main()` 是清晰外壳：参数解析、preflight、session_factory、runner 调用、摘要输出。为保持旧默认签名（`runner=run_book_generation`）和测试 monkeypatch 习惯，`book_generation.py::main` 保留薄包装，实际委派到 `book_generation_cli.main`。
+- 章节生成、章节落库、断点重建、串行指标仍与主编排强耦合，本轮不拆。
+
+**执行刀**：
+1. 新建 `book_generation_progress.py`，迁入：
+   - `_pause_by_failure`
+   - `_pause_by_interrupt`
+   - `_pause_by_budget`
+2. 新建 `book_generation_cli.py`，迁入 CLI 参数解析、preflight、runner 调用、summary 输出逻辑。
+3. `book_generation.py` 顶层 facade re-export `_pause_*`；`main()` 保留旧签名薄包装并委派到 CLI 模块。
+4. 删除 `book_generation.py` 内重复 pause/CLI 实现；`book_generation.py` 当前约 **816 行**，`book_generation_cli.py` 约 **77 行**，`book_generation_progress.py` 约 **69 行**。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_generation*.py app/domains/book_runs/errors.py tests/conftest.py` → All checks passed。
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`。
+- `cd apps/api && uv run python -c "from app.domains.book_runs import book_generation as generation; from app.domains.book_runs import book_generation_progress as progress; from app.domains.book_runs import book_generation_preflight as preflight; assert generation._pause_by_failure is progress._pause_by_failure; assert generation._pause_by_interrupt is progress._pause_by_interrupt; assert generation._pause_by_budget is progress._pause_by_budget; assert generation._assert_preflight is preflight._assert_preflight; assert callable(generation.main); print('progress/preflight facade OK')"` → `progress/preflight facade OK`。
+- `cd apps/api && uv run pytest tests/test_book_generation_parallel.py::test_book_generation_parallel_runner_defaults_to_precommit_revision_dependency -q` → **1 passed**（单独复跑）。
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py tests/test_ide_agent_orchestrator.py -q` → 首次出现 1 个并发 SQLite `refresh` 抖动失败，单测复跑通过；随后全套复跑 **104 passed, 1 skipped, 1 warning**。
+- `git diff --check -- docs/internal/refactor-master-plan.md .codex/verification-report.md apps/api/app/domains/book_runs/book_generation.py apps/api/app/domains/book_runs/book_generation_preflight.py apps/api/app/domains/book_runs/book_generation_progress.py apps/api/app/domains/book_runs/book_generation_cli.py apps/api/tests/conftest.py` → 通过。
+
+**import 拓扑验证**：
+- `book_generation.py`（facade）→ imports `book_generation_progress.py`；`book_generation_progress.py` 只依赖 `schemas.py` + `service.py`，不反向 import `book_generation.py`。
+- `book_generation.py::main` 局部 import `book_generation_cli.main`，避免 CLI 模块在导入期反向绑定 `run_book_generation`。
+- `book_generation_cli.py` 只依赖 metrics/preflight/errors 与标准库，不反向 import `book_generation.py`。
+
+**行为变更**：无（纯移动 + facade re-export/薄包装）。CLI 测试继续从旧 `book_generation.main` 调用并通过。
+
+## B1 Records/Serial Metrics cluster 重构验证（2026-06-28）
+
+**条目**：Wave 1 B1-next — `book_generation.py` 证据落库与串行集成指标提取（零行为变更）
+
+**范围审计结论**：
+- `draft scene` / `ModelRun` / `ScenePacket` / 最终批准写回是一组真实证据落库能力，既被串行主循环复用，也被 `book_generation_parallel.py` 通过 `generation.<name>` 旧路径调用，适合下沉到叶子模块但必须 facade re-export。
+- 串行直跑集成指标 `_serial_integration_metrics` 及三个 helper 已无主流程顺序依赖，适合单独下沉。
+- `run_book_generation` / `resume_book_generation`、建书/蓝图、章节生成、断点重建继续留在 `book_generation.py`：它们承载主流程顺序，且 `_default_planning_arcs` / `_generate_chapter` 等仍是测试和并发 runner 的 monkeypatch 硬契约，继续机械外移会制造浅模块。
+
+**执行刀**：
+1. 新建 `book_generation_records.py`，迁入：
+   - `MODEL_RUN_SUMMARY_MAX_CHARS`
+   - `_persist_draft_scene`
+   - `_finalize_scene_decision`
+   - `_record_model_run`
+   - `_model_run_summary_text`
+   - `_record_scene_packet`
+2. 新建 `book_generation_serial_metrics.py`，迁入：
+   - `_serial_integration_metrics`
+   - `_direct_memory_recall_budget_used`
+   - `_arc_completion_rate`
+   - `_chapter_generation_time_p50`
+3. `book_generation.py` 顶层 facade re-export 上述符号，保持旧 import 路径和 `generation.<name>` 属性访问。
+4. 补回 `BookBlueprint` facade re-export：并发 runner 的 `_arc_consistency_barrier_from_blueprint` 仍通过 `generation.BookBlueprint` 取 ORM 类，这是旧命名空间兼容契约。
+5. 删除 `book_generation.py` 内重复实现；`book_generation.py` 当前约 **714 行**，`book_generation_records.py` 约 **139 行**，`book_generation_serial_metrics.py` 约 **75 行**。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_generation*.py app/domains/book_runs/errors.py tests/conftest.py` → All checks passed。
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`。
+- `cd apps/api && uv run python -c "...records/serial facade identity..."` → `records/serial facade OK`。
+- `cd apps/api && uv run python -c "...BookBlueprint facade identity..."` → `BookBlueprint facade OK`。
+- `cd apps/api && uv run pytest tests/test_book_generation_parallel.py -q` → **11 passed**（覆盖并发 runner 旧 facade 访问）。
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_multi_round_repair.py tests/test_phase1_context_optimization_verify.py tests/test_book_run_start.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py tests/test_ide_agent_orchestrator.py -q` → **104 passed, 1 skipped, 1 warning**（warning 为既有 422 deprecation）。
+
+**失败-修复记录**：
+- 首次 `tests/test_book_generation.py tests/test_book_generation_parallel.py -q` 出现 5 个并发测试失败：`generation.BookBlueprint` 不可达。
+- 根因是本刀移走串行指标后删除了 `BookBlueprint` 顶层 import，破坏了 `book_generation_parallel.py` 的旧 facade 属性访问。
+- 修复：恢复 `from app.domains.blueprints.models import BookBlueprint  # noqa: F401  facade re-export`；并发测试与宽回归随后通过。
+
+**import 拓扑验证**：
+- `book_generation.py`（facade）→ imports `book_generation_records.py` / `book_generation_serial_metrics.py`。
+- `book_generation_records.py` → imports `book_generation_judge.REPAIR_THRESHOLD`、`book_generation_llm._required_env`、ORM/schema/service 叶子依赖，不反向 import `book_generation.py`。
+- `book_generation_serial_metrics.py` → imports `BookBlueprint` / `BookRun`，不反向 import `book_generation.py`。
+
+**行为变更**：无（纯移动 + facade re-export）。B1 到达当前合理边界：剩余主循环/蓝图/章节生成/断点重建保留在 facade，避免浅模块和 monkeypatch 契约漂移。
+
+## Wave 0 前端护栏验证（2026-06-28）
+
+**条目**：G1/G2/G3 — C1/C2/C3 拆分前置测试护栏（不改运行时代码）
+
+**执行刀**：
+1. G1 新增 `apps/desktop/frontend/tests/editor.test.tsx`：
+   - `renderToStaticMarkup` 覆盖 Editor 空状态、项目提示、历史按钮、导出按钮。
+   - 源文本护栏覆盖 `recordRevisionLoop`、`emitAuthorLoopResult`、`editor-save-btn`、`editor-export-btn` 与已知 `data-testid`，为 C3 拆分时“壳层必须保留可见引用”提前报警。
+2. G2 扩展 `apps/desktop/frontend/tests/chat-window.test.ts`：
+   - 主外壳静态渲染覆盖 ConversationHeader、新会话标题、当前文件摘要、context summary。
+   - 无项目状态覆盖 composer 禁用提示。
+   - 既有 Writing Run mock SSE 投影测试继续保留。
+3. G3 新增 `apps/desktop/frontend/tests/app.test.tsx`：
+   - `renderToStaticMarkup` 覆盖 desktop shell、WelcomeWorkspace、项目库入口、新增项目按钮。
+   - 源文本护栏镜像 `ide-shell.spec.ts` 依赖的壳层结构符号，并确认不残留 Web legacy 路由入口。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- 测试输出存在 React SSR `useLayoutEffect` warning，来自 Editor 静态渲染护栏触发的既有客户端 effect 警告；未阻断测试，未改运行时代码。
+
+**行为变更**：无。Wave 0 第一层前端护栏已完成，C1/C2/C3 可进入拆分，但每刀仍需继续跑桌面 test/typecheck 并按风险补行为特征测试。
+
+## AS 前置护栏验证（2026-06-28）
+
+**条目**：Wave 1 AS — `agent_runs/service.py` 拆分前补 record/SSE 底层契约测试（不改运行时代码）
+
+**执行刀**：
+1. 在 `apps/api/tests/test_agent_runs.py` 新增 `_seed_agent_run` 测试辅助，用最小 `AgentRun` 直接覆盖底层事件函数。
+2. 新增 `test_record_agent_event_sequences_increment_from_existing_max`：
+   - 先手工插入 `sequence=7` 的既有事件。
+   - 连续调用 `record_agent_event` 两次，断言新增事件 sequence 为 8、9，并按 run 内顺序可重放。
+3. 新增 `test_encode_agent_run_sse_event_is_stable_json_snapshot`：
+   - 通过 `record_agent_event` 生成真实 `AgentRunEvent`。
+   - 断言 SSE 文本包含稳定 `event: tool_trace`、唯一 `data:` 行、双换行结尾。
+   - 解析 data JSON，锁定 `id/run_id/event_type/actor/message/payload/sequence/created_at` 投影。
+
+**验证门禁**：
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_record_agent_event_sequences_increment_from_existing_max tests/test_agent_runs.py::test_encode_agent_run_sse_event_is_stable_json_snapshot -q` → **2 passed**。
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/agent_runs/errors.py tests/test_agent_runs.py` → All checks passed。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**。
+
+**行为变更**：无。AS 拆分前置护栏已补齐；后续拆 `event_encoders` / `event_sink` 时必须保持 `record_agent_event` 顺序语义、SSE 投影形状，以及 `AgentRuntime` 顶层 import monkeypatch 契约。
+
+## AS event_encoders 重构验证（2026-06-28）
+
+**条目**：Wave 1 AS — `agent_runs/service.py` SSE/WS 事件编码簇提取（零行为变更）
+
+**执行刀**：
+1. 新建 `apps/api/app/domains/agent_runs/event_encoders.py`，迁入：
+   - `encode_agent_run_sse_event`
+   - `websocket_started_event`
+   - `websocket_control_event`
+   - 私有纯 helper `_scope_string_list`
+2. `agent_runs/service.py` 顶层 re-export 三个事件编码函数，保持旧 import 路径：
+   - `from app.domains.agent_runs.service import encode_agent_run_sse_event`
+   - `from app.domains.agent_runs.service import websocket_started_event`
+   - `from app.domains.agent_runs.service import websocket_control_event`
+3. 删除 service 内重复实现与不再需要的 `json` import；`service.py` 当前约 **1212 行**，`event_encoders.py` 约 **52 行**。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/errors.py tests/test_agent_runs.py` → All checks passed。
+- `cd apps/api && uv run python -c "...agent event_encoders facade identity..."` → `agent event_encoders facade OK`。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_encode_agent_run_sse_event_is_stable_json_snapshot tests/test_agent_runs.py::test_agent_run_sse_stream_replays_event_store tests/test_agent_runs.py::test_websocket_control_messages_are_persisted_as_agent_run_events -q` → **3 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**。
+
+**import 拓扑验证**：
+- `agent_runs/event_encoders.py` → imports only `agent_runs.models` + stdlib，绝不反向 import `service.py`。
+- `agent_runs/service.py` → imports `event_encoders.py` for facade compatibility。
+- `agent_runs/router.py` and `ide/router.py` can keep importing from `service.py` unchanged.
+
+**行为变更**：无（纯移动 + facade re-export）。AS 剩余拆分入口：run_payloads、skill_catalog、event_sink（其中 skill_catalog 已在下一刀完成）。
+
+## AS skill_catalog 重构验证（2026-06-28）
+
+**条目**：Wave 1 AS — `agent_runs/service.py` Root Agent skill catalog 簇提取（零行为变更）
+
+**执行刀**：
+1. 新建 `apps/api/app/domains/agent_runs/skill_catalog.py`，迁入：
+   - `_AGENT_SKILL_DEFINITIONS`
+   - `list_agent_skills`
+   - `_skill_by_name`
+   - `_agent_plan_payload`
+   - 私有选择 helper `_select_agent_skill` / `_has_scope_key` / `_scope_string_list`
+2. `agent_runs/service.py` 顶层 re-export `list_agent_skills`、`_skill_by_name`、`_agent_plan_payload`、`_AGENT_SKILL_DEFINITIONS`，保持旧路径和内部调用兼容。
+3. 本刀不移动 role catalog wrapper（`list_agent_roles`/`get_agent_role` 等），因为 `role_catalog.py` 已是独立模块，service 当前只保留兼容转发。
+4. 删除 service 内重复 skill 定义和选择逻辑；`service.py` 当前约 **1085 行**，`skill_catalog.py` 约 **154 行**。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/skill_catalog.py app/domains/agent_runs/errors.py tests/test_agent_runs.py` → All checks passed。
+- `cd apps/api && uv run python -c "...agent skill_catalog facade identity..."` → `agent skill_catalog facade OK`。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_agent_skills_endpoint_exposes_skills_v1_catalog tests/test_agent_runs.py::test_websocket_user_message_persists_agent_run_events_and_artifacts tests/test_agent_runs.py::test_book_run_progress_is_projected_to_agent_run_event_store -q` → **3 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**。
+
+**import 拓扑验证**：
+- `agent_runs/skill_catalog.py` → imports only `role_catalog.DEFAULT_PERMISSION_PROFILE` + schemas/std typing，绝不反向 import `service.py`。
+- `agent_runs/service.py` → imports `skill_catalog.py` for facade compatibility and internal plan payload calls。
+
+**行为变更**：无（纯移动 + facade re-export）。AS 剩余拆分入口：run_payloads、event_sink。
+
+## AS run_payloads 重构验证（2026-06-28）
+
+**条目**：Wave 1 AS — `agent_runs/service.py` run/message/scope/bookrun payload helper 簇提取（零行为变更）
+
+**执行刀**：
+1. 新建 `apps/api/app/domains/agent_runs/run_payloads.py`，迁入：
+   - `_message_text`
+   - `_message_input_summary`
+   - `_scope_summary`
+   - `_budget_summary`
+   - `_current_plan_step`
+   - `_optional_string`
+   - `_optional_positive_int`
+   - `_has_event`
+   - `_control_event_type`
+   - `_control_event_message`
+   - `_book_run_id_from_result`
+   - `_book_run_budget`
+   - `_book_run_snapshot_payload`
+2. `agent_runs/service.py` 顶层 re-export 上述私有 helper，保持旧路径和 monkeypatch/调试访问兼容。
+3. 本刀不移动 `_apply_book_run_control_if_needed`，因为它会调用 `record_book_run_snapshot` 和 writing-run 状态机，留在 service 可避免 run_payloads 反向依赖 service。
+4. 删除 service 内重复 payload helper 实现；`service.py` 当前约 **856 行**，`run_payloads.py` 约 **128 行**。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/agent_runs/run_payloads.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/skill_catalog.py app/domains/agent_runs/errors.py tests/test_agent_runs.py` → All checks passed。
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`。
+- `cd apps/api && uv run python -c "...agent run_payloads facade identity..."` → `agent run_payloads facade OK`。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_websocket_user_message_persists_agent_run_events_and_artifacts tests/test_agent_runs.py::test_book_run_progress_is_projected_to_agent_run_event_store tests/test_agent_runs.py::test_agent_run_control_channel_updates_bound_bookrun_status -q` → **3 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**。
+
+**import 拓扑验证**：
+- `agent_runs/run_payloads.py` → imports only `agent_runs.models.AgentRun`、`role_catalog.normalize_agent_role_inputs`、`book_runs.models.BookRun`、`writing_runs.service.full_book_writing_run_event_data` and std typing；绝不反向 import `service.py`。
+- `agent_runs/service.py` → imports `run_payloads.py` for facade compatibility and internal helper calls。
+
+**行为变更**：无（纯移动 + facade re-export）。AS 剩余拆分入口：event_sink。
+
+## AS event_sink 重构验证（2026-06-28）
+
+**条目**：Wave 1 AS — `agent_runs/service.py` AgentRun Runtime event sink adapter 提取（零行为变更）
+
+**执行刀**：
+1. 新建 `apps/api/app/domains/agent_runs/event_sink.py`，迁入：
+   - `_AgentRunEventSink`
+   - `_record_orchestrator_result`
+   - `_record_tool_trace_events`
+   - `_record_result_artifacts`
+   - `_record_permission_if_needed`
+2. `agent_runs/service.py` 顶层 re-export 上述符号，保持旧路径和私有调试访问兼容。
+3. `record_agent_event` / `record_agent_artifact` / `record_subagent_run` / `complete_agent_run` / `fail_agent_run` 持久化事实源继续留在 `service.py`。
+4. `event_sink.py` 在方法执行时局部 import `service.py` 的写入函数，避免导入期形成 `service.py` ↔ `event_sink.py` 环。
+5. 删除 service 内重复 event sink 实现；`service.py` 当前约 **618 行**，`event_sink.py` 约 **266 行**。
+
+**验证门禁**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/run_payloads.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/skill_catalog.py app/domains/agent_runs/errors.py tests/test_agent_runs.py` → All checks passed。
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`。
+- `cd apps/api && uv run python -c "...agent event_sink facade identity..."` → `agent event_sink facade OK`。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_websocket_user_message_persists_agent_run_events_and_artifacts tests/test_agent_runs.py::test_agent_run_records_permission_required_for_proposed_patch tests/test_agent_runs.py::test_hidden_compaction_system_job_runs_for_long_sessions tests/test_agent_runs.py::test_runtime_initialization_failure_marks_agent_run_failed -q` → **4 passed**。
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**。
+- `git diff --check -- docs/internal/refactor-master-plan.md .codex/verification-report.md apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/event_sink.py apps/api/app/domains/agent_runs/run_payloads.py apps/api/app/domains/agent_runs/event_encoders.py apps/api/app/domains/agent_runs/skill_catalog.py apps/api/app/domains/agent_runs/errors.py apps/api/tests/test_agent_runs.py` → 通过。
+
+**import 拓扑验证**：
+- `agent_runs/event_sink.py` → imports `models.AgentRun`、`run_payloads`、`skill_catalog._agent_plan_payload`、`trace.AgentToolTrace` at import time；不在导入期 import `service.py`。
+- `event_sink.py` 方法体局部 import `service.py` 的持久化写入函数，保持写入事实源集中在 service，且 `import app.main` smoke 通过。
+- `agent_runs/service.py` → imports `event_sink.py` for facade compatibility and runtime adapter construction。
+
+**行为变更**：无（纯移动 + facade re-export）。AS 到达当前合理边界：`service.py` 留 AgentRun 生命周期、查询、持久化事实源和 BookRun 控制桥接；SSE/WS encoding、skill catalog、run payload helper、event sink adapter 均已外移并验证。
+
+## C1 ChatWindow pure helpers 重构验证（2026-06-28）
+
+**条目**：Wave 1 C1 — `ChatWindow.tsx` 纯 helper/type 簇提取（零行为变更）
+
+**执行刀**：
+1. 新建 `apps/desktop/frontend/src/components/chat-window/` 子目录，提取纯类型和 helper：
+   - `types.ts`：ChatWindow props/state/view-model 类型、review/writing-run payload 类型。
+   - `path-utils.ts`：`basename` / `relativePath` / `joinProjectPath` / `looksAbsolutePath` / `extractContextReferences`。
+   - `agent-step-mapping.ts`：plan/tool trace 到 AgentStep 的映射。
+   - `writing-run.ts`：`writingRunIdFromResult` / `applyWritingRunEventProjection`。
+   - `review.ts`：review report issue 解析、scope warning、定向修订 scope 推断、review summary。
+   - `request-payload.ts`：`buildStableAgentRequestPayload`。
+   - `conversation-utils.ts`：conversation title、历史消息压缩、system job title 提取。
+2. `ChatWindow.tsx` 继续作为旧导入路径和主组件壳层，re-export 测试与外部依赖的 named exports：
+   - `applyWritingRunEventProjection`
+   - `buildStableAgentRequestPayload`
+   - `extractIssueScopeFromInstruction`
+   - `reviewIssuesFromReport`
+   - `scopeWarningFromAgentResult`
+   - `writingRunIdFromResult`
+   - `StableAgentRequestPayload`
+3. 本刀不移动 `runAuthorAgent` 主闭环、不拆 JSX panels，避免同时改动状态机与展示结构。
+4. `ChatWindow.tsx` 从约 **2145 行** 降到约 **1752 行**。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `git diff --check -- apps/desktop/frontend/src/components/ChatWindow.tsx apps/desktop/frontend/src/components/chat-window/types.ts apps/desktop/frontend/src/components/chat-window/path-utils.ts apps/desktop/frontend/src/components/chat-window/agent-step-mapping.ts apps/desktop/frontend/src/components/chat-window/writing-run.ts apps/desktop/frontend/src/components/chat-window/review.ts apps/desktop/frontend/src/components/chat-window/request-payload.ts apps/desktop/frontend/src/components/chat-window/conversation-utils.ts apps/desktop/frontend/tests/chat-window.test.ts` → 通过。
+
+**测试输出说明**：
+- 桌面单元测试仍有既有 React SSR `useLayoutEffect` warning，来源为 Editor 静态渲染护栏；未阻断测试，本刀未改 Editor。
+
+**import 拓扑验证**：
+- `chat-window/*` 子模块不反向 import `ChatWindow.tsx`。
+- `ChatWindow.tsx` 继续维持 `App.tsx` 和 `tests/chat-window.test.ts` 的旧路径导入契约。
+
+**行为变更**：无（纯移动 + barrel re-export）。C1 已进入进行中；剩余拆分入口：Composer/context panels/review issue actions/agent run controls 等展示子组件，`runAuthorAgent` 主闭环暂不抽。
+
+## C1 ChatWindow panels/Composer 重构验证（2026-06-28）
+
+**条目**：Wave 1 C1 — `ChatWindow.tsx` 展示组件簇提取（零行为变更）
+
+**执行刀**：
+1. 新建并接入展示模块：
+   - `chat-window/display-utils.ts`：`contextBudgetText` / `selectedContextPreview` / `runStatusText` / `roleMentionQuery`。
+   - `chat-window/Composer.tsx`：`ComposerBox` / `ComposerSurface`。
+   - `chat-window/panels.tsx`：`ConversationHeader` / `MessageList` / `ReviewIssueActions` / `AgentRunControlBar` / `WritingRunProgressPanel` / `ContextSummaryPanel` / `MessageItem` / `EmptyConversation` / `LightweightStatus`。
+2. `ChatWindow.tsx` 继续作为旧导入路径和主组件壳层，补回 `WritingRunProgressPanel` re-export，保持 `tests/chat-window.test.ts` 旧路径兼容。
+3. 本刀仍不移动 `runAuthorAgent` 主闭环；壳层保留异步 orchestration、事件监听、状态组合和 `appendExplicitContextFiles`。
+4. `ChatWindow.tsx` 当前约 **1031 行**；`panels.tsx` 约 **553 行**；`Composer.tsx` 约 **154 行**。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `git diff --check -- docs/internal/refactor-master-plan.md .codex/verification-report.md apps/desktop/frontend/src/components/ChatWindow.tsx apps/desktop/frontend/src/components/chat-window` → 通过。
+
+**失败-修复记录**：
+- 首次 panel 提取后测试失败：`ChatWindow` barrel 未 re-export `WritingRunProgressPanel`，而 `tests/chat-window.test.ts` 仍从旧路径导入该组件。修复：从 `ChatWindow.tsx` re-export `WritingRunProgressPanel`。
+- 首次 typecheck 暴露旧 `runStatusText` 本地定义与新 import 冲突、`selectedContextPreview` 漏 import。修复后 typecheck/test 全绿。
+
+**测试输出说明**：
+- 桌面单元测试仍有既有 React SSR `useLayoutEffect` warning，来源为 Editor 静态渲染护栏；未阻断测试，本刀未改 Editor。
+
+**import 拓扑验证**：
+- `chat-window/Composer.tsx`、`panels.tsx`、`display-utils.ts` 不反向 import `ChatWindow.tsx`。
+- `ChatWindow.tsx` 继续维持 `App.tsx` 与 `tests/chat-window.test.ts` 的旧路径导入契约。
+
+**行为变更**：无（纯移动 + barrel re-export）。C1 到达当前合理边界：主文件保留 `runAuthorAgent`/事件监听/状态组合壳层，避免把最复杂异步闭环拆成浅 hook；后续只有在重写 Agent orchestration 时再评估深模块。
+
+## C3 Editor decorations 重构验证（2026-06-28）
+
+**条目**：Wave 2 C3 — `Editor.tsx` issue decoration helper 提取（零行为变更）
+
+**执行刀**：
+1. 新建 `apps/desktop/frontend/src/components/editor/decorations.ts`，迁入：
+   - `ISSUE_SEVERITY_COLOR`
+   - `normalizeIssueSeverity`
+   - `locateEvidence`
+   - `issueDecorationOptions`
+2. `Editor.tsx` 改为从 `./editor/decorations` import `locateEvidence` / `issueDecorationOptions`。
+3. 本刀不移动 `recordRevisionLoop`、`emitAuthorLoopResult`、`editor-save-btn`、`editor-export-btn` 或任何 toolbar JSX，保持 e2e/source-text 护栏依赖的可见引用。
+4. `Editor.tsx` 当前约 **1016 行**，`decorations.ts` 约 **45 行**。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `git diff --check -- apps/desktop/frontend/src/components/Editor.tsx apps/desktop/frontend/src/components/editor/decorations.ts apps/desktop/frontend/tests/editor.test.tsx` → 通过。
+
+**测试输出说明**：
+- 桌面单元测试仍有既有 React SSR `useLayoutEffect` warning，来源为 Editor 静态渲染护栏；未阻断测试。
+
+**import 拓扑验证**：
+- `editor/decorations.ts` 只依赖 `monaco-editor` 与 `ReviewIssueMarker` 类型，不反向 import `Editor.tsx`。
+- `Editor.tsx` 源文本护栏继续通过，关键符号与 `data-testid` 留在壳层。
+
+**行为变更**：无（纯移动）。C3 已进入进行中；下一刀建议提取 `VersionHistory` 展示组件，继续保留工具栏与写回/导出主闭环在壳层。
+
+## C3 Editor VersionHistory 重构验证（2026-06-28）
+
+**条目**：Wave 2 C3 — `Editor.tsx` 版本历史/分支图侧栏提取（零行为变更）
+
+**执行刀**：
+1. 新建并接入 `apps/desktop/frontend/src/components/editor/VersionHistory.tsx`，迁入：
+   - `formatTimestamp`
+   - `VersionHistory`
+   - 历史版本读取、source filter、列表/分支图切换、`BranchCanvas` 接线与版本恢复逻辑。
+2. `Editor.tsx` 改为从 `./editor/VersionHistory` import `VersionHistory` / `formatTimestamp`，继续保留：
+   - `handleRestore`
+   - `handleCheckoutNode`
+   - `handleBranchFromNode`
+   - `handleSelectBranch`
+   - 分支 manifest state/ref 与保存写回主闭环。
+3. 清理 `Editor.tsx` 的旧本地 `VersionHistory` 实现与无用 import（`useMemo`、`listVersions`、`VersionEntry`、`buildGraph`、`BranchCanvas`）。
+4. 调整 `apps/desktop/frontend/tests/editor.test.tsx` 的源文本护栏：壳层 `data-testid` 继续要求留在 `Editor.tsx`，`version-history` 标记改由 `VersionHistory.tsx` 承载，避免把已外移展示 Module 错绑回壳层。
+5. `Editor.tsx` 当前约 **828 行**，`VersionHistory.tsx` 约 **195 行**。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `git diff --check -- apps/desktop/frontend/src/components/Editor.tsx apps/desktop/frontend/src/components/editor/VersionHistory.tsx apps/desktop/frontend/tests/editor.test.tsx` → 通过。
+
+**失败-修复记录**：
+- 首次测试失败：`editor.test.tsx` 仍要求 `data-testid="version-history"` 出现在 `Editor.tsx` 源文本。修复：将该护栏迁到 `VersionHistory.tsx` 源文本，壳层标记仍锁在 `Editor.tsx`。
+
+**测试输出说明**：
+- 桌面单元测试仍有既有 React SSR `useLayoutEffect` warning，来源为 Editor 静态渲染护栏；未阻断测试。
+
+**import 拓扑验证**：
+- `editor/VersionHistory.tsx` 只依赖 React hooks、`branches` / `versions` lib 与 `BranchCanvas`，不反向 import `Editor.tsx`。
+- `Editor.tsx` 继续持有 Monaco 生命周期、保存/快照、AI 写回、导出、分支 manifest 和 e2e/source-text 护栏依赖的关键符号。
+
+**行为变更**：无（纯移动 + 护栏位置校正）。C3 继续进行中；下一刀建议 `useBranchManifest` 或 `useSuggestionWriteback`，`useMonacoEditor` 最深，单独 PR。
+
+## C3 Editor useBranchManifest 重构验证（2026-06-28）
+
+**条目**：Wave 2 C3 — `Editor.tsx` 分支清单状态与落盘逻辑提取（零行为变更）
+
+**执行刀**：
+1. 新建并接入 `apps/desktop/frontend/src/components/editor/useBranchManifest.ts`，集中承载：
+   - 当前文件 `BranchManifest` state/ref。
+   - 打开文件时 `loadBranchManifest`，清空文件时回退 `emptyManifest`。
+   - 活动分支读取、分支选择、从节点创建分支、保存后推进分支 head。
+   - `saveBranchManifest` 落盘失败时保留既有 `console.error('写入分支清单失败:', err)` 行为。
+2. `Editor.tsx` 改为调用 `useBranchManifest(projectPath, filePath)`，继续在壳层保留：
+   - 保存/Agent 写回时 `snapshotBeforeWrite` 的 metadata 组装顺序。
+   - `handleRestore` / `handleCheckoutNode` / `handleBranchFromNode` 的编辑器恢复语义。
+   - Monaco 生命周期、AI 写回、导出、工具栏与 e2e/source-text 护栏依赖的关键符号。
+3. 清理 `Editor.tsx` 的本地分支清单 effect、`branchManifestRef`、`handleSelectBranch` 与无用 branch helper imports。
+4. `Editor.tsx` 当前约 **770 行**，`useBranchManifest.ts` 约 **93 行**。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `git diff --check -- apps/desktop/frontend/src/components/Editor.tsx apps/desktop/frontend/src/components/editor/useBranchManifest.ts apps/desktop/frontend/src/components/editor/VersionHistory.tsx apps/desktop/frontend/tests/editor.test.tsx` → 通过。
+
+**测试输出说明**：
+- 桌面单元测试仍有既有 React SSR `useLayoutEffect` warning，来源为 Editor 静态渲染护栏；未阻断测试。
+
+**import 拓扑验证**：
+- `editor/useBranchManifest.ts` 只依赖 React hooks 与 `lib/branches`，不反向 import `Editor.tsx`。
+- `Editor.tsx` 继续持有 `snapshotBeforeWrite` 调用点，因此版本快照 metadata 的来源、summary、patch/session/issue/context、parentId/head 推进顺序保持在原写回壳层可见。
+
+**行为变更**：无（纯移动）。C3 继续进行中；下一刀建议 `useSuggestionWriteback`，`useMonacoEditor` 最深，单独 PR。
+
+## C3 Editor useSuggestionWriteback 重构验证（2026-06-28）
+
+**条目**：Wave 2 C3 — `Editor.tsx` 建议补丁写回状态机提取（零行为变更）
+
+**执行刀**：
+1. 新建并接入 `apps/desktop/frontend/src/components/editor/useSuggestionWriteback.ts`，集中承载：
+   - `APPLY_FILE_SUGGESTION_EVENT` 待写回补丁接收。
+   - `SUGGESTION_RESULT_EVENT` 修订结果状态更新。
+   - `ACCEPT_CURRENT_FILE_SUGGESTION_EVENT` 全局接受当前补丁。
+   - 接受整块、接受 hunk、拒绝补丁、保存旁注。
+   - Agent 写回前 `snapshotBeforeWrite` 与分支 head 推进。
+   - 写回后的 `recordRevisionLoop` 闭环记录与 `emitAuthorLoopResult` 事件投影。
+2. `Editor.tsx` 通过依赖注入传入 `recordRevisionLoop` / `emitAuthorLoopResult` / editor refs / 分支 helper，保持 e2e/source-text 护栏依赖的 `recordRevisionLoop` 与 `emitAuthorLoopResult` 可见引用仍在壳层。
+3. `Editor.tsx` 继续保留手动保存、导出、Monaco 生命周期、当前文件加载、历史 checkout/restore、工具栏 JSX 与 `editor-save-btn` / `editor-export-btn`。
+4. 文件切换和无文件状态通过 `resetSuggestionWriteback()` 保持原先清空 pending suggestion、status、revise loading 的语义。
+5. `Editor.tsx` 当前约 **553 行**，`useSuggestionWriteback.ts` 约 **310 行**。
+
+**验证门禁**：
+- `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+- `npm --prefix apps/desktop/frontend run test` → **59 passed**。
+- `git diff --check -- apps/desktop/frontend/src/components/Editor.tsx apps/desktop/frontend/src/components/editor/useSuggestionWriteback.ts apps/desktop/frontend/src/components/editor/useBranchManifest.ts apps/desktop/frontend/src/components/editor/VersionHistory.tsx apps/desktop/frontend/tests/editor.test.tsx` → 通过。
+
+**失败-修复记录**：
+- 首次 typecheck 失败：hook 调用早于 `originalContentRef` / `filePathRef` / `projectPathRef` 声明，且文件加载流程仍调用已迁走的 `setIsReviseLoading`。修复：将 refs 提前声明，并让 hook 暴露 `resetSuggestionWriteback()` 给加载流程复用。
+
+**测试输出说明**：
+- 桌面单元测试仍有既有 React SSR `useLayoutEffect` warning，来源为 Editor 静态渲染护栏；未阻断测试。
+
+**import 拓扑验证**：
+- `editor/useSuggestionWriteback.ts` 依赖 React hooks、assistant event 常量/types、author-loop types、patch hunk helper、versions/Tauri FS 与注入的壳层 adapter；不反向 import `Editor.tsx`。
+- `Editor.tsx` 保留 `recordRevisionLoop` / `emitAuthorLoopResult` import 与传参，源文本护栏继续通过。
+
+**行为变更**：无（纯移动 + 依赖注入）。C3 已接近当前合理装配壳边界；剩余 `useMonacoEditor` 涉及 Monaco 实例生命周期、命令注册、load/save effect，建议单独 PR 并补运行期集成护栏后再动。
