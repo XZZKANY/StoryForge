@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
 import io
+from dataclasses import FrozenInstanceError
 from email.message import Message
 from urllib.error import HTTPError
 

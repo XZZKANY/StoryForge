@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import NotFoundError
@@ -16,10 +16,20 @@ from app.domains.agent_runs.event_encoders import (  # noqa: F401  facade re-exp
 )
 from app.domains.agent_runs.event_sink import (  # noqa: F401  facade re-export
     _AgentRunEventSink,
-    _record_orchestrator_result,
-    _record_permission_if_needed,
-    _record_result_artifacts,
-    _record_tool_trace_events,
+)
+from app.domains.agent_runs.event_types import (
+    AGENT_ARTIFACT,
+    AGENT_PLAN_CREATED,
+    AGENT_RUN_COMPLETED,
+    AGENT_RUN_FAILED,
+    AGENT_RUN_STARTED,
+    APPROVE_PERMISSION_COMMAND,
+    DENY_PERMISSION_COMMAND,
+    PAUSE_RUN,
+    RESUME_RUN,
+    RETRY_FROM_CHECKPOINT,
+    STOP_RUN,
+    TOOL_TRACE,
 )
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
 from app.domains.agent_runs.role_catalog import (
@@ -59,6 +69,13 @@ from app.domains.agent_runs.run_payloads import (  # noqa: F401  facade re-expor
     _scope_summary,
 )
 from app.domains.agent_runs.runtime import AgentRuntime
+from app.domains.agent_runs.runtime_recovery import (
+    RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+    RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+    build_runtime_pending_call_resume_diagnostic,
+    build_runtime_pending_call_summary,
+)
+from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
 from app.domains.agent_runs.schemas import AgentRoleRead
 from app.domains.agent_runs.skill_catalog import (  # noqa: F401  facade re-export
     _AGENT_SKILL_DEFINITIONS,
@@ -82,6 +99,7 @@ from app.domains.writing_runs.service import (
 )
 
 AGENT_RUN_TERMINAL_STATUSES = frozenset({"completed", "failed", "stopped"})
+
 
 class AgentRunNotFoundError(NotFoundError):
     """AgentRun 不存在。"""
@@ -111,6 +129,13 @@ class AgentRuntimeUserMessageResult:
     run: AgentRun
     started_event: AgentRunEvent
     result: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class AgentControlResult:
+    event: AgentRunEvent
+    resumed_result: dict[str, Any] | None = None
+    resume_diagnostic: dict[str, Any] | None = None
 
 
 def create_or_resume_agent_run(
@@ -179,7 +204,7 @@ def start_agent_user_message_run(
     event = record_agent_event(
         session,
         run,
-        event_type="agent_run_started",
+        event_type=AGENT_RUN_STARTED,
         actor="root-agent",
         message="Root Agent 已接收作者目标。",
         payload={
@@ -214,20 +239,20 @@ def create_or_resume_bookrun_agent_run(
         permission_profile=DEFAULT_PERMISSION_PROFILE,
         budget=_book_run_budget(book_run),
     )
-    if not _has_event(run, "agent_run_started"):
+    if not _has_event(run, AGENT_RUN_STARTED):
         record_agent_event(
             session,
             run,
-            event_type="agent_run_started",
+            event_type=AGENT_RUN_STARTED,
             actor="bookrun-agent",
             message="写作任务已进入 AgentRun 控制平面。",
             payload={**writing_run, "source": event_source},
         )
-    if not _has_event(run, "agent_plan_created"):
+    if not _has_event(run, AGENT_PLAN_CREATED):
         record_agent_event(
             session,
             run,
-            event_type="agent_plan_created",
+            event_type=AGENT_PLAN_CREATED,
             actor="root-agent",
             message="Root Agent 已为写作任务选择 managed run skill。",
             payload=_agent_plan_payload(
@@ -327,42 +352,136 @@ def record_agent_control_event(
         message=_control_event_message(control_type),
         payload=event_payload,
     )
-    if control_type == "pause_run":
+    if control_type == PAUSE_RUN:
         run.status = "paused"
         run.current_step = "paused"
-    elif control_type == "resume_run":
+    elif control_type == RESUME_RUN:
         run.status = "running"
         run.current_step = "resumed"
-    elif control_type == "stop_run":
+    elif control_type == STOP_RUN:
         run.status = "stopped"
         run.current_step = "stopped"
-    elif control_type == "approve_permission" and run.status == "paused":
+    elif control_type == APPROVE_PERMISSION_COMMAND and run.status == "paused":
         run.status = "completed"
         run.current_step = "completed"
-    elif control_type == "deny_permission" and run.status == "paused":
+    elif control_type == DENY_PERMISSION_COMMAND and run.status == "paused":
         run.status = "failed"
         run.current_step = "permission.denied"
     session.add(run)
     session.commit()
-    if control_type == "approve_permission" and run.status == "completed":
+    if control_type == APPROVE_PERMISSION_COMMAND and run.status == "completed":
         record_agent_event(
             session,
             run,
-            event_type="agent_run_completed",
+            event_type=AGENT_RUN_COMPLETED,
             actor="root-agent",
             message="权限已批准，AgentRun 已完成待确认步骤。",
             payload={"session_id": session_id, "run_id": public_id, "control_type": control_type},
         )
-    elif control_type == "deny_permission" and run.status == "failed":
+    elif control_type == DENY_PERMISSION_COMMAND and run.status == "failed":
         record_agent_event(
             session,
             run,
-            event_type="agent_run_failed",
+            event_type=AGENT_RUN_FAILED,
             actor="permission-gate",
             message="作者拒绝权限请求，AgentRun 已停止。",
             payload={"session_id": session_id, "run_id": public_id, "control_type": control_type},
         )
     return event
+
+
+def handle_agent_control_message(
+    session: Session,
+    *,
+    public_id: str,
+    session_id: str,
+    control_type: str,
+    payload: dict[str, Any] | None = None,
+) -> AgentControlResult:
+    event = record_agent_control_event(
+        session,
+        public_id=public_id,
+        session_id=session_id,
+        control_type=control_type,
+        payload=payload,
+    )
+    resumed_result = None
+    resume_diagnostic = None
+    if control_type == RESUME_RUN:
+        resumed_result, resume_diagnostic = _resume_agent_run_if_pending_with_diagnostic(
+            session,
+            public_id=public_id,
+            agent_session_id=session_id,
+        )
+        if resume_diagnostic is not None:
+            _record_resume_diagnostic(session, event, resume_diagnostic)
+    return AgentControlResult(event=event, resumed_result=resumed_result, resume_diagnostic=resume_diagnostic)
+
+
+def resume_agent_run_if_pending(
+    session: Session,
+    *,
+    public_id: str,
+    agent_session_id: str,
+) -> dict[str, Any] | None:
+    result, _diagnostic = _resume_agent_run_if_pending_with_diagnostic(
+        session,
+        public_id=public_id,
+        agent_session_id=agent_session_id,
+    )
+    return result
+
+
+def _resume_agent_run_if_pending_with_diagnostic(
+    session: Session,
+    *,
+    public_id: str,
+    agent_session_id: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    run = get_agent_run(session, public_id)
+    pending = _latest_runtime_pending_call_artifact(session, run)
+    if pending is None:
+        return None, None
+    payload = pending.payload if isinstance(pending.payload, dict) else {}
+    diagnostic = build_runtime_pending_call_resume_diagnostic(
+        run_status=run.status,
+        current_step=run.current_step,
+        payload=payload,
+        artifact_id=pending.id,
+        artifact_kind=pending.kind,
+    )
+    if diagnostic.get("can_resume") is not True:
+        return None, diagnostic
+    message = payload.get("resume_message") if isinstance(payload.get("resume_message"), dict) else None
+    if message is None:
+        return None, diagnostic
+    result = execute_agent_user_message_run(
+        session,
+        run=run,
+        agent_session_id=agent_session_id,
+        message={
+            **message,
+            "run_id": run.public_id,
+            "intent": payload.get("intent") if isinstance(payload.get("intent"), str) else message.get("intent"),
+        },
+    )
+    result["run_id"] = run.public_id
+    return result, None
+
+
+def _record_resume_diagnostic(session: Session, event: AgentRunEvent, diagnostic: dict[str, Any]) -> None:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    recovery = payload.get("runtime_recovery") if isinstance(payload.get("runtime_recovery"), dict) else {}
+    event.payload = {
+        **payload,
+        "runtime_recovery": {
+            **recovery,
+            "resume_diagnostic": diagnostic,
+        },
+    }
+    session.add(event)
+    session.commit()
+    session.refresh(event)
 
 
 def record_agent_command_event(
@@ -381,11 +500,36 @@ def record_agent_command_event(
     return record_agent_event(
         session,
         run,
-        event_type="tool_trace",
+        event_type=TOOL_TRACE,
         actor="tool-registry",
         message=f"命令 {command_id} 已执行。",
         payload={"session_id": session_id, "command_id": command_id, "result": result_payload},
     )
+
+
+def _latest_runtime_pending_call_artifact(session: Session, run: AgentRun) -> AgentArtifact | None:
+    artifacts = list(
+        session.scalars(
+            select(AgentArtifact)
+            .where(
+                AgentArtifact.run_id == run.id,
+                AgentArtifact.kind.in_(
+                    {RUNTIME_PENDING_CALL_ARTIFACT_KIND, RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND}
+                ),
+            )
+            .order_by(AgentArtifact.id.desc())
+        )
+    )
+    for artifact in artifacts:
+        if artifact.kind == RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND:
+            return None
+        if build_runtime_pending_call_summary(
+            artifact.payload,
+            artifact_id=artifact.id,
+            artifact_kind=artifact.kind,
+        ) is not None:
+            return artifact
+    return None
 
 
 def record_book_run_snapshot(
@@ -401,7 +545,7 @@ def record_book_run_snapshot(
     record_agent_event(
         session,
         run,
-        event_type="tool_trace",
+        event_type=TOOL_TRACE,
         actor="bookrun-agent",
         message=f"写作任务 #{book_run.id} 状态更新为 {book_run.status}。",
         payload=payload,
@@ -412,9 +556,8 @@ def record_book_run_snapshot(
             run,
             kind="bookrun_checkpoint",
             payload={
-                **full_book_writing_run_event_data(book_run.id, book_run.status),
+                **payload,
                 "checkpoint": book_run.checkpoint,
-                "source": source,
             },
             requires_confirmation=False,
         )
@@ -426,7 +569,7 @@ def record_book_run_snapshot(
         record_agent_event(
             session,
             run,
-            event_type="agent_run_completed",
+            event_type=AGENT_RUN_COMPLETED,
             actor="bookrun-agent",
             message=f"写作任务 #{book_run.id} 已完成。",
             payload=payload,
@@ -439,7 +582,7 @@ def record_book_run_snapshot(
         record_agent_event(
             session,
             run,
-            event_type="stop_run",
+            event_type=STOP_RUN,
             actor="bookrun-agent",
             message=f"写作任务 #{book_run.id} 已停止。",
             payload=payload,
@@ -542,7 +685,7 @@ def record_agent_artifact(
     record_agent_event(
         session,
         run,
-        event_type="agent_artifact",
+        event_type=AGENT_ARTIFACT,
         actor="root-agent",
         message=f"Root Agent 产出 {kind} artifact。",
         payload={
@@ -594,7 +737,7 @@ def complete_agent_run(
     record_agent_event(
         session,
         run,
-        event_type="agent_run_completed",
+        event_type=AGENT_RUN_COMPLETED,
         actor="root-agent",
         message=str(agent_result.get("summary") or "AgentRun 已完成。"),
         payload={
@@ -621,7 +764,7 @@ def fail_agent_run(
     record_agent_event(
         session,
         run,
-        event_type="agent_run_failed",
+        event_type=AGENT_RUN_FAILED,
         actor="root-agent",
         message=message,
         payload=payload or {},
@@ -662,6 +805,30 @@ def list_agent_checkpoints(session: Session, public_id: str) -> list[AgentArtifa
     )
 
 
+def get_agent_run_save_points(session: Session, public_id: str) -> dict[str, Any]:
+    run = get_agent_run(session, public_id)
+    events = list_agent_run_events(session, public_id)
+    artifacts = _list_agent_save_point_artifacts(session, run)
+    return build_agent_run_save_point_projection(run, events=events, artifacts=artifacts)
+
+
+def _list_agent_save_point_artifacts(session: Session, run: AgentRun) -> list[AgentArtifact]:
+    return list(
+        session.scalars(
+            select(AgentArtifact)
+            .where(
+                AgentArtifact.run_id == run.id,
+                or_(
+                    AgentArtifact.kind.not_in(HIDDEN_SYSTEM_ARTIFACT_KINDS),
+                    AgentArtifact.kind == RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+                    AgentArtifact.kind == RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+                ),
+            )
+            .order_by(AgentArtifact.id.asc())
+        )
+    )
+
+
 def _apply_book_run_control_if_needed(
     session: Session,
     *,
@@ -673,16 +840,16 @@ def _apply_book_run_control_if_needed(
         return None
     reason = _optional_string(payload.get("reason")) or _optional_string(payload.get("source"))
     try:
-        if control_type == "pause_run":
+        if control_type == PAUSE_RUN:
             result = pause_writing_run(session, book_run_id=run.book_run_id, reason=reason)
             source = "agentrun.pause"
-        elif control_type == "resume_run":
+        elif control_type == RESUME_RUN:
             result = resume_writing_run(session, book_run_id=run.book_run_id)
             source = "agentrun.resume"
-        elif control_type == "stop_run":
+        elif control_type == STOP_RUN:
             result = stop_writing_run(session, book_run_id=run.book_run_id, reason=reason)
             source = "agentrun.stop"
-        elif control_type == "retry_from_checkpoint":
+        elif control_type == RETRY_FROM_CHECKPOINT:
             result = retry_writing_run_from_checkpoint(session, book_run_id=run.book_run_id)
             source = "agentrun.retry_from_checkpoint"
         else:

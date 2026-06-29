@@ -23,3 +23,9 @@ class ConflictError(DomainError):
     """请求与当前领域状态冲突。"""
 
     status_code = 409
+
+
+class ForbiddenError(DomainError):
+    """请求被领域权限或作用域规则拒绝。"""
+
+    status_code = 403

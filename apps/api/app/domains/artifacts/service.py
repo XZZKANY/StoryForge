@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.exceptions import InputError
+from app.common.exceptions import ForbiddenError, InputError, NotFoundError
 from app.common.redis_cache import cache_delete_pattern, cache_get_value, cache_set_value
 from app.db.queries import latest_by_lineage
 from app.domains.artifacts.models import Artifact
@@ -41,12 +41,12 @@ class ArtifactError(InputError):
     """制品创建或查询的输入不合法。"""
 
 
-class ArtifactNotFoundError(ArtifactError):
-    """制品不存在时由路由层转换为可重试的 404。"""
+class ArtifactNotFoundError(NotFoundError, ArtifactError):
+    """制品不存在。"""
 
 
-class ArtifactForbiddenError(ArtifactError):
-    """制品不属于请求工作区时由路由层转换为 403。"""
+class ArtifactForbiddenError(ForbiddenError, ArtifactError):
+    """制品不属于请求工作区。"""
 
 
 def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:

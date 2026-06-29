@@ -205,6 +205,24 @@ def test_revise_returns_422_when_llm_not_configured(client: TestClient, monkeypa
     assert "STORYFORGE_LLM_API_KEY" in response.json()["detail"]
 
 
+def test_revise_returns_404_when_session_missing(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Assistant 会话不存在时由领域异常统一映射为 404。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "assistant_session_id": 999_999,
+            "file_path": "draft.md",
+            "content": "正文",
+            "instruction": "改写",
+        },
+    )
+    assert response.status_code == 404, response.text
+    assert "999999" in response.json()["detail"]
+
+
 def test_revise_returns_502_and_marks_tool_call_failed(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """真实 LLM 调用失败时返回 502，并把 tool-call 置为 failed。"""
 

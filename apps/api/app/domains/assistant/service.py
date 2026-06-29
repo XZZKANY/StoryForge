@@ -8,6 +8,7 @@ from urllib import error, request
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.common.exceptions import DomainError, NotFoundError
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.assistant.schemas import (
     AssistantMessageCreate,
@@ -31,24 +32,28 @@ from app.domains.book_runs.book_generation import (
 )
 
 
-class AssistantSessionNotFoundError(RuntimeError):
+class AssistantSessionNotFoundError(NotFoundError, RuntimeError):
     """找不到指定 Assistant 会话。"""
 
 
-class AssistantToolCallNotFoundError(RuntimeError):
+class AssistantToolCallNotFoundError(NotFoundError, RuntimeError):
     """找不到指定 Assistant 工具调用。"""
 
 
-class AssistantLlmNotConfiguredError(RuntimeError):
+class AssistantLlmNotConfiguredError(DomainError, RuntimeError):
     """真实 LLM 环境变量未配置，无法执行修订。"""
+
+    status_code = 422
 
     def __init__(self, missing: list[str]) -> None:
         self.missing = missing
         super().__init__("真实 LLM 未配置，缺少环境变量：" + ", ".join(missing))
 
 
-class AssistantReviseError(RuntimeError):
+class AssistantReviseError(DomainError, RuntimeError):
     """真实 LLM 修订调用失败，原始报错原样透出。"""
+
+    status_code = 502
 
 
 def create_assistant_session(session: Session, payload: AssistantSessionCreate) -> AssistantSession:

@@ -14,6 +14,6 @@ router = APIRouter(prefix="/api/runtime-tools", tags=["运行时工具"])
     summary="读取运行时工具列表",
 )
 def list_runtime_tools_endpoint() -> list[RuntimeToolRead]:
-    """列出 CreativeToolRegistry 声明的运行时工具能力。"""
+    """列出 AgentRuntime、CreativeToolRegistry 与 MCP 声明的运行时工具能力。"""
 
     return list_runtime_tools()

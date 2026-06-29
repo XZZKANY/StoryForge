@@ -10,6 +10,11 @@ from app.domains.assets.models import Asset, EvidenceLink
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.scene_packets import service as scene_packet_service
+from app.domains.scene_packets.packet_contract import (
+    SCENE_PACKET_BASE_KEY_ORDER,
+    SCENE_PACKET_CONTEXT_KEY_ORDER,
+    SCENE_PACKET_REQUIRED_KEYS,
+)
 from app.domains.story_memory.schemas import ForeshadowLifecycleTransition
 from app.domains.story_memory.service import apply_foreshadow_lifecycle_transition
 
@@ -173,24 +178,17 @@ def test_scene_packet_contains_required_slots_evidence_and_budget(
     )
     assert response.status_code == 201, response.text
     packet = response.json()
+    packet_body = packet["packet"]
 
-    required_slots = {
-        "章节目标",
-        "活跃角色",
-        "关系状态",
-        "未回收伏笔",
-        "风格规则",
-        "必须包含事实",
-        "必须规避事实",
-        "用户意图",
-        "证据链接",
-    }
-    assert required_slots.issubset(packet["packet"].keys())
-    assert packet["packet"]["章节目标"] == "林岚在港口谈判中争取维修窗口。"
-    assert packet["packet"]["用户意图"] == "突出角色强撑与谈判压力。"
-    assert packet["packet"]["活跃角色"][0]["name"] == "林岚"
-    assert packet["packet"]["证据链接"]
-    assert packet["packet"]["证据链接"] == packet["evidence_links"]
+    assert set(SCENE_PACKET_REQUIRED_KEYS).issubset(packet_body.keys())
+    assert list(packet_body.keys())[: len(SCENE_PACKET_BASE_KEY_ORDER)] == list(SCENE_PACKET_BASE_KEY_ORDER)
+    context_keys = [key for key in packet_body if key in SCENE_PACKET_CONTEXT_KEY_ORDER]
+    assert context_keys == [key for key in SCENE_PACKET_CONTEXT_KEY_ORDER if key in packet_body]
+    assert packet_body["章节目标"] == "林岚在港口谈判中争取维修窗口。"
+    assert packet_body["用户意图"] == "突出角色强撑与谈判压力。"
+    assert packet_body["活跃角色"][0]["name"] == "林岚"
+    assert packet_body["证据链接"]
+    assert packet_body["证据链接"] == packet["evidence_links"]
     active_asset_ids = {
         story_context["character_id"],
         story_context["style_id"],

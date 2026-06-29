@@ -4,15 +4,23 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import {
+  AgentRunRecoveryPanel,
   applyWritingRunEventProjection,
+  buildAgentRunRecoveryDisplay,
   buildStableAgentRequestPayload,
   ChatWindow,
+  displayFromResumeDiagnostic,
   extractIssueScopeFromInstruction,
+  filePathFromAgentResult,
   reviewIssuesFromReport,
+  shouldApplyAgentControlAck,
   scopeWarningFromAgentResult,
+  statusFromAgentResult,
+  stepsFromResumedAgentResult,
   WritingRunProgressPanel,
   writingRunIdFromResult,
 } from '../src/components/ChatWindow';
+import type { AgentRunSavePointProjection } from '../src/lib/api-client';
 
 const reviewReport = {
   kind: 'review_report',
@@ -136,6 +144,279 @@ test('managed Writing Run mock SSE progress renders lightweight tool progress', 
   const failedMarkup = renderToStaticMarkup(React.createElement(WritingRunProgressPanel, { projection: failed }));
   assert.match(failedMarkup, /最近事件：failed/);
   assert.match(failedMarkup, /预算不足/);
+});
+
+function savePointProjection(
+  patch: Partial<AgentRunSavePointProjection>,
+): AgentRunSavePointProjection {
+  return {
+    run_id: 'run-1',
+    status: 'running',
+    current_step: null,
+    save_points: [],
+    pending: {},
+    recoverability: {
+      can_retry_from_checkpoint: false,
+      latest_checkpoint_artifact_id: null,
+      failed_without_checkpoint: false,
+      terminal_event_id: null,
+      resume_strategy: 'none',
+    },
+    runtime_recovery: {
+      latest_execution_marker: null,
+      latest_replay_safe_marker: null,
+      latest_failure: null,
+      latest_control: null,
+      latest_interruption: null,
+      latest_resume_diagnostic: null,
+      latest_pending_call: null,
+      latest_pending_call_resolution: null,
+      automatic_resume_supported: false,
+      manual_restart_required: false,
+    },
+    interruption_model: {
+      uses_existing_paused_status: false,
+      uses_existing_stopped_status: false,
+      has_interrupted_event: false,
+    },
+    ...patch,
+  };
+}
+
+test('agent run recovery display summarizes pending permission and proposed patch', () => {
+  const recovery = buildAgentRunRecoveryDisplay(
+    savePointProjection({
+      status: 'paused',
+      pending: {
+        permission_required: true,
+        blocked_tool: 'file.revise',
+        proposed_patch_artifact_id: 12,
+      },
+      recoverability: {
+        can_retry_from_checkpoint: false,
+        latest_checkpoint_artifact_id: null,
+        failed_without_checkpoint: false,
+        terminal_event_id: null,
+        resume_strategy: 'await_permission_decision',
+      },
+    }),
+  );
+
+  assert.ok(recovery);
+  assert.equal(recovery.tone, 'waiting');
+  assert.equal(recovery.resumeText, '恢复：等待权限确认');
+  assert.match(recovery.pendingText ?? '', /等待权限：file\.revise/);
+  assert.match(recovery.pendingText ?? '', /待确认补丁 #12/);
+
+  const html = renderToStaticMarkup(
+    React.createElement(AgentRunRecoveryPanel, { recovery }),
+  );
+  assert.match(html, /data-testid="agent-run-recovery"/);
+  assert.match(html, /等待权限：file\.revise/);
+});
+
+test('agent run recovery display surfaces checkpoint and latest retry control', () => {
+  const recovery = buildAgentRunRecoveryDisplay(
+    savePointProjection({
+      save_points: [
+        {
+          kind: 'bookrun_checkpoint',
+          source: 'artifact',
+          artifact_id: 77,
+          artifact_kind: 'bookrun_checkpoint',
+          requires_confirmation: false,
+          summary: {
+            latest_checkpoint_chapter_index: 4,
+            completed_count: 3,
+            total_chapters: 8,
+          },
+        },
+      ],
+      recoverability: {
+        can_retry_from_checkpoint: true,
+        latest_checkpoint_artifact_id: 77,
+        failed_without_checkpoint: false,
+        terminal_event_id: null,
+        resume_strategy: 'bookrun_checkpoint',
+      },
+      runtime_recovery: {
+        latest_control: {
+          event_type: 'retry_from_checkpoint',
+          book_run_status: 'running',
+        },
+      },
+    }),
+  );
+
+  assert.ok(recovery);
+  assert.equal(recovery.canRetryFromCheckpoint, true);
+  assert.equal(recovery.tone, 'ok');
+  assert.equal(recovery.resumeText, '恢复：可从 BookRun checkpoint 继续');
+  assert.equal(recovery.latestControlText, '最近控制：从 checkpoint 重试 · running');
+  assert.equal(recovery.checkpointText, 'checkpoint #77 · 第 4 章 · 3/8');
+});
+
+test('agent run recovery display keeps failed run without checkpoint conservative', () => {
+  const recovery = buildAgentRunRecoveryDisplay(
+    savePointProjection({
+      status: 'failed',
+      recoverability: {
+        can_retry_from_checkpoint: false,
+        latest_checkpoint_artifact_id: null,
+        failed_without_checkpoint: true,
+        terminal_event_id: 9,
+        resume_strategy: 'manual_restart_required',
+      },
+      runtime_recovery: {
+        manual_restart_required: true,
+        latest_failure: {
+          event_type: 'agent_run_failed',
+          message: 'provider timeout',
+        },
+      },
+    }),
+  );
+
+  assert.ok(recovery);
+  assert.equal(recovery.tone, 'error');
+  assert.equal(recovery.manualRestartRequired, true);
+  assert.equal(recovery.resumeText, '恢复：需要手动重启本轮');
+  assert.equal(recovery.boundaryText, '最近失败：provider timeout');
+});
+
+test('resumed agent result maps to completed recovery steps when no confirmation is needed', () => {
+  const response = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    run_id: 'run-1',
+    assistant_session_id: 42,
+    intent: 'file.review',
+    user_message: '继续审稿',
+    plan: [{ step: 'subagents.review', detail: '从 pending boundary 继续', status: 'completed' }],
+    agent_result: {
+      summary: '审稿完成。',
+      requires_user_confirmation: false,
+      resumed_from_pending_call: true,
+    },
+    tool_trace: [
+      {
+        tool_name: 'file.review',
+        status: 'completed',
+        input_summary: {},
+      },
+    ],
+  };
+
+  assert.equal(statusFromAgentResult(response), 'completed');
+  const steps = stepsFromResumedAgentResult(response);
+  assert.equal(steps[0].id, 'resume');
+  assert.equal(steps[0].status, 'completed');
+  assert.equal(steps.at(-1)?.id, 'approval');
+  assert.equal(steps.at(-1)?.status, 'completed');
+});
+
+test('resumed agent result preserves waiting status for confirmation results', () => {
+  const response = {
+    type: 'agent_result',
+    session_id: 'agent-session',
+    run_id: 'run-1',
+    assistant_session_id: 42,
+    intent: 'file.revise',
+    user_message: '继续修订',
+    plan: [{ step: 'file.revise', detail: '生成修订建议', status: 'completed' }],
+    agent_result: {
+      summary: '已生成修订建议。',
+      requires_user_confirmation: true,
+    },
+    tool_trace: [
+      {
+        tool_name: 'file.revise',
+        status: 'completed',
+        input_summary: {},
+      },
+    ],
+  };
+
+  assert.equal(statusFromAgentResult(response), 'waiting');
+  const steps = stepsFromResumedAgentResult(response);
+  assert.equal(steps[0].detail, 'resume_run 已返回 file.revise');
+  assert.equal(steps.at(-1)?.status, 'waiting');
+  assert.match(steps.at(-1)?.detail ?? '', /diff 面板/);
+});
+
+test('resume diagnostic display marks unsupported pending call as manual restart', () => {
+  const display = displayFromResumeDiagnostic({
+    reason: 'unsupported_pending_call_intent',
+    intent: 'file.revise',
+    requires_manual_restart: true,
+  });
+
+  assert.equal(display.status, 'failed');
+  assert.match(display.message, /暂不支持自动恢复/);
+  assert.match(display.message, /file\.revise/);
+  assert.match(display.message, /手动重启/);
+});
+
+test('resume diagnostic display keeps run waiting when resume command is premature', () => {
+  const display = displayFromResumeDiagnostic({
+    reason: 'run_not_resumed',
+    pending_tool: 'file.review',
+    requires_manual_restart: false,
+  });
+
+  assert.equal(display.status, 'waiting');
+  assert.match(display.message, /尚未进入 resumed 状态/);
+  assert.match(display.message, /file\.review/);
+});
+
+test('control ack guard ignores stale or mismatched run acknowledgements', () => {
+  assert.equal(shouldApplyAgentControlAck('run-2', 'run-1', 'run-1'), false);
+  assert.equal(shouldApplyAgentControlAck('run-1', 'run-1', 'run-2'), false);
+  assert.equal(shouldApplyAgentControlAck('run-1', 'run-1', 'run-1'), true);
+  assert.equal(shouldApplyAgentControlAck('run-1', 'run-1'), true);
+});
+
+test('agent result file path prefers review report or proposed patch path', () => {
+  assert.equal(
+    filePathFromAgentResult({
+      type: 'agent_result',
+      session_id: 'agent-session',
+      assistant_session_id: 1,
+      intent: 'file.review',
+      user_message: '继续审稿',
+      plan: [],
+      agent_result: {
+        summary: '完成',
+        review_report: {
+          kind: 'review_report',
+          file_path: '正文/第09章.md',
+        },
+      },
+      tool_trace: [],
+    }),
+    '正文/第09章.md',
+  );
+  assert.equal(
+    filePathFromAgentResult({
+      type: 'agent_result',
+      session_id: 'agent-session',
+      assistant_session_id: 1,
+      intent: 'file.revise',
+      user_message: '继续修订',
+      plan: [],
+      agent_result: { summary: '完成', requires_user_confirmation: true },
+      tool_trace: [],
+      proposed_patch: {
+        kind: 'file_revision',
+        file_path: '正文/第10章.md',
+        before: '旧',
+        after: '新',
+        requires_confirmation: true,
+        approval_action: 'desktop.confirm_file_writeback',
+      },
+    }),
+    '正文/第10章.md',
+  );
 });
 
 test('scope warning is extracted from agent_result for the patch panel', () => {

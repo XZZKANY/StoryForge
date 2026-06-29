@@ -166,3 +166,17 @@ npm --prefix apps/desktop/frontend run test
 - **API Key：** 默认 `local-dev-key`，生产环境如未配置 `STORYFORGE_API_KEY` 会触发 warn_default_credentials 日志告警。
 - **CORS：** 默认允许桌面 Vite `http://localhost:3007` / `http://127.0.0.1:3007`，自定义前端域名要改 `STORYFORGE_CORS_ORIGINS`。
 - **migration 锁：** docker entrypoint 自动获取 advisory lock，多实例并发部署时不要绕开。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live in GitHub Issues for `XZZKANY/StoryForge`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default five-label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: read root `CONTEXT.md` plus relevant architecture docs under `docs/architecture/`. See `docs/agents/domain.md`.

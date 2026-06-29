@@ -4,6 +4,7 @@ import { semanticKindLabel, type ContextBundle, type SemanticFile } from '../../
 import { AgentStepsPanel } from '../AgentStepsPanel';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
+import type { AgentRunRecoveryDisplay } from './recovery';
 import { reviewCategoryLabel } from './review';
 import type {
   AgentRun,
@@ -36,6 +37,7 @@ export function MessageList({
   disabled,
   onSubmit,
   agentRun,
+  agentRunRecovery,
   writingRunProjection,
   explicitContextPaths,
   contextCandidates,
@@ -56,6 +58,7 @@ export function MessageList({
   disabled: boolean;
   onSubmit: (value: string) => void;
   agentRun: AgentRun | null;
+  agentRunRecovery: AgentRunRecoveryDisplay | null;
   writingRunProjection: WritingRunProjection | null;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
@@ -101,6 +104,7 @@ export function MessageList({
           <div className="animate-slide-up-fade space-y-2">
             <AgentRunControlBar run={agentRun} controls={agentRunControls} />
             <AgentStepsPanel run={agentRun} />
+            <AgentRunRecoveryPanel recovery={agentRunRecovery} />
           </div>
         )}
 
@@ -128,6 +132,40 @@ export function MessageList({
       </div>
     </div>
   );
+}
+
+export function AgentRunRecoveryPanel({
+  recovery,
+}: {
+  recovery: AgentRunRecoveryDisplay | null;
+}) {
+  if (!recovery) return null;
+  const toneClass = recoveryToneClass(recovery.tone);
+  return (
+    <section
+      className={`rounded-md border px-3 py-2 ${toneClass}`}
+      data-testid="agent-run-recovery"
+    >
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="truncate text-xs font-semibold text-[#EDEDED]">
+          {recovery.statusText}；{recovery.resumeText}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#A8A8B0]">
+          {recovery.pendingText && <span>{recovery.pendingText}</span>}
+          {recovery.latestControlText && <span>{recovery.latestControlText}</span>}
+          {recovery.boundaryText && <span>{recovery.boundaryText}</span>}
+          {recovery.checkpointText && <span>{recovery.checkpointText}</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
+  if (tone === 'error') return 'border-[#5A2F2F] bg-[#251D1F]';
+  if (tone === 'waiting') return 'border-[#5F5238] bg-[#272418]';
+  if (tone === 'ok') return 'border-[#3B5F47] bg-[#1E2A22]';
+  return 'border-[#333338] bg-[#202024]';
 }
 
 export function ReviewIssueActions({

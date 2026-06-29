@@ -11,6 +11,7 @@ import { App } from '../src/App';
 // 本测试固化壳层结构（拆分 C2 前移护栏）+ 镜像 ide-shell.spec.ts 的源文本断言。
 
 const appSource = readFileSync('src/App.tsx', 'utf8');
+const rightWorkspaceSource = readFileSync('src/components/app/RightWorkspace.tsx', 'utf8');
 
 function renderApp() {
   return renderToStaticMarkup(React.createElement(App, {}));
@@ -38,7 +39,10 @@ test('App 壳层暴露项目库入口与新增项目按钮', () => {
 });
 
 test('源文本保留 ide-shell.spec.ts 依赖的壳层结构符号（拆分 C2 前移护栏）', () => {
-  const markers = [
+  // C2 拆分后，部分壳层符号随子组件移入 src/components/app/*：
+  //   - App.tsx 仍保留：desktop-shell、各子组件名（import/JSX 引用）、assistant-panel
+  //   - RightWorkspace.tsx 持有：editor-panel、file-tree-panel（e2e ide-shell.spec 依赖）
+  const appMarkers = [
     'data-testid="desktop-shell"',
     'WindowMenu',
     'CodexSidebar',
@@ -46,13 +50,21 @@ test('源文本保留 ide-shell.spec.ts 依赖的壳层结构符号（拆分 C2 
     'RightWorkspace',
     'DynamicIDELayout',
     'data-testid="assistant-panel"',
+  ];
+  const rightWorkspaceMarkers = [
     'data-testid="editor-panel"',
     'data-testid="file-tree-panel"',
   ];
-  for (const marker of markers) {
+  for (const marker of appMarkers) {
     assert.ok(
       appSource.includes(marker),
       `App.tsx 源文本缺失壳层结构符号：${marker}`,
+    );
+  }
+  for (const marker of rightWorkspaceMarkers) {
+    assert.ok(
+      rightWorkspaceSource.includes(marker),
+      `RightWorkspace.tsx 源文本缺失壳层结构符号：${marker}`,
     );
   }
 });

@@ -5,6 +5,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from app.domains.agent_runs.runtime_recovery import (
+    RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+    RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+)
+
 TITLE_JOB_NAME = "conversation.title.generate"
 SUMMARY_JOB_NAME = "conversation.summary.update"
 COMPACTION_JOB_NAME = "conversation.compact"
@@ -12,7 +17,12 @@ COMPACTION_JOB_NAME = "conversation.compact"
 SYSTEM_SUMMARY_ARTIFACT_KIND = "system_summary"
 SYSTEM_COMPACTION_ARTIFACT_KIND = "system_compaction"
 HIDDEN_SYSTEM_ARTIFACT_KINDS = frozenset(
-    {SYSTEM_SUMMARY_ARTIFACT_KIND, SYSTEM_COMPACTION_ARTIFACT_KIND}
+    {
+        SYSTEM_SUMMARY_ARTIFACT_KIND,
+        SYSTEM_COMPACTION_ARTIFACT_KIND,
+        RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+        RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+    }
 )
 
 COMPACTION_MESSAGE_THRESHOLD = 12

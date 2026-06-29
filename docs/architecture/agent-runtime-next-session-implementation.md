@@ -4,12 +4,13 @@
 
 这份文档给下一次新会话直接接手实现用。它不是新的架构设想，而是基于当前工作树事实整理的实施顺序和第一批可落地任务。
 
-下一会话开始时，先读这四份文档：
+下一会话开始时，先读这几份文档：
 
-1. `docs/architecture/agent-runtime-control-plane-plan.md`
+> 更新(2026-06-29):Agent Runtime / Harness 主题的唯一主入口已改为 [`pi-opencode-agent-harness-adoption-plan.md`](./pi-opencode-agent-harness-adoption-plan.md)。下面第 1、4 项原文档已归档,其阶段骨架并入主入口——**请改读主入口**;本文其余实施细节仍有效。
+
+1. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`（主入口,取代原 control-plane 与 post-facade 两份）
 2. `docs/architecture/agent-run-v1-gap-plan.md`
 3. `docs/architecture/agent-run-runtime-facade-plan.md`
-4. `docs/architecture/agent-runtime-post-facade-master-plan.md`
 
 然后从本文的“下一步第一任务”开始。
 

@@ -7589,8 +7589,22 @@
         "type": "object"
       },
       "RuntimeToolRead": {
-        "description": "由 CreativeToolRegistry 派生的运行时工具说明。",
+        "description": "由 AgentRuntime、CreativeToolRegistry 或 MCP 派生的运行时工具说明。",
         "properties": {
+          "allowed_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Roles",
+            "type": "array"
+          },
+          "artifact_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Artifact Kinds",
+            "type": "array"
+          },
           "domain": {
             "title": "Domain",
             "type": "string"
@@ -7605,6 +7619,14 @@
             },
             "title": "Evidence Fields",
             "type": "array"
+          },
+          "execution_mode": {
+            "title": "Execution Mode",
+            "type": "string"
+          },
+          "idempotent": {
+            "title": "Idempotent",
+            "type": "boolean"
           },
           "input_schema": {
             "additionalProperties": true,
@@ -7667,6 +7689,14 @@
           "requires_confirmation": {
             "title": "Requires Confirmation",
             "type": "boolean"
+          },
+          "retry_safe": {
+            "title": "Retry Safe",
+            "type": "boolean"
+          },
+          "risk_level": {
+            "title": "Risk Level",
+            "type": "string"
           }
         },
         "required": [
@@ -7675,9 +7705,15 @@
           "origin",
           "input_schema",
           "output_schema",
+          "allowed_roles",
           "permission_level",
+          "risk_level",
           "requires_confirmation",
           "read_only",
+          "retry_safe",
+          "idempotent",
+          "execution_mode",
+          "artifact_kinds",
           "event_store_required",
           "required_capabilities",
           "evidence_fields",
@@ -10195,6 +10231,51 @@
           }
         },
         "summary": "读取 AgentRun SSE 事件流",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/{run_id}/save-points": {
+      "get": {
+        "description": "从 AgentRunEvent / AgentArtifact 事实源推导当前可恢复边界。",
+        "operationId": "get_agent_run_save_points_endpoint_api_agent_runs__run_id__save_points_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Run Save Points Endpoint Api Agent Runs  Run Id  Save Points Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "读取 AgentRun save point 投影",
         "tags": [
           "Agent Runtime"
         ]
@@ -14657,7 +14738,7 @@
     },
     "/api/runtime-tools": {
       "get": {
-        "description": "列出 CreativeToolRegistry 声明的运行时工具能力。",
+        "description": "列出 AgentRuntime、CreativeToolRegistry 与 MCP 声明的运行时工具能力。",
         "operationId": "list_runtime_tools_endpoint_api_runtime_tools_get",
         "responses": {
           "200": {

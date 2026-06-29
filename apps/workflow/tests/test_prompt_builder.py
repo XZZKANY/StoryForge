@@ -305,6 +305,19 @@ def test_draft_prompt_injects_craft_guidelines() -> None:
     assert "正例" in prompt
 
 
+def test_draft_prompt_craft_examples_follow_builder_facade_override(monkeypatch) -> None:
+    """诊断脚本可 patch builder._CRAFT_EXAMPLE_* 做好坏锚点 A/B 开关，渲染须随之变化。"""
+
+    from storyforge_workflow.prompts import builder
+
+    monkeypatch.setattr(builder, "_CRAFT_EXAMPLE_BAD", "")
+    monkeypatch.setattr(builder, "_CRAFT_EXAMPLE_GOOD", "")
+    prompt = build_draft_prompt(_full_context())
+    assert "【创作准则" in prompt
+    assert "反例" not in prompt
+    assert "正例" not in prompt
+
+
 def test_longform_segment_prompt_injects_craft_guidelines() -> None:
     prompt = build_longform_segment_prompt(
         _full_context(),

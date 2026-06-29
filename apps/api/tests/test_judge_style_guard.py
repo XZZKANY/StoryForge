@@ -67,6 +67,24 @@ def test_judge_style_guard_scores_drift_against_approved_chapter_fingerprint(ses
     assert style_issue.payload["matched_text"] == "作者直接解释"
 
 
+def test_style_fingerprint_dialogue_ratio_counts_corner_brackets_not_curly_quotes() -> None:
+    """dialogue_ratio 以对话标记「」计数；术语强调用的弯引号“”不计入对话口径。"""
+
+    from app.domains.judge.service import _style_fingerprint
+
+    content = "「你来了。」她按住左臂。这是关于“命运”的旧话题。「我知道。」"
+    corner_marks = content.count("「") + content.count("」")
+    curly_marks = content.count("“") + content.count("”")
+    assert corner_marks == 4
+    assert curly_marks == 2
+
+    fingerprint = _style_fingerprint(content)
+
+    assert fingerprint.dialogue_ratio == round(corner_marks / len(content), 3)
+    # 若静默改回弯引号口径，dialogue_ratio 会落到 round(curly/len,3)，本断言即失败。
+    assert fingerprint.dialogue_ratio != round(curly_marks / len(content), 3)
+
+
 def test_compute_book_style_baseline_chapter_window_limits_corpus(session: Session) -> None:
     """chapter_window 给定时只指纹化最近 N 章，避免长程全量重算。"""
 

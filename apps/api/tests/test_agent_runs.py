@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
 
+from app.domains.agent_runs import event_types
 from app.domains.agent_runs.bookrun_summary import (
     _bookrun_budget_details,
     _bookrun_budget_summary,
@@ -40,6 +41,43 @@ def _seed_agent_run(session: Session, public_id: str = "run-low-level-events") -
     return run
 
 
+def _stored_run_events(session: Session, run: AgentRun) -> list[AgentRunEvent]:
+    return list(session.query(AgentRunEvent).filter_by(run_id=run.id).order_by(AgentRunEvent.sequence, AgentRunEvent.id))
+
+
+def _stored_run_artifacts(session: Session, run: AgentRun) -> list[AgentArtifact]:
+    return list(session.query(AgentArtifact).filter_by(run_id=run.id).order_by(AgentArtifact.id))
+
+
+def _seed_chapter_review_scene_packet(session: Session) -> dict[str, int | str]:
+    from app.domains.books.models import Book, Chapter, Scene
+    from app.domains.continuity.models import ScenePacket
+
+    content = "林岚举起左臂，旁人看见左臂完好无损。作者直接解释这说明她早已摆脱旧伤。"
+    book = Book(title="灯塔余烬", status="draft", premise="林岚在港口追查灯塔信号。")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=1, title="旧伤", status="draft", summary=None)
+    session.add(chapter)
+    session.flush()
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="港口谈判", status="draft", content=content)
+    session.add(scene)
+    session.flush()
+    packet = ScenePacket(
+        scene_id=scene.id,
+        status="assembled",
+        packet={
+            "必须包含事实": ["左臂受伤"],
+            "风格规则": ["克制"],
+            "证据链接": [{"source_ref": "asset://character/lin-lan#v1", "rationale": "角色资产要求左臂仍受伤。"}],
+        },
+        version=1,
+    )
+    session.add(packet)
+    session.commit()
+    return {"scene_packet_id": packet.id, "content": content}
+
+
 def test_agent_run_models_are_registered_in_metadata() -> None:
     """Agent Runtime 控制平面表必须进入统一 ORM 元数据。"""
 
@@ -47,6 +85,1239 @@ def test_agent_run_models_are_registered_in_metadata() -> None:
     assert AgentRunEvent.__tablename__ == "agent_run_events"
     assert SubagentRun.__tablename__ == "subagent_runs"
     assert AgentArtifact.__tablename__ == "agent_artifacts"
+
+
+def test_agent_run_event_type_constants_preserve_existing_protocol_values() -> None:
+    """事件常量只收敛既有协议名，不夹带 turn/streaming 新模型。"""
+
+    from app.domains.agent_runs.service import _control_event_type
+
+    assert frozenset(
+        {
+            "agent_run_started",
+            "agent_plan_created",
+            "subagent_started",
+            "subagent_completed",
+            "tool_trace",
+            "permission_required",
+            "agent_artifact",
+            "agent_run_completed",
+            "agent_run_failed",
+            "system_job",
+            "permission_approved",
+            "permission_denied",
+            "pause_run",
+            "resume_run",
+            "stop_run",
+            "retry_from_checkpoint",
+        }
+    ) == event_types.AGENT_RUN_EVENT_TYPES
+    assert frozenset(
+        {
+            "approve_permission",
+            "deny_permission",
+            "pause_run",
+            "resume_run",
+            "stop_run",
+            "retry_from_checkpoint",
+        }
+    ) == event_types.CONTROL_MESSAGE_TYPES
+    assert frozenset(
+        {
+            "permission_approved",
+            "permission_denied",
+            "pause_run",
+            "resume_run",
+            "stop_run",
+            "retry_from_checkpoint",
+        }
+    ) == event_types.CONTROL_MESSAGE_EVENT_TYPES
+    assert _control_event_type("approve_permission") == "permission_approved"
+    assert _control_event_type("deny_permission") == "permission_denied"
+    assert _control_event_type("pause_run") == "pause_run"
+    assert event_types.event_type_for_control_message("custom_legacy_event") == "custom_legacy_event"
+    assert "turn_started" not in event_types.AGENT_RUN_EVENT_TYPES
+    assert "message_delta" not in event_types.AGENT_RUN_EVENT_TYPES
+
+
+def test_save_point_projection_reconstructs_pending_permission_and_patch(session: Session) -> None:
+    """阶段 5 第一刀：pending permission/proposed patch 必须能从事实源投影出来。"""
+
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+    from app.domains.agent_runs.service import record_agent_artifact, record_agent_event
+
+    run = _seed_agent_run(session, public_id="run-save-point-pending")
+    run.status = "paused"
+    run.current_step = "permission.confirm"
+    session.add(run)
+    session.commit()
+    permission_event = record_agent_event(
+        session,
+        run,
+        event_type="permission_required",
+        actor="permission-gate",
+        message="需要确认。",
+        payload={"blocked_tool": "file.revise", "reason": "requires_user_confirmation"},
+    )
+    patch = record_agent_artifact(
+        session,
+        run,
+        kind="proposed_patch",
+        payload={"kind": "file_revision", "file_path": "正文/第02章.md", "requires_confirmation": True},
+        requires_confirmation=True,
+    )
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=_stored_run_events(session, run),
+        artifacts=_stored_run_artifacts(session, run),
+    )
+
+    assert projection["pending"] == {
+        "permission_required": True,
+        "permission_event_id": permission_event.id,
+        "blocked_tool": "file.revise",
+        "proposed_patch_artifact_id": patch.id,
+        "runtime_pending_call_artifact_id": None,
+        "runtime_pending_tool": None,
+    }
+    assert projection["recoverability"]["resume_strategy"] == "await_permission_decision"
+    save_points = projection["save_points"]
+    assert [item["kind"] for item in save_points] == ["permission_required", "artifact_persisted"]
+    assert save_points[-1]["artifact_id"] == patch.id
+
+
+def test_save_point_projection_detects_bookrun_checkpoint(session: Session) -> None:
+    """BookRun checkpoint 是当前已有的真实可恢复边界。"""
+
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+    from app.domains.agent_runs.service import record_agent_artifact
+
+    run = _seed_agent_run(session, public_id="run-save-point-checkpoint")
+    checkpoint = record_agent_artifact(
+        session,
+        run,
+        kind="bookrun_checkpoint",
+        payload={
+            "book_run_id": 7,
+            "writing_run_id": 7,
+            "status": "running",
+            "tokens_used": 420,
+            "token_budget": 900,
+            "completed_count": 1,
+            "checkpoint": [{"chapter_index": 1, "status": "completed", "model_run_id": 11}],
+        },
+        requires_confirmation=False,
+    )
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=_stored_run_events(session, run),
+        artifacts=_stored_run_artifacts(session, run),
+    )
+
+    assert projection["recoverability"]["can_retry_from_checkpoint"] is True
+    assert projection["recoverability"]["latest_checkpoint_artifact_id"] == checkpoint.id
+    assert projection["recoverability"]["resume_strategy"] == "bookrun_checkpoint"
+    checkpoint_save_point = next(item for item in projection["save_points"] if item["kind"] == "bookrun_checkpoint")
+    assert checkpoint_save_point["summary"]["book_run_id"] == 7
+    assert checkpoint_save_point["summary"]["checkpoint_count"] == 1
+    assert checkpoint_save_point["summary"]["tokens_used"] == 420
+    assert checkpoint_save_point["summary"]["token_budget"] == 900
+    assert checkpoint_save_point["summary"]["completed_count"] == 1
+    assert checkpoint_save_point["summary"]["latest_checkpoint_chapter_index"] == 1
+    assert checkpoint_save_point["summary"]["latest_checkpoint_status"] == "completed"
+    assert checkpoint_save_point["summary"]["latest_checkpoint_model_run_id"] == 11
+
+
+def test_save_point_projection_does_not_mark_failed_run_retryable_without_checkpoint(session: Session) -> None:
+    """失败 run 没有 checkpoint 时不能被投影成 retry-safe。"""
+
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+    from app.domains.agent_runs.service import record_agent_event
+
+    run = _seed_agent_run(session, public_id="run-save-point-failed")
+    run.status = "failed"
+    run.current_step = "failed"
+    session.add(run)
+    session.commit()
+    failed_event = record_agent_event(
+        session,
+        run,
+        event_type="agent_run_failed",
+        actor="root-agent",
+        message="provider timeout",
+        payload={"runtime": "agent_runtime"},
+    )
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=_stored_run_events(session, run),
+        artifacts=_stored_run_artifacts(session, run),
+    )
+
+    assert projection["recoverability"] == {
+        "can_retry_from_checkpoint": False,
+        "latest_checkpoint_artifact_id": None,
+        "failed_without_checkpoint": True,
+        "terminal_event_id": failed_event.id,
+        "resume_strategy": "manual_restart_required",
+    }
+    assert projection["runtime_recovery"]["manual_restart_required"] is True
+    assert projection["runtime_recovery"]["automatic_resume_supported"] is False
+    assert [item["kind"] for item in projection["save_points"]] == ["run_failed"]
+
+
+def test_tool_recovery_payload_includes_runtime_execution_marker() -> None:
+    """runtime recovery tracer 只写入可回放 marker，不新增第二套事实源。"""
+
+    from app.domains.agent_runs.runtime_recovery import build_tool_recovery_payload
+    from app.domains.agent_runs.tooling import list_agent_runtime_tool_specs
+    from app.domains.agent_runs.trace import AgentToolTrace
+
+    specs = {spec.name: spec for spec in list_agent_runtime_tool_specs()}
+    payload = build_tool_recovery_payload(
+        AgentToolTrace(tool_name="context.load", status="completed", input_summary={"file_path": "正文/第01章.md"}),
+        0,
+        spec=specs["context.load"],
+    )
+
+    assert payload["kind"] == "tool_completed"
+    assert payload["retry_safe"] is True
+    assert payload["idempotent"] is True
+    assert payload["execution_marker"] == {
+        "kind": "after_tool",
+        "source": "tool_trace",
+        "tool_name": "context.load",
+        "tool_index": 0,
+        "status": "completed",
+        "replay_safe": True,
+        "resume_strategy": "replay_from_tool_boundary",
+        "reason": "retry_safe_idempotent_tool",
+    }
+
+    review_payload = build_tool_recovery_payload(
+        AgentToolTrace(tool_name="file.review", status="completed", input_summary={}),
+        1,
+        spec=specs["file.review"],
+    )
+    assert review_payload["execution_marker"]["replay_safe"] is False
+    assert review_payload["execution_marker"]["resume_strategy"] == "manual_restart_required"
+    assert review_payload["execution_marker"]["reason"] == "tool_not_retry_safe"
+
+
+def test_save_point_projection_maps_tool_trace_to_tool_completed(session: Session) -> None:
+    """现有 tool_trace event 是阶段 5 可利用的 tool_completed durable boundary。"""
+
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+    from app.domains.agent_runs.service import record_agent_event
+
+    run = _seed_agent_run(session, public_id="run-save-point-tool-trace")
+    event = record_agent_event(
+        session,
+        run,
+        event_type="tool_trace",
+        actor="tool-registry",
+        message="工具 context.load 返回 completed。",
+        payload={
+            "index": 0,
+            "trace": {
+                "tool_name": "context.load",
+                "status": "completed",
+                "audit_event_id": "audit-1",
+            },
+            "recovery": {
+                "kind": "tool_completed",
+                "tool_name": "context.load",
+                "status": "completed",
+                "index": 0,
+                "retry_safe": True,
+                "idempotent": True,
+                "execution_mode": "sync",
+                "artifact_kinds": [],
+                "execution_marker": {
+                    "kind": "after_tool",
+                    "source": "tool_trace",
+                    "tool_name": "context.load",
+                    "tool_index": 0,
+                    "status": "completed",
+                    "replay_safe": True,
+                    "resume_strategy": "replay_from_tool_boundary",
+                    "reason": "retry_safe_idempotent_tool",
+                },
+            },
+        },
+    )
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=_stored_run_events(session, run),
+        artifacts=_stored_run_artifacts(session, run),
+    )
+
+    assert projection["save_points"] == [
+        {
+            "kind": "tool_completed",
+            "source": "event",
+            "event_id": event.id,
+            "event_type": "tool_trace",
+            "sequence": event.sequence,
+            "summary": {
+                "kind": "tool_completed",
+                "tool_name": "context.load",
+                "status": "completed",
+                "index": 0,
+                "retry_safe": True,
+                "idempotent": True,
+                "execution_mode": "sync",
+                "artifact_kinds": [],
+                "execution_marker": {
+                    "kind": "after_tool",
+                    "source": "tool_trace",
+                    "tool_name": "context.load",
+                    "tool_index": 0,
+                    "status": "completed",
+                    "replay_safe": True,
+                    "resume_strategy": "replay_from_tool_boundary",
+                    "reason": "retry_safe_idempotent_tool",
+                },
+            },
+        }
+    ]
+    assert projection["runtime_recovery"] == {
+        "latest_execution_marker": {
+            "event_id": event.id,
+            "sequence": event.sequence,
+            "kind": "after_tool",
+            "source": "tool_trace",
+            "tool_name": "context.load",
+            "status": "completed",
+            "resume_strategy": "replay_from_tool_boundary",
+            "reason": "retry_safe_idempotent_tool",
+            "tool_index": 0,
+            "replay_safe": True,
+        },
+        "latest_replay_safe_marker": {
+            "event_id": event.id,
+            "sequence": event.sequence,
+            "kind": "after_tool",
+            "source": "tool_trace",
+            "tool_name": "context.load",
+            "status": "completed",
+            "resume_strategy": "replay_from_tool_boundary",
+            "reason": "retry_safe_idempotent_tool",
+            "tool_index": 0,
+            "replay_safe": True,
+        },
+        "latest_control": None,
+        "latest_interruption": None,
+        "latest_resume_diagnostic": None,
+        "latest_failure": None,
+        "latest_pending_call": None,
+        "latest_pending_call_resolution": None,
+        "automatic_resume_supported": False,
+        "manual_restart_required": False,
+    }
+
+
+def test_failed_run_with_runtime_marker_still_requires_manual_restart_without_checkpoint(session: Session) -> None:
+    """runtime marker 本身不是 checkpoint；失败且无 checkpoint 仍不能自动恢复。"""
+
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+    from app.domains.agent_runs.service import record_agent_event
+
+    run = _seed_agent_run(session, public_id="run-runtime-marker-failed")
+    tool_event = record_agent_event(
+        session,
+        run,
+        event_type="tool_trace",
+        actor="tool-registry",
+        message="工具 context.load 返回 completed。",
+        payload={
+            "index": 0,
+            "trace": {"tool_name": "context.load", "status": "completed"},
+            "recovery": {
+                "kind": "tool_completed",
+                "tool_name": "context.load",
+                "status": "completed",
+                "index": 0,
+                "retry_safe": True,
+                "idempotent": True,
+                "execution_mode": "sync",
+                "artifact_kinds": [],
+                "execution_marker": {
+                    "kind": "after_tool",
+                    "source": "tool_trace",
+                    "tool_name": "context.load",
+                    "tool_index": 0,
+                    "status": "completed",
+                    "replay_safe": True,
+                    "resume_strategy": "replay_from_tool_boundary",
+                    "reason": "retry_safe_idempotent_tool",
+                },
+            },
+        },
+    )
+    run.status = "failed"
+    run.current_step = "failed"
+    session.add(run)
+    session.commit()
+    record_agent_event(
+        session,
+        run,
+        event_type="agent_run_failed",
+        actor="root-agent",
+        message="provider timeout",
+        payload={"runtime": "agent_runtime"},
+    )
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=_stored_run_events(session, run),
+        artifacts=_stored_run_artifacts(session, run),
+    )
+
+    assert projection["recoverability"]["resume_strategy"] == "manual_restart_required"
+    assert projection["recoverability"]["failed_without_checkpoint"] is True
+    assert projection["runtime_recovery"]["latest_replay_safe_marker"]["tool_name"] == "context.load"
+    assert projection["runtime_recovery"]["latest_failure"] == {
+        "event_id": projection["recoverability"]["terminal_event_id"],
+        "sequence": 2,
+        "event_type": "agent_run_failed",
+        "failed_without_checkpoint": True,
+        "manual_restart_required": True,
+        "resume_strategy": "manual_restart_required",
+        "message": "provider timeout",
+        "latest_execution_marker": {
+            "event_id": tool_event.id,
+            "sequence": 1,
+            "kind": "after_tool",
+            "tool_name": "context.load",
+            "status": "completed",
+            "resume_strategy": "replay_from_tool_boundary",
+            "reason": "retry_safe_idempotent_tool",
+            "replay_safe": True,
+            "tool_index": 0,
+        },
+    }
+    assert projection["runtime_recovery"]["manual_restart_required"] is True
+
+
+def test_file_review_runtime_stops_at_context_boundary_when_control_event_arrives(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """file.review 的第一条可中断 run loop 边界在 context.load 之后。"""
+
+    from app.domains.agent_runs import runtime as agent_runtime
+    from app.domains.agent_runs.event_sink import _AgentRunEventSink
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+    from app.domains.agent_runs.service import record_agent_control_event
+
+    def fail_if_review_runs(*args, **kwargs):  # noqa: ANN002, ANN003 - test sentinel
+        raise AssertionError("reviewers should not run after stop_run")
+
+    class StopAfterContextSink(_AgentRunEventSink):
+        def record_tool_trace(self, run: AgentRun, trace, index: int) -> None:  # noqa: ANN001
+            super().record_tool_trace(run, trace, index)
+            if trace.tool_name == "context.load":
+                record_agent_control_event(
+                    session,
+                    public_id=run.public_id,
+                    session_id=run.session_id,
+                    control_type="stop_run",
+                    payload={"reason": "test stop after context"},
+                )
+
+    monkeypatch.setattr(agent_runtime, "_build_multi_agent_review_report_with_executor", fail_if_review_runs)
+    run = _seed_agent_run(session, public_id="run-interrupt-after-context")
+
+    result = AgentRuntime(StopAfterContextSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message={
+            "type": "user_message",
+            "run_id": run.public_id,
+            "user_message": "审查当前章节",
+            "intent": "file.review",
+            "args": {
+                "file_path": "正文/第01章.md",
+                "content": "林岚走进港口。她看见灯塔熄灭。",
+                "context_bundle": {"files": []},
+            },
+        },
+    )
+
+    assert result["type"] == "agent_result"
+    assert result["runtime_interruption"] == {
+        "kind": "runtime_interruption",
+        "status": "stopped",
+        "current_step": "stopped",
+        "boundary": "after_tool:context.load",
+        "uses_existing_status": True,
+        "resume_strategy": "stopped_by_user",
+        "automatic_resume_supported": False,
+    }
+    assert result["agent_result"]["runtime_interrupted"] is True
+    assert "_events_recorded" not in result
+    assert "_runtime_interrupted" not in result
+    assert "_tool_artifacts" not in result
+    assert [trace["tool_name"] for trace in result["tool_trace"]] == ["context.load"]
+
+    events = _stored_run_events(session, run)
+    event_types = [event.event_type for event in events]
+    assert event_types == ["agent_plan_created", "tool_trace", "stop_run"]
+    assert all(event.event_type != "subagent_started" for event in events)
+    assert all(event.event_type != "agent_artifact" for event in events)
+    assert all(event.event_type != "agent_run_completed" for event in events)
+    assert _stored_run_artifacts(session, run) == []
+    session.refresh(run)
+    assert run.status == "stopped"
+    assert run.current_step == "stopped"
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=events,
+        artifacts=_stored_run_artifacts(session, run),
+    )
+    assert projection["recoverability"]["resume_strategy"] == "stopped_by_user"
+    assert projection["runtime_recovery"]["latest_execution_marker"]["tool_name"] == "context.load"
+    assert projection["runtime_recovery"]["latest_interruption"]["event_type"] == "stop_run"
+    assert projection["runtime_recovery"]["latest_interruption"]["status"] == "stopped"
+
+
+def test_file_review_runtime_stop_in_review_loop_does_not_leak_tool_artifacts(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reviewer trace 循环中途停止时，内部 _tool_artifacts 标记不得泄漏进返回结果。"""
+
+    from app.domains.agent_runs import runtime as agent_runtime
+    from app.domains.agent_runs.event_sink import _AgentRunEventSink
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.service import record_agent_control_event
+
+    original_runtime_interruption = agent_runtime.AgentRuntime._runtime_interruption  # noqa: SLF001
+    stopped_once = {"value": False}
+
+    def stop_at_first_review_trace(self, run: AgentRun, *, boundary: str):  # noqa: ANN001, ANN202
+        if (
+            boundary.startswith("after_tool:")
+            and boundary != "after_tool:context.load"
+            and not stopped_once["value"]
+        ):
+            stopped_once["value"] = True
+            record_agent_control_event(
+                self._event_sink._session,  # noqa: SLF001
+                public_id=run.public_id,
+                session_id=run.session_id,
+                control_type="stop_run",
+                payload={"reason": "test stop mid review loop"},
+            )
+        return original_runtime_interruption(self, run, boundary=boundary)
+
+    monkeypatch.setattr(agent_runtime.AgentRuntime, "_runtime_interruption", stop_at_first_review_trace)
+    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+
+    run = _seed_agent_run(session, public_id="run-stop-mid-review-loop")
+    result = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message={
+            "type": "user_message",
+            "run_id": run.public_id,
+            "user_message": "审查当前章节",
+            "intent": "file.review",
+            "args": {
+                "file_path": "正文/第01章.md",
+                "content": "林岚走进港口。她看见灯塔熄灭。",
+                "context_bundle": {"files": []},
+            },
+        },
+    )
+
+    assert stopped_once["value"] is True
+    assert result["type"] == "agent_result"
+    assert result["runtime_interruption"]["status"] == "stopped"
+    assert result["agent_result"]["runtime_interrupted"] is True
+    assert "_events_recorded" not in result
+    assert "_runtime_interrupted" not in result
+    assert "_tool_artifacts" not in result
+
+
+def test_file_review_runtime_resumes_from_pending_context_boundary(
+    session: Session,
+) -> None:
+    """resume_run 后，file.review 可从隐藏 pending call artifact 继续 reviewer。"""
+
+    from app.domains.agent_runs.event_sink import _AgentRunEventSink
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.service import (
+        get_agent_run_save_points,
+        list_agent_artifacts,
+        record_agent_control_event,
+    )
+
+    class PauseAfterContextSink(_AgentRunEventSink):
+        def record_tool_trace(self, run: AgentRun, trace, index: int) -> None:  # noqa: ANN001
+            super().record_tool_trace(run, trace, index)
+            if trace.tool_name == "context.load":
+                record_agent_control_event(
+                    session,
+                    public_id=run.public_id,
+                    session_id=run.session_id,
+                    control_type="pause_run",
+                    payload={"reason": "test pause after context"},
+                )
+
+    run = _seed_agent_run(session, public_id="run-resume-after-context")
+    message = {
+        "type": "user_message",
+        "run_id": run.public_id,
+        "user_message": "审查当前章节",
+        "intent": "file.review",
+        "args": {
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。",
+            "context_bundle": {"files": []},
+        },
+    }
+
+    paused = AgentRuntime(PauseAfterContextSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message=message,
+    )
+
+    assert paused["runtime_interruption"]["status"] == "paused"
+    assert paused["runtime_interruption"]["resume_strategy"] == "await_resume"
+    assert list_agent_artifacts(session, run.public_id) == []
+    pause_projection = get_agent_run_save_points(session, run.public_id)
+    pending_artifact_id = pause_projection["pending"]["runtime_pending_call_artifact_id"]
+    assert isinstance(pending_artifact_id, int)
+    assert pause_projection["pending"]["runtime_pending_tool"] == "file.review"
+    assert pause_projection["runtime_recovery"]["latest_pending_call"] == {
+        "artifact_id": pending_artifact_id,
+        "artifact_kind": "runtime_pending_call",
+        "intent": "file.review",
+        "boundary": "after_tool:context.load",
+        "status": "pending",
+        "resume_strategy": "continue_after_context_load",
+        "pending_tool": "file.review",
+    }
+
+    record_agent_control_event(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "continue review"},
+    )
+    session.refresh(run)
+    resumed = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message=message,
+    )
+
+    assert resumed["type"] == "agent_result"
+    assert resumed["agent_result"]["resumed_from_pending_call"] is True
+    assert resumed["agent_result"]["pending_call_artifact_id"] == pending_artifact_id
+    assert resumed["agent_result"]["review_report"]["kind"] == "review_report"
+
+    events = _stored_run_events(session, run)
+    context_tool_events = [
+        event
+        for event in events
+        if event.event_type == "tool_trace" and event.payload.get("trace", {}).get("tool_name") == "context.load"
+    ]
+    assert len(context_tool_events) == 1
+    assert any(event.event_type == "resume_run" for event in events)
+    assert any(event.event_type == "subagent_started" for event in events)
+    assert events[-1].event_type == "agent_run_completed"
+    session.refresh(run)
+    assert run.status == "completed"
+    assert run.current_step == "completed"
+
+    visible_artifacts = list_agent_artifacts(session, run.public_id)
+    assert [artifact.kind for artifact in visible_artifacts] == ["review_report"]
+    completed_projection = get_agent_run_save_points(session, run.public_id)
+    assert completed_projection["pending"]["runtime_pending_call_artifact_id"] is None
+    assert completed_projection["runtime_recovery"]["latest_pending_call"] is None
+    resolution = completed_projection["runtime_recovery"]["latest_pending_call_resolution"]
+    assert isinstance(resolution["artifact_id"], int)
+    assert resolution == {
+        "artifact_id": resolution["artifact_id"],
+        "artifact_kind": "runtime_pending_call_resolution",
+        "status": "resolved",
+        "resolution": "resumed",
+        "resolved_by": "agent_runtime",
+        "result_status": "completed",
+        "intent": "file.review",
+        "boundary": "after_tool:context.load",
+        "pending_tool": "file.review",
+        "pending_resume_strategy": "continue_after_context_load",
+        "pending_artifact_id": pending_artifact_id,
+    }
+
+
+def test_resume_run_control_message_drives_pending_file_review_resume(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WebSocket resume_run ack 可携带 pending file.review 的自动续跑结果。"""
+
+    from app.domains.agent_runs import runtime as agent_runtime
+    from app.domains.agent_runs.service import record_agent_control_event
+
+    original_runtime_interruption = agent_runtime.AgentRuntime._runtime_interruption  # noqa: SLF001
+    paused_once = {"value": False}
+
+    def pause_once_after_context(self, run: AgentRun, *, boundary: str):  # noqa: ANN001
+        if boundary == "after_tool:context.load" and not paused_once["value"]:
+            paused_once["value"] = True
+            record_agent_control_event(
+                self._event_sink._session,  # noqa: SLF001
+                public_id=run.public_id,
+                session_id=run.session_id,
+                control_type="pause_run",
+                payload={"reason": "test pause before websocket resume"},
+            )
+        return original_runtime_interruption(self, run, boundary=boundary)
+
+    monkeypatch.setattr(agent_runtime.AgentRuntime, "_runtime_interruption", pause_once_after_context)
+    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-control-resume-review") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "run_id": "run-control-resume-review",
+                "user_message": "审查当前章节",
+                "intent": "file.review",
+                "args": {
+                    "file_path": "正文/第01章.md",
+                    "content": "林岚走进港口。她看见灯塔熄灭。",
+                    "context_bundle": {"files": []},
+                },
+            }
+        )
+        paused = websocket.receive_json()
+        websocket.send_json(
+            {
+                "type": "resume_run",
+                "run_id": "run-control-resume-review",
+                "payload": {"reason": "continue pending review"},
+            }
+        )
+        resumed_ack = websocket.receive_json()
+
+    assert paused["runtime_interruption"]["status"] == "paused"
+    assert resumed_ack["type"] == "resume_run"
+    assert resumed_ack["status"] == "recorded"
+    assert resumed_ack["resumed_result"]["type"] == "agent_result"
+    assert resumed_ack["resumed_result"]["agent_result"]["resumed_from_pending_call"] is True
+    assert resumed_ack["resumed_result"]["agent_result"]["review_report"]["kind"] == "review_report"
+
+    events = client.get("/api/agent-runs/run-control-resume-review/events").json()
+    event_types = [event["event_type"] for event in events]
+    assert "resume_run" in event_types
+    assert event_types[-1] == "agent_run_completed"
+    context_tool_events = [
+        event
+        for event in events
+        if event["event_type"] == "tool_trace" and event["payload"].get("trace", {}).get("tool_name") == "context.load"
+    ]
+    assert len(context_tool_events) == 1
+    projection = client.get("/api/agent-runs/run-control-resume-review/save-points").json()
+    assert projection["pending"]["runtime_pending_call_artifact_id"] is None
+    assert projection["runtime_recovery"]["latest_pending_call"] is None
+    assert projection["runtime_recovery"]["latest_pending_call_resolution"]["pending_tool"] == "file.review"
+    artifacts = client.get("/api/agent-runs/run-control-resume-review/artifacts").json()
+    assert [artifact["kind"] for artifact in artifacts] == ["review_report"]
+
+
+def test_resume_run_records_diagnostic_for_unsupported_pending_call(session: Session) -> None:
+    """unsupported pending call 不会被 resume_run 自动执行，但原因会进入事件事实源。"""
+
+    from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
+    from app.domains.agent_runs.service import (
+        get_agent_run_save_points,
+        handle_agent_control_message,
+        list_agent_artifacts,
+        record_agent_artifact,
+    )
+
+    run = _seed_agent_run(session, public_id="run-unsupported-pending-resume")
+    run.status = "paused"
+    run.current_step = "paused"
+    session.add(run)
+    session.commit()
+    pending = record_agent_artifact(
+        session,
+        run,
+        kind=RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+        payload={
+            "kind": RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+            "intent": "file.revise",
+            "boundary": "after_tool:context.load",
+            "status": "pending",
+            "resume_strategy": "continue_file_revise",
+            "resume_message": {"type": "user_message", "intent": "file.revise"},
+        },
+        requires_confirmation=False,
+    )
+
+    control = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "try unsupported pending"},
+    )
+
+    assert control.resumed_result is None
+    assert control.resume_diagnostic == {
+        "kind": "runtime_pending_call_resume",
+        "can_resume": False,
+        "resume_via_control_channel": False,
+        "requires_manual_restart": True,
+        "reason": "unsupported_pending_call_intent",
+        "resume_strategy": "manual_restart_required",
+        "artifact_id": pending.id,
+        "artifact_kind": "runtime_pending_call",
+        "run_status": "running",
+        "current_step": "resumed",
+        "intent": "file.revise",
+        "boundary": "after_tool:context.load",
+        "status": "pending",
+        "pending_resume_strategy": "continue_file_revise",
+    }
+    assert control.event.payload["runtime_recovery"]["resume_diagnostic"] == control.resume_diagnostic
+    assert list_agent_artifacts(session, run.public_id) == []
+    projection = get_agent_run_save_points(session, run.public_id)
+    assert projection["pending"]["runtime_pending_call_artifact_id"] == pending.id
+    assert projection["pending"]["runtime_pending_tool"] is None
+    assert projection["runtime_recovery"]["latest_resume_diagnostic"]["reason"] == "unsupported_pending_call_intent"
+    assert projection["runtime_recovery"]["latest_resume_diagnostic"]["requires_manual_restart"] is True
+    assert projection["runtime_recovery"]["latest_pending_call"]["intent"] == "file.revise"
+    assert projection["runtime_recovery"]["latest_pending_call_resolution"] is None
+
+
+def test_resume_run_records_diagnostic_for_malformed_file_review_pending_call(session: Session) -> None:
+    """file.review pending call 缺少 resume envelope 时保守降级，不重跑 context 或 reviewer。"""
+
+    from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
+    from app.domains.agent_runs.service import (
+        get_agent_run_save_points,
+        handle_agent_control_message,
+        record_agent_artifact,
+    )
+
+    run = _seed_agent_run(session, public_id="run-malformed-pending-resume")
+    run.status = "paused"
+    run.current_step = "paused"
+    session.add(run)
+    session.commit()
+    pending = record_agent_artifact(
+        session,
+        run,
+        kind=RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+        payload={
+            "kind": RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+            "intent": "file.review",
+            "boundary": "after_tool:context.load",
+            "status": "pending",
+            "resume_strategy": "continue_after_context_load",
+            "context_output": {"file_path": "正文/第01章.md", "content": "林岚走进港口。"},
+        },
+        requires_confirmation=False,
+    )
+
+    control = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "try malformed pending"},
+    )
+
+    assert control.resumed_result is None
+    assert control.resume_diagnostic["reason"] == "missing_resume_message"
+    assert control.resume_diagnostic["pending_tool"] == "file.review"
+    assert control.resume_diagnostic["requires_manual_restart"] is True
+    assert control.event.payload["runtime_recovery"]["resume_diagnostic"]["artifact_id"] == pending.id
+    events = _stored_run_events(session, run)
+    assert [event.event_type for event in events] == ["agent_artifact", "resume_run"]
+    projection = get_agent_run_save_points(session, run.public_id)
+    assert projection["runtime_recovery"]["latest_resume_diagnostic"]["reason"] == "missing_resume_message"
+    assert projection["runtime_recovery"]["latest_pending_call"]["pending_tool"] == "file.review"
+    assert projection["runtime_recovery"]["latest_pending_call_resolution"] is None
+
+
+def test_file_review_resume_after_subagent_boundary_does_not_rerun_reviewers(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reviewer 已完成后暂停，resume 只补齐剩余事件和 artifact。"""
+
+    from app.domains.agent_runs import runtime as agent_runtime
+    from app.domains.agent_runs.event_sink import _AgentRunEventSink
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.service import (
+        get_agent_run_save_points,
+        list_agent_artifacts,
+        record_agent_control_event,
+    )
+
+    original_builder = agent_runtime._build_multi_agent_review_report_with_executor
+    builder_calls = {"count": 0}
+
+    def counting_builder(*args, **kwargs):  # noqa: ANN002, ANN003
+        builder_calls["count"] += 1
+        return original_builder(*args, **kwargs)
+
+    class PauseAfterFirstReviewerSink(_AgentRunEventSink):
+        def record_tool_trace(self, run: AgentRun, trace, index: int) -> None:  # noqa: ANN001
+            super().record_tool_trace(run, trace, index)
+            if trace.tool_name == "subagent.plot_reviewer":
+                record_agent_control_event(
+                    session,
+                    public_id=run.public_id,
+                    session_id=run.session_id,
+                    control_type="pause_run",
+                    payload={"reason": "pause after first reviewer trace"},
+                )
+
+    monkeypatch.setattr(agent_runtime, "_build_multi_agent_review_report_with_executor", counting_builder)
+    run = _seed_agent_run(session, public_id="run-resume-after-reviewer")
+    message = {
+        "type": "user_message",
+        "run_id": run.public_id,
+        "user_message": "审查当前章节",
+        "intent": "file.review",
+        "args": {
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。",
+            "context_bundle": {"files": []},
+        },
+    }
+
+    paused = AgentRuntime(PauseAfterFirstReviewerSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message=message,
+    )
+
+    assert builder_calls["count"] == 1
+    assert paused["runtime_interruption"]["status"] == "paused"
+    assert paused["runtime_interruption"]["boundary"] == "after_tool:subagent.plot_reviewer"
+    pause_projection = get_agent_run_save_points(session, run.public_id)
+    assert pause_projection["runtime_recovery"]["latest_pending_call"]["pending_tool"] == "file.review.postprocess"
+    assert pause_projection["runtime_recovery"]["latest_pending_call"]["next_trace_index"] == 2
+
+    record_agent_control_event(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "continue postprocess"},
+    )
+    session.refresh(run)
+    resumed = AgentRuntime(_AgentRunEventSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message=message,
+    )
+
+    assert builder_calls["count"] == 1
+    assert resumed["agent_result"]["resumed_from_pending_call"] is True
+    assert resumed["agent_result"]["resumed_from_boundary"] == "after_tool:subagent.plot_reviewer"
+    events = _stored_run_events(session, run)
+    tool_names = [
+        event.payload["trace"]["tool_name"]
+        for event in events
+        if event.event_type == "tool_trace" and isinstance(event.payload.get("trace"), dict)
+    ]
+    assert tool_names == [
+        "context.load",
+        "subagent.plot_reviewer",
+        "subagent.character_reviewer",
+        "subagent.prose_reviewer",
+        "subagent.continuity_reviewer",
+        "subagent.synthesizer",
+    ]
+    assert events[-1].event_type == "agent_run_completed"
+    assert [artifact.kind for artifact in list_agent_artifacts(session, run.public_id)] == ["review_report"]
+    completed_projection = get_agent_run_save_points(session, run.public_id)
+    assert completed_projection["runtime_recovery"]["latest_pending_call"] is None
+    assert completed_projection["runtime_recovery"]["latest_pending_call_resolution"]["pending_tool"] == "file.review.postprocess"
+
+
+def test_chapter_review_runtime_resumes_after_judge_run_without_repairing(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """chapter.review 可在 judge.run 后恢复，但恢复路径不自动进入 judge.repair 写工具。"""
+
+    from app.domains.agent_runs.event_sink import _AgentRunEventSink
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.service import (
+        get_agent_run_save_points,
+        handle_agent_control_message,
+        list_agent_artifacts,
+        record_agent_control_event,
+    )
+
+    class PauseAfterJudgeRunSink(_AgentRunEventSink):
+        def record_tool_trace(self, run: AgentRun, trace, index: int) -> None:  # noqa: ANN001
+            super().record_tool_trace(run, trace, index)
+            if trace.tool_name == "judge.run":
+                record_agent_control_event(
+                    session,
+                    public_id=run.public_id,
+                    session_id=run.session_id,
+                    control_type="pause_run",
+                    payload={"reason": "test pause after judge.run"},
+                )
+
+    counts = {"judge.run": 0, "judge.repair": 0}
+    original_execute_tool = AgentRuntime._execute_tool
+
+    def counting_execute_tool(self, tool_name, context, payload):  # noqa: ANN001
+        if tool_name in counts:
+            counts[tool_name] += 1
+        if tool_name == "judge.repair":
+            raise AssertionError("resume should not execute judge.repair")
+        return original_execute_tool(self, tool_name, context, payload)
+
+    monkeypatch.setattr(AgentRuntime, "_execute_tool", counting_execute_tool)
+
+    seeded = _seed_chapter_review_scene_packet(session)
+    run = _seed_agent_run(session, public_id="run-chapter-review-pending")
+    message = {
+        "type": "user_message",
+        "run_id": run.public_id,
+        "user_message": "审阅当前场景",
+        "intent": "chapter.review",
+        "args": {"scene_packet_id": seeded["scene_packet_id"]},
+    }
+
+    paused = AgentRuntime(PauseAfterJudgeRunSink(session)).run_user_message(
+        session,
+        run=run,
+        agent_session_id=run.session_id,
+        message=message,
+    )
+
+    assert paused["runtime_interruption"]["status"] == "paused"
+    assert paused["runtime_interruption"]["boundary"] == "after_tool:judge.run"
+    assert [trace["tool_name"] for trace in paused["tool_trace"]] == ["judge.run"]
+    assert counts == {"judge.run": 1, "judge.repair": 0}
+    assert list_agent_artifacts(session, run.public_id) == []
+
+    pause_projection = get_agent_run_save_points(session, run.public_id)
+    pending_artifact_id = pause_projection["pending"]["runtime_pending_call_artifact_id"]
+    assert isinstance(pending_artifact_id, int)
+    assert pause_projection["pending"]["runtime_pending_tool"] == "chapter.review.postprocess"
+    assert pause_projection["runtime_recovery"]["latest_pending_call"] == {
+        "artifact_id": pending_artifact_id,
+        "artifact_kind": "runtime_pending_call",
+        "intent": "chapter.review",
+        "boundary": "after_tool:judge.run",
+        "status": "pending",
+        "resume_strategy": "continue_chapter_review_postprocess",
+        "pending_tool": "chapter.review.postprocess",
+    }
+
+    control = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "continue chapter review"},
+    )
+
+    assert control.resume_diagnostic is None
+    assert control.resumed_result is not None
+    resumed = control.resumed_result
+    assert resumed["type"] == "agent_result"
+    assert resumed["intent"] == "chapter.review"
+    assert resumed["agent_result"]["resumed_from_pending_call"] is True
+    assert resumed["agent_result"]["pending_call_artifact_id"] == pending_artifact_id
+    assert resumed["agent_result"]["repair_patch_count"] == 0
+    assert resumed["agent_result"]["requires_user_confirmation"] is False
+    assert resumed.get("proposed_patch") is None
+    assert counts == {"judge.run": 1, "judge.repair": 0}
+
+    events = _stored_run_events(session, run)
+    judge_run_events = [
+        event
+        for event in events
+        if event.event_type == "tool_trace" and event.payload.get("trace", {}).get("tool_name") == "judge.run"
+    ]
+    judge_repair_events = [
+        event
+        for event in events
+        if event.event_type == "tool_trace" and event.payload.get("trace", {}).get("tool_name") == "judge.repair"
+    ]
+    assert len(judge_run_events) == 1
+    assert judge_repair_events == []
+    assert events[-1].event_type == "agent_run_completed"
+
+    completed_projection = get_agent_run_save_points(session, run.public_id)
+    assert completed_projection["pending"]["runtime_pending_call_artifact_id"] is None
+    assert completed_projection["runtime_recovery"]["latest_pending_call"] is None
+    resolution = completed_projection["runtime_recovery"]["latest_pending_call_resolution"]
+    assert resolution["pending_tool"] == "chapter.review.postprocess"
+    assert resolution["pending_resume_strategy"] == "continue_chapter_review_postprocess"
+    assert resolution["pending_artifact_id"] == pending_artifact_id
+
+
+def test_resume_run_records_diagnostic_for_malformed_chapter_review_pending_call(session: Session) -> None:
+    """chapter.review pending call 缺少 judge payload 时保守降级，不重跑 judge 或 repair。"""
+
+    from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
+    from app.domains.agent_runs.service import (
+        get_agent_run_save_points,
+        handle_agent_control_message,
+        record_agent_artifact,
+    )
+
+    run = _seed_agent_run(session, public_id="run-malformed-chapter-review-pending")
+    run.status = "paused"
+    run.current_step = "paused"
+    session.add(run)
+    session.commit()
+    pending = record_agent_artifact(
+        session,
+        run,
+        kind=RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+        payload={
+            "kind": RUNTIME_PENDING_CALL_ARTIFACT_KIND,
+            "intent": "chapter.review",
+            "boundary": "after_tool:judge.run",
+            "status": "pending",
+            "resume_strategy": "continue_chapter_review_postprocess",
+            "resume_message": {
+                "type": "user_message",
+                "intent": "chapter.review",
+                "args": {"scene_packet_id": 1},
+            },
+        },
+        requires_confirmation=False,
+    )
+
+    control = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "try malformed chapter review pending"},
+    )
+
+    assert control.resumed_result is None
+    assert control.resume_diagnostic["reason"] == "missing_resume_payload"
+    assert control.resume_diagnostic["pending_tool"] == "chapter.review.postprocess"
+    assert control.resume_diagnostic["requires_manual_restart"] is True
+    assert control.event.payload["runtime_recovery"]["resume_diagnostic"]["artifact_id"] == pending.id
+
+    projection = get_agent_run_save_points(session, run.public_id)
+    assert projection["runtime_recovery"]["latest_resume_diagnostic"]["reason"] == "missing_resume_payload"
+    assert projection["runtime_recovery"]["latest_pending_call"]["pending_tool"] == "chapter.review.postprocess"
+    assert projection["runtime_recovery"]["latest_pending_call_resolution"] is None
+
+
+def test_agent_run_save_points_endpoint_projects_existing_event_store(client: TestClient) -> None:
+    """REST save-points endpoint 只读投影事件和 artifact，不替代 /events。"""
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-save-points-endpoint") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "run_id": "run-save-points-endpoint",
+                "user_message": "解释这一段",
+                "intent": "chat.explain",
+                "args": {"context": "林岚走进港口。"},
+            }
+        )
+        websocket.receive_json()
+
+    projection_response = client.get("/api/agent-runs/run-save-points-endpoint/save-points")
+    events_response = client.get("/api/agent-runs/run-save-points-endpoint/events")
+
+    assert projection_response.status_code == 200, projection_response.text
+    assert events_response.status_code == 200, events_response.text
+    projection = projection_response.json()
+    events = events_response.json()
+    assert projection["run_id"] == "run-save-points-endpoint"
+    assert projection["recoverability"]["resume_strategy"] == "none"
+    assert [item["kind"] for item in projection["save_points"]] == [
+        "run_started",
+        "run_completed",
+    ]
+    event_types = [event["event_type"] for event in events]
+    assert event_types[0] == "agent_run_started"
+    assert event_types[-1] == "agent_run_completed"
+
+
+def test_agent_run_save_points_endpoint_projects_tool_recovery_metadata(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """save-points endpoint 可从旧 tool_trace 事件读取 recovery 元数据，不新增事件类型。"""
+
+    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-save-points-review") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "run_id": "run-save-points-review",
+                "user_message": "审查当前章节",
+                "intent": "file.review",
+                "args": {
+                    "file_path": "正文/第01章.md",
+                    "content": "林岚走进港口。她看见灯塔熄灭。",
+                    "context_bundle": {"files": []},
+                },
+            }
+        )
+        websocket.receive_json()
+
+    events = client.get("/api/agent-runs/run-save-points-review/events").json()
+    projection = client.get("/api/agent-runs/run-save-points-review/save-points").json()
+    event_types = [event["event_type"] for event in events]
+    assert "tool_completed" not in event_types
+    assert "tool_trace" in event_types
+    context_tool = next(
+        item
+        for item in projection["save_points"]
+        if item["kind"] == "tool_completed" and item["summary"].get("tool_name") == "context.load"
+    )
+    assert context_tool["event_type"] == "tool_trace"
+    assert context_tool["summary"]["retry_safe"] is True
+    assert context_tool["summary"]["idempotent"] is True
+    assert context_tool["summary"]["execution_mode"] == "sync"
+    assert context_tool["summary"]["execution_marker"] == {
+        "kind": "after_tool",
+        "source": "tool_trace",
+        "tool_name": "context.load",
+        "status": "completed",
+        "resume_strategy": "replay_from_tool_boundary",
+        "reason": "retry_safe_idempotent_tool",
+        "tool_index": 0,
+        "replay_safe": True,
+    }
+    assert projection["runtime_recovery"]["latest_execution_marker"]["source"] == "tool_trace"
+    assert projection["runtime_recovery"]["automatic_resume_supported"] is False
 
 
 def test_record_agent_event_sequences_increment_from_existing_max(session: Session) -> None:
@@ -484,6 +1755,7 @@ def test_agent_run_sse_stream_replays_event_store(
     body = response.text
     assert "event: agent_run_started" in body
     assert "event: agent_run_completed" in body
+    assert "event: tool_completed" not in body
     payload = json.loads(body.split("data: ", 1)[1].split("\n\n", 1)[0])
     assert payload["event_type"] == "agent_run_started"
     assert payload["payload"]["run_id"] == "run-agent-sse"
@@ -619,6 +1891,20 @@ def test_book_run_progress_is_projected_to_agent_run_event_store(
     assert checkpoints[0]["payload"]["scope"] == "full_book"
     assert checkpoints[0]["payload"]["mode"] == "managed"
     assert checkpoints[0]["payload"]["checkpoint"][0]["chapter_index"] == 1
+    assert checkpoints[0]["payload"]["tokens_used"] == 420
+    assert checkpoints[0]["payload"]["token_budget"] == 500
+    assert checkpoints[0]["payload"]["completed_count"] == 1
+    assert checkpoints[0]["payload"]["checkpoint_count"] == 1
+
+    save_points = client.get(f"/api/agent-runs/{run_id}/save-points").json()
+    checkpoint_save_point = next(item for item in save_points["save_points"] if item["kind"] == "bookrun_checkpoint")
+    assert checkpoint_save_point["summary"]["tokens_used"] == 420
+    assert checkpoint_save_point["summary"]["token_budget"] == 500
+    assert checkpoint_save_point["summary"]["completed_count"] == 1
+    assert checkpoint_save_point["summary"]["checkpoint_count"] == 1
+    assert checkpoint_save_point["summary"]["latest_checkpoint_chapter_index"] == 1
+    assert checkpoint_save_point["summary"]["latest_checkpoint_model_run_id"] == 11
+    assert save_points["recoverability"]["resume_strategy"] == "bookrun_checkpoint"
 
 
 def test_agent_run_control_channel_updates_bound_bookrun_status(
@@ -676,6 +1962,89 @@ def test_agent_run_control_channel_updates_bound_bookrun_status(
     assert control_events[1]["payload"]["book_run"]["status"] == "running"
     assert control_events[2]["payload"]["writing_run"]["status"] == "stopped"
     assert control_events[2]["payload"]["book_run"]["status"] == "stopped"
+
+    save_points = client.get(f"/api/agent-runs/{run_id}/save-points").json()
+    control_save_points = [item for item in save_points["save_points"] if item["kind"] == "control_message"]
+    assert [item["event_type"] for item in control_save_points] == ["pause_run", "resume_run"]
+    assert control_save_points[0]["summary"]["control_type"] == "pause_run"
+    assert control_save_points[0]["summary"]["book_run_status"] == "paused_by_user"
+    assert control_save_points[1]["summary"]["control_type"] == "resume_run"
+    assert control_save_points[1]["summary"]["book_run_status"] == "running"
+    assert save_points["runtime_recovery"]["latest_control"]["event_type"] == "stop_run"
+    assert save_points["runtime_recovery"]["latest_control"]["control_type"] == "stop_run"
+    assert save_points["runtime_recovery"]["latest_control"]["book_run_status"] == "stopped"
+
+
+def test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """retry_from_checkpoint 控制消息要把 retry 起点镜像进 AgentRun facts。"""
+
+    scope = seed_locked_blueprint(session_factory)
+    created = client.post("/api/book-runs", json={**scope, "token_budget": 500}).json()
+    run_id = f"bookrun-{created['id']}"
+    progress = {
+        "completed_chapters": [
+            {"chapter_index": 1, "status": "completed", "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13}
+        ],
+        "budget": {"tokens_used": 420},
+    }
+    progress_response = client.patch(
+        f"/api/book-runs/{created['id']}/progress",
+        json={"status": "paused_by_user", "current_chapter_index": 1, "progress": progress},
+    )
+    assert progress_response.status_code == 200, progress_response.text
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-bookrun-retry") as websocket:
+        websocket.send_json(
+            {
+                "type": "retry_from_checkpoint",
+                "run_id": run_id,
+                "payload": {"reason": "retry from latest checkpoint"},
+            }
+        )
+        retry_ack = websocket.receive_json()
+
+    assert retry_ack["type"] == "retry_from_checkpoint"
+    assert retry_ack["status"] == "recorded"
+    assert retry_ack["run_id"] == run_id
+    book_run = client.get(f"/api/book-runs/{created['id']}").json()
+    assert book_run["status"] == "running"
+    assert book_run["current_chapter_index"] == 2
+    assert book_run["progress"]["retry_from_chapter_index"] == 2
+    assert book_run["progress"]["retry_from_checkpoint"]["chapter_index"] == 1
+
+    events = client.get(f"/api/agent-runs/{run_id}/events").json()
+    retry_event = next(event for event in events if event["event_type"] == "retry_from_checkpoint")
+    assert retry_event["payload"]["writing_run"]["status"] == "running"
+    assert retry_event["payload"]["book_run"]["status"] == "running"
+    tool_events = [event for event in events if event["event_type"] == "tool_trace" and event["actor"] == "bookrun-agent"]
+    assert tool_events[-1]["payload"]["source"] == "agentrun.retry_from_checkpoint"
+    assert tool_events[-1]["payload"]["retry_from_chapter_index"] == 2
+    assert tool_events[-1]["payload"]["retry_checkpoint_chapter_index"] == 1
+
+    checkpoints = client.get(f"/api/agent-runs/{run_id}/checkpoints").json()
+    latest_checkpoint = checkpoints[-1]["payload"]
+    assert latest_checkpoint["source"] == "agentrun.retry_from_checkpoint"
+    assert latest_checkpoint["retry_from_chapter_index"] == 2
+    assert latest_checkpoint["retry_checkpoint_chapter_index"] == 1
+    assert latest_checkpoint["retry_checkpoint"]["model_run_id"] == 11
+
+    save_points = client.get(f"/api/agent-runs/{run_id}/save-points").json()
+    checkpoint_save_points = [item for item in save_points["save_points"] if item["kind"] == "bookrun_checkpoint"]
+    latest_save_point = checkpoint_save_points[-1]
+    assert latest_save_point["summary"]["retry_from_chapter_index"] == 2
+    assert latest_save_point["summary"]["retry_checkpoint_chapter_index"] == 1
+    assert latest_save_point["summary"]["retry_checkpoint_model_run_id"] == 11
+    control_save_point = next(item for item in save_points["save_points"] if item["kind"] == "control_message")
+    assert control_save_point["event_type"] == "retry_from_checkpoint"
+    assert control_save_point["summary"]["control_type"] == "retry_from_checkpoint"
+    assert control_save_point["summary"]["book_run_status"] == "running"
+    assert save_points["runtime_recovery"]["latest_control"]["event_type"] == "retry_from_checkpoint"
+    assert save_points["runtime_recovery"]["latest_control"]["control_type"] == "retry_from_checkpoint"
+    assert save_points["runtime_recovery"]["latest_control"]["book_run_status"] == "running"
+    assert save_points["recoverability"]["resume_strategy"] == "bookrun_checkpoint"
 
 
 def test_agent_skills_endpoint_exposes_skills_v1_catalog(client: TestClient) -> None:
@@ -794,6 +2163,94 @@ def test_runtime_subagent_definitions_are_backed_by_role_catalog() -> None:
     assert set(runtime._subagents.roles).issubset(role_names)  # noqa: SLF001
     assert get_agent_role("plot_reviewer") is not None
     assert is_role_allowed_tool("plot_reviewer", "file.review") is True
+
+
+def test_file_review_tool_result_carries_postprocess_metadata(session: Session) -> None:
+    """ToolResult 先承载 summary/artifacts/metrics，再由运行时统一归档。"""
+
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.tooling import ToolExecutionContext
+
+    run = _seed_agent_run(session, public_id="run-tool-result-metadata")
+    runtime = AgentRuntime(event_sink=None)  # type: ignore[arg-type]
+    result = runtime._file_review(  # noqa: SLF001 - stage 4 postprocess regression guard
+        ToolExecutionContext(
+            session=session,
+            run=run,
+            agent_session_id="session-tool-result-metadata",
+            assistant_session_id=1,
+            user_message="审一下这一章",
+            args={},
+        ),
+        {"file_path": "正文/第01章.md", "content": "林岚走进港口。灯塔熄灭了。"},
+    )
+
+    assert result.summary == result.output["summary"]
+    assert result.payload == {"review_report": result.output["review_report"]}
+    assert [(artifact.kind, artifact.requires_confirmation) for artifact in result.artifacts] == [
+        ("review_report", False)
+    ]
+    assert result.artifacts[0].payload["kind"] == "review_report"
+    assert result.metrics["issue_count"] == len(result.output["review_report"]["issues"])
+    assert result.metrics["mode"] == result.output["review_report"]["mode"]
+
+
+def test_runtime_postprocess_prefers_tool_artifacts_and_removes_internal_payload(session: Session) -> None:
+    """artifact pipeline 消费 ToolResult artifacts；旧 result 字段只作为 fallback。"""
+
+    from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.agent_runs.tooling import ToolArtifact
+
+    class RecordingSink:
+        def __init__(self) -> None:
+            self.artifacts: list[dict[str, object]] = []
+
+        def record_artifact(
+            self,
+            run: AgentRun,
+            *,
+            kind: str,
+            payload: dict[str, object],
+            requires_confirmation: bool,
+        ) -> None:
+            self.artifacts.append(
+                {
+                    "run_id": run.public_id,
+                    "kind": kind,
+                    "payload": payload,
+                    "requires_confirmation": requires_confirmation,
+                }
+            )
+
+    run = _seed_agent_run(session, public_id="run-tool-artifact-postprocess")
+    sink = RecordingSink()
+    runtime = AgentRuntime(event_sink=sink)  # type: ignore[arg-type]
+    result = {
+        "agent_result": {"review_report": {"kind": "fallback_review_report"}},
+        "proposed_patch": {"kind": "fallback_patch", "requires_confirmation": True},
+        "_tool_artifacts": [
+            ToolArtifact(kind="review_report", payload={"kind": "review_report", "source": "tool"}, requires_confirmation=False),
+            ToolArtifact(kind="proposed_patch", payload={"kind": "file_revision", "source": "tool"}, requires_confirmation=True),
+        ],
+    }
+
+    runtime._record_result_artifacts(run, result)  # noqa: SLF001 - stage 4 postprocess regression guard
+
+    assert "_tool_artifacts" not in result
+    assert sink.artifacts == [
+        {
+            "run_id": "run-tool-artifact-postprocess",
+            "kind": "review_report",
+            "payload": {"kind": "review_report", "source": "tool"},
+            "requires_confirmation": False,
+        },
+        {
+            "run_id": "run-tool-artifact-postprocess",
+            "kind": "proposed_patch",
+            "payload": {"kind": "file_revision", "source": "tool"},
+            "requires_confirmation": True,
+        },
+    ]
 
 
 def test_runtime_rejects_unknown_subagent_role() -> None:

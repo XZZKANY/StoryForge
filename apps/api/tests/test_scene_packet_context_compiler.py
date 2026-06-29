@@ -78,7 +78,17 @@ def test_scene_packet_records_compiled_context_debug_fields(session: Session) ->
     assert packet.packet["compiled_context_id"].startswith("ctx_")
     assert packet.packet["上下文注入"]
     assert packet.packet["上下文裁剪"]
+    assert packet.budget_statistics.token_budget == 95
+    assert packet.budget_statistics.used_tokens <= packet.budget_statistics.token_budget
     assert packet.packet["上下文预算"]["used_tokens"] <= packet.packet["上下文预算"]["token_budget"]
+    assert packet.packet["上下文预算"]["token_budget"] == packet.budget_statistics.token_budget
+    assert set(packet.packet["上下文预算"]) == {
+        "token_budget",
+        "used_tokens",
+        "reserved_tokens",
+        "dropped_tokens",
+        "truncated",
+    }
     retrieval_evidence = [link for link in packet.evidence_links if link.evidence_type == "retrieval_hit"]
     assert retrieval_evidence
     assert retrieval_evidence[0].source_id is not None

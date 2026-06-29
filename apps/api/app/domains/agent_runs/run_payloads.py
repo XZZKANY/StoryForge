@@ -2,6 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domains.agent_runs.event_types import (
+    APPROVE_PERMISSION_COMMAND,
+    DENY_PERMISSION_COMMAND,
+    PAUSE_RUN,
+    RESUME_RUN,
+    RETRY_FROM_CHECKPOINT,
+    STOP_RUN,
+    event_type_for_control_message,
+)
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.role_catalog import normalize_agent_role_inputs
 from app.domains.book_runs.models import BookRun
@@ -103,21 +112,17 @@ def _has_event(run: AgentRun, event_type: str) -> bool:
 
 
 def _control_event_type(control_type: str) -> str:
-    if control_type == "approve_permission":
-        return "permission_approved"
-    if control_type == "deny_permission":
-        return "permission_denied"
-    return control_type
+    return event_type_for_control_message(control_type)
 
 
 def _control_event_message(control_type: str) -> str:
     messages = {
-        "approve_permission": "作者已批准权限请求。",
-        "deny_permission": "作者已拒绝权限请求。",
-        "pause_run": "作者已暂停 AgentRun。",
-        "resume_run": "作者已恢复 AgentRun。",
-        "stop_run": "作者已停止 AgentRun。",
-        "retry_from_checkpoint": "作者要求从 checkpoint 重试 AgentRun。",
+        APPROVE_PERMISSION_COMMAND: "作者已批准权限请求。",
+        DENY_PERMISSION_COMMAND: "作者已拒绝权限请求。",
+        PAUSE_RUN: "作者已暂停 AgentRun。",
+        RESUME_RUN: "作者已恢复 AgentRun。",
+        STOP_RUN: "作者已停止 AgentRun。",
+        RETRY_FROM_CHECKPOINT: "作者要求从 checkpoint 重试 AgentRun。",
     }
     return messages.get(control_type, f"收到控制消息：{control_type}")
 
@@ -145,8 +150,9 @@ def _book_run_budget(book_run: BookRun) -> dict[str, Any]:
 
 
 def _book_run_snapshot_payload(book_run: BookRun, *, source: str) -> dict[str, Any]:
-    completed = [item for item in (book_run.progress or {}).get("completed_chapters", []) if isinstance(item, dict)]
-    return {
+    progress = book_run.progress or {}
+    completed = [item for item in progress.get("completed_chapters", []) if isinstance(item, dict)]
+    payload: dict[str, Any] = {
         **full_book_writing_run_event_data(book_run.id, book_run.status),
         "source": source,
         "book_id": book_run.book_id,
@@ -158,3 +164,19 @@ def _book_run_snapshot_payload(book_run: BookRun, *, source: str) -> dict[str, A
         "token_budget": book_run.token_budget,
         "checkpoint_count": len(book_run.checkpoint or []),
     }
+    for key in ("resume_from_chapter_index", "retry_from_chapter_index"):
+        value = progress.get(key)
+        if isinstance(value, int) and value > 0:
+            payload[key] = value
+    retry_checkpoint = progress.get("retry_from_checkpoint")
+    if isinstance(retry_checkpoint, dict):
+        payload["retry_checkpoint"] = {
+            key: value
+            for key, value in retry_checkpoint.items()
+            if key in {"chapter_index", "model_run_id", "judge_report_id", "approved_scene_id", "status"}
+            and isinstance(value, str | int | bool)
+        }
+        chapter_index = retry_checkpoint.get("chapter_index")
+        if isinstance(chapter_index, int) and chapter_index > 0:
+            payload["retry_checkpoint_chapter_index"] = chapter_index
+    return payload

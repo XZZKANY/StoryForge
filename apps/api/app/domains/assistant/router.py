@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from app.db.deps import SessionDependency
 from app.domains.assistant.schemas import (
@@ -16,10 +16,6 @@ from app.domains.assistant.schemas import (
     ProviderHealthResponse,
 )
 from app.domains.assistant.service import (
-    AssistantLlmNotConfiguredError,
-    AssistantReviseError,
-    AssistantSessionNotFoundError,
-    AssistantToolCallNotFoundError,
     append_assistant_message,
     create_assistant_session,
     create_assistant_tool_call,
@@ -72,10 +68,7 @@ def get_assistant_session_endpoint(
 ) -> AssistantSessionRead:
     """读取指定会话的完整消息历史，供最近记录跳回 Assistant 时恢复上下文。"""
 
-    try:
-        return get_assistant_session(session, assistant_session_id)
-    except AssistantSessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return get_assistant_session(session, assistant_session_id)
 
 
 @router.post(
@@ -91,10 +84,7 @@ def append_assistant_message_endpoint(
 ) -> AssistantMessageRead:
     """向指定会话追加消息。"""
 
-    try:
-        return append_assistant_message(session, assistant_session_id, payload)
-    except AssistantSessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return append_assistant_message(session, assistant_session_id, payload)
 
 
 @router.post(
@@ -110,10 +100,7 @@ def create_assistant_tool_call_endpoint(
 ) -> AssistantToolCallRead:
     """为指定会话追加工具调用事实，用于重放工具树状态。"""
 
-    try:
-        return create_assistant_tool_call(session, assistant_session_id, payload)
-    except AssistantSessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return create_assistant_tool_call(session, assistant_session_id, payload)
 
 
 @router.get(
@@ -127,10 +114,7 @@ def list_assistant_tool_calls_endpoint(
 ) -> list[AssistantToolCallRead]:
     """按写入顺序读取会话 tool call，供前端工具树优先消费。"""
 
-    try:
-        return list_assistant_tool_calls(session, assistant_session_id)
-    except AssistantSessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return list_assistant_tool_calls(session, assistant_session_id)
 
 
 @router.post(
@@ -146,14 +130,7 @@ def revise_file_content_endpoint(
 
     LLM 未配置返回 422，调用失败返回 502，错误原样透出，不伪造兜底。"""
 
-    try:
-        return revise_file_content(session, payload)
-    except AssistantLlmNotConfiguredError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except AssistantSessionNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except AssistantReviseError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return revise_file_content(session, payload)
 
 
 @router.get(
@@ -181,7 +158,4 @@ def update_assistant_tool_call_endpoint(
 ) -> AssistantToolCallRead:
     """更新工具调用状态、摘要和关联对象，不接收敏感凭据。"""
 
-    try:
-        return update_assistant_tool_call(session, tool_call_id, payload)
-    except AssistantToolCallNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return update_assistant_tool_call(session, tool_call_id, payload)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
@@ -16,6 +18,7 @@ from app.domains.assistant import service as assistant_service
 from app.domains.book_runs.book_generation import BookGenerationError
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
+from app.domains.ide import orchestrator as legacy_orchestrator
 from app.domains.ide import review_reasoning
 from app.domains.ide.orchestrator import SUPPORTED_INTENTS, _detect_intent
 
@@ -56,6 +59,50 @@ def test_supported_intents_are_registered() -> None:
         "chapter.repair",
         "bookrun.start",
     } == SUPPORTED_INTENTS
+
+
+def test_legacy_orchestrator_facade_points_to_agent_runtime_contract() -> None:
+    """旧 orchestrator 路径只保留兼容 interface，真实契约来自 AgentRuntime。"""
+
+    from app.domains.agent_runs import intent as runtime_intent
+    from app.domains.agent_runs import runtime as agent_runtime
+    from app.domains.agent_runs.errors import AgentOrchestrationError
+
+    assert legacy_orchestrator.SUPPORTED_INTENTS is runtime_intent.SUPPORTED_INTENTS
+    assert legacy_orchestrator._detect_intent is runtime_intent._detect_intent  # noqa: SLF001
+    assert legacy_orchestrator.AgentOrchestrationError is AgentOrchestrationError
+    assert hasattr(agent_runtime, "orchestrate_agent_message")
+
+
+def test_legacy_orchestrator_delegates_to_agent_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    """外部旧调用方仍可走旧函数名，但执行交给 live AgentRuntime facade。"""
+
+    from app.domains.agent_runs import service as agent_run_service
+
+    captured: dict[str, object] = {}
+
+    def fake_run_agent_user_message(session, *, agent_session_id, message):  # noqa: ANN001 - test double
+        captured["session"] = session
+        captured["agent_session_id"] = agent_session_id
+        captured["message"] = message
+        return SimpleNamespace(result={"type": "agent_result", "intent": "chat.explain"})
+
+    monkeypatch.setattr(agent_run_service, "run_agent_user_message", fake_run_agent_user_message)
+
+    fake_session = object()
+    message = {"type": "user_message", "user_message": "解释一下"}
+    result = legacy_orchestrator.orchestrate_agent_message(  # type: ignore[arg-type]
+        fake_session,
+        agent_session_id="legacy-session",
+        message=message,
+    )
+
+    assert result == {"type": "agent_result", "intent": "chat.explain"}
+    assert captured == {
+        "session": fake_session,
+        "agent_session_id": "legacy-session",
+        "message": message,
+    }
 
 
 def test_detect_intent_prefers_explicit_revise_over_review_keywords() -> None:
