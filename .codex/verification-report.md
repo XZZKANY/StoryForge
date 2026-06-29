@@ -4015,3 +4015,13 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `python -c "import yaml; yaml.safe_load(...ci.yml/e2e.yml)"` → YAML OK
   - 合并到 master 后由 push 触发首个自动 CI run 实测核心门禁（见下方 run 链接/编号回填）。
 - 未联通能力：本刀只接触发与漂移门可见性，未改快门禁子集（verify:local 仍是全量核心门禁）；分支保护/required checks 未设置，故不阻断合并，仅提供自动信号。
+
+## 阶段0-2 后修：CI 启用暴露既有 prettier 格式债，格式化转绿（2026-06-29）
+
+- 现象：PR #30 启用 push/PR CI 后，首个 master CI run(28379332812) 在第一道 `pnpm run lint` 失败——`prettier --check` 报 9 个文件未格式化（eslint 仅 2 个非阻断 warning）。这是近期 #27 Wave1/2 重构与 hidden-agent-jobs 合并引入的既有格式债，因 CI 此前仅 workflow_dispatch 未被发现（历史 master run 亦全 red）。新启用的 CI 正确抓出。
+- 变更：对 9 个受影响文件跑 `pnpm exec prettier --write`（App.tsx、ChatWindow.tsx、chat-window/{display-utils,panels,recovery}、editor/VersionHistory、lib/api/{agent-runs,runtime-health}、lib/project/context-bundle）。纯格式化，无逻辑变更。
+- 验证命令与结果（core.autocrlf=false，prettier 写 LF 不被转 CRLF）：
+  - `pnpm run lint` → exit 0（prettier "All matched files use Prettier code style!"，eslint 0 errors / 2 known warnings）
+  - `npm --prefix apps/desktop/frontend run typecheck` → exit 0
+  - `pnpm openapi` 重生成快照 → NO DRIFT（契约漂移门干净）
+- 未联通能力：本地全量 `verify:local` 因 API+workflow pytest 较慢未在 10min 内跑完；API/workflow 单测留由合并后 master CI run 实测（见后续回填）。

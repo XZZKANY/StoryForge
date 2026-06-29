@@ -1,7 +1,13 @@
 import { TauriFileSystem } from '../tauri-fs';
 import { buildProjectIndex } from './index';
 import { normalizePathForMatch, normalizeRoot } from './path';
-import type { ContextBundle, ContextBundleFile, ProjectIndex, SemanticFile, SemanticKind } from './types';
+import type {
+  ContextBundle,
+  ContextBundleFile,
+  ProjectIndex,
+  SemanticFile,
+  SemanticKind,
+} from './types';
 
 const CONTEXT_BUNDLE_CACHE_TTL_MS = 30000;
 

@@ -1,6 +1,10 @@
 import { useState } from 'react';
 
-import { semanticKindLabel, type ContextBundle, type SemanticFile } from '../../lib/project-context';
+import {
+  semanticKindLabel,
+  type ContextBundle,
+  type SemanticFile,
+} from '../../lib/project-context';
 import { AgentStepsPanel } from '../AgentStepsPanel';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
@@ -134,11 +138,7 @@ export function MessageList({
   );
 }
 
-export function AgentRunRecoveryPanel({
-  recovery,
-}: {
-  recovery: AgentRunRecoveryDisplay | null;
-}) {
+export function AgentRunRecoveryPanel({ recovery }: { recovery: AgentRunRecoveryDisplay | null }) {
   if (!recovery) return null;
   const toneClass = recoveryToneClass(recovery.tone);
   return (

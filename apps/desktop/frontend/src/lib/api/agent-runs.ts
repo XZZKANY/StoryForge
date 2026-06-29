@@ -2,9 +2,7 @@ import { getApiConfig, trimApiBaseUrl } from './config';
 import { readErrorDetail } from './errors';
 import type { AgentRunSavePointProjection } from './types';
 
-export async function getAgentRunSavePoints(
-  runId: string,
-): Promise<AgentRunSavePointProjection> {
+export async function getAgentRunSavePoints(runId: string): Promise<AgentRunSavePointProjection> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(
     `${trimApiBaseUrl(baseUrl)}/api/agent-runs/${encodeURIComponent(runId)}/save-points`,

@@ -38,7 +38,11 @@ export async function probeApiRuntimeHealth(): Promise<ApiRuntimeHealth> {
   }
 }
 
-function runtimeHealthFailure(baseUrl: string, latencyMs: number, detail: string): ApiRuntimeHealth {
+function runtimeHealthFailure(
+  baseUrl: string,
+  latencyMs: number,
+  detail: string,
+): ApiRuntimeHealth {
   return {
     status: 'unreachable',
     reachable: false,

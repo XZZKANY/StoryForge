@@ -1,4 +1,8 @@
-import { semanticKindLabel, type ContextBundle, type ContextBundleFile } from '../../lib/project-context';
+import {
+  semanticKindLabel,
+  type ContextBundle,
+  type ContextBundleFile,
+} from '../../lib/project-context';
 import type { AgentRun } from './types';
 
 export function contextBudgetText(bundle: ContextBundle | null): string {

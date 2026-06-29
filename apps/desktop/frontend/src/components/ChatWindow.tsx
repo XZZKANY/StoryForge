@@ -19,10 +19,7 @@ import {
   type SuggestionResult,
 } from '../lib/assistant-events';
 import { createRemoteFileSuggestion } from '../lib/assistant-suggestions';
-import {
-  extractAgentRoleMentions,
-  mapAgentRoleMentionsToHints,
-} from '../lib/agent-roles';
+import { extractAgentRoleMentions, mapAgentRoleMentionsToHints } from '../lib/agent-roles';
 import {
   getAssistantSession,
   getAgentRunSavePoints,
@@ -85,10 +82,7 @@ import {
   relativePath,
 } from './chat-window/path-utils';
 import { buildStableAgentRequestPayload } from './chat-window/request-payload';
-import {
-  buildAgentRunRecoveryDisplay,
-  type AgentRunRecoveryDisplay,
-} from './chat-window/recovery';
+import { buildAgentRunRecoveryDisplay, type AgentRunRecoveryDisplay } from './chat-window/recovery';
 import {
   extractIssueScopeFromInstruction,
   reviewCategoryLabel,
@@ -116,10 +110,7 @@ import {
   statusFromAgentResult,
   stepsFromResumedAgentResult,
 } from './chat-window/resumed-result';
-import {
-  applyWritingRunEventProjection,
-  writingRunIdFromResult,
-} from './chat-window/writing-run';
+import { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-window/writing-run';
 
 export {
   AgentRunRecoveryPanel,
@@ -466,7 +457,8 @@ export function ChatWindow({
           : currentFileRef.current;
         setLastReviewReport(reviewReportForMarkers);
         setLastReviewReportFile(currentFilePath);
-        if (currentFilePath) emitReviewIssues(currentFilePath, reviewIssuesFromReport(reviewReportForMarkers));
+        if (currentFilePath)
+          emitReviewIssues(currentFilePath, reviewIssuesFromReport(reviewReportForMarkers));
         setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
         updateAgentStatus('completed');
         return;

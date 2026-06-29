@@ -94,7 +94,7 @@ function pendingSummary({
   const pendingTool =
     stringField(pending, 'runtime_pending_tool') ??
     (latestPendingCall
-      ? stringField(latestPendingCall, 'pending_tool') ?? stringField(latestPendingCall, 'intent')
+      ? (stringField(latestPendingCall, 'pending_tool') ?? stringField(latestPendingCall, 'intent'))
       : null);
   const pendingArtifactId =
     numberField(pending, 'runtime_pending_call_artifact_id') ??
@@ -201,7 +201,9 @@ function controlText(control: Record<string, unknown> | null): string | null {
   if (!eventType) return null;
   const status =
     stringField(control, 'book_run_status') ?? stringField(control, 'writing_run_status');
-  return status ? `最近控制：${controlLabel(eventType)} · ${status}` : `最近控制：${controlLabel(eventType)}`;
+  return status
+    ? `最近控制：${controlLabel(eventType)} · ${status}`
+    : `最近控制：${controlLabel(eventType)}`;
 }
 
 function toneFor({
