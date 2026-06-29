@@ -1,7 +1,15 @@
 name: CI
 
 on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -42,5 +50,8 @@ jobs:
         working-directory: apps/workflow
         run: uv sync --frozen
 
+      # verify:local 含 lint + ruff + 三端单测 + OpenAPI 契约漂移检查
+      # （scripts/verify-local.mjs 刷新 packages/shared/.../storyforge.openapi.json 后比对 sha256，
+      #  漂移即 exit 1）。改了路由未跑 pnpm openapi 的 PR 会在此自动失败。
       - name: 执行本地核心门禁
         run: pnpm run verify:local

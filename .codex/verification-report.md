@@ -4007,3 +4007,11 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `cd apps/api && uv run python -c "import app.main"` → import ok（无 import 环）
   - `cd apps/api && uv run pytest tests/test_book_generation_llm_retry.py tests/test_book_generation.py -q` → 33 passed
 - 未联通能力：本刀只护单次调用瞬时错误；缺章硬护栏（failure_count>0 即判不合格 + summary 标注缺章章号）与 4 万字长程 resume/预算暂停实战演练为 rank 1 余下半 / Q9 preflight，未在本刀交付。
+
+## 阶段0-2：CI 增 push/PR 触发 + OpenAPI 漂移门 + e2e 定时安全网（2026-06-29，rank 2）
+
+- 变更：`.github/workflows/ci.yml` 由仅 `workflow_dispatch` 增加 `push`/`pull_request`(到 master) 触发 + `concurrency`(取消同 ref 在途 run)；核心 job 仍跑 `pnpm run verify:local`，其内含 OpenAPI 契约漂移检查（`scripts/verify-local.mjs:71-94` 刷新后比对 sha256，漂移即 exit 1），并加注释说明改路由未刷 openapi 的 PR 会在此自动失败。`.github/workflows/e2e.yml` 增每周 cron 安全网（保留 workflow_dispatch）。
+- 验证命令与结果：
+  - `python -c "import yaml; yaml.safe_load(...ci.yml/e2e.yml)"` → YAML OK
+  - 合并到 master 后由 push 触发首个自动 CI run 实测核心门禁（见下方 run 链接/编号回填）。
+- 未联通能力：本刀只接触发与漂移门可见性，未改快门禁子集（verify:local 仍是全量核心门禁）；分支保护/required checks 未设置，故不阻断合并，仅提供自动信号。
