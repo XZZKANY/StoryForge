@@ -3997,3 +3997,13 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - 验证命令与结果：
   - `cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q` → 13 passed（current-phase.md 追加未触发 doc-guard 字符串断言回归）。
 - 未联通能力：本文件为诊断脚手架，非人工通读完成记录；逐章引文与主观质量判定待新一轮长程人工盲评（next-step-plan Q9）填充，不得据此宣称质量验收通过。
+
+## 阶段0-1：真实生成 _call_llm 有界重试 + 退避护栏（2026-06-29，rank 1 重试半）
+
+- 变更：`apps/api/app/domains/book_runs/book_generation_llm.py` 的 `_call_llm` 由单次 `urlopen` 改为有界重试循环：429/5xx 与超时/连接失败可重试（指数退避 + jitter，尊重 Retry-After 头），4xx（429 除外）与空正文立即失败不掩盖真实问题；新增 `_is_retryable_status`/`_retry_after_seconds`/`_sleep_before_retry` 叶子 helper，镜像 workflow `provider_client` 退避语义。重试参数读自 source：`STORYFORGE_LLM_RETRY_MAX_ATTEMPTS`(默认3)/`STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS`(0.5)/`STORYFORGE_LLM_RETRY_JITTER_SECONDS`(0.25)。零行为变更（默认成功路径不变），无路由/schema 变化故无需刷 openapi。
+- 新增 `apps/api/tests/test_book_generation_llm_retry.py`：本地 HTTPServer 真实协议边界，覆盖 429 重试成功、5xx 重试成功、超 max_attempts 抛错、4xx 不重试。
+- 验证命令与结果：
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_llm.py tests/test_book_generation_llm_retry.py` → All checks passed
+  - `cd apps/api && uv run python -c "import app.main"` → import ok（无 import 环）
+  - `cd apps/api && uv run pytest tests/test_book_generation_llm_retry.py tests/test_book_generation.py -q` → 33 passed
+- 未联通能力：本刀只护单次调用瞬时错误；缺章硬护栏（failure_count>0 即判不合格 + summary 标注缺章章号）与 4 万字长程 resume/预算暂停实战演练为 rank 1 余下半 / Q9 preflight，未在本刀交付。
