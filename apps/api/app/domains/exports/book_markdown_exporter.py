@@ -9,7 +9,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.exceptions import InputError
+from app.common.exceptions import InputError, NotFoundError
 from app.common.s3_client import upload_bytes
 from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
@@ -21,6 +21,10 @@ from app.domains.books.models import Book, Chapter, Scene
 
 class BookExportError(InputError):
     """BookRun 导出前置条件不满足。"""
+
+
+class BookExportNotFoundError(NotFoundError, BookExportError):
+    """BookRun 导出对象不存在。"""
 
 
 def export_book_run_markdown(session: Session, book_run_id: int, *, workspace_id: int | None = None) -> Artifact:
@@ -191,7 +195,7 @@ def export_book_run_epub(session: Session, book_run_id: int, *, workspace_id: in
 def _completed_book_run(session: Session, book_run_id: int) -> BookRun:
     book_run = session.get(BookRun, book_run_id)
     if book_run is None:
-        raise BookExportError("BookRun 不存在，无法导出。")
+        raise BookExportNotFoundError("BookRun 不存在，无法导出。")
     if book_run.status != "completed":
         raise BookExportError("BookRun 尚未完成，无法导出。")
     return book_run

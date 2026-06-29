@@ -3,11 +3,10 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   EXPORT_CURRENT_FILE_EVENT,
-  emitReviseIssue,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
@@ -18,9 +17,10 @@ import { readVersion, snapshotBeforeWrite } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
-import { registerSmokeEditorController } from '../lib/smoke';
 import { type GraphNode } from '../lib/branches';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
+import { useEditorFileLoader } from './editor/useEditorFileLoader';
+import { useMonacoEditor } from './editor/useMonacoEditor';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
@@ -54,15 +54,8 @@ export function Editor({
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const loadRequestIdRef = useRef(0);
   const [isDirty, setIsDirty] = useState(false);
-  const [editorReady, setEditorReady] = useState(false);
-  const [loadedFilePath, setLoadedFilePath] = useState<string | null>(null);
-  const [loadedContent, setLoadedContent] = useState('');
   const [loadedContentPreview, setLoadedContentPreview] = useState('');
-  const [loadAttemptFilePath, setLoadAttemptFilePath] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState('');
-  const [editorInitError, setEditorInitError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const cleanVersionIdRef = useRef<number | null>(null);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -114,6 +107,19 @@ export function Editor({
     autoSaveRef.current = autoSave;
   });
 
+  const { loadedFilePath, loadedContent, loadAttemptFilePath, loadError } = useEditorFileLoader({
+    filePath,
+    editorRef,
+    originalContentRef,
+    cleanVersionIdRef,
+    issueDecorationsRef,
+    filePathRef,
+    resetSuggestionWriteback,
+    setLoadedContentPreview,
+    setIsDirty,
+    setShowHistory,
+  });
+
   const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
     const editor = editorRef.current;
     const model = editor?.getModel();
@@ -134,179 +140,8 @@ export function Editor({
     }
   }, []);
 
-  // 加载文件内容
-  useLayoutEffect(() => {
-    loadRequestIdRef.current += 1;
-    const requestId = loadRequestIdRef.current;
-    issueDecorationsRef.current?.clear();
-
-    if (!filePath) {
-      originalContentRef.current = '';
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置加载态，React18 合法模式
-      setLoadedFilePath(null);
-      setLoadedContent('');
-      setLoadedContentPreview('');
-      setLoadAttemptFilePath(null);
-      setLoadError('');
-      setShowHistory(false);
-      resetSuggestionWriteback();
-      setIsDirty(false);
-      editorRef.current?.setValue('');
-      return;
-    }
-
-    setLoadAttemptFilePath(filePath);
-    setLoadedFilePath(null);
-    setLoadedContent('');
-    setLoadedContentPreview('');
-    setLoadError('');
-    setShowHistory(false);
-    resetSuggestionWriteback();
-
-    const loadFile = async () => {
-      try {
-        const content = await TauriFileSystem.readFile(filePath);
-        if (loadRequestIdRef.current !== requestId || filePathRef.current !== filePath) {
-          return;
-        }
-        originalContentRef.current = content;
-        setLoadedContent(content);
-        if (editorRef.current) {
-          editorRef.current.setValue(content);
-          cleanVersionIdRef.current =
-            editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
-        }
-        setIsDirty(false);
-        setLoadedFilePath(filePath);
-        setLoadedContentPreview(content.slice(0, 120));
-      } catch (err) {
-        if (loadRequestIdRef.current !== requestId || filePathRef.current !== filePath) {
-          return;
-        }
-        const message = err instanceof Error ? err.message : String(err);
-        console.error('读取文件失败:', err);
-        setLoadError(message);
-      }
-    };
-
-    void loadFile();
-  }, [filePath]);
-
-  // 初始化编辑器
-  useEffect(() => {
-    if (editorRef.current) return;
-
-    let disposed = false;
-    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
-    let frame = 0;
-
-    frame = window.requestAnimationFrame(() => {
-      if (disposed || !containerRef.current || editorRef.current) return;
-
-      try {
-        editor = monaco.editor.create(containerRef.current, {
-          value: loadedContent,
-          language: 'markdown',
-          theme: 'vs-dark',
-          fontSize: editorFontSize,
-          lineNumbers: 'on',
-          glyphMargin: true,
-          minimap: { enabled: true },
-          wordWrap: 'on',
-          automaticLayout: true,
-          scrollBeyondLastLine: false,
-        });
-        cleanVersionIdRef.current = editor.getModel()?.getAlternativeVersionId() ?? null;
-      } catch (err) {
-        setEditorInitError(err instanceof Error ? err.message : String(err));
-        return;
-      }
-
-      editorRef.current = editor;
-      setEditorReady(true);
-      setEditorInitError('');
-
-      editor.onDidChangeModelContent(() => {
-        const model = editorRef.current?.getModel();
-        if (filePathRef.current && model) {
-          const dirty = model.getAlternativeVersionId() !== cleanVersionIdRef.current;
-          setIsDirty(dirty);
-          if (autoSaveRef.current && dirty) {
-            if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
-            autoSaveTimerRef.current = window.setTimeout(() => {
-              // eslint-disable-next-line react-hooks/immutability -- 自动保存定时器回调，非渲染期触发保存
-              if (filePathRef.current && editorRef.current) void handleSave();
-            }, 900);
-          }
-        }
-      });
-
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-        if (filePathRef.current && isDirtyRef.current) {
-          void handleSave();
-        }
-      });
-
-      editor.onMouseDown((event) => {
-        if (event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
-        const lineNumber = event.target.position?.lineNumber;
-        if (!lineNumber) return;
-        const issueId = issueByLineRef.current.get(lineNumber);
-        if (issueId) emitReviseIssue(issueId);
-      });
-    });
-
-    return () => {
-      disposed = true;
-      if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
-      window.cancelAnimationFrame(frame);
-      editor?.dispose();
-      editorRef.current = null;
-      setEditorReady(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性创建 Monaco 实例，仅取 loadedContent/editorFontSize 初始值；二者后续变化分别由下方 fontSize updateOptions effect 和 loadedContent setValue effect 接管，列入依赖会销毁重建编辑器、丢失光标与撤销历史
-  }, []);
-
-  useEffect(() => {
-    editorRef.current?.updateOptions({ fontSize: editorFontSize });
-  }, [editorFontSize]);
-
-  useEffect(
-    () =>
-      registerSmokeEditorController({
-        setContent(content: string) {
-          if (!editorRef.current) return false;
-          editorRef.current.setValue(content);
-          setLoadedContentPreview(content.slice(0, 120));
-          return true;
-        },
-        getContent() {
-          return editorRef.current?.getValue() ?? null;
-        },
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    if (!editorReady || !editorRef.current || loadedFilePath !== filePath) return;
-    editorRef.current.setValue(loadedContent);
-    cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
-  }, [editorReady, filePath, loadedContent, loadedFilePath]);
-
-  // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。
-  useEffect(() => {
-    const onIssues = (event: Event) => {
-      const detail = (event as CustomEvent<{ filePath: string; issues: ReviewIssueMarker[] }>)
-        .detail;
-      if (!detail || detail.filePath !== filePathRef.current) return;
-      applyIssueDecorations(detail.issues);
-    };
-    window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
-    return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
-  }, [applyIssueDecorations]);
-
   // 保存文件：先快照旧内容，再写入新内容
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     const path = filePathRef.current;
     if (!path || !editorRef.current) return;
 
@@ -336,7 +171,37 @@ export function Editor({
       console.error('保存文件失败:', err);
       alert(`保存文件失败: ${err}`);
     }
-  };
+  }, [advanceBranchHead, getActiveBranchSnapshot]);
+
+  const { editorReady, editorInitError } = useMonacoEditor({
+    containerRef,
+    editorRef,
+    filePath,
+    loadedFilePath,
+    loadedContent,
+    editorFontSize,
+    filePathRef,
+    isDirtyRef,
+    autoSaveRef,
+    autoSaveTimerRef,
+    cleanVersionIdRef,
+    issueByLineRef,
+    setLoadedContentPreview,
+    setIsDirty,
+    handleSave,
+  });
+
+  // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。
+  useEffect(() => {
+    const onIssues = (event: Event) => {
+      const detail = (event as CustomEvent<{ filePath: string; issues: ReviewIssueMarker[] }>)
+        .detail;
+      if (!detail || detail.filePath !== filePathRef.current) return;
+      applyIssueDecorations(detail.issues);
+    };
+    window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
+    return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
+  }, [applyIssueDecorations]);
 
   // 审稿/修订读盘前，外部请活动编辑器先落盘，避免后端读到未保存的旧内容。
   useEffect(() => {

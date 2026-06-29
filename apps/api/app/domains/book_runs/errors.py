@@ -6,10 +6,16 @@ book_generation.py 通过 re-export 保持可达性（宪法第 5/6 条）。
 """
 from __future__ import annotations
 
+from app.common.exceptions import DomainError
 
-class BookGenerationPreflightError(RuntimeError):
+
+class BookGenerationPreflightError(DomainError, RuntimeError):
     """真实 LLM 生成缺少私有运行配置。"""
 
+    status_code = 422
 
-class BookGenerationError(RuntimeError):
+
+class BookGenerationError(DomainError, RuntimeError):
     """真实 LLM 生成运行失败，不能写入完成证据。"""
+
+    status_code = 502

@@ -8,17 +8,17 @@ from fastapi.responses import StreamingResponse
 from starlette.websockets import WebSocketState
 
 from app.db.deps import SessionDependency
+from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES, PERMISSION_REQUIRED, TOOL_TRACE
 from app.domains.agent_runs.service import (
     AgentRuntimeError,
     AgentRuntimeUserMessageError,
+    handle_agent_control_message,
     record_agent_command_event,
-    record_agent_control_event,
     run_agent_user_message,
     websocket_control_event,
     websocket_started_event,
 )
-from app.domains.artifacts.service import ArtifactForbiddenError, ArtifactNotFoundError
-from app.domains.book_runs.service import BookRunNotFoundError, get_book_run
+from app.domains.book_runs.service import get_book_run
 from app.domains.ide.schemas import (
     IdeArtifactPreview,
     IdeCommandRequest,
@@ -80,7 +80,7 @@ def _agent_stream_events_from_result(
             continue
         events.append(
             {
-                "type": "tool_trace",
+                "type": TOOL_TRACE,
                 "session_id": session_id,
                 "run_id": run_id,
                 "assistant_session_id": assistant_session_id,
@@ -93,7 +93,7 @@ def _agent_stream_events_from_result(
     if agent_result.get("requires_user_confirmation") or agent_result.get("confirmation_required") or proposed_patch:
         events.append(
             {
-                "type": "permission_required",
+                "type": PERMISSION_REQUIRED,
                 "session_id": session_id,
                 "run_id": run_id,
                 "assistant_session_id": assistant_session_id,
@@ -200,12 +200,7 @@ def read_artifact_preview(
 ) -> IdeArtifactPreview:
     """返回 Artifact Viewer 所需的预览、下载摘要、版本和追溯链。"""
 
-    try:
-        return get_artifact_preview(session, artifact_id, workspace_id=workspace_id)
-    except ArtifactForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except ArtifactNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return get_artifact_preview(session, artifact_id, workspace_id=workspace_id)
 
 
 @router.get(
@@ -215,10 +210,7 @@ def read_artifact_preview(
 def stream_run_events(session: SessionDependency, book_run_id: int) -> StreamingResponse:
     """返回 BookRun 当前状态投影生成的 SSE 快照事件。"""
 
-    try:
-        book_run = get_book_run(session, book_run_id)
-    except BookRunNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    book_run = get_book_run(session, book_run_id)
 
     def event_stream():
         for event in build_run_events(book_run):
@@ -237,12 +229,7 @@ def execute_ide_command(
 ) -> IdeCommandResult:
     """执行已注册 IDE 命令，所有写操作都返回审计追踪 ID。"""
 
-    try:
-        return execute_ide_command_by_id(command_id, (payload or IdeCommandRequest()).args, session)
-    except IdeCommandNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except IdeCommandExecutionError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return execute_ide_command_by_id(command_id, (payload or IdeCommandRequest()).args, session)
 
 
 @router.websocket("/agent/sessions/{session_id}")
@@ -280,14 +267,7 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
                 await websocket.send_json(result)
                 continue
 
-            if message_type in {
-                "approve_permission",
-                "deny_permission",
-                "pause_run",
-                "resume_run",
-                "stop_run",
-                "retry_from_checkpoint",
-            }:
+            if message_type in CONTROL_MESSAGE_TYPES:
                 run_id = str(message.get("run_id") or "")
                 if not run_id:
                     await websocket.send_json(
@@ -300,7 +280,7 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
                     continue
                 payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
                 try:
-                    event = record_agent_control_event(
+                    control_result = handle_agent_control_message(
                         session,
                         public_id=run_id,
                         session_id=session_id,
@@ -312,7 +292,12 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
                         {"type": "error", "session_id": session_id, "run_id": run_id, "detail": str(exc)}
                     )
                     continue
-                await websocket.send_json(websocket_control_event(event))
+                ack = websocket_control_event(control_result.event)
+                if control_result.resumed_result is not None:
+                    ack["resumed_result"] = control_result.resumed_result
+                if control_result.resume_diagnostic is not None:
+                    ack["resume_diagnostic"] = control_result.resume_diagnostic
+                await websocket.send_json(ack)
                 continue
 
             if message_type != "command":

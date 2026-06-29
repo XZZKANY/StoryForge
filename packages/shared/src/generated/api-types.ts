@@ -164,6 +164,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agent-runs/{run_id}/save-points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取 AgentRun save point 投影
+         * @description 从 AgentRunEvent / AgentArtifact 事实源推导当前可恢复边界。
+         */
+        get: operations["get_agent_run_save_points_endpoint_api_agent_runs__run_id__save_points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/workspaces/{workspace_id}/dashboard": {
         parameters: {
             query?: never;
@@ -304,6 +324,28 @@ export interface paths {
          * @description 读取资产同一谱系的全部版本历史。
          */
         get: operations["read_asset_history_endpoint_api_assets__asset_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/provider-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 探测后端实际使用的模型服务连通性
+         * @description 桌面设置「测试连接」调用：对后端 resolved_llm_env 的 /models 发只读探测。
+         *
+         *     始终 200 返回结构化诊断（ok / unauthorized / unreachable / misconfigured），不回显凭据。
+         */
+        get: operations["provider_health_endpoint_api_assistant_provider_health_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1709,7 +1751,7 @@ export interface paths {
         };
         /**
          * 读取运行时工具列表
-         * @description 列出 CreativeToolRegistry 声明的运行时工具能力。
+         * @description 列出 AgentRuntime、CreativeToolRegistry 与 MCP 声明的运行时工具能力。
          */
         get: operations["list_runtime_tools_endpoint_api_runtime_tools_get"];
         put?: never;
@@ -2703,6 +2745,10 @@ export interface components {
         };
         /** AssistantContextBundle */
         AssistantContextBundle: {
+            /** Budget */
+            budget?: {
+                [key: string]: unknown;
+            } | null;
             /** Current File */
             current_file: string;
             /** Files */
@@ -4513,6 +4559,31 @@ export interface components {
             /** Workspace Id */
             workspace_id: number | null;
         };
+        /**
+         * ProviderHealthResponse
+         * @description 探测后端实际使用的模型服务连通性（resolved_llm_env），仅用于诊断展示，绝不回显凭据。
+         */
+        ProviderHealthResponse: {
+            /** Base Url */
+            base_url?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Missing Env */
+            missing_env?: string[];
+            /** Model */
+            model?: string | null;
+            /** Model Count */
+            model_count?: number | null;
+            /** Reachable */
+            reachable: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "unreachable" | "unauthorized" | "misconfigured";
+        };
         /** ProviderResolutionRead */
         ProviderResolutionRead: {
             /** Capability */
@@ -5059,15 +5130,23 @@ export interface components {
         };
         /**
          * RuntimeToolRead
-         * @description 由 CreativeToolRegistry 派生的运行时工具说明。
+         * @description 由 AgentRuntime、CreativeToolRegistry 或 MCP 派生的运行时工具说明。
          */
         RuntimeToolRead: {
+            /** Allowed Roles */
+            allowed_roles: string[];
+            /** Artifact Kinds */
+            artifact_kinds: string[];
             /** Domain */
             domain: string;
             /** Event Store Required */
             event_store_required: boolean;
             /** Evidence Fields */
             evidence_fields: string[];
+            /** Execution Mode */
+            execution_mode: string;
+            /** Idempotent */
+            idempotent: boolean;
             /** Input Schema */
             input_schema: {
                 [key: string]: unknown;
@@ -5093,6 +5172,10 @@ export interface components {
             required_capabilities: string[];
             /** Requires Confirmation */
             requires_confirmation: boolean;
+            /** Retry Safe */
+            retry_safe: boolean;
+            /** Risk Level */
+            risk_level: string;
         };
         /**
          * RuntimeToolReferencesRead
@@ -6237,6 +6320,39 @@ export interface operations {
             };
         };
     };
+    get_agent_run_save_points_endpoint_api_agent_runs__run_id__save_points_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get: {
         parameters: {
             query?: never;
@@ -6530,6 +6646,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_health_endpoint_api_assistant_provider_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderHealthResponse"];
                 };
             };
         };

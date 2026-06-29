@@ -2018,3 +2018,1974 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - `Editor.tsx` 保留 `recordRevisionLoop` / `emitAuthorLoopResult` import 与传参，源文本护栏继续通过。
 
 **行为变更**：无（纯移动 + 依赖注入）。C3 已接近当前合理装配壳边界；剩余 `useMonacoEditor` 涉及 Monaco 实例生命周期、命令注册、load/save effect，建议单独 PR 并补运行期集成护栏后再动。
+
+## E2-3 重构验证（2026-06-28）
+
+**条目**：第 3 层 E2-3 — 迁 `chapter.review` / `chapter.repair` 入 live AgentRuntime（行为变更）
+
+**目标**：将 `chapter.review` 和 `chapter.repair` 从 legacy `ide/orchestrator.py` 的 `else` 分支 fallback 路径迁入 `agent_runs/runtime.py` 的 native AgentRuntime handler，复用 `_ide_command_tool` 工具工厂调用 `execute_ide_command_by_id`，并修复 E2-2 对账发现的 `_string_list` / `_style_rules` 语义漂移。
+
+**修改范围**（仅 `runtime.py`）：
+- 修复 `_string_list`：添加 `.strip()` + 空字符串过滤，对齐 orchestrator.py 语义
+- 修复 `_style_rules`：额外支持 `{"rule": "..."}` dict 项，对齐 orchestrator.py 语义
+- 添加 4 个 helper 函数：`_payload_list`、`_can_repair_issue`、`_first_patch_payload`（适配 ToolResult.output 路径）、`_proposed_patch_from_repair_patch`
+- 重写 `_judge_run`：`mode="proposed_patch_smoke"` 保留 stub 行为（file.revise 路径轻量检查），其他 mode 委托 `_ide_command_tool("judge.run")` 走真实 judge service
+- 添加 `_run_chapter_review` 方法：对应 orchestrator.py `_orchestrate_chapter_review`，用 `self._execute_tool("judge.run", ...)` + `self._execute_tool("judge.repair", ...)` 替代 `_execute_command_with_tool_audit`
+- 添加 `_run_chapter_review_repair` 方法：对应 orchestrator.py `_orchestrate_chapter_repair`
+- 添加 `"judge.repair"` 到 `_execute_tool` 权限门排除集合（其 `risk_level="write_pending"` 会在 pipeline 内调用时被拦截）
+- 在 `run_user_message()` 添加 `chapter.review` / `chapter.repair` intent dispatch 分支
+
+**orchestrator.py**：零修改。Legacy 代码原样保留至 E2-4。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime.py` → All checks passed
+- `cd apps/api && uv run python -c "import app.main"` → Import OK（无环）
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py -q` → **28 passed**（含 `test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirmation`）
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py tests/test_assistant_revise.py tests/test_book_runs.py -q` → **92 passed**
+
+**行为变更**：true。`_judge_run` 从 stub 变真实调用（非 smoke mode）；`runtime_mode` 从 `"legacy_adapter"` 变 `"agent_runtime"`；`_string_list` / `_style_rules` 清洗语义对齐 legacy（strip + 空值过滤 + dict rule 支持）。
+
+**影响**：`chapter.review` / `chapter.repair` 不再走 `legacy.orchestrator` 工具 fallback，转为 AgentRuntime native handler；输出契约与 legacy 一致（同一测试通过）；为 E2-4 删除 legacy orchestrator 死代码铺路。
+
+## E2-4 重构验证（2026-06-28）
+
+**条目**：第 3 层 E2-4 — 删除 legacy orchestrator 死代码，下线 `legacy.orchestrator` 工具（零行为变更）
+
+**目标**：E2-3 已将 `chapter.review` / `chapter.repair` 迁入 live AgentRuntime，所有 SUPPORTED_INTENTS 现在都有 native handler。删除 `runtime.py` 中的 `legacy.orchestrator` 工具注册、`_legacy_orchestrator` 方法和权限门排除；`else` 分支改为直接 raise `AgentOrchestrationError`。
+
+**修改范围**（仅 `runtime.py`）：
+- 删除 `_legacy_orchestrator` 方法（原 line 896-914）
+- 删除 `legacy.orchestrator` 工具注册（原 line 707-709）
+- 从 `_execute_tool` 权限门排除集合删除 `"legacy.orchestrator"`
+- `else` 分支从调用 `self._execute_tool("legacy.orchestrator", ...)` 改为 `raise AgentOrchestrationError(f"暂不支持的 Agent intent：{intent}")`
+- **保留** `from app.domains.ide.orchestrator import orchestrate_agent_message` 导入（`# noqa: F401`），因为 `test_agent_runs.py:390` 通过 monkeypatch 验证 `file.review` 不走 legacy 路径
+
+**orchestrator.py**：零修改。Legacy 文件保留至后续评估整文件删除。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime.py` → All checks passed
+- `cd apps/api && uv run python -c "import app.main"` → Import OK
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py -q` → **61 passed**（28 + 33）
+
+**行为变更**：false。所有 live intent 已有 native handler；`else` 分支原逻辑已不可达（`SUPPORTED_INTENTS` 全量覆盖），改为显式报错是防御性编程。
+
+**影响**：`legacy.orchestrator` 工具下线；`AgentRuntime` 不再依赖 `orchestrate_agent_message` 做运行时 fallback；`orchestrator.py` 变为纯 dead code，可在后续评估整文件删除。
+
+## B2 重构验证（2026-06-29，完成）
+
+**条目**：Wave 2 B2 — 拆分 `book_runs/service.py`（1110 行）为多个薄模块（零行为变更）
+
+**目标**：按重构总计划，提取叶子工具层 `_coerce.py`、Timeline 同步层 `timeline.py`、Longform context 门禁层 `gate.py`、Workflow dispatch 层 `dispatch.py`、Progression 层 `progression.py`，service.py 保留 Lifecycle facade + re-export。
+
+**已完成步骤**：
+
+1. **Step 1: 提取 `_coerce.py`（55 行）**
+   - 迁入 `_string_list`、`_positive_int`、`_non_negative_int`、`_non_negative_float`、`_bounded_ratio`、`_nested_progress_int`、`_compact_text`、`_compact_text_list`
+   - service.py re-export 全部 8 个函数（`# noqa: F401`），并补齐 `_nested_progress_int` 旧路径兼容
+
+2. **Step 2: 提取 `timeline.py`（249 行）**
+   - 迁入 `_sync_completed_chapter_timeline_events` 及 12 个 helper 函数
+   - 从 `_coerce.py` import `_positive_int`、`_string_list`、`_nested_progress_int`
+   - service.py re-export `_sync_completed_chapter_timeline_events`（唯一被外部调用的入口）
+   - 删除 service.py 中 timeline 相关的 230+ 行
+
+3. **Step 3: 提取 `gate.py`（137 行）**
+   - 迁入 `_require_longform_context_ready` 及 10 个 helper 函数（含 `_explicit_volume_plan`、`_even_volume_plan`、`_single_volume_plan`）
+   - 延迟 import `BookRunBlockedError` 避免循环依赖（在函数内从 service.py import）
+   - service.py re-export `_require_longform_context_ready`、`_explicit_volume_plan`、`_even_volume_plan`、`_single_volume_plan`
+   - 删除 service.py 中 gate 相关的 120+ 行
+
+4. **Step 4: 提取 `dispatch.py`（259 行）**
+   - 迁入 `build_book_run_workflow_dispatch`、`DEFAULT_ENTITY_BUDGET`、`DEFAULT_PHASE_POLICY` 与 dispatch/narrative plan helper 簇
+   - 从 `_coerce.py` 和 `gate.py` 单向依赖叶子 helper，不反向 import `service.py`
+   - service.py re-export dispatch 入口、常量与旧私有 helper，保持测试/跨模块旧路径兼容
+
+5. **Step 5: 提取 `progression.py`（234 行）**
+   - 迁入 `apply_book_run_progress`、`pause_book_run`、`resume_book_run`、`retry_book_run_from_checkpoint`、`stop_book_run`
+   - 迁入预算、checkpoint、latency、controlled/sticky progress 合并 helper
+   - 保持 `apply_book_run_progress` 的赋值顺序、预算暂停语义、timeline 同步时机和 commit/refresh 时点不变
+
+6. **Step 6: 收敛 `service.py` facade（179 行）**
+   - `service.py` 仅保留 BookRun lifecycle、startable/dispatched/background generation 壳层、异常类、常量和兼容 re-export
+   - 补齐 dispatch/coerce/progression 私有 helper 的 facade 回引，避免纯移动刀收窄旧 interface
+
+**当前文件尺寸**：
+- `service.py`：179 行（原 1110 行，-931 行）
+- `_coerce.py`：38 行
+- `timeline.py`：221 行
+- `gate.py`：112 行
+- `dispatch.py`：259 行
+- `progression.py`：234 行
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/_coerce.py app/domains/book_runs/timeline.py app/domains/book_runs/gate.py app/domains/book_runs/dispatch.py app/domains/book_runs/progression.py app/domains/book_runs/service.py` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK（无环）
+- `cd apps/api && uv run pytest tests/test_book_runs.py tests/test_book_run_workflow_dispatch.py tests/test_book_run_start.py tests/test_book_run_resume.py tests/test_book_run_budget.py -q` → **49 passed**, 1 existing deprecation warning
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_book_generation_long_wrapper.py tests/test_multi_round_repair.py -q` → **59 passed**
+- `cd apps/api && git diff --check -- app/domains/book_runs/_coerce.py app/domains/book_runs/timeline.py app/domains/book_runs/gate.py app/domains/book_runs/dispatch.py app/domains/book_runs/progression.py app/domains/book_runs/service.py` → 通过
+
+**行为变更**：false。纯文件级移动 + facade re-export；所有 import 路径保持不变（router、cross-domain、tests）。
+
+**影响**：`book_runs/service.py` 已从 1110 行收敛为 179 行 facade；BookRun lifecycle 与后台 generation 触发留在 service，progress/timeline/gate/dispatch 进入各自深模块，测试继续跨旧 `service.py` interface 验证行为。
+
+## B3 重构验证（2026-06-29，完成）
+
+**条目**：Wave 2 B3 — 拆分 `judge/service.py`（约 974 行）为职责清晰的 Judge 深模块（零行为变更）
+
+**目标**：把 Judge 的语义 LLM 评审、确定性规则、跨域一致性检测和文风指纹计算从单一 service 文件中拆出；`judge/service.py` 保留评审写库编排、Scene Packet 校验和旧 interface 兼容 re-export。
+
+**已完成模块**：
+1. `judge/types.py`
+   - 承载 `JudgeInputError`、`DetectedIssue`、`SemanticJudgeOutcome`、`StyleFingerprint`、`JudgeProvider` 与 Judge 常量。
+   - 作为叶子模块被其他 Judge 模块单向依赖。
+2. `judge/semantic.py`
+   - 承载 `semantic_judge`、`semantic_judge_with_status`、OpenAI 兼容请求、响应 JSON 解析、`_judge_llm_errors_total`。
+   - `service.py` 保留 `httpx` facade import，现有 `monkeypatch.setattr(judge_service.httpx, "Client", ...)` 仍作用于同一个模块对象。
+3. `judge/deterministic.py`
+   - 承载 `deterministic_judge_fallback`、setting conflict 和 style drift 规则。
+4. `judge/consistency.py`
+   - 承载 Character Bible、Timeline、Style Fingerprint Drift 等跨域一致性检测。
+5. `judge/style_fingerprint.py`
+   - 承载 `compute_book_style_baseline`、`_style_fingerprint` 与轻量文风相似度计算。
+6. `judge/service.py`
+   - 保留 `create_judge_issues` 与 `_validate_scene_packet`。
+   - re-export 外部旧路径需要的公开符号与私有 helper，包括 BookRun 生成路径使用的 `_detect_character_bible_violations`、`_detect_timeline_conflicts`、`_detect_style_fingerprint_drift`、`_style_fingerprint`、`compute_book_style_baseline`。
+
+**子代理复核**：
+- Explorer 子代理 Carson 做只读复核，结论：新模块不反向 import `judge.service`；BookRun 路径符号和 `httpx.Client` monkeypatch 契约保留；未发现阻断项。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/judge/` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `cd apps/api && uv run pytest tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_character_consistency.py tests/test_judge_style_guard.py tests/test_judge_timeline_consistency.py tests/test_timeline_consistency.py tests/test_character_bible_guard.py tests/test_phase1_service_acceptance.py -q` → **16 passed**
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_book_generation_long_wrapper.py tests/test_multi_round_repair.py tests/test_prompt_assembly.py -q` → **69 passed**
+- `cd apps/api && git diff --check -- app/domains/judge/service.py app/domains/judge/types.py app/domains/judge/semantic.py app/domains/judge/deterministic.py app/domains/judge/consistency.py app/domains/judge/style_fingerprint.py` → 通过
+
+**行为变更**：false。纯文件级移动 + facade re-export；评审降级标记、确定性规则、语义 Judge 解析、文风指纹、跨域一致性检测与写库编排保持旧语义。
+
+**影响**：`judge/service.py` 已收敛为约 130 行编排 facade；Judge 的测试 surface 仍可通过旧 `app.domains.judge.service` seam 验证，同时实现知识分布到语义、确定性、跨域一致性和文风指纹模块，locality 明显提升。
+
+## B4 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 B4 — 拆分 `story_memory/service.py`（733 行）为 Story Memory 深模块（零行为变更）
+
+**目标**：把 Story Memory 的记忆事实 CRUD、伏笔生命周期、memory_extract 写入、场景召回/pgvector 候选排序和仲裁逻辑从单一 service 文件拆出；`story_memory/service.py` 退为旧 interface facade，继续作为所有调用方和测试的兼容 seam。
+
+**已完成模块**：
+1. `story_memory/errors.py`
+   - 承载 `StoryMemoryInputError`、`ForeshadowLifecycleTransitionError`、`ForeshadowLifecycleConflictError`。
+2. `story_memory/atoms.py`
+   - 承载 `create_memory_atom`、`list_memory_atoms`、`get_active_memory_atoms`、`atoms_active_at_chapter`、MemoryAtom embedding 文本、默认排序、有效期判断和 ORM record 转换。
+3. `story_memory/foreshadow_lifecycle.py`
+   - 承载伏笔状态机常量、生命周期转换、历史读取、快照 dump/load、来源引用和状态迁移校验。
+4. `story_memory/arbitration.py`
+   - 承载 `detect_memory_conflicts`、`arbitrate_proposal`、`apply_arbitration_decision`，并保持 conflict_id sha1 截断与冲突排序语义。
+5. `story_memory/extract.py`
+   - 承载 `write_memory_extract_atoms` 与 chapter summary / character state / world fact / foreshadow ref 白名单抽取 payload 构建。
+6. `story_memory/recall.py`
+   - 承载 `recall_scene_memory_atoms`、pgvector 候选加载、召回排序、语义分数、关键词分数和环境变量候选数量配置。
+7. `story_memory/service.py`
+   - 收敛为约 75 行 facade，re-export 公开函数、常量与旧 private helper；旧 `app.domains.story_memory.service` 路径继续作为测试 surface。
+
+**硬约束检查**：
+- 旧 `service.py` 的 52 个类/函数名全部仍可从 facade 访问，包括 `_load_memory_atom_candidates`、`MemoryRecallScore` 和 pgvector 常量。
+- `recall.py` 使用 `logging.getLogger("app.domains.story_memory.service")`，保持 `test_retrieval_pgvector.py` 的 caplog logger 契约。
+- 未向 `story_memory/__init__.py` 添加 service 转导出，保持 `test_source_pruning.py` 约束。
+- 新模块不反向 import `story_memory.service`；跨域调用方继续从旧 `service.py` import。
+
+**子代理复核**：
+- Explorer 子代理 Pascal 做 B4 只读复核，建议先拆 CRUD + extract，再拆 lifecycle，recall/vector 最后处理；实际落地按该顺序完成，未发现阻断项。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/story_memory/` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `cd apps/api && uv run pytest tests/test_story_memory_contract.py tests/test_story_memory_persistence.py tests/test_foreshadow_lifecycle.py tests/test_retrieval_pgvector.py tests/test_source_pruning.py -q` → **45 passed**
+- `cd apps/api && uv run pytest tests/test_book_generation_parallel.py tests/test_scene_packet_context_compiler.py tests/test_scene_packet.py tests/test_prompt_assembly.py tests/test_ide_story_memory.py tests/test_phase2_memory_recall_fix.py -q` → **37 passed**
+- `cd apps/api && git diff --check -- app/domains/story_memory/service.py app/domains/story_memory/errors.py app/domains/story_memory/atoms.py app/domains/story_memory/foreshadow_lifecycle.py app/domains/story_memory/arbitration.py app/domains/story_memory/extract.py app/domains/story_memory/recall.py` → 通过
+
+**行为变更**：false。纯文件级移动 + facade re-export；MemoryAtom 写入、伏笔状态机、抽取 payload、pgvector fallback 日志、召回排序与仲裁规则保持旧语义。
+
+**影响**：`story_memory/service.py` 已从 733 行收敛为约 75 行兼容 facade；Story Memory 的知识分布到 atoms、lifecycle、extract、recall 和 arbitration 深模块，locality 明显提升，旧调用路径与测试入口保持稳定。
+
+## IS 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 IS — 拆分 `ide/service.py`（738 行）为 IDE 工作台深模块（零行为变更）
+
+**目标**：把 IDE command registry、Artifact Viewer、Workspace/Scene/Diagnostics 读取、Context Inspector、Story Memory Explorer 和 Run Panel SSE 投影从单一 service 文件拆出；`ide/service.py` 退为旧 interface facade，继续作为 router、live AgentRuntime、legacy orchestrator 和测试的兼容 seam。
+
+**已完成模块**：
+1. `ide/_coerce.py`
+   - 承载 `_int_or_none`、`_string_or_none`、`_context_href`，作为 command registry 与 Artifact Preview 的叶子工具。
+2. `ide/command_registry.py`
+   - 承载 `IdeCommandDefinition`、`_BUILTIN_COMMANDS`、`execute_ide_command_by_id`、命令异常、Judge/Repair/Approve/BookRun WritingRun adapter 和 IDE 命令审计事件写入。
+3. `ide/artifact_preview.py`
+   - 承载 `get_artifact_preview`、预览格式识别、版本列表过滤和 BookRun/ModelRun/Judge/Approve 追溯链构建。
+4. `ide/workspace_reads.py`
+   - 承载 `get_workspace_tree`、`read_ide_scene`、`list_diagnostics_for_scene` 与诊断 severity 映射。
+5. `ide/context_snapshot.py`
+   - 承载 `get_context_snapshot` 与 `_context_block_ref`。
+6. `ide/story_memory_query.py`
+   - 承载 `query_story_memory`、章节有效期过滤、冲突 id 映射和 IDE Story Memory item/conflict 投影。
+7. `ide/run_events.py`
+   - 承载 `build_run_events`、`encode_sse_event` 与 token 剩余量投影。
+8. `ide/service.py`
+   - 收敛为约 51 行 facade，re-export 公开函数、异常、常量与旧 private helper；旧 `app.domains.ide.service` 路径继续作为测试 surface。
+
+**硬约束检查**：
+- 旧 `service.py` 的 35 个类/函数名全部仍可从 facade 访问。
+- `execute_ide_command_by_id`、`IdeCommandNotFoundError`、`IdeCommandExecutionError` 仍从旧路径供 `ide/router.py`、live `agent_runs/runtime.py` 和 legacy `ide/orchestrator.py` import。
+- 新模块不反向 import `ide.service`；共享 helper 下沉到 `ide/_coerce.py` 避免 command registry 与 Artifact Preview 互相依赖。
+- `StoryForge IDE ??` 审计 workspace fallback 文案保持不变；`ide/router.py` 未修改。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/ide/` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `cd apps/api && uv run pytest tests/test_ide_workspace_tree.py tests/test_ide_diagnostics.py tests/test_ide_context_snapshot.py tests/test_ide_story_memory.py tests/test_ide_artifact_preview.py tests/test_ide_run_events.py tests/test_ide_command_registry.py tests/test_ide_commands.py tests/test_ide_agent_orchestrator.py -q` → **58 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**
+- `cd apps/api && git diff --check -- app/domains/ide/service.py app/domains/ide/_coerce.py app/domains/ide/command_registry.py app/domains/ide/artifact_preview.py app/domains/ide/context_snapshot.py app/domains/ide/run_events.py app/domains/ide/story_memory_query.py app/domains/ide/workspace_reads.py` → 通过
+
+**行为变更**：false。纯文件级移动 + facade re-export；IDE 命令审计、Artifact workspace 过滤、Context Snapshot 空缺 404、Story Memory 冲突过滤、Run Events SSE 文本和 AgentRuntime command tool 路径保持旧语义。
+
+**影响**：`ide/service.py` 已从 738 行收敛为约 51 行兼容 facade；IDE 工作台各读写面按深模块聚合，locality 明显提升，旧调用路径与测试入口保持稳定。
+
+## B5 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 B5 — 拆分 `studio/service.py`（763 行）为 Studio 工作台深模块（零行为变更）
+
+**目标**：把 Studio 的 source reads、review reads、recovery reads、批准写回和主动章节审阅从单一 service 文件拆出；`studio/service.py` 退为旧 interface facade，继续作为 router、IDE command registry 和测试的兼容 seam。
+
+**已完成模块**：
+1. `studio/source_reads.py`
+   - 承载 `list_studio_books`、`read_studio_chapter_goal`、`read_studio_scene_packet`、章节继承约束读取和 source read 异常。
+2. `studio/review_reads.py`
+   - 承载 `read_studio_judge_review`、`read_studio_repair_patches`、Judge 评分/状态投影、Repair Patch 投影和章节审阅输入异常。
+3. `studio/recovery_reads.py`
+   - 承载 `read_studio_recovery_summary`、checkpoint 摘要读取、失败节点解析和可恢复步骤投影。
+4. `studio/approval.py`
+   - 承载 `read_studio_approval_summary`、`approve_studio_writeback`、批准资格判断、Scene Packet / Repair Patch 写回、连续性记录写入和 book context cache 清理。
+5. `studio/chapter_review.py`
+   - 承载 `run_studio_chapter_review`、主动 Judge/Repair 编排、clean review 投影和 Scene Packet payload adapter。
+6. `studio/service.py`
+   - 收敛为约 53 行 facade，re-export 公开函数、异常和旧 private helper；旧 `app.domains.studio.service` 路径继续作为测试 surface。
+
+**硬约束检查**：
+- 旧 `service.py` 的 41 个类/函数名全部仍可从 facade 访问。
+- router 需要的 8 个公开函数 + 7 个异常类保持旧路径。
+- IDE `judge.approve` 仍可从旧路径导入 `StudioApprovalSummaryNotFoundError` / `approve_studio_writeback`。
+- 新模块不反向 import `studio.service`；依赖方向为 source/review/recovery leaves → approval commit point → chapter_review orchestration。
+- `approval.py` 是唯一执行 `session.commit()` 和 `clear_book_context_cache()` 的 Studio 模块；`_studio_repair_patch` 只有 `review_reads.py` 一个实现。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/studio/` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `cd apps/api && uv run pytest tests/test_studio_book_list_api.py -q` → **24 passed**
+- `cd apps/api && uv run pytest tests/test_ide_commands.py tests/test_ide_agent_orchestrator.py tests/test_approval_writeback.py tests/test_chapter_approval_edges.py -q` → **46 passed**
+- 旧符号兼容脚本（对比 `git show HEAD:apps/api/app/domains/studio/service.py`）→ **41 old symbols, missing []**
+
+**行为变更**：false。纯文件级移动 + facade re-export；Studio source reads、Judge/Repair 摘要、主动章节审阅、批准写回、恢复摘要、cache 清理和旧 import path 保持旧语义。
+
+**影响**：`studio/service.py` 已从 763 行收敛为约 53 行兼容 facade；Studio 工作台按读源、评审、恢复、批准和主动编排形成更深的 module，approval commit point 的 locality 明显提升。
+
+## RT 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 RT — 拆分 `retrieval/service.py` 与 `model_runs/service.py`（零行为变更）
+
+**目标**：把 Retrieval 的评分、候选加载、索引写入和 Workbench 投影从搜索装配中分离；把 ModelRun 的真表写入和 Runs runtime diagnostics 从查询 seam 中分离。旧 `service.py` 路径继续承接 router、Story Memory、Scene Packet、workflow adapter 和测试的兼容 interface。
+
+**已完成模块**：
+1. `retrieval/scoring.py`
+   - 承载 `RetrievalScore`、`_keywords`、`_score_chunk`、`_cosine_similarity`、rerank window 与 reranker adapter；性能护栏函数体保留 `inspect.getsource` 断言需要的字面片段。
+2. `retrieval/candidate_loader.py`
+   - 承载 `SearchCandidateLoad`、keyword prefilter、pgvector candidate order、候选上限环境变量和候选加载日志；logger 名称固定为 `app.domains.retrieval.service`。
+3. `retrieval/indexing.py`
+   - 承载 `RetrievalInputError`、资料源创建/列表、刷新运行、chunk 切分、embedding client 解析和 scope 校验。
+4. `retrieval/workbench.py`
+   - 承载 Workbench source/refresh/hit 投影和聚合查询。
+5. `retrieval/service.py`
+   - 收敛为约 137 行搜索装配 facade，保留 `search_retrieval` / `search_retrieval_workbench`，并 re-export 旧公开函数和 private helper。
+6. `model_runs/recording.py`
+   - 承载 `ModelRunError`、`create_model_run`、runtime completed/failed 记录、workflow payload adapter 和引用/payload 校验 helper。
+7. `model_runs/runs_diagnostics.py`
+   - 承载 Runs JobRun runtime diagnostics、provider/model usage/runtime tools 投影、checkpoint 和 retry 创建。
+8. `model_runs/service.py`
+   - 收敛为约 88 行查询/wrapper seam，保留 `list_model_runs`、`build_model_run_list_query`、字面 `def get_runs_job_run(` 和 `def record_workflow_model_run_payload(`。
+
+**硬约束检查**：
+- `retrieval.service` 旧 36 个类/函数名全部仍可访问；`model_runs.service` 旧 30 个类/函数名全部仍可访问。
+- `search_retrieval` 继续在 `retrieval/service.py` 中通过旧模块全局 `_score_chunk` binding 调用评分函数，保持 `test_retrieval_embedding.py` monkeypatch seam。
+- `_keywords`、`_score_chunk`、`_cosine_similarity` 的 `inspect.getsource` 性能护栏仍通过。
+- `story_memory.recall` 私有导入 `app.domains.retrieval.service._cosine_similarity` 保持。
+- `test_source_pruning.py` 直接读取 `model_runs/service.py` 要求的 `def get_runs_job_run(`、`runtime_diagnostics`、`def record_workflow_model_run_payload(` 字面证据保持。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/retrieval/ app/domains/model_runs/` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `cd apps/api && uv run pytest tests/test_retrieval_embedding.py tests/test_retrieval_workbench_api.py tests/test_retrieval_pgvector.py tests/test_scene_packet_embedding_wiring.py tests/test_scene_packet_context_compiler.py tests/test_story_memory_contract.py tests/test_model_runs.py tests/test_job_runtime_bridge.py tests/test_phase4_service_acceptance.py tests/test_source_pruning.py -q` → **73 passed**
+- 旧符号兼容脚本（对比 `git show HEAD`）→ retrieval **36 old symbols, missing []**；model_runs **30 old symbols, missing []**
+- `git diff --check -- apps/api/app/domains/retrieval/service.py apps/api/app/domains/retrieval/scoring.py apps/api/app/domains/retrieval/candidate_loader.py apps/api/app/domains/retrieval/indexing.py apps/api/app/domains/retrieval/workbench.py apps/api/app/domains/model_runs/service.py apps/api/app/domains/model_runs/recording.py apps/api/app/domains/model_runs/runs_diagnostics.py` → 通过
+- `node scripts/run-e2e.mjs tests/e2e/phase5-runtime-diagnostics.spec.ts --continue-on-error` → OpenAPI refresh/drift passed；Phase 5 contract tests **5 passed / 1 failed**；API verification **65 passed**；workflow verification **69 passed**。失败项为既有 RuntimeToolRead 治理清单漂移：OpenAPI schema 现在包含 `event_store_required`、`mcp_server`、`mcp_tool_name`、`origin`、`permission_level`、`read_only`、`requires_confirmation` 等字段，而 e2e 期望仍是旧字段集。
+
+**行为变更**：false。纯文件级移动 + 兼容 wrapper；Retrieval 搜索排序、pgvector fallback、candidate load 日志、Workbench 投影、ModelRun 写入、workflow payload adapter、Runs diagnostics 与 retry 行为保持旧语义。
+
+**影响**：Retrieval 和 ModelRun 的高变化知识从两个 service 大文件中分离出来；搜索装配与 Runs 查询 seam 留在旧路径，关键测试/调用 interface 稳定，同时 scoring、candidate loading、indexing、recording 和 diagnostics 的 locality 更清晰。
+
+## D4 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 D4 — 拆分 workflow prompt builder/context（零行为变更）
+
+**目标**：把 Prompt 构建的底层 render、section 组合和 GenerationState continuity budget 从两个大文件中拆出；`builder.py` 继续作为公开 prompt builder interface，`context.py` 继续作为 GenerationState → NarrativeContext adapter。
+
+**已完成模块**：
+1. `storyforge_workflow/prompts/_render.py`
+   - 承载 `RETURN_PROSE`、`RETURN_STRUCTURED`、`RETURN_JSON`、`_clean`、`_section`、`_join_sections`。
+2. `storyforge_workflow/prompts/_sections.py`
+   - 承载作品策略、角色、创作准则、文风、叙事位置、场景质量、ChapterBeat、连续性、上文衔接和节奏 section 构建。
+3. `storyforge_workflow/prompts/_continuity_budget.py`
+   - 承载 continuity facts 的排序 key、POV/章节匹配、预算累计、token 估算和环境变量预算读取。
+4. `storyforge_workflow/prompts/builder.py`
+   - 保留全部公开 prompt builder 字面定义和关键字符串契约；旧 private render/section helpers 经 import 兼容回引。
+5. `storyforge_workflow/prompts/context.py`
+   - 保留 `narrative_context_from_state` 和 state adapter 主流程；continuity budget helpers 经 import 兼容回引。
+
+**硬约束检查**：
+- `builder.py` 旧 22 个函数名全部仍可访问；`context.py` 旧 20 个函数名全部仍可访问。
+- `build_draft_prompt` 的 `length_line` 分支仍在 `builder.py`；`build_critique_prompt` / `build_revision_prompt` 字符串契约仍在 `builder.py`，满足 `test_source_pruning.py`。
+- Critique `score_dimensions` 唯一性、ChapterBeat prompt 契约、revision strategy 契约和 style fingerprint targets 仍通过测试。
+- continuity sort key 元组和 `_within_continuity_budget` 的预算累加分支仅移动到 `_continuity_budget.py`，语义保持不变。
+- `prompts/__init__.py` 未修改，仍只转导出公开构建器，不转导出 prompt models。
+
+**本地验证**：
+- `cd apps/workflow && uv run ruff check storyforge_workflow/prompts/` → All checks passed
+- `cd apps/workflow && uv run python -c "import storyforge_workflow.prompts; print('import ok')"` → Import OK
+- `cd apps/workflow && uv run pytest tests/test_prompt_builder.py tests/test_generation_state_references.py tests/test_source_pruning.py tests/test_generation_graph.py -q` → **63 passed**
+- 旧符号兼容脚本（对比 `git show HEAD`）→ builder **22 old functions, missing []**；context **20 old functions, missing []**
+- `git diff --check -- apps/workflow/storyforge_workflow/prompts/builder.py apps/workflow/storyforge_workflow/prompts/context.py apps/workflow/storyforge_workflow/prompts/_render.py apps/workflow/storyforge_workflow/prompts/_sections.py apps/workflow/storyforge_workflow/prompts/_continuity_budget.py` → 通过
+
+**行为变更**：false。纯文件级移动 + private compatibility re-export；prompt 文本、输出契约、continuity priority/budget 和 package public surface 保持旧语义。
+
+**影响**：Prompt builder 的底层 render、section composition 和 continuity budget knowledge 分离，公开 builder/context seam 保持稳定，后续改 prompt 文案或 continuity 预算策略时 locality 更好。
+
+## D3 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 D3 — 拆分 workflow runtime Provider Gateway adapter（零行为变更）
+
+**目标**：把 provider 错误分类、usage/cost 估算和 fallback provider 逻辑从 `provider_adapter.py` 中分离；旧 `storyforge_workflow.runtime.provider_adapter` 路径继续作为 runtime、测试和 monkeypatch 的兼容 interface。`provider_client.py` 本轮不动。
+
+**已完成模块**：
+1. `storyforge_workflow/runtime/provider_errors.py`
+   - 承载 `ProviderErrorKind`、`ProviderError`、`ProviderTimeoutError`、HTTP 错误分类、Retry-After 解析和 HTTP error body 读取。
+2. `storyforge_workflow/runtime/provider_usage.py`
+   - 承载 `_estimate_token_count`、`_estimate_cost`、Chat Completion usage payload 解析和真实/估算 usage 归一。
+3. `storyforge_workflow/runtime/provider_fallback.py`
+   - 承载 `FallbackProviderAdapter`、fallback metadata 附着、默认 fallback observer、Sentry breadcrumb、OpenAI-compatible fallback 调用和畸形响应校验。
+4. `storyforge_workflow/runtime/provider_adapter.py`
+   - 收敛为约 362 行 Provider Gateway adapter facade，保留请求/响应快照、真实 client adapter、Mock adapter、默认 provider 装配和 parity harness；旧错误/usage/fallback 私有 helper 经 import 回引。
+
+**硬约束检查**：
+- `ProviderError` / `ProviderErrorKind` / `ProviderTimeoutError`、`FallbackProviderAdapter`、`build_default_provider_adapter` 等旧路径继续可从 `provider_adapter.py` 导入。
+- `test_provider_adapter.py` monkeypatch 的 `provider_adapter_module.generate_chat_completion` 与 `provider_adapter_module.provider_config` 仍在旧模块命名空间，默认 factory 继续读取这些全局 binding。
+- `test_source_pruning.py` 要求的 `def _estimate_token_count(`、`def _estimate_cost(` 字面 wrapper 仍在 `provider_adapter.py`，且 `_estimate_token_usage` 未回归。
+- `ProviderParityCase`、`ProviderParityResult`、`ProviderParityHarness` 字面类定义依 source-pruning 护栏继续留在具体 `provider_adapter.py`；runtime 包级入口不转导出 parity harness。
+- `provider_fallback.py` 仅在 `TYPE_CHECKING` 下引用 adapter 类型，运行期不反向 import `provider_adapter.py`，避免 import 环。
+
+**本地验证**：
+- `cd apps/workflow && uv run ruff check storyforge_workflow/runtime/provider_adapter.py storyforge_workflow/runtime/provider_errors.py storyforge_workflow/runtime/provider_fallback.py storyforge_workflow/runtime/provider_usage.py tests/test_provider_adapter.py tests/test_provider_fallback.py tests/test_provider_parity_harness.py tests/test_runtime_runner.py tests/test_model_run_token_tracking.py tests/test_source_pruning.py` → All checks passed
+- `cd apps/workflow && uv run python -c "import storyforge_workflow.runtime; import storyforge_workflow.runtime.provider_adapter; import storyforge_workflow.runtime.provider_fallback; print('import ok')"` → Import OK
+- `cd apps/workflow && uv run pytest tests/test_provider_adapter.py tests/test_provider_fallback.py tests/test_provider_parity_harness.py tests/test_runtime_runner.py tests/test_model_run_token_tracking.py tests/test_source_pruning.py -q` → **71 passed**
+- `cd apps/workflow && uv run pytest -q` → **322 passed**
+- `git diff --check -- apps/workflow/storyforge_workflow/runtime/provider_adapter.py apps/workflow/storyforge_workflow/runtime/provider_errors.py apps/workflow/storyforge_workflow/runtime/provider_fallback.py apps/workflow/storyforge_workflow/runtime/provider_usage.py apps/workflow/tests/test_provider_adapter.py` → 通过
+
+**行为变更**：false。纯文件级移动 + 兼容回引；provider 错误分类、except 链、Retry-After、usage/cost 估算、fallback metadata、fallback response 校验、默认 factory 与 parity harness 行为保持旧语义。
+
+**影响**：Provider Gateway 的 interface 保持稳定，错误分类、usage 观测和 fallback provider 知识各自形成更深的 module；`provider_adapter.py` 不再混装 HTTP 分类、usage 解析和备用端点细节，后续改 provider 观测或 fallback 策略时 locality 更好。
+
+## C4 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 C4 — 拆分 Desktop `api-client.ts` 与 `project-context.ts`（零行为变更 + 护栏补齐）
+
+**目标**：把 Desktop 端 API client 的 REST、WebSocket、SSE、payload codec、错误详情读取与类型定义拆开；把 project context 的语义分类、索引构建、项目初始化、路径工具和 context bundle/cache 拆开。旧 `src/lib/api-client.ts` 与 `src/lib/project-context.ts` 路径继续作为调用方兼容 barrel。
+
+**已完成模块**：
+1. `src/lib/api/types.ts`
+   - 承载 API config、revision、Agent socket、BookRun/WritingRun event、assistant session 等类型。
+2. `src/lib/api/config.ts`
+   - 承载 Tauri/preview API config 解析和 baseUrl trim helper。
+3. `src/lib/api/errors.ts`
+   - 承载 `readErrorDetail`，统一 JSON detail 与非 JSON fallback。
+4. `src/lib/api/codecs.ts`
+   - 承载 `toAssistantContextBundlePayload`，把 Desktop context bundle camelCase 映射为后端 snake_case。
+5. `src/lib/api/assistant.ts`
+   - 承载 `requestRevision`、`getAssistantSession`、`listAgentRoles`、`probeProviderHealth` 的 REST 调用与响应映射。
+6. `src/lib/api/agent-socket.ts`
+   - 承载 Agent WebSocket user/control message、socket URL 构建和 Agent socket type guards。
+7. `src/lib/api/run-events.ts`
+   - 承载 BookRun/WritingRun SSE 订阅。
+8. `src/lib/project/types.ts`
+   - 承载 SemanticFile、ProjectIndex、ContextBundle 等 project context 类型。
+9. `src/lib/project/path.ts`
+   - 承载 root/path normalization、relative path、project basename 和 pinned-file match normalization。
+10. `src/lib/project/semantics.ts`
+   - 承载 semantic kind label、canonical folder classification 和 empty counts。
+11. `src/lib/project/index.ts`
+   - 承载 project index 构建和 Tauri directory scan adapter。
+12. `src/lib/project/initialize.ts`
+   - 承载 canonical story project directory/readme 初始化。
+13. `src/lib/project/context-bundle.ts`
+   - 承载 context bundle selection、pinned file matching、TTL cache 和 excerpt 读取。
+14. `src/lib/api-client.ts` / `src/lib/project-context.ts`
+   - 收敛为旧路径 barrel，分别约 50 行与 15 行。
+
+**护栏补齐**：
+- `tests/api-client.test.ts` 新增 `requestRevision` payload/response 映射测试。
+- 新增 JSON error detail 冒烟，锁定 `readErrorDetail` 对后端 `detail` 字段的透传。
+- 新增 `probeProviderHealth` camelCase 映射与非 JSON 错误 fallback 测试。
+
+**硬约束检查**：
+- 旧 `../src/lib/api-client` 和 `../src/lib/project-context` import path 不变，组件与测试无需改调用路径。
+- `toAssistantContextBundlePayload` 仍经 `api-client.ts` barrel 可用，`project-context.test.ts` 跨模块用法保持。
+- `contextBundleCache` 单例完整迁到 `project/context-bundle.ts`，没有拆出第二份 cache。
+- 子模块依赖叶子模块，不经 `api-client.ts` / `project-context.ts` barrel 回流，避免 import 环。
+
+**本地验证**：
+- `cd apps/desktop/frontend && npm run typecheck` → 通过
+- `cd apps/desktop/frontend && npm run test -- api-client` → **7 passed**
+- `cd apps/desktop/frontend && npm run test -- api-client project-context story-navigator chat-window app` → **26 passed**
+- `cd apps/desktop/frontend && npm run test` → **62 passed**
+- `git diff --check -- apps/desktop/frontend/src/lib/api-client.ts apps/desktop/frontend/src/lib/api apps/desktop/frontend/src/lib/project-context.ts apps/desktop/frontend/src/lib/project apps/desktop/frontend/tests/api-client.test.ts` → 通过
+
+**行为变更**：false。纯文件级移动 + 测试护栏补齐；API config、REST headers/body、WebSocket payload、SSE event parsing、Provider Health 映射、project semantic classification、context bundle selection/cache 和 story project initialization 保持旧语义。
+
+**影响**：Desktop client 的 API transport 与 project context 不再挤在两个大文件里；后续处理 generated OpenAPI types 或调整 context bundle 预算时，REST codec、socket transport、SSE、project semantic index 和 context cache 的 locality 更清楚。
+
+## D1 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 D1 — 拆分 workflow BookLoop 与 BookRun adapter（零行为变更）
+
+**目标**：把整书循环的类型、预算、调度、结果投影，以及 BookRun adapter 的标量清洗、dispatch payload 和卷计划逻辑从两个主文件中拆出；`book_loop.py` 与 `book_run_adapter.py` 继续作为旧调用路径和主编排 seam。
+
+**已完成模块**：
+1. `storyforge_workflow/orchestrators/book_loop_types.py`
+   - 承载 `BookLoopRequest`、`BookLoopResult`、`ChapterExecutionError`、`ChapterConsistencyReport` 和 BookLoop Callable 别名。
+2. `storyforge_workflow/orchestrators/book_loop_budget.py`
+   - 承载 token/time/chapter 预算累计、暂停原因、provider degradation/fallback 限制判断。
+3. `storyforge_workflow/orchestrators/book_loop_scheduling.py`
+   - 承载并行开关、预取窗口、并行 runtime tracker 和 integration metrics 投影。
+4. `storyforge_workflow/orchestrators/book_loop_results.py`
+   - 承载章节 progress、checkpoint entry、冲突阻断结果和 generated-but-uncommitted 投影。
+5. `storyforge_workflow/orchestrators/book_run_adapter_types.py`
+   - 承载 BookRun adapter request、ports、progress sink、卷计划数据类和测试 sink。
+6. `storyforge_workflow/orchestrators/book_run_adapter_coerce.py`
+   - 承载 dispatch payload 标量清洗 helper，保留各 helper 原有差异。
+7. `storyforge_workflow/orchestrators/book_run_adapter_payload.py`
+   - 承载 narrative plan、chapter dispatch map、planning refs 和 arc consistency barrier adapter。
+8. `storyforge_workflow/orchestrators/book_run_adapter_volume.py`
+   - 承载 volume plan 解析与 BookLoopResult → volume_progress 投影。
+9. `book_loop.py` / `book_run_adapter.py`
+   - 分别收敛为约 348 行与约 390 行，保留执行闭环与 skill runner 主编排，并回引旧路径符号。
+
+**硬约束检查**：
+- `ChapterConsistencyReport`、`BookLoopRequest`、`BookLoopResult`、`ConsistencyBarrier` 等旧 `book_loop.py` import path 继续可用。
+- `BookRunChapterRange`、`BookRunVolumePlanItem`、`CallableProgressSink`、`CapturingProgressSink` 等旧 `book_run_adapter.py` import path 继续可用。
+- `run_book_loop` 仍是 BookLoop 的测试 surface；顺序/并行执行、precommit、commit side effects、provider fallback pause 和 budget pause 顺序保持不变。
+- `run_book_run_with_skill_runner` 的 NovelSkillRunner 生命周期仍留在 adapter 主文件，避免把章节执行闭包拆成浅模块。
+- 两套相似标量 helper 没有合并，避免 `_int_value` / `_positive_int_or_zero` 等语义漂移。
+
+**本地验证**：
+- `cd apps/workflow && uv run ruff check storyforge_workflow/orchestrators/ tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py` → All checks passed
+- `cd apps/workflow && uv run pytest tests/test_book_loop_three_chapters.py tests/test_book_run_adapter.py tests/test_book_run_dispatch_payload.py tests/test_arc_consistency.py tests/test_generation_graph.py tests/test_generation_state_references.py tests/test_novel_loop_single_chapter.py tests/test_source_pruning.py -q` → **65 passed**
+- `cd apps/workflow && uv run pytest -q` → **322 passed**
+- `git diff --check -- apps/workflow/storyforge_workflow/orchestrators/book_loop.py apps/workflow/storyforge_workflow/orchestrators/book_loop_types.py apps/workflow/storyforge_workflow/orchestrators/book_loop_budget.py apps/workflow/storyforge_workflow/orchestrators/book_loop_results.py apps/workflow/storyforge_workflow/orchestrators/book_loop_scheduling.py apps/workflow/storyforge_workflow/orchestrators/book_run_adapter.py apps/workflow/storyforge_workflow/orchestrators/book_run_adapter_types.py apps/workflow/storyforge_workflow/orchestrators/book_run_adapter_coerce.py apps/workflow/storyforge_workflow/orchestrators/book_run_adapter_payload.py apps/workflow/storyforge_workflow/orchestrators/book_run_adapter_volume.py` → 通过
+
+**行为变更**：false。纯文件级移动 + 兼容回引；BookLoop 顺序/并行语义、预算暂停、provider degradation、章节 progress、卷计划 progress、memory/continuity side effects 和旧 import path 保持旧语义。
+
+**影响**：BookLoop 的核心执行 interface 更集中，预算、调度和结果投影知识获得更好的 locality；BookRun adapter 的 payload/volume/type adapter 也不再挤在主闭包旁，后续处理 dispatch payload 或卷计划时测试 surface 更清楚。
+
+## D2 重构验证（2026-06-29，完成）
+
+**条目**：Wave 3 D2 — 拆分 workflow runtime checkpoint store（零行为变更）
+
+**目标**：把 checkpoint 记录类型、ModelRun sink adapter、内存 store 与 SQLite store 从 `runtime/checkpoints.py` 中拆出；旧 `storyforge_workflow.runtime.checkpoints` 路径继续作为 runtime、测试和 monkeypatch 的兼容 interface。`runner.py` 本轮不拆。
+
+**已完成模块**：
+1. `storyforge_workflow/runtime/checkpoint_records.py`
+   - 承载 `RuntimeRecord`、`RuntimeStateSnapshot`、`RuntimeModelRunRecord`、datetime 格式化/解析与 SQLite row → record/snapshot 投影。
+2. `storyforge_workflow/runtime/model_run_sink.py`
+   - 承载 `ModelRunPayload`、`ModelRunSink`、`ApiModelRunAdapter`、API JobRun id 校验和 observability 字段提升 helper。
+3. `storyforge_workflow/runtime/memory_checkpoint_store.py`
+   - 承载 `InMemoryRuntimeCheckpointStore` 显式测试替身和引用化 state 保存逻辑。
+4. `storyforge_workflow/runtime/sqlite_checkpoint_store.py`
+   - 承载 `RuntimeCheckpointStore`、SQLite schema/setup、连接复用、WAL/busy_timeout 配置、write-behind、flush、默认 sqlite path 与 env helper。
+5. `storyforge_workflow/runtime/checkpoints.py`
+   - 收敛为约 62 行 facade，回引旧公开/私有符号，并保留 `sqlite3` monkeypatch 入口。
+
+**硬约束检查**：
+- 旧 `checkpoints.py` 的 24 个顶层类/函数名全部仍可从 facade 访问，兼容脚本结果：`old symbols 24, missing []`。
+- `RuntimeCheckpointStore`、`InMemoryRuntimeCheckpointStore`、`ModelRunPayload`、`ApiModelRunAdapter` 等旧 import path 不变，`runtime/__init__.py` 无需改调用面。
+- `test_workflow_lifecycle` 的 `monkeypatch.setattr("storyforge_workflow.runtime.checkpoints.sqlite3.connect", ...)` 仍影响 `RuntimeCheckpointStore._connect()` 的真实连接。
+- `_default_sqlite_path` 对应实现仍处在 `runtime/` 同层模块，`Path(__file__).parents[2]` 默认 `.runtime/workflow-runtime.sqlite3` 路径不漂移。
+- `runner.py` 的 `execute_provider_text` monkeypatch surface 未改动；失败回写收敛没有混进本轮纯移动。
+
+**本地验证**：
+- `cd apps/workflow && uv run ruff check storyforge_workflow/runtime/checkpoints.py storyforge_workflow/runtime/checkpoint_records.py storyforge_workflow/runtime/model_run_sink.py storyforge_workflow/runtime/memory_checkpoint_store.py storyforge_workflow/runtime/sqlite_checkpoint_store.py tests/test_workflow_lifecycle.py tests/test_runtime_runner.py tests/test_model_run_token_tracking.py tests/test_generation_state_references.py tests/test_source_pruning.py` → All checks passed
+- `cd apps/workflow && uv run pytest tests/test_workflow_lifecycle.py tests/test_runtime_runner.py tests/test_model_run_token_tracking.py tests/test_generation_state_references.py tests/test_source_pruning.py -q` → **51 passed**
+- `cd apps/workflow && uv run python -c "import storyforge_workflow.runtime; import storyforge_workflow.runtime.checkpoints; print('import ok')"` → Import OK
+- 旧符号兼容脚本（对比 `git show HEAD:apps/workflow/storyforge_workflow/runtime/checkpoints.py`）→ **24 old symbols, missing []**；`checkpoints.py` 约 **62 行**
+- `cd apps/workflow && uv run pytest -q` → **322 passed**
+- `git diff --check -- apps/workflow/storyforge_workflow/runtime/checkpoints.py apps/workflow/storyforge_workflow/runtime/checkpoint_records.py apps/workflow/storyforge_workflow/runtime/model_run_sink.py apps/workflow/storyforge_workflow/runtime/memory_checkpoint_store.py apps/workflow/storyforge_workflow/runtime/sqlite_checkpoint_store.py docs/internal/refactor-master-plan.md .codex/verification-report.md` → 通过
+
+**行为变更**：false。纯文件级移动 + 兼容回引；checkpoint record 写入、ModelRun runtime 记录、API ModelRun payload 映射、state 引用化、SQLite schema、连接复用、WAL 配置、write-behind flush 和旧 monkeypatch path 保持旧语义。
+
+**影响**：`checkpoints.py` 不再同时承载记录类型、ModelRun adapter、内存替身和 SQLite 实现；checkpoint store 的 interface 保持稳定，records/sink/memory/sqlite 四个深 module 的 locality 更清楚，后续优化 runner 失败回写时可以单独评审。
+
+## C2 重构验证（2026-06-29，完成）
+
+**条目**：Wave 2 C2 — 拆分 Desktop `App.tsx` 根壳层（零行为变更）
+
+**目标**：把 App 根组件中的窗口栏、项目库、欢迎/Agent 工作台、右侧编辑工作台、布局状态机、项目/文件 recent state 和 Tauri menu bridge 下沉到 `components/app/`；`App.tsx` 保留根壳层装配、命令 wiring 和静态源文本护栏。
+
+**已完成模块**：
+1. `src/components/app/helpers.ts`
+   - 承载路径 basename/join、Markdown 文件名归一、recent storage key 和 project assistant session 存取。
+2. `src/components/app/WindowMenu.tsx`
+   - 承载顶部窗口栏和 Tauri window action adapter。
+3. `src/components/app/CodexSidebar.tsx`
+   - 承载项目库、项目会话展开、provider settings 入口和 project 初始化按钮。
+4. `src/components/app/WelcomeWorkspace.tsx`
+   - 承载 WelcomeWorkspace、AgentWorkspace、AgentComposerHome 和顶部工具区。
+5. `src/components/app/RightWorkspace.tsx`
+   - 承载 StoryNavigator + Editor 工作台、文件树宽度拖拽和 floating composer。
+6. `src/components/app/icons.tsx`
+   - 承载 App 壳层使用的展示图标。
+7. `src/components/app/useShellLayout.ts`
+   - 承载 workspace/editor/composer/layout mode 状态机，以及 restore/focus/toggle/apply composer mode 等语义动作。
+8. `src/components/app/useProjectWorkspace.ts`
+   - 承载 recent projects/files 恢复与写入、active project/current file、project assistant session mapping。
+9. `src/components/app/useTauriMenuBridge.ts`
+   - 承载 Tauri menu event listeners、smoke API ready data attribute、unlisten 清理和错误状态。
+10. `src/App.tsx`
+   - 收敛为约 333 行根壳层，继续持有 Settings/CommandPalette、新建文件、初始化项目和子模块 wiring。
+
+**硬约束检查**：
+- `app.test.tsx` 依赖的 `data-testid="desktop-shell"`、`WindowMenu`、`CodexSidebar`、`AgentWorkspace`、`RightWorkspace`、`DynamicIDELayout`、`data-testid="assistant-panel"` 仍在 `App.tsx` 源文本可见。
+- `RightWorkspace.tsx` 继续持有 `data-testid="editor-panel"` 与 `data-testid="file-tree-panel"`，满足 e2e 静态源文本护栏。
+- `window.prompt('新建文件名', 'untitled.md')`、`window.confirm('文件已存在，是否直接打开？')`、新建失败 `window.alert` 文案保留在 `App.tsx` 命令层。
+- Tauri menu bridge 仍注册 `menu:open-project`、`menu:new-file`、`menu:save`、`menu:close`、`menu:toggle-sidebar`、`smoke:reset-panels`，并继续维护 `data-smoke-api-ready`。
+- App 不重新引入 Web legacy 路由入口；`apps/web` 未触碰。
+
+**本地验证**：
+- `cd apps/desktop/frontend && npm run typecheck` → 通过
+- `cd apps/desktop/frontend && npm run test -- app app-icons` → **6 passed**
+- `cd apps/desktop/frontend && npm run test` → **62 passed**（保留既有 Editor SSR `useLayoutEffect` warning，未阻断）
+- `git diff --check -- apps/desktop/frontend/src/App.tsx apps/desktop/frontend/src/components/app/useTauriMenuBridge.ts apps/desktop/frontend/src/components/app/useShellLayout.ts apps/desktop/frontend/src/components/app/useProjectWorkspace.ts` → 通过
+
+**行为变更**：基本为纯文件级移动 + hooks 下沉（项目打开/选择、文件 recent 更新、新建文件、项目初始化、布局切换、CommandPalette wiring、Tauri menu bridge 行为保持旧语义）。**一处有意行为变更**：`useTauriMenuBridge.ts` 把 `data-smoke-api-ready` 从 HEAD 的"进入 Tauri 运行时即同步置 true"改为 `probeApiRuntimeHealth()`（`GET /health/ready`）异步探针门控的真实就绪信号（runtime-health 新能力的前端侧）。属预期增强，已由 `app.test.tsx` 覆盖；但 e2e smoke 若依赖该属性置 true，需保证探针期间 API `/health/ready` 可达。2026-06-29 验收按"确认保留"处理。
+
+**影响**：`App.tsx` 已从约 498 行进一步收敛到约 333 行根壳层；布局、项目工作区和 Tauri menu bridge 三个状态机各自形成更深的 module，后续调整桌面壳层交互时 locality 更好。
+
+## C3 重构验证（2026-06-29，完成）
+
+**条目**：Wave 2 C3 — 拆分 Desktop `Editor.tsx` Monaco/file lifecycle（零行为变更）
+
+**目标**：把 Editor 的文件加载与 Monaco 实例生命周期从主壳层中拆出；`Editor.tsx` 继续保留保存、导出、历史恢复、分支操作、工具栏 JSX 和 e2e 依赖的源文本 marker。
+
+**已完成模块**：
+1. `src/components/editor/decorations.ts`
+   - 承载 evidence 定位、issue decoration options 和 severity color 归一。
+2. `src/components/editor/VersionHistory.tsx`
+   - 承载版本历史列表、分支图侧栏、版本读取、列表筛选、BranchCanvas 接线和 `formatTimestamp`。
+3. `src/components/editor/useBranchManifest.ts`
+   - 承载分支清单加载、选择、创建分支、推进 head 与 manifest 落盘。
+4. `src/components/editor/useSuggestionWriteback.ts`
+   - 承载建议补丁接收、接受/分块接受、旁注保存、修订结果事件监听、Agent 写回快照与闭环记录。
+5. `src/components/editor/useEditorFileLoader.ts`
+   - 承载文件加载请求序号、loaded state、加载错误、切换文件时清理 issue decorations/suggestion/history/dirty 状态。
+6. `src/components/editor/useMonacoEditor.ts`
+   - 承载 Monaco 创建/销毁、font size update、smoke editor controller、dirty 状态更新、auto-save timer、Ctrl/Cmd+S 和 gutter issue click。
+7. `src/components/Editor.tsx`
+   - 收敛为约 458 行装配壳，保留保存/快照/分支推进、导出、历史恢复/checkout/branch from node、工具栏和源文本护栏。
+
+**硬约束检查**：
+- `Editor.tsx` 源文本仍包含 `recordRevisionLoop`、`emitAuthorLoopResult`、`editor-save-btn`、`editor-export-btn`，满足 `editor.test.tsx` 与 e2e 静态断言。
+- `Editor.tsx` 仍持有 `data-testid="editor-root"`、`editor-empty`、`editor-export-btn`、`editor-history-btn`、`editor-container`。
+- 文件切换仍先清 issue decorations，并重置 suggestion/history/dirty/loading state。
+- Monaco change listener 继续 `setIsDirty(dirty)`；auto-save 与 Ctrl/Cmd+S 通过 ref 调用最新 `handleSave`，避免把 handleSave 放入 mount-only Monaco effect 依赖导致重建编辑器。
+- `useMonacoEditor` 仍注册 smoke editor controller，Vite smoke 覆盖空编辑器挂载与布局展开路径。
+
+**本地验证**：
+- `cd apps/desktop/frontend && npm run typecheck` → 通过
+- `cd apps/desktop/frontend && npm run test -- editor app` → **12 passed**（保留既有 Editor SSR `useLayoutEffect` warning，未阻断）
+- `cd apps/desktop/frontend && npm run test` → **62 passed**（同上 warning）
+- `cd apps/desktop/frontend && npm run verify:smoke` → `Desktop frontend smoke passed: http://localhost:5173/`
+- `git diff --check -- apps/desktop/frontend/src/components/Editor.tsx apps/desktop/frontend/src/components/editor/useEditorFileLoader.ts apps/desktop/frontend/src/components/editor/useMonacoEditor.ts` → 通过
+
+**行为变更**：false。纯文件级移动 + lifecycle hooks 下沉；文件加载、Monaco 初始化/销毁、dirty/auto-save、保存快照、导出、issue gutter click、版本历史和旧源文本护栏保持旧语义。
+
+**影响**：`Editor.tsx` 已从约 553 行收敛为约 458 行装配壳；文件加载和 Monaco lifecycle 的 locality 更集中，后续若要改真实编辑器行为，可以围绕 hook interface 补更细运行期护栏，而不是在主组件里追状态。
+
+## T1-1 重构验证（2026-06-29，完成）
+
+**条目**：T1 Context/ScenePacket/Retrieval 边界固化第一刀 — Scene Packet contract + retrieval/context blocks 拆分（零行为变更）
+
+**目标**：把 Scene Packet 裸 `packet` dict 的真实 interface 显式化，并把 `retrieval_bridge.py` 的出站检索 query 与 Context Compiler block 构建拆成深模块；旧 `retrieval_bridge.py` 路径继续兼容测试和调用方。
+
+**已完成模块**：
+1. `app/domains/scene_packets/packet_contract.py`
+   - 新增 `ScenePacketBody` TypedDict，显式记录中文顶层键、可选 context/debug 键、基础 key order、context key order 和 required keys。
+2. `app/domains/scene_packets/budget.py`
+   - `build_packet()` 返回类型标注为 `ScenePacketBody`，基础 packet 字面量顺序不变。
+3. `app/domains/scene_packets/context_pipeline.py`
+   - `SceneContextAssembly.packet` 标注为 `ScenePacketBody`，并直接依赖新 `retrieval_query.py` / `context_blocks.py`。
+4. `app/domains/scene_packets/retrieval_query.py`
+   - 承载 `build_retrieval_query()` 出站检索 query 组合。
+5. `app/domains/scene_packets/context_blocks.py`
+   - 承载 `attach_compiled_context()`、`build_context_blocks()`、memory/retrieval/asset/continuity context block 构建和 retrieval hit metadata。
+6. `app/domains/scene_packets/retrieval_bridge.py`
+   - 收敛为约 23 行 facade，re-export 旧 8 个函数名。
+7. `tests/test_scene_packet.py`
+   - 新增 Scene Packet base key order / context key order / required keys golden 断言，复用现有 API fixture。
+
+**硬约束检查**：
+- 旧 `retrieval_bridge.py` 的 8 个函数名全部仍可从旧路径访问，兼容脚本结果：`old functions 8, missing []`。
+- 顶层 packet key order 保持：`章节目标`、`活跃角色`、`关系状态`、`未回收伏笔`、`风格规则`、`必须包含事实`、`必须规避事实`、`用户意图`、`证据链接`、`上一章摘要`、`章节摘要`、`检索片段`，后续 context keys 按既有写入顺序出现。
+- `ScenePacketRead.packet` 仍是 API 响应里的宽松 dict；本刀只增强内部 contract 和测试护栏，不改变 OpenAPI 输出。
+- 预算行为不变：硬约束与活跃角色不被 retrieval snippets 挤掉，超预算只裁剪 `检索片段` 并置 `truncated=True`。
+- Explorer 子代理 Lagrange 只读确认了 packet 写入点、测试覆盖和必须保留的错误语义；本轮未改文件。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/scene_packets/ tests/test_scene_packet.py tests/test_scene_packet_context_compiler.py tests/test_scene_packet_retrieval_upgrade.py tests/test_scene_packet_pacing_directive.py tests/test_context_compiler_memory_injection.py tests/test_context_compiler_persistence.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_scene_packet.py tests/test_scene_packet_context_compiler.py tests/test_scene_packet_retrieval_upgrade.py tests/test_scene_packet_pacing_directive.py tests/test_context_compiler_memory_injection.py tests/test_context_compiler_persistence.py tests/test_scene_packet_embedding_wiring.py tests/test_phase1_context_optimization_verify.py tests/test_ide_context_snapshot.py -q` → **22 passed, 1 skipped**
+- `cd apps/api && uv run python -c "import app.main; import app.domains.scene_packets.retrieval_bridge as rb; print('import ok', hasattr(rb, 'retrieval_context_blocks'))"` → Import OK / `True`
+- 旧符号兼容脚本（对比 `git show HEAD:apps/api/app/domains/scene_packets/retrieval_bridge.py`）→ **8 old functions, missing []**
+- `git diff --check -- apps/api/app/domains/scene_packets/packet_contract.py apps/api/app/domains/scene_packets/budget.py apps/api/app/domains/scene_packets/context_pipeline.py apps/api/app/domains/scene_packets/retrieval_bridge.py apps/api/app/domains/scene_packets/retrieval_query.py apps/api/app/domains/scene_packets/context_blocks.py apps/api/tests/test_scene_packet.py` → 通过
+
+**行为变更**：false。类型 contract + facade split + golden test；Scene Packet 输出、Context Compiler 注入/裁剪、retrieval metadata、pacing directive、Story Memory 注入、错误语义和旧 import path 保持旧语义。
+
+**影响**：Scene Packet body 的 interface 不再只靠调用方记忆；retrieval query 与 context block 编译获得独立 locality。本刀之后的 `assemble_scene_context` 写入整理与预算对账 golden 已在 T1-2 单独完成。
+
+## T1-2 重构验证（2026-06-29，完成）
+
+**条目**：T1 Context/ScenePacket/Retrieval 边界固化收口 — `assemble_scene_context` 写入 helper 化 + 预算双口径 golden（零行为变更）
+
+**目标**：把 `assemble_scene_context` 末段的 Scene Packet context 写入从内联字典操作收口为命名 helper，并用 golden 断言固化 `BudgetStatistics` 与 packet 内 `上下文预算` 两套口径当前保持一致；本刀只固化现状，不统一预算模型。
+
+**已完成模块**：
+1. `app/domains/scene_packets/context_pipeline.py`
+   - 新增 `attach_memory_context()`、`attach_pacing_directive()`、`attach_retrieval_hits()`，分别承载 Story Memory、pacing directive、retrieval hit metadata 写入。
+   - `assemble_scene_context()` 保持原写入顺序：`memory_context` → optional `pacing_directive` → optional `检索命中` → compiled context。
+2. `tests/test_scene_packet_context_compiler.py`
+   - 在 compiled context debug 测试中新增预算双口径断言：`BudgetStatistics.token_budget` 与 packet `上下文预算.token_budget` 一致，used tokens 不超过各自 budget，并锁定 packet `上下文预算` 当前 5 个键。
+
+**硬约束检查**：
+- `pacing_directive` 仍只在有效 pacing tag 存在时写入；无 directive 时不新增空键。
+- `检索命中` 仍只在自动检索命中存在时写入；手工 `检索片段` 不触发该键。
+- Story Memory payload 仍由 `memory_context_payload()` 统一 `model_dump()`，没有改变序列化形状。
+- 预算语义不变：本刀只锁定 `BudgetStatistics` 与 packet debug budget 的现状一致性，不合并两套预算模型。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/scene_packets/ tests/test_scene_packet.py tests/test_scene_packet_context_compiler.py tests/test_scene_packet_retrieval_upgrade.py tests/test_scene_packet_pacing_directive.py tests/test_context_compiler_memory_injection.py tests/test_context_compiler_persistence.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_scene_packet.py tests/test_scene_packet_context_compiler.py tests/test_scene_packet_retrieval_upgrade.py tests/test_scene_packet_pacing_directive.py tests/test_context_compiler_memory_injection.py tests/test_context_compiler_persistence.py tests/test_scene_packet_embedding_wiring.py tests/test_phase1_context_optimization_verify.py tests/test_ide_context_snapshot.py -q` → **22 passed, 1 skipped**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `git diff --check -- apps/api/app/domains/scene_packets/packet_contract.py apps/api/app/domains/scene_packets/budget.py apps/api/app/domains/scene_packets/context_pipeline.py apps/api/app/domains/scene_packets/retrieval_bridge.py apps/api/app/domains/scene_packets/retrieval_query.py apps/api/app/domains/scene_packets/context_blocks.py apps/api/tests/test_scene_packet.py apps/api/tests/test_scene_packet_context_compiler.py docs/internal/refactor-master-plan.md .codex/verification-report.md` → 通过
+
+**行为变更**：false。命名 helper 提取 + 对账 golden；Scene Packet 输出顺序、可选键写入条件、compiled context、retrieval metadata、Story Memory 注入、预算裁剪和错误语义保持旧语义。
+
+**影响**：T1 已到当前合理边界。Scene Packet 的 packet contract、retrieval/query/context block locality、context 写入顺序与预算双口径现状都有测试和验证报告护栏；后续预算统一、证据链统一或共享契约消费应进入 T4/T5 独立评审。
+
+## E2 计划校准验证（2026-06-29）
+
+**条目**：对齐 `docs/internal/refactor-master-plan.md` 与当前 E2 实现状态（文档校准，无运行时代码变更）
+
+**目标**：复核 E2-3/E2-4 是否已真实落地，避免 master plan 继续把已完成的 `chapter.review`/`chapter.repair` native migration 标为待办。
+
+**复核结论**：
+- `agent_runs/runtime.py` 已在 `run_user_message()` native dispatch `chapter.review` / `chapter.repair`，unsupported intent 直接抛 `AgentOrchestrationError`。
+- `_run_chapter_review()` / `_run_chapter_review_repair()` 已走 live Tool Registry 的 `judge.run` / `judge.repair`。
+- `_execute_tool()` 权限门排除集合不再包含 `legacy.orchestrator`。
+- `ide/orchestrator.py` 仍保留旧实现代码和旧 import path surface；当前测试仍从旧路径 import `SUPPORTED_INTENTS`、`_detect_intent`、`AgentOrchestrationError`，runtime 也保留 `orchestrate_agent_message` 可见名作为 monkeypatch 契约。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/ app/domains/ide/orchestrator.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **61 passed**
+- `git diff --check -- docs/internal/refactor-master-plan.md .codex/verification-report.md` → 通过
+
+**行为变更**：false。本条只校准文档；E2-3 的行为变更与 E2-4 的 runtime fallback 删除已在 2026-06-28 对应验证段记录。
+
+**影响**：E2 runtime 收口不再作为待办；剩余的 `ide/orchestrator.py` 整文件收缩/删除是兼容性 refactor，需要先替代旧 import 与 monkeypatch surface，单独评审。
+
+## E2-5 重构验证（2026-06-29，完成）
+
+**条目**：T3/E2 收尾 — `ide/orchestrator.py` 冻结实现收缩为兼容 facade
+
+**目标**：删除不再由 live runtime 执行的 legacy IDE Agent 编排副本，同时保留旧 import path 和外部直调的最低兼容面。
+
+**已完成模块**：
+1. `app/domains/ide/orchestrator.py`
+   - 从 1300+ 行 legacy 编排冻结副本收缩为约 31 行 compatibility facade。
+   - re-export `AgentOrchestrationError`、`SUPPORTED_INTENTS`、`_detect_intent` 和 `orchestrate_agent_message`。
+   - `orchestrate_agent_message()` 懒加载 `run_agent_user_message()` 并返回 `.result` dict，避免与 `agent_runs.runtime` 的旧 monkeypatch import 形成导入环。
+2. `tests/test_ide_agent_orchestrator.py`
+   - 新增 facade 契约测试：旧路径符号 identity 指向 live `agent_runs` contract，`agent_runs.runtime` 仍暴露 `orchestrate_agent_message` 供 monkeypatch。
+   - 新增旧函数直调转发测试，锁定懒加载 delegate 到 `run_agent_user_message()`。
+
+**硬约束检查**：
+- `SUPPORTED_INTENTS` / `_detect_intent` / `AgentOrchestrationError` 旧 import path 保持可用。
+- `agent_runs.runtime.orchestrate_agent_message` 仍存在，`test_agent_runs.py` 的 monkeypatch 契约不变。
+- live WebSocket 路径仍通过 `run_agent_user_message()` → `AgentRuntime.run_user_message()`；旧函数即使被外部直调，也转发到同一 live seam。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/ide/orchestrator.py app/domains/agent_runs/runtime.py app/domains/agent_runs/intent.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py -q` → **63 passed**
+- `cd apps/api && uv run python -c "import app.main; import app.domains.ide.orchestrator as o; import app.domains.agent_runs.runtime as r; print('import ok', o.SUPPORTED_INTENTS is r.SUPPORTED_INTENTS, hasattr(r, 'orchestrate_agent_message'))"` → Import OK / `True True`
+
+**行为变更**：live runtime false；旧 direct-call implementation changes from frozen legacy implementation to live AgentRuntime delegate. This is an intentional compatibility refactor after E2-3/E2-4 made AgentRuntime the only supported execution seam.
+
+**影响**：T3/E2 不再有 large dead legacy body。`ide/orchestrator.py` now earns its keep as a tiny compatibility module; Agent intent and execution knowledge has one home in `agent_runs`.
+
+## T2 重构验证（2026-06-29，完成）
+
+**条目**：T2 Workflow runtime adapter 收口 — 合并逐字一致的 workflow orchestrator 标量 helper（零行为变更）
+
+**目标**：把 BookLoop budget 与 BookRun adapter 中完全等价的「正数 int/float，否则归零」helper 收口到共享叶子模块；保留所有语义不同的 bool/string/optional coercion，避免顺手合并造成行为漂移。
+
+**已完成模块**：
+1. `storyforge_workflow/orchestrators/_coercion.py`
+   - 新增 `_positive_int_or_zero()` 与 `_positive_float_or_zero()`，承载共享正数归零语义。
+2. `storyforge_workflow/orchestrators/book_run_adapter_coerce.py`
+   - 从共享模块 re-export 旧 `_positive_int_or_zero` / `_positive_float_or_zero` 私有路径，保留 adapter 旧 import surface。
+3. `storyforge_workflow/orchestrators/book_loop_budget.py`
+   - `_int_value()` / `_float_value()` 退为 wrapper，复用共享 helper，保留旧私有测试/调试 surface。
+
+**硬约束检查**：
+- 仅合并逐字一致的正数 int/float 归零语义；`_optional_positive_int()` 仍不接收字符串且不排除 bool，`novel_loop._optional_int()` 仍接收数字字符串且排除 bool，二者未合并。
+- `_bool_value()` 的字符串 truthy 语义未动。
+- 旧私有 helper 路径仍可 import；兼容探针输出 `_positive_int_or_zero(3)=3`、`_positive_float_or_zero(1.5)=1.5`、`_int_value(True)=True`、`_float_value(True)=1.0`，保持原 bool-as-int 细节。
+
+**本地验证**：
+- `cd apps/workflow && uv run ruff check storyforge_workflow/orchestrators/_coercion.py storyforge_workflow/orchestrators/book_run_adapter_coerce.py storyforge_workflow/orchestrators/book_loop_budget.py storyforge_workflow/orchestrators/book_run_adapter.py storyforge_workflow/orchestrators/book_loop.py tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py` → All checks passed
+- `cd apps/workflow && uv run pytest tests/test_book_run_adapter.py tests/test_book_loop_three_chapters.py -q` → **39 passed**
+- `cd apps/workflow && uv run pytest -q` → **322 passed**
+
+**行为变更**：false。纯 helper 下沉 + old-path wrappers/re-export；BookLoop budget accumulation、BookRun adapter checkpoint budget summary、parallel budget pause、provider degradation pause 和 old private helper surface 保持旧语义。
+
+**影响**：T2 已到当前合理边界。剩余 `runner.py` 失败回写收敛属于逻辑重构，不应与纯 helper/shared adapter 拆分混做。
+
+## T5 LLM leaf utilities 重构验证（2026-06-29，完成）
+
+**条目**：T5 横切一致性 — OpenAI-compatible LLM leaf utilities 下沉到 `app/common/llm_http.py`（零行为变更）
+
+**目标**：把 book_runs 与 assistant 已共享的 LLM env/header/reasoning-strip 叶子工具从 `book_generation_llm.py` 下沉到 common；保留 `book_generation_llm._call_llm` 作为 book-run 异常、token/cost 和 latency 语义的旧 surface。
+
+**已完成模块**：
+1. `app/common/llm_http.py`
+   - 新增 `THINK_*` regex、`strip_reasoning_leak()`、`env_value()`、`optional_int()`、`optional_float()`、`openai_compatible_headers()`。
+2. `app/domains/book_runs/book_generation_llm.py`
+   - 以显式 alias 保留 `THINK_*`、`_strip_reasoning_leak`、`_env_value`、`_optional_int`、`_optional_float` 旧私有名。
+   - `_llm_request_headers()` 继续负责 `BookGenerationPreflightError` 异常映射，调用 common header builder；`_call_llm()`、`_token_usage()`、`_cost_breakdown()` 和 URL/timeout/latency 行为未移动。
+
+**硬约束检查**：
+- assistant 仍可 monkeypatch `assistant_service._call_llm`，`revise_file_content()` 调用面未变。
+- `book_generation.py` facade 仍 re-export `THINK_*`、`_strip_reasoning_leak`、`_env_value`、`_llm_request_headers`、`_optional_int`、`_optional_float` 等旧名。
+- `STORYFORGE_LLM_AUTH_HEADER=api-key` / default bearer 行为不变；非法 auth header 仍抛 `BookGenerationPreflightError("STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。")`。
+- judge LLM client 未合并，保留其 `STORYFORGE_JUDGE_LLM_*` fallback 与 `httpx` monkeypatch 契约。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/common/llm_http.py app/domains/book_runs/book_generation_llm.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_preflight.py app/domains/book_runs/book_generation_judge.py app/domains/assistant/service.py tests/test_book_generation.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py -q` → **40 passed, 1 warning**（既有 `HTTP_422_UNPROCESSABLE_ENTITY` deprecation warning）
+- `cd apps/api && uv run python -c "import app.main; from app.domains.book_runs.book_generation import _llm_request_headers; print('import ok', _llm_request_headers({'STORYFORGE_LLM_API_KEY':'k'}))"` → Import OK，返回 bearer header
+- `git diff --check -- apps/api/app/common/llm_http.py apps/api/app/domains/book_runs/book_generation_llm.py apps/api/app/domains/book_runs/book_generation.py apps/api/app/domains/assistant/service.py` → 通过
+
+**行为变更**：false。leaf utilities 下沉 + old-path aliases；真实 LLM 请求 payload、headers、timeout、reasoning tag stripping、token usage/cost 统计、assistant revise 错误映射和 provider health probe 行为保持旧语义。
+
+**影响**：T5 的零行为 LLM 收敛部分完成；错误模型统一与 judge LLM 行为对齐仍需独立行为评审。
+
+## T5 assistant DomainError 收口验证（2026-06-29，完成第一刀）
+
+**条目**：T5 横切一致性 — assistant 会话/修订错误接入 `DomainError` 全局 handler
+
+**目标**：把 Assistant revise 路径的可预期错误从 router 手写 `HTTPException` 映射收口为领域异常自身携带 status code；保留外部 HTTP 契约：
+- 会话不存在 → 404
+- LLM 未配置 → 422
+- 修订调用失败 → 502
+- provider-health 继续始终 200 返回结构化诊断
+
+**已完成模块**：
+1. `app/domains/assistant/service.py`
+   - `AssistantSessionNotFoundError` / `AssistantToolCallNotFoundError` 改为派生 `NotFoundError`，同时保留 `RuntimeError` 兼容现有捕获面。
+   - `AssistantLlmNotConfiguredError` / `AssistantReviseError` 改为派生 `DomainError`，分别显式设置 `status_code = 422` / `502`，同时保留 `RuntimeError`。
+2. `app/domains/assistant/router.py`
+   - 删除 assistant sessions/tool-calls/revise 端点的重复 try/except 映射，交由 `app.main` 的 `DomainError` handler 返回 `{"detail": str(exc)}`。
+3. `tests/test_assistant_revise.py`
+   - 新增 revise missing session 404 回归测试，补齐 404/422/502 三种错误状态护栏。
+
+**硬约束检查**：
+- `agent_runs/runtime.py` 和 legacy `ide/orchestrator.py` 仍可按旧类名捕获 assistant 错误；多继承保持 `isinstance(exc, RuntimeError)` 为真。
+- `probe_provider_health()` 不改；misconfigured/unauthorized/unreachable 仍是 200 响应体状态，不走 HTTP error。
+- 错误响应体形状不变，仍是 `{"detail": "..."}`。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/assistant/service.py app/domains/assistant/router.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_assistant_revise.py tests/test_assistant_provider_health.py -q` → **12 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **61 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+
+**行为变更**：外部 HTTP/response contract false；内部异常继承结构有意收口到 `DomainError`，以提高错误处理 locality。
+
+**影响**：assistant router 不再携带 404/422/502 映射知识，错误 status 属于领域异常 interface。T5 剩余错误模型统一仍需按域独立评审，尤其 `ide`、`book_generation`、`agent_runs` 与 judge LLM 差异。
+
+## T5 IDE command DomainError 收口验证（2026-06-29，完成第一刀）
+
+**条目**：T5 横切一致性 — IDE command HTTP 错误接入 `DomainError` 全局 handler
+
+**目标**：把 IDE command endpoint 的可预期错误从 router 手写 `HTTPException` 映射收口为领域异常自身携带 status code；保留外部 HTTP 契约：
+- 未知命令 → 404
+- 命令参数或领域状态不满足执行条件 → 400
+- WebSocket command 分支继续返回 `{type: "error", detail: ...}` 消息，不改为 HTTP 异常
+
+**已完成模块**：
+1. `app/domains/ide/command_registry.py`
+   - `IdeCommandNotFoundError` 改为派生 `NotFoundError`，同时保留 `Exception` 兼容现有捕获面。
+   - `IdeCommandExecutionError` 改为派生 `InputError`，同时保留 `Exception`。
+2. `app/domains/ide/router.py`
+   - `/api/ide/commands/{command_id}` 删除重复 404/400 try/except，交由 `app.main` 的 `DomainError` handler 返回 `{"detail": str(exc)}`。
+   - WebSocket command 分支保留显式捕获，继续把领域错误投影成 socket error message。
+
+**硬约束检查**：
+- `test_unknown_ide_command_returns_404` 和 IDE command invalid-state tests 继续锁定 HTTP status 与 detail。
+- Agent WebSocket command tests 继续通过，说明 socket 分支未被 HTTP handler 语义污染。
+- `IdeCommandNotFoundError.status_code == 404` import smoke 通过。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/ide/command_registry.py app/domains/ide/router.py tests/test_ide_commands.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_ide_commands.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **70 passed**
+- `cd apps/api && uv run python -c "import app.main; from app.domains.ide.command_registry import IdeCommandNotFoundError; print('import ok', IdeCommandNotFoundError.status_code)"` → Import OK / `404`
+
+**行为变更**：外部 HTTP/WebSocket contract false；内部异常继承结构有意收口到 `DomainError`，以提高错误处理 locality。
+
+**影响**：IDE command HTTP router 不再携带命令错误 status 知识，HTTP status 属于 command registry 的 exception interface。T5 剩余错误模型统一仍需按域独立评审。
+
+## T5 AgentRun router DomainError 去重验证（2026-06-29，完成）
+
+**条目**：T5 横切一致性 — AgentRun not-found 由 `NotFoundError` 全局 handler 接管
+
+**目标**：`AgentRunNotFoundError` 已派生 `NotFoundError`，删除 `agent_runs/router.py` 中重复的 404 `HTTPException` 映射，保留外部 HTTP 契约。
+
+**已完成模块**：
+1. `app/domains/agent_runs/router.py`
+   - 删除 `get_agent_run` / `list_agent_run_events` / `list_agent_artifacts` / `list_agent_checkpoints` / SSE stream 端点的重复 try/except。
+   - 移除不再需要的 `HTTPException` / `status` / `AgentRunNotFoundError` imports。
+
+**硬约束检查**：
+- AgentRun 缺失仍通过 `DomainError` handler 返回 404 + `{"detail": "AgentRun 不存在。"}`。
+- SSE stream 端点仍先读取事件列表；缺失 run 在创建 `StreamingResponse` 前抛出 404，不改变流式响应成功路径。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/router.py app/domains/agent_runs/service.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **33 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+
+**行为变更**：false。外部 HTTP response contract 不变；router 删除重复异常映射。
+
+**影响**：AgentRun 读取端点的 not-found status 回到领域异常 interface，减少 router 与 service 的错误知识重复。
+
+## T5 BookRun lifecycle DomainError 去重验证（2026-06-29，完成）
+
+**条目**：T5 横切一致性 — BookRun 主生命周期错误由 `DomainError` 全局 handler 接管
+
+**目标**：BookRun 主生命周期服务错误已经具备领域异常基类，删除 router 中重复的 404/422/400 `HTTPException` 映射，保留外部 HTTP 契约。
+
+**已完成模块**：
+1. `app/domains/book_runs/router.py`
+   - `create/get/start/resume/pause/stop/retry/workflow-dispatch/progress` 端点删除重复 try/except。
+   - `BookRunError` 继续通过 `InputError` 返回 400。
+   - `BookRunNotFoundError` 继续通过 `NotFoundError` 返回 404。
+   - `BookRunBlockedError.status_code = 422` 保留已存在契约，继续返回 422。
+
+**硬约束检查**：
+- `BookRunBlockedError` 仍为 422；缺 LLM 配置、非法状态、Blueprint 未锁定等主生命周期阻塞不降为 400。
+- IDE command registry 仍捕获 `BookRunError` / `BookRunBlockedError` / `BookRunNotFoundError` 并包装为 `IdeCommandExecutionError`，所以 `/api/ide/commands/bookrun.*` 的错误仍按 IDE command 契约返回 400。
+- BookRun export endpoints 未动；`ArtifactForbiddenError` 和 `BookExportError` 的 403/404/400 分类留后续单独评审。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/router.py app/domains/book_runs/service.py tests/test_book_runs.py tests/test_book_run_start.py tests/test_ide_commands.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_book_runs.py tests/test_book_run_start.py tests/test_ide_commands.py -q` → **38 passed**
+- `cd apps/api && uv run python -c "import app.main; from app.domains.book_runs.service import BookRunBlockedError; print('import ok', BookRunBlockedError.status_code)"` → Import OK / `422`
+
+**行为变更**：false。外部 HTTP response contract 不变；router 删除重复异常映射。
+
+**影响**：BookRun lifecycle 的 status mapping 回到领域异常 interface，主 router 更接近 thin transport layer。导出错误分类仍需独立处理。
+
+## T5 Artifact/Export ForbiddenError 收口验证（2026-06-29，完成）
+
+**条目**：T5 横切一致性 — Artifact/Export/BookRun export 的 403/404/400 映射收口到领域异常
+
+**目标**：消除制品与导出端点中重复的 router 403/404/400 映射和 BookRun export 的字符串判 404，让作用域拒绝和导出对象缺失由领域异常自身携带 HTTP status。
+
+**已完成模块**：
+1. `app/common/exceptions.py`
+   - 新增 `ForbiddenError(status_code = 403)`。
+2. `app/domains/artifacts/service.py`
+   - `ArtifactNotFoundError` 派生 `NotFoundError` + `ArtifactError`。
+   - `ArtifactForbiddenError` 派生 `ForbiddenError` + `ArtifactError`。
+3. `app/domains/exports/service.py`
+   - `ExportForbiddenError` 派生 `ForbiddenError`，保留 `NotFoundError` 多继承兼容旧捕获面。
+4. `app/domains/exports/book_markdown_exporter.py`
+   - 新增 `BookExportNotFoundError(NotFoundError, BookExportError)`，替代 router 对 `"BookRun 不存在"` 的字符串判断。
+5. Routers
+   - `artifacts/router.py`、`exports/router.py`、`book_runs/router.py` export endpoints、`ide/router.py` artifact preview / run-events 删除对应重复 try/except。
+
+**硬约束检查**：
+- Artifact detail/download 错工作区仍 403，缺失制品仍 404，创建输入错误仍 400。
+- Book export 错工作区仍 403，缺失作品/无可导出正文仍 404。
+- BookRun export 错工作区仍 403，缺失 BookRun 仍 404，未完成 BookRun 仍 400。
+- IDE artifact preview 错工作区仍 403，缺失 artifact 仍 404；IDE run events 缺失 BookRun 仍 404。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/common/exceptions.py app/domains/artifacts/service.py app/domains/artifacts/router.py app/domains/exports/service.py app/domains/exports/router.py app/domains/exports/book_markdown_exporter.py app/domains/book_runs/router.py app/domains/ide/router.py tests/test_artifacts.py tests/test_exports.py tests/test_book_exporter.py tests/test_ide_artifact_preview.py tests/test_ide_run_events.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_artifacts.py tests/test_exports.py tests/test_book_exporter.py tests/test_ide_artifact_preview.py tests/test_ide_run_events.py -q` → **25 passed**
+- `cd apps/api && uv run python -c "import app.main; from app.common.exceptions import ForbiddenError; from app.domains.artifacts.service import ArtifactForbiddenError; print('import ok', ForbiddenError.status_code, ArtifactForbiddenError.status_code)"` → Import OK / `403 403`
+
+**行为变更**：false。外部 HTTP response contract 不变；router 删除重复异常映射和 fragile string-status branching.
+
+**影响**：403/404/400 的 ownership 进一步回到 domain exception interface，Artifact/Export/BookRun export routers become thinner transport adapters.
+
+## T5 BookGeneration error status contract 验证（2026-06-29，完成）
+
+**条目**：T5 横切一致性 — BookGeneration 错误接入 `DomainError` status contract
+
+**目标**：让真实 LLM 生成错误具备统一领域错误 status，同时保留 CLI、assistant 和测试依赖的 `RuntimeError` 捕获面。
+
+**已完成模块**：
+1. `app/domains/book_runs/errors.py`
+   - `BookGenerationPreflightError` 改为多继承 `DomainError` / `RuntimeError`，显式 `status_code = 422`。
+   - `BookGenerationError` 改为多继承 `DomainError` / `RuntimeError`，显式 `status_code = 502`。
+
+**硬约束检查**：
+- assistant revise 仍捕获 `BookGenerationError` 后包装为 `AssistantReviseError`，外部继续 502。
+- CLI/preflight tests 仍通过；`isinstance(BookGenerationError("x"), RuntimeError)` 为真。
+- 本刀不合并 judge LLM client，避免改变 `STORYFORGE_JUDGE_LLM_*` fallback 与 `httpx` monkeypatch 契约。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/book_runs/errors.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_llm.py app/domains/assistant/service.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_assistant_revise.py tests/test_ide_agent_orchestrator.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_assistant_revise.py tests/test_ide_agent_orchestrator.py -q` → **77 passed**
+- `cd apps/api && uv run python -c "from app.domains.book_runs.errors import BookGenerationError, BookGenerationPreflightError; print('ok', BookGenerationError.status_code, BookGenerationPreflightError.status_code, isinstance(BookGenerationError('x'), RuntimeError))"` → `ok 502 422 True`
+
+**行为变更**：false for existing call/catch sites. The exception interface is deeper: future HTTP surfaces can rely on the shared `DomainError` handler without local status mapping.
+
+**影响**：T5 reaches current reasonable boundary. LLM leaf utilities and the highest-friction cross-domain error surfaces now have clear locality; remaining router mappings are broader legacy cleanup rather than this master-plan P1 item.
+
+## T5/T6 宽回归验证（2026-06-29）
+
+**条目**：T5 错误模型收口 + T6 当前护栏地图校准后的宽回归
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/common/exceptions.py app/domains/assistant/service.py app/domains/assistant/router.py app/domains/ide/command_registry.py app/domains/ide/router.py app/domains/ide/orchestrator.py app/domains/agent_runs/router.py app/domains/book_runs/router.py app/domains/book_runs/errors.py app/domains/artifacts/service.py app/domains/artifacts/router.py app/domains/exports/service.py app/domains/exports/router.py app/domains/exports/book_markdown_exporter.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py tests/test_ide_commands.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_book_runs.py tests/test_book_run_start.py tests/test_artifacts.py tests/test_exports.py tests/test_book_exporter.py tests/test_ide_artifact_preview.py tests/test_ide_run_events.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_assistant_revise.py tests/test_assistant_provider_health.py tests/test_ide_commands.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_book_runs.py tests/test_book_run_start.py tests/test_artifacts.py tests/test_exports.py tests/test_book_exporter.py tests/test_ide_artifact_preview.py tests/test_ide_run_events.py -q` → **138 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `git diff --check -- <T5 touched files + docs>` → 通过
+
+**结论**：T5 到当前合理边界完成；T6 护栏地图已校准为完成当前合理边界。后续若继续清理 legacy router 映射，应按域独立做小刀，不再阻塞本轮总重构目标。
+
+## T4 generated contract consumption 验证（2026-06-29，完成当前合理边界）
+
+**条目**：T4 共享契约一致性 — Desktop API client 开始消费 generated OpenAPI types（零运行时行为变更）
+
+**目标**：解决 `packages/shared/src/generated/api-types.ts` 全仓零消费的问题，明确 T4 方向为“消费 generated types”，而不是下线生成管线。本轮先接入 Desktop API client 最常用且测试充分的 DTO：assistant revise、provider health、Agent role catalog。
+
+**已完成模块**：
+1. `apps/desktop/frontend/src/lib/api/contracts.ts`
+   - type-only 引入 `packages/shared/src/generated/api-types.ts` 的 `components`。
+   - 新增 `ApiAssistantReviseRequest`、`ApiAssistantReviseResponse`、`ApiAssistantContextBundle`、`ApiProviderHealthResponse`、`ApiAgentRoleRead`。
+2. `apps/desktop/frontend/src/lib/api/types.ts`
+   - `AssistantContextBundlePayload` 改为 generated-backed contract alias。
+3. `apps/desktop/frontend/src/lib/api/assistant.ts`
+   - `requestRevision()` 的 backend body 与 response decode 改用 generated-backed DTO type；UI-facing `ReviseRequest` / `ReviseResult` camelCase surface 不变。
+   - `probeProviderHealth()` response decode 改用 generated-backed DTO type；optional generated fields 在 camelCase boundary 归一为 `null` / `[]`。
+4. `apps/desktop/frontend/src/lib/provider-config.ts`
+   - `ProviderHealthStatus` 改为 generated-backed `ProviderHealthResponse['status']`。
+5. `apps/desktop/frontend/src/lib/agent-roles.ts`
+   - `AgentRoleRead` 改为 generated-backed `ApiAgentRoleRead`。
+6. `packages/shared/src/generated/api-types.ts`
+   - 使用本地 `openapi-typescript` 从 checked-in OpenAPI JSON 再生成，补上此前缺失的 `ProviderHealthResponse` 与 `AssistantContextBundle.budget`。
+
+**硬约束检查**：
+- `requestRevision()` 发出的 JSON body 未变，现有 `api-client.test.ts` payload golden 继续通过。
+- `AssistantContextBundlePayload.budget` 继续以 snake_case 发送；再生成后的 generated schema 已包含 permissive `budget?: Record<string, unknown> | null`。
+- 本刀不引入 `@storyforge/shared` runtime dependency；使用 type-only relative import，当前 Vite/tsc 不产生运行时 bundle 变化。
+- Agent role alias/mention behavior不变；只是把 API DTO 类型从手写结构切到 generated schema。
+
+**本地验证**：
+- `packages/shared/node_modules/.bin/openapi-typescript.cmd packages/shared/src/contracts/storyforge.openapi.json -o packages/shared/src/generated/api-types.ts` → 通过，generated TS +71 行
+- `packages/shared/node_modules/.bin/tsc.cmd --noEmit -p packages/shared/tsconfig.json` → 通过
+- `cd apps/desktop/frontend && npm run typecheck` → 通过
+- `cd apps/desktop/frontend && npm run test -- agent-roles api-client provider-config` → **16 passed**
+- `cd apps/desktop/frontend && npm run test` → **62 passed**（保留既有 Editor SSR `useLayoutEffect` warning，未阻断）
+- `git diff --check -- apps/desktop/frontend/src/lib/api/contracts.ts apps/desktop/frontend/src/lib/api/types.ts apps/desktop/frontend/src/lib/api/assistant.ts docs/internal/refactor-master-plan.md .codex/verification-report.md` → 通过
+
+**工具链备注**：
+- `pnpm --filter @storyforge/shared generate:types` / `pnpm --filter @storyforge/shared test` 仍会触发 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`，pnpm 试图执行 install 并因非 TTY module purge guard 中止。已改用 package-local bin 执行 generate/tsc，未强行改动依赖安装状态。
+
+**行为变更**：false。仅 type-level contract consumption；Desktop API client runtime payload、response mapping、error handling 和 tests 均保持旧语义。
+
+## Pi/OpenCode Agent Harness adoption plan 校准验证（2026-06-29）
+
+**条目**：主重构收口后，更新 `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`，为下一线程进入阶段 2 Context Builder 做交接。
+
+**已完成内容**：
+- 将最近校准状态更新为：refactor master E2/T5/T6 已完成当前合理边界；Root Agent 已承接 supported intents；`ide/orchestrator.py` 只保留旧路径兼容 facade。
+- 在「已落地」表中补充 Root Agent supported intents、legacy IDE orchestrator facade、DomainError status contract 收口事实。
+- 删除旧的 E2 blocker 叙述，改为「与已完成主重构 / E2 的关系」；明确 `chapter.review` / `chapter.repair` 已迁入 live `AgentRuntime`，`legacy.orchestrator` fallback 已下线。
+- 更新实施顺序：C-c 标记为已完成；下一实现线程首刀改为 阶段 2 Context Builder。
+- 新增「实现线程交接（首刀）」：第一刀做可审计 LLM context snapshot builder，先覆盖 `file.review` / `file.revise` 的 context bundle 转换测试，不先改变 provider 调用策略。
+
+**本地验证**：
+- `rg -n "E2|legacy|fallback|Root Agent|C-c|_judge_run_args_from_scene_packet|阶段 2|Context Builder|blocker|不成立|仍走|迁移半成品|orchestrator" docs/architecture/pi-opencode-agent-harness-adoption-plan.md` → 无陈旧「E2 未完成 / Root Agent 不成立 / 仍走 legacy」断言；仅保留已完成关系和 facade 描述。
+- `git diff --check -- docs/architecture/pi-opencode-agent-harness-adoption-plan.md docs/internal/refactor-master-plan.md .codex/verification-report.md` → 通过。
+- `rg -n "\s+$" docs/architecture/pi-opencode-agent-harness-adoption-plan.md` → 无行尾空白。
+
+**行为变更**：false。文档校准与下一线程交接，无代码改动。
+
+## 阶段 2 Context Builder tracer-bullet MVP 验证（2026-06-29，首刀）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 2 · Context Transform / LLM Context Builder
+
+**目标**：新增一个纯、可测试、可审计的 LLM context snapshot builder，先覆盖 `file.review` / `file.revise` 的 `context_bundle` 转换路径；本刀只生成 snapshot 与摘要，不改变 tool 选择、artifact schema、权限模型或 provider 调用策略。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/llm_context.py`
+   - 新增 `build_llm_context_snapshot()`，输入 AgentRun 状态、intent、用户目标、selected file/content、`context_bundle`、role hints、review report、artifacts/event history，输出稳定 `llm_context_snapshot`。
+   - 默认排除 timeline 原始事件、permission payload、UI debug JSON、patch metadata、debug/patch/permission 类上下文文件；只以白名单摘要带入 project、selected file、context files、review report、story memory 和 chapter context。
+   - 新增 `llm_context_snapshot_trace_summary()`，供运行时 trace 记录轻量统计与 `snapshot_id`。
+2. `apps/api/app/domains/agent_runs/runtime.py`
+   - `context.load` 生成 `llm_context_snapshot` 并在 `output_summary.llm_context` 记录轻量摘要。
+   - `file.revise` trace input summary 引用 `llm_context_snapshot_id`；真实 `assistant_service.revise_file_content()` 仍接收旧 `context_bundle`，不把 snapshot 接入 prompt。
+   - `file.review` 仍使用现有 `context_bundle` 审稿路径；本刀不改变 review reasoner/provider 调用策略。
+3. `apps/api/tests/test_agent_llm_context.py`
+   - 覆盖同输入生成稳定 snapshot。
+   - 覆盖 permission/debug/timeline/patch JSON 不进入 LLM context。
+   - 覆盖 selected file、role hints、章节上下文、story memory、review report 摘要保留。
+   - 覆盖旧 `context_bundle` 缺失或 `files` 字段畸形时保守降级。
+   - 覆盖 `file.review` 运行时 `context.load` trace 生成 snapshot 摘要，以及 `file.revise` trace 关联同一个 `llm_context_snapshot_id`。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`AgentRuntime` 旧调用面仍通过 `test_agent_runs.py` 与 `test_ide_agent_orchestrator.py`。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 本刀未修改 ToolDefinition schema、PermissionGate 行为、AgentArtifact schema 或真实 provider 调用策略。
+
+**本地验证**：
+- `cd apps/api && uv run pytest tests/test_agent_llm_context.py -q` → **6 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → **63 passed**
+- `cd apps/api && uv run ruff check app/domains/agent_runs/llm_context.py app/domains/agent_runs/runtime.py tests/test_agent_llm_context.py` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `git diff --check -- apps/api/app/domains/agent_runs/llm_context.py apps/api/app/domains/agent_runs/runtime.py apps/api/tests/test_agent_llm_context.py .codex/verification-report.md` → 通过
+
+**行为变更**：false for prompt/provider/tool selection. Agent runtime now records an auditable LLM context snapshot summary during `context.load`, but the actual `file.review` and `file.revise` inputs remain on the existing `context_bundle` path. Snapshot-to-prompt wiring is intentionally left for a later golden-guarded slice.
+
+## 阶段 2 Context Builder prompt 接线验证（2026-06-29，第二刀）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 2 · Context Transform / LLM Context Builder，snapshot → prompt context 接线
+
+**目标**：在首刀可审计 snapshot 基础上，把 `file.review` / `file.revise` 的真实 LLM prompt 上下文切到由 snapshot 派生的干净 `context_bundle`，避免 permission/debug/timeline/patch metadata 噪声进入模型；不改变 tool 选择、artifact schema、权限模型或 provider 调用策略。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/llm_context.py`
+   - 新增 `llm_context_snapshot_to_prompt_context_bundle()`，把 snapshot 转回当前 review/revise prompt 已支持的 legacy `context_bundle.files` 形状。
+   - 保留真实 context files，同时把 Story Memory 与 Chapter Context 作为合成上下文文件摘要注入 prompt；selected file 仍走正文输入，不作为上下文文件重复注入。
+   - 输出 bundle 只由 snapshot 白名单字段生成，不携带 timeline 原始事件、permission payload、UI debug JSON、patch metadata 或 debug 文件摘录。
+2. `apps/api/app/domains/agent_runs/runtime.py`
+   - `context.load` 同时生成 `llm_context_snapshot` 与 `llm_prompt_context_bundle`。
+   - `file.review` 优先使用 `llm_prompt_context_bundle` 调用 review reasoner；`file.revise` 优先使用同一干净 bundle 构造 `AssistantReviseRequest`。
+   - 保留原始 `context_bundle` 作为 snapshot 输入与审计来源；不改 `ToolDefinition`、`PermissionGate`、AgentArtifact 或 provider gateway。
+3. `apps/api/tests/test_agent_llm_context.py`
+   - 新增 prompt bundle 纯转换测试，锁定 safe files + Story Memory + Chapter Context，以及 RAW 噪声不出现。
+   - 新增 `file.review` LLM prompt 行为测试，确认真实 review prompt 包含干净上下文且排除 permission/debug/timeline/patch 噪声。
+   - 扩展 `file.revise` runtime 测试，确认 revise prompt 排除 selected-file 重复上下文和 debug timeline/permission payload，同时 trace 仍关联 `llm_context_snapshot_id`。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`test_agent_runs.py`、`test_ide_agent_orchestrator.py` 与 `test_assistant_revise.py` 组合回归通过。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 本刀不改变 provider 调用入口、模型配置解析、权限确认模型或 proposed patch artifact schema；变化只在进入 prompt 的上下文净化层。
+
+**本地验证**：
+- `cd apps/api && uv run pytest tests/test_agent_llm_context.py -q` → **8 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_assistant_revise.py -q` → **70 passed**
+- `cd apps/api && uv run ruff check app/domains/agent_runs/llm_context.py app/domains/agent_runs/runtime.py tests/test_agent_llm_context.py` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → Import OK
+- `git diff --check -- apps/api/app/domains/agent_runs/llm_context.py apps/api/app/domains/agent_runs/runtime.py apps/api/tests/test_agent_llm_context.py .codex/verification-report.md` → 通过
+
+**行为变更**：true, intentionally scoped to prompt context sanitization. `file.review` / `file.revise` now receive context derived from the audited snapshot instead of raw Desktop `context_bundle.files`; tool sequence, provider adapter, permission gate, artifact schema, direct `/api/assistant/revise` contract and proposed patch confirmation behavior remain unchanged.
+
+## 阶段 1 C-a AgentRun event type 常量收敛验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — C-a. event type 字面量 → enum/常量 + reducer 兼容旧名
+
+**目标**：在不引入 turn/message_delta/tool lifecycle 新协议的前提下，把当前已存在的 AgentRun 事件名集中定义，保持 REST/SSE/WebSocket 对外字符串值不变，并保留旧控制消息到事件名的兼容 reducer。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/event_types.py`
+   - 新增当前既有 AgentRun event type 常量：`agent_run_started`、`agent_plan_created`、`subagent_started`、`subagent_completed`、`tool_trace`、`permission_required`、`agent_artifact`、`agent_run_completed`、`agent_run_failed`、`system_job`。
+   - 新增控制事件常量：`permission_approved`、`permission_denied`、`pause_run`、`resume_run`、`stop_run`、`retry_from_checkpoint`。
+   - 新增控制消息常量与 `event_type_for_control_message()`，保留 `approve_permission -> permission_approved`、`deny_permission -> permission_denied`，其他旧控制消息按原值透传。
+2. `apps/api/app/domains/agent_runs/service.py`、`event_sink.py`、`event_encoders.py`、`run_payloads.py`
+   - 内部事件写入和 WebSocket started/control 编码改用集中常量。
+   - `run_payloads._control_event_type()` 继续保留为旧 facade，调用新的兼容 reducer。
+3. `apps/api/app/domains/ide/router.py`
+   - 轻量 stream 投影中的 `tool_trace` / `permission_required` 和控制消息集合改用集中常量；`agent_step`、`agent_result`、`error` 等非 AgentRun event store 投影暂不扩大。
+4. `apps/api/tests/test_agent_runs.py`
+   - 新增常量值与控制消息 reducer 测试，明确本刀不夹带 `turn_started` / `message_delta`。
+   - 既有 SSE、WebSocket、AgentRun event store 测试继续覆盖外部协议字符串不变。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`service.py` 仍 re-export 既有 encoder/sink/run_payload helper，`_control_event_type()` 仍可从旧路径使用。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 turn/message_delta/tool_execution_* 事件；未改变事件 payload、事件顺序、权限模型、artifact schema 或 provider 调用策略。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/event_types.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/run_payloads.py app/domains/agent_runs/service.py app/domains/ide/router.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **34 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_agent_llm_context.py -q` → **42 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py -q` → **79 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：false。对外 AgentRun event type 字符串、控制消息 ack、SSE/WebSocket payload、事件 store 顺序和状态机语义保持旧行为；本刀只收敛后端命名来源和兼容 reducer。
+
+## C-b AgentRuntime / runtime-tools registry 收敛验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — C-b. 收敛两个互不相连的 tool registry：`agent_runs/tooling.py` 可执行 registry vs `runtime_tools` 描述性 registry
+
+**目标**：把当前 AgentRuntime 真正可执行的工具从 `runtime.py` 字面量注册收敛到一份可复用的 agent runtime tool spec；`/api/runtime-tools` 读侧复用同一份 spec 暴露 `origin=agent_runtime` 条目。第一刀不改 handler、tool choice、permission gate、artifact schema 或写工具 propose-then-confirm 模型。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/tooling.py`
+   - 新增 `AgentRuntimeToolSpec` / `ToolCatalogReferences` 与 `list_agent_runtime_tool_specs()`。
+   - 当前 9 个可执行 AgentRuntime 工具统一登记：`context.load`、`file.review`、`file.revise`、`judge.run`、`judge.repair`、`bookrun.start`、`bookrun.pause`、`bookrun.resume`、`bookrun.retry_from_checkpoint`。
+   - 新增 `tool_definition_from_spec()`，从静态 spec 生成执行期 `ToolDefinition`。
+   - `ToolRegistry.all()` 只读返回注册结果，供测试校验可执行 registry 与 spec 对齐。
+2. `apps/api/app/domains/agent_runs/runtime.py`
+   - `_register_tools()` 改为从 `list_agent_runtime_tool_specs()` 注册；handler 仍绑定原 `_context_load`、`_file_review`、`_file_revise`、`_judge_run` 与现有 IDE command wrapper。
+   - 现有 permission gate 逻辑保持：`file.revise` / `judge.repair` / `bookrun.start` 仍是 propose-then-confirm，不迁入硬 preflight 阻断。
+3. `apps/api/app/domains/runtime_tools/service.py`
+   - `/api/runtime-tools` 聚合新增 `origin=agent_runtime` 的 9 个可执行 AgentRuntime 工具条目。
+   - 既有 CreativeToolRegistry 与 MCP 只读工具继续保留原 origin 与字段。
+4. `apps/api/app/domains/runtime_tools/router.py`、`schemas.py`
+   - 文档描述从单一 CreativeToolRegistry 更新为 AgentRuntime / CreativeToolRegistry / MCP 聚合。
+5. `apps/api/tests/test_runtime_tools.py`
+   - 覆盖 `/api/runtime-tools` 包含 agent_runtime 工具，且顺序和值来自 `list_agent_runtime_tool_specs()`。
+   - 覆盖执行期 `AgentRuntime._tool_registry` 注册结果与 spec 完全一致。
+   - 保留 CreativeToolRegistry 与 MCP 工具契约断言。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`ToolDefinition` 字段和调用方式保持兼容。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `ToolDefinition.allowed_roles` / `retry_safe` / `idempotent` 等阶段 3 字段；未改变写工具确认模型、权限策略、事件 payload 或 provider 调用策略。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/tooling.py app/domains/agent_runs/runtime.py app/domains/runtime_tools/service.py app/domains/runtime_tools/router.py app/domains/runtime_tools/schemas.py tests/test_runtime_tools.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_model_runs.py -q` → **51 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **96 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：true, additive read-side only. `/api/runtime-tools` now includes 9 `origin=agent_runtime` entries derived from the executable AgentRuntime tool spec; AgentRuntime execution handlers, permission gate behavior, proposed patch confirmation, artifact schema, model/provider calls, and existing CreativeToolRegistry/MCP entries remain unchanged.
+
+## 阶段 3 Tool Preflight 字段补齐验证（2026-06-29，零行为切片）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 3 · Tool Preflight / Permission Gate 收口，先做 `ToolDefinition` 扩展字段，不迁移写工具权限模型。
+
+**目标**：在 C-b 共享 agent runtime tool spec 基础上，补齐目标模型要求的 preflight 元数据字段：`allowed_roles`、`retry_safe`、`idempotent`、`execution_mode`、`artifact_kinds`。本刀只让字段成为可执行 registry 与 `/api/runtime-tools` 读侧的可审计事实，不把 `file.revise` / `judge.repair` / `bookrun.start` 改成硬 preflight 阻断。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/tooling.py`
+   - `AgentRuntimeToolSpec` 与执行期 `ToolDefinition` 新增 `allowed_roles`、`retry_safe`、`idempotent`、`execution_mode`、`artifact_kinds`。
+   - 为 9 个 AgentRuntime 工具登记保守 preflight 元数据：只读/分析工具标注可读角色；写入或长任务工具只开放 root/repair/bookrun 相关角色；provider/写入/长任务默认 `retry_safe=False`、`idempotent=False`。
+   - `context.load` 标记为 `retry_safe=True`、`idempotent=True`；`bookrun.start` 标记为 `execution_mode=long_running`；控制命令标记为 `execution_mode=control`。
+2. `apps/api/app/domains/runtime_tools/schemas.py`、`service.py`
+   - `RuntimeToolRead` 新增同名字段，`/api/runtime-tools` 对 agent_runtime、CreativeToolRegistry internal、MCP 工具均返回完整字段。
+   - MCP 只读工具标记 `risk_level=read`、`retry_safe=True`、`idempotent=True`、`execution_mode=mcp_readonly`。
+   - CreativeToolRegistry internal 工具填保守默认：写/高成本工具 `requires_confirmation=True` 时风险归类为 `write_pending` 或 `high_cost`，其余保持 read-side 兼容。
+3. `apps/api/tests/test_runtime_tools.py`
+   - 覆盖 `/api/runtime-tools` 中 agent_runtime 工具的新字段值。
+   - 覆盖执行期 `AgentRuntime._tool_registry` 注册结果与 spec 新字段完全一致。
+   - 覆盖 `allowed_roles` 与现有 `role_catalog.allowed_tools` 投影一致，避免产生第二套角色权限事实源。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`ToolDefinition` 仍只由 `tool_definition_from_spec()` 构造，现有执行调用面不变。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 input schema 强校验、budget check、pending-call resume 或写工具硬阻断；`file.revise` / `judge.repair` / `bookrun.start` 仍保持 propose-then-confirm 行为。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/tooling.py app/domains/agent_runs/runtime.py app/domains/runtime_tools/service.py app/domains/runtime_tools/router.py app/domains/runtime_tools/schemas.py tests/test_runtime_tools.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_model_runs.py -q` → **52 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **97 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：true, additive metadata only. `/api/runtime-tools` responses now include new preflight metadata fields; AgentRuntime execution, permission decisions, proposed patch confirmation, artifact schema, event payloads, and provider/model calls remain unchanged.
+
+## 阶段 4 ToolResult / Artifact postprocess 管道第一刀验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 4 · Tool Postprocess / Artifact Pipeline，先收敛已有 review/proposed patch 归档逻辑。
+
+**目标**：在不新增 artifact 类型、不改变前端响应 schema 的前提下，把 `ToolResult` 从 `status/output/trace` 扩展为可承载 `summary/payload/artifacts/metrics/retry_metadata/checkpoint_metadata` 的 postprocess 载体；现有 `review_report` / `proposed_patch` 归档优先从 ToolResult artifacts 进入 `AgentArtifact`，旧 result 字段继续作为 fallback。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/tooling.py`
+   - 新增 `ToolArtifact(kind, payload, requires_confirmation)`。
+   - `ToolResult` 新增 `summary`、`payload`、`artifacts`、`metrics`、`retry_metadata`、`checkpoint_metadata`，保留原 `status/output/trace` 兼容字段。
+2. `apps/api/app/domains/agent_runs/runtime.py`
+   - `_base_response()` 新增内部 `tool_artifacts` 参数，用 `_tool_artifacts` 暂存给后端 postprocess；`_record_result_artifacts()` 消费后会 `pop`，不会泄漏给 WebSocket/REST 最终响应。
+   - `_record_result_artifacts()` 优先记录 ToolResult artifacts，并按 artifact kind 去重；旧 `agent_result.review_report`、top-level `proposed_patch`、`bookrun_checkpoint` 路径继续作为 fallback。
+   - `file.review` ToolResult 填充 `review_report` artifact、summary、payload、metrics。
+   - `file.revise` ToolResult 填充 `proposed_patch` artifact、summary、payload、metrics。
+   - `judge.repair` IDE command wrapper 在返回 repair patch 时生成同等 `proposed_patch` ToolArtifact，供 `chapter.review` / `chapter.repair` 归档使用。
+3. `apps/api/tests/test_agent_runs.py`
+   - 新增 `file.review` ToolResult postprocess metadata 测试。
+   - 新增 artifact postprocess 测试，证明 ToolResult artifacts 优先于旧 fallback，且 `_tool_artifacts` 内部字段会被移除。
+   - 既有 file.review/file.revise/chapter repair artifact 行为回归继续通过。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`ToolResult.status/output/trace` 和现有 tool trace 结构保持兼容。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `diagnostic_summary` / `memory_update_proposal` / `export_manifest`，未改变 artifact schema、permission gate、provider/model 调用或 proposed patch 确认模型。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/tooling.py app/domains/agent_runs/runtime.py app/domains/runtime_tools/service.py app/domains/runtime_tools/router.py app/domains/runtime_tools/schemas.py tests/test_agent_runs.py tests/test_runtime_tools.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py -q` → **74 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **99 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：false for external API and runtime semantics. Artifact recording now prefers internal ToolResult artifacts, but WebSocket/REST result shape, `AgentArtifact` kinds/payloads, event order, permission behavior, provider/model calls, and proposed patch review flow remain unchanged.
+
+## Pi/OpenCode Agent Harness adoption plan 当前状态校准（2026-06-29）
+
+**条目**：更新 `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`，把阶段 2 / C-a / C-b / 阶段 3 字段 / 阶段 4 第一刀从“待做/缺口”校准为当前已完成边界，并明确下一刀交接。
+
+**已完成内容**：
+- 顶部最近校准更新为：阶段 2 Context Builder tracer/prompt 接线、C-a event type 常量、C-b registry 第一层收敛、阶段 3 preflight 元数据字段、阶段 4 ToolResult/postprocess 第一刀已完成。
+- “已落地”表补充 `event_types.py`、`llm_context.py`、AgentRuntime shared tool spec、ToolResult artifacts postprocess 当前事实。
+- 删除陈旧断言：不再说“今天无 Context Builder”、不再说 `ToolDefinition` 缺 `allowed_roles` / `retry_safe` / `idempotent`、不再说可执行 registry 与 runtime_tools 完全互不相连。
+- 阶段 1/2/3/4 状态文字改为当前边界：阶段 1 低成本常量收敛完成但 turn/streaming 未做；阶段 2 snapshot + prompt 接线完成；阶段 3 字段完成但行为迁移未做；阶段 4 ToolResult artifacts 第一刀完成。
+- 实施顺序更新为：Done 阶段 2、Done C-a/C-b、Done 阶段 3 字段、Done 阶段 4 第一刀；Next 阶段 5 Save Points。
+- “实现线程交接”改为下一刀：建议先做只读 save point projection/helper，不立即改运行时为可中断/可恢复。
+
+**本地验证**：
+- `rg -n "今天仍无|今天无|下一实现线程首刀|首个实现切片|runtime.py:701-708|runtime.py:674-696|runtime.py:644-672" docs/architecture/pi-opencode-agent-harness-adoption-plan.md` → 无匹配
+- `rg -n "两个互不相连|缺 \`allowed_roles|ToolResult\` 现为|Context Builder              ←" docs/architecture/pi-opencode-agent-harness-adoption-plan.md` → 无匹配
+- `git diff --check -- docs/architecture/pi-opencode-agent-harness-adoption-plan.md .codex/verification-report.md` → 通过
+
+**行为变更**：false。文档校准，无代码行为变化。
+
+## 阶段 5 Save Point projection tracer-bullet 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，第一刀只读 projection/helper。
+
+**目标**：先从现有 `AgentRun` / `AgentRunEvent` / `AgentArtifact` 推导当前 durable boundaries，不改 `AgentRuntime.run_user_message()` 的同步执行模型，不新增 turn/message_delta/provider stream 恢复。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/save_points.py`
+   - 新增 `build_agent_run_save_point_projection()`，纯读侧投影当前可证明的 save point candidates。
+   - 从事件推导：`run_started`、`tool_completed`（由既有 `tool_trace` 映射）、`permission_required`、`permission_decided`、`run_completed`、`run_failed`、`run_stopped`。
+   - 从 artifact 推导：`artifact_persisted` 与 `bookrun_checkpoint`。
+   - 输出 pending 摘要：pending permission、permission event id、blocked tool、proposed patch artifact id。
+   - 输出 recoverability 摘要：是否可从 BookRun checkpoint retry、latest checkpoint artifact id、failed_without_checkpoint、terminal event id、resume strategy。
+   - 明确当前 interruption model 只识别既有 `paused` / `stopped`，不制造 `interrupted` 事件。
+2. `apps/api/app/domains/agent_runs/service.py`、`router.py`
+   - 新增 `get_agent_run_save_points()` 只读 service facade。
+   - 新增 `GET /api/agent-runs/{run_id}/save-points`，直接从现有事件/artifact 事实源投影，不替代 `/events` 或 SSE。
+3. `apps/api/tests/test_agent_runs.py`
+   - 覆盖 pending permission + proposed patch 可从事实源重建。
+   - 覆盖 BookRun checkpoint 被识别为当前真实可恢复边界。
+   - 覆盖 failed run 无 checkpoint 时不会被误判为 retry-safe。
+   - 覆盖既有 `tool_trace` event 被映射为 `tool_completed` save point。
+   - 覆盖 save-points REST endpoint 只读投影现有 event store，且不破坏 `/events` 回放。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未引入 turn/message_delta/tool_execution_* 新事件，未改变 WebSocket/SSE payload、权限模型、artifact schema、provider/model 调用或 proposed patch 确认模型。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/save_points.py app/domains/agent_runs/service.py app/domains/agent_runs/router.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run ruff check app/domains/agent_runs/save_points.py app/domains/agent_runs/tooling.py app/domains/agent_runs/runtime.py tests/test_agent_runs.py tests/test_runtime_tools.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **41 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **104 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：false。新增只读 projection helper 与测试，不改变运行时执行、事件写入、权限或外部 API 行为。
+
+## 阶段 5 tool_trace recovery metadata 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，继续沿现有 `tool_trace` 事件承载 `tool_completed` save point 元数据。
+
+**目标**：不新增 `tool_completed` event type、不提前改变 runtime 写事件顺序、不触碰写工具 propose-then-confirm 模型，只在现有 `tool_trace` payload 中追加可恢复投影所需的 recovery 元数据。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/event_sink.py`
+   - `_AgentRunEventSink.record_tool_trace()` 仍写 `event_type=tool_trace`。
+   - `payload` 新增 `recovery`：`kind=tool_completed`、`tool_name`、`status`、`index`。
+   - 对已登记的 AgentRuntime tools，从 `list_agent_runtime_tool_specs()` 补充 `retry_safe`、`idempotent`、`execution_mode`、`artifact_kinds`；对 `subagent.*` 或未知工具保守只写基础字段。
+2. `apps/api/app/domains/agent_runs/save_points.py`
+   - `tool_trace` 投影为 `tool_completed` save point 时优先读取 `payload.recovery`。
+   - 保留旧 trace payload fallback，兼容没有 recovery 字段的历史事件。
+3. `apps/api/tests/test_agent_runs.py`
+   - 扩展 `tool_trace -> tool_completed` 投影测试，锁定 recovery 元数据。
+   - 新增 endpoint 回归，确认 `/save-points` 可投影 `context.load` 的 retry/idempotency/execution_mode 元数据。
+   - 扩展 SSE 回放测试，确认不会出现 `event: tool_completed` 新事件名。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` event type；未改变 WebSocket/SSE 事件名、权限模型、artifact schema、provider/model 调用或 proposed patch 确认模型。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/event_sink.py app/domains/agent_runs/save_points.py app/domains/agent_runs/service.py app/domains/agent_runs/router.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **42 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **105 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：true, additive event payload metadata only. Existing event type remains `tool_trace`; SSE/REST/WebSocket event names and runtime execution semantics remain unchanged.
+
+## 阶段 5 Runtime recovery marker tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，继续做 runtime recovery tracer bullet 的第一层 marker/projection，不实现自动恢复。
+
+**目标**：在不新增 event type、不新增 checkpoint 表、不改变 WebSocket/SSE/REST 事件名的前提下，把同步 run 已完成 tool 的 after-tool execution boundary 持久化到现有 `tool_trace.payload.recovery.execution_marker`，并让 `/save-points` 投影出 `runtime_recovery` 摘要。marker 只说明边界和 replay policy，不承诺 provider stream 恢复，也不自动重试非 retry-safe tool。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime_recovery.py`
+   - 新增纯 helper `build_tool_recovery_payload()` / `build_runtime_execution_marker()`。
+   - `context.load` 这类 `retry_safe=True` 且 `idempotent=True` 的 completed tool 会标记 `replay_safe=True`、`resume_strategy=replay_from_tool_boundary`。
+   - `file.review`、subagent 或未知策略 tool 保守标记 `manual_restart_required`。
+2. `apps/api/app/domains/agent_runs/event_sink.py`
+   - `_AgentRunEventSink.record_tool_trace()` 仍只写 `event_type=tool_trace`。
+   - recovery payload 构建改为复用纯 helper，追加 `execution_marker`，旧 `kind/tool_name/status/index/retry_safe/idempotent/execution_mode/artifact_kinds` 字段保持。
+3. `apps/api/app/domains/agent_runs/save_points.py`
+   - `tool_completed` save point summary 会投影 `execution_marker`。
+   - 顶层新增 `runtime_recovery`：`latest_execution_marker`、`latest_replay_safe_marker`、`automatic_resume_supported=false`、`manual_restart_required`。
+   - 失败且无 `bookrun_checkpoint` 时仍保持 `recoverability.resume_strategy=manual_restart_required`。
+4. `apps/api/tests/test_agent_runs.py`
+   - 覆盖 recovery helper 稳定输出。
+   - 覆盖 `tool_trace -> tool_completed` save point 携带 execution marker。
+   - 覆盖实际 `file.review` WebSocket/REST 路径投影 marker 且不新增 `tool_completed` 事件名。
+   - 覆盖 failed run 即使存在 replay-safe runtime marker、没有 checkpoint 时仍要求 manual restart。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 WebSocket/SSE 事件名、权限模型、artifact schema、provider/model 调用或 proposed patch 确认模型。
+- `automatic_resume_supported=false`，本刀不提供自动恢复入口。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime_recovery.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **44 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **107 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/event_sink.py apps/api/app/domains/agent_runs/save_points.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive event payload/projection metadata only. Existing event type remains `tool_trace`; SSE/REST/WebSocket event names, runtime execution order, permission decisions, artifact schema, provider/model calls, and proposed patch review flow remain unchanged.
+
+## 阶段 5 interruptible boundary tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，`file.review` 首个可中断运行边界。
+
+**目标**：在不新增 `run_interrupted` / `tool_completed` / `turn_*` 事件、不新增状态或 checkpoint 表的前提下，让无写入的 `file.review` 不再完全“一次同步跑到底”：先持久化 plan，再执行并持久化 `context.load`，随后检查现有 `paused` / `stopped` run 状态；若控制事件已到达，则停止继续 reviewer，不写 artifact，不 complete。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime.py`
+   - `file.review` 改走 `_run_file_review_interruptible()` 增量路径。
+   - 增量路径顺序为：`record_plan` → `context.load` → `record_tool_trace(context.load)` → 检查 `runtime_interruption` → reviewer/subagent → postprocess。
+   - 中断结果返回 `runtime_interruption` 与 `agent_result.runtime_interrupted=true`，但内部 `_events_recorded` / `_runtime_interrupted` 不泄漏给外部响应。
+   - 中断后跳过 artifact postprocess、hidden system jobs 和 `agent_run_completed`，避免污染 durable boundary。
+2. `apps/api/app/domains/agent_runs/event_sink.py`
+   - `_AgentRunEventSink.runtime_interruption()` 刷新当前 `AgentRun` 并把现有 `paused` / `stopped` 投影为 runtime interruption。
+   - 继续复用现有 `pause_run` / `stop_run` 控制事件与 `AgentRun.status`，未新增 `interrupted` 状态。
+3. `apps/api/app/domains/agent_runs/runtime_recovery.py`
+   - 新增 `build_runtime_interruption_payload()`，将 `paused` / `stopped` 转成可审计 payload。
+   - `stopped` 投影为 `resume_strategy=stopped_by_user`；`paused` 投影为 `await_resume`；`automatic_resume_supported=false`。
+4. `apps/api/app/domains/agent_runs/save_points.py`
+   - `runtime_recovery` 新增 `latest_interruption`，可从既有 `pause_run` / `stop_run` 事件恢复最近中断边界。
+5. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_file_review_runtime_stops_at_context_boundary_when_control_event_arrives`。
+   - 测试用真实 `_AgentRunEventSink` 派生类模拟 `context.load` 后到达 `stop_run`：reviewer sentinel 不会被调用；事件流停在 `agent_plan_created` / `tool_trace` / `stop_run`；没有 `subagent_started`、`agent_artifact`、`agent_run_completed`；`/save-points` 可投影 latest execution marker 与 latest interruption。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 WebSocket/SSE 事件名、权限模型、artifact schema、provider/model 调用或 proposed patch 确认模型。
+- 本刀不提供 pending-call resume，不自动重放 provider request，不碰 `file.revise` / `judge.repair` / `bookrun.start` 写工具确认模型。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime.py app/domains/agent_runs/runtime_recovery.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **45 passed**
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **63 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **108 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/event_sink.py apps/api/app/domains/agent_runs/save_points.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive interruptibility for read-only `file.review`. Normal completed `file.review` response/events remain compatible; interrupted runs now stop at the first durable boundary using existing `stop_run` / `pause_run` facts instead of completing after a user stop.
+
+## 阶段 5 pending-call resume tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，`file.review` 无写入 pending-call resume 第一刀。
+
+**目标**：继续沿 `AgentRunEvent` / `AgentArtifact` 事实源推进 runtime recovery：当 `file.review` 在 `context.load` 后被 `pause_run` 中断时，记录隐藏 `runtime_pending_call` artifact 保存最小续跑上下文；收到 `resume_run` 后，同一个 `file.review` run 可从该 artifact 继续 reviewer，不重复执行 `context.load`。本刀不碰 `file.revise` / `judge.repair` / `bookrun.start` 写工具确认模型，不承诺 provider stream 恢复。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime_recovery.py`
+   - 新增 `RUNTIME_PENDING_CALL_ARTIFACT_KIND = "runtime_pending_call"`。
+2. `apps/api/app/domains/agent_runs/system_jobs.py`
+   - 将 `runtime_pending_call` 加入 `HIDDEN_SYSTEM_ARTIFACT_KINDS`，避免普通 `/artifacts` 列表暴露 runtime 内部续跑上下文。
+3. `apps/api/app/domains/agent_runs/runtime.py`
+   - `file.review` 在 `paused` interruption 边界记录隐藏 pending-call artifact，包含 `context_output`、`context_trace`、`boundary` 与 `resume_strategy=continue_after_context_load`。
+   - 当 run 已 `resume_run` 且 `current_step=resumed`，`file.review` 可从最新 pending-call artifact 继续 reviewer/subagent，不再重跑 `context.load`。
+   - 完成后正常归档 `review_report` 并写 `agent_run_completed`；外部响应标记 `agent_result.resumed_from_pending_call=true`。
+4. `apps/api/app/domains/agent_runs/event_sink.py`
+   - 新增 `record_runtime_pending_call()`，通过既有 `record_agent_artifact()` 写入隐藏 artifact，仍产生可回放 `agent_artifact` 事件。
+5. `apps/api/app/domains/agent_runs/service.py`
+   - `/artifacts` 仍过滤隐藏 runtime pending artifact。
+   - `/save-points` 使用 `_list_agent_save_point_artifacts()` 额外纳入 `runtime_pending_call`，让恢复投影能看见 pending call。
+6. `apps/api/app/domains/agent_runs/save_points.py`
+   - `pending` 新增 `runtime_pending_call_artifact_id` 与 `runtime_pending_tool`。
+   - `runtime_recovery` 新增 `latest_pending_call`。
+   - run 完成后不再把历史 pending-call artifact 作为活跃 pending 投影。
+7. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_file_review_runtime_resumes_from_pending_context_boundary`。
+   - 覆盖 pause 后普通 artifacts 为空、`/save-points` 可见 pending call、resume 后继续 reviewer、不重复 `context.load`、最终只有 visible `review_report` artifact、run completed 后 pending projection 清空。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 WebSocket/SSE 事件名、权限模型、可见 artifact schema、provider/model 调用或 proposed patch 确认模型。
+- 本刀仅覆盖无写入 `file.review` pending resume，不自动重放 provider request，不泛化到写工具。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime.py app/domains/agent_runs/runtime_recovery.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/save_points.py app/domains/agent_runs/service.py app/domains/agent_runs/system_jobs.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **46 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **109 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/event_sink.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/system_jobs.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive resume behavior for read-only `file.review` after a `pause_run` at the `context.load` boundary. Normal completed `file.review` remains compatible; paused runs now have a hidden durable pending-call artifact and can continue reviewer execution after `resume_run`.
+
+## 阶段 5 control-channel resume tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，`resume_run` 控制通道直接驱动 pending `file.review` 续跑。
+
+**目标**：把上一刀的 pending-call resume 从“resume 后再发同一个 user_message”推进到真正控制通道：WebSocket 收到 `resume_run` 时，先记录既有控制事件并把 run 置回 `running/resumed`，再查隐藏 `runtime_pending_call` artifact；若存在无写入 `file.review` pending call，则直接调用 live `AgentRuntime` 续跑，并把 `agent_result` 放入 control ack 的 `resumed_result`。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime.py`
+   - pending-call artifact 增加 `resume_message`，保存续跑所需的最小 user_message envelope（不把它做成新事实源）。
+2. `apps/api/app/domains/agent_runs/service.py`
+   - 新增 `AgentControlResult`。
+   - 新增 `handle_agent_control_message()`，作为控制消息 facade：写入控制事件后，在 `resume_run` 时调用 `resume_agent_run_if_pending()`。
+   - 新增 `resume_agent_run_if_pending()`，从隐藏 `runtime_pending_call` artifact 读取 `resume_message` 并复用 `execute_agent_user_message_run()` 继续同一个 run。
+3. `apps/api/app/domains/ide/router.py`
+   - WebSocket 控制消息改用 `handle_agent_control_message()`。
+   - `resume_run` ack 在存在续跑结果时追加 `resumed_result`，不改变原有 `type/status/run_id/event_id` ack 字段。
+4. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_resume_run_control_message_drives_pending_file_review_resume`。
+   - 测试通过真实 `record_agent_control_event()` 制造 `pause_run` 边界，再经 WebSocket `resume_run` 自动续跑；断言 ack 携带 `resumed_result`，最终事件流只出现一次 `context.load`，并完成 `review_report` artifact。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 SSE 事件名、权限模型、可见 artifact schema、provider/model 调用或 proposed patch 确认模型。
+- 本刀仅覆盖无写入 `file.review` control-channel resume，不自动重放 provider request，不泛化到写工具。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/ide/router.py app/domains/agent_runs/runtime.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **47 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **110 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive WebSocket control behavior. Existing control ack fields remain; `resume_run` may now include `resumed_result` when a read-only pending `file.review` call is recoverable from AgentArtifact facts.
+
+## 阶段 5 postprocess resume tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Agent Harness Save Points，`file.review` reviewer 已完成后的 postprocess 续跑。
+
+**目标**：补齐 run loop recovery 的另一条无写入边界：当 `file.review` 已经完成 reviewer 计算，但只持久化了部分 subagent trace 时收到 `pause_run`，不应丢掉已计算结果，也不应 resume 后重跑 reviewer。应把 `review_output` 与 `next_trace_index` 写入隐藏 `runtime_pending_call` artifact，resume 后只补齐剩余 `tool_trace`、归档 `review_report` artifact 并 complete。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime.py`
+   - `_record_file_review_pending_call()` 支持 `review_output` 与 `next_trace_index`。
+   - 新增 `_resume_file_review_postprocess_from_pending_call()`，从 pending artifact 继续剩余 trace 记录、artifact postprocess 和 run complete。
+   - 新增 `_json_safe_review_output()`，确保 pending artifact 只保存 JSON-safe trace payload。
+2. `apps/api/app/domains/agent_runs/save_points.py`
+   - `latest_pending_call.pending_tool` 在非 `after_tool:context.load` 边界投影为 `file.review.postprocess`。
+   - 投影 `next_trace_index`，帮助恢复端知道下一个待落库 trace 序号。
+3. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_file_review_resume_after_subagent_boundary_does_not_rerun_reviewers`。
+   - 测试在 `subagent.plot_reviewer` trace 写入后暂停；resume 后 builder 调用次数仍为 1，事件流补齐 character/prose/continuity/synthesizer traces，最终写入 `review_report` 并 complete。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 SSE/WebSocket 事件名、权限模型、可见 artifact schema、provider/model 调用或 proposed patch 确认模型。
+- 本刀仅覆盖无写入 `file.review` postprocess resume，不自动重放 provider request，不泛化到写工具。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime.py app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **48 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **111 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：true, additive recovery behavior for read-only `file.review` postprocess. If a pause arrives after reviewer computation but before all traces/artifacts are durable, resume continues from `next_trace_index` instead of rerunning reviewer work.
+
+## 阶段 5 pending-call diagnostic tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Run loop recovery 深化，pending-call resume diagnostic 第一刀。
+
+**目标**：在不新增 event type、不改变权限模型、不自动执行写工具的前提下，让 `resume_run` 对不可恢复的隐藏 `runtime_pending_call` artifact 给出可回放诊断。若 pending call 是 unsupported intent（例如写工具）或缺少 resume envelope，控制通道不静默吞掉，也不重跑 provider/tool；诊断写入既有 `resume_run` 事件的 `payload.runtime_recovery.resume_diagnostic`，并由 `/save-points` 投影。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime_recovery.py`
+   - 新增纯 helper `build_runtime_pending_call_summary()` 与 `build_runtime_pending_call_resume_diagnostic()`。
+   - 当前仅 `file.review` 属于可由控制通道自动恢复的 pending intent；其他 intent 保守标记 `unsupported_pending_call_intent` 与 `manual_restart_required`。
+   - `file.review` pending 缺少 `resume_message` 时标记 `missing_resume_message`，避免控制通道凭不完整 artifact 盲目重跑。
+2. `apps/api/app/domains/agent_runs/service.py`
+   - `handle_agent_control_message()` 在 `resume_run` 后调用 pending resume classifier。
+   - 可恢复时保持既有 `resumed_result` 行为；不可恢复但存在 pending artifact 时，将 `resume_diagnostic` 追加到 control result 与 `resume_run` event payload。
+   - `resume_agent_run_if_pending()` 旧返回形状保持 `dict | None`。
+3. `apps/api/app/domains/agent_runs/save_points.py`
+   - `runtime_recovery.latest_resume_diagnostic` 从既有 `resume_run` event 投影。
+   - pending-call 摘要复用 runtime recovery 纯 helper，减少 save point 与 runtime/service 的判断漂移。
+4. `apps/api/app/domains/ide/router.py`
+   - WebSocket `resume_run` ack 在存在诊断时追加 `resume_diagnostic`，旧 ack 字段保持。
+5. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_resume_run_records_diagnostic_for_unsupported_pending_call`。
+   - 新增 `test_resume_run_records_diagnostic_for_malformed_file_review_pending_call`。
+   - 更新 runtime recovery projection 断言，确认新增字段不破坏既有 tool_trace recovery projection。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`resume_agent_run_if_pending()` 旧返回契约保持。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；诊断落在既有 `resume_run` event payload。
+- 未改变 provider/model 调用策略、写工具确认模型、可见 artifact schema 或 proposed patch review flow。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime_recovery.py app/domains/agent_runs/runtime.py app/domains/agent_runs/service.py app/domains/agent_runs/save_points.py app/domains/ide/router.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **50 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **113 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive recovery diagnostics only. `resume_run` may now carry `resume_diagnostic` when a hidden pending call exists but cannot be safely resumed; unsupported/malformed pending calls remain non-executed and require manual restart or a future explicit migration.
+
+## 阶段 5 failure recovery projection 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Run loop recovery 深化，failed run 恢复投影第一刀。
+
+**目标**：在不改失败写入路径、不新增 event type、不承诺 provider stream 恢复的前提下，让 `/save-points` 对 failed run 给出更可审计的恢复摘要：指出最近 `agent_run_failed` 事件、是否缺少 checkpoint、应否 manual restart，以及失败前最后一个已落库 execution marker。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/save_points.py`
+   - `runtime_recovery` 新增 `latest_failure`。
+   - `latest_failure` 投影 `event_id` / `sequence` / `event_type` / `failed_without_checkpoint` / `manual_restart_required` / `resume_strategy`。
+   - 若存在 `bookrun_checkpoint`，投影 `checkpoint_artifact_id` 并给出 `bookrun_checkpoint` resume strategy；否则保守为 `manual_restart_required`。
+   - 若失败前已有 `tool_trace.payload.recovery.execution_marker`，以摘要引用最近 execution marker，帮助恢复端解释“最后成功边界”和“仍不能自动恢复”之间的关系。
+2. `apps/api/tests/test_agent_runs.py`
+   - 扩展 `test_failed_run_with_runtime_marker_still_requires_manual_restart_without_checkpoint`，确认即使存在 replay-safe `context.load` marker，没有 checkpoint 的 failed run 仍投影 manual restart，并在 `latest_failure.latest_execution_marker` 引用最近边界。
+   - 更新 runtime recovery projection golden，确认非失败 run 的 `latest_failure` 为 `None`。
+3. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录 failure projection 第一刀已完成，并明确仍不支持 provider stream 恢复。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；失败摘要只读投影既有 `agent_run_failed` / `tool_trace` / `bookrun_checkpoint` facts。
+- 未改变 provider/model 调用策略、权限模型、artifact schema 或 proposed patch review flow。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **50 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **113 passed**
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime_recovery.py app/domains/agent_runs/runtime.py app/domains/agent_runs/service.py app/domains/agent_runs/save_points.py app/domains/ide/router.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive save-point projection only. Failed runs now expose a richer `runtime_recovery.latest_failure` summary, but automatic resume semantics remain unchanged.
+
+## 阶段 5 pending-call resolution tracer 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Run loop recovery 深化，pending-call lifecycle resolution 第一刀。
+
+**目标**：在不新增事件类型、不改变可见 artifact schema、不触碰写工具确认模型的前提下，让成功通过 control-channel resume 消费的隐藏 `runtime_pending_call` 也有 append-only 的 durable resolution fact。此前 pending call 只有创建和诊断；本刀新增隐藏 `runtime_pending_call_resolution` artifact，普通 `/artifacts` 不暴露，`/save-points` 可投影，且最新 pending-related fact 为 resolution 时不会把旧 pending artifact 再当成活跃待恢复。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime_recovery.py`
+   - 新增 `RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND = "runtime_pending_call_resolution"`。
+   - 新增纯 helper `build_runtime_pending_call_resolution_payload()`，从原 pending payload 生成 append-only resolution payload。
+2. `apps/api/app/domains/agent_runs/runtime.py`
+   - `file.review` 从 pending call 成功续跑时，将 resolution 作为 hidden `ToolArtifact` 交给既有 artifact postprocess。
+   - context-boundary resume 与 postprocess resume 都写 resolution；若 resume 过程中再次 paused，不写 resolution。
+   - 普通非 resume `file.review` 路径不写 resolution。
+3. `apps/api/app/domains/agent_runs/system_jobs.py`
+   - 将 `runtime_pending_call_resolution` 加入隐藏 artifact kind，避免普通 `/artifacts` 暴露内部 runtime lifecycle fact。
+4. `apps/api/app/domains/agent_runs/service.py`
+   - `_latest_runtime_pending_call_artifact()` 以 pending/resolution 两类 artifact 中最新事实为准；若最新为 resolution，则不再返回旧 pending。
+   - `/save-points` artifact 查询包含 resolution artifact。
+5. `apps/api/app/domains/agent_runs/save_points.py`
+   - `save_points` 可显示 `runtime_pending_call_resolution`。
+   - `runtime_recovery.latest_pending_call_resolution` 投影 resolution 摘要。
+   - 最新 pending-related fact 为 resolution 时，`pending.runtime_pending_call_artifact_id` 与 `runtime_recovery.latest_pending_call` 归空。
+6. `apps/api/tests/test_agent_runs.py`
+   - 扩展 context-boundary resume、control-channel resume 与 postprocess resume 测试，确认成功续跑后 visible artifacts 仍只有 `review_report`，而 save-points 可见 `latest_pending_call_resolution`。
+   - 扩展 unsupported/malformed pending diagnostic 测试，确认不可恢复路径不写 resolution。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除；`resume_agent_run_if_pending()` 返回契约保持。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；resolution 通过既有 `agent_artifact` event 和 hidden artifact fact 表达。
+- 未改变 provider/model 调用策略、权限模型、写工具确认模型、可见 artifact schema 或 proposed patch review flow。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime_recovery.py app/domains/agent_runs/runtime.py app/domains/agent_runs/service.py app/domains/agent_runs/save_points.py app/domains/agent_runs/system_jobs.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_file_review_runtime_resumes_from_pending_context_boundary tests/test_agent_runs.py::test_resume_run_control_message_drives_pending_file_review_resume tests/test_agent_runs.py::test_file_review_resume_after_subagent_boundary_does_not_rerun_reviewers -q` → **3 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **50 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **113 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/agent_runs/system_jobs.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive hidden runtime lifecycle artifact only. Successful pending `file.review` resume now writes a hidden `runtime_pending_call_resolution` artifact; visible artifacts, event names, permission decisions, provider calls, and write confirmation flow remain unchanged.
+
+## 阶段 4 BookRun checkpoint/metrics enrichment 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 4 · Tool Postprocess / Artifact Pipeline，BookRun checkpoint/metrics 第一刀。
+
+**目标**：在不改变 BookRun 独立事实源、不迁移 BookRun 控制流、不改变 provider/model 调用策略的前提下，让镜像进 AgentRun 的 `bookrun_checkpoint` artifact 携带与 `tool_trace` snapshot 一致的恢复/指标摘要，并让 `/save-points` 能直接投影最新 checkpoint 章号与预算/进度指标。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/service.py`
+   - `record_book_run_snapshot()` 写 `bookrun_checkpoint` artifact 时复用 `_book_run_snapshot_payload()`。
+   - checkpoint artifact payload 现在追加 `book_id`、`blueprint_id`、`current_chapter_index`、`total_chapters`、`completed_count`、`tokens_used`、`token_budget`、`checkpoint_count` 等 snapshot 字段。
+   - 原有 `writing_run_id` / `book_run_id` / `scope` / `mode` / `checkpoint` / `source` 字段保持。
+2. `apps/api/app/domains/agent_runs/save_points.py`
+   - artifact summary 增加 `tokens_used`、`token_budget`、`completed_count`、`current_chapter_index`、`total_chapters`、`checkpoint_count`。
+   - 对 `checkpoint` 列表投影最新条目的 `chapter_index`、`status`、`model_run_id`、`judge_report_id`、`approved_scene_id`。
+3. `apps/api/tests/test_agent_runs.py`
+   - 扩展 `test_save_point_projection_detects_bookrun_checkpoint`，覆盖 checkpoint save point 的预算/进度/最新章摘要。
+   - 扩展 `test_book_run_progress_is_projected_to_agent_run_event_store`，覆盖端到端 BookRun progress → AgentRun checkpoint artifact → `/save-points` projection。
+4. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录阶段 4 BookRun checkpoint/metrics 第一刀已完成，并保留更深 retry/checkpoint metadata 与新 artifact 类型为后续缺口。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未改变 BookRun 独立事实源或控制流；本刀只是 AgentRun 镜像 artifact/save-point 的 additive metadata。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 provider/model 调用策略、权限模型或 proposed patch review flow。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/service.py app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_save_point_projection_detects_bookrun_checkpoint tests/test_agent_runs.py::test_book_run_progress_is_projected_to_agent_run_event_store -q` → **2 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **50 passed**
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **63 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **113 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/agent_runs/system_jobs.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive checkpoint artifact/save-point metadata only. BookRun lifecycle, checkpoint source of truth, AgentRun event names, provider calls, and write confirmation flow remain unchanged.
+
+## 阶段 4 BookRun retry metadata projection 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 4 · Tool Postprocess / Artifact Pipeline，BookRun retry/resume metadata 第一刀。
+
+**目标**：继续深化 BookRun → AgentRun 镜像事实，不改变 BookRun 独立事实源、不迁移控制流、不改变 provider/model 调用策略。`retry_from_checkpoint` / `resume` 这类恢复起点需要进入 BookRun snapshot、`bookrun_checkpoint` artifact 和 `/save-points` 摘要，便于后续 Desktop recovery / BookRun 收敛读取同一 AgentRun facts。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/run_payloads.py`
+   - `_book_run_snapshot_payload()` 读取 `book_run.progress` 中的 `resume_from_chapter_index`、`retry_from_chapter_index` 和 `retry_from_checkpoint`。
+   - snapshot payload 追加 `retry_checkpoint` 与 `retry_checkpoint_chapter_index` 摘要，只保留 chapter/model/judge/approved/status 等可审计引用。
+2. `apps/api/app/domains/agent_runs/save_points.py`
+   - artifact summary 追加 `resume_from_chapter_index`、`retry_from_chapter_index`、`retry_checkpoint_chapter_index`。
+   - `retry_checkpoint` dict 投影为 `retry_checkpoint_chapter_index`、`retry_checkpoint_model_run_id`、`retry_checkpoint_judge_report_id`、`retry_checkpoint_approved_scene_id` 等摘要字段。
+3. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata`。
+   - 测试通过真实 WebSocket `retry_from_checkpoint` 控制消息，验证 BookRun 状态、控制事件 payload、bookrun-agent `tool_trace`、`bookrun_checkpoint` artifact 与 `/save-points` 均携带 retry 起点。
+4. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录阶段 4 BookRun retry metadata 第一刀已完成，并明确 BookRun 事实源收敛仍未完成。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未改变 BookRun 独立事实源或控制流；本刀只是 AgentRun 镜像 snapshot/artifact/save-point 的 additive metadata。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；未改变 provider/model 调用策略、权限模型或 proposed patch review flow。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/run_payloads.py app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata -q` → **1 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_save_point_projection_detects_bookrun_checkpoint tests/test_agent_runs.py::test_book_run_progress_is_projected_to_agent_run_event_store tests/test_agent_runs.py::test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata -q` → **3 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **51 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **114 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/agent_runs/system_jobs.py apps/api/app/domains/agent_runs/run_payloads.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive snapshot/checkpoint/save-point metadata only. BookRun lifecycle, checkpoint source of truth, AgentRun event names, provider calls, and write confirmation flow remain unchanged.
+
+## 阶段 5 control event projection 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Save Points / 阶段 6 Desktop event recovery 前置，control event projection 第一刀。
+
+**目标**：在不新增事件类型、不改变控制通道行为的前提下，让 `/save-points` 从现有 AgentRunEvent facts 投影 pause/resume/retry 控制边界，并给 Desktop recovery 提供 `runtime_recovery.latest_control`。`stop_run` 继续沿既有 `run_stopped` save point 语义，不制造第二套停止模型。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/save_points.py`
+   - `pause_run` / `resume_run` / `retry_from_checkpoint` 现在投影为 `control_message` save point。
+   - 新增 `_control_event_summary()`，只提取 `control_type`、reason/source、BookRun/WritingRun id/status/mode/scope 等小摘要，不复制完整 payload。
+   - `runtime_recovery.latest_control` 投影最近控制事件，覆盖 permission approve/deny、pause/resume/stop/retry。
+2. `apps/api/tests/test_agent_runs.py`
+   - 扩展 `test_agent_run_control_channel_updates_bound_bookrun_status`，确认 pause/resume 进入 `control_message` save point，latest control 指向 `stop_run`。
+   - 扩展 `test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata`，确认 retry 控制消息进入 `control_message` save point，latest control 指向 `retry_from_checkpoint`。
+   - 更新 runtime recovery golden，确认无控制事件时 `latest_control=None`。
+3. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录阶段 5 control event projection 第一刀已完成，仍不声明 provider stream 恢复或写工具 pending resume。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 import path / facade 未移除。
+- Runtime package 没有 re-export workflow provider parity；未触碰 `apps/workflow/storyforge_workflow/runtime/provider_adapter.py`。
+- Orchestrators package 未 re-export BookRun adapter symbols；未触碰 workflow orchestrators。
+- 未新增 `turn_*` / `message_delta` / `tool_completed` / `agent_run_interrupted` event type；只读投影既有控制事件。
+- 未改变 BookRun 独立事实源、provider/model 调用策略、权限模型或 proposed patch review flow。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/save_points.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_agent_run_control_channel_updates_bound_bookrun_status tests/test_agent_runs.py::test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata -q` → **2 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **51 passed**
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **63 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **114 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/runtime_recovery.py apps/api/app/domains/agent_runs/runtime.py apps/api/app/domains/agent_runs/service.py apps/api/app/domains/agent_runs/save_points.py apps/api/app/domains/agent_runs/system_jobs.py apps/api/app/domains/agent_runs/run_payloads.py apps/api/app/domains/ide/router.py apps/api/tests/test_agent_runs.py` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive save-point projection only. Control events are now easier to recover from `/save-points`; event names, control side effects, provider calls, and write confirmation flow remain unchanged.
+
+## 阶段 6 Desktop save-points client 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 6 · Desktop event recovery 前置，Desktop API client 读取面第一刀。
+
+**目标**：让 Desktop 前端可以通过既有 API client barrel 读取 `/api/agent-runs/{run_id}/save-points`，并补齐 `retry_from_checkpoint` 控制消息类型。此刀只建立客户端读取面，不实现 UI 恢复面板，也不改变后端运行时行为。
+
+**已完成模块**：
+1. `apps/desktop/frontend/src/lib/api/agent-runs.ts`
+   - 新增 `getAgentRunSavePoints(runId)`。
+   - 使用既有 `getApiConfig()` / `trimApiBaseUrl()` / `readErrorDetail()` 路径，携带 `X-StoryForge-API-Key`。
+2. `apps/desktop/frontend/src/lib/api/types.ts`
+   - 新增 `AgentRunSavePoint` / `AgentRunSavePointProjection` 瘦类型，直接表达后端 projection shape。
+   - `AgentControlMessageType` / `AgentControlAckMessage` 加入 `retry_from_checkpoint`。
+   - `AgentControlAckMessage` 允许携带 `resumed_result` / `resume_diagnostic`。
+3. `apps/desktop/frontend/src/lib/api/agent-socket.ts`
+   - `isAgentControlAckMessage()` 识别 `retry_from_checkpoint` ack。
+4. `apps/desktop/frontend/src/lib/api-client.ts`
+   - 旧 barrel re-export `getAgentRunSavePoints` 与 save-point projection 类型。
+5. `apps/desktop/frontend/tests/api-client.test.ts`
+   - 新增 `agent control websocket accepts retry_from_checkpoint ack`。
+   - 新增 `getAgentRunSavePoints fetches durable recovery projection`。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 桌面端旧 `api-client.ts` barrel 继续保留；新增 helper 从旧路径导出。
+- 未触碰 Runtime package provider parity；未触碰 workflow provider adapter。
+- 未触碰 orchestrators package 或 BookRun adapter re-export。
+- 未改变后端事件名、权限模型、provider/model 调用策略或写工具确认流。
+
+**本地验证**：
+- `npm --prefix apps/desktop/frontend run test -- api-client.test.ts` → **9 passed**
+- `npm --prefix apps/desktop/frontend run typecheck` → passed
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/api/app/domains/agent_runs/save_points.py apps/api/tests/test_agent_runs.py apps/desktop/frontend/src/lib/api-client.ts apps/desktop/frontend/src/lib/api/agent-runs.ts apps/desktop/frontend/src/lib/api/agent-socket.ts apps/desktop/frontend/src/lib/api/types.ts apps/desktop/frontend/tests/api-client.test.ts` → 通过
+- `Select-String -Path <touched files> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive Desktop client capability only. Desktop can now fetch save-point projections and send typed retry-from-checkpoint control messages; no UI or backend runtime behavior changed.
+
+## 阶段 6 Desktop recovery read-model/UI 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 6 · Desktop event recovery，ChatWindow 恢复摘要 read-model/UI 第一刀。
+
+**目标**：在不改变后端运行时、不新增恢复控制行为、不触碰 provider/权限/写回模型的前提下，让 Desktop 消费 `/save-points` 的 durable facts，并把 pending permission、pending call、checkpoint、latest control、failed-without-checkpoint 等恢复信息转换成稳定的 ChatWindow 展示模型。
+
+**已完成模块**：
+1. `apps/desktop/frontend/src/components/chat-window/recovery.ts`
+   - 新增纯函数 `buildAgentRunRecoveryDisplay()`。
+   - 将 `AgentRunSavePointProjection` 解析为小型 UI read-model：状态、恢复策略、pending 摘要、最近控制、最近边界、checkpoint 摘要和 tone。
+   - 对缺失/畸形字段保守降级，只展示能可靠解析的事实。
+2. `apps/desktop/frontend/src/components/ChatWindow.tsx`
+   - 在新 AgentRun 开始时清空恢复摘要。
+   - 在 `permission_required`、control ack、agent result/error 后读取 `/save-points` 并刷新恢复 read-model。
+   - 继续保留旧 `ChatWindow` barrel 导出，便于测试和旧引用读取。
+3. `apps/desktop/frontend/src/components/chat-window/panels.tsx`
+   - 新增 `AgentRunRecoveryPanel`，在现有 AgentRun steps 区块下方展示轻量恢复摘要。
+   - 不新增按钮，不改变控制通道语义。
+4. `apps/desktop/frontend/tests/chat-window.test.ts`
+   - 覆盖 pending permission + proposed patch 摘要。
+   - 覆盖 BookRun checkpoint + `retry_from_checkpoint` latest control 摘要。
+   - 覆盖 failed-without-checkpoint 时仍显示 manual restart 保守策略。
+5. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录阶段 6 Desktop recovery read-model/UI 第一刀已完成，后续仍聚焦 production runtime 和更完整恢复入口。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 未触碰 API 源码；本刀无 touched API ruff target。
+- 旧 Desktop `api-client.ts` barrel 与 `ChatWindow` barrel 继续保留。
+- 未触碰 Runtime package provider parity；未触碰 workflow provider adapter。
+- 未触碰 orchestrators package 或 BookRun adapter re-export。
+- 未新增后端事件名；未改变 provider/model 调用策略、权限模型、writeback/proposed patch confirmation flow 或自动恢复行为。
+
+**本地验证**：
+- `npm --prefix apps/desktop/frontend run test -- chat-window.test.ts api-client.test.ts` → **20 passed**
+- `npm --prefix apps/desktop/frontend run typecheck` → passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/desktop/frontend/src/components/ChatWindow.tsx apps/desktop/frontend/src/components/chat-window/panels.tsx apps/desktop/frontend/tests/chat-window.test.ts` → 通过
+- `Select-String -Path <touched files including recovery.ts> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive Desktop read-model/UI only. ChatWindow can now refresh and display save-point recovery summaries; backend runtime behavior, event protocol, provider calls, permission model, and write confirmation flow remain unchanged.
+
+## 阶段 6 Desktop resumed-result closeout 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 6 · Desktop event recovery，control-channel `resumed_result` UI 收口第一刀。
+
+**目标**：后端 `resume_run` ack 已可携带 `resumed_result` 续跑 pending `file.review`；Desktop 需要消费该结果并完成 ChatWindow 收口，避免 UI 只把 ack 当作普通 `resume_run` 状态而停留在 running。此刀只改变 Desktop 结果消费，不改变后端 runtime、控制协议、权限模型或写工具确认流。
+
+**已完成模块**：
+1. `apps/desktop/frontend/src/components/chat-window/resumed-result.ts`
+   - 新增 `statusFromAgentResult()` 和 `stepsFromResumedAgentResult()` 纯 helper。
+   - 将 `resumed_result` 映射为恢复步骤，并根据 `requires_user_confirmation` 保留 completed/waiting 状态。
+2. `apps/desktop/frontend/src/components/ChatWindow.tsx`
+   - `sendAgentRunControl()` 收到带 `resumed_result` 的 ack 时，复用 Agent result 收口路径更新 assistant session、标题、steps、消息、review markers 或 proposed patch。
+   - 成功收口后继续刷新 `/save-points` recovery 摘要。
+   - 保留旧 `ChatWindow` barrel 导出，便于测试和旧引用读取。
+3. `apps/desktop/frontend/tests/chat-window.test.ts`
+   - 新增 resumed result 无确认时映射为 completed recovery steps 的测试。
+   - 新增 resumed result 需要确认时保持 waiting 状态的测试。
+4. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录阶段 6 Desktop `resumed_result` closeout 已完成，后续不再重复做同一 UI 收口。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 未触碰 API 源码；本刀无 touched API ruff target。
+- 旧 Desktop `api-client.ts` barrel 与 `ChatWindow` barrel 继续保留。
+- 未触碰 Runtime package provider parity；未触碰 workflow provider adapter。
+- 未触碰 orchestrators package 或 BookRun adapter re-export。
+- 未新增后端事件名；未改变 provider/model 调用策略、权限模型、writeback/proposed patch confirmation flow 或自动恢复行为。
+
+**本地验证**：
+- `npm --prefix apps/desktop/frontend run test -- chat-window.test.ts api-client.test.ts` → **22 passed**
+- `npm --prefix apps/desktop/frontend run typecheck` → passed
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+- `git diff --check -- .codex/verification-report.md docs/architecture/pi-opencode-agent-harness-adoption-plan.md apps/desktop/frontend/src/components/ChatWindow.tsx apps/desktop/frontend/src/components/chat-window/panels.tsx apps/desktop/frontend/tests/chat-window.test.ts` → 通过
+- `Select-String -Path <touched files including recovery.ts/resumed-result.ts> -Pattern '[ \t]+$'` → trailing whitespace check ok
+
+**行为变更**：true, additive Desktop UI closeout only. `resume_run` acknowledgements that include `resumed_result` now complete the visible ChatWindow flow; backend runtime behavior, event protocol, provider calls, permission model, and write confirmation flow remain unchanged.
+
+## 阶段 6 Desktop resume diagnostic / stale ack guard 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 6 · Desktop event recovery，control-channel 诊断收口与陈旧 ack guard。
+
+**目标**：`resume_run` 可能返回 `resume_diagnostic` 而非 `resumed_result`；Desktop 不能继续把 UI 留在 running。同时 control ack 是异步返回，若用户已开启另一个 AgentRun，旧 ack 不能覆盖当前 run 的状态、steps 或消息。
+
+**已完成模块**：
+1. `apps/desktop/frontend/src/components/chat-window/resumed-result.ts`
+   - 新增 `displayFromResumeDiagnostic()`，把 unsupported/malformed/premature pending resume 映射为 failed/waiting 文案。
+2. `apps/desktop/frontend/src/components/ChatWindow.tsx`
+   - `sendAgentRunControl()` 在 await 后用 `shouldApplyAgentControlAck()` 校验 active run、requested run 和 ack run id。
+   - `resume_diagnostic` 会写入 ChatWindow 消息与 resume step，并按诊断降级为 failed 或 waiting。
+   - resumed review marker 优先使用 `review_report.file_path` / proposed patch file path，避免作者切换文件后把 markers 打到当前编辑器文件。
+3. `apps/desktop/frontend/tests/chat-window.test.ts`
+   - 覆盖 stale/mismatched ack guard。
+   - 覆盖 resume diagnostic failed/waiting 映射。
+   - 覆盖 agent result file path 优先从 review report / proposed patch 读取。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 旧 Desktop `ChatWindow` barrel 继续保留新增 helper 导出。
+- 未触碰后端事件协议、provider/model 调用策略、权限模型或写工具确认流。
+
+**本地验证**：
+- `npm --prefix apps/desktop/frontend run test -- chat-window.test.ts api-client.test.ts` → **26 passed**
+- `npm --prefix apps/desktop/frontend run typecheck` → passed
+
+**行为变更**：true, additive Desktop safety behavior only. 陈旧 control ack 不再覆盖当前 AgentRun；`resume_diagnostic` 会在 UI 中明确收口。
+
+## 阶段 5 chapter.review pending resume 验证（2026-06-29）
+
+**条目**：Pi/OpenCode Agent Harness adoption plan — 阶段 5 · Run loop recovery 深化，`chapter.review` 的 `judge.run` 后置 no-write pending resume tracer。
+
+**目标**：在不改变写工具确认模型、不新增事件名、不承诺 provider stream 恢复的前提下，让 `chapter.review` 能在 `judge.run` 已落库后暂停，并在 `resume_run` 后只用已持久化的 `judge_output` 收口审阅结果；恢复路径不重跑 `judge.run`，也不自动执行 `judge.repair`。
+
+**已完成模块**：
+1. `apps/api/app/domains/agent_runs/runtime_recovery.py`
+   - `SUPPORTED_RUNTIME_PENDING_CALL_INTENTS` 扩展到 `chapter.review`。
+   - pending summary 投影 `chapter.review.postprocess`。
+   - resume diagnostic 对 `chapter.review` 要求 `judge_output` / `judge_trace` 存在，缺失时保守降级。
+2. `apps/api/app/domains/agent_runs/runtime.py`
+   - `_run_chapter_review()` 写 plan 后执行 `judge.run` 并落 `tool_trace`，在 `after_tool:judge.run` 检查 paused/stopped。
+   - paused 时写隐藏 `runtime_pending_call` artifact，保存 `judge_output`、`judge_trace` 和 resume envelope。
+   - `_resume_chapter_review_from_pending_call()` 从 pending artifact 收口章节审阅，生成 no-write result 与 resolution artifact，不执行 `judge.repair`。
+3. `apps/api/tests/test_agent_runs.py`
+   - 新增 `test_chapter_review_runtime_resumes_after_judge_run_without_repairing`。
+   - 测试证明 pending/save-points projection 正确、`resume_run` 返回 resumed_result、`judge.run` 不重跑、`judge.repair` 不执行、resolution artifact 投影后旧 pending 不再活跃。
+4. `docs/architecture/pi-opencode-agent-harness-adoption-plan.md`
+   - 记录该 tracer bullet 已完成，并明确下一刀不要把它误扩展成写工具自动恢复。
+
+**硬约束检查**：
+- 未新增或维护 `apps/web`。
+- 未改变 `file.revise` / `judge.repair` / `bookrun.start` 的 propose-then-confirm 模型。
+- 未新增 `turn_*` / `message_delta` / `agent_run_interrupted` 等事件。
+- 未触碰 Runtime package provider parity；未触碰 workflow provider adapter。
+- 未触碰 orchestrators package 或 BookRun adapter re-export。
+- 未改变 provider/model 调用策略、BookRun 事实源或 Desktop 写回确认流。
+
+**本地验证**：
+- `cd apps/api && uv run ruff check app/domains/agent_runs/runtime.py app/domains/agent_runs/runtime_recovery.py tests/test_agent_runs.py` → All checks passed
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_chapter_review_runtime_resumes_after_judge_run_without_repairing -q` → **1 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py::test_file_review_runtime_resumes_from_pending_context_boundary tests/test_agent_runs.py::test_resume_run_control_message_drives_pending_file_review_resume tests/test_agent_runs.py::test_file_review_resume_after_subagent_boundary_does_not_rerun_reviewers tests/test_agent_runs.py::test_chapter_review_runtime_resumes_after_judge_run_without_repairing tests/test_agent_runs.py::test_resume_run_records_diagnostic_for_unsupported_pending_call tests/test_agent_runs.py::test_resume_run_records_diagnostic_for_malformed_file_review_pending_call -q` → **6 passed**
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py::test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirmation -q` → **1 passed**
+- `cd apps/api && uv run pytest tests/test_agent_runs.py -q` → **52 passed**
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_runtime_tools.py tests/test_model_runs.py -q` → **63 passed**
+- `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
+
+**行为变更**：true, additive no-write pending resume only. `chapter.review` can resume from the durable `judge.run` boundary, but write tools, provider stream recovery, event protocol, artifact visibility, and permission behavior remain unchanged.

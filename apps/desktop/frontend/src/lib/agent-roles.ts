@@ -1,15 +1,6 @@
-export type AgentRoleRead = {
-  name: string;
-  display_name: string;
-  kind: string;
-  description: string;
-  aliases: string[];
-  read_only: boolean;
-  default_permission_profile: string;
-  allowed_tools: string[];
-  output_artifacts: string[];
-  can_be_mentioned: boolean;
-};
+import type { ApiAgentRoleRead } from './api/contracts';
+
+export type AgentRoleRead = ApiAgentRoleRead;
 
 export const BUILTIN_AGENT_ROLE_ALIASES: Record<string, string> = {
   '@剧情': 'plot_reviewer',

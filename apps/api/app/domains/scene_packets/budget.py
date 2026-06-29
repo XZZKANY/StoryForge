@@ -4,6 +4,7 @@ from typing import Any
 
 from app.domains.assets.models import Asset
 from app.domains.continuity.models import ContinuityRecord
+from app.domains.scene_packets.packet_contract import ScenePacketBody
 from app.domains.scene_packets.schemas import BudgetStatistics, EvidenceLinkRead, ScenePacketCreate
 
 
@@ -20,7 +21,7 @@ def build_packet(
     assets: list[Asset],
     continuity_records: list[ContinuityRecord],
     evidence_links: list[EvidenceLinkRead],
-) -> tuple[dict[str, Any], BudgetStatistics]:
+) -> tuple[ScenePacketBody, BudgetStatistics]:
     """按优先级构造固定槽位，并控制检索片段的预算占用。"""
 
     characters = [asset_summary(asset) for asset in assets if asset.asset_type == "character"]
@@ -28,7 +29,7 @@ def build_packet(
     style_rules = [style_rule(asset) for asset in assets if asset.asset_type == "style_rule"]
     include_facts = collect_payload_values(assets, "必须包含事实") + continuity_constraints(continuity_records)
     avoid_facts = collect_payload_values(assets, "必须规避事实")
-    packet: dict[str, Any] = {
+    packet: ScenePacketBody = {
         "章节目标": payload.scene_goal,
         "活跃角色": characters,
         "关系状态": relationship_states(assets),

@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.exceptions import NotFoundError
+from app.common.exceptions import ForbiddenError, NotFoundError
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact
 from app.domains.books.models import Book, Chapter, Scene
@@ -18,8 +18,8 @@ class ExportNotFoundError(NotFoundError):
     """作品或可导出的已批准正文不存在时抛出。"""
 
 
-class ExportForbiddenError(NotFoundError):
-    """作品不属于请求工作区时抛出，由路由层转换为 403。"""
+class ExportForbiddenError(ForbiddenError, NotFoundError):
+    """作品不属于请求工作区。"""
 
 
 @dataclass(frozen=True)
@@ -120,7 +120,7 @@ def _load_export_source(
     *,
     workspace_id: int | None = None,
 ) -> tuple[Book, list[ApprovedScene]]:
-    """读取作品及其已批准正文，缺失时交由路由层转换为 404。"""
+    """读取作品及其已批准正文。"""
 
     book = session.get(Book, book_id)
     if book is None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.common.pagination import MAX_PAGE_LIMIT, paginate_by_id
 from app.db.deps import SessionDependency
@@ -14,9 +14,6 @@ from app.domains.artifacts.schemas import (
     ArtifactRead,
 )
 from app.domains.artifacts.service import (
-    ArtifactError,
-    ArtifactForbiddenError,
-    ArtifactNotFoundError,
     build_artifact_list_query,
     create_artifact,
     get_artifact,
@@ -36,10 +33,7 @@ router = APIRouter(prefix="/api/artifacts", tags=["制品中心"])
 def create_artifact_endpoint(payload: ArtifactCreate, session: SessionDependency) -> ArtifactRead:
     """登记一条制品记录（草稿、章节稿、评测报告等），返回新建后的元数据。"""
 
-    try:
-        return create_artifact(session, payload)
-    except ArtifactError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return create_artifact(session, payload)
 
 
 @router.get(
@@ -85,12 +79,7 @@ def get_artifact_endpoint(
 ) -> ArtifactRead:
     """按主键读取单个制品的完整元数据。"""
 
-    try:
-        return get_artifact(session, artifact_id, workspace_id=workspace_id)
-    except ArtifactForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except ArtifactNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return get_artifact(session, artifact_id, workspace_id=workspace_id)
 
 
 @router.get(
@@ -105,9 +94,4 @@ def download_artifact_endpoint(
 ) -> ArtifactDownloadRead:
     """返回制品下载摘要（路径、大小、校验信息），实际签名 URL 由对象存储后端二次签发。"""
 
-    try:
-        return read_artifact_download(session, artifact_id, workspace_id=workspace_id)
-    except ArtifactForbiddenError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except ArtifactNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return read_artifact_download(session, artifact_id, workspace_id=workspace_id)

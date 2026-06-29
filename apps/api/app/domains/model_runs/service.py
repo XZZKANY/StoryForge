@@ -6,28 +6,39 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.exceptions import InputError
-from app.domains.book_runs.models import BookRun
-from app.domains.books.models import Book, Chapter, Scene
-from app.domains.jobs.models import JobRun
 from app.domains.model_runs.models import ModelRun
-from app.domains.model_runs.schemas import ModelRunCreate, RunsJobRunRetryRead
-from app.domains.prompt_packs.models import PromptPack
-from app.domains.runtime_tools.service import list_runtime_tools
-from app.domains.workspaces.models import Workspace
-
-
-class ModelRunError(InputError):
-    """模型运行日志引用对象不存在或作用域不一致。"""
-
-
-def create_model_run(session: Session, payload: ModelRunCreate) -> ModelRun:
-    _validate_references(session, payload)
-    model_run = ModelRun(**payload.model_dump())
-    session.add(model_run)
-    session.commit()
-    session.refresh(model_run)
-    return model_run
+from app.domains.model_runs.recording import (  # noqa: F401  facade re-export
+    ModelRunError,
+    _optional_nonnegative_float,
+    _optional_nonnegative_int,
+    _optional_text,
+    _payload_metadata,
+    _require_nonnegative_int,
+    _require_positive_int,
+    _require_text,
+    _validate_references,
+    create_model_run,
+    record_failed_runtime_model_run,
+    record_runtime_model_run,
+)
+from app.domains.model_runs.recording import record_workflow_model_run_payload as _record_workflow_model_run_payload
+from app.domains.model_runs.runs_diagnostics import (  # noqa: F401  facade re-export
+    _checkpoint_from_progress,
+    _failure_kind_from_error,
+    _first_text,
+    _lifecycle_status_from_job,
+    _model_usage_summary,
+    _provider_summary,
+    _recoverable_from_progress,
+    _retry_unavailable_reason,
+    _runtime_diagnostics,
+    _runtime_tool_summaries,
+    _session_id,
+    _string_list,
+    _text_or_default,
+    retry_runs_job_run,
+)
+from app.domains.model_runs.runs_diagnostics import get_runs_job_run as _get_runs_job_run
 
 
 def list_model_runs(
@@ -62,497 +73,16 @@ def build_model_run_list_query(
 
 
 def get_runs_job_run(session: Session, *, job_run_id: int) -> dict[str, Any]:
-    job = session.get(JobRun, job_run_id)
-    if job is None:
-        raise ModelRunError("任务不存在，无法读取 Runs 工作台任务状态。")
-    progress = dict(job.progress or {})
-    checkpoint = {
-        key: progress[key]
-        for key in ("thread_id", "current_node", "approval_status")
-        if key in progress
-    }
-    model_runs = list_model_runs(session, job_run_id=job_run_id)
-    return {
-        "id": job.id,
-        "job_type": job.job_type,
-        "status": job.status,
-        "progress": progress,
-        "checkpoint": checkpoint or None,
-        "model_runs": [
-            {
-                "id": model_run.id,
-                "provider_name": model_run.provider_name,
-                "model_name": model_run.model_name,
-                "capability": model_run.capability,
-                "status": model_run.status,
-                "latency_ms": model_run.latency_ms,
-                "token_usage": model_run.token_usage,
-                "input_tokens": model_run.input_tokens,
-                "output_tokens": model_run.output_tokens,
-                "cost_estimate": model_run.cost_estimate,
-                "finish_reason": model_run.finish_reason,
-                "error_kind": model_run.error_kind,
-                "retry_count": model_run.retry_count,
-                "repair_count": model_run.repair_count,
-                "prompt_template_version": model_run.prompt_template_version,
-                "prompt_hash": model_run.prompt_hash,
-                "error_message": model_run.error_message,
-            }
-            for model_run in model_runs
-        ],
-        "runtime_diagnostics": _runtime_diagnostics(job, progress, model_runs),
-        "error_message": job.error_message,
-        "created_at": job.created_at,
-        "updated_at": job.updated_at,
-    }
+    """读取 Runs 工作台 JobRun 详情，并附带 runtime_diagnostics 摘要。"""
 
-
-def _runtime_diagnostics(job: JobRun, progress: Mapping[str, object], model_runs: Sequence[ModelRun]) -> dict[str, Any]:
-    """聚合运行时读侧摘要，避免页面自行拼装 runtime 事实。"""
-
-    current_node = _first_text(progress, "current_node", "failed_node") or "unknown"
-    thread_id = _first_text(progress, "thread_id")
-    recoverable = _recoverable_from_progress(job, progress)
-    failure_kind = _first_text(progress, "failure_kind", "error_code") or _failure_kind_from_error(job.error_message)
-    lifecycle_status = _first_text(progress, "lifecycle_status") or _lifecycle_status_from_job(job.status, recoverable)
-    lifecycle_message = _first_text(progress, "lifecycle_message") or job.error_message or f"任务状态：{job.status}"
-
-    return {
-        "workflow_session": {
-            "session_id": _session_id(thread_id, job.id),
-            "thread_id": thread_id,
-            "job_run_id": str(job.id),
-            "status": str(job.status),
-            "current_node": current_node,
-            "approval_status": _first_text(progress, "approval_status"),
-            "last_heartbeat_ms": _optional_nonnegative_int(progress.get("last_heartbeat_ms")),
-            "prompt_count": _optional_nonnegative_int(progress.get("prompt_count")) or 0,
-        },
-        "workflow_lifecycle": {
-            "status": lifecycle_status,
-            "current_node": current_node,
-            "message": lifecycle_message,
-            "failure_kind": failure_kind,
-            "recoverable": recoverable,
-        },
-        "provider": _provider_summary(progress, model_runs),
-        "model_usage": _model_usage_summary(model_runs),
-        "runtime_tools": _runtime_tool_summaries(progress, model_runs, current_node),
-    }
-
-
-def _session_id(thread_id: str | None, job_run_id: int) -> str | None:
-    if thread_id is None:
-        return None
-    return f"{thread_id}:{job_run_id}"
-
-
-def _recoverable_from_progress(job: JobRun, progress: Mapping[str, object]) -> bool | None:
-    value = progress.get("recoverable")
-    if isinstance(value, bool):
-        return value
-    if job.status == "failed":
-        return bool(_checkpoint_from_progress(progress))
-    return None
-
-
-def _failure_kind_from_error(error_message: str | None) -> str | None:
-    if not error_message:
-        return None
-    normalized = error_message.lower()
-    if "timeout" in normalized or "timed out" in normalized:
-        return "provider_timeout"
-    if "invalid" in normalized or "parse" in normalized:
-        return "provider_invalid_response"
-    return "unknown_runtime_error"
-
-
-def _lifecycle_status_from_job(status: str, recoverable: bool | None) -> str:
-    if status == "failed":
-        return "recoverable_failed" if recoverable else "terminal_failed"
-    if status == "running":
-        return "graph_running"
-    if status == "queued":
-        return "queued"
-    if status == "completed":
-        return "completed"
-    return status
-
-
-def _provider_summary(progress: Mapping[str, object], model_runs: Sequence[ModelRun]) -> dict[str, object] | None:
-    provider_execution = progress.get("provider_execution")
-    if isinstance(provider_execution, Mapping):
-        return {
-            "provider_name": _text_or_default(provider_execution.get("provider_name"), "暂无 provider"),
-            "model_name": _text_or_default(provider_execution.get("model_name"), "暂无模型"),
-            "capability": _text_or_default(provider_execution.get("capability"), "unknown"),
-            "status": _text_or_default(provider_execution.get("status"), "unknown"),
-            "latency_ms": _optional_nonnegative_int(provider_execution.get("latency_ms")) or 0,
-            "token_usage": _optional_nonnegative_int(provider_execution.get("token_usage")) or 0,
-            "error_message": _optional_text(provider_execution.get("error_message")),
-        }
-    if not model_runs:
-        return None
-    latest = model_runs[-1]
-    return {
-        "provider_name": latest.provider_name,
-        "model_name": latest.model_name,
-        "capability": latest.capability,
-        "status": latest.status,
-        "latency_ms": latest.latency_ms,
-        "token_usage": latest.token_usage,
-        "error_message": latest.error_message,
-    }
-
-
-def _model_usage_summary(model_runs: Sequence[ModelRun]) -> dict[str, int]:
-    return {
-        "model_run_count": len(model_runs),
-        "failed_model_run_count": sum(1 for model_run in model_runs if model_run.status == "failed"),
-        "total_token_usage": sum(model_run.token_usage for model_run in model_runs),
-        "max_latency_ms": max((model_run.latency_ms for model_run in model_runs), default=0),
-    }
-
-
-def _runtime_tool_summaries(
-    progress: Mapping[str, object], model_runs: Sequence[ModelRun], current_node: str
-) -> list[dict[str, object]]:
-    explicit_tool_names = set(_string_list(progress.get("runtime_tool_names")))
-    capabilities = {
-        model_run.capability
-        for model_run in model_runs
-        if model_run.capability
-    }
-    provider_execution = progress.get("provider_execution")
-    if isinstance(provider_execution, Mapping):
-        capability = provider_execution.get("capability")
-        if isinstance(capability, str) and capability:
-            capabilities.add(capability)
-
-    summaries: list[dict[str, object]] = []
-    for tool in list_runtime_tools():
-        workflow_nodes = list(tool.references.workflow_nodes)
-        required_capabilities = list(tool.required_capabilities)
-        is_explicit = tool.name in explicit_tool_names
-        matches_node = current_node in workflow_nodes
-        matches_capability = bool(capabilities.intersection(required_capabilities))
-        if not (is_explicit or matches_node or matches_capability):
-            continue
-        summaries.append(
-            {
-                "name": tool.name,
-                "domain": tool.domain,
-                "required_capabilities": required_capabilities,
-                "evidence_fields": list(tool.evidence_fields),
-                "workflow_nodes": workflow_nodes,
-            }
-        )
-    return summaries
-
-
-def retry_runs_job_run(session: Session, *, job_run_id: int) -> RunsJobRunRetryRead:
-    """基于失败 JobRun 的 checkpoint 创建恢复任务，不直接执行 workflow。"""
-
-    job = session.get(JobRun, job_run_id)
-    if job is None:
-        raise ModelRunError("任务不存在，无法创建失败重试。")
-    progress = dict(job.progress or {})
-    checkpoint = _checkpoint_from_progress(progress)
-    failed_node = _first_text(progress, "failed_node", "current_node")
-    unavailable_reason = _retry_unavailable_reason(job, checkpoint, failed_node)
-    if unavailable_reason is not None:
-        return RunsJobRunRetryRead(
-            can_retry=False,
-            retry_job_run_id=None,
-            source_job_run_id=job.id,
-            recovery_node=failed_node,
-            checkpoint=checkpoint or None,
-            retry_status="未创建",
-            unavailable_reason=unavailable_reason,
-        )
-
-    retry_job = JobRun(
-        book_id=job.book_id,
-        scene_id=job.scene_id,
-        job_type=f"{job.job_type}_retry",
-        status="queued",
-        progress={
-            "retry_of_job_run_id": job.id,
-            "recovery_node": failed_node,
-            "checkpoint": checkpoint,
-            "source_error_message": job.error_message,
-        },
-    )
-    session.add(retry_job)
-    session.commit()
-    session.refresh(retry_job)
-    return RunsJobRunRetryRead(
-        can_retry=True,
-        retry_job_run_id=retry_job.id,
-        source_job_run_id=job.id,
-        recovery_node=failed_node,
-        checkpoint=checkpoint,
-        retry_status=retry_job.status,
-        unavailable_reason=None,
-    )
-
-
-def record_runtime_model_run(
-    session: Session,
-    *,
-    job_run_id: int,
-    provider_name: str,
-    model_name: str,
-    capability: str,
-    latency_ms: int,
-    token_usage: int,
-    input_summary: str,
-    output_summary: str,
-    workspace_id: int | None = None,
-    book_id: int | None = None,
-    scene_id: int | None = None,
-    book_run_id: int | None = None,
-    chapter_id: int | None = None,
-    prompt_pack_id: int | None = None,
-    input_tokens: int = 0,
-    output_tokens: int = 0,
-    cost_estimate: float = 0.0,
-    finish_reason: str | None = None,
-    retry_count: int = 0,
-    repair_count: int = 0,
-    prompt_template_version: str | None = None,
-    prompt_hash: str | None = None,
-    payload: dict | None = None,
-) -> ModelRun:
-    return create_model_run(
+    return _get_runs_job_run(
         session,
-        ModelRunCreate(
-            workspace_id=workspace_id,
-            book_id=book_id,
-            book_run_id=book_run_id,
-            chapter_id=chapter_id,
-            scene_id=scene_id,
-            job_run_id=job_run_id,
-            prompt_pack_id=prompt_pack_id,
-            provider_name=provider_name,
-            model_name=model_name,
-            capability=capability,
-            status="completed",
-            latency_ms=latency_ms,
-            token_usage=token_usage,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost_estimate=cost_estimate,
-            finish_reason=finish_reason,
-            retry_count=retry_count,
-            repair_count=repair_count,
-            prompt_template_version=prompt_template_version,
-            prompt_hash=prompt_hash,
-            input_summary=input_summary,
-            output_summary=output_summary,
-            payload=payload or {},
-        ),
-    )
-
-
-def record_failed_runtime_model_run(
-    session: Session,
-    *,
-    job_run_id: int,
-    provider_name: str,
-    model_name: str,
-    capability: str,
-    input_summary: str,
-    error_message: str,
-    workspace_id: int | None = None,
-    book_id: int | None = None,
-    scene_id: int | None = None,
-    book_run_id: int | None = None,
-    chapter_id: int | None = None,
-    prompt_pack_id: int | None = None,
-    error_kind: str | None = None,
-    retry_count: int = 0,
-    repair_count: int = 0,
-    prompt_template_version: str | None = None,
-    prompt_hash: str | None = None,
-    payload: dict | None = None,
-) -> ModelRun:
-    return create_model_run(
-        session,
-        ModelRunCreate(
-            workspace_id=workspace_id,
-            book_id=book_id,
-            book_run_id=book_run_id,
-            chapter_id=chapter_id,
-            scene_id=scene_id,
-            job_run_id=job_run_id,
-            prompt_pack_id=prompt_pack_id,
-            provider_name=provider_name,
-            model_name=model_name,
-            capability=capability,
-            status="failed",
-            latency_ms=0,
-            token_usage=0,
-            error_kind=error_kind,
-            retry_count=retry_count,
-            repair_count=repair_count,
-            prompt_template_version=prompt_template_version,
-            prompt_hash=prompt_hash,
-            input_summary=input_summary,
-            output_summary=None,
-            error_message=error_message,
-            payload=payload or {},
-        ),
+        job_run_id=job_run_id,
+        list_model_runs_for_job=lambda active_session: list_model_runs(active_session, job_run_id=job_run_id),
     )
 
 
 def record_workflow_model_run_payload(session: Session, payload: Mapping[str, object]) -> ModelRun:
-    """记录 workflow adapter 产出的 ModelRun payload，继续复用现有真表 helper。"""
+    """记录 workflow adapter 产出的 ModelRun payload，保留旧 source-pruning seam。"""
 
-    job_run_id = _require_positive_int(payload, "job_run_id")
-    provider_name = _require_text(payload, "provider_name")
-    model_name = _require_text(payload, "model_name")
-    capability = _require_text(payload, "capability")
-    input_summary = _require_text(payload, "input_summary")
-    metadata = _payload_metadata(payload)
-    input_tokens = _optional_nonnegative_int(metadata.get("prompt_tokens")) or _optional_nonnegative_int(metadata.get("input_tokens")) or 0
-    output_tokens = _optional_nonnegative_int(metadata.get("completion_tokens")) or _optional_nonnegative_int(metadata.get("output_tokens")) or 0
-    cost_estimate = _optional_nonnegative_float(metadata.get("cost_estimate"))
-    error_kind = _optional_text(metadata.get("error_kind"))
-    retry_after_seconds = _optional_nonnegative_int(metadata.get("retry_after_seconds"))
-    if retry_after_seconds is not None:
-        metadata["retry_after_seconds"] = retry_after_seconds
-    status = _require_text(payload, "status")
-    if status == "completed":
-        return record_runtime_model_run(
-            session,
-            job_run_id=job_run_id,
-            provider_name=provider_name,
-            model_name=model_name,
-            capability=capability,
-            latency_ms=_require_nonnegative_int(payload, "latency_ms"),
-            token_usage=_require_nonnegative_int(payload, "token_usage"),
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost_estimate=cost_estimate,
-            finish_reason=_optional_text(metadata.get("finish_reason")),
-            retry_count=_optional_nonnegative_int(metadata.get("retry_count")) or 0,
-            repair_count=_optional_nonnegative_int(metadata.get("repair_count")) or 0,
-            prompt_template_version=_optional_text(metadata.get("prompt_template_version")),
-            prompt_hash=_optional_text(metadata.get("prompt_hash")),
-            input_summary=input_summary,
-            output_summary=_require_text(payload, "output_summary"),
-            payload=metadata,
-        )
-    if status == "failed":
-        return record_failed_runtime_model_run(
-            session,
-            job_run_id=job_run_id,
-            provider_name=provider_name,
-            model_name=model_name,
-            capability=capability,
-            input_summary=input_summary,
-            error_message=_require_text(payload, "error_message"),
-            error_kind=error_kind,
-            retry_count=_optional_nonnegative_int(metadata.get("retry_count")) or 0,
-            repair_count=_optional_nonnegative_int(metadata.get("repair_count")) or 0,
-            prompt_template_version=_optional_text(metadata.get("prompt_template_version")),
-            prompt_hash=_optional_text(metadata.get("prompt_hash")),
-            payload=metadata,
-        )
-    raise ModelRunError("不支持的 workflow ModelRun 状态，无法记录模型运行日志。")
-
-
-def _validate_references(session: Session, payload: ModelRunCreate) -> None:
-    if payload.workspace_id is not None and session.get(Workspace, payload.workspace_id) is None:
-        raise ModelRunError("工作区不存在，无法记录模型运行日志。")
-    if payload.book_id is not None and session.get(Book, payload.book_id) is None:
-        raise ModelRunError("作品不存在，无法记录模型运行日志。")
-    if payload.book_run_id is not None and session.get(BookRun, payload.book_run_id) is None:
-        raise ModelRunError("BookRun 不存在，无法记录模型运行日志。")
-    if payload.chapter_id is not None and session.get(Chapter, payload.chapter_id) is None:
-        raise ModelRunError("章节不存在，无法记录模型运行日志。")
-    if payload.scene_id is not None and session.get(Scene, payload.scene_id) is None:
-        raise ModelRunError("场景不存在，无法记录模型运行日志。")
-    if payload.job_run_id is not None and session.get(JobRun, payload.job_run_id) is None:
-        raise ModelRunError("任务不存在，无法记录模型运行日志。")
-    if payload.prompt_pack_id is not None and session.get(PromptPack, payload.prompt_pack_id) is None:
-        raise ModelRunError("Prompt Pack 不存在，无法记录模型运行日志。")
-
-
-def _checkpoint_from_progress(progress: Mapping[str, object]) -> dict[str, object]:
-    return {
-        key: progress[key]
-        for key in ("thread_id", "current_node", "approval_status", "model_run_id")
-        if key in progress
-    }
-
-
-def _first_text(payload: Mapping[str, object], *keys: str) -> str | None:
-    for key in keys:
-        value = payload.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
-
-
-def _optional_text(value: object) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _text_or_default(value: object, default: str) -> str:
-    return value if isinstance(value, str) and value else default
-
-
-def _optional_nonnegative_int(value: object) -> int | None:
-    if type(value) is int and value >= 0:
-        return value
-    return None
-
-
-def _optional_nonnegative_float(value: object) -> float:
-    if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0:
-        return float(value)
-    return 0.0
-
-
-def _string_list(value: object) -> list[str]:
-    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
-        return []
-    return [item for item in value if isinstance(item, str) and item]
-
-
-def _retry_unavailable_reason(job: JobRun, checkpoint: Mapping[str, object], failed_node: str | None) -> str | None:
-    if job.status != "failed":
-        return "任务尚未失败，不能创建失败重试。"
-    if not checkpoint:
-        return "缺少 checkpoint，无法创建失败重试。"
-    if failed_node is None:
-        return "缺少失败节点，无法创建失败重试。"
-    return None
-
-
-def _require_positive_int(payload: Mapping[str, object], key: str) -> int:
-    value = payload.get(key)
-    if type(value) is not int or value <= 0:
-        raise ModelRunError("workflow ModelRun payload 的 job_run_id 必须是已持久化 JobRun 的正整数 ID。")
-    return value
-
-
-def _require_nonnegative_int(payload: Mapping[str, object], key: str) -> int:
-    value = payload.get(key)
-    if type(value) is not int or value < 0:
-        raise ModelRunError(f"workflow ModelRun payload 的 {key} 必须是非负整数。")
-    return value
-
-
-def _require_text(payload: Mapping[str, object], key: str) -> str:
-    value = payload.get(key)
-    if not isinstance(value, str) or value == "":
-        raise ModelRunError(f"workflow ModelRun payload 缺少 {key}。")
-    return value
-
-
-def _payload_metadata(payload: Mapping[str, object]) -> dict:
-    metadata = payload.get("payload")
-    return dict(metadata) if isinstance(metadata, Mapping) else {}
+    return _record_workflow_model_run_payload(session, payload)

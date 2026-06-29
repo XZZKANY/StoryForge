@@ -8,6 +8,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from app.domains.agent_runs.tooling import list_agent_runtime_tool_specs
 from app.domains.runtime_tools.schemas import RuntimeToolRead, RuntimeToolReferencesRead
 
 _MCP_READONLY_TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
@@ -123,9 +124,36 @@ def _to_jsonable(value: object) -> Any:
 
 
 def list_runtime_tools() -> list[RuntimeToolRead]:
-    """返回 CreativeToolRegistry 派生的运行时工具列表。"""
+    """返回 AgentRuntime、CreativeToolRegistry 与 MCP 派生的运行时工具列表。"""
 
     runtime_tools: list[RuntimeToolRead] = []
+    for tool in list_agent_runtime_tool_specs():
+        runtime_tools.append(
+            RuntimeToolRead(
+                name=tool.name,
+                domain=tool.domain,
+                origin="agent_runtime",
+                input_schema=_to_jsonable(tool.input_schema),
+                output_schema=_to_jsonable(tool.output_schema),
+                allowed_roles=list(tool.allowed_roles),
+                permission_level=tool.permission_level,
+                risk_level=tool.risk_level,
+                requires_confirmation=tool.requires_confirmation,
+                read_only=tool.risk_level in {"read", "analyze"} and not tool.requires_confirmation,
+                retry_safe=tool.retry_safe,
+                idempotent=tool.idempotent,
+                execution_mode=tool.execution_mode,
+                artifact_kinds=list(tool.artifact_kinds),
+                event_store_required=True,
+                required_capabilities=list(tool.required_capabilities),
+                evidence_fields=list(tool.evidence_fields),
+                references=RuntimeToolReferencesRead(
+                    page_refs=list(tool.references.page_refs),
+                    api_paths=list(tool.references.api_paths),
+                    workflow_nodes=list(tool.references.workflow_nodes),
+                ),
+            )
+        )
     for tool in _load_creative_tools():
         runtime_tools.append(
             RuntimeToolRead(
@@ -134,9 +162,15 @@ def list_runtime_tools() -> list[RuntimeToolRead]:
                 origin="internal",
                 input_schema=_to_jsonable(tool.input_schema),
                 output_schema=_to_jsonable(tool.output_schema),
+                allowed_roles=[],
                 permission_level=_internal_permission_level(tool.name),
+                risk_level=_internal_risk_level(tool.name),
                 requires_confirmation=_requires_confirmation(tool.name),
                 read_only=not _requires_confirmation(tool.name),
+                retry_safe=not _requires_confirmation(tool.name),
+                idempotent=False,
+                execution_mode="internal",
+                artifact_kinds=[],
                 event_store_required=True,
                 required_capabilities=list(tool.required_capabilities),
                 evidence_fields=list(tool.evidence_fields),
@@ -155,9 +189,15 @@ def list_runtime_tools() -> list[RuntimeToolRead]:
                 origin="mcp",
                 input_schema=dict(tool["input_schema"]),
                 output_schema=dict(tool["output_schema"]),
+                allowed_roles=["context_explorer", "external_scout"],
                 permission_level="read",
+                risk_level="read",
                 requires_confirmation=False,
                 read_only=True,
+                retry_safe=True,
+                idempotent=True,
+                execution_mode="mcp_readonly",
+                artifact_kinds=[],
                 event_store_required=True,
                 mcp_server=str(tool["mcp_server"]),
                 mcp_tool_name=str(tool["mcp_tool_name"]),
@@ -176,4 +216,12 @@ def _requires_confirmation(tool_name: str) -> bool:
 def _internal_permission_level(tool_name: str) -> str:
     if tool_name in _INTERNAL_WRITE_OR_HIGH_COST_TOOLS:
         return "risk_confirm"
+    return "read"
+
+
+def _internal_risk_level(tool_name: str) -> str:
+    if tool_name in {"evaluations.create_run", "provider_gateway.resolve"}:
+        return "high_cost"
+    if tool_name in _INTERNAL_WRITE_OR_HIGH_COST_TOOLS:
+        return "write_pending"
     return "read"

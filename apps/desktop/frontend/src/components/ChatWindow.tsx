@@ -25,6 +25,7 @@ import {
 } from '../lib/agent-roles';
 import {
   getAssistantSession,
+  getAgentRunSavePoints,
   sendAgentControlMessage,
   sendAgentUserMessage,
   subscribeWritingRunEvents,
@@ -71,6 +72,7 @@ import {
 } from './chat-window/display-utils';
 import {
   ConversationHeader,
+  AgentRunRecoveryPanel,
   LightweightStatus,
   MessageList,
   WritingRunProgressPanel,
@@ -83,6 +85,10 @@ import {
   relativePath,
 } from './chat-window/path-utils';
 import { buildStableAgentRequestPayload } from './chat-window/request-payload';
+import {
+  buildAgentRunRecoveryDisplay,
+  type AgentRunRecoveryDisplay,
+} from './chat-window/recovery';
 import {
   extractIssueScopeFromInstruction,
   reviewCategoryLabel,
@@ -106,16 +112,28 @@ import type {
   WritingRunProjection,
 } from './chat-window/types';
 import {
+  displayFromResumeDiagnostic,
+  statusFromAgentResult,
+  stepsFromResumedAgentResult,
+} from './chat-window/resumed-result';
+import {
   applyWritingRunEventProjection,
   writingRunIdFromResult,
 } from './chat-window/writing-run';
 
 export {
+  AgentRunRecoveryPanel,
   applyWritingRunEventProjection,
+  buildAgentRunRecoveryDisplay,
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
+  filePathFromAgentResult,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
+  displayFromResumeDiagnostic,
+  shouldApplyAgentControlAck,
+  statusFromAgentResult,
+  stepsFromResumedAgentResult,
   WritingRunProgressPanel,
   writingRunIdFromResult,
 };
@@ -142,6 +160,22 @@ function fileRevisionPatch(message: AgentResultMessage): {
     };
   }
   return null;
+}
+
+function filePathFromAgentResult(message: AgentResultMessage): string | null {
+  const patch = fileRevisionPatch(message);
+  if (patch) return patch.file_path;
+  const report = reviewReportFromMessage(message);
+  const filePath = report?.file_path;
+  return typeof filePath === 'string' && filePath.trim() ? filePath : null;
+}
+
+function shouldApplyAgentControlAck(
+  activeRunId: string | null,
+  requestedRunId: string,
+  ackRunId?: string,
+): boolean {
+  return activeRunId === requestedRunId && (!ackRunId || ackRunId === requestedRunId);
 }
 
 function modelFromToolTrace(message: AgentResultMessage): string {
@@ -239,6 +273,7 @@ export function ChatWindow({
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [agentRun, setAgentRun] = useState<AgentRun | null>(null);
+  const [agentRunRecovery, setAgentRunRecovery] = useState<AgentRunRecoveryDisplay | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
   const [conversationTitle, setConversationTitle] = useState('新的创作会话');
@@ -286,6 +321,7 @@ export function ChatWindow({
       setLastReviewReport(null);
       setLastReviewReportFile(null);
       setExplicitContextPaths([]);
+      setAgentRunRecovery(null);
       return () => {
         cancelled = true;
       };
@@ -356,6 +392,117 @@ export function ChatWindow({
   const updateAgentStatus = useCallback((status: AgentRun['status']) => {
     setAgentRun((run) => (run ? { ...run, status } : run));
     setAgentBusy(status === 'running');
+  }, []);
+
+  const refreshAgentRunRecovery = useCallback(async (runId: string) => {
+    try {
+      const projection = await getAgentRunSavePoints(runId);
+      if (agentRunIdRef.current === runId) {
+        setAgentRunRecovery(buildAgentRunRecoveryDisplay(projection));
+      }
+    } catch {
+      if (agentRunIdRef.current === runId) {
+        setAgentRunRecovery(null);
+      }
+    }
+  }, []);
+
+  const applyResumedAgentResult = useCallback(
+    (response: AgentResultMessage) => {
+      assistantSessionIdRef.current = response.assistant_session_id;
+      onAssistantSessionChange?.(response.assistant_session_id);
+      const systemTitle = titleFromSystemJobs(response);
+      if (systemTitle) setConversationTitle(systemTitle);
+
+      const nextStatus = statusFromAgentResult(response);
+      setAgentRun((run) =>
+        run
+          ? {
+              ...run,
+              status: nextStatus,
+              steps: stepsFromResumedAgentResult(response),
+            }
+          : run,
+      );
+      setAgentBusy(false);
+
+      const proposed = fileRevisionPatch(response);
+      if (proposed) {
+        emitFileSuggestion(
+          createRemoteFileSuggestion({
+            id: proposed.id,
+            filePath: proposed.file_path,
+            before: proposed.before,
+            after: proposed.after,
+            summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
+            model: modelFromToolTrace(response),
+            userIntent: response.user_message,
+            assistantSessionId: response.assistant_session_id,
+            issueIds: issueIdsFromAgentResult(response),
+            contextFiles: lastContextBundle?.files.map((file) => file.relativePath) ?? [],
+            scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
+          }),
+        );
+        emitSuggestionResult({
+          filePath: proposed.file_path,
+          status: 'ready',
+          message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
+          assistantSessionId: response.assistant_session_id,
+        });
+        updateAgentStatus('waiting');
+        return;
+      }
+
+      const reviewSummary = reviewReportSummary(response);
+      if (reviewSummary) {
+        const reviewReportForMarkers = reviewReportFromMessage(response);
+        const resultFilePath = filePathFromAgentResult(response);
+        const currentFilePath = resultFilePath
+          ? looksAbsolutePath(resultFilePath)
+            ? resultFilePath
+            : projectPathRef.current
+              ? joinProjectPath(projectPathRef.current, resultFilePath)
+              : resultFilePath
+          : currentFileRef.current;
+        setLastReviewReport(reviewReportForMarkers);
+        setLastReviewReportFile(currentFilePath);
+        if (currentFilePath) emitReviewIssues(currentFilePath, reviewIssuesFromReport(reviewReportForMarkers));
+        setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
+        updateAgentStatus('completed');
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: response.agent_result.summary ?? '这轮已经完成。' },
+      ]);
+      updateAgentStatus(nextStatus);
+    },
+    [lastContextBundle, onAssistantSessionChange, updateAgentStatus],
+  );
+
+  const applyResumeDiagnostic = useCallback((diagnostic: Record<string, unknown>) => {
+    const display = displayFromResumeDiagnostic(diagnostic);
+    const resumeStep: AgentStep = {
+      id: 'resume',
+      title: '恢复 AgentRun',
+      tool: 'agent.runtime.resume',
+      status: display.status === 'failed' ? 'failed' : 'waiting',
+      detail: display.message,
+    };
+    setAgentRun((run) => {
+      if (!run) return run;
+      const exists = run.steps.some((step) => step.id === resumeStep.id);
+      return {
+        ...run,
+        status: display.status,
+        steps: exists
+          ? run.steps.map((step) => (step.id === resumeStep.id ? resumeStep : step))
+          : [...run.steps, resumeStep],
+      };
+    });
+    setAgentBusy(false);
+    setMessages((prev) => [...prev, { role: 'assistant', content: display.message }]);
   }, []);
 
   const addExplicitContext = useCallback(() => {
@@ -432,6 +579,7 @@ export function ChatWindow({
           };
         });
         setAgentBusy(false);
+        void refreshAgentRunRecovery(message.run_id);
         return;
       }
       if (isAgentControlAckMessage(message)) {
@@ -445,9 +593,10 @@ export function ChatWindow({
                 : 'completed';
         setAgentRun((run) => (run ? { ...run, status: nextStatus } : run));
         setAgentBusy(nextStatus === 'running');
+        void refreshAgentRunRecovery(message.run_id);
       }
     },
-    [updateAgentStep],
+    [refreshAgentRunRecovery, updateAgentStep],
   );
 
   const runAuthorAgent = useCallback(
@@ -502,6 +651,7 @@ export function ChatWindow({
       agentRunIdRef.current = runId;
       setAgentBusy(true);
       setRetryRequest(null);
+      setAgentRunRecovery(null);
       setAgentRun({
         id: runId,
         sessionId: runId,
@@ -659,6 +809,7 @@ export function ChatWindow({
             ...prev,
             { role: 'assistant', content: `这轮没跑通：${response.detail}` },
           ]);
+          void refreshAgentRunRecovery(response.run_id ?? runId);
           return;
         }
 
@@ -668,6 +819,7 @@ export function ChatWindow({
           updateAgentStatus('failed');
           setRetryRequest({ goal, action, intent });
           setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
+          void refreshAgentRunRecovery(runId);
           return;
         }
 
@@ -719,6 +871,7 @@ export function ChatWindow({
         }
 
         const agentSteps = stepsFromAgentResult(response);
+        void refreshAgentRunRecovery(response.run_id ?? runId);
         setAgentRun((run) =>
           run
             ? {
@@ -826,6 +979,7 @@ export function ChatWindow({
       projectName,
       updateAgentStatus,
       updateAgentStep,
+      refreshAgentRunRecovery,
     ],
   );
 
@@ -894,6 +1048,15 @@ export function ChatWindow({
           type,
           payload: { source: 'desktop.timeline' },
         });
+        if (
+          !shouldApplyAgentControlAck(
+            agentRunIdRef.current,
+            run.id,
+            typeof ack.run_id === 'string' ? ack.run_id : undefined,
+          )
+        ) {
+          return;
+        }
         if (isAgentErrorMessage(ack)) {
           setMessages((prev) => [
             ...prev,
@@ -902,6 +1065,16 @@ export function ChatWindow({
           return;
         }
         applyAgentStreamEvent(ack);
+        if (ack.resumed_result && isAgentResultMessage(ack.resumed_result)) {
+          applyResumedAgentResult(ack.resumed_result);
+          void refreshAgentRunRecovery(ack.run_id);
+          return;
+        }
+        if (ack.resume_diagnostic) {
+          applyResumeDiagnostic(ack.resume_diagnostic);
+          void refreshAgentRunRecovery(ack.run_id);
+          return;
+        }
         if (type === 'approve_permission') {
           updateAgentStep('permission-required', {
             status: 'completed',
@@ -922,6 +1095,7 @@ export function ChatWindow({
           updateAgentStatus('failed');
         }
       } catch (error) {
+        if (agentRunIdRef.current !== run.id) return;
         const message = error instanceof Error ? error.message : String(error);
         setMessages((prev) => [
           ...prev,
@@ -929,7 +1103,15 @@ export function ChatWindow({
         ]);
       }
     },
-    [agentRun, applyAgentStreamEvent, updateAgentStatus, updateAgentStep],
+    [
+      agentRun,
+      applyAgentStreamEvent,
+      applyResumeDiagnostic,
+      applyResumedAgentResult,
+      refreshAgentRunRecovery,
+      updateAgentStatus,
+      updateAgentStep,
+    ],
   );
 
   const agentRunControls: AgentRunControlHandlers = {
@@ -1046,6 +1228,7 @@ export function ChatWindow({
         disabled={!projectPath || agentBusy}
         onSubmit={handleComposerSubmit}
         agentRun={agentRun}
+        agentRunRecovery={agentRunRecovery}
         writingRunProjection={writingRunProjection}
         explicitContextPaths={explicitContextPaths}
         contextCandidates={contextCandidates}

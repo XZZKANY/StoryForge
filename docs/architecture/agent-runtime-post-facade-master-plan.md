@@ -1,5 +1,7 @@
 # Agent Runtime Post-Facade Master Plan
 
+> **⚠️ 已归档(2026-06-29)。** 本文档不再独立维护;Agent Runtime / Harness 主题的唯一主入口是 [`pi-opencode-agent-harness-adoption-plan.md`](./pi-opencode-agent-harness-adoption-plan.md)。本文的阶段路线已并入该主入口的阶段定义,并在那里补上了与当前源码的差距。**新工作请只跟主入口;本文仅作历史背景保留。**
+
 ## 位置
 
 本计划从 `AgentRun Runtime Facade` 完成之后开始。

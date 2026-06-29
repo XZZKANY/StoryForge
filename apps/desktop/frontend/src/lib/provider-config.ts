@@ -1,3 +1,4 @@
+import type { ApiProviderHealthResponse } from './api/contracts';
 import type { ProviderKind, ProviderSettings } from './user-settings';
 
 export type ProviderPreset = Omit<ProviderSettings, 'model'> & {
@@ -127,7 +128,7 @@ export function describeProviderConnection(settings: ProviderSettings): Provider
   };
 }
 
-export type ProviderHealthStatus = 'ok' | 'unreachable' | 'unauthorized' | 'misconfigured';
+export type ProviderHealthStatus = ApiProviderHealthResponse['status'];
 
 /** 后端 /api/assistant/provider-health 的结构化探测结果（camelCase 化）。 */
 export type ProviderHealth = {

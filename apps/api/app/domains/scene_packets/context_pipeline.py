@@ -12,7 +12,9 @@ from app.domains.retrieval.embedding_client import EmbeddingClient, resolve_embe
 from app.domains.retrieval.schemas import RetrievalHitRead, RetrievalSearchCreate
 from app.domains.retrieval.service import search_retrieval
 from app.domains.scene_packets.budget import build_packet, estimate_tokens
-from app.domains.scene_packets.retrieval_bridge import attach_compiled_context, build_retrieval_query
+from app.domains.scene_packets.context_blocks import attach_compiled_context
+from app.domains.scene_packets.packet_contract import ScenePacketBody
+from app.domains.scene_packets.retrieval_query import build_retrieval_query
 from app.domains.scene_packets.schemas import BudgetStatistics, EvidenceLinkRead, ScenePacketCreate
 from app.domains.story_memory.schemas import MemoryAtom
 from app.domains.story_memory.service import list_foreshadow_lifecycle, recall_scene_memory_atoms
@@ -46,7 +48,7 @@ TERMINAL_FORESHADOW_STATES = {"paid_off", "abandoned"}
 class SceneContextAssembly:
     """Scene Packet 上下文装配结果，隔离检索、预算和 compiled context 细节。"""
 
-    packet: dict[str, object]
+    packet: ScenePacketBody
     budget_statistics: BudgetStatistics
     evidence_links: list[EvidenceLinkRead]
     retrieval_hits: list[RetrievalHitRead]
@@ -94,12 +96,9 @@ def assemble_scene_context(
         continuity_records,
         scoped_evidence_links,
     )
-    packet["memory_context"] = memory_context_payload(memory_atoms)
-    pacing_directive = pacing_directive_payload(session, chapter)
-    if pacing_directive is not None:
-        packet["pacing_directive"] = pacing_directive
-    if retrieval_hits:
-        packet["检索命中"] = [hit.model_dump() for hit in retrieval_hits]
+    attach_memory_context(packet, memory_atoms)
+    attach_pacing_directive(packet, session, chapter)
+    attach_retrieval_hits(packet, retrieval_hits)
     attach_compiled_context(
         session,
         packet,
@@ -158,6 +157,27 @@ def memory_context_payload(memory_atoms: list[MemoryAtom]) -> list[dict[str, obj
     """输出给 Scene Packet 的长效记忆上下文，保留来源和置信度。"""
 
     return [atom.model_dump() for atom in memory_atoms]
+
+
+def attach_memory_context(packet: ScenePacketBody, memory_atoms: list[MemoryAtom]) -> None:
+    """把 Story Memory 召回结果追加到 Scene Packet，固定写入顺序。"""
+
+    packet["memory_context"] = memory_context_payload(memory_atoms)
+
+
+def attach_pacing_directive(packet: ScenePacketBody, session: Session, chapter: Chapter) -> None:
+    """按章节 pacing tag 追加写作节奏指令；无有效 tag 时不写键。"""
+
+    pacing_directive = pacing_directive_payload(session, chapter)
+    if pacing_directive is not None:
+        packet["pacing_directive"] = pacing_directive
+
+
+def attach_retrieval_hits(packet: ScenePacketBody, retrieval_hits: list[RetrievalHitRead]) -> None:
+    """把自动检索命中追加到 Scene Packet；手工检索片段不写该键。"""
+
+    if retrieval_hits:
+        packet["检索命中"] = [hit.model_dump() for hit in retrieval_hits]
 
 
 def pacing_directive_payload(session: Session, chapter: Chapter) -> dict[str, str] | None:

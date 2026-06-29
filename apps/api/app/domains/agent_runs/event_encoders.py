@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.domains.agent_runs.event_types import AGENT_RUN_STARTED
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 
 
@@ -23,7 +24,7 @@ def encode_agent_run_sse_event(event: AgentRunEvent) -> str:
 def websocket_started_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
     scope = run.scope if isinstance(run.scope, dict) else {}
     return {
-        "type": "agent_run_started",
+        "type": AGENT_RUN_STARTED,
         "session_id": run.session_id,
         "run_id": run.public_id,
         "user_message": run.goal,

@@ -231,12 +231,15 @@ def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
     jobs_service = API_ROOT / "app" / "domains" / "jobs" / "service.py"
     jobs_model = API_ROOT / "app" / "domains" / "jobs" / "models.py"
     model_runs_service = API_ROOT / "app" / "domains" / "model_runs" / "service.py"
-    workflow_checkpoints = API_ROOT.parents[1] / "apps" / "workflow" / "storyforge_workflow" / "runtime" / "checkpoints.py"
+    workflow_runtime = API_ROOT.parents[1] / "apps" / "workflow" / "storyforge_workflow" / "runtime"
+    workflow_checkpoints = workflow_runtime / "checkpoints.py"
+    workflow_model_run_sink = workflow_runtime / "model_run_sink.py"
 
     jobs_service_source = jobs_service.read_text(encoding="utf-8") if jobs_service.exists() else ""
     jobs_model_source = jobs_model.read_text(encoding="utf-8")
     model_runs_service_source = model_runs_service.read_text(encoding="utf-8")
     workflow_checkpoints_source = workflow_checkpoints.read_text(encoding="utf-8")
+    workflow_model_run_sink_source = workflow_model_run_sink.read_text(encoding="utf-8")
 
     for required in (
         "class JobRun",
@@ -251,7 +254,8 @@ def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
     ):
         assert required in model_runs_service_source, f"model_runs 真实读写链路必须保留：{required}"
 
-    assert "class ApiModelRunAdapter" in workflow_checkpoints_source, "workflow 到 API ModelRun 真表 adapter 必须保留。"
+    assert "class ApiModelRunAdapter" in workflow_model_run_sink_source, "workflow 到 API ModelRun 真表 adapter 必须保留。"
+    assert "ApiModelRunAdapter" in workflow_checkpoints_source, "checkpoints facade 必须继续 re-export ApiModelRunAdapter。"
 
     for forbidden in (
         "JobRuntimeBridgeError",

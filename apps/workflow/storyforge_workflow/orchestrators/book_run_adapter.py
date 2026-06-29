@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
 from threading import Lock
-from typing import Any, Protocol
+from typing import Any
 
 from storyforge_workflow.orchestrators.book_loop import (
     BookLoopRequest,
@@ -13,138 +12,54 @@ from storyforge_workflow.orchestrators.book_loop import (
     ConsistencyBarrier,
     run_book_loop,
 )
+from storyforge_workflow.orchestrators.book_run_adapter_coerce import (
+    _bool_value,
+    _int_or_default,
+    _list_or_empty,
+    _optional_positive_int,
+    _positive_float_or_zero,
+    _positive_int_or_zero,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_payload import (
+    _build_arc_barrier_if_planning_present,
+    _chapter_beat_for_index,
+    _chapter_beats_summary,
+    _chapter_dispatch_map,
+    _locked_narrative_plan_or_raise,
+    _mapping_summary,
+    _narrative_plan_progress_summary,
+    _required_int,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_types import (
+    BookRunAdapterPorts,
+    BookRunAdapterRequest,
+    BookRunProgressSink,
+    ContinuitySubmitter,
+    MemoryExtractor,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_types import (
+    BookRunChapterRange as BookRunChapterRange,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_types import (
+    BookRunVolumePlanItem as BookRunVolumePlanItem,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_types import (
+    CallableProgressSink as CallableProgressSink,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_types import (
+    CapturingProgressSink as CapturingProgressSink,
+)
+from storyforge_workflow.orchestrators.book_run_adapter_volume import (
+    _volume_plan_or_single,
+    _volume_progress_from_result,
+)
 from storyforge_workflow.orchestrators.novel_loop import (
     NovelLoopPorts,
     NovelLoopRequest,
     NovelLoopResult,
     run_single_chapter_loop,
 )
-from storyforge_workflow.quality.arc_consistency import ArcConsistencyBarrier
 from storyforge_workflow.skills.runner import NovelSkillRunner
-
-MemoryExtractor = Callable[[NovelLoopRequest, str, int], list[str]]
-ContinuitySubmitter = Callable[[NovelLoopRequest, str, int], dict[str, Any]]
-
-
-@dataclass(frozen=True)
-class BookRunChapterRange:
-    """卷计划中的章节范围。"""
-
-    start: int
-    end: int
-
-
-@dataclass(frozen=True)
-class BookRunVolumePlanItem:
-    """workflow 消费的卷计划项。"""
-
-    volume_index: int
-    chapter_range: BookRunChapterRange
-
-
-@dataclass(frozen=True)
-class BookRunAdapterRequest:
-    """workflow adapter 接收的 BookRun 执行输入，不包含 API ORM 对象。"""
-
-    book_run_id: int
-    book_id: int
-    blueprint_id: int
-    total_chapters: int
-    start_chapter_index: int = 1
-    existing_checkpoint: list[dict[str, Any]] = field(default_factory=list)
-    token_budget: int | None = None
-    time_budget_sec: int | None = None
-    chapter_budget: int | None = None
-    provider_fallback_pause_threshold: int | None = None
-    chapter_parallelism: int = 1
-    require_budget_guard_before_prefetch: bool = False
-    volume_plan: list[BookRunVolumePlanItem | dict[str, Any]] = field(default_factory=list)
-    narrative_plan: dict[str, Any] | None = None
-    chapter_beats: list[dict[str, Any]] = field(default_factory=list)
-    entity_budget: dict[str, Any] | None = None
-    phase_policy: dict[str, Any] | None = None
-    beat_sheet_gate: dict[str, Any] | None = None
-    narrative_risk_summary: dict[str, Any] | None = None
-
-
-class BookRunProgressSink(Protocol):
-    """BookRun progress 回填边界，可由测试、本地 service adapter 或 HTTP adapter 实现。"""
-
-    def emit(
-        self,
-        *,
-        book_run_id: int,
-        status: str,
-        current_chapter_index: int,
-        progress: dict[str, Any],
-        volume_progress: dict[str, Any] | None = None,
-    ) -> None: ...
-
-
-@dataclass(frozen=True)
-class BookRunAdapterPorts:
-    """adapter 外部依赖端口，避免 workflow 直接依赖 API 数据库。"""
-
-    chapter_goal: Callable[[int], str]
-    chapter_id: Callable[[int], int]
-    novel_loop_ports_factory: Callable[[NovelLoopRequest], NovelLoopPorts]
-    progress_sink: BookRunProgressSink
-    memory_extractor: MemoryExtractor | None = None
-    continuity_submitter: ContinuitySubmitter | None = None
-    consistency_barrier: ConsistencyBarrier | None = None
-    chapter_planning_refs: Callable[[int], dict[str, Any] | None] | None = None
-
-
-class CapturingProgressSink:
-    """测试用 progress sink，记录 adapter 回填 payload。"""
-
-    def __init__(self) -> None:
-        self.payloads: list[dict[str, Any]] = []
-
-    def emit(
-        self,
-        *,
-        book_run_id: int,
-        status: str,
-        current_chapter_index: int,
-        progress: dict[str, Any],
-        volume_progress: dict[str, Any] | None = None,
-    ) -> None:
-        payload = {
-            "book_run_id": book_run_id,
-            "status": status,
-            "current_chapter_index": current_chapter_index,
-            "progress": progress,
-        }
-        if volume_progress is not None:
-            payload["volume_progress"] = volume_progress
-        self.payloads.append(payload)
-
-
-class CallableProgressSink:
-    """把标准 progress payload 转交给 HTTP、队列或本地 service adapter。"""
-
-    def __init__(self, send: Callable[[dict[str, Any]], None]) -> None:
-        self._send = send
-
-    def emit(
-        self,
-        *,
-        book_run_id: int,
-        status: str,
-        current_chapter_index: int,
-        progress: dict[str, Any],
-        volume_progress: dict[str, Any] | None = None,
-    ) -> None:
-        payload = {
-            "book_run_id": book_run_id,
-            "status": status,
-            "current_chapter_index": current_chapter_index,
-            "progress": progress,
-        }
-        if volume_progress is not None:
-            payload["volume_progress"] = volume_progress
-        self._send(payload)
 
 
 def run_book_run_dispatch_payload(
@@ -452,262 +367,12 @@ def _failed_result_from_exception(
     return BookLoopResult(status="failed", current_chapter_index=failed_at_chapter_index, progress=progress)
 
 
-def _volume_progress_from_result(request: BookRunAdapterRequest, result: BookLoopResult) -> dict[str, Any]:
-    """生成 API 受控的卷级进度摘要，避免把卷字段塞入普通 progress。"""
-
-    completed = result.progress.get("completed_chapters")
-    completed_chapters = completed if isinstance(completed, list) else []
-    last_completed = _latest_completed_chapter_index(completed_chapters)
-    next_start = min(request.total_chapters + 1, max(result.current_chapter_index, last_completed + 1))
-    volume = _volume_for_chapter(_normalized_volume_plan(request), min(next_start, request.total_chapters))
-    return {
-        "current_volume": volume.volume_index,
-        "chapter_range": {"start": volume.chapter_range.start, "end": volume.chapter_range.end},
-        "completed_chapter_count": len(completed_chapters),
-        "next_batch_start_chapter_index": next_start,
-    }
-
-
-def _normalized_volume_plan(request: BookRunAdapterRequest) -> list[BookRunVolumePlanItem]:
-    return _volume_plan_or_single(request.volume_plan, request.total_chapters)
-
-
-def _volume_plan_or_single(value: object, total_chapters: int) -> list[BookRunVolumePlanItem]:
-    if not isinstance(value, list):
-        return [_single_volume_plan_item(total_chapters)]
-    items: list[BookRunVolumePlanItem] = []
-    for raw in value:
-        item = _volume_plan_item(raw, total_chapters)
-        if item is None:
-            return [_single_volume_plan_item(total_chapters)]
-        items.append(item)
-    return items or [_single_volume_plan_item(total_chapters)]
-
-
-def _volume_plan_item(value: object, total_chapters: int) -> BookRunVolumePlanItem | None:
-    if isinstance(value, BookRunVolumePlanItem):
-        return value
-    if not isinstance(value, Mapping):
-        return None
-    chapter_range = value.get("chapter_range")
-    if not isinstance(chapter_range, Mapping):
-        return None
-    volume_index = _optional_positive_int(value.get("volume_index"))
-    start = _optional_positive_int(chapter_range.get("start"))
-    end = _optional_positive_int(chapter_range.get("end"))
-    if volume_index is None or start is None or end is None or start > end or start > total_chapters:
-        return None
-    return BookRunVolumePlanItem(
-        volume_index=volume_index,
-        chapter_range=BookRunChapterRange(start=start, end=min(end, total_chapters)),
-    )
-
-
-def _single_volume_plan_item(total_chapters: int) -> BookRunVolumePlanItem:
-    return BookRunVolumePlanItem(
-        volume_index=1,
-        chapter_range=BookRunChapterRange(start=1, end=total_chapters),
-    )
-
-
-def _volume_for_chapter(volume_plan: list[BookRunVolumePlanItem], chapter_index: int) -> BookRunVolumePlanItem:
-    for item in volume_plan:
-        if item.chapter_range.start <= chapter_index <= item.chapter_range.end:
-            return item
-    return volume_plan[-1]
-
-
-def _latest_completed_chapter_index(completed_chapters: list[object]) -> int:
-    indexes = [
-        item.get("chapter_index")
-        for item in completed_chapters
-        if isinstance(item, Mapping) and isinstance(item.get("chapter_index"), int)
-    ]
-    return max(indexes, default=0)
-
-
 def _budget_from_checkpoint(checkpoint: list[dict[str, Any]]) -> dict[str, int | float]:
     return {
         "tokens_used": sum(_positive_int_or_zero(item.get("token_usage")) for item in checkpoint),
         "elapsed_time_sec": sum(_positive_int_or_zero(item.get("elapsed_time_sec")) for item in checkpoint),
         "estimated_cost": sum(_positive_float_or_zero(item.get("cost_estimate")) for item in checkpoint),
     }
-
-
-def _positive_int_or_zero(value: object) -> int:
-    return value if isinstance(value, int) and value > 0 else 0
-
-
-def _positive_float_or_zero(value: object) -> float:
-    return float(value) if isinstance(value, int | float) and value > 0 else 0.0
-
-
-def _chapter_dispatch_map(value: object) -> dict[int, dict[str, Any]]:
-    chapters: dict[int, dict[str, Any]] = {}
-    if not isinstance(value, list):
-        return chapters
-    for item in value:
-        if not isinstance(item, Mapping):
-            continue
-        chapter_index = _optional_positive_int(item.get("chapter_index"))
-        chapter_id = _optional_positive_int(item.get("chapter_id"))
-        chapter_goal = item.get("chapter_goal")
-        if chapter_index is None or chapter_id is None or not isinstance(chapter_goal, str) or not chapter_goal.strip():
-            continue
-        chapters[chapter_index] = {
-            "chapter_id": chapter_id,
-            "chapter_goal": chapter_goal,
-            "planning_refs": _planning_refs_or_none(item.get("planning_refs")),
-        }
-    return chapters
-
-
-def _build_arc_barrier_if_planning_present(chapters: dict[int, dict[str, Any]]) -> ConsistencyBarrier | None:
-    """dispatch 含弧线引用时默认启用弧线到期检查；无规划则保持现有行为。"""
-
-    if any(isinstance(chapter.get("planning_refs"), Mapping) for chapter in chapters.values()):
-        return ArcConsistencyBarrier(chapters)
-    return None
-
-
-def _planning_refs_or_none(value: object) -> dict[str, Any] | None:
-    """只保留轻量 arc 引用，损坏字段一律降级为 None，保持现有放行行为。"""
-
-    if not isinstance(value, Mapping):
-        return None
-    raw_arc_ids = value.get("arc_ids")
-    arc_ids = (
-        [arc_id for arc_id in raw_arc_ids if isinstance(arc_id, str) and arc_id.strip()]
-        if isinstance(raw_arc_ids, list)
-        else []
-    )
-    if not arc_ids:
-        return None
-    ratio = value.get("arc_completion_ratio")
-    bounded = float(ratio) if isinstance(ratio, int | float) and 0 <= ratio <= 1 else 0.0
-    return {"arc_ids": arc_ids, "arc_completion_ratio": bounded}
-
-
-def _locked_narrative_plan_or_raise(value: object) -> dict[str, Any]:
-    narrative_plan = _object_mapping(value)
-    if narrative_plan is None or narrative_plan.get("locked") is not True:
-        raise ValueError("BookRun dispatch payload requires narrative_plan locked=True before generation.")
-    return narrative_plan
-
-
-def _narrative_plan_progress_summary(
-    narrative_plan: Mapping[str, Any],
-    *,
-    beat_sheet_gate: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    summary: dict[str, Any] = {"locked": True}
-    for source_key, target_key in (
-        ("plan_id", "plan_id"),
-        ("id", "plan_id"),
-        ("summary", "summary"),
-        ("premise", "premise"),
-        ("truth", "truth"),
-        ("protagonist_arc", "protagonist_arc"),
-        ("antagonist_motive", "antagonist_motive"),
-    ):
-        if target_key in summary:
-            continue
-        value = narrative_plan.get(source_key)
-        if value is not None and _is_light_scalar(value):
-            summary[target_key] = value
-    if beat_sheet_gate is not None:
-        summary["beat_sheet_gate"] = dict(beat_sheet_gate)
-    return summary
-
-
-def _chapter_beats_summary(narrative_plan: Mapping[str, Any]) -> list[dict[str, Any]]:
-    raw_beats = narrative_plan.get("chapter_beats")
-    if not isinstance(raw_beats, list | tuple):
-        return []
-    beats: list[dict[str, Any]] = []
-    for raw_beat in raw_beats:
-        beat = _object_mapping(raw_beat)
-        if beat is None:
-            continue
-        summary = _mapping_summary(beat)
-        if summary is not None:
-            beats.append(summary)
-    return beats
-
-
-def _chapter_beat_for_index(request: BookRunAdapterRequest, chapter_index: int) -> dict[str, Any] | None:
-    for beat in request.chapter_beats:
-        raw_index = beat.get("chapter_index", beat.get("chapter"))
-        if raw_index == chapter_index:
-            return dict(beat)
-    return None
-
-
-def _mapping_summary(value: object) -> dict[str, Any] | None:
-    mapping = _object_mapping(value)
-    if mapping is None:
-        return None
-    summary: dict[str, Any] = {}
-    for key, raw_value in mapping.items():
-        if not isinstance(key, str) or _is_full_text_key(key):
-            continue
-        sanitized = _sanitize_summary_value(raw_value)
-        if sanitized is not None:
-            summary[key] = sanitized
-    return summary
-
-
-def _sanitize_summary_value(value: object) -> Any:
-    if _is_light_scalar(value):
-        return value
-    if isinstance(value, Mapping):
-        return _mapping_summary(value)
-    if _is_dataclass_like(value):
-        return _mapping_summary(value)
-    if isinstance(value, list | tuple):
-        items = [_sanitize_summary_value(item) for item in value]
-        return [item for item in items if item is not None]
-    return None
-
-
-def _object_mapping(value: object) -> dict[str, Any] | None:
-    if isinstance(value, Mapping):
-        return dict(value)
-    compact_summary = getattr(value, "compact_summary", None)
-    if callable(compact_summary):
-        summary = compact_summary()
-        if isinstance(summary, Mapping):
-            mapping = dict(summary)
-            if hasattr(value, "locked"):
-                mapping.setdefault("locked", value.locked)
-            return mapping
-    if _is_dataclass_like(value):
-        return dict(vars(value))
-    return None
-
-
-def _is_dataclass_like(value: object) -> bool:
-    return hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
-
-
-def _is_light_scalar(value: object) -> bool:
-    return isinstance(value, bool | int | float) or (isinstance(value, str) and len(value) <= 240)
-
-
-def _is_full_text_key(key: str) -> bool:
-    normalized = key.lower()
-    return any(fragment in normalized for fragment in ("full", "draft", "正文", "prompt", "manuscript"))
-
-
-def _required_int(payload: Mapping[str, Any], key: str) -> int:
-    value = _optional_positive_int(payload.get(key))
-    if value is None:
-        raise ValueError(f"BookRun dispatch payload 缺少有效字段：{key}。")
-    return value
-
-
-def _optional_positive_int(value: object) -> int | None:
-    return value if isinstance(value, int) and value > 0 else None
 
 
 def _env_chapter_parallelism() -> int:
@@ -721,23 +386,5 @@ def _env_chapter_parallelism() -> int:
     return parsed if parsed > 0 else 1
 
 
-def _bool_value(value: object, *, default: bool = False) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return default
-
-
 def _env_budget_guard_before_prefetch() -> bool:
     return _bool_value(os.getenv("STORYFORGE_BOOK_RUN_BUDGET_GUARD_PREFETCH"), default=False)
-
-
-def _int_or_default(value: object, default: int) -> int:
-    return value if isinstance(value, int) and value > 0 else default
-
-
-def _list_or_empty(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [dict(item) for item in value if isinstance(item, Mapping)]
