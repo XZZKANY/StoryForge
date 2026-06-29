@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Mapping
+from random import random
 from urllib import error, request
 
 from app.common import llm_http
@@ -54,23 +55,44 @@ def _call_llm(
         method="POST",
     )
     timeout = _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
+    max_attempts = max(1, _optional_int(source, "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3))
+    base_delay = max(0.0, _optional_float(source, "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS", 0.5))
+    jitter = max(0.0, _optional_float(source, "STORYFORGE_LLM_RETRY_JITTER_SECONDS", 0.25))
     started_at = time.monotonic()
-    try:
-        with request.urlopen(http_request, timeout=timeout) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+    data: dict[str, object] | None = None
+    for attempt in range(1, max_attempts + 1):
         try:
-            error_body = exc.read().decode("utf-8", errors="replace")[:2000]
-        except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
-            error_body = "<无法读取响应体>"
-        raise BookGenerationError(f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms）：{error_body}") from exc
-    except (error.URLError, TimeoutError) as exc:
-        elapsed_ms = int((time.monotonic() - started_at) * 1000)
-        reason = getattr(exc, "reason", exc)
-        raise BookGenerationError(
-            f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s）：{reason}"
-        ) from exc
+            with request.urlopen(http_request, timeout=timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except error.HTTPError as exc:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if _is_retryable_status(exc.code) and attempt < max_attempts:
+                _sleep_before_retry(
+                    attempt=attempt,
+                    base_delay=base_delay,
+                    jitter=jitter,
+                    retry_after=_retry_after_seconds(exc),
+                )
+                continue
+            try:
+                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+            except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
+                error_body = "<无法读取响应体>"
+            raise BookGenerationError(
+                f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{max_attempts}）：{error_body}"
+            ) from exc
+        except (error.URLError, TimeoutError) as exc:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if attempt < max_attempts:
+                _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
+                continue
+            reason = getattr(exc, "reason", exc)
+            raise BookGenerationError(
+                f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{max_attempts}）：{reason}"
+            ) from exc
+    if data is None:  # 理论不可达：循环要么 break 要么 raise；兜底避免 None 解引用
+        raise BookGenerationError("真实 LLM 重试后仍无响应数据。")
     content = data["choices"][0]["message"]["content"]
     if not isinstance(content, str) or not content.strip():
         raise BookGenerationError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
@@ -86,6 +108,41 @@ def _call_llm(
         "cost_breakdown": cost_breakdown,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    """429 与 5xx 视为可重试的瞬时错误；4xx（429 除外）立即失败，不掩盖真实问题。"""
+
+    return status_code == 429 or 500 <= status_code <= 599
+
+
+def _retry_after_seconds(exc: error.HTTPError) -> float | None:
+    """读取 Retry-After 响应头（秒）；缺失或非数字返回 None，回退到指数退避。"""
+
+    headers = getattr(exc, "headers", None)
+    if headers is None:
+        return None
+    raw = headers.get("Retry-After")
+    if not raw:
+        return None
+    try:
+        seconds = float(str(raw).strip())
+    except ValueError:
+        return None
+    return seconds if seconds >= 0 else None
+
+
+def _sleep_before_retry(*, attempt: int, base_delay: float, jitter: float, retry_after: float | None) -> None:
+    """指数退避 + jitter；服务端给出 Retry-After 时优先尊重。镜像 workflow provider_client 的退避语义。"""
+
+    if retry_after is not None:
+        delay = retry_after
+    else:
+        delay = base_delay * (2 ** (attempt - 1))
+        if jitter > 0:
+            delay += random() * jitter
+    if delay > 0:
+        time.sleep(delay)
 
 
 def _llm_request_headers(source: Mapping[str, str | None]) -> dict[str, str]:
