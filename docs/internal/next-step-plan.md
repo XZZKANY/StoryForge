@@ -5,6 +5,11 @@
 > 上位约束见 `AGENTS.md`；当前阶段事实以 `docs/internal/current-phase.md` 为准；架构重构总计划见 `docs/internal/refactor-master-plan.md`（已基本完成，本计划不再涉及 god-file 拆分）。
 > 证据回填见 `.codex/verification-report.md`。
 
+> **更新（2026-06-30）**：
+> - **CI 已整体移除**（PR #31 squash 含 `5d22b27` 删 `ci.yml`/`e2e.yml`，`.github/workflows/` 不复存在）。lint + OpenAPI 漂移的自动拦截不再经 CI，改由**本地 `pre-push` git hook**（`.githooks/pre-push`，一次性 `pnpm hooks:install` 启用，跑 `pnpm run verify:fast` = lint + 漂移）。下方 §一.5、阶段 0-2、横切 DoD 中的 CI 字样以此为准。
+> - **阶段 0 三项已完成**：#28（30 章退回结构化 + 重跑 DoD）、#29（`_call_llm` 有界重试）、#30（CI 触发，随后整体移除）。
+> - **Q1/Q4 已具体化**：跨章状态层设计定稿见 `story-state-model-design.md`（state_event/state_ledger、CHANGES grounding、W-c 模块先接 `_judge_and_repair_loop`）；Q1 的“写死抽取”确指 live `deterministic_judge_fallback` 的 demo 模板，非 `extract/prompt.py`。
+
 ---
 
 ## 一、核心诊断：质量引擎没有跑在真实生成的书上
@@ -51,7 +56,7 @@
 
 | 优先 | 事项 | 工时 | 影响 |
 |---|---|---|---|
-| Q1 | 用真实逐章 LLM 事实抽取替换写死抽取，对齐串行/并行双入口（keystone；先做 app 边界决策） | L | 高 |
+| Q1 | 用真实逐章 LLM 事实抽取替换写死抽取，对齐串行/并行双入口（keystone；设计定稿见 `story-state-model-design.md`，先做 app 边界决策） | L | 高 |
 | Q2 | 去 demo premise 系统词 + 多 arc 化（最廉价根因，直接消 #1/#6/#7） | S | 高 |
 | Q3 | 收紧 fast-judge 空转：强制语义评审为必经一遍（advisory 优先，不立即阻断） | S | 高 |
 | Q4 | 用真相源填 `required_facts` 激活 deterministic + judge 注入跨章上下文/语义维度（依赖 Q1、Q3） | M | 高 |
@@ -108,7 +113,7 @@
 ### 横切 DoD（所有 code-change 项必须满足）
 
 - 所有变更在 `.codex/verification-report.md` 留痕（命令 + 输出摘要 + 未联通能力）。
-- 任何改动经路由暴露 schema 的项，必 `pnpm openapi` 刷新 `packages/shared/src/contracts/storyforge.openapi.json` 并解释 diff。
+- 任何改动经路由暴露 schema 的项，必 `pnpm openapi` 刷新 `packages/shared/src/contracts/storyforge.openapi.json` 并解释 diff（CI 移除后由本地 `pre-push` hook 自动拦截漂移，见顶部更新）。
 
 ---
 
@@ -120,4 +125,4 @@
 
 ## 附：执行进度
 
-阶段 0 三项为本轮启动目标，按 branch→PR→merge 推进，证据回填 `.codex/verification-report.md`。
+阶段 0 三项已完成（#28/#29/#30，见顶部更新）；CI 于 2026-06-30 整体移除，门禁拦截改由本地 `pre-push` hook（`.githooks/pre-push`）承担。后续按 branch→PR→merge 推进，证据回填 `.codex/verification-report.md`。

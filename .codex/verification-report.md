@@ -4037,3 +4037,12 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `_skip_submit_continuity` @ `novel_loop.py:47`（默认 port :70 不提交 → 设计要求翻成真提交）
   - 有界多轮 repair 由 `tests/test_multi_round_repair.py` 实证（多轮 / 封顶 / 阈值停止）
 - 未联通能力：本文件是设计，未实现，不声称任何质量验收、不等同 Q1/Q9 通过；语义层先 advisory，仅确定性硬闸可硬断；不接 `narrative_gate.py`、不复用 `apps/workflow` `narrative/`。下一步建议起 Q1 P0（先建 `story_state` domain 骨架 + 单测，零行为变更，再单独接 loop）。
+
+## CI 移除后补本地 pre-push 门禁（lint + OpenAPI 漂移）（2026-06-30）
+
+- 背景：CI 于本日整体移除（PR #31 squash 含 `5d22b27` 删 `ci.yml`/`e2e.yml`），lint + OpenAPI 漂移两道快门禁失去自动拦截。按用户决策（b 本地 git hook）补回；`next-step-plan.md` 顶部加更新横幅 + §一.5/阶段0-2/横切 DoD/执行进度 同步。
+- 变更：新增 `.githooks/pre-push`（跑 `pnpm run verify:fast`）；新增 `scripts/check-openapi-drift.mjs`（记录 digest → `pnpm openapi` → 比对，漂移即 exit 1，逻辑镜像 `verify-local.mjs:71-94`）；`package.json` 增 `verify:fast`（lint + check:drift）/`check:drift`/`hooks:install`（`git config core.hooksPath .githooks`）。一次性 `pnpm hooks:install` 启用，绕过用 `git push --no-verify`。
+- 验证命令与结果：
+  - `pnpm run verify:fast` → eslint 0 errors（2 个既有 warning 不阻断）+ prettier “All matched files use Prettier code style!”（含新 `.mjs`）+ `[check:drift] OpenAPI 契约无漂移`，整体 exit 0。
+  - hook 经 `core.hooksPath` 启用后由本分支 push 实跑（见提交记录）。
+- 未联通能力：hook 是本地防线、可 `--no-verify` 绕过，非强制门禁（贴合无 CI 决定）；仅覆盖 lint + 漂移，typecheck（desktop frontend 未入 workspace，既有问题）/单测/pytest 不在其中，仍须 `pnpm verify` 手动全量。`generate-openapi.mjs` 需本机 `uv` + API python env（无需 DB/起服）。
