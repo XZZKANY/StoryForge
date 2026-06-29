@@ -17,11 +17,7 @@ import { WindowMenu } from './components/app/WindowMenu';
 import { CodexSidebar } from './components/app/CodexSidebar';
 import { AgentWorkspace, WelcomeWorkspace } from './components/app/WelcomeWorkspace';
 import { RightWorkspace, FloatingComposer } from './components/app/RightWorkspace';
-import {
-  activeProjectLabel,
-  joinPath,
-  normalizeMarkdownFileName,
-} from './components/app/helpers';
+import { activeProjectLabel, joinPath, normalizeMarkdownFileName } from './components/app/helpers';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useShellLayout } from './components/app/useShellLayout';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
@@ -162,10 +158,13 @@ export function App() {
     [activeProject, handleOpenProject, showWorkbenchPanel],
   );
 
-  const handleComposerModeChange = useCallback((mode: ComposerLayoutMode) => {
-    setSettingsVisible(false);
-    applyComposerMode(mode);
-  }, [applyComposerMode]);
+  const handleComposerModeChange = useCallback(
+    (mode: ComposerLayoutMode) => {
+      setSettingsVisible(false);
+      applyComposerMode(mode);
+    },
+    [applyComposerMode],
+  );
 
   const openSettings = useCallback(() => {
     setSettingsVisible(true);
@@ -183,13 +182,12 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const { isDesktopRuntime, tauriMenuReady, tauriMenuError, smokeApiReady } =
-    useTauriMenuBridge({
-      onOpenProject: handleOpenProject,
-      onNewFile: handleNewFile,
-      onToggleSidebar: toggleWorkspace,
-      onRestoreFullLayout: restoreFullLayout,
-    });
+  const { isDesktopRuntime, tauriMenuReady, tauriMenuError, smokeApiReady } = useTauriMenuBridge({
+    onOpenProject: handleOpenProject,
+    onNewFile: handleNewFile,
+    onToggleSidebar: toggleWorkspace,
+    onRestoreFullLayout: restoreFullLayout,
+  });
 
   const projectName = activeProjectLabel(activeProject);
   const workbenchPanelVisible = workspaceVisible || editorVisible;

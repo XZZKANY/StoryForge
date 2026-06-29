@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import {
-  buildGraph,
-  type BranchManifest,
-  type GraphNode,
-} from '../../lib/branches';
+import { buildGraph, type BranchManifest, type GraphNode } from '../../lib/branches';
 import { listVersions, readVersion, type VersionEntry } from '../../lib/versions';
 import { BranchCanvas } from '../BranchCanvas';
 
