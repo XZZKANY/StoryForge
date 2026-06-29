@@ -2,6 +2,9 @@ name: E2E
 
 on:
   workflow_dispatch:
+  # 每周一次契约/迁移漂移安全网（重 job：postgres/redis + 真实 HTTP），不压每个 PR。
+  schedule:
+    - cron: '0 18 * * 0'
 
 permissions:
   contents: read
