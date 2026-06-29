@@ -80,3 +80,21 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - `README.md`：面向使用者的能力边界摘要。
 - `docs/internal/TODO.md`：当前下一步执行入口。
 - `docs/internal/dev-plan.md`：Phase 9 历史计划和完成判定。
+
+## 下一步计划与重跑 DoD（2026-06-29 锚点）
+
+完整下一步路线图见 `docs/internal/next-step-plan.md`（阶段 0 护栏 + 产品轨/质量轨并行）。30 章退回的结构化诊断见 `.codex/real-llm-30ch-mimo25pro-20260611-192356/readthrough-findings.md`。
+
+下一轮真实长程**重跑验收 DoD**（固化判据，避免再次只做链路演示）：
+
+- 规模：约 4 万字 / 16-18 章 / 每章 2000-2500 字 band。
+- 题材：换非 demo 题材（不得沿用林岚/灯塔/审计链）。
+- 入口：走 CLI 长程路径，不走 `le=6` 的 HTTP `/start` 路径。
+- 盲评：`ManualReadReview(blind=true)`，评审人不看自动分，按 6 维（narrative_quality / character_consistency / world_consistency / timeline_consistency / style_consistency / system_reliability）各 1-5 评分。
+- 通过判据：每维 ≥3 且 overall ≥3.5 且零硬失败（时间线矛盾 / 测试痕迹残留 / 缺章 / 结尾未收束 / 未回收伏笔任一即退回）。
+- 制品：`book.md` / `book.epub` / `audit_report.json` / `summary.json` / `run-metadata.json` 附 sha256 并校验完整性。
+- 证据：人工盲评结论写入 `.codex/verification-report.md`；结论以人工通读为准，不以 golden/judge pass 替代。
+
+**重跑前必须先落地的根因修复**：真实逐章事实抽取替换写死抽取、去 demo premise 系统词 + 多 arc、收紧 fast-judge 空转、`_call_llm` 重试 + 缺章护栏。
+
+**本轮不交付的已知缺口**（登记备查，非遗漏）：多人实时协作、多租户认证、生产级对象存储签名下载、完整 Studio 编排器、持久化异步任务队列。
