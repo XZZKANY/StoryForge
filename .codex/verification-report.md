@@ -3989,3 +3989,11 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - `cd apps/api && uv run python -c "import app.main; print('import ok')"` → `import ok`
 
 **行为变更**：true, additive no-write pending resume only. `chapter.review` can resume from the durable `judge.run` boundary, but write tools, provider stream recovery, event protocol, artifact visibility, and permission behavior remain unchanged.
+
+## 下一步计划落盘 + 30 章退回结构化（2026-06-29，阶段0-3 文档半）
+
+- 变更：新增 `docs/internal/next-step-plan.md`（多 agent 侦察产出的下一步路线图：阶段0 护栏 + 产品轨/质量轨并行 + 重跑 DoD + Do-Not-Do）；新增 `.codex/real-llm-30ch-mimo25pro-20260611-192356/readthrough-findings.md`（7 阻塞 × 6 盲评维度映射 + 机器可验证锚点）；`docs/internal/current-phase.md` 追加"下一步计划与重跑 DoD"小节（仅追加，未删改既有事实行）。
+- 机器可验证锚点：`book.md` 中"审计链"出现 65 次（blocker#1 系统词由 premise `book_generation.py:408,486` 主动播种）；`grep -c '^## ' book.md`=30 章。
+- 验证命令与结果：
+  - `cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q` → 13 passed（current-phase.md 追加未触发 doc-guard 字符串断言回归）。
+- 未联通能力：本文件为诊断脚手架，非人工通读完成记录；逐章引文与主观质量判定待新一轮长程人工盲评（next-step-plan Q9）填充，不得据此宣称质量验收通过。
