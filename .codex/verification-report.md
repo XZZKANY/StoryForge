@@ -4025,3 +4025,15 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `npm --prefix apps/desktop/frontend run typecheck` → exit 0
   - `pnpm openapi` 重生成快照 → NO DRIFT（契约漂移门干净）
 - 未联通能力：本地全量 `verify:local` 因 API+workflow pytest 较慢未在 10min 内跑完；API/workflow 单测留由合并后 master CI run 实测（见后续回填）。
+
+## 故事状态模型设计落盘 + 天命解构参考归档（2026-06-30，设计定稿）
+
+- 变更：新增 `docs/internal/story-state-model-design.md`（跨章故事状态层设计定稿：5 决策锁定 + `state_event`/`state_ledger` 数据模型 + 12 类 CHANGES→edge/node/memory 映射 + 逐章运行时接线 + 三级升级）；归档上一会话产出但未提交的 `docs/internal/reference-tianming-analysis.md`（天命 multi-agent 解构参考，本设计依据）。纯文档，无代码/路由/schema 变更，无需刷 openapi。
+- live 接线锚点核验（写入耐久文档前 grep/read 实测，防 file:line 漂移）：
+  - `_judge_and_repair_loop` @ `book_generation_judge.py:65`（有界 `for range(MAX_REPAIR_ROUNDS)`；调用点 `book_generation.py:194/335`、`book_generation_parallel.py:290`）
+  - `deterministic_judge_fallback` @ `judge/deterministic.py:11`；`semantic_judge_with_status` @ `judge/semantic.py:97`
+  - local-gate 假象 @ `book_generation_judge.py:204-211`（`local_coverage` 注释 :204 自承 score=100 为假象）
+  - `EdgeKind` @ `edge_constraints.py:18` = `relationship/timeline_order/status`；status 时间窗 `_check_status_window:144`
+  - `_skip_submit_continuity` @ `novel_loop.py:47`（默认 port :70 不提交 → 设计要求翻成真提交）
+  - 有界多轮 repair 由 `tests/test_multi_round_repair.py` 实证（多轮 / 封顶 / 阈值停止）
+- 未联通能力：本文件是设计，未实现，不声称任何质量验收、不等同 Q1/Q9 通过；语义层先 advisory，仅确定性硬闸可硬断；不接 `narrative_gate.py`、不复用 `apps/workflow` `narrative/`。下一步建议起 Q1 P0（先建 `story_state` domain 骨架 + 单测，零行为变更，再单独接 loop）。
