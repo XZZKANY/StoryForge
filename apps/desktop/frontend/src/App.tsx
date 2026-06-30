@@ -13,6 +13,7 @@ import { initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { emitExportCurrentFile, emitReviewCurrentFile } from './lib/assistant-events';
 import { loadAppSettings, saveAppSettings, type AppSettings } from './lib/user-settings';
+import { applyTheme } from './lib/theme';
 import { WindowMenu } from './components/app/WindowMenu';
 import { CodexSidebar } from './components/app/CodexSidebar';
 import { AgentWorkspace, WelcomeWorkspace } from './components/app/WelcomeWorkspace';
@@ -75,6 +76,10 @@ export function App() {
   useEffect(() => {
     saveAppSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
 
   const handleOpenProject = useCallback(async () => {
     try {
@@ -218,7 +223,7 @@ export function App() {
 
   return (
     <div
-      className="h-screen bg-[#18181B] text-[#EDEDED] overflow-hidden flex flex-col"
+      className="h-screen bg-background text-foreground overflow-hidden flex flex-col"
       data-testid="desktop-shell"
       data-layout-mode={layoutMode}
       data-tauri-runtime={isDesktopRuntime ? 'true' : 'false'}
@@ -267,7 +272,7 @@ export function App() {
                 }}
               />
             ) : (
-              <section className="h-full min-w-0 bg-[#18181B]" data-testid="assistant-panel">
+              <section className="h-full min-w-0 bg-background" data-testid="assistant-panel">
                 <AgentWorkspace
                   projectPath={activeProject}
                   currentFile={currentFile}
@@ -305,7 +310,6 @@ export function App() {
               onFileSelect={handleFileSelect}
               onFileClose={handleFileClose}
               onCloseWorkspace={() => handleComposerModeChange('full')}
-              onFocusWorkspaceOnly={() => handleComposerModeChange('floating')}
               onToggleWorkspace={toggleWorkspace}
               onRestoreWorkspace={restoreWorkspacePanel}
               onExportCurrent={() => emitExportCurrentFile()}

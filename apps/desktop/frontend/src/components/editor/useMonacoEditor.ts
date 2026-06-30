@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor';
 
 import { emitReviseIssue } from '../../lib/assistant-events';
 import { registerSmokeEditorController } from '../../lib/smoke';
+import { currentMonacoTheme } from '../../lib/theme';
 
 export function useMonacoEditor({
   containerRef,
@@ -61,7 +62,7 @@ export function useMonacoEditor({
         editor = monaco.editor.create(containerRef.current, {
           value: loadedContent,
           language: 'markdown',
-          theme: 'vs-dark',
+          theme: currentMonacoTheme(),
           fontSize: editorFontSize,
           lineNumbers: 'on',
           glyphMargin: true,

@@ -98,10 +98,10 @@ export function StoryNavigator({
   const storyGroups = useMemo(() => buildStoryNavigationGroups(index?.files ?? []), [index]);
 
   return (
-    <div className="flex h-full flex-col bg-[#111111]" data-testid="story-navigator">
-      <div className="sf-panel-header border-[#2D2D30] bg-[#111111]">
+    <div className="flex h-full flex-col bg-background" data-testid="story-navigator">
+      <div className="sf-panel-header border-border bg-background">
         <div
-          className="flex h-7 rounded-md border border-[#2D2D30] bg-[#18181B] p-0.5"
+          className="flex h-7 rounded-md border border-border bg-background p-0.5"
           role="tablist"
           aria-label="项目导航视图"
         >
@@ -117,7 +117,7 @@ export function StoryNavigator({
           />
         </div>
         {index && activeTab === 'story' && (
-          <span className="text-[11px] text-[#858585]" data-testid="story-file-count">
+          <span className="text-[11px] text-subtle" data-testid="story-file-count">
             {index.files.length} 个文件
           </span>
         )}
@@ -162,9 +162,7 @@ function NavigatorTabButton({
       role="tab"
       aria-selected={active}
       className={`h-5 rounded px-2 text-[11px] font-medium transition-colors ${
-        active
-          ? 'bg-[#3A3A40] text-[#EDEDED]'
-          : 'text-[#969696] hover:bg-[#2A2A2F] hover:text-[#D4D4D8]'
+        active ? 'bg-elevated text-foreground' : 'text-muted hover:bg-surface hover:text-foreground'
       }`}
       onClick={onClick}
     >
@@ -191,24 +189,24 @@ function StoryIndexView({
   if (!projectPath) {
     return (
       <div className="mt-8 mx-4 text-center" data-testid="story-index-empty">
-        <p className="text-sm text-[#858585]">尚未打开项目</p>
+        <p className="text-sm text-subtle">尚未打开项目</p>
       </div>
     );
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-[#858585]">加载故事索引...</div>;
+    return <div className="p-8 text-center text-sm text-subtle">加载故事索引...</div>;
   }
 
   if (error) {
-    return <div className="mx-2 mt-2 rounded bg-[#5A1D1D] p-2 text-xs text-[#F48771]">{error}</div>;
+    return <div className="mx-2 mt-2 rounded bg-error/10 p-2 text-xs text-error">{error}</div>;
   }
 
   if (storyGroups.length === 0) {
     return (
       <div className="mx-4 mt-8 text-center" data-testid="story-index-empty">
-        <p className="text-sm text-[#858585]">还没有故事资料</p>
-        <p className="mt-2 text-xs leading-5 text-[#6F6F76]">
+        <p className="text-sm text-subtle">还没有故事资料</p>
+        <p className="mt-2 text-xs leading-5 text-subtle">
           初始化项目结构后，可以在大纲、人物、设定、时间线和正文里放 Markdown。
         </p>
       </div>
@@ -248,12 +246,12 @@ function StoryGroup({
     <section className="px-2 pb-3" data-testid="story-group" data-story-kind={kind}>
       <div className="mb-1.5 flex items-baseline justify-between gap-2 px-1">
         <div className="min-w-0">
-          <h3 className="truncate text-xs font-semibold text-[#D4D4D8]">
+          <h3 className="truncate text-xs font-semibold text-foreground">
             {semanticKindLabel(kind)}
           </h3>
-          <p className="truncate text-[11px] text-[#72727A]">{description}</p>
+          <p className="truncate text-[11px] text-subtle">{description}</p>
         </div>
-        <span className="flex-shrink-0 text-[11px] text-[#858585]">{files.length}</span>
+        <span className="flex-shrink-0 text-[11px] text-subtle">{files.length}</span>
       </div>
 
       <div className="flex flex-col gap-0.5">
@@ -266,14 +264,14 @@ function StoryGroup({
               title={file.relativePath}
               className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left transition-colors ${
                 active
-                  ? 'bg-[#3E6FA3] text-white'
-                  : 'text-[#CCCCCC] hover:bg-[#2A2D2E] hover:text-[#F4F4F5]'
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted hover:bg-elevated hover:text-foreground'
               }`}
               data-testid="story-file"
               data-story-kind={kind}
               onClick={() => onFileSelect(file.path)}
             >
-              <span className={active ? 'text-white' : 'text-[#A8A8A8]'}>
+              <span className={active ? 'text-accent-foreground' : 'text-muted'}>
                 <MarkdownFileIcon />
               </span>
               <span className="min-w-0 flex-1 truncate text-[13px]">{file.name}</span>

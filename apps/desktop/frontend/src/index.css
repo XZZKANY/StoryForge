@@ -6,14 +6,18 @@
 /* StoryForge 桌面 IDE 中性深色调 —— 颜色 token 以空格分隔 RGB 通道暴露，
    供 Tailwind 的 rgb(var(--x) / <alpha-value>) 透明度修饰符使用。 */
 :root {
-  --background: 24 24 27;       /* #18181b */
-  --panel: 31 31 35;            /* #1f1f23 */
-  --surface: 39 39 44;          /* #27272c */
-  --border: 58 58 64;           /* #3a3a40 */
-  --foreground: 237 237 237;    /* #ededed */
-  --muted: 150 150 150;         /* #969696 */
-  --accent: 232 132 72;         /* muted composer orange */
-  --accent-foreground: 17 17 17;
+  /* 深色层级阶梯：柔和中深灰画布(贴近 Cursor 观感),四档拉开纵深但对比克制。 */
+  --background: 28 28 31; /* #1c1c1f 画布底 */
+  --panel: 36 36 41; /* #242429 导航/头部面板 */
+  --surface: 45 45 51; /* #2d2d33 卡片/输入框 */
+  --elevated: 57 57 64; /* #393940 hover/抬升态 */
+  --border: 58 58 65; /* #3a3a41 发丝描边 */
+  --border-strong: 76 76 84; /* #4c4c54 强调描边（聚焦） */
+  --foreground: 237 237 237; /* #ededed 主文本 */
+  --muted: 161 161 170; /* #a1a1aa 次级文本（统一全站灰） */
+  --subtle: 124 124 133; /* #7c7c85 三级/提示文本 */
+  --accent: 235 235 235; /* 单色强调：深色模式用近白，无品牌橙 */
+  --accent-foreground: 24 24 27;
   --error: 229 91 91;
   --warning: 235 201 126;
   --success: 115 202 128;
@@ -26,10 +30,29 @@
   --sf-item-gap: 8px;
 }
 
+/* 浅色主题：与深色共用同一组语义 token，仅翻转色值；单色强调改为近黑。 */
+:root[data-theme='light'] {
+  --background: 247 247 248; /* #f7f7f8 画布 */
+  --panel: 255 255 255; /* #ffffff 导航/头部 */
+  --surface: 255 255 255; /* #ffffff 卡片（靠描边区分） */
+  --elevated: 238 238 241; /* #eeeef1 hover */
+  --border: 226 226 230; /* #e2e2e6 */
+  --border-strong: 201 201 208; /* #c9c9d0 */
+  --foreground: 26 26 29; /* #1a1a1d 主文本 */
+  --muted: 94 94 102; /* #5e5e66 次级文本 */
+  --subtle: 142 142 150; /* #8e8e96 提示文本 */
+  --accent: 24 24 27; /* 单色强调：浅色模式用近黑 */
+  --accent-foreground: 250 250 250;
+  --error: 200 56 56;
+  --warning: 176 122 17;
+  --success: 42 140 84;
+}
+
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: rgb(var(--background));
   color: rgb(var(--foreground));
   overflow: hidden;
@@ -65,7 +88,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--sf-item-gap);
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid rgb(var(--border));
   padding: 0 var(--sf-panel-x);
 }
 
@@ -101,7 +124,7 @@ body {
   padding: 0 10px;
   font-size: 12px;
   line-height: 1;
-  color: #a1a1aa;
+  color: rgb(var(--muted));
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
@@ -111,7 +134,7 @@ body {
 .sf-toolbar-button:hover {
   border-color: rgb(255 255 255 / 0.08);
   background: rgb(255 255 255 / 0.055);
-  color: #e4e4e7;
+  color: rgb(var(--foreground));
 }
 
 .sf-icon-button {
@@ -123,7 +146,7 @@ body {
   justify-content: center;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #8f8f8f;
+  color: rgb(var(--muted));
   line-height: 1;
   transition:
     background-color 120ms ease,
@@ -134,7 +157,7 @@ body {
 .sf-icon-button:hover {
   border-color: rgb(255 255 255 / 0.08);
   background: rgb(255 255 255 / 0.055);
-  color: #e4e4e7;
+  color: rgb(var(--foreground));
 }
 
 .sf-topbar-title {
@@ -145,7 +168,7 @@ body {
   white-space: nowrap;
   font-size: 12px;
   font-weight: 500;
-  color: #a1a1aa;
+  color: rgb(var(--muted));
 }
 
 .sf-topbar-actions {
@@ -153,7 +176,7 @@ body {
   flex-shrink: 0;
   align-items: center;
   gap: 12px;
-  color: #a1a1aa;
+  color: rgb(var(--muted));
   font-size: 12px;
 }
 
@@ -178,13 +201,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b4b4b;
+  background: rgb(var(--border-strong));
   border: 2px solid rgb(var(--background));
   border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #666666;
+  background: rgb(var(--subtle));
 }
 
 /* Agent 步骤面板动画 */
@@ -200,7 +223,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -218,23 +242,23 @@ body {
 
 /* 步骤状态颜色 */
 .step-pending {
-  color: #8A8A90;
+  color: #8a8a90;
 }
 
 .step-running {
-  color: #4A9EFF;
+  color: #4a9eff;
 }
 
 .step-waiting {
-  color: #FFA726;
+  color: #ffa726;
 }
 
 .step-completed {
-  color: #66BB6A;
+  color: #66bb6a;
 }
 
 .step-failed {
-  color: #EF5350;
+  color: #ef5350;
 }
 
 /* 文本截断 */

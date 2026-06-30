@@ -197,7 +197,7 @@ function TreeNodeItem({
       <div className="flex flex-col">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center w-full text-left h-[22px] hover:bg-white/[0.04] text-muted/70 hover:text-muted transition-colors group cursor-pointer"
+          className="flex items-center w-full text-left h-[22px] hover:bg-elevated text-muted/70 hover:text-muted transition-colors group cursor-pointer"
         >
           {/* 占位缩进区域 */}
           <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
@@ -237,7 +237,7 @@ function TreeNodeItem({
       onClick={() => onFileSelect(node.path)}
       className={`
         flex items-center w-full text-left h-[22px] transition-colors group cursor-pointer
-        ${isActive ? 'bg-[#37373D] text-[#ffffff]' : 'text-muted hover:bg-white/[0.04] hover:text-[#cccccc]'}
+        ${isActive ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated hover:text-foreground'}
       `}
     >
       <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>

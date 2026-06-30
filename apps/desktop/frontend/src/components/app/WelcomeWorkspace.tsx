@@ -4,7 +4,7 @@
  */
 import { ChatWindow } from '../ChatWindow';
 import { basename, type LayoutMode } from './helpers';
-import { LayoutSplitIcon, MoreIcon, PanelIcon } from './icons';
+import { PanelIcon } from './icons';
 
 export function AgentWorkspace({
   projectPath,
@@ -32,11 +32,7 @@ export function AgentWorkspace({
   return (
     <div className="flex h-full min-w-0 flex-col">
       {!currentFile && (
-        <TopRightTools
-          exposeExpandTestId={exposeWorkspaceToggle}
-          onShowWorkspace={onRestoreLayout}
-          onShowPanel={onRestoreLayout}
-        />
+        <TopRightTools exposeExpandTestId={exposeWorkspaceToggle} onToggle={onRestoreLayout} />
       )}
       <div className="min-h-0 flex-1">
         {currentFile ? (
@@ -66,35 +62,21 @@ export function AgentWorkspace({
 
 function TopRightTools({
   exposeExpandTestId = false,
-  onShowWorkspace,
-  onShowPanel,
+  onToggle,
 }: {
   exposeExpandTestId?: boolean;
-  onShowWorkspace: () => void;
-  onShowPanel: () => void;
+  onToggle: () => void;
 }) {
   return (
-    <div className="sf-panel-header bg-[#18181B]">
-      <span className="sf-topbar-title">编辑窗口</span>
-      <div className="sf-topbar-actions">
-        <button className="sf-toolbar-button" onClick={onShowWorkspace} title="编辑窗口">
-          编辑窗口 ↗
-        </button>
-        <button className="sf-icon-button icon-button" title="更多">
-          <MoreIcon />
-        </button>
-        <button
-          data-testid={exposeExpandTestId ? 'expand-file-tree' : undefined}
-          className="sf-icon-button icon-button"
-          onClick={onShowPanel}
-          title="显示面板 (Ctrl Alt B)"
-        >
-          <PanelIcon />
-        </button>
-        <button className="sf-icon-button icon-button" onClick={onShowWorkspace} title="恢复分栏">
-          <LayoutSplitIcon />
-        </button>
-      </div>
+    <div className="flex h-9 flex-shrink-0 items-center justify-end px-3">
+      <button
+        data-testid={exposeExpandTestId ? 'expand-file-tree' : undefined}
+        className="sf-icon-button icon-button"
+        onClick={onToggle}
+        title="显示/隐藏侧边栏"
+      >
+        <PanelIcon />
+      </button>
     </div>
   );
 }
@@ -114,27 +96,18 @@ export function WelcomeWorkspace({
 }) {
   return (
     <section
-      className="flex h-full min-w-0 flex-col overflow-hidden bg-[#18181B]"
+      className="flex h-full min-w-0 flex-col overflow-hidden bg-background"
       data-testid="welcome-workspace"
     >
-      <div className="sf-panel-header bg-[#18181B]">
-        <span className="sf-topbar-title">编辑窗口</span>
-        <div className="sf-topbar-actions">
-          <button className="sf-toolbar-button" onClick={onBrowseFiles} title="打开编辑窗口">
-            编辑窗口 ↗
-          </button>
-          <button className="sf-icon-button" title="更多">
-            <MoreIcon />
-          </button>
-          <button
-            className="sf-icon-button"
-            onClick={onShowWorkbench}
-            title="显示文件树与编辑分栏"
-            data-testid="welcome-show-workbench"
-          >
-            <LayoutSplitIcon />
-          </button>
-        </div>
+      <div className="flex h-9 flex-shrink-0 items-center justify-end px-3">
+        <button
+          className="sf-icon-button icon-button"
+          onClick={onShowWorkbench}
+          title="显示/隐藏侧边栏"
+          data-testid="welcome-show-workbench"
+        >
+          <PanelIcon />
+        </button>
       </div>
 
       <AgentComposerHome
@@ -161,34 +134,34 @@ function AgentComposerHome({
   onInitializeProject: (projectPath?: string) => void;
 }) {
   return (
-    <div className="flex h-full items-center justify-center bg-[#18181B] px-4 py-10">
+    <div className="flex h-full items-center justify-center bg-background px-4 py-10">
       <div
         className={`flex w-full ${compact ? 'max-w-xl' : 'max-w-[760px]'} translate-y-[-4vh] flex-col items-stretch`}
       >
-        <div className="mb-6 flex min-w-0 items-center gap-2 text-xs text-zinc-400">
+        <div className="mb-6 flex min-w-0 items-center gap-2 text-xs text-muted">
           <button
-            className="text-zinc-300 transition-colors hover:text-white"
+            className="text-muted transition-colors hover:text-foreground"
             onClick={onBrowseFiles}
           >
             首页⌄
           </button>
-          <span className="text-[#777777]">▱</span>
-          <span className="min-w-0 truncate text-[#CFCFCF]">
+          <span className="text-subtle">▱</span>
+          <span className="min-w-0 truncate text-foreground/80">
             {activeProject ? basename(activeProject) : '本地'}
           </span>
         </div>
 
         <div
-          className={`w-full ${compact ? 'min-h-[116px]' : 'min-h-[126px]'} rounded-2xl border border-[#45454C] bg-[#2A2A30] shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
+          className={`w-full ${compact ? 'min-h-[116px]' : 'min-h-[126px]'} rounded-2xl border border-border bg-surface`}
         >
           <textarea
-            className={`${compact ? 'h-[66px] text-[15px]' : 'h-[72px] text-[17px]'} w-full resize-none bg-transparent px-4 py-3 leading-6 text-[#EDEDED] outline-none placeholder:text-[#707070]`}
+            className={`${compact ? 'h-[66px] text-[15px]' : 'h-[72px] text-[17px]'} w-full resize-none bg-transparent px-4 py-3 leading-6 text-foreground outline-none placeholder:text-subtle`}
             placeholder="规划、构建，输入 / 调用技能，输入 @ 引用上下文"
             aria-label="Agent 输入"
           />
           <div className={`${compact ? 'h-[50px]' : 'h-[54px]'} flex items-center gap-3 px-3`}>
             <button
-              className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#333333] text-xl leading-none text-[#BDBDBD] transition-colors hover:bg-[#3D3D3D] hover:text-white"
+              className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-elevated text-xl leading-none text-muted transition-colors hover:bg-border-strong hover:text-foreground"
               onClick={onBrowseFiles}
               title="添加上下文"
             >
@@ -196,7 +169,7 @@ function AgentComposerHome({
             </button>
             <span className="min-w-0 flex-1" aria-label="模型由设置中的默认模型决定" />
             <button
-              className="ml-auto grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#E6E6E6] text-[#111111] transition-colors hover:bg-white"
+              className="ml-auto grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-accent-foreground transition-colors hover:opacity-90"
               title="语音输入"
             >
               ◉
@@ -206,15 +179,15 @@ function AgentComposerHome({
 
         <div className="mt-5 flex items-center gap-3">
           <button
-            className="h-9 rounded-full border border-[#303030] bg-[#181818] px-3 text-xs text-[#EDEDED] transition-colors hover:border-[#464646] hover:bg-[#1B1B1B]"
+            className="h-9 rounded-full border border-border bg-panel px-3 text-xs text-foreground transition-colors hover:border-border-strong hover:bg-surface"
             onClick={onBrowseFiles}
             data-testid="welcome-primary-action"
           >
-            规划新想法 <span className="text-[#777777]">⇧Tab</span>
+            规划新想法 <span className="text-subtle">⇧Tab</span>
           </button>
           {!activeProject && (
             <button
-              className="h-10 rounded-full border border-transparent px-3 text-sm text-[#A8A8A8] transition-colors hover:bg-[#1B1B1B] hover:text-[#EDEDED]"
+              className="h-10 rounded-full border border-transparent px-3 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
               onClick={onOpenProject}
             >
               打开项目
@@ -222,7 +195,7 @@ function AgentComposerHome({
           )}
           {activeProject && (
             <button
-              className="h-10 rounded-full border border-[#303030] px-3 text-sm text-[#A8A8A8] transition-colors hover:border-[#464646] hover:bg-[#1B1B1B] hover:text-[#EDEDED]"
+              className="h-10 rounded-full border border-border px-3 text-sm text-muted transition-colors hover:border-border-strong hover:bg-surface hover:text-foreground"
               onClick={() => onInitializeProject(activeProject)}
               data-testid="welcome-initialize-project"
             >

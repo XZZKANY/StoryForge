@@ -7,6 +7,13 @@ import { StoryNavigator } from '../StoryNavigator';
 import { Editor } from '../Editor';
 import type { AppDialogApi } from './AppDialog';
 
+const RIGHT_VIEWS = [
+  { id: 'files', label: '文件', hint: 'Ctrl+P' },
+  { id: 'branch', label: '剧情分支画布', hint: '' },
+] as const;
+
+type RightViewId = (typeof RIGHT_VIEWS)[number]['id'];
+
 function CollapsedRail({
   testId,
   title,
@@ -23,7 +30,7 @@ function CollapsedRail({
       data-testid={testId}
       onClick={onClick}
       title={title}
-      className="group w-9 h-full flex-shrink-0 border-r border-[#3A3A40] bg-[#202024] text-[#B0B0B8] hover:text-white hover:bg-[#2A2A30] transition-colors flex flex-col items-center justify-start py-3 gap-2"
+      className="group w-9 h-full flex-shrink-0 border-r border-border bg-panel text-muted hover:text-foreground hover:bg-elevated transition-colors flex flex-col items-center justify-start py-3 gap-2"
     >
       <span className="text-lg leading-none opacity-80 transition-opacity group-hover:opacity-100">
         ›
@@ -44,7 +51,6 @@ export function RightWorkspace({
   onFileSelect,
   onFileClose,
   onCloseWorkspace,
-  onFocusWorkspaceOnly,
   onToggleWorkspace,
   onRestoreWorkspace,
   onExportCurrent,
@@ -60,7 +66,6 @@ export function RightWorkspace({
   onFileSelect: (filePath: string) => void;
   onFileClose: () => void;
   onCloseWorkspace: () => void;
-  onFocusWorkspaceOnly: () => void;
   onToggleWorkspace: () => void;
   onRestoreWorkspace: () => void;
   onExportCurrent: () => void;
@@ -74,6 +79,9 @@ export function RightWorkspace({
   const fileTreeMaxWidth = 440;
   const editorMinWidth = 360;
   const fileTreeResizerWidth = 4;
+  const [rightView, setRightView] = useState<RightViewId>('files');
+  const [viewPickerOpen, setViewPickerOpen] = useState(false);
+  const rightViewLabel = RIGHT_VIEWS.find((view) => view.id === rightView)?.label ?? '文件';
 
   const clampFileTreeWidth = useCallback((nextWidth: number) => {
     const containerWidth = containerRef.current?.getBoundingClientRect().width ?? 0;
@@ -132,35 +140,72 @@ export function RightWorkspace({
     <div ref={containerRef} className="flex h-full min-w-0">
       {workspaceVisible ? (
         <section
-          className="flex h-full flex-shrink-0 flex-col bg-[#1F1F23]"
+          className="flex h-full flex-shrink-0 flex-col bg-panel"
           style={{ width: fileTreeWidth }}
           data-testid="file-tree-panel"
         >
-          <div className="sf-panel-header bg-[#1F1F23]">
+          <div className="relative flex h-9 flex-shrink-0 items-center px-2">
             <button
-              data-testid="focus-workspace-only"
-              onClick={onFocusWorkspaceOnly}
-              className="sf-toolbar-button -ml-2"
-              title="编辑器最大化"
+              type="button"
+              data-testid="right-view-picker"
+              onClick={() => setViewPickerOpen((open) => !open)}
+              className="sf-toolbar-button -ml-1"
+              title="切换右侧视图"
+              aria-expanded={viewPickerOpen}
             >
-              编辑窗口 ↗
+              {rightViewLabel} ⌄
             </button>
             <button
               data-testid="collapse-file-tree"
               onClick={onToggleWorkspace}
               className="sf-icon-button ml-auto"
-              title="隐藏文件树"
+              title="隐藏侧边栏"
             >
               ‹
             </button>
+            {viewPickerOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setViewPickerOpen(false)} />
+                <div
+                  className="absolute left-2 top-9 z-20 w-60 overflow-hidden rounded-md border border-border bg-panel py-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+                  data-testid="right-view-menu"
+                >
+                  {RIGHT_VIEWS.map((view) => (
+                    <button
+                      key={view.id}
+                      type="button"
+                      onClick={() => {
+                        setRightView(view.id);
+                        setViewPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated hover:text-foreground ${
+                        rightView === view.id ? 'text-foreground' : 'text-muted'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{view.label}</span>
+                      {view.hint && <span className="text-xs text-subtle">{view.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <StoryNavigator
-              projectPath={activeProject}
-              currentFile={currentFile}
-              refreshVersion={projectRefreshVersion}
-              onFileSelect={onFileSelect}
-            />
+            {rightView === 'files' ? (
+              <StoryNavigator
+                projectPath={activeProject}
+                currentFile={currentFile}
+                refreshVersion={projectRefreshVersion}
+                onFileSelect={onFileSelect}
+              />
+            ) : (
+              <div
+                className="flex h-full items-center justify-center px-4 text-center text-sm leading-relaxed text-subtle"
+                data-testid="branch-canvas-placeholder"
+              >
+                剧情分支画布即将接入：保存修改后会记录版本，可在此开分支、对比平行写法。
+              </div>
+            )}
           </div>
           <div className="hidden" aria-hidden="true" data-recent-count={recentFiles.length} />
         </section>
@@ -178,8 +223,8 @@ export function RightWorkspace({
           role="separator"
           aria-orientation="vertical"
           data-testid="file-tree-resizer"
-          className={`group relative w-1 flex-shrink-0 cursor-col-resize bg-[#242428] ${
-            isFileTreeDragging ? 'bg-[#3E6FA3]' : 'hover:bg-[#34343A]'
+          className={`group relative w-1 flex-shrink-0 cursor-col-resize bg-panel ${
+            isFileTreeDragging ? 'bg-accent' : 'hover:bg-elevated'
           }`}
           style={{ touchAction: 'none' }}
           onPointerDown={beginFileTreeResize}
@@ -188,11 +233,11 @@ export function RightWorkspace({
           onDoubleClick={() => setFileTreeWidth(288)}
           title="拖拽调整文件树宽度，双击恢复默认宽度"
         >
-          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[#3A3A40] group-hover:bg-[#5AA0E6]" />
+          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border group-hover:bg-accent" />
         </div>
       )}
 
-      <section className="flex-1 min-w-0 bg-[#18181B]" data-testid="editor-panel">
+      <section className="flex-1 min-w-0 bg-background" data-testid="editor-panel">
         <Editor
           projectPath={activeProject}
           filePath={currentFile}
@@ -222,42 +267,45 @@ export function FloatingComposer({
 }) {
   return (
     <div
-      className="rounded-[22px] border border-[#3A3A3A] bg-[#202020]/95 px-2 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur"
+      className="rounded-[22px] border border-border bg-panel/95 px-2 py-2 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur"
       data-testid="floating-composer"
     >
-      <div className="mb-2 flex items-center gap-2 px-2 text-xs text-[#CFCFCF]">
+      <div className="mb-2 flex items-center gap-2 px-2 text-xs text-muted">
         <button
           data-testid="expand-assistant"
-          className="rounded-full border border-[#333333] px-3 py-1 hover:bg-[#292929]"
+          className="rounded-full border border-border px-3 py-1 hover:bg-elevated"
           onClick={onRestore}
           title="恢复左右分栏"
         >
           {projectName}⌄
         </button>
-        <span className="rounded-full border border-[#333333] px-3 py-1">▱ 本地⌄</span>
+        <span className="rounded-full border border-border px-3 py-1">▱ 本地⌄</span>
         <button
           data-testid="restore-layout"
-          className="ml-auto text-[#8A8A8A] hover:text-white"
+          className="ml-auto text-subtle hover:text-foreground"
           onClick={onRestoreLayout}
           title="恢复完整布局"
         >
           恢复布局
         </button>
         <button
-          className="text-[#8A8A8A] hover:text-white"
+          className="text-subtle hover:text-foreground"
           onClick={onFullConversation}
           title="回到完整对话"
         >
           还原对话
         </button>
       </div>
-      <div className="flex h-10 items-center gap-3 rounded-[18px] border border-[#333333] bg-[#252525] px-3">
-        <span className="sf-icon-button rounded-full bg-[#353535] text-lg text-[#BDBDBD]">+</span>
-        <span className="min-w-0 flex-1 truncate text-sm text-[#8F8F8F]">
+      <div className="flex h-10 items-center gap-3 rounded-[18px] border border-border bg-surface px-3">
+        <span className="sf-icon-button rounded-full bg-elevated text-lg text-muted">+</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-subtle">
           输入内容，或 @ 引用文件上下文
         </span>
-        <span className="text-sm text-[#EDEDED]">StoryForge 助手 · 快速</span>
-        <button className="sf-icon-button rounded-full bg-[#EEEEEE] text-[#111111]" title="发送">
+        <span className="text-sm text-foreground">StoryForge 助手 · 快速</span>
+        <button
+          className="sf-icon-button rounded-full bg-accent text-accent-foreground"
+          title="发送"
+        >
           ◖
         </button>
       </div>
