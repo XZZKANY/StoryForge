@@ -20,12 +20,17 @@ from app.domains.agent_runs.service import (
     websocket_control_event,
     websocket_stream_events_from_agent_event,
 )
+from app.domains.book_runs.book_generation import BookGenerationError
+from app.domains.book_runs.book_generation_preflight import missing_book_generation_env, resolved_llm_env
 from app.domains.book_runs.service import get_book_run
+from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 from app.domains.ide.schemas import (
     IdeArtifactPreview,
     IdeCommandRequest,
     IdeCommandResult,
     IdeContextSnapshot,
+    IdeCrossChapterRequest,
+    IdeCrossChapterResult,
     IdeDiagnostic,
     IdeSceneRead,
     IdeStoryMemoryQuery,
@@ -199,6 +204,33 @@ def query_story_memory_endpoint(session: SessionDependency, payload: IdeStoryMem
     """返回 Story Memory Explorer 所需的长效记忆和冲突队列。"""
 
     return query_story_memory(session, payload)
+
+
+@router.post(
+    "/review/cross-chapter",
+    response_model=IdeCrossChapterResult,
+    summary="跨章一致性检查",
+)
+def cross_chapter_consistency_endpoint(payload: IdeCrossChapterRequest) -> IdeCrossChapterResult:
+    """对若干完整章节做跨章一致性审校,返回带原文出处的硬冲突(时间线/称谓/设定/角色离场/伏笔)。"""
+
+    missing = missing_book_generation_env()
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="真实 LLM 未配置：" + ", ".join(missing),
+        )
+    chapters = [{"name": item.name, "content": item.content} for item in payload.chapters]
+    try:
+        result = check_cross_chapter_consistency(resolved_llm_env(), chapters, focus=payload.focus)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except BookGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"跨章一致性 LLM 调用失败：{exc}",
+        ) from exc
+    return IdeCrossChapterResult.model_validate(result)
 
 
 @router.get(

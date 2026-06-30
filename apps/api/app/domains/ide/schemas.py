@@ -209,3 +209,35 @@ class IdeArtifactPreview(BaseModel):
     download: dict[str, object]
     versions: list[IdeArtifactVersion] = Field(default_factory=list)
     trace: IdeArtifactTrace
+
+
+class IdeCrossChapterInput(BaseModel):
+    """跨章一致性检查的单章输入（整章正文,非摘录）。"""
+
+    name: str
+    content: str
+
+
+class IdeCrossChapterRequest(BaseModel):
+    """跨章一致性检查请求:至少两章 + 可选关注点。"""
+
+    chapters: list[IdeCrossChapterInput] = Field(min_length=2)
+    focus: str | None = None
+
+
+class IdeCrossChapterFinding(BaseModel):
+    """一条跨章硬冲突,带涉及章节与原文证据。"""
+
+    type: str
+    severity: str
+    chapters: list[str] = Field(default_factory=list)
+    finding: str
+    evidence: str
+
+
+class IdeCrossChapterResult(BaseModel):
+    """跨章一致性检查响应。"""
+
+    findings: list[IdeCrossChapterFinding] = Field(default_factory=list)
+    model: str | None = None
+    latency_ms: int | None = None
