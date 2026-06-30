@@ -17,19 +17,38 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from sqlalchemy import event, select
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
+from app.common.metrics import observe_book_generation_chapter
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import create_artifact
 from app.domains.book_runs import book_generation as generation
 from app.domains.book_runs.book_context import clear_book_context_cache, observe_book_context_cache
+from app.domains.book_runs.book_generation_memory import (
+    character_state_extracts as _character_state_extracts,
+)
+from app.domains.book_runs.book_generation_memory import (
+    extract_memory_atoms_for_chapter as _extract_memory_atoms_for_chapter,
+)
+from app.domains.book_runs.book_generation_memory import (
+    memory_recall_chars_for_chapter as _memory_recall_chars_for_chapter,
+)
+from app.domains.book_runs.book_generation_memory import (
+    world_fact_extracts as _world_fact_extracts,
+)
 from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress, create_book_run
-from app.domains.books.models import Chapter
 from app.domains.exports.book_markdown_exporter import export_book_run_audit_report, export_book_run_markdown
-from app.domains.retrieval.embedding_client import resolve_embedding_client
-from app.domains.story_memory.service import recall_scene_memory_atoms, write_memory_extract_atoms
+
+__all__ = [
+    "_character_state_extracts",
+    "_extract_memory_atoms_for_chapter",
+    "_memory_recall_chars_for_chapter",
+    "_world_fact_extracts",
+    "run_book_generation_parallel",
+    "run_book_loop_with_thread_sessions",
+]
 
 # 业务 JOIN scenes 查询的判定：剔除 session.refresh / lazy load 的单表回读。
 # 真实业务路径（BookContext._build、_build_recap_context、_book_id_for_scene）都走 JOIN scenes，
@@ -252,7 +271,13 @@ def run_book_generation_parallel(
         chapter_started_at = time.monotonic()
         with db_write_lock:
             chapter = generation._chapter(chapter_session, book.id, chapter_index)
-        generated = generation._generate_chapter(chapter_session, source, chapter_index, chapter)
+        generated = generation._generate_chapter(
+            chapter_session,
+            source,
+            chapter_index,
+            chapter,
+            book_run_id=book_run.id,
+        )
         with extras_lock:
             chapter_extras[chapter_index] = {
                 "generation_latency_ms": int(generated.get("latency_ms") or 0),
@@ -281,13 +306,30 @@ def run_book_generation_parallel(
         with db_write_lock:
             chapter = generation._chapter(chapter_session, book.id, chapter_index)
             memory_recall_chars = _memory_recall_chars_for_chapter(chapter_session, book.id, chapter.ordinal)
-        generated = generation._generate_chapter(chapter_session, source, chapter_index, chapter)
+        generated = generation._generate_chapter(
+            chapter_session,
+            source,
+            chapter_index,
+            chapter,
+            book_run_id=book_run.id,
+        )
         with db_write_lock:
             scene = generation._persist_draft_scene(chapter_session, chapter, str(generated["content"]))
             current_book_run = chapter_session.get(generation.BookRun, book_run.id)
             model_run = generation._record_model_run(chapter_session, current_book_run, scene, source, generated)
-            scene_packet = generation._record_scene_packet(chapter_session, current_book_run, scene)
+            scene_packet = generation._record_scene_packet(
+                chapter_session,
+                current_book_run,
+                scene,
+                story_state_changes=list(generated.get("story_state_changes") or []),
+                story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
+            )
         outcome = generation._judge_and_repair_loop(chapter_session, source, current_book_run, scene, scene_packet)
+        observe_book_generation_chapter(
+            judge_call_count=int(outcome.get("judge_call_count") or 0),
+            repair_patch_count=len(outcome.get("repair_patch_ids") or []),
+            cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
+        )
         with db_write_lock:
             approved = generation._finalize_scene_decision(
                 chapter_session, chapter, scene, int(outcome.get("quality_score") or 0)
@@ -309,8 +351,12 @@ def run_book_generation_parallel(
                 "chapter_elapsed_time_sec": max(0, int(time.monotonic() - chapter_started_at)),
                 "repair_patch_ids": list(outcome.get("repair_patch_ids") or []),
                 "repair_rounds": int(outcome.get("repair_rounds") or 0),
+                "judge_call_count": int(outcome.get("judge_call_count") or 0),
                 "quality_score": int(outcome.get("quality_score") or 0),
                 "quality_issues": list(outcome.get("quality_issues") or []),
+                "story_state_commit": outcome.get("story_state_commit"),
+                "story_state_changes_source": generated.get("story_state_changes_source"),
+                "story_state_tool_call_count": generated.get("story_state_tool_call_count", 0),
                 "memory_recall_chars": memory_recall_chars,
             }
         status = "approved" if approved else "awaiting_review"
@@ -412,79 +458,6 @@ def _chapter_request(session: Session, book_run_id: int, book_id: int, chapter_i
         chapter_goal=chapter.summary or chapter.title or f"第 {chapter_index} 章",
         planning_refs={"book_run_id": book_run_id, "blueprint_id": book_run.blueprint_id if book_run else None},
     )
-
-
-def _memory_recall_chars_for_chapter(session: Session, book_id: int, chapter_ordinal: int) -> int:
-    """统计当前章节 prompt 实际相关召回的记忆字符数。"""
-
-    if chapter_ordinal <= 1:
-        return 0
-    chapter = session.execute(
-        select(Chapter).where(Chapter.book_id == book_id, Chapter.ordinal == chapter_ordinal)
-    ).scalar_one_or_none()
-    if chapter is None:
-        return 0
-    atoms = recall_scene_memory_atoms(
-        session,
-        book_id=book_id,
-        chapter=chapter,
-        assets=[],
-        continuity_records=[],
-        embedding_client=resolve_embedding_client(),
-    )
-    return sum(len(f"{atom.entity_id}：{atom.value}") for atom in atoms)
-
-
-def _extract_memory_atoms_for_chapter(
-    session: Session,
-    *,
-    book_id: int,
-    chapter_id: int,
-    chapter_ordinal: int,
-    approved_scene_id: int,
-    content: str,
-) -> list[str]:
-    """从已批准章节生成稳定的本地抽取结果并写入 Story Memory。"""
-
-    extraction = {
-        "chapter_summary": {
-            "entity_id": f"chapter:{chapter_ordinal}",
-            "summary": _chapter_memory_summary(content),
-            "confidence": 0.8,
-        },
-        "character_states": _character_state_extracts(content),
-        "world_facts": _world_fact_extracts(content),
-    }
-    atoms = write_memory_extract_atoms(
-        session,
-        book_id=book_id,
-        chapter_id=chapter_id,
-        approved_scene_id=approved_scene_id,
-        extraction=extraction,
-    )
-    return [atom.memory_id for atom in atoms]
-
-
-def _chapter_memory_summary(content: str) -> str:
-    normalized = " ".join(content.split())
-    return normalized[:240] if normalized else "本章已批准正文。"
-
-
-def _character_state_extracts(content: str) -> list[dict[str, object]]:
-    extracts: list[dict[str, object]] = []
-    if "林岚" in content:
-        status = "本章持续参与主线行动。"
-        if "左臂" in content or "旧伤" in content:
-            status = "左臂旧伤未愈。"
-        extracts.append({"entity_id": "林岚", "status": status, "confidence": 0.85})
-    return extracts
-
-
-def _world_fact_extracts(content: str) -> list[dict[str, object]]:
-    extracts: list[dict[str, object]] = []
-    if "灯塔" in content or "信号" in content:
-        extracts.append({"entity_id": "灯塔信号", "rule": "灯塔信号仍是当前主线线索。", "confidence": 0.8})
-    return extracts
 
 
 def _arc_consistency_barrier_from_blueprint(session: Session, blueprint_id: int, total_chapters: int) -> Any:

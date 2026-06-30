@@ -6,7 +6,7 @@ from html import escape
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
@@ -17,6 +17,8 @@ from app.domains.artifacts.service import ArtifactForbiddenError, create_artifac
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.workflow_skill_audit_bridge import derive_book_run_skill_chain
 from app.domains.books.models import Book, Chapter, Scene
+from app.domains.judge.types import FORBIDDEN_DRAFT_TERMS
+from app.domains.story_state.models import StoryStateEvent, StoryStateLedger
 
 
 class BookExportError(InputError):
@@ -78,6 +80,8 @@ def export_book_run_audit_report(session: Session, book_run_id: int, *, workspac
     chapters = list(book_run.progress.get("completed_chapters", []))
     integration_metrics = _integration_metrics_projection(book_run.progress)
     quality_summary = _quality_summary(chapters)
+    full_book_advisory_audit = _full_book_advisory_audit(session, book_run=book_run)
+    quality_summary["full_book_advisory_status"] = full_book_advisory_audit["status"]
     if integration_metrics:
         quality_summary["integration_metrics"] = integration_metrics
     report = {
@@ -90,6 +94,7 @@ def export_book_run_audit_report(session: Session, book_run_id: int, *, workspac
         "manual_review_recommendations": _manual_review_recommendations(chapters),
         "manual_read_gate": _manual_read_gate_projection(book_run.progress),
         "manual_read_review": _manual_read_review_projection(book_run.progress),
+        "full_book_advisory_audit": full_book_advisory_audit,
         "skill_chain": derive_book_run_skill_chain(book_run.id, book_run.status, book_run.progress),
     }
     if integration_metrics:
@@ -448,3 +453,170 @@ def _quality_summary(chapters: list[dict[str, object]]) -> dict[str, object]:
         "issue_count": len(issues),
         "status": "needs_review" if _manual_review_recommendations(chapters) else "ok",
     }
+
+
+def _full_book_advisory_audit(session: Session, *, book_run: BookRun) -> dict[str, object]:
+    """整书级终检咨询信号；不作为导出硬门禁。"""
+
+    try:
+        scenes = _approved_scenes(session, book_run)
+        checks = [
+            _full_book_chapter_count_check(book_run, scenes),
+            _full_book_forbidden_terms_check(scenes),
+            _full_book_repeated_openings_check(scenes),
+            _full_book_story_state_open_items_check(session, book_run),
+            _full_book_final_chapter_signal_check(book_run, scenes),
+        ]
+    except Exception as exc:  # noqa: BLE001 - audit 不应阻断导出，但必须留下 error 而非伪 clean。
+        return {
+            "status": "error",
+            "mode": "advisory",
+            "hard_gate": False,
+            "error": str(exc)[:500],
+            "checks": [],
+        }
+    status = "needs_review" if any(check["status"] in {"needs_review", "error"} for check in checks) else "pass"
+    if status == "pass" and any(check["status"] == "unavailable" for check in checks):
+        status = "partial"
+    return {
+        "status": status,
+        "mode": "advisory",
+        "hard_gate": False,
+        "checks": checks,
+    }
+
+
+def _full_book_chapter_count_check(
+    book_run: BookRun,
+    scenes: list[tuple[Chapter, Scene]],
+) -> dict[str, object]:
+    chapter_indexes = sorted({chapter.ordinal for chapter, _scene in scenes})
+    expected = int(book_run.total_chapters or 0)
+    status = "pass" if expected > 0 and len(chapter_indexes) == expected else "needs_review"
+    return {
+        "name": "chapter_count_integrity",
+        "status": status,
+        "expected_chapter_count": expected,
+        "actual_chapter_count": len(chapter_indexes),
+        "chapter_indexes": chapter_indexes,
+    }
+
+
+def _full_book_forbidden_terms_check(scenes: list[tuple[Chapter, Scene]]) -> dict[str, object]:
+    findings: list[dict[str, object]] = []
+    for chapter, scene in scenes:
+        content = scene.content or ""
+        terms = [term for term in FORBIDDEN_DRAFT_TERMS if term in content]
+        if terms:
+            findings.append({"chapter_index": chapter.ordinal, "terms": terms})
+    return {
+        "name": "forbidden_draft_terms",
+        "status": "needs_review" if findings else "pass",
+        "findings": findings,
+    }
+
+
+def _full_book_repeated_openings_check(scenes: list[tuple[Chapter, Scene]]) -> dict[str, object]:
+    buckets: dict[str, list[int]] = {}
+    for chapter, scene in scenes:
+        opening = _normalized_opening(scene.content or "")
+        if not opening:
+            continue
+        buckets.setdefault(opening, []).append(chapter.ordinal)
+    repeated = [
+        {"opening": opening, "chapter_indexes": indexes}
+        for opening, indexes in sorted(buckets.items())
+        if len(indexes) >= 3
+    ]
+    return {
+        "name": "repeated_openings",
+        "status": "needs_review" if repeated else "pass",
+        "findings": repeated,
+    }
+
+
+def _full_book_story_state_open_items_check(session: Session, book_run: BookRun) -> dict[str, object]:
+    event_count = int(
+        session.scalar(
+            select(func.count())
+            .select_from(StoryStateEvent)
+            .where(StoryStateEvent.book_id == book_run.book_id, StoryStateEvent.book_run_id == book_run.id)
+        )
+        or 0
+    )
+    if event_count == 0:
+        return {
+            "name": "story_state_open_items",
+            "status": "unavailable",
+            "reason": "story_state_events_not_found",
+            "findings": [],
+        }
+    ledgers = session.scalars(
+        select(StoryStateLedger).where(
+            StoryStateLedger.book_id == book_run.book_id,
+            StoryStateLedger.book_run_id == book_run.id,
+        )
+    ).all()
+    findings = [
+        {
+            "entity_kind": ledger.entity_kind,
+            "entity_id": ledger.entity_id,
+            "canonical_name": ledger.canonical_name,
+            "state": ledger.state,
+        }
+        for ledger in ledgers
+        if _story_state_ledger_is_open(ledger)
+    ]
+    return {
+        "name": "story_state_open_items",
+        "status": "needs_review" if findings else "pass",
+        "findings": findings[:20],
+    }
+
+
+def _full_book_final_chapter_signal_check(
+    book_run: BookRun,
+    scenes: list[tuple[Chapter, Scene]],
+) -> dict[str, object]:
+    if not scenes:
+        return {"name": "final_chapter_resolution_signal", "status": "unavailable", "reason": "no_approved_scenes"}
+    last_chapter, last_scene = max(scenes, key=lambda item: item[0].ordinal)
+    if last_chapter.ordinal < int(book_run.total_chapters or 0):
+        return {
+            "name": "final_chapter_resolution_signal",
+            "status": "unavailable",
+            "reason": "final_chapter_missing",
+            "last_chapter_index": last_chapter.ordinal,
+        }
+    content = last_scene.content or ""
+    signals = ("真相", "解决", "收束", "结束", "答案", "回收", "兑现")
+    matched = [signal for signal in signals if _has_positive_resolution_signal(content, signal)]
+    return {
+        "name": "final_chapter_resolution_signal",
+        "status": "pass" if matched else "needs_review",
+        "matched_signals": matched,
+        "chapter_index": last_chapter.ordinal,
+    }
+
+
+def _normalized_opening(content: str, *, max_chars: int = 40) -> str:
+    first_line = next((line.strip() for line in content.splitlines() if line.strip()), "")
+    normalized = "".join(first_line.split())
+    return normalized[:max_chars]
+
+
+def _has_positive_resolution_signal(content: str, signal: str) -> bool:
+    if signal not in content:
+        return False
+    negated_markers = (f"没{signal}", f"未{signal}", f"没有{signal}", f"尚未{signal}", f"仍未{signal}")
+    return not any(marker in content for marker in negated_markers)
+
+
+def _story_state_ledger_is_open(ledger: StoryStateLedger) -> bool:
+    state = ledger.state if isinstance(ledger.state, dict) else {}
+    phase = str(state.get("phase") or state.get("status") or "").strip().lower()
+    if ledger.entity_kind == "foreshadow":
+        return phase not in {"payoff", "resolved", "closed", "已收", "回收"}
+    if ledger.entity_kind in {"conflict", "countdown", "oath"}:
+        return phase not in {"resolved", "completed", "cancelled", "broken", "已完成", "已解决", "取消", "违背"}
+    return False

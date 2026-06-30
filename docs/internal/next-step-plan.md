@@ -9,6 +9,8 @@
 > - **CI 已整体移除**（PR #31 squash 含 `5d22b27` 删 `ci.yml`/`e2e.yml`，`.github/workflows/` 不复存在）。lint + OpenAPI 漂移的自动拦截不再经 CI，改由**本地 `pre-push` git hook**（`.githooks/pre-push`，一次性 `pnpm hooks:install` 启用，跑 `pnpm run verify:fast` = lint + 漂移）。下方 §一.5、阶段 0-2、横切 DoD 中的 CI 字样以此为准。
 > - **阶段 0 三项已完成**：#28（30 章退回结构化 + 重跑 DoD）、#29（`_call_llm` 有界重试）、#30（CI 触发，随后整体移除）。
 > - **Q1/Q4 已具体化**：跨章状态层设计定稿见 `story-state-model-design.md`（state_event/state_ledger、CHANGES grounding、W-c 模块先接 `_judge_and_repair_loop`）；Q1 的“写死抽取”确指 live `deterministic_judge_fallback` 的 demo 模板，非 `extract/prompt.py`。
+> - **执行状态（2026-06-30）**：质量轨 Q1-Q8 已完成第一版本地验证，Q9 的 wrapper / validator / 证据门禁已增强但真实长跑未执行；产品轨 P2/P3/P4 已完成第一版本地验证，P1 仍需真实 Tauri + 真模型人工按钮路径；F1a 已完成，F1b 终稿依赖 P1/Q9 真实结论。
+> - **当前阻塞（2026-06-30）**：本机缺少 `STORYFORGE_LLM_API_KEY` / `STORYFORGE_LLM_BASE_URL` / `STORYFORGE_LLM_MODEL` / `STORYFORGE_LLM_PROVIDER` / `STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD`，因此 Q9 真实 4 万字长跑、真实 provider tool-call 探针和人工盲评不能执行；不能用当前单元、smoke 或 wrapper 测试替代。
 
 ---
 
@@ -91,8 +93,8 @@
 - `_call_llm` 重试+缺章护栏（阶段 0-1）
 - 去 demo premise 系统词 + 多 arc（Q2 根因半）
 - 修 `TODO.md` Tauri 自相矛盾 + doc 守卫语义化（F1）
-- 为"修选中 issue"加 issue id 存在性校验（`ChatWindow.tsx:1001-1034`），防按漂移旧 id 改错目标
-- 用应用内模态替换原生 `prompt/alert/confirm`，统一写回确认入口
+- ✅ 为"修选中 issue"加 issue id 存在性校验（`ChatWindow.tsx` / `review.ts`），防按漂移旧 id 改错目标
+- ✅ 用应用内模态替换原生 `prompt/alert/confirm`，统一新建文件、覆盖确认、错误提示、分支命名和关闭未保存确认入口
 - 把 `verify-agent-conversation.mjs`/`verify-tauri-smoke.mjs` 接入 `test:desktop` 聚合或 CI，让 Agent 链路 wiring 回归被默认门禁拦
 
 ---
@@ -126,3 +128,14 @@
 ## 附：执行进度
 
 阶段 0 三项已完成（#28/#29/#30，见顶部更新）；CI 于 2026-06-30 整体移除，门禁拦截改由本地 `pre-push` hook（`.githooks/pre-push`）承担。后续按 branch→PR→merge 推进，证据回填 `.codex/verification-report.md`。
+
+- **Q1 P0-P8 / Q4 P0-P1 / Q5-Q8 已完成第一版（2026-06-30）**：`story_state` 领域骨架、Story Memory 去 demo 硬编码、state-grounding bridge、edge 类 CHANGES 分流、串行 runner memory atoms、LLM CHANGES JSON / tool-call 通道、稳定 ID 花名册、语义 grounding advisory、`required_facts` 真相源注入、跨章语义 judge 维度、参数化章节阈值、API 系统词检测、整书 advisory audit、称谓/时间线回归和 Prometheus 长程指标均已落地；详见 `.codex/verification-report.md` 对应 Q1/Q4/Q5/Q6/Q7/Q8 小节。
+- **Q9 结构门禁已增强但真实验收未完成（2026-06-30）**：长程 wrapper / evidence validator 本地通过，且已把 Q6 整书 advisory 与 StoryState changes 来源纳入 Q9 证据门禁；但真实 provider 配置、成本确认、真实 provider tool-call 探针、resume/预算暂停实战演练、4 万字产物、artifact sha256 和人工盲评仍缺失。
+- **产品轨 P2 已完成第一版（2026-06-30）**：Desktop diff 已支持 CJK 句/子句级 hunk 与 hunk 级冲突容忍，分块接受基于当前内容局部定位，整文件接受仍保留全文硬闸。
+- **产品轨 P3 已完成第一版（2026-06-30）**：Desktop Provider 设置已收敛为本机偏好/参考显示，真实调用只读取后端 `STORYFORGE_LLM_*`；前端 settings sanitizer 会丢弃疑似明文密钥。
+- **产品轨 P4 已完成第一版（2026-06-30）**：`/api/ide/agent/sessions/{session_id}` 的 `stream=true` 路径基于持久化 `AgentRunEvent` 实时桥接 WebSocket 事件，测试证明 `tool_trace` 可在最终 `agent_result` 前到达；核心 runtime 仍是同步执行体，由 worker thread 承载。
+- **Quick Win 已完成（2026-06-30）**：`package.json` 的 `test:desktop` 已改为执行 `apps/desktop` 完整 `verify`；`apps/desktop/package.json` 的 `verify` 已接入 `verify:agent-conversation` 与 `verify:tauri-smoke`；`verify-unit.mjs` 增加 Windows `EBUSY` 清理重试。`npm --prefix apps/desktop run verify` 通过，覆盖 frontend typecheck、83 个前端单测、frontend build、browser smoke、agent conversation smoke、9 个 Rust tests 和 Tauri smoke。
+- **Quick Win 已完成（2026-06-30）**：`修选中 issue` 入口已收紧为必须命中当前审稿报告、当前文件和存在的 issue id；漂移旧 id、跨文件标记和缺当前文件状态会被忽略，避免按过期标记修错目标。
+- **Quick Win 已完成（2026-06-30）**：React/Tauri 当前入口已新增应用内 `AppDialogHost`，替换 `App.tsx` / `Editor.tsx` 的原生 `prompt/alert/confirm`；遗留且未加载的 `src/main.ts` 旧 DOM 入口已删除，`index.html` 继续只加载 `src/main.tsx`。
+- **F1a 已完成第一版（2026-06-30）**：`TODO.md` / `current-phase.md` / `README.md` 已对齐“脚本级 smoke 已覆盖写回护栏，但完整真实 Tauri 桌面端到端仍待执行”的边界；F1b 终稿仍依赖 P1/Q9。
+- **P1 / Q9 / F1b 仍未完成**：P1 需要真实 Tauri 桌面端到端 + 真模型按钮路径与人工证据；Q9 需要真实 4 万字重跑、resume/预算暂停实战演练、真实 provider tool-call 探针、artifact sha256 和人工盲评；F1b 需等待这些真实结论后再最终收敛文档。

@@ -24,6 +24,7 @@ import { useMonacoEditor } from './editor/useMonacoEditor';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
+import type { AppDialogApi } from './app/AppDialog';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -40,6 +41,7 @@ type EditorProps = {
   onToggleSidebar?: () => void;
   sidebarVisible?: boolean;
   onExportCurrent?: () => void;
+  dialogs: AppDialogApi;
 };
 
 export function Editor({
@@ -51,6 +53,7 @@ export function Editor({
   onToggleSidebar,
   sidebarVisible,
   onExportCurrent,
+  dialogs,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -169,9 +172,12 @@ export function Editor({
       setIsDirty(false);
     } catch (err) {
       console.error('保存文件失败:', err);
-      alert(`保存文件失败: ${err}`);
+      await dialogs.alert({
+        title: '保存文件失败',
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
-  }, [advanceBranchHead, getActiveBranchSnapshot]);
+  }, [advanceBranchHead, dialogs, getActiveBranchSnapshot]);
 
   const { editorReady, editorInitError } = useMonacoEditor({
     containerRef,
@@ -292,15 +298,25 @@ export function Editor({
     const project = projectPathRef.current;
     const path = filePathRef.current;
     if (!project || !path) return;
-    const label = window.prompt('新分支名称', `分支 @ ${formatTimestamp(node.timestamp)}`);
+    const label = await dialogs.prompt({
+      title: '新分支',
+      message: '输入新分支名称：',
+      defaultValue: `分支 @ ${formatTimestamp(node.timestamp)}`,
+      confirmLabel: '创建',
+    });
     if (label === null) return;
     await createBranchFromNode(node.id, label);
     await handleCheckoutNode(node);
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (isDirty) {
-      const confirmed = confirm('文件有未保存的修改，确定关闭吗？');
+      const confirmed = await dialogs.confirm({
+        title: '关闭文件',
+        message: '文件有未保存的修改，确定关闭吗？',
+        confirmLabel: '关闭',
+        tone: 'danger',
+      });
       if (!confirmed) return;
     }
     onClose();
@@ -397,7 +413,7 @@ export function Editor({
           </button>
           <button
             id="editor-close-btn"
-            onClick={handleClose}
+            onClick={() => void handleClose()}
             title="关闭文件"
             className="sf-icon-button"
           >

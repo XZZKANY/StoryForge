@@ -38,6 +38,12 @@ DEFAULT_PHASE_POLICY = {
         {"name": "resolution", "chapter_range": {"start": 25, "end": 30}},
     ]
 }
+DEFAULT_PHASE_POLICY_RATIOS = (
+    ("setup", 0.2),
+    ("investigation", 0.5),
+    ("reversal", 0.8),
+    ("resolution", 1.0),
+)
 
 
 def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> BookRunWorkflowDispatch:
@@ -88,7 +94,7 @@ def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> Book
         volume_plan=volume_plan,
         narrative_plan=narrative_plan,
         entity_budget=_default_entity_budget(),
-        phase_policy=_default_phase_policy(),
+        phase_policy=_default_phase_policy(book_run.total_chapters),
         beat_sheet_gate=_beat_sheet_gate(narrative_plan),
     )
 
@@ -262,16 +268,19 @@ def _default_entity_budget() -> dict[str, int]:
     return dict(DEFAULT_ENTITY_BUDGET)
 
 
-def _default_phase_policy() -> dict[str, object]:
-    return {
-        "phases": [
-            {
-                "name": phase["name"],
-                "chapter_range": dict(phase["chapter_range"]),
-            }
-            for phase in DEFAULT_PHASE_POLICY["phases"]
-        ]
-    }
+def _default_phase_policy(total_chapters: int = 30) -> dict[str, object]:
+    """按实际章数派生默认阶段；30 章时保持历史边界不变。"""
+
+    chapter_count = max(1, int(total_chapters))
+    phases: list[dict[str, object]] = []
+    previous_end = 0
+    for name, ratio in DEFAULT_PHASE_POLICY_RATIOS:
+        raw_end = round(chapter_count * ratio)
+        start = previous_end + 1 if previous_end < chapter_count else chapter_count
+        end = max(start, min(chapter_count, raw_end))
+        phases.append({"name": name, "chapter_range": {"start": start, "end": end}})
+        previous_end = end
+    return {"phases": phases}
 
 
 def _beat_sheet_gate(narrative_plan: dict[str, object]) -> dict[str, object]:

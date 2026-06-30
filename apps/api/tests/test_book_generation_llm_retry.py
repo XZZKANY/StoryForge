@@ -21,10 +21,13 @@ class _FlakyChatHandler(BaseHTTPRequestHandler):
     fail_times = 0
     status_code = 429
     attempts = 0
+    last_payload: dict[str, object] | None = None
+    response_message: dict[str, object] | None = None
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("content-length", "0"))
-        self.rfile.read(length)
+        payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        self.__class__.last_payload = payload
         cls = self.__class__
         cls.attempts += 1
         if cls.attempts <= cls.fail_times:
@@ -36,9 +39,10 @@ class _FlakyChatHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        message = cls.response_message or {"content": "真实正文：林岚核对每一处线索并完成调查。"}
         body = json.dumps(
             {
-                "choices": [{"message": {"content": "真实正文：林岚核对每一处线索并完成调查。"}}],
+                "choices": [{"message": message}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             },
             ensure_ascii=False,
@@ -55,6 +59,8 @@ class _FlakyChatHandler(BaseHTTPRequestHandler):
 
 def _serve() -> HTTPServer:
     _FlakyChatHandler.attempts = 0
+    _FlakyChatHandler.last_payload = None
+    _FlakyChatHandler.response_message = None
     server = HTTPServer(("127.0.0.1", 0), _FlakyChatHandler)
     Thread(target=server.serve_forever, daemon=True).start()
     return server
@@ -128,3 +134,54 @@ def test_call_llm_does_not_retry_on_client_error() -> None:
     finally:
         server.shutdown()
     assert _FlakyChatHandler.attempts == 1
+
+
+def test_call_llm_sends_tools_and_returns_tool_calls() -> None:
+    """真实协议边界应保留 OpenAI-compatible tools 与响应 tool_calls。"""
+
+    tool_schema = [
+        {
+            "type": "function",
+            "function": {
+                "name": "record_story_state_changes",
+                "parameters": {"type": "object", "properties": {"changes": {"type": "array"}}},
+            },
+        }
+    ]
+    _FlakyChatHandler.fail_times = 0
+    _FlakyChatHandler.status_code = 200
+    server = _serve()
+    _FlakyChatHandler.response_message = {
+        "content": "沈砚在钟楼下停步。",
+        "tool_calls": [
+            {
+                "id": "call-1",
+                "type": "function",
+                "function": {
+                    "name": "record_story_state_changes",
+                    "arguments": json.dumps({"changes": []}),
+                },
+            }
+        ],
+    }
+    try:
+        result = _call_llm(
+            _source(server.server_address[1]),
+            system_prompt="s",
+            user_prompt="u",
+            tools=tool_schema,
+            tool_choice="auto",
+        )
+    finally:
+        server.shutdown()
+
+    assert _FlakyChatHandler.last_payload is not None
+    assert _FlakyChatHandler.last_payload["tools"] == tool_schema
+    assert _FlakyChatHandler.last_payload["tool_choice"] == "auto"
+    assert result["tool_calls"] == [
+        {
+            "id": "call-1",
+            "type": "function",
+            "function": {"name": "record_story_state_changes", "arguments": '{"changes": []}'},
+        }
+    ]

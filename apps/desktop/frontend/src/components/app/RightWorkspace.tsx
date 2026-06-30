@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { StoryNavigator } from '../StoryNavigator';
 import { Editor } from '../Editor';
+import type { AppDialogApi } from './AppDialog';
 
 function CollapsedRail({
   testId,
@@ -47,6 +48,7 @@ export function RightWorkspace({
   onToggleWorkspace,
   onRestoreWorkspace,
   onExportCurrent,
+  dialogs,
 }: {
   activeProject: string | null;
   currentFile: string | null;
@@ -62,6 +64,7 @@ export function RightWorkspace({
   onToggleWorkspace: () => void;
   onRestoreWorkspace: () => void;
   onExportCurrent: () => void;
+  dialogs: AppDialogApi;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileTreeDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -199,6 +202,7 @@ export function RightWorkspace({
           onToggleSidebar={onToggleWorkspace}
           sidebarVisible={workspaceVisible}
           onExportCurrent={onExportCurrent}
+          dialogs={dialogs}
         />
       </section>
     </div>

@@ -104,6 +104,8 @@ def _record_model_run(
                     else "unavailable"
                 ),
                 "cost_breakdown": generated.get("cost_breakdown", {}),
+                "story_state_changes_source": generated.get("story_state_changes_source"),
+                "story_state_tool_call_count": generated.get("story_state_tool_call_count", 0),
                 "input_summary_original_length": len(str(generated["prompt"])),
                 "output_summary_original_length": len(str(generated["content"])),
                 "input_summary_truncated": len(input_summary) < len(str(generated["prompt"])),
@@ -125,12 +127,24 @@ def _model_run_summary_text(text: str) -> str:
     return text[:head_length] + marker + text[-tail_length:]
 
 
-def _record_scene_packet(session: Session, book_run: BookRun, scene: Scene) -> ScenePacket:
+def _record_scene_packet(
+    session: Session,
+    book_run: BookRun,
+    scene: Scene,
+    *,
+    story_state_changes: list[dict[str, object]] | None = None,
+    story_state_changes_source: str | None = None,
+) -> ScenePacket:
+    packet_payload: dict[str, object] = {"book_run_id": book_run.id, "真实 LLM 生成": True, "证据链接": []}
+    if story_state_changes_source:
+        packet_payload["story_state_changes_source"] = story_state_changes_source
+    if story_state_changes:
+        packet_payload["story_state_changes"] = story_state_changes
     packet = ScenePacket(
         scene_id=scene.id,
         job_run_id=None,
         status="assembled",
-        packet={"book_run_id": book_run.id, "真实 LLM 生成": True, "证据链接": []},
+        packet=packet_payload,
         version=1,
     )
     session.add(packet)

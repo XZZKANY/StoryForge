@@ -57,6 +57,19 @@ STYLE_FINGERPRINT_DRIFT_PHRASES = (
 )
 STYLE_RESTRAINT_MARKERS = ("克制", "沉默", "低声", "按住", "没有解释", "只把")
 STYLE_FINGERPRINT_THRESHOLD = 0.62
+FORBIDDEN_DRAFT_TERMS = (
+    "Phase",
+    "冒烟",
+    "真实 LLM",
+    "测试",
+    "workflow",
+    "pipeline",
+    "审计链",
+    "工具调用",
+    "模型",
+    "生成器",
+    "系统提示",
+)
 
 # Judge Provider 类型别名（callable signature for LLM provider）
 JudgeProvider = Callable[..., Sequence[dict[str, object] | DetectedIssue]]

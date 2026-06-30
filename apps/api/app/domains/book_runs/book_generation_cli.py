@@ -8,9 +8,12 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import TextIO
 
+from app.domains.book_runs.book_generation_llm import _optional_int
 from app.domains.book_runs.book_generation_metrics import _evidence_summary, _result_summary
 from app.domains.book_runs.book_generation_preflight import _assert_preflight
 from app.domains.book_runs.errors import BookGenerationPreflightError
+
+DEFAULT_CLI_MAX_CHAPTER_COUNT = 30
 
 
 def main(
@@ -24,17 +27,22 @@ def main(
 ) -> int:
     """命令行入口：执行 真实 LLM 整书生成并输出脱敏摘要。"""
 
+    source = os.environ if env is None else env
     parser = argparse.ArgumentParser(description="运行 StoryForge 真实 LLM 整书生成。")
     parser.add_argument("--chapter-count", type=int, required=True)
     parser.add_argument("--token-budget", type=int, required=True)
     parser.add_argument("--target-word-count", type=int, default=None)
     parser.add_argument("--chapter-word-count-min", type=int, default=600)
     parser.add_argument("--chapter-word-count-max", type=int, default=1600)
+    parser.add_argument(
+        "--max-chapter-count",
+        type=int,
+        default=_optional_int(source, "STORYFORGE_LLM_SMOKE_MAX_CHAPTER_COUNT", DEFAULT_CLI_MAX_CHAPTER_COUNT),
+    )
     parser.add_argument("--summary-output", type=str, default=None)
     args = parser.parse_args(argv)
     out = sys.stdout if output is None else output
     err = sys.stderr if error is None else error
-    source = os.environ if env is None else env
     try:
         _assert_preflight(
             source,
@@ -43,6 +51,7 @@ def main(
             args.target_word_count,
             args.chapter_word_count_min,
             args.chapter_word_count_max,
+            max_chapter_count=args.max_chapter_count,
         )
     except BookGenerationPreflightError as exc:
         print(str(exc), file=err)
@@ -60,6 +69,7 @@ def main(
                 target_word_count=args.target_word_count,
                 chapter_word_count_min=args.chapter_word_count_min,
                 chapter_word_count_max=args.chapter_word_count_max,
+                max_chapter_count=args.max_chapter_count,
                 env=source,
             )
     except BookGenerationPreflightError as exc:

@@ -111,6 +111,9 @@ def _chapter_metric(item: object) -> dict[str, object]:
             "quality_issue_count": 0,
             "elapsed_time_sec": 0,
             "repair_rounds": 0,
+            "judge_call_count": 0,
+            "story_state_changes_source": None,
+            "story_state_tool_call_count": 0,
         }
     issues = item.get("quality_issues")
     issue_count = len(issues) if isinstance(issues, list) else 0
@@ -124,6 +127,9 @@ def _chapter_metric(item: object) -> dict[str, object]:
         "quality_issue_count": issue_count,
         "elapsed_time_sec": item.get("elapsed_time_sec", 0),
         "repair_rounds": item.get("repair_rounds", 0),
+        "judge_call_count": item.get("judge_call_count", 0),
+        "story_state_changes_source": item.get("story_state_changes_source"),
+        "story_state_tool_call_count": item.get("story_state_tool_call_count", 0),
     }
 
 

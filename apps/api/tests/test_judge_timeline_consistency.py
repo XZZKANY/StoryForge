@@ -95,6 +95,61 @@ def test_judge_fails_when_character_appears_in_two_locations_at_same_time(sessio
     assert issue.payload["matched_text"] == "荒原城"
 
 
+def test_judge_detects_chapter_18_timeline_conflict_from_chapter_17_fact(session: Session) -> None:
+    """17/18 章回归：第 17 章位置事实应约束第 18 章同一时间地点。"""
+
+    book = Book(title="十七十八章时间线", status="draft", premise="验证跨章时间线。")
+    session.add(book)
+    session.flush()
+    previous = Chapter(book_id=book.id, ordinal=17, title="午夜雾港", status="approved", summary=None)
+    target = Chapter(book_id=book.id, ordinal=18, title="荒原错位", status="draft", summary=None)
+    session.add_all([previous, target])
+    session.flush()
+    scene = Scene(chapter_id=target.id, ordinal=1, title="荒原", status="draft", content=None)
+    session.add(scene)
+    session.flush()
+    packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"必须包含事实": [], "风格规则": []}, version=1)
+    session.add(packet)
+    session.add(
+        MemoryAtomRecord(
+            book_id=book.id,
+            entity_type="character",
+            entity_id="林岚",
+            fact_type="location",
+            value="时间：午夜；地点：雾港",
+            valid_from_chapter=17,
+            valid_to_chapter=None,
+            immutable=True,
+            confidence=0.97,
+            revision=1,
+            source_ref="chapter:17#memory_extract",
+        )
+    )
+    session.commit()
+
+    issues = create_judge_issues(
+        session,
+        JudgeIssueCreate(
+            scene_id=scene.id,
+            scene_packet_id=packet.id,
+            content="第十八章午夜，林岚在荒原城点亮信号灯。",
+            required_facts=[],
+            style_rules=[],
+            evidence_links=[],
+        ),
+    )
+
+    issue = next(item for item in issues if item.issue_type == "timeline_conflict")
+    assert issue.payload["violation"] == {
+        "type": "same_time_different_location",
+        "entity_id": "林岚",
+        "time": "午夜",
+        "expected_location": "雾港",
+        "observed_location": "荒原城",
+    }
+    assert issue.payload["timeline_fact"]["source_ref"] == "chapter:17#memory_extract"
+
+
 def _seed_scene(session: Session) -> tuple[Scene, ScenePacket, Book]:
     book = Book(title="时间线检测", status="draft", premise="验证时间线矛盾。")
     session.add(book)

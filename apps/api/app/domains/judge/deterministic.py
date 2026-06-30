@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 from app.domains.judge.schemas import JudgeIssueCreate
-from app.domains.judge.types import STYLE_DRIFT_PHRASES, DetectedIssue
+from app.domains.judge.types import FORBIDDEN_DRAFT_TERMS, STYLE_DRIFT_PHRASES, DetectedIssue
+
+CONFLICT_ONLY_FACT_PREFIX = "已知事实："
 
 
 def deterministic_judge_fallback(payload: JudgeIssueCreate) -> list[DetectedIssue]:
@@ -14,6 +16,7 @@ def deterministic_judge_fallback(payload: JudgeIssueCreate) -> list[DetectedIssu
     return [
         *_detect_setting_conflicts(payload.content, payload.required_facts),
         *_detect_style_drift(payload.content, payload.style_rules),
+        *_detect_forbidden_draft_terms(payload.content),
     ]
 
 
@@ -22,7 +25,7 @@ def _detect_setting_conflicts(content: str, required_facts: list[str]) -> list[D
 
     issues: list[DetectedIssue] = []
     for fact in required_facts:
-        normalized_fact = fact.strip()
+        normalized_fact, conflict_only = _normalize_required_fact(fact)
         if not normalized_fact:
             continue
         conflict = _find_conflict_phrase(content, normalized_fact)
@@ -42,9 +45,16 @@ def _detect_setting_conflicts(content: str, required_facts: list[str]) -> list[D
                     matched_text=phrase,
                 )
             )
-        elif normalized_fact not in content:
+        elif not conflict_only and normalized_fact not in content:
             issues.append(_missing_fact_issue(content, normalized_fact))
     return issues
+
+
+def _normalize_required_fact(fact: str) -> tuple[str, bool]:
+    normalized = fact.strip()
+    if normalized.startswith(CONFLICT_ONLY_FACT_PREFIX):
+        return normalized[len(CONFLICT_ONLY_FACT_PREFIX):].strip(), True
+    return normalized, False
 
 
 def _find_conflict_phrase(content: str, fact: str) -> tuple[str, str] | None:
@@ -130,6 +140,31 @@ def _detect_style_drift(content: str, style_rules: list[str]) -> list[DetectedIs
                 expected_text="克制",
                 replacement_text="她把解释压回沉默里",
                 matched_text=phrase,
+            )
+        )
+    return issues
+
+
+def _detect_forbidden_draft_terms(content: str) -> list[DetectedIssue]:
+    """真实正文不得泄漏系统/流程词；API 侧自包含实现，避免 import workflow guard。"""
+
+    issues: list[DetectedIssue] = []
+    for term in FORBIDDEN_DRAFT_TERMS:
+        if term not in content:
+            continue
+        start = content.index(term)
+        issues.append(
+            DetectedIssue(
+                category="forbidden_draft_term",
+                severity="high",
+                span_start=start,
+                span_end=start + len(term),
+                summary=f"正文包含系统/流程词“{term}”，应改成场景内可见动作或物件。",
+                recommended_repair_mode="replace_span",
+                expected_text="场景内可见动作或物件",
+                replacement_text="",
+                matched_text=term,
+                metadata={"forbidden_term": term, "source": "api_forbidden_draft_terms"},
             )
         )
     return issues

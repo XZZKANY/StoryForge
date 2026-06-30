@@ -13,6 +13,7 @@ from app.domains.exports.book_markdown_exporter import (
     export_book_run_epub,
     export_book_run_markdown,
 )
+from app.domains.story_state.models import StoryStateEvent, StoryStateLedger
 from app.domains.workspaces.models import Workspace
 
 
@@ -41,6 +42,11 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert report["chapters"][0]["judge_report_id"] == 12
         assert report["chapters"][0]["approved_scene_id"] > 0
         assert "quality_summary" in report
+        assert report["full_book_advisory_audit"]["mode"] == "advisory"
+        assert report["full_book_advisory_audit"]["hard_gate"] is False
+        assert report["quality_summary"]["full_book_advisory_status"] == report["full_book_advisory_audit"]["status"]
+        assert _audit_check(report, "chapter_count_integrity")["status"] == "pass"
+        assert _audit_check(report, "story_state_open_items")["status"] == "unavailable"
         assert "chapter_quality_scores" in report
         assert "top_quality_issues" in report
         assert "manual_review_recommendations" in report
@@ -105,6 +111,90 @@ def test_book_run_markdown_and_audit_report_exports_artifacts(session_factory: s
         assert epub_artifact.name == "book.epub"
         assert epub_artifact.mime_type == "application/epub+zip"
         assert epub_artifact.payload["book_run_id"] == book_run_id
+
+
+def test_full_book_advisory_audit_reports_needs_review_without_blocking_export(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """整书终检发现咨询式风险时应留痕，但不阻断 audit_report 导出。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(session)
+        book_run = session.get(BookRun, book_run_id)
+        assert book_run is not None
+        repeated_opening = "同一句开头"
+        for scene in _book_run_scenes(session, book_run):
+            scene.content = f"{repeated_opening}\nworkflow 从码头暗门漏出，调查还没结束。"
+        session.add(
+            StoryStateEvent(
+                book_id=book_run.book_id,
+                book_run_id=book_run.id,
+                chapter_index=3,
+                seq=1,
+                change_type="upsert",
+                entity_kind="foreshadow",
+                entity_id="fog-lighthouse-signal",
+                payload={"phase": "planted"},
+                grounding={"advisory_fixture": True},
+            )
+        )
+        session.add(
+            StoryStateLedger(
+                book_id=book_run.book_id,
+                book_run_id=book_run.id,
+                entity_kind="foreshadow",
+                entity_id="fog-lighthouse-signal",
+                canonical_name="雾港灯塔信号",
+                aliases=[],
+                state={"phase": "planted"},
+                last_chapter=3,
+            )
+        )
+        session.commit()
+
+        audit_artifact = export_book_run_audit_report(session, book_run_id)
+
+        report = audit_artifact.payload
+        advisory = report["full_book_advisory_audit"]
+        assert audit_artifact.name == "audit_report.json"
+        assert advisory["status"] == "needs_review"
+        assert advisory["hard_gate"] is False
+        assert report["quality_summary"]["full_book_advisory_status"] == "needs_review"
+        assert _audit_check(report, "forbidden_draft_terms")["findings"][0]["terms"] == ["workflow"]
+        assert _audit_check(report, "repeated_openings")["findings"] == [
+            {"opening": repeated_opening, "chapter_indexes": [1, 2, 3]}
+        ]
+        assert _audit_check(report, "story_state_open_items")["findings"] == [
+            {
+                "entity_kind": "foreshadow",
+                "entity_id": "fog-lighthouse-signal",
+                "canonical_name": "雾港灯塔信号",
+                "state": {"phase": "planted"},
+            }
+        ]
+        assert _audit_check(report, "final_chapter_resolution_signal")["status"] == "needs_review"
+
+
+def test_full_book_advisory_audit_marks_story_state_unavailable_without_fake_pass(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """没有 StoryState 事件时终检应标 unavailable，避免伪装成干净通过。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(session)
+        book_run = session.get(BookRun, book_run_id)
+        assert book_run is not None
+        _book_run_scenes(session, book_run)[-1].content = "第三章正文。灯塔真相解决，答案回收。"
+        session.commit()
+
+        audit_artifact = export_book_run_audit_report(session, book_run_id)
+
+        report = audit_artifact.payload
+        story_state_check = _audit_check(report, "story_state_open_items")
+        assert story_state_check["status"] == "unavailable"
+        assert story_state_check["reason"] == "story_state_events_not_found"
+        assert report["full_book_advisory_audit"]["status"] == "partial"
+        assert report["quality_summary"]["full_book_advisory_status"] == "partial"
 
 
 def test_audit_report_skill_chain_prefers_recorded_skill_runs_without_full_payload(
@@ -369,3 +459,25 @@ def _seed_completed_book_run_with_workspace(
     session.flush()
     book_run_id = _seed_completed_book_run(session, skill_runs=skill_runs, status=status, workspace_id=workspace.id)
     return book_run_id, workspace.id
+
+
+def _book_run_scenes(session: Session, book_run: BookRun) -> list[Scene]:
+    return (
+        session.query(Scene)
+        .join(Chapter, Scene.chapter_id == Chapter.id)
+        .filter(Chapter.book_id == book_run.book_id)
+        .order_by(Chapter.ordinal)
+        .all()
+    )
+
+
+def _audit_check(report: dict[str, object], name: str) -> dict[str, object]:
+    advisory = report["full_book_advisory_audit"]
+    assert isinstance(advisory, dict)
+    checks = advisory["checks"]
+    assert isinstance(checks, list)
+    for check in checks:
+        assert isinstance(check, dict)
+        if check.get("name") == name:
+            return check
+    raise AssertionError(f"missing full-book advisory check: {name}")

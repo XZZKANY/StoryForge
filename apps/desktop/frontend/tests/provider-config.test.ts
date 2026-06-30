@@ -6,6 +6,7 @@ import {
   describeProviderConnection,
   describeProviderHealth,
   isProviderKind,
+  PROVIDER_RUNTIME_ENV_VARS,
   PROVIDER_OPTIONS,
   type ProviderHealth,
 } from '../src/lib/provider-config';
@@ -44,8 +45,8 @@ test('provider configuration describes actionable connection states', () => {
       apiKeyRef: '',
     }),
     {
-      status: 'local',
-      label: '本地模型服务',
+      status: 'backend-env',
+      label: '后端环境变量控制模型服务',
     },
   );
 
@@ -57,10 +58,11 @@ test('provider configuration describes actionable connection states', () => {
       apiKeyRef: '',
     }),
     {
-      status: 'needs-api-key',
-      label: '缺少密钥引用',
+      status: 'backend-env',
+      label: '后端环境变量控制模型服务',
     },
   );
+  assert.ok(PROVIDER_RUNTIME_ENV_VARS.includes('STORYFORGE_LLM_API_KEY'));
 });
 
 test('app settings sanitizer shares provider kind validation with provider configuration', () => {
@@ -79,6 +81,38 @@ test('app settings sanitizer shares provider kind validation with provider confi
   assert.equal(settings.autoSave, true);
   assert.equal(settings.provider.kind, 'openai');
   assert.equal(settings.provider.baseUrl, 'https://api.openai.com');
+});
+
+test('app settings sanitizer keeps provider references but drops plaintext credentials', () => {
+  const withEnvRef = sanitizeAppSettings({
+    provider: {
+      kind: 'openai-compatible',
+      baseUrl: 'https://provider.test/v1',
+      model: 'writer-model',
+      apiKeyRef: 'STORYFORGE_LLM_API_KEY',
+    },
+  });
+  assert.equal(withEnvRef.provider.apiKeyRef, 'STORYFORGE_LLM_API_KEY');
+
+  const withVaultRef = sanitizeAppSettings({
+    provider: {
+      kind: 'openai-compatible',
+      baseUrl: 'https://provider.test/v1',
+      model: 'writer-model',
+      apiKeyRef: 'vault://storyforge/provider-key',
+    },
+  });
+  assert.equal(withVaultRef.provider.apiKeyRef, 'vault://storyforge/provider-key');
+
+  const withPlaintext = sanitizeAppSettings({
+    provider: {
+      kind: 'openai-compatible',
+      baseUrl: 'https://provider.test/v1',
+      model: 'writer-model',
+      apiKeyRef: 'sk-live-should-not-persist',
+    },
+  });
+  assert.equal(withPlaintext.provider.apiKeyRef, '');
 });
 
 function health(overrides: Partial<ProviderHealth>): ProviderHealth {

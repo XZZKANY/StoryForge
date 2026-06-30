@@ -23,6 +23,8 @@ def _write_minimal_long_evidence(
     integration_metrics: dict[str, object] | None = None,
     include_epub: bool = True,
     include_cost_breakdown: bool = True,
+    story_state_source: str = "tool_call",
+    include_full_book_advisory: bool = True,
 ) -> None:
     run_dir.mkdir()
     if integration_metrics is None:
@@ -54,7 +56,13 @@ def _write_minimal_long_evidence(
             "audit_report_sha256": "audit-hash",
         },
         "per_chapter_metrics": [
-            {"chapter_index": index, "quality_score": 95, "quality_issue_count": 0}
+            {
+                "chapter_index": index,
+                "quality_score": 95,
+                "quality_issue_count": 0,
+                "story_state_changes_source": story_state_source,
+                "story_state_tool_call_count": 1 if story_state_source.startswith("tool_call") else 0,
+            }
             for index in range(1, chapter_count + 1)
         ],
         "integration_metrics": integration_metrics,
@@ -87,7 +95,22 @@ def _write_minimal_long_evidence(
     (run_dir / "book.md").write_text("脱敏正文", encoding="utf-8")
     if include_epub:
         (run_dir / "book.epub").write_bytes(b"epub-bytes")
-    _write_json(run_dir / "audit_report.json", {"status": "ok"})
+    audit_report: dict[str, object] = {
+        "status": "ok",
+        "chapters": [
+            {"chapter_index": index, "story_state_changes_source": story_state_source}
+            for index in range(1, chapter_count + 1)
+        ],
+        "quality_summary": {"full_book_advisory_status": "pass"},
+    }
+    if include_full_book_advisory:
+        audit_report["full_book_advisory_audit"] = {
+            "status": "pass",
+            "mode": "advisory",
+            "hard_gate": False,
+            "checks": [],
+        }
+    _write_json(run_dir / "audit_report.json", audit_report)
     _write_json(run_dir / "stdout.json", {"status": "ok"})
     (run_dir / "stderr.log").write_text("", encoding="utf-8")
 
@@ -154,7 +177,61 @@ def test_long_evidence_validator_accepts_complete_minimal_evidence(tmp_path: Pat
     assert "audit_artifact_id: artifact-audit-json" in result.stdout
     assert "cost_cny_estimated: 0.6" in result.stdout
     assert "quality_issue_count_total: 0" in result.stdout
+    assert "full_book_advisory_status: pass" in result.stdout
+    assert "story_state_changes_sources: tool_call,tool_call" in result.stdout
     assert "gate: pass_for_real_10ch_scope" in result.stdout
+
+
+def test_long_evidence_validator_rejects_missing_full_book_advisory(tmp_path: Path) -> None:
+    """Q9 证据必须包含 Q6 整书 advisory audit，不能只靠章节分数过关。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, include_full_book_advisory=False)
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少 full_book_advisory_audit" in result.stdout
+
+
+def test_long_evidence_validator_rejects_missing_story_state_changes_source(tmp_path: Path) -> None:
+    """Q9 证据必须证明每章生成链路至少产出了 StoryState changes 来源信号。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, story_state_source="none")
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少 story_state_changes_source 证据" in result.stdout
+
+
+def test_long_evidence_validator_allows_json_block_story_state_fallback(tmp_path: Path) -> None:
+    """provider 不支持 tool call 时，JSON block fallback 可作为 StoryState changes 证据。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, story_state_source="json_block")
+
+    result = _run_validator(run_dir)
+
+    assert result.returncode == 0
+    assert "story_state_changes_sources: json_block,json_block" in result.stdout
+    assert "gate: pass_for_real_10ch_scope" in result.stdout
+
+
+def test_long_evidence_validator_can_require_tool_call_story_state_source(tmp_path: Path) -> None:
+    """真实 provider tool-call 探针模式下，JSON block fallback 不得冒充 tool call 支持。"""
+
+    run_dir = tmp_path / "long-evidence"
+    _write_minimal_long_evidence(run_dir, story_state_source="json_block")
+
+    result = _run_validator(run_dir, "-RequireToolCallStoryStateChanges")
+
+    assert result.returncode == 1
+    assert "gate: fail" in result.stdout
+    assert "failure: 缺少 tool_call story_state_changes_source 证据" in result.stdout
 
 
 def test_long_evidence_validator_rejects_missing_epub_and_cost_breakdown(tmp_path: Path) -> None:

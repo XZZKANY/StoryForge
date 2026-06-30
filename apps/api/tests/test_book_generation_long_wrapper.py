@@ -22,6 +22,22 @@ def _load_long_wrapper():
     return module
 
 
+def _passing_audit_report(*, chapter_count: int = 1, source: str = "tool_call") -> dict[str, object]:
+    return {
+        "chapters": [
+            {"chapter_index": chapter_index, "story_state_changes_source": source}
+            for chapter_index in range(1, chapter_count + 1)
+        ],
+        "quality_summary": {"full_book_advisory_status": "pass"},
+        "full_book_advisory_audit": {
+            "status": "pass",
+            "mode": "advisory",
+            "hard_gate": False,
+            "checks": [],
+        },
+    }
+
+
 def test_long_wrapper_scans_all_text_artifacts_for_private_runtime_values(tmp_path: Path) -> None:
     """长程真实 LLM 包装脚本必须扫描全部文本产物，避免只检查摘要文件。"""
 
@@ -105,7 +121,15 @@ def test_long_wrapper_default_gate_records_but_does_not_require_phase5_integrati
             "book_epub_sha256": "epub-hash",
             "audit_report_sha256": "audit-hash",
         },
-        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+        "per_chapter_metrics": [
+            {
+                "chapter_index": 1,
+                "quality_score": 95,
+                "quality_issue_count": 0,
+                "story_state_changes_source": "tool_call",
+            }
+        ],
+        "audit_report": _passing_audit_report(),
     }
 
     assert module._gate_failures(summary, token_budget=200000) == []
@@ -122,7 +146,15 @@ def test_long_wrapper_requires_phase5_integration_metrics_when_explicitly_reques
             "book_epub_sha256": "epub-hash",
             "audit_report_sha256": "audit-hash",
         },
-        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+        "per_chapter_metrics": [
+            {
+                "chapter_index": 1,
+                "quality_score": 95,
+                "quality_issue_count": 0,
+                "story_state_changes_source": "tool_call",
+            }
+        ],
+        "audit_report": _passing_audit_report(),
     }
 
     missing_failures = module._gate_failures(
@@ -166,7 +198,15 @@ def test_long_wrapper_accepts_passing_phase5_integration_metrics() -> None:
             "book_epub_sha256": "epub-hash",
             "audit_report_sha256": "audit-hash",
         },
-        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+        "per_chapter_metrics": [
+            {
+                "chapter_index": 1,
+                "quality_score": 95,
+                "quality_issue_count": 0,
+                "story_state_changes_source": "tool_call",
+            }
+        ],
+        "audit_report": _passing_audit_report(),
         "integration_metrics": {
             "context_cache_hit_rate": 0.96,
             "memory_recall_budget_used": 7999,
@@ -178,6 +218,62 @@ def test_long_wrapper_accepts_passing_phase5_integration_metrics() -> None:
     }
 
     assert module._gate_failures(summary, token_budget=200000) == []
+
+
+def test_long_wrapper_requires_full_book_advisory_and_story_state_evidence() -> None:
+    """Q9 技术门禁必须要求 Q6 整书 advisory 和 StoryState 传输来源证据。"""
+
+    module = _load_long_wrapper()
+    summary = {
+        "tokens_used": 120000,
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash",
+            "audit_report_sha256": "audit-hash",
+        },
+        "per_chapter_metrics": [{"chapter_index": 1, "quality_score": 95, "quality_issue_count": 0}],
+    }
+
+    failures = module._gate_failures(summary, token_budget=200000)
+
+    assert "缺少 story_state_changes_source 证据" in failures
+    assert "缺少 audit_report.full_book_advisory_audit" in failures
+
+
+def test_long_wrapper_accepts_json_block_story_state_fallback_but_rejects_hard_gate_advisory() -> None:
+    """provider 不支持 tool call 时可用 JSON block fallback，但整书 advisory 不得伪装为硬门禁。"""
+
+    module = _load_long_wrapper()
+    summary = {
+        "tokens_used": 120000,
+        "artifact_hashes": {
+            "book_md_sha256": "book-hash",
+            "book_epub_sha256": "epub-hash",
+            "audit_report_sha256": "audit-hash",
+        },
+        "per_chapter_metrics": [
+            {
+                "chapter_index": 1,
+                "quality_score": 95,
+                "quality_issue_count": 0,
+                "story_state_changes_source": "json_block",
+            }
+        ],
+        "audit_report": {
+            **_passing_audit_report(source="json_block"),
+            "full_book_advisory_audit": {
+                "status": "pass",
+                "mode": "advisory",
+                "hard_gate": True,
+                "checks": [],
+            },
+        },
+    }
+
+    failures = module._gate_failures(summary, token_budget=200000)
+
+    assert "缺少 story_state_changes_source 证据" not in failures
+    assert "full_book_advisory_audit.hard_gate 必须为 false" in failures
 
 
 def test_long_wrapper_metadata_keeps_phase5_integration_metrics(tmp_path: Path) -> None:

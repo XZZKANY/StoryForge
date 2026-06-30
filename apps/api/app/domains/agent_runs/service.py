@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,7 @@ from app.domains.agent_runs.event_encoders import (  # noqa: F401  facade re-exp
     encode_agent_run_sse_event,
     websocket_control_event,
     websocket_started_event,
+    websocket_stream_events_from_agent_event,
 )
 from app.domains.agent_runs.event_sink import (  # noqa: F401  facade re-export
     _AgentRunEventSink,
@@ -271,11 +273,12 @@ def execute_agent_user_message_run(
     run: AgentRun,
     agent_session_id: str,
     message: dict[str, Any],
+    on_event: Callable[[AgentRunEvent], None] | None = None,
 ) -> dict[str, Any]:
     """由 Agent Runtime 作为唯一入口驱动 skill、tools、permission 和事件写入。"""
 
     try:
-        runtime = AgentRuntime(_AgentRunEventSink(session))
+        runtime = AgentRuntime(_AgentRunEventSink(session, on_event=on_event))
     except AgentOrchestrationError as exc:
         fail_agent_run(
             session,
@@ -300,10 +303,13 @@ def run_agent_user_message(
     *,
     agent_session_id: str,
     message: dict[str, Any],
+    on_event: Callable[[AgentRunEvent], None] | None = None,
 ) -> AgentRuntimeUserMessageResult:
     """Agent Runtime Facade：WebSocket user_message 的唯一执行入口。"""
 
     start = start_agent_user_message_run(session, agent_session_id=agent_session_id, message=message)
+    if on_event is not None:
+        on_event(start.started_event)
     run_id = start.run.public_id
     try:
         result = execute_agent_user_message_run(
@@ -311,6 +317,7 @@ def run_agent_user_message(
             run=start.run,
             agent_session_id=agent_session_id,
             message={**message, "run_id": run_id},
+            on_event=on_event,
         )
     except AgentRuntimeError as exc:
         raise AgentRuntimeUserMessageError(str(exc), run=start.run, started_event=start.started_event) from exc

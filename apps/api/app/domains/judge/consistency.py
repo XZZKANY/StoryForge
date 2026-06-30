@@ -4,6 +4,8 @@ Character Bible、Timeline、Style Fingerprint Drift 等跨域一致性规则检
 """
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,22 @@ from app.domains.judge.types import (
     DetectedIssue,
 )
 from app.domains.story_memory.models import MemoryAtomRecord
+
+_ADDRESSING_SUFFIXES = (
+    "医生",
+    "调查员",
+    "队长",
+    "老师",
+    "先生",
+    "女士",
+    "姑娘",
+    "小姐",
+    "巡检官",
+    "大人",
+    "师父",
+    "师兄",
+    "师姐",
+)
 
 
 def _detect_character_bible_violations(session: Session, payload: JudgeIssueCreate) -> list[DetectedIssue]:
@@ -69,6 +87,65 @@ def _detect_character_bible_violations(session: Session, payload: JudgeIssueCrea
                     },
                 )
             )
+    return issues
+
+
+def _detect_character_alias_conflicts(session: Session, payload: JudgeIssueCreate) -> list[DetectedIssue]:
+    """检测同句中 canonical 角色被未登记称谓替换的窄口径漂移。"""
+
+    book_id = _book_id_for_scene(session, payload.scene_id)
+    if book_id is None:
+        return []
+    entries = session.scalars(
+        select(CharacterBibleEntry)
+        .where(CharacterBibleEntry.book_id == book_id)
+        .order_by(CharacterBibleEntry.canonical_name, CharacterBibleEntry.id)
+    ).all()
+    issues: list[DetectedIssue] = []
+    for entry in entries:
+        canonical = str(entry.canonical_name or "").strip()
+        if len(canonical) < 2:
+            continue
+        allowed = {canonical, *_string_list(entry.aliases)}
+        replacement = _preferred_alias(entry)
+        for sentence_start, sentence in _sentence_spans(payload.content):
+            if canonical not in sentence:
+                continue
+            for candidate in _addressing_candidates(canonical):
+                if candidate in allowed or candidate not in sentence:
+                    continue
+                start = payload.content.find(candidate, sentence_start, sentence_start + len(sentence))
+                if start < 0:
+                    continue
+                issues.append(
+                    DetectedIssue(
+                        category="character_addressing_conflict",
+                        severity="medium",
+                        span_start=start,
+                        span_end=start + len(candidate),
+                        summary=(
+                            f"角色“{canonical}”同句被称为未登记称谓“{candidate}”，"
+                            "可能造成称谓漂移。"
+                        ),
+                        recommended_repair_mode="replace_span",
+                        expected_text=f"使用登记称谓：{replacement}",
+                        replacement_text=replacement,
+                        matched_text=candidate,
+                        metadata={
+                            "consistency_dimensions": {
+                                "character_consistency": "fail",
+                                "world_consistency": "pass",
+                            },
+                            "violation": {
+                                "type": "character_addressing_conflict",
+                                "canonical_name": canonical,
+                                "matched_alias": candidate,
+                                "allowed_aliases": sorted(allowed),
+                            },
+                        },
+                    )
+                )
+                break
     return issues
 
 
@@ -347,3 +424,23 @@ def _unique_strings(values: list[str]) -> list[str]:
             seen.add(value)
             unique.append(value)
     return unique
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def _preferred_alias(entry: CharacterBibleEntry) -> str:
+    aliases = _string_list(entry.aliases)
+    return aliases[0] if aliases else entry.canonical_name
+
+
+def _addressing_candidates(canonical: str) -> list[str]:
+    surname = canonical[0]
+    return [f"{surname}{suffix}" for suffix in _ADDRESSING_SUFFIXES]
+
+
+def _sentence_spans(content: str) -> list[tuple[int, str]]:
+    return [(match.start(), match.group(0)) for match in re.finditer(r"[^。！？!?]+[。！？!?]?", content)]

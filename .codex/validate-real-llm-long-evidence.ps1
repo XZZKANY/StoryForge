@@ -12,7 +12,8 @@ param(
   [double]$MaxChapterGenerationTimeP50 = 20,
   [double]$MinConcurrentChapterUtilization = 0.6,
   [switch]$RequireIntegrationGate,
-  [switch]$RequireManualReadthrough
+  [switch]$RequireManualReadthrough,
+  [switch]$RequireToolCallStoryStateChanges
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,6 +56,7 @@ $stderrPath = Join-Path $resolvedDirectory "stderr.log"
 
 $summary = Read-JsonOrNull -Path $summaryPath
 $metadata = Read-JsonOrNull -Path $metadataPath
+$auditReport = Read-JsonOrNull -Path $auditPath
 
 Write-Output "真实 LLM 长程脱敏产物验收"
 Write-Output "run_directory: $resolvedDirectory"
@@ -242,6 +244,59 @@ if ($null -eq $summary) {
         $failures += "concurrent_chapter_utilization 未超过 $MinConcurrentChapterUtilization"
       }
     }
+  }
+}
+
+if ($null -eq $auditReport) {
+  $failures += "audit_report.json 不可解析"
+} else {
+  $advisory = $auditReport.full_book_advisory_audit
+  if ($null -eq $advisory) {
+    $failures += "缺少 full_book_advisory_audit"
+  } else {
+    Write-Output "full_book_advisory_status: $($advisory.status)"
+    Write-Output "full_book_advisory_hard_gate: $($advisory.hard_gate)"
+    if ($advisory.hard_gate -ne $false) {
+      $failures += "full_book_advisory_audit.hard_gate 必须为 false"
+    }
+    if (-not $advisory.status) {
+      $failures += "缺少 full_book_advisory_audit.status"
+    }
+    if ($null -eq $advisory.checks) {
+      $failures += "缺少 full_book_advisory_audit.checks"
+    }
+  }
+  if ($null -eq $auditReport.quality_summary -or -not $auditReport.quality_summary.full_book_advisory_status) {
+    $failures += "缺少 quality_summary.full_book_advisory_status"
+  } else {
+    Write-Output "quality_summary_full_book_advisory_status: $($auditReport.quality_summary.full_book_advisory_status)"
+  }
+
+  $storyStateSources = @()
+  foreach ($metric in @($summary.per_chapter_metrics)) {
+    if ($null -ne $metric -and $metric.PSObject.Properties.Name -contains "story_state_changes_source") {
+      $source = [string]$metric.story_state_changes_source
+      if ($source.Trim()) {
+        $storyStateSources += $source.Trim()
+      }
+    }
+  }
+  foreach ($chapter in @($auditReport.chapters)) {
+    if ($null -ne $chapter -and $chapter.PSObject.Properties.Name -contains "story_state_changes_source") {
+      $source = [string]$chapter.story_state_changes_source
+      if ($source.Trim()) {
+        $storyStateSources += $source.Trim()
+      }
+    }
+  }
+  $validStoryStateSources = @($storyStateSources | Where-Object { $_ -and $_.ToLowerInvariant() -notin @("none", "missing", "unavailable", "null") })
+  $toolCallStoryStateSources = @($validStoryStateSources | Where-Object { $_.ToLowerInvariant().StartsWith("tool_call") })
+  Write-Output "story_state_changes_sources: $($validStoryStateSources -join ',')"
+  if ($validStoryStateSources.Count -eq 0) {
+    $failures += "缺少 story_state_changes_source 证据"
+  }
+  if ($RequireToolCallStoryStateChanges -and $toolCallStoryStateSources.Count -eq 0) {
+    $failures += "缺少 tool_call story_state_changes_source 证据"
   }
 }
 

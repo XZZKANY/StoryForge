@@ -158,6 +158,8 @@ def test_todo_records_current_phase9_next_actions() -> None:
     """TODO 必须作为当前执行入口，记录 Phase 9 剩余门禁而非旧阶段。"""
 
     todo = TODO_PATH.read_text(encoding="utf-8")
+    current_boundary = _section(todo, "## 当前事实边界", "## 下一步优先级")
+    next_actions = _section(todo, "## 下一步优先级", "## 本地验证入口")
 
     assert "当前执行入口" in todo
     assert "真实长程验收整改与 Desktop IDE Agent 收口阶段" in todo
@@ -169,9 +171,12 @@ def test_todo_records_current_phase9_next_actions() -> None:
     assert "Desktop IDE Agent" in todo
     assert "proposed patch" in todo
     assert "2026-06-21 本轮正在执行 `apps/web` 退场" in todo
+    assert "写回护栏已有脚本级 smoke 证据" in current_boundary
+    assert "完整人工桌面端到端仍待执行" in current_boundary
+    assert "完整真实 Tauri 桌面端到端仍列为下一步门禁" in current_boundary
     assert "下一步优先级" in todo
-    assert "跑真实 Tauri 桌面端到端" in todo
-    assert "重跑真实 3-5 万字长程" in todo
+    assert "跑真实 Tauri 桌面端到端" in next_actions
+    assert "重跑真实 3-5 万字长程" in next_actions
     assert "pnpm.cmd lint" in todo
     assert "npm --prefix apps/desktop/frontend run typecheck" in todo
     assert "npm --prefix apps/desktop/frontend run test" in todo
@@ -187,6 +192,8 @@ def test_todo_records_current_phase9_next_actions() -> None:
     assert "pnpm run test:workflow" not in todo
     assert "pnpm run test" not in todo
     assert "pnpm run verify" not in todo
+    assert "真实 Tauri 写回端到端。" not in todo
+    assert "第一阶段验收链路已经通过本地验证：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录" not in todo
 
 
 def test_local_start_records_current_phase9_runbook() -> None:
@@ -379,3 +386,24 @@ def test_phase9_document_fact_source_roles_are_converged() -> None:
     assert "本计划是历史阶段计划和 Definition of Done 记录" in dev_plan
     assert "当前阶段事实以 `docs/internal/current-phase.md` 为准" in dev_plan
     assert "不能把本计划中的历史验收文字单独作为最新状态来源" in dev_plan
+
+
+def test_current_phase_records_refactor_boundary_and_tauri_acceptance_gap() -> None:
+    """当前事实源必须同时收敛重构边界和 Tauri 端到端验收缺口。"""
+
+    current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
+    current_stage = _section(current_phase, "## 当前阶段", "## 已完成的能力边界")
+    remaining = _section(current_phase, "## 仍未完成的验收项", "## 禁止宣称范围")
+
+    assert "当前架构重构总计划已完成当前合理边界" in current_stage
+    assert "god-file 拆分不再作为当前主线待办" in current_stage
+    assert "不再做纯机械拆分" in current_stage
+    assert "完整真实 Tauri 桌面端到端" in remaining
+    assert "现有 smoke 已覆盖写回护栏和版本元数据" in remaining
+    assert "不能替代人工桌面端到端验收" in remaining
+
+
+def _section(content: str, start: str, end: str) -> str:
+    start_index = content.index(start)
+    end_index = content.index(end, start_index + len(start))
+    return content[start_index:end_index]

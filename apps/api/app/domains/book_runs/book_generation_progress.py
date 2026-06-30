@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.common.metrics import observe_book_generation_failure
 from app.domains.book_runs.schemas import BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress
 
@@ -17,6 +18,7 @@ def _pause_by_failure(
     """单章生成失败时落库已完成证据，便于断点诊断与续跑，而非整进程零证据退出。"""
 
     session.rollback()
+    observe_book_generation_failure()
     apply_book_run_progress(
         session,
         book_run_id,

@@ -7,7 +7,7 @@ export type ProviderPreset = Omit<ProviderSettings, 'model'> & {
 };
 
 export type ProviderConnectionState = {
-  status: 'ready' | 'needs-api-key' | 'local' | 'incomplete';
+  status: 'backend-env';
   label: string;
 };
 
@@ -99,32 +99,17 @@ export function applyProviderPreset(
   };
 }
 
-export function describeProviderConnection(settings: ProviderSettings): ProviderConnectionState {
-  const baseUrl = settings.baseUrl.trim();
-  if (!baseUrl) {
-    return {
-      status: 'incomplete',
-      label: '服务地址未填写',
-    };
-  }
+export const PROVIDER_RUNTIME_ENV_VARS = [
+  'STORYFORGE_LLM_PROVIDER',
+  'STORYFORGE_LLM_BASE_URL',
+  'STORYFORGE_LLM_MODEL',
+  'STORYFORGE_LLM_API_KEY',
+] as const;
 
-  if (settings.kind === 'local' || settings.kind === 'ollama') {
-    return {
-      status: 'local',
-      label: '本地模型服务',
-    };
-  }
-
-  if (!settings.apiKeyRef.trim()) {
-    return {
-      status: 'needs-api-key',
-      label: '缺少密钥引用',
-    };
-  }
-
+export function describeProviderConnection(_settings: ProviderSettings): ProviderConnectionState {
   return {
-    status: 'ready',
-    label: '模型服务已配置',
+    status: 'backend-env',
+    label: '后端环境变量控制模型服务',
   };
 }
 

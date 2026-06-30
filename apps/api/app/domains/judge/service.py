@@ -15,6 +15,7 @@ from app.domains.judge.consistency import (  # noqa: F401  facade re-export
     _book_id_for_scene,
     _contains_death_state,
     _dead_character_issue,
+    _detect_character_alias_conflicts,
     _detect_character_bible_violations,
     _detect_style_fingerprint_drift,
     _detect_timeline_conflicts,
@@ -83,6 +84,7 @@ def create_judge_issues(session: Session, payload: JudgeIssueCreate) -> list[Jud
     detected = outcome.issues or deterministic_judge_fallback(payload)
     detected = [
         *detected,
+        *_detect_character_alias_conflicts(session, payload),
         *_detect_character_bible_violations(session, payload),
         *_detect_timeline_conflicts(session, payload),
         *_detect_style_fingerprint_drift(session, payload),

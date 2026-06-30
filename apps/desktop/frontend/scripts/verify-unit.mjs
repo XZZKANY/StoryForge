@@ -188,5 +188,5 @@ try {
   console.error(`verify-unit failed: ${message}`);
   process.exitCode = 1;
 } finally {
-  rmSync(tempDir, { recursive: true, force: true });
+  rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -234,6 +235,63 @@ def test_agent_user_message_file_review_can_stream_intermediate_events(
     assert events[-1]["agent_result"]["review_report"]["kind"] == "review_report"
 
 
+def test_agent_user_message_streams_runtime_events_before_result(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.domains.agent_runs.runtime import AgentRuntime
+
+    monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
+    original_execute_tool = AgentRuntime._execute_tool  # noqa: SLF001 - test probes runtime boundary
+    file_review_blocked = threading.Event()
+    allow_file_review = threading.Event()
+
+    def blocking_execute_tool(self, tool_name, context, payload):  # noqa: ANN001 - test double
+        if tool_name == "file.review":
+            file_review_blocked.set()
+            assert allow_file_review.wait(timeout=5)
+        return original_execute_tool(self, tool_name, context, payload)
+
+    monkeypatch.setattr(AgentRuntime, "_execute_tool", blocking_execute_tool)
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-realtime") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "stream": True,
+                "run_id": "run-review-realtime",
+                "user_message": "审查当前章节的结构、人物和节奏",
+                "intent": "file.review",
+                "args": {
+                    "file_path": "正文/第01章.md",
+                    "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
+                    "context_bundle": {"files": []},
+                },
+            }
+        )
+        received = [websocket.receive_json()]
+        while not (
+            received[-1]["type"] == "tool_trace"
+            and received[-1]["trace"]["tool_name"] == "context.load"
+        ):
+            received.append(websocket.receive_json())
+        assert file_review_blocked.wait(timeout=2)
+        allow_file_review.set()
+        while received[-1]["type"] != "agent_result":
+            received.append(websocket.receive_json())
+
+    context_trace_index = next(
+        index
+        for index, event in enumerate(received)
+        if event["type"] == "tool_trace" and event["trace"]["tool_name"] == "context.load"
+    )
+    result_index = next(index for index, event in enumerate(received) if event["type"] == "agent_result")
+    assert received[0]["type"] == "agent_run_started"
+    assert context_trace_index < result_index
+    assert isinstance(received[context_trace_index]["sequence"], int)
+    assert received[-1]["run_id"] == "run-review-realtime"
+
+
 def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> None:
     with client.websocket_connect("/api/ide/agent/sessions/session-file-review-stream-error") as websocket:
         websocket.send_json(
@@ -247,9 +305,12 @@ def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> N
             }
         )
         started = websocket.receive_json()
-        error = websocket.receive_json()
+        received = []
+        while not received or received[-1]["type"] != "error":
+            received.append(websocket.receive_json())
 
     assert started["type"] == "agent_run_started"
+    error = received[-1]
     assert error["type"] == "error"
     assert error["run_id"] == "run-review-error"
     assert "file_path" in error["detail"]

@@ -4046,3 +4046,422 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `pnpm run verify:fast` → eslint 0 errors（2 个既有 warning 不阻断）+ prettier “All matched files use Prettier code style!”（含新 `.mjs`）+ `[check:drift] OpenAPI 契约无漂移`，整体 exit 0。
   - hook 经 `core.hooksPath` 启用后由本分支 push 实跑（见提交记录）。
 - 未联通能力：hook 是本地防线、可 `--no-verify` 绕过，非强制门禁（贴合无 CI 决定）；仅覆盖 lint + 漂移，typecheck（desktop frontend 未入 workspace，既有问题）/单测/pytest 不在其中，仍须 `pnpm verify` 手动全量。`generate-openapi.mjs` 需本机 `uv` + API python env（无需 DB/起服）。
+
+## Q1 P0：story_state 领域骨架落地（2026-06-30）
+
+- **目标**：按 `story-state-model-design.md` 的下一步建议，先建路径无关的 `story_state` domain 骨架（事件日志 + 当前态投影 + grounding 硬闸 + 确定性不变量），作为 Q1/Q4 后续接 `_judge_and_repair_loop` 的底座。
+- **变更**：
+  - 新增 `apps/api/app/domains/story_state/`：`StoryStateEvent` append-only 事件表、`StoryStateLedger` 当前态投影表、`StateChangeInput`/grounding/result schemas、`commit_story_state_changes()` 与 `reproject_story_state()` 服务函数。
+  - 新增 `apps/api/alembic/versions/20260630_0001_add_story_state.py`，并更新 Alembic head 到 `20260630_0001`。
+  - `app.models` 注册新模型，保证内存 SQLite 与 ORM metadata 路径可见。
+  - 新增 `apps/api/tests/test_story_state.py`，覆盖 grounding 成功/失败、append event、ledger projection、按章 rollback/reproject、伏笔未埋先收、秘密知情集只增、位置移动链 from 校验。
+  - 新增 `.codex/context-summary-story-state-q1-p0.md` 并回填 `.codex/operations-log.md` 编码前/后声明。
+- **本地验证**：
+  - `cd apps/api && uv run ruff check app/domains/story_state app/models.py tests/test_story_state.py tests/test_alembic_heads.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py -q` → 6 passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_alembic_heads.py tests/test_alembic_schema_current_orm.py -q` → 13 passed，1 个既有 Alembic `path_separator` deprecation warning。
+  - `cd apps/api && uv run pytest tests/test_continuity_edges.py tests/test_story_memory_persistence.py tests/test_story_state.py -q` → 21 passed。
+  - `cd apps/api && uv run python -c "from app.db.base import Base; import app.models; print('story_state_events' in Base.metadata.tables, 'story_state_ledgers' in Base.metadata.tables)"` → `True True`。
+  - `pnpm run verify:fast` → 首次因 pnpm 无 TTY 依赖目录清理确认保护失败（非代码失败）；复跑 `$env:CI='true'; pnpm.cmd run verify:fast` → 通过，eslint 0 errors / 2 个既有 warning，Prettier 通过，OpenAPI 契约无漂移。
+  - `git diff --check -- <touched files>` → 通过。
+- **未联通能力**：本刀是 Q1 P0 底座，**不等同 Q1 完成**；尚未接 `_judge_and_repair_loop`，未替换 `book_generation_parallel.py` 中林岚/灯塔写死抽取，未实现 LLM 语义 grounding，未向 `continuity_edges` 提交 edge 类 CHANGES，未跑 Q9 4 万字真实长程重跑。
+
+## Q2：去 demo premise 系统词 + 默认多 arc（2026-06-30）
+
+- **目标**：移除真实生成默认源头里的 `林岚` / `灯塔` / `审计链` 播种，并把 `_default_planning_arcs()` 从单 arc 全书覆盖改为多 arc、有界目标章，降低 Q9 重跑复发 30 章退回 blocker#1/#6/#7 的概率。
+- **变更**：
+  - `book_generation.py` 新增 `DEFAULT_GENERATION_*` 常量，默认题材改为沈砚 / 苍岭城 / 铜钟匠 / 旧盟约，不再使用旧 demo 词。
+  - `_seed_consistency_data()` 的 Character Bible / Style Pack 同步改为新默认人物与风格样例。
+  - `_blueprint_payload()` metadata 改为新 `pov` / `location` / `title_seed`。
+  - `_default_planning_arcs()` 改为 3 条默认弧线：`missing_bellsmith_case`、`patrol_oath_pressure`、`city_bell_rule`，目标章通过 `_arc_points()` 有界压缩，不再单 arc 覆盖全书。
+  - `test_book_generation.py` 新增默认题材非 demo 与多 arc 回归测试；fake provider 响应同步改为沈砚，避免测试证据继续播种旧主角。
+- **本地验证**：
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation.py tests/test_book_generation.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_defaults_do_not_seed_demo_story_terms tests/test_book_generation.py::test_default_planning_arcs_are_multi_arc_and_bounded tests/test_book_generation.py::test_book_generation_runs_one_chapter_and_records_evidence tests/test_book_generation.py::test_book_generation_runs_ten_chapters_with_word_targets -q` → 4 passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py -q` → 31 passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation_parallel.py -q` → 11 passed。
+- **未联通能力**：Q2 不替代 Q1；`book_generation_parallel.py` 的林岚/灯塔写死 memory extract 尚未替换，旧 golden baseline/历史测试夹具仍保留旧题材作为历史回归事实，Q9 真实重跑仍需显式换非 demo 题材并完成人工盲评。
+
+## Q3：fast judge 语义 advisory 必经一遍（2026-06-30）
+
+- **目标**：收紧真实生成 fast path 空转。本地 deterministic/style/character/timeline 门禁通过时，不再完全跳过语义 Judge；语义评审必须执行一遍，但只作为 advisory 信号，不扣分、不触发修复。
+- **变更**：
+  - `book_generation_judge.py::_run_real_judge()` 在 `local_gate_passed` fast path 前调用 `semantic_judge_with_status()`。
+  - 新增 `_semantic_advisory_payload()`，将 `failed`、`issue_count` 和 advisory issues 摘要写入 summary `JudgeIssue.payload["semantic_advisory"]`。
+  - fast path reason 改为 `local_gate_passed_semantic_advisory`，明确不是“未运行语义”。
+  - 更新 `test_book_generation.py`：用 fake httpx client 锁定 advisory 成功路径；其它生成测试改按 draft 请求数断言，避免测试环境 HTTP 栈缺 `trio` 影响真实生成路径。
+- **本地验证**：
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_judge.py tests/test_book_generation.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes tests/test_book_generation.py::test_book_generation_runs_one_chapter_and_records_evidence tests/test_book_generation.py::test_book_generation_runs_ten_chapters_with_word_targets tests/test_book_generation.py::test_book_generation_resume_continues_after_existing_approved_chapters -q` → 4 passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py -q` → 31 passed。
+  - `cd apps/api && uv run pytest tests/test_judge_semantic.py tests/test_judge_failure_marker.py -q` → 7 passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation_parallel.py -q` → 11 passed。
+- **未联通能力**：语义 advisory 仍是咨询信号，不作为硬门禁；未实现跨章语义维度和 `required_facts` 真相源填充（Q4）；当时并发 memory extract 写死问题尚未收口，后续见「Q1 P1」；未跑 Q9 真实长程。
+
+## Q1 P1：并发 memory extract 去硬编码（2026-06-30）
+
+- **目标**：移除 `book_generation_parallel.py` 章末 Story Memory 抽取中的旧 demo 主角/地点词，避免非 `林岚/灯塔` 题材每章 `memory_extract_skipped` 或抽取断粮。
+- **变更**：
+  - `_character_state_extracts()` 改为使用 `Chapter.pov` 作为角色锚点，并从正文中截取包含该角色的句子作为状态证据。
+  - `_world_fact_extracts()` 改为使用 `Chapter.location` + 通用中文设定词缀（规约/协议/许可/盟约/钟楼/密钥/线索/信号）抽取世界事实，不再写死 `灯塔/信号`。
+  - 新增 `.codex/context-summary-q1-memory-extract.md`；`test_book_generation_parallel.py` 新增非 demo 题材抽取回归。
+- **本地验证**：
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_parallel.py tests/test_book_generation.py tests/test_book_generation_parallel.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py -q` → 43 passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_alembic_heads.py -q` → 53 passed，1 个既有 Alembic `path_separator` deprecation warning。
+  - `git diff --check` → 通过。
+- **未联通能力**：这是通用本地抽取，不是 LLM 语义 CHANGES；串行 runner 尚未写 Story Memory atoms；复杂状态、称谓归一和 edge 类变更仍需后续 Q1/Q4。
+
+## Q1 P2：state-grounding bridge 接 `_judge_and_repair_loop`（2026-06-30）
+
+- **目标**：把 Q1 P0 的 `story_state` 底座接入真实生成 judge loop，让串行与并发真实路径在章节通过后产生可审计的跨章状态事件，不再停留在“建表但未接线”。
+- **变更**：
+  - `book_generation_judge.py::_judge_and_repair_loop()` 在章节通过且无阻断 issue 后调用 `_commit_story_state_for_scene()`，提交保守 CHANGES。
+  - 保守 CHANGES 来源为 `Chapter.pov`、`Chapter.location` 与通用世界事实词缀；所有条目仍经 `commit_story_state_changes()` 做 surface grounding 与 ledger projection。
+  - story_state 硬失败转为 `story_state_conflict` JudgeIssue，并把质量分压到批准阈值以下，避免伪 clean。
+  - `_record_summary_judge()`、串行 `run_book_generation()`、并发 `run_book_generation_parallel()` 的 progress 均记录 `story_state_commit` 摘要。
+  - 新增 `.codex/context-summary-q1-state-grounding-bridge.md`；`test_book_generation.py` 断言真实生成入口会写入 `StoryStateEvent` / `StoryStateLedger`。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_runs_one_chapter_and_records_evidence tests/test_book_generation.py::test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes -q` → 2 passed。
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_parallel.py tests/test_book_generation.py tests/test_book_generation_parallel.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py -q` → 43 passed。
+  - `cd apps/api && uv run ruff check app/domains/story_state app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_parallel.py tests/test_story_state.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_alembic_heads.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_alembic_heads.py -q` → 53 passed，1 个既有 Alembic `path_separator` deprecation warning。
+  - `git diff --check` → 通过。
+- **未联通能力**：这仍不是最终 Writer 工具调用协议；当时尚未实现 LLM 语义 grounding、edge 类 CHANGES → `continuity_edges`、真相源填 `required_facts`、称谓一致性维度或 Q9 4 万字长程重跑；`required_facts` 真相源第一刀后续见「Q4 P0」。
+
+## Q4 P0：story_state 真相源填 `required_facts`（2026-06-30）
+
+- **目标**：消除 `_build_judge_payload()` 中 `required_facts=[]` 的假空转，把 Q1 已落库的 `StoryStateLedger` 当前态投影注入真实 judge payload，让 deterministic / semantic judge 在后续章节看到跨章已知事实。
+- **变更**：
+  - `book_generation_judge.py::_build_judge_payload()` 从 `StoryStateLedger` 读取当前 `book_run_id` 范围内的 `status` / `rule` / `phase` / `holder` / `location`，生成最多 20 条 `required_facts`。
+  - 新增 `已知事实：` conflict-only 事实前缀：旧 required_facts 普通字符串仍保持“必须出现”语义；story_state 注入的已知事实只检查直接矛盾，不要求每章复述。
+  - `deterministic_judge_fallback()` 支持 conflict-only 事实，避免前章状态在后续章节未复述时产生误报。
+  - `evidence_links` 记录 `story_state_ledger` 来源，便于 audit 追踪。
+  - 新增 `.codex/context-summary-q4-required-facts-story-state.md`；`test_book_generation.py` 覆盖真相源注入抓矛盾与 conflict-only 不误报缺失。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_judge_payload_uses_story_state_required_facts tests/test_book_generation.py::test_conflict_only_story_state_fact_does_not_require_restatement -q` → 2 passed。
+  - `cd apps/api && uv run ruff check app/domains/judge/deterministic.py app/domains/book_runs/book_generation_judge.py tests/test_book_generation.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_repair.py -q` → 59 passed。
+  - `cd apps/api && uv run ruff check app/domains/judge/deterministic.py app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_parallel.py app/domains/story_state tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_repair.py` → All checks passed。
+  - `git diff --check` → 通过。
+- **未联通能力**：Q4 尚未完整完成；当时仍缺跨章语义新维度、称谓一致性 judge 维度、edge 类 CHANGES → `continuity_edges`、真实 LLM 工具化 CHANGES 与 Q9 4 万字长程重跑；edge 类提交后续见「Q1 P3」。
+
+## Q1 P3：edge 类 CHANGES → `continuity_edges`（2026-06-30）
+
+- **目标**：完成 `story-state-model-design.md` 中 edge/node 分流的第一版实现：relationship / timeline_order / status 这类结构边不写 `state_ledger`，而是进入已 live 的 `continuity_edges` 并复用其冲突检测。
+- **变更**：
+  - `CommitStoryStateResult` 新增 `edge_count`，记录本次 CHANGES 分流出的结构边数量。
+  - `commit_story_state_changes()` 将 `relationship` / `timeline` / `timeline_order` / `status` 识别为 edge 类 CHANGES：先经 `ContinuityEdgeCandidate` + `check_edge_constraints()` 校验，通过后写 `ContinuityEdge`，payload 标记 `source=story_state`、`book_run_id`、`chapter_index`、`change_type`。
+  - edge 类 CHANGES 仍写 `StoryStateEvent`，但不写 `StoryStateLedger`，保持 edge/node 不重叠。
+  - edge 冲突转为 `StoryStateInvariantError`，整笔 rollback，不产生半写 event/edge/ledger。
+  - `reproject_story_state()` 会删除当前 scope 下 story_state 来源的 `continuity_edges`，再按剩余事件重建，避免未来边残留或重复边。
+  - 新增 `.codex/context-summary-q1-edge-changes.md`；`test_story_state.py` 覆盖正常分流、冲突回滚、reproject 重建。
+- **本地验证**：
+  - `cd apps/api && uv run ruff check app/domains/story_state tests/test_story_state.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py -q` → 9 passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_continuity_edges.py tests/test_book_generation.py tests/test_book_generation_parallel.py -q` → 63 passed。
+  - `cd apps/api && uv run ruff check app/domains/story_state app/domains/continuity tests/test_story_state.py tests/test_continuity_edges.py app/domains/book_runs/book_generation_judge.py app/domains/judge/deterministic.py tests/test_book_generation.py tests/test_book_generation_parallel.py` → All checks passed。
+  - `git diff --check` → 通过。
+- **未联通能力**：真实 Writer/LLM 工具化 CHANGES 尚未落地；当前 book generation 保守桥不主动生成复杂 relationship/timeline edge；`continuity_edges` 表无 `book_run_id` 列，story_state 来源的 run scope 暂存于 payload。
+
+## Q1 P4：串行 runner Story Memory atoms 写入（2026-06-30）
+
+- **目标**：对齐串行/并发真实生成入口。并发 runner 已在章节 approved 后写 Story Memory atoms，串行 CLI 长程路径此前只产生 BookContext/Judge/Audit 证据，不写 `memory_atom_ids`，导致 Q9 指定 CLI 路径的记忆链弱于并发路径。
+- **变更**：
+  - 新增 `book_generation_memory.py`，把章末本地 memory 抽取、Story Memory 写入、章节前召回字符统计下沉为共享 helper。
+  - `book_generation_parallel.py` 改为复用共享 helper，并通过 `__all__` 保留旧私有 helper 导出供测试/扩展点使用。
+  - `run_book_generation()` / `resume_book_generation()` 在生成前记录 `memory_recall_chars`，在章节批准后调用 `extract_memory_atoms_for_chapter()` 写入 Story Memory，并把 `memory_atom_ids` / `memory_recall_chars` 写入 `completed_chapters`。
+  - 本地抽取摘要压短，确保串行 10 章 memory recall budget 真实大于 0 但仍低于既有 8000 字预算线。
+  - 新增 `.codex/context-summary-q1-serial-memory.md`；`test_book_generation.py` 覆盖串行 1 章写 atoms 与 10 章记忆召回预算。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_runs_one_chapter_and_records_evidence tests/test_book_generation.py::test_book_generation_runs_ten_chapters_with_word_targets tests/test_book_generation_parallel.py::test_parallel_memory_extracts_use_chapter_context_without_demo_terms tests/test_book_generation_parallel.py::test_book_generation_parallel_runner_extracts_and_recalls_story_memory -q` → 4 passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_continuity_edges.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_repair.py -q` → 71 passed。
+  - `cd apps/api && uv run ruff check app/domains/story_state app/domains/continuity app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_parallel.py app/domains/book_runs/book_generation_memory.py app/domains/book_runs/book_generation_judge.py app/domains/judge/deterministic.py tests/test_story_state.py tests/test_continuity_edges.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_repair.py` → All checks passed。
+  - `git diff --check` → 通过。
+- **未联通能力**：这是本地 Story Memory 抽取桥，不是最终 Writer/LLM 工具化 CHANGES；resume 重建历史 completed_chapters 时暂未反查既有 memory atoms，后续新补章节会写入 atoms；Q9 真实长程仍需验证召回预算是否随章数膨胀。
+
+## Q1 P5：LLM CHANGES JSON 通道（2026-06-30）
+
+- **目标**：为最终 Writer/LLM CHANGES 提供第一条真实传输路径。模型可以在正文后输出可剥离的 `STORY_STATE_CHANGES` JSON 区块；后端解析后写入 ScenePacket，judge loop 优先消费模型 CHANGES，缺失时继续使用保守本地桥。
+- **变更**：
+  - 新增 `book_generation_changes.py`：`append_story_state_changes_instruction()` 在生成 prompt 末尾追加 CHANGES 输出协议；`extract_story_state_changes_from_content()` 从模型响应剥离 `【STORY_STATE_CHANGES】...【/STORY_STATE_CHANGES】` JSON 数组。
+  - `_generate_chapter()` 调用上述 parser，成功时将结构化区块从正文移除，并在返回值携带 `story_state_changes`。
+  - `_record_scene_packet()` 支持保存 `story_state_changes` 到 `ScenePacket.packet`。
+  - `_commit_story_state_for_scene()` 优先读取 ScenePacket 中的 changes，再 fallback 到本地保守 CHANGES。
+  - 测试 fake provider 改为返回合法 CHANGES block，验证 Scene 正文不含 block、StoryStateEvent 来自模型声明的 `character.status`。
+  - 新增 `.codex/context-summary-q1-llm-changes-channel.md`。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_story_state_changes_block_is_stripped_from_generated_content tests/test_book_generation.py::test_book_generation_runs_one_chapter_and_records_evidence tests/test_book_generation.py::test_book_generation_runs_ten_chapters_with_word_targets -q` → 3 passed。
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_continuity_edges.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_repair.py -q` → 72 passed。
+  - `cd apps/api && uv run ruff check app/domains/story_state app/domains/continuity app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_parallel.py app/domains/book_runs/book_generation_memory.py app/domains/book_runs/book_generation_changes.py app/domains/book_runs/book_generation_records.py app/domains/book_runs/book_generation_judge.py app/domains/judge/deterministic.py tests/test_story_state.py tests/test_continuity_edges.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_judge_semantic.py tests/test_judge_failure_marker.py tests/test_judge_repair.py` → All checks passed。
+  - `git diff --check` → 通过。
+- **未联通能力**：这不是最终 tool-call 协议；当时仍缺 schema retry、花名册稳定 ID 选择器、LLM 语义 grounding、跨章语义新维度、称谓一致性 judge 维度与 Q9 4 万字重跑；schema retry/稳定 ID 后续见「Q1/Q4 P6」，称谓/17-18 章时间线基线后续见「Q7」。
+
+## Q7：称谓一致性 judge 维度 + 17/18 章时间线回归（2026-06-30）
+
+- **目标**：闭合计划中 Q7 的第一版确定性基线：真实 judge 链路能发现人物称谓漂移，并用第 17 章事实约束第 18 章时间线。
+- **变更**：
+  - `judge.consistency.py` 新增 `_detect_character_alias_conflicts()`：读取 Character Bible 的 `canonical_name` / `aliases`，在同句同时出现 canonical 与未登记同姓称谓时输出 `character_addressing_conflict`。
+  - `judge.service.create_judge_issues()` 与 `book_generation_judge._run_real_judge()` 均接入称谓一致性检测；`_CATEGORY_DIMENSION` 将 `character_addressing_conflict` 映射到 `character_consistency`。
+  - 新增 `test_judge_flags_unregistered_character_addressing_drift`：`林岚` 同句被叫成未登记 `林医生` 时输出称谓问题，并建议替换为 Character Bible 登记别名 `林调查员`。
+  - 新增 `test_judge_detects_chapter_18_timeline_conflict_from_chapter_17_fact`：第 17 章 Story Memory 记录“午夜在雾港”，第 18 章正文写“午夜在荒原城”，应输出 `timeline_conflict`。
+  - 新增 `.codex/context-summary-q7-addressing-timeline.md`。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_judge_character_consistency.py::test_judge_flags_unregistered_character_addressing_drift tests/test_judge_timeline_consistency.py::test_judge_detects_chapter_18_timeline_conflict_from_chapter_17_fact -q` → 2 passed。
+  - `cd apps/api && uv run pytest tests/test_judge_character_consistency.py tests/test_judge_timeline_consistency.py tests/test_timeline_consistency.py tests/test_book_generation.py tests/test_book_generation_parallel.py -q` → 52 passed。
+  - `cd apps/api && uv run ruff check app/domains/judge/consistency.py app/domains/judge/service.py app/domains/book_runs/book_generation_judge.py tests/test_judge_character_consistency.py tests/test_judge_timeline_consistency.py tests/test_timeline_consistency.py tests/test_book_generation.py tests/test_book_generation_parallel.py` → All checks passed。
+  - `git diff --check` → 通过。
+- **未联通能力**：称谓检查是确定性窄口径，不覆盖所有亲属称谓/同姓角色/语义别称；17/18 基线证明跨章事实可触发 judge，不等同整书人工通读通过；Q9 仍未跑。
+
+## Q8：长程可观测性 Prometheus 指标（2026-06-30）
+
+- **目标**：让真实长程生成路径的逐章 judge/repair/failure/cost 信号进入 `/metrics`，避免 Q9 只靠离线 summary 才能看出长跑健康度。
+- **变更**：
+  - `app/common/metrics.py` 新增 `book_generation_failure_count_total`、`book_generation_cost_cny_total`、`observe_book_generation_chapter()`、`observe_book_generation_failure()`。
+  - `_judge_and_repair_loop()` 返回 `judge_call_count`，每轮 `_run_real_judge()` 都计入，repair 重试不再被压成单次。
+  - 串行 `run_book_generation()` 与 `resume_book_generation()` 在每章 judge loop 后 emit `judge_calls_total`、`repair_patches_total`、`book_generation_cost_cny_total`，并在 `completed_chapters` 写入 `judge_call_count`。
+  - 并发 `run_book_generation_parallel()` 的 precommit 校正路径使用同一章节观测 helper，并把 `judge_call_count` 合入章节 progress。
+  - `_pause_by_failure()` 递增 `book_generation_failure_count_total`；`_chapter_metric()` 将 `judge_call_count` 写入 summary per-chapter metrics。
+  - `tests/test_metrics.py` 覆盖 `/metrics` 暴露新指标与 helper 计数语义；`tests/test_book_generation.py` 覆盖真实一章生成推动 judge/cost counter、失败暂停推动 failure counter。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_metrics.py tests/test_book_generation.py tests/test_book_generation_parallel.py -q` → 50 passed。
+  - `cd apps/api && uv run ruff check app/common/metrics.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation_parallel.py app/domains/book_runs/book_generation_progress.py app/domains/book_runs/book_generation_metrics.py tests/test_metrics.py tests/test_book_generation.py tests/test_book_generation_parallel.py` → All checks passed。
+- **未联通能力**：Q8 只完成可观测性，不等同 Q9；尚未跑真实 4 万字长程、resume/预算暂停实战演练、人工盲评或 artifact sha256 登记。指标有意不携带 `book_run_id` / `chapter_index` 标签，逐章细节仍以 BookRun progress / summary.json 为准。
+
+## Q1/Q4 P6：稳定 ID 花名册 + CHANGES schema retry（2026-06-30）
+
+- **目标**：把 Q1/Q4 设计中的“花名册挑稳定 ID + schema 校验重试”接到真实生成路径，减少模型自由名漂移和 CHANGES JSON 结构错导致的状态链断粮。
+- **变更**：
+  - `book_generation_changes.py` 新增 `StoryStateRosterEntry`、`stable_story_state_entity_id()`、`build_story_state_roster()`、`normalize_story_state_changes_with_roster()`、`validate_story_state_change_dicts()`。
+  - `_generate_chapter()` 在 prompt 里注入 `故事状态花名册`，来源为当前 `StoryStateLedger`、Character Bible、本章 POV 与地点；串行、resume、并发 precommit 均传入 `book_run_id` 以读取 run-scoped ledger。
+  - 模型返回自由名 CHANGES（如 `entity_id=沈砚`）时，后端提交前归一为稳定 ID（如 `character:<hash>`），并保留 `canonical_name` / `aliases` 供 grounding 与 audit 阅读。
+  - CHANGES schema 不合格时新增 `_retry_story_state_changes_schema()`，只要求模型修正 JSON 数组，不重写章节正文；重试结果仍经花名册归一和 `StateChangeInput` 校验。
+  - `test_book_generation.py` 新增 prompt 花名册/稳定 ID 归一、schema retry 只修 JSON 的回归；真实一章生成测试改为断言 `StoryStateEvent` / `StoryStateLedger` 使用稳定 ID。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py -q` → 58 passed。
+  - `cd apps/api && uv run pytest tests/test_metrics.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py -q` → 61 passed。
+  - `cd apps/api && uv run ruff check app/common/metrics.py app/domains/book_runs/book_generation_changes.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation_parallel.py app/domains/book_runs/book_generation_progress.py app/domains/book_runs/book_generation_metrics.py tests/test_metrics.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py` → All checks passed。
+- **未联通能力**：这仍不是 OpenAI function/tool-call transport，当前继续兼容 `STORY_STATE_CHANGES` JSON block；语义 grounding 仍未接入，schema retry 只保证结构合法，不判断 delta 语义是否被正文充分支撑；Q9 真实 4 万字长程仍未执行。
+
+## Q1/Q4 P7：LLM 语义 grounding advisory（2026-06-30）
+
+- **目标**：补齐 `story-state-model-design.md` 中 grounding 的第二层咨询信号：确定性 surface grounding 负责反捏造，LLM 语义 grounding 判断 CHANGES delta 是否被正文语义支持，但不作为硬门禁。
+- **变更**：
+  - `StoryStateGroundingResult` 新增 `semantic_reason`。
+  - 新增 `story_state/semantic.py`：`semantic_ground_story_state_changes()` 复用 `STORYFORGE_JUDGE_LLM_*`（回退 `STORYFORGE_LLM_*`），要求模型只返回每条 CHANGES 的 `seq`、`score`、`reason`。
+  - `commit_story_state_changes()` 新增可注入 `semantic_grounder`，把 advisory 的 `semantic_status=advisory`、`semantic_score`、`semantic_reason` 写入 `StoryStateEvent.grounding`；grounder 异常只写 `semantic_grounding_failed`，不回滚确定性通过的提交。
+  - `_commit_story_state_for_scene()` 在真实生成路径传入 `semantic_ground_story_state_changes()`。
+  - `tests/test_story_state.py` 新增语义 grounding 分数落库、grounder 异常不阻断提交的回归；fast judge advisory 测试更新为期望章节语义 judge + story_state semantic grounding 两次语义 LLM 调用。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_book_generation.py tests/test_book_generation_parallel.py -q` → 60 passed。
+  - `cd apps/api && uv run ruff check app/domains/story_state/schemas.py app/domains/story_state/service.py app/domains/story_state/semantic.py app/domains/book_runs/book_generation_judge.py tests/test_story_state.py tests/test_book_generation.py tests/test_book_generation_parallel.py` → All checks passed。
+- **未联通能力**：语义 grounding 仍为 advisory，不硬断、不触发 repair；真正 function/tool-call transport 与跨章语义新维度仍未实现；Q9 真实 4 万字长程仍未执行。
+
+## Q5：参数化章节阈值 + API 系统词检测（2026-06-30）
+
+- **目标**：移除真实长程前置路径中的 30 章固定阶段边界和 CLI 10 章固定上限，并把退回 blocker 中的系统/流程词泄漏检测接到 API 真实 judge 路径。
+- **变更**：
+  - `book_runs.dispatch._default_phase_policy(total_chapters)` 按实际章数派生默认阶段：30 章保持历史 1-6 / 7-15 / 16-24 / 25-30；18 章变为 1-4 / 5-9 / 10-14 / 15-18。
+  - `book_generation_cli.py` 新增 `--max-chapter-count`，默认 30；`book_generation_preflight.resolved_llm_env()` 支持 `STORYFORGE_LLM_SMOKE_MAX_CHAPTER_COUNT`，Q9 16-18 章 band 不再被旧 10 章默认上限拦住。
+  - `judge.types` 新增 API 侧 `FORBIDDEN_DRAFT_TERMS`；`deterministic_judge_fallback()` 输出 `forbidden_draft_term`，覆盖 `Phase` / `测试` / `workflow` / `模型` / `审计链` 等系统词。
+  - `book_generation_judge._CATEGORY_DIMENSION` 将 `forbidden_draft_term` 归入 `style_consistency`。
+  - 测试新增 18 章 phase policy 缩放、Q9 CLI band 上限参数化、API 系统词检测回归。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_deterministic_judge_flags_forbidden_draft_system_terms tests/test_book_generation.py::test_book_generation_cli_allows_q9_chapter_band_with_parameterized_cap tests/test_book_run_workflow_dispatch.py -q` → 18 passed。
+  - `cd apps/api && uv run ruff check app/domains/judge/types.py app/domains/judge/deterministic.py app/domains/book_runs/book_generation_judge.py app/domains/book_runs/book_generation_cli.py app/domains/book_runs/book_generation_preflight.py app/domains/book_runs/dispatch.py tests/test_book_generation.py tests/test_book_run_workflow_dispatch.py` → All checks passed。
+- **未联通能力**：HTTP `/api/book-runs/{id}/start` 的 6 章后台安全闸仍保留；Q9 按 DoD 走 CLI 长程路径。API 系统词检测是自包含实现，没有 import workflow `ForbiddenDraftTermsFilter`，也不代表完整 workflow narrative guard 已接入真实路径。
+
+## Q6：整书级叙事终检 advisory audit（2026-06-30）
+
+- **目标**：在 `audit_report.json` 导出时补一层整书级咨询式终检，覆盖逐章 judge 看不到的章数完整性、系统词残留、模板化开头、未回收 story_state 项与最终章收束信号；该信号只进入审计报告，不作为导出硬门禁。
+- **变更**：
+  - `export_book_run_audit_report()` 新增 `full_book_advisory_audit`，并把状态同步到 `quality_summary.full_book_advisory_status`。
+  - 新增 5 个可解释 check：`chapter_count_integrity`、`forbidden_draft_terms`、`repeated_openings`、`story_state_open_items`、`final_chapter_resolution_signal`。
+  - `story_state_open_items` 读取 `StoryStateEvent` / `StoryStateLedger`：没有事件源时返回 `unavailable`，有未回收 foreshadow/conflict/countdown/oath 时返回 `needs_review`。
+  - 终检异常返回 `status=error`，`hard_gate=false`；不会阻断 `audit_report.json` 导出。
+  - 最终章收束信号避免把 `没结束` / `未结束` 等否定短语误判为正向收束。
+  - `tests/test_book_exporter.py` 覆盖 advisory 结构、needs_review 不阻断导出、StoryState 缺失为 `unavailable` 而非伪 pass。
+  - 生成测试 fixture 将假正文里的“真实模型章节正文”改为“真实章节正文”，避免 Q5 系统词检测把测试夹具自身判为 `forbidden_draft_term`；`_draft_requests()` 同步排除 StoryState semantic grounding 请求。
+  - 新增 `.codex/context-summary-q6-full-book-advisory-audit.md`。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_exporter.py -q` → 7 passed。
+  - `cd apps/api && uv run ruff check app/domains/exports/book_markdown_exporter.py tests/test_book_exporter.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_runs_one_chapter_and_records_evidence tests/test_book_generation.py::test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes tests/test_book_generation.py::test_book_generation_resume_continues_after_existing_approved_chapters -q` → 3 passed。
+  - `cd apps/api && uv run pytest tests/test_book_exporter.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_run_recorded_skill_runs_export.py tests/test_phase9a_deterministic_smoke.py -q` → 61 passed。
+  - `cd apps/api && uv run ruff check app/domains/exports/book_markdown_exporter.py tests/test_book_exporter.py tests/test_book_generation.py` → All checks passed。
+- **环境修复记录**：验证中发现本地 venv 的 `httpcore/_backends/__init__.py` 与 RECORD 不一致（应为空文件，却被写成 trio backend 内容），导致真实 `httpx` 请求报 `No module named 'trio'` 并污染生成测试。已执行 `cd apps/api && uv pip install --force-reinstall httpcore==1.0.9` 修复本地环境；未改项目依赖。
+- **未联通能力**：Q6 是静态/确定性 advisory 第一版，不等同人工通读；未接 workflow narrative guard；未跑 Q9 真实 4 万字长程、resume/预算暂停实战演练、人工盲评或 artifact sha256 登记。真正 function/tool-call transport 与更广的跨章语义维度仍未完成。
+
+## Q1/Q4 P8：OpenAI-compatible tool-call transport（2026-06-30）
+
+- **目标**：把 StoryState CHANGES 从正文尾部 JSON block 升级为 OpenAI-compatible `tools/tool_calls` 结构化传输第一版，同时保留 JSON block fallback，避免 provider 能力差异导致状态链断粮。
+- **变更**：
+  - `_call_llm()` 新增可选 `tools` / `tool_choice` 入参，请求 payload 会透传给 chat/completions；响应中的 `message.tool_calls` 被规整为 `result["tool_calls"]`。
+  - `book_generation_changes.py` 新增 `STORY_STATE_CHANGES_TOOL_NAME=record_story_state_changes`、`story_state_changes_tools()`、`extract_story_state_changes_from_tool_calls()`。
+  - `_generate_chapter()` 默认发送 `record_story_state_changes` tool schema；同时返回 tool call 与正文 JSON block 时优先采用 tool call；`STORYFORGE_LLM_STORY_STATE_TOOL_CALLS=0/false/no/off` 可关闭并回退 JSON block。
+  - tool call 结果仍经花名册稳定 ID 归一、`StateChangeInput` schema 校验和 schema retry；不绕过 Q1/Q4 P6/P7 的 grounding 规则。
+  - `_record_scene_packet()`、ModelRun payload、completed chapter progress 记录 `story_state_changes_source` / `story_state_tool_call_count`，便于 Q9 审计实际通道。
+  - `tests/test_book_generation_llm_retry.py` 覆盖 `_call_llm` 发送 tools/tool_choice 并保留 tool_calls；`tests/test_book_generation.py` 覆盖 tool call 提取以及 `_generate_chapter()` 优先采用 tool call。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation_llm_retry.py tests/test_book_generation.py::test_story_state_changes_tool_calls_are_extracted tests/test_book_generation.py::test_generate_chapter_prefers_story_state_tool_calls -q` → 7 passed。
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_llm.py app/domains/book_runs/book_generation_changes.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_records.py app/domains/book_runs/book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_book_generation.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_story_state.py -q` → 69 passed。
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_llm.py app/domains/book_runs/book_generation_changes.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_records.py app/domains/book_runs/book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py` → All checks passed。
+- **未联通能力**：未对真实外部 provider 做 tool-call 兼容性探针；Q9 前仍需用目标模型确认 `tools` 支持，若不支持则显式设置 `STORYFORGE_LLM_STORY_STATE_TOOL_CALLS=0` 使用 JSON block fallback。跨章语义新维度仍未完成，Q9 真实 4 万字长程仍未执行。
+
+## Q4 P1：跨章语义 judge 维度（2026-06-30）
+
+- **目标**：让 semantic judge 不只判断单章 setting/timeline/relationship/style/voice，而能理解 Q1/Q4 已提供的跨章 story_state / memory / evidence_links 事实，输出可归类的跨章语义问题。
+- **变更**：
+  - `judge.semantic._JUDGE_SYSTEM_PROMPT` 新增四类跨章语义 category：
+    - `cross_chapter_state_conflict`：正文与跨章 story_state / memory 事实矛盾。
+    - `foreshadow_payoff_gap`：正文声称回收/解决/遗忘伏笔但与伏笔状态不匹配。
+    - `arc_continuity_drift`：本章推进偏离已知主线弧线、倒计时或承诺且缺少过渡。
+    - `repetition_echo`：本章复用前章开头、段落或系统化句式。
+  - `semantic_judge_with_status()` 的 user prompt 新增 `证据链接：{payload.evidence_links}`，让 story_state_ledger / memory / planning 证据进入远程 Judge 上下文。
+  - `_CATEGORY_DIMENSION` 映射新增上述类别，真实生成 progress / audit 的 `quality_issues[*].dimension` 可归入 `world_consistency`、`narrative_quality` 或 `style_consistency`。
+  - `tests/test_judge_semantic.py` 新增 provider 返回跨章类别的解析回归，并断言远程请求 system prompt 含跨章类别、user prompt 含 `story_state_ledger` evidence。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_judge_semantic.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py -q` → 70 passed。
+  - `cd apps/api && uv run ruff check app/domains/judge/semantic.py app/domains/book_runs/book_generation_judge.py tests/test_judge_semantic.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_story_state.py` → All checks passed。
+- **未联通能力**：这是 semantic prompt/分类第一版，不等同真实长程质量已验证；Q9 前仍需用真实 provider 观察这些类别的误报/漏报。未接 workflow narrative guard；未做人工盲评。
+
+## Q9：长程验收本地结构门禁复验与真实阻塞（2026-06-30）
+
+- **目标**：在真实凭证缺失时，至少复验 Q9 wrapper / evidence validator 的本地结构门禁，并明确记录不能伪完成真实 4 万字长跑。
+- **环境预检**：
+  - `STORYFORGE_LLM_API_KEY`：missing。
+  - `STORYFORGE_LLM_BASE_URL`：missing。
+  - `STORYFORGE_LLM_MODEL`：missing。
+  - `STORYFORGE_LLM_PROVIDER`：missing。
+  - `STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD`：missing。
+  - `STORYFORGE_ALLOW_DIRECT_SERIAL_PH5`：missing。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py -q` → 22 passed。
+  - `cd apps/api && uv run ruff check tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py` → All checks passed。
+- **结论**：
+  - 长程 wrapper / validator 的本地结构门禁仍可用，覆盖敏感值扫描、outer timeout、quality gate、artifact hashes、EPUB/cost breakdown、resume 目录复制、manual-readthrough gate 等。
+  - Q9 真实 4 万字长跑未执行，不能视为完成：缺真实 provider 配置、成本确认、真实 tool-call provider 探针、resume/预算暂停实战演练、人工盲评与 artifact sha256 登记。
+  - 产品轨 P1 / F1b 仍未交付：当前约束为不触碰 `apps/web`，P1 还依赖真实 Tauri + 真模型按钮路径，F1b 还依赖 P1/Q9 真实结论。
+
+### Q9 结构门禁增强：Q6/P8 证据纳入验收（2026-06-30）
+
+- **目标**：避免 Q9 真实产物只凭章节分数和 artifact hash 过关，必须同时证明 Q6 整书 advisory 已落盘、StoryState changes 传输来源可审计。
+- **变更**：
+  - `summary.json.per_chapter_metrics` 透出 `story_state_changes_source` / `story_state_tool_call_count`，与 `audit_report.json.chapters` 互为证据。
+  - `.codex/run-real-llm-long-direct.py` 的运行后门禁读取 audit payload，要求 `full_book_advisory_audit` 存在、`hard_gate=false`、`quality_summary.full_book_advisory_status` 存在，并要求至少一章有非 `none` 的 `story_state_changes_source`。
+  - `.codex/validate-real-llm-long-evidence.ps1` 对落盘产物执行同类校验；默认接受 `tool_call` 或 `json_block` 来源，新增 `-RequireToolCallStoryStateChanges` 用于真实 provider tool-call 严格探针。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_supports_api_key_auth_and_cost_breakdown tests/test_book_generation.py::test_book_generation_cli_writes_redacted_summary_file tests/test_book_generation.py::test_generate_chapter_prefers_story_state_tool_calls -q` → 3 passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation_long_wrapper.py -q` → 16 passed。
+  - `cd apps/api && uv run pytest tests/test_real_llm_long_evidence_validator.py -q` → 12 passed。
+  - `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_book_exporter.py -q` → 76 passed。
+  - `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_metrics.py tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py` → All checks passed。
+  - PowerShell parser check for `.codex/validate-real-llm-long-evidence.ps1` → `parse-ok`。
+- **未联通能力**：仍未执行真实 provider tool-call 探针、真实 4 万字长跑、resume/预算暂停实战演练或人工盲评；本增强只提高 Q9 证据门槛，不能替代 Q9。
+
+## F1a：文档事实源收敛（2026-06-30）
+
+- **目标**：先收口不依赖真实 P1/Q9 运行的新旧文档矛盾，避免 TODO/README 把脚本级 Tauri 写回 smoke 误宣称为完整真实桌面端到端验收。
+- **变更**：
+  - `docs/internal/TODO.md` 将“真实 Tauri 写回端到端”改为“写回护栏已有脚本级 smoke 证据，完整人工桌面端到端仍待执行”，并把第一阶段链路改成组件链路而非最终验收。
+  - `docs/internal/current-phase.md` 补充重构总计划已完成当前合理边界，后续不再做纯机械 god-file 拆分；仍将完整真实 Tauri 桌面端到端列为未完成验收项。
+  - `README.md` 同步对外能力边界，明确不能宣称完整真实 Tauri 桌面端到端写回验收已完成。
+  - `tests/test_phase9_fact_sources.py` 新增 `_section()` 语义块守卫，检查 TODO 的“已验证/待执行”边界和 current-phase 的重构边界，减少对单个散落字符串的脆性依赖。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q` → 14 passed。
+  - `cd apps/api && uv run ruff check tests/test_phase9_fact_sources.py` → All checks passed。
+- **未联通能力**：F1a 只解决文档事实源矛盾与守卫语义化；P1 仍未交付，F1b 终稿仍依赖完整真实 Tauri 端到端和 Q9 真实长程结论。
+
+## 产品轨 P2：CJK 句/子句级 diff + hunk 级冲突容忍（2026-06-30）
+
+- **目标**：解决中文长段落被行级 diff 合成巨型 hunk、以及接受一个 hunk 后整文件门控导致剩余 hunk 全部失效的问题。
+- **变更**：
+  - `patch-hunks.ts` 保留既有行号/增删行字段，新增 `originalStartOffset` / `originalEndOffset` / `modifiedStartOffset` / `modifiedEndOffset`、`unitKind`、原文前后文，作为逐 hunk 安全定位证据。
+  - CJK 行内 diff 现在按 `。！？；，、：` 等句/子句边界拆 segment；普通文本和单 segment 行继续保持行级 hunk 行为。
+  - 新增 `applyPatchHunkToCurrent(currentContent, hunk)`：优先按原 offset 验证，offset 漂移时用 hunk 原文与前后文重新定位；原文缺失或多处歧义时抛出单 hunk 冲突。
+  - `useSuggestionWriteback.ts` 的分块接受改为基于当前编辑器内容应用单个 hunk；接受前一块后仍可继续接受剩余块。整文件接受仍保留 `currentContent === suggestion.before` 硬闸。
+  - `patch-hunks.test.ts` 新增单行中文多处修改拆分、逐块接受、插入型 hunk offset 漂移重定位、局部冲突拒绝回归；`editor.test.tsx` 新增源码守卫，防止分块接受退回整文件门控。
+- **本地验证**：
+  - `cd apps/desktop/frontend && pnpm.cmd run test -- patch-hunks editor` → 13 passed（React SSR `useLayoutEffect` warning 为既有测试环境提示，命令退出 0）。
+  - `cd apps/desktop/frontend && pnpm.cmd run typecheck` → 通过。
+  - `cd apps/desktop/frontend && pnpm.cmd run test` → 81 passed（同上有既有 React SSR warning，命令退出 0）。
+  - `git diff --check -- apps/desktop/frontend/src/lib/patch-hunks.ts apps/desktop/frontend/src/components/editor/useSuggestionWriteback.ts apps/desktop/frontend/tests/patch-hunks.test.ts apps/desktop/frontend/tests/editor.test.tsx` → 通过。
+- **未联通能力**：P2 第一版只覆盖本地 desktop frontend 单元和源码守卫；未执行真实 Tauri 人工按钮路径，也不代表 P1 完整桌面端到端写回验收完成。P3/P4 后续见下方章节；Q9 真实长程仍未完成。
+
+## 产品轨 P3：Provider 运行时真相源收敛 + 明文密钥防持久化（2026-06-30）
+
+- **目标**：消除桌面 localStorage Provider 设置与后端真实 LLM env 之间的 split-brain 误导，并守住“密钥严禁经前端流转”的边界。
+- **变更**：
+  - `describeProviderConnection()` 不再根据本机 `apiKeyRef` 显示“缺少密钥引用/模型服务已配置”，统一显示“后端环境变量控制模型服务”，避免把 localStorage 字段误读为后端运行时真相源。
+  - `SettingsView` 将模型服务字段文案改成“本机偏好/参考显示”，新增 `provider-runtime-env-source` 行，明确真实调用只读取 `STORYFORGE_LLM_PROVIDER` / `STORYFORGE_LLM_BASE_URL` / `STORYFORGE_LLM_MODEL` / `STORYFORGE_LLM_API_KEY`。
+  - `probeProviderHealth()` 仍只调用后端 `/api/assistant/provider-health`，设置页说明它探测 `resolved_llm_env`，不会读取本页 localStorage。
+  - `sanitizeAppSettings()` 对 `apiKeyRef` 只保留环境变量名或 `vault://` 引用，丢弃疑似明文密钥，避免历史或手输 secret 被持久化到 localStorage。
+  - `provider-config.test.ts`、`editor.test.tsx`、`app-icons.test.tsx` 增加/更新守卫，锁定后端 env 真相源与明文密钥防持久化语义。
+- **本地验证**：
+  - `cd apps/desktop/frontend && pnpm.cmd run test -- provider-config editor app-icons patch-hunks` → 22 passed（React SSR `useLayoutEffect` warning 为既有测试环境提示，命令退出 0）。
+  - `cd apps/desktop/frontend && pnpm.cmd run typecheck` → 通过。
+  - `cd apps/desktop/frontend && pnpm.cmd run test` → 83 passed（同上有既有 React SSR warning，命令退出 0）。
+  - `git diff --check` → 通过。
+- **未联通能力**：P3 第一版不配置真实 provider、不验证真实密钥，也不改变后端 `_call_llm()` 的 env 读取方式；Q9 的真实 provider tool-call 探针和 4 万字长跑仍未执行。P1 真实 Tauri 按钮路径仍未交付；P4 后端流式第一版见下一节。
+
+## 产品轨 P4：后端 WebSocket AgentRun 实时事件桥接（2026-06-30）
+
+- **目标**：修正 IDE Agent WebSocket `stream=true` 旧路径“同步跑完整个 runtime 后再投影中间事件”的假流式问题，让持久化 `AgentRunEvent` 写库后即可推送到前端。
+- **变更**：
+  - `_AgentRunEventSink` 新增可选 `on_event` 回调，在 `agent_plan_created`、`tool_trace`、`permission_required`、`agent_artifact`、`system_job`、`agent_run_completed`、`agent_run_failed` 等事件写入后触发；事件事实源仍是数据库，不新增并行运行状态。
+  - `run_agent_user_message()` / `execute_agent_user_message_run()` 保持 facade 入口不变，只新增可选 `on_event` 参数；WebSocket 路由仍不直接串联 start/execute 细节。
+  - `event_encoders.py` 新增 `websocket_stream_events_from_agent_event()`，把 durable event 编码为现有 IDE stream 消息：`agent_run_started`、`agent_step`、`tool_trace`、`permission_required`；未改变 REST/SSE snapshot 语义。
+  - `/api/ide/agent/sessions/{session_id}` 的 `stream=true` 分支改为在 worker thread 内运行同步 AgentRuntime，线程内使用独立 SQLAlchemy session，事件回调通过 `asyncio.Queue` 回到 WebSocket；最终仍发送完整 `agent_result`。
+  - `test_agent_user_message_streams_runtime_events_before_result` 使用 threading gate 卡住后续 `file.review`，断言 `context.load` 的 `tool_trace` 已在最终 `agent_result` 前抵达 WebSocket，证明不是完成后回放。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py::test_agent_user_message_file_review_can_stream_intermediate_events tests/test_ide_agent_orchestrator.py::test_agent_user_message_streams_runtime_events_before_result tests/test_ide_agent_orchestrator.py::test_agent_user_message_stream_error_carries_run_id tests/test_agent_runs.py::test_websocket_user_message_enters_through_runtime_facade -q` → 4 passed。
+  - `cd apps/api && uv run ruff check app/domains/agent_runs/event_sink.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/service.py app/domains/ide/router.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py` → All checks passed。
+  - `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py -q` → 85 passed。
+- **未联通能力**：P4 第一版没有把 AgentRuntime 内部工具/子代理执行体改成 native async；只是把同步 runtime 放入 worker thread，并把持久化事件实时桥接到 WebSocket。未跑真实 Tauri UI 观察或真模型长耗时流式体验；P1 与 Q9 仍需真实环境验收。
+
+## Quick Win：Desktop Agent/Tauri smoke 接入默认桌面门禁（2026-06-30）
+
+- **目标**：让计划中的 `verify-agent-conversation.mjs` / `verify-tauri-smoke.mjs` 不再只是手动命令，而是进入默认 `test:desktop` / desktop verify 聚合，避免 Agent 链路 wiring 和 Tauri 写回 smoke 漏跑。
+- **变更**：
+  - 根 `package.json` 的 `test:desktop` 改为 `npm --prefix apps/desktop run verify`。
+  - `apps/desktop/package.json` 的 `verify` 增加 `npm --prefix frontend run verify:agent-conversation`，并继续执行 `verify:tauri-smoke`。
+  - `apps/desktop/frontend/scripts/verify-unit.mjs` 的临时目录清理增加 `maxRetries` / `retryDelay`，修复 Windows 下单测已通过但 `rmSync()` 遇到短暂 `EBUSY` 导致整条门禁失败的问题。
+- **本地验证**：
+  - `npm --prefix apps/desktop/frontend run test` → 83 passed（React SSR `useLayoutEffect` warning 为既有测试环境提示，命令退出 0）。
+  - `npm --prefix apps/desktop run verify` → 通过；覆盖 frontend typecheck、83 个前端单测、frontend build、`verify:smoke`、`verify:agent-conversation`、9 个 Rust tests、`verify:tauri-smoke`。
+- **未联通能力**：该门禁提升只证明脚本级 browser/Tauri smoke 进入默认 desktop 验证；仍不能替代 P1 的完整真实 Tauri + 真模型人工按钮路径验收。
+
+## Quick Win：`修选中 issue` 当前报告存在性校验（2026-06-30）
+
+- **目标**：防止编辑器内旧 issue 标记或跨文件标记触发 `修选中问题` 时，ChatWindow 按过期 id 发起定向修订，改错当前目标。
+- **变更**：
+  - `review.ts` 新增 `reviewIssueForCurrentFile()`，统一校验 issue id 非空、审稿报告文件与当前文件一致、id 存在于当前审稿报告。
+  - `ChatWindow.tsx` 的 `REVISE_ISSUE_EVENT` 入口改为调用该校验函数；缺当前文件、跨文件、旧 id 或不存在 id 均直接忽略。
+  - `chat-window.test.ts` 新增回归，覆盖同一文件 slash 差异可匹配、跨文件拒绝、缺失 id 拒绝和缺当前文件拒绝。
+- **本地验证**：
+  - `npm --prefix apps/desktop/frontend run test -- chat-window` → 18 passed。
+  - `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+  - `npm --prefix apps/desktop/frontend run test` → 84 passed（React SSR `useLayoutEffect` warning 为既有测试环境提示，命令退出 0）。
+- **未联通能力**：这是桌面前端本地逻辑守卫，不替代 P1 的完整真实 Tauri + 真模型人工按钮路径验收；未改路由或 schema，因此无需刷新 OpenAPI。
+
+## Quick Win：应用内模态替换原生 prompt/alert/confirm（2026-06-30）
+
+- **目标**：统一桌面 React/Tauri 当前入口的新建文件、文件已存在确认、错误提示、分支命名和关闭未保存确认体验，避免原生 `prompt/alert/confirm` 打断应用内工作流。
+- **变更**：
+  - 新增 `components/app/AppDialog.tsx`，提供 `useAppDialog()` 与 `AppDialogHost`，支持 alert / confirm / prompt 三类应用内模态。
+  - `App.tsx` 的新建文件、文件已存在确认、新建失败、初始化失败改为走应用内模态。
+  - `Editor.tsx` 的保存失败、新分支命名、关闭未保存确认改为走同一应用内模态；`RightWorkspace` 透传 dialog API。
+  - 删除遗留且未加载的 `src/main.ts` 旧 DOM 入口；`index.html` 仍只加载 `src/main.tsx`，`tsconfig.json` 移除对应 dead exclude。
+  - `editor.test.tsx` 新增源码守卫，确认当前 React 桌面入口不再调用原生 `window.prompt` / `window.alert` / `window.confirm`。
+- **本地验证**：
+  - `npm --prefix apps/desktop/frontend run typecheck` → 通过。
+  - `npm --prefix apps/desktop/frontend run test -- editor app-icons` → 10 passed（React SSR `useLayoutEffect` warning 为既有测试环境提示，命令退出 0）。
+- **未联通能力**：该 Quick Win 只覆盖当前有效 React/Tauri 桌面入口与本地渲染/源码守卫；不替代 P1 的完整真实 Tauri + 真模型人工按钮路径验收。未改路由或 schema，因此无需刷新 OpenAPI。
+
+## 本轮最终组合回归（2026-06-30）
+
+- `cd apps/api && uv run pytest tests/test_book_exporter.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_story_state.py tests/test_judge_semantic.py tests/test_metrics.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_book_run_recorded_skill_runs_export.py tests/test_phase9a_deterministic_smoke.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py -q` → 201 passed。
+- `cd apps/api && uv run ruff check app/domains/exports/book_markdown_exporter.py app/domains/book_runs/book_generation_llm.py app/domains/book_runs/book_generation_changes.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_records.py app/domains/book_runs/book_generation_parallel.py app/domains/book_runs/book_generation_judge.py app/domains/judge/semantic.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/service.py app/domains/ide/router.py tests/test_book_exporter.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_story_state.py tests/test_judge_semantic.py tests/test_metrics.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py` → All checks passed。
+- `git diff --check` → 通过。

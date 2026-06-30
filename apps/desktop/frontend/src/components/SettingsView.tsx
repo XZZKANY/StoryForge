@@ -12,6 +12,7 @@ import {
   describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
+  PROVIDER_RUNTIME_ENV_VARS,
   type ProviderHealth,
 } from '../lib/provider-config';
 
@@ -111,7 +112,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
             <SettingCard>
               <SelectRow
                 title="服务类型"
-                description="选择默认的模型服务来源。"
+                description="仅用于本机偏好和界面提示；真实模型调用读取后端环境变量。"
                 value={safeSettings.provider.kind}
                 onChange={(value) => {
                   const nextKind = toProviderKind(value);
@@ -125,7 +126,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
               />
               <TextRow
                 title="服务地址"
-                description="填写兼容 OpenAI 协议的端点，或本地模型网关地址。"
+                description="参考地址，不会从前端注入后端调用链。"
                 value={safeSettings.provider.baseUrl}
                 placeholder="https://api.openai.com"
                 onChange={(value) =>
@@ -135,7 +136,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
               />
               <TextRow
                 title="默认模型"
-                description="留空时交给运行时选择默认模型。"
+                description="参考模型名；后端以 STORYFORGE_LLM_MODEL 为准。"
                 value={safeSettings.provider.model}
                 placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
                 onChange={(value) => update('provider', { ...safeSettings.provider, model: value })}
@@ -143,7 +144,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
               />
               <TextRow
                 title="密钥引用"
-                description="只保存环境变量名或密钥引用，不保存明文密钥。"
+                description="只允许环境变量名或 vault:// 引用；明文密钥会被丢弃，真实密钥必须在后端环境中配置。"
                 value={safeSettings.provider.apiKeyRef}
                 placeholder="例如 OPENAI_API_KEY"
                 onChange={(value) =>
@@ -151,6 +152,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                 }
                 testId="provider-api-key-ref"
               />
+              <ProviderRuntimeEnvNotice />
               <ProbeRow state={probe} onProbe={runProbe} />
             </SettingCard>
           </SettingGroup>
@@ -198,7 +200,7 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
   return (
     <RowShell
       title="测试连接"
-      description="探测后端实际使用的模型服务（resolved_llm_env），可能与上方刚填字段不同。"
+      description="探测后端 resolved_llm_env；它只读取 STORYFORGE_LLM_*，不会读取本页 localStorage。"
     >
       <div className="flex items-center gap-3">
         {state !== 'idle' && (
@@ -220,6 +222,22 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
           测试连接
         </button>
       </div>
+    </RowShell>
+  );
+}
+
+function ProviderRuntimeEnvNotice() {
+  return (
+    <RowShell
+      title="运行时真相源"
+      description={`真实调用只读取后端环境变量：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。`}
+    >
+      <span
+        className="inline-flex h-7 items-center rounded-md border border-[#343434] bg-[#151515] px-2 text-xs text-[#BDBDBD]"
+        data-testid="provider-runtime-env-source"
+      >
+        Backend env
+      </span>
     </RowShell>
   );
 }

@@ -23,6 +23,8 @@ Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff /
 
 真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过人工通读。一次 30 章真实长程运行已经完成，链路、Markdown、EPUB 和审计报告导出成立，但人工通读结论为“退回重跑”。因此当前只能证明真实长程运行链路可达，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。
 
+当前架构重构总计划已完成当前合理边界：`agent_runs/runtime.py`、BookRun/Judge/StoryMemory/IDE/Studio/Retrieval/Workflow/Prompt/Desktop 客户端等 god-file 拆分不再作为当前主线待办。后续只接受由真实行为缺口或新护栏驱动的小步结构调整，不再做纯机械拆分。
+
 ## 已完成的能力边界
 
 - **managed Writing Run / BookRun 兼容实现**：本地 deterministic/mock provider 可从 Blueprint 章节计划驱动 managed full-book run，并导出 `book.md` 与 `audit_report.json`；当前 BookRun 兼容实现已具备 checkpoint resume、token/时间/章节预算暂停、provider 连续降级暂停和成本摘要，但不作为主产品入口。
@@ -64,7 +66,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 仍未完成的验收项
 
-- 跑通真实 Tauri 桌面端到端：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 真实写回 -> 版本记录。
+- 跑通完整真实 Tauri 桌面端到端：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 用户确认真实写回 -> 版本记录。现有 smoke 已覆盖写回护栏和版本元数据，但不能替代人工桌面端到端验收。
 - 基于 30 章人工通读意见整改后，重跑真实 3-5 万字长程。
 - 对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对和人工通读。
 - 将人工通读记录写入 `.codex/verification-report.md`，并确认无明显人物、世界观或时间线矛盾。

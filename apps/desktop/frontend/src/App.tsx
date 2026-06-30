@@ -21,6 +21,7 @@ import { activeProjectLabel, joinPath, normalizeMarkdownFileName } from './compo
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useShellLayout } from './components/app/useShellLayout';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
+import { AppDialogHost, useAppDialog } from './components/app/AppDialog';
 
 export function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
@@ -28,6 +29,7 @@ export function App() {
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [emptyWorkbenchVisible, setEmptyWorkbenchVisible] = useState(false);
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
+  const appDialog = useAppDialog();
   const {
     workspaceVisible,
     editorVisible,
@@ -110,7 +112,12 @@ export function App() {
         return;
       }
 
-      const input = window.prompt('新建文件名', 'untitled.md');
+      const input = await appDialog.prompt({
+        title: '新建文件',
+        message: '输入文件名（带 .md 扩展名）：',
+        defaultValue: 'untitled.md',
+        confirmLabel: '创建',
+      });
       if (input === null) return;
 
       const relativePath = normalizeMarkdownFileName(input);
@@ -120,7 +127,11 @@ export function App() {
       try {
         const exists = await TauriFileSystem.pathExists(filePath);
         if (exists) {
-          const shouldOpen = window.confirm('文件已存在，是否直接打开？');
+          const shouldOpen = await appDialog.confirm({
+            title: '文件已存在',
+            message: '是否直接打开这个文件？',
+            confirmLabel: '打开',
+          });
           if (!shouldOpen) return;
         } else {
           await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
@@ -128,10 +139,13 @@ export function App() {
         handleFileSelect(filePath);
       } catch (error) {
         console.error('新建文件失败', error);
-        window.alert(`新建文件失败: ${error instanceof Error ? error.message : String(error)}`);
+        await appDialog.alert({
+          title: '新建文件失败',
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
     },
-    [activeProject, handleFileSelect, handleOpenProject],
+    [activeProject, appDialog, handleFileSelect, handleOpenProject],
   );
 
   const handleInitializeStoryProject = useCallback(
@@ -150,12 +164,13 @@ export function App() {
         showWorkbenchPanel();
       } catch (error) {
         console.error('初始化项目结构失败', error);
-        window.alert(
-          `初始化项目结构失败: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        await appDialog.alert({
+          title: '初始化项目结构失败',
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
     },
-    [activeProject, handleOpenProject, showWorkbenchPanel],
+    [activeProject, appDialog, handleOpenProject, showWorkbenchPanel],
   );
 
   const handleComposerModeChange = useCallback(
@@ -294,6 +309,7 @@ export function App() {
               onToggleWorkspace={toggleWorkspace}
               onRestoreWorkspace={restoreWorkspacePanel}
               onExportCurrent={() => emitExportCurrentFile()}
+              dialogs={appDialog}
             />
           }
           rightPanelVisible={rightPanelVisible}
@@ -326,6 +342,11 @@ export function App() {
           onRestoreLayout={restoreFullLayout}
         />
       )}
+      <AppDialogHost
+        dialog={appDialog.dialog}
+        onClose={appDialog.closeDialog}
+        onPromptValueChange={appDialog.updatePromptValue}
+      />
     </div>
   );
 }

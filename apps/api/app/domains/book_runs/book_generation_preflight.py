@@ -30,6 +30,7 @@ LLM_SETTINGS_ENV_KEYS = (
     "STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS",
     "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS",
     "STORYFORGE_LLM_SMOKE_FAST_JUDGE",
+    "STORYFORGE_LLM_SMOKE_MAX_CHAPTER_COUNT",
 )
 
 
@@ -71,6 +72,9 @@ def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str
             settings, "storyforge_llm_smoke_recap_full_chapters", ""
         ),
         "STORYFORGE_LLM_SMOKE_FAST_JUDGE": getattr(settings, "storyforge_llm_smoke_fast_judge", ""),
+        "STORYFORGE_LLM_SMOKE_MAX_CHAPTER_COUNT": getattr(
+            settings, "storyforge_llm_smoke_max_chapter_count", ""
+        ),
     }
     for key, value in settings_values.items():
         if not _env_value(source, key) and value not in (None, ""):

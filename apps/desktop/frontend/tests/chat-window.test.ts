@@ -12,6 +12,7 @@ import {
   displayFromResumeDiagnostic,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
+  reviewIssueForCurrentFile,
   reviewIssuesFromReport,
   shouldApplyAgentControlAck,
   scopeWarningFromAgentResult,
@@ -64,6 +65,30 @@ test('issue scope can be inferred from explicit issue id or category instruction
   assert.deepEqual(extractIssueScopeFromInstruction('只修人物问题，保留结尾', reviewReport), {
     included_categories: ['character'],
   });
+});
+
+test('revise issue lookup only accepts ids from the active review file', () => {
+  const reportFile = 'D:\\Books\\雾港回声\\正文\\第01章.md';
+  assert.equal(
+    reviewIssueForCurrentFile(
+      reviewReport,
+      'character-1',
+      reportFile,
+      'D:/Books/雾港回声/正文/第01章.md',
+    )?.id,
+    'character-1',
+  );
+  assert.equal(
+    reviewIssueForCurrentFile(
+      reviewReport,
+      'character-1',
+      reportFile,
+      'D:\\Books\\雾港回声\\正文\\第02章.md',
+    ),
+    null,
+  );
+  assert.equal(reviewIssueForCurrentFile(reviewReport, 'missing-issue', reportFile, reportFile), null);
+  assert.equal(reviewIssueForCurrentFile(reviewReport, 'plot-1', reportFile, null), null);
 });
 
 test('stable agent request payload carries project, file, content, selection, session and context', () => {
