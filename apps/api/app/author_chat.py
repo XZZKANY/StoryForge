@@ -30,7 +30,8 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401  (注册所有表)
 from app.db.base import Base
 from app.domains.agent_runs.service import run_agent_user_message
-from app.domains.book_runs.book_generation_preflight import missing_book_generation_env
+from app.domains.book_runs.book_generation_preflight import missing_book_generation_env, resolved_llm_env
+from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 
 DOC_EXT = (".md", ".txt")
 SKIP_DIRS = {".storyforge", ".git", "node_modules", ".codex"}
@@ -62,6 +63,42 @@ def resolve_doc(root: Path, docs: list[Path], token: str) -> Path | None:
             if re.search(rf"(?<!\d){n}(?!\d)", p.stem):
                 return p
     return None
+
+
+def resolve_refs(root: Path, docs: list[Path], tokens: list[str]) -> list[Path]:
+    out: list[Path] = []
+    for t in tokens:
+        tok = t.lstrip("@").strip()
+        m = re.search(r"第\s*(\d+)\s*章", tok)
+        if m:
+            tok = m.group(1)
+        f = resolve_doc(root, docs, tok)
+        if f and f not in out:
+            out.append(f)
+    return out
+
+
+def chapter_refs_in(line: str) -> list[str]:
+    return re.findall(r"第\s*(\d+)\s*章", line) + re.findall(r"@\s*(\d+)", line)
+
+
+def run_cross_chapter_check(files: list[Path], focus: str | None, source) -> None:
+    chapters = [{"name": f.stem, "content": f.read_text(encoding="utf-8")} for f in files]
+    names = " / ".join(c["name"] for c in chapters)
+    print(f"   🤖 跨章一致性检查中…({names})")
+    try:
+        res = check_cross_chapter_consistency(source, chapters, focus=focus)
+    except Exception as exc:  # noqa: BLE001
+        print(f"   ⚠ 检查出错: {exc}")
+        return
+    findings = res.get("findings") or []
+    print(f"   🤖 [{res.get('model')}] {names} · 发现 {len(findings)} 条跨章问题")
+    for fd in findings:
+        chs = "↔".join(fd.get("chapters") or []) or "?"
+        print(f"      • [{fd.get('type')}·{fd.get('severity')}] {chs}: {fd.get('finding')}")
+        print(f"          证据: {fd.get('evidence')}")
+    if not findings:
+        print("      (未发现跨章硬冲突)")
 
 
 def render_diff(before: str, after: str, *, max_lines: int = 40) -> None:
@@ -120,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{root} 下没有 .md/.txt 稿件文件。")
         return 2
 
+    source = resolved_llm_env()  # 跨章一致性检查直连同一 LLM 客户端
+
     engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
@@ -177,8 +216,21 @@ def main(argv: list[str] | None = None) -> int:
                 pending = None
                 print("   已丢弃")
                 continue
+            if low.startswith("check"):
+                files = resolve_refs(root, docs, line[5:].split())
+                if len(files) < 2:
+                    print("   check 需至少两章,如 'check 1 2' 或 'check 第1章 第3章'")
+                    continue
+                run_cross_chapter_check(files, None, source)
+                continue
 
-            # ---- 自然语言 → live agent ----
+            # 自然语言里点名 ≥2 章 → 自动走跨章一致性
+            ref_files = resolve_refs(root, docs, chapter_refs_in(line))
+            if len(ref_files) >= 2:
+                run_cross_chapter_check(ref_files, line, source)
+                continue
+
+            # ---- 单文件 自然语言 → live agent ----
             if cur is None:
                 print("   先 open 一个文件,如 'open 1'")
                 continue
