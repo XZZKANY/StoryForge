@@ -21,6 +21,7 @@ export {
   probeProviderHealth,
   requestRevision,
 } from './api/assistant';
+export { requestCrossChapterConsistency } from './api/cross-chapter';
 export { toAssistantContextBundlePayload } from './api/codecs';
 export { getApiConfig } from './api/config';
 export { probeApiRuntimeHealth } from './api/runtime-health';
@@ -49,6 +50,9 @@ export type {
   AssistantMessageRecord,
   AssistantSessionRecord,
   BookRunEvent,
+  CrossChapterFinding,
+  CrossChapterRequest,
+  CrossChapterResult,
   ReviseRequest,
   ReviseResult,
   WritingRunEvent,
