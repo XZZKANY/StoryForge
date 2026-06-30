@@ -40,7 +40,8 @@ def export_book_run_markdown(session: Session, book_run_id: int, *, workspace_id
     scenes = _approved_scenes(session, book_run)
     lines = ["---", f"book_run_id: {book_run.id}", f"blueprint_id: {book_run.blueprint_id}", "---", "", f"# {book.title}", ""]
     for chapter, scene in scenes:
-        lines.extend([f"## 第 {chapter.ordinal} 章 {chapter.title}", "", str(scene.content).strip(), ""])
+        body = _strip_redundant_title_line(str(scene.content), chapter.title)
+        lines.extend([f"## 第 {chapter.ordinal} 章 {chapter.title}", "", body, ""])
     content = "\n".join(lines).strip() + "\n"
     content_bytes = content.encode("utf-8")
 
@@ -197,6 +198,30 @@ def export_book_run_epub(session: Session, book_run_id: int, *, workspace_id: in
     )
 
 
+def _strip_redundant_title_line(content: str, chapter_title: str | None) -> str:
+    """剥离模型在正文开头重复抄写的章标题行（如正文首行 `# 铜钟疑案 12`）。
+
+    导出已统一加 `## 第 N 章 标题` 头，正文里再出现同名 ATX 标题是生成泄漏，会在成书/EPUB
+    里重复显示。只剥离与章标题一致的首个标题行，不动原始正文与非标题首行。
+    """
+
+    text = (content or "").strip()
+    title = " ".join((chapter_title or "").split())
+    if not text or not title:
+        return text
+    lines = text.splitlines()
+    idx = 0
+    while idx < len(lines) and not lines[idx].strip():
+        idx += 1
+    if idx >= len(lines):
+        return text
+    first = lines[idx].strip()
+    if first.startswith("#") and " ".join(first.lstrip("#").split()) == title:
+        del lines[idx]
+        return "\n".join(lines).strip()
+    return text
+
+
 def _completed_book_run(session: Session, book_run_id: int) -> BookRun:
     book_run = session.get(BookRun, book_run_id)
     if book_run is None:
@@ -315,8 +340,9 @@ def _build_epub_nav(book: Book, scenes: list[tuple[Chapter, Scene]]) -> str:
 def _build_chapter_xhtml(book: Book, chapter: Chapter, scene: Scene) -> str:
     """将单章已批准正文转成 XHTML。"""
 
-    paragraphs = [part.strip() for part in str(scene.content).splitlines() if part.strip()]
-    body = "\n".join(f"  <p>{escape(paragraph)}</p>" for paragraph in paragraphs or [str(scene.content).strip()])
+    content = _strip_redundant_title_line(str(scene.content), chapter.title)
+    paragraphs = [part.strip() for part in content.splitlines() if part.strip()]
+    body = "\n".join(f"  <p>{escape(paragraph)}</p>" for paragraph in paragraphs or [content])
     return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"zh-CN\">
 <head>

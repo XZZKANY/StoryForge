@@ -4486,3 +4486,11 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `cd apps/api && uv run ruff check .` → All checks passed。
   - OpenAPI：`CommitStoryStateResult` 仅服务内部使用，未出现在任何路由响应模型，无契约漂移，无需刷新快照。
 - **未联通能力 / 不外推**：本轮只证明缺章根因已修、本次已生成内容可组装成完整 16 章可读产物；advisory 仍为 `needs_review`（伏笔「乱石坡刻石与铜屑」未回收、结尾收束信号弱），这些**叙事面**结论必须由人工盲评判定，不以 golden/judge/average_score=100 替代。抢救书未经人工通读，**不得**宣称真实 3-5 万字长程质量验收通过。
+
+## Q9 抢救书后处理：导出剥离重复标题 + 人工通读结论（2026-06-30）
+
+- **导出侧修复**：模型在正文首行重复抄写章标题（`# 铜钟疑案 N`，全书 1/2/9/10/11/12/13 共 7 章命中）会在成书/EPUB 重复显示。`book_markdown_exporter` 新增 `_strip_redundant_title_line`，在 markdown 与 EPUB 渲染处剥离与章标题一致的首个 ATX 标题行，不改原始 `scene.content`。新增 helper 单测 + markdown/EPUB 集成回归。
+- **本地验证**：`cd apps/api && uv run pytest tests/test_book_exporter.py -q` → 9 passed；`uv run ruff check app/domains/exports/book_markdown_exporter.py tests/test_book_exporter.py` → 通过。
+- **抢救书重生成**：导出修复后重跑 salvage → `.codex/real-llm-q9-flash-16ch-20260630-155026-salvaged/` 全 16 章正文无内嵌标题、章头完整（book.md/epub 新 sha256 见 `salvage-result.json`，audit 不含正文故 hash 不变）。
+- **人工通读结论（用户）**：用户通读抢救书，结论 **「还行（可接受）」**，未要求退回重跑。该结论为整体 verdict，未单独给 6 维盲评分；audit advisory 仍标伏笔「乱石坡刻石与铜屑」未回收、结尾收束信号弱，登记为后续可改进项。
+- **边界（不外推）**：「可接受」≠ 真实 3-5 万字长程**质量验收通过**，亦不据此宣称稳定生产级长篇生产闭环；后续若要正式验收仍需按 DoD 走 6 维盲评。

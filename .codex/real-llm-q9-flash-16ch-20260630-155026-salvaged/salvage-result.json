@@ -40,8 +40,8 @@
     }
   ],
   "artifact_hashes": {
-    "book_md_sha256": "e6de4102c690622ae8368b808accb04de0a53299be36bc3938e495e872a04b5a",
-    "book_epub_sha256": "1bed30a9b0ce7736bf6f3995573d666155a9de11dc16f8f49886125cb653afa6",
+    "book_md_sha256": "5b5d96da41c1d740134adcb20c48f3c25665a06cb7eb4cdc46057606a0370276",
+    "book_epub_sha256": "36c1cf80df8cbb9b1959ce37572be871357a5dcc7a93a3137effda6187c72abc",
     "audit_report_sha256": "c78c06d00bd22b89a72a9db149c1eee5937960a857fd8015882b87362057948f"
   }
 }
