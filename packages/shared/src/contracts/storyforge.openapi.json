@@ -4388,6 +4388,126 @@
         "title": "IdeContextSnapshot",
         "type": "object"
       },
+      "IdeCrossChapterFinding": {
+        "description": "一条跨章硬冲突,带涉及章节与原文证据。",
+        "properties": {
+          "chapters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Chapters",
+            "type": "array"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "string"
+          },
+          "finding": {
+            "title": "Finding",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "severity",
+          "finding",
+          "evidence"
+        ],
+        "title": "IdeCrossChapterFinding",
+        "type": "object"
+      },
+      "IdeCrossChapterInput": {
+        "description": "跨章一致性检查的单章输入（整章正文,非摘录）。",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "content"
+        ],
+        "title": "IdeCrossChapterInput",
+        "type": "object"
+      },
+      "IdeCrossChapterRequest": {
+        "description": "跨章一致性检查请求:至少两章 + 可选关注点。",
+        "properties": {
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/IdeCrossChapterInput"
+            },
+            "minItems": 2,
+            "title": "Chapters",
+            "type": "array"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          }
+        },
+        "required": [
+          "chapters"
+        ],
+        "title": "IdeCrossChapterRequest",
+        "type": "object"
+      },
+      "IdeCrossChapterResult": {
+        "description": "跨章一致性检查响应。",
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/IdeCrossChapterFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "title": "IdeCrossChapterResult",
+        "type": "object"
+      },
       "IdeDiagnostic": {
         "description": "IDE Problems 面板统一诊断契约。",
         "properties": {
@@ -13357,6 +13477,48 @@
           }
         },
         "summary": "读取 IDE 诊断列表",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/review/cross-chapter": {
+      "post": {
+        "description": "对若干完整章节做跨章一致性审校,返回带原文出处的硬冲突(时间线/称谓/设定/角色离场/伏笔)。",
+        "operationId": "cross_chapter_consistency_endpoint_api_ide_review_cross_chapter_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdeCrossChapterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdeCrossChapterResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "跨章一致性检查",
         "tags": [
           "IDE 工作台"
         ]
