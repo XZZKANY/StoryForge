@@ -60,6 +60,30 @@ export type ReviseResult = {
   assistantSessionId: number;
 };
 
+export type CrossChapterChapterInput = {
+  name: string;
+  content: string;
+};
+
+export type CrossChapterRequest = {
+  chapters: CrossChapterChapterInput[];
+  focus?: string | null;
+};
+
+export type CrossChapterFinding = {
+  type: string;
+  severity: string;
+  chapters: string[];
+  finding: string;
+  evidence: string;
+};
+
+export type CrossChapterResult = {
+  findings: CrossChapterFinding[];
+  model: string | null;
+  latencyMs: number | null;
+};
+
 export type AgentPlanStep = {
   step: string;
   detail: string;

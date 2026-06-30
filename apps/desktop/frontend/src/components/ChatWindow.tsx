@@ -23,6 +23,7 @@ import { extractAgentRoleMentions, mapAgentRoleMentionsToHints } from '../lib/ag
 import {
   getAssistantSession,
   getAgentRunSavePoints,
+  requestCrossChapterConsistency,
   sendAgentControlMessage,
   sendAgentUserMessage,
   subscribeWritingRunEvents,
@@ -51,6 +52,11 @@ import {
   type SemanticFile,
 } from '../lib/project-context';
 import { TauriFileSystem } from '../lib/tauri-fs';
+import {
+  resolveChapterRefs,
+  formatCrossChapterFindings,
+  type ChapterRef,
+} from './chat-window/cross-chapter';
 import {
   stepFromAgentPlanEvent,
   stepFromToolTraceEvent,
@@ -1183,6 +1189,48 @@ export function ChatWindow({
     return () => window.removeEventListener(AUTHOR_LOOP_RESULT_EVENT, onAuthorLoopResult);
   }, [updateAgentStatus, updateAgentStep]);
 
+  const runCrossChapterConsistency = useCallback(
+    async (instruction: string, refs: ChapterRef[]) => {
+      if (agentBusy) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: '这轮还在整理，稍后再发跨章检查。' },
+        ]);
+        return;
+      }
+      const names = refs.map((item) => item.name);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `跨章一致性检查中…(${names.join(' / ')})` },
+      ]);
+      try {
+        const chapters: { name: string; content: string }[] = [];
+        for (const ref of refs) {
+          await flushActiveEditorToDisk(ref.path);
+          const content = await TauriFileSystem.readFile(ref.path);
+          chapters.push({ name: ref.name, content });
+        }
+        const result = await requestCrossChapterConsistency({ chapters, focus: instruction });
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: formatCrossChapterFindings(result.findings, names, result.model),
+          },
+        ]);
+      } catch (error) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `跨章检查失败：${error instanceof Error ? error.message : String(error)}`,
+          },
+        ]);
+      }
+    },
+    [agentBusy],
+  );
+
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || !projectPath) return;
 
@@ -1192,8 +1240,20 @@ export function ChatWindow({
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
 
+    const chapterRefs = resolveChapterRefs(instruction, contextCandidates);
+    if (chapterRefs.length >= 2) {
+      await runCrossChapterConsistency(instruction, chapterRefs);
+      return;
+    }
     await runAuthorAgent(instruction);
-  }, [input, messages.length, projectPath, runAuthorAgent]);
+  }, [
+    input,
+    messages.length,
+    projectPath,
+    contextCandidates,
+    runAuthorAgent,
+    runCrossChapterConsistency,
+  ]);
 
   const handleComposerSubmit = useCallback(
     async (value: string) => {
@@ -1201,9 +1261,14 @@ export function ChatWindow({
       if (!instruction || !projectPath) return;
       if (messages.length === 0) setConversationTitle(deriveConversationTitle(instruction));
       setMessages((prev) => [...prev, { role: 'user', content: instruction }]);
+      const chapterRefs = resolveChapterRefs(instruction, contextCandidates);
+      if (chapterRefs.length >= 2) {
+        await runCrossChapterConsistency(instruction, chapterRefs);
+        return;
+      }
       await runAuthorAgent(instruction);
     },
-    [messages.length, projectPath, runAuthorAgent],
+    [messages.length, projectPath, contextCandidates, runAuthorAgent, runCrossChapterConsistency],
   );
 
   return (
