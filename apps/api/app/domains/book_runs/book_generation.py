@@ -153,6 +153,41 @@ def _count_approved_chapters(completed_chapters: list[dict[str, object]]) -> int
     return sum(1 for item in completed_chapters if item.get("approved"))
 
 
+def _assert_no_missing_chapters(
+    session: Session,
+    book_run_id: int,
+    chapter_count: int,
+    completed_chapters: list[dict[str, object]],
+    tokens_used: int,
+) -> None:
+    """缺章护栏：标 completed 前确认 1..N 章全部批准产出，否则拒绝完成并落 failed。
+
+    防止「书里静默缺章/空章却仍标 completed 且算 sha256」这种把缺失当成功的假象——
+    导出只收 approved 章，未批准章会被悄悄丢成空洞，绝不能再当作整书完成。
+    """
+
+    expected = set(range(1, chapter_count + 1))
+    approved = {
+        int(item["chapter_index"])
+        for item in completed_chapters
+        if item.get("approved") and item.get("chapter_index") is not None
+    }
+    missing = sorted(expected - approved)
+    if not missing:
+        return
+    _pause_by_failure(
+        session,
+        book_run_id,
+        chapter_count,
+        completed_chapters,
+        tokens_used,
+        f"缺章护栏：第 {missing} 章未批准或缺失，拒绝标记 completed。",
+    )
+    raise BookGenerationError(
+        f"缺章护栏触发：第 {missing} 章未批准或缺失，BookRun 不标 completed（防止静默产出缺章成稿）。"
+    )
+
+
 def run_book_generation(
     session: Session,
     *,
@@ -278,6 +313,7 @@ def run_book_generation(
         if tokens_used > token_budget:
             _pause_by_budget(session, book_run.id, chapter_index, completed_chapters, tokens_used)
             raise BookGenerationError("真实 LLM 生成触发 token 预算暂停，不能标记为 completed。")
+    _assert_no_missing_chapters(session, book_run.id, chapter_count, completed_chapters, tokens_used)
     book_run = apply_book_run_progress(
         session,
         book_run.id,
@@ -444,6 +480,7 @@ def resume_book_generation(
             raise BookGenerationError("真实 LLM 断点续跑触发 token 预算暂停，不能标记为 completed。")
 
     completed_chapters.sort(key=lambda item: int(item.get("chapter_index") or 0))
+    _assert_no_missing_chapters(session, book_run.id, chapter_count, completed_chapters, tokens_used)
     book_run = apply_book_run_progress(
         session,
         book_run.id,
@@ -672,6 +709,9 @@ def _reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[
                 "repair_rounds": len(repair_patches),
                 "judge_call_count": max(1, len(judge_issues)),
                 "approved_scene_id": scene.id,
+                # 本函数只重建 status==approved 的章，按定义即已批准产出；
+                # 缺章护栏与 _count_approved_chapters 都依赖该标记，断点续跑时不可漏。
+                "approved": True,
                 "token_usage": model_run.token_usage,
                 "elapsed_time_sec": 0,
                 "cost_estimate": 0.0,

@@ -4465,3 +4465,24 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - `cd apps/api && uv run pytest tests/test_book_exporter.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_story_state.py tests/test_judge_semantic.py tests/test_metrics.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_book_run_recorded_skill_runs_export.py tests/test_phase9a_deterministic_smoke.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py -q` → 201 passed。
 - `cd apps/api && uv run ruff check app/domains/exports/book_markdown_exporter.py app/domains/book_runs/book_generation_llm.py app/domains/book_runs/book_generation_changes.py app/domains/book_runs/book_generation.py app/domains/book_runs/book_generation_records.py app/domains/book_runs/book_generation_parallel.py app/domains/book_runs/book_generation_judge.py app/domains/judge/semantic.py app/domains/agent_runs/event_sink.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/service.py app/domains/ide/router.py tests/test_book_exporter.py tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_llm_retry.py tests/test_story_state.py tests/test_judge_semantic.py tests/test_metrics.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py` → All checks passed。
 - `git diff --check` → 通过。
+
+## Q9 真实 16 章长程：缺章根因修复 + 本次 run 抢救（2026-06-30）
+
+- **背景**：本日 deepseek-v4-flash 真实 16 章长程（`.codex/real-llm-q9-flash-16ch-20260630-155026`）runner 退出码 1，summary 显示第 8/12/15 章 `char_count=0`、book.md 只含 13 章；但 metrics 显示这 3 章各生成约 4000 completion tokens、judge 给 69 分。脱敏诊断（读 smoke.sqlite3）确认：3 章正文**已生成且连贯**（scene 内容 1990/1831/4491 字，无测试痕迹/模型自述），是后端门禁把好章判死后**导出只收 approved 章、静默丢成空洞**，且 BookRun 仍标 `completed / 16 章` 并算 sha256——把缺失当成功。
+- **三处独立根因**：
+  1. 字数下限过脆且无修复路径：`_apply_word_count_floor` 用蓝图下限 2000 作硬截断线，ch8(1990，差 10 字)/ch12(1831，差 8.5%) 被压到 score=69；下限本意是「防截断」（docstring 举例 50 字占位），却误伤完整但略短的好章。
+  2. 汇总 Judge 误标：score 被字数门禁压到阈值以下、又无可定位 issue 时，`_record_summary_judge` 仍记「章节通过」（score 69 与「通过」自相矛盾）。
+  3. story_state grounding all-or-nothing：ch15 的 9 个 change 里仅「陈伯」(character:e3c80dd822，实为同章已通过的「陈守义」别名) 未在正文出现，`commit_story_state_changes` 整批 `StoryStateGroundingError` 拒绝，连累全书最长的一章。
+  4. 缺章护栏缺失：`run_book_generation` / `resume_book_generation` 无条件标 completed，缺章只进 `full_book_advisory_status`（advisory，hard_gate=False），不拦完成。
+- **变更**（均为「别丢好章 / 别静默发缺章」，非降低门槛）：
+  - `book_generation_judge.py`：新增 `WORD_COUNT_FLOOR_TOLERANCE=0.8`，硬截断线改为 `下限 × 容差`，只拦明显截断；`_record_summary_judge` 按 score 区分 `phase9b_real_judge_pass`(通过) 与 `phase9b_real_judge_subthreshold`(未通过)，不再误标；`_commit_story_state_for_scene` 传 `drop_ungroundable=True` 并把丢弃记为 advisory（`committed_with_dropped` / `all_dropped`），不再判死整章。
+  - `story_state/service.py` + `schemas.py`：`commit_story_state_changes` 新增 `drop_ungroundable`（默认 False，保留显式工具/接口提交的严格 all-or-nothing）；True 时丢弃不可核实 change、提交其余；`CommitStoryStateResult` 新增 `dropped_grounding`。
+  - `book_generation.py`：新增 `_assert_no_missing_chapters` 缺章护栏，run/resume 标 completed 前若 1..N 章未全部批准则落 `failed` 并抛 `BookGenerationError`；修复 `_reconstruct_completed_chapters` 重建章漏 `approved` 标记（护栏暴露的预存 bug，否则断点续跑前序章被误判缺失）。
+- **回归测试**（新增 9 个）：word-count 容差通过近下限章 / 容差下仍拒截断 / 汇总 judge 不误标；缺章护栏 gap 拒绝并落 failed / 全批准放行；grounding 部分提交保留其余 / 全不可接地不抛错不落库 / 默认仍严格拒绝。
+- **本次 run 抢救**（不重新生成正文，无 LLM 调用）：用修复后逻辑重放 8/12/15 章门禁尾段确认合法通过（ch8 word-count 过+story commit committed；ch12 word-count 过+committed_with_dropped 丢 2 条；ch15 word-count 过+committed_with_dropped 丢「陈伯」），置 approved 后重导出 → `.codex/real-llm-q9-flash-16ch-20260630-155026-salvaged/`：book.md 含 16 个连号章标题、`chapter_count_integrity: pass (16/16)`、scored_chapter_count=16、average_score=100。sha256 见同目录 `salvage-result.json`。
+- **本地验证**：
+  - `cd apps/api && uv run pytest tests/test_story_state.py tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_parallel.py tests/test_book_exporter.py tests/test_judge_repair.py tests/test_multi_round_repair.py -q` → 99 passed。
+  - `cd apps/api && uv run pytest -q` → 758 passed, 3 skipped。
+  - `cd apps/api && uv run ruff check .` → All checks passed。
+  - OpenAPI：`CommitStoryStateResult` 仅服务内部使用，未出现在任何路由响应模型，无契约漂移，无需刷新快照。
+- **未联通能力 / 不外推**：本轮只证明缺章根因已修、本次已生成内容可组装成完整 16 章可读产物；advisory 仍为 `needs_review`（伏笔「乱石坡刻石与铜屑」未回收、结尾收束信号弱），这些**叙事面**结论必须由人工盲评判定，不以 golden/judge/average_score=100 替代。抢救书未经人工通读，**不得**宣称真实 3-5 万字长程质量验收通过。

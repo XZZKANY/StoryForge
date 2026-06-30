@@ -22,6 +22,7 @@ from app.domains.book_runs.book_generation import (
     BookGenerationError,
     BookGenerationPreflightError,
     _apply_word_count_floor,
+    _assert_no_missing_chapters,
     _blueprint_payload,
     _build_judge_payload,
     _count_approved_chapters,
@@ -48,6 +49,7 @@ from app.domains.book_runs.book_generation_changes import (
     normalize_story_state_changes_with_roster,
     stable_story_state_entity_id,
 )
+from app.domains.book_runs.book_generation_judge import _record_summary_judge
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.character_bible.models import CharacterBibleEntry
@@ -971,6 +973,71 @@ def test_word_count_floor_caps_score_for_runaway_chapter(session: Session) -> No
     score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
     assert score < 70
     assert any(item["category"] == "word_count_violation" for item in issues)
+
+
+def test_word_count_floor_accepts_chapter_just_under_target_floor(session: Session) -> None:
+    """ch8/ch12 回归：完整但略短于蓝图下限（下限×容差以上）的章不再被硬拒，
+    否则 1990/2000 这种近下限好章会被判死、导出时丢成空洞。"""
+
+    # 下限 2000 → 截断下限 1600；1990 字完整正文应通过。
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="字" * 1990, word_min=2000, word_max=2500)
+    score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
+    assert score == 100
+    assert issues == []
+
+
+def test_word_count_floor_still_rejects_truncated_chapter_below_tolerance(session: Session) -> None:
+    """容差之下（下限×容差以下）的明显截断仍硬拒，保留防截断护栏不被容差架空。"""
+
+    # 下限 2000 → 截断下限 1600；1200 字判截断。
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="字" * 1200, word_min=2000, word_max=2500)
+    score, issues = _apply_word_count_floor(session, book_run, scene, 100, [])
+    assert score < 70
+    assert any(item["category"] == "word_count_violation" for item in issues)
+
+
+def test_record_summary_judge_does_not_mark_subthreshold_as_passed(session: Session) -> None:
+    """汇总 Judge 记录：分数未达批准阈值时不得误标「章节通过」（ch8/ch12 score=69 却记通过的回归）。"""
+
+    book_run, _chapter, scene = _seed_gate_fixture(session, content="字" * 900)
+    packet = ScenePacket(scene_id=scene.id, job_run_id=None, status="assembled", packet={}, version=1)
+    session.add(packet)
+    session.commit()
+    session.refresh(packet)
+
+    sub = _record_summary_judge(session, scene, packet, 69)
+    assert sub.issue_type != "phase9b_real_judge_pass"
+    assert "章节通过" not in sub.description
+    assert "未通过" in sub.description
+
+    ok = _record_summary_judge(session, scene, packet, 100)
+    assert ok.issue_type == "phase9b_real_judge_pass"
+    assert "章节通过" in ok.description
+
+
+def test_missing_chapter_guard_blocks_completed_on_gap(session: Session) -> None:
+    """缺章护栏：completed_chapters 存在未批准章时拒绝标 completed，并把 run 落为 failed。"""
+
+    book_run, _chapter, _scene = _seed_gate_fixture(session, content="字" * 900)
+    completed = [
+        {"chapter_index": 1, "approved": True},
+        {"chapter_index": 2, "approved": False},  # 被门禁判死，导出会丢成空洞
+        {"chapter_index": 3, "approved": True},
+    ]
+    with pytest.raises(BookGenerationError, match="缺章护栏"):
+        _assert_no_missing_chapters(session, book_run.id, 3, completed, 1234)
+    session.refresh(book_run)
+    assert book_run.status == "failed"
+
+
+def test_missing_chapter_guard_passes_when_all_approved(session: Session) -> None:
+    """全部章批准产出时护栏放行，不抛错、不改 run 状态。"""
+
+    book_run, _chapter, _scene = _seed_gate_fixture(session, content="字" * 900)
+    completed = [{"chapter_index": index, "approved": True} for index in range(1, 4)]
+    _assert_no_missing_chapters(session, book_run.id, 3, completed, 0)
+    session.refresh(book_run)
+    assert book_run.status == "running"
 
 
 def test_finalize_scene_decision_refuses_subthreshold_chapter(session: Session) -> None:

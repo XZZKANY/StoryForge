@@ -93,14 +93,30 @@ def commit_story_state_changes(
     changes: Sequence[StateChangeInput | Mapping[str, object]],
     book_run_id: int | None = None,
     semantic_grounder: SemanticGrounder | None = None,
+    drop_ungroundable: bool = False,
 ) -> CommitStoryStateResult:
-    """提交一章的结构化故事状态变化，失败时整批不落库。"""
+    """提交一章的结构化故事状态变化，失败时整批不落库。
+
+    drop_ungroundable=True 时不再因「单条 change 的 surface_forms 未出现在正文」整批拒绝，
+    而是丢弃这些无法核实的 change（不可核实的状态绝不入账）、提交其余。适用于整书自动
+    生成路径：一条别名错配的 change 不应连累整章好正文。显式工具/接口提交仍用默认严格语义。
+    """
 
     _assert_scope(session, book_id=book_id, book_run_id=book_run_id)
     normalized = [_coerce_change(item, seq=index) for index, item in enumerate(changes, start=1)]
     grounding = [_ground_change(change, prose) for change in normalized]
+    dropped_grounding: list[StoryStateGroundingResult] = []
     if any(item.hard == "fail" for item in grounding):
-        raise StoryStateGroundingError(grounding)
+        if not drop_ungroundable:
+            raise StoryStateGroundingError(grounding)
+        kept = [(change, result) for change, result in zip(normalized, grounding, strict=True) if result.hard != "fail"]
+        dropped_grounding = [result for result in grounding if result.hard == "fail"]
+        normalized = [change for change, _ in kept]
+        grounding = [result for _, result in kept]
+        if not normalized:
+            return CommitStoryStateResult(
+                events=[], grounding=[], ledger_updates=0, edge_count=0, dropped_grounding=dropped_grounding
+            )
     grounding = _apply_semantic_grounding(
         prose=prose,
         changes=normalized,
@@ -188,6 +204,7 @@ def commit_story_state_changes(
         grounding=grounding,
         ledger_updates=len(touched),
         edge_count=edge_count,
+        dropped_grounding=dropped_grounding,
     )
 
 

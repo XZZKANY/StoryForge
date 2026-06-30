@@ -1,0 +1,47 @@
+{
+  "salvaged_from": "D:\\StoryForge\\.codex\\real-llm-q9-flash-16ch-20260630-155026",
+  "chapter_headers_in_book_md": 16,
+  "approved_chapter_count": 16,
+  "salvage_log": [
+    {
+      "chapter_index": 8,
+      "char_count": 1990,
+      "score_after_fix": 100,
+      "word_count_issues": [],
+      "story_commit_status": "committed",
+      "dropped_grounding": [],
+      "state_failed": null,
+      "approved_after_fix": true
+    },
+    {
+      "chapter_index": 12,
+      "char_count": 1831,
+      "score_after_fix": 100,
+      "word_count_issues": [],
+      "story_commit_status": "committed_with_dropped",
+      "dropped_grounding": [
+        "character:292a027e7e",
+        "item:6534c3b177"
+      ],
+      "state_failed": null,
+      "approved_after_fix": true
+    },
+    {
+      "chapter_index": 15,
+      "char_count": 4491,
+      "score_after_fix": 100,
+      "word_count_issues": [],
+      "story_commit_status": "committed_with_dropped",
+      "dropped_grounding": [
+        "character:e3c80dd822"
+      ],
+      "state_failed": null,
+      "approved_after_fix": true
+    }
+  ],
+  "artifact_hashes": {
+    "book_md_sha256": "e6de4102c690622ae8368b808accb04de0a53299be36bc3938e495e872a04b5a",
+    "book_epub_sha256": "1bed30a9b0ce7736bf6f3995573d666155a9de11dc16f8f49886125cb653afa6",
+    "audit_report_sha256": "c78c06d00bd22b89a72a9db149c1eee5937960a857fd8015882b87362057948f"
+  }
+}
