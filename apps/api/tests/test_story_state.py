@@ -161,6 +161,96 @@ def test_story_state_grounding_failure_writes_no_event(session: Session) -> None
     assert session.scalars(select(StoryStateLedger)).all() == []
 
 
+def test_drop_ungroundable_commits_groundable_and_reports_dropped(session: Session) -> None:
+    """ch15 回归：单条 change 的别名未出现在正文（如「陈伯」）时，drop_ungroundable
+    只丢弃该不可核实状态、提交其余 change，而非整批拒绝连累整章好正文。"""
+
+    book = _book(session)
+
+    result = commit_story_state_changes(
+        session,
+        book_id=book.id,
+        chapter_index=15,
+        prose="陈守义坐在档案房里，把铜牌交给沈砚。",
+        changes=[
+            {
+                "change_type": "character.observe",
+                "entity_kind": "character",
+                "entity_id": "character:chen-shouyi",
+                "canonical_name": "陈守义",
+                "surface_forms": ["陈守义"],
+                "payload": {"status": "交出铜牌"},
+            },
+            {
+                "change_type": "character.observe",
+                "entity_kind": "character",
+                "entity_id": "character:chen-bo",
+                "canonical_name": "陈伯",
+                "surface_forms": ["陈伯"],  # 别名未出现在正文 → 不可核实
+                "payload": {"status": "在场"},
+            },
+        ],
+        drop_ungroundable=True,
+    )
+
+    assert len(result.events) == 1
+    assert result.ledger_updates == 1
+    assert [item.entity_id for item in result.dropped_grounding] == ["character:chen-bo"]
+    ledgers = session.scalars(select(StoryStateLedger)).all()
+    assert {ledger.entity_id for ledger in ledgers} == {"character:chen-shouyi"}
+
+
+def test_drop_ungroundable_all_fail_commits_nothing_without_error(session: Session) -> None:
+    """drop_ungroundable 下若全部 change 都不可核实，则一条不落库，但不抛错、不连累正文。"""
+
+    book = _book(session)
+
+    result = commit_story_state_changes(
+        session,
+        book_id=book.id,
+        chapter_index=1,
+        prose="林岚只检查了潮湿的墙面。",
+        changes=[
+            {
+                "change_type": "foreshadow.setup",
+                "entity_kind": "foreshadow",
+                "entity_id": "foreshadow:black-box",
+                "surface_forms": ["黑匣子"],
+                "payload": {"phase_to": "setup"},
+            }
+        ],
+        drop_ungroundable=True,
+    )
+
+    assert result.events == []
+    assert [item.entity_id for item in result.dropped_grounding] == ["foreshadow:black-box"]
+    assert _event_count(session) == 0
+    assert session.scalars(select(StoryStateLedger)).all() == []
+
+
+def test_grounding_failure_still_raises_without_drop_flag(session: Session) -> None:
+    """默认（显式工具/接口提交）仍保持严格 all-or-nothing：不可核实即整批拒绝。"""
+
+    book = _book(session)
+
+    with pytest.raises(StoryStateGroundingError):
+        commit_story_state_changes(
+            session,
+            book_id=book.id,
+            chapter_index=1,
+            prose="林岚只检查了潮湿的墙面。",
+            changes=[
+                {
+                    "change_type": "foreshadow.setup",
+                    "entity_kind": "foreshadow",
+                    "entity_id": "foreshadow:black-box",
+                    "surface_forms": ["黑匣子"],
+                    "payload": {"phase_to": "setup"},
+                }
+            ],
+        )
+
+
 def test_reproject_story_state_rolls_back_future_chapters(session: Session) -> None:
     """按章 reproject 会删除目标章之后事件，并重建 ledger 当前态。"""
 

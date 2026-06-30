@@ -47,6 +47,9 @@ from app.domains.style_packs.service import list_style_packs
 REPAIR_THRESHOLD = 70
 MAX_REPAIR_ROUNDS = 3
 WORD_COUNT_CEILING_RUNAWAY_FACTOR = 2.5
+# 下限是「防截断」护栏，不是「必须命中目标字数」门禁。蓝图下限 × 容差 才是硬截断线，
+# 让「完整但略短于目标」的章（如 1990/2000）通过，只硬拒明显截断/残缺。
+WORD_COUNT_FLOOR_TOLERANCE = 0.8
 
 # 严重性扣分表与维度映射
 _SEVERITY_PENALTY = {"high": 15, "medium": 8, "low": 3}
@@ -182,11 +185,15 @@ def _apply_word_count_floor(
 
     char_count = len((scene.content or "").strip())
     floor = int(blueprint.chapter_word_count_min or 0)
+    hard_floor = int(floor * WORD_COUNT_FLOOR_TOLERANCE) if floor > 0 else 0
     ceiling = int(blueprint.chapter_word_count_max or 0)
     runaway_ceiling = int(ceiling * WORD_COUNT_CEILING_RUNAWAY_FACTOR) if ceiling > 0 else 0
     violation: str | None = None
-    if floor > 0 and char_count < floor:
-        violation = f"正文 {char_count} 字低于下限 {floor} 字，疑似截断或未完成。"
+    if hard_floor > 0 and char_count < hard_floor:
+        violation = (
+            f"正文 {char_count} 字低于截断下限 {hard_floor} 字"
+            f"（蓝图下限 {floor} × {WORD_COUNT_FLOOR_TOLERANCE}），疑似截断或未完成。"
+        )
     elif runaway_ceiling > 0 and char_count > runaway_ceiling:
         violation = (
             f"正文 {char_count} 字超过失控线 {runaway_ceiling} 字"
@@ -384,6 +391,7 @@ def _commit_story_state_for_scene(
             prose=scene.content or "",
             changes=changes,
             semantic_grounder=semantic_ground_story_state_changes,
+            drop_ungroundable=True,
         )
     except StoryStateGroundingError as exc:
         payload = {
@@ -400,14 +408,19 @@ def _commit_story_state_for_scene(
             "change_count": len(changes),
         }
         return payload, _record_story_state_conflict_issue(session, scene, scene_packet, str(exc), payload)
-    return {
+    payload: dict[str, object] = {
         "status": "committed",
         "event_count": len(result.events),
         "ledger_updates": result.ledger_updates,
         "event_ids": [event.event_id for event in result.events],
         "change_count": len(changes),
         "grounding": [item.model_dump() for item in result.grounding],
-    }, None
+    }
+    if result.dropped_grounding:
+        # 单条 change 无法在正文定位 → 丢弃该不可核实状态、提交其余，记 advisory 而非判死整章。
+        payload["status"] = "committed_with_dropped" if result.events else "all_dropped"
+        payload["dropped_grounding"] = [item.model_dump() for item in result.dropped_grounding]
+    return payload, None
 
 
 def _story_state_changes_for_scene(chapter: Chapter, content: str) -> list[dict[str, object]]:
@@ -687,14 +700,20 @@ def _record_summary_judge(
         payload["semantic_advisory"] = semantic_advisory
     if story_state_commit is not None:
         payload["story_state_commit"] = story_state_commit
+    # 无可定位 Judge issue 时仍可能因字数下限等结构门禁压分到阈值以下；此时不得误标「通过」。
+    passed = quality_score >= REPAIR_THRESHOLD
     judge = JudgeIssue(
         scene_id=scene.id,
         scene_packet_id=scene_packet.id,
         job_run_id=None,
-        issue_type="phase9b_real_judge_pass",
-        severity="low",
-        status="resolved",
-        description="真实 Judge 未发现一致性或文风问题，章节通过。",
+        issue_type="phase9b_real_judge_pass" if passed else "phase9b_real_judge_subthreshold",
+        severity="low" if passed else "high",
+        status="resolved" if passed else "open",
+        description=(
+            "真实 Judge 未发现一致性或文风问题，章节通过。"
+            if passed
+            else "真实 Judge 未发现可定位问题，但质量分未达批准阈值，章节未通过。"
+        ),
         payload=payload,
     )
     session.add(judge)

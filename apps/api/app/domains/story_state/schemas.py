@@ -55,3 +55,4 @@ class CommitStoryStateResult(BaseModel):
     grounding: list[StoryStateGroundingResult]
     ledger_updates: int
     edge_count: int = 0
+    dropped_grounding: list[StoryStateGroundingResult] = Field(default_factory=list)
