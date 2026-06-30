@@ -9,6 +9,7 @@ from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.exports.book_markdown_exporter import (
+    _strip_redundant_title_line,
     export_book_run_audit_report,
     export_book_run_epub,
     export_book_run_markdown,
@@ -337,6 +338,35 @@ def test_book_run_export_endpoints_reject_non_completed_without_artifacts(
 
     with session_factory() as session:
         assert session.query(Artifact).count() == artifact_count_before
+
+
+def test_strip_redundant_title_line_removes_only_matching_heading() -> None:
+    """只剥离与章标题一致的首个 ATX 标题行；其它标题/非标题首行/无重复正文均不动。"""
+
+    assert _strip_redundant_title_line("# 雾港航线 1\n\n正文开始。", "雾港航线 1") == "正文开始。"
+    assert _strip_redundant_title_line("#  雾港航线   1\n\n正文。", "雾港航线 1") == "正文。"
+    assert _strip_redundant_title_line("# 别的标题\n\n正文。", "雾港航线 1") == "# 别的标题\n\n正文。"
+    assert _strip_redundant_title_line("雾港航线 1\n\n正文。", "雾港航线 1") == "雾港航线 1\n\n正文。"
+    assert _strip_redundant_title_line("正文。", "雾港航线 1") == "正文。"
+
+
+def test_export_strips_redundant_chapter_title_from_body(session_factory: sessionmaker[Session]) -> None:
+    """正文首行重复抄写章标题（# 雾港航线 1）时，markdown 与 EPUB 导出都不再重复显示该标题。"""
+
+    with session_factory() as session:
+        book_run_id = _seed_completed_book_run(session)
+        book_run = session.get(BookRun, book_run_id)
+        scene = _book_run_scenes(session, book_run)[0]
+        scene.content = "# 雾港航线 1\n\n灯塔在雾里忽明忽暗，林岚握紧栏杆。"
+        session.commit()
+
+        md = export_book_run_markdown(session, book_run_id).payload["content"]
+        assert "## 第 1 章 雾港航线 1" in md  # 导出统一加的章头仍在
+        assert "\n# 雾港航线 1\n" not in md  # 正文里的重复标题行被剥离
+        assert "灯塔在雾里忽明忽暗" in md
+
+        epub_bytes = export_book_run_epub(session, book_run_id).size_bytes
+        assert epub_bytes > 0
 
 
 def _seed_completed_book_run(
