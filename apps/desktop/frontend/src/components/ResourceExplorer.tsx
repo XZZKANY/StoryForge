@@ -137,14 +137,14 @@ export function ResourceExplorer({
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-[#111111]">
+    <div className="flex h-full flex-col bg-background">
       {/* 标题栏 */}
       {showHeader && (
-        <div className="sf-panel-header border-[#2D2D30]">
-          <span className="text-xs font-medium text-[#CCCCCC]">资源管理器</span>
+        <div className="sf-panel-header border-border">
+          <span className="text-xs font-medium text-muted">资源管理器</span>
           <button
             onClick={handleCollapse}
-            className="sf-icon-button text-[#CCCCCC] hover:bg-[#2D2D30]"
+            className="sf-icon-button text-muted hover:bg-elevated"
             title={collapsed ? '展开' : '折叠'}
           >
             <svg
@@ -167,15 +167,15 @@ export function ResourceExplorer({
         >
           {!projectPath ? (
             <div className="mt-8 mx-4 text-center">
-              <p className="text-sm text-[#858585]">尚未打开项目</p>
+              <p className="text-sm text-subtle">尚未打开项目</p>
             </div>
           ) : loading ? (
-            <div className="p-8 text-center text-sm text-[#858585]">加载中...</div>
+            <div className="p-8 text-center text-sm text-subtle">加载中...</div>
           ) : error ? (
-            <div className="mx-2 p-2 rounded bg-[#5A1D1D] text-[#F48771] text-xs">{error}</div>
+            <div className="mx-2 p-2 rounded bg-error/10 text-error text-xs">{error}</div>
           ) : tree.length === 0 ? (
             <div className="mt-8 mx-4 text-center">
-              <p className="text-sm text-[#858585]">空空如也</p>
+              <p className="text-sm text-subtle">空空如也</p>
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
@@ -221,7 +221,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   }, [node.path, onFileSelect]);
 
   const indentBlocks = Array.from({ length: level }).map((_, i) => (
-    <div key={i} className="w-[12px] h-full flex-shrink-0 border-l border-[#2D2D30]/50 ml-[6px]" />
+    <div key={i} className="w-[12px] h-full flex-shrink-0 border-l border-border/50 ml-[6px]" />
   ));
 
   if (node.isDir) {
@@ -229,7 +229,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <div className="flex flex-col">
         <button
           onClick={handleToggle}
-          className="sf-tree-row text-[#CCCCCC] transition-colors hover:bg-[#2A2D2E] group cursor-pointer"
+          className="sf-tree-row text-muted transition-colors hover:bg-elevated group cursor-pointer"
         >
           <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
@@ -243,7 +243,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
             </svg>
           </div>
           <span
-            className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-[#DCDCDC]' : 'text-[#A8A8A8] group-hover:text-[#DCDCDC]'}`}
+            className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-foreground' : 'text-muted group-hover:text-foreground'}`}
           >
             <FolderIcon className="h-3.5 w-3.5" />
           </span>
@@ -275,14 +275,14 @@ const TreeNodeItem = memo(function TreeNodeItem({
       data-file-path={node.path}
       className={`
         sf-tree-row transition-colors group cursor-pointer
-        ${isActive ? 'bg-[#37373D] text-white' : 'text-[#CCCCCC] hover:bg-[#2A2D2E]'}
+        ${isActive ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}
       `}
     >
       <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
         <MarkdownFileIcon
-          className={`h-3.5 w-3.5 ${isActive ? 'text-[#7FB1FF]' : 'text-[#A8A8A8] opacity-70 group-hover:opacity-100'}`}
+          className={`h-3.5 w-3.5 ${isActive ? 'text-accent' : 'text-muted opacity-70 group-hover:opacity-100'}`}
         />
       </div>
 

@@ -17,9 +17,12 @@ export type ProviderSettings = {
   apiKeyRef: string;
 };
 
+export type ThemeMode = 'dark' | 'light';
+
 export type AppSettings = {
   editorFontSize: number;
   autoSave: boolean;
+  theme: ThemeMode;
   provider: ProviderSettings;
 };
 
@@ -28,6 +31,7 @@ export const APP_SETTINGS_KEY = 'storyforge-app-settings';
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorFontSize: 14,
   autoSave: false,
+  theme: 'dark',
   provider: {
     kind: 'openai',
     baseUrl: 'https://api.openai.com',
@@ -78,6 +82,7 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
     editorFontSize,
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
+    theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
     provider: sanitizeProviderSettings(candidate.provider),
   };
 }

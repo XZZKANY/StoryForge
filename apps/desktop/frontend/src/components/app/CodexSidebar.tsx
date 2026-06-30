@@ -19,8 +19,8 @@ import {
 
 function SidebarButton({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <button className="sf-sidebar-row group text-[#E2E2E2] hover:bg-[#222222]">
-      <span className="icon-badge text-[#9A9A9A] group-hover:text-white">{icon}</span>
+    <button className="sf-sidebar-row group text-foreground/90 hover:bg-elevated">
+      <span className="icon-badge text-muted group-hover:text-foreground">{icon}</span>
       <span>{label}</span>
     </button>
   );
@@ -41,7 +41,7 @@ function IconToolButton({
     <span
       role="button"
       tabIndex={0}
-      className="sf-icon-button text-[#888888] hover:bg-[#303030] hover:text-white"
+      className="sf-icon-button text-muted hover:bg-elevated hover:text-foreground"
       onClick={onClick}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -71,19 +71,19 @@ function ProviderSettingsCard({
 
   return (
     <button
-      className="group flex w-full items-center gap-2 rounded-xl border border-[#303030] bg-[#1B1B1B] px-2 py-2 text-left transition-colors hover:border-[#3E3E3E] hover:bg-[#222222]"
+      className="group flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-elevated"
       onClick={onOpenSettings}
       data-testid="settings-entry-card"
       title="打开设置"
     >
-      <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-[#E8E1D7] text-[12px] font-semibold text-[#111111]">
+      <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-foreground">
         SF
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold text-[#EDEDED]">本地创作环境</div>
-        <div className="truncate text-[12px] text-[#A8A8A8]">{subtitle}</div>
+        <div className="truncate text-[13px] font-semibold text-foreground">本地创作环境</div>
+        <div className="truncate text-[12px] text-muted">{subtitle}</div>
       </div>
-      <span className="flex h-7 w-5 flex-shrink-0 items-center justify-center text-[#777777] transition-colors group-hover:text-[#BDBDBD]">
+      <span className="flex h-7 w-5 flex-shrink-0 items-center justify-center text-subtle transition-colors group-hover:text-muted">
         <SettingsIcon />
       </span>
     </button>
@@ -126,15 +126,15 @@ export function CodexSidebar({
 
   return (
     <div className="h-full flex flex-col text-[13px]">
-      <div className="h-9 px-3 flex items-center gap-4 text-[#999999]">
-        <button className="hover:text-white" title="侧边栏">
+      <div className="h-9 px-3 flex items-center gap-4 text-muted">
+        <button className="hover:text-foreground" title="侧边栏">
           ▣
         </button>
-        <button className="hover:text-white" title="搜索">
+        <button className="hover:text-foreground" title="搜索">
           ⌕
         </button>
-        <span className="ml-auto text-[#666666]">‹</span>
-        <span className="text-[#666666]">›</span>
+        <span className="ml-auto text-subtle">‹</span>
+        <span className="text-subtle">›</span>
       </div>
 
       <div className="space-y-1 px-2">
@@ -142,10 +142,10 @@ export function CodexSidebar({
         <SidebarButton icon={<SparkleIcon />} label="个性化" />
       </div>
 
-      <div className="group mt-6 flex h-[var(--sf-row-height)] items-center px-3 text-xs text-[#777777]">
+      <div className="group mt-6 flex h-[var(--sf-row-height)] items-center px-3 text-xs text-subtle">
         <span className="min-w-0 flex-1 truncate">项目库</span>
         <button
-          className="sf-icon-button text-[#777777] opacity-0 transition-opacity hover:bg-[#252525] hover:text-[#DCDCDC] group-hover:opacity-100"
+          className="sf-icon-button text-subtle opacity-0 transition-opacity hover:bg-elevated hover:text-foreground group-hover:opacity-100"
           onClick={() => setProjectLibraryExpanded((expanded) => !expanded)}
           title={projectLibraryExpanded ? '收起项目库' : '展开项目库'}
           data-testid="toggle-project-library"
@@ -161,7 +161,7 @@ export function CodexSidebar({
         </button>
         <button
           id="open-project-btn"
-          className="sf-icon-button text-[#777777] opacity-0 transition-opacity hover:bg-[#252525] hover:text-[#DCDCDC] group-hover:opacity-100"
+          className="sf-icon-button text-subtle opacity-0 transition-opacity hover:bg-elevated hover:text-foreground group-hover:opacity-100"
           onClick={onOpenProject}
           title="添加项目"
           data-testid="add-project-btn"
@@ -191,13 +191,15 @@ export function CodexSidebar({
                     if (project.includes('\\') || project.includes('/')) onSelectProject(path);
                   }}
                   className={`sf-sidebar-row group ${
-                    isActive ? 'text-white' : 'text-[#CFCFCF] hover:bg-[#222222]'
+                    isActive
+                      ? 'bg-elevated text-foreground'
+                      : 'text-muted hover:bg-elevated hover:text-foreground'
                   }`}
                   title={path}
                 >
                   <span
-                    className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[#A8A8A8] transition-colors group-hover:text-[#DCDCDC] ${
-                      isActive ? 'bg-[#2A2A2A] text-[#DCDCDC]' : ''
+                    className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-muted transition-colors group-hover:text-foreground ${
+                      isActive ? 'bg-elevated text-foreground' : ''
                     }`}
                   >
                     <ProjectIcon />
@@ -246,12 +248,12 @@ export function CodexSidebar({
                     data-project-path={path}
                   >
                     {sessions.length === 0 ? (
-                      <div className="px-2 py-1 text-xs text-[#777777]">暂无会话</div>
+                      <div className="px-2 py-1 text-xs text-subtle">暂无会话</div>
                     ) : (
                       sessions.map((session) => (
                         <button
                           key={session.id}
-                          className="flex h-7 w-full items-center rounded px-2 text-left text-xs text-[#BDBDBD] hover:bg-[#222222] hover:text-white"
+                          className="flex h-7 w-full items-center rounded px-2 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
                           onClick={() => onSelectProject(path)}
                           title={`Assistant 会话 #${session.id}`}
                         >
@@ -266,7 +268,7 @@ export function CodexSidebar({
           })
         ) : (
           <button
-            className="w-full rounded-md border border-dashed border-[#303030] px-3 py-2 text-left text-xs text-[#777777] hover:border-[#3A3A3A] hover:text-[#BDBDBD]"
+            className="w-full rounded-md border border-dashed border-border px-3 py-2 text-left text-xs text-subtle hover:border-border-strong hover:text-muted"
             onClick={onOpenProject}
           >
             暂无项目

@@ -55,18 +55,18 @@ export function AgentStepsPanel({ run, compact = false }: AgentStepsPanelProps) 
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
   return (
-    <div className="rounded-lg border border-[#3A3A40] bg-[#202024] overflow-hidden">
+    <div className="rounded-lg border border-border bg-panel overflow-hidden">
       {/* 头部 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2A2A30] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-elevated transition-colors"
       >
         <div className="flex-shrink-0">
           <AgentRunIcon status={run.status} />
         </div>
         <div className="flex-1 min-w-0 text-left">
-          <div className="text-sm font-medium text-[#EDEDED] truncate">{run.goal}</div>
-          <div className="text-xs text-[#A8A8B0] mt-0.5">
+          <div className="text-sm font-medium text-foreground truncate">{run.goal}</div>
+          <div className="text-xs text-muted mt-0.5">
             {completedSteps} / {totalSteps} 步骤完成
             {run.status === 'running' && ' · 执行中'}
             {run.status === 'waiting' && ' · 等待确认'}
@@ -76,7 +76,7 @@ export function AgentStepsPanel({ run, compact = false }: AgentStepsPanelProps) 
         </div>
         <div className="flex-shrink-0">
           <svg
-            className={`w-4 h-4 text-[#A8A8B0] transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -88,9 +88,9 @@ export function AgentStepsPanel({ run, compact = false }: AgentStepsPanelProps) 
 
       {/* 进度条 */}
       {run.status === 'running' && (
-        <div className="h-1 bg-[#2A2A30]">
+        <div className="h-1 bg-elevated">
           <div
-            className="h-full bg-[#4A9EFF] transition-all duration-300"
+            className="h-full bg-accent transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -138,7 +138,7 @@ function AgentStepItem({
         <div className="flex-shrink-0">
           <StepStatusIcon status={step.status} />
         </div>
-        {!compact && <div className="flex-1 w-px bg-[#3A3A40] mt-1" />}
+        {!compact && <div className="flex-1 w-px bg-border mt-1" />}
       </div>
 
       {/* 内容 */}
@@ -151,11 +151,11 @@ function AgentStepItem({
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-[#EDEDED]">
+                <span className="text-sm font-medium text-foreground">
                   {index + 1}. {step.title}
                 </span>
                 {duration !== null && (
-                  <span className="text-xs text-[#8A8A90] px-1.5 py-0.5 rounded bg-[#2A2A30]">
+                  <span className="text-xs text-subtle px-1.5 py-0.5 rounded bg-elevated">
                     {formatDuration(duration)}
                   </span>
                 )}
@@ -163,21 +163,21 @@ function AgentStepItem({
 
               {/* 工具名称 */}
               {step.tool && step.tool !== step.title && (
-                <div className="text-xs text-[#8A8A90] mt-0.5">
-                  工具: <code className="px-1 py-0.5 rounded bg-[#2A2A30]">{step.tool}</code>
+                <div className="text-xs text-subtle mt-0.5">
+                  工具: <code className="px-1 py-0.5 rounded bg-elevated">{step.tool}</code>
                 </div>
               )}
 
               {/* 简短详情（未展开时） */}
               {!expanded && hasDetail && (
-                <div className="text-xs text-[#A8A8B0] mt-1 line-clamp-1">{step.detail}</div>
+                <div className="text-xs text-muted mt-1 line-clamp-1">{step.detail}</div>
               )}
             </div>
 
             {/* 展开图标 */}
             {hasDetail && (
               <svg
-                className={`w-3 h-3 text-[#8A8A90] flex-shrink-0 mt-1 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                className={`w-3 h-3 text-subtle flex-shrink-0 mt-1 transition-transform ${expanded ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -195,14 +195,14 @@ function AgentStepItem({
 
         {/* 详细信息（展开时） */}
         {expanded && hasDetail && (
-          <div className="mt-2 px-3 py-2 rounded-md bg-[#2A2A30] text-xs text-[#C0C0C8] leading-relaxed whitespace-pre-wrap break-words">
+          <div className="mt-2 px-3 py-2 rounded-md bg-elevated text-xs text-muted leading-relaxed whitespace-pre-wrap break-words">
             {step.detail}
           </div>
         )}
 
         {/* 错误信息 */}
         {step.error && (
-          <div className="mt-2 px-3 py-2 rounded-md bg-[#3A1F1F] border border-[#5A2F2F] text-xs text-[#FF8A80] leading-relaxed">
+          <div className="mt-2 px-3 py-2 rounded-md bg-error/10 border border-error/40 text-xs text-error leading-relaxed">
             {step.error}
           </div>
         )}
@@ -214,16 +214,16 @@ function AgentStepItem({
 function AgentRunIcon({ status }: { status: AgentRunStatus }) {
   if (status === 'running') {
     return (
-      <div className="w-6 h-6 rounded-full bg-[#2A4A7F] flex items-center justify-center">
-        <div className="w-3 h-3 border-2 border-[#4A9EFF] border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center">
+        <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (status === 'waiting') {
     return (
-      <div className="w-6 h-6 rounded-full bg-[#4A4A2F] flex items-center justify-center">
-        <svg className="w-4 h-4 text-[#FFA726]" fill="currentColor" viewBox="0 0 20 20">
+      <div className="w-6 h-6 rounded-full bg-warning/15 flex items-center justify-center">
+        <svg className="w-4 h-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
           <path
             fillRule="evenodd"
             d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
@@ -236,8 +236,8 @@ function AgentRunIcon({ status }: { status: AgentRunStatus }) {
 
   if (status === 'completed') {
     return (
-      <div className="w-6 h-6 rounded-full bg-[#2A4A2F] flex items-center justify-center">
-        <svg className="w-4 h-4 text-[#66BB6A]" fill="currentColor" viewBox="0 0 20 20">
+      <div className="w-6 h-6 rounded-full bg-success/15 flex items-center justify-center">
+        <svg className="w-4 h-4 text-success" fill="currentColor" viewBox="0 0 20 20">
           <path
             fillRule="evenodd"
             d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -250,8 +250,8 @@ function AgentRunIcon({ status }: { status: AgentRunStatus }) {
 
   // failed
   return (
-    <div className="w-6 h-6 rounded-full bg-[#4A2F2F] flex items-center justify-center">
-      <svg className="w-4 h-4 text-[#EF5350]" fill="currentColor" viewBox="0 0 20 20">
+    <div className="w-6 h-6 rounded-full bg-error/15 flex items-center justify-center">
+      <svg className="w-4 h-4 text-error" fill="currentColor" viewBox="0 0 20 20">
         <path
           fillRule="evenodd"
           d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -265,31 +265,31 @@ function AgentRunIcon({ status }: { status: AgentRunStatus }) {
 function StepStatusIcon({ status }: { status: AgentStepStatus }) {
   if (status === 'pending') {
     return (
-      <div className="w-6 h-6 rounded-full border-2 border-[#3A3A40] bg-[#202024] flex items-center justify-center">
-        <div className="w-2 h-2 rounded-full bg-[#5A5A60]" />
+      <div className="w-6 h-6 rounded-full border-2 border-border bg-panel flex items-center justify-center">
+        <div className="w-2 h-2 rounded-full bg-subtle" />
       </div>
     );
   }
 
   if (status === 'running') {
     return (
-      <div className="w-6 h-6 rounded-full border-2 border-[#4A9EFF] bg-[#202024] flex items-center justify-center">
-        <div className="w-2 h-2 rounded-full bg-[#4A9EFF] animate-pulse" />
+      <div className="w-6 h-6 rounded-full border-2 border-accent bg-panel flex items-center justify-center">
+        <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
       </div>
     );
   }
 
   if (status === 'waiting') {
     return (
-      <div className="w-6 h-6 rounded-full border-2 border-[#FFA726] bg-[#202024] flex items-center justify-center">
-        <div className="w-2 h-2 rounded-full bg-[#FFA726]" />
+      <div className="w-6 h-6 rounded-full border-2 border-warning bg-panel flex items-center justify-center">
+        <div className="w-2 h-2 rounded-full bg-warning" />
       </div>
     );
   }
 
   if (status === 'completed') {
     return (
-      <div className="w-6 h-6 rounded-full bg-[#66BB6A] flex items-center justify-center">
+      <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center">
         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
         </svg>
@@ -299,7 +299,7 @@ function StepStatusIcon({ status }: { status: AgentStepStatus }) {
 
   // failed
   return (
-    <div className="w-6 h-6 rounded-full bg-[#EF5350] flex items-center justify-center">
+    <div className="w-6 h-6 rounded-full bg-error flex items-center justify-center">
       <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           strokeLinecap="round"

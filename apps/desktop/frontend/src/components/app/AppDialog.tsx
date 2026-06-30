@@ -138,8 +138,8 @@ export function AppDialogHost({
   const isConfirm = dialog.kind === 'confirm';
   const primaryClass =
     isConfirm && dialog.tone === 'danger'
-      ? 'bg-[#D65A45] text-[#140806] hover:bg-[#F06B52]'
-      : 'bg-[#E6E6E6] text-[#111111] hover:bg-white';
+      ? 'bg-error text-accent-foreground hover:bg-error/90'
+      : 'bg-accent text-accent-foreground hover:bg-accent/90';
 
   return (
     <div
@@ -151,20 +151,18 @@ export function AppDialogHost({
         aria-modal="true"
         role="dialog"
         aria-labelledby="app-dialog-title"
-        className="w-full max-w-[420px] rounded-md border border-[#3A3A40] bg-[#202024] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        className="w-full max-w-[420px] rounded-md border border-border bg-panel p-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
         data-testid="app-dialog"
         data-dialog-kind={dialog.kind}
       >
-        <h2 id="app-dialog-title" className="text-sm font-semibold text-[#F2F2F3]">
+        <h2 id="app-dialog-title" className="text-sm font-semibold text-foreground">
           {dialog.title}
         </h2>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#C9C9CF]">
-          {dialog.message}
-        </p>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted">{dialog.message}</p>
         {isPrompt && (
           <input
             autoFocus
-            className="mt-4 h-9 w-full rounded-md border border-[#45454C] bg-[#18181B] px-3 text-sm text-[#EDEDED] outline-none focus:border-[#7FB1FF]"
+            className="mt-4 h-9 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground outline-none focus:border-accent"
             data-testid="app-dialog-input"
             value={dialog.value}
             onChange={(event) => onPromptValueChange(event.target.value)}
@@ -178,7 +176,7 @@ export function AppDialogHost({
           {(isConfirm || isPrompt) && (
             <button
               type="button"
-              className="h-8 rounded-md border border-[#45454C] px-3 text-xs text-[#D8D8DD] hover:bg-[#2A2A30]"
+              className="h-8 rounded-md border border-border-strong px-3 text-xs text-foreground hover:bg-elevated"
               onClick={() => onClose(isConfirm ? false : null)}
             >
               {dialog.cancelLabel}

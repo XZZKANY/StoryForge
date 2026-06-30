@@ -4,6 +4,7 @@ import {
   sanitizeAppSettings,
   type AppSettings,
   type ProviderKind,
+  type ThemeMode,
 } from '../lib/user-settings';
 import { probeProviderHealth } from '../lib/api-client';
 import {
@@ -24,7 +25,12 @@ type SettingsViewProps = {
 
 type ProbeState = 'idle' | 'loading' | ProviderHealth;
 
-const settingsNav = ['返回', '模型服务', '编辑器'] as const;
+const settingsNav = ['返回', '模型服务', '外观', '编辑器'] as const;
+
+const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
+  { value: 'dark', label: '深色' },
+  { value: 'light', label: '浅色' },
+];
 
 export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
   const safeSettings = sanitizeAppSettings(settings);
@@ -54,12 +60,12 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
 
   return (
     <section
-      className="flex h-full min-w-0 bg-[#101010] text-[#EDEDED]"
+      className="flex h-full min-w-0 bg-background text-foreground"
       data-testid="settings-view"
     >
-      <aside className="flex w-[278px] flex-shrink-0 flex-col border-r border-[#2A2A2A] bg-[#121212] px-3 py-3">
+      <aside className="flex w-[278px] flex-shrink-0 flex-col border-r border-border bg-panel px-3 py-3">
         <button
-          className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-[#BDBDBD] hover:bg-[#1F1F1F] hover:text-white"
+          className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-muted hover:bg-elevated hover:text-foreground"
           onClick={onClose}
           data-testid="settings-close"
         >
@@ -72,32 +78,24 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
             <a
               key={item}
               href={`#${navAnchor(item)}`}
-              className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-[#A8A8A8] no-underline hover:bg-[#1F1F1F] hover:text-white"
+              className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted no-underline hover:bg-elevated hover:text-foreground"
             >
-              <span className="grid h-5 w-5 place-items-center text-[#8A8A8A]">
-                {navIcon(item)}
-              </span>
+              <span className="grid h-5 w-5 place-items-center text-subtle">{navIcon(item)}</span>
               <span className="truncate">{item}</span>
             </a>
           ))}
         </nav>
 
-        <div className="mt-auto space-y-3">
-          <button className="flex h-10 w-full items-center gap-2 rounded-md border border-[#303030] bg-[#1E1E1E] px-2 text-left text-sm text-[#EDEDED] hover:bg-[#252525]">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-[#2F2F2F] text-xs">
-              SF
-            </span>
-            <span className="truncate">本地创作环境</span>
-          </button>
-          <div className="flex items-center gap-2 rounded-md bg-[#1A1A1A] px-2 py-2">
-            <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#303030] text-xs font-semibold">
+        <div className="mt-auto">
+          <div className="flex items-center gap-2 rounded-md bg-surface px-2 py-2">
+            <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
               SF
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm text-[#DCDCDC]">本地创作环境</div>
-              <div className="truncate text-xs text-[#8E8E8E]">{providerConnection.label}</div>
+              <div className="truncate text-sm text-foreground">本地创作环境</div>
+              <div className="truncate text-xs text-subtle">{providerConnection.label}</div>
             </div>
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2B2B2B] text-[#BDBDBD]">
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-elevated text-muted">
               <SettingsGlyph />
             </span>
           </div>
@@ -106,7 +104,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
 
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[850px] px-8 py-8">
-          <h1 className="mb-7 text-xl font-semibold text-white">设置</h1>
+          <h1 className="mb-7 text-xl font-semibold text-foreground">设置</h1>
 
           <SettingGroup id="provider" title="模型服务">
             <SettingCard>
@@ -157,6 +155,19 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
             </SettingCard>
           </SettingGroup>
 
+          <SettingGroup id="appearance" title="外观">
+            <SettingCard>
+              <SelectRow
+                title="主题"
+                description="切换深色 / 浅色界面；编辑器主题随之联动。"
+                value={safeSettings.theme}
+                onChange={(value) => update('theme', value === 'light' ? 'light' : 'dark')}
+                options={THEME_OPTIONS}
+                testId="appearance-theme"
+              />
+            </SettingCard>
+          </SettingGroup>
+
           <SettingGroup id="editor" title="编辑器">
             <SettingCard>
               <RangeRow
@@ -189,14 +200,14 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
 
 function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }) {
   const display = state === 'idle' || state === 'loading' ? null : describeProviderHealth(state);
-  const toneColor =
+  const toneClass =
     display?.tone === 'ok'
-      ? '#43B373'
+      ? 'text-success'
       : display?.tone === 'warn'
-        ? '#E0A33E'
+        ? 'text-warning'
         : display?.tone === 'error'
-          ? '#E5544B'
-          : '#8E8E8E';
+          ? 'text-error'
+          : 'text-subtle';
   return (
     <RowShell
       title="测试连接"
@@ -205,8 +216,7 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
       <div className="flex items-center gap-3">
         {state !== 'idle' && (
           <span
-            className="max-w-[280px] truncate text-xs"
-            style={{ color: state === 'loading' ? '#8E8E8E' : toneColor }}
+            className={`max-w-[280px] truncate text-xs ${state === 'loading' ? 'text-subtle' : toneClass}`}
             data-testid="provider-health-status"
           >
             {state === 'loading' ? '检测中…' : display?.label}
@@ -216,7 +226,7 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
           type="button"
           onClick={onProbe}
           disabled={state === 'loading'}
-          className="h-8 flex-shrink-0 rounded-md border border-[#343434] bg-[#151515] px-3 text-sm text-[#EDEDED] hover:bg-[#242424] disabled:opacity-50"
+          className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
           data-testid="provider-health-probe"
         >
           测试连接
@@ -233,7 +243,7 @@ function ProviderRuntimeEnvNotice() {
       description={`真实调用只读取后端环境变量：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。`}
     >
       <span
-        className="inline-flex h-7 items-center rounded-md border border-[#343434] bg-[#151515] px-2 text-xs text-[#BDBDBD]"
+        className="inline-flex h-7 items-center rounded-md border border-border bg-surface px-2 text-xs text-muted"
         data-testid="provider-runtime-env-source"
       >
         Backend env
@@ -245,14 +255,16 @@ function ProviderRuntimeEnvNotice() {
 function SettingGroup({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section id={id} className="mb-8 scroll-mt-6">
-      <h2 className="mb-3 text-sm font-medium text-[#D6D6D6]">{title}</h2>
+      <h2 className="mb-3 text-sm font-medium text-foreground">{title}</h2>
       {children}
     </section>
   );
 }
 
 function SettingCard({ children }: { children: ReactNode }) {
-  return <div className="overflow-hidden rounded-xl bg-[#1A1A1A]">{children}</div>;
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-surface">{children}</div>
+  );
 }
 
 function RowShell({
@@ -265,10 +277,10 @@ function RowShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[76px] items-center gap-4 border-b border-[#292929] px-4 py-3 last:border-b-0">
+    <div className="flex min-h-[76px] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-white">{title}</div>
-        <div className="mt-1 text-sm leading-5 text-[#C9C9C9]">{description}</div>
+        <div className="text-sm font-medium text-foreground">{title}</div>
+        <div className="mt-1 text-sm leading-5 text-muted">{description}</div>
       </div>
       <div className="flex-shrink-0">{children}</div>
     </div>
@@ -293,12 +305,12 @@ function ToggleRow({
         aria-pressed={checked}
         onClick={() => onChange(!checked)}
         className={`relative h-[22px] w-[38px] rounded-full transition-colors ${
-          checked ? 'bg-[#43B373]' : 'bg-[#4A4A4A]'
+          checked ? 'bg-accent' : 'bg-border-strong'
         }`}
       >
         <span
-          className={`absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-[18px]' : 'translate-x-0.5'
+          className={`absolute top-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
+            checked ? 'translate-x-[18px] bg-accent-foreground' : 'translate-x-0.5 bg-foreground'
           }`}
         />
       </button>
@@ -330,10 +342,10 @@ function RangeRow({
           max={max}
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="w-40 accent-[#43B373]"
+          className="w-40 accent-accent"
           data-testid="editor-font-size"
         />
-        <span className="w-10 text-sm tabular-nums text-[#EDEDED]">{value}px</span>
+        <span className="w-10 text-sm tabular-nums text-foreground">{value}px</span>
       </div>
     </RowShell>
   );
@@ -360,7 +372,7 @@ function TextRow({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-[260px] rounded-md border border-[#343434] bg-[#111111] px-2 text-sm text-[#EDEDED] outline-none placeholder:text-[#666666] focus:border-[#777777]"
+        className="h-8 w-[260px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
         data-testid={testId}
       />
     </RowShell>
@@ -387,7 +399,7 @@ function SelectRow({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-[180px] rounded-md border border-[#343434] bg-[#111111] px-2 text-sm text-[#EDEDED] outline-none focus:border-[#777777]"
+        className="h-8 w-[180px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-accent"
         data-testid={testId}
       >
         {options.map((option) => (
@@ -419,7 +431,7 @@ function ActionRow({
   return (
     <RowShell title={title} description={description}>
       <button
-        className="h-8 rounded-md border border-[#343434] bg-[#151515] px-3 text-sm text-[#EDEDED] hover:bg-[#242424]"
+        className="h-8 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated"
         onClick={onAction}
       >
         {actionLabel}
@@ -430,12 +442,14 @@ function ActionRow({
 
 function navAnchor(label: string): string {
   if (label === '模型服务') return 'provider';
+  if (label === '外观') return 'appearance';
   if (label === '编辑器') return 'editor';
   return 'provider';
 }
 
 function navIcon(label: string): string {
   if (label === '模型服务') return '◈';
+  if (label === '外观') return '◐';
   if (label === '编辑器') return '▤';
   return '◈';
 }

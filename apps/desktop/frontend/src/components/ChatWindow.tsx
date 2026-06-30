@@ -1272,7 +1272,7 @@ export function ChatWindow({
   );
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-[#18181B]">
+    <div className="flex h-full min-w-0 flex-col bg-background">
       <ConversationHeader title={conversationTitle} />
 
       <MessageList

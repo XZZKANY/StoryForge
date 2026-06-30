@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
+import { currentMonacoTheme } from '../lib/theme';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
@@ -71,7 +72,7 @@ export function PatchReviewPanel({
       readOnly: true,
       renderSideBySide: false,
       automaticLayout: true,
-      theme: 'vs-dark',
+      theme: currentMonacoTheme(),
       minimap: { enabled: false },
       wordWrap: 'on',
       scrollBeyondLastLine: false,

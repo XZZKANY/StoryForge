@@ -35,12 +35,12 @@ const HistoryItem = memo(function HistoryItem({
       className={`
         w-full px-3 py-1.5 text-left text-xs transition-colors
         flex items-center gap-2
-        ${isActive ? 'bg-[#37373D] text-white' : 'text-[#CCCCCC] hover:bg-[#2A2D2E]'}
+        ${isActive ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}
       `}
       title={file}
     >
       <svg
-        className={`w-3 h-3 flex-shrink-0 ${isActive ? 'text-[#4A9EFF]' : 'opacity-50'}`}
+        className={`w-3 h-3 flex-shrink-0 ${isActive ? 'text-accent' : 'opacity-50'}`}
         viewBox="0 0 16 16"
         fill="currentColor"
       >
@@ -53,17 +53,17 @@ const HistoryItem = memo(function HistoryItem({
 
 export function HistoryPanel({ recentFiles, onFileSelect, currentFile }: HistoryPanelProps) {
   return (
-    <div className="h-full flex flex-col bg-[#252526]">
+    <div className="h-full flex flex-col bg-panel">
       {/* 标题栏 */}
-      <div className="h-[36px] px-3 border-b border-[#2D2D30] flex items-center justify-between flex-shrink-0">
-        <span className="text-xs font-medium text-[#CCCCCC]">历史</span>
+      <div className="h-[36px] px-3 border-b border-border flex items-center justify-between flex-shrink-0">
+        <span className="text-xs font-medium text-muted">历史</span>
       </div>
 
       {/* 历史列表 */}
       <div className="flex-1 overflow-y-auto py-1">
         {recentFiles.length === 0 ? (
           <div className="mt-8 mx-4 text-center">
-            <p className="text-sm text-[#858585]">暂无历史记录</p>
+            <p className="text-sm text-subtle">暂无历史记录</p>
           </div>
         ) : (
           <div className="flex flex-col">

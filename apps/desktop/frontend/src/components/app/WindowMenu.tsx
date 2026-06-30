@@ -28,7 +28,7 @@ export function WindowMenu({
 
   return (
     <header
-      className="h-9 flex-shrink-0 border-b border-[#3A3A40] bg-[#202024] flex items-center px-2 text-[13px]"
+      className="h-9 flex-shrink-0 border-b border-border bg-panel flex items-center px-2 text-[13px]"
       onDoubleClick={() => void runWindowAction('maximize')}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
@@ -42,23 +42,23 @@ export function WindowMenu({
       <span className="mr-6">视图</span>
       <span className="mr-4">帮助</span>
 
-      <div className="ml-auto flex h-full items-center text-[#D9D9D9]">
+      <div className="ml-auto flex h-full items-center text-foreground">
         <button
-          className="flex h-full w-11 items-center justify-center hover:bg-[#242424] hover:text-white"
+          className="flex h-full w-11 items-center justify-center hover:bg-elevated hover:text-foreground"
           onClick={() => void runWindowAction('minimize')}
           title="最小化"
         >
           −
         </button>
         <button
-          className="flex h-full w-11 items-center justify-center hover:bg-[#242424] hover:text-white"
+          className="flex h-full w-11 items-center justify-center hover:bg-elevated hover:text-foreground"
           onClick={() => void runWindowAction('maximize')}
           title="最大化"
         >
           □
         </button>
         <button
-          className="flex h-full w-11 items-center justify-center text-lg leading-none hover:bg-[#C42B1C] hover:text-white"
+          className="flex h-full w-11 items-center justify-center text-lg leading-none hover:bg-error hover:text-foreground"
           onClick={() => void runWindowAction('close')}
           title="关闭"
         >
