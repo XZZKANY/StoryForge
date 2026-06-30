@@ -23,6 +23,7 @@ from app.domains.provider_gateway.models import ProviderConfig
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
 from app.domains.series.models import Series, SeriesMemory, SeriesMemoryEvidence
 from app.domains.story_memory.models import MemoryAtomRecord
+from app.domains.story_state.models import StoryStateEvent, StoryStateLedger
 from app.domains.timeline.models import TimelineEventRecord
 from app.domains.workspaces.models import Workspace, WorkspaceMember
 
@@ -68,6 +69,8 @@ __all__ = [
     "EvaluationCase",
     "EvaluationRun",
     "MemoryAtomRecord",
+    "StoryStateEvent",
+    "StoryStateLedger",
     "TimelineEventRecord",
     "CompiledContextRecord",
 ]

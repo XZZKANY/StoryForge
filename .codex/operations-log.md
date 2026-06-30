@@ -15557,3 +15557,1280 @@ un-metadata.json: present
 
 - `rg` 确认 A4 目标类定义只存在于 `tooling.py`。
 - `runtime.py` 仍持有实例并注册工具，避免新增并行 registry 或权限系统。
+
+---
+
+## 编码前检查 - story_state Q1 P0
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-story-state-q1-p0.md`
+□ 将使用以下可复用组件：
+
+- `apps/api/app/domains/continuity/edge_constraints.py`：复用结构边与确定性校验的边界划分，避免重写 edge 图引擎。
+- `apps/api/app/domains/continuity/service.py`：复用“校验失败 rollback，成功后 commit/refresh”的服务层事务风格。
+- `apps/api/app/domains/story_memory/extract.py`：复用白名单结构化抽取转持久化事实的输入清洗思路。
+- `apps/api/alembic/versions/20260609_0001_add_continuity_edges.py`：复用幂等建表和索引 helper。
+- `apps/api/tests/conftest.py`：复用 `session` fixture 与内存 SQLite 测试方式。
+
+□ 将遵循命名约定：新增 `story_state` domain，模型类 `StoryStateEvent` / `StoryStateLedger`，服务函数 `commit_story_state_changes` / `reproject_story_state`。
+□ 将遵循代码风格：简体中文错误提示；`Mapped` / `mapped_column` ORM；ruff 排序；不改路由和 OpenAPI。
+□ 确认不重复造轮子：已检查 `continuity`、`story_memory`、`book_generation_judge` 与 `book_generation_parallel`，确认没有既有单实体状态机 ledger；edge 类后续复用 `continuity_edges`，本批不重写。
+□ 工具差异说明：本环境未暴露 desktop-commander 与 github.search_code，已用 `rg` / `Get-Content`、Context7 官方文档和项目内相似实现替代，并在上下文摘要记录。
+
+### 编码后声明 - story_state Q1 P0
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `Base` / `IdMixin` / `TimestampMixin` / `VersionMixin`：新 ORM 与现有领域表保持同一元数据和审计字段。
+- `Book` / `BookRun`：`story_state` 以作品为第一作用域，并预留可空 `book_run_id` 供后续接真实长程。
+- `ConflictError` / `NotFoundError`：grounding、不变量和 scope 错误沿用领域异常基类。
+- `continuity_edges` migration 模式：新迁移沿用 `_table_exists()` / `_create_index_once()` 幂等 helper。
+- `tests/conftest.py::session`：新增测试全部走内存 SQLite，不起服务、不打真实 LLM。
+
+#### 2. 遵循了以下项目约定
+
+- 新增 `apps/api/app/domains/story_state/`，保持 `models.py` / `schemas.py` / `service.py` / `__init__.py` 领域结构。
+- `app.models` 注册 `StoryStateEvent` / `StoryStateLedger`，保证 `Base.metadata.create_all()` 测试路径可见。
+- 不改路由、不改 OpenAPI、不碰 `apps/web`，本刀只提供纯服务层底座。
+- 错误提示、注释和文档均使用简体中文。
+
+#### 3. 对比了以下相似实现
+
+- `continuity.service.approve_chapter()`：同样在服务层完成写入前校验，失败时不落真相源。
+- `story_memory.extract.write_memory_extract_atoms()`：同样把结构化输入转为持久化事实，而非解析自由文本块。
+- `continuity.edge_constraints.check_edge_constraints()`：同样只做可判定硬约束，语义咨询不伪装为 clean。
+
+#### 4. 未重复造轮子的证明
+
+- `story_state` 第一刀只覆盖单实体状态机 ledger；relationship/timeline/status 边类后续仍接 `continuity_edges`，没有复制边图引擎。
+- Story Memory 仍保留 memory atom 事实存储；本批不替换 `write_memory_extract_atoms()`，只为 Q1 提供 CHANGES 落点。
+- 真实生成 loop 未接入，避免把底座和行为变更混在一起。
+
+---
+
+## 编码前检查 - Q2 去 demo premise + 多 arc
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q2-demo-premise.md`
+□ 将使用以下可复用组件：
+
+- `book_generation.py::_create_generation_book` / `_blueprint_payload`：真实生成默认题材唯一源头。
+- `book_generation.py::_seed_consistency_data`：默认 Character Bible / Style Pack 源头。
+- `blueprints.service.trigger_chapter_plan`：继续消费 `planning_arcs`，无需新增规划器。
+- `ArcConsistencyBarrier`：继续消费每章轻量 `planning_refs.arc_ids`，本刀只避免默认单 arc 全书覆盖。
+
+□ 将遵循命名约定：默认常量使用 `DEFAULT_GENERATION_*`，私有 helper 使用 `_arc_points`。
+□ 将遵循代码风格：不改路由、不刷新 OpenAPI；历史 tests/golden 中的旧题材样例不做机械清理。
+□ 确认不重复造轮子：现有 planning summary / arc completion 机制可直接复用，本刀只改默认输入数据和测试锁定。
+
+### 编码后声明 - Q2 去 demo premise + 多 arc
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `BookBlueprintCreate.metadata["planning_arcs"]`：继续作为结构化弧线入口。
+- `trigger_chapter_plan()`：继续生成 `planning_summary` 与 `chapter_arc_links`。
+- `_arc_completion_rate()`：继续读取 planning summary，不新增指标路径。
+
+#### 2. 遵循了以下项目约定
+
+- 只清理真实生成默认源头，不批量改历史测试夹具或 golden baseline。
+- 新默认题材为沈砚/苍岭城/铜钟匠，不含 `林岚`、`灯塔`、`审计链`。
+- 默认弧线拆为 3 条，目标章有界且不再单条全书覆盖。
+
+#### 3. 对比了以下相似实现
+
+- `blueprints.service._planning_arcs_by_chapter()`：确认 `planning_arcs` 的数据形状保持兼容。
+- `ArcConsistencyBarrier`：确认默认 arc 不再是单一全章节目标。
+- `test_book_generation_parallel.py` monkeypatch `_default_planning_arcs`：保留函数名和返回契约，避免破坏测试扩展点。
+
+#### 4. 未重复造轮子的证明
+
+- 未新增规划器、指标服务或屏障实现。
+- 未触碰 Q1 的 memory extract 写死问题，避免把独立根因混在 Q2。
+
+---
+
+## 编码前检查 - Q3 fast judge advisory
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q3-fast-judge-advisory.md`
+□ 将使用以下可复用组件：
+
+- `book_generation_judge.py::_run_real_judge`：真实生成 fast path 唯一改动点。
+- `semantic_judge_with_status()`：继续作为语义评审入口。
+- `_record_summary_judge()`：继续落 pass 审计记录，新增 advisory payload。
+- `JudgeIssue.payload`：保存咨询信号，不新增表或路由。
+
+□ 将遵循命名约定：新增 `_semantic_advisory_payload` 私有 helper。
+□ 将遵循代码风格：不改变硬评审入口；不改 OpenAPI；语义 advisory 不扣分、不修正文。
+□ 确认不重复造轮子：复用现有 semantic judge 与 summary judge 记录，不新增并行 judge 系统。
+
+### 编码后声明 - Q3 fast judge advisory
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `semantic_judge_with_status()`：fast path 也通过同一语义评审实现。
+- `_record_summary_judge()`：summary pass 记录继续是审计落点。
+- `JudgeIssue.payload`：新增 `semantic_advisory` 字段承载咨询结果。
+
+#### 2. 遵循了以下项目约定
+
+- fast path 本地通过时，语义评审必经一遍；语义 issues 只进入 payload，不影响 `quality_score`。
+- 语义评审失败记录 `failed=true`，不伪造为“未运行且干净”。
+- `create_judge_issues()` 的硬评审失败 marker 不变。
+
+#### 3. 对比了以下相似实现
+
+- `create_judge_issues()`：硬入口仍可注入 `judge_system_failure`；Q3 不复用硬失败机制，避免 advisory 误阻断。
+- `semantic_judge_with_status()`：缺配置不视为 failed，远程异常视为 failed。
+- 原 `_record_summary_judge()`：保持无问题时只落一条 pass 记录的审计结构。
+
+#### 4. 未重复造轮子的证明
+
+- 未新增 judge provider、路由、表或配置。
+- 没有把 advisory issues 转成 `JudgeIssue` open 问题，避免与硬门禁混淆。
+
+---
+
+## 编码前检查 - Q1 P1 并发 memory extract 去硬编码
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-memory-extract.md`
+□ 将使用以下可复用组件：
+
+- `Chapter.pov` / `Chapter.location`：作为题材无关的角色与地点抽取锚点。
+- `write_memory_extract_atoms()`：继续负责 Story Memory 白名单结构写入。
+- `recall_scene_memory_atoms()`：继续作为后续章节记忆召回事实源。
+
+□ 将遵循命名约定：并发 runner 私有 helper 继续使用 `_character_state_extracts` / `_world_fact_extracts`。
+□ 将遵循代码风格：不新增外部 LLM 调用；不改路由/OpenAPI；不触碰 `apps/web`。
+□ 确认不重复造轮子：Story Memory 已有写入桥，本刀只替换旧 demo 词本地抽取源，不新建并行记忆系统。
+
+## 编码前检查 - Q1 P2 state-grounding bridge 接 `_judge_and_repair_loop`
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-story-state-q1-p0.md` 与 `docs/internal/story-state-model-design.md`
+□ 将使用以下可复用组件：
+
+- `commit_story_state_changes()`：作为唯一 story_state 事件提交入口。
+- `StoryStateGroundingError` / `StoryStateInvariantError`：复用硬接地与确定性不变量失败语义。
+- `_judge_and_repair_loop()`：按设计先接真实 book-gen loop，使串行与并发 runner 共用同一状态提交桥。
+- `Chapter.pov` / `Chapter.location`：在工具调用协议尚未落地前，作为保守预填骨架来源。
+
+□ 将遵循命名约定：新增 helper 使用 `_story_state_*` 前缀，quality issue category 使用 `story_state_conflict`。
+□ 将遵循代码风格：只在章节质量通过后提交可接地的保守 CHANGES；不解析自由文本 JSON；不改 OpenAPI；不碰 `apps/web`。
+□ 确认不重复造轮子：不复制 `story_state` service 规则，不接 workflow narrative guard，不把本地桥声明为完整 LLM 语义抽取。
+
+### 编码后声明 - Q1 P1 并发 memory extract 去硬编码
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `write_memory_extract_atoms()`：抽取结果仍经 Story Memory 白名单写入桥持久化。
+- `Chapter.pov` / `Chapter.location`：替代旧 demo 主角/地点词，作为章节计划事实源。
+- `recall_scene_memory_atoms()`：后续章节召回链路保持不变。
+
+#### 2. 遵循了以下项目约定
+
+- 并发 runner 不再识别固定 `林岚` / `灯塔` 才抽取。
+- 本刀不新增 LLM 调用，不改变 token/provider 预算。
+- 未触碰 `apps/web`、workflow narrative guard 或 OpenAPI。
+
+#### 3. 对比了以下相似实现
+
+- `story_memory.extract.write_memory_extract_atoms()`：继续接收 `chapter_summary`、`character_states`、`world_facts` 三类结构。
+- `blueprints.service.trigger_chapter_plan()`：已把 `pov` / `location` 写入 Chapter，本刀直接消费。
+
+#### 4. 未重复造轮子的证明
+
+- 未新建记忆系统；只是把并发 runner 的本地抽取输入从 demo 词改为章节上下文。
+- 复杂状态仍交给 `story_state` / 后续 LLM CHANGES，不在 Story Memory 抽取桥里硬做。
+
+### 编码后声明 - Q1 P2 state-grounding bridge 接 `_judge_and_repair_loop`
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `commit_story_state_changes()`：通过唯一 story_state 服务提交 CHANGES。
+- `_judge_and_repair_loop()`：串行与并发真实生成共用同一接线点。
+- `_record_summary_judge()` / `JudgeIssue.payload`：落 `story_state_commit` 审计摘要。
+- `StoryStateGroundingError` / `StoryStateInvariantError`：硬失败转为 `story_state_conflict`。
+
+#### 2. 遵循了以下项目约定
+
+- 只有章节质量分已过阈值且无阻断 Judge issue 时才提交 story_state。
+- 保守 CHANGES 必须能在正文中用 surface form 接地；失败不伪 clean。
+- 不解析自由文本 JSON、不新增 provider 调用、不改路由/OpenAPI、不触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Q3 `semantic_advisory`：同样把新信号放入 summary judge payload，但 state 硬失败会阻断批准。
+- `continuity.service.approve_chapter()`：同样在服务层校验失败时拒绝写入真相源。
+- Q1 P0 `story_state`：本刀只调用 service，不复制 grounding 或 ledger projection 规则。
+
+#### 4. 未重复造轮子的证明
+
+- 未重写 `story_state` domain，不接 `apps/workflow/storyforge_workflow/narrative`，不混用 golden 的 `narrative_gate.py`。
+- 当前只是过渡桥；最终 Writer 工具调用、LLM 语义 grounding、edge 类 CHANGES → `continuity_edges` 仍单独排期。
+
+---
+
+## 编码前检查 - Q4 P0 story_state 真相源填 required_facts
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-state-grounding-bridge.md`
+□ 将使用以下可复用组件：
+
+- `StoryStateLedger`：作为跨章当前态投影真相源。
+- `_build_judge_payload()`：真实生成 judge payload 的唯一组装点。
+- `deterministic_judge_fallback()`：继续负责可复现本地矛盾检测。
+- `semantic_judge_with_status()`：自动消费同一 `required_facts` 列表作为语义 advisory/评审上下文。
+
+□ 将遵循命名约定：冲突-only 事实使用 `已知事实：` 前缀，helper 使用 `_story_state_required_facts`。
+□ 将遵循代码风格：不改变路由/OpenAPI；不把前章状态当每章必须复述；不触碰 `apps/web`。
+□ 确认不重复造轮子：直接读取 `StoryStateLedger` 投影，不另建事实表；只扩展 deterministic 对 conflict-only fact 的解释，不新增 judge 系统。
+
+### 编码后声明 - Q4 P0 story_state 真相源填 required_facts
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `StoryStateLedger`：作为跨章当前态投影来源。
+- `_build_judge_payload()`：继续是 `JudgeIssueCreate` 的组装点。
+- `deterministic_judge_fallback()`：扩展为识别 `已知事实：` conflict-only 事实。
+- `JudgeIssueCreate.evidence_links`：记录 fact 来源为 `story_state_ledger`。
+
+#### 2. 遵循了以下项目约定
+
+- 旧 required_facts 普通字符串仍是“必含事实”，兼容既有 judge 行为。
+- `已知事实：` 只查直接矛盾，不要求每章机械复述前章状态。
+- 未新增路由、schema 或 OpenAPI，未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- `deterministic._detect_setting_conflicts()`：保留原缺失检测，只给 conflict-only 前缀开窄口。
+- `semantic_judge_with_status()`：自动消费同一 `required_facts` 列表，无需新增语义入口。
+- Q1 P2 `story_state_commit`：本刀读取其 ledger 投影形成闭环。
+
+#### 4. 未重复造轮子的证明
+
+- 未新增 facts 表或第二套 truth source；只从 `StoryStateLedger` 读取。
+- 未把 `StoryStateLedger` 的所有字段硬塞 judge，只挑 `status/rule/phase/holder/location` 并限量 20 条，避免 prompt 膨胀。
+
+---
+
+## 编码前检查 - Q1 P3 edge 类 CHANGES 分流 continuity_edges
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-edge-changes.md`
+□ 将使用以下可复用组件：
+
+- `ContinuityEdgeCandidate` / `check_edge_constraints()`：复用既有结构边判定。
+- `ContinuityEdge`：作为 relationship / timeline_order / status 的持久化目标。
+- `StoryStateEvent`：edge 类 CHANGES 仍作为逐章审计事件落库。
+- `reproject_story_state()`：负责回滚/重建 story_state 来源的 edge。
+
+□ 将遵循命名约定：edge helper 使用 `_edge_*` 前缀；story_state 产生的 edge payload 标记 `source=story_state`。
+□ 将遵循代码风格：不新增表/迁移，不改路由/OpenAPI，不触碰 `apps/web`。
+□ 确认不重复造轮子：不重写 edge 图引擎；只在 CHANGES 提交入口映射到现有 `continuity_edges`。
+
+### 编码后声明 - Q1 P3 edge 类 CHANGES 分流 continuity_edges
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `ContinuityEdgeCandidate` / `check_edge_constraints()`：关系成环、时间线倒错、状态窗口冲突仍由既有引擎判定。
+- `ContinuityEdge`：edge 类 CHANGES 的持久化目标。
+- `StoryStateInvariantError`：edge 冲突统一作为 story_state 硬失败向上抛。
+
+#### 2. 遵循了以下项目约定
+
+- `relationship` / `timeline` / `timeline_order` / `status` 不写 ledger，避免 edge/node 重叠。
+- edge 类 CHANGES 仍写 `story_state_events`，保证逐章审计链不断。
+- reproject 删除当前 scope 下 story_state 来源的 continuity edges，再按剩余事件重建。
+
+#### 3. 对比了以下相似实现
+
+- `continuity.service.approve_chapter()`：同样先校验候选边，通过才写入，冲突整笔回滚。
+- `story_state` node 投影：edge 不进入 ledger，保持 `state_ledger` 聚焦单实体状态机。
+
+#### 4. 未重复造轮子的证明
+
+- 未新增关系/时间线表，未复制递归成环查询。
+- 未接 workflow narrative guard；真实路径继续只依赖 API domain。
+
+---
+
+## 编码前检查 - Q1 P4 串行 runner Story Memory atoms 写入
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-serial-memory.md`
+□ 将使用以下可复用组件：
+
+- `write_memory_extract_atoms()`：继续作为 Story Memory 写入桥。
+- `recall_scene_memory_atoms()`：继续作为相关记忆召回来源。
+- 并发 runner 现有 `_extract_memory_atoms_for_chapter` / `_memory_recall_chars_for_chapter` 行为：抽成共享 helper 后复用。
+- `_serial_integration_metrics()`：继续从 `completed_chapters[*].memory_recall_chars` 计算预算。
+
+□ 将遵循命名约定：共享模块命名为 `book_generation_memory.py`，公开 helper 不带下划线，并发 runner 保留旧私有 re-export。
+□ 将遵循代码风格：不新增外部 LLM 调用，不改路由/OpenAPI，不触碰 `apps/web`。
+□ 确认不重复造轮子：不新建 Story Memory 系统，只复用既有 extract/write/recall 服务。
+
+### 编码后声明 - Q1 P4 串行 runner Story Memory atoms 写入
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `write_memory_extract_atoms()`：串行与并发都经同一白名单写入桥。
+- `recall_scene_memory_atoms()`：章节生成前统计相关召回字符数。
+- `completed_chapters` progress：新增/沿用 `memory_atom_ids` 与 `memory_recall_chars`。
+
+#### 2. 遵循了以下项目约定
+
+- 新增 `book_generation_memory.py` 只承载共享 helper，不引入新领域表或 provider 调用。
+- 并发 runner 保留 `_character_state_extracts` / `_world_fact_extracts` 等旧私有导出，测试与扩展点不漂移。
+- 本地抽取摘要压短，避免串行 10 章预算超过既有 8000 字验收线。
+
+#### 3. 对比了以下相似实现
+
+- 并发 runner 章末 memory extract：串行 runner 现在同样在 approved 后写 atoms。
+- `_serial_integration_metrics()`：无需改指标口径，真实 `memory_recall_chars` 自动进入预算。
+
+#### 4. 未重复造轮子的证明
+
+- 未复制抽取逻辑；旧并发 helper 已下沉共享模块。
+- 未把 Story Memory 与 `story_state` 混为一套，二者仍分别服务召回与状态约束。
+
+---
+
+## 编码前检查 - Q1 P5 LLM CHANGES JSON 通道
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-llm-changes-channel.md`
+□ 将使用以下可复用组件：
+
+- `_generate_chapter()`：唯一真实生成正文出口，适合剥离模型返回的结构化区块。
+- `_record_scene_packet()`：ScenePacket 已是 judge loop 的上下文载体，可承载 `story_state_changes`。
+- `_commit_story_state_for_scene()`：优先消费 ScenePacket changes，缺失时继续 fallback 保守桥。
+
+□ 将遵循命名约定：结构化区块名固定为 `STORY_STATE_CHANGES`；解析 helper 放入 `book_generation_changes.py`。
+□ 将遵循代码风格：解析失败不毁正文；成功解析后区块不进入 Scene 正文；不改路由/OpenAPI；不触碰 `apps/web`。
+□ 确认不重复造轮子：不新建 tool runtime；先提供真实 LLM 可输出的兼容 JSON 通道，后续再升级函数调用。
+
+### 编码后声明 - Q1 P5 LLM CHANGES JSON 通道
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `_generate_chapter()`：追加 CHANGES 输出说明并剥离模型返回区块。
+- `_record_scene_packet()`：保存解析出的 `story_state_changes`。
+- `_commit_story_state_for_scene()`：优先提交模型 CHANGES，缺失时回退到保守本地 CHANGES。
+
+#### 2. 遵循了以下项目约定
+
+- CHANGES block 成功解析后不污染正文、ModelRun output、book export。
+- JSON 解析失败时保守降级，不把结构化失败伪装成章节质量失败。
+- 未新增 HTTP schema 或 OpenAPI 漂移，未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Q1 P2 state-grounding bridge：本刀只是给它提供上游模型 CHANGES 来源。
+- ScenePacket 既有 packet payload：继续作为 judge loop 上下文传输，不新增表。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新建工具调用框架；真正 function/tool-call transport 仍留作后续，schema retry 后续见 Q1/Q4 P6。
+- 不复制 story_state 校验，模型 CHANGES 仍统一经 `commit_story_state_changes()` grounding/invariant。
+
+---
+
+## 编码前检查 - Q7 称谓一致性 + 17/18 章时间线回归
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q7-addressing-timeline.md`
+□ 将使用以下可复用组件：
+
+- `CharacterBibleEntry.canonical_name` / `aliases`：作为称谓允许列表。
+- `judge.consistency`：继续承载角色/时间线/文风跨域一致性检测。
+- `MemoryAtomRecord`：作为第 17 章跨章时间线事实来源。
+- `DetectedIssue`：输出结构化 judge issue。
+
+□ 将遵循命名约定：称谓问题 category 使用 `character_addressing_conflict`，violation type 同名。
+□ 将遵循代码风格：窄口径确定性检查，不接 workflow `name_registry`，不改路由/OpenAPI，不触碰 `apps/web`。
+□ 确认不重复造轮子：复用 Character Bible 和 Story Memory，不新增姓名注册表或时间线表。
+
+### 编码后声明 - Q7 称谓一致性 + 17/18 章时间线回归
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `CharacterBibleEntry`：canonical/aliases 作为称谓事实源。
+- `judge.consistency`：新增 `_detect_character_alias_conflicts()`，并接入 `create_judge_issues()` 与真实 book generation judge。
+- `MemoryAtomRecord`：第 17 章 location fact 继续喂 `_detect_timeline_conflicts()`。
+
+#### 2. 遵循了以下项目约定
+
+- 称谓规则只在同一句内同时出现 canonical 和未登记同姓称谓时触发，降低误报。
+- 未把 workflow narrative guard 当作真实路径硬门禁。
+- 未新增路由、schema 或 OpenAPI；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Character Bible forbidden traits：同样输出角色一致性问题，但称谓漂移单独使用 `character_addressing_conflict`。
+- Timeline location conflict：复用既有“同一时间不同地点”检测，新增 17/18 章基线。
+
+#### 4. 未重复造轮子的证明
+
+- 未新增 name registry 表；称谓事实仍来自 Character Bible。
+- 未新增 timeline graph；17/18 回归继续使用 Story Memory 的 location fact。
+
+---
+
+## 编码前检查 - Q8 长程可观测性 Prometheus 指标
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q8-observability.md`
+□ 将使用以下可复用组件：
+
+- `app.common.metrics`：已有 `judge_calls_total` / `repair_patches_total` / `/metrics` 暴露入口。
+- `_judge_and_repair_loop()`：真实串行与并发 precommit 共用的章节评审入口，适合返回 judge 轮数。
+- `completed_chapters` progress 与 `_chapter_metric()`：已承载逐章 token/cost/quality/repair 摘要，可补 `judge_call_count`。
+- `_pause_by_failure()`：真实串行章节失败统一落库点，适合记录 failure counter。
+
+□ 将遵循命名约定：Prometheus 新增指标使用 `book_generation_*_total`，不携带 `book_run_id` / `chapter_index` 高基数字段。
+□ 将遵循代码风格：不新增 HTTP schema，不刷新 OpenAPI，不触碰 `apps/web`。
+□ 确认不重复造轮子：复用已有 Prometheus instrumentator 与全局 judge/repair counters，不另起监控系统。
+
+### 编码后声明 - Q8 长程可观测性 Prometheus 指标
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `judge_calls_total` / `repair_patches_total`：真实 book generation 每章完成后也会递增，避免 HTTP router 与 CLI 长程路径口径割裂。
+- `_judge_and_repair_loop()`：新增返回 `judge_call_count`，repair 重试时可反映实际 judge 轮数。
+- `completed_chapters` / `_chapter_metric()`：新增逐章 `judge_call_count`，与 Prometheus 总量互为证据。
+- `_pause_by_failure()`：失败暂停时递增 `book_generation_failure_count_total`。
+
+#### 2. 遵循了以下项目约定
+
+- 新增 `book_generation_cost_cny_total` 与 `book_generation_failure_count_total`，均无高基数标签。
+- 串行 `run_book_generation()`、`resume_book_generation()` 与并发 `run_book_generation_parallel()` precommit 路径使用同一 `observe_book_generation_chapter()`。
+- 指标变更仅影响 `/metrics` 文本输出，不改 OpenAPI schema；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- HTTP `judge/router.py` / `repair/router.py` 只统计 API 调用；Q8 补齐 CLI/runner 真实长程调用。
+- `book_generation_metrics._evidence_summary()` 已有成本与 failure summary；Q8 将长程运行中的同类信号同步暴露给 Prometheus。
+
+#### 4. 未重复造轮子的证明
+
+- 没有引入新的监控依赖；仍由 `prometheus_fastapi_instrumentator` 暴露 `/metrics`。
+- 没有把 run/chapter ID 放入 metric label；逐章明细继续留在 BookRun progress、audit/summary 制品中。
+
+---
+
+## 编码前检查 - Q1/Q4 P6 稳定 ID 花名册 + CHANGES schema retry
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-stable-id-schema-retry.md`
+□ 将使用以下可复用组件：
+
+- `StoryStateLedger`：作为已知实体当前态与稳定 ID 来源。
+- `CharacterBibleEntry`：作为角色花名册来源，补齐第一章 ledger 尚为空时的主角稳定 ID。
+- `StateChangeInput`：作为 CHANGES schema 校验器，避免另建一套 JSON schema。
+- `_call_llm()`：schema retry 复用既有真实 LLM 调用，不新增 provider 客户端。
+
+□ 将遵循命名约定：稳定 ID 形如 `{entity_kind}:{sha1前10位}`；可读名继续放 `canonical_name` / `aliases`。
+□ 将遵循代码风格：schema retry 只修正 CHANGES JSON，不改写正文；不改路由/OpenAPI；不触碰 `apps/web`。
+□ 确认不重复造轮子：不新建 roster 表；花名册由 ledger + Character Bible + 章节上下文投影生成。
+
+### 编码后声明 - Q1/Q4 P6 稳定 ID 花名册 + CHANGES schema retry
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `StoryStateLedger`：`build_story_state_roster()` 读取 run-scoped / global ledger 作为花名册来源。
+- `CharacterBibleEntry`：主角在第一章 ledger 为空时也能获得稳定 ID。
+- `StateChangeInput`：`validate_story_state_change_dicts()` 用 Pydantic schema 校验模型 CHANGES。
+- `_call_llm()`：`_retry_story_state_changes_schema()` 仅让模型重写 JSON 数组。
+
+#### 2. 遵循了以下项目约定
+
+- CHANGES prompt 注入 `故事状态花名册`，要求已有实体使用花名册 `entity_id`。
+- 后端提交前执行 `normalize_story_state_changes_with_roster()`，把 `沈砚` 等自由名归一为稳定 ID，同时保留 `canonical_name` 供审计阅读。
+- 串行、resume、并发 precommit 都向 `_generate_chapter()` 传 `book_run_id`，让当前 run 的状态投影能进入后续章节 prompt。
+- 未新增路由、schema 或 OpenAPI；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Q1 P5 JSON block 是传输通道；P6 在其上补花名册归一与 schema retry。
+- `story_state.service._coerce_change()` 负责提交期 schema 入模；P6 在生成期提前诊断并重试，减少整章因 CHANGES 结构错而降级。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增 roster 持久表；稳定 ID 是 ledger / Character Bible / 章节上下文的确定性投影。
+- 没有新增 JSON schema 文件；继续使用 `StateChangeInput` 作为唯一结构约束。
+
+---
+
+## 编码前检查 - Q1/Q4 P7 LLM 语义 grounding advisory
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-semantic-grounding.md`
+□ 将使用以下可复用组件：
+
+- `StoryStateGroundingResult`：已有 `semantic_status` / `semantic_score` 字段，适合补 `semantic_reason`。
+- `StateChangeInput`：语义 grounding 直接读取提交期结构化 CHANGES，不另造 DTO。
+- `STORYFORGE_JUDGE_LLM_*` / `STORYFORGE_LLM_*`：复用 judge LLM 配置来源。
+- `_commit_story_state_for_scene()`：真实 book generation 提交 story_state 的唯一接线点。
+
+□ 将遵循命名约定：语义结果仍写 grounding payload，不新增硬失败 category。
+□ 将遵循代码风格：语义 grounding 是 advisory；未配置或调用失败不阻断提交、不触发机械改写；不改 OpenAPI；不触碰 `apps/web`。
+□ 确认不重复造轮子：不复用 workflow guard，不另建语义评审路由；只在 `story_state` domain 内补 grounding advisory。
+
+### 编码后声明 - Q1/Q4 P7 LLM 语义 grounding advisory
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `StoryStateGroundingResult`：新增 `semantic_reason`，与既有 `semantic_status` / `semantic_score` 同存。
+- `commit_story_state_changes()`：新增可注入 `semantic_grounder`，服务层测试无需真实网络。
+- `_commit_story_state_for_scene()`：真实生成路径传入 `semantic_ground_story_state_changes()`。
+- Judge LLM env：`story_state.semantic` 复用 `STORYFORGE_JUDGE_LLM_*`，未单独发明 provider 配置。
+
+#### 2. 遵循了以下项目约定
+
+- 确定性 hard grounding 仍是硬闸；语义 grounding 只写 advisory。
+- grounder 异常时写 `semantic_grounding_failed`，不回滚已接地且不违反不变量的提交。
+- 未新增路由、schema 或 OpenAPI；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Q3 fast judge advisory：章节质量语义评审不阻断；P7 对 CHANGES grounding 采用同一 advisory 立场。
+- Q1 P2 state-grounding bridge：原本只做 surface grounding；P7 补第二层“语义是否支持 delta”的咨询信号。
+
+#### 4. 未重复造轮子的证明
+
+- 没有接 workflow narrative guard；语义 grounding 是 story_state domain 的轻量 LLM advisory。
+- 没有新建持久表；结果随 `StoryStateEvent.grounding` 审计 payload 落库。
+
+---
+
+## 编码前检查 - Q5 参数化章节阈值 + API 系统词检测
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q5-thresholds-forbidden-terms.md`
+□ 将使用以下可复用组件：
+
+- `book_runs.dispatch`：默认 phase policy 的唯一生成点。
+- `book_generation_cli.py` / `_assert_preflight()`：真实 CLI 长程路径章节上限的前置校验。
+- `deterministic_judge_fallback()`：真实 judge 本地确定性规则入口。
+- workflow `ForbiddenDraftTermsFilter`：只参考固定词清单，不 import 到 API。
+
+□ 将遵循命名约定：API issue category 使用 `forbidden_draft_term`。
+□ 将遵循代码风格：章节阶段按 `total_chapters` 派生；CLI cap 显式参数化；不改 HTTP `/start` 的 6 章安全闸；不触碰 `apps/web`。
+□ 确认不重复造轮子：不把 workflow narrative guard 接入 API，API 侧只做自包含确定性系统词检测。
+
+### 编码后声明 - Q5 参数化章节阈值 + API 系统词检测
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `build_book_run_workflow_dispatch()`：现在调用 `_default_phase_policy(book_run.total_chapters)`。
+- `book_generation_cli.main()`：新增 `--max-chapter-count`，并把参数传给 `_assert_preflight()` 与 runner。
+- `deterministic_judge_fallback()`：新增 `_detect_forbidden_draft_terms()`。
+- `BookRun` / `summary` 路径不变，Q9 仍走 CLI。
+
+#### 2. 遵循了以下项目约定
+
+- 30 章默认 phase policy 保持历史边界；18 章按比例缩放，不再出现 25-30 章外溢阶段。
+- `STORYFORGE_LLM_SMOKE_MAX_CHAPTER_COUNT` 可覆盖 CLI 默认上限；CLI 默认上限为 30。
+- `/api/book-runs/{id}/start` 的 6 章单进程后台安全闸保留，避免把 Q9 长跑误接 HTTP start。
+- 未新增路由、schema 或 OpenAPI；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- workflow `ForbiddenDraftTermsFilter`：API 侧复刻核心固定系统词检测，但不 import workflow 包。
+- style pack 禁用表达：系统词检测是全局正文卫生规则，不依赖具体风格包。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新建 narrative guard 框架；只是把真实 judge 必需的一条确定性规则放到 API judge 层。
+- 没有新增章节配置表；阶段边界从 `total_chapters` 确定性派生。
+
+---
+
+## 编码前检查 - Q6 整书级叙事终检 advisory audit
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q6-full-book-advisory-audit.md`
+□ 将使用以下可复用组件：
+
+- `export_book_run_audit_report()`：完本导出时已有章节证据聚合点，适合附加整书 advisory 信号。
+- `_approved_scenes()`：复用已批准正文读取逻辑，避免另建导出查询。
+- `FORBIDDEN_DRAFT_TERMS`：复用 API judge 自包含系统词清单，不 import workflow guard。
+- `StoryStateEvent` / `StoryStateLedger`：作为伏笔、冲突、倒计时等未回收项的真实状态来源。
+
+□ 将遵循命名约定：新增字段使用 `full_book_advisory_audit` / `full_book_advisory_status`，单项 check 使用 snake_case。
+□ 将遵循代码风格：终检只产咨询信号，不阻断导出；`unavailable` / `error` 必须显式留痕，不伪装成 clean；不改路由/OpenAPI；不触碰 `apps/web`。
+□ 确认不重复造轮子：不把 workflow narrative guard 或 golden `narrative_gate.py` 接入真实路径；先在 API exporter 内实现窄口径、可解释、低风险的整书信号。
+
+### 编码后声明 - Q6 整书级叙事终检 advisory audit
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `export_book_run_audit_report()`：新增 `full_book_advisory_audit`，并把状态投影到 `quality_summary.full_book_advisory_status`。
+- `_approved_scenes()`：整书检查读取同一批 approved scene，不新增导出事实源。
+- `FORBIDDEN_DRAFT_TERMS`：系统/流程词检查复用 API judge 清单。
+- `StoryStateEvent` / `StoryStateLedger`：`story_state_open_items` 只有检测到事件源后才判断 open/pass；无事件标记 `unavailable`。
+
+#### 2. 遵循了以下项目约定
+
+- Q6 只做 advisory audit，`hard_gate=false`，不会阻断 `audit_report.json` 导出。
+- 检查项覆盖 `chapter_count_integrity`、`forbidden_draft_terms`、`repeated_openings`、`story_state_open_items`、`final_chapter_resolution_signal`。
+- 终检异常返回 `status=error`，缺 StoryState 事件返回 `unavailable`，避免伪 clean。
+- 未新增路由、schema 或 OpenAPI；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- `manual_read_review` 投影：同样把人工/整书层信号放入 audit payload，而不是改生成主循环。
+- Q5 `forbidden_draft_term`：Q6 复用同一系统词清单做整书扫描，补足逐章 judge 之外的导出级证据。
+- Q1/Q4 `StoryStateLedger`：Q6 只读当前态投影判断未回收项，不新增状态规则。
+
+#### 4. 未重复造轮子的证明
+
+- 未接 `apps/workflow/storyforge_workflow/narrative`，也未复用 golden `narrative_gate.py`。
+- 未新增 guard 框架或持久表；所有信号来自已导出的章节正文、BookRun progress 与 story_state 表。
+- 未把整书终检升级为硬门禁；误报风险留给 Q9 人工通读校准。
+
+---
+
+## 编码前检查 - Q1/Q4 P8 OpenAI-compatible tool-call transport
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q1-tool-call-transport.md`
+□ 将使用以下可复用组件：
+
+- `_call_llm()`：真实 OpenAI-compatible chat/completions 调用边界，适合新增 `tools` / `tool_choice` 透传。
+- `StateChangeInput`：继续作为 CHANGES 结构校验器，避免为 tool call 另造 schema。
+- `build_story_state_roster()` / `normalize_story_state_changes_with_roster()`：tool call 返回的自由名仍走同一稳定 ID 归一。
+- `_record_scene_packet()` / ModelRun payload / completed chapter progress：记录 CHANGES 来源，便于 Q9 audit 排查。
+
+□ 将遵循命名约定：工具名使用 `record_story_state_changes`；来源字段使用 `story_state_changes_source` / `story_state_tool_call_count`。
+□ 将遵循代码风格：tool-call transport 优先，但保留正文 `STORY_STATE_CHANGES` JSON block fallback；provider 不支持时可用 `STORYFORGE_LLM_STORY_STATE_TOOL_CALLS=0` 关闭；不改路由/OpenAPI；不触碰 `apps/web`。
+□ 确认不重复造轮子：不新建 provider client；不新增 story_state schema；不接 workflow guard。
+
+### 编码后声明 - Q1/Q4 P8 OpenAI-compatible tool-call transport
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `_call_llm()`：新增可选 `tools` / `tool_choice`，并把响应 `tool_calls` 原样规整返回。
+- `book_generation_changes.py`：新增 `story_state_changes_tools()` 与 `extract_story_state_changes_from_tool_calls()`，复用现有 JSON 解析/校验/花名册归一链路。
+- `_generate_chapter()`：默认发送 `record_story_state_changes` tool schema；若 tool call 与 JSON block 同时存在，优先使用 tool call。
+- `_record_scene_packet()` / `_record_model_run()` / progress：记录 `story_state_changes_source` 与 `story_state_tool_call_count`。
+
+#### 2. 遵循了以下项目约定
+
+- tool call 只承载结构化 CHANGES，正文仍必须在 assistant content 中返回；正文为空仍视为生成失败。
+- JSON block fallback 保留，避免 provider tool support 不稳定时断粮。
+- 未新增路由、schema 或 OpenAPI；未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Q1 P5 JSON block：P8 是更可靠的结构化传输，仍兼容旧通道。
+- Q1/Q4 P6 schema retry：tool call 返回值仍经 `StateChangeInput` 校验，不绕过既有 retry/归一规则。
+
+#### 4. 未重复造轮子的证明
+
+- 未新增 provider 抽象或外部依赖；仍走现有 `_call_llm()`。
+- 未新增 story_state 表或 DTO；tool schema 从现有 `StateChangeInput` 字段映射而来。
+
+---
+
+## 编码前检查 - Q4 P1 跨章语义 judge 维度
+
+时间：2026-06-30 +08:00
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q4-cross-chapter-semantic-dimensions.md`
+□ 将使用以下可复用组件：
+
+- `semantic_judge_with_status()`：真实语义 Judge 的远程调用入口。
+- `JudgeIssueCreate.required_facts` / `evidence_links`：已有跨章事实与证据载体，不新增 HTTP schema。
+- `_CATEGORY_DIMENSION`：真实生成质量摘要的类别→维度映射。
+
+□ 将遵循命名约定：新增 semantic category 使用 `cross_chapter_state_conflict` / `foreshadow_payoff_gap` / `arc_continuity_drift` / `repetition_echo`。
+□ 将遵循代码风格：只扩 prompt 与映射，不新增路由/OpenAPI；语义结果仍由 LLM 返回，不机械改写正文；不触碰 `apps/web`。
+□ 确认不重复造轮子：复用 required_facts/evidence_links，不另建跨章 judge payload schema。
+
+### 编码后声明 - Q4 P1 跨章语义 judge 维度
+
+时间：2026-06-30 +08:00
+
+#### 1. 复用了以下既有组件
+
+- `semantic_judge_with_status()`：system prompt 新增四类跨章语义类别。
+- `JudgeIssueCreate.evidence_links`：用户 prompt 现在带上证据链接，供 LLM 知道 story_state / memory 事实来源。
+- `_CATEGORY_DIMENSION`：新增类别映射到 `world_consistency` / `narrative_quality` / `style_consistency`。
+
+#### 2. 遵循了以下项目约定
+
+- 不改 HTTP schema，不刷新 OpenAPI。
+- 语义维度是 advisory/评审输入能力增强，不把 LLM 结果自动当硬门禁之外的新系统。
+- 未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- Q4 P0 `required_facts`：提供跨章事实；P1 让 semantic judge 明确知道如何解释这些事实。
+- Q6 `full_book_advisory_audit`：负责导出级整书静态信号；P1 负责逐章语义 judge 的跨章类别。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增 judge 表、路由或 DTO。
+- 没有接 workflow narrative guard；仍使用 API judge 域的语义评审入口。
+
+---
+
+## Q9 长程验收预检与阻塞记录
+
+时间：2026-06-30 +08:00
+
+### 本地预检
+
+- 以不泄密方式检查真实 LLM 必需环境变量，仅输出 present/missing。
+- 结果：
+  - `STORYFORGE_LLM_API_KEY=missing`
+  - `STORYFORGE_LLM_BASE_URL=missing`
+  - `STORYFORGE_LLM_MODEL=missing`
+  - `STORYFORGE_LLM_PROVIDER=missing`
+  - `STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD=missing`
+  - `STORYFORGE_ALLOW_DIRECT_SERIAL_PH5=missing`
+
+### 本地结构门禁复验
+
+- `tests/test_book_generation_long_wrapper.py`：覆盖长程 wrapper 的敏感值扫描、外层超时、质量 gate、显式 max chapter、resume 目录复制、artifact 导出等。
+- `tests/test_real_llm_long_evidence_validator.py`：覆盖 artifact ID/hash、EPUB、cost breakdown、PH5 integration metrics、manual readthrough completion gate 等。
+
+### 阻塞结论
+
+- Q9 真实 4 万字长跑不能执行：缺真实 provider 配置、成本确认与人工盲评输入。
+- 不能用本地 wrapper/validator 单测替代 Q9；只能证明技术门禁脚本仍可运行。
+- 产品轨 P1 与 F1b 当前也不能交付：P1 依赖 Tauri + 真模型真实按钮路径，F1b 依赖 P1/Q9 真实结论；本轮约束明确不触碰 `apps/web`。
+
+---
+
+## Q9 结构门禁增强 - Q6/P8 证据纳入长跑验收
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-q9-blocked-real-long-run.md`
+
+□ 将使用以下可复用组件：
+
+- `.codex/run-real-llm-long-direct.py`：真实长跑 wrapper 与运行后质量门禁。
+- `.codex/validate-real-llm-long-evidence.ps1`：脱敏落盘证据验收脚本。
+- `book_generation_metrics._chapter_metric()`：`summary.json.per_chapter_metrics` 的逐章投影点。
+- `audit_report.json.full_book_advisory_audit` / `quality_summary.full_book_advisory_status`：Q6 整书 advisory 事实源。
+- `story_state_changes_source` / `story_state_tool_call_count`：P8 传输来源事实源。
+
+□ 将遵循命名约定：沿用 snake_case 字段；严格 tool-call 探针参数命名为 `RequireToolCallStoryStateChanges`。
+
+□ 将遵循代码风格：默认接受 `json_block` fallback；只有显式严格探针才要求 `tool_call`；不改 HTTP schema/OpenAPI；不触碰 `apps/web`。
+
+□ 确认不重复造轮子：不新增证据格式；只把已有 `summary.json` / `audit_report.json` 字段纳入 wrapper 和 validator 的门禁。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `_chapter_metric()`：新增透出 `story_state_changes_source` 与 `story_state_tool_call_count`，让 summary 与 audit 都能审计 StoryState changes 来源。
+- `_gate_failures()`：新增 Q6 advisory 和 StoryState 来源检查，继续保留 token、quality、artifact hash 和 PH5 integration gate。
+- `validate-real-llm-long-evidence.ps1`：新增落盘产物校验，读取 `audit_report.json` 后检查 Q6/P8 证据。
+
+#### 2. 遵循了以下项目约定
+
+- Q6 `full_book_advisory_audit` 必须 `hard_gate=false`；validator 不允许把 advisory 伪装成硬门禁。
+- Q9 默认允许 `tool_call` 或 `json_block`，因为真实 provider 未探针前不能假定 tool 支持。
+- `-RequireToolCallStoryStateChanges` 仅服务真实 provider tool-call support 探针，不作为默认长跑成功条件。
+- 未改 OpenAPI，未触碰 `apps/web`。
+
+#### 3. 对比了以下相似实现
+
+- PH5 integration metrics gate：同样默认记录、显式开关时才严查；tool-call support 也采用显式严格探针。
+- manual-readthrough gate：同样用 validator 参数决定是否进入最终验收口径。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增证据文件；仍使用 `summary.json`、`audit_report.json` 和 `run-metadata.json`。
+- 没有新增 story_state 或 audit 表；所有信息来自已存在 progress / exporter payload。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_book_generation.py::test_book_generation_supports_api_key_auth_and_cost_breakdown tests/test_book_generation.py::test_book_generation_cli_writes_redacted_summary_file tests/test_book_generation.py::test_generate_chapter_prefers_story_state_tool_calls -q`：3 passed。
+- `cd apps/api && uv run pytest tests/test_book_generation_long_wrapper.py -q`：16 passed。
+- `cd apps/api && uv run pytest tests/test_real_llm_long_evidence_validator.py -q`：12 passed。
+- `cd apps/api && uv run pytest tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py tests/test_book_exporter.py -q`：76 passed。
+- `cd apps/api && uv run ruff check app/domains/book_runs/book_generation_metrics.py tests/test_book_generation.py tests/test_book_generation_long_wrapper.py tests/test_real_llm_long_evidence_validator.py`：All checks passed。
+- PowerShell parser check for `.codex/validate-real-llm-long-evidence.ps1`：parse-ok。
+
+### 未联通能力
+
+- 仍未执行真实 provider tool-call support 探针。
+- 仍未执行 Q9 真实 4 万字长跑、resume/预算暂停实战演练、人工盲评或真实 artifact sha256 登记。
+
+---
+
+## F1a 文档事实源收敛 - Tauri 边界与重构边界
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源：
+
+- `docs/internal/TODO.md`：存在“真实 Tauri 写回端到端”“第一阶段验收链路已经通过”的越界表述。
+- `docs/internal/current-phase.md`：明确“真实 Tauri 桌面端到端”仍未完成，但缺少 refactor-master-plan 当前边界说明。
+- `README.md`：对外摘要把 smoke/组件级验证写成“真实 Tauri 写回和版本记录”。
+- `tests/test_phase9_fact_sources.py`：相关守卫大量依赖散落字符串，可补语义块检查。
+
+□ 将使用以下可复用组件：
+
+- `docs/internal/current-phase.md`：当前阶段唯一事实源。
+- `docs/internal/TODO.md`：下一步执行入口。
+- `tests/test_phase9_fact_sources.py`：文档事实源守卫测试。
+- `docs/internal/refactor-master-plan.md`：重构当前合理边界的上游事实。
+
+□ 将遵循命名约定：把本刀标为 F1a，保留 F1b 给真实 P1/Q9 结论后的终稿收敛。
+
+□ 将遵循代码风格：只改事实源文档与测试，不触碰 `apps/web`，不刷新 OpenAPI。
+
+□ 确认不重复造轮子：不新增文档体系；只让现有 README/TODO/current-phase 与测试守卫对齐。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `current-phase.md`：新增重构边界段落，仍作为唯一当前事实源。
+- `TODO.md`：继续只作下一步执行入口，修正 Tauri 完成度措辞。
+- `test_phase9_fact_sources.py`：新增 `_section()`，按语义块检查文档边界。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未改 API schema / OpenAPI。
+- 未把 P1/F1b 伪装为完成；完整真实 Tauri 端到端仍列为待执行。
+
+#### 3. 对比了以下相似实现
+
+- `PROJECT_SUMMARY.md` 已写“真实 Tauri 写回端到端未跑”；TODO/README 现在与其一致。
+- `next-step-plan.md` 已写“不再做 god-file 机械拆分”；current-phase 现在补上同一边界。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增事实源文件。
+- 没有新增测试框架；仍使用现有 pytest 文档守卫。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q`：14 passed。
+- `cd apps/api && uv run ruff check tests/test_phase9_fact_sources.py`：All checks passed。
+
+### 未联通能力
+
+- F1a 不代表 P1 完成，也不代表 Q9 真实长程完成。
+- F1b 终稿仍需等完整真实 Tauri 端到端和 Q9 真实长程结论。
+
+---
+
+## 产品轨 P2 - CJK 句/子句级 diff 与 hunk 级冲突容忍
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源与现状：
+
+- `docs/internal/next-step-plan.md`：P2 要求 CJK 句/子句级 diff + hunk 级冲突容忍。
+- `apps/desktop/frontend/src/lib/patch-hunks.ts`：原实现只按行切分，长中文段落多处修改会形成巨型 hunk。
+- `apps/desktop/frontend/src/components/editor/useSuggestionWriteback.ts`：分块接受前要求当前文件全文等于 `suggestion.before`，接受第一块后剩余块会被整补丁门控挡住。
+- `apps/desktop/frontend/tests/patch-hunks.test.ts`：已有行级拆分和插入/删除基础测试，可扩展为 P2 回归。
+
+□ 将使用以下可复用组件：
+
+- `buildPatchHunks()`：继续作为 PatchReviewPanel / BranchCanvas 的 hunk 事实源。
+- `PatchHunk` 既有行号字段：保留 UI 文案和分支 diff 统计兼容。
+- `writeAcceptedSuggestion()`：继续负责 snapshot、Tauri 写盘、author-loop 记录和 editor state 更新。
+
+□ 将遵循代码风格：只改 `apps/desktop`，不触碰 `apps/web`，不改 API schema/OpenAPI；整文件接受保留旧补丁硬闸，分块接受改成单 hunk 定位。
+
+□ 确认不重复造轮子：不引入 diff 库；在既有 LCS hunk 生成器上增加 CJK segment unit 与 offset/context 定位。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `buildPatchHunks()` 仍返回同一个 `PatchHunk` 类型，只扩展 offset、上下文和 `unitKind` 元数据。
+- `PatchReviewPanel` 无需改展示结构；继续用 `originalStartIndex`、`addedLines`、`removedLines` 展示分块按钮。
+- `writeAcceptedSuggestion()` 继续统一处理版本快照、文件写回和闭环记录。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未改 API 路由或 schema，未刷新 OpenAPI。
+- 整文件接受仍在当前内容偏离 `suggestion.before` 时拒绝；只放宽分块接受为 hunk 级复核。
+
+#### 3. 对比了以下相似实现
+
+- BranchCanvas 只汇总 hunk 数和增删行，保留行级字段后无需额外改动。
+- PatchReviewPanel 的逐块按钮仍消费原 hunk 对象，新增元数据不改变 UI props。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增并行 patch 格式。
+- 没有新建写回流程；只新增 `applyPatchHunkToCurrent()` 作为 hunk 级 apply helper。
+
+### 本地验证
+
+- `cd apps/desktop/frontend && pnpm.cmd run test -- patch-hunks editor`：13 passed；存在既有 React SSR `useLayoutEffect` warning，退出码 0。
+- `cd apps/desktop/frontend && pnpm.cmd run typecheck`：通过。
+- `cd apps/desktop/frontend && pnpm.cmd run test`：81 passed；存在既有 React SSR `useLayoutEffect` warning，退出码 0。
+- `git diff --check -- apps/desktop/frontend/src/lib/patch-hunks.ts apps/desktop/frontend/src/components/editor/useSuggestionWriteback.ts apps/desktop/frontend/tests/patch-hunks.test.ts apps/desktop/frontend/tests/editor.test.tsx`：通过。
+
+### 未联通能力
+
+- P2 第一版未跑真实 Tauri 人工按钮路径；不能替代 P1 完整真实 Tauri + 真模型端到端。
+- P3/P4 后续见下方章节；Q9 真实 4 万字长跑和人工盲评仍未完成。
+
+---
+
+## 产品轨 P3 - Provider 运行时真相源收敛
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源与现状：
+
+- `docs/internal/next-step-plan.md`：P3 要求消除 Provider 设置 split-brain，并强调密钥严禁经前端流转。
+- `apps/desktop/frontend/src/components/SettingsView.tsx`：已有设置字段和“测试连接”，但字段容易被误解为会驱动后端真实调用。
+- `apps/desktop/frontend/src/lib/provider-config.ts`：原 `describeProviderConnection()` 根据 localStorage `apiKeyRef` 显示“缺少密钥引用/模型服务已配置”。
+- `apps/api/app/domains/assistant/service.py::probe_provider_health()`：真实探测后端 `resolved_llm_env()`，已避免回显密钥。
+
+□ 将使用以下可复用组件：
+
+- `probeProviderHealth()`：继续作为桌面设置页的后端 env 探测入口。
+- `sanitizeAppSettings()`：继续作为 localStorage 写入前的统一清洗点。
+- `provider-config.test.ts` / `editor.test.tsx` / `app-icons.test.tsx`：承载桌面设置语义守卫。
+
+□ 将遵循代码风格：不触碰 `apps/web`，不改 API schema/OpenAPI，不把前端 localStorage provider 字段接入后端调用链。
+
+□ 确认不重复造轮子：不新增 provider 配置系统；只把现有桌面设置改为参考显示，并明确后端 env 为运行时真相源。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `probeProviderHealth()` 继续调用 `/api/assistant/provider-health`。
+- `sanitizeAppSettings()` 新增 apiKeyRef 过滤规则，保留统一 localStorage 清洗路径。
+- `CodexSidebar` 继续展示设置卡片，但 subtitle 现在来自后端 env 真相源文案。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未新增路由、schema 或 OpenAPI。
+- 未保存明文 provider key；疑似明文密钥会在 settings sanitizer 中丢弃。
+
+#### 3. 对比了以下相似实现
+
+- 后端 `probe_provider_health()` 已经通过 `resolved_llm_env()` 和 `missing_book_generation_env()` 读取真实配置；桌面侧现在对齐该事实源。
+- P2 的源码守卫模式可复用，P3 在 `editor.test.tsx` 追加 SettingsView 文案守卫。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增 provider gateway UI。
+- 没有新增前端密钥存储或传输层。
+
+### 本地验证
+
+- `cd apps/desktop/frontend && pnpm.cmd run test -- provider-config editor app-icons patch-hunks`：22 passed；存在既有 React SSR `useLayoutEffect` warning，退出码 0。
+- `cd apps/desktop/frontend && pnpm.cmd run typecheck`：通过。
+- `cd apps/desktop/frontend && pnpm.cmd run test`：83 passed；存在既有 React SSR `useLayoutEffect` warning，退出码 0。
+- `git diff --check`：通过。
+
+### 未联通能力
+
+- 未配置或验证真实 provider 密钥；Q9 真实 provider tool-call support 探针仍未执行。
+- P1 完整真实 Tauri + 真模型按钮路径、Q9 真实 4 万字长跑和人工盲评仍未完成；P4 后端流式第一版见下一节。
+
+---
+
+## 产品轨 P4 - 后端 WebSocket AgentRun 实时事件桥接
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源与现状：
+
+- `docs/internal/next-step-plan.md`：P4 要求 `agent_runs/runtime.py` 回合循环异步化、边执行边发事件；现状是 `ide/router.py` 同步等待 `run_agent_user_message()` 返回后才回放 stream events。
+- `apps/api/app/domains/agent_runs/runtime.py`：runtime 已在执行过程中调用 event sink 记录 plan / tool_trace / permission / complete / fail。
+- `apps/api/app/domains/agent_runs/event_sink.py`：事件写入已经逐步 commit，但没有实时观察者。
+- `apps/api/app/domains/agent_runs/event_encoders.py`：已有 WebSocket started/control 编码器，可扩展 durable event → stream message。
+- `apps/api/tests/test_ide_agent_orchestrator.py` / `apps/api/tests/test_agent_runs.py`：已有 WebSocket stream 与 AgentRun facade 守卫，可补真正实时顺序回归。
+
+□ 将使用以下可复用组件：
+
+- `run_agent_user_message()`：继续作为 WebSocket user_message 唯一 facade，不在路由层直接拼 start/execute。
+- `AgentRunEvent` store：继续作为 WebSocket/SSE/REST 共用事实源。
+- 现有 stream message 类型：`agent_run_started`、`agent_step`、`tool_trace`、`permission_required`、`agent_result`。
+
+□ 将遵循代码风格：只改 `apps/api`，不触碰 `apps/web`，不改 API schema/OpenAPI；保持同步 runtime 主体不做大重构，先用 worker thread + async queue 桥接真实事件。
+
+□ 确认不重复造轮子：不新增第二套 stream event store；不新建 WebSocket 协议，只把已持久化事件编码为既有前端可理解消息。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `_AgentRunEventSink` 仍是唯一 runtime → AgentRunEvent 适配器，只新增 `on_event` hook。
+- `run_agent_user_message()` 仍是路由入口；新增可选 callback 参数供 streaming 路径使用。
+- `websocket_started_event()` / `websocket_control_event()` 继续保留，新增 `websocket_stream_events_from_agent_event()` 复用同一编码器模块。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未新增路由或响应 schema，未刷新 OpenAPI。
+- WebSocket stream 错误仍返回 `type=error`，并在已有 run 时携带 `run_id`。
+- 后台 worker 使用独立 SQLAlchemy session，避免跨线程复用请求 dependency session。
+
+#### 3. 对比了以下相似实现
+
+- REST/SSE `/api/agent-runs/{run_id}/events/stream` 仍是 snapshot replay，不承担在线运行调度。
+- 旧 `_agent_stream_events_from_result()` 保留给非新路径兼容，但 `stream=true` 现在消费 durable event hook，不再等最终 result 才制造中间消息。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增事件表、临时状态表或并行事件模型。
+- 没有新增前端协议名；只把 durable event 投影到现有 IDE stream 消息。
+
+### 本地验证
+
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py::test_agent_user_message_file_review_can_stream_intermediate_events tests/test_ide_agent_orchestrator.py::test_agent_user_message_streams_runtime_events_before_result tests/test_ide_agent_orchestrator.py::test_agent_user_message_stream_error_carries_run_id tests/test_agent_runs.py::test_websocket_user_message_enters_through_runtime_facade -q`：4 passed。
+- `cd apps/api && uv run ruff check app/domains/agent_runs/event_sink.py app/domains/agent_runs/event_encoders.py app/domains/agent_runs/service.py app/domains/ide/router.py tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py`：All checks passed。
+- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_agent_runs.py -q`：85 passed。
+
+### 未联通能力
+
+- P4 第一版未把 AgentRuntime 内部工具链改为 native async；runtime 仍是同步执行体，只是被 worker thread 承载。
+- 未跑真实 Tauri UI 或真模型长耗时流式体验；P1 和 Q9 仍受真实环境/人工验收阻塞。
+
+---
+
+## Quick Win - Desktop Agent/Tauri smoke 接入默认桌面门禁
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源与现状：
+
+- `docs/internal/next-step-plan.md` Quick Wins 要求把 `verify-agent-conversation.mjs` / `verify-tauri-smoke.mjs` 接入 `test:desktop` 聚合或 CI。
+- 根 `package.json` 的 `test:desktop` 原先只跑 frontend typecheck + unit test。
+- `apps/desktop/package.json` 的 `verify` 已跑 frontend build / smoke / Rust / Tauri smoke，但没有跑 `verify:agent-conversation`。
+- `apps/desktop/frontend/scripts/verify-unit.mjs` 在 Windows 下可能在全部 83 个单测通过后因临时目录 `rmSync()` 遇到短暂 `EBUSY` 而让门禁失败。
+
+□ 将使用以下可复用组件：
+
+- `apps/desktop/package.json::verify`：作为 desktop 侧完整聚合门禁。
+- `apps/desktop/frontend/scripts/verify-agent-conversation.mjs`：已有 browser smoke，覆盖流式事件、上下文 payload 和 issue 定向修订。
+- `apps/desktop/scripts/verify-tauri-smoke.mjs`：已有 Tauri smoke，覆盖真实 Tauri 文件读写、写回预览和版本路径。
+
+□ 将遵循代码风格：只改脚本聚合与测试工具韧性，不改业务逻辑、不触碰 `apps/web`、不改 API schema/OpenAPI。
+
+□ 确认不重复造轮子：不新增第三套桌面 smoke；直接把已有脚本纳入默认门禁。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- 根 `test:desktop` 现在委托 `npm --prefix apps/desktop run verify`。
+- `apps/desktop` 的 `verify` 继续跑 typecheck、unit、build、frontend smoke、Rust tests 和 Tauri smoke，并新增 agent conversation smoke。
+- `verify-unit.mjs` 继续使用原临时转译机制，只让最终清理具备 Windows 文件锁重试。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未改路由、schema 或 OpenAPI。
+- 未把脚本级 smoke 伪装为 P1 完整人工桌面端到端；P1 真实 Tauri + 真模型按钮路径仍单列待验。
+
+#### 3. 对比了以下相似实现
+
+- `verify-local.mjs` 已经通过 `test:desktop` 执行桌面门禁；把 root `test:desktop` 改为 desktop 包完整 verify 后，本地 verify 会自然继承 Agent/Tauri smoke。
+- `apps/desktop/package.json::verify:tauri-smoke` 原本已存在，无需改 smoke 内容。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增 smoke 脚本或并行命令入口。
+- 没有新增 Playwright/Tauri 测试框架，只复用既有脚本。
+
+### 本地验证
+
+- 首次 `npm --prefix apps/desktop run verify`：前端 83 个单测全通过，但最终清理临时转译目录时 `rmSync()` 命中 Windows `EBUSY`，门禁失败；该失败暴露出默认聚合后的真实稳定性缺口。
+- 修复 `verify-unit.mjs` 清理重试后，`npm --prefix apps/desktop/frontend run test`：83 passed。
+- `npm --prefix apps/desktop run verify`：通过；覆盖 frontend typecheck、83 个前端单测、frontend build、`verify:smoke`、`verify:agent-conversation`、9 个 Rust tests、`verify:tauri-smoke`。
+
+### 未联通能力
+
+- 该 Quick Win 只把脚本级 browser/Tauri smoke 纳入默认桌面门禁；P1 仍需要完整真实 Tauri + 真模型人工按钮路径证据。
+
+---
+
+## Quick Win - `修选中 issue` 当前报告存在性校验
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源与现状：
+
+- `docs/internal/next-step-plan.md` Quick Wins 要求为“修选中 issue”增加 issue id 存在性校验，防止按漂移旧 id 改错目标。
+- `ChatWindow.tsx` 的 `REVISE_ISSUE_EVENT` 入口原本会从 `lastReviewReport` 查找 issue，但在 `lastReviewReportFile` 或 `currentFileRef` 缺失时边界偏松。
+- 编辑器内联标记通过 `emitReviseIssue(issueId)` 只传 issue id，ChatWindow 必须自己确认该 id 属于当前文件的当前审稿报告。
+
+□ 将使用以下可复用组件：
+
+- `reviewIssuesFromReport()`：继续作为审稿报告 issue 解析唯一入口。
+- `lastReviewReportFile` / `currentFileRef`：继续作为 ChatWindow 判断审稿文件与当前文件是否一致的状态源。
+- 现有 `node:test` 桌面前端测试：直接覆盖纯函数边界，不新增测试框架。
+
+□ 将遵循代码风格：只加纯函数与事件入口守卫，不改路由/schema/OpenAPI，不触碰 `apps/web`。
+
+□ 确认不重复造轮子：不新增 issue registry 或 editor marker 状态表，直接校验现有 review report。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `reviewIssuesFromReport()`：所有 issue id 仍来自当前审稿报告解析结果。
+- `REVISE_ISSUE_EVENT`：事件协议不变，继续只传 issue id。
+- `ChatWindow` 的 `lastReviewReportFile` / `currentFileRef`：用现有状态判断跨文件漂移。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未改路由、schema 或 OpenAPI。
+- 保持无弹窗、无额外交互；过期或不匹配事件被安静忽略。
+
+#### 3. 对比了以下相似实现
+
+- `extractIssueScopeFromInstruction()` 同样从 `reviewIssuesFromReport()` 派生合法 issue scope。
+- `emitReviewIssues(filePath, issues)` 已以文件路径作为编辑器 marker 作用域，本次在 ChatWindow 入口补上同一边界。
+
+#### 4. 未重复造轮子的证明
+
+- 没有新增独立 issue store。
+- 没有复制 review report schema 解析，只在现有解析函数外加当前文件校验。
+
+### 本地验证
+
+- `npm --prefix apps/desktop/frontend run test -- chat-window`：18 passed。
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+
+### 未联通能力
+
+- 该 Quick Win 只证明桌面前端本地逻辑守卫；P1 完整真实 Tauri + 真模型按钮路径仍需真实环境和人工证据。
+
+---
+
+## Quick Win - 应用内模态替换原生 prompt/alert/confirm
+
+时间：2026-06-30 +08:00
+
+### 编码前检查
+
+□ 已核对事实源与现状：
+
+- `docs/internal/next-step-plan.md` Quick Wins 要求用应用内模态替换原生 `prompt/alert/confirm`，统一写回确认入口。
+- `index.html` 当前只加载 `src/main.tsx`；旧 `src/main.ts` 被 `tsconfig.json` 排除且引用不存在的旧路径，属于未加载 DOM 入口。
+- 当前有效 React 入口里的原生调用集中在 `App.tsx` 的新建文件/错误提示和 `Editor.tsx` 的保存失败/分支命名/关闭未保存确认。
+
+□ 将使用以下可复用组件：
+
+- `App.tsx` 顶层 shell：适合承载全局 modal host。
+- `RightWorkspace` → `Editor` 既有 props 链路：透传 dialog API，不新增全局事件。
+- 现有 `node:test` + `renderToStaticMarkup` 守卫：验证宿主渲染与源码不再调用原生弹窗。
+
+□ 将遵循代码风格：应用内模态保持小型组件；不改路由/schema/OpenAPI；不触碰 `apps/web`；删除未加载旧入口，避免残留原生弹窗误导后续验收。
+
+□ 确认不重复造轮子：不引入新 UI 库，不新增第二套确认事件协议；当前入口统一通过 `useAppDialog()`。
+
+### 编码后声明
+
+#### 1. 复用了以下既有组件
+
+- `App.tsx` 顶层 React shell：承载 `AppDialogHost`。
+- `RightWorkspace` / `Editor` props 链路：透传 `dialogs`，不新增 global store。
+- 既有 `.sf-toolbar-button` 等深色桌面视觉语言：模态使用同一色系和 6px radius。
+
+#### 2. 遵循了以下项目约定
+
+- 未触碰 `apps/web`。
+- 未改路由、schema 或 OpenAPI。
+- 未把该 Quick Win 伪装为 P1 真实桌面端到端验收；仍需真实 Tauri + 真模型按钮路径证据。
+
+#### 3. 对比了以下相似实现
+
+- `CommandPalette` / `SettingsView` 同样作为 React 壳内 overlay/panel，不使用浏览器原生弹窗。
+- `index.html` 只加载 `main.tsx`，因此删除旧 `main.ts` 不影响当前 bundle 入口。
+
+#### 4. 未重复造轮子的证明
+
+- 没有引入 dialog 依赖库。
+- 没有创建新的文件操作路径，只替换已有确认/输入/提示 UI。
+
+### 本地验证
+
+- `npm --prefix apps/desktop/frontend run typecheck`：通过。
+- `npm --prefix apps/desktop/frontend run test -- editor app-icons`：10 passed（React SSR `useLayoutEffect` warning 为既有测试环境提示，命令退出 0）。
+
+### 未联通能力
+
+- 未执行真实人工 Tauri 桌面按钮路径；P1 仍需真模型与人工证据。

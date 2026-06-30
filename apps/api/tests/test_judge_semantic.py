@@ -90,6 +90,39 @@ def test_semantic_judge_accepts_injected_provider_without_remote_llm() -> None:
     ]
 
 
+def test_semantic_judge_preserves_cross_chapter_categories_from_provider() -> None:
+    """跨章语义新维度应能从 provider 结果进入内部 DetectedIssue。"""
+
+    payload = JudgeIssueCreate(
+        scene_id=1,
+        scene_packet_id=None,
+        content="沈砚说铜钟密钥从未出现。",
+        required_facts=["已知事实：铜钟密钥由沈砚持有"],
+        style_rules=[],
+        evidence_links=[{"source": "story_state_ledger", "fact": "铜钟密钥由沈砚持有"}],
+    )
+
+    def provider(_request_payload: JudgeIssueCreate) -> list[dict[str, object]]:
+        return [
+            {
+                "category": "cross_chapter_state_conflict",
+                "severity": "high",
+                "span_start": 3,
+                "span_end": 12,
+                "summary": "正文否认已在 story_state 中确立的持有事实。",
+                "expected_text": "铜钟密钥由沈砚持有",
+                "replacement_text": "沈砚摸到袖中的铜钟密钥。",
+                "matched_text": "铜钟密钥从未出现",
+            }
+        ]
+
+    issues = semantic_judge(payload, provider=provider)
+
+    assert issues[0].category == "cross_chapter_state_conflict"
+    assert issues[0].severity == "high"
+    assert issues[0].expected_text == "铜钟密钥由沈砚持有"
+
+
 def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None:
     """远程 Judge 调用必须通过 httpx Client 发送结构化 JSON 请求。"""
 
@@ -99,7 +132,7 @@ def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None
         content="林岚确认地点：荒原城，随后开始寻找失真的灯塔信号。",
         required_facts=["地点：灯塔港"],
         style_rules=["克制"],
-        evidence_links=[],
+        evidence_links=[{"source": "story_state_ledger", "fact": "地点：灯塔港"}],
     )
     captured: dict[str, object] = {}
 
@@ -169,7 +202,10 @@ def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None
     assert system_message["role"] == "system"
     assert "JSON" in system_message["content"]
     assert "character_voice_violation" in system_message["content"]
+    assert "cross_chapter_state_conflict" in system_message["content"]
+    assert "foreshadow_payoff_gap" in system_message["content"]
     assert "地点：灯塔港" in str(request_json["messages"][1]["content"])
+    assert "story_state_ledger" in str(request_json["messages"][1]["content"])
 
 
 def test_semantic_judge_parses_markdown_fenced_json_without_degradation(monkeypatch) -> None:

@@ -14,6 +14,6 @@ test('desktop shell renders polished icon buttons', () => {
   assert.ok(html.includes('icon-button'));
   assert.ok(html.includes('icon-badge'));
   assert.ok(html.includes('aria-hidden="true"'));
-  assert.ok(html.includes('缺少密钥引用'));
+  assert.ok(html.includes('后端环境变量控制模型服务'));
   assert.equal(html.includes('模型服务未检测'), false);
 });

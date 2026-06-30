@@ -1,6 +1,6 @@
 # StoryForge
 
-StoryForge = Cursor for Fiction：一个面向小说项目的 Desktop IDE-first AI 写作工作台。它的第一阶段目标不是 Web 控制台或自动出书机，而是让作者在本地小说项目中像用 Cursor 写代码一样写小说：打开文件、Agent 审稿、定向修订、diff 确认、真实写回和版本记录。
+StoryForge = Cursor for Fiction：一个面向小说项目的 Desktop IDE-first AI 写作工作台。它的第一阶段目标不是 Web 控制台或自动出书机，而是让作者在本地小说项目中像用 Cursor 写代码一样写小说：打开文件、Agent 审稿、定向修订、diff 确认、用户确认写回和版本记录。
 
 StoryForge 仍保留可审计的长篇生成流水线能力：设定、章节目标、检索证据、生成、审稿、修复、记忆回写和制品导出。但 BookRun 是 Agent 可调用 tool / 后台重型引擎，不是第一阶段主产品入口。
 
@@ -36,7 +36,7 @@ StoryForge 仍保留可审计的长篇生成流水线能力：设定、章节目
 
 ## 当前边界
 
-StoryForge 仍处在真实长程验收整改阶段；Cursor for Fiction Phase 1 的 Desktop IDE 最小闭环已经在本地验证通过。它适合用来研究和改进可验证的 AI 小说生产流水线，也已具备 Desktop IDE Agent 的本地文件审稿、修订、diff 确认、写回和版本记录链路；但不应该被视为成熟的商用写作平台。
+StoryForge 仍处在真实长程验收整改阶段；Cursor for Fiction Phase 1 的 Desktop IDE 最小闭环已经在本地组件和 smoke 层验证通过。它适合用来研究和改进可验证的 AI 小说生产流水线，也已具备 Desktop IDE Agent 的本地文件审稿、修订、diff 确认、写回护栏和版本记录链路；但完整真实 Tauri 桌面端到端仍未完成，不应该被视为成熟的商用写作平台。
 
 当前可以宣称：
 
@@ -46,13 +46,14 @@ StoryForge 仍处在真实长程验收整改阶段；Cursor for Fiction Phase 1 
 - API、Desktop、Workflow、OpenAPI 契约和 Alembic 单 head 已纳入本地验证。
 - 真实 LLM 1 章、3 章和 10 章 smoke 已有脱敏证据，其中 10 章 smoke 已通过人工通读。
 - 30 章真实长程运行已经完成并导出 `book.md`、`book.epub` 和审计报告。
-- Cursor for Fiction Phase 1 最小闭环已通过本地验证：打开本地项目、选择 Markdown、Agent 多视角审稿、按 issue 定向修订、proposed patch/diff 确认、真实 Tauri 写回和版本记录。
+- Cursor for Fiction Phase 1 最小闭环已通过本地组件和 smoke 验证：打开本地项目、选择 Markdown、Agent 多视角审稿、按 issue 定向修订、proposed patch/diff 确认、写回护栏和版本记录。
 
 当前不能宣称：
 
 - 不能宣称真实 3-5 万字长程质量验收通过。
 - 不能把自动审计满分等同于人工通读通过。
 - 不能承诺稳定生产级长篇小说生成质量。
+- 不能宣称完整真实 Tauri 桌面端到端写回验收已经完成。
 - 不能把 `apps/web` 或 BookRun 控制台描述为主产品入口。
 - 不能承诺完整多人协作、生产级对象存储签名下载或全步骤 Studio 编排已经完成。
 

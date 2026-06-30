@@ -81,3 +81,53 @@ def test_judge_fails_for_character_bible_forbidden_traits_and_repair_clears_viol
     assert patch.patch["replacement_text"] == "短促回答"
     assert "角色一致性" in (patch.rationale or "")
     assert all(issue.issue_type != "character_consistency" for issue in rejudge_issues)
+
+
+def test_judge_flags_unregistered_character_addressing_drift(session: Session) -> None:
+    """同句中 canonical 角色被未登记称谓替换时，应输出称谓一致性问题。"""
+
+    book = Book(title="称谓一致性", status="draft", premise="验证人物称谓漂移。")
+    session.add(book)
+    session.flush()
+    chapter = Chapter(book_id=book.id, ordinal=3, title="问询", status="draft", summary=None)
+    session.add(chapter)
+    session.flush()
+    scene = Scene(chapter_id=chapter.id, ordinal=1, title="问询", status="draft", content=None)
+    session.add(scene)
+    session.flush()
+    packet = ScenePacket(scene_id=scene.id, status="assembled", packet={"必须包含事实": [], "风格规则": []}, version=1)
+    session.add(packet)
+    session.add(
+        CharacterBibleEntry(
+            book_id=book.id,
+            character_id=None,
+            canonical_name="林岚",
+            aliases=["林调查员"],
+            voice_traits={},
+            forbidden_traits={},
+        )
+    )
+    session.commit()
+
+    issues = create_judge_issues(
+        session,
+        JudgeIssueCreate(
+            scene_id=scene.id,
+            scene_packet_id=packet.id,
+            content="林岚推门进来，守卫却低声喊她林医生。",
+            required_facts=[],
+            style_rules=[],
+            evidence_links=[],
+        ),
+    )
+
+    issue = next(item for item in issues if item.issue_type == "character_addressing_conflict")
+    assert issue.severity == "medium"
+    assert issue.payload["matched_text"] == "林医生"
+    assert issue.payload["replacement_text"] == "林调查员"
+    assert issue.payload["violation"] == {
+        "type": "character_addressing_conflict",
+        "canonical_name": "林岚",
+        "matched_alias": "林医生",
+        "allowed_aliases": ["林岚", "林调查员"],
+    }

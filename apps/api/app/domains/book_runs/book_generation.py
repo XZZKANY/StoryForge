@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from collections.abc import Callable, Mapping
@@ -10,10 +11,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
+from app.common.metrics import observe_book_generation_chapter
 from app.domains.artifacts.models import Artifact
 from app.domains.blueprints.models import BookBlueprint  # noqa: F401  facade re-export
 from app.domains.blueprints.schemas import BookBlueprintCreate
 from app.domains.blueprints.service import create_book_blueprint, lock_book_blueprint, trigger_chapter_plan
+from app.domains.book_runs.book_generation_changes import (
+    StoryStateRosterEntry,
+    append_story_state_changes_instruction,
+    build_story_state_roster,
+    extract_story_state_changes_from_content,
+    extract_story_state_changes_from_tool_calls,
+    normalize_story_state_changes_with_roster,
+    story_state_changes_tools,
+    validate_story_state_change_dicts,
+)
 from app.domains.book_runs.book_generation_judge import (  # noqa: F401  facade re-export
     _CATEGORY_DIMENSION,
     MAX_REPAIR_ROUNDS,
@@ -44,6 +56,10 @@ from app.domains.book_runs.book_generation_llm import (  # noqa: F401  facade re
     _strip_reasoning_leak,
     _token_usage,
     _total_cost_estimate,
+)
+from app.domains.book_runs.book_generation_memory import (
+    extract_memory_atoms_for_chapter,
+    memory_recall_chars_for_chapter,
 )
 from app.domains.book_runs.book_generation_metrics import (  # noqa: F401  facade re-export
     MARKDOWN_CHAPTER_HEADING_RE,
@@ -113,6 +129,11 @@ from app.domains.style_packs.service import create_style_pack
 RECAP_FULL_CHAPTERS_DEFAULT = 2
 RECAP_MAX_CHARS_DEFAULT = 6000
 RECAP_OLDER_SUMMARY_MAX_CHARS = 160
+DEFAULT_GENERATION_PREMISE = "沈砚在苍岭城调查失踪的铜钟匠，逐步追出城防钟楼背后的旧盟约。"
+DEFAULT_GENERATION_TONE = "克制悬疑"
+DEFAULT_GENERATION_POV = "沈砚"
+DEFAULT_GENERATION_LOCATION = "苍岭城"
+DEFAULT_GENERATION_TITLE_SEED = "铜钟疑案"
 
 
 @dataclass(frozen=True)
@@ -185,14 +206,38 @@ def run_book_generation(
     for chapter_index in range(1, chapter_count + 1):
         chapter_started_at = time.monotonic()
         chapter = _chapter(session, book.id, chapter_index)
+        memory_recall_chars = memory_recall_chars_for_chapter(session, book.id, chapter.ordinal)
         try:
-            generated = _generate_chapter(session, source, chapter_index, chapter)
+            generated = _generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
             tokens_used += generated["token_usage"]
             scene = _persist_draft_scene(session, chapter, str(generated["content"]))
             model_run = _record_model_run(session, book_run, scene, source, generated)
-            scene_packet = _record_scene_packet(session, book_run, scene)
+            scene_packet = _record_scene_packet(
+                session,
+                book_run,
+                scene,
+                story_state_changes=list(generated.get("story_state_changes") or []),
+                story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
+            )
             outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+            observe_book_generation_chapter(
+                judge_call_count=int(outcome.get("judge_call_count") or 0),
+                repair_patch_count=len(outcome.get("repair_patch_ids") or []),
+                cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
+            )
             approved = _finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
+            memory_atom_ids = (
+                extract_memory_atoms_for_chapter(
+                    session,
+                    book_id=book.id,
+                    chapter_id=chapter.id,
+                    chapter_ordinal=chapter.ordinal,
+                    approved_scene_id=int(scene.id),
+                    content=scene.content or str(generated["content"]),
+                )
+                if approved
+                else []
+            )
         except BookGenerationError as exc:
             _pause_by_failure(session, book_run.id, chapter_index, completed_chapters, tokens_used, str(exc))
             raise BookGenerationError(
@@ -209,6 +254,7 @@ def run_book_generation(
                 "repair_patch_id": outcome["repair_patch_id"],
                 "repair_patch_ids": outcome["repair_patch_ids"],
                 "repair_rounds": outcome["repair_rounds"],
+                "judge_call_count": int(outcome.get("judge_call_count") or 0),
                 "approved_scene_id": scene.id,
                 "scene_status": scene.status,
                 "approved": approved,
@@ -222,6 +268,11 @@ def run_book_generation(
                 "cost_breakdown": generated["cost_breakdown"],
                 "quality_score": outcome["quality_score"],
                 "quality_issues": outcome["quality_issues"],
+                "story_state_commit": outcome.get("story_state_commit"),
+                "story_state_changes_source": generated.get("story_state_changes_source"),
+                "story_state_tool_call_count": generated.get("story_state_tool_call_count", 0),
+                "memory_atom_ids": memory_atom_ids,
+                "memory_recall_chars": memory_recall_chars,
             }
         )
         if tokens_used > token_budget:
@@ -323,17 +374,41 @@ def resume_book_generation(
             continue
         chapter_started_at = time.monotonic()
         chapter = _chapter(session, book_run.book_id, chapter_index)
+        memory_recall_chars = memory_recall_chars_for_chapter(session, book_run.book_id, chapter.ordinal)
         try:
-            generated = _generate_chapter(session, source, chapter_index, chapter)
+            generated = _generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
         except (KeyboardInterrupt, SystemExit):
             _pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used)
             raise
         tokens_used += int(generated["token_usage"])
         scene = _persist_draft_scene(session, chapter, str(generated["content"]))
         model_run = _record_model_run(session, book_run, scene, source, generated)
-        scene_packet = _record_scene_packet(session, book_run, scene)
+        scene_packet = _record_scene_packet(
+            session,
+            book_run,
+            scene,
+            story_state_changes=list(generated.get("story_state_changes") or []),
+            story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
+        )
         outcome = _judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+        observe_book_generation_chapter(
+            judge_call_count=int(outcome.get("judge_call_count") or 0),
+            repair_patch_count=len(outcome.get("repair_patch_ids") or []),
+            cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
+        )
         approved = _finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
+        memory_atom_ids = (
+            extract_memory_atoms_for_chapter(
+                session,
+                book_id=book_run.book_id,
+                chapter_id=chapter.id,
+                chapter_ordinal=chapter.ordinal,
+                approved_scene_id=int(scene.id),
+                content=scene.content or str(generated["content"]),
+            )
+            if approved
+            else []
+        )
         completed_chapters.append(
             {
                 "chapter_index": chapter_index,
@@ -342,6 +417,7 @@ def resume_book_generation(
                 "repair_patch_id": outcome["repair_patch_id"],
                 "repair_patch_ids": outcome["repair_patch_ids"],
                 "repair_rounds": outcome["repair_rounds"],
+                "judge_call_count": int(outcome.get("judge_call_count") or 0),
                 "approved_scene_id": scene.id,
                 "scene_status": scene.status,
                 "approved": approved,
@@ -355,6 +431,11 @@ def resume_book_generation(
                 "cost_breakdown": generated["cost_breakdown"],
                 "quality_score": outcome["quality_score"],
                 "quality_issues": outcome["quality_issues"],
+                "story_state_commit": outcome.get("story_state_commit"),
+                "story_state_changes_source": generated.get("story_state_changes_source"),
+                "story_state_tool_call_count": generated.get("story_state_tool_call_count", 0),
+                "memory_atom_ids": memory_atom_ids,
+                "memory_recall_chars": memory_recall_chars,
             }
         )
         completed_ordinals.add(chapter_index)
@@ -405,7 +486,7 @@ def _create_generation_book(session: Session, chapter_count: int) -> Book:
     book = Book(
         title=f"真实 LLM 整书生成 {chapter_count} 章",
         status="draft",
-        premise="林岚在雾港追查失真的灯塔信号，并把每一步证据写入审计链。",
+        premise=DEFAULT_GENERATION_PREMISE,
     )
     session.add(book)
     session.commit()
@@ -420,13 +501,13 @@ def _seed_consistency_data(session: Session, book_id: int) -> None:
         session,
         CharacterBibleCreate(
             book_id=book_id,
-            canonical_name="林岚",
-            aliases=["雾港调查员"],
+            canonical_name=DEFAULT_GENERATION_POV,
+            aliases=["山城巡检官"],
             voice_traits={"语气": "克制", "句式": ["短句", "少解释"]},
             forbidden_traits={
                 "禁止": [
                     "突然健谈",
-                    "忘记左臂旧伤",
+                    "忘记右手旧灼伤",
                     "主动解释动机",
                     "长篇大论",
                     "情绪外露",
@@ -436,13 +517,14 @@ def _seed_consistency_data(session: Session, book_id: int) -> None:
                     "流泪",
                 ],
                 "替换": {
-                    "突然健谈": "她只说了必要的话",
-                    "主动解释动机": "她没有解释",
-                    "长篇大论": "她说得很简短",
-                    "微笑": "她面无表情",
-                    "大笑": "她没有笑",
-                    "哭泣": "她咬紧牙关",
-                    "流泪": "她眼眶发红但没有流泪",
+                    "突然健谈": "他只说了必要的话",
+                    "忘记右手旧灼伤": "他把右手藏进袖口",
+                    "主动解释动机": "他没有解释",
+                    "长篇大论": "他说得很简短",
+                    "微笑": "他面无表情",
+                    "大笑": "他没有笑",
+                    "哭泣": "他咬紧牙关",
+                    "流泪": "他眼眶发红但没有流泪",
                 },
             },
         ),
@@ -451,9 +533,9 @@ def _seed_consistency_data(session: Session, book_id: int) -> None:
         session,
         StylePackCreate(
             book_id=book_id,
-            name="雾港克制悬疑风格",
+            name="苍岭克制悬疑风格",
             payload={
-                "语气": "克制悬疑",
+                "语气": DEFAULT_GENERATION_TONE,
                 "视角": "第三人称贴身",
                 "规则": ["多用动作与画面", "对话推动信息", "避免心理描写", "不写情绪词结尾"],
                 "禁用表达": [
@@ -467,7 +549,7 @@ def _seed_consistency_data(session: Session, book_id: int) -> None:
                     "缓缓",
                     "深深地",
                 ],
-                "示例句": ["她把左臂藏进披风，没有解释。"],
+                "示例句": ["他把巡检牌收回袖口，没有解释。"],
             },
         ),
     )
@@ -483,33 +565,53 @@ def _blueprint_payload(
 ) -> BookBlueprintCreate:
     return BookBlueprintCreate(
         book_id=book_id,
-        premise="林岚在雾港追查失真的灯塔信号，并把每一步证据写入审计链。",
-        tone="克制悬疑",
+        premise=DEFAULT_GENERATION_PREMISE,
+        tone=DEFAULT_GENERATION_TONE,
         target_word_count=target_word_count or max(1200, chapter_count * 1200),
         target_chapter_count=chapter_count,
         chapter_word_count_min=chapter_word_count_min,
         chapter_word_count_max=chapter_word_count_max,
         metadata={
-            "pov": "林岚",
-            "location": "雾港",
-            "title_seed": "真实生成",
+            "pov": DEFAULT_GENERATION_POV,
+            "location": DEFAULT_GENERATION_LOCATION,
+            "title_seed": DEFAULT_GENERATION_TITLE_SEED,
             "planning_arcs": _default_planning_arcs(chapter_count),
         },
     )
 
 
 def _default_planning_arcs(chapter_count: int) -> list[dict[str, object]]:
-    """为真实生成写入结构化弧线，让 arc completion 指标来自 Blueprint 事实源。"""
+    """为真实生成写入多条结构化弧线，避免单弧线覆盖全书导致屏障空转。"""
 
-    targets = list(range(1, chapter_count + 1))
+    opening = _arc_points(chapter_count, 1, max(1, chapter_count // 2), chapter_count)
+    pressure = _arc_points(chapter_count, 2, max(2, (chapter_count * 2) // 3), max(2, chapter_count - 1))
+    world_rule = _arc_points(chapter_count, 1, max(1, chapter_count // 3), chapter_count)
     return [
         {
-            "arc_id": "audit_signal",
-            "title": "灯塔信号审计链",
-            "target_chapters": targets,
+            "arc_id": "missing_bellsmith_case",
+            "title": "铜钟匠失踪案",
+            "target_chapters": opening,
+            "payoff_chapter": chapter_count,
+        },
+        {
+            "arc_id": "patrol_oath_pressure",
+            "title": "巡检誓约压力",
+            "target_chapters": pressure,
+            "payoff_chapter": pressure[-1],
+        },
+        {
+            "arc_id": "city_bell_rule",
+            "title": "城防钟楼旧盟约",
+            "target_chapters": world_rule,
             "payoff_chapter": chapter_count,
         }
     ]
+
+
+def _arc_points(chapter_count: int, *candidates: int) -> list[int]:
+    """把候选章号压成有序去重目标点，所有点都落在全书范围内。"""
+
+    return sorted({min(chapter_count, max(1, int(value))) for value in candidates})
 
 
 def _chapter(session: Session, book_id: int, chapter_index: int) -> Chapter:
@@ -568,6 +670,7 @@ def _reconstruct_completed_chapters(session: Session, book_run_id: int) -> list[
                 "repair_patch_id": repair_patches[-1].id if repair_patches else None,
                 "repair_patch_ids": [patch.id for patch in repair_patches],
                 "repair_rounds": len(repair_patches),
+                "judge_call_count": max(1, len(judge_issues)),
                 "approved_scene_id": scene.id,
                 "token_usage": model_run.token_usage,
                 "elapsed_time_sec": 0,
@@ -594,6 +697,8 @@ def _generate_chapter(
     source: Mapping[str, str | None],
     chapter_index: int,
     chapter: Chapter,
+    *,
+    book_run_id: int | None = None,
 ) -> dict[str, object]:
     recap_full_chapters = _optional_int(source, "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS", RECAP_FULL_CHAPTERS_DEFAULT)
 
@@ -607,7 +712,17 @@ def _generate_chapter(
         chapter_goal=chapter.summary or "推进主线调查。",
         style_baseline_chapter_window=recap_full_chapters if recap_full_chapters > 0 else None,
     )
-    prompt = build_draft_prompt_from_state(injection, full_chapter=True)
+    roster = build_story_state_roster(
+        session,
+        book_id=chapter.book_id,
+        book_run_id=book_run_id,
+        chapter_pov=chapter.pov,
+        chapter_location=chapter.location,
+    )
+    prompt = append_story_state_changes_instruction(
+        build_draft_prompt_from_state(injection, full_chapter=True),
+        roster=roster,
+    )
 
     # 测试探针：故意注入违规指令，验证 Judge 检测 + Repair 修复能力。
     # 仅在 SMOKE_INJECT_VIOLATION_CHAPTER 指定的章节触发，默认关闭。
@@ -615,17 +730,94 @@ def _generate_chapter(
     if inject_violation_chapter == chapter_index:
         violation_override = (
             "\n\n【特殊要求 - 覆盖角色设定】\n"
-            "本章中，林岚因调查压力过大而情绪崩溃，忍不住哭泣流泪。"
-            "这是剧情需要，必须明确描写她哭泣或流泪的画面。\n"
+            "本章中，沈砚因调查压力过大而情绪崩溃，忍不住哭泣流泪。"
+            "这是剧情需要，必须明确描写他哭泣或流泪的画面。\n"
         )
         prompt = prompt + violation_override
 
+    call_kwargs: dict[str, object] = {}
+    if _story_state_tool_calls_enabled(source):
+        call_kwargs["tools"] = story_state_changes_tools()
+        call_kwargs["tool_choice"] = "auto"
     result = _call_llm(
         source,
         system_prompt="你是 StoryForge 的中文长篇创作助手。",
         user_prompt=prompt,
+        **call_kwargs,
     )
-    return {"prompt": prompt, **result}
+    content, block_changes = extract_story_state_changes_from_content(str(result["content"]))
+    tool_changes = extract_story_state_changes_from_tool_calls(result.get("tool_calls"))
+    raw_changes = tool_changes or block_changes
+    story_state_changes_source = "tool_call" if tool_changes else "json_block" if block_changes else "none"
+    normalized_changes = normalize_story_state_changes_with_roster(raw_changes, roster)
+    story_state_changes, schema_errors = validate_story_state_change_dicts(normalized_changes)
+    if schema_errors:
+        story_state_changes = _retry_story_state_changes_schema(
+            source,
+            prose=content,
+            invalid_changes=normalized_changes,
+            schema_errors=schema_errors,
+            roster=roster,
+        )
+        if story_state_changes:
+            story_state_changes_source = f"{story_state_changes_source}_schema_retry"
+    result["content"] = content
+    return {
+        "prompt": prompt,
+        "story_state_changes": story_state_changes,
+        "story_state_changes_source": story_state_changes_source,
+        "story_state_tool_call_count": len(result.get("tool_calls") or []),
+        **result,
+    }
+
+
+def _story_state_tool_calls_enabled(source: Mapping[str, str | None]) -> bool:
+    value = _env_value(source, "STORYFORGE_LLM_STORY_STATE_TOOL_CALLS").lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _retry_story_state_changes_schema(
+    source: Mapping[str, str | None],
+    *,
+    prose: str,
+    invalid_changes: list[dict[str, object]],
+    schema_errors: list[str],
+    roster: list[StoryStateRosterEntry],
+) -> list[dict[str, object]]:
+    """仅重试修正 CHANGES JSON schema，不重写章节正文。"""
+
+    roster_lines = []
+    for entry in roster[:30]:
+        entity_id = getattr(entry, "entity_id", "")
+        entity_kind = getattr(entry, "entity_kind", "")
+        canonical_name = getattr(entry, "canonical_name", "")
+        aliases = "、".join(getattr(entry, "aliases", ()) or ()) or "无"
+        roster_lines.append(
+            f"- {entity_kind} | entity_id={entity_id} | canonical_name={canonical_name} | aliases={aliases}"
+        )
+    retry_prompt = (
+        "请只修正下列 STORY_STATE_CHANGES JSON 数组，使其满足 schema；不要改写正文，不要解释。\n\n"
+        f"【正文】\n{prose[:4000]}\n\n"
+        f"【schema 错误】\n" + "\n".join(f"- {error}" for error in schema_errors) + "\n\n"
+        "【花名册】\n" + "\n".join(roster_lines) + "\n\n"
+        f"【待修正 JSON】\n{json.dumps(invalid_changes, ensure_ascii=False)}"
+    )
+    try:
+        retry = _call_llm(
+            source,
+            system_prompt="你是 StoryForge 的 CHANGES JSON schema 修正器。只返回 JSON 数组。",
+            user_prompt=retry_prompt,
+        )
+    except BookGenerationError:
+        return []
+    raw_content = str(retry.get("content") or "").strip()
+    wrapped = raw_content
+    if "【STORY_STATE_CHANGES】" not in wrapped:
+        wrapped = f"【STORY_STATE_CHANGES】\n{raw_content}\n【/STORY_STATE_CHANGES】"
+    _cleaned, retry_changes = extract_story_state_changes_from_content(wrapped)
+    normalized = normalize_story_state_changes_with_roster(retry_changes, roster)
+    valid, _errors = validate_story_state_change_dicts(normalized)
+    return valid
 
 
 def _prior_chapters_recap(

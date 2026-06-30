@@ -204,10 +204,10 @@ def test_workflow_dispatch_includes_generated_locked_narrative_plan(
     }
     assert payload["phase_policy"] == {
         "phases": [
-            {"name": "setup", "chapter_range": {"start": 1, "end": 6}},
-            {"name": "investigation", "chapter_range": {"start": 7, "end": 15}},
-            {"name": "reversal", "chapter_range": {"start": 16, "end": 24}},
-            {"name": "resolution", "chapter_range": {"start": 25, "end": 30}},
+            {"name": "setup", "chapter_range": {"start": 1, "end": 1}},
+            {"name": "investigation", "chapter_range": {"start": 2, "end": 2}},
+            {"name": "reversal", "chapter_range": {"start": 3, "end": 3}},
+            {"name": "resolution", "chapter_range": {"start": 3, "end": 3}},
         ]
     }
     assert payload["beat_sheet_gate"] == {
@@ -215,6 +215,26 @@ def test_workflow_dispatch_includes_generated_locked_narrative_plan(
         "locked": True,
         "chapter_count": 3,
         "source": "generated_default",
+    }
+
+
+def test_workflow_dispatch_scales_default_phase_policy_to_target_chapter_count(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """默认阶段边界应按实际章数缩放，避免 18 章长跑仍携带 25-30 章阶段。"""
+
+    book_run_id = seed_dispatchable_book_run(session_factory, target_chapter_count=18)
+
+    with session_factory() as session:
+        dispatch = build_book_run_workflow_dispatch(session, book_run_id)
+
+    assert dispatch.phase_policy == {
+        "phases": [
+            {"name": "setup", "chapter_range": {"start": 1, "end": 4}},
+            {"name": "investigation", "chapter_range": {"start": 5, "end": 9}},
+            {"name": "reversal", "chapter_range": {"start": 10, "end": 14}},
+            {"name": "resolution", "chapter_range": {"start": 15, "end": 18}},
+        ]
     }
 
 
@@ -649,7 +669,7 @@ def test_workflow_dispatch_endpoint_returns_payload(client: TestClient, session_
     assert payload["narrative_plan"]["locked"] is True
     assert payload["narrative_plan"]["source"] == "metadata"
     assert payload["entity_budget"]["key_characters"] == 5
-    assert payload["phase_policy"]["phases"][0] == {"name": "setup", "chapter_range": {"start": 1, "end": 6}}
+    assert payload["phase_policy"]["phases"][0] == {"name": "setup", "chapter_range": {"start": 1, "end": 1}}
     assert payload["beat_sheet_gate"] == {
         "status": "pass",
         "locked": True,

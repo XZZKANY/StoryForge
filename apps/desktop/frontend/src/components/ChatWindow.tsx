@@ -86,6 +86,7 @@ import { buildAgentRunRecoveryDisplay, type AgentRunRecoveryDisplay } from './ch
 import {
   extractIssueScopeFromInstruction,
   reviewCategoryLabel,
+  reviewIssueForCurrentFile,
   reviewIssuesFromReport,
   reviewReportFromMessage,
   reviewReportSummary,
@@ -119,6 +120,7 @@ export {
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
+  reviewIssueForCurrentFile,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
   displayFromResumeDiagnostic,
@@ -1012,16 +1014,11 @@ export function ChatWindow({
   useEffect(() => {
     const onReviseIssue = (event: Event) => {
       const detail = (event as CustomEvent<{ issueId: string }>).detail;
-      if (!detail?.issueId) return;
-      if (
-        lastReviewReportFile &&
-        currentFileRef.current &&
-        lastReviewReportFile !== currentFileRef.current
-      ) {
-        return;
-      }
-      const issue = reviewIssuesFromReport(lastReviewReport).find(
-        (item) => item.id === detail.issueId,
+      const issue = reviewIssueForCurrentFile(
+        lastReviewReport,
+        detail?.issueId,
+        lastReviewReportFile,
+        currentFileRef.current,
       );
       if (issue) reviseReviewIssue(issue);
     };

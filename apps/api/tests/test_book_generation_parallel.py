@@ -7,8 +7,10 @@ from collections.abc import Mapping
 from app.domains.book_runs.book_generation import BookGenerationPreflightError
 from app.domains.book_runs.book_generation_parallel import (
     NovelLoopResult,
+    _character_state_extracts,
     _memory_recall_chars_for_chapter,
     _SceneSelectQueryCounter,
+    _world_fact_extracts,
     run_book_generation_parallel,
     run_book_loop_with_thread_sessions,
 )
@@ -192,6 +194,26 @@ def test_book_generation_memory_recall_chars_counts_relevant_recalled_atoms_only
     assert recall_chars < len(f"{unrelated.entity_id}：{unrelated.value}")
 
 
+def test_parallel_memory_extracts_use_chapter_context_without_demo_terms() -> None:
+    """并发 memory extract 不应写死旧 demo 主角或地点线索。"""
+
+    character_states = _character_state_extracts(
+        "沈砚把右手藏进袖口，沿着苍岭城旧阶继续追查。",
+        pov="沈砚",
+    )
+    world_facts = _world_fact_extracts(
+        "苍岭城的铜钟盟约仍在生效，城防钟楼每夜只响三次。",
+        location="苍岭城",
+    )
+
+    serialized = str({"character_states": character_states, "world_facts": world_facts})
+    assert character_states[0]["entity_id"] == "沈砚"
+    assert any(item["entity_id"] == "苍岭城" for item in world_facts)
+    assert any("铜钟盟约" in item["entity_id"] for item in world_facts)
+    assert "林岚" not in serialized
+    assert "灯塔" not in serialized
+
+
 def test_parallel_book_loop_can_require_prior_commit_before_chapter_start() -> None:
     """整书生成胶水应能要求后续章节在前序提交后再启动，避免生成时缺前文。"""
 
@@ -256,7 +278,14 @@ def test_book_generation_parallel_runner_uses_workflow_metrics_and_exports_audit
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
 
-    def fake_generate(chapter_session, source: Mapping[str, str | None], chapter_index: int, chapter):
+    def fake_generate(
+        chapter_session,
+        source: Mapping[str, str | None],
+        chapter_index: int,
+        chapter,
+        *,
+        book_run_id: int | None = None,
+    ):
         assert source["STORYFORGE_LLM_API_KEY"] == "test-private-credential"
         with lock:
             seen_session_ids[chapter_index] = id(chapter_session)
@@ -344,7 +373,14 @@ def test_book_generation_parallel_runner_defaults_to_precommit_revision_dependen
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
 
-    def fake_generate(chapter_session, source: Mapping[str, str | None], chapter_index: int, chapter):
+    def fake_generate(
+        chapter_session,
+        source: Mapping[str, str | None],
+        chapter_index: int,
+        chapter,
+        *,
+        book_run_id: int | None = None,
+    ):
         with lock:
             committed_before_generate[chapter_index] = chapter_session.query(ModelRun).count()
         return {
@@ -407,7 +443,14 @@ def test_book_generation_parallel_runner_prefetches_then_revises_before_commit(
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
 
-    def fake_generate(chapter_session, source: Mapping[str, str | None], chapter_index: int, chapter):
+    def fake_generate(
+        chapter_session,
+        source: Mapping[str, str | None],
+        chapter_index: int,
+        chapter,
+        *,
+        book_run_id: int | None = None,
+    ):
         with lock:
             model_run_count = chapter_session.query(ModelRun).count()
             if chapter_index not in draft_generate_observations:
@@ -479,10 +522,17 @@ def test_book_generation_parallel_runner_extracts_and_recalls_story_memory(
         "STORYFORGE_LLM_PROVIDER": "openai-compatible",
     }
 
-    def fake_generate(chapter_session, source: Mapping[str, str | None], chapter_index: int, chapter):
+    def fake_generate(
+        chapter_session,
+        source: Mapping[str, str | None],
+        chapter_index: int,
+        chapter,
+        *,
+        book_run_id: int | None = None,
+    ):
         return {
             "prompt": f"第 {chapter_index} 章 prompt",
-            "content": f"第 {chapter_index} 章：林岚左臂旧伤未愈，灯塔信号继续逼近。",
+            "content": f"第 {chapter_index} 章：沈砚右手旧灼伤未愈，铜钟盟约继续逼近。",
             "token_usage": 100 + chapter_index,
             "token_usage_source": "provider_usage",
             "latency_ms": 1000 + chapter_index,
@@ -553,7 +603,14 @@ def test_book_generation_parallel_runner_enables_arc_barrier_from_blueprint(
             }
         ]
 
-    def fake_generate(chapter_session, source: Mapping[str, str | None], chapter_index: int, chapter):
+    def fake_generate(
+        chapter_session,
+        source: Mapping[str, str | None],
+        chapter_index: int,
+        chapter,
+        *,
+        book_run_id: int | None = None,
+    ):
         return {
             "prompt": f"第 {chapter_index} 章 prompt",
             "content": f"第 {chapter_index} 章并发正文。",

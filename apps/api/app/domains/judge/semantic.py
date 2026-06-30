@@ -27,6 +27,10 @@ _JUDGE_SYSTEM_PROMPT = """\
 | relationship_conflict | 角色关系与已知事实矛盾（敌友、亲属、从属） | medium |
 | style_drift | 出现解释性旁白、作者直接说明，破坏叙事克制感 | medium |
 | character_voice_violation | 角色对白/行为违反其声音约束（语气、句式、禁忌词） | medium |
+| cross_chapter_state_conflict | 正文与跨章 story_state / memory 事实矛盾（持有人、位置、伤情、规则、状态） | high |
+| foreshadow_payoff_gap | 正文声称回收、解决或遗忘伏笔，但与已埋伏笔状态不匹配 | high |
+| arc_continuity_drift | 本章推进偏离已知主线弧线、倒计时或承诺，且没有合理过渡 | medium |
+| repetition_echo | 本章明显复用前章开头、段落或系统化句式，形成模板化回声 | medium |
 
 severity 只能是 low / medium / high。
 
@@ -120,7 +124,8 @@ def semantic_judge_with_status(
         f"{_JUDGE_FEW_SHOT}\n\n"
         f"## 待评审正文\n{payload.content}\n"
         f"必含事实：{payload.required_facts}\n"
-        f"风格规则：{payload.style_rules}"
+        f"风格规则：{payload.style_rules}\n"
+        f"证据链接：{payload.evidence_links}"
         f"{voice_section}"
     )
     request_payload = {

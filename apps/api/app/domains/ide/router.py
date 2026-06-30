@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import sessionmaker
 from starlette.websockets import WebSocketState
 
 from app.db.deps import SessionDependency
-from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES, PERMISSION_REQUIRED, TOOL_TRACE
+from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
 from app.domains.agent_runs.service import (
     AgentRuntimeError,
     AgentRuntimeUserMessageError,
@@ -16,7 +18,7 @@ from app.domains.agent_runs.service import (
     record_agent_command_event,
     run_agent_user_message,
     websocket_control_event,
-    websocket_started_event,
+    websocket_stream_events_from_agent_event,
 )
 from app.domains.book_runs.service import get_book_run
 from app.domains.ide.schemas import (
@@ -48,61 +50,9 @@ router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
 _API_KEY_HEADER = "x-storyforge-api-key"
 
-
-def _agent_stream_events_from_result(
-    result: dict[str, Any],
-    *,
-    run_id: str,
-    permission_profile: str = "risk_confirm",
-) -> list[dict[str, Any]]:
-    """Project the final orchestrator payload into lightweight stream events."""
-
-    session_id = str(result.get("session_id") or "")
-    assistant_session_id = result.get("assistant_session_id")
-    events: list[dict[str, Any]] = []
-    for index, step in enumerate(result.get("plan") if isinstance(result.get("plan"), list) else []):
-        if not isinstance(step, dict):
-            continue
-        events.append(
-            {
-                "type": "agent_step",
-                "session_id": session_id,
-                "run_id": run_id,
-                "assistant_session_id": assistant_session_id,
-                "index": index,
-                "step": step.get("step"),
-                "detail": step.get("detail"),
-                "status": step.get("status"),
-            }
-        )
-    for index, trace in enumerate(result.get("tool_trace") if isinstance(result.get("tool_trace"), list) else []):
-        if not isinstance(trace, dict):
-            continue
-        events.append(
-            {
-                "type": TOOL_TRACE,
-                "session_id": session_id,
-                "run_id": run_id,
-                "assistant_session_id": assistant_session_id,
-                "index": index,
-                "trace": trace,
-            }
-        )
-    agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
-    proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
-    if agent_result.get("requires_user_confirmation") or agent_result.get("confirmation_required") or proposed_patch:
-        events.append(
-            {
-                "type": PERMISSION_REQUIRED,
-                "session_id": session_id,
-                "run_id": run_id,
-                "assistant_session_id": assistant_session_id,
-                "permission_profile": permission_profile,
-                "reason": "requires_user_confirmation",
-                "proposed_patch": proposed_patch,
-            }
-        )
-    return events
+_STREAM_EVENT = "stream_event"
+_STREAM_RESULT = "result"
+_STREAM_ERROR = "error"
 
 
 def _expected_api_key() -> str:
@@ -116,6 +66,69 @@ async def _accept_or_reject_agent_socket(websocket: WebSocket) -> bool:
         return False
     await websocket.accept()
     return True
+
+
+async def _stream_agent_user_message(
+    websocket: WebSocket,
+    *,
+    session_id: str,
+    session,
+    message: dict[str, Any],
+) -> None:
+    """Run the sync AgentRuntime off-loop and forward persisted events immediately."""
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    session_bind = session.get_bind()
+    thread_session_factory = sessionmaker(bind=session_bind, autoflush=False, autocommit=False, expire_on_commit=False)
+
+    def enqueue(item: dict[str, Any]) -> None:
+        try:
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+        except RuntimeError:
+            return
+
+    def on_event(event) -> None:  # noqa: ANN001 - callback receives ORM AgentRunEvent from runtime thread
+        for payload in websocket_stream_events_from_agent_event(event):
+            enqueue({"kind": _STREAM_EVENT, "payload": payload})
+
+    def run_in_thread() -> None:
+        with thread_session_factory() as thread_session:
+            try:
+                runtime_result = run_agent_user_message(
+                    thread_session,
+                    agent_session_id=session_id,
+                    message=message,
+                    on_event=on_event,
+                )
+            except AgentRuntimeError as exc:
+                payload: dict[str, Any] = {"type": "error", "session_id": session_id, "detail": str(exc)}
+                if isinstance(exc, AgentRuntimeUserMessageError):
+                    payload["run_id"] = exc.run.public_id
+                enqueue({"kind": _STREAM_ERROR, "payload": payload})
+                return
+            except Exception as exc:  # noqa: BLE001 - WebSocket worker must always release the receiver loop
+                enqueue({"kind": _STREAM_ERROR, "payload": {"type": "error", "session_id": session_id, "detail": str(exc)}})
+                return
+            enqueue({"kind": _STREAM_RESULT, "payload": runtime_result.result})
+
+    worker = asyncio.create_task(asyncio.to_thread(run_in_thread))
+    try:
+        while True:
+            item = await queue.get()
+            kind = item.get("kind")
+            payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+            if kind == _STREAM_EVENT:
+                await websocket.send_json(payload)
+                continue
+            if kind == _STREAM_RESULT:
+                await websocket.send_json(payload)
+                break
+            if kind == _STREAM_ERROR:
+                await websocket.send_json(payload)
+                break
+    finally:
+        await worker
 
 
 @router.get(
@@ -244,26 +257,21 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
             message_type = message.get("type")
             if message_type == "user_message":
                 stream_events = message.get("stream") is True
+                if stream_events:
+                    await _stream_agent_user_message(
+                        websocket,
+                        session_id=session_id,
+                        session=session,
+                        message=message,
+                    )
+                    continue
                 try:
                     runtime_result = run_agent_user_message(session, agent_session_id=session_id, message=message)
-                    run = runtime_result.run
                     result = runtime_result.result
-                    if stream_events:
-                        await websocket.send_json(websocket_started_event(run, runtime_result.started_event))
                 except AgentRuntimeError as exc:
                     error_payload = {"type": "error", "session_id": session_id, "detail": str(exc)}
-                    if stream_events and isinstance(exc, AgentRuntimeUserMessageError):
-                        error_payload["run_id"] = exc.run.public_id
-                        await websocket.send_json(websocket_started_event(exc.run, exc.started_event))
                     await websocket.send_json(error_payload)
                     continue
-                if stream_events:
-                    for event in _agent_stream_events_from_result(
-                        result,
-                        run_id=run.public_id,
-                        permission_profile=run.permission_profile,
-                    ):
-                        await websocket.send_json(event)
                 await websocket.send_json(result)
                 continue
 

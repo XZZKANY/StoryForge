@@ -131,8 +131,55 @@ def _gate_failures(summary: dict[str, Any], *, token_budget: int, require_integr
     if total_issue_count > 3:
         failures.append("累计 quality_issue_count 超过 3")
 
+    failures.extend(_story_state_changes_evidence_failures(summary))
+    failures.extend(_full_book_advisory_evidence_failures(summary.get("audit_report")))
+
     if require_integration_gate:
         failures.extend(_integration_metric_failures(summary.get("integration_metrics")))
+    return failures
+
+
+def _story_state_changes_evidence_failures(summary: dict[str, Any]) -> list[str]:
+    metrics = summary.get("per_chapter_metrics")
+    audit_report = summary.get("audit_report")
+    chapter_sources: list[str] = []
+    for collection in (metrics, _audit_chapters(audit_report)):
+        if not isinstance(collection, list):
+            continue
+        for item in collection:
+            if not isinstance(item, dict):
+                continue
+            source = str(item.get("story_state_changes_source") or "").strip().lower()
+            if source:
+                chapter_sources.append(source)
+    valid_sources = [source for source in chapter_sources if source not in {"none", "missing", "unavailable", "null"}]
+    if not valid_sources:
+        return ["缺少 story_state_changes_source 证据"]
+    return []
+
+
+def _audit_chapters(audit_report: Any) -> Any:
+    if isinstance(audit_report, dict):
+        return audit_report.get("chapters")
+    return None
+
+
+def _full_book_advisory_evidence_failures(audit_report: Any) -> list[str]:
+    if not isinstance(audit_report, dict):
+        return ["缺少 audit_report.full_book_advisory_audit"]
+    advisory = audit_report.get("full_book_advisory_audit")
+    if not isinstance(advisory, dict):
+        return ["缺少 audit_report.full_book_advisory_audit"]
+    failures: list[str] = []
+    if advisory.get("hard_gate") is not False:
+        failures.append("full_book_advisory_audit.hard_gate 必须为 false")
+    if not advisory.get("status"):
+        failures.append("缺少 full_book_advisory_audit.status")
+    if "checks" not in advisory:
+        failures.append("缺少 full_book_advisory_audit.checks")
+    quality_summary = audit_report.get("quality_summary")
+    if not isinstance(quality_summary, dict) or not quality_summary.get("full_book_advisory_status"):
+        failures.append("缺少 quality_summary.full_book_advisory_status")
     return failures
 
 
@@ -284,6 +331,7 @@ def _metadata(
             "per_chapter_metrics": summary.get("per_chapter_metrics"),
             "artifact_hashes": summary.get("artifact_hashes"),
             "integration_metrics": summary.get("integration_metrics"),
+            "full_book_advisory_status": summary.get("full_book_advisory_status"),
         }
     resume_source = getattr(args, "resume_run_directory", None)
     if resume_source:
@@ -459,6 +507,17 @@ def _integration_metrics_from_result(result: Any) -> dict[str, Any]:
     return {}
 
 
+def _parse_audit_report_payload(result: Any) -> dict[str, Any]:
+    audit_payload = getattr(result.audit_artifact, "payload", None)
+    if isinstance(audit_payload, dict):
+        return dict(audit_payload)
+    try:
+        parsed = json.loads(_artifact_text(result.audit_artifact))
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     missing = [name for name in REQUIRED_REAL_LLM_ENV if not os.environ.get(name)]
@@ -535,13 +594,19 @@ def main(argv: list[str] | None = None) -> int:
                 chapter_word_count_max=args.chapter_word_count_max,
             )
             _attach_epub_summary(summary, epub_artifact, epub_bytes)
+            audit_report = _parse_audit_report_payload(result)
+            quality_summary = audit_report.get("quality_summary") if isinstance(audit_report, dict) else None
+            if isinstance(quality_summary, dict):
+                summary["full_book_advisory_status"] = quality_summary.get("full_book_advisory_status")
             summary["integration_metrics"] = _integration_metrics_from_result(result)
             _write_json(out_dir / "summary.json", summary)
             _write_text(out_dir / "book.md", _artifact_text(result.markdown_artifact))
             _write_bytes(out_dir / "book.epub", epub_bytes)
             _write_text(out_dir / "audit_report.json", _artifact_text(result.audit_artifact))
+            gate_summary = dict(summary)
+            gate_summary["audit_report"] = audit_report
             _raise_for_gate_failures(
-                summary,
+                gate_summary,
                 token_budget=args.token_budget,
                 require_integration_gate=args.require_integration_gate,
             )

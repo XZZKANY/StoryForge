@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.domains.agent_runs.event_types import AGENT_RUN_STARTED
+from app.domains.agent_runs.event_types import AGENT_PLAN_CREATED, AGENT_RUN_STARTED, PERMISSION_REQUIRED, TOOL_TRACE
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 
 
@@ -34,6 +34,21 @@ def websocket_started_event(run: AgentRun, event: AgentRunEvent) -> dict[str, An
     }
 
 
+def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[str, Any]]:
+    """Encode durable AgentRunEvent rows into IDE WebSocket stream messages."""
+
+    run = event.run
+    if event.event_type == AGENT_RUN_STARTED:
+        return [websocket_started_event(run, event)]
+    if event.event_type == AGENT_PLAN_CREATED:
+        return _websocket_agent_step_events(run, event)
+    if event.event_type == TOOL_TRACE:
+        return [_websocket_tool_trace_event(run, event)]
+    if event.event_type == PERMISSION_REQUIRED:
+        return [_websocket_permission_required_event(run, event)]
+    return []
+
+
 def websocket_control_event(event: AgentRunEvent) -> dict[str, Any]:
     return {
         "type": event.event_type,
@@ -51,3 +66,60 @@ def _scope_string_list(scope: dict[str, Any] | None, key: str) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str) and item.strip()]
+
+
+def _websocket_agent_step_events(run: AgentRun, event: AgentRunEvent) -> list[dict[str, Any]]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    plan = payload.get("plan") if isinstance(payload.get("plan"), list) else []
+    events: list[dict[str, Any]] = []
+    for index, step in enumerate(plan):
+        if not isinstance(step, dict):
+            continue
+        events.append(
+            {
+                "type": "agent_step",
+                "session_id": run.session_id,
+                "run_id": run.public_id,
+                "assistant_session_id": run.assistant_session_id,
+                "event_id": event.id,
+                "sequence": event.sequence,
+                "index": index,
+                "step": step.get("step"),
+                "detail": step.get("detail"),
+                "status": step.get("status"),
+            }
+        )
+    return events
+
+
+def _websocket_tool_trace_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    index = payload.get("index") if isinstance(payload.get("index"), int) else 0
+    trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
+    return {
+        "type": TOOL_TRACE,
+        "session_id": run.session_id,
+        "run_id": run.public_id,
+        "assistant_session_id": run.assistant_session_id,
+        "event_id": event.id,
+        "sequence": event.sequence,
+        "index": index,
+        "trace": trace,
+    }
+
+
+def _websocket_permission_required_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    return {
+        "type": PERMISSION_REQUIRED,
+        "session_id": run.session_id,
+        "run_id": run.public_id,
+        "assistant_session_id": run.assistant_session_id,
+        "event_id": event.id,
+        "sequence": event.sequence,
+        "permission_profile": payload.get("permission_profile") or run.permission_profile,
+        "reason": payload.get("reason") or "requires_user_confirmation",
+        "proposed_patch": payload.get("proposed_patch") if isinstance(payload.get("proposed_patch"), dict) else None,
+        "confirmation_action": payload.get("confirmation_action"),
+        "blocked_tool": payload.get("blocked_tool"),
+    }

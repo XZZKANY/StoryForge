@@ -23,6 +23,35 @@ continuity_conflicts_total = Counter(
     "Total continuity edge constraint conflicts detected",
 )
 
+book_generation_failure_count_total = Counter(
+    "book_generation_failure_count_total",
+    "Total failed book generation chapters",
+)
+
+book_generation_cost_cny_total = Counter(
+    "book_generation_cost_cny_total",
+    "Total estimated CNY cost emitted by book generation chapters",
+)
+
+
+def observe_book_generation_chapter(
+    *,
+    judge_call_count: int,
+    repair_patch_count: int,
+    cost_cny_estimated: float,
+) -> None:
+    """Record low-cardinality Prometheus counters for one generated chapter."""
+
+    judge_calls_total.inc(max(0, int(judge_call_count)))
+    repair_patches_total.inc(max(0, int(repair_patch_count)))
+    book_generation_cost_cny_total.inc(max(0.0, float(cost_cny_estimated)))
+
+
+def observe_book_generation_failure() -> None:
+    """Record a failed book generation chapter without exposing run identifiers."""
+
+    book_generation_failure_count_total.inc()
+
 
 def setup_metrics(app):
     Instrumentator(

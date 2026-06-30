@@ -11,7 +11,7 @@ import {
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
-import { applyPatchHunk, type PatchHunk } from '../../lib/patch-hunks';
+import { applyPatchHunkToCurrent, type PatchHunk } from '../../lib/patch-hunks';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 
@@ -203,11 +203,7 @@ export function useSuggestionWriteback({
 
       try {
         const currentContent = editorRef.current.getValue();
-        if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
-          setSuggestionStatus('当前文件内容已变化，请重新生成修订后再分块接受。');
-          return;
-        }
-        const nextContent = applyPatchHunk(suggestion.before, suggestion.after, hunk);
+        const nextContent = applyPatchHunkToCurrent(currentContent, hunk);
         const loopRecord = await writeAcceptedSuggestion(
           suggestion,
           path,

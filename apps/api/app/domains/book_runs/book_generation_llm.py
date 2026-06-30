@@ -30,6 +30,8 @@ def _call_llm(
     *,
     system_prompt: str,
     user_prompt: str,
+    tools: list[dict[str, object]] | None = None,
+    tool_choice: str | dict[str, object] | None = None,
 ) -> dict[str, object]:
     """对真实 OpenAI 兼容端点发一次 chat/completions，返回正文与 token 使用。"""
 
@@ -47,6 +49,10 @@ def _call_llm(
     reasoning_effort = _env_value(source, "STORYFORGE_LLM_REASONING_EFFORT")
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
+    if tools:
+        payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     http_request = request.Request(
         f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/chat/completions",
@@ -93,21 +99,68 @@ def _call_llm(
             ) from exc
     if data is None:  # 理论不可达：循环要么 break 要么 raise；兜底避免 None 解引用
         raise BookGenerationError("真实 LLM 重试后仍无响应数据。")
-    content = data["choices"][0]["message"]["content"]
+    message = _assistant_message(data)
+    content = message.get("content")
     if not isinstance(content, str) or not content.strip():
         raise BookGenerationError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
     content = _strip_reasoning_leak(content)
     if not content:
         raise BookGenerationError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
+    tool_calls = _message_tool_calls(message)
     usage = _token_usage(data, user_prompt, content)
     cost_breakdown = _cost_breakdown(source, usage)
-    return {
+    result: dict[str, object] = {
         "content": content,
         **usage,
         "cost_cny_estimated": cost_breakdown["total_cny"],
         "cost_breakdown": cost_breakdown,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
+    if tool_calls:
+        result["tool_calls"] = tool_calls
+    return result
+
+
+def _assistant_message(data: dict[str, object]) -> dict[str, object]:
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise BookGenerationError("真实 LLM 响应缺少 choices，不能继续 BookRun 生成。")
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        raise BookGenerationError("真实 LLM 响应 choices[0] 格式异常。")
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        raise BookGenerationError("真实 LLM 响应缺少 message，不能继续 BookRun 生成。")
+    return message
+
+
+def _message_tool_calls(message: Mapping[str, object]) -> list[dict[str, object]]:
+    raw_tool_calls = message.get("tool_calls")
+    if not isinstance(raw_tool_calls, list):
+        return []
+    tool_calls: list[dict[str, object]] = []
+    for raw_call in raw_tool_calls:
+        if not isinstance(raw_call, dict):
+            continue
+        function = raw_call.get("function")
+        if not isinstance(function, dict):
+            continue
+        arguments = function.get("arguments")
+        if isinstance(arguments, dict | list):
+            arguments_text = json.dumps(arguments, ensure_ascii=False)
+        else:
+            arguments_text = str(arguments or "")
+        tool_calls.append(
+            {
+                "id": str(raw_call.get("id") or ""),
+                "type": str(raw_call.get("type") or "function"),
+                "function": {
+                    "name": str(function.get("name") or ""),
+                    "arguments": arguments_text,
+                },
+            }
+        )
+    return tool_calls
 
 
 def _is_retryable_status(status_code: int) -> bool:

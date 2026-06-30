@@ -45,7 +45,9 @@ function sanitizeProviderSettings(value: unknown): ProviderSettings {
     typeof candidate.baseUrl === 'string' ? candidate.baseUrl.trim() : fallback.baseUrl;
   const model = typeof candidate.model === 'string' ? candidate.model.trim() : fallback.model;
   const apiKeyRef =
-    typeof candidate.apiKeyRef === 'string' ? candidate.apiKeyRef.trim() : fallback.apiKeyRef;
+    typeof candidate.apiKeyRef === 'string'
+      ? sanitizeApiKeyReference(candidate.apiKeyRef)
+      : fallback.apiKeyRef;
 
   return {
     kind: isProviderKind(candidate.kind) ? candidate.kind : fallback.kind,
@@ -53,6 +55,14 @@ function sanitizeProviderSettings(value: unknown): ProviderSettings {
     model,
     apiKeyRef,
   };
+}
+
+function sanitizeApiKeyReference(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^[A-Z][A-Z0-9_]*$/.test(trimmed)) return trimmed;
+  if (/^vault:\/\/[a-z0-9][a-z0-9_./:-]*$/i.test(trimmed)) return trimmed;
+  return '';
 }
 
 export function sanitizeAppSettings(value: unknown): AppSettings {

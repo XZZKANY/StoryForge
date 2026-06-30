@@ -135,6 +135,26 @@ export function reviewIssuesFromReport(report: ReviewReport | null): ReviewIssue
   });
 }
 
+function comparableReviewPath(path: string): string {
+  return path
+    .trim()
+    .replace(/[/\\]+$/, '')
+    .replace(/\\/g, '/')
+    .toLowerCase();
+}
+
+export function reviewIssueForCurrentFile(
+  report: ReviewReport | null,
+  issueId: string | null | undefined,
+  reportFile: string | null,
+  currentFile: string | null,
+): ReviewIssue | null {
+  const normalizedIssueId = typeof issueId === 'string' ? issueId.trim() : '';
+  if (!normalizedIssueId || !reportFile || !currentFile) return null;
+  if (comparableReviewPath(reportFile) !== comparableReviewPath(currentFile)) return null;
+  return reviewIssuesFromReport(report).find((issue) => issue.id === normalizedIssueId) ?? null;
+}
+
 export function extractIssueScopeFromInstruction(
   instruction: string,
   report: ReviewReport | null,
