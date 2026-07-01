@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod fs;
+mod llm_config;
 #[cfg(test)]
 mod menu;
 mod watcher;
@@ -16,10 +17,15 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use tauri::Manager;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
+
+type SharedServiceManager = Arc<Mutex<ServiceManager>>;
 
 /// 全局状态：保存所有启动的子进程，用于退出时清理
 struct ServiceManager {
     children: Vec<Child>,
+    sidecars: Vec<CommandChild>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,6 +39,7 @@ impl ServiceManager {
     fn new() -> Self {
         Self {
             children: Vec::new(),
+            sidecars: Vec::new(),
         }
     }
 
@@ -40,11 +47,32 @@ impl ServiceManager {
         self.children.push(child);
     }
 
+    fn add_sidecar(&mut self, child: CommandChild) {
+        self.sidecars.push(child);
+    }
+
     fn shutdown(&mut self) {
         println!("正在停止所有服务...");
-        for child in &mut self.children {
-            if let Err(e) = child.kill() {
+        for mut child in self.children.drain(..) {
+            if cfg!(windows) {
+                let _ = Command::new("taskkill")
+                    .args(["/PID", &child.id().to_string(), "/T", "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            } else if let Err(e) = child.kill() {
                 eprintln!("停止进程失败: {}", e);
+            }
+        }
+        for child in self.sidecars.drain(..) {
+            if cfg!(windows) {
+                let _ = Command::new("taskkill")
+                    .args(["/PID", &child.pid().to_string(), "/T", "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            } else if let Err(e) = child.kill() {
+                eprintln!("停止 sidecar 失败: {}", e);
             }
         }
         println!("所有服务已停止");
@@ -140,43 +168,147 @@ fn run_migrations(project_root: &str) -> Result<()> {
     Ok(())
 }
 
-fn is_api_ready() -> bool {
-    reqwest::blocking::get("http://localhost:8000/health/ready")
+fn is_api_ready(base_url: &str) -> bool {
+    reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/')))
         .map(|resp| resp.status().is_success())
         .unwrap_or(false)
 }
 
-/// 启动 FastAPI 服务
-fn start_api_server(project_root: &str, manager: &Arc<Mutex<ServiceManager>>) -> Result<()> {
-    if is_api_ready() {
-        println!("✓ 复用已有 FastAPI 服务 (http://localhost:8000/health/ready)");
-        return Ok(());
+fn desktop_api_base_url() -> String {
+    std::env::var("STORYFORGE_API_BASE_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:8000".to_string())
+}
+
+fn desktop_api_port(base_url: &str) -> u16 {
+    base_url
+        .rsplit_once(':')
+        .and_then(|(_, port)| port.trim_end_matches('/').parse::<u16>().ok())
+        .unwrap_or(8000)
+}
+
+fn backend_env(
+    app: &tauri::AppHandle,
+    api_base_url: &str,
+    local_mode: bool,
+) -> Result<Vec<(String, String)>> {
+    let mut env = vec![
+        ("STORYFORGE_API_HOST".to_string(), "127.0.0.1".to_string()),
+        (
+            "STORYFORGE_API_PORT".to_string(),
+            desktop_api_port(api_base_url).to_string(),
+        ),
+    ];
+    if local_mode {
+        env.push(("STORYFORGE_DESKTOP_SKIP_SERVICES".to_string(), "1".to_string()));
+        env.push(("STORYFORGE_ENV".to_string(), "local".to_string()));
+        env.push(("DATABASE_URL".to_string(), llm_config::sqlite_database_url(app)?));
+    }
+    env.extend(llm_config::llm_env_for_backend(app)?);
+    Ok(env)
+}
+
+fn spawn_api_sidecar(
+    app: &tauri::AppHandle,
+    api_base_url: &str,
+    manager: &Arc<Mutex<ServiceManager>>,
+) -> Result<()> {
+    let sidecar_name = "storyforge-api";
+    let mut command = app
+        .shell()
+        .sidecar(sidecar_name)
+        .context("无法构建 API sidecar 命令")?;
+
+    for (key, value) in backend_env(app, api_base_url, true)? {
+        command = command.env(key, value);
     }
 
-    println!("启动 FastAPI 服务 (uvicorn :8000)...");
+    let (mut rx, child) = command.spawn().context("启动 API sidecar 失败")?;
+    manager.lock().unwrap().add_sidecar(child);
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line) => {
+                    println!("[api-sidecar] {}", String::from_utf8_lossy(&line));
+                }
+                CommandEvent::Stderr(line) => {
+                    eprintln!("[api-sidecar] {}", String::from_utf8_lossy(&line));
+                }
+                CommandEvent::Error(err) => {
+                    eprintln!("[api-sidecar] error: {}", err);
+                }
+                CommandEvent::Terminated(payload) => {
+                    println!("[api-sidecar] terminated: {:?}", payload.code);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    Ok(())
+}
 
+fn spawn_dev_api_server(
+    app: &tauri::AppHandle,
+    project_root: &str,
+    api_base_url: &str,
+    manager: &Arc<Mutex<ServiceManager>>,
+) -> Result<()> {
     let api_dir = format!("{}/apps/api", project_root);
-    // 使用 .venv 中的 Python 运行 Windows 兼容脚本
     let venv_python = if cfg!(windows) {
         format!("{}/.venv/Scripts/python.exe", api_dir)
     } else {
         format!("{}/.venv/bin/python", api_dir)
     };
 
-    let child = Command::new(&venv_python)
-        .args(&["run_windows.py"]) // 使用 Windows 兼容脚本
+    let mut command = Command::new(&venv_python);
+    command
+        .args(["run_windows.py"])
         .current_dir(&api_dir)
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .context("启动 uvicorn 失败")?;
+        .stderr(Stdio::inherit());
+    for (key, value) in backend_env(app, api_base_url, should_skip_services())? {
+        command.env(key, value);
+    }
 
+    let child = command.spawn().context("启动 uvicorn 失败")?;
     manager.lock().unwrap().add(child);
+    Ok(())
+}
 
-    println!("等待 API 服务就绪 (http://localhost:8000/health/ready)...");
+/// 启动 FastAPI 服务
+fn start_api_server(
+    app: &tauri::AppHandle,
+    project_root: Option<&str>,
+    manager: &Arc<Mutex<ServiceManager>>,
+) -> Result<()> {
+    let api_base_url = desktop_api_base_url();
+    let local_mode = should_skip_services() || should_use_api_sidecar();
+    if is_api_ready(&api_base_url) {
+        if local_mode && !should_reuse_existing_api() {
+            anyhow::bail!(
+                "{} 已有 API 服务在运行；本地桌面模式需要自己启动后端以注入 LLM 配置。若确认要复用，请设置 STORYFORGE_DESKTOP_REUSE_API=1。",
+                api_base_url
+            );
+        }
+        println!("✓ 复用已有 FastAPI 服务 ({}/health/ready)", api_base_url);
+        return Ok(());
+    }
+
+    println!("启动 FastAPI 服务 ({})...", api_base_url);
+
+    if should_use_api_sidecar() {
+        spawn_api_sidecar(app, &api_base_url, manager)?;
+    } else {
+        let project_root = project_root.context("开发态启动 API 需要 project_root")?;
+        spawn_dev_api_server(app, project_root, &api_base_url, manager)?;
+    }
+
+    println!("等待 API 服务就绪 ({}/health/ready)...", api_base_url);
     for i in 0..30 {
         thread::sleep(Duration::from_secs(2));
-        if is_api_ready() {
+        if is_api_ready(&api_base_url) {
             println!("✓ FastAPI 已就绪");
             return Ok(());
         }
@@ -218,17 +350,26 @@ fn should_skip_services() -> bool {
         .unwrap_or(false)
 }
 
-fn is_smoke_mode() -> bool {
-    std::env::var("STORYFORGE_DESKTOP_SMOKE")
+fn should_reuse_existing_api() -> bool {
+    std::env::var("STORYFORGE_DESKTOP_REUSE_API")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
 }
 
-fn desktop_api_base_url() -> String {
-    std::env::var("STORYFORGE_API_BASE_URL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "http://127.0.0.1:8000".to_string())
+fn should_use_api_sidecar() -> bool {
+    if std::env::var("STORYFORGE_DESKTOP_USE_API_SIDECAR")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    !cfg!(debug_assertions)
+}
+
+fn is_smoke_mode() -> bool {
+    std::env::var("STORYFORGE_DESKTOP_SMOKE")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
 }
 
 fn desktop_api_key() -> String {
@@ -244,6 +385,36 @@ fn get_api_config() -> ApiConfig {
         base_url: desktop_api_base_url(),
         api_key: desktop_api_key(),
     }
+}
+
+fn project_root_for_api_start() -> Result<Option<String>> {
+    if cfg!(debug_assertions) || !should_use_api_sidecar() {
+        match find_project_root() {
+            Ok(root) => Ok(Some(root)),
+            Err(error) => {
+                if should_use_api_sidecar() {
+                    println!("未找到项目根目录，将使用打包 API sidecar: {}", error);
+                    Ok(None)
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+fn restart_api_server(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, SharedServiceManager>,
+) -> Result<(), String> {
+    println!("正在重启本机 FastAPI 服务以应用 LLM 配置...");
+    let manager = manager.inner().clone();
+    manager.lock().unwrap().shutdown();
+    let project_root = project_root_for_api_start().map_err(|error| error.to_string())?;
+    start_api_server(&app, project_root.as_deref(), &manager).map_err(|error| error.to_string())
 }
 
 fn eval_window_json<R: tauri::Runtime>(
@@ -419,7 +590,11 @@ fn contains_file_content_under(path: &std::path::Path, expected: &str) -> bool {
         })
 }
 
-fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: tauri::AppHandle<R>) {
+fn run_smoke_probe<R: tauri::Runtime>(
+    window: tauri::WebviewWindow<R>,
+    app: tauri::AppHandle<R>,
+    manager: SharedServiceManager,
+) {
     thread::spawn(move || {
         let smoke_project = match create_smoke_project() {
             Ok(path) => path,
@@ -645,54 +820,6 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
             },
         ) {
             eprintln!("Smoke 失败: 无法恢复文件树面板: {}", error);
-            std::process::exit(1);
-        }
-
-        if let Err(error) = click_window_test_id(&window, "focus-workspace-only") {
-            eprintln!("Smoke 失败: 无法进入文件工作区独占模式: {}", error);
-            std::process::exit(1);
-        }
-        let _workspace_only_state = match wait_for_window_state(
-            &window,
-            snapshot_script,
-            10,
-            Duration::from_millis(150),
-            |value| {
-                value.get("layoutMode").and_then(|entry| entry.as_str()) == Some("workspace-only")
-                    && has_bool(value, "hasFilePanel", true)
-                    && has_bool(value, "hasEditorPanel", true)
-                    && has_bool(value, "hasAssistantPanel", false)
-                    && has_bool(value, "hasExpandAssistant", true)
-                    && has_bool(value, "hasRestoreLayout", true)
-            },
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("Smoke 失败: 文件工作区独占模式探针失败: {}", error);
-                std::process::exit(1);
-            }
-        };
-
-        if let Err(error) = click_window_test_id(&window, "restore-layout") {
-            eprintln!("Smoke 失败: 无法从文件工作区独占模式恢复布局: {}", error);
-            std::process::exit(1);
-        }
-        if let Err(error) = wait_for_window_state(
-            &window,
-            snapshot_script,
-            10,
-            Duration::from_millis(150),
-            |value| {
-                value.get("layoutMode").and_then(|entry| entry.as_str()) == Some("normal")
-                    && has_bool(value, "hasFilePanel", true)
-                    && has_bool(value, "hasAssistantPanel", true)
-                    && has_bool(value, "hasEditorPanel", true)
-            },
-        ) {
-            eprintln!(
-                "Smoke 失败: 无法从文件工作区独占模式恢复完整布局: {}",
-                error
-            );
             std::process::exit(1);
         }
 
@@ -1138,7 +1265,9 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
                 .and_then(|entry| entry.as_str())
                 .unwrap_or("")
         );
+        manager.lock().unwrap().shutdown();
         let _ = app.exit(0);
+        std::process::exit(0);
     });
 }
 
@@ -1147,6 +1276,7 @@ fn main() {
 
     let manager = Arc::new(Mutex::new(ServiceManager::new()));
     let manager_clone = Arc::clone(&manager);
+    let manager_for_setup = Arc::clone(&manager);
 
     // 注册退出处理
     ctrlc::set_handler(move || {
@@ -1155,62 +1285,66 @@ fn main() {
     })
     .expect("设置 Ctrl+C 处理器失败");
 
-    // 查找项目根目录
-    let project_root = match find_project_root() {
-        Ok(root) => {
-            println!("项目根目录: {}\n", root);
-            root
+    let project_root = if cfg!(debug_assertions) || !should_use_api_sidecar() {
+        match find_project_root() {
+            Ok(root) => {
+                println!("项目根目录: {}\n", root);
+                Some(root)
+            }
+            Err(error) => {
+                if should_use_api_sidecar() {
+                    println!("未找到项目根目录，将使用打包 API sidecar: {}", error);
+                    None
+                } else {
+                    eprintln!("错误: {}", error);
+                    eprintln!("\n提示: 请从项目目录运行，或设置环境变量：");
+                    eprintln!("  export STORYFORGE_ROOT=/path/to/StoryForge");
+                    std::process::exit(1);
+                }
+            }
         }
-        Err(e) => {
-            eprintln!("错误: {}", e);
-            eprintln!("\n提示: 请从项目根目录运行，或设置环境变量：");
-            eprintln!("  export STORYFORGE_ROOT=/path/to/StoryForge");
-            std::process::exit(1);
-        }
+    } else {
+        None
     };
 
     if should_skip_services() {
-        println!("跳过 Docker / 数据库迁移 / API 启动（STORYFORGE_DESKTOP_SKIP_SERVICES=1）");
-    } else {
+        println!("本地桌面模式：跳过 Docker / Alembic 外部服务，后端将使用 sqlite。");
+    } else if let Some(root) = project_root.as_deref() {
         // 1. 启动 Docker 服务
-        if let Err(e) = start_docker_services(&project_root) {
+        if let Err(e) = start_docker_services(root) {
             eprintln!("Docker 服务启动失败: {}", e);
             std::process::exit(1);
         }
 
         // 2. 执行数据库迁移
-        if let Err(e) = run_migrations(&project_root) {
+        if let Err(e) = run_migrations(root) {
             eprintln!("数据库迁移失败: {}", e);
             manager.lock().unwrap().shutdown();
             std::process::exit(1);
         }
+    }
 
-        // 3. 启动 API 服务
-        if let Err(e) = start_api_server(&project_root, &manager) {
-            eprintln!("API 服务启动失败: {}", e);
+    // 3. 检查桌面前端是否已经在运行。
+    // Vite dev server 由独立终端或 Tauri devUrl 工作流提供。
+    if cfg!(debug_assertions) {
+        println!("检查前端服务 (http://localhost:3007)...");
+        if reqwest::blocking::get("http://localhost:3007").is_ok() {
+            println!("✓ 前端服务已就绪");
+        } else {
+            eprintln!("错误: 前端服务未运行！请先手动启动:");
+            eprintln!("  cd apps/desktop/frontend && npm run dev");
             manager.lock().unwrap().shutdown();
             std::process::exit(1);
         }
     }
 
-    // 4. 检查桌面前端是否已经在运行。
-    // Vite dev server 由独立终端或 Tauri devUrl 工作流提供。
-    println!("检查前端服务 (http://localhost:3007)...");
-    if reqwest::blocking::get("http://localhost:3007").is_ok() {
-        println!("✓ 前端服务已就绪");
-    } else {
-        eprintln!("错误: 前端服务未运行！请先手动启动:");
-        eprintln!("  cd apps/desktop/frontend && npm run dev");
-        manager.lock().unwrap().shutdown();
-        std::process::exit(1);
-    }
-
     println!("\n=== 所有服务已就绪，正在打开桌面应用 ===\n");
 
-    // 5. 启动 Tauri 应用
+    // 4. 启动 Tauri 应用
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(Arc::clone(&manager))
         .manage(watcher::WatcherManager::new())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
@@ -1223,18 +1357,29 @@ fn main() {
             fs::path_exists,
             fs::get_file_info,
             get_api_config,
+            restart_api_server,
+            llm_config::get_llm_config,
+            llm_config::save_llm_config,
             // 文件监听命令
             watcher::watch_file,
             watcher::stop_watching,
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            if let Err(error) =
+                start_api_server(app.handle(), project_root.as_deref(), &manager_for_setup)
+            {
+                eprintln!("API 服务启动失败: {}", error);
+                manager_for_setup.lock().unwrap().shutdown();
+                std::process::exit(1);
+            }
+
             if is_smoke_mode() {
                 println!("Desktop Tauri smoke mode enabled");
                 let Some(window) = app.get_webview_window("main") else {
                     eprintln!("Smoke 失败: 未找到 main 窗口");
                     std::process::exit(1);
                 };
-                run_smoke_probe(window, app.handle().clone());
+                run_smoke_probe(window, app.handle().clone(), Arc::clone(&manager_for_setup));
             }
 
             Ok(())

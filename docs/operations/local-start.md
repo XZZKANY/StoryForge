@@ -1,6 +1,6 @@
 # StoryForge 本地启动手册
 
-更新时间：2026-06-04 07:20:43 +08:00
+更新时间：2026-07-01 00:00:00 +08:00
 
 ## 1. 适用范围
 
@@ -82,7 +82,37 @@ pnpm dev:maintenance
 pnpm dev:api
 ```
 
-## 7. 本地验证顺序
+## 7. 私测 Alpha 单机桌面模式
+
+私测 alpha 可以不启动 Docker/PostgreSQL/Redis/MinIO。桌面主进程会用 sqlite 作为本机数据库，并把设置页保存的模型配置注入后端子进程：
+
+```powershell
+cd D:/StoryForge
+$env:STORYFORGE_DESKTOP_SKIP_SERVICES = "1"
+pnpm desktop:dev
+```
+
+模型服务在桌面应用内配置：打开「设置 → 模型服务」，填写 provider、base URL、model 和 API key，点击「保存并应用」。API key 保存在本机应用配置目录，不写入 `localStorage`、仓库或日志。保存后桌面主进程会重启它托管的 API 子进程，让新的 `STORYFORGE_LLM_*` 立即生效；若你显式设置 `STORYFORGE_DESKTOP_REUSE_API=1` 复用外部 API，则需要自行重启那个外部 API 后再测试连接。
+
+首次运行可以在欢迎页点击「创建示例项目」，选择一个父目录后会生成 `StoryForge 示例项目`，包含 `正文/第01章.md`、`大纲/总纲.md` 和 `人物/主角.md`，用于快速验证打开项目、上下文索引、agent 建议和写回流程。
+
+## 8. 打包桌面安装器
+
+Windows 私测包从 desktop 包目录构建：
+
+```powershell
+cd D:/StoryForge
+npm --prefix apps/desktop run build
+```
+
+该命令先运行 `apps/desktop/scripts/build-api-sidecar.mjs`，用 PyInstaller 将 `apps/api/run_windows.py` 打为 Tauri sidecar，然后执行 `tauri build`。常见输出路径：
+
+- `apps/desktop/src-tauri/target/release/bundle/msi/StoryForge IDE_0.1.0_x64_en-US.msi`
+- `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.0_x64-setup.exe`
+
+构建产物和 `apps/desktop/src-tauri/binaries/` 属于本机生成物；准备提交时不要把安装包、sidecar exe、PyInstaller build 缓存或真实 provider 配置加入 Git。
+
+## 9. 本地验证顺序
 
 常用本地门禁：
 
@@ -109,14 +139,14 @@ pnpm openapi
 - `pnpm test` 用于补充执行 Desktop、shared、API、workflow 的测试集合。
 - `pnpm openapi` 用于刷新 `packages/shared/src/contracts/storyforge.openapi.json`；如果产生 diff，必须解释来源并补充测试证据。
 
-## 8. 当前远端门禁边界
+## 10. 当前远端门禁边界
 
 - 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集。
 - 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
 - 最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；`执行 Alembic 迁移预检`、`执行数据库迁移`、`运行 E2E` 均为 success。
 - 本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 E2E 的 API verification 预检；在线 PostgreSQL 迁移已在本轮复验。
 
-## 9. 真实 LLM smoke 入口
+## 11. 真实 LLM smoke 入口
 
 真实 LLM smoke 只在私有运行时变量已经由当前进程提供时执行；命令不读取 `.env`，不得输出或保存 provider token。
 
@@ -134,7 +164,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 这些证据只覆盖 1 章、3 章与 10 章 smoke。真实 3-5 万字长程仍未完成。
 
-## 10. 常见失败处理
+## 12. 常见失败处理
 
 ### Docker 容器未运行
 
@@ -184,7 +214,7 @@ gh run view <run-id> --repo XZZKANY/StoryForge --log-failed
 
 如果失败点仍是 Alembic `Multiple head revisions`，先确认包含本地 `20260604_0001` 修复的提交已经进入远端分支，再重新运行远端 E2E。当前已知通过证据为 `master` run `26944063055`。
 
-## 11. Git 检查
+## 13. Git 检查
 
 每轮启动或提交前执行：
 

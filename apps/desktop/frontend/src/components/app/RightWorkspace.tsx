@@ -7,13 +7,6 @@ import { StoryNavigator } from '../StoryNavigator';
 import { Editor } from '../Editor';
 import type { AppDialogApi } from './AppDialog';
 
-const RIGHT_VIEWS = [
-  { id: 'files', label: '文件', hint: 'Ctrl+P' },
-  { id: 'branch', label: '剧情分支画布', hint: '' },
-] as const;
-
-type RightViewId = (typeof RIGHT_VIEWS)[number]['id'];
-
 function CollapsedRail({
   testId,
   title,
@@ -79,9 +72,6 @@ export function RightWorkspace({
   const fileTreeMaxWidth = 440;
   const editorMinWidth = 360;
   const fileTreeResizerWidth = 4;
-  const [rightView, setRightView] = useState<RightViewId>('files');
-  const [viewPickerOpen, setViewPickerOpen] = useState(false);
-  const rightViewLabel = RIGHT_VIEWS.find((view) => view.id === rightView)?.label ?? '文件';
 
   const clampFileTreeWidth = useCallback((nextWidth: number) => {
     const containerWidth = containerRef.current?.getBoundingClientRect().width ?? 0;
@@ -144,68 +134,14 @@ export function RightWorkspace({
           style={{ width: fileTreeWidth }}
           data-testid="file-tree-panel"
         >
-          <div className="relative flex h-9 flex-shrink-0 items-center px-2">
-            <button
-              type="button"
-              data-testid="right-view-picker"
-              onClick={() => setViewPickerOpen((open) => !open)}
-              className="sf-toolbar-button -ml-1"
-              title="切换右侧视图"
-              aria-expanded={viewPickerOpen}
-            >
-              {rightViewLabel} ⌄
-            </button>
-            <button
-              data-testid="collapse-file-tree"
-              onClick={onToggleWorkspace}
-              className="sf-icon-button ml-auto"
-              title="隐藏侧边栏"
-            >
-              ‹
-            </button>
-            {viewPickerOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setViewPickerOpen(false)} />
-                <div
-                  className="absolute left-2 top-9 z-20 w-60 overflow-hidden rounded-md border border-border bg-panel py-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-                  data-testid="right-view-menu"
-                >
-                  {RIGHT_VIEWS.map((view) => (
-                    <button
-                      key={view.id}
-                      type="button"
-                      onClick={() => {
-                        setRightView(view.id);
-                        setViewPickerOpen(false);
-                      }}
-                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated hover:text-foreground ${
-                        rightView === view.id ? 'text-foreground' : 'text-muted'
-                      }`}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{view.label}</span>
-                      {view.hint && <span className="text-xs text-subtle">{view.hint}</span>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <div className="h-9 flex-shrink-0" aria-hidden="true" />
           <div className="flex min-h-0 flex-1 flex-col">
-            {rightView === 'files' ? (
-              <StoryNavigator
-                projectPath={activeProject}
-                currentFile={currentFile}
-                refreshVersion={projectRefreshVersion}
-                onFileSelect={onFileSelect}
-              />
-            ) : (
-              <div
-                className="flex h-full items-center justify-center px-4 text-center text-sm leading-relaxed text-subtle"
-                data-testid="branch-canvas-placeholder"
-              >
-                剧情分支画布即将接入：保存修改后会记录版本，可在此开分支、对比平行写法。
-              </div>
-            )}
+            <StoryNavigator
+              projectPath={activeProject}
+              currentFile={currentFile}
+              refreshVersion={projectRefreshVersion}
+              onFileSelect={onFileSelect}
+            />
           </div>
           <div className="hidden" aria-hidden="true" data-recent-count={recentFiles.length} />
         </section>

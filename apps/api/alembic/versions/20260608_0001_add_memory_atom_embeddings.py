@@ -6,7 +6,7 @@ import os
 
 import sqlalchemy as sa
 
-from alembic import op
+from alembic import context, op
 
 revision: str = "20260608_0001"
 down_revision: str | None = "20260604_0001"
@@ -22,7 +22,14 @@ def _dims() -> int:
     return value if value > 0 else 1536
 
 
+def _is_postgresql() -> bool:
+    return context.get_context().dialect.name == "postgresql"
+
+
 def upgrade() -> None:
+    if not _is_postgresql():
+        return
+
     dims = _dims()
     op.add_column("memory_atoms", sa.Column("embedding", sa.JSON(), nullable=False, server_default="[]"))
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -45,6 +52,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _is_postgresql():
+        return
+
     op.execute("DROP INDEX IF EXISTS ix_memory_atoms_embedding_vector_hnsw")
     op.execute("ALTER TABLE memory_atoms DROP COLUMN IF EXISTS embedding_vector")
     op.drop_column("memory_atoms", "embedding")

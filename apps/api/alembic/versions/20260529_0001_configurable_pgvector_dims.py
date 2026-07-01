@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from alembic import op
+from alembic import context, op
 
 revision: str = "20260529_0001"
 down_revision: str | None = "20260528_0001"
@@ -17,7 +17,14 @@ branch_labels = None
 depends_on = None
 
 
+def _is_postgresql() -> bool:
+    return context.get_context().dialect.name == "postgresql"
+
+
 def upgrade() -> None:
+    if not _is_postgresql():
+        return
+
     dims = int(os.getenv("STORYFORGE_RETRIEVAL_PGVECTOR_DIMENSIONS", "1536"))
     op.execute("DROP INDEX IF EXISTS ix_retrieval_chunks_embedding_vector_hnsw")
     op.execute("ALTER TABLE retrieval_chunks DROP COLUMN IF EXISTS embedding_vector")
@@ -33,6 +40,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _is_postgresql():
+        return
+
     op.execute("DROP INDEX IF EXISTS ix_retrieval_chunks_embedding_vector_hnsw")
     op.execute("ALTER TABLE retrieval_chunks DROP COLUMN IF EXISTS embedding_vector")
     op.execute(

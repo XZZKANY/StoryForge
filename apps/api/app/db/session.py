@@ -51,6 +51,19 @@ def get_engine() -> Engine:
     return create_engine(database_url, **_build_engine_options(database_url))
 
 
+def bootstrap_sqlite_database(engine: Engine | None = None) -> None:
+    """桌面/本地 SQLite 运行态没有 Alembic 服务时，用 ORM 元数据补齐表结构。"""
+
+    target_engine = engine or get_engine()
+    if target_engine.dialect.name != "sqlite":
+        return
+
+    import app.models  # noqa: F401
+    from app.db.base import Base
+
+    Base.metadata.create_all(target_engine)
+
+
 _SessionFactory = sessionmaker(autoflush=False, autocommit=False, expire_on_commit=False)
 
 

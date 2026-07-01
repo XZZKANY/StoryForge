@@ -3,7 +3,11 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 
+import app.models  # noqa: F401
+from app.db.base import Base
 from app.main import app
 
 
@@ -31,6 +35,7 @@ def test_readiness_returns_ready_when_all_healthy() -> None:
 
     with (
         patch("app.domains.health.router.get_engine", return_value=mock_engine),
+        patch("app.domains.health.router._core_table_count", return_value=3),
         patch("app.domains.health.router._redis_client", return_value=mock_redis),
         TestClient(app) as client,
     ):
@@ -51,6 +56,7 @@ def test_readiness_degraded_when_db_unreachable() -> None:
 
     with (
         patch("app.domains.health.router.get_engine", return_value=mock_engine),
+        patch("app.domains.health.router._core_table_count", return_value=3),
         patch("app.domains.health.router._redis_client", return_value=mock_redis),
         TestClient(app) as client,
     ):
@@ -73,6 +79,7 @@ def test_readiness_degraded_when_redis_unreachable() -> None:
 
     with (
         patch("app.domains.health.router.get_engine", return_value=mock_engine),
+        patch("app.domains.health.router._core_table_count", return_value=3),
         patch("app.domains.health.router._redis_client", return_value=mock_redis),
         TestClient(app) as client,
     ):
@@ -99,6 +106,7 @@ def test_readiness_degraded_when_tables_missing() -> None:
 
     with (
         patch("app.domains.health.router.get_engine", return_value=mock_engine),
+        patch("app.domains.health.router._core_table_count", return_value=1),
         patch("app.domains.health.router._redis_client", return_value=mock_redis),
         TestClient(app) as client,
     ):
@@ -115,6 +123,7 @@ def test_health_endpoints_do_not_require_api_key() -> None:
     mock_engine, mock_redis = _healthy_probe_dependencies()
     with (
         patch("app.domains.health.router.get_engine", return_value=mock_engine),
+        patch("app.domains.health.router._core_table_count", return_value=3),
         patch("app.domains.health.router._redis_client", return_value=mock_redis),
         TestClient(app) as client,
     ):
@@ -122,6 +131,33 @@ def test_health_endpoints_do_not_require_api_key() -> None:
         ready = client.get("/health/ready")
     assert live.status_code == 200
     assert ready.status_code != 401
+
+
+def test_readiness_supports_sqlite_and_skips_redis_in_desktop_mode(monkeypatch) -> None:
+    """桌面本地模式只要求 sqlite 核心表可用，外部 Redis 可以显式跳过。"""
+
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("STORYFORGE_DESKTOP_SKIP_SERVICES", "1")
+
+    with (
+        patch("app.domains.health.router.get_engine", return_value=engine),
+        patch("app.domains.health.router._redis_client") as redis_client,
+        TestClient(app) as client,
+    ):
+        resp = client.get("/health/ready")
+
+    engine.dispose()
+    redis_client.assert_not_called()
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["checks"]["db"] == "ok"
+    assert body["checks"]["redis"] == "skipped"
 
 
 def test_legacy_top_level_health_endpoint_is_not_registered() -> None:

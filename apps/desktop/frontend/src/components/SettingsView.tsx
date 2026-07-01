@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   DEFAULT_APP_SETTINGS,
   sanitizeAppSettings,
@@ -7,6 +7,11 @@ import {
   type ThemeMode,
 } from '../lib/user-settings';
 import { probeProviderHealth } from '../lib/api-client';
+import {
+  getDesktopLlmConfig,
+  saveDesktopLlmConfig,
+  type DesktopLlmConfig,
+} from '../lib/desktop-llm-config';
 import {
   applyProviderPreset,
   describeProviderConnection,
@@ -24,6 +29,7 @@ type SettingsViewProps = {
 };
 
 type ProbeState = 'idle' | 'loading' | ProviderHealth;
+type SaveState = 'idle' | 'loading' | 'saved' | 'error';
 
 const settingsNav = ['返回', '模型服务', '外观', '编辑器'] as const;
 
@@ -35,6 +41,10 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
 export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
   const safeSettings = sanitizeAppSettings(settings);
   const providerConnection = describeProviderConnection(safeSettings.provider);
+  const [secretInput, setSecretInput] = useState('');
+  const [storedConfig, setStoredConfig] = useState<DesktopLlmConfig | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveError, setSaveError] = useState('');
   const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
     onChange({ ...safeSettings, [key]: value });
   };
@@ -55,6 +65,78 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
         detail: err instanceof Error ? err.message : String(err),
         missingEnv: [],
       });
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    void getDesktopLlmConfig()
+      .then((config) => {
+        if (cancelled || !config) return;
+        setStoredConfig(config);
+        update('provider', {
+          ...safeSettings.provider,
+          kind: toProviderKind(config.provider),
+          baseUrl: config.baseUrl || safeSettings.provider.baseUrl,
+          model: config.model || safeSettings.provider.model,
+          apiKeyRef: config.hasApiKey ? 'stored://storyforge/llm-provider' : '',
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setSaveError(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Run once when the settings pane opens; user edits are handled by explicit save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveProviderConfig = async () => {
+    setSaveState('loading');
+    setSaveError('');
+    try {
+      const next = await saveDesktopLlmConfig({
+        provider: safeSettings.provider.kind,
+        baseUrl: safeSettings.provider.baseUrl,
+        model: safeSettings.provider.model,
+        apiKey: secretInput,
+      });
+      if (next) {
+        setStoredConfig(next);
+        setSecretInput('');
+        update('provider', {
+          ...safeSettings.provider,
+          apiKeyRef: next.hasApiKey ? 'stored://storyforge/llm-provider' : '',
+        });
+      }
+      setSaveState('saved');
+    } catch (error) {
+      setSaveState('error');
+      setSaveError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const clearProviderSecret = async () => {
+    setSaveState('loading');
+    setSaveError('');
+    try {
+      const next = await saveDesktopLlmConfig({
+        provider: safeSettings.provider.kind,
+        baseUrl: safeSettings.provider.baseUrl,
+        model: safeSettings.provider.model,
+        clearApiKey: true,
+      });
+      if (next) {
+        setStoredConfig(next);
+        update('provider', { ...safeSettings.provider, apiKeyRef: '' });
+      }
+      setSecretInput('');
+      setSaveState('saved');
+    } catch (error) {
+      setSaveState('error');
+      setSaveError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -110,7 +192,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
             <SettingCard>
               <SelectRow
                 title="服务类型"
-                description="仅用于本机偏好和界面提示；真实模型调用读取后端环境变量。"
+                description="保存后由桌面主进程注入后端 STORYFORGE_LLM_PROVIDER。"
                 value={safeSettings.provider.kind}
                 onChange={(value) => {
                   const nextKind = toProviderKind(value);
@@ -124,7 +206,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
               />
               <TextRow
                 title="服务地址"
-                description="参考地址，不会从前端注入后端调用链。"
+                description="OpenAI-compatible 服务通常填写到 /v1；保存后注入 STORYFORGE_LLM_BASE_URL。"
                 value={safeSettings.provider.baseUrl}
                 placeholder="https://api.openai.com"
                 onChange={(value) =>
@@ -134,23 +216,44 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
               />
               <TextRow
                 title="默认模型"
-                description="参考模型名；后端以 STORYFORGE_LLM_MODEL 为准。"
+                description="保存后注入 STORYFORGE_LLM_MODEL。"
                 value={safeSettings.provider.model}
                 placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
                 onChange={(value) => update('provider', { ...safeSettings.provider, model: value })}
                 testId="provider-model"
               />
               <TextRow
-                title="密钥引用"
-                description="只允许环境变量名或 vault:// 引用；明文密钥会被丢弃，真实密钥必须在后端环境中配置。"
-                value={safeSettings.provider.apiKeyRef}
-                placeholder="例如 OPENAI_API_KEY"
-                onChange={(value) =>
-                  update('provider', { ...safeSettings.provider, apiKeyRef: value })
+                title="API Key"
+                description={
+                  storedConfig?.hasApiKey
+                    ? '已保存在本机配置文件；输入新 key 可覆盖。'
+                    : '保存后由桌面主进程注入 STORYFORGE_LLM_API_KEY，不写入 localStorage。'
                 }
-                testId="provider-api-key-ref"
+                value={secretInput}
+                placeholder={
+                  storedConfig?.hasApiKey ? '已保存，留空保持不变' : '粘贴 provider API key'
+                }
+                onChange={setSecretInput}
+                testId="provider-api-key"
+                type="password"
               />
-              <ProviderRuntimeEnvNotice />
+              <ProviderRuntimeEnvNotice saveState={saveState} error={saveError} />
+              <ActionRow
+                title="应用到本机后端"
+                description="保存到本机即写入 llm-provider.json，后端下次调用即读取生效，无需重启。"
+                actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
+                onAction={saveProviderConfig}
+                disabled={saveState === 'loading'}
+              />
+              {storedConfig?.hasApiKey && (
+                <ActionRow
+                  title="移除已保存密钥"
+                  description="删除本机保存的 provider API key，并保留服务地址与模型。"
+                  actionLabel="移除密钥"
+                  onAction={clearProviderSecret}
+                  disabled={saveState === 'loading'}
+                />
+              )}
               <ProbeRow state={probe} onProbe={runProbe} />
             </SettingCard>
           </SettingGroup>
@@ -211,7 +314,7 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
   return (
     <RowShell
       title="测试连接"
-      description="探测后端 resolved_llm_env；它只读取 STORYFORGE_LLM_*，不会读取本页 localStorage。"
+      description="探测后端 STORYFORGE_LLM_* resolved_llm_env；刚保存配置后可直接测试。"
     >
       <div className="flex items-center gap-3">
         {state !== 'idle' && (
@@ -236,17 +339,23 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
   );
 }
 
-function ProviderRuntimeEnvNotice() {
+function ProviderRuntimeEnvNotice({ saveState, error }: { saveState: SaveState; error: string }) {
+  const label =
+    saveState === 'saved'
+      ? '已保存'
+      : saveState === 'error'
+        ? `保存失败：${error || '未知错误'}`
+        : 'Desktop env';
   return (
     <RowShell
       title="运行时真相源"
-      description={`真实调用只读取后端环境变量：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。`}
+      description={`真实模型调用读取后端环境变量：${PROVIDER_RUNTIME_ENV_VARS.join('、')}。`}
     >
       <span
         className="inline-flex h-7 items-center rounded-md border border-border bg-surface px-2 text-xs text-muted"
         data-testid="provider-runtime-env-source"
       >
-        Backend env
+        {label}
       </span>
     </RowShell>
   );
@@ -358,6 +467,7 @@ function TextRow({
   placeholder,
   onChange,
   testId,
+  type = 'text',
 }: {
   title: string;
   description: string;
@@ -365,10 +475,12 @@ function TextRow({
   placeholder: string;
   onChange: (value: string) => void;
   testId: string;
+  type?: 'text' | 'password';
 }) {
   return (
     <RowShell title={title} description={description}>
       <input
+        type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -422,17 +534,20 @@ function ActionRow({
   description,
   actionLabel,
   onAction,
+  disabled = false,
 }: {
   title: string;
   description: string;
   actionLabel: string;
   onAction: () => void;
+  disabled?: boolean;
 }) {
   return (
     <RowShell title={title} description={description}>
       <button
-        className="h-8 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated"
+        className="h-8 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
         onClick={onAction}
+        disabled={disabled}
       >
         {actionLabel}
       </button>

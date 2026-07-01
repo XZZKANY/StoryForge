@@ -6,7 +6,8 @@
   "description": "StoryForge 桌面 IDE 应用",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
+    "build": "npm run build:api-sidecar && tauri build",
+    "build:api-sidecar": "node scripts/build-api-sidecar.mjs",
     "verify": "npm --prefix frontend run typecheck && npm --prefix frontend run test && npm --prefix frontend run build && npm --prefix frontend run verify:smoke && npm --prefix frontend run verify:agent-conversation && npm run test:rust && npm run verify:tauri-smoke",
     "verify:tauri-smoke": "node scripts/verify-tauri-smoke.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",

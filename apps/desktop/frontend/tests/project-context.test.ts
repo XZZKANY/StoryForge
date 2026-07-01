@@ -3,8 +3,10 @@ import { test } from 'node:test';
 
 import {
   buildProjectIndexFromEntries,
+  buildSampleStoryProjectFiles,
   buildStoryProjectInitializationPlan,
   classifyRelativePath,
+  sampleStoryProjectPath,
   selectContextBundleFiles,
 } from '../src/lib/project-context';
 import { toAssistantContextBundlePayload } from '../src/lib/api-client';
@@ -26,6 +28,21 @@ test('story project initialization plan creates the canonical local writing stru
   assert.ok(plan.readmeContent.includes('- 世界观：存放世界底层规则、势力、历史和专有名词。'));
   assert.ok(plan.readmeContent.includes('- 时间线：存放事件顺序、回忆、伏笔兑现节点。'));
   assert.ok(plan.readmeContent.includes('- 伏笔：存放埋线、回收计划、读者预期管理。'));
+});
+
+test('sample story project seeds an immediately usable local manuscript', () => {
+  const parentPath = 'D:\\StoryForge\\Books\\';
+  const projectPath = sampleStoryProjectPath(parentPath);
+  const files = buildSampleStoryProjectFiles(projectPath);
+
+  assert.equal(projectPath, 'D:\\StoryForge\\Books\\StoryForge 示例项目');
+  assert.deepEqual(files.map((file) => file.path), [
+    'D:\\StoryForge\\Books\\StoryForge 示例项目\\大纲\\总纲.md',
+    'D:\\StoryForge\\Books\\StoryForge 示例项目\\人物\\主角.md',
+    'D:\\StoryForge\\Books\\StoryForge 示例项目\\正文\\第01章.md',
+  ]);
+  assert.ok(files[0].content.includes('让对话 agent 帮忙审稿'));
+  assert.ok(files[2].content.includes('# 第01章'));
 });
 
 test('project index recognizes canonical fiction context folders', () => {
