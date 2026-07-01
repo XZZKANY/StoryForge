@@ -564,6 +564,22 @@ fn create_smoke_project() -> Result<PathBuf> {
     Ok(root)
 }
 
+/// 清理历史遗留的 smoke 临时项目，避免在跑过测试的机器上堆积并污染最近项目列表。
+fn cleanup_prior_smoke_projects() {
+    let Ok(entries) = std_fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("storyforge-desktop-smoke-")
+        {
+            let _ = std_fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 fn count_files_under(path: &std::path::Path) -> usize {
     if !path.exists() {
         return 0;
@@ -596,6 +612,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
     manager: SharedServiceManager,
 ) {
     thread::spawn(move || {
+        cleanup_prior_smoke_projects();
         let smoke_project = match create_smoke_project() {
             Ok(path) => path,
             Err(error) => {
@@ -1265,6 +1282,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 .and_then(|entry| entry.as_str())
                 .unwrap_or("")
         );
+        let _ = std_fs::remove_dir_all(&smoke_project);
         manager.lock().unwrap().shutdown();
         let _ = app.exit(0);
         std::process::exit(0);
