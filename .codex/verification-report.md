@@ -4494,3 +4494,40 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **抢救书重生成**：导出修复后重跑 salvage → `.codex/real-llm-q9-flash-16ch-20260630-155026-salvaged/` 全 16 章正文无内嵌标题、章头完整（book.md/epub 新 sha256 见 `salvage-result.json`，audit 不含正文故 hash 不变）。
 - **人工通读结论（用户）**：用户通读抢救书，结论 **「还行（可接受）」**，未要求退回重跑。该结论为整体 verdict，未单独给 6 维盲评分；audit advisory 仍标伏笔「乱石坡刻石与铜屑」未回收、结尾收束信号弱，登记为后续可改进项。
 - **边界（不外推）**：「可接受」≠ 真实 3-5 万字长程**质量验收通过**，亦不据此宣称稳定生产级长篇生产闭环；后续若要正式验收仍需按 DoD 走 6 维盲评。
+
+## Desktop 私测 Alpha A2：后端 sidecar 真打包 + 独立起服验证（2026-07-01）
+
+- **背景**：PR #43 落地了 A2 代码路径（PyInstaller 打包脚本、`externalBin` sidecar 声明、`main.rs` sidecar spawn、BYO-key 注入），但「真打包出的 exe 能否脱离 docker/venv/python 独立起服」此前未验；A2 是 alpha 计划标注的最高风险 keystone。
+- **打包**：`node apps/desktop/scripts/build-api-sidecar.mjs`（`uv run --with pyinstaller PyInstaller --onefile --name storyforge-api ... run_windows.py`）→ `apps/desktop/src-tauri/binaries/storyforge-api.exe`（46 MB）+ triple 副本 `storyforge-api-x86_64-pc-windows-msvc.exe`，exit 0。
+- **独立起服**（直接运行 .exe，不经 python/uv/docker）：env = `STORYFORGE_DESKTOP_SKIP_SERVICES=1` + `STORYFORGE_ENV=local` + `DATABASE_URL=sqlite+pysqlite:///<临时>.sqlite3` + `STORYFORGE_API_PORT=8770`。
+- **证据**：
+  - 启动日志：`storyforge_api_started` → `Application startup complete`，uvicorn 监听 127.0.0.1:8770；仅一条预期的默认 API key warning。
+  - `GET /health/live` → `{"status":"alive"}`。
+  - `GET /health/ready` → `{"status":"ready","checks":{"db":"ok","redis":"skipped"}}`（sqlite 建表成功、redis 本地模式跳过）。
+  - `GET /openapi.json` → 200（全量 app 装配、路由齐全）。
+  - sqlite 文件经冻结 exe 内 `bootstrap_sqlite_database()` create_all 建出 **45 张表**（agent_runs / book_runs / books / chapters / character_bible_entries / judge_issues / memory_atoms 等核心域齐全）——证明 create_all 在冻结环境内真跑，`db:ok` 非空文件糊弄。
+- **结论**：A2 keystone（Python 后端打进 Tauri sidecar + 去 dev-tree 假设）在 exe 层面成立——打包后端可独立起服、sqlite 自建库、服务全 API。
+- **未验 / 不外推**：本轮只证明 sidecar exe 独立起服；**未**验证 `tauri build` 出完整安装包并由 Tauri 主进程拉起 sidecar、GUI 端到端（开文件→Agent 审稿→修订→diff 确认→写回→版本记录）、真机「app 内换模型/服务商即生效」端到端。这些仍需真机 Tauri 跑。
+
+### 换模型/服务商「写盘即生效、无需重启」：sidecar HTTP 端到端（2026-07-01）
+
+- **验证目标**：PR #43 的实时配置读取（后端 `resolved_llm_env` 实时读 `STORYFORGE_LLM_CONFIG_FILE` 指向的 `llm-provider.json`）在真·冻结 sidecar + 真 HTTP 路径上成立，而非仅单测。
+- **方法**：同一冻结 exe 进程（**不重启**），`STORYFORGE_LLM_CONFIG_FILE` 指向 scratchpad 的 `llm-provider.json`，用 `GET /api/assistant/provider-health`（回显 resolved model/base_url，绝不回显凭据）观察 resolved 结果。
+- **证据**：
+  - 初始 json `model=sf-live-alpha` / `baseUrl=http://127.0.0.1:9/v1` → probe 回 `"model":"sf-live-alpha"`、`"base_url":"http://127.0.0.1:9/v1"`。
+  - **不重启**改写 json 为 `model=sf-live-beta` / `baseUrl=http://127.0.0.1:19/v1` → 同进程下一次 probe 回 `"model":"sf-live-beta"`、`"base_url":"http://127.0.0.1:19/v1"`。
+  - 两次均 `status=unreachable`（假 base_url 端口拒连，WinError 10061，预期）——回显字段才是判据；model/base_url 随文件即时翻转，证明无需重启后端。
+- **结论**：换模型/服务商「写盘即生效、无需重启」在冻结 sidecar 上端到端成立。
+- **未验**：app 内 SettingsView/欢迎区 chip 点击 → Tauri `save_llm_config` 写 `llm-provider.json` → 后端读取 这段仍需真机 GUI 串一次（Tauri 侧写盘有类型/命令保证，但未在打包 app 内点击验证）。
+
+### A2 续：tauri build 出 NSIS 安装包 + sidecar 打包内嵌（2026-07-01）
+
+- **验证目标**：`tauri build` 能否出 Windows 安装包，且 A2 sidecar（externalBin）被正确内嵌，装出来的 app 默认走打包后端。
+- **构建**：`cd apps/desktop && npm run tauri -- build --bundles nsis`，exit 0。
+  - 前端 vite build ✓（`frontend/dist`，monaco 3.3MB 提示 chunk 偏大，非阻断）。
+  - cargo release → `target/release/storyforge-desktop.exe`（15.4 MB，sha256 `802a97f48fe06d6e1c8d5688981acd1262293d30e8ab1824a7e3ff678b2c6239`），1m03s（deps 已热）。
+  - makensis → 安装包 `target/release/bundle/nsis/StoryForge IDE_0.1.0_x64-setup.exe`（51 MB，sha256 `000c5b1c3b1595d8195e35326a192f3c2d0b4bd9c42e5cd112c8d48f619f6a90`）。NSIS 工具链本机已就绪，未触发 GitHub 下载（未撞代理）。
+- **sidecar 内嵌证据**（正向，非靠体积推断）：生成的 `target/release/nsis/x64/installer.nsi` 含 `File /a "/oname=storyforge-api.exe" "...\binaries\storyforge-api-x86_64-pc-windows-msvc.exe"` —— 安装器把 triple 名 sidecar 装成运行期 `storyforge-api.exe`，正是 `main.rs` 的 `.sidecar("storyforge-api")` 期望名。release 目录亦已 stage `storyforge-api.exe`(46MB) 于 app exe 旁。
+- **打包态默认走 sidecar**：`should_use_api_sidecar()` = `!cfg!(debug_assertions)`（main.rs:366），release 构建默认 true，无需 env 即用打包后端。
+- **结论（合并前两轮）**：A2 keystone 在打包层端到端成立 —— sidecar 独立起服可用（已验）+ tauri build 正确内嵌 sidecar 出安装包（本轮）+ release 默认拉起 sidecar。
+- **仍未验（需真机 GUI）**：双击 `StoryForge IDE_0.1.0_x64-setup.exe` 安装 → 启动 app → Tauri 主进程拉起打包 sidecar → GUI 端到端（开文件→Agent 审稿→修订→diff 确认→写回→版本记录）。这段是唯一剩余门，需人工点击。
