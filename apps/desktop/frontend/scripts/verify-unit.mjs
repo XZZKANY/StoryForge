@@ -145,7 +145,7 @@ function createRuntimeStubs() {
   );
   writeModule(
     join(tempNodeModules, '@tauri-apps', 'api', 'core.js'),
-    'export async function invoke(){ throw new Error("Tauri invoke is unavailable in unit tests."); }\n',
+    'export async function invoke(){ throw new Error("Tauri invoke is unavailable in unit tests."); }\nexport function isTauri(){ return false; }\n',
   );
   writeModule(
     join(tempNodeModules, '@tauri-apps', 'api', 'event.js'),

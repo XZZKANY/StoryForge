@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api-client';
 import { isTauriRuntime } from '../../lib/tauri-env';
 
@@ -17,6 +17,21 @@ export function useTauriMenuBridge({
   const [tauriMenuReady, setTauriMenuReady] = useState(false);
   const [tauriMenuError, setTauriMenuError] = useState('');
   const [smokeApiReady, setSmokeApiReady] = useState(false);
+  const callbacksRef = useRef({
+    onOpenProject,
+    onNewFile,
+    onToggleSidebar,
+    onRestoreFullLayout,
+  });
+
+  useEffect(() => {
+    callbacksRef.current = {
+      onOpenProject,
+      onNewFile,
+      onToggleSidebar,
+      onRestoreFullLayout,
+    };
+  });
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -58,8 +73,12 @@ export function useTauriMenuBridge({
       setIsDesktopRuntime(true);
 
       try {
-        unlistenFns.push(await listen('menu:open-project', () => void onOpenProject()));
-        unlistenFns.push(await listen('menu:new-file', () => void onNewFile()));
+        unlistenFns.push(
+          await listen('menu:open-project', () => void callbacksRef.current.onOpenProject()),
+        );
+        unlistenFns.push(
+          await listen('menu:new-file', () => void callbacksRef.current.onNewFile()),
+        );
         unlistenFns.push(
           await listen('menu:save', () => document.getElementById('editor-save-btn')?.click()),
         );
@@ -68,10 +87,12 @@ export function useTauriMenuBridge({
         );
         unlistenFns.push(
           await listen('menu:toggle-sidebar', () => {
-            onToggleSidebar();
+            callbacksRef.current.onToggleSidebar();
           }),
         );
-        unlistenFns.push(await listen('smoke:reset-panels', () => onRestoreFullLayout()));
+        unlistenFns.push(
+          await listen('smoke:reset-panels', () => callbacksRef.current.onRestoreFullLayout()),
+        );
 
         setTauriMenuError('');
         setTauriMenuReady(true);
@@ -93,7 +114,7 @@ export function useTauriMenuBridge({
       setSmokeReadyAttribute(false);
       unlistenFns.forEach((fn) => fn());
     };
-  }, [onNewFile, onOpenProject, onRestoreFullLayout, onToggleSidebar]);
+  }, []);
 
   return {
     isDesktopRuntime,

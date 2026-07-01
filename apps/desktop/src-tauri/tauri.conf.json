@@ -19,6 +19,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/storyforge-api"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -28,6 +29,7 @@
     ]
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "StoryForge IDE",

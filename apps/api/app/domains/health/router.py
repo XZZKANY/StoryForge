@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import os
 import redis
 from fastapi import APIRouter
-from sqlalchemy import text
+from sqlalchemy import inspect
+from sqlalchemy.engine import Connection
 
 from app.common.redis_cache import _redis_client
 from app.db.session import get_engine
@@ -12,6 +14,16 @@ from app.db.session import get_engine
 router = APIRouter(prefix="/health", tags=["运行状态"])
 
 _CORE_TABLES = ["books", "artifacts", "workspaces"]
+
+
+def _desktop_skip_services() -> bool:
+    raw_value = os.getenv("STORYFORGE_DESKTOP_SKIP_SERVICES", "")
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _core_table_count(conn: Connection) -> int:
+    inspector = inspect(conn)
+    return sum(1 for table_name in _CORE_TABLES if inspector.has_table(table_name))
 
 
 @router.get(
@@ -36,14 +48,7 @@ def readiness() -> dict[str, str | dict[str, Any]]:
 
     try:
         with get_engine().connect() as conn:
-            count = conn.execute(
-                text(
-                    "SELECT count(*) FROM pg_tables "
-                    "WHERE schemaname = 'public' "
-                    "AND tablename = ANY(:tables)"
-                ),
-                {"tables": _CORE_TABLES},
-            ).scalar()
+            count = _core_table_count(conn)
             if count == len(_CORE_TABLES):
                 checks["db"] = "ok"
             else:
@@ -53,12 +58,15 @@ def readiness() -> dict[str, str | dict[str, Any]]:
         checks["db"] = f"error: {exc}"
         all_ok = False
 
-    try:
-        _redis_client().ping()
-        checks["redis"] = "ok"
-    except (redis.RedisError, Exception) as exc:
-        checks["redis"] = f"error: {exc}"
-        all_ok = False
+    if _desktop_skip_services():
+        checks["redis"] = "skipped"
+    else:
+        try:
+            _redis_client().ping()
+            checks["redis"] = "ok"
+        except (redis.RedisError, Exception) as exc:
+            checks["redis"] = f"error: {exc}"
+            all_ok = False
 
     status = "ready" if all_ok else "degraded"
     return {"status": status, "checks": checks}

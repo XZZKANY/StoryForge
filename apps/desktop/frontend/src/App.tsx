@@ -9,10 +9,17 @@ import { CommandPalette, PaletteMode } from './components/CommandPalette';
 import { DynamicIDELayout, type ComposerLayoutMode } from './components/DynamicIDELayout';
 import { SettingsView } from './components/SettingsView';
 import { TauriFileSystem } from './lib/tauri-fs';
-import { initializeStoryProject } from './lib/project-context';
+import { createSampleStoryProject, initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { emitExportCurrentFile, emitReviewCurrentFile } from './lib/assistant-events';
-import { loadAppSettings, saveAppSettings, type AppSettings } from './lib/user-settings';
+import {
+  loadAppSettings,
+  saveAppSettings,
+  type AppSettings,
+  type ProviderKind,
+} from './lib/user-settings';
+import { saveDesktopLlmConfig } from './lib/desktop-llm-config';
+import { applyProviderPreset } from './lib/provider-config';
 import { applyTheme } from './lib/theme';
 import { WindowMenu } from './components/app/WindowMenu';
 import { CodexSidebar } from './components/app/CodexSidebar';
@@ -91,6 +98,30 @@ export function App() {
       console.error('打开项目失败', error);
     }
   }, [selectProject]);
+
+  const handleCreateSampleProject = useCallback(async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: '选择示例项目保存位置',
+      });
+      if (!selected || typeof selected !== 'string') return;
+      const projectPath = await createSampleStoryProject(selected);
+      selectProject(projectPath);
+      setProjectRefreshVersion((version) => version + 1);
+      setEmptyWorkbenchVisible(true);
+      setSettingsVisible(false);
+      showWorkbenchPanel();
+    } catch (error) {
+      console.error('创建示例项目失败', error);
+      await appDialog.alert({
+        title: '创建示例项目失败',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [appDialog, selectProject, showWorkbenchPanel]);
 
   useEffect(() => {
     return registerSmokeProjectLoader((path: string) => {
@@ -191,6 +222,41 @@ export function App() {
     prepareSettingsLayout();
   }, [prepareSettingsLayout]);
 
+  const handleQuickModelChange = useCallback(
+    async (model: string) => {
+      const trimmed = model.trim();
+      setSettings((prev) => ({ ...prev, provider: { ...prev.provider, model: trimmed } }));
+      try {
+        // 后端实时读取 llm-provider.json，写入即生效，无需重启。
+        await saveDesktopLlmConfig({
+          provider: settings.provider.kind,
+          baseUrl: settings.provider.baseUrl,
+          model: trimmed,
+        });
+      } catch {
+        // 桌面外/后端未接入时静默：仅更新本地设置。
+      }
+    },
+    [settings.provider.kind, settings.provider.baseUrl],
+  );
+
+  const handleQuickProviderChange = useCallback(
+    async (kind: ProviderKind) => {
+      const nextProvider = applyProviderPreset(settings.provider, kind, { preserveModel: true });
+      setSettings((prev) => ({ ...prev, provider: nextProvider }));
+      try {
+        await saveDesktopLlmConfig({
+          provider: nextProvider.kind,
+          baseUrl: nextProvider.baseUrl,
+          model: nextProvider.model,
+        });
+      } catch {
+        // 桌面外/后端未接入时静默：仅更新本地设置。
+      }
+    },
+    [settings.provider],
+  );
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
@@ -265,11 +331,17 @@ export function App() {
                 activeProject={activeProject}
                 onOpenProject={handleOpenProject}
                 onInitializeProject={handleInitializeStoryProject}
+                onCreateSampleProject={handleCreateSampleProject}
+                onOpenSettings={openSettings}
                 onBrowseFiles={() => setPalette('files')}
                 onShowWorkbench={() => {
                   setEmptyWorkbenchVisible(true);
                   showWorkbenchPanel();
                 }}
+                providerModel={settings.provider.model}
+                onApplyModel={handleQuickModelChange}
+                providerKind={settings.provider.kind}
+                onApplyProvider={handleQuickProviderChange}
               />
             ) : (
               <section className="h-full min-w-0 bg-background" data-testid="assistant-panel">
@@ -284,6 +356,7 @@ export function App() {
                   onAssistantSessionChange={setActiveProjectAssistantSession}
                   onFocusOnly={focusAssistantOnly}
                   onRestoreLayout={restoreFullLayout}
+                  onOpenProject={handleOpenProject}
                   onInitializeProject={handleInitializeStoryProject}
                   onCollapse={() => handleComposerModeChange('floating')}
                 />

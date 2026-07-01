@@ -34,6 +34,30 @@ LLM_SETTINGS_ENV_KEYS = (
 )
 
 
+def _apply_llm_config_file(source: dict[str, str | None], path: str) -> None:
+    """桌面端把本机 llm-provider.json 视为实时真相：切换模型/服务商后无需重启后端即可生效。"""
+
+    import json
+
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict):
+        return
+    file_to_env = {
+        "provider": "STORYFORGE_LLM_PROVIDER",
+        "baseUrl": "STORYFORGE_LLM_BASE_URL",
+        "model": "STORYFORGE_LLM_MODEL",
+        "apiKey": "STORYFORGE_LLM_API_KEY",
+    }
+    for file_key, env_key in file_to_env.items():
+        value = data.get(file_key)
+        if isinstance(value, str) and value.strip():
+            source[env_key] = value.strip()
+
+
 def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str, str | None]:
     """返回真实 LLM 调用使用的配置源。
 
@@ -79,6 +103,10 @@ def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str
     for key, value in settings_values.items():
         if not _env_value(source, key) and value not in (None, ""):
             source[key] = str(value)
+
+    config_file = os.environ.get("STORYFORGE_LLM_CONFIG_FILE", "").strip()
+    if config_file:
+        _apply_llm_config_file(source, config_file)
 
     if not _env_value(source, "STORYFORGE_LLM_BASE_URL"):
         source["STORYFORGE_LLM_BASE_URL"] = _env_value(source, "STORYFORGE_LLM_API_BASE_URL")

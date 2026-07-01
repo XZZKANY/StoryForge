@@ -20,6 +20,7 @@ from app.common.logging_config import configure_logging, get_logger
 from app.common.metrics import setup_metrics
 from app.common.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
 from app.common.sentry_config import init_sentry
+from app.db.session import bootstrap_sqlite_database
 from app.domains.agent_runs.router import router as agent_runs_router
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
@@ -78,6 +79,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     init_sentry()
     configure_logging()
     warn_default_credentials()
+    bootstrap_sqlite_database()
     logger.info("storyforge_api_started")
     yield
 

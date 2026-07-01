@@ -1,6 +1,13 @@
 export { buildContextBundle, selectContextBundleFiles } from './project/context-bundle';
 export { buildProjectIndex, buildProjectIndexFromEntries } from './project/index';
-export { buildStoryProjectInitializationPlan, initializeStoryProject } from './project/initialize';
+export {
+  SAMPLE_STORY_PROJECT_NAME,
+  buildSampleStoryProjectFiles,
+  buildStoryProjectInitializationPlan,
+  createSampleStoryProject,
+  initializeStoryProject,
+  sampleStoryProjectPath,
+} from './project/initialize';
 export { projectBasename, relativeToProject } from './project/path';
 export { classifyRelativePath, semanticKindLabel } from './project/semantics';
 export type {

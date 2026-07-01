@@ -32,6 +32,21 @@ function normalizeEol(text: string): string {
   return text.replace(/\r\n/g, '\n');
 }
 
+const RIGHT_VIEWS = [
+  { id: 'files', label: '文件', icon: '▤', hint: 'Ctrl+P' },
+  { id: 'branch', label: '剧情分支画布', icon: '⑂', hint: '' },
+] as const;
+
+type RightViewId = (typeof RIGHT_VIEWS)[number]['id'];
+
+function readRightView(key: string): RightViewId {
+  try {
+    return localStorage.getItem(key) === 'branch' ? 'branch' : 'files';
+  } catch {
+    return 'files';
+  }
+}
+
 type EditorProps = {
   projectPath: string | null;
   filePath: string | null;
@@ -60,6 +75,26 @@ export function Editor({
   const [isDirty, setIsDirty] = useState(false);
   const [loadedContentPreview, setLoadedContentPreview] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const rightViewStorageKey = `storyforge:right-view:${projectPath ?? '__global__'}`;
+  const [rightView, setRightView] = useState<RightViewId>(() => readRightView(rightViewStorageKey));
+  const [viewPickerOpen, setViewPickerOpen] = useState(false);
+  const rightViewLabel = RIGHT_VIEWS.find((view) => view.id === rightView)?.label ?? '文件';
+
+  useEffect(() => {
+    // 按项目记住上次的右侧视图选择：换项目时恢复，不再要求重新选择。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRightView(readRightView(rightViewStorageKey));
+  }, [rightViewStorageKey]);
+
+  const selectRightView = (id: RightViewId) => {
+    setRightView(id);
+    try {
+      localStorage.setItem(rightViewStorageKey, id);
+    } catch {
+      // localStorage 不可用时忽略持久化
+    }
+    setViewPickerOpen(false);
+  };
   const cleanVersionIdRef = useRef<number | null>(null);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const issueByLineRef = useRef<Map<number, string>>(new Map());
@@ -341,7 +376,7 @@ export function Editor({
       data-editor-init-error={editorInitError}
       data-content-preview={loadedContentPreview}
     >
-      {!filePath && (
+      {rightView === 'files' && !filePath && (
         <div
           className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background text-muted"
           data-testid="editor-empty"
@@ -360,13 +395,60 @@ export function Editor({
         </div>
       )}
 
+      {rightView === 'branch' && (
+        <div
+          className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background px-6 text-center text-sm leading-relaxed text-subtle"
+          data-testid="branch-canvas-placeholder"
+        >
+          剧情分支画布即将接入：保存修改后会记录版本，可在此开分支、对比平行写法。
+        </div>
+      )}
+
       {/* 顶部工具栏 */}
       <div className="sf-panel-header border-border bg-panel">
         <div className="flex min-w-[96px] flex-1 items-center gap-2 overflow-hidden">
-          <span className="sf-topbar-title" title={filePath ?? undefined}>
-            {filePath ? filePath.split(/[/\\]/).pop() : '未打开文件'}
-          </span>
-          {isDirty && (
+          <div className="relative flex-shrink-0">
+            <button
+              type="button"
+              data-testid="right-view-picker"
+              onClick={() => setViewPickerOpen((open) => !open)}
+              className="sf-toolbar-button"
+              title="切换右侧视图"
+              aria-expanded={viewPickerOpen}
+            >
+              {rightViewLabel} ⌄
+            </button>
+            {viewPickerOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setViewPickerOpen(false)} />
+                <div
+                  className="absolute left-0 top-9 z-20 w-56 overflow-hidden rounded-md border border-border bg-panel py-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+                  data-testid="right-view-menu"
+                >
+                  {RIGHT_VIEWS.map((view) => (
+                    <button
+                      key={view.id}
+                      type="button"
+                      onClick={() => selectRightView(view.id)}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated hover:text-foreground ${
+                        rightView === view.id ? 'text-foreground' : 'text-muted'
+                      }`}
+                    >
+                      <span className="w-4 flex-shrink-0 text-center text-subtle">{view.icon}</span>
+                      <span className="min-w-0 flex-1 truncate">{view.label}</span>
+                      {view.hint && <span className="text-xs text-subtle">{view.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          {rightView === 'files' && (
+            <span className="sf-topbar-title" title={filePath ?? undefined}>
+              {filePath ? filePath.split(/[/\\]/).pop() : '未打开文件'}
+            </span>
+          )}
+          {rightView === 'files' && isDirty && (
             <span className="text-warning text-lg leading-none" title="未保存的修改">
               ●
             </span>
@@ -386,6 +468,7 @@ export function Editor({
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
+              data-testid="collapse-file-tree"
               title={sidebarVisible ? '收起侧边栏' : '展开侧边栏'}
               className={`sf-icon-button ${sidebarVisible ? '' : 'bg-foreground/10 text-foreground'}`}
             >

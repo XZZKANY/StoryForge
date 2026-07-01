@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from alembic import op
+from alembic import context, op
 
 revision: str = "20260520_0001"
 down_revision: str | None = "c0ffee20260520"
@@ -87,8 +87,15 @@ DROP COLUMN IF EXISTS embedding_vector
 """
 
 
+def _is_postgresql() -> bool:
+    return context.get_context().dialect.name == "postgresql"
+
+
 def upgrade() -> None:
     """新增 PostgreSQL 侧向量列和 HNSW 索引，不改变应用 JSON 写入契约。"""
+
+    if not _is_postgresql():
+        return
 
     op.execute(CREATE_RETRIEVAL_SOURCES_SQL)
     op.execute(CREATE_RETRIEVAL_CHUNKS_SQL)
@@ -101,6 +108,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """移除 pgvector 前置索引列，保留原始 JSON embedding。"""
+
+    if not _is_postgresql():
+        return
 
     op.execute(DROP_EMBEDDING_VECTOR_INDEX_SQL)
     op.execute(DROP_EMBEDDING_VECTOR_COLUMN_SQL)

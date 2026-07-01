@@ -66,6 +66,7 @@ function sanitizeApiKeyReference(value: string): string {
   if (!trimmed) return '';
   if (/^[A-Z][A-Z0-9_]*$/.test(trimmed)) return trimmed;
   if (/^vault:\/\/[a-z0-9][a-z0-9_./:-]*$/i.test(trimmed)) return trimmed;
+  if (/^stored:\/\/[a-z0-9][a-z0-9_./:-]*$/i.test(trimmed)) return trimmed;
   return '';
 }
 

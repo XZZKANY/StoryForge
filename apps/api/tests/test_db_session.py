@@ -3,7 +3,7 @@ from __future__ import annotations
 from time import perf_counter
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.exc import TimeoutError
 from sqlalchemy.pool import QueuePool
 
@@ -134,6 +134,27 @@ def test_session_local_uses_lazy_engine_binding(monkeypatch) -> None:
         get_engine().dispose()
         get_engine.cache_clear()
 
+
+def test_bootstrap_sqlite_database_creates_orm_tables(tmp_path, monkeypatch) -> None:
+    """桌面 sqlite 启动路径应能不依赖 Alembic 直接补齐 ORM 表。"""
+
+    database_path = tmp_path / "storyforge.sqlite3"
+    get_engine = getattr(db_session, "get_engine", None)
+
+    assert get_engine is not None
+    get_engine.cache_clear()
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{database_path.as_posix()}")
+
+    db_session.bootstrap_sqlite_database()
+    engine = get_engine()
+    try:
+        inspector = inspect(engine)
+        assert inspector.has_table("books")
+        assert inspector.has_table("artifacts")
+        assert inspector.has_table("workspaces")
+    finally:
+        engine.dispose()
+        get_engine.cache_clear()
 
 
 def test_get_session_rolls_back_and_closes_on_exception(monkeypatch) -> None:
