@@ -293,15 +293,16 @@ def test_agent_user_message_streams_runtime_events_before_result(
 
 
 def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> None:
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-stream-error") as websocket:
+    with client.websocket_connect("/api/ide/agent/sessions/session-stream-error") as websocket:
         websocket.send_json(
             {
                 "type": "user_message",
                 "stream": True,
-                "run_id": "run-review-error",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {"content": "缺少 file_path"},
+                "run_id": "run-stream-error",
+                "assistant_session_id": 999999,
+                "user_message": "继续上一轮",
+                "intent": "chat.explain",
+                "args": {"context": "正文"},
             }
         )
         started = websocket.receive_json()
@@ -312,8 +313,28 @@ def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> N
     assert started["type"] == "agent_run_started"
     error = received[-1]
     assert error["type"] == "error"
-    assert error["run_id"] == "run-review-error"
-    assert "file_path" in error["detail"]
+    assert error["run_id"] == "run-stream-error"
+    assert "Assistant 会话不存在" in error["detail"]
+
+
+def test_file_review_without_open_file_degrades_to_chat(client: TestClient) -> None:
+    """无 file_path 的 file.review 降级为项目级对话，而不是硬报错（对话统领项目）。"""
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-review-no-file") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "user_message": "审查当前章节",
+                "intent": "file.review",
+                "args": {"content": "缺少 file_path"},
+            }
+        )
+        message = websocket.receive_json()
+
+    assert message["type"] == "agent_result"
+    assert message["intent"] == "chat.explain"
+    assert message["proposed_patch"] is None
+    assert message["agent_result"]["requires_user_confirmation"] is False
 
 
 def test_file_review_uses_llm_when_configured(

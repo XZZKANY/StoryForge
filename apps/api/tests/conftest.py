@@ -42,6 +42,23 @@ def isolate_remote_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.delenv(name, raising=False)
 
+    # 仅清 os.environ 不够：resolved_llm_env 还会从 pydantic settings（.env/.env.local）
+    # 回填 LLM 配置。本机配了真实 key 时会让 chat.explain/修订默认走真·LLM 并挂在网络请求上，
+    # 破坏测试可重复性。这里把缓存 settings 的 LLM 字段一并清空，使默认判定为「未配置」；
+    # 需要真实路径的测试仍可用 monkeypatch 覆盖 missing_book_generation_env / get_settings。
+    from app.common.config import get_settings
+
+    settings = get_settings()
+    for attr in (
+        "storyforge_llm_api_key",
+        "storyforge_llm_base_url",
+        "storyforge_llm_api_base_url",
+        "storyforge_llm_model",
+        "storyforge_llm_provider",
+    ):
+        if hasattr(settings, attr):
+            monkeypatch.setattr(settings, attr, "", raising=False)
+
 
 @pytest.fixture(autouse=True)
 def _reset_rate_limiter() -> None:

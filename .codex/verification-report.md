@@ -4531,3 +4531,24 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **打包态默认走 sidecar**：`should_use_api_sidecar()` = `!cfg!(debug_assertions)`（main.rs:366），release 构建默认 true，无需 env 即用打包后端。
 - **结论（合并前两轮）**：A2 keystone 在打包层端到端成立 —— sidecar 独立起服可用（已验）+ tauri build 正确内嵌 sidecar 出安装包（本轮）+ release 默认拉起 sidecar。
 - **仍未验（需真机 GUI）**：双击 `StoryForge IDE_0.1.0_x64-setup.exe` 安装 → 启动 app → Tauri 主进程拉起打包 sidecar → GUI 端到端（开文件→Agent 审稿→修订→diff 确认→写回→版本记录）。这段是唯一剩余门，需人工点击。
+
+### 对话式 Agent 收口：chat.explain 接真·LLM + 项目级对话解绑当前文件（2026-07-01）
+
+- **背景**：延续上一轮把桌面中间交互区从「按钮式 GUI」改成 Codex/Claude Code 式对话 agent 的改动（删 `Composer.tsx` 顶层 legacy 组件与 `panels.tsx` 内 issue 面板、去命令面板「审查当前文件」与编辑器 gutter「定向修订」按钮连线、`ChatWindow`/请求载荷让 file 字段可空、`WelcomeWorkspace` 把对话区门控从 `currentFile` 改为 `projectPath`）。本轮为收口修复 + 门禁复绿。
+- **后端**：
+  - `agent_runs/runtime.py`：`chat.explain` 从写死 echo 改为调 `assistant_service.chat_reply` 走真·LLM，落 `assistant.chat` 工具调用证据链；LLM 未配置/失败时明确回话不伪造。
+  - `assistant/service.py`：新增 `chat_reply()`（系统提示 + 项目上下文摘录 → `_call_llm`，未配置抛 `AssistantLlmNotConfiguredError`）。
+  - **修复 resume 回归**：需要文件的 intent 的「无文件降级为对话」护栏，条件从「同时要求 file_path+content」收紧为**只看 file_path**。根因：`file.review` 的 resume 重建消息只回传 `file_path`（正文靠 pending call 的 `context_output` 续跑、不回传 content），旧条件会把 resume 误降级成 `chat.explain`、绕过 `_resume_file_review_from_pending_call` → `KeyError: resumed_from_pending_call`。
+- **测试隔离修复**（`tests/conftest.py`）：autouse `isolate_remote_llm_env` 原先只删 `os.environ`，但 `resolved_llm_env` 还会经 pydantic settings 从 `.env.local` 回填真实 key（本机配了 key），导致 `chat.explain` 默认走真·LLM 挂在网络请求上。补：同时清空缓存 settings 的 `storyforge_llm_*` 字段，使默认判定为「未配置」；需真实路径的测试仍可 monkeypatch 覆盖。probe 证实 fixture 下 `missing_book_generation_env()` 回 4 项缺失。
+- **测试更新**（`test_ide_agent_orchestrator.py`）：
+  - `test_agent_user_message_stream_error_carries_run_id`：原触发点「file.review 无 file_path→报错」已因降级失效，改用「不存在的 assistant_session→`_resolve_assistant_session` 抛 `AgentOrchestrationError`」触发**流式** error，保留「error 携带 run_id」覆盖。
+  - 新增 `test_file_review_without_open_file_degrades_to_chat`：锁定「无 file_path 的 file.review 降级为 chat.explain、不硬报错」新契约。
+- **前端收尾**：补 `panels.tsx` 缺失的 `useState` import；移除 `App.tsx` 因 `welcomeVisible=!activeProject` 而变死的 `emptyWorkbenchVisible` state 及 6 处 setter；删 `command-palette.test.tsx` 对已删 `onReviewCurrent` prop 的死引用。
+- **证据（命令 + 结果）**：
+  - `npm --prefix apps/desktop/frontend run typecheck` → 干净（先前两处报错已修）。
+  - `npm --prefix apps/desktop/frontend run test` → 93 pass / 0 fail。
+  - `cd apps/api && uv run pytest tests/test_agent_runs.py` → 54 passed（含 resume 用例复绿）。
+  - `uv run pytest tests/test_ide_agent_orchestrator.py` → 32 passed（含新增 degrade 用例；先前 chat.explain 触网挂起已解）。
+  - `uv run pytest`（全量 API）→ **767 passed / 3 skipped / 1 failed**，529s。
+- **唯一失败为先前存在、与本轮无关**：`test_phase9_fact_sources.py::test_local_start_records_current_phase9_runbook` 断言本地启动手册含「更新时间：2026-06-04」，而手册已在已合并的 PR #43（3343df6）改为「2026-07-01」——文档/测试日期漂移，手册与该测试均不在本轮改动清单内。
+- **未验 / 不外推**：本轮全走单测 + TestClient；**未**在真·LLM 环境跑 `chat.explain` 真实回话，也**未**在真机 Tauri GUI 串「无文件时项目级对话」端到端。真机 GUI 端到端仍是唯一剩余门。

@@ -1,26 +1,18 @@
 /**
  * 中间 AI 交互区的轻量事件桥
- * 命令面板等触发"审查当前文件"时，通过此事件通知 Composer 预填输入并发起。
+ * 中间 AI 交互区的轻量事件桥。
  */
 
 import type { AssistantFileSuggestion } from './assistant-suggestions';
 
-export const REVIEW_CURRENT_EVENT = 'storyforge:review-current-file';
 export const EXPORT_CURRENT_FILE_EVENT = 'storyforge:export-current-file';
 export const APPLY_FILE_SUGGESTION_EVENT = 'storyforge:apply-file-suggestion';
 export const ACCEPT_CURRENT_FILE_SUGGESTION_EVENT = 'storyforge:accept-current-file-suggestion';
-export const REQUEST_FILE_SUGGESTION_EVENT = 'storyforge:request-file-suggestion';
 export const SUGGESTION_RESULT_EVENT = 'storyforge:suggestion-result';
 export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
 export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-file';
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
-export const REVISE_ISSUE_EVENT = 'storyforge:revise-issue';
-
-export type FileSuggestionRequest = {
-  filePath: string;
-  userIntent: string;
-};
 
 export type SuggestionResult = {
   filePath: string;
@@ -37,12 +29,6 @@ export type AuthorLoopResult = {
   artifactPath?: string;
   recordPath?: string;
 };
-
-export function emitReviewCurrentFile(): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(REVIEW_CURRENT_EVENT));
-  }
-}
 
 export function emitExportCurrentFile(): void {
   if (typeof window !== 'undefined') {
@@ -63,16 +49,6 @@ export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
 export function emitAcceptCurrentFileSuggestion(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT));
-  }
-}
-
-export function emitFileSuggestionRequest(request: FileSuggestionRequest): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent<FileSuggestionRequest>(REQUEST_FILE_SUGGESTION_EVENT, {
-        detail: request,
-      }),
-    );
   }
 }
 
@@ -113,15 +89,6 @@ export function emitReviewIssues(filePath: string, issues: ReviewIssueMarker[]):
       new CustomEvent<{ filePath: string; issues: ReviewIssueMarker[] }>(REVIEW_ISSUES_EVENT, {
         detail: { filePath, issues },
       }),
-    );
-  }
-}
-
-/** 点击编辑器内某个 issue 标记时，请会话面板对该 issue 发起定向修订。 */
-export function emitReviseIssue(issueId: string): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent<{ issueId: string }>(REVISE_ISSUE_EVENT, { detail: { issueId } }),
     );
   }
 }

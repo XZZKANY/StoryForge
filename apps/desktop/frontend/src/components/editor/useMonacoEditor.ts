@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import * as monaco from 'monaco-editor';
 
-import { emitReviseIssue } from '../../lib/assistant-events';
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme } from '../../lib/theme';
 
@@ -18,7 +17,6 @@ export function useMonacoEditor({
   autoSaveRef,
   autoSaveTimerRef,
   cleanVersionIdRef,
-  issueByLineRef,
   setLoadedContentPreview,
   setIsDirty,
   handleSave,
@@ -34,7 +32,6 @@ export function useMonacoEditor({
   autoSaveRef: MutableRefObject<boolean>;
   autoSaveTimerRef: MutableRefObject<number | null>;
   cleanVersionIdRef: MutableRefObject<number | null>;
-  issueByLineRef: MutableRefObject<Map<number, string>>;
   setLoadedContentPreview: Dispatch<SetStateAction<string>>;
   setIsDirty: Dispatch<SetStateAction<boolean>>;
   handleSave: () => Promise<void>;
@@ -89,7 +86,6 @@ export function useMonacoEditor({
           if (autoSaveRef.current && dirty) {
             if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
             autoSaveTimerRef.current = window.setTimeout(() => {
-              // eslint-disable-next-line react-hooks/immutability -- 自动保存定时器回调，非渲染期触发保存
               if (filePathRef.current && editorRef.current) void handleSaveRef.current();
             }, 900);
           }
@@ -100,14 +96,6 @@ export function useMonacoEditor({
         if (filePathRef.current && isDirtyRef.current) {
           void handleSaveRef.current();
         }
-      });
-
-      editor.onMouseDown((event) => {
-        if (event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
-        const lineNumber = event.target.position?.lineNumber;
-        if (!lineNumber) return;
-        const issueId = issueByLineRef.current.get(lineNumber);
-        if (issueId) emitReviseIssue(issueId);
       });
     });
 

@@ -11,7 +11,7 @@ import { SettingsView } from './components/SettingsView';
 import { TauriFileSystem } from './lib/tauri-fs';
 import { createSampleStoryProject, initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
-import { emitExportCurrentFile, emitReviewCurrentFile } from './lib/assistant-events';
+import { emitExportCurrentFile } from './lib/assistant-events';
 import {
   loadAppSettings,
   saveAppSettings,
@@ -35,7 +35,6 @@ export function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
-  const [emptyWorkbenchVisible, setEmptyWorkbenchVisible] = useState(false);
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const appDialog = useAppDialog();
   const {
@@ -56,12 +55,10 @@ export function App() {
     prepareSettingsLayout,
   } = useShellLayout();
   const handleProjectSelected = useCallback(() => {
-    setEmptyWorkbenchVisible(false);
     setSettingsVisible(false);
     restoreFullLayout();
   }, [restoreFullLayout]);
   const handleWorkspaceFileSelected = useCallback(() => {
-    setEmptyWorkbenchVisible(false);
     setSettingsVisible(false);
     showEditorForFile();
   }, [showEditorForFile]);
@@ -111,7 +108,6 @@ export function App() {
       const projectPath = await createSampleStoryProject(selected);
       selectProject(projectPath);
       setProjectRefreshVersion((version) => version + 1);
-      setEmptyWorkbenchVisible(true);
       setSettingsVisible(false);
       showWorkbenchPanel();
     } catch (error) {
@@ -137,7 +133,6 @@ export function App() {
 
   const handleFileClose = useCallback(() => {
     closeFile();
-    setEmptyWorkbenchVisible(false);
   }, [closeFile]);
 
   const handleNewFile = useCallback(
@@ -195,7 +190,6 @@ export function App() {
       try {
         await initializeStoryProject(targetProject);
         setProjectRefreshVersion((version) => version + 1);
-        setEmptyWorkbenchVisible(true);
         setSettingsVisible(false);
         showWorkbenchPanel();
       } catch (error) {
@@ -277,7 +271,7 @@ export function App() {
 
   const projectName = activeProjectLabel(activeProject);
   const workbenchPanelVisible = workspaceVisible || editorVisible;
-  const welcomeVisible = !currentFile && !emptyWorkbenchVisible;
+  const welcomeVisible = !activeProject;
   const rightPanelVisible = !welcomeVisible && workbenchPanelVisible;
   const effectiveComposerMode: ComposerLayoutMode = welcomeVisible
     ? 'full'
@@ -335,7 +329,6 @@ export function App() {
                 onOpenSettings={openSettings}
                 onBrowseFiles={() => setPalette('files')}
                 onShowWorkbench={() => {
-                  setEmptyWorkbenchVisible(true);
                   showWorkbenchPanel();
                 }}
                 providerModel={settings.provider.model}
@@ -404,7 +397,6 @@ export function App() {
           onOpenFile={handleFileSelect}
           onOpenProject={handleOpenProject}
           onInitializeProject={handleInitializeStoryProject}
-          onReviewCurrent={() => emitReviewCurrentFile()}
           onExportCurrent={() => emitExportCurrentFile()}
           onToggleAssistant={() => {
             markCustomLayout();

@@ -82,12 +82,12 @@ export type ContextAppendResult = {
 
 export type StableAgentRequestPayload = {
   project_path: string;
-  current_file: string;
-  file_path: string;
-  content: string;
+  current_file?: string;
+  file_path?: string;
+  content?: string;
   instruction: string;
-  context: string;
-  selection: string;
+  context?: string;
+  selection?: string;
   project_name: string | null;
   assistant_session_id: number | null;
   context_bundle: ReturnType<typeof import('../../lib/api-client').toAssistantContextBundlePayload>;

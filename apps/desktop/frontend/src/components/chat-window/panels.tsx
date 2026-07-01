@@ -1,5 +1,4 @@
 import { useState } from 'react';
-
 import {
   semanticKindLabel,
   type ContextBundle,
@@ -9,15 +8,7 @@ import { AgentStepsPanel } from '../AgentStepsPanel';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
 import type { AgentRunRecoveryDisplay } from './recovery';
-import { reviewCategoryLabel } from './review';
-import type {
-  AgentRun,
-  AgentRunControlHandlers,
-  Message,
-  ReviewCategory,
-  ReviewIssue,
-  WritingRunProjection,
-} from './types';
+import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
 
 export function ConversationHeader({ title }: { title: string }) {
   return (
@@ -50,10 +41,6 @@ export function MessageList({
   missingContextPaths,
   onAddContext,
   onTogglePinnedContext,
-  reviewIssues,
-  onReviseIssue,
-  onReviseIssues,
-  onReviseCategory,
   agentRunControls,
 }: {
   messages: Message[];
@@ -71,10 +58,6 @@ export function MessageList({
   missingContextPaths: string[];
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
-  reviewIssues: ReviewIssue[];
-  onReviseIssue: (issue: ReviewIssue) => void;
-  onReviseIssues: (issues: ReviewIssue[]) => void;
-  onReviseCategory: (category: ReviewCategory) => void;
   agentRunControls: AgentRunControlHandlers;
 }) {
   if (messages.length === 0) {
@@ -124,15 +107,6 @@ export function MessageList({
           onAddContext={onAddContext}
           onTogglePinnedContext={onTogglePinnedContext}
         />
-
-        {reviewIssues.length > 0 && (
-          <ReviewIssueActions
-            issues={reviewIssues}
-            onReviseIssue={onReviseIssue}
-            onReviseIssues={onReviseIssues}
-            onReviseCategory={onReviseCategory}
-          />
-        )}
       </div>
     </div>
   );
@@ -166,117 +140,6 @@ function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
   if (tone === 'waiting') return 'border-warning/40 bg-warning/10';
   if (tone === 'ok') return 'border-success/40 bg-success/10';
   return 'border-border bg-panel';
-}
-
-export function ReviewIssueActions({
-  issues,
-  onReviseIssue,
-  onReviseIssues,
-  onReviseCategory,
-}: {
-  issues: ReviewIssue[];
-  onReviseIssue: (issue: ReviewIssue) => void;
-  onReviseIssues: (issues: ReviewIssue[]) => void;
-  onReviseCategory: (category: ReviewCategory) => void;
-}) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [categoryFilter, setCategoryFilter] = useState<ReviewCategory | 'all'>('all');
-  const categories = Array.from(new Set(issues.map((issue) => issue.category)));
-  const visibleIssues =
-    categoryFilter === 'all' ? issues : issues.filter((issue) => issue.category === categoryFilter);
-  const selectedIssues = issues.filter((issue) => selectedIds.has(issue.id));
-  const toggleIssue = (issueId: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(issueId)) next.delete(issueId);
-      else next.add(issueId);
-      return next;
-    });
-  };
-  return (
-    <section
-      className="animate-slide-up-fade border-t border-border pt-4"
-      data-testid="review-issue-actions"
-    >
-      <div className="mb-2 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className={`h-7 rounded-md border px-2.5 text-xs ${categoryFilter === 'all' ? 'border-accent bg-accent text-accent-foreground' : 'border-border-strong text-foreground hover:bg-elevated'}`}
-          onClick={() => setCategoryFilter('all')}
-          data-testid="review-category-all"
-        >
-          全部
-        </button>
-        {categories.map((category) => (
-          <button
-            key={category}
-            type="button"
-            className={`h-7 rounded-md border px-2.5 text-xs ${categoryFilter === category ? 'border-accent bg-accent text-accent-foreground' : 'border-border-strong text-foreground hover:bg-elevated'}`}
-            onClick={() => setCategoryFilter(category)}
-            data-testid={`review-category-${category}`}
-          >
-            {reviewCategoryLabel(category)}
-          </button>
-        ))}
-        {categories.map((category) => (
-          <button
-            key={`revise-${category}`}
-            type="button"
-            className="h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
-            onClick={() => onReviseCategory(category)}
-            data-testid={`review-revise-category-${category}`}
-          >
-            只修{reviewCategoryLabel(category)}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={selectedIssues.length === 0}
-          onClick={() => onReviseIssues(selectedIssues)}
-          data-testid="review-revise-selected"
-        >
-          修选中问题
-        </button>
-      </div>
-      <div className="flex flex-col gap-2">
-        {visibleIssues.map((issue) => (
-          <div
-            key={issue.id}
-            className="rounded-md border border-border bg-panel px-3 py-2"
-            data-testid="review-issue"
-            data-issue-id={issue.id}
-          >
-            <div className="flex min-w-0 items-start gap-3">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 flex-shrink-0"
-                checked={selectedIds.has(issue.id)}
-                onChange={() => toggleIssue(issue.id)}
-                aria-label={`选择 ${issue.id}`}
-                data-testid="review-issue-checkbox"
-                data-issue-id={issue.id}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-semibold text-foreground">
-                  {issue.id} · {reviewCategoryLabel(issue.category)} · {issue.severity}
-                </div>
-                <p className="mt-1 text-xs leading-5 text-muted">{issue.message}</p>
-                <p className="mt-1 text-xs leading-5 text-subtle">{issue.suggestedAction}</p>
-              </div>
-              <button
-                type="button"
-                className="h-7 flex-shrink-0 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent"
-                onClick={() => onReviseIssue(issue)}
-              >
-                只修此条
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 export function AgentRunControlBar({

@@ -12,8 +12,6 @@ import {
   emitReviewIssues,
   emitSuggestionResult,
   flushActiveEditorToDisk,
-  REVIEW_CURRENT_EVENT,
-  REVISE_ISSUE_EVENT,
   SUGGESTION_RESULT_EVENT,
   type AuthorLoopResult,
   type SuggestionResult,
@@ -91,8 +89,6 @@ import { buildStableAgentRequestPayload } from './chat-window/request-payload';
 import { buildAgentRunRecoveryDisplay, type AgentRunRecoveryDisplay } from './chat-window/recovery';
 import {
   extractIssueScopeFromInstruction,
-  reviewCategoryLabel,
-  reviewIssueForCurrentFile,
   reviewIssuesFromReport,
   reviewReportFromMessage,
   reviewReportSummary,
@@ -106,8 +102,6 @@ import type {
   ContextAppendResult,
   Message,
   RetryRequest,
-  ReviewCategory,
-  ReviewIssue,
   ReviewReport,
   StableAgentRequestPayload,
   WritingRunProjection,
@@ -126,7 +120,6 @@ export {
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
-  reviewIssueForCurrentFile,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
   displayFromResumeDiagnostic,
@@ -314,7 +307,6 @@ export function ChatWindow({
   useEffect(() => {
     let cancelled = false;
     if (!assistantSessionId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 会话切空时同步重置会话派生态，React18 合法模式
       setMessages([]);
       setConversationTitle('新的创作会话');
       setLastReviewReport(null);
@@ -343,7 +335,6 @@ export function ChatWindow({
 
   useEffect(() => {
     if (!projectPath) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步重置上下文派生态，React18 合法模式
       setContextCandidates([]);
       setLastContextBundle(null);
       setMissingContextPaths([]);
@@ -368,7 +359,6 @@ export function ChatWindow({
   }, [projectPath]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 当前文件变化时同步重置上下文/审稿派生态，React18 合法模式
     setLastContextBundle(null);
     setMissingContextPaths([]);
     setContextPickerOpen(false);
@@ -619,9 +609,11 @@ export function ChatWindow({
       }
 
       const writebackOnly = action === 'file.writeback';
+      const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
       const file = currentFileRef.current;
       const ref = contextRefRef.current;
+      const requiresCurrentFile = writebackOnly || exportOnly || intent === 'file.revise';
       if (!project) {
         setMessages((prev) => [
           ...prev,
@@ -634,20 +626,48 @@ export function ChatWindow({
         ]);
         return;
       }
-      if (!file || !ref) {
+      if (requiresCurrentFile && (!file || !ref)) {
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: writebackOnly
-              ? '当前没有待写回的修订。'
-              : '我需要先看到右侧当前稿件。打开正文文件后，我会按你的问题来审、聊或给方案。',
+            content:
+              writebackOnly || intent === 'file.revise'
+                ? '当前没有可写回或可定向修订的稿件。要改某一章，先在右侧打开那份正文；如果只是讨论项目，直接问我就行。'
+                : '导出需要先在右侧打开一份当前稿。',
           },
         ]);
         return;
       }
 
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const initialSteps: AgentStep[] = [
+        {
+          id: 'context',
+          title: '准备项目上下文',
+          tool: 'desktop.context_bundle',
+          status: 'pending',
+          detail: '等待读取项目上下文',
+        },
+        ...(file && ref
+          ? [
+              {
+                id: 'draft',
+                title: '同步当前稿件',
+                tool: 'desktop.file',
+                status: 'pending' as const,
+                detail: `等待读取 ${ref}`,
+              },
+            ]
+          : []),
+        {
+          id: 'orchestrate',
+          title: '发送给 StoryForge Agent',
+          tool: 'ide.agent.websocket',
+          status: 'pending',
+          detail: '等待后端响应',
+        },
+      ];
       agentRunIdRef.current = runId;
       setAgentBusy(true);
       setRetryRequest(null);
@@ -657,53 +677,7 @@ export function ChatWindow({
         sessionId: runId,
         goal,
         status: 'running',
-        steps: [
-          {
-            id: 'plan',
-            title: '理解目标并制定步骤',
-            tool: 'agent.orchestrator',
-            status: 'pending',
-            detail: '等待后端 Agent 编排',
-          },
-          {
-            id: 'context',
-            title: '扫描项目上下文',
-            tool: 'project.context',
-            status: 'pending',
-            detail: '等待执行',
-          },
-          {
-            id: 'draft',
-            title: '读取当前稿件',
-            tool: 'filesystem.read_file',
-            status: 'pending',
-            detail: '等待执行',
-          },
-          {
-            id: 'orchestrate',
-            title: '调用 Agent Orchestrator',
-            tool: 'ide.agent.websocket',
-            status: 'pending',
-            detail: '等待执行',
-          },
-          {
-            id: 'approval',
-            title: '等待作者确认并收口',
-            tool: 'author.approval',
-            status: 'pending',
-            detail: '等待执行',
-          },
-        ],
-      });
-
-      const exportOnly = action === 'file.export';
-      updateAgentStep('plan', {
-        status: 'completed',
-        detail: exportOnly
-          ? '目标判断为导出当前稿'
-          : writebackOnly
-            ? '目标判断为确认写回当前待审补丁'
-            : '目标交给后端 Agent Orchestrator 判定',
+        steps: initialSteps,
       });
 
       try {
@@ -714,7 +688,6 @@ export function ChatWindow({
           });
           updateAgentStep('draft', { status: 'completed', detail: '复用作者已查看的 diff' });
           updateAgentStep('orchestrate', { status: 'completed', detail: '无需后端重新生成修订' });
-          updateAgentStep('approval', { status: 'running', detail: '正在写回当前待审补丁' });
           emitAcceptCurrentFileSuggestion();
           updateAgentStatus('waiting');
           return;
@@ -722,7 +695,7 @@ export function ChatWindow({
 
         updateAgentStep('context', {
           status: 'running',
-          detail: '读取大纲、人物、设定、世界观、时间线和伏笔摘要',
+          detail: '读取项目大纲、人物、设定、时间线和作者显式 @上下文',
         });
         const contextRefs = Array.from(
           new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
@@ -753,13 +726,16 @@ export function ChatWindow({
           ]);
         }
 
-        updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
-        await flushActiveEditorToDisk(file);
-        const content = await TauriFileSystem.readFile(file);
-        updateAgentStep('draft', {
-          status: 'completed',
-          detail: `当前稿件 ${content.length} 字符，约 ${content.split(/\n\s*\n/).filter(Boolean).length} 段`,
-        });
+        let content: string | null = null;
+        if (file && ref) {
+          updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
+          await flushActiveEditorToDisk(file);
+          content = await TauriFileSystem.readFile(file);
+          updateAgentStep('draft', {
+            status: 'completed',
+            detail: `当前稿件 ${content.length} 字符，约 ${content.split(/\n\s*\n/).filter(Boolean).length} 段`,
+          });
+        }
 
         if (exportOnly) {
           updateAgentStep('orchestrate', {
@@ -774,7 +750,10 @@ export function ChatWindow({
 
         updateAgentStep('orchestrate', {
           status: 'running',
-          detail: '发送原文、当前稿和项目上下文，等待后端判定意图',
+          detail:
+            content === null
+              ? '发送项目上下文，等待后端生成对话回复'
+              : '发送当前稿和项目上下文，等待后端判定意图',
         });
         const payload = buildStableAgentRequestPayload({
           projectPath: project,
@@ -879,20 +858,6 @@ export function ChatWindow({
                 status: response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
                 steps: [
                   {
-                    id: 'context',
-                    title: '扫描项目上下文',
-                    tool: 'project.context',
-                    status: 'completed',
-                    detail: `载入 ${contextBundle.files.length} 个上下文文件`,
-                  },
-                  {
-                    id: 'draft',
-                    title: '读取当前稿件',
-                    tool: 'filesystem.read_file',
-                    status: 'completed',
-                    detail: `当前稿件 ${content.length} 字符`,
-                  },
-                  {
                     id: 'orchestrate',
                     title: '整理回复',
                     tool: 'ide.agent.websocket',
@@ -900,17 +865,17 @@ export function ChatWindow({
                     detail: `intent=${response.intent}；assistant_session=${response.assistant_session_id}`,
                   },
                   ...agentSteps,
-                  {
-                    id: 'approval',
-                    title: '等待作者确认并收口',
-                    tool: 'author.approval',
-                    status: response.agent_result.requires_user_confirmation
-                      ? 'waiting'
-                      : 'completed',
-                    detail: response.agent_result.requires_user_confirmation
-                      ? '等待作者在右侧 diff 面板确认'
-                      : '无需写回确认',
-                  },
+                  ...(response.agent_result.requires_user_confirmation
+                    ? [
+                        {
+                          id: 'approval',
+                          title: '等待作者确认',
+                          tool: 'author.approval',
+                          status: 'waiting' as const,
+                          detail: '等待作者在右侧 diff 面板确认',
+                        },
+                      ]
+                    : []),
                 ],
               }
             : run,
@@ -947,9 +912,12 @@ export function ChatWindow({
         const reviewSummary = reviewReportSummary(response);
         if (reviewSummary) {
           const reviewReportForMarkers = reviewReportFromMessage(response);
+          const reviewedFile = filePathFromAgentResult(response) ?? file;
           setLastReviewReport(reviewReportForMarkers);
-          setLastReviewReportFile(file);
-          emitReviewIssues(file, reviewIssuesFromReport(reviewReportForMarkers));
+          setLastReviewReportFile(reviewedFile);
+          if (reviewedFile) {
+            emitReviewIssues(reviewedFile, reviewIssuesFromReport(reviewReportForMarkers));
+          }
           setMessages((prev) => [...prev, { role: 'assistant', content: reviewSummary }]);
           updateAgentStatus('completed');
           return;
@@ -988,49 +956,6 @@ export function ChatWindow({
     setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
     void runAuthorAgent(retryRequest.goal, retryRequest.action, retryRequest.intent);
   }, [agentBusy, retryRequest, runAuthorAgent]);
-
-  const reviseReviewIssue = useCallback(
-    (issue: ReviewIssue) => {
-      const ask = `只修 ${issue.id}：${issue.message}`;
-      setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-      void runAuthorAgent(ask, undefined, 'file.revise');
-    },
-    [runAuthorAgent],
-  );
-
-  const reviseSelectedReviewIssues = useCallback(
-    (issues: ReviewIssue[]) => {
-      if (issues.length === 0) return;
-      const ask = `修选中问题：${issues.map((issue) => issue.id).join(' ')}。`;
-      setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-      void runAuthorAgent(ask, undefined, 'file.revise');
-    },
-    [runAuthorAgent],
-  );
-
-  const reviseReviewCategory = useCallback(
-    (category: ReviewCategory) => {
-      const ask = `只修${reviewCategoryLabel(category)}问题`;
-      setMessages((prev) => [...prev, { role: 'user', content: ask }]);
-      void runAuthorAgent(ask, undefined, 'file.revise');
-    },
-    [runAuthorAgent],
-  );
-
-  useEffect(() => {
-    const onReviseIssue = (event: Event) => {
-      const detail = (event as CustomEvent<{ issueId: string }>).detail;
-      const issue = reviewIssueForCurrentFile(
-        lastReviewReport,
-        detail?.issueId,
-        lastReviewReportFile,
-        currentFileRef.current,
-      );
-      if (issue) reviseReviewIssue(issue);
-    };
-    window.addEventListener(REVISE_ISSUE_EVENT, onReviseIssue);
-    return () => window.removeEventListener(REVISE_ISSUE_EVENT, onReviseIssue);
-  }, [lastReviewReport, lastReviewReportFile, reviseReviewIssue]);
 
   const sendAgentRunControl = useCallback(
     async (type: AgentControlMessageType) => {
@@ -1116,27 +1041,6 @@ export function ChatWindow({
     onResumeRun: () => void sendAgentRunControl('resume_run'),
     onStopRun: () => void sendAgentRunControl('stop_run'),
   };
-
-  // 命令面板触发"审查当前文件"
-  useEffect(() => {
-    const onReview = () => {
-      const ref = contextRefRef.current;
-      if (!ref) return;
-      const ask = `审查 ${ref} 的结构与节奏`;
-      setConversationTitle(deriveConversationTitle(ask));
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: ask },
-        {
-          role: 'assistant',
-          content: `可以。我按商业连载节奏看，重点检查冲突进入、信息密度和章尾钩子。\n\n我会先看当前稿和项目上下文；这轮只给判断和建议，不直接写回文件。`,
-        },
-      ]);
-      void runAuthorAgent(ask);
-    };
-    window.addEventListener(REVIEW_CURRENT_EVENT, onReview);
-    return () => window.removeEventListener(REVIEW_CURRENT_EVENT, onReview);
-  }, [runAuthorAgent]);
 
   // 右侧 Editor 回传真实修订结果
   useEffect(() => {
@@ -1291,10 +1195,6 @@ export function ChatWindow({
         missingContextPaths={missingContextPaths}
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
-        reviewIssues={reviewIssuesFromReport(lastReviewReport)}
-        onReviseIssue={reviseReviewIssue}
-        onReviseIssues={reviseSelectedReviewIssues}
-        onReviseCategory={reviseReviewCategory}
         agentRunControls={agentRunControls}
       />
 

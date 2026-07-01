@@ -1402,9 +1402,17 @@ fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("运行 Tauri 应用时出错");
-
-    // 应用退出时清理
-    manager.lock().unwrap().shutdown();
+        .build(tauri::generate_context!())
+        .expect("构建 Tauri 应用时出错")
+        .run(move |_app_handle, event| {
+            // 应用退出（含关闭最后一个窗口）时清理子进程；
+            // 必须在 RunEvent 里做，`.run()` 之后的尾代码在正常退出路径上不保证执行，
+            // 否则打包后端 sidecar 会成为孤儿进程，占用文件锁/端口，导致重装删不掉 exe。
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                manager.lock().unwrap().shutdown();
+            }
+        });
 }

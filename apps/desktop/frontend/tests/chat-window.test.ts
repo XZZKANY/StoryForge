@@ -12,7 +12,6 @@ import {
   displayFromResumeDiagnostic,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
-  reviewIssueForCurrentFile,
   reviewIssuesFromReport,
   shouldApplyAgentControlAck,
   scopeWarningFromAgentResult,
@@ -21,6 +20,7 @@ import {
   WritingRunProgressPanel,
   writingRunIdFromResult,
 } from '../src/components/ChatWindow';
+import { reviewIssueForCurrentFile } from '../src/components/chat-window/review';
 import type { AgentRunSavePointProjection } from '../src/lib/api-client';
 
 const reviewReport = {
@@ -136,6 +136,44 @@ test('stable agent request payload carries project, file, content, selection, se
   assert.equal(payload.assistant_session_id, 42);
   assert.deepEqual(payload.selected_issue_ids, ['character-1']);
   assert.equal(payload.context_bundle?.files[0].relative_path, '人物\\林岚.md');
+});
+
+test('stable agent request payload omits file content when project-only chat is used', () => {
+  const payload = buildStableAgentRequestPayload({
+    projectPath: 'D:\\Books\\雾港回声',
+    currentFile: null,
+    content: null,
+    instruction: '聊一下这本书的主线冲突',
+    projectName: '雾港回声',
+    assistantSessionId: null,
+    reviewReport: null,
+    contextBundle: {
+      projectRoot: 'D:\\Books\\雾港回声',
+      currentFile: null,
+      summary: {
+        hasStoryStructure: true,
+        counts: {
+          outline: 1,
+          character: 1,
+          setting: 0,
+          timeline: 0,
+          foreshadowing: 0,
+          draft: 1,
+          quality: 0,
+          export: 0,
+          other: 0,
+        },
+      },
+      files: [],
+    },
+  });
+
+  assert.equal(payload.current_file, undefined);
+  assert.equal(payload.file_path, undefined);
+  assert.equal(payload.content, undefined);
+  assert.equal(payload.context, undefined);
+  assert.equal(payload.selection, undefined);
+  assert.equal(payload.context_bundle?.current_file, undefined);
 });
 
 test('managed Writing Run mock SSE progress renders lightweight tool progress', () => {

@@ -23,7 +23,6 @@ type CommandPaletteProps = {
   onOpenFile: (path: string) => void;
   onOpenProject: () => void;
   onInitializeProject: () => void;
-  onReviewCurrent: () => void;
   onExportCurrent: () => void;
   onToggleAssistant: () => void;
   onToggleWorkspace: () => void;
@@ -53,7 +52,6 @@ export function CommandPalette({
   onOpenFile,
   onOpenProject,
   onInitializeProject,
-  onReviewCurrent,
   onExportCurrent,
   onToggleAssistant,
   onToggleWorkspace,
@@ -105,12 +103,6 @@ export function CommandPalette({
     }
     if (currentFile) {
       list.push({
-        id: 'review-current',
-        title: '审查当前文件',
-        hint: relativeToProject(projectPath, currentFile),
-        run: onReviewCurrent,
-      });
-      list.push({
         id: 'export-current',
         title: '导出当前稿',
         hint: relativeToProject(projectPath, currentFile),
@@ -131,7 +123,6 @@ export function CommandPalette({
     projectPath,
     onOpenProject,
     onInitializeProject,
-    onReviewCurrent,
     onExportCurrent,
     onToggleAssistant,
     onToggleWorkspace,

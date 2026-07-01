@@ -6,7 +6,7 @@ export function toAssistantContextBundlePayload(
   if (!contextBundle) return null;
   return {
     project_root: contextBundle.projectRoot,
-    current_file: contextBundle.currentFile,
+    ...(contextBundle.currentFile ? { current_file: contextBundle.currentFile } : {}),
     files: contextBundle.files.map((file) => ({
       path: file.path,
       relative_path: file.relativePath,

@@ -97,7 +97,6 @@ export function Editor({
   };
   const cleanVersionIdRef = useRef<number | null>(null);
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
-  const issueByLineRef = useRef<Map<number, string>>(new Map());
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
   // 用 ref 持有最新值，避免 Monaco 命令/回调闭包读到旧状态。
@@ -163,14 +162,11 @@ export function Editor({
     const model = editor?.getModel();
     if (!editor || !model) return;
     const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-    const issueByLine = new Map<number, string>();
     for (const issue of issues) {
       const range = locateEvidence(model, issue.evidence);
       if (!range) continue;
       decorations.push({ range, options: issueDecorationOptions(issue) });
-      issueByLine.set(range.startLineNumber, issue.id);
     }
-    issueByLineRef.current = issueByLine;
     if (issueDecorationsRef.current) {
       issueDecorationsRef.current.set(decorations);
     } else {
@@ -226,7 +222,6 @@ export function Editor({
     autoSaveRef,
     autoSaveTimerRef,
     cleanVersionIdRef,
-    issueByLineRef,
     setLoadedContentPreview,
     setIsDirty,
     handleSave,

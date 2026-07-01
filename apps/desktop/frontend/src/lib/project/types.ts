@@ -49,7 +49,7 @@ export type ContextBundleFile = {
 
 export type ContextBundle = {
   projectRoot: string;
-  currentFile: string;
+  currentFile: string | null;
   files: ContextBundleFile[];
   summary: ProjectSemanticSummary;
   budget: ContextBundleBudget;
