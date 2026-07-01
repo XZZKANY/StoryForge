@@ -143,6 +143,9 @@ _BATCH_LIMIT = parse_limit("10/minute")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
+    # 打包桌面 app 的 webview 源固定为 tauri://localhost 或 http(s)://tauri.localhost，
+    # 与开发 Vite 端口不同，必须放行，否则前端 fetch 后端会 CORS 失败（Failed to fetch）。
+    allow_origin_regex=r"^(tauri://localhost|https?://tauri\.localhost)$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["content-type", "x-storyforge-api-key", "authorization"],
