@@ -15,7 +15,6 @@ function renderCommands(projectPath: string | null) {
       onOpenFile: () => {},
       onOpenProject: () => {},
       onInitializeProject: () => {},
-      onReviewCurrent: () => {},
       onExportCurrent: () => {},
       onToggleAssistant: () => {},
       onToggleWorkspace: () => {},

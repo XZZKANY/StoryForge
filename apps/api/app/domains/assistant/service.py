@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Mapping
+from typing import Any
 from urllib import error, request
 
 from sqlalchemy import select
@@ -201,6 +202,89 @@ def _build_revise_prompt(payload: AssistantReviseRequest) -> str:
         f"{payload.content}\n"
         "FILE>>>"
     )
+
+
+_CHAT_SYSTEM_PROMPT = (
+    "你是 StoryForge 的中文长篇小说创作助手，在作者的整个项目上协作。"
+    "作者会围绕这个项目（大纲、人物、设定、时间线、各章正文）跟你对话——提问、讨论走向、让你审读或出主意。"
+    "依据提供的项目上下文回答；上下文不足以支撑结论时，直说你还需要看哪些文件或章节，不要编造情节、人物或设定。"
+    "回答用简洁自然的中文，直接说事，不堆前后缀，也不要整段回抄原文。"
+)
+
+
+def _build_chat_prompt(user_message: str, context_block: str) -> str:
+    if context_block:
+        return (
+            "以下是当前项目的上下文摘录（可能不完整，仅供理解作者在写什么）：\n"
+            f"{context_block}\n\n"
+            f"作者：{user_message}"
+        )
+    return f"（暂无项目上下文摘录。）\n\n作者：{user_message}"
+
+
+def chat_reply(
+    session: Session,
+    *,
+    user_message: str,
+    context_block: str,
+    assistant_session_id: int,
+) -> dict[str, Any]:
+    """就项目做一次真实 LLM 对话回复，并落工具调用证据链。
+
+    LLM 未配置或调用失败时明确抛错，不伪造兜底内容。"""
+
+    llm_env = resolved_llm_env()
+    missing = missing_book_generation_env()
+    if missing:
+        raise AssistantLlmNotConfiguredError(missing)
+
+    tool_call = create_assistant_tool_call(
+        session,
+        assistant_session_id,
+        AssistantToolCallCreate(
+            tool_name="assistant.chat",
+            status="running",
+            input_summary={
+                "message": user_message[:500],
+                "context_chars": len(context_block),
+            },
+        ),
+    )
+
+    try:
+        result = _call_llm(
+            llm_env,
+            system_prompt=_CHAT_SYSTEM_PROMPT,
+            user_prompt=_build_chat_prompt(user_message, context_block),
+        )
+    except BookGenerationError as exc:
+        update_assistant_tool_call(
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+        )
+        raise AssistantReviseError(str(exc)) from exc
+
+    reply = str(result["content"]).strip()
+    model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
+    update_assistant_tool_call(
+        session,
+        tool_call.id,
+        AssistantToolCallUpdate(
+            status="completed",
+            output_summary={
+                "reply_chars": len(reply),
+                "model": model,
+                "completion_tokens": result.get("completion_tokens"),
+            },
+        ),
+    )
+    return {
+        "reply": reply,
+        "model": model,
+        "completion_tokens": result.get("completion_tokens"),
+        "latency_ms": int(result.get("latency_ms", 0) or 0),
+    }
 
 
 def revise_file_content(session: Session, payload: AssistantReviseRequest) -> AssistantReviseResponse:

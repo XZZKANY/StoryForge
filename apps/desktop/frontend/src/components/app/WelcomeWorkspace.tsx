@@ -36,11 +36,11 @@ export function AgentWorkspace({
 }) {
   return (
     <div className="flex h-full min-w-0 flex-col">
-      {!currentFile && (
+      {!projectPath && (
         <TopRightTools exposeExpandTestId={exposeWorkspaceToggle} onToggle={onRestoreLayout} />
       )}
       <div className="min-h-0 flex-1">
-        {currentFile ? (
+        {projectPath ? (
           <ChatWindow
             projectPath={projectPath}
             currentFile={currentFile}

@@ -24,7 +24,7 @@ export type ReviseRequest = {
   assistantSessionId?: number | null;
   contextBundle?: {
     projectRoot: string;
-    currentFile: string;
+    currentFile: string | null;
     files: Array<{
       path: string;
       relativePath: string;
@@ -48,7 +48,9 @@ export type ReviseRequest = {
   } | null;
 };
 
-export type AssistantContextBundlePayload = ApiAssistantContextBundle;
+export type AssistantContextBundlePayload = Omit<ApiAssistantContextBundle, 'current_file'> & {
+  current_file?: string | null;
+};
 
 export type ReviseResult = {
   before: string;

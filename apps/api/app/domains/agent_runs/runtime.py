@@ -135,6 +135,12 @@ class AgentRuntime:
         user_message = _message_text(message)
         args = _message_args(message)
         intent = _detect_intent(user_message, args, message.get("intent"))
+        # 项目级对话解绑当前文件：需要文件的 intent 若没带 file_path，降级为对话，
+        # 避免 context.load 因缺文件而崩（P1「对话统领项目」）。
+        # 只看 file_path：resume 重建的消息只回传 file_path（正文靠 pending call 续跑），
+        # 若一并要求 content 会把 file.review 的 resume 误降级成 chat.explain。
+        if intent in ("file.review", "file.revise") and _optional_string(args.get("file_path")) is None:
+            intent = "chat.explain"
         try:
             assistant_session = _resolve_assistant_session(session, user_message=user_message, message=message, args=args)
             if intent == "chat.explain":
@@ -296,13 +302,27 @@ class AgentRuntime:
         user_message: str,
         args: dict[str, Any],
     ) -> dict[str, Any]:
-        context = _compact_text(args.get("context") or args.get("selection") or args.get("content"), limit=900)
-        answer = "我可以解释当前上下文、评审结果或命令执行计划。" if not context else f"这段上下文的核心是：{context}"
         assistant_service.append_assistant_message(
             session,
             assistant_session_id,
             AssistantMessageCreate(role="user", content=user_message),
         )
+        context_block = _chat_context_block(args)
+        try:
+            chat = assistant_service.chat_reply(
+                session,
+                user_message=user_message,
+                context_block=context_block,
+                assistant_session_id=assistant_session_id,
+            )
+            answer = chat["reply"] or "（模型这轮没返回内容，换个说法再问我一次？）"
+        except assistant_service.AssistantLlmNotConfiguredError:
+            answer = (
+                "还没配置模型服务，所以我现在只能收到你的话、还答不了。"
+                "去设置里填好 LLM 服务商和 key，再来问我就行。"
+            )
+        except assistant_service.AssistantReviseError as exc:
+            answer = f"这轮没答上来：{_compact_text(str(exc), limit=300)}"
         assistant_service.append_assistant_message(
             session,
             assistant_session_id,
@@ -313,7 +333,7 @@ class AgentRuntime:
             assistant_session_id=assistant_session_id,
             intent="chat.explain",
             user_message=user_message,
-            plan=[_plan_step("respond", "解释用户问题，不执行写命令。", "completed")],
+            plan=[_plan_step("respond", "就项目上下文作答，不执行写命令。", "completed")],
             agent_result={"summary": answer, "requires_user_confirmation": False},
             tool_trace=[],
             role_hints=_role_hints(args),
@@ -1732,6 +1752,28 @@ def _pop_runtime_internal_markers(result: dict[str, Any]) -> None:
 
 def _plan_step(step: str, detail: str, status: str) -> dict[str, str]:
     return {"step": step, "detail": detail, "status": status}
+
+
+def _chat_context_block(args: dict[str, Any]) -> str:
+    """从前端项目上下文 bundle 拼一段供对话用的摘录；无 bundle 时返回空串。"""
+    bundle = args.get("context_bundle")
+    if not isinstance(bundle, dict):
+        return ""
+    files = bundle.get("files")
+    if not isinstance(files, list):
+        return ""
+    entries: list[str] = []
+    for item in files:
+        if not isinstance(item, dict):
+            continue
+        excerpt = _compact_text(item.get("excerpt"), limit=1500)
+        if not excerpt:
+            continue
+        rel = _optional_string(item.get("relative_path")) or _optional_string(item.get("path")) or "（未命名）"
+        kind = _optional_string(item.get("kind"))
+        header = f"### {rel}" + (f"（{kind}）" if kind else "")
+        entries.append(f"{header}\n<<<\n{excerpt}\n>>>")
+    return "\n\n".join(entries)
 
 
 def _required_string(args: dict[str, Any], key: str) -> str:

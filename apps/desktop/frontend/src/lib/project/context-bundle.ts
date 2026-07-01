@@ -18,8 +18,8 @@ type ContextBundleCacheEntry = {
 
 const contextBundleCache = new Map<string, ContextBundleCacheEntry>();
 
-function contextPriority(file: SemanticFile, currentFile: string): number {
-  if (file.path === currentFile) return 99;
+function contextPriority(file: SemanticFile, currentFile: string | null): number {
+  if (currentFile && file.path === currentFile) return 99;
   const kindPriority: Record<SemanticKind, number> = {
     outline: 0,
     character: 1,
@@ -53,7 +53,7 @@ function pinnedIndexByPath(file: SemanticFile, projectPath: string, pinnedFiles:
 
 export function selectContextBundleFiles(params: {
   index: ProjectIndex;
-  currentFile: string;
+  currentFile: string | null;
   maxFiles: number;
   pinnedFiles?: string[];
 }): {
@@ -63,7 +63,7 @@ export function selectContextBundleFiles(params: {
 } {
   const { index, currentFile, maxFiles, pinnedFiles = [] } = params;
   const eligible = index.files
-    .filter((file) => file.path !== currentFile)
+    .filter((file) => !currentFile || file.path !== currentFile)
     .filter((file) => file.kind !== 'export' && file.kind !== 'quality');
   const pinnedMatches = new Set<string>();
   const pinned = eligible
@@ -104,7 +104,7 @@ export function selectContextBundleFiles(params: {
 
 export async function buildContextBundle(params: {
   projectPath: string;
-  currentFile: string;
+  currentFile: string | null;
   maxFiles?: number;
   maxExcerptChars?: number;
   pinnedFiles?: string[];
@@ -118,7 +118,7 @@ export async function buildContextBundle(params: {
   } = params;
   const cacheKey = [
     normalizeRoot(projectPath),
-    currentFile,
+    currentFile ?? '',
     maxFiles,
     maxExcerptChars,
     ...pinnedFiles.map((item) => item.trim()).sort(),

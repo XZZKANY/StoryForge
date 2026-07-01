@@ -18,7 +18,14 @@ export async function requestRevision(request: ReviseRequest): Promise<ReviseRes
     instruction: request.instruction,
     project_name: request.projectName ?? null,
     assistant_session_id: request.assistantSessionId ?? null,
-    context_bundle: toAssistantContextBundlePayload(request.contextBundle),
+    context_bundle: toAssistantContextBundlePayload(
+      request.contextBundle
+        ? {
+            ...request.contextBundle,
+            currentFile: request.contextBundle.currentFile ?? request.filePath,
+          }
+        : null,
+    ) as ApiAssistantReviseRequest['context_bundle'],
   };
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/revise`, {
     method: 'POST',
