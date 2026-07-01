@@ -5,6 +5,32 @@ import {
   RECENT_PROJECTS_KEY,
   saveProjectAssistantSessions,
 } from './helpers';
+import { isTauriRuntime } from '../../lib/tauri-env';
+import { TauriFileSystem } from '../../lib/tauri-fs';
+
+/** 过滤掉磁盘上已不存在的路径；校验出错时保守保留，避免误删有效项。 */
+async function filterExistingPaths(paths: string[]): Promise<string[]> {
+  const checked = await Promise.all(
+    paths.map(async (path) => {
+      try {
+        return (await TauriFileSystem.pathExists(path)) ? path : null;
+      } catch {
+        return path;
+      }
+    }),
+  );
+  return checked.filter((path): path is string => path !== null);
+}
+
+function parseStringList(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw) as unknown;
+    return Array.isArray(list) ? (list as string[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function useProjectWorkspace({
   onProjectSelected,
@@ -22,29 +48,40 @@ export function useProjectWorkspace({
   );
 
   useEffect(() => {
-    const savedProjects = localStorage.getItem(RECENT_PROJECTS_KEY);
-    const savedFiles = localStorage.getItem(RECENT_FILES_KEY);
+    const projectList = parseStringList(localStorage.getItem(RECENT_PROJECTS_KEY));
+    const fileList = parseStringList(localStorage.getItem(RECENT_FILES_KEY));
 
-    if (savedProjects) {
-      try {
-        const list = JSON.parse(savedProjects) as string[];
-        if (Array.isArray(list)) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- 启动时从 localStorage 恢复项目列表，React18 合法模式
-          setProjects(list);
-          if (list.length > 0) setActiveProject(list[0]);
-        }
-      } catch {
-        // Ignore corrupted cache.
-      }
+    // 非 Tauri 运行时（浏览器/测试）无真实文件系统可校验，按旧行为直接恢复。
+    if (!isTauriRuntime()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 启动时从 localStorage 恢复，React18 合法模式
+      setProjects(projectList);
+      if (projectList.length > 0) setActiveProject(projectList[0]);
+      setRecentFiles(fileList);
+      return;
     }
-    if (savedFiles) {
-      try {
-        const list = JSON.parse(savedFiles) as string[];
-        if (Array.isArray(list)) setRecentFiles(list);
-      } catch {
-        // Ignore corrupted cache.
+
+    // Tauri 桌面端：剔除磁盘上已不存在的最近项目/文件（如被清理的 smoke 临时项目），
+    // 避免死链堆在项目库里，并防止启动时自动打开一个不存在的项目。
+    let cancelled = false;
+    void (async () => {
+      const [existingProjects, existingFiles] = await Promise.all([
+        filterExistingPaths(projectList),
+        filterExistingPaths(fileList),
+      ]);
+      if (cancelled) return;
+      setProjects(existingProjects);
+      setActiveProject(existingProjects[0] ?? null);
+      setRecentFiles(existingFiles);
+      if (existingProjects.length !== projectList.length) {
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(existingProjects));
       }
-    }
+      if (existingFiles.length !== fileList.length) {
+        localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(existingFiles));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectProject = useCallback(
