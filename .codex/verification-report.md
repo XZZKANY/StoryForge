@@ -4607,3 +4607,17 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - 其余全量 `uv run pytest`（排除上述已跑文件）→ 669 passed / 3 skipped。合计全套 785 passed。
   - `uv run ruff check` → 通过。
 - **未验 / 不外推**：真·LLM tool-calling 实跑（真实 provider 对 tools 的行为、回落路径）未在本轮验证；循环暂不支持 pause/resume 边界（旧 chat 单轮路径本也没有）；前端流程树仍含预制骨架步骤（PR-C 处理）。
+
+## Agent loop PR-C：前端流程树全事件驱动，删预制骨架步骤（2026-07-02）
+
+- **背景**：三步计划第三步。此前 `runAuthorAgent` 预制 context/draft/orchestrate 三个前端骨架步骤并手动推状态，流程树「半演」；用户 2026-07-01 笔记明确要 Claude Code 式真实流程树。PR-B 后 chat 循环逐工具回传真实 plan/tool_trace 事件，骨架步骤失去存在理由。
+- **改动（apps/desktop/frontend）**：
+  - `ChatWindow.tsx`：`runAuthorAgent` 初始 steps 改为空数组，步骤只来自后端 plan/tool_trace 事件；删除全部 context/draft/orchestrate 的 `updateAgentStep` 编排（含错误路径与 catch）；写回确认与导出改为纯本地动作提前返回、不再创建 agent run；最终结果不再拼装「整理回复」伪步骤（`stepsFromAgentResult` 直出真实 plan+tool 步骤，approval 确认步保留——那是真实待确认态）；`agent_run_started` 不再映射伪步骤；Editor 回传修订结果时删除对已不存在 `revise` 步骤 id 的更新。
+  - `display-utils.ts`：`runStatusText` 删除对 context/draft/orchestrate 死 id 的特判。
+  - **`verify-agent-conversation.mjs` 双重陈旧修复**（该门禁在 master 上本已失效、与本轮改动无关）：①等待「扫描项目上下文」——但 `planStepTitle('context-agent')` 早已改名「选择上下文」，脚本从未同步；②勾选式 issue 面板（`review-issue-checkbox` 等 testid）已在 PR #46 删除，脚本仍在点击。重写断言为：等待事件驱动步骤「选择上下文」+ 最终 plan detail `mock context`（流式 detail 会被 agent_result 替换属预期）；显式断言四个前端伪步骤标题不出现；删除勾选流与第二条消息断言；保留首条消息完整 payload 契约断言（project_path/current_file/content/context_bundle/stream/run_id/pinned budget/excerpt）。
+- **证据**：
+  - `npm run typecheck` → 干净。
+  - `npm run test` → 93 pass / 0 fail。
+  - `npm run verify:agent-conversation` → **passed**（真 vite + playwright chromium；修复前在 master 基线同样命令失败于等待「扫描项目上下文」超时，已用 git stash 对照验证为先前存在问题）。
+  - `pnpm.cmd lint` → 0 error（回到基线仅剩 Editor.tsx 先前存在的 exhaustive-deps warning），prettier 通过。
+- **未验 / 不外推**：真机 Tauri GUI 下事件驱动流程树的观感（步骤到达节奏、真 LLM 工具循环多轮渲染）未验证；chapter.review / bookrun 等旧管线的步骤呈现路径未改动。

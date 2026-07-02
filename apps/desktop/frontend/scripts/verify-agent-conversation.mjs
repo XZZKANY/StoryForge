@@ -252,21 +252,24 @@ try {
     throw new Error('Expected user message to render as a right-side bubble');
   }
 
-  await page.getByText('扫描项目上下文').waitFor({ timeout: 5000 });
-  await page.getByText('mock streamed context step').waitFor({ timeout: 5000 });
+  // 流程树必须全事件驱动：步骤只来自后端 plan/tool_trace（mock 的 step 'context-agent'
+  // 映射标题「选择上下文」，流式 detail 会被 agent_result 的最终 plan detail 'mock context'
+  // 替换），不再出现前端预制骨架步骤。
+  await page.getByText('选择上下文').first().waitFor({ timeout: 5000 });
+  await page.getByText('mock context').first().waitFor({ timeout: 5000 });
   const bodyText = await page.locator('[data-testid="assistant-panel"]').innerText();
-  if (!bodyText.includes('扫描项目上下文') || !(bodyText.includes('调用 Agent Orchestrator') || bodyText.includes('整理回复'))) {
-    throw new Error(`Expected Agent execution steps to render in the conversation:\n${bodyText}`);
+  if (!bodyText.includes('选择上下文') || !bodyText.includes('mock context')) {
+    throw new Error(`Expected event-driven Agent steps to render in the conversation:\n${bodyText}`);
   }
-  await page.getByTestId('review-issue-actions').waitFor({ timeout: 5000 });
-  await page.locator('[data-testid="review-issue"][data-issue-id="character-1"]').waitFor({ timeout: 5000 });
-  await page.locator('[data-testid="review-issue-checkbox"][data-issue-id="character-1"]').check();
-  await page.getByTestId('review-revise-selected').click();
-  await page.waitForFunction(() => (window.__STORYFORGE_AGENT_MESSAGES__ ?? []).length >= 2, null, { timeout: 5000 });
+  for (const fabricated of ['准备项目上下文', '同步当前稿件', '发送给 StoryForge Agent', '整理回复']) {
+    if (bodyText.includes(fabricated)) {
+      throw new Error(`Expected no frontend-fabricated step "${fabricated}" in the conversation:\n${bodyText}`);
+    }
+  }
+  await page.waitForFunction(() => (window.__STORYFORGE_AGENT_MESSAGES__ ?? []).length >= 1, null, { timeout: 5000 });
 
   const payloads = await page.evaluate(() => window.__STORYFORGE_AGENT_MESSAGES__);
   const firstArgs = payloads[0]?.args;
-  const secondArgs = payloads[1]?.args;
   if (firstArgs?.project_path !== smokeProjectPath) {
     throw new Error(`Expected Agent payload project_path to match project: ${JSON.stringify(firstArgs)}`);
   }
@@ -287,9 +290,6 @@ try {
   }
   if (!String(firstArgs.context_bundle.files[0]?.excerpt ?? '').includes('害怕再次失去证据')) {
     throw new Error(`Expected context bundle to include character file excerpt: ${JSON.stringify(firstArgs.context_bundle.files)}`);
-  }
-  if (!Array.isArray(secondArgs?.selected_issue_ids) || secondArgs.selected_issue_ids[0] !== 'character-1') {
-    throw new Error(`Expected issue action to send selected issue id: ${JSON.stringify(secondArgs)}`);
   }
   if (bodyText.includes('你\n审一下第三章')) {
     throw new Error('Expected user bubble to omit user name label');

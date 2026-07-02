@@ -66,11 +66,7 @@ import {
   deriveConversationTitle,
   titleFromSystemJobs,
 } from './chat-window/conversation-utils';
-import {
-  contextBudgetText,
-  runStatusText,
-  selectedContextPreview,
-} from './chat-window/display-utils';
+import { runStatusText } from './chat-window/display-utils';
 import {
   ConversationHeader,
   AgentRunRecoveryPanel,
@@ -510,10 +506,7 @@ export function ChatWindow({
   const applyAgentStreamEvent = useCallback(
     (message: AgentSocketMessage) => {
       if (isAgentRunStartedMessage(message)) {
-        updateAgentStep('orchestrate', {
-          status: 'running',
-          detail: `Agent run ${message.run_id} 已开始`,
-        });
+        // 步骤树全事件驱动后，run 开始本身不再映射为独立步骤。
         return;
       }
       if (isAgentStepEventMessage(message)) {
@@ -588,7 +581,7 @@ export function ChatWindow({
         void refreshAgentRunRecovery(message.run_id);
       }
     },
-    [refreshAgentRunRecovery, updateAgentStep],
+    [refreshAgentRunRecovery],
   );
 
   const runAuthorAgent = useCallback(
@@ -642,63 +635,32 @@ export function ChatWindow({
         return;
       }
 
+      // 写回确认与导出是纯本地动作：不创建 agent run，直接交给编辑器事件流。
+      if (writebackOnly) {
+        emitAcceptCurrentFileSuggestion();
+        return;
+      }
+      if (exportOnly) {
+        if (file) await flushActiveEditorToDisk(file);
+        emitExportCurrentFile();
+        return;
+      }
+
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const initialSteps: AgentStep[] = [
-        {
-          id: 'context',
-          title: '准备项目上下文',
-          tool: 'desktop.context_bundle',
-          status: 'pending',
-          detail: '等待读取项目上下文',
-        },
-        ...(file && ref
-          ? [
-              {
-                id: 'draft',
-                title: '同步当前稿件',
-                tool: 'desktop.file',
-                status: 'pending' as const,
-                detail: `等待读取 ${ref}`,
-              },
-            ]
-          : []),
-        {
-          id: 'orchestrate',
-          title: '发送给 StoryForge Agent',
-          tool: 'ide.agent.websocket',
-          status: 'pending',
-          detail: '等待后端响应',
-        },
-      ];
       agentRunIdRef.current = runId;
       setAgentBusy(true);
       setRetryRequest(null);
       setAgentRunRecovery(null);
+      // 流程树全事件驱动：不预制前端骨架步骤，步骤只来自后端 plan/tool_trace 事件。
       setAgentRun({
         id: runId,
         sessionId: runId,
         goal,
         status: 'running',
-        steps: initialSteps,
+        steps: [],
       });
 
       try {
-        if (writebackOnly) {
-          updateAgentStep('context', {
-            status: 'completed',
-            detail: '确认写回不重新读取项目上下文',
-          });
-          updateAgentStep('draft', { status: 'completed', detail: '复用作者已查看的 diff' });
-          updateAgentStep('orchestrate', { status: 'completed', detail: '无需后端重新生成修订' });
-          emitAcceptCurrentFileSuggestion();
-          updateAgentStatus('waiting');
-          return;
-        }
-
-        updateAgentStep('context', {
-          status: 'running',
-          detail: '读取项目大纲、人物、设定、时间线和作者显式 @上下文',
-        });
         const contextRefs = Array.from(
           new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
         );
@@ -714,10 +676,6 @@ export function ChatWindow({
         const contextBundle = appendedContext.bundle;
         setLastContextBundle(contextBundle);
         setMissingContextPaths(appendedContext.missingPaths);
-        updateAgentStep('context', {
-          status: 'completed',
-          detail: `${contextBudgetText(contextBundle)}；${selectedContextPreview(contextBundle)}`,
-        });
         if (appendedContext.missingPaths.length > 0) {
           setMessages((prev) => [
             ...prev,
@@ -730,33 +688,10 @@ export function ChatWindow({
 
         let content: string | null = null;
         if (file && ref) {
-          updateAgentStep('draft', { status: 'running', detail: `读取 ${ref}` });
           await flushActiveEditorToDisk(file);
           content = await TauriFileSystem.readFile(file);
-          updateAgentStep('draft', {
-            status: 'completed',
-            detail: `当前稿件 ${content.length} 字符，约 ${content.split(/\n\s*\n/).filter(Boolean).length} 段`,
-          });
         }
 
-        if (exportOnly) {
-          updateAgentStep('orchestrate', {
-            status: 'completed',
-            detail: '无需后端修订，进入导出动作',
-          });
-          updateAgentStep('approval', { status: 'running', detail: '正在导出当前稿' });
-          emitExportCurrentFile();
-          updateAgentStatus('waiting');
-          return;
-        }
-
-        updateAgentStep('orchestrate', {
-          status: 'running',
-          detail:
-            content === null
-              ? '发送项目上下文，等待后端生成对话回复'
-              : '发送当前稿和项目上下文，等待后端判定意图',
-        });
         const payload = buildStableAgentRequestPayload({
           projectPath: project,
           currentFile: file,
@@ -783,7 +718,6 @@ export function ChatWindow({
         });
 
         if (isAgentErrorMessage(response)) {
-          updateAgentStep('orchestrate', { status: 'failed', detail: response.detail });
           updateAgentStatus('failed');
           setRetryRequest({ goal, action, intent });
           setMessages((prev) => [
@@ -796,7 +730,6 @@ export function ChatWindow({
 
         if (!isAgentResultMessage(response)) {
           const detail = `Agent 返回了暂不支持的消息：${response.type}`;
-          updateAgentStep('orchestrate', { status: 'failed', detail });
           updateAgentStatus('failed');
           setRetryRequest({ goal, action, intent });
           setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
@@ -859,13 +792,6 @@ export function ChatWindow({
                 ...run,
                 status: response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
                 steps: [
-                  {
-                    id: 'orchestrate',
-                    title: '整理回复',
-                    tool: 'ide.agent.websocket',
-                    status: 'completed',
-                    detail: `intent=${response.intent}；assistant_session=${response.assistant_session_id}`,
-                  },
                   ...agentSteps,
                   ...(response.agent_result.requires_user_confirmation
                     ? [
@@ -934,7 +860,6 @@ export function ChatWindow({
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        updateAgentStep('orchestrate', { status: 'failed', detail: message });
         updateAgentStatus('failed');
         setRetryRequest({ goal, action });
         setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
@@ -948,7 +873,6 @@ export function ChatWindow({
       onAssistantSessionChange,
       projectName,
       updateAgentStatus,
-      updateAgentStep,
       refreshAgentRunRecovery,
     ],
   );
@@ -1055,10 +979,6 @@ export function ChatWindow({
           ? `已生成对 \`${ref ?? result.filePath}\` 的 AI 修订，请在右侧查看 diff，可接受、拒绝或保存旁注。`
           : `AI 修订失败：${result.message}`;
       if (agentRunIdRef.current) {
-        updateAgentStep('revise', {
-          status: result.status === 'ready' ? 'completed' : 'failed',
-          detail: result.message,
-        });
         updateAgentStep('approval', {
           status: result.status === 'ready' ? 'waiting' : 'failed',
           detail: result.status === 'ready' ? '等待作者在右侧 diff 面板确认' : result.message,
