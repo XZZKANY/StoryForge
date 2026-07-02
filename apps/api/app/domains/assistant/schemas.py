@@ -141,6 +141,25 @@ class AssistantReviseResponse(BaseModel):
     assistant_session_id: int
 
 
+class AssistantDraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_path: str = Field(min_length=1, max_length=1024)
+    instruction: str = Field(min_length=1, max_length=4000)
+    project_name: str | None = Field(default=None, max_length=255)
+    assistant_session_id: int | None = Field(default=None, gt=0)
+    context_bundle: AssistantContextBundle | None = None
+
+
+class AssistantDraftResponse(BaseModel):
+    content: str
+    summary: str
+    model: str
+    latency_ms: int
+    completion_tokens: int | None
+    assistant_session_id: int
+
+
 class ProviderHealthResponse(BaseModel):
     """探测后端实际使用的模型服务连通性（resolved_llm_env），仅用于诊断展示，绝不回显凭据。"""
 

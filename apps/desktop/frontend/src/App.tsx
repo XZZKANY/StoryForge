@@ -11,7 +11,8 @@ import { SettingsView } from './components/SettingsView';
 import { TauriFileSystem } from './lib/tauri-fs';
 import { createSampleStoryProject, initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
-import { emitExportCurrentFile } from './lib/assistant-events';
+import { APPLY_FILE_SUGGESTION_EVENT, emitExportCurrentFile } from './lib/assistant-events';
+import type { AssistantFileSuggestion } from './lib/assistant-suggestions';
 import {
   loadAppSettings,
   saveAppSettings,
@@ -161,6 +162,25 @@ export function App() {
       handleFileSelect(path);
     });
   }, [handleFileSelect]);
+
+  // Agent 补丁可能指向未打开（甚至尚不存在）的文件：自动打开目标文件，
+  // 编辑器加载完成后经 takePendingFileSuggestion 领取补丁进入确认面板。
+  useEffect(() => {
+    const normalize = (path: string) => path.replace(/\\/g, '/');
+    const onSuggestion = (event: Event) => {
+      const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
+      if (!suggestion?.filePath || !activeProject) return;
+      const target = normalize(suggestion.filePath);
+      const projectPrefix = normalize(activeProject).replace(/\/+$/, '') + '/';
+      if (!target.startsWith(projectPrefix)) return;
+      if (currentFile && normalize(currentFile) === target) return;
+      handleFileSelect(suggestion.filePath);
+    };
+    window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
+    return () => {
+      window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
+    };
+  }, [activeProject, currentFile, handleFileSelect]);
 
   const handleFileClose = useCallback(() => {
     closeFile();

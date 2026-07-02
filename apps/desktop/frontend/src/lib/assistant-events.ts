@@ -36,7 +36,15 @@ export function emitExportCurrentFile(): void {
   }
 }
 
+/**
+ * 最近一条未被编辑器消费的补丁建议。
+ * Agent 补丁可能指向未打开（甚至尚不存在）的文件：事件发出时目标编辑器还没就绪，
+ * 先缓冲在这里，等 App 自动打开目标文件、编辑器加载完成后再领取。
+ */
+let pendingFileSuggestion: AssistantFileSuggestion | null = null;
+
 export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
+  pendingFileSuggestion = suggestion;
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
       new CustomEvent<AssistantFileSuggestion>(APPLY_FILE_SUGGESTION_EVENT, {
@@ -44,6 +52,16 @@ export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
       }),
     );
   }
+}
+
+/** 编辑器就绪后领取指向该文件的待处理补丁建议（一次性，领取即清空）。 */
+export function takePendingFileSuggestion(filePath: string | null): AssistantFileSuggestion | null {
+  if (!filePath || !pendingFileSuggestion || pendingFileSuggestion.filePath !== filePath) {
+    return null;
+  }
+  const suggestion = pendingFileSuggestion;
+  pendingFileSuggestion = null;
+  return suggestion;
 }
 
 export function emitAcceptCurrentFileSuggestion(): void {

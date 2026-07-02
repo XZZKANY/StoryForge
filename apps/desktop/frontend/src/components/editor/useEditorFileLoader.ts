@@ -12,6 +12,7 @@ export function useEditorFileLoader({
   issueDecorationsRef,
   filePathRef,
   resetSuggestionWriteback,
+  adoptPendingSuggestion,
   setLoadedContentPreview,
   setIsDirty,
   setShowHistory,
@@ -23,6 +24,7 @@ export function useEditorFileLoader({
   issueDecorationsRef: MutableRefObject<monaco.editor.IEditorDecorationsCollection | null>;
   filePathRef: MutableRefObject<string | null>;
   resetSuggestionWriteback: () => void;
+  adoptPendingSuggestion: (path: string | null) => void;
   setLoadedContentPreview: (preview: string) => void;
   setIsDirty: (dirty: boolean) => void;
   setShowHistory: (show: boolean) => void;
@@ -64,7 +66,15 @@ export function useEditorFileLoader({
 
     const loadFile = async () => {
       try {
-        const content = await TauriFileSystem.readFile(filePath);
+        // 文件尚不存在时按"新文件"空内容打开（Agent 起草补丁的目标文件在确认写回前不落盘）；
+        // pathExists 不可用（如浏览器 smoke mock 未提供）时回退旧行为，交给 readFile 决定。
+        let exists = true;
+        try {
+          exists = await TauriFileSystem.pathExists(filePath);
+        } catch {
+          exists = true;
+        }
+        const content = exists ? await TauriFileSystem.readFile(filePath) : '';
         if (loadRequestIdRef.current !== requestId || filePathRef.current !== filePath) {
           return;
         }
@@ -78,6 +88,7 @@ export function useEditorFileLoader({
         setIsDirty(false);
         setLoadedFilePath(filePath);
         setLoadedContentPreview(content.slice(0, 120));
+        adoptPendingSuggestion(filePath);
       } catch (err) {
         if (loadRequestIdRef.current !== requestId || filePathRef.current !== filePath) {
           return;
@@ -90,6 +101,7 @@ export function useEditorFileLoader({
 
     void loadFile();
   }, [
+    adoptPendingSuggestion,
     cleanVersionIdRef,
     editorRef,
     filePath,

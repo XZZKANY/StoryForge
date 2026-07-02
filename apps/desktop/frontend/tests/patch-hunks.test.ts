@@ -105,3 +105,20 @@ test('insertion hunks relocate by context after an earlier hunk changes length',
   const afterInsertion = applyPatchHunkToCurrent(afterFirstHunk, hunks[1]);
   assert.equal(afterInsertion, after);
 });
+
+test('new file patch (empty before) builds insertion-only hunks and applies to empty current', () => {
+  const before = '';
+  const after = ['第三章 灯下拓片', '', '沈青梧把铜镜放到灯下。', ''].join('\n');
+
+  const hunks = buildPatchHunks(before, after);
+
+  assert.ok(hunks.length >= 1);
+  assert.ok(hunks.every((hunk) => hunk.removedLines === 0));
+  assert.ok(hunks.every((hunk) => hunk.beforeText === ''));
+
+  let current = before;
+  for (const hunk of hunks) {
+    current = applyPatchHunkToCurrent(current, hunk);
+  }
+  assert.equal(current, after);
+});

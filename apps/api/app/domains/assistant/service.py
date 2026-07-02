@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.common.exceptions import DomainError, NotFoundError
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.assistant.schemas import (
+    AssistantDraftRequest,
+    AssistantDraftResponse,
     AssistantMessageCreate,
     AssistantReviseRequest,
     AssistantReviseResponse,
@@ -376,6 +378,123 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     return AssistantReviseResponse(
         before=payload.content,
         after=after,
+        summary=summary,
+        model=model,
+        latency_ms=latency_ms,
+        completion_tokens=completion_tokens if isinstance(completion_tokens, int) else None,
+        assistant_session_id=assistant_session.id,
+    )
+
+
+_DRAFT_SYSTEM_PROMPT = (
+    "你是 StoryForge 的中文长篇小说作者。"
+    "用户会给你一个新文件的路径与写作指令，请为这个文件起草完整初稿。"
+    "严格贴合指令与随附的项目上下文，保持既有人物、设定与大纲的连贯性，不要引入项目里不存在的设定。"
+    "只输出正文内容，不要输出解释、前后缀或代码块标记。"
+)
+
+
+def _build_draft_prompt(payload: AssistantDraftRequest) -> str:
+    project_line = f"项目：{payload.project_name}\n" if payload.project_name else ""
+    context_block = ""
+    if payload.context_bundle and payload.context_bundle.files:
+        context_entries = []
+        for item in payload.context_bundle.files:
+            context_entries.append(
+                "\n".join(
+                    [
+                        f"### {item.relative_path}",
+                        f"- 类型：{item.kind}",
+                        "<<<CONTEXT",
+                        item.excerpt,
+                        "CONTEXT>>>",
+                    ]
+                )
+            )
+        context_block = (
+            "\n项目上下文摘录：这些文件来自同一小说项目，起草时保持大纲、人物、设定与既有正文连贯。\n"
+            + "\n\n".join(context_entries)
+            + "\n"
+        )
+    return (
+        f"{project_line}新文件路径：{payload.file_path}\n"
+        f"{context_block}"
+        f"写作指令：{payload.instruction}\n"
+        "请输出该文件的完整初稿正文。"
+    )
+
+
+def draft_file_content(session: Session, payload: AssistantDraftRequest) -> AssistantDraftResponse:
+    """按指令为一个尚不存在的文件起草初稿，落会话与工具调用证据链。
+
+    LLM 未配置或调用失败时明确抛错，不伪造兜底内容；本函数不写盘，写回由前端补丁确认承担。"""
+
+    llm_env = resolved_llm_env()
+    missing = missing_book_generation_env()
+    if missing:
+        raise AssistantLlmNotConfiguredError(missing)
+
+    if payload.assistant_session_id is not None:
+        assistant_session = get_assistant_session(session, payload.assistant_session_id)
+    else:
+        assistant_session = create_assistant_session(
+            session,
+            AssistantSessionCreate(
+                title=f"起草 {payload.file_path}"[:160],
+                task_type="desktop_draft",
+                messages=[AssistantMessageCreate(role="user", content=payload.instruction)],
+            ),
+        )
+
+    tool_call = create_assistant_tool_call(
+        session,
+        assistant_session.id,
+        AssistantToolCallCreate(
+            tool_name="assistant.draft",
+            status="running",
+            input_summary={
+                "file_path": payload.file_path,
+                "instruction": payload.instruction[:500],
+                "context_file_count": len(payload.context_bundle.files) if payload.context_bundle else 0,
+            },
+        ),
+    )
+
+    try:
+        result = _call_llm(
+            llm_env,
+            system_prompt=_DRAFT_SYSTEM_PROMPT,
+            user_prompt=_build_draft_prompt(payload),
+        )
+    except BookGenerationError as exc:
+        update_assistant_tool_call(
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+        )
+        raise AssistantReviseError(str(exc)) from exc
+
+    content = str(result["content"])
+    model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
+    completion_tokens = result.get("completion_tokens")
+    latency_ms = int(result.get("latency_ms", 0) or 0)
+    summary = f"已起草 {payload.file_path} 初稿，约 {len(content)} 字。"
+
+    update_assistant_tool_call(
+        session,
+        tool_call.id,
+        AssistantToolCallUpdate(
+            status="completed",
+            output_summary={
+                "content_chars": len(content),
+                "completion_tokens": completion_tokens,
+                "latency_ms": latency_ms,
+            },
+        ),
+    )
+
+    return AssistantDraftResponse(
+        content=content,
         summary=summary,
         model=model,
         latency_ms=latency_ms,
