@@ -19,7 +19,9 @@
 
 StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段（当前项目真相边界：2026-07-02）。产品契约为：StoryForge = Cursor for Fiction（2026-06-24 拍板：作者辅助 IDE，不是自动长篇生产器）；`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场（2026-06-21 已完成退场收口），不再作为维护、调试、兼容或契约验证入口。2026-06-30 起交互中枢定向为 Claude Code/Codex 式对话 agent：批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
 
-2026-07-01 以来已合并的收口（PR #42-#46）：单色调明暗双主题 UI 改版；私测 Alpha 单机后端（PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar）；中间交互区收口为对话式 Agent，`chat.explain` 从演示 echo 接上真·LLM，对话从文件级解绑为项目级会话。但当前桌面 Agent 仍是自然语言意图路由 + 固定管线：没有项目级 fs 工具（列文件 / 读任意文件 / 跨文件检索），上下文由前端预组装塞入；流程树的 plan / tool_trace 事件为真实回传，但仍存在前端预制骨架步骤；下一步核心升级是工具循环（Agent loop）。
+2026-07-01 以来已合并的收口（PR #42-#46）：单色调明暗双主题 UI 改版；私测 Alpha 单机后端（PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar）；中间交互区收口为对话式 Agent，`chat.explain` 从演示 echo 接上真·LLM，对话从文件级解绑为项目级会话。
+
+2026-07-02 已合并（PR #47-#51）：事实源刷新与 phase9 红测修复；左栏会话历史列表接 `GET /api/assistant/sessions`（`assistant_sessions` 增 `project_path`）+ 欢迎页输入框接真发送；Agent loop 三步落地——path-scoped 只读 fs 工具（`fs.list` / `fs.read` / `fs.search`，越界防护）、chat 自由文本走 LLM 工具循环（最多 8 轮、工具输出预算、失败回落单轮、逐调用证据链）、前端流程树全事件驱动（删预制骨架步骤）。注意边界：工具循环目前只覆盖 chat 自由文本，审稿 / 修订 / 写作任务等显式 intent 仍走固定管线；真·LLM tool-calling 实跑未验证，仍靠单测 + TestClient 证据。
 
 Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff / patch 审阅 -> 冲突保护 -> 用户确认真实写回 -> 版本记录与 author-loop 记录。长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 只作为 managed full-book run 的内部兼容实现，保留长程生成、审计和导出能力，但不作为主产品控制台。
 
@@ -38,6 +40,8 @@ Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff /
 - **Desktop IDE Agent Phase 2**：Agent WebSocket 支持 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 事件流；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files。
 - **Desktop 对话式 Agent（2026-07-01，PR #46）**：对话为项目级会话（按项目路径存 session，切换文件不丢对话，消息持久化于 `assistant_sessions` / `assistant_messages`）；`chat.explain` 调 `assistant_service.chat_reply` 走真·LLM 并落 `assistant.chat` 工具调用证据链，LLM 未配置或失败时明确回话、不伪造；勾选式 issue 面板已删除，修订呈现收敛为 PatchReviewPanel diff 确认。
 - **私测 Alpha 单机后端（2026-07-01，PR #43/#44）**：sidecar exe 可脱离 docker/venv 独立起服（sqlite 自建 45 表、health ready）；BYO-key；`llm-provider.json` 写盘即生效、无需重启；`tauri build` NSIS 安装包正确内嵌 sidecar，release 默认拉起打包后端。
+- **会话历史与欢迎页接真（2026-07-02，PR #48）**：左栏展开项目即从 `GET /api/assistant/sessions?project_path=` 拉真实会话历史列表，可切换 / 新建会话；欢迎页中央输入框绑定 state 真发送，打开项目后自动发出首条 prompt。
+- **Agent loop（2026-07-02，PR #49/#50/#51）**：path-scoped 只读 `fs.list` / `fs.read` / `fs.search`（`../`、绝对路径、符号链接逃逸一律拒绝，无写接口）；chat 自由文本走 LLM 工具循环（OpenAI tool-calling，最多 8 轮 + 60K 工具输出预算，未知工具 / 参数错误 / 工具异常作为观测反馈不中断，首轮失败静默回落单轮，逐调用落 `assistant_tool_calls` 证据）；前端流程树全事件驱动，预制骨架步骤已删除；`verify-agent-conversation` 真浏览器门禁修复并复绿。写回红线不变：后端不写项目文件，修订仍走 proposed patch 前端确认。
 
 ## 真实 LLM 证据
 
@@ -71,15 +75,14 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 仍未完成的验收项
 
-- 跑通完整真实 Tauri 桌面端到端（现在入口是 NSIS 安装包双击装机路径）：打开项目 -> 对话 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 用户确认真实写回 -> 版本记录。现有 smoke 已覆盖写回护栏和版本元数据，但不能替代人工桌面端到端验收。
-- Desktop 对话体验收口：左栏会话历史列表（后端 `GET /api/assistant/sessions` 已有、桌面前端未接）、欢迎页中央输入框接真发送（当前为纯装饰、无 state 绑定）、方向键失灵真机复验。
-- Agent loop 核心升级：为 sidecar 后端增加 path-scoped 的 `fs.list` / `fs.read` / `fs.search` 只读工具（写回仍走 proposed patch 确认），用 LLM 工具循环替代关键词意图路由，删除前端预制骨架步骤、流程树全事件驱动。
-- 质量轨（后台）：基于 30 章人工通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并执行人工盲评（DoD 见下）；对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对，人工通读记录写入 `.codex/verification-report.md`；Q1-Q8 一致性能力逐步做成 agent 工具。
+- 跑通完整真实 Tauri 桌面端到端（现在入口是 NSIS 安装包双击装机路径）：打开项目 -> 对话（含工具循环流程树、会话历史列表、欢迎页首条 prompt、方向键复验）-> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 用户确认真实写回 -> 版本记录。现有 smoke 已覆盖写回护栏和版本元数据，但不能替代人工桌面端到端验收。
+- Agent loop 真·LLM 实跑验证：真实 provider 对 tool-calling 的行为、回落路径与多轮渲染观感；随后把审稿 / 修订等显式 intent 渐进并入工具循环（file.review / file.revise 作为循环内工具）。
+- 质量轨（后台）：基于 30 章人工通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并执行人工盲评（DoD 见下）；对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对，人工通读记录写入 `.codex/verification-report.md`；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环。
 - 视需要补齐生产级对象存储签名下载、多租户认证、真实 provider 长会话探针和 Desktop 内更长会话交互打磨。
 
 ## 禁止宣称范围
 
-在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及 Cursor for Fiction Phase 1/Phase 2 与对话式 Agent 收口的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。不得把当前意图路由式桌面 Agent 宣称为已具备自主工具循环的 agent；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
+在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及 Cursor for Fiction Phase 1/Phase 2、对话式 Agent 收口与 Agent loop（chat 工具循环）的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。chat 工具循环只有单测 + TestClient 证据：不得宣称真·LLM tool-calling 实跑验证通过，也不得宣称审稿 / 修订等显式 intent 已工具循环化；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
 
 ## 证据源
 
