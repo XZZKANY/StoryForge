@@ -37,7 +37,12 @@ _TOOL_NAME_MAP = {
     "project_consistency": "project.consistency",
     "file_review": "file.review",
     "file_revise": "file.revise",
+    "file_create": "file.create",
 }
+
+# 会产出待确认补丁的工具：一次对话最多一个补丁，生成后这些工具全部撤下。
+_PATCH_TOOLS = ("file.revise", "file.create")
+_PATCH_TOOL_LLM_NAMES = ("file_revise", "file_create")
 
 _REVIEW_FEEDBACK_MAX_ISSUES = 20
 _REVIEW_FEEDBACK_ISSUE_KEYS = ("id", "category", "severity", "code", "message", "suggested_action")
@@ -47,8 +52,9 @@ _SYSTEM_PROMPT = (
     "你可以调用只读工具查看项目文件：fs_list 列出文件，fs_read 读取文件内容，fs_search 跨文件检索。"
     "检查人物称谓、时间线或重复表达等一致性问题时，用 project_consistency 一次拿到全书观察信号"
     "（词条分布、时间标记、重复子句），再抽读原文核实后下结论。"
-    "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁。"
-    "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订已生效。"
+    "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁；"
+    "要求写新章节 / 新文件时用 file_create 起草（目标文件必须尚不存在，先看清项目结构选好路径）。"
+    "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订或新文件已生效。"
     "回答作者问题前，先用工具把需要的事实查清楚再作答，不要编造项目里不存在的内容；"
     "项目里查不到时直说查不到。工具结果可能被截断（truncated=true），"
     "需要更多内容就调整 offset 或缩小范围继续读。"
@@ -155,13 +161,31 @@ LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_create",
+            "description": (
+                "为项目内尚不存在的新文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。"
+                "目标文件已存在时会失败（改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的新文件路径（含目录与 .md 扩展名）。"},
+                    "instruction": {"type": "string", "description": "写作指令：写什么、篇幅、衔接哪些既有内容。"},
+                },
+                "required": ["path", "instruction"],
+            },
+        },
+    },
 ]
 
 
 def _offered_schemas(patch_created: bool) -> list[dict[str, Any]]:
     if not patch_created:
         return LOOP_TOOL_SCHEMAS
-    return [schema for schema in LOOP_TOOL_SCHEMAS if schema["function"]["name"] != "file_revise"]
+    return [schema for schema in LOOP_TOOL_SCHEMAS if schema["function"]["name"] not in _PATCH_TOOL_LLM_NAMES]
 
 
 class ChatLoopUnavailableError(RuntimeError):
@@ -229,7 +253,7 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "issue_count": len(report.get("issues") or []),
             "mode": report.get("mode"),
         }
-    if registry_name == "file.revise":
+    if registry_name in _PATCH_TOOLS:
         patch = output.get("proposed_patch") if isinstance(output.get("proposed_patch"), dict) else {}
         return {
             "file_path": output.get("file_path"),
@@ -371,8 +395,8 @@ def run_chat_loop(
             else:
                 failure = None
 
-            if failure is None and registry_name == "file.revise" and outcome.proposed_patch is not None:
-                failure = "一次对话最多生成一个待确认补丁：请先等作者处理当前补丁，再发起新的修订。"
+            if failure is None and registry_name in _PATCH_TOOLS and outcome.proposed_patch is not None:
+                failure = "一次对话最多生成一个待确认补丁：请先等作者处理当前补丁，再发起新的修订或起草。"
 
             evidence = assistant_service.create_assistant_tool_call(
                 session,
@@ -418,7 +442,7 @@ def run_chat_loop(
                 if isinstance(output.get("review_report"), dict):
                     outcome.review_report = output["review_report"]
                 feedback = _review_feedback(output)
-            elif registry_name == "file.revise":
+            elif registry_name in _PATCH_TOOLS:
                 if isinstance(output.get("proposed_patch"), dict):
                     outcome.proposed_patch = output["proposed_patch"]
                 feedback = _revise_feedback(output)

@@ -5,6 +5,7 @@ import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
   APPLY_FILE_SUGGESTION_EVENT,
   SUGGESTION_RESULT_EVENT,
+  takePendingFileSuggestion,
   type AuthorLoopResult,
   type SuggestionResult,
 } from '../../lib/assistant-events';
@@ -64,6 +65,8 @@ export function useSuggestionWriteback({
     const onSuggestion = (event: Event) => {
       const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
       if (!suggestion || suggestion.filePath !== filePathRef.current) return;
+      // 目标文件已打开：直接消费缓冲，避免切换文件后被重复领取。
+      takePendingFileSuggestion(suggestion.filePath);
       setPendingSuggestion(suggestion);
       setSuggestionStatus('');
     };
@@ -72,6 +75,15 @@ export function useSuggestionWriteback({
       window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     };
   }, [filePathRef]);
+
+  // 补丁指向的文件刚被（自动）打开时，从缓冲领取等待中的建议。
+  const adoptPendingSuggestion = useCallback((path: string | null) => {
+    const pending = takePendingFileSuggestion(path);
+    if (pending) {
+      setPendingSuggestion(pending);
+      setSuggestionStatus('');
+    }
+  }, []);
 
   const writeAcceptedSuggestion = useCallback(
     async (
@@ -311,6 +323,7 @@ export function useSuggestionWriteback({
   }, []);
 
   return {
+    adoptPendingSuggestion,
     handleAcceptHunk,
     handleAcceptSuggestion,
     handleSaveSuggestionNote,

@@ -79,6 +79,20 @@ def resolve_project_file(project_root: str, path: str) -> str:
     return str(target)
 
 
+def resolve_new_project_file(project_root: str, path: str) -> str:
+    """把「尚不存在的项目内相对路径」解析为绝对路径（越界拒绝），供新文件起草补丁使用。"""
+
+    if not isinstance(path, str) or not path.strip():
+        raise FsToolError("path 不能为空。")
+    root = _resolve_root(project_root)
+    target = _resolve_scoped(root, path)
+    if target == root or target.is_dir():
+        raise FsToolError(f"不是可创建的文件路径：{path}")
+    if target.exists():
+        raise FsToolError(f"文件已存在：{path}，请改用 file_revise 修订既有文件。")
+    return str(target)
+
+
 def fs_list(
     project_root: str,
     subpath: str | None = None,

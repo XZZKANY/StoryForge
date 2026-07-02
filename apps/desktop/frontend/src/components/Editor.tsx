@@ -112,6 +112,7 @@ export function Editor({
     selectBranch,
   } = useBranchManifest(projectPath, filePath);
   const {
+    adoptPendingSuggestion,
     handleAcceptHunk,
     handleAcceptSuggestion,
     handleSaveSuggestionNote,
@@ -152,6 +153,7 @@ export function Editor({
     issueDecorationsRef,
     filePathRef,
     resetSuggestionWriteback,
+    adoptPendingSuggestion,
     setLoadedContentPreview,
     setIsDirty,
     setShowHistory,

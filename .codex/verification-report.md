@@ -4671,3 +4671,25 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-consistency-20260702`）**：单条消息「检查全书称谓/时间线/重复表达一致性」→ deepseek-v4-flash 自主 fs.list → 读设定/大纲 → project.consistency → 回原文抽查（5 轮 / 7 工具 / 27.8s）；正确把「裴少卿 / 裴砚」判为叙述与对话的合理称谓分工而非冲突误报，时间线连续性与重复扫描结论经人工核对属实、无伪造问题；脱敏扫描无密钥。
 - **事实源同步**：current-phase / TODO / CLAUDE 增一致性工具边界（只报机械观察不下结论）与实跑证据；下一步改为剩余显式 intent 循环化 + 深度一致性能力（Character Bible / 语义 judge）工具化。
 - **未验 / 不外推**：大项目截断路径只有单测覆盖未实跑；`project.consistency` 不具备语义一致性判定能力（时间标记不解析先后关系）；单一 provider；真机 GUI 未验。
+
+## Agent loop：写作任务循环化——file.create 新文件起草补丁（跨栈）（2026-07-02）
+
+- **背景**：TODO 优先级 1 的「写作任务等剩余显式 intent 循环化」。对本地项目作者线，写作任务的真实形态是「对话起草新章节文件」而非 DB 绑定的 BookRun；chapter.review / bookrun.* 绑定 DB 实体且 BookRun 已定位后台工具，**记为决定不并入循环**（如需可再议）。
+- **后端改动**：
+  - `assistant/service.py` 新增 `draft_file_content`（起草导向 system prompt，`assistant.draft` 证据链，不写盘）+ `AssistantDraftRequest/Response` schema（不加 REST 路由，OpenAPI 零漂移）。
+  - `fs_tools.resolve_new_project_file`：尚不存在路径 → 越界拒绝的绝对路径（已存在 / 指向目录一律拒）。
+  - `runtime.py`：`file.create` handler（补丁 `kind=file_revision` + `created_by_tool=file.create` + `before=""`，复用前端既有补丁 kind 契约）；`_execute_tool` 豁免集加 file.create；loop 回调分支（LLM 只给 path+instruction，绝对路径后端解析）。
+  - `loop_runtime.py`：file_create schema + 名称映射；「一次对话一个补丁」守卫与工具撤下扩展为 `_PATCH_TOOLS`（revise+create 共享）；系统提示补新文件起草与红线。
+  - `tooling.py` / `role_catalog.py`：file.create spec（confirm / write_pending，root_agent）投影一致；`event_sink` 的 permission_required `blocked_tool` 按补丁 `created_by_tool` 标记（revise 缺省不变）。
+- **前端改动（补齐"补丁指向未打开文件"的既有缺口，新文件场景复用同一机制）**：
+  - `assistant-events.ts`：`emitFileSuggestion` 增待领取缓冲 + `takePendingFileSuggestion`（一次性领取）。
+  - `App.tsx`：Agent 补丁指向项目内未打开文件时自动打开目标文件。
+  - `useSuggestionWriteback.ts`：直接命中即消费缓冲；新增 `adoptPendingSuggestion` 供加载完成后领取。
+  - `useEditorFileLoader.ts`：文件不存在按新文件空内容打开（pathExists 不可用时回退旧行为）；加载完成领取待处理补丁。
+  - 下游零改动：Monaco 空 before diff、Tauri write_file 自动建父目录、版本快照 / author-loop、hunk 分块对空 before 均现状兼容（前端侦察结论 + 新增单测锁定）。
+- **证据**：
+  - 后端定向：`tests/test_agent_loop_runtime.py`（13 用例，新增 file.create 起草补丁暂停 + 已存在路径拒绝）+ runtime_tools/agent_runs/orchestrator/fs/consistency/assistant_sessions → 17 + 109 passed；全量其余 → **673 passed / 3 skipped / 0 failed**（本轮连已知 flake 未触发）；ruff 通过。
+  - 前端：typecheck 干净；单测 95 passed（新增待领取缓冲语义 + 空 before 纯插入 hunks）；`verify:agent-conversation` 真浏览器门禁通过。
+  - `pnpm.cmd lint` 0 error；phase9 事实钉 14 passed。
+- **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-create-20260702`）**：单条消息「写第三章」→ deepseek-v4-flash 8 轮 / 12 工具：读大纲设定前两章 → file.create 起草 488 字 → **自主 project.consistency 复核**；守住大纲约束（后幕身份未提前揭晓）；双重红线实证——盘上不落新文件 + 模型两次读未确认新文件被拒；脱敏无密钥。
+- **未验 / 不外推**：真机 GUI「自动打开新文件 + PatchReviewPanel 确认写回」观感未验（前端改动仅单测 + 浏览器 smoke 证据）；单一 provider；深度一致性（Character Bible / 语义 judge）未工具化——语义 judge 直读 os.getenv、不吃 llm-provider.json 覆盖链，迁 resolved_llm_env 后再挂。

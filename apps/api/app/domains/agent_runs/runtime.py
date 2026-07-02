@@ -69,6 +69,7 @@ from app.domains.agent_runs.tooling import (
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
+    AssistantDraftRequest,
     AssistantMessageCreate,
     AssistantReviseRequest,
     AssistantSessionCreate,
@@ -417,6 +418,11 @@ class AgentRuntime:
                     raise fs_tools.FsToolError("文件超过单次处理上限，请缩小范围（分章 / 拆文件）后再审稿或修订。")
                 payload["file_path"] = fs_tools.resolve_project_file(project_path, rel_path)
                 payload["content"] = read["content"]
+            elif registry_name == "file.create":
+                rel_path = _optional_string(payload.pop("path", None)) or _optional_string(arguments.get("file_path"))
+                if not rel_path:
+                    raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
+                payload["file_path"] = fs_tools.resolve_new_project_file(project_path, rel_path)
             else:
                 payload["project_root"] = project_path
             return self._execute_tool(registry_name, context, payload).output
@@ -1361,7 +1367,7 @@ class AgentRuntime:
     def _execute_tool(self, tool_name: str, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         tool = self._tool_registry.get(tool_name)
         decision = self._permission_gate.decide(context.run, tool)
-        if decision.status == "require_approval" and tool_name not in {"file.revise", "bookrun.start", "judge.repair"}:
+        if decision.status == "require_approval" and tool_name not in {"file.revise", "file.create", "bookrun.start", "judge.repair"}:
             raise AgentOrchestrationError(f"工具 {tool_name} 需要先获得权限确认：{decision.reason}")
         return tool.handler(context, payload)
 
@@ -1421,6 +1427,7 @@ class AgentRuntime:
             "project.consistency": self._project_consistency,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
+            "file.create": self._file_create,
             "judge.run": self._judge_run,
         }
         for command_id in (
@@ -1692,6 +1699,77 @@ class AgentRuntime:
                     **_llm_context_input_summary(payload.get("llm_context_snapshot")),
                 },
                 output_summary=revise_output_summary,
+            ),
+        )
+
+    def _file_create(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        file_path = _required_string(payload, "file_path")
+        instruction = _optional_string(payload.get("instruction")) or context.user_message
+        prompt_context_bundle = (
+            payload.get("llm_prompt_context_bundle")
+            if isinstance(payload.get("llm_prompt_context_bundle"), dict)
+            else payload.get("context_bundle") if isinstance(payload.get("context_bundle"), dict) else None
+        )
+        try:
+            response = assistant_service.draft_file_content(
+                context.session,
+                AssistantDraftRequest(
+                    file_path=file_path,
+                    instruction=instruction,
+                    project_name=_optional_string(payload.get("project_name")),
+                    assistant_session_id=context.assistant_session_id,
+                    context_bundle=prompt_context_bundle,
+                ),
+            )
+        except (
+            assistant_service.AssistantLlmNotConfiguredError,
+            assistant_service.AssistantReviseError,
+            assistant_service.AssistantSessionNotFoundError,
+        ) as exc:
+            raise AgentOrchestrationError(str(exc)) from exc
+
+        proposed_patch = {
+            "id": f"file-creation-{uuid.uuid4().hex}",
+            "kind": "file_revision",
+            "created_by_tool": "file.create",
+            "file_path": file_path,
+            "before": "",
+            "after": response.content,
+            "requires_confirmation": True,
+            "approval_action": "desktop.confirm_file_writeback",
+        }
+        output = {
+            "file_path": file_path,
+            "before": "",
+            "after": response.content,
+            "summary": response.summary,
+            "model": response.model,
+            "latency_ms": response.latency_ms,
+            "completion_tokens": response.completion_tokens,
+            "assistant_session_id": response.assistant_session_id,
+            "proposed_patch": proposed_patch,
+        }
+        return ToolResult(
+            status="completed",
+            output=output,
+            summary=response.summary,
+            payload={"proposed_patch": proposed_patch},
+            artifacts=(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True),),
+            metrics={
+                "content_chars": len(response.content),
+                "completion_tokens": response.completion_tokens,
+                "latency_ms": response.latency_ms,
+            },
+            trace=AgentToolTrace(
+                tool_name="file.create",
+                status="completed",
+                input_summary={"file_path": file_path, "instruction": instruction[:200]},
+                output_summary={
+                    "file_path": file_path,
+                    "content_chars": len(response.content),
+                    "model": response.model,
+                    "patch_id": proposed_patch["id"],
+                },
             ),
         )
 
