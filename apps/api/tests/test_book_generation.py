@@ -932,6 +932,24 @@ def test_strip_reasoning_leak_keeps_last_segment_with_multiple_closings() -> Non
     assert _strip_reasoning_leak(raw) == "最终正文。"
 
 
+def test_strip_reasoning_leak_orphan_closing_tag_is_case_insensitive() -> None:
+    """大小写变体 </Think> 与小写同语义：切到最后一个闭合标签之后。
+
+    回归背景：旧实现 search 大小写不敏感、rfind 却大小写敏感，遇变体时
+    rfind 返回 -1，切片退化为 cleaned[7:]，静默砍掉正文前 7 个字符。"""
+
+    raw = "推理草稿。</Think>林岚推开值房的门。"
+    assert _strip_reasoning_leak(raw) == "林岚推开值房的门。"
+
+
+def test_strip_reasoning_leak_mixed_case_never_decapitates_content() -> None:
+    """变体闭合标签在末尾时按同一语义丢弃其前全部内容、返回空串，
+    由调用方抛「仅含思维链」明确报错——绝不允许旧实现那种砍头式静默损坏。"""
+
+    raw = "# 第三章 晨渡\n\n正文段落。</THINK>"
+    assert _strip_reasoning_leak(raw) == ""
+
+
 def test_strip_reasoning_leak_preserves_clean_content() -> None:
     """无泄漏的干净正文除首尾空白外原样保留。"""
 

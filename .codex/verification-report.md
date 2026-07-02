@@ -4714,3 +4714,13 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-deep-consistency-20260702`）**：第二章故意埋 6 处违背人物设定 / 世界观的矛盾（涨潮夜点灯 / 闪光次数 / 右臂拎重物 / 瞎眼打量 / 自称说谎 / 话痨），单条消息 → deepseek-v4-flash 4 轮 / 6 工具（fs.list → fs.read×4 → project.deep_consistency 自主传 bible_paths 三文件，58.7s）；语义 judge `issue_count=6`，模型分级结论 **6 处埋雷全中零漏报**（人工核对），另产出一条叙事层建议且正确引导走修订补丁确认流程；语义 judge 经 llm-provider.json 覆盖链真实出网（live 验证 PR-G1）；脱敏扫描无密钥。
 - **事实源同步**：CLAUDE.md / current-phase / TODO 更新 Agent loop 边界（深度一致性入循环、语义 judge 迁移完成）、能力条目、真实 LLM 证据与禁止宣称范围（deep_consistency 为 advisory 信号，显性矛盾场景实证、隐性 / 跨章召回率未验）。
 - **未验 / 不外推**：真机 GUI 观感未验；单一 provider；埋雷为显性矛盾，隐性 / 跨章长程矛盾召回率未验；`project.deep_consistency` 输出不构成质量判定。
+
+## P1 修复：reasoning-leak 剥离大小写 bug + 有损剥离可观测化（2026-07-03）
+
+- **背景**：真机 GUI e2e（证据 `.codex/real-gui-e2e-20260703/`）发现 file.create 起草的第03章首行「# 第三章 晨渡」写盘后只剩「渡」。取证：DB `agent_artifacts` 里补丁 `after` 即已截断且全文零 think 残留 → 事故形态是模型把 `</think>` 关闭边界吐在标题第 7 字后（成对块或 R1 式裸关闭），`strip_reasoning_leak` 忠实剥除、正文前缀随推理一起丢失；因原始响应不落任何地方，事后无法归因。复查代码另发现真实潜伏 bug：`llm_http.py` 的 `THINK_CLOSE_RE.search` 大小写不敏感、`rfind("</think>")` 大小写敏感，模型吐 `</Think>` 变体时 rfind 返回 -1，切片退化 `cleaned[7:]`——无条件砍掉正文前 7 个字符（本次事故未触发此形态，但同类静默损坏）。
+- **改动**：
+  - `app/common/llm_http.py`：`strip_reasoning_leak` 改用 `THINK_CLOSE_RE.finditer` 取最后闭合标签（与 search 同语义，杀掉 rfind 大小写退化）；剥离改动内容时打 `llm_reasoning_leak_stripped` 结构化警告（raw_chars/cleaned_chars/raw 头尾各 120 字），下次事故可归因。
+  - `book_generation_llm.py`：`_call_llm` / `_call_llm_messages` 剥离改动内容时在结果带 `reasoning_leak_stripped=True`。
+  - `assistant/service.py`：`draft_file_content` / `revise_file_content` 把该标记透传进 `assistant.draft` / `assistant.revise` 工具证据链 output_summary，人工可复核。
+- **证据**：新增 3 用例（`</Think>` 裸闭合与小写同语义、变体在末尾返回空串走「仅含思维链」显式报错而非砍头静默损坏、revise 证据链带 reasoning_leak_stripped 标记）+ 干净路径断言不带标记。定向 strip 7 passed、assistant 12 passed；全量 `pytest tests/ -q` → **814 passed / 3 skipped / 0 failed**；`ruff check`（5 涉改文件）通过。
+- **未验 / 不外推**：模型侧把正文写进 think 块属于上游输出畸形，代码无法找回内容——本修复保证的是「变体标签不再造成额外静默截断 + 一切有损剥离留痕可归因」；未做起草产物结构校验/自动重试（避免伪造兜底与成本放大，待有更多样本再定）。

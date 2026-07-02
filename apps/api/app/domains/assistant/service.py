@@ -357,16 +357,19 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     latency_ms = int(result.get("latency_ms", 0) or 0)
     summary = f"已按指令修订 {payload.file_path}，修订后约 {len(after)} 字。"
 
+    revise_output_summary: dict[str, Any] = {
+        "after_chars": len(after),
+        "completion_tokens": completion_tokens,
+        "latency_ms": latency_ms,
+    }
+    if result.get("reasoning_leak_stripped"):
+        revise_output_summary["reasoning_leak_stripped"] = True
     update_assistant_tool_call(
         session,
         tool_call.id,
         AssistantToolCallUpdate(
             status="completed",
-            output_summary={
-                "after_chars": len(after),
-                "completion_tokens": completion_tokens,
-                "latency_ms": latency_ms,
-            },
+            output_summary=revise_output_summary,
         ),
     )
     append_assistant_message(
@@ -480,16 +483,20 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     latency_ms = int(result.get("latency_ms", 0) or 0)
     summary = f"已起草 {payload.file_path} 初稿，约 {len(content)} 字。"
 
+    draft_output_summary: dict[str, Any] = {
+        "content_chars": len(content),
+        "completion_tokens": completion_tokens,
+        "latency_ms": latency_ms,
+    }
+    if result.get("reasoning_leak_stripped"):
+        # 剥离过 think 泄漏的产物可能被吞正文（已实证吞标题），证据链留标记供归因与人工复核。
+        draft_output_summary["reasoning_leak_stripped"] = True
     update_assistant_tool_call(
         session,
         tool_call.id,
         AssistantToolCallUpdate(
             status="completed",
-            output_summary={
-                "content_chars": len(content),
-                "completion_tokens": completion_tokens,
-                "latency_ms": latency_ms,
-            },
+            output_summary=draft_output_summary,
         ),
     )
 
