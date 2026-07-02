@@ -11,14 +11,16 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 
 设计立场：**先做诊断控制台，再做生成器**。任何生成路径都先有读取证据 → 评审 → 修复 → 批准的闭环，再考虑接真实模型。
 
-## 1.1 当前项目真相（2026-06-21）
+## 1.1 当前项目真相（2026-07-02）
 
-- StoryForge 当前处于**真实长程验收整改与 Desktop IDE Agent 收口阶段**。
-- 产品重心已经转为 **Desktop IDE-first**：`apps/desktop` 是主产品体验；`apps/web` 已退场，不再作为维护、调试、兼容或契约验证入口。
+- StoryForge 当前处于**Desktop 对话式 Agent 与私测 Alpha 收口阶段**。
+- 产品定位（2026-06-24 拍板）：**Cursor for Fiction 作者辅助 IDE**，不是自动长篇生产器；`apps/desktop` 是唯一主产品体验；`apps/web` 已退场（2026-06-21 完成收口），不再作为维护、调试、兼容或契约验证入口。
+- 交互中枢（2026-06-30 拍板）：Claude Code/Codex 式**对话式 agent**；批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
+- 2026-07-01 已合并：单色调明暗双主题 UI 改版（PR #42）；私测 Alpha 单机后端——PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar（PR #43/#44）；中间交互区收口为对话式 Agent，`chat.explain` 接真·LLM，对话从文件级解绑为项目级（PR #46）。
+- 当前桌面 Agent 仍是关键词意图路由 + 固定管线：无项目级 fs 工具、上下文靠前端预组装、流程树含前端预制骨架步骤；下一步核心升级是 Agent loop（工具循环）。
 - 真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，其中 10 章 smoke 已通过人工通读，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`。
-- 一次 30 章真实长程已经跑完并导出 Markdown、EPUB 和审计报告，证据目录为 `.codex/real-llm-30ch-mimo25pro-20260611-192356`；但人工通读结论是**退回重跑**。
+- 一次 30 章真实长程已经跑完并导出 Markdown、EPUB 和审计报告，证据目录为 `.codex/real-llm-30ch-mimo25pro-20260611-192356`；但人工通读结论是**退回重跑**。2026-06-30 Q9 16 章真实跑修复门禁丢章四根因并抢救为完整 16 章、人工通读通过（PR #40/#41）。
 - 因此当前只能宣称“真实长程运行链路可达、制品导出成立”，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。
-- 2026-06-21 已启动 Web 退场收口：默认开发、验证、容器编排和 CORS 均转向 Desktop/API/Workflow。
 
 ## 2. 技术栈
 
@@ -137,10 +139,11 @@ npm --prefix apps/desktop/frontend run test
 
 **能做：**
 
-- Desktop IDE：打开本地项目、文件树浏览、Monaco 编辑、版本记录、命令面板、保存快照和 API 配置注入。
-- Desktop IDE Agent：后端意图路由、真实文件修订、多视角 file.review、稳定 issue id、范围控制、待确认 proposed patch 和确认写回防重复生成已有本地验证证据。
-- BookRun：deterministic/mock provider 下可跑最小整书闭环，支持 checkpoint、预算暂停、provider 降级、Markdown/EPUB/审计报告导出。
-- 真实 LLM：1/3/10 章 smoke 有脱敏证据；30 章真实长程有链路和制品导出证据，但质量未通过。
+- Desktop IDE：打开本地项目、文件树浏览、Monaco 编辑、版本记录、命令面板、保存快照和 API 配置注入；单色语义 token + 明暗双主题。
+- Desktop 对话式 Agent：项目级对话会话（切文件不丢，消息持久化于 `assistant_sessions`）、`chat.explain` 真·LLM 回话、真实文件修订、多视角 file.review、稳定 issue id、范围控制、待确认 proposed patch 和确认写回防重复生成已有本地验证证据。注意：仍是关键词意图路由 + 固定管线，无项目级 fs 工具（列文件/读任意文件/跨文件检索），上下文靠前端预组装。
+- 私测 Alpha 单机后端：sidecar exe 独立起服（sqlite 自建表）、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar，均已本机验证。
+- BookRun（后台工具）：deterministic/mock provider 下可跑最小整书闭环，支持 checkpoint、预算暂停、provider 降级、Markdown/EPUB/审计报告导出；不作为主产品控制台。
+- 真实 LLM：1/3/10 章 smoke 有脱敏证据；30 章真实长程有链路和制品导出证据，但质量未通过；Q9 16 章真实跑门禁修复后人工通读通过。
 - Web：`apps/web` 已退场；旧页面只保留在历史文档和 git 历史中。
 - Provider/LLM：通过 Provider Gateway 真实接入与降级，敏感配置必须来自本机私有运行时环境变量。
 
@@ -149,15 +152,16 @@ npm --prefix apps/desktop/frontend run test
 - 不能宣称真实 3-5 万字长程质量验收通过；30 章真实长程已人工退回重跑。
 - 不能把自动审计、golden gate 或模型自评等同于人工通读通过。
 - 不能宣称稳定生产级长篇生产闭环。
-- 不能宣称真实 Tauri 桌面端到端写回确认链路已经完成。
+- 不能宣称真实 Tauri 桌面端到端写回确认链路已经完成（现在入口是 NSIS 安装包双击装机路径，需人工点穿）。
+- 不能把当前意图路由式桌面 Agent 宣称为已具备自主工具循环的 agent。
 - 暂不承诺完整多人协作、生产级对象存储签名下载、多租户认证或全步骤 Studio 编排器。
 
 ## 8.1 当前下一步优先级
 
-1. 跑真实 Tauri 桌面端到端：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 写回 -> 版本记录。
-2. 基于 30 章人工通读意见整理重跑策略，重跑真实 3-5 万字长程并执行人工通读。
-3. 将新一轮长程的 Markdown、EPUB、`audit_report.json`、summary 和人工盲评写入 `.codex/verification-report.md`。
-4. 将 Desktop IDE Agent 的可选增强拆小：WebSocket 流式响应、真实 LLM file.review 探针、前端 file.review 触发链路和更细的修订范围 UI。
+1. Desktop 对话体验收口：左栏会话历史列表（接 `GET /api/assistant/sessions`）、欢迎页输入框接真发送、方向键失灵真机复验。
+2. Agent loop 核心：sidecar 后端增加 path-scoped `fs.list` / `fs.read` / `fs.search` 只读工具，用 LLM 工具循环替代关键词意图路由，流程树全事件驱动（删前端预制骨架步骤）；写回仍走 proposed patch 确认。
+3. 跑真实 Tauri 桌面端到端（安装包装机路径）：打开项目 -> 对话 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 写回 -> 版本记录。
+4. 质量轨（后台）：基于 30 章通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并人工盲评；Q1-Q8 一致性逐步做成 agent 工具。
 
 ## 9. 常见陷阱
 

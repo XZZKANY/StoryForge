@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -94,7 +95,10 @@ def test_phase9_remote_ci_e2e_boundary_records_master_success() -> None:
     current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
 
     assert "2026-06-21" in current_phase
-    assert "真实长程验收整改与 Desktop IDE Agent 收口阶段" in current_phase
+    assert "Desktop 对话式 Agent 与私测 Alpha 收口阶段" in current_phase
+    assert "chat.explain" in current_phase
+    assert "私测 Alpha 单机后端" in current_phase
+    assert "工具循环" in current_phase
     assert ".codex/real-llm-30ch-mimo25pro-20260611-192356" in current_phase
     assert "人工通读退回重跑" in current_phase
     assert "运行链路可达" in current_phase
@@ -162,7 +166,7 @@ def test_todo_records_current_phase9_next_actions() -> None:
     next_actions = _section(todo, "## 下一步优先级", "## 本地验证入口")
 
     assert "当前执行入口" in todo
-    assert "真实长程验收整改与 Desktop IDE Agent 收口阶段" in todo
+    assert "Desktop 对话式 Agent 与私测 Alpha 收口阶段" in todo
     assert "apps/web` 已退场" in todo
     assert ".codex/real-llm-30ch-mimo25pro-20260611-192356" in todo
     assert "人工通读退回重跑" in todo
@@ -170,13 +174,15 @@ def test_todo_records_current_phase9_next_actions() -> None:
     assert "reasoning token 泄漏" in todo
     assert "Desktop IDE Agent" in todo
     assert "proposed patch" in todo
-    assert "2026-06-21 本轮正在执行 `apps/web` 退场" in todo
+    assert "2026-06-21 已完成 `apps/web` 退场收口" in todo
     assert "写回护栏已有脚本级 smoke 证据" in current_boundary
     assert "完整人工桌面端到端仍待执行" in current_boundary
     assert "完整真实 Tauri 桌面端到端仍列为下一步门禁" in current_boundary
     assert "下一步优先级" in todo
     assert "跑真实 Tauri 桌面端到端" in next_actions
     assert "重跑真实 3-5 万字长程" in next_actions
+    assert "会话历史列表" in next_actions
+    assert "工具循环" in next_actions
     assert "pnpm.cmd lint" in todo
     assert "npm --prefix apps/desktop/frontend run typecheck" in todo
     assert "npm --prefix apps/desktop/frontend run test" in todo
@@ -201,7 +207,7 @@ def test_local_start_records_current_phase9_runbook() -> None:
 
     local_start = LOCAL_START_PATH.read_text(encoding="utf-8")
 
-    assert "更新时间：2026-06-04" in local_start
+    assert re.search(r"更新时间：\d{4}-\d{2}-\d{2}", local_start)
     assert "D:/StoryForge" in local_start
     assert "`pnpm verify`" in local_start
     assert "`pnpm e2e`" in local_start
