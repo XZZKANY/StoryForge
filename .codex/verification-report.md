@@ -4660,3 +4660,14 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-intents-20260702`）**：单条消息「审第二章然后修最明显的问题」→ deepseek-v4-flash 自主 file.review → fs.read → file.revise（3 轮 / 3 工具 / 55s）；补丁待确认、`permission_required` 发出、run 暂停 permission.confirm；跑完盘上原文未动（写回红线实证）；模型回话明确「确认后才会写盘」；脱敏扫描无密钥。
 - **未验 / 不外推**：真机 Tauri GUI 上对循环产出补丁的确认写回观感未验；chapter.review / chapter.repair / bookrun.* 未并入循环；单一 provider；全量 API 回归见同日后台跑记录。
 - **全量回归补记**：其余全量 `uv run pytest`（deselect 上述 5 个定向文件）→ 676 passed / 3 skipped / 1 failed；唯一失败 `test_book_generation_parallel.py::test_book_generation_parallel_runner_uses_workflow_metrics_and_exports_audit` 单独复跑通过（2.9s），为套件内顺序/环境 flake，与本轮 agent_runs 改动零交集（该轮全量运行本身 deselect 了本轮测试文件）；定向 5 文件 112 passed 见上。合计全套 788 passed。
+
+## Agent loop：一致性观察工具 project.consistency 挂进循环（Q1-Q8 工具化第一步）（2026-07-02）
+
+- **背景**：TODO 优先级 1 的 Q1-Q8 一致性工具化。现有 judge/story_state 一致性实现全部 DB/BookRun 绑定，workflow narrative 账本为 demo 硬编码（左臂旧伤/save-encrypt-sync）不可接；本轮按「api 侧自包含」路线新建纯文本、path-scoped 的机械观察扫描，遵守「不做未验证误报率的硬判定」护栏——工具只报观察，结论由 LLM 结合原文推理。
+- **改动**：
+  - 新增 `agent_runs/consistency_scan.py`：`consistency_scan(project_root, terms, subpath, glob)`——词条出现分布（逐文件 count + 首末行号，含缺席词条 missing 标记，≤30 词条）、中文叙事时间标记罗列（内置正则、按阅读顺序、≤80 条）、跨文件重复子句（标点切分、≥6 字、≥3 次，top20）；路径边界复用 fs_tools（越界拒绝），文件数/字节/输出全部设上限并带截断标记。
+  - 注册：`tooling.py` spec（domain=project，auto/read，root_agent+context_explorer）+ `role_catalog.py` 两角色 allowed_tools（投影测试强制一致）+ `runtime.py` handler + `loop_runtime.py` schema/名称映射/输出摘要/系统提示（「先拿观察信号再抽读原文核实」）。
+- **证据（单测 + TestClient）**：新增 `tests/test_agent_consistency_scan.py` 7 用例（词条分布与缺席、时间标记阅读序、跨文件重复子句阈值、subpath/glob 作用域、越界拒绝、词条去重截断、二进制跳过）；`test_agent_loop_runtime.py` 增循环集成用例（观察信号原样喂回模型、证据链落 project.consistency）。定向 `pytest tests/test_agent_consistency_scan.py tests/test_agent_loop_runtime.py tests/test_runtime_tools.py` → 22 passed；`tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_fs_tools.py` → 98 passed；全量其余 → 676 passed / 3 skipped / 1 failed（仍为 `test_book_generation_parallel` 已知顺序 flake，单独复跑 1 passed / 2.9s，与本轮零交集）；`ruff check` 通过（修 1 处 import 排序）。
+- **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-consistency-20260702`）**：单条消息「检查全书称谓/时间线/重复表达一致性」→ deepseek-v4-flash 自主 fs.list → 读设定/大纲 → project.consistency → 回原文抽查（5 轮 / 7 工具 / 27.8s）；正确把「裴少卿 / 裴砚」判为叙述与对话的合理称谓分工而非冲突误报，时间线连续性与重复扫描结论经人工核对属实、无伪造问题；脱敏扫描无密钥。
+- **事实源同步**：current-phase / TODO / CLAUDE 增一致性工具边界（只报机械观察不下结论）与实跑证据；下一步改为剩余显式 intent 循环化 + 深度一致性能力（Character Bible / 语义 judge）工具化。
+- **未验 / 不外推**：大项目截断路径只有单测覆盖未实跑；`project.consistency` 不具备语义一致性判定能力（时间标记不解析先后关系）；单一 provider；真机 GUI 未验。

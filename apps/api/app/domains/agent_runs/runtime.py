@@ -14,6 +14,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_chapter_plan_summary,
     _bookrun_risk_summary,
 )
+from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.intent import (
     SUPPORTED_INTENTS as SUPPORTED_INTENTS,
@@ -1417,6 +1418,7 @@ class AgentRuntime:
             "fs.list": self._fs_list,
             "fs.read": self._fs_read,
             "fs.search": self._fs_search,
+            "project.consistency": self._project_consistency,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "judge.run": self._judge_run,
@@ -1492,6 +1494,33 @@ class AgentRuntime:
                 status="completed",
                 input_summary={"query": query[:200], "glob": glob},
                 output_summary={"match_count": len(output["matches"]), "truncated": output["truncated"]},
+            ),
+        )
+
+    def _project_consistency(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        terms_raw = payload.get("terms")
+        terms = (
+            [term for term in terms_raw if isinstance(term, str) and term.strip()]
+            if isinstance(terms_raw, list)
+            else []
+        )
+        subpath = _optional_string(payload.get("subpath"))
+        glob = _optional_string(payload.get("glob")) or "*.md"
+        output = consistency_scan(project_root, terms, subpath=subpath, glob=glob)
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.consistency",
+                status="completed",
+                input_summary={"terms": terms[:10], "subpath": subpath, "glob": glob},
+                output_summary={
+                    "scanned_files": output["scanned_files"],
+                    "term_count": len(output["term_occurrences"]),
+                    "time_marker_count": len(output["time_markers"]),
+                    "repeated_clause_count": len(output["repeated_clauses"]),
+                },
             ),
         )
 
