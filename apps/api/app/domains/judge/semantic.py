@@ -124,7 +124,7 @@ def semantic_judge_with_status(
     source = resolved_llm_env(llm_env)
     api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or env_value(source, "STORYFORGE_LLM_API_KEY")
     if not api_key:
-        return SemanticJudgeOutcome(issues=[], failed=False)
+        return SemanticJudgeOutcome(issues=[], failed=False, configured=False)
     base_url = os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL") or env_value(source, "STORYFORGE_LLM_BASE_URL") or "https://api.openai.com/v1"
     model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or env_value(source, "STORYFORGE_LLM_MODEL") or "gpt-4o-mini"
 
@@ -251,14 +251,37 @@ def _issues_from_provider_items(items: Sequence[dict[str, object] | DetectedIssu
     return issues
 
 
+def _locate_matched_span(content: str, matched_text: str, hint_start: int) -> tuple[int, int] | None:
+    """以 matched_text 反查正文真实偏移；多处命中取距模型自报位置最近的一处。
+
+    模型对中文正文自报的字符偏移不可靠，matched_text 才是它真正"看到"的原文，
+    能反查到就以反查结果为准；找不到（模型转述而非摘抄）返回 None，由调用方回退自报 span。
+    """
+
+    needle = matched_text.strip()
+    if not needle:
+        return None
+    best: tuple[int, int] | None = None
+    index = content.find(needle)
+    while index >= 0:
+        if best is None or abs(index - hint_start) < abs(best[0] - hint_start):
+            best = (index, index + len(needle))
+        index = content.find(needle, index + 1)
+    return best
+
+
 def _issue_from_llm_item(item: dict, content: str) -> DetectedIssue:
     """把模型 JSON 条目规整为内部问题对象，防止越界位置污染响应。"""
 
     span_start = max(0, min(int(item.get("span_start", 0)), len(content)))
     span_end = max(span_start, min(int(item.get("span_end", span_start)), len(content)))
+    raw_matched = str(item.get("matched_text") or "")
+    located = _locate_matched_span(content, raw_matched, span_start)
+    if located is not None:
+        span_start, span_end = located
     category = str(item.get("category", "setting_conflict"))
     severity = str(item.get("severity", "medium"))
-    matched_text = str(item.get("matched_text") or content[span_start:span_end])
+    matched_text = raw_matched or content[span_start:span_end]
     expected_text = str(item.get("expected_text", ""))
     return DetectedIssue(
         category=category,

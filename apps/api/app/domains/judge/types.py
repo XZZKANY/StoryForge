@@ -40,10 +40,13 @@ class SemanticJudgeOutcome:
 
     failed=True 表示远程模型调用本身出错（网络/超时/响应不可解析），
     此时 issues 为空但绝不能被当成"干净通过"，调用方需据此降级并留痕。
+    configured=False 表示未配置 API key、评审未启用（issues 为空且 failed=False）——
+    需要区分"干净通过"与"没跑"的调用方看这个标志，不要自己再探一遍 key。
     """
 
     issues: list[DetectedIssue]
     failed: bool
+    configured: bool = True
 
 
 # 确定性文风漂移检测短语
