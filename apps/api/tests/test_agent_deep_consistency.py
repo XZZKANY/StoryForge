@@ -88,12 +88,41 @@ def test_deep_consistency_feeds_bible_and_serializes_issues(
 
 
 def test_deep_consistency_requires_llm_key(monkeypatch: pytest.MonkeyPatch, bible_project: Path) -> None:
-    """未配置 LLM 时显式报错，不伪造「无问题」。"""
+    """未配置 LLM 时显式报错，不伪造「无问题」——口径来自 judge 的 configured 标志，本地不再复制 key 探测。"""
 
-    _capture_judge(monkeypatch, SemanticJudgeOutcome(issues=[], failed=False))
+    _capture_judge(monkeypatch, SemanticJudgeOutcome(issues=[], failed=False, configured=False))
 
     with pytest.raises(FsToolError, match="未配置 LLM"):
         deep_consistency_review(str(bible_project), "正文/第01章.md", llm_env={})
+
+
+def test_deep_consistency_requires_llm_key_via_real_judge(bible_project: Path) -> None:
+    """不打桩走真 judge：空配置源在 judge 内部判未启用，deep_consistency 转成显式报错（无网络调用）。"""
+
+    with pytest.raises(FsToolError, match="未配置 LLM"):
+        deep_consistency_review(str(bible_project), "正文/第01章.md", llm_env={})
+
+
+def test_deep_consistency_converts_spans_to_real_lines(
+    monkeypatch: pytest.MonkeyPatch, bible_project: Path
+) -> None:
+    """真实 span→行号换算：跨行 span 给出正确起止行，越界 span 钳位到末行不崩。"""
+
+    content = "第一行平静。\n第二行开始出事。\n第三行收尾。"
+    (bible_project / "正文" / "第02章.md").write_text(content, encoding="utf-8")
+    cross_start = content.index("开始出事")
+    cross_end = content.index("第三行") + len("第三行")
+    issues = [
+        _issue(span_start=cross_start, span_end=cross_end, matched_text="开始出事"),
+        _issue(span_start=10_000, span_end=20_000, matched_text="原文里不存在"),
+    ]
+    _capture_judge(monkeypatch, SemanticJudgeOutcome(issues=issues, failed=False))
+
+    output = deep_consistency_review(str(bible_project), "正文/第02章.md", llm_env=_LLM_ENV)
+
+    cross, overflow = output["issues"]
+    assert (cross["line_start"], cross["line_end"]) == (2, 3)
+    assert (overflow["line_start"], overflow["line_end"]) == (3, 3)
 
 
 def test_deep_consistency_raises_on_judge_failure(monkeypatch: pytest.MonkeyPatch, bible_project: Path) -> None:

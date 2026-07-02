@@ -4724,3 +4724,13 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `assistant/service.py`：`draft_file_content` / `revise_file_content` 把该标记透传进 `assistant.draft` / `assistant.revise` 工具证据链 output_summary，人工可复核。
 - **证据**：新增 3 用例（`</Think>` 裸闭合与小写同语义、变体在末尾返回空串走「仅含思维链」显式报错而非砍头静默损坏、revise 证据链带 reasoning_leak_stripped 标记）+ 干净路径断言不带标记。定向 strip 7 passed、assistant 12 passed；全量 `pytest tests/ -q` → **814 passed / 3 skipped / 0 failed**；`ruff check`（5 涉改文件）通过。
 - **未验 / 不外推**：模型侧把正文写进 think 块属于上游输出畸形，代码无法找回内容——本修复保证的是「变体标签不再造成额外静默截断 + 一切有损剥离留痕可归因」；未做起草产物结构校验/自动重试（避免伪造兜底与成本放大，待有更多样本再定）。
+
+## 深度一致性评审修复：issue 行号以 matched_text 反查为准 + judge configured 标志（2026-07-03）
+
+- **背景**：外部代码评审指出两个已核实问题（优先级 一 与 四）。一：`project.deep_consistency` 的 issue 行号完全来自 LLM 自报的 0-based 字符偏移（中文正文下出了名不可靠），`_issue_from_llm_item` 只做钳位、matched_text 缺失时才从 span 反切——方向反了，行号错会推高作者核实成本。四：`deep_consistency_review` 前置复制了一份 judge 的 API key 探测表达式（judge 把「未配置」和「无问题」都表达成 `failed=False + issues=[]` 无法区分所致），key 解析细节两处口径将来必漂移。
+- **改动**：
+  - `judge/semantic.py`：新增 `_locate_matched_span`——matched_text 非空时在正文 `find` 反查真实偏移，多处命中取距模型自报位置最近的一处；反查不到（模型转述）回退钳位后的自报 span。作用于 `_issue_from_llm_item`，远程与 provider 注入路径同享。
+  - `judge/types.py`：`SemanticJudgeOutcome` 增 `configured: bool = True`（frozen dataclass 带默认值，四处既有调用方零改动）；`semantic.py` 未配置 key 时返回 `configured=False`。
+  - `agent_runs/deep_consistency.py`：删除复制的 key 探测与 `os`/`env_value` 依赖，改判 `outcome.configured`，报错文案不变（循环反馈与前端观感零变化）。
+- **证据**：test_judge_semantic 新增 5 用例（反查修正错误自报 span、多处命中取最近、转述回退钳位 span、未配置 configured=False、provider 路径 configured=True）；test_agent_deep_consistency 新增 2 用例（跨行 span 行号换算 + 越界 span 钳位末行不崩；不打桩走真 judge 的未配置显式报错——空配置源零网络调用）+ 原未配置用例改 configured 口径。定向 22 passed；关联域（agent_loop_runtime/runtime_tools/judge_* 5 文件）31 passed；全量 `pytest tests/ -q` → **821 passed / 3 skipped / 0 failed**；ruff（5 涉改文件）通过。
+- **未验 / 不外推**：反查以 matched_text 与正文逐字一致为前提，模型摘抄带省略号/改字仍会回退自报 span（行号仍可能偏）；未做真·LLM 实跑复验行号命中率；评审余项 二（few-shot 形状）、三（scene_id 哑值 + 魔数 100）、五（retry_safe 标注）未在本 PR 处理。

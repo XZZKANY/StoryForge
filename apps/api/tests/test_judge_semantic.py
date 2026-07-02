@@ -417,3 +417,112 @@ def test_semantic_judge_env_overrides_still_win_over_config_file(tmp_path, monke
     assert captured["url"] == "https://judge.example/v1/chat/completions"
     assert captured["model"] == "judge-model"
     assert captured["headers"] == {"Authorization": "Bearer judge-key"}
+
+
+def _span_payload(content: str, required_facts: list[str] | None = None) -> JudgeIssueCreate:
+    return JudgeIssueCreate(
+        scene_id=1,
+        scene_packet_id=None,
+        content=content,
+        required_facts=required_facts or [],
+        style_rules=[],
+        evidence_links=[],
+    )
+
+
+def test_semantic_judge_relocates_span_from_matched_text() -> None:
+    """模型自报字符偏移不可靠：matched_text 能在正文反查到时，以反查偏移为准。"""
+
+    content = "林岚走进值房。\n沈曜擦拭主灯的透镜。\n她举起右臂敲了敲窗。"
+
+    def provider(request_payload: JudgeIssueCreate) -> list[dict[str, object]]:
+        return [
+            {
+                "category": "setting_conflict",
+                "severity": "high",
+                "span_start": 0,
+                "span_end": 2,
+                "matched_text": "举起右臂",
+                "expected_text": "右臂受伤",
+                "replacement_text": "举起左臂",
+                "summary": "右臂受伤不应能举起。",
+            }
+        ]
+
+    issues = semantic_judge(_span_payload(content, ["右臂受伤"]), provider=provider)
+
+    expected_start = content.index("举起右臂")
+    assert issues[0].span_start == expected_start
+    assert issues[0].span_end == expected_start + len("举起右臂")
+    assert issues[0].matched_text == "举起右臂"
+
+
+def test_semantic_judge_relocation_picks_occurrence_nearest_reported_span() -> None:
+    """matched_text 多处出现时，取距模型自报位置最近的一处，避免定位跳到别处。"""
+
+    content = "他点灯。屋外潮声起。他点灯。"
+    second = content.index("点灯", content.index("点灯") + 1)
+
+    def provider(request_payload: JudgeIssueCreate) -> list[dict[str, object]]:
+        return [
+            {
+                "category": "setting_conflict",
+                "severity": "high",
+                "span_start": second + 1,
+                "span_end": second + 2,
+                "matched_text": "点灯",
+                "expected_text": "涨潮夜不点灯",
+                "replacement_text": "熄灯",
+                "summary": "涨潮夜点灯违反铁律。",
+            }
+        ]
+
+    issues = semantic_judge(_span_payload(content), provider=provider)
+
+    assert issues[0].span_start == second
+    assert issues[0].span_end == second + len("点灯")
+
+
+def test_semantic_judge_keeps_clamped_span_when_matched_text_absent() -> None:
+    """模型转述（原文里找不到 matched_text）时回退钳位后的自报 span，转述文本原样保留。"""
+
+    content = "她沉默地走过长廊。"
+
+    def provider(request_payload: JudgeIssueCreate) -> list[dict[str, object]]:
+        return [
+            {
+                "category": "style_drift",
+                "severity": "medium",
+                "span_start": 3,
+                "span_end": 9_999,
+                "matched_text": "原文里不存在的转述句",
+                "expected_text": "",
+                "replacement_text": "",
+                "summary": "转述定位。",
+            }
+        ]
+
+    issues = semantic_judge(_span_payload(content), provider=provider)
+
+    assert issues[0].span_start == 3
+    assert issues[0].span_end == len(content)
+    assert issues[0].matched_text == "原文里不存在的转述句"
+
+
+def test_semantic_judge_unconfigured_sets_configured_false() -> None:
+    """未配置 API key 时 configured=False 且 failed=False：调用方据此区分「没跑」与「干净通过」。"""
+
+    outcome = semantic_judge_with_status(_span_payload("正文。"), llm_env={})
+
+    assert outcome.configured is False
+    assert outcome.failed is False
+    assert outcome.issues == []
+
+
+def test_semantic_judge_provider_path_reports_configured_true() -> None:
+    """注入 provider 的路径视为已配置。"""
+
+    outcome = semantic_judge_with_status(_span_payload("正文。"), provider=lambda payload: [])
+
+    assert outcome.configured is True
+    assert outcome.failed is False
