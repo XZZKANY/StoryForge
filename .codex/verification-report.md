@@ -4584,3 +4584,10 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `npm --prefix apps/desktop/frontend run test` → 93 pass。
   - `pnpm openapi` 刷新契约（新增 `project_path` 字段/查询参数）；`pnpm.cmd lint` → 0 error，prettier 通过。
 - **未验 / 不外推**：本轮走单测 + TestClient；**未**在真机 Tauri GUI 串「欢迎页输入 → 打开项目 → 自动发首条」「侧栏点历史会话恢复对话」端到端，方向键真机复验仍待人工。
+
+## Agent loop PR-A：path-scoped 只读 fs 工具（2026-07-02）
+
+- **背景**：Agent loop 三步计划（fs 工具 → loop runtime → 前端流程树真实化）第一步。Alpha 单机 sidecar 后端与项目文件同机，Agent 只读上下文获取从「前端 Tauri 预组装塞给后端」改为后端直读成为可能；本轮先落工具层与安全边界。
+- **改动**：新增 `apps/api/app/domains/agent_runs/fs_tools.py`——`fs_list`（递归相对路径列表、跳过 .git/.storyforge/.codex/node_modules/__pycache__ 与点前缀目录、max_entries 截断标记）、`fs_read`（offset/limit 字符切片、单次上限 200K、二进制拒读、CRLF 归一化为 \n）、`fs_search`（默认 glob *.md、行号+摘录、max_matches 截断、可选正则、单文件扫描上限 512KB、文件数上限 2000）。所有入口 `_resolve_scoped` 以 project_root resolve 后前缀校验，`../`、绝对路径、符号链接逃逸一律 `FsToolError("路径越界")`；**无任何写接口**。
+- **证据**：`uv run pytest tests/test_agent_fs_tools.py -q` → 12 passed（含 ../ 与绝对路径越界、二进制拒读、截断标记、正则无效报错、glob 过滤、subpath 作用域用例）；`uv run ruff check` 通过。
+- **未验 / 不外推**：本轮工具尚未接入 runtime 工具注册表与 LLM 循环（PR-B），不改变现有任何行为。
