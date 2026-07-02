@@ -1472,6 +1472,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
                 "args": {
                     "file_path": "正文/第01章.md",
                     "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
+                    "project_path": "D:/novels/demo",
                     "context_bundle": {"files": []},
                 },
             }
@@ -1532,6 +1533,8 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     session_response = client.get(f"/api/assistant/sessions/{received[-1]['assistant_session_id']}")
     assert session_response.status_code == 200, session_response.text
     assert session_response.json()["title"] == "审查当前章节审稿"
+    # 桌面端会话历史按项目过滤依赖 agent 建会话时落 project_path
+    assert session_response.json()["project_path"] == "D:/novels/demo"
 
 
 def test_agent_run_records_permission_required_for_proposed_patch(

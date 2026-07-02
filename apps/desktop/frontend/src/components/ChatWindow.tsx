@@ -256,6 +256,8 @@ export function ChatWindow({
   projectPath,
   currentFile,
   assistantSessionId,
+  pendingInitialPrompt,
+  onPendingInitialPromptConsumed,
   layoutMode: _layoutMode = 'normal',
   onCollapse: _onCollapse,
   onFocusOnly: _onFocusOnly,
@@ -1174,6 +1176,22 @@ export function ChatWindow({
     },
     [messages.length, projectPath, contextCandidates, runAuthorAgent, runCrossChapterConsistency],
   );
+
+  // 欢迎页首条 prompt：项目就绪后自动发出一次，避免作者重复输入。
+  const pendingPromptFiredRef = useRef(false);
+  useEffect(() => {
+    if (!pendingInitialPrompt || !projectPath || agentBusy) return;
+    if (pendingPromptFiredRef.current) return;
+    pendingPromptFiredRef.current = true;
+    onPendingInitialPromptConsumed?.();
+    void handleComposerSubmit(pendingInitialPrompt);
+  }, [
+    pendingInitialPrompt,
+    projectPath,
+    agentBusy,
+    handleComposerSubmit,
+    onPendingInitialPromptConsumed,
+  ]);
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">

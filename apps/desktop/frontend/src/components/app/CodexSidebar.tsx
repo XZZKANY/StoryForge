@@ -2,9 +2,11 @@
  * 左侧导航栏：项目库列表、会话管理、设置入口。
  * 从 App.tsx 抽出。
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { HomeStoryIcon, ProjectIcon } from '../StoryIcons';
 import type { AppSettings } from '../../lib/user-settings';
+import { listAssistantSessions } from '../../lib/api-client';
+import type { AssistantSessionRecord } from '../../lib/api-client';
 import { describeProviderConnection, getProviderPreset } from '../../lib/provider-config';
 import { basename } from './helpers';
 import {
@@ -96,6 +98,8 @@ export function CodexSidebar({
   settings,
   projectAssistantSessions,
   onSelectProject,
+  onSelectProjectSession,
+  onNewProjectSession,
   onOpenProject,
   onInitializeProject,
   onOpenSettings,
@@ -105,12 +109,18 @@ export function CodexSidebar({
   settings: AppSettings;
   projectAssistantSessions: Record<string, number>;
   onSelectProject: (path: string) => void;
+  onSelectProjectSession: (path: string, assistantSessionId: number) => void;
+  onNewProjectSession: (path: string) => void;
   onOpenProject: () => void;
   onInitializeProject: (projectPath?: string) => void;
   onOpenSettings: () => void;
 }) {
   const [projectLibraryExpanded, setProjectLibraryExpanded] = useState(true);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set());
+  const [sessionHistory, setSessionHistory] = useState<Record<string, AssistantSessionRecord[]>>(
+    {},
+  );
+  const [sessionHistoryError, setSessionHistoryError] = useState<Record<string, boolean>>({});
 
   const toggleProjectSessions = useCallback((path: string) => {
     setExpandedProjects((prev) => {
@@ -123,6 +133,33 @@ export function CodexSidebar({
       return next;
     });
   }, []);
+
+  // 展开的项目从后端拉真实会话历史；activeSessionId 变化（新会话产生）时刷新。
+  const expandedKey = Array.from(expandedProjects).sort().join('\n');
+  const activeSessionKey = Object.entries(projectAssistantSessions)
+    .map(([path, id]) => `${path}:${id}`)
+    .sort()
+    .join('\n');
+  useEffect(() => {
+    const paths = expandedKey ? expandedKey.split('\n') : [];
+    if (paths.length === 0) return;
+    let cancelled = false;
+    for (const path of paths) {
+      void listAssistantSessions({ projectPath: path, limit: 20 })
+        .then((sessions) => {
+          if (cancelled) return;
+          setSessionHistory((prev) => ({ ...prev, [path]: sessions }));
+          setSessionHistoryError((prev) => ({ ...prev, [path]: false }));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setSessionHistoryError((prev) => ({ ...prev, [path]: true }));
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedKey, activeSessionKey]);
 
   return (
     <div className="h-full flex flex-col text-[13px]">
@@ -180,10 +217,9 @@ export function CodexSidebar({
               project.includes('\\') || project.includes('/') ? basename(project) : project;
             const isActive = activeProject === path;
             const isExpanded = expandedProjects.has(path);
-            const sessionId = projectAssistantSessions[path];
-            const sessions: Array<{ id: number; title: string }> = sessionId
-              ? [{ id: sessionId, title: '最近创作会话' }]
-              : [];
+            const activeSessionId = projectAssistantSessions[path] ?? null;
+            const sessions = sessionHistory[path];
+            const historyFailed = sessionHistoryError[path] === true;
             return (
               <div key={project}>
                 <button
@@ -225,7 +261,7 @@ export function CodexSidebar({
                       title="新建会话"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onSelectProject(path);
+                        onNewProjectSession(path);
                       }}
                     >
                       <MessagePlusIcon />
@@ -247,17 +283,28 @@ export function CodexSidebar({
                     data-testid="project-session-list"
                     data-project-path={path}
                   >
-                    {sessions.length === 0 ? (
+                    {sessions === undefined ? (
+                      <div className="px-2 py-1 text-xs text-subtle">
+                        {historyFailed ? '会话历史读取失败' : '加载会话历史…'}
+                      </div>
+                    ) : sessions.length === 0 ? (
                       <div className="px-2 py-1 text-xs text-subtle">暂无会话</div>
                     ) : (
                       sessions.map((session) => (
                         <button
                           key={session.id}
-                          className="flex h-7 w-full items-center rounded px-2 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
-                          onClick={() => onSelectProject(path)}
-                          title={`Assistant 会话 #${session.id}`}
+                          className={`flex h-7 w-full items-center rounded px-2 text-left text-xs transition-colors hover:bg-elevated hover:text-foreground ${
+                            session.id === activeSessionId
+                              ? 'bg-elevated text-foreground'
+                              : 'text-muted'
+                          }`}
+                          onClick={() => onSelectProjectSession(path, session.id)}
+                          title={`会话 #${session.id} · ${session.updated_at}`}
+                          data-testid="project-session-item"
                         >
-                          <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {session.title.replace(/^IDE Agent:\s*/, '') || `会话 #${session.id}`}
+                          </span>
                         </button>
                       ))
                     )}

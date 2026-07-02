@@ -315,6 +315,7 @@ export type AssistantSessionRecord = {
   id: number;
   title: string;
   task_type: string;
+  project_path: string | null;
   blueprint_id: number | null;
   book_run_id: number | null;
   artifact_id: number | null;

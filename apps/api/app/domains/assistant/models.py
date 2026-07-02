@@ -21,6 +21,7 @@ class AssistantSession(IdMixin, TimestampMixin, Base):
 
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     task_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    project_path: Mapped[str | None] = mapped_column(String(1024), index=True)
     blueprint_id: Mapped[int | None] = mapped_column(ForeignKey("book_blueprints.id", ondelete="SET NULL"), index=True)
     book_run_id: Mapped[int | None] = mapped_column(ForeignKey("book_runs.id", ondelete="SET NULL"), index=True)
     artifact_id: Mapped[int | None] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), index=True)

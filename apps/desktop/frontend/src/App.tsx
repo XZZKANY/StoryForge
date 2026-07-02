@@ -36,6 +36,8 @@ export function App() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
+  const [welcomeDraft, setWelcomeDraft] = useState('');
+  const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
   const appDialog = useAppDialog();
   const {
     workspaceVisible,
@@ -95,6 +97,35 @@ export function App() {
       console.error('打开项目失败', error);
     }
   }, [selectProject]);
+
+  const handleSelectProjectSession = useCallback(
+    (path: string, assistantSessionId: number) => {
+      selectProject(path);
+      setActiveProjectAssistantSession(assistantSessionId, path);
+    },
+    [selectProject, setActiveProjectAssistantSession],
+  );
+
+  const handleNewProjectSession = useCallback(
+    (path: string) => {
+      selectProject(path);
+      setActiveProjectAssistantSession(null, path);
+    },
+    [selectProject, setActiveProjectAssistantSession],
+  );
+
+  // 欢迎页首条输入：先记住 prompt，打开项目后由 ChatWindow 自动发出。
+  const handleWelcomeSend = useCallback(() => {
+    const prompt = welcomeDraft.trim();
+    if (!prompt) return;
+    setPendingWelcomePrompt(prompt);
+    void handleOpenProject();
+  }, [welcomeDraft, handleOpenProject]);
+
+  const handlePendingWelcomePromptConsumed = useCallback(() => {
+    setPendingWelcomePrompt(null);
+    setWelcomeDraft('');
+  }, []);
 
   const handleCreateSampleProject = useCallback(async () => {
     try {
@@ -314,6 +345,8 @@ export function App() {
               settings={settings}
               projectAssistantSessions={projectAssistantSessions}
               onSelectProject={selectProject}
+              onSelectProjectSession={handleSelectProjectSession}
+              onNewProjectSession={handleNewProjectSession}
               onOpenProject={handleOpenProject}
               onInitializeProject={handleInitializeStoryProject}
               onOpenSettings={openSettings}
@@ -335,6 +368,9 @@ export function App() {
                 onApplyModel={handleQuickModelChange}
                 providerKind={settings.provider.kind}
                 onApplyProvider={handleQuickProviderChange}
+                composerValue={welcomeDraft}
+                onComposerChange={setWelcomeDraft}
+                onComposerSend={handleWelcomeSend}
               />
             ) : (
               <section className="h-full min-w-0 bg-background" data-testid="assistant-panel">
@@ -344,6 +380,8 @@ export function App() {
                   assistantSessionId={
                     activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
                   }
+                  pendingInitialPrompt={pendingWelcomePrompt}
+                  onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
                   exposeWorkspaceToggle={!workbenchPanelVisible}
                   layoutMode={layoutMode}
                   onAssistantSessionChange={setActiveProjectAssistantSession}

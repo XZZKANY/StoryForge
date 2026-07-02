@@ -54,6 +54,33 @@ export async function requestRevision(request: ReviseRequest): Promise<ReviseRes
   };
 }
 
+export async function listAssistantSessions(options?: {
+  projectPath?: string;
+  limit?: number;
+}): Promise<AssistantSessionRecord[]> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const params = new URLSearchParams();
+  if (options?.projectPath) params.set('project_path', options.projectPath);
+  if (options?.limit) params.set('limit', String(options.limit));
+  const query = params.toString();
+  const response = await fetch(
+    `${trimApiBaseUrl(baseUrl)}/api/assistant/sessions${query ? `?${query}` : ''}`,
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        'X-StoryForge-API-Key': apiKey,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+
+  return (await response.json()) as AssistantSessionRecord[];
+}
+
 export async function getAssistantSession(
   assistantSessionId: number,
 ): Promise<AssistantSessionRecord> {

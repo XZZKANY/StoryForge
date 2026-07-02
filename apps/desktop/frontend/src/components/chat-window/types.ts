@@ -10,6 +10,8 @@ export type ChatWindowProps = {
   projectPath: string | null;
   currentFile: string | null;
   assistantSessionId?: number | null;
+  pendingInitialPrompt?: string | null;
+  onPendingInitialPromptConsumed?: () => void;
   layoutMode?: 'normal' | 'custom' | 'assistant-only' | 'workspace-only';
   onCollapse?: () => void;
   onFocusOnly?: () => void;

@@ -50,11 +50,15 @@ def create_assistant_session_endpoint(
     response_model=list[AssistantSessionRead],
     summary="读取最近 Assistant 会话",
 )
-def list_assistant_sessions_endpoint(session: SessionDependency, limit: int = 20) -> list[AssistantSessionRead]:
-    """读取最近会话，供首页最近记录和任务追溯使用。"""
+def list_assistant_sessions_endpoint(
+    session: SessionDependency,
+    limit: int = 20,
+    project_path: str | None = None,
+) -> list[AssistantSessionRead]:
+    """读取最近会话，供桌面端会话历史与任务追溯使用；可按项目路径过滤。"""
 
     bounded_limit = min(max(limit, 1), 50)
-    return list_recent_assistant_sessions(session, limit=bounded_limit)
+    return list_recent_assistant_sessions(session, limit=bounded_limit, project_path=project_path)
 
 
 @router.get(
