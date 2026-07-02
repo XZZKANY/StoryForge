@@ -201,6 +201,253 @@ def test_chat_loop_falls_back_to_single_turn_when_first_call_fails(
     assert [event["event_type"] for event in events].count("agent_plan_created") == 1
 
 
+def test_chat_loop_file_review_feeds_trimmed_issues_and_records_report(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 file.review：后端从盘上读稿、精简 issue 反馈给模型、整包 report 落 artifact。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "file_review", "arguments": json.dumps({"path": "正文/第01章.md"})},
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "审稿完成，问题清单见报告。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-review",
+        project_path=str(novel_project),
+        message="帮我审一下第一章",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert result["agent_result"]["summary"] == "审稿完成，问题清单见报告。"
+    assert result["agent_result"]["requires_user_confirmation"] is False
+    assert result["agent_result"]["review_report"]["kind"] == "review_report"
+    assert result["agent_result"]["review_report"]["file_path"].endswith("第01章.md")
+    assert [trace["tool_name"] for trace in result["tool_trace"]] == ["file.review"]
+
+    # 反馈给模型的是精简 issue 要点，不是整包 report（agent_findings/context 不回灌）
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    assert len(tool_messages) == 1
+    feedback = str(tool_messages[0]["content"])
+    assert "issue_count" in feedback
+    assert "agent_findings" not in feedback
+
+    # review_report artifact 落盘 + 工具证据链
+    artifacts = client.get("/api/agent-runs/run-chat-loop-review/artifacts").json()
+    assert "review_report" in [artifact["kind"] for artifact in artifacts]
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "file.review" in [item["tool_name"] for item in tool_calls]
+
+
+def test_chat_loop_file_revise_produces_confirmable_patch_and_pauses(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 file.revise：生成待确认补丁即暂停等作者确认；后续轮不再提供修订工具。"""
+
+    from app.domains.assistant import service as assistant_service
+
+    _enable_loop_env(monkeypatch)
+    monkeypatch.setattr(
+        assistant_service,
+        "_call_llm",
+        lambda source, *, system_prompt, user_prompt: {
+            "content": "灯塔第三十三次错误闪光，林岚按下了记录键。",
+            "completion_tokens": 6,
+            "latency_ms": 5,
+        },
+    )
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "file_revise",
+                            "arguments": json.dumps({"path": "正文/第01章.md", "instruction": "结尾补一个动作"}),
+                        },
+                    }
+                ],
+                "completion_tokens": 4,
+            },
+            {"content": "补丁已生成，等你在界面确认。", "tool_calls": [], "completion_tokens": 4},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-revise",
+        project_path=str(novel_project),
+        message="把第一章结尾改得更有推进感",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    patch = result["proposed_patch"]
+    assert patch["kind"] == "file_revision"
+    assert patch["requires_confirmation"] is True
+    assert patch["file_path"] == str((novel_project / "正文" / "第01章.md").resolve())
+    assert "灯塔" in patch["before"]
+    assert patch["after"] == "灯塔第三十三次错误闪光，林岚按下了记录键。"
+    assert result["agent_result"]["requires_user_confirmation"] is True
+    assert result["agent_result"]["writeback_blocked_until_user_confirms"] is True
+    assert [step["step"] for step in result["plan"]] == ["agent.loop", "permission.confirm"]
+
+    # 第二轮反馈不携带修订后全文，且不再提供 file_revise 工具
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    assert "proposed_patch_created" in str(tool_messages[0]["content"])
+    assert "灯塔第三十三次" not in str(tool_messages[0]["content"])
+    round2_tools = [item["function"]["name"] for item in calls[1]["tools"]]
+    assert "file_revise" not in round2_tools
+    assert "fs_read" in round2_tools
+
+    # 权限事件 + run 暂停在 permission.confirm，补丁 artifact 待确认
+    events = client.get("/api/agent-runs/run-chat-loop-revise/events").json()
+    event_types = [event["event_type"] for event in events]
+    assert "permission_required" in event_types
+    assert "agent_run_completed" not in event_types
+    permission_event = next(event for event in events if event["event_type"] == "permission_required")
+    assert permission_event["payload"]["blocked_tool"] == "file.revise"
+    run = client.get("/api/agent-runs/run-chat-loop-revise").json()
+    assert run["status"] == "paused"
+    assert run["current_step"] == "permission.confirm"
+    artifacts = client.get("/api/agent-runs/run-chat-loop-revise/artifacts").json()
+    patch_artifacts = [artifact for artifact in artifacts if artifact["kind"] == "proposed_patch"]
+    assert len(patch_artifacts) == 1
+    assert patch_artifacts[0]["requires_confirmation"] is True
+
+
+def test_chat_loop_second_revise_in_same_run_is_rejected(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """同一轮对话第二次 file_revise 被拒绝为观测反馈，只产出一个待确认补丁。"""
+
+    from app.domains.assistant import service as assistant_service
+
+    _enable_loop_env(monkeypatch)
+    monkeypatch.setattr(
+        assistant_service,
+        "_call_llm",
+        lambda source, *, system_prompt, user_prompt: {
+            "content": "修订后正文",
+            "completion_tokens": 3,
+            "latency_ms": 5,
+        },
+    )
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "file_revise",
+                            "arguments": json.dumps({"path": "正文/第01章.md", "instruction": "改开头"}),
+                        },
+                    },
+                    {
+                        "id": "c2",
+                        "type": "function",
+                        "function": {
+                            "name": "file_revise",
+                            "arguments": json.dumps({"path": "设定/人物.md", "instruction": "改人设"}),
+                        },
+                    },
+                ],
+                "completion_tokens": 4,
+            },
+            {"content": "第一个补丁等你确认，第二个文件下轮再改。", "tool_calls": [], "completion_tokens": 4},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-revise-twice",
+        project_path=str(novel_project),
+        message="把第一章和人物设定都改一下",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert result["proposed_patch"]["file_path"] == str((novel_project / "正文" / "第01章.md").resolve())
+    assert [trace["status"] for trace in result["tool_trace"]] == ["completed", "failed"]
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    assert len(tool_messages) == 2
+    assert "最多生成一个待确认补丁" in str(tool_messages[1]["content"])
+    artifacts = client.get("/api/agent-runs/run-chat-loop-revise-twice/artifacts").json()
+    assert len([artifact for artifact in artifacts if artifact["kind"] == "proposed_patch"]) == 1
+
+
+def test_chat_loop_file_review_path_escape_feeds_error_and_recovers(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """file_review 越界路径被拒绝为观测反馈，循环不中断且不产生 artifact。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "file_review", "arguments": json.dumps({"path": "../外面.md"})},
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "这个路径在项目外，我只能审项目里的稿件。", "tool_calls": [], "completion_tokens": 4},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-review-escape",
+        project_path=str(novel_project),
+        message="审一下 ../外面.md",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert [trace["status"] for trace in result["tool_trace"]] == ["failed"]
+    assert "review_report" not in result["agent_result"]
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    assert "路径越界" in str(tool_messages[0]["content"])
+    artifacts = client.get("/api/agent-runs/run-chat-loop-review-escape/artifacts").json()
+    assert [artifact for artifact in artifacts if artifact["kind"] == "review_report"] == []
+
+
 def test_chat_loop_skipped_without_project_path(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -401,9 +401,23 @@ class AgentRuntime:
         context = ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args)
 
         def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-            # project_root 只来自请求 args，LLM 传入的一律丢弃，防止越出项目边界。
-            payload = {key: value for key, value in arguments.items() if key != "project_root"}
-            payload["project_root"] = project_path
+            # project_root / content / file_path 只由后端生成，LLM 传入的一律丢弃，防止越界或注入伪造正文。
+            payload = {
+                key: value
+                for key, value in arguments.items()
+                if key not in ("project_root", "content", "file_path")
+            }
+            if registry_name in ("file.review", "file.revise"):
+                rel_path = _optional_string(payload.pop("path", None)) or _optional_string(arguments.get("file_path"))
+                if not rel_path:
+                    raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
+                read = fs_tools.fs_read(project_path, rel_path, offset=0, limit=200_000)
+                if read.get("truncated") is True:
+                    raise fs_tools.FsToolError("文件超过单次处理上限，请缩小范围（分章 / 拆文件）后再审稿或修订。")
+                payload["file_path"] = fs_tools.resolve_project_file(project_path, rel_path)
+                payload["content"] = read["content"]
+            else:
+                payload["project_root"] = project_path
             return self._execute_tool(registry_name, context, payload).output
 
         try:
@@ -444,23 +458,34 @@ class AgentRuntime:
                     "tool_call_count": outcome.tool_call_count,
                     "completion_tokens": outcome.completion_tokens,
                     "exhausted": outcome.exhausted,
+                    "proposed_patch_id": (outcome.proposed_patch or {}).get("id"),
                 },
             ),
         )
+        plan = [
+            _plan_step(
+                "agent.loop",
+                f"工具循环完成：{outcome.rounds} 轮、{outcome.tool_call_count} 次工具调用。",
+                "completed",
+            )
+        ]
+        agent_result: dict[str, Any] = {
+            "summary": answer,
+            "requires_user_confirmation": outcome.proposed_patch is not None,
+        }
+        if outcome.review_report is not None:
+            agent_result["review_report"] = outcome.review_report
+        if outcome.proposed_patch is not None:
+            plan.append(_plan_step("permission.confirm", "文件写回前等待作者确认。", "needs_approval"))
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,
             intent="chat.explain",
             user_message=user_message,
-            plan=[
-                _plan_step(
-                    "agent.loop",
-                    f"工具循环完成：{outcome.rounds} 轮、{outcome.tool_call_count} 次工具调用。",
-                    "completed",
-                )
-            ],
-            agent_result={"summary": answer, "requires_user_confirmation": False},
+            plan=plan,
+            agent_result=agent_result,
             tool_trace=list(outcome.traces),
+            proposed_patch=outcome.proposed_patch,
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
         )
