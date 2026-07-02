@@ -25,22 +25,16 @@ _optional_int = llm_http.optional_int
 _optional_float = llm_http.optional_float
 
 
-def _call_llm(
+def _build_chat_payload(
     source: Mapping[str, str | None],
     *,
-    system_prompt: str,
-    user_prompt: str,
-    tools: list[dict[str, object]] | None = None,
-    tool_choice: str | dict[str, object] | None = None,
+    messages: list[dict[str, object]],
+    tools: list[dict[str, object]] | None,
+    tool_choice: str | dict[str, object] | None,
 ) -> dict[str, object]:
-    """对真实 OpenAI 兼容端点发一次 chat/completions，返回正文与 token 使用。"""
-
-    payload = {
+    payload: dict[str, object] = {
         "model": _required_env(source, "STORYFORGE_LLM_MODEL"),
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
+        "messages": messages,
         "temperature": _optional_float(source, "STORYFORGE_LLM_TEMPERATURE", 0.7),
     }
     max_completion_tokens = _optional_int(source, "STORYFORGE_LLM_MAX_COMPLETION_TOKENS", 0)
@@ -53,6 +47,15 @@ def _call_llm(
         payload["tools"] = tools
         if tool_choice is not None:
             payload["tool_choice"] = tool_choice
+    return payload
+
+
+def _request_chat_completions(
+    source: Mapping[str, str | None],
+    payload: dict[str, object],
+) -> tuple[dict[str, object], float]:
+    """带重试地 POST /chat/completions，返回响应体与请求起始时间。"""
+
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     http_request = request.Request(
         f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/chat/completions",
@@ -99,6 +102,29 @@ def _call_llm(
             ) from exc
     if data is None:  # 理论不可达：循环要么 break 要么 raise；兜底避免 None 解引用
         raise BookGenerationError("真实 LLM 重试后仍无响应数据。")
+    return data, started_at
+
+
+def _call_llm(
+    source: Mapping[str, str | None],
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    tools: list[dict[str, object]] | None = None,
+    tool_choice: str | dict[str, object] | None = None,
+) -> dict[str, object]:
+    """对真实 OpenAI 兼容端点发一次 chat/completions，返回正文与 token 使用。"""
+
+    payload = _build_chat_payload(
+        source,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        tools=tools,
+        tool_choice=tool_choice,
+    )
+    data, started_at = _request_chat_completions(source, payload)
     message = _assistant_message(data)
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -119,6 +145,41 @@ def _call_llm(
     if tool_calls:
         result["tool_calls"] = tool_calls
     return result
+
+
+def _call_llm_messages(
+    source: Mapping[str, str | None],
+    *,
+    messages: list[dict[str, object]],
+    tools: list[dict[str, object]] | None = None,
+    tool_choice: str | dict[str, object] | None = None,
+) -> dict[str, object]:
+    """多轮 messages 版 chat/completions，供 Agent 工具循环使用。
+
+    与 `_call_llm` 的差别：允许 assistant 只返回 tool_calls、content 为空——
+    工具循环里这是合法中间态，不作为错误。"""
+
+    payload = _build_chat_payload(source, messages=messages, tools=tools, tool_choice=tool_choice)
+    data, started_at = _request_chat_completions(source, payload)
+    message = _assistant_message(data)
+    raw_content = message.get("content")
+    content = raw_content.strip() if isinstance(raw_content, str) else ""
+    if content:
+        content = _strip_reasoning_leak(content)
+    tool_calls = _message_tool_calls(message)
+    if not content and not tool_calls:
+        raise BookGenerationError("真实 LLM 返回既无正文也无工具调用，无法继续。")
+    prompt_text = "\n".join(str(item.get("content") or "") for item in messages)
+    usage = _token_usage(data, prompt_text, content)
+    cost_breakdown = _cost_breakdown(source, usage)
+    return {
+        "content": content,
+        "tool_calls": tool_calls,
+        **usage,
+        "cost_cny_estimated": cost_breakdown["total_cny"],
+        "cost_breakdown": cost_breakdown,
+        "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
+    }
 
 
 def _assistant_message(data: dict[str, object]) -> dict[str, object]:

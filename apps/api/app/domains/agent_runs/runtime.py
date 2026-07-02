@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs import fs_tools, loop_runtime
 from app.domains.agent_runs._text import _compact_text, _optional_string
 from app.domains.agent_runs.bookrun_summary import (
     _bookrun_budget_details,
@@ -302,6 +303,16 @@ class AgentRuntime:
         user_message: str,
         args: dict[str, Any],
     ) -> dict[str, Any]:
+        loop_result = self._try_chat_loop(
+            session,
+            run=run,
+            agent_session_id=agent_session_id,
+            assistant_session_id=assistant_session_id,
+            user_message=user_message,
+            args=args,
+        )
+        if loop_result is not None:
+            return loop_result
         assistant_service.append_assistant_message(
             session,
             assistant_session_id,
@@ -339,6 +350,127 @@ class AgentRuntime:
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
         )
+
+    def _try_chat_loop(
+        self,
+        session: Session,
+        *,
+        run: AgentRun,
+        agent_session_id: str,
+        assistant_session_id: int,
+        user_message: str,
+        args: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """自由文本对话优先走 LLM 工具循环；不可用时返回 None 回落单轮回话。
+
+        只在「有 project_path 且 LLM 已配置」时尝试；首轮模型调用失败
+        （如 provider 不支持 tools、环境不完整）不发任何事件，静默回落。"""
+
+        project_path = _optional_string(args.get("project_path"))
+        if not project_path:
+            return None
+        if assistant_service.missing_book_generation_env():
+            return None
+
+        started = _base_response(
+            agent_session_id=agent_session_id,
+            assistant_session_id=assistant_session_id,
+            intent="chat.explain",
+            user_message=user_message,
+            plan=[_plan_step("agent.loop", "读取项目文件、检索并整理回答。", "running")],
+            agent_result={"summary": "正在查看项目文件。", "requires_user_confirmation": False},
+            tool_trace=[],
+            role_hints=_role_hints(args),
+            role_mentions=_role_mentions(args),
+        )
+        plan_recorded = False
+        trace_index = 0
+
+        def ensure_plan_recorded() -> None:
+            nonlocal plan_recorded
+            if not plan_recorded:
+                self._event_sink.record_plan(run, started)
+                plan_recorded = True
+
+        def on_trace(trace: AgentToolTrace) -> None:
+            nonlocal trace_index
+            ensure_plan_recorded()
+            self._event_sink.record_tool_trace(run, trace, trace_index)
+            trace_index += 1
+
+        context = ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args)
+
+        def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+            # project_root 只来自请求 args，LLM 传入的一律丢弃，防止越出项目边界。
+            payload = {key: value for key, value in arguments.items() if key != "project_root"}
+            payload["project_root"] = project_path
+            return self._execute_tool(registry_name, context, payload).output
+
+        try:
+            outcome = loop_runtime.run_chat_loop(
+                session,
+                llm_env=assistant_service.resolved_llm_env(),
+                assistant_session_id=assistant_session_id,
+                user_message=user_message,
+                project_path=project_path,
+                current_file=_optional_string(args.get("file_path")),
+                execute_fs_tool=execute_fs_tool,
+                on_trace=on_trace,
+            )
+        except loop_runtime.ChatLoopUnavailableError:
+            return None
+
+        ensure_plan_recorded()
+        answer = outcome.answer or "（模型这轮没返回内容，换个说法再问我一次？）"
+        assistant_service.append_assistant_message(
+            session,
+            assistant_session_id,
+            AssistantMessageCreate(role="user", content=user_message),
+        )
+        assistant_service.append_assistant_message(
+            session,
+            assistant_session_id,
+            AssistantMessageCreate(role="assistant", content=answer),
+        )
+        loop_evidence = assistant_service.create_assistant_tool_call(
+            session,
+            assistant_session_id,
+            AssistantToolCallCreate(
+                tool_name="assistant.chat_loop",
+                status="completed",
+                input_summary={"message": user_message[:500], "project_path": project_path},
+                output_summary={
+                    "rounds": outcome.rounds,
+                    "tool_call_count": outcome.tool_call_count,
+                    "completion_tokens": outcome.completion_tokens,
+                    "exhausted": outcome.exhausted,
+                },
+            ),
+        )
+        result = _base_response(
+            agent_session_id=agent_session_id,
+            assistant_session_id=assistant_session_id,
+            intent="chat.explain",
+            user_message=user_message,
+            plan=[
+                _plan_step(
+                    "agent.loop",
+                    f"工具循环完成：{outcome.rounds} 轮、{outcome.tool_call_count} 次工具调用。",
+                    "completed",
+                )
+            ],
+            agent_result={"summary": answer, "requires_user_confirmation": False},
+            tool_trace=list(outcome.traces),
+            role_hints=_role_hints(args),
+            role_mentions=_role_mentions(args),
+        )
+        result["agent_result"]["chat_loop"] = {
+            "rounds": outcome.rounds,
+            "tool_call_count": outcome.tool_call_count,
+            "assistant_tool_call_id": loop_evidence.id,
+        }
+        result["_events_recorded"] = True
+        return result
 
     def _run_file_review_interruptible(
         self,
@@ -1257,6 +1389,9 @@ class AgentRuntime:
     def _register_tools(self) -> None:
         handlers: dict[str, ToolHandler] = {
             "context.load": self._context_load,
+            "fs.list": self._fs_list,
+            "fs.read": self._fs_read,
+            "fs.search": self._fs_search,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "judge.run": self._judge_run,
@@ -1274,6 +1409,66 @@ class AgentRuntime:
             if handler is None:
                 raise AgentOrchestrationError(f"Agent Runtime 工具缺少 handler：{spec.name}")
             self._tool_registry.register(tool_definition_from_spec(spec, handler))
+
+    def _fs_list(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        subpath = _optional_string(payload.get("subpath"))
+        output = fs_tools.fs_list(project_root, subpath)
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="fs.list",
+                status="completed",
+                input_summary={"subpath": subpath},
+                output_summary={"entry_count": len(output["entries"]), "truncated": output["truncated"]},
+            ),
+        )
+
+    def _fs_read(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        path = _required_string(payload, "path")
+        output = fs_tools.fs_read(
+            project_root,
+            path,
+            offset=_fs_int_arg(payload, "offset", 0),
+            limit=_fs_int_arg(payload, "limit", 20_000),
+        )
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="fs.read",
+                status="completed",
+                input_summary={"path": path},
+                output_summary={
+                    "path": output["path"],
+                    "returned_chars": output["returned_chars"],
+                    "truncated": output["truncated"],
+                },
+            ),
+        )
+
+    def _fs_search(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        query = _required_string(payload, "query")
+        glob = _optional_string(payload.get("glob")) or "*.md"
+        output = fs_tools.fs_search(
+            project_root,
+            query,
+            glob=glob,
+            use_regex=payload.get("use_regex") is True,
+        )
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="fs.search",
+                status="completed",
+                input_summary={"query": query[:200], "glob": glob},
+                output_summary={"match_count": len(output["matches"]), "truncated": output["truncated"]},
+            ),
+        )
 
     def _context_load(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
@@ -1758,6 +1953,19 @@ def _pop_runtime_internal_markers(result: dict[str, Any]) -> None:
 
 def _plan_step(step: str, detail: str, status: str) -> dict[str, str]:
     return {"step": step, "detail": detail, "status": status}
+
+
+def _fs_int_arg(payload: dict[str, Any], key: str, default: int) -> int:
+    """LLM 工具参数容错：int 直接用，数字字符串转换，其余回退默认值。"""
+
+    value = payload.get(key)
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        return int(value)
+    return default
 
 
 def _chat_context_block(args: dict[str, Any]) -> str:

@@ -4591,3 +4591,19 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **改动**：新增 `apps/api/app/domains/agent_runs/fs_tools.py`——`fs_list`（递归相对路径列表、跳过 .git/.storyforge/.codex/node_modules/__pycache__ 与点前缀目录、max_entries 截断标记）、`fs_read`（offset/limit 字符切片、单次上限 200K、二进制拒读、CRLF 归一化为 \n）、`fs_search`（默认 glob *.md、行号+摘录、max_matches 截断、可选正则、单文件扫描上限 512KB、文件数上限 2000）。所有入口 `_resolve_scoped` 以 project_root resolve 后前缀校验，`../`、绝对路径、符号链接逃逸一律 `FsToolError("路径越界")`；**无任何写接口**。
 - **证据**：`uv run pytest tests/test_agent_fs_tools.py -q` → 12 passed（含 ../ 与绝对路径越界、二进制拒读、截断标记、正则无效报错、glob 过滤、subpath 作用域用例）；`uv run ruff check` 通过。
 - **未验 / 不外推**：本轮工具尚未接入 runtime 工具注册表与 LLM 循环（PR-B），不改变现有任何行为。
+
+## Agent loop PR-B：LLM 工具循环替代 chat 单轮回话（2026-07-02）
+
+- **背景**：三步计划第二步。把自由文本对话从「单轮 chat_reply」升级为「LLM 自主调用只读 fs 工具后作答」；显式 intent（审稿/修订/写作任务按钮）保持旧管线，可单独回退。
+- **改动**：
+  - `book_generation_llm.py`：抽出 `_build_chat_payload` + `_request_chat_completions`（HTTP+重试核心，行为不变）；新增 `_call_llm_messages`（多轮 messages 版，允许 assistant 只回 tool_calls、content 为空——工具循环合法中间态；既无正文也无工具调用才报错）。`_call_llm` 语义与报错文案保持原样。
+  - 新增 `agent_runs/loop_runtime.py`：`run_chat_loop` 工具循环主体——OpenAI tool-calling 协议（函数名 fs_list/fs_read/fs_search，内部映射回 registry 名）；最多 8 轮；工具输出预算 60K 字符，超限注入系统提示并撤走工具强制作答；末轮不给工具；未知工具/参数解析失败/工具异常一律作为观测反馈给模型不中断；每次工具调用落 `assistant_tool_calls` 证据（running→completed/failed）+ 历史消息带入（最近 12 条、每条截 4000）。首轮 LLM 失败（含 `BookGenerationPreflightError`，与 `BookGenerationError` 平级需同时接住）抛 `ChatLoopUnavailableError`。
+  - `runtime.py`：注册 `fs.list/fs.read/fs.search` handler（复用 PR-A fs_tools，`project_root` 只来自请求 args、LLM 传入一律丢弃）；`_run_chat_explain` 前置 `_try_chat_loop`——有 project_path 且 LLM 已配置才试，首轮失败静默回落单轮（不发事件、不重复 plan）；成功路径增量发 `agent_plan_created` + 逐工具 `tool_trace` 事件，`_events_recorded=True`；落 `assistant.chat_loop` 汇总证据；`agent_result.chat_loop` 带 rounds/tool_call_count。
+  - `tooling.py` + `role_catalog.py`：fs.* 三个 spec（auto/read/retry_safe/idempotent）；root_agent 与 context_explorer 的 allowed_tools 同步（投影测试强制一致）。
+  - **附带修复 master 红测**：`test_alembic_heads.py` 把 head 钉死为 `20260630_0001`，PR #48 的迁移 `20260702_0001` 合并后即红（当时只跑了定向套件漏掉）；本轮更新钉死值复绿。
+- **证据**：
+  - `uv run pytest tests/test_agent_loop_runtime.py -q` → 4 passed（工具循环端到端 WS：fs.list/fs.read 事件+证据链+第二轮带回工具结果；未知工具反馈恢复；首轮失败回落单轮且 plan 事件仅 1 条；无 project_path 不进循环）。
+  - `uv run pytest tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py tests/test_agent_llm_context.py tests/test_agent_fs_tools.py -q` → 112 passed。
+  - 其余全量 `uv run pytest`（排除上述已跑文件）→ 669 passed / 3 skipped。合计全套 785 passed。
+  - `uv run ruff check` → 通过。
+- **未验 / 不外推**：真·LLM tool-calling 实跑（真实 provider 对 tools 的行为、回落路径）未在本轮验证；循环暂不支持 pause/resume 边界（旧 chat 单轮路径本也没有）；前端流程树仍含预制骨架步骤（PR-C 处理）。
