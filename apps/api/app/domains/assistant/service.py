@@ -63,6 +63,7 @@ def create_assistant_session(session: Session, payload: AssistantSessionCreate) 
     assistant_session = AssistantSession(
         title=payload.title,
         task_type=payload.task_type,
+        project_path=payload.project_path,
         blueprint_id=payload.blueprint_id,
         book_run_id=payload.book_run_id,
         artifact_id=payload.artifact_id,
@@ -147,15 +148,20 @@ def get_assistant_session(session: Session, assistant_session_id: int) -> Assist
     return assistant_session
 
 
-def list_recent_assistant_sessions(session: Session, *, limit: int = 20) -> list[AssistantSession]:
-    """按更新时间倒序读取最近 Assistant 会话。"""
+def list_recent_assistant_sessions(
+    session: Session,
+    *,
+    limit: int = 20,
+    project_path: str | None = None,
+) -> list[AssistantSession]:
+    """按更新时间倒序读取最近 Assistant 会话，可按项目路径过滤。"""
 
+    statement = select(AssistantSession).options(selectinload(AssistantSession.messages))
+    if project_path is not None:
+        statement = statement.where(AssistantSession.project_path == project_path)
     return list(
         session.scalars(
-            select(AssistantSession)
-            .options(selectinload(AssistantSession.messages))
-            .order_by(AssistantSession.updated_at.desc(), AssistantSession.id.desc())
-            .limit(limit)
+            statement.order_by(AssistantSession.updated_at.desc(), AssistantSession.id.desc()).limit(limit)
         )
     )
 

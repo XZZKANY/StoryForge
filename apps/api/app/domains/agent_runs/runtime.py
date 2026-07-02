@@ -1532,9 +1532,15 @@ def _resolve_assistant_session(
             return assistant_service.get_assistant_session(session, requested_id)
         except assistant_service.AssistantSessionNotFoundError as exc:
             raise AgentOrchestrationError(str(exc)) from exc
+    project_path = _optional_string(args.get("project_path")) or _optional_string(message.get("project_path"))
     return assistant_service.create_assistant_session(
         session,
-        AssistantSessionCreate(title=f"IDE Agent: {user_message[:120]}", task_type="ide_agent_orchestration", messages=[]),
+        AssistantSessionCreate(
+            title=f"IDE Agent: {user_message[:120]}",
+            task_type="ide_agent_orchestration",
+            project_path=project_path,
+            messages=[],
+        ),
     )
 
 

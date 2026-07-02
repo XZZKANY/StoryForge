@@ -116,8 +116,10 @@ export function useProjectWorkspace({
   }, []);
 
   const setActiveProjectAssistantSession = useCallback(
-    (assistantSessionId: number | null) => {
-      const project = activeProject;
+    (assistantSessionId: number | null, projectOverride?: string) => {
+      // projectOverride 供侧栏「切换/新建会话」在 selectProject 同一事件里使用，
+      // 此时 activeProject state 尚未更新到目标项目。
+      const project = projectOverride ?? activeProject;
       if (!project) return;
       setProjectAssistantSessions((prev) => {
         const next = { ...prev };

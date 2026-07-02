@@ -4564,3 +4564,23 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `apps/api/tests/test_phase9_fact_sources.py`：`更新时间：2026-06-04` 钉死断言改为日期格式正则（手册必须有更新时间，不钉死具体日期）；阶段名断言同步；新增 `chat.explain` / `私测 Alpha 单机后端` / `工具循环` / `会话历史列表` 等新事实钉；`2026-06-21 本轮正在执行 apps/web 退场` 改为 `已完成退场收口`。
 - **证据**：`uv run pytest tests/test_phase9_fact_sources.py -q` → 14 passed（此前 1 failed / 13 passed）；`uv run ruff check tests/test_phase9_fact_sources.py` → 通过；`pnpm.cmd lint` → 0 error（仅先前存在的 Editor.tsx exhaustive-deps warning），prettier 全通过。
 - **未验 / 不外推**：本轮为文档 + 测试断言同步，无运行时行为变更；不改变任何「禁止宣称」边界本身。
+
+## Desktop 对话体验收口：会话历史列表 + 欢迎页输入框接真（2026-07-02）
+
+- **背景**：延续 PR #46 对话式 Agent 收口，补两处用户 2026-07-01 笔记（`端的问题.md` #2/#5、`审uiux.md`）反馈的缺口：左栏没有对话历史（原「展开会话」只显示 localStorage 里当前项目的单个 sessionId、文案写死「最近创作会话」），欢迎页中央大输入框是纯装饰（无 value/onChange、发送钮无 onClick，从欢迎页发不出消息）。
+- **后端（可按项目列会话历史）**：
+  - `assistant_sessions` 增列 `project_path`（`String(1024)`，index，nullable，带独立迁移 `20260702_0001`，down_revision 接 `20260630_0001` head）；`AssistantSession` model / `AssistantSessionCreate` / `AssistantSessionRead` schema 同步。
+  - `list_recent_assistant_sessions` + `GET /api/assistant/sessions` 增 `project_path` 过滤参数（None 时行为不变，向后兼容首页最近记录）。
+  - `agent_runs/runtime.py` 的 `_resolve_assistant_session` 建会话时从 `args.project_path` 落 `project_path`，使 agent 自动建的会话可被按项目检索。
+- **前端**：
+  - api-client 新增 `listAssistantSessions({ projectPath, limit })`；`AssistantSessionRecord` 增 `project_path`。
+  - `CodexSidebar`：展开项目时从 `GET /api/assistant/sessions?project_path=` 拉真实会话历史（加载中/失败/空态分别提示），点击会话 → `onSelectProjectSession(path, id)` 切项目并恢复该会话，「新建会话」→ `onNewProjectSession(path)` 清空当前项目会话开新对话；高亮当前会话。
+  - `useProjectWorkspace.setActiveProjectAssistantSession` 增 `projectOverride`，供切项目与设会话在同一事件里生效（activeProject state 尚未更新）。
+  - 欢迎页输入框接真：`WelcomeWorkspace`/`AgentComposerHome` 接 `composerValue/onComposerChange/onComposerSend`；textarea 绑定 state + Enter 发送 + 发送钮 disabled 门控；`App` 记住首条 prompt 为 `pendingWelcomePrompt`、打开项目后 `ChatWindow` 经 `pendingInitialPrompt` 自动发出一次（`pendingPromptFiredRef` 防重发）。
+- **方向键排查**：代码层未发现任何对 Arrow 键的 `preventDefault`（Composer 仅拦 Ctrl+Enter，App 全局 keydown 仅拦 Ctrl+P），无禁用 `user-select` 的全局 CSS，Tauri 侧无 drag-region / 全局快捷键拦截。最可能根因是欢迎页那个**只读装饰 textarea**（空只读框里方向键移光标无可见效果）——本轮已改为真实可编辑输入框；真机需再验一次主 Composer。
+- **证据**：
+  - `cd apps/api && uv run pytest tests/test_assistant_sessions.py tests/test_agent_runs.py -q` → 58 passed（含新增 `test_assistant_session_list_filters_by_project_path` + WS 用例锁定 `project_path` 落库）。
+  - `npm --prefix apps/desktop/frontend run typecheck` → 干净。
+  - `npm --prefix apps/desktop/frontend run test` → 93 pass。
+  - `pnpm openapi` 刷新契约（新增 `project_path` 字段/查询参数）；`pnpm.cmd lint` → 0 error，prettier 通过。
+- **未验 / 不外推**：本轮走单测 + TestClient；**未**在真机 Tauri GUI 串「欢迎页输入 → 打开项目 → 自动发首条」「侧栏点历史会话恢复对话」端到端，方向键真机复验仍待人工。

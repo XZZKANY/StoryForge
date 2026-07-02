@@ -29,6 +29,7 @@ class AssistantSessionCreate(BaseModel):
 
     title: str = Field(min_length=1, max_length=160)
     task_type: str = Field(min_length=1, max_length=50)
+    project_path: str | None = Field(default=None, max_length=1024)
     blueprint_id: int | None = Field(default=None, gt=0)
     book_run_id: int | None = Field(default=None, gt=0)
     artifact_id: int | None = Field(default=None, gt=0)
@@ -41,6 +42,7 @@ class AssistantSessionRead(BaseModel):
     id: int
     title: str
     task_type: str
+    project_path: str | None
     blueprint_id: int | None
     book_run_id: int | None
     artifact_id: int | None

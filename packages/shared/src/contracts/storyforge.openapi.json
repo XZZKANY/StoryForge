@@ -1427,6 +1427,18 @@
             "title": "Messages",
             "type": "array"
           },
+          "project_path": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Path"
+          },
           "task_type": {
             "maxLength": 50,
             "minLength": 1,
@@ -1498,6 +1510,17 @@
             "title": "Messages",
             "type": "array"
           },
+          "project_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Path"
+          },
           "task_type": {
             "title": "Task Type",
             "type": "string"
@@ -1516,6 +1539,7 @@
           "id",
           "title",
           "task_type",
+          "project_path",
           "blueprint_id",
           "book_run_id",
           "artifact_id",
@@ -11018,7 +11042,7 @@
     },
     "/api/assistant/sessions": {
       "get": {
-        "description": "读取最近会话，供首页最近记录和任务追溯使用。",
+        "description": "读取最近会话，供桌面端会话历史与任务追溯使用；可按项目路径过滤。",
         "operationId": "list_assistant_sessions_endpoint_api_assistant_sessions_get",
         "parameters": [
           {
@@ -11029,6 +11053,22 @@
               "default": 20,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_path",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Path"
             }
           }
         ],

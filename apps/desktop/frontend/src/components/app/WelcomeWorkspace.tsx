@@ -13,6 +13,8 @@ export function AgentWorkspace({
   projectPath,
   currentFile,
   assistantSessionId,
+  pendingInitialPrompt,
+  onPendingInitialPromptConsumed,
   exposeWorkspaceToggle,
   layoutMode,
   onAssistantSessionChange,
@@ -25,6 +27,8 @@ export function AgentWorkspace({
   projectPath: string | null;
   currentFile: string | null;
   assistantSessionId: number | null;
+  pendingInitialPrompt?: string | null;
+  onPendingInitialPromptConsumed?: () => void;
   exposeWorkspaceToggle: boolean;
   layoutMode: LayoutMode;
   onAssistantSessionChange: (assistantSessionId: number | null) => void;
@@ -45,6 +49,8 @@ export function AgentWorkspace({
             projectPath={projectPath}
             currentFile={currentFile}
             assistantSessionId={assistantSessionId}
+            pendingInitialPrompt={pendingInitialPrompt}
+            onPendingInitialPromptConsumed={onPendingInitialPromptConsumed}
             layoutMode={layoutMode}
             onAssistantSessionChange={onAssistantSessionChange}
             onFocusOnly={onFocusOnly}
@@ -98,6 +104,9 @@ export function WelcomeWorkspace({
   onApplyModel,
   providerKind,
   onApplyProvider,
+  composerValue,
+  onComposerChange,
+  onComposerSend,
 }: {
   activeProject: string | null;
   onOpenProject: () => void;
@@ -110,6 +119,9 @@ export function WelcomeWorkspace({
   onApplyModel: (model: string) => void;
   providerKind: ProviderKind;
   onApplyProvider: (kind: ProviderKind) => void;
+  composerValue: string;
+  onComposerChange: (value: string) => void;
+  onComposerSend: () => void;
 }) {
   return (
     <section
@@ -138,6 +150,9 @@ export function WelcomeWorkspace({
         onApplyModel={onApplyModel}
         providerKind={providerKind}
         onApplyProvider={onApplyProvider}
+        composerValue={composerValue}
+        onComposerChange={onComposerChange}
+        onComposerSend={onComposerSend}
       />
     </section>
   );
@@ -154,6 +169,9 @@ function AgentComposerHome({
   onApplyModel,
   providerKind,
   onApplyProvider,
+  composerValue,
+  onComposerChange,
+  onComposerSend,
 }: {
   activeProject: string | null;
   compact?: boolean;
@@ -166,6 +184,9 @@ function AgentComposerHome({
   onApplyModel?: (model: string) => void;
   providerKind?: ProviderKind;
   onApplyProvider?: (kind: ProviderKind) => void;
+  composerValue?: string;
+  onComposerChange?: (value: string) => void;
+  onComposerSend?: () => void;
 }) {
   const primaryAction = activeProject ? onBrowseFiles : onOpenProject;
   const projectLabel = activeProject ? basename(activeProject) : 'StoryForge';
@@ -178,6 +199,8 @@ function AgentComposerHome({
     onApplyModel?.(modelDraft.trim());
     setModelPickerOpen(false);
   };
+  const composerInteractive = onComposerChange !== undefined && onComposerSend !== undefined;
+  const canSend = composerInteractive && (composerValue ?? '').trim().length > 0;
 
   return (
     <div className="flex h-full items-center justify-center bg-background px-4 py-10">
@@ -195,8 +218,18 @@ function AgentComposerHome({
         >
           <textarea
             className={`${compact ? 'h-[66px] text-[15px]' : 'h-[72px] text-[17px]'} w-full resize-none bg-transparent px-4 py-3 leading-6 text-foreground outline-none placeholder:text-subtle`}
-            placeholder="随心输入"
+            placeholder={composerInteractive ? '随心输入，回车打开项目开始对话' : '随心输入'}
             aria-label="Agent 输入"
+            value={composerValue ?? ''}
+            onChange={(event) => onComposerChange?.(event.target.value)}
+            readOnly={!composerInteractive}
+            data-testid="welcome-composer-input"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey && canSend) {
+                event.preventDefault();
+                onComposerSend?.();
+              }
+            }}
           />
           <div className={`${compact ? 'h-[50px]' : 'h-[54px]'} flex items-center gap-2 px-3`}>
             <button
@@ -300,8 +333,13 @@ function AgentComposerHome({
               </div>
             )}
             <button
-              className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-lg leading-none text-accent-foreground transition-colors hover:opacity-90"
+              className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-lg leading-none text-accent-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               title="发送"
+              data-testid="welcome-composer-send"
+              disabled={!canSend}
+              onClick={() => {
+                if (canSend) onComposerSend?.();
+              }}
             >
               ↑
             </button>

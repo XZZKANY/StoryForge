@@ -50,6 +50,36 @@ def test_assistant_session_create_append_and_recent(client: TestClient) -> None:
     ]
 
 
+def test_assistant_session_list_filters_by_project_path(client: TestClient) -> None:
+    """桌面端会话历史按 project_path 过滤，只返回当前项目的会话。"""
+
+    for title, project_path in (
+        ("项目A会话", "D:/novels/project-a"),
+        ("项目B会话", "D:/novels/project-b"),
+        ("无项目会话", None),
+    ):
+        response = client.post(
+            "/api/assistant/sessions",
+            json={
+                "title": title,
+                "task_type": "ide_agent_orchestration",
+                "project_path": project_path,
+                "messages": [],
+            },
+        )
+        assert response.status_code == 201, response.text
+
+    filtered = client.get("/api/assistant/sessions", params={"project_path": "D:/novels/project-a"})
+    assert filtered.status_code == 200, filtered.text
+    sessions = filtered.json()
+    assert [item["title"] for item in sessions] == ["项目A会话"]
+    assert sessions[0]["project_path"] == "D:/novels/project-a"
+
+    unfiltered = client.get("/api/assistant/sessions")
+    assert unfiltered.status_code == 200
+    assert len(unfiltered.json()) >= 3
+
+
 def test_assistant_session_detail_returns_404_for_missing_session(client: TestClient) -> None:
     """读取不存在的 Assistant 会话详情时应返回明确 404。"""
 
