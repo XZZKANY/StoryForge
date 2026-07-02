@@ -129,6 +129,7 @@ def _call_llm(
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
         raise BookGenerationError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
+    raw_content = content
     content = _strip_reasoning_leak(content)
     if not content:
         raise BookGenerationError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
@@ -142,6 +143,8 @@ def _call_llm(
         "cost_breakdown": cost_breakdown,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
+    if content != raw_content.strip():
+        result["reasoning_leak_stripped"] = True
     if tool_calls:
         result["tool_calls"] = tool_calls
     return result
@@ -164,6 +167,7 @@ def _call_llm_messages(
     message = _assistant_message(data)
     raw_content = message.get("content")
     content = raw_content.strip() if isinstance(raw_content, str) else ""
+    stripped_raw = content
     if content:
         content = _strip_reasoning_leak(content)
     tool_calls = _message_tool_calls(message)
@@ -172,7 +176,7 @@ def _call_llm_messages(
     prompt_text = "\n".join(str(item.get("content") or "") for item in messages)
     usage = _token_usage(data, prompt_text, content)
     cost_breakdown = _cost_breakdown(source, usage)
-    return {
+    result: dict[str, object] = {
         "content": content,
         "tool_calls": tool_calls,
         **usage,
@@ -180,6 +184,9 @@ def _call_llm_messages(
         "cost_breakdown": cost_breakdown,
         "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
     }
+    if content != stripped_raw:
+        result["reasoning_leak_stripped"] = True
+    return result
 
 
 def _assistant_message(data: dict[str, object]) -> dict[str, object]:

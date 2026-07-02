@@ -42,6 +42,34 @@ def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypat
     assert len(tool_calls) == 1
     assert tool_calls[0]["tool_name"] == "assistant.revise"
     assert tool_calls[0]["status"] == "completed"
+    assert "reasoning_leak_stripped" not in tool_calls[0]["output_summary"]
+
+
+def test_revise_marks_reasoning_leak_in_tool_call_evidence(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LLM 产物剥离过 think 泄漏时，assistant.revise 证据链带 reasoning_leak_stripped 标记。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        return {
+            "content": "修订后的正文。",
+            "completion_tokens": 7,
+            "latency_ms": 5,
+            "reasoning_leak_stripped": True,
+        }
+
+    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={"file_path": "draft.md", "content": "原文。", "instruction": "修一下"},
+    )
+    assert response.status_code == 200, response.text
+    session_id = response.json()["assistant_session_id"]
+    tool_calls = client.get(f"/api/assistant/sessions/{session_id}/tool-calls").json()
+    assert tool_calls[0]["output_summary"]["reasoning_leak_stripped"] is True
 
 
 def test_revise_includes_desktop_context_bundle_in_prompt(
