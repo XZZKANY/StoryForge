@@ -1,6 +1,6 @@
 # StoryForge 当前阶段事实源
 
-生成时间：2026-06-23 00:33:51 +08:00
+生成时间：2026-07-02 12:00:00 +08:00
 
 ## 事实源职责矩阵
 
@@ -17,23 +17,27 @@
 
 ## 当前阶段
 
-StoryForge 当前处于真实长程验收整改与 Desktop IDE Agent 收口阶段（当前项目真相边界：2026-06-21）；Cursor for Fiction Phase 1 最小闭环和 Phase 2 Agent 协作增强均已通过本地验证。产品契约为：StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场，不再作为维护、调试、兼容或契约验证入口。
+StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段（当前项目真相边界：2026-07-02）。产品契约为：StoryForge = Cursor for Fiction（2026-06-24 拍板：作者辅助 IDE，不是自动长篇生产器）；`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场（2026-06-21 已完成退场收口），不再作为维护、调试、兼容或契约验证入口。2026-06-30 起交互中枢定向为 Claude Code/Codex 式对话 agent：批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
+
+2026-07-01 以来已合并的收口（PR #42-#46）：单色调明暗双主题 UI 改版；私测 Alpha 单机后端（PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar）；中间交互区收口为对话式 Agent，`chat.explain` 从演示 echo 接上真·LLM，对话从文件级解绑为项目级会话。但当前桌面 Agent 仍是自然语言意图路由 + 固定管线：没有项目级 fs 工具（列文件 / 读任意文件 / 跨文件检索），上下文由前端预组装塞入；流程树的 plan / tool_trace 事件为真实回传，但仍存在前端预制骨架步骤；下一步核心升级是工具循环（Agent loop）。
 
 Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff / patch 审阅 -> 冲突保护 -> 用户确认真实写回 -> 版本记录与 author-loop 记录。长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 只作为 managed full-book run 的内部兼容实现，保留长程生成、审计和导出能力，但不作为主产品控制台。
 
-真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过人工通读。一次 30 章真实长程运行已经完成，链路、Markdown、EPUB 和审计报告导出成立，但人工通读结论为“退回重跑”。因此当前只能证明真实长程运行链路可达，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。
+真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，10 章 smoke 已通过人工通读。一次 30 章真实长程运行已经完成，链路、Markdown、EPUB 和审计报告导出成立，但人工通读结论为“退回重跑”。因此当前只能证明真实长程运行链路可达，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。2026-06-30 的 Q9 16 章真实跑（`.codex/real-llm-q9-flash-16ch-20260630-155026`）定位并修复了门禁丢章四根因（字数容差、judge 误标、grounding 部分提交、缺章护栏，PR #40/#41），抢救为完整 16 章并通过人工通读；该证据说明门禁链路修复有效，但不替代 3-5 万字长程质量验收。
 
 当前架构重构总计划已完成当前合理边界：`agent_runs/runtime.py`、BookRun/Judge/StoryMemory/IDE/Studio/Retrieval/Workflow/Prompt/Desktop 客户端等 god-file 拆分不再作为当前主线待办。后续只接受由真实行为缺口或新护栏驱动的小步结构调整，不再做纯机械拆分。
 
 ## 已完成的能力边界
 
-- **managed Writing Run / BookRun 兼容实现**：本地 deterministic/mock provider 可从 Blueprint 章节计划驱动 managed full-book run，并导出 `book.md` 与 `audit_report.json`；当前 BookRun 兼容实现已具备 checkpoint resume、token/时间/章节预算暂停、provider 连续降级暂停和成本摘要，但不作为主产品入口。
+- **managed Writing Run / BookRun 兼容实现**：本地 deterministic/mock provider 可从 Blueprint 章节计划驱动 managed full-book run，并导出 `book.md` 与 `audit_report.json`；当前 BookRun 兼容实现已具备 checkpoint resume、token/时间/章节预算暂停、provider 连续降级暂停和成本摘要，定位为后台工具，不作为主产品入口。
 - **长程质量增强**：Story Memory 注入/抽取、Character Bible、Timeline Guard、Style Guard、章节 pacing、叙事 gate、思维链泄漏剥离和审计页已纳入本地测试或真实 run 验证。
-- **真实长程链路证据**：30 章真实长程完成运行与制品导出，但人工通读退回重跑；该证据不得外推为质量通过。
+- **真实长程链路证据**：30 章真实长程完成运行与制品导出，但人工通读退回重跑；Q9 16 章真实跑完成门禁丢章修复并通过人工通读；上述证据不得外推为 3-5 万字长程质量通过。
 - **出版制品**：BookRun 可生成 Markdown、EPUB 与审计报告制品索引；S3/MinIO 真路径已有 client 层建桶、上传、presigned URL 集成测试证据，导出失败仍可降级到 `memory://`。
-- **Desktop IDE 主体验**：`apps/desktop` 是唯一主体验；Tauri/Vite/React/Monaco 桌面 IDE 已形成项目库、文件树、编辑器、版本记录、命令面板、无边框窗口和 Rust `get_api_config` 注入。
+- **Desktop IDE 主体验**：`apps/desktop` 是唯一主体验；Tauri/Vite/React/Monaco 桌面 IDE 已形成项目库、文件树、编辑器、版本记录、命令面板、无边框窗口和 Rust `get_api_config` 注入；2026-07-01 完成单色语义 token + 明暗双主题改版。
 - **Desktop IDE Agent Phase 1**：后端 IDE Agent Orchestrator 已支持自然语言意图路由、真实 LLM 文件修订、多视角 file.review 推理缝、稳定 issue id、范围控制、待确认 proposed patch 和确认写回防重复生成；前端已接入对话、步骤树、待确认 diff 和本地确认写回事件。
-- **Desktop IDE Agent Phase 2**：Agent WebSocket 支持 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 事件流；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；审稿 issue 支持多选、按 category 过滤和定向修订；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files；managed Writing Run 以预检/确认方式投影轻量进度，不新增 BookRun 主控制台。
+- **Desktop IDE Agent Phase 2**：Agent WebSocket 支持 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 事件流；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files。
+- **Desktop 对话式 Agent（2026-07-01，PR #46）**：对话为项目级会话（按项目路径存 session，切换文件不丢对话，消息持久化于 `assistant_sessions` / `assistant_messages`）；`chat.explain` 调 `assistant_service.chat_reply` 走真·LLM 并落 `assistant.chat` 工具调用证据链，LLM 未配置或失败时明确回话、不伪造；勾选式 issue 面板已删除，修订呈现收敛为 PatchReviewPanel diff 确认。
+- **私测 Alpha 单机后端（2026-07-01，PR #43/#44）**：sidecar exe 可脱离 docker/venv 独立起服（sqlite 自建 45 表、health ready）；BYO-key；`llm-provider.json` 写盘即生效、无需重启；`tauri build` NSIS 安装包正确内嵌 sidecar，release 默认拉起打包后端。
 
 ## 真实 LLM 证据
 
@@ -51,30 +55,31 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - 3 章 smoke：`.codex/real-llm-3ch-20260603-173932`，BookRun completed，实际 3 章，tokens_used=14158，`book.md` 与 `audit_report.json` 已落盘，人工通读完成。
 - 10 章 smoke：`.codex/real-llm-10ch-20260604-110831`，BookRun completed，实际 10 章，tokens_used=145668，10 章 smoke 人工通读完成，最终门禁 `gate: pass_for_real_10ch_final_acceptance`。
 - 30 章长程：`.codex/real-llm-30ch-mimo25pro-20260611-192356`，运行链路与制品导出完成，人工通读退回重跑。
+- Q9 16 章：`.codex/real-llm-q9-flash-16ch-20260630-155026`，门禁丢章四根因修复后抢救为完整 16 章，人工通读通过（评价“还行”）。
 
 30 章退回的主要阻塞包括测试痕迹残留、章节结构模板化、重复表达、人物称谓混乱、17/18 章时间线冲突、线索膨胀和结尾收束不足。后续修复中又通过真实 run 与 golden 回测定位并修复了 recap 膨胀、计数失真、collapse_judge 误报、S3 bucket 缺失和 reasoning token 泄漏等工程问题；这些修复改善链路可信度，但仍不能替代新一轮长程人工通读。
 
 ## 当前门禁状态
 
-- `pnpm.cmd lint`：2026-06-20 本轮已通过；仍有 4 个非阻断 warning，分别为 IDE prototype/use-fetch 的 hook warning 和 `home-page.test.tsx` 未使用变量 warning。
-- Desktop frontend typecheck/unit/smoke：2026-06-23 本轮通过；`npm --prefix apps/desktop/frontend run test` 为 20 passed。
-- `cd apps/api && uv run pytest tests/test_ide_agent_orchestrator.py tests/test_ide_run_events.py -q`：2026-06-23 本轮 24 passed，覆盖 IDE Agent 编排、事件流、审稿范围控制、BookRun 预检/确认和 run events。
+- `pnpm.cmd lint`：2026-07-01 PR #46 收口时通过（0 error，prettier 通过；剩 `Editor.tsx` 1 个先前存在的 exhaustive-deps warning）。
+- Desktop frontend typecheck/unit/smoke：2026-07-01 通过；`npm --prefix apps/desktop/frontend run test` 为 93 passed，typecheck 干净。
+- `cd apps/api && uv run pytest`：2026-07-01 全量 767 passed / 3 skipped / 1 failed；唯一失败为 `test_phase9_fact_sources.py` 将运维手册“更新时间”日期钉死导致的文档日期漂移，2026-07-02 已改为日期格式校验并复绿。
 - `npm --prefix apps/desktop/frontend run verify:agent-conversation`：2026-06-23 本轮通过，覆盖流式事件、上下文 pin/budget、Agent payload 和 issue 多选修订。
 - `node apps/desktop/scripts/verify-tauri-smoke.mjs`：2026-06-23 本轮通过，覆盖真实 Tauri proposed patch 未确认不写盘、拒绝不写盘、旧 patch 冲突保护、确认写回、版本 Agent meta 和 author-loop meta。
-- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`：2026-06-23 本轮通过。
+- `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`：2026-06-23 本轮通过；2026-07-01 `tauri build` release 全链路通过（NSIS 安装包产出）。
 - 上一次记录的远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z，head `590333f1ccc99234f4244bc7bf4556fd7dee3f4f`）已成功；这是已记录证据，不代表 2026-06-20 最新远端状态。
 
 ## 仍未完成的验收项
 
-- 跑通完整真实 Tauri 桌面端到端：打开文件 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 用户确认真实写回 -> 版本记录。现有 smoke 已覆盖写回护栏和版本元数据，但不能替代人工桌面端到端验收。
-- 基于 30 章人工通读意见整改后，重跑真实 3-5 万字长程。
-- 对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对和人工通读。
-- 将人工通读记录写入 `.codex/verification-report.md`，并确认无明显人物、世界观或时间线矛盾。
+- 跑通完整真实 Tauri 桌面端到端（现在入口是 NSIS 安装包双击装机路径）：打开项目 -> 对话 -> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 用户确认真实写回 -> 版本记录。现有 smoke 已覆盖写回护栏和版本元数据，但不能替代人工桌面端到端验收。
+- Desktop 对话体验收口：左栏会话历史列表（后端 `GET /api/assistant/sessions` 已有、桌面前端未接）、欢迎页中央输入框接真发送（当前为纯装饰、无 state 绑定）、方向键失灵真机复验。
+- Agent loop 核心升级：为 sidecar 后端增加 path-scoped 的 `fs.list` / `fs.read` / `fs.search` 只读工具（写回仍走 proposed patch 确认），用 LLM 工具循环替代关键词意图路由，删除前端预制骨架步骤、流程树全事件驱动。
+- 质量轨（后台）：基于 30 章人工通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并执行人工盲评（DoD 见下）；对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对，人工通读记录写入 `.codex/verification-report.md`；Q1-Q8 一致性能力逐步做成 agent 工具。
 - 视需要补齐生产级对象存储签名下载、多租户认证、真实 provider 长会话探针和 Desktop 内更长会话交互打磨。
 
 ## 禁止宣称范围
 
-在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据，以及 Cursor for Fiction Phase 1/Phase 2 的 Desktop IDE Agent 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
+在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及 Cursor for Fiction Phase 1/Phase 2 与对话式 Agent 收口的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。不得把当前意图路由式桌面 Agent 宣称为已具备自主工具循环的 agent；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
 
 ## 证据源
 
@@ -83,9 +88,9 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - `docs/internal/TODO.md`：当前下一步执行入口。
 - `docs/internal/dev-plan.md`：Phase 9 历史计划和完成判定。
 
-## 下一步计划与重跑 DoD（2026-06-29 锚点）
+## 下一步计划与重跑 DoD（2026-06-29 锚点，2026-07-02 更新）
 
-完整下一步路线图见 `docs/internal/next-step-plan.md`（阶段 0 护栏 + 产品轨/质量轨并行）。30 章退回的结构化诊断见 `.codex/real-llm-30ch-mimo25pro-20260611-192356/readthrough-findings.md`。
+完整下一步路线图见 `docs/internal/next-step-plan.md`（2026-07-02 起产品轨顺序改为：对话体验收口 -> Agent loop -> 真机安装包端到端；质量轨保持后台）。30 章退回的结构化诊断见 `.codex/real-llm-30ch-mimo25pro-20260611-192356/readthrough-findings.md`。
 
 下一轮真实长程**重跑验收 DoD**（固化判据，避免再次只做链路演示）：
 
@@ -97,6 +102,6 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - 制品：`book.md` / `book.epub` / `audit_report.json` / `summary.json` / `run-metadata.json` 附 sha256 并校验完整性。
 - 证据：人工盲评结论写入 `.codex/verification-report.md`；结论以人工通读为准，不以 golden/judge pass 替代。
 
-**重跑前必须先落地的根因修复**：真实逐章事实抽取替换写死抽取、去 demo premise 系统词 + 多 arc、收紧 fast-judge 空转、`_call_llm` 重试 + 缺章护栏。
+**重跑前根因修复状态（2026-07-02）**：真实逐章事实抽取、去 demo premise、收紧 fast-judge、`_call_llm` 有界重试均有第一版本地验证；门禁丢章四根因（字数容差、judge 误标、grounding 部分提交、缺章护栏）已在 Q9 16 章真实跑中修复并验证。仍需新一轮 3-5 万字长程 + 人工盲评做最终判定。
 
 **本轮不交付的已知缺口**（登记备查，非遗漏）：多人实时协作、多租户认证、生产级对象存储签名下载、完整 Studio 编排器、持久化异步任务队列。

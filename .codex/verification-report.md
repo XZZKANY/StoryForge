@@ -4552,3 +4552,15 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `uv run pytest`（全量 API）→ **767 passed / 3 skipped / 1 failed**，529s。
 - **唯一失败为先前存在、与本轮无关**：`test_phase9_fact_sources.py::test_local_start_records_current_phase9_runbook` 断言本地启动手册含「更新时间：2026-06-04」，而手册已在已合并的 PR #43（3343df6）改为「2026-07-01」——文档/测试日期漂移，手册与该测试均不在本轮改动清单内。
 - **未验 / 不外推**：本轮全走单测 + TestClient；**未**在真·LLM 环境跑 `chat.explain` 真实回话，也**未**在真机 Tauri GUI 串「无文件时项目级对话」端到端。真机 GUI 端到端仍是唯一剩余门。
+
+## 事实源文档刷新至对话式 Agent + 私测 Alpha 阶段 + 修 phase9 日期钉死断言（2026-07-02）
+
+- **背景**：`current-phase.md` / `TODO.md` / `CLAUDE.md` 停在 2026-06-23 旧叙事（BookRun 优先、长程重跑为首要），落后于 2026-06-30 对话式 Agent 定向与 2026-07-01 已合并的 PR #42-#46（UI 改版、Alpha sidecar、对话式 Agent + chat.explain 真·LLM）；每个新会话都会被旧文档误导。另有唯一红测 `test_phase9_fact_sources.py::test_local_start_records_current_phase9_runbook`：把运维手册「更新时间：2026-06-04」钉进断言，PR #43 手册日期改为 2026-07-01 后必挂。
+- **改动**：
+  - `docs/internal/current-phase.md`：阶段更名「Desktop 对话式 Agent 与私测 Alpha 收口阶段」（真相边界 2026-07-02）；补 PR #42-#46 收口事实、Q9 16 章门禁修复证据（`.codex/real-llm-q9-flash-16ch-20260630-155026`，人工通读通过）、对话式 Agent 现状边界（仍为关键词意图路由、无项目级 fs 工具、流程树含前端预制骨架步骤）；「仍未完成的验收项」改为：真机安装包端到端 / 对话体验收口 / Agent loop / 质量轨后台；禁止宣称范围加「不得把意图路由式 Agent 宣称为自主工具循环 agent」。30 章退回细节、重跑 DoD、重构边界、历史 E2E 证据句保留不动。
+  - `docs/internal/TODO.md`：同步阶段名与新四级优先级（对话体验收口 → Agent loop → 真机端到端 → 质量轨后台）；本地验证命令区不动。
+  - `CLAUDE.md`：§1.1 更新至 2026-07-02 真相；§8 能做/不能做补对话式 Agent、Alpha sidecar 与意图路由边界；§8.1 换为新优先级。
+  - `docs/internal/next-step-plan.md`：按该文件惯例追加 2026-07-02 更新块（产品轨顺序调整，质量轨 DoD 不变）。
+  - `apps/api/tests/test_phase9_fact_sources.py`：`更新时间：2026-06-04` 钉死断言改为日期格式正则（手册必须有更新时间，不钉死具体日期）；阶段名断言同步；新增 `chat.explain` / `私测 Alpha 单机后端` / `工具循环` / `会话历史列表` 等新事实钉；`2026-06-21 本轮正在执行 apps/web 退场` 改为 `已完成退场收口`。
+- **证据**：`uv run pytest tests/test_phase9_fact_sources.py -q` → 14 passed（此前 1 failed / 13 passed）；`uv run ruff check tests/test_phase9_fact_sources.py` → 通过；`pnpm.cmd lint` → 0 error（仅先前存在的 Editor.tsx exhaustive-deps warning），prettier 全通过。
+- **未验 / 不外推**：本轮为文档 + 测试断言同步，无运行时行为变更；不改变任何「禁止宣称」边界本身。
