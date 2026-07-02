@@ -39,6 +39,7 @@ def isolate_remote_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "STORYFORGE_LLM_SMOKE_TIME_BUDGET_SECONDS",
         "STORYFORGE_LLM_SMOKE_RECAP_FULL_CHAPTERS",
         "STORYFORGE_LLM_SMOKE_FAST_JUDGE",
+        "STORYFORGE_LLM_CONFIG_FILE",
     ):
         monkeypatch.delenv(name, raising=False)
 

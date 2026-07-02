@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import httpx
 from prometheus_client import Counter
 
+from app.common.llm_env import resolved_llm_env
+from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
 from app.domains.judge.schemas import JudgeIssueCreate
 from app.domains.judge.types import DetectedIssue, JudgeProvider, SemanticJudgeOutcome
@@ -84,6 +86,7 @@ def semantic_judge(
     *,
     provider: JudgeProvider | None = None,
     character_voice_constraints: list[dict] | None = None,
+    llm_env: Mapping[str, str | None] | None = None,
 ) -> list[DetectedIssue]:
     """调用 OpenAI 兼容模型执行语义一致性评审，仅返回问题列表。
 
@@ -95,6 +98,7 @@ def semantic_judge(
         payload,
         provider=provider,
         character_voice_constraints=character_voice_constraints,
+        llm_env=llm_env,
     ).issues
 
 
@@ -103,21 +107,26 @@ def semantic_judge_with_status(
     *,
     provider: JudgeProvider | None = None,
     character_voice_constraints: list[dict] | None = None,
+    llm_env: Mapping[str, str | None] | None = None,
 ) -> SemanticJudgeOutcome:
     """执行语义评审并返回结果与失败标记。
 
     failed=True 仅代表远程调用出错（网络/超时/响应不可解析）。
     未配置 API Key 属于"未启用"而非失败，failed 保持 False。
+
+    STORYFORGE_LLM_* 走 resolved_llm_env 覆盖链（env → .env settings → llm-provider.json），
+    STORYFORGE_JUDGE_LLM_* 仍为进程 env 独占的最高优先级覆盖。
     """
 
     if provider is not None:
         return SemanticJudgeOutcome(issues=_issues_from_provider_items(provider(payload), payload.content), failed=False)
 
-    api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or os.getenv("STORYFORGE_LLM_API_KEY")
+    source = resolved_llm_env(llm_env)
+    api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or env_value(source, "STORYFORGE_LLM_API_KEY")
     if not api_key:
         return SemanticJudgeOutcome(issues=[], failed=False)
-    base_url = os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL") or os.getenv("STORYFORGE_LLM_BASE_URL", "https://api.openai.com/v1")
-    model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or os.getenv("STORYFORGE_LLM_MODEL", "gpt-4o-mini")
+    base_url = os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL") or env_value(source, "STORYFORGE_LLM_BASE_URL") or "https://api.openai.com/v1"
+    model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or env_value(source, "STORYFORGE_LLM_MODEL") or "gpt-4o-mini"
 
     voice_section = f"\n角色声音约束：{character_voice_constraints}" if character_voice_constraints else ""
     user_prompt = (
@@ -136,12 +145,13 @@ def semantic_judge_with_status(
         ],
         "temperature": 0,
     }
-    reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or os.getenv("STORYFORGE_LLM_REASONING_EFFORT")
+    reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or env_value(source, "STORYFORGE_LLM_REASONING_EFFORT")
     if reasoning_effort:
         request_payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
+    timeout_seconds = os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or env_value(source, "STORYFORGE_LLM_TIMEOUT_SECONDS") or "300"
     try:
-        with httpx.Client(timeout=float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or os.getenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "300"))) as client:
+        with httpx.Client(timeout=float(timeout_seconds)) as client:
             response = client.post(
                 _chat_completions_url(base_url),
                 json=request_payload,
