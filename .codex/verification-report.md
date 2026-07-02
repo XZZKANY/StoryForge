@@ -4633,3 +4633,18 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **测试钉兼容**：措辞保持 `test_phase9_fact_sources.py` 全部事实钉——「会话历史列表」「工具循环」留在 TODO 下一步优先级的真机端到端行，「自然语言意图路由」等钉在 current-phase.md 原句保留，测试零改动。
 - **证据**：`cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q` → 14 passed；`pnpm.cmd lint` → 0 error（仅先前存在的 Editor.tsx exhaustive-deps warning），prettier 全通过。
 - **未验 / 不外推**：纯文档同步，无运行时行为变更；不改变任何「禁止宣称」边界本身；Agent loop 真·LLM 实跑与真机端到端仍未执行。
+
+## Agent loop 真·LLM tool-calling headless 实跑验证（2026-07-02）
+
+- **背景**：PR #49/#50/#51 落地的 chat 工具循环此前只有单测 + TestClient 证据；本轮按 TODO 优先级 1 执行真实 provider 实跑（真实 WS 路径，非 TestClient）。
+- **环境**：`apps/api` 经 `run_windows.py` 单机起服（sqlite 自建表、无 docker/Redis；注意本机 venv 的 `uvicorn/loops/__init__.py` 顶层 `import uvloop`，`--loop asyncio` 也会炸，必须走 `run_windows.py`）；LLM 配置经 `STORYFORGE_LLM_CONFIG_FILE` 挂桌面 Alpha 写盘的 `llm-provider.json`（deepseek / deepseek-v4-flash，BYO-key）——`.env.local` 里的旧 key 已失效（provider 返回 401）。测试项目为临时中文小说项目（5 个 md，埋跨文件伏笔），WS 消息形状与桌面端一致。
+- **结果（证据 `.codex/real-llm-agent-loop-20260702-165907`，README 有完整核对）**：
+  - 工具循环主路径：消息一 4 轮 / 4 工具（fs.list + fs.read×3）98.1s、消息二同会话 2 轮 / 3 工具（fs.search×3，模型自主构造正则 `凿去|凿星|七星|北斗`）57.5s；回答全部接地（人物 / 章节数 / 铜镜凿星 / 摇光禁术），引用行号与真实文件一致，跨文件伏笔（凿痕「十几年」↔ 观澜「十七年前被除名」）被自主串起。
+  - 事件渐进到达：0.2s run_started → 14.6s plan+fs.list → 34.3s → 55.9s → 98.1s agent_result；REST 事件流含 agent_plan_created + tool_trace×4 + agent_run_completed。
+  - 证据链：`assistant_tool_calls` 逐调用 fs.*（input/output summary）+ `assistant.chat_loop` 汇总（rounds / tool_call_count / completion_tokens 808+804 / exhausted=false）。
+  - 回落路径实证（意外收获）：旧 key 401 时首轮失败 → `ChatLoopUnavailableError` → 静默回落单轮 → 单轮同样 401 → 如实回话不伪造，run 以 agent_result 正常收尾、无 chat_loop 字段。
+  - 质量观察：消息一把案件演绎为「井中尸体案」，正文只写「井里捞出来的东西」，属模型轻度过度演绎，非工具链问题。
+  - 脱敏核查：证据目录扫描确认不含任何 API key。
+- **事实源同步**：`current-phase.md`（已合并块边界、真实 LLM 证据新增 Agent loop 条目、未完成项改为「显式 intent 并入循环」、禁止宣称改为「headless 证据不得当真机验收」）；`TODO.md` / `CLAUDE.md` 同步同一边界。
+- **证据（门禁）**：`uv run pytest tests/test_phase9_fact_sources.py -q` 与 `pnpm.cmd lint` 见本轮提交前复跑记录。
+- **未验 / 不外推**：单一 provider（deepseek-v4-flash），未测其他 provider 的 tools 兼容性；真机 Tauri GUI 多轮渲染观感未验（并入桌面端到端验收项）；审稿 / 修订等显式 intent 仍未循环化；本证据不构成任何长程质量结论。
