@@ -40,3 +40,11 @@ def test_llm_config_file_absent_falls_back_to_env(tmp_path, monkeypatch) -> None
     source = resolved_llm_env()
 
     assert source["STORYFORGE_LLM_MODEL"] == "model-from-env"
+
+
+def test_resolved_llm_env_facade_reexports_common_impl() -> None:
+    """preflight 只是 facade：覆盖链唯一实现在 app/common/llm_env.py（judge 等上游域共用）。"""
+
+    from app.common import llm_env
+
+    assert resolved_llm_env is llm_env.resolved_llm_env

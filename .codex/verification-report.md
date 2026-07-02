@@ -4693,3 +4693,13 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `pnpm.cmd lint` 0 error；phase9 事实钉 14 passed。
 - **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-create-20260702`）**：单条消息「写第三章」→ deepseek-v4-flash 8 轮 / 12 工具：读大纲设定前两章 → file.create 起草 488 字 → **自主 project.consistency 复核**；守住大纲约束（后幕身份未提前揭晓）；双重红线实证——盘上不落新文件 + 模型两次读未确认新文件被拒；脱敏无密钥。
 - **未验 / 不外推**：真机 GUI「自动打开新文件 + PatchReviewPanel 确认写回」观感未验（前端改动仅单测 + 浏览器 smoke 证据）；单一 provider；深度一致性（Character Bible / 语义 judge）未工具化——语义 judge 直读 os.getenv、不吃 llm-provider.json 覆盖链，迁 resolved_llm_env 后再挂。
+
+## Agent loop PR-G1：resolved_llm_env 下沉 app/common + 语义 judge 吃 llm-provider.json 覆盖链（2026-07-02）
+
+- **背景**：TODO 优先级 1「深度一致性（Character Bible / 语义 judge）工具化」的前置。`judge/semantic.py` 直读 `os.getenv`，不吃 `.env settings → llm-provider.json` 覆盖链，桌面私测 Alpha 写盘换模型对语义 judge 无效；且 `resolved_llm_env` 原在 `book_runs/book_generation_preflight.py`，book_runs 已 5 处依赖 judge，judge 反向 import book_runs 是循环依赖地雷——按设计下沉而非顺手接。
+- **改动**：
+  - 新增 `app/common/llm_env.py`：`resolved_llm_env` / `_apply_llm_config_file` / `LLM_SETTINGS_ENV_KEYS` 原样下沉（common 叶子，仅依赖 llm_http/config，行为零变化）；`book_generation_preflight.py` 改 facade re-export（宪法第 5/6 条），既有 assistant / ide / agent_runs / author_chat 调用方零改动。
+  - `judge/semantic.py`：`STORYFORGE_LLM_*` 改走 `resolved_llm_env()` 覆盖链（env → .env settings → llm-provider.json），`STORYFORGE_JUDGE_LLM_*` 保持进程 env 独占最高优先级；`semantic_judge` / `semantic_judge_with_status` 增可选 `llm_env` 参数（显式配置源注入，向后兼容）；未配置 key 仍判「未启用」不判失败。
+  - `tests/conftest.py` autouse 隔离补 delenv `STORYFORGE_LLM_CONFIG_FILE`（迁移后本机 llm-provider.json 真 key 不再可能泄入单测远程调用路径）。
+- **证据**：新增 3 用例——judge 吃 llm-provider.json（baseUrl/model/apiKey 全生效 + Bearer 头）、`STORYFORGE_JUDGE_LLM_*` 仍压过配置文件、preflight facade 与 common 实现同一性钉。定向 `uv run pytest tests/test_judge_semantic.py tests/test_llm_config_file_override.py -q` → 11 passed；全量 `uv run pytest -q` → **802 passed / 3 skipped / 0 failed**（含 phase9 事实钉）；`uv run ruff check`（6 个涉改文件）通过。
+- **未验 / 不外推**：语义 judge 尚未挂进 agent 工具循环（PR-G2 做）；`STORYFORGE_JUDGE_LLM_*` 独立 judge 端点与 auth_header（api-key 型）差异化未纳入覆盖链（judge 仍固定 Bearer，与迁移前一致）；无真·LLM 实跑（本 PR 为纯配置解析迁移，行为由单测钉住）。
