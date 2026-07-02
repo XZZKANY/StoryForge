@@ -67,6 +67,18 @@ def _read_text(path: Path, *, max_bytes: int | None = None) -> str:
     return raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
+def resolve_project_file(project_root: str, path: str) -> str:
+    """把项目内相对路径解析为绝对路径（越界拒绝），供修订补丁携带可写回的真实路径。"""
+
+    if not isinstance(path, str) or not path.strip():
+        raise FsToolError("path 不能为空。")
+    root = _resolve_root(project_root)
+    target = _resolve_scoped(root, path)
+    if not target.is_file():
+        raise FsToolError(f"文件不存在：{path}")
+    return str(target)
+
+
 def fs_list(
     project_root: str,
     subpath: str | None = None,

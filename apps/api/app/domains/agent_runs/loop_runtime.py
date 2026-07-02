@@ -1,6 +1,7 @@
 """Agent 工具循环：chat 自由文本走 LLM tool-calling，自主读项目文件后作答。
 
-只挂只读 fs 工具（fs.list / fs.read / fs.search），写回仍走 proposed patch 前端确认。
+工具面：只读 fs 工具（fs.list / fs.read / fs.search）+ 审稿 / 修订（file.review / file.revise）。
+写回红线不变：file.revise 只生成待作者确认的 proposed patch，后端绝不写盘。
 显式 intent（审稿 / 修订 / 写作任务按钮）继续走旧管线，本模块只服务 chat.explain。
 """
 
@@ -29,11 +30,22 @@ _HISTORY_MAX_MESSAGES = 12
 _HISTORY_MESSAGE_MAX_CHARS = 4_000
 
 # OpenAI function name 不允许点号，对 LLM 暴露下划线名、内部映射回 registry 名。
-_TOOL_NAME_MAP = {"fs_list": "fs.list", "fs_read": "fs.read", "fs_search": "fs.search"}
+_TOOL_NAME_MAP = {
+    "fs_list": "fs.list",
+    "fs_read": "fs.read",
+    "fs_search": "fs.search",
+    "file_review": "file.review",
+    "file_revise": "file.revise",
+}
+
+_REVIEW_FEEDBACK_MAX_ISSUES = 20
+_REVIEW_FEEDBACK_ISSUE_KEYS = ("id", "category", "severity", "code", "message", "suggested_action")
 
 _SYSTEM_PROMPT = (
     "你是 StoryForge 的中文长篇小说创作 agent，工作在作者的本地小说项目上。"
     "你可以调用只读工具查看项目文件：fs_list 列出文件，fs_read 读取文件内容，fs_search 跨文件检索。"
+    "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁。"
+    "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订已生效。"
     "回答作者问题前，先用工具把需要的事实查清楚再作答，不要编造项目里不存在的内容；"
     "项目里查不到时直说查不到。工具结果可能被截断（truncated=true），"
     "需要更多内容就调整 offset 或缩小范围继续读。"
@@ -86,7 +98,45 @@ LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_review",
+            "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_revise",
+            "description": (
+                "按明确指示修订项目内单个稿件，生成待作者确认的修订补丁；不会直接写盘。"
+                "一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                    "instruction": {"type": "string", "description": "修订指示：要改什么、保留什么。"},
+                },
+                "required": ["path", "instruction"],
+            },
+        },
+    },
 ]
+
+
+def _offered_schemas(patch_created: bool) -> list[dict[str, Any]]:
+    if not patch_created:
+        return LOOP_TOOL_SCHEMAS
+    return [schema for schema in LOOP_TOOL_SCHEMAS if schema["function"]["name"] != "file_revise"]
 
 
 class ChatLoopUnavailableError(RuntimeError):
@@ -101,6 +151,8 @@ class ChatLoopOutcome:
     tool_call_count: int = 0
     completion_tokens: int = 0
     exhausted: bool = False
+    review_report: dict[str, Any] | None = None
+    proposed_patch: dict[str, Any] | None = None
 
 
 def _serialize_tool_output(output: dict[str, Any]) -> str:
@@ -138,10 +190,56 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "returned_chars": output.get("returned_chars"),
             "truncated": output.get("truncated"),
         }
+    if registry_name == "file.review":
+        report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
+        return {
+            "file_path": report.get("file_path"),
+            "issue_count": len(report.get("issues") or []),
+            "mode": report.get("mode"),
+        }
+    if registry_name == "file.revise":
+        patch = output.get("proposed_patch") if isinstance(output.get("proposed_patch"), dict) else {}
+        return {
+            "file_path": output.get("file_path"),
+            "after_chars": len(str(output.get("after") or "")),
+            "model": output.get("model"),
+            "patch_id": patch.get("id"),
+        }
     return {
         "match_count": len(output.get("matches") or []),
         "scanned_files": output.get("scanned_files"),
         "truncated": output.get("truncated"),
+    }
+
+
+def _review_feedback(output: dict[str, Any]) -> dict[str, Any]:
+    """给模型的审稿反馈只保留结构化 issue 要点，不回灌整包 report（含 traces、上下文摘要）。"""
+
+    report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
+    issues = [issue for issue in (report.get("issues") or []) if isinstance(issue, dict)]
+    trimmed = [
+        {key: issue.get(key) for key in _REVIEW_FEEDBACK_ISSUE_KEYS if issue.get(key) is not None}
+        for issue in issues[:_REVIEW_FEEDBACK_MAX_ISSUES]
+    ]
+    return {
+        "file_path": report.get("file_path"),
+        "mode": report.get("mode"),
+        "issue_count": len(issues),
+        "issues": trimmed,
+        "issues_truncated": len(issues) > _REVIEW_FEEDBACK_MAX_ISSUES,
+        "suggested_actions": report.get("suggested_actions"),
+    }
+
+
+def _revise_feedback(output: dict[str, Any]) -> dict[str, Any]:
+    """修订反馈不携带 before/after 全文：既省预算，也防模型把未确认补丁当已写回事实。"""
+
+    return {
+        "status": "proposed_patch_created",
+        "file_path": output.get("file_path"),
+        "summary": output.get("summary"),
+        "applied_scope": output.get("applied_scope"),
+        "note": "修订补丁已生成，等待作者在界面确认后才会写盘；不要假设已写回。",
     }
 
 
@@ -190,7 +288,7 @@ def run_chat_loop(
             result = _call_llm_messages(
                 llm_env,
                 messages=messages,
-                tools=LOOP_TOOL_SCHEMAS if offer_tools else None,
+                tools=_offered_schemas(outcome.proposed_patch is not None) if offer_tools else None,
             )
         except _LLM_ERRORS as exc:
             if round_number == 1:
@@ -241,6 +339,9 @@ def run_chat_loop(
             else:
                 failure = None
 
+            if failure is None and registry_name == "file.revise" and outcome.proposed_patch is not None:
+                failure = "一次对话最多生成一个待确认补丁：请先等作者处理当前补丁，再发起新的修订。"
+
             evidence = assistant_service.create_assistant_tool_call(
                 session,
                 assistant_session_id,
@@ -281,7 +382,17 @@ def run_chat_loop(
                 messages.append({"role": "tool", "tool_call_id": call_id, "content": json.dumps({"error": error_text}, ensure_ascii=False)})
                 continue
 
-            serialized = _serialize_tool_output(output)
+            if registry_name == "file.review":
+                if isinstance(output.get("review_report"), dict):
+                    outcome.review_report = output["review_report"]
+                feedback = _review_feedback(output)
+            elif registry_name == "file.revise":
+                if isinstance(output.get("proposed_patch"), dict):
+                    outcome.proposed_patch = output["proposed_patch"]
+                feedback = _revise_feedback(output)
+            else:
+                feedback = output
+            serialized = _serialize_tool_output(feedback)
             tool_output_chars += len(serialized)
             output_summary = _tool_output_summary(registry_name, output)
             assistant_service.update_assistant_tool_call(

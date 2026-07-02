@@ -4648,3 +4648,15 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **事实源同步**：`current-phase.md`（已合并块边界、真实 LLM 证据新增 Agent loop 条目、未完成项改为「显式 intent 并入循环」、禁止宣称改为「headless 证据不得当真机验收」）；`TODO.md` / `CLAUDE.md` 同步同一边界。
 - **证据（门禁）**：`uv run pytest tests/test_phase9_fact_sources.py -q` 与 `pnpm.cmd lint` 见本轮提交前复跑记录。
 - **未验 / 不外推**：单一 provider（deepseek-v4-flash），未测其他 provider 的 tools 兼容性；真机 Tauri GUI 多轮渲染观感未验（并入桌面端到端验收项）；审稿 / 修订等显式 intent 仍未循环化；本证据不构成任何长程质量结论。
+
+## Agent loop：审稿 / 修订并入工具循环（file.review / file.revise 作为循环内工具）（2026-07-02）
+
+- **背景**：TODO 优先级 1。此前工具循环只挂只读 fs 工具，审稿 / 修订只能走关键词路由的固定管线；本轮把 `file.review` / `file.revise` 注册为循环内工具，chat 自由文本即可由 LLM 自主决策审稿与修订。显式按钮 / intent 路径保持旧管线不动（可回退）。
+- **改动**：
+  - `agent_runs/fs_tools.py`：新增 `resolve_project_file`（相对路径 → 越界拒绝的绝对路径，供补丁携带可写回真实路径）。
+  - `agent_runs/loop_runtime.py`：`_TOOL_NAME_MAP` / `LOOP_TOOL_SCHEMAS` 增 `file_review`（path）与 `file_revise`（path + instruction）；系统提示补「补丁不写盘、须作者确认、一次最多一个补丁」；`ChatLoopOutcome` 增 `review_report` / `proposed_patch`；审稿反馈只回灌精简 issue 要点（id/category/severity/code/message/suggested_action，≤20 条，不回灌 agent_findings/traces），修订反馈不携带 before/after 全文（防模型把未确认补丁当已写回，也省预算）；补丁生成后后续轮撤下 `file_revise`，同轮第二次修订调用拒绝为观测反馈。
+  - `agent_runs/runtime.py` `_try_chat_loop`：工具回调泛化——file.review/revise 由后端按 path-scoped 从盘上读稿（>200K 拒绝），LLM 传入的 content / file_path 一律丢弃；结果组装带 `proposed_patch` + `requires_user_confirmation` + `permission.confirm` plan 步，复用既有 `_record_result_artifacts` / `record_permission_required` 后处理（run 暂停、`writeback_blocked_until_user_confirms`、补丁 artifact 待确认）。前端 PatchReviewPanel 契约复用，零前端改动。
+- **证据（单测 + TestClient）**：`uv run pytest tests/test_agent_loop_runtime.py tests/test_agent_fs_tools.py tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_ide_agent_orchestrator.py -q` → 112 passed（新增 4 用例：循环内审稿精简反馈 + report artifact；循环内修订补丁 → permission_required → run paused → 后续轮无 file_revise；同轮二次修订被拒且仅 1 个补丁 artifact；越界路径观测反馈恢复且零 artifact）；`uv run ruff check` 通过；`pnpm.cmd lint` 0 error；`tests/test_phase9_fact_sources.py` 14 passed。
+- **真·LLM 实跑（证据 `.codex/real-llm-agent-loop-intents-20260702`）**：单条消息「审第二章然后修最明显的问题」→ deepseek-v4-flash 自主 file.review → fs.read → file.revise（3 轮 / 3 工具 / 55s）；补丁待确认、`permission_required` 发出、run 暂停 permission.confirm；跑完盘上原文未动（写回红线实证）；模型回话明确「确认后才会写盘」；脱敏扫描无密钥。
+- **未验 / 不外推**：真机 Tauri GUI 上对循环产出补丁的确认写回观感未验；chapter.review / chapter.repair / bookrun.* 未并入循环；单一 provider；全量 API 回归见同日后台跑记录。
+- **全量回归补记**：其余全量 `uv run pytest`（deselect 上述 5 个定向文件）→ 676 passed / 3 skipped / 1 failed；唯一失败 `test_book_generation_parallel.py::test_book_generation_parallel_runner_uses_workflow_metrics_and_exports_audit` 单独复跑通过（2.9s），为套件内顺序/环境 flake，与本轮 agent_runs 改动零交集（该轮全量运行本身 deselect 了本轮测试文件）；定向 5 文件 112 passed 见上。合计全套 788 passed。
