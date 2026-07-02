@@ -448,6 +448,63 @@ def test_chat_loop_file_review_path_escape_feeds_error_and_recovers(
     assert [artifact for artifact in artifacts if artifact["kind"] == "review_report"] == []
 
 
+def test_chat_loop_project_consistency_feeds_observations(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 project.consistency：一次调用返回词条分布（含缺席）观察信号并落证据链。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_consistency",
+                            "arguments": json.dumps({"terms": ["林岚", "裴砚"]}),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "林岚有出场记录，裴砚全书未出现。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-consistency",
+        project_path=str(novel_project),
+        message="帮我查一下林岚和裴砚的称谓一致性",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert result["agent_result"]["summary"] == "林岚有出场记录，裴砚全书未出现。"
+    assert [trace["tool_name"] for trace in result["tool_trace"]] == ["project.consistency"]
+    trace = result["tool_trace"][0]
+    assert trace["status"] == "completed"
+    assert trace["output_summary"]["scanned_files"] == 2
+    assert trace["output_summary"]["term_count"] == 2
+
+    # 观察信号原样喂回模型：含缺席词条标记与时间/重复区块
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert "林岚" in feedback
+    assert '"missing": true' in feedback
+    assert "time_markers" in feedback
+    assert "repeated_clauses" in feedback
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.consistency" in [item["tool_name"] for item in tool_calls]
+
+
 def test_chat_loop_skipped_without_project_path(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -34,6 +34,7 @@ _TOOL_NAME_MAP = {
     "fs_list": "fs.list",
     "fs_read": "fs.read",
     "fs_search": "fs.search",
+    "project_consistency": "project.consistency",
     "file_review": "file.review",
     "file_revise": "file.revise",
 }
@@ -44,6 +45,8 @@ _REVIEW_FEEDBACK_ISSUE_KEYS = ("id", "category", "severity", "code", "message", 
 _SYSTEM_PROMPT = (
     "你是 StoryForge 的中文长篇小说创作 agent，工作在作者的本地小说项目上。"
     "你可以调用只读工具查看项目文件：fs_list 列出文件，fs_read 读取文件内容，fs_search 跨文件检索。"
+    "检查人物称谓、时间线或重复表达等一致性问题时，用 project_consistency 一次拿到全书观察信号"
+    "（词条分布、时间标记、重复子句），再抽读原文核实后下结论。"
     "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁。"
     "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订已生效。"
     "回答作者问题前，先用工具把需要的事实查清楚再作答，不要编造项目里不存在的内容；"
@@ -95,6 +98,28 @@ LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "use_regex": {"type": "boolean", "description": "query 是否按正则解释，默认 false。"},
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "project_consistency",
+            "description": (
+                "项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、"
+                "全书时间标记罗列和跨文件重复子句。只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "terms": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要追踪的人物名 / 称谓 / 设定词条，最多 30 个；可先读设定文件再决定。",
+                    },
+                    "subpath": {"type": "string", "description": "限定扫描的子目录，相对项目根。"},
+                    "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
+                },
             },
         },
     },
@@ -189,6 +214,13 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "path": output.get("path"),
             "returned_chars": output.get("returned_chars"),
             "truncated": output.get("truncated"),
+        }
+    if registry_name == "project.consistency":
+        return {
+            "scanned_files": output.get("scanned_files"),
+            "term_count": len(output.get("term_occurrences") or []),
+            "time_marker_count": len(output.get("time_markers") or []),
+            "repeated_clause_count": len(output.get("repeated_clauses") or []),
         }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}

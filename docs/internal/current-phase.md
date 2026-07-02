@@ -43,6 +43,7 @@ Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff /
 - **会话历史与欢迎页接真（2026-07-02，PR #48）**：左栏展开项目即从 `GET /api/assistant/sessions?project_path=` 拉真实会话历史列表，可切换 / 新建会话；欢迎页中央输入框绑定 state 真发送，打开项目后自动发出首条 prompt。
 - **Agent loop（2026-07-02，PR #49/#50/#51）**：path-scoped 只读 `fs.list` / `fs.read` / `fs.search`（`../`、绝对路径、符号链接逃逸一律拒绝，无写接口）；chat 自由文本走 LLM 工具循环（OpenAI tool-calling，最多 8 轮 + 60K 工具输出预算，未知工具 / 参数错误 / 工具异常作为观测反馈不中断，首轮失败静默回落单轮，逐调用落 `assistant_tool_calls` 证据）；前端流程树全事件驱动，预制骨架步骤已删除；`verify-agent-conversation` 真浏览器门禁修复并复绿。写回红线不变：后端不写项目文件，修订仍走 proposed patch 前端确认。
 - **审稿 / 修订并入工具循环（2026-07-02）**：`file.review` / `file.revise` 作为循环内工具（LLM 自主决策调用）；后端从盘上按 path-scoped 读稿，LLM 传入的 content / file_path 一律丢弃；审稿反馈只回灌精简 issue 要点、整包 report 落 artifact；修订生成待确认补丁即挂 `permission.confirm` 暂停（`permission_required` 事件、`writeback_blocked_until_user_confirms`），一次对话最多一个待确认补丁，修订反馈不携带全文防模型把未确认补丁当已写回；前端 PatchReviewPanel 契约复用、零前端改动。
+- **一致性观察工具挂进循环（2026-07-02）**：`project.consistency` 作为循环内工具（Q1-Q8 一致性能力工具化第一步）——给定人物 / 设定词条返回各文件出现分布（含缺席词条）、全书时间标记罗列、跨文件重复子句；path-scoped 只读、纯机械观察不下「冲突 / 违规」结论，由 LLM 结合原文抽查推理结论，避免未验证误报率的硬判定误导作者。
 
 ## 真实 LLM 证据
 
@@ -63,6 +64,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - Q9 16 章：`.codex/real-llm-q9-flash-16ch-20260630-155026`，门禁丢章四根因修复后抢救为完整 16 章，人工通读通过（评价“还行”）。
 - Agent loop 实跑：`.codex/real-llm-agent-loop-20260702-165907`，真实 WS + deepseek-v4-flash：4 轮 / 4 工具与 2 轮 / 3 工具（含模型自主正则检索）回答全部接地、行号引用真实；事件渐进到达；`assistant_tool_calls` 证据链完整；另含无效 key 401 下回落单轮、如实报错不伪造的回落路径实证。
 - 循环内审稿 / 修订实跑：`.codex/real-llm-agent-loop-intents-20260702`，单条消息 3 轮 / 3 工具（file.review → fs.read → file.revise，55s）；补丁待确认、run 暂停在 permission.confirm、跑完盘上原文未动（写回红线实证）；模型回话明确「确认后才会写盘」。真机 GUI 补丁确认观感不在本证据范围。
+- 循环内一致性观察实跑：`.codex/real-llm-agent-loop-consistency-20260702`，单条消息 5 轮 / 7 工具（读设定 → project.consistency → 回原文抽查，27.8s）；正确区分「裴少卿 / 裴砚」为合理称谓分工而非冲突误报，时间线与重复扫描结论经人工核对属实、无伪造问题。
 
 30 章退回的主要阻塞包括测试痕迹残留、章节结构模板化、重复表达、人物称谓混乱、17/18 章时间线冲突、线索膨胀和结尾收束不足。后续修复中又通过真实 run 与 golden 回测定位并修复了 recap 膨胀、计数失真、collapse_judge 误报、S3 bucket 缺失和 reasoning token 泄漏等工程问题；这些修复改善链路可信度，但仍不能替代新一轮长程人工通读。
 
@@ -79,13 +81,13 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 ## 仍未完成的验收项
 
 - 跑通完整真实 Tauri 桌面端到端（现在入口是 NSIS 安装包双击装机路径）：打开项目 -> 对话（含工具循环流程树、会话历史列表、欢迎页首条 prompt、方向键复验）-> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 用户确认真实写回 -> 版本记录。现有 smoke 已覆盖写回护栏和版本元数据，但不能替代人工桌面端到端验收。
-- Agent loop 收口：chapter.review / 写作任务等剩余显式 intent 与 Q1-Q8 一致性能力逐步做成循环内工具；真机 GUI 多轮渲染与补丁确认观感随桌面端到端复验（审稿 / 修订循环内 headless 实跑已通过，见真实 LLM 证据）。
+- Agent loop 收口：chapter.review / 写作任务等剩余显式 intent 逐步做成工具循环内工具；一致性观察已有第一步（project.consistency），后续把 Character Bible / 语义 judge 等深度一致性能力工具化；真机 GUI 多轮渲染与补丁确认观感随桌面端到端复验（审稿 / 修订与一致性观察的循环内 headless 实跑已通过，见真实 LLM 证据）。
 - 质量轨（后台）：基于 30 章人工通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并执行人工盲评（DoD 见下）；对新一轮长程产物执行 Markdown、EPUB、`audit_report.json` 登记核对，人工通读记录写入 `.codex/verification-report.md`；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环。
 - 视需要补齐生产级对象存储签名下载、多租户认证、真实 provider 长会话探针和 Desktop 内更长会话交互打磨。
 
 ## 禁止宣称范围
 
-在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及 Cursor for Fiction Phase 1/Phase 2、对话式 Agent 收口与 Agent loop（chat 工具循环）的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。chat 工具循环与循环内审稿 / 修订已有真·LLM headless 实跑证据（单 provider），但不得据此宣称真机桌面端多轮渲染与补丁确认已验收，也不得宣称 chapter.review / 写作任务等其余显式 intent 已工具循环化；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
+在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及 Cursor for Fiction Phase 1/Phase 2、对话式 Agent 收口与 Agent loop（chat 工具循环）的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。chat 工具循环、循环内审稿 / 修订与一致性观察已有真·LLM headless 实跑证据（单 provider），但不得据此宣称真机桌面端多轮渲染与补丁确认已验收，也不得宣称 chapter.review / 写作任务等其余显式 intent 已工具循环化；`project.consistency` 只产出机械观察信号，不得宣称其具备语义一致性判定能力；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
 
 ## 证据源
 
