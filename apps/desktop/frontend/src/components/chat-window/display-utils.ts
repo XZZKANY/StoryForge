@@ -37,10 +37,6 @@ export function runStatusText(run: AgentRun | null): string | null {
     run.steps.find((step) => step.status === 'waiting') ??
     run.steps.find((step) => step.status === 'pending');
   if (!active) return '正在整理这一轮回复。';
-  if (active.id === 'context')
-    return active.detail.startsWith('读取') ? active.detail : `正在读取：${active.detail}`;
-  if (active.id === 'draft') return `正在读取：${active.detail.replace(/^读取\s*/, '')}`;
-  if (active.id === 'orchestrate') return '正在整理：创作判断与下一步建议';
   return active.detail || active.title;
 }
 
