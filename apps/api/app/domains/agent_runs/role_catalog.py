@@ -19,6 +19,9 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "default_permission_profile": DEFAULT_PERMISSION_PROFILE,
         "allowed_tools": [
             "context.load",
+            "fs.list",
+            "fs.read",
+            "fs.search",
             "file.review",
             "file.revise",
             "judge.run",
@@ -123,7 +126,7 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "aliases": ["@探索"],
         "read_only": True,
         "default_permission_profile": "read",
-        "allowed_tools": ["context.load", "mcp.project.search", "mcp.context.inspect"],
+        "allowed_tools": ["context.load", "fs.list", "fs.read", "fs.search", "mcp.project.search", "mcp.context.inspect"],
         "output_artifacts": ["review_report"],
         "can_be_mentioned": True,
     },
