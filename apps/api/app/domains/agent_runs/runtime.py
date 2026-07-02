@@ -15,6 +15,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_risk_summary,
 )
 from app.domains.agent_runs.consistency_scan import consistency_scan
+from app.domains.agent_runs.deep_consistency import deep_consistency_review
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.intent import (
     SUPPORTED_INTENTS as SUPPORTED_INTENTS,
@@ -1425,6 +1426,7 @@ class AgentRuntime:
             "fs.read": self._fs_read,
             "fs.search": self._fs_search,
             "project.consistency": self._project_consistency,
+            "project.deep_consistency": self._project_deep_consistency,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "file.create": self._file_create,
@@ -1527,6 +1529,37 @@ class AgentRuntime:
                     "term_count": len(output["term_occurrences"]),
                     "time_marker_count": len(output["time_markers"]),
                     "repeated_clause_count": len(output["repeated_clauses"]),
+                },
+            ),
+        )
+
+    def _project_deep_consistency(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        path = _required_string(payload, "path")
+        bible_paths_raw = payload.get("bible_paths")
+        bible_paths = (
+            [item for item in bible_paths_raw if isinstance(item, str) and item.strip()]
+            if isinstance(bible_paths_raw, list)
+            else None
+        )
+        facts_raw = payload.get("facts")
+        facts = (
+            [item for item in facts_raw if isinstance(item, str) and item.strip()]
+            if isinstance(facts_raw, list)
+            else None
+        )
+        output = deep_consistency_review(project_root, path, bible_paths=bible_paths or None, facts=facts)
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.deep_consistency",
+                status="completed",
+                input_summary={"path": path, "bible_paths": (bible_paths or [])[:10], "fact_count": len(facts or [])},
+                output_summary={
+                    "path": output["path"],
+                    "issue_count": output["issue_count"],
+                    "bible_file_count": len(output["bible_files"]),
                 },
             ),
         )

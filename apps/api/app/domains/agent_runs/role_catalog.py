@@ -23,6 +23,7 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "fs.read",
             "fs.search",
             "project.consistency",
+            "project.deep_consistency",
             "file.review",
             "file.revise",
             "file.create",
