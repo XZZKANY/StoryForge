@@ -4621,3 +4621,15 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `npm run verify:agent-conversation` → **passed**（真 vite + playwright chromium；修复前在 master 基线同样命令失败于等待「扫描项目上下文」超时，已用 git stash 对照验证为先前存在问题）。
   - `pnpm.cmd lint` → 0 error（回到基线仅剩 Editor.tsx 先前存在的 exhaustive-deps warning），prettier 通过。
 - **未验 / 不外推**：真机 Tauri GUI 下事件驱动流程树的观感（步骤到达节奏、真 LLM 工具循环多轮渲染）未验证；chapter.review / bookrun 等旧管线的步骤呈现路径未改动。
+
+## 事实源文档刷新至 Agent loop 已落地边界（2026-07-02）
+
+- **背景**：PR #47-#51 合并后，`current-phase.md` / `TODO.md` / `CLAUDE.md` / `next-step-plan.md` 仍停在「会话历史列表 / Agent loop 是下一步」的旧叙事；上一会话已改好 `current-phase.md` 未提交，本轮补齐其余三份并收口提交。
+- **改动**：
+  - `docs/internal/current-phase.md`：补 2026-07-02 已合并块（PR #47-#51：事实源刷新、会话历史列表 + 欢迎页接真、Agent loop 三步）；能力边界新增「会话历史与欢迎页接真」「Agent loop」两条；「仍未完成的验收项」改为真机端到端（含工具循环流程树 / 会话历史 / 首条 prompt / 方向键）+ Agent loop 真·LLM 实跑验证 + 质量轨；禁止宣称范围改为「不得宣称真·LLM tool-calling 实跑验证通过、不得宣称显式 intent 已工具循环化」。
+  - `docs/internal/TODO.md`：执行入口补 PR #47-#51；事实边界的对话式 Agent 条目更新为工具循环已落地 + 新边界（只覆盖 chat 自由文本、真·LLM tool-calling 未实跑、写回红线不变）；下一步优先级收敛为四级（Agent loop 真·LLM 实跑 → 真机端到端 → 质量轨 → 文档同步）。
+  - `CLAUDE.md`：§1.1 补 2026-07-02 已合并与 Agent loop 边界；§8 能做/不能做同步（意图路由旧禁止句换为 tool-calling 实跑与显式 intent 边界）；§8.1 换新优先级。
+  - `docs/internal/next-step-plan.md`：2026-07-02 更新块追加执行状态（产品轨前两步已合并，剩余真·LLM 实跑 → 真机端到端）。
+- **测试钉兼容**：措辞保持 `test_phase9_fact_sources.py` 全部事实钉——「会话历史列表」「工具循环」留在 TODO 下一步优先级的真机端到端行，「自然语言意图路由」等钉在 current-phase.md 原句保留，测试零改动。
+- **证据**：`cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q` → 14 passed；`pnpm.cmd lint` → 0 error（仅先前存在的 Editor.tsx exhaustive-deps warning），prettier 全通过。
+- **未验 / 不外推**：纯文档同步，无运行时行为变更；不改变任何「禁止宣称」边界本身；Agent loop 真·LLM 实跑与真机端到端仍未执行。
