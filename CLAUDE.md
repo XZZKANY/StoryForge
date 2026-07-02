@@ -18,7 +18,7 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 - 交互中枢（2026-06-30 拍板）：Claude Code/Codex 式**对话式 agent**；批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
 - 2026-07-01 已合并：单色调明暗双主题 UI 改版（PR #42）；私测 Alpha 单机后端——PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar（PR #43/#44）；中间交互区收口为对话式 Agent，`chat.explain` 接真·LLM，对话从文件级解绑为项目级（PR #46）。
 - 2026-07-02 已合并：左栏会话历史列表接真后端 + 欢迎页输入框接真发送（PR #48）；Agent loop 三步落地——path-scoped 只读 `fs.list` / `fs.read` / `fs.search`（PR #49）、chat 自由文本走 LLM 工具循环（最多 8 轮、失败回落单轮，PR #50）、前端流程树全事件驱动删预制骨架步骤（PR #51）。
-- Agent loop 边界：工具循环入口是 chat 自由文本；审稿 / 修订 / 新文件起草 / 一致性观察已作为循环内工具并入（`file.review` / `file.revise` / `file.create` / `project.consistency`，一次对话最多一个待确认补丁，一致性工具只报机械观察不下结论），显式按钮路径仍走固定管线；chapter.review / bookrun.* 绑定 DB 实体、BookRun 定位后台工具，不并入循环（已记为决定）；真·LLM tool-calling headless 实跑已通过（2026-07-02，deepseek-v4-flash，证据 `.codex/real-llm-agent-loop-*` 四个目录），真机 GUI 渲染观感未验；写回红线不变，后端不写项目文件，修订 / 起草走 proposed patch 前端确认。
+- Agent loop 边界：工具循环入口是 chat 自由文本；审稿 / 修订 / 新文件起草 / 一致性观察 / 深度一致性已作为循环内工具并入（`file.review` / `file.revise` / `file.create` / `project.consistency` / `project.deep_consistency`，一次对话最多一个待确认补丁，机械观察工具不下结论、语义评审工具只出 advisory 信号），显式按钮路径仍走固定管线；chapter.review / bookrun.* 绑定 DB 实体、BookRun 定位后台工具，不并入循环（已记为决定）；语义 judge 已从 `os.getenv` 迁 `resolved_llm_env`（下沉 `app/common/llm_env.py`，吃 `llm-provider.json` 覆盖链）；真·LLM tool-calling headless 实跑已通过（2026-07-02，deepseek-v4-flash，证据 `.codex/real-llm-agent-loop-*` 五个目录，深度一致性 6 处埋雷全中），真机 GUI 渲染观感未验；写回红线不变，后端不写项目文件，修订 / 起草走 proposed patch 前端确认。
 - 真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，其中 10 章 smoke 已通过人工通读，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`。
 - 一次 30 章真实长程已经跑完并导出 Markdown、EPUB 和审计报告，证据目录为 `.codex/real-llm-30ch-mimo25pro-20260611-192356`；但人工通读结论是**退回重跑**。2026-06-30 Q9 16 章真实跑修复门禁丢章四根因并抢救为完整 16 章、人工通读通过（PR #40/#41）。
 - 因此当前只能宣称“真实长程运行链路可达、制品导出成立”，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。
@@ -141,7 +141,7 @@ npm --prefix apps/desktop/frontend run test
 **能做：**
 
 - Desktop IDE：打开本地项目、文件树浏览、Monaco 编辑、版本记录、命令面板、保存快照和 API 配置注入；单色语义 token + 明暗双主题。
-- Desktop 对话式 Agent：项目级对话会话（切文件不丢，消息持久化于 `assistant_sessions`，左栏会话历史列表可切换 / 新建）、`chat.explain` 真·LLM 回话、chat 自由文本 LLM 工具循环（path-scoped 只读 `fs.list` / `fs.read` / `fs.search` + 一致性观察 `project.consistency` + 新文件起草 `file.create`，逐调用证据链，流程树全事件驱动）、真实文件修订、多视角 file.review、稳定 issue id、范围控制、待确认 proposed patch（含新文件补丁自动打开目标文件）和确认写回防重复生成已有本地验证证据。注意：工具循环入口是 chat 自由文本，审稿 / 修订 / 起草 / 一致性观察已并入循环（一次对话最多一个待确认补丁），chapter.review / bookrun.* 不并入循环（后台定位，已记为决定）；真·LLM tool-calling headless 实跑已通过，真机 GUI 观感未验。
+- Desktop 对话式 Agent：项目级对话会话（切文件不丢，消息持久化于 `assistant_sessions`，左栏会话历史列表可切换 / 新建）、`chat.explain` 真·LLM 回话、chat 自由文本 LLM 工具循环（path-scoped 只读 `fs.list` / `fs.read` / `fs.search` + 一致性观察 `project.consistency` + 深度一致性语义评审 `project.deep_consistency`（本地人物 / 设定文件作 Character Bible 喂语义 judge，advisory issue 信号）+ 新文件起草 `file.create`，逐调用证据链，流程树全事件驱动）、真实文件修订、多视角 file.review、稳定 issue id、范围控制、待确认 proposed patch（含新文件补丁自动打开目标文件）和确认写回防重复生成已有本地验证证据。注意：工具循环入口是 chat 自由文本，审稿 / 修订 / 起草 / 一致性观察 / 深度一致性已并入循环（一次对话最多一个待确认补丁），chapter.review / bookrun.* 不并入循环（后台定位，已记为决定）；真·LLM tool-calling headless 实跑已通过，真机 GUI 观感未验。
 - 私测 Alpha 单机后端：sidecar exe 独立起服（sqlite 自建表）、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar，均已本机验证。
 - BookRun（后台工具）：deterministic/mock provider 下可跑最小整书闭环，支持 checkpoint、预算暂停、provider 降级、Markdown/EPUB/审计报告导出；不作为主产品控制台。
 - 真实 LLM：1/3/10 章 smoke 有脱敏证据；30 章真实长程有链路和制品导出证据，但质量未通过；Q9 16 章真实跑门禁修复后人工通读通过。
@@ -154,12 +154,12 @@ npm --prefix apps/desktop/frontend run test
 - 不能把自动审计、golden gate 或模型自评等同于人工通读通过。
 - 不能宣称稳定生产级长篇生产闭环。
 - 不能宣称真实 Tauri 桌面端到端写回确认链路已经完成（现在入口是 NSIS 安装包双击装机路径，需人工点穿）。
-- 不能把 Agent 工具循环（含循环内审稿 / 修订 / 新文件起草与一致性观察）的真·LLM headless 实跑证据（单 provider）当作真机桌面端多轮渲染、自动打开新文件与补丁确认验收；chapter.review / bookrun.* 未循环化是已记录的决定而非缺口；`project.consistency` 只产出机械观察信号，不具备语义一致性判定能力。
+- 不能把 Agent 工具循环（含循环内审稿 / 修订 / 新文件起草、一致性观察与深度一致性）的真·LLM headless 实跑证据（单 provider）当作真机桌面端多轮渲染、自动打开新文件与补丁确认验收；chapter.review / bookrun.* 未循环化是已记录的决定而非缺口；`project.consistency` 只产出机械观察信号，不具备语义一致性判定能力；`project.deep_consistency` 的 issue 是 advisory 参考信号（实跑仅验证显性矛盾场景，隐性 / 跨章长程矛盾召回率未验），不得当作质量判定或验收结论。
 - 暂不承诺完整多人协作、生产级对象存储签名下载、多租户认证或全步骤 Studio 编排器。
 
 ## 8.1 当前下一步优先级
 
-1. Agent loop 收口：深度一致性（Character Bible / 语义 judge）做成循环内工具（语义 judge 需先从 `os.getenv` 迁 `resolved_llm_env`）；真机 GUI 多轮渲染、自动打开新文件与补丁确认观感随端到端复验。
+1. Agent loop 收口（余项）：真机 GUI 多轮渲染、自动打开新文件与补丁确认观感随端到端复验（深度一致性已于 2026-07-02 挂进循环：语义 judge 迁 `resolved_llm_env` + `project.deep_consistency` 工具 + headless 实跑通过）。
 2. 跑真实 Tauri 桌面端到端（安装包装机路径）：打开项目 -> 对话（含工具循环流程树、会话历史列表、欢迎页首条 prompt、方向键复验）-> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 写回 -> 版本记录。
 3. 质量轨（后台）：基于 30 章通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并人工盲评；Q1-Q8 一致性逐步做成 agent 工具挂进循环。
 

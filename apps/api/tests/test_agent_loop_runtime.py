@@ -631,6 +631,132 @@ def test_chat_loop_project_consistency_feeds_observations(
     assert "project.consistency" in [item["tool_name"] for item in tool_calls]
 
 
+def test_chat_loop_deep_consistency_feeds_semantic_issues(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 project.deep_consistency：语义 judge issue 信号喂回模型并落证据链。"""
+
+    from app.domains.agent_runs import deep_consistency
+    from app.domains.judge.types import DetectedIssue, SemanticJudgeOutcome
+
+    _enable_loop_env(monkeypatch)
+    monkeypatch.setattr(deep_consistency, "resolved_llm_env", lambda env=None: {"STORYFORGE_LLM_API_KEY": "k"})
+    monkeypatch.setattr(
+        deep_consistency,
+        "semantic_judge_with_status",
+        lambda payload, *, provider=None, character_voice_constraints=None, llm_env=None: SemanticJudgeOutcome(
+            issues=[
+                DetectedIssue(
+                    category="setting_conflict",
+                    severity="high",
+                    span_start=0,
+                    span_end=2,
+                    summary="正文与设定矛盾：灯塔闪光次数与设定不符。",
+                    recommended_repair_mode="replace_span",
+                    expected_text="第三十二次",
+                    replacement_text="第三十二次",
+                    matched_text="灯塔",
+                )
+            ],
+            failed=False,
+        ),
+    )
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_deep_consistency",
+                            "arguments": json.dumps({"path": "正文/第01章.md", "facts": ["灯塔第三十二次闪光"]}),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "第一章与设定存在一处冲突，已定位到闪光次数。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-deep-consistency",
+        project_path=str(novel_project),
+        message="帮我深查第一章有没有违背设定的地方",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert result["agent_result"]["summary"] == "第一章与设定存在一处冲突，已定位到闪光次数。"
+    assert [trace["tool_name"] for trace in result["tool_trace"]] == ["project.deep_consistency"]
+    trace = result["tool_trace"][0]
+    assert trace["status"] == "completed"
+    assert trace["output_summary"] == {"path": "正文/第01章.md", "issue_count": 1, "bible_file_count": 1}
+
+    # 语义 issue 信号原样喂回模型：类别 / 行号 / 参考信号提示
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert "setting_conflict" in feedback
+    assert "line_start" in feedback
+    assert "参考信号" in feedback
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.deep_consistency" in [item["tool_name"] for item in tool_calls]
+
+
+def test_chat_loop_deep_consistency_unconfigured_llm_feeds_error(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """语义评审未配置 LLM 时以工具错误反馈给模型，不伪造「无问题」也不中断循环。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_deep_consistency",
+                            "arguments": json.dumps({"path": "正文/第01章.md"}),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "语义评审没配置模型，这轮先用人工抽查代替。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-deep-consistency-nokey",
+        project_path=str(novel_project),
+        message="深查第一章一致性",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    trace = result["tool_trace"][0]
+    assert trace["tool_name"] == "project.deep_consistency"
+    assert trace["status"] == "failed"
+    assert "未配置 LLM" in trace["error_message"]
+
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    assert "未配置 LLM" in str(tool_messages[0]["content"])
+
+
 def test_chat_loop_skipped_without_project_path(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

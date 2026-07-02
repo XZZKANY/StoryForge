@@ -1,6 +1,7 @@
 """Agent 工具循环：chat 自由文本走 LLM tool-calling，自主读项目文件后作答。
 
-工具面：只读 fs 工具（fs.list / fs.read / fs.search）+ 审稿 / 修订（file.review / file.revise）。
+工具面：只读 fs 工具（fs.list / fs.read / fs.search）+ 一致性（project.consistency 机械观察 /
+project.deep_consistency 语义评审）+ 审稿 / 修订 / 起草（file.review / file.revise / file.create）。
 写回红线不变：file.revise 只生成待作者确认的 proposed patch，后端绝不写盘。
 显式 intent（审稿 / 修订 / 写作任务按钮）继续走旧管线，本模块只服务 chat.explain。
 """
@@ -35,6 +36,7 @@ _TOOL_NAME_MAP = {
     "fs_read": "fs.read",
     "fs_search": "fs.search",
     "project_consistency": "project.consistency",
+    "project_deep_consistency": "project.deep_consistency",
     "file_review": "file.review",
     "file_revise": "file.revise",
     "file_create": "file.create",
@@ -52,6 +54,9 @@ _SYSTEM_PROMPT = (
     "你可以调用只读工具查看项目文件：fs_list 列出文件，fs_read 读取文件内容，fs_search 跨文件检索。"
     "检查人物称谓、时间线或重复表达等一致性问题时，用 project_consistency 一次拿到全书观察信号"
     "（词条分布、时间标记、重复子句），再抽读原文核实后下结论。"
+    "要对单章做深度一致性检查（正文是否违背人物设定 / 世界观 / 已知事实）时，"
+    "用 project_deep_consistency 让语义评审模型把稿件对照人物 / 设定文件核查；"
+    "它返回的 issue 是参考信号，回给作者前先抽读对应行核实，不要照单全收。"
     "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁；"
     "要求写新章节 / 新文件时用 file_create 起草（目标文件必须尚不存在，先看清项目结构选好路径）。"
     "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订或新文件已生效。"
@@ -126,6 +131,34 @@ LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "subpath": {"type": "string", "description": "限定扫描的子目录，相对项目根。"},
                     "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
                 },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "project_deep_consistency",
+            "description": (
+                "深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，"
+                "返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。比 project_consistency 更贵更慢，"
+                "适合先用机械观察或检索定位疑点、再对目标章节深查；结果是参考信号，须抽读原文核实。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径（要评审的正文）。"},
+                    "bible_paths": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "作为约束的人物 / 设定文件路径；省略则自动取 人物/ 与 设定/ 下的 md 文件。",
+                    },
+                    "facts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "已核实的必含事实（如「左臂受伤」「地点：灯塔港」），正文与之矛盾会被标出；最多 40 条。",
+                    },
+                },
+                "required": ["path"],
             },
         },
     },
@@ -245,6 +278,12 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "term_count": len(output.get("term_occurrences") or []),
             "time_marker_count": len(output.get("time_markers") or []),
             "repeated_clause_count": len(output.get("repeated_clauses") or []),
+        }
+    if registry_name == "project.deep_consistency":
+        return {
+            "path": output.get("path"),
+            "issue_count": output.get("issue_count"),
+            "bible_file_count": len(output.get("bible_files") or []),
         }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
