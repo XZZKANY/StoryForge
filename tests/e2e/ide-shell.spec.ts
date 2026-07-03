@@ -7,6 +7,7 @@ const shellSources = {
   layout: readFileSync('apps/desktop/frontend/src/components/DynamicIDELayout.tsx', 'utf8'),
   explorer: readFileSync('apps/desktop/frontend/src/components/ResourceExplorer.tsx', 'utf8'),
   editor: readFileSync('apps/desktop/frontend/src/components/Editor.tsx', 'utf8'),
+  rightWorkspace: readFileSync('apps/desktop/frontend/src/components/app/RightWorkspace.tsx', 'utf8'),
   chat: readFileSync('apps/desktop/frontend/src/components/ChatWindow.tsx', 'utf8'),
 };
 
@@ -34,7 +35,8 @@ test('Desktop IDE shell 暴露本地创作主入口和基础布局', () => {
 
 test('Desktop IDE shell 支持文件树、编辑器和 Agent 交互入口', () => {
   assertSourceEvidence(shellSources.explorer, ['ResourceExplorer', 'projectPath', 'onFileSelect']);
-  assertSourceEvidence(shellSources.editor, ['data-testid="editor-panel"', 'editor-save-btn', 'editor-export-btn']);
+  assertSourceEvidence(shellSources.rightWorkspace, ['data-testid="editor-panel"', 'StoryNavigator']);
+  assertSourceEvidence(shellSources.editor, ['editor-save-btn', 'editor-export-btn']);
   assertSourceEvidence(shellSources.chat, ['sendAgentUserMessage', 'tool_trace', 'proposed_patch']);
 });
 
