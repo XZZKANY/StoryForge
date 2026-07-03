@@ -19,6 +19,7 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 - 2026-07-01 已合并：单色调明暗双主题 UI 改版（PR #42）；私测 Alpha 单机后端——PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar（PR #43/#44）；中间交互区收口为对话式 Agent，`chat.explain` 接真·LLM，对话从文件级解绑为项目级（PR #46）。
 - 2026-07-02 已合并：左栏会话历史列表接真后端 + 欢迎页输入框接真发送（PR #48）；Agent loop 三步落地——path-scoped 只读 `fs.list` / `fs.read` / `fs.search`（PR #49）、chat 自由文本走 LLM 工具循环（最多 8 轮、失败回落单轮，PR #50）、前端流程树全事件驱动删预制骨架步骤（PR #51）。
 - Agent loop 边界：工具循环入口是 chat 自由文本；审稿 / 修订 / 新文件起草 / 一致性观察 / 深度一致性已作为循环内工具并入（`file.review` / `file.revise` / `file.create` / `project.consistency` / `project.deep_consistency`，一次对话最多一个待确认补丁，机械观察工具不下结论、语义评审工具只出 advisory 信号），显式按钮路径仍走固定管线；chapter.review / bookrun.* 绑定 DB 实体、BookRun 定位后台工具，不并入循环（已记为决定）；语义 judge 已从 `os.getenv` 迁 `resolved_llm_env`（下沉 `app/common/llm_env.py`，吃 `llm-provider.json` 覆盖链）；真·LLM tool-calling headless 实跑已通过（2026-07-02，deepseek-v4-flash，证据 `.codex/real-llm-agent-loop-*` 五个目录，深度一致性 6 处埋雷全中），真机 GUI 渲染观感未验；写回红线不变，后端不写项目文件，修订 / 起草走 proposed patch 前端确认。
+- 2026-07-04 已合并（蓝图 W1「live 循环语义收口」，PR #70，schema 冻结下零 ORM 变更）：**F09** live 工具循环每轮开头读 `run.status`，作者点暂停 / 停止即收尾不再烧新一轮 BYO-key（不 append / 不 complete，status 保持控制通道写入的 stopped/paused），起服收尸非终态 run（`reap_non_terminal_agent_runs`，failed + reason=process_restart，**仅 sqlite 单进程 sidecar 收尸**）；**F10** 完成 / 失败事件 payload 富化 + 终态流事件，前端超时改「close socket → 后台轮询事件表重建终态」（不再硬 reject，纯函数 `reconstructAgentResultFromEvents`）；**F11** `intent._detect_intent` 中文关键词表下线，固定管线只认显式 intent + 结构化参数，自由文本一律落 chat.explain 循环；**sidecar 版本握手**（taskkill+respawn）：`/health/ready` 暴露 `app_version`，Tauri 起服比对版本不符即强杀旧孤儿 sidecar 重启。真机 GUI 多轮渲染 / 点停止桌面观感 / 超时转轮询实取回 / 版本握手实机验证均归 E2E-1 真机清单未验。
 - 真实 LLM 1 章、3 章和 10 章 smoke 已完成脱敏验证，其中 10 章 smoke 已通过人工通读，最终门禁为 `gate: pass_for_real_10ch_final_acceptance`。
 - 一次 30 章真实长程已经跑完并导出 Markdown、EPUB 和审计报告，证据目录为 `.codex/real-llm-30ch-mimo25pro-20260611-192356`；但人工通读结论是**退回重跑**。2026-06-30 Q9 16 章真实跑修复门禁丢章四根因并抢救为完整 16 章、人工通读通过（PR #40/#41）。
 - 因此当前只能宣称“真实长程运行链路可达、制品导出成立”，不能宣称真实 3-5 万字长程质量验收通过，也不能宣称稳定生产级长篇生产闭环。
@@ -163,8 +164,8 @@ npm --prefix apps/desktop/frontend run test
 
 ## 8.1 当前下一步优先级
 
-1. Agent loop 收口（余项）：真机 GUI 多轮渲染、自动打开新文件与补丁确认观感随端到端复验（深度一致性已于 2026-07-02 挂进循环：语义 judge 迁 `resolved_llm_env` + `project.deep_consistency` 工具 + headless 实跑通过）。
-2. 跑真实 Tauri 桌面端到端（安装包装机路径）：打开项目 -> 对话（含工具循环流程树、会话历史列表、欢迎页首条 prompt、方向键复验）-> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 写回 -> 版本记录。
+1. Agent loop 收口（余项）：真机 GUI 多轮渲染、自动打开新文件与补丁确认观感随端到端复验（深度一致性已于 2026-07-02 挂进循环；2026-07-04 W1 已补齐 live 循环可中断 / 起服收尸 / 断线重建终态 / 关键词表下线 / sidecar 版本握手，PR #70）。
+2. 跑真实 Tauri 桌面端到端（安装包装机路径，承接 E2E-1 清单）：打开项目 -> 对话（含工具循环流程树、会话历史列表、欢迎页首条 prompt、方向键复验）-> Agent 审稿 -> 指定问题修订 -> diff 确认 -> 写回 -> 版本记录；W1 新行为的真机验收点=点停止后事件表无后续 tool_trace、超时转后台仍取回结果、强杀宿主重启无孤儿且连新 sidecar。
 3. 质量轨（后台）：基于 30 章通读意见与 Q9 门禁修复重跑真实 3-5 万字长程并人工盲评；Q1-Q8 一致性逐步做成 agent 工具挂进循环。
 
 ## 9. 常见陷阱
