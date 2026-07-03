@@ -295,10 +295,6 @@ export function ChatWindow({
   assistantSessionId,
   pendingInitialPrompt,
   onPendingInitialPromptConsumed,
-  layoutMode: _layoutMode = 'normal',
-  onCollapse: _onCollapse,
-  onFocusOnly: _onFocusOnly,
-  onRestoreLayout: _onRestoreLayout,
   onAssistantSessionChange,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');

@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { ChatWindow } from '../ChatWindow';
-import { basename, type LayoutMode } from './helpers';
+import { basename } from './helpers';
 import { PanelIcon } from './icons';
 import { PROVIDER_OPTIONS, PROVIDER_PRESETS } from '../../lib/provider-config';
 import type { ProviderKind } from '../../lib/user-settings';
@@ -16,13 +16,10 @@ export function AgentWorkspace({
   pendingInitialPrompt,
   onPendingInitialPromptConsumed,
   exposeWorkspaceToggle,
-  layoutMode,
   onAssistantSessionChange,
-  onFocusOnly,
   onRestoreLayout,
   onOpenProject,
   onInitializeProject,
-  onCollapse,
 }: {
   projectPath: string | null;
   currentFile: string | null;
@@ -30,13 +27,10 @@ export function AgentWorkspace({
   pendingInitialPrompt?: string | null;
   onPendingInitialPromptConsumed?: () => void;
   exposeWorkspaceToggle: boolean;
-  layoutMode: LayoutMode;
   onAssistantSessionChange: (assistantSessionId: number | null) => void;
-  onFocusOnly: () => void;
   onRestoreLayout: () => void;
   onOpenProject: () => void;
   onInitializeProject: (projectPath?: string) => void;
-  onCollapse: () => void;
 }) {
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -51,11 +45,7 @@ export function AgentWorkspace({
             assistantSessionId={assistantSessionId}
             pendingInitialPrompt={pendingInitialPrompt}
             onPendingInitialPromptConsumed={onPendingInitialPromptConsumed}
-            layoutMode={layoutMode}
             onAssistantSessionChange={onAssistantSessionChange}
-            onFocusOnly={onFocusOnly}
-            onRestoreLayout={onRestoreLayout}
-            onCollapse={onCollapse}
           />
         ) : (
           <AgentComposerHome

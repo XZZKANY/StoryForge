@@ -403,13 +403,10 @@ export function App() {
                   pendingInitialPrompt={pendingWelcomePrompt}
                   onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
                   exposeWorkspaceToggle={!workbenchPanelVisible}
-                  layoutMode={layoutMode}
                   onAssistantSessionChange={setActiveProjectAssistantSession}
-                  onFocusOnly={focusAssistantOnly}
                   onRestoreLayout={restoreFullLayout}
                   onOpenProject={handleOpenProject}
                   onInitializeProject={handleInitializeStoryProject}
-                  onCollapse={() => handleComposerModeChange('floating')}
                 />
               </section>
             )

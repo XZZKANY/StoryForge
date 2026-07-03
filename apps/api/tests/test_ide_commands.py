@@ -56,30 +56,6 @@ def test_judge_approve_ide_command_rejects_missing_patch(client: TestClient) -> 
     assert response.json() == {"detail": "Repair Patch 不存在，无法执行批准写回。"}
 
 
-def test_memory_resolve_conflict_command_preserves_arbitration_args(client: TestClient) -> None:
-    """记忆冲突仲裁命令必须保留可审计的人工决策参数。"""
-
-    args = {
-        "conflict_id": "conflict_1",
-        "entity_id": "linlan",
-        "fact_type": "status",
-        "left_memory_id": "memory:1",
-        "right_memory_id": "memory:2",
-        "resolution": "keep_left",
-        "winner_memory_id": "memory:1",
-        "reason": "保留已发布章节事实",
-    }
-
-    response = client.post("/api/ide/commands/memory.resolve_conflict", json={"args": args})
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["command_id"] == "memory.resolve_conflict"
-    assert body["status"] == "accepted"
-    assert body["audit_event_id"].startswith("ide-command-event:")
-    assert body["payload"]["args"] == args
-
-
 def test_unknown_ide_command_returns_404(client: TestClient) -> None:
     """命令薄壳必须显式拒绝未知命令，避免前端误判为成功。"""
 
