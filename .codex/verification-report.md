@@ -4734,3 +4734,16 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `agent_runs/deep_consistency.py`：删除复制的 key 探测与 `os`/`env_value` 依赖，改判 `outcome.configured`，报错文案不变（循环反馈与前端观感零变化）。
 - **证据**：test_judge_semantic 新增 5 用例（反查修正错误自报 span、多处命中取最近、转述回退钳位 span、未配置 configured=False、provider 路径 configured=True）；test_agent_deep_consistency 新增 2 用例（跨行 span 行号换算 + 越界 span 钳位末行不崩；不打桩走真 judge 的未配置显式报错——空配置源零网络调用）+ 原未配置用例改 configured 口径。定向 22 passed；关联域（agent_loop_runtime/runtime_tools/judge_* 5 文件）31 passed；全量 `pytest tests/ -q` → **821 passed / 3 skipped / 0 failed**；ruff（5 涉改文件）通过。
 - **未验 / 不外推**：反查以 matched_text 与正文逐字一致为前提，模型摘抄带省略号/改字仍会回退自报 span（行号仍可能偏）；未做真·LLM 实跑复验行号命中率；评审余项 二（few-shot 形状）、三（scene_id 哑值 + 魔数 100）、五（retry_safe 标注）未在本 PR 处理。
+
+---
+
+# 2026-07-03 夜跑 review 验收修复轮验证记录
+
+- **范围**：PR #61（judge 复审余项收口）+ PR #62（夜跑 review 四项修复：F-001 配置事实源统一、F-004 事件序号唯一索引+重试、F-002 chapter.review 单补丁、F-003 前端 repair_patch 审批链路、intent 顺手项）。验收报告见 PR #62 描述（原 `.codex/overnight-review-20260703/acceptance-report.md`，验收后按约定清理）。
+- `cd apps/api && uv run pytest`：830 passed, 3 skipped（新增 6 测试）。
+- `npm --prefix apps/desktop/frontend run test`：96/96；`typecheck` 通过。
+- `pnpm lint`：通过（含 `health/router.py` 存量 I001 修复）；`pnpm --filter @storyforge/shared test` 通过。
+- `pnpm openapi`：快照零漂移。
+- `node scripts/run-e2e.mjs --continue-on-error`：contract 18 pass / 9 fail，与干净 master stash 对照**完全一致**——9 个失败为 master 存量（疑似 UI 改版后 testid 漂移），与本轮变更无关，已开 issue 跟踪。
+- 已知存量 flaky：`test_ten_chapter_wrapper_probe_only_passes_with_local_provider` 约 1/3 概率失败（假 HTTPServer 与 PS 探针时序），三连跑验证与代码变更无因果。
+- 未联通能力：真机 GUI 观感未验（本轮均为 headless/单元/契约验证）；repair_patch 审批链路当前桌面 UI 不可达，属契约债修复。
