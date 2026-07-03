@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
+from app.common.version import APP_VERSION
 from app.db.base import Base
 from app.main import app
 
@@ -46,6 +47,8 @@ def test_readiness_returns_ready_when_all_healthy() -> None:
     assert body["status"] == "ready"
     assert body["checks"]["db"] == "ok"
     assert body["checks"]["redis"] == "ok"
+    # sidecar 版本握手依赖 /health/ready 暴露 app_version（W1）。
+    assert body["app_version"] == APP_VERSION
 
 
 def test_readiness_degraded_when_db_unreachable() -> None:

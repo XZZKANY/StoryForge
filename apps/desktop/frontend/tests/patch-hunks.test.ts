@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { applyPatchHunk, applyPatchHunkToCurrent, buildPatchHunks } from '../src/lib/patch-hunks';
+import {
+  applyPatchHunk,
+  applyPatchHunkToCurrent,
+  buildPatchHunks,
+  isWholeFileDrifted,
+} from '../src/lib/patch-hunks';
 
 test('patch hunks split separated line changes and apply one hunk at a time', () => {
   const before = ['第一句。', '第二句略硬。', '第三句保留。', '第四句略散。', ''].join('\n');
@@ -85,10 +90,7 @@ test('patch hunk application rejects a changed local slice as a single-hunk conf
   const [hunk] = buildPatchHunks(before, after);
   const locallyEdited = before.replace('雾仍旧压着街面', '雾忽然抬高');
 
-  assert.throws(
-    () => applyPatchHunkToCurrent(locallyEdited, hunk),
-    /该修改块的原文已变化/,
-  );
+  assert.throws(() => applyPatchHunkToCurrent(locallyEdited, hunk), /该修改块的原文已变化/);
 });
 
 test('insertion hunks relocate by context after an earlier hunk changes length', () => {
@@ -104,6 +106,25 @@ test('insertion hunks relocate by context after an earlier hunk changes length',
 
   const afterInsertion = applyPatchHunkToCurrent(afterFirstHunk, hunks[1]);
   assert.equal(afterInsertion, after);
+});
+
+test('whole-file drift guard passes when current matches before across EOL differences', () => {
+  const normalizeEol = (text: string) => text.replace(/\r\n/g, '\n');
+  const before = '沈砚推开铜钟铺的门。\n风铃只响了一声。\n';
+  const currentCrlf = '沈砚推开铜钟铺的门。\r\n风铃只响了一声。\r\n';
+
+  assert.equal(isWholeFileDrifted(before, before, normalizeEol), false);
+  // 仅换行风格不同不算漂移：归一化后一致即可放行写回。
+  assert.equal(isWholeFileDrifted(currentCrlf, before, normalizeEol), false);
+});
+
+test('whole-file drift guard flags a locally edited file as drifted', () => {
+  const normalizeEol = (text: string) => text.replace(/\r\n/g, '\n');
+  const before = '沈砚推开铜钟铺的门。\n风铃只响了一声。\n';
+  const locallyEdited = before.replace('只响了一声', '连响了三声');
+
+  // 作者本地改动后旧补丁的 before 不再匹配当前内容，必须判漂移、拒直接写回。
+  assert.equal(isWholeFileDrifted(locallyEdited, before, normalizeEol), true);
 });
 
 test('new file patch (empty before) builds insertion-only hunks and applies to empty current', () => {

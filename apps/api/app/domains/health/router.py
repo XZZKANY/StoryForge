@@ -9,6 +9,7 @@ from sqlalchemy import inspect
 from sqlalchemy.engine import Connection
 
 from app.common.redis_cache import _redis_client
+from app.common.version import APP_VERSION
 from app.db.session import get_engine
 
 router = APIRouter(prefix="/health", tags=["运行状态"])
@@ -69,4 +70,4 @@ def readiness() -> dict[str, str | dict[str, Any]]:
             all_ok = False
 
     status = "ready" if all_ok else "degraded"
-    return {"status": status, "checks": checks}
+    return {"status": status, "app_version": APP_VERSION, "checks": checks}

@@ -764,13 +764,39 @@ def complete_agent_run(
         event_type=AGENT_RUN_COMPLETED,
         actor="root-agent",
         message=str(agent_result.get("summary") or "AgentRun 已完成。"),
-        payload={
-            "intent": result.get("intent"),
-            "assistant_session_id": result.get("assistant_session_id"),
-            "requires_user_confirmation": bool(agent_result.get("requires_user_confirmation")),
-        },
+        payload=_completed_event_payload(result, agent_result),
     )
     return run
+
+
+def _completed_event_payload(result: dict[str, Any], agent_result: dict[str, Any]) -> dict[str, Any]:
+    """把重建终态所需的关键字段落进 AGENT_RUN_COMPLETED payload：断线/超时后前端拉事件表
+    即可重建结果，不再因 agent_result 只走瞬时 _STREAM_RESULT 而丢失（F10）。
+    不携带补丁 before/after 全文，避免事件表膨胀。"""
+
+    summary = agent_result.get("summary")
+    proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
+    payload: dict[str, Any] = {
+        "intent": result.get("intent"),
+        "assistant_session_id": result.get("assistant_session_id"),
+        "requires_user_confirmation": bool(agent_result.get("requires_user_confirmation")),
+        "summary": summary[:4000] if isinstance(summary, str) else None,
+        "has_proposed_patch": proposed_patch is not None,
+        "has_review_report": isinstance(agent_result.get("review_report"), dict),
+    }
+    if proposed_patch is not None:
+        payload["proposed_patch"] = {
+            "id": proposed_patch.get("id"),
+            "created_by_tool": proposed_patch.get("created_by_tool"),
+            "file_path": proposed_patch.get("file_path"),
+        }
+    chat_loop = agent_result.get("chat_loop")
+    if isinstance(chat_loop, dict):
+        payload["chat_loop"] = {
+            "rounds": chat_loop.get("rounds"),
+            "tool_call_count": chat_loop.get("tool_call_count"),
+        }
+    return payload
 
 
 def fail_agent_run(
@@ -794,6 +820,23 @@ def fail_agent_run(
         payload=payload or {},
     )
     return run
+
+
+def reap_non_terminal_agent_runs(session: Session) -> int:
+    """起服收尸：进程重启后仍停在非终态（running/paused）的 run 已无线程续跑，
+    统一收为 failed 并写 reason=process_restart 事件，避免永远挂 running 无人收尾（F09）。"""
+
+    stale_runs = list(
+        session.scalars(select(AgentRun).where(AgentRun.status.not_in(AGENT_RUN_TERMINAL_STATUSES)))
+    )
+    for run in stale_runs:
+        fail_agent_run(
+            session,
+            run,
+            message="进程重启，运行未完成即收尸。",
+            payload={"reason": "process_restart", "run_id": run.public_id},
+        )
+    return len(stale_runs)
 
 
 def list_agent_run_events(session: Session, public_id: str) -> list[AgentRunEvent]:

@@ -20,8 +20,10 @@ from app.common.logging_config import configure_logging, get_logger
 from app.common.metrics import setup_metrics
 from app.common.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
 from app.common.sentry_config import init_sentry
-from app.db.session import bootstrap_sqlite_database
+from app.common.version import APP_VERSION
+from app.db.session import SessionLocal, bootstrap_sqlite_database, get_engine
 from app.domains.agent_runs.router import router as agent_runs_router
+from app.domains.agent_runs.service import reap_non_terminal_agent_runs
 from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
@@ -82,11 +84,29 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     warn_default_credentials()
     bootstrap_sqlite_database()
+    _reap_stale_agent_runs()
     logger.info("storyforge_api_started")
     yield
 
 
-app = FastAPI(title="StoryForge API", version="0.1.0", lifespan=lifespan)
+def _reap_stale_agent_runs() -> None:
+    """起服收尸非终态 AgentRun（进程重启遗留的 running/paused）；失败只告警不阻断起服。
+
+    仅在单进程 sqlite sidecar 下收尸：多 worker 的 Postgres 部署里，本 worker 起服
+    绝不能把别的 worker 正在跑的 run 误判为孤儿收掉；且非 sqlite 时不触库连接，
+    避免测试/CI 无 DB 时卡在连接超时（与 bootstrap_sqlite_database 同一守卫）。"""
+
+    try:
+        if get_engine().dialect.name != "sqlite":
+            return
+        with SessionLocal() as session:
+            count = reap_non_terminal_agent_runs(session)
+        logger.info("agent_runs_reaped", count=count)
+    except Exception:  # noqa: BLE001 - 起服路径，收尸失败不应让 sidecar 无法启动
+        logger.warning("agent_runs_reap_failed", exc_info=True)
+
+
+app = FastAPI(title="StoryForge API", version=APP_VERSION, lifespan=lifespan)
 
 setup_metrics(app)
 

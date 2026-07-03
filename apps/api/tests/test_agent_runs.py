@@ -1417,11 +1417,20 @@ def test_agent_runtime_supported_intents_are_registered() -> None:
     } == RUNTIME_SUPPORTED_INTENTS
 
 
-def test_agent_runtime_detect_intent_prefers_explicit_revise_over_review_keywords() -> None:
+def test_agent_runtime_detect_intent_honors_explicit_intent_over_free_text() -> None:
+    """F11：关键词表已下线。自由文本不再被「修/审」等词劫进固定管线，
+    只有显式 intent 或结构化参数（reviewer role hint）才路由到 file.review/revise。"""
+
     file_args = {"file_path": "正文/第01章.md", "content": "正文内容"}
 
-    assert detect_runtime_intent("修选中问题：plot-1 prose-1", file_args, None) == "file.review"
+    # 无显式 intent、无 role hint 的自由文本一律落 chat.explain 工具循环。
+    assert detect_runtime_intent("修选中问题：plot-1 prose-1", file_args, None) == "chat.explain"
+    # 显式 intent 始终优先。
     assert detect_runtime_intent("修选中问题：plot-1 prose-1", file_args, "file.revise") == "file.revise"
+    assert detect_runtime_intent("随便一句话", file_args, "file.review") == "file.review"
+    # reviewer role hint + 文件上下文仍走 file.review 固定管线。
+    review_args = {**file_args, "agent_role_hints": ["plot_reviewer"]}
+    assert detect_runtime_intent("看看这章", review_args, None) == "file.review"
 
 
 def test_agent_runtime_role_hints_resolve_mentions_and_filter_unknowns() -> None:
@@ -2642,5 +2651,106 @@ def test_detect_intent_requires_scene_packet_for_chapter_review() -> None:
     assert detect_runtime_intent("帮我审阅一下这个项目", {}, None) == "chat.explain"
     assert detect_runtime_intent("章节审阅", {}, None) == "chat.explain"
     assert detect_runtime_intent("审阅这一章", {"scene_packet_id": 3}, None) == "chapter.review"
+    # F11：仅有文件上下文、无 reviewer role hint 的自由文本也落 chat.explain，
+    # 由循环内 file.review 工具自主决定，不再被「审阅」关键词劫进固定管线。
     file_args = {"file_path": "正文/第01章.md", "content": "正文"}
-    assert detect_runtime_intent("审阅这份稿子", file_args, None) == "file.review"
+    assert detect_runtime_intent("审阅这份稿子", file_args, None) == "chat.explain"
+    # 带 reviewer role hint 才路由固定 file.review 管线。
+    assert detect_runtime_intent("审阅这份稿子", {**file_args, "agent_role_hints": ["prose_reviewer"]}, None) == "file.review"
+
+
+def test_reap_non_terminal_agent_runs_fails_stale_and_records_reason(session: Session) -> None:
+    """起服收尸：非终态 run 收为 failed 并写 reason=process_restart；已终态的不动（F09）。"""
+
+    from app.domains.agent_runs.service import reap_non_terminal_agent_runs
+
+    running = _seed_agent_run(session, public_id="run-reap-running")
+    paused = _seed_agent_run(session, public_id="run-reap-paused")
+    paused.status = "paused"
+    already_done = _seed_agent_run(session, public_id="run-reap-done")
+    already_done.status = "completed"
+    session.add_all([paused, already_done])
+    session.commit()
+
+    reaped = reap_non_terminal_agent_runs(session)
+    assert reaped == 2
+
+    session.refresh(running)
+    session.refresh(paused)
+    session.refresh(already_done)
+    assert running.status == "failed"
+    assert paused.status == "failed"
+    assert already_done.status == "completed"
+
+    running_events = _stored_run_events(session, running)
+    assert running_events[-1].event_type == "agent_run_failed"
+    assert running_events[-1].payload["reason"] == "process_restart"
+
+
+def test_complete_agent_run_payload_carries_rebuild_fields(session: Session) -> None:
+    """AGENT_RUN_COMPLETED payload 落齐重建终态所需字段：断线后拉事件表即可复原（F10）。"""
+
+    from app.domains.agent_runs.service import complete_agent_run
+
+    run = _seed_agent_run(session, public_id="run-complete-payload")
+    result = {
+        "intent": "chat.explain",
+        "assistant_session_id": 7,
+        "agent_result": {
+            "summary": "已完成审阅。",
+            "requires_user_confirmation": False,
+            "chat_loop": {"rounds": 3, "tool_call_count": 5, "extra": "略"},
+        },
+        "proposed_patch": {
+            "id": "patch-1",
+            "created_by_tool": "file.revise",
+            "file_path": "正文/第01章.md",
+            "before": "长" * 5000,
+            "after": "长" * 5000,
+        },
+    }
+
+    complete_agent_run(session, run, result=result)
+    events = _stored_run_events(session, run)
+    payload = events[-1].payload
+    assert payload["intent"] == "chat.explain"
+    assert payload["assistant_session_id"] == 7
+    assert payload["summary"] == "已完成审阅。"
+    assert payload["has_proposed_patch"] is True
+    assert payload["proposed_patch"] == {
+        "id": "patch-1",
+        "created_by_tool": "file.revise",
+        "file_path": "正文/第01章.md",
+    }
+    # 补丁全文不进事件表，避免膨胀。
+    assert "before" not in payload["proposed_patch"]
+    assert payload["chat_loop"] == {"rounds": 3, "tool_call_count": 5}
+
+
+def test_websocket_terminal_encoder_emits_completed_event(session: Session) -> None:
+    """完成事件必须能被编码成 WS 流消息，供断线重建路径重放（F10）。"""
+
+    from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
+    from app.domains.agent_runs.service import complete_agent_run
+
+    run = _seed_agent_run(session, public_id="run-terminal-encoder")
+    complete_agent_run(
+        session,
+        run,
+        result={
+            "intent": "chat.explain",
+            "assistant_session_id": 3,
+            "agent_result": {"summary": "收工。", "requires_user_confirmation": False},
+        },
+    )
+    completed_event = _stored_run_events(session, run)[-1]
+    assert completed_event.event_type == "agent_run_completed"
+
+    encoded = websocket_stream_events_from_agent_event(completed_event)
+    assert len(encoded) == 1
+    message = encoded[0]
+    assert message["type"] == "agent_run_completed"
+    assert message["run_id"] == run.public_id
+    assert message["assistant_session_id"] == run.assistant_session_id
+    assert message["status"] == "completed"
+    assert message["payload"]["summary"] == "收工。"

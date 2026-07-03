@@ -490,3 +490,15 @@ export function applyPatchHunkToCurrent(currentContent: string, hunk: PatchHunk)
     currentContent.slice(range.endOffset),
   ].join('');
 }
+
+/**
+ * 整文件写回前的漂移红线：当前文件内容（归一化换行后）与补丁 before 不一致即判漂移，
+ * 调用方据此拒绝直接写回旧补丁（W1 F11 护栏）。纯函数，供 node:test 可证伪覆盖。
+ */
+export function isWholeFileDrifted(
+  currentContent: string,
+  before: string,
+  normalizeEol: (text: string) => string,
+): boolean {
+  return normalizeEol(currentContent) !== normalizeEol(before);
+}

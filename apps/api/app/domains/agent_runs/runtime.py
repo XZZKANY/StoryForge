@@ -438,11 +438,29 @@ class AgentRuntime:
                 current_file=_optional_string(args.get("file_path")),
                 execute_fs_tool=execute_fs_tool,
                 on_trace=on_trace,
+                should_interrupt=lambda boundary: self._runtime_interruption(run, boundary=boundary),
             )
         except loop_runtime.ChatLoopUnavailableError:
             return None
 
         ensure_plan_recorded()
+        if outcome.interrupted and outcome.interruption is not None:
+            # 循环被 pause/stop 收尾：计划与已完成的 trace 已落库，不 append 消息、不 complete，
+            # run.status 保持控制通道写入的 stopped/paused。顶层据 _runtime_interrupted 直接返回。
+            interrupted_result = _base_response(
+                agent_session_id=agent_session_id,
+                assistant_session_id=assistant_session_id,
+                intent="chat.explain",
+                user_message=user_message,
+                plan=[_plan_step("agent.loop", "循环已按作者操作停下。", "stopped")],
+                agent_result={"summary": outcome.answer, "requires_user_confirmation": False},
+                tool_trace=list(outcome.traces),
+                role_hints=_role_hints(args),
+                role_mentions=_role_mentions(args),
+            )
+            return _runtime_interrupted_response(
+                interrupted_result, outcome.interruption, events_recorded=True
+            )
         answer = outcome.answer or "（模型这轮没返回内容，换个说法再问我一次？）"
         assistant_service.append_assistant_message(
             session,
