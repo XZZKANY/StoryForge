@@ -2552,3 +2552,95 @@ def test_agent_run_returns_404_for_missing_run(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "AgentRun 不存在。"}
+
+
+def test_agent_run_event_sequence_unique_index_rejects_duplicates(session: Session) -> None:
+    """同一 run 内重复 sequence 必须被唯一索引拒绝，事件重放顺序不允许歧义。"""
+
+    from sqlalchemy.exc import IntegrityError
+
+    run = _seed_agent_run(session, public_id="run-sequence-unique")
+    session.add(AgentRunEvent(run_id=run.id, event_type="tool_trace", actor="root-agent", sequence=1))
+    session.commit()
+
+    session.add(AgentRunEvent(run_id=run.id, event_type="tool_trace", actor="root-agent", sequence=1))
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
+
+
+def test_record_agent_event_retries_on_sequence_conflict(session: Session) -> None:
+    """并发写读到相同 max(sequence) 时，冲突方必须重读重试而不是丢事件。"""
+
+    from sqlalchemy import event as sa_event
+
+    from app.domains.agent_runs.service import record_agent_event
+
+    run = _seed_agent_run(session, public_id="run-sequence-retry")
+    record_agent_event(session, run, event_type="agent_run_started", actor="root-agent")
+
+    conflicts: list[int] = []
+
+    def inject_conflicting_row(flush_session: Session, *_args: object) -> None:
+        # 模拟另一连接抢先提交同号事件：在 ORM flush 之前塞入同 (run_id, sequence) 行。
+        # 该行与失败的插入同处一个 SAVEPOINT，回滚后重试路径必须成功拿到该序号。
+        conflicts.append(1)
+        flush_session.connection().exec_driver_sql(
+            "INSERT INTO agent_run_events (run_id, event_type, actor, message, payload, sequence) "
+            f"VALUES ({run.id}, 'tool_trace', 'rival-writer', '', '{{}}', 2)"
+        )
+
+    sa_event.listen(session, "before_flush", inject_conflicting_row, once=True)
+
+    recorded = record_agent_event(session, run, event_type="tool_trace", actor="root-agent")
+
+    assert conflicts == [1]
+    assert recorded.sequence == 2
+    sequences = [event.sequence for event in _stored_run_events(session, run)]
+    assert sequences == [1, 2]
+
+
+def test_bootstrap_sqlite_renumbers_legacy_duplicate_sequences(tmp_path) -> None:
+    """存量 sidecar 库带重复 (run_id, sequence) 时，bootstrap 必须先重排再补唯一索引。"""
+
+    from sqlalchemy import create_engine
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.db.base import Base
+    from app.db.session import bootstrap_sqlite_database
+
+    engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'legacy.sqlite3'}")
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP INDEX uq_agent_run_events_run_sequence")
+        connection.exec_driver_sql(
+            "INSERT INTO agent_runs (public_id, session_id, goal, scope, permission_profile, budget, status, root_plan) "
+            "VALUES ('run-legacy', 'session-legacy', 'goal', '{}', 'risk_confirm', '{}', 'running', '[]')"
+        )
+        for sequence in (1, 2, 2, 3):
+            connection.exec_driver_sql(
+                "INSERT INTO agent_run_events (run_id, event_type, actor, message, payload, sequence) "
+                f"VALUES (1, 'tool_trace', 'root-agent', '', '{{}}', {sequence})"
+            )
+
+    bootstrap_sqlite_database(engine)
+
+    with engine.connect() as connection:
+        rows = connection.exec_driver_sql(
+            "SELECT sequence FROM agent_run_events WHERE run_id = 1 ORDER BY sequence, id"
+        ).fetchall()
+    assert [row[0] for row in rows] == [1, 2, 3, 4]
+    index_names = {index["name"] for index in sa_inspect(engine).get_indexes("agent_run_events")}
+    assert "uq_agent_run_events_run_sequence" in index_names
+    engine.dispose()
+
+
+def test_detect_intent_requires_scene_packet_for_chapter_review() -> None:
+    """自由文本「审阅」没带 scene_packet_id 时必须落回 chat.explain 工具循环：
+    chapter.review 绑定 DB 实体，路由过去只会因缺参报「这轮没跑通」。"""
+
+    assert detect_runtime_intent("帮我审阅一下这个项目", {}, None) == "chat.explain"
+    assert detect_runtime_intent("章节审阅", {}, None) == "chat.explain"
+    assert detect_runtime_intent("审阅这一章", {"scene_packet_id": 3}, None) == "chapter.review"
+    file_args = {"file_path": "正文/第01章.md", "content": "正文"}
+    assert detect_runtime_intent("审阅这份稿子", file_args, None) == "file.review"

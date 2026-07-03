@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -54,6 +54,9 @@ class AgentRunEvent(IdMixin, TimestampMixin, Base):
     """AgentRunEvent 是 WebSocket、SSE 和 REST 共用的运行事实源。"""
 
     __tablename__ = "agent_run_events"
+    # 事件重放与 save-point 推导都依赖 run 内 sequence 单调：
+    # 并发写（流式线程 + 控制消息）读到相同 max(sequence) 时靠唯一索引拒掉后写方。
+    __table_args__ = (Index("uq_agent_run_events_run_sequence", "run_id", "sequence", unique=True),)
 
     run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)

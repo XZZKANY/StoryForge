@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
-import os
 import redis
 from fastapi import APIRouter
 from sqlalchemy import inspect

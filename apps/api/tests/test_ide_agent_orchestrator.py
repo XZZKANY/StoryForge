@@ -937,6 +937,41 @@ def test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirma
     assert {item["tool_name"] for item in tool_calls[1:]} == {"judge.repair"}
 
 
+def test_agent_user_message_chapter_review_stops_after_first_repair_patch(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    """多个可修复 issue 时只生成第一个补丁：响应只能承载一个待确认补丁，
+    批量 judge.repair 会落库无人能确认的孤儿补丁并改掉 issue 状态。"""
+
+    from app.domains.judge.models import JudgeIssue, RepairPatch
+
+    context = _seed_chapter_review_context(session_factory)
+
+    with client.websocket_connect("/api/ide/agent/sessions/session-chapter-review-single-patch") as websocket:
+        websocket.send_json(
+            {
+                "type": "user_message",
+                "user_message": "审阅这一章，给我修复建议",
+                "args": {"scene_packet_id": context["scene_packet_id"]},
+            }
+        )
+        message = websocket.receive_json()
+
+    assert message["type"] == "agent_result"
+    assert message["agent_result"]["issue_count"] >= 2
+    assert message["agent_result"]["repair_patch_count"] == 1
+    assert message["agent_result"]["remaining_repairable_issue_count"] >= 1
+    assert message["proposed_patch"]["kind"] == "repair_patch"
+
+    with session_factory() as session:
+        patches = session.query(RepairPatch).all()
+        assert len(patches) == 1
+        touched_issues = session.query(JudgeIssue).filter(JudgeIssue.status == "requires_rejudge").all()
+        assert len(touched_issues) == 1
+        assert touched_issues[0].id == patches[0].judge_issue_id
+
+
 def test_agent_user_message_bookrun_start_preflight_requires_confirmation(
     client: TestClient,
     session_factory: sessionmaker[Session],

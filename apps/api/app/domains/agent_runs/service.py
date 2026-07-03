@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import NotFoundError
@@ -644,6 +645,9 @@ def get_agent_run(session: Session, public_id: str) -> AgentRun:
     return run
 
 
+_EVENT_SEQUENCE_RETRIES = 5
+
+
 def record_agent_event(
     session: Session,
     run: AgentRun,
@@ -653,23 +657,36 @@ def record_agent_event(
     message: str = "",
     payload: dict[str, Any] | None = None,
 ) -> AgentRunEvent:
-    """追加 AgentRunEvent，并按 run 内 sequence 保持可重放顺序。"""
+    """追加 AgentRunEvent，并按 run 内 sequence 保持可重放顺序。
 
-    next_sequence = (
-        session.scalar(select(func.max(AgentRunEvent.sequence)).where(AgentRunEvent.run_id == run.id)) or 0
-    ) + 1
-    event = AgentRunEvent(
-        run_id=run.id,
-        event_type=event_type,
-        actor=actor,
-        message=message,
-        payload=payload or {},
-        sequence=next_sequence,
-    )
-    session.add(event)
-    session.commit()
-    session.refresh(event)
-    return event
+    同一 run 可能被并发写入（流式运行线程 + 另一连接的控制消息），两个事务会读到
+    相同的 max(sequence)；以 (run_id, sequence) 唯一索引为准，冲突方只回滚
+    SAVEPOINT 内的插入并重读重试，调用方 session 里未提交的其他变更不受影响。"""
+
+    for attempt in range(_EVENT_SEQUENCE_RETRIES):
+        next_sequence = (
+            session.scalar(select(func.max(AgentRunEvent.sequence)).where(AgentRunEvent.run_id == run.id)) or 0
+        ) + 1
+        event = AgentRunEvent(
+            run_id=run.id,
+            event_type=event_type,
+            actor=actor,
+            message=message,
+            payload=payload or {},
+            sequence=next_sequence,
+        )
+        try:
+            with session.begin_nested():
+                session.add(event)
+                session.flush()
+        except IntegrityError:
+            if attempt == _EVENT_SEQUENCE_RETRIES - 1:
+                raise
+            continue
+        session.commit()
+        session.refresh(event)
+        return event
+    raise AgentOrchestrationError("AgentRunEvent sequence 分配重试耗尽。")
 
 
 def record_agent_artifact(

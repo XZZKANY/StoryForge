@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -9,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import sessionmaker
 from starlette.websockets import WebSocketState
 
+from app.common.config import get_settings
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
 from app.domains.agent_runs.service import (
@@ -61,7 +61,8 @@ _STREAM_ERROR = "error"
 
 
 def _expected_api_key() -> str:
-    return os.getenv("STORYFORGE_API_KEY", "local-dev-key")
+    # 与 app.main 一致：认证走 settings 事实源，而非裸环境变量。
+    return get_settings().storyforge_api_key
 
 
 async def _accept_or_reject_agent_socket(websocket: WebSocket) -> bool:

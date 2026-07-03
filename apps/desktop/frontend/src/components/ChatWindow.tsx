@@ -19,6 +19,7 @@ import {
 import { createRemoteFileSuggestion } from '../lib/assistant-suggestions';
 import { extractAgentRoleMentions, mapAgentRoleMentionsToHints } from '../lib/agent-roles';
 import {
+  executeIdeCommand,
   getAssistantSession,
   getAgentRunSavePoints,
   requestCrossChapterConsistency,
@@ -116,6 +117,7 @@ export {
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
+  repairPatchApproval,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
   displayFromResumeDiagnostic,
@@ -148,6 +150,45 @@ function fileRevisionPatch(message: AgentResultMessage): {
     };
   }
   return null;
+}
+
+function repairPatchApproval(message: AgentResultMessage): {
+  summary: string;
+  command: { command_id: string; args: Record<string, unknown> } | null;
+} | null {
+  const patch = message.proposed_patch;
+  if (!patch || patch.kind !== 'repair_patch') return null;
+  const repair =
+    patch.repair_patch && typeof patch.repair_patch === 'object'
+      ? (patch.repair_patch as Record<string, unknown>)
+      : {};
+  const targetSpan = typeof repair.target_span === 'string' ? repair.target_span : '';
+  const replacement = typeof repair.replacement_text === 'string' ? repair.replacement_text : '';
+  const reason = typeof repair.reason === 'string' ? repair.reason : '';
+  const rawCommand = patch.approval_command;
+  const command =
+    rawCommand &&
+    typeof rawCommand === 'object' &&
+    typeof (rawCommand as { command_id?: unknown }).command_id === 'string'
+      ? {
+          command_id: (rawCommand as { command_id: string }).command_id,
+          args:
+            (rawCommand as { args?: unknown }).args &&
+            typeof (rawCommand as { args?: unknown }).args === 'object'
+              ? (rawCommand as { args: Record<string, unknown> }).args
+              : {},
+        }
+      : null;
+  const lines = [
+    targetSpan || replacement
+      ? `章节修复建议：将「${targetSpan}」替换为「${replacement}」。`
+      : '章节修复建议已生成。',
+    reason,
+    command
+      ? `点击「批准」将执行 ${command.command_id} 完成写回。`
+      : '该补丁缺少可执行的批准命令，暂时无法从对话内写回。',
+  ];
+  return { summary: lines.filter(Boolean).join('\n'), command };
 }
 
 function filePathFromAgentResult(message: AgentResultMessage): string | null {
@@ -266,6 +307,11 @@ export function ChatWindow({
   const [agentRunRecovery, setAgentRunRecovery] = useState<AgentRunRecoveryDisplay | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
+  // repair_patch 的批准不是权限放行：必须先执行 approval_command（judge.approve）完成写回。
+  const [pendingRepairCommand, setPendingRepairCommand] = useState<{
+    command_id: string;
+    args: Record<string, unknown>;
+  } | null>(null);
   const [conversationTitle, setConversationTitle] = useState('新的创作会话');
   const [lastReviewReport, setLastReviewReport] = useState<ReviewReport | null>(null);
   const [lastReviewReportFile, setLastReviewReportFile] = useState<string | null>(null);
@@ -651,6 +697,7 @@ export function ChatWindow({
       setAgentBusy(true);
       setRetryRequest(null);
       setAgentRunRecovery(null);
+      setPendingRepairCommand(null);
       // 流程树全事件驱动：不预制前端骨架步骤，步骤只来自后端 plan/tool_trace 事件。
       setAgentRun({
         id: runId,
@@ -837,6 +884,16 @@ export function ChatWindow({
           return;
         }
 
+        const repairProposal = repairPatchApproval(response);
+        if (repairProposal) {
+          setPendingRepairCommand(repairProposal.command);
+          setMessages((prev) => [...prev, { role: 'assistant', content: repairProposal.summary }]);
+          updateAgentStatus(
+            response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
+          );
+          return;
+        }
+
         const reviewSummary = reviewReportSummary(response);
         if (reviewSummary) {
           const reviewReportForMarkers = reviewReportFromMessage(response);
@@ -887,6 +944,24 @@ export function ChatWindow({
     async (type: AgentControlMessageType) => {
       const run = agentRun;
       if (!run) return;
+      if (type === 'approve_permission' && pendingRepairCommand) {
+        // 修复补丁的「批准」必须先真正执行写回命令，否则补丁停留在未写回状态，
+        // run 却被标记完成，作者以为已经改完了。
+        try {
+          await executeIdeCommand(pendingRepairCommand.command_id, pendingRepairCommand.args);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `修复写回失败，补丁仍在等待确认：${message}` },
+          ]);
+          return;
+        }
+        setPendingRepairCommand(null);
+        setMessages((prev) => [...prev, { role: 'assistant', content: '修复补丁已执行写回。' }]);
+      } else if (type === 'deny_permission' && pendingRepairCommand) {
+        setPendingRepairCommand(null);
+      }
       try {
         const ack = await sendAgentControlMessage({
           sessionId: run.sessionId,
@@ -954,6 +1029,7 @@ export function ChatWindow({
       applyAgentStreamEvent,
       applyResumeDiagnostic,
       applyResumedAgentResult,
+      pendingRepairCommand,
       refreshAgentRunRecovery,
       updateAgentStatus,
       updateAgentStep,

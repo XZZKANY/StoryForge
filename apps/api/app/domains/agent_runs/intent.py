@@ -35,7 +35,9 @@ def _detect_intent(user_message: str, args: dict[str, Any], explicit_intent: obj
         return "file.review"
     if has_file_context and _is_file_revise_request(user_message):
         return "file.revise"
-    if _has_positive_int(args, "scene_packet_id") or "章节审阅" in user_message or ("审阅" in user_message and not has_file_context):
+    # chapter.review 绑定 DB 场景实体，必须显式带 scene_packet_id；
+    # 自由文本「审阅」没带参数时落回 chat.explain 工具循环，而不是路由进必然缺参报错的固定管线。
+    if _has_positive_int(args, "scene_packet_id"):
         return "chapter.review"
     if _is_file_revise_request(user_message):
         return "file.revise"
