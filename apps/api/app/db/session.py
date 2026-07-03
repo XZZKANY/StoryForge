@@ -29,11 +29,15 @@ def _get_bool_env(name: str, default: bool) -> bool:
     return raw_value.strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _build_engine_options(database_url: str) -> dict[str, int | bool]:
+def _build_engine_options(database_url: str) -> dict:
     """按数据库类型生成连接池参数，避免 SQLite 测试替身接收不兼容选项。"""
 
     if database_url.startswith("sqlite"):
-        return {}
+        # 桌面 sidecar:WS agent 线程与请求线程并发写同一文件库,
+        # 驱动级 busy timeout 是防 "database is locked" 的第一道闸。
+        return {
+            "connect_args": {"timeout": _get_int_env("STORYFORGE_SQLITE_BUSY_TIMEOUT_SECONDS", 30)}
+        }
     return {
         "pool_size": _get_int_env("STORYFORGE_DB_POOL_SIZE", 10),
         "max_overflow": _get_int_env("STORYFORGE_DB_MAX_OVERFLOW", 20),
@@ -43,12 +47,29 @@ def _build_engine_options(database_url: str) -> dict[str, int | bool]:
     }
 
 
+def _enable_sqlite_wal(engine: Engine) -> None:
+    """文件库启用 WAL,允许读写并发;:memory: 下该 PRAGMA 无效但无害。"""
+
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_wal(dbapi_connection, _connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        finally:
+            cursor.close()
+
+
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
     """首次需要数据库时才创建 engine，使运行时环境配置可生效。"""
 
     database_url = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
-    return create_engine(database_url, **_build_engine_options(database_url))
+    engine = create_engine(database_url, **_build_engine_options(database_url))
+    if engine.dialect.name == "sqlite":
+        _enable_sqlite_wal(engine)
+    return engine
 
 
 def bootstrap_sqlite_database(engine: Engine | None = None) -> None:

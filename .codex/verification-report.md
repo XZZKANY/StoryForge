@@ -4769,3 +4769,17 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **决策记录(2026-07-03 用户拍板)**:pre-push 加活路径快测集=接受;死域终局=彻底删除(W4 冻结→观察→删除路径不变);BookRun→managed run=质量轨重跑后必须重评;代码签名证书=先不买;§8 推翻项 2-5 随对应波次(W0/W2/W4/W5)PR 落地。
 - **证据**:审计与竞标全量 JSON 存档于会话工作目录(audit-final.json 217KB / design-final.json 148KB,文档 §11 有指针);全部发现要求 file:line 亲读证据并经"事实核查 + 价值核查"双票存活。
 - **未验 / 不外推**:本文件是规划文档,不代表任何波次已执行;各推翻项在对应波次 PR 合并前现行拍板继续有效。
+
+---
+
+# 2026-07-03 W0-A:sidecar-smoke 双档门禁 + sqlite WAL/busy_timeout + 快照保留上限 验证记录
+
+- **范围**(蓝图 W0 第一刀,修 F13/F29/F37):
+  - 新增 `scripts/sidecar-smoke.mjs`:交付形态自动化冒烟——临时 sqlite → 起服 → 轮询 `/health/ready`(记录冷启动耗时与预算)→ 无 LLM 的 assistant 会话 REST 往返 → Agent WS 一轮(未知消息类型换取确定性 error 帧)→ taskkill 进程树。daily 档(默认)跑源码 `run_windows.py` 并挂进 `pnpm verify`;packaged 档(`--packaged`)先构建 PyInstaller 冻结 exe 再对产物跑同套 smoke(`--skip-build` 可复用现有 exe),入口 `pnpm smoke:sidecar` / `pnpm smoke:sidecar:packaged`。
+  - `app/db/session.py`:sqlite 引擎补驱动级 busy timeout(connect_args timeout=30,`STORYFORGE_SQLITE_BUSY_TIMEOUT_SECONDS` 可调)+ 文件库启用 WAL(connect 事件 PRAGMA);新增 `_enable_sqlite_wal` 可测缝。
+  - `apps/desktop/frontend/src/lib/versions.ts`:`.storyforge/versions` 每文件快照保留上限 20 份,超出连同 meta 一起删,清理失败仅告警不阻断写回主路径。
+- **证据**:
+  - daily 档实跑两次全绿:`/health/ready` 就绪 2768ms(预算 60s),assistant 往返(session id 建/列)、WS error 帧往返、进程树清理与临时库删除全部通过。
+  - packaged 档对 2026-07-01 存量冻结 exe 实跑,**第一次即抓到真实漂移**:旧 exe 拒绝 `project_path`(extra_forbidden 422)——该字段为 2026-07-02 PR#48 新增,装机产物落后源码一个版本,正是该档位设计要抓的故障类别。重建 exe(PyInstaller 6.21,130s)后 packaged 档全绿:冷启动 3674ms(预算 90s)。
+  - `uv run pytest` 全量:832 passed / 3 skipped(test_db_session 新增 2 用例:busy timeout 选项 + WAL 模式实测;两处旧断言随新 connect_args 行为更新);ruff 通过;`npm run typecheck`/`test` 96/96;`pnpm.cmd lint` 通过(仅 Editor.tsx 存量 warning)。
+- **未验 / 不外推**:smoke 覆盖起服/REST/WS 通道,不覆盖 LLM 出网与补丁写回链;packaged 档暂未接入每波合并强制流程(蓝图 W5 gate 落地);快照总量上限(跨文件)未做,当前仅每文件上限。
