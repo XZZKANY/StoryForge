@@ -3,9 +3,20 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app.common.config import get_settings
 from app.main import app, warn_default_credentials
+
+
+@pytest.fixture()
+def reset_settings_cache():
+    """monkeypatch 环境变量后重建 settings 单例，测试结束再复原。"""
+
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_protected_api_requires_authentication() -> None:
@@ -210,11 +221,12 @@ def test_request_timeout_middleware_returns_504_for_slow_handlers(monkeypatch) -
     assert response.json() == {"detail": "请求处理超时。"}
 
 
-def test_warn_default_credentials_logs_warning_in_non_development(monkeypatch, caplog) -> None:
+def test_warn_default_credentials_logs_warning_in_non_development(monkeypatch, caplog, reset_settings_cache) -> None:
     """非开发环境使用默认 API Key 时必须留下启动告警。"""
 
     monkeypatch.setenv("STORYFORGE_ENV", "production")
     monkeypatch.setenv("STORYFORGE_API_KEY", "local-dev-key")
+    get_settings.cache_clear()
 
     with caplog.at_level(logging.WARNING, logger="app.main"):
         warn_default_credentials()
@@ -222,16 +234,31 @@ def test_warn_default_credentials_logs_warning_in_non_development(monkeypatch, c
     assert "STORYFORGE_API_KEY is set to default value in non-development environment!" in caplog.text
 
 
-def test_warn_default_credentials_allows_development_default(monkeypatch, caplog) -> None:
+def test_warn_default_credentials_allows_development_default(monkeypatch, caplog, reset_settings_cache) -> None:
     """开发环境可以继续使用本地默认 API Key。"""
 
     monkeypatch.setenv("STORYFORGE_ENV", "development")
     monkeypatch.setenv("STORYFORGE_API_KEY", "local-dev-key")
+    get_settings.cache_clear()
 
     with caplog.at_level(logging.WARNING, logger="app.main"):
         warn_default_credentials()
 
     assert "STORYFORGE_API_KEY is set to default value" not in caplog.text
+
+
+def test_api_key_auth_shares_settings_fact_source(monkeypatch, reset_settings_cache) -> None:
+    """认证与生产校验共用 settings 事实源：settings 里的 key 生效后，默认 key 必须被拒。"""
+
+    monkeypatch.setenv("STORYFORGE_API_KEY", "settings-fact-source-key")
+    get_settings.cache_clear()
+
+    with TestClient(app) as client:
+        denied = client.get("/api/__nonexistent__", headers={"X-StoryForge-API-Key": "local-dev-key"})
+        allowed = client.get("/api/__nonexistent__", headers={"X-StoryForge-API-Key": "settings-fact-source-key"})
+
+    assert denied.status_code == 401
+    assert allowed.status_code == 404
 
 
 def test_security_response_headers_present() -> None:

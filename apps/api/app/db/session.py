@@ -62,6 +62,36 @@ def bootstrap_sqlite_database(engine: Engine | None = None) -> None:
     from app.db.base import Base
 
     Base.metadata.create_all(target_engine)
+    _ensure_agent_run_event_sequence_unique(target_engine)
+
+
+def _ensure_agent_run_event_sequence_unique(engine: Engine) -> None:
+    """create_all 不会给存量表补索引：老 sidecar 库先把并发竞态残留的重复
+    (run_id, sequence) 按 (sequence, id) 重排，再建唯一索引，使 record_agent_event
+    的冲突重试有约束可依。失败只告警不阻断起服（库仍可用，只是回到无约束现状）。"""
+
+    renumber_sql = """
+    UPDATE agent_run_events SET sequence = (
+        SELECT COUNT(*) FROM agent_run_events AS prior
+        WHERE prior.run_id = agent_run_events.run_id
+          AND (prior.sequence < agent_run_events.sequence
+               OR (prior.sequence = agent_run_events.sequence AND prior.id <= agent_run_events.id))
+    )
+    WHERE run_id IN (
+        SELECT run_id FROM agent_run_events GROUP BY run_id, sequence HAVING COUNT(*) > 1
+    )
+    """
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(renumber_sql)
+            connection.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_run_events_run_sequence "
+                "ON agent_run_events (run_id, sequence)"
+            )
+    except Exception:  # noqa: BLE001 - 起服路径，索引补齐失败不应让 sidecar 无法启动
+        import logging
+
+        logging.getLogger(__name__).warning("agent_run_events 唯一索引补齐失败，跳过。", exc_info=True)
 
 
 _SessionFactory = sessionmaker(autoflush=False, autocommit=False, expire_on_commit=False)

@@ -14,7 +14,7 @@ from limits.strategies import FixedWindowRateLimiter
 from starlette.requests import Request
 
 from app.common.auth import InvalidTokenError, verify_access_token
-from app.common.config import ensure_production_settings
+from app.common.config import ensure_production_settings, get_settings
 from app.common.exceptions import DomainError
 from app.common.logging_config import configure_logging, get_logger
 from app.common.metrics import setup_metrics
@@ -61,15 +61,17 @@ _API_KEY_HEADER = "x-storyforge-api-key"
 
 
 def _expected_api_key() -> str:
-    """读取本地和部署环境共用的 API Key，未配置时使用开发默认值。"""
+    """认证与 ensure_production_settings 必须共用 settings 事实源：
+    否则只写在 .env 里的生产 key 能通过启动校验，运行时却仍接受默认值。"""
 
-    return os.getenv("STORYFORGE_API_KEY", "local-dev-key")
+    return get_settings().storyforge_api_key
 
 
 def warn_default_credentials() -> None:
     """非开发环境使用本地默认 API Key 时写入启动告警。"""
 
-    if os.getenv("STORYFORGE_ENV", "development") != "development" and _expected_api_key() == "local-dev-key":
+    settings = get_settings()
+    if settings.storyforge_env != "development" and settings.storyforge_api_key == "local-dev-key":
         logger.warning("STORYFORGE_API_KEY is set to default value in non-development environment!")
 
 

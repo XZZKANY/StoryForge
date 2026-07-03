@@ -1195,21 +1195,30 @@ class AgentRuntime:
             )
             return _runtime_interrupted_response(partial, interruption, events_recorded=True)
 
+        # 一次响应只承载一个待确认补丁：拿到第一个可确认 patch 即停。
+        # 继续批量 judge.repair 只会落库无人能确认的孤儿补丁，还把 issue 状态改成 requires_rejudge。
         repair_results: list[Any] = []
+        remaining_repairable = 0
         for issue in issues:
             issue_id = issue.get("id")
-            if isinstance(issue_id, int) and _can_repair_issue(issue, review_args["content"]):
-                repair_result = self._execute_tool(
-                    "judge.repair",
-                    context,
-                    {"issue_id": issue_id, "content": review_args["content"]},
-                )
-                repair_results.append(repair_result)
-                self._event_sink.record_tool_trace(run, repair_result.trace, len(repair_results))
+            if not (isinstance(issue_id, int) and _can_repair_issue(issue, review_args["content"])):
+                continue
+            if _first_patch_payload(repair_results) is not None:
+                remaining_repairable += 1
+                continue
+            repair_result = self._execute_tool(
+                "judge.repair",
+                context,
+                {"issue_id": issue_id, "content": review_args["content"]},
+            )
+            repair_results.append(repair_result)
+            self._event_sink.record_tool_trace(run, repair_result.trace, len(repair_results))
 
         patch_payload = _first_patch_payload(repair_results)
         proposed_patch = _proposed_patch_from_repair_patch(patch_payload) if patch_payload else None
         summary = f"章节审阅完成：发现 {len(issues)} 个问题，生成 {len(repair_results)} 个修复建议。"
+        if remaining_repairable:
+            summary += f"另有 {remaining_repairable} 个可修复问题待本补丁确认后再处理。"
 
         assistant_service.append_assistant_message(
             session,
@@ -1242,6 +1251,7 @@ class AgentRuntime:
                 "summary": summary,
                 "issue_count": len(issues),
                 "repair_patch_count": len(repair_results),
+                "remaining_repairable_issue_count": remaining_repairable,
                 "requires_user_confirmation": proposed_patch is not None,
             },
             tool_trace=tool_trace,
