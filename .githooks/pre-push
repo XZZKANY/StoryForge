@@ -1,5 +1,5 @@
 #!/bin/sh
-# StoryForge pre-push 门禁：lint + OpenAPI 漂移。
-# CI 已移除（2026-06-30），此 hook 是这两道快门禁的本地替代。
-# 一次性启用：pnpm hooks:install   ；需绕过：git push --no-verify
-pnpm run verify:fast
+# StoryForge pre-push 门禁:lint + OpenAPI 漂移 + 活路径快测集(约 3 分钟)。
+# CI 已移除(2026-06-30);2026-07-03 蓝图 W0 拍板把本地测试防线做实(修 F12)。
+# 一次性启用:pnpm hooks:install   ;需绕过:git push --no-verify
+pnpm run verify:fast && pnpm run test:fast

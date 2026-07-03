@@ -4794,3 +4794,14 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - 死码清理:requestRevision 前端链(assistant.ts 函数 + api-client.ts re-export + api-client.test.ts 两个测试块;后端 POST /api/assistant/revise 未动且新增 OpenAPI 断言护栏);verify-local.ps1(356行)/generate-openapi.ps1 双实现与 package.json verify:infra 入口;apps/desktop/src/ 两个游离 tauri-fs(零引用)。test_phase9_fact_sources.py 摘 3 条锁已删 CI 的断言;test_source_pruning.py:28 锁 verify-local.ps1 文本的读取一并摘除(超出清单的必要一改)。
 - **证据**:`node scripts/run-e2e.mjs` exit 0(drift PASSED,契约 spec 6 文件 21/21,总时长秒级);`pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过;desktop typecheck 干净、test 94/94(-2 为删除的 requestRevision 测试块);`uv run pytest tests/test_phase9_fact_sources.py tests/test_source_pruning.py -q` 29 passed;grep 复查 assertSourceEvidence/requestRevision 代码引用清零。
 - **未验 / 不外推**:WS 消息 shape 校验属 W6 不在本刀;CLAUDE.md §4 门禁说明与 :51 的 verify-local.ps1 提及待 W0-B2 改写;「重命名前端组件不再触发 e2e 假红」由机制保证(e2e 不再读前端源码),未做专门实验。
+
+---
+
+# 2026-07-03 W0-B2:pre-push 活路径快测集 + CLAUDE.md 门禁改写 + schema 冻结公告 验证记录
+
+- **范围**(蓝图 W0,修 F12,推翻项①落地——2026-07-03 用户已批准):
+  - 新增 `scripts/fast-tests.mjs`(入口 `pnpm test:fast`):活路径 pytest 快测集(agent_runs/assistant/ide 命令/llm 配置 14 个文件 145 用例;test_ide_agent_orchestrator facade 套件与已知 flaky 探针不在集内,由 verify 全量覆盖)+ desktop 前端单测。
+  - `.githooks/pre-push` 升级为 `verify:fast && test:fast`(lint + drift + 快测集)。
+  - CLAUDE.md:验证门禁段改写(verify=全量一遍含 sidecar-smoke;e2e=契约-only 秒级;drift 单实现;packaged 档为波次合并/发版前强制;删 verify-local.ps1 提及);§6 置顶 **schema 冻结公告**(至 W2 落地:不合并 ORM 加列,新工具先做纯文件版,依据 F01)。
+- **证据**:`pnpm test:fast` 实测 1m35s(快测集 145 passed + desktop 94/94),加 lint+drift 后 pre-push 总耗时约 2.8 分钟,在 3 分钟预算内;**拦截实验**——把 test_agent_fs_tools.py 临时替换为必败测试后 `pnpm test:fast` exit=1(蓝图 gate:pre-push 实测拦截一次故意注入的 pytest 失败),恢复后工作树干净;`pnpm.cmd lint` 通过。
+- **未验 / 不外推**:hook 需 `pnpm hooks:install` 启用且可 `--no-verify` 绕过(拍板时已知形态);快测集文件清单会随 Q1-Q8 工具化演进,增补原则=「主产品路径新增测试文件默认入集,超预算再裁」。

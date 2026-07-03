@@ -66,15 +66,18 @@ pnpm dev:api           # 只启基础服务 + API
 node scripts/dev-start.mjs --skip-docker --skip-migrate    # 已有服务时快速重启
 ```
 
-### 验证门禁（每次提交前必跑）
+### 验证门禁（2026-07-03 W0 收敛，依据 `docs/internal/arch-review-blueprint-2026-07-03.md`）
 
 ```bash
-pnpm.cmd lint          # Windows 推荐入口；根 lint 门禁
-pnpm verify            # 本地 verify 全链路（PowerShell）
-pnpm test              # Desktop + shared + API + Workflow 全套单元/契约测试
-pnpm e2e               # OpenAPI 刷新 + 契约 diff + 真实 HTTP pytest（不接受补偿验证）
+pnpm verify            # 提交前必跑：lint + typecheck + 各栈测试各一遍 + sidecar-smoke(daily 档) + OpenAPI 漂移
+pnpm e2e               # 契约门禁（秒级）：OpenAPI drift + tests/e2e 契约断言；不再重跑任何 pytest
 pnpm openapi           # 重新生成 packages/shared/src/contracts/storyforge.openapi.json
+pnpm smoke:sidecar:packaged   # 冻结 exe 冒烟：每波蓝图收口合并前 / 发版前必跑
 ```
+
+- pre-push hook（`pnpm hooks:install` 启用）= lint + drift + 活路径快测集（约 3 分钟，修 F12）；绕过用 `git push --no-verify`，但绕过即自担风险。
+- `pnpm test` 仍可单独全量跑测试，但 `pnpm verify` 已覆盖，提交前不必重复。
+- 门禁去重原则：同一批用例只在 verify 跑一遍；e2e 只做契约断言；drift 校验只有 `scripts/check-openapi-drift.mjs` 一份实现。
 
 P0 复位时已通过的关键命令：
 
@@ -90,7 +93,7 @@ cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q
 cd apps/api && uv run ruff check tests/test_phase9_fact_sources.py
 ```
 
-非 Windows 环境下 PowerShell 不可用时：直接跑 `node scripts/run-e2e.mjs`、`npm --prefix apps/desktop/frontend run test`、`cd apps/api && uv run pytest`、`cd apps/workflow && uv run pytest`。
+非 Windows 环境：直接跑 `node scripts/verify-local.mjs`、`node scripts/run-e2e.mjs`、`npm --prefix apps/desktop/frontend run test`、`cd apps/api && uv run pytest`、`cd apps/workflow && uv run pytest`。
 
 ### 代码风格
 
@@ -118,6 +121,7 @@ npm --prefix apps/desktop/frontend run test
 
 ## 6. 协作约定
 
+- **⚠️ schema 冻结（至蓝图 W2 落地解除）：** 2026-07-03 起不合并任何 ORM 加列/改列变更；新工具的数据需求先做纯文件版（`project.deep_consistency` 先例）。原因：发布态 sqlite 库零迁移机制（审计 F01，critical），W2 落地 alembic 单一事实源前任何 schema 变更都会打碎已装机 Alpha 用户库。详见 `docs/internal/arch-review-blueprint-2026-07-03.md` §7。
 - **语言：** 所有回复、文档、注释、日志、提交信息默认简体中文；代码标识符、包名、API 名称保留英文。
 - **证据链：** 所有变更必须在 `.codex/verification-report.md` 留下验证记录（命令、输出摘要、未联通能力）。
 - **小步推进：** 一次只解决一个明确问题，禁止顺手重构无关代码。
