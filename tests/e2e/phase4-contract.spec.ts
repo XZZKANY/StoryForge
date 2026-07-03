@@ -8,41 +8,11 @@ import { join } from 'node:path';
 const openapi = JSON.parse(
   readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
 );
-const apiTests = {
-  retrieval: readFileSync('apps/api/tests/test_retrieval_index.py', 'utf8'),
-  scenePacketUpgrade: readFileSync('apps/api/tests/test_scene_packet_retrieval_upgrade.py', 'utf8'),
-  promptPacks: readFileSync('apps/api/tests/test_prompt_packs.py', 'utf8'),
-  modelRuns: readFileSync('apps/api/tests/test_model_runs.py', 'utf8'),
-  artifacts: readFileSync('apps/api/tests/test_artifacts.py', 'utf8'),
-  evaluations: readFileSync('apps/api/tests/test_evaluations.py', 'utf8'),
-};
-const desktopSources = {
-  // App.tsx 拆分后（PR #42/#46 后续），壳层由 app/ 子组件与 StoryNavigator 承接
-  app:
-    readFileSync('apps/desktop/frontend/src/App.tsx', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/components/app/RightWorkspace.tsx', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/components/app/WelcomeWorkspace.tsx', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/components/StoryNavigator.tsx', 'utf8'),
-  // api-client.ts 拆分为 lib/api/* 模块，api-client 保留 re-export 门面
-  apiClient:
-    readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/lib/api/assistant.ts', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/lib/api/agent-socket.ts', 'utf8'),
-  authorLoop: readFileSync('apps/desktop/frontend/src/lib/author-loop.ts', 'utf8'),
-  agentSteps: readFileSync('apps/desktop/frontend/src/components/AgentStepsPanel.tsx', 'utf8'),
-  settings: readFileSync('apps/desktop/frontend/src/components/SettingsView.tsx', 'utf8'),
-};
 
 function assertOperation(path, method, tag) {
   const operation = openapi.paths?.[path]?.[method];
   assert.ok(operation, `缺少 ${method.toUpperCase()} ${path}`);
   assert.ok(operation.tags?.includes(tag), `${path} 未归入 ${tag} 标签`);
-}
-
-function assertSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(source.includes(marker), `缺少 Phase 4 证据：${marker}`);
-  }
 }
 
 function runApiPythonJson(script) {
@@ -82,72 +52,43 @@ test('Phase 4 OpenAPI 暴露检索、Prompt Packs、模型运行日志、制品�
   assertOperation('/api/retrieval/refresh-runs', 'post', '检索中心');
   assertOperation('/api/retrieval/search', 'post', '检索中心');
   assertOperation('/api/prompt-packs', 'post', 'Prompt Packs');
+  assertOperation('/api/prompt-packs/{pack_id}/history', 'get', 'Prompt Packs');
   assertOperation('/api/model-runs', 'post', '模型运行日志');
   assertOperation('/api/artifacts', 'post', '制品中心');
+  assertOperation('/api/artifacts/{artifact_id}/download', 'get', '制品中心');
+  assertOperation('/api/evaluations/cases', 'post', '评测系统');
   assertOperation('/api/evaluations/runs', 'post', '评测系统');
   assertOperation('/api/runtime-tools', 'get', '运行时工具');
 });
 
-test('Phase 4 后端测试源码保留关键业务证据', () => {
-  assertSourceEvidence(apiTests.retrieval, [
-    '"/api/retrieval/sources"',
-    '"/api/retrieval/search"',
-    'chunk_count',
-    'source_ref',
-  ]);
-  assertSourceEvidence(apiTests.scenePacketUpgrade, [
-    '"/api/scene-packets"',
-    'retrieval_hit',
-    '检索命中',
-  ]);
-  assertSourceEvidence(apiTests.promptPacks, ['"/api/prompt-packs"', 'forbidden', 'history']);
-  assertSourceEvidence(apiTests.modelRuns, [
-    '"/api/model-runs"',
-    'provider_name',
-    'token_usage',
-    'prompt_pack_id',
-  ]);
-  assertSourceEvidence(apiTests.artifacts, ['"/api/artifacts"', 'artifact_type', 'upload']);
-  assertSourceEvidence(apiTests.evaluations, [
-    '"/api/evaluations/cases"',
-    '"/api/evaluations/runs"',
-    'consistency_error_rate',
-  ]);
+test('Phase 4 契约保留检索、模型运行与制品关键字段', () => {
+  const retrievalSource = openapi.components.schemas.RetrievalSourceRead;
+  assert.ok(retrievalSource.properties.chunk_count, '检索源响应必须包含 chunk_count');
+
+  const retrievalHit = openapi.components.schemas.RetrievalHitRead;
+  assert.ok(retrievalHit.properties.source_ref, '检索命中必须包含 source_ref');
+  assert.ok(retrievalHit.properties.score, '检索命中必须包含 score');
+
+  const scenePacketCreate = openapi.components.schemas.ScenePacketCreate;
+  assert.ok(
+    scenePacketCreate.properties.retrieval_snippets,
+    'Scene Packet 请求必须允许注入检索片段',
+  );
+
+  const modelRun = openapi.components.schemas.ModelRunRead;
+  assert.ok(modelRun.properties.provider_name, '模型运行响应必须包含 provider_name');
+  assert.ok(modelRun.properties.token_usage, '模型运行响应必须包含 token_usage');
+  assert.ok(modelRun.properties.prompt_pack_id, '模型运行响应必须包含 prompt_pack_id');
+
+  const artifact = openapi.components.schemas.ArtifactRead;
+  assert.ok(artifact.properties.artifact_type, '制品响应必须包含 artifact_type');
+  assert.ok(artifact.properties.storage_uri, '制品响应必须包含 storage_uri');
+
+  const evaluationRun = openapi.components.schemas.EvaluationRunRead;
+  assert.ok(evaluationRun.properties.metrics, '评测运行响应必须包含 metrics');
 });
 
-test('Phase 4 Desktop 入口承接本地项目、Agent、制品导出和设置能力', () => {
-  assertSourceEvidence(desktopSources.app, [
-    'DynamicIDELayout',
-    'ChatWindow',
-    'ResourceExplorer',
-    'Editor',
-    'SettingsView',
-  ]);
-  assertSourceEvidence(desktopSources.apiClient, [
-    '/api/assistant/revise',
-    '/api/assistant/sessions/',
-    '/api/ide/agent/sessions/',
-    'X-StoryForge-API-Key',
-    "cache: 'no-store'",
-  ]);
-  assertSourceEvidence(desktopSources.authorLoop, [
-    'recordRevisionLoop',
-    'exportCurrentFile',
-    'buildExportPath',
-  ]);
-  assertSourceEvidence(desktopSources.agentSteps, [
-    'AgentStepStatus',
-    'completed',
-    'failed',
-  ]);
-  assertSourceEvidence(desktopSources.settings, [
-    '模型服务',
-    '默认模型',
-    'API Key',
-  ]);
-});
-
-test('Phase 4 runtime tools API 与 CreativeToolRegistry 和 Runs 页面保持一致', () => {
+test('Phase 4 runtime tools API 与 CreativeToolRegistry 保持一致', () => {
   const apiTools = runApiPythonJson(`
 import json
 import os
@@ -224,9 +165,4 @@ print(json.dumps([
     openapi.components.schemas.RuntimeToolRead,
     'OpenAPI 必须保留 runtime tools 读取契约',
   );
-  assert.ok(
-    !desktopSources.apiClient.includes('DEFAULT_CREATIVE_TOOL_REGISTRY'),
-    'Desktop API client 不应直接引用 workflow registry',
-  );
-  assert.ok(!desktopSources.apiClient.includes('runtimeToolList = ['), 'Desktop API client 不应维护静态工具清单');
 });

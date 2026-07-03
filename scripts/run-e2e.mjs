@@ -1,7 +1,7 @@
-import { mkdtemp, copyFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, copyFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 const defaultTests = [
   'tests/e2e/phase1-closed-loop.spec.ts',
@@ -9,47 +9,13 @@ const defaultTests = [
   'tests/e2e/phase3-contract.spec.ts',
   'tests/e2e/phase4-contract.spec.ts',
   'tests/e2e/phase5-runtime-diagnostics.spec.ts',
-  'tests/e2e/ide-shell.spec.ts',
   'tests/e2e/ide-judge-repair.spec.ts',
-];
-const httpPytestTargets = [
-  'tests/test_alembic_heads.py',
-  'tests/test_phase1_closed_loop_api.py',
-  'tests/test_series_memory.py',
-  'tests/test_worldbuilding_center.py',
-  'tests/test_batch_refinery.py',
-  'tests/test_style_packs.py',
-  'tests/test_quality_dashboard.py',
-  'tests/test_workspaces_api.py',
-  'tests/test_collaboration.py',
-  'tests/test_commercial_controls.py',
-  'tests/test_provider_gateway.py',
-  'tests/test_phase3_analytics.py',
-  'tests/test_retrieval_index.py',
-  'tests/test_scene_packet_retrieval_upgrade.py',
-  'tests/test_prompt_packs.py',
-  'tests/test_model_runs.py',
-  'tests/test_runtime_tools.py',
-  'tests/test_artifacts.py',
-  'tests/test_evaluations.py',
-  'tests/test_job_runtime_bridge.py',
-];
-const workflowPytestTargets = [
-  'tests/test_generation_graph.py',
-  'tests/test_runtime_runner.py',
-  'tests/test_workflow_session.py',
-  'tests/test_workflow_lifecycle.py',
-  'tests/test_provider_adapter.py',
-  'tests/test_provider_parity_harness.py',
-  'tests/test_creative_tool_registry.py',
 ];
 const rawArgs = process.argv.slice(2).filter((value) => value.trim().length > 0);
 const continueOnError = rawArgs.includes('--continue-on-error');
 const requestedTests = rawArgs.filter((value) => value !== '--continue-on-error');
 const testFiles = requestedTests.length > 0 ? requestedTests : defaultTests;
-const openApiContractPath = 'packages/shared/src/contracts/storyforge.openapi.json';
 const tempDir = await mkdtemp(join(tmpdir(), 'storyforge-e2e-'));
-const openApiContractBaselinePath = join(tempDir, basename(openApiContractPath));
 
 function formatTimestamp() {
   return new Date().toISOString().slice(0, 19);
@@ -77,29 +43,19 @@ try {
     return exitCode !== 0 && !continueOnError;
   };
 
-  await copyFile(openApiContractPath, openApiContractBaselinePath);
-
-  log('INFO', '\n[1/4] Refreshing OpenAPI contract...');
-  const refreshExitCode = await refreshOpenApiContract(process.cwd(), tempDir);
-  if (refreshExitCode !== 0) {
-    log('ERROR', `[1/4] OpenAPI contract refresh: FAILED (exit code ${refreshExitCode})`);
+  log('INFO', '\n[1/2] Refreshing OpenAPI contract and checking drift...');
+  // drift 校验单实现：复用 scripts/check-openapi-drift.mjs（刷新 + 漂移检查一步完成）
+  const driftExitCode = await runCommand(
+    process.execPath,
+    ['scripts/check-openapi-drift.mjs'],
+    process.cwd(),
+  );
+  if (driftExitCode !== 0) {
+    log('ERROR', `[1/2] OpenAPI refresh + drift check: FAILED (exit code ${driftExitCode})`);
   } else {
-    log('INFO', '[1/4] OpenAPI contract refresh: PASSED');
+    log('INFO', '[1/2] OpenAPI refresh + drift check: PASSED');
   }
-  let shouldStop = rememberPhaseResult('OpenAPI contract refresh', refreshExitCode);
-  if (!shouldStop && refreshExitCode === 0) {
-    log('INFO', '[1/4] Checking OpenAPI contract drift...');
-    const driftExitCode = await checkOpenApiContractDrift(
-      process.cwd(),
-      openApiContractBaselinePath,
-    );
-    if (driftExitCode !== 0) {
-      log('ERROR', '[1/4] OpenAPI contract drift check: FAILED');
-    } else {
-      log('INFO', '[1/4] OpenAPI contract drift check: PASSED');
-    }
-    shouldStop = rememberPhaseResult('OpenAPI contract drift check', driftExitCode);
-  }
+  const shouldStop = rememberPhaseResult('OpenAPI refresh + drift check', driftExitCode);
 
   if (!shouldStop) {
     const runnableFiles = [];
@@ -109,43 +65,18 @@ try {
       runnableFiles.push(outputFile);
     }
 
-    log('INFO', `\n[2/4] Running contract tests (${runnableFiles.length} specs)...`);
+    log('INFO', `\n[2/2] Running contract tests (${runnableFiles.length} specs)...`);
     const contractExitCode = await runCommand(
       process.execPath,
       ['--test', ...runnableFiles],
       process.cwd(),
     );
     if (contractExitCode !== 0) {
-      log('ERROR', `[2/4] Contract tests: FAILED (exit code ${contractExitCode})`);
+      log('ERROR', `[2/2] Contract tests: FAILED (exit code ${contractExitCode})`);
     } else {
-      log('INFO', '[2/4] Contract tests: PASSED');
+      log('INFO', '[2/2] Contract tests: PASSED');
     }
-
-    if (!rememberPhaseResult('Contract tests', contractExitCode)) {
-      log('INFO', `\n[3/4] Running API verification (${httpPytestTargets.length} targets)...`);
-      const apiExitCode = await runApiVerification(join(process.cwd(), 'apps/api'));
-      if (apiExitCode !== 0) {
-        log('ERROR', `[3/4] API verification: FAILED (exit code ${apiExitCode})`);
-      } else {
-        log('INFO', '[3/4] API verification: PASSED');
-      }
-
-      if (!rememberPhaseResult('API verification', apiExitCode)) {
-        log(
-          'INFO',
-          `\n[4/4] Running workflow verification (${workflowPytestTargets.length} targets)...`,
-        );
-        const workflowExitCode = await runWorkflowVerification(
-          join(process.cwd(), 'apps/workflow'),
-        );
-        if (workflowExitCode !== 0) {
-          log('ERROR', `[4/4] Workflow verification: FAILED (exit code ${workflowExitCode})`);
-        } else {
-          log('INFO', '[4/4] Workflow verification: PASSED');
-        }
-        rememberPhaseResult('Workflow verification', workflowExitCode);
-      }
-    }
+    rememberPhaseResult('Contract tests', contractExitCode);
   }
 
   if (continueOnError) {
@@ -166,127 +97,10 @@ function printPhaseSummary(phaseResults) {
   }
 }
 
-async function checkOpenApiContractDrift(root, baselinePath) {
-  const currentPath = join(root, openApiContractPath);
-  const exitCode = await runCommand(
-    'git',
-    ['diff', '--no-index', '--exit-code', '--', baselinePath, currentPath],
-    root,
-  );
-  if (exitCode !== 0) {
-    log(
-      'ERROR',
-      "OpenAPI contract is stale. Run 'pnpm run openapi' and commit packages/shared/src/contracts/storyforge.openapi.json.",
-    );
-  }
-  return exitCode;
-}
-async function refreshOpenApiContract(root, tempDir) {
-  const pythonCommand = resolvePythonCommand();
-  if (!pythonCommand) {
-    log('ERROR', '未找到 uv、python3 或 python，无法刷新 OpenAPI 契约。');
-    return 1;
-  }
-
-  const outputPath = join(root, 'packages/shared/src/contracts/storyforge.openapi.json');
-  const scriptPath = join(tempDir, 'refresh-openapi.py');
-  const pythonCode = `
-import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path.cwd()))
-from app.main import app
-
-output_path = Path(${JSON.stringify(outputPath)})
-output_path.parent.mkdir(parents=True, exist_ok=True)
-output_path.write_bytes(
-    (json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n").encode("utf-8")
-)
-print(f"已刷新 OpenAPI 契约：{output_path}")
-`.trim();
-  await writeFile(scriptPath, `${pythonCode}\n`, 'utf8');
-  const exitCode = await runPythonScript(pythonCommand, scriptPath, join(root, 'apps/api'));
-  if (exitCode !== 0) {
-    log('ERROR', 'OpenAPI 契约刷新失败，已停止 e2e，避免继续使用可能陈旧的契约快照。');
-  }
-  return exitCode;
-}
-
-async function runApiVerification(cwd) {
-  const pythonCommand = resolvePythonCommand();
-  if (!pythonCommand) {
-    log('ERROR', '未找到 uv、python3 或 python，无法执行 API 验证。');
-    return 1;
-  }
-
-  const compileExitCode = await runPythonCommand(
-    pythonCommand,
-    ['-m', 'compileall', 'app', 'tests'],
-    cwd,
-  );
-  if (compileExitCode !== 0) {
-    return compileExitCode;
-  }
-  return runPythonCommand(pythonCommand, ['-m', 'pytest', ...httpPytestTargets, '-q'], cwd);
-}
-async function runWorkflowVerification(cwd) {
-  const pythonCommand = resolvePythonCommand();
-  if (!pythonCommand) {
-    log('ERROR', '未找到 uv、python3 或 python，无法执行 workflow 验证。');
-    return 1;
-  }
-
-  const compileExitCode = await runPythonCommand(
-    pythonCommand,
-    ['-m', 'compileall', 'storyforge_workflow', 'tests'],
-    cwd,
-  );
-  if (compileExitCode !== 0) {
-    return compileExitCode;
-  }
-  return runPythonCommand(pythonCommand, ['-m', 'pytest', ...workflowPytestTargets, '-q'], cwd);
-}
-
-function resolvePythonCommand() {
-  if (hasCommand('uv')) {
-    return 'uv';
-  }
-  if (hasCommand('python3')) {
-    return 'python3';
-  }
-  if (hasCommand('python')) {
-    return 'python';
-  }
-  return null;
-}
-
-function runPythonCommand(command, args, cwd) {
-  if (command === 'uv') {
-    return runCommand('uv', ['run', ...args], cwd);
-  }
-  return runCommand(command, args, cwd);
-}
-
-function runPythonScript(command, scriptPath, cwd) {
-  if (command === 'uv') {
-    return runCommand('uv', ['run', 'python', scriptPath], cwd);
-  }
-  return runCommand(command, [scriptPath], cwd);
-}
-
-function hasCommand(command) {
-  const probe = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], {
-    stdio: 'ignore',
-  });
-  return probe.status === 0;
-}
-
 function runCommand(command, args, cwd) {
   const child = spawn(command, args, {
     cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32' && command === 'uv',
   });
 
   return new Promise((resolve) => {

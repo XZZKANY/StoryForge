@@ -20,7 +20,6 @@ export {
   listAgentRoles,
   listAssistantSessions,
   probeProviderHealth,
-  requestRevision,
 } from './api/assistant';
 export { requestCrossChapterConsistency } from './api/cross-chapter';
 export { executeIdeCommand } from './api/ide-commands';

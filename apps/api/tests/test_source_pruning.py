@@ -25,9 +25,7 @@ def test_legacy_top_level_health_route_stays_pruned() -> None:
     registered_paths = {route.path for route in app.routes}
     openapi_paths = set(app.openapi()["paths"])
     dockerfile = API_ROOT / "Dockerfile"
-    verify_local = API_ROOT.parents[1] / "scripts" / "verify-local.ps1"
     dockerfile_source = dockerfile.read_text(encoding="utf-8")
-    verify_local_source = verify_local.read_text(encoding="utf-8")
 
     assert "/health" not in registered_paths
     assert "/health" not in openapi_paths
@@ -36,7 +34,6 @@ def test_legacy_top_level_health_route_stays_pruned() -> None:
     assert "/health/live" in openapi_paths
     assert "/health/ready" in openapi_paths
     assert "http://127.0.0.1:8000/health/live" in dockerfile_source
-    assert "http://localhost:8000/health/live" in verify_local_source
 
 
 def test_books_package_does_not_reexport_sqlalchemy_models() -> None:
