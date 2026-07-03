@@ -4805,3 +4805,15 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - CLAUDE.md:验证门禁段改写(verify=全量一遍含 sidecar-smoke;e2e=契约-only 秒级;drift 单实现;packaged 档为波次合并/发版前强制;删 verify-local.ps1 提及);§6 置顶 **schema 冻结公告**(至 W2 落地:不合并 ORM 加列,新工具先做纯文件版,依据 F01)。
 - **证据**:`pnpm test:fast` 实测 1m35s(快测集 145 passed + desktop 94/94),加 lint+drift 后 pre-push 总耗时约 2.8 分钟,在 3 分钟预算内;**拦截实验**——把 test_agent_fs_tools.py 临时替换为必败测试后 `pnpm test:fast` exit=1(蓝图 gate:pre-push 实测拦截一次故意注入的 pytest 失败),恢复后工作树干净;`pnpm.cmd lint` 通过。
 - **未验 / 不外推**:hook 需 `pnpm hooks:install` 启用且可 `--no-verify` 绕过(拍板时已知形态);快测集文件清单会随 Q1-Q8 工具化演进,增补原则=「主产品路径新增测试文件默认入集,超预算再裁」。
+
+---
+
+# 2026-07-03 W0-B3:死码彻底删除(memory.resolve_conflict 假成功命令 + ChatWindow 弃用 props + .codex 上下文摘要归档) 验证记录
+
+- **范围**(蓝图 W0,死域清理最后一刀,依据 2026-07-03 用户拍板「死域代码:彻底删除」):
+  - 删 `memory.resolve_conflict` 零实现假成功写命令(`command_registry._BUILTIN_COMMANDS`):该命令返回 `accepted` 却无任何领域写回,违背证据链红线(前端会误判为已审计成功)。`test_ide_command_registry.py` 重写为 `noop_write_command` monkeypatch 夹具承载「持久审计事件 + WS 命令通道」机制护栏,并新增 `test_removed_fake_success_command_returns_404` 锁定删除后返回 404;`test_ide_commands.py` 删去 `memory.resolve_conflict` 参数保真测试。
+  - 删 ChatWindow 四个弃用 props(`layoutMode`/`onCollapse`/`onFocusOnly`/`onRestoreLayout`)从 `chat-window/types.ts` `ChatWindowProps`;`ChatWindow.tsx` 解构去除;`WelcomeWorkspace.tsx` 的 `<ChatWindow>` 调用与 `AgentWorkspace` 函数签名同步去除现已无用的 `layoutMode`/`onFocusOnly`/`onCollapse`(`onRestoreLayout` 仍用于侧栏切换保留);`App.tsx` `<AgentWorkspace>` 调用点去除同名传参。
+  - `.codex/context-summary-*.md`:261 个历史会话上下文摘要 `git rm`(仅存于 git 历史即可,不再占工作树)。
+  - 删除本地 2.5G `apps/desktop/.tauri-target-smoke` 冗余构建缓存(非版本受控)。
+- **证据**:desktop `typecheck` 干净(修掉 TS6133 未用 prop 报错)、`test` 94/94;`tests/test_ide_command_registry.py`+`test_ide_commands.py` 11 passed;`pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过;`node scripts/run-e2e.mjs` 21/21 契约 spec 通过 + drift PASSED;grep 复查 `memory.resolve_conflict` 仅存于 test 的删除断言、`onFocusOnly`/`onCollapse` 无生产残留。
+- **未验 / 不外推**:W0 门禁体系(sidecar-smoke 双档 / e2e 契约化 / pre-push 快测集 / 死码清理)四刀均已落地;本刀不触碰任何领域行为,仅删无写回路径的假成功命令与已无消费者的 UI props。

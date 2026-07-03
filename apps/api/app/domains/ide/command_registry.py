@@ -55,7 +55,6 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="bookrun.stop", title="停止写作任务", category="Writing Run"),
         IdeCommandDefinition(id="bookrun.retry_from_checkpoint", title="从 checkpoint 重试写作任务", category="Writing Run"),
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
-        IdeCommandDefinition(id="memory.resolve_conflict", title="仲裁记忆冲突", category="Story Memory"),
     ]
 }
 
