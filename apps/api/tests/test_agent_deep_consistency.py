@@ -205,3 +205,19 @@ def test_deep_consistency_cleans_and_caps_facts(monkeypatch: pytest.MonkeyPatch,
     assert user_facts[0] == "地点：灯塔港"
     assert len(user_facts) == 40
     assert output["facts_truncated"] is True
+
+
+def test_deep_consistency_uses_semantic_input_without_db_fields(
+    monkeypatch: pytest.MonkeyPatch, bible_project: Path
+) -> None:
+    """入参走无 DB 字段的 SemanticJudgeInput，不再伪造 scene_id 哑值。"""
+
+    from app.domains.judge.schemas import SemanticJudgeInput
+
+    captured = _capture_judge(monkeypatch, SemanticJudgeOutcome(issues=[], failed=False))
+
+    deep_consistency_review(str(bible_project), "正文/第01章.md", llm_env=_LLM_ENV)
+
+    payload = captured["payload"]
+    assert isinstance(payload, SemanticJudgeInput)
+    assert not hasattr(payload, "scene_id")

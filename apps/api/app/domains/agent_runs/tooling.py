@@ -155,6 +155,8 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         permission_level="auto",
         risk_level="analyze",
         requires_confirmation=False,
+        # 虽是纯读无副作用，但每次调用真实烧 LLM token 且输出非严格确定：
+        # 有意禁自动重试——瞬时失败作为工具错误反馈进循环，由模型/作者决定是否再试。
         retry_safe=False,
         idempotent=False,
         execution_mode="sync",
