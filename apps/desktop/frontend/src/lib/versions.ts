@@ -11,6 +11,8 @@ import { TauriFileSystem, FileEntry } from './tauri-fs';
 const VERSION_ROOT = '.storyforge/versions';
 const SNAPSHOT_SUFFIX = '.snapshot.md';
 const META_SUFFIX = '.meta.json';
+/** 每个文件保留的快照上限:autoSave 900ms 防抖下无上限会把用户盘写爆。 */
+const MAX_SNAPSHOTS_PER_FILE = 20;
 
 export type VersionEntry = {
   /** 快照文件完整路径 */
@@ -107,7 +109,30 @@ export async function snapshotBeforeWrite(
     `${dir}${s}${timestamp}${META_SUFFIX}`,
     `${JSON.stringify(meta, null, 2)}\n`,
   );
+  await pruneSnapshots(dir, s);
   return { path: snapshotPath, timestamp };
+}
+
+/** 按时间倒序保留最近 MAX_SNAPSHOTS_PER_FILE 份,超出的连同 meta 一起删;清理失败只告警,绝不阻断写回主路径。 */
+async function pruneSnapshots(dir: string, s: string): Promise<void> {
+  try {
+    const entries = await TauriFileSystem.listDir(dir, false);
+    const stamps = entries
+      .filter((entry: FileEntry) => !entry.isDir && entry.name.endsWith(SNAPSHOT_SUFFIX))
+      .map((entry: FileEntry) => Number(entry.name.slice(0, -SNAPSHOT_SUFFIX.length)))
+      .filter((stamp: number) => Number.isFinite(stamp))
+      .sort((a: number, b: number) => b - a);
+    for (const stamp of stamps.slice(MAX_SNAPSHOTS_PER_FILE)) {
+      try {
+        await TauriFileSystem.deletePath(`${dir}${s}${stamp}${SNAPSHOT_SUFFIX}`);
+        await TauriFileSystem.deletePath(`${dir}${s}${stamp}${META_SUFFIX}`);
+      } catch (error) {
+        console.warn('[versions] 过期快照清理失败(跳过):', stamp, error);
+      }
+    }
+  } catch (error) {
+    console.warn('[versions] 快照保留清理失败(不影响写入):', error);
+  }
 }
 
 /** 列出某文件的历史版本，按时间倒序。 */

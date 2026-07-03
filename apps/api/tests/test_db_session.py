@@ -64,7 +64,9 @@ def test_build_engine_options_skips_pool_limits_for_sqlite(monkeypatch) -> None:
     options_builder = getattr(db_session, "_build_engine_options", None)
 
     assert options_builder is not None
-    assert options_builder("sqlite+pysqlite:///:memory:") == {}
+    options = options_builder("sqlite+pysqlite:///:memory:")
+    assert set(options) == {"connect_args"}, "sqlite 只应携带驱动级 connect_args,不应有 QueuePool 参数"
+    assert options["connect_args"]["timeout"] == 30
 
 
 def test_connection_pool_timeout_is_enforced_when_pool_is_exhausted(tmp_path) -> None:
@@ -96,8 +98,10 @@ def test_connection_pool_timeout_is_enforced_when_pool_is_exhausted(tmp_path) ->
 def test_get_engine_reads_database_url_lazily_and_caches(monkeypatch) -> None:
     """Engine 必须在首次使用时读取当前 DATABASE_URL，并缓存同一个连接池。"""
 
+    from types import SimpleNamespace
+
     calls: list[tuple[str, dict]] = []
-    fake_engine = object()
+    fake_engine = SimpleNamespace(dialect=SimpleNamespace(name="fake"))
 
     def fake_create_engine(database_url: str, **options: object) -> object:
         calls.append((database_url, options))
@@ -113,7 +117,9 @@ def test_get_engine_reads_database_url_lazily_and_caches(monkeypatch) -> None:
     assert get_engine() is fake_engine
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://user:pass@localhost/changed")
     assert get_engine() is fake_engine
-    assert calls == [("sqlite+pysqlite:///:memory:", {})]
+    assert calls == [
+        ("sqlite+pysqlite:///:memory:", {"connect_args": {"timeout": 30}})
+    ]
     get_engine.cache_clear()
 
 
@@ -178,3 +184,32 @@ def test_get_session_rolls_back_and_closes_on_exception(monkeypatch) -> None:
         provider.throw(RuntimeError("boom"))
 
     assert calls == ["rollback", "close"]
+
+
+def test_build_engine_options_sqlite_sets_busy_timeout(monkeypatch) -> None:
+    """sqlite 引擎必须带驱动级 busy timeout,防 WS 线程与请求线程并发写锁死。"""
+
+    options = db_session._build_engine_options("sqlite:///anywhere.sqlite3")
+    assert options["connect_args"]["timeout"] == 30
+
+    monkeypatch.setenv("STORYFORGE_SQLITE_BUSY_TIMEOUT_SECONDS", "7")
+    options = db_session._build_engine_options("sqlite:///anywhere.sqlite3")
+    assert options["connect_args"]["timeout"] == 7
+
+
+def test_sqlite_file_engine_enables_wal(tmp_path) -> None:
+    """文件库连接必须运行在 WAL 模式,允许读写并发。"""
+
+    from sqlalchemy import create_engine
+
+    db_path = (tmp_path / "wal.sqlite3").as_posix()
+    engine = create_engine(
+        f"sqlite:///{db_path}", **db_session._build_engine_options("sqlite:///x")
+    )
+    db_session._enable_sqlite_wal(engine)
+    try:
+        with engine.connect() as conn:
+            mode = conn.exec_driver_sql("PRAGMA journal_mode").scalar()
+        assert mode == "wal"
+    finally:
+        engine.dispose()

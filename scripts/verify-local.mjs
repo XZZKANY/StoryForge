@@ -57,6 +57,12 @@ const gates = [
     cwd: resolve(root, 'apps/api'),
   },
   {
+    name: 'Sidecar 交付形态冒烟(daily 档)',
+    command: 'node',
+    args: ['scripts/sidecar-smoke.mjs'],
+    cwd: root,
+  },
+  {
     name: 'Workflow 单元测试',
     command: 'uv',
     args: ['run', 'pytest'],
