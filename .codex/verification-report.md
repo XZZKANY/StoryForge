@@ -4783,3 +4783,14 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - packaged 档对 2026-07-01 存量冻结 exe 实跑,**第一次即抓到真实漂移**:旧 exe 拒绝 `project_path`(extra_forbidden 422)——该字段为 2026-07-02 PR#48 新增,装机产物落后源码一个版本,正是该档位设计要抓的故障类别。重建 exe(PyInstaller 6.21,130s)后 packaged 档全绿:冷启动 3674ms(预算 90s)。
   - `uv run pytest` 全量:832 passed / 3 skipped(test_db_session 新增 2 用例:busy timeout 选项 + WAL 模式实测;两处旧断言随新 connect_args 行为更新);ruff 通过;`npm run typecheck`/`test` 96/96;`pnpm.cmd lint` 通过(仅 Editor.tsx 存量 warning)。
 - **未验 / 不外推**:smoke 覆盖起服/REST/WS 通道,不覆盖 LLM 出网与补丁写回链;packaged 档暂未接入每波合并强制流程(蓝图 W5 gate 落地);快照总量上限(跨文件)未做,当前仅每文件上限。
+
+---
+
+# 2026-07-03 W0-B1:e2e 契约化(废 assertSourceEvidence)+ drift 单实现 + 门禁去重 + 死码清理 验证记录
+
+- **范围**(蓝图 W0,修 F07/F14 及 F33 部分,推翻项②的落地刀):
+  - tests/e2e 六个 spec 契约化:删 43 处 assertSourceEvidence 源码字面子串断言 + 18 处 readFileSync 源码读取管道,helper 全仓清零;**同 PR 先补后删**——为被删标记名义守护的后端契约面补齐 OpenAPI 结构断言(ScenePacket/JudgeIssue/RepairPatch/BatchRefinery/workspaces/collaboration/commercial/analytics/evaluations/prompt-packs/artifacts/retrieval/ModelRun 等端点与 schema 字段在场断言);纯前端 testid/文案类标记无契约面直删。ide-shell.spec.ts 全文件为前端标记,整删并出清单;ide-judge-repair.spec.ts 重写为纯 OpenAPI 契约 spec(assistant/revise、context-snapshot、artifact preview、diagnostics/commands)。phase5 中「门禁测门禁」(锁 run-e2e.mjs/verify-local.ps1/generate-openapi.ps1/package.json 自身文本)两个测试删除,十组 assertSchemaFields 与 live app.openapi() deepEqual 实跑保留。
+  - drift 收敛单实现:check-openapi-drift.mjs 是唯一实现,run-e2e.mjs 与 verify-local.mjs 均改为 spawn 它;run-e2e 内嵌 python 刷新脚本/基线复制/git diff --no-index 删除;run-e2e 收敛为「drift + 契约 spec」两阶段,pytest 3/4 阶段(20 API + 7 workflow 目标)删除(pnpm verify 已全量覆盖)。
+  - 死码清理:requestRevision 前端链(assistant.ts 函数 + api-client.ts re-export + api-client.test.ts 两个测试块;后端 POST /api/assistant/revise 未动且新增 OpenAPI 断言护栏);verify-local.ps1(356行)/generate-openapi.ps1 双实现与 package.json verify:infra 入口;apps/desktop/src/ 两个游离 tauri-fs(零引用)。test_phase9_fact_sources.py 摘 3 条锁已删 CI 的断言;test_source_pruning.py:28 锁 verify-local.ps1 文本的读取一并摘除(超出清单的必要一改)。
+- **证据**:`node scripts/run-e2e.mjs` exit 0(drift PASSED,契约 spec 6 文件 21/21,总时长秒级);`pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过;desktop typecheck 干净、test 94/94(-2 为删除的 requestRevision 测试块);`uv run pytest tests/test_phase9_fact_sources.py tests/test_source_pruning.py -q` 29 passed;grep 复查 assertSourceEvidence/requestRevision 代码引用清零。
+- **未验 / 不外推**:WS 消息 shape 校验属 W6 不在本刀;CLAUDE.md §4 门禁说明与 :51 的 verify-local.ps1 提及待 W0-B2 改写;「重命名前端组件不再触发 e2e 假红」由机制保证(e2e 不再读前端源码),未做专门实验。

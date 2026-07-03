@@ -6,7 +6,6 @@
   "scripts": {
     "verify": "pnpm run verify:local",
     "verify:local": "node scripts/verify-local.mjs",
-    "verify:infra": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1",
     "verify:fast": "pnpm run lint && pnpm run check:drift",
     "check:drift": "node scripts/check-openapi-drift.mjs",
     "hooks:install": "git config core.hooksPath .githooks",

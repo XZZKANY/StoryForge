@@ -1,58 +1,9 @@
 import type { AgentRoleRead } from '../agent-roles';
 import type { ProviderHealth } from '../provider-config';
-import { toAssistantContextBundlePayload } from './codecs';
 import { getApiConfig, trimApiBaseUrl } from './config';
-import type {
-  ApiAssistantReviseRequest,
-  ApiAssistantReviseResponse,
-  ApiProviderHealthResponse,
-} from './contracts';
+import type { ApiProviderHealthResponse } from './contracts';
 import { readErrorDetail } from './errors';
-import type { AssistantSessionRecord, ReviseRequest, ReviseResult } from './types';
-
-export async function requestRevision(request: ReviseRequest): Promise<ReviseResult> {
-  const { baseUrl, apiKey } = await getApiConfig();
-  const body: ApiAssistantReviseRequest = {
-    file_path: request.filePath,
-    content: request.content,
-    instruction: request.instruction,
-    project_name: request.projectName ?? null,
-    assistant_session_id: request.assistantSessionId ?? null,
-    context_bundle: toAssistantContextBundlePayload(
-      request.contextBundle
-        ? {
-            ...request.contextBundle,
-            currentFile: request.contextBundle.currentFile ?? request.filePath,
-          }
-        : null,
-    ) as ApiAssistantReviseRequest['context_bundle'],
-  };
-  const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/revise`, {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {
-      'content-type': 'application/json',
-      'X-StoryForge-API-Key': apiKey,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
-  }
-
-  const data = (await response.json()) as ApiAssistantReviseResponse;
-
-  return {
-    before: data.before,
-    after: data.after,
-    summary: data.summary,
-    model: data.model,
-    latencyMs: data.latency_ms,
-    completionTokens: data.completion_tokens,
-    assistantSessionId: data.assistant_session_id,
-  };
-}
+import type { AssistantSessionRecord } from './types';
 
 export async function listAssistantSessions(options?: {
   projectPath?: string;

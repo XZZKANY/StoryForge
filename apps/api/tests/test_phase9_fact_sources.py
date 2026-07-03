@@ -301,8 +301,6 @@ def test_remote_e2e_rerun_readiness_records_master_success_evidence() -> None:
     assert "2026-06-04T09:45:05Z" in readiness
     assert "590333f1ccc99234f4244bc7bf4556fd7dee3f4f" in readiness
     assert "Multiple head revisions" in readiness
-    assert "workflow_dispatch" in readiness
-    assert ".github/workflows/e2e.yml" in readiness
     assert "20260604_0001" in readiness
     assert "tests/test_alembic_heads.py" in readiness
     assert "scripts/run-e2e.mjs" in readiness
@@ -315,7 +313,6 @@ def test_remote_e2e_rerun_readiness_records_master_success_evidence() -> None:
     assert "pnpm verify" in readiness
     assert "git status -sb" in readiness
     assert "git push" in readiness
-    assert "gh workflow run E2E --ref master" in readiness
     assert "不得直接重跑旧远端 `master`" in readiness
     assert "远端 E2E 已通过" in readiness
     assert ".codex/real-llm-10ch-20260604-110831" in readiness

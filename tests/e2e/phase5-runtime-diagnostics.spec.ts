@@ -8,37 +8,6 @@ import { join } from 'node:path';
 const openapi = JSON.parse(
   readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
 );
-const desktopSources = {
-  // api-client.ts 拆分为 lib/api/* 模块，api-client 保留 re-export 门面
-  apiClient:
-    readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/lib/api/assistant.ts', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/lib/api/agent-socket.ts', 'utf8') +
-    readFileSync('apps/desktop/frontend/src/lib/api/types.ts', 'utf8'),
-  app: readFileSync('apps/desktop/frontend/src/App.tsx', 'utf8'),
-  agentSteps: readFileSync('apps/desktop/frontend/src/components/AgentStepsPanel.tsx', 'utf8'),
-};
-const gateSources = {
-  e2e: readFileSync('scripts/run-e2e.mjs', 'utf8'),
-  verify: readFileSync('scripts/verify-local.ps1', 'utf8'),
-};
-const contractSources = {
-  packageJson: readFileSync('package.json', 'utf8'),
-  generateOpenApi: readFileSync('scripts/generate-openapi.ps1', 'utf8'),
-};
-const sharedOpenApiPath = 'packages/shared/src/contracts/storyforge.openapi.json';
-
-function assertSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(source.includes(marker), `缺少 Phase 5 证据：${marker}`);
-  }
-}
-
-function assertNoSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(!source.includes(marker), `Phase 5 不应包含硬编码证据：${marker}`);
-  }
-}
 
 function assertSchemaFields(schemaName, expectedFields, schemaSource = openapi) {
   const schema = schemaSource.components.schemas[schemaName];
@@ -310,7 +279,7 @@ app.dependency_overrides.clear()
   );
 });
 
-test('Phase 5 API 契约保留运行诊断摘要，Desktop 端不维护静态 runtime tools 清单', () => {
+test('Phase 5 API 契约保留运行诊断摘要字段', () => {
   assertSchemaFields('RunsJobRunRead', runsJobRunReadFields);
   assertSchemaFields('RunsRuntimeDiagnosticsRead', runsRuntimeDiagnosticsFields);
   assertSchemaFields('RunsWorkflowSessionSummary', runsWorkflowSessionFields);
@@ -318,87 +287,14 @@ test('Phase 5 API 契约保留运行诊断摘要，Desktop 端不维护静态 ru
   assertSchemaFields('RunsProviderSummary', runsProviderFields);
   assertSchemaFields('RunsModelUsageSummary', runsModelUsageFields);
   assertSchemaFields('RunsRuntimeToolSummary', runsRuntimeToolSummaryFields);
-  assertSourceEvidence(desktopSources.apiClient, [
-    '/api/ide/agent/sessions/',
-    'tool_trace',
-    'proposed_patch',
-    'assistant_session_id',
-  ]);
-  assertNoSourceEvidence(desktopSources.apiClient + desktopSources.app + desktopSources.agentSteps, [
-    'DEFAULT_CREATIVE_TOOL_REGISTRY',
-    'runtimeToolList = [',
-    'runtimeDiagnosticTools = [',
-  ]);
 });
 
-test('Phase 6 发布前门禁覆盖 Runtime 诊断链路', () => {
-  const requiredE2eTargets = [
-    'tests/e2e/phase5-runtime-diagnostics.spec.ts',
-    'tests/test_model_runs.py',
-    'tests/test_runtime_tools.py',
-    'tests/test_workflow_session.py',
-    'tests/test_workflow_lifecycle.py',
-    'tests/test_provider_adapter.py',
-    'tests/test_provider_parity_harness.py',
-    'tests/test_creative_tool_registry.py',
-  ];
-  for (const target of requiredE2eTargets) {
-    assert.ok(gateSources.e2e.includes(target), `pnpm e2e 未纳入 Runtime 诊断门禁目标：${target}`);
-  }
-
-  assertSourceEvidence(gateSources.verify, [
-    'Test-RuntimeDiagnosticsGate',
-    'scripts/run-e2e.mjs',
-    'tests/e2e/phase5-runtime-diagnostics.spec.ts',
-    'tests/test_model_runs.py',
-    'tests/test_runtime_tools.py',
-    'tests/test_workflow_session.py',
-    'tests/test_workflow_lifecycle.py',
-    'tests/test_provider_adapter.py',
-    'tests/test_provider_parity_harness.py',
-    'tests/test_creative_tool_registry.py',
-  ]);
-});
-
-test('Phase 9 本地 E2E API verification 覆盖 Alembic 迁移预检', () => {
-  const requiredApiTarget = 'tests/test_alembic_heads.py';
-  const apiTargetsStart = gateSources.e2e.indexOf('const httpPytestTargets = [');
-  const workflowTargetsStart = gateSources.e2e.indexOf('const workflowPytestTargets = [');
-  const alembicTargetIndex = gateSources.e2e.indexOf(requiredApiTarget);
-
-  assert.notEqual(apiTargetsStart, -1, 'pnpm e2e 应声明 API pytest 目标清单');
-  assert.notEqual(workflowTargetsStart, -1, 'pnpm e2e 应声明 workflow pytest 目标清单');
-  assert.ok(
-    alembicTargetIndex > apiTargetsStart && alembicTargetIndex < workflowTargetsStart,
-    `pnpm e2e API verification 未纳入 Alembic 迁移预检目标：${requiredApiTarget}`,
-  );
-  assertSourceEvidence(gateSources.e2e, [
-    'Running API verification',
-    "['-m', 'pytest', ...httpPytestTargets, '-q']",
-  ]);
-});
-
-test('Phase 7 Runtime OpenAPI、API schema、Web 字段与 e2e 声明保持一致', () => {
+test('Phase 7 Runtime OpenAPI 快照与 API 运行时 schema 保持一致', () => {
   const liveOpenApi = runApiPythonJson(`
 import json
 from app.main import app
 print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
 `);
-
-  assertSourceEvidence(contractSources.packageJson, [
-    '"openapi": "node scripts/generate-openapi.mjs"',
-    '"e2e": "node scripts/run-e2e.mjs"',
-    '"verify": "pnpm run verify:local"',
-    '"verify:local": "node scripts/verify-local.mjs"',
-    '"verify:infra": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-local.ps1"',
-  ]);
-  assertSourceEvidence(contractSources.generateOpenApi, ['app.openapi()', sharedOpenApiPath]);
-  assertSourceEvidence(gateSources.e2e, [
-    'refreshOpenApiContract',
-    sharedOpenApiPath,
-    'app.openapi()',
-  ]);
-  assertSourceEvidence(gateSources.verify, ['Test-OpenApiRuntimeContractGate', sharedOpenApiPath]);
 
   for (const schemaSource of [openapi, liveOpenApi]) {
     assertSchemaFields('RuntimeToolRead', runtimeToolReadFields, schemaSource);
@@ -429,21 +325,4 @@ print(json.dumps(app.openapi(), ensure_ascii=False, sort_keys=True))
     liveOpenApi.paths['/api/model-runs'].post.responses['201'],
     openapi.paths['/api/model-runs'].post.responses['201'],
   );
-
-  assertSourceEvidence(JSON.stringify(openapi), [
-    ...runtimeToolReadFields,
-    ...runtimeToolReferencesFields,
-    ...runsRuntimeDiagnosticsFields,
-    ...runsWorkflowSessionFields,
-    ...runsWorkflowLifecycleFields,
-    ...runsProviderFields,
-    ...runsModelUsageFields,
-    ...runsRuntimeToolSummaryFields,
-  ]);
-  assertSourceEvidence(desktopSources.apiClient, [
-    'sendAgentUserMessage',
-    'isAgentResultMessage',
-    '/api/ide/agent/sessions/',
-    'X-StoryForge-API-Key',
-  ]);
 });

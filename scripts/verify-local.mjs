@@ -1,23 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const openApiContractPath = resolve(
-  root,
-  'packages',
-  'shared',
-  'src',
-  'contracts',
-  'storyforge.openapi.json',
-);
-let openApiDigestBeforeRefresh = '';
-
-function readFileDigest(path) {
-  return createHash('sha256').update(readFileSync(path)).digest('hex');
-}
 
 const gates = [
   {
@@ -75,38 +60,16 @@ const gates = [
     cwd: resolve(root, 'apps/workflow'),
   },
   {
-    name: '记录 OpenAPI 契约快照',
-    run() {
-      openApiDigestBeforeRefresh = readFileDigest(openApiContractPath);
-    },
-  },
-  {
-    name: '刷新 OpenAPI 契约',
-    command: 'pnpm',
-    args: ['openapi'],
+    // drift 校验单实现：scripts/check-openapi-drift.mjs（刷新 + 漂移检查）
+    name: 'OpenAPI 契约刷新与漂移检查',
+    command: 'node',
+    args: ['scripts/check-openapi-drift.mjs'],
     cwd: root,
-  },
-  {
-    name: '检查 OpenAPI 契约漂移',
-    run() {
-      const openApiDigestAfterRefresh = readFileDigest(openApiContractPath);
-      if (openApiDigestAfterRefresh !== openApiDigestBeforeRefresh) {
-        console.error(
-          "[verify:local] OpenAPI contract is stale. Run 'pnpm run openapi' and commit packages/shared/src/contracts/storyforge.openapi.json.",
-        );
-        process.exit(1);
-      }
-    },
   },
 ];
 
 for (const gate of gates) {
   console.log(`\n[verify:local] ${gate.name}`);
-  if ('run' in gate) {
-    gate.run();
-    continue;
-  }
-
   console.log(`[verify:local] $ ${gate.command} ${gate.args.join(' ')}`);
   const result = spawnSync(gate.command, gate.args, {
     cwd: gate.cwd,

@@ -2,106 +2,65 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const sources = {
-  chat: readFileSync('apps/desktop/frontend/src/components/ChatWindow.tsx', 'utf8'),
-  editor: readFileSync('apps/desktop/frontend/src/components/Editor.tsx', 'utf8'),
-  suggestionWriteback: readFileSync(
-    'apps/desktop/frontend/src/components/editor/useSuggestionWriteback.ts',
-    'utf8',
-  ),
-  suggestions: readFileSync('apps/desktop/frontend/src/lib/assistant-suggestions.ts', 'utf8'),
-  assistantApi: readFileSync('apps/desktop/frontend/src/lib/api/assistant.ts', 'utf8'),
-  agentSocketApi: readFileSync('apps/desktop/frontend/src/lib/api/agent-socket.ts', 'utf8'),
-  assistantEvents: readFileSync('apps/desktop/frontend/src/lib/assistant-events.ts', 'utf8'),
-  artifactPreviewApi:
-    readFileSync('apps/api/app/domains/ide/artifact_preview.py', 'utf8') +
-    readFileSync('apps/api/app/domains/ide/_coerce.py', 'utf8'),
-  artifactPreviewSchema: readFileSync('apps/api/app/domains/ide/schemas.py', 'utf8'),
-  diagnosticsApi: readFileSync('apps/api/app/domains/ide/router.py', 'utf8'),
-  diagnosticsService:
-    readFileSync('apps/api/app/domains/ide/workspace_reads.py', 'utf8') +
-    readFileSync('apps/api/app/domains/ide/command_registry.py', 'utf8'),
-  diagnosticsTest: readFileSync('apps/api/tests/test_ide_diagnostics.py', 'utf8'),
-  contextSnapshotTest: readFileSync('apps/api/tests/test_ide_context_snapshot.py', 'utf8'),
-};
+const openapi = JSON.parse(
+  readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
+);
 
-function assertSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(source.includes(marker), `缺少 IDE Judge/Repair 证据：${marker}`);
-  }
+function assertOperation(path, method, tag) {
+  const operation = openapi.paths?.[path]?.[method];
+  assert.ok(operation, `缺少 ${method.toUpperCase()} ${path}`);
+  assert.ok(operation.tags?.includes(tag), `${path} 未归入 ${tag} 标签`);
+  return operation;
 }
 
-test('Desktop IDE Agent 保留工具轨迹、待确认补丁和错误状态', () => {
-  assertSourceEvidence(sources.chat, [
-    'tool_trace',
-    'proposed_patch',
-    'requires_user_confirmation',
-    'isAgentErrorMessage',
-    'isAgentResultMessage',
-  ]);
-});
+test('Assistant 修订契约保留请求与响应关键字段', () => {
+  assertOperation('/api/assistant/revise', 'post', 'Assistant 会话');
 
-test('Desktop IDE 编辑器和建议模型保留最小修订闭环', () => {
-  assertSourceEvidence(sources.editor, [
-    'recordRevisionLoop',
-    'emitAuthorLoopResult',
-    'editor-save-btn',
-  ]);
-  assertSourceEvidence(sources.suggestionWriteback, [
-    'recordRevisionLoop',
-    'emitAuthorLoopResult',
-  ]);
-  assertSourceEvidence(sources.assistantApi, ['requestRevision', '/api/assistant/revise']);
-  assertSourceEvidence(sources.suggestions, [
-    'createRemoteFileSuggestion',
-    'createLocalFileSuggestion',
+  const reviseRequest = openapi.components.schemas.AssistantReviseRequest;
+  assert.deepEqual(reviseRequest.required, ['file_path', 'content', 'instruction']);
+  assert.ok(reviseRequest.properties.context_bundle, '修订请求必须允许携带 context_bundle');
+
+  const reviseResponse = openapi.components.schemas.AssistantReviseResponse;
+  for (const field of [
     'before',
     'after',
-  ]);
+    'summary',
+    'model',
+    'latency_ms',
+    'assistant_session_id',
+  ]) {
+    assert.ok(reviseResponse.properties[field], `修订响应必须包含 ${field}`);
+  }
 });
 
-test('IDE P2 Context Snapshot API 保留上下文回放契约', () => {
-  assertSourceEvidence(sources.artifactPreviewSchema, ['context_href']);
-  assertSourceEvidence(sources.artifactPreviewApi, [
+test('IDE Context Snapshot 契约保留上下文回放字段', () => {
+  assertOperation('/api/ide/context-snapshot/{compiled_context_id}', 'get', 'IDE 工作台');
+
+  const snapshot = openapi.components.schemas.IdeContextSnapshot;
+  for (const field of [
     'compiled_context_id',
-    '_context_href',
-    '/ide?inspector=',
-  ]);
-  assertSourceEvidence(sources.contextSnapshotTest, [
-    '/api/ide/context-snapshot/',
     'injected_blocks',
     'dropped_blocks',
     'debug_summary',
-    'snapshot evicted at unknown',
-  ]);
+    'budget',
+  ]) {
+    assert.ok(snapshot.properties[field], `Context Snapshot 必须包含 ${field}`);
+  }
 });
 
-test('IDE P1 diagnostics API 从 JudgeIssue 映射 Problems 契约', () => {
-  assertSourceEvidence(sources.diagnosticsApi, [
-    '/diagnostics',
-    '/commands/{command_id}',
-    'IdeCommandNotFoundError',
-  ]);
-  assertSourceEvidence(sources.diagnosticsService, [
-    'JudgeIssue',
-    'blocking',
-    'high',
-    'medium',
-    'low',
-    'judge.repair',
-    '未知 IDE 命令',
-  ]);
-  assertSourceEvidence(sources.diagnosticsTest, [
-    'setting_conflict',
-    '生成定向修复',
-    'response.json() == []',
-  ]);
-  assertSourceEvidence(sources.agentSocketApi, ['/api/ide/agent/sessions/', 'intent', 'tool_trace']);
-  // 审稿入口已并入 agent 工具循环（file.review），REVIEW_CURRENT_EVENT 退役，
-  // 由 REVIEW_ISSUES_EVENT 把 review issues 推给 Editor 打标记
-  assertSourceEvidence(sources.assistantEvents, [
-    'REVIEW_ISSUES_EVENT',
-    'APPLY_FILE_SUGGESTION_EVENT',
-    'ACCEPT_CURRENT_FILE_SUGGESTION_EVENT',
-  ]);
+test('IDE 制品预览契约保留 context_href 回放链接', () => {
+  assertOperation('/api/ide/artifacts/{artifact_id}/preview', 'get', 'IDE 工作台');
+
+  const traceLink = openapi.components.schemas.IdeArtifactTraceLink;
+  assert.ok(traceLink.properties.context_href, '制品追踪链接必须包含 context_href');
+});
+
+test('IDE diagnostics 与命令契约保留 Problems 映射面', () => {
+  assertOperation('/api/ide/diagnostics', 'get', 'IDE 工作台');
+  assertOperation('/api/ide/commands/{command_id}', 'post', 'IDE 工作台');
+
+  const diagnostic = openapi.components.schemas.IdeDiagnostic;
+  for (const field of ['severity', 'code', 'message', 'range', 'quickFixes', 'evidence']) {
+    assert.ok(diagnostic.properties[field], `IDE 诊断必须包含 ${field}`);
+  }
 });

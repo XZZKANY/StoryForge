@@ -5,28 +5,11 @@ import { readFileSync } from 'node:fs';
 const openapi = JSON.parse(
   readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
 );
-const apiTests = {
-  workspaces: readFileSync('apps/api/tests/test_workspaces_api.py', 'utf8'),
-  collaboration: readFileSync('apps/api/tests/test_collaboration.py', 'utf8'),
-  commercial: readFileSync('apps/api/tests/test_commercial_controls.py', 'utf8'),
-  providerGateway: readFileSync('apps/api/tests/test_provider_gateway.py', 'utf8'),
-  analytics: readFileSync('apps/api/tests/test_phase3_analytics.py', 'utf8'),
-};
-const desktopSources = {
-  settings: readFileSync('apps/desktop/frontend/src/components/SettingsView.tsx', 'utf8'),
-  providerConfig: readFileSync('apps/desktop/frontend/src/lib/provider-config.ts', 'utf8'),
-};
 
 function assertOperation(path, method, tag) {
   const operation = openapi.paths?.[path]?.[method];
   assert.ok(operation, `缺少 ${method.toUpperCase()} ${path}`);
   assert.ok(operation.tags?.includes(tag), `${path} 未归入 ${tag} 标签`);
-}
-
-function assertSourceEvidence(source, markers) {
-  for (const marker of markers) {
-    assert.ok(source.includes(marker), `缺少 Phase 3 证据：${marker}`);
-  }
 }
 
 test('Phase 3 OpenAPI 暴露当前保留的事件流和 Provider Gateway 端点', () => {
@@ -37,39 +20,24 @@ test('Phase 3 OpenAPI 暴露当前保留的事件流和 Provider Gateway 端点'
   assertOperation('/api/provider-gateway/resolve', 'get', '模型接入层');
 });
 
-test('Phase 3 后端测试源码保留当前能力与退役边界证据', () => {
-  assertSourceEvidence(apiTests.workspaces, ['"/api/workspaces"', 'seat_limit', '404']);
-  assertSourceEvidence(apiTests.collaboration, [
-    '"/api/collaboration/comments"',
-    '建议加强旧伤带来的动作限制',
-    '400',
-  ]);
-  assertSourceEvidence(apiTests.commercial, [
-    '"/api/commercial/workspaces/',
-    'monthly_job_limit',
-    '404',
-  ]);
-  assertSourceEvidence(apiTests.providerGateway, [
-    '"/api/provider-gateway/providers"',
-    'capabilities',
-    'claude-sonnet',
-    'gpt-5.5',
-  ]);
-  assertSourceEvidence(apiTests.analytics, ['"/api/analytics/workspaces/', '分析扩展', '404']);
+test('Phase 3 OpenAPI 暴露工作区、协作、商业化与分析端点', () => {
+  assertOperation('/api/workspaces', 'post', '团队工作区');
+  assertOperation('/api/workspaces', 'get', '团队工作区');
+  assertOperation('/api/collaboration/comments', 'post', '协作审批');
+  assertOperation('/api/commercial/workspaces/{workspace_id}/policy', 'post', '商业化控制');
+  assertOperation('/api/commercial/workspaces/{workspace_id}/summary', 'get', '商业化控制');
+  assertOperation('/api/analytics/workspaces/{workspace_id}/dashboard', 'get', '分析扩展');
 });
 
-test('Phase 3 Desktop 设置保留 Provider 配置入口', () => {
-  assertSourceEvidence(desktopSources.settings, [
-    '模型服务',
-    '服务类型',
-    '服务地址',
-    '默认模型',
-    'API Key',
-  ]);
-  assertSourceEvidence(desktopSources.providerConfig, [
-    'openai',
-    'deepseek',
-    'ollama',
-    'openai-compatible',
-  ]);
+test('Phase 3 契约保留席位、配额与 Provider 能力字段', () => {
+  const workspaceCreate = openapi.components.schemas.WorkspaceCreate;
+  assert.ok(workspaceCreate.properties.seat_limit, '工作区请求必须允许设置 seat_limit');
+
+  const commercialSummary = openapi.components.schemas.CommercialSummaryRead;
+  assert.ok(commercialSummary.properties.monthly_job_limit, '商业化摘要必须包含 monthly_job_limit');
+  assert.ok(commercialSummary.properties.within_limits, '商业化摘要必须包含 within_limits');
+
+  const providerConfig = openapi.components.schemas.ProviderConfigRead;
+  assert.ok(providerConfig.properties.capabilities, 'Provider 配置响应必须包含 capabilities');
+  assert.ok(providerConfig.properties.model_aliases, 'Provider 配置响应必须包含 model_aliases');
 });
