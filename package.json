@@ -15,6 +15,7 @@
     "desktop:dev": "pnpm --filter @storyforge/desktop dev",
     "desktop:build": "pnpm --filter @storyforge/desktop build",
     "test": "pnpm run test:desktop && pnpm run test:shared && pnpm run test:api && pnpm run test:workflow",
+    "test:fast": "node scripts/fast-tests.mjs",
     "test:desktop": "npm --prefix apps/desktop run verify",
     "test:shared": "pnpm --filter @storyforge/shared test",
     "test:api": "cd apps/api && uv run pytest",
