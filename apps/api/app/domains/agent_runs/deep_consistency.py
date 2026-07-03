@@ -20,7 +20,7 @@ from app.domains.agent_runs.fs_tools import (
     _resolve_root,
     _resolve_scoped,
 )
-from app.domains.judge.schemas import JudgeIssueCreate
+from app.domains.judge.schemas import REQUIRED_FACTS_MAX_LENGTH, SemanticJudgeInput
 from app.domains.judge.semantic import semantic_judge_with_status
 
 # 人物目录喂「角色声音约束」槽位，其余设定文件喂「必含事实」槽位，对齐 judge prompt 的类别触发条件。
@@ -82,12 +82,10 @@ def deep_consistency_review(
     for entry in bible_files:
         if entry["path"].split("/", 1)[0] == _CHARACTER_DIR:
             voice_constraints.append({"name": entry["name"], "path": entry["path"], "notes": entry["excerpt"]})
-        elif len(required_facts) < 100:
+        elif len(required_facts) < REQUIRED_FACTS_MAX_LENGTH:
             required_facts.append(f"《{entry['path']}》设定：{entry['excerpt']}")
 
-    payload = JudgeIssueCreate(
-        scene_id=1,
-        scene_packet_id=None,
+    payload = SemanticJudgeInput(
         content=content,
         required_facts=required_facts,
         style_rules=[],

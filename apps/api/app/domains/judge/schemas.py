@@ -7,6 +7,22 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.judge.models import JudgeIssue
 
+# 语义评审必含事实上限：SemanticJudgeInput / JudgeIssueCreate 的 Field 与
+# 调用方的截断逻辑共用同一常量，避免两处魔数漂移成运行时校验错误。
+REQUIRED_FACTS_MAX_LENGTH = 100
+
+
+class SemanticJudgeInput(BaseModel):
+    """语义评审入参（无 DB 实体字段）。
+
+    面向不落 judge DB 的调用方（如 agent 循环里按文件路径评审的 deep_consistency），
+    不需要伪造 scene_id 哑值即可调用 semantic_judge_with_status。"""
+
+    content: str = Field(min_length=1, max_length=50000)
+    required_facts: list[str] = Field(default_factory=list, max_length=REQUIRED_FACTS_MAX_LENGTH)
+    style_rules: list[str] = Field(default_factory=list, max_length=100)
+    evidence_links: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+
 
 class JudgeIssueCreate(BaseModel):
     """结构化评审请求，正文与上下文约束都由调用方显式传入。"""
@@ -14,7 +30,7 @@ class JudgeIssueCreate(BaseModel):
     scene_id: int = Field(gt=0)
     scene_packet_id: int | None = Field(default=None, gt=0)
     content: str = Field(min_length=1, max_length=50000)
-    required_facts: list[str] = Field(default_factory=list, max_length=100)
+    required_facts: list[str] = Field(default_factory=list, max_length=REQUIRED_FACTS_MAX_LENGTH)
     style_rules: list[str] = Field(default_factory=list, max_length=100)
     evidence_links: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
 

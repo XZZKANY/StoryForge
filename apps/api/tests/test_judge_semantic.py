@@ -526,3 +526,56 @@ def test_semantic_judge_provider_path_reports_configured_true() -> None:
 
     assert outcome.configured is True
     assert outcome.failed is False
+
+
+def test_semantic_judge_serializes_voice_constraints_as_json(monkeypatch) -> None:
+    """角色声音约束必须以合法 JSON 进 prompt（与 few-shot 同形状），不是 Python repr。"""
+
+    import json as jsonlib
+
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def json(self) -> dict[str, object]:
+            return {"choices": [{"message": {"content": "[]"}}]}
+
+    class FakeClient:
+        def __init__(self, *, timeout: float) -> None:
+            return None
+
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
+            captured["json"] = json
+            return FakeResponse()
+
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
+    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
+
+    constraints = [
+        {"name": "林岚", "path": "人物/林岚.md", "notes": "语气克制，说话从不超过三句。"},
+        {"name": "沈曜", "voice_traits": {"语气": "平静"}},
+    ]
+    semantic_judge_with_status(_span_payload("正文。"), character_voice_constraints=constraints)
+
+    user_content = str(captured["json"]["messages"][1]["content"])
+    assert jsonlib.dumps(constraints, ensure_ascii=False, default=str) in user_content
+    assert "{'name'" not in user_content
+
+
+def test_semantic_judge_input_shares_required_facts_limit() -> None:
+    """入参类型与截断逻辑共用 REQUIRED_FACTS_MAX_LENGTH：到上限可过，超一条即校验拒绝。"""
+
+    import pytest
+    from pydantic import ValidationError
+
+    from app.domains.judge.schemas import REQUIRED_FACTS_MAX_LENGTH, SemanticJudgeInput
+
+    facts = [f"事实{i}" for i in range(REQUIRED_FACTS_MAX_LENGTH)]
+    assert len(SemanticJudgeInput(content="正文。", required_facts=facts).required_facts) == REQUIRED_FACTS_MAX_LENGTH
+    with pytest.raises(ValidationError):
+        SemanticJudgeInput(content="正文。", required_facts=[*facts, "越界"])

@@ -14,7 +14,7 @@ from prometheus_client import Counter
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
-from app.domains.judge.schemas import JudgeIssueCreate
+from app.domains.judge.schemas import JudgeIssueCreate, SemanticJudgeInput
 from app.domains.judge.types import DetectedIssue, JudgeProvider, SemanticJudgeOutcome
 
 _JUDGE_SYSTEM_PROMPT = """\
@@ -66,7 +66,8 @@ _JUDGE_FEW_SHOT = """\
 
 ### 示例 2 — character_voice_violation
 正文：「林寒长篇大论地解释了自己的动机，语气热切。」
-角色声音约束：[{"name":"林寒","voice_traits":{"语气":"克制","句式":"短促"}}]
+角色声音约束：[{"name": "林寒", "voice_traits": {"语气": "克制", "句式": "短促"}}, {"name": "沈曜", "notes": "一生不撒谎；说话从不超过三句。"}]
+（约束条目的字段形状不固定：可能是结构化 voice_traits / forbidden_traits，也可能是 notes 原文摘录，按字段语义理解。）
 输出：[{"category":"character_voice_violation","severity":"medium","span_start":2,"span_end":18,"matched_text":"长篇大论地解释了自己的动机，语气热切","expected_text":"克制、短促的表达","replacement_text":"林寒只说了一个字。","summary":"林寒的对白违反声音约束：应克制、短促，不应长篇解释动机。"}]
 
 ### 示例 3 — 无问题
@@ -82,7 +83,7 @@ _judge_llm_errors_total = Counter(
 
 
 def semantic_judge(
-    payload: JudgeIssueCreate,
+    payload: JudgeIssueCreate | SemanticJudgeInput,
     *,
     provider: JudgeProvider | None = None,
     character_voice_constraints: list[dict] | None = None,
@@ -103,7 +104,7 @@ def semantic_judge(
 
 
 def semantic_judge_with_status(
-    payload: JudgeIssueCreate,
+    payload: JudgeIssueCreate | SemanticJudgeInput,
     *,
     provider: JudgeProvider | None = None,
     character_voice_constraints: list[dict] | None = None,
@@ -128,7 +129,12 @@ def semantic_judge_with_status(
     base_url = os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL") or env_value(source, "STORYFORGE_LLM_BASE_URL") or "https://api.openai.com/v1"
     model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or env_value(source, "STORYFORGE_LLM_MODEL") or "gpt-4o-mini"
 
-    voice_section = f"\n角色声音约束：{character_voice_constraints}" if character_voice_constraints else ""
+    # json.dumps 而非 f-string repr：模型看到的必须是与 few-shot 同形状的合法 JSON（双引号、无 Python 字面量）。
+    voice_section = (
+        f"\n角色声音约束：{json.dumps(character_voice_constraints, ensure_ascii=False, default=str)}"
+        if character_voice_constraints
+        else ""
+    )
     user_prompt = (
         f"{_JUDGE_FEW_SHOT}\n\n"
         f"## 待评审正文\n{payload.content}\n"
