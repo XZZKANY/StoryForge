@@ -4817,3 +4817,28 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - 删除本地 2.5G `apps/desktop/.tauri-target-smoke` 冗余构建缓存(非版本受控)。
 - **证据**:desktop `typecheck` 干净(修掉 TS6133 未用 prop 报错)、`test` 94/94;`tests/test_ide_command_registry.py`+`test_ide_commands.py` 11 passed;`pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过;`node scripts/run-e2e.mjs` 21/21 契约 spec 通过 + drift PASSED;grep 复查 `memory.resolve_conflict` 仅存于 test 的删除断言、`onFocusOnly`/`onCollapse` 无生产残留。
 - **未验 / 不外推**:W0 门禁体系(sidecar-smoke 双档 / e2e 契约化 / pre-push 快测集 / 死码清理)四刀均已落地;本刀不触碰任何领域行为,仅删无写回路径的假成功命令与已无消费者的 UI props。
+
+---
+
+# 2026-07-04 W1:live 循环语义收口(为真机 e2e 让路) 验证记录
+
+- **范围**(蓝图 `docs/internal/arch-review-blueprint-2026-07-03.md` §7 W1,修三条 high 级审计发现 F09/F10/F11,为 E2E-1 真机验收铺路;schema 冻结下零 ORM 变更):
+  - **F09 live 循环可中断 + 起服收尸**:
+    - `loop_runtime.run_chat_loop` 增 `should_interrupt` 回调,每轮开头(`before_round:N`)读 `run.status`;pause/stop 命中即置 `ChatLoopOutcome.interrupted/interruption` 并返回,不再烧新一轮 BYO-key。`runtime._try_chat_loop` 传 `should_interrupt=lambda b: self._runtime_interruption(run, boundary=b)`,中断走 `_runtime_interrupted_response`(不 append 消息、不 complete,run.status 保持控制通道写入的 stopped/paused)。粒度=每轮开头,不打断进行中的单轮 LLM 调用。stop 走另一条控制 socket 提交 `run.status`,循环线程独立 session 内 `session.refresh(run)` 读到已提交状态(WAL+busy_timeout,W0 已落)。
+    - `service.reap_non_terminal_agent_runs`:起服把非终态(running/paused)run 收为 failed + 写 `reason=process_restart` 事件。`main.py` lifespan 在 `bootstrap_sqlite_database` 后调用;**仅 sqlite 单进程 sidecar 收尸**(`get_engine().dialect.name != "sqlite"` 即 return)——多 worker Postgres 部署下本 worker 起服绝不误收别的 worker 在跑的 run,且非 sqlite 时不触库连接(修掉测试/CI 无 DB 时卡连接超时的回归)。
+  - **F10 断线可重建终态**:
+    - `service._completed_event_payload`:AGENT_RUN_COMPLETED payload 富化(intent/assistant_session_id/summary 截断/requires_user_confirmation/has_proposed_patch/proposed_patch 摘要 id+created_by_tool+file_path/has_review_report/chat_loop rounds+tool_call_count),**不带补丁 before/after 全文**避免事件表膨胀;字段全取自现有键,零 ORM 列。
+    - `event_encoders`:`AGENT_RUN_COMPLETED/FAILED` 新增 `_websocket_terminal_event` 编码,断线后前端拉 `GET /api/agent-runs/{id}/events` 重放即可重建终态;happy-path 仍据瞬时 `_STREAM_RESULT` settle,终态事件是幂等补充。
+    - 前端:新增纯函数 `agent-run-events.ts::reconstructAgentResultFromEvents(events, ctx)`(从事件表还原 agent_result/error/待确认消息形状,缺 assistant_session_id 返 null 继续轮询);`agent-runs.ts::getAgentRunEvents`;`agent-socket.ts` 超时回调改为 close socket → 后台 REST 轮询(3s 间隔、5min 上限)取回终态即 resolve,拿不到 runId 才退回硬超时。
+  - **F11 关键词表下线**:`intent._detect_intent` 删中文关键词分支与孤儿函数 `_is_file_review_request`/`_is_file_revise_request`;固定管线只认显式 intent + 结构化参数(book_id+blueprint_id→bookrun.start、issue_id→chapter.repair、reviewer role hint+文件上下文→file.review、scene_packet_id→chapter.review、写回确认→chat.explain),其余自由文本一律落 chat.explain 工具循环。
+  - **Sidecar 版本握手(taskkill+respawn)**:新增 `app/common/version.py::APP_VERSION` 单点(main.py `FastAPI(version=)` + `/health/ready` 返回 `app_version` 共用);`main.rs` 起服预检命中已跑 API 时拉 `/health/ready` 比对 `app.package_info().version`,不符即 `kill_process_on_port`(Windows netstat→taskkill /F、非 Windows lsof→kill)强杀旧孤儿 sidecar 后重启。
+  - **before 漂移拒写回红线**:`patch-hunks.ts::isWholeFileDrifted(current, before, normalizeEol)` 抽为纯函数;`useSuggestionWriteback.ts` 内联比较改调它;`patch-hunks.test.ts` 加可证伪行为测试;`editor.test.tsx` 源码断言强化为锁定走 `isWholeFileDrifted` 纯函数。
+- **证据**:
+  - `cd apps/api && uv run pytest tests/test_agent_runs.py tests/test_agent_loop_runtime.py tests/test_ide_agent_orchestrator.py -q` → **108 passed**(含新增:循环中途 stop 收尾/reap/complete payload 富化/terminal 编码器/F11 显式 intent 契约改写×3)。
+  - `uv run pytest -q`(全量)首轮暴露 2 处 F11 关键词依赖失败(test_ide_agent_orchestrator 的显式 revise 覆盖 + revise 集成)已改显式 intent 修绿;`uv run pytest tests/test_health_probes.py -q` 8 passed(新增 app_version 断言)。
+  - `uv run ruff check app tests` All checks passed。
+  - `npm --prefix apps/desktop/frontend run test` → **101/101**(新增 patch-hunks 漂移行为 2 + agent-run-events 重建 5);`typecheck` 干净;`pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过。
+  - `node scripts/check-openapi-drift.mjs` 无漂移(/health/ready 无 response_model,加 app_version 不进 schema)。
+  - `cd apps/desktop/src-tauri && cargo check` Finished(首轮 reqwest 未启用 json feature 报错,改 `.text()`+serde_json 解析修绿)。
+  - **性能回归自捕**:`_reap_stale_agent_runs` 初版无 sqlite 守卫,`client` fixture 走 lifespan 时对默认 Postgres URL 连接超时,使每个用例 setup 挂 ~131s;加 dialect 守卫后单测 setup 131s→0.87s。
+- **未验 / 不外推**(归 E2E-1 真机清单,本波只落条目不执行):真机 GUI 多轮渲染;点停止→事件表无后续 tool_trace 的桌面端观感;超时→转后台轮询实际取回结果的 socket/WS 生命周期;强杀宿主→重启无孤儿且连新 sidecar 的版本握手实机验证;补丁确认与自动打开新文件观感。F09 中断粒度为「每轮开头」,不打断进行中的单轮真模型调用(设计如此)。

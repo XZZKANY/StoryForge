@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.domains.agent_runs.event_types import AGENT_PLAN_CREATED, AGENT_RUN_STARTED, PERMISSION_REQUIRED, TOOL_TRACE
+from app.domains.agent_runs.event_types import (
+    AGENT_PLAN_CREATED,
+    AGENT_RUN_COMPLETED,
+    AGENT_RUN_FAILED,
+    AGENT_RUN_STARTED,
+    PERMISSION_REQUIRED,
+    TOOL_TRACE,
+)
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 
 
@@ -46,6 +53,8 @@ def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[
         return [_websocket_tool_trace_event(run, event)]
     if event.event_type == PERMISSION_REQUIRED:
         return [_websocket_permission_required_event(run, event)]
+    if event.event_type in (AGENT_RUN_COMPLETED, AGENT_RUN_FAILED):
+        return [_websocket_terminal_event(run, event)]
     return []
 
 
@@ -122,4 +131,23 @@ def _websocket_permission_required_event(run: AgentRun, event: AgentRunEvent) ->
         "proposed_patch": payload.get("proposed_patch") if isinstance(payload.get("proposed_patch"), dict) else None,
         "confirmation_action": payload.get("confirmation_action"),
         "blocked_tool": payload.get("blocked_tool"),
+    }
+
+
+def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
+    """把 AGENT_RUN_COMPLETED/FAILED 落进 WS 流：断线后前端拉事件表重放即可重建终态（F10）。
+    happy-path 前端仍据 agent_result（_STREAM_RESULT）settle，这里是重建路径的幂等补充。"""
+
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    completed = event.event_type == AGENT_RUN_COMPLETED
+    return {
+        "type": "agent_run_completed" if completed else "agent_run_failed",
+        "session_id": run.session_id,
+        "run_id": run.public_id,
+        "assistant_session_id": run.assistant_session_id,
+        "event_id": event.id,
+        "sequence": event.sequence,
+        "status": run.status,
+        "message": event.message,
+        "payload": payload,
     }

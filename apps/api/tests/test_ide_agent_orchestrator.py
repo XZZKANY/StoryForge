@@ -106,19 +106,22 @@ def test_legacy_orchestrator_delegates_to_agent_runtime(monkeypatch: pytest.Monk
     }
 
 
-def test_detect_intent_prefers_explicit_revise_over_review_keywords() -> None:
-    """桌面修订按钮的话术含「问题/节奏」等 file.review 关键词，_detect_intent 会误判为审稿；
-    前端显式传 intent=file.revise 必须压过关键词分类，否则定向修订塌成再次审稿。"""
+def test_detect_intent_honors_explicit_intent_after_keyword_table_retired() -> None:
+    """F11：中文关键词表已下线。自由文本不再被「问题/修/审」等词劫进固定管线，
+    只有显式 intent 或结构化参数才路由；桌面修订按钮靠显式 intent=file.revise 定向。"""
 
     file_args = {"file_path": "正文/第01章.md", "content": "正文内容"}
 
-    # 复现 bug：不带显式 intent 时，「修选中问题…」「只修剧情问题」因含「问题」被判成审稿
-    assert _detect_intent("修选中问题：plot-1 prose-1", file_args, None) == "file.review"
-    assert _detect_intent("只修剧情问题", file_args, None) == "file.review"
+    # 无显式 intent、无 reviewer role hint 的自由文本一律落 chat.explain 工具循环。
+    assert _detect_intent("修选中问题：plot-1 prose-1", file_args, None) == "chat.explain"
+    assert _detect_intent("只修剧情问题", file_args, None) == "chat.explain"
 
-    # 修复契约：显式 intent=file.revise 覆盖关键词分类
+    # 显式 intent 始终优先，定向修订不再塌成审稿。
     assert _detect_intent("修选中问题：plot-1 prose-1", file_args, "file.revise") == "file.revise"
     assert _detect_intent("只修剧情问题", file_args, "file.revise") == "file.revise"
+    # reviewer role hint + 文件上下文仍走 file.review 固定管线。
+    review_args = {**file_args, "agent_role_hints": ["plot_reviewer"]}
+    assert _detect_intent("看看这章", review_args, None) == "file.review"
 
 
 def test_agent_user_message_file_review_returns_multi_agent_report(
@@ -559,6 +562,7 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
             {
                 "type": "user_message",
                 "user_message": "把这个文件改得更紧一点",
+                "intent": "file.revise",
                 "args": {
                     "file_path": "正文/第02章.md",
                     "content": "当前正文",

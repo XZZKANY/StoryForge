@@ -235,6 +235,9 @@ class ChatLoopOutcome:
     exhausted: bool = False
     review_report: dict[str, Any] | None = None
     proposed_patch: dict[str, Any] | None = None
+    # 循环被 pause/stop 中断时置位:interruption 为运行时中断 payload，调用方据此收尾不 complete。
+    interrupted: bool = False
+    interruption: dict[str, Any] | None = None
 
 
 def _serialize_tool_output(output: dict[str, Any]) -> str:
@@ -348,11 +351,15 @@ def run_chat_loop(
     current_file: str | None,
     execute_fs_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
     on_trace: Callable[[AgentToolTrace], None],
+    should_interrupt: Callable[[str], dict[str, Any] | None] | None = None,
 ) -> ChatLoopOutcome:
     """LLM 工具循环主体。execute_fs_tool 抛出的异常消息会作为工具错误反馈给模型。
 
     首轮 LLM 调用失败抛 ChatLoopUnavailableError（调用方回落单轮对话）；
-    后续轮失败则以错误说明收尾，不吞掉部分进展。"""
+    后续轮失败则以错误说明收尾，不吞掉部分进展。
+
+    should_interrupt 在每轮开头调用（入参为 boundary 字符串）：返回非 None 的运行时中断
+    payload 时，循环立即收尾（run 已被 pause/stop），不再发起新一轮模型调用。"""
 
     history = _history_messages(session, assistant_session_id)
     current_file_hint = f"当前打开文件：{current_file}" if current_file else "当前没有打开文件"
@@ -371,6 +378,14 @@ def run_chat_loop(
 
     for round_number in range(1, LOOP_MAX_ROUNDS + 1):
         outcome.rounds = round_number
+        # 每轮开头读 run.status：作者点暂停/停止后不再烧新一轮 BYO-key，交调用方收尾落库。
+        if should_interrupt is not None:
+            interruption = should_interrupt(f"before_round:{round_number}")
+            if interruption is not None:
+                outcome.interrupted = True
+                outcome.interruption = interruption
+                outcome.answer = outcome.answer or "已按你的操作停下，这轮没有继续。"
+                return outcome
         budget_exhausted = tool_output_chars >= LOOP_TOOL_OUTPUT_BUDGET_CHARS
         final_round = round_number == LOOP_MAX_ROUNDS
         # 末轮或预算耗尽时不再给工具，强制模型基于已有信息作答。

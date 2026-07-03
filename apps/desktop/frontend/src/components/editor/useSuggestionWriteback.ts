@@ -12,7 +12,7 @@ import {
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
-import { applyPatchHunkToCurrent, type PatchHunk } from '../../lib/patch-hunks';
+import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 
@@ -164,7 +164,7 @@ export function useSuggestionWriteback({
 
     try {
       const currentContent = editorRef.current.getValue();
-      if (normalizeEol(currentContent) !== normalizeEol(suggestion.before)) {
+      if (isWholeFileDrifted(currentContent, suggestion.before, normalizeEol)) {
         const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
         setSuggestionStatus(message);
         emitAuthorLoopResult({

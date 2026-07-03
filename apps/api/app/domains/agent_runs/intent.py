@@ -23,41 +23,22 @@ def _detect_intent(user_message: str, args: dict[str, Any], explicit_intent: obj
         return "chat.explain"
     if isinstance(explicit_intent, str) and explicit_intent in SUPPORTED_INTENTS:
         return explicit_intent
-    text = user_message.lower()
     has_file_context = _optional_string(args.get("file_path")) is not None and isinstance(args.get("content"), str)
+    # 固定管线只认显式 intent 与结构化参数（DB 实体 id / reviewer role hint）。
+    # 中文关键词表已下线（F11）：自由文本一律落 chat.explain 工具循环，
+    # 由循环内工具（含 file.review / project.consistency 等）自主决定，
+    # 不再被「审查/检查/一致性」等词劫离循环、也不再抢跑固定管线。
     if _has_positive_int(args, "book_id") and _has_positive_int(args, "blueprint_id"):
         return "bookrun.start"
     if _has_positive_int(args, "issue_id"):
         return "chapter.repair"
     if has_file_context and _has_reviewer_role_hint(args):
         return "file.review"
-    if has_file_context and _is_file_review_request(user_message):
-        return "file.review"
-    if has_file_context and _is_file_revise_request(user_message):
-        return "file.revise"
     # chapter.review 绑定 DB 场景实体，必须显式带 scene_packet_id；
-    # 自由文本「审阅」没带参数时落回 chat.explain 工具循环，而不是路由进必然缺参报错的固定管线。
+    # 没带参数的自由文本落回 chat.explain 工具循环，而不是路由进必然缺参报错的固定管线。
     if _has_positive_int(args, "scene_packet_id"):
         return "chapter.review"
-    if _is_file_revise_request(user_message):
-        return "file.revise"
-    if "bookrun" in text or "启动整书" in user_message:
-        return "bookrun.start"
     return "chat.explain"
-
-
-def _is_file_review_request(user_message: str) -> bool:
-    return any(keyword in user_message for keyword in ("审查", "审一下", "审稿", "审阅", "评审", "检查", "问题", "一致性", "节奏", "结构"))
-
-
-def _is_file_revise_request(user_message: str) -> bool:
-    text = user_message.lower()
-    if any(keyword in text for keyword in ("revise", "rewrite", "diff")):
-        return True
-    return any(
-        keyword in user_message
-        for keyword in ("写回", "应用", "保存", "直接改", "直接修", "改写", "修订", "润色", "修改", "改得", "改成", "改一版", "修一版", "紧一点")
-    )
 
 
 def _is_confirm_writeback_request(user_message: str) -> bool:

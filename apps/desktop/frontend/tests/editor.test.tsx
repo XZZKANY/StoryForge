@@ -114,6 +114,12 @@ test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位',
     '整文件接受必须继续在当前内容偏离 suggestion.before 时拒绝旧补丁',
   );
   assert.ok(
+    suggestionWritebackSource.includes(
+      'isWholeFileDrifted(currentContent, suggestion.before, normalizeEol)',
+    ),
+    '整文件漂移守卫必须走已被 patch-hunks 行为测试覆盖的 isWholeFileDrifted 纯函数',
+  );
+  assert.ok(
     suggestionWritebackSource.includes('applyPatchHunkToCurrent(currentContent, hunk)'),
     '分块接受必须基于当前内容定位单个 hunk，不能再要求整文件等于 suggestion.before',
   );

@@ -174,6 +174,62 @@ fn is_api_ready(base_url: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 读 /health/ready 的 app_version：用于覆盖安装后判断在跑的是不是旧孤儿 sidecar（W1）。
+fn fetch_api_version(base_url: &str) -> Option<String> {
+    let resp = reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/'))).ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    // reqwest 未启用 json feature，直接取文本用 serde_json 解析，避免动 Cargo 依赖。
+    let text = resp.text().ok()?;
+    let body: serde_json::Value = serde_json::from_str(&text).ok()?;
+    body.get("app_version")
+        .and_then(|value: &serde_json::Value| value.as_str())
+        .map(|value: &str| value.to_string())
+}
+
+/// 按端口杀掉占用者（Windows netstat 定位 PID → taskkill /F）。用于强杀旧版本孤儿 sidecar，
+/// 再由正常 spawn 流程拉起当前版本。非 Windows 走 lsof + kill。
+fn kill_process_on_port(port: u16) {
+    #[cfg(windows)]
+    {
+        let output = Command::new("netstat").args(["-ano", "-p", "tcp"]).output();
+        let Ok(output) = output else {
+            eprintln!("netstat 执行失败，无法定位端口 {} 的孤儿进程", port);
+            return;
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let needle = format!(":{}", port);
+        let mut pids: Vec<String> = Vec::new();
+        for line in stdout.lines() {
+            if !line.contains("LISTENING") || !line.contains(&needle) {
+                continue;
+            }
+            if let Some(pid) = line.split_whitespace().last() {
+                if pid.chars().all(|c| c.is_ascii_digit()) && !pids.contains(&pid.to_string()) {
+                    pids.push(pid.to_string());
+                }
+            }
+        }
+        for pid in pids {
+            println!("强杀端口 {} 上的旧 sidecar 进程 PID={}", port, pid);
+            let _ = Command::new("taskkill").args(["/F", "/PID", &pid]).output();
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        if let Ok(output) = Command::new("lsof")
+            .args(["-t", &format!("-i:{}", port)])
+            .output()
+        {
+            for pid in String::from_utf8_lossy(&output.stdout).split_whitespace() {
+                println!("强杀端口 {} 上的旧 sidecar 进程 PID={}", port, pid);
+                let _ = Command::new("kill").args(["-9", pid]).output();
+            }
+        }
+    }
+}
+
 fn desktop_api_base_url() -> String {
     std::env::var("STORYFORGE_API_BASE_URL")
         .ok()
@@ -286,14 +342,31 @@ fn start_api_server(
     let api_base_url = desktop_api_base_url();
     let local_mode = should_skip_services() || should_use_api_sidecar();
     if is_api_ready(&api_base_url) {
-        if local_mode && !should_reuse_existing_api() {
-            anyhow::bail!(
-                "{} 已有 API 服务在运行；本地桌面模式需要自己启动后端以注入 LLM 配置。若确认要复用，请设置 STORYFORGE_DESKTOP_REUSE_API=1。",
-                api_base_url
-            );
+        // 覆盖安装后端口上可能还挂着旧版本孤儿 sidecar：版本号对不上就强杀重启，
+        // 避免新前端连旧后端串台（W1 sidecar 握手，决策=taskkill+respawn）。
+        let expected_version = app.package_info().version.to_string();
+        let running_version = fetch_api_version(&api_base_url);
+        let version_matches = running_version
+            .as_deref()
+            .map(|value| value == expected_version)
+            .unwrap_or(false);
+        if version_matches {
+            if local_mode && !should_reuse_existing_api() {
+                anyhow::bail!(
+                    "{} 已有 API 服务在运行；本地桌面模式需要自己启动后端以注入 LLM 配置。若确认要复用，请设置 STORYFORGE_DESKTOP_REUSE_API=1。",
+                    api_base_url
+                );
+            }
+            println!("✓ 复用已有 FastAPI 服务 ({}/health/ready)", api_base_url);
+            return Ok(());
         }
-        println!("✓ 复用已有 FastAPI 服务 ({}/health/ready)", api_base_url);
-        return Ok(());
+        println!(
+            "检测到端口上运行的 API 版本为 {:?}，与当前应用 {} 不符，强杀旧 sidecar 后重启。",
+            running_version, expected_version
+        );
+        kill_process_on_port(desktop_api_port(&api_base_url));
+        // 给旧进程释放端口留出时间，避免紧接着的 spawn 撞端口。
+        thread::sleep(Duration::from_secs(1));
     }
 
     println!("启动 FastAPI 服务 ({})...", api_base_url);
