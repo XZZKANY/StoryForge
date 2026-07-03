@@ -4760,3 +4760,12 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - **证据**：`node scripts/run-e2e.mjs` 四阶段全绿（exit 0）——OpenAPI refresh+drift PASSED；contract **27 pass / 0 fail**（修前 18/9）；API verification 68 passed；workflow verification 69 passed。`pnpm.cmd lint` 通过（Editor.tsx 1 个存量 react-hooks warning，非本次引入）。
 - **顺手发现（未处理，不扩范围）**：`requestRevision`（`lib/api/assistant.ts`）已无组件调用方，修订链路走 agent 循环 proposed patch 后属死代码残留；spec 仍断言其 API 面存在。
 - **未验 / 不外推**：本轮为 headless 契约验证，不构成真机 GUI 观感验收；issue #63 内另记的 connectivity probe flaky（1/3 概率）与本修复无关，仍为存量。
+
+---
+
+# 2026-07-03 ultracode 架构评审与后续架构蓝图(docs-only)验证记录
+
+- **范围**:仅新增 `docs/internal/arch-review-blueprint-2026-07-03.md`,零产品代码改动。内容为多 agent 架构审计(7 子系统测绘 + 8 维度评审 + 逐条双重对抗核查,14 条重大发现确认 / 4 条价值否决 / 20 条 advisory)与三方案架构竞标(A1 极简单机 / A2 Agent 内核 / A3 渐进绞杀,三裁判全票 A3 胜出)的综合蓝图:目标架构七件事、W0-W7 + E2E-1 路线图、推翻拍板清单与决策记录。
+- **决策记录(2026-07-03 用户拍板)**:pre-push 加活路径快测集=接受;死域终局=彻底删除(W4 冻结→观察→删除路径不变);BookRun→managed run=质量轨重跑后必须重评;代码签名证书=先不买;§8 推翻项 2-5 随对应波次(W0/W2/W4/W5)PR 落地。
+- **证据**:审计与竞标全量 JSON 存档于会话工作目录(audit-final.json 217KB / design-final.json 148KB,文档 §11 有指针);全部发现要求 file:line 亲读证据并经"事实核查 + 价值核查"双票存活。
+- **未验 / 不外推**:本文件是规划文档,不代表任何波次已执行;各推翻项在对应波次 PR 合并前现行拍板继续有效。
