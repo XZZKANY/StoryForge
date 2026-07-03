@@ -9,7 +9,12 @@ const openapi = JSON.parse(
   readFileSync('packages/shared/src/contracts/storyforge.openapi.json', 'utf8'),
 );
 const desktopSources = {
-  apiClient: readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8'),
+  // api-client.ts 拆分为 lib/api/* 模块，api-client 保留 re-export 门面
+  apiClient:
+    readFileSync('apps/desktop/frontend/src/lib/api-client.ts', 'utf8') +
+    readFileSync('apps/desktop/frontend/src/lib/api/assistant.ts', 'utf8') +
+    readFileSync('apps/desktop/frontend/src/lib/api/agent-socket.ts', 'utf8') +
+    readFileSync('apps/desktop/frontend/src/lib/api/types.ts', 'utf8'),
   app: readFileSync('apps/desktop/frontend/src/App.tsx', 'utf8'),
   agentSteps: readFileSync('apps/desktop/frontend/src/components/AgentStepsPanel.tsx', 'utf8'),
 };
@@ -43,29 +48,53 @@ function assertSchemaFields(schemaName, expectedFields, schemaSource = openapi) 
 }
 
 const runtimeToolReadFields = [
+  'allowed_roles',
+  'artifact_kinds',
   'domain',
+  'event_store_required',
   'evidence_fields',
+  'execution_mode',
+  'idempotent',
   'input_schema',
+  'mcp_server',
+  'mcp_tool_name',
   'name',
+  'origin',
   'output_schema',
+  'permission_level',
+  'read_only',
   'references',
   'required_capabilities',
+  'requires_confirmation',
+  'retry_safe',
+  'risk_level',
 ];
 const runtimeToolReferencesFields = ['api_paths', 'page_refs', 'workflow_nodes'];
 const modelRunReadFields = [
   'book_id',
+  'book_run_id',
   'capability',
+  'chapter_id',
+  'cost_estimate',
   'created_at',
+  'error_kind',
   'error_message',
+  'finish_reason',
   'id',
   'input_summary',
+  'input_tokens',
   'job_run_id',
   'latency_ms',
   'model_name',
   'output_summary',
+  'output_tokens',
   'payload',
+  'prompt_hash',
   'prompt_pack_id',
+  'prompt_template_version',
   'provider_name',
+  'repair_count',
+  'retry_count',
   'scene_id',
   'status',
   'token_usage',

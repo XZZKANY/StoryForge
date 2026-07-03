@@ -64,12 +64,12 @@ test('Phase 3 Desktop 设置保留 Provider 配置入口', () => {
     '服务类型',
     '服务地址',
     '默认模型',
-    '密钥引用',
+    'API Key',
   ]);
   assertSourceEvidence(desktopSources.providerConfig, [
     'openai',
     'deepseek',
     'ollama',
-    'custom',
+    'openai-compatible',
   ]);
 });

@@ -4747,3 +4747,16 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
 - `node scripts/run-e2e.mjs --continue-on-error`：contract 18 pass / 9 fail，与干净 master stash 对照**完全一致**——9 个失败为 master 存量（疑似 UI 改版后 testid 漂移），与本轮变更无关，已开 issue 跟踪。
 - 已知存量 flaky：`test_ten_chapter_wrapper_probe_only_passes_with_local_provider` 约 1/3 概率失败（假 HTTPServer 与 PS 探针时序），三连跑验证与代码变更无因果。
 - 未联通能力：真机 GUI 观感未验（本轮均为 headless/单元/契约验证）；repair_patch 审批链路当前桌面 UI 不可达，属契约债修复。
+
+---
+
+# 2026-07-03 issue #63 修复：e2e contract 存量 9 失败（source-evidence 标记漂移）验证记录
+
+- **范围**：仅改 5 个 e2e spec（`tests/e2e/ide-shell / ide-judge-repair / phase3 / phase4 / phase5-runtime-diagnostics`），零产品代码。逐条核对后 9 个失败**全部定性为标记漂移，无能力丢失**：
+  - 前端拆分漂移：`App.tsx` 壳层拆 `components/app/*`（`editor-panel` testid 移 `RightWorkspace.tsx`，ChatWindow 挂 `WelcomeWorkspace`，ResourceExplorer 挂 `StoryNavigator`）；`api-client.ts` 拆 `lib/api/*`（assistant / agent-socket / types），api-client 保留 re-export 门面；Editor 修订闭环拆 `components/editor/useSuggestionWriteback.ts`。spec 改为拼接新源或指向新文件。
+  - 后端拆分漂移：`domains/ide/service.py` 拆 `artifact_preview.py / _coerce.py / workspace_reads.py / command_registry.py`，marker 全数落位。
+  - 文案/命名迁移：设置页「密钥引用」→「API Key」（BYO-key 改版）；provider 预设 `custom` → `openai-compatible`；`REVIEW_CURRENT_EVENT` 退役由 `REVIEW_ISSUES_EVENT` 接替（审稿并入 agent 循环）。
+  - 契约扩展：`/api/runtime-tools` 变 agent_runtime + internal + mcp 三源合并——phase4 deepEqual 改为筛 `origin="internal"` 投影对比 registry，并新增三 origin 在场断言；phase7 治理清单更新 `RuntimeToolRead` 7→20 字段、`ModelRunRead` 18→29 字段（与快照/live OpenAPI 双向核对）。
+- **证据**：`node scripts/run-e2e.mjs` 四阶段全绿（exit 0）——OpenAPI refresh+drift PASSED；contract **27 pass / 0 fail**（修前 18/9）；API verification 68 passed；workflow verification 69 passed。`pnpm.cmd lint` 通过（Editor.tsx 1 个存量 react-hooks warning，非本次引入）。
+- **顺手发现（未处理，不扩范围）**：`requestRevision`（`lib/api/assistant.ts`）已无组件调用方，修订链路走 agent 循环 proposed patch 后属死代码残留；spec 仍断言其 API 面存在。
+- **未验 / 不外推**：本轮为 headless 契约验证，不构成真机 GUI 观感验收；issue #63 内另记的 connectivity probe flaky（1/3 概率）与本修复无关，仍为存量。
