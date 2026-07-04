@@ -283,7 +283,9 @@ def chat_reply(
             output_summary={
                 "reply_chars": len(reply),
                 "model": model,
+                "prompt_tokens": result.get("prompt_tokens"),
                 "completion_tokens": result.get("completion_tokens"),
+                "cost_cny_estimated": result.get("cost_cny_estimated"),
             },
         ),
     )
@@ -359,7 +361,9 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
 
     revise_output_summary: dict[str, Any] = {
         "after_chars": len(after),
+        "prompt_tokens": result.get("prompt_tokens"),
         "completion_tokens": completion_tokens,
+        "cost_cny_estimated": result.get("cost_cny_estimated"),
         "latency_ms": latency_ms,
     }
     if result.get("reasoning_leak_stripped"):
@@ -485,7 +489,9 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
 
     draft_output_summary: dict[str, Any] = {
         "content_chars": len(content),
+        "prompt_tokens": result.get("prompt_tokens"),
         "completion_tokens": completion_tokens,
+        "cost_cny_estimated": result.get("cost_cny_estimated"),
         "latency_ms": latency_ms,
     }
     if result.get("reasoning_leak_stripped"):

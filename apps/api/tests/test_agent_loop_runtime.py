@@ -883,3 +883,53 @@ def test_chat_loop_stops_between_rounds_and_wraps_up_without_completing(
 
     run_detail = client.get("/api/agent-runs/run-chat-loop-stop").json()
     assert run_detail["status"] == "stopped"
+
+
+def test_chat_loop_records_byo_key_cost_in_evidence(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """F32：每轮 chat/completions 的估算成本与 prompt_tokens 累加进 assistant.chat_loop 证据
+    output_summary，BYO-key 成本可观测不再名存实亡（此前只留 completion_tokens、丢掉成本）。"""
+
+    _enable_loop_env(monkeypatch)
+    _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "fs_list", "arguments": "{}"}},
+                ],
+                "prompt_tokens": 120,
+                "completion_tokens": 5,
+                "cost_cny_estimated": 0.012,
+            },
+            {
+                "content": "已看过项目结构。",
+                "tool_calls": [],
+                "prompt_tokens": 200,
+                "completion_tokens": 9,
+                "cost_cny_estimated": 0.02,
+            },
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-cost",
+        project_path=str(novel_project),
+        message="项目结构是怎样的？",
+    )
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+
+    assistant_session_id = result["assistant_session_id"]
+    tool_calls = client.get(f"/api/assistant/sessions/{assistant_session_id}/tool-calls").json()
+    chat_loop = next(item for item in tool_calls if item["tool_name"] == "assistant.chat_loop")
+    summary = chat_loop["output_summary"]
+    # 两轮累加：prompt 120+200、completion 5+9、成本 0.012+0.02
+    assert summary["prompt_tokens"] == 320
+    assert summary["completion_tokens"] == 14
+    assert summary["cost_cny_estimated"] == pytest.approx(0.032)
