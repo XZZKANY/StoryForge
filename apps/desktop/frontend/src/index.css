@@ -21,13 +21,19 @@
   --error: 229 91 91;
   --warning: 235 201 126;
   --success: 115 202 128;
+  --agent: 146 153 234; /* 鸢尾紫：只用于 agent 相关（召唤/思考/advisory/发送键聚焦态），当金子省着用 */
 
   --sf-bar-height: 36px;
+  --sf-status-height: 26px;
   --sf-row-height: 30px;
   --sf-tree-row-height: 26px;
   --sf-control-height: 28px;
   --sf-panel-x: 12px;
   --sf-item-gap: 8px;
+
+  --font-ui: -apple-system, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+  --font-prose: Georgia, 'Source Han Serif SC', 'Noto Serif SC', 'SimSun', serif;
+  --font-mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
 }
 
 /* 浅色主题：与深色共用同一组语义 token，仅翻转色值；单色强调改为近黑。 */
@@ -46,6 +52,7 @@
   --error: 200 56 56;
   --warning: 176 122 17;
   --success: 42 140 84;
+  --agent: 79 86 196; /* 浅色主题鸢尾紫（更深，保证白底对比度） */
 }
 
 body {
@@ -190,24 +197,33 @@ body {
   gap: 10px;
 }
 
-/* 自定义滚动条 */
+/* 统一细滚条：贴语义 token、跟随明暗主题、透明轨道（原型定调，取代旧的粗滚条） */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border-strong) / 0.6) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-::-webkit-scrollbar-track {
-  background: rgb(var(--background));
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--border-strong));
-  border: 2px solid rgb(var(--background));
-  border-radius: 6px;
+  background: rgb(var(--border-strong) / 0.55);
+  border: 3px solid transparent;
+  border-radius: 5px;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--subtle));
+  background: rgb(var(--border-strong));
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 
 /* Agent 步骤面板动画 */
