@@ -15,14 +15,14 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+# W3：live 工具循环直接吃 common 单一出网通道，不再寄生于已降级的 book_runs 私有函数。
+from app.common.llm_client import LLMConfigError, LLMError, _call_llm_messages
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import AssistantToolCallCreate, AssistantToolCallUpdate
-from app.domains.book_runs.book_generation_llm import _call_llm_messages
-from app.domains.book_runs.errors import BookGenerationError, BookGenerationPreflightError
 
-# Preflight（配置缺失）与运行失败平级、都不是彼此子类，循环里要一起接住。
-_LLM_ERRORS = (BookGenerationError, BookGenerationPreflightError)
+# Preflight（配置缺失 LLMConfigError）与运行失败（LLMError）平级、都不是彼此子类，循环里要一起接住。
+_LLM_ERRORS = (LLMError, LLMConfigError)
 
 LOOP_MAX_ROUNDS = 8
 LOOP_TOOL_OUTPUT_BUDGET_CHARS = 60_000

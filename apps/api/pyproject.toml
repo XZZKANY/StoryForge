@@ -34,5 +34,17 @@ target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "TID"]
 ignore = ["E501"]
+
+# W3：chat/completions 出网只走 app.common.llm_client 单一通道；禁止新代码用裸 urllib
+# 另起碎片化客户端（judge/story_state 的 httpx 属既有资产，待后续统一，不在本规则内）。
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"urllib.request".msg = "chat/completions 出网请走 app.common.llm_client；裸 urllib 客户端已收敛。"
+
+[tool.ruff.lint.per-file-ignores]
+# 单一通道本体与 provider 健康探针（只读 /models）是仅有的合法 urllib 出网点。
+"app/common/llm_client.py" = ["TID251"]
+"app/domains/assistant/service.py" = ["TID251"]
+# S3 presigned URL 回读走 urllib，与 chat 出网无关。
+"tests/test_s3_integration.py" = ["TID251"]

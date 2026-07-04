@@ -4865,3 +4865,24 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过。
   - `cd apps/api && uv run pytest -q`(全量回归):**844 passed / 3 skipped**(6 条 warning 均为既有、与本波无关),起服路径改写零回归。
 - **未验 / 不外推**(归 E2E-1 真机清单):真机「旧版 NSIS 存量库换新 exe 起服 → 会话史完整 → schema 纳管」端到端;存量库纳管的 backup/quick_check/stamp 只在 fixture 与本机 smoke 验证,未在真实旧版安装包库上跑。历史 pg 迁移(24 条)未压扁(蓝图定的止损点),pg 侧仍走既有 `alembic upgrade head` 部署路径,本波不改。混合设计的边界:SQLite 建表仍靠 create_all,新迁移必须 batch 安全 + 带 downgrade(约定见 `CLAUDE.md` §6),否则 `upgrade head` 会在存量库上崩——此约束靠评审与 downgrade fixture 守,未加 lint 硬约束。
+
+---
+
+# 2026-07-04 W3(首刀):LLM 单一 chat 通道 + story_state 漏迁修复 + 密钥脱敏 验证记录
+
+- **范围**(蓝图 `docs/internal/arch-review-blueprint-2026-07-03.md` §7 W3,拆 high 级 F16「出网通道碎片化 + 依赖倒挂」的核心):把 chat/completions 出网收敛到唯一通道,切断 live 循环对已降级 book_runs 域的寄生,并修复 story_state grounding 在 sidecar 下静默失活的真 bug。本刀取 F16 中最高价值、可零测试改动落地的部分;judge/story_state 的 httpx 传输统一、embedding/reranker、workflow 第 7 客户端(W5 将删)留作后续。
+- **落地**:
+  - `app/common/llm_client.py`(新,唯一出网点):自 `book_runs/book_generation_llm.py` **原样下沉**带重试 urllib 客户端(`_call_llm`/`_call_llm_messages`/`_request_chat_completions`/退避 + Retry-After/双鉴权/token 记账/成本估算)。errors 由本模块定义 `LLMError`(502)/`LLMConfigError`(422),`common` 不再反向依赖任何 domain。新增 `redact_secrets(text, secrets)` 兜底脱敏。
+  - `book_runs/errors.py`:`BookGenerationError = LLMError`、`BookGenerationPreflightError = LLMConfigError` **别名(同一类对象)**——既有 `except`/`isinstance`/502/422 状态码零改动(DomainError handler 只序列化 status_code + str(exc),不含类名,已核)。
+  - `book_runs/book_generation_llm.py`:降为 re-export shim(保留 book_runs 专属 `_total_cost_estimate`),facade `book_generation.py` 链路不变,所有历史 monkeypatch 目标(`generation._call_llm`/`loop_runtime._call_llm_messages`/`assistant_service._call_llm` 等)全部继续有效。
+  - `agent_runs/loop_runtime.py`(**F16 靶心**):live 工具循环改 `from app.common.llm_client import ...`,不再 import book_runs——主产品循环彻底脱离已降级域。
+  - `story_state/semantic.py`(**真 bug 修复**):grounding 配置从裸 `os.getenv` 改吃 `resolved_llm_env` 覆盖链(env → .env → llm-provider.json),`STORYFORGE_JUDGE_LLM_*` 仍为最高优先级 env 覆盖(与 judge/semantic 对齐);此前它漏迁 resolved_llm_env,sidecar 下读不到 llm-provider.json → grounding 静默失活。失败日志经 `redact_secrets` 脱敏。
+  - `judge/semantic.py`:失败日志 `error=redact_secrets(str(exc), [api_key])`。
+  - `pyproject.toml`:启用 ruff `TID` + banned-api 禁 `urllib.request`(chat 出网只走 llm_client),per-file-ignore 仅放行 `llm_client.py`、assistant `/models` 探针、S3 presigned 回读测试——防新代码另起碎片化 urllib 客户端。
+- **证据**:
+  - `tests/test_llm_client_channel.py`(新,11 passed):双鉴权(bearer 走 Authorization / api-key 走 api-key 头,互斥)、两路径 429→重试→成功一致(尝试 2 次)、`<think>` 剥离、messages 版允许纯 tool_calls;**密钥红线**——4xx 异常消息与日志均不含 key 子串、`redact_secrets` 脱敏、story_state 失败日志不含 key;**漏迁修复**——grounding 读 resolved_llm_env(Authorization 命中注入 key)、无 key 静默返回空。
+  - `tests/test_book_generation_llm_retry.py`(直接 import `_call_llm`)→ 5 passed:移动后真 urllib 重试行为逐条不变。
+  - 高风险面回归:`pytest test_agent_loop_runtime test_book_generation test_judge_semantic test_llm_config_file_override test_story_state test_assistant_revise test_cross_chapter_consistency test_agent_llm_context test_ide_agent_orchestrator test_agent_runs` → **208 passed**(别名 + re-export + loop_runtime 重指 + story_state 改写零回归)。
+  - `uv run ruff check .`(全 apps/api,含新 TID banned-api)All checks passed。
+  - `cd apps/api && uv run pytest -q`(全量回归,零测试改动 gate):**855 passed / 3 skipped**(= master 844 + 本刀新增 11 channel 测试,既有用例零改动)。移动 + 别名 + loop_runtime 重指 + story_state/judge 改写零回归。
+- **未验 / 不外推 / 本刀不做**(登记备查):judge/story_state 仍走 httpx(未统一到 urllib 通道,只统一了配置源与脱敏);retrieval embedding/reranker(独立 `STORYFORGE_EMBEDDING_*`/`RERANKER_*` 命名空间)、workflow `provider_client.py`(第 7 客户端,W5 将随 workflow 吸收删除)本刀不动;usage 记入 assistant_tool_calls + 流式回调缝、fake-provider bearer/api-key×429×reasoning-leak 的三客户端一致性矩阵(本刀只覆盖单通道自身)属 F16 后续;`headless 复跑证据续期` 需真 key,归真机/真跑轨,未在本刀执行(与 W1/W2 一致,代码级 gate 用 fake-provider 矩阵 + 全量 pytest 兜底)。banned-api 只禁 `urllib.request`,不禁 httpx(judge/story_state/embedding/reranker 仍合法用 httpx)。

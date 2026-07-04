@@ -7,6 +7,9 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.common.llm_client import redact_secrets
+from app.common.llm_env import resolved_llm_env
+from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
 from app.domains.story_state.schemas import StateChangeInput
 
@@ -35,16 +38,22 @@ def semantic_ground_story_state_changes(
     prose: str,
     changes: Sequence[StateChangeInput],
 ) -> dict[int, SemanticGroundingAdvisory]:
-    """用 Judge LLM 对 CHANGES 做语义 grounding advisory；未配置时静默跳过。"""
+    """用 Judge LLM 对 CHANGES 做语义 grounding advisory；未配置时静默跳过。
 
-    api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or os.getenv("STORYFORGE_LLM_API_KEY")
+    W3：配置改走 resolved_llm_env 覆盖链（env → .env settings → llm-provider.json），
+    修复此前裸 os.getenv 漏读 llm-provider.json、导致 sidecar 下 grounding 静默失活的缺陷。
+    STORYFORGE_JUDGE_LLM_* 仍为进程 env 独占的最高优先级覆盖，与 judge/semantic 一致。"""
+
+    source = resolved_llm_env()
+    api_key = os.getenv("STORYFORGE_JUDGE_LLM_API_KEY") or env_value(source, "STORYFORGE_LLM_API_KEY")
     if not api_key or not changes:
         return {}
-    base_url = os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL") or os.getenv(
-        "STORYFORGE_LLM_BASE_URL",
-        "https://api.openai.com/v1",
+    base_url = (
+        os.getenv("STORYFORGE_JUDGE_LLM_BASE_URL")
+        or env_value(source, "STORYFORGE_LLM_BASE_URL")
+        or "https://api.openai.com/v1"
     )
-    model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or os.getenv("STORYFORGE_LLM_MODEL", "gpt-4o-mini")
+    model = os.getenv("STORYFORGE_JUDGE_LLM_MODEL") or env_value(source, "STORYFORGE_LLM_MODEL") or "gpt-4o-mini"
     payload = {
         "model": model,
         "messages": [
@@ -56,14 +65,18 @@ def semantic_ground_story_state_changes(
         ],
         "temperature": 0,
     }
-    reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or os.getenv(
-        "STORYFORGE_LLM_REASONING_EFFORT"
+    reasoning_effort = os.getenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT") or env_value(
+        source, "STORYFORGE_LLM_REASONING_EFFORT"
     )
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
     try:
-        timeout = float(os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or os.getenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "300"))
+        timeout = float(
+            os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS")
+            or env_value(source, "STORYFORGE_LLM_TIMEOUT_SECONDS")
+            or "300"
+        )
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 _chat_completions_url(base_url),
@@ -73,7 +86,9 @@ def semantic_ground_story_state_changes(
             data = response.json()
         decoded = _decode_json_array(str(data["choices"][0]["message"]["content"]))
     except Exception as exc:
-        log.warning("story_state_semantic_grounding_failed", error=str(exc), model=model)
+        log.warning(
+            "story_state_semantic_grounding_failed", error=redact_secrets(str(exc), [api_key]), model=model
+        )
         return {
             int(change.seq or index): SemanticGroundingAdvisory(
                 seq=int(change.seq or index),
