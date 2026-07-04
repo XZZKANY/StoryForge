@@ -6,18 +6,22 @@ import { useEffect, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
 import type { ApiRuntimeHealth } from '../../lib/api/types';
 import type { ThemeMode } from '../../lib/user-settings';
-import { PanelRight } from '../icons/shell-icons';
+import { Check, PanelRight } from '../icons/shell-icons';
 
 export function StatusBar({
   modelLabel,
   theme,
   projectOpen,
+  obs,
+  onToggleObs,
   onToggleTheme,
   onToggleRight,
 }: {
   modelLabel: string;
   theme: ThemeMode;
   projectOpen: boolean;
+  obs: { error: number; warning: number; advisory: number; total: number };
+  onToggleObs: () => void;
   onToggleTheme: () => void;
   onToggleRight: () => void;
 }) {
@@ -62,7 +66,28 @@ export function StatusBar({
       {modelLabel && <span className="font-mono text-[10.5px]">{modelLabel}</span>}
       <span className="flex-1" />
       {projectOpen && (
-        <span className="font-mono text-[10.5px]">{/* 字数进度 P3 接线 */}本地稿</span>
+        <button
+          className="flex items-center gap-2 rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
+          onClick={onToggleObs}
+          title="观测清单"
+          data-testid="status-obs"
+        >
+          {obs.total > 0 ? (
+            <span className="flex items-center gap-1.5">
+              <span className="h-[7px] w-[7px] rounded-full bg-error" />
+              <span>{obs.error}</span>
+              <span className="h-[7px] w-[7px] rounded-full bg-warning" />
+              <span>{obs.warning}</span>
+              <span className="h-[7px] w-[7px] rounded-full bg-agent" />
+              <span>{obs.advisory}</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-success">
+              <Check size={12} strokeWidth={2} />
+              无观测项
+            </span>
+          )}
+        </button>
       )}
       <button
         className="rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"

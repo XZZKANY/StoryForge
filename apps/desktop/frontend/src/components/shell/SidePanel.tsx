@@ -29,6 +29,7 @@ type SidePanelProps = {
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
   onStartNewBook: () => void;
+  onOpenObsPanel: () => void;
 };
 
 export function SidePanel(props: SidePanelProps) {
@@ -40,7 +41,7 @@ export function SidePanel(props: SidePanelProps) {
       {props.view === 'explorer' && <ExplorerView {...props} />}
       {props.view === 'sessions' && <SessionsView {...props} />}
       {props.view === 'search' && <SearchView />}
-      {props.view === 'qa' && <QaView />}
+      {props.view === 'qa' && <QaView onOpenObsPanel={props.onOpenObsPanel} />}
     </div>
   );
 }
@@ -283,14 +284,19 @@ function SearchView() {
   );
 }
 
-function QaView() {
+function QaView({ onOpenObsPanel }: { onOpenObsPanel: () => void }) {
   return (
     <>
       <ViewHead title="质检" />
-      <p className="px-4 text-[11.5px] leading-relaxed text-subtle">
-        机械观测本地零 token 常驻扫描；语义 advisory
-        按需触发、不阻塞导出。观测清单在底部面板逐条处理（P4 接线）。
+      <p className="px-4 pb-3 text-[11.5px] leading-relaxed text-subtle">
+        机械观测本地零 token 常驻扫描；语义 advisory 按需触发、不阻塞导出。
       </p>
+      <button
+        className="mx-3 flex h-7 items-center justify-center gap-1.5 rounded-md border border-border text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+        onClick={onOpenObsPanel}
+      >
+        在底部面板逐条处理 →
+      </button>
     </>
   );
 }
