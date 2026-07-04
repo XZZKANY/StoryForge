@@ -108,6 +108,7 @@ import {
   statusFromAgentResult,
   stepsFromResumedAgentResult,
 } from './chat-window/resumed-result';
+import { isRunResultForActiveSession } from './chat-window/session-guard';
 import { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-window/writing-run';
 
 export {
@@ -438,6 +439,12 @@ export function ChatWindow({
 
   const applyResumedAgentResult = useCallback(
     (response: AgentResultMessage) => {
+      // F26：作者已切走会话时，恢复结果不得强行切回或污染当前会话（run 身份在调用处已守卫）。
+      if (
+        !isRunResultForActiveSession(assistantSessionIdRef.current, response.assistant_session_id)
+      ) {
+        return;
+      }
       assistantSessionIdRef.current = response.assistant_session_id;
       onAssistantSessionChange?.(response.assistant_session_id);
       const systemTitle = titleFromSystemJobs(response);
@@ -690,6 +697,8 @@ export function ChatWindow({
 
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       agentRunIdRef.current = runId;
+      // F26：记住本 run 起跑时所属会话，终态写回前比对，作者切走即不污染新会话。
+      const runStartSessionId = assistantSessionIdRef.current;
       setAgentBusy(true);
       setRetryRequest(null);
       setAgentRunRecovery(null);
@@ -759,6 +768,20 @@ export function ChatWindow({
           agentRoleMentions,
           onEvent: applyAgentStreamEvent,
         });
+
+        // F26：await 期间作者可能切走会话或另起新 run。此时本 run 的终态
+        // （强切会话 / 追加消息 / 发补丁建议）绝不能污染当前会话，直接收尾返回。
+        const runSuperseded = agentRunIdRef.current !== runId;
+        const sessionSwitched = !isRunResultForActiveSession(
+          assistantSessionIdRef.current,
+          runStartSessionId,
+        );
+        if (runSuperseded || sessionSwitched) {
+          // 仅切换了会话、无新 run 接管时，清掉本组件残留的忙碌态，避免僵死 spinner；
+          // 若已被新 run 接管则不动忙碌态（归新 run 所有）。
+          if (!runSuperseded) setAgentBusy(false);
+          return;
+        }
 
         if (isAgentErrorMessage(response)) {
           updateAgentStatus('failed');

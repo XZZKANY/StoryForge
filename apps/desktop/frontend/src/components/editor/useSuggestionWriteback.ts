@@ -15,6 +15,7 @@ import type { BranchInfo } from '../../lib/branches';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
+import { performGuardedWriteback } from '../../lib/writeback';
 
 type UseSuggestionWritebackParams = {
   editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
@@ -95,10 +96,13 @@ export function useSuggestionWriteback({
     ) => {
       const summary = overrides.summary ?? suggestion.summary;
       const note = overrides.note ?? suggestion.note;
-      if (normalizeEol(previous) !== normalizeEol(nextContent)) {
-        try {
+      const contentChanged = normalizeEol(previous) !== normalizeEol(nextContent);
+      // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
+      // writeFile 不执行——绝不在没有版本安全网时落盘。
+      const loopRecord = await performGuardedWriteback(contentChanged, {
+        snapshot: () => {
           const branch = getActiveBranchSnapshot();
-          const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          return snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Agent',
             summary,
             patchId: suggestion.id,
@@ -109,24 +113,23 @@ export function useSuggestionWriteback({
             branchLabel: branch.label,
             parentId: branch.headNodeId,
           });
-          if (snapshot) await advanceBranchHead(snapshot.timestamp);
-        } catch (snapshotErr) {
-          console.error('写入版本快照失败:', snapshotErr);
-        }
-      }
-      await TauriFileSystem.writeFile(path, nextContent);
-      const loopRecord = await recordRevisionLoop({
-        projectPath: projectPathRef.current,
-        filePath: path,
-        before: previous,
-        after: nextContent,
-        summary,
-        note,
-        userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
-        assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
-        patchId: suggestion.id,
-        issueIds: suggestion.issueIds,
-        contextFiles: suggestion.contextFiles,
+        },
+        advanceBranchHead,
+        write: () => TauriFileSystem.writeFile(path, nextContent),
+        record: () =>
+          recordRevisionLoop({
+            projectPath: projectPathRef.current,
+            filePath: path,
+            before: previous,
+            after: nextContent,
+            summary,
+            note,
+            userIntent: note.split('\n')[0]?.replace(/^用户意图：/, '') ?? '审查并改进当前文件',
+            assistantSessionId: suggestion.assistantSessionId ?? assistantSessionIdRef.current,
+            patchId: suggestion.id,
+            issueIds: suggestion.issueIds,
+            contextFiles: suggestion.contextFiles,
+          }),
       });
       editorRef.current?.setValue(nextContent);
       originalContentRef.current = nextContent;
