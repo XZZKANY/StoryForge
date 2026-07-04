@@ -3,8 +3,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use walkdir::WalkDir;
+
+/// 原子写临时文件序号：进程内单调递增，保证同目标并发写不撞临时名。
+static ATOMIC_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// 文件条目信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,16 +35,47 @@ pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("无法读取文件 {}: {}", path, e))
 }
 
-/// 写入文件内容
+/// 写入文件内容（原子替换：先写同目录临时文件并 sync，再 rename 覆盖目标，
+/// 崩溃/中断绝不会在目标文件留下截断内容）。
 #[tauri::command]
 pub fn write_file(path: String, content: String) -> Result<(), String> {
+    let target = Path::new(&path);
     // 确保父目录存在
-    if let Some(parent) = Path::new(&path).parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
+    if let Some(parent) = target.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
+        }
     }
 
-    fs::write(&path, content).map_err(|e| format!("无法写入文件 {}: {}", path, e))
+    let staged = stage_atomic_write(target, content.as_bytes())
+        .map_err(|e| format!("无法写入临时文件 {}: {}", path, e))?;
+    // 原子替换目标；Windows 的 fs::rename 走 MOVEFILE_REPLACE_EXISTING、Unix 覆盖，二者均原子。
+    if let Err(e) = fs::rename(&staged, target) {
+        let _ = fs::remove_file(&staged);
+        return Err(format!("无法写入文件 {}: {}", path, e));
+    }
+    Ok(())
+}
+
+/// 把内容写进目标同目录的临时文件并 sync 落盘，返回临时文件路径（尚未替换目标）。
+/// 拆成独立步骤是为了让「暂存绝不改动目标」这一原子性不变量可被单测证伪。
+fn stage_atomic_write(target: &Path, content: &[u8]) -> std::io::Result<PathBuf> {
+    let dir = match target.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    let stem = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("storyforge");
+    let seq = ATOMIC_WRITE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp = dir.join(format!(".{}.tmp-{}-{}", stem, std::process::id(), seq));
+
+    let mut file = fs::File::create(&tmp)?;
+    file.write_all(content)?;
+    file.sync_all()?;
+    Ok(tmp)
 }
 
 /// 列出目录内容
@@ -220,6 +256,47 @@ mod tests {
 
         let content = read_file(file_path).expect("read should succeed");
         assert_eq!(content, "# Chapter 1\n\nOpening.");
+    }
+
+    #[test]
+    fn write_file_stages_out_of_place_so_target_is_replaced_atomically() {
+        let temp = TempDir::new("atomic-stage");
+        let file_path = temp.join("chapter.md");
+        write_file(file_path.clone(), "committed-v1".to_string()).expect("seed write should succeed");
+
+        // 暂存新内容到同目录临时文件，但尚未 rename：目标必须仍是旧内容（绝不原地截断）。
+        let target = Path::new(&file_path);
+        let staged = stage_atomic_write(target, b"pending-v2").expect("stage should succeed");
+        assert!(staged.exists(), "临时文件应已写好");
+        assert_ne!(staged, target.to_path_buf(), "临时文件不能就是目标本身");
+        assert_eq!(
+            read_file(file_path.clone()).expect("target should stay readable"),
+            "committed-v1",
+            "暂存阶段绝不能改动目标文件（原子性不变量）"
+        );
+        assert_eq!(
+            fs::read_to_string(&staged).expect("staged file should be readable"),
+            "pending-v2"
+        );
+        let _ = fs::remove_file(&staged);
+    }
+
+    #[test]
+    fn write_file_overwrites_content_and_leaves_no_temp_residue() {
+        let temp = TempDir::new("atomic-commit");
+        let file_path = temp.join("chapter.md");
+        write_file(file_path.clone(), "v1".to_string()).expect("first write should succeed");
+        write_file(file_path.clone(), "v2-longer-body".to_string()).expect("overwrite should succeed");
+
+        assert_eq!(read_file(file_path).expect("read should succeed"), "v2-longer-body");
+        // rename 提交后临时文件必须已被消费，目录里不留 .tmp 残渣。
+        let residue: Vec<String> = fs::read_dir(&temp.path)
+            .expect("dir listing should succeed")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.contains(".tmp-"))
+            .collect();
+        assert!(residue.is_empty(), "提交后不应残留临时文件: {:?}", residue);
     }
 
     #[test]

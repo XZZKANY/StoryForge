@@ -4927,3 +4927,22 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `cd apps/api && uv run pytest -q`(全量,零测试改动 gate):**847 passed / 3 skipped**(= W4 基线,迁移只改导入路径不增删用例,零回归)。
   - `pnpm e2e`(drift + 契约):**21/21 pass**,drift 绿(本刀无路由变更,`main.py` 只加起服日志函数,OpenAPI 不变)。
 - **未验 / 不外推 / 本刀不做**(登记备查):`apps/workflow` app **物理删除**(打 attic tag + 逐引用 grep + 迁移其自身测试)与**第 7 LLM 客户端 `workflow/provider_client.py` 删除**是 W5 高风险步,本刀不做,留后续——故 prompts 目前在 api 与 workflow **双存**(api 是 live 唯一装机路径,workflow 副本随物理删除回收)。真机「装机 exe 双击 → bookrun.start 真装配」归 E2E-1(sidecar-smoke 已证 exe 内装配可达 + 起服硬依赖,但非真机 GUI 全程)。真 key headless 长程复跑归真跑轨,未在本刀执行。
+
+---
+
+# 2026-07-04 W7:前端行为测试基建（vitest+happy-dom）+ 修 F26/F27 验证记录
+
+- **范围**（蓝图 §7 W7）：引入 vitest + happy-dom 作前端行为测试基建，落三条可证伪红线行为测试，并顺手修两条 advisory 真 bug——F26（会话切换竞争：run 完成强切回旧会话、污染当前会话）与 F27（写盘非原子 + 快照失败照写）。F26/F27 属 advisory 未经对抗核查，本刀先经 discovery 逐文件证实**均为真 bug**（见证据）再动手。
+- **discovery-first 结论**（Explore 逐文件核实）：
+  - F26 **真**：`ChatWindow.tsx` `runAuthorAgent` 终态块（await `sendAgentUserMessage` 后）与 `applyResumedAgentResult` 均**无守卫**地 `onAssistantSessionChange(run 的 session)` + `setMessages` + 发建议；ChatWindow 未按 session key 重挂，在飞闭包跨会话存活。裸 `agentRunIdRef===runId` 守卫**不足**（纯切会话不改 runId），须比对「run 起跑会话 vs 当前活动会话」。
+  - F27 **两处均真**：TS `useSuggestionWriteback.writeAcceptedSuggestion` 的 snapshot `try/catch` 只 `console.error` 吞错、write 照走；Rust `fs.rs::write_file` 是裸 `fs::write` 原地覆盖（非原子）。
+- **落地**：
+  - **F27-Rust 原子写**（`apps/desktop/src-tauri/src/fs.rs`）：`write_file` 改「同目录临时文件 + `sync_all` + 原子 `fs::rename` 覆盖」。拆 `stage_atomic_write`（写暂存返回临时路径，**尚未替换目标**）+ rename 两步，使「暂存绝不改动目标」这一原子性不变量可被单测**证伪**。
+  - **F27-TS 快照阻断**（`src/lib/writeback.ts` 新纯核心 `performGuardedWriteback` + `useSuggestionWriteback.ts`）：把「内容有变→先成功快照（推进分支头）→写盘→记录」次序抽成纯函数，**删除吞错 try/catch**——快照 reject 直接向上传播，write/record 不执行（快照失败即阻断写回）。
+  - **F26 会话守卫**（`src/components/chat-window/session-guard.ts` 新纯核心 `isRunResultForActiveSession` + `ChatWindow.tsx`）：`runAuthorAgent` 起跑时记 `runStartSessionId`，await 返回后先判 `runSuperseded`(agentRunIdRef≠runId) / `sessionSwitched`(当前活动会话≠起跑会话)，任一成立即收尾返回不写回当前会话（仅切会话无新 run 接管时清残留 `agentBusy` 避免僵死 spinner）；`applyResumedAgentResult` 入口加同一会话守卫（run 身份在调用处 `shouldApplyAgentControlAck` 已守卫）。
+  - **基建**：`npm i -D vitest happy-dom`（frontend 是独立 npm 工程、非 pnpm workspace）；`vitest.config.ts`（env happy-dom，`include tests/behavior/**/*.vitest.ts`）；`package.json` `test` 改 `verify-unit.mjs && vitest run`（双跑：既有 19 文件/101 子测走 node:test 自制 runner，新增 3 红线走 vitest）。`.vitest.ts` 后缀被 verify-unit 的 `/\.test\.(ts|tsx)$/` 过滤天然排除，**零改 verify-unit**。lockfile 经 npmmirror 装机后把 35 条 `registry.npmmirror.com` URL 回改为 `registry.npmjs.org`（整合 integrity 与官方源一致，避免镜像污染）。
+- **证据**：
+  - **三条红线行为测试各自可证伪**（`tests/behavior/*.vitest.ts`，`npx vitest run` → 2 files / **9 passed**）：①before 漂移拒写（`isWholeFileDrifted` 漂移判真/仅 CRLF 差异判假）；②快照→写盘→记录时序 + **快照失败 write/record 均不执行**（`performGuardedWriteback` reject 且 `vi.fn` 零调用）；③会话切换红线（`isRunResultForActiveSession` 全决策表：同会话→应用、切走→拒、新会话 null/null→应用、新会话后切走→拒）。可证伪：吞错回归→②的「write 未调用」红；守卫恒真→③的「切走→false」红；漂移误判→①红。
+  - **F27-Rust**：`cd apps/desktop/src-tauri && cargo test fs::` → **9 passed**（含新增 `write_file_stages_out_of_place_so_target_is_replaced_atomically` 证暂存阶段目标仍旧内容=原子性不变量、`write_file_overwrites_content_and_leaves_no_temp_residue` 证提交后无 `.tmp` 残渣）。
+  - **零回归**：`npm run typecheck` 绿；`node scripts/verify-unit.mjs`（既有 19 文件）→ **101 passed / 0 fail**（F26/F27 改动不破既有行为）；`pnpm.cmd lint` 0 error（仅 Editor.tsx:308 存量 warning）+ Prettier 全过。双跑 `npm run test` 冷启 vitest ~9.6s、暖跑 ~0.5s，verify 总时长增量可忽略。
+- **未验 / 不做**（登记备查）：既有 19 测试文件**迁入 vitest + 删 verify-unit.mjs** 是「双跑一个 PR 周期后」的后续，本刀不做（故仍 node:test/vitest 双 runner 并存）。三条红线测的是**抽出的纯核心决策**（happy-dom env 已就位，DOM/组件挂载级行为测试随 19 文件迁入时补）；ChatWindow 全量 happy-dom 挂载（monaco/WS 依赖重）不在本刀。真机「切会话中途 run 完成不串台 / 快照失败不落盘 / 崩溃不留截断文件」桌面观感归 E2E-1。F27 原子写的「崩溃中途」属结构性保证（temp+rename），单测只证「暂存不碰目标」这一不变量，非真崩溃注入。
