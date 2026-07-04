@@ -1,9 +1,9 @@
 """读 DB → 填注入键的装配层。
 
 把 Character Bible / Style Pack / Blueprint / 活跃 Memory Atom 编译成
-workflow prompts.context.narrative_context_from_state 可消费的注入键字典。
-本层只读数据库、产出纯 dict，不 import workflow（API venv 无 langgraph），
-真正的分层 prompt 渲染由 workflow_prompt_bridge 跨进程边界完成。
+prompts.context.narrative_context_from_state 可消费的注入键字典。
+本层只读数据库、产出纯 dict；真正的分层 prompt 渲染由进程内
+app.domains.book_runs.prompts.build_draft_prompt_from_state 完成。
 
 Phase 1 Context 增量化：引入 BookContext 单例缓存，消除每章全量重建的 O(N²) 问题。
 """

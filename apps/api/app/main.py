@@ -81,6 +81,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     warn_default_credentials()
     bootstrap_sqlite_database()
     _log_sqlite_schema_state()
+    _log_prompt_layer_state()
     _reap_stale_agent_runs()
     logger.info("storyforge_api_started")
     yield
@@ -105,6 +106,19 @@ def _log_sqlite_schema_state() -> None:
         )
     except Exception:  # noqa: BLE001 - 观测性日志失败不应影响起服
         logger.warning("sqlite_schema_state_log_failed", exc_info=True)
+
+
+def _log_prompt_layer_state() -> None:
+    """起服后确认进程内分层 prompt 构建器可用；sidecar-smoke 以此判定 F05 死路是否收口
+    （旧版按文件路径桥接相邻 apps/workflow，装机 exe 内该目录不存在会在 bookrun.start 才炸；
+    现 prompts 迁入 app.domains.book_runs.prompts 随 collect_submodules('app') 打包，此处即证其装配可达）。"""
+
+    try:
+        from app.domains.book_runs.prompts import build_draft_prompt_from_state
+
+        logger.info("prompt_layer_bundled", callable=callable(build_draft_prompt_from_state))
+    except Exception:  # noqa: BLE001 - 观测性日志失败不应影响起服
+        logger.warning("prompt_layer_state_log_failed", exc_info=True)
 
 
 def _reap_stale_agent_runs() -> None:

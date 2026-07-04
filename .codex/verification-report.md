@@ -4905,3 +4905,25 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `pytest test_api_surface test_source_pruning test_api_middleware` → 35 passed(护栏 + batch 限流分层不受 router 卸载影响)。
   - `cd apps/api && uv run pytest -q`(全量):**847 passed / 3 skipped**(= W3 855 − 9 删除的冻结域 HTTP 测试 + 1 新增 frozen-guard;delta 恰为本刀意图,零意外回归)。
 - **未验 / 不做**(登记):桌面全功能真机冒烟归 E2E-1(sidecar-smoke 已覆盖 assistant+WS 起服无损,但非全 GUI);frozen 域**物理删除**(打 attic tag + 逐域 grep)不在 W4,按判据后评;batch-2(workspaces/assets/prompt_packs/evaluations)与 service-live 域(studio/style_packs)router 卸载留后续增量。models 一行不删——打碎 `app/models.py` 建表会连累 live。
+
+---
+
+# 2026-07-04 W5(core):workflow 分层 prompt + 技能审计迁入 API(修 F05 装机死路) 验证记录
+
+- **范围**(蓝图 `docs/internal/arch-review-blueprint-2026-07-03.md` §7 W5 核心,拆 F05「装机 exe 内 bookrun.start prompt 装配走 importlib 跨进程桥接、相邻 apps/workflow 目录不存在 → 运行时才炸」):把 workflow 的**纯函数**分层 prompt 构建器与技能审计投影迁入 API 进程内包,拆掉两座 importlib 文件路径桥,让 prompt 装配随 `collect_submodules('app')` 打进冻结 exe。W5 的高风险步(物理删除整个 `apps/workflow` app + 删第 7 LLM 客户端)本刀**不做**,留后续增量。
+- **discovery-first 关键结论**(派 Explore 逐文件核实):`storyforge_workflow/prompts/`(7 文件 ~1150 行)+ `skills/audit.py` 均为**纯函数**——只 stdlib + 内部 `prompts.*` 互引,**零回引 workflow 运行时**(langgraph/runtime/graph),故可干净迁移。因 `apps/workflow` 本刀不删、其自身测试仍依赖原文件,采**复制而非移动**(重复暂存,随 workflow 物理删除时回收)。
+- **落地**:
+  - 新包 `apps/api/app/domains/book_runs/prompts/`(8 文件):`__init__.py` / `builder.py` / `context.py` / `models.py` / `_render.py` / `_sections.py` / `_continuity_budget.py` + `audit.py`。内部绝对导入 `storyforge_workflow.prompts.*` → `app.domains.book_runs.prompts.*`(9 处,sed 批改后 grep 核零残留)。
+  - 两个 wrapper 就地重置:`build_draft_prompt_from_state`(原 `workflow_prompt_bridge`)并入 `prompts/__init__.py`(直接调 `narrative_context_from_state` + `build_draft_prompt`,不再 importlib 按路径加载);`derive_book_run_skill_chain` + `_to_jsonable`(原 `workflow_skill_audit_bridge`)并入 `prompts/audit.py`。
+  - 3 处导入点改指进程内包:`book_generation.py`(draft prompt 装配)、`exports/book_markdown_exporter.py`(审计报告技能链)、`tests/test_prompt_assembly.py`;`prompt_assembly.py` docstring 同步(不再提「跨进程边界」)。**删两座桥** `workflow_prompt_bridge.py` / `workflow_skill_audit_bridge.py`(`git rm`,全仓 grep 零残留引用)。
+  - `main.py` 起服自检 `_log_prompt_layer_state()`:import 进程内 `build_draft_prompt_from_state` 并 `logger.info("prompt_layer_bundled", callable=...)`——给 sidecar-smoke 一个直指 F05 的确定性断言锚点(旧桥指相邻 apps/workflow,装机 exe 内不存在会 bookrun.start 才炸;现随 `collect_submodules('app')` 打包,此处即证装配可达)。`book_generation` 已被 `ide/router.py` + `assistant/service.py` 在起服链模块级 import → 新包成为起服硬依赖,漏打即起服炸。
+  - `scripts/sidecar-smoke.mjs` 加 `assertPromptLayerBundled`(比对 `prompt_layer_bundled` + 拒 `callable=false`),daily/packaged 两档均断言。
+  - PyInstaller **无需改 spec**:新包在 `app.domains.*` 下,`collect_submodules('app')` 自动打包。
+- **证据**:
+  - `tests/test_prompt_assembly.py`(改导入路径)+ `tests/test_book_run_recorded_skill_runs_export.py` → **11 passed**:迁移后 draft prompt 分层装配与审计技能链投影逐条不变。
+  - book_runs + export 全面:`pytest test_book_export_epub test_book_exporter test_book_generation{,_llm_retry,_long_wrapper,_parallel,_parallel_wrapper} test_book_run_{budget,resume,start,workflow_dispatch} test_book_runs test_exports` → **151 passed**(deterministic BookRun 最小闭环 + EPUB/Markdown/审计报告导出资产无损)。
+  - **packaged 冻结 exe 冒烟(F05 硬门禁)**:`pnpm smoke:sidecar:packaged` → 构建冻结 exe(bundle 新包)→ 起服 4672ms → assistant 往返 + Agent WS + `managed=true`(W2 不回归)+ **`分层 prompt 构建器已随 exe 打包(F05 死路已收口)`** → 全绿。即证 prompts 已随 exe 打包、bookrun.start 装配路径在装机态可达(旧桥此处会 ModuleNotFound 起服炸)。
+  - `uv run ruff check .`(全 apps/api)All checks passed(顺手删 W3 遗留 `tests/test_llm_client_channel.py:17` 死 import `from app.common import llm_client`——bare 模块名全文件未用、行 18 已具名导入符号,1 行 F401 清理保 ruff 门禁绿)。
+  - `cd apps/api && uv run pytest -q`(全量,零测试改动 gate):**847 passed / 3 skipped**(= W4 基线,迁移只改导入路径不增删用例,零回归)。
+  - `pnpm e2e`(drift + 契约):**21/21 pass**,drift 绿(本刀无路由变更,`main.py` 只加起服日志函数,OpenAPI 不变)。
+- **未验 / 不外推 / 本刀不做**(登记备查):`apps/workflow` app **物理删除**(打 attic tag + 逐引用 grep + 迁移其自身测试)与**第 7 LLM 客户端 `workflow/provider_client.py` 删除**是 W5 高风险步,本刀不做,留后续——故 prompts 目前在 api 与 workflow **双存**(api 是 live 唯一装机路径,workflow 副本随物理删除回收)。真机「装机 exe 双击 → bookrun.start 真装配」归 E2E-1(sidecar-smoke 已证 exe 内装配可达 + 起服硬依赖,但非真机 GUI 全程)。真 key headless 长程复跑归真跑轨,未在本刀执行。
