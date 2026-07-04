@@ -232,6 +232,9 @@ class ChatLoopOutcome:
     rounds: int = 0
     tool_call_count: int = 0
     completion_tokens: int = 0
+    prompt_tokens: int = 0
+    # BYO-key 成本进证据链（F32）：累加每轮 chat/completions 估算成本，供 assistant.chat_loop 证据记账。
+    cost_cny_estimated: float = 0.0
     exhausted: bool = False
     review_report: dict[str, Any] | None = None
     proposed_patch: dict[str, Any] | None = None
@@ -410,6 +413,12 @@ def run_chat_loop(
         completion_tokens = result.get("completion_tokens")
         if isinstance(completion_tokens, int):
             outcome.completion_tokens += completion_tokens
+        prompt_tokens = result.get("prompt_tokens")
+        if isinstance(prompt_tokens, int):
+            outcome.prompt_tokens += prompt_tokens
+        cost = result.get("cost_cny_estimated")
+        if isinstance(cost, (int, float)) and not isinstance(cost, bool):
+            outcome.cost_cny_estimated += float(cost)
         content = str(result.get("content") or "")
         tool_calls = result.get("tool_calls") if isinstance(result.get("tool_calls"), list) else []
 

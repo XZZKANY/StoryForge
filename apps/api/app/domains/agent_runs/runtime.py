@@ -482,7 +482,9 @@ class AgentRuntime:
                 output_summary={
                     "rounds": outcome.rounds,
                     "tool_call_count": outcome.tool_call_count,
+                    "prompt_tokens": outcome.prompt_tokens,
                     "completion_tokens": outcome.completion_tokens,
+                    "cost_cny_estimated": outcome.cost_cny_estimated,
                     "exhausted": outcome.exhausted,
                     "proposed_patch_id": (outcome.proposed_patch or {}).get("id"),
                 },

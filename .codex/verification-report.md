@@ -4946,3 +4946,19 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - **F27-Rust**：`cd apps/desktop/src-tauri && cargo test fs::` → **9 passed**（含新增 `write_file_stages_out_of_place_so_target_is_replaced_atomically` 证暂存阶段目标仍旧内容=原子性不变量、`write_file_overwrites_content_and_leaves_no_temp_residue` 证提交后无 `.tmp` 残渣）。
   - **零回归**：`npm run typecheck` 绿；`node scripts/verify-unit.mjs`（既有 19 文件）→ **101 passed / 0 fail**（F26/F27 改动不破既有行为）；`pnpm.cmd lint` 0 error（仅 Editor.tsx:308 存量 warning）+ Prettier 全过。双跑 `npm run test` 冷启 vitest ~9.6s、暖跑 ~0.5s，verify 总时长增量可忽略。
 - **未验 / 不做**（登记备查）：既有 19 测试文件**迁入 vitest + 删 verify-unit.mjs** 是「双跑一个 PR 周期后」的后续，本刀不做（故仍 node:test/vitest 双 runner 并存）。三条红线测的是**抽出的纯核心决策**（happy-dom env 已就位，DOM/组件挂载级行为测试随 19 文件迁入时补）；ChatWindow 全量 happy-dom 挂载（monaco/WS 依赖重）不在本刀。真机「切会话中途 run 完成不串台 / 快照失败不落盘 / 崩溃不留截断文件」桌面观感归 E2E-1。F27 原子写的「崩溃中途」属结构性保证（temp+rename），单测只证「暂存不碰目标」这一不变量，非真崩溃注入。
+
+---
+
+# 2026-07-04 F32:交互路径 BYO-key 成本记账进证据链 验证记录
+
+- **范围**（架构审计 advisory F32「BYO-key 成本可观测名存实亡」，蓝图 §4/§6 red-line「可观测=证据链本身，补 usage 记账」）：成本在唯一出网点 `llm_client._call_llm_messages`/`_call_llm` 已算出（`cost_cny_estimated` + `cost_breakdown`），但 **live 交互面**——agent 工具循环与 assistant 单轮（explain/revise/draft）——只把 `completion_tokens` 记进证据链，`cost_cny_estimated`/`prompt_tokens` 直接丢弃。**对抗核查结论**（Explore）：F23 已被 W0 删除+回归测试锁定（NOT-REAL）、F36 泄漏进前端改造面、F35 是功能级设计非 bug；**F32 是四条里唯一「真 + 高证据链价值 + 自包含 backend-only 低爆炸半径」的**（book_runs 侧成本已记账+Prometheus，故只补交互面，不外推「全部成本可观测」）。
+- **落地**（纯 backend、additive、零 schema/OpenAPI 变更——只往 free-form `output_summary` dict 加键，镜像既有 `completion_tokens` 管线）：
+  - `agent_runs/loop_runtime.py`：`ChatLoopOutcome` 加 `prompt_tokens` / `cost_cny_estimated` 字段；每轮 LLM 结果里 `prompt_tokens` / `cost_cny_estimated` 与 `completion_tokens` 一并累加（`cost` 收 `int|float` 且排除 `bool`）。
+  - `agent_runs/runtime.py`：`assistant.chat_loop` 证据 `output_summary` 补 `prompt_tokens` / `cost_cny_estimated`。
+  - `assistant/service.py`：explain/chat（:283）、revise（:360）、draft（:486）三条单轮证据 `output_summary` 各补 `prompt_tokens` / `cost_cny_estimated`（取自 `result.get(...)`）。
+- **证据**：
+  - 新增 `test_agent_loop_runtime.py::test_chat_loop_records_byo_key_cost_in_evidence`：两轮 fake provider 返回成本，断言 `assistant.chat_loop` 证据 `output_summary` 的 `prompt_tokens`=320 / `completion_tokens`=14 / `cost_cny_estimated`≈0.032（逐轮累加）。
+  - 扩 `test_assistant_revise.py` 首用例：fake 返回成本，断言 `assistant.revise` 证据 `output_summary` 含 `prompt_tokens`=310 / `cost_cny_estimated`≈0.031。
+  - `pytest test_agent_loop_runtime test_assistant_revise test_assistant_tool_calls test_agent_runs test_agent_llm_context` → 96 passed；`uv run ruff check`（改动文件）绿。
+  - 全量 `uv run pytest -q`：**848 passed / 3 skipped**（= W7 基线 847 + 本刀 1 新用例，零回归）。`pnpm e2e` 21/21 + drift 绿（`output_summary` 是 `dict[str, Any]` free-form，加键不动契约）。
+- **不外推 / 不做**：只补 live 交互面（agent 循环 + assistant 单轮），`book_runs` 成本记账（records + `book_generation_cost_cny_total` Prometheus）本已存在不动；成本仅进 **证据链 output_summary**，未加进 REST response schema（避免契约变更）、未做前端展示（前端改造中）、未做跨 key/跨 run 成本聚合面板（F32 记账是前提，聚合展示留后续）；成本为**估算**（`_cost_breakdown` 按价目表估，非 provider 实际账单）。
