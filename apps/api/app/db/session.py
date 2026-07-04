@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Generator
 from functools import lru_cache
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -73,23 +74,69 @@ def get_engine() -> Engine:
 
 
 def bootstrap_sqlite_database(engine: Engine | None = None) -> None:
-    """桌面/本地 SQLite 运行态没有 Alembic 服务时，用 ORM 元数据补齐表结构。"""
+    """桌面/本地 SQLite 起服的 schema 收口（W2，见 app/db/migrations.py）。
+
+    - 已纳管库（有 alembic_version）：``upgrade head`` 落地发版新增的 batch 安全迁移，堵 F01。
+    - 存量 create_all 库（有业务表、无 alembic_version）：备份 + quick_check + create_all 补表
+      + 补 agent_run_events 唯一索引 + ``stamp head``，一次性纳入 alembic 管理。
+    - 全新库：create_all 建表 + ``stamp head``。
+
+    历史迁移链无法在 SQLite 上从 base 重放，故建表仍靠 create_all；alembic 只管前向演进。
+    任一 alembic 步骤失败即回退纯 create_all 并告警，保证 sidecar 仍能起服。"""
 
     target_engine = engine or get_engine()
     if target_engine.dialect.name != "sqlite":
         return
 
     import app.models  # noqa: F401
+    from app.db import migrations
     from app.db.base import Base
 
-    Base.metadata.create_all(target_engine)
-    _ensure_agent_run_event_sequence_unique(target_engine)
+    existing_tables = set(inspect(target_engine).get_table_names())
+    has_alembic_version = "alembic_version" in existing_tables
+    has_business_tables = bool(existing_tables - {"alembic_version"})
+
+    try:
+        if has_alembic_version:
+            migrations.upgrade_head(target_engine)
+        elif has_business_tables:
+            _adopt_legacy_sqlite_database(target_engine, Base, migrations)
+        else:
+            Base.metadata.create_all(target_engine)
+            migrations.stamp_head(target_engine)
+    except Exception:  # noqa: BLE001 - 起服路径：alembic 收口失败回退 create_all，库仍可用
+        logging.getLogger(__name__).warning(
+            "sqlite alembic 收口失败，回退到 create_all（schema 未纳入 alembic 管理）。",
+            exc_info=True,
+        )
+        Base.metadata.create_all(target_engine)
+        _ensure_agent_run_event_sequence_unique(target_engine)
+
+
+def _adopt_legacy_sqlite_database(engine: Engine, base, migrations) -> None:
+    """把 W2 之前 create_all 建出的存量库纳入 alembic 管理：先备份、体检，
+    再补齐可能缺失的表与唯一索引，最后 stamp head（不重放历史迁移）。"""
+
+    from app.common.version import APP_VERSION
+
+    log = logging.getLogger(__name__)
+    healthy, detail = migrations.quick_check(engine)
+    if not healthy:
+        # 库损坏：中止纳管，抛出交由上层回退 create_all，不在损坏库上再动 schema。
+        raise RuntimeError(f"sqlite quick_check 失败，中止 alembic 纳管：{detail}")
+
+    migrations.backup_sqlite_database(engine, tag=APP_VERSION)
+    base.metadata.create_all(engine)  # 补齐存量库缺失的整表（不补列）
+    _ensure_agent_run_event_sequence_unique(engine)  # 镜像迁移 20260703_0001，create_all 不给存量表补索引
+    migrations.stamp_head(engine)
+    log.info("legacy sqlite 库已纳入 alembic 管理（stamp head）。")
 
 
 def _ensure_agent_run_event_sequence_unique(engine: Engine) -> None:
-    """create_all 不会给存量表补索引：老 sidecar 库先把并发竞态残留的重复
-    (run_id, sequence) 按 (sequence, id) 重排，再建唯一索引，使 record_agent_event
-    的冲突重试有约束可依。失败只告警不阻断起服（库仍可用，只是回到无约束现状）。"""
+    """老 sidecar 库先把并发竞态残留的重复 (run_id, sequence) 按 (sequence, id) 重排，
+    再建唯一索引，使 record_agent_event 的冲突重试有约束可依。逻辑与迁移
+    20260703_0001 一致，仅用于存量库纳管/回退（create_all 不给存量表补索引）；
+    失败只告警不阻断起服（库仍可用，只是回到无约束现状）。"""
 
     renumber_sql = """
     UPDATE agent_run_events SET sequence = (
@@ -110,8 +157,6 @@ def _ensure_agent_run_event_sequence_unique(engine: Engine) -> None:
                 "ON agent_run_events (run_id, sequence)"
             )
     except Exception:  # noqa: BLE001 - 起服路径，索引补齐失败不应让 sidecar 无法启动
-        import logging
-
         logging.getLogger(__name__).warning("agent_run_events 唯一索引补齐失败，跳过。", exc_info=True)
 
 

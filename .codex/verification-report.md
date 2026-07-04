@@ -4842,3 +4842,26 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `cd apps/desktop/src-tauri && cargo check` Finished(首轮 reqwest 未启用 json feature 报错,改 `.text()`+serde_json 解析修绿)。
   - **性能回归自捕**:`_reap_stale_agent_runs` 初版无 sqlite 守卫,`client` fixture 走 lifespan 时对默认 Postgres URL 连接超时,使每个用例 setup 挂 ~131s;加 dialect 守卫后单测 setup 131s→0.87s。
 - **未验 / 不外推**(归 E2E-1 真机清单,本波只落条目不执行):真机 GUI 多轮渲染;点停止→事件表无后续 tool_trace 的桌面端观感;超时→转后台轮询实际取回结果的 socket/WS 生命周期;强杀宿主→重启无孤儿且连新 sidecar 的版本握手实机验证;补丁确认与自动打开新文件观感。F09 中断粒度为「每轮开头」,不打断进行中的单轮真模型调用(设计如此)。
+
+---
+
+# 2026-07-04 W2:sqlite schema 单一事实源(唯一定时炸弹 F01 拆除) 验证记录
+
+- **范围**(蓝图 `docs/internal/arch-review-blueprint-2026-07-03.md` §7 W2,拆 critical 级审计发现 F01「发布态 sqlite 零迁移机制、双 schema 事实源已现漂移」):让 sidecar 起服跑 alembic 收口,alembic 成为 schema **前向演进**的单一事实源,解除 2026-07-03 起的 schema 冻结。
+- **关键设计事实(先证后写)**:实测 `alembic upgrade head` 在全新 sqlite 上**跑不通**——历史迁移链在 `20260527_0001` 用 `op.create_foreign_key`,SQLite 无 batch 时 `NotImplementedError`,只建出 14/45 表即崩。故不重写 23 条历史迁移(A3「移动不重写、不压扁」),采**混合设计**:建表仍由 `create_all` 负责,alembic 只承担版本记账 + 前向 ALTER。这正是拆 F01 所需——发版新增列写成 batch 安全迁移,存量库起服 `upgrade head` 补列,不再 create_all 只建表不 ALTER 而崩服。
+- **落地**:
+  - `apps/api/app/db/migrations.py`(新):`_alembic_script_location()` 兼顾源码(`parents[2]/alembic`)与冻结 exe(`sys.frozen`→`_MEIPASS/alembic`);`build_alembic_config` 编程构造 Config(不读盘 alembic.ini);`stamp_head` / `upgrade_head` 经 `config.attributes["connection"]` 注入现有连接复用 WAL 引擎;`head_revision` / `current_revision`;`backup_sqlite_database`(SQLite backup API 一致快照,命名 `<库>.pre-alembic-<版本>.bak`,`_prune_backups` 保留最近 3 份)+ `quick_check`。
+  - `apps/api/alembic/env.py`:`run_migrations_online` 优先用注入连接(无则自建 NullPool),`_run_migrations_with_connection` 对 sqlite 置 `render_as_batch=True`。
+  - `apps/api/app/db/session.py::bootstrap_sqlite_database` 重写为三分支:已纳管(有 `alembic_version`)→`upgrade_head`;存量 create_all 库(有业务表、无 `alembic_version`)→`_adopt_legacy_sqlite_database`(quick_check 失败即抛错中止 → 备份 → create_all 补表 → 补 agent_run_events 唯一索引[镜像迁移 20260703_0001,create_all 不给存量表补索引] → `stamp_head`);全新库→create_all + `stamp_head`。任一 alembic 步骤异常回退纯 create_all + 唯一索引并告警,保证 sidecar 仍起服(create_all 保留为回退)。删每次起服都跑的 `_ensure_agent_run_event_sequence_unique` 调用,收敛为仅纳管/回退触发。
+  - `apps/api/app/main.py::_log_sqlite_schema_state`:起服后记 `sqlite_schema_ready revision=/head=/managed=`,冻结 exe 漏打 alembic 脚本 → 回退 create_all → managed=false 即暴露。
+  - `apps/desktop/scripts/build-api-sidecar.mjs`:加 `--add-data <alembic>{;|:}alembic` 把迁移脚本打进冻结 exe。
+  - `scripts/sidecar-smoke.mjs`:两档 smoke 收尾断言 `sqlite_schema_ready` 存在且 `managed=true`(剥 ANSI 后正则),把「冻结 exe 漏打脚本/收口静默失败」变成红。
+- **证据**:
+  - **F01 拆除实证**:`tests/test_sqlite_migrations.py::test_managed_db_applies_pending_migration` — 已纳管库删 `project_path` 列 + stamp 到该列引入前版本,起服 `bootstrap_sqlite_database` 走 `upgrade head` 把列补回、版本推到 head。**这是 create_all-only 时代必崩、混合设计已拆的定时炸弹场景**。
+  - `cd apps/api && uv run pytest tests/test_sqlite_migrations.py tests/test_db_session.py -q` → **18 passed**(8 迁移 + 10 既有 db_session)。覆盖:全新 stamp head;存量库纳管后逐表逐列 == 全新库 + 留一份备份;唯一索引纳管补回;head down/up 往返(downgrade 可用性);备份保留 3 份;quick_check 失败回退不 stamp;非 sqlite 直接返回。
+  - `node scripts/sidecar-smoke.mjs`(daily 档,源码 run_windows.py):就绪 3350ms,assistant 往返 + WS 一轮 + **sqlite schema managed=true** 全绿。
+  - `node scripts/sidecar-smoke.mjs --packaged`(packaged 档,PyInstaller 冻结 exe):构建成功、就绪 4164ms、**冻结 exe 内 alembic 脚本可达、schema managed=true** 全绿——证明 `--add-data` 打包 + `_MEIPASS` 定位在发布形态真跑通。
+  - `uv run ruff check app/db app/main.py tests/test_sqlite_migrations.py alembic/env.py` All checks passed。
+  - `pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过。
+  - `cd apps/api && uv run pytest -q`(全量回归):**844 passed / 3 skipped**(6 条 warning 均为既有、与本波无关),起服路径改写零回归。
+- **未验 / 不外推**(归 E2E-1 真机清单):真机「旧版 NSIS 存量库换新 exe 起服 → 会话史完整 → schema 纳管」端到端;存量库纳管的 backup/quick_check/stamp 只在 fixture 与本机 smoke 验证,未在真实旧版安装包库上跑。历史 pg 迁移(24 条)未压扁(蓝图定的止损点),pg 侧仍走既有 `alembic upgrade head` 部署路径,本波不改。混合设计的边界:SQLite 建表仍靠 create_all,新迁移必须 batch 安全 + 带 downgrade(约定见 `CLAUDE.md` §6),否则 `upgrade head` 会在存量库上崩——此约束靠评审与 downgrade fixture 守,未加 lint 硬约束。
