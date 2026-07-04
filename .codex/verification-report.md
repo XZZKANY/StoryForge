@@ -4886,3 +4886,22 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `uv run ruff check .`(全 apps/api,含新 TID banned-api)All checks passed。
   - `cd apps/api && uv run pytest -q`(全量回归,零测试改动 gate):**855 passed / 3 skipped**(= master 844 + 本刀新增 11 channel 测试,既有用例零改动)。移动 + 别名 + loop_runtime 重指 + story_state/judge 改写零回归。
 - **未验 / 不外推 / 本刀不做**(登记备查):judge/story_state 仍走 httpx(未统一到 urllib 通道,只统一了配置源与脱敏);retrieval embedding/reranker(独立 `STORYFORGE_EMBEDDING_*`/`RERANKER_*` 命名空间)、workflow `provider_client.py`(第 7 客户端,W5 将随 workflow 吸收删除)本刀不动;usage 记入 assistant_tool_calls + 流式回调缝、fake-provider bearer/api-key×429×reasoning-leak 的三客户端一致性矩阵(本刀只覆盖单通道自身)属 F16 后续;`headless 复跑证据续期` 需真 key,归真机/真跑轨,未在本刀执行(与 W1/W2 一致,代码级 gate 用 fake-provider 矩阵 + 全量 pytest 兜底)。banned-api 只禁 `urllib.request`,不禁 httpx(judge/story_state/embedding/reranker 仍合法用 httpx)。
+
+---
+
+# 2026-07-04 W4(batch-1):死域冻结隔离 验证记录
+
+- **范围**(蓝图 §7 W4,拆 F04「38 域/45 表超配、AI 上下文噪音」):建立 `DOMAINS.md` 三档清单(live/backing/frozen)作新会话第一入口,并卸载第一批 frozen router。**discovery-first**:先派 Explore 逐域实证调用面(前端 grep + 跨域 import + 测试),否决蓝图「9 可直删」的乐观清单——实证 9 域是 **models-only / service-live**(workspaces.models←live ide 审计/artifacts/events;assets.models←live scene_packets;prompt_packs.models←live model_runs;studio.service←live ide;style_packs.service←live book_runs 生成链),目录与 models/service **必须保留**。
+- **本刀只卸载 4 个零耦合 frozen router**(零前端 + 零 backing 域 import 其 service):`analytics`、`batch_refinery`、`collaboration`、`commercial`。`collaboration`/`commercial` 的 `models.py` 仍在 `app/models.py` 聚合建表,故**保留目录**。studio/style_packs/workspaces/assets/prompt_packs/series/worldbuilding/evaluations 的 router 卸载(service/models 是 live 依赖或蓝图 batch-2)留后续,已在 DOMAINS.md 登记。
+- **落地**:
+  - `app/domains/DOMAINS.md`(新):全域三档表 + models-only/service-live 逐条注明「不可删目录」的 live 依赖点 + 冻结/删除红线;`CLAUDE.md` §5 加指路(新会话第一入口)。
+  - `main.py`:删 4 域 import + `include_router`(回滚 = 加回一行)。
+  - 护栏 `tests/test_api_surface.py::test_frozen_domain_routers_stay_unmounted`:4 前缀不得进 `app.routes`(过滤 `/__test__/` 限流探针,避开 test_api_middleware 向全局 app 注入的 batch 探针路由),重新 include_router 即红——可证伪。
+  - 删 4 个纯 HTTP 测试文件(analytics/batch_refinery/collaboration/commercial);改 `test_source_pruning.py`(batch-refinery 的 present 断言移交 test_api_surface 护栏)、`tests/e2e/phase2-contract.spec.ts` / `phase3-contract.spec.ts`(移除已卸载域的契约断言,保留 series/style-packs/workspaces/provider-gateway)。
+- **证据**:
+  - `pnpm openapi` 刷新:契约 paths **109 → 100**,removed 恰为 4 前缀下 9 条,**zero added**(逐 path set 比对)。
+  - `pnpm e2e`(drift + 契约):**21/21 pass**,drift 绿。
+  - `uv run ruff check`(main.py + 改动测试)All checks passed;`pnpm.cmd lint` 0 error(仅 Editor.tsx 存量 warning)+ Prettier 全过。
+  - `pytest test_api_surface test_source_pruning test_api_middleware` → 35 passed(护栏 + batch 限流分层不受 router 卸载影响)。
+  - `cd apps/api && uv run pytest -q`(全量):**847 passed / 3 skipped**(= W3 855 − 9 删除的冻结域 HTTP 测试 + 1 新增 frozen-guard;delta 恰为本刀意图,零意外回归)。
+- **未验 / 不做**(登记):桌面全功能真机冒烟归 E2E-1(sidecar-smoke 已覆盖 assistant+WS 起服无损,但非全 GUI);frozen 域**物理删除**(打 attic tag + 逐域 grep)不在 W4,按判据后评;batch-2(workspaces/assets/prompt_packs/evaluations)与 service-live 域(studio/style_packs)router 卸载留后续增量。models 一行不删——打碎 `app/models.py` 建表会连累 live。

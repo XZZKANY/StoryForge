@@ -6,17 +6,16 @@ API_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_batch_refinement_compatibility_api_stays_pruned() -> None:
-    """旧批量精修兼容 API 已下线，当前主链路应保持 batch-refinery。"""
+    """旧批量精修兼容 API（batch-refinement）已下线，不应重新出现。
+
+    注：batch-refinery（'ry'）自 W4 起作为冻结域卸载 router，其 router 卸载护栏见
+    test_api_surface.py::test_frozen_domain_routers_stay_unmounted（此处只守旧 'ment' 兼容域）。"""
 
     domain_dir = API_ROOT / "app" / "domains" / "batch_refinement"
-    registered_paths = {route.path for route in app.routes}
     openapi_paths = set(app.openapi()["paths"])
 
     assert not domain_dir.exists(), "batch_refinement 旧兼容域不应重新出现。"
-    assert not any(path.startswith("/api/batch-refinement") for path in registered_paths)
     assert not any(path.startswith("/api/batch-refinement") for path in openapi_paths)
-    assert any(path.startswith("/api/batch-refinery") for path in registered_paths)
-    assert any(path.startswith("/api/batch-refinery") for path in openapi_paths)
 
 
 def test_legacy_top_level_health_route_stays_pruned() -> None:

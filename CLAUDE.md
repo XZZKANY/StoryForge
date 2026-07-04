@@ -119,6 +119,7 @@ npm --prefix apps/desktop/frontend run test
 - **API 是业务真相源。** 任何流程的判定都在 FastAPI 路由 + service 层完成；前端不允许私自计算业务结论。
 - **Desktop IDE 是主体验。** 新的用户工作流默认落在 `apps/desktop`；Tauri 主进程负责本地文件系统、服务启动和 API 配置注入。
 - **Web 已退场。** 不新增 `apps/web` 代码、脚本、容器或测试；需要前端能力时优先落在 `apps/desktop`。
+- **域分档看 `apps/api/app/domains/DOMAINS.md`（新会话第一入口）。** live 产品面很小；大量域是 web / 多租户 / 自动整书遗产，已 **frozen**（router 卸载或可卸载）。判断某域是否值得读、能否改先查该清单。2026-07-04 W4 已卸载 `analytics` / `batch_refinery` / `collaboration` / `commercial` 四个 frozen router（护栏 `tests/test_api_surface.py`，回滚 = 加回一行 `include_router`）；冻结只卸 router 不删 `models.py`（打碎 `app/models.py` 建表会连累 live）。
 - **Workflow 负责长任务边界。** 真实模型调用、checkpoint、ModelRun 记录都在 workflow，确保 API 始终保持事务边界清晰。
 - **OpenAPI 是后端对客户端的硬契约。** 任何路由签名变化都必须 `pnpm openapi` 刷新快照，并解释 diff 来源。
 
