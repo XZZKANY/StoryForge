@@ -33,6 +33,7 @@ import { ActivityBar } from './components/shell/ActivityBar';
 import { SidePanel } from './components/shell/SidePanel';
 import { StatusBar } from './components/shell/StatusBar';
 import { EditorTabs, type CenterTab } from './components/shell/EditorTabs';
+import { ObsPanel, obsCounts, type Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
 
 export function App() {
@@ -44,6 +45,10 @@ export function App() {
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
   // 预览页签：单击树里的文件先进预览（斜体、可被覆盖），双击/编辑固定为 currentFile。
   const [previewFile, setPreviewFile] = useState<string | null>(null);
+  // 观测面板：底部 Problems 式面板。observations 现为空（诚实空态，不伪造）——
+  // 真实 advisory / 一致性信号产生在 agent run 内，待后续从 ChatWindow 上提到此 store。
+  const [obsPanelOpen, setObsPanelOpen] = useState(false);
+  const [observations, setObservations] = useState<Observation[]>([]);
   const appDialog = useAppDialog();
   const shell = useShellState();
 
@@ -350,10 +355,15 @@ export function App() {
     },
   });
 
+  const resolveObservation = useCallback((id: string) => {
+    setObservations((prev) => prev.map((o) => (o.id === id ? { ...o, resolved: true } : o)));
+  }, []);
+
   const projectOpen = Boolean(activeProject);
   const modelLabel =
     settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
+  const obs = obsCounts(observations);
   const displayedFile = previewFile ?? currentFile;
   const centerHasTabs = settingsVisible || projectOpen;
   const activeCenterTab: CenterTab | null = settingsVisible
@@ -406,6 +416,7 @@ export function App() {
               onFileSelect={openFile}
               onFilePreview={previewFileOpen}
               onStartNewBook={handleStartNewBook}
+              onOpenObsPanel={() => setObsPanelOpen(true)}
             />
           )}
         </div>
@@ -459,6 +470,13 @@ export function App() {
                   </section>
                 )}
               </div>
+              {obsPanelOpen && projectOpen && (
+                <ObsPanel
+                  observations={observations}
+                  onClose={() => setObsPanelOpen(false)}
+                  onResolve={resolveObservation}
+                />
+              )}
             </>
           ) : (
             <WelcomeWorkspace
@@ -503,6 +521,8 @@ export function App() {
         modelLabel={modelLabel}
         theme={settings.theme}
         projectOpen={projectOpen}
+        obs={obs}
+        onToggleObs={() => setObsPanelOpen((open) => !open)}
         onToggleTheme={toggleTheme}
         onToggleRight={shell.toggleRight}
       />
