@@ -10,9 +10,12 @@ import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
 type ResourceExplorerProps = {
   projectPath: string | null;
   currentFile: string | null;
+  previewFile?: string | null;
   refreshVersion?: number;
   showHeader?: boolean;
   onFileSelect: (filePath: string) => void;
+  // 单击预览（可覆盖的斜体页签），双击固定；不传则单击直接固定（旧行为）。
+  onFilePreview?: (filePath: string) => void;
 };
 
 type TreeNode = {
@@ -80,9 +83,11 @@ function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
 export function ResourceExplorer({
   projectPath,
   currentFile,
+  previewFile = null,
   refreshVersion = 0,
   showHeader = true,
   onFileSelect,
+  onFilePreview,
 }: ResourceExplorerProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -186,7 +191,9 @@ export function ResourceExplorer({
                     node={node}
                     level={0}
                     currentFile={currentFile}
+                    previewFile={previewFile}
                     onFileSelect={onFileSelect}
+                    onFilePreview={onFilePreview}
                   />
                 ))}
               </div>
@@ -202,21 +209,31 @@ const TreeNodeItem = memo(function TreeNodeItem({
   node,
   level,
   currentFile,
+  previewFile,
   onFileSelect,
+  onFilePreview,
 }: {
   node: TreeNode;
   level: number;
   currentFile: string | null;
+  previewFile: string | null;
   onFileSelect: (filePath: string) => void;
+  onFilePreview?: (filePath: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const isActive = node.path === currentFile;
+  const isPreview = !isActive && node.path === previewFile;
 
   const handleToggle = useCallback(() => {
     setIsOpen((prev) => !prev);
   }, []);
 
   const handleSelect = useCallback(() => {
+    if (onFilePreview) onFilePreview(node.path);
+    else onFileSelect(node.path);
+  }, [node.path, onFileSelect, onFilePreview]);
+
+  const handlePin = useCallback(() => {
     onFileSelect(node.path);
   }, [node.path, onFileSelect]);
 
@@ -258,7 +275,9 @@ const TreeNodeItem = memo(function TreeNodeItem({
                 node={child}
                 level={level + 1}
                 currentFile={currentFile}
+                previewFile={previewFile}
                 onFileSelect={onFileSelect}
+                onFilePreview={onFilePreview}
               />
             ))}
           </div>
@@ -270,12 +289,20 @@ const TreeNodeItem = memo(function TreeNodeItem({
   return (
     <button
       onClick={handleSelect}
+      onDoubleClick={handlePin}
       data-testid="file-item"
       data-file-name={node.name}
       data-file-path={node.path}
+      data-preview={isPreview ? 'true' : undefined}
       className={`
         sf-tree-row transition-colors group cursor-pointer
-        ${isActive ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}
+        ${
+          isActive
+            ? 'bg-elevated text-foreground'
+            : isPreview
+              ? 'bg-elevated/60 italic text-foreground outline-dashed outline-1 -outline-offset-1 outline-border-strong'
+              : 'text-muted hover:bg-elevated'
+        }
       `}
     >
       <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>

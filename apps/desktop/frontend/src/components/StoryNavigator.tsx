@@ -17,8 +17,10 @@ import { MarkdownFileIcon } from './StoryIcons';
 type StoryNavigatorProps = {
   projectPath: string | null;
   currentFile: string | null;
+  previewFile?: string | null;
   refreshVersion?: number;
   onFileSelect: (filePath: string) => void;
+  onFilePreview?: (filePath: string) => void;
 };
 
 type NavigatorTab = 'files' | 'story';
@@ -58,8 +60,10 @@ export function buildStoryNavigationGroups(files: SemanticFile[]) {
 export function StoryNavigator({
   projectPath,
   currentFile,
+  previewFile = null,
   refreshVersion = 0,
   onFileSelect,
+  onFilePreview,
 }: StoryNavigatorProps) {
   const [activeTab, setActiveTab] = useState<NavigatorTab>('files');
   const [index, setIndex] = useState<ProjectIndex | null>(null);
@@ -128,18 +132,22 @@ export function StoryNavigator({
           <ResourceExplorer
             projectPath={projectPath}
             currentFile={currentFile}
+            previewFile={previewFile}
             refreshVersion={refreshVersion}
             showHeader={false}
             onFileSelect={onFileSelect}
+            onFilePreview={onFilePreview}
           />
         ) : (
           <StoryIndexView
             projectPath={projectPath}
             currentFile={currentFile}
+            previewFile={previewFile}
             loading={loading}
             error={error}
             storyGroups={storyGroups}
             onFileSelect={onFileSelect}
+            onFilePreview={onFilePreview}
           />
         )}
       </div>
@@ -174,17 +182,21 @@ function NavigatorTabButton({
 function StoryIndexView({
   projectPath,
   currentFile,
+  previewFile,
   loading,
   error,
   storyGroups,
   onFileSelect,
+  onFilePreview,
 }: {
   projectPath: string | null;
   currentFile: string | null;
+  previewFile: string | null;
   loading: boolean;
   error: string | null;
   storyGroups: ReturnType<typeof buildStoryNavigationGroups>;
   onFileSelect: (filePath: string) => void;
+  onFilePreview?: (filePath: string) => void;
 }) {
   if (!projectPath) {
     return (
@@ -222,7 +234,9 @@ function StoryIndexView({
           description={group.description}
           files={group.files}
           currentFile={currentFile}
+          previewFile={previewFile}
           onFileSelect={onFileSelect}
+          onFilePreview={onFilePreview}
         />
       ))}
     </div>
@@ -234,13 +248,17 @@ function StoryGroup({
   description,
   files,
   currentFile,
+  previewFile,
   onFileSelect,
+  onFilePreview,
 }: {
   kind: SemanticKind;
   description: string;
   files: SemanticFile[];
   currentFile: string | null;
+  previewFile: string | null;
   onFileSelect: (filePath: string) => void;
+  onFilePreview?: (filePath: string) => void;
 }) {
   return (
     <section className="px-2 pb-3" data-testid="story-group" data-story-kind={kind}>
@@ -257,6 +275,7 @@ function StoryGroup({
       <div className="flex flex-col gap-0.5">
         {files.map((file) => {
           const active = file.path === currentFile;
+          const preview = !active && file.path === previewFile;
           return (
             <button
               key={file.path}
@@ -265,11 +284,14 @@ function StoryGroup({
               className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left transition-colors ${
                 active
                   ? 'bg-accent text-accent-foreground'
-                  : 'text-muted hover:bg-elevated hover:text-foreground'
+                  : preview
+                    ? 'italic text-foreground outline-dashed outline-1 -outline-offset-1 outline-border-strong'
+                    : 'text-muted hover:bg-elevated hover:text-foreground'
               }`}
               data-testid="story-file"
               data-story-kind={kind}
-              onClick={() => onFileSelect(file.path)}
+              onClick={() => (onFilePreview ? onFilePreview(file.path) : onFileSelect(file.path))}
+              onDoubleClick={() => onFileSelect(file.path)}
             >
               <span className={active ? 'text-accent-foreground' : 'text-muted'}>
                 <MarkdownFileIcon />

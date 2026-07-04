@@ -32,6 +32,7 @@ import { Titlebar } from './components/shell/Titlebar';
 import { ActivityBar } from './components/shell/ActivityBar';
 import { SidePanel } from './components/shell/SidePanel';
 import { StatusBar } from './components/shell/StatusBar';
+import { EditorTabs, type CenterTab } from './components/shell/EditorTabs';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
 
 export function App() {
@@ -41,6 +42,8 @@ export function App() {
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
+  // 预览页签：单击树里的文件先进预览（斜体、可被覆盖），双击/编辑固定为 currentFile。
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
   const appDialog = useAppDialog();
   const shell = useShellState();
 
@@ -63,6 +66,20 @@ export function App() {
     onProjectSelected: handleProjectSelected,
     onFileSelected: handleWorkspaceFileSelected,
   });
+
+  // 固定打开文件（清预览、切出设置）；预览仅暂存路径，不落 currentFile。
+  const openFile = useCallback(
+    (path: string) => {
+      setPreviewFile(null);
+      setSettingsVisible(false);
+      handleFileSelect(path);
+    },
+    [handleFileSelect],
+  );
+  const previewFileOpen = useCallback((path: string) => {
+    setSettingsVisible(false);
+    setPreviewFile(path);
+  }, []);
 
   useEffect(() => {
     saveAppSettings(settings);
@@ -142,9 +159,9 @@ export function App() {
 
   useEffect(() => {
     return registerSmokeFileLoader((path: string) => {
-      handleFileSelect(path);
+      openFile(path);
     });
-  }, [handleFileSelect]);
+  }, [openFile]);
 
   // Agent 补丁可能指向未打开（甚至尚不存在）的文件：自动打开目标文件，
   // 编辑器加载完成后经 takePendingFileSuggestion 领取补丁进入确认面板。
@@ -157,13 +174,13 @@ export function App() {
       const projectPrefix = normalize(activeProject).replace(/\/+$/, '') + '/';
       if (!target.startsWith(projectPrefix)) return;
       if (currentFile && normalize(currentFile) === target) return;
-      handleFileSelect(suggestion.filePath);
+      openFile(suggestion.filePath);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => {
       window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     };
-  }, [activeProject, currentFile, handleFileSelect]);
+  }, [activeProject, currentFile, openFile]);
 
   const handleFileClose = useCallback(() => {
     closeFile();
@@ -201,7 +218,7 @@ export function App() {
         } else {
           await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
         }
-        handleFileSelect(filePath);
+        openFile(filePath);
       } catch (error) {
         console.error('新建文件失败', error);
         await appDialog.alert({
@@ -210,7 +227,7 @@ export function App() {
         });
       }
     },
-    [activeProject, appDialog, handleFileSelect, handleOpenProject],
+    [activeProject, appDialog, openFile, handleOpenProject],
   );
 
   const handleInitializeStoryProject = useCallback(
@@ -337,6 +354,15 @@ export function App() {
   const modelLabel =
     settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
+  const displayedFile = previewFile ?? currentFile;
+  const centerHasTabs = settingsVisible || projectOpen;
+  const activeCenterTab: CenterTab | null = settingsVisible
+    ? 'settings'
+    : previewFile && previewFile !== currentFile
+      ? 'preview'
+      : currentFile
+        ? 'file'
+        : null;
 
   return (
     <div
@@ -367,6 +393,7 @@ export function App() {
               projects={projects}
               activeProject={activeProject}
               currentFile={currentFile}
+              previewFile={previewFile}
               projectRefreshVersion={projectRefreshVersion}
               activeAssistantSessionId={
                 activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
@@ -376,35 +403,63 @@ export function App() {
               onNewProjectSession={handleNewProjectSession}
               onOpenProject={handleOpenProject}
               onNewFile={handleNewFile}
-              onFileSelect={handleFileSelect}
+              onFileSelect={openFile}
+              onFilePreview={previewFileOpen}
               onStartNewBook={handleStartNewBook}
             />
           )}
         </div>
 
         <main className="flex min-w-0 flex-1 flex-col bg-background" data-testid="shell-center">
-          {settingsVisible ? (
-            <div className="min-h-0 flex-1">
-              <SettingsView
-                settings={settings}
-                onChange={setSettings}
-                onClose={() => setSettingsVisible(false)}
+          {centerHasTabs ? (
+            <>
+              <EditorTabs
+                currentFile={currentFile}
+                previewFile={previewFile}
+                settingsOpen={settingsVisible}
+                activeTab={activeCenterTab}
+                rightCollapsed={shell.rightCollapsed}
+                onFocusFile={() => {
+                  setSettingsVisible(false);
+                  setPreviewFile(null);
+                }}
+                onFocusPreview={() => setSettingsVisible(false)}
+                onPinPreview={() => {
+                  if (previewFile) openFile(previewFile);
+                }}
+                onFocusSettings={() => setSettingsVisible(true)}
+                onCloseFile={handleFileClose}
+                onCloseSettings={() => setSettingsVisible(false)}
+                onToggleRight={shell.toggleRight}
               />
-            </div>
-          ) : projectOpen ? (
-            <section className="min-h-0 flex-1 bg-background" data-testid="editor-panel">
-              <Editor
-                projectPath={activeProject}
-                filePath={currentFile}
-                editorFontSize={settings.editorFontSize}
-                autoSave={settings.autoSave}
-                onClose={currentFile ? handleFileClose : () => shell.toggleSidebar()}
-                onToggleSidebar={shell.toggleSidebar}
-                sidebarVisible={!shell.sidebarHidden}
-                onExportCurrent={() => emitExportCurrentFile()}
-                dialogs={appDialog}
-              />
-            </section>
+              <div className="min-h-0 flex-1">
+                {settingsVisible ? (
+                  <SettingsView
+                    settings={settings}
+                    onChange={setSettings}
+                    onClose={() => setSettingsVisible(false)}
+                  />
+                ) : (
+                  <section className="h-full bg-background" data-testid="editor-panel">
+                    <Editor
+                      projectPath={activeProject}
+                      filePath={displayedFile}
+                      editorFontSize={settings.editorFontSize}
+                      autoSave={settings.autoSave}
+                      onClose={
+                        displayedFile && displayedFile === previewFile
+                          ? () => setPreviewFile(null)
+                          : handleFileClose
+                      }
+                      onToggleSidebar={shell.toggleSidebar}
+                      sidebarVisible={!shell.sidebarHidden}
+                      onExportCurrent={() => emitExportCurrentFile()}
+                      dialogs={appDialog}
+                    />
+                  </section>
+                )}
+              </div>
+            </>
           ) : (
             <WelcomeWorkspace
               activeProject={activeProject}
@@ -458,7 +513,7 @@ export function App() {
           projectPath={activeProject}
           currentFile={currentFile}
           onClose={() => setPalette(null)}
-          onOpenFile={handleFileSelect}
+          onOpenFile={openFile}
           onOpenProject={handleOpenProject}
           onInitializeProject={handleInitializeStoryProject}
           onExportCurrent={() => emitExportCurrentFile()}
