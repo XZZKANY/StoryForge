@@ -1,4 +1,6 @@
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
+import { basename } from '../app/helpers';
+import { ArrowUp, Plus } from '../icons/shell-icons';
 import { roleMentionQuery } from './display-utils';
 
 export function ComposerBox({
@@ -81,10 +83,10 @@ export function ComposerSurface({
   };
 
   return (
-    <div className="relative min-h-[118px] rounded-xl border border-border-strong bg-surface shadow-[0_18px_64px_rgba(0,0,0,0.24)]">
+    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-[0_4px_16px_rgba(0,0,0,0.15)] transition-shadow focus-within:border-agent/60 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
-          className="absolute bottom-[108px] left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-1.5 rounded-md border border-border bg-panel px-2 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.28)]"
+          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-md border border-border bg-panel px-2 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.28)]"
           data-testid="agent-role-suggestions"
         >
           {roleSuggestions.map((item) => (
@@ -105,8 +107,8 @@ export function ComposerSurface({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || busy}
-        rows={3}
-        className="h-[70px] w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-6 text-foreground outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-50"
+        rows={2}
+        className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-[13px] leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
           disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色...'
         }
@@ -118,38 +120,41 @@ export function ComposerSurface({
           }
         }}
       />
-      <div className="flex h-12 items-center gap-2 px-3 pb-3">
+      {/* 单层悬浮舱工具条：上下文（＋挂载 / @焦点软引用 / 硬引用标签）在左，发送在右，柔虚线分隔 */}
+      <div className="flex items-center gap-1.5 border-t border-dashed border-border/50 px-2.5 py-1.5 text-[11px] text-subtle">
         <button
           type="button"
-          className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-elevated text-lg leading-none text-muted transition-colors hover:bg-border-strong hover:text-foreground"
-          title="添加上下文"
+          className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded text-subtle transition-colors hover:bg-elevated hover:text-foreground"
+          title="挂载文件为常驻上下文"
           onClick={onAddContext}
         >
-          +
+          <Plus size={14} strokeWidth={1.7} />
         </button>
-        <span className="max-w-[38%] truncate rounded-md border border-border px-2 py-1 text-xs text-muted">
-          @ {currentFileLabel ?? '当前文件'}
+        <span
+          className="inline-flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-muted"
+          title="当前编辑焦点（随聚焦页签漂移）"
+        >
+          <span className="font-semibold text-agent">@</span>
+          <span className="max-w-[130px] truncate">{currentFileLabel ?? '当前文件'}</span>
         </span>
-        {explicitContextPaths.slice(-2).map((path) => (
+        {explicitContextPaths.slice(-3).map((path) => (
           <span
             key={path}
-            className="max-w-[22%] truncate rounded-md border border-border px-2 py-1 text-xs text-muted"
+            className="inline-flex max-w-[110px] flex-shrink-0 items-center gap-1 truncate rounded bg-elevated px-1.5 py-0.5 text-muted"
             title={path}
           >
-            @ {path}
+            {basename(path)}
           </span>
         ))}
-        <span className="ml-auto min-w-0 truncate text-xs text-subtle">
-          StoryForge · Claude · 编辑模式
-        </span>
+        <span className="ml-auto min-w-0 flex-shrink truncate text-subtle">编辑模式</span>
         <button
           type={onSubmit ? 'button' : 'submit'}
-          className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-sm text-accent-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-white disabled:cursor-not-allowed disabled:opacity-40"
           title="发送"
           disabled={!canSubmit}
           onClick={onSubmit}
         >
-          ↑
+          <ArrowUp size={14} strokeWidth={2} />
         </button>
       </div>
     </div>
