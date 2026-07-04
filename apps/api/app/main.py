@@ -84,9 +84,31 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     warn_default_credentials()
     bootstrap_sqlite_database()
+    _log_sqlite_schema_state()
     _reap_stale_agent_runs()
     logger.info("storyforge_api_started")
     yield
+
+
+def _log_sqlite_schema_state() -> None:
+    """起服后记录 sqlite schema 纳管状态；sidecar-smoke 以此判定 alembic 收口是否生效
+    （冻结 exe 未打进 alembic 脚本时会回退 create_all，此处 managed=False 即暴露）。"""
+
+    try:
+        engine = get_engine()
+        if engine.dialect.name != "sqlite":
+            return
+        from app.db import migrations
+
+        revision = migrations.current_revision(engine)
+        logger.info(
+            "sqlite_schema_ready",
+            revision=revision,
+            head=migrations.head_revision(engine),
+            managed=revision is not None,
+        )
+    except Exception:  # noqa: BLE001 - 观测性日志失败不应影响起服
+        logger.warning("sqlite_schema_state_log_failed", exc_info=True)
 
 
 def _reap_stale_agent_runs() -> None:

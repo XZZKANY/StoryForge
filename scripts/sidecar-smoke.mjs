@@ -126,6 +126,23 @@ async function waitReady(baseUrl) {
   throw new Error(`/health/ready 超时(${READY_TIMEOUT_MS}ms),最后一次:${lastError}`);
 }
 
+const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+
+function assertSchemaManagedByAlembic(serverLogs) {
+  const text = serverLogs.join('').replace(ANSI_ESCAPE, '');
+  if (!text.includes('sqlite_schema_ready')) {
+    throw new Error('未见 sqlite_schema_ready 起服日志:bootstrap 未跑或日志未落到 stdout');
+  }
+  if (/managed=false|"managed":\s*false/i.test(text)) {
+    throw new Error(
+      'sqlite schema 未纳入 alembic 管理(managed=false):冻结 exe 可能漏打 alembic 脚本、已回退 create_all',
+    );
+  }
+  if (!/managed=true|"managed":\s*true/i.test(text)) {
+    throw new Error('起服日志未确认 managed=true(sqlite schema 纳管状态不明)');
+  }
+}
+
 async function assistantRoundTrip(baseUrl, projectPath) {
   const headers = { 'content-type': 'application/json', 'X-StoryForge-API-Key': API_KEY };
   const created = await fetch(`${baseUrl}/api/assistant/sessions`, {
@@ -219,6 +236,9 @@ async function main() {
 
     await Promise.race([websocketRoundTrip(port), exitedEarly]);
     log('Agent WS 一轮通过(握手 + 收发 JSON 帧)');
+
+    assertSchemaManagedByAlembic(serverLogs);
+    log('sqlite schema 已由 alembic 纳管(managed=true)');
 
     log(`OK: ${tier} 冒烟全绿`);
   } catch (error) {

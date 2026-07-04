@@ -80,6 +80,12 @@ const sidecarName =
     : `storyforge-api-${triple}`;
 const sidecarPath = resolve(sidecarDir, sidecarName);
 
+// alembic 迁移脚本是 W2 起服收口的一部分（stamp/upgrade head），必须以 data 形式
+// 打进冻结 exe，否则装机产品内 app/db/migrations.py 找不到脚本目录、回退 create_all。
+// PyInstaller --add-data 的分隔符：Windows 用 ';'，其余用 ':'。
+const addDataSep = process.platform === 'win32' ? ';' : ':';
+const alembicDir = resolve(apiDir, 'alembic');
+
 const pyinstallerArgs = [
   'run',
   '--with',
@@ -96,6 +102,8 @@ const pyinstallerArgs = [
   'app.main',
   '--collect-submodules',
   'app',
+  '--add-data',
+  `${alembicDir}${addDataSep}alembic`,
   '--distpath',
   sidecarDir,
   '--workpath',

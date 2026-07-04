@@ -42,8 +42,26 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _run_migrations_with_connection(connection) -> None:
+    """在给定连接上运行迁移；SQLite 强制 batch 模式以支持 ALTER 类操作。"""
+
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=connection.dialect.name == "sqlite",
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
-    """在线迁移连接本地 PostgreSQL，并使用完整 ORM 元数据。"""
+    """在线迁移。sidecar 通过 config.attributes['connection'] 注入现有连接
+    （复用 WAL 引擎、避免对同一 sqlite 文件另开连接）；无注入时自建连接。"""
+
+    injected = config.attributes.get("connection", None)
+    if injected is not None:
+        _run_migrations_with_connection(injected)
+        return
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
@@ -52,10 +70,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
-
-        with context.begin_transaction():
-            context.run_migrations()
+        _run_migrations_with_connection(connection)
 
 
 if context.is_offline_mode():
