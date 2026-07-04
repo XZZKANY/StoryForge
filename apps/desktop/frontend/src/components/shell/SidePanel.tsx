@@ -18,6 +18,7 @@ type SidePanelProps = {
   projects: string[];
   activeProject: string | null;
   currentFile: string | null;
+  previewFile: string | null;
   projectRefreshVersion: number;
   activeAssistantSessionId: number | null;
   onSelectProject: (path: string) => void;
@@ -26,6 +27,7 @@ type SidePanelProps = {
   onOpenProject: () => void;
   onNewFile: (projectPath?: string) => void;
   onFileSelect: (filePath: string) => void;
+  onFilePreview: (filePath: string) => void;
   onStartNewBook: () => void;
 };
 
@@ -57,11 +59,13 @@ function ExplorerView({
   projects,
   activeProject,
   currentFile,
+  previewFile,
   projectRefreshVersion,
   onSelectProject,
   onOpenProject,
   onNewFile,
   onFileSelect,
+  onFilePreview,
   onStartNewBook,
 }: SidePanelProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -175,8 +179,10 @@ function ExplorerView({
         <StoryNavigator
           projectPath={activeProject}
           currentFile={currentFile}
+          previewFile={previewFile}
           refreshVersion={projectRefreshVersion}
           onFileSelect={onFileSelect}
+          onFilePreview={onFilePreview}
         />
       </div>
     </>
