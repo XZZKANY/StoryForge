@@ -111,9 +111,9 @@ from app.domains.book_runs.errors import (  # noqa: F401  facade re-export
 )
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.prompt_assembly import assemble_prompt_injection
+from app.domains.book_runs.prompts import build_draft_prompt_from_state
 from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress, create_book_run
-from app.domains.book_runs.workflow_prompt_bridge import build_draft_prompt_from_state
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.character_bible.schemas import CharacterBibleCreate
 from app.domains.character_bible.service import create_character_bible_entry

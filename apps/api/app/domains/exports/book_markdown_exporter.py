@@ -15,7 +15,7 @@ from app.domains.artifacts.models import Artifact
 from app.domains.artifacts.schemas import ArtifactCreate
 from app.domains.artifacts.service import ArtifactForbiddenError, create_artifact
 from app.domains.book_runs.models import BookRun
-from app.domains.book_runs.workflow_skill_audit_bridge import derive_book_run_skill_chain
+from app.domains.book_runs.prompts.audit import derive_book_run_skill_chain
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.judge.types import FORBIDDEN_DRAFT_TERMS
 from app.domains.story_state.models import StoryStateEvent, StoryStateLedger

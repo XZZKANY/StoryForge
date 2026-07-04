@@ -143,6 +143,20 @@ function assertSchemaManagedByAlembic(serverLogs) {
   }
 }
 
+function assertPromptLayerBundled(serverLogs) {
+  const text = serverLogs.join('').replace(ANSI_ESCAPE, '');
+  if (!text.includes('prompt_layer_bundled')) {
+    throw new Error(
+      '未见 prompt_layer_bundled 起服日志:分层 prompt 构建器未随 exe 打包(F05 死路),bookrun.start 装配会在装机后才炸',
+    );
+  }
+  if (/callable=false|"callable":\s*false/i.test(text)) {
+    throw new Error(
+      'prompt_layer_bundled 但 callable=false:build_draft_prompt_from_state 未装配可达',
+    );
+  }
+}
+
 async function assistantRoundTrip(baseUrl, projectPath) {
   const headers = { 'content-type': 'application/json', 'X-StoryForge-API-Key': API_KEY };
   const created = await fetch(`${baseUrl}/api/assistant/sessions`, {
@@ -239,6 +253,9 @@ async function main() {
 
     assertSchemaManagedByAlembic(serverLogs);
     log('sqlite schema 已由 alembic 纳管(managed=true)');
+
+    assertPromptLayerBundled(serverLogs);
+    log('分层 prompt 构建器已随 exe 打包(F05 死路已收口)');
 
     log(`OK: ${tier} 冒烟全绿`);
   } catch (error) {

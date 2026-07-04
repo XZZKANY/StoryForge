@@ -6,7 +6,7 @@ import app.models  # noqa: F401
 from app.domains.blueprints.schemas import BookBlueprintCreate
 from app.domains.blueprints.service import create_book_blueprint
 from app.domains.book_runs.prompt_assembly import assemble_prompt_injection
-from app.domains.book_runs.workflow_prompt_bridge import build_draft_prompt_from_state
+from app.domains.book_runs.prompts import build_draft_prompt_from_state
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.character_bible.schemas import CharacterBibleCreate
 from app.domains.character_bible.service import create_character_bible_entry

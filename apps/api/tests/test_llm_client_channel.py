@@ -14,7 +14,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.common import llm_client
 from app.common.llm_client import LLMError, _call_llm, _call_llm_messages, redact_secrets
 
 _API_KEY = "sk-secret-test-key-123456"
