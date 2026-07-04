@@ -5,15 +5,16 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { App } from '../src/App';
 
-test('desktop shell renders polished icon buttons', () => {
+test('desktop shell renders framed chrome with icon buttons', () => {
   const html = renderToStaticMarkup(React.createElement(App, {}));
 
   assert.ok(html.includes('data-testid="desktop-shell"'));
+  assert.ok(html.includes('data-testid="shell-activity-bar"'));
+  assert.ok(html.includes('data-testid="shell-status-bar"'));
   assert.ok(html.includes('data-testid="add-project-btn"'));
   assert.ok(html.includes('data-testid="welcome-primary-action"'));
+  assert.ok(html.includes('data-testid="welcome-composer-input"'));
+  // 图标按钮与无障碍隐藏标记（WelcomeWorkspace 头部 + Lucide 壳层图标）。
   assert.ok(html.includes('icon-button'));
-  assert.ok(html.includes('icon-badge'));
   assert.ok(html.includes('aria-hidden="true"'));
-  assert.ok(html.includes('后端环境变量控制模型服务'));
-  assert.equal(html.includes('模型服务未检测'), false);
 });

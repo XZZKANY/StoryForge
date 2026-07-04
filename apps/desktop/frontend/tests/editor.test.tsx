@@ -147,8 +147,8 @@ test('设置页明确 Provider 运行时真相源来自后端环境变量', () =
 
 test('React 桌面入口不再调用原生 prompt/alert/confirm', () => {
   const appSource = readFileSync('src/App.tsx', 'utf8');
-  const rightWorkspaceSource = readFileSync('src/components/app/RightWorkspace.tsx', 'utf8');
-  const activeSources = [appSource, editorSource, rightWorkspaceSource].join('\n');
+  const sidePanelSource = readFileSync('src/components/shell/SidePanel.tsx', 'utf8');
+  const activeSources = [appSource, editorSource, sidePanelSource].join('\n');
 
   assert.equal(activeSources.includes('window.prompt'), false);
   assert.equal(activeSources.includes('window.alert'), false);
