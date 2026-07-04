@@ -41,6 +41,12 @@
 - `evaluations` —— 仅 `app/models.py` 聚合 import。
 - `worldbuilding` —— router 可卸载；`service` 仅被冻结的 `assets` 惰性 import，随 assets 一同退役。
 
+**batch-2 卸载前置评估（2026-07-04 discovery，供观察期后落地用，勿再重复调研）**：
+- 6 个 router **全部零 live HTTP 消费方**（`apps/desktop/frontend` 零 fetch + 无 live/backing 域走 HTTP 调用；唯一近似命中 `frontend/src/lib/project/semantics.ts:27` 的 `worldbuilding:'setting'` 是标签映射非 URL；`apps/workflow/.../tools/registry.py:333` 的 `/api/evaluations/*` 是静态文档字段非调用）。
+- `assets`/`prompt_packs`/`evaluations`/`series` 四域 **service 亦已死**（零 live/backing import 其 `service`，只 import `models`）→ 卸 router + 删其 HTTP 测试不丢 live 覆盖，与 batch-1 同型。
+- **但 batch-2 不是 batch-1 式的干净隔离，落地前须处理测试纠缠**：`test_phase1_closed_loop_api.py` 把 assets+evaluations 织进一条闭环集成流（需手术摘除对应步骤而非整删）；`test_series_worldbuilding_api.py` 同文件混 series+worldbuilding（worldbuilding 保留 → 只摘 series 段）；`workspaces`/`worldbuilding` 另有**正向 surface 护栏** `test_api_surface.py:25,27` 断言其必须挂载（卸载须同删这两行）。此外 e2e 契约断言待更新：assets `phase1-closed-loop.spec.ts:18-19`、series `phase2-contract.spec.ts:18-19`、prompt_packs+evaluations `phase4-contract.spec.ts:54-55/59-60`；main.py include 行 assets:278 / evaluations:282 / prompt_packs:289 / series:297 / workspaces:299 / worldbuilding:300。
+- **本刀不做的理由**：A3 渐进绞杀把 batch-2 排在「batch-1 冻结 → 两个发版周期观察 → 再推进」之后，batch-1 于 2026-07-04 当日合并，同日做 batch-2 违背分级降解的安全意图。观察期后按上表逐域落地（每域 = 删 include 行 + 加 `FROZEN_UNMOUNTED_PREFIXES` + 处理其测试纠缠 + `pnpm openapi`）。
+
 ## 冻结/删除红线
 
 - 冻结 = 卸 router，**不删** models（打碎 `app/models.py` 建表会连累 live）。物理删目录前须逐域 grep 全 import 面 + 打 `attic/*` tag，不在 W4 范围。
