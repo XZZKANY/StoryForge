@@ -1,13 +1,14 @@
 /**
  * StoryForge desktop shell.
- * Cursor/Codex-like layout: app menu + left navigation + centered agent workspace
- * with an optional right editor/file panel.
+ * 固定三栏「编辑器中枢」布局：顶栏 / 活动栏+侧面板 / 中栏正文 C 位 / 右栏 Agent 面板 / 状态栏。
+ * 中栏 = Monaco 编辑器（正文 C 位）；右栏 = 对话式 agent 面板。无拖拽分割线。
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { CommandPalette, PaletteMode } from './components/CommandPalette';
-import { DynamicIDELayout, type ComposerLayoutMode } from './components/DynamicIDELayout';
 import { SettingsView } from './components/SettingsView';
+import { Editor } from './components/Editor';
+import { ChatWindow } from './components/ChatWindow';
 import { TauriFileSystem } from './lib/tauri-fs';
 import { createSampleStoryProject, initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
@@ -20,17 +21,18 @@ import {
   type ProviderKind,
 } from './lib/user-settings';
 import { saveDesktopLlmConfig } from './lib/desktop-llm-config';
-import { applyProviderPreset } from './lib/provider-config';
+import { applyProviderPreset, getProviderPreset } from './lib/provider-config';
 import { applyTheme } from './lib/theme';
-import { WindowMenu } from './components/app/WindowMenu';
-import { CodexSidebar } from './components/app/CodexSidebar';
-import { AgentWorkspace, WelcomeWorkspace } from './components/app/WelcomeWorkspace';
-import { RightWorkspace, FloatingComposer } from './components/app/RightWorkspace';
-import { activeProjectLabel, joinPath, normalizeMarkdownFileName } from './components/app/helpers';
+import { WelcomeWorkspace } from './components/app/WelcomeWorkspace';
+import { joinPath, normalizeMarkdownFileName } from './components/app/helpers';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
-import { useShellLayout } from './components/app/useShellLayout';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import { AppDialogHost, useAppDialog } from './components/app/AppDialog';
+import { Titlebar } from './components/shell/Titlebar';
+import { ActivityBar } from './components/shell/ActivityBar';
+import { SidePanel } from './components/shell/SidePanel';
+import { StatusBar } from './components/shell/StatusBar';
+import { useShellState, type SidePanelView } from './components/shell/useShellState';
 
 export function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
@@ -40,36 +42,18 @@ export function App() {
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
   const appDialog = useAppDialog();
-  const {
-    workspaceVisible,
-    editorVisible,
-    composerMode,
-    layoutMode,
-    restoreFullLayout,
-    focusAssistantOnly,
-    focusWorkspaceOnly,
-    markCustomLayout,
-    showWorkbenchPanel,
-    showEditorForFile,
-    restoreWorkspacePanel,
-    toggleWorkspace,
-    toggleWorkspaceWithEditor,
-    applyComposerMode,
-    prepareSettingsLayout,
-  } = useShellLayout();
+  const shell = useShellState();
+
   const handleProjectSelected = useCallback(() => {
     setSettingsVisible(false);
-    restoreFullLayout();
-  }, [restoreFullLayout]);
+  }, []);
   const handleWorkspaceFileSelected = useCallback(() => {
     setSettingsVisible(false);
-    showEditorForFile();
-  }, [showEditorForFile]);
+  }, []);
   const {
     projects,
     activeProject,
     currentFile,
-    recentFiles,
     projectAssistantSessions,
     selectProject,
     selectFile: handleFileSelect,
@@ -141,7 +125,6 @@ export function App() {
       selectProject(projectPath);
       setProjectRefreshVersion((version) => version + 1);
       setSettingsVisible(false);
-      showWorkbenchPanel();
     } catch (error) {
       console.error('创建示例项目失败', error);
       await appDialog.alert({
@@ -149,7 +132,7 @@ export function App() {
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [appDialog, selectProject, showWorkbenchPanel]);
+  }, [appDialog, selectProject]);
 
   useEffect(() => {
     return registerSmokeProjectLoader((path: string) => {
@@ -242,7 +225,6 @@ export function App() {
         await initializeStoryProject(targetProject);
         setProjectRefreshVersion((version) => version + 1);
         setSettingsVisible(false);
-        showWorkbenchPanel();
       } catch (error) {
         console.error('初始化项目结构失败', error);
         await appDialog.alert({
@@ -251,21 +233,17 @@ export function App() {
         });
       }
     },
-    [activeProject, appDialog, handleOpenProject, showWorkbenchPanel],
-  );
-
-  const handleComposerModeChange = useCallback(
-    (mode: ComposerLayoutMode) => {
-      setSettingsVisible(false);
-      applyComposerMode(mode);
-    },
-    [applyComposerMode],
+    [activeProject, appDialog, handleOpenProject],
   );
 
   const openSettings = useCallback(() => {
     setSettingsVisible(true);
-    prepareSettingsLayout();
-  }, [prepareSettingsLayout]);
+  }, []);
+
+  const handleStartNewBook = useCallback(() => {
+    setSettingsVisible(false);
+    void handleOpenProject();
+  }, [handleOpenProject]);
 
   const handleQuickModelChange = useCallback(
     async (model: string) => {
@@ -302,146 +280,177 @@ export function App() {
     [settings.provider],
   );
 
+  const toggleTheme = useCallback(() => {
+    setSettings((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (e.shiftKey) {
+        const viewMap: Record<string, SidePanelView> = {
+          e: 'explorer',
+          f: 'search',
+          c: 'sessions',
+          m: 'qa',
+        };
+        const view = viewMap[key];
+        if (view) {
+          e.preventDefault();
+          shell.switchView(view);
+          return;
+        }
+        if (key === 'p') {
+          e.preventDefault();
+          setPalette('commands');
+        }
+        return;
+      }
+      if (key === 'p') {
         e.preventDefault();
-        setPalette(e.shiftKey ? 'commands' : 'files');
+        setPalette('files');
+      } else if (key === 'b') {
+        e.preventDefault();
+        shell.toggleSidebar();
+      } else if (key === ',') {
+        e.preventDefault();
+        setSettingsVisible(true);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [shell]);
 
   const { isDesktopRuntime, tauriMenuReady, tauriMenuError, smokeApiReady } = useTauriMenuBridge({
     onOpenProject: handleOpenProject,
     onNewFile: handleNewFile,
-    onToggleSidebar: toggleWorkspace,
-    onRestoreFullLayout: restoreFullLayout,
+    onToggleSidebar: shell.toggleSidebar,
+    onRestoreFullLayout: () => {
+      shell.showSidebar();
+      shell.showRight();
+    },
   });
 
-  const projectName = activeProjectLabel(activeProject);
-  const workbenchPanelVisible = workspaceVisible || editorVisible;
-  const welcomeVisible = !activeProject;
-  const rightPanelVisible = !welcomeVisible && workbenchPanelVisible;
-  const effectiveComposerMode: ComposerLayoutMode = welcomeVisible
-    ? 'full'
-    : rightPanelVisible
-      ? composerMode === 'full'
-        ? 'panel'
-        : composerMode
-      : 'full';
+  const projectOpen = Boolean(activeProject);
+  const modelLabel =
+    settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
+  const rightPanelVisible = projectOpen && !shell.rightCollapsed;
 
   return (
     <div
-      className="h-screen bg-background text-foreground overflow-hidden flex flex-col"
+      className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
       data-testid="desktop-shell"
-      data-layout-mode={layoutMode}
+      data-layout-mode={shell.view}
       data-tauri-runtime={isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={tauriMenuReady ? 'true' : 'false'}
       data-smoke-api-ready={smokeApiReady ? 'true' : 'false'}
       data-tauri-menu-error={tauriMenuError}
     >
-      <WindowMenu
-        activeProject={activeProject}
-        onOpenProject={handleOpenProject}
-        onNewFile={handleNewFile}
-      />
+      <Titlebar projectName={activeProject} onOpenPalette={() => setPalette('files')} />
 
-      {settingsVisible ? (
-        <div className="min-h-0 flex-1">
-          <SettingsView
-            settings={settings}
-            onChange={setSettings}
-            onClose={() => setSettingsVisible(false)}
+      <div className="relative flex min-h-0 flex-1">
+        <div className="flex flex-shrink-0">
+          <ActivityBar
+            view={shell.view}
+            sidebarHidden={shell.sidebarHidden}
+            noProject={!projectOpen}
+            qaBadge={0}
+            onSwitchView={shell.switchView}
+            onOpenPalette={() => setPalette('files')}
+            onOpenSettings={openSettings}
           />
-        </div>
-      ) : (
-        <DynamicIDELayout
-          sidebar={
-            <CodexSidebar
+          {!shell.sidebarHidden && (
+            <SidePanel
+              view={shell.view}
               projects={projects}
               activeProject={activeProject}
-              settings={settings}
-              projectAssistantSessions={projectAssistantSessions}
+              currentFile={currentFile}
+              projectRefreshVersion={projectRefreshVersion}
+              activeAssistantSessionId={
+                activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
+              }
               onSelectProject={selectProject}
               onSelectProjectSession={handleSelectProjectSession}
               onNewProjectSession={handleNewProjectSession}
               onOpenProject={handleOpenProject}
-              onInitializeProject={handleInitializeStoryProject}
-              onOpenSettings={openSettings}
-            />
-          }
-          composerPanel={
-            welcomeVisible ? (
-              <WelcomeWorkspace
-                activeProject={activeProject}
-                onOpenProject={handleOpenProject}
-                onInitializeProject={handleInitializeStoryProject}
-                onCreateSampleProject={handleCreateSampleProject}
-                onOpenSettings={openSettings}
-                onBrowseFiles={() => setPalette('files')}
-                onShowWorkbench={() => {
-                  showWorkbenchPanel();
-                }}
-                providerModel={settings.provider.model}
-                onApplyModel={handleQuickModelChange}
-                providerKind={settings.provider.kind}
-                onApplyProvider={handleQuickProviderChange}
-                composerValue={welcomeDraft}
-                onComposerChange={setWelcomeDraft}
-                onComposerSend={handleWelcomeSend}
-              />
-            ) : (
-              <section className="h-full min-w-0 bg-background" data-testid="assistant-panel">
-                <AgentWorkspace
-                  projectPath={activeProject}
-                  currentFile={currentFile}
-                  assistantSessionId={
-                    activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
-                  }
-                  pendingInitialPrompt={pendingWelcomePrompt}
-                  onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
-                  exposeWorkspaceToggle={!workbenchPanelVisible}
-                  onAssistantSessionChange={setActiveProjectAssistantSession}
-                  onRestoreLayout={restoreFullLayout}
-                  onOpenProject={handleOpenProject}
-                  onInitializeProject={handleInitializeStoryProject}
-                />
-              </section>
-            )
-          }
-          floatingComposer={
-            <FloatingComposer
-              projectName={projectName}
-              onRestore={() => handleComposerModeChange('panel')}
-              onRestoreLayout={restoreFullLayout}
-              onFullConversation={() => handleComposerModeChange('full')}
-            />
-          }
-          rightPanel={
-            <RightWorkspace
-              activeProject={activeProject}
-              currentFile={currentFile}
-              recentFiles={recentFiles}
-              workspaceVisible={workspaceVisible}
-              projectRefreshVersion={projectRefreshVersion}
-              editorFontSize={settings.editorFontSize}
-              autoSave={settings.autoSave}
+              onNewFile={handleNewFile}
               onFileSelect={handleFileSelect}
-              onFileClose={handleFileClose}
-              onCloseWorkspace={() => handleComposerModeChange('full')}
-              onToggleWorkspace={toggleWorkspace}
-              onRestoreWorkspace={restoreWorkspacePanel}
-              onExportCurrent={() => emitExportCurrentFile()}
-              dialogs={appDialog}
+              onStartNewBook={handleStartNewBook}
             />
-          }
-          rightPanelVisible={rightPanelVisible}
-          composerMode={effectiveComposerMode}
-          onComposerModeChange={handleComposerModeChange}
-        />
-      )}
+          )}
+        </div>
+
+        <main className="flex min-w-0 flex-1 flex-col bg-background" data-testid="shell-center">
+          {settingsVisible ? (
+            <div className="min-h-0 flex-1">
+              <SettingsView
+                settings={settings}
+                onChange={setSettings}
+                onClose={() => setSettingsVisible(false)}
+              />
+            </div>
+          ) : projectOpen ? (
+            <section className="min-h-0 flex-1 bg-background" data-testid="editor-panel">
+              <Editor
+                projectPath={activeProject}
+                filePath={currentFile}
+                editorFontSize={settings.editorFontSize}
+                autoSave={settings.autoSave}
+                onClose={currentFile ? handleFileClose : () => shell.toggleSidebar()}
+                onToggleSidebar={shell.toggleSidebar}
+                sidebarVisible={!shell.sidebarHidden}
+                onExportCurrent={() => emitExportCurrentFile()}
+                dialogs={appDialog}
+              />
+            </section>
+          ) : (
+            <WelcomeWorkspace
+              activeProject={activeProject}
+              onOpenProject={handleOpenProject}
+              onInitializeProject={handleInitializeStoryProject}
+              onCreateSampleProject={handleCreateSampleProject}
+              onOpenSettings={openSettings}
+              onBrowseFiles={() => setPalette('files')}
+              onShowWorkbench={shell.showSidebar}
+              providerModel={settings.provider.model}
+              onApplyModel={handleQuickModelChange}
+              providerKind={settings.provider.kind}
+              onApplyProvider={handleQuickProviderChange}
+              composerValue={welcomeDraft}
+              onComposerChange={setWelcomeDraft}
+              onComposerSend={handleWelcomeSend}
+            />
+          )}
+        </main>
+
+        {rightPanelVisible && (
+          <section
+            className="flex w-[384px] flex-shrink-0 flex-col border-l border-border bg-panel"
+            data-testid="assistant-panel"
+          >
+            <ChatWindow
+              projectPath={activeProject}
+              currentFile={currentFile}
+              assistantSessionId={
+                activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
+              }
+              pendingInitialPrompt={pendingWelcomePrompt}
+              onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
+              onAssistantSessionChange={setActiveProjectAssistantSession}
+            />
+          </section>
+        )}
+      </div>
+
+      <StatusBar
+        modelLabel={modelLabel}
+        theme={settings.theme}
+        projectOpen={projectOpen}
+        onToggleTheme={toggleTheme}
+        onToggleRight={shell.toggleRight}
+      />
 
       {palette && (
         <CommandPalette
@@ -453,17 +462,15 @@ export function App() {
           onOpenProject={handleOpenProject}
           onInitializeProject={handleInitializeStoryProject}
           onExportCurrent={() => emitExportCurrentFile()}
-          onToggleAssistant={() => {
-            markCustomLayout();
-            handleComposerModeChange(composerMode === 'full' ? 'panel' : 'full');
-          }}
-          onToggleWorkspace={() => {
-            toggleWorkspaceWithEditor();
-          }}
+          onToggleAssistant={shell.toggleRight}
+          onToggleWorkspace={shell.toggleSidebar}
           onOpenSettings={openSettings}
-          onFocusAssistantOnly={focusAssistantOnly}
-          onFocusWorkspaceOnly={focusWorkspaceOnly}
-          onRestoreLayout={restoreFullLayout}
+          onFocusAssistantOnly={() => shell.showRight()}
+          onFocusWorkspaceOnly={() => shell.showSidebar()}
+          onRestoreLayout={() => {
+            shell.showSidebar();
+            shell.showRight();
+          }}
         />
       )}
       <AppDialogHost
