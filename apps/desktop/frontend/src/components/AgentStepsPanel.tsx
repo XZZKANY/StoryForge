@@ -55,7 +55,7 @@ export function AgentStepsPanel({ run, compact = false }: AgentStepsPanelProps) 
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
   return (
-    <div className="rounded-lg border border-border bg-panel overflow-hidden">
+    <div className="overflow-hidden rounded-lg bg-elevated/40">
       {/* 头部 */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -96,21 +96,27 @@ export function AgentStepsPanel({ run, compact = false }: AgentStepsPanelProps) 
         </div>
       )}
 
-      {/* 步骤列表 */}
-      {expanded && (
-        <div className="px-4 py-3 space-y-2">
-          {run.steps.map((step, index) => (
-            <AgentStepItem
-              key={step.id}
-              step={step}
-              index={index}
-              compact={compact}
-              expanded={expandedSteps.has(step.id)}
-              onToggle={() => toggleStep(step.id)}
-            />
-          ))}
+      {/* 步骤列表：流动折叠（grid 0fr→1fr 平滑展开，长内容不截断、短内容不空跑） */}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+          expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="space-y-2 px-4 py-3">
+            {run.steps.map((step, index) => (
+              <AgentStepItem
+                key={step.id}
+                step={step}
+                index={index}
+                compact={compact}
+                expanded={expandedSteps.has(step.id)}
+                onToggle={() => toggleStep(step.id)}
+              />
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
