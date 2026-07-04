@@ -1,21 +1,15 @@
 """Book generation 异常定义。
 
-从 book_generation.py 提取，作为 book_runs 域共享叶子底座，
-使 LLM / judge / metrics 等薄模块可单向引用，不反向依赖 god-file。
-book_generation.py 通过 re-export 保持可达性（宪法第 5/6 条）。
+W3 起 chat/completions 出网通道下沉到 `app/common/llm_client.py`，异常也随之成为该通道的
+一等公民（`LLMError` / `LLMConfigError`）。此处保留 `BookGenerationError` /
+`BookGenerationPreflightError` 作为**别名**（同一类对象），使既有 `except` / `isinstance`
+判定与 502/422 状态码全部零改动，同时让 `common` 不再反向依赖 book_runs 域。
 """
 from __future__ import annotations
 
-from app.common.exceptions import DomainError
+from app.common.llm_client import LLMConfigError, LLMError
 
+BookGenerationPreflightError = LLMConfigError
+BookGenerationError = LLMError
 
-class BookGenerationPreflightError(DomainError, RuntimeError):
-    """真实 LLM 生成缺少私有运行配置。"""
-
-    status_code = 422
-
-
-class BookGenerationError(DomainError, RuntimeError):
-    """真实 LLM 生成运行失败，不能写入完成证据。"""
-
-    status_code = 502
+__all__ = ["BookGenerationError", "BookGenerationPreflightError"]

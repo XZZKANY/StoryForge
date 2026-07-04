@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 import httpx
 from prometheus_client import Counter
 
+from app.common.llm_client import redact_secrets
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
@@ -167,7 +168,7 @@ def semantic_judge_with_status(
         raw_content = data["choices"][0]["message"]["content"]
         decoded = _decode_semantic_judge_content(str(raw_content))
     except Exception as exc:
-        log.warning("semantic_judge_failed", error=str(exc), model=model)
+        log.warning("semantic_judge_failed", error=redact_secrets(str(exc), [api_key]), model=model)
         _judge_llm_errors_total.inc()
         return SemanticJudgeOutcome(issues=[], failed=True)
     if not isinstance(decoded, list):
