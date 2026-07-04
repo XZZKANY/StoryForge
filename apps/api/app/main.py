@@ -24,16 +24,12 @@ from app.common.version import APP_VERSION
 from app.db.session import SessionLocal, bootstrap_sqlite_database, get_engine
 from app.domains.agent_runs.router import router as agent_runs_router
 from app.domains.agent_runs.service import reap_non_terminal_agent_runs
-from app.domains.analytics.router import router as analytics_router
 from app.domains.artifacts.router import router as artifacts_router
 from app.domains.assets.router import router as assets_router
 from app.domains.assistant.router import router as assistant_router
-from app.domains.batch_refinery.router import router as batch_refinery_router
 from app.domains.blueprints.router import router as blueprints_router
 from app.domains.book_runs.router import router as book_runs_router
 from app.domains.character_bible.router import router as character_bible_router
-from app.domains.collaboration.router import router as collaboration_router
-from app.domains.commercial.router import router as commercial_router
 from app.domains.continuity.router import router as continuity_router
 from app.domains.evaluations.router import router as evaluations_router
 from app.domains.events.router import router as events_router
@@ -265,16 +261,12 @@ app.include_router(agent_runs_router)
 app.include_router(ide_router)
 app.include_router(artifacts_router)
 app.include_router(assistant_router)
-app.include_router(analytics_router)
 app.include_router(assets_router)
 app.include_router(blueprints_router)
 app.include_router(book_runs_router)
 app.include_router(character_bible_router)
 app.include_router(evaluations_router)
 app.include_router(events_router)
-app.include_router(batch_refinery_router)
-app.include_router(collaboration_router)
-app.include_router(commercial_router)
 app.include_router(continuity_router)
 app.include_router(exports_router)
 app.include_router(judge_router)
