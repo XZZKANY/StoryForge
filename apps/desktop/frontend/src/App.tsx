@@ -86,6 +86,14 @@ export function App() {
     setPreviewFile(path);
   }, []);
 
+  // 切换项目必须清预览页签：previewFile 是当前项目内的路径，跨项目后仍非空会让
+  // displayedFile 落回上一个项目的文件（编辑器展示、Ctrl+S 也写回旧项目），造成跨项目串写。
+  // selectProject 只清 currentFile，previewFile 提在 App 层，故在此按 activeProject 收口。
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 项目切换时重置预览态，React18 合法模式
+    setPreviewFile(null);
+  }, [activeProject]);
+
   useEffect(() => {
     saveAppSettings(settings);
   }, [settings]);
