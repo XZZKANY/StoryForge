@@ -101,6 +101,65 @@ def test_managed_db_applies_pending_migration(tmp_path) -> None:
         engine.dispose()
 
 
+def test_adoption_backfills_column_missing_on_legacy_table(tmp_path) -> None:
+    """真机实证的 F01 漏点：旧版模型建的存量表缺列（assistant_sessions.project_path），
+    无 alembic_version 走纳管路径——create_all 跳过存量表、stamp head 又跳过加列迁移，
+    收口对账必须把列补回来，否则带该列的 INSERT 起服即崩。"""
+
+    import app.models  # noqa: F401
+    from app.db.base import Base
+
+    engine = _make_engine(tmp_path, "legacy.sqlite3")
+    try:
+        Base.metadata.create_all(engine)
+        # 模拟 project_path 引入之前的旧版存量表：删列删索引、且没有 alembic_version。
+        with engine.begin() as conn:
+            conn.exec_driver_sql("DROP INDEX IF EXISTS ix_assistant_sessions_project_path")
+            conn.exec_driver_sql("ALTER TABLE assistant_sessions DROP COLUMN project_path")
+        assert "project_path" not in _column_names(engine, "assistant_sessions")
+        assert "alembic_version" not in inspect(engine).get_table_names()
+
+        db_session.bootstrap_sqlite_database(engine)
+
+        assert "project_path" in _column_names(engine, "assistant_sessions")
+        # 复现用户真机那条 INSERT，验证补列后不再崩。
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "INSERT INTO assistant_sessions (title, task_type, project_path) "
+                "VALUES ('IDE Agent: 1', 'ide_agent_orchestration', 'D:/testsf')"
+            )
+        assert migrations.current_revision(engine) == migrations.head_revision(engine)
+    finally:
+        engine.dispose()
+
+
+def test_reconcile_salvages_column_on_db_already_stamped_head(tmp_path) -> None:
+    """更狠的一档：库此前已被（旧版 buggy 纳管）stamp 到 head 却仍缺列——managed 路径
+    upgrade head 是 no-op 救不回来，必须靠收口对账补列。"""
+
+    import app.models  # noqa: F401
+    from app.db.base import Base
+
+    engine = _make_engine(tmp_path)
+    try:
+        Base.metadata.create_all(engine)
+        with engine.begin() as conn:
+            conn.exec_driver_sql("DROP INDEX IF EXISTS ix_assistant_sessions_project_path")
+            conn.exec_driver_sql("ALTER TABLE assistant_sessions DROP COLUMN project_path")
+        config = migrations.build_alembic_config(engine)
+        with engine.connect() as conn:
+            config.attributes["connection"] = conn
+            command.stamp(config, "head")
+        assert "project_path" not in _column_names(engine, "assistant_sessions")
+        assert migrations.current_revision(engine) == migrations.head_revision(engine)
+
+        db_session.bootstrap_sqlite_database(engine)
+
+        assert "project_path" in _column_names(engine, "assistant_sessions")
+    finally:
+        engine.dispose()
+
+
 def test_adoption_restores_agent_run_event_unique_index(tmp_path) -> None:
     """存量表上 create_all 不补索引：纳管必须补回 agent_run_events 唯一索引。"""
 
