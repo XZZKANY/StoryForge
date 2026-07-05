@@ -8,6 +8,7 @@ from functools import lru_cache
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.sql.elements import ClauseElement
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://storyforge:storyforge@127.0.0.1:55432/storyforge"
 
@@ -182,15 +183,15 @@ def _add_column_ddl(table_name: str, column, dialect) -> str | None:
     type_sql = column.type.compile(dialect=dialect)
     spec = f'ADD COLUMN "{column.name}" {type_sql}'
     if not column.nullable:
-        default_sql = _render_server_default(column)
+        default_sql = _render_server_default(column, dialect)
         if default_sql is None:
             return None
         spec += f" NOT NULL DEFAULT {default_sql}"
     return f'ALTER TABLE "{table_name}" {spec}'
 
 
-def _render_server_default(column) -> str | None:
-    """把列的 server_default 渲染成 SQLite 可用的常量片段；无法渲染返回 None。"""
+def _render_server_default(column, dialect) -> str | None:
+    """把列的 server_default 渲染成 SQLite 可用的默认片段；无法渲染返回 None。"""
 
     clause = column.server_default
     arg = getattr(clause, "arg", None)
@@ -201,6 +202,17 @@ def _render_server_default(column) -> str | None:
         return str(text)
     if isinstance(arg, str):
         return f"'{arg}'"
+    # func.now() 等 SQL 表达式默认：created_at/updated_at 走 TimestampMixin 的
+    # server_default=func.now()，遍布 50+ 张表。此前认不出（既非 .text 也非 str）→ NOT NULL
+    # 时间列一律「不敢补」被跳过，F01「最后一道网」对最常见的加列列型有洞。这里编译成方言 SQL
+    # （SQLite 上 func.now() → CURRENT_TIMESTAMP）。SQLite 视 CURRENT_TIMESTAMP 为非常量默认：
+    # 现代版本 ADD COLUMN 接受（存量行取补列时刻的时间戳作 sentinel），个别老版本会拒——由
+    # _reconcile_missing_columns 的 try/except 兜底跳过，退回此前行为，不阻断起服。
+    if isinstance(arg, ClauseElement):
+        try:
+            return str(arg.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
+        except Exception:  # noqa: BLE001 - 编译失败退回「不敢补」，交人工迁移
+            return None
     return None
 
 
