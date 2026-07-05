@@ -98,7 +98,7 @@
 | `EXPORT_CURRENT_FILE_EVENT` | `storyforge:export-current-file` | 对话 → 编辑器；无 detail |
 | `APPLY_FILE_SUGGESTION_EVENT` | `storyforge:apply-file-suggestion` | 对话 → 编辑器；detail = `AssistantFileSuggestion`（含缓冲，见下）|
 | `ACCEPT_CURRENT_FILE_SUGGESTION_EVENT` | `storyforge:accept-current-file-suggestion` | 对话 → 编辑器；无 detail |
-| `SUGGESTION_RESULT_EVENT` | `storyforge:suggestion-result` | 编辑器 → 对话；`{filePath, status:'ready'|'error', message, assistantSessionId?}` |
+| `SUGGESTION_RESULT_EVENT` | `storyforge:suggestion-result` | 对话 → 编辑器（对话产出补丁建议后通知编辑器同步建议态；对话自身也监听）；`{filePath, status:'ready'|'error', message, assistantSessionId?}` |
 | `AUTHOR_LOOP_RESULT_EVENT` | `storyforge:author-loop-result` | 编辑器 → 对话；`{filePath, status, action:'revision_accepted'|'exported', message, artifactPath?, recordPath?}` |
 | `REQUEST_SAVE_ACTIVE_FILE_EVENT` | `storyforge:request-save-active-file` | 读盘前请编辑器落盘（握手请求，见 C.2）|
 | `SAVE_ACTIVE_FILE_DONE_EVENT` | `storyforge:save-active-file-done` | 编辑器落盘完成（握手应答）|
