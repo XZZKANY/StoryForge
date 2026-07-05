@@ -176,6 +176,12 @@ class _AgentRunEventSink:
                 payload={
                     "permission_profile": run.permission_profile,
                     "intent": result.get("intent"),
+                    # 断线/超时后前端拉事件表重建终态（F10）时，permission_required 也是终态之一，
+                    # 而 reconstructAgentResultFromEvents 把 assistant_session_id 当重建必要字段，
+                    # 缺它则每轮轮询都返回 null → 已生成的待确认补丁永远回不到 UI。
+                    "assistant_session_id": run.assistant_session_id,
+                    "summary": agent_result.get("summary"),
+                    "requires_user_confirmation": True,
                     "reason": reason,
                     "proposed_patch": proposed_patch,
                     "confirmation_action": agent_result.get("confirmation_action"),

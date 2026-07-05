@@ -1593,6 +1593,11 @@ def test_agent_run_records_permission_required_for_proposed_patch(
     assert permission_event["payload"]["permission_profile"] == "risk_confirm"
     assert permission_event["payload"]["proposed_patch"]["kind"] == "file_revision"
     assert permission_event["payload"]["blocked_tool"] == "file.revise"
+    # F10：permission_required 也是终态之一，payload 必须带 assistant_session_id，
+    # 否则前端超时转轮询后 reconstructAgentResultFromEvents 永远返回 null，待确认补丁回不来。
+    assert isinstance(permission_event["payload"]["assistant_session_id"], int)
+    assert permission_event["payload"]["assistant_session_id"] == message["assistant_session_id"]
+    assert permission_event["payload"]["requires_user_confirmation"] is True
     assert "agent_run_completed" not in event_types
 
     run = client.get("/api/agent-runs/run-agent-revise").json()
@@ -2660,7 +2665,10 @@ def test_detect_intent_requires_scene_packet_for_chapter_review() -> None:
 
 
 def test_reap_non_terminal_agent_runs_fails_stale_and_records_reason(session: Session) -> None:
-    """起服收尸：非终态 run 收为 failed 并写 reason=process_restart；已终态的不动（F09）。"""
+    """起服收尸：running（线程已随进程消失）收为 failed 并写 reason=process_restart；
+    paused（等待作者确认补丁 / 用户暂停的持久可恢复态）与已终态的不动。
+
+    paused 必须保住：收尸它会毁掉待确认补丁并锁死 approve 门（仅在 status==paused 放行）。"""
 
     from app.domains.agent_runs.service import reap_non_terminal_agent_runs
 
@@ -2673,13 +2681,13 @@ def test_reap_non_terminal_agent_runs_fails_stale_and_records_reason(session: Se
     session.commit()
 
     reaped = reap_non_terminal_agent_runs(session)
-    assert reaped == 2
+    assert reaped == 1
 
     session.refresh(running)
     session.refresh(paused)
     session.refresh(already_done)
     assert running.status == "failed"
-    assert paused.status == "failed"
+    assert paused.status == "paused"
     assert already_done.status == "completed"
 
     running_events = _stored_run_events(session, running)

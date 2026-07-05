@@ -102,6 +102,11 @@ from app.domains.writing_runs.service import (
 )
 
 AGENT_RUN_TERMINAL_STATUSES = frozenset({"completed", "failed", "stopped"})
+# 起服收尸只应清理「本有活线程、进程重启后线程已消失」的 running。paused 是等待作者确认
+# 补丁 / 用户暂停的持久可恢复态：其不需要线程，靠后续控制消息（approve/deny/resume）推进。
+# 若把 paused 也收成 failed，approve 门（仅在 status==paused 时放行，见 record_agent_control_event）
+# 会永久失效，作者已付费生成的待确认补丁被永久丢弃。故收尸必须保住 paused。
+AGENT_RUN_REAP_PRESERVED_STATUSES = AGENT_RUN_TERMINAL_STATUSES | {"paused"}
 
 
 class AgentRunNotFoundError(NotFoundError):
@@ -384,7 +389,13 @@ def record_agent_control_event(
             event_type=AGENT_RUN_COMPLETED,
             actor="root-agent",
             message="权限已批准，AgentRun 已完成待确认步骤。",
-            payload={"session_id": session_id, "run_id": public_id, "control_type": control_type},
+            payload={
+                "session_id": session_id,
+                "run_id": public_id,
+                "control_type": control_type,
+                # F10：批准后若立即断线，前端仍能从事件表重建完成态（需 assistant_session_id）。
+                "assistant_session_id": run.assistant_session_id,
+            },
         )
     elif control_type == DENY_PERMISSION_COMMAND and run.status == "failed":
         record_agent_event(
@@ -393,7 +404,12 @@ def record_agent_control_event(
             event_type=AGENT_RUN_FAILED,
             actor="permission-gate",
             message="作者拒绝权限请求，AgentRun 已停止。",
-            payload={"session_id": session_id, "run_id": public_id, "control_type": control_type},
+            payload={
+                "session_id": session_id,
+                "run_id": public_id,
+                "control_type": control_type,
+                "assistant_session_id": run.assistant_session_id,
+            },
         )
     return event
 
@@ -823,11 +839,16 @@ def fail_agent_run(
 
 
 def reap_non_terminal_agent_runs(session: Session) -> int:
-    """起服收尸：进程重启后仍停在非终态（running/paused）的 run 已无线程续跑，
-    统一收为 failed 并写 reason=process_restart 事件，避免永远挂 running 无人收尾（F09）。"""
+    """起服收尸：进程重启后仍停在 running 的 run 已无线程续跑，统一收为 failed 并写
+    reason=process_restart 事件，避免永远挂 running 无人收尾（F09）。
+
+    paused 不收：它是等待作者确认补丁 / 用户暂停的持久可恢复态，收尸会毁掉待确认补丁并
+    锁死 approve 门（见 AGENT_RUN_REAP_PRESERVED_STATUSES）。"""
 
     stale_runs = list(
-        session.scalars(select(AgentRun).where(AgentRun.status.not_in(AGENT_RUN_TERMINAL_STATUSES)))
+        session.scalars(
+            select(AgentRun).where(AgentRun.status.not_in(AGENT_RUN_REAP_PRESERVED_STATUSES))
+        )
     )
     for run in stale_runs:
         fail_agent_run(
