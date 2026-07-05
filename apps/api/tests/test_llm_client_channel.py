@@ -25,6 +25,8 @@ class _ChatHandler(BaseHTTPRequestHandler):
     attempts = 0
     last_headers: dict[str, str] | None = None
     response_message: dict[str, object] | None = None
+    retry_after_header = "0"
+    serve_non_json = False
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("content-length", "0"))
@@ -37,7 +39,16 @@ class _ChatHandler(BaseHTTPRequestHandler):
             self.send_response(cls.status_code)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(body)))
-            self.send_header("retry-after", "0")
+            self.send_header("retry-after", cls.retry_after_header)
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if cls.serve_non_json:
+            # 网关 200 却回非 JSON 正文（代理错误页）：连接成功、读取阶段解析崩。
+            body = b"<html><body>502 Bad Gateway</body></html>"
+            self.send_response(200)
+            self.send_header("content-type", "text/html")
+            self.send_header("content-length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
             return
@@ -63,6 +74,8 @@ def _serve() -> HTTPServer:
     _ChatHandler.attempts = 0
     _ChatHandler.last_headers = None
     _ChatHandler.response_message = None
+    _ChatHandler.retry_after_header = "0"
+    _ChatHandler.serve_non_json = False
     server = HTTPServer(("127.0.0.1", 0), _ChatHandler)
     Thread(target=server.serve_forever, daemon=True).start()
     return server
@@ -129,6 +142,39 @@ def test_channel_retries_429_then_succeeds_both_auth_paths(auth_header: str) -> 
         server.shutdown()
     assert "林岚" in result["content"]
     assert _ChatHandler.attempts == 2
+
+
+def test_channel_non_json_200_retries_then_raises_llm_error() -> None:
+    """网关 200 却回非 JSON 正文：读取/解析阶段崩，重试到上限后包成 LLMError；
+    此前裸 JSONDecodeError 会逃逸出重试与 LLMError 包装，让上层把整个 agent run 判失败。"""
+
+    _ChatHandler.fail_times = 0
+    server = _serve()
+    _ChatHandler.serve_non_json = True
+    try:
+        with pytest.raises(LLMError) as excinfo:
+            _call_llm(_source(server.server_address[1]), system_prompt="s", user_prompt="u")
+    finally:
+        server.shutdown()
+    assert _ChatHandler.attempts == 3  # 重试到 max_attempts，而非首崩即抛
+    assert _API_KEY not in str(excinfo.value)
+
+
+def test_channel_retry_after_is_capped(monkeypatch) -> None:
+    """上游给出超长 Retry-After（3600s）时退避被封顶（≤60s），不让同步 worker 空转数小时。"""
+
+    slept: list[float] = []
+    monkeypatch.setattr("app.common.llm_client.time.sleep", lambda seconds: slept.append(seconds))
+    _ChatHandler.fail_times = 1
+    _ChatHandler.status_code = 429
+    server = _serve()
+    _ChatHandler.retry_after_header = "3600"
+    try:
+        result = _call_llm(_source(server.server_address[1]), system_prompt="s", user_prompt="u")
+    finally:
+        server.shutdown()
+    assert "林岚" in result["content"]
+    assert slept == [60.0]  # 3600 被封到 _RETRY_DELAY_CEILING_SECONDS
 
 
 def test_channel_strips_reasoning_leak() -> None:
