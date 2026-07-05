@@ -80,6 +80,10 @@ def bootstrap_sqlite_database(engine: Engine | None = None) -> None:
     - 存量 create_all 库（有业务表、无 alembic_version）：备份 + quick_check + create_all 补表
       + 补 agent_run_events 唯一索引 + ``stamp head``，一次性纳入 alembic 管理。
     - 全新库：create_all 建表 + ``stamp head``。
+    - 三条路径收口后统一跑 _reconcile_missing_columns：给**已存在**的映射表补齐「模型有、
+      表里无」的可空/带默认列。这是 F01 的最后一道网——create_all 只建缺失整表不补列、
+      stamp head 又跳过加列迁移，导致「旧版模型建的存量表」缺列后被 stamp 到 head，此后
+      upgrade head 是 no-op 永远补不回来（真机实证：assistant_sessions.project_path 缺列崩服）。
 
     历史迁移链无法在 SQLite 上从 base 重放，故建表仍靠 create_all；alembic 只管前向演进。
     任一 alembic 步骤失败即回退纯 create_all 并告警，保证 sidecar 仍能起服。"""
@@ -104,6 +108,7 @@ def bootstrap_sqlite_database(engine: Engine | None = None) -> None:
         else:
             Base.metadata.create_all(target_engine)
             migrations.stamp_head(target_engine)
+        _reconcile_missing_columns(target_engine, Base)
     except Exception:  # noqa: BLE001 - 起服路径：alembic 收口失败回退 create_all，库仍可用
         logging.getLogger(__name__).warning(
             "sqlite alembic 收口失败，回退到 create_all（schema 未纳入 alembic 管理）。",
@@ -130,6 +135,73 @@ def _adopt_legacy_sqlite_database(engine: Engine, base, migrations) -> None:
     _ensure_agent_run_event_sequence_unique(engine)  # 镜像迁移 20260703_0001，create_all 不给存量表补索引
     migrations.stamp_head(engine)
     log.info("legacy sqlite 库已纳入 alembic 管理（stamp head）。")
+
+
+def _reconcile_missing_columns(engine: Engine, base) -> None:
+    """给已存在的映射表补齐「模型有、表里无」的列，堵死 F01 最后一个漏点。
+
+    背景：SQLite 的 create_all 只建缺失整表、绝不给存量表 ALTER 加列；而存量库纳管走
+    ``stamp head`` 会跳过所有加列迁移。于是「旧版模型建出的存量表」缺某列后被 stamp 到 head，
+    之后 upgrade head 是 no-op，缺列永远补不回来 → 该表任何带此列的 INSERT 起服即崩
+    （真机实证 assistant_sessions.project_path）。这里在三条起服路径收口后统一对账修复，
+    对「此前已被 stamp head 但仍缺列」的库也一并救回。
+
+    安全边界：只 ADD COLUMN（SQLite 原生支持、无需 batch），不 drop/不 alter 现有列；只补
+    **可空**列或**可渲染出常量 server_default 的非空**列（SQLite 非空加列必须带常量默认），
+    其余（非空且默认不可渲染）不敢自动补，只告警交人工迁移。单列失败不阻断起服。"""
+
+    log = logging.getLogger(__name__)
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    for table in base.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # 缺失整表由 create_all 负责，天然带全列
+        actual = {column["name"] for column in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in actual:
+                continue
+            ddl = _add_column_ddl(table.name, column, engine.dialect)
+            if ddl is None:
+                log.warning(
+                    "存量表 %s 缺列 %s（非空且无可渲染默认），无法安全自动补列，需人工迁移。",
+                    table.name,
+                    column.name,
+                )
+                continue
+            try:
+                with engine.begin() as connection:
+                    connection.exec_driver_sql(ddl)
+                log.info("存量表补列: %s.%s", table.name, column.name)
+            except Exception:  # noqa: BLE001 - 单列补列失败不阻断起服
+                log.warning("存量表补列失败: %s.%s", table.name, column.name, exc_info=True)
+
+
+def _add_column_ddl(table_name: str, column, dialect) -> str | None:
+    """构造安全的 SQLite ``ALTER TABLE ... ADD COLUMN`` DDL；无法安全补则返回 None。"""
+
+    type_sql = column.type.compile(dialect=dialect)
+    spec = f'ADD COLUMN "{column.name}" {type_sql}'
+    if not column.nullable:
+        default_sql = _render_server_default(column)
+        if default_sql is None:
+            return None
+        spec += f" NOT NULL DEFAULT {default_sql}"
+    return f'ALTER TABLE "{table_name}" {spec}'
+
+
+def _render_server_default(column) -> str | None:
+    """把列的 server_default 渲染成 SQLite 可用的常量片段；无法渲染返回 None。"""
+
+    clause = column.server_default
+    arg = getattr(clause, "arg", None)
+    if arg is None:
+        return None
+    text = getattr(arg, "text", None)  # sa.text("0") / sa.text("CURRENT_TIMESTAMP")
+    if text is not None:
+        return str(text)
+    if isinstance(arg, str):
+        return f"'{arg}'"
+    return None
 
 
 def _ensure_agent_run_event_sequence_unique(engine: Engine) -> None:
