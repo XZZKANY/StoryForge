@@ -329,6 +329,9 @@ export function ChatWindow({
   const projectPathRef = useRef<string | null>(projectPath);
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
+  // 在飞 run 起跑时所属会话。ChatWindow 未按会话 key 重挂，故所有异步写回面（流事件 /
+  // 终态 / catch / editor 回传）都要拿它比对当前活动会话，作者切走后一律不写回（修 F26 余项）。
+  const runStartSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
   const unsubscribeWritingRunRef = useRef<(() => void) | null>(null);
   // 每次渲染后把最新值同步到 ref，供 WebSocket / 异步回调读取最新 props，避免闭包读到旧值。
   useEffect(() => {
@@ -446,6 +449,7 @@ export function ChatWindow({
         return;
       }
       assistantSessionIdRef.current = response.assistant_session_id;
+      runStartSessionIdRef.current = response.assistant_session_id;
       onAssistantSessionChange?.(response.assistant_session_id);
       const systemTitle = titleFromSystemJobs(response);
       if (systemTitle) setConversationTitle(systemTitle);
@@ -554,6 +558,12 @@ export function ChatWindow({
 
   const applyAgentStreamEvent = useCallback(
     (message: AgentSocketMessage) => {
+      // 作者已切到别的会话：在飞 run 的流事件不得再改动当前会话的步骤树 / 忙碌态（修 F26 余项）。
+      if (
+        !isRunResultForActiveSession(assistantSessionIdRef.current, runStartSessionIdRef.current)
+      ) {
+        return;
+      }
       if (isAgentRunStartedMessage(message)) {
         // 步骤树全事件驱动后，run 开始本身不再映射为独立步骤。
         return;
@@ -699,6 +709,7 @@ export function ChatWindow({
       agentRunIdRef.current = runId;
       // F26：记住本 run 起跑时所属会话，终态写回前比对，作者切走即不污染新会话。
       const runStartSessionId = assistantSessionIdRef.current;
+      runStartSessionIdRef.current = runStartSessionId;
       setAgentBusy(true);
       setRetryRequest(null);
       setAgentRunRecovery(null);
@@ -804,6 +815,9 @@ export function ChatWindow({
         }
 
         assistantSessionIdRef.current = response.assistant_session_id;
+        // 新会话完成时后端才回 id：把在飞会话身份一并推进到该 id，避免随后 assistantSessionId
+        // 由 null→id 触发的会话副作用把这轮刚完成的结果误判成「切走的旧 run」。
+        runStartSessionIdRef.current = response.assistant_session_id;
         onAssistantSessionChange?.(response.assistant_session_id);
         const systemTitle = titleFromSystemJobs(response);
         if (systemTitle) setConversationTitle(systemTitle);
@@ -935,9 +949,20 @@ export function ChatWindow({
           response.agent_result.requires_user_confirmation ? 'waiting' : 'completed',
         );
       } catch (error) {
+        // F26：await 期间作者可能切走会话或另起新 run。与成功分支同守卫——本 run 的失败
+        // 终态绝不能污染当前会话（旧 catch 无守卫，切会话后仍把报错追加进新会话并装上重试）。
+        const runSuperseded = agentRunIdRef.current !== runId;
+        const sessionSwitched = !isRunResultForActiveSession(
+          assistantSessionIdRef.current,
+          runStartSessionId,
+        );
+        if (runSuperseded || sessionSwitched) {
+          if (!runSuperseded) setAgentBusy(false);
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
-        setRetryRequest({ goal, action });
+        setRetryRequest({ goal, action, intent });
         setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
       }
     },
@@ -1068,6 +1093,12 @@ export function ChatWindow({
     const onResult = (event: Event) => {
       const result = (event as CustomEvent<SuggestionResult>).detail;
       if (!result) return;
+      // 作者已切到别的会话：这条修订回传属于起跑会话的 run，不得追加进当前会话（修 F26 余项）。
+      if (
+        !isRunResultForActiveSession(assistantSessionIdRef.current, runStartSessionIdRef.current)
+      ) {
+        return;
+      }
       const ref = result.filePath ? relativePath(projectPathRef.current, result.filePath) : null;
       const content =
         result.status === 'ready'
@@ -1090,6 +1121,12 @@ export function ChatWindow({
     const onAuthorLoopResult = (event: Event) => {
       const result = (event as CustomEvent<AuthorLoopResult>).detail;
       if (!result) return;
+      // 作者已切到别的会话：这条作者闭环回传属于起跑会话的 run，不得追加进当前会话（修 F26 余项）。
+      if (
+        !isRunResultForActiveSession(assistantSessionIdRef.current, runStartSessionIdRef.current)
+      ) {
+        return;
+      }
       const ref = relativePath(projectPathRef.current, result.filePath);
       const content =
         result.status === 'completed'
