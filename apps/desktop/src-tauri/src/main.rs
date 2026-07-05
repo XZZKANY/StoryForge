@@ -342,28 +342,31 @@ fn start_api_server(
     let api_base_url = desktop_api_base_url();
     let local_mode = should_skip_services() || should_use_api_sidecar();
     if is_api_ready(&api_base_url) {
-        // 覆盖安装后端口上可能还挂着旧版本孤儿 sidecar：版本号对不上就强杀重启，
-        // 避免新前端连旧后端串台（W1 sidecar 握手，决策=taskkill+respawn）。
+        // 端口上已有 API：可能是覆盖安装遗留的旧版本孤儿，也可能是上次崩溃/被强杀未清理
+        // 留下的**同版本**孤儿 sidecar（W1 握手，决策=taskkill+respawn）。
         let expected_version = app.package_info().version.to_string();
         let running_version = fetch_api_version(&api_base_url);
         let version_matches = running_version
             .as_deref()
             .map(|value| value == expected_version)
             .unwrap_or(false);
-        if version_matches {
-            if local_mode && !should_reuse_existing_api() {
-                anyhow::bail!(
-                    "{} 已有 API 服务在运行；本地桌面模式需要自己启动后端以注入 LLM 配置。若确认要复用，请设置 STORYFORGE_DESKTOP_REUSE_API=1。",
-                    api_base_url
-                );
-            }
+        // 仅当「版本一致」且「非本地模式，或显式允许复用」时才复用现有服务。
+        // 本地桌面模式必须用自带 sidecar 注入 BYO-key LLM 配置，故不复用——此时无论版本是否
+        // 相同都把端口上的孤儿强杀重启。旧逻辑对同版本孤儿走 bail，会让上次崩溃残留的 sidecar
+        // 占着端口后**每次启动都闪退**（真机实证），故改为一律强杀。
+        let reuse_existing = version_matches && (!local_mode || should_reuse_existing_api());
+        if reuse_existing {
             println!("✓ 复用已有 FastAPI 服务 ({}/health/ready)", api_base_url);
             return Ok(());
         }
-        println!(
-            "检测到端口上运行的 API 版本为 {:?}，与当前应用 {} 不符，强杀旧 sidecar 后重启。",
-            running_version, expected_version
-        );
+        if version_matches {
+            println!("本地模式检测到端口上已有同版本 API，判定为残留孤儿 sidecar，强杀后启动自带后端。");
+        } else {
+            println!(
+                "检测到端口上运行的 API 版本为 {:?}，与当前应用 {} 不符，强杀旧 sidecar 后重启。",
+                running_version, expected_version
+            );
+        }
         kill_process_on_port(desktop_api_port(&api_base_url));
         // 给旧进程释放端口留出时间，避免紧接着的 spawn 撞端口。
         thread::sleep(Duration::from_secs(1));
