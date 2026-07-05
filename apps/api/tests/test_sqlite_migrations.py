@@ -160,6 +160,66 @@ def test_reconcile_salvages_column_on_db_already_stamped_head(tmp_path) -> None:
         engine.dispose()
 
 
+def test_reconcile_backfills_not_null_timestamp_column_on_empty_table(tmp_path) -> None:
+    """M4：NOT NULL func.now() 时间列（created_at/updated_at 遍布 TimestampMixin 的 50+ 张表）
+    此前 _render_server_default 认不出（既非 .text 也非 str）→ 一律「不敢补」被跳过，F01
+    「最后一道网」对最常见的加列列型有洞。收口对账现编译 func.now()→CURRENT_TIMESTAMP：
+    空存量表能补回，且后续省略该列的 INSERT 拿到当前时间戳、不再起服即崩。"""
+
+    import app.models  # noqa: F401
+    from app.db.base import Base
+
+    engine = _make_engine(tmp_path, "ts_empty.sqlite3")
+    try:
+        Base.metadata.create_all(engine)
+        # 模拟旧版建的空存量表缺 updated_at（func.now() NOT NULL）。
+        with engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE assistant_sessions DROP COLUMN updated_at")
+        assert "updated_at" not in _column_names(engine, "assistant_sessions")
+
+        db_session.bootstrap_sqlite_database(engine)
+
+        assert "updated_at" in _column_names(engine, "assistant_sessions")
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "INSERT INTO assistant_sessions (title, task_type) "
+                "VALUES ('新会话', 'ide_agent_orchestration')"
+            )
+            value = conn.exec_driver_sql(
+                "SELECT updated_at FROM assistant_sessions"
+            ).scalar_one()
+        assert value is not None  # 新行拿到 CURRENT_TIMESTAMP，非空
+    finally:
+        engine.dispose()
+
+
+def test_reconcile_skips_non_constant_default_on_non_empty_table(tmp_path) -> None:
+    """SQLite 限制：非空表无法 ADD 一个 NOT NULL 非常量默认列（CURRENT_TIMESTAMP）。收口对账
+    不得因此崩——单列失败被 try/except 兜住、跳过该列、其余照常起服（列仍缺，需 alembic batch
+    重建表才能补，属已知残留）。这里锁定「不阻断起服」这条底线。"""
+
+    import app.models  # noqa: F401
+    from app.db.base import Base
+
+    engine = _make_engine(tmp_path, "ts_nonempty.sqlite3")
+    try:
+        Base.metadata.create_all(engine)
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "INSERT INTO assistant_sessions (title, task_type) "
+                "VALUES ('旧会话', 'ide_agent_orchestration')"
+            )
+            conn.exec_driver_sql("ALTER TABLE assistant_sessions DROP COLUMN updated_at")
+
+        # 不抛：单列补列失败被兜住，起服不中断。
+        db_session.bootstrap_sqlite_database(engine)
+
+        # 已有的可空列（project_path）仍照常补回，证明对账整体没被单列失败带崩。
+        assert "project_path" in _column_names(engine, "assistant_sessions")
+    finally:
+        engine.dispose()
+
+
 def test_adoption_restores_agent_run_event_unique_index(tmp_path) -> None:
     """存量表上 create_all 不补索引：纳管必须补回 agent_run_events 唯一索引。"""
 
