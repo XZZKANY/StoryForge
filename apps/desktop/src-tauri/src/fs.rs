@@ -72,9 +72,18 @@ fn stage_atomic_write(target: &Path, content: &[u8]) -> std::io::Result<PathBuf>
     let seq = ATOMIC_WRITE_COUNTER.fetch_add(1, Ordering::Relaxed);
     let tmp = dir.join(format!(".{}.tmp-{}-{}", stem, std::process::id(), seq));
 
-    let mut file = fs::File::create(&tmp)?;
-    file.write_all(content)?;
-    file.sync_all()?;
+    // write/sync 失败（磁盘满、配额）也要删掉刚建的临时文件，否则 .{name}.tmp-* 残渣会
+    // 在目标目录堆积（此前只有 rename 失败分支清理）。闭包作用域结束即 drop file 句柄，
+    // 再 remove——Windows 下删一个仍打开的文件会失败，故必须先关句柄。
+    let write = || -> std::io::Result<()> {
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(content)?;
+        file.sync_all()
+    };
+    if let Err(err) = write() {
+        let _ = fs::remove_file(&tmp);
+        return Err(err);
+    }
     Ok(tmp)
 }
 
