@@ -55,7 +55,7 @@ export function useProjectWorkspace({
     if (!isTauriRuntime()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 启动时从 localStorage 恢复，React18 合法模式
       setProjects(projectList);
-      if (projectList.length > 0) setActiveProject(projectList[0]);
+      // 不自动打开最近项目：启动落到 pane-start 空起始态，最近项目留侧栏供一键重开。
       setRecentFiles(fileList);
       return;
     }
@@ -70,7 +70,7 @@ export function useProjectWorkspace({
       ]);
       if (cancelled) return;
       setProjects(existingProjects);
-      setActiveProject(existingProjects[0] ?? null);
+      // 不自动打开最近项目：启动落到 pane-start 空起始态，最近项目留侧栏供一键重开。
       setRecentFiles(existingFiles);
       if (existingProjects.length !== projectList.length) {
         localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(existingProjects));
@@ -115,6 +115,16 @@ export function useProjectWorkspace({
     setCurrentFile(null);
   }, []);
 
+  /** 从「最近项目」里移除一条（如误入的临时/测试项目）；若它正是当前项目则退回起始态。 */
+  const removeProject = useCallback((path: string) => {
+    setProjects((prev) => {
+      const next = prev.filter((item) => item !== path);
+      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(next));
+      return next;
+    });
+    setActiveProject((prev) => (prev === path ? null : prev));
+  }, []);
+
   const setActiveProjectAssistantSession = useCallback(
     (assistantSessionId: number | null, projectOverride?: string) => {
       // projectOverride 供侧栏「切换/新建会话」在 selectProject 同一事件里使用，
@@ -144,6 +154,7 @@ export function useProjectWorkspace({
     selectProject,
     selectFile,
     closeFile,
+    removeProject,
     setActiveProjectAssistantSession,
   };
 }
