@@ -197,6 +197,16 @@ function AgentComposerHome({
       <div
         className={`flex w-full ${compact ? 'max-w-xl' : 'max-w-[760px]'} translate-y-[-4vh] flex-col items-stretch`}
       >
+        {!compact && !activeProject && (
+          <div className="mb-8 flex flex-col items-center text-center">
+            <div className="mb-3.5 font-mono text-[11px] tracking-[0.22em] text-subtle">
+              STORYFORGE
+            </div>
+            <h1 className="font-prose text-[26px] font-normal leading-snug text-foreground">
+              今晚写点什么？
+            </h1>
+          </div>
+        )}
         {!compact && activeProject && (
           <h1 className="mb-8 text-center text-[27px] font-semibold leading-snug text-foreground">
             我们应该在 {projectLabel} 中构建什么？
@@ -335,6 +345,22 @@ function AgentComposerHome({
             </button>
           </div>
         </div>
+
+        {!compact && (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-subtle">
+            <span>
+              命令面板{' '}
+              <kbd className="ml-0.5 rounded border border-border px-1 font-mono">Ctrl P</kbd>
+            </span>
+            <span>
+              打开项目{' '}
+              <kbd className="ml-0.5 rounded border border-border px-1 font-mono">Ctrl O</kbd>
+            </span>
+            <span>
+              设置 <kbd className="ml-0.5 rounded border border-border px-1 font-mono">Ctrl ,</kbd>
+            </span>
+          </div>
+        )}
 
         {!compact && (
           <div className="mt-2 flex items-center gap-3 px-1 text-xs text-muted">
