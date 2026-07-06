@@ -1,14 +1,26 @@
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { writeFile, readFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import { emitAgentWsTypes } from './lib/emit-agent-ws-types.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const apiRoot = join(root, 'apps', 'api');
 const outputPath = join(root, 'packages', 'shared', 'src', 'contracts', 'storyforge.openapi.json');
 const wsSchemaPath = join(root, 'packages', 'shared', 'src', 'contracts', 'agent-ws.schema.json');
+const wsTypesPath = join(
+  root,
+  'apps',
+  'desktop',
+  'frontend',
+  'src',
+  'lib',
+  'api',
+  'generated',
+  'agent-ws.ts',
+);
 
 function formatTimestamp() {
   return new Date().toISOString().slice(0, 19);
@@ -91,6 +103,14 @@ try {
     log('ERROR', `OpenAPI 契约生成失败，退出码：${exitCode}`);
   }
   process.exitCode = exitCode;
+
+  if (exitCode === 0) {
+    // 前端 WS 类型从刚生成的 schema 派生（同一事实源），drift 门禁一并校验。
+    const wsSchema = JSON.parse(await readFile(wsSchemaPath, 'utf8'));
+    await mkdir(dirname(wsTypesPath), { recursive: true });
+    await writeFile(wsTypesPath, emitAgentWsTypes(wsSchema), 'utf8');
+    log('INFO', `已生成前端 WS 类型：${wsTypesPath}`);
+  }
 } finally {
   await rm(tempScriptPath, { force: true });
 }
