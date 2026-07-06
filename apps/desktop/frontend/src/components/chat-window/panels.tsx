@@ -337,8 +337,8 @@ export function ContextSummaryPanel({
 export function MessageItem({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end animate-slide-up-fade">
-        <div className="max-w-[68%] rounded-lg bg-surface px-3.5 py-2.5 text-sm leading-6 text-foreground">
+      <div className="flex animate-slide-up-fade justify-end">
+        <div className="max-w-[85%] rounded-[12px_12px_2px_12px] bg-elevated px-3 py-2 text-sm leading-6 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       </div>
@@ -346,11 +346,8 @@ export function MessageItem({ message }: { message: Message }) {
   }
 
   return (
-    <article className="max-w-[760px] animate-slide-up-fade">
-      <div className="mb-2 text-xs font-medium text-muted">StoryForge</div>
-      <div className="text-sm leading-7 text-foreground">
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
-      </div>
+    <article className="max-w-[760px] animate-slide-up-fade text-sm leading-7 text-foreground">
+      <p className="whitespace-pre-wrap break-words">{message.content}</p>
     </article>
   );
 }
