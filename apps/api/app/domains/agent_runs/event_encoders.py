@@ -12,6 +12,14 @@ from app.domains.agent_runs.event_types import (
     TOOL_TRACE,
 )
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
+from app.domains.agent_runs.ws_messages import (
+    AgentRunStartedFrame,
+    AgentStepFrame,
+    ControlAckFrame,
+    PermissionRequiredFrame,
+    TerminalFrame,
+    ToolTraceFrame,
+)
 
 
 def encode_agent_run_sse_event(event: AgentRunEvent) -> str:
@@ -30,15 +38,14 @@ def encode_agent_run_sse_event(event: AgentRunEvent) -> str:
 
 def websocket_started_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
     scope = run.scope if isinstance(run.scope, dict) else {}
-    return {
-        "type": AGENT_RUN_STARTED,
-        "session_id": run.session_id,
-        "run_id": run.public_id,
-        "user_message": run.goal,
-        "event_id": event.id,
-        "agent_role_hints": _scope_string_list(scope, "agent_role_hints"),
-        "agent_role_mentions": _scope_string_list(scope, "agent_role_mentions"),
-    }
+    return AgentRunStartedFrame(
+        session_id=run.session_id,
+        run_id=run.public_id,
+        user_message=run.goal,
+        event_id=event.id,
+        agent_role_hints=_scope_string_list(scope, "agent_role_hints"),
+        agent_role_mentions=_scope_string_list(scope, "agent_role_mentions"),
+    ).to_wire()
 
 
 def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[str, Any]]:
@@ -59,13 +66,12 @@ def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[
 
 
 def websocket_control_event(event: AgentRunEvent) -> dict[str, Any]:
-    return {
-        "type": event.event_type,
-        "session_id": str(event.payload.get("session_id") or ""),
-        "run_id": str(event.payload.get("run_id") or ""),
-        "event_id": event.id,
-        "status": "recorded",
-    }
+    return ControlAckFrame(
+        type=event.event_type,
+        session_id=str(event.payload.get("session_id") or ""),
+        run_id=str(event.payload.get("run_id") or ""),
+        event_id=event.id,
+    ).to_wire()
 
 
 def _scope_string_list(scope: dict[str, Any] | None, key: str) -> list[str]:
@@ -85,18 +91,17 @@ def _websocket_agent_step_events(run: AgentRun, event: AgentRunEvent) -> list[di
         if not isinstance(step, dict):
             continue
         events.append(
-            {
-                "type": "agent_step",
-                "session_id": run.session_id,
-                "run_id": run.public_id,
-                "assistant_session_id": run.assistant_session_id,
-                "event_id": event.id,
-                "sequence": event.sequence,
-                "index": index,
-                "step": step.get("step"),
-                "detail": step.get("detail"),
-                "status": step.get("status"),
-            }
+            AgentStepFrame(
+                session_id=run.session_id,
+                run_id=run.public_id,
+                assistant_session_id=run.assistant_session_id,
+                event_id=event.id,
+                sequence=event.sequence,
+                index=index,
+                step=step.get("step"),
+                detail=step.get("detail"),
+                status=step.get("status"),
+            ).to_wire()
         )
     return events
 
@@ -105,33 +110,31 @@ def _websocket_tool_trace_event(run: AgentRun, event: AgentRunEvent) -> dict[str
     payload = event.payload if isinstance(event.payload, dict) else {}
     index = payload.get("index") if isinstance(payload.get("index"), int) else 0
     trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
-    return {
-        "type": TOOL_TRACE,
-        "session_id": run.session_id,
-        "run_id": run.public_id,
-        "assistant_session_id": run.assistant_session_id,
-        "event_id": event.id,
-        "sequence": event.sequence,
-        "index": index,
-        "trace": trace,
-    }
+    return ToolTraceFrame(
+        session_id=run.session_id,
+        run_id=run.public_id,
+        assistant_session_id=run.assistant_session_id,
+        event_id=event.id,
+        sequence=event.sequence,
+        index=index,
+        trace=trace,
+    ).to_wire()
 
 
 def _websocket_permission_required_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
     payload = event.payload if isinstance(event.payload, dict) else {}
-    return {
-        "type": PERMISSION_REQUIRED,
-        "session_id": run.session_id,
-        "run_id": run.public_id,
-        "assistant_session_id": run.assistant_session_id,
-        "event_id": event.id,
-        "sequence": event.sequence,
-        "permission_profile": payload.get("permission_profile") or run.permission_profile,
-        "reason": payload.get("reason") or "requires_user_confirmation",
-        "proposed_patch": payload.get("proposed_patch") if isinstance(payload.get("proposed_patch"), dict) else None,
-        "confirmation_action": payload.get("confirmation_action"),
-        "blocked_tool": payload.get("blocked_tool"),
-    }
+    return PermissionRequiredFrame(
+        session_id=run.session_id,
+        run_id=run.public_id,
+        assistant_session_id=run.assistant_session_id,
+        event_id=event.id,
+        sequence=event.sequence,
+        permission_profile=payload.get("permission_profile") or run.permission_profile,
+        reason=payload.get("reason") or "requires_user_confirmation",
+        proposed_patch=payload.get("proposed_patch") if isinstance(payload.get("proposed_patch"), dict) else None,
+        confirmation_action=payload.get("confirmation_action"),
+        blocked_tool=payload.get("blocked_tool"),
+    ).to_wire()
 
 
 def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
@@ -140,14 +143,14 @@ def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, 
 
     payload = event.payload if isinstance(event.payload, dict) else {}
     completed = event.event_type == AGENT_RUN_COMPLETED
-    return {
-        "type": "agent_run_completed" if completed else "agent_run_failed",
-        "session_id": run.session_id,
-        "run_id": run.public_id,
-        "assistant_session_id": run.assistant_session_id,
-        "event_id": event.id,
-        "sequence": event.sequence,
-        "status": run.status,
-        "message": event.message,
-        "payload": payload,
-    }
+    return TerminalFrame(
+        type="agent_run_completed" if completed else "agent_run_failed",
+        session_id=run.session_id,
+        run_id=run.public_id,
+        assistant_session_id=run.assistant_session_id,
+        event_id=event.id,
+        sequence=event.sequence,
+        status=run.status,
+        message=event.message,
+        payload=payload,
+    ).to_wire()
