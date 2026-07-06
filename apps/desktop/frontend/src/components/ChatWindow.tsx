@@ -1284,6 +1284,7 @@ export function ChatWindow({
           currentFileLabel={contextRef}
           explicitContextPaths={explicitContextPaths}
           onAddContext={addExplicitContext}
+          onTogglePinnedContext={togglePinnedContext}
           onChange={setInput}
           onSubmit={handleSubmit}
           onPauseRun={agentRunControls.onPauseRun}

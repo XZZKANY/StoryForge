@@ -21,6 +21,7 @@ export function ComposerBox({
   onSubmit,
   explicitContextPaths,
   onAddContext,
+  onTogglePinnedContext,
   onPauseRun,
 }: {
   value: string;
@@ -29,6 +30,7 @@ export function ComposerBox({
   currentFileLabel: string | null;
   explicitContextPaths: string[];
   onAddContext: () => void;
+  onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
   onPauseRun?: () => void;
@@ -49,6 +51,7 @@ export function ComposerBox({
             currentFileLabel={currentFileLabel}
             explicitContextPaths={explicitContextPaths}
             onAddContext={onAddContext}
+            onTogglePinnedContext={onTogglePinnedContext}
             onChange={onChange}
             onSubmit={onSubmit}
             onPauseRun={onPauseRun}
@@ -68,6 +71,7 @@ export function ComposerSurface({
   onSubmit,
   explicitContextPaths,
   onAddContext,
+  onTogglePinnedContext,
   onPauseRun,
 }: {
   value: string;
@@ -76,11 +80,16 @@ export function ComposerSurface({
   currentFileLabel: string | null;
   explicitContextPaths: string[];
   onAddContext: () => void;
+  onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
   onSubmit?: () => void;
   onPauseRun?: () => void;
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
+  // 硬引用超 3 枚收纳为 +N（悬停看全名）；焦点可钉时点击 @焦点即锁为硬引用。
+  const visiblePins = explicitContextPaths.slice(0, 3);
+  const overflowPins = explicitContextPaths.slice(3);
+  const focusPinnable = Boolean(currentFileLabel) && Boolean(onTogglePinnedContext);
   const roleQuery = roleMentionQuery(value);
   const roleSuggestions =
     roleQuery === null
@@ -144,22 +153,55 @@ export function ComposerSurface({
         >
           <Plus size={14} strokeWidth={1.7} />
         </button>
-        <span
-          className="inline-flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-muted"
-          title="当前编辑焦点（随聚焦页签漂移）"
-        >
-          <span className="font-semibold text-agent">@</span>
-          <span className="max-w-[130px] truncate">{currentFileLabel ?? '当前文件'}</span>
-        </span>
-        {explicitContextPaths.slice(-3).map((path) => (
+        {focusPinnable ? (
+          <button
+            type="button"
+            className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 rounded px-1.5 py-0.5 text-muted transition-colors hover:bg-elevated hover:text-foreground"
+            title={`${currentFileLabel} · 点击钉为常驻上下文`}
+            onClick={() => onTogglePinnedContext?.(currentFileLabel as string)}
+          >
+            <span className="font-semibold text-agent">@</span>
+            <span className="max-w-[120px] truncate">{basename(currentFileLabel as string)}</span>
+            <span className="hidden text-[10px] text-subtle group-hover/focus:inline">钉住</span>
+          </button>
+        ) : (
+          <span
+            className="inline-flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-muted"
+            title="当前编辑焦点（随聚焦页签漂移）"
+          >
+            <span className="font-semibold text-agent">@</span>
+            <span className="max-w-[130px] truncate">
+              {currentFileLabel ? basename(currentFileLabel) : '当前文件'}
+            </span>
+          </span>
+        )}
+        {visiblePins.map((path) => (
           <span
             key={path}
-            className="inline-flex max-w-[110px] flex-shrink-0 items-center gap-1 truncate rounded bg-elevated px-1.5 py-0.5 text-muted"
+            className="group/pin inline-flex max-w-[120px] flex-shrink-0 items-center gap-1 rounded bg-elevated px-1.5 py-0.5 text-muted"
             title={path}
           >
-            {basename(path)}
+            <span className="truncate">{basename(path)}</span>
+            {onTogglePinnedContext && (
+              <button
+                type="button"
+                className="hidden flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground group-hover/pin:inline-flex"
+                title="移除该常驻上下文"
+                onClick={() => onTogglePinnedContext(path)}
+              >
+                ✕
+              </button>
+            )}
           </span>
         ))}
+        {overflowPins.length > 0 && (
+          <span
+            className="flex-shrink-0 rounded bg-elevated px-1.5 py-0.5 text-subtle"
+            title={overflowPins.map(basename).join('、')}
+          >
+            +{overflowPins.length}
+          </span>
+        )}
         <span className="ml-auto min-w-0 flex-shrink truncate text-subtle">编辑模式</span>
         {busy && onPauseRun ? (
           <button

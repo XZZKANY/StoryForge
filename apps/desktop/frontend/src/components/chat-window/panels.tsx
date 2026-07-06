@@ -405,6 +405,7 @@ export function EmptyConversation({
           currentFileLabel={currentFileLabel}
           explicitContextPaths={explicitContextPaths}
           onAddContext={onAddContext}
+          onTogglePinnedContext={onTogglePinnedContext}
           onChange={setValue}
           onSubmit={submit}
         />
