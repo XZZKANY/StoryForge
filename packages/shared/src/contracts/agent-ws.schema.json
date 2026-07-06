@@ -1,0 +1,433 @@
+{
+  "$defs": {
+    "AgentRunStartedFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_role_hints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Agent Role Hints",
+          "type": "array"
+        },
+        "agent_role_mentions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Agent Role Mentions",
+          "type": "array"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "agent_run_started",
+          "default": "agent_run_started",
+          "title": "Type",
+          "type": "string"
+        },
+        "user_message": {
+          "title": "User Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "user_message",
+        "event_id"
+      ],
+      "title": "AgentRunStartedFrame",
+      "type": "object"
+    },
+    "AgentStepFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assistant Session Id"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        },
+        "type": {
+          "const": "agent_step",
+          "default": "agent_step",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "event_id",
+        "sequence",
+        "index"
+      ],
+      "title": "AgentStepFrame",
+      "type": "object"
+    },
+    "ControlAckFrame": {
+      "additionalProperties": false,
+      "description": "控制回执帧。回执的 type 是「映射后」的值（approve_permission → permission_approved），\n前端 isAgentControlAckMessage 认的是这个值集合；status 恒为 recorded。",
+      "properties": {
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "status": {
+          "const": "recorded",
+          "default": "recorded",
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "permission_approved",
+            "permission_denied",
+            "pause_run",
+            "resume_run",
+            "stop_run",
+            "retry_from_checkpoint"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "session_id",
+        "run_id",
+        "event_id"
+      ],
+      "title": "ControlAckFrame",
+      "type": "object"
+    },
+    "PermissionRequiredFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assistant Session Id"
+        },
+        "blocked_tool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Blocked Tool"
+        },
+        "confirmation_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confirmation Action"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "permission_profile": {
+          "title": "Permission Profile",
+          "type": "string"
+        },
+        "proposed_patch": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Patch"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "permission_required",
+          "default": "permission_required",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "event_id",
+        "sequence",
+        "permission_profile",
+        "reason"
+      ],
+      "title": "PermissionRequiredFrame",
+      "type": "object"
+    },
+    "TerminalFrame": {
+      "additionalProperties": false,
+      "description": "AGENT_RUN_COMPLETED / FAILED 落进 WS 流：断线转轮询后前端拉事件表重放即可\n重建终态（F10）。payload 必须原样带出（含 assistant_session_id），否则重建拿不回结果。",
+      "properties": {
+        "assistant_session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assistant Session Id"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "agent_run_completed",
+            "agent_run_failed"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "session_id",
+        "run_id",
+        "event_id",
+        "sequence",
+        "status"
+      ],
+      "title": "TerminalFrame",
+      "type": "object"
+    },
+    "ToolTraceFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_session_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assistant Session Id"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "trace": {
+          "additionalProperties": true,
+          "title": "Trace",
+          "type": "object"
+        },
+        "type": {
+          "const": "tool_trace",
+          "default": "tool_trace",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "event_id",
+        "sequence",
+        "index"
+      ],
+      "title": "ToolTraceFrame",
+      "type": "object"
+    }
+  },
+  "$id": "https://storyforge.local/contracts/agent-ws.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Agent WS 出站流帧的单一事实源（由 app.domains.agent_runs.ws_messages 的 Pydantic 模型派生）。改字段名 / 增删字段须走后端模型，pnpm openapi 重新生成本文件，前端派生类型据此漂移即门禁红。",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AgentRunStartedFrame"
+    },
+    {
+      "$ref": "#/$defs/AgentStepFrame"
+    },
+    {
+      "$ref": "#/$defs/ToolTraceFrame"
+    },
+    {
+      "$ref": "#/$defs/PermissionRequiredFrame"
+    },
+    {
+      "$ref": "#/$defs/TerminalFrame"
+    },
+    {
+      "$ref": "#/$defs/ControlAckFrame"
+    }
+  ],
+  "title": "StoryForge Agent WebSocket 出站帧契约"
+}

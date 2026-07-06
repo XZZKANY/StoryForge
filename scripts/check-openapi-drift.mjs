@@ -5,20 +5,18 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const contractPath = resolve(
-  root,
-  'packages',
-  'shared',
-  'src',
-  'contracts',
-  'storyforge.openapi.json',
-);
+const contractsDir = resolve(root, 'packages', 'shared', 'src', 'contracts');
+// pnpm openapi 一次刷新的全部契约产物；任一漂移即红（W6：加 agent-ws.schema.json）。
+const contractPaths = [
+  resolve(contractsDir, 'storyforge.openapi.json'),
+  resolve(contractsDir, 'agent-ws.schema.json'),
+];
 
 function digest(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-const before = digest(contractPath);
+const before = contractPaths.map(digest);
 
 console.log('[check:drift] 刷新 OpenAPI 契约...');
 const result = spawnSync('pnpm', ['openapi'], {
@@ -37,10 +35,13 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-const after = digest(contractPath);
-if (before !== after) {
+const after = contractPaths.map(digest);
+const drifted = contractPaths.filter((_, index) => before[index] !== after[index]);
+if (drifted.length > 0) {
   console.error(
-    '[check:drift] OpenAPI 契约已漂移。请提交刷新后的 packages/shared/src/contracts/storyforge.openapi.json。',
+    `[check:drift] 契约已漂移。请提交刷新后的：${drifted
+      .map((path) => path.replace(`${root}/`, '').replace(`${root}\\`, ''))
+      .join('、')}。`,
   );
   process.exit(1);
 }

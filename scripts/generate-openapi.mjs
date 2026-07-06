@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const apiRoot = join(root, 'apps', 'api');
 const outputPath = join(root, 'packages', 'shared', 'src', 'contracts', 'storyforge.openapi.json');
+const wsSchemaPath = join(root, 'packages', 'shared', 'src', 'contracts', 'agent-ws.schema.json');
 
 function formatTimestamp() {
   return new Date().toISOString().slice(0, 19);
@@ -64,6 +65,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))
 from app.main import app
+from app.domains.agent_runs.ws_schema import build_agent_ws_schema
 
 output_path = Path(${JSON.stringify(outputPath)})
 output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +73,12 @@ output_path.write_bytes(
     (json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n").encode("utf-8")
 )
 print(f"已生成 OpenAPI 契约：{output_path}")
+
+ws_schema_path = Path(${JSON.stringify(wsSchemaPath)})
+ws_schema_path.write_bytes(
+    (json.dumps(build_agent_ws_schema(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n").encode("utf-8")
+)
+print(f"已生成 Agent WS 帧契约：{ws_schema_path}")
 `.trim();
 
 const tempScriptPath = join(tmpdir(), `storyforge-openapi-${Date.now()}.py`);
