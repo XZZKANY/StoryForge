@@ -22,6 +22,19 @@ class ToolCatalogReferences:
 
 
 @dataclass(frozen=True)
+class LoopToolSchema:
+    """chat 自由文本循环暴露给 LLM 的 function 描述与参数 schema。
+
+    带此字段的 spec 即「进 chat 循环、对 LLM 可见」的工具；不带（None）的工具（context.load /
+    judge.* / bookrun.*）只走固定管线或控制通道，不进循环。LLM 面的 name / 描述 / 参数从这里
+    单点派生（见 build_loop_tool_schemas），删掉 loop_runtime 里那份手写镜像。
+    """
+
+    description: str
+    parameters: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
 class AgentRuntimeToolSpec:
     name: str
     description: str
@@ -39,6 +52,7 @@ class AgentRuntimeToolSpec:
     required_capabilities: Sequence[str] = field(default_factory=tuple)
     evidence_fields: Sequence[str] = field(default_factory=tuple)
     references: ToolCatalogReferences = field(default_factory=ToolCatalogReferences)
+    loop_schema: LoopToolSchema | None = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +110,15 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         execution_mode="sync",
         evidence_fields=("entry_count", "truncated"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.fs_list",)),
+        loop_schema=LoopToolSchema(
+            description="列出项目内文件（递归、相对路径）。可选 subpath 限定子目录。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "subpath": {"type": "string", "description": "限定列出的子目录，相对项目根。"},
+                },
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="fs.read",
@@ -112,6 +135,18 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         execution_mode="sync",
         evidence_fields=("path", "returned_chars", "truncated"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.fs_read",)),
+        loop_schema=LoopToolSchema(
+            description="读取项目内单个文本文件的内容切片。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的文件路径。"},
+                    "offset": {"type": "integer", "description": "起始字符偏移，默认 0。"},
+                    "limit": {"type": "integer", "description": "最多返回字符数，默认 20000。"},
+                },
+                "required": ["path"],
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="fs.search",
@@ -128,6 +163,18 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         execution_mode="sync",
         evidence_fields=("match_count", "truncated"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.fs_search",)),
+        loop_schema=LoopToolSchema(
+            description="在项目文本文件里跨文件检索，返回文件、行号和摘录。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "要检索的文本或正则。"},
+                    "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
+                    "use_regex": {"type": "boolean", "description": "query 是否按正则解释，默认 false。"},
+                },
+                "required": ["query"],
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="project.consistency",
@@ -144,6 +191,24 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         execution_mode="sync",
         evidence_fields=("scanned_files", "term_count", "time_marker_count", "repeated_clause_count"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_consistency",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、"
+                "全书时间标记罗列和跨文件重复子句。只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "terms": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要追踪的人物名 / 称谓 / 设定词条，最多 30 个；可先读设定文件再决定。",
+                    },
+                    "subpath": {"type": "string", "description": "限定扫描的子目录，相对项目根。"},
+                    "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
+                },
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="project.deep_consistency",
@@ -163,6 +228,30 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         required_capabilities=("llm",),
         evidence_fields=("path", "issue_count", "bible_file_count"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_deep_consistency",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，"
+                "返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。比 project_consistency 更贵更慢，"
+                "适合先用机械观察或检索定位疑点、再对目标章节深查；结果是参考信号，须抽读原文核实。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径（要评审的正文）。"},
+                    "bible_paths": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "作为约束的人物 / 设定文件路径；省略则自动取 人物/ 与 设定/ 下的 md 文件。",
+                    },
+                    "facts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "已核实的必含事实（如「左臂受伤」「地点：灯塔港」），正文与之矛盾会被标出；最多 40 条。",
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="file.review",
@@ -181,6 +270,16 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         required_capabilities=("llm",),
         evidence_fields=("issue_count", "mode", "review_report"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.file_review",)),
+        loop_schema=LoopToolSchema(
+            description="对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                },
+                "required": ["path"],
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="file.revise",
@@ -199,6 +298,20 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         required_capabilities=("llm",),
         evidence_fields=("proposed_patch", "applied_scope", "scope_warning"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.file_revise",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "按明确指示修订项目内单个稿件，生成待作者确认的修订补丁；不会直接写盘。"
+                "一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                    "instruction": {"type": "string", "description": "修订指示：要改什么、保留什么。"},
+                },
+                "required": ["path", "instruction"],
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="file.create",
@@ -217,6 +330,20 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         required_capabilities=("llm",),
         evidence_fields=("proposed_patch", "content_chars"),
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.file_create",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "为项目内尚不存在的新文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。"
+                "目标文件已存在时会失败（改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的新文件路径（含目录与 .md 扩展名）。"},
+                    "instruction": {"type": "string", "description": "写作指令：写什么、篇幅、衔接哪些既有内容。"},
+                },
+                "required": ["path", "instruction"],
+            },
+        ),
     ),
     AgentRuntimeToolSpec(
         name="judge.run",
@@ -336,6 +463,61 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
 
 def list_agent_runtime_tool_specs() -> tuple[AgentRuntimeToolSpec, ...]:
     return _AGENT_RUNTIME_TOOL_SPECS
+
+
+def llm_tool_name(spec_name: str) -> str:
+    """dotted registry 名 → OpenAI function 名（function 名不允许点号）。"""
+
+    return spec_name.replace(".", "_")
+
+
+def list_loop_tool_specs(
+    specs: Sequence[AgentRuntimeToolSpec] | None = None,
+) -> tuple[AgentRuntimeToolSpec, ...]:
+    """进 chat 循环、对 LLM 可见的工具（带 loop_schema），按声明顺序。
+
+    specs 省略则取全量注册表；元测试可传入含 demo 工具的列表验证单点派生。
+    """
+
+    source = _AGENT_RUNTIME_TOOL_SPECS if specs is None else specs
+    return tuple(spec for spec in source if spec.loop_schema is not None)
+
+
+def build_loop_tool_schemas(
+    specs: Sequence[AgentRuntimeToolSpec] | None = None,
+) -> list[dict[str, Any]]:
+    """从 spec 单点派生 chat 循环的 OpenAI function schema 列表（替代手写镜像）。"""
+
+    schemas: list[dict[str, Any]] = []
+    for spec in list_loop_tool_specs(specs):
+        assert spec.loop_schema is not None  # list_loop_tool_specs 已过滤
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": llm_tool_name(spec.name),
+                    "description": spec.loop_schema.description,
+                    "parameters": dict(spec.loop_schema.parameters),
+                },
+            }
+        )
+    return schemas
+
+
+def build_loop_tool_name_map(
+    specs: Sequence[AgentRuntimeToolSpec] | None = None,
+) -> dict[str, str]:
+    """OpenAI function 名 → dotted registry 名。"""
+
+    return {llm_tool_name(spec.name): spec.name for spec in list_loop_tool_specs(specs)}
+
+
+def loop_patch_tool_specs(
+    specs: Sequence[AgentRuntimeToolSpec] | None = None,
+) -> tuple[AgentRuntimeToolSpec, ...]:
+    """循环内会产出待确认补丁的工具（write_pending）：一次对话最多一个补丁，生成后撤下。"""
+
+    return tuple(spec for spec in list_loop_tool_specs(specs) if spec.risk_level == "write_pending")
 
 
 def tool_definition_from_spec(spec: AgentRuntimeToolSpec, handler: ToolHandler) -> ToolDefinition:
