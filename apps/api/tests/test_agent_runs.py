@@ -909,6 +909,46 @@ def test_resume_run_records_diagnostic_for_unsupported_pending_call(session: Ses
     assert projection["runtime_recovery"]["latest_pending_call_resolution"] is None
 
 
+def test_resume_run_parks_unresumable_agent_loop_run_as_stopped(session: Session) -> None:
+    """chat.explain 等无 resume anchor 的 agent 循环被暂停后点恢复：不能留成 running 僵尸，回落 stopped。"""
+
+    from app.domains.agent_runs.service import (
+        get_agent_run,
+        handle_agent_control_message,
+        list_agent_artifacts,
+    )
+
+    run = _seed_agent_run(session, public_id="run-chat-loop-unresumable")
+    run.status = "paused"
+    run.current_step = "paused"
+    session.add(run)
+    session.commit()
+
+    control = handle_agent_control_message(
+        session,
+        public_id=run.public_id,
+        session_id=run.session_id,
+        control_type="resume_run",
+        payload={"reason": "resume a paused chat loop"},
+    )
+
+    assert control.resumed_result is None
+    assert control.resume_diagnostic == {
+        "kind": "runtime_pending_call_resume",
+        "can_resume": False,
+        "resume_via_control_channel": False,
+        "requires_manual_restart": False,
+        "reason": "no_pending_call",
+        "resume_strategy": "start_new_message",
+        "reverted_status": "stopped",
+    }
+    refreshed = get_agent_run(session, run.public_id)
+    assert refreshed.status == "stopped"
+    assert refreshed.current_step == "stopped"
+    assert control.event.payload["runtime_recovery"]["resume_diagnostic"] == control.resume_diagnostic
+    assert list_agent_artifacts(session, run.public_id) == []
+
+
 def test_resume_run_records_diagnostic_for_malformed_file_review_pending_call(session: Session) -> None:
     """file.review pending call 缺少 resume envelope 时保守降级，不重跑 context 或 reviewer。"""
 
