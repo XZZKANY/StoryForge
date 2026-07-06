@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from app.domains.agent_runs.event_encoders import (
@@ -203,3 +204,182 @@ def test_control_ack_frame_shape() -> None:
     assert frame["status"] == "recorded"
     assert isinstance(frame["session_id"], str) and frame["session_id"] == "sess-42"
     assert isinstance(frame["run_id"], str) and frame["run_id"] == "run-pub-1"
+
+
+# ── W6 WS 契约化：逐字节等价基线 ──────────────────────────────────────────
+# 编码器由手写 dict 切成 Pydantic 模型（ws_messages）后，出线字节必须一字不差。
+# 下面把每类帧的「完整 dict + 键顺序」冻成金标；json.dumps 比对是顺序敏感的，
+# 故字段增删改名 / 顺序变动 / None 键丢失都会红。这是「先绿再切 encode」的绿。
+
+
+def _wire(frame: dict[str, object]) -> str:
+    return json.dumps(frame, ensure_ascii=False)
+
+
+def test_started_frame_is_byte_identical_to_golden() -> None:
+    frame = _encode(_event(_run(), AGENT_RUN_STARTED, {}))[0]
+    golden = {
+        "type": "agent_run_started",
+        "session_id": "sess-42",
+        "run_id": "run-pub-1",
+        "user_message": "给第二章加紧张感",
+        "event_id": 101,
+        "agent_role_hints": ["editor"],
+        "agent_role_mentions": ["@editor"],
+    }
+    assert _wire(frame) == _wire(golden)
+
+
+def test_agent_step_frames_are_byte_identical_to_golden() -> None:
+    payload = {
+        "plan": [
+            {"step": "读取", "detail": "读第二章", "status": "completed"},
+            {"step": "改写", "detail": "", "status": "running"},
+        ]
+    }
+    frames = _encode(_event(_run(), AGENT_PLAN_CREATED, payload))
+    golden = [
+        {
+            "type": "agent_step",
+            "session_id": "sess-42",
+            "run_id": "run-pub-1",
+            "assistant_session_id": 7,
+            "event_id": 101,
+            "sequence": 3,
+            "index": 0,
+            "step": "读取",
+            "detail": "读第二章",
+            "status": "completed",
+        },
+        {
+            "type": "agent_step",
+            "session_id": "sess-42",
+            "run_id": "run-pub-1",
+            "assistant_session_id": 7,
+            "event_id": 101,
+            "sequence": 3,
+            "index": 1,
+            "step": "改写",
+            "detail": "",
+            "status": "running",
+        },
+    ]
+    assert [_wire(frame) for frame in frames] == [_wire(step) for step in golden]
+
+
+def test_tool_trace_frame_is_byte_identical_to_golden() -> None:
+    trace = {
+        "tool_name": "file.review",
+        "status": "completed",
+        "input_summary": {},
+        "output_summary": {"prompt_tokens": 310, "cost_cny_estimated": 0.031},
+    }
+    frame = _encode(_event(_run(), TOOL_TRACE, {"index": 2, "trace": trace}))[0]
+    golden = {
+        "type": "tool_trace",
+        "session_id": "sess-42",
+        "run_id": "run-pub-1",
+        "assistant_session_id": 7,
+        "event_id": 101,
+        "sequence": 3,
+        "index": 2,
+        "trace": trace,
+    }
+    assert _wire(frame) == _wire(golden)
+
+
+def test_permission_required_frame_is_byte_identical_to_golden() -> None:
+    patch = {
+        "kind": "file_revision",
+        "file_path": "第二章.md",
+        "before": "旧正文",
+        "after": "新正文",
+        "requires_confirmation": True,
+        "approval_action": "apply_patch",
+    }
+    payload = {
+        "permission_profile": "proposed_patch",
+        "reason": "requires_user_confirmation",
+        "proposed_patch": patch,
+        "confirmation_action": "apply_patch",
+        "blocked_tool": "file.revise",
+    }
+    frame = _encode(_event(_run(), PERMISSION_REQUIRED, payload))[0]
+    golden = {
+        "type": "permission_required",
+        "session_id": "sess-42",
+        "run_id": "run-pub-1",
+        "assistant_session_id": 7,
+        "event_id": 101,
+        "sequence": 3,
+        "permission_profile": "proposed_patch",
+        "reason": "requires_user_confirmation",
+        "proposed_patch": patch,
+        "confirmation_action": "apply_patch",
+        "blocked_tool": "file.revise",
+    }
+    assert _wire(frame) == _wire(golden)
+
+
+def test_permission_required_frame_keeps_null_keys() -> None:
+    """无补丁 / 无 blocked_tool 时，None 键必须保留（前端按判别式解码后按需取键）。"""
+
+    frame = _encode(_event(_run(), PERMISSION_REQUIRED, {}))[0]
+    assert frame["proposed_patch"] is None
+    assert frame["confirmation_action"] is None
+    assert frame["blocked_tool"] is None
+    assert frame["permission_profile"] == "proposed_patch"  # 回落 run.permission_profile
+
+
+def test_terminal_frames_are_byte_identical_to_golden() -> None:
+    completed_payload = {
+        "assistant_session_id": 7,
+        "summary": "已完成第二章加强",
+        "intent": "chat.explain",
+        "requires_user_confirmation": False,
+    }
+    completed = _encode(_event(_run(), AGENT_RUN_COMPLETED, completed_payload, message="已完成"))[0]
+    completed_golden = {
+        "type": "agent_run_completed",
+        "session_id": "sess-42",
+        "run_id": "run-pub-1",
+        "assistant_session_id": 7,
+        "event_id": 101,
+        "sequence": 3,
+        "status": "completed",
+        "message": "已完成",
+        "payload": completed_payload,
+    }
+    assert _wire(completed) == _wire(completed_golden)
+
+    failed = _encode(
+        _event(_run(status="failed"), AGENT_RUN_FAILED, {"error": "boom"}, message="运行失败：boom")
+    )[0]
+    failed_golden = {
+        "type": "agent_run_failed",
+        "session_id": "sess-42",
+        "run_id": "run-pub-1",
+        "assistant_session_id": 7,
+        "event_id": 101,
+        "sequence": 3,
+        "status": "failed",
+        "message": "运行失败：boom",
+        "payload": {"error": "boom"},
+    }
+    assert _wire(failed) == _wire(failed_golden)
+
+
+def test_control_ack_frame_is_byte_identical_to_golden() -> None:
+    ack_event = SimpleNamespace(
+        event_type=PERMISSION_APPROVED,
+        id=55,
+        payload={"session_id": "sess-42", "run_id": "run-pub-1"},
+    )
+    golden = {
+        "type": "permission_approved",
+        "session_id": "sess-42",
+        "run_id": "run-pub-1",
+        "event_id": 55,
+        "status": "recorded",
+    }
+    assert _wire(websocket_control_event(ack_event)) == _wire(golden)
