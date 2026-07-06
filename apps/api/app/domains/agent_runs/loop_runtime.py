@@ -17,6 +17,12 @@ from sqlalchemy.orm import Session
 
 # W3：live 工具循环直接吃 common 单一出网通道，不再寄生于已降级的 book_runs 私有函数。
 from app.common.llm_client import LLMConfigError, LLMError, _call_llm_messages
+from app.domains.agent_runs.tooling import (
+    build_loop_tool_name_map,
+    build_loop_tool_schemas,
+    llm_tool_name,
+    loop_patch_tool_specs,
+)
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import AssistantToolCallCreate, AssistantToolCallUpdate
@@ -30,21 +36,12 @@ _TOOL_RESULT_MAX_CHARS = 24_000
 _HISTORY_MAX_MESSAGES = 12
 _HISTORY_MESSAGE_MAX_CHARS = 4_000
 
-# OpenAI function name 不允许点号，对 LLM 暴露下划线名、内部映射回 registry 名。
-_TOOL_NAME_MAP = {
-    "fs_list": "fs.list",
-    "fs_read": "fs.read",
-    "fs_search": "fs.search",
-    "project_consistency": "project.consistency",
-    "project_deep_consistency": "project.deep_consistency",
-    "file_review": "file.review",
-    "file_revise": "file.revise",
-    "file_create": "file.create",
-}
+# OpenAI function name 不允许点号，对 LLM 暴露下划线名、内部映射回 registry 名（从 spec 单点派生）。
+_TOOL_NAME_MAP = build_loop_tool_name_map()
 
-# 会产出待确认补丁的工具：一次对话最多一个补丁，生成后这些工具全部撤下。
-_PATCH_TOOLS = ("file.revise", "file.create")
-_PATCH_TOOL_LLM_NAMES = ("file_revise", "file_create")
+# 会产出待确认补丁的工具：一次对话最多一个补丁，生成后这些工具全部撤下（从 spec 单点派生）。
+_PATCH_TOOLS = tuple(spec.name for spec in loop_patch_tool_specs())
+_PATCH_TOOL_LLM_NAMES = tuple(llm_tool_name(spec.name) for spec in loop_patch_tool_specs())
 
 _REVIEW_FEEDBACK_MAX_ISSUES = 20
 _REVIEW_FEEDBACK_ISSUE_KEYS = ("id", "category", "severity", "code", "message", "suggested_action")
@@ -66,153 +63,8 @@ _SYSTEM_PROMPT = (
     "最终回答用简洁自然的中文，直接说事；引用文件时给出相对路径。"
 )
 
-LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "fs_list",
-            "description": "列出项目内文件（递归、相对路径）。可选 subpath 限定子目录。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "subpath": {"type": "string", "description": "限定列出的子目录，相对项目根。"},
-                },
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fs_read",
-            "description": "读取项目内单个文本文件的内容切片。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "相对项目根的文件路径。"},
-                    "offset": {"type": "integer", "description": "起始字符偏移，默认 0。"},
-                    "limit": {"type": "integer", "description": "最多返回字符数，默认 20000。"},
-                },
-                "required": ["path"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fs_search",
-            "description": "在项目文本文件里跨文件检索，返回文件、行号和摘录。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "要检索的文本或正则。"},
-                    "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
-                    "use_regex": {"type": "boolean", "description": "query 是否按正则解释，默认 false。"},
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "project_consistency",
-            "description": (
-                "项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、"
-                "全书时间标记罗列和跨文件重复子句。只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "terms": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "要追踪的人物名 / 称谓 / 设定词条，最多 30 个；可先读设定文件再决定。",
-                    },
-                    "subpath": {"type": "string", "description": "限定扫描的子目录，相对项目根。"},
-                    "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
-                },
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "project_deep_consistency",
-            "description": (
-                "深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，"
-                "返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。比 project_consistency 更贵更慢，"
-                "适合先用机械观察或检索定位疑点、再对目标章节深查；结果是参考信号，须抽读原文核实。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "相对项目根的稿件路径（要评审的正文）。"},
-                    "bible_paths": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "作为约束的人物 / 设定文件路径；省略则自动取 人物/ 与 设定/ 下的 md 文件。",
-                    },
-                    "facts": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "已核实的必含事实（如「左臂受伤」「地点：灯塔港」），正文与之矛盾会被标出；最多 40 条。",
-                    },
-                },
-                "required": ["path"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "file_review",
-            "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
-                },
-                "required": ["path"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "file_revise",
-            "description": (
-                "按明确指示修订项目内单个稿件，生成待作者确认的修订补丁；不会直接写盘。"
-                "一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
-                    "instruction": {"type": "string", "description": "修订指示：要改什么、保留什么。"},
-                },
-                "required": ["path", "instruction"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "file_create",
-            "description": (
-                "为项目内尚不存在的新文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。"
-                "目标文件已存在时会失败（改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "相对项目根的新文件路径（含目录与 .md 扩展名）。"},
-                    "instruction": {"type": "string", "description": "写作指令：写什么、篇幅、衔接哪些既有内容。"},
-                },
-                "required": ["path", "instruction"],
-            },
-        },
-    },
-]
+# LOOP_TOOL_SCHEMAS 从 spec 单点派生（见 tooling.build_loop_tool_schemas），删掉此前手写镜像。
+LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = build_loop_tool_schemas()
 
 
 def _offered_schemas(patch_created: bool) -> list[dict[str, Any]]:
