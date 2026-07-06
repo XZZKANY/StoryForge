@@ -1247,7 +1247,10 @@ export function ChatWindow({
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">
-      <ConversationHeader title={conversationTitle} />
+      <ConversationHeader
+        title={conversationTitle}
+        onNewSession={() => onAssistantSessionChange?.(null)}
+      />
 
       <MessageList
         messages={messages}
