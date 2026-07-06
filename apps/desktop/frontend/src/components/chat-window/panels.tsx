@@ -152,8 +152,6 @@ export function AgentRunControlBar({
   const waitingForPermission = run.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
-  const canPause = run.status === 'running';
-  const canResume = run.status === 'waiting' && !waitingForPermission;
   const canStop = run.status === 'running' || run.status === 'waiting';
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-panel px-3 py-2">
@@ -178,24 +176,6 @@ export function AgentRunControlBar({
           </button>
         </>
       )}
-      <button
-        type="button"
-        className="h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
-        onClick={controls.onPauseRun}
-        disabled={!canPause}
-        title="暂停 AgentRun"
-      >
-        暂停
-      </button>
-      <button
-        type="button"
-        className="h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
-        onClick={controls.onResumeRun}
-        disabled={!canResume}
-        title="恢复 AgentRun"
-      >
-        恢复
-      </button>
       <button
         type="button"
         className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-40"

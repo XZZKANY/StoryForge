@@ -3,6 +3,15 @@ import { basename } from '../app/helpers';
 import { ArrowUp, Plus } from '../icons/shell-icons';
 import { roleMentionQuery } from './display-utils';
 
+function PauseGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <rect x="2.5" y="2" width="2.5" height="8" rx="1" fill="currentColor" />
+      <rect x="7" y="2" width="2.5" height="8" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function ComposerBox({
   value,
   disabled,
@@ -12,6 +21,7 @@ export function ComposerBox({
   onSubmit,
   explicitContextPaths,
   onAddContext,
+  onPauseRun,
 }: {
   value: string;
   disabled: boolean;
@@ -21,6 +31,7 @@ export function ComposerBox({
   onAddContext: () => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onPauseRun?: () => void;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background px-4 py-3">
@@ -40,6 +51,7 @@ export function ComposerBox({
             onAddContext={onAddContext}
             onChange={onChange}
             onSubmit={onSubmit}
+            onPauseRun={onPauseRun}
           />
         </form>
       </div>
@@ -56,6 +68,7 @@ export function ComposerSurface({
   onSubmit,
   explicitContextPaths,
   onAddContext,
+  onPauseRun,
 }: {
   value: string;
   disabled: boolean;
@@ -65,6 +78,7 @@ export function ComposerSurface({
   onAddContext: () => void;
   onChange: (value: string) => void;
   onSubmit?: () => void;
+  onPauseRun?: () => void;
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
   const roleQuery = roleMentionQuery(value);
@@ -147,15 +161,27 @@ export function ComposerSurface({
           </span>
         ))}
         <span className="ml-auto min-w-0 flex-shrink truncate text-subtle">编辑模式</span>
-        <button
-          type={onSubmit ? 'button' : 'submit'}
-          className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          title="发送"
-          disabled={!canSubmit}
-          onClick={onSubmit}
-        >
-          <ArrowUp size={14} strokeWidth={2} />
-        </button>
+        {busy && onPauseRun ? (
+          <button
+            type="button"
+            className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-foreground transition-colors hover:bg-agent hover:text-white"
+            title="暂停 AgentRun"
+            onClick={onPauseRun}
+            data-testid="composer-pause-run"
+          >
+            <PauseGlyph />
+          </button>
+        ) : (
+          <button
+            type={onSubmit ? 'button' : 'submit'}
+            className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            title="发送"
+            disabled={!canSubmit}
+            onClick={onSubmit}
+          >
+            <ArrowUp size={14} strokeWidth={2} />
+          </button>
+        )}
       </div>
     </div>
   );

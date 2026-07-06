@@ -1286,6 +1286,7 @@ export function ChatWindow({
           onAddContext={addExplicitContext}
           onChange={setInput}
           onSubmit={handleSubmit}
+          onPauseRun={agentRunControls.onPauseRun}
         />
       )}
     </div>
