@@ -4,7 +4,7 @@
  * 激活页签向下压 1px，用 --background 底线冲掉容器底边，与编辑区无缝一体。
  */
 import { basename } from '../app/helpers';
-import { PanelRight, Settings, X } from '../icons/shell-icons';
+import { Settings, X } from '../icons/shell-icons';
 
 export type CenterTab = 'settings' | 'file' | 'preview';
 
@@ -67,27 +67,23 @@ export function EditorTabs({
   previewFile,
   settingsOpen,
   activeTab,
-  rightCollapsed,
   onFocusFile,
   onFocusPreview,
   onPinPreview,
   onFocusSettings,
   onCloseFile,
   onCloseSettings,
-  onToggleRight,
 }: {
   currentFile: string | null;
   previewFile: string | null;
   settingsOpen: boolean;
   activeTab: CenterTab | null;
-  rightCollapsed: boolean;
   onFocusFile: () => void;
   onFocusPreview: () => void;
   onPinPreview: () => void;
   onFocusSettings: () => void;
   onCloseFile: () => void;
   onCloseSettings: () => void;
-  onToggleRight: () => void;
 }) {
   const showPreview = Boolean(previewFile) && previewFile !== currentFile;
 
@@ -124,15 +120,6 @@ export function EditorTabs({
           onDoubleClick={onPinPreview}
         />
       )}
-      <div className="flex-1" />
-      <button
-        className="my-auto mr-2 flex h-[26px] items-center gap-1.5 rounded-md px-2.5 text-[11.5px] text-muted hover:bg-elevated"
-        title={rightCollapsed ? '展开 Agent 面板' : '收起 Agent 面板'}
-        onClick={onToggleRight}
-      >
-        <PanelRight size={13} strokeWidth={1.6} />
-        面板
-      </button>
     </div>
   );
 }

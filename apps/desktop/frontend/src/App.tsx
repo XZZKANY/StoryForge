@@ -392,7 +392,13 @@ export function App() {
       data-smoke-api-ready={smokeApiReady ? 'true' : 'false'}
       data-tauri-menu-error={tauriMenuError}
     >
-      <Titlebar projectName={activeProject} onOpenPalette={() => setPalette('files')} />
+      <Titlebar
+        projectName={activeProject}
+        onOpenPalette={() => setPalette('files')}
+        projectOpen={projectOpen}
+        rightCollapsed={shell.rightCollapsed}
+        onToggleRight={shell.toggleRight}
+      />
 
       <div className="relative flex min-h-0 flex-1">
         <div className="flex flex-shrink-0">
@@ -437,7 +443,6 @@ export function App() {
                 previewFile={previewFile}
                 settingsOpen={settingsVisible}
                 activeTab={activeCenterTab}
-                rightCollapsed={shell.rightCollapsed}
                 onFocusFile={() => {
                   setSettingsVisible(false);
                   setPreviewFile(null);
@@ -449,7 +454,6 @@ export function App() {
                 onFocusSettings={() => setSettingsVisible(true)}
                 onCloseFile={handleFileClose}
                 onCloseSettings={() => setSettingsVisible(false)}
-                onToggleRight={shell.toggleRight}
               />
               <div className="min-h-0 flex-1">
                 {settingsVisible ? (
@@ -532,7 +536,6 @@ export function App() {
         obs={obs}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
         onToggleTheme={toggleTheme}
-        onToggleRight={shell.toggleRight}
       />
 
       {palette && (

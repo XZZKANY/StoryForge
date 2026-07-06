@@ -3,7 +3,7 @@
  * 窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽窗口。
  */
 import { isTauriRuntime } from '../../lib/tauri-env';
-import { Minus, Search, Square, X } from '../icons/shell-icons';
+import { Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
 
 async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close') {
   if (!isTauriRuntime()) return;
@@ -22,9 +22,15 @@ async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close
 export function Titlebar({
   projectName,
   onOpenPalette,
+  projectOpen,
+  rightCollapsed,
+  onToggleRight,
 }: {
   projectName: string | null;
   onOpenPalette: () => void;
+  projectOpen: boolean;
+  rightCollapsed: boolean;
+  onToggleRight: () => void;
 }) {
   return (
     <header
@@ -64,7 +70,17 @@ export function Titlebar({
         </kbd>
       </button>
 
-      <div className="flex min-w-[200px] justify-end">
+      <div className="flex min-w-[200px] items-center justify-end">
+        {projectOpen && (
+          <button
+            className="mr-1.5 flex h-7 w-8 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
+            onClick={onToggleRight}
+            title={rightCollapsed ? '展开 Agent 面板' : '收起 Agent 面板'}
+            data-testid="titlebar-toggle-right"
+          >
+            <PanelRight size={14} strokeWidth={1.6} />
+          </button>
+        )}
         <button
           className="flex h-9 w-11 items-center justify-center text-muted hover:bg-elevated"
           onClick={() => void runWindowAction('minimize')}
