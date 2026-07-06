@@ -5,22 +5,33 @@ import {
   type SemanticFile,
 } from '../../lib/project-context';
 import { AgentStepsPanel } from '../AgentStepsPanel';
+import { Plus } from '../icons/shell-icons';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
 import type { AgentRunRecoveryDisplay } from './recovery';
 import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
 
-export function ConversationHeader({ title }: { title: string }) {
+export function ConversationHeader({
+  title,
+  onNewSession,
+}: {
+  title: string;
+  onNewSession?: () => void;
+}) {
   return (
     <header className="flex h-10 flex-shrink-0 items-center gap-3 border-b border-border bg-panel px-4">
       <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{title}</h1>
-      <button
-        type="button"
-        className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-        title="更多"
-      >
-        ...
-      </button>
+      {onNewSession && (
+        <button
+          type="button"
+          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          title="新建会话"
+          onClick={onNewSession}
+          data-testid="conversation-new-session"
+        >
+          <Plus size={15} strokeWidth={1.7} />
+        </button>
+      )}
     </header>
   );
 }
