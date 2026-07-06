@@ -439,6 +439,8 @@ def handle_agent_control_message(
         )
         if resume_diagnostic is not None:
             _record_resume_diagnostic(session, event, resume_diagnostic)
+        elif resumed_result is None:
+            resume_diagnostic = _park_unresumable_resumed_run(session, event, public_id=public_id)
     return AgentControlResult(event=event, resumed_result=resumed_result, resume_diagnostic=resume_diagnostic)
 
 
@@ -506,6 +508,41 @@ def _record_resume_diagnostic(session: Session, event: AgentRunEvent, diagnostic
     session.add(event)
     session.commit()
     session.refresh(event)
+
+
+def _park_unresumable_resumed_run(
+    session: Session,
+    event: AgentRunEvent,
+    *,
+    public_id: str,
+) -> dict[str, Any] | None:
+    """RESUME 落到「无 runtime pending anchor、且非 BookRun 支撑」的纯 agent 循环（如 chat.explain）时的兜底。
+
+    控制通道已无条件把 run 翻成 running/resumed（record_agent_control_event），但这类循环暂停即收尾、
+    既没有活线程也没有可重放锚点，没人再驱动它 → 会永久钉在 running 僵尸态，只能等下次起服收尸。
+    Path A：这类循环暂停即停止，恢复请重新发问；这里把 run 回落为 stopped 并记诊断，
+    避免僵尸 run 与 UI 空转。BookRun 支撑的 run 由 _apply_book_run_control_if_needed 真正驱动恢复，
+    必须跳过不动。
+    """
+
+    run = get_agent_run(session, public_id)
+    if run.book_run_id is not None or run.status != "running":
+        return None
+    run.status = "stopped"
+    run.current_step = "stopped"
+    session.add(run)
+    session.commit()
+    diagnostic = {
+        "kind": "runtime_pending_call_resume",
+        "can_resume": False,
+        "resume_via_control_channel": False,
+        "requires_manual_restart": False,
+        "reason": "no_pending_call",
+        "resume_strategy": "start_new_message",
+        "reverted_status": "stopped",
+    }
+    _record_resume_diagnostic(session, event, diagnostic)
+    return diagnostic
 
 
 def record_agent_command_event(
