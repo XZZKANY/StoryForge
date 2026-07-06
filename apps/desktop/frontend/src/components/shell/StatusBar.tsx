@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
 import type { ApiRuntimeHealth } from '../../lib/api/types';
 import type { ThemeMode } from '../../lib/user-settings';
-import { Check, PanelRight } from '../icons/shell-icons';
+import { Check } from '../icons/shell-icons';
 
 export function StatusBar({
   modelLabel,
@@ -15,7 +15,6 @@ export function StatusBar({
   obs,
   onToggleObs,
   onToggleTheme,
-  onToggleRight,
 }: {
   modelLabel: string;
   theme: ThemeMode;
@@ -23,7 +22,6 @@ export function StatusBar({
   obs: { error: number; warning: number; advisory: number; total: number };
   onToggleObs: () => void;
   onToggleTheme: () => void;
-  onToggleRight: () => void;
 }) {
   const [health, setHealth] = useState<ApiRuntimeHealth | null>(null);
 
@@ -96,15 +94,6 @@ export function StatusBar({
       >
         {theme === 'dark' ? '深色' : '浅色'}
       </button>
-      {projectOpen && (
-        <button
-          className="flex items-center rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
-          onClick={onToggleRight}
-          title="切换 Agent 面板"
-        >
-          <PanelRight size={13} strokeWidth={1.6} />
-        </button>
-      )}
     </footer>
   );
 }
