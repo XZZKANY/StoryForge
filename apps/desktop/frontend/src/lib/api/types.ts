@@ -1,4 +1,11 @@
 import type { ApiAssistantContextBundle } from './contracts';
+import type {
+  AgentRunStartedFrame,
+  AgentStepFrame,
+  ControlAckFrame,
+  PermissionRequiredFrame,
+  ToolTraceFrame,
+} from './generated/agent-ws';
 
 export type ApiConfig = {
   baseUrl: string;
@@ -171,44 +178,40 @@ export type AgentErrorMessage = {
   detail: string;
 };
 
-export type AgentRunStartedMessage = {
-  type: 'agent_run_started';
-  session_id: string;
-  run_id: string;
-  user_message?: string;
-  agent_role_hints?: string[];
-  agent_role_mentions?: string[];
+type WithFrontendAgentPatch<Frame extends { proposed_patch: unknown }> = Omit<
+  Frame,
+  'proposed_patch'
+> & {
+  proposed_patch: AgentProposedPatch | null;
 };
 
-export type AgentStepEventMessage = {
-  type: 'agent_step';
-  session_id: string;
-  run_id: string;
-  assistant_session_id?: number;
-  index: number;
+export type AgentRunStartedMessage = AgentRunStartedFrame;
+
+export type AgentStepEventMessage = Omit<
+  AgentStepFrame,
+  'assistant_session_id' | 'step' | 'detail' | 'status'
+> & {
+  assistant_session_id?: number | null;
   step: string;
   detail: string;
   status: string;
 };
 
-export type AgentToolTraceEventMessage = {
-  type: 'tool_trace';
-  session_id: string;
-  run_id: string;
-  assistant_session_id?: number;
-  index: number;
+export type AgentToolTraceEventMessage = Omit<
+  AgentToolTraceEventMessageFrame,
+  'assistant_session_id' | 'trace'
+> & {
+  assistant_session_id?: number | null;
   trace: AgentToolTrace;
 };
 
-export type AgentPermissionRequiredMessage = {
-  type: 'permission_required';
-  session_id: string;
-  run_id: string;
-  assistant_session_id?: number;
-  permission_profile?: string;
-  reason?: string;
-  proposed_patch?: AgentProposedPatch | null;
-};
+type AgentToolTraceEventMessageFrame = ToolTraceFrame;
+
+export type AgentPermissionRequiredMessage = WithFrontendAgentPatch<
+  Omit<PermissionRequiredFrame, 'assistant_session_id'> & {
+    assistant_session_id?: number | null;
+  }
+>;
 
 export type AgentControlMessageType =
   | 'approve_permission'
@@ -218,18 +221,7 @@ export type AgentControlMessageType =
   | 'stop_run'
   | 'retry_from_checkpoint';
 
-export type AgentControlAckMessage = {
-  type:
-    | 'permission_approved'
-    | 'permission_denied'
-    | 'pause_run'
-    | 'resume_run'
-    | 'stop_run'
-    | 'retry_from_checkpoint';
-  session_id: string;
-  run_id: string;
-  event_id?: number;
-  status: 'recorded';
+export type AgentControlAckMessage = ControlAckFrame & {
   resumed_result?: AgentResultMessage;
   resume_diagnostic?: Record<string, unknown>;
 };
