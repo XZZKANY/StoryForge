@@ -4962,3 +4962,73 @@ STORYFORGE_LLM_API_KEY=...       # 真密钥（仅本机 .env.local）
   - `pytest test_agent_loop_runtime test_assistant_revise test_assistant_tool_calls test_agent_runs test_agent_llm_context` → 96 passed；`uv run ruff check`（改动文件）绿。
   - 全量 `uv run pytest -q`：**848 passed / 3 skipped**（= W7 基线 847 + 本刀 1 新用例，零回归）。`pnpm e2e` 21/21 + drift 绿（`output_summary` 是 `dict[str, Any]` free-form，加键不动契约）。
 - **不外推 / 不做**：只补 live 交互面（agent 循环 + assistant 单轮），`book_runs` 成本记账（records + `book_generation_cost_cny_total` Prometheus）本已存在不动；成本仅进 **证据链 output_summary**，未加进 REST response schema（避免契约变更）、未做前端展示（前端改造中）、未做跨 key/跨 run 成本聚合面板（F32 记账是前提，聚合展示留后续）；成本为**估算**（`_cost_breakdown` 按价目表估，非 provider 实际账单）。
+
+---
+
+## E2E-1 剩余项行为层验证（2026-07-07，W6 收口后）
+
+**目标**：E2E-1 硬门禁 G.1 = Part 1–4 全 PASS。Part 0/1 全 + Part 4（除 4.3）已在 0.1.1 真机 PASS（见 [[project_e2e1_plumbing_run]]）。
+剩余 4.3 + Part 2 + Part 3 需真机 GUI（人在屏幕前点，Claude 代跑不了）。**本轮把 GUI 之下的行为层尽数跑绿**，
+使真机 GUI 那趟是「确认」而非「发现」，并给出 runsheet（`.codex/e2e-1-runsheet-remaining.md`）。
+
+**新壳 Part 2/3 接线审计（Explore 子代理，只读）**：核心闭环全部真接线且跑通——
+diff 面板（PatchReviewPanel 内联 diff）→ 接受 → 写回前快照护栏（快照失败即阻断写盘，F27）→ 写盘 → 作者闭环记录 → 分支血缘推进；
+before 漂移拒写（W7①）活；ChatWindow 是右栏活 agent-run 驱动。
+非门禁缺口三处（chrome 就位、信号/交互未接，不阻塞 G.1）：ObsPanel 观测面板真信号未灌（诚实空态占位，redesign 明确 park）、
+composer prompt 历史方向键召回未实现、file.create 无独立 kind（走空 before 的 file_revision 通用路径覆盖）。
+
+**行为层测试结果（本机跑绿）**：
+- 前端 vitest：**23 passed**（3 文件）——覆盖 Part 3 写回闭环（快照→写盘→记录时序、快照失败阻断）、W7① before 漂移拒写、
+  原子写、F26 会话切换不污染；Part 2 事件桥 / `isAgent*` 守卫 / F10 `reconstructAgentResultFromEvents` 终态重建。
+- 前端 verify-unit（node --test）：**102 passed**——含 fs 缓存失效、写回纯核心。
+- 后端 agent pytest（`-k "agent or loop or intent or ws_contract or loop_tool"`）：**183 passed / 703 deselected**——
+  覆盖工具循环运行时、审稿 file.review、修订 file.revise、F11 intent 关键词表下线、WS 契约金测、循环工具 schema 单点派生。
+
+**4.3 的诚实边界**：`ChatWindow` 发 run 不传 `timeoutMs`（`agent-socket.ts:770`），走死常量 `DEFAULT_AGENT_TIMEOUT_MS=360_000`。
+真机制造超时只能 (A) 临时把常量改小重建（推荐，确定可复现，验完还原不提交）或 (B) 真 >6min run。
+核心 `reconstructAgentResultFromEvents` 已有 vitest 金测；4.3 验的是真机上「挂钟超时→close socket→REST 轮询事件表→重建终态」这条活链路。
+
+**结论**：Part 2/3 的**代码/行为层已全绿、无阻塞真机验收的缺口**；4.3 路径已接线（需 rebuild 触发）。
+残留是**不可自动化的人在屏幕前 GUI 观感与点击**（Monaco 渲染、点接受、看 diff 面板、切主题观感），
+定义上属用户在真机执行；runsheet 已逐项就绪，我可在用户机 PowerShell 抓 GUI 日志协助定位失败。
+
+---
+
+## E2E-1 真机 Part 3 逮 bug + 修复（2026-07-07）
+
+**发现（真机 3.5 新文件起草）**：让 Agent 起草新文件、确认写回后，左栏资源树**不立即显示新文件**，
+需切视图或等 ~5s 才「过一会」加载出来。
+
+**根因**：写回链路（`useSuggestionWriteback.writeAcceptedSuggestion` → `TauriFileSystem.writeFile`）
+与手动新建（`App.handleNewFile`）都只调 `invalidateListDirCache` 清 FS 缓存，**不触发 React 重拉**。
+`ResourceExplorer` 的 fetch effect 依赖 `[projectPath, refreshVersion]`，而写回路径从不 bump `projectRefreshVersion`
+（此前仅示例项目创建 / 故事初始化两处 bump）。新文件靠后续无关重挂载（视图/页签切换）+ 5s 缓存 TTL 才偶然刷出。
+
+**修复（`fix/file-tree-refresh-after-writeback`）**：
+- `lib/tauri-fs.ts`：新增 `FS_MUTATION_EVENT`；`invalidateListDirCache`（写/建/删/改名/watch 命中的唯一汇聚点）
+  调 `emitFsMutation` 广播；`emitFsMutation` 双重守卫 `window` + `dispatchEvent`（node:test runner 有 window 无 dispatchEvent，弱守卫会炸 verify-unit）。
+- `App.tsx`：监听 `FS_MUTATION_EVENT`，debounce 120ms（合并一次「接受补丁」触发的快照写+正文写两次 mutation）
+  后 bump `projectRefreshVersion`，覆盖手动新建 / Agent 起草 / 删除 / 改名全路径。
+
+**验证**：typecheck 通过；vitest **23 passed**；verify-unit **102 passed**（含 fs 缓存失效用例）；lint 绿（Editor.tsx 一条 pre-existing warning）。
+写回链路本身不变（红线不动，后端仍不写文件）；刷新即时性需真机重装复验。
+
+---
+
+## E2E-1 首轮真机验收 —— 门禁 G.1 PASS（2026-07-07）
+
+真机项目 `D:\test`（正式 0.1.1 + PR#109 修复重装）。硬门禁 G.1 = Part 1–4 全 PASS，达成：
+
+- **Part 0 / Part 1**：会话前已全绿。
+- **Part 2（对话式 Agent 基础，7 项）**：全 PASS。欢迎页首条 prompt（run 23）、工具循环流程树事件驱动、会话历史列表、intent=chat.explain 未抢跑固定管线（F11）、composer Ctrl+Enter 发送 + 方向键不误触。
+- **Part 3（审稿→修订→diff→写回→版本，核心闭环）**：
+  - 3.1/3.2 后端 headless 坐实（file.review 5 issue 稳定 id / file.revise 真 proposed_patch 546→691）。
+  - 3.3/3.4/3.5/3.6/3.7 真机 PASS：写回+版本快照、防重复、新文件起草自动打开+即时刷新、before 漂移拒写（W7①）、切会话不污染（F26）。
+  - 3.8 快照失败阻断 / 3.9 原子写：记 **N/A**（真机难可靠构造；机制已由 W7 vitest「快照失败阻断」+ Rust 临时文件原子 rename + 2 条 cargo 原子写测试覆盖）。用户拍板放过。
+- **Part 4 / 4.3 前端超时转后台轮询**：真机复现坐实（临时 `DEFAULT_AGENT_TIMEOUT_MS=3_000` 重建 → 审稿 run 29 后端 18s > 3s 超时 → 前端未硬失败、转后台轮询、9-issue 报告最终渲染；`agent_run_completed` payload 带齐 F10 重建字段）。常量已改回 360_000。
+
+**真机逮到并修复的真 bug（PR#109 已合并 master）**：新文件写回/起草后左栏资源树不即时刷新（写回只清 FS 缓存不 bump projectRefreshVersion，靠视图切换重挂载+5s TTL 才「过一会」显示）→ invalidateListDirCache 广播 FS_MUTATION_EVENT，App debounce 120ms bump projectRefreshVersion。真机重装复验：新文件立即显示。
+
+**诚实边界**：该修复「症状消失」已真机复验，但「missing bump 即唯一根因」为代码事实推断、未做确定性复现 instrument（症状与 remount+TTL 一致但未观测）。写回红线不变（后端不写文件）。3.8/3.9 为单测兜底非真机跑通。
+
+**G.1 判定：PASS。** E2E-1 首轮通过 → 解锁 W6 权限四轨（F24/F25）。
