@@ -42,9 +42,7 @@ class AgentRuntimeToolSpec:
     input_schema: Mapping[str, Any]
     output_schema: Mapping[str, Any]
     allowed_roles: Sequence[str]
-    permission_level: str
     risk_level: str
-    requires_confirmation: bool
     retry_safe: bool
     idempotent: bool
     execution_mode: str
@@ -53,6 +51,16 @@ class AgentRuntimeToolSpec:
     evidence_fields: Sequence[str] = field(default_factory=tuple)
     references: ToolCatalogReferences = field(default_factory=ToolCatalogReferences)
     loop_schema: LoopToolSchema | None = None
+
+    # permission_level / requires_confirmation 从 risk_level + execution_mode 单点派生，不再并列声明
+    # （消除三字段漂移），派生规则见 derive_requires_confirmation。
+    @property
+    def requires_confirmation(self) -> bool:
+        return derive_requires_confirmation(self.risk_level, self.execution_mode)
+
+    @property
+    def permission_level(self) -> str:
+        return derive_permission_level(self.risk_level, self.execution_mode)
 
 
 @dataclass(frozen=True)
@@ -86,9 +94,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_CONTEXT_ALLOWED_ROLES,
-        permission_level="auto",
         risk_level="read",
-        requires_confirmation=False,
         retry_safe=True,
         idempotent=True,
         execution_mode="sync",
@@ -102,9 +108,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=("root_agent", "context_explorer"),
-        permission_level="auto",
         risk_level="read",
-        requires_confirmation=False,
         retry_safe=True,
         idempotent=True,
         execution_mode="sync",
@@ -127,9 +131,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=("root_agent", "context_explorer"),
-        permission_level="auto",
         risk_level="read",
-        requires_confirmation=False,
         retry_safe=True,
         idempotent=True,
         execution_mode="sync",
@@ -155,9 +157,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=("root_agent", "context_explorer"),
-        permission_level="auto",
         risk_level="read",
-        requires_confirmation=False,
         retry_safe=True,
         idempotent=True,
         execution_mode="sync",
@@ -183,9 +183,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=("root_agent", "context_explorer"),
-        permission_level="auto",
         risk_level="read",
-        requires_confirmation=False,
         retry_safe=True,
         idempotent=True,
         execution_mode="sync",
@@ -217,9 +215,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=("root_agent",),
-        permission_level="auto",
         risk_level="analyze",
-        requires_confirmation=False,
         # 虽是纯读无副作用，但每次调用真实烧 LLM token 且输出非严格确定：
         # 有意禁自动重试——瞬时失败作为工具错误反馈进循环，由模型/作者决定是否再试。
         retry_safe=False,
@@ -260,9 +256,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_REVIEW_ALLOWED_ROLES,
-        permission_level="auto",
         risk_level="analyze",
-        requires_confirmation=False,
         retry_safe=False,
         idempotent=False,
         execution_mode="sync",
@@ -288,9 +282,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_WRITE_ALLOWED_ROLES,
-        permission_level="confirm",
         risk_level="write_pending",
-        requires_confirmation=True,
         retry_safe=False,
         idempotent=False,
         execution_mode="sync",
@@ -320,9 +312,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=("root_agent",),
-        permission_level="confirm",
         risk_level="write_pending",
-        requires_confirmation=True,
         retry_safe=False,
         idempotent=False,
         execution_mode="sync",
@@ -352,9 +342,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_REVIEW_ALLOWED_ROLES,
-        permission_level="auto",
         risk_level="analyze",
-        requires_confirmation=False,
         retry_safe=False,
         idempotent=False,
         execution_mode="sync",
@@ -368,9 +356,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_WRITE_ALLOWED_ROLES,
-        permission_level="confirm",
         risk_level="write_pending",
-        requires_confirmation=True,
         retry_safe=False,
         idempotent=False,
         execution_mode="sync",
@@ -388,9 +374,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_BOOKRUN_ALLOWED_ROLES,
-        permission_level="confirm",
         risk_level="long_running",
-        requires_confirmation=True,
         retry_safe=False,
         idempotent=False,
         execution_mode="long_running",
@@ -408,9 +392,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_BOOKRUN_ALLOWED_ROLES,
-        permission_level="auto",
         risk_level="long_running",
-        requires_confirmation=False,
         retry_safe=False,
         idempotent=False,
         execution_mode="control",
@@ -427,9 +409,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_BOOKRUN_ALLOWED_ROLES,
-        permission_level="auto",
         risk_level="long_running",
-        requires_confirmation=False,
         retry_safe=False,
         idempotent=False,
         execution_mode="control",
@@ -446,9 +426,7 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         input_schema={},
         output_schema={},
         allowed_roles=_BOOKRUN_ALLOWED_ROLES,
-        permission_level="auto",
         risk_level="long_running",
-        requires_confirmation=False,
         retry_safe=False,
         idempotent=False,
         execution_mode="control",
@@ -633,19 +611,22 @@ class ToolRegistry:
 
 
 class PermissionGate:
-    """Runtime tool execution gate with the v1 permission profiles."""
+    """Runtime 工具执行 gate。
+
+    live 入口 run.permission_profile 恒为默认 risk_confirm（前端只读回传、从不发送），此前的
+    full_allow / autonomous_approval / step_confirm 三分支不可达，已删。read / 未知 profile 走末尾
+    fallthrough 放行。对可达 profile（risk_confirm）gate 只判 allow / require_approval；真正的写回
+    确认发生在 proposed_patch 工件层由前端完成（require_approval 对 requires_confirmation 工具会被
+    runtime._execute_tool 放行去产出补丁，见该处）。
+    """
 
     _RISKY_LEVELS = frozenset({"propose_patch", "write_pending", "long_running", "network", "high_cost"})
 
     def decide(self, run: AgentRun, tool: ToolDefinition) -> PermissionDecision:
         profile = run.permission_profile or "risk_confirm"
-        if profile == "full_allow":
-            return PermissionDecision("allow", "full_allow")
-        if profile == "autonomous_approval" and tool.risk_level not in {"write_pending", "high_cost"}:
-            return PermissionDecision("allow", "autonomous_approval")
         if profile == "risk_confirm" and tool.risk_level not in self._RISKY_LEVELS and not tool.requires_confirmation:
             return PermissionDecision("allow", "risk_confirm_safe_tool")
-        if profile == "step_confirm" or tool.requires_confirmation or tool.risk_level in self._RISKY_LEVELS:
+        if tool.requires_confirmation or tool.risk_level in self._RISKY_LEVELS:
             return PermissionDecision("require_approval", f"{profile}:{tool.risk_level}")
         return PermissionDecision("allow", profile)
 
