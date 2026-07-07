@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.domains.agent_runs import canon_gate, canon_rebuild, canon_store
+from app.domains.agent_runs import canon_dossier, canon_gate, canon_rebuild, canon_store
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
@@ -233,3 +233,93 @@ def test_project_canon_visible_in_loop_schemas() -> None:
     # 只读工具不占用「一次对话一个补丁」名额
     patch_names = {spec.name for spec in loop_patch_tool_specs()}
     assert "project.canon" not in patch_names
+
+
+# --- 8. dossier 事实投影 ---
+
+
+def test_build_dossiers_projects_declared_facts_and_provenance(project: Path) -> None:
+    presence = canon_rebuild.rebuild_presence(str(project), [_QINGYAN, _YUER])
+    canon = {
+        "version": 1,
+        "entities": [_QINGYAN, _YUER],
+        "invariants": {
+            "single_holder": [
+                {"item": "断魂刀", "holder": "char_qingyan", "from_chapter": 1, "to_chapter": None}
+            ],
+            "lifespan": [{"entity": "char_qingyan", "exits_after_chapter": 40, "reason": "阵亡"}],
+        },
+    }
+    dossiers = canon_dossier.build_dossiers(canon, presence)
+
+    # 保 canon.entities 序
+    assert [d["id"] for d in dossiers] == ["char_qingyan", "char_yuer"]
+
+    qingyan = dossiers[0]
+    assert qingyan["canonical_name"] == "青岩"
+    assert qingyan["aliases"] == ["剑主"]
+    assert qingyan["appearance"]["missing"] is False
+    assert qingyan["appearance"]["first_chapter"] == 1
+    assert qingyan["appearance"]["last_chapter"] == 2
+    # 绑定的声明按实体归并
+    assert qingyan["holdings"] == [
+        {"item": "断魂刀", "from_chapter": 1, "to_chapter": None}
+    ]
+    assert qingyan["lifespan"] == {"exits_after_chapter": 40, "reason": "阵亡"}
+    # provenance 带文件与章节，供抽读核实
+    prov_paths = {p["path"] for p in qingyan["provenance"]}
+    assert prov_paths == {"正文/第01章.md", "正文/第02章.md"}
+    assert qingyan["provenance_truncated"] is False
+
+    # 未绑定声明的实体 holdings/lifespan 为空
+    yuer = dossiers[1]
+    assert yuer["holdings"] == []
+    assert yuer["lifespan"] is None
+
+
+def test_build_dossiers_marks_missing_entity(project: Path) -> None:
+    ghost = {"id": "char_ghost", "canonical_name": "无名氏", "kind": "character", "aliases": []}
+    presence = canon_rebuild.rebuild_presence(str(project), [ghost])
+    dossiers = canon_dossier.build_dossiers(
+        {"entities": [ghost], "invariants": {}}, presence
+    )
+    assert dossiers[0]["appearance"]["missing"] is True
+    assert dossiers[0]["provenance"] == []
+
+
+def test_render_dossiers_markdown_contains_facts(project: Path) -> None:
+    presence = canon_rebuild.rebuild_presence(str(project), [_QINGYAN])
+    canon = {
+        "entities": [_QINGYAN],
+        "invariants": {
+            "lifespan": [{"entity": "char_qingyan", "exits_after_chapter": 40, "reason": "阵亡"}]
+        },
+    }
+    md = canon_dossier.render_dossiers_markdown(canon_dossier.build_dossiers(canon, presence))
+    assert "# Canon Dossier" in md
+    assert "## 青岩" in md
+    assert "剑主" in md
+    assert "第 1–2 章" in md
+    assert "第 40 章后退场" in md
+    assert "正文/第01章.md" in md
+
+
+def test_render_dossiers_markdown_empty_is_honest() -> None:
+    md = canon_dossier.render_dossiers_markdown([])
+    assert "尚无实体声明" in md
+
+
+# --- 9. dossier.md 文本原子写 + 白名单 ---
+
+
+def test_write_derived_text_roundtrip_and_whitelist(project: Path) -> None:
+    path = canon_store.write_derived_text(str(project), "dossier.md", "# 测试\n")
+    written = Path(path)
+    assert written.is_file()
+    assert written.read_text(encoding="utf-8") == "# 测试\n"
+    assert ".storyforge" in path and "derived" in path
+    # 文本白名单拒绝任意名 / JSON 白名单名走错通道
+    with pytest.raises(FsToolError, match="不允许的派生缓存文件名"):
+        canon_store.write_derived_text(str(project), "../evil.md", "x")
+    with pytest.raises(FsToolError, match="不允许的派生缓存文件名"):
+        canon_store.write_derived_text(str(project), "presence.json", "x")
