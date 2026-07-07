@@ -6,7 +6,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domains.agent_runs import fs_tools, loop_runtime
+from app.domains.agent_runs import canon_gate, canon_rebuild, canon_store, fs_tools, loop_runtime
 from app.domains.agent_runs._text import _compact_text, _optional_string
 from app.domains.agent_runs.bookrun_summary import (
     _bookrun_budget_details,
@@ -1459,6 +1459,7 @@ class AgentRuntime:
             "fs.search": self._fs_search,
             "project.consistency": self._project_consistency,
             "project.deep_consistency": self._project_deep_consistency,
+            "project.canon": self._project_canon,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "file.create": self._file_create,
@@ -1592,6 +1593,73 @@ class AgentRuntime:
                     "path": output["path"],
                     "issue_count": output["issue_count"],
                     "bible_file_count": len(output["bible_files"]),
+                },
+            ),
+        )
+
+    def _project_canon(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        glob = _optional_string(payload.get("glob")) or "*.md"
+        # 红线例外：只写派生缓存（非手稿）；canon.json 缺失时脚手架空模板确立格式。
+        scaffolded = canon_store.scaffold_canon_if_missing(project_root)
+        canon = canon_store.read_canon(project_root)
+        entities = [item for item in (canon.get("entities") or []) if isinstance(item, dict)]
+
+        refresh = payload.get("refresh") is not False
+        cached = None if refresh else canon_store.read_derived(project_root, "presence.json")
+        if cached is not None:
+            presence = cached
+        else:
+            presence = canon_rebuild.rebuild_presence(project_root, entities, glob=glob)
+            canon_store.write_derived(project_root, "presence.json", presence)
+
+        gate = canon_gate.check(canon, presence)
+        report = {
+            "conflicts": gate["conflicts"],
+            "advisories": gate["advisories"],
+            "checked_invariants": gate["checked_invariants"],
+            "entity_count": len(entities),
+            "scaffolded_canon": scaffolded,
+        }
+        canon_store.write_derived(project_root, "report.json", report)
+
+        has_declarations = bool(gate["checked_invariants"])
+        note = (
+            "canon.json 尚无不变量声明，已建立空格式骨架；在场缓存已重建但暂无可校验项，"
+            "请在 .storyforge/canon/canon.json 声明实体与不变量后再查。"
+            if not has_declarations
+            else "结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。"
+        )
+        output = {
+            "entity_count": len(entities),
+            "checked_invariants": gate["checked_invariants"],
+            "conflicts": gate["conflicts"],
+            "advisories": gate["advisories"],
+            "conflict_count": gate["conflict_count"],
+            "advisory_count": gate["advisory_count"],
+            "presence_summary": {
+                "chapter_count": presence.get("chapter_count"),
+                "scanned_files": presence.get("scanned_files"),
+                "terms_truncated": presence.get("terms_truncated"),
+                "missing_entities": [
+                    e.get("id") for e in (presence.get("entities") or []) if e.get("missing")
+                ],
+            },
+            "scaffolded_canon": scaffolded,
+            "note": note,
+        }
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.canon",
+                status="completed",
+                input_summary={"refresh": refresh, "glob": glob},
+                output_summary={
+                    "entity_count": len(entities),
+                    "checked_invariants": gate["checked_invariants"],
+                    "conflict_count": gate["conflict_count"],
+                    "advisory_count": gate["advisory_count"],
                 },
             ),
         )

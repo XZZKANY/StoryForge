@@ -54,6 +54,9 @@ _SYSTEM_PROMPT = (
     "要对单章做深度一致性检查（正文是否违背人物设定 / 世界观 / 已知事实）时，"
     "用 project_deep_consistency 让语义评审模型把稿件对照人物 / 设定文件核查；"
     "它返回的 issue 是参考信号，回给作者前先抽读对应行核实，不要照单全收。"
+    "要查跨章累积漂移（同一物件的唯一持有、时间线先后、角色退场后是否还出场）时，"
+    "用 project_canon：它从正文重建在场缓存并校验作者在 canon.json 声明的薄不变量，"
+    "随书累积、比无状态深查更能抓累积偏移；硬矛盾是声明内部结构冲突，advisory 仍须抽读核实。"
     "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁；"
     "要求写新章节 / 新文件时用 file_create 起草（目标文件必须尚不存在，先看清项目结构选好路径）。"
     "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订或新文件已生效。"
@@ -142,6 +145,12 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "path": output.get("path"),
             "issue_count": output.get("issue_count"),
             "bible_file_count": len(output.get("bible_files") or []),
+        }
+    if registry_name == "project.canon":
+        return {
+            "entity_count": output.get("entity_count"),
+            "conflict_count": output.get("conflict_count"),
+            "advisory_count": output.get("advisory_count"),
         }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
