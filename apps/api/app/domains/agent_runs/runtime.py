@@ -6,7 +6,14 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domains.agent_runs import canon_gate, canon_rebuild, canon_store, fs_tools, loop_runtime
+from app.domains.agent_runs import (
+    canon_dossier,
+    canon_gate,
+    canon_rebuild,
+    canon_store,
+    fs_tools,
+    loop_runtime,
+)
 from app.domains.agent_runs._text import _compact_text, _optional_string
 from app.domains.agent_runs.bookrun_summary import (
     _bookrun_budget_details,
@@ -1623,6 +1630,13 @@ class AgentRuntime:
         }
         canon_store.write_derived(project_root, "report.json", report)
 
+        # 富 view 骨架：每实体确定性事实投影（身份/出场跨度/绑定声明/provenance）落成
+        # 人可读派生缓存 dossier.md。summary-only 回 LLM（全文不灌上下文，防噪声）。
+        dossiers = canon_dossier.build_dossiers(canon, presence)
+        dossier_path = canon_store.write_derived_text(
+            project_root, "dossier.md", canon_dossier.render_dossiers_markdown(dossiers)
+        )
+
         has_declarations = bool(gate["checked_invariants"])
         note = (
             "canon.json 尚无不变量声明，已建立空格式骨架；在场缓存已重建但暂无可校验项，"
@@ -1646,6 +1660,11 @@ class AgentRuntime:
                 ],
             },
             "scaffolded_canon": scaffolded,
+            "dossier": {
+                "entity_count": len(dossiers),
+                "path": dossier_path,
+                "missing_entities": [d["id"] for d in dossiers if d["appearance"]["missing"]],
+            },
             "note": note,
         }
         return ToolResult(

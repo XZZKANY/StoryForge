@@ -27,6 +27,8 @@ _DERIVED_DIRNAME = "derived"
 
 # 派生缓存文件白名单：写入口只接受这些名字，杜绝借 name 参数穿目录。
 _ALLOWED_DERIVED_NAMES = frozenset({"presence.json", "report.json"})
+# 派生文本缓存白名单（人可读投影，非 JSON）。
+_ALLOWED_DERIVED_TEXT_NAMES = frozenset({"dossier.md"})
 
 _EMPTY_CANON: dict[str, Any] = {"version": 1, "entities": [], "invariants": {}}
 
@@ -42,14 +44,13 @@ def _canon_file(project_root: str) -> Path:
     return _canon_dir(project_root) / _CANON_FILENAME
 
 
-def _atomic_write_json(target: Path, payload: dict[str, Any]) -> None:
-    """同目录 temp file + os.replace 原子落盘：写一半崩溃不会留下半截 JSON。
+def _atomic_write_text(target: Path, text: str) -> None:
+    """同目录 temp file + os.replace 原子落盘：写一半崩溃不会留下半截文件。
 
     镜像 W7 Rust fs.rs::stage_atomic_write 的原子性不变量（纯 Python 版）。
     """
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(payload, ensure_ascii=False, indent=2)
     fd, temp_name = tempfile.mkstemp(dir=str(target.parent), prefix=f".{target.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -61,6 +62,10 @@ def _atomic_write_json(target: Path, payload: dict[str, Any]) -> None:
         with contextlib.suppress(OSError):
             os.unlink(temp_name)
         raise
+
+
+def _atomic_write_json(target: Path, payload: dict[str, Any]) -> None:
+    _atomic_write_text(target, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def read_canon(project_root: str) -> dict[str, Any]:
@@ -92,17 +97,32 @@ def scaffold_canon_if_missing(project_root: str) -> bool:
     return True
 
 
-def write_derived(project_root: str, name: str, payload: dict[str, Any]) -> str:
-    """原子写派生缓存到 .storyforge/canon/derived/<name>；name 走白名单，路径断言仍在 canon 目录内。"""
+def _resolve_derived_target(project_root: str, name: str, allowed: frozenset[str]) -> Path:
+    """白名单校验 + 双保险越界断言，返回 derived/<name> 绝对路径。"""
 
-    if name not in _ALLOWED_DERIVED_NAMES:
+    if name not in allowed:
         raise FsToolError(f"不允许的派生缓存文件名：{name}")
     canon_dir = _canon_dir(project_root)
     target = (canon_dir / _DERIVED_DIRNAME / name).resolve()
     # 双保险：即便上游拼错，也断言最终路径没逃出 canon 目录（防越界注入）。
     if canon_dir.resolve() not in target.parents:
         raise FsToolError("派生缓存路径越界。")
+    return target
+
+
+def write_derived(project_root: str, name: str, payload: dict[str, Any]) -> str:
+    """原子写派生缓存到 .storyforge/canon/derived/<name>；name 走白名单，路径断言仍在 canon 目录内。"""
+
+    target = _resolve_derived_target(project_root, name, _ALLOWED_DERIVED_NAMES)
     _atomic_write_json(target, payload)
+    return str(target)
+
+
+def write_derived_text(project_root: str, name: str, text: str) -> str:
+    """原子写人可读派生投影（如 dossier.md）到 derived/<name>；独立文本白名单。"""
+
+    target = _resolve_derived_target(project_root, name, _ALLOWED_DERIVED_TEXT_NAMES)
+    _atomic_write_text(target, text)
     return str(target)
 
 
