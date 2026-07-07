@@ -20,6 +20,21 @@ export interface FileChangeEvent {
   paths: string[];
 }
 
+/**
+ * 本地文件系统被本进程改动（写入/新建/删除/改名/外部 watch 命中）后广播。
+ * 资源树等派生视图监听此事件重新拉取——补丁写回、Agent 起草新文件后立即刷新，
+ * 不再依赖视图切换重挂载或 5s 缓存过期才「过一会」显示。
+ */
+export const FS_MUTATION_EVENT = 'storyforge:fs-mutation';
+
+function emitFsMutation(path?: string): void {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(
+      new CustomEvent<{ path?: string }>(FS_MUTATION_EVENT, { detail: { path } }),
+    );
+  }
+}
+
 type SmokeFileSystem = {
   readFile?: (path: string) => Promise<string> | string;
   writeFile?: (path: string, content: string) => Promise<void> | void;
@@ -66,6 +81,7 @@ function invalidateListDirCache(changedPath?: string): void {
   pendingListDirReads.clear();
   if (!changedPath) {
     listDirCache.clear();
+    emitFsMutation();
     return;
   }
 
@@ -80,6 +96,7 @@ function invalidateListDirCache(changedPath?: string): void {
       listDirCache.delete(key);
     }
   }
+  emitFsMutation(changedPath);
 }
 
 export function invalidateFileSystemCache(path?: string): void {

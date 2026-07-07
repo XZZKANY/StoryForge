@@ -9,7 +9,7 @@ import { CommandPalette, PaletteMode } from './components/CommandPalette';
 import { SettingsView } from './components/SettingsView';
 import { Editor } from './components/Editor';
 import { ChatWindow } from './components/ChatWindow';
-import { TauriFileSystem } from './lib/tauri-fs';
+import { TauriFileSystem, FS_MUTATION_EVENT } from './lib/tauri-fs';
 import { createSampleStoryProject, initializeStoryProject } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { APPLY_FILE_SUGGESTION_EVENT, emitExportCurrentFile } from './lib/assistant-events';
@@ -93,6 +93,21 @@ export function App() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 项目切换时重置预览态，React18 合法模式
     setPreviewFile(null);
   }, [activeProject]);
+
+  // 本进程改动本地文件（补丁写回、Agent 起草新文件、新建/删除/改名）后刷新资源树。
+  // 一次「接受补丁」会触发快照写 + 正文写两次 mutation，debounce 合并为一次重拉。
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onFsMutation = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setProjectRefreshVersion((version) => version + 1), 120);
+    };
+    window.addEventListener(FS_MUTATION_EVENT, onFsMutation);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener(FS_MUTATION_EVENT, onFsMutation);
+    };
+  }, []);
 
   useEffect(() => {
     saveAppSettings(settings);
