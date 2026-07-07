@@ -126,9 +126,14 @@ Gate:OpenAPI 收缩且 drift 绿;桌面全功能冒烟无损;护栏可证伪;回
 prompts + skills/audit.py 迁入 `app/domains/book_runs/prompts/`,删两个 importlib 路径桥;apps/workflow 整包 tag 封存 + 物理删除,langgraph 依赖树与独立 uv 环境退役;重打 sidecar 验证 prompts 进冻结产物;dev 侧跑 deterministic BookRun 最小闭环确认质量轨资产无损;若 sidecar-smoke 已稳定两个发版:pnpm dev 默认切 sqlite,docker 栈降 `pnpm dev:pg` opt-in。
 Gate:⊕packaged 档 smoke 断言装机 exe 内 bookrun.start prompt 装配可达(删除「或人工验证」松口);deterministic 闭环 + Markdown 导出成功;verify/e2e 总时长再降。
 
-**W6[L] WS 契约化 + 工具注册单点 + Q1-Q8 切面样板**(为优先级②定型;排在 E2E-1 之后)
+**W6[L] WS 契约化 + 工具注册单点 + Q1-Q8 切面样板**(为优先级②定型;排在 E2E-1 之后)——✅ slices 1-3 已合并(2026-07-07,PR #105/#106/#107);slice 4/5 经用户拍板不做
 四类 WS 消息建 Pydantic 模型(golden JSON 逐字节等价先绿再切 encode);agent-ws.schema.json 进 shared,并入 pnpm openapi 单命令;api-types 纳入 drift 门禁;前端手写 WS 段换 generated;ToolSpec 单点注册 + 元测试(注册 demo 工具断言 schema/提示词段/证据链全自动可用且 git diff=1 新文件+1 行注册);权限四轨收敛 spec.risk 单点;timeline 或 alias 检测器拆「纯函数核心 + DB 适配器」,新增文件版装配器挂进循环成为第一个 Q 工具(advisory);顺手删 orchestrator facade + F401、docs/internal 封档文档移 archive。
 Gate:故意改一个 WS 字段名→前端 typecheck 红;样板 Q 工具 headless 实跑留证据;加第二个 Q 工具改动面实证收敛。
+落地记录(2026-07-07):
+- **slice 1(PR #105)**:六类出站帧建 Pydantic 单一事实源(`agent_runs/ws_messages.py`),`event_encoders` 只做字段装配,`to_wire()` 不 exclude_none 保全键契约;`test_ws_contract_golden.py` 逐字节金测 14 例。
+- **slice 2(PR #106)**:`build_agent_ws_schema()` 从帧派生 JSON Schema → `packages/shared/.../agent-ws.schema.json`,并入 `pnpm openapi` 单命令 + drift 门禁数组;`emit-agent-ws-types.mjs` 确定性投影前端 `generated/agent-ws.ts` + 编译期契约。**Gate 实证达成**:临时改 `run_id` 字段名 → `pnpm openapi` → 前端 typecheck TS2344 红,还原复绿。
+- **slice 3(PR #107)**:`tooling.py` 加 `LoopToolSchema` + `AgentRuntimeToolSpec.loop_schema`,`build_loop_tool_schemas/name_map/patch_tool_specs` 单点派生,删 `loop_runtime.py` ~140 行手写镜像;golden byte-identical + 元测试证「加循环工具=加一条带 loop_schema 的 spec」。
+- **未做(经用户 2026-07-07 拍板)**:①权限四轨收敛 —— `requires_confirmation` 无法纯从 `risk_level` 派生(`bookrun.pause` 是 long_running 却 confirm=False),权限安全敏感,slice 3 已带 rationale 显式跳过。②slice 4「第一个 Q 工具」**跳过** —— 从 prose 抽结构化边需已 park 的 story_state/typed-delta 方向或启发式,且真·LLM headless gate 跑不了,且与 `project.deep_consistency` 部分重叠,需产品定向。③slice 5「删 orchestrator facade」**保留 facade** —— 该 40 行 compat 非死码(live `runtime.py` noqa-import 作 monkeypatch 靶 + `test_ide_agent_orchestrator.py` 专门测试保护),删它价值低于风险。
 
 **W7[M] 前端行为测试基建**(写回红线换行为护栏;在 Q1-Q8 工具 UI 大量挂 ChatWindow 前落位)
 vitest + happy-dom 替换自制 runner(唯一新增 devDependency);三条红线行为测试:①before 漂移拒写(可证伪)②接受补丁→快照→写盘→闭环记录时序 ③会话切换中途 run 完成不污染当前会话(修 F26);顺手写盘原子化(临时文件+rename)与快照失败阻断写回(修 F27);既有 18 个测试文件双跑一个 PR 周期后删 verify-unit.mjs。
