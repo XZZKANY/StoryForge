@@ -51,6 +51,21 @@ def test_readiness_returns_ready_when_all_healthy() -> None:
     assert body["app_version"] == APP_VERSION
 
 
+def test_health_openapi_uses_named_response_models() -> None:
+    openapi = app.openapi()
+    schemas = openapi["components"]["schemas"]
+
+    assert set(schemas["LivenessResponse"]["properties"]) == {"status"}
+    readiness = schemas["ReadinessResponse"]["properties"]
+    assert set(readiness) == {"status", "app_version", "checks"}
+    live_response = openapi["paths"]["/health/live"]["get"]["responses"]["200"]
+    ready_response = openapi["paths"]["/health/ready"]["get"]["responses"]["200"]
+    live_schema = live_response["content"]["application/json"]["schema"]
+    ready_schema = ready_response["content"]["application/json"]["schema"]
+    assert live_schema["$ref"] == "#/components/schemas/LivenessResponse"
+    assert ready_schema["$ref"] == "#/components/schemas/ReadinessResponse"
+
+
 def test_readiness_degraded_when_db_unreachable() -> None:
     mock_engine = MagicMock()
     mock_engine.connect.side_effect = Exception("connection refused")

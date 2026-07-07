@@ -12,3 +12,5 @@ export type ApiAssistantReviseRequest = Omit<
 export type ApiAssistantReviseResponse = components['schemas']['AssistantReviseResponse'];
 export type ApiProviderHealthResponse = components['schemas']['ProviderHealthResponse'];
 export type ApiAgentRoleRead = components['schemas']['AgentRoleRead'];
+export type ApiLivenessResponse = components['schemas']['LivenessResponse'];
+export type ApiReadinessResponse = components['schemas']['ReadinessResponse'];

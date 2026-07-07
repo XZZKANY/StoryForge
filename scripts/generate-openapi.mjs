@@ -10,6 +10,7 @@ const root = resolve(__dirname, '..');
 const apiRoot = join(root, 'apps', 'api');
 const outputPath = join(root, 'packages', 'shared', 'src', 'contracts', 'storyforge.openapi.json');
 const wsSchemaPath = join(root, 'packages', 'shared', 'src', 'contracts', 'agent-ws.schema.json');
+const sharedTypesPath = join(root, 'packages', 'shared', 'src', 'generated', 'api-types.ts');
 const wsTypesPath = join(
   root,
   'apps',
@@ -49,11 +50,15 @@ function resolvePythonCommand() {
   return null;
 }
 
+function resolvePackageManagerCommand() {
+  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+}
+
 function runCommand(command, args, cwd) {
   const child = spawn(command, args, {
     cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32' && command === 'uv',
+    shell: process.platform === 'win32',
   });
   return new Promise((resolve) => {
     child.on('error', () => resolve(1));
@@ -110,6 +115,19 @@ try {
     await mkdir(dirname(wsTypesPath), { recursive: true });
     await writeFile(wsTypesPath, emitAgentWsTypes(wsSchema), 'utf8');
     log('INFO', `已生成前端 WS 类型：${wsTypesPath}`);
+
+    const packageManagerCommand = resolvePackageManagerCommand();
+    const typesExitCode = await runCommand(
+      packageManagerCommand,
+      ['--filter', '@storyforge/shared', 'generate:types'],
+      root,
+    );
+    if (typesExitCode !== 0) {
+      log('ERROR', `OpenAPI TypeScript 类型生成失败，退出码：${typesExitCode}`);
+      process.exitCode = typesExitCode;
+    } else {
+      log('INFO', `已生成 OpenAPI TypeScript 类型：${sharedTypesPath}`);
+    }
   }
 } finally {
   await rm(tempScriptPath, { force: true });

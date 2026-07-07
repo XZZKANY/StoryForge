@@ -4702,6 +4702,20 @@
         "title": "JudgeIssueRead",
         "type": "object"
       },
+      "LivenessResponse": {
+        "properties": {
+          "status": {
+            "const": "alive",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "LivenessResponse",
+        "type": "object"
+      },
       "ManualReadDimensionScore": {
         "additionalProperties": false,
         "properties": {
@@ -5903,6 +5917,36 @@
           "series_memory_summary"
         ],
         "title": "QualityDashboardRead",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "app_version": {
+            "title": "App Version",
+            "type": "string"
+          },
+          "checks": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "app_version",
+          "checks"
+        ],
+        "title": "ReadinessResponse",
         "type": "object"
       },
       "RepairPatchCreate": {
@@ -15191,11 +15235,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Liveness Health Live Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LivenessResponse"
                 }
               }
             },
@@ -15217,19 +15257,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "additionalProperties": true,
-                        "type": "object"
-                      }
-                    ]
-                  },
-                  "title": "Response Readiness Health Ready Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             },
