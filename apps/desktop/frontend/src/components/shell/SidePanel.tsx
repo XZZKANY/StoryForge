@@ -11,7 +11,15 @@ import { listAssistantSessions } from '../../lib/api-client';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { basename } from '../app/helpers';
 import type { SidePanelView } from './useShellState';
-import { ChevronDown, FilePlus, FileText, FolderOpen, Plus, Sparkles } from '../icons/shell-icons';
+import {
+  ChevronDown,
+  FilePlus,
+  FileText,
+  FolderOpen,
+  Plus,
+  Sparkles,
+  X,
+} from '../icons/shell-icons';
 
 type SidePanelProps = {
   view: SidePanelView;
@@ -22,6 +30,7 @@ type SidePanelProps = {
   projectRefreshVersion: number;
   activeAssistantSessionId: number | null;
   onSelectProject: (path: string) => void;
+  onRemoveProject: (path: string) => void;
   onSelectProjectSession: (path: string, assistantSessionId: number) => void;
   onNewProjectSession: (path: string) => void;
   onOpenProject: () => void;
@@ -63,6 +72,7 @@ function ExplorerView({
   previewFile,
   projectRefreshVersion,
   onSelectProject,
+  onRemoveProject,
   onOpenProject,
   onNewFile,
   onFileSelect,
@@ -99,16 +109,28 @@ function ExplorerView({
             </h4>
             <div data-testid="project-library-list">
               {projects.slice(0, 5).map((project) => (
-                <button
+                <div
                   key={project}
-                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-elevated"
-                  onClick={() => onSelectProject(project)}
-                  title={project}
+                  className="group flex w-full items-center rounded-md hover:bg-elevated"
                 >
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                    {basename(project)}
-                  </span>
-                </button>
+                  <button
+                    className="flex min-w-0 flex-1 items-center px-2 py-1.5 text-left"
+                    onClick={() => onSelectProject(project)}
+                    title={project}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+                      {basename(project)}
+                    </span>
+                  </button>
+                  <button
+                    className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-subtle opacity-0 hover:bg-surface hover:text-foreground group-hover:opacity-100"
+                    onClick={() => onRemoveProject(project)}
+                    title="从最近打开移除"
+                    aria-label={`从最近打开移除 ${basename(project)}`}
+                  >
+                    <X size={13} strokeWidth={1.6} />
+                  </button>
+                </div>
               ))}
             </div>
           </>
@@ -133,24 +155,41 @@ function ExplorerView({
             <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
             <div className="absolute left-2 right-2 top-10 z-40 rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
               {projects.slice(0, 8).map((project) => (
-                <button
+                <div
                   key={project}
-                  className={`flex h-[30px] w-full items-center rounded px-2 text-[12px] hover:bg-elevated ${
+                  className={`group flex h-[30px] w-full items-center rounded text-[12px] hover:bg-elevated ${
                     project === activeProject
                       ? 'text-foreground'
                       : 'text-muted hover:text-foreground'
                   }`}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    if (project !== activeProject) onSelectProject(project);
-                  }}
-                  title={project}
                 >
-                  <span className="min-w-0 flex-1 truncate text-left">
-                    {project === activeProject ? '✓ ' : ''}
-                    {basename(project)}
-                  </span>
-                </button>
+                  <button
+                    className="flex min-w-0 flex-1 items-center px-2 text-left"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (project !== activeProject) onSelectProject(project);
+                    }}
+                    title={project}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-left">
+                      {project === activeProject ? '✓ ' : ''}
+                      {basename(project)}
+                    </span>
+                  </button>
+                  {project !== activeProject && (
+                    <button
+                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-subtle opacity-0 hover:bg-surface hover:text-foreground group-hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveProject(project);
+                      }}
+                      title="从最近打开移除"
+                      aria-label={`从最近打开移除 ${basename(project)}`}
+                    >
+                      <X size={13} strokeWidth={1.6} />
+                    </button>
+                  )}
+                </div>
               ))}
               <div className="my-1 mx-1.5 h-px bg-border" />
               <button
