@@ -250,6 +250,44 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.canon",
+        description=(
+            "项目 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json "
+            "声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。"
+            "会更新 .storyforge/canon/ 派生缓存（非手稿正文），不落 DB。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent", "context_explorer"),
+        risk_level="read",
+        retry_safe=True,
+        idempotent=True,
+        execution_mode="sync",
+        evidence_fields=("entity_count", "checked_invariants", "conflict_count", "advisory_count"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_canon",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——"
+                "唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、"
+                "退场一致性（声明退场后不应再出场）。返回硬矛盾（blocking，声明内部结构冲突）与 advisory "
+                "（退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。它随书累积、比无状态深查更能抓跨章累积漂移。"
+                "调用会更新 .storyforge/canon/ 下的派生缓存（不改手稿）。作者尚未在 canon.json 声明不变量时，"
+                "会建立空格式骨架并如实说明无可校验项。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "refresh": {
+                        "type": "boolean",
+                        "description": "是否强制从正文重建在场缓存，默认 true。",
+                    },
+                    "glob": {"type": "string", "description": "正文文件名过滤，默认 *.md。"},
+                },
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="file.review",
         description="执行 chapter_polish 多子代理审稿。",
         domain="review",
