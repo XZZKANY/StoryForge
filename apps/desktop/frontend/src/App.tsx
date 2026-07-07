@@ -66,6 +66,7 @@ export function App() {
     selectProject,
     selectFile: handleFileSelect,
     closeFile,
+    removeProject,
     setActiveProjectAssistantSession,
   } = useProjectWorkspace({
     onProjectSelected: handleProjectSelected,
@@ -438,6 +439,7 @@ export function App() {
                 activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
               }
               onSelectProject={selectProject}
+              onRemoveProject={removeProject}
               onSelectProjectSession={handleSelectProjectSession}
               onNewProjectSession={handleNewProjectSession}
               onOpenProject={handleOpenProject}
