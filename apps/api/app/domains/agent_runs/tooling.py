@@ -465,6 +465,39 @@ def list_agent_runtime_tool_specs() -> tuple[AgentRuntimeToolSpec, ...]:
     return _AGENT_RUNTIME_TOOL_SPECS
 
 
+# 需要作者确认的风险等级：产出待确认补丁 / 高成本 / 出网。long_running 单独判——它既覆盖
+# bookrun.start（真启动 managed run，须确认）又覆盖 bookrun.pause/resume/retry（控制命令，
+# execution_mode="control"，不确认），故 long_running 要连 execution_mode 一起看。
+_CONFIRMING_RISK_LEVELS = frozenset({"write_pending", "high_cost", "propose_patch", "network"})
+
+
+def derive_requires_confirmation(risk_level: str, execution_mode: str) -> bool:
+    """从 risk_level + execution_mode 单点派生「是否需作者确认」。
+
+    permission_level / requires_confirmation 此前与 risk_level 并列人工声明、彼此 100% 相关但
+    可各自漂移；改由本函数派生，risk_level + execution_mode 成为唯一声明轴。
+    """
+
+    if risk_level in _CONFIRMING_RISK_LEVELS:
+        return True
+    return risk_level == "long_running" and execution_mode != "control"
+
+
+def derive_permission_level(risk_level: str, execution_mode: str) -> str:
+    """需确认即 confirm、否则 auto（agent_runtime 词表）。"""
+
+    return "confirm" if derive_requires_confirmation(risk_level, execution_mode) else "auto"
+
+
+def confirming_tool_names(
+    specs: Sequence[AgentRuntimeToolSpec] | None = None,
+) -> frozenset[str]:
+    """需作者确认的工具名集合（派生 runtime._execute_tool 的放行名单，取代手写第 5 轨）。"""
+
+    source = _AGENT_RUNTIME_TOOL_SPECS if specs is None else specs
+    return frozenset(spec.name for spec in source if spec.requires_confirmation)
+
+
 def llm_tool_name(spec_name: str) -> str:
     """dotted registry 名 → OpenAI function 名（function 名不允许点号）。"""
 

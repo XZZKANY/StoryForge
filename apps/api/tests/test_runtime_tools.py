@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.domains.agent_runs.tooling import list_agent_runtime_tool_specs
+from app.domains.agent_runs.tooling import (
+    confirming_tool_names,
+    derive_permission_level,
+    derive_requires_confirmation,
+    list_agent_runtime_tool_specs,
+)
 from app.main import app
 
 
@@ -86,6 +91,23 @@ def test_agent_runtime_registers_exactly_declared_tool_specs() -> None:
         assert tool.idempotent is spec.idempotent
         assert tool.execution_mode == spec.execution_mode
         assert tool.artifact_kinds == tuple(spec.artifact_kinds)
+
+
+def test_permission_fields_derive_from_risk_and_execution_mode() -> None:
+    """permission_level / requires_confirmation 必须能从 risk_level + execution_mode 单点派生。
+
+    先绿再切的安全垫：证明派生规则对全量 spec 逐条等于当前声明值，且派生出的确认集恰等于
+    runtime._execute_tool 那份手写放行名单，切片 2 才可放心删声明字段与手写名单。
+    """
+
+    for spec in list_agent_runtime_tool_specs():
+        assert derive_requires_confirmation(spec.risk_level, spec.execution_mode) is spec.requires_confirmation, spec.name
+        assert derive_permission_level(spec.risk_level, spec.execution_mode) == spec.permission_level, spec.name
+
+    # == runtime.py:_execute_tool 当前手写允许名单（钉死等价关系）。
+    assert confirming_tool_names() == frozenset(
+        {"file.revise", "file.create", "judge.repair", "bookrun.start"}
+    )
 
 
 def test_agent_runtime_tool_allowed_roles_match_role_catalog() -> None:
