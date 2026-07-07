@@ -1398,7 +1398,9 @@ class AgentRuntime:
     def _execute_tool(self, tool_name: str, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         tool = self._tool_registry.get(tool_name)
         decision = self._permission_gate.decide(context.run, tool)
-        if decision.status == "require_approval" and tool_name not in {"file.revise", "file.create", "bookrun.start", "judge.repair"}:
+        # 需确认的工具（requires_confirmation，从 risk+mode 单点派生）先执行去产出待确认补丁，真正的
+        # 写回确认在 proposed_patch 工件层由前端完成；其余被 gate 拦下的工具才在此中止。
+        if decision.status == "require_approval" and not tool.requires_confirmation:
             raise AgentOrchestrationError(f"工具 {tool_name} 需要先获得权限确认：{decision.reason}")
         return tool.handler(context, payload)
 
