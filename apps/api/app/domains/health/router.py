@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Any
 
 import redis
 from fastapi import APIRouter
@@ -11,6 +10,7 @@ from sqlalchemy.engine import Connection
 from app.common.redis_cache import _redis_client
 from app.common.version import APP_VERSION
 from app.db.session import get_engine
+from app.domains.health.schemas import LivenessResponse, ReadinessResponse
 
 router = APIRouter(prefix="/health", tags=["运行状态"])
 
@@ -29,22 +29,24 @@ def _core_table_count(conn: Connection) -> int:
 
 @router.get(
     "/live",
+    response_model=LivenessResponse,
     summary="进程存活探针",
 )
-def liveness() -> dict[str, str]:
+def liveness() -> LivenessResponse:
     """仅返回 200 表明进程存活，不检查任何外部依赖。供 Kubernetes liveness 调用。"""
 
-    return {"status": "alive"}
+    return LivenessResponse(status="alive")
 
 
 @router.get(
     "/ready",
+    response_model=ReadinessResponse,
     summary="就绪探针",
 )
-def readiness() -> dict[str, str | dict[str, Any]]:
+def readiness() -> ReadinessResponse:
     """检查数据库连接 + 核心表存在 + Redis 可达；任一失败则标记为 degraded。"""
 
-    checks: dict[str, Any] = {}
+    checks: dict[str, str] = {}
     all_ok = True
 
     try:
@@ -70,4 +72,4 @@ def readiness() -> dict[str, str | dict[str, Any]]:
             all_ok = False
 
     status = "ready" if all_ok else "degraded"
-    return {"status": status, "app_version": APP_VERSION, "checks": checks}
+    return ReadinessResponse(status=status, app_version=APP_VERSION, checks=checks)

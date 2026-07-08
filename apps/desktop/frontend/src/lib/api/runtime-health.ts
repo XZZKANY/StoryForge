@@ -1,10 +1,6 @@
 import { getApiConfig, trimApiBaseUrl } from './config';
+import type { ApiReadinessResponse } from './contracts';
 import type { ApiRuntimeHealth, ApiRuntimeHealthStatus } from './types';
-
-type ApiRuntimeHealthResponse = {
-  status?: unknown;
-  checks?: unknown;
-};
 
 export async function probeApiRuntimeHealth(): Promise<ApiRuntimeHealth> {
   const { baseUrl } = await getApiConfig();
@@ -19,7 +15,7 @@ export async function probeApiRuntimeHealth(): Promise<ApiRuntimeHealth> {
     if (!response.ok) {
       return runtimeHealthFailure(trimmedBaseUrl, latencyMs, `API 返回 ${response.status}`);
     }
-    const data = (await response.json()) as ApiRuntimeHealthResponse;
+    const data = (await response.json()) as ApiReadinessResponse;
     const status = runtimeHealthStatus(data.status);
     return {
       status,
@@ -53,13 +49,17 @@ function runtimeHealthFailure(
   };
 }
 
-function runtimeHealthStatus(value: unknown): ApiRuntimeHealthStatus {
+function runtimeHealthStatus(
+  value: ApiReadinessResponse['status'] | unknown,
+): ApiRuntimeHealthStatus {
   if (value === 'ready') return 'ready';
   if (value === 'degraded') return 'degraded';
   return 'degraded';
 }
 
-function runtimeHealthChecks(value: unknown): Record<string, string> {
+function runtimeHealthChecks(
+  value: ApiReadinessResponse['checks'] | unknown,
+): Record<string, string> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(
     Object.entries(value)

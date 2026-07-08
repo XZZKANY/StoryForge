@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
+import { projectBasename, relativePathInsideProject } from '../lib/project-context';
 
 export type PaletteMode = 'files' | 'commands';
 
@@ -33,14 +34,12 @@ type CommandPaletteProps = {
 };
 
 function basename(path: string): string {
-  return path.split(/[/\\]/).pop() ?? path;
+  return projectBasename(path);
 }
 
 function relativeToProject(projectPath: string | null, filePath: string): string {
-  if (!projectPath) return basename(filePath);
-  const root = projectPath.replace(/[/\\]+$/, '');
-  return filePath.startsWith(root)
-    ? filePath.slice(root.length).replace(/^[/\\]+/, '')
+  return projectPath
+    ? (relativePathInsideProject(projectPath, filePath) ?? basename(filePath))
     : basename(filePath);
 }
 

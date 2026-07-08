@@ -184,26 +184,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/analytics/workspaces/{workspace_id}/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取工作区分析面板
-         * @description 聚合指定工作区维度的关键指标快照，用于运营看板和报表导出。
-         */
-        get: operations["read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/artifacts": {
         parameters: {
             query?: never;
@@ -385,7 +365,7 @@ export interface paths {
         };
         /**
          * 读取最近 Assistant 会话
-         * @description 读取最近会话，供首页最近记录和任务追溯使用。
+         * @description 读取最近会话，供桌面端会话历史与任务追溯使用；可按项目路径过滤。
          */
         get: operations["list_assistant_sessions_endpoint_api_assistant_sessions_get"];
         put?: never;
@@ -482,46 +462,6 @@ export interface paths {
          * @description 更新工具调用状态、摘要和关联对象，不接收敏感凭据。
          */
         patch: operations["update_assistant_tool_call_endpoint_api_assistant_tool_calls__tool_call_id__patch"];
-        trace?: never;
-    };
-    "/api/batch-refinery/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 提交批量精修任务
-         * @description 创建排队任务并交给后台执行，客户端通过查询接口读取进度。
-         */
-        post: operations["create_batch_refinery_run_api_batch_refinery_runs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/batch-refinery/runs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取批量精修任务状态
-         * @description 读取批量精修 JobRun 明细，供恢复和重试前检查。
-         */
-        get: operations["read_batch_refinery_run_api_batch_refinery_runs__job_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/blueprints": {
@@ -962,126 +902,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/collaboration/approvals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 发起批准请求
-         * @description 针对场景或章节创建批准请求，等待审核者决议。
-         */
-        post: operations["create_approval_request_endpoint_api_collaboration_approvals_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/collaboration/approvals/{approval_request_id}/decisions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 提交批准决议
-         * @description 对批准请求做出 approve/reject 决议并附带备注。
-         */
-        post: operations["create_approval_decision_endpoint_api_collaboration_approvals__approval_request_id__decisions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/collaboration/comments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 提交工作区评论
-         * @description 对场景或制品添加协作评论；评论与场景绑定，按时间线展示。
-         */
-        post: operations["create_comment_endpoint_api_collaboration_comments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/collaboration/scenes/{scene_id}/timeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取场景协作时间线
-         * @description 按时间顺序读取场景下的评论与批准事件，用于协作面板展示。
-         */
-        get: operations["read_scene_timeline_endpoint_api_collaboration_scenes__scene_id__timeline_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/commercial/workspaces/{workspace_id}/policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 更新工作区订阅策略
-         * @description 新建或覆盖工作区的订阅与配额策略。
-         */
-        post: operations["upsert_workspace_policy_endpoint_api_commercial_workspaces__workspace_id__policy_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/commercial/workspaces/{workspace_id}/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取工作区商业化摘要
-         * @description 读取工作区当前商业化用量、剩余配额和订阅状态摘要。
-         */
-        get: operations["read_workspace_commercial_summary_endpoint_api_commercial_workspaces__workspace_id__summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/continuity/chapter-approval": {
         parameters: {
             query?: never;
@@ -1300,6 +1120,26 @@ export interface paths {
         get: operations["list_diagnostics_api_ide_diagnostics_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/review/cross-chapter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 跨章一致性检查
+         * @description 对若干完整章节做跨章一致性审校,返回带原文出处的硬冲突(时间线/称谓/设定/角色离场/伏笔)。
+         */
+        post: operations["cross_chapter_consistency_endpoint_api_ide_review_cross_chapter_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2391,85 +2231,6 @@ export interface components {
             /** Trigger Intents */
             trigger_intents: string[];
         };
-        /** AnalyticsFailureCategoryRead */
-        AnalyticsFailureCategoryRead: {
-            /** Count */
-            count: number;
-            /** Issue Type */
-            issue_type: string;
-        };
-        /** ApprovalDecisionCreate */
-        ApprovalDecisionCreate: {
-            /** Decision */
-            decision: string;
-            /** Member Id */
-            member_id: number;
-            /** Note */
-            note?: string | null;
-        };
-        /** ApprovalDecisionRead */
-        ApprovalDecisionRead: {
-            /** Approval Request Id */
-            approval_request_id: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Decision */
-            decision: string;
-            /** Id */
-            id: number;
-            /** Member Id */
-            member_id: number;
-            /** Note */
-            note: string | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** ApprovalRequestCreate */
-        ApprovalRequestCreate: {
-            /** Requester Member Id */
-            requester_member_id: number;
-            /** Reviewer Member Id */
-            reviewer_member_id: number;
-            /** Scene Id */
-            scene_id: number;
-            /** Summary */
-            summary: string;
-            /** Workspace Id */
-            workspace_id: number;
-        };
-        /** ApprovalRequestRead */
-        ApprovalRequestRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Requester Member Id */
-            requester_member_id: number;
-            /** Reviewer Member Id */
-            reviewer_member_id: number;
-            /** Scene Id */
-            scene_id: number;
-            /** Status */
-            status: string;
-            /** Summary */
-            summary: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Workspace Id */
-            workspace_id: number;
-        };
         /**
          * ArtifactCreate
          * @example {
@@ -2842,6 +2603,8 @@ export interface components {
             book_run_id?: number | null;
             /** Messages */
             messages?: components["schemas"]["AssistantMessageCreate"][];
+            /** Project Path */
+            project_path?: string | null;
             /** Task Type */
             task_type: string;
             /** Title */
@@ -2864,6 +2627,8 @@ export interface components {
             id: number;
             /** Messages */
             messages: components["schemas"]["AssistantMessageRead"][];
+            /** Project Path */
+            project_path: string | null;
             /** Task Type */
             task_type: string;
             /** Title */
@@ -2960,64 +2725,6 @@ export interface components {
             started_at?: string | null;
             /** Status */
             status?: string | null;
-        };
-        /**
-         * BatchRefineryItemCreate
-         * @description 批量精修中的单个场景输入。
-         */
-        BatchRefineryItemCreate: {
-            /** Content */
-            content: string;
-            /** Evidence Links */
-            evidence_links?: {
-                [key: string]: unknown;
-            }[];
-            /** Required Facts */
-            required_facts?: string[];
-            /** Scene Id */
-            scene_id: number;
-            /** Scene Packet Id */
-            scene_packet_id?: number | null;
-            /** Style Rules */
-            style_rules?: string[];
-        };
-        /**
-         * BatchRefineryRunCreate
-         * @description 批量精修请求，当前阶段立即在本地同步执行。
-         */
-        BatchRefineryRunCreate: {
-            /** Book Id */
-            book_id: number;
-            /** Items */
-            items: components["schemas"]["BatchRefineryItemCreate"][];
-        };
-        /**
-         * BatchRefineryRunRead
-         * @description 批量精修运行记录响应。
-         */
-        BatchRefineryRunRead: {
-            /** Book Id */
-            book_id: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Error Message */
-            error_message: string | null;
-            /** Id */
-            id: number;
-            /** Progress */
-            progress: {
-                [key: string]: unknown;
-            };
-            /** Status */
-            status: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
         };
         /** BookBlueprintCreate */
         BookBlueprintCreate: {
@@ -3451,45 +3158,6 @@ export interface components {
             voice_traits?: {
                 [key: string]: unknown;
             } | null;
-        };
-        /** CollaborationTimelineItem */
-        CollaborationTimelineItem: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Item Id */
-            item_id: number;
-            /** Item Type */
-            item_type: string;
-            /** Scene Id */
-            scene_id: number;
-            /** Status */
-            status: string;
-            /** Summary */
-            summary: string;
-        };
-        /** CommercialSummaryRead */
-        CommercialSummaryRead: {
-            /** Active Member Count */
-            active_member_count: number;
-            /** Current Job Count */
-            current_job_count: number;
-            /** Current Token Estimate */
-            current_token_estimate: number;
-            /** Monthly Job Limit */
-            monthly_job_limit: number;
-            /** Monthly Token Limit */
-            monthly_token_limit: number;
-            /** Seat Limit */
-            seat_limit: number;
-            /** Status Summary */
-            status_summary: string;
-            /** Within Limits */
-            within_limits: boolean;
-            /** Workspace Id */
-            workspace_id: number;
         };
         /**
          * ContinuityEdgeInput
@@ -3965,6 +3633,54 @@ export interface components {
             scene_id: number;
         };
         /**
+         * IdeCrossChapterFinding
+         * @description 一条跨章硬冲突,带涉及章节与原文证据。
+         */
+        IdeCrossChapterFinding: {
+            /** Chapters */
+            chapters?: string[];
+            /** Evidence */
+            evidence: string;
+            /** Finding */
+            finding: string;
+            /** Severity */
+            severity: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * IdeCrossChapterInput
+         * @description 跨章一致性检查的单章输入（整章正文,非摘录）。
+         */
+        IdeCrossChapterInput: {
+            /** Content */
+            content: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * IdeCrossChapterRequest
+         * @description 跨章一致性检查请求:至少两章 + 可选关注点。
+         */
+        IdeCrossChapterRequest: {
+            /** Chapters */
+            chapters: components["schemas"]["IdeCrossChapterInput"][];
+            /** Focus */
+            focus?: string | null;
+        };
+        /**
+         * IdeCrossChapterResult
+         * @description 跨章一致性检查响应。
+         */
+        IdeCrossChapterResult: {
+            /** Findings */
+            findings?: components["schemas"]["IdeCrossChapterFinding"][];
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Model */
+            model?: string | null;
+        };
+        /**
          * IdeDiagnostic
          * @description IDE Problems 面板统一诊断契约。
          */
@@ -4224,6 +3940,14 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** LivenessResponse */
+        LivenessResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "alive";
         };
         /** ManualReadDimensionScore */
         ManualReadDimensionScore: {
@@ -4634,6 +4358,20 @@ export interface components {
             series_memory_count: number;
             /** Series Memory Summary */
             series_memory_summary: string;
+        };
+        /** ReadinessResponse */
+        ReadinessResponse: {
+            /** App Version */
+            app_version: string;
+            /** Checks */
+            checks: {
+                [key: string]: string;
+            };
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "degraded";
         };
         /**
          * RepairPatchCreate
@@ -5822,67 +5560,6 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /** WorkspaceAnalyticsRead */
-        WorkspaceAnalyticsRead: {
-            /** Active Member Count */
-            active_member_count: number;
-            /** Active Provider Count */
-            active_provider_count: number;
-            /** Analytics Summary */
-            analytics_summary: string;
-            /** Approval Pass Rate */
-            approval_pass_rate: number;
-            /** Comment Count */
-            comment_count: number;
-            /** Failure Categories */
-            failure_categories: components["schemas"]["AnalyticsFailureCategoryRead"][];
-            /** Job Success Rate */
-            job_success_rate: number;
-            /** Pending Approval Count */
-            pending_approval_count: number;
-            /** Recent Event Count */
-            recent_event_count: number;
-            /** Repair Acceptance Rate */
-            repair_acceptance_rate: number;
-            /** Workspace Id */
-            workspace_id: number;
-        };
-        /** WorkspaceCommentCreate */
-        WorkspaceCommentCreate: {
-            /** Body */
-            body: string;
-            /** Member Id */
-            member_id: number;
-            /** Scene Id */
-            scene_id: number;
-            /** Workspace Id */
-            workspace_id: number;
-        };
-        /** WorkspaceCommentRead */
-        WorkspaceCommentRead: {
-            /** Body */
-            body: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Member Id */
-            member_id: number;
-            /** Scene Id */
-            scene_id: number;
-            /** Status */
-            status: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Workspace Id */
-            workspace_id: number;
-        };
         /** WorkspaceCreate */
         WorkspaceCreate: {
             /** Description */
@@ -5957,62 +5634,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-        };
-        /** WorkspaceSubscriptionCreate */
-        WorkspaceSubscriptionCreate: {
-            /**
-             * Monthly Job Limit
-             * @default 0
-             */
-            monthly_job_limit: number;
-            /**
-             * Monthly Price
-             * @default 0
-             */
-            monthly_price: number;
-            /**
-             * Monthly Token Limit
-             * @default 0
-             */
-            monthly_token_limit: number;
-            /** Plan Code */
-            plan_code: string;
-            /** Seat Limit */
-            seat_limit: number;
-            /**
-             * Status
-             * @default active
-             */
-            status: string;
-        };
-        /** WorkspaceSubscriptionRead */
-        WorkspaceSubscriptionRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Monthly Job Limit */
-            monthly_job_limit: number;
-            /** Monthly Price */
-            monthly_price: number;
-            /** Monthly Token Limit */
-            monthly_token_limit: number;
-            /** Plan Code */
-            plan_code: string;
-            /** Seat Limit */
-            seat_limit: number;
-            /** Status */
-            status: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Workspace Id */
-            workspace_id: number;
         };
         /**
          * WorldbuildingCenterRead
@@ -6353,37 +5974,6 @@ export interface operations {
             };
         };
     };
-    read_workspace_analytics_endpoint_api_analytics_workspaces__workspace_id__dashboard_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspace_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceAnalyticsRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_artifacts_endpoint_api_artifacts_get: {
         parameters: {
             query?: {
@@ -6707,6 +6297,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                project_path?: string | null;
             };
             header?: never;
             path?: never;
@@ -6921,70 +6512,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantToolCallRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_batch_refinery_run_api_batch_refinery_runs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchRefineryRunCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchRefineryRunRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_batch_refinery_run_api_batch_refinery_runs__job_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchRefineryRunRead"];
                 };
             };
             /** @description Validation Error */
@@ -7796,204 +7323,6 @@ export interface operations {
             };
         };
     };
-    create_approval_request_endpoint_api_collaboration_approvals_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApprovalRequestCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApprovalRequestRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_approval_decision_endpoint_api_collaboration_approvals__approval_request_id__decisions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                approval_request_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ApprovalDecisionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApprovalDecisionRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_comment_endpoint_api_collaboration_comments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkspaceCommentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceCommentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_scene_timeline_endpoint_api_collaboration_scenes__scene_id__timeline_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                scene_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CollaborationTimelineItem"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upsert_workspace_policy_endpoint_api_commercial_workspaces__workspace_id__policy_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspace_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkspaceSubscriptionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceSubscriptionRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_workspace_commercial_summary_endpoint_api_commercial_workspaces__workspace_id__summary_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspace_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommercialSummaryRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     approve_chapter_endpoint_api_continuity_chapter_approval_post: {
         parameters: {
             query?: never;
@@ -8370,6 +7699,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdeDiagnostic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cross_chapter_consistency_endpoint_api_ide_review_cross_chapter_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeCrossChapterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeCrossChapterResult"];
                 };
             };
             /** @description Validation Error */
@@ -10057,9 +9419,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
+                    "application/json": components["schemas"]["LivenessResponse"];
                 };
             };
         };
@@ -10079,11 +9439,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string | {
-                            [key: string]: unknown;
-                        };
-                    };
+                    "application/json": components["schemas"]["ReadinessResponse"];
                 };
             };
         };

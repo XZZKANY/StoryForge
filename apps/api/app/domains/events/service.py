@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import NotFoundError
+from app.common.redaction import redact_sensitive
 from app.domains.events.models import EventLog
 from app.domains.events.schemas import EventRecordCreate
 from app.domains.workspaces.models import Workspace
@@ -18,7 +19,9 @@ class EventWorkspaceNotFoundError(NotFoundError):
 def record_event(session: Session, payload: EventRecordCreate) -> EventLog:
     if session.get(Workspace, payload.workspace_id) is None:
         raise EventWorkspaceNotFoundError("工作区不存在，无法写入事件。")
-    event = EventLog(**payload.model_dump())
+    event_data = payload.model_dump()
+    event_data["payload"] = redact_sensitive(event_data.get("payload", {}))
+    event = EventLog(**event_data)
     session.add(event)
     session.commit()
     session.refresh(event)

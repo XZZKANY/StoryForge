@@ -14,6 +14,26 @@ export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-fi
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
 
+export type SaveActiveFileStatus = 'saved' | 'skipped' | 'error';
+
+export type SaveActiveFileDoneDetail = {
+  filePath: string | null;
+  status: SaveActiveFileStatus;
+  message?: string;
+};
+
+export type ActiveEditorFlushFailureReason = 'timeout' | 'error';
+
+export class ActiveEditorFlushError extends Error {
+  constructor(
+    readonly reason: ActiveEditorFlushFailureReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ActiveEditorFlushError';
+  }
+}
+
 export type SuggestionResult = {
   filePath: string;
   status: 'ready' | 'error';
@@ -113,25 +133,47 @@ export function emitReviewIssues(filePath: string, issues: ReviewIssueMarker[]):
 
 /**
  * 审稿/修订读盘前调用：请活动编辑器把未保存改动落盘，确保后端读到的是用户当前看到的内容。
- * 无编辑器响应或超时则放行（读磁盘现状），不阻塞主流程。
+ * 超时或保存失败会 reject，调用方必须停止读盘，避免 Agent 基于旧稿继续工作。
  */
 export function flushActiveEditorToDisk(filePath: string, timeoutMs = 2000): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
-    const finish = () => {
+    const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
       window.clearTimeout(timer);
       window.removeEventListener(SAVE_ACTIVE_FILE_DONE_EVENT, onDone);
-      resolve();
+      callback();
     };
     const onDone = (event: Event) => {
-      const detail = (event as CustomEvent<{ filePath: string | null }>).detail;
+      const detail = (event as CustomEvent<SaveActiveFileDoneDetail>).detail;
       if (detail && detail.filePath && detail.filePath !== filePath) return;
-      finish();
+      if (detail?.status === 'error') {
+        finish(() =>
+          reject(
+            new ActiveEditorFlushError(
+              'error',
+              detail.message || '活动编辑器保存失败，已停止发送给 Agent。',
+            ),
+          ),
+        );
+        return;
+      }
+      finish(resolve);
     };
-    const timer = window.setTimeout(finish, timeoutMs);
+    const timer = window.setTimeout(
+      () =>
+        finish(() =>
+          reject(
+            new ActiveEditorFlushError(
+              'timeout',
+              `活动编辑器在 ${timeoutMs}ms 内没有确认保存，已停止发送给 Agent。`,
+            ),
+          ),
+        ),
+      timeoutMs,
+    );
     window.addEventListener(SAVE_ACTIVE_FILE_DONE_EVENT, onDone);
     window.dispatchEvent(
       new CustomEvent<{ filePath: string }>(REQUEST_SAVE_ACTIVE_FILE_EVENT, {

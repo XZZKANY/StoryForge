@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class AgentRunRead(BaseModel):
@@ -23,6 +25,18 @@ class AgentRunRead(BaseModel):
     current_step: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("goal")
+    def serialize_goal(self, goal: str) -> str:
+        return redact_sensitive_text(goal)
+
+    @field_serializer("scope", "budget", return_type=dict[str, Any])
+    def serialize_sensitive_mapping(self, value: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(value)
+
+    @field_serializer("root_plan", return_type=list[dict[str, Any]])
+    def serialize_root_plan(self, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return redact_sensitive(value)
 
 
 class AgentSkillRead(BaseModel):
@@ -65,6 +79,14 @@ class AgentRunEventRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_serializer("message")
+    def serialize_message(self, message: str) -> str:
+        return redact_sensitive_text(message)
+
+    @field_serializer("payload", return_type=dict[str, Any])
+    def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(payload)
+
 
 class AgentArtifactRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -76,6 +98,10 @@ class AgentArtifactRead(BaseModel):
     requires_confirmation: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("payload", return_type=dict[str, Any])
+    def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(payload)
 
 
 class SubagentRunRead(BaseModel):
@@ -90,3 +116,7 @@ class SubagentRunRead(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("input", "output", return_type=dict[str, Any])
+    def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(payload)

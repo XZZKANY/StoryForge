@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import NotFoundError
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.event_encoders import (  # noqa: F401  facade re-export
     encode_agent_run_sse_event,
@@ -165,10 +166,10 @@ def create_or_resume_agent_run(
             public_id=normalized_id,
             session_id=session_id,
             book_run_id=_optional_positive_int((scope or {}).get("book_run_id")),
-            goal=goal,
-            scope=scope or {},
+            goal=redact_sensitive_text(goal),
+            scope=redact_sensitive(scope or {}),
             permission_profile=permission_profile,
-            budget=budget or {},
+            budget=redact_sensitive(budget or {}),
             status="running",
             root_plan=[],
             current_step=None,
@@ -176,11 +177,11 @@ def create_or_resume_agent_run(
         session.add(run)
     else:
         run.session_id = session_id
-        run.goal = goal
-        run.scope = scope or run.scope or {}
+        run.goal = redact_sensitive_text(goal)
+        run.scope = redact_sensitive(scope or run.scope or {})
         run.book_run_id = _optional_positive_int((scope or {}).get("book_run_id")) or run.book_run_id
         run.permission_profile = permission_profile or run.permission_profile
-        run.budget = budget or run.budget or {}
+        run.budget = redact_sensitive(budget or run.budget or {})
         if run.status in AGENT_RUN_TERMINAL_STATUSES:
             run.status = "running"
     session.commit()
@@ -498,13 +499,13 @@ def _resume_agent_run_if_pending_with_diagnostic(
 def _record_resume_diagnostic(session: Session, event: AgentRunEvent, diagnostic: dict[str, Any]) -> None:
     payload = event.payload if isinstance(event.payload, dict) else {}
     recovery = payload.get("runtime_recovery") if isinstance(payload.get("runtime_recovery"), dict) else {}
-    event.payload = {
+    event.payload = redact_sensitive({
         **payload,
         "runtime_recovery": {
             **recovery,
             "resume_diagnostic": diagnostic,
         },
-    }
+    })
     session.add(event)
     session.commit()
     session.refresh(event)
@@ -724,8 +725,8 @@ def record_agent_event(
             run_id=run.id,
             event_type=event_type,
             actor=actor,
-            message=message,
-            payload=payload or {},
+            message=redact_sensitive_text(message),
+            payload=redact_sensitive(payload or {}),
             sequence=next_sequence,
         )
         try:
@@ -753,7 +754,7 @@ def record_agent_artifact(
     artifact = AgentArtifact(
         run_id=run.id,
         kind=kind,
-        payload=payload,
+        payload=redact_sensitive(payload),
         requires_confirmation=requires_confirmation,
     )
     session.add(artifact)
@@ -788,8 +789,8 @@ def record_subagent_run(
         run_id=run.id,
         parent_run_id=None,
         role=role,
-        input=input_summary,
-        output=output_summary,
+        input=redact_sensitive(input_summary),
+        output=redact_sensitive(output_summary),
         status=status,
     )
     session.add(subagent)

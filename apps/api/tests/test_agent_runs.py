@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
 
+from app.common.redaction import REDACTED
 from app.domains.agent_runs import event_types
 from app.domains.agent_runs.bookrun_summary import (
     _bookrun_budget_details,
@@ -1358,6 +1359,126 @@ def test_agent_run_save_points_endpoint_projects_tool_recovery_metadata(
     }
     assert projection["runtime_recovery"]["latest_execution_marker"]["source"] == "tool_trace"
     assert projection["runtime_recovery"]["automatic_resume_supported"] is False
+
+
+def test_agent_run_save_points_redacts_legacy_event_and_artifact_values(session: Session) -> None:
+    """save-points 是读时投影，必须兜住绕过 service 脱敏的历史事实行。"""
+
+    from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
+
+    run = _seed_agent_run(session, "run-save-points-redaction")
+    run.status = "failed"
+    control = AgentRunEvent(
+        run_id=run.id,
+        event_type=event_types.PAUSE_RUN,
+        actor="desktop-ide",
+        message="",
+        payload={
+            "control_type": "pause_run",
+            "reason": "api_key=secret-savepoint-control",
+            "source": "secret-source-value",
+            "session_id": "session-secret-savepoint-control",
+        },
+        sequence=1,
+    )
+    failed = AgentRunEvent(
+        run_id=run.id,
+        event_type=event_types.AGENT_RUN_FAILED,
+        actor="agent",
+        message="provider failed with sk-secret-savepoint-failure",
+        payload={},
+        sequence=2,
+    )
+    artifact = AgentArtifact(
+        run_id=run.id,
+        kind="proposed_patch",
+        payload={
+            "kind": "file_revision",
+            "file_path": "正文/第02章.md",
+            "intent": "file.review",
+            "api_key": "secret-savepoint-artifact",
+            "context_output": {
+                "file_path": "正文/第03章.md",
+                "content": "password=secret-savepoint-context",
+            },
+        },
+        requires_confirmation=True,
+    )
+    session.add_all([control, failed, artifact])
+    session.commit()
+
+    projection = build_agent_run_save_point_projection(
+        run,
+        events=_stored_run_events(session, run),
+        artifacts=_stored_run_artifacts(session, run),
+    )
+    rendered = json.dumps(projection, ensure_ascii=False)
+
+    assert "secret-savepoint-control" not in rendered
+    assert "secret-source-value" not in rendered
+    assert "sk-secret-savepoint-failure" not in rendered
+    assert "secret-savepoint-artifact" not in rendered
+    assert "secret-savepoint-context" not in rendered
+    assert REDACTED in rendered
+    assert projection["save_points"][-1]["summary"]["file_path"] == "正文/第03章.md"
+    assert projection["save_points"][-1]["summary"]["content_chars"] == len(
+        "password=secret-savepoint-context"
+    )
+
+
+def test_agent_run_websocket_replay_redacts_legacy_goal_and_plan_values(session: Session) -> None:
+    """断线重放从 durable event/run 读数据，legacy raw 值也不能穿过 WS 帧。"""
+
+    from app.domains.agent_runs.event_encoders import websocket_stream_events_from_agent_event
+
+    run = _seed_agent_run(session, "run-ws-replay-redaction")
+    run.goal = "请用 api_key=secret-replay-goal 审查"
+    run.scope = {
+        "agent_role_hints": ["sk-secret-replay-role"],
+        "agent_role_mentions": ["@reviewer token=secret-replay-mention"],
+    }
+    started = AgentRunEvent(
+        run_id=run.id,
+        event_type=event_types.AGENT_RUN_STARTED,
+        actor="agent",
+        message="started",
+        payload={},
+        sequence=1,
+    )
+    plan = AgentRunEvent(
+        run_id=run.id,
+        event_type=event_types.AGENT_PLAN_CREATED,
+        actor="agent",
+        message="plan",
+        payload={
+            "plan": [
+                {
+                    "step": "api_key=secret-replay-step",
+                    "detail": "Bearer sk-secret-replay-detail",
+                    "status": "running",
+                }
+            ]
+        },
+        sequence=2,
+    )
+    session.add_all([started, plan])
+    session.commit()
+
+    frames = [
+        frame
+        for event in _stored_run_events(session, run)
+        for frame in websocket_stream_events_from_agent_event(event)
+    ]
+    rendered = json.dumps(frames, ensure_ascii=False)
+
+    assert "secret-replay-goal" not in rendered
+    assert "sk-secret-replay-role" not in rendered
+    assert "secret-replay-mention" not in rendered
+    assert "secret-replay-step" not in rendered
+    assert "sk-secret-replay-detail" not in rendered
+    assert REDACTED in rendered
+    assert frames[0]["type"] == "agent_run_started"
+    assert frames[1]["type"] == "agent_step"
 
 
 def test_record_agent_event_sequences_increment_from_existing_max(session: Session) -> None:

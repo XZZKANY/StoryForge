@@ -45,7 +45,8 @@ import {
   buildContextBundle,
   buildProjectIndex,
   classifyRelativePath,
-  relativeToProject,
+  relativePathInsideProject,
+  resolveProjectRelativePath,
   type ContextBundle,
   type ContextBundleFile,
   type SemanticFile,
@@ -75,13 +76,7 @@ import {
   MessageList,
   WritingRunProgressPanel,
 } from './chat-window/panels';
-import {
-  basename,
-  extractContextReferences,
-  joinProjectPath,
-  looksAbsolutePath,
-  relativePath,
-} from './chat-window/path-utils';
+import { basename, extractContextReferences, relativePath } from './chat-window/path-utils';
 import { buildStableAgentRequestPayload } from './chat-window/request-payload';
 import { buildAgentRunRecoveryDisplay, type AgentRunRecoveryDisplay } from './chat-window/recovery';
 import {
@@ -151,6 +146,16 @@ function fileRevisionPatch(message: AgentResultMessage): {
     };
   }
   return null;
+}
+
+export function resolveProposedPatchFilePath(
+  projectPath: string | null,
+  filePath: string,
+): string | null {
+  if (!projectPath) return null;
+  const resolved = resolveProjectRelativePath(projectPath, filePath);
+  const relative = resolved ? relativePathInsideProject(projectPath, resolved) : null;
+  return relative === null ? null : resolveProjectRelativePath(projectPath, relative);
 }
 
 function repairPatchApproval(message: AgentResultMessage): {
@@ -237,8 +242,12 @@ async function appendExplicitContextFiles(
   for (const rawPath of explicitPaths) {
     const trimmed = rawPath.trim();
     if (!trimmed) continue;
-    const path = looksAbsolutePath(trimmed) ? trimmed : joinProjectPath(projectPath, trimmed);
-    const relativeCandidate = relativeToProject(projectPath, path);
+    const path = resolveProjectRelativePath(projectPath, trimmed);
+    const relativeCandidate = path ? relativePathInsideProject(projectPath, path) : null;
+    if (!path || relativeCandidate === null) {
+      missingPaths.push(trimmed);
+      continue;
+    }
     if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase()))
       continue;
     try {
@@ -468,10 +477,23 @@ export function ChatWindow({
 
       const proposed = fileRevisionPatch(response);
       if (proposed) {
+        const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
+        if (!filePath) {
+          const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
+          setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+          emitSuggestionResult({
+            filePath: proposed.file_path,
+            status: 'error',
+            message,
+            assistantSessionId: response.assistant_session_id,
+          });
+          updateAgentStatus('failed');
+          return;
+        }
         emitFileSuggestion(
           createRemoteFileSuggestion({
             id: proposed.id,
-            filePath: proposed.file_path,
+            filePath,
             before: proposed.before,
             after: proposed.after,
             summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
@@ -484,7 +506,7 @@ export function ChatWindow({
           }),
         );
         emitSuggestionResult({
-          filePath: proposed.file_path,
+          filePath,
           status: 'ready',
           message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
           assistantSessionId: response.assistant_session_id,
@@ -498,11 +520,9 @@ export function ChatWindow({
         const reviewReportForMarkers = reviewReportFromMessage(response);
         const resultFilePath = filePathFromAgentResult(response);
         const currentFilePath = resultFilePath
-          ? looksAbsolutePath(resultFilePath)
-            ? resultFilePath
-            : projectPathRef.current
-              ? joinProjectPath(projectPathRef.current, resultFilePath)
-              : resultFilePath
+          ? projectPathRef.current
+            ? resolveProjectRelativePath(projectPathRef.current, resultFilePath)
+            : null
           : currentFileRef.current;
         setLastReviewReport(reviewReportForMarkers);
         setLastReviewReportFile(currentFilePath);
@@ -700,8 +720,18 @@ export function ChatWindow({
         return;
       }
       if (exportOnly) {
-        if (file) await flushActiveEditorToDisk(file);
-        emitExportCurrentFile();
+        try {
+          if (file) await flushActiveEditorToDisk(file);
+          emitExportCurrentFile();
+        } catch (error) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `导出前保存失败：${error instanceof Error ? error.message : String(error)}`,
+            },
+          ]);
+        }
         return;
       }
 
@@ -892,10 +922,23 @@ export function ChatWindow({
 
         const proposed = fileRevisionPatch(response);
         if (proposed) {
+          const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
+          if (!filePath) {
+            const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
+            setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+            emitSuggestionResult({
+              filePath: proposed.file_path,
+              status: 'error',
+              message,
+              assistantSessionId: response.assistant_session_id,
+            });
+            updateAgentStatus('failed');
+            return;
+          }
           emitFileSuggestion(
             createRemoteFileSuggestion({
               id: proposed.id,
-              filePath: proposed.file_path,
+              filePath,
               before: proposed.before,
               after: proposed.after,
               summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
@@ -908,7 +951,7 @@ export function ChatWindow({
             }),
           );
           emitSuggestionResult({
-            filePath: proposed.file_path,
+            filePath,
             status: 'ready',
             message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
             assistantSessionId: response.assistant_session_id,

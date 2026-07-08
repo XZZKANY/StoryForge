@@ -8,7 +8,15 @@ export {
   initializeStoryProject,
   sampleStoryProjectPath,
 } from './project/initialize';
-export { projectBasename, relativeToProject } from './project/path';
+export {
+  isPathInsideProject,
+  joinProjectPath,
+  looksAbsolutePath,
+  projectBasename,
+  relativePathInsideProject,
+  relativeToProject,
+  resolveProjectRelativePath,
+} from './project/path';
 export { classifyRelativePath, semanticKindLabel } from './project/semantics';
 export type {
   ContextBundle,

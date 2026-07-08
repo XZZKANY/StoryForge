@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import ForbiddenError, InputError, NotFoundError
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.common.redis_cache import cache_delete_pattern, cache_get_value, cache_set_value
 from app.db.queries import latest_by_lineage
 from app.domains.artifacts.models import Artifact
@@ -72,7 +73,7 @@ def create_artifact(session: Session, payload: ArtifactCreate) -> Artifact:
         storage_uri=payload.storage_uri,
         mime_type=payload.mime_type,
         size_bytes=payload.size_bytes,
-        payload=payload.payload,
+        payload=redact_sensitive(payload.payload),
         version=next_version,
     )
     session.add(artifact)
@@ -178,7 +179,7 @@ def read_artifact_download(
             )
 
     # memory:// 或 presigned 失败 → payload_preview
-    payload_summary = dict(artifact.payload or {})
+    payload_summary = redact_sensitive(dict(artifact.payload or {}))
     return ArtifactDownloadRead(
         id=artifact.id,
         artifact_type=artifact.artifact_type,
@@ -186,7 +187,7 @@ def read_artifact_download(
         mime_type=artifact.mime_type,
         storage_uri=artifact.storage_uri,
         download_mode="payload_preview",
-        content_preview=_artifact_content_preview(artifact),
+        content_preview=redact_sensitive_text(_artifact_content_preview(artifact)),
         payload_summary=payload_summary,
     )
 

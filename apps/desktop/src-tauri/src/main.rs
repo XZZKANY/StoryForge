@@ -828,19 +828,22 @@ fn run_smoke_probe<R: tauri::Runtime>(
 
         let expected_api_base_url = desktop_api_base_url();
         let expected_api_key = desktop_api_key();
+        let expected_api_key_json =
+            serde_json::to_string(&expected_api_key).unwrap_or_else(|_| "\"\"".to_string());
         let api_config_script = r#"
             (() => {
               const config = window.__STORYFORGE_SMOKE__?.getApiConfigSnapshot?.();
               return {
                 baseUrl: config?.baseUrl ?? '',
                 hasApiKey: Boolean(config?.apiKey),
-                apiKey: config?.apiKey ?? ''
+                apiKeyMatches: config?.apiKey === __EXPECTED_API_KEY__
               };
             })()
-        "#;
+"#
+        .replace("__EXPECTED_API_KEY__", &expected_api_key_json);
         let api_config = match wait_for_window_state(
             &window,
-            api_config_script,
+            &api_config_script,
             20,
             Duration::from_millis(150),
             |value| {
@@ -860,8 +863,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
         };
         if api_config.get("baseUrl").and_then(|entry| entry.as_str())
             != Some(expected_api_base_url.as_str())
-            || api_config.get("apiKey").and_then(|entry| entry.as_str())
-                != Some(expected_api_key.as_str())
+            || !has_bool(&api_config, "apiKeyMatches", true)
         {
             eprintln!("Smoke 失败: API 配置不符合预期: {}", api_config);
             std::process::exit(1);

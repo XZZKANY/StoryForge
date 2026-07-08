@@ -23,9 +23,14 @@ export function joinPath(root: string, child: string): string {
 }
 
 export function normalizeMarkdownFileName(input: string): string {
-  const trimmed = input.trim().replace(/^[/\\]+/, '');
+  const raw = input.trim();
+  if (!raw || /^[a-zA-Z]:/.test(raw) || raw.startsWith('/') || raw.startsWith('\\')) return '';
+  const trimmed = raw.replace(/^[/\\]+/, '');
   if (!trimmed) return '';
-  return /\.(md|markdown)$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
+  const withExtension = /\.(md|markdown)$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
+  const segments = withExtension.replace(/\\/g, '/').split('/');
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return '';
+  return withExtension;
 }
 
 export function loadProjectAssistantSessions(): Record<string, number> {

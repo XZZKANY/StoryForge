@@ -1,6 +1,6 @@
 import { TauriFileSystem } from '../tauri-fs';
 import { buildProjectIndex } from './index';
-import { normalizePathForMatch, normalizeRoot } from './path';
+import { normalizePathForMatch, normalizeRoot, relativePathInsideProject } from './path';
 import type {
   ContextBundle,
   ContextBundleFile,
@@ -35,19 +35,20 @@ function contextPriority(file: SemanticFile, currentFile: string | null): number
 }
 
 function pinnedIndexByPath(file: SemanticFile, projectPath: string, pinnedFiles: string[]): number {
-  const normalizedProject = normalizePathForMatch(projectPath).replace(/\/+$/, '');
   const aliases = [
     normalizePathForMatch(file.path),
     normalizePathForMatch(file.relativePath),
     normalizePathForMatch(file.name),
   ];
   return pinnedFiles.findIndex((raw) => {
-    const normalized = normalizePathForMatch(raw.trim());
+    const trimmed = raw.trim();
+    const normalized = normalizePathForMatch(trimmed);
     if (!normalized) return false;
-    const projectRelative = normalized.startsWith(`${normalizedProject}/`)
-      ? normalized.slice(normalizedProject.length + 1)
+    const projectRelative = relativePathInsideProject(projectPath, trimmed);
+    const normalizedRelative = projectRelative
+      ? normalizePathForMatch(projectRelative)
       : normalized;
-    return aliases.includes(normalized) || aliases.includes(projectRelative);
+    return aliases.includes(normalized) || aliases.includes(normalizedRelative);
   });
 }
 
@@ -79,13 +80,14 @@ export function selectContextBundleFiles(params: {
       return item.file;
     });
   const missingPinnedFiles = pinnedFiles.filter((raw) => {
-    const normalized = normalizePathForMatch(raw.trim());
+    const trimmed = raw.trim();
+    const normalized = normalizePathForMatch(trimmed);
     if (!normalized) return false;
-    const normalizedProject = normalizePathForMatch(index.projectPath).replace(/\/+$/, '');
-    const projectRelative = normalized.startsWith(`${normalizedProject}/`)
-      ? normalized.slice(normalizedProject.length + 1)
+    const projectRelative = relativePathInsideProject(index.projectPath, trimmed);
+    const normalizedRelative = projectRelative
+      ? normalizePathForMatch(projectRelative)
       : normalized;
-    return !pinnedMatches.has(normalized) && !pinnedMatches.has(projectRelative);
+    return !pinnedMatches.has(normalized) && !pinnedMatches.has(normalizedRelative);
   });
   const pinnedPaths = new Set(pinned.map((file) => file.path));
   const automatic = eligible

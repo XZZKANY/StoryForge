@@ -26,7 +26,11 @@ export { executeIdeCommand } from './api/ide-commands';
 export { toAssistantContextBundlePayload } from './api/codecs';
 export { getApiConfig } from './api/config';
 export { probeApiRuntimeHealth } from './api/runtime-health';
-export { subscribeBookRunEvents, subscribeWritingRunEvents } from './api/run-events';
+export {
+  parseBookRunSseText,
+  subscribeBookRunEvents,
+  subscribeWritingRunEvents,
+} from './api/run-events';
 export type {
   AgentControlAckMessage,
   AgentControlMessageRequest,

@@ -7,6 +7,7 @@
  */
 
 import { TauriFileSystem, FileEntry } from './tauri-fs';
+import { relativePathInsideProject } from './project/path';
 
 const VERSION_ROOT = '.storyforge/versions';
 const SNAPSHOT_SUFFIX = '.snapshot.md';
@@ -58,16 +59,9 @@ function normalizeRoot(projectPath: string): string {
   return projectPath.replace(/[/\\]+$/, '');
 }
 
-/** 文件相对项目根的路径（用作版本目录名，分隔符统一为下划线段以避免深层目录爆炸由调用方决定）。 */
-function relativeToProject(projectPath: string, filePath: string): string | null {
-  const root = normalizeRoot(projectPath);
-  if (!filePath.startsWith(root)) return null;
-  return filePath.slice(root.length).replace(/^[/\\]+/, '');
-}
-
 /** 某个文件的版本目录。剧情分支画布的分支清单也落在这里。 */
 export function versionDirFor(projectPath: string, filePath: string): string | null {
-  const relative = relativeToProject(projectPath, filePath);
+  const relative = relativePathInsideProject(projectPath, filePath);
   if (!relative) return null;
   const s = sep(projectPath);
   const safeRelative = relative.split(/[/\\]/).join(s);
@@ -96,7 +90,7 @@ export async function snapshotBeforeWrite(
   const meta = {
     source: metadata.source ?? 'Editor',
     summary: metadata.summary ?? '手动保存前快照',
-    file: metadata.file ?? relativeToProject(projectPath, filePath) ?? filePath,
+    file: metadata.file ?? relativePathInsideProject(projectPath, filePath) ?? filePath,
     patchId: metadata.patchId,
     assistantSessionId: metadata.assistantSessionId,
     issueIds: metadata.issueIds,

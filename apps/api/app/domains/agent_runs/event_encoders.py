@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.agent_runs.event_types import (
     AGENT_PLAN_CREATED,
     AGENT_RUN_COMPLETED,
@@ -28,8 +29,8 @@ def encode_agent_run_sse_event(event: AgentRunEvent) -> str:
         "run_id": event.run_id,
         "event_type": event.event_type,
         "actor": event.actor,
-        "message": event.message,
-        "payload": event.payload,
+        "message": redact_sensitive_text(event.message),
+        "payload": redact_sensitive(event.payload),
         "sequence": event.sequence,
         "created_at": event.created_at.isoformat(),
     }
@@ -41,7 +42,7 @@ def websocket_started_event(run: AgentRun, event: AgentRunEvent) -> dict[str, An
     return AgentRunStartedFrame(
         session_id=run.session_id,
         run_id=run.public_id,
-        user_message=run.goal,
+        user_message=redact_sensitive_text(run.goal),
         event_id=event.id,
         agent_role_hints=_scope_string_list(scope, "agent_role_hints"),
         agent_role_mentions=_scope_string_list(scope, "agent_role_mentions"),
@@ -80,7 +81,13 @@ def _scope_string_list(scope: dict[str, Any] | None, key: str) -> list[str]:
     value = scope.get(key)
     if not isinstance(value, list):
         return []
-    return [item for item in value if isinstance(item, str) and item.strip()]
+    return [redact_sensitive_text(item) for item in value if isinstance(item, str) and item.strip()]
+
+
+def _redacted_optional_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return redact_sensitive_text(value)
 
 
 def _websocket_agent_step_events(run: AgentRun, event: AgentRunEvent) -> list[dict[str, Any]]:
@@ -98,9 +105,9 @@ def _websocket_agent_step_events(run: AgentRun, event: AgentRunEvent) -> list[di
                 event_id=event.id,
                 sequence=event.sequence,
                 index=index,
-                step=step.get("step"),
-                detail=step.get("detail"),
-                status=step.get("status"),
+                step=_redacted_optional_text(step.get("step")),
+                detail=_redacted_optional_text(step.get("detail")),
+                status=_redacted_optional_text(step.get("status")),
             ).to_wire()
         )
     return events
@@ -117,7 +124,7 @@ def _websocket_tool_trace_event(run: AgentRun, event: AgentRunEvent) -> dict[str
         event_id=event.id,
         sequence=event.sequence,
         index=index,
-        trace=trace,
+        trace=redact_sensitive(trace),
     ).to_wire()
 
 
@@ -130,9 +137,9 @@ def _websocket_permission_required_event(run: AgentRun, event: AgentRunEvent) ->
         event_id=event.id,
         sequence=event.sequence,
         permission_profile=payload.get("permission_profile") or run.permission_profile,
-        reason=payload.get("reason") or "requires_user_confirmation",
-        proposed_patch=payload.get("proposed_patch") if isinstance(payload.get("proposed_patch"), dict) else None,
-        confirmation_action=payload.get("confirmation_action"),
+        reason=redact_sensitive_text(str(payload.get("reason") or "requires_user_confirmation")),
+        proposed_patch=redact_sensitive(payload.get("proposed_patch")) if isinstance(payload.get("proposed_patch"), dict) else None,
+        confirmation_action=redact_sensitive(payload.get("confirmation_action")),
         blocked_tool=payload.get("blocked_tool"),
     ).to_wire()
 
@@ -151,6 +158,6 @@ def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, 
         event_id=event.id,
         sequence=event.sequence,
         status=run.status,
-        message=event.message,
-        payload=payload,
+        message=redact_sensitive_text(event.message),
+        payload=redact_sensitive(payload),
     ).to_wire()

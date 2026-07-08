@@ -837,6 +837,7 @@ def test_book_run_control_rejects_extra_sensitive_fields(
 
     assert response.status_code == 422, response.text
     assert "api_key" in response.text
+    assert "secret-should-not-enter-control-payload" not in response.text
 
 
 def test_patch_book_run_progress_endpoint(client: TestClient, session_factory: sessionmaker[Session]) -> None:

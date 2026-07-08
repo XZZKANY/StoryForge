@@ -31,16 +31,12 @@ redis-data/
 .worktrees/
 # 本地缓存
 .cache/
-.codex/tmp/
-.codex/narrative-smoke-*/
-.codex/*.log
-.codex/**/*.log
-.codex/*.sqlite
-.codex/**/*.sqlite
-.codex/*.sqlite3
-.codex/**/*.sqlite3
-.codex/*.png
-.codex/**/*.png
+.codex/*
+!.codex/verification-report.md
+# 本机 agent 脚手架（Trellis / Codex / .agents），常驻未跟踪，禁止提交
+.agents/
+.trellis/
+AGENTS.md
 output/
 
 # 本地工具噪声

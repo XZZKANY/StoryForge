@@ -10,6 +10,7 @@ import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
+  type SaveActiveFileDoneDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { TauriFileSystem } from '../lib/tauri-fs';
@@ -25,6 +26,7 @@ import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 import type { AppDialogApi } from './app/AppDialog';
+import { performGuardedWriteback } from '../lib/writeback';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -176,33 +178,42 @@ export function Editor({
     }
   }, []);
 
-  // 保存文件：先快照旧内容，再写入新内容
-  const handleSave = useCallback(async () => {
+  // 保存文件：先快照旧内容，再写入新内容。内部函数向上抛错，供 Agent 预读握手阻断读盘。
+  const saveCurrentFile = useCallback(async () => {
     const path = filePathRef.current;
     if (!path || !editorRef.current) return;
 
+    const content = editorRef.current.getValue();
+    const previous = originalContentRef.current;
+    const contentChanged = previous !== '' && normalizeEol(previous) !== normalizeEol(content);
+    const branch = contentChanged ? getActiveBranchSnapshot() : null;
+
+    await performGuardedWriteback(contentChanged, {
+      snapshot: async () =>
+        snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          source: 'Editor',
+          summary: '手动保存前快照',
+          branchId: branch?.id,
+          branchLabel: branch?.label,
+          parentId: branch?.headNodeId,
+        }),
+      advanceBranchHead: async (timestamp) => {
+        await advanceBranchHead(timestamp);
+      },
+      write: async () => {
+        await TauriFileSystem.writeFile(path, content);
+      },
+      record: async () => undefined,
+    });
+
+    originalContentRef.current = content;
+    cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
+    setIsDirty(false);
+  }, [advanceBranchHead, getActiveBranchSnapshot]);
+
+  const handleSave = useCallback(async () => {
     try {
-      const content = editorRef.current.getValue();
-      const previous = originalContentRef.current;
-      if (previous !== '' && normalizeEol(previous) !== normalizeEol(content)) {
-        try {
-          const branch = getActiveBranchSnapshot();
-          const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
-            source: 'Editor',
-            summary: '手动保存前快照',
-            branchId: branch.id,
-            branchLabel: branch.label,
-            parentId: branch.headNodeId,
-          });
-          if (snapshot) await advanceBranchHead(snapshot.timestamp);
-        } catch (snapshotErr) {
-          console.error('写入版本快照失败:', snapshotErr);
-        }
-      }
-      await TauriFileSystem.writeFile(path, content);
-      originalContentRef.current = content;
-      cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
-      setIsDirty(false);
+      await saveCurrentFile();
     } catch (err) {
       console.error('保存文件失败:', err);
       await dialogs.alert({
@@ -210,7 +221,7 @@ export function Editor({
         message: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [advanceBranchHead, dialogs, getActiveBranchSnapshot]);
+  }, [dialogs, saveCurrentFile]);
 
   const { editorReady, editorInitError } = useMonacoEditor({
     containerRef,
@@ -245,22 +256,31 @@ export function Editor({
   useEffect(() => {
     const onRequestSave = (event: Event) => {
       const detail = (event as CustomEvent<{ filePath: string }>).detail;
-      const respond = () =>
+      const respond = (detail: SaveActiveFileDoneDetail) =>
         window.dispatchEvent(
           new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-            detail: { filePath: detail?.filePath ?? null },
+            detail,
           }),
         );
+      const requestedFilePath = detail?.filePath ?? null;
       if (
         !detail ||
         detail.filePath !== filePathRef.current ||
         !editorRef.current ||
         !isDirtyRef.current
       ) {
-        respond();
+        respond({ filePath: requestedFilePath, status: 'skipped' });
         return;
       }
-      void handleSave().finally(respond);
+      void saveCurrentFile()
+        .then(() => respond({ filePath: requestedFilePath, status: 'saved' }))
+        .catch((error) =>
+          respond({
+            filePath: requestedFilePath,
+            status: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        );
     };
     window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
     return () => window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
