@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor';
 
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme } from '../../lib/theme';
+import { STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './options';
 
 export function useMonacoEditor({
   containerRef,
@@ -50,6 +51,7 @@ export function useMonacoEditor({
 
     let disposed = false;
     let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     let frame = 0;
 
     frame = window.requestAnimationFrame(() => {
@@ -67,6 +69,7 @@ export function useMonacoEditor({
           wordWrap: 'on',
           automaticLayout: true,
           scrollBeyondLastLine: false,
+          unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
         });
         cleanVersionIdRef.current = editor.getModel()?.getAlternativeVersionId() ?? null;
       } catch (err) {
@@ -77,6 +80,14 @@ export function useMonacoEditor({
       editorRef.current = editor;
       setEditorReady(true);
       setEditorInitError('');
+
+      resizeObserver =
+        typeof ResizeObserver === 'undefined'
+          ? null
+          : new ResizeObserver(() => {
+              editorRef.current?.layout();
+            });
+      resizeObserver?.observe(containerRef.current);
 
       editor.onDidChangeModelContent(() => {
         const model = editorRef.current?.getModel();
@@ -104,6 +115,7 @@ export function useMonacoEditor({
       if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
       window.cancelAnimationFrame(frame);
       editor?.dispose();
+      resizeObserver?.disconnect();
       editorRef.current = null;
       setEditorReady(false);
     };
@@ -120,6 +132,7 @@ export function useMonacoEditor({
         setContent(content: string) {
           if (!editorRef.current) return false;
           editorRef.current.setValue(content);
+          editorRef.current.layout();
           setLoadedContentPreview(content.slice(0, 120));
           return true;
         },
@@ -133,6 +146,7 @@ export function useMonacoEditor({
   useEffect(() => {
     if (!editorReady || !editorRef.current || loadedFilePath !== filePath) return;
     editorRef.current.setValue(loadedContent);
+    editorRef.current.layout();
     cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
   }, [cleanVersionIdRef, editorReady, editorRef, filePath, loadedContent, loadedFilePath]);
 

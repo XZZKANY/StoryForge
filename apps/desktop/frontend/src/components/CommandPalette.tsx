@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
+import { projectBasename, relativePathInsideProject } from '../lib/project/path';
 
 export type PaletteMode = 'files' | 'commands';
 
@@ -32,16 +33,9 @@ type CommandPaletteProps = {
   onRestoreLayout: () => void;
 };
 
-function basename(path: string): string {
-  return path.split(/[/\\]/).pop() ?? path;
-}
-
 function relativeToProject(projectPath: string | null, filePath: string): string {
-  if (!projectPath) return basename(filePath);
-  const root = projectPath.replace(/[/\\]+$/, '');
-  return filePath.startsWith(root)
-    ? filePath.slice(root.length).replace(/^[/\\]+/, '')
-    : basename(filePath);
+  if (!projectPath) return projectBasename(filePath);
+  return relativePathInsideProject(projectPath, filePath) ?? projectBasename(filePath);
 }
 
 export function CommandPalette({
@@ -97,7 +91,7 @@ export function CommandPalette({
       list.push({
         id: 'initialize-story-project',
         title: '初始化小说项目结构',
-        hint: basename(projectPath),
+        hint: projectBasename(projectPath),
         run: onInitializeProject,
       });
     }

@@ -45,9 +45,17 @@ test('空状态渲染 editor-root 容器与未选择文件提示', () => {
   const html = renderEditor();
 
   assert.match(html, /data-testid="editor-root"/);
+  assert.match(html, /min-h-0/);
+  assert.match(html, /overflow-hidden/);
   assert.match(html, /data-render-has-file="false"/);
   assert.match(html, /data-testid="editor-empty"/);
   assert.match(html, /未选择文件/);
+});
+
+test('Monaco 容器被锁在编辑器 flex 区域内，不随长文本撑开外层布局', () => {
+  const html = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
+  assert.match(html, /data-testid="editor-container"/);
+  assert.match(html, /min-h-0 flex-1 overflow-hidden/);
 });
 
 test('空状态根据 projectPath 给出打开项目后的提示文案', () => {

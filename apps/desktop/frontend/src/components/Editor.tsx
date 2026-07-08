@@ -10,6 +10,7 @@ import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
+  type SaveActiveFileDoneDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { TauriFileSystem } from '../lib/tauri-fs';
@@ -18,6 +19,7 @@ import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
 import { type GraphNode } from '../lib/branches';
+import { performGuardedWriteback } from '../lib/writeback';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
 import { useEditorFileLoader } from './editor/useEditorFileLoader';
 import { useMonacoEditor } from './editor/useMonacoEditor';
@@ -56,6 +58,7 @@ type EditorProps = {
   onToggleSidebar?: () => void;
   sidebarVisible?: boolean;
   onExportCurrent?: () => void;
+  onDirtyChange?: (filePath: string | null, dirty: boolean) => void;
   dialogs: AppDialogApi;
 };
 
@@ -68,6 +71,7 @@ export function Editor({
   onToggleSidebar,
   sidebarVisible,
   onExportCurrent,
+  onDirtyChange,
   dialogs,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -145,6 +149,10 @@ export function Editor({
     autoSaveRef.current = autoSave;
   });
 
+  useEffect(() => {
+    onDirtyChange?.(filePath, isDirty);
+  }, [filePath, isDirty, onDirtyChange]);
+
   const { loadedFilePath, loadedContent, loadAttemptFilePath, loadError } = useEditorFileLoader({
     filePath,
     editorRef,
@@ -184,22 +192,28 @@ export function Editor({
     try {
       const content = editorRef.current.getValue();
       const previous = originalContentRef.current;
-      if (previous !== '' && normalizeEol(previous) !== normalizeEol(content)) {
-        try {
+      const contentChanged = previous !== '' && normalizeEol(previous) !== normalizeEol(content);
+      await performGuardedWriteback(contentChanged, {
+        snapshot: async () => {
           const branch = getActiveBranchSnapshot();
-          const snapshot = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          return snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Editor',
             summary: '手动保存前快照',
             branchId: branch.id,
             branchLabel: branch.label,
             parentId: branch.headNodeId,
           });
-          if (snapshot) await advanceBranchHead(snapshot.timestamp);
-        } catch (snapshotErr) {
-          console.error('写入版本快照失败:', snapshotErr);
-        }
-      }
-      await TauriFileSystem.writeFile(path, content);
+        },
+        advanceBranchHead: async (timestamp) => {
+          await advanceBranchHead(timestamp);
+        },
+        write: async () => {
+          await TauriFileSystem.writeFile(path, content);
+        },
+        record: async () => {
+          return undefined;
+        },
+      });
       originalContentRef.current = content;
       cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
       setIsDirty(false);
@@ -209,6 +223,7 @@ export function Editor({
         title: '保存文件失败',
         message: err instanceof Error ? err.message : String(err),
       });
+      throw err;
     }
   }, [advanceBranchHead, dialogs, getActiveBranchSnapshot]);
 
@@ -245,22 +260,31 @@ export function Editor({
   useEffect(() => {
     const onRequestSave = (event: Event) => {
       const detail = (event as CustomEvent<{ filePath: string }>).detail;
-      const respond = () =>
+      const respond = (response: SaveActiveFileDoneDetail) =>
         window.dispatchEvent(
-          new CustomEvent(SAVE_ACTIVE_FILE_DONE_EVENT, {
-            detail: { filePath: detail?.filePath ?? null },
+          new CustomEvent<SaveActiveFileDoneDetail>(SAVE_ACTIVE_FILE_DONE_EVENT, {
+            detail: response,
           }),
         );
+      const requestedPath = detail?.filePath ?? null;
       if (
         !detail ||
         detail.filePath !== filePathRef.current ||
         !editorRef.current ||
         !isDirtyRef.current
       ) {
-        respond();
+        respond({ filePath: requestedPath, status: 'skipped' });
         return;
       }
-      void handleSave().finally(respond);
+      void handleSave()
+        .then(() => respond({ filePath: requestedPath, status: 'saved' }))
+        .catch((err) =>
+          respond({
+            filePath: requestedPath,
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+          }),
+        );
     };
     window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
     return () => window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
@@ -341,16 +365,7 @@ export function Editor({
     await handleCheckoutNode(node);
   };
 
-  const handleClose = async () => {
-    if (isDirty) {
-      const confirmed = await dialogs.confirm({
-        title: '关闭文件',
-        message: '文件有未保存的修改，确定关闭吗？',
-        confirmLabel: '关闭',
-        tone: 'danger',
-      });
-      if (!confirmed) return;
-    }
+  const handleClose = () => {
     onClose();
   };
 
@@ -362,7 +377,7 @@ export function Editor({
 
   return (
     <div
-      className="h-full flex flex-col bg-background relative"
+      className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background"
       data-testid="editor-root"
       data-current-file={filePath ?? ''}
       data-render-has-file={filePath ? 'true' : 'false'}
@@ -493,7 +508,7 @@ export function Editor({
           </button>
           <button
             id="editor-close-btn"
-            onClick={() => void handleClose()}
+            onClick={handleClose}
             title="关闭文件"
             className="sf-icon-button"
           >
@@ -534,7 +549,11 @@ export function Editor({
       )}
 
       {/* Monaco Editor */}
-      <div ref={containerRef} className="flex-1" data-testid="editor-container" />
+      <div
+        ref={containerRef}
+        className="min-h-0 flex-1 overflow-hidden"
+        data-testid="editor-container"
+      />
 
       {showHistory &&
         (filePath ? (

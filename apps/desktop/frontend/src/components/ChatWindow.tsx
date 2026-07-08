@@ -45,11 +45,11 @@ import {
   buildContextBundle,
   buildProjectIndex,
   classifyRelativePath,
-  relativeToProject,
   type ContextBundle,
   type ContextBundleFile,
   type SemanticFile,
 } from '../lib/project-context';
+import { relativePathInsideProject, resolveProjectRelativePath } from '../lib/project/path';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import {
   resolveChapterRefs,
@@ -75,13 +75,7 @@ import {
   MessageList,
   WritingRunProgressPanel,
 } from './chat-window/panels';
-import {
-  basename,
-  extractContextReferences,
-  joinProjectPath,
-  looksAbsolutePath,
-  relativePath,
-} from './chat-window/path-utils';
+import { basename, extractContextReferences, relativePath } from './chat-window/path-utils';
 import { buildStableAgentRequestPayload } from './chat-window/request-payload';
 import { buildAgentRunRecoveryDisplay, type AgentRunRecoveryDisplay } from './chat-window/recovery';
 import {
@@ -237,8 +231,12 @@ async function appendExplicitContextFiles(
   for (const rawPath of explicitPaths) {
     const trimmed = rawPath.trim();
     if (!trimmed) continue;
-    const path = looksAbsolutePath(trimmed) ? trimmed : joinProjectPath(projectPath, trimmed);
-    const relativeCandidate = relativeToProject(projectPath, path);
+    const path = resolveProjectRelativePath(projectPath, trimmed);
+    const relativeCandidate = path ? relativePathInsideProject(projectPath, path) : null;
+    if (!path || relativeCandidate === null) {
+      missingPaths.push(trimmed);
+      continue;
+    }
     if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase()))
       continue;
     try {
@@ -498,11 +496,9 @@ export function ChatWindow({
         const reviewReportForMarkers = reviewReportFromMessage(response);
         const resultFilePath = filePathFromAgentResult(response);
         const currentFilePath = resultFilePath
-          ? looksAbsolutePath(resultFilePath)
-            ? resultFilePath
-            : projectPathRef.current
-              ? joinProjectPath(projectPathRef.current, resultFilePath)
-              : resultFilePath
+          ? projectPathRef.current
+            ? resolveProjectRelativePath(projectPathRef.current, resultFilePath)
+            : resultFilePath
           : currentFileRef.current;
         setLastReviewReport(reviewReportForMarkers);
         setLastReviewReportFile(currentFilePath);
@@ -700,7 +696,18 @@ export function ChatWindow({
         return;
       }
       if (exportOnly) {
-        if (file) await flushActiveEditorToDisk(file);
+        try {
+          if (file) await flushActiveEditorToDisk(file);
+        } catch (error) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `导出前保存当前文件失败：${error instanceof Error ? error.message : String(error)}`,
+            },
+          ]);
+          return;
+        }
         emitExportCurrentFile();
         return;
       }
@@ -724,6 +731,12 @@ export function ChatWindow({
       });
 
       try {
+        let content: string | null = null;
+        if (file && ref) {
+          await flushActiveEditorToDisk(file);
+          content = await TauriFileSystem.readFile(file);
+        }
+
         const contextRefs = Array.from(
           new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
         );
@@ -747,12 +760,6 @@ export function ChatWindow({
               content: `这些 @上下文没有读到：${appendedContext.missingPaths.join('、')}。我会继续用已选上下文处理这一轮。`,
             },
           ]);
-        }
-
-        let content: string | null = null;
-        if (file && ref) {
-          await flushActiveEditorToDisk(file);
-          content = await TauriFileSystem.readFile(file);
         }
 
         const payload = buildStableAgentRequestPayload({
@@ -1246,7 +1253,7 @@ export function ChatWindow({
   ]);
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <ConversationHeader
         title={conversationTitle}
         onNewSession={() => onAssistantSessionChange?.(null)}

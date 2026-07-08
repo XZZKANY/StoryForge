@@ -6,6 +6,9 @@ import {
   buildSampleStoryProjectFiles,
   buildStoryProjectInitializationPlan,
   classifyRelativePath,
+  isPathInsideProject,
+  relativePathInsideProject,
+  resolveProjectRelativePath,
   sampleStoryProjectPath,
   selectContextBundleFiles,
 } from '../src/lib/project-context';
@@ -79,6 +82,55 @@ test('project index recognizes canonical fiction context folders', () => {
   assert.equal(index.summary.counts.draft, 1);
   assert.equal(index.summary.counts.timeline, 1);
   assert.equal(index.summary.counts.foreshadowing, 1);
+});
+
+test('project path helpers reject escapes, external absolute paths and sibling-prefix false positives', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+
+  assert.equal(
+    resolveProjectRelativePath(projectPath, '正文\\第01章.md'),
+    'D:\\StoryForge\\Books\\雾港回声\\正文\\第01章.md',
+  );
+  assert.equal(
+    resolveProjectRelativePath(projectPath, 'D:/StoryForge/Books/雾港回声/正文/第01章.md'),
+    'D:\\StoryForge\\Books\\雾港回声\\正文\\第01章.md',
+  );
+  assert.equal(resolveProjectRelativePath(projectPath, '..\\secret.md'), null);
+  assert.equal(resolveProjectRelativePath(projectPath, '正文//第01章.md'), null);
+  assert.equal(resolveProjectRelativePath(projectPath, 'D:/outside/secret.md'), null);
+  assert.equal(resolveProjectRelativePath(projectPath, 'D:/StoryForge/Books/雾港回声2/secret.md'), null);
+  assert.equal(
+    relativePathInsideProject(projectPath, 'D:\\StoryForge\\Books\\雾港回声2\\secret.md'),
+    null,
+  );
+  assert.equal(
+    isPathInsideProject(projectPath, 'D:\\StoryForge\\Books\\雾港回声\\正文\\第01章.md'),
+    true,
+  );
+});
+
+test('project index drops file entries that are not contained by the active project root', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const index = buildProjectIndexFromEntries(projectPath, [
+    {
+      name: '第01章.md',
+      path: `${projectPath}\\正文\\第01章.md`,
+      isDir: false,
+      size: 100,
+      modified: 1,
+      extension: 'md',
+    },
+    {
+      name: 'secret.md',
+      path: 'D:\\StoryForge\\Books\\雾港回声2\\secret.md',
+      isDir: false,
+      size: 80,
+      modified: 1,
+      extension: 'md',
+    },
+  ]);
+
+  assert.deepEqual(index.files.map((file) => file.relativePath), ['正文\\第01章.md']);
 });
 
 test('context bundle selection prioritizes pinned files and reports truncation/missing pins', () => {

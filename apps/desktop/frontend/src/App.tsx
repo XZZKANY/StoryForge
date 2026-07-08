@@ -24,7 +24,12 @@ import { saveDesktopLlmConfig } from './lib/desktop-llm-config';
 import { applyProviderPreset, getProviderPreset } from './lib/provider-config';
 import { applyTheme } from './lib/theme';
 import { WelcomeWorkspace } from './components/app/WelcomeWorkspace';
-import { joinPath, normalizeMarkdownFileName } from './components/app/helpers';
+import { normalizeMarkdownFileName } from './components/app/helpers';
+import {
+  nextDirtyEditorFile,
+  shouldConfirmBeforeReplacingDirtyEditor,
+} from './components/app/dirty-editor';
+import { isPathInsideProject, resolveProjectRelativePath } from './lib/project/path';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import { AppDialogHost, useAppDialog } from './components/app/AppDialog';
@@ -45,6 +50,7 @@ export function App() {
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
   // 预览页签：单击树里的文件先进预览（斜体、可被覆盖），双击/编辑固定为 currentFile。
   const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [dirtyEditorFile, setDirtyEditorFile] = useState<string | null>(null);
   // 观测面板：底部 Problems 式面板。observations 现为空（诚实空态，不伪造）——
   // 真实 advisory / 一致性信号产生在 agent run 内，待后续从 ChatWindow 上提到此 store。
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
@@ -72,20 +78,46 @@ export function App() {
     onProjectSelected: handleProjectSelected,
     onFileSelected: handleWorkspaceFileSelected,
   });
+  const displayedFile = previewFile ?? currentFile;
+
+  const handleEditorDirtyChange = useCallback((filePath: string | null, dirty: boolean) => {
+    setDirtyEditorFile((current) => nextDirtyEditorFile(current, filePath, dirty));
+  }, []);
+
+  const confirmDiscardDirtyEditor = useCallback(
+    async (targetFile: string | null, actionLabel: string) => {
+      if (!shouldConfirmBeforeReplacingDirtyEditor(dirtyEditorFile, targetFile)) return true;
+      const confirmed = await appDialog.confirm({
+        title: '放弃未保存修改？',
+        message: `当前文件有未保存的修改，${actionLabel}会放弃这些修改。`,
+        confirmLabel: '放弃修改',
+        cancelLabel: '继续编辑',
+        tone: 'danger',
+      });
+      if (confirmed) setDirtyEditorFile(null);
+      return confirmed;
+    },
+    [appDialog, dirtyEditorFile],
+  );
 
   // 固定打开文件（清预览、切出设置）；预览仅暂存路径，不落 currentFile。
   const openFile = useCallback(
-    (path: string) => {
+    async (path: string) => {
+      if (!(await confirmDiscardDirtyEditor(path, '打开其他文件'))) return;
       setPreviewFile(null);
       setSettingsVisible(false);
       handleFileSelect(path);
     },
-    [handleFileSelect],
+    [confirmDiscardDirtyEditor, handleFileSelect],
   );
-  const previewFileOpen = useCallback((path: string) => {
-    setSettingsVisible(false);
-    setPreviewFile(path);
-  }, []);
+  const previewFileOpen = useCallback(
+    async (path: string) => {
+      if (!(await confirmDiscardDirtyEditor(path, '预览其他文件'))) return;
+      setSettingsVisible(false);
+      setPreviewFile(path);
+    },
+    [confirmDiscardDirtyEditor],
+  );
 
   // 切换项目必须清预览页签：previewFile 是当前项目内的路径，跨项目后仍非空会让
   // displayedFile 落回上一个项目的文件（编辑器展示、Ctrl+S 也写回旧项目），造成跨项目串写。
@@ -118,31 +150,40 @@ export function App() {
     applyTheme(settings.theme);
   }, [settings.theme]);
 
+  const selectProjectSafely = useCallback(
+    async (path: string) => {
+      if (!(await confirmDiscardDirtyEditor(null, '切换项目'))) return false;
+      selectProject(path);
+      return true;
+    },
+    [confirmDiscardDirtyEditor, selectProject],
+  );
+
   const handleOpenProject = useCallback(async () => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selected = await open({ directory: true, multiple: false, title: '选择项目目录' });
       if (!selected || typeof selected !== 'string') return;
-      selectProject(selected);
+      await selectProjectSafely(selected);
     } catch (error) {
       console.error('打开项目失败', error);
     }
-  }, [selectProject]);
+  }, [selectProjectSafely]);
 
   const handleSelectProjectSession = useCallback(
-    (path: string, assistantSessionId: number) => {
-      selectProject(path);
+    async (path: string, assistantSessionId: number) => {
+      if (path !== activeProject && !(await selectProjectSafely(path))) return;
       setActiveProjectAssistantSession(assistantSessionId, path);
     },
-    [selectProject, setActiveProjectAssistantSession],
+    [activeProject, selectProjectSafely, setActiveProjectAssistantSession],
   );
 
   const handleNewProjectSession = useCallback(
-    (path: string) => {
-      selectProject(path);
+    async (path: string) => {
+      if (path !== activeProject && !(await selectProjectSafely(path))) return;
       setActiveProjectAssistantSession(null, path);
     },
-    [selectProject, setActiveProjectAssistantSession],
+    [activeProject, selectProjectSafely, setActiveProjectAssistantSession],
   );
 
   // 欢迎页首条输入：先记住 prompt，打开项目后由 ChatWindow 自动发出。
@@ -160,6 +201,7 @@ export function App() {
 
   const handleCreateSampleProject = useCallback(async () => {
     try {
+      if (!(await confirmDiscardDirtyEditor(null, '创建示例项目'))) return;
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selected = await open({
         directory: true,
@@ -178,32 +220,29 @@ export function App() {
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [appDialog, selectProject]);
+  }, [appDialog, confirmDiscardDirtyEditor, selectProject]);
 
   useEffect(() => {
     return registerSmokeProjectLoader((path: string) => {
-      selectProject(path);
+      void selectProjectSafely(path);
     });
-  }, [selectProject]);
+  }, [selectProjectSafely]);
 
   useEffect(() => {
     return registerSmokeFileLoader((path: string) => {
-      openFile(path);
+      void openFile(path);
     });
   }, [openFile]);
 
   // Agent 补丁可能指向未打开（甚至尚不存在）的文件：自动打开目标文件，
   // 编辑器加载完成后经 takePendingFileSuggestion 领取补丁进入确认面板。
   useEffect(() => {
-    const normalize = (path: string) => path.replace(/\\/g, '/');
     const onSuggestion = (event: Event) => {
       const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
       if (!suggestion?.filePath || !activeProject) return;
-      const target = normalize(suggestion.filePath);
-      const projectPrefix = normalize(activeProject).replace(/\/+$/, '') + '/';
-      if (!target.startsWith(projectPrefix)) return;
-      if (currentFile && normalize(currentFile) === target) return;
-      openFile(suggestion.filePath);
+      if (!isPathInsideProject(activeProject, suggestion.filePath)) return;
+      if (currentFile && currentFile === suggestion.filePath) return;
+      void openFile(suggestion.filePath);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => {
@@ -211,9 +250,27 @@ export function App() {
     };
   }, [activeProject, currentFile, openFile]);
 
-  const handleFileClose = useCallback(() => {
+  const handleFileClose = useCallback(async () => {
+    if (
+      displayedFile &&
+      displayedFile === currentFile &&
+      !(await confirmDiscardDirtyEditor(null, '关闭文件'))
+    ) {
+      return;
+    }
     closeFile();
-  }, [closeFile]);
+  }, [closeFile, confirmDiscardDirtyEditor, currentFile, displayedFile]);
+
+  const handlePreviewClose = useCallback(async () => {
+    if (
+      displayedFile &&
+      displayedFile === previewFile &&
+      !(await confirmDiscardDirtyEditor(null, '关闭预览文件'))
+    ) {
+      return;
+    }
+    setPreviewFile(null);
+  }, [confirmDiscardDirtyEditor, displayedFile, previewFile]);
 
   const handleNewFile = useCallback(
     async (projectOverride?: string) => {
@@ -234,7 +291,16 @@ export function App() {
       const relativePath = normalizeMarkdownFileName(input);
       if (!relativePath) return;
 
-      const filePath = joinPath(targetProject, relativePath);
+      const filePath = resolveProjectRelativePath(targetProject, relativePath);
+      if (!filePath) {
+        await appDialog.alert({
+          title: '新建文件失败',
+          message: '文件名必须位于当前项目内，不能包含 ../ 或绝对外部路径。',
+        });
+        return;
+      }
+      if (!(await confirmDiscardDirtyEditor(filePath, '打开新文件'))) return;
+
       try {
         const exists = await TauriFileSystem.pathExists(filePath);
         if (exists) {
@@ -247,7 +313,7 @@ export function App() {
         } else {
           await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
         }
-        openFile(filePath);
+        await openFile(filePath);
       } catch (error) {
         console.error('新建文件失败', error);
         await appDialog.alert({
@@ -256,7 +322,7 @@ export function App() {
         });
       }
     },
-    [activeProject, appDialog, openFile, handleOpenProject],
+    [activeProject, appDialog, confirmDiscardDirtyEditor, openFile, handleOpenProject],
   );
 
   const handleInitializeStoryProject = useCallback(
@@ -282,9 +348,10 @@ export function App() {
     [activeProject, appDialog, handleOpenProject],
   );
 
-  const openSettings = useCallback(() => {
+  const openSettings = useCallback(async () => {
+    if (!(await confirmDiscardDirtyEditor(null, '打开设置'))) return;
     setSettingsVisible(true);
-  }, []);
+  }, [confirmDiscardDirtyEditor]);
 
   const handleStartNewBook = useCallback(() => {
     setSettingsVisible(false);
@@ -388,7 +455,6 @@ export function App() {
     settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
   const obs = obsCounts(observations);
-  const displayedFile = previewFile ?? currentFile;
   const centerHasTabs = settingsVisible || projectOpen;
   const activeCenterTab: CenterTab | null = settingsVisible
     ? 'settings'
@@ -425,7 +491,7 @@ export function App() {
             qaBadge={0}
             onSwitchView={shell.switchView}
             onOpenPalette={() => setPalette('files')}
-            onOpenSettings={openSettings}
+            onOpenSettings={() => void openSettings()}
           />
           {!shell.sidebarHidden && (
             <SidePanel
@@ -438,7 +504,7 @@ export function App() {
               activeAssistantSessionId={
                 activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
               }
-              onSelectProject={selectProject}
+              onSelectProject={(path) => void selectProjectSafely(path)}
               onRemoveProject={removeProject}
               onSelectProjectSession={handleSelectProjectSession}
               onNewProjectSession={handleNewProjectSession}
@@ -461,18 +527,26 @@ export function App() {
                 settingsOpen={settingsVisible}
                 activeTab={activeCenterTab}
                 onFocusFile={() => {
-                  setSettingsVisible(false);
-                  setPreviewFile(null);
+                  void (async () => {
+                    if (!(await confirmDiscardDirtyEditor(currentFile, '切换到已固定文件'))) return;
+                    setSettingsVisible(false);
+                    setPreviewFile(null);
+                  })();
                 }}
-                onFocusPreview={() => setSettingsVisible(false)}
+                onFocusPreview={() => {
+                  void (async () => {
+                    if (!(await confirmDiscardDirtyEditor(previewFile, '切换到预览文件'))) return;
+                    setSettingsVisible(false);
+                  })();
+                }}
                 onPinPreview={() => {
-                  if (previewFile) openFile(previewFile);
+                  if (previewFile) void openFile(previewFile);
                 }}
-                onFocusSettings={() => setSettingsVisible(true)}
-                onCloseFile={handleFileClose}
+                onFocusSettings={() => void openSettings()}
+                onCloseFile={() => void handleFileClose()}
                 onCloseSettings={() => setSettingsVisible(false)}
               />
-              <div className="min-h-0 flex-1">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 {settingsVisible ? (
                   <SettingsView
                     settings={settings}
@@ -480,7 +554,10 @@ export function App() {
                     onClose={() => setSettingsVisible(false)}
                   />
                 ) : (
-                  <section className="h-full bg-background" data-testid="editor-panel">
+                  <section
+                    className="h-full min-h-0 overflow-hidden bg-background"
+                    data-testid="editor-panel"
+                  >
                     <Editor
                       projectPath={activeProject}
                       filePath={displayedFile}
@@ -488,9 +565,10 @@ export function App() {
                       autoSave={settings.autoSave}
                       onClose={
                         displayedFile && displayedFile === previewFile
-                          ? () => setPreviewFile(null)
-                          : handleFileClose
+                          ? () => void handlePreviewClose()
+                          : () => void handleFileClose()
                       }
+                      onDirtyChange={handleEditorDirtyChange}
                       onToggleSidebar={shell.toggleSidebar}
                       sidebarVisible={!shell.sidebarHidden}
                       onExportCurrent={() => emitExportCurrentFile()}
@@ -529,7 +607,7 @@ export function App() {
 
         {rightPanelVisible && (
           <section
-            className="flex w-[384px] flex-shrink-0 flex-col border-l border-border bg-panel"
+            className="flex min-h-0 w-[384px] flex-shrink-0 flex-col overflow-hidden border-l border-border bg-panel"
             data-testid="assistant-panel"
           >
             <ChatWindow

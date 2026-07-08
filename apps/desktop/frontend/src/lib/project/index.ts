@@ -1,5 +1,5 @@
 import { TauriFileSystem, type FileEntry } from '../tauri-fs';
-import { relativeToProject } from './path';
+import { relativePathInsideProject } from './path';
 import { classifyRelativePath, emptyCounts } from './semantics';
 import type { ProjectIndex } from './types';
 
@@ -11,8 +11,9 @@ export function buildProjectIndexFromEntries(
     .filter((entry) => !entry.isDir)
     .filter((entry) => entry.extension === 'md' || entry.extension === 'markdown')
     .filter((entry) => !/[/\\]\.storyforge[/\\]/.test(entry.path))
-    .map((entry) => {
-      const relativePath = relativeToProject(projectPath, entry.path);
+    .flatMap((entry) => {
+      const relativePath = relativePathInsideProject(projectPath, entry.path);
+      if (relativePath === null) return [];
       return {
         path: entry.path,
         relativePath,
