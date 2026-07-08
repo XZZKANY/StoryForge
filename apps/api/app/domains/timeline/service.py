@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
+from app.common.redaction import redact_sensitive
 from app.domains.books.models import Book, Chapter
 from app.domains.timeline.models import TimelineEventRecord
 from app.domains.timeline.schemas import TimelineEventCreate
@@ -18,8 +19,10 @@ class TimelineEventError(InputError):
 def create_timeline_event(session: Session, payload: TimelineEventCreate) -> TimelineEventRecord:
     """创建时间线事件，并校验作品与章节归属。"""
 
-    _validate_timeline_scope(session, payload.book_id, payload.chapter_id)
-    event = TimelineEventRecord(**payload.model_dump())
+    _validate_timeline_scope(session, payload.book_id, payload.chapter_id, payload.project_id)
+    event_data = payload.model_dump()
+    event_data["payload"] = redact_sensitive(event_data.get("payload", {}))
+    event = TimelineEventRecord(**event_data)
     session.add(event)
     session.commit()
     session.refresh(event)
@@ -67,9 +70,12 @@ def build_timeline_event_list_query(
     return statement
 
 
-def _validate_timeline_scope(session: Session, book_id: int, chapter_id: int) -> None:
-    if session.get(Book, book_id) is None:
+def _validate_timeline_scope(session: Session, book_id: int, chapter_id: int, project_id: int) -> None:
+    book = session.get(Book, book_id)
+    if book is None:
         raise TimelineEventError("作品不存在，无法创建时间线事件。")
+    if book.workspace_id is not None and project_id != book.workspace_id:
+        raise TimelineEventError("项目与作品工作区不匹配，无法创建时间线事件。")
     chapter_book_id = session.scalar(select(Chapter.book_id).where(Chapter.id == chapter_id))
     if chapter_book_id != book_id:
         raise TimelineEventError("章节不存在或不属于当前作品，无法创建时间线事件。")

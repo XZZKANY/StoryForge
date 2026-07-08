@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class ModelRunCreate(BaseModel):
@@ -68,6 +70,18 @@ class ModelRunRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_serializer("input_summary", return_type=str)
+    def serialize_input_summary(self, value: str) -> str:
+        return redact_sensitive_text(value)
+
+    @field_serializer("output_summary", "error_message", return_type=str | None)
+    def serialize_sensitive_text(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if isinstance(value, str) else value
+
+    @field_serializer("payload", return_type=dict[str, Any])
+    def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(payload)
+
 
 class ModelRunListPage(BaseModel):
     """模型运行日志的游标分页响应。"""
@@ -96,6 +110,10 @@ class RunsModelRunSummary(BaseModel):
     prompt_hash: str | None
     error_message: str | None
 
+    @field_serializer("error_message")
+    def serialize_error_message(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if isinstance(value, str) else value
+
 
 class RunsWorkflowSessionSummary(BaseModel):
     """从 JobRun 运行时同步字段派生的 WorkflowSession 摘要。"""
@@ -119,6 +137,10 @@ class RunsWorkflowLifecycleSummary(BaseModel):
     failure_kind: str | None
     recoverable: bool | None
 
+    @field_serializer("message")
+    def serialize_message(self, value: str) -> str:
+        return redact_sensitive_text(value)
+
 
 class RunsProviderSummary(BaseModel):
     """ProviderAdapter 或 ModelRun 派生的供应商调用摘要。"""
@@ -130,6 +152,10 @@ class RunsProviderSummary(BaseModel):
     latency_ms: int
     token_usage: int
     error_message: str | None
+
+    @field_serializer("error_message")
+    def serialize_error_message(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if isinstance(value, str) else value
 
 
 class RunsModelUsageSummary(BaseModel):
@@ -174,6 +200,10 @@ class RunsJobRunRead(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("error_message")
+    def serialize_error_message(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if isinstance(value, str) else value
 
 
 class RunsJobRunRetryRead(BaseModel):

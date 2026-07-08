@@ -103,3 +103,4 @@ def test_assistant_session_rejects_sensitive_payload_keys(client: TestClient) ->
     )
     assert response.status_code == 422, response.text
     assert "api_key" in response.text
+    assert "secret-should-not-enter-db" not in response.text

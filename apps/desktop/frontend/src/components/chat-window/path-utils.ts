@@ -1,25 +1,27 @@
 import { isKnownAgentRoleMention } from '../../lib/agent-roles';
+import {
+  looksAbsolutePath as looksAbsoluteProjectPath,
+  projectBasename,
+  relativePathInsideProject,
+  resolveProjectRelativePath,
+} from '../../lib/project-context';
 
 export function basename(path: string): string {
-  return path.split(/[/\\]/).pop() ?? path;
+  return projectBasename(path);
 }
 
 export function relativePath(projectPath: string | null, filePath: string): string {
-  if (!projectPath) return basename(filePath);
-  const root = projectPath.replace(/[/\\]+$/, '');
-  if (filePath.startsWith(root)) {
-    return filePath.slice(root.length).replace(/^[/\\]+/, '');
-  }
-  return basename(filePath);
+  return projectPath
+    ? (relativePathInsideProject(projectPath, filePath) ?? basename(filePath))
+    : basename(filePath);
 }
 
-export function joinProjectPath(projectPath: string, child: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  return `${projectPath.replace(/[/\\]+$/, '')}${separator}${child.replace(/^[/\\]+/, '')}`;
+export function joinProjectPath(projectPath: string, child: string): string | null {
+  return resolveProjectRelativePath(projectPath, child);
 }
 
 export function looksAbsolutePath(path: string): boolean {
-  return /^[a-zA-Z]:[/\\]/.test(path) || path.startsWith('/') || path.startsWith('\\');
+  return looksAbsoluteProjectPath(path);
 }
 
 export function extractContextReferences(text: string): string[] {

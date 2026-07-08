@@ -10,7 +10,12 @@ import { SettingsView } from './components/SettingsView';
 import { Editor } from './components/Editor';
 import { ChatWindow } from './components/ChatWindow';
 import { TauriFileSystem, FS_MUTATION_EVENT } from './lib/tauri-fs';
-import { createSampleStoryProject, initializeStoryProject } from './lib/project-context';
+import {
+  createSampleStoryProject,
+  initializeStoryProject,
+  relativePathInsideProject,
+  resolveProjectRelativePath,
+} from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
 import { APPLY_FILE_SUGGESTION_EVENT, emitExportCurrentFile } from './lib/assistant-events';
 import type { AssistantFileSuggestion } from './lib/assistant-suggestions';
@@ -24,7 +29,7 @@ import { saveDesktopLlmConfig } from './lib/desktop-llm-config';
 import { applyProviderPreset, getProviderPreset } from './lib/provider-config';
 import { applyTheme } from './lib/theme';
 import { WelcomeWorkspace } from './components/app/WelcomeWorkspace';
-import { joinPath, normalizeMarkdownFileName } from './components/app/helpers';
+import { normalizeMarkdownFileName } from './components/app/helpers';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import { AppDialogHost, useAppDialog } from './components/app/AppDialog';
@@ -199,10 +204,8 @@ export function App() {
     const onSuggestion = (event: Event) => {
       const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
       if (!suggestion?.filePath || !activeProject) return;
-      const target = normalize(suggestion.filePath);
-      const projectPrefix = normalize(activeProject).replace(/\/+$/, '') + '/';
-      if (!target.startsWith(projectPrefix)) return;
-      if (currentFile && normalize(currentFile) === target) return;
+      if (relativePathInsideProject(activeProject, suggestion.filePath) === null) return;
+      if (currentFile && normalize(currentFile) === normalize(suggestion.filePath)) return;
       openFile(suggestion.filePath);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
@@ -234,7 +237,14 @@ export function App() {
       const relativePath = normalizeMarkdownFileName(input);
       if (!relativePath) return;
 
-      const filePath = joinPath(targetProject, relativePath);
+      const filePath = resolveProjectRelativePath(targetProject, relativePath);
+      if (!filePath) {
+        await appDialog.alert({
+          title: '新建文件失败',
+          message: '文件名必须位于当前项目内，不能使用绝对路径或 .. 跳出项目。',
+        });
+        return;
+      }
       try {
         const exists = await TauriFileSystem.pathExists(filePath);
         if (exists) {

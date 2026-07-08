@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class IdeTreeNode(BaseModel):
@@ -45,6 +47,10 @@ class IdeQuickFix(BaseModel):
     title: str
     args: dict[str, object] = Field(default_factory=dict)
 
+    @field_serializer("args")
+    def serialize_args(self, args: dict[str, object]) -> dict[str, object]:
+        return redact_sensitive(args)
+
 
 class IdeDiagnostic(BaseModel):
     """IDE Problems 面板统一诊断契约。"""
@@ -72,6 +78,11 @@ class IdeCommandResult(BaseModel):
     status: str
     audit_event_id: str | None = None
     payload: dict[str, object] = Field(default_factory=dict)
+
+    @field_serializer("payload")
+    def serialize_payload(self, payload: dict[str, object]) -> dict[str, object]:
+        return redact_sensitive(payload)
+
 
 class IdeContextBudget(BaseModel):
     """Context Inspector 使用的 token 预算信息。"""
@@ -172,6 +183,14 @@ class IdeArtifactPreviewContent(BaseModel):
     content_preview: str
     summary: dict[str, object] = Field(default_factory=dict)
 
+    @field_serializer("content_preview")
+    def serialize_content_preview(self, content_preview: str) -> str:
+        return redact_sensitive_text(content_preview)
+
+    @field_serializer("summary")
+    def serialize_summary(self, summary: dict[str, object]) -> dict[str, object]:
+        return redact_sensitive(summary)
+
 
 class IdeArtifactVersion(BaseModel):
     """同一谱系下可比较的制品版本。"""
@@ -209,6 +228,10 @@ class IdeArtifactPreview(BaseModel):
     download: dict[str, object]
     versions: list[IdeArtifactVersion] = Field(default_factory=list)
     trace: IdeArtifactTrace
+
+    @field_serializer("artifact", "download")
+    def serialize_payloads(self, payload: dict[str, object]) -> dict[str, object]:
+        return redact_sensitive(payload)
 
 
 class IdeCrossChapterInput(BaseModel):

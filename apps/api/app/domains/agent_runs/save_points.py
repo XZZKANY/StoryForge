@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
+from app.common.redaction import redact_sensitive
 from app.domains.agent_runs.event_types import (
     AGENT_RUN_COMPLETED,
     AGENT_RUN_FAILED,
@@ -63,7 +64,7 @@ def build_agent_run_save_point_projection(
         and run.status == "paused"
     )
 
-    return {
+    projection: dict[str, Any] = {
         "run_id": run.public_id,
         "status": run.status,
         "current_step": run.current_step,
@@ -98,6 +99,7 @@ def build_agent_run_save_point_projection(
             "has_interrupted_event": False,
         },
     }
+    return cast(dict[str, Any], redact_sensitive(projection))
 
 
 def _save_point_from_event(event: AgentRunEvent) -> dict[str, Any] | None:

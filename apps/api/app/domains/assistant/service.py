@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import DomainError, NotFoundError
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.assistant.schemas import (
     AssistantDraftRequest,
@@ -63,7 +64,7 @@ def create_assistant_session(session: Session, payload: AssistantSessionCreate) 
     """创建可追溯 Assistant 会话，不接收也不保存敏感凭据。"""
 
     assistant_session = AssistantSession(
-        title=payload.title,
+        title=redact_sensitive_text(payload.title),
         task_type=payload.task_type,
         project_path=payload.project_path,
         blueprint_id=payload.blueprint_id,
@@ -71,7 +72,7 @@ def create_assistant_session(session: Session, payload: AssistantSessionCreate) 
         artifact_id=payload.artifact_id,
     )
     assistant_session.messages = [
-        AssistantMessage(role=message.role, content=message.content) for message in payload.messages
+        AssistantMessage(role=message.role, content=redact_sensitive_text(message.content)) for message in payload.messages
     ]
     session.add(assistant_session)
     session.commit()
@@ -86,7 +87,11 @@ def append_assistant_message(
     """向已有会话追加一条消息。"""
 
     assistant_session = get_assistant_session(session, assistant_session_id)
-    message = AssistantMessage(session_id=assistant_session.id, role=payload.role, content=payload.content)
+    message = AssistantMessage(
+        session_id=assistant_session.id,
+        role=payload.role,
+        content=redact_sensitive_text(payload.content),
+    )
     session.add(message)
     session.commit()
     session.refresh(message)
@@ -101,7 +106,8 @@ def create_assistant_tool_call(
     """为 Assistant 会话追加一条工具调用事实。"""
 
     assistant_session = get_assistant_session(session, assistant_session_id)
-    tool_call = AssistantToolCall(session_id=assistant_session.id, **payload.model_dump())
+    tool_call_data = _redact_tool_call_data(payload.model_dump())
+    tool_call = AssistantToolCall(session_id=assistant_session.id, **tool_call_data)
     session.add(tool_call)
     session.commit()
     session.refresh(tool_call)
@@ -118,7 +124,7 @@ def update_assistant_tool_call(
     tool_call = session.get(AssistantToolCall, tool_call_id)
     if tool_call is None:
         raise AssistantToolCallNotFoundError(f"Assistant 工具调用不存在：{tool_call_id}。")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    for key, value in _redact_tool_call_data(payload.model_dump(exclude_unset=True)).items():
         setattr(tool_call, key, value)
     session.add(tool_call)
     session.commit()
@@ -137,6 +143,18 @@ def list_assistant_tool_calls(session: Session, assistant_session_id: int) -> li
             .order_by(AssistantToolCall.id.asc())
         )
     )
+
+
+def _redact_tool_call_data(data: dict[str, Any]) -> dict[str, Any]:
+    redacted = dict(data)
+    for key in ("input_summary", "output_summary"):
+        value = redacted.get(key)
+        if isinstance(value, dict):
+            redacted[key] = redact_sensitive(value)
+    error_message = redacted.get("error_message")
+    if isinstance(error_message, str):
+        redacted["error_message"] = redact_sensitive_text(error_message)
+    return redacted
 
 
 def get_assistant_session(session: Session, assistant_session_id: int) -> AssistantSession:

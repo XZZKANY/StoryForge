@@ -3,10 +3,12 @@ import { test } from 'node:test';
 
 import {
   getAgentRunSavePoints,
+  parseBookRunSseText,
   probeApiRuntimeHealth,
   probeProviderHealth,
   sendAgentControlMessage,
   sendAgentUserMessage,
+  subscribeWritingRunEvents,
 } from '../src/lib/api-client';
 
 test('agent websocket streams events and resolves with the final result', async () => {
@@ -14,6 +16,7 @@ test('agent websocket streams events and resolves with the final result', async 
   const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
   const sentPayloads: Array<Record<string, unknown>> = [];
   const seenEvents: string[] = [];
+  const openedSockets: MockWebSocket[] = [];
 
   class MockWebSocket {
     onopen: ((event: Event) => void) | null = null;
@@ -21,7 +24,11 @@ test('agent websocket streams events and resolves with the final result', async 
     onerror: ((event: Event) => void) | null = null;
     onclose: ((event: CloseEvent) => void) | null = null;
 
-    constructor(readonly url: string) {
+    constructor(
+      readonly url: string,
+      readonly protocols?: string | string[],
+    ) {
+      openedSockets.push(this);
       setTimeout(() => this.onopen?.(new Event('open')), 0);
     }
 
@@ -109,6 +116,9 @@ test('agent websocket streams events and resolves with the final result', async 
     assert.equal(sentPayloads[0].stream, true);
     assert.equal(sentPayloads[0].run_id, 'run-1');
     assert.equal(sentPayloads[0].type, 'user_message');
+    assert.equal(openedSockets[0].url.includes('api_key='), false);
+    assert.ok(Array.isArray(openedSockets[0].protocols));
+    assert.match(String((openedSockets[0].protocols as string[])[0]), /^storyforge-api-key\./);
   } finally {
     if (previousWindow) {
       Object.defineProperty(globalThis, 'window', previousWindow);
@@ -119,6 +129,45 @@ test('agent websocket streams events and resolves with the final result', async 
       Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
     } else {
       Reflect.deleteProperty(globalThis, 'WebSocket');
+    }
+  }
+});
+
+test('writing run SSE uses fetch with API key header and parses named events', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(input), init });
+      return new Response('event: progress\ndata: {"chapter":1}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    },
+  });
+
+  try {
+    const events: unknown[] = [];
+    const unsubscribe = await subscribeWritingRunEvents(12, (event) => events.push(event));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    unsubscribe();
+
+    assert.equal(fetchCalls[0].url, 'http://127.0.0.1:8000/api/ide/runs/12/events');
+    assert.equal(
+      (fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'],
+      'local-dev-key',
+    );
+    assert.deepEqual(events, [{ event: 'progress', data: { chapter: 1 } }]);
+    assert.deepEqual(parseBookRunSseText('event: completed\ndata: not-json\n\n'), [
+      { event: 'completed', data: { raw: 'not-json' } },
+    ]);
+  } finally {
+    if (previousFetch) {
+      Object.defineProperty(globalThis, 'fetch', previousFetch);
+    } else {
+      Reflect.deleteProperty(globalThis, 'fetch');
     }
   }
 });

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
+from app.common.redaction import redact_sensitive
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
@@ -107,15 +108,15 @@ def _accepted_command_result(
         "title": command.title,
         "category": command.category,
         "writes": command.writes,
-        "args": args,
+        "args": redact_sensitive(args),
     }
     if extra_payload:
-        payload.update(extra_payload)
+        payload.update(redact_sensitive(extra_payload))
     return IdeCommandResult(
         command_id=command.id,
         status="accepted",
         audit_event_id=audit_event_id,
-        payload=payload,
+        payload=redact_sensitive(payload),
     )
 
 
@@ -137,8 +138,8 @@ def _attach_persistent_audit_event(
         payload={
             "command_id": result.command_id,
             "status": result.status,
-            "args": args,
-            "result": result.payload,
+            "args": redact_sensitive(args),
+            "result": redact_sensitive(result.payload),
         },
     )
     session.add(event)

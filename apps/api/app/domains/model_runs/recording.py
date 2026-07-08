@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.jobs.models import JobRun
@@ -20,7 +21,13 @@ class ModelRunError(InputError):
 
 def create_model_run(session: Session, payload: ModelRunCreate) -> ModelRun:
     _validate_references(session, payload)
-    model_run = ModelRun(**payload.model_dump())
+    run_data = payload.model_dump()
+    for key in ("input_summary", "output_summary", "error_message"):
+        value = run_data.get(key)
+        if isinstance(value, str):
+            run_data[key] = redact_sensitive_text(value)
+    run_data["payload"] = redact_sensitive(run_data.get("payload", {}))
+    model_run = ModelRun(**run_data)
     session.add(model_run)
     session.commit()
     session.refresh(model_run)

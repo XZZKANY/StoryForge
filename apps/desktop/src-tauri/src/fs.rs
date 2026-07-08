@@ -1,4 +1,8 @@
-// 文件系统模块：提供本地文件操作 API
+// 文件系统模块：提供本地文件操作 API。
+//
+// 项目根 containment 由前端统一 path helper 在调用前完成；本层仍保持 Tauri 原始
+// 文件命令的兼容签名，但目录枚举与文件信息读取不会跟随 symlink，避免项目内链接把
+// 外部文件暴露给资源树和 Agent context bundle。
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -186,7 +190,10 @@ pub fn get_file_info(path: String) -> Result<FileEntry, String> {
 
 /// 从路径创建 FileEntry
 fn create_file_entry(path: &Path) -> Result<FileEntry, String> {
-    let metadata = fs::metadata(path).map_err(|e| format!("无法读取文件元数据: {}", e))?;
+    let metadata = fs::symlink_metadata(path).map_err(|e| format!("无法读取文件元数据: {}", e))?;
+    if metadata.file_type().is_symlink() {
+        return Err("符号链接不纳入项目文件索引".to_string());
+    }
 
     let name = path
         .file_name()
@@ -271,7 +278,8 @@ mod tests {
     fn write_file_stages_out_of_place_so_target_is_replaced_atomically() {
         let temp = TempDir::new("atomic-stage");
         let file_path = temp.join("chapter.md");
-        write_file(file_path.clone(), "committed-v1".to_string()).expect("seed write should succeed");
+        write_file(file_path.clone(), "committed-v1".to_string())
+            .expect("seed write should succeed");
 
         // 暂存新内容到同目录临时文件，但尚未 rename：目标必须仍是旧内容（绝不原地截断）。
         let target = Path::new(&file_path);
@@ -295,9 +303,13 @@ mod tests {
         let temp = TempDir::new("atomic-commit");
         let file_path = temp.join("chapter.md");
         write_file(file_path.clone(), "v1".to_string()).expect("first write should succeed");
-        write_file(file_path.clone(), "v2-longer-body".to_string()).expect("overwrite should succeed");
+        write_file(file_path.clone(), "v2-longer-body".to_string())
+            .expect("overwrite should succeed");
 
-        assert_eq!(read_file(file_path).expect("read should succeed"), "v2-longer-body");
+        assert_eq!(
+            read_file(file_path).expect("read should succeed"),
+            "v2-longer-body"
+        );
         // rename 提交后临时文件必须已被消费，目录里不留 .tmp 残渣。
         let residue: Vec<String> = fs::read_dir(&temp.path)
             .expect("dir listing should succeed")
@@ -395,5 +407,35 @@ mod tests {
         assert!(list_dir(file_path, false)
             .expect_err("file path should fail")
             .contains("路径不是目录"));
+    }
+
+    #[test]
+    fn list_dir_does_not_follow_symlink_entries() {
+        let temp = TempDir::new("symlink-skip");
+        let outside = TempDir::new("symlink-outside");
+        let outside_file = outside.path.join("secret.md");
+        fs::write(&outside_file, "external secret").expect("outside file should be written");
+        let link_path = temp.path.join("linked-secret.md");
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&outside_file, &link_path)
+                .expect("symlink should be created");
+        }
+        #[cfg(windows)]
+        {
+            if std::os::windows::fs::symlink_file(&outside_file, &link_path).is_err() {
+                // Windows symlink creation can require Developer Mode or elevated privileges.
+                return;
+            }
+        }
+
+        let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
+            .expect("recursive list should succeed");
+
+        assert!(
+            entries.iter().all(|entry| entry.name != "linked-secret.md"),
+            "project index must not expose symlink targets"
+        );
     }
 }

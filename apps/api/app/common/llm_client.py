@@ -21,6 +21,7 @@ from urllib import error, request
 
 from app.common import llm_http
 from app.common.exceptions import DomainError
+from app.common.redaction import redact_sensitive_text
 
 THINK_BLOCK_RE = llm_http.THINK_BLOCK_RE
 THINK_OPEN_RE = llm_http.THINK_OPEN_RE
@@ -62,7 +63,7 @@ def redact_secrets(text: str, secrets: Iterable[str | None]) -> str:
     for secret in secrets:
         if secret and len(secret) >= 6:
             redacted = redacted.replace(secret, "***")
-    return redacted
+    return redact_sensitive_text(redacted, extra_secrets=secrets)
 
 
 def _build_chat_payload(
@@ -128,6 +129,10 @@ def _request_chat_completions(
                 error_body = exc.read().decode("utf-8", errors="replace")[:2000]
             except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
                 error_body = "<无法读取响应体>"
+            error_body = redact_sensitive_text(
+                error_body,
+                extra_secrets=[_env_value(source, "STORYFORGE_LLM_API_KEY")],
+            )
             raise LLMError(
                 f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{max_attempts}）：{error_body}"
             ) from exc
@@ -137,8 +142,12 @@ def _request_chat_completions(
                 _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
                 continue
             reason = getattr(exc, "reason", exc)
+            reason_text = redact_sensitive_text(
+                str(reason),
+                extra_secrets=[_env_value(source, "STORYFORGE_LLM_API_KEY")],
+            )
             raise LLMError(
-                f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{max_attempts}）：{reason}"
+                f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{max_attempts}）：{reason_text}"
             ) from exc
         except _RESPONSE_READ_ERRORS as exc:
             elapsed_ms = int((time.monotonic() - started_at) * 1000)

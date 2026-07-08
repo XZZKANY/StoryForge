@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.common.llm_client import LLMError, _call_llm, _call_llm_messages, redact_secrets
+from app.common.redaction import REDACTED
 
 _API_KEY = "sk-secret-test-key-123456"
 
@@ -25,6 +26,7 @@ class _ChatHandler(BaseHTTPRequestHandler):
     attempts = 0
     last_headers: dict[str, str] | None = None
     response_message: dict[str, object] | None = None
+    error_body: dict[str, object] | None = None
     retry_after_header = "0"
     serve_non_json = False
 
@@ -35,7 +37,7 @@ class _ChatHandler(BaseHTTPRequestHandler):
         cls.last_headers = {key.lower(): value for key, value in self.headers.items()}
         cls.attempts += 1
         if cls.attempts <= cls.fail_times:
-            body = json.dumps({"error": {"message": "transient"}}).encode("utf-8")
+            body = json.dumps(cls.error_body or {"error": {"message": "transient"}}).encode("utf-8")
             self.send_response(cls.status_code)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(body)))
@@ -74,6 +76,7 @@ def _serve() -> HTTPServer:
     _ChatHandler.attempts = 0
     _ChatHandler.last_headers = None
     _ChatHandler.response_message = None
+    _ChatHandler.error_body = None
     _ChatHandler.retry_after_header = "0"
     _ChatHandler.serve_non_json = False
     server = HTTPServer(("127.0.0.1", 0), _ChatHandler)
@@ -227,6 +230,24 @@ def test_channel_error_message_never_contains_key(caplog) -> None:
     assert _API_KEY not in str(excinfo.value)
     assert _API_KEY not in caplog.text
     assert _ChatHandler.attempts == 1
+
+
+def test_channel_http_error_body_redacts_upstream_secret() -> None:
+    """上游错误体可能带 provider token，进入 LLMError 前必须净化。"""
+
+    _ChatHandler.fail_times = 1
+    _ChatHandler.status_code = 400
+    server = _serve()
+    _ChatHandler.error_body = {"error": {"message": "provider leaked sk-secret-upstream-value-123456"}}
+    try:
+        with pytest.raises(LLMError) as excinfo:
+            _call_llm(_source(server.server_address[1]), system_prompt="s", user_prompt="u")
+    finally:
+        server.shutdown()
+
+    message = str(excinfo.value)
+    assert "sk-secret-upstream-value-123456" not in message
+    assert REDACTED in message
 
 
 def test_redact_secrets_scrubs_key_substring() -> None:

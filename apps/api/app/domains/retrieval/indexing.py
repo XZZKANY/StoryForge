@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import InputError
+from app.common.redaction import redact_sensitive
 from app.common.scope import ScopeNotFoundError, validate_scope
 from app.domains.retrieval.embedding_client import EmbeddingClient, EmbeddingResult, LocalEmbeddingClient
 from app.domains.retrieval.models import RetrievalChunk, RetrievalRefreshRun, RetrievalSource
@@ -32,7 +33,7 @@ def create_retrieval_source(
         title=payload.title,
         status="active",
         content_text=payload.content_text,
-        payload=payload.payload,
+        payload=redact_sensitive(payload.payload),
     )
     session.add(source)
     session.flush()
@@ -83,7 +84,7 @@ def create_retrieval_refresh_run(
         series_id=payload.series_id,
         status="completed",
         chunk_count=sum(len(source.chunks) for source in sources),
-        payload=payload_metadata,
+        payload=redact_sensitive(payload_metadata),
     )
     session.add(refresh_run)
     session.commit()

@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class AssistantMessageCreate(BaseModel):
@@ -22,6 +24,10 @@ class AssistantMessageRead(BaseModel):
     content: str
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("content")
+    def serialize_content(self, content: str) -> str:
+        return redact_sensitive_text(content)
 
 
 class AssistantSessionCreate(BaseModel):
@@ -49,6 +55,10 @@ class AssistantSessionRead(BaseModel):
     messages: list[AssistantMessageRead]
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("title")
+    def serialize_title(self, title: str) -> str:
+        return redact_sensitive_text(title)
 
 
 class AssistantToolCallCreate(BaseModel):
@@ -97,6 +107,14 @@ class AssistantToolCallRead(BaseModel):
     finished_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("input_summary", "output_summary")
+    def serialize_summary(self, summary: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(summary)
+
+    @field_serializer("error_message")
+    def serialize_error_message(self, error_message: str | None) -> str | None:
+        return redact_sensitive_text(error_message) if isinstance(error_message, str) else error_message
 
 
 class AssistantContextBundleFile(BaseModel):
@@ -171,3 +189,7 @@ class ProviderHealthResponse(BaseModel):
     model_count: int | None = None
     detail: str | None = None
     missing_env: list[str] = Field(default_factory=list)
+
+    @field_serializer("detail")
+    def serialize_detail(self, detail: str | None) -> str | None:
+        return redact_sensitive_text(detail) if isinstance(detail, str) else detail

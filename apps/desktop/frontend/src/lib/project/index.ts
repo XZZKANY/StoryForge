@@ -1,5 +1,5 @@
 import { TauriFileSystem, type FileEntry } from '../tauri-fs';
-import { relativeToProject } from './path';
+import { relativePathInsideProject } from './path';
 import { classifyRelativePath, emptyCounts } from './semantics';
 import type { ProjectIndex } from './types';
 
@@ -11,15 +11,18 @@ export function buildProjectIndexFromEntries(
     .filter((entry) => !entry.isDir)
     .filter((entry) => entry.extension === 'md' || entry.extension === 'markdown')
     .filter((entry) => !/[/\\]\.storyforge[/\\]/.test(entry.path))
+    .map((entry) => ({ entry, relativePath: relativePathInsideProject(projectPath, entry.path) }))
+    .filter(
+      (item): item is { entry: FileEntry; relativePath: string } => item.relativePath !== null,
+    )
     .map((entry) => {
-      const relativePath = relativeToProject(projectPath, entry.path);
       return {
-        path: entry.path,
-        relativePath,
-        name: entry.name,
-        kind: classifyRelativePath(relativePath),
-        modified: entry.modified,
-        size: entry.size,
+        path: entry.entry.path,
+        relativePath: entry.relativePath,
+        name: entry.entry.name,
+        kind: classifyRelativePath(entry.relativePath),
+        modified: entry.entry.modified,
+        size: entry.entry.size,
       };
     })
     .sort((a, b) => a.relativePath.localeCompare(b.relativePath));

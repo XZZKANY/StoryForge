@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive
 
 
 class EventRecordCreate(BaseModel):
@@ -29,3 +31,7 @@ class EventLogRead(BaseModel):
     payload: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("payload")
+    def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(payload)
