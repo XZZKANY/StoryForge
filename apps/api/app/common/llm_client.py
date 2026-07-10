@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import logging
 import time
 from collections.abc import Iterable, Mapping
 from random import random
@@ -22,6 +23,8 @@ from urllib import error, request
 from app.common import llm_http
 from app.common.exceptions import DomainError
 from app.common.redaction import redact_sensitive_text
+
+logger = logging.getLogger(__name__)
 
 THINK_BLOCK_RE = llm_http.THINK_BLOCK_RE
 THINK_OPEN_RE = llm_http.THINK_OPEN_RE
@@ -64,6 +67,102 @@ def redact_secrets(text: str, secrets: Iterable[str | None]) -> str:
         if secret and len(secret) >= 6:
             redacted = redacted.replace(secret, "***")
     return redact_sensitive_text(redacted, extra_secrets=secrets)
+
+
+def _credential_header_values(headers: Mapping[str, str]) -> list[str]:
+    secrets: list[str] = []
+    for name, value in headers.items():
+        if name.lower() not in ("authorization", "api-key"):
+            continue
+        secrets.append(value)
+        if value.lower().startswith("bearer "):
+            secrets.append(value[7:])
+    return secrets
+
+
+def post_json_with_retry(
+    url: str,
+    payload: dict[str, object],
+    headers: dict[str, str],
+    *,
+    timeout_seconds: float,
+    max_attempts: int = 3,
+    service_label: str,
+) -> dict[str, object]:
+    """向非 chat JSON 端点 POST，复用 common 重试、退避、脱敏与 LLMError 语义。"""
+
+    # 对齐 httpx(json=...) 的线格式，迁移 transport 不改变 retrieval 请求体字节。
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    http_request = request.Request(url, data=body, headers=headers, method="POST")
+    attempt_limit = max(1, max_attempts)
+    started_at = time.monotonic()
+    secrets = _credential_header_values(headers)
+    data: dict[str, object] | None = None
+
+    for attempt in range(1, attempt_limit + 1):
+        try:
+            with request.urlopen(http_request, timeout=timeout_seconds) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except error.HTTPError as exc:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if _is_retryable_status(exc.code) and attempt < attempt_limit:
+                _sleep_before_retry(
+                    attempt=attempt,
+                    base_delay=0.5,
+                    jitter=0.25,
+                    retry_after=_retry_after_seconds(exc),
+                )
+                continue
+            try:
+                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+            except Exception:  # noqa: BLE001 - 诊断失败不能掩盖原始 HTTP 错误
+                error_body = "<无法读取响应体>"
+            message = redact_secrets(
+                f"{service_label}返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{attempt_limit}）：{error_body}",
+                secrets,
+            )
+            logger.warning("%s", message)
+            raise LLMError(message) from exc
+        except (error.URLError, TimeoutError) as exc:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if attempt < attempt_limit:
+                _sleep_before_retry(
+                    attempt=attempt,
+                    base_delay=0.5,
+                    jitter=0.25,
+                    retry_after=None,
+                )
+                continue
+            reason = getattr(exc, "reason", exc)
+            message = redact_secrets(
+                f"{service_label}调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout_seconds}s，"
+                f"尝试 {attempt}/{attempt_limit}）：{reason}",
+                secrets,
+            )
+            logger.warning("%s", message)
+            raise LLMError(message) from exc
+        except _RESPONSE_READ_ERRORS as exc:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if attempt < attempt_limit:
+                _sleep_before_retry(
+                    attempt=attempt,
+                    base_delay=0.5,
+                    jitter=0.25,
+                    retry_after=None,
+                )
+                continue
+            message = redact_secrets(
+                f"{service_label}响应读取或解析失败（耗时 {elapsed_ms}ms，尝试 {attempt}/{attempt_limit}）："
+                f"{type(exc).__name__}",
+                secrets,
+            )
+            logger.warning("%s", message)
+            raise LLMError(message) from exc
+
+    if data is None:
+        raise LLMError(f"{service_label}重试后仍无响应数据。")
+    return data
 
 
 def _build_chat_payload(

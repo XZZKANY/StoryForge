@@ -262,8 +262,8 @@ rg "import httpx" apps/api/app    # 期望归零
 | 批次 | 状态(done / reverted / skipped) | 提交 hash | 备注 |
 | ---- | ---- | ---- | ---- |
 | B1 entity_budget_check | done | ee0b31b9 | 批内目标/全量/ruff/OpenAPI 门禁全绿 |
-| B2 canon_delta | done | 待收尾回填 | 批内目标/全量/ruff/OpenAPI 门禁全绿 |
-| B3 retrieval 传输统一 | | | |
+| B2 canon_delta | done | 8eaecaf5 | 批内目标/全量/ruff/OpenAPI 门禁全绿 |
+| B3 retrieval 传输统一 | done | 待收尾回填 | 异常依赖核查通过；目标/全量/ruff 门禁全绿 |
 | B4 会话守卫 nonce(L2) | | | |
 | B5 切会话清 run 面板 | | | |
 | B6 Revise 死类型 | | | |
