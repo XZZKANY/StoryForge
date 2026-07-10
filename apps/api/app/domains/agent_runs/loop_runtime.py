@@ -51,6 +51,9 @@ _SYSTEM_PROMPT = (
     "你可以调用只读工具查看项目文件：fs_list 列出文件，fs_read 读取文件内容，fs_search 跨文件检索。"
     "检查人物称谓、时间线或重复表达等一致性问题时，用 project_consistency 一次拿到全书观察信号"
     "（词条分布、时间标记、重复子句），再抽读原文核实后下结论。"
+    "要快速自查单章文笔坏味道（陈词套话 / 情绪直述 / 对白密度 / 重复表达 / 静态节奏）时，"
+    "用 project_prose_check：它是确定性静态扫描、不烧 token，比 file_review 便宜，"
+    "适合修订前先定位文笔问题；结果是参考信号，结合原文判断。"
     "要对单章做深度一致性检查（正文是否违背人物设定 / 世界观 / 已知事实）时，"
     "用 project_deep_consistency 让语义评审模型把稿件对照人物 / 设定文件核查；"
     "它返回的 issue 是参考信号，回给作者前先抽读对应行核实，不要照单全收。"
@@ -139,6 +142,12 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "term_count": len(output.get("term_occurrences") or []),
             "time_marker_count": len(output.get("time_markers") or []),
             "repeated_clause_count": len(output.get("repeated_clauses") or []),
+        }
+    if registry_name == "project.prose_check":
+        return {
+            "path": output.get("path"),
+            "issue_count": output.get("issue_count"),
+            "dimension_count": len(output.get("dimension_counts") or {}),
         }
     if registry_name == "project.deep_consistency":
         return {
