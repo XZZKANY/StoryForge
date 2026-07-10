@@ -97,8 +97,11 @@ class ChatLoopOutcome:
     tool_call_count: int = 0
     completion_tokens: int = 0
     prompt_tokens: int = 0
+    token_usage: int = 0
+    token_usage_source: str = "unavailable"
     # BYO-key 成本进证据链（F32）：累加每轮 chat/completions 估算成本，供 assistant.chat_loop 证据记账。
     cost_cny_estimated: float = 0.0
+    cost_breakdown: dict[str, Any] = field(default_factory=dict)
     exhausted: bool = False
     review_report: dict[str, Any] | None = None
     proposed_patch: dict[str, Any] | None = None
@@ -112,6 +115,35 @@ def _serialize_tool_output(output: dict[str, Any]) -> str:
     if len(text) > _TOOL_RESULT_MAX_CHARS:
         return text[:_TOOL_RESULT_MAX_CHARS] + "…[结果过长已截断]"
     return text
+
+
+def _merge_cost_breakdown(
+    current: dict[str, Any],
+    incoming: object,
+    *,
+    prompt_tokens: int,
+    completion_tokens: int,
+    token_usage_source: str,
+) -> dict[str, Any]:
+    if not isinstance(incoming, dict):
+        return current
+    merged = dict(current)
+    for key in ("input_cny", "output_cny", "total_cny"):
+        value = incoming.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            merged[key] = float(merged.get(key) or 0.0) + float(value)
+    for key in (
+        "currency",
+        "input_cny_per_m_tokens",
+        "output_cny_per_m_tokens",
+        "cache_hit_input_cny_per_m_tokens",
+    ):
+        if key in incoming:
+            merged[key] = incoming[key]
+    merged["prompt_tokens"] = prompt_tokens
+    merged["completion_tokens"] = completion_tokens
+    merged["source"] = token_usage_source
+    return merged
 
 
 def _parse_tool_arguments(raw: str) -> dict[str, Any]:
@@ -316,9 +348,25 @@ def run_chat_loop(
         prompt_tokens = result.get("prompt_tokens")
         if isinstance(prompt_tokens, int):
             outcome.prompt_tokens += prompt_tokens
+        token_usage = result.get("token_usage")
+        if isinstance(token_usage, int):
+            outcome.token_usage += token_usage
+        token_usage_source = result.get("token_usage_source")
+        if isinstance(token_usage_source, str) and token_usage_source:
+            if outcome.token_usage_source == "unavailable":
+                outcome.token_usage_source = token_usage_source
+            elif outcome.token_usage_source != token_usage_source:
+                outcome.token_usage_source = "mixed"
         cost = result.get("cost_cny_estimated")
         if isinstance(cost, (int, float)) and not isinstance(cost, bool):
             outcome.cost_cny_estimated += float(cost)
+        outcome.cost_breakdown = _merge_cost_breakdown(
+            outcome.cost_breakdown,
+            result.get("cost_breakdown"),
+            prompt_tokens=outcome.prompt_tokens,
+            completion_tokens=outcome.completion_tokens,
+            token_usage_source=outcome.token_usage_source,
+        )
         content = str(result.get("content") or "")
         tool_calls = result.get("tool_calls") if isinstance(result.get("tool_calls"), list) else []
 
