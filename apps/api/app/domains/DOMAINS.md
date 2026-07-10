@@ -29,6 +29,8 @@
 
 ## frozen（web / 多租户 / 自动整书遗产）
 
+**2026-07-10 死码物理清理**：所有冻结域的 **HTTP 层（`router.py` / `service.py` / `schemas.py`）已物理删除**。`analytics` / `batch_refinery` / `worldbuilding`（无 models）**整目录删除**；`assets` / `collaboration` / `commercial` / `evaluations` / `prompt_packs` / `series` / `workspaces` **只剩 `models.py` + `__init__.py`**（`app/models.py` 聚合建表依赖，红线保留）。连带删 3 个 `*_service_acceptance` 死测、conftest `_reset_domain_caches` fixture（worldbuilding cache 已死）、`test_source_pruning` 的 worldbuilding/batch_refinery __init__ 卫生测；`test_redis_cache_strategy` 摘掉 3 个 worldbuilding/asset 缓存测、保留 artifacts + redis-util live 测。**OpenAPI 零变更**（router 早已卸载、schema 早已不在契约）。下方各 batch 记录为历史卸载过程。
+
 **router 已卸载（W4 batch-1，2026-07-04）**：`analytics`、`batch_refinery`、`collaboration`、`commercial`。
 - 零前端调用、零 backing 域 import 其 service；`collaboration`/`commercial` 的 `models.py` 仍在 `app/models.py` 聚合建表，故保留目录。
 - 护栏：`tests/test_api_surface.py::test_frozen_domain_routers_stay_unmounted`（重新 include_router 即红）。回滚 = `main.py` 加回一行 `include_router`。
@@ -51,5 +53,5 @@
 
 ## 冻结/删除红线
 
-- 冻结 = 卸 router，**不删** models（打碎 `app/models.py` 建表会连累 live）。物理删目录前须逐域 grep 全 import 面 + 打 `attic/*` tag，不在 W4 范围。
+- 冻结 = 卸 router；**`models.py` 永不删**（打碎 `app/models.py` 聚合建表会连累 live）。冻结域的 router/service/schemas 已于 2026-07-10 物理删除（见本节顶部）；models-only 域只剩 `models.py` + `__init__.py`，三个无 models 域（analytics/batch_refinery/worldbuilding）整目录已删。
 - 质量轨资产（book_runs / judge / story_memory / 长程生成链）一行不删，直到真实长程重跑验收完成（见 `docs/internal/arch-review-blueprint-2026-07-03.md` §9）。
