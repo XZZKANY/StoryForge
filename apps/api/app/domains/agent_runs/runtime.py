@@ -25,6 +25,7 @@ from app.domains.agent_runs.bookrun_summary import (
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
+from app.domains.agent_runs.entity_budget_scan import entity_budget_scan
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.intent import (
     SUPPORTED_INTENTS as SUPPORTED_INTENTS,
@@ -1470,6 +1471,7 @@ class AgentRuntime:
             "project.consistency": self._project_consistency,
             "project.prose_check": self._project_prose_check,
             "project.collapse_check": self._project_collapse_check,
+            "project.entity_budget_check": self._project_entity_budget_check,
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
             "file.review": self._file_review,
@@ -1643,6 +1645,64 @@ class AgentRuntime:
                 input_summary={"path": path},
                 output_summary={
                     "path": output["path"],
+                    "verdict": verdict["status"],
+                    "issue_count": len(verdict["issues"]),
+                },
+            ),
+        )
+
+    def _project_entity_budget_check(
+        self,
+        _context: ToolExecutionContext,
+        payload: dict[str, Any],
+    ) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        path = _required_string(payload, "path")
+        scan_args: dict[str, Any] = {}
+
+        for key in (
+            "new_key_characters",
+            "new_core_locations",
+            "new_core_evidence",
+            "new_major_reversals",
+            "new_mysteries",
+            "new_equipment",
+        ):
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                raise fs_tools.FsToolError(f"{key} 必须是字符串数组。")
+            scan_args[key] = value
+
+        for key in (
+            "chapter",
+            "budget_key_characters",
+            "budget_core_locations",
+            "budget_core_evidence",
+            "budget_major_reversals",
+            "budget_new_core_entities_after_chapter_20",
+            "budget_new_mysteries_after_chapter_25",
+        ):
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise fs_tools.FsToolError(f"{key} 必须是整数。")
+            scan_args[key] = value
+
+        output = entity_budget_scan(project_root, path, **scan_args)
+        verdict = output["verdict"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.entity_budget_check",
+                status="completed",
+                input_summary={"path": path, "chapter": output["chapter"]},
+                output_summary={
+                    "path": output["path"],
+                    "chapter": output["chapter"],
                     "verdict": verdict["status"],
                     "issue_count": len(verdict["issues"]),
                 },

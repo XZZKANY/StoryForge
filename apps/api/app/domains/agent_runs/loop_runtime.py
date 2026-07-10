@@ -56,6 +56,8 @@ _SYSTEM_PROMPT = (
     "适合修订前先定位文笔问题；结果是参考信号，结合原文判断。"
     "要判断一场是否只是过场、有没有承重时，用 project_collapse_check；先读完正文，再填入你观察到的"
     "beats、前后情绪、不可逆后果和是否可删除。未观察到的字段不要猜，工具结果只是 advisory 参考。"
+    "要检查单章新增人物、核心地点、证据、反转、谜题或装备是否突破长篇预算时，用 "
+    "project_entity_budget_check；先读完正文再填观察到的新增项，未观察的字段不要猜。"
     "要对单章做深度一致性检查（正文是否违背人物设定 / 世界观 / 已知事实）时，"
     "用 project_deep_consistency 让语义评审模型把稿件对照人物 / 设定文件核查；"
     "它返回的 issue 是参考信号，回给作者前先抽读对应行核实，不要照单全收。"
@@ -155,6 +157,14 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
         verdict = output.get("verdict") if isinstance(output.get("verdict"), dict) else {}
         return {
             "path": output.get("path"),
+            "verdict": verdict.get("status"),
+            "issue_count": len(verdict.get("issues") or []),
+        }
+    if registry_name == "project.entity_budget_check":
+        verdict = output.get("verdict") if isinstance(output.get("verdict"), dict) else {}
+        return {
+            "path": output.get("path"),
+            "chapter": output.get("chapter"),
             "verdict": verdict.get("status"),
             "issue_count": len(verdict.get("issues") or []),
         }
@@ -384,7 +394,7 @@ def run_chat_loop(
                 if isinstance(output.get("review_report"), dict):
                     outcome.review_report = output["review_report"]
                 feedback = _review_feedback(output)
-            elif registry_name == "project.collapse_check":
+            elif registry_name in ("project.collapse_check", "project.entity_budget_check"):
                 feedback = {"summary": output.get("summary")}
             elif registry_name in _PATCH_TOOLS:
                 if isinstance(output.get("proposed_patch"), dict):

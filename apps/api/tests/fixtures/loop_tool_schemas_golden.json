@@ -213,6 +213,95 @@
   {
     "type": "function",
     "function": {
+      "name": "project_entity_budget_check",
+      "description": "长篇实体预算检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把本章观察到的新增关键人物、核心地点、核心证据、重大反转、谜题和装备填入可选数组。字段未传会跳过对应规则，显式空数组表示本章无该类新增。chapter 未传时按项目文件阅读序推断。返回 pass / warn advisory 信号，仅供结构规划参考，不是质量判定。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对项目根的正文文件路径。"
+          },
+          "chapter": {
+            "type": "integer",
+            "description": "可选章节序号；未传时按项目文件阅读序推断。"
+          },
+          "new_key_characters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本章新增关键人物；显式空数组表示无新增。"
+          },
+          "new_core_locations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本章新增核心地点；显式空数组表示无新增。"
+          },
+          "new_core_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本章新增核心证据；显式空数组表示无新增。"
+          },
+          "new_major_reversals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本章新增重大反转；显式空数组表示无新增。"
+          },
+          "new_mysteries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本章新增谜题；显式空数组表示无新增。"
+          },
+          "new_equipment": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本章新增装备或设备型号；显式空数组表示无新增。"
+          },
+          "budget_key_characters": {
+            "type": "integer",
+            "description": "关键人物数量预算覆盖，默认 5。"
+          },
+          "budget_core_locations": {
+            "type": "integer",
+            "description": "核心地点数量预算覆盖，默认 3。"
+          },
+          "budget_core_evidence": {
+            "type": "integer",
+            "description": "核心证据数量预算覆盖，默认 3。"
+          },
+          "budget_major_reversals": {
+            "type": "integer",
+            "description": "重大反转数量预算覆盖，默认 2。"
+          },
+          "budget_new_core_entities_after_chapter_20": {
+            "type": "integer",
+            "description": "第 20 章后新增核心实体预算覆盖，默认 0。"
+          },
+          "budget_new_mysteries_after_chapter_25": {
+            "type": "integer",
+            "description": "第 25 章后新增谜题预算覆盖，默认 0。"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "file_review",
       "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
       "parameters": {

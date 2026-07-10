@@ -753,6 +753,68 @@ def test_chat_loop_collapse_check_feeds_summary_only(
     assert "project.collapse_check" in [item["tool_name"] for item in tool_calls]
 
 
+def test_chat_loop_entity_budget_check_feeds_summary_only(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 entity_budget_check：完整 verdict 留证据，短 summary 回灌模型。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_entity_budget_check",
+                            "arguments": json.dumps(
+                                {
+                                    "path": "正文/第01章.md",
+                                    "chapter": 20,
+                                    "new_core_locations": ["旧港"],
+                                }
+                            ),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "本章在后期引入了新核心地点，建议核实必要性。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-entity-budget",
+        project_path=str(novel_project),
+        message="看看第一章新增实体有没有突破预算",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    trace = result["tool_trace"][0]
+    assert trace["tool_name"] == "project.entity_budget_check"
+    assert trace["output_summary"] == {
+        "path": "正文/第01章.md",
+        "chapter": 20,
+        "verdict": "warn",
+        "issue_count": 1,
+    }
+
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert '"summary"' in feedback
+    assert '"issues"' not in feedback
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.entity_budget_check" in [item["tool_name"] for item in tool_calls]
+
+
 def test_chat_loop_deep_consistency_feeds_semantic_issues(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
