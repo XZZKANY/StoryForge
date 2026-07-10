@@ -815,6 +815,70 @@ def test_chat_loop_entity_budget_check_feeds_summary_only(
     assert "project.entity_budget_check" in [item["tool_name"] for item in tool_calls]
 
 
+def test_chat_loop_canon_delta_feeds_summary_only(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 project.canon_delta：完整提案留证据，短 summary 回灌模型。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_canon_delta",
+                            "arguments": json.dumps(
+                                {
+                                    "entities": [
+                                        {"name": "新客", "aliases": ["黑衣人"]},
+                                    ]
+                                }
+                            ),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "已生成一个新实体提案，等待作者审阅。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-canon-delta",
+        project_path=str(novel_project),
+        message="把第一章的新人物整理成设定提案",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    trace = result["tool_trace"][0]
+    assert trace["tool_name"] == "project.canon_delta"
+    assert trace["output_summary"] == {
+        "new_entity_count": 1,
+        "known_entity_count": 0,
+        "alias_conflict_count": 0,
+        "new_conflict_count": 0,
+        "new_advisory_count": 0,
+    }
+
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert '"summary"' in feedback
+    assert '"proposals"' not in feedback
+    assert '"new_entities"' not in feedback
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.canon_delta" in [item["tool_name"] for item in tool_calls]
+
+
 def test_chat_loop_deep_consistency_feeds_semantic_issues(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

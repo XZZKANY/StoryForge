@@ -26,7 +26,7 @@ _CANON_FILENAME = "canon.json"
 _DERIVED_DIRNAME = "derived"
 
 # 派生缓存文件白名单：写入口只接受这些名字，杜绝借 name 参数穿目录。
-_ALLOWED_DERIVED_NAMES = frozenset({"presence.json", "report.json"})
+_ALLOWED_DERIVED_NAMES = frozenset({"presence.json", "proposals.json", "report.json"})
 # 派生文本缓存白名单（人可读投影，非 JSON）。
 _ALLOWED_DERIVED_TEXT_NAMES = frozenset({"dossier.md"})
 

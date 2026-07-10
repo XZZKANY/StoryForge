@@ -64,6 +64,8 @@ _SYSTEM_PROMPT = (
     "要查跨章累积漂移（同一物件的唯一持有、时间线先后、角色退场后是否还出场）时，"
     "用 project_canon：它从正文重建在场缓存并校验作者在 canon.json 声明的薄不变量，"
     "随书累积、比无状态深查更能抓累积偏移；硬矛盾是声明内部结构冲突，advisory 仍须抽读核实。"
+    "读完章节并观察到 canon 级实体、持有、退场或时间线事实时，用 project_canon_delta 生成确定性提案；"
+    "它只写派生 proposals.json 草稿，不改 canon.json，别把提案说成已经写回。"
     "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁；"
     "要求写新章节 / 新文件时用 file_create 起草（目标文件必须尚不存在，先看清项目结构选好路径）。"
     "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订或新文件已生效。"
@@ -179,6 +181,15 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "entity_count": output.get("entity_count"),
             "conflict_count": output.get("conflict_count"),
             "advisory_count": output.get("advisory_count"),
+        }
+    if registry_name == "project.canon_delta":
+        proposals = output.get("proposals") if isinstance(output.get("proposals"), dict) else {}
+        return {
+            "new_entity_count": len(proposals.get("new_entities") or []),
+            "known_entity_count": len(proposals.get("known_entities") or []),
+            "alias_conflict_count": len(output.get("alias_conflicts") or []),
+            "new_conflict_count": len(output.get("new_conflicts") or []),
+            "new_advisory_count": len(output.get("new_advisories") or []),
         }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
@@ -394,7 +405,11 @@ def run_chat_loop(
                 if isinstance(output.get("review_report"), dict):
                     outcome.review_report = output["review_report"]
                 feedback = _review_feedback(output)
-            elif registry_name in ("project.collapse_check", "project.entity_budget_check"):
+            elif registry_name in (
+                "project.collapse_check",
+                "project.entity_budget_check",
+                "project.canon_delta",
+            ):
                 feedback = {"summary": output.get("summary")}
             elif registry_name in _PATCH_TOOLS:
                 if isinstance(output.get("proposed_patch"), dict):

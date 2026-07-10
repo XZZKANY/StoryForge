@@ -289,6 +289,96 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.canon_delta",
+        description=(
+            "确定性 canon 提案：把模型从正文观察到的实体、持有、退场和时间线声明与既有 canon 做归并、"
+            "别名冲突与不变量差量检查，草稿只写派生 proposals.json；不写 canon.json 或手稿。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent", "context_explorer"),
+        risk_level="read",
+        retry_safe=True,
+        idempotent=True,
+        execution_mode="sync",
+        evidence_fields=(
+            "new_entity_count",
+            "known_entity_count",
+            "alias_conflict_count",
+            "new_conflict_count",
+            "new_advisory_count",
+        ),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_canon_delta",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场和"
+                "时间线先后作为结构化参数传入。字段未传表示该类不提议；全空会诚实返回无提议。工具会归并"
+                "既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 "
+                "proposals.json，绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "entities": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "aliases": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "required": ["name"],
+                        },
+                        "description": "本章观察到的实体；name 为主表面形，aliases 为可选别名。",
+                    },
+                    "holder_claims": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "item": {"type": "string"},
+                                "holder": {"type": "string"},
+                                "from_chapter": {"type": "integer"},
+                                "to_chapter": {"type": "integer"},
+                            },
+                            "required": ["item", "holder"],
+                        },
+                        "description": "本章观察到的唯一持有声明。",
+                    },
+                    "exit_claims": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "entity": {"type": "string"},
+                                "exits_after_chapter": {"type": "integer"},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["entity", "exits_after_chapter"],
+                        },
+                        "description": "本章观察到的实体退场声明。",
+                    },
+                    "timeline_claims": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "before": {"type": "string"},
+                                "after": {"type": "string"},
+                            },
+                            "required": ["before", "after"],
+                        },
+                        "description": "本章观察到的时间线先后声明。",
+                    },
+                },
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="project.prose_check",
         description=(
             "文笔气味静态检查：对单个稿件做确定性坏味道扫描（陈词套话 / 说明腔 / 情绪直述 / "

@@ -22,6 +22,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_chapter_plan_summary,
     _bookrun_risk_summary,
 )
+from app.domains.agent_runs.canon_delta import canon_delta
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
@@ -1474,6 +1475,7 @@ class AgentRuntime:
             "project.entity_budget_check": self._project_entity_budget_check,
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
+            "project.canon_delta": self._project_canon_delta,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "file.create": self._file_create,
@@ -1815,6 +1817,42 @@ class AgentRuntime:
                     "checked_invariants": gate["checked_invariants"],
                     "conflict_count": gate["conflict_count"],
                     "advisory_count": gate["advisory_count"],
+                },
+            ),
+        )
+
+    def _project_canon_delta(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        delta_args: dict[str, Any] = {}
+        for key in ("entities", "holder_claims", "exit_claims", "timeline_claims"):
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+                raise fs_tools.FsToolError(f"{key} 必须是对象数组。")
+            delta_args[key] = value
+
+        output = canon_delta(project_root, **delta_args)
+        proposals = output["proposals"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.canon_delta",
+                status="completed",
+                input_summary={
+                    "entity_count": len(delta_args.get("entities") or []),
+                    "claim_count": sum(
+                        len(delta_args.get(key) or [])
+                        for key in ("holder_claims", "exit_claims", "timeline_claims")
+                    ),
+                },
+                output_summary={
+                    "new_entity_count": len(proposals["new_entities"]),
+                    "known_entity_count": len(proposals["known_entities"]),
+                    "alias_conflict_count": len(output["alias_conflicts"]),
+                    "new_conflict_count": len(output["new_conflicts"]),
+                    "new_advisory_count": len(output["new_advisories"]),
                 },
             ),
         )
