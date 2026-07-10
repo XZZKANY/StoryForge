@@ -41,6 +41,7 @@ from app.domains.agent_runs.llm_context import (
     llm_context_snapshot_trace_summary,
 )
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
+from app.domains.agent_runs.prose_scan import prose_static_scan
 from app.domains.agent_runs.review_report import (
     _build_multi_agent_review_report_with_executor,
     _continuity_subagent_handler,
@@ -1466,6 +1467,7 @@ class AgentRuntime:
             "fs.read": self._fs_read,
             "fs.search": self._fs_search,
             "project.consistency": self._project_consistency,
+            "project.prose_check": self._project_prose_check,
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
             "file.review": self._file_review,
@@ -1570,6 +1572,25 @@ class AgentRuntime:
                     "term_count": len(output["term_occurrences"]),
                     "time_marker_count": len(output["time_markers"]),
                     "repeated_clause_count": len(output["repeated_clauses"]),
+                },
+            ),
+        )
+
+    def _project_prose_check(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        path = _required_string(payload, "path")
+        output = prose_static_scan(project_root, path)
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.prose_check",
+                status="completed",
+                input_summary={"path": path},
+                output_summary={
+                    "path": output["path"],
+                    "issue_count": output["issue_count"],
+                    "dimension_count": len(output["dimension_counts"]),
                 },
             ),
         )

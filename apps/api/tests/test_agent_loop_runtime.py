@@ -632,6 +632,64 @@ def test_chat_loop_project_consistency_feeds_observations(
     assert "project.consistency" in [item["tool_name"] for item in tool_calls]
 
 
+def test_chat_loop_prose_check_feeds_static_smells(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 project.prose_check：确定性文笔气味 issue 喂回模型并落证据链（无 LLM 判定）。"""
+
+    _enable_loop_env(monkeypatch)
+    (novel_project / "正文" / "第02章.md").write_text(
+        "她不禁停下，心中五味杂陈。她非常害怕，也十分绝望。", encoding="utf-8"
+    )
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_prose_check",
+                            "arguments": json.dumps({"path": "正文/第02章.md"}),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "第二章有套话和情绪直述，建议改成动作呈现。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-prose",
+        project_path=str(novel_project),
+        message="帮我看看第二章文笔有什么问题",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert [trace["tool_name"] for trace in result["tool_trace"]] == ["project.prose_check"]
+    trace = result["tool_trace"][0]
+    assert trace["status"] == "completed"
+    assert trace["output_summary"]["path"] == "正文/第02章.md"
+    assert trace["output_summary"]["issue_count"] >= 2
+
+    # 确定性 issue 原样喂回模型：含维度名与坏味道条目
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert "套话" in feedback
+    assert "说明腔" in feedback
+    assert "dimension_counts" in feedback
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.prose_check" in [item["tool_name"] for item in tool_calls]
+
+
 def test_chat_loop_deep_consistency_feeds_semantic_issues(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
