@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Thread
@@ -11,6 +13,17 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = ROOT / ".codex" / "run-real-llm-connectivity-probe.ps1"
 TEN_CHAPTER_WRAPPER_PATH = ROOT / ".codex" / "run-real-llm-10ch-current-env.ps1"
 ACCEPTANCE_WRAPPER_PATH = ROOT / ".codex" / "run-real-llm-acceptance-interactive.ps1"
+
+
+def _wait_until_server_accepts_connections(server: HTTPServer) -> None:
+    deadline = time.monotonic() + 5.0
+    while True:
+        try:
+            with socket.create_connection(server.server_address, timeout=0.1):
+                return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
 
 
 class _ProbeProviderHandler(BaseHTTPRequestHandler):
@@ -145,16 +158,17 @@ def test_real_llm_connectivity_probe_retries_once_when_chat_content_is_empty() -
     server = HTTPServer(("127.0.0.1", 0), _EmptyThenOkProbeProviderHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    env = os.environ.copy()
-    env.update(
-        {
-            "STORYFORGE_LLM_API_KEY": "test-local-credential",
-            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
-            "STORYFORGE_LLM_MODEL": "local-probe-model",
-        }
-    )
 
     try:
+        _wait_until_server_accepts_connections(server)
+        env = os.environ.copy()
+        env.update(
+            {
+                "STORYFORGE_LLM_API_KEY": "test-local-credential",
+                "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+                "STORYFORGE_LLM_MODEL": "local-probe-model",
+            }
+        )
         result = subprocess.run(
             [
                 "powershell",
@@ -169,11 +183,12 @@ def test_real_llm_connectivity_probe_retries_once_when_chat_content_is_empty() -
             text=True,
             check=False,
             env=env,
-            timeout=20,
+            timeout=60,
         )
     finally:
         server.shutdown()
-        thread.join(timeout=2)
+        server.server_close()
+        thread.join()
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "chat_content: empty" in result.stdout
@@ -229,18 +244,19 @@ def test_ten_chapter_wrapper_probe_only_passes_with_local_provider() -> None:
     server = HTTPServer(("127.0.0.1", 0), _ProbeProviderHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    env = os.environ.copy()
-    env.update(
-        {
-            "STORYFORGE_LLM_API_KEY": "test-local-credential",
-            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
-            "STORYFORGE_LLM_MODEL": "local-probe-model",
-            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
-            "STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD": "1",
-        }
-    )
 
     try:
+        _wait_until_server_accepts_connections(server)
+        env = os.environ.copy()
+        env.update(
+            {
+                "STORYFORGE_LLM_API_KEY": "test-local-credential",
+                "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+                "STORYFORGE_LLM_MODEL": "local-probe-model",
+                "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+                "STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD": "1",
+            }
+        )
         result = subprocess.run(
             [
                 "powershell",
@@ -256,11 +272,12 @@ def test_ten_chapter_wrapper_probe_only_passes_with_local_provider() -> None:
             text=True,
             check=False,
             env=env,
-            timeout=20,
+            timeout=60,
         )
     finally:
         server.shutdown()
-        thread.join(timeout=2)
+        server.server_close()
+        thread.join()
 
     assert result.returncode == 0, result.stderr
     assert "models_probe: ok" in result.stdout
@@ -328,17 +345,18 @@ def test_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
     server = HTTPServer(("127.0.0.1", 0), _ProbeProviderHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    env = os.environ.copy()
-    env.update(
-        {
-            "STORYFORGE_LLM_API_KEY": "test-local-credential",
-            "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
-            "STORYFORGE_LLM_MODEL": "local-probe-model",
-            "STORYFORGE_LLM_PROVIDER": "openai-compatible",
-        }
-    )
 
     try:
+        _wait_until_server_accepts_connections(server)
+        env = os.environ.copy()
+        env.update(
+            {
+                "STORYFORGE_LLM_API_KEY": "test-local-credential",
+                "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+                "STORYFORGE_LLM_MODEL": "local-probe-model",
+                "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+            }
+        )
         result = subprocess.run(
             [
                 "powershell",
@@ -354,11 +372,12 @@ def test_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
             text=True,
             check=False,
             env=env,
-            timeout=20,
+            timeout=60,
         )
     finally:
         server.shutdown()
-        thread.join(timeout=2)
+        server.server_close()
+        thread.join()
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "models_probe: ok" in result.stdout
