@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 
 import { reconstructAgentResultFromEvents } from '../src/lib/api/agent-run-events';
 import type { AgentErrorMessage, AgentResultMessage } from '../src/lib/api/types';

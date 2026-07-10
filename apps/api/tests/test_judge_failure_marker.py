@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
+from app.common import llm_client
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
 from app.domains.judge.schemas import JudgeIssueCreate
@@ -45,16 +46,14 @@ def test_create_judge_issues_injects_failure_marker_when_semantic_judge_fails(se
     session.refresh(scene_packet)
 
     # 模拟语义评审调用失败（网络超时）
-    def failing_httpx_client(*args, **kwargs):
+    def failing_llm_request(*args, **kwargs):
         raise RuntimeError("Server disconnected without sending a response.")
 
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://llm.example/v1")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_MODEL", "gpt-5.4")
 
-    import app.domains.judge.service as judge_service
-
-    monkeypatch.setattr(judge_service.httpx, "Client", failing_httpx_client)
+    monkeypatch.setattr(llm_client, "_request_chat_completions", failing_llm_request)
 
     payload = JudgeIssueCreate(
         scene_id=scene.id,

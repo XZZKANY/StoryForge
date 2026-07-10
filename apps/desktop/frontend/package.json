@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node scripts/verify-unit.mjs && vitest run",
-    "test:behavior": "vitest run",
+    "test": "vitest run",
     "build": "vite build",
     "preview": "vite preview",
     "verify:smoke": "node scripts/verify-smoke.mjs",

@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import httpx  # noqa: F401  facade re-export（tests monkeypatch 需要）
 from sqlalchemy.orm import Session
 
 from app.domains.books.models import Scene
@@ -41,7 +40,6 @@ from app.domains.judge.deterministic import (  # noqa: F401  facade re-export
 from app.domains.judge.models import JudgeIssue
 from app.domains.judge.schemas import JudgeIssueCreate
 from app.domains.judge.semantic import (  # noqa: F401  facade re-export
-    _chat_completions_url,
     _decode_semantic_judge_content,
     _first_json_array_fragment,
     _issue_from_llm_item,

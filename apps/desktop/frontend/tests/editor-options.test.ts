@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 
 import { STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from '../src/components/editor/options';
 

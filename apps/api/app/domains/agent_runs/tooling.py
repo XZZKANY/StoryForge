@@ -321,6 +321,59 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.collapse_check",
+        description=(
+            "场景承重静态检查：结合正文与模型抽取的结构化观察值，确定性标记 process-only、"
+            "情绪零变化、无不可逆后果、可删除和调查模板风险；仅供 advisory 参考，不是质量判定。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent", "context_explorer"),
+        risk_level="read",
+        retry_safe=True,
+        idempotent=True,
+        execution_mode="sync",
+        evidence_fields=("path", "verdict", "issue_count"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_collapse_check",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "场景承重静态检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把你从正文观察到的 beats、"
+                "场景前后情绪、不可逆后果、是否可删除填入可选参数。未传字段会跳过对应规则；显式空串 / "
+                "空数组表示观察结果为无。工具还会扫描正文调查模板，返回 pass / warn advisory 信号。"
+                "结果只是辅助判断，不是场景质量结论。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的正文文件路径。"},
+                    "beats": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "读完正文后提取的场景动作 beats；显式空数组表示没有 beats。",
+                    },
+                    "emotion_before": {
+                        "type": "string",
+                        "description": "场景开始时的情绪；显式空串表示没有可识别情绪。",
+                    },
+                    "emotion_after": {
+                        "type": "string",
+                        "description": "场景结束时的情绪；显式空串表示没有可识别情绪。",
+                    },
+                    "irreversible_consequence": {
+                        "type": "string",
+                        "description": "本场造成的不可逆后果；显式空串表示没有。",
+                    },
+                    "deletable": {
+                        "type": "boolean",
+                        "description": "删除本场后主线是否仍成立。",
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="file.review",
         description="执行 chapter_polish 多子代理审稿。",
         domain="review",

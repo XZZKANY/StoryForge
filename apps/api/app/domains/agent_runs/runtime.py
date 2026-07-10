@@ -22,6 +22,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_chapter_plan_summary,
     _bookrun_risk_summary,
 )
+from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
 from app.domains.agent_runs.errors import AgentOrchestrationError
@@ -1468,6 +1469,7 @@ class AgentRuntime:
             "fs.search": self._fs_search,
             "project.consistency": self._project_consistency,
             "project.prose_check": self._project_prose_check,
+            "project.collapse_check": self._project_collapse_check,
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
             "file.review": self._file_review,
@@ -1591,6 +1593,58 @@ class AgentRuntime:
                     "path": output["path"],
                     "issue_count": output["issue_count"],
                     "dimension_count": len(output["dimension_counts"]),
+                },
+            ),
+        )
+
+    def _project_collapse_check(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        path = _required_string(payload, "path")
+
+        beats: list[str] | None = None
+        if "beats" in payload:
+            beats_raw = payload["beats"]
+            if not isinstance(beats_raw, list) or any(not isinstance(item, str) for item in beats_raw):
+                raise fs_tools.FsToolError("beats 必须是字符串数组。")
+            beats = beats_raw
+
+        optional_strings: dict[str, str | None] = {}
+        for key in ("emotion_before", "emotion_after", "irreversible_consequence"):
+            if key not in payload:
+                optional_strings[key] = None
+                continue
+            value = payload[key]
+            if not isinstance(value, str):
+                raise fs_tools.FsToolError(f"{key} 必须是字符串。")
+            optional_strings[key] = value
+
+        deletable: bool | None = None
+        if "deletable" in payload:
+            if not isinstance(payload["deletable"], bool):
+                raise fs_tools.FsToolError("deletable 必须是布尔值。")
+            deletable = payload["deletable"]
+
+        output = collapse_scan(
+            project_root,
+            path,
+            beats=beats,
+            emotion_before=optional_strings["emotion_before"],
+            emotion_after=optional_strings["emotion_after"],
+            irreversible_consequence=optional_strings["irreversible_consequence"],
+            deletable=deletable,
+        )
+        verdict = output["verdict"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.collapse_check",
+                status="completed",
+                input_summary={"path": path},
+                output_summary={
+                    "path": output["path"],
+                    "verdict": verdict["status"],
+                    "issue_count": len(verdict["issues"]),
                 },
             ),
         )
