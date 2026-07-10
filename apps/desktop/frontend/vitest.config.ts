@@ -1,12 +1,17 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
-// W7 前端行为测试基建：vitest + happy-dom。
-// 只接管新增的 *.vitest.ts 行为测试；既有 tests/**/*.test.ts 仍由 scripts/verify-unit.mjs
-// （node:test）承载，待后续 PR 周期整体迁入 vitest 后再删自制 runner。
+// W7 前端测试统一由 vitest + happy-dom 执行。
 export default defineConfig({
+  resolve: {
+    alias: {
+      'monaco-editor': fileURLToPath(new URL('./tests/stubs/monaco-editor.ts', import.meta.url)),
+    },
+  },
   test: {
     environment: 'happy-dom',
-    include: ['tests/behavior/**/*.vitest.ts'],
+    include: ['tests/**/*.test.{ts,tsx}', 'tests/**/*.vitest.ts'],
     globals: false,
   },
 });
