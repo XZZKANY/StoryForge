@@ -104,6 +104,7 @@ import {
   stepsFromResumedAgentResult,
 } from './chat-window/resumed-result';
 import { conversationKey, isRunResultForActiveSession } from './chat-window/session-guard';
+import { shouldResetRunPanels } from './chat-window/session-switch';
 import { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-window/writing-run';
 
 export {
@@ -346,6 +347,7 @@ export function ChatWindow({
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
   const previousAssistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
+  const selfPersistedSessionIdRef = useRef<number | null>(null);
   const draftNonceRef = useRef<string>('');
   if (!draftNonceRef.current) draftNonceRef.current = nextDraftNonce();
   // 在飞 run 起跑时所属会话。ChatWindow 未按会话 key 重挂，故所有异步写回面（流事件 /
@@ -371,6 +373,13 @@ export function ChatWindow({
 
   useEffect(() => {
     const nextSessionId = assistantSessionId ?? null;
+    if (shouldResetRunPanels(nextSessionId, selfPersistedSessionIdRef.current)) {
+      setAgentRun(null);
+      setWritingRunProjection(null);
+      setRetryRequest(null);
+    } else {
+      selfPersistedSessionIdRef.current = null;
+    }
     if (previousAssistantSessionIdRef.current !== null && nextSessionId === null) {
       draftNonceRef.current = nextDraftNonce();
     }
@@ -871,10 +880,14 @@ export function ChatWindow({
           return;
         }
 
+        const persistedDraftSession = assistantSessionIdRef.current === null;
         assistantSessionIdRef.current = response.assistant_session_id;
         // 新会话完成时后端才回 id：把在飞会话身份一并推进到该 id，避免随后 assistantSessionId
         // 由 null→id 触发的会话副作用把这轮刚完成的结果误判成「切走的旧 run」。
         runStartConversationKeyRef.current = conversationKey(response.assistant_session_id, '');
+        if (persistedDraftSession) {
+          selfPersistedSessionIdRef.current = response.assistant_session_id;
+        }
         onAssistantSessionChange?.(response.assistant_session_id);
         const systemTitle = titleFromSystemJobs(response);
         if (systemTitle) setConversationTitle(systemTitle);
@@ -1330,10 +1343,7 @@ export function ChatWindow({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-      <ConversationHeader
-        title={conversationTitle}
-        onNewSession={handleNewSession}
-      />
+      <ConversationHeader title={conversationTitle} onNewSession={handleNewSession} />
 
       <MessageList
         messages={messages}
