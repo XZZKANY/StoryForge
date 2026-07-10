@@ -133,32 +133,6 @@ def test_judge_package_does_not_reexport_sqlalchemy_models() -> None:
         assert forbidden not in judge_init_source
 
 
-def test_worldbuilding_package_does_not_reexport_service_functions() -> None:
-    """worldbuilding 包级入口不应重复转导出服务函数，统一从 service.py 读取。"""
-
-    worldbuilding_init = API_ROOT / "app" / "domains" / "worldbuilding" / "__init__.py"
-    worldbuilding_init_source = worldbuilding_init.read_text(encoding="utf-8")
-
-    for forbidden in (
-        "build_worldbuilding_center",
-        "from app.domains.worldbuilding.service import",
-    ):
-        assert forbidden not in worldbuilding_init_source
-
-
-def test_batch_refinery_package_does_not_reexport_service_functions() -> None:
-    """batch_refinery 包级入口不应重复转导出服务函数，统一从 service.py 读取。"""
-
-    batch_refinery_init = API_ROOT / "app" / "domains" / "batch_refinery" / "__init__.py"
-    batch_refinery_init_source = batch_refinery_init.read_text(encoding="utf-8")
-
-    for forbidden in (
-        "run_batch_refinery",
-        "from app.domains.batch_refinery.service import",
-    ):
-        assert forbidden not in batch_refinery_init_source
-
-
 def test_story_memory_package_does_not_reexport_service_functions() -> None:
     """story_memory 包级入口不应重复转导出服务函数，统一从 service.py 读取。"""
 

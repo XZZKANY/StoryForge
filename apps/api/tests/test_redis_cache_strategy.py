@@ -16,14 +16,7 @@ from app.domains.artifacts.service import (
     create_artifact,
     list_artifacts_cached,
 )
-from app.domains.assets.schemas import AssetCreate
-from app.domains.assets.service import create_asset
 from app.domains.books.models import Book
-from app.domains.series.models import Series
-from app.domains.worldbuilding.service import (
-    build_worldbuilding_center,
-    invalidate_worldbuilding_cache,
-)
 
 
 class _FakeCache:
@@ -61,7 +54,6 @@ def fake_cache(monkeypatch: pytest.MonkeyPatch) -> _FakeCache:
     )
     # 同时 patch 业务模块导入的引用，因为 from-import 创建了独立绑定。
     from app.domains.artifacts import service as artifacts_service
-    from app.domains.worldbuilding import service as worldbuilding_service
 
     monkeypatch.setattr(artifacts_service, "cache_get_value", cache.get)
     monkeypatch.setattr(
@@ -69,13 +61,6 @@ def fake_cache(monkeypatch: pytest.MonkeyPatch) -> _FakeCache:
     )
     monkeypatch.setattr(
         artifacts_service, "cache_delete_pattern", lambda pattern: cache.delete_pattern(pattern)
-    )
-    monkeypatch.setattr(worldbuilding_service, "cache_get_value", cache.get)
-    monkeypatch.setattr(
-        worldbuilding_service, "cache_set_value", lambda key, value, ttl: cache.set(key, value, ttl)
-    )
-    monkeypatch.setattr(
-        worldbuilding_service, "cache_delete_pattern", lambda pattern: cache.delete_pattern(pattern)
     )
     return cache
 
@@ -129,52 +114,6 @@ def test_artifact_create_invalidates_list_cache(
     )
 
     assert cache_key not in fake_cache.store
-
-
-def test_worldbuilding_center_cache_serves_repeated_calls(
-    session: Session, fake_cache: _FakeCache
-) -> None:
-    series = Series(title="灯塔系列", description="系列描述")
-    session.add(series)
-    session.commit()
-
-    first = build_worldbuilding_center(session, series_id=series.id)
-    cache_key = f"storyforge:worldbuilding-center:series:{series.id}:all"
-    assert cache_key in fake_cache.store
-
-    second = build_worldbuilding_center(session, series_id=series.id)
-    assert first.series.id == second.series.id == series.id
-
-
-def test_asset_write_invalidates_worldbuilding_cache(
-    session: Session, fake_cache: _FakeCache
-) -> None:
-    series = Series(title="资产缓存", description="资产写后失效")
-    session.add(series)
-    session.flush()
-    book = Book(title="资产书", status="draft", premise="x", series_id=series.id) if hasattr(Book, "series_id") else Book(title="资产书", status="draft", premise="x")
-    session.add(book)
-    session.commit()
-    build_worldbuilding_center(session, series_id=series.id)
-    cache_key = f"storyforge:worldbuilding-center:series:{series.id}:all"
-    assert cache_key in fake_cache.store
-
-    create_asset(
-        session,
-        AssetCreate(book_id=book.id, asset_type="character", name="林岚"),
-    )
-    # 资产作用域无法直接反查 series_id，默认全失效，世界观缓存应被清空。
-    assert cache_key not in fake_cache.store
-
-
-def test_invalidate_worldbuilding_cache_explicit_series_only_clears_matching(
-    fake_cache: _FakeCache,
-) -> None:
-    fake_cache.store["storyforge:worldbuilding-center:series:1:all"] = {"x": 1}
-    fake_cache.store["storyforge:worldbuilding-center:series:2:all"] = {"x": 2}
-    invalidate_worldbuilding_cache(series_id=1)
-    assert "storyforge:worldbuilding-center:series:1:all" not in fake_cache.store
-    assert "storyforge:worldbuilding-center:series:2:all" in fake_cache.store
 
 
 def test_redis_client_uses_short_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:

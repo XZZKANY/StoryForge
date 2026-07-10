@@ -73,15 +73,6 @@ def _reset_rate_limiter() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _reset_domain_caches() -> None:
-    """每个测试前清理领域缓存，避免内存数据库 ID 重置后读到旧聚合。"""
-
-    from app.domains.worldbuilding.service import invalidate_worldbuilding_cache
-
-    invalidate_worldbuilding_cache()
-
-
-@pytest.fixture(autouse=True)
 def _disable_s3_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """默认禁用 S3 客户端，避免测试尝试连接真实 MinIO；需要时显式打桩。"""
 
