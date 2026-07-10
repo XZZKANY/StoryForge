@@ -103,7 +103,7 @@ import {
   statusFromAgentResult,
   stepsFromResumedAgentResult,
 } from './chat-window/resumed-result';
-import { isRunResultForActiveSession } from './chat-window/session-guard';
+import { conversationKey, isRunResultForActiveSession } from './chat-window/session-guard';
 import { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-window/writing-run';
 
 export {
@@ -299,6 +299,13 @@ async function appendExplicitContextFiles(
   };
 }
 
+let draftNonceCounter = 0;
+
+function nextDraftNonce(): string {
+  draftNonceCounter += 1;
+  return `draft-${draftNonceCounter}`;
+}
+
 export function ChatWindow({
   projectPath,
   currentFile,
@@ -338,9 +345,14 @@ export function ChatWindow({
   const projectPathRef = useRef<string | null>(projectPath);
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
+  const previousAssistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
+  const draftNonceRef = useRef<string>('');
+  if (!draftNonceRef.current) draftNonceRef.current = nextDraftNonce();
   // 在飞 run 起跑时所属会话。ChatWindow 未按会话 key 重挂，故所有异步写回面（流事件 /
   // 终态 / catch / editor 回传）都要拿它比对当前活动会话，作者切走后一律不写回（修 F26 余项）。
-  const runStartSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
+  const runStartConversationKeyRef = useRef<string>(
+    conversationKey(assistantSessionId ?? null, draftNonceRef.current),
+  );
   const unsubscribeWritingRunRef = useRef<(() => void) | null>(null);
   // 每次渲染后把最新值同步到 ref，供 WebSocket / 异步回调读取最新 props，避免闭包读到旧值。
   useEffect(() => {
@@ -358,6 +370,12 @@ export function ChatWindow({
   }, []);
 
   useEffect(() => {
+    const nextSessionId = assistantSessionId ?? null;
+    if (previousAssistantSessionIdRef.current !== null && nextSessionId === null) {
+      draftNonceRef.current = nextDraftNonce();
+    }
+    previousAssistantSessionIdRef.current = nextSessionId;
+    // 外部目前没有 null→null 的草稿切换入口；新建会话由显式 handler 轮换 nonce。
     let cancelled = false;
     if (!assistantSessionId) {
       setMessages([]);
@@ -453,12 +471,15 @@ export function ChatWindow({
     (response: AgentResultMessage) => {
       // F26：作者已切走会话时，恢复结果不得强行切回或污染当前会话（run 身份在调用处已守卫）。
       if (
-        !isRunResultForActiveSession(assistantSessionIdRef.current, response.assistant_session_id)
+        !isRunResultForActiveSession(
+          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          conversationKey(response.assistant_session_id, ''),
+        )
       ) {
         return;
       }
       assistantSessionIdRef.current = response.assistant_session_id;
-      runStartSessionIdRef.current = response.assistant_session_id;
+      runStartConversationKeyRef.current = conversationKey(response.assistant_session_id, '');
       onAssistantSessionChange?.(response.assistant_session_id);
       const systemTitle = titleFromSystemJobs(response);
       if (systemTitle) setConversationTitle(systemTitle);
@@ -580,7 +601,10 @@ export function ChatWindow({
     (message: AgentSocketMessage) => {
       // 作者已切到别的会话：在飞 run 的流事件不得再改动当前会话的步骤树 / 忙碌态（修 F26 余项）。
       if (
-        !isRunResultForActiveSession(assistantSessionIdRef.current, runStartSessionIdRef.current)
+        !isRunResultForActiveSession(
+          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          runStartConversationKeyRef.current,
+        )
       ) {
         return;
       }
@@ -738,8 +762,11 @@ export function ChatWindow({
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       agentRunIdRef.current = runId;
       // F26：记住本 run 起跑时所属会话，终态写回前比对，作者切走即不污染新会话。
-      const runStartSessionId = assistantSessionIdRef.current;
-      runStartSessionIdRef.current = runStartSessionId;
+      const runStartConversationKey = conversationKey(
+        assistantSessionIdRef.current,
+        draftNonceRef.current,
+      );
+      runStartConversationKeyRef.current = runStartConversationKey;
       setAgentBusy(true);
       setRetryRequest(null);
       setAgentRunRecovery(null);
@@ -814,8 +841,8 @@ export function ChatWindow({
         // （强切会话 / 追加消息 / 发补丁建议）绝不能污染当前会话，直接收尾返回。
         const runSuperseded = agentRunIdRef.current !== runId;
         const sessionSwitched = !isRunResultForActiveSession(
-          assistantSessionIdRef.current,
-          runStartSessionId,
+          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          runStartConversationKey,
         );
         if (runSuperseded || sessionSwitched) {
           // 仅切换了会话、无新 run 接管时，清掉本组件残留的忙碌态，避免僵死 spinner；
@@ -847,7 +874,7 @@ export function ChatWindow({
         assistantSessionIdRef.current = response.assistant_session_id;
         // 新会话完成时后端才回 id：把在飞会话身份一并推进到该 id，避免随后 assistantSessionId
         // 由 null→id 触发的会话副作用把这轮刚完成的结果误判成「切走的旧 run」。
-        runStartSessionIdRef.current = response.assistant_session_id;
+        runStartConversationKeyRef.current = conversationKey(response.assistant_session_id, '');
         onAssistantSessionChange?.(response.assistant_session_id);
         const systemTitle = titleFromSystemJobs(response);
         if (systemTitle) setConversationTitle(systemTitle);
@@ -996,8 +1023,8 @@ export function ChatWindow({
         // 终态绝不能污染当前会话（旧 catch 无守卫，切会话后仍把报错追加进新会话并装上重试）。
         const runSuperseded = agentRunIdRef.current !== runId;
         const sessionSwitched = !isRunResultForActiveSession(
-          assistantSessionIdRef.current,
-          runStartSessionId,
+          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          runStartConversationKey,
         );
         if (runSuperseded || sessionSwitched) {
           if (!runSuperseded) setAgentBusy(false);
@@ -1138,7 +1165,10 @@ export function ChatWindow({
       if (!result) return;
       // 作者已切到别的会话：这条修订回传属于起跑会话的 run，不得追加进当前会话（修 F26 余项）。
       if (
-        !isRunResultForActiveSession(assistantSessionIdRef.current, runStartSessionIdRef.current)
+        !isRunResultForActiveSession(
+          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          runStartConversationKeyRef.current,
+        )
       ) {
         return;
       }
@@ -1166,7 +1196,10 @@ export function ChatWindow({
       if (!result) return;
       // 作者已切到别的会话：这条作者闭环回传属于起跑会话的 run，不得追加进当前会话（修 F26 余项）。
       if (
-        !isRunResultForActiveSession(assistantSessionIdRef.current, runStartSessionIdRef.current)
+        !isRunResultForActiveSession(
+          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          runStartConversationKeyRef.current,
+        )
       ) {
         return;
       }
@@ -1274,6 +1307,11 @@ export function ChatWindow({
     [messages.length, projectPath, contextCandidates, runAuthorAgent, runCrossChapterConsistency],
   );
 
+  const handleNewSession = useCallback(() => {
+    draftNonceRef.current = nextDraftNonce();
+    onAssistantSessionChange?.(null);
+  }, [onAssistantSessionChange]);
+
   // 欢迎页首条 prompt：项目就绪后自动发出一次，避免作者重复输入。
   const pendingPromptFiredRef = useRef(false);
   useEffect(() => {
@@ -1294,7 +1332,7 @@ export function ChatWindow({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <ConversationHeader
         title={conversationTitle}
-        onNewSession={() => onAssistantSessionChange?.(null)}
+        onNewSession={handleNewSession}
       />
 
       <MessageList
