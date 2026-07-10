@@ -41,19 +41,16 @@ from app.domains.health.router import router as health_router
 from app.domains.ide.router import router as ide_router
 from app.domains.judge.router import router as judge_router
 from app.domains.model_runs.router import router as model_runs_router
-from app.domains.prompt_packs.router import router as prompt_packs_router
 from app.domains.provider_gateway.router import router as provider_gateway_router
 from app.domains.quality.router import router as quality_router
 from app.domains.repair.router import router as repair_router
 from app.domains.retrieval.router import router as retrieval_router
 from app.domains.runtime_tools.router import router as runtime_tools_router
 from app.domains.scene_packets.router import router as scene_packets_router
-from app.domains.series.router import router as series_router
 from app.domains.studio.router import router as studio_router
 from app.domains.style_packs.router import router as style_packs_router
 from app.domains.timeline.router import router as timeline_router
 from app.domains.workspaces.router import router as workspaces_router
-from app.domains.worldbuilding.router import router as worldbuilding_router
 
 logger = get_logger(__name__)
 
@@ -289,7 +286,6 @@ app.include_router(exports_router)
 app.include_router(judge_router)
 app.include_router(model_runs_router)
 app.include_router(provider_gateway_router)
-app.include_router(prompt_packs_router)
 app.include_router(quality_router)
 app.include_router(repair_router)
 app.include_router(retrieval_router)
@@ -297,10 +293,8 @@ app.include_router(runtime_tools_router)
 app.include_router(scene_packets_router)
 app.include_router(style_packs_router)
 app.include_router(studio_router)
-app.include_router(series_router)
 app.include_router(timeline_router)
 app.include_router(workspaces_router)
-app.include_router(worldbuilding_router)
 
 
 @app.exception_handler(DomainError)

@@ -47,12 +47,10 @@ function readLastJsonLine(stdout) {
   return jsonLine;
 }
 
-test('Phase 4 OpenAPI 暴露检索、Prompt Packs、模型运行日志、制品中心和评测端点', () => {
+test('Phase 4 OpenAPI 暴露检索、模型运行日志、制品中心和评测端点', () => {
   assertOperation('/api/retrieval/sources', 'post', '检索中心');
   assertOperation('/api/retrieval/refresh-runs', 'post', '检索中心');
   assertOperation('/api/retrieval/search', 'post', '检索中心');
-  assertOperation('/api/prompt-packs', 'post', 'Prompt Packs');
-  assertOperation('/api/prompt-packs/{pack_id}/history', 'get', 'Prompt Packs');
   assertOperation('/api/model-runs', 'post', '模型运行日志');
   assertOperation('/api/artifacts', 'post', '制品中心');
   assertOperation('/api/artifacts/{artifact_id}/download', 'get', '制品中心');

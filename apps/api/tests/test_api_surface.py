@@ -9,6 +9,9 @@ FROZEN_UNMOUNTED_PREFIXES = (
     "/api/batch-refinery",
     "/api/collaboration",
     "/api/commercial",
+    "/api/prompt-packs",
+    "/api/series",
+    "/api/worldbuilding",
 )
 
 
@@ -22,7 +25,6 @@ def test_main_registers_domain_router_surface() -> None:
     assert any(path.startswith("/api/retrieval") for path in registered_paths)
     assert any(path.startswith("/api/model-runs") for path in registered_paths)
     assert any(path.startswith("/api/judge") for path in registered_paths)
-    assert any(path.startswith("/api/worldbuilding") for path in registered_paths)
     assert any(path.startswith("/api/quality") for path in registered_paths)
     assert any(path.startswith("/api/workspaces") for path in registered_paths)
 
