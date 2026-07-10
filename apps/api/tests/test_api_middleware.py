@@ -23,7 +23,7 @@ def test_protected_api_requires_authentication() -> None:
     """受保护 API 缺少认证凭据时必须拒绝访问。"""
 
     with TestClient(app) as client:
-        response = client.get("/api/workspaces")
+        response = client.get("/api/agent-runs")
 
     assert response.status_code == 401
     assert response.json() == {"detail": "缺少认证凭据。"}
@@ -35,7 +35,7 @@ def test_health_endpoint_and_cors_preflight_are_public() -> None:
     with TestClient(app) as client:
         health = client.get("/health/live")
         preflight = client.options(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={
                 "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "GET",
@@ -53,7 +53,7 @@ def test_desktop_frontend_cors_preflight_is_public() -> None:
 
     with TestClient(app) as client:
         preflight = client.options(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={
                 "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "GET",
@@ -69,7 +69,7 @@ def test_cors_preflight_uses_explicit_method_and_header_allowlists() -> None:
 
     with TestClient(app) as client:
         preflight = client.options(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={
                 "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "PATCH",
@@ -77,7 +77,7 @@ def test_cors_preflight_uses_explicit_method_and_header_allowlists() -> None:
             },
         )
         rejected_header = client.options(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={
                 "Origin": "http://localhost:3007",
                 "Access-Control-Request-Method": "PATCH",
@@ -314,7 +314,7 @@ def test_jwt_expired_token_returns_401(monkeypatch) -> None:
 
     with TestClient(app) as client:
         resp = client.get(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -327,7 +327,7 @@ def test_jwt_invalid_token_returns_401() -> None:
 
     with TestClient(app) as client:
         resp = client.get(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={"Authorization": "Bearer not-a-real-token"},
         )
 
@@ -339,7 +339,7 @@ def test_invalid_api_key_returns_401() -> None:
 
     with TestClient(app) as client:
         resp = client.get(
-            "/api/workspaces",
+            "/api/agent-runs",
             headers={"X-StoryForge-API-Key": "wrong-key"},
         )
 

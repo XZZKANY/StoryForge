@@ -47,15 +47,13 @@ function readLastJsonLine(stdout) {
   return jsonLine;
 }
 
-test('Phase 4 OpenAPI 暴露检索、模型运行日志、制品中心和评测端点', () => {
+test('Phase 4 OpenAPI 暴露检索、模型运行日志和制品中心端点', () => {
   assertOperation('/api/retrieval/sources', 'post', '检索中心');
   assertOperation('/api/retrieval/refresh-runs', 'post', '检索中心');
   assertOperation('/api/retrieval/search', 'post', '检索中心');
   assertOperation('/api/model-runs', 'post', '模型运行日志');
   assertOperation('/api/artifacts', 'post', '制品中心');
   assertOperation('/api/artifacts/{artifact_id}/download', 'get', '制品中心');
-  assertOperation('/api/evaluations/cases', 'post', '评测系统');
-  assertOperation('/api/evaluations/runs', 'post', '评测系统');
   assertOperation('/api/runtime-tools', 'get', '运行时工具');
 });
 
@@ -81,9 +79,6 @@ test('Phase 4 契约保留检索、模型运行与制品关键字段', () => {
   const artifact = openapi.components.schemas.ArtifactRead;
   assert.ok(artifact.properties.artifact_type, '制品响应必须包含 artifact_type');
   assert.ok(artifact.properties.storage_uri, '制品响应必须包含 storage_uri');
-
-  const evaluationRun = openapi.components.schemas.EvaluationRunRead;
-  assert.ok(evaluationRun.properties.metrics, '评测运行响应必须包含 metrics');
 });
 
 test('Phase 4 runtime tools API 与 CreativeToolRegistry 保持一致', () => {
