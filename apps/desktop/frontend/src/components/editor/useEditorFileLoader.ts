@@ -11,6 +11,8 @@ export function useEditorFileLoader({
   cleanVersionIdRef,
   issueDecorationsRef,
   filePathRef,
+  isDirtyRef,
+  autoSaveTimerRef,
   resetSuggestionWriteback,
   adoptPendingSuggestion,
   setLoadedContentPreview,
@@ -23,6 +25,8 @@ export function useEditorFileLoader({
   cleanVersionIdRef: MutableRefObject<number | null>;
   issueDecorationsRef: MutableRefObject<monaco.editor.IEditorDecorationsCollection | null>;
   filePathRef: MutableRefObject<string | null>;
+  isDirtyRef: MutableRefObject<boolean>;
+  autoSaveTimerRef: MutableRefObject<number | null>;
   resetSuggestionWriteback: () => void;
   adoptPendingSuggestion: (path: string | null) => void;
   setLoadedContentPreview: (preview: string) => void;
@@ -40,6 +44,12 @@ export function useEditorFileLoader({
     loadRequestIdRef.current += 1;
     const requestId = loadRequestIdRef.current;
     issueDecorationsRef.current?.clear();
+    if (autoSaveTimerRef.current !== null) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    isDirtyRef.current = false;
+    setIsDirty(false);
 
     if (!filePath) {
       originalContentRef.current = '';
@@ -102,11 +112,13 @@ export function useEditorFileLoader({
     void loadFile();
   }, [
     adoptPendingSuggestion,
+    autoSaveTimerRef,
     cleanVersionIdRef,
     editorRef,
     filePath,
     filePathRef,
     issueDecorationsRef,
+    isDirtyRef,
     originalContentRef,
     resetSuggestionWriteback,
     setIsDirty,
