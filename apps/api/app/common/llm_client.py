@@ -94,8 +94,11 @@ def _build_chat_payload(
 def _request_chat_completions(
     source: Mapping[str, str | None],
     payload: dict[str, object],
+    *,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
 ) -> tuple[dict[str, object], float]:
-    """带重试地 POST /chat/completions，返回响应体与请求起始时间。"""
+    """POST /chat/completions；per-call 覆盖供必须保持既有 timeout / 尝试次数的调用方使用。"""
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     http_request = request.Request(
@@ -104,20 +107,29 @@ def _request_chat_completions(
         headers=_llm_request_headers(source),
         method="POST",
     )
-    timeout = _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
-    max_attempts = max(1, _optional_int(source, "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3))
+    timeout = (
+        timeout_seconds
+        if timeout_seconds is not None
+        else _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
+    )
+    attempt_limit = max(
+        1,
+        max_attempts
+        if max_attempts is not None
+        else _optional_int(source, "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3),
+    )
     base_delay = max(0.0, _optional_float(source, "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS", 0.5))
     jitter = max(0.0, _optional_float(source, "STORYFORGE_LLM_RETRY_JITTER_SECONDS", 0.25))
     started_at = time.monotonic()
     data: dict[str, object] | None = None
-    for attempt in range(1, max_attempts + 1):
+    for attempt in range(1, attempt_limit + 1):
         try:
             with request.urlopen(http_request, timeout=timeout) as response:
                 data = json.loads(response.read().decode("utf-8"))
             break
         except error.HTTPError as exc:
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
-            if _is_retryable_status(exc.code) and attempt < max_attempts:
+            if _is_retryable_status(exc.code) and attempt < attempt_limit:
                 _sleep_before_retry(
                     attempt=attempt,
                     base_delay=base_delay,
@@ -137,11 +149,11 @@ def _request_chat_completions(
                 ],
             )
             raise LLMError(
-                f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{max_attempts}）：{error_body}"
+                f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{attempt_limit}）：{error_body}"
             ) from exc
         except (error.URLError, TimeoutError) as exc:
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
-            if attempt < max_attempts:
+            if attempt < attempt_limit:
                 _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
                 continue
             reason = getattr(exc, "reason", exc)
@@ -153,15 +165,15 @@ def _request_chat_completions(
                 ],
             )
             raise LLMError(
-                f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{max_attempts}）：{reason_text}"
+                f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{attempt_limit}）：{reason_text}"
             ) from exc
         except _RESPONSE_READ_ERRORS as exc:
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
-            if attempt < max_attempts:
+            if attempt < attempt_limit:
                 _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
                 continue
             raise LLMError(
-                f"真实 LLM 响应读取或解析失败（耗时 {elapsed_ms}ms，尝试 {attempt}/{max_attempts}）：{type(exc).__name__}"
+                f"真实 LLM 响应读取或解析失败（耗时 {elapsed_ms}ms，尝试 {attempt}/{attempt_limit}）：{type(exc).__name__}"
             ) from exc
     if data is None:  # 理论不可达：循环要么 break 要么 raise；兜底避免 None 解引用
         raise LLMError("真实 LLM 重试后仍无响应数据。")

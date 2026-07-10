@@ -15,6 +15,7 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401
+from app.common import llm_client
 from app.common.metrics import book_generation_cost_cny_total, book_generation_failure_count_total, judge_calls_total
 from app.domains.assets.models import Asset
 from app.domains.blueprints.models import BookBlueprint
@@ -116,30 +117,6 @@ class _BookGenerationChatHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: object) -> None:
         return
-
-
-class _SemanticJudgeFakeClient:
-    """替代 httpx.Client，避免 book generation 测试依赖真实 HTTP 栈。"""
-
-    requests: list[dict[str, object]] = []
-
-    def __init__(self, *, timeout: float) -> None:
-        self.timeout = timeout
-
-    def __enter__(self) -> _SemanticJudgeFakeClient:
-        return self
-
-    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
-        return None
-
-    def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> object:
-        self.__class__.requests.append({"url": url, "json": json, "headers": headers, "timeout": self.timeout})
-
-        class _Response:
-            def json(self) -> dict[str, object]:
-                return {"choices": [{"message": {"content": "[]"}}]}
-
-        return _Response()
 
 
 def _local_provider_base_url(port: int) -> str:
@@ -610,10 +587,35 @@ def test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes
     """确定性与本地一致性门禁通过时，语义 Judge 仍跑一遍，但只作为咨询信号。"""
 
     _BookGenerationChatHandler.requests = []
-    _SemanticJudgeFakeClient.requests = []
-    import app.domains.judge.service as judge_service
+    semantic_requests: list[dict[str, object]] = []
+    original_request = llm_client._request_chat_completions
 
-    monkeypatch.setattr(judge_service.httpx, "Client", _SemanticJudgeFakeClient)
+    def capture_semantic_request(
+        source,
+        payload,
+        *,
+        timeout_seconds=None,
+        max_attempts=None,
+    ):
+        system_prompt = str(payload["messages"][0]["content"])
+        if "结构化一致性评审员" in system_prompt or "故事状态 grounding 审查员" in system_prompt:
+            semantic_requests.append(
+                {
+                    "source": dict(source),
+                    "payload": payload,
+                    "timeout_seconds": timeout_seconds,
+                    "max_attempts": max_attempts,
+                }
+            )
+            return {"choices": [{"message": {"content": "[]"}}]}, 0.0
+        return original_request(
+            source,
+            payload,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+
+    monkeypatch.setattr(llm_client, "_request_chat_completions", capture_semantic_request)
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "judge-private-credential")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://judge.example/v1")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_MODEL", "judge-test-model")
@@ -644,11 +646,12 @@ def test_book_generation_fast_path_runs_semantic_advisory_when_local_gate_passes
 
     assert result.book_run.status == "completed"
     assert len(_draft_requests()) == 1
-    assert len(_SemanticJudgeFakeClient.requests) == 2
-    assert _SemanticJudgeFakeClient.requests[0]["url"] == "https://judge.example/v1/chat/completions"
+    assert len(semantic_requests) == 2
+    assert semantic_requests[0]["source"]["STORYFORGE_LLM_BASE_URL"] == "https://judge.example/v1"
+    assert all(request["max_attempts"] == 1 for request in semantic_requests)
     assert any(
-        "故事状态 grounding 审查员" in request["json"]["messages"][0]["content"]
-        for request in _SemanticJudgeFakeClient.requests
+        "故事状态 grounding 审查员" in request["payload"]["messages"][0]["content"]
+        for request in semantic_requests
     )
 
     judge = session.query(JudgeIssue).one()

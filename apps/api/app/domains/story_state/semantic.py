@@ -5,9 +5,7 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-import httpx
-
-from app.common.llm_client import redact_secrets
+from app.common import llm_client
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
@@ -71,23 +69,32 @@ def semantic_ground_story_state_changes(
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
+    request_source = dict(source)
+    request_source.update(
+        {
+            "STORYFORGE_LLM_API_KEY": api_key,
+            "STORYFORGE_LLM_BASE_URL": base_url.strip().rstrip("/"),
+            "STORYFORGE_LLM_AUTH_HEADER": "bearer",
+        }
+    )
     try:
         timeout = float(
             os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS")
             or env_value(source, "STORYFORGE_LLM_TIMEOUT_SECONDS")
             or "300"
         )
-        with httpx.Client(timeout=timeout) as client:
-            response = client.post(
-                _chat_completions_url(base_url),
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            data = response.json()
+        data, _started_at = llm_client._request_chat_completions(
+            request_source,
+            payload,
+            timeout_seconds=timeout,
+            max_attempts=1,
+        )
         decoded = _decode_json_array(str(data["choices"][0]["message"]["content"]))
     except Exception as exc:
         log.warning(
-            "story_state_semantic_grounding_failed", error=redact_secrets(str(exc), [api_key]), model=model
+            "story_state_semantic_grounding_failed",
+            error=llm_client.redact_secrets(str(exc), [api_key]),
+            model=model,
         )
         return {
             int(change.seq or index): SemanticGroundingAdvisory(
@@ -158,10 +165,6 @@ def _decode_json_array(raw_content: str) -> object:
     if start >= 0 and end > start:
         return json.loads(stripped[start : end + 1])
     return json.loads(stripped)
-
-
-def _chat_completions_url(base_url: str) -> str:
-    return f"{base_url.strip().rstrip('/')}/chat/completions"
 
 
 def _positive_int(value: object) -> int | None:

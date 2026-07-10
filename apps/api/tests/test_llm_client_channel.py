@@ -14,7 +14,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.common.llm_client import LLMError, _call_llm, _call_llm_messages, redact_secrets
+from app.common.llm_client import (
+    LLMError,
+    _call_llm,
+    _call_llm_messages,
+    _request_chat_completions,
+    redact_secrets,
+)
 from app.common.redaction import REDACTED
 
 _API_KEY = "sk-secret-test-key-123456"
@@ -216,6 +222,59 @@ def test_channel_messages_variant_allows_tool_calls_only() -> None:
     assert result["tool_calls"][0]["function"]["name"] == "fs_read"
 
 
+def test_channel_per_call_attempt_limit_overrides_retry_env() -> None:
+    """域调用可显式保持单次尝试，不被 common 默认重试语义改变时延。"""
+
+    _ChatHandler.fail_times = 1
+    _ChatHandler.status_code = 503
+    server = _serve()
+    try:
+        with pytest.raises(LLMError):
+            _request_chat_completions(
+                _source(server.server_address[1]),
+                {"model": "test-model", "messages": [], "temperature": 0},
+                max_attempts=1,
+            )
+    finally:
+        server.shutdown()
+    assert _ChatHandler.attempts == 1
+
+
+def test_channel_per_call_timeout_overrides_timeout_env(monkeypatch) -> None:
+    """per-call timeout 必须原样传给 urllib，未传时仍由既有 env 默认控制。"""
+
+    captured: dict[str, float] = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"choices":[{"message":{"content":"[]"}}]}'
+
+    def fake_urlopen(_request, *, timeout: float):
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("app.common.llm_client.request.urlopen", fake_urlopen)
+    data, _started_at = _request_chat_completions(
+        {
+            "STORYFORGE_LLM_API_KEY": _API_KEY,
+            "STORYFORGE_LLM_BASE_URL": "https://llm.example/v1",
+            "STORYFORGE_LLM_TIMEOUT_SECONDS": "300",
+        },
+        {"model": "test-model", "messages": [], "temperature": 0},
+        timeout_seconds=12.5,
+        max_attempts=1,
+    )
+
+    assert data["choices"]
+    assert captured["timeout"] == 12.5
+
+
 def test_channel_error_message_never_contains_key(caplog) -> None:
     """4xx 立即失败：抛出的异常消息与相关日志都不得含凭据子串。"""
 
@@ -316,6 +375,52 @@ def test_story_state_grounding_reads_resolved_llm_env(monkeypatch) -> None:
         server.shutdown()
     assert advisories[1].semantic_score == 90
     assert (_ChatHandler.last_headers or {}).get("authorization") == f"Bearer {_API_KEY}"
+
+
+def test_story_state_grounding_preserves_payload_and_single_attempt(monkeypatch) -> None:
+    """story_state 迁移只换 transport：payload、专属覆盖与一次尝试语义保持。"""
+
+    from app.common import llm_client
+    from app.domains.story_state import semantic as story_semantic
+
+    captured: dict[str, object] = {}
+
+    def fake_request(source, payload, *, timeout_seconds=None, max_attempts=None):
+        captured.update(
+            {
+                "source": dict(source),
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+                "max_attempts": max_attempts,
+            }
+        )
+        return {
+            "choices": [
+                {"message": {"content": json.dumps([{"seq": 1, "score": 91, "reason": "正文支持"}])}}
+            ]
+        }, 0.0
+
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "judge-key")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://judge.example/v1/ ")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_MODEL", "judge-model")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "17.5")
+    monkeypatch.setenv("STORYFORGE_JUDGE_LLM_REASONING_EFFORT", "low")
+    monkeypatch.setattr(llm_client, "_request_chat_completions", fake_request)
+
+    advisories = story_semantic.semantic_ground_story_state_changes("正文", [_change(1)])
+
+    assert advisories[1].semantic_score == 91
+    assert captured["timeout_seconds"] == 17.5
+    assert captured["max_attempts"] == 1
+    source = captured["source"]
+    assert source["STORYFORGE_LLM_BASE_URL"] == "https://judge.example/v1"
+    assert source["STORYFORGE_LLM_API_KEY"] == "judge-key"
+    assert source["STORYFORGE_LLM_AUTH_HEADER"] == "bearer"
+    payload = captured["payload"]
+    assert set(payload) == {"model", "messages", "temperature", "reasoning_effort"}
+    assert payload["model"] == "judge-model"
+    assert payload["temperature"] == 0
+    assert payload["reasoning_effort"] == "low"
 
 
 def test_story_state_grounding_unconfigured_returns_empty(monkeypatch) -> None:

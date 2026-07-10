@@ -3,11 +3,38 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.common import llm_client
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ScenePacket
-from app.domains.judge import service as judge_service
 from app.domains.judge.schemas import JudgeIssueCreate
 from app.domains.judge.service import DetectedIssue, semantic_judge, semantic_judge_with_status
+
+
+def _install_fake_transport(
+    monkeypatch,
+    *,
+    content: str,
+    captured: dict[str, object] | None = None,
+) -> None:
+    def fake_request(
+        source,
+        payload,
+        *,
+        timeout_seconds=None,
+        max_attempts=None,
+    ):
+        if captured is not None:
+            captured.update(
+                {
+                    "source": dict(source),
+                    "json": payload,
+                    "timeout": timeout_seconds,
+                    "max_attempts": max_attempts,
+                }
+            )
+        return {"choices": [{"message": {"content": content}}]}, 0.0
+
+    monkeypatch.setattr(llm_client, "_request_chat_completions", fake_request)
 
 
 def test_judge_detects_location_fact_conflict(client: TestClient, session: Session) -> None:
@@ -123,8 +150,8 @@ def test_semantic_judge_preserves_cross_chapter_categories_from_provider() -> No
     assert issues[0].expected_text == "铜钟密钥由沈砚持有"
 
 
-def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None:
-    """远程 Judge 调用必须通过 httpx Client 发送结构化 JSON 请求。"""
+def test_semantic_judge_posts_llm_request_through_common_client(monkeypatch) -> None:
+    """远程 Judge 必须把原 payload 与单次尝试参数交给 common LLM 通道。"""
 
     payload = JudgeIssueCreate(
         scene_id=1,
@@ -136,44 +163,20 @@ def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None
     )
     captured: dict[str, object] = {}
 
-    class FakeResponse:
-        def json(self) -> dict[str, object]:
-            return {
-                "choices": [
-                    {
-                        "message": {
-                            "content": (
-                                '[{"category":"setting_conflict","severity":"high",'
-                                '"span_start":4,"span_end":10,"summary":"模型识别地点冲突。",'
-                                '"expected_text":"地点：灯塔港","replacement_text":"地点：灯塔港",'
-                                '"matched_text":"地点：荒原城"}]'
-                            )
-                        }
-                    }
-                ]
-            }
-
-    class FakeClient:
-        def __init__(self, *, timeout: float) -> None:
-            captured["timeout"] = timeout
-
-        def __enter__(self) -> FakeClient:
-            captured["entered"] = True
-            return self
-
-        def __exit__(self, exc_type, exc, traceback) -> None:
-            captured["closed"] = True
-
-        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
-            captured["url"] = url
-            captured["json"] = json
-            captured["headers"] = headers
-            return FakeResponse()
+    _install_fake_transport(
+        monkeypatch,
+        content=(
+            '[{"category":"setting_conflict","severity":"high",'
+            '"span_start":4,"span_end":10,"summary":"模型识别地点冲突。",'
+            '"expected_text":"地点：灯塔港","replacement_text":"地点：灯塔港",'
+            '"matched_text":"地点：荒原城"}]'
+        ),
+        captured=captured,
+    )
 
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://llm.example/v1/")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS", "12.5")
-    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
 
     issues = semantic_judge(payload)
 
@@ -191,12 +194,15 @@ def test_semantic_judge_posts_llm_request_with_httpx_client(monkeypatch) -> None
         )
     ]
     assert captured["timeout"] == 12.5
-    assert captured["entered"] is True
-    assert captured["closed"] is True
-    assert captured["url"] == "https://llm.example/v1/chat/completions"
-    assert captured["headers"] == {"Authorization": "Bearer test-key"}
+    assert captured["max_attempts"] == 1
+    request_source = captured["source"]
+    assert isinstance(request_source, dict)
+    assert request_source["STORYFORGE_LLM_BASE_URL"] == "https://llm.example/v1"
+    assert request_source["STORYFORGE_LLM_API_KEY"] == "test-key"
+    assert request_source["STORYFORGE_LLM_AUTH_HEADER"] == "bearer"
     request_json = captured["json"]
     assert isinstance(request_json, dict)
+    assert set(request_json) == {"model", "messages", "temperature"}
     assert request_json["temperature"] == 0
     system_message = request_json["messages"][0]
     assert system_message["role"] == "system"
@@ -220,41 +226,20 @@ def test_semantic_judge_parses_markdown_fenced_json_without_degradation(monkeypa
         evidence_links=[],
     )
 
-    class FakeResponse:
-        def json(self) -> dict[str, object]:
-            return {
-                "choices": [
-                    {
-                        "message": {
-                            "content": (
-                                "```json\n"
-                                "[{\"category\":\"setting_conflict\",\"severity\":\"high\","
-                                "\"span_start\":4,\"span_end\":10,\"summary\":\"模型识别地点冲突。\","
-                                "\"expected_text\":\"地点：灯塔港\",\"replacement_text\":\"地点：灯塔港\","
-                                "\"matched_text\":\"地点：荒原城\"}]\n"
-                                "```"
-                            )
-                        }
-                    }
-                ]
-            }
-
-    class FakeClient:
-        def __init__(self, *, timeout: float) -> None:
-            self.timeout = timeout
-
-        def __enter__(self) -> FakeClient:
-            return self
-
-        def __exit__(self, exc_type, exc, traceback) -> None:
-            return None
-
-        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
-            return FakeResponse()
+    _install_fake_transport(
+        monkeypatch,
+        content=(
+            "```json\n"
+            "[{\"category\":\"setting_conflict\",\"severity\":\"high\","
+            "\"span_start\":4,\"span_end\":10,\"summary\":\"模型识别地点冲突。\","
+            "\"expected_text\":\"地点：灯塔港\",\"replacement_text\":\"地点：灯塔港\","
+            "\"matched_text\":\"地点：荒原城\"}]\n"
+            "```"
+        ),
+    )
 
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://llm.example/v1/")
-    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
 
     outcome = semantic_judge_with_status(payload)
 
@@ -277,7 +262,7 @@ def test_semantic_judge_parses_markdown_fenced_json_without_degradation(monkeypa
 def test_semantic_judge_normalizes_base_url_before_request(monkeypatch) -> None:
     """运行时 Base URL 含空白时，Judge 应清洗后再拼接 chat/completions。"""
 
-    captured: dict[str, str] = {}
+    captured: dict[str, object] = {}
     payload = JudgeIssueCreate(
         scene_id=1,
         scene_packet_id=None,
@@ -287,32 +272,15 @@ def test_semantic_judge_normalizes_base_url_before_request(monkeypatch) -> None:
         evidence_links=[],
     )
 
-    class FakeResponse:
-        def json(self) -> dict[str, object]:
-            return {"choices": [{"message": {"content": "[]"}}]}
-
-    class FakeClient:
-        def __init__(self, *, timeout: float) -> None:
-            self.timeout = timeout
-
-        def __enter__(self) -> FakeClient:
-            return self
-
-        def __exit__(self, exc_type, exc, traceback) -> None:
-            return None
-
-        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
-            captured["url"] = url
-            return FakeResponse()
+    _install_fake_transport(monkeypatch, content="[]", captured=captured)
 
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_BASE_URL", "https://llm.example/v1 \n")
-    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
 
     outcome = semantic_judge_with_status(payload)
 
     assert outcome.failed is False
-    assert captured["url"] == "https://llm.example/v1/chat/completions"
+    assert captured["source"]["STORYFORGE_LLM_BASE_URL"] == "https://llm.example/v1"
 
 
 def test_semantic_judge_reads_llm_provider_config_file_override(tmp_path, monkeypatch) -> None:
@@ -336,34 +304,16 @@ def test_semantic_judge_reads_llm_provider_config_file_override(tmp_path, monkey
         evidence_links=[],
     )
 
-    class FakeResponse:
-        def json(self) -> dict[str, object]:
-            return {"choices": [{"message": {"content": "[]"}}]}
-
-    class FakeClient:
-        def __init__(self, *, timeout: float) -> None:
-            captured["timeout"] = timeout
-
-        def __enter__(self) -> FakeClient:
-            return self
-
-        def __exit__(self, exc_type, exc, traceback) -> None:
-            return None
-
-        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
-            captured["url"] = url
-            captured["model"] = json["model"]
-            captured["headers"] = headers
-            return FakeResponse()
-
-    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
+    _install_fake_transport(monkeypatch, content="[]", captured=captured)
 
     outcome = semantic_judge_with_status(payload)
 
     assert outcome.failed is False
-    assert captured["url"] == "https://desktop.example/v1/chat/completions"
-    assert captured["model"] == "desktop-model"
-    assert captured["headers"] == {"Authorization": "Bearer desktop-key"}
+    assert captured["source"]["STORYFORGE_LLM_BASE_URL"] == "https://desktop.example/v1"
+    assert captured["source"]["STORYFORGE_LLM_API_KEY"] == "desktop-key"
+    assert captured["source"]["STORYFORGE_LLM_AUTH_HEADER"] == "bearer"
+    assert captured["json"]["model"] == "desktop-model"
+    assert captured["max_attempts"] == 1
 
 
 def test_semantic_judge_env_overrides_still_win_over_config_file(tmp_path, monkeypatch) -> None:
@@ -389,34 +339,15 @@ def test_semantic_judge_env_overrides_still_win_over_config_file(tmp_path, monke
         evidence_links=[],
     )
 
-    class FakeResponse:
-        def json(self) -> dict[str, object]:
-            return {"choices": [{"message": {"content": "[]"}}]}
-
-    class FakeClient:
-        def __init__(self, *, timeout: float) -> None:
-            return None
-
-        def __enter__(self) -> FakeClient:
-            return self
-
-        def __exit__(self, exc_type, exc, traceback) -> None:
-            return None
-
-        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
-            captured["url"] = url
-            captured["model"] = json["model"]
-            captured["headers"] = headers
-            return FakeResponse()
-
-    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
+    _install_fake_transport(monkeypatch, content="[]", captured=captured)
 
     outcome = semantic_judge_with_status(payload)
 
     assert outcome.failed is False
-    assert captured["url"] == "https://judge.example/v1/chat/completions"
-    assert captured["model"] == "judge-model"
-    assert captured["headers"] == {"Authorization": "Bearer judge-key"}
+    assert captured["source"]["STORYFORGE_LLM_BASE_URL"] == "https://judge.example/v1"
+    assert captured["source"]["STORYFORGE_LLM_API_KEY"] == "judge-key"
+    assert captured["source"]["STORYFORGE_LLM_AUTH_HEADER"] == "bearer"
+    assert captured["json"]["model"] == "judge-model"
 
 
 def _span_payload(content: str, required_facts: list[str] | None = None) -> JudgeIssueCreate:
@@ -535,26 +466,9 @@ def test_semantic_judge_serializes_voice_constraints_as_json(monkeypatch) -> Non
 
     captured: dict[str, object] = {}
 
-    class FakeResponse:
-        def json(self) -> dict[str, object]:
-            return {"choices": [{"message": {"content": "[]"}}]}
-
-    class FakeClient:
-        def __init__(self, *, timeout: float) -> None:
-            return None
-
-        def __enter__(self) -> FakeClient:
-            return self
-
-        def __exit__(self, exc_type, exc, traceback) -> None:
-            return None
-
-        def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]) -> FakeResponse:
-            captured["json"] = json
-            return FakeResponse()
+    _install_fake_transport(monkeypatch, content="[]", captured=captured)
 
     monkeypatch.setenv("STORYFORGE_JUDGE_LLM_API_KEY", "test-key")
-    monkeypatch.setattr(judge_service.httpx, "Client", FakeClient)
 
     constraints = [
         {"name": "林岚", "path": "人物/林岚.md", "notes": "语气克制，说话从不超过三句。"},

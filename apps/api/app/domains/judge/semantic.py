@@ -8,10 +8,9 @@ import json
 import os
 from collections.abc import Mapping, Sequence
 
-import httpx
 from prometheus_client import Counter
 
-from app.common.llm_client import redact_secrets
+from app.common import llm_client
 from app.common.llm_env import resolved_llm_env
 from app.common.llm_http import env_value
 from app.common.logging_config import get_logger
@@ -157,18 +156,25 @@ def semantic_judge_with_status(
         request_payload["reasoning_effort"] = reasoning_effort
     log = get_logger(__name__)
     timeout_seconds = os.getenv("STORYFORGE_JUDGE_LLM_TIMEOUT_SECONDS") or env_value(source, "STORYFORGE_LLM_TIMEOUT_SECONDS") or "300"
+    request_source = dict(source)
+    request_source.update(
+        {
+            "STORYFORGE_LLM_API_KEY": api_key,
+            "STORYFORGE_LLM_BASE_URL": base_url.strip().rstrip("/"),
+            "STORYFORGE_LLM_AUTH_HEADER": "bearer",
+        }
+    )
     try:
-        with httpx.Client(timeout=float(timeout_seconds)) as client:
-            response = client.post(
-                _chat_completions_url(base_url),
-                json=request_payload,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            data = response.json()
+        data, _started_at = llm_client._request_chat_completions(
+            request_source,
+            request_payload,
+            timeout_seconds=float(timeout_seconds),
+            max_attempts=1,
+        )
         raw_content = data["choices"][0]["message"]["content"]
         decoded = _decode_semantic_judge_content(str(raw_content))
     except Exception as exc:
-        log.warning("semantic_judge_failed", error=redact_secrets(str(exc), [api_key]), model=model)
+        log.warning("semantic_judge_failed", error=llm_client.redact_secrets(str(exc), [api_key]), model=model)
         _judge_llm_errors_total.inc()
         return SemanticJudgeOutcome(issues=[], failed=True)
     if not isinstance(decoded, list):
@@ -198,12 +204,6 @@ def _decode_semantic_judge_content(raw_content: str) -> object:
     if array_fragment is not None:
         return json.loads(array_fragment)
     return json.loads(stripped)
-
-
-def _chat_completions_url(base_url: str) -> str:
-    """规范化 OpenAI 兼容 Base URL，避免运行时空白污染请求路径。"""
-
-    return f"{base_url.strip().rstrip('/')}/chat/completions"
 
 
 def _strip_json_markdown_fence(content: str) -> str:
