@@ -28,11 +28,18 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function websocketUrlFromBaseUrl(baseUrl: string, path: string, apiKey: string): string {
+function websocketUrlFromBaseUrl(baseUrl: string, path: string): string {
   const url = new URL(path, trimApiBaseUrl(baseUrl));
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.searchParams.set('api_key', apiKey);
   return url.toString();
+}
+
+export function websocketApiKeyProtocol(apiKey: string): string {
+  const bytes = new TextEncoder().encode(apiKey);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `storyforge-api-key.${encoded}`;
 }
 
 export async function sendAgentUserMessage(
@@ -42,11 +49,10 @@ export async function sendAgentUserMessage(
   const socketUrl = websocketUrlFromBaseUrl(
     baseUrl,
     `/api/ide/agent/sessions/${encodeURIComponent(request.sessionId)}`,
-    apiKey,
   );
 
   return await new Promise((resolve, reject) => {
-    const socket = new WebSocket(socketUrl);
+    const socket = new WebSocket(socketUrl, websocketApiKeyProtocol(apiKey));
     let settled = false;
     let polling = false;
     const effectiveTimeoutMs = request.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS;
@@ -165,11 +171,10 @@ export async function sendAgentControlMessage(
   const socketUrl = websocketUrlFromBaseUrl(
     baseUrl,
     `/api/ide/agent/sessions/${encodeURIComponent(request.sessionId)}`,
-    apiKey,
   );
 
   return await new Promise((resolve, reject) => {
-    const socket = new WebSocket(socketUrl);
+    const socket = new WebSocket(socketUrl, websocketApiKeyProtocol(apiKey));
     let settled = false;
     const timeout = window.setTimeout(() => {
       finish(() => reject(new Error('Agent 控制消息响应超时。')));

@@ -66,7 +66,7 @@
 
 ## 4. Advisory 择要(20 条,未经对抗核查)
 
-行为类:F26 会话切换竞争(run 完成强切回旧会话)/ F27 写盘非原子 + 快照失败照写 / F28 Tauri IPC 全盘任意路径写删、`..` 不解析 / F29 sqlite 并发写零防护(无 WAL/busy_timeout,重复序号事故已发生)/ F36 单补丁守卫只约束单条消息 / F37 版本快照无保留策略、证据链 sqlite 零备份。
+行为类:F26 会话切换竞争(run 完成强切回旧会话)/ F27 写盘非原子 + 快照失败照写 / F28 Tauri IPC 全盘任意路径写删、`..` 不解析(✅ 2026-07-10 读侧关账:Rust `read_project_file` canonicalize containment + 目录索引拒 symlink + 前端 `resolveProjectRelativePath` 调用侧统一收口;写侧 write/delete/rename 原生强制留后续装机前小刀)/ F29 sqlite 并发写零防护(无 WAL/busy_timeout,重复序号事故已发生)/ F36 单补丁守卫只约束单条消息 / F37 版本快照无保留策略、证据链 sqlite 零备份。
 结构类:F24 加一个循环工具要跨 3 文件改 6-7 处 / F25 权限系统四轨并存、PermissionGate 真实路径永不生效 / F23 memory.resolve_conflict 假成功命令污染证据链 / F32 BYO-key 成本可观测名存实亡 / F35 跨消息零记忆(每条消息重读文件重烧 token)。
 认知修正:**F34 `test_ide_agent_orchestrator.py` 1172 行不是死路护栏**(测的是活行为经 facade,可删的只有 40 行 facade + 1 个 F401 import)——旧记忆在制造认知税。
 

@@ -2,6 +2,7 @@
 """测试桌面端 Agent WebSocket 连接"""
 
 import asyncio
+import base64
 import json
 import sys
 from datetime import datetime
@@ -13,6 +14,11 @@ except ImportError:
     sys.exit(1)
 
 
+def api_key_subprotocol(api_key: str) -> str:
+    encoded = base64.urlsafe_b64encode(api_key.encode()).decode().rstrip("=")
+    return f"storyforge-api-key.{encoded}"
+
+
 async def test_agent_websocket():
     """测试 Agent WebSocket 端到端流程"""
 
@@ -20,13 +26,15 @@ async def test_agent_websocket():
     api_key = "local-dev-key"
     session_id = "test-session-" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    ws_url = f"{api_url}/api/ide/agent/sessions/{session_id}?api_key={api_key}"
+    ws_url = f"{api_url}/api/ide/agent/sessions/{session_id}"
 
     print(f"🔗 连接到: {ws_url}")
     print(f"📝 Session ID: {session_id}\n")
 
     try:
-        async with websockets.connect(ws_url) as websocket:
+        async with websockets.connect(
+            ws_url, subprotocols=[api_key_subprotocol(api_key)]
+        ) as websocket:
             print("✅ WebSocket 连接成功！\n")
 
             # 测试 1: chat.explain intent

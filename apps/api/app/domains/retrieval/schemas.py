@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+
+from app.common.redaction import redact_sensitive
 
 
 class RetrievalSourceCreate(BaseModel):
@@ -47,6 +49,10 @@ class RetrievalSourceRead(BaseModel):
     chunk_count: int
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("payload")
+    def serialize_payload(self, value: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(value)
 
 
 class RetrievalWorkbenchSourceRead(BaseModel):

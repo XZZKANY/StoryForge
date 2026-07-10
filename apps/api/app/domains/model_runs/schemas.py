@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class ModelRunCreate(BaseModel):
@@ -68,6 +70,18 @@ class ModelRunRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_serializer("payload")
+    def serialize_payload(self, value: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(value)
+
+    @field_serializer("input_summary")
+    def serialize_input_summary(self, value: str) -> str:
+        return redact_sensitive_text(value)
+
+    @field_serializer("output_summary", "error_message")
+    def serialize_optional_sensitive_text(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if value is not None else None
+
 
 class ModelRunListPage(BaseModel):
     """模型运行日志的游标分页响应。"""
@@ -95,6 +109,10 @@ class RunsModelRunSummary(BaseModel):
     prompt_template_version: str | None
     prompt_hash: str | None
     error_message: str | None
+
+    @field_serializer("error_message")
+    def serialize_error_message(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if value is not None else None
 
 
 class RunsWorkflowSessionSummary(BaseModel):
@@ -130,6 +148,10 @@ class RunsProviderSummary(BaseModel):
     latency_ms: int
     token_usage: int
     error_message: str | None
+
+    @field_serializer("error_message")
+    def serialize_error_message(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if value is not None else None
 
 
 class RunsModelUsageSummary(BaseModel):
@@ -174,6 +196,10 @@ class RunsJobRunRead(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("error_message")
+    def serialize_error_message(self, value: str | None) -> str | None:
+        return redact_sensitive_text(value) if value is not None else None
 
 
 class RunsJobRunRetryRead(BaseModel):

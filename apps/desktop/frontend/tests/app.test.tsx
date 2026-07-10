@@ -94,6 +94,11 @@ test('App 在替换编辑器内容前统一经过 dirty discard guard', () => {
   for (const guard of requiredDirtyGuards) {
     assert.ok(appSource.includes(guard), `App.tsx 缺少 dirty 切换护栏：${guard}`);
   }
+  assert.match(
+    appSource,
+    /key === ','[\s\S]{0,120}void openSettings\(\)/,
+    'Ctrl+, 必须复用 openSettings dirty guard，不能直接卸载编辑器',
+  );
 });
 
 test('App.tsx 不残留旧布局引擎与 Web legacy 路由入口', () => {

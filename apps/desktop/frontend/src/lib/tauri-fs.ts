@@ -111,6 +111,13 @@ export class TauriFileSystem {
     return await invoke<string>('read_file', { path });
   }
 
+  static async readProjectFile(projectRoot: string, path: string): Promise<string> {
+    const mock = mockFs();
+    if (mock?.readFile) return await mock.readFile(path);
+    assertTauriRuntime('TauriFileSystem.readProjectFile');
+    return await invoke<string>('read_project_file', { projectRoot, path });
+  }
+
   static async writeFile(path: string, content: string): Promise<void> {
     const mock = mockFs();
     try {

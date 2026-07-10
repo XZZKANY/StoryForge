@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class ArtifactCreate(BaseModel):
@@ -74,6 +76,10 @@ class ArtifactRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_serializer("payload")
+    def serialize_payload(self, value: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(value)
+
 
 class ArtifactDownloadRead(BaseModel):
     """制品下载摘要；download_mode 决定返回内联预览或 presigned URL。
@@ -93,6 +99,14 @@ class ArtifactDownloadRead(BaseModel):
     payload_summary: dict[str, Any]
     presigned_url: str | None = None
     expires_at: str | None = None  # ISO 8601
+
+    @field_serializer("content_preview")
+    def serialize_content_preview(self, value: str) -> str:
+        return redact_sensitive_text(value)
+
+    @field_serializer("payload_summary")
+    def serialize_payload_summary(self, value: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(value)
 
 
 class ArtifactListPage(BaseModel):

@@ -14,6 +14,7 @@ import {
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
   repairPatchApproval,
+  resolveAgentFilePath,
   reviewIssuesFromReport,
   shouldApplyAgentControlAck,
   scopeWarningFromAgentResult,
@@ -487,6 +488,17 @@ test('agent result file path prefers review report or proposed patch path', () =
     }),
     '正文/第10章.md',
   );
+});
+
+test('agent patch paths are resolved to a contained absolute project path before suggestion dispatch', () => {
+  const project = 'D:\\StoryForge\\Books\\雾港回声';
+
+  assert.equal(
+    resolveAgentFilePath(project, '正文/第10章.md'),
+    'D:\\StoryForge\\Books\\雾港回声\\正文\\第10章.md',
+  );
+  assert.equal(resolveAgentFilePath(project, '../secret.md'), null);
+  assert.equal(resolveAgentFilePath(project, 'D:/outside/secret.md'), null);
 });
 
 test('scope warning is extracted from agent_result for the patch panel', () => {

@@ -28,12 +28,14 @@ def test_retrieval_source_refresh_and_search(client: TestClient, retrieval_scope
             "source_type": "reference_doc",
             "title": "灯塔港档案",
             "content_text": "灯塔信号每七分钟重复一次。林岚必须隐藏伤势。港口议会只相信旧协议。",
-            "payload": {"origin": "upload"},
+            "payload": {"origin": "upload", "api_key": "secret-retrieval-value"},
         },
     )
     assert created.status_code == 201, created.text
     source = created.json()
     assert source["chunk_count"] >= 1
+    assert source["payload"]["api_key"] == "[REDACTED]"
+    assert "secret-retrieval-value" not in created.text
 
     refresh = client.post(
         "/api/retrieval/refresh-runs",

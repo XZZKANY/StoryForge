@@ -429,12 +429,12 @@ export function App() {
         shell.toggleSidebar();
       } else if (key === ',') {
         e.preventDefault();
-        setSettingsVisible(true);
+        void openSettings();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [shell]);
+  }, [openSettings, shell]);
 
   const { isDesktopRuntime, tauriMenuReady, tauriMenuError, smokeApiReady } = useTauriMenuBridge({
     onOpenProject: handleOpenProject,

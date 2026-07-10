@@ -155,9 +155,10 @@ def test_commercial_provider_and_analytics_service_flow(session: Session) -> Non
             member_id=owner.id,
             event_type="manual_audit_marked",
             source="phase3_acceptance",
-            payload={"note": "补充验收事件"},
+            payload={"note": "补充验收事件", "api_key": "secret-event-value"},
         ),
     )
+    assert list_workspace_events(session, workspace.id)[0].payload["api_key"] == "[REDACTED]"
 
     upsert_workspace_subscription(
         session,

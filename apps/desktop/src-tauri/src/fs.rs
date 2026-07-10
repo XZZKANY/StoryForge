@@ -35,6 +35,22 @@ pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("无法读取文件 {}: {}", path, e))
 }
 
+/// 读取项目文件前解析真实路径，阻止项目内 symlink 指向项目外部文件。
+#[tauri::command]
+pub fn read_project_file(project_root: String, path: String) -> Result<String, String> {
+    let root = fs::canonicalize(&project_root)
+        .map_err(|e| format!("无法解析项目目录 {}: {}", project_root, e))?;
+    let candidate =
+        fs::canonicalize(&path).map_err(|e| format!("无法解析项目文件 {}: {}", path, e))?;
+    if candidate == root || !candidate.starts_with(&root) {
+        return Err(format!("文件不在当前项目内: {}", path));
+    }
+    if !candidate.is_file() {
+        return Err(format!("路径不是项目文件: {}", path));
+    }
+    fs::read_to_string(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))
+}
+
 /// 写入文件内容（原子替换：先写同目录临时文件并 sync，再 rename 覆盖目标，
 /// 崩溃/中断绝不会在目标文件留下截断内容）。
 #[tauri::command]
@@ -186,7 +202,10 @@ pub fn get_file_info(path: String) -> Result<FileEntry, String> {
 
 /// 从路径创建 FileEntry
 fn create_file_entry(path: &Path) -> Result<FileEntry, String> {
-    let metadata = fs::metadata(path).map_err(|e| format!("无法读取文件元数据: {}", e))?;
+    let metadata = fs::symlink_metadata(path).map_err(|e| format!("无法读取文件元数据: {}", e))?;
+    if metadata.file_type().is_symlink() {
+        return Err("忽略符号链接条目".to_string());
+    }
 
     let name = path
         .file_name()
@@ -268,10 +287,51 @@ mod tests {
     }
 
     #[test]
+    fn read_project_file_rejects_project_external_paths() {
+        let project = TempDir::new("project-read-root");
+        let outside = TempDir::new("project-read-outside");
+        let outside_file = outside.join("secret.md");
+        write_file(outside_file.clone(), "secret".to_string()).expect("outside file should exist");
+
+        let error = read_project_file(project.path.to_string_lossy().to_string(), outside_file)
+            .expect_err("external file must be rejected");
+
+        assert!(error.contains("文件不在当前项目内"));
+    }
+
+    #[test]
+    fn project_file_reads_and_indexes_do_not_follow_symlinks() {
+        let project = TempDir::new("project-symlink-root");
+        let outside = TempDir::new("project-symlink-outside");
+        let outside_file = outside.path.join("secret.md");
+        fs::write(&outside_file, "secret").expect("outside file should exist");
+        let link = project.path.join("linked-secret.md");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside_file, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_file(&outside_file, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let entries = list_dir(project.path.to_string_lossy().to_string(), true)
+            .expect("project listing should succeed");
+        assert!(!entries.iter().any(|entry| entry.name == "linked-secret.md"));
+        assert!(read_project_file(
+            project.path.to_string_lossy().to_string(),
+            link.to_string_lossy().to_string(),
+        )
+        .expect_err("symlink escape must be rejected")
+        .contains("文件不在当前项目内"));
+    }
+
+    #[test]
     fn write_file_stages_out_of_place_so_target_is_replaced_atomically() {
         let temp = TempDir::new("atomic-stage");
         let file_path = temp.join("chapter.md");
-        write_file(file_path.clone(), "committed-v1".to_string()).expect("seed write should succeed");
+        write_file(file_path.clone(), "committed-v1".to_string())
+            .expect("seed write should succeed");
 
         // 暂存新内容到同目录临时文件，但尚未 rename：目标必须仍是旧内容（绝不原地截断）。
         let target = Path::new(&file_path);
@@ -295,9 +355,13 @@ mod tests {
         let temp = TempDir::new("atomic-commit");
         let file_path = temp.join("chapter.md");
         write_file(file_path.clone(), "v1".to_string()).expect("first write should succeed");
-        write_file(file_path.clone(), "v2-longer-body".to_string()).expect("overwrite should succeed");
+        write_file(file_path.clone(), "v2-longer-body".to_string())
+            .expect("overwrite should succeed");
 
-        assert_eq!(read_file(file_path).expect("read should succeed"), "v2-longer-body");
+        assert_eq!(
+            read_file(file_path).expect("read should succeed"),
+            "v2-longer-body"
+        );
         // rename 提交后临时文件必须已被消费，目录里不留 .tmp 残渣。
         let residue: Vec<String> = fs::read_dir(&temp.path)
             .expect("dir listing should succeed")

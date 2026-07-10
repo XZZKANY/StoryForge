@@ -9,7 +9,7 @@
  * assistant 会话 REST 往返 → Agent WS 一轮(未知消息类型换取确定性 error 帧)→ 杀进程树。
  */
 
-/* global AbortSignal, WebSocket -- Node 22 内置全局,eslint env 未收录 */
+/* global AbortSignal, WebSocket, Buffer -- Node 22 内置全局,eslint env 未收录 */
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -184,9 +184,10 @@ async function assistantRoundTrip(baseUrl, projectPath) {
 }
 
 async function websocketRoundTrip(port) {
-  const url = `ws://127.0.0.1:${port}/api/ide/agent/sessions/smoke-${process.pid}?api_key=${API_KEY}`;
+  const url = `ws://127.0.0.1:${port}/api/ide/agent/sessions/smoke-${process.pid}`;
+  const authProtocol = `storyforge-api-key.${Buffer.from(API_KEY).toString('base64url')}`;
   return await new Promise((resolveWs, reject) => {
-    const socket = new WebSocket(url);
+    const socket = new WebSocket(url, authProtocol);
     const timer = setTimeout(() => {
       socket.close();
       reject(new Error('WS 往返超时(10s)'));

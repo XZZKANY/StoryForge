@@ -53,10 +53,16 @@ def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifac
             "storage_uri": "memory://uploads/lighthouse-archive.txt",
             "mime_type": "text/plain",
             "size_bytes": 128,
-            "payload": {"purpose": "reference"},
+            "payload": {
+                "purpose": "reference",
+                "api_key": "secret-artifact-value",
+                "content": "Bearer sk-secret-artifact-preview",
+            },
         },
     )
     assert upload.status_code == 201, upload.text
+    assert upload.json()["payload"]["api_key"] == "[REDACTED]"
+    assert "secret-artifact-value" not in upload.text
 
     listing = client.get("/api/artifacts", params={"book_id": artifact_scope["book_id"]})
     assert listing.status_code == 200
@@ -99,7 +105,8 @@ def test_exports_and_manual_artifacts_are_registered(client: TestClient, artifac
     assert download.status_code == 200, download.text
     assert download.json()["download_mode"] == "payload_preview"
     assert download.json()["payload_summary"]["purpose"] == "reference"
-    assert "灯塔港设定附件" in download.json()["content_preview"]
+    assert download.json()["payload_summary"]["api_key"] == "[REDACTED]"
+    assert "sk-secret-artifact-preview" not in download.json()["content_preview"]
 
 
 def test_artifact_create_rejects_book_workspace_mismatch(client: TestClient, artifact_scope: dict[str, int]) -> None:

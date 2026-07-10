@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.redaction import redact_sensitive
 from app.domains.agent_runs import (
     canon_dossier,
     canon_gate,
@@ -2298,7 +2299,7 @@ def _optional_positive_int(value: object) -> int | None:
 
 def _safe_summary(payload: dict[str, Any]) -> dict[str, Any]:
     summary: dict[str, Any] = {}
-    for key, value in payload.items():
+    for key, value in redact_sensitive(payload).items():
         if key == "content" and isinstance(value, str):
             summary["content_chars"] = len(value)
         elif isinstance(value, str):

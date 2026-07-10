@@ -14,6 +14,8 @@ test('agent websocket streams events and resolves with the final result', async 
   const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
   const sentPayloads: Array<Record<string, unknown>> = [];
   const seenEvents: string[] = [];
+  let openedUrl = '';
+  let openedProtocol = '';
 
   class MockWebSocket {
     onopen: ((event: Event) => void) | null = null;
@@ -21,7 +23,12 @@ test('agent websocket streams events and resolves with the final result', async 
     onerror: ((event: Event) => void) | null = null;
     onclose: ((event: CloseEvent) => void) | null = null;
 
-    constructor(readonly url: string) {
+    constructor(
+      readonly url: string,
+      protocols?: string | string[],
+    ) {
+      openedUrl = url;
+      openedProtocol = Array.isArray(protocols) ? (protocols[0] ?? '') : (protocols ?? '');
       setTimeout(() => this.onopen?.(new Event('open')), 0);
     }
 
@@ -104,11 +111,19 @@ test('agent websocket streams events and resolves with the final result', async 
       onEvent: (event) => seenEvents.push(event.type),
     });
 
-    assert.deepEqual(seenEvents, ['agent_run_started', 'agent_step', 'tool_trace', 'permission_required', 'agent_result']);
+    assert.deepEqual(seenEvents, [
+      'agent_run_started',
+      'agent_step',
+      'tool_trace',
+      'permission_required',
+      'agent_result',
+    ]);
     assert.equal(result.type, 'agent_result');
     assert.equal(sentPayloads[0].stream, true);
     assert.equal(sentPayloads[0].run_id, 'run-1');
     assert.equal(sentPayloads[0].type, 'user_message');
+    assert.equal(openedUrl.includes('api_key='), false);
+    assert.match(openedProtocol, /^storyforge-api-key\.[A-Za-z0-9_-]+$/);
   } finally {
     if (previousWindow) {
       Object.defineProperty(globalThis, 'window', previousWindow);
@@ -470,10 +485,16 @@ test('getAgentRunSavePoints fetches durable recovery projection', async () => {
 
     assert.equal(fetchCalls[0].url, 'http://127.0.0.1:8000/api/agent-runs/bookrun-7/save-points');
     assert.equal(fetchCalls[0].init?.method, 'GET');
-    assert.equal((fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'], 'local-dev-key');
+    assert.equal(
+      (fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'],
+      'local-dev-key',
+    );
     assert.equal(projection.run_id, 'bookrun-7');
     assert.equal(projection.save_points[0].kind, 'control_message');
-    assert.equal(projection.runtime_recovery.latest_control?.['event_type'], 'retry_from_checkpoint');
+    assert.equal(
+      projection.runtime_recovery.latest_control?.['event_type'],
+      'retry_from_checkpoint',
+    );
   } finally {
     if (previousFetch) {
       Object.defineProperty(globalThis, 'fetch', previousFetch);

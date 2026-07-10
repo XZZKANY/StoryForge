@@ -863,7 +863,14 @@ fn run_smoke_probe<R: tauri::Runtime>(
             || api_config.get("apiKey").and_then(|entry| entry.as_str())
                 != Some(expected_api_key.as_str())
         {
-            eprintln!("Smoke 失败: API 配置不符合预期: {}", api_config);
+            eprintln!(
+                "Smoke 失败: API 配置不符合预期: baseUrl={:?}, hasApiKey={}",
+                api_config.get("baseUrl"),
+                api_config
+                    .get("hasApiKey")
+                    .and_then(|entry| entry.as_bool())
+                    .unwrap_or(false)
+            );
             std::process::exit(1);
         }
 
@@ -1443,6 +1450,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
+            fs::read_project_file,
             fs::write_file,
             fs::list_dir,
             fs::delete_path,

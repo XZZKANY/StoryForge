@@ -112,6 +112,7 @@ export {
   buildStableAgentRequestPayload,
   extractIssueScopeFromInstruction,
   filePathFromAgentResult,
+  resolveAgentFilePath,
   repairPatchApproval,
   reviewIssuesFromReport,
   scopeWarningFromAgentResult,
@@ -194,6 +195,10 @@ function filePathFromAgentResult(message: AgentResultMessage): string | null {
   return typeof filePath === 'string' && filePath.trim() ? filePath : null;
 }
 
+function resolveAgentFilePath(projectPath: string | null, filePath: string): string | null {
+  return projectPath ? resolveProjectRelativePath(projectPath, filePath) : null;
+}
+
 function shouldApplyAgentControlAck(
   activeRunId: string | null,
   requestedRunId: string,
@@ -240,7 +245,7 @@ async function appendExplicitContextFiles(
     if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase()))
       continue;
     try {
-      const content = await TauriFileSystem.readFile(path);
+      const content = await TauriFileSystem.readProjectFile(projectPath, path);
       added.push({
         path,
         relativePath: relativeCandidate,
@@ -466,10 +471,23 @@ export function ChatWindow({
 
       const proposed = fileRevisionPatch(response);
       if (proposed) {
+        const suggestionFilePath = resolveAgentFilePath(projectPathRef.current, proposed.file_path);
+        if (!suggestionFilePath) {
+          const message = 'Agent 返回的补丁路径不在当前项目内，已拒绝打开。';
+          emitSuggestionResult({
+            filePath: proposed.file_path,
+            status: 'error',
+            message,
+            assistantSessionId: response.assistant_session_id,
+          });
+          setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+          updateAgentStatus('failed');
+          return;
+        }
         emitFileSuggestion(
           createRemoteFileSuggestion({
             id: proposed.id,
-            filePath: proposed.file_path,
+            filePath: suggestionFilePath,
             before: proposed.before,
             after: proposed.after,
             summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
@@ -482,7 +500,7 @@ export function ChatWindow({
           }),
         );
         emitSuggestionResult({
-          filePath: proposed.file_path,
+          filePath: suggestionFilePath,
           status: 'ready',
           message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
           assistantSessionId: response.assistant_session_id,
@@ -734,7 +752,7 @@ export function ChatWindow({
         let content: string | null = null;
         if (file && ref) {
           await flushActiveEditorToDisk(file);
-          content = await TauriFileSystem.readFile(file);
+          content = await TauriFileSystem.readProjectFile(project, file);
         }
 
         const contextRefs = Array.from(
@@ -899,10 +917,23 @@ export function ChatWindow({
 
         const proposed = fileRevisionPatch(response);
         if (proposed) {
+          const suggestionFilePath = resolveAgentFilePath(project, proposed.file_path);
+          if (!suggestionFilePath) {
+            const message = 'Agent 返回的补丁路径不在当前项目内，已拒绝打开。';
+            emitSuggestionResult({
+              filePath: proposed.file_path,
+              status: 'error',
+              message,
+              assistantSessionId: response.assistant_session_id,
+            });
+            setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+            updateAgentStatus('failed');
+            return;
+          }
           emitFileSuggestion(
             createRemoteFileSuggestion({
               id: proposed.id,
-              filePath: proposed.file_path,
+              filePath: suggestionFilePath,
               before: proposed.before,
               after: proposed.after,
               summary: response.agent_result.summary ?? 'Agent 已生成修订建议。',
@@ -915,7 +946,7 @@ export function ChatWindow({
             }),
           );
           emitSuggestionResult({
-            filePath: proposed.file_path,
+            filePath: suggestionFilePath,
             status: 'ready',
             message: response.agent_result.summary ?? 'Agent 已生成修订建议。',
             assistantSessionId: response.assistant_session_id,
@@ -1169,10 +1200,12 @@ export function ChatWindow({
         { role: 'assistant', content: `跨章一致性检查中…(${names.join(' / ')})` },
       ]);
       try {
+        const project = projectPathRef.current;
+        if (!project) throw new Error('当前项目已关闭，无法读取跨章上下文。');
         const chapters: { name: string; content: string }[] = [];
         for (const ref of refs) {
           await flushActiveEditorToDisk(ref.path);
-          const content = await TauriFileSystem.readFile(ref.path);
+          const content = await TauriFileSystem.readProjectFile(project, ref.path);
           chapters.push({ name: ref.name, content });
         }
         const result = await requestCrossChapterConsistency({ chapters, focus: instruction });

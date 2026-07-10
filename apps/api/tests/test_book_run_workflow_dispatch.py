@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,6 +27,7 @@ from app.domains.story_memory.schemas import ForeshadowLifecycleTransition, Memo
 from app.domains.story_memory.service import apply_foreshadow_lifecycle_transition, create_memory_atom
 from app.domains.timeline.schemas import TimelineEventCreate
 from app.domains.timeline.service import create_timeline_event
+from app.domains.workspaces.models import Workspace
 
 
 def seed_dispatchable_book_run(
@@ -37,7 +39,20 @@ def seed_dispatchable_book_run(
     """创建已生成章节计划的 running BookRun，供 workflow dispatch 使用。"""
 
     with session_factory() as session:
-        book = Book(title="雾港航线", status="draft", premise="调查灯塔信号。")
+        workspace = Workspace(
+            title="雾港航线项目",
+            slug=f"dispatch-{uuid4().hex[:12]}",
+            status="active",
+            seat_limit=1,
+        )
+        session.add(workspace)
+        session.flush()
+        book = Book(
+            title="雾港航线",
+            status="draft",
+            premise="调查灯塔信号。",
+            workspace_id=workspace.id,
+        )
         session.add(book)
         session.flush()
         blueprint = BookBlueprint(
@@ -86,6 +101,8 @@ def _book_run_scope(session: Session, book_run_id: int) -> tuple[BookRun, BookBl
 
 def _seed_longform_context(session: Session, book_run_id: int) -> None:
     book_run, blueprint = _book_run_scope(session, book_run_id)
+    book = session.get(Book, book_run.book_id)
+    assert book is not None and book.workspace_id is not None
     chapters = (
         session.query(Chapter)
         .filter(Chapter.book_id == book_run.book_id, Chapter.blueprint_id == blueprint.id)
@@ -133,7 +150,7 @@ def _seed_longform_context(session: Session, book_run_id: int) -> None:
     create_timeline_event(
         session,
         TimelineEventCreate(
-            project_id=1,
+            project_id=book.workspace_id,
             book_id=book_run.book_id,
             volume_id=1,
             chapter_id=chapters[0].id,

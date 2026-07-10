@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -54,6 +56,7 @@ from app.domains.ide.service import (
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
 _API_KEY_HEADER = "x-storyforge-api-key"
+_API_KEY_PROTOCOL_PREFIX = "storyforge-api-key."
 
 _STREAM_EVENT = "stream_event"
 _STREAM_RESULT = "result"
@@ -66,11 +69,25 @@ def _expected_api_key() -> str:
 
 
 async def _accept_or_reject_agent_socket(websocket: WebSocket) -> bool:
-    provided_key = websocket.headers.get(_API_KEY_HEADER) or websocket.query_params.get("api_key")
+    provided_key = websocket.headers.get(_API_KEY_HEADER)
+    accepted_protocol: str | None = None
+    if provided_key is None:
+        for protocol in websocket.headers.get("sec-websocket-protocol", "").split(","):
+            protocol = protocol.strip()
+            if not protocol.startswith(_API_KEY_PROTOCOL_PREFIX):
+                continue
+            encoded = protocol.removeprefix(_API_KEY_PROTOCOL_PREFIX)
+            try:
+                padding = "=" * (-len(encoded) % 4)
+                provided_key = base64.urlsafe_b64decode(encoded + padding).decode("utf-8")
+                accepted_protocol = protocol
+            except (binascii.Error, ValueError, UnicodeDecodeError):
+                provided_key = None
+            break
     if provided_key != _expected_api_key():
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return False
-    await websocket.accept()
+    await websocket.accept(subprotocol=accepted_protocol)
     return True
 
 

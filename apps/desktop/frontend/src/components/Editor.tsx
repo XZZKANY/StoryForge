@@ -160,6 +160,8 @@ export function Editor({
     cleanVersionIdRef,
     issueDecorationsRef,
     filePathRef,
+    isDirtyRef,
+    autoSaveTimerRef,
     resetSuggestionWriteback,
     adoptPendingSuggestion,
     setLoadedContentPreview,

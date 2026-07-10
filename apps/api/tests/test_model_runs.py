@@ -97,7 +97,11 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
             "prompt_hash": "sha256:testprompt",
             "input_summary": "生成港口谈判场景。",
             "output_summary": "模型返回首稿摘要。",
-            "payload": {"resolved_provider": "openai-global"},
+            "error_message": "provider rejected sk-secret-model-run-value",
+            "payload": {
+                "resolved_provider": "openai-global",
+                "api_key": "secret-model-run-payload",
+            },
         },
     )
     assert created.status_code == 201, created.text
@@ -115,10 +119,13 @@ def test_model_run_records_provider_latency_tokens_and_prompt_pack(client: TestC
     assert result["book_run_id"] == run_scope["book_run_id"]
     assert result["chapter_id"] == run_scope["chapter_id"]
     assert result["prompt_pack_id"] == run_scope["prompt_pack_id"]
+    assert result["payload"]["api_key"] == "[REDACTED]"
+    assert "sk-secret-model-run-value" not in result["error_message"]
 
     listing = client.get("/api/model-runs", params={"job_run_id": run_scope["job_run_id"]})
     assert listing.status_code == 200
     assert len(listing.json()) == 1
+    assert listing.json()[0]["payload"]["api_key"] == "[REDACTED]"
 
 
 def test_runs_job_run_endpoint_reads_persisted_job_run(client: TestClient, run_scope: dict[str, int]) -> None:

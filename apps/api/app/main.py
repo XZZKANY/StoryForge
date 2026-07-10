@@ -6,6 +6,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from limits import parse as parse_limit
@@ -19,6 +21,7 @@ from app.common.exceptions import DomainError
 from app.common.logging_config import configure_logging, get_logger
 from app.common.metrics import setup_metrics
 from app.common.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
+from app.common.redaction import redact_validation_errors
 from app.common.sentry_config import init_sentry
 from app.common.version import APP_VERSION
 from app.db.session import SessionLocal, bootstrap_sqlite_database, get_engine
@@ -298,6 +301,12 @@ app.include_router(series_router)
 app.include_router(timeline_router)
 app.include_router(workspaces_router)
 app.include_router(worldbuilding_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    errors = jsonable_encoder(exc.errors())
+    return JSONResponse(status_code=422, content={"detail": redact_validation_errors(errors)})
 
 
 @app.exception_handler(DomainError)

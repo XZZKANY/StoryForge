@@ -21,6 +21,7 @@ from urllib import error, request
 
 from app.common import llm_http
 from app.common.exceptions import DomainError
+from app.common.redaction import redact_sensitive_text
 
 THINK_BLOCK_RE = llm_http.THINK_BLOCK_RE
 THINK_OPEN_RE = llm_http.THINK_OPEN_RE
@@ -125,7 +126,13 @@ def _request_chat_completions(
                 )
                 continue
             try:
-                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+                error_body = redact_sensitive_text(
+                    exc.read().decode("utf-8", errors="replace")[:2000],
+                    extra_secrets=[
+                        source.get("STORYFORGE_LLM_API_KEY"),
+                        source.get("STORYFORGE_LLM_AUTH_TOKEN"),
+                    ],
+                )
             except Exception:  # noqa: BLE001 - 仅用于诊断，读不出 body 不应掩盖原始错误
                 error_body = "<无法读取响应体>"
             raise LLMError(

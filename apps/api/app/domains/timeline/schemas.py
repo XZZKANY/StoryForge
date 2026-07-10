@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+from app.common.redaction import redact_sensitive, redact_sensitive_text
 
 
 class TimelineEventCreate(BaseModel):
@@ -35,3 +37,15 @@ class TimelineEventRead(BaseModel):
     payload: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("summary")
+    def serialize_summary(self, value: str) -> str:
+        return redact_sensitive_text(value)
+
+    @field_serializer("evidence_refs")
+    def serialize_evidence_refs(self, value: list[str]) -> list[str]:
+        return [redact_sensitive_text(item) for item in value]
+
+    @field_serializer("payload")
+    def serialize_payload(self, value: dict[str, Any]) -> dict[str, Any]:
+        return redact_sensitive(value)
