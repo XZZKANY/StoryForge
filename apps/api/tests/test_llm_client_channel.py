@@ -250,6 +250,26 @@ def test_channel_http_error_body_redacts_upstream_secret() -> None:
     assert REDACTED in message
 
 
+def test_channel_http_error_body_redacts_configured_auth_token() -> None:
+    auth_token = "opaque-private-auth-token-value"
+    _ChatHandler.fail_times = 1
+    _ChatHandler.status_code = 400
+    server = _serve()
+    _ChatHandler.error_body = {"error": {"message": f"provider echoed {auth_token}"}}
+    try:
+        with pytest.raises(LLMError) as excinfo:
+            _call_llm(
+                _source(server.server_address[1], STORYFORGE_LLM_AUTH_TOKEN=auth_token),
+                system_prompt="s",
+                user_prompt="u",
+            )
+    finally:
+        server.shutdown()
+
+    assert auth_token not in str(excinfo.value)
+    assert REDACTED in str(excinfo.value)
+
+
 def test_redact_secrets_scrubs_key_substring() -> None:
     assert redact_secrets(f"boom key={_API_KEY} tail", [_API_KEY]) == "boom key=*** tail"
     # 过短的密钥不脱敏（避免误伤正常文本）；None 安全跳过。

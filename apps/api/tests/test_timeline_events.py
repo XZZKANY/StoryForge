@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
 from app.domains.books.models import Book, Chapter
+from app.domains.timeline.models import TimelineEventRecord
 from app.domains.workspaces.models import Workspace
 
 
@@ -17,7 +20,20 @@ def _create_book_with_chapter(
     """准备时间线事件所需的作品和章节真相源。"""
 
     with session_factory() as session:
-        book = Book(title=title, status="draft", premise="验证 TimelineEvent。")
+        workspace = Workspace(
+            title=f"{title}项目",
+            slug=f"timeline-{uuid4().hex[:12]}",
+            status="active",
+            seat_limit=1,
+        )
+        session.add(workspace)
+        session.flush()
+        book = Book(
+            title=title,
+            status="draft",
+            premise="验证 TimelineEvent。",
+            workspace_id=workspace.id,
+        )
         session.add(book)
         session.flush()
         chapter = Chapter(
@@ -29,7 +45,7 @@ def _create_book_with_chapter(
         )
         session.add(chapter)
         session.commit()
-        return {"book_id": book.id, "chapter_id": chapter.id}
+        return {"project_id": workspace.id, "book_id": book.id, "chapter_id": chapter.id}
 
 
 def test_create_timeline_event_persists_required_contract(
@@ -43,13 +59,13 @@ def test_create_timeline_event_persists_required_contract(
     response = client.post(
         "/api/timeline-events",
         json={
-            "project_id": 7,
+            "project_id": scope["project_id"],
             "book_id": scope["book_id"],
             "volume_id": 2,
             "chapter_id": scope["chapter_id"],
             "time_order": 30,
-            "summary": "林岚在灯塔港收到第一封求救信号。",
-            "evidence_refs": ["chapter:1:scene:1", "asset:signal"],
+            "summary": "林岚收到信号，api_key=secret-timeline-summary。",
+            "evidence_refs": ["chapter:1:scene:1", "token=secret-timeline-evidence"],
             "payload": {"location": "灯塔港", "participants": ["林岚"]},
         },
     )
@@ -57,16 +73,22 @@ def test_create_timeline_event_persists_required_contract(
     assert response.status_code == 201, response.text
     event = response.json()
     assert event["id"] > 0
-    assert event["project_id"] == 7
+    assert event["project_id"] == scope["project_id"]
     assert event["book_id"] == scope["book_id"]
     assert event["volume_id"] == 2
     assert event["chapter_id"] == scope["chapter_id"]
     assert event["time_order"] == 30
-    assert event["summary"] == "林岚在灯塔港收到第一封求救信号。"
-    assert event["evidence_refs"] == ["chapter:1:scene:1", "asset:signal"]
+    assert "secret-timeline-summary" not in event["summary"]
+    assert "secret-timeline-evidence" not in event["evidence_refs"][1]
     assert event["payload"]["location"] == "灯塔港"
     assert event["created_at"]
     assert event["updated_at"]
+
+    with session_factory() as session:
+        stored = session.get(TimelineEventRecord, event["id"])
+        assert stored is not None
+        assert "secret-timeline-summary" not in stored.summary
+        assert "secret-timeline-evidence" not in stored.evidence_refs[1]
 
 
 def test_list_timeline_events_filters_book_and_orders_by_time(
@@ -86,7 +108,7 @@ def test_list_timeline_events_filters_book_and_orders_by_time(
         response = client.post(
             "/api/timeline-events",
             json={
-                "project_id": 7,
+                "project_id": target_scope["project_id"],
                 "book_id": target_scope["book_id"],
                 "volume_id": 1,
                 "chapter_id": target_scope["chapter_id"],
@@ -118,7 +140,7 @@ def test_create_timeline_event_rejects_chapter_from_other_book(
     response = client.post(
         "/api/timeline-events",
         json={
-            "project_id": 7,
+            "project_id": scope["project_id"],
             "book_id": scope["book_id"],
             "volume_id": 1,
             "chapter_id": other_scope["chapter_id"],
@@ -170,6 +192,38 @@ def test_create_timeline_event_rejects_project_that_does_not_match_book_workspac
             "chapter_id": scope["chapter_id"],
             "time_order": 1,
             "summary": "错误项目作用域事件。",
+            "evidence_refs": [],
+            "payload": {},
+        },
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "项目与作品工作区不匹配，无法创建时间线事件。"
+
+
+def test_create_timeline_event_rejects_book_without_workspace(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        book = Book(title="无工作区作品", status="draft", premise="不能伪造项目归属。")
+        session.add(book)
+        session.flush()
+        chapter = Chapter(book_id=book.id, ordinal=1, title="第 1 章", status="draft")
+        session.add(chapter)
+        session.commit()
+        book_id = book.id
+        chapter_id = chapter.id
+
+    response = client.post(
+        "/api/timeline-events",
+        json={
+            "project_id": 1,
+            "book_id": book_id,
+            "volume_id": 1,
+            "chapter_id": chapter_id,
+            "time_order": 1,
+            "summary": "不应创建的事件。",
             "evidence_refs": [],
             "payload": {},
         },

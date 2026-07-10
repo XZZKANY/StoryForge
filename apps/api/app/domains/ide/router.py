@@ -69,21 +69,26 @@ def _expected_api_key() -> str:
 
 
 async def _accept_or_reject_agent_socket(websocket: WebSocket) -> bool:
-    provided_key = (
-        websocket.headers.get(_API_KEY_HEADER)
-        or _api_key_from_websocket_protocol(websocket.headers.get("sec-websocket-protocol"))
-        or websocket.query_params.get("api_key")
+    protocol_key, accepted_protocol = _api_key_and_protocol_from_websocket_protocol(
+        websocket.headers.get("sec-websocket-protocol")
     )
-    if provided_key != _expected_api_key():
+    provided_key = websocket.headers.get(_API_KEY_HEADER) or protocol_key
+    expected_key = _expected_api_key()
+    if provided_key != expected_key:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return False
-    await websocket.accept()
+    await websocket.accept(subprotocol=accepted_protocol if protocol_key == expected_key else None)
     return True
 
 
 def _api_key_from_websocket_protocol(header_value: str | None) -> str | None:
+    api_key, _protocol = _api_key_and_protocol_from_websocket_protocol(header_value)
+    return api_key
+
+
+def _api_key_and_protocol_from_websocket_protocol(header_value: str | None) -> tuple[str | None, str | None]:
     if not header_value:
-        return None
+        return None, None
     for raw_protocol in header_value.split(","):
         protocol = raw_protocol.strip()
         if not protocol.startswith(_AGENT_API_KEY_PROTOCOL_PREFIX):
@@ -91,10 +96,10 @@ def _api_key_from_websocket_protocol(header_value: str | None) -> str | None:
         encoded = protocol.removeprefix(_AGENT_API_KEY_PROTOCOL_PREFIX)
         padding = "=" * (-len(encoded) % 4)
         try:
-            return base64.urlsafe_b64decode(f"{encoded}{padding}").decode("utf-8")
+            return base64.urlsafe_b64decode(f"{encoded}{padding}").decode("utf-8"), protocol
         except (binascii.Error, UnicodeDecodeError):
             continue
-    return None
+    return None, None
 
 
 async def _stream_agent_user_message(

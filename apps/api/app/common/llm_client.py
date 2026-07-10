@@ -131,7 +131,10 @@ def _request_chat_completions(
                 error_body = "<无法读取响应体>"
             error_body = redact_sensitive_text(
                 error_body,
-                extra_secrets=[_env_value(source, "STORYFORGE_LLM_API_KEY")],
+                extra_secrets=[
+                    _env_value(source, "STORYFORGE_LLM_API_KEY"),
+                    _env_value(source, "STORYFORGE_LLM_AUTH_TOKEN"),
+                ],
             )
             raise LLMError(
                 f"真实 LLM 返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，尝试 {attempt}/{max_attempts}）：{error_body}"
@@ -144,7 +147,10 @@ def _request_chat_completions(
             reason = getattr(exc, "reason", exc)
             reason_text = redact_sensitive_text(
                 str(reason),
-                extra_secrets=[_env_value(source, "STORYFORGE_LLM_API_KEY")],
+                extra_secrets=[
+                    _env_value(source, "STORYFORGE_LLM_API_KEY"),
+                    _env_value(source, "STORYFORGE_LLM_AUTH_TOKEN"),
+                ],
             )
             raise LLMError(
                 f"真实 LLM 调用超时或连接失败（耗时 {elapsed_ms}ms，timeout={timeout}s，尝试 {attempt}/{max_attempts}）：{reason_text}"

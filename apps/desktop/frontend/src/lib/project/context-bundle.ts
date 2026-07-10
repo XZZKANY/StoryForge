@@ -136,7 +136,7 @@ export async function buildContextBundle(params: {
   const files: ContextBundleFile[] = [];
   for (const file of selection.files) {
     try {
-      const content = await TauriFileSystem.readFile(file.path);
+      const content = await TauriFileSystem.readProjectFile(projectPath, file.path);
       const excerpt = content.trim().slice(0, maxExcerptChars);
       if (excerpt) {
         files.push({
