@@ -58,8 +58,6 @@ export type {
   CrossChapterFinding,
   CrossChapterRequest,
   CrossChapterResult,
-  ReviseRequest,
-  ReviseResult,
   WritingRunEvent,
   WritingRunHandle,
 } from './api/types';
