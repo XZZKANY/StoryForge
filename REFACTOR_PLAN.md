@@ -263,9 +263,9 @@ rg "import httpx" apps/api/app    # 期望归零
 | ---- | ---- | ---- | ---- |
 | B1 entity_budget_check | done | ee0b31b9 | 批内目标/全量/ruff/OpenAPI 门禁全绿 |
 | B2 canon_delta | done | 8eaecaf5 | 批内目标/全量/ruff/OpenAPI 门禁全绿 |
-| B3 retrieval 传输统一 | done | 待收尾回填 | 异常依赖核查通过；目标/全量/ruff 门禁全绿 |
-| B4 会话守卫 nonce(L2) | | | |
-| B5 切会话清 run 面板 | | | |
-| B6 Revise 死类型 | | | |
-| B7 探针去 flaky | | | |
-| B8 usage 字段对齐 | | | |
+| B3 retrieval 传输统一 | done | 1760e552 | 异常依赖核查通过；目标/全量/ruff 门禁全绿，生产 httpx import 归零 |
+| B4 会话守卫 nonce(L2) | done | 32c27c36 | 24 files / 145 tests；typecheck 全绿，六处异步写回统一比较 conversation key |
+| B5 切会话清 run 面板 | done | 71573f0a | 25 files / 148 tests；typecheck 全绿，自我持久化转移保留刚完成面板 |
+| B6 Revise 死类型 | done | 9a764729 | typecheck、25 files / 148 tests、pnpm lint 全绿 |
+| B7 探针去 flaky | done | 20ae68f4 | 目标文件连续 10 遍均 10 passed；API 全量 938 passed / 3 skipped |
+| B8 usage 字段对齐 | done | f27be73e | 矩阵与受影响测试全绿；API 全量 939 passed / 3 skipped；ruff/OpenAPI 全绿 |
