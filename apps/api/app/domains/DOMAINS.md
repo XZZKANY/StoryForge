@@ -37,12 +37,13 @@
 - 三域 service 亦零 live/backing import（`worldbuilding` service 此前仅被冻结的 `assets` 惰性 import，一并退役）；删其专属 HTTP 测试（`test_prompt_packs` / `test_series_memory` / `test_series_worldbuilding_api` / `test_worldbuilding_center`）不丢 live 覆盖。
 - 前缀入 `FROZEN_UNMOUNTED_PREFIXES`；移除 `test_api_surface.py` 的 `worldbuilding` 正向断言；e2e 契约 phase2（series）/phase4（prompt-packs）同步摘除。`models.py` 全保留（`Series`/`SeriesMemory` 被 live `quality`/`retrieval`、`PromptPack` 被 `model_runs` import）。
 
-**router 可卸载但仍挂载（batch-2b 剩余，test 纠缠需手术）**，`models.py` 是 live 依赖必须保留：
-- `workspaces` —— `Workspace` 被 **live ide 审计**（`command_registry.py:24` 的「假 Workspace 行」）+ `artifacts`/`events`/`provider_gateway`/`model_runs`/`common/scope.py` import。最重，**永不删**。卸载前置手术：`test_api_middleware.py` 拿 `/api/workspaces` 当「通用受保护端点」测 auth/CORS（8 处），须改指另一 live 端点；另有 `test_api_surface.py:27` 正向断言须删。
-- `assets` —— `Asset`/`EvidenceLink` 被 live `scene_packets`/`character_bible`/`story_memory`/`books` import。卸载前置手术：`test_phase1_closed_loop_api.py` 经 `/api/assets` 建 character/style 资产喂 scene-packet（live 覆盖），须改 session 直建。
-- `evaluations` —— 仅 `app/models.py` 聚合 import。卸载前置手术：`test_phase1_closed_loop_api.py` 尾段测 `/api/evaluations`，须摘除该段。
+**router 已卸载（W4 batch-2b，2026-07-10）**：`assets`、`evaluations`、`workspaces`。至此 batch-2 六域 router 全部卸载。
+- `workspaces` —— `Workspace` models 被 **live ide 审计** + `artifacts`/`events`/`provider_gateway`/`model_runs`/`common/scope.py` import，**永不删**；只卸 HTTP router。手术：`test_api_middleware.py` 8 处拿 `/api/workspaces` 当「通用受保护端点」→ 改指 `/api/agent-runs`（auth 401 + CORS preflight 在 routing 之前，端点存在与否无关，行为等价）；删 `test_api_surface.py` 正向断言 + `test_workspaces_api.py`。
+- `assets` —— `Asset`/`EvidenceLink` models 被 live `scene_packets`/`character_bible`/`story_memory`/`books` import。手术：`test_phase1_closed_loop_api.py` 的 `_create_asset` 从 `/api/assets` POST 改 session 直建（`create_asset` 唯一非平凡逻辑是 `lineage_key=uuid4`，下游按 id+payload 引用，session 直建保覆盖）；删 `test_assets_api.py`。
+- `evaluations` —— 仅 `app/models.py` 聚合 import。手术：删 `test_phase1_closed_loop_api.py` 尾段评测块 + `test_evaluations.py`。
+- 三前缀入 `FROZEN_UNMOUNTED_PREFIXES`；e2e 契约 phase1（assets path+AssetCreate）/phase3（workspaces test+WorkspaceCreate）/phase4（evaluations path+EvaluationRunRead）同步摘除。`models.py` 全保留。
 
-**batch-2 卸载前置评估（2026-07-04 discovery；2026-07-10 batch-2a 已落地 `prompt_packs`/`series`/`worldbuilding`，下述剩余 `assets`/`evaluations`/`workspaces` = batch-2b）**：
+**batch-2 卸载前置评估（2026-07-04 discovery；2026-07-10 batch-2a+2b 全落地，六域 router 已全部卸载；下方为历史 discovery 留档，线号已过时）**：
 - 6 个 router **全部零 live HTTP 消费方**（`apps/desktop/frontend` 零 fetch + 无 live/backing 域走 HTTP 调用；唯一近似命中 `frontend/src/lib/project/semantics.ts:27` 的 `worldbuilding:'setting'` 是标签映射非 URL；`apps/workflow/.../tools/registry.py:333` 的 `/api/evaluations/*` 是静态文档字段非调用）。
 - `assets`/`prompt_packs`/`evaluations`/`series` 四域 **service 亦已死**（零 live/backing import 其 `service`，只 import `models`）→ 卸 router + 删其 HTTP 测试不丢 live 覆盖，与 batch-1 同型。
 - **但 batch-2 不是 batch-1 式的干净隔离，落地前须处理测试纠缠**：`test_phase1_closed_loop_api.py` 把 assets+evaluations 织进一条闭环集成流（需手术摘除对应步骤而非整删）；`test_series_worldbuilding_api.py` 同文件混 series+worldbuilding（worldbuilding 保留 → 只摘 series 段）；`workspaces`/`worldbuilding` 另有**正向 surface 护栏** `test_api_surface.py:25,27` 断言其必须挂载（卸载须同删这两行）。此外 e2e 契约断言待更新：assets `phase1-closed-loop.spec.ts:18-19`、series `phase2-contract.spec.ts:18-19`、prompt_packs+evaluations `phase4-contract.spec.ts:54-55/59-60`；main.py include 行 assets:278 / evaluations:282 / prompt_packs:289 / series:297 / workspaces:299 / worldbuilding:300。

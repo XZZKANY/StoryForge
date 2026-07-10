@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.models  # noqa: F401
+from app.domains.assets.models import Asset
 from app.domains.books.lineage_service import ChapterWritebackApproval, approve_chapter_writeback
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.judge.models import RepairPatch
@@ -52,7 +53,7 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
     """真实 API 串联第一阶段闭环；批准回写当前以服务层作为 Phase 1 边界。"""
 
     character = _create_asset(
-        client,
+        session_factory,
         phase1_story["book_id"],
         phase1_story["scene_id"],
         "character",
@@ -60,7 +61,7 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
         {"关系": "信任副官", "必须包含事实": ["左臂受伤"]},
     )
     style = _create_asset(
-        client,
+        session_factory,
         phase1_story["book_id"],
         None,
         "style_rule",
@@ -168,75 +169,33 @@ def test_phase1_closed_loop_api_with_writeback_service_boundary(
     assert "灯塔闭环" in content
     assert approved_content in content
 
-    with session_factory() as session:
-        workspace = Workspace(title="闭环评测空间", slug="closed-loop-evaluation", status="active", seat_limit=2)
-        session.add(workspace)
-        session.commit()
-        workspace_id = workspace.id
-
-    evaluation_case = client.post(
-        "/api/evaluations/cases",
-        json={
-            "workspace_id": workspace_id,
-            "book_id": phase1_story["book_id"],
-            "case_name": "批准章节一致性冒烟",
-            "case_type": "consistency",
-            "input_payload": {"chapter_id": phase1_story["chapter_id"], "scene_id": phase1_story["scene_id"]},
-            "expected_payload": {"open_loop_count": 0},
-        },
-    )
-    assert evaluation_case.status_code == 201, evaluation_case.text
-
-    evaluation_run = client.post(
-        "/api/evaluations/runs",
-        json={
-            "case_id": evaluation_case.json()["id"],
-            "observed_payload": {
-                "scene_count": 1,
-                "open_issue_count": 0,
-                "repair_attempts": 1,
-                "repair_accepted": 1,
-                "suggestions_total": 1,
-                "suggestions_accepted": 1,
-                "open_loop_count": 0,
-                "failed_samples": [],
-            },
-        },
-    )
-    assert evaluation_run.status_code == 201, evaluation_run.text
-    evaluation_result = evaluation_run.json()
-    assert evaluation_result["metrics"]["consistency_error_rate"] == 0.0
-    assert evaluation_result["metrics"]["repair_success_rate"] == 1.0
-    assert evaluation_result["metrics"]["open_loop_count"] == 0
-
-    evaluation_detail = client.get(f"/api/evaluations/runs/{evaluation_result['id']}")
-    assert evaluation_detail.status_code == 200, evaluation_detail.text
-    assert evaluation_detail.json()["failed_sample_count"] == 0
-
 
 def _create_asset(
-    client: TestClient,
+    session_factory: sessionmaker[Session],
     book_id: int,
     scene_id: int | None,
     asset_type: str,
     name: str,
     payload: dict[str, object],
 ) -> dict:
-    """通过真实资产 API 创建闭环所需资产。"""
+    """直接经 session 建闭环所需资产（assets HTTP 已冻结卸载，改 session 直建保留下游覆盖）。"""
 
-    response = client.post(
-        "/api/assets",
-        json={
-            "book_id": book_id,
-            "scene_id": scene_id,
-            "asset_type": asset_type,
-            "name": name,
-            "status": "active",
-            "payload": payload,
-        },
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
+    with session_factory() as session:
+        asset = Asset(
+            book_id=book_id,
+            scene_id=scene_id,
+            asset_type=asset_type,
+            lineage_key=f"{asset_type}:{name}",
+            name=name,
+            status="active",
+            payload=payload,
+            version=1,
+        )
+        session.add(asset)
+        session.flush()
+        asset_id = asset.id
+        session.commit()
+        return {"id": asset_id}
 
 
 def _create_scene_packet(

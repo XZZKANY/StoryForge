@@ -15,8 +15,6 @@ function assertOperation(path, method, tag) {
 
 test('第一阶段契约检查确认 OpenAPI 暴露关键端点', () => {
   assert.equal(openapi.info?.title, 'StoryForge API');
-  assertOperation('/api/assets', 'post', '资产中心');
-  assertOperation('/api/assets', 'get', '资产中心');
   assertOperation('/api/scene-packets', 'post', '场景上下文包');
   assertOperation('/api/judge/issues', 'post', '结构化评审');
   assertOperation('/api/repair/patches', 'post', '定向修复');
@@ -25,10 +23,7 @@ test('第一阶段契约检查确认 OpenAPI 暴露关键端点', () => {
   assertOperation('/api/books/{book_id}/exports/epub', 'get', '作品导出');
 });
 
-test('资产与 Scene Packet 契约保留关键请求与响应字段', () => {
-  const assetCreateSchema = openapi.components.schemas.AssetCreate;
-  assert.deepEqual(assetCreateSchema.required, ['book_id', 'asset_type', 'name']);
-
+test('Scene Packet 契约保留关键请求与响应字段', () => {
   const scenePacketCreateSchema = openapi.components.schemas.ScenePacketCreate;
   assert.deepEqual(scenePacketCreateSchema.required, [
     'book_id',

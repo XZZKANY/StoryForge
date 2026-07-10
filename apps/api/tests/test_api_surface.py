@@ -6,11 +6,14 @@ from app.main import app
 # 本断言即回滚护栏：任何一域被重新 include_router 即变红。
 FROZEN_UNMOUNTED_PREFIXES = (
     "/api/analytics",
+    "/api/assets",
     "/api/batch-refinery",
     "/api/collaboration",
     "/api/commercial",
+    "/api/evaluations",
     "/api/prompt-packs",
     "/api/series",
+    "/api/workspaces",
     "/api/worldbuilding",
 )
 
@@ -26,7 +29,6 @@ def test_main_registers_domain_router_surface() -> None:
     assert any(path.startswith("/api/model-runs") for path in registered_paths)
     assert any(path.startswith("/api/judge") for path in registered_paths)
     assert any(path.startswith("/api/quality") for path in registered_paths)
-    assert any(path.startswith("/api/workspaces") for path in registered_paths)
 
 
 def test_frozen_domain_routers_stay_unmounted() -> None:
