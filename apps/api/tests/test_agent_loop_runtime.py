@@ -690,6 +690,69 @@ def test_chat_loop_prose_check_feeds_static_smells(
     assert "project.prose_check" in [item["tool_name"] for item in tool_calls]
 
 
+def test_chat_loop_collapse_check_feeds_summary_only(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 project.collapse_check：完整 verdict 留证据，短 summary 回灌模型。"""
+
+    _enable_loop_env(monkeypatch)
+    (novel_project / "正文" / "第02章.md").write_text(
+        "他来到档案室，询问管理员，翻看登记表，把证据收进口袋后离开。",
+        encoding="utf-8",
+    )
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_collapse_check",
+                            "arguments": json.dumps(
+                                {
+                                    "path": "正文/第02章.md",
+                                    "beats": ["到场", "取证", "保存", "转场"],
+                                    "irreversible_consequence": "",
+                                }
+                            ),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "第二章有过场风险，建议补入不可逆变化。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-collapse",
+        project_path=str(novel_project),
+        message="帮我判断第二章是不是过场戏",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    trace = result["tool_trace"][0]
+    assert trace["tool_name"] == "project.collapse_check"
+    assert trace["output_summary"]["verdict"] == "warn"
+    assert trace["output_summary"]["issue_count"] >= 3
+
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert "process_only" in feedback
+    assert '"summary"' in feedback
+    assert '"issues"' not in feedback
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.collapse_check" in [item["tool_name"] for item in tool_calls]
+
+
 def test_chat_loop_deep_consistency_feeds_semantic_issues(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

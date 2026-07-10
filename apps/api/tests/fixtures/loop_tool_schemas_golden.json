@@ -171,6 +171,48 @@
   {
     "type": "function",
     "function": {
+      "name": "project_collapse_check",
+      "description": "场景承重静态检查（确定性，无需额外 LLM、不写盘）：先读完正文，再把你从正文观察到的 beats、场景前后情绪、不可逆后果、是否可删除填入可选参数。未传字段会跳过对应规则；显式空串 / 空数组表示观察结果为无。工具还会扫描正文调查模板，返回 pass / warn advisory 信号。结果只是辅助判断，不是场景质量结论。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对项目根的正文文件路径。"
+          },
+          "beats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "读完正文后提取的场景动作 beats；显式空数组表示没有 beats。"
+          },
+          "emotion_before": {
+            "type": "string",
+            "description": "场景开始时的情绪；显式空串表示没有可识别情绪。"
+          },
+          "emotion_after": {
+            "type": "string",
+            "description": "场景结束时的情绪；显式空串表示没有可识别情绪。"
+          },
+          "irreversible_consequence": {
+            "type": "string",
+            "description": "本场造成的不可逆后果；显式空串表示没有。"
+          },
+          "deletable": {
+            "type": "boolean",
+            "description": "删除本场后主线是否仍成立。"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "file_review",
       "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
       "parameters": {
