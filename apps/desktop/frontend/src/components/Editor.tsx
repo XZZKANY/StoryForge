@@ -58,6 +58,7 @@ type EditorProps = {
   onToggleSidebar?: () => void;
   sidebarVisible?: boolean;
   onExportCurrent?: () => void;
+  onDirtyChange?: (filePath: string | null, dirty: boolean) => void;
   dialogs: AppDialogApi;
 };
 
@@ -70,6 +71,7 @@ export function Editor({
   onToggleSidebar,
   sidebarVisible,
   onExportCurrent,
+  onDirtyChange,
   dialogs,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,6 +149,10 @@ export function Editor({
     autoSaveRef.current = autoSave;
   });
 
+  useEffect(() => {
+    onDirtyChange?.(filePath, isDirty);
+  }, [filePath, isDirty, onDirtyChange]);
+
   const { loadedFilePath, loadedContent, loadAttemptFilePath, loadError } = useEditorFileLoader({
     filePath,
     editorRef,
@@ -154,6 +160,8 @@ export function Editor({
     cleanVersionIdRef,
     issueDecorationsRef,
     filePathRef,
+    isDirtyRef,
+    autoSaveTimerRef,
     resetSuggestionWriteback,
     adoptPendingSuggestion,
     setLoadedContentPreview,
@@ -361,16 +369,7 @@ export function Editor({
     await handleCheckoutNode(node);
   };
 
-  const handleClose = async () => {
-    if (isDirty) {
-      const confirmed = await dialogs.confirm({
-        title: '关闭文件',
-        message: '文件有未保存的修改，确定关闭吗？',
-        confirmLabel: '关闭',
-        tone: 'danger',
-      });
-      if (!confirmed) return;
-    }
+  const handleClose = () => {
     onClose();
   };
 
@@ -382,7 +381,7 @@ export function Editor({
 
   return (
     <div
-      className="h-full flex flex-col bg-background relative"
+      className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background"
       data-testid="editor-root"
       data-current-file={filePath ?? ''}
       data-render-has-file={filePath ? 'true' : 'false'}
@@ -513,7 +512,7 @@ export function Editor({
           </button>
           <button
             id="editor-close-btn"
-            onClick={() => void handleClose()}
+            onClick={handleClose}
             title="关闭文件"
             className="sf-icon-button"
           >
@@ -554,7 +553,11 @@ export function Editor({
       )}
 
       {/* Monaco Editor */}
-      <div ref={containerRef} className="flex-1" data-testid="editor-container" />
+      <div
+        ref={containerRef}
+        className="min-h-0 flex-1 overflow-hidden"
+        data-testid="editor-container"
+      />
 
       {showHistory &&
         (filePath ? (

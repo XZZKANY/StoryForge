@@ -251,7 +251,7 @@ async function appendExplicitContextFiles(
     if (seen.has(path) || seenRelative.has(relativeCandidate.replace(/\\/g, '/').toLowerCase()))
       continue;
     try {
-      const content = await TauriFileSystem.readFile(path);
+      const content = await TauriFileSystem.readProjectFile(projectPath, path);
       added.push({
         path,
         relativePath: relativeCandidate,
@@ -754,6 +754,12 @@ export function ChatWindow({
       });
 
       try {
+        let content: string | null = null;
+        if (file && ref) {
+          await flushActiveEditorToDisk(file);
+          content = await TauriFileSystem.readProjectFile(project, file);
+        }
+
         const contextRefs = Array.from(
           new Set([...explicitContextPaths, ...extractContextReferences(goal)]),
         );
@@ -777,12 +783,6 @@ export function ChatWindow({
               content: `这些 @上下文没有读到：${appendedContext.missingPaths.join('、')}。我会继续用已选上下文处理这一轮。`,
             },
           ]);
-        }
-
-        let content: string | null = null;
-        if (file && ref) {
-          await flushActiveEditorToDisk(file);
-          content = await TauriFileSystem.readFile(file);
         }
 
         const payload = buildStableAgentRequestPayload({
@@ -1205,10 +1205,12 @@ export function ChatWindow({
         { role: 'assistant', content: `跨章一致性检查中…(${names.join(' / ')})` },
       ]);
       try {
+        const project = projectPathRef.current;
+        if (!project) throw new Error('当前项目已关闭，无法读取跨章上下文。');
         const chapters: { name: string; content: string }[] = [];
         for (const ref of refs) {
           await flushActiveEditorToDisk(ref.path);
-          const content = await TauriFileSystem.readFile(ref.path);
+          const content = await TauriFileSystem.readProjectFile(project, ref.path);
           chapters.push({ name: ref.name, content });
         }
         const result = await requestCrossChapterConsistency({ chapters, focus: instruction });
@@ -1289,7 +1291,7 @@ export function ChatWindow({
   ]);
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <ConversationHeader
         title={conversationTitle}
         onNewSession={() => onAssistantSessionChange?.(null)}

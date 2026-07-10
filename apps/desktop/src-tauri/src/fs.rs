@@ -1,8 +1,7 @@
 // 文件系统模块：提供本地文件操作 API。
 //
-// 项目根 containment 由前端统一 path helper 在调用前完成；本层仍保持 Tauri 原始
-// 文件命令的兼容签名，但目录枚举与文件信息读取不会跟随 symlink，避免项目内链接把
-// 外部文件暴露给资源树和 Agent context bundle。
+// 前端统一 path helper 负责字符串级 containment；Agent 上下文读取再由
+// read_project_file canonicalize 真实路径，目录枚举也不会跟随 symlink。
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -37,6 +36,22 @@ pub struct FileEntry {
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("无法读取文件 {}: {}", path, e))
+}
+
+/// 读取项目文件前解析真实路径，阻止项目内 symlink 指向项目外部文件。
+#[tauri::command]
+pub fn read_project_file(project_root: String, path: String) -> Result<String, String> {
+    let root = fs::canonicalize(&project_root)
+        .map_err(|e| format!("无法解析项目目录 {}: {}", project_root, e))?;
+    let candidate =
+        fs::canonicalize(&path).map_err(|e| format!("无法解析项目文件 {}: {}", path, e))?;
+    if candidate == root || !candidate.starts_with(&root) {
+        return Err(format!("文件不在当前项目内: {}", path));
+    }
+    if !candidate.is_file() {
+        return Err(format!("路径不是项目文件: {}", path));
+    }
+    fs::read_to_string(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))
 }
 
 /// 写入文件内容（原子替换：先写同目录临时文件并 sync，再 rename 覆盖目标，
@@ -272,6 +287,44 @@ mod tests {
 
         let content = read_file(file_path).expect("read should succeed");
         assert_eq!(content, "# Chapter 1\n\nOpening.");
+    }
+
+    #[test]
+    fn read_project_file_rejects_project_external_paths() {
+        let project = TempDir::new("project-read-root");
+        let outside = TempDir::new("project-read-outside");
+        let outside_file = outside.join("secret.md");
+        write_file(outside_file.clone(), "secret".to_string()).expect("outside file should exist");
+
+        let error = read_project_file(project.path.to_string_lossy().to_string(), outside_file)
+            .expect_err("external file must be rejected");
+
+        assert!(error.contains("文件不在当前项目内"));
+    }
+
+    #[test]
+    fn read_project_file_does_not_follow_symlink_escape() {
+        let project = TempDir::new("project-symlink-read-root");
+        let outside = TempDir::new("project-symlink-read-outside");
+        let outside_file = outside.path.join("secret.md");
+        fs::write(&outside_file, "secret").expect("outside file should exist");
+        let link = project.path.join("linked-secret.md");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside_file, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_file(&outside_file, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let error = read_project_file(
+            project.path.to_string_lossy().to_string(),
+            link.to_string_lossy().to_string(),
+        )
+        .expect_err("symlink escape must be rejected");
+
+        assert!(error.contains("文件不在当前项目内"));
     }
 
     #[test]

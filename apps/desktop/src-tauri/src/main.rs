@@ -1445,6 +1445,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
+            fs::read_project_file,
             fs::write_file,
             fs::list_dir,
             fs::delete_path,

@@ -3,6 +3,7 @@ import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
 import { currentMonacoTheme } from '../lib/theme';
+import { STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
@@ -80,6 +81,7 @@ export function PatchReviewPanel({
       lineNumbers: 'off',
       folding: false,
       fontSize: 12,
+      unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
     });
     const original = monaco.editor.createModel(suggestion.before, 'markdown');
     const modified = monaco.editor.createModel(suggestion.after, 'markdown');
