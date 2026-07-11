@@ -1,4 +1,4 @@
-// 把 agent-ws.schema.json（由后端 Pydantic 帧派生）投影成前端 TS 接口。
+// 把 agent-ws.schema.json（Agent 实时帧契约的历史兼容路径）投影成前端 TS 接口。
 // 确定性纯函数：同一 schema 每次产出一字不差，供 drift 门禁校验。
 // 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null` 而非可选省略。
 
@@ -49,7 +49,7 @@ export function emitAgentWsTypes(schema) {
   const header = [
     '// 该文件由 scripts/generate-openapi.mjs 从',
     '// packages/shared/src/contracts/agent-ws.schema.json 生成，请勿手改。',
-    '// 改 WS 帧字段要改后端 app/domains/agent_runs/ws_messages.py 再跑 `pnpm openapi`。',
+    '// 改 Agent 帧字段要改后端 app/domains/agent_runs/ws_messages.py 再跑 `pnpm openapi`。',
     '// 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null`。',
   ].join('\n');
 

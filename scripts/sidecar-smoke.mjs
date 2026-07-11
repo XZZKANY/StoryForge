@@ -6,10 +6,11 @@
  * 对冻结产物跑同一套 smoke——路径桥断裂 / hidden import / uvloop 一类故障只在冻结态暴露。
  *
  * 流程:临时 sqlite → 起服 → 轮询 /health/ready(记录冷启动耗时)→ 无 LLM 的
- * assistant 会话 REST 往返 → Agent WS 一轮(未知消息类型换取确定性 error 帧)→ 杀进程树。
+ * assistant 会话 REST 往返 → Agent SSE 流(空消息在 provider 前确定性失败)→
+ * Agent control REST 往返(未知类型 error 帧)→ 杀进程树。
  */
 
-/* global AbortSignal, Buffer, WebSocket -- Node 22 内置全局,eslint env 未收录 */
+/* global AbortSignal -- Node 22 内置全局,eslint env 未收录 */
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -183,37 +184,72 @@ async function assistantRoundTrip(baseUrl, projectPath) {
   return session.id;
 }
 
-async function websocketRoundTrip(port) {
-  const url = `ws://127.0.0.1:${port}/api/ide/agent/sessions/smoke-${process.pid}`;
-  const authProtocol = `storyforge-api-key.${Buffer.from(API_KEY, 'utf8').toString('base64url')}`;
-  return await new Promise((resolveWs, reject) => {
-    const socket = new WebSocket(url, authProtocol);
-    const timer = setTimeout(() => {
-      socket.close();
-      reject(new Error('WS 往返超时(10s)'));
-    }, 10_000);
-    socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'smoke_probe' }));
-    });
-    socket.addEventListener('message', (event) => {
-      clearTimeout(timer);
-      socket.close();
-      try {
-        const frame = JSON.parse(String(event.data));
-        if (frame.type === 'error' && typeof frame.detail === 'string') {
-          resolveWs(frame);
-        } else {
-          reject(new Error(`WS 回帧形状异常:${String(event.data)}`));
-        }
-      } catch (error) {
-        reject(new Error(`WS 回帧非 JSON:${error.message}`));
-      }
-    });
-    socket.addEventListener('error', () => {
-      clearTimeout(timer);
-      reject(new Error('WS 连接失败'));
-    });
+async function agentControlRoundTrip(baseUrl) {
+  // 未知 control type 由后端以 200 + {type:"error"} 帧返回（不建 run、不出网）。
+  const response = await fetch(`${baseUrl}/api/ide/agent/sessions/smoke-${process.pid}/control`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-StoryForge-API-Key': API_KEY },
+    body: JSON.stringify({ type: 'smoke_probe', run_id: 'smoke' }),
+    signal: AbortSignal.timeout(10_000),
   });
+  if (!response.ok) {
+    throw new Error(`Agent 控制端点 HTTP ${response.status}`);
+  }
+  const frame = await response.json();
+  if (frame.type === 'error' && typeof frame.detail === 'string') {
+    return frame;
+  }
+  throw new Error(`Agent 控制回帧形状异常:${JSON.stringify(frame)}`);
+}
+
+function parseSseFrames(text) {
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  return normalized
+    .split('\n\n')
+    .map((block) =>
+      block
+        .split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).replace(/^ /, ''))
+        .join('\n'),
+    )
+    .filter(Boolean)
+    .map((data) => JSON.parse(data));
+}
+
+async function agentStreamRoundTrip(baseUrl) {
+  const runId = `smoke-${process.pid}`;
+  const response = await fetch(`${baseUrl}/api/ide/agent/sessions/${runId}/stream`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'content-type': 'application/json',
+      'X-StoryForge-API-Key': API_KEY,
+    },
+    body: JSON.stringify({ run_id: runId, user_message: '' }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Agent SSE 端点 HTTP ${response.status}`);
+  }
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.startsWith('text/event-stream')) {
+    throw new Error(`Agent SSE content-type 异常:${contentType || '<missing>'}`);
+  }
+  const frames = parseSseFrames(await response.text());
+  const started = frames[0];
+  const terminal = frames.at(-1);
+  if (started?.type !== 'agent_run_started' || started.run_id !== runId) {
+    throw new Error(`Agent SSE started 帧异常:${JSON.stringify(started)}`);
+  }
+  if (
+    terminal?.type !== 'error' ||
+    terminal.run_id !== runId ||
+    typeof terminal.detail !== 'string'
+  ) {
+    throw new Error(`Agent SSE 终态帧异常:${JSON.stringify(terminal)}`);
+  }
+  return frames.length;
 }
 
 async function main() {
@@ -249,8 +285,11 @@ async function main() {
     ]);
     log(`assistant 会话往返通过(session id=${sessionId},零 LLM 调用)`);
 
-    await Promise.race([websocketRoundTrip(port), exitedEarly]);
-    log('Agent WS 一轮通过(握手 + 收发 JSON 帧)');
+    const streamFrameCount = await Promise.race([agentStreamRoundTrip(baseUrl), exitedEarly]);
+    log(`Agent SSE stream 已建立并收到 ${streamFrameCount} 帧(零 LLM/零外网)`);
+
+    await Promise.race([agentControlRoundTrip(baseUrl), exitedEarly]);
+    log('Agent control REST 往返通过(未知类型 error 帧)');
 
     assertSchemaManagedByAlembic(serverLogs);
     log('sqlite schema 已由 alembic 纳管(managed=true)');

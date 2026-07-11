@@ -116,40 +116,27 @@ def test_removed_fake_success_command_returns_404(client: TestClient) -> None:
     assert response.json() == {"detail": "未知 IDE 命令：memory.resolve_conflict"}
 
 
-def test_agent_websocket_write_command_uses_command_registry(
+def test_agent_write_command_uses_command_registry(
     client: TestClient,
     noop_write_command: str,
 ) -> None:
-    """Agent 写操作必须经同一命令执行器返回 audit_event_id。"""
+    """Agent 写操作必须经同一命令执行器返回 audit_event_id（WS 退役后走 REST 命令端点）。"""
 
     args = sample_args()
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-1") as websocket:
-        websocket.send_json(
-            {
-                "type": "command",
-                "command_id": noop_write_command,
-                "args": args,
-            }
-        )
-        message = websocket.receive_json()
+    response = client.post(f"/api/ide/commands/{noop_write_command}", json={"args": args})
 
-    assert message["type"] == "command_result"
-    assert message["session_id"] == "session-1"
-    assert message["result"]["command_id"] == noop_write_command
-    assert message["result"]["audit_event_id"].startswith("ide-command-event:")
-    assert message["result"]["payload"]["args"] == args
+    assert response.status_code == 200
+    result = response.json()
+    assert result["command_id"] == noop_write_command
+    assert result["audit_event_id"].startswith("ide-command-event:")
+    assert result["payload"]["args"] == args
 
 
-def test_agent_websocket_unknown_command_reports_error(client: TestClient) -> None:
+def test_agent_unknown_command_reports_error(client: TestClient) -> None:
     """Agent 不能绕过命令目录执行未知写操作。"""
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-2") as websocket:
-        websocket.send_json({"type": "command", "command_id": "direct.model.write", "args": {}})
-        message = websocket.receive_json()
+    response = client.post("/api/ide/commands/direct.model.write", json={"args": {}})
 
-    assert message == {
-        "type": "error",
-        "session_id": "session-2",
-        "detail": "未知 IDE 命令：direct.model.write",
-    }
+    assert response.status_code == 404
+    assert response.json() == {"detail": "未知 IDE 命令：direct.model.write"}

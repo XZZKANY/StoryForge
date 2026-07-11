@@ -119,7 +119,7 @@ class AgentRuntimeError(RuntimeError):
 
 
 class AgentRuntimeUserMessageError(AgentRuntimeError):
-    """user_message facade 失败，但已创建 AgentRun，可用于 WebSocket 回传 run_id。"""
+    """user_message facade 失败，但已创建 AgentRun，可用于实时错误帧回传 run_id。"""
 
     def __init__(self, detail: str, *, run: AgentRun, started_event: AgentRunEvent) -> None:
         super().__init__(detail)
@@ -157,7 +157,7 @@ def create_or_resume_agent_run(
     permission_profile: str = DEFAULT_PERMISSION_PROFILE,
     budget: dict[str, Any] | None = None,
 ) -> AgentRun:
-    """创建或续接一次 AgentRun，public_id 对应 WebSocket 暴露的 run_id。"""
+    """创建或续接一次 AgentRun，public_id 对应实时帧暴露的 run_id。"""
 
     normalized_id = public_id.strip() or uuid.uuid4().hex
     run = session.scalar(select(AgentRun).where(AgentRun.public_id == normalized_id))
@@ -195,7 +195,7 @@ def start_agent_user_message_run(
     agent_session_id: str,
     message: dict[str, Any],
 ) -> AgentRunStartResult:
-    """为 WebSocket user_message 建立控制平面运行并写入 started 事件。"""
+    """为 Agent user_message 建立控制平面运行并写入 started 事件。"""
 
     user_message = _message_text(message)
     run_id = _optional_string(message.get("run_id")) or uuid.uuid4().hex
@@ -312,7 +312,7 @@ def run_agent_user_message(
     message: dict[str, Any],
     on_event: Callable[[AgentRunEvent], None] | None = None,
 ) -> AgentRuntimeUserMessageResult:
-    """Agent Runtime Facade：WebSocket user_message 的唯一执行入口。"""
+    """Agent Runtime Facade：SSE user_message 的唯一执行入口。"""
 
     start = start_agent_user_message_run(session, agent_session_id=agent_session_id, message=message)
     if on_event is not None:
@@ -340,7 +340,7 @@ def record_agent_control_event(
     control_type: str,
     payload: dict[str, Any] | None = None,
 ) -> AgentRunEvent:
-    """记录 WebSocket 控制消息，避免权限与暂停指令停留在瞬时通道里。"""
+    """记录 Agent 控制消息，避免权限与暂停指令停留在瞬时通道里。"""
 
     run = get_agent_run(session, public_id)
     writing_run_control_payload = _apply_book_run_control_if_needed(
@@ -544,29 +544,6 @@ def _park_unresumable_resumed_run(
     }
     _record_resume_diagnostic(session, event, diagnostic)
     return diagnostic
-
-
-def record_agent_command_event(
-    session: Session,
-    *,
-    public_id: str | None,
-    session_id: str,
-    command_id: str,
-    result_payload: dict[str, Any],
-) -> AgentRunEvent | None:
-    """把 WebSocket command 结果写回 AgentRunEvent；无 run_id 的旧调用保持兼容。"""
-
-    if not public_id:
-        return None
-    run = get_agent_run(session, public_id)
-    return record_agent_event(
-        session,
-        run,
-        event_type=TOOL_TRACE,
-        actor="tool-registry",
-        message=f"命令 {command_id} 已执行。",
-        payload={"session_id": session_id, "command_id": command_id, "result": result_payload},
-    )
 
 
 def _latest_runtime_pending_call_artifact(session: Session, run: AgentRun) -> AgentArtifact | None:

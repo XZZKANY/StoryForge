@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from app.domains.agent_runs.ws_schema import build_agent_ws_schema
 
-# WS 帧 schema 契约测试：把 build_agent_ws_schema() 的产物形状钉死，
+# Agent 实时帧 schema 契约测试：把 build_agent_ws_schema() 的产物形状钉死，
 # 与 event_encoders 实际出线的 type 值集合对齐。schema 是前端派生类型的单一事实源，
-# 这里保证它覆盖全部帧、全部判别 type 值，且严格禁额外字段。
+# 这里保证它覆盖全部帧、全部判别 type 值，且严格禁额外字段；文件/函数名为历史兼容名。
 
 
 def test_schema_defs_cover_the_six_frames() -> None:

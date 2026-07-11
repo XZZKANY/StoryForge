@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import threading
 from types import SimpleNamespace
 
 import pytest
+from agent_transport import agent_result, stream_agent_message
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
@@ -130,35 +132,32 @@ def test_agent_user_message_file_review_returns_multi_agent_report(
 ) -> None:
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节的结构、人物和节奏",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。众人沉默地离开。",
-                    "context_bundle": {
-                        "files": [
-                            {
-                                "relative_path": "人物/林岚.md",
-                                "kind": "character",
-                                "title": "林岚",
-                                "excerpt": "林岚害怕失去证据，所以拒绝撤离。",
-                            },
-                            {
-                                "relative_path": "大纲/第一卷.md",
-                                "kind": "outline",
-                                "title": "第一卷",
-                                "excerpt": "港口旧案推动主线。",
-                            },
-                        ]
+    message = agent_result(
+        client,
+        "session-file-review",
+        user_message="审查当前章节的结构、人物和节奏",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。众人沉默地离开。",
+            "context_bundle": {
+                "files": [
+                    {
+                        "relative_path": "人物/林岚.md",
+                        "kind": "character",
+                        "title": "林岚",
+                        "excerpt": "林岚害怕失去证据，所以拒绝撤离。",
                     },
-                },
-            }
-        )
-        message = websocket.receive_json()
+                    {
+                        "relative_path": "大纲/第一卷.md",
+                        "kind": "outline",
+                        "title": "第一卷",
+                        "excerpt": "港口旧案推动主线。",
+                    },
+                ]
+            },
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "file.review"
@@ -206,26 +205,21 @@ def test_agent_user_message_file_review_can_stream_intermediate_events(
 ) -> None:
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-stream") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-review-stream",
-                "user_message": "审查当前章节的结构、人物和节奏",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。众人沉默地离开。",
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        started = websocket.receive_json()
-        first_step = websocket.receive_json()
-        events = [first_step]
-        while events[-1]["type"] != "agent_result":
-            events.append(websocket.receive_json())
+    frames = stream_agent_message(
+        client,
+        "session-file-review-stream",
+        run_id="run-review-stream",
+        user_message="审查当前章节的结构、人物和节奏",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。众人沉默地离开。",
+            "context_bundle": {"files": []},
+        },
+    )
+    started = frames[0]
+    first_step = frames[1]
+    events = frames[1:]
 
     assert started["type"] == "agent_run_started"
     assert started["run_id"] == "run-review-stream"
@@ -239,10 +233,11 @@ def test_agent_user_message_file_review_can_stream_intermediate_events(
 
 
 def test_agent_user_message_streams_runtime_events_before_result(
-    client: TestClient,
+    session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.domains.agent_runs.runtime import AgentRuntime
+    from app.domains.ide import router as ide_router
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
     original_execute_tool = AgentRuntime._execute_tool  # noqa: SLF001 - test probes runtime boundary
@@ -257,9 +252,12 @@ def test_agent_user_message_streams_runtime_events_before_result(
 
     monkeypatch.setattr(AgentRuntime, "_execute_tool", blocking_execute_tool)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-realtime") as websocket:
-        websocket.send_json(
-            {
+    async def collect_frames() -> list[dict]:
+        received: list[dict] = []
+        frames = ide_router._agent_user_message_payloads(  # noqa: SLF001 - probes the live SSE pump
+            session,
+            session_id="session-file-review-realtime",
+            message={
                 "type": "user_message",
                 "stream": True,
                 "run_id": "run-review-realtime",
@@ -270,18 +268,18 @@ def test_agent_user_message_streams_runtime_events_before_result(
                     "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
                     "context_bundle": {"files": []},
                 },
-            }
+            },
         )
-        received = [websocket.receive_json()]
-        while not (
-            received[-1]["type"] == "tool_trace"
-            and received[-1]["trace"]["tool_name"] == "context.load"
-        ):
-            received.append(websocket.receive_json())
-        assert file_review_blocked.wait(timeout=2)
-        allow_file_review.set()
-        while received[-1]["type"] != "agent_result":
-            received.append(websocket.receive_json())
+        async for frame in frames:
+            received.append(frame)
+            if frame["type"] == "tool_trace" and frame["trace"]["tool_name"] == "context.load":
+                assert file_review_blocked.wait(timeout=2)
+                allow_file_review.set()
+            if frame["type"] == "agent_result":
+                break
+        return received
+
+    received = asyncio.run(collect_frames())
 
     context_trace_index = next(
         index
@@ -296,22 +294,16 @@ def test_agent_user_message_streams_runtime_events_before_result(
 
 
 def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> None:
-    with client.websocket_connect("/api/ide/agent/sessions/session-stream-error") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-stream-error",
-                "assistant_session_id": 999999,
-                "user_message": "继续上一轮",
-                "intent": "chat.explain",
-                "args": {"context": "正文"},
-            }
-        )
-        started = websocket.receive_json()
-        received = []
-        while not received or received[-1]["type"] != "error":
-            received.append(websocket.receive_json())
+    received = stream_agent_message(
+        client,
+        "session-stream-error",
+        run_id="run-stream-error",
+        assistant_session_id=999999,
+        user_message="继续上一轮",
+        intent="chat.explain",
+        args={"context": "正文"},
+    )
+    started = received[0]
 
     assert started["type"] == "agent_run_started"
     error = received[-1]
@@ -323,16 +315,13 @@ def test_agent_user_message_stream_error_carries_run_id(client: TestClient) -> N
 def test_file_review_without_open_file_degrades_to_chat(client: TestClient) -> None:
     """无 file_path 的 file.review 降级为项目级对话，而不是硬报错（对话统领项目）。"""
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-review-no-file") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {"content": "缺少 file_path"},
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-review-no-file",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={"content": "缺少 file_path"},
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "chat.explain"
@@ -373,19 +362,16 @@ def test_file_review_uses_llm_when_configured(
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-llm") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-review-llm",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
+        },
+    )
 
     report = message["agent_result"]["review_report"]
     assert report["mode"] == "llm"
@@ -428,19 +414,16 @@ def test_file_review_degrades_per_subagent_on_llm_error(
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-mixed") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。其实这说明旧案还没结束。",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-review-mixed",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。其实这说明旧案还没结束。",
+        },
+    )
 
     report = message["agent_result"]["review_report"]
     assert report["mode"] == "mixed"
@@ -481,19 +464,16 @@ def test_file_review_parses_fenced_json_as_llm(
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-fenced") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-review-fenced",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
+        },
+    )
 
     report = message["agent_result"]["review_report"]
     assert report["mode"] == "llm"
@@ -521,19 +501,16 @@ def test_file_review_reports_llm_failed_when_all_subagents_fail(
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-review-allfail") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。其实这说明旧案还没结束。",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-review-allfail",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。其实这说明旧案还没结束。",
+        },
+    )
 
     report = message["agent_result"]["review_report"]
     summary = message["agent_result"]["summary"]
@@ -557,20 +534,17 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-revise") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "把这个文件改得更紧一点",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第02章.md",
-                    "content": "当前正文",
-                    "instruction": "检查人物动机",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-revise",
+        user_message="把这个文件改得更紧一点",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第02章.md",
+            "content": "当前正文",
+            "instruction": "检查人物动机",
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "file.revise"
@@ -605,32 +579,29 @@ def test_agent_file_revise_can_use_previous_review_report(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-revise-from-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "按刚才的审稿意见修一版",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "当前正文",
-                    "instruction": "按刚才的审稿意见修一版",
-                    "review_report": {
-                        "kind": "review_report",
-                        "issues": [
-                            {
-                                "agent": "plot-agent",
-                                "severity": "high",
-                                "message": "没有明显冲突信号。",
-                                "evidence": "未检测到转折。",
-                            }
-                        ],
-                        "suggested_actions": ["先补强章节目标和冲突推进。"],
-                    },
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-revise-from-review",
+        user_message="按刚才的审稿意见修一版",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "当前正文",
+            "instruction": "按刚才的审稿意见修一版",
+            "review_report": {
+                "kind": "review_report",
+                "issues": [
+                    {
+                        "agent": "plot-agent",
+                        "severity": "high",
+                        "message": "没有明显冲突信号。",
+                        "evidence": "未检测到转折。",
+                    }
+                ],
+                "suggested_actions": ["先补强章节目标和冲突推进。"],
+            },
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "file.revise"
@@ -653,49 +624,46 @@ def test_revise_scope_selected_ids_only_lists_those(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-revise-scope-selected") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "只修第二条",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "当前正文",
-                    "instruction": "只修第二条",
-                    "review_report": {
-                        "kind": "review_report",
-                        "issues": [
-                            {
-                                "id": "plot-1",
-                                "category": "plot",
-                                "agent": "plot-agent",
-                                "severity": "high",
-                                "message": "剧情冲突不足。",
-                                "evidence": "港口。",
-                            },
-                            {
-                                "id": "character-1",
-                                "category": "character",
-                                "agent": "character-agent",
-                                "severity": "medium",
-                                "message": "人物动机不清。",
-                                "evidence": "她离开。",
-                            },
-                            {
-                                "id": "prose-1",
-                                "category": "prose",
-                                "agent": "prose-agent",
-                                "severity": "low",
-                                "message": "解释性表达偏多。",
-                                "evidence": "这说明。",
-                            },
-                        ],
+    message = agent_result(
+        client,
+        "session-file-revise-scope-selected",
+        user_message="只修第二条",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "当前正文",
+            "instruction": "只修第二条",
+            "review_report": {
+                "kind": "review_report",
+                "issues": [
+                    {
+                        "id": "plot-1",
+                        "category": "plot",
+                        "agent": "plot-agent",
+                        "severity": "high",
+                        "message": "剧情冲突不足。",
+                        "evidence": "港口。",
                     },
-                },
-            }
-        )
-        message = websocket.receive_json()
+                    {
+                        "id": "character-1",
+                        "category": "character",
+                        "agent": "character-agent",
+                        "severity": "medium",
+                        "message": "人物动机不清。",
+                        "evidence": "她离开。",
+                    },
+                    {
+                        "id": "prose-1",
+                        "category": "prose",
+                        "agent": "prose-agent",
+                        "severity": "low",
+                        "message": "解释性表达偏多。",
+                        "evidence": "这说明。",
+                    },
+                ],
+            },
+        },
+    )
 
     assert "人物动机不清" in captured["user_prompt"]
     assert "剧情冲突不足" not in captured["user_prompt"]
@@ -717,42 +685,39 @@ def test_revise_constraints_reach_prompt(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-revise-constraints") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "只修人物问题，保留结尾",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "当前正文",
-                    "instruction": "只修人物问题，保留结尾",
-                    "revision_constraints": ["不动对白"],
-                    "review_report": {
-                        "kind": "review_report",
-                        "issues": [
-                            {
-                                "id": "plot-1",
-                                "category": "plot",
-                                "agent": "plot-agent",
-                                "severity": "high",
-                                "message": "剧情冲突不足。",
-                                "evidence": "港口。",
-                            },
-                            {
-                                "id": "character-1",
-                                "category": "character",
-                                "agent": "character-agent",
-                                "severity": "medium",
-                                "message": "人物动机不清。",
-                                "evidence": "她离开。",
-                            },
-                        ],
+    message = agent_result(
+        client,
+        "session-file-revise-constraints",
+        user_message="只修人物问题，保留结尾",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "当前正文",
+            "instruction": "只修人物问题，保留结尾",
+            "revision_constraints": ["不动对白"],
+            "review_report": {
+                "kind": "review_report",
+                "issues": [
+                    {
+                        "id": "plot-1",
+                        "category": "plot",
+                        "agent": "plot-agent",
+                        "severity": "high",
+                        "message": "剧情冲突不足。",
+                        "evidence": "港口。",
                     },
-                },
-            }
-        )
-        message = websocket.receive_json()
+                    {
+                        "id": "character-1",
+                        "category": "character",
+                        "agent": "character-agent",
+                        "severity": "medium",
+                        "message": "人物动机不清。",
+                        "evidence": "她离开。",
+                    },
+                ],
+            },
+        },
+    )
 
     assert "硬约束（必须遵守）" in captured["user_prompt"]
     assert "保留结尾" in captured["user_prompt"]
@@ -774,34 +739,31 @@ def test_revise_unknown_issue_id_is_reported(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-revise-unknown") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "修 plot-99",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "当前正文",
-                    "instruction": "修 plot-99",
-                    "selected_issue_ids": ["plot-99"],
-                    "review_report": {
-                        "kind": "review_report",
-                        "issues": [
-                            {
-                                "id": "plot-1",
-                                "category": "plot",
-                                "agent": "plot-agent",
-                                "severity": "high",
-                                "message": "剧情冲突不足。",
-                                "evidence": "港口。",
-                            }
-                        ],
-                    },
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-revise-unknown",
+        user_message="修 plot-99",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "当前正文",
+            "instruction": "修 plot-99",
+            "selected_issue_ids": ["plot-99"],
+            "review_report": {
+                "kind": "review_report",
+                "issues": [
+                    {
+                        "id": "plot-1",
+                        "category": "plot",
+                        "agent": "plot-agent",
+                        "severity": "high",
+                        "message": "剧情冲突不足。",
+                        "evidence": "港口。",
+                    }
+                ],
+            },
+        },
+    )
 
     scope = message["agent_result"]["applied_scope"]
     assert scope["issue_ids"] == []
@@ -813,39 +775,33 @@ def test_revise_unknown_issue_id_is_reported(
 
 def test_confirm_writeback_phrases_not_classified_as_revise(client: TestClient) -> None:
     for phrase in ("确认写回", "应用当前补丁", "接受当前修订"):
-        with client.websocket_connect(f"/api/ide/agent/sessions/session-confirm-writeback-{phrase}") as websocket:
-            websocket.send_json(
-                {
-                    "type": "user_message",
-                    "user_message": phrase,
-                    "args": {
-                        "file_path": "正文/第01章.md",
-                        "content": "当前正文",
-                        "context": "当前正文",
-                    },
-                }
-            )
-            message = websocket.receive_json()
+        message = agent_result(
+            client,
+            f"session-confirm-writeback-{phrase}",
+            user_message=phrase,
+            args={
+                "file_path": "正文/第01章.md",
+                "content": "当前正文",
+                "context": "当前正文",
+            },
+        )
 
         assert message["intent"] == "chat.explain"
         assert message["proposed_patch"] is None
 
 
 def test_agent_message_with_file_context_can_remain_chat_explain(client: TestClient) -> None:
-    with client.websocket_connect("/api/ide/agent/sessions/session-file-context-explain") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "这一段主要在表达什么",
-                "args": {
-                    "file_path": "正文/第03章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
-                    "context": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
-                    "selection": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-file-context-explain",
+        user_message="这一段主要在表达什么",
+        args={
+            "file_path": "正文/第03章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
+            "context": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
+            "selection": "林岚走进港口。她看见灯塔熄灭，却没有停下。",
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "chat.explain"
@@ -855,26 +811,21 @@ def test_agent_message_with_file_context_can_remain_chat_explain(client: TestCli
 
 
 def test_agent_user_message_reuses_existing_assistant_session(client: TestClient) -> None:
-    with client.websocket_connect("/api/ide/agent/sessions/session-multi-turn") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "先解释这一段",
-                "intent": "chat.explain",
-                "args": {"context": "第一轮上下文"},
-            }
-        )
-        first = websocket.receive_json()
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "assistant_session_id": first["assistant_session_id"],
-                "user_message": "继续，换个角度",
-                "intent": "chat.explain",
-                "args": {"context": "第二轮上下文"},
-            }
-        )
-        second = websocket.receive_json()
+    first = agent_result(
+        client,
+        "session-multi-turn",
+        user_message="先解释这一段",
+        intent="chat.explain",
+        args={"context": "第一轮上下文"},
+    )
+    second = agent_result(
+        client,
+        "session-multi-turn",
+        assistant_session_id=first["assistant_session_id"],
+        user_message="继续，换个角度",
+        intent="chat.explain",
+        args={"context": "第二轮上下文"},
+    )
 
     assert second["type"] == "agent_result"
     assert second["assistant_session_id"] == first["assistant_session_id"]
@@ -892,17 +843,14 @@ def test_agent_user_message_reuses_existing_assistant_session(client: TestClient
 
 
 def test_agent_user_message_returns_error_for_missing_assistant_session(client: TestClient) -> None:
-    with client.websocket_connect("/api/ide/agent/sessions/session-missing-assistant") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "assistant_session_id": 999999,
-                "user_message": "继续上一轮",
-                "intent": "chat.explain",
-                "args": {"context": "正文"},
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-missing-assistant",
+        assistant_session_id=999999,
+        user_message="继续上一轮",
+        intent="chat.explain",
+        args={"context": "正文"},
+    )
 
     assert message["type"] == "error"
     assert message["session_id"] == "session-missing-assistant"
@@ -915,15 +863,12 @@ def test_agent_user_message_chapter_review_calls_registry_and_waits_for_confirma
 ) -> None:
     context = _seed_chapter_review_context(session_factory)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-chapter-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审阅第二章，给我修复建议",
-                "args": {"scene_packet_id": context["scene_packet_id"]},
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-chapter-review",
+        user_message="审阅第二章，给我修复建议",
+        args={"scene_packet_id": context["scene_packet_id"]},
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "chapter.review"
@@ -952,15 +897,12 @@ def test_agent_user_message_chapter_review_stops_after_first_repair_patch(
 
     context = _seed_chapter_review_context(session_factory)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-chapter-review-single-patch") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审阅这一章，给我修复建议",
-                "args": {"scene_packet_id": context["scene_packet_id"]},
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-chapter-review-single-patch",
+        user_message="审阅这一章，给我修复建议",
+        args={"scene_packet_id": context["scene_packet_id"]},
+    )
 
     assert message["type"] == "agent_result"
     assert message["agent_result"]["issue_count"] >= 2
@@ -982,20 +924,17 @@ def test_agent_user_message_bookrun_start_preflight_requires_confirmation(
 ) -> None:
     scope = seed_locked_blueprint(session_factory)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-bookrun-preflight") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "启动这本书的生成流程",
-                "args": {
-                    "book_id": scope["book_id"],
-                    "blueprint_id": scope["blueprint_id"],
-                    "token_budget": 900,
-                    "chapter_budget": 8,
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-bookrun-preflight",
+        user_message="启动这本书的生成流程",
+        args={
+            "book_id": scope["book_id"],
+            "blueprint_id": scope["blueprint_id"],
+            "token_budget": 900,
+            "chapter_budget": 8,
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "bookrun.start"
@@ -1025,20 +964,17 @@ def test_agent_user_message_bookrun_start_confirmed_reuses_command_registry(
 
     scope = seed_locked_blueprint(session_factory)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-bookrun-start") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "启动这本书的生成流程",
-                "args": {
-                    "book_id": scope["book_id"],
-                    "blueprint_id": scope["blueprint_id"],
-                    "token_budget": 900,
-                    "confirmed": True,
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-bookrun-start",
+        user_message="启动这本书的生成流程",
+        args={
+            "book_id": scope["book_id"],
+            "blueprint_id": scope["blueprint_id"],
+            "token_budget": 900,
+            "confirmed": True,
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["intent"] == "bookrun.start"
@@ -1120,20 +1056,17 @@ def test_narrow_revise_flags_scope_warning_when_drift_large(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-revise-scope-warning") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "只压缩雾气意象，其余别动",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": before,
-                    "instruction": "只压缩雾气意象，其余别动",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-revise-scope-warning",
+        user_message="只压缩雾气意象，其余别动",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": before,
+            "instruction": "只压缩雾气意象，其余别动",
+        },
+    )
 
     warning = message["agent_result"]["scope_warning"]
     assert warning["drift_ratio"] == 1.0
@@ -1156,20 +1089,17 @@ def test_broad_revise_does_not_flag_scope_warning(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-revise-broad-no-warning") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "把全文通篇重写一遍",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": before,
-                    "instruction": "把全文通篇重写一遍",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-revise-broad-no-warning",
+        user_message="把全文通篇重写一遍",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": before,
+            "instruction": "把全文通篇重写一遍",
+        },
+    )
 
     assert "scope_warning" not in message["agent_result"]
     revise_trace = next(item for item in message["tool_trace"] if item["tool_name"] == "file.revise")

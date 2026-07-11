@@ -4,10 +4,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Agent WebSocket 出站流帧的 Pydantic 单一事实源（W6 WS 契约化）。
+# Agent 实时帧的 Pydantic 单一事实源（历史模块名保留作兼容）。
 #
 # 帧形状只在这里定义：event_encoders 只做 run/event → 帧的字段装配，
-# agent-ws.schema.json（W6-b）从这些模型的 model_json_schema() 派生，前端 WS
+# agent-ws.schema.json 从这些模型的 model_json_schema() 派生，前端 SSE/control
 # 类型据此生成。改一个字段名即三处（后端模型 / schema / 前端类型）联动，漂移即红。
 #
 # 字段顺序、可空性、None 键的保留都是硬契约——历史 dict 编码器一律带 None 键
@@ -18,7 +18,7 @@ class WsFrame(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     def to_wire(self) -> dict[str, Any]:
-        """编码成前端消费的 WS 帧 dict。保留 None 键、按字段定义顺序输出。"""
+        """编码成前端消费的 Agent 帧 dict。保留 None 键、按字段定义顺序输出。"""
 
         return self.model_dump()
 
@@ -67,12 +67,12 @@ class PermissionRequiredFrame(WsFrame):
     permission_profile: str
     reason: str
     proposed_patch: dict[str, Any] | None = None
-    confirmation_action: str | None = None
+    confirmation_action: str | dict[str, Any] | None = None
     blocked_tool: str | None = None
 
 
 class TerminalFrame(WsFrame):
-    """AGENT_RUN_COMPLETED / FAILED 落进 WS 流：断线转轮询后前端拉事件表重放即可
+    """AGENT_RUN_COMPLETED / FAILED 落进实时帧：流中止后前端拉事件表重放即可
     重建终态（F10）。payload 必须原样带出（含 assistant_session_id），否则重建拿不回结果。"""
 
     type: Literal["agent_run_completed", "agent_run_failed"]

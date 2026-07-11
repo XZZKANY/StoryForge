@@ -4,6 +4,7 @@ import inspect
 import json
 
 import pytest
+from agent_transport import agent_result, control_agent, stream_agent_message
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 from test_book_runs import seed_locked_blueprint
@@ -794,29 +795,25 @@ def test_resume_run_control_message_drives_pending_file_review_resume(
     monkeypatch.setattr(agent_runtime.AgentRuntime, "_runtime_interruption", pause_once_after_context)
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-control-resume-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-control-resume-review",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭。",
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        paused = websocket.receive_json()
-        websocket.send_json(
-            {
-                "type": "resume_run",
-                "run_id": "run-control-resume-review",
-                "payload": {"reason": "continue pending review"},
-            }
-        )
-        resumed_ack = websocket.receive_json()
+    paused = agent_result(
+        client,
+        "session-control-resume-review",
+        run_id="run-control-resume-review",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。",
+            "context_bundle": {"files": []},
+        },
+    )
+    resumed_ack = control_agent(
+        client,
+        "session-control-resume-review",
+        control_type="resume_run",
+        run_id="run-control-resume-review",
+        payload={"reason": "continue pending review"},
+    )
 
     assert paused["runtime_interruption"]["status"] == "paused"
     assert resumed_ack["type"] == "resume_run"
@@ -1279,17 +1276,14 @@ def test_resume_run_records_diagnostic_for_malformed_chapter_review_pending_call
 def test_agent_run_save_points_endpoint_projects_existing_event_store(client: TestClient) -> None:
     """REST save-points endpoint 只读投影事件和 artifact，不替代 /events。"""
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-save-points-endpoint") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-save-points-endpoint",
-                "user_message": "解释这一段",
-                "intent": "chat.explain",
-                "args": {"context": "林岚走进港口。"},
-            }
-        )
-        websocket.receive_json()
+    stream_agent_message(
+        client,
+        "session-save-points-endpoint",
+        run_id="run-save-points-endpoint",
+        user_message="解释这一段",
+        intent="chat.explain",
+        args={"context": "林岚走进港口。"},
+    )
 
     projection_response = client.get("/api/agent-runs/run-save-points-endpoint/save-points")
     events_response = client.get("/api/agent-runs/run-save-points-endpoint/events")
@@ -1317,21 +1311,18 @@ def test_agent_run_save_points_endpoint_projects_tool_recovery_metadata(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-save-points-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-save-points-review",
-                "user_message": "审查当前章节",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭。",
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        websocket.receive_json()
+    stream_agent_message(
+        client,
+        "session-save-points-review",
+        run_id="run-save-points-review",
+        user_message="审查当前章节",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。",
+            "context_bundle": {"files": []},
+        },
+    )
 
     events = client.get("/api/agent-runs/run-save-points-review/events").json()
     projection = client.get("/api/agent-runs/run-save-points-review/save-points").json()
@@ -1557,10 +1548,10 @@ def test_encode_agent_run_sse_event_is_stable_json_snapshot(session: Session) ->
     }
 
 
-def test_websocket_user_message_enters_through_runtime_facade() -> None:
-    """IDE WebSocket 不应直接串联 user_message run 的 start/execute 细节。"""
+def test_sse_user_message_enters_through_runtime_facade() -> None:
+    """IDE SSE pump 不应直接串联 user_message run 的 start/execute 细节。"""
 
-    source = inspect.getsource(ide_router.agent_session)
+    source = inspect.getsource(ide_router._agent_user_message_payloads)  # noqa: SLF001
 
     assert "run_agent_user_message(" in source
     assert "start_agent_user_message_run(" not in source
@@ -1631,26 +1622,21 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-agent-review",
-                "user_message": "审查当前章节的结构、人物和节奏",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
-                    "project_path": "D:/novels/demo",
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        started = websocket.receive_json()
-        received = []
-        while not received or received[-1]["type"] != "agent_result":
-            received.append(websocket.receive_json())
+    frames = stream_agent_message(
+        client,
+        "session-agent-run-review",
+        run_id="run-agent-review",
+        user_message="审查当前章节的结构、人物和节奏",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
+            "project_path": "D:/novels/demo",
+            "context_bundle": {"files": []},
+        },
+    )
+    started = frames[0]
+    received = frames[1:]
 
     assert started["type"] == "agent_run_started"
     assert started["run_id"] == "run-agent-review"
@@ -1726,21 +1712,18 @@ def test_agent_run_records_permission_required_for_proposed_patch(
         },
     )
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-revise") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-revise",
-                "user_message": "把这个文件改得更紧一点",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第02章.md",
-                    "content": "当前正文",
-                    "instruction": "压缩解释性表达",
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-agent-run-revise",
+        run_id="run-agent-revise",
+        user_message="把这个文件改得更紧一点",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第02章.md",
+            "content": "当前正文",
+            "instruction": "压缩解释性表达",
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["run_id"] == "run-agent-revise"
@@ -1792,18 +1775,15 @@ def test_hidden_compaction_system_job_runs_for_long_sessions(
     assert create_response.status_code == 201, create_response.text
     assistant_session_id = create_response.json()["id"]
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-long-compaction") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-long-compaction",
-                "user_message": "解释这一段",
-                "intent": "chat.explain",
-                "assistant_session_id": assistant_session_id,
-                "args": {"context": "林岚走进港口。"},
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-long-compaction",
+        run_id="run-long-compaction",
+        user_message="解释这一段",
+        intent="chat.explain",
+        assistant_session_id=assistant_session_id,
+        args={"context": "林岚走进港口。"},
+    )
 
     assert message["type"] == "agent_result"
     assert message["system_jobs"]["compaction"]["job_name"] == "conversation.compact"
@@ -1839,21 +1819,18 @@ def test_agent_runtime_chapter_polish_does_not_call_legacy_orchestrator(
     monkeypatch.setattr(agent_runtime, "orchestrate_agent_message", fail_legacy)
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-runtime-no-legacy") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-runtime-no-legacy",
-                "user_message": "审查当前章节的结构、人物和节奏",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第01章.md",
-                    "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-agent-runtime-no-legacy",
+        run_id="run-runtime-no-legacy",
+        user_message="审查当前章节的结构、人物和节奏",
+        intent="file.review",
+        args={
+            "file_path": "正文/第01章.md",
+            "content": "林岚走进港口。她看见灯塔熄灭。其实这说明旧案还没结束。",
+            "context_bundle": {"files": []},
+        },
+    )
 
     assert message["type"] == "agent_result"
     assert message["runtime_mode"] == "agent_runtime"
@@ -1879,25 +1856,21 @@ def test_permission_approval_completes_paused_agent_run(
         },
     )
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-approve") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-approve",
-                "user_message": "把这个文件改得更紧一点",
-                "intent": "file.revise",
-                "args": {"file_path": "正文/第02章.md", "content": "当前正文"},
-            }
-        )
-        websocket.receive_json()
-        websocket.send_json(
-            {
-                "type": "approve_permission",
-                "run_id": "run-agent-approve",
-                "payload": {"reason": "测试批准"},
-            }
-        )
-        ack = websocket.receive_json()
+    stream_agent_message(
+        client,
+        "session-agent-run-approve",
+        run_id="run-agent-approve",
+        user_message="把这个文件改得更紧一点",
+        intent="file.revise",
+        args={"file_path": "正文/第02章.md", "content": "当前正文"},
+    )
+    ack = control_agent(
+        client,
+        "session-agent-run-approve",
+        control_type="approve_permission",
+        run_id="run-agent-approve",
+        payload={"reason": "测试批准"},
+    )
 
     assert ack["type"] == "permission_approved"
     run = client.get("/api/agent-runs/run-agent-approve").json()
@@ -1915,17 +1888,14 @@ def test_agent_run_sse_stream_replays_event_store(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-sse") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-sse",
-                "user_message": "解释这一段",
-                "intent": "chat.explain",
-                "args": {"context": "林岚走进港口。"},
-            }
-        )
-        websocket.receive_json()
+    stream_agent_message(
+        client,
+        "session-agent-run-sse",
+        run_id="run-agent-sse",
+        user_message="解释这一段",
+        intent="chat.explain",
+        args={"context": "林岚走进港口。"},
+    )
 
     response = client.get("/api/agent-runs/run-agent-sse/events/stream")
     assert response.status_code == 200, response.text
@@ -1939,31 +1909,27 @@ def test_agent_run_sse_stream_replays_event_store(
     assert payload["payload"]["run_id"] == "run-agent-sse"
 
 
-def test_websocket_control_messages_are_persisted_as_agent_run_events(client: TestClient) -> None:
+def test_control_messages_are_persisted_as_agent_run_events(client: TestClient) -> None:
     """权限确认和暂停控制消息必须进入 AgentRunEvent Store。"""
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-control") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-control",
-                "user_message": "解释这一段",
-                "intent": "chat.explain",
-                "args": {"context": "林岚走进港口。"},
-            }
+    stream_agent_message(
+        client,
+        "session-agent-run-control",
+        run_id="run-agent-control",
+        user_message="解释这一段",
+        intent="chat.explain",
+        args={"context": "林岚走进港口。"},
+    )
+    for message_type in ("approve_permission", "pause_run", "resume_run", "stop_run"):
+        ack = control_agent(
+            client,
+            "session-agent-run-control",
+            control_type=message_type,
+            run_id="run-agent-control",
+            payload={"reason": "测试控制通道"},
         )
-        websocket.receive_json()
-        for message_type in ("approve_permission", "pause_run", "resume_run", "stop_run"):
-            websocket.send_json(
-                {
-                    "type": message_type,
-                    "run_id": "run-agent-control",
-                    "payload": {"reason": "测试控制通道"},
-                }
-            )
-            ack = websocket.receive_json()
-            assert ack["status"] == "recorded"
-            assert ack["run_id"] == "run-agent-control"
+        assert ack["status"] == "recorded"
+        assert ack["run_id"] == "run-agent-control"
 
     events = client.get("/api/agent-runs/run-agent-control/events").json()
     event_types = [event["event_type"] for event in events]
@@ -1974,40 +1940,6 @@ def test_websocket_control_messages_are_persisted_as_agent_run_events(client: Te
     run = client.get("/api/agent-runs/run-agent-control").json()
     assert run["status"] == "stopped"
     assert run["current_step"] == "stopped"
-
-
-def test_websocket_command_with_run_id_is_persisted_as_tool_trace(client: TestClient) -> None:
-    """WebSocket command 若携带 run_id，也必须进入同一个 AgentRun 事件源。"""
-
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-command") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-command",
-                "user_message": "解释这一段",
-                "intent": "chat.explain",
-                "args": {"context": "林岚走进港口。"},
-            }
-        )
-        websocket.receive_json()
-        websocket.send_json(
-            {
-                "type": "command",
-                "run_id": "run-agent-command",
-                "command_id": "audit.open",
-                "args": {},
-            }
-        )
-        command_result = websocket.receive_json()
-
-    assert command_result["type"] == "command_result"
-    events = client.get("/api/agent-runs/run-agent-command/events").json()
-    command_events = [
-        event for event in events
-        if event["event_type"] == "tool_trace" and event["payload"].get("command_id") == "audit.open"
-    ]
-    assert len(command_events) == 1
-    assert command_events[0]["payload"]["result"]["command_id"] == "audit.open"
 
 
 def test_book_run_progress_is_projected_to_agent_run_event_store(
@@ -2095,25 +2027,23 @@ def test_agent_run_control_channel_updates_bound_bookrun_status(
     created = client.post("/api/book-runs", json=scope).json()
     run_id = f"bookrun-{created['id']}"
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-bookrun-control") as websocket:
-        websocket.send_json(
-            {
-                "type": "pause_run",
-                "run_id": run_id,
-                "payload": {"reason": "AgentRun 控制暂停"},
-            }
-        )
-        paused_ack = websocket.receive_json()
-        websocket.send_json({"type": "resume_run", "run_id": run_id, "payload": {}})
-        resumed_ack = websocket.receive_json()
-        websocket.send_json(
-            {
-                "type": "stop_run",
-                "run_id": run_id,
-                "payload": {"reason": "AgentRun 控制停止"},
-            }
-        )
-        stopped_ack = websocket.receive_json()
+    paused_ack = control_agent(
+        client,
+        "session-bookrun-control",
+        control_type="pause_run",
+        run_id=run_id,
+        payload={"reason": "AgentRun 控制暂停"},
+    )
+    resumed_ack = control_agent(
+        client, "session-bookrun-control", control_type="resume_run", run_id=run_id, payload={}
+    )
+    stopped_ack = control_agent(
+        client,
+        "session-bookrun-control",
+        control_type="stop_run",
+        run_id=run_id,
+        payload={"reason": "AgentRun 控制停止"},
+    )
 
     assert paused_ack["type"] == "pause_run"
     assert resumed_ack["type"] == "resume_run"
@@ -2174,15 +2104,13 @@ def test_agent_run_retry_from_checkpoint_projects_bookrun_retry_metadata(
     )
     assert progress_response.status_code == 200, progress_response.text
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-bookrun-retry") as websocket:
-        websocket.send_json(
-            {
-                "type": "retry_from_checkpoint",
-                "run_id": run_id,
-                "payload": {"reason": "retry from latest checkpoint"},
-            }
-        )
-        retry_ack = websocket.receive_json()
+    retry_ack = control_agent(
+        client,
+        "session-bookrun-retry",
+        control_type="retry_from_checkpoint",
+        run_id=run_id,
+        payload={"reason": "retry from latest checkpoint"},
+    )
 
     assert retry_ack["type"] == "retry_from_checkpoint"
     assert retry_ack["status"] == "recorded"
@@ -2501,25 +2429,20 @@ def test_websocket_user_message_persists_agent_role_hints(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-role-hints") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-agent-role-hints",
-                "user_message": "@剧情 看看这一章冲突够不够",
-                "args": {
-                    "file_path": "正文/第04章.md",
-                    "content": "林岚走进港口。灯塔熄灭了。",
-                    "agent_role_hints": ["plot_reviewer"],
-                    "agent_role_mentions": ["@剧情"],
-                },
-            }
-        )
-        started = websocket.receive_json()
-        received = []
-        while not received or received[-1]["type"] != "agent_result":
-            received.append(websocket.receive_json())
+    frames = stream_agent_message(
+        client,
+        "session-agent-role-hints",
+        run_id="run-agent-role-hints",
+        user_message="@剧情 看看这一章冲突够不够",
+        args={
+            "file_path": "正文/第04章.md",
+            "content": "林岚走进港口。灯塔熄灭了。",
+            "agent_role_hints": ["plot_reviewer"],
+            "agent_role_mentions": ["@剧情"],
+        },
+    )
+    started = frames[0]
+    received = frames[1:]
 
     assert started["agent_role_hints"] == ["plot_reviewer"]
     assert started["agent_role_mentions"] == ["@剧情"]
@@ -2552,26 +2475,20 @@ def test_unknown_agent_role_hint_is_ignored_or_warned(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-role-unknown") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-agent-role-unknown",
-                "user_message": "@未知 审一下这一章",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第05章.md",
-                    "content": "林岚走进港口。灯塔熄灭了。",
-                    "agent_role_hints": ["unknown_reviewer"],
-                    "agent_role_mentions": ["@未知"],
-                },
-            }
-        )
-        started = websocket.receive_json()
-        received = []
-        while not received or received[-1]["type"] != "agent_result":
-            received.append(websocket.receive_json())
+    frames = stream_agent_message(
+        client,
+        "session-agent-role-unknown",
+        run_id="run-agent-role-unknown",
+        user_message="@未知 审一下这一章",
+        intent="file.review",
+        args={
+            "file_path": "正文/第05章.md",
+            "content": "林岚走进港口。灯塔熄灭了。",
+            "agent_role_hints": ["unknown_reviewer"],
+            "agent_role_mentions": ["@未知"],
+        },
+    )
+    started = frames[0]
 
     assert started["agent_role_hints"] == []
     run = client.get("/api/agent-runs/run-agent-role-unknown").json()
@@ -2589,20 +2506,17 @@ def test_role_hint_for_plot_runs_plot_reviewer(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-role-plot") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-role-plot",
-                "user_message": "@剧情 看看冲突够不够",
-                "args": {
-                    "file_path": "正文/第06章.md",
-                    "content": "林岚走进港口。灯塔熄灭了。",
-                    "agent_role_mentions": ["@剧情"],
-                },
-            }
-        )
-        result = websocket.receive_json()
+    result = agent_result(
+        client,
+        "session-agent-role-plot",
+        run_id="run-agent-role-plot",
+        user_message="@剧情 看看冲突够不够",
+        args={
+            "file_path": "正文/第06章.md",
+            "content": "林岚走进港口。灯塔熄灭了。",
+            "agent_role_mentions": ["@剧情"],
+        },
+    )
 
     assert result["type"] == "agent_result"
     assert result["intent"] == "file.review"
@@ -2618,22 +2532,19 @@ def test_multiple_role_hints_run_requested_reviewers(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-role-multiple") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-role-multiple",
-                "user_message": "@人物 @文风 审一下",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第07章.md",
-                    "content": "林岚走进港口。灯塔熄灭了。",
-                    "agent_role_hints": ["character_reviewer", "prose_reviewer"],
-                    "agent_role_mentions": ["@人物", "@文风"],
-                },
-            }
-        )
-        result = websocket.receive_json()
+    result = agent_result(
+        client,
+        "session-agent-role-multiple",
+        run_id="run-agent-role-multiple",
+        user_message="@人物 @文风 审一下",
+        intent="file.review",
+        args={
+            "file_path": "正文/第07章.md",
+            "content": "林岚走进港口。灯塔熄灭了。",
+            "agent_role_hints": ["character_reviewer", "prose_reviewer"],
+            "agent_role_mentions": ["@人物", "@文风"],
+        },
+    )
 
     requested = {
         trace["tool_name"]
@@ -2662,22 +2573,19 @@ def test_writing_run_role_hint_does_not_bypass_permission_gate(
         },
     )
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-role-bookrun") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-role-bookrun",
-                "user_message": "@写作任务 把这个文件改得更紧一点",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第08章.md",
-                    "content": "当前正文",
-                    "agent_role_hints": ["bookrun_agent"],
-                    "agent_role_mentions": ["@写作任务"],
-                },
-            }
-        )
-        result = websocket.receive_json()
+    result = agent_result(
+        client,
+        "session-agent-role-bookrun",
+        run_id="run-agent-role-bookrun",
+        user_message="@写作任务 把这个文件改得更紧一点",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第08章.md",
+            "content": "当前正文",
+            "agent_role_hints": ["bookrun_agent"],
+            "agent_role_mentions": ["@写作任务"],
+        },
+    )
 
     assert result["type"] == "agent_result"
     assert result["intent"] == "file.revise"
@@ -2695,24 +2603,18 @@ def test_agent_run_selects_consistency_review_skill_for_consistency_goal(
 
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-agent-run-consistency") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-agent-consistency",
-                "user_message": "检查这一章的设定、伏笔和时间线一致性",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第03章.md",
-                    "content": "林岚在第十天回到港口，却又说昨天才第一次见到灯塔。",
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        while True:
-            message = websocket.receive_json()
-            if message["type"] == "agent_result":
-                break
+    stream_agent_message(
+        client,
+        "session-agent-run-consistency",
+        run_id="run-agent-consistency",
+        user_message="检查这一章的设定、伏笔和时间线一致性",
+        intent="file.review",
+        args={
+            "file_path": "正文/第03章.md",
+            "content": "林岚在第十天回到港口，却又说昨天才第一次见到灯塔。",
+            "context_bundle": {"files": []},
+        },
+    )
 
     events = client.get("/api/agent-runs/run-agent-consistency/events").json()
     plan_event = next(event for event in events if event["event_type"] == "agent_plan_created")

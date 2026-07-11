@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from agent_transport import stream_agent_message
 from fastapi.testclient import TestClient
 
 from app.domains.agent_runs import loop_runtime
@@ -41,23 +42,16 @@ def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -
 
 
 def _send_chat_message(client: TestClient, *, run_id: str, project_path: str, message: str) -> list[dict]:
-    with client.websocket_connect(f"/api/ide/agent/sessions/session-{run_id}") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": run_id,
-                "user_message": message,
-                "args": {
-                    "project_path": project_path,
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        received = [websocket.receive_json()]
-        while received[-1]["type"] not in ("agent_result", "error"):
-            received.append(websocket.receive_json())
-    return received
+    return stream_agent_message(
+        client,
+        f"session-{run_id}",
+        run_id=run_id,
+        user_message=message,
+        args={
+            "project_path": project_path,
+            "context_bundle": {"files": []},
+        },
+    )
 
 
 def test_chat_loop_executes_fs_tools_and_answers(
@@ -1028,19 +1022,13 @@ def test_chat_loop_skipped_without_project_path(
         },
     )
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-run-no-project") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-chat-no-project",
-                "user_message": "讲讲写作思路",
-                "args": {"context_bundle": {"files": []}},
-            }
-        )
-        received = [websocket.receive_json()]
-        while received[-1]["type"] not in ("agent_result", "error"):
-            received.append(websocket.receive_json())
+    received = stream_agent_message(
+        client,
+        "session-run-no-project",
+        run_id="run-chat-no-project",
+        user_message="讲讲写作思路",
+        args={"context_bundle": {"files": []}},
+    )
 
     result = received[-1]
     assert result["type"] == "agent_result", result
