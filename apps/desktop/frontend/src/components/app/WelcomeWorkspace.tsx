@@ -225,6 +225,8 @@ function AgentComposerHome({
             readOnly={!composerInteractive}
             data-testid="welcome-composer-input"
             onKeyDown={(event) => {
+              // IME 组字期间不发送：拼音选字上屏的 Enter 不应误触发送。
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               if (event.key === 'Enter' && !event.shiftKey && canSend) {
                 event.preventDefault();
                 onComposerSend?.();

@@ -80,30 +80,30 @@ export function buildSampleStoryProjectFiles(
 export async function initializeStoryProject(projectPath: string): Promise<void> {
   const plan = buildStoryProjectInitializationPlan(projectPath);
   for (const dir of plan.directories) {
-    await TauriFileSystem.createDir(dir, true);
+    await TauriFileSystem.createDir(projectPath, dir, true);
   }
 
   const readmePath = plan.readmePath;
   const exists = await TauriFileSystem.pathExists(readmePath);
   if (!exists) {
-    await TauriFileSystem.writeFile(readmePath, plan.readmeContent);
+    await TauriFileSystem.writeFile(projectPath, readmePath, plan.readmeContent);
   }
 }
 
-async function writeIfMissing(path: string, content: string): Promise<void> {
+async function writeIfMissing(projectPath: string, path: string, content: string): Promise<void> {
   const exists = await TauriFileSystem.pathExists(path);
   if (!exists) {
-    await TauriFileSystem.writeFile(path, content);
+    await TauriFileSystem.writeFile(projectPath, path, content);
   }
 }
 
 export async function createSampleStoryProject(parentPath: string): Promise<string> {
   const projectPath = sampleStoryProjectPath(parentPath);
-  await TauriFileSystem.createDir(projectPath, true);
+  await TauriFileSystem.createDir(parentPath, projectPath, true);
   await initializeStoryProject(projectPath);
 
   for (const file of buildSampleStoryProjectFiles(projectPath)) {
-    await writeIfMissing(file.path, file.content);
+    await writeIfMissing(projectPath, file.path, file.content);
   }
 
   return projectPath;

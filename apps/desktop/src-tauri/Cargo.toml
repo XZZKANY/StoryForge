@@ -1,6 +1,6 @@
 [package]
 name = "storyforge-desktop"
-version = "0.1.1"
+version = "0.1.2"
 description = "StoryForge 桌面写作 IDE"
 authors = ["StoryForge Team"]
 edition = "2021"
@@ -12,6 +12,7 @@ tauri-build = { version = "2.0", features = [] }
 tauri = { version = "2.3", features = [] }
 tauri-plugin-shell = "2.0"
 tauri-plugin-dialog = "2.0"
+tauri-plugin-single-instance = "2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }

@@ -73,7 +73,11 @@ test('writeFile invalidates cached directory scans', async () => {
     async () => {
       assert.equal((await TauriFileSystem.listDir('D:\\Book', true)).length, 1);
       assert.equal((await TauriFileSystem.listDir('D:\\Book', true)).length, 1);
-      await TauriFileSystem.writeFile('D:\\Book\\正文\\第二章.md', '正文');
+      await TauriFileSystem.writeFile(
+        'D:\\Book',
+        'D:\\Book\\正文\\第二章.md',
+        '正文',
+      );
       assert.equal((await TauriFileSystem.listDir('D:\\Book', true)).length, 2);
       assert.equal(listCalls, 2);
     },

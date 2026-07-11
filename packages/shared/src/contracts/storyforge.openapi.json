@@ -47,6 +47,30 @@
         "title": "AgentArtifactRead",
         "type": "object"
       },
+      "AgentControlRequest": {
+        "description": "Agent 控制消息体（暂停 / 恢复 / 停止 / 权限批准 / 拒绝 / 从 checkpoint 重试）。",
+        "properties": {
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "run_id"
+        ],
+        "title": "AgentControlRequest",
+        "type": "object"
+      },
       "AgentRoleRead": {
         "description": "Agent Runtime 的只读角色目录，用于 Root Agent 调度和权限边界判断。",
         "properties": {
@@ -333,6 +357,73 @@
           "permission_profile"
         ],
         "title": "AgentSkillRead",
+        "type": "object"
+      },
+      "AgentUserMessageStreamRequest": {
+        "description": "本地 SSE 直播入口的用户消息体（字段对应 WS user_message 帧）。",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "assistant_session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Session Id"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          },
+          "permission_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permission Profile"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "user_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Message"
+          }
+        },
+        "title": "AgentUserMessageStreamRequest",
         "type": "object"
       },
       "ArtifactCreate": {
@@ -7843,7 +7934,7 @@
   },
   "info": {
     "title": "StoryForge API",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -10168,6 +10259,112 @@
         "summary": "读取工作区事件流",
         "tags": [
           "事件流"
+        ]
+      }
+    },
+    "/api/ide/agent/sessions/{session_id}/control": {
+      "post": {
+        "description": "替代 WS 控制通道：领域错误按 {type:\"error\"} 帧以 200 返回（前端 resolve 而非 throw）。",
+        "operationId": "post_agent_control_endpoint_api_ide_agent_sessions__session_id__control_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Agent Control Endpoint Api Ide Agent Sessions  Session Id  Control Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent 控制消息",
+        "tags": [
+          "IDE 工作台"
+        ]
+      }
+    },
+    "/api/ide/agent/sessions/{session_id}/stream": {
+      "post": {
+        "description": "本地 SSE 直播工具循环：替代 WS user_message 流；控制走 /agent/sessions/{id}/control。",
+        "operationId": "stream_agent_user_message_endpoint_api_ide_agent_sessions__session_id__stream_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentUserMessageStreamRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent 用户消息本地 SSE 流",
+        "tags": [
+          "IDE 工作台"
         ]
       }
     },

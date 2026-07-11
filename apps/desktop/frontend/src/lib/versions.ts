@@ -86,7 +86,7 @@ export async function snapshotBeforeWrite(
   const timestamp = Date.now();
   const snapshotPath = `${dir}${s}${timestamp}${SNAPSHOT_SUFFIX}`;
   // write_file 会自动创建父目录。
-  await TauriFileSystem.writeFile(snapshotPath, previousContent);
+  await TauriFileSystem.writeFile(projectPath, snapshotPath, previousContent);
   const meta = {
     source: metadata.source ?? 'Editor',
     summary: metadata.summary ?? '手动保存前快照',
@@ -100,15 +100,16 @@ export async function snapshotBeforeWrite(
     branchLabel: metadata.branchLabel,
   };
   await TauriFileSystem.writeFile(
+    projectPath,
     `${dir}${s}${timestamp}${META_SUFFIX}`,
     `${JSON.stringify(meta, null, 2)}\n`,
   );
-  await pruneSnapshots(dir, s);
+  await pruneSnapshots(projectPath, dir, s);
   return { path: snapshotPath, timestamp };
 }
 
 /** 按时间倒序保留最近 MAX_SNAPSHOTS_PER_FILE 份,超出的连同 meta 一起删;清理失败只告警,绝不阻断写回主路径。 */
-async function pruneSnapshots(dir: string, s: string): Promise<void> {
+async function pruneSnapshots(projectPath: string, dir: string, s: string): Promise<void> {
   try {
     const entries = await TauriFileSystem.listDir(dir, false);
     const stamps = entries
@@ -118,8 +119,8 @@ async function pruneSnapshots(dir: string, s: string): Promise<void> {
       .sort((a: number, b: number) => b - a);
     for (const stamp of stamps.slice(MAX_SNAPSHOTS_PER_FILE)) {
       try {
-        await TauriFileSystem.deletePath(`${dir}${s}${stamp}${SNAPSHOT_SUFFIX}`);
-        await TauriFileSystem.deletePath(`${dir}${s}${stamp}${META_SUFFIX}`);
+        await TauriFileSystem.deletePath(projectPath, `${dir}${s}${stamp}${SNAPSHOT_SUFFIX}`);
+        await TauriFileSystem.deletePath(projectPath, `${dir}${s}${stamp}${META_SUFFIX}`);
       } catch (error) {
         console.warn('[versions] 过期快照清理失败(跳过):', stamp, error);
       }

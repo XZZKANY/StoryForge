@@ -17,6 +17,7 @@ import {
   resolveProjectRelativePath,
 } from './lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke';
+import { executeIdeCommand } from './lib/api-client';
 import { APPLY_FILE_SUGGESTION_EVENT, emitExportCurrentFile } from './lib/assistant-events';
 import type { AssistantFileSuggestion } from './lib/assistant-suggestions';
 import {
@@ -39,6 +40,7 @@ import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import { AppDialogHost, useAppDialog } from './components/app/AppDialog';
 import { Titlebar } from './components/shell/Titlebar';
 import { ActivityBar } from './components/shell/ActivityBar';
+import { AssistantPanelFrame } from './components/shell/AssistantPanelFrame';
 import { SidePanel } from './components/shell/SidePanel';
 import { StatusBar } from './components/shell/StatusBar';
 import { EditorTabs, type CenterTab } from './components/shell/EditorTabs';
@@ -342,7 +344,7 @@ export function App() {
           });
           if (!shouldOpen) return;
         } else {
-          await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
+          await TauriFileSystem.writeFile(targetProject, filePath, '# 新建文件\n\n');
         }
         await openFile(filePath, '打开新文件');
       } catch (error) {
@@ -378,6 +380,37 @@ export function App() {
     },
     [activeProject, appDialog, handleOpenProject],
   );
+
+  // 确定性触发 canon 投影（非 LLM）：重建在场 + 闸门 + 写出 dossier.md，结果以「参考信号」明示。
+  const handleRefreshCanon = useCallback(async () => {
+    if (!activeProject) {
+      await handleOpenProject();
+      return;
+    }
+    try {
+      const result = await executeIdeCommand('canon.refresh', { project_root: activeProject });
+      const payload = (result.payload ?? {}) as Record<string, unknown>;
+      const canon = (payload.canon ?? {}) as Record<string, unknown>;
+      const dossier = (canon.dossier ?? {}) as Record<string, unknown>;
+      const dossierPath =
+        typeof dossier.path === 'string' ? dossier.path : '.storyforge/canon/derived/dossier.md';
+      const lines = [
+        `实体声明：${canon.entity_count ?? 0} 个`,
+        `硬矛盾（blocking）：${canon.conflict_count ?? 0}，advisory：${canon.advisory_count ?? 0}`,
+        `已写出事实卡：${dossierPath}`,
+        '',
+        typeof canon.note === 'string'
+          ? canon.note
+          : '结果为派生参考信号，非质量判定；advisory 须抽读原文核实。',
+      ];
+      await appDialog.alert({ title: 'Canon 事实卡已刷新（参考信号）', message: lines.join('\n') });
+    } catch (error) {
+      await appDialog.alert({
+        title: '刷新 Canon 事实卡失败',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [activeProject, appDialog, handleOpenProject]);
 
   const openSettings = useCallback(async () => {
     if (!(await confirmDiscardDirtyEditor(null, '打开设置'))) return;
@@ -639,11 +672,8 @@ export function App() {
           )}
         </main>
 
-        {rightPanelVisible && (
-          <section
-            className="flex min-h-0 w-[384px] flex-shrink-0 flex-col overflow-hidden border-l border-border bg-panel"
-            data-testid="assistant-panel"
-          >
+        {projectOpen && (
+          <AssistantPanelFrame visible={rightPanelVisible}>
             <ChatWindow
               projectPath={activeProject}
               currentFile={currentFile}
@@ -654,7 +684,7 @@ export function App() {
               onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
               onAssistantSessionChange={setActiveProjectAssistantSession}
             />
-          </section>
+          </AssistantPanelFrame>
         )}
       </div>
 
@@ -676,6 +706,7 @@ export function App() {
           onOpenFile={openFile}
           onOpenProject={handleOpenProject}
           onInitializeProject={handleInitializeStoryProject}
+          onRefreshCanon={handleRefreshCanon}
           onExportCurrent={() => emitExportCurrentFile()}
           onToggleAssistant={shell.toggleRight}
           onToggleWorkspace={shell.toggleSidebar}

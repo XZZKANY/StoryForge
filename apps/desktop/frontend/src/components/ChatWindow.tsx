@@ -3,7 +3,7 @@
  * 显示完整的消息历史流，并驱动 Agent 作者闭环。
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   AUTHOR_LOOP_RESULT_EVENT,
   emitAcceptCurrentFileSuggestion,
@@ -1325,6 +1325,12 @@ export function ChatWindow({
     onAssistantSessionChange?.(null);
   }, [onAssistantSessionChange]);
 
+  // 已发送的用户消息（oldest→newest），供 composer 方向键回溯上一句。
+  const userMessageHistory = useMemo(
+    () => messages.filter((message) => message.role === 'user').map((message) => message.content),
+    [messages],
+  );
+
   // 欢迎页首条 prompt：项目就绪后自动发出一次，避免作者重复输入。
   const pendingPromptFiredRef = useRef(false);
   useEffect(() => {
@@ -1379,6 +1385,7 @@ export function ChatWindow({
           busy={agentBusy}
           currentFileLabel={contextRef}
           explicitContextPaths={explicitContextPaths}
+          history={userMessageHistory}
           onAddContext={addExplicitContext}
           onTogglePinnedContext={togglePinnedContext}
           onChange={setInput}

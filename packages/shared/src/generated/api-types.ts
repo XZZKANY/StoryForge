@@ -898,6 +898,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ide/agent/sessions/{session_id}/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Agent 控制消息
+         * @description 替代 WS 控制通道：领域错误按 {type:"error"} 帧以 200 返回（前端 resolve 而非 throw）。
+         */
+        post: operations["post_agent_control_endpoint_api_ide_agent_sessions__session_id__control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ide/agent/sessions/{session_id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Agent 用户消息本地 SSE 流
+         * @description 本地 SSE 直播工具循环：替代 WS user_message 流；控制走 /agent/sessions/{id}/control。
+         */
+        post: operations["stream_agent_user_message_endpoint_api_ide_agent_sessions__session_id__stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ide/artifacts/{artifact_id}/preview": {
         parameters: {
             query?: never;
@@ -1748,6 +1788,20 @@ export interface components {
             updated_at: string;
         };
         /**
+         * AgentControlRequest
+         * @description Agent 控制消息体（暂停 / 恢复 / 停止 / 权限批准 / 拒绝 / 从 checkpoint 重试）。
+         */
+        AgentControlRequest: {
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Run Id */
+            run_id: string;
+            /** Type */
+            type: string;
+        };
+        /**
          * AgentRoleRead
          * @description Agent Runtime 的只读角色目录，用于 Root Agent 调度和权限边界判断。
          */
@@ -1866,6 +1920,26 @@ export interface components {
             tool_sequence: string[];
             /** Trigger Intents */
             trigger_intents: string[];
+        };
+        /**
+         * AgentUserMessageStreamRequest
+         * @description 本地 SSE 直播入口的用户消息体（字段对应 WS user_message 帧）。
+         */
+        AgentUserMessageStreamRequest: {
+            /** Args */
+            args?: {
+                [key: string]: unknown;
+            };
+            /** Assistant Session Id */
+            assistant_session_id?: number | null;
+            /** Intent */
+            intent?: string | null;
+            /** Permission Profile */
+            permission_profile?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** User Message */
+            user_message?: string | null;
         };
         /**
          * ArtifactCreate
@@ -6258,6 +6332,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventLogRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_agent_control_endpoint_api_ide_agent_sessions__session_id__control_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentControlRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_agent_user_message_endpoint_api_ide_agent_sessions__session_id__stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentUserMessageStreamRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.domains.agent_runs import canon_dossier, canon_gate, canon_rebuild, canon_store
+from app.domains.agent_runs import canon_dossier, canon_gate, canon_rebuild, canon_service, canon_store
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
@@ -13,6 +13,7 @@ from app.domains.agent_runs.tooling import (
     llm_tool_name,
     loop_patch_tool_specs,
 )
+from app.domains.ide.command_registry import IdeCommandExecutionError, execute_ide_command_by_id
 
 # 表面形刻意互不为子串（真实别名多为独立称谓 / 头衔），避免嵌套子串重复计数。
 _QINGYAN = {
@@ -323,3 +324,33 @@ def test_write_derived_text_roundtrip_and_whitelist(project: Path) -> None:
         canon_store.write_derived_text(str(project), "../evil.md", "x")
     with pytest.raises(FsToolError, match="不允许的派生缓存文件名"):
         canon_store.write_derived_text(str(project), "presence.json", "x")
+
+
+# --- 10. 确定性投影 + canon.refresh 命令（保证写出 dossier.md）---
+
+
+def test_run_canon_projection_always_writes_dossier_even_without_declarations(project: Path) -> None:
+    # 真实项目：有正文，canon.json 初始为空。投影仍须写出诚实空态 dossier.md。
+    output = canon_service.run_canon_projection(str(project))
+    dossier = Path(output["dossier"]["path"])
+    assert dossier.is_file()
+    assert dossier.name == "dossier.md"
+    assert output["scaffolded_canon"] is True
+    assert "尚无实体声明" in dossier.read_text(encoding="utf-8")
+
+
+def test_canon_refresh_command_writes_dossier_deterministically(project: Path) -> None:
+    _write_canon(project, {"version": 1, "entities": [_QINGYAN, _YUER], "invariants": {}})
+    result = execute_ide_command_by_id("canon.refresh", {"project_root": str(project)})
+
+    assert result.command_id == "canon.refresh"
+    canon = result.payload["canon"]
+    dossier = Path(canon["dossier"]["path"])
+    assert dossier.is_file()
+    body = dossier.read_text(encoding="utf-8")
+    assert "青岩" in body and "月儿" in body
+
+
+def test_canon_refresh_command_requires_project_root() -> None:
+    with pytest.raises(IdeCommandExecutionError, match="project_root"):
+        execute_ide_command_by_id("canon.refresh", {})

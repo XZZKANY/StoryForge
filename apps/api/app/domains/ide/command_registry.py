@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
 from app.common.redaction import redact_sensitive
+from app.domains.agent_runs.canon_service import run_canon_projection
+from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
@@ -56,6 +58,8 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="bookrun.stop", title="停止写作任务", category="Writing Run"),
         IdeCommandDefinition(id="bookrun.retry_from_checkpoint", title="从 checkpoint 重试写作任务", category="Writing Run"),
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
+        # canon.refresh 只写派生缓存（.storyforge/canon/derived/），不落 DB，故 writes=False 免审计工作区副作用。
+        IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
     ]
 }
 
@@ -88,6 +92,8 @@ def execute_ide_command_by_id(
         result = _execute_judge_approve_command(command, normalized_args, None, session)
     elif session is not None and command.id.startswith("bookrun."):
         result = _execute_bookrun_command(command, normalized_args, None, session)
+    elif command.id == "canon.refresh":
+        result = _execute_canon_refresh_command(command, normalized_args, None)
     else:
         result = _accepted_command_result(command, normalized_args, None)
 
@@ -262,6 +268,26 @@ def _execute_bookrun_command(
         audit_event_id,
         writing_run_payload(result),
     )
+
+
+def _execute_canon_refresh_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+) -> IdeCommandResult:
+    """确定性触发 canon 投影：重建在场 + 闸门 + dossier，写派生缓存（无 LLM，无 key）。"""
+
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("canon.refresh 需要 project_root。")
+    glob_arg = args.get("glob")
+    glob = glob_arg.strip() if isinstance(glob_arg, str) and glob_arg.strip() else "*.md"
+    refresh = args.get("refresh") is not False
+    try:
+        output = run_canon_projection(project_root.strip(), glob=glob, refresh=refresh)
+    except FsToolError as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+    return _accepted_command_result(command, args, audit_event_id, {"canon": output})
 
 
 def _required_book_run_id(args: dict[str, object]) -> int:

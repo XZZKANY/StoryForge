@@ -11,95 +11,70 @@ import {
   subscribeWritingRunEvents,
 } from '../src/lib/api-client';
 
-test('agent websocket streams events and resolves with the final result', async () => {
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
-  const sentPayloads: Array<Record<string, unknown>> = [];
+function sseBodyFromFrames(frames: Array<Record<string, unknown>>): string {
+  return frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('');
+}
+
+test('agent SSE stream forwards events and resolves with the final result', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
   const seenEvents: string[] = [];
-  const openedSockets: MockWebSocket[] = [];
 
-  class MockWebSocket {
-    onopen: ((event: Event) => void) | null = null;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onerror: ((event: Event) => void) | null = null;
-    onclose: ((event: CloseEvent) => void) | null = null;
-
-    constructor(
-      readonly url: string,
-      readonly protocols?: string | string[],
-    ) {
-      openedSockets.push(this);
-      setTimeout(() => this.onopen?.(new Event('open')), 0);
-    }
-
-    send(raw: string) {
-      sentPayloads.push(JSON.parse(raw) as Record<string, unknown>);
-      const messages = [
-        { type: 'agent_run_started', session_id: 'agent-session', run_id: 'run-1' },
-        {
-          type: 'agent_step',
-          session_id: 'agent-session',
-          run_id: 'run-1',
-          index: 0,
-          step: 'context-agent',
-          detail: '读取上下文',
-          status: 'completed',
-        },
-        {
-          type: 'tool_trace',
-          session_id: 'agent-session',
-          run_id: 'run-1',
-          index: 0,
-          trace: {
-            tool_name: 'subagent.context',
-            status: 'completed',
-            input_summary: {},
-            output_summary: { context_file_count: 1 },
-          },
-        },
-        {
-          type: 'permission_required',
-          session_id: 'agent-session',
-          run_id: 'run-1',
-          permission_profile: 'risk_confirm',
-          reason: 'requires_user_confirmation',
-          proposed_patch: null,
-        },
-        {
-          type: 'agent_result',
-          session_id: 'agent-session',
-          run_id: 'run-1',
-          assistant_session_id: 42,
-          intent: 'file.review',
-          user_message: '审一下',
-          plan: [],
-          agent_result: { summary: '完成', requires_user_confirmation: false },
-          tool_trace: [],
-          proposed_patch: null,
-        },
-      ];
-      messages.forEach((message, index) => {
-        setTimeout(() => {
-          this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent);
-        }, index);
-      });
-    }
-
-    close() {
-      this.onclose?.({ code: 1000, reason: '' } as CloseEvent);
-    }
-  }
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      setTimeout,
-      clearTimeout,
+  const frames = [
+    { type: 'agent_run_started', session_id: 'agent-session', run_id: 'run-1' },
+    {
+      type: 'agent_step',
+      session_id: 'agent-session',
+      run_id: 'run-1',
+      index: 0,
+      step: 'context-agent',
+      detail: '读取上下文',
+      status: 'completed',
     },
-  });
-  Object.defineProperty(globalThis, 'WebSocket', {
+    {
+      type: 'tool_trace',
+      session_id: 'agent-session',
+      run_id: 'run-1',
+      index: 0,
+      trace: {
+        tool_name: 'subagent.context',
+        status: 'completed',
+        input_summary: {},
+        output_summary: { context_file_count: 1 },
+      },
+    },
+    {
+      type: 'permission_required',
+      session_id: 'agent-session',
+      run_id: 'run-1',
+      permission_profile: 'risk_confirm',
+      reason: 'requires_user_confirmation',
+      proposed_patch: null,
+    },
+    {
+      type: 'agent_result',
+      session_id: 'agent-session',
+      run_id: 'run-1',
+      assistant_session_id: 42,
+      intent: 'file.review',
+      user_message: '审一下',
+      plan: [],
+      agent_result: { summary: '完成', requires_user_confirmation: false },
+      tool_trace: [],
+      proposed_patch: null,
+    },
+  ];
+  const body = sseBodyFromFrames(frames);
+
+  Object.defineProperty(globalThis, 'fetch', {
     configurable: true,
-    value: MockWebSocket,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(input), init });
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    },
   });
 
   try {
@@ -111,24 +86,32 @@ test('agent websocket streams events and resolves with the final result', async 
       onEvent: (event) => seenEvents.push(event.type),
     });
 
-    assert.deepEqual(seenEvents, ['agent_run_started', 'agent_step', 'tool_trace', 'permission_required', 'agent_result']);
+    assert.deepEqual(seenEvents, [
+      'agent_run_started',
+      'agent_step',
+      'tool_trace',
+      'permission_required',
+      'agent_result',
+    ]);
     assert.equal(result.type, 'agent_result');
-    assert.equal(sentPayloads[0].stream, true);
-    assert.equal(sentPayloads[0].run_id, 'run-1');
-    assert.equal(sentPayloads[0].type, 'user_message');
-    assert.equal(openedSockets[0].url.includes('api_key='), false);
-    assert.ok(Array.isArray(openedSockets[0].protocols));
-    assert.match(String((openedSockets[0].protocols as string[])[0]), /^storyforge-api-key\./);
+    assert.equal(
+      fetchCalls[0].url,
+      'http://127.0.0.1:8000/api/ide/agent/sessions/agent-session/stream',
+    );
+    assert.equal(fetchCalls[0].init?.method, 'POST');
+    assert.equal(
+      (fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'],
+      'local-dev-key',
+    );
+    const sent = JSON.parse(String(fetchCalls[0].init?.body)) as Record<string, unknown>;
+    assert.equal(sent.run_id, 'run-1');
+    assert.equal(sent.user_message, '审一下');
+    assert.deepEqual(sent.args, { file_path: '正文/第01章.md' });
   } finally {
-    if (previousWindow) {
-      Object.defineProperty(globalThis, 'window', previousWindow);
+    if (previousFetch) {
+      Object.defineProperty(globalThis, 'fetch', previousFetch);
     } else {
-      Reflect.deleteProperty(globalThis, 'window');
-    }
-    if (previousWebSocket) {
-      Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
-    } else {
-      Reflect.deleteProperty(globalThis, 'WebSocket');
+      Reflect.deleteProperty(globalThis, 'fetch');
     }
   }
 });
@@ -172,56 +155,34 @@ test('writing run SSE uses fetch with API key header and parses named events', a
   }
 });
 
-test('agent websocket user message includes agent role hints in args', async () => {
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
-  const sentPayloads: Array<Record<string, unknown>> = [];
+test('agent SSE stream includes agent role hints in args', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
 
-  class MockWebSocket {
-    onopen: ((event: Event) => void) | null = null;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onerror: ((event: Event) => void) | null = null;
-    onclose: ((event: CloseEvent) => void) | null = null;
-
-    constructor(readonly url: string) {
-      setTimeout(() => this.onopen?.(new Event('open')), 0);
-    }
-
-    send(raw: string) {
-      sentPayloads.push(JSON.parse(raw) as Record<string, unknown>);
-      setTimeout(() => {
-        this.onmessage?.({
-          data: JSON.stringify({
-            type: 'agent_result',
-            session_id: 'agent-session',
-            run_id: 'run-1',
-            assistant_session_id: 42,
-            intent: 'file.review',
-            user_message: '@剧情 审一下',
-            plan: [],
-            agent_result: { summary: '完成', requires_user_confirmation: false },
-            tool_trace: [],
-            proposed_patch: null,
-          }),
-        } as MessageEvent);
-      }, 0);
-    }
-
-    close() {
-      this.onclose?.({ code: 1000, reason: '' } as CloseEvent);
-    }
-  }
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      setTimeout,
-      clearTimeout,
+  const body = sseBodyFromFrames([
+    {
+      type: 'agent_result',
+      session_id: 'agent-session',
+      run_id: 'run-1',
+      assistant_session_id: 42,
+      intent: 'file.review',
+      user_message: '@剧情 审一下',
+      plan: [],
+      agent_result: { summary: '完成', requires_user_confirmation: false },
+      tool_trace: [],
+      proposed_patch: null,
     },
-  });
-  Object.defineProperty(globalThis, 'WebSocket', {
+  ]);
+
+  Object.defineProperty(globalThis, 'fetch', {
     configurable: true,
-    value: MockWebSocket,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(input), init });
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    },
   });
 
   try {
@@ -234,75 +195,49 @@ test('agent websocket user message includes agent role hints in args', async () 
       agentRoleMentions: ['@剧情'],
     });
 
-    assert.deepEqual(sentPayloads[0].args, {
+    const sent = JSON.parse(String(fetchCalls[0].init?.body)) as Record<string, unknown>;
+    assert.deepEqual(sent.args, {
       file_path: '正文/第01章.md',
       agent_role_hints: ['plot_reviewer'],
       agent_role_mentions: ['@剧情'],
     });
   } finally {
-    if (previousWindow) {
-      Object.defineProperty(globalThis, 'window', previousWindow);
+    if (previousFetch) {
+      Object.defineProperty(globalThis, 'fetch', previousFetch);
     } else {
-      Reflect.deleteProperty(globalThis, 'window');
-    }
-    if (previousWebSocket) {
-      Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
-    } else {
-      Reflect.deleteProperty(globalThis, 'WebSocket');
+      Reflect.deleteProperty(globalThis, 'fetch');
     }
   }
 });
 
-test('agent websocket user message forwards explicit revise intent to the backend', async () => {
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
-  const sentPayloads: Array<Record<string, unknown>> = [];
+test('agent SSE stream forwards explicit revise intent to the backend', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
 
-  class MockWebSocket {
-    onopen: ((event: Event) => void) | null = null;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onerror: ((event: Event) => void) | null = null;
-    onclose: ((event: CloseEvent) => void) | null = null;
-
-    constructor(readonly url: string) {
-      setTimeout(() => this.onopen?.(new Event('open')), 0);
-    }
-
-    send(raw: string) {
-      sentPayloads.push(JSON.parse(raw) as Record<string, unknown>);
-      setTimeout(() => {
-        this.onmessage?.({
-          data: JSON.stringify({
-            type: 'agent_result',
-            session_id: 'agent-session',
-            run_id: 'run-1',
-            assistant_session_id: 42,
-            intent: 'file.revise',
-            user_message: '修选中问题：plot-1',
-            plan: [],
-            agent_result: { summary: '完成', requires_user_confirmation: true },
-            tool_trace: [],
-            proposed_patch: null,
-          }),
-        } as MessageEvent);
-      }, 0);
-    }
-
-    close() {
-      this.onclose?.({ code: 1000, reason: '' } as CloseEvent);
-    }
-  }
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      setTimeout,
-      clearTimeout,
+  const body = sseBodyFromFrames([
+    {
+      type: 'agent_result',
+      session_id: 'agent-session',
+      run_id: 'run-1',
+      assistant_session_id: 42,
+      intent: 'file.revise',
+      user_message: '修选中问题：plot-1',
+      plan: [],
+      agent_result: { summary: '完成', requires_user_confirmation: true },
+      tool_trace: [],
+      proposed_patch: null,
     },
-  });
-  Object.defineProperty(globalThis, 'WebSocket', {
+  ]);
+
+  Object.defineProperty(globalThis, 'fetch', {
     configurable: true,
-    value: MockWebSocket,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(input), init });
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    },
   });
 
   try {
@@ -316,65 +251,35 @@ test('agent websocket user message forwards explicit revise intent to the backen
       args: { file_path: '正文/第01章.md' },
     });
 
-    assert.equal(sentPayloads[0].intent, 'file.revise');
+    const sent = JSON.parse(String(fetchCalls[0].init?.body)) as Record<string, unknown>;
+    assert.equal(sent.intent, 'file.revise');
   } finally {
-    if (previousWindow) {
-      Object.defineProperty(globalThis, 'window', previousWindow);
+    if (previousFetch) {
+      Object.defineProperty(globalThis, 'fetch', previousFetch);
     } else {
-      Reflect.deleteProperty(globalThis, 'window');
-    }
-    if (previousWebSocket) {
-      Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
-    } else {
-      Reflect.deleteProperty(globalThis, 'WebSocket');
+      Reflect.deleteProperty(globalThis, 'fetch');
     }
   }
 });
 
-test('agent control websocket sends control message and resolves ack', async () => {
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
-  const sentPayloads: Array<Record<string, unknown>> = [];
+test('agent control POST sends control message and resolves ack', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
 
-  class MockWebSocket {
-    onopen: ((event: Event) => void) | null = null;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onerror: ((event: Event) => void) | null = null;
-    onclose: ((event: CloseEvent) => void) | null = null;
-
-    constructor(readonly url: string) {
-      setTimeout(() => this.onopen?.(new Event('open')), 0);
-    }
-
-    send(raw: string) {
-      sentPayloads.push(JSON.parse(raw) as Record<string, unknown>);
-      setTimeout(() => {
-        this.onmessage?.({
-          data: JSON.stringify({
-            type: 'permission_approved',
-            session_id: 'agent-session',
-            run_id: 'run-1',
-            status: 'recorded',
-          }),
-        } as MessageEvent);
-      }, 0);
-    }
-
-    close() {
-      this.onclose?.({ code: 1000, reason: '' } as CloseEvent);
-    }
-  }
-
-  Object.defineProperty(globalThis, 'window', {
+  Object.defineProperty(globalThis, 'fetch', {
     configurable: true,
-    value: {
-      setTimeout,
-      clearTimeout,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(input), init });
+      return new Response(
+        JSON.stringify({
+          type: 'permission_approved',
+          session_id: 'agent-session',
+          run_id: 'run-1',
+          status: 'recorded',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
     },
-  });
-  Object.defineProperty(globalThis, 'WebSocket', {
-    configurable: true,
-    value: MockWebSocket,
   });
 
   try {
@@ -386,69 +291,43 @@ test('agent control websocket sends control message and resolves ack', async () 
     });
 
     assert.equal(result.type, 'permission_approved');
-    assert.deepEqual(sentPayloads[0], {
+    assert.equal(
+      fetchCalls[0].url,
+      'http://127.0.0.1:8000/api/ide/agent/sessions/agent-session/control',
+    );
+    assert.equal(fetchCalls[0].init?.method, 'POST');
+    assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {
       type: 'approve_permission',
       run_id: 'run-1',
       payload: { source: 'test' },
     });
   } finally {
-    if (previousWindow) {
-      Object.defineProperty(globalThis, 'window', previousWindow);
+    if (previousFetch) {
+      Object.defineProperty(globalThis, 'fetch', previousFetch);
     } else {
-      Reflect.deleteProperty(globalThis, 'window');
-    }
-    if (previousWebSocket) {
-      Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
-    } else {
-      Reflect.deleteProperty(globalThis, 'WebSocket');
+      Reflect.deleteProperty(globalThis, 'fetch');
     }
   }
 });
 
-test('agent control websocket accepts retry_from_checkpoint ack', async () => {
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const previousWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
-  const sentPayloads: Array<Record<string, unknown>> = [];
+test('agent control POST accepts retry_from_checkpoint ack', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
 
-  class MockWebSocket {
-    onopen: ((event: Event) => void) | null = null;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onerror: ((event: Event) => void) | null = null;
-    onclose: ((event: CloseEvent) => void) | null = null;
-
-    constructor(readonly url: string) {
-      setTimeout(() => this.onopen?.(new Event('open')), 0);
-    }
-
-    send(raw: string) {
-      sentPayloads.push(JSON.parse(raw) as Record<string, unknown>);
-      setTimeout(() => {
-        this.onmessage?.({
-          data: JSON.stringify({
-            type: 'retry_from_checkpoint',
-            session_id: 'agent-session',
-            run_id: 'bookrun-7',
-            status: 'recorded',
-          }),
-        } as MessageEvent);
-      }, 0);
-    }
-
-    close() {
-      this.onclose?.({ code: 1000, reason: '' } as CloseEvent);
-    }
-  }
-
-  Object.defineProperty(globalThis, 'window', {
+  Object.defineProperty(globalThis, 'fetch', {
     configurable: true,
-    value: {
-      setTimeout,
-      clearTimeout,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(input), init });
+      return new Response(
+        JSON.stringify({
+          type: 'retry_from_checkpoint',
+          session_id: 'agent-session',
+          run_id: 'bookrun-7',
+          status: 'recorded',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
     },
-  });
-  Object.defineProperty(globalThis, 'WebSocket', {
-    configurable: true,
-    value: MockWebSocket,
   });
 
   try {
@@ -460,21 +339,16 @@ test('agent control websocket accepts retry_from_checkpoint ack', async () => {
     });
 
     assert.equal(result.type, 'retry_from_checkpoint');
-    assert.deepEqual(sentPayloads[0], {
+    assert.deepEqual(JSON.parse(String(fetchCalls[0].init?.body)), {
       type: 'retry_from_checkpoint',
       run_id: 'bookrun-7',
       payload: { reason: 'retry latest checkpoint' },
     });
   } finally {
-    if (previousWindow) {
-      Object.defineProperty(globalThis, 'window', previousWindow);
+    if (previousFetch) {
+      Object.defineProperty(globalThis, 'fetch', previousFetch);
     } else {
-      Reflect.deleteProperty(globalThis, 'window');
-    }
-    if (previousWebSocket) {
-      Object.defineProperty(globalThis, 'WebSocket', previousWebSocket);
-    } else {
-      Reflect.deleteProperty(globalThis, 'WebSocket');
+      Reflect.deleteProperty(globalThis, 'fetch');
     }
   }
 });
@@ -519,10 +393,16 @@ test('getAgentRunSavePoints fetches durable recovery projection', async () => {
 
     assert.equal(fetchCalls[0].url, 'http://127.0.0.1:8000/api/agent-runs/bookrun-7/save-points');
     assert.equal(fetchCalls[0].init?.method, 'GET');
-    assert.equal((fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'], 'local-dev-key');
+    assert.equal(
+      (fetchCalls[0].init?.headers as Record<string, string>)['X-StoryForge-API-Key'],
+      'local-dev-key',
+    );
     assert.equal(projection.run_id, 'bookrun-7');
     assert.equal(projection.save_points[0].kind, 'control_message');
-    assert.equal(projection.runtime_recovery.latest_control?.['event_type'], 'retry_from_checkpoint');
+    assert.equal(
+      projection.runtime_recovery.latest_control?.['event_type'],
+      'retry_from_checkpoint',
+    );
   } finally {
     if (previousFetch) {
       Object.defineProperty(globalThis, 'fetch', previousFetch);
