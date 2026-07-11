@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus } from '../icons/shell-icons';
@@ -20,6 +21,7 @@ export function ComposerBox({
   onChange,
   onSubmit,
   explicitContextPaths,
+  history,
   onAddContext,
   onTogglePinnedContext,
   onPauseRun,
@@ -29,6 +31,7 @@ export function ComposerBox({
   busy: boolean;
   currentFileLabel: string | null;
   explicitContextPaths: string[];
+  history?: string[];
   onAddContext: () => void;
   onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
@@ -50,6 +53,7 @@ export function ComposerBox({
             busy={busy}
             currentFileLabel={currentFileLabel}
             explicitContextPaths={explicitContextPaths}
+            history={history}
             onAddContext={onAddContext}
             onTogglePinnedContext={onTogglePinnedContext}
             onChange={onChange}
@@ -70,6 +74,7 @@ export function ComposerSurface({
   onChange,
   onSubmit,
   explicitContextPaths,
+  history,
   onAddContext,
   onTogglePinnedContext,
   onPauseRun,
@@ -79,6 +84,7 @@ export function ComposerSurface({
   busy: boolean;
   currentFileLabel: string | null;
   explicitContextPaths: string[];
+  history?: string[];
   onAddContext: () => void;
   onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
@@ -86,6 +92,53 @@ export function ComposerSurface({
   onPauseRun?: () => void;
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
+  // 方向键回溯已发送消息（Claude/Codex 式）：游标为 null 表示在编辑当前草稿，
+  // 数字表示正浏览 history[index]。draft 保留进入历史前的草稿，ArrowDown 越过最新即还原。
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const historyIndexRef = useRef<number | null>(null);
+  const draftRef = useRef<string>('');
+
+  const moveCaretToEnd = () => {
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      const end = el.value.length;
+      el.setSelectionRange(end, end);
+    });
+  };
+
+  // 返回 true 表示本次按键已被历史回溯消费（需 preventDefault），false 交回默认光标行为。
+  const recallHistory = (direction: 'prev' | 'next'): boolean => {
+    const entries = history ?? [];
+    if (entries.length === 0) return false;
+    let index = historyIndexRef.current;
+    if (direction === 'prev') {
+      if (index === null) {
+        draftRef.current = value;
+        index = entries.length - 1;
+      } else if (index > 0) {
+        index -= 1;
+      } else {
+        return true; // 已到最旧，拦截但不改动
+      }
+      historyIndexRef.current = index;
+      onChange(entries[index]);
+      moveCaretToEnd();
+      return true;
+    }
+    if (index === null) return false; // 不在历史中，ArrowDown 交回默认行为
+    if (index < entries.length - 1) {
+      index += 1;
+      historyIndexRef.current = index;
+      onChange(entries[index]);
+    } else {
+      historyIndexRef.current = null;
+      onChange(draftRef.current);
+    }
+    moveCaretToEnd();
+    return true;
+  };
+
   // 硬引用超 3 枚收纳为 +N（悬停看全名）；焦点可钉时点击 @焦点即锁为硬引用。
   const visiblePins = explicitContextPaths.slice(0, 3);
   const overflowPins = explicitContextPaths.slice(3);
@@ -127,8 +180,12 @@ export function ComposerSurface({
         </div>
       )}
       <textarea
+        ref={textareaRef}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          historyIndexRef.current = null; // 手动改动即退出历史回溯，回到实时草稿
+          onChange(event.target.value);
+        }}
         disabled={disabled || busy}
         rows={2}
         className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-[13px] leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
@@ -137,9 +194,28 @@ export function ComposerSurface({
         }
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          // IME 组字期间（拼音选字）一律不拦截：Enter 上屏候选、方向键选候选都不应触发发送/回溯。
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === 'Enter') {
+            if (event.shiftKey) return; // Shift+Enter 换行
+            // Enter 或 Ctrl/Cmd+Enter 均发送。
             event.preventDefault();
+            historyIndexRef.current = null;
             onSubmit?.();
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            const el = event.currentTarget;
+            if (el.selectionStart === 0 && el.selectionEnd === 0) {
+              if (recallHistory('prev')) event.preventDefault();
+            }
+            return;
+          }
+          if (event.key === 'ArrowDown') {
+            const el = event.currentTarget;
+            if (el.selectionStart === el.value.length && el.selectionEnd === el.value.length) {
+              if (recallHistory('next')) event.preventDefault();
+            }
           }
         }}
       />

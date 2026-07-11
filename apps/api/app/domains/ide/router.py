@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import json
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import sessionmaker
 from starlette.websockets import WebSocketState
 
@@ -102,14 +104,12 @@ def _api_key_and_protocol_from_websocket_protocol(header_value: str | None) -> t
     return None, None
 
 
-async def _stream_agent_user_message(
-    websocket: WebSocket,
-    *,
-    session_id: str,
-    session,
-    message: dict[str, Any],
-) -> None:
-    """Run the sync AgentRuntime off-loop and forward persisted events immediately."""
+async def _agent_user_message_payloads(session, *, session_id: str, message: dict[str, Any]):
+    """跑同步 AgentRuntime（off-loop），按事件顺序产出前端帧 payload，终态帧（result/error）后收尾。
+
+    WS 流与本地 SSE 流共用这一泵：帧形状完全一致（见 event_encoders / ws_messages），
+    唯一差别是传输层如何把每个 payload 送出去。
+    """
 
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -141,7 +141,7 @@ async def _stream_agent_user_message(
                     payload["run_id"] = exc.run.public_id
                 enqueue({"kind": _STREAM_ERROR, "payload": payload})
                 return
-            except Exception as exc:  # noqa: BLE001 - WebSocket worker must always release the receiver loop
+            except Exception as exc:  # noqa: BLE001 - worker must always release the receiver loop
                 enqueue({"kind": _STREAM_ERROR, "payload": {"type": "error", "session_id": session_id, "detail": str(exc)}})
                 return
             enqueue({"kind": _STREAM_RESULT, "payload": runtime_result.result})
@@ -152,17 +152,35 @@ async def _stream_agent_user_message(
             item = await queue.get()
             kind = item.get("kind")
             payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
-            if kind == _STREAM_EVENT:
-                await websocket.send_json(payload)
-                continue
-            if kind == _STREAM_RESULT:
-                await websocket.send_json(payload)
-                break
-            if kind == _STREAM_ERROR:
-                await websocket.send_json(payload)
+            yield payload
+            if kind in (_STREAM_RESULT, _STREAM_ERROR):
                 break
     finally:
         await worker
+
+
+async def _stream_agent_user_message(
+    websocket: WebSocket,
+    *,
+    session_id: str,
+    session,
+    message: dict[str, Any],
+) -> None:
+    """Run the sync AgentRuntime off-loop and forward persisted events immediately."""
+
+    async for payload in _agent_user_message_payloads(session, session_id=session_id, message=message):
+        await websocket.send_json(payload)
+
+
+def _sse_data_frame(payload: dict[str, Any]) -> str:
+    """把前端帧 payload 编成 SSE data 帧；前端按 payload.type 判别式解码（与 WS 帧同形）。"""
+
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+async def _agent_user_message_sse(session, *, session_id: str, message: dict[str, Any]):
+    async for payload in _agent_user_message_payloads(session, session_id=session_id, message=message):
+        yield _sse_data_frame(payload)
 
 
 @router.get(
@@ -407,3 +425,78 @@ async def agent_session(websocket: WebSocket, session_id: str, session: SessionD
     finally:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.close()
+
+
+class AgentUserMessageStreamRequest(BaseModel):
+    """本地 SSE 直播入口的用户消息体（字段对应 WS user_message 帧）。"""
+
+    user_message: str | None = None
+    run_id: str | None = None
+    assistant_session_id: int | None = None
+    intent: str | None = None
+    permission_profile: str | None = None
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentControlRequest(BaseModel):
+    """Agent 控制消息体（暂停 / 恢复 / 停止 / 权限批准 / 拒绝 / 从 checkpoint 重试）。"""
+
+    type: str
+    run_id: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/agent/sessions/{session_id}/stream", summary="Agent 用户消息本地 SSE 流")
+async def stream_agent_user_message_endpoint(
+    session_id: str,
+    request: AgentUserMessageStreamRequest,
+    session: SessionDependency,
+) -> StreamingResponse:
+    """本地 SSE 直播工具循环：替代 WS user_message 流；控制走 /agent/sessions/{id}/control。"""
+
+    message: dict[str, Any] = {
+        "type": "user_message",
+        "stream": True,
+        "run_id": request.run_id,
+        "user_message": request.user_message,
+        "assistant_session_id": request.assistant_session_id,
+        "intent": request.intent,
+        "permission_profile": request.permission_profile,
+        "args": request.args or {},
+    }
+    return StreamingResponse(
+        _agent_user_message_sse(session, session_id=session_id, message=message),
+        media_type="text/event-stream",
+    )
+
+
+@router.post("/agent/sessions/{session_id}/control", summary="Agent 控制消息")
+def post_agent_control_endpoint(
+    session_id: str,
+    request: AgentControlRequest,
+    session: SessionDependency,
+) -> dict[str, Any]:
+    """替代 WS 控制通道：领域错误按 {type:"error"} 帧以 200 返回（前端 resolve 而非 throw）。"""
+
+    if request.type not in CONTROL_MESSAGE_TYPES:
+        return {"type": "error", "session_id": session_id, "detail": f"不支持的控制消息：{request.type}。"}
+    run_id = (request.run_id or "").strip()
+    if not run_id:
+        return {"type": "error", "session_id": session_id, "detail": f"{request.type} 消息缺少 run_id。"}
+    payload = request.payload if isinstance(request.payload, dict) else {}
+    try:
+        control_result = handle_agent_control_message(
+            session,
+            public_id=run_id,
+            session_id=session_id,
+            control_type=request.type,
+            payload=payload,
+        )
+    except Exception as exc:  # noqa: BLE001 - 领域错误转成 error 帧，前端按消息处理不抛出
+        return {"type": "error", "session_id": session_id, "run_id": run_id, "detail": str(exc)}
+    ack = websocket_control_event(control_result.event)
+    if control_result.resumed_result is not None:
+        ack["resumed_result"] = control_result.resumed_result
+    if control_result.resume_diagnostic is not None:
+        ack["resume_diagnostic"] = control_result.resume_diagnostic
+    return ack

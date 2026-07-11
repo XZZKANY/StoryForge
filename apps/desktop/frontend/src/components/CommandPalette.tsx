@@ -24,6 +24,7 @@ type CommandPaletteProps = {
   onOpenFile: (path: string) => void;
   onOpenProject: () => void;
   onInitializeProject: () => void;
+  onRefreshCanon: () => void;
   onExportCurrent: () => void;
   onToggleAssistant: () => void;
   onToggleWorkspace: () => void;
@@ -51,6 +52,7 @@ export function CommandPalette({
   onOpenFile,
   onOpenProject,
   onInitializeProject,
+  onRefreshCanon,
   onExportCurrent,
   onToggleAssistant,
   onToggleWorkspace,
@@ -99,6 +101,12 @@ export function CommandPalette({
         hint: basename(projectPath),
         run: onInitializeProject,
       });
+      list.push({
+        id: 'canon-refresh',
+        title: '刷新 Canon 事实卡（dossier）',
+        hint: '派生参考信号',
+        run: onRefreshCanon,
+      });
     }
     if (currentFile) {
       list.push({
@@ -122,6 +130,7 @@ export function CommandPalette({
     projectPath,
     onOpenProject,
     onInitializeProject,
+    onRefreshCanon,
     onExportCurrent,
     onToggleAssistant,
     onToggleWorkspace,

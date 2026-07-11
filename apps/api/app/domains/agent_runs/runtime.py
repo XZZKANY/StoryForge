@@ -8,10 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.common.redaction import REDACTED, is_sensitive_key, redact_sensitive_text
 from app.domains.agent_runs import (
-    canon_dossier,
-    canon_gate,
-    canon_rebuild,
-    canon_store,
+    canon_service,
     fs_tools,
     loop_runtime,
 )
@@ -1748,66 +1745,9 @@ class AgentRuntime:
     def _project_canon(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         project_root = _required_string(payload, "project_root")
         glob = _optional_string(payload.get("glob")) or "*.md"
-        # 红线例外：只写派生缓存（非手稿）；canon.json 缺失时脚手架空模板确立格式。
-        scaffolded = canon_store.scaffold_canon_if_missing(project_root)
-        canon = canon_store.read_canon(project_root)
-        entities = [item for item in (canon.get("entities") or []) if isinstance(item, dict)]
-
         refresh = payload.get("refresh") is not False
-        cached = None if refresh else canon_store.read_derived(project_root, "presence.json")
-        if cached is not None:
-            presence = cached
-        else:
-            presence = canon_rebuild.rebuild_presence(project_root, entities, glob=glob)
-            canon_store.write_derived(project_root, "presence.json", presence)
-
-        gate = canon_gate.check(canon, presence)
-        report = {
-            "conflicts": gate["conflicts"],
-            "advisories": gate["advisories"],
-            "checked_invariants": gate["checked_invariants"],
-            "entity_count": len(entities),
-            "scaffolded_canon": scaffolded,
-        }
-        canon_store.write_derived(project_root, "report.json", report)
-
-        # 富 view 骨架：每实体确定性事实投影（身份/出场跨度/绑定声明/provenance）落成
-        # 人可读派生缓存 dossier.md。summary-only 回 LLM（全文不灌上下文，防噪声）。
-        dossiers = canon_dossier.build_dossiers(canon, presence)
-        dossier_path = canon_store.write_derived_text(
-            project_root, "dossier.md", canon_dossier.render_dossiers_markdown(dossiers)
-        )
-
-        has_declarations = bool(gate["checked_invariants"])
-        note = (
-            "canon.json 尚无不变量声明，已建立空格式骨架；在场缓存已重建但暂无可校验项，"
-            "请在 .storyforge/canon/canon.json 声明实体与不变量后再查。"
-            if not has_declarations
-            else "结果为参考信号：硬矛盾（blocking）是声明内部结构冲突，advisory 须抽读原文核实。"
-        )
-        output = {
-            "entity_count": len(entities),
-            "checked_invariants": gate["checked_invariants"],
-            "conflicts": gate["conflicts"],
-            "advisories": gate["advisories"],
-            "conflict_count": gate["conflict_count"],
-            "advisory_count": gate["advisory_count"],
-            "presence_summary": {
-                "chapter_count": presence.get("chapter_count"),
-                "scanned_files": presence.get("scanned_files"),
-                "terms_truncated": presence.get("terms_truncated"),
-                "missing_entities": [
-                    e.get("id") for e in (presence.get("entities") or []) if e.get("missing")
-                ],
-            },
-            "scaffolded_canon": scaffolded,
-            "dossier": {
-                "entity_count": len(dossiers),
-                "path": dossier_path,
-                "missing_entities": [d["id"] for d in dossiers if d["appearance"]["missing"]],
-            },
-            "note": note,
-        }
+        # 确定性投影核心（写派生缓存 + dossier）下沉 canon_service，与 IDE 命令 canon.refresh 共用。
+        output = canon_service.run_canon_projection(project_root, glob=glob, refresh=refresh)
         return ToolResult(
             status="completed",
             output=output,
@@ -1816,10 +1756,10 @@ class AgentRuntime:
                 status="completed",
                 input_summary={"refresh": refresh, "glob": glob},
                 output_summary={
-                    "entity_count": len(entities),
-                    "checked_invariants": gate["checked_invariants"],
-                    "conflict_count": gate["conflict_count"],
-                    "advisory_count": gate["advisory_count"],
+                    "entity_count": output["entity_count"],
+                    "checked_invariants": output["checked_invariants"],
+                    "conflict_count": output["conflict_count"],
+                    "advisory_count": output["advisory_count"],
                 },
             ),
         )
