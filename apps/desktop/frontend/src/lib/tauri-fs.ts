@@ -118,12 +118,12 @@ export class TauriFileSystem {
     return await invoke<string>('read_project_file', { projectRoot, path });
   }
 
-  static async writeFile(path: string, content: string): Promise<void> {
+  static async writeFile(projectRoot: string, path: string, content: string): Promise<void> {
     const mock = mockFs();
     try {
       if (mock?.writeFile) return await mock.writeFile(path, content);
       assertTauriRuntime('TauriFileSystem.writeFile');
-      await invoke('write_file', { path, content });
+      await invoke('write_file', { projectRoot, path, content });
     } finally {
       invalidateListDirCache(path);
     }
@@ -158,30 +158,30 @@ export class TauriFileSystem {
     }
   }
 
-  static async deletePath(path: string, recursive = false): Promise<void> {
+  static async deletePath(projectRoot: string, path: string, recursive = false): Promise<void> {
     try {
       assertTauriRuntime('TauriFileSystem.deletePath');
-      await invoke('delete_path', { path, recursive });
+      await invoke('delete_path', { projectRoot, path, recursive });
     } finally {
       invalidateListDirCache(path);
     }
   }
 
-  static async createDir(path: string, recursive = true): Promise<void> {
+  static async createDir(projectRoot: string, path: string, recursive = true): Promise<void> {
     const mock = mockFs();
     try {
       if (mock?.createDir) return await mock.createDir(path, recursive);
       assertTauriRuntime('TauriFileSystem.createDir');
-      await invoke('create_dir', { path, recursive });
+      await invoke('create_dir', { projectRoot, path, recursive });
     } finally {
       invalidateListDirCache(path);
     }
   }
 
-  static async renamePath(from: string, to: string): Promise<void> {
+  static async renamePath(projectRoot: string, from: string, to: string): Promise<void> {
     try {
       assertTauriRuntime('TauriFileSystem.renamePath');
-      await invoke('rename_path', { from, to });
+      await invoke('rename_path', { projectRoot, from, to });
     } finally {
       invalidateListDirCache(from);
       invalidateListDirCache(to);

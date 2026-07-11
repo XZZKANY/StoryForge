@@ -94,6 +94,8 @@ export function useSuggestionWriteback({
       nextContent: string,
       overrides: { summary?: string; note?: string } = {},
     ) => {
+      const projectRoot = projectPathRef.current;
+      if (!projectRoot) throw new Error('未打开项目，不能写入修订结果');
       const summary = overrides.summary ?? suggestion.summary;
       const note = overrides.note ?? suggestion.note;
       const contentChanged = normalizeEol(previous) !== normalizeEol(nextContent);
@@ -115,7 +117,7 @@ export function useSuggestionWriteback({
           });
         },
         advanceBranchHead,
-        write: () => TauriFileSystem.writeFile(path, nextContent),
+        write: () => TauriFileSystem.writeFile(projectRoot, path, nextContent),
         record: () =>
           recordRevisionLoop({
             projectPath: projectPathRef.current,
@@ -312,7 +314,7 @@ export function useSuggestionWriteback({
         suggestion.after.length > 2000 ? '...' : '',
         '```',
       ].join('\n');
-      await TauriFileSystem.writeFile(notePath, note);
+      await TauriFileSystem.writeFile(project, notePath, note);
       setPendingSuggestion(null);
       setSuggestionStatus(`已保存旁注: ${notePath}`);
     } catch (err) {

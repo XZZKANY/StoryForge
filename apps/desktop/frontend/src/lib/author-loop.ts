@@ -131,7 +131,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     note,
   ].join('\n');
 
-  await TauriFileSystem.writeFile(recordPath, content);
+  await TauriFileSystem.writeFile(projectPath, recordPath, content);
   return { recordPath };
 }
 
@@ -157,6 +157,6 @@ export async function exportCurrentFile(params: {
     '',
   ].join('\n');
 
-  await TauriFileSystem.writeFile(exportPath, exportContent);
+  await TauriFileSystem.writeFile(projectPath, exportPath, exportContent);
   return { exportPath };
 }

@@ -39,6 +39,7 @@ import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import { AppDialogHost, useAppDialog } from './components/app/AppDialog';
 import { Titlebar } from './components/shell/Titlebar';
 import { ActivityBar } from './components/shell/ActivityBar';
+import { AssistantPanelFrame } from './components/shell/AssistantPanelFrame';
 import { SidePanel } from './components/shell/SidePanel';
 import { StatusBar } from './components/shell/StatusBar';
 import { EditorTabs, type CenterTab } from './components/shell/EditorTabs';
@@ -342,7 +343,7 @@ export function App() {
           });
           if (!shouldOpen) return;
         } else {
-          await TauriFileSystem.writeFile(filePath, '# 新建文件\n\n');
+          await TauriFileSystem.writeFile(targetProject, filePath, '# 新建文件\n\n');
         }
         await openFile(filePath, '打开新文件');
       } catch (error) {
@@ -639,11 +640,8 @@ export function App() {
           )}
         </main>
 
-        {rightPanelVisible && (
-          <section
-            className="flex min-h-0 w-[384px] flex-shrink-0 flex-col overflow-hidden border-l border-border bg-panel"
-            data-testid="assistant-panel"
-          >
+        {projectOpen && (
+          <AssistantPanelFrame visible={rightPanelVisible}>
             <ChatWindow
               projectPath={activeProject}
               currentFile={currentFile}
@@ -654,7 +652,7 @@ export function App() {
               onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
               onAssistantSessionChange={setActiveProjectAssistantSession}
             />
-          </section>
+          </AssistantPanelFrame>
         )}
       </div>
 

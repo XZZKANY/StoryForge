@@ -125,7 +125,7 @@ export async function saveBranchManifest(
   if (!projectPath) return;
   const path = manifestPathFor(projectPath, filePath);
   if (!path) return;
-  await TauriFileSystem.writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
+  await TauriFileSystem.writeFile(projectPath, path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 export function getActiveBranch(manifest: BranchManifest): BranchInfo {

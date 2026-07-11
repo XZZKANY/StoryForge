@@ -1438,6 +1438,14 @@ fn main() {
 
     // 4. 启动 Tauri 应用
     tauri::Builder::default()
+        // 必须先注册：第二个进程只负责唤醒首个窗口，不得继续启动自己的 sidecar。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&manager))

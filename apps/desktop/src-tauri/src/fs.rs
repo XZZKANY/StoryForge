@@ -1,7 +1,7 @@
 // 文件系统模块：提供本地文件操作 API。
 //
-// 前端统一 path helper 负责字符串级 containment；Agent 上下文读取再由
-// read_project_file canonicalize 真实路径，目录枚举也不会跟随 symlink。
+// 前端统一 path helper 负责字符串级 containment；Rust 对项目读写再做
+// canonicalize 真实路径校验，目录枚举也不会跟随 symlink。
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -54,16 +54,72 @@ pub fn read_project_file(project_root: String, path: String) -> Result<String, S
     fs::read_to_string(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))
 }
 
+fn canonical_project_root(project_root: &str) -> Result<PathBuf, String> {
+    let root = fs::canonicalize(project_root)
+        .map_err(|e| format!("无法解析项目目录 {}: {}", project_root, e))?;
+    if !root.is_dir() {
+        return Err(format!("项目根不是目录: {}", project_root));
+    }
+    Ok(root)
+}
+
+fn ensure_canonical_path_inside_project(
+    root: &Path,
+    candidate: &Path,
+    original: &Path,
+    allow_root: bool,
+) -> Result<(), String> {
+    if !candidate.starts_with(root) || (!allow_root && candidate == root) {
+        return Err(format!("路径不在当前项目内: {}", original.display()));
+    }
+    Ok(())
+}
+
+fn canonicalize_existing_ancestor(path: &Path) -> Result<PathBuf, String> {
+    let mut ancestor = path;
+    while !ancestor.exists() {
+        ancestor = ancestor
+            .parent()
+            .ok_or_else(|| format!("路径没有可解析的父目录: {}", path.display()))?;
+    }
+    fs::canonicalize(ancestor)
+        .map_err(|e| format!("无法解析路径 {}: {}", ancestor.display(), e))
+}
+
+fn validate_existing_mutation_path(project_root: &str, path: &Path) -> Result<(), String> {
+    let root = canonical_project_root(project_root)?;
+    let candidate = fs::canonicalize(path)
+        .map_err(|e| format!("无法解析项目路径 {}: {}", path.display(), e))?;
+    ensure_canonical_path_inside_project(&root, &candidate, path, false)
+}
+
+fn validate_pending_mutation_path(project_root: &str, path: &Path) -> Result<PathBuf, String> {
+    let root = canonical_project_root(project_root)?;
+    if path.exists() {
+        let candidate = fs::canonicalize(path)
+            .map_err(|e| format!("无法解析项目路径 {}: {}", path.display(), e))?;
+        ensure_canonical_path_inside_project(&root, &candidate, path, false)?;
+    } else {
+        let ancestor = canonicalize_existing_ancestor(path)?;
+        ensure_canonical_path_inside_project(&root, &ancestor, path, true)?;
+    }
+    Ok(root)
+}
+
 /// 写入文件内容（原子替换：先写同目录临时文件并 sync，再 rename 覆盖目标，
 /// 崩溃/中断绝不会在目标文件留下截断内容）。
 #[tauri::command]
-pub fn write_file(path: String, content: String) -> Result<(), String> {
+pub fn write_file(project_root: String, path: String, content: String) -> Result<(), String> {
     let target = Path::new(&path);
+    let root = validate_pending_mutation_path(&project_root, target)?;
     // 确保父目录存在
     if let Some(parent) = target.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent)
                 .map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
+            let canonical_parent = fs::canonicalize(parent)
+                .map_err(|e| format!("无法解析项目目录 {}: {}", parent.display(), e))?;
+            ensure_canonical_path_inside_project(&root, &canonical_parent, parent, true)?;
         }
     }
 
@@ -154,12 +210,13 @@ pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String>
 
 /// 删除文件或目录
 #[tauri::command]
-pub fn delete_path(path: String, recursive: bool) -> Result<(), String> {
+pub fn delete_path(project_root: String, path: String, recursive: bool) -> Result<(), String> {
     let path = Path::new(&path);
 
     if !path.exists() {
         return Err(format!("路径不存在: {}", path.display()));
     }
+    validate_existing_mutation_path(&project_root, path)?;
 
     if path.is_dir() {
         if recursive {
@@ -174,18 +231,24 @@ pub fn delete_path(path: String, recursive: bool) -> Result<(), String> {
 
 /// 创建目录
 #[tauri::command]
-pub fn create_dir(path: String, recursive: bool) -> Result<(), String> {
+pub fn create_dir(project_root: String, path: String, recursive: bool) -> Result<(), String> {
+    let root = validate_pending_mutation_path(&project_root, Path::new(&path))?;
     if recursive {
         fs::create_dir_all(&path)
     } else {
         fs::create_dir(&path)
     }
-    .map_err(|e| format!("无法创建目录 {}: {}", path, e))
+    .map_err(|e| format!("无法创建目录 {}: {}", path, e))?;
+    let canonical = fs::canonicalize(&path)
+        .map_err(|e| format!("无法解析项目目录 {}: {}", path, e))?;
+    ensure_canonical_path_inside_project(&root, &canonical, Path::new(&path), false)
 }
 
 /// 重命名/移动文件或目录
 #[tauri::command]
-pub fn rename_path(from: String, to: String) -> Result<(), String> {
+pub fn rename_path(project_root: String, from: String, to: String) -> Result<(), String> {
+    validate_existing_mutation_path(&project_root, Path::new(&from))?;
+    validate_pending_mutation_path(&project_root, Path::new(&to))?;
     fs::rename(&from, &to).map_err(|e| format!("无法重命名 {} -> {}: {}", from, to, e))
 }
 
@@ -269,6 +332,10 @@ mod tests {
         fn join(&self, relative: &str) -> String {
             self.path.join(relative).to_string_lossy().to_string()
         }
+
+        fn root(&self) -> String {
+            self.path.to_string_lossy().to_string()
+        }
     }
 
     impl Drop for TempDir {
@@ -282,7 +349,11 @@ mod tests {
         let temp = TempDir::new("read-write");
         let file_path = temp.join("chapters/chapter-001.md");
 
-        write_file(file_path.clone(), "# Chapter 1\n\nOpening.".to_string())
+        write_file(
+            temp.root(),
+            file_path.clone(),
+            "# Chapter 1\n\nOpening.".to_string(),
+        )
             .expect("write should succeed");
 
         let content = read_file(file_path).expect("read should succeed");
@@ -290,11 +361,111 @@ mod tests {
     }
 
     #[test]
+    fn write_file_rejects_project_external_paths() {
+        let project = TempDir::new("project-write-root");
+        let outside = TempDir::new("project-write-outside");
+        let outside_file = outside.join("escaped.md");
+
+        let error = write_file(
+            project.root(),
+            outside_file.clone(),
+            "must not escape".to_string(),
+        )
+        .expect_err("external write must be rejected");
+
+        assert!(error.contains("路径不在当前项目内"));
+        assert!(!Path::new(&outside_file).exists());
+    }
+
+    #[test]
+    fn write_file_does_not_follow_symlinked_parent_outside_project() {
+        let project = TempDir::new("project-write-symlink-root");
+        let outside = TempDir::new("project-write-symlink-outside");
+        let link = project.path.join("linked-dir");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside.path, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_dir(&outside.path, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let escaped_file = link.join("escaped.md");
+        let error = write_file(
+            project.root(),
+            escaped_file.to_string_lossy().to_string(),
+            "must not escape".to_string(),
+        )
+        .expect_err("symlinked parent write must be rejected");
+
+        assert!(error.contains("路径不在当前项目内"));
+        assert!(!outside.path.join("escaped.md").exists());
+    }
+
+    #[test]
+    fn create_dir_rejects_project_external_paths() {
+        let project = TempDir::new("project-create-root");
+        let outside = TempDir::new("project-create-outside");
+        let outside_dir = outside.path.join("escaped-dir");
+
+        let error = create_dir(
+            project.root(),
+            outside_dir.to_string_lossy().to_string(),
+            true,
+        )
+        .expect_err("external directory creation must be rejected");
+
+        assert!(error.contains("路径不在当前项目内"));
+        assert!(!outside_dir.exists());
+    }
+
+    #[test]
+    fn delete_path_rejects_external_paths_and_project_root() {
+        let project = TempDir::new("project-delete-root");
+        let outside = TempDir::new("project-delete-outside");
+        let outside_file = outside.path.join("keep.md");
+        fs::write(&outside_file, "keep").expect("outside file should exist");
+
+        let external_error = delete_path(
+            project.root(),
+            outside_file.to_string_lossy().to_string(),
+            false,
+        )
+        .expect_err("external delete must be rejected");
+        let root_error = delete_path(project.root(), project.root(), true)
+            .expect_err("project root delete must be rejected");
+
+        assert!(external_error.contains("路径不在当前项目内"));
+        assert!(root_error.contains("路径不在当前项目内"));
+        assert!(outside_file.exists());
+        assert!(project.path.exists());
+    }
+
+    #[test]
+    fn rename_path_rejects_moving_a_project_file_outside() {
+        let project = TempDir::new("project-rename-root");
+        let outside = TempDir::new("project-rename-outside");
+        let source = project.join("chapter.md");
+        let destination = outside.join("escaped.md");
+        write_file(project.root(), source.clone(), "keep inside".to_string())
+            .expect("source should exist");
+
+        let error = rename_path(project.root(), source.clone(), destination.clone())
+            .expect_err("rename destination outside project must be rejected");
+
+        assert!(error.contains("路径不在当前项目内"));
+        assert!(Path::new(&source).exists());
+        assert!(!Path::new(&destination).exists());
+    }
+
+    #[test]
     fn read_project_file_rejects_project_external_paths() {
         let project = TempDir::new("project-read-root");
         let outside = TempDir::new("project-read-outside");
         let outside_file = outside.join("secret.md");
-        write_file(outside_file.clone(), "secret".to_string()).expect("outside file should exist");
+        write_file(outside.root(), outside_file.clone(), "secret".to_string())
+            .expect("outside file should exist");
 
         let error = read_project_file(project.path.to_string_lossy().to_string(), outside_file)
             .expect_err("external file must be rejected");
@@ -331,7 +502,7 @@ mod tests {
     fn write_file_stages_out_of_place_so_target_is_replaced_atomically() {
         let temp = TempDir::new("atomic-stage");
         let file_path = temp.join("chapter.md");
-        write_file(file_path.clone(), "committed-v1".to_string())
+        write_file(temp.root(), file_path.clone(), "committed-v1".to_string())
             .expect("seed write should succeed");
 
         // 暂存新内容到同目录临时文件，但尚未 rename：目标必须仍是旧内容（绝不原地截断）。
@@ -355,8 +526,9 @@ mod tests {
     fn write_file_overwrites_content_and_leaves_no_temp_residue() {
         let temp = TempDir::new("atomic-commit");
         let file_path = temp.join("chapter.md");
-        write_file(file_path.clone(), "v1".to_string()).expect("first write should succeed");
-        write_file(file_path.clone(), "v2-longer-body".to_string())
+        write_file(temp.root(), file_path.clone(), "v1".to_string())
+            .expect("first write should succeed");
+        write_file(temp.root(), file_path.clone(), "v2-longer-body".to_string())
             .expect("overwrite should succeed");
 
         assert_eq!(
@@ -376,10 +548,12 @@ mod tests {
     #[test]
     fn list_dir_orders_directories_before_files_and_sorts_by_name() {
         let temp = TempDir::new("list-dir");
-        create_dir(temp.join("b-dir"), true).expect("b-dir should be created");
-        create_dir(temp.join("a-dir"), true).expect("a-dir should be created");
-        write_file(temp.join("b.md"), "b".to_string()).expect("b.md should be written");
-        write_file(temp.join("a.md"), "a".to_string()).expect("a.md should be written");
+        create_dir(temp.root(), temp.join("b-dir"), true).expect("b-dir should be created");
+        create_dir(temp.root(), temp.join("a-dir"), true).expect("a-dir should be created");
+        write_file(temp.root(), temp.join("b.md"), "b".to_string())
+            .expect("b.md should be written");
+        write_file(temp.root(), temp.join("a.md"), "a".to_string())
+            .expect("a.md should be written");
 
         let entries = list_dir(temp.path.to_string_lossy().to_string(), false)
             .expect("list_dir should succeed");
@@ -391,7 +565,11 @@ mod tests {
     #[test]
     fn recursive_list_dir_includes_nested_files() {
         let temp = TempDir::new("recursive-list");
-        write_file(temp.join("drafts/arc/chapter-002.md"), "nested".to_string())
+        write_file(
+            temp.root(),
+            temp.join("drafts/arc/chapter-002.md"),
+            "nested".to_string(),
+        )
             .expect("nested file should be written");
 
         let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
@@ -405,9 +583,10 @@ mod tests {
         let temp = TempDir::new("rename");
         let from = temp.join("old.md");
         let to = temp.join("new.md");
-        write_file(from.clone(), "draft".to_string()).expect("source file should be written");
+        write_file(temp.root(), from.clone(), "draft".to_string())
+            .expect("source file should be written");
 
-        rename_path(from.clone(), to.clone()).expect("rename should succeed");
+        rename_path(temp.root(), from.clone(), to.clone()).expect("rename should succeed");
 
         assert!(!path_exists(from));
         assert!(path_exists(to.clone()));
@@ -422,12 +601,18 @@ mod tests {
         let temp = TempDir::new("delete");
         let file_path = temp.join("delete-me.md");
         let dir_path = temp.join("folder");
-        write_file(file_path.clone(), "temporary".to_string()).expect("file should be written");
-        write_file(temp.join("folder/nested.md"), "nested".to_string())
+        write_file(temp.root(), file_path.clone(), "temporary".to_string())
+            .expect("file should be written");
+        write_file(
+            temp.root(),
+            temp.join("folder/nested.md"),
+            "nested".to_string(),
+        )
             .expect("nested file should be written");
 
-        delete_path(file_path.clone(), false).expect("file delete should succeed");
-        delete_path(dir_path.clone(), true).expect("recursive dir delete should succeed");
+        delete_path(temp.root(), file_path.clone(), false).expect("file delete should succeed");
+        delete_path(temp.root(), dir_path.clone(), true)
+            .expect("recursive dir delete should succeed");
 
         assert!(!path_exists(file_path));
         assert!(!path_exists(dir_path));
@@ -437,7 +622,8 @@ mod tests {
     fn get_file_info_reports_file_metadata() {
         let temp = TempDir::new("file-info");
         let file_path = temp.join("chapter.markdown");
-        write_file(file_path.clone(), "hello".to_string()).expect("file should be written");
+        write_file(temp.root(), file_path.clone(), "hello".to_string())
+            .expect("file should be written");
 
         let info = get_file_info(file_path.clone()).expect("file info should be available");
 
@@ -452,7 +638,8 @@ mod tests {
     fn list_dir_rejects_missing_paths_and_files() {
         let temp = TempDir::new("list-errors");
         let file_path = temp.join("not-a-dir.md");
-        write_file(file_path.clone(), "file".to_string()).expect("file should be written");
+        write_file(temp.root(), file_path.clone(), "file".to_string())
+            .expect("file should be written");
 
         assert!(list_dir(temp.join("missing"), false)
             .expect_err("missing path should fail")

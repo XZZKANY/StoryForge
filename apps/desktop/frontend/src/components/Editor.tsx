@@ -189,7 +189,8 @@ export function Editor({
   // 保存文件：先快照旧内容，再写入新内容。内部函数向上抛错，供 Agent 预读握手阻断读盘。
   const saveCurrentFile = useCallback(async () => {
     const path = filePathRef.current;
-    if (!path || !editorRef.current) return;
+    const projectRoot = projectPathRef.current;
+    if (!projectRoot || !path || !editorRef.current) return;
 
     const content = editorRef.current.getValue();
     const previous = originalContentRef.current;
@@ -209,7 +210,7 @@ export function Editor({
         await advanceBranchHead(timestamp);
       },
       write: async () => {
-        await TauriFileSystem.writeFile(path, content);
+        await TauriFileSystem.writeFile(projectRoot, path, content);
       },
       record: async () => undefined,
     });
