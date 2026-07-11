@@ -45,7 +45,7 @@ Desktop IDE Agent 验收链路固定为：本地文件审稿 -> 修订 -> diff /
 - **出版制品**：BookRun 可生成 Markdown、EPUB 与审计报告制品索引；S3/MinIO 真路径已有 client 层建桶、上传、presigned URL 集成测试证据，导出失败仍可降级到 `memory://`。
 - **Desktop IDE 主体验**：`apps/desktop` 是唯一主体验；Tauri/Vite/React/Monaco 桌面 IDE 已形成项目库、文件树、编辑器、版本记录、命令面板、无边框窗口和 Rust `get_api_config` 注入；2026-07-01 完成单色语义 token + 明暗双主题改版。
 - **Desktop IDE Agent Phase 1**：后端 IDE Agent Orchestrator 已支持自然语言意图路由、真实 LLM 文件修订、多视角 file.review 推理缝、稳定 issue id、范围控制、待确认 proposed patch 和确认写回防重复生成；前端已接入对话、步骤树、待确认 diff 和本地确认写回事件。
-- **Desktop IDE Agent Phase 2**：Agent WebSocket 支持 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 事件流；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files。
+- **Desktop IDE Agent Phase 2**：Agent 用户消息经本地 SSE 输出 `agent_run_started` / `agent_step` / `tool_trace` / `agent_result` / `error` 帧，控制消息走 REST；Desktop 前端支持显式上下文选择、pin/unpin、预算和缺失提示；`PatchReviewPanel` 展示 patch id、文件、增删行、模型、session 和 issue scope，并在接受前阻止旧 patch 覆盖已变化稿件；写回后的 `.storyforge/versions` 与 `.storyforge/author-loop` 可追溯 patch id、assistant session、issue ids 和 context files。
 - **Desktop 对话式 Agent（2026-07-01，PR #46）**：对话为项目级会话（按项目路径存 session，切换文件不丢对话，消息持久化于 `assistant_sessions` / `assistant_messages`）；`chat.explain` 调 `assistant_service.chat_reply` 走真·LLM 并落 `assistant.chat` 工具调用证据链，LLM 未配置或失败时明确回话、不伪造；勾选式 issue 面板已删除，修订呈现收敛为 PatchReviewPanel diff 确认。
 - **私测 Alpha 单机后端（2026-07-01，PR #43/#44）**：sidecar exe 可脱离 docker/venv 独立起服（sqlite 自建 45 表、health ready）；BYO-key；`llm-provider.json` 写盘即生效、无需重启；`tauri build` NSIS 安装包正确内嵌 sidecar，release 默认拉起打包后端。
 - **会话历史与欢迎页接真（2026-07-02，PR #48）**：左栏展开项目即从 `GET /api/assistant/sessions?project_path=` 拉真实会话历史列表，可切换 / 新建会话；欢迎页中央输入框绑定 state 真发送，打开项目后自动发出首条 prompt。
@@ -93,7 +93,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 仍未完成的验收项
 
-- 完整真实 Tauri 桌面端到端：首轮门禁 G.1 已于 2026-07-07 全 PASS（Part1-4，含打开项目 -> 对话 -> 审稿 -> 修订 -> diff 确认 -> 写回 -> 版本记录的 UI 闭环）；0.1.2 已重建、安装且 A5 headless 预验全绿，剩余 A6 第二轮堆积观感波（壳子 redesign 新 UI、WS/SSE GUI 观感、IME、canon dossier、权限四轨、双开聚焦、暂停/停止、超时轮询），一次捆绑 2-3h 执行。现有 smoke 已覆盖写回护栏和版本元数据，但自动 smoke 不能替代人工桌面端到端验收。
+- 完整真实 Tauri 桌面端到端：首轮门禁 G.1 已于 2026-07-07 全 PASS（Part1-4，含打开项目 -> 对话 -> 审稿 -> 修订 -> diff 确认 -> 写回 -> 版本记录的 UI 闭环）；0.1.2 已重建、安装且 A5 headless 预验全绿。A6 中壳子 redesign 新 UI 全流程与中文 IME 已由用户于 2026-07-11 确认 PASS；仍待 SSE/REST GUI 观感、canon dossier、权限四轨、双开聚焦、暂停/停止、超时轮询。现有 smoke 已覆盖写回护栏和版本元数据，但自动 smoke 不能替代人工桌面端到端验收。
 - 编辑器「安全可日更」波：A1-A5 已完成；当前阻塞在用户执行 A6。A6 无未修 blocker 后进入 A7 修复/复验并打轻量 `v0.1.2` tag；在 tag 前不得宣称 Gate A→B 已通过。
 - Agent loop 收口（余项）：真机 GUI 多轮渲染、自动打开新文件与补丁确认观感随桌面端到端复验（审稿 / 修订 / 起草 / 一致性观察 / 深度一致性的工具循环内 headless 实跑均已通过，见真实 LLM 证据）。深度一致性已于 2026-07-02 落地（`resolved_llm_env` 下沉 + 语义 judge 吃 `llm-provider.json` + `project.deep_consistency` 挂循环）；chapter.review / bookrun.* 维持固定管线与后台定位不进循环（如需可再议）。
 - 质量轨（后台，2026-07-10 D1 换锚）：「重跑真实 3-5 万字长程 + 人工盲评」不再排期，待 n=1 连载稳定后重评（重跑 DoD 见下，保留为档案判据）；BookRun 维持后台工具定位；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 project.consistency / deep_consistency / canon / prose_check / collapse_check / entity_budget_check / canon_delta）。

@@ -16,32 +16,36 @@
 
 ---
 
-## A. Agent WebSocket 协议
+## A. Agent 本地 SSE / REST 协议
 
-端点：`/api/ide/agent/sessions/{sessionId}`（`sessionId` 是 IDE 侧会话标识，需 URL 编码）。
-鉴权：URL query `?api_key=...`。发送端 `agent-socket.ts::sendAgentUserMessage` / `sendAgentControlMessage`。
+Desktop 不再建立 Agent WebSocket。两个入口都使用 HTTP `POST`，通过
+`X-StoryForge-API-Key` 鉴权；API key 不得进入 URL。
 
-### A.1 出站帧（壳子 → 后端）
+### A.1 请求（壳子 → 后端）
 
-**用户消息**（`onopen` 即发）：
+**用户消息 SSE**：`POST /api/ide/agent/sessions/{sessionId}/stream`
+
+请求头：`Accept: text/event-stream`、`Content-Type: application/json`、
+`X-StoryForge-API-Key: <key>`。请求体：
 
 ```json
-{ "type": "user_message", "stream": true, "run_id": "<可选，续跑用>",
-  "user_message": "……", "assistant_session_id": 7, "intent": "chat.explain",
+{ "run_id": "<可选，续跑用>", "user_message": "……",
+  "assistant_session_id": 7, "intent": "chat.explain",
+  "permission_profile": "proposed_patch",
   "args": { "agent_role_hints": ["editor"], "agent_role_mentions": ["@editor"] } }
 ```
 
-- `stream` 缺省 = 是否传了 `onEvent` 回调；传了就走流式，逐帧回调。
-- `intent` 省略/自由文本 → 后端一律落 `chat.explain` 工具循环（W1-F11：关键词表已下线，固定管线只认显式 intent）。
+- 该端点恒走流式，不再发送旧 WS 的 `type: user_message` / `stream: true` 字段。
+- `intent` 省略/自由文本 → 后端落 `chat.explain` 工具循环；固定管线只认显式 intent 或结构化参数。
 
-**控制消息**（另开一条 socket，`sendAgentControlMessage`）：
+**控制消息 REST**：`POST /api/ide/agent/sessions/{sessionId}/control`
 
 ```json
 { "type": "approve_permission | deny_permission | pause_run | resume_run | stop_run | retry_from_checkpoint",
   "run_id": "<run 公共 id>", "payload": {} }
 ```
 
-### A.2 入站流帧（后端 → 壳子）
+### A.2 SSE data 帧（后端 → 壳子）
 
 壳子按 `type` 判别式解码。**判别式就是契约**——后端还会带更多键（见 A.4），壳子按需取，别假设「只有这些键」。
 
@@ -71,21 +75,22 @@
 ### A.4 漂移旗标（重连壳子时的已知落差，别当 bug）
 
 1. **后端多带、FE 类型少列的键**：`agent_step`/`tool_trace`/`permission_required` 帧后端都带 `event_id`、`sequence`；`permission_required` 还带 `confirmation_action`、`blocked_tool`；`agent_run_started` 带 `event_id`。FE `types.ts` 没在类型里列全，但帧里有——需要幂等/去重（用 `event_id`/`sequence`）时可直接取。
-2. **终态帧 `agent_run_completed` / `agent_run_failed` 在 socket 路径上无 FE 类型、无守卫**（`_websocket_terminal_event` 会推，但 happy-path 靠 `agent_result` settle）。它们只在**断线转轮询**路径经 REST 被 `reconstructAgentResultFromEvents` 解码（见 B.3）。壳子的 socket `onmessage` 不要依赖终态帧结算。
+2. **持久化终态帧 `agent_run_completed` / `agent_run_failed` 不负责 live settle**（历史名 `_websocket_terminal_event` 的 encoder 会推，但 happy-path 仍靠 `agent_result` settle）。它们主要供**中止 SSE 后转轮询**时由 `reconstructAgentResultFromEvents` 解码（见 B）。
 3. **`proposed_patch` 定义在三处**：后端 `runtime.py`（生成）、`event_encoders.py::_websocket_permission_required_event`（回嵌进 permission 帧）、FE `types.ts::AgentProposedPatch`（`file_revision` / `repair_patch` 两态判别联合）。改补丁形状要三处一起动。
+4. `ws_messages.py`、`ws_schema.py`、`agent-ws.schema.json`、`AgentSocketMessage` 和若干 `websocket_*` encoder 是保留的历史兼容名；其契约同时服务 SSE、REST control 与 F10 重建，不代表服务端仍有 WS route。
 
 ---
 
-## B. F10 断线重建（超时 → 轮询事件表 → 重建终态）
+## B. F10 中止流重建（超时 → 轮询事件表 → 重建终态）
 
-`sendAgentUserMessage` 超时后**不硬 reject**（真模型 8×300s 结构性长于前端超时，run 还在跑还在花钱）：close socket → 转 REST 轮询 `GET /api/agent-runs/{runId}/events` → 用纯函数 `reconstructAgentResultFromEvents` 从持久化事件重建终态。壳子换了但这套超时语义要保住（否则慢响应误判失败、重复烧 key）。
+`sendAgentUserMessage` 超时后**不硬 reject**（真模型 8×300s 结构性长于前端超时，run 还在跑还在花钱）：通过 `AbortController` 中止本地 SSE fetch → 转 REST 轮询 `GET /api/agent-runs/{runId}/events` → 用纯函数 `reconstructAgentResultFromEvents` 从持久化事件重建终态。壳子换了但这套超时语义要保住（否则慢响应误判失败、重复烧 key）。
 
 `reconstructAgentResultFromEvents`（`agent-run-events.ts`，纯函数）读**终态事件的 `payload`**：
 
 - `agent_run_failed` → `{type:'error', detail: 事件 message}`
 - `agent_run_completed` / `permission_required` → `agent_result`，**要求 `payload.assistant_session_id` 是 number**（缺了返回 null 继续轮询）；`payload.proposed_patch`/`summary`/`intent`/`requires_user_confirmation` 按需取；`permission_required` 恒标 `requires_user_confirmation=true`。
 
-⇒ **跨侧接缝**：后端 `_websocket_terminal_event` 把 `event.payload` 原样带出，所以**终态事件落库时 payload 必须含 `assistant_session_id`**，否则断线重建拿不回结果。`test_ws_contract_golden.py::test_terminal_frames_carry_reconstructable_payload` 钉后端侧，`event-bus-contract.vitest.ts` 的 F10 组钉前端侧。
+⇒ **跨侧接缝**：后端历史兼容 encoder `_websocket_terminal_event` 把 `event.payload` 原样带出，所以**终态事件落库时 payload 必须含 `assistant_session_id`**，否则中止流后重建拿不回结果。`test_ws_contract_golden.py::test_terminal_frames_carry_reconstructable_payload` 钉后端侧，`event-bus-contract.vitest.ts` 的 F10 组钉前端侧。
 
 ---
 
@@ -124,9 +129,9 @@ Agent 补丁可能指向未打开甚至尚不存在的文件。`emitFileSuggesti
 
 ## E. 重连壳子自检清单
 
-- [ ] user_message / 控制消息按 A.1 形状发；控制回执按 A.3 映射后 type 等
+- [ ] user_message SSE / control REST 按 A.1 路径、header 和请求体发送；控制回执按 A.3 映射后 type 等
 - [ ] 六类流帧按 A.2 判别式解码；`agent_result` 作 happy-path settle
-- [ ] 超时不硬 reject，转 F10 轮询重建（B）
+- [ ] 超时中止 SSE、不硬 reject，转 F10 轮询重建（B）
 - [ ] 8 个 DOM 事件名不改；补丁缓冲（C.1）与落盘握手（C.2）两端都在
 - [ ] 写回走 `performGuardedWriteback` + 原子 `fs.rs`；会话守卫在两处（D）
-- [ ] 跑 `test_ws_contract_golden.py` + `event-bus-contract.vitest.ts` + `writeback-guard` + `agent-session-guard` 全绿
+- [ ] 跑 `test_ws_contract_golden.py`（历史兼容名）+ `event-bus-contract.vitest.ts` + `writeback-guard` + `agent-session-guard` 全绿

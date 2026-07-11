@@ -20,10 +20,10 @@
 | A3 | S14 尾巴 | 壳子 #2：面板 unmount 丢状态，拍板改 CSS 隐藏 | happy-dom 行为测试先红后绿（状态跨隐藏保留） | 我 / Codex |
 | A4 | S8 重建 0.1.2 | 当前 `tauri.conf.json` version=0.1.1（用户机装机 exe 为旧构建修复面，PR #87-#126 全部未收进） | bump 0.1.2（APP_VERSION 三处对齐，已有护栏测试）+ `tauri build` 出 NSIS；DoD：安装包产出 + packaged 档 sidecar-smoke 绿 | 我 |
 | A5 | S9 AI 装机预验 | 我可在用户机跑 PowerShell（E2E-1 期已验证此工作方式） | 装机 → 起服握手 app_version=0.1.2 → WS 子协议 headless 对话 → SSE → 版本握手杀旧孤儿 → 存量库 alembic 纳管 + 会话史完整；DoD：清单全绿才叫用户上手 | 我 |
-| A6 | S10 真机第二轮观感波 | 首轮门禁 G.1 已于 2026-07-07 全 PASS；本轮清的是堆积观感 | 一次捆绑 2-3h，新建 runsheet：壳子新 UI 全流程 / WS 子协议对话 / SSE / IME 中文输入 / canon dossier / 权限四轨 / 双开聚焦 / 暂停即停止 UI / 超时转轮询取回。产出 = bug 清单 + 摩擦清单 | 用户（我陪跑抓日志） |
+| A6 | S10 真机第二轮观感波 | 首轮门禁 G.1 已于 2026-07-07 全 PASS；本轮清的是堆积观感 | 一次捆绑 2-3h，新建 runsheet：壳子新 UI 全流程 / SSE + REST control / IME 中文输入 / canon dossier / 权限四轨 / 双开聚焦 / 暂停即停止 UI / 超时转轮询取回。产出 = bug 清单 + 摩擦清单 | 用户（我陪跑抓日志） |
 | A7 | S11 修复波 + 锁版 | — | blocker 即修、观感项记入摩擦池不阻塞；打轻量 tag v0.1.2（不 gate 写作） | 我 |
 
-**执行状态（2026-07-11）**：A1-A5 已完成并通过自动门禁；0.1.2 已构建、安装并完成 packaged/安装态预验。A6 待用户按 `.codex/e2e-2-runsheet-0.1.2.md` 执行真机第二轮观感波；A7 与 `v0.1.2` tag 必须等 A6 blocker 清零后执行。
+**执行状态（2026-07-11）**：A1-A5 已完成并通过自动门禁；0.1.2 已构建、安装并完成 packaged/安装态预验。A6 已开始，壳子新 UI 全流程与中文 IME 由用户确认 PASS；其余 SSE/REST、canon、权限、双开与运行控制项仍待按 `.codex/e2e-2-runsheet-0.1.2.md` 执行。A7 与 `v0.1.2` tag 必须等 A6 blocker 清零后执行。
 
 **Gate A→B**：A5 清单全绿 + A6 无未修 blocker + tag 落地。
 

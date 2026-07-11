@@ -6,7 +6,7 @@
 
 ## 分档定义
 
-- **live**：桌面产品直接 HTTP/WS 命中的面（前端 `apps/desktop/frontend` 真调用）。
+- **live**：桌面产品直接 HTTP/SSE 命中的面（前端 `apps/desktop/frontend` 真调用）。
 - **backing**：不是产品主面，但被 live agent 循环 / managed BookRun 在**进程内**依赖（import service/models）。改这些要谨慎，会影响真链路。
 - **frozen**：web / 多租户 / 自动整书时代遗产。**router 已卸载或可卸载**；默认不必读，除非明确在做迁移/删除。域目录与 `models.py` 多数**保留**（被 backing 域 import，或在 `app/models.py` 聚合建表），物理删除按判据后评（不在 W4 范围）。
 
@@ -16,15 +16,15 @@
 |---|---|---|
 | `health` | `/health/live` `/health/ready` | 探活 + app_version 握手 |
 | `assistant` | `/api/assistant/*` | 对话式 agent 会话 / 消息 / chat |
-| `agent_runs` | WS `/api/ide/agent/sessions/*` + `/api/agent-runs/*` | live 工具循环主动脉 |
-| `ide` | `/api/ide/*`（4 条 live：cross-chapter / runs events / commands / agent WS） | 命令面板 + 审阅。**6 条零前端调用的 ide 路由**（workspace-tree / diagnostics / scenes / context-snapshot / story-memory query / artifacts preview）待后续从 router 收窄，service 保留 |
+| `agent_runs` | SSE/REST `/api/ide/agent/sessions/*` + `/api/agent-runs/*` | live 工具循环主动脉 |
+| `ide` | `/api/ide/*`（5 条 live：cross-chapter / runs events / commands / agent stream / agent control） | 命令面板 + 审阅。**6 条零前端调用的 ide 路由**（workspace-tree / diagnostics / scenes / context-snapshot / story-memory query / artifacts preview）待后续从 router 收窄，service 保留 |
 
 ## backing（进程内被 live 依赖，谨慎改）
 
 `book_runs`（managed BookRun + agent-loop prompt 装配）、`judge`、`retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`exports`、`model_runs`、`provider_gateway`、`events`、`quality`、`repair`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`。
 
 **router 可冻结但 service/models 是 live 依赖（不可删目录）**：
-- `studio` —— `studio.service.approve_studio_writeback` / `schemas` 被 **live `ide`** 用（`ide/command_registry.py:22-23,220`，经 `judge.approve` 命令 + agent WS 可达）。
+- `studio` —— `studio.service.approve_studio_writeback` / `schemas` 被 **live `ide`** 用（`ide/command_registry.py:22-23,220`，经 `judge.approve` REST 命令 + agent loop 工具可达）。
 - `style_packs` —— `style_packs.service.list_style_packs` / `create_style_pack` / `schemas` 被 **backing `book_runs`** 生成链用（`book_generation.py:124-125`、`prompt_assembly.py:23`、`book_generation_judge.py:44`）。
 
 ## frozen（web / 多租户 / 自动整书遗产）
