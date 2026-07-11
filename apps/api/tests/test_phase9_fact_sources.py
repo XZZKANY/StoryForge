@@ -175,14 +175,13 @@ def test_todo_records_current_phase9_next_actions() -> None:
     assert "Desktop IDE Agent" in todo
     assert "proposed patch" in todo
     assert "2026-06-21 已完成 `apps/web` 退场收口" in todo
-    assert "写回护栏已有脚本级 smoke 证据" in current_boundary
-    assert "完整人工桌面端到端仍待执行" in current_boundary
-    assert "完整真实 Tauri 桌面端到端仍列为下一步门禁" in current_boundary
+    assert "脚本级 smoke 与两轮真机 GUI 验收证据" in current_boundary
+    assert "两轮真实 Tauri 桌面端到端均已通过" in current_boundary
+    assert "Phase A「安全可日更」验收完成" in current_boundary
     assert "下一步优先级" in todo
-    assert "跑真实 Tauri 桌面端到端" in next_actions
     assert "重跑真实 3-5 万字长程" in next_actions
-    assert "会话历史列表" in next_actions
-    assert "工具循环" in next_actions
+    assert "S3 手稿保险" in next_actions
+    assert "接续 n=1 连载" in next_actions
     assert "pnpm.cmd lint" in todo
     assert "npm --prefix apps/desktop/frontend run typecheck" in todo
     assert "npm --prefix apps/desktop/frontend run test" in todo
@@ -391,8 +390,8 @@ def test_phase9_document_fact_source_roles_are_converged() -> None:
     assert "不能把本计划中的历史验收文字单独作为最新状态来源" in dev_plan
 
 
-def test_current_phase_records_refactor_boundary_and_tauri_acceptance_gap() -> None:
-    """当前事实源必须同时收敛重构边界和 Tauri 端到端验收缺口。"""
+def test_current_phase_records_refactor_boundary_and_tauri_acceptance_result() -> None:
+    """当前事实源必须同时收敛重构边界和 Tauri 端到端验收结果。"""
 
     current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
     current_stage = _section(current_phase, "## 当前阶段", "## 已完成的能力边界")
@@ -402,8 +401,8 @@ def test_current_phase_records_refactor_boundary_and_tauri_acceptance_gap() -> N
     assert "god-file 拆分不再作为当前主线待办" in current_stage
     assert "不再做纯机械拆分" in current_stage
     assert "完整真实 Tauri 桌面端到端" in remaining
-    assert "现有 smoke 已覆盖写回护栏和版本元数据" in remaining
-    assert "不能替代人工桌面端到端验收" in remaining
+    assert "安全可日更" in remaining
+    assert "已完成" in remaining
 
 
 def _section(content: str, start: str, end: str) -> str:
