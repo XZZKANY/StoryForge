@@ -56,12 +56,16 @@ _SYSTEM_PROMPT = (
     "适合修订前先定位文笔问题；结果是参考信号，结合原文判断。"
     "要判断一场是否只是过场、有没有承重时，用 project_collapse_check；先读完正文，再填入你观察到的"
     "beats、前后情绪、不可逆后果和是否可删除。未观察到的字段不要猜，工具结果只是 advisory 参考。"
+    "要检查单章新增人物、核心地点、证据、反转、谜题或装备是否突破长篇预算时，用 "
+    "project_entity_budget_check；先读完正文再填观察到的新增项，未观察的字段不要猜。"
     "要对单章做深度一致性检查（正文是否违背人物设定 / 世界观 / 已知事实）时，"
     "用 project_deep_consistency 让语义评审模型把稿件对照人物 / 设定文件核查；"
     "它返回的 issue 是参考信号，回给作者前先抽读对应行核实，不要照单全收。"
     "要查跨章累积漂移（同一物件的唯一持有、时间线先后、角色退场后是否还出场）时，"
     "用 project_canon：它从正文重建在场缓存并校验作者在 canon.json 声明的薄不变量，"
     "随书累积、比无状态深查更能抓累积偏移；硬矛盾是声明内部结构冲突，advisory 仍须抽读核实。"
+    "读完章节并观察到 canon 级实体、持有、退场或时间线事实时，用 project_canon_delta 生成确定性提案；"
+    "它只写派生 proposals.json 草稿，不改 canon.json，别把提案说成已经写回。"
     "作者要求审稿时用 file_review 拿多视角结构化意见；要求修改稿件时用 file_revise 生成修订补丁；"
     "要求写新章节 / 新文件时用 file_create 起草（目标文件必须尚不存在，先看清项目结构选好路径）。"
     "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订或新文件已生效。"
@@ -93,8 +97,11 @@ class ChatLoopOutcome:
     tool_call_count: int = 0
     completion_tokens: int = 0
     prompt_tokens: int = 0
+    token_usage: int = 0
+    token_usage_source: str = "unavailable"
     # BYO-key 成本进证据链（F32）：累加每轮 chat/completions 估算成本，供 assistant.chat_loop 证据记账。
     cost_cny_estimated: float = 0.0
+    cost_breakdown: dict[str, Any] = field(default_factory=dict)
     exhausted: bool = False
     review_report: dict[str, Any] | None = None
     proposed_patch: dict[str, Any] | None = None
@@ -108,6 +115,35 @@ def _serialize_tool_output(output: dict[str, Any]) -> str:
     if len(text) > _TOOL_RESULT_MAX_CHARS:
         return text[:_TOOL_RESULT_MAX_CHARS] + "…[结果过长已截断]"
     return text
+
+
+def _merge_cost_breakdown(
+    current: dict[str, Any],
+    incoming: object,
+    *,
+    prompt_tokens: int,
+    completion_tokens: int,
+    token_usage_source: str,
+) -> dict[str, Any]:
+    if not isinstance(incoming, dict):
+        return current
+    merged = dict(current)
+    for key in ("input_cny", "output_cny", "total_cny"):
+        value = incoming.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            merged[key] = float(merged.get(key) or 0.0) + float(value)
+    for key in (
+        "currency",
+        "input_cny_per_m_tokens",
+        "output_cny_per_m_tokens",
+        "cache_hit_input_cny_per_m_tokens",
+    ):
+        if key in incoming:
+            merged[key] = incoming[key]
+    merged["prompt_tokens"] = prompt_tokens
+    merged["completion_tokens"] = completion_tokens
+    merged["source"] = token_usage_source
+    return merged
 
 
 def _parse_tool_arguments(raw: str) -> dict[str, Any]:
@@ -158,6 +194,14 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "verdict": verdict.get("status"),
             "issue_count": len(verdict.get("issues") or []),
         }
+    if registry_name == "project.entity_budget_check":
+        verdict = output.get("verdict") if isinstance(output.get("verdict"), dict) else {}
+        return {
+            "path": output.get("path"),
+            "chapter": output.get("chapter"),
+            "verdict": verdict.get("status"),
+            "issue_count": len(verdict.get("issues") or []),
+        }
     if registry_name == "project.deep_consistency":
         return {
             "path": output.get("path"),
@@ -169,6 +213,15 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "entity_count": output.get("entity_count"),
             "conflict_count": output.get("conflict_count"),
             "advisory_count": output.get("advisory_count"),
+        }
+    if registry_name == "project.canon_delta":
+        proposals = output.get("proposals") if isinstance(output.get("proposals"), dict) else {}
+        return {
+            "new_entity_count": len(proposals.get("new_entities") or []),
+            "known_entity_count": len(proposals.get("known_entities") or []),
+            "alias_conflict_count": len(output.get("alias_conflicts") or []),
+            "new_conflict_count": len(output.get("new_conflicts") or []),
+            "new_advisory_count": len(output.get("new_advisories") or []),
         }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
@@ -295,9 +348,25 @@ def run_chat_loop(
         prompt_tokens = result.get("prompt_tokens")
         if isinstance(prompt_tokens, int):
             outcome.prompt_tokens += prompt_tokens
+        token_usage = result.get("token_usage")
+        if isinstance(token_usage, int):
+            outcome.token_usage += token_usage
+        token_usage_source = result.get("token_usage_source")
+        if isinstance(token_usage_source, str) and token_usage_source:
+            if outcome.token_usage_source == "unavailable":
+                outcome.token_usage_source = token_usage_source
+            elif outcome.token_usage_source != token_usage_source:
+                outcome.token_usage_source = "mixed"
         cost = result.get("cost_cny_estimated")
         if isinstance(cost, (int, float)) and not isinstance(cost, bool):
             outcome.cost_cny_estimated += float(cost)
+        outcome.cost_breakdown = _merge_cost_breakdown(
+            outcome.cost_breakdown,
+            result.get("cost_breakdown"),
+            prompt_tokens=outcome.prompt_tokens,
+            completion_tokens=outcome.completion_tokens,
+            token_usage_source=outcome.token_usage_source,
+        )
         content = str(result.get("content") or "")
         tool_calls = result.get("tool_calls") if isinstance(result.get("tool_calls"), list) else []
 
@@ -384,7 +453,11 @@ def run_chat_loop(
                 if isinstance(output.get("review_report"), dict):
                     outcome.review_report = output["review_report"]
                 feedback = _review_feedback(output)
-            elif registry_name == "project.collapse_check":
+            elif registry_name in (
+                "project.collapse_check",
+                "project.entity_budget_check",
+                "project.canon_delta",
+            ):
                 feedback = {"summary": output.get("summary")}
             elif registry_name in _PATCH_TOOLS:
                 if isinstance(output.get("proposed_patch"), dict):

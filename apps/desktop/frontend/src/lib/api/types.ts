@@ -59,16 +59,6 @@ export type AssistantContextBundlePayload = Omit<ApiAssistantContextBundle, 'cur
   current_file?: string | null;
 };
 
-export type ReviseResult = {
-  before: string;
-  after: string;
-  summary: string;
-  model: string;
-  latencyMs: number;
-  completionTokens: number | null;
-  assistantSessionId: number;
-};
-
 export type CrossChapterChapterInput = {
   name: string;
   content: string;

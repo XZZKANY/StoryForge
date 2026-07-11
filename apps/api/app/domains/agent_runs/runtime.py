@@ -22,9 +22,11 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_chapter_plan_summary,
     _bookrun_risk_summary,
 )
+from app.domains.agent_runs.canon_delta import canon_delta
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
+from app.domains.agent_runs.entity_budget_scan import entity_budget_scan
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.intent import (
     SUPPORTED_INTENTS as SUPPORTED_INTENTS,
@@ -494,7 +496,10 @@ class AgentRuntime:
                     "tool_call_count": outcome.tool_call_count,
                     "prompt_tokens": outcome.prompt_tokens,
                     "completion_tokens": outcome.completion_tokens,
+                    "token_usage": outcome.token_usage,
                     "cost_cny_estimated": outcome.cost_cny_estimated,
+                    "cost_breakdown": outcome.cost_breakdown,
+                    "token_usage_source": outcome.token_usage_source,
                     "exhausted": outcome.exhausted,
                     "proposed_patch_id": (outcome.proposed_patch or {}).get("id"),
                 },
@@ -1470,8 +1475,10 @@ class AgentRuntime:
             "project.consistency": self._project_consistency,
             "project.prose_check": self._project_prose_check,
             "project.collapse_check": self._project_collapse_check,
+            "project.entity_budget_check": self._project_entity_budget_check,
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
+            "project.canon_delta": self._project_canon_delta,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "file.create": self._file_create,
@@ -1649,6 +1656,64 @@ class AgentRuntime:
             ),
         )
 
+    def _project_entity_budget_check(
+        self,
+        _context: ToolExecutionContext,
+        payload: dict[str, Any],
+    ) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        path = _required_string(payload, "path")
+        scan_args: dict[str, Any] = {}
+
+        for key in (
+            "new_key_characters",
+            "new_core_locations",
+            "new_core_evidence",
+            "new_major_reversals",
+            "new_mysteries",
+            "new_equipment",
+        ):
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                raise fs_tools.FsToolError(f"{key} 必须是字符串数组。")
+            scan_args[key] = value
+
+        for key in (
+            "chapter",
+            "budget_key_characters",
+            "budget_core_locations",
+            "budget_core_evidence",
+            "budget_major_reversals",
+            "budget_new_core_entities_after_chapter_20",
+            "budget_new_mysteries_after_chapter_25",
+        ):
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise fs_tools.FsToolError(f"{key} 必须是整数。")
+            scan_args[key] = value
+
+        output = entity_budget_scan(project_root, path, **scan_args)
+        verdict = output["verdict"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.entity_budget_check",
+                status="completed",
+                input_summary={"path": path, "chapter": output["chapter"]},
+                output_summary={
+                    "path": output["path"],
+                    "chapter": output["chapter"],
+                    "verdict": verdict["status"],
+                    "issue_count": len(verdict["issues"]),
+                },
+            ),
+        )
+
     def _project_deep_consistency(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         project_root = _required_string(payload, "project_root")
         path = _required_string(payload, "path")
@@ -1755,6 +1820,42 @@ class AgentRuntime:
                     "checked_invariants": gate["checked_invariants"],
                     "conflict_count": gate["conflict_count"],
                     "advisory_count": gate["advisory_count"],
+                },
+            ),
+        )
+
+    def _project_canon_delta(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        delta_args: dict[str, Any] = {}
+        for key in ("entities", "holder_claims", "exit_claims", "timeline_claims"):
+            if key not in payload:
+                continue
+            value = payload[key]
+            if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+                raise fs_tools.FsToolError(f"{key} 必须是对象数组。")
+            delta_args[key] = value
+
+        output = canon_delta(project_root, **delta_args)
+        proposals = output["proposals"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.canon_delta",
+                status="completed",
+                input_summary={
+                    "entity_count": len(delta_args.get("entities") or []),
+                    "claim_count": sum(
+                        len(delta_args.get(key) or [])
+                        for key in ("holder_claims", "exit_claims", "timeline_claims")
+                    ),
+                },
+                output_summary={
+                    "new_entity_count": len(proposals["new_entities"]),
+                    "known_entity_count": len(proposals["known_entities"]),
+                    "alias_conflict_count": len(output["alias_conflicts"]),
+                    "new_conflict_count": len(output["new_conflicts"]),
+                    "new_advisory_count": len(output["new_advisories"]),
                 },
             ),
         )

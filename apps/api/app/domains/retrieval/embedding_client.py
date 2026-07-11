@@ -6,8 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-import httpx
-
+from app.common.llm_client import post_json_with_retry
 from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ class OpenAIEmbeddingClient:
         api_base_url: str = "https://api.openai.com/v1",
         batch_size: int = DEFAULT_OPENAI_BATCH_SIZE,
         timeout_seconds: float = DEFAULT_OPENAI_TIMEOUT_SECONDS,
-        http_client_factory: Callable[[], httpx.Client] | None = None,
+        post_json: Callable[..., dict[str, object]] = post_json_with_retry,
     ) -> None:
         if not api_key:
             raise ValueError("OpenAI embedding 客户端需要 api_key。")
@@ -71,9 +70,7 @@ class OpenAIEmbeddingClient:
         self._api_base_url = api_base_url.rstrip("/")
         self._batch_size = batch_size
         self._timeout_seconds = timeout_seconds
-        self._http_client_factory = http_client_factory or (
-            lambda: httpx.Client(timeout=self._timeout_seconds)
-        )
+        self._post_json = post_json
 
     def embed_texts(self, texts: Sequence[str]) -> EmbeddingResult:
         normalized = [text if text else " " for text in texts]
@@ -85,10 +82,9 @@ class OpenAIEmbeddingClient:
                 credential_status="configured",
                 vectors=vectors,
             )
-        with self._http_client_factory() as client:
-            for batch_start in range(0, len(normalized), self._batch_size):
-                batch = normalized[batch_start : batch_start + self._batch_size]
-                vectors.extend(self._embed_batch(client, batch))
+        for batch_start in range(0, len(normalized), self._batch_size):
+            batch = normalized[batch_start : batch_start + self._batch_size]
+            vectors.extend(self._embed_batch(batch))
         return EmbeddingResult(
             provider_name=self._provider_name,
             model_name=self._model_name,
@@ -96,17 +92,17 @@ class OpenAIEmbeddingClient:
             vectors=vectors,
         )
 
-    def _embed_batch(self, client: httpx.Client, batch: Sequence[str]) -> list[list[float]]:
-        response = client.post(
+    def _embed_batch(self, batch: Sequence[str]) -> list[list[float]]:
+        data = self._post_json(
             f"{self._api_base_url}/embeddings",
-            json={"model": self._model_name, "input": list(batch)},
-            headers={
+            {"model": self._model_name, "input": list(batch)},
+            {
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
             },
+            timeout_seconds=self._timeout_seconds,
+            service_label="embedding 服务",
         )
-        response.raise_for_status()
-        data = response.json()
         items = data.get("data")
         if not isinstance(items, list) or len(items) != len(batch):
             raise RuntimeError("OpenAI embedding 响应缺少 data 字段或长度不匹配。")

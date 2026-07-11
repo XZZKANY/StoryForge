@@ -303,7 +303,10 @@ def chat_reply(
                 "model": model,
                 "prompt_tokens": result.get("prompt_tokens"),
                 "completion_tokens": result.get("completion_tokens"),
+                "token_usage": result.get("token_usage"),
                 "cost_cny_estimated": result.get("cost_cny_estimated"),
+                "cost_breakdown": result.get("cost_breakdown"),
+                "token_usage_source": result.get("token_usage_source"),
             },
         ),
     )
@@ -381,7 +384,10 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         "after_chars": len(after),
         "prompt_tokens": result.get("prompt_tokens"),
         "completion_tokens": completion_tokens,
+        "token_usage": result.get("token_usage"),
         "cost_cny_estimated": result.get("cost_cny_estimated"),
+        "cost_breakdown": result.get("cost_breakdown"),
+        "token_usage_source": result.get("token_usage_source"),
         "latency_ms": latency_ms,
     }
     if result.get("reasoning_leak_stripped"):
@@ -509,7 +515,10 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
         "content_chars": len(content),
         "prompt_tokens": result.get("prompt_tokens"),
         "completion_tokens": completion_tokens,
+        "token_usage": result.get("token_usage"),
         "cost_cny_estimated": result.get("cost_cny_estimated"),
+        "cost_breakdown": result.get("cost_breakdown"),
+        "token_usage_source": result.get("token_usage_source"),
         "latency_ms": latency_ms,
     }
     if result.get("reasoning_leak_stripped"):

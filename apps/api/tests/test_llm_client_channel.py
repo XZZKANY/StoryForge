@@ -19,6 +19,7 @@ from app.common.llm_client import (
     _call_llm,
     _call_llm_messages,
     _request_chat_completions,
+    post_json_with_retry,
     redact_secrets,
 )
 from app.common.redaction import REDACTED
@@ -273,6 +274,84 @@ def test_channel_per_call_timeout_overrides_timeout_env(monkeypatch) -> None:
 
     assert data["choices"]
     assert captured["timeout"] == 12.5
+
+
+def test_post_json_with_retry_retries_429_then_succeeds(monkeypatch) -> None:
+    """非 chat JSON transport 复用 429 重试骨架，且测试不真睡。"""
+
+    monkeypatch.setattr("app.common.llm_client._sleep_before_retry", lambda **_kwargs: None)
+    _ChatHandler.fail_times = 1
+    _ChatHandler.status_code = 429
+    server = _serve()
+    try:
+        data = post_json_with_retry(
+            f"http://127.0.0.1:{server.server_address[1]}/embeddings",
+            {"model": "embedding-model", "input": ["灯塔"]},
+            {"Authorization": f"Bearer {_API_KEY}", "Content-Type": "application/json"},
+            timeout_seconds=30.0,
+            service_label="embedding 服务",
+        )
+    finally:
+        server.shutdown()
+
+    assert data["choices"]
+    assert _ChatHandler.attempts == 2
+
+
+def test_post_json_with_retry_preserves_httpx_json_body_encoding(monkeypatch) -> None:
+    """迁移 transport 后 JSON body 继续使用 httpx 的 UTF-8 紧凑编码。"""
+
+    captured: dict[str, bytes] = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"data":[]}'
+
+    def fake_urlopen(http_request, *, timeout: float):
+        captured["body"] = http_request.data
+        return FakeResponse()
+
+    monkeypatch.setattr("app.common.llm_client.request.urlopen", fake_urlopen)
+    post_json_with_retry(
+        "https://embedding.example/v1/embeddings",
+        {"model": "m", "input": ["灯塔"]},
+        {"Authorization": f"Bearer {_API_KEY}", "Content-Type": "application/json"},
+        timeout_seconds=30.0,
+        service_label="embedding 服务",
+    )
+
+    assert captured["body"] == '{"model":"m","input":["灯塔"]}'.encode()
+
+
+def test_post_json_with_retry_redacts_failure_log_and_error(caplog) -> None:
+    """非 chat transport 的最终失败日志与 LLMError 都不能泄露凭据。"""
+
+    _ChatHandler.fail_times = 5
+    _ChatHandler.status_code = 400
+    server = _serve()
+    _ChatHandler.error_body = {"error": {"message": f"credential {_API_KEY}"}}
+    try:
+        with caplog.at_level(logging.WARNING), pytest.raises(LLMError) as excinfo:
+            post_json_with_retry(
+                f"http://127.0.0.1:{server.server_address[1]}/rerank",
+                {"model": "reranker-model"},
+                {"Authorization": f"Bearer {_API_KEY}", "Content-Type": "application/json"},
+                timeout_seconds=30.0,
+                max_attempts=1,
+                service_label="reranker 服务",
+            )
+    finally:
+        server.shutdown()
+
+    assert "reranker 服务返回 HTTP 400" in str(excinfo.value)
+    assert _API_KEY not in str(excinfo.value)
+    assert _API_KEY not in caplog.text
 
 
 def test_channel_error_message_never_contains_key(caplog) -> None:

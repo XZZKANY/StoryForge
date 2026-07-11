@@ -6,8 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-import httpx
-
+from app.common.llm_client import post_json_with_retry
 from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
 from app.domains.retrieval.schemas import RetrievalHitRead
 
@@ -86,7 +85,7 @@ class CohereRerankerClient:
         api_base_url: str = "https://api.cohere.com/v1",
         provider_name: str = "cohere",
         timeout_seconds: float = DEFAULT_RERANKER_TIMEOUT_SECONDS,
-        http_client_factory: Callable[[], httpx.Client] | None = None,
+        post_json: Callable[..., dict[str, object]] = post_json_with_retry,
     ) -> None:
         if not api_key:
             raise ValueError("Cohere reranker 客户端需要 api_key。")
@@ -95,9 +94,7 @@ class CohereRerankerClient:
         self._provider_name = provider_name
         self._api_base_url = api_base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
-        self._http_client_factory = http_client_factory or (
-            lambda: httpx.Client(timeout=self._timeout_seconds)
-        )
+        self._post_json = post_json
 
     def rerank(self, query: str, hits: Sequence[RetrievalHitRead]) -> RerankResult:
         if not hits:
@@ -108,22 +105,21 @@ class CohereRerankerClient:
                 items=[],
             )
         documents = [hit.excerpt for hit in hits]
-        with self._http_client_factory() as client:
-            response = client.post(
-                f"{self._api_base_url}/rerank",
-                json={
-                    "model": self._model_name,
-                    "query": query,
-                    "documents": documents,
-                    "top_n": len(documents),
-                },
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        data = self._post_json(
+            f"{self._api_base_url}/rerank",
+            {
+                "model": self._model_name,
+                "query": query,
+                "documents": documents,
+                "top_n": len(documents),
+            },
+            {
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout_seconds=self._timeout_seconds,
+            service_label="reranker 服务",
+        )
         results = data.get("results")
         if not isinstance(results, list):
             raise RuntimeError("Cohere reranker 响应缺少 results 字段。")
