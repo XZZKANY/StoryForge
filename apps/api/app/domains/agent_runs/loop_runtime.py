@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 # W3：live 工具循环直接吃 common 单一出网通道，不再寄生于已降级的 book_runs 私有函数。
 from app.common.llm_client import LLMConfigError, LLMError, _call_llm_messages
+from app.domains.agent_runs.canon_context import build_scene_constraint_block
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
     build_loop_tool_schemas,
@@ -223,6 +224,12 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "new_conflict_count": len(output.get("new_conflicts") or []),
             "new_advisory_count": len(output.get("new_advisories") or []),
         }
+    if registry_name == "project.hooks_delta":
+        return {
+            "new_hook_count": len(output.get("new_hooks") or []),
+            "duplicate_count": len(output.get("duplicates") or []),
+            "pattern_hit_count": len(output.get("pattern_hits") or []),
+        }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
         return {
@@ -298,9 +305,11 @@ def run_chat_loop(
 
     history = _history_messages(session, assistant_session_id)
     current_file_hint = f"当前打开文件：{current_file}" if current_file else "当前没有打开文件"
+    scene_block = build_scene_constraint_block(project_path, current_file)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         *history,
+        *([{"role": "system", "content": scene_block}] if scene_block else []),
         {
             "role": "user",
             "content": f"[项目已挂载，只读工具可用。{current_file_hint}]\n作者：{user_message}",
@@ -457,6 +466,7 @@ def run_chat_loop(
                 "project.collapse_check",
                 "project.entity_budget_check",
                 "project.canon_delta",
+                "project.hooks_delta",
             ):
                 feedback = {"summary": output.get("summary")}
             elif registry_name in _PATCH_TOOLS:

@@ -20,6 +20,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_risk_summary,
 )
 from app.domains.agent_runs.canon_delta import canon_delta
+from app.domains.agent_runs.canon_hooks_delta import hooks_delta
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
@@ -1476,6 +1477,7 @@ class AgentRuntime:
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
             "project.canon_delta": self._project_canon_delta,
+            "project.hooks_delta": self._project_hooks_delta,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "file.create": self._file_create,
@@ -1796,6 +1798,38 @@ class AgentRuntime:
                     "alias_conflict_count": len(output["alias_conflicts"]),
                     "new_conflict_count": len(output["new_conflicts"]),
                     "new_advisory_count": len(output["new_advisories"]),
+                },
+            ),
+        )
+
+    def _project_hooks_delta(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        delta_args: dict[str, Any] = {}
+        observed_hooks = payload.get("observed_hooks")
+        if observed_hooks is not None:
+            if not isinstance(observed_hooks, list) or any(not isinstance(item, dict) for item in observed_hooks):
+                raise fs_tools.FsToolError("observed_hooks 必须是对象数组。")
+            delta_args["observed_hooks"] = observed_hooks
+        evidence_text = payload.get("evidence_text")
+        if isinstance(evidence_text, str) and evidence_text.strip():
+            delta_args["evidence_text"] = evidence_text
+
+        output = hooks_delta(project_root, **delta_args)
+        new_hooks = output["new_hooks"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.hooks_delta",
+                status="completed",
+                input_summary={
+                    "observed_hook_count": len(delta_args.get("observed_hooks") or []),
+                    "evidence_text_chars": len(delta_args.get("evidence_text") or ""),
+                },
+                output_summary={
+                    "new_hook_count": len(new_hooks),
+                    "duplicate_count": len(output["duplicates"]),
+                    "pattern_hit_count": len(output["pattern_hits"]),
                 },
             ),
         )

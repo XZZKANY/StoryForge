@@ -5,7 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from app.domains.agent_runs import canon_dossier, canon_gate, canon_rebuild, canon_service, canon_store
+from app.domains.agent_runs import (
+    canon_context,
+    canon_dossier,
+    canon_gate,
+    canon_hooks_delta,
+    canon_rebuild,
+    canon_service,
+    canon_store,
+)
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
@@ -354,3 +362,468 @@ def test_canon_refresh_command_writes_dossier_deterministically(project: Path) -
 def test_canon_refresh_command_requires_project_root() -> None:
     with pytest.raises(IdeCommandExecutionError, match="project_root"):
         execute_ide_command_by_id("canon.refresh", {})
+
+
+# --- 11. 场景约束头 push（确定性，无 LLM）---
+
+
+def test_scene_constraint_block_lifespan_after_exit(project: Path) -> None:
+    """角色已退场 → 编辑退场后章节时推硬约束，堵「死人复活」漂移。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [_QINGYAN],
+            "invariants": {
+                "lifespan": [
+                    {"entity": "char_qingyan", "exits_after_chapter": 1, "reason": "阵亡"}
+                ]
+            },
+        },
+    )
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "青岩" in block
+    assert "已于第 1 章退场" in block
+    assert "阵亡" in block
+    assert "回忆 / 提及" in block
+    assert "本文件 = 第 2 章" in block
+
+
+def test_scene_constraint_block_lifespan_before_exit(project: Path) -> None:
+    """角色尚未退场 → 编辑退场前章节时不推 lifespan 约束。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [_QINGYAN],
+            "invariants": {
+                "lifespan": [
+                    {"entity": "char_qingyan", "exits_after_chapter": 5, "reason": "阵亡"}
+                ]
+            },
+        },
+    )
+    current_file = str(project / "正文" / "第01章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    # 退场章(5) ≥ 当前章(1)，不应推 lifespan——她还活着。
+    assert block is None or "退场" not in block
+
+
+def test_scene_constraint_block_single_holder_window_covers(project: Path) -> None:
+    """唯一持有章窗覆盖当前章 → 推硬约束。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [],
+            "invariants": {
+                "single_holder": [
+                    {"item": "归零权限", "holder": "char_qingyan", "from_chapter": 1, "to_chapter": None}
+                ]
+            },
+        },
+    )
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "归零权限" in block
+    assert "唯一持有者" in block
+    assert "char_qingyan" in block
+    assert "不得出现第二持有者" in block
+
+
+def test_scene_constraint_block_single_holder_window_miss(project: Path) -> None:
+    """唯一持有章窗不覆盖当前章 → 不推对应约束。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [],
+            "invariants": {
+                "single_holder": [
+                    {"item": "断魂刀", "holder": "char_a", "from_chapter": 8, "to_chapter": 10}
+                ]
+            },
+        },
+    )
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is None or "断魂刀" not in block
+
+
+def test_scene_constraint_block_empty_canon_returns_none(project: Path) -> None:
+    """无声明 canon → 不推约束头、不占上下文。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    current_file = str(project / "正文" / "第02章.md")
+    assert canon_context.build_scene_constraint_block(str(project), current_file) is None
+
+
+def test_scene_constraint_block_missing_canon_returns_none(project: Path) -> None:
+    """无 canon.json → 静默 None，不拖垮聊天循环。"""
+    current_file = str(project / "正文" / "第02章.md")
+    assert canon_context.build_scene_constraint_block(str(project), current_file) is None
+
+
+def test_scene_constraint_block_no_current_file_pushes_whole_book(project: Path) -> None:
+    """无当前文件 → 全书模式：全量推 lifespan + single_holder，不推章序锚。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [_QINGYAN],
+            "invariants": {
+                "lifespan": [
+                    {"entity": "char_qingyan", "exits_after_chapter": 1, "reason": "阵亡"}
+                ],
+                "single_holder": [
+                    {"item": "归零权限", "holder": "char_qingyan", "from_chapter": 1, "to_chapter": None}
+                ],
+            },
+        },
+    )
+    block = canon_context.build_scene_constraint_block(str(project), None)
+    assert block is not None
+    assert "青岩" in block
+    assert "于第 1 章退场" in block
+    assert "归零权限" in block
+    assert "全书" in block
+    assert "本文件" not in block
+
+
+def test_scene_constraint_block_current_file_outside_project_is_safe(project: Path) -> None:
+    """当前文件越界 → 静默退化为全书模式，不崩。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [],
+            "invariants": {
+                "single_holder": [
+                    {"item": "归零权限", "holder": "char_qingyan", "from_chapter": 1, "to_chapter": None}
+                ]
+            },
+        },
+    )
+    block = canon_context.build_scene_constraint_block(str(project), "/tmp/outside.md")
+    assert block is not None
+    assert "归零权限" in block
+    assert "本文件" not in block  # 章序锚不出现
+
+
+def test_scene_constraint_block_lifespan_display_uses_canonical_name(project: Path) -> None:
+    """lifespan.entity 是 id 时显示 canonical_name，无映射回落 id。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [_QINGYAN],
+            "invariants": {
+                "lifespan": [
+                    {"entity": "char_yuer", "exits_after_chapter": 1, "reason": "失踪"}
+                ]
+            },
+        },
+    )
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    # char_yuer 不在 entities 中 → 回落 id
+    assert "char_yuer" in block
+    # char_qingyan 在 entities 中但 lifespan 没声明它 → 不出现
+    assert "青岩" not in block
+
+
+# --- 12. 伏笔 hooks push（确定性，无 LLM）---
+
+
+def _write_hooks(root: Path, hooks: list[dict]) -> None:
+    canon_store.write_hooks(str(root), {"version": 1, "hooks": hooks})
+
+
+def test_hooks_scaffold_creates_empty_and_is_idempotent(project: Path) -> None:
+    assert canon_store.scaffold_hooks_if_missing(str(project)) is True
+    hooks_file = project / ".storyforge" / "canon" / "hooks.json"
+    assert hooks_file.is_file()
+    assert canon_store.read_hooks(str(project)) == {"version": 1, "hooks": []}
+
+    _write_hooks(project, [{"id": "h1", "description": "test", "status": "active"}])
+    assert canon_store.scaffold_hooks_if_missing(str(project)) is False
+    assert len(canon_store.read_hooks(str(project))["hooks"]) == 1
+
+
+def test_hooks_read_and_write_roundtrip(project: Path) -> None:
+    hooks = [
+        {
+            "id": "hook_sword",
+            "description": "青岩欠陆沉一把刀的情",
+            "verification": "后续出现青岩为陆沉出手或还刀",
+            "status": "active",
+            "planted_at": {"chapter": 3, "path": "正文/第03章.md"},
+            "category": "character_debt",
+        }
+    ]
+    _write_hooks(project, hooks)
+    assert canon_store.read_hooks(str(project))["hooks"] == hooks
+
+
+def test_hooks_missing_returns_empty_skeleton(project: Path) -> None:
+    assert canon_store.read_hooks(str(project)) == {"version": 1, "hooks": []}
+
+
+def test_build_active_hooks_in_constraint_block(project: Path) -> None:
+    """活跃钩子出现在约束头中。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [
+            {
+                "id": "hook_sword",
+                "description": "青岩欠陆沉一把刀的情",
+                "status": "active",
+                "planted_at": {"chapter": 3},
+                "category": "character_debt",
+            },
+            {
+                "id": "hook_coin",
+                "description": "系统积分达 10 万触发不可逆事件",
+                "status": "active",
+                "planted_at": {"chapter": 5},
+                "category": "threshold",
+            },
+        ],
+    )
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "活跃伏笔" in block
+    assert "青岩欠陆沉" in block
+    assert "第 3 章埋" in block
+    assert "character_debt" in block
+    assert "积分达 10 万" in block
+    assert "threshold" in block
+
+
+def test_build_active_hooks_excludes_resolved_hooks(project: Path) -> None:
+    """已回收钩子不出现在约束头中。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [
+            {
+                "id": "hook_old",
+                "description": "已回收的伏笔",
+                "status": "resolved",
+                "planted_at": {"chapter": 2},
+            },
+            {
+                "id": "hook_alive",
+                "description": "仍在活跃的伏笔",
+                "status": "active",
+                "planted_at": {"chapter": 4},
+            },
+        ],
+    )
+    current_file = str(project / "正文" / "第04章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "仍在活跃" in block
+    assert "已回收" not in block
+
+
+def test_build_active_hooks_no_hooks_file_returns_clean(project: Path) -> None:
+    """无 hooks.json → 不拖垮循环，constraint block 正常返回。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [_QINGYAN],
+            "invariants": {
+                "lifespan": [
+                    {"entity": "char_qingyan", "exits_after_chapter": 1, "reason": "阵亡"}
+                ]
+            },
+        },
+    )
+    # 不写 hooks.json
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "青岩" in block
+    assert "活跃伏笔" not in block
+
+
+def test_build_active_hooks_empty_hooks_returns_clean(project: Path) -> None:
+    """hooks.json 空 → 不推伏笔块。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(project, [])
+    block = canon_context.build_scene_constraint_block(str(project), None)
+    assert block is None  # no canon invariants + no hooks = no block at all
+
+
+def test_build_active_hooks_appends_note(project: Path) -> None:
+    """hook 带 note → 在行尾展示（含破折号前缀）。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [
+            {
+                "id": "hook_note",
+                "description": "暗影组织首领身份未揭",
+                "status": "active",
+                "planted_at": {"chapter": 1},
+                "note": "建议第 10 章前后揭示",
+                "category": "mystery",
+            }
+        ],
+    )
+    block = canon_context.build_scene_constraint_block(str(project), None)
+    assert block is not None
+    assert "暗影组织" in block
+    assert "建议第 10 章前后揭示" in block
+
+
+# --- 13. hooks_delta 确定性归并 ---
+
+
+def test_hooks_delta_new_hooks_proposed(project: Path) -> None:
+    """观测到新钩子 → 返回 new_hooks。"""
+    _write_hooks(project, [])
+    result = canon_hooks_delta.hooks_delta(
+        str(project),
+        observed_hooks=[
+            {"description": "青岩欠陆沉一把刀的情", "category": "character_debt"},
+            {"description": "系统积分达 10 万触发不可逆事件", "category": "threshold"},
+        ],
+    )
+    assert len(result["new_hooks"]) == 2
+    assert result["duplicates"] == []
+    assert "检测到 2 条新钩子" in result["summary"]
+
+
+def test_hooks_delta_deduplicates_description_substring(project: Path) -> None:
+    """描述子串重叠 → 标记为重复。"""
+    _write_hooks(
+        project,
+        [
+            {
+                "id": "h1",
+                "description": "青岩欠陆沉一把刀的情",
+                "status": "active",
+                "category": "character_debt",
+            }
+        ],
+    )
+    result = canon_hooks_delta.hooks_delta(
+        str(project),
+        observed_hooks=[
+            {"description": "青岩欠陆沉一把刀的情"},
+            {"description": "全新的伏笔"},
+        ],
+    )
+    assert len(result["new_hooks"]) == 1
+    assert result["new_hooks"][0]["description"] == "全新的伏笔"
+    assert len(result["duplicates"]) == 1
+
+
+def test_hooks_delta_pattern_matches_evidence_text(project: Path) -> None:
+    """evidence_text 中有倒计时 → pattern_hits 含 countdown。"""
+    _write_hooks(project, [])
+    result = canon_hooks_delta.hooks_delta(
+        str(project),
+        evidence_text="陆沉看了一眼倒计时：还剩 7 天。如果不能突破，一切就结束了。",
+    )
+    assert len(result["pattern_hits"]) >= 1
+    categories = {h["category"] for h in result["pattern_hits"]}
+    assert "countdown" in categories
+    assert len(result["new_hooks"]) == 0  # 无 LLM 观测时新钩子为空
+
+
+def test_hooks_delta_empty_observation_returns_clean(project: Path) -> None:
+    """无观测无证据 → 空结果。"""
+    _write_hooks(project, [])
+    result = canon_hooks_delta.hooks_delta(str(project))
+    assert result["new_hooks"] == []
+    assert result["duplicates"] == []
+    assert result["pattern_hits"] == []
+    assert "未发现" in result["summary"]
+
+
+def test_hooks_delta_invalid_parameter_rejects(project: Path) -> None:
+    """description 缺失 → 抛 FsToolError。"""
+    from app.domains.agent_runs.fs_tools import FsToolError
+
+    _write_hooks(project, [])
+    with pytest.raises(FsToolError, match="description"):
+        canon_hooks_delta.hooks_delta(
+            str(project),
+            observed_hooks=[{"category": "oath"}],
+        )
+
+
+def test_hooks_delta_partial_parameter_is_valid(project: Path) -> None:
+    """只传 description → 合法。"""
+    _write_hooks(project, [])
+    result = canon_hooks_delta.hooks_delta(
+        str(project),
+        observed_hooks=[{"description": "谜团待解"}],
+    )
+    assert len(result["new_hooks"]) == 1
+    assert result["new_hooks"][0]["description"] == "谜团待解"
+    assert result["new_hooks"][0]["status"] == "active"  # 默认状态
+
+
+# --- 14. v1 陈旧钩子告警（确定性，无 LLM）---
+
+
+def test_stale_hook_flagged_in_constraint_block(project: Path) -> None:
+    """活跃钩子埋入章与当前章序差 >10 → ⚠ 标志 + 陈旧告警行。
+
+    陈旧检测用 planted_at.path 在文件序中定位，而非 planted_at.chapter 字段。
+    """
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    # 铺满从 01 到 13 共 13 章，确保文件序与章号一致
+    body = project / "正文"
+    for i in range(1, 14):
+        (body / f"第{i:02d}章.md").write_text(f"第{i}章\n", encoding="utf-8")
+
+    _write_hooks(
+        project,
+        [
+            {"id": "h_old", "description": "埋在第 1 章的老钩子", "status": "active",
+             "planted_at": {"chapter": 1, "path": "正文/第01章.md"}, "category": "mystery"},
+            {"id": "h_fresh", "description": "新埋的钩子", "status": "active",
+             "planted_at": {"chapter": 12, "path": "正文/第12章.md"}, "category": "oath"},
+        ],
+    )
+    # 当前章序 = 13；h_old 差 12 章（>10），h_fresh 差 1 章（≤10）
+    current_file = str(body / "第13章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "⚠" in block
+    assert "埋在第 1 章的老钩子" in block
+    assert "⚠ 1 条伏笔超过 10 章未推进" in block
+    assert "新埋的钩子" in block  # 新鲜钩子正常展示
+
+
+def test_stale_hook_not_flagged_when_recent(project: Path) -> None:
+    """当前章与 planted_at.path 序差 ≤10 → 无 ⚠ 标志。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    b = (project / "正文")
+    for i in range(1, 7):
+        (b / f"第{i:02d}章.md").write_text("dummy\n", encoding="utf-8")
+    _write_hooks(
+        project,
+        [
+            {"id": "h_recent", "description": "近期钩子", "status": "active",
+             "planted_at": {"chapter": 3, "path": "正文/第03章.md"}, "category": "countdown"},
+        ],
+    )
+
+    current_file = str(b / "第04章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    # 第4章序 - 第3章序 = 1 ≤ 10 → 无 ⚠
+    assert block is not None
+    assert "⚠" not in block
+    assert "近期钩子" in block
