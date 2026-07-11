@@ -47,11 +47,14 @@ export function MessageList({
   writingRunProjection,
   explicitContextPaths,
   contextCandidates,
+  contextCandidatesLoading,
+  contextCandidatesError,
   contextPickerOpen,
   lastContextBundle,
   missingContextPaths,
   onAddContext,
   onTogglePinnedContext,
+  onRetryContextCandidates,
   agentRunControls,
 }: {
   messages: Message[];
@@ -64,11 +67,14 @@ export function MessageList({
   writingRunProjection: WritingRunProjection | null;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
+  contextCandidatesLoading: boolean;
+  contextCandidatesError: string | null;
   contextPickerOpen: boolean;
   lastContextBundle: ContextBundle | null;
   missingContextPaths: string[];
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
+  onRetryContextCandidates: () => void;
   agentRunControls: AgentRunControlHandlers;
 }) {
   if (messages.length === 0) {
@@ -81,11 +87,14 @@ export function MessageList({
           onSubmit={onSubmit}
           explicitContextPaths={explicitContextPaths}
           contextCandidates={contextCandidates}
+          contextCandidatesLoading={contextCandidatesLoading}
+          contextCandidatesError={contextCandidatesError}
           contextPickerOpen={contextPickerOpen}
           lastContextBundle={lastContextBundle}
           missingContextPaths={missingContextPaths}
           onAddContext={onAddContext}
           onTogglePinnedContext={onTogglePinnedContext}
+          onRetryContextCandidates={onRetryContextCandidates}
         />
       </div>
     );
@@ -112,11 +121,14 @@ export function MessageList({
           currentFileLabel={currentFileLabel}
           explicitContextPaths={explicitContextPaths}
           contextCandidates={contextCandidates}
+          contextCandidatesLoading={contextCandidatesLoading}
+          contextCandidatesError={contextCandidatesError}
           contextPickerOpen={contextPickerOpen}
           lastContextBundle={lastContextBundle}
           missingContextPaths={missingContextPaths}
           onAddContext={onAddContext}
           onTogglePinnedContext={onTogglePinnedContext}
+          onRetryContextCandidates={onRetryContextCandidates}
         />
       </div>
     </div>
@@ -240,20 +252,26 @@ export function ContextSummaryPanel({
   currentFileLabel,
   explicitContextPaths,
   contextCandidates,
+  contextCandidatesLoading,
+  contextCandidatesError,
   contextPickerOpen,
   lastContextBundle,
   missingContextPaths,
   onAddContext,
   onTogglePinnedContext,
+  onRetryContextCandidates,
 }: {
   currentFileLabel: string | null;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
+  contextCandidatesLoading: boolean;
+  contextCandidatesError: string | null;
   contextPickerOpen: boolean;
   lastContextBundle: ContextBundle | null;
   missingContextPaths: string[];
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
+  onRetryContextCandidates: () => void;
 }) {
   const visibleCandidates = contextCandidates
     .filter((file) => file.relativePath !== currentFileLabel)
@@ -310,7 +328,26 @@ export function ContextSummaryPanel({
           className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-border pt-2"
           data-testid="context-picker"
         >
-          {visibleCandidates.length === 0 ? (
+          {contextCandidatesLoading ? (
+            <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
+              正在读取项目上下文…
+            </div>
+          ) : contextCandidatesError ? (
+            <div
+              className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
+              data-testid="context-candidates-error"
+            >
+              <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
+              <button
+                type="button"
+                className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 hover:bg-elevated"
+                onClick={onRetryContextCandidates}
+                data-testid="context-candidates-retry"
+              >
+                重试
+              </button>
+            </div>
+          ) : visibleCandidates.length === 0 ? (
             <div className="px-2 py-1 text-xs text-subtle">
               当前项目还没有可选的 Markdown 上下文。
             </div>
@@ -370,11 +407,14 @@ export function EmptyConversation({
   onSubmit,
   explicitContextPaths,
   contextCandidates,
+  contextCandidatesLoading,
+  contextCandidatesError,
   contextPickerOpen,
   lastContextBundle,
   missingContextPaths,
   onAddContext,
   onTogglePinnedContext,
+  onRetryContextCandidates,
 }: {
   projectName: string | null;
   currentFileLabel: string | null;
@@ -382,11 +422,14 @@ export function EmptyConversation({
   onSubmit: (value: string) => void;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
+  contextCandidatesLoading: boolean;
+  contextCandidatesError: string | null;
   contextPickerOpen: boolean;
   lastContextBundle: ContextBundle | null;
   missingContextPaths: string[];
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
+  onRetryContextCandidates: () => void;
 }) {
   const [value, setValue] = useState('');
 
@@ -425,11 +468,14 @@ export function EmptyConversation({
             currentFileLabel={currentFileLabel}
             explicitContextPaths={explicitContextPaths}
             contextCandidates={contextCandidates}
+            contextCandidatesLoading={contextCandidatesLoading}
+            contextCandidatesError={contextCandidatesError}
             contextPickerOpen={contextPickerOpen}
             lastContextBundle={lastContextBundle}
             missingContextPaths={missingContextPaths}
             onAddContext={onAddContext}
             onTogglePinnedContext={onTogglePinnedContext}
+            onRetryContextCandidates={onRetryContextCandidates}
           />
         </div>
       </div>

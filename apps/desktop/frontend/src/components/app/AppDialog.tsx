@@ -133,6 +133,19 @@ export function AppDialogHost({
   onClose: (result?: boolean | string | null) => void;
   onPromptValueChange: (value: string) => void;
 }) {
+  useEffect(() => {
+    if (!dialog) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (dialog.kind === 'alert') onClose();
+      else if (dialog.kind === 'confirm') onClose(false);
+      else onClose(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dialog, onClose]);
+
   if (!dialog) return null;
   const isPrompt = dialog.kind === 'prompt';
   const isConfirm = dialog.kind === 'confirm';
@@ -143,7 +156,7 @@ export function AppDialogHost({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-4"
       role="presentation"
       data-testid="app-dialog-backdrop"
     >
@@ -151,14 +164,19 @@ export function AppDialogHost({
         aria-modal="true"
         role="dialog"
         aria-labelledby="app-dialog-title"
-        className="w-full max-w-[420px] rounded-md border border-border bg-panel p-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-md border border-border bg-panel p-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
         data-testid="app-dialog"
         data-dialog-kind={dialog.kind}
       >
         <h2 id="app-dialog-title" className="text-sm font-semibold text-foreground">
           {dialog.title}
         </h2>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted">{dialog.message}</p>
+        <p
+          className="mt-2 min-h-0 overflow-y-auto break-words whitespace-pre-wrap text-sm leading-6 text-muted"
+          data-testid="app-dialog-message"
+        >
+          {dialog.message}
+        </p>
         {isPrompt && (
           <input
             autoFocus
@@ -168,11 +186,10 @@ export function AppDialogHost({
             onChange={(event) => onPromptValueChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') onClose(dialog.value);
-              if (event.key === 'Escape') onClose(null);
             }}
           />
         )}
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex shrink-0 justify-end gap-2" data-testid="app-dialog-actions">
           {(isConfirm || isPrompt) && (
             <button
               type="button"

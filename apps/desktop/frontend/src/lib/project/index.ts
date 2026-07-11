@@ -9,7 +9,7 @@ export function buildProjectIndexFromEntries(
 ): ProjectIndex {
   const files = entries
     .filter((entry) => !entry.isDir)
-    .filter((entry) => entry.extension === 'md' || entry.extension === 'markdown')
+    .filter((entry) => ['md', 'markdown'].includes(entry.extension?.toLowerCase() ?? ''))
     .filter((entry) => !/[/\\]\.storyforge[/\\]/.test(entry.path))
     .map((entry) => ({ entry, relativePath: relativePathInsideProject(projectPath, entry.path) }))
     .filter(

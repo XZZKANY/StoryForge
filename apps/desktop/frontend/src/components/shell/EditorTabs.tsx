@@ -11,6 +11,7 @@ export type CenterTab = 'settings' | 'file' | 'preview';
 function Tab({
   active,
   preview,
+  dirty,
   label,
   title,
   icon,
@@ -20,6 +21,7 @@ function Tab({
 }: {
   active: boolean;
   preview?: boolean;
+  dirty?: boolean;
   label: string;
   title?: string;
   icon?: React.ReactNode;
@@ -48,14 +50,24 @@ function Tab({
       <span className="max-w-[180px] truncate">{label}</span>
       {onClose && (
         <button
-          className="text-subtle opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-          title="关闭"
+          className="relative flex h-4 w-4 items-center justify-center text-subtle hover:text-foreground"
+          title={dirty ? '关闭（有未保存修改）' : '关闭'}
           onClick={(event) => {
             event.stopPropagation();
             onClose();
           }}
         >
-          <X size={11} strokeWidth={1.7} />
+          {dirty && (
+            <span
+              className="h-2 w-2 rounded-full bg-current group-hover:hidden"
+              data-testid="editor-tab-dirty"
+            />
+          )}
+          <X
+            className={dirty ? 'hidden group-hover:block' : 'opacity-0 group-hover:opacity-100'}
+            size={11}
+            strokeWidth={1.7}
+          />
         </button>
       )}
     </div>
@@ -63,8 +75,10 @@ function Tab({
 }
 
 export function EditorTabs({
-  currentFile,
+  openFiles,
+  activeFile,
   previewFile,
+  dirtyFiles,
   settingsOpen,
   activeTab,
   onFocusFile,
@@ -74,18 +88,20 @@ export function EditorTabs({
   onCloseFile,
   onCloseSettings,
 }: {
-  currentFile: string | null;
+  openFiles: string[];
+  activeFile: string | null;
   previewFile: string | null;
+  dirtyFiles: ReadonlySet<string>;
   settingsOpen: boolean;
   activeTab: CenterTab | null;
-  onFocusFile: () => void;
+  onFocusFile: (path: string) => void;
   onFocusPreview: () => void;
   onPinPreview: () => void;
   onFocusSettings: () => void;
-  onCloseFile: () => void;
+  onCloseFile: (path: string) => void;
   onCloseSettings: () => void;
 }) {
-  const showPreview = Boolean(previewFile) && previewFile !== currentFile;
+  const showPreview = Boolean(previewFile) && !openFiles.includes(previewFile as string);
 
   return (
     <div
@@ -101,15 +117,17 @@ export function EditorTabs({
           onClose={onCloseSettings}
         />
       )}
-      {currentFile && (
+      {openFiles.map((path) => (
         <Tab
-          active={activeTab === 'file'}
-          label={basename(currentFile)}
-          title={currentFile}
-          onActivate={onFocusFile}
-          onClose={onCloseFile}
+          key={path}
+          active={activeTab === 'file' && path === activeFile}
+          label={basename(path)}
+          title={path}
+          dirty={dirtyFiles.has(path)}
+          onActivate={() => onFocusFile(path)}
+          onClose={() => onCloseFile(path)}
         />
-      )}
+      ))}
       {showPreview && previewFile && (
         <Tab
           active={activeTab === 'preview'}

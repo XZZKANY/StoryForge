@@ -5,7 +5,7 @@ import { test } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { Editor } from '../src/components/Editor';
+import { Editor, EditorLoadStatus } from '../src/components/Editor';
 import type { AppDialogApi } from '../src/components/app/AppDialog';
 
 // G1 护栏：Editor.tsx 此前零单测，是所有前端拆分（C3）的硬阻塞。
@@ -20,6 +20,7 @@ const suggestionWritebackSource = readFileSync(
   'src/components/editor/useSuggestionWriteback.ts',
   'utf8',
 );
+const monacoEditorSource = readFileSync('src/components/editor/useMonacoEditor.ts', 'utf8');
 const settingsViewSource = readFileSync('src/components/SettingsView.tsx', 'utf8');
 const versionHistorySource = readFileSync('src/components/editor/VersionHistory.tsx', 'utf8');
 
@@ -57,6 +58,48 @@ test('Monaco 容器被锁在编辑器 flex 区域内，不随长文本撑开外�
   const html = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
   assert.match(html, /data-testid="editor-container"/);
   assert.match(html, /min-h-0 flex-1 overflow-hidden/);
+});
+
+test('外部 flush 事件读取最新保存闭包，不沿用首个标签的分支状态', () => {
+  assert.match(editorSource, /const saveCurrentFileRef = useRef\(saveCurrentFile\)/);
+  assert.match(editorSource, /saveCurrentFileRef\.current = saveCurrentFile/);
+  assert.match(
+    editorSource,
+    /REQUEST_SAVE_ACTIVE_FILE_EVENT[\s\S]*?saveCurrentFileRef\s*\.\s*current\(\)/,
+  );
+});
+
+test('异步文件读取期间明确显示 loading，失败后显示错误而不是旧 model', () => {
+  const loading = renderToStaticMarkup(
+    React.createElement(EditorLoadStatus, {
+      filePath: 'D:\\Books\\a.md',
+      loadedFilePath: null,
+      loadError: '',
+    }),
+  );
+  assert.match(loading, /data-testid="editor-loading"/);
+  assert.match(loading, /正在读取文件/);
+
+  const failed = renderToStaticMarkup(
+    React.createElement(EditorLoadStatus, {
+      filePath: 'D:\\Books\\a.md',
+      loadedFilePath: null,
+      loadError: 'access denied',
+    }),
+  );
+  assert.match(failed, /data-testid="editor-load-error"/);
+  assert.match(failed, /读取文件失败/);
+  assert.match(failed, /access denied/);
+});
+
+test('Canon derived 文件以只读 Monaco 打开且保存按钮禁用', () => {
+  const html = renderEditor({
+    filePath: 'D:\\Books\\雾港回声\\.storyforge\\canon\\derived\\dossier.md',
+  });
+  assert.match(html, /data-read-only="true"/);
+  assert.match(html, /只读派生文件/);
+  assert.match(html, /title="派生缓存为只读"/);
+  assert.match(monacoEditorSource, /updateOptions\(\{ readOnly \}\)/);
 });
 
 test('空状态根据 projectPath 给出打开项目后的提示文案', () => {

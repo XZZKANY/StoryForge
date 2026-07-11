@@ -3,7 +3,7 @@
  * 保存时先把磁盘上的旧内容存为版本快照，再写入新内容；提供历史查看与恢复。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import {
   EXPORT_CURRENT_FILE_EVENT,
@@ -21,12 +21,14 @@ import { PatchReviewPanel } from './PatchReviewPanel';
 import { type GraphNode } from '../lib/branches';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
 import { useEditorFileLoader } from './editor/useEditorFileLoader';
-import { useMonacoEditor } from './editor/useMonacoEditor';
+import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 import type { AppDialogApi } from './app/AppDialog';
 import { performGuardedWriteback } from '../lib/writeback';
+import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
+import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -54,6 +56,7 @@ type EditorProps = {
   filePath: string | null;
   editorFontSize?: number;
   autoSave?: boolean;
+  retainedFilePaths?: string[];
   onClose: () => void;
   onToggleSidebar?: () => void;
   sidebarVisible?: boolean;
@@ -62,11 +65,37 @@ type EditorProps = {
   dialogs: AppDialogApi;
 };
 
+export function EditorLoadStatus({
+  filePath,
+  loadedFilePath,
+  loadError,
+}: {
+  filePath: string | null;
+  loadedFilePath: string | null;
+  loadError: string;
+}) {
+  if (!filePath || loadedFilePath === filePath) return null;
+  return (
+    <div
+      className="absolute inset-x-0 bottom-0 top-[var(--sf-bar-height)] z-20 flex items-center justify-center bg-background px-6 text-center"
+      data-testid={loadError ? 'editor-load-error' : 'editor-loading'}
+    >
+      <div>
+        <p className={loadError ? 'text-sm text-error' : 'text-sm text-muted'}>
+          {loadError ? '读取文件失败' : '正在读取文件…'}
+        </p>
+        {loadError && <p className="mt-2 max-w-xl text-xs text-subtle">{loadError}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function Editor({
   projectPath,
   filePath,
   editorFontSize = 14,
   autoSave = false,
+  retainedFilePaths = [],
   onClose,
   onToggleSidebar,
   sidebarVisible,
@@ -82,6 +111,7 @@ export function Editor({
   const rightViewStorageKey = `storyforge:right-view:${projectPath ?? '__global__'}`;
   const [rightView, setRightView] = useState<RightViewId>(() => readRightView(rightViewStorageKey));
   const [viewPickerOpen, setViewPickerOpen] = useState(false);
+  const readOnly = isReadOnlyDerivedProjectPath(filePath);
   const rightViewLabel = RIGHT_VIEWS.find((view) => view.id === rightView)?.label ?? '文件';
 
   useEffect(() => {
@@ -100,6 +130,7 @@ export function Editor({
     setViewPickerOpen(false);
   };
   const cleanVersionIdRef = useRef<number | null>(null);
+  const modelCacheRef = useRef<EditorModelCache>(new Map());
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
@@ -142,32 +173,32 @@ export function Editor({
   });
 
   // 每次渲染后同步最新值到 ref（见上注释），供 Monaco 命令/回调闭包读取最新状态。
-  useEffect(() => {
+  useLayoutEffect(() => {
     filePathRef.current = filePath;
     projectPathRef.current = projectPath;
     isDirtyRef.current = isDirty;
     autoSaveRef.current = autoSave;
   });
 
-  useEffect(() => {
-    onDirtyChange?.(filePath, isDirty);
-  }, [filePath, isDirty, onDirtyChange]);
+  const { loadedFilePath, loadedContent, loadedIsDirty, loadAttemptFilePath, loadError } =
+    useEditorFileLoader({
+      filePath,
+      originalContentRef,
+      issueDecorationsRef,
+      filePathRef,
+      isDirtyRef,
+      autoSaveTimerRef,
+      resetSuggestionWriteback,
+      adoptPendingSuggestion,
+      setLoadedContentPreview,
+      setIsDirty,
+      setShowHistory,
+      modelCacheRef,
+    });
 
-  const { loadedFilePath, loadedContent, loadAttemptFilePath, loadError } = useEditorFileLoader({
-    filePath,
-    editorRef,
-    originalContentRef,
-    cleanVersionIdRef,
-    issueDecorationsRef,
-    filePathRef,
-    isDirtyRef,
-    autoSaveTimerRef,
-    resetSuggestionWriteback,
-    adoptPendingSuggestion,
-    setLoadedContentPreview,
-    setIsDirty,
-    setShowHistory,
-  });
+  useEffect(() => {
+    if (loadedFilePath === filePath) onDirtyChange?.(filePath, isDirty);
+  }, [filePath, isDirty, loadedFilePath, onDirtyChange]);
 
   const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
     const editor = editorRef.current;
@@ -190,16 +221,18 @@ export function Editor({
   const saveCurrentFile = useCallback(async () => {
     const path = filePathRef.current;
     const projectRoot = projectPathRef.current;
-    if (!projectRoot || !path || !editorRef.current) return;
+    if (!projectRoot || !path || !editorRef.current || isReadOnlyDerivedProjectPath(path)) return;
 
-    const content = editorRef.current.getValue();
+    const savedModel = editorRef.current.getModel();
+    if (!savedModel) return;
+    const content = savedModel.getValue();
     const previous = originalContentRef.current;
     const contentChanged = previous !== '' && normalizeEol(previous) !== normalizeEol(content);
     const branch = contentChanged ? getActiveBranchSnapshot() : null;
 
     await performGuardedWriteback(contentChanged, {
       snapshot: async () =>
-        snapshotBeforeWrite(projectPathRef.current, path, previous, {
+        snapshotBeforeWrite(projectRoot, path, previous, {
           source: 'Editor',
           summary: '手动保存前快照',
           branchId: branch?.id,
@@ -215,10 +248,29 @@ export function Editor({
       record: async () => undefined,
     });
 
-    originalContentRef.current = content;
-    cleanVersionIdRef.current = editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
-    setIsDirty(false);
-  }, [advanceBranchHead, getActiveBranchSnapshot]);
+    const savedState = modelCacheRef.current.get(path);
+    if (!savedState || !isRetainedEditorModel(savedModel, savedState.model)) return;
+    savedState.originalContent = content;
+    const remainsDirty = savedModel.getValue() !== content;
+    onDirtyChange?.(path, remainsDirty);
+    if (
+      canCommitEditorSave(
+        path,
+        savedModel,
+        filePathRef.current,
+        editorRef.current?.getModel() ?? null,
+      )
+    ) {
+      originalContentRef.current = content;
+      cleanVersionIdRef.current = remainsDirty ? null : savedModel.getAlternativeVersionId();
+      setIsDirty(remainsDirty);
+    }
+  }, [advanceBranchHead, getActiveBranchSnapshot, onDirtyChange]);
+  const saveCurrentFileRef = useRef(saveCurrentFile);
+
+  useEffect(() => {
+    saveCurrentFileRef.current = saveCurrentFile;
+  }, [saveCurrentFile]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -244,9 +296,14 @@ export function Editor({
     autoSaveRef,
     autoSaveTimerRef,
     cleanVersionIdRef,
+    originalContentRef,
     setLoadedContentPreview,
     setIsDirty,
     handleSave,
+    readOnly,
+    loadedIsDirty,
+    modelCacheRef,
+    retainedFilePaths,
   });
 
   // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。
@@ -281,7 +338,8 @@ export function Editor({
         respond({ filePath: requestedFilePath, status: 'skipped' });
         return;
       }
-      void saveCurrentFile()
+      void saveCurrentFileRef
+        .current()
         .then(() => respond({ filePath: requestedFilePath, status: 'saved' }))
         .catch((error) =>
           respond({
@@ -293,7 +351,7 @@ export function Editor({
     };
     window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
     return () => window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性注册窗口监听；handleSave 经 ref 读取文件路径/编辑器/dirty 态，闭包不读旧值；列入依赖会因其含分支血缘逻辑、每渲染重建为不稳定引用而反复重挂监听
+    // 挂载期只注册一次；保存逻辑经 ref 读取最新文件和分支闭包。
   }, []);
 
   const handleExport = async () => {
@@ -392,6 +450,7 @@ export function Editor({
       data-load-error={loadError}
       data-editor-init-error={editorInitError}
       data-content-preview={loadedContentPreview}
+      data-read-only={readOnly ? 'true' : 'false'}
     >
       {rightView === 'files' && !filePath && (
         <div
@@ -419,6 +478,14 @@ export function Editor({
         >
           剧情分支画布即将接入：保存修改后会记录版本，可在此开分支、对比平行写法。
         </div>
+      )}
+
+      {rightView === 'files' && (
+        <EditorLoadStatus
+          filePath={filePath}
+          loadedFilePath={loadedFilePath}
+          loadError={loadError}
+        />
       )}
 
       {/* 顶部工具栏 */}
@@ -470,6 +537,11 @@ export function Editor({
               ●
             </span>
           )}
+          {rightView === 'files' && readOnly && (
+            <span className="text-[11px] text-subtle" title="派生缓存由 StoryForge 重建">
+              只读派生文件
+            </span>
+          )}
         </div>
         <div className="sf-topbar-actions">
           {onExportCurrent && (
@@ -505,8 +577,8 @@ export function Editor({
           <button
             id="editor-save-btn"
             onClick={handleSave}
-            disabled={!isDirty}
-            title="保存 (Ctrl+S)"
+            disabled={!isDirty || readOnly}
+            title={readOnly ? '派生缓存为只读' : '保存 (Ctrl+S)'}
             className="sf-toolbar-button disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent disabled:hover:text-muted"
           >
             保存 (Ctrl+S)
