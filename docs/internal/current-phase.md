@@ -17,7 +17,7 @@
 
 ## 当前阶段
 
-StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段（当前项目真相边界：2026-07-02）。产品契约为：StoryForge = Cursor for Fiction（2026-06-24 拍板：作者辅助 IDE，不是自动长篇生产器）；`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场（2026-06-21 已完成退场收口），不再作为维护、调试、兼容或契约验证入口。2026-06-30 起交互中枢定向为 Claude Code/Codex 式对话 agent：批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
+StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段（当前项目真相边界：2026-07-02）。产品契约为：StoryForge = 作者辅助写作 IDE（2026-06-24 拍板：作者辅助 IDE，不是自动长篇生产器）；`apps/desktop` 是唯一主体验；`pnpm dev` / `pnpm desktop:dev` 启动桌面 IDE 主体验；`apps/web` 已退场（2026-06-21 已完成退场收口），不再作为维护、调试、兼容或契约验证入口。2026-06-30 起交互中枢定向为对话 agent：批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
 
 2026-07-01 以来已合并的收口（PR #42-#46）：单色调明暗双主题 UI 改版；私测 Alpha 单机后端（PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar）；中间交互区收口为对话式 Agent，`chat.explain` 从演示 echo 接上真·LLM，对话从文件级解绑为项目级会话。
 
@@ -100,7 +100,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 禁止宣称范围
 
-在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及 Cursor for Fiction Phase 1/Phase 2、对话式 Agent 收口与 Agent loop（chat 工具循环）的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。chat 工具循环、循环内审稿 / 修订 / 新文件起草、一致性观察与深度一致性已有真·LLM headless 实跑证据（单 provider），但不得据此宣称真机桌面端多轮渲染、自动打开新文件与补丁确认已验收；chapter.review / bookrun.* 未循环化（已记为决定而非缺口）；`project.consistency` 只产出机械观察信号，不得宣称其具备语义一致性判定能力；`project.deep_consistency` 的 issue 是 advisory 参考信号（实跑仅覆盖显性矛盾场景，隐性 / 跨章长程矛盾召回率未验），不得当作质量判定或验收结论；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
+在上述未完成项补齐前，只能宣称 StoryForge 已具备本地可验证的最小整书闭环、真实 LLM 10 章 smoke 验收证据、一次 30 章真实长程链路与制品导出证据、Q9 16 章门禁修复与人工通读证据，以及作者辅助 IDE Phase 1/Phase 2、对话式 Agent 收口与 Agent loop（chat 工具循环）的 Desktop 本地验收证据；不能宣称真实 3-5 万字长程质量验收通过，也不能宣称具备稳定生产级长篇生产闭环。chat 工具循环、循环内审稿 / 修订 / 新文件起草、一致性观察与深度一致性已有真·LLM headless 实跑证据（单 provider），但不得据此宣称真机桌面端多轮渲染、自动打开新文件与补丁确认已验收；chapter.review / bookrun.* 未循环化（已记为决定而非缺口）；`project.consistency` 只产出机械观察信号，不得宣称其具备语义一致性判定能力；`project.deep_consistency` 的 issue 是 advisory 参考信号（实跑仅覆盖显性矛盾场景，隐性 / 跨章长程矛盾召回率未验），不得当作质量判定或验收结论；不得把 `apps/web` 或 BookRun 控制台描述为主产品入口。
 
 ## 证据源
 

@@ -2,7 +2,7 @@
 
 ## Project
 
-StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. The product direction is "Cursor for Fiction": authors open a local novel project, ask an Agent to review or revise files, inspect a diff, confirm the write-back, and keep version history.
+StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. The product direction is an author-facing writing IDE: authors open a local novel project, ask an Agent to review or revise files, inspect a diff, confirm the write-back, and keep version history.
 
 The project keeps a verifiable long-form generation pipeline, but that pipeline is a backend tool and heavy engine, not the primary product surface.
 

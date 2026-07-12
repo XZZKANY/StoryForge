@@ -4,7 +4,7 @@
 
 ## 决策
 
-StoryForge 的主产品语义统一为 Cursor for Fiction 的 `Writing Run / 写作任务`。
+StoryForge 的主产品语义统一为作者辅助 IDE 的 `Writing Run / 写作任务`。
 
 `Writing Run` 是作者发起写作工作的统一 run 概念：短篇、长篇、章节、场景、段落和修订都应该进入同一套语义。不同规模的任务由 `scope` 和 `mode` 区分：
 
@@ -22,7 +22,7 @@ StoryForge 的主产品语义统一为 Cursor for Fiction 的 `Writing Run / 写
 - 长程后台生成能力。
 - 用户心智里的独立产品入口。
 
-这会和 Cursor for Fiction 的 IDE 心智冲突。IDE 本来就应该能输出短篇、长篇、章节和修订，不应该因为“长篇”额外暴露一个和 Agent/IDE 并列的后台产品。更接近 Claude Code、Codex、OpenCode 的形态是：用户面对统一的 Agent / Run 控制面，具体长短任务只是不同 scope 和 mode。
+这会和作者辅助 IDE 的心智冲突。IDE 本来就应该能输出短篇、长篇、章节和修订，不应该因为“长篇”额外暴露一个和 Agent/IDE 并列的后台产品。更接近统一 Agent / Run 控制面的形态是：用户面对统一的 Agent / Run 控制面，具体长短任务只是不同 scope 和 mode。
 
 因此当前重构不继续按 `BookRun` 自身拆 lifecycle/progress/dispatch，而是先建立统一 `Writing Run` seam，让外部控制面逐步只认识 `Writing Run`。
 
@@ -79,7 +79,7 @@ apps/api/app/domains/writing_runs/
 
 好处：
 
-- 产品语言回到 Cursor for Fiction：作者看到的是统一写作任务，而不是另一个后台系统。
+- 产品语言回到作者辅助 IDE：作者看到的是统一写作任务，而不是另一个后台系统。
 - 代码调用面更窄：Agent / IDE 可以只依赖 `Writing Run` seam。
 - 兼容成本低：现有 BookRun 数据、路由、测试和导出链路不需要迁移。
 

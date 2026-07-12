@@ -1,6 +1,6 @@
 # CLAUDE.md — StoryForge 项目上下文
 
-> 本文件帮助新一轮 Claude Code 会话快速理解 StoryForge 仓库。
+> 本文件帮助新一轮 AI 会话快速理解 StoryForge 仓库。
 > 上位规范见 `docs/internal/AGENTS.md`、日常执行版见 `docs/internal/AI_ITERATION_GUIDE.md`。
 > 当前阶段事实以 `docs/internal/current-phase.md` 为准；下一步入口见 `docs/internal/TODO.md`。
 
@@ -14,8 +14,8 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 ## 1.1 当前项目真相（2026-07-11）
 
 - StoryForge 当前处于**Desktop 对话式 Agent 与私测 Alpha 收口阶段**。
-- 产品定位（2026-06-24 拍板）：**Cursor for Fiction 作者辅助 IDE**，不是自动长篇生产器；`apps/desktop` 是唯一主产品体验；`apps/web` 已退场（2026-06-21 完成收口），不再作为维护、调试、兼容或契约验证入口。
-- 交互中枢（2026-06-30 拍板）：Claude Code/Codex 式**对话式 agent**；批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
+- 产品定位（2026-06-24 拍板）：**作者辅助 IDE**，不是自动长篇生产器；`apps/desktop` 是唯一主产品体验；`apps/web` 已退场（2026-06-21 完成收口），不再作为维护、调试、兼容或契约验证入口。
+- 交互中枢（2026-06-30 拍板）：**对话式 agent**；批量自动整书不再是主线，BookRun 降级为 managed Writing Run 的内部兼容实现与后台工具。
 - 2026-07-01 已合并：单色调明暗双主题 UI 改版（PR #42）；私测 Alpha 单机后端——PyInstaller sidecar exe 独立起服、BYO-key、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar（PR #43/#44）；中间交互区收口为对话式 Agent，`chat.explain` 接真·LLM，对话从文件级解绑为项目级（PR #46）。
 - 2026-07-02 已合并：左栏会话历史列表接真后端 + 欢迎页输入框接真发送（PR #48）；Agent loop 三步落地——path-scoped 只读 `fs.list` / `fs.read` / `fs.search`（PR #49）、chat 自由文本走 LLM 工具循环（最多 8 轮、失败回落单轮，PR #50）、前端流程树全事件驱动删预制骨架步骤（PR #51）。
 - Agent loop 边界：工具循环入口是 chat 自由文本；审稿 / 修订 / 新文件起草 / 一致性观察 / 深度一致性已作为循环内工具并入（`file.review` / `file.revise` / `file.create` / `project.consistency` / `project.deep_consistency`，一次对话最多一个待确认补丁，机械观察工具不下结论、语义评审工具只出 advisory 信号），显式按钮路径仍走固定管线；chapter.review / bookrun.* 绑定 DB 实体、BookRun 定位后台工具，不并入循环（已记为决定）；语义 judge 已从 `os.getenv` 迁 `resolved_llm_env`（下沉 `app/common/llm_env.py`，吃 `llm-provider.json` 覆盖链）；真·LLM tool-calling headless 实跑已通过（2026-07-02，deepseek-v4-flash，证据 `.codex/real-llm-agent-loop-*` 五个目录，深度一致性 6 处埋雷全中），真机 GUI 渲染观感未验；写回红线不变，后端不写项目文件，修订 / 起草走 proposed patch 前端确认。

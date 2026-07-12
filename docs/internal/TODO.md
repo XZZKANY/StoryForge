@@ -4,7 +4,7 @@
 
 ## 当前执行入口
 
-StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段。产品契约为：StoryForge = Cursor for Fiction（作者辅助 IDE），`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场（2026-06-21 已完成 `apps/web` 退场收口）。2026-06-30 拍板：交互中枢为 Claude Code/Codex 式对话 agent，批量自动整书不再是主线；长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 是 managed full-book run 的内部兼容实现与后台工具，不是主产品控制台。
+StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段。产品契约为：StoryForge = 作者辅助写作 IDE，`apps/desktop` 是唯一主体验；默认开发入口为 `pnpm dev` / `pnpm desktop:dev`；`apps/web` 已退场（2026-06-21 已完成 `apps/web` 退场收口）。2026-06-30 拍板：交互中枢为对话 agent，批量自动整书不再是主线；长篇、短篇、章节和修订输出统一表达为 Writing Run / 写作任务；BookRun 是 managed full-book run 的内部兼容实现与后台工具，不是主产品控制台。
 
 真实 LLM 1/3/10 章 smoke 已通过记录，其中 10 章 smoke 已完成人工通读；一次 30 章真实长程已跑完并导出制品，但人工通读结论为“退回重跑”；2026-06-30 Q9 16 章真实跑修复门禁丢章四根因并抢救为完整 16 章、人工通读通过。2026-07-01 已合并：UI 单色改版（PR #42）、私测 Alpha 单机 sidecar + BYO-key + NSIS（PR #43/#44）、对话式 Agent + `chat.explain` 接真·LLM（PR #46）。2026-07-02 已合并：事实源刷新（PR #47）；左栏会话历史列表接真后端 + 欢迎页输入框接真发送（PR #48）；Agent loop 三步落地——path-scoped 只读 fs 工具、chat 自由文本 LLM 工具循环、前端流程树全事件驱动（PR #49/#50/#51）。
 

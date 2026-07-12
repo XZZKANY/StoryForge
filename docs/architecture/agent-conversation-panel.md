@@ -1,4 +1,4 @@
-# Claude-like Agent Conversation Panel
+# Agent 对话面板
 
 生成时间：2026-06-18 +08:00
 
@@ -12,7 +12,7 @@ StoryForge 桌面端采用项目式 IDE 布局：
 右侧：项目文件树 + 文件查看/编辑
 ```
 
-本文定义中间 Agent 对话区的产品形态。目标不是做一个按钮驱动的任务面板，而是做一个类似 Claude 的创作会话：用户通过自然语言与 StoryForge 讨论、审稿、构思、确认方向；只有涉及写入文件、生成 diff、导出等动作时，才需要显式确认。
+本文定义中间 Agent 对话区的产品形态。目标不是做一个按钮驱动的任务面板，而是做一个自然语言创作会话：用户通过自然语言与 StoryForge 讨论、审稿、构思、确认方向；只有涉及写入文件、生成 diff、导出等动作时，才需要显式确认。
 
 ## 目标
 
@@ -100,7 +100,7 @@ ConversationPanel
 
 ## MessageList
 
-消息区采用 Claude 式阅读体验，而不是即时通信式密集气泡。
+消息区采用长文阅读体验，而不是即时通信式密集气泡。
 
 ### Agent 消息
 
@@ -404,7 +404,7 @@ MVP 应包含：
 
 - `ConversationHeader`：显示自动生成或默认会话标题。
 - `MessageList`：Agent 左侧正文块，用户右侧小气泡。
-- `ComposerBox`：Claude 式底部输入栏。
+- `ComposerBox`：对话式底部输入栏。
 - 轻状态行：读取上下文、沿用偏好等。
 - 发送按钮文案从 `Agent 执行` 降级为图标发送。
 - 原有后端能力可以保留，但 UI 上不再把步骤面板作为主视觉。
@@ -430,7 +430,7 @@ MVP 可暂缓：
 
 ```text
 Header: 对话标题
-Messages: Claude 式消息流
+Messages: 对话式消息流
 Composer: 底部输入框
 ```
 
@@ -463,7 +463,7 @@ StoryForge 桌面端中间 Agent 对话区的产品方向是：
 
 ```text
 顶部：会话标题
-中间：Claude 式自然对话
+中间：自然对话
 底部：输入框 + 上下文 + 模型/模式 + 发送
 ```
 

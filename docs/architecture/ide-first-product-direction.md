@@ -4,9 +4,9 @@
 
 ## 决策
 
-StoryForge = Cursor for Fiction。主产品体验转为以 `apps/desktop` 为唯一入口的 Desktop IDE：本地小说项目、文件树、Monaco Editor、Agent 对话、审稿、修订、diff 确认、真实写回和版本记录都优先在桌面端完成。
+StoryForge = 作者辅助写作 IDE。主产品体验转为以 `apps/desktop` 为唯一入口的 Desktop IDE：本地小说项目、文件树、Monaco Editor、Agent 对话、审稿、修订、diff 确认、真实写回和版本记录都优先在桌面端完成。
 
-`apps/web` 已完成退场，不再承担主体验、维护入口、调试入口、兼容入口或契约验证职责。写作、审稿、修订、长篇和短篇输出统一通过 Cursor for Fiction 的 Writing Run 体验呈现；BookRun 只作为 managed full-book run 的内部兼容实现，不作为第一阶段主产品控制台。
+`apps/web` 已完成退场，不再承担主体验、维护入口、调试入口、兼容入口或契约验证职责。写作、审稿、修订、长篇和短篇输出统一通过作者辅助 IDE 的 Writing Run 体验呈现；BookRun 只作为 managed full-book run 的内部兼容实现，不作为第一阶段主产品控制台。
 
 ## 背景
 
@@ -71,7 +71,7 @@ API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
 ## 短期收口任务
 
 - 持续保持 Desktop 文档统一为 Vite frontend `http://localhost:3007`，不再描述为加载 Web `/ide`。
-- 持续保持 README 标注 StoryForge = Cursor for Fiction，`apps/desktop` 是唯一主体验，Web 已退场。
+- 持续保持 README 标注 StoryForge = 作者辅助写作 IDE，`apps/desktop` 是唯一主体验，Web 已退场。
 - 持续守住第一阶段验收链路：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录；该最小闭环已通过本地验证，后续增强不得绕过 proposed patch 和用户确认。
 - 修复当前 Desktop、API、Workflow 红灯门禁，避免架构转向时带着红灯继续堆功能。
 - 为 Desktop IDE 增加最小冒烟验证：页面非空、Tauri 命令可用、打开目录、读取文件、保存文件。

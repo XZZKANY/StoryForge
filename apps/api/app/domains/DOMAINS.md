@@ -1,6 +1,6 @@
 # StoryForge 域清单（live / backing / frozen）
 
-> 新会话第一入口：判断某个域是否值得读。StoryForge = Cursor for Fiction 单机桌面 IDE，
+> 新会话第一入口：判断某个域是否值得读。StoryForge = 单机桌面作者辅助写作 IDE，
 > live 产品面很小；大量域是 web / 多租户 / 自动整书时代的遗产，已冻结。
 > 依据：2026-07-04 W4 死域冻结隔离（蓝图 §7）+ 逐域调用面实证。
 

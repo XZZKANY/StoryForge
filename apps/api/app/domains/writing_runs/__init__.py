@@ -1,1 +1,1 @@
-"""Unified Writing Run seam for Cursor for Fiction tasks."""
+"""Unified Writing Run seam for author-facing writing IDE tasks."""
