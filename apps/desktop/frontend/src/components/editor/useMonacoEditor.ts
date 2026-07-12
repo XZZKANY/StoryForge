@@ -4,7 +4,7 @@ import * as monaco from 'monaco-editor';
 
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme } from '../../lib/theme';
-import { STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './options';
+import { STORYFORGE_EDITOR_FONT_GRID, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './options';
 
 export type EditorModelState = {
   model: monaco.editor.ITextModel;
@@ -83,12 +83,16 @@ export function useMonacoEditor({
           model: null,
           theme: currentMonacoTheme(),
           fontSize: editorFontSize,
+          fontFamily: STORYFORGE_EDITOR_FONT_GRID,
           lineNumbers: 'on',
           glyphMargin: true,
-          minimap: { enabled: true },
+          // Q9 七轮反馈：小说正文没有代码缩略图需求，minimap 删。
+          minimap: { enabled: false },
           wordWrap: 'on',
           automaticLayout: true,
           scrollBeyondLastLine: false,
+          // Q2：滚动条按需出现、去掉投影阴影，和 DOM 侧的 hover-only 细滚条观感一致。
+          scrollbar: { vertical: 'auto', horizontal: 'auto', useShadows: false },
           unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
           readOnly: readOnly || loadPending,
         });

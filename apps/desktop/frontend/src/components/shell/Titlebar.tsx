@@ -1,6 +1,7 @@
 /**
- * 顶栏：一条杠（brand-logo + 项目名 + 命令面板触发居中 + 窗控），干掉旧的假菜单栏。
- * 窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽窗口。
+ * 顶栏：一条杠（brand-logo + StoryForge + 命令面板触发居中 + 窗控），干掉旧的假菜单栏。
+ * Q7：标题栏不显示项目名/路径——项目名唯一入口是左栏项目切换器（带全路径 tooltip），
+ * 避免顶栏出现 `D:\test` 这类裸路径。窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽。
  */
 import { isTauriRuntime } from '../../lib/tauri-env';
 import { Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
@@ -20,13 +21,11 @@ async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close
 }
 
 export function Titlebar({
-  projectName,
   onOpenPalette,
   projectOpen,
   rightCollapsed,
   onToggleRight,
 }: {
-  projectName: string | null;
   onOpenPalette: () => void;
   projectOpen: boolean;
   rightCollapsed: boolean;
@@ -52,9 +51,6 @@ export function Titlebar({
             draggable={false}
           />
         </span>
-        {projectName && (
-          <span className="text-[12.5px] font-semibold text-foreground">{projectName}</span>
-        )}
         <span className="text-[11px] text-subtle">StoryForge</span>
       </div>
 
