@@ -11,6 +11,7 @@ import { Editor } from './components/Editor';
 import { ChatWindow } from './components/ChatWindow';
 import { TauriFileSystem, FS_MUTATION_EVENT, invalidateFileSystemCache } from './lib/tauri-fs';
 import {
+  createNewBookProject,
   createSampleStoryProject,
   initializeStoryProject,
   relativePathInsideProject,
@@ -236,13 +237,30 @@ export function App() {
     }
   }, [selectProjectSafely]);
 
-  // 欢迎页首条输入：先记住 prompt，打开项目后由 ChatWindow 自动发出。
+  // Q1 发送即开书：默认书库目录 <文档>/StoryForge/ 自动建项目骨架 + 灵感.md，原地打开，
+  // 由 ChatWindow 自动发出首句。建骨架失败（非 Tauri / 权限 / 路径）时优雅回落到手选目录老路径，
+  // 不做无声吞错。写回红线不破：建骨架是显式开书动作产物，正文写回仍走 proposed patch。
   const handleWelcomeSend = useCallback(() => {
     const prompt = welcomeDraft.trim();
     if (!prompt) return;
-    setPendingWelcomePrompt(prompt);
-    void handleOpenProject();
-  }, [welcomeDraft, handleOpenProject]);
+    void (async () => {
+      if (!(await confirmDiscardFiles(openFiles, '开新书'))) return;
+      setPendingWelcomePrompt(prompt);
+      try {
+        const { projectPath, seedFilePath } = await createNewBookProject(prompt);
+        setOpenFiles([]);
+        setDirtyFiles(new Set());
+        setPreviewFile(null);
+        setSettingsVisible(false);
+        selectProject(projectPath);
+        setProjectRefreshVersion((version) => version + 1);
+        await openFile(seedFilePath);
+      } catch (error) {
+        console.error('发送即开书失败，回落到打开项目目录', error);
+        await handleOpenProject();
+      }
+    })();
+  }, [welcomeDraft, confirmDiscardFiles, openFiles, selectProject, openFile, handleOpenProject]);
 
   const handlePendingWelcomePromptConsumed = useCallback(() => {
     setPendingWelcomePrompt(null);
