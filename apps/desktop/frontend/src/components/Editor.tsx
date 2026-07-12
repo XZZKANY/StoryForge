@@ -527,16 +527,7 @@ export function Editor({
               </>
             )}
           </div>
-          {rightView === 'files' && (
-            <span className="sf-topbar-title" title={filePath ?? undefined}>
-              {filePath ? filePath.split(/[/\\]/).pop() : '未打开文件'}
-            </span>
-          )}
-          {rightView === 'files' && isDirty && (
-            <span className="text-warning text-lg leading-none" title="未保存的修改">
-              ●
-            </span>
-          )}
+          {/* Q3a：文件名与未保存点已由上方页签行展示，工具行不再重复（删「文件名出现两次」）。 */}
           {rightView === 'files' && readOnly && (
             <span className="text-[11px] text-subtle" title="派生缓存由 StoryForge 重建">
               只读派生文件
