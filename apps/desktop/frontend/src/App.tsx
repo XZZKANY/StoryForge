@@ -182,6 +182,25 @@ export function App() {
     applyTheme(settings.theme);
   }, [settings.theme]);
 
+  // Q2 滚动条：CSS 让 thumb 平时收起、hover 才现；这里补第二个揭示时机——正在滚动的容器
+  // 短暂挂 `.scrolling`（700ms 衰减），用滚轮滚动而指针不在滚动条边缘时也能看到位置。
+  useEffect(() => {
+    const timers = new WeakMap<Element, number>();
+    const onScroll = (event: Event) => {
+      const el = event.target;
+      if (!(el instanceof HTMLElement)) return;
+      el.classList.add('scrolling');
+      const previous = timers.get(el);
+      if (previous) window.clearTimeout(previous);
+      timers.set(
+        el,
+        window.setTimeout(() => el.classList.remove('scrolling'), 700),
+      );
+    };
+    document.addEventListener('scroll', onScroll, true);
+    return () => document.removeEventListener('scroll', onScroll, true);
+  }, []);
+
   const selectProjectSafely = useCallback(
     async (path: string) => {
       if (!(await confirmDiscardFiles(openFiles, '切换项目'))) return false;
@@ -581,7 +600,6 @@ export function App() {
       data-tauri-menu-error={tauriMenuError}
     >
       <Titlebar
-        projectName={activeProject}
         onOpenPalette={() => setPalette('files')}
         projectOpen={projectOpen}
         rightCollapsed={shell.rightCollapsed}
