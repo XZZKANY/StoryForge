@@ -1,8 +1,8 @@
 # StoryForge
 
-StoryForge = Cursor for Fiction：一个面向长篇小说创作的 Desktop IDE-first AI 写作工作台。它不是 Web 控制台，也不是“一键出书”的自动生成器，而是让作者在本地小说项目里像用 Cursor 写代码一样写小说——打开文件、与对话式 Agent 讨论、多视角审稿、定向修订、diff 确认、作者确认写回和版本记录。
+StoryForge 是一个面向长篇小说创作的 Desktop IDE-first AI 写作工作台。它不是 Web 控制台，也不是“一键出书”的自动生成器，而是把可验证、可追溯的工程化工作流带进小说创作——打开文件、与对话式 Agent 讨论、多视角审稿、定向修订、diff 确认、作者确认写回和版本记录。
 
-交互中枢是 Claude Code / Codex 式的**对话式 Agent**：作者用自然语言提要求，Agent 自主调用只读工具（列目录 / 读文件 / 跨文件检索）、一致性与 canon 防漂移观察、文笔静态检查等，读到证据后再作答或生成补丁。写回红线不变——后端绝不直接写盘，所有修订都是作者在界面确认才落盘的 proposed patch。作者还可以在 `.storyforge/agent-instructions.md` 写自定义偏好（语气 / 审稿口径 / 风格禁忌），写盘即生效、不改代码就能调教 Agent。
+交互中枢是一个**对话式 Agent**：作者用自然语言提要求，Agent 自主调用只读工具（列目录 / 读文件 / 跨文件检索）、一致性与 canon 防漂移观察、文笔静态检查等，读到证据后再作答或生成补丁。写回红线不变——后端绝不直接写盘，所有修订都是作者在界面确认才落盘的 proposed patch。作者还可以在 `.storyforge/agent-instructions.md` 写自定义偏好（语气 / 审稿口径 / 风格禁忌），写盘即生效、不改代码就能调教 Agent。
 
 StoryForge 仍保留可审计的长篇生成流水线（设定、章节目标、检索证据、生成、审稿、修复、记忆回写、制品导出），但它已降级为 Agent 可调用的 tool / 后台重型引擎，不是主产品入口；批量自动整书不再是主线。
 
@@ -121,7 +121,7 @@ pnpm dev
 - API：http://localhost:8000
 - MinIO Console：http://localhost:9001
 
-StoryForge 当前采用 Cursor for Fiction / IDE-first 产品方向：`apps/desktop` 是唯一主体验，旧 Web 入口已经退场，BookRun 作为 Agent tool / 后台重型引擎保留。产品方向见 [`docs/architecture/ide-first-product-direction.md`](docs/architecture/ide-first-product-direction.md)。
+StoryForge 当前采用 IDE-first 产品方向：`apps/desktop` 是唯一主体验，旧 Web 入口已经退场，BookRun 作为 Agent tool / 后台重型引擎保留。产品方向见 [`docs/architecture/ide-first-product-direction.md`](docs/architecture/ide-first-product-direction.md)。
 
 本地默认使用 deterministic/mock provider，不需要真实 LLM 密钥即可启动和跑基础验证。
 
