@@ -237,6 +237,15 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "issue_count": len(report.get("issues") or []),
             "mode": report.get("mode"),
         }
+    if registry_name == "project.trim_prose":
+        return {
+            "file_path": output.get("file_path"),
+            "original_chars": output.get("trim_audit", {}).get("original_chars"),
+            "compressed_chars": output.get("trim_audit", {}).get("compressed_chars"),
+            "compression_percent": output.get("trim_audit", {}).get("actual_percent"),
+            "target_percent": output.get("trim_audit", {}).get("target_percent"),
+            "model": output.get("model"),
+        }
     if registry_name in _PATCH_TOOLS:
         patch = output.get("proposed_patch") if isinstance(output.get("proposed_patch"), dict) else {}
         return {

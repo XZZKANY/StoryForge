@@ -803,7 +803,7 @@ def test_stale_hook_flagged_in_constraint_block(project: Path) -> None:
     assert block is not None
     assert "⚠" in block
     assert "埋在第 1 章的老钩子" in block
-    assert "⚠ 1 条伏笔超过 10 章未推进" in block
+    assert "已沉睡 12 章" in block
     assert "新埋的钩子" in block  # 新鲜钩子正常展示
 
 
@@ -827,3 +827,230 @@ def test_stale_hook_not_flagged_when_recent(project: Path) -> None:
     assert block is not None
     assert "⚠" not in block
     assert "近期钩子" in block
+
+
+# --- 15. 伏笔 agenda 编排（确定性，无 LLM） ---
+
+
+def test_hook_agenda_advance_appears_in_constraint_block(project: Path) -> None:
+    """当前章有 agenda.advance → 出现「本章伏笔计划 · 应推进」块。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [
+            {"id": "h_sword", "description": "青岩欠陆沉一把刀的情", "status": "active",
+             "planted_at": {"chapter": 1}, "category": "character_debt"},
+        ],
+    )
+    # 手写 agenda 到 hooks.json（用写 API 避开 schema 检查）
+    hooks_data = canon_store.read_hooks(str(project))
+    hooks_data["agenda"] = {"3": {"advance": ["h_sword"], "resolve": []}}
+    canon_store.write_hooks(str(project), hooks_data)
+
+    body = project / "正文"
+    current_file = str(body / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    # 第 2 章没有 agenda → 不应出现计划块
+    assert block is not None and "伏笔计划" not in block
+
+    current_file_3 = str(body / "第01章.md")  # 第 1 章非 agenda 目标章
+    block_1 = canon_context.build_scene_constraint_block(str(project), current_file_3)
+    assert block_1 is None or "伏笔计划" not in block_1
+
+    # 把 current_file 改到第 3 章（构造假档即可，agenda 读 chapter 数值不依赖文件存在）
+    # 我们需要第 03 章文件存在才能获取阅读序
+    (body / "第03章.md").write_text("第3章内容\n", encoding="utf-8")
+    current_file_3 = str(body / "第03章.md")
+    block_3 = canon_context.build_scene_constraint_block(str(project), current_file_3)
+    assert block_3 is not None
+    assert "本章伏笔计划" in block_3
+    assert "应推进" in block_3
+    assert "青岩欠陆沉" in block_3
+
+
+def test_hook_agenda_resolve_appears_in_constraint_block(project: Path) -> None:
+    """当前章有 agenda.resolve → 出现「应回收」。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [
+            {"id": "h_coin", "description": "积分达 10 万触发不可逆事件", "status": "active",
+             "planted_at": {"chapter": 2}, "category": "threshold"},
+        ],
+    )
+    hooks_data = canon_store.read_hooks(str(project))
+    hooks_data["agenda"] = {"5": {"advance": [], "resolve": ["h_coin"]}}
+    canon_store.write_hooks(str(project), hooks_data)
+
+    body = project / "正文"
+    for i in range(1, 7):
+        (body / f"第{i:02d}章.md").write_text(f"第{i}章\n", encoding="utf-8")
+
+    current_file = str(body / "第05章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "本章伏笔计划" in block
+    assert "应回收" in block
+    assert "积分达 10 万" in block
+
+
+def test_hook_agenda_empty_resolve_only_without_advance(project: Path) -> None:
+    """advance 空、resolve 有值 → 只推回收不推进。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [{"id": "h1", "description": "暗影组织首领身份", "status": "active",
+          "planted_at": {"chapter": 1}, "category": "mystery"}],
+    )
+    hooks_data = canon_store.read_hooks(str(project))
+    hooks_data["agenda"] = {"2": {"advance": [], "resolve": ["h1"]}}
+    canon_store.write_hooks(str(project), hooks_data)
+
+    body = project / "正文"
+    for i in range(1, 4):
+        (body / f"第{i:02d}章.md").write_text(f"第{i}章\n", encoding="utf-8")
+
+    current_file = str(body / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "应推进" not in (block or "")
+    assert "应回收" in (block or "")
+
+
+def test_hook_agenda_missing_hooks_json_returns_clean(project: Path) -> None:
+    """无 hooks.json → agenda 块不出现。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    # 不写 hooks.json
+    current_file = str(project / "正文" / "第01章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is None or "本章伏笔计划" not in block
+
+
+# --- 16. 增强陈旧检测：last_advanced_at ---
+
+
+def test_stale_hook_uses_last_advanced_at(project: Path) -> None:
+    """有 last_advanced_at 时用其计算沉睡章数，而非 planted_at。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    body = project / "正文"
+    for i in range(1, 16):
+        (body / f"第{i:02d}章.md").write_text(f"第{i}章\n", encoding="utf-8")
+
+    # 第 1 章埋入，但第 10 章推进过一次 → 当前第 15 章时只沉睡了 5 章（≤10）
+    _write_hooks(
+        project,
+        [
+            {"id": "h_adv", "description": "有推进的钩子", "status": "active",
+             "planted_at": {"chapter": 1, "path": "正文/第01章.md"},
+             "last_advanced_at": {"chapter": 10, "path": "正文/第10章.md"},
+             "category": "mystery"},
+        ],
+    )
+
+    current_file = str(body / "第15章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    # 自第 10 章推进后仅 5 章 → 不应标记陈旧
+    assert block is not None
+    assert "⚠" not in (block or "")
+    assert "有推进的钩子" in block
+
+
+def test_stale_hook_last_advanced_at_exceeds_threshold(project: Path) -> None:
+    """有 last_advanced_at 且与当前差 >10 → 标记陈旧，显示「自第 N 章推进后沉睡」。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    body = project / "正文"
+    for i in range(1, 15):
+        (body / f"第{i:02d}章.md").write_text(f"第{i}章\n", encoding="utf-8")
+
+    _write_hooks(
+        project,
+        [
+            {"id": "h_old", "description": "沉睡的钩子", "status": "active",
+             "planted_at": {"chapter": 1, "path": "正文/第01章.md"},
+             "last_advanced_at": {"chapter": 3, "path": "正文/第03章.md"},
+             "category": "countdown"},
+        ],
+    )
+
+    current_file = str(body / "第14章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    assert "⚠" in block
+    assert "自第 3 章推进后已沉睡 11 章" in block
+
+
+# --- 17. evaluate_hook_admission ---
+
+
+def test_evaluate_hook_admission_rejects_duplicate_substring(project: Path) -> None:
+    """description 与既有钩子子串重叠 → 不通过。"""
+    existing = {"hooks": [{"description": "青岩欠陆沉一把刀的情", "status": "active"}]}
+    result = canon_hooks_delta.evaluate_hook_admission(
+        existing,
+        {"description": "青岩欠陆沉一把刀的情"},
+    )
+    assert result["admitted"] is False
+    assert "重叠" in (result["reason"] or "")
+
+
+def test_evaluate_hook_admission_accepts_fresh_hook(project: Path) -> None:
+    """全新的钩子 → 通过。"""
+    existing = {"hooks": [{"description": "已有钩子", "status": "active"}]}
+    result = canon_hooks_delta.evaluate_hook_admission(
+        existing,
+        {"description": "全新的叙事承诺"},
+    )
+    assert result["admitted"] is True
+
+
+def test_evaluate_hook_admission_rejects_empty_description(project: Path) -> None:
+    """空 description → 不通过。"""
+    result = canon_hooks_delta.evaluate_hook_admission(
+        {"hooks": []},
+        {"description": ""},
+    )
+    assert result["admitted"] is False
+
+
+def test_evaluate_hook_admission_rejects_resolved_hook_duplicate(project: Path) -> None:
+    """已回收钩子的描述与新钩子重叠 → 不重投（不回植已回收承诺）。"""
+    existing = {"hooks": [{"description": "伏笔已经回收了", "status": "resolved"}]}
+    result = canon_hooks_delta.evaluate_hook_admission(
+        existing,
+        {"description": "伏笔已经回收了"},
+    )
+    assert result["admitted"] is False
+    assert "重叠" in (result["reason"] or "")
+
+
+# --- 18. trim_prose 工具注册与 schema ---
+
+
+def test_trim_prose_visible_in_loop_schemas() -> None:
+    """project.trim_prose 出现在 LLM 工具循环 schema 中。"""
+    schemas = build_loop_tool_schemas()
+    names = {schema["function"]["name"] for schema in schemas}
+    assert llm_tool_name("project.trim_prose") in names
+
+    name_map = build_loop_tool_name_map()
+    assert name_map[llm_tool_name("project.trim_prose")] == "project.trim_prose"
+    assert name_map[llm_tool_name("project.trim_prose")] == "project.trim_prose"
+
+
+def test_trim_prose_is_patch_tool() -> None:
+    """project.trim_prose 是 write_pending 工具，占用补丁名额。"""
+    patch_names = {spec.name for spec in loop_patch_tool_specs()}
+    assert "project.trim_prose" in patch_names
+
+
+def test_trim_prose_instruction_contains_target() -> None:
+    """指令模板包含目标压缩百分比。"""
+    from app.domains.agent_runs.runtime import _trim_prose_instruction
+
+    for pct in (10, 15, 20, 30):
+        instr = _trim_prose_instruction(pct)
+        assert str(pct) in instr
+        assert "保留所有剧情信息" in instr
+        assert "砍掉冗余的副词" in instr
+        assert "字数审计报告" in instr
+

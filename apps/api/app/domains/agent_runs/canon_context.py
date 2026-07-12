@@ -105,6 +105,7 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
             )
 
     hooks_block = _build_active_hooks_block(project_root, cur)
+    agenda_block = _build_hook_agenda_block(project_root, cur)
 
     if not lines and hooks_block is None:
         return None
@@ -115,6 +116,8 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
         parts.append("[canon 硬约束 · 确定性 · 勿违背]" + anchor + "\n" + "\n".join(lines))
     if hooks_block is not None:
         parts.append(hooks_block)
+    if agenda_block is not None:
+        parts.append(agenda_block)
 
     return "\n\n".join(parts)
 
@@ -122,12 +125,42 @@ _ACTIVE_STATUSES = frozenset({"active", "planted"})
 _STALE_HOOK_THRESHOLD = 10  # 钩子超过 N 章未推进视为「陈旧」
 
 
+def _resolve_last_ordinal(
+    hook: dict[str, Any],
+    ordinals: dict[str, int],
+    cur: int,
+) -> tuple[int | None, str | None]:
+    """解析伏笔的最后推进章序 & 说明标签。
+
+    优先用 last_advanced_at.path 测「自上次推进以来的沉睡章数」；
+    无 last_advanced_at 时回退 planted_at.path 测「自埋入以来的总章数」。
+    返回 (ordinal, label)，label 为 "埋" 或 "推进"。
+    """
+    last_adv = hook.get("last_advanced_at")
+    if isinstance(last_adv, dict):
+        adv_path = last_adv.get("path")
+        if isinstance(adv_path, str) and adv_path.strip():
+            adv_ordinal = ordinals.get(adv_path.strip())
+            if isinstance(adv_ordinal, int) and adv_ordinal > 0:
+                return adv_ordinal, "推进"
+
+    planted = hook.get("planted_at")
+    if isinstance(planted, dict):
+        planted_path = planted.get("path")
+        if isinstance(planted_path, str) and planted_path.strip():
+            planted_ordinal = ordinals.get(planted_path.strip())
+            if isinstance(planted_ordinal, int) and planted_ordinal > 0:
+                return planted_ordinal, "埋"
+    return None, None
+
+
 def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
     """拼接「活跃伏笔 · 待回收」块，只读 hooks.json；读失败 / 无活跃钩子 → None。
 
-    陈旧检测：钩子的 planted_at.path（若有）映射到文件序，与当前章序 cur 比较。
-    planted_at.chapter 仅用于展示（如「第 3 章埋」），不参与陈旧计算——因为章号与序偶有错位。
-    路径不存在或未提供时不计入陈旧统计（不伪报）。
+    陈旧检测：优先用 last_advanced_at.path（若存在），否则用 planted_at.path
+    映射到文件序，与当前章序 cur 比较。
+    均不存在或未提供时不计入陈旧统计（不伪报）。
+    展示章号仅用 planted_at.chapter 字段（不做陈旧计算）。
     """
     try:
         hooks_data = read_hooks(project_root)
@@ -148,6 +181,7 @@ def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
         ordinals = {}
 
     stale_hooks: list[dict[str, Any]] = []
+    stale_detail: list[str] = []  # 用于汇总行——新增强化：每行显示沉睡章数
     lines: list[str] = []
     for h in active:
         desc = h.get("description", "")
@@ -157,20 +191,18 @@ def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
         display_ch = planted.get("chapter") if isinstance(planted, dict) else None
         ch_hint = f"（第 {display_ch} 章埋）" if isinstance(display_ch, int) else ""
 
-        # 陈旧检测：用 planted_at.path 在文件序中查埋入时的序，与当前章序 cur 比较
+        # 增强的陈旧检测：用 last_advanced_at（优先）或 planted_at 测沉睡章数
         is_stale = False
-        if cur is not None and isinstance(planted, dict):
-            planted_path = planted.get("path")
-            if isinstance(planted_path, str) and planted_path.strip():
-                planted_ordinal = ordinals.get(planted_path.strip())
-                if (
-                    isinstance(planted_ordinal, int)
-                    and planted_ordinal > 0
-                    and cur > planted_ordinal
-                    and (cur - planted_ordinal) > _STALE_HOOK_THRESHOLD
-                ):
+        if cur is not None:
+            ref_ordinal, ref_label = _resolve_last_ordinal(h, ordinals, cur)
+            if ref_ordinal is not None and cur > ref_ordinal:
+                diff = cur - ref_ordinal
+                if diff > _STALE_HOOK_THRESHOLD:
                     is_stale = True
                     stale_hooks.append(h)
+                    stale_detail.append(
+                        f"「{desc[:40]}」自第 {ref_ordinal} 章{ref_label}后已沉睡 {diff} 章"
+                    )
 
         cat = h.get("category", "")
         cat_hint = f"[{cat}]" if isinstance(cat, str) and cat.strip() else ""
@@ -184,6 +216,66 @@ def _build_active_hooks_block(project_root: str, cur: int | None) -> str | None:
         return None
 
     block = "[活跃伏笔 · 待回收]\n" + "\n".join(lines)
-    if stale_hooks:
+    if stale_detail:
+        block += "\n⚠ 伏笔健康：" + "；".join(stale_detail) + "。请评估是回收还是延长排期。"
+    elif stale_hooks:
         block += f"\n⚠ {len(stale_hooks)} 条伏笔超过 {_STALE_HOOK_THRESHOLD} 章未推进，请注意回收。"
     return block
+
+
+def _build_hook_agenda_block(project_root: str, cur: int | None) -> str | None:
+    """从 hooks.json 读取当前章的 agenda 编排（advance / resolve），
+    输出「本章伏笔计划」方向性指引块。
+
+    hooks.json 顶层可选字段 agenda: {chapter_number: {advance: [hook_ids], resolve: [hook_ids]}}
+
+    无 agenda / 当前章无编排 / 读失败 → None，调用方静默跳过。
+    """
+    if cur is None:
+        return None  # 全书模式下无针对性编排
+
+    try:
+        hooks_data = read_hooks(project_root)
+    except FsToolError:
+        return None
+
+    agenda = hooks_data.get("agenda") or {}
+    chapter_plan = agenda.get(str(cur)) if isinstance(agenda, dict) else None
+    if not isinstance(chapter_plan, dict):
+        return None
+
+    advance_ids = chapter_plan.get("advance") or []
+    resolve_ids = chapter_plan.get("resolve") or []
+    if not advance_ids and not resolve_ids:
+        return None
+
+    # 建立 id → hook 映射供查 desc
+    hooks_map: dict[str, dict[str, Any]] = {}
+    for h in hooks_data.get("hooks") or []:
+        if isinstance(h, dict):
+            hid = h.get("id")
+            if isinstance(hid, str):
+                hooks_map[hid] = h
+
+    lines: list[str] = []
+    if advance_ids:
+        descs: list[str] = []
+        for hid in advance_ids:
+            h = hooks_map.get(hid)
+            desc = (h.get("description") or hid) if h else hid
+            descs.append(f"「{desc[:60]}」")
+        if descs:
+            lines.append("· 应推进：" + "、".join(descs))
+    if resolve_ids:
+        descs = []
+        for hid in resolve_ids:
+            h = hooks_map.get(hid)
+            desc = (h.get("description") or hid) if h else hid
+            descs.append(f"「{desc[:60]}」")
+        if descs:
+            lines.append("· 应回收：" + "、".join(descs))
+
+    if not lines:
+        return None
+
+    return "[本章伏笔计划]\n" + "\n".join(lines)

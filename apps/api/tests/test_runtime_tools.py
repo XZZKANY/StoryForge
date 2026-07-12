@@ -106,7 +106,7 @@ def test_permission_fields_derive_from_risk_and_execution_mode() -> None:
 
     # == runtime.py:_execute_tool 当前手写允许名单（钉死等价关系）。
     assert confirming_tool_names() == frozenset(
-        {"file.revise", "file.create", "judge.repair", "bookrun.start"}
+        {"file.revise", "file.create", "project.trim_prose", "judge.repair", "bookrun.start"}
     )
 
 

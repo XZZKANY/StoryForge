@@ -401,6 +401,29 @@
   {
     "type": "function",
     "function": {
+      "name": "project_trim_prose",
+      "description": "按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对项目根的稿件路径。"
+          },
+          "target_percent": {
+            "type": "integer",
+            "description": "目标压缩百分比，默认 15（即压缩到原字数的 85%）。"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "file_review",
       "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
       "parameters": {

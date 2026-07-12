@@ -555,6 +555,44 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.trim_prose",
+        description=(
+            "压缩修订：按目标压缩率（默认 15%）对单个稿件做结构化压缩，攻击冗余副词、情绪直述、"
+            "解释性旁白等过度表达，返回带字数审计报告的待确认补丁。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=_WRITE_ALLOWED_ROLES,
+        risk_level="write_pending",
+        retry_safe=False,
+        idempotent=False,
+        execution_mode="sync",
+        artifact_kinds=("proposed_patch",),
+        required_capabilities=("llm",),
+        evidence_fields=("proposed_patch", "original_chars", "compressed_chars", "compression_percent"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_trim_prose",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接"
+                "用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、"
+                "冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。"
+                "调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                    "target_percent": {
+                        "type": "integer",
+                        "description": "目标压缩百分比，默认 15（即压缩到原字数的 85%）。",
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="file.review",
         description="执行 chapter_polish 多子代理审稿。",
         domain="review",

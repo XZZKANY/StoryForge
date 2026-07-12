@@ -51,7 +51,10 @@ def _find_pattern_matches(text: str) -> list[dict[str, Any]]:
 
 
 def _is_similar_to_existing(desc: str, existing_hooks: list[dict[str, Any]]) -> bool:
-    """简单的描述去重：检查 desc 是否与某个既有 hook 的描述核心词重叠明显。"""
+    """描述去重：检查 desc 是否与某个既有 hook 的描述核心词重叠明显。
+
+    匹配 active / planted / resolved / abandoned 全部状态——不重投已回收的钩子。
+    """
     desc_lower = desc.lower().strip()
     if not desc_lower:
         return True  # 空描述视为重复（不应提交）
@@ -70,6 +73,60 @@ def _is_similar_to_existing(desc: str, existing_hooks: list[dict[str, Any]]) -> 
             if overlap / max(len(desc_chars), len(existing_chars)) > 0.6:
                 return True
     return False
+
+
+def evaluate_hook_admission(
+    existing_data: dict[str, Any],
+    new_hook: dict[str, Any],
+) -> dict[str, Any]:
+    """准入检查：新钩子是否能植入 hooks.json。
+
+    检查项：
+    1. description 非空
+    2. 不与任何既有钩子（包括已回收的）描述重叠
+    3. 不与分类 + 描述组合高度相似
+
+    返回 {admitted: bool, reason: str | None, similar_hook: dict | None}。
+    仅供辅助参考，最终决策仍由作者/agent 完成。
+    """
+    desc = (new_hook.get("description") or "").strip()
+    if not desc:
+        return {"admitted": False, "reason": "description 不可为空", "similar_hook": None}
+
+    existing_hooks: list[dict[str, Any]] = existing_data.get("hooks") or []
+    if not isinstance(existing_hooks, list):
+        return {"admitted": True, "reason": None, "similar_hook": None}
+
+    for existing in existing_hooks:
+        if not isinstance(existing, dict):
+            continue
+        existing_desc = (existing.get("description") or "").strip()
+        if not existing_desc:
+            continue
+
+        # 子串匹配：任何状态都不重投
+        desc_lower = desc.lower()
+        existing_lower = existing_desc.lower()
+        if desc_lower in existing_lower or existing_lower in desc_lower:
+            return {
+                "admitted": False,
+                "reason": f"与既有钩子描述重叠：{existing_desc[:60]}",
+                "similar_hook": existing,
+            }
+
+        # 中文字符重叠 > 60%
+        desc_chars = {c for c in desc_lower if "一" <= c <= "鿿"}
+        existing_chars = {c for c in existing_lower if "一" <= c <= "鿿"}
+        if desc_chars and existing_chars:
+            overlap = len(desc_chars & existing_chars)
+            if overlap / max(len(desc_chars), len(existing_chars)) > 0.6:
+                return {
+                    "admitted": False,
+                    "reason": f"与既有钩子中文字符重叠 {overlap} 字：{existing_desc[:60]}",
+                    "similar_hook": existing,
+                }
+
+    return {"admitted": True, "reason": None, "similar_hook": None}
 
 
 def _validate_observed_hooks(observed: list[dict[str, Any]]) -> list[dict[str, Any]]:
