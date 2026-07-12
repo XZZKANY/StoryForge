@@ -22,6 +22,7 @@ import {
   executeIdeCommand,
   getAssistantSession,
   getAgentRunSavePoints,
+  listAssistantSessions,
   requestCrossChapterConsistency,
   sendAgentControlMessage,
   sendAgentUserMessage,
@@ -35,6 +36,7 @@ import {
   isAgentResultMessage,
   type AgentControlMessageType,
   type AgentResultMessage,
+  type AssistantSessionRecord,
   type AgentSocketMessage,
 } from '../lib/api-client';
 import {
@@ -337,6 +339,8 @@ export function ChatWindow({
   const [contextPickerOpen, setContextPickerOpen] = useState(false);
   const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
   const [sessionLoadRetry, setSessionLoadRetry] = useState(0);
+  // Q5：会话历史从左栏活动栏移到右栏对话头下拉；列表按项目 scoped，纯 UI 移位。
+  const [assistantSessions, setAssistantSessions] = useState<AssistantSessionRecord[]>([]);
   const [lastContextBundle, setLastContextBundle] = useState<ContextBundle | null>(null);
   const [missingContextPaths, setMissingContextPaths] = useState<string[]>([]);
   const [writingRunProjection, setWritingRunProjection] = useState<WritingRunProjection | null>(
@@ -431,6 +435,30 @@ export function ChatWindow({
       cancelled = true;
     };
   }, [assistantSessionId, sessionLoadRetry]);
+
+  // 会话列表随项目 + 当前会话变化刷新（切换 / 新建会话完成后 assistantSessionId 变更即重拉）。
+  useEffect(() => {
+    if (!projectPath) return;
+    let cancelled = false;
+    void listAssistantSessions({ projectPath, limit: 20 })
+      .then((records) => {
+        if (!cancelled) setAssistantSessions(records);
+      })
+      .catch(() => {
+        if (!cancelled) setAssistantSessions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath, assistantSessionId]);
+
+  const handleSelectSession = useCallback(
+    (id: number) => {
+      if (id === (assistantSessionId ?? null)) return;
+      onAssistantSessionChange?.(id);
+    },
+    [assistantSessionId, onAssistantSessionChange],
+  );
 
   useEffect(() => {
     if (!projectPath) {
@@ -1385,7 +1413,13 @@ export function ChatWindow({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-      <ConversationHeader title={conversationTitle} onNewSession={handleNewSession} />
+      <ConversationHeader
+        title={conversationTitle}
+        sessions={assistantSessions}
+        activeSessionId={assistantSessionId ?? null}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+      />
 
       {sessionLoadError && (
         <div

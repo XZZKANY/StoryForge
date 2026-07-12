@@ -236,22 +236,6 @@ export function App() {
     }
   }, [selectProjectSafely]);
 
-  const handleSelectProjectSession = useCallback(
-    async (path: string, assistantSessionId: number) => {
-      if (path !== activeProject && !(await selectProjectSafely(path))) return;
-      setActiveProjectAssistantSession(assistantSessionId, path);
-    },
-    [activeProject, selectProjectSafely, setActiveProjectAssistantSession],
-  );
-
-  const handleNewProjectSession = useCallback(
-    async (path: string) => {
-      if (path !== activeProject && !(await selectProjectSafely(path))) return;
-      setActiveProjectAssistantSession(null, path);
-    },
-    [activeProject, selectProjectSafely, setActiveProjectAssistantSession],
-  );
-
   // 欢迎页首条输入：先记住 prompt，打开项目后由 ChatWindow 自动发出。
   const handleWelcomeSend = useCallback(() => {
     const prompt = welcomeDraft.trim();
@@ -531,8 +515,6 @@ export function App() {
         const viewMap: Record<string, SidePanelView> = {
           e: 'explorer',
           f: 'search',
-          c: 'sessions',
-          m: 'qa',
         };
         const view = viewMap[key];
         if (view) {
@@ -612,9 +594,7 @@ export function App() {
             view={shell.view}
             sidebarHidden={shell.sidebarHidden}
             noProject={!projectOpen}
-            qaBadge={0}
             onSwitchView={shell.switchView}
-            onOpenPalette={() => setPalette('files')}
             onOpenSettings={() => void openSettings()}
           />
           {!shell.sidebarHidden && (
@@ -625,19 +605,13 @@ export function App() {
               currentFile={currentFile}
               previewFile={previewFile}
               projectRefreshVersion={projectRefreshVersion}
-              activeAssistantSessionId={
-                activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
-              }
               onSelectProject={(path) => void selectProjectSafely(path)}
               onRemoveProject={(path) => void removeProjectSafely(path)}
-              onSelectProjectSession={handleSelectProjectSession}
-              onNewProjectSession={handleNewProjectSession}
               onOpenProject={handleOpenProject}
               onNewFile={handleNewFile}
               onFileSelect={openFile}
               onFilePreview={previewFileOpen}
               onStartNewBook={handleStartNewBook}
-              onOpenObsPanel={() => setObsPanelOpen(true)}
             />
           )}
         </div>

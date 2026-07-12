@@ -1,15 +1,15 @@
 /**
  * 壳子布局状态：取代旧 useShellLayout 的 5 个耦合 focus 模式，改为正交状态。
- * - view：活动栏当前视图（故事/搜索/会话/质检）
+ * - view：活动栏当前视图（Q8 精简后只剩 文件 / 搜索；会话已移入右栏对话头，质检收到状态栏观测芯片）
  * - sidebarHidden：侧面板整体折叠（Ctrl+B 或点当前激活图标）
  * - rightCollapsed：右栏 Agent 面板折叠
  * 三者互不耦合，直接映射原型的 VS Code 式两层左栏 + 固定三栏。
  */
 import { useCallback, useState } from 'react';
 
-export type SidePanelView = 'explorer' | 'search' | 'sessions' | 'qa';
+export type SidePanelView = 'explorer' | 'search';
 
-export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'search', 'sessions', 'qa'];
+export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'search'];
 
 export function useShellState() {
   const [view, setView] = useState<SidePanelView>('explorer');
