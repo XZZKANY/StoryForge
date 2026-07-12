@@ -316,6 +316,8 @@ export function ChatWindow({
   pendingInitialPrompt,
   onPendingInitialPromptConsumed,
   onAssistantSessionChange,
+  layoutMode,
+  onSetLayoutMode,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1419,6 +1421,8 @@ export function ChatWindow({
         activeSessionId={assistantSessionId ?? null}
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
+        layoutMode={layoutMode}
+        onSetLayoutMode={onSetLayoutMode}
       />
 
       {sessionLoadError && (

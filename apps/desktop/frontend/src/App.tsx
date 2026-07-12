@@ -537,11 +537,16 @@ export function App() {
       } else if (key === ',') {
         e.preventDefault();
         void openSettings();
+      } else if (key === '1' || key === '2' || key === '3') {
+        // Q4 布局三态：编辑聚焦 / 平衡 / 对话聚焦。无项目时右栏不挂载，切了是空屏，故先守卫。
+        if (!activeProject) return;
+        e.preventDefault();
+        shell.setLayoutMode(key === '1' ? 'editor' : key === '2' ? 'balanced' : 'chat');
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openSettings, shell]);
+  }, [activeProject, openSettings, shell]);
 
   const { isDesktopRuntime, tauriMenuReady, tauriMenuError, smokeApiReady } = useTauriMenuBridge({
     onOpenProject: handleOpenProject,
@@ -576,6 +581,7 @@ export function App() {
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
       data-testid="desktop-shell"
       data-layout-mode={shell.view}
+      data-layout-focus={shell.layoutMode}
       data-tauri-runtime={isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={tauriMenuReady ? 'true' : 'false'}
       data-smoke-api-ready={smokeApiReady ? 'true' : 'false'}
@@ -616,7 +622,10 @@ export function App() {
           )}
         </div>
 
-        <main className="flex min-w-0 flex-1 flex-col bg-background" data-testid="shell-center">
+        <main
+          className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
+          data-testid="shell-center"
+        >
           {centerHasTabs ? (
             <>
               <EditorTabs
@@ -704,7 +713,7 @@ export function App() {
         </main>
 
         {projectOpen && (
-          <AssistantPanelFrame visible={rightPanelVisible}>
+          <AssistantPanelFrame visible={rightPanelVisible} wide={shell.layoutMode === 'chat'}>
             <ChatWindow
               projectPath={activeProject}
               currentFile={currentFile}
@@ -714,6 +723,8 @@ export function App() {
               pendingInitialPrompt={pendingWelcomePrompt}
               onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
               onAssistantSessionChange={setActiveProjectAssistantSession}
+              layoutMode={shell.layoutMode}
+              onSetLayoutMode={shell.setLayoutMode}
             />
           </AssistantPanelFrame>
         )}

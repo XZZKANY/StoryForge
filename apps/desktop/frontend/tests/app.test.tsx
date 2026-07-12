@@ -24,6 +24,8 @@ test('App 壳层挂载 desktop-shell 容器与三栏框架标记', () => {
   const html = renderApp();
   assert.match(html, /data-testid="desktop-shell"/);
   assert.match(html, /data-layout-mode=/);
+  // Q4 布局三态默认平衡（编辑 + 右栏对话）。
+  assert.match(html, /data-layout-focus="balanced"/);
   assert.match(html, /data-tauri-runtime=/);
   assert.match(html, /data-testid="shell-titlebar"/);
   assert.match(html, /data-testid="shell-activity-bar"/);
@@ -80,7 +82,9 @@ test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 
     'className="min-h-0 flex-1 overflow-hidden"',
     "settingsVisible ? 'hidden' : 'h-full'",
     'min-h-0 overflow-hidden bg-background',
-    'min-h-0 w-[384px] flex-shrink-0 flex-col overflow-hidden',
+    // Q4 布局三态后 Agent 栏宽度按 wide 条件化，但平衡宽 + 溢出护栏仍在（长稿不能顶走状态栏）。
+    'w-[384px] flex-shrink-0',
+    'flex-col overflow-hidden border-l border-border bg-panel',
   ];
   for (const guard of requiredLayoutGuards) {
     assert.ok(shellSource.includes(guard), `桌面壳层缺少长稿布局护栏：${guard}`);

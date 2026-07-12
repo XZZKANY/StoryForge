@@ -6,7 +6,15 @@ import {
 } from '../../lib/project-context';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { AgentStepsPanel } from '../AgentStepsPanel';
-import { ChevronDown, Plus, Sparkles } from '../icons/shell-icons';
+import {
+  ChevronDown,
+  Maximize2,
+  PanelRight,
+  PanelRightClose,
+  Plus,
+  Sparkles,
+} from '../icons/shell-icons';
+import type { LayoutMode } from '../shell/useShellState';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
 import type { AgentRunRecoveryDisplay } from './recovery';
@@ -18,12 +26,16 @@ export function ConversationHeader({
   activeSessionId = null,
   onSelectSession,
   onNewSession,
+  layoutMode,
+  onSetLayoutMode,
 }: {
   title: string;
   sessions?: AssistantSessionRecord[];
   activeSessionId?: number | null;
   onSelectSession?: (id: number) => void;
   onNewSession?: () => void;
+  layoutMode?: LayoutMode;
+  onSetLayoutMode?: (mode: LayoutMode) => void;
 }) {
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
   // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
@@ -55,6 +67,40 @@ export function ConversationHeader({
           <Plus size={15} strokeWidth={1.7} />
         </button>
       )}
+      {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
+      {onSetLayoutMode &&
+        (layoutMode === 'chat' ? (
+          <button
+            type="button"
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+            title="回到编辑 · Ctrl+2"
+            onClick={() => onSetLayoutMode('balanced')}
+            data-testid="conversation-back-to-balanced"
+          >
+            <PanelRight size={15} strokeWidth={1.6} />
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+              title="对话占满中右 · Ctrl+3"
+              onClick={() => onSetLayoutMode('chat')}
+              data-testid="conversation-expand-chat"
+            >
+              <Maximize2 size={14} strokeWidth={1.6} />
+            </button>
+            <button
+              type="button"
+              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+              title="收起对话栏，编辑占满 · Ctrl+1"
+              onClick={() => onSetLayoutMode('editor')}
+              data-testid="conversation-collapse-right"
+            >
+              <PanelRightClose size={15} strokeWidth={1.6} />
+            </button>
+          </>
+        ))}
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
