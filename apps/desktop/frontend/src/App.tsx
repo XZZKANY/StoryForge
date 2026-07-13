@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CommandPalette, PaletteMode } from './components/CommandPalette';
 import { SettingsView } from './components/SettingsView';
+import { emitPublishCommand, type PublishCommandType } from './features/publish';
 import { Editor } from './components/Editor';
 import { ChatWindow } from './components/ChatWindow';
 import { TauriFileSystem, FS_MUTATION_EVENT, invalidateFileSystemCache } from './lib/tauri-fs';
@@ -480,6 +481,23 @@ export function App() {
     setSettingsVisible(true);
   }, []);
 
+  /** 发行 = 左栏功能块，不再占中栏整页 */
+  const openPublishSide = useCallback(() => {
+    setSettingsVisible(false);
+    shell.switchView('publish');
+    shell.showSidebar();
+  }, [shell]);
+
+  const handlePublishCommand = useCallback(
+    (type: string) => {
+      openPublishSide();
+      window.setTimeout(() => {
+        emitPublishCommand(type as PublishCommandType);
+      }, 0);
+    },
+    [openPublishSide],
+  );
+
   const handleStartNewBook = useCallback(() => {
     setSettingsVisible(false);
     void handleOpenProject();
@@ -567,6 +585,7 @@ export function App() {
         const viewMap: Record<string, SidePanelView> = {
           e: 'explorer',
           f: 'search',
+          // 发行不抢 Ctrl+Shift+P（命令面板）；用活动栏 Flag 进入
         };
         const view = viewMap[key];
         if (view) {
@@ -809,6 +828,8 @@ export function App() {
           onToggleAssistant={shell.toggleRight}
           onToggleWorkspace={shell.toggleSidebar}
           onOpenSettings={openSettings}
+          onOpenPublish={openPublishSide}
+          onPublishCommand={handlePublishCommand}
           onFocusAssistantOnly={() => shell.showRight()}
           onFocusWorkspaceOnly={() => shell.showSidebar()}
           onRestoreLayout={() => {

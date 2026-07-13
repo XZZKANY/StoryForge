@@ -1,6 +1,6 @@
 /**
  * 壳子布局状态：取代旧 useShellLayout 的 5 个耦合 focus 模式，改为正交状态。
- * - view：活动栏当前视图（Q8 精简后只剩 文件 / 搜索；会话已移入右栏对话头，质检收到状态栏观测芯片）
+ * - view：活动栏当前视图（文件 / 搜索 / 发行；会话在右栏，质检在状态栏）
  * - sidebarHidden：侧面板整体折叠（Ctrl+B 或点当前激活图标）
  * - layoutMode（Q4 布局三态）：editor 编辑聚焦（右栏隐藏，编辑占满）/ balanced 平衡（编辑 + 384 右栏）
  *   / chat 对话聚焦（编辑隐藏，右栏占满中右）。Ctrl+1/2/3 与对话头就地控件切换。
@@ -8,10 +8,10 @@
  */
 import { useCallback, useState } from 'react';
 
-export type SidePanelView = 'explorer' | 'search';
+export type SidePanelView = 'explorer' | 'search' | 'publish';
 export type LayoutMode = 'editor' | 'balanced' | 'chat';
 
-export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'search'];
+export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'search', 'publish'];
 
 export function useShellState() {
   const [view, setView] = useState<SidePanelView>('explorer');

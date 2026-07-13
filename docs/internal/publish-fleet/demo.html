@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StoryForge · UI 一比一演示壳</title>
+  <style>
+    /* 与 apps/desktop/frontend/src/index.css 语义 token 对齐 */
+    :root {
+      --background: 28 28 31;
+      --panel: 36 36 41;
+      --surface: 45 45 51;
+      --elevated: 57 57 64;
+      --border: 58 58 65;
+      --border-strong: 76 76 84;
+      --foreground: 237 237 237;
+      --muted: 161 161 170;
+      --subtle: 124 124 133;
+      --accent: 235 235 235;
+      --error: 229 91 91;
+      --warning: 235 201 126;
+      --success: 115 202 128;
+      --agent: 146 153 234;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --font-prose: Georgia, "Source Han Serif SC", "Noto Serif SC", "SimSun", serif;
+      --font-mono: "Cascadia Code", Consolas, "Courier New", monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: var(--font-ui);
+      background: rgb(var(--background));
+      color: rgb(var(--foreground));
+      overflow: hidden;
+      font-size: 12px;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    input, select, textarea { font-family: inherit; color: rgb(var(--foreground)); }
+    kbd { font-family: var(--font-mono); }
+
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+
+    /* —— Titlebar 36px —— */
+    .titlebar {
+      height: 36px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgb(var(--border));
+      background: rgb(var(--panel));
+      padding-left: 14px;
+      user-select: none;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 200px;
+    }
+    .brand-logo {
+      width: 22px; height: 22px;
+      border-radius: 6px;
+      background: rgb(var(--elevated));
+      display: grid; place-items: center;
+      overflow: hidden;
+      font-size: 10px;
+      font-weight: 700;
+      color: rgb(var(--muted));
+    }
+    .brand-name { font-size: 11px; color: rgb(var(--subtle)); }
+    .palette-btn {
+      margin: 0 auto;
+      height: 24px;
+      width: 340px;
+      max-width: 38vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 6px;
+      border: 1px solid rgb(var(--border) / 0.7);
+      background: rgb(var(--surface));
+      color: rgb(var(--subtle));
+      font-size: 11.5px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.12);
+    }
+    .palette-btn:hover {
+      border-color: rgb(var(--border-strong) / 0.6);
+      background: rgb(var(--elevated));
+    }
+    .palette-btn kbd {
+      border: 1px solid rgb(var(--border));
+      border-radius: 4px;
+      padding: 0 4px;
+      font-size: 10px;
+      color: rgb(var(--subtle));
+    }
+    .title-actions {
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .icon-btn {
+      height: 28px; width: 32px;
+      border: none; border-radius: 6px;
+      background: transparent;
+      color: rgb(var(--muted));
+      display: grid; place-items: center;
+    }
+    .icon-btn:hover { background: rgb(var(--elevated)); color: rgb(var(--foreground)); }
+    .win-btn {
+      height: 36px; width: 44px;
+      border: none; background: transparent;
+      color: rgb(var(--muted));
+      display: grid; place-items: center;
+    }
+    .win-btn:hover { background: rgb(var(--elevated)); }
+    .win-btn.close:hover { background: rgb(var(--error)); color: #fff; }
+
+    /* —— body row —— */
+    .body { display: flex; flex: 1; min-height: 0; }
+
+    /* —— ActivityBar 48px —— */
+    .rail {
+      width: 48px;
+      flex-shrink: 0;
+      border-right: 1px solid rgb(var(--border));
+      background: rgb(var(--background));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 0;
+      gap: 2px;
+    }
+    .rail-btn {
+      position: relative;
+      width: 40px; height: 40px;
+      border: none; border-radius: 8px;
+      background: transparent;
+      color: rgb(var(--subtle));
+      display: grid; place-items: center;
+    }
+    .rail-btn:hover { background: rgb(var(--elevated)); color: rgb(var(--foreground)); }
+    .rail-btn.active { color: rgb(var(--foreground)); }
+    .rail-btn.active::before {
+      content: "";
+      position: absolute;
+      left: -4px; top: 8px; bottom: 8px;
+      width: 2px; border-radius: 2px;
+      background: rgb(var(--foreground));
+    }
+    .rail-spacer { flex: 1; }
+
+    /* —— SidePanel —— */
+    .side {
+      width: 360px;
+      flex-shrink: 0;
+      border-right: 1px solid rgb(var(--border));
+      background: rgb(var(--panel));
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .side.narrow { width: 236px; }
+    .side.hidden { display: none; }
+
+    /* explorer mock */
+    .exp-head {
+      height: 40px;
+      border-bottom: 1px solid rgb(var(--border));
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 8px 0 8px;
+    }
+    .exp-project {
+      flex: 1; min-width: 0;
+      height: 28px;
+      border: none; border-radius: 6px;
+      background: transparent;
+      color: rgb(var(--foreground));
+      font-size: 12.5px; font-weight: 600;
+      text-align: left;
+      padding: 0 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .exp-project:hover { background: rgb(var(--elevated)); }
+    .exp-project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tree { flex: 1; overflow: auto; padding: 4px 0; }
+    .tree-row {
+      height: 26px;
+      display: flex; align-items: center;
+      padding: 0 12px 0 16px;
+      font-size: 12px;
+      color: rgb(var(--muted));
+      border-radius: 0;
+      gap: 6px;
+    }
+    .tree-row:hover { background: rgb(var(--elevated)); color: rgb(var(--foreground)); }
+    .tree-row.active {
+      background: rgb(var(--elevated));
+      color: rgb(var(--foreground));
+    }
+    .tree-row.folder { color: rgb(var(--subtle)); font-size: 11px; font-weight: 600; letter-spacing: .04em; margin-top: 6px; }
+
+    /* —— Publish cockpit 一比一 —— */
+    .pub { display: flex; flex-direction: column; height: 100%; min-height: 0; color: rgb(var(--foreground)); }
+    .pub-head {
+      height: 36px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 4px;
+      border-bottom: 1px solid rgb(var(--border));
+      padding: 0 8px;
+    }
+    .pub-head h1 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: -0.01em; }
+    .pub-head .ym { font-size: 10px; color: rgb(var(--subtle)); }
+    .grow { flex: 1; }
+    .tb {
+      height: 28px;
+      display: inline-flex; align-items: center;
+      border: none; border-radius: 6px;
+      background: transparent;
+      color: rgb(var(--muted));
+      font-size: 11px;
+      padding: 0 8px;
+      transition: background .12s, color .12s;
+    }
+    .tb:hover { background: rgb(var(--elevated)); color: rgb(var(--foreground)); }
+    .tb.primary {
+      background: rgb(var(--elevated));
+      color: rgb(var(--foreground));
+      font-weight: 500;
+    }
+    .tb.primary:hover {
+      background: rgb(var(--surface));
+      box-shadow: inset 0 0 0 1px rgb(var(--border-strong));
+    }
+    .tb.danger { color: rgb(229 91 91 / 0.9); }
+    .tb.danger:hover { background: rgb(229 91 91 / 0.1); }
+    .pub-tabs {
+      display: flex; flex-shrink: 0; gap: 2px;
+      overflow-x: auto;
+      border-bottom: 1px solid rgb(var(--border));
+      padding: 4px 6px;
+    }
+    .pub-tab {
+      height: 28px; flex-shrink: 0;
+      border: none; border-radius: 6px;
+      background: transparent;
+      color: rgb(var(--subtle));
+      font-size: 11px;
+      padding: 0 8px;
+      white-space: nowrap;
+    }
+    .pub-tab:hover { background: rgb(var(--elevated) / 0.6); color: rgb(var(--foreground)); }
+    .pub-tab.on { background: rgb(var(--elevated)); color: rgb(var(--foreground)); font-weight: 500; }
+    .flash {
+      display: none;
+      align-items: flex-start;
+      gap: 8px;
+      border-bottom: 1px solid rgb(var(--border));
+      padding: 6px 12px;
+      font-size: 11px;
+      line-height: 1.35;
+      background: rgb(var(--elevated) / 0.5);
+      color: rgb(var(--muted));
+    }
+    .flash.show { display: flex; }
+    .flash.ok {
+      border-color: rgb(115 202 128 / 0.3);
+      background: rgb(115 202 128 / 0.1);
+      color: #6ee7a0;
+    }
+    .flash.err {
+      border-color: rgb(229 91 91 / 0.3);
+      background: rgb(229 91 91 / 0.1);
+      color: #fca5a5;
+    }
+    .pub-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
+    .stats-summary {
+      display: flex; width: 100%; align-items: center; gap: 6px;
+      border: 1px solid rgb(var(--border)); border-radius: 6px;
+      background: rgb(var(--surface) / 0.4);
+      padding: 6px 8px; margin-bottom: 6px;
+      font-size: 11px; color: rgb(var(--muted)); text-align: left;
+    }
+    .stats-summary .warn { color: #fbbf24; }
+    .stats-summary:hover { background: rgb(var(--elevated) / 0.5); }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .stat {
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--surface) / 0.4);
+      padding: 6px 8px;
+    }
+    .stat .k { font-size: 10px; color: rgb(var(--subtle)); }
+    .stat .v { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat .v.warn { color: #fbbf24; }
+    .block { margin-bottom: 12px; }
+    .block-title {
+      margin: 0 0 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgb(var(--subtle));
+    }
+    .empty {
+      border: 1px dashed rgb(var(--border));
+      border-radius: 6px;
+      padding: 12px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: rgb(var(--subtle));
+    }
+    .book {
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--surface) / 0.3);
+      padding: 6px 8px;
+      margin-bottom: 6px;
+    }
+    .book-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .book-title {
+      font-size: 12px; font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      max-width: 100%;
+    }
+    .book-meta { margin-top: 2px; font-size: 10.5px; color: rgb(var(--subtle)); }
+    .book-actions {
+      margin-top: 6px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+    }
+    .badge {
+      display: inline-flex; align-items: center;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 10px; font-weight: 500;
+    }
+    .badge.muted { color: rgb(var(--muted)); background: rgb(var(--elevated)); }
+    .badge.amber { color: #fbbf24; background: rgb(251 191 36 / 0.1); }
+    .badge.green { color: #34d399; background: rgb(52 211 153 / 0.1); }
+    .badge.red { color: #f87171; background: rgb(248 113 113 / 0.1); }
+    .more-wrap { position: relative; }
+    .more-menu {
+      display: none;
+      position: absolute; right: 0; top: 32px; z-index: 20;
+      min-width: 7.5rem;
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--surface));
+      padding: 4px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    .more-menu.open { display: block; }
+    .more-menu button {
+      display: flex; width: 100%; height: 28px; align-items: center;
+      border: none; border-radius: 4px;
+      background: transparent;
+      color: rgb(var(--foreground));
+      font-size: 11px; text-align: left; padding: 0 8px;
+    }
+    .more-menu button:hover { background: rgb(var(--elevated)); }
+    .more-menu button.danger { color: #f87171; }
+
+    .acct {
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--surface) / 0.3);
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+    .acct-line { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+    .acct-name { font-size: 12px; font-weight: 500; }
+    .acct-meta { font-size: 10.5px; color: rgb(var(--subtle)); display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    .sess-ok { color: #34d399; }
+    .sess-warn { color: #fbbf24; }
+    .sess-bad { color: #f87171; }
+    .field {
+      height: 28px;
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--background));
+      padding: 0 8px;
+      font-size: 11px;
+      outline: none;
+      width: 100%;
+    }
+    .field:focus { border-color: rgb(var(--border-strong)); }
+    .field.sm { width: auto; }
+    .slot-bar {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--surface) / 0.3);
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+    .pipe-item {
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--surface) / 0.3);
+      padding: 6px 8px;
+      margin-bottom: 6px;
+    }
+    .pipe-actions { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .queue-line { display: flex; gap: 8px; font-size: 11px; color: rgb(var(--subtle)); margin: 2px 0; }
+    .queue-line .t { color: rgb(var(--foreground)); }
+    .hint { font-size: 10.5px; line-height: 1.5; color: rgb(var(--subtle)); margin: 0 0 10px; }
+    .pre {
+      white-space: pre-wrap;
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--elevated) / 0.3);
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: rgb(var(--muted));
+    }
+
+    /* —— Center —— */
+    .center {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      background: rgb(var(--background));
+    }
+    .center.hidden { display: none; }
+    .etabs {
+      height: 36px; flex-shrink: 0;
+      display: flex; align-items: stretch;
+      border-bottom: 1px solid rgb(var(--border));
+      background: rgb(var(--panel));
+      padding-left: 0;
+    }
+    .etab {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 14px;
+      font-size: 12px;
+      color: rgb(var(--subtle));
+      border: none; background: transparent;
+      position: relative;
+    }
+    .etab:hover { color: rgb(var(--muted)); }
+    .etab.active {
+      z-index: 2;
+      margin-bottom: -1px;
+      border-bottom: 1px solid rgb(var(--background));
+      background: rgb(var(--background));
+      color: rgb(var(--foreground));
+      font-weight: 500;
+      box-shadow: inset 0 2px 0 rgb(var(--agent));
+    }
+    .etab .x { opacity: 0; font-size: 11px; }
+    .etab:hover .x { opacity: 1; }
+    .etabs-end { margin-left: auto; display: flex; align-items: center; padding-right: 8px; }
+    .editor {
+      flex: 1; min-height: 0; overflow: auto;
+      padding: 28px 48px 48px;
+      font-family: var(--font-prose);
+      font-size: 15px;
+      line-height: 1.85;
+      color: rgb(var(--foreground) / 0.92);
+    }
+    .editor h2 {
+      font-family: var(--font-ui);
+      font-size: 18px; font-weight: 600;
+      margin: 0 0 16px;
+      color: rgb(var(--foreground));
+    }
+    .editor p { margin: 0 0 1em; max-width: 42em; }
+    .editor .dim { color: rgb(var(--muted)); }
+
+    /* —— Assistant 384px —— */
+    .assistant {
+      width: 384px; flex-shrink: 0;
+      border-left: 1px solid rgb(var(--border));
+      background: rgb(var(--panel));
+      display: flex; flex-direction: column;
+      min-height: 0;
+    }
+    .assistant.hidden { display: none; }
+    .as-head {
+      height: 40px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid rgb(var(--border));
+      padding: 0 12px 0 12px;
+    }
+    .as-title {
+      flex: 1; min-width: 0;
+      display: flex; align-items: center; gap: 8px;
+      border: none; border-radius: 6px;
+      background: transparent;
+      color: rgb(var(--foreground));
+      font-size: 13px; font-weight: 500;
+      text-align: left;
+      padding: 0 6px;
+      height: 28px;
+    }
+    .as-title:hover { background: rgb(var(--elevated)); }
+    .as-title .spark { color: rgb(var(--agent)); }
+    .as-msgs {
+      flex: 1; min-height: 0; overflow: auto;
+      padding: 16px 16px 8px;
+    }
+    .msg { margin-bottom: 16px; max-width: 100%; }
+    .msg.user {
+      margin-left: 24px;
+      border-radius: 10px;
+      background: rgb(var(--elevated));
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .msg.agent {
+      font-size: 13px;
+      line-height: 1.6;
+      color: rgb(var(--foreground) / 0.92);
+    }
+    .msg.agent .role {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: rgb(var(--agent));
+      margin-bottom: 6px; font-weight: 500;
+    }
+    .tool-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      color: rgb(var(--muted));
+      background: rgb(var(--surface) / 0.5);
+      margin: 4px 0;
+    }
+    .composer {
+      flex-shrink: 0;
+      border-top: 1px solid rgb(var(--border));
+      background: rgb(var(--background));
+      padding: 12px 16px;
+    }
+    .composer-box {
+      border: 1px solid rgb(var(--border));
+      border-radius: 12px;
+      background: rgb(var(--surface));
+      padding: 10px 12px 8px;
+    }
+    .composer-box:focus-within { border-color: rgb(var(--border-strong)); }
+    .composer-box textarea {
+      width: 100%;
+      border: none; outline: none; resize: none;
+      background: transparent;
+      color: rgb(var(--foreground));
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 44px;
+    }
+    .composer-foot {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 6px;
+    }
+    .composer-foot .ctx {
+      font-size: 11px; color: rgb(var(--subtle));
+    }
+    .send {
+      margin-left: auto;
+      width: 28px; height: 28px;
+      border: none; border-radius: 8px;
+      background: rgb(var(--agent));
+      color: #fff;
+      display: grid; place-items: center;
+    }
+    .send:hover { filter: brightness(1.08); }
+
+    /* —— StatusBar 26px —— */
+    .statusbar {
+      height: 26px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 16px;
+      border-top: 1px solid rgb(var(--border));
+      background: rgb(var(--panel));
+      padding: 0 12px;
+      font-size: 11px;
+      color: rgb(var(--subtle));
+    }
+    .dot {
+      width: 7px; height: 7px; border-radius: 999px;
+      background: rgb(var(--success));
+      display: inline-block;
+    }
+    .sb-btn {
+      border: none; background: transparent;
+      color: rgb(var(--subtle));
+      font-size: 11px;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .sb-btn:hover { background: rgb(var(--elevated)); color: rgb(var(--foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 10.5px; }
+
+    /* wizard */
+    .mask {
+      display: none;
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(0,0,0,.5);
+      align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .mask.show { display: flex; }
+    .wizard {
+      width: 100%; max-width: 32rem;
+      border: 1px solid rgb(var(--border));
+      border-radius: 8px;
+      background: rgb(var(--background));
+      box-shadow: 0 16px 48px rgba(0,0,0,.45);
+      overflow: hidden;
+    }
+    .wizard header {
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid rgb(var(--border));
+      padding: 8px 12px;
+    }
+    .wizard header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+    .wizard header .sub { font-size: 12px; color: rgb(var(--subtle)); }
+    .wizard .body { padding: 12px; font-size: 13px; }
+    .wizard .card {
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--elevated) / 0.3);
+      padding: 6px 8px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .wizard .steps { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+    .wizard .step {
+      border-radius: 4px; padding: 2px 6px; font-size: 10px; color: rgb(var(--subtle));
+    }
+    .wizard .step.on { background: rgb(var(--elevated)); color: rgb(var(--foreground)); }
+    .wizard pre {
+      max-height: 7rem; overflow: auto;
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      background: rgb(var(--elevated) / 0.2);
+      padding: 8px; font-size: 12px; white-space: pre-wrap;
+    }
+    .wizard .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .wizard .note { margin-top: 12px; font-size: 10px; color: rgb(var(--subtle)); }
+
+    .demo-tag {
+      position: fixed; right: 12px; bottom: 36px; z-index: 40;
+      font-size: 10px; color: rgb(var(--subtle));
+      background: rgb(var(--panel));
+      border: 1px solid rgb(var(--border));
+      border-radius: 6px;
+      padding: 4px 8px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" data-testid="desktop-shell">
+    <!-- Titlebar -->
+    <header class="titlebar" data-testid="shell-titlebar">
+      <div class="brand">
+        <span class="brand-logo">SF</span>
+        <span class="brand-name">StoryForge</span>
+      </div>
+      <button class="palette-btn" type="button" title="命令面板 · Ctrl+P">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+        <span>搜索文件或命令</span>
+        <kbd>Ctrl P</kbd>
+      </button>
+      <div class="title-actions">
+        <button class="icon-btn" type="button" title="收起 Agent 面板" id="btnToggleRight">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
+        </button>
+        <button class="win-btn" type="button" title="最小化">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h14"/></svg>
+        </button>
+        <button class="win-btn" type="button" title="最大化">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+        </button>
+        <button class="win-btn close" type="button" title="关闭">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- ActivityBar -->
+      <nav class="rail" data-testid="shell-activity-bar">
+        <button class="rail-btn" type="button" data-view="explorer" title="故事文件 · Ctrl+Shift+E" id="railExplorer">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+        </button>
+        <button class="rail-btn" type="button" data-view="search" title="搜索 · Ctrl+Shift+F" id="railSearch">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+        </button>
+        <button class="rail-btn active" type="button" data-view="publish" title="发行" id="railPublish">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
+        </button>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" type="button" title="设置 · Ctrl+,">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </nav>
+
+      <!-- SidePanel -->
+      <aside class="side" id="sidePanel" data-testid="shell-side-panel">
+        <!-- Explorer -->
+        <div id="viewExplorer" style="display:none;flex-direction:column;height:100%;min-height:0">
+          <div class="exp-head">
+            <button class="exp-project" type="button"><span>末世吞噬</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <button class="icon-btn" type="button" title="新建文件">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>
+            </button>
+          </div>
+          <div class="tree">
+            <div class="tree-row folder">CHAPTERS</div>
+            <div class="tree-row active">第01章 觉醒.md</div>
+            <div class="tree-row">第02章 初猎.md</div>
+            <div class="tree-row">第03章 灰市.md</div>
+            <div class="tree-row folder">CANON</div>
+            <div class="tree-row">人物/陆沉.md</div>
+            <div class="tree-row">设定/吞噬规则.md</div>
+            <div class="tree-row folder">.STORYFORGE</div>
+            <div class="tree-row">publish.json</div>
+          </div>
+        </div>
+
+        <!-- Search -->
+        <div id="viewSearch" style="display:none;flex-direction:column;height:100%">
+          <div style="height:34px;display:flex;align-items:center;padding:0 14px;font-size:10.5px;font-weight:600;letter-spacing:.1em;color:rgb(var(--subtle));text-transform:uppercase">搜索</div>
+          <div style="padding:0 12px 8px"><input class="field" placeholder="在项目中搜索…" /></div>
+          <p class="hint" style="padding:0 16px">输入关键词检索项目文件（即将接线）。</p>
+        </div>
+
+        <!-- Publish -->
+        <div id="viewPublish" class="pub" data-testid="publish-cockpit">
+          <header class="pub-head">
+            <h1>发行</h1>
+            <span class="ym">2026-07</span>
+            <div class="grow"></div>
+            <button class="tb" type="button" data-flash="已打开番茄登录窗口，请在窗口中完成登录">登录</button>
+            <button class="tb" type="button" data-flash="已打开番茄作者后台（external）">后台</button>
+            <button class="tb" type="button" data-flash="已加入发布库：末世吞噬">入库</button>
+            <button class="tb" type="button" data-flash="已占坑：新空位">占坑</button>
+            <button class="tb" type="button" data-flash="可开分扫描完成（4 本）">可开分</button>
+          </header>
+          <div class="pub-tabs" role="tablist" aria-label="发行视图">
+            <button class="pub-tab on" type="button" data-tab="daily">今日作战</button>
+            <button class="pub-tab" type="button" data-tab="pipeline">流水线</button>
+            <button class="pub-tab" type="button" data-tab="calendar">日历</button>
+            <button class="pub-tab" type="button" data-tab="accounts">账号额度</button>
+            <button class="pub-tab" type="button" data-tab="assign">智能指派</button>
+            <button class="pub-tab" type="button" data-tab="review">复盘</button>
+            <button class="pub-tab" type="button" data-tab="settings">设置</button>
+          </div>
+          <div class="flash" id="flash" role="status"><span id="flashText"></span><button type="button" class="tb" id="flashDismiss" style="margin-left:auto;font-size:10px" aria-label="关闭提示">✕</button></div>
+          <div class="pub-body">
+            <div class="empty" data-testid="publish-onboarding" style="margin-bottom:10px">
+              <div style="font-weight:500;color:rgb(var(--foreground));margin-bottom:6px">开始发行（三步）</div>
+              1 添加笔名账号 · 2 入库/占坑 · 3 排今日应开
+            </div>
+            <button type="button" class="stats-summary" id="statsSummary" title="展开产能明细">▸ 目标 15 · 理论 18 · <span class="warn">余量 2</span> · <span class="warn">缺口 3</span></button>
+            <div class="stats" id="statsRow" style="display:none">
+              <div class="stat"><div class="k">目标</div><div class="v">15</div></div>
+              <div class="stat"><div class="k">理论产能</div><div class="v">18</div></div>
+              <div class="stat"><div class="k">余量</div><div class="v warn">2</div></div>
+              <div class="stat"><div class="k">目标缺口</div><div class="v warn">3</div></div>
+            </div>
+
+            <!-- daily -->
+            <section data-panel="daily">
+              <div class="block">
+                <h2 class="block-title">今日应开</h2>
+                <div class="book">
+                  <div class="book-top">
+                    <span class="book-title">末世吞噬</span>
+                    <span class="badge amber">已排期</span>
+                  </div>
+                  <div class="book-meta">夜行笔 · 2026-07-13 · 可开分 86</div>
+                  <div class="book-actions">
+                    <button class="tb primary" type="button" data-wizard>开书辅助</button>
+                    <button class="tb primary" type="button" data-flash="正在通过 平台开书...">平台开书</button>
+                    <div class="grow"></div>
+                    <div class="more-wrap">
+                      <button class="tb more-btn" type="button">更多</button>
+                      <div class="more-menu">
+                        <button type="button" data-flash="书名已复制">复制书名</button>
+                        <button type="button" data-flash="作业包已生成：.storyforge/open-packs/…">作业包</button>
+                        <button type="button" data-flash="已确认开书（额度已占用，止损不退）">确认已开</button>
+                        <button type="button" class="danger" data-confirm="确认止损「末世吞噬」？已开额度不退回。" data-flash="已止损（已开额度不退回）">止损</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="book">
+                  <div class="book-top">
+                    <span class="book-title">灰雾边境</span>
+                    <span class="badge amber">可排期</span>
+                  </div>
+                  <div class="book-meta">冷号甲 · 2026-07-13 · 可开分 72</div>
+                  <div class="book-actions">
+                    <button class="tb primary" type="button" data-wizard>开书辅助</button>
+                    <button class="tb primary" type="button" data-flash="请先在账号管理填入 Cookie">平台开书</button>
+                    <div class="grow"></div>
+                    <div class="more-wrap">
+                      <button class="tb more-btn" type="button">更多</button>
+                      <div class="more-menu">
+                        <button type="button" data-flash="书名已复制">复制书名</button>
+                        <button type="button" data-flash="作业包已生成">作业包</button>
+                        <button type="button" data-flash="未指派账号，无法确认已开">确认已开</button>
+                        <button type="button" class="danger" data-confirm="确认止损？">止损</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="block">
+                <h2 class="block-title">逾期未开</h2>
+                <div class="book">
+                  <div class="book-top">
+                    <span class="book-title">废土邮差</span>
+                    <span class="badge amber">已排期</span>
+                  </div>
+                  <div class="book-meta">夜行笔 · 2026-07-11 · 可开分 91</div>
+                  <div class="book-actions">
+                    <button class="tb primary" type="button" data-wizard>开书辅助</button>
+                    <div class="grow"></div>
+                    <div class="more-wrap">
+                      <button class="tb more-btn" type="button">更多</button>
+                      <div class="more-menu">
+                        <button type="button" data-flash="书名已复制">复制书名</button>
+                        <button type="button" data-flash="已确认开书（额度已占用，止损不退）">确认已开</button>
+                        <button type="button" class="danger" data-confirm="确认止损「废土邮差」？">止损</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="block">
+                <h2 class="block-title">本周队列（已排期）</h2>
+                <div class="queue-line"><span class="tabular">2026-07-13</span><span class="t">末世吞噬</span></div>
+                <div class="queue-line"><span class="tabular">2026-07-13</span><span class="t">灰雾边境</span></div>
+                <div class="queue-line"><span class="tabular">2026-07-15</span><span class="t">深渊回响</span></div>
+              </div>
+            </section>
+
+            <!-- pipeline -->
+            <section data-panel="pipeline" hidden>
+              <div class="slot-bar">
+                <input class="field" style="flex:1;min-width:7rem" placeholder="空位标题" />
+                <input class="field sm" type="date" value="2026-07-20" />
+                <button class="tb" type="button" data-flash="已占坑：新空位">创建空位</button>
+              </div>
+              <div class="pipe-item">
+                <div class="book-top">
+                  <span class="badge amber">已排期</span>
+                  <span class="book-title">末世吞噬</span>
+                </div>
+                <div class="book-meta">2026-07-13 · 可开分 86 · 已放行</div>
+                <div class="pipe-actions">
+                  <button class="tb" type="button" data-flash="强制放行须填写原因">强制可开</button>
+                  <select class="field sm" style="width:auto;height:28px">
+                    <option>构思</option><option>写作中</option><option>打磨</option>
+                    <option>可排期</option><option selected>已排期</option>
+                    <option>已开书</option><option>连载中</option><option>已止损</option>
+                  </select>
+                </div>
+              </div>
+              <div class="pipe-item">
+                <div class="book-top">
+                  <span class="badge muted">构思 · 空位</span>
+                  <span class="book-title">[空位] 都市异闻录</span>
+                </div>
+                <div class="book-meta">未排期 · 可开分 0</div>
+                <div class="pipe-actions">
+                  <button class="tb" type="button" data-flash="空位已绑定：都市异闻录">绑定当前项目</button>
+                  <button class="tb" type="button">强制可开</button>
+                  <select class="field sm" style="width:auto;height:28px">
+                    <option selected>构思</option><option>写作中</option><option>打磨</option>
+                    <option>可排期</option><option>已排期</option>
+                  </select>
+                </div>
+              </div>
+              <div class="pipe-item">
+                <div class="book-top">
+                  <span class="badge green">连载中</span>
+                  <span class="book-title">深渊回响</span>
+                </div>
+                <div class="book-meta">2026-07-01 · 可开分 95</div>
+                <div class="pipe-actions">
+                  <select class="field sm" style="width:auto;height:28px">
+                    <option>已开书</option><option selected>连载中</option><option>已止损</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <!-- calendar -->
+            <section data-panel="calendar" hidden>
+              <p class="hint">月历（2026-07）：改计划开书日；超同日全池上限会阻断</p>
+              <div class="pipe-item" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <span class="book-title" style="flex:1">末世吞噬</span>
+                <input class="field sm" type="date" value="2026-07-13" style="width:auto" />
+                <span class="badge amber">已排期</span>
+              </div>
+              <div class="pipe-item" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <span class="book-title" style="flex:1">灰雾边境</span>
+                <input class="field sm" type="date" value="2026-07-13" style="width:auto" />
+                <span class="badge amber">可排期</span>
+              </div>
+              <div class="pipe-item" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <span class="book-title" style="flex:1">深渊回响</span>
+                <input class="field sm" type="date" value="2026-07-01" style="width:auto" />
+                <span class="badge green">连载中</span>
+              </div>
+            </section>
+
+            <!-- accounts -->
+            <section data-panel="accounts" hidden>
+              <p class="hint">番茄无第三方 OAuth：优先 WebView 登录自动取 Cookie；也可浏览器登录后手动粘贴。</p>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
+                <button class="tb" type="button" data-flash="已打开番茄登录窗口，请在窗口中完成登录">WebView 登录</button>
+                <button class="tb" type="button" data-flash="已跳转浏览器登录">浏览器登录</button>
+                <button class="tb" type="button" data-flash="已打开番茄作者后台（external）">作者后台</button>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:10px">
+                <input class="field" style="flex:1" placeholder="新笔名" />
+                <button class="tb" type="button" data-flash="已添加笔名：新号">添加</button>
+              </div>
+              <div class="acct">
+                <div class="acct-line">
+                  <span class="acct-name">夜行笔</span>
+                  <span class="sess-ok" style="font-size:10.5px">会话 已登录</span>
+                  <span style="font-size:10.5px;color:rgb(var(--subtle))">正常</span>
+                </div>
+                <div class="acct-meta">
+                  <span>月限 3</span><span>剩余 1</span>
+                  <label>校准已开 <input class="field sm" type="number" value="2" style="width:3rem;height:24px;display:inline-block" /></label>
+                </div>
+                <div style="display:flex;gap:4px;margin-top:6px">
+                  <input class="field" style="flex:1;font-size:10.5px" value="sessionid=••••••••; ttwid=••••" />
+                  <button class="tb" type="button" data-flash="Cookie 有效，身份校验通过">验证</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:6px">
+                  <button class="tb" type="button">登录</button>
+                  <button class="tb" type="button" data-flash="已记录登录态（本地台账，非平台 token）">确认已登录</button>
+                  <button class="tb" type="button">标退出</button>
+                  <button class="tb" type="button">标失效</button>
+                  <div class="grow"></div>
+                  <button class="tb" type="button">冷号 30 天</button>
+                  <button class="tb danger" type="button" data-confirm="确认熔断停派「夜行笔」？该号将不再参与指派。" data-flash="已更新风险状态">熔断停派</button>
+                </div>
+              </div>
+              <div class="acct">
+                <div class="acct-line">
+                  <span class="acct-name">冷号甲</span>
+                  <span class="sess-warn" style="font-size:10.5px">会话 待确认</span>
+                  <span class="sess-warn" style="font-size:10.5px">冷号→2026-08-10</span>
+                </div>
+                <div class="acct-meta"><span>月限 3</span><span>剩余 1（冷号上限 1）</span></div>
+                <div style="display:flex;gap:4px;margin-top:6px">
+                  <input class="field" style="flex:1;font-size:10.5px" placeholder="Cookie（DevTools 复制，或 WebView 自动写入）" />
+                  <button class="tb" type="button" data-flash="请先填入 Cookie">验证</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:6px">
+                  <button class="tb" type="button">登录</button>
+                  <button class="tb" type="button">确认已登录</button>
+                  <div class="grow"></div>
+                  <button class="tb" type="button">解除冷号</button>
+                  <button class="tb danger" type="button">熔断停派</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- assign -->
+            <section data-panel="assign" hidden>
+              <div style="display:flex;gap:4px;margin-bottom:8px">
+                <button class="tb" type="button" id="btnPreviewAssign">预览智能指派</button>
+                <button class="tb" type="button" data-flash="已应用 2 条指派（预留已占额度）">确认应用</button>
+              </div>
+              <pre class="pre" id="assignPreview">点击预览生成建议（不超卖、避熔断、错峰）</pre>
+            </section>
+
+            <!-- review -->
+            <section data-panel="review" hidden>
+              <p style="font-size:12px;line-height:1.6;color:rgb(var(--muted));margin:0 0 8px">本月目标 15 · 理论 18 · 余量 2 · 缺口 3</p>
+              <p style="font-size:12px;line-height:1.6;color:rgb(var(--muted));margin:0 0 8px">已开合计 6 · 预留 3</p>
+              <p style="font-size:12px;line-height:1.6;color:rgb(var(--muted));margin:0 0 8px">止损 1 · 熔断号 0</p>
+              <p style="font-size:12px;color:#fbbf24;margin:0">满载：建议加号或降目标，保留余量。</p>
+            </section>
+
+            <!-- settings -->
+            <section data-panel="settings" hidden>
+              <label style="display:flex;align-items:center;gap:8px;color:rgb(var(--muted));margin-bottom:12px">
+                月开目标
+                <input class="field sm" type="number" value="15" style="width:5rem" />
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;color:rgb(var(--muted));margin-bottom:12px">
+                默认平台
+                <select class="field sm" style="width:auto">
+                  <option selected>番茄小说</option>
+                  <option>起点中文（骨架）</option>
+                </select>
+              </label>
+              <p class="hint">同日全池上限 3 · 号默认月开 3 · pack fanqie · 执行 L0–L2（无代登/无打码）</p>
+              <p class="hint">已注册 pack：fanqie, qidian*（*骨架不跑真实规则）</p>
+            </section>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center editor -->
+      <main class="center" data-testid="shell-center">
+        <div class="etabs">
+          <button class="etab active" type="button">第01章 觉醒.md <span class="x">×</span></button>
+          <button class="etab" type="button" style="font-style:italic">第02章 初猎.md <span class="x">×</span></button>
+          <div class="etabs-end">
+            <button class="icon-btn" type="button" title="更多">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="editor">
+          <h2>第01章 觉醒</h2>
+          <p>陆沉睁开眼时，世界先塌了一半。</p>
+          <p class="dim">（演示正文 · 中栏 Monaco 编辑器占位，字号/行高对齐散文模式）</p>
+          <p>灰雾贴着窗缝往里钻，像有人在外面用指甲轻轻刮玻璃。他摸到枕头下那把锈掉一半的折叠刀，金属触感比记忆里更冷。</p>
+          <p>手机没有信号。楼道里有人在拖东西，节奏很慢，一下，一下，像在数他的心跳。</p>
+          <p>「规则一：吞下的东西，会留下味道。」他在心里默念，声音却从喉咙里漏出来，干得发涩。</p>
+        </div>
+      </main>
+
+      <!-- Assistant -->
+      <section class="assistant" data-testid="assistant-panel" id="assistantPanel">
+        <header class="as-head">
+          <button class="as-title" type="button">
+            <svg class="spark" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">开书前再过一遍前三章</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="color:rgb(var(--subtle));flex-shrink:0"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button class="icon-btn" type="button" title="新建会话">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="icon-btn" type="button" title="对话占满 · Ctrl+3">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+          </button>
+        </header>
+        <div class="as-msgs">
+          <div class="msg user">今天这本要开番茄，帮我看一下第一章开场有没有钩子，以及人物声音是否和设定一致。</div>
+          <div class="msg agent">
+            <div class="role">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg>
+              Agent
+            </div>
+            <div class="tool-chip">file.review · 第01章 觉醒.md</div>
+            <div class="tool-chip">project.deep_consistency · 陆沉</div>
+            <p style="margin:8px 0 0">开场灰雾+拖拽声节奏不错，钩子成立。建议：</p>
+            <p style="margin:6px 0 0;color:rgb(var(--muted))">1. 「规则一」出场略早，可再压半页再露系统感。<br/>2. 陆沉语气偏冷静，与设定「克制但有火气」差半档——可在摸刀时加一句不耐烦的自嘲。</p>
+            <p style="margin:8px 0 0">需要的话我可以直接改一版补丁，确认后再写回。</p>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="composer-box">
+            <textarea rows="2" placeholder="给 Agent 发消息… 可用 @角色"></textarea>
+            <div class="composer-foot">
+              <button class="icon-btn" type="button" title="添加上下文" style="width:28px;height:28px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <span class="ctx">第01章 觉醒.md</span>
+              <button class="send" type="button" title="发送">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="statusbar" data-testid="shell-status-bar">
+      <span style="display:flex;align-items:center;gap:6px"><span class="dot"></span>sidecar · 已连接</span>
+      <span class="mono">deepseek-v4-flash</span>
+      <span class="grow"></span>
+      <button class="sb-btn" type="button">观测未接线</button>
+      <button class="sb-btn" type="button">字体 · 散文</button>
+      <button class="sb-btn" type="button">深色</button>
+    </footer>
+  </div>
+
+  <div class="demo-tag">演示壳 · 一比一静态 · 非 Tauri 真机</div>
+
+  <!-- Open Assist Wizard -->
+  <div class="mask" id="wizardMask" role="dialog" aria-modal="true" aria-label="开书辅助向导">
+    <div class="wizard">
+      <header>
+        <h2>开书辅助（L2）</h2>
+        <span class="sub">你触发 · 可中断 · 不代登</span>
+        <div class="grow"></div>
+        <button class="tb" type="button" id="wizardClose">关闭</button>
+      </header>
+      <div class="body">
+        <div class="card">
+          <div style="font-weight:500">末世吞噬</div>
+          <div style="color:rgb(var(--subtle));font-size:12px;margin-top:2px">笔名 夜行笔 · 步骤 1/5</div>
+        </div>
+        <div class="steps">
+          <span class="step on">1. 打开后台</span>
+          <span class="step">2. 书名</span>
+          <span class="step">3. 简介</span>
+          <span class="step">4. 标签</span>
+          <span class="step">5. 确认已开</span>
+        </div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">打开作者后台</div>
+        <p style="font-size:12px;color:rgb(var(--subtle));margin:0 0 8px">在浏览器完成登录后回到此向导，逐步复制字段粘贴。</p>
+        <div class="actions">
+          <button class="tb primary" type="button" data-flash="已跳转番茄（external）。未登录时在浏览器完成登录即可，SF 不代登。">打开作者后台</button>
+          <div class="grow"></div>
+          <button class="tb" type="button" disabled>上一步</button>
+          <button class="tb" type="button">下一步</button>
+        </div>
+        <p class="note">仅打开公开作者站 URL + 剪贴板辅助。不做自动登录、自动提交、打码或反检测。</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATS_TABS = new Set(['daily', 'pipeline', 'assign', 'review']);
+    const flashEl = document.getElementById('flash');
+    document.getElementById('flashDismiss')?.addEventListener('click', () => {
+      clearTimeout(flashTimer);
+      flashEl.classList.remove('show', 'ok', 'err');
+    });
+    let flashTimer = 0;
+
+    function flash(text) {
+      if (!text) return;
+      clearTimeout(flashTimer);
+      document.getElementById('flashText').textContent = text;
+      flashEl.classList.add('show');
+      flashEl.classList.remove('ok', 'err');
+      if (/失败|错误|阻断|须|请先|无法|不是/.test(text)) flashEl.classList.add('err');
+      else if (/成功|已确认|已加入|已生成|已应用|已打开|已复制|已保存|已提取|通过|有效/.test(text)) flashEl.classList.add('ok');
+      const sticky = /失败|错误|阻断|须|请先|无法|不是|无效/.test(text);
+      flashTimer = setTimeout(() => flashEl.classList.remove('show', 'ok', 'err'), sticky ? 8000 : 3200);
+    }
+
+    // rail views
+    const side = document.getElementById('sidePanel');
+    const views = {
+      explorer: document.getElementById('viewExplorer'),
+      search: document.getElementById('viewSearch'),
+      publish: document.getElementById('viewPublish'),
+    };
+    function setView(name) {
+      document.querySelectorAll('.rail-btn[data-view]').forEach((b) => {
+        b.classList.toggle('active', b.dataset.view === name);
+      });
+      Object.entries(views).forEach(([k, el]) => {
+        el.style.display = k === name ? 'flex' : 'none';
+      });
+      side.classList.toggle('narrow', name !== 'publish');
+      side.dataset.sideView = name;
+    }
+    document.querySelectorAll('.rail-btn[data-view]').forEach((btn) => {
+      btn.addEventListener('click', () => setView(btn.dataset.view));
+    });
+    setView('publish');
+
+    // publish tabs
+    document.querySelectorAll('.pub-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.pub-tab').forEach((t) => t.classList.remove('on'));
+        tab.classList.add('on');
+        const id = tab.dataset.tab;
+        document.querySelectorAll('[data-panel]').forEach((p) => {
+          p.hidden = p.dataset.panel !== id;
+        });
+        document.getElementById('statsRow').style.display = STATS_TABS.has(id) ? 'grid' : 'none';
+      });
+    });
+
+    // flash / confirm / more menus
+    document.body.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-flash], [data-confirm], .more-btn, [data-wizard]');
+      // close menus when clicking outside
+      if (!e.target.closest('.more-wrap')) {
+        document.querySelectorAll('.more-menu.open').forEach((m) => m.classList.remove('open'));
+      }
+      if (!t) return;
+      if (t.classList.contains('more-btn')) {
+        const menu = t.parentElement.querySelector('.more-menu');
+        const open = menu.classList.contains('open');
+        document.querySelectorAll('.more-menu.open').forEach((m) => m.classList.remove('open'));
+        if (!open) menu.classList.add('open');
+        e.stopPropagation();
+        return;
+      }
+      if (t.hasAttribute('data-wizard')) {
+        document.getElementById('wizardMask').classList.add('show');
+        return;
+      }
+      if (t.hasAttribute('data-confirm')) {
+        if (!confirm(t.getAttribute('data-confirm'))) return;
+      }
+      if (t.hasAttribute('data-flash')) flash(t.getAttribute('data-flash'));
+      const menu = t.closest('.more-menu');
+      if (menu) menu.classList.remove('open');
+    });
+
+    document.getElementById('wizardClose').addEventListener('click', () => {
+      document.getElementById('wizardMask').classList.remove('show');
+    });
+    document.getElementById('wizardMask').addEventListener('click', (e) => {
+      if (e.target.id === 'wizardMask') e.target.classList.remove('show');
+    });
+
+    
+    let statsExpanded = false;
+    const statsSummary = document.getElementById('statsSummary');
+    const statsRow = document.getElementById('statsRow');
+    if (statsSummary && statsRow) {
+      statsSummary.addEventListener('click', () => {
+        statsExpanded = !statsExpanded;
+        statsRow.style.display = statsExpanded ? 'grid' : 'none';
+        statsSummary.innerHTML = (statsExpanded ? '▾' : '▸') +
+          ' 目标 15 · 理论 18 · <span class="warn">余量 2</span> · <span class="warn">缺口 3</span>';
+      });
+    }
+    document.getElementById('btnPreviewAssign').addEventListener('click', () => {
+      document.getElementById('assignPreview').textContent =
+        '建议指派（预览，未写盘）\n' +
+        '· 末世吞噬 → 夜行笔 · 2026-07-13\n' +
+        '· 灰雾边境 → 冷号甲 · 2026-07-14\n' +
+        '阻断：无';
+      flash('预览已生成');
+    });
+
+    // toggle right panel
+    let rightOpen = true;
+    document.getElementById('btnToggleRight').addEventListener('click', () => {
+      rightOpen = !rightOpen;
+      document.getElementById('assistantPanel').classList.toggle('hidden', !rightOpen);
+    });
+  </script>
+</body>
+</html>
