@@ -50,13 +50,15 @@ export function OpenAssistWizard({
     setBusy(true);
     try {
       const pack = resolvePlatformPack(String(book.platform));
-      if (!pack.authorHomeUrl) {
-        onFlash(`${pack.label} 未配置作者首页 URL`);
+      if (!pack.authorHomeUrl && !pack.loginUrl) {
+        onFlash(`${pack.label} 未配置作者/登录页 URL`);
         return;
       }
-      const result = await openExternalUrl(pack.authorHomeUrl, pack);
+      const result = await openExternalUrl(pack.authorHomeUrl || pack.loginUrl, pack);
       if (result.ok) {
-        onFlash(`已打开${pack.label}作者页（${result.method}）。请使用本机已登录会话。`);
+        onFlash(
+          `已跳转${pack.label}（${result.method}）。未登录时在浏览器完成登录即可，SF 不代登。`,
+        );
       } else {
         onFlash(result.reason);
       }

@@ -14,6 +14,12 @@ export type RiskStatus = 'normal' | 'watch' | 'blocked';
 
 export type DropReason = 'data_poor' | 'cant_write' | 'policy_risk' | 'strategic' | 'other';
 
+/**
+ * 平台会话态（经营镜像，非浏览器 Cookie / OAuth token）。
+ * 番茄不向第三方桌面端下发可回调 token，故采用：跳转登录 → 用户确认已登录。
+ */
+export type PlatformSessionStatus = 'unknown' | 'pending' | 'logged_in' | 'logged_out' | 'expired';
+
 export type PublishAccount = {
   id: string;
   penName: string;
@@ -27,6 +33,14 @@ export type PublishAccount = {
   coldUntil: string | null;
   /** 观察期内月开上限（默认 1） */
   coldMaxOpensPerMonth: number;
+  /** 会话态：仅本地台账 */
+  sessionStatus: PlatformSessionStatus;
+  /** 上次点「跳转登录」时间 */
+  lastLoginJumpAt: string | null;
+  /** 用户确认已登录时间 */
+  sessionConfirmedAt: string | null;
+  /** 会话备注（如笔名在站内显示名） */
+  sessionNote: string;
 };
 
 export type PublishBook = {

@@ -43,3 +43,29 @@ export async function openExternalUrl(
     reason: '无法打开外部浏览器（请手动打开番茄作者后台）',
   };
 }
+
+/** 跳转作者后台（已登录会话可直接进） */
+export async function openAuthorHome(
+  pack?: PlatformPack | string | null,
+): Promise<OpenExternalResult> {
+  const resolved = typeof pack === 'string' || pack == null ? resolvePlatformPack(pack) : pack;
+  if (!resolved.authorHomeUrl) {
+    return { ok: false, reason: `${resolved.label} 未配置作者首页` };
+  }
+  return openExternalUrl(resolved.authorHomeUrl, resolved);
+}
+
+/**
+ * 跳转登录/作者入口：仅系统浏览器打开，用户在站内登录。
+ * 不是 OAuth 客户端集成，不接收回调 token。
+ */
+export async function openPlatformLogin(
+  pack?: PlatformPack | string | null,
+): Promise<OpenExternalResult> {
+  const resolved = typeof pack === 'string' || pack == null ? resolvePlatformPack(pack) : pack;
+  const url = resolved.loginUrl || resolved.authorHomeUrl;
+  if (!url) {
+    return { ok: false, reason: `${resolved.label} 未配置登录/作者页 URL` };
+  }
+  return openExternalUrl(url, resolved);
+}

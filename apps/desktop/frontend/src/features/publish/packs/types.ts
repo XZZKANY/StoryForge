@@ -11,6 +11,8 @@ export type PlatformPack = {
   checklistLabels: Record<string, string>;
   openPackReadme: string;
   authorHomeUrl: string;
+  /** 登录页：仅系统浏览器跳转，不接 OAuth token / 不存密码 */
+  loginUrl: string;
   openUrlAllowlist: readonly string[];
   isAllowedOpenUrl: (url: string) => boolean;
 };

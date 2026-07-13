@@ -135,6 +135,10 @@ export function normalizeAccount(raw: PublishAccount): PublishAccount {
     ...raw,
     coldUntil: raw.coldUntil ?? null,
     coldMaxOpensPerMonth: raw.coldMaxOpensPerMonth ?? 1,
+    sessionStatus: raw.sessionStatus ?? 'unknown',
+    lastLoginJumpAt: raw.lastLoginJumpAt ?? null,
+    sessionConfirmedAt: raw.sessionConfirmedAt ?? null,
+    sessionNote: raw.sessionNote ?? '',
   };
 }
 

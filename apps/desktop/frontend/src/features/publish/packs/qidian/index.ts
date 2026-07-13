@@ -28,6 +28,7 @@ export const qidianPack: PlatformPack = {
 请继续使用番茄 pack，或自行补全 qidian pack 后将 ready 设为 true。
 `,
   authorHomeUrl: '',
+  loginUrl: '',
   openUrlAllowlist: [],
   isAllowedOpenUrl: () => false,
 };

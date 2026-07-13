@@ -17,8 +17,11 @@ import {
   isAccountAssignable,
   isPlaceholderBook,
   isReadyEnough,
+  isSessionStale,
   jaccardSimilarity,
+  markLoginJumped,
   markOpenedInQuota,
+  markSessionLoggedIn,
   remainingForAccount,
   targetGap,
   theoryCapacity,
@@ -42,6 +45,10 @@ function account(
     priority: 0,
     coldUntil: null,
     coldMaxOpensPerMonth: 1,
+    sessionStatus: 'unknown',
+    lastLoginJumpAt: null,
+    sessionConfirmedAt: null,
+    sessionNote: '',
     ...overrides,
   };
 }
@@ -237,6 +244,24 @@ test('简介过近检测', () => {
   );
   assert.equal(hits.length, 1);
   assert.equal(hits[0].otherProjectKey, 'other');
+});
+
+test('会话态：跳转后 pending，确认后 logged_in', () => {
+  const a0 = account('a1');
+  const jumped = markLoginJumped(a0, '2026-07-13T10:00:00.000Z');
+  assert.equal(jumped.sessionStatus, 'pending');
+  assert.equal(jumped.lastLoginJumpAt, '2026-07-13T10:00:00.000Z');
+  const ok = markSessionLoggedIn(jumped, '2026-07-13T10:05:00.000Z');
+  assert.equal(ok.sessionStatus, 'logged_in');
+  assert.equal(ok.sessionConfirmedAt, '2026-07-13T10:05:00.000Z');
+  assert.equal(
+    isSessionStale(
+      { sessionStatus: 'logged_in', sessionConfirmedAt: '2026-06-01T00:00:00.000Z' },
+      Date.parse('2026-07-13T00:00:00.000Z'),
+      14,
+    ),
+    true,
+  );
 });
 
 test('空位不参与智能指派', () => {

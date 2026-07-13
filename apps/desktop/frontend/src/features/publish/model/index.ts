@@ -6,3 +6,4 @@ export * from './ready-score';
 export * from './auto-assign';
 export * from './slots';
 export * from './similarity';
+export * from './session';

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StoryForge 发行 · 左栏演示</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #151820;
+      --elevated: #1c212b;
+      --border: #2a3140;
+      --fg: #e8eaef;
+      --muted: #8b93a7;
+      --subtle: #6b7388;
+      --accent: #6b8afd;
+      --warn: #e6b84d;
+      --danger: #e06c75;
+      --ok: #7fd99a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      height: 100vh;
+      overflow: hidden;
+    }
+    .shell { display: flex; flex-direction: column; height: 100%; }
+    .titlebar {
+      height: 36px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--panel);
+    }
+    .titlebar strong { color: var(--fg); font-weight: 600; }
+    .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--elevated);
+      color: var(--subtle);
+    }
+    .badge.live { color: var(--ok); border: 1px solid #2d4a38; }
+    .main { display: flex; flex: 1; min-height: 0; }
+    .rail {
+      width: 48px;
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 4px;
+    }
+    .rail-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--subtle);
+      cursor: pointer;
+      position: relative;
+      font-size: 16px;
+    }
+    .rail-btn:hover { background: var(--elevated); color: var(--fg); }
+    .rail-btn.active { color: var(--fg); }
+    .rail-btn.active::before {
+      content: "";
+      position: absolute;
+      left: -4px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      border-radius: 2px;
+      background: var(--fg);
+    }
+    .rail .spacer { flex: 1; }
+    .side {
+      width: 360px;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      display: none;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .side.show { display: flex; }
+    .side.narrow { width: 236px; }
+    .center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg);
+    }
+    .editor-mock {
+      flex: 1;
+      padding: 24px 32px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .editor-mock h2 { color: var(--fg); font-size: 18px; margin: 0 0 12px; }
+    .editor-mock .line { opacity: 0.7; }
+    .tabs-bar {
+      height: 34px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 4px;
+      font-size: 12px;
+    }
+    .tab-chip {
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: var(--subtle);
+    }
+    .tab-chip.on { background: var(--elevated); color: var(--fg); }
+
+    /* publish cockpit */
+    .pub-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .pub-head h1 { margin: 0; font-size: 12px; font-weight: 600; }
+    .pub-head .ym { font-size: 10px; color: var(--subtle); }
+    .btn {
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--fg);
+      font-size: 10px;
+      padding: 3px 6px;
+      cursor: pointer;
+    }
+    .btn:hover { background: var(--elevated); }
+    .btn.primary { background: var(--elevated); }
+    .pub-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      padding: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .pub-tab {
+      border: none;
+      background: transparent;
+      color: var(--subtle);
+      font-size: 10px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .pub-tab.on { background: var(--elevated); color: var(--fg); }
+    .pub-body { flex: 1; overflow: auto; padding: 8px; font-size: 12px; }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+    .stat .k { font-size: 10px; color: var(--subtle); }
+    .stat .v { font-size: 15px; font-weight: 600; }
+    .stat .v.warn { color: var(--warn); }
+    .block-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--subtle);
+      margin: 10px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .row {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin-bottom: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+    .row .title { font-weight: 600; }
+    .pill {
+      font-size: 9px;
+      text-transform: uppercase;
+      background: var(--elevated);
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: var(--muted);
+    }
+    .pill.slot { color: var(--warn); }
+    .pill.cold { color: var(--warn); }
+    .pill.blocked { color: var(--danger); }
+    .grow { flex: 1; }
+    .muted { color: var(--subtle); font-size: 11px; }
+    .flash {
+      display: none;
+      border-bottom: 1px solid var(--border);
+      background: rgba(107, 138, 253, 0.12);
+      padding: 4px 8px;
+      font-size: 11px;
+      color: var(--accent);
+    }
+    .flash.show { display: block; }
+    .empty { color: var(--subtle); font-size: 11px; padding: 4px 0; }
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      border-radius: 4px;
+      font-size: 11px;
+      padding: 3px 6px;
+    }
+    .wizard-mask {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .wizard-mask.show { display: flex; }
+    .wizard {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .wizard header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .wizard .body { padding: 12px; font-size: 12px; }
+    .wizard pre {
+      background: var(--elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      white-space: pre-wrap;
+      max-height: 100px;
+      overflow: auto;
+      font-size: 11px;
+    }
+    .note {
+      margin-top: 8px;
+      font-size: 10px;
+      color: var(--subtle);
+    }
+    .hint-bar {
+      border-top: 1px solid var(--border);
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--panel);
+    }
+    .hint-bar code {
+      background: var(--elevated);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="titlebar">
+      <strong>StoryForge IDE</strong>
+      <span class="badge">演示页 · 非真机</span>
+      <span class="badge live">发行在左侧</span>
+      <span class="grow" style="flex:1"></span>
+      <span>布局：活动栏 + 侧栏功能块（当前实现）</span>
+    </div>
+    <div class="main">
+      <nav class="rail" aria-label="活动栏">
+        <button class="rail-btn" data-view="explorer" title="故事文件">📄</button>
+        <button class="rail-btn" data-view="search" title="搜索">🔍</button>
+        <button class="rail-btn active" data-view="publish" title="发行">🚩</button>
+        <div class="spacer"></div>
+        <button class="rail-btn" title="设置" style="cursor:default;opacity:.5">⚙</button>
+      </nav>
+
+      <aside class="side show" id="side-publish">
+        <div class="pub-head">
+          <h1>发行</h1>
+          <span class="ym" id="ym"></span>
+          <span class="grow"></span>
+          <button class="btn" id="btn-login">登录</button>
+          <button class="btn" id="btn-author">后台</button>
+          <button class="btn" id="btn-add">入库</button>
+          <button class="btn" id="btn-slot">占坑</button>
+          <button class="btn" id="btn-ready">Ready</button>
+        </div>
+        <div class="flash" id="flash"></div>
+        <div class="pub-tabs" id="tabs"></div>
+        <div class="pub-body" id="body"></div>
+      </aside>
+
+      <aside class="side narrow" id="side-other" style="display:none">
+        <div style="padding:12px;font-size:12px;color:var(--muted)">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--subtle);margin-bottom:8px">EXPLORER / SEARCH</div>
+          <p>这是文件树 / 搜索占位。点左侧 🚩 回到发行。</p>
+          <p class="muted">真机里这里是 StoryNavigator。</p>
+        </div>
+      </aside>
+
+      <section class="center">
+        <div class="tabs-bar">
+          <span class="tab-chip on">第3章-夜谈.md</span>
+          <span class="tab-chip">大纲.md</span>
+          <span class="muted" style="margin-left:8px">中栏继续写稿，发行不抢 C 位</span>
+        </div>
+        <div class="editor-mock">
+          <h2>第三章 · 夜谈</h2>
+          <p class="line">雨停之后，巷口的灯还亮着。林晚推开木门，看见案上多了一封没有落款的信……</p>
+          <p class="line">（此处模拟编辑器正文。发行面板在左侧 360px 侧栏。）</p>
+          <p class="line" style="margin-top:24px;color:var(--subtle)">
+            演示数据：5 号 × 月开 3 · 目标 15 · 含 1 空位、1 冷号、今日应开 2 本。
+          </p>
+        </div>
+        <div class="hint-bar">
+          操作：点活动栏切换视图 · 发行内切换 Tab · 「开书辅助」弹 L2 向导 ·
+          文件路径 <code>docs/internal/publish-fleet/demo.html</code>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="wizard-mask" id="wizard">
+    <div class="wizard">
+      <header>
+        <strong>开书辅助（L2）</strong>
+        <span class="muted">你触发 · 可中断 · 不代登</span>
+        <span class="grow"></span>
+        <button class="btn" id="wiz-close">关闭</button>
+      </header>
+      <div class="body">
+        <div class="row" style="margin-bottom:10px">
+          <span class="title" id="wiz-title">书名</span>
+          <span class="muted" id="wiz-pen">笔名</span>
+        </div>
+        <div class="muted" id="wiz-step-label">步骤</div>
+        <p class="muted" id="wiz-hint" style="margin:6px 0"></p>
+        <pre id="wiz-text"></pre>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+          <button class="btn primary" id="wiz-open">打开作者后台</button>
+          <button class="btn primary" id="wiz-copy">复制本步</button>
+          <button class="btn primary" id="wiz-done" style="display:none">确认已开</button>
+          <span class="grow"></span>
+          <button class="btn" id="wiz-prev">上一步</button>
+          <button class="btn" id="wiz-next">下一步</button>
+        </div>
+        <p class="note">演示不会真的打开番茄站；真机用 shell.open 白名单 URL。</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ym = new Date().toISOString().slice(0, 7);
+    document.getElementById('ym').textContent = ym;
+    const today = new Date().toISOString().slice(0, 10);
+
+    const accounts = [
+      { id: 'a1', penName: '青灯夜话', limit: 3, remaining: 1, risk: 'normal', cold: false },
+      { id: 'a2', penName: '南巷听雨', limit: 3, remaining: 2, risk: 'normal', cold: true },
+      { id: 'a3', penName: '旧城风', limit: 3, remaining: 3, risk: 'blocked', cold: false },
+      { id: 'a4', penName: '白露未晞', limit: 3, remaining: 2, risk: 'normal', cold: false },
+      { id: 'a5', penName: '星河入梦', limit: 3, remaining: 3, risk: 'normal', cold: false },
+    ];
+
+    const books = [
+      { key: 'b1', title: '重生之商业帝国', status: 'scheduled', plan: today, pen: '青灯夜话', ready: 88, slot: false, blurb: '都市重生后我靠系统逆袭商业帝国称霸全城' },
+      { key: 'b2', title: '巷口那盏灯', status: 'scheduled', plan: today, pen: '白露未晞', ready: 72, slot: false, blurb: '雨夜归来，木门后藏着一封无名信' },
+      { key: 'b3', title: '旧梦难温', status: 'ready', plan: null, pen: '—', ready: 65, slot: false, blurb: '完全不同的玄幻修仙飞升之路' },
+      { key: 'b4', title: '[空位] 七月坑', status: 'idea', plan: '2026-07-22', pen: '—', ready: 0, slot: true, blurb: '' },
+      { key: 'b5', title: '南风知我意', status: 'serializing', plan: '2026-07-01', pen: '南巷听雨', ready: 90, slot: false, blurb: '连载中…' },
+    ];
+
+    const TABS = [
+      { id: 'daily', label: '今日作战' },
+      { id: 'pipeline', label: '流水线' },
+      { id: 'calendar', label: '日历' },
+      { id: 'accounts', label: '账号额度' },
+      { id: 'assign', label: '智能指派' },
+      { id: 'review', label: '复盘' },
+      { id: 'settings', label: '设置' },
+    ];
+
+    let tab = 'daily';
+    let wizBook = null;
+    let wizStep = 0;
+    const WIZ = [
+      { id: 'title', label: '书名', hint: '复制书名 → 粘贴到已打开的番茄后台' },
+      { id: 'blurb', label: '简介', hint: '复制简介 → 粘贴简介框' },
+      { id: 'tags', label: '标签', hint: '复制标签（演示为空）' },
+      { id: 'done', label: '确认已开', hint: '后台开完后点确认，写回额度' },
+    ];
+
+    function flash(msg) {
+      const el = document.getElementById('flash');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    function penOf(name) {
+      return accounts.find((a) => a.penName === name);
+    }
+
+    function renderTabs() {
+      document.getElementById('tabs').innerHTML = TABS.map(
+        (t) =>
+          `<button class="pub-tab ${t.id === tab ? 'on' : ''}" data-tab="${t.id}">${t.label}</button>`,
+      ).join('');
+      document.querySelectorAll('.pub-tab').forEach((btn) => {
+        btn.onclick = () => {
+          tab = btn.dataset.tab;
+          render();
+        };
+      });
+    }
+
+    function bookRow(b, actions = true) {
+      return `<div class="row">
+        <span class="pill ${b.slot ? 'slot' : ''}">${b.status}${b.slot ? ' · 空位' : ''}</span>
+        <span class="title">${b.title}</span>
+        <span class="muted">${b.pen}</span>
+        <span class="muted">${b.plan || '未排期'} · Ready ${b.ready}</span>
+        <span class="grow"></span>
+        ${
+          actions
+            ? `<button class="btn" data-act="copy" data-k="${b.key}">复制书名</button>
+               <button class="btn" data-act="pack" data-k="${b.key}">作业包</button>
+               <button class="btn" data-act="assist" data-k="${b.key}">开书辅助</button>
+               <button class="btn" data-act="open" data-k="${b.key}">确认已开</button>`
+            : ''
+        }
+      </div>`;
+    }
+
+    function renderBody() {
+      const theory = accounts.filter((a) => a.risk !== 'blocked').reduce((s, a) => s + a.limit, 0);
+      const target = 15;
+      const spare = theory - target;
+      const opened = 4;
+      const reserved = books.filter((b) => b.status === 'scheduled').length;
+
+      let html = `<div class="stats">
+        <div class="stat"><div class="k">目标</div><div class="v">${target}</div></div>
+        <div class="stat"><div class="k">理论产能</div><div class="v">${theory}</div></div>
+        <div class="stat"><div class="k">spare</div><div class="v ${spare < 3 ? 'warn' : ''}">${spare}</div></div>
+        <div class="stat"><div class="k">目标缺口</div><div class="v">${Math.max(0, target - opened - reserved)}</div></div>
+      </div>`;
+
+      if (tab === 'daily') {
+        const todayBooks = books.filter((b) => b.plan === today && (b.status === 'scheduled' || b.status === 'ready'));
+        html += `<div class="block-title">今日应开</div>`;
+        html += todayBooks.length ? todayBooks.map((b) => bookRow(b)).join('') : `<div class="empty">今日无排期</div>`;
+        html += `<div class="block-title">本周队列</div>`;
+        html += books
+          .filter((b) => b.status === 'scheduled')
+          .map((b) => `<div class="muted">${b.plan} · ${b.title}</div>`)
+          .join('') || `<div class="empty">暂无</div>`;
+      }
+
+      if (tab === 'pipeline') {
+        html += `<div class="muted" style="margin-bottom:8px">弱耦合挂书 · 空位可绑定当前项目</div>`;
+        html += books.map((b) => bookRow(b, true)).join('');
+      }
+
+      if (tab === 'calendar') {
+        html += `<div class="muted" style="margin-bottom:8px">改 planOpenDate；超同日全池上限会阻断（演示只展示）</div>`;
+        html += books
+          .filter((b) => b.status !== 'dropped')
+          .map(
+            (b) => `<div class="row">
+              <span class="title">${b.title}</span>
+              <input type="date" value="${b.plan || ''}" disabled />
+              <span class="muted">${b.status}</span>
+            </div>`,
+          )
+          .join('');
+      }
+
+      if (tab === 'accounts') {
+        html += accounts
+          .map(
+            (a) => `<div class="row">
+              <span class="title">${a.penName}</span>
+              <span class="muted">limit ${a.limit}</span>
+              <span class="muted">剩余 ${a.remaining}</span>
+              <span class="pill ${a.risk === 'blocked' ? 'blocked' : ''}">${a.risk}</span>
+              ${a.cold ? '<span class="pill cold">冷号</span>' : ''}
+              <span class="grow"></span>
+              <button class="btn" data-act="cold" data-id="${a.id}">${a.cold ? '解除冷号' : '标冷号'}</button>
+              <button class="btn" data-act="block" data-id="${a.id}">${a.risk === 'blocked' ? '解除熔断' : '熔断停派'}</button>
+            </div>`,
+          )
+          .join('');
+      }
+
+      if (tab === 'assign') {
+        html += `<button class="btn primary" id="btn-assign">预览智能指派</button>
+          <pre id="assign-out" style="margin-top:8px;background:var(--elevated);border:1px solid var(--border);padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap">点击预览：不超卖、避 blocked、冷号限载、错峰</pre>`;
+      }
+
+      if (tab === 'review') {
+        html += `<p>本月目标 ${target} · 理论 ${theory} · spare ${spare}</p>
+          <p>已开 ${opened} · 预留 ${reserved} · 止损 0 · 熔断号 ${accounts.filter((a) => a.risk === 'blocked').length}</p>
+          <p class="muted">${spare <= 0 ? '满载：建议加号或降目标' : '产能有备份号'}</p>`;
+      }
+
+      if (tab === 'settings') {
+        html += `<label class="muted">月开目标 <input type="number" value="15" style="width:64px" disabled /></label>
+          <div style="margin-top:8px" class="muted">默认平台 pack
+            <select disabled><option>番茄小说</option><option>起点中文网（骨架）</option></select>
+          </div>
+          <p class="note">执行 L0–L2 · 无代登/无打码 · Platform Pack 可切换</p>`;
+      }
+
+      document.getElementById('body').innerHTML = html;
+
+      document.querySelectorAll('[data-act]').forEach((btn) => {
+        btn.onclick = () => {
+          const act = btn.dataset.act;
+          const k = btn.dataset.k;
+          const b = books.find((x) => x.key === k);
+          if (act === 'copy' && b) {
+            flash(`已复制书名：${b.title}`);
+          } else if (act === 'pack' && b) {
+            flash(b.slot ? '空位请先绑定真实项目' : `作业包已生成（演示）：${b.title}`);
+          } else if (act === 'assist' && b) {
+            openWizard(b);
+          } else if (act === 'open' && b) {
+            flash(`已确认开书（演示）：${b.title} · 额度已占用，止损不退`);
+          } else if (act === 'cold') {
+            const a = accounts.find((x) => x.id === btn.dataset.id);
+            if (a) {
+              a.cold = !a.cold;
+              flash(a.cold ? `${a.penName} 标为冷号` : `${a.penName} 解除冷号`);
+              renderBody();
+            }
+          } else if (act === 'block') {
+            const a = accounts.find((x) => x.id === btn.dataset.id);
+            if (a) {
+              a.risk = a.risk === 'blocked' ? 'normal' : 'blocked';
+              flash(`${a.penName} → ${a.risk}`);
+              renderBody();
+            }
+          }
+        };
+      });
+
+      const assignBtn = document.getElementById('btn-assign');
+      if (assignBtn) {
+        assignBtn.onclick = () => {
+          document.getElementById('assign-out').textContent =
+            `建议 2 本，阻塞 1 本（空位）\n` +
+            `· 重生之商业帝国 → a4 @ ${today}\n` +
+            `· 旧梦难温 → a5 @ ${today}\n` +
+            `× [空位] 七月坑: 空位尚未绑定真实项目\n` +
+            `（避开 blocked 旧城风；冷号南巷听雨降优先）`;
+          flash('已生成指派预览（演示）');
+        };
+      }
+    }
+
+    function render() {
+      renderTabs();
+      renderBody();
+    }
+
+    function openWizard(b) {
+      wizBook = b;
+      wizStep = 0;
+      document.getElementById('wizard').classList.add('show');
+      renderWizard();
+    }
+
+    function renderWizard() {
+      const s = WIZ[wizStep];
+      document.getElementById('wiz-title').textContent = wizBook.title;
+      document.getElementById('wiz-pen').textContent = '笔名 ' + wizBook.pen;
+      document.getElementById('wiz-step-label').textContent = `步骤 ${wizStep + 1}/${WIZ.length} · ${s.label}`;
+      document.getElementById('wiz-hint').textContent = s.hint;
+      let text = '';
+      if (s.id === 'title') text = wizBook.title.replace(/^\[空位\]\s*/, '');
+      if (s.id === 'blurb') text = wizBook.blurb || '（空）';
+      if (s.id === 'tags') text = '都市, 重生, 系统';
+      if (s.id === 'done') text = '后台完成后点「确认已开」写回 SF';
+      document.getElementById('wiz-text').textContent = text;
+      document.getElementById('wiz-copy').style.display = s.id === 'done' ? 'none' : '';
+      document.getElementById('wiz-done').style.display = s.id === 'done' ? '' : 'none';
+    }
+
+    document.getElementById('wiz-close').onclick = () => {
+      document.getElementById('wizard').classList.remove('show');
+      flash('向导已中断（可随时再开）');
+    };
+    document.getElementById('wiz-prev').onclick = () => {
+      wizStep = Math.max(0, wizStep - 1);
+      renderWizard();
+    };
+    document.getElementById('wiz-next').onclick = () => {
+      wizStep = Math.min(WIZ.length - 1, wizStep + 1);
+      renderWizard();
+    };
+    document.getElementById('wiz-copy').onclick = () => flash('已复制本步字段（演示剪贴板）');
+    document.getElementById('wiz-open').onclick = () => flash('演示：将打开 fanqienovel.com 作者页（真机 shell.open）');
+    document.getElementById('wiz-done').onclick = () => {
+      document.getElementById('wizard').classList.remove('show');
+      flash(`确认已开（演示）：${wizBook.title}`);
+    };
+
+    document.getElementById('btn-login').onclick = () =>
+      flash('演示：将跳转番茄登录/作者页（真机 shell.open，不代登）');
+    document.getElementById('btn-author').onclick = () =>
+      flash('演示：将打开番茄作者后台');
+    document.getElementById('btn-add').onclick = () => flash('已加入发布库：当前项目（演示）');
+    document.getElementById('btn-slot').onclick = () => flash('已创建空位占坑（演示）');
+    document.getElementById('btn-ready').onclick = () => flash('Ready 扫描完成 5 本（演示）');
+
+    document.querySelectorAll('.rail-btn[data-view]').forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll('.rail-btn[data-view]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const v = btn.dataset.view;
+        const pub = document.getElementById('side-publish');
+        const other = document.getElementById('side-other');
+        if (v === 'publish') {
+          pub.classList.add('show');
+          pub.style.display = 'flex';
+          other.style.display = 'none';
+        } else {
+          pub.classList.remove('show');
+          pub.style.display = 'none';
+          other.style.display = 'flex';
+        }
+      };
+    });
+
+    render();
+  </script>
+</body>
+</html>

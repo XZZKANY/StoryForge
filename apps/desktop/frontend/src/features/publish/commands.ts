@@ -12,7 +12,9 @@ export type PublishCommandType =
   | 'monthly-review'
   | 'refresh-ready'
   | 'reschedule-focus'
-  | 'open-assist';
+  | 'open-assist'
+  | 'platform-login'
+  | 'open-author-home';
 
 export type PublishCommandDetail = {
   type: PublishCommandType;
@@ -50,4 +52,6 @@ export const PUBLISH_COMMAND_TITLES: { type: PublishCommandType; title: string; 
     { type: 'monthly-review', title: 'Publish: 月度复盘' },
     { type: 'refresh-ready', title: 'Publish: 刷新 Ready 扫描' },
     { type: 'open-assist', title: 'Publish: 开书辅助向导（L2）' },
+    { type: 'platform-login', title: 'Publish: 跳转平台登录' },
+    { type: 'open-author-home', title: 'Publish: 打开作者后台' },
   ];

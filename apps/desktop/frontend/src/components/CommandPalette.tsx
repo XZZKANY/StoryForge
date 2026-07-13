@@ -213,6 +213,16 @@ export function CommandPalette({
           title: 'Publish: 开书辅助向导（L2）',
           run: () => onPublishCommand('open-assist'),
         },
+        {
+          id: 'publish-platform-login',
+          title: 'Publish: 跳转平台登录',
+          run: () => onPublishCommand('platform-login'),
+        },
+        {
+          id: 'publish-author-home',
+          title: 'Publish: 打开作者后台',
+          run: () => onPublishCommand('open-author-home'),
+        },
       );
     }
     list.push(

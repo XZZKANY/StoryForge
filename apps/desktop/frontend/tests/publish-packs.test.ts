@@ -25,7 +25,9 @@ test('resolve：未知 id 回退 fanqie；骨架默认不启用', () => {
 test('fanqie 白名单经 pack 接口', () => {
   const pack = getPlatformPack('fanqie')!;
   assert.equal(pack.isAllowedOpenUrl('https://fanqienovel.com/main/writer'), true);
+  assert.equal(pack.isAllowedOpenUrl('https://sso.toutiao.com/login'), true);
   assert.equal(pack.isAllowedOpenUrl('https://evil.example/'), false);
   assert.ok(pack.authorHomeUrl.startsWith('https://'));
+  assert.ok(pack.loginUrl.startsWith('https://'));
   assert.ok(pack.openPackReadme.includes('开书'));
 });

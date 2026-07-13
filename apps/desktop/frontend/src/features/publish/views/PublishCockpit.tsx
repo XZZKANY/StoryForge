@@ -11,9 +11,15 @@ import {
   emptyMonthQuota,
   findNearBlurbs,
   isPlaceholderBook,
+  isSessionStale,
+  markLoginJumped,
   markOpenedInQuota,
+  markSessionExpired,
+  markSessionLoggedIn,
+  markSessionLoggedOut,
   remainingForAccount,
   scheduleReadyWarning,
+  sessionStatusLabel,
   targetGap,
   upsertReservation,
   type MonthQuota,
@@ -38,6 +44,7 @@ import { copyText, generateOpenPack } from '../storage/open-pack';
 import { scanProjectReady } from '../storage/ready-scan';
 import { onPublishCommand, type PublishCommandType } from '../commands';
 import { OpenAssistWizard } from '../assist/OpenAssistWizard';
+import { openAuthorHome, openPlatformLogin } from '../assist/open-external';
 import { listPlatformPacks, resolvePlatformPack } from '../packs';
 import { projectBasename } from '../../../lib/project-context';
 
@@ -221,6 +228,10 @@ export function PublishCockpit({
       priority: 0,
       coldUntil: null,
       coldMaxOpensPerMonth: settings.defaultColdMaxOpensPerMonth,
+      sessionStatus: 'unknown',
+      lastLoginJumpAt: null,
+      sessionConfirmedAt: null,
+      sessionNote: '',
     };
     const next = [...accounts, acc];
     await saveAccounts(next);
@@ -413,6 +424,77 @@ export function PublishCockpit({
     setSettings(next);
   };
 
+  const jumpPlatformLogin = async (accountId?: string) => {
+    const pack = resolvePlatformPack(settings.defaultPlatform);
+    const result = await openPlatformLogin(pack);
+    if (!result.ok) {
+      flash(result.reason);
+      return;
+    }
+    // 无法从浏览器拿 Cookie：跳转后把对应号标成 pending，等用户回写「已登录」
+    if (accountId) {
+      const next = accounts.map((a) =>
+        a.id === accountId ? markLoginJumped(a) : a,
+      );
+      await saveAccounts(next);
+      setAccounts(next);
+      flash(
+        `已跳转${pack.label}（${result.method}）。浏览器登录后，回本号点「确认已登录」。`,
+      );
+      return;
+    }
+    // 未指定号：若只有一个号则挂到它；否则提示先选号
+    if (accounts.length === 1) {
+      const next = accounts.map((a) => markLoginJumped(a));
+      await saveAccounts(next);
+      setAccounts(next);
+      flash(
+        `已跳转${pack.label}（${result.method}）。登录后点「确认已登录」写入会话态。`,
+      );
+      return;
+    }
+    flash(
+      `已跳转${pack.label}（${result.method}）。请在账号列表对该笔名点「去登录」再「确认已登录」。`,
+    );
+  };
+
+  const confirmAccountSession = async (accountId: string) => {
+    const next = accounts.map((a) =>
+      a.id === accountId ? markSessionLoggedIn(a) : a,
+    );
+    await saveAccounts(next);
+    setAccounts(next);
+    flash('已记录登录态（本地台账，非平台 token）');
+  };
+
+  const clearAccountSession = async (accountId: string) => {
+    const next = accounts.map((a) =>
+      a.id === accountId ? markSessionLoggedOut(a) : a,
+    );
+    await saveAccounts(next);
+    setAccounts(next);
+    flash('已标记为退出/未登录');
+  };
+
+  const expireAccountSession = async (accountId: string) => {
+    const next = accounts.map((a) =>
+      a.id === accountId ? markSessionExpired(a) : a,
+    );
+    await saveAccounts(next);
+    setAccounts(next);
+    flash('已标记会话可能失效');
+  };
+
+  const jumpAuthorHome = async () => {
+    const pack = resolvePlatformPack(settings.defaultPlatform);
+    const result = await openAuthorHome(pack);
+    if (result.ok) {
+      flash(`已打开${pack.label}作者后台（${result.method}）`);
+    } else {
+      flash(result.reason);
+    }
+  };
+
   const markOpenedTodayBatch = async () => {
     const targets = todayBooks.filter((b) => b.assignedAccountId);
     if (targets.length === 0) {
@@ -509,6 +591,12 @@ export function PublishCockpit({
           setAssistBookKey(target.projectKey);
           break;
         }
+        case 'platform-login':
+          void jumpPlatformLogin();
+          break;
+        case 'open-author-home':
+          void jumpAuthorHome();
+          break;
         case 'open':
         default:
           break;
@@ -532,6 +620,22 @@ export function PublishCockpit({
         <h1 className={`font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>发行</h1>
         <span className="text-[10px] text-subtle">{yearMonth}</span>
         <div className="flex-1" />
+        <button
+          type="button"
+          className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
+          onClick={() => void jumpPlatformLogin()}
+          title="系统浏览器跳转平台登录/作者页（不代登、不存密码）"
+        >
+          登录
+        </button>
+        <button
+          type="button"
+          className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
+          onClick={() => void jumpAuthorHome()}
+          title="打开作者后台"
+        >
+          后台
+        </button>
         <button
           type="button"
           className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
@@ -824,6 +928,26 @@ export function PublishCockpit({
 
         {tab === 'accounts' && (
           <section className="space-y-3">
+            <p className="text-[10px] text-subtle">
+              番茄无第三方 OAuth 回调：流程是「跳转浏览器登录 → 回 SF 确认已登录」。
+              会话态是本地台账，不是浏览器 Cookie / access_token。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded bg-elevated px-2 py-1 text-xs"
+                onClick={() => void jumpPlatformLogin()}
+              >
+                跳转平台登录
+              </button>
+              <button
+                type="button"
+                className="rounded bg-elevated px-2 py-1 text-xs"
+                onClick={() => void jumpAuthorHome()}
+              >
+                打开作者后台
+              </button>
+            </div>
             <div className="flex gap-2">
               <input
                 className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
@@ -839,7 +963,20 @@ export function PublishCockpit({
                 添加账号
               </button>
             </div>
-            {accounts.map((a) => (
+            {accounts.map((a) => {
+              const stale = isSessionStale(a);
+              const sessionLabel = stale
+                ? '可能失效'
+                : sessionStatusLabel(a.sessionStatus);
+              const sessionClass =
+                a.sessionStatus === 'logged_in' && !stale
+                  ? 'text-emerald-400'
+                  : a.sessionStatus === 'pending'
+                    ? 'text-amber-400'
+                    : a.sessionStatus === 'expired' || stale
+                      ? 'text-red-400'
+                      : 'text-subtle';
+              return (
               <div
                 key={a.id}
                 className="flex flex-wrap items-center gap-2 rounded border border-border px-2 py-1.5 text-xs"
@@ -847,6 +984,9 @@ export function PublishCockpit({
                 <span className="font-medium">{a.penName}</span>
                 <span className="text-subtle">limit {a.monthlyOpenLimit}</span>
                 <span className="text-subtle">剩余 {remainingForAccount(a, quota, today)}</span>
+                <span className={sessionClass} title={a.sessionConfirmedAt ?? a.lastLoginJumpAt ?? ''}>
+                  会话:{sessionLabel}
+                </span>
                 <span
                   className={
                     a.riskStatus === 'blocked' ? 'text-red-400' : 'text-subtle'
@@ -884,6 +1024,36 @@ export function PublishCockpit({
                 <button
                   type="button"
                   className="rounded px-2 py-0.5 hover:bg-elevated"
+                  onClick={() => void jumpPlatformLogin(a.id)}
+                >
+                  去登录
+                </button>
+                <button
+                  type="button"
+                  className="rounded px-2 py-0.5 hover:bg-elevated"
+                  onClick={() => void confirmAccountSession(a.id)}
+                >
+                  确认已登录
+                </button>
+                <button
+                  type="button"
+                  className="rounded px-2 py-0.5 hover:bg-elevated"
+                  onClick={() => void clearAccountSession(a.id)}
+                >
+                  标退出
+                </button>
+                {(a.sessionStatus === 'logged_in' || stale) && (
+                  <button
+                    type="button"
+                    className="rounded px-2 py-0.5 hover:bg-elevated"
+                    onClick={() => void expireAccountSession(a.id)}
+                  >
+                    标失效
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="rounded px-2 py-0.5 hover:bg-elevated"
                   onClick={() => void toggleCold(a.id)}
                 >
                   {a.coldUntil && a.coldUntil >= today ? '解除冷号' : '标冷号30天'}
@@ -896,7 +1066,8 @@ export function PublishCockpit({
                   {a.riskStatus === 'blocked' ? '解除熔断' : '熔断停派'}
                 </button>
               </div>
-            ))}
+              );
+            })}
             {accounts.length === 0 && <Empty>先添加笔名账号（默认月开 3）</Empty>}
           </section>
         )}
