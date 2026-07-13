@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_PUBLISH_SETTINGS,
   autoAssignReadyBooks,
@@ -16,6 +16,7 @@ import {
   markSessionExpired,
   markSessionLoggedIn,
   markSessionLoggedOut,
+  remainingForAccount,
   scheduleReadyWarning,
   targetGap,
   upsertReservation,
@@ -44,6 +45,23 @@ import { openAuthorHome, openPlatformLogin } from '../assist/open-external';
 import { resolvePlatformPack } from '../packs';
 import { projectBasename } from '../../../lib/project-context';
 import type { PublishTabId } from '../views/types';
+import {
+  testCookie,
+  fetchAuthorBooks,
+  fetchVolumes,
+  startPublishChapter,
+  onChapterPublished,
+  apiPublishBook as callApiPublishBook,
+  openLoginWebview,
+  onCookieCaptured,
+  type FanqieOnlineBook,
+} from '../storage/publish-api';
+import {
+  listProjectChapters,
+  readChapterForPublish,
+  type ProjectChapter,
+} from '../storage/project-chapters';
+import { isTauriRuntime } from '../../../lib/tauri-env';
 
 function normalizeKey(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -62,10 +80,37 @@ export function usePublishCockpit(projectPath: string | null) {
   const [slotTitle, setSlotTitle] = useState('');
   const [slotDate, setSlotDate] = useState('');
   const [assistBookKey, setAssistBookKey] = useState<string | null>(null);
+  const [onlineBooks, setOnlineBooks] = useState<FanqieOnlineBook[]>([]);
+  const [projectChapters, setProjectChapters] = useState<ProjectChapter[]>([]);
+  const flashTimerRef = useRef<number | null>(null);
 
+  const accountsRef = useRef(accounts);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
+  const dismissFlash = useCallback(() => {
+    if (flashTimerRef.current != null) {
+      window.clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = null;
+    }
+    setMessage(null);
+  }, []);
+
+  /** 失败类提示停留更久，可手动关闭；成功/普通 3.2s 自动消失。 */
   const flash = useCallback((text: string) => {
+    if (flashTimerRef.current != null) {
+      window.clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = null;
+    }
     setMessage(text);
-    window.setTimeout(() => setMessage(null), 3200);
+    const sticky = /失败|错误|阻断|须|请先|无法|不是|无效/.test(text);
+    const ms = sticky ? 8000 : 3200;
+    flashTimerRef.current = window.setTimeout(() => {
+      setMessage(null);
+      flashTimerRef.current = null;
+    }, ms);
   }, []);
 
   const reload = useCallback(async () => {
@@ -82,6 +127,7 @@ export function usePublishCockpit(projectPath: string | null) {
   }, [yearMonth]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 初始加载：reload 为异步，setState 在 await 之后触发
     void reload();
   }, [reload]);
 
@@ -223,13 +269,20 @@ export function usePublishCockpit(projectPath: string | null) {
       lastLoginJumpAt: null,
       sessionConfirmedAt: null,
       sessionNote: '',
+      cookieText: '',
     };
     const next = [...accounts, acc];
     await saveAccounts(next);
     setAccounts(next);
     setNewPenName('');
     flash(`已添加笔名：${name}`);
-  }, [accounts, flash, newPenName, settings.defaultColdMaxOpensPerMonth, settings.defaultMonthlyOpenLimit]);
+  }, [
+    accounts,
+    flash,
+    newPenName,
+    settings.defaultColdMaxOpensPerMonth,
+    settings.defaultMonthlyOpenLimit,
+  ]);
 
   const toggleBlock = useCallback(
     async (id: string) => {
@@ -282,9 +335,7 @@ export function usePublishCockpit(projectPath: string | null) {
     setAssignPreview(
       [
         `建议 ${result.suggestions.length} 本，阻塞 ${result.blockers.length} 本`,
-        ...result.suggestions.map(
-          (s) => `· ${s.projectKey} → ${s.accountId} @ ${s.planOpenDate}`,
-        ),
+        ...result.suggestions.map((s) => `· ${s.projectKey} → ${s.accountId} @ ${s.planOpenDate}`),
         ...result.blockers.map((b) => `× ${b.projectKey}: ${b.reason}`),
       ].join('\n'),
     );
@@ -333,6 +384,10 @@ export function usePublishCockpit(projectPath: string | null) {
         flash('未指派账号，无法确认已开');
         return;
       }
+      const account = accounts.find((a) => a.id === b.assignedAccountId);
+      const pen = account?.penName ?? b.assignedAccountId;
+      const asOf = new Date().toISOString().slice(0, 10);
+      const remainBefore = account ? remainingForAccount(account, quota, asOf) : 0;
       const nextBooks = books.map((x) =>
         x.projectKey === projectKey
           ? {
@@ -348,9 +403,12 @@ export function usePublishCockpit(projectPath: string | null) {
       await saveMonthQuota(nextQuota);
       setBooks(nextBooks);
       setQuota(nextQuota);
-      flash('已确认开书（额度已占用，止损不退）');
+      const remainAfter = account ? remainingForAccount(account, nextQuota, asOf) : 0;
+      flash(
+        `已确认开书「${b.title}」· 笔名 ${pen} · 额度 ${remainBefore} → ${remainAfter}（止损不退）`,
+      );
     },
-    [books, flash, quota],
+    [accounts, books, flash, quota],
   );
 
   const markDropped = useCallback(
@@ -382,8 +440,7 @@ export function usePublishCockpit(projectPath: string | null) {
       }
       const near = warnBlurbIfNear(b);
       if (near && !window.confirm(`${near}\n仍生成作业包？`)) return;
-      const root =
-        projectPath && normalizeKey(projectPath) === b.projectKey ? projectPath : b.path;
+      const root = projectPath && normalizeKey(projectPath) === b.projectKey ? projectPath : b.path;
       try {
         const pen = accounts.find((a) => a.id === b.assignedAccountId)?.penName ?? '未指派';
         const dir = await generateOpenPack({
@@ -449,18 +506,14 @@ export function usePublishCockpit(projectPath: string | null) {
         const next = accounts.map((a) => (a.id === accountId ? markLoginJumped(a) : a));
         await saveAccounts(next);
         setAccounts(next);
-        flash(
-          `已跳转${pack.label}（${result.method}）。浏览器登录后，回本号点「确认已登录」。`,
-        );
+        flash(`已跳转${pack.label}（${result.method}）。浏览器登录后，回本号点「确认已登录」。`);
         return;
       }
       if (accounts.length === 1) {
         const next = accounts.map((a) => markLoginJumped(a));
         await saveAccounts(next);
         setAccounts(next);
-        flash(
-          `已跳转${pack.label}（${result.method}）。登录后点「确认已登录」写入会话态。`,
-        );
+        flash(`已跳转${pack.label}（${result.method}）。登录后点「确认已登录」写入会话态。`);
         return;
       }
       flash(
@@ -498,6 +551,224 @@ export function usePublishCockpit(projectPath: string | null) {
       flash('已标记会话可能失效');
     },
     [accounts, flash],
+  );
+
+  const saveAccountCookie = useCallback(
+    async (accountId: string, cookieText: string) => {
+      const next = accounts.map((a) => (a.id === accountId ? { ...a, cookieText } : a));
+      await saveAccounts(next);
+      setAccounts(next);
+      flash('Cookie 已保存（本地加密存储）');
+    },
+    [accounts, flash],
+  );
+
+  const loginViaWebView = useCallback(
+    async (accountId?: string) => {
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      const url = pack.loginUrl || pack.authorHomeUrl;
+      if (!url) {
+        flash(`${pack.label} 未配置登录 URL`);
+        return;
+      }
+      if (!isTauriRuntime()) {
+        flash('WebView 登录仅支持桌面端，已改为系统浏览器跳转');
+        void jumpPlatformLogin(accountId);
+        return;
+      }
+      try {
+        await openLoginWebview(url, accountId ?? null);
+        flash(`已打开 ${pack.label} 登录窗口，请在窗口中完成登录，Cookie 将自动提取`);
+      } catch (e) {
+        flash(`打开登录窗口失败: ${e instanceof Error ? e.message : String(e)}，回退系统浏览器`);
+        void jumpPlatformLogin(accountId);
+      }
+    },
+    [flash, jumpPlatformLogin, settings.defaultPlatform],
+  );
+
+  // 监听 WebView 登录窗口回传的 Cookie
+
+  const testAccountCookie = useCallback(
+    async (accountId: string) => {
+      if (!isTauriRuntime()) {
+        flash('Cookie 验证仅支持桌面端（需 Rust 后端代理请求）');
+        return;
+      }
+      const acc = accounts.find((a) => a.id === accountId);
+      if (!acc?.cookieText?.trim()) {
+        flash('请先填入 Cookie');
+        return;
+      }
+      flash('正在验证 Cookie...');
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      const result = await testCookie(pack, acc.cookieText);
+      flash(result.message);
+      if (result.ok) {
+        const next = accounts.map((a) =>
+          a.id === accountId ? { ...a, sessionStatus: 'logged_in' as const } : a,
+        );
+        await saveAccounts(next);
+        setAccounts(next);
+      }
+    },
+    [accounts, flash, settings.defaultPlatform],
+  );
+
+  const syncOnlineStatus = useCallback(
+    async (accountId: string) => {
+      if (!isTauriRuntime()) {
+        flash('拉取线上状态仅支持桌面端');
+        return;
+      }
+      const acc = accounts.find((a) => a.id === accountId);
+      if (!acc?.cookieText?.trim()) {
+        flash('请先填入该账号 Cookie');
+        return;
+      }
+      flash('正在拉取线上作品...');
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      const check = await testCookie(pack, acc.cookieText);
+      if (!check.ok) {
+        flash(`Cookie 无效：${check.message}`);
+        return;
+      }
+      const res = await fetchAuthorBooks(pack, acc.cookieText);
+      if (!res.ok) {
+        flash(`拉取失败：${res.message}`);
+        return;
+      }
+      setOnlineBooks(res.books);
+      flash(`${check.authorName ?? '作者'}：线上 ${res.books.length} 本`);
+    },
+    [accounts, flash, settings.defaultPlatform],
+  );
+
+  const loadProjectChapters = useCallback(async () => {
+    if (!projectPath) {
+      flash('请先打开项目');
+      return;
+    }
+    try {
+      const list = await listProjectChapters(projectPath);
+      setProjectChapters(list);
+      flash(`找到 ${list.length} 个章节文件`);
+    } catch (e) {
+      flash(`列章节失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [flash, projectPath]);
+
+  const publishProjectChapter = useCallback(
+    async (input: {
+      accountId: string;
+      onlineBookId: string;
+      chapterPath: string;
+      titleOverride?: string;
+    }) => {
+      if (!isTauriRuntime()) {
+        flash('API 发布仅支持桌面端');
+        return;
+      }
+      const acc = accounts.find((a) => a.id === input.accountId);
+      if (!acc?.cookieText?.trim()) {
+        flash('请先填入该账号 Cookie');
+        return;
+      }
+      if (!input.onlineBookId) {
+        flash('请选择线上作品');
+        return;
+      }
+      if (!input.chapterPath) {
+        flash('请选择章节文件');
+        return;
+      }
+      flash('取卷中…');
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      const vol = await fetchVolumes(pack, acc.cookieText, input.onlineBookId);
+      if (!vol.ok || vol.volumes.length === 0) {
+        flash(`取卷失败：${vol.message}`);
+        return;
+      }
+      const v = vol.volumes[0];
+      const fallback =
+        input.chapterPath
+          .split(/[\\/]/)
+          .pop()
+          ?.replace(/\.(md|txt|markdown)$/i, '') ?? '章节';
+      const ch = await readChapterForPublish(input.chapterPath, fallback);
+      const title = (input.titleOverride?.trim() || ch.title).slice(0, 30);
+      if (
+        ch.charCount < 1000 &&
+        !window.confirm(`正文约 ${ch.charCount} 字，番茄要求≥1000 字，仍发布？`)
+      ) {
+        return;
+      }
+      flash('正在发布（隐藏 webview）…');
+      await startPublishChapter({
+        bookId: input.onlineBookId,
+        volumeId: v.volumeId,
+        volumeName: v.volumeName,
+        title,
+        contentHtml: ch.contentHtml,
+      });
+    },
+    [accounts, flash, settings.defaultPlatform],
+  );
+
+  useEffect(() => {
+    return onChapterPublished((r) => {
+      if (r.ok) flash(`发布成功（章节 ${r.item_id ?? ''}）`);
+      else flash(`发布失败：${r.msg}${r.code ? ` (${r.code})` : ''}`);
+    });
+  }, [flash]);
+
+  const apiPublishForBook = useCallback(
+    async (projectKey: string) => {
+      if (!isTauriRuntime()) {
+        flash('API 开书仅支持桌面端');
+        return;
+      }
+      const book = books.find((b) => b.projectKey === projectKey);
+      if (!book) {
+        flash('未找到书籍');
+        return;
+      }
+      const acc = accounts.find((a) => a.id === book.assignedAccountId);
+      if (!acc?.cookieText?.trim()) {
+        flash('请先在账号管理填入 Cookie');
+        return;
+      }
+      if (!book.blurb?.trim()) {
+        flash('请先在项目 publish.json 中填写简介（blurb）');
+        return;
+      }
+      flash('正在通过 API 开书...');
+      const pack = resolvePlatformPack(String(book.platform));
+      const result = await callApiPublishBook(pack, acc.cookieText, {
+        title: book.title,
+        blurb: book.blurb,
+        tags: '',
+        categoryId: '0',
+      });
+      if (result.ok) {
+        flash(`开书成功！${result.status}`);
+        setBooks((prev) =>
+          prev.map((x) =>
+            x.projectKey === projectKey
+              ? {
+                  ...x,
+                  status: 'opened' as const,
+                  openedAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                }
+              : x,
+          ),
+        );
+      } else {
+        flash(`开书失败: ${result.message}`);
+      }
+    },
+    [accounts, books, flash],
   );
 
   const jumpAuthorHome = useCallback(async () => {
@@ -601,9 +872,7 @@ export function usePublishCockpit(projectPath: string | null) {
         return;
       }
       const next = books.map((x) =>
-        x.projectKey === projectKey
-          ? { ...x, status, updatedAt: new Date().toISOString() }
-          : x,
+        x.projectKey === projectKey ? { ...x, status, updatedAt: new Date().toISOString() } : x,
       );
       await saveLibrary(next);
       setBooks(next);
@@ -616,13 +885,7 @@ export function usePublishCockpit(projectPath: string | null) {
       const b = books.find((x) => x.projectKey === projectKey);
       if (!b) return;
       if (date) {
-        const check = canScheduleOnDate(
-          books,
-          date,
-          settings,
-          b.assignedAccountId,
-          b.projectKey,
-        );
+        const check = canScheduleOnDate(books, date, settings, b.assignedAccountId, b.projectKey);
         if (!check.ok) {
           flash(check.reason);
           return;
@@ -683,9 +946,7 @@ export function usePublishCockpit(projectPath: string | null) {
           break;
         case 'open-assist': {
           const target =
-            todayBooks[0] ||
-            overdueBooks[0] ||
-            books.find((b) => b.status === 'scheduled');
+            todayBooks[0] || overdueBooks[0] || books.find((b) => b.status === 'scheduled');
           if (!target) {
             flash('没有可开书辅助的书');
             break;
@@ -719,6 +980,28 @@ export function usePublishCockpit(projectPath: string | null) {
     todayBooks,
   ]);
 
+  useEffect(() => {
+    return onCookieCaptured((payload) => {
+      const cookies = payload.cookies;
+      if (!cookies) return;
+      const targetId = payload.account_id;
+      const current = accountsRef.current;
+      const next = current.map((a) => {
+        if (targetId && a.id !== targetId) return a;
+        if (!targetId && a !== current[0]) return a;
+        return { ...a, cookieText: cookies, sessionStatus: 'logged_in' as const };
+      });
+      if (next === current) return;
+      saveAccounts(next)
+        .then(() => {
+          setAccounts(next);
+          flash('Cookie 已自动提取并保存，会话标记为已登录');
+        })
+        .catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return {
     tab,
     setTab,
@@ -728,6 +1011,7 @@ export function usePublishCockpit(projectPath: string | null) {
     quota,
     yearMonth,
     message,
+    dismissFlash,
     assignPreview,
     newPenName,
     setNewPenName,
@@ -767,6 +1051,15 @@ export function usePublishCockpit(projectPath: string | null) {
     changeStatus,
     changePlanDate,
     calibrateAccountOpened,
+    saveAccountCookie,
+    testAccountCookie,
+    syncOnlineStatus,
+    onlineBooks,
+    projectChapters,
+    loadProjectChapters,
+    publishProjectChapter,
+    apiPublishForBook,
+    loginViaWebView,
   };
 }
 
