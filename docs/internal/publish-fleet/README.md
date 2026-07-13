@@ -13,4 +13,5 @@
 | `README.md` | 本索引 | 入口 |
 
 代码落点：`apps/desktop/frontend/src/features/publish/`  
-（旧路径 `docs/internal/discussions/2026-07-13-publish-*.md` 已迁出并删除。）
+**壳入口**：左侧活动栏 **发行**（`SidePanelView = publish`），不再占中栏整页。  
+命令面板 `Publish:*` 只负责切到左栏并发事件。

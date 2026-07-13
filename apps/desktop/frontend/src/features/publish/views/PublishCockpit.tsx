@@ -55,10 +55,16 @@ const TABS: { id: TabId; label: string }[] = [
 
 export type PublishCockpitProps = {
   projectPath: string | null;
-  onClose: () => void;
+  /** sidebar=左栏功能块（默认）；page=旧中栏整页（兼容） */
+  variant?: 'sidebar' | 'page';
+  onClose?: () => void;
 };
 
-export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
+export function PublishCockpit({
+  projectPath,
+  variant = 'sidebar',
+  onClose,
+}: PublishCockpitProps) {
   const [tab, setTab] = useState<TabId>('daily');
   const [settings, setSettings] = useState<PublishSettings>(DEFAULT_PUBLISH_SETTINGS);
   const [accounts, setAccounts] = useState<PublishAccount[]>([]);
@@ -512,52 +518,60 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [books, quota, projectPath, today, settings, refreshReadyScores]);
 
+  const compact = variant === 'sidebar';
+
   return (
     <div
-      className="flex h-full min-h-0 flex-col bg-background text-foreground"
+      className={`flex h-full min-h-0 flex-col text-foreground ${compact ? 'bg-panel' : 'bg-background'}`}
       data-testid="publish-cockpit"
+      data-variant={variant}
     >
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <h1 className="text-sm font-semibold">发行管理面板</h1>
-        <span className="text-xs text-subtle">番茄 · L0–L2 · {yearMonth}</span>
+      <header
+        className={`flex flex-wrap items-center gap-1 border-b border-border ${compact ? 'px-2 py-1.5' : 'px-3 py-2'}`}
+      >
+        <h1 className={`font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>发行</h1>
+        <span className="text-[10px] text-subtle">{yearMonth}</span>
         <div className="flex-1" />
         <button
           type="button"
-          className="rounded px-2 py-1 text-xs hover:bg-elevated"
+          className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
           onClick={() => void handleAddCurrentProject()}
+          title="将当前项目加入发布库"
         >
-          加入当前项目
+          入库
         </button>
         <button
           type="button"
-          className="rounded px-2 py-1 text-xs hover:bg-elevated"
+          className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
           onClick={() => void handleCreateSlot()}
         >
-          空位占坑
+          占坑
         </button>
         <button
           type="button"
-          className="rounded px-2 py-1 text-xs hover:bg-elevated"
+          className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
           onClick={() => void refreshReadyScores()}
         >
-          刷新 Ready
+          Ready
         </button>
-        <button
-          type="button"
-          className="rounded px-2 py-1 text-xs hover:bg-elevated"
-          onClick={onClose}
-        >
-          关闭
-        </button>
+        {onClose && variant === 'page' && (
+          <button
+            type="button"
+            className="rounded px-1.5 py-0.5 text-[10px] hover:bg-elevated"
+            onClick={onClose}
+          >
+            关闭
+          </button>
+        )}
       </header>
 
-      <div className="flex gap-1 border-b border-border px-2 py-1">
+      <div className="flex flex-wrap gap-0.5 border-b border-border px-1 py-1">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             data-testid={`publish-tab-${t.id}`}
-            className={`rounded px-2 py-1 text-xs ${tab === t.id ? 'bg-elevated text-foreground' : 'text-subtle hover:bg-elevated/60'}`}
+            className={`rounded px-1.5 py-0.5 text-[10px] ${tab === t.id ? 'bg-elevated text-foreground' : 'text-subtle hover:bg-elevated/60'}`}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -569,8 +583,8 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
         <div className="border-b border-border bg-elevated/40 px-3 py-1 text-xs">{message}</div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto p-3 text-sm">
-        <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className={`min-h-0 flex-1 overflow-auto text-sm ${compact ? 'p-2' : 'p-3'}`}>
+        <div className={`mb-2 grid gap-1.5 ${compact ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
           <Stat label="目标" value={String(settings.monthlyOpenTarget)} />
           <Stat label="理论产能" value={String(capacity.theory)} />
           <Stat label="spare" value={String(capacity.spare)} warn={capacity.spareWarn} />
