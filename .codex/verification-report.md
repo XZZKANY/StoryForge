@@ -68,3 +68,37 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 
 - 真机 Tauri 观感
 - 浅色主题下 token 对比人工目视
+
+---
+
+# 验证报告：源码标准专窗 S0
+
+时间：2026-07-13
+分支：`refactor/source-code-standards-s0`
+基点：`baf57933f2cf2317365f80421a439bc13ff75fbf`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S0 结果
+
+- 创建专窗 worktree 时未提交 publish WIP 未带入；专窗使用 `.worktrees/source-code-standards-s0`，本分支 publish 路径零改动。
+- AST 精确冻结跨模块私有依赖 256 点：agent_runs 78（77 import + 1 attribute），book_runs 178（159 + 19）。
+- 18 个既有超限源码/测试/前端主文件进入只减不增行数护栏；新增 live Python 模块上限 500，新增 live 测试上限 800。
+- 新增 `agent_runs/STRUCTURE.md`，当前主链读序限制为 8 文件，并记录 6 个目标公共面。
+- T1 审计：WS 命名 encoder 是 SSE/REST live 依赖，转 T2 迁移后删；零引用 `_chapter_request` 与无用 `NovelLoopRequest` 绑定已删除。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_source_code_standards.py -q` | 5/5 通过 |
+| `.venv/Scripts/python -m pytest tests/test_source_code_standards.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py -q` | 19/19 通过 |
+| `.venv/Scripts/python -m pytest tests/test_ws_contract_golden.py tests/test_ws_schema.py tests/test_api_surface.py -q` | 22/22 通过 |
+| `.venv/Scripts/ruff check app/domains/agent_runs app/domains/book_runs tests/test_source_code_standards.py` | 通过 |
+| `git diff --check` | 通过 |
+| publish 路径 status/diff guard | 无改动 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出，无契约 drift 面。
+- Desktop typecheck/vitest：未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收；S0 已跑本波相关最小集与行为护栏。

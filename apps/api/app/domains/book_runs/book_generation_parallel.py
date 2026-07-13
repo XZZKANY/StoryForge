@@ -166,7 +166,6 @@ _book_loop_module, _novel_loop_module, _arc_consistency_module = _load_workflow_
 BookLoopRequest = _book_loop_module.BookLoopRequest
 BookLoopResult = _book_loop_module.BookLoopResult
 ArcConsistencyBarrier = _arc_consistency_module.ArcConsistencyBarrier
-NovelLoopRequest = _novel_loop_module.NovelLoopRequest
 NovelLoopResult = _novel_loop_module.NovelLoopResult
 
 
@@ -446,18 +445,6 @@ def _assert_parallel_preflight(
     )
     if chapter_parallelism <= 1:
         raise generation.BookGenerationPreflightError("并发真实 LLM runner 的并发度必须大于 1。")
-
-
-def _chapter_request(session: Session, book_run_id: int, book_id: int, chapter_index: int) -> Any:
-    book_run = session.get(generation.BookRun, book_run_id)
-    chapter = generation._chapter(session, book_id, chapter_index)
-    return NovelLoopRequest(
-        book_id=book_id,
-        chapter_id=chapter.id,
-        chapter_index=chapter_index,
-        chapter_goal=chapter.summary or chapter.title or f"第 {chapter_index} 章",
-        planning_refs={"book_run_id": book_run_id, "blueprint_id": book_run.blueprint_id if book_run else None},
-    )
 
 
 def _arc_consistency_barrier_from_blueprint(session: Session, blueprint_id: int, total_chapters: int) -> Any:
