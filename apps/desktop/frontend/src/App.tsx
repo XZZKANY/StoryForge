@@ -550,6 +550,14 @@ export function App() {
     setSettings((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
   }, []);
 
+  // Q9 双轨字体：格子（CJK 2:1 等宽，中英对齐）↔ 散文（比例字体，长文舒适）。
+  const toggleFontMode = useCallback(() => {
+    setSettings((prev) => ({
+      ...prev,
+      editorFontMode: prev.editorFontMode === 'prose' ? 'grid' : 'prose',
+    }));
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
@@ -721,6 +729,7 @@ export function App() {
                     projectPath={activeProject}
                     filePath={displayedFile}
                     editorFontSize={settings.editorFontSize}
+                    editorFontMode={settings.editorFontMode}
                     autoSave={settings.autoSave}
                     retainedFilePaths={retainedEditorFiles}
                     onDirtyChange={handleEditorDirtyChange}
@@ -779,8 +788,10 @@ export function App() {
         modelLabel={modelLabel}
         theme={settings.theme}
         projectOpen={projectOpen}
+        fontMode={settings.editorFontMode}
         obs={obs}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
+        onToggleFont={toggleFontMode}
         onToggleTheme={toggleTheme}
       />
 

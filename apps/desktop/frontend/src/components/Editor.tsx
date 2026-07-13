@@ -24,6 +24,7 @@ import { type GraphNode } from '../lib/branches';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
 import { useEditorFileLoader } from './editor/useEditorFileLoader';
 import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor';
+import { resolveEditorFontFamily, type EditorFontMode } from './editor/options';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
@@ -54,6 +55,7 @@ type EditorProps = {
   projectPath: string | null;
   filePath: string | null;
   editorFontSize?: number;
+  editorFontMode?: EditorFontMode;
   autoSave?: boolean;
   retainedFilePaths?: string[];
   sidebarVisible?: boolean;
@@ -90,6 +92,7 @@ export function Editor({
   projectPath,
   filePath,
   editorFontSize = 14,
+  editorFontMode = 'grid',
   autoSave = false,
   retainedFilePaths = [],
   sidebarVisible,
@@ -273,6 +276,7 @@ export function Editor({
     loadedFilePath,
     loadedContent,
     editorFontSize,
+    editorFontFamily: resolveEditorFontFamily(editorFontMode),
     filePathRef,
     isDirtyRef,
     autoSaveRef,

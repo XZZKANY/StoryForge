@@ -5,6 +5,7 @@ import * as monaco from 'monaco-editor';
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme } from '../../lib/theme';
 import { STORYFORGE_EDITOR_FONT_GRID, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './options';
+// editorFontFamily 缺省用格子栈；散文栈由 Editor 依 editorFontMode 解析后传入。
 
 export type EditorModelState = {
   model: monaco.editor.ITextModel;
@@ -21,6 +22,7 @@ export function useMonacoEditor({
   loadedFilePath,
   loadedContent,
   editorFontSize,
+  editorFontFamily = STORYFORGE_EDITOR_FONT_GRID,
   filePathRef,
   isDirtyRef,
   autoSaveRef,
@@ -41,6 +43,7 @@ export function useMonacoEditor({
   loadedFilePath: string | null;
   loadedContent: string;
   editorFontSize: number;
+  editorFontFamily?: string;
   filePathRef: MutableRefObject<string | null>;
   isDirtyRef: MutableRefObject<boolean>;
   autoSaveRef: MutableRefObject<boolean>;
@@ -83,7 +86,7 @@ export function useMonacoEditor({
           model: null,
           theme: currentMonacoTheme(),
           fontSize: editorFontSize,
-          fontFamily: STORYFORGE_EDITOR_FONT_GRID,
+          fontFamily: editorFontFamily,
           lineNumbers: 'on',
           glyphMargin: true,
           // Q9 七轮反馈：小说正文没有代码缩略图需求，minimap 删。
@@ -195,9 +198,10 @@ export function useMonacoEditor({
   useEffect(() => {
     editorRef.current?.updateOptions({
       fontSize: editorFontSize,
+      fontFamily: editorFontFamily,
       readOnly: readOnly || loadPending,
     });
-  }, [editorFontSize, editorRef, loadPending, readOnly]);
+  }, [editorFontSize, editorFontFamily, editorRef, loadPending, readOnly]);
 
   useEffect(() => {
     const retained = new Set(retainedFilePaths);

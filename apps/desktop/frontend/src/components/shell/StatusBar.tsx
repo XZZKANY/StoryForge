@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
 import type { ApiRuntimeHealth } from '../../lib/api/types';
 import type { ThemeMode } from '../../lib/user-settings';
+import type { EditorFontMode } from '../editor/options';
 import { Check } from '../icons/shell-icons';
 import type { ObservationAvailability } from './ObsPanel';
 
@@ -18,17 +19,21 @@ export function StatusBar({
   modelLabel,
   theme,
   projectOpen,
+  fontMode,
   obs,
   observationAvailability = 'unavailable',
   onToggleObs,
+  onToggleFont,
   onToggleTheme,
 }: {
   modelLabel: string;
   theme: ThemeMode;
   projectOpen: boolean;
+  fontMode: EditorFontMode;
   obs: { error: number; warning: number; advisory: number; total: number };
   observationAvailability?: ObservationAvailability;
   onToggleObs: () => void;
+  onToggleFont: () => void;
   onToggleTheme: () => void;
 }) {
   const [healthProbe, setHealthProbe] = useState<HealthProbeState>({ kind: 'pending' });
@@ -107,6 +112,16 @@ export function StatusBar({
               无未处理观测
             </span>
           )}
+        </button>
+      )}
+      {projectOpen && (
+        <button
+          className="rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
+          onClick={onToggleFont}
+          title="编辑器字体：格子 = CJK 2:1 等宽（中英对齐，需装内置更纱/文楷等宽）；散文 = 比例字体（长文舒适）"
+          data-testid="status-font-toggle"
+        >
+          字体 · {fontMode === 'prose' ? '散文' : '格子'}
         </button>
       )}
       <button
