@@ -1,5 +1,5 @@
-import { FANQIE_OPEN_PACK_README } from '../packs/fanqie/defaults';
 import type { PublishBook } from '../model';
+import { resolvePlatformPack } from '../packs';
 import { projectOpenPackDir } from './paths';
 import { writeProjectText } from './json-store';
 
@@ -29,7 +29,8 @@ export async function generateOpenPack(input: {
     projectPath: input.book.path,
   };
 
-  await writeProjectText(input.projectRoot, `${dir}/README.md`, FANQIE_OPEN_PACK_README);
+  const pack = resolvePlatformPack(String(input.book.platform));
+  await writeProjectText(input.projectRoot, `${dir}/README.md`, pack.openPackReadme);
   await writeProjectText(
     input.projectRoot,
     `${dir}/meta.json`,

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { PublishAccount, PublishBook } from '../model';
 import { copyText } from '../storage/open-pack';
-import { FANQIE_AUTHOR_HOME_URL } from '../packs/fanqie/urls';
+import { resolvePlatformPack } from '../packs';
 import { openExternalUrl } from './open-external';
 import {
   OPEN_ASSIST_STEPS,
@@ -49,9 +49,14 @@ export function OpenAssistWizard({
   const openAuthor = async () => {
     setBusy(true);
     try {
-      const result = await openExternalUrl(FANQIE_AUTHOR_HOME_URL);
+      const pack = resolvePlatformPack(String(book.platform));
+      if (!pack.authorHomeUrl) {
+        onFlash(`${pack.label} 未配置作者首页 URL`);
+        return;
+      }
+      const result = await openExternalUrl(pack.authorHomeUrl, pack);
       if (result.ok) {
-        onFlash(`已打开番茄作者页（${result.method}）。请使用本机已登录会话。`);
+        onFlash(`已打开${pack.label}作者页（${result.method}）。请使用本机已登录会话。`);
       } else {
         onFlash(result.reason);
       }

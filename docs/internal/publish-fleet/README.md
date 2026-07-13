@@ -9,6 +9,7 @@
 | **`phase1-prd.md`** | **Phase 1 切片 PRD** | 管理面板 + 存活最小集 + L0/L1；已交付 |
 | **`phase2-prd.md`** | **Phase 2 切片 PRD** | 空位占坑 / 冷号 / 去同质 / Ready 软门 |
 | **`phase3-prd.md`** | **Phase 3 切片 PRD** | L2 本机会话：打开作者页 + 分步粘贴向导 |
+| **`phase4-prd.md`** | **Phase 4 切片 PRD** | Platform Pack 接口 + fanqie/qidian 骨架 |
 | `README.md` | 本索引 | 入口 |
 
 代码落点：`apps/desktop/frontend/src/features/publish/`  

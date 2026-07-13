@@ -1,19 +1,23 @@
 import { invoke } from '@tauri-apps/api/core';
 import { assertTauriRuntime } from '../../../lib/tauri-env';
-import { isAllowedFanqieUrl } from '../packs/fanqie/urls';
+import { resolvePlatformPack, type PlatformPack } from '../packs';
 
 export type OpenExternalResult =
   | { ok: true; method: 'tauri-shell' | 'window-open' }
   | { ok: false; reason: string };
 
 /**
- * 用户触发：打开系统浏览器。仅允许白名单 https URL。
+ * 用户触发：打开系统浏览器。仅允许当前 pack 白名单 https URL。
  * 不登录、不注入、不控制页面。
  */
-export async function openExternalUrl(url: string): Promise<OpenExternalResult> {
+export async function openExternalUrl(
+  url: string,
+  pack?: PlatformPack | string | null,
+): Promise<OpenExternalResult> {
+  const resolved = typeof pack === 'string' || pack == null ? resolvePlatformPack(pack) : pack;
   const target = url.trim();
-  if (!isAllowedFanqieUrl(target)) {
-    return { ok: false, reason: 'URL 不在番茄作者站白名单' };
+  if (!resolved.isAllowedOpenUrl(target)) {
+    return { ok: false, reason: `URL 不在 ${resolved.label} 作者站白名单` };
   }
 
   try {

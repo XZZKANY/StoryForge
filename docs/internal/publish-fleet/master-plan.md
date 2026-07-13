@@ -87,7 +87,8 @@
 
 ### Phase 4 — 可选：自用 pack 化 / 多平台 / L3 落地
 仅当你需要时：番茄规则外置；或其他平台；或把 L3 从「可选项」落成自用能力。  
-仍可不对外。
+仍可不对外。  
+**2026-07-13 pack 骨架已落地**：`PlatformPack` + fanqie 实现 + qidian 骨架 registry（见 `phase4-prd.md`）。**不含 L3。**
 
 ---
 

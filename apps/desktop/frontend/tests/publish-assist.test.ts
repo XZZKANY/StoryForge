@@ -7,7 +7,7 @@ import {
   prevStepIndex,
   OPEN_ASSIST_STEPS,
 } from '../src/features/publish/assist/wizard-steps';
-import { isAllowedFanqieUrl } from '../src/features/publish/packs/fanqie/urls';
+import { resolvePlatformPack } from '../src/features/publish/packs';
 
 test('向导步骤可前进后退', () => {
   assert.equal(OPEN_ASSIST_STEPS.length, 4);
@@ -30,8 +30,9 @@ test('fieldText 按字段返回', () => {
 });
 
 test('URL 白名单只放行番茄作者相关 https', () => {
-  assert.equal(isAllowedFanqieUrl('https://fanqienovel.com/main/writer'), true);
-  assert.equal(isAllowedFanqieUrl('http://fanqienovel.com/main/writer'), false);
-  assert.equal(isAllowedFanqieUrl('https://evil.example.com/'), false);
-  assert.equal(isAllowedFanqieUrl('javascript:alert(1)'), false);
+  const pack = resolvePlatformPack('fanqie');
+  assert.equal(pack.isAllowedOpenUrl('https://fanqienovel.com/main/writer'), true);
+  assert.equal(pack.isAllowedOpenUrl('http://fanqienovel.com/main/writer'), false);
+  assert.equal(pack.isAllowedOpenUrl('https://evil.example.com/'), false);
+  assert.equal(pack.isAllowedOpenUrl('javascript:alert(1)'), false);
 });

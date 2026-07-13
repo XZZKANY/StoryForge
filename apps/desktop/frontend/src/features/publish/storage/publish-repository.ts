@@ -5,7 +5,7 @@ import {
   type PublishBook,
   type PublishSettings,
 } from '../model';
-import { FANQIE_DEFAULT_SETTINGS } from '../packs/fanqie/defaults';
+import { FANQIE_DEFAULT_SETTINGS } from '../packs';
 import { readJsonFile, writeJsonFile } from './json-store';
 import {
   getPublishDataDir,

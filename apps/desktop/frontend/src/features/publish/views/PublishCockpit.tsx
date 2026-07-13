@@ -38,6 +38,7 @@ import { copyText, generateOpenPack } from '../storage/open-pack';
 import { scanProjectReady } from '../storage/ready-scan';
 import { onPublishCommand, type PublishCommandType } from '../commands';
 import { OpenAssistWizard } from '../assist/OpenAssistWizard';
+import { listPlatformPacks, resolvePlatformPack } from '../packs';
 import { projectBasename } from '../../../lib/project-context';
 
 type TabId = 'daily' | 'pipeline' | 'calendar' | 'accounts' | 'assign' | 'review' | 'settings';
@@ -386,6 +387,22 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
 
   const saveTarget = async (value: number) => {
     const next = { ...settings, monthlyOpenTarget: value };
+    await savePublishSettings(next);
+    setSettings(next);
+  };
+
+  const saveDefaultPlatform = async (platformId: string) => {
+    const pack = resolvePlatformPack(platformId, { allowSkeleton: true });
+    if (!pack.ready && pack.id !== 'fanqie') {
+      flash(`${pack.label} 仍为骨架，默认回退番茄规则；已记录 platform 偏好`);
+    }
+    const next = {
+      ...settings,
+      defaultPlatform: platformId,
+      defaultMonthlyOpenLimit: pack.ready
+        ? pack.defaultMonthlyOpenLimit || settings.defaultMonthlyOpenLimit
+        : settings.defaultMonthlyOpenLimit,
+    };
     await savePublishSettings(next);
     setSettings(next);
   };
@@ -927,9 +944,32 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                 onChange={(e) => void saveTarget(Number(e.target.value) || 0)}
               />
             </label>
+            <label className="flex items-center gap-2">
+              默认平台 pack
+              <select
+                className="rounded border border-border bg-background px-1 py-0.5"
+                value={settings.defaultPlatform}
+                onChange={(e) => void saveDefaultPlatform(e.target.value)}
+              >
+                {listPlatformPacks().map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                    {p.ready ? '' : '（骨架）'}
+                  </option>
+                ))}
+              </select>
+            </label>
             <p className="text-subtle">
               同日全池上限 {settings.maxOpensPerDayGlobal} · 号默认月开{' '}
-              {settings.defaultMonthlyOpenLimit} · 平台 fanqie · 执行 L0–L2（无代登/无打码）
+              {settings.defaultMonthlyOpenLimit} · pack{' '}
+              {resolvePlatformPack(settings.defaultPlatform).id} · 执行 L0–L2（无代登/无打码）
+            </p>
+            <p className="text-subtle">
+              已注册 pack：
+              {listPlatformPacks()
+                .map((p) => `${p.id}${p.ready ? '' : '*'}`)
+                .join(', ')}
+              （*骨架不跑真实规则）
             </p>
           </section>
         )}
