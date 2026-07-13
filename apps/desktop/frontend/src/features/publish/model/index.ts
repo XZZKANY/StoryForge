@@ -7,3 +7,4 @@ export * from './auto-assign';
 export * from './slots';
 export * from './similarity';
 export * from './session';
+export * from './labels';

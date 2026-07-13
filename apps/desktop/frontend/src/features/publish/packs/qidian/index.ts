@@ -31,4 +31,6 @@ export const qidianPack: PlatformPack = {
   loginUrl: '',
   openUrlAllowlist: [],
   isAllowedOpenUrl: () => false,
+  apiBaseUrl: '',
+  apiEndpoints: {},
 };

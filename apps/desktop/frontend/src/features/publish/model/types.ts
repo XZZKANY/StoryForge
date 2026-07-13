@@ -41,6 +41,8 @@ export type PublishAccount = {
   sessionConfirmedAt: string | null;
   /** 会话备注（如笔名在站内显示名） */
   sessionNote: string;
+  /** 用户手动粘贴的 Cookie 字符串（浏览器 DevTools → Application → Cookies 复制） */
+  cookieText: string;
 };
 
 export type PublishBook = {

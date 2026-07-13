@@ -22,7 +22,10 @@ import {
   markLoginJumped,
   markOpenedInQuota,
   markSessionLoggedIn,
+  pipelineStatusLabel,
   remainingForAccount,
+  riskStatusLabel,
+  sessionStatusLabel,
   targetGap,
   theoryCapacity,
   upsertReservation,
@@ -262,6 +265,21 @@ test('会话态：跳转后 pending，确认后 logged_in', () => {
     ),
     true,
   );
+});
+
+test('流水线/风险/会话状态中文标签', () => {
+  assert.equal(pipelineStatusLabel('scheduled'), '已排期');
+  assert.equal(pipelineStatusLabel('dropped'), '已止损');
+  assert.equal(riskStatusLabel('blocked'), '熔断');
+  assert.equal(sessionStatusLabel('logged_in'), '已登录');
+});
+
+test('Flash 分层：失败/成功/普通', async () => {
+  const { classifyFlash } = await import('../src/features/publish/views/ui');
+  assert.equal(classifyFlash('请先填入 Cookie'), 'err');
+  assert.equal(classifyFlash('开书失败: timeout'), 'err');
+  assert.equal(classifyFlash('已确认开书 · 额度 2 → 1'), 'ok');
+  assert.equal(classifyFlash('正在扫描可开分…'), 'info');
 });
 
 test('空位不参与智能指派', () => {

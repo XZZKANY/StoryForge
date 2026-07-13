@@ -12,6 +12,7 @@ import {
   FANQIE_OPEN_URL_ALLOWLIST,
   isAllowedFanqieUrl,
 } from './urls';
+import { FANQIE_API_BASE_URL, FANQIE_API_ENDPOINTS } from './api';
 
 export const fanqiePack: PlatformPack = {
   id: FANQIE_PACK_ID,
@@ -28,6 +29,8 @@ export const fanqiePack: PlatformPack = {
   loginUrl: FANQIE_LOGIN_URL,
   openUrlAllowlist: FANQIE_OPEN_URL_ALLOWLIST,
   isAllowedOpenUrl: isAllowedFanqieUrl,
+  apiBaseUrl: FANQIE_API_BASE_URL,
+  apiEndpoints: FANQIE_API_ENDPOINTS,
 };
 
 export {

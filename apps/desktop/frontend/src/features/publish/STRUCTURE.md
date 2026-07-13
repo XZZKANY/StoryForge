@@ -33,4 +33,3 @@ features/publish/
 
 - 在 `App.tsx` / 其它 feature 再写发行业务逻辑
 - 再做一个中栏整页发行（已废弃 `publishVisible`）
-- 逆向平台后台 / Cookie 抓数

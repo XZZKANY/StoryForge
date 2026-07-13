@@ -4,7 +4,7 @@ function bigrams(text: string): Set<string> {
   const normalized = text
     .toLowerCase()
     .replace(/\s+/g, '')
-    .replace(/[，。！？、；：""''（）【】\[\]().,!?;:'"`~]/g, '');
+    .replace(/[，。！？、；：""''（）【】[\]().,!?;:'"`~]/g, '');
   const set = new Set<string>();
   if (normalized.length < 2) {
     if (normalized) set.add(normalized);

@@ -139,6 +139,7 @@ export function normalizeAccount(raw: PublishAccount): PublishAccount {
     lastLoginJumpAt: raw.lastLoginJumpAt ?? null,
     sessionConfirmedAt: raw.sessionConfirmedAt ?? null,
     sessionNote: raw.sessionNote ?? '',
+    cookieText: raw.cookieText ?? '',
   };
 }
 

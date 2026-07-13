@@ -1,4 +1,4 @@
-export type { PlatformPack } from './types';
+export type { PlatformPack, PlatformApiEndpoint } from './types';
 export {
   listPlatformPacks,
   listReadyPlatformPacks,

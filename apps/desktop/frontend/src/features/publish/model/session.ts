@@ -1,19 +1,4 @@
-import type { PlatformSessionStatus, PublishAccount } from './types';
-
-export function sessionStatusLabel(status: PlatformSessionStatus): string {
-  switch (status) {
-    case 'pending':
-      return '待确认';
-    case 'logged_in':
-      return '已登录';
-    case 'logged_out':
-      return '已退出';
-    case 'expired':
-      return '可能失效';
-    default:
-      return '未知';
-  }
-}
+import type { PublishAccount } from './types';
 
 /** 跳转登录后：标记 pending，记下时间（仍无 token） */
 export function markLoginJumped(
