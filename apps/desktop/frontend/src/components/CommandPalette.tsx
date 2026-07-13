@@ -208,6 +208,11 @@ export function CommandPalette({
           title: 'Publish: 刷新 Ready 扫描',
           run: () => onPublishCommand('refresh-ready'),
         },
+        {
+          id: 'publish-open-assist',
+          title: 'Publish: 开书辅助向导（L2）',
+          run: () => onPublishCommand('open-assist'),
+        },
       );
     }
     list.push(

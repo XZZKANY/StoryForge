@@ -1,24 +1,23 @@
-# 验证报告：Publish Fleet Phase 2
+# 验证报告：Publish Fleet Phase 3（L2）
 
 时间：2026-07-13  
 分支：`feat/publish-cockpit-phase1`  
-任务：`.trellis/tasks/07-13-publish-fleet-phase2/`
+任务：`.trellis/tasks/07-13-publish-fleet-phase3/`
 
 ## 已执行
 
 | 命令 | 结果 |
 | --- | --- |
 | `npm --prefix apps/desktop/frontend run typecheck` | 通过 |
-| `npm --prefix apps/desktop/frontend run test -- tests/publish-model.test.ts tests/publish-sync.test.ts` | 13/13 通过 |
+| publish-model + sync + assist tests | 16/16 通过 |
 
-## Phase2 交付
+## Phase3 交付
 
-- 空位占坑：`createPlaceholderBook` / 绑定当前项目 / 流水线 UI
-- 冷号：`coldUntil` + `coldMaxOpensPerMonth`；指派热号优先、额度限载
-- Ready 软门：低分/空位应用指派时确认
-- 简介去同质：生成作业包前 Jaccard 提示
-- 文档：`docs/internal/publish-fleet/phase2-prd.md`
+- 白名单打开番茄作者站（shell open / window.open 降级）
+- `OpenAssistWizard`：分步复制书名/简介/标签 → 确认已开
+- 今日作战「开书辅助」+ 命令 `Publish: 开书辅助向导（L2）`
+- 文档 `phase3-prd.md`
 
-## 红线
+## 红线自检
 
-- 仍无 OAuth / L2–L4 / 反检测
+- 无自动登录、DOM 代填、打码、反检测代理

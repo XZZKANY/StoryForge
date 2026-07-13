@@ -11,7 +11,8 @@ export type PublishCommandType =
   | 'mark-dropped'
   | 'monthly-review'
   | 'refresh-ready'
-  | 'reschedule-focus';
+  | 'reschedule-focus'
+  | 'open-assist';
 
 export type PublishCommandDetail = {
   type: PublishCommandType;
@@ -48,4 +49,5 @@ export const PUBLISH_COMMAND_TITLES: { type: PublishCommandType; title: string; 
     { type: 'mark-dropped', title: 'Publish: 标记止损' },
     { type: 'monthly-review', title: 'Publish: 月度复盘' },
     { type: 'refresh-ready', title: 'Publish: 刷新 Ready 扫描' },
+    { type: 'open-assist', title: 'Publish: 开书辅助向导（L2）' },
   ];

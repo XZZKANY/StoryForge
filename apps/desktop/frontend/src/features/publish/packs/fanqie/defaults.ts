@@ -17,16 +17,16 @@ export const FANQIE_CHECKLIST_LABELS: Record<string, string> = {
   firstBatchOk: '首批章节够开书',
 };
 
-export const FANQIE_OPEN_PACK_README = `# 番茄开书作业包（L0+L1）
+export const FANQIE_OPEN_PACK_README = `# 番茄开书作业包（L0–L2）
 
-1. 打开番茄作者后台（本机已登录会话）
-2. 新建作品，按顺序粘贴：
+1. 在 SF 点「开书辅助」或「打开作者后台」（本机已登录会话）
+2. 新建作品，按向导分步粘贴：
    - 书名 ← 复制 meta 中的 title
    - 简介 ← blurb.txt
    - 标签 ← tags.txt
 3. 按 checklist.md 勾选本地确认项
 4. 上传/粘贴首批章节（见 chapters/ 或清单）
-5. 回到 StoryForge → 发布中枢 → 「确认已开」
+5. 向导末步或面板「确认已开」写回额度
 
-不要使用自动登录/打码/反检测工具；额度以你回写与校准为准。
+不做自动登录/DOM 代填/打码/反检测；额度以你回写与校准为准。
 `;

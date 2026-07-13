@@ -37,6 +37,7 @@ import {
 import { copyText, generateOpenPack } from '../storage/open-pack';
 import { scanProjectReady } from '../storage/ready-scan';
 import { onPublishCommand, type PublishCommandType } from '../commands';
+import { OpenAssistWizard } from '../assist/OpenAssistWizard';
 import { projectBasename } from '../../../lib/project-context';
 
 type TabId = 'daily' | 'pipeline' | 'calendar' | 'accounts' | 'assign' | 'review' | 'settings';
@@ -68,6 +69,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
   const [newPenName, setNewPenName] = useState('');
   const [slotTitle, setSlotTitle] = useState('');
   const [slotDate, setSlotDate] = useState('');
+  const [assistBookKey, setAssistBookKey] = useState<string | null>(null);
 
   const flash = useCallback((text: string) => {
     setMessage(text);
@@ -105,6 +107,9 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
       (b.status === 'scheduled' || b.status === 'ready') &&
       !b.openedAt,
   );
+  const assistBook = assistBookKey
+    ? books.find((b) => b.projectKey === assistBookKey) ?? null
+    : null;
 
   const handleAddCurrentProject = async () => {
     if (!projectPath) {
@@ -468,6 +473,19 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
           setTab('calendar');
           flash('请在日历中改 planOpenDate');
           break;
+        case 'open-assist': {
+          const target =
+            todayBooks[0] ||
+            overdueBooks[0] ||
+            books.find((b) => b.status === 'scheduled');
+          if (!target) {
+            flash('没有可开书辅助的书');
+            break;
+          }
+          setTab('daily');
+          setAssistBookKey(target.projectKey);
+          break;
+        }
         case 'open':
         default:
           break;
@@ -484,7 +502,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
     >
       <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <h1 className="text-sm font-semibold">发行管理面板</h1>
-        <span className="text-xs text-subtle">番茄 · L0+L1 · {yearMonth}</span>
+        <span className="text-xs text-subtle">番茄 · L0–L2 · {yearMonth}</span>
         <div className="flex-1" />
         <button
           type="button"
@@ -557,6 +575,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                     onPack={() => void handleGeneratePack(b.projectKey)}
                     onCopy={() => void handleCopyTitle(b.title)}
                     onDrop={() => void markDropped(b.projectKey)}
+                    onAssist={() => setAssistBookKey(b.projectKey)}
                   />
                 ))
               )}
@@ -574,6 +593,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                     onPack={() => void handleGeneratePack(b.projectKey)}
                     onCopy={() => void handleCopyTitle(b.title)}
                     onDrop={() => void markDropped(b.projectKey)}
+                    onAssist={() => setAssistBookKey(b.projectKey)}
                   />
                 ))
               )}
@@ -909,11 +929,21 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
             </label>
             <p className="text-subtle">
               同日全池上限 {settings.maxOpensPerDayGlobal} · 号默认月开{' '}
-              {settings.defaultMonthlyOpenLimit} · 平台 fanqie · 执行 L0+L1
+              {settings.defaultMonthlyOpenLimit} · 平台 fanqie · 执行 L0–L2（无代登/无打码）
             </p>
           </section>
         )}
       </div>
+
+      {assistBook && (
+        <OpenAssistWizard
+          book={assistBook}
+          accounts={accounts}
+          onClose={() => setAssistBookKey(null)}
+          onConfirmOpened={markOpened}
+          onFlash={flash}
+        />
+      )}
     </div>
   );
 }
@@ -955,6 +985,7 @@ function BookRow({
   onPack,
   onCopy,
   onDrop,
+  onAssist,
 }: {
   book: PublishBook;
   accounts: PublishAccount[];
@@ -962,6 +993,7 @@ function BookRow({
   onPack: () => void;
   onCopy: () => void;
   onDrop: () => void;
+  onAssist: () => void;
 }) {
   const pen = accounts.find((a) => a.id === book.assignedAccountId)?.penName ?? '未指派';
   return (
@@ -975,6 +1007,9 @@ function BookRow({
       </button>
       <button type="button" className="rounded px-1.5 py-0.5 hover:bg-elevated" onClick={onPack}>
         作业包
+      </button>
+      <button type="button" className="rounded px-1.5 py-0.5 hover:bg-elevated" onClick={onAssist}>
+        开书辅助
       </button>
       <button type="button" className="rounded px-1.5 py-0.5 hover:bg-elevated" onClick={onOpen}>
         确认已开
