@@ -34,6 +34,8 @@ type CommandPaletteProps = {
   onToggleAssistant: () => void;
   onToggleWorkspace: () => void;
   onOpenSettings: () => void;
+  onOpenPublish?: () => void;
+  onPublishCommand?: (type: string) => void;
   onFocusAssistantOnly: () => void;
   onFocusWorkspaceOnly: () => void;
   onRestoreLayout: () => void;
@@ -62,6 +64,8 @@ export function CommandPalette({
   onToggleAssistant,
   onToggleWorkspace,
   onOpenSettings,
+  onOpenPublish,
+  onPublishCommand,
   onFocusAssistantOnly,
   onFocusWorkspaceOnly,
   onRestoreLayout,
@@ -153,6 +157,60 @@ export function CommandPalette({
       { id: 'toggle-assistant', title: '切换：AI 交互区', run: onToggleAssistant },
       { id: 'toggle-workspace', title: '切换：文件工作区', run: onToggleWorkspace },
       { id: 'open-settings', title: '打开：设置', run: onOpenSettings },
+    );
+    if (onOpenPublish) {
+      list.push({
+        id: 'open-publish-cockpit',
+        title: 'Publish: 打开发行管理面板',
+        hint: 'Cockpit',
+        run: onOpenPublish,
+      });
+    }
+    if (onPublishCommand) {
+      list.push(
+        {
+          id: 'publish-add-current',
+          title: 'Publish: 将当前项目加入发布库',
+          run: () => onPublishCommand('add-current'),
+        },
+        {
+          id: 'publish-auto-assign',
+          title: 'Publish: 智能指派 ready 书',
+          run: () => onPublishCommand('auto-assign'),
+        },
+        {
+          id: 'publish-generate-pack',
+          title: 'Publish: 生成开书作业包',
+          run: () => onPublishCommand('generate-pack'),
+        },
+        {
+          id: 'publish-mark-opened',
+          title: 'Publish: 确认今日已开',
+          run: () => onPublishCommand('mark-opened-today'),
+        },
+        {
+          id: 'publish-reschedule',
+          title: 'Publish: 改期（打开日历）',
+          run: () => onPublishCommand('reschedule-focus'),
+        },
+        {
+          id: 'publish-mark-dropped',
+          title: 'Publish: 标记止损',
+          run: () => onPublishCommand('mark-dropped'),
+        },
+        {
+          id: 'publish-monthly-review',
+          title: 'Publish: 月度复盘',
+          run: () => onPublishCommand('monthly-review'),
+        },
+        {
+          id: 'publish-refresh-ready',
+          title: 'Publish: 刷新 Ready 扫描',
+          run: () => onPublishCommand('refresh-ready'),
+        },
+      );
+    }
+    list.push(
       { id: 'focus-assistant-only', title: '只保留：AI 交互区', run: onFocusAssistantOnly },
       { id: 'focus-workspace-only', title: '只保留：文件工作区', run: onFocusWorkspaceOnly },
       { id: 'restore-layout', title: '恢复：完整布局', run: onRestoreLayout },
@@ -168,6 +226,8 @@ export function CommandPalette({
     onToggleAssistant,
     onToggleWorkspace,
     onOpenSettings,
+    onOpenPublish,
+    onPublishCommand,
     onFocusAssistantOnly,
     onFocusWorkspaceOnly,
     onRestoreLayout,

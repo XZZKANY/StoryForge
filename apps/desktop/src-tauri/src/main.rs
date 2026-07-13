@@ -5,6 +5,7 @@ mod fs;
 mod llm_config;
 #[cfg(test)]
 mod menu;
+mod publish_store;
 mod watcher;
 
 use anyhow::{Context, Result};
@@ -1465,6 +1466,10 @@ fn main() {
             restart_api_server,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
+            publish_store::get_publish_data_dir,
+            publish_store::read_publish_file,
+            publish_store::write_publish_file,
+            publish_store::publish_file_exists,
             // 文件监听命令
             watcher::watch_file,
             watcher::stop_watching,

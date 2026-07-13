@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CommandPalette, PaletteMode } from './components/CommandPalette';
 import { SettingsView } from './components/SettingsView';
+import { PublishCockpit, emitPublishCommand, type PublishCommandType } from './features/publish';
 import { Editor } from './components/Editor';
 import { ChatWindow } from './components/ChatWindow';
 import { TauriFileSystem, FS_MUTATION_EVENT, invalidateFileSystemCache } from './lib/tauri-fs';
@@ -59,6 +60,7 @@ import { useShellState, type SidePanelView } from './components/shell/useShellSt
 export function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [publishVisible, setPublishVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const [welcomeDraft, setWelcomeDraft] = useState('');
@@ -78,9 +80,11 @@ export function App() {
 
   const handleProjectSelected = useCallback(() => {
     setSettingsVisible(false);
+    setPublishVisible(false);
   }, []);
   const handleWorkspaceFileSelected = useCallback(() => {
     setSettingsVisible(false);
+    setPublishVisible(false);
   }, []);
   const {
     projects,
@@ -133,6 +137,7 @@ export function App() {
       setOpenFiles((current) => openEditorFile(current, path));
       setPreviewFile(null);
       setSettingsVisible(false);
+      setPublishVisible(false);
       handleFileSelect(path);
     },
     [handleFileSelect],
@@ -140,6 +145,7 @@ export function App() {
   const previewFileOpen = useCallback(
     async (path: string) => {
       setSettingsVisible(false);
+      setPublishVisible(false);
       if (openFiles.includes(path)) {
         setPreviewFile(null);
         handleFileSelect(path);
@@ -477,11 +483,29 @@ export function App() {
   }, [activeProject, appDialog, currentFile, dirtyFiles, handleOpenProject]);
 
   const openSettings = useCallback(async () => {
+    setPublishVisible(false);
     setSettingsVisible(true);
   }, []);
 
+  const openPublishCockpit = useCallback(() => {
+    setSettingsVisible(false);
+    setPublishVisible(true);
+  }, []);
+
+  const handlePublishCommand = useCallback(
+    (type: string) => {
+      openPublishCockpit();
+      // 等面板挂载后再派发，避免监听未就绪
+      window.setTimeout(() => {
+        emitPublishCommand(type as PublishCommandType);
+      }, 0);
+    },
+    [openPublishCockpit],
+  );
+
   const handleStartNewBook = useCallback(() => {
     setSettingsVisible(false);
+    setPublishVisible(false);
     void handleOpenProject();
   }, [handleOpenProject]);
 
@@ -619,7 +643,7 @@ export function App() {
     settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
   const obs = obsCounts(observations);
-  const centerHasTabs = settingsVisible || projectOpen;
+  const centerHasTabs = settingsVisible || publishVisible || projectOpen;
   const activeCenterTab: CenterTab | null = settingsVisible
     ? 'settings'
     : previewFile && previewFile !== currentFile
@@ -678,7 +702,12 @@ export function App() {
           className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
         >
-          {centerHasTabs ? (
+          {publishVisible && !projectOpen && !settingsVisible ? (
+            <PublishCockpit
+              projectPath={activeProject}
+              onClose={() => setPublishVisible(false)}
+            />
+          ) : centerHasTabs ? (
             <>
               <EditorTabs
                 openFiles={openFiles}
@@ -690,11 +719,13 @@ export function App() {
                 activeReadOnly={displayedFile ? isReadOnlyDerivedProjectPath(displayedFile) : false}
                 onFocusFile={(path) => {
                   setSettingsVisible(false);
+                  setPublishVisible(false);
                   setPreviewFile(null);
                   handleFileSelect(path);
                 }}
                 onFocusPreview={() => {
                   setSettingsVisible(false);
+                  setPublishVisible(false);
                 }}
                 onPinPreview={() => {
                   if (previewFile) void openFile(previewFile);
@@ -720,10 +751,16 @@ export function App() {
                     onClose={() => setSettingsVisible(false)}
                   />
                 )}
+                {publishVisible && (
+                  <PublishCockpit
+                    projectPath={activeProject}
+                    onClose={() => setPublishVisible(false)}
+                  />
+                )}
                 <section
-                  className={`${settingsVisible ? 'hidden' : 'h-full'} min-h-0 overflow-hidden bg-background`}
+                  className={`${settingsVisible || publishVisible ? 'hidden' : 'h-full'} min-h-0 overflow-hidden bg-background`}
                   data-testid="editor-panel"
-                  hidden={settingsVisible}
+                  hidden={settingsVisible || publishVisible}
                 >
                   <Editor
                     projectPath={activeProject}
@@ -809,6 +846,8 @@ export function App() {
           onToggleAssistant={shell.toggleRight}
           onToggleWorkspace={shell.toggleSidebar}
           onOpenSettings={openSettings}
+          onOpenPublish={openPublishCockpit}
+          onPublishCommand={handlePublishCommand}
           onFocusAssistantOnly={() => shell.showRight()}
           onFocusWorkspaceOnly={() => shell.showSidebar()}
           onRestoreLayout={() => {
