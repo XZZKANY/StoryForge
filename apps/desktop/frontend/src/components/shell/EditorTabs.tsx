@@ -1,10 +1,13 @@
 /**
- * 中栏编辑器页签行（36px）：设置 / 文件 / 预览页签 + 右侧面板切换 etool。
+ * 中栏编辑器页签行（36px）：设置 / 文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
  * 预览页签为斜体，单击别的文件会覆盖它；双击预览页签固定（对齐原型 pane-preview 语义）。
  * 激活页签向下压 1px，用 --background 底线冲掉容器底边，与编辑区无缝一体。
+ * Q3a：导出/历史/保存/关闭其他/关闭全部收进「…」溢出菜单（删掉 Editor 自己的第二条工具行，
+ * 文件名不再出现两次）；保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE、历史/分支走编辑器命令事件。
  */
+import { useState } from 'react';
 import { basename } from '../app/helpers';
-import { Settings, X } from '../icons/shell-icons';
+import { MoreHorizontal, Settings, X } from '../icons/shell-icons';
 
 export type CenterTab = 'settings' | 'file' | 'preview';
 
@@ -81,12 +84,19 @@ export function EditorTabs({
   dirtyFiles,
   settingsOpen,
   activeTab,
+  activeReadOnly = false,
   onFocusFile,
   onFocusPreview,
   onPinPreview,
   onFocusSettings,
   onCloseFile,
   onCloseSettings,
+  onSaveActive,
+  onToggleHistory,
+  onExportActive,
+  onToggleBranchView,
+  onCloseOthers,
+  onCloseAll,
 }: {
   openFiles: string[];
   activeFile: string | null;
@@ -94,14 +104,23 @@ export function EditorTabs({
   dirtyFiles: ReadonlySet<string>;
   settingsOpen: boolean;
   activeTab: CenterTab | null;
+  activeReadOnly?: boolean;
   onFocusFile: (path: string) => void;
   onFocusPreview: () => void;
   onPinPreview: () => void;
   onFocusSettings: () => void;
   onCloseFile: (path: string) => void;
   onCloseSettings: () => void;
+  // Q3a 文件操作（收进「…」菜单，作用于当前活动文件页签）。
+  onSaveActive?: () => void;
+  onToggleHistory?: () => void;
+  onExportActive?: () => void;
+  onToggleBranchView?: () => void;
+  onCloseOthers?: () => void;
+  onCloseAll?: () => void;
 }) {
   const showPreview = Boolean(previewFile) && !openFiles.includes(previewFile as string);
+  const hasFileActions = activeTab === 'file' || activeTab === 'preview';
 
   return (
     <div
@@ -137,6 +156,94 @@ export function EditorTabs({
           onActivate={onFocusPreview}
           onDoubleClick={onPinPreview}
         />
+      )}
+      <div className="flex-1" />
+      {hasFileActions && (
+        <div className="flex flex-shrink-0 items-center gap-1.5 pr-1.5">
+          {activeReadOnly && (
+            <span
+              className="flex items-center whitespace-nowrap rounded-full border border-warning/50 px-2 text-[10.5px] text-warning"
+              title="canon 派生缓存由 canon_rebuild 从正文重建，手改无效"
+            >
+              只读派生文件
+            </span>
+          )}
+          <EditorActionsMenu
+            onSaveActive={onSaveActive}
+            onToggleHistory={onToggleHistory}
+            onExportActive={onExportActive}
+            onToggleBranchView={onToggleBranchView}
+            onCloseOthers={onCloseOthers}
+            onCloseAll={onCloseAll}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuRow({ label, kbd, onClick }: { label: string; kbd?: string; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+      onClick={onClick}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {kbd && <span className="flex-shrink-0 font-mono text-[10px] text-subtle">{kbd}</span>}
+    </button>
+  );
+}
+
+function EditorActionsMenu({
+  onSaveActive,
+  onToggleHistory,
+  onExportActive,
+  onToggleBranchView,
+  onCloseOthers,
+  onCloseAll,
+}: {
+  onSaveActive?: () => void;
+  onToggleHistory?: () => void;
+  onExportActive?: () => void;
+  onToggleBranchView?: () => void;
+  onCloseOthers?: () => void;
+  onCloseAll?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const run = (handler?: () => void) => () => {
+    setOpen(false);
+    handler?.();
+  };
+  return (
+    <div className="relative flex items-center">
+      <button
+        type="button"
+        data-testid="editor-more-btn"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
+        title="文件操作：保存 / 历史 / 导出 …"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal size={16} strokeWidth={1.7} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-9 z-40 w-56 rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
+            data-testid="editor-more-menu"
+          >
+            <MenuRow label="保存" kbd="Ctrl S" onClick={run(onSaveActive)} />
+            <MenuRow label="版本历史" onClick={run(onToggleHistory)} />
+            <div className="mx-1.5 my-1 h-px bg-border" />
+            <MenuRow label="导出当前稿" onClick={run(onExportActive)} />
+            <MenuRow label="剧情分支画布" onClick={run(onToggleBranchView)} />
+            <div className="mx-1.5 my-1 h-px bg-border" />
+            <MenuRow label="关闭其他页签" onClick={run(onCloseOthers)} />
+            <MenuRow label="关闭全部页签" onClick={run(onCloseAll)} />
+          </div>
+        </>
       )}
     </div>
   );

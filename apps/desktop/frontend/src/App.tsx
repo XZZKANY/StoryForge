@@ -21,9 +21,11 @@ import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke
 import { executeIdeCommand } from './lib/api-client';
 import {
   APPLY_FILE_SUGGESTION_EVENT,
+  emitEditorCommand,
   emitExportCurrentFile,
   flushActiveEditorToDisk,
 } from './lib/assistant-events';
+import { isReadOnlyDerivedProjectPath } from './lib/project/entry-visibility';
 import type { AssistantFileSuggestion } from './lib/assistant-suggestions';
 import {
   loadAppSettings,
@@ -336,9 +338,33 @@ export function App() {
     [closeFile, confirmDiscardFiles, currentFile, handleFileSelect, openFiles],
   );
 
-  const handlePreviewClose = useCallback(async () => {
+  // Q3a「…」菜单：关闭全部 / 关闭其他页签（含预览页签）。dirty 文件先确认再丢弃。
+  const handleCloseAll = useCallback(async () => {
+    const openPaths = previewFile ? [...openFiles, previewFile] : openFiles;
+    if (!(await confirmDiscardFiles(openPaths, '关闭全部页签'))) return;
+    setOpenFiles([]);
     setPreviewFile(null);
-  }, []);
+    setDirtyFiles(new Set());
+    closeFile();
+  }, [closeFile, confirmDiscardFiles, openFiles, previewFile]);
+
+  const handleCloseOthers = useCallback(async () => {
+    const keep = displayedFile;
+    if (!keep) return;
+    const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
+    const others = allOpen.filter((path) => path !== keep);
+    if (others.length === 0) return;
+    if (!(await confirmDiscardFiles(others, '关闭其他页签'))) return;
+    setDirtyFiles((current) => {
+      const next = new Set(current);
+      for (const path of others) next.delete(path);
+      return next;
+    });
+    // keep 固定为唯一页签（无论它原本是固定还是预览）。
+    setOpenFiles([keep]);
+    setPreviewFile(null);
+    handleFileSelect(keep);
+  }, [confirmDiscardFiles, displayedFile, handleFileSelect, openFiles, previewFile]);
 
   const handleNewFile = useCallback(
     async (projectOverride?: string) => {
@@ -653,6 +679,7 @@ export function App() {
                 dirtyFiles={dirtyFiles}
                 settingsOpen={settingsVisible}
                 activeTab={activeCenterTab}
+                activeReadOnly={displayedFile ? isReadOnlyDerivedProjectPath(displayedFile) : false}
                 onFocusFile={(path) => {
                   setSettingsVisible(false);
                   setPreviewFile(null);
@@ -667,6 +694,15 @@ export function App() {
                 onFocusSettings={() => void openSettings()}
                 onCloseFile={(path) => void handleFileClose(path)}
                 onCloseSettings={() => setSettingsVisible(false)}
+                onSaveActive={() => {
+                  if (displayedFile)
+                    void flushActiveEditorToDisk(displayedFile).catch(() => undefined);
+                }}
+                onToggleHistory={() => emitEditorCommand('toggle-history')}
+                onExportActive={() => emitExportCurrentFile()}
+                onToggleBranchView={() => emitEditorCommand('toggle-branch-view')}
+                onCloseOthers={() => void handleCloseOthers()}
+                onCloseAll={() => void handleCloseAll()}
               />
               <div className="min-h-0 flex-1 overflow-hidden">
                 {settingsVisible && (
@@ -687,17 +723,8 @@ export function App() {
                     editorFontSize={settings.editorFontSize}
                     autoSave={settings.autoSave}
                     retainedFilePaths={retainedEditorFiles}
-                    onClose={
-                      displayedFile && displayedFile === previewFile
-                        ? () => void handlePreviewClose()
-                        : displayedFile
-                          ? () => void handleFileClose(displayedFile)
-                          : () => undefined
-                    }
                     onDirtyChange={handleEditorDirtyChange}
-                    onToggleSidebar={shell.toggleSidebar}
                     sidebarVisible={!shell.sidebarHidden}
-                    onExportCurrent={() => emitExportCurrentFile()}
                     dialogs={appDialog}
                   />
                 </section>
