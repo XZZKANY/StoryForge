@@ -9,7 +9,7 @@ import {
   PIPELINE_STATUSES,
 } from '../model';
 import { listPlatformPacks, resolvePlatformPack } from '../packs';
-import type { PublishCockpitApi } from '../hooks/usePublishCockpit';
+import type { BatchItemProgress, PublishCockpitApi } from '../hooks/usePublishCockpit';
 import { useState } from 'react';
 import { Block, BookRow, Empty, StatusBadge, ToolbarBtn } from './ui';
 
@@ -251,6 +251,177 @@ function ApiPublishPanel({ api }: { api: PublishCockpitApi }) {
   );
 }
 
+function BatchStatusDot({ status }: { status: BatchItemProgress['status'] }) {
+  const cls =
+    status === 'ok'
+      ? 'text-success'
+      : status === 'fail'
+        ? 'text-error'
+        : status === 'publishing'
+          ? 'text-warning'
+          : status === 'skip'
+            ? 'text-muted'
+            : 'text-subtle';
+  return <span className={`${cls} text-[10px] leading-none`}>●</span>;
+}
+
+/** 对账：拉线上书单 ↔ library 并排，写快照/绑定/纳入台账（不自动改月账）。 */
+function ReconcilePanel({ api }: { api: PublishCockpitApi }) {
+  const { reconcile, books } = api;
+  if (!reconcile) {
+    return (
+      <div className="rounded-md border border-border bg-surface/30 p-2 text-[10.5px] text-subtle">
+        对账：在下方账号行点「对账」，拉线上书单与台账并排比对（只写本地快照，不自动改月账）。
+      </div>
+    );
+  }
+  const { result, ledger, penName } = reconcile;
+  const bindTargets = books.filter(
+    (b) => !b.onlineBookId && !b.path.startsWith('online://'),
+  );
+  return (
+    <div className="space-y-1.5 rounded-md border border-border bg-surface/30 p-2 text-[10.5px]">
+      <div className="font-semibold text-subtle">对账 · {penName}</div>
+      <div className="text-subtle">
+        台账本月已开 {ledger.ledgerOpened} · 线上此号 {ledger.onlineTotal} 本 · 匹配{' '}
+        {ledger.matchedCount} · 线上多出 {ledger.onlineOnlyCount} · 本地查无 {ledger.missingCount}
+      </div>
+      {result.onlineOnly.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-warning">线上有、台账无：</div>
+          {result.onlineOnly.map((o) => (
+            <div key={o.bookId} className="flex flex-wrap items-center gap-1.5">
+              <span className="font-medium">{o.bookName}</span>
+              <span className="text-subtle">
+                {o.chapterNumber}章·{o.wordNumber}字
+              </span>
+              <select
+                className="h-6 rounded border border-border bg-background px-1 text-[10px]"
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) void api.bindOnlineBook(e.target.value, o.bookId);
+                }}
+                aria-label={`绑定线上作品 ${o.bookName}`}
+              >
+                <option value="">绑定到本地书…</option>
+                {bindTargets.map((b) => (
+                  <option key={b.projectKey} value={b.projectKey}>
+                    {b.title}
+                  </option>
+                ))}
+              </select>
+              <ToolbarBtn onClick={() => void api.importOnlineBook(result.accountId, o.bookId)}>
+                纳入台账
+              </ToolbarBtn>
+            </div>
+          ))}
+        </div>
+      )}
+      {result.localMissing.length > 0 && (
+        <div className="space-y-0.5">
+          <div className="text-error">本地标已开、线上查无（可能改名/号不对）：</div>
+          {result.localMissing.map((b) => (
+            <div key={b.projectKey} className="text-error/90">
+              · {b.title}
+            </div>
+          ))}
+        </div>
+      )}
+      {result.matched.length > 0 && (
+        <div className="text-subtle">
+          已同步快照 {result.matched.length} 本（
+          {result.matched
+            .map((m) => m.book.title)
+            .slice(0, 4)
+            .join('、')}
+          {result.matched.length > 4 ? '…' : ''}）
+        </div>
+      )}
+      <div className="text-subtle">
+        配额仍用账号行「校准已开」手动定；线上无开书日期，不自动改本月账。
+      </div>
+    </div>
+  );
+}
+
+/** 批量发章：当前项目全部章节 → 番茄，按线上已发去重 + 字数下限跳过 + 间隔节流。 */
+function BatchPublishPanel({ api }: { api: PublishCockpitApi }) {
+  const { accounts, onlineBooks, projectChapters, batch } = api;
+  const [accountId, setAccountId] = useState('');
+  const [bookId, setBookId] = useState('');
+  const acctOptions = accounts.filter((a) => a.cookieText?.trim());
+  const running = batch?.running ?? false;
+  return (
+    <div className="space-y-1.5 rounded-md border border-border bg-surface/30 p-2 text-[10.5px]">
+      <div className="font-semibold text-subtle">批量发章（当前项目全部章节 → 番茄）</div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <select
+          className="h-7 rounded border border-border bg-background px-1 text-[10.5px]"
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+        >
+          <option value="">选账号</option>
+          {acctOptions.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.penName}
+            </option>
+          ))}
+        </select>
+        <select
+          className="h-7 min-w-[7rem] rounded border border-border bg-background px-1 text-[10.5px]"
+          value={bookId}
+          onChange={(e) => setBookId(e.target.value)}
+        >
+          <option value="">选线上作品</option>
+          {onlineBooks.map((b) => (
+            <option key={b.bookId} value={b.bookId}>
+              {b.bookName}
+            </option>
+          ))}
+        </select>
+        <ToolbarBtn onClick={() => void api.loadProjectChapters()}>
+          刷新章节（{projectChapters.length}）
+        </ToolbarBtn>
+        {running ? (
+          <ToolbarBtn onClick={() => api.stopBatch()}>停止</ToolbarBtn>
+        ) : (
+          <ToolbarBtn
+            onClick={() => void api.startBatchPublish({ accountId, onlineBookId: bookId })}
+          >
+            开始批量发布
+          </ToolbarBtn>
+        )}
+      </div>
+      <div className="text-subtle">自动跳过已在线/不足1000字；两章间隔按设置节流防频控（-3009）。</div>
+      {batch && (
+        <div className="space-y-0.5 rounded border border-border bg-background/40 p-1.5">
+          <div className="text-subtle">
+            {batch.penName} · 待发 {batch.publishCount} ·{' '}
+            {batch.running ? (batch.stopRequested ? '停止中…' : '发布中…') : '已结束'}
+          </div>
+          {batch.items.map((it) => (
+            <div key={it.path} className="flex items-center gap-1.5">
+              <BatchStatusDot status={it.status} />
+              <span className="min-w-0 flex-1 truncate">{it.title || it.name}</span>
+              <span className="text-subtle">
+                {it.status === 'skip'
+                  ? it.skipReason
+                  : it.status === 'fail'
+                    ? `失败${it.code ? ` ${it.code}` : ''}`
+                    : it.status === 'ok'
+                      ? '成功'
+                      : it.status === 'publishing'
+                        ? '发布中'
+                        : '待发'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AccountsTab({ api }: { api: PublishCockpitApi }) {
   const { accounts, quota, today, newPenName, onlineBooks } = api;
   return (
@@ -287,6 +458,8 @@ export function AccountsTab({ api }: { api: PublishCockpitApi }) {
         </div>
       )}
       <ApiPublishPanel api={api} />
+      <BatchPublishPanel api={api} />
+      <ReconcilePanel api={api} />
       {accounts.map((a) => {
         const stale = isSessionStale(a);
         const sessionLabel = stale ? '可能失效' : sessionStatusLabel(a.sessionStatus);
@@ -343,6 +516,7 @@ export function AccountsTab({ api }: { api: PublishCockpitApi }) {
               />
               <ToolbarBtn onClick={() => void api.testAccountCookie(a.id)}>验证</ToolbarBtn>
               <ToolbarBtn onClick={() => void api.syncOnlineStatus(a.id)}>拉线上</ToolbarBtn>
+              <ToolbarBtn onClick={() => void api.reconcileAccount(a.id)}>对账</ToolbarBtn>
             </div>
             <div className="flex flex-wrap items-center gap-0.5">
               <ToolbarBtn onClick={() => void api.loginViaWebView(a.id)}>登录</ToolbarBtn>
