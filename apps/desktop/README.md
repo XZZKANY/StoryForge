@@ -1,6 +1,6 @@
 # StoryForge Desktop IDE
 
-本地桌面 IDE 应用，提供 Cursor 风格的写作体验。
+本地桌面 IDE 应用，提供 IDE 风格的写作体验。
 
 ## ✨ 特性
 

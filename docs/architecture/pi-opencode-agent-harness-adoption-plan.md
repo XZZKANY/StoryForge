@@ -14,7 +14,7 @@
 它不是替换技术栈的方案。StoryForge 仍保持：
 
 ```text
-StoryForge = Cursor for Fiction
+StoryForge = 作者辅助写作 IDE
 apps/desktop 是唯一主体验
 Tauri + React + Monaco 是桌面主壳
 AgentRun / AgentRunEvent / AgentArtifact 是运行事实源

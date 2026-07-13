@@ -6,7 +6,7 @@
 /* StoryForge 桌面 IDE 中性深色调 —— 颜色 token 以空格分隔 RGB 通道暴露，
    供 Tailwind 的 rgb(var(--x) / <alpha-value>) 透明度修饰符使用。 */
 :root {
-  /* 深色层级阶梯：柔和中深灰画布(贴近 Cursor 观感),四档拉开纵深但对比克制。 */
+  /* 深色层级阶梯：柔和中深灰画布,四档拉开纵深但对比克制。 */
   --background: 28 28 31; /* #1c1c1f 画布底 */
   --panel: 36 36 41; /* #242429 导航/头部面板 */
   --surface: 45 45 51; /* #2d2d33 卡片/输入框 */
@@ -197,15 +197,20 @@ body {
   gap: 10px;
 }
 
-/* 统一细滚条：贴语义 token、跟随明暗主题、透明轨道（原型定调，取代旧的粗滚条） */
+/* Q2 统一细滚条：平时 thumb 收起（透明），hover 容器或滚动中（.scrolling，App 侧 700ms 衰减）
+   才显；贴语义 token、跟随明暗主题、透明轨道。取代旧的常显粗滚条。 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--border-strong) / 0.6) transparent;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
+  scrollbar-color: rgb(var(--border-strong) / 0.55) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
 }
 
 ::-webkit-scrollbar-track,
@@ -214,15 +219,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--border-strong) / 0.55);
+  background: transparent;
   border: 3px solid transparent;
-  border-radius: 5px;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+:hover::-webkit-scrollbar-thumb,
+.scrolling::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-strong) / 0.55);
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--border-strong));
-  border: 3px solid transparent;
+  background: rgb(var(--border-strong) / 0.85);
   background-clip: padding-box;
 }
 

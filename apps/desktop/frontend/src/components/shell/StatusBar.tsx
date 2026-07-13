@@ -1,39 +1,52 @@
 /**
  * 状态栏：26px 全局条。sidecar 连接态（轮询 /health/ready）+ 模型 + 主题 + 面板切换。
- * 观测计数 / 字数 / runchip 为 P4/P3 接线预留位（本刀只搭已有真信号）。
+ * 观测未接线时必须保留 unavailable 状态，不能把无数据表达成零问题。
  */
 import { useEffect, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
 import type { ApiRuntimeHealth } from '../../lib/api/types';
 import type { ThemeMode } from '../../lib/user-settings';
+import type { EditorFontMode } from '../editor/options';
 import { Check } from '../icons/shell-icons';
+import type { ObservationAvailability } from './ObsPanel';
+
+type HealthProbeState =
+  | { kind: 'pending' }
+  | { kind: 'result'; health: ApiRuntimeHealth }
+  | { kind: 'failed' };
 
 export function StatusBar({
   modelLabel,
   theme,
   projectOpen,
+  fontMode,
   obs,
+  observationAvailability = 'unavailable',
   onToggleObs,
+  onToggleFont,
   onToggleTheme,
 }: {
   modelLabel: string;
   theme: ThemeMode;
   projectOpen: boolean;
+  fontMode: EditorFontMode;
   obs: { error: number; warning: number; advisory: number; total: number };
+  observationAvailability?: ObservationAvailability;
   onToggleObs: () => void;
+  onToggleFont: () => void;
   onToggleTheme: () => void;
 }) {
-  const [health, setHealth] = useState<ApiRuntimeHealth | null>(null);
+  const [healthProbe, setHealthProbe] = useState<HealthProbeState>({ kind: 'pending' });
 
   useEffect(() => {
     let cancelled = false;
     const probe = () => {
       void probeApiRuntimeHealth()
         .then((result) => {
-          if (!cancelled) setHealth(result);
+          if (!cancelled) setHealthProbe({ kind: 'result', health: result });
         })
         .catch(() => {
-          if (!cancelled) setHealth(null);
+          if (!cancelled) setHealthProbe({ kind: 'failed' });
         });
     };
     probe();
@@ -44,13 +57,23 @@ export function StatusBar({
     };
   }, []);
 
+  const health = healthProbe.kind === 'result' ? healthProbe.health : null;
   const reachable = health?.reachable ?? false;
-  const dotClass = reachable ? 'bg-success' : 'bg-warning';
-  const connLabel = health
-    ? reachable
-      ? 'sidecar · 已连接'
-      : 'sidecar · 连接中断'
-    : 'sidecar · 探测中';
+  const dotClass =
+    healthProbe.kind === 'pending' ? 'bg-warning' : reachable ? 'bg-success' : 'bg-error';
+  const connLabel =
+    healthProbe.kind === 'pending'
+      ? 'sidecar · 探测中'
+      : reachable
+        ? 'sidecar · 已连接'
+        : 'sidecar · 连接中断';
+
+  const unavailableObservationLabel =
+    observationAvailability === 'loading'
+      ? '观测加载中'
+      : observationAvailability === 'error'
+        ? '观测加载失败'
+        : '观测未接线';
 
   return (
     <footer
@@ -70,7 +93,11 @@ export function StatusBar({
           title="观测清单"
           data-testid="status-obs"
         >
-          {obs.total > 0 ? (
+          {observationAvailability !== 'available' ? (
+            <span className={observationAvailability === 'error' ? 'text-error' : 'text-subtle'}>
+              {unavailableObservationLabel}
+            </span>
+          ) : obs.total > 0 ? (
             <span className="flex items-center gap-1.5">
               <span className="h-[7px] w-[7px] rounded-full bg-error" />
               <span>{obs.error}</span>
@@ -82,9 +109,19 @@ export function StatusBar({
           ) : (
             <span className="flex items-center gap-1 text-success">
               <Check size={12} strokeWidth={2} />
-              无观测项
+              无未处理观测
             </span>
           )}
+        </button>
+      )}
+      {projectOpen && (
+        <button
+          className="rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
+          onClick={onToggleFont}
+          title="编辑器字体：格子 = CJK 2:1 等宽（中英对齐，需装内置更纱/文楷等宽）；散文 = 比例字体（长文舒适）"
+          data-testid="status-font-toggle"
+        >
+          字体 · {fontMode === 'prose' ? '散文' : '格子'}
         </button>
       )}
       <button

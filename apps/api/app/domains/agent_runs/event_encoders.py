@@ -50,7 +50,10 @@ def websocket_started_event(run: AgentRun, event: AgentRunEvent) -> dict[str, An
 
 
 def websocket_stream_events_from_agent_event(event: AgentRunEvent) -> list[dict[str, Any]]:
-    """Encode durable AgentRunEvent rows into IDE WebSocket stream messages."""
+    """Encode durable AgentRunEvent rows into transport-neutral IDE Agent frames.
+
+    The function name is retained for compatibility; the live transport is local SSE.
+    """
 
     run = event.run
     if event.event_type == AGENT_RUN_STARTED:
@@ -145,7 +148,7 @@ def _websocket_permission_required_event(run: AgentRun, event: AgentRunEvent) ->
 
 
 def _websocket_terminal_event(run: AgentRun, event: AgentRunEvent) -> dict[str, Any]:
-    """把 AGENT_RUN_COMPLETED/FAILED 落进 WS 流：断线后前端拉事件表重放即可重建终态（F10）。
+    """把 AGENT_RUN_COMPLETED/FAILED 落进实时流：中止后前端拉事件表重放即可重建终态（F10）。
     happy-path 前端仍据 agent_result（_STREAM_RESULT）settle，这里是重建路径的幂等补充。"""
 
     payload = event.payload if isinstance(event.payload, dict) else {}

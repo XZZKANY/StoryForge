@@ -1,9 +1,9 @@
-// Agent WS 帧「后端 → 前端」编译期契约（W6 契约化 slice 2b）。
+// Agent 实时帧「后端 → 前端」编译期契约（历史文件名保留作兼容）。
 //
 // generated/agent-ws.ts 由后端 Pydantic 帧经 agent-ws.schema.json 派生（单一事实源）。
-// 本文件把「前端各解码路径实际读取的字段」钉在生成帧上：后端改一个 WS 字段名并 `pnpm openapi`
+// 本文件把「前端各解码路径实际读取的字段」钉在生成帧上：后端改一个帧字段名并 `pnpm openapi`
 // 重新生成后，被改的键从生成帧的 keyof 里消失，下面的约束即违约 → 前端 typecheck 红。
-// 这是蓝图 W6 的 gate：「故意改一个 WS 字段名 → 前端 typecheck 红」。
+// 这是跨端 gate：「故意改一个 Agent 帧字段名 → 前端 typecheck 红」。
 //
 // 只做键名 + 核心字段类型两级校验，不做整帧可赋值校验：出线帧字段恒在（可空为 X|null），
 // 而前端消息类型把若干字段建模成可选省略（X|undefined），整帧对齐会被 null/undefined 差异噪音淹没。

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from starlette.routing import WebSocketRoute
+
 from app.main import app
 
 # W4：死域冻结隔离——已卸载 router 的冻结域。见 app/domains/DOMAINS.md。
@@ -29,6 +31,14 @@ def test_main_registers_domain_router_surface() -> None:
     assert any(path.startswith("/api/model-runs") for path in registered_paths)
     assert any(path.startswith("/api/judge") for path in registered_paths)
     assert any(path.startswith("/api/quality") for path in registered_paths)
+
+
+def test_agent_websocket_route_stays_retired() -> None:
+    """Desktop Agent 已收口到本地 SSE/REST，旧双向路由不得重新注册。"""
+
+    websocket_paths = {route.path for route in app.routes if isinstance(route, WebSocketRoute)}
+
+    assert "/api/ide/agent/sessions/{session_id}" not in websocket_paths
 
 
 def test_frozen_domain_routers_stay_unmounted() -> None:

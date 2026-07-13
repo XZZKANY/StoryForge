@@ -401,6 +401,29 @@
   {
     "type": "function",
     "function": {
+      "name": "project_trim_prose",
+      "description": "按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对项目根的稿件路径。"
+          },
+          "target_percent": {
+            "type": "integer",
+            "description": "目标压缩百分比，默认 15（即压缩到原字数的 85%）。"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "file_review",
       "description": "对项目内单个稿件做多视角审稿（剧情 / 人物 / 文风 / 连续性），返回带稳定 id 的 issue 列表。",
       "parameters": {
@@ -462,6 +485,50 @@
           "path",
           "instruction"
         ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "project_hooks_delta",
+      "description": "叙事承诺钩子差量提案（确定性去重 + 正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。工具只归并去重、不写 hooks.json；新钩子列表需作者确认后再调用 canon_store.write_hooks 写入。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "observed_hooks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "description": "钩子描述（如「青岩欠陆沉一把刀的情」），必填。"
+                },
+                "verification": {
+                  "type": "string",
+                  "description": "验证条件——读者读到什么就知道伏笔收了。"
+                },
+                "category": {
+                  "type": "string",
+                  "description": "钩子类型：conditional_promise / countdown / threshold / oath / mystery / taboo / hidden_info"
+                },
+                "note": {
+                  "type": "string",
+                  "description": "备注（如建议回收章序、召回条件）。"
+                }
+              },
+              "required": [
+                "description"
+              ]
+            },
+            "description": "本章观察到的叙事承诺钩子。"
+          },
+          "evidence_text": {
+            "type": "string",
+            "description": "正文片段（可选），工具会在其上跑正则模式检测辅助信号。"
+          }
+        }
       }
     }
   }

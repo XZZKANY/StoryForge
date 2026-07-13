@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const contractsDir = resolve(root, 'packages', 'shared', 'src', 'contracts');
-// pnpm openapi 一次刷新的全部契约产物；任一漂移即红（W6：加 agent-ws.schema.json + 前端派生类型）。
+// pnpm openapi 一次刷新的全部契约产物；任一漂移即红（agent-ws.* 为实时帧契约的历史兼容路径）。
 const contractPaths = [
   resolve(contractsDir, 'storyforge.openapi.json'),
   resolve(root, 'packages', 'shared', 'src', 'generated', 'api-types.ts'),

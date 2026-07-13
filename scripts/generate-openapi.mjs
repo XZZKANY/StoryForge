@@ -95,7 +95,7 @@ ws_schema_path = Path(${JSON.stringify(wsSchemaPath)})
 ws_schema_path.write_bytes(
     (json.dumps(build_agent_ws_schema(), ensure_ascii=False, indent=2, sort_keys=True) + "\\n").encode("utf-8")
 )
-print(f"已生成 Agent WS 帧契约：{ws_schema_path}")
+print(f"已生成 Agent 实时帧契约（兼容路径）：{ws_schema_path}")
 `.trim();
 
 const tempScriptPath = join(tmpdir(), `storyforge-openapi-${Date.now()}.py`);
@@ -110,11 +110,11 @@ try {
   process.exitCode = exitCode;
 
   if (exitCode === 0) {
-    // 前端 WS 类型从刚生成的 schema 派生（同一事实源），drift 门禁一并校验。
+    // 前端 Agent 帧类型从刚生成的 schema 派生（同一事实源），drift 门禁一并校验。
     const wsSchema = JSON.parse(await readFile(wsSchemaPath, 'utf8'));
     await mkdir(dirname(wsTypesPath), { recursive: true });
     await writeFile(wsTypesPath, emitAgentWsTypes(wsSchema), 'utf8');
-    log('INFO', `已生成前端 WS 类型：${wsTypesPath}`);
+    log('INFO', `已生成前端 Agent 帧类型（兼容路径）：${wsTypesPath}`);
 
     const packageManagerCommand = resolvePackageManagerCommand();
     const typesExitCode = await runCommand(

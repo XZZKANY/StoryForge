@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 
 # W3：live 工具循环直接吃 common 单一出网通道，不再寄生于已降级的 book_runs 私有函数。
 from app.common.llm_client import LLMConfigError, LLMError, _call_llm_messages
+from app.domains.agent_runs.canon_context import build_scene_constraint_block
+from app.domains.agent_runs.fs_tools import FsToolError, _resolve_root
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
     build_loop_tool_schemas,
@@ -74,6 +76,41 @@ _SYSTEM_PROMPT = (
     "需要更多内容就调整 offset 或缩小范围继续读。"
     "最终回答用简洁自然的中文，直接说事；引用文件时给出相对路径。"
 )
+
+# 作者自定义指令：写盘即生效追加进 system prompt，让作者不改代码即可定制 agent 语气 / 偏好 / 审稿口径。
+_AUTHOR_INSTRUCTIONS_DIRNAME = ".storyforge"
+_AUTHOR_INSTRUCTIONS_FILENAME = "agent-instructions.md"
+_AUTHOR_INSTRUCTIONS_MAX_CHARS = 4_000
+_AUTHOR_INSTRUCTIONS_PREFIX = (
+    "以下是作者对你的额外偏好与要求，请在不违反上述工具纪律与写回红线"
+    "（补丁必须经作者在界面确认、后端绝不写盘）的前提下尽量遵循：\n"
+)
+
+
+def _read_author_instructions(project_path: str) -> str | None:
+    """读作者自定义指令 .storyforge/agent-instructions.md，供 run_chat_loop 追加进 system prompt。
+
+    写盘即生效（每次起循环重读）；文件不存在 / 读失败 / 空内容 → None（静默跳过，
+    这是加分项、绝不拖垮聊天循环）。超长按 _AUTHOR_INSTRUCTIONS_MAX_CHARS 截断。
+    路径由 project_path 后端硬拼、不接受任何外部传入，无遍历风险。
+    """
+    try:
+        root = _resolve_root(project_path)
+    except FsToolError:
+        return None
+    target = root / _AUTHOR_INSTRUCTIONS_DIRNAME / _AUTHOR_INSTRUCTIONS_FILENAME
+    if not target.is_file():
+        return None
+    try:
+        text = target.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not text:
+        return None
+    if len(text) > _AUTHOR_INSTRUCTIONS_MAX_CHARS:
+        text = text[:_AUTHOR_INSTRUCTIONS_MAX_CHARS] + "\n…[作者指令过长已截断]"
+    return text
+
 
 # LOOP_TOOL_SCHEMAS 从 spec 单点派生（见 tooling.build_loop_tool_schemas），删掉此前手写镜像。
 LOOP_TOOL_SCHEMAS: list[dict[str, Any]] = build_loop_tool_schemas()
@@ -223,12 +260,27 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "new_conflict_count": len(output.get("new_conflicts") or []),
             "new_advisory_count": len(output.get("new_advisories") or []),
         }
+    if registry_name == "project.hooks_delta":
+        return {
+            "new_hook_count": len(output.get("new_hooks") or []),
+            "duplicate_count": len(output.get("duplicates") or []),
+            "pattern_hit_count": len(output.get("pattern_hits") or []),
+        }
     if registry_name == "file.review":
         report = output.get("review_report") if isinstance(output.get("review_report"), dict) else {}
         return {
             "file_path": report.get("file_path"),
             "issue_count": len(report.get("issues") or []),
             "mode": report.get("mode"),
+        }
+    if registry_name == "project.trim_prose":
+        return {
+            "file_path": output.get("file_path"),
+            "original_chars": output.get("trim_audit", {}).get("original_chars"),
+            "compressed_chars": output.get("trim_audit", {}).get("compressed_chars"),
+            "compression_percent": output.get("trim_audit", {}).get("actual_percent"),
+            "target_percent": output.get("trim_audit", {}).get("target_percent"),
+            "model": output.get("model"),
         }
     if registry_name in _PATCH_TOOLS:
         patch = output.get("proposed_patch") if isinstance(output.get("proposed_patch"), dict) else {}
@@ -298,9 +350,17 @@ def run_chat_loop(
 
     history = _history_messages(session, assistant_session_id)
     current_file_hint = f"当前打开文件：{current_file}" if current_file else "当前没有打开文件"
+    scene_block = build_scene_constraint_block(project_path, current_file)
+    author_instructions = _read_author_instructions(project_path)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM_PROMPT},
+        *(
+            [{"role": "system", "content": _AUTHOR_INSTRUCTIONS_PREFIX + author_instructions}]
+            if author_instructions
+            else []
+        ),
         *history,
+        *([{"role": "system", "content": scene_block}] if scene_block else []),
         {
             "role": "user",
             "content": f"[项目已挂载，只读工具可用。{current_file_hint}]\n作者：{user_message}",
@@ -457,6 +517,7 @@ def run_chat_loop(
                 "project.collapse_check",
                 "project.entity_budget_check",
                 "project.canon_delta",
+                "project.hooks_delta",
             ):
                 feedback = {"summary": output.get("summary")}
             elif registry_name in _PATCH_TOOLS:

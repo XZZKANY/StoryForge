@@ -23,6 +23,7 @@ from app.domains.agent_runs.fs_tools import FsToolError, _resolve_root
 _CANON_DIRNAME = ".storyforge"
 _CANON_SUBDIR = "canon"
 _CANON_FILENAME = "canon.json"
+_HOOKS_FILENAME = "hooks.json"
 _DERIVED_DIRNAME = "derived"
 
 # 派生缓存文件白名单：写入口只接受这些名字，杜绝借 name 参数穿目录。
@@ -31,6 +32,7 @@ _ALLOWED_DERIVED_NAMES = frozenset({"presence.json", "proposals.json", "report.j
 _ALLOWED_DERIVED_TEXT_NAMES = frozenset({"dossier.md"})
 
 _EMPTY_CANON: dict[str, Any] = {"version": 1, "entities": [], "invariants": {}}
+_EMPTY_HOOKS: dict[str, Any] = {"version": 1, "hooks": []}
 
 
 def _canon_dir(project_root: str) -> Path:
@@ -94,6 +96,46 @@ def scaffold_canon_if_missing(project_root: str) -> bool:
     if canon_file.exists():
         return False
     _atomic_write_json(canon_file, _EMPTY_CANON)
+    return True
+
+
+def _hooks_file(project_root: str) -> Path:
+    return _canon_dir(project_root) / _HOOKS_FILENAME
+
+
+def read_hooks(project_root: str) -> dict[str, Any]:
+    """读 hooks.json；不存在或不合法时返回空骨架（不伪造数据，明确空态）。"""
+
+    hooks_file = _hooks_file(project_root)
+    if not hooks_file.is_file():
+        return dict(_EMPTY_HOOKS)
+    try:
+        raw = hooks_file.read_text(encoding="utf-8")
+        parsed = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise FsToolError(f"hooks.json 无法解析：{exc}") from exc
+    if not isinstance(parsed, dict):
+        raise FsToolError("hooks.json 顶层必须是 JSON 对象。")
+    parsed.setdefault("version", 1)
+    parsed.setdefault("hooks", [])
+    return parsed
+
+
+def write_hooks(project_root: str, payload: dict[str, Any]) -> str:
+    """原子写 hooks.json（作者所有的伏笔声明，与 canon.json 同级）。"""
+
+    hooks_file = _hooks_file(project_root)
+    _atomic_write_json(hooks_file, payload)
+    return str(hooks_file)
+
+
+def scaffold_hooks_if_missing(project_root: str) -> bool:
+    """hooks.json 缺失时原子写空模板；已存在则不动。返回是否新建。"""
+
+    hooks_file = _hooks_file(project_root)
+    if hooks_file.exists():
+        return False
+    _atomic_write_json(hooks_file, _EMPTY_HOOKS)
     return True
 
 

@@ -2,34 +2,47 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
-  nextDirtyEditorFile,
-  shouldConfirmBeforeReplacingDirtyEditor,
-} from '../src/components/app/dirty-editor';
+  canCommitEditorSave,
+  closeEditorFile,
+  nextEditorFileAfterClose,
+  openEditorFile,
+  updateDirtyEditorFiles,
+  isRetainedEditorModel,
+} from '../src/components/app/editor-tabs-state';
 
-test('dirty editor projection records the file that actually became dirty', () => {
-  assert.equal(
-    nextDirtyEditorFile(null, 'D:\\Book\\正文\\第01章.md', true),
-    'D:\\Book\\正文\\第01章.md',
-  );
+test('异步保存完成后只提交到启动保存时的同一路径和 Monaco model', () => {
+  const savedModel = { id: 'a' };
+  const replacementModel = { id: 'b' };
+
+  assert.equal(canCommitEditorSave('a.md', savedModel, 'a.md', savedModel), true);
+  assert.equal(canCommitEditorSave('a.md', savedModel, 'b.md', replacementModel), false);
+  assert.equal(canCommitEditorSave('a.md', savedModel, 'a.md', replacementModel), false);
 });
 
-test('dirty editor projection only clears the matching clean file', () => {
-  const dirtyFile = 'D:\\Book\\正文\\第01章.md';
-  assert.equal(nextDirtyEditorFile(dirtyFile, dirtyFile, false), null);
-  assert.equal(nextDirtyEditorFile(dirtyFile, 'D:\\Book\\正文\\第02章.md', false), dirtyFile);
+test('标签关闭并移除缓存 model 后，在途保存不能重新提交 dirty 状态', () => {
+  const savedModel = { id: 'a' };
+  assert.equal(isRetainedEditorModel(savedModel, savedModel), true);
+  assert.equal(isRetainedEditorModel(savedModel, null), false);
+  assert.equal(isRetainedEditorModel(savedModel, { id: 'replacement' }), false);
 });
 
-test('dirty editor guard allows reopening the same file without a discard prompt', () => {
-  const dirtyFile = 'D:\\Book\\正文\\第01章.md';
-  assert.equal(shouldConfirmBeforeReplacingDirtyEditor(dirtyFile, dirtyFile), false);
+test('打开文件保持稳定顺序且不会重复标签', () => {
+  const first = openEditorFile([], 'a.md');
+  assert.deepEqual(openEditorFile(first, 'b.md'), ['a.md', 'b.md']);
+  assert.equal(openEditorFile(first, 'a.md'), first);
 });
 
-test('dirty editor guard prompts before replacing the buffer with another target or settings', () => {
-  const dirtyFile = 'D:\\Book\\正文\\第01章.md';
-  assert.equal(
-    shouldConfirmBeforeReplacingDirtyEditor(dirtyFile, 'D:\\Book\\正文\\第02章.md'),
-    true,
-  );
-  assert.equal(shouldConfirmBeforeReplacingDirtyEditor(dirtyFile, null), true);
-  assert.equal(shouldConfirmBeforeReplacingDirtyEditor(null, 'D:\\Book\\正文\\第02章.md'), false);
+test('关闭标签选择右侧优先、否则左侧相邻标签', () => {
+  const files = ['a.md', 'b.md', 'c.md'];
+  assert.equal(nextEditorFileAfterClose(files, 'b.md'), 'c.md');
+  assert.equal(nextEditorFileAfterClose(files, 'c.md'), 'b.md');
+  assert.deepEqual(closeEditorFile(files, 'b.md'), ['a.md', 'c.md']);
+});
+
+test('dirty 状态按文件独立记录与清除', () => {
+  let dirty = updateDirtyEditorFiles(new Set(), 'a.md', true);
+  dirty = updateDirtyEditorFiles(dirty, 'b.md', true);
+  assert.deepEqual([...dirty], ['a.md', 'b.md']);
+  dirty = updateDirtyEditorFiles(dirty, 'a.md', false);
+  assert.deepEqual([...dirty], ['b.md']);
 });

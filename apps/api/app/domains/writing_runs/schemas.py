@@ -11,7 +11,7 @@ WritingRunMode = Literal["inline", "managed"]
 
 
 class WritingRunStart(BaseModel):
-    """Canonical start request for a Cursor for Fiction writing task."""
+    """Canonical start request for an author-facing writing IDE task."""
 
     scope: WritingRunScope
     mode: WritingRunMode

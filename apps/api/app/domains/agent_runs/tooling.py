@@ -555,6 +555,44 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.trim_prose",
+        description=(
+            "压缩修订：按目标压缩率（默认 15%）对单个稿件做结构化压缩，攻击冗余副词、情绪直述、"
+            "解释性旁白等过度表达，返回带字数审计报告的待确认补丁。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=_WRITE_ALLOWED_ROLES,
+        risk_level="write_pending",
+        retry_safe=False,
+        idempotent=False,
+        execution_mode="sync",
+        artifact_kinds=("proposed_patch",),
+        required_capabilities=("llm",),
+        evidence_fields=("proposed_patch", "original_chars", "compressed_chars", "compression_percent"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_trim_prose",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接"
+                "用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、"
+                "冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。"
+                "调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                    "target_percent": {
+                        "type": "integer",
+                        "description": "目标压缩百分比，默认 15（即压缩到原字数的 85%）。",
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="file.review",
         description="执行 chapter_polish 多子代理审稿。",
         domain="review",
@@ -739,6 +777,68 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         references=ToolCatalogReferences(
             api_paths=("POST /api/ide/commands/bookrun.retry_from_checkpoint",),
             workflow_nodes=("agent_runtime.bookrun_control",),
+        ),
+    ),
+    AgentRuntimeToolSpec(
+        name="project.hooks_delta",
+        description=(
+            "hooks 差量提案：把模型从正文观察到的叙事承诺（伏笔）与既有 hooks 做确定性归并、去重，"
+            "并在证据文本上跑正则模式辅助检测。不写 hooks.json，仅输出提案供作者审阅。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent", "context_explorer"),
+        risk_level="read",
+        retry_safe=True,
+        idempotent=True,
+        execution_mode="sync",
+        evidence_fields=("new_hook_count", "duplicate_count", "pattern_hit_count"),
+        references=ToolCatalogReferences(
+            workflow_nodes=("agent_runtime.project_hooks_delta",),
+        ),
+        loop_schema=LoopToolSchema(
+            description=(
+                "叙事承诺钩子差量提案（确定性去重 + 正则辅助，无额外 LLM）：读完章节后，"
+                "把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，"
+                "工具会在其上跑正则模式检测作为辅助信号。工具只归并去重、不写 hooks.json；"
+                "新钩子列表需作者确认后再调用 canon_store.write_hooks 写入。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "observed_hooks": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "description": {
+                                    "type": "string",
+                                    "description": "钩子描述（如「青岩欠陆沉一把刀的情」），必填。",
+                                },
+                                "verification": {
+                                    "type": "string",
+                                    "description": "验证条件——读者读到什么就知道伏笔收了。",
+                                },
+                                "category": {
+                                    "type": "string",
+                                    "description": "钩子类型：conditional_promise / countdown / threshold / oath / mystery / taboo / hidden_info",
+                                },
+                                "note": {
+                                    "type": "string",
+                                    "description": "备注（如建议回收章序、召回条件）。",
+                                },
+                            },
+                            "required": ["description"],
+                        },
+                        "description": "本章观察到的叙事承诺钩子。",
+                    },
+                    "evidence_text": {
+                        "type": "string",
+                        "description": "正文片段（可选），工具会在其上跑正则模式检测辅助信号。",
+                    },
+                },
+            },
         ),
     ),
 )

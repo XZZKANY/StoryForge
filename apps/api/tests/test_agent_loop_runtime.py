@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from agent_transport import stream_agent_message
 from fastapi.testclient import TestClient
 
 from app.domains.agent_runs import loop_runtime
@@ -41,23 +42,100 @@ def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -
 
 
 def _send_chat_message(client: TestClient, *, run_id: str, project_path: str, message: str) -> list[dict]:
-    with client.websocket_connect(f"/api/ide/agent/sessions/session-{run_id}") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": run_id,
-                "user_message": message,
-                "args": {
-                    "project_path": project_path,
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        received = [websocket.receive_json()]
-        while received[-1]["type"] not in ("agent_result", "error"):
-            received.append(websocket.receive_json())
-    return received
+    return stream_agent_message(
+        client,
+        f"session-{run_id}",
+        run_id=run_id,
+        user_message=message,
+        args={
+            "project_path": project_path,
+            "context_bundle": {"files": []},
+        },
+    )
+
+
+def _write_author_instructions(project_root: Path, text: str) -> None:
+    storyforge = project_root / ".storyforge"
+    storyforge.mkdir(exist_ok=True)
+    (storyforge / "agent-instructions.md").write_text(text, encoding="utf-8")
+
+
+def test_read_author_instructions_missing_returns_none(novel_project: Path) -> None:
+    """无 .storyforge/agent-instructions.md 时返回 None（不注入）。"""
+    assert loop_runtime._read_author_instructions(str(novel_project)) is None
+
+
+def test_read_author_instructions_reads_and_strips(novel_project: Path) -> None:
+    """有文件时返回 strip 后的正文。"""
+    _write_author_instructions(novel_project, "  语气克制，多挑逻辑硬伤。\n")
+    assert loop_runtime._read_author_instructions(str(novel_project)) == "语气克制，多挑逻辑硬伤。"
+
+
+def test_read_author_instructions_empty_returns_none(novel_project: Path) -> None:
+    """纯空白内容视为无指令，返回 None。"""
+    _write_author_instructions(novel_project, "   \n\n  ")
+    assert loop_runtime._read_author_instructions(str(novel_project)) is None
+
+
+def test_read_author_instructions_truncates_when_too_long(novel_project: Path) -> None:
+    """超长指令按上限截断并带截断标记，不撑爆 context。"""
+    _write_author_instructions(novel_project, "字" * (loop_runtime._AUTHOR_INSTRUCTIONS_MAX_CHARS + 500))
+    result = loop_runtime._read_author_instructions(str(novel_project))
+    assert result is not None
+    assert "已截断" in result
+    assert len(result) <= loop_runtime._AUTHOR_INSTRUCTIONS_MAX_CHARS + 20
+
+
+def test_read_author_instructions_bad_project_returns_none(tmp_path: Path) -> None:
+    """项目目录不存在时静默返回 None（_resolve_root 抛错被吞）。"""
+    assert loop_runtime._read_author_instructions(str(tmp_path / "nonexistent")) is None
+
+
+def test_chat_loop_appends_author_instructions_to_system(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """.storyforge/agent-instructions.md 存在时，作者指令作为独立 system 消息进第一轮请求。"""
+
+    _enable_loop_env(monkeypatch)
+    _write_author_instructions(novel_project, "你是资深网文编辑，先夸再挑刺。")
+    calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
+
+    _send_chat_message(
+        client,
+        run_id="run-author-instructions",
+        project_path=str(novel_project),
+        message="给点建议",
+    )
+
+    system_messages = [item for item in calls[0]["messages"] if item.get("role") == "system"]
+    assert any("资深网文编辑" in str(item.get("content")) for item in system_messages)
+    # 追加为独立消息，基础系统提示本体不被篡改
+    assert system_messages[0]["content"] == loop_runtime._SYSTEM_PROMPT
+
+
+def test_chat_loop_without_author_instructions_injects_no_extra_system(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """无 agent-instructions.md 时不注入额外 system 消息，既有行为零变化。"""
+
+    _enable_loop_env(monkeypatch)
+    calls = _fake_llm_script(monkeypatch, [{"content": "好的。", "tool_calls": [], "completion_tokens": 3}])
+
+    _send_chat_message(
+        client,
+        run_id="run-no-author-instructions",
+        project_path=str(novel_project),
+        message="给点建议",
+    )
+
+    # novel_project 无 canon.json，scene_block 为 None，system 仅基础提示一条
+    system_messages = [item for item in calls[0]["messages"] if item.get("role") == "system"]
+    assert len(system_messages) == 1
+    assert system_messages[0]["content"] == loop_runtime._SYSTEM_PROMPT
 
 
 def test_chat_loop_executes_fs_tools_and_answers(
@@ -1028,19 +1106,13 @@ def test_chat_loop_skipped_without_project_path(
         },
     )
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-run-no-project") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-chat-no-project",
-                "user_message": "讲讲写作思路",
-                "args": {"context_bundle": {"files": []}},
-            }
-        )
-        received = [websocket.receive_json()]
-        while received[-1]["type"] not in ("agent_result", "error"):
-            received.append(websocket.receive_json())
+    received = stream_agent_message(
+        client,
+        "session-run-no-project",
+        run_id="run-chat-no-project",
+        user_message="讲讲写作思路",
+        args={"context_bundle": {"files": []}},
+    )
 
     result = received[-1]
     assert result["type"] == "agent_result", result

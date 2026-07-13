@@ -4,7 +4,9 @@ export {
   SAMPLE_STORY_PROJECT_NAME,
   buildSampleStoryProjectFiles,
   buildStoryProjectInitializationPlan,
+  createNewBookProject,
   createSampleStoryProject,
+  deriveNewBookName,
   initializeStoryProject,
   sampleStoryProjectPath,
 } from './project/initialize';

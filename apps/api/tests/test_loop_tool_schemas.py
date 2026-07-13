@@ -51,9 +51,11 @@ def test_name_map_is_dotted_to_underscore_roundtrip() -> None:
 
 
 def test_only_write_pending_loop_tools_are_patch_tools() -> None:
-    """补丁工具集从 risk_level 派生，正好是 file.revise / file.create。"""
+    """补丁工具集从 risk_level 派生。"""
 
-    assert tuple(spec.name for spec in loop_patch_tool_specs()) == ("file.revise", "file.create")
+    assert tuple(spec.name for spec in loop_patch_tool_specs()) == (
+        "project.trim_prose", "file.revise", "file.create",
+    )
 
 
 def test_non_loop_specs_stay_out_of_the_llm_loop() -> None:

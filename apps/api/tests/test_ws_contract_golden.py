@@ -19,9 +19,10 @@ from app.domains.agent_runs.event_types import (
     event_type_for_control_message,
 )
 
-# WS 契约金测：把 event_encoders 产出的每类 WS 帧里「前端会解码的键」钉死。
+# Agent 帧契约金测：把 event_encoders 产出的每类实时帧里「前端会解码的键」钉死。
 # 桌面壳子在重做，但这些帧形状是后端 → 前端的硬契约：任何一方漂移，重建/守卫失效。
 # 对照物是前端 agent-socket.ts 的 isAgent* 守卫与 agent-run-events.ts 的重建逻辑。
+# 文件名保留历史 `ws` 兼容名；当前传输为本地 SSE + REST control。
 # 编码器只读属性、不碰 DB，故用 SimpleNamespace 造 run/event，保持纯单测（无 fixture、秒级）。
 
 
@@ -137,7 +138,10 @@ def test_permission_required_frame_carries_proposed_patch() -> None:
         "permission_profile": "proposed_patch",
         "reason": "requires_user_confirmation",
         "proposed_patch": patch,
-        "confirmation_action": "apply_patch",
+        "confirmation_action": {
+            "intent": "bookrun.start",
+            "args": {"book_id": 1, "blueprint_id": 2, "confirmed": True},
+        },
         "blocked_tool": "file.revise",
     }
     frames = _encode(_event(_run(), PERMISSION_REQUIRED, payload))
@@ -146,6 +150,7 @@ def test_permission_required_frame_carries_proposed_patch() -> None:
     assert frame["type"] == "permission_required"
     assert isinstance(frame["run_id"], str) and frame["run_id"]
     assert frame["proposed_patch"] == patch
+    assert frame["confirmation_action"]["args"]["confirmed"] is True
     assert frame["permission_profile"] == "proposed_patch"
     assert frame["reason"] == "requires_user_confirmation"
 

@@ -1,25 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import binascii
 import json
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import sessionmaker
-from starlette.websockets import WebSocketState
 
-from app.common.config import get_settings
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
 from app.domains.agent_runs.service import (
     AgentRuntimeError,
     AgentRuntimeUserMessageError,
     handle_agent_control_message,
-    record_agent_command_event,
     run_agent_user_message,
     websocket_control_event,
     websocket_stream_events_from_agent_event,
@@ -42,8 +37,6 @@ from app.domains.ide.schemas import (
     IdeWorkspaceTree,
 )
 from app.domains.ide.service import (
-    IdeCommandExecutionError,
-    IdeCommandNotFoundError,
     build_run_events,
     encode_sse_event,
     execute_ide_command_by_id,
@@ -57,58 +50,15 @@ from app.domains.ide.service import (
 
 router = APIRouter(prefix="/api/ide", tags=["IDE 工作台"])
 
-_API_KEY_HEADER = "x-storyforge-api-key"
-_AGENT_API_KEY_PROTOCOL_PREFIX = "storyforge-api-key."
-
 _STREAM_EVENT = "stream_event"
 _STREAM_RESULT = "result"
 _STREAM_ERROR = "error"
 
 
-def _expected_api_key() -> str:
-    # 与 app.main 一致：认证走 settings 事实源，而非裸环境变量。
-    return get_settings().storyforge_api_key
-
-
-async def _accept_or_reject_agent_socket(websocket: WebSocket) -> bool:
-    protocol_key, accepted_protocol = _api_key_and_protocol_from_websocket_protocol(
-        websocket.headers.get("sec-websocket-protocol")
-    )
-    provided_key = websocket.headers.get(_API_KEY_HEADER) or protocol_key
-    expected_key = _expected_api_key()
-    if provided_key != expected_key:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return False
-    await websocket.accept(subprotocol=accepted_protocol if protocol_key == expected_key else None)
-    return True
-
-
-def _api_key_from_websocket_protocol(header_value: str | None) -> str | None:
-    api_key, _protocol = _api_key_and_protocol_from_websocket_protocol(header_value)
-    return api_key
-
-
-def _api_key_and_protocol_from_websocket_protocol(header_value: str | None) -> tuple[str | None, str | None]:
-    if not header_value:
-        return None, None
-    for raw_protocol in header_value.split(","):
-        protocol = raw_protocol.strip()
-        if not protocol.startswith(_AGENT_API_KEY_PROTOCOL_PREFIX):
-            continue
-        encoded = protocol.removeprefix(_AGENT_API_KEY_PROTOCOL_PREFIX)
-        padding = "=" * (-len(encoded) % 4)
-        try:
-            return base64.urlsafe_b64decode(f"{encoded}{padding}").decode("utf-8"), protocol
-        except (binascii.Error, UnicodeDecodeError):
-            continue
-    return None, None
-
-
 async def _agent_user_message_payloads(session, *, session_id: str, message: dict[str, Any]):
     """跑同步 AgentRuntime（off-loop），按事件顺序产出前端帧 payload，终态帧（result/error）后收尾。
 
-    WS 流与本地 SSE 流共用这一泵：帧形状完全一致（见 event_encoders / ws_messages），
-    唯一差别是传输层如何把每个 payload 送出去。
+    本地 SSE 流以该 pump 为唯一运行入口；帧形状由 event_encoders / ws_messages 管理。
     """
 
     loop = asyncio.get_running_loop()
@@ -159,21 +109,8 @@ async def _agent_user_message_payloads(session, *, session_id: str, message: dic
         await worker
 
 
-async def _stream_agent_user_message(
-    websocket: WebSocket,
-    *,
-    session_id: str,
-    session,
-    message: dict[str, Any],
-) -> None:
-    """Run the sync AgentRuntime off-loop and forward persisted events immediately."""
-
-    async for payload in _agent_user_message_payloads(session, session_id=session_id, message=message):
-        await websocket.send_json(payload)
-
-
 def _sse_data_frame(payload: dict[str, Any]) -> str:
-    """把前端帧 payload 编成 SSE data 帧；前端按 payload.type 判别式解码（与 WS 帧同形）。"""
+    """把前端帧 payload 编成 SSE data 帧；前端按 payload.type 判别式解码。"""
 
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
@@ -324,111 +261,8 @@ def execute_ide_command(
     return execute_ide_command_by_id(command_id, (payload or IdeCommandRequest()).args, session)
 
 
-@router.websocket("/agent/sessions/{session_id}")
-async def agent_session(websocket: WebSocket, session_id: str, session: SessionDependency) -> None:
-    """Agent 双向通道；自然语言编排和写命令都必须复用现有工具目录。"""
-
-    if not await _accept_or_reject_agent_socket(websocket):
-        return
-    try:
-        while True:
-            message = await websocket.receive_json()
-            message_type = message.get("type")
-            if message_type == "user_message":
-                stream_events = message.get("stream") is True
-                if stream_events:
-                    await _stream_agent_user_message(
-                        websocket,
-                        session_id=session_id,
-                        session=session,
-                        message=message,
-                    )
-                    continue
-                try:
-                    runtime_result = run_agent_user_message(session, agent_session_id=session_id, message=message)
-                    result = runtime_result.result
-                except AgentRuntimeError as exc:
-                    error_payload = {"type": "error", "session_id": session_id, "detail": str(exc)}
-                    await websocket.send_json(error_payload)
-                    continue
-                await websocket.send_json(result)
-                continue
-
-            if message_type in CONTROL_MESSAGE_TYPES:
-                run_id = str(message.get("run_id") or "")
-                if not run_id:
-                    await websocket.send_json(
-                        {
-                            "type": "error",
-                            "session_id": session_id,
-                            "detail": f"{message_type} 消息缺少 run_id。",
-                        }
-                    )
-                    continue
-                payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
-                try:
-                    control_result = handle_agent_control_message(
-                        session,
-                        public_id=run_id,
-                        session_id=session_id,
-                        control_type=message_type,
-                        payload=payload,
-                    )
-                except Exception as exc:  # noqa: BLE001 - WebSocket 必须把领域错误转为消息
-                    await websocket.send_json(
-                        {"type": "error", "session_id": session_id, "run_id": run_id, "detail": str(exc)}
-                    )
-                    continue
-                ack = websocket_control_event(control_result.event)
-                if control_result.resumed_result is not None:
-                    ack["resumed_result"] = control_result.resumed_result
-                if control_result.resume_diagnostic is not None:
-                    ack["resume_diagnostic"] = control_result.resume_diagnostic
-                await websocket.send_json(ack)
-                continue
-
-            if message_type != "command":
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "session_id": session_id,
-                        "detail": "Agent 仅支持 user_message 或 command 消息。",
-                    }
-                )
-                continue
-            command_id = str(message.get("command_id", ""))
-            args = message.get("args") if isinstance(message.get("args"), dict) else {}
-            try:
-                result = execute_ide_command_by_id(command_id, args, session)
-            except (IdeCommandNotFoundError, IdeCommandExecutionError) as exc:
-                await websocket.send_json({"type": "error", "session_id": session_id, "detail": str(exc)})
-                continue
-            result_payload = result.model_dump()
-            run_id = str(message.get("run_id") or "")
-            if run_id:
-                try:
-                    record_agent_command_event(
-                        session,
-                        public_id=run_id,
-                        session_id=session_id,
-                        command_id=command_id,
-                        result_payload=result_payload,
-                    )
-                except Exception as exc:  # noqa: BLE001 - 命令已执行，事件失败需返回给前端
-                    await websocket.send_json(
-                        {"type": "error", "session_id": session_id, "run_id": run_id, "detail": str(exc)}
-                    )
-                    continue
-            await websocket.send_json({"type": "command_result", "session_id": session_id, "result": result_payload})
-    except WebSocketDisconnect:
-        return
-    finally:
-        if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.close()
-
-
 class AgentUserMessageStreamRequest(BaseModel):
-    """本地 SSE 直播入口的用户消息体（字段对应 WS user_message 帧）。"""
+    """本地 SSE 直播入口的用户消息体。"""
 
     user_message: str | None = None
     run_id: str | None = None

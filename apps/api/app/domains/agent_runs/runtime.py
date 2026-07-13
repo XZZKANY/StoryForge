@@ -20,6 +20,7 @@ from app.domains.agent_runs.bookrun_summary import (
     _bookrun_risk_summary,
 )
 from app.domains.agent_runs.canon_delta import canon_delta
+from app.domains.agent_runs.canon_hooks_delta import hooks_delta
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
@@ -419,7 +420,7 @@ class AgentRuntime:
                 for key, value in arguments.items()
                 if key not in ("project_root", "content", "file_path")
             }
-            if registry_name in ("file.review", "file.revise"):
+            if registry_name in ("file.review", "file.revise", "project.trim_prose"):
                 rel_path = _optional_string(payload.pop("path", None)) or _optional_string(arguments.get("file_path"))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
@@ -1476,6 +1477,8 @@ class AgentRuntime:
             "project.deep_consistency": self._project_deep_consistency,
             "project.canon": self._project_canon,
             "project.canon_delta": self._project_canon_delta,
+            "project.hooks_delta": self._project_hooks_delta,
+            "project.trim_prose": self._project_trim_prose,
             "file.review": self._file_review,
             "file.revise": self._file_revise,
             "file.create": self._file_create,
@@ -1796,6 +1799,123 @@ class AgentRuntime:
                     "alias_conflict_count": len(output["alias_conflicts"]),
                     "new_conflict_count": len(output["new_conflicts"]),
                     "new_advisory_count": len(output["new_advisories"]),
+                },
+            ),
+        )
+
+    def _project_hooks_delta(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        delta_args: dict[str, Any] = {}
+        observed_hooks = payload.get("observed_hooks")
+        if observed_hooks is not None:
+            if not isinstance(observed_hooks, list) or any(not isinstance(item, dict) for item in observed_hooks):
+                raise fs_tools.FsToolError("observed_hooks 必须是对象数组。")
+            delta_args["observed_hooks"] = observed_hooks
+        evidence_text = payload.get("evidence_text")
+        if isinstance(evidence_text, str) and evidence_text.strip():
+            delta_args["evidence_text"] = evidence_text
+
+        output = hooks_delta(project_root, **delta_args)
+        new_hooks = output["new_hooks"]
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.hooks_delta",
+                status="completed",
+                input_summary={
+                    "observed_hook_count": len(delta_args.get("observed_hooks") or []),
+                    "evidence_text_chars": len(delta_args.get("evidence_text") or ""),
+                },
+                output_summary={
+                    "new_hook_count": len(new_hooks),
+                    "duplicate_count": len(output["duplicates"]),
+                    "pattern_hit_count": len(output["pattern_hits"]),
+                },
+            ),
+        )
+
+    def _project_trim_prose(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        file_path = _required_string(payload, "file_path")
+        content = _required_string(payload, "content")
+        target_percent = _optional_int(payload.get("target_percent")) or 15
+        if target_percent < 1 or target_percent > 50:
+            raise fs_tools.FsToolError("target_percent 必须在 1–50 之间。")
+
+        instruction = _trim_prose_instruction(target_percent)
+        try:
+            response = assistant_service.revise_file_content(
+                context.session,
+                AssistantReviseRequest(
+                    file_path=file_path,
+                    content=content,
+                    instruction=instruction,
+                    project_name=_optional_string(payload.get("project_name")),
+                    assistant_session_id=context.assistant_session_id,
+                    context_bundle=payload.get("llm_prompt_context_bundle") or payload.get("context_bundle"),
+                ),
+            )
+        except (
+            assistant_service.AssistantLlmNotConfiguredError,
+            assistant_service.AssistantReviseError,
+            assistant_service.AssistantSessionNotFoundError,
+        ) as exc:
+            raise AgentOrchestrationError(str(exc)) from exc
+
+        original_chars = len(content)
+        compressed_chars = len(response.after)
+        actual_percent = round((1 - compressed_chars / original_chars) * 100, 1) if original_chars else 0
+        trim_audit = {
+            "original_chars": original_chars,
+            "compressed_chars": compressed_chars,
+            "target_percent": target_percent,
+            "actual_percent": actual_percent,
+        }
+
+        proposed_patch = {
+            "id": f"prose-trim-{uuid.uuid4().hex}",
+            "kind": "prose_trim",
+            "file_path": file_path,
+            "before": response.before,
+            "after": response.after,
+            "trim_audit": trim_audit,
+            "requires_confirmation": True,
+            "approval_action": "desktop.confirm_file_writeback",
+        }
+
+        summary = f"压缩完成：{original_chars} → {compressed_chars} 字（{actual_percent}%），目标 {target_percent}%。"
+        output = {
+            "file_path": file_path,
+            "before": response.before,
+            "after": response.after,
+            "summary": summary,
+            "model": response.model,
+            "latency_ms": response.latency_ms,
+            "completion_tokens": response.completion_tokens,
+            "assistant_session_id": response.assistant_session_id,
+            "trim_audit": trim_audit,
+            "proposed_patch": proposed_patch,
+        }
+        return ToolResult(
+            status="completed",
+            output=output,
+            summary=summary,
+            payload={"proposed_patch": proposed_patch},
+            artifacts=(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True),),
+            metrics={
+                "after_chars": compressed_chars,
+                "completion_tokens": response.completion_tokens,
+                "latency_ms": response.latency_ms,
+                "compression_percent": actual_percent,
+            },
+            trace=AgentToolTrace(
+                tool_name="project.trim_prose",
+                status="completed",
+                input_summary={"file_path": file_path, "target_percent": target_percent},
+                output_summary={
+                    "original_chars": original_chars,
+                    "compressed_chars": compressed_chars,
+                    "compression_percent": actual_percent,
                 },
             ),
         )
@@ -2411,6 +2531,27 @@ def _optional_positive_int(value: object) -> int | None:
     if isinstance(value, int) and value > 0:
         return value
     return None
+
+
+def _optional_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def _trim_prose_instruction(target_percent: int) -> str:
+    """构建 15% 压缩修订指令模板。"""
+    return (
+        f"将本章字数压缩 {target_percent}%，要求：\n"
+        "- 保留所有剧情信息、情感高潮、人物动作\n"
+        "- 砍掉冗余的副词（「他愤怒地说」→「他说」或直接用动作语气带）\n"
+        "- 砍掉情绪声明句（「她感到恐惧」→ 用生理反应/环境暗示替代）\n"
+        "- 每段不超过 5 句（长段落拆开，除非是刻意营造的紧迫感）\n"
+        "- 不要删除对话和关键描写\n"
+        f"- 在回复末尾给出字数审计报告：原字数 → 压缩后字数 → 压缩率（目标 {target_percent}%）"
+    )
 
 
 def _safe_summary(payload: dict[str, Any]) -> dict[str, Any]:

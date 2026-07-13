@@ -1,6 +1,6 @@
 // 该文件由 scripts/generate-openapi.mjs 从
 // packages/shared/src/contracts/agent-ws.schema.json 生成，请勿手改。
-// 改 WS 帧字段要改后端 app/domains/agent_runs/ws_messages.py 再跑 `pnpm openapi`。
+// 改 Agent 帧字段要改后端 app/domains/agent_runs/ws_messages.py 再跑 `pnpm openapi`。
 // 出线语义：帧的每个字段都在（to_wire 不 exclude_none），可空字段为 `X | null`。
 
 export interface AgentRunStartedFrame {
@@ -40,7 +40,7 @@ export interface ToolTraceFrame {
 export interface PermissionRequiredFrame {
   assistant_session_id: number | null;
   blocked_tool: string | null;
-  confirmation_action: string | null;
+  confirmation_action: string | Record<string, unknown> | null;
   event_id: number;
   permission_profile: string;
   proposed_patch: Record<string, unknown> | null;

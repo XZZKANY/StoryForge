@@ -1923,7 +1923,7 @@ export interface components {
         };
         /**
          * AgentUserMessageStreamRequest
-         * @description 本地 SSE 直播入口的用户消息体（字段对应 WS user_message 帧）。
+         * @description 本地 SSE 直播入口的用户消息体。
          */
         AgentUserMessageStreamRequest: {
             /** Args */

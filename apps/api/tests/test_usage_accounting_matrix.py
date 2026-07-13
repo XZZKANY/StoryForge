@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from agent_transport import agent_result
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -103,22 +104,16 @@ def _record_agent_loop_usage(
     project_path: Path,
 ) -> dict[str, object]:
     monkeypatch.setattr(loop_runtime, "_call_llm_messages", lambda *args, **kwargs: _usage_result("完成"))
-    with client.websocket_connect("/api/ide/agent/sessions/session-usage-matrix") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "stream": True,
-                "run_id": "run-usage-matrix",
-                "user_message": "检查 usage",
-                "args": {
-                    "project_path": str(project_path),
-                    "context_bundle": {"files": []},
-                },
-            }
-        )
-        response = websocket.receive_json()
-        while response["type"] not in ("agent_result", "error"):
-            response = websocket.receive_json()
+    response = agent_result(
+        client,
+        "session-usage-matrix",
+        run_id="run-usage-matrix",
+        user_message="检查 usage",
+        args={
+            "project_path": str(project_path),
+            "context_bundle": {"files": []},
+        },
+    )
     assert response["type"] == "agent_result", response
 
     tool_calls = client.get(

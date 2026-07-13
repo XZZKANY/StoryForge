@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { projectBasename, relativePathInsideProject } from '../lib/project-context';
+import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
 
 export type PaletteMode = 'files' | 'commands';
 
@@ -15,6 +16,10 @@ type Command = {
   hint?: string;
   run: () => void;
 };
+
+type FileLoadState =
+  | { projectPath: null; status: 'idle'; files: FileEntry[] }
+  | { projectPath: string; status: 'loading' | 'loaded' | 'error'; files: FileEntry[] };
 
 type CommandPaletteProps = {
   mode: PaletteMode;
@@ -62,7 +67,12 @@ export function CommandPalette({
   onRestoreLayout,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
-  const [files, setFiles] = useState<FileEntry[]>([]);
+  const [fileLoadState, setFileLoadState] = useState<FileLoadState>({
+    projectPath: null,
+    status: 'idle',
+    files: [],
+  });
+  const [fileLoadRequest, setFileLoadRequest] = useState(0);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -77,18 +87,41 @@ export function CommandPalette({
       try {
         const entries = await TauriFileSystem.listDir(projectPath, true);
         const md = entries
-          .filter((e) => !e.isDir && (e.extension === 'md' || e.extension === 'markdown'))
-          .filter((e) => !/[/\\]\.storyforge[/\\]/.test(e.path))
+          .filter(isOpenableProjectFileEntry)
           .sort((a, b) => a.path.localeCompare(b.path));
-        if (!cancelled) setFiles(md);
+        if (!cancelled) {
+          setFileLoadState({ projectPath, status: 'loaded', files: md });
+        }
       } catch {
-        if (!cancelled) setFiles([]);
+        if (!cancelled) {
+          setFileLoadState({ projectPath, status: 'error', files: [] });
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [mode, projectPath]);
+  }, [fileLoadRequest, mode, projectPath]);
+
+  const files = useMemo(
+    () => (fileLoadState.projectPath === projectPath ? fileLoadState.files : []),
+    [fileLoadState.files, fileLoadState.projectPath, projectPath],
+  );
+  const filesLoading =
+    mode === 'files' &&
+    projectPath !== null &&
+    (fileLoadState.projectPath !== projectPath || fileLoadState.status === 'loading');
+  const filesError =
+    mode === 'files' &&
+    projectPath !== null &&
+    fileLoadState.projectPath === projectPath &&
+    fileLoadState.status === 'error';
+
+  const retryFileLoad = () => {
+    if (!projectPath) return;
+    setFileLoadState({ projectPath, status: 'loading', files: [] });
+    setFileLoadRequest((request) => request + 1);
+  };
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
@@ -197,12 +230,12 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/50 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 sm:pt-24 animate-fade-in"
       data-testid="command-palette"
       onMouseDown={onClose}
     >
       <div
-        className="w-[34rem] max-w-[90vw] rounded-xl border border-border bg-panel shadow-2xl overflow-hidden animate-slide-up-fade"
+        className="flex max-h-[calc(100vh-2rem)] w-[34rem] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-panel shadow-2xl animate-slide-up-fade"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <input
@@ -213,8 +246,22 @@ export function CommandPalette({
           placeholder={mode === 'files' ? '按名称打开文件…' : '输入命令…'}
           className="w-full px-4 py-3 bg-background text-sm text-foreground outline-none border-b border-border placeholder:text-muted"
         />
-        <div className="max-h-80 overflow-y-auto py-1">
-          {itemCount === 0 ? (
+        <div className="min-h-0 max-h-80 flex-1 overflow-y-auto py-1">
+          {filesLoading ? (
+            <p className="px-4 py-3 text-sm text-muted">正在读取项目文件…</p>
+          ) : filesError ? (
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <p className="text-sm text-error">无法读取项目文件，请检查目录权限后重试。</p>
+              <button
+                type="button"
+                className="shrink-0 text-xs text-accent hover:underline"
+                data-testid="palette-retry"
+                onClick={retryFileLoad}
+              >
+                重试
+              </button>
+            </div>
+          ) : itemCount === 0 ? (
             <p className="px-4 py-3 text-sm text-muted">
               {mode === 'files' && !projectPath ? '先打开一个项目' : '无匹配项'}
             </p>

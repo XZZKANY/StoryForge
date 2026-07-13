@@ -22,7 +22,7 @@
   - 确认当前 worktree 基于 origin/master 的 c24be5e。
 
 - [x] **Step 1.2：读取主工作区未提交进度**
-  - 识别进行中方向：模型设置页/API Key 检测、首页 Claude-like 改版、Novel Skill Framework 设计、小说质量总控计划。
+  - 识别进行中方向：模型设置页/API Key 检测、首页极简改版、Novel Skill Framework 设计、小说质量总控计划。
 
 ### Task 2：更新 README
 

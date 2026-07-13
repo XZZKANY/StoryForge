@@ -13,7 +13,7 @@
 > - **当前阻塞（2026-06-30）**：本机缺少 `STORYFORGE_LLM_API_KEY` / `STORYFORGE_LLM_BASE_URL` / `STORYFORGE_LLM_MODEL` / `STORYFORGE_LLM_PROVIDER` / `STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD`，因此 Q9 真实 4 万字长跑、真实 provider tool-call 探针和人工盲评不能执行；不能用当前单元、smoke 或 wrapper 测试替代。
 
 > **更新（2026-07-02）**：
-> - **产品定向追加**：2026-06-30 拍板交互中枢为 Claude Code/Codex 式对话式 agent，批量自动整书退出主线；Q9 16 章真实跑修复门禁丢章四根因（字数容差/judge 误标/grounding 部分提交/缺章护栏，PR #40/#41）并抢救为完整 16 章、人工通读通过（`.codex/real-llm-q9-flash-16ch-20260630-155026`）。
+> - **产品定向追加**：2026-06-30 拍板交互中枢为对话式 agent，批量自动整书退出主线；Q9 16 章真实跑修复门禁丢章四根因（字数容差/judge 误标/grounding 部分提交/缺章护栏，PR #40/#41）并抢救为完整 16 章、人工通读通过（`.codex/real-llm-q9-flash-16ch-20260630-155026`）。
 > - **2026-07-01 已合并**：UI 单色改版（PR #42）、私测 Alpha 单机 sidecar + BYO-key + 写盘换模型即生效 + NSIS 内嵌（PR #43/#44）、对话式 Agent + `chat.explain` 接真·LLM + 项目级对话（PR #46）。
 > - **产品轨顺序改为**：对话体验收口（会话历史列表 / 欢迎页接真 / 方向键复验）→ Agent loop（path-scoped fs 只读工具 + LLM 工具循环替代关键词意图路由 + 流程树全事件驱动）→ 真机 NSIS 安装包端到端。质量轨保持后台，重跑 DoD 不变。当前事实以 `docs/internal/current-phase.md` 为准。
 > - **执行状态（2026-07-02）**：产品轨前两步已合并——对话体验收口（PR #48）、Agent loop 三步（PR #49/#50/#51：path-scoped 只读 fs 工具、chat 自由文本 LLM 工具循环、流程树全事件驱动删预制骨架）。剩余：Agent loop 真·LLM 实跑验证与显式 intent 渐进并入循环 → 真机 NSIS 安装包端到端；质量轨不变。
@@ -51,7 +51,7 @@
 | 2 | CI 增 push/PR 触发 + OpenAPI 漂移自动拦截 | 工程化 | S | 高 |
 | 3 | 回填 30 章退回结构化制品 + 固化重跑 DoD/盲评口径 | 长程质量验收 | S | 高 |
 
-### 产品轨 · Cursor for Fiction 手感（与质量轨并行）
+### 产品轨 · 作者辅助 IDE 手感（与质量轨并行）
 
 | 优先 | 事项 | 工时 | 影响 |
 |---|---|---|---|

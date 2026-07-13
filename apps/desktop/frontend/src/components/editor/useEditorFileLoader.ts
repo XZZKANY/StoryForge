@@ -3,12 +3,11 @@ import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor';
 
 import { TauriFileSystem } from '../../lib/tauri-fs';
+import type { EditorModelCache } from './useMonacoEditor';
 
 export function useEditorFileLoader({
   filePath,
-  editorRef,
   originalContentRef,
-  cleanVersionIdRef,
   issueDecorationsRef,
   filePathRef,
   isDirtyRef,
@@ -18,11 +17,10 @@ export function useEditorFileLoader({
   setLoadedContentPreview,
   setIsDirty,
   setShowHistory,
+  modelCacheRef,
 }: {
   filePath: string | null;
-  editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   originalContentRef: MutableRefObject<string>;
-  cleanVersionIdRef: MutableRefObject<number | null>;
   issueDecorationsRef: MutableRefObject<monaco.editor.IEditorDecorationsCollection | null>;
   filePathRef: MutableRefObject<string | null>;
   isDirtyRef: MutableRefObject<boolean>;
@@ -32,10 +30,12 @@ export function useEditorFileLoader({
   setLoadedContentPreview: (preview: string) => void;
   setIsDirty: (dirty: boolean) => void;
   setShowHistory: (show: boolean) => void;
+  modelCacheRef: MutableRefObject<EditorModelCache>;
 }) {
   const loadRequestIdRef = useRef(0);
   const [loadedFilePath, setLoadedFilePath] = useState<string | null>(null);
   const [loadedContent, setLoadedContent] = useState('');
+  const [loadedIsDirty, setLoadedIsDirty] = useState(false);
   const [loadAttemptFilePath, setLoadAttemptFilePath] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
 
@@ -50,19 +50,20 @@ export function useEditorFileLoader({
     }
     isDirtyRef.current = false;
     setIsDirty(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 文件切换必须在浏览器绘制前同步 detach 旧 model，避免输入落入错误文件
+    setLoadedIsDirty(false);
 
     if (!filePath) {
       originalContentRef.current = '';
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置加载态，React18 合法模式
       setLoadedFilePath(null);
       setLoadedContent('');
+      setLoadedIsDirty(false);
       setLoadedContentPreview('');
       setLoadAttemptFilePath(null);
       setLoadError('');
       setShowHistory(false);
       resetSuggestionWriteback();
       setIsDirty(false);
-      editorRef.current?.setValue('');
       return;
     }
 
@@ -73,6 +74,20 @@ export function useEditorFileLoader({
     setLoadError('');
     setShowHistory(false);
     resetSuggestionWriteback();
+
+    const cached = modelCacheRef.current.get(filePath);
+    if (cached) {
+      const content = cached.model.getValue();
+      originalContentRef.current = cached.originalContent;
+      setLoadedContent(content);
+      const dirty = content !== cached.originalContent;
+      setIsDirty(dirty);
+      setLoadedIsDirty(dirty);
+      setLoadedFilePath(filePath);
+      setLoadedContentPreview(content.slice(0, 120));
+      adoptPendingSuggestion(filePath);
+      return;
+    }
 
     const loadFile = async () => {
       try {
@@ -90,12 +105,8 @@ export function useEditorFileLoader({
         }
         originalContentRef.current = content;
         setLoadedContent(content);
-        if (editorRef.current) {
-          editorRef.current.setValue(content);
-          cleanVersionIdRef.current =
-            editorRef.current.getModel()?.getAlternativeVersionId() ?? null;
-        }
         setIsDirty(false);
+        setLoadedIsDirty(false);
         setLoadedFilePath(filePath);
         setLoadedContentPreview(content.slice(0, 120));
         adoptPendingSuggestion(filePath);
@@ -113,12 +124,11 @@ export function useEditorFileLoader({
   }, [
     adoptPendingSuggestion,
     autoSaveTimerRef,
-    cleanVersionIdRef,
-    editorRef,
     filePath,
     filePathRef,
     issueDecorationsRef,
     isDirtyRef,
+    modelCacheRef,
     originalContentRef,
     resetSuggestionWriteback,
     setIsDirty,
@@ -129,6 +139,7 @@ export function useEditorFileLoader({
   return {
     loadedFilePath,
     loadedContent,
+    loadedIsDirty,
     loadAttemptFilePath,
     loadError,
   };

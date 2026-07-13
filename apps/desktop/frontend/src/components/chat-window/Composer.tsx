@@ -92,7 +92,7 @@ export function ComposerSurface({
   onPauseRun?: () => void;
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
-  // 方向键回溯已发送消息（Claude/Codex 式）：游标为 null 表示在编辑当前草稿，
+  // 方向键回溯已发送消息：游标为 null 表示在编辑当前草稿，
   // 数字表示正浏览 history[index]。draft 保留进入历史前的草稿，ArrowDown 越过最新即还原。
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const historyIndexRef = useRef<number | null>(null);

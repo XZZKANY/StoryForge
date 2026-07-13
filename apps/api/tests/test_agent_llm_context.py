@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from agent_transport import agent_result
 from fastapi.testclient import TestClient
 
 from app.domains.agent_runs.llm_context import (
@@ -310,21 +311,18 @@ def test_file_review_runtime_records_llm_context_snapshot_summary(
     monkeypatch.setattr(review_reasoning, "missing_book_generation_env", lambda: ["STORYFORGE_LLM_API_KEY"])
 
     context_bundle = _rich_context_bundle()
-    with client.websocket_connect("/api/ide/agent/sessions/session-llm-context-review") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节的人物动机",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第02章.md",
-                    "content": "林岚推开旧电台的门。她想起周眠怕水，却还是回来了。",
-                    "context_bundle": context_bundle,
-                    "agent_role_hints": ["character_reviewer"],
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-llm-context-review",
+        user_message="审查当前章节的人物动机",
+        intent="file.review",
+        args={
+            "file_path": "正文/第02章.md",
+            "content": "林岚推开旧电台的门。她想起周眠怕水，却还是回来了。",
+            "context_bundle": context_bundle,
+            "agent_role_hints": ["character_reviewer"],
+        },
+    )
 
     context_trace = next(trace for trace in message["tool_trace"] if trace["tool_name"] == "context.load")
     llm_context = context_trace["output_summary"]["llm_context"]
@@ -363,21 +361,18 @@ def test_file_review_llm_prompt_uses_sanitized_snapshot_context(
 
     monkeypatch.setattr(review_reasoning, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-llm-context-review-prompt") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "user_message": "审查当前章节的人物动机",
-                "intent": "file.review",
-                "args": {
-                    "file_path": "正文/第02章.md",
-                    "content": "林岚推开旧电台的门。她想起周眠怕水，却还是回来了。",
-                    "context_bundle": _rich_context_bundle(),
-                    "agent_role_hints": ["character_reviewer"],
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-llm-context-review-prompt",
+        user_message="审查当前章节的人物动机",
+        intent="file.review",
+        args={
+            "file_path": "正文/第02章.md",
+            "content": "林岚推开旧电台的门。她想起周眠怕水，却还是回来了。",
+            "context_bundle": _rich_context_bundle(),
+            "agent_role_hints": ["character_reviewer"],
+        },
+    )
 
     assert message["agent_result"]["review_report"]["mode"] == "llm"
     assert len(captured_prompts) == 3
@@ -408,23 +403,20 @@ def test_file_revise_runtime_links_revise_trace_to_llm_context_snapshot(
 
     monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
 
-    with client.websocket_connect("/api/ide/agent/sessions/session-llm-context-revise") as websocket:
-        websocket.send_json(
-            {
-                "type": "user_message",
-                "run_id": "run-llm-context-revise",
-                "user_message": "按人物动机问题修一版",
-                "intent": "file.revise",
-                "args": {
-                    "file_path": "正文/第02章.md",
-                    "content": "当前正文",
-                    "instruction": "补清周眠为什么回到雾港",
-                    "context_bundle": _noisy_standard_context_bundle(),
-                    "agent_role_hints": ["character_reviewer"],
-                },
-            }
-        )
-        message = websocket.receive_json()
+    message = agent_result(
+        client,
+        "session-llm-context-revise",
+        run_id="run-llm-context-revise",
+        user_message="按人物动机问题修一版",
+        intent="file.revise",
+        args={
+            "file_path": "正文/第02章.md",
+            "content": "当前正文",
+            "instruction": "补清周眠为什么回到雾港",
+            "context_bundle": _noisy_standard_context_bundle(),
+            "agent_role_hints": ["character_reviewer"],
+        },
+    )
 
     assert message["type"] == "agent_result", message
     context_trace = next(trace for trace in message["tool_trace"] if trace["tool_name"] == "context.load")

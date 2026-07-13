@@ -5,6 +5,8 @@
 
 import { useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
+import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
+import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
 import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
 
 type ResourceExplorerProps = {
@@ -17,68 +19,6 @@ type ResourceExplorerProps = {
   // 单击预览（可覆盖的斜体页签），双击固定；不传则单击直接固定（旧行为）。
   onFilePreview?: (filePath: string) => void;
 };
-
-type TreeNode = {
-  name: string;
-  path: string;
-  isDir: boolean;
-  children: TreeNode[];
-};
-
-function buildTree(entries: FileEntry[], projectPath: string): TreeNode[] {
-  const normalizedRoot = projectPath.replace(/[/\\]+$/, '');
-  const rootNodes: TreeNode[] = [];
-  const dirMap = new Map<string, TreeNode>();
-
-  for (const entry of entries) {
-    const relative = entry.path.slice(normalizedRoot.length).replace(/^[/\\]+/, '');
-    const segments = relative.split(/[/\\]/);
-
-    let currentLevel = rootNodes;
-    let currentPath = normalizedRoot;
-
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      currentPath = `${currentPath}/${segment}`;
-
-      const isFile = i === segments.length - 1 && !entry.isDir;
-
-      if (isFile) {
-        currentLevel.push({
-          name: segment,
-          path: entry.path,
-          isDir: false,
-          children: [],
-        });
-      } else {
-        let dirNode = dirMap.get(currentPath);
-        if (!dirNode) {
-          dirNode = {
-            name: segment,
-            path: currentPath,
-            isDir: true,
-            children: [],
-          };
-          dirMap.set(currentPath, dirNode);
-          currentLevel.push(dirNode);
-        }
-        currentLevel = dirNode.children;
-      }
-    }
-  }
-
-  const sortNodes = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => {
-      if (a.isDir && !b.isDir) return -1;
-      if (!a.isDir && b.isDir) return 1;
-      return a.name.localeCompare(b.name);
-    });
-    nodes.forEach((node) => sortNodes(node.children));
-  };
-
-  sortNodes(rootNodes);
-  return rootNodes;
-}
 
 export function ResourceExplorer({
   projectPath,
@@ -109,9 +49,7 @@ export function ResourceExplorer({
     void (async () => {
       try {
         const entries = await TauriFileSystem.listDir(projectPath, true);
-        const filteredEntries = entries
-          .filter((e) => !/[/\\]\.storyforge[/\\]/.test(e.path))
-          .filter((e) => e.isDir || e.extension === 'md' || e.extension === 'markdown');
+        const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
 
         if (!cancelled) {
           setFiles(filteredEntries);
@@ -134,7 +72,7 @@ export function ResourceExplorer({
 
   const tree = useMemo(() => {
     if (!projectPath) return [];
-    return buildTree(files, projectPath);
+    return buildProjectTree(files, projectPath);
   }, [files, projectPath]);
 
   const handleCollapse = useCallback(() => {
@@ -213,7 +151,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onFileSelect,
   onFilePreview,
 }: {
-  node: TreeNode;
+  node: ProjectTreeNode;
   level: number;
   currentFile: string | null;
   previewFile: string | null;

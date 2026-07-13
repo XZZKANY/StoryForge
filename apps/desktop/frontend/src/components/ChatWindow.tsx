@@ -22,6 +22,7 @@ import {
   executeIdeCommand,
   getAssistantSession,
   getAgentRunSavePoints,
+  listAssistantSessions,
   requestCrossChapterConsistency,
   sendAgentControlMessage,
   sendAgentUserMessage,
@@ -35,6 +36,7 @@ import {
   isAgentResultMessage,
   type AgentControlMessageType,
   type AgentResultMessage,
+  type AssistantSessionRecord,
   type AgentSocketMessage,
 } from '../lib/api-client';
 import {
@@ -314,6 +316,8 @@ export function ChatWindow({
   pendingInitialPrompt,
   onPendingInitialPromptConsumed,
   onAssistantSessionChange,
+  layoutMode,
+  onSetLayoutMode,
 }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -331,7 +335,14 @@ export function ChatWindow({
   const [lastReviewReportFile, setLastReviewReportFile] = useState<string | null>(null);
   const [explicitContextPaths, setExplicitContextPaths] = useState<string[]>([]);
   const [contextCandidates, setContextCandidates] = useState<SemanticFile[]>([]);
+  const [contextCandidatesLoading, setContextCandidatesLoading] = useState(false);
+  const [contextCandidatesError, setContextCandidatesError] = useState<string | null>(null);
+  const [contextCandidatesRetry, setContextCandidatesRetry] = useState(0);
   const [contextPickerOpen, setContextPickerOpen] = useState(false);
+  const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
+  const [sessionLoadRetry, setSessionLoadRetry] = useState(0);
+  // Q5：会话历史从左栏活动栏移到右栏对话头下拉；列表按项目 scoped，纯 UI 移位。
+  const [assistantSessions, setAssistantSessions] = useState<AssistantSessionRecord[]>([]);
   const [lastContextBundle, setLastContextBundle] = useState<ContextBundle | null>(null);
   const [missingContextPaths, setMissingContextPaths] = useState<string[]>([]);
   const [writingRunProjection, setWritingRunProjection] = useState<WritingRunProjection | null>(
@@ -373,6 +384,7 @@ export function ChatWindow({
 
   useEffect(() => {
     const nextSessionId = assistantSessionId ?? null;
+    const preservesCurrentConversation = selfPersistedSessionIdRef.current === nextSessionId;
     if (shouldResetRunPanels(nextSessionId, selfPersistedSessionIdRef.current)) {
       setAgentRun(null);
       setWritingRunProjection(null);
@@ -385,7 +397,6 @@ export function ChatWindow({
     }
     previousAssistantSessionIdRef.current = nextSessionId;
     // 外部目前没有 null→null 的草稿切换入口；新建会话由显式 handler 轮换 nonce。
-    let cancelled = false;
     if (!assistantSessionId) {
       setMessages([]);
       setConversationTitle('新的创作会话');
@@ -393,29 +404,69 @@ export function ChatWindow({
       setLastReviewReportFile(null);
       setExplicitContextPaths([]);
       setAgentRunRecovery(null);
-      return () => {
-        cancelled = true;
-      };
+      setSessionLoadError(null);
+    } else if (!preservesCurrentConversation) {
+      // 新会话尚未读取时不能继续展示上一会话的内容；失败后保留新选择和显式错误。
+      setMessages([]);
+      setConversationTitle(`会话 #${assistantSessionId}`);
+      setLastReviewReport(null);
+      setLastReviewReportFile(null);
+      setExplicitContextPaths([]);
+      setAgentRunRecovery(null);
+      setSessionLoadError(null);
     }
+  }, [assistantSessionId]);
 
+  useEffect(() => {
+    if (!assistantSessionId) return;
+    let cancelled = false;
+    setSessionLoadError(null);
     void getAssistantSession(assistantSessionId)
       .then((session) => {
         if (cancelled) return;
         setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
         setMessages(compactConversationMessages(session.messages));
       })
-      .catch(() => {
-        if (!cancelled) onAssistantSessionChange?.(null);
+      .catch((error) => {
+        if (cancelled) return;
+        const detail = error instanceof Error ? error.message : String(error);
+        setSessionLoadError(`会话 #${assistantSessionId} 加载失败：${detail}`);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [assistantSessionId, onAssistantSessionChange]);
+  }, [assistantSessionId, sessionLoadRetry]);
+
+  // 会话列表随项目 + 当前会话变化刷新（切换 / 新建会话完成后 assistantSessionId 变更即重拉）。
+  useEffect(() => {
+    if (!projectPath) return;
+    let cancelled = false;
+    void listAssistantSessions({ projectPath, limit: 20 })
+      .then((records) => {
+        if (!cancelled) setAssistantSessions(records);
+      })
+      .catch(() => {
+        if (!cancelled) setAssistantSessions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath, assistantSessionId]);
+
+  const handleSelectSession = useCallback(
+    (id: number) => {
+      if (id === (assistantSessionId ?? null)) return;
+      onAssistantSessionChange?.(id);
+    },
+    [assistantSessionId, onAssistantSessionChange],
+  );
 
   useEffect(() => {
     if (!projectPath) {
       setContextCandidates([]);
+      setContextCandidatesLoading(false);
+      setContextCandidatesError(null);
       setLastContextBundle(null);
       setMissingContextPaths([]);
       setContextPickerOpen(false);
@@ -423,20 +474,27 @@ export function ChatWindow({
     }
 
     let cancelled = false;
+    setContextCandidates([]);
+    setContextCandidatesLoading(true);
+    setContextCandidatesError(null);
     void buildProjectIndex(projectPath)
       .then((index) => {
         if (cancelled) return;
         setContextCandidates(
           index.files.filter((file) => file.kind !== 'export' && file.kind !== 'quality'),
         );
+        setContextCandidatesLoading(false);
       })
-      .catch(() => {
-        if (!cancelled) setContextCandidates([]);
+      .catch((error) => {
+        if (cancelled) return;
+        const detail = error instanceof Error ? error.message : String(error);
+        setContextCandidatesError(`上下文索引读取失败：${detail}`);
+        setContextCandidatesLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [projectPath]);
+  }, [projectPath, contextCandidatesRetry]);
 
   useEffect(() => {
     setLastContextBundle(null);
@@ -1325,6 +1383,14 @@ export function ChatWindow({
     onAssistantSessionChange?.(null);
   }, [onAssistantSessionChange]);
 
+  const retryAssistantSessionLoad = useCallback(() => {
+    setSessionLoadRetry((attempt) => attempt + 1);
+  }, []);
+
+  const retryContextCandidates = useCallback(() => {
+    setContextCandidatesRetry((attempt) => attempt + 1);
+  }, []);
+
   // 已发送的用户消息（oldest→newest），供 composer 方向键回溯上一句。
   const userMessageHistory = useMemo(
     () => messages.filter((message) => message.role === 'user').map((message) => message.content),
@@ -1349,7 +1415,32 @@ export function ChatWindow({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-      <ConversationHeader title={conversationTitle} onNewSession={handleNewSession} />
+      <ConversationHeader
+        title={conversationTitle}
+        sessions={assistantSessions}
+        activeSessionId={assistantSessionId ?? null}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+        layoutMode={layoutMode}
+        onSetLayoutMode={onSetLayoutMode}
+      />
+
+      {sessionLoadError && (
+        <div
+          className="flex flex-shrink-0 items-center gap-3 border-b border-warning bg-panel px-4 py-2 text-xs text-warning"
+          data-testid="assistant-session-load-error"
+        >
+          <span className="min-w-0 flex-1 break-words">{sessionLoadError}</span>
+          <button
+            type="button"
+            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs hover:bg-elevated"
+            onClick={retryAssistantSessionLoad}
+            data-testid="assistant-session-load-retry"
+          >
+            重试
+          </button>
+        </div>
+      )}
 
       <MessageList
         messages={messages}
@@ -1362,11 +1453,14 @@ export function ChatWindow({
         writingRunProjection={writingRunProjection}
         explicitContextPaths={explicitContextPaths}
         contextCandidates={contextCandidates}
+        contextCandidatesLoading={contextCandidatesLoading}
+        contextCandidatesError={contextCandidatesError}
         contextPickerOpen={contextPickerOpen}
         lastContextBundle={lastContextBundle}
         missingContextPaths={missingContextPaths}
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
+        onRetryContextCandidates={retryContextCandidates}
         agentRunControls={agentRunControls}
       />
 

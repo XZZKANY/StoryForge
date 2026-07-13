@@ -1,3 +1,4 @@
+import type { EditorFontMode } from '../components/editor/options';
 import { isProviderKind } from './provider-config';
 
 export type ProviderKind =
@@ -21,6 +22,7 @@ export type ThemeMode = 'dark' | 'light';
 
 export type AppSettings = {
   editorFontSize: number;
+  editorFontMode: EditorFontMode;
   autoSave: boolean;
   theme: ThemeMode;
   provider: ProviderSettings;
@@ -30,6 +32,7 @@ export const APP_SETTINGS_KEY = 'storyforge-app-settings';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorFontSize: 14,
+  editorFontMode: 'grid',
   autoSave: false,
   theme: 'dark',
   provider: {
@@ -81,6 +84,7 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
 
   return {
     editorFontSize,
+    editorFontMode: candidate.editorFontMode === 'prose' ? 'prose' : 'grid',
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
     theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
