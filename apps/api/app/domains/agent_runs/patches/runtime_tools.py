@@ -5,6 +5,7 @@ from typing import Any
 
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
+from app.domains.agent_runs.patches.types import PatchProposal
 from app.domains.agent_runs.revise_scope import public_revise_scope as _public_revise_scope
 from app.domains.agent_runs.revise_scope import resolve_revise_scope as _resolve_revise_scope
 from app.domains.agent_runs.revise_scope import revise_summary_with_scope as _revise_summary_with_scope
@@ -92,6 +93,7 @@ class PatchRuntimeToolsMixin:
             "requires_confirmation": True,
             "approval_action": "desktop.confirm_file_writeback",
         }
+        patch_proposal = PatchProposal.from_payload(proposed_patch)
         output = {
             "file_path": file_path,
             "before": response.before,
@@ -125,6 +127,7 @@ class PatchRuntimeToolsMixin:
                 "completion_tokens": response.completion_tokens,
                 "latency_ms": response.latency_ms,
             },
+            patch_proposal=patch_proposal,
             trace=AgentToolTrace(
                 tool_name="file.revise",
                 status="completed",
@@ -175,6 +178,7 @@ class PatchRuntimeToolsMixin:
             "requires_confirmation": True,
             "approval_action": "desktop.confirm_file_writeback",
         }
+        patch_proposal = PatchProposal.from_payload(proposed_patch)
         output = {
             "file_path": file_path,
             "before": "",
@@ -197,6 +201,7 @@ class PatchRuntimeToolsMixin:
                 "completion_tokens": response.completion_tokens,
                 "latency_ms": response.latency_ms,
             },
+            patch_proposal=patch_proposal,
             trace=AgentToolTrace(
                 tool_name="file.create",
                 status="completed",
@@ -248,10 +253,12 @@ class PatchRuntimeToolsMixin:
                 raise AgentOrchestrationError(str(exc)) from exc
             output_summary = _safe_summary(result.payload)
             tool_artifacts: list[ToolArtifact] = []
+            patch_proposal: PatchProposal | None = None
             if command_id == "judge.repair":
                 patch_payload = result.payload.get("patch") if isinstance(result.payload.get("patch"), dict) else None
                 proposed_patch = _proposed_patch_from_repair_patch(patch_payload) if patch_payload else None
                 if proposed_patch is not None:
+                    patch_proposal = PatchProposal.from_payload(proposed_patch)
                     tool_artifacts.append(
                         ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True)
                     )
@@ -270,6 +277,7 @@ class PatchRuntimeToolsMixin:
                 payload=result.payload,
                 artifacts=tuple(tool_artifacts),
                 metrics={"payload_key_count": len(result.payload)},
+                patch_proposal=patch_proposal,
                 trace=AgentToolTrace(
                     tool_name=command_id,
                     status="completed",

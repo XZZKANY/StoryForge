@@ -138,6 +138,40 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 
 ---
 
+# 验证报告：源码标准专窗 S3
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S3 结果
+
+- 新增 `LoopRoundResult`、`LoopToolCall`、`LoopToolFeedback`，provider/tool 原始 payload 在边界一次解码；`run_chat_loop` 除工具名映射外无 `.get()` 业务字段读取。
+- `ToolResult` 泛型化并可携带 typed `PatchProposal`；file revise/create、trim prose、judge repair 产物建立 typed view，原 wire dict 原样保留。
+- completed/failed terminal event payload 由 frozen dataclass 构造，WS/Pydantic wire frame 未改变。
+- `loop_runtime.py` 552→329 行；prompt/history/budget/feedback 外移。
+- `llm_context.py` 601→461 行；context value/filter helper 外移。
+- `save_points.py` 577→125 行；save-point projection helper 外移，目标模块 498 行。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv --cache-dir ... run ruff check app/domains/agent_runs ...` | 通过 |
+| `uv --cache-dir ... run pytest -p no:cacheprovider tests/test_source_code_standards.py tests/test_loop_contract_types.py tests/test_loop_tool_schemas.py tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_agent_loop_runtime.py tests/test_agent_llm_context.py tests/test_agent_canon.py tests/test_ide_agent_orchestrator.py tests/test_ide_agent_transport.py tests/test_ide_commands.py tests/test_ide_run_events.py tests/test_redaction_boundaries.py tests/test_ws_contract_golden.py tests/test_ws_schema.py tests/test_api_surface.py -q` | 267/267 通过 |
+| loop 主路径 AST 护栏 | 三个 typed decoder 存在；裸业务 payload `.get()` 为 0 |
+| 私有依赖扫描 | agent_runs = 0 |
+| 行数护栏 | `runtime.py` 288、`tooling.py` 59、`loop_runtime.py` 329、`llm_context.py` 461、`save_points.py` 125；均达标 |
+| `git diff --check` | 通过 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、Pydantic wire model 或 OpenAPI 输出；WS golden 已通过。
+- Desktop typecheck/vitest：S3 未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收。
+
+---
+
 # 验证报告：源码标准专窗 S2
 
 时间：2026-07-14

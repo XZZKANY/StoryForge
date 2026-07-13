@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from sqlalchemy.orm import Session
 
@@ -12,7 +12,11 @@ from app.domains.agent_runs.role_catalog import get_agent_role, is_role_allowed_
 from app.domains.agent_runs.tools.spec_models import AgentRuntimeToolSpec
 from app.domains.agent_runs.trace import AgentToolTrace
 
-ToolHandler = Callable[["ToolExecutionContext", dict[str, Any]], "ToolResult"]
+if TYPE_CHECKING:
+    from app.domains.agent_runs.patches.types import PatchProposal
+
+ToolOutputT = TypeVar("ToolOutputT", bound=dict[str, Any])
+ToolHandler = Callable[["ToolExecutionContext", dict[str, Any]], "ToolResult[dict[str, Any]]"]
 
 
 @dataclass(frozen=True)
@@ -51,9 +55,9 @@ def tool_definition_from_spec(spec: AgentRuntimeToolSpec, handler: ToolHandler) 
 
 
 @dataclass(frozen=True)
-class ToolResult:
+class ToolResult(Generic[ToolOutputT]):
     status: str
-    output: dict[str, Any]
+    output: ToolOutputT
     trace: AgentToolTrace
     summary: str | None = None
     payload: dict[str, Any] | None = None
@@ -61,6 +65,7 @@ class ToolResult:
     metrics: dict[str, Any] = field(default_factory=dict)
     retry_metadata: dict[str, Any] | None = None
     checkpoint_metadata: dict[str, Any] | None = None
+    patch_proposal: PatchProposal | None = None
 
 
 @dataclass(frozen=True)

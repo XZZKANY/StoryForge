@@ -19,6 +19,9 @@ AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patch
 HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/agent_runs/runtime.py": 400,
     "apps/api/app/domains/agent_runs/tooling.py": 500,
+    "apps/api/app/domains/agent_runs/loop_runtime.py": 500,
+    "apps/api/app/domains/agent_runs/llm_context.py": 500,
+    "apps/api/app/domains/agent_runs/save_points.py": 500,
 }
 RUNTIME_COMPATIBILITY_HELPERS = (
     "_trim_prose_instruction",
@@ -219,6 +222,30 @@ def test_runtime_compatibility_helpers_remain_exported() -> None:
 
     for name in RUNTIME_COMPATIBILITY_HELPERS:
         assert callable(getattr(runtime, name, None)), f"Missing runtime compatibility helper: {name}"
+
+
+def test_loop_main_path_reads_business_payloads_through_typed_contracts() -> None:
+    path = AGENT_RUNS_ROOT / "loop_runtime.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    run_loop = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run_chat_loop")
+    calls = {
+        _dotted_name(node.func)
+        for node in ast.walk(run_loop)
+        if isinstance(node, ast.Call)
+    }
+    assert "LoopRoundResult.from_payload" in calls
+    assert "LoopToolCall.from_payload" in calls
+    assert "LoopToolFeedback.from_output" in calls
+
+    raw_gets = [
+        node
+        for node in ast.walk(run_loop)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and not (isinstance(node.func.value, ast.Name) and node.func.value.id == "_TOOL_NAME_MAP")
+    ]
+    assert not raw_gets, "run_chat_loop must decode raw business payloads before field access"
 
 
 def test_private_access_baseline_summary_is_consistent() -> None:

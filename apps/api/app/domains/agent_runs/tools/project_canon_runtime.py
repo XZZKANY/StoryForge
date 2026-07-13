@@ -8,6 +8,7 @@ from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.canon_delta import canon_delta
 from app.domains.agent_runs.canon_hooks_delta import hooks_delta
 from app.domains.agent_runs.errors import AgentOrchestrationError
+from app.domains.agent_runs.patches.types import PatchProposal
 from app.domains.agent_runs.tools.execution import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import optional_int as _optional_int
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
@@ -163,6 +164,7 @@ class ProjectCanonRuntimeMixin:
             "requires_confirmation": True,
             "approval_action": "desktop.confirm_file_writeback",
         }
+        patch_proposal = PatchProposal.from_payload(proposed_patch)
 
         summary = f"压缩完成：{original_chars} → {compressed_chars} 字（{actual_percent}%），目标 {target_percent}%。"
         output = {
@@ -189,6 +191,7 @@ class ProjectCanonRuntimeMixin:
                 "latency_ms": response.latency_ms,
                 "compression_percent": actual_percent,
             },
+            patch_proposal=patch_proposal,
             trace=AgentToolTrace(
                 tool_name="project.trim_prose",
                 status="completed",

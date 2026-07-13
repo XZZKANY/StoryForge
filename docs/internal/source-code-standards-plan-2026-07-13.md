@@ -214,7 +214,7 @@ frozen
 | S0 护栏 | 已完成（2026-07-13） | AST 私有依赖 256 点精确冻结；18 个超限文件只减不增；`test_source_code_standards.py`；`agent_runs/STRUCTURE.md` 8 文件读序 |
 | S1 公共面 | 已完成（2026-07-14） | 六公共面可 import；`runtime.py` 265 行；agent_runs 私有跨模块依赖 78→0；旧 37 方法 + 33 helper AST 等价；142 项定向测试通过 |
 | S2 tooling | 已完成（2026-07-14） | `tooling.py` 1061→59 行兼容 facade；22 条 spec 按域拆分且顺序/字段 AST 等价；handler 映射归领域文件；221 项相关测试通过 |
-| S3 typed seam | 未开始 | |
+| S3 typed seam | 已完成（2026-07-14） | `LoopRoundResult`/`LoopToolCall`/`LoopToolFeedback`、generic `ToolResult`、`PatchProposal`、typed terminal payload；loop 主函数裸业务 `.get()`=0；`loop_runtime.py` 329、`llm_context.py` 461、`save_points.py` 125 行；267 项测试通过 |
 | S4 双轨 adapter | 未开始 | |
 | S5 book_runs | 未开始 | |
 | S6 Desktop | 未开始 | |

@@ -49,6 +49,16 @@ Cross-face callers may import public names only. S0 freezes every existing leadi
 
 Adding a loop-visible tool means one ToolSpec entry with `loop_schema` plus its implementation/mapping in one domain handler module. Do not add schema/name/patch mirrors to `loop_runtime.py` or a central handler-name table.
 
+## Typed Loop Seams
+
+- `loop/types.py` owns `LoopRoundResult`, `LoopToolCall`, `LoopToolFeedback`, and `ChatLoopOutcome`.
+- `patches/types.py` owns the frozen `PatchProposal` view while preserving the existing wire dict exactly.
+- `events/contracts.py` owns frozen completed/failed terminal payload builders.
+- `tools/execution.py` keeps `ToolResult` generic over output shape and carries an optional typed patch proposal.
+- `loop_runtime.py` performs orchestration only; provider/tool payload decoding belongs to the typed boundary modules. Its main function may not add raw business-payload `.get()` reads.
+
+Prompt/author instructions live in `loop/prompt_context.py`; history, budget, feedback, and output summarization live in `loop/support.py`. LLM-context value filtering lives in `loop/context_values.py`. Save-point projection helpers live in `events/save_point_projection.py`.
+
 ## Dual Track Boundary
 
 - Free-text chat enters the live loop.

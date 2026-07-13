@@ -34,6 +34,7 @@ from app.domains.agent_runs.event_types import (
     STOP_RUN,
     TOOL_TRACE,
 )
+from app.domains.agent_runs.events.contracts import CompletedEventPayload, FailedEventPayload
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
 from app.domains.agent_runs.role_catalog import (
     DEFAULT_PERMISSION_PROFILE,
@@ -802,29 +803,7 @@ def _completed_event_payload(result: dict[str, Any], agent_result: dict[str, Any
     即可重建结果，不再因 agent_result 只走瞬时 _STREAM_RESULT 而丢失（F10）。
     不携带补丁 before/after 全文，避免事件表膨胀。"""
 
-    summary = agent_result.get("summary")
-    proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
-    payload: dict[str, Any] = {
-        "intent": result.get("intent"),
-        "assistant_session_id": result.get("assistant_session_id"),
-        "requires_user_confirmation": bool(agent_result.get("requires_user_confirmation")),
-        "summary": summary[:4000] if isinstance(summary, str) else None,
-        "has_proposed_patch": proposed_patch is not None,
-        "has_review_report": isinstance(agent_result.get("review_report"), dict),
-    }
-    if proposed_patch is not None:
-        payload["proposed_patch"] = {
-            "id": proposed_patch.get("id"),
-            "created_by_tool": proposed_patch.get("created_by_tool"),
-            "file_path": proposed_patch.get("file_path"),
-        }
-    chat_loop = agent_result.get("chat_loop")
-    if isinstance(chat_loop, dict):
-        payload["chat_loop"] = {
-            "rounds": chat_loop.get("rounds"),
-            "tool_call_count": chat_loop.get("tool_call_count"),
-        }
-    return payload
+    return CompletedEventPayload.from_result(result, agent_result).to_payload()
 
 
 def fail_agent_run(
@@ -845,7 +824,7 @@ def fail_agent_run(
         event_type=AGENT_RUN_FAILED,
         actor="root-agent",
         message=message,
-        payload=payload or {},
+        payload=FailedEventPayload.from_payload(payload or {}).to_payload(),
     )
     return run
 
