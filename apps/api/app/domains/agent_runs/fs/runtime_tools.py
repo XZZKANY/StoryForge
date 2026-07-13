@@ -12,7 +12,7 @@ from app.domains.agent_runs.llm_context import (
     llm_context_snapshot_to_prompt_context_bundle,
     llm_context_snapshot_trace_summary,
 )
-from app.domains.agent_runs.tooling import ToolExecutionContext, ToolResult
+from app.domains.agent_runs.tools import ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import fs_int_arg as _fs_int_arg
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.trace import AgentToolTrace
@@ -20,6 +20,14 @@ from app.domains.ide.review_skills import review_context_summary
 
 
 class FsRuntimeToolsMixin:
+    def _fs_tool_handlers(self) -> dict[str, ToolHandler]:
+        return {
+            "context.load": self._context_load,
+            "fs.list": self._fs_list,
+            "fs.read": self._fs_read,
+            "fs.search": self._fs_search,
+        }
+
     def _fs_list(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         project_root = _required_string(payload, "project_root")
         subpath = _optional_string(payload.get("subpath"))

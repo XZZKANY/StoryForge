@@ -18,7 +18,7 @@ from app.domains.agent_runs.events.runtime_support import trace_objects as _trac
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
-from app.domains.agent_runs.tooling import ToolExecutionContext
+from app.domains.agent_runs.tools import ToolExecutionContext
 from app.domains.agent_runs.tools.runtime_arguments import can_repair_issue as _can_repair_issue
 from app.domains.agent_runs.tools.runtime_arguments import first_patch_payload as _first_patch_payload
 from app.domains.agent_runs.tools.runtime_arguments import (

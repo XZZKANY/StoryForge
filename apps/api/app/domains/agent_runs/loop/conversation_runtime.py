@@ -15,7 +15,7 @@ from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.runtime_recovery import build_runtime_interruption_payload
 from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
-from app.domains.agent_runs.tooling import ToolExecutionContext
+from app.domains.agent_runs.tools import ToolExecutionContext
 from app.domains.agent_runs.tools.runtime_arguments import chat_context_block as _chat_context_block
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service

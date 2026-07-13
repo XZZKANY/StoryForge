@@ -8,7 +8,7 @@ from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.canon_delta import canon_delta
 from app.domains.agent_runs.canon_hooks_delta import hooks_delta
 from app.domains.agent_runs.errors import AgentOrchestrationError
-from app.domains.agent_runs.tooling import ToolArtifact, ToolExecutionContext, ToolResult
+from app.domains.agent_runs.tools.execution import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import optional_int as _optional_int
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.tools.runtime_arguments import trim_prose_instruction as _trim_prose_instruction
@@ -18,6 +18,14 @@ from app.domains.assistant.schemas import AssistantReviseRequest
 
 
 class ProjectCanonRuntimeMixin:
+    def _project_canon_tool_handlers(self) -> dict[str, ToolHandler]:
+        return {
+            "project.canon": self._project_canon,
+            "project.canon_delta": self._project_canon_delta,
+            "project.hooks_delta": self._project_hooks_delta,
+            "project.trim_prose": self._project_trim_prose,
+        }
+
     def _project_canon(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         project_root = _required_string(payload, "project_root")
         glob = _optional_string(payload.get("glob")) or "*.md"

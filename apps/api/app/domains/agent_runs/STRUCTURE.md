@@ -38,6 +38,17 @@ Cross-face callers may import public names only. S0 freezes every existing leadi
 
 `runtime.py` owns only construction, the top-level user-message switch, the monkeypatch-compatible `_file_review` seam, and temporary helper re-exports. Behavior methods live in responsibility-scoped mixins under the six faces; every new runtime module remains below 500 lines.
 
+## Tooling Layout
+
+- `tools/spec_models.py` owns immutable ToolSpec/schema types and permission derivation.
+- `tools/specs/` groups the 22 declarations by domain while `tools/catalog.py` preserves one ordered catalog.
+- `tools/loop_schema.py` derives LLM schemas, names, and patch-tool sets from that catalog.
+- `tools/execution.py` owns execution result types, registry, permission gate, and subagent executor.
+- Domain runtime modules own both handler implementations and their local name-to-handler maps; `tools/execution_runtime.py` only merges maps and registers in catalog order.
+- `tooling.py` is a compatibility facade. Production modules import the `tools` or `permission` public face.
+
+Adding a loop-visible tool means one ToolSpec entry with `loop_schema` plus its implementation/mapping in one domain handler module. Do not add schema/name/patch mirrors to `loop_runtime.py` or a central handler-name table.
+
 ## Dual Track Boundary
 
 - Free-text chat enters the live loop.

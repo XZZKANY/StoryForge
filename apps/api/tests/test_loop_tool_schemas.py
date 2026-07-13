@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.domains.agent_runs import loop_runtime
+from app.domains.agent_runs import loop_runtime, tooling
+from app.domains.agent_runs import tools as tool_face
 from app.domains.agent_runs.tooling import (
     AgentRuntimeToolSpec,
     LoopToolSchema,
@@ -19,6 +20,12 @@ from app.domains.agent_runs.tooling import (
 # 又用 demo 工具证明「加一个循环工具 = 加一条带 loop_schema 的 spec」的单点收敛。
 
 _GOLDEN_PATH = Path(__file__).parent / "fixtures" / "loop_tool_schemas_golden.json"
+
+
+def test_tooling_module_is_a_compatibility_facade() -> None:
+    assert tooling.AgentRuntimeToolSpec is tool_face.AgentRuntimeToolSpec
+    assert tooling.list_agent_runtime_tool_specs is tool_face.list_agent_runtime_tool_specs
+    assert tooling.build_loop_tool_schemas is tool_face.build_loop_tool_schemas
 
 
 def _wire(value: object) -> str:

@@ -16,6 +16,14 @@ PRIVATE_ACCESS_ROOTS = (
 )
 AGENT_RUNS_ROOT = API_ROOT / "app" / "domains" / "agent_runs"
 AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patches")
+HARD_SOURCE_LINE_LIMITS = {
+    "apps/api/app/domains/agent_runs/runtime.py": 400,
+    "apps/api/app/domains/agent_runs/tooling.py": 500,
+}
+RUNTIME_COMPATIBILITY_HELPERS = (
+    "_trim_prose_instruction",
+    "_safe_summary",
+)
 LIVE_TEST_PATTERNS = ("test_agent*.py", "test_ide_agent*.py", "test_book*.py")
 NEW_LIVE_MODULE_LINE_LIMIT = 500
 NEW_LIVE_TEST_LINE_LIMIT = 800
@@ -198,6 +206,19 @@ def test_agent_runs_public_faces_exist() -> None:
     for face in AGENT_RUNS_PUBLIC_FACES:
         init_path = AGENT_RUNS_ROOT / face / "__init__.py"
         assert init_path.is_file(), f"Missing agent_runs public face: {face}"
+
+
+def test_completed_wave_source_files_meet_hard_line_limits() -> None:
+    for relative_path, limit in HARD_SOURCE_LINE_LIMITS.items():
+        current = _line_count(REPO_ROOT / relative_path)
+        assert current <= limit, f"{relative_path}: {current} lines > hard limit {limit}"
+
+
+def test_runtime_compatibility_helpers_remain_exported() -> None:
+    from app.domains.agent_runs import runtime
+
+    for name in RUNTIME_COMPATIBILITY_HELPERS:
+        assert callable(getattr(runtime, name, None)), f"Missing runtime compatibility helper: {name}"
 
 
 def test_private_access_baseline_summary_is_consistent() -> None:

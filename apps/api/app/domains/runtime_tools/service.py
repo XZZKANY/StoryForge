@@ -8,7 +8,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from app.domains.agent_runs.tooling import list_agent_runtime_tool_specs
+from app.domains.agent_runs.tools import list_agent_runtime_tool_specs
 from app.domains.runtime_tools.schemas import RuntimeToolRead, RuntimeToolReferencesRead
 
 _MCP_READONLY_TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (

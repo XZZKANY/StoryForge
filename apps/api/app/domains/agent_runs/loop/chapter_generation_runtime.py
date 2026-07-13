@@ -17,7 +17,7 @@ from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
-from app.domains.agent_runs.tooling import ToolExecutionContext
+from app.domains.agent_runs.tools import ToolExecutionContext
 from app.domains.agent_runs.tools.runtime_arguments import required_int as _required_int
 from app.domains.agent_runs.tools.runtime_arguments import safe_summary as _safe_summary
 from app.domains.agent_runs.trace import AgentToolTrace

@@ -14,7 +14,7 @@ from app.domains.agent_runs.runtime_recovery import (
     build_runtime_pending_call_resolution_payload,
     build_runtime_pending_call_summary,
 )
-from app.domains.agent_runs.tooling import ToolArtifact
+from app.domains.agent_runs.tools import ToolArtifact
 from app.domains.agent_runs.tools.runtime_arguments import optional_positive_int as _optional_positive_int
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service

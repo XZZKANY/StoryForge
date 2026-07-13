@@ -20,7 +20,7 @@ from app.common.llm_client import LLMConfigError, LLMError
 from app.common.llm_client import call_llm_messages as _call_llm_messages
 from app.domains.agent_runs.canon_context import build_scene_constraint_block
 from app.domains.agent_runs.fs_tools import FsToolError, resolve_project_root
-from app.domains.agent_runs.tooling import (
+from app.domains.agent_runs.tools import (
     build_loop_tool_name_map,
     build_loop_tool_schemas,
     llm_tool_name,

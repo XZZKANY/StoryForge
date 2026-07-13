@@ -19,7 +19,7 @@ from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
 from app.domains.agent_runs.models import AgentArtifact, AgentRun
 from app.domains.agent_runs.runtime_recovery import RUNTIME_PENDING_CALL_ARTIFACT_KIND
-from app.domains.agent_runs.tooling import ToolArtifact, ToolExecutionContext
+from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import AssistantMessageCreate

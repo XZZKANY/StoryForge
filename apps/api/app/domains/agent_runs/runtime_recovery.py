@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.agent_runs.tooling import AgentRuntimeToolSpec
+from app.domains.agent_runs.tools import AgentRuntimeToolSpec
 from app.domains.agent_runs.trace import AgentToolTrace
 
 INTERRUPTIBLE_RUN_STATUSES = frozenset({"paused", "stopped"})

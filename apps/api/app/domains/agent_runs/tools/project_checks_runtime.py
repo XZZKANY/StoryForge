@@ -9,12 +9,21 @@ from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
 from app.domains.agent_runs.entity_budget_scan import entity_budget_scan
 from app.domains.agent_runs.prose_scan import prose_static_scan
-from app.domains.agent_runs.tooling import ToolExecutionContext, ToolResult
+from app.domains.agent_runs.tools.execution import ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.trace import AgentToolTrace
 
 
 class ProjectChecksRuntimeMixin:
+    def _project_check_tool_handlers(self) -> dict[str, ToolHandler]:
+        return {
+            "project.consistency": self._project_consistency,
+            "project.prose_check": self._project_prose_check,
+            "project.collapse_check": self._project_collapse_check,
+            "project.entity_budget_check": self._project_entity_budget_check,
+            "project.deep_consistency": self._project_deep_consistency,
+        }
+
     def _project_consistency(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         project_root = _required_string(payload, "project_root")
         terms_raw = payload.get("terms")

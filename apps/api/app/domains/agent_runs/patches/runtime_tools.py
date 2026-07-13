@@ -11,7 +11,7 @@ from app.domains.agent_runs.revise_scope import revise_summary_with_scope as _re
 from app.domains.agent_runs.revise_scope import scope_issues as _scope_issues
 from app.domains.agent_runs.revise_scope import scope_warning as _scope_warning
 from app.domains.agent_runs.revise_scope import scoped_revise_instruction as _scoped_revise_instruction
-from app.domains.agent_runs.tooling import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
+from app.domains.agent_runs.tools import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import llm_context_input_summary as _llm_context_input_summary
 from app.domains.agent_runs.tools.runtime_arguments import (
     proposed_patch_from_repair_patch as _proposed_patch_from_repair_patch,
@@ -30,6 +30,23 @@ from app.domains.ide.service import IdeCommandExecutionError, IdeCommandNotFound
 
 
 class PatchRuntimeToolsMixin:
+    def _fixed_pipeline_tool_handlers(self) -> dict[str, ToolHandler]:
+        handlers: dict[str, ToolHandler] = {
+            "file.review": self._file_review,
+            "file.revise": self._file_revise,
+            "file.create": self._file_create,
+            "judge.run": self._judge_run,
+        }
+        for command_id in (
+            "judge.repair",
+            "bookrun.start",
+            "bookrun.pause",
+            "bookrun.resume",
+            "bookrun.retry_from_checkpoint",
+        ):
+            handlers[command_id] = self._ide_command_tool(command_id)
+        return handlers
+
     def _file_revise(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
         content = _required_string(payload, "content")

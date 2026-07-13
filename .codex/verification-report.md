@@ -135,3 +135,36 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出。
 - Desktop typecheck/vitest：S1 未改 Desktop 源码。
 - `pnpm verify`：按计划留到 S8 专窗总验收。
+
+---
+
+# 验证报告：源码标准专窗 S2
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S2 结果
+
+- `tooling.py` 从 1061 行降至 59 行，只保留兼容 facade。
+- 22 条 AgentRuntime ToolSpec 按 context/fs、project、patch/file、BookRun、hooks 五组拆分；catalog 顺序与每条 spec AST 均保持不变。
+- schema/name/patch-tool 派生落在 `tools/loop_schema.py`；registry/result/permission/subagent 类型落在 `tools/execution.py`。
+- 生产代码改走 `tools` / `permission` 公共面；领域模块同时拥有 handler 实现与本地映射，中央注册不再维护第二份工具名镜像。
+- 修复并测试 `runtime.py` 的 `_trim_prose_instruction`、`_safe_summary` 等显式兼容出口，避免 Ruff 清理仅供旧路径 import 的符号。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv --cache-dir ... run ruff check app/domains/agent_runs ...` | 通过 |
+| `uv --cache-dir ... run pytest -p no:cacheprovider tests/test_source_code_standards.py tests/test_loop_tool_schemas.py tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_agent_loop_runtime.py tests/test_agent_canon.py tests/test_ide_agent_orchestrator.py tests/test_ide_agent_transport.py tests/test_redaction_boundaries.py -q` | 221/221 通过 |
+| ToolSpec AST/顺序等价脚本 | 22/22 spec 无 drift；原顶层类型/派生函数无 drift |
+| 私有依赖扫描 | agent_runs = 0 |
+| 行数护栏 | `runtime.py` 288≤400；`tooling.py` 59≤500；新增模块全部≤500 |
+| `git diff --check` | 通过 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出。
+- Desktop typecheck/vitest：S2 未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收。

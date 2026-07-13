@@ -5,11 +5,11 @@ from typing import Any
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.events.runtime_support import tool_artifacts_from_result as _tool_artifacts_from_result
 from app.domains.agent_runs.models import AgentRun
-from app.domains.agent_runs.tooling import (
+from app.domains.agent_runs.tools.catalog import list_agent_runtime_tool_specs
+from app.domains.agent_runs.tools.execution import (
     ToolExecutionContext,
     ToolHandler,
     ToolResult,
-    list_agent_runtime_tool_specs,
     tool_definition_from_spec,
 )
 
@@ -72,33 +72,18 @@ class ToolExecutionRuntimeMixin:
             )
 
     def _register_tools(self) -> None:
-        handlers: dict[str, ToolHandler] = {
-            "context.load": self._context_load,
-            "fs.list": self._fs_list,
-            "fs.read": self._fs_read,
-            "fs.search": self._fs_search,
-            "project.consistency": self._project_consistency,
-            "project.prose_check": self._project_prose_check,
-            "project.collapse_check": self._project_collapse_check,
-            "project.entity_budget_check": self._project_entity_budget_check,
-            "project.deep_consistency": self._project_deep_consistency,
-            "project.canon": self._project_canon,
-            "project.canon_delta": self._project_canon_delta,
-            "project.hooks_delta": self._project_hooks_delta,
-            "project.trim_prose": self._project_trim_prose,
-            "file.review": self._file_review,
-            "file.revise": self._file_revise,
-            "file.create": self._file_create,
-            "judge.run": self._judge_run,
-        }
-        for command_id in (
-            "judge.repair",
-            "bookrun.start",
-            "bookrun.pause",
-            "bookrun.resume",
-            "bookrun.retry_from_checkpoint",
+        handlers: dict[str, ToolHandler] = {}
+        for domain_handlers in (
+            self._fs_tool_handlers(),
+            self._project_check_tool_handlers(),
+            self._project_canon_tool_handlers(),
+            self._fixed_pipeline_tool_handlers(),
         ):
-            handlers[command_id] = self._ide_command_tool(command_id)
+            duplicate_names = handlers.keys() & domain_handlers.keys()
+            if duplicate_names:
+                names = ", ".join(sorted(duplicate_names))
+                raise AgentOrchestrationError(f"Agent Runtime 工具 handler 重复注册：{names}")
+            handlers.update(domain_handlers)
         for spec in list_agent_runtime_tool_specs():
             handler = handlers.get(spec.name)
             if handler is None:

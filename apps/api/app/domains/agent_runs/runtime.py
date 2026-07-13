@@ -6,14 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
-from app.domains.agent_runs.events.runtime_support import (  # noqa: F401
-    base_response as _base_response,
-)
-from app.domains.agent_runs.events.runtime_support import pop_runtime_internal_markers as _pop_runtime_internal_markers
-from app.domains.agent_runs.events.runtime_support import resolve_assistant_session as _resolve_assistant_session
-from app.domains.agent_runs.events.runtime_support import result_requires_confirmation as _result_requires_confirmation
-from app.domains.agent_runs.events.runtime_support import runtime_interrupted_response as _runtime_interrupted_response
-from app.domains.agent_runs.events.runtime_support import trace_objects as _trace_objects
+from app.domains.agent_runs.events import runtime_support as runtime_event_support
 from app.domains.agent_runs.fs.runtime_tools import FsRuntimeToolsMixin
 from app.domains.agent_runs.intent import SUPPORTED_INTENTS  # noqa: F401
 from app.domains.agent_runs.intent import detect_intent as _detect_intent
@@ -27,31 +20,61 @@ from app.domains.agent_runs.loop.conversation_runtime import ConversationRuntime
 from app.domains.agent_runs.loop.file_review_runtime import FileReviewRuntimeMixin
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.patches.runtime_tools import PatchRuntimeToolsMixin
+from app.domains.agent_runs.permission import PermissionGate
 from app.domains.agent_runs.review_report import (
     build_multi_agent_review_report_with_executor as _build_multi_agent_review_report_with_executor,
 )
 from app.domains.agent_runs.review_report import continuity_subagent_handler as _continuity_subagent_handler
 from app.domains.agent_runs.review_report import review_report_summary as _review_report_summary
 from app.domains.agent_runs.review_report import review_subagent_handler as _review_subagent_handler
-from app.domains.agent_runs.tooling import (
-    PermissionGate,
+from app.domains.agent_runs.tools import (
     SubagentDefinition,
     SubagentExecutor,
     ToolArtifact,
     ToolExecutionContext,
     ToolRegistry,
     ToolResult,
+    runtime_arguments,
 )
 from app.domains.agent_runs.tools.execution_runtime import ToolExecutionRuntimeMixin
 from app.domains.agent_runs.tools.project_canon_runtime import ProjectCanonRuntimeMixin
 from app.domains.agent_runs.tools.project_checks_runtime import ProjectChecksRuntimeMixin
-from app.domains.agent_runs.tools.runtime_arguments import (  # noqa: F401
-    fs_int_arg as _fs_int_arg,
-)
-from app.domains.agent_runs.tools.runtime_arguments import llm_context_input_summary as _llm_context_input_summary
-from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.ide.orchestrator import orchestrate_agent_message  # noqa: F401
+
+_resolve_assistant_session = runtime_event_support.resolve_assistant_session
+_base_response = runtime_event_support.base_response
+_trace_objects = runtime_event_support.trace_objects
+_latest_runtime_pending_call = runtime_event_support.latest_runtime_pending_call
+_should_resume_file_review = runtime_event_support.should_resume_file_review
+_should_resume_runtime_pending_call = runtime_event_support.should_resume_runtime_pending_call
+_file_review_resume_message = runtime_event_support.file_review_resume_message
+_chapter_review_resume_message = runtime_event_support.chapter_review_resume_message
+_runtime_pending_call_resolution_artifact = runtime_event_support.runtime_pending_call_resolution_artifact
+_json_safe_review_output = runtime_event_support.json_safe_review_output
+_tool_artifacts_from_result = runtime_event_support.tool_artifacts_from_result
+_result_requires_confirmation = runtime_event_support.result_requires_confirmation
+_runtime_interrupted_response = runtime_event_support.runtime_interrupted_response
+_runtime_interruption_summary = runtime_event_support.runtime_interruption_summary
+_pop_runtime_internal_markers = runtime_event_support.pop_runtime_internal_markers
+_plan_step = runtime_event_support.plan_step
+_fs_int_arg = runtime_arguments.fs_int_arg
+_chat_context_block = runtime_arguments.chat_context_block
+_required_string = runtime_arguments.required_string
+_required_int = runtime_arguments.required_int
+_optional_positive_int = runtime_arguments.optional_positive_int
+_optional_int = runtime_arguments.optional_int
+_trim_prose_instruction = runtime_arguments.trim_prose_instruction
+_safe_summary = runtime_arguments.safe_summary
+_llm_context_input_summary = runtime_arguments.llm_context_input_summary
+_judge_run_args_from_scene_packet = runtime_arguments.judge_run_args_from_scene_packet
+_string_list = runtime_arguments.string_list
+_dict_list = runtime_arguments.dict_list
+_style_rules = runtime_arguments.style_rules
+_payload_list = runtime_arguments.payload_list
+_can_repair_issue = runtime_arguments.can_repair_issue
+_first_patch_payload = runtime_arguments.first_patch_payload
+_proposed_patch_from_repair_patch = runtime_arguments.proposed_patch_from_repair_patch
 
 
 class EventSink(Protocol):

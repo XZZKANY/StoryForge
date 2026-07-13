@@ -33,7 +33,7 @@ from app.domains.agent_runs.runtime_recovery import (
     build_tool_recovery_payload,
 )
 from app.domains.agent_runs.skill_catalog import agent_plan_payload as _agent_plan_payload
-from app.domains.agent_runs.tooling import list_agent_runtime_tool_specs
+from app.domains.agent_runs.tools import list_agent_runtime_tool_specs
 from app.domains.agent_runs.trace import AgentToolTrace
 
 _TOOL_SPECS_BY_NAME = {spec.name: spec for spec in list_agent_runtime_tool_specs()}
