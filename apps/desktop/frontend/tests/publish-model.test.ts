@@ -4,15 +4,20 @@ import { test } from 'vitest';
 import {
   DEFAULT_PUBLISH_SETTINGS,
   autoAssignReadyBooks,
+  bindPlaceholderToProject,
   calibrateOpened,
   canScheduleOnDate,
   canTransition,
   capacitySnapshot,
   computeReadyScore,
+  createPlaceholderBook,
   dropBookFromQuota,
   emptyMonthQuota,
+  findNearBlurbs,
   isAccountAssignable,
+  isPlaceholderBook,
   isReadyEnough,
+  jaccardSimilarity,
   markOpenedInQuota,
   remainingForAccount,
   targetGap,
@@ -35,6 +40,8 @@ function account(
     riskNote: '',
     color: '#888',
     priority: 0,
+    coldUntil: null,
+    coldMaxOpensPerMonth: 1,
     ...overrides,
   };
 }
@@ -56,6 +63,8 @@ function book(projectKey: string, overrides: Partial<PublishBook> = {}): Publish
     lastLocalEditAt: null,
     dropReason: null,
     updatedAt: '2026-07-13T00:00:00.000Z',
+    isPlaceholder: false,
+    blurb: '',
     ...overrides,
   };
 }
@@ -190,4 +199,65 @@ test('智能指派：不超卖、避开 blocked、遵守同日上限', () => {
     const acc = accounts.find((a) => a.id === id)!;
     assert.ok(count <= acc.monthlyOpenLimit);
   }
+});
+
+test('冷号限载：观察期内 remaining 按 coldMaxOpensPerMonth', () => {
+  const cold = account('cold1', {
+    coldUntil: '2026-08-01',
+    coldMaxOpensPerMonth: 1,
+    monthlyOpenLimit: 3,
+  });
+  const quota = emptyMonthQuota('2026-07');
+  assert.equal(remainingForAccount(cold, quota, '2026-07-15'), 1);
+  assert.equal(remainingForAccount(cold, quota, '2026-08-02'), 3);
+});
+
+test('空位占坑与绑定', () => {
+  const slot = createPlaceholderBook({ title: '七月坑', planOpenDate: '2026-07-20' });
+  assert.equal(isPlaceholderBook(slot), true);
+  assert.equal(slot.status, 'idea');
+  assert.ok(slot.title.includes('空位'));
+  const bound = bindPlaceholderToProject(slot, 'D:/novels/real-book', '真书');
+  assert.equal(isPlaceholderBook(bound), false);
+  assert.equal(bound.title, '真书');
+  assert.equal(bound.status, 'writing');
+});
+
+test('简介过近检测', () => {
+  const a = '都市重生后我靠系统逆袭商业帝国称霸全城';
+  const b = '都市重生后我靠系统逆袭商业帝国称霸全城啊';
+  assert.ok(jaccardSimilarity(a, b) > 0.7);
+  const hits = findNearBlurbs(
+    a,
+    [
+      { projectKey: 'other', title: '他书', blurb: b },
+      { projectKey: 'far', title: '远', blurb: '完全不同的玄幻修仙飞升之路' },
+    ],
+    0.7,
+  );
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].otherProjectKey, 'other');
+});
+
+test('空位不参与智能指派', () => {
+  const accounts = [account('a1'), account('a2')];
+  const books = [
+    book('real', { status: 'ready', readyScore: 90 }),
+    book('slot', {
+      status: 'ready',
+      isPlaceholder: true,
+      path: 'placeholder://x',
+      readyScore: 0,
+    }),
+  ];
+  const result = autoAssignReadyBooks({
+    books,
+    accounts,
+    quota: emptyMonthQuota('2026-07'),
+    settings: DEFAULT_PUBLISH_SETTINGS,
+    windowStart: '2026-07-14',
+    windowDays: 7,
+  });
+  assert.ok(result.suggestions.every((s) => s.projectKey !== 'slot'));
+  assert.ok(result.blockers.some((b) => b.projectKey === 'slot'));
 });

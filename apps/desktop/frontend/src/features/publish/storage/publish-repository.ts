@@ -36,7 +36,7 @@ export async function loadAccounts(): Promise<PublishAccount[]> {
     version: 1,
     accounts: [],
   });
-  return file.accounts ?? [];
+  return (file.accounts ?? []).map(normalizeAccount);
 }
 
 export async function saveAccounts(accounts: PublishAccount[]): Promise<void> {
@@ -50,7 +50,7 @@ export async function loadLibrary(): Promise<PublishBook[]> {
     version: 1,
     books: [],
   });
-  return file.books ?? [];
+  return (file.books ?? []).map(normalizeBook);
 }
 
 export async function saveLibrary(books: PublishBook[]): Promise<void> {
@@ -116,6 +116,25 @@ export function buildBookFromProject(input: {
     lastLocalEditAt: null,
     dropReason: null,
     updatedAt: now,
+    isPlaceholder: false,
+    blurb: '',
+  };
+}
+
+/** 兼容旧 library 缺字段 */
+export function normalizeBook(raw: PublishBook): PublishBook {
+  return {
+    ...raw,
+    isPlaceholder: Boolean(raw.isPlaceholder) || String(raw.path || '').startsWith('placeholder://'),
+    blurb: raw.blurb ?? '',
+  };
+}
+
+export function normalizeAccount(raw: PublishAccount): PublishAccount {
+  return {
+    ...raw,
+    coldUntil: raw.coldUntil ?? null,
+    coldMaxOpensPerMonth: raw.coldMaxOpensPerMonth ?? 1,
   };
 }
 

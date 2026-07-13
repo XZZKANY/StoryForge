@@ -24,6 +24,8 @@ function book(overrides: Partial<PublishBook> = {}): PublishBook {
     lastLocalEditAt: null,
     dropReason: null,
     updatedAt: '2026-07-13T10:00:00.000Z',
+    isPlaceholder: false,
+    blurb: '',
     ...overrides,
   };
 }

@@ -57,7 +57,7 @@ export function bookToProjectPublish(
     dropReason: book.dropReason,
     openPackGeneratedAt: extras?.openPackGeneratedAt ?? null,
     updatedAt: book.updatedAt,
-    meta: extras?.meta ?? { blurb: '', tags: [] },
+    meta: extras?.meta ?? { blurb: book.blurb ?? '', tags: [] },
     checklist: extras?.checklist ?? {
       titleOk: Boolean(book.title?.trim()),
       blurbOk: false,
@@ -92,6 +92,8 @@ export function mergeProjectIntoBook(
     openedAt: project.openedAt,
     dropReason: project.dropReason,
     updatedAt: project.updatedAt || book.updatedAt,
+    blurb: project.meta?.blurb ?? book.blurb ?? '',
+    isPlaceholder: false,
   };
 }
 

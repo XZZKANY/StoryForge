@@ -23,6 +23,10 @@ export type PublishAccount = {
   riskNote: string;
   color: string;
   priority: number;
+  /** 冷号观察截止日 YYYY-MM-DD；空=非冷号 */
+  coldUntil: string | null;
+  /** 观察期内月开上限（默认 1） */
+  coldMaxOpensPerMonth: number;
 };
 
 export type PublishBook = {
@@ -41,6 +45,9 @@ export type PublishBook = {
   lastLocalEditAt: string | null;
   dropReason: DropReason | null;
   updatedAt: string;
+  /** 空位占坑：尚无真实项目目录 */
+  isPlaceholder: boolean;
+  blurb: string;
 };
 
 export type PublishSettings = {
@@ -57,6 +64,10 @@ export type PublishSettings = {
   minChaptersForReady: number;
   minCharsForReady: number;
   spareWarnIfBelow: number;
+  /** 冷号默认月开上限 */
+  defaultColdMaxOpensPerMonth: number;
+  /** 简介相似度告警阈值 0–1 */
+  blurbSimilarityWarnAt: number;
 };
 
 export type QuotaReservation = {
@@ -124,6 +135,8 @@ export const DEFAULT_PUBLISH_SETTINGS: PublishSettings = {
   minChaptersForReady: 3,
   minCharsForReady: 10000,
   spareWarnIfBelow: 3,
+  defaultColdMaxOpensPerMonth: 1,
+  blurbSimilarityWarnAt: 0.72,
 };
 
 export const PIPELINE_STATUSES: PipelineStatus[] = [

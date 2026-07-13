@@ -4,3 +4,5 @@ export * from './quota';
 export * from './survival';
 export * from './ready-score';
 export * from './auto-assign';
+export * from './slots';
+export * from './similarity';

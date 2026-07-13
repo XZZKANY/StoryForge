@@ -6,7 +6,8 @@
 | 文档 | 层级 | 说明 |
 | --- | --- | --- |
 | **`master-plan.md`** | **总计划 / 宪法** | 战略蓝图；§10 已清空 |
-| **`phase1-prd.md`** | **Phase 1 切片 PRD** | 管理面板 + 存活最小集 + L0/L1；已确认全做 |
+| **`phase1-prd.md`** | **Phase 1 切片 PRD** | 管理面板 + 存活最小集 + L0/L1；已交付 |
+| **`phase2-prd.md`** | **Phase 2 切片 PRD** | 空位占坑 / 冷号 / 去同质 / Ready 软门 |
 | `README.md` | 本索引 | 入口 |
 
 代码落点：`apps/desktop/frontend/src/features/publish/`  

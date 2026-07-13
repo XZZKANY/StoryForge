@@ -1,31 +1,24 @@
-# 验证报告：Publish Cockpit Phase 1（收口）
+# 验证报告：Publish Fleet Phase 2
 
 时间：2026-07-13  
 分支：`feat/publish-cockpit-phase1`  
-任务：`.trellis/tasks/07-13-publish-cockpit-phase1/`  
-文档：`docs/internal/publish-fleet/`
+任务：`.trellis/tasks/07-13-publish-fleet-phase2/`
 
 ## 已执行
 
 | 命令 | 结果 |
 | --- | --- |
 | `npm --prefix apps/desktop/frontend run typecheck` | 通过 |
-| `npm --prefix apps/desktop/frontend run test -- tests/publish-model.test.ts tests/publish-sync.test.ts` | 9/9 通过 |
+| `npm --prefix apps/desktop/frontend run test -- tests/publish-model.test.ts tests/publish-sync.test.ts` | 13/13 通过 |
 
-## 收口交付
+## Phase2 交付
 
-- `publish.json` 双向同步：`storage/project-publish.ts`；`saveLibrary` 写回项目；`loadLibraryMerged` 合并较新项目字段
-- Ready 扫描：`storage/ready-scan.ts`；面板「刷新 Ready」+ 命令 `Publish: 刷新 Ready 扫描`
-- 命令总线：`commands.ts` + CommandPalette 全套 Publish 命令 + App `handlePublishCommand`
-- 测试：`publish-sync.test.ts`（merge / bookToProjectPublish）
+- 空位占坑：`createPlaceholderBook` / 绑定当前项目 / 流水线 UI
+- 冷号：`coldUntil` + `coldMaxOpensPerMonth`；指派热号优先、额度限载
+- Ready 软门：低分/空位应用指派时确认
+- 简介去同质：生成作业包前 Jaccard 提示
+- 文档：`docs/internal/publish-fleet/phase2-prd.md`
 
-## 仍未验证
+## 红线
 
-- 真机 Tauri 端到端（入库→指派→作业包→确认已开→止损→校准→publish.json 落盘）
-- Ready 扫描在真实大目录性能
-- 全量 frontend test / `pnpm lint`
-- 网格月历、Kanban 拖拽（列表版已满足经营闭环）
-
-## 红线自检
-
-- 无 OAuth / 番茄登录 / L2–L4 / 反检测代码路径
+- 仍无 OAuth / L2–L4 / 反检测

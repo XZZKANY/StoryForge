@@ -5,8 +5,13 @@ import type {
   PublishBook,
   PublishSettings,
 } from './types';
-import { remainingForAccount, upsertReservation } from './quota';
-import { canScheduleOnDate, isAccountAssignable, weekKey } from './survival';
+import { isAccountCold, remainingForAccount, upsertReservation } from './quota';
+import {
+  canScheduleOnDate,
+  isAccountAssignable,
+  scheduleReadyWarning,
+  weekKey,
+} from './survival';
 
 function addDays(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T12:00:00Z`);
@@ -66,14 +71,24 @@ export function autoAssignReadyBooks(input: AutoAssignInput): AutoAssignResult {
   let lastAccountId: string | null = null;
 
   for (const book of candidates) {
+    const readyWarn = scheduleReadyWarning(book, settings.readyScoreThreshold);
+    // 空位/低 Ready 仍可指派，但进入 blockers 旁路提示（不硬阻断，弱耦合）
+    if (readyWarn.warn && book.isPlaceholder) {
+      blockers.push({ projectKey: book.projectKey, reason: readyWarn.reason });
+      continue;
+    }
+
     const assignable = accounts
       .filter(isAccountAssignable)
       .map((account) => ({
         account,
-        remaining: remainingForAccount(account, quota),
+        remaining: remainingForAccount(account, quota, windowStart),
+        cold: isAccountCold(account, windowStart),
       }))
       .filter((x) => x.remaining > 0)
       .sort((a, b) => {
+        // 热号优先于冷号
+        if (a.cold !== b.cold) return a.cold ? 1 : -1;
         if (b.remaining !== a.remaining) return b.remaining - a.remaining;
         if (b.account.priority !== a.account.priority) {
           return b.account.priority - a.account.priority;
@@ -82,7 +97,7 @@ export function autoAssignReadyBooks(input: AutoAssignInput): AutoAssignResult {
       });
 
     if (assignable.length === 0) {
-      blockers.push({ projectKey: book.projectKey, reason: '无可用额度账号' });
+      blockers.push({ projectKey: book.projectKey, reason: '无可用额度账号（含冷号限载）' });
       continue;
     }
 

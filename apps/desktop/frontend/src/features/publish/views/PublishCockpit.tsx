@@ -2,13 +2,18 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   DEFAULT_PUBLISH_SETTINGS,
   autoAssignReadyBooks,
+  bindPlaceholderToProject,
   calibrateOpened,
   canScheduleOnDate,
   canTransition,
   capacitySnapshot,
+  createPlaceholderBook,
   emptyMonthQuota,
+  findNearBlurbs,
+  isPlaceholderBook,
   markOpenedInQuota,
   remainingForAccount,
+  scheduleReadyWarning,
   targetGap,
   upsertReservation,
   type MonthQuota,
@@ -61,6 +66,8 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [assignPreview, setAssignPreview] = useState<string>('');
   const [newPenName, setNewPenName] = useState('');
+  const [slotTitle, setSlotTitle] = useState('');
+  const [slotDate, setSlotDate] = useState('');
 
   const flash = useCallback((text: string) => {
     setMessage(text);
@@ -111,6 +118,54 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
     flash(`已加入发布库：${title}`);
   };
 
+  const handleCreateSlot = async () => {
+    const title = slotTitle.trim() || `坑位 ${today}`;
+    const slot = createPlaceholderBook({
+      title,
+      planOpenDate: slotDate || null,
+    });
+    const next = await upsertBookInLibrary(slot);
+    setBooks(next);
+    setSlotTitle('');
+    flash(`已占坑：${slot.title}`);
+  };
+
+  const handleBindSlot = async (projectKey: string) => {
+    if (!projectPath) {
+      flash('请先打开要绑定的项目');
+      return;
+    }
+    const b = books.find((x) => x.projectKey === projectKey);
+    if (!b || !isPlaceholderBook(b)) {
+      flash('不是空位');
+      return;
+    }
+    const bound = bindPlaceholderToProject(
+      b,
+      projectPath,
+      projectBasename(projectPath) || undefined,
+    );
+    const without = books.filter((x) => x.projectKey !== projectKey);
+    const next = [...without, bound];
+    await saveLibrary(next);
+    setBooks(next);
+    flash(`空位已绑定：${bound.title}`);
+  };
+
+  const warnBlurbIfNear = (book: PublishBook): string | null => {
+    const text = book.blurb?.trim();
+    if (!text) return null;
+    const hits = findNearBlurbs(
+      text,
+      books.map((b) => ({ projectKey: b.projectKey, title: b.title, blurb: b.blurb || '' })),
+      settings.blurbSimilarityWarnAt,
+      book.projectKey,
+    );
+    if (hits.length === 0) return null;
+    const top = hits[0];
+    return `简介与「${top.otherTitle}」过近（${Math.round(top.score * 100)}%）`;
+  };
+
   const refreshReadyScores = useCallback(async () => {
     if (books.length === 0) {
       flash('发布库为空');
@@ -119,6 +174,10 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
     flash('正在扫描 Ready…');
     const next: PublishBook[] = [];
     for (const b of books) {
+      if (isPlaceholderBook(b)) {
+        next.push(b);
+        continue;
+      }
       try {
         const scan = await scanProjectReady(b.path, b, settings);
         next.push({
@@ -148,6 +207,8 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
       riskNote: '',
       color: '#6b8afd',
       priority: 0,
+      coldUntil: null,
+      coldMaxOpensPerMonth: settings.defaultColdMaxOpensPerMonth,
     };
     const next = [...accounts, acc];
     await saveAccounts(next);
@@ -167,6 +228,26 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
     );
     await saveAccounts(next);
     setAccounts(next);
+  };
+
+  const toggleCold = async (id: string) => {
+    const until = new Date();
+    until.setUTCDate(until.getUTCDate() + 30);
+    const coldUntil = until.toISOString().slice(0, 10);
+    const next = accounts.map((a) => {
+      if (a.id !== id) return a;
+      if (a.coldUntil && a.coldUntil >= today) {
+        return { ...a, coldUntil: null };
+      }
+      return {
+        ...a,
+        coldUntil,
+        coldMaxOpensPerMonth: a.coldMaxOpensPerMonth || settings.defaultColdMaxOpensPerMonth,
+      };
+    });
+    await saveAccounts(next);
+    setAccounts(next);
+    flash('已更新冷号状态');
   };
 
   const runAutoAssign = () => {
@@ -195,6 +276,17 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
     if (result.suggestions.length === 0) {
       flash('没有可应用的指派');
       return;
+    }
+    const lowReady = result.suggestions.filter((s) => {
+      const b = books.find((x) => x.projectKey === s.projectKey);
+      if (!b) return false;
+      return scheduleReadyWarning(b, settings.readyScoreThreshold).warn;
+    });
+    if (lowReady.length > 0) {
+      const ok = window.confirm(
+        `${lowReady.length} 本 Ready 偏低或为空位，仍强制应用指派？`,
+      );
+      if (!ok) return;
     }
     let nextQuota = quota;
     const nextBooks = books.map((b) => {
@@ -259,6 +351,12 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
   const handleGeneratePack = async (projectKey: string) => {
     const b = books.find((x) => x.projectKey === projectKey);
     if (!b) return;
+    if (isPlaceholderBook(b)) {
+      flash('空位请先绑定真实项目再生成作业包');
+      return;
+    }
+    const near = warnBlurbIfNear(b);
+    if (near && !window.confirm(`${near}\n仍生成作业包？`)) return;
     const root = projectPath && normalizeKey(projectPath) === b.projectKey ? projectPath : b.path;
     try {
       const pen =
@@ -267,7 +365,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
         projectRoot: root,
         book: b,
         penName: pen,
-        blurb: '',
+        blurb: b.blurb || '',
         tags: [],
       });
       flash(`作业包已生成：${dir}`);
@@ -398,6 +496,13 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
         <button
           type="button"
           className="rounded px-2 py-1 text-xs hover:bg-elevated"
+          onClick={() => void handleCreateSlot()}
+        >
+          空位占坑
+        </button>
+        <button
+          type="button"
+          className="rounded px-2 py-1 text-xs hover:bg-elevated"
           onClick={() => void refreshReadyScores()}
         >
           刷新 Ready
@@ -491,8 +596,29 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
 
         {tab === 'pipeline' && (
           <section className="space-y-2">
+            <div className="flex flex-wrap gap-2 rounded border border-border p-2 text-xs">
+              <input
+                className="min-w-[8rem] flex-1 rounded border border-border bg-background px-2 py-1"
+                placeholder="空位标题"
+                value={slotTitle}
+                onChange={(e) => setSlotTitle(e.target.value)}
+              />
+              <input
+                type="date"
+                className="rounded border border-border bg-background px-1 py-1"
+                value={slotDate}
+                onChange={(e) => setSlotDate(e.target.value)}
+              />
+              <button
+                type="button"
+                className="rounded bg-elevated px-2 py-1"
+                onClick={() => void handleCreateSlot()}
+              >
+                创建空位
+              </button>
+            </div>
             {books.length === 0 ? (
-              <Empty>发布库为空。打开项目后点「加入当前项目」。</Empty>
+              <Empty>发布库为空。打开项目后点「加入当前项目」，或创建空位占坑。</Empty>
             ) : (
               books.map((b) => (
                 <div
@@ -501,6 +627,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                 >
                   <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] uppercase">
                     {b.status}
+                    {isPlaceholderBook(b) ? ' · 空位' : ''}
                   </span>
                   <span className="font-medium">{b.title}</span>
                   <span className="text-xs text-subtle">
@@ -508,6 +635,15 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                     {b.readyConfirmed ? ' · 已放行' : ''}
                   </span>
                   <div className="flex-1" />
+                  {isPlaceholderBook(b) && (
+                    <button
+                      type="button"
+                      className="rounded px-1.5 py-0.5 text-xs hover:bg-elevated"
+                      onClick={() => void handleBindSlot(b.projectKey)}
+                    >
+                      绑定当前项目
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="rounded px-1.5 py-0.5 text-xs hover:bg-elevated"
@@ -659,7 +795,7 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
               >
                 <span className="font-medium">{a.penName}</span>
                 <span className="text-subtle">limit {a.monthlyOpenLimit}</span>
-                <span className="text-subtle">剩余 {remainingForAccount(a, quota)}</span>
+                <span className="text-subtle">剩余 {remainingForAccount(a, quota, today)}</span>
                 <span
                   className={
                     a.riskStatus === 'blocked' ? 'text-red-400' : 'text-subtle'
@@ -667,6 +803,9 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                 >
                   {a.riskStatus}
                 </span>
+                {a.coldUntil && a.coldUntil >= today && (
+                  <span className="text-amber-400">冷号→{a.coldUntil}</span>
+                )}
                 <label className="flex items-center gap-1 text-subtle">
                   校准已开
                   <input
@@ -691,6 +830,13 @@ export function PublishCockpit({ projectPath, onClose }: PublishCockpitProps) {
                   />
                 </label>
                 <div className="flex-1" />
+                <button
+                  type="button"
+                  className="rounded px-2 py-0.5 hover:bg-elevated"
+                  onClick={() => void toggleCold(a.id)}
+                >
+                  {a.coldUntil && a.coldUntil >= today ? '解除冷号' : '标冷号30天'}
+                </button>
                 <button
                   type="button"
                   className="rounded px-2 py-0.5 hover:bg-elevated"

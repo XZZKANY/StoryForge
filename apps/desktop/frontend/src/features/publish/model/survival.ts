@@ -61,6 +61,31 @@ export function isAccountAssignable(account: PublishAccount): boolean {
   return account.active && account.riskStatus !== 'blocked';
 }
 
+export type ScheduleReadyWarn =
+  | { warn: false }
+  | { warn: true; reason: string };
+
+/** 低 Ready 进 scheduled 软门（可强制） */
+export function scheduleReadyWarning(
+  book: Pick<PublishBook, 'readyScore' | 'readyConfirmed' | 'isPlaceholder'>,
+  threshold: number,
+): ScheduleReadyWarn {
+  if (book.isPlaceholder) {
+    return { warn: true, reason: '空位尚未绑定真实项目' };
+  }
+  if (book.readyConfirmed) return { warn: false };
+  if (book.readyScore < threshold) {
+    return {
+      warn: true,
+      reason: `Ready ${book.readyScore} < 阈值 ${threshold}（可强制继续）`,
+    };
+  }
+  return { warn: false };
+}
+
+// 冷号 helpers 在 quota.ts，避免与 theoryCapacity 循环依赖
+export { isAccountCold, effectiveMonthlyOpenLimit } from './quota';
+
 export type CapacitySnapshot = {
   theory: number;
   spare: number;

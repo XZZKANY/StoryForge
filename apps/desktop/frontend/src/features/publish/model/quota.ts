@@ -1,5 +1,25 @@
 import type { MonthQuota, PublishAccount, PublishBook, PublishSettings } from './types';
 
+/** 冷号：coldUntil 存在且 >= asOfDate */
+export function isAccountCold(
+  account: Pick<PublishAccount, 'coldUntil'>,
+  asOfDate: string,
+): boolean {
+  if (!account.coldUntil) return false;
+  return account.coldUntil >= asOfDate;
+}
+
+/** 有效月开上限：冷号用 coldMaxOpensPerMonth */
+export function effectiveMonthlyOpenLimit(
+  account: PublishAccount,
+  asOfDate: string,
+): number {
+  if (isAccountCold(account, asOfDate)) {
+    return Math.min(account.monthlyOpenLimit, account.coldMaxOpensPerMonth);
+  }
+  return account.monthlyOpenLimit;
+}
+
 export function effectiveOpened(quota: MonthQuota, accountId: string): number {
   if (Object.prototype.hasOwnProperty.call(quota.calibratedOpenedByAccount, accountId)) {
     return Math.max(0, quota.calibratedOpenedByAccount[accountId] ?? 0);
@@ -14,16 +34,20 @@ export function reservedForAccount(quota: MonthQuota, accountId: string): number
 export function remainingForAccount(
   account: PublishAccount,
   quota: MonthQuota,
+  asOfDate?: string,
 ): number {
   const opened = effectiveOpened(quota, account.id);
   const reserved = reservedForAccount(quota, account.id);
-  return account.monthlyOpenLimit - opened - reserved;
+  const day = asOfDate ?? new Date().toISOString().slice(0, 10);
+  const limit = effectiveMonthlyOpenLimit(account, day);
+  return limit - opened - reserved;
 }
 
-export function theoryCapacity(accounts: PublishAccount[]): number {
+export function theoryCapacity(accounts: PublishAccount[], asOfDate?: string): number {
+  const day = asOfDate ?? new Date().toISOString().slice(0, 10);
   return accounts
     .filter((a) => a.active && a.riskStatus !== 'blocked')
-    .reduce((sum, a) => sum + a.monthlyOpenLimit, 0);
+    .reduce((sum, a) => sum + effectiveMonthlyOpenLimit(a, day), 0);
 }
 
 export function spareCapacity(
