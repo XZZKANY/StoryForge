@@ -4,6 +4,7 @@ export * from './model';
 export {
   emitPublishCommand,
   onPublishCommand,
+  buildPublishPaletteCommands,
   PUBLISH_COMMAND_TITLES,
   type PublishCommandType,
 } from './commands';

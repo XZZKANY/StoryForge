@@ -55,3 +55,31 @@ export const PUBLISH_COMMAND_TITLES: { type: PublishCommandType; title: string; 
     { type: 'platform-login', title: 'Publish: 跳转平台登录' },
     { type: 'open-author-home', title: 'Publish: 打开作者后台' },
   ];
+
+/** 供命令面板一次性注册；壳层不要再手写 Publish 命令列表。 */
+export function buildPublishPaletteCommands(handlers: {
+  onOpenPublish?: () => void;
+  onPublishCommand?: (type: string) => void;
+}): { id: string; title: string; hint?: string; run: () => void }[] {
+  const list: { id: string; title: string; hint?: string; run: () => void }[] = [];
+  if (handlers.onOpenPublish) {
+    list.push({
+      id: 'open-publish-cockpit',
+      title: 'Publish: 打开发行管理面板',
+      hint: '左侧发行',
+      run: handlers.onOpenPublish,
+    });
+  }
+  if (handlers.onPublishCommand) {
+    for (const item of PUBLISH_COMMAND_TITLES) {
+      if (item.type === 'open') continue;
+      list.push({
+        id: `publish-${item.type}`,
+        title: item.title,
+        hint: item.hint,
+        run: () => handlers.onPublishCommand?.(item.type),
+      });
+    }
+  }
+  return list;
+}

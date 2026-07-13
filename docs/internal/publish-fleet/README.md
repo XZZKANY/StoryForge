@@ -12,6 +12,6 @@
 | **`phase4-prd.md`** | **Phase 4 切片 PRD** | Platform Pack 接口 + fanqie/qidian 骨架 |
 | `README.md` | 本索引 | 入口 |
 
-代码落点：`apps/desktop/frontend/src/features/publish/`  
+代码落点：`apps/desktop/frontend/src/features/publish/`（见目录内 `STRUCTURE.md`）  
 **壳入口**：左侧活动栏 **发行**（`SidePanelView = publish`），不再占中栏整页。  
-命令面板 `Publish:*` 只负责切到左栏并发事件。
+命令面板经 `buildPublishPaletteCommands` 注册，只切左栏 + 发事件。
