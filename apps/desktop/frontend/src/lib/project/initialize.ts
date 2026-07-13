@@ -108,3 +108,45 @@ export async function createSampleStoryProject(parentPath: string): Promise<stri
 
   return projectPath;
 }
+
+/** Q1 发送即开书：从首句灵感推导一个文件系统安全的书名，非法字符剔除、截断，空则回落。 */
+export function deriveNewBookName(prompt: string): string {
+  const firstLine = (prompt.split('\n')[0] ?? '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return firstLine.slice(0, 16).trim() || '未命名新书';
+}
+
+async function resolveFreeChildPath(parentPath: string, name: string): Promise<string> {
+  const separator = parentPath.includes('\\') ? '\\' : '/';
+  const base = `${normalizeRoot(parentPath)}${separator}${name}`;
+  if (!(await TauriFileSystem.pathExists(base))) return base;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base}-${n}`;
+    if (!(await TauriFileSystem.pathExists(candidate))) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+/**
+ * Q1 发送即开书：在默认书库目录 <文档>/StoryForge/ 下自动建项目骨架，
+ * 把首句灵感落进 灵感.md，返回项目路径与种子文件路径。
+ * 建骨架是显式动作产物（作者主动开书），正文写回仍走 proposed patch——写回红线不破。
+ * 目录以后可迁（作者另存 / 打开其他目录）。
+ */
+export async function createNewBookProject(
+  prompt: string,
+): Promise<{ projectPath: string; seedFilePath: string }> {
+  const { documentDir } = await import('@tauri-apps/api/path');
+  const docs = normalizeRoot(await documentDir());
+  const separator = docs.includes('\\') ? '\\' : '/';
+  const booksRoot = `${docs}${separator}StoryForge`;
+  await TauriFileSystem.createDir(docs, booksRoot, true);
+  const projectPath = await resolveFreeChildPath(booksRoot, deriveNewBookName(prompt));
+  await TauriFileSystem.createDir(booksRoot, projectPath, true);
+  await initializeStoryProject(projectPath);
+  const seedFilePath = `${projectPath}${separator}灵感.md`;
+  await writeIfMissing(projectPath, seedFilePath, ['# 灵感', '', prompt.trim(), ''].join('\n'));
+  return { projectPath, seedFilePath };
+}

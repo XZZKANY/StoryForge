@@ -13,3 +13,14 @@ export const STORYFORGE_EDITOR_UNICODE_HIGHLIGHT: monaco.editor.IUnicodeHighligh
 export const STORYFORGE_EDITOR_FONT_GRID =
   '"Sarasa Mono SC", "等距更纱黑体 SC", "Sarasa Term SC", "Noto Sans Mono CJK SC", ' +
   '"LXGW WenKai Mono", "霞鹜文楷等宽", "Cascadia Code", Consolas, "Microsoft YaHei UI", monospace';
+
+// Q9 双轨「散文」：长文更舒适的比例字体（非等宽），Monaco 支持。格子对齐让位给阅读手感，
+// 作者可在状态栏「字体 · 格子/散文」间切换。
+export const STORYFORGE_EDITOR_FONT_PROSE =
+  '"Microsoft YaHei UI", "PingFang SC", "Source Han Sans SC", "Noto Sans SC", sans-serif';
+
+export type EditorFontMode = 'grid' | 'prose';
+
+export function resolveEditorFontFamily(mode: EditorFontMode): string {
+  return mode === 'prose' ? STORYFORGE_EDITOR_FONT_PROSE : STORYFORGE_EDITOR_FONT_GRID;
+}

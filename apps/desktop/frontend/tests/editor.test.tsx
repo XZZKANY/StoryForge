@@ -92,13 +92,11 @@ test('异步文件读取期间明确显示 loading，失败后显示错误而不
   assert.match(failed, /access denied/);
 });
 
-test('Canon derived 文件以只读 Monaco 打开且保存按钮禁用', () => {
+test('Canon derived 文件以只读 Monaco 打开（Q3a 后只读态由 data-read-only + Monaco 承载，只读徽章移到页签行）', () => {
   const html = renderEditor({
     filePath: 'D:\\Books\\雾港回声\\.storyforge\\canon\\derived\\dossier.md',
   });
   assert.match(html, /data-read-only="true"/);
-  assert.match(html, /只读派生文件/);
-  assert.match(html, /title="派生缓存为只读"/);
   assert.match(monacoEditorSource, /updateOptions\(\{ readOnly \}\)/);
 });
 
@@ -112,31 +110,13 @@ test('无项目时给出打开项目后的提示文案', () => {
   assert.match(html, /打开项目后即可开始编辑/);
 });
 
-test('顶部工具栏常驻历史按钮与（传入回调时的）导出按钮', () => {
-  const withExport = renderEditor({ onExportCurrent: noop });
-  assert.match(withExport, /data-testid="editor-export-btn"/);
-  assert.match(withExport, /导出当前稿/);
-  assert.match(withExport, /data-testid="editor-history-btn"/);
-  assert.match(withExport, /查看版本记录/);
+// Q3a：导出/历史/保存等文件操作已从 Editor 自己的工具行移到 EditorTabs 的「…」菜单，
+// 事件通道（EXPORT_CURRENT_FILE / REQUEST_SAVE / 编辑器命令）保持不变。对应护栏见 editor-tabs.test.tsx。
 
-  const withoutExport = renderEditor({});
-  assert.equal(withoutExport.includes('editor-export-btn'), false);
-});
-
-test('源文本保留 e2e 规格依赖的关键符号（拆分 C3 前移护栏）', () => {
-  // 注意：ide-shell.spec.ts 断言 editor-panel 在 Editor.tsx 中，但实际位于 App.tsx。
-  // 此处仅断言 Editor.tsx 实际存在的标记，e2e spec 的 bug 需单独修复。
-  const markers = [
-    'recordRevisionLoop',
-    'emitAuthorLoopResult',
-    'editor-save-btn',
-    'editor-export-btn',
-  ];
+test('源文本保留作者回环关键符号（拆分 C3 前移护栏）', () => {
+  const markers = ['recordRevisionLoop', 'emitAuthorLoopResult'];
   for (const marker of markers) {
-    assert.ok(
-      editorSource.includes(marker),
-      `Editor.tsx 源文本缺失关键符号：${marker}（e2e 规格 ide-judge-repair 依赖此引用）`,
-    );
+    assert.ok(editorSource.includes(marker), `Editor.tsx 源文本缺失关键符号：${marker}`);
   }
 });
 
@@ -150,13 +130,7 @@ test('切换文件时取消待执行 autosave，避免旧缓冲写入新路径',
 });
 
 test('源文本保留已知 data-testid 标记集合（拆分时壳层引用须留在壳层）', () => {
-  const knownTestIds = [
-    'editor-root',
-    'editor-empty',
-    'editor-export-btn',
-    'editor-history-btn',
-    'editor-container',
-  ];
+  const knownTestIds = ['editor-root', 'editor-empty', 'editor-container'];
   for (const testId of knownTestIds) {
     assert.ok(
       editorSource.includes(`data-testid="${testId}"`),

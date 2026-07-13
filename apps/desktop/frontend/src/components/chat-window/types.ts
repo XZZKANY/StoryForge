@@ -5,6 +5,7 @@ import type {
 } from '../../lib/api-client';
 import type { LocalConversationAction } from '../../lib/local-conversation-action';
 import type { ContextBundle, SemanticFile } from '../../lib/project-context';
+import type { LayoutMode } from '../shell/useShellState';
 
 export type ChatWindowProps = {
   projectPath: string | null;
@@ -13,6 +14,9 @@ export type ChatWindowProps = {
   pendingInitialPrompt?: string | null;
   onPendingInitialPromptConsumed?: () => void;
   onAssistantSessionChange?: (assistantSessionId: number | null) => void;
+  // Q4 布局三态：对话头就地切换编辑/平衡/对话聚焦（右栏挂载时才需要）。
+  layoutMode?: LayoutMode;
+  onSetLayoutMode?: (mode: LayoutMode) => void;
 };
 
 export type Message = {

@@ -11,6 +11,7 @@ import { Editor } from './components/Editor';
 import { ChatWindow } from './components/ChatWindow';
 import { TauriFileSystem, FS_MUTATION_EVENT, invalidateFileSystemCache } from './lib/tauri-fs';
 import {
+  createNewBookProject,
   createSampleStoryProject,
   initializeStoryProject,
   relativePathInsideProject,
@@ -20,9 +21,11 @@ import { registerSmokeFileLoader, registerSmokeProjectLoader } from './lib/smoke
 import { executeIdeCommand } from './lib/api-client';
 import {
   APPLY_FILE_SUGGESTION_EVENT,
+  emitEditorCommand,
   emitExportCurrentFile,
   flushActiveEditorToDisk,
 } from './lib/assistant-events';
+import { isReadOnlyDerivedProjectPath } from './lib/project/entry-visibility';
 import type { AssistantFileSuggestion } from './lib/assistant-suggestions';
 import {
   loadAppSettings,
@@ -236,29 +239,30 @@ export function App() {
     }
   }, [selectProjectSafely]);
 
-  const handleSelectProjectSession = useCallback(
-    async (path: string, assistantSessionId: number) => {
-      if (path !== activeProject && !(await selectProjectSafely(path))) return;
-      setActiveProjectAssistantSession(assistantSessionId, path);
-    },
-    [activeProject, selectProjectSafely, setActiveProjectAssistantSession],
-  );
-
-  const handleNewProjectSession = useCallback(
-    async (path: string) => {
-      if (path !== activeProject && !(await selectProjectSafely(path))) return;
-      setActiveProjectAssistantSession(null, path);
-    },
-    [activeProject, selectProjectSafely, setActiveProjectAssistantSession],
-  );
-
-  // 欢迎页首条输入：先记住 prompt，打开项目后由 ChatWindow 自动发出。
+  // Q1 发送即开书：默认书库目录 <文档>/StoryForge/ 自动建项目骨架 + 灵感.md，原地打开，
+  // 由 ChatWindow 自动发出首句。建骨架失败（非 Tauri / 权限 / 路径）时优雅回落到手选目录老路径，
+  // 不做无声吞错。写回红线不破：建骨架是显式开书动作产物，正文写回仍走 proposed patch。
   const handleWelcomeSend = useCallback(() => {
     const prompt = welcomeDraft.trim();
     if (!prompt) return;
-    setPendingWelcomePrompt(prompt);
-    void handleOpenProject();
-  }, [welcomeDraft, handleOpenProject]);
+    void (async () => {
+      if (!(await confirmDiscardFiles(openFiles, '开新书'))) return;
+      setPendingWelcomePrompt(prompt);
+      try {
+        const { projectPath, seedFilePath } = await createNewBookProject(prompt);
+        setOpenFiles([]);
+        setDirtyFiles(new Set());
+        setPreviewFile(null);
+        setSettingsVisible(false);
+        selectProject(projectPath);
+        setProjectRefreshVersion((version) => version + 1);
+        await openFile(seedFilePath);
+      } catch (error) {
+        console.error('发送即开书失败，回落到打开项目目录', error);
+        await handleOpenProject();
+      }
+    })();
+  }, [welcomeDraft, confirmDiscardFiles, openFiles, selectProject, openFile, handleOpenProject]);
 
   const handlePendingWelcomePromptConsumed = useCallback(() => {
     setPendingWelcomePrompt(null);
@@ -334,9 +338,33 @@ export function App() {
     [closeFile, confirmDiscardFiles, currentFile, handleFileSelect, openFiles],
   );
 
-  const handlePreviewClose = useCallback(async () => {
+  // Q3a「…」菜单：关闭全部 / 关闭其他页签（含预览页签）。dirty 文件先确认再丢弃。
+  const handleCloseAll = useCallback(async () => {
+    const openPaths = previewFile ? [...openFiles, previewFile] : openFiles;
+    if (!(await confirmDiscardFiles(openPaths, '关闭全部页签'))) return;
+    setOpenFiles([]);
     setPreviewFile(null);
-  }, []);
+    setDirtyFiles(new Set());
+    closeFile();
+  }, [closeFile, confirmDiscardFiles, openFiles, previewFile]);
+
+  const handleCloseOthers = useCallback(async () => {
+    const keep = displayedFile;
+    if (!keep) return;
+    const allOpen = previewFile ? [...openFiles, previewFile] : openFiles;
+    const others = allOpen.filter((path) => path !== keep);
+    if (others.length === 0) return;
+    if (!(await confirmDiscardFiles(others, '关闭其他页签'))) return;
+    setDirtyFiles((current) => {
+      const next = new Set(current);
+      for (const path of others) next.delete(path);
+      return next;
+    });
+    // keep 固定为唯一页签（无论它原本是固定还是预览）。
+    setOpenFiles([keep]);
+    setPreviewFile(null);
+    handleFileSelect(keep);
+  }, [confirmDiscardFiles, displayedFile, handleFileSelect, openFiles, previewFile]);
 
   const handleNewFile = useCallback(
     async (projectOverride?: string) => {
@@ -522,6 +550,14 @@ export function App() {
     setSettings((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
   }, []);
 
+  // Q9 双轨字体：格子（CJK 2:1 等宽，中英对齐）↔ 散文（比例字体，长文舒适）。
+  const toggleFontMode = useCallback(() => {
+    setSettings((prev) => ({
+      ...prev,
+      editorFontMode: prev.editorFontMode === 'prose' ? 'grid' : 'prose',
+    }));
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
@@ -531,8 +567,6 @@ export function App() {
         const viewMap: Record<string, SidePanelView> = {
           e: 'explorer',
           f: 'search',
-          c: 'sessions',
-          m: 'qa',
         };
         const view = viewMap[key];
         if (view) {
@@ -555,11 +589,16 @@ export function App() {
       } else if (key === ',') {
         e.preventDefault();
         void openSettings();
+      } else if (key === '1' || key === '2' || key === '3') {
+        // Q4 布局三态：编辑聚焦 / 平衡 / 对话聚焦。无项目时右栏不挂载，切了是空屏，故先守卫。
+        if (!activeProject) return;
+        e.preventDefault();
+        shell.setLayoutMode(key === '1' ? 'editor' : key === '2' ? 'balanced' : 'chat');
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openSettings, shell]);
+  }, [activeProject, openSettings, shell]);
 
   const { isDesktopRuntime, tauriMenuReady, tauriMenuError, smokeApiReady } = useTauriMenuBridge({
     onOpenProject: handleOpenProject,
@@ -594,6 +633,7 @@ export function App() {
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
       data-testid="desktop-shell"
       data-layout-mode={shell.view}
+      data-layout-focus={shell.layoutMode}
       data-tauri-runtime={isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={tauriMenuReady ? 'true' : 'false'}
       data-smoke-api-ready={smokeApiReady ? 'true' : 'false'}
@@ -612,9 +652,7 @@ export function App() {
             view={shell.view}
             sidebarHidden={shell.sidebarHidden}
             noProject={!projectOpen}
-            qaBadge={0}
             onSwitchView={shell.switchView}
-            onOpenPalette={() => setPalette('files')}
             onOpenSettings={() => void openSettings()}
           />
           {!shell.sidebarHidden && (
@@ -625,24 +663,21 @@ export function App() {
               currentFile={currentFile}
               previewFile={previewFile}
               projectRefreshVersion={projectRefreshVersion}
-              activeAssistantSessionId={
-                activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
-              }
               onSelectProject={(path) => void selectProjectSafely(path)}
               onRemoveProject={(path) => void removeProjectSafely(path)}
-              onSelectProjectSession={handleSelectProjectSession}
-              onNewProjectSession={handleNewProjectSession}
               onOpenProject={handleOpenProject}
               onNewFile={handleNewFile}
               onFileSelect={openFile}
               onFilePreview={previewFileOpen}
               onStartNewBook={handleStartNewBook}
-              onOpenObsPanel={() => setObsPanelOpen(true)}
             />
           )}
         </div>
 
-        <main className="flex min-w-0 flex-1 flex-col bg-background" data-testid="shell-center">
+        <main
+          className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
+          data-testid="shell-center"
+        >
           {centerHasTabs ? (
             <>
               <EditorTabs
@@ -652,6 +687,7 @@ export function App() {
                 dirtyFiles={dirtyFiles}
                 settingsOpen={settingsVisible}
                 activeTab={activeCenterTab}
+                activeReadOnly={displayedFile ? isReadOnlyDerivedProjectPath(displayedFile) : false}
                 onFocusFile={(path) => {
                   setSettingsVisible(false);
                   setPreviewFile(null);
@@ -666,6 +702,15 @@ export function App() {
                 onFocusSettings={() => void openSettings()}
                 onCloseFile={(path) => void handleFileClose(path)}
                 onCloseSettings={() => setSettingsVisible(false)}
+                onSaveActive={() => {
+                  if (displayedFile)
+                    void flushActiveEditorToDisk(displayedFile).catch(() => undefined);
+                }}
+                onToggleHistory={() => emitEditorCommand('toggle-history')}
+                onExportActive={() => emitExportCurrentFile()}
+                onToggleBranchView={() => emitEditorCommand('toggle-branch-view')}
+                onCloseOthers={() => void handleCloseOthers()}
+                onCloseAll={() => void handleCloseAll()}
               />
               <div className="min-h-0 flex-1 overflow-hidden">
                 {settingsVisible && (
@@ -684,19 +729,11 @@ export function App() {
                     projectPath={activeProject}
                     filePath={displayedFile}
                     editorFontSize={settings.editorFontSize}
+                    editorFontMode={settings.editorFontMode}
                     autoSave={settings.autoSave}
                     retainedFilePaths={retainedEditorFiles}
-                    onClose={
-                      displayedFile && displayedFile === previewFile
-                        ? () => void handlePreviewClose()
-                        : displayedFile
-                          ? () => void handleFileClose(displayedFile)
-                          : () => undefined
-                    }
                     onDirtyChange={handleEditorDirtyChange}
-                    onToggleSidebar={shell.toggleSidebar}
                     sidebarVisible={!shell.sidebarHidden}
-                    onExportCurrent={() => emitExportCurrentFile()}
                     dialogs={appDialog}
                   />
                 </section>
@@ -730,7 +767,7 @@ export function App() {
         </main>
 
         {projectOpen && (
-          <AssistantPanelFrame visible={rightPanelVisible}>
+          <AssistantPanelFrame visible={rightPanelVisible} wide={shell.layoutMode === 'chat'}>
             <ChatWindow
               projectPath={activeProject}
               currentFile={currentFile}
@@ -740,6 +777,8 @@ export function App() {
               pendingInitialPrompt={pendingWelcomePrompt}
               onPendingInitialPromptConsumed={handlePendingWelcomePromptConsumed}
               onAssistantSessionChange={setActiveProjectAssistantSession}
+              layoutMode={shell.layoutMode}
+              onSetLayoutMode={shell.setLayoutMode}
             />
           </AssistantPanelFrame>
         )}
@@ -749,8 +788,10 @@ export function App() {
         modelLabel={modelLabel}
         theme={settings.theme}
         projectOpen={projectOpen}
+        fontMode={settings.editorFontMode}
         obs={obs}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
+        onToggleFont={toggleFontMode}
         onToggleTheme={toggleTheme}
       />
 

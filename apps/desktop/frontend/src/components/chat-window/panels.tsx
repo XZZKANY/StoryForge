@@ -4,8 +4,17 @@ import {
   type ContextBundle,
   type SemanticFile,
 } from '../../lib/project-context';
+import type { AssistantSessionRecord } from '../../lib/api-client';
 import { AgentStepsPanel } from '../AgentStepsPanel';
-import { Plus } from '../icons/shell-icons';
+import {
+  ChevronDown,
+  Maximize2,
+  PanelRight,
+  PanelRightClose,
+  Plus,
+  Sparkles,
+} from '../icons/shell-icons';
+import type { LayoutMode } from '../shell/useShellState';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
 import type { AgentRunRecoveryDisplay } from './recovery';
@@ -13,14 +22,40 @@ import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection }
 
 export function ConversationHeader({
   title,
+  sessions,
+  activeSessionId = null,
+  onSelectSession,
   onNewSession,
+  layoutMode,
+  onSetLayoutMode,
 }: {
   title: string;
+  sessions?: AssistantSessionRecord[];
+  activeSessionId?: number | null;
+  onSelectSession?: (id: number) => void;
   onNewSession?: () => void;
+  layoutMode?: LayoutMode;
+  onSetLayoutMode?: (mode: LayoutMode) => void;
 }) {
+  // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
+  // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
+  const [menuOpen, setMenuOpen] = useState(false);
+  const sessionList = sessions ?? [];
   return (
-    <header className="flex h-10 flex-shrink-0 items-center gap-3 border-b border-border bg-panel px-4">
-      <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{title}</h1>
+    <header className="relative flex h-10 flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2">
+      <button
+        type="button"
+        className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-elevated"
+        onClick={() => setMenuOpen((open) => !open)}
+        data-testid="conversation-session-switch"
+        title="本项目的会话（会话按项目划分，不再放全局左栏）"
+      >
+        <Sparkles size={13} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+          {title}
+        </span>
+        <ChevronDown size={13} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
+      </button>
       {onNewSession && (
         <button
           type="button"
@@ -31,6 +66,96 @@ export function ConversationHeader({
         >
           <Plus size={15} strokeWidth={1.7} />
         </button>
+      )}
+      {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
+      {onSetLayoutMode &&
+        (layoutMode === 'chat' ? (
+          <button
+            type="button"
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+            title="回到编辑 · Ctrl+2"
+            onClick={() => onSetLayoutMode('balanced')}
+            data-testid="conversation-back-to-balanced"
+          >
+            <PanelRight size={15} strokeWidth={1.6} />
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+              title="对话占满中右 · Ctrl+3"
+              onClick={() => onSetLayoutMode('chat')}
+              data-testid="conversation-expand-chat"
+            >
+              <Maximize2 size={14} strokeWidth={1.6} />
+            </button>
+            <button
+              type="button"
+              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+              title="收起对话栏，编辑占满 · Ctrl+1"
+              onClick={() => onSetLayoutMode('editor')}
+              data-testid="conversation-collapse-right"
+            >
+              <PanelRightClose size={15} strokeWidth={1.6} />
+            </button>
+          </>
+        ))}
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+          <div className="absolute left-2 right-2 top-10 z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+            <div className="px-2 py-1 text-[10.5px] uppercase tracking-[0.08em] text-subtle">
+              本项目的会话
+            </div>
+            {sessionList.length === 0 ? (
+              <div className="px-2 py-1.5 text-[12px] text-subtle">暂无历史会话</div>
+            ) : (
+              sessionList.map((session) => {
+                const active = session.id === activeSessionId;
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] hover:bg-elevated ${
+                      active ? 'text-foreground' : 'text-muted hover:text-foreground'
+                    }`}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onSelectSession?.(session.id);
+                    }}
+                    title={`会话 #${session.id} · ${session.updated_at}`}
+                    data-testid="session-item"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {active ? '✓ ' : ''}
+                      {session.title.replace(/^IDE Agent:\s*/, '') || `会话 #${session.id}`}
+                    </span>
+                    <span className="flex-shrink-0 text-[10.5px] text-subtle">
+                      {session.updated_at}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+            {onNewSession && (
+              <>
+                <div className="mx-1.5 my-1 h-px bg-border" />
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onNewSession();
+                  }}
+                >
+                  <Plus size={13} strokeWidth={1.7} />
+                  新建会话
+                </button>
+              </>
+            )}
+          </div>
+        </>
       )}
     </header>
   );

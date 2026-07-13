@@ -7,9 +7,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import * as monaco from 'monaco-editor';
 import {
   EXPORT_CURRENT_FILE_EVENT,
+  REQUEST_EDITOR_COMMAND_EVENT,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
+  type EditorCommand,
   type SaveActiveFileDoneDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
@@ -22,6 +24,7 @@ import { type GraphNode } from '../lib/branches';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
 import { useEditorFileLoader } from './editor/useEditorFileLoader';
 import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor';
+import { resolveEditorFontFamily, type EditorFontMode } from './editor/options';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
@@ -36,12 +39,9 @@ function normalizeEol(text: string): string {
   return text.replace(/\r\n/g, '\n');
 }
 
-const RIGHT_VIEWS = [
-  { id: 'files', label: '文件', icon: '▤', hint: 'Ctrl+P' },
-  { id: 'branch', label: '剧情分支画布', icon: '⑂', hint: '' },
-] as const;
-
-type RightViewId = (typeof RIGHT_VIEWS)[number]['id'];
+// Q3a：右侧视图（正文 / 剧情分支画布占位）的切换从编辑区工具行的下拉挪到 EditorTabs「…」菜单，
+// 经编辑器命令事件驱动；这里只保留视图 id 类型与按项目持久化。
+type RightViewId = 'files' | 'branch';
 
 function readRightView(key: string): RightViewId {
   try {
@@ -55,12 +55,10 @@ type EditorProps = {
   projectPath: string | null;
   filePath: string | null;
   editorFontSize?: number;
+  editorFontMode?: EditorFontMode;
   autoSave?: boolean;
   retainedFilePaths?: string[];
-  onClose: () => void;
-  onToggleSidebar?: () => void;
   sidebarVisible?: boolean;
-  onExportCurrent?: () => void;
   onDirtyChange?: (filePath: string | null, dirty: boolean) => void;
   dialogs: AppDialogApi;
 };
@@ -77,7 +75,7 @@ export function EditorLoadStatus({
   if (!filePath || loadedFilePath === filePath) return null;
   return (
     <div
-      className="absolute inset-x-0 bottom-0 top-[var(--sf-bar-height)] z-20 flex items-center justify-center bg-background px-6 text-center"
+      className="absolute inset-x-0 bottom-0 top-0 z-20 flex items-center justify-center bg-background px-6 text-center"
       data-testid={loadError ? 'editor-load-error' : 'editor-loading'}
     >
       <div>
@@ -94,12 +92,10 @@ export function Editor({
   projectPath,
   filePath,
   editorFontSize = 14,
+  editorFontMode = 'grid',
   autoSave = false,
   retainedFilePaths = [],
-  onClose,
-  onToggleSidebar,
   sidebarVisible,
-  onExportCurrent,
   onDirtyChange,
   dialogs,
 }: EditorProps) {
@@ -110,9 +106,7 @@ export function Editor({
   const [showHistory, setShowHistory] = useState(false);
   const rightViewStorageKey = `storyforge:right-view:${projectPath ?? '__global__'}`;
   const [rightView, setRightView] = useState<RightViewId>(() => readRightView(rightViewStorageKey));
-  const [viewPickerOpen, setViewPickerOpen] = useState(false);
   const readOnly = isReadOnlyDerivedProjectPath(filePath);
-  const rightViewLabel = RIGHT_VIEWS.find((view) => view.id === rightView)?.label ?? '文件';
 
   useEffect(() => {
     // 按项目记住上次的右侧视图选择：换项目时恢复，不再要求重新选择。
@@ -120,15 +114,6 @@ export function Editor({
     setRightView(readRightView(rightViewStorageKey));
   }, [rightViewStorageKey]);
 
-  const selectRightView = (id: RightViewId) => {
-    setRightView(id);
-    try {
-      localStorage.setItem(rightViewStorageKey, id);
-    } catch {
-      // localStorage 不可用时忽略持久化
-    }
-    setViewPickerOpen(false);
-  };
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
@@ -291,6 +276,7 @@ export function Editor({
     loadedFilePath,
     loadedContent,
     editorFontSize,
+    editorFontFamily: resolveEditorFontFamily(editorFontMode),
     filePathRef,
     isDirtyRef,
     autoSaveRef,
@@ -394,6 +380,29 @@ export function Editor({
     return () => window.removeEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
   }, []);
 
+  // Q3a：编辑区工具行已收进 EditorTabs「…」菜单，历史/分支视图切换改由命令事件驱动
+  // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，均沿用既有事件通道）。
+  useEffect(() => {
+    const onEditorCommand = (event: Event) => {
+      const command = (event as CustomEvent<{ command: EditorCommand }>).detail?.command;
+      if (command === 'toggle-history') {
+        setShowHistory((visible) => !visible);
+      } else if (command === 'toggle-branch-view') {
+        setRightView((current) => {
+          const next = current === 'branch' ? 'files' : 'branch';
+          try {
+            localStorage.setItem(rightViewStorageKey, next);
+          } catch {
+            // localStorage 不可用时忽略持久化
+          }
+          return next;
+        });
+      }
+    };
+    window.addEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
+    return () => window.removeEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
+  }, [rightViewStorageKey]);
+
   // 恢复某个历史版本到编辑器（不立即写盘，标记为脏，由用户确认保存）
   const handleRestore = (content: string) => {
     if (!editorRef.current) return;
@@ -428,10 +437,6 @@ export function Editor({
     await handleCheckoutNode(node);
   };
 
-  const handleClose = () => {
-    onClose();
-  };
-
   const emptyStateHint = !projectPath
     ? '打开项目后即可开始编辑'
     : sidebarVisible === false
@@ -454,7 +459,7 @@ export function Editor({
     >
       {rightView === 'files' && !filePath && (
         <div
-          className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background text-muted"
+          className="absolute inset-x-0 top-0 bottom-0 z-20 flex items-center justify-center bg-background text-muted"
           data-testid="editor-empty"
         >
           <div className="text-center">
@@ -473,7 +478,7 @@ export function Editor({
 
       {rightView === 'branch' && (
         <div
-          className="absolute inset-x-0 top-[var(--sf-bar-height)] bottom-0 z-20 flex items-center justify-center bg-background px-6 text-center text-sm leading-relaxed text-subtle"
+          className="absolute inset-x-0 top-0 bottom-0 z-20 flex items-center justify-center bg-background px-6 text-center text-sm leading-relaxed text-subtle"
           data-testid="branch-canvas-placeholder"
         >
           剧情分支画布即将接入：保存修改后会记录版本，可在此开分支、对比平行写法。
@@ -487,114 +492,6 @@ export function Editor({
           loadError={loadError}
         />
       )}
-
-      {/* 顶部工具栏 */}
-      <div className="sf-panel-header border-border bg-panel">
-        <div className="flex min-w-[96px] flex-1 items-center gap-2 overflow-hidden">
-          <div className="relative flex-shrink-0">
-            <button
-              type="button"
-              data-testid="right-view-picker"
-              onClick={() => setViewPickerOpen((open) => !open)}
-              className="sf-toolbar-button"
-              title="切换右侧视图"
-              aria-expanded={viewPickerOpen}
-            >
-              {rightViewLabel} ⌄
-            </button>
-            {viewPickerOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setViewPickerOpen(false)} />
-                <div
-                  className="absolute left-0 top-9 z-20 w-56 overflow-hidden rounded-md border border-border bg-panel py-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-                  data-testid="right-view-menu"
-                >
-                  {RIGHT_VIEWS.map((view) => (
-                    <button
-                      key={view.id}
-                      type="button"
-                      onClick={() => selectRightView(view.id)}
-                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated hover:text-foreground ${
-                        rightView === view.id ? 'text-foreground' : 'text-muted'
-                      }`}
-                    >
-                      <span className="w-4 flex-shrink-0 text-center text-subtle">{view.icon}</span>
-                      <span className="min-w-0 flex-1 truncate">{view.label}</span>
-                      {view.hint && <span className="text-xs text-subtle">{view.hint}</span>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          {rightView === 'files' && (
-            <span className="sf-topbar-title" title={filePath ?? undefined}>
-              {filePath ? filePath.split(/[/\\]/).pop() : '未打开文件'}
-            </span>
-          )}
-          {rightView === 'files' && isDirty && (
-            <span className="text-warning text-lg leading-none" title="未保存的修改">
-              ●
-            </span>
-          )}
-          {rightView === 'files' && readOnly && (
-            <span className="text-[11px] text-subtle" title="派生缓存由 StoryForge 重建">
-              只读派生文件
-            </span>
-          )}
-        </div>
-        <div className="sf-topbar-actions">
-          {onExportCurrent && (
-            <button
-              onClick={handleExport}
-              data-testid="editor-export-btn"
-              title="导出当前稿"
-              className="sf-toolbar-button"
-            >
-              导出
-            </button>
-          )}
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              data-testid="collapse-file-tree"
-              title={sidebarVisible ? '收起侧边栏' : '展开侧边栏'}
-              className={`sf-icon-button ${sidebarVisible ? '' : 'bg-foreground/10 text-foreground'}`}
-            >
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d={sidebarVisible ? 'M6 4l4 4-4 4V4z' : 'M10 4l-4 4 4 4V4z'} />
-              </svg>
-            </button>
-          )}
-          <button
-            data-testid="editor-history-btn"
-            onClick={() => setShowHistory((v) => !v)}
-            className="sf-toolbar-button"
-            title="查看版本记录"
-          >
-            历史
-          </button>
-          <button
-            id="editor-save-btn"
-            onClick={handleSave}
-            disabled={!isDirty || readOnly}
-            title={readOnly ? '派生缓存为只读' : '保存 (Ctrl+S)'}
-            className="sf-toolbar-button disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent disabled:hover:text-muted"
-          >
-            保存 (Ctrl+S)
-          </button>
-          <button
-            id="editor-close-btn"
-            onClick={handleClose}
-            title="关闭文件"
-            className="sf-icon-button"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeWidth="1.5" d="M2 2l12 12M2 14L14 2" />
-            </svg>
-          </button>
-        </div>
-      </div>
 
       {isReviseLoading && (
         <div

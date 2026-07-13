@@ -11,7 +11,8 @@ import { buildProjectIndex } from '../src/lib/project-context';
 
 vi.mock('../src/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/lib/api-client')>();
-  return { ...actual, getAssistantSession: vi.fn() };
+  // ConversationHeader 的会话下拉（Q5）挂载即拉列表；测试里 stub 掉，避免打真端口。
+  return { ...actual, getAssistantSession: vi.fn(), listAssistantSessions: vi.fn(async () => []) };
 });
 
 vi.mock('../src/lib/project-context', async (importOriginal) => {

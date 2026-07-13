@@ -13,6 +13,21 @@ export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
 export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-file';
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
+// Q3a：编辑区工具行收进 EditorTabs「…」菜单后，历史/分支视图这类编辑器内部态用命令事件驱动
+// （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，无需新事件）。
+export const REQUEST_EDITOR_COMMAND_EVENT = 'storyforge:request-editor-command';
+
+export type EditorCommand = 'toggle-history' | 'toggle-branch-view';
+
+export function emitEditorCommand(command: EditorCommand): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<{ command: EditorCommand }>(REQUEST_EDITOR_COMMAND_EVENT, {
+        detail: { command },
+      }),
+    );
+  }
+}
 
 export type SaveActiveFileStatus = 'saved' | 'skipped' | 'error';
 

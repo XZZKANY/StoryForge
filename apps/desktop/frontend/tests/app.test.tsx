@@ -24,6 +24,8 @@ test('App 壳层挂载 desktop-shell 容器与三栏框架标记', () => {
   const html = renderApp();
   assert.match(html, /data-testid="desktop-shell"/);
   assert.match(html, /data-layout-mode=/);
+  // Q4 布局三态默认平衡（编辑 + 右栏对话）。
+  assert.match(html, /data-layout-focus="balanced"/);
   assert.match(html, /data-tauri-runtime=/);
   assert.match(html, /data-testid="shell-titlebar"/);
   assert.match(html, /data-testid="shell-activity-bar"/);
@@ -48,10 +50,14 @@ test('App 无项目时侧面板资源管理器暴露空态与打开项目按钮'
   assert.match(html, /data-testid="add-project-btn"/);
 });
 
-test('App 活动栏暴露故事视图与设置入口', () => {
+test('App 活动栏 Q8 精简为 文件/搜索/设置，会话与质检图标已撤走', () => {
   const html = renderApp();
   assert.match(html, /data-testid="activity-explorer"/);
+  assert.match(html, /data-testid="activity-search"/);
   assert.match(html, /data-testid="activity-settings"/);
+  // 会话移入右栏对话头（Q5）、质检收到状态栏观测芯片，二者不再是活动栏图标。
+  assert.doesNotMatch(html, /data-testid="activity-sessions"/);
+  assert.doesNotMatch(html, /data-testid="activity-qa"/);
 });
 
 test('源文本保留三栏壳层结构符号（中/右对调后的编辑器中枢）', () => {
@@ -76,7 +82,9 @@ test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 
     'className="min-h-0 flex-1 overflow-hidden"',
     "settingsVisible ? 'hidden' : 'h-full'",
     'min-h-0 overflow-hidden bg-background',
-    'min-h-0 w-[384px] flex-shrink-0 flex-col overflow-hidden',
+    // Q4 布局三态后 Agent 栏宽度按 wide 条件化，但平衡宽 + 溢出护栏仍在（长稿不能顶走状态栏）。
+    'w-[384px] flex-shrink-0',
+    'flex-col overflow-hidden border-l border-border bg-panel',
   ];
   for (const guard of requiredLayoutGuards) {
     assert.ok(shellSource.includes(guard), `桌面壳层缺少长稿布局护栏：${guard}`);
