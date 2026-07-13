@@ -17,12 +17,27 @@ PRIVATE_ACCESS_ROOTS = (
 AGENT_RUNS_ROOT = API_ROOT / "app" / "domains" / "agent_runs"
 AGENT_RUNS_ADAPTER_ROOT = AGENT_RUNS_ROOT / "adapters"
 AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patches")
+BOOK_RUNS_ROOT = API_ROOT / "app" / "domains" / "book_runs"
+LIVE_BOOK_RUNS_CONSUMER_ROOTS = (
+    API_ROOT / "app" / "domains" / "assistant",
+    AGENT_RUNS_ROOT,
+    API_ROOT / "app" / "domains" / "ide",
+)
+BOOK_RUNS_PUBLIC_MODULES = {
+    "app.domains.book_runs.book_generation",
+    "app.domains.book_runs.models",
+    "app.domains.book_runs.service",
+}
 HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/agent_runs/runtime.py": 400,
     "apps/api/app/domains/agent_runs/tooling.py": 500,
     "apps/api/app/domains/agent_runs/loop_runtime.py": 500,
     "apps/api/app/domains/agent_runs/llm_context.py": 500,
     "apps/api/app/domains/agent_runs/save_points.py": 500,
+    "apps/api/app/domains/book_runs/book_context.py": 500,
+    "apps/api/app/domains/book_runs/book_generation.py": 500,
+    "apps/api/app/domains/book_runs/book_generation_judge.py": 500,
+    "apps/api/app/domains/book_runs/book_generation_parallel.py": 500,
 }
 RUNTIME_COMPATIBILITY_HELPERS = (
     "_trim_prose_instruction",
@@ -204,6 +219,42 @@ def test_agent_runs_private_cross_module_access_is_zero() -> None:
     )
 
     assert not current_accesses, "agent_runs cross-module private access:\n" + _format_private_accesses(current_accesses)
+
+
+def test_book_runs_private_cross_module_access_is_zero() -> None:
+    current_accesses = Counter(
+        {
+            access: count
+            for access, count in scan_private_accesses().items()
+            if access.owner.startswith("app/domains/book_runs/")
+        }
+    )
+
+    assert not current_accesses, "book_runs cross-module private access:\n" + _format_private_accesses(current_accesses)
+
+
+def test_live_consumers_use_book_runs_public_modules() -> None:
+    violations: list[str] = []
+    for root in LIVE_BOOK_RUNS_CONSUMER_ROOTS:
+        for path in sorted(root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            owner = path.relative_to(API_ROOT).as_posix()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                    if not module.startswith("app.domains.book_runs"):
+                        continue
+                    if module not in BOOK_RUNS_PUBLIC_MODULES:
+                        violations.append(f"{owner}: imports internal book_runs module {module}")
+                    for alias in node.names:
+                        if _is_private_name(alias.name):
+                            violations.append(f"{owner}: imports private book_runs symbol {module}.{alias.name}")
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith("app.domains.book_runs") and alias.name not in BOOK_RUNS_PUBLIC_MODULES:
+                            violations.append(f"{owner}: imports internal book_runs module {alias.name}")
+
+    assert not violations, "Live consumers must use the BookRun public API:\n" + "\n".join(violations)
 
 
 def test_agent_runs_public_faces_exist() -> None:

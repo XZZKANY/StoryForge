@@ -16,8 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from app.domains.book_runs.narrative_gate import (
-    _auto_gate_results_from_book_export,
-    _parse_markdown_chapters,
+    auto_gate_results_from_book_export as _auto_gate_results_from_book_export,
+)
+from app.domains.book_runs.narrative_gate import (
+    parse_markdown_chapters as _parse_markdown_chapters,
 )
 
 

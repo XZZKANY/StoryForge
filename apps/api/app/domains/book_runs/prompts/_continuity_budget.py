@@ -113,3 +113,14 @@ def _fact_chapter(raw: Mapping[str, Any] | None, source_ref: str) -> int | None:
 
 def _str(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ("" if value is None else str(value))
+
+
+continuity_sort_key = _continuity_sort_key
+env_positive_int = _env_positive_int
+estimated_fact_tokens = _estimated_fact_tokens
+fact_chapter = _fact_chapter
+matches_pov = _matches_pov
+positive_int = _positive_int
+prioritized_continuity_entries = _prioritized_continuity_entries
+state_pov = _state_pov
+within_continuity_budget = _within_continuity_budget

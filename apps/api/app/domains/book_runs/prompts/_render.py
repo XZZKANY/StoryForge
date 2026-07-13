@@ -30,3 +30,8 @@ def _section(title: str, lines: Iterable[str]) -> str:
 
 def _join_sections(sections: Iterable[str]) -> str:
     return "\n\n".join(section for section in sections if section)
+
+
+clean = _clean
+join_sections = _join_sections
+section = _section

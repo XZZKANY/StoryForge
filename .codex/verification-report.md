@@ -234,3 +234,38 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出。
 - Desktop typecheck/vitest：S2 未改 Desktop 源码。
 - `pnpm verify`：按计划留到 S8 专窗总验收。
+
+---
+
+# 验证报告：源码标准专窗 S5
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S5 结果
+
+- book_runs 跨模块私有依赖从 178 降至 0；恒零测试已加入硬门禁。
+- live `assistant` / `agent_runs` / `ide` 仅允许使用 `book_generation`、`service`、`models` 三个 BookRun 公共模块；原先直接吃生成私有 helper 的调用方已迁移到公共名。
+- `book_generation.py` 947→485 行，保留 serial runner、公共 facade 与显式兼容出口；setup/draft/resume/contracts 分责且均 ≤500。
+- `book_generation_judge.py` 722→488 行，story-state 投影/提交外移；`book_generation_parallel.py` 601→464 行，证据与指标 helper 外移。
+- `book_context.py` 524→25 行公共 facade，core 376、cache/listener 151 行；缓存失效行为测试保持不变。
+- 未改 route、DTO、schema、OpenAPI、publish/fanqie 或产品行为。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv --cache-dir ... run pytest tests/test_source_code_standards.py -q` | 13/13 通过 |
+| `uv --cache-dir ... run pytest tests/test_book_generation.py tests/test_book_generation_parallel.py tests/test_book_generation_parallel_wrapper.py tests/test_book_generation_long_wrapper.py tests/test_book_generation_llm_retry.py tests/test_book_context_cache.py tests/test_book_runs.py -q` | 125/125 通过 |
+| `uv --cache-dir ... run pytest tests/test_source_code_standards.py tests/test_book_run_start.py tests/test_artifact_s3_export.py tests/test_multi_round_repair.py tests/test_usage_accounting_matrix.py tests/test_prompt_assembly.py tests/test_ide_cross_chapter.py tests/test_agent_llm_context.py tests/test_assistant_revise.py tests/test_assistant_provider_health.py tests/test_ide_agent_orchestrator.py -q` | 98/98 通过 |
+| `uv --cache-dir ... run ruff check app/common/llm_client.py app/common/llm_env.py app/author_chat.py app/domains/assistant/service.py app/domains/book_runs app/domains/ide app/domains/judge/service.py tests/test_book_generation_parallel.py tests/test_source_code_standards.py` | 通过 |
+| 私有依赖 / live import 静态门禁 | book_runs = 0；live 违规 = 0 |
+| 行数门禁 | generation 485；judge 488；parallel 464；context facade 25；所有新增模块 ≤500 |
+| `git diff --check` | 通过 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、Pydantic wire model 或 OpenAPI 输出。
+- Desktop typecheck/vitest：S5 未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收。

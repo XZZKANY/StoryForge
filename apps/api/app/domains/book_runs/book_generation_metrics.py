@@ -268,3 +268,20 @@ def _evidence_summary(
         "per_chapter_metrics": [_chapter_metric(item) for item in completed_chapters],
         "integration_metrics": _integration_metrics_from_audit_artifact(audit_artifact),
     }
+
+
+aggregate_cost_breakdown = _aggregate_cost_breakdown
+artifact_payload_sha256 = _artifact_payload_sha256
+artifact_text = _artifact_text
+body_char_count = _body_char_count
+chapter_index = _chapter_index
+chapter_metric = _chapter_metric
+evidence_summary = _evidence_summary
+failure_count = _failure_count
+float_value = _float_value
+integration_metrics_from_audit_artifact = _integration_metrics_from_audit_artifact
+latency_summary = _latency_summary
+markdown_chapter_body_char_counts = _markdown_chapter_body_char_counts
+per_chapter_char_counts = _per_chapter_char_counts
+result_summary = _result_summary
+sum_chapter_int = _sum_chapter_int

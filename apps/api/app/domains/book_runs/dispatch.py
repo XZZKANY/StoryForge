@@ -8,12 +8,29 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domains.blueprints.models import BookBlueprint
-from app.domains.book_runs._coerce import _bounded_ratio, _compact_text, _compact_text_list, _positive_int
+from app.domains.book_runs._coerce import (
+    bounded_ratio as _bounded_ratio,
+)
+from app.domains.book_runs._coerce import (
+    compact_text as _compact_text,
+)
+from app.domains.book_runs._coerce import (
+    compact_text_list as _compact_text_list,
+)
+from app.domains.book_runs._coerce import (
+    positive_int as _positive_int,
+)
 from app.domains.book_runs.gate import (
-    _even_volume_plan,
-    _explicit_volume_plan,
-    _require_longform_context_ready,
-    _single_volume_plan,
+    even_volume_plan as _even_volume_plan,
+)
+from app.domains.book_runs.gate import (
+    explicit_volume_plan as _explicit_volume_plan,
+)
+from app.domains.book_runs.gate import (
+    require_longform_context_ready as _require_longform_context_ready,
+)
+from app.domains.book_runs.gate import (
+    single_volume_plan as _single_volume_plan,
 )
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.schemas import (
@@ -302,3 +319,18 @@ def _volume_plan_from_blueprint(blueprint: BookBlueprint, total_chapters: int) -
     if isinstance(volume_count, int) and volume_count > 0:
         return _even_volume_plan(min(volume_count, total_chapters), total_chapters)
     return _single_volume_plan(total_chapters)
+
+
+beat_sheet_gate = _beat_sheet_gate
+chapter_beats_summary = _chapter_beats_summary
+chapter_goal = _chapter_goal
+chapter_planning_refs = _chapter_planning_refs
+default_entity_budget = _default_entity_budget
+default_major_reversals = _default_major_reversals
+default_phase_policy = _default_phase_policy
+dispatch_start_chapter_index = _dispatch_start_chapter_index
+generated_default_narrative_plan = _generated_default_narrative_plan
+major_reversals_summary = _major_reversals_summary
+metadata_narrative_plan_summary = _metadata_narrative_plan_summary
+volume_plan_from_blueprint = _volume_plan_from_blueprint
+workflow_narrative_plan = _workflow_narrative_plan

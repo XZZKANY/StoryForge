@@ -512,4 +512,20 @@ def _required_env(source: Mapping[str, str | None], name: str) -> str:
     return value
 
 
+assistant_message = _assistant_message
+build_chat_payload = _build_chat_payload
+call_llm = _call_llm
 call_llm_messages = _call_llm_messages
+cost_breakdown = _cost_breakdown
+env_value = _env_value
+is_retryable_status = _is_retryable_status
+llm_request_headers = _llm_request_headers
+message_tool_calls = _message_tool_calls
+optional_float = _optional_float
+optional_int = _optional_int
+request_chat_completions = _request_chat_completions
+required_env = _required_env
+retry_after_seconds = _retry_after_seconds
+sleep_before_retry = _sleep_before_retry
+strip_reasoning_leak = _strip_reasoning_leak
+token_usage = _token_usage

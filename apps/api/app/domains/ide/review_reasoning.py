@@ -8,7 +8,9 @@ from typing import Any, Protocol
 
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
-    _call_llm,
+)
+from app.domains.book_runs.book_generation import (
+    call_llm as _call_llm,
 )
 from app.domains.book_runs.book_generation import (
     missing_book_generation_env as _missing_book_generation_env,
