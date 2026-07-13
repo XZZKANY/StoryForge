@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import FixedPipelineRequest
 from app.domains.agent_runs.bookrun_summary import bookrun_budget_details as _bookrun_budget_details
 from app.domains.agent_runs.bookrun_summary import bookrun_budget_summary as _bookrun_budget_summary
 from app.domains.agent_runs.bookrun_summary import bookrun_chapter_plan_summary as _bookrun_chapter_plan_summary
@@ -26,6 +27,27 @@ from app.domains.assistant.schemas import AssistantMessageCreate
 
 
 class ChapterGenerationRuntimeMixin:
+    def run_chapter_polish_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]:
+        return self._run_chapter_polish(
+            request.session,
+            run=request.run,
+            agent_session_id=request.agent_session_id,
+            assistant_session_id=request.assistant_session_id,
+            user_message=request.user_message,
+            args=request.args,
+            intent=request.intent,
+        )
+
+    def run_bookrun_generation_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]:
+        return self._run_bookrun_generation(
+            request.session,
+            run=request.run,
+            agent_session_id=request.agent_session_id,
+            assistant_session_id=request.assistant_session_id,
+            user_message=request.user_message,
+            args=request.args,
+        )
+
     def _record_chapter_review_pending_call(
         self,
         run: AgentRun,

@@ -5,6 +5,13 @@ from typing import Any, Protocol
 from sqlalchemy.orm import Session
 
 from app.domains.agent_runs._text import optional_string as _optional_string
+from app.domains.agent_runs.adapters.chapter_generation_pipeline import ChapterGenerationRuntimeMixin
+from app.domains.agent_runs.adapters.chapter_review_pipeline import ChapterReviewRuntimeMixin
+from app.domains.agent_runs.adapters.file_review_pipeline import FileReviewRuntimeMixin
+from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import (
+    FixedPipelineRequest,
+    run_fixed_intent_pipeline,
+)
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.events import runtime_support as runtime_event_support
 from app.domains.agent_runs.fs.runtime_tools import FsRuntimeToolsMixin
@@ -14,10 +21,7 @@ from app.domains.agent_runs.intent import message_args as _message_args
 from app.domains.agent_runs.intent import message_text as _message_text
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
-from app.domains.agent_runs.loop.chapter_generation_runtime import ChapterGenerationRuntimeMixin
-from app.domains.agent_runs.loop.chapter_review_runtime import ChapterReviewRuntimeMixin
 from app.domains.agent_runs.loop.conversation_runtime import ConversationRuntimeMixin
-from app.domains.agent_runs.loop.file_review_runtime import FileReviewRuntimeMixin
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.patches.runtime_tools import PatchRuntimeToolsMixin
 from app.domains.agent_runs.permission import PermissionGate
@@ -153,54 +157,19 @@ class AgentRuntime(
                     user_message=user_message,
                     args=args,
                 )
-            elif intent == "file.review":
-                result = self._run_file_review_interruptible(
-                    session,
-                    run=run,
-                    agent_session_id=agent_session_id,
-                    assistant_session_id=assistant_session.id,
-                    user_message=user_message,
-                    args=args,
-                )
-            elif intent == "file.revise":
-                result = self._run_chapter_polish(
-                    session,
-                    run=run,
-                    agent_session_id=agent_session_id,
-                    assistant_session_id=assistant_session.id,
-                    user_message=user_message,
-                    args=args,
-                    intent=intent,
-                )
-            elif intent == "bookrun.start":
-                result = self._run_bookrun_generation(
-                    session,
-                    run=run,
-                    agent_session_id=agent_session_id,
-                    assistant_session_id=assistant_session.id,
-                    user_message=user_message,
-                    args=args,
-                )
-            elif intent == "chapter.review":
-                result = self._run_chapter_review(
-                    session,
-                    run=run,
-                    agent_session_id=agent_session_id,
-                    assistant_session_id=assistant_session.id,
-                    user_message=user_message,
-                    args=args,
-                )
-            elif intent == "chapter.repair":
-                result = self._run_chapter_review_repair(
-                    session,
-                    run=run,
-                    agent_session_id=agent_session_id,
-                    assistant_session_id=assistant_session.id,
-                    user_message=user_message,
-                    args=args,
-                )
             else:
-                raise AgentOrchestrationError(f"暂不支持的 Agent intent：{intent}")
+                result = run_fixed_intent_pipeline(
+                    self,
+                    FixedPipelineRequest(
+                        session=session,
+                        run=run,
+                        agent_session_id=agent_session_id,
+                        assistant_session_id=assistant_session.id,
+                        user_message=user_message,
+                        args=args,
+                        intent=intent,
+                    ),
+                )
         except AgentOrchestrationError as exc:
             self._event_sink.fail(
                 run,

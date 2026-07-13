@@ -138,6 +138,38 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 
 ---
 
+# 验证报告：源码标准专窗 S4
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S4 结果
+
+- file review、chapter polish/BookRun、chapter review/repair 三组 fixed pipeline mixin 从 `loop/` 移至 `adapters/`，函数体保持不变。
+- `runtime.py` 只保留 chat-loop 与 `run_fixed_intent_pipeline` 两路；五个显式 intent 经 typed `FixedPipelineRequest` 一一分派。
+- `bookrun.start/pause/resume/retry_from_checkpoint` 统一经 `bookrun_managed_run_adapter.py`，保留 IDE command audit、assistant tool-call evidence 与 managed WritingRun 语义。
+- 静态护栏禁止 free-text loop 导入 adapters/book_runs，并禁止 runtime 恢复直接 fixed 私有方法调用。
+- `runtime.py` 257 行；所有 adapter 模块均低于 500 行；publish/fanqie 路径零改动。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv --cache-dir ... run ruff check app/domains/agent_runs ...` | 通过 |
+| `uv --cache-dir ... run pytest -p no:cacheprovider tests/test_source_code_standards.py tests/test_agent_adapters.py tests/test_loop_contract_types.py tests/test_loop_tool_schemas.py tests/test_runtime_tools.py tests/test_agent_runs.py tests/test_agent_loop_runtime.py tests/test_agent_llm_context.py tests/test_agent_canon.py tests/test_ide_agent_orchestrator.py tests/test_ide_agent_transport.py tests/test_ide_commands.py tests/test_ide_run_events.py tests/test_redaction_boundaries.py tests/test_ws_contract_golden.py tests/test_ws_schema.py tests/test_api_surface.py -q` | 271/271 通过 |
+| adapter/import 静态护栏 | 14/14 通过 |
+| 私有依赖扫描 | agent_runs = 0 |
+| `git diff --check` | 通过 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、Pydantic wire model 或 OpenAPI 输出。
+- Desktop typecheck/vitest：S4 未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收。
+
+---
+
 # 验证报告：源码标准专窗 S3
 
 时间：2026-07-14

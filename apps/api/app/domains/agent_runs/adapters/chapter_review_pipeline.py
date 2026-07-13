@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import FixedPipelineRequest
 from app.domains.agent_runs.events.runtime_support import base_response as _base_response
 from app.domains.agent_runs.events.runtime_support import latest_runtime_pending_call as _latest_runtime_pending_call
 from app.domains.agent_runs.events.runtime_support import plan_step as _plan_step
@@ -35,6 +36,26 @@ from app.domains.assistant.schemas import AssistantMessageCreate
 
 
 class ChapterReviewRuntimeMixin:
+    def run_chapter_review_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]:
+        return self._run_chapter_review(
+            request.session,
+            run=request.run,
+            agent_session_id=request.agent_session_id,
+            assistant_session_id=request.assistant_session_id,
+            user_message=request.user_message,
+            args=request.args,
+        )
+
+    def run_chapter_repair_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]:
+        return self._run_chapter_review_repair(
+            request.session,
+            run=request.run,
+            agent_session_id=request.agent_session_id,
+            assistant_session_id=request.assistant_session_id,
+            user_message=request.user_message,
+            args=request.args,
+        )
+
     def _run_chapter_review(
         self,
         session: Session,

@@ -1,6 +1,6 @@
 # Agent Runs Structure
 
-> S1 navigation. The live runtime is organized behind six public package faces; compatibility modules remain while later waves slim tooling, services, and adapters.
+> S4 navigation. The live runtime is organized behind six public package faces; fixed intent and managed BookRun enter only through explicit adapters.
 
 ## Main Read Order
 
@@ -61,9 +61,11 @@ Prompt/author instructions live in `loop/prompt_context.py`; history, budget, fe
 
 ## Dual Track Boundary
 
-- Free-text chat enters the live loop.
-- Explicit legacy intents remain behind a fixed-pipeline adapter.
-- Managed BookRun remains a backing capability and must be reached through a public service or adapter.
+- Free-text chat enters `loop/conversation_runtime.py` and `loop_runtime.py`; files under `loop/` may not import `adapters/` or `book_runs`.
+- Explicit legacy intents enter `adapters/intent_fixed_pipeline_adapter.py`, which dispatches a typed `FixedPipelineRequest` to the existing review/revise/chapter pipelines.
+- Fixed pipeline implementations live under `adapters/`, not under the loop public face.
+- AgentRuntime BookRun tools enter `adapters/bookrun_managed_run_adapter.py`, which preserves IDE command audit/evidence behavior and reaches the current managed WritingRun seam.
+- The managed BookRun command tuple must equal the declared `bookrun.*` ToolSpec tuple.
 - A proposed patch is an artifact only. The backend never writes a user's manuscript file directly.
 
 ## S0 Audit Notes

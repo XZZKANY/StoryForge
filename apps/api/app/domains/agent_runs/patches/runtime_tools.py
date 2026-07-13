@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from app.domains.agent_runs._text import optional_string as _optional_string
+from app.domains.agent_runs.adapters.bookrun_managed_run_adapter import managed_bookrun_handlers
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.patches.types import PatchProposal
 from app.domains.agent_runs.revise_scope import public_revise_scope as _public_revise_scope
@@ -38,14 +39,8 @@ class PatchRuntimeToolsMixin:
             "file.create": self._file_create,
             "judge.run": self._judge_run,
         }
-        for command_id in (
-            "judge.repair",
-            "bookrun.start",
-            "bookrun.pause",
-            "bookrun.resume",
-            "bookrun.retry_from_checkpoint",
-        ):
-            handlers[command_id] = self._ide_command_tool(command_id)
+        handlers["judge.repair"] = self._ide_command_tool("judge.repair")
+        handlers.update(managed_bookrun_handlers())
         return handlers
 
     def _file_revise(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:

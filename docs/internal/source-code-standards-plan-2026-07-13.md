@@ -215,7 +215,7 @@ frozen
 | S1 公共面 | 已完成（2026-07-14） | 六公共面可 import；`runtime.py` 265 行；agent_runs 私有跨模块依赖 78→0；旧 37 方法 + 33 helper AST 等价；142 项定向测试通过 |
 | S2 tooling | 已完成（2026-07-14） | `tooling.py` 1061→59 行兼容 facade；22 条 spec 按域拆分且顺序/字段 AST 等价；handler 映射归领域文件；221 项相关测试通过 |
 | S3 typed seam | 已完成（2026-07-14） | `LoopRoundResult`/`LoopToolCall`/`LoopToolFeedback`、generic `ToolResult`、`PatchProposal`、typed terminal payload；loop 主函数裸业务 `.get()`=0；`loop_runtime.py` 329、`llm_context.py` 461、`save_points.py` 125 行；267 项测试通过 |
-| S4 双轨 adapter | 未开始 | |
+| S4 双轨 adapter | 已完成（2026-07-14） | fixed pipeline 三组 mixin 移出 loop；typed intent dispatcher；BookRun 四命令经 managed adapter；静态 import 护栏；271 项相关测试通过 |
 | S5 book_runs | 未开始 | |
 | S6 Desktop | 未开始 | |
 | S7 测试拆分 | 未开始 | |

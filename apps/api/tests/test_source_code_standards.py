@@ -15,6 +15,7 @@ PRIVATE_ACCESS_ROOTS = (
     API_ROOT / "app" / "domains" / "book_runs",
 )
 AGENT_RUNS_ROOT = API_ROOT / "app" / "domains" / "agent_runs"
+AGENT_RUNS_ADAPTER_ROOT = AGENT_RUNS_ROOT / "adapters"
 AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patches")
 HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/agent_runs/runtime.py": 400,
@@ -246,6 +247,56 @@ def test_loop_main_path_reads_business_payloads_through_typed_contracts() -> Non
         and not (isinstance(node.func.value, ast.Name) and node.func.value.id == "_TOOL_NAME_MAP")
     ]
     assert not raw_gets, "run_chat_loop must decode raw business payloads before field access"
+
+
+def test_dual_track_imports_stay_behind_explicit_adapters() -> None:
+    required_adapters = {
+        "intent_fixed_pipeline_adapter.py",
+        "bookrun_managed_run_adapter.py",
+    }
+    assert required_adapters <= {path.name for path in AGENT_RUNS_ADAPTER_ROOT.glob("*.py")}
+
+    loop_files = [AGENT_RUNS_ROOT / "loop_runtime.py", *(AGENT_RUNS_ROOT / "loop").glob("*.py")]
+    for path in loop_files:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        imported_modules = {
+            node.module or ""
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+        }
+        imported_modules.update(
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        )
+        assert not any("agent_runs.adapters" in module for module in imported_modules), path
+        assert not any("domains.book_runs" in module for module in imported_modules), path
+
+    runtime_path = AGENT_RUNS_ROOT / "runtime.py"
+    runtime_tree = ast.parse(runtime_path.read_text(encoding="utf-8"), filename=str(runtime_path))
+    run_message = next(
+        node
+        for node in ast.walk(runtime_tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "run_user_message"
+    )
+    called_names = {
+        _dotted_name(node.func)
+        for node in ast.walk(run_message)
+        if isinstance(node, ast.Call)
+    }
+    assert "run_fixed_intent_pipeline" in called_names
+    assert not {
+        "self._run_file_review_interruptible",
+        "self._run_chapter_polish",
+        "self._run_bookrun_generation",
+        "self._run_chapter_review",
+        "self._run_chapter_review_repair",
+    } & called_names
+
+    patch_handlers = (AGENT_RUNS_ROOT / "patches" / "runtime_tools.py").read_text(encoding="utf-8")
+    assert "managed_bookrun_handlers()" in patch_handlers
+    assert '"bookrun.start"' not in patch_handlers
 
 
 def test_private_access_baseline_summary_is_consistent() -> None:
