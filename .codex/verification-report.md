@@ -269,3 +269,39 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - `pnpm openapi`：未改 route、DTO、Pydantic wire model 或 OpenAPI 输出。
 - Desktop typecheck/vitest：S5 未改 Desktop 源码。
 - `pnpm verify`：按计划留到 S8 专窗总验收。
+
+---
+
+# 验证报告：源码标准专窗 S6
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S6 结果
+
+- `ChatWindow.tsx` 从 1492 行降至 72 行，只保留会话状态、session/recovery/stream/control/submission hooks 与 view 的组合；最大新 owner `useRunAuthorAgent.ts` 为 463 行。
+- `App.tsx` 从 848 行降至 176 行，只保留 shell/workspace 接线、快捷键、Tauri menu bridge 及原有 publish-side 两个回调；`AppShell.tsx` 293 行，tabs/project/preferences 分别由独立 hook 持有。
+- 新增 `apps/desktop/frontend/src/STRUCTURE.md`，把 Desktop 主链读序限制为 8 文件，并固定 Editor/ChatWindow 隐藏不卸载、dirty 单 owner、补丁待确认等边界。
+- 新增 3 项 Chat 生命周期回归：pending initial prompt 单次发送、旧会话 stream 隔离、window 监听器原回调卸载；完整 Desktop 206 项测试通过。
+- 源码标准门禁加入 App 400、Chat/S6 owner 500 行硬上限，并通用扫描 `components/app` 与 `components/chat-window` 的新模块。
+- 两轮只读交叉审查未发现行为漂移或运行时循环；publish/fanqie 路径零改动。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `tsc --noEmit --strict ... ChatWindow.tsx useEditorWorkspaceTabs.ts useProjectCommands.ts useAppPreferences.ts` | 通过 |
+| `npm run test` | 39 files，206/206 通过 |
+| S6 改动文件定向 `eslint` | 通过 |
+| S6 改动文件定向 `prettier --check` | 通过 |
+| `uv run pytest tests/test_source_code_standards.py -q` | 13/13 通过 |
+| `uv run ruff check tests/test_source_code_standards.py` | 通过 |
+| 行数门禁 | App 176≤400；Chat 72≤500；全部新增 owner ≤500 |
+| `git diff --check` | 通过 |
+
+## 外部阻断 / 未执行
+
+- `npm run typecheck`：未通过；错误全部位于隔离分支已有的 `src/features/publish/**`，缺少 Phase2 的 `cookieText`、`PlatformApiEndpoint`、`apiEndpoints`、状态组件等配套类型/导出。本任务按红线不修改 publish/fanqie；S6 自有 hooks 严格定向 tsc 已通过。
+- `pnpm openapi`：未改 route、DTO、Pydantic wire model 或 OpenAPI 输出。
+- `pnpm verify`：按计划在 S8 集成验收；若 publish Phase2 仍未进入专窗基线，将如实保留同一外部阻断，不以跨范围修复换取假绿。

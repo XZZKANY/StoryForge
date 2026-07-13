@@ -217,7 +217,7 @@ frozen
 | S3 typed seam | 已完成（2026-07-14） | `LoopRoundResult`/`LoopToolCall`/`LoopToolFeedback`、generic `ToolResult`、`PatchProposal`、typed terminal payload；loop 主函数裸业务 `.get()`=0；`loop_runtime.py` 329、`llm_context.py` 461、`save_points.py` 125 行；267 项测试通过 |
 | S4 双轨 adapter | 已完成（2026-07-14） | fixed pipeline 三组 mixin 移出 loop；typed intent dispatcher；BookRun 四命令经 managed adapter；静态 import 护栏；271 项相关测试通过 |
 | S5 book_runs | 已完成（2026-07-14） | 私有跨模块依赖 178→0；live assistant/agent_runs/ide 只经 `book_generation`/`service`/`models` 公共模块；`book_generation.py` 485、judge 488、parallel 464、context facade 25 行；223 项相关测试通过 |
-| S6 Desktop | 未开始 | |
+| S6 Desktop | 已完成（2026-07-14） | `ChatWindow.tsx` 1492→72、`App.tsx` 848→176；session/run/control/submission 与 tabs/project/preferences 分责；Desktop `STRUCTURE.md` 8 文件读序；206 项 Vitest、严格定向 tsc、ESLint、13 项源码门禁通过；全量 typecheck 仅受隔离分支缺失的 publish Phase2 类型改动阻断 |
 | S7 测试拆分 | 未开始 | |
 | S8 验收 | 未开始 | |
 | 删除轨 T1（WS 遗留 + legacy helper） | 已审计 | WS 编码器为 SSE/REST live 依赖，转 T2；零引用 `_chapter_request` 已删 |

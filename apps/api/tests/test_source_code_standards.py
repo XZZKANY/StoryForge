@@ -18,6 +18,15 @@ AGENT_RUNS_ROOT = API_ROOT / "app" / "domains" / "agent_runs"
 AGENT_RUNS_ADAPTER_ROOT = AGENT_RUNS_ROOT / "adapters"
 AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patches")
 BOOK_RUNS_ROOT = API_ROOT / "app" / "domains" / "book_runs"
+DESKTOP_FRONTEND_ROOT = REPO_ROOT / "apps" / "desktop" / "frontend" / "src"
+DESKTOP_LIVE_MODULE_ROOTS = (
+    DESKTOP_FRONTEND_ROOT / "components" / "app",
+    DESKTOP_FRONTEND_ROOT / "components" / "chat-window",
+)
+# Pre-S6 leaf view; it remains frozen debt and is not a precedent for new modules.
+DESKTOP_S0_LINE_EXCEPTIONS = {
+    "apps/desktop/frontend/src/components/chat-window/panels.tsx",
+}
 LIVE_BOOK_RUNS_CONSUMER_ROOTS = (
     API_ROOT / "app" / "domains" / "assistant",
     AGENT_RUNS_ROOT,
@@ -38,6 +47,22 @@ HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/book_runs/book_generation.py": 500,
     "apps/api/app/domains/book_runs/book_generation_judge.py": 500,
     "apps/api/app/domains/book_runs/book_generation_parallel.py": 500,
+    "apps/desktop/frontend/src/App.tsx": 400,
+    "apps/desktop/frontend/src/components/ChatWindow.tsx": 500,
+    "apps/desktop/frontend/src/components/app/AppShell.tsx": 500,
+    "apps/desktop/frontend/src/components/app/useAppPreferences.ts": 500,
+    "apps/desktop/frontend/src/components/app/useEditorWorkspaceTabs.ts": 500,
+    "apps/desktop/frontend/src/components/app/useProjectCommands.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/ChatWindowView.tsx": 500,
+    "apps/desktop/frontend/src/components/chat-window/agent-result.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/context-files.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useAgentRunControls.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useAgentRunRecovery.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useAgentStreamEvent.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useChatSessionContext.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useChatSubmission.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useChatWindowState.ts": 500,
+    "apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts": 500,
 }
 RUNTIME_COMPATIBILITY_HELPERS = (
     "_trim_prose_instruction",
@@ -384,6 +409,20 @@ def test_new_live_modules_stay_within_line_limit() -> None:
                 f"{relative_path} exceeds the {NEW_LIVE_MODULE_LINE_LIMIT}-line limit; "
                 "split the module or add a time-bounded exception to the source standards plan"
             )
+
+    desktop_modules = {
+        path
+        for root in DESKTOP_LIVE_MODULE_ROOTS
+        for pattern in ("*.ts", "*.tsx")
+        for path in root.rglob(pattern)
+    }
+    for path in sorted(desktop_modules):
+        relative_path = path.relative_to(REPO_ROOT).as_posix()
+        if relative_path in DESKTOP_S0_LINE_EXCEPTIONS:
+            continue
+        assert _line_count(path) <= NEW_LIVE_MODULE_LINE_LIMIT, (
+            f"{relative_path} exceeds the {NEW_LIVE_MODULE_LINE_LIMIT}-line Desktop live-module limit"
+        )
 
 
 def test_new_live_test_files_stay_within_line_limit() -> None:
