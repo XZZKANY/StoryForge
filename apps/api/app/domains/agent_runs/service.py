@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import NotFoundError
 from app.common.redaction import redact_sensitive, redact_sensitive_text
+from app.domains.agent_runs import run_payloads, skill_catalog
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.event_encoders import (  # noqa: F401  facade re-export
     encode_agent_run_sse_event,
@@ -18,9 +19,7 @@ from app.domains.agent_runs.event_encoders import (  # noqa: F401  facade re-exp
     websocket_started_event,
     websocket_stream_events_from_agent_event,
 )
-from app.domains.agent_runs.event_sink import (  # noqa: F401  facade re-export
-    _AgentRunEventSink,
-)
+from app.domains.agent_runs.event_sink import AgentRunEventSink
 from app.domains.agent_runs.event_types import (
     AGENT_ARTIFACT,
     AGENT_PLAN_CREATED,
@@ -55,23 +54,6 @@ from app.domains.agent_runs.role_catalog import (
 from app.domains.agent_runs.role_catalog import (
     resolve_agent_role_alias as _catalog_resolve_agent_role_alias,
 )
-from app.domains.agent_runs.run_payloads import (  # noqa: F401  facade re-export
-    _book_run_budget,
-    _book_run_id_from_result,
-    _book_run_snapshot_payload,
-    _budget_summary,
-    _control_event_message,
-    _control_event_type,
-    _current_plan_step,
-    _has_event,
-    _has_scope_key,
-    _message_input_summary,
-    _message_text,
-    _optional_positive_int,
-    _optional_string,
-    _scope_string_list,
-    _scope_summary,
-)
 from app.domains.agent_runs.runtime import AgentRuntime
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
@@ -81,12 +63,6 @@ from app.domains.agent_runs.runtime_recovery import (
 )
 from app.domains.agent_runs.save_points import build_agent_run_save_point_projection
 from app.domains.agent_runs.schemas import AgentRoleRead
-from app.domains.agent_runs.skill_catalog import (  # noqa: F401  facade re-export
-    _AGENT_SKILL_DEFINITIONS,
-    _agent_plan_payload,
-    _skill_by_name,
-    list_agent_skills,
-)
 from app.domains.agent_runs.system_jobs import HIDDEN_SYSTEM_ARTIFACT_KINDS
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.service import (
@@ -101,6 +77,27 @@ from app.domains.writing_runs.service import (
     stop_writing_run,
     writing_run_payload,
 )
+
+_AgentRunEventSink = AgentRunEventSink
+_book_run_budget = run_payloads.book_run_budget
+_book_run_id_from_result = run_payloads.book_run_id_from_result
+_book_run_snapshot_payload = run_payloads.book_run_snapshot_payload
+_budget_summary = run_payloads.budget_summary
+_control_event_message = run_payloads.control_event_message
+_control_event_type = run_payloads.control_event_type
+_current_plan_step = run_payloads.current_plan_step
+_has_event = run_payloads.has_event
+_has_scope_key = run_payloads.has_scope_key
+_message_input_summary = run_payloads.message_input_summary
+_message_text = run_payloads.message_text
+_optional_positive_int = run_payloads.optional_positive_int
+_optional_string = run_payloads.optional_string
+_scope_string_list = run_payloads.scope_string_list
+_scope_summary = run_payloads.scope_summary
+_AGENT_SKILL_DEFINITIONS = skill_catalog.AGENT_SKILL_DEFINITIONS
+_agent_plan_payload = skill_catalog.agent_plan_payload
+_skill_by_name = skill_catalog.skill_by_name
+list_agent_skills = skill_catalog.list_agent_skills
 
 AGENT_RUN_TERMINAL_STATUSES = frozenset({"completed", "failed", "stopped"})
 # 起服收尸只应清理「本有活线程、进程重启后线程已消失」的 running。paused 是等待作者确认

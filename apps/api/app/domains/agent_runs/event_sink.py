@@ -19,16 +19,20 @@ from app.domains.agent_runs.event_types import (
 )
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
 from app.domains.agent_runs.run_payloads import (
-    _book_run_id_from_result,
-    _current_plan_step,
-    _optional_positive_int,
+    book_run_id_from_result as _book_run_id_from_result,
+)
+from app.domains.agent_runs.run_payloads import (
+    current_plan_step as _current_plan_step,
+)
+from app.domains.agent_runs.run_payloads import (
+    optional_positive_int as _optional_positive_int,
 )
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
     build_runtime_interruption_payload,
     build_tool_recovery_payload,
 )
-from app.domains.agent_runs.skill_catalog import _agent_plan_payload
+from app.domains.agent_runs.skill_catalog import agent_plan_payload as _agent_plan_payload
 from app.domains.agent_runs.tooling import list_agent_runtime_tool_specs
 from app.domains.agent_runs.trace import AgentToolTrace
 
@@ -254,3 +258,6 @@ class _AgentRunEventSink:
             requires_confirmation=False,
         )
         self._emit_latest_event(run, AGENT_ARTIFACT)
+
+
+AgentRunEventSink = _AgentRunEventSink

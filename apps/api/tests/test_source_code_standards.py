@@ -14,6 +14,8 @@ PRIVATE_ACCESS_ROOTS = (
     API_ROOT / "app" / "domains" / "agent_runs",
     API_ROOT / "app" / "domains" / "book_runs",
 )
+AGENT_RUNS_ROOT = API_ROOT / "app" / "domains" / "agent_runs"
+AGENT_RUNS_PUBLIC_FACES = ("loop", "tools", "fs", "events", "permission", "patches")
 LIVE_TEST_PATTERNS = ("test_agent*.py", "test_ide_agent*.py", "test_book*.py")
 NEW_LIVE_MODULE_LINE_LIMIT = 500
 NEW_LIVE_TEST_LINE_LIMIT = 800
@@ -178,6 +180,24 @@ def test_private_cross_module_access_does_not_expand() -> None:
     )
 
     assert not unexpected, "New cross-module private access:\n" + _format_private_accesses(unexpected)
+
+
+def test_agent_runs_private_cross_module_access_is_zero() -> None:
+    current_accesses = Counter(
+        {
+            access: count
+            for access, count in scan_private_accesses().items()
+            if access.owner.startswith("app/domains/agent_runs/")
+        }
+    )
+
+    assert not current_accesses, "agent_runs cross-module private access:\n" + _format_private_accesses(current_accesses)
+
+
+def test_agent_runs_public_faces_exist() -> None:
+    for face in AGENT_RUNS_PUBLIC_FACES:
+        init_path = AGENT_RUNS_ROOT / face / "__init__.py"
+        assert init_path.is_file(), f"Missing agent_runs public face: {face}"
 
 
 def test_private_access_baseline_summary_is_consistent() -> None:

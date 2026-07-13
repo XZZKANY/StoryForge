@@ -18,7 +18,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from app.domains.agent_runs.fs_tools import FsToolError, _resolve_root
+from app.domains.agent_runs.fs_tools import FsToolError
+from app.domains.agent_runs.fs_tools import resolve_project_root as _resolve_root
 
 _CANON_DIRNAME = ".storyforge"
 _CANON_SUBDIR = "canon"

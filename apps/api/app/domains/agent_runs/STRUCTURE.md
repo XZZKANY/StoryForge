@@ -1,6 +1,6 @@
 # Agent Runs Structure
 
-> S0 navigation draft. This document describes the current live path and the target public boundaries without changing runtime behavior.
+> S1 navigation. The live runtime is organized behind six public package faces; compatibility modules remain while later waves slim tooling, services, and adapters.
 
 ## Main Read Order
 
@@ -8,18 +8,18 @@ Read the live path in this order. The list intentionally stays within eight file
 
 1. `router.py` - AgentRun REST and durable SSE endpoints.
 2. `service.py` - run lifecycle facade, control handling, and compatibility re-exports.
-3. `runtime.py` - fixed-intent orchestration and legacy runtime adapter.
-4. `loop_runtime.py` - free-text chat tool loop adapter.
-5. `tooling.py` - ToolSpec registry, loop schema derivation, and dispatch metadata.
-6. `fs_tools.py` - project-root-scoped list/read/search primitives.
-7. `event_sink.py` - durable event recording and terminal projection.
-8. `event_encoders.py` - SSE/REST frame encoding from durable events.
+3. `runtime.py` - thin `AgentRuntime` facade and compatibility exports.
+4. `loop/conversation_runtime.py` - free-text conversation orchestration.
+5. `loop_runtime.py` - LLM tool-calling rounds and budget enforcement.
+6. `tools/execution_runtime.py` - ToolSpec registration, permission gate, and dispatch.
+7. `fs/runtime_tools.py` - runtime handlers over project-scoped filesystem primitives.
+8. `events/runtime_support.py` - response, interruption, trace, and artifact projections.
 
 Supporting modules such as `schemas.py`, `models.py`, `run_payloads.py`, `runtime_recovery.py`, and the scan/canon modules should be opened only when the main path points to them.
 
-## Target Public Faces
+## Public Faces
 
-S1 will organize the live runtime around six public faces:
+Cross-face callers import public names from these packages. Private definitions may exist inside one module, but no production module may import a leading-underscore symbol from another module.
 
 | Face | Owns | Must not own |
 | --- | --- | --- |
@@ -31,6 +31,12 @@ S1 will organize the live runtime around six public faces:
 | `patches` | proposed-patch artifacts and single-patch guard | writing user files |
 
 Cross-face callers may import public names only. S0 freezes every existing leading-underscore import and imported-module private attribute access in `tests/fixtures/source_code_standards_baseline.json`; new debt fails `test_source_code_standards.py`.
+
+`test_agent_runs_private_cross_module_access_is_zero` is the S1 hard gate. The broader S0 fingerprint remains until book_runs reaches zero in S5.
+
+## Runtime Facade
+
+`runtime.py` owns only construction, the top-level user-message switch, the monkeypatch-compatible `_file_review` seam, and temporary helper re-exports. Behavior methods live in responsibility-scoped mixins under the six faces; every new runtime module remains below 500 lines.
 
 ## Dual Track Boundary
 

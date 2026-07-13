@@ -5,7 +5,7 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.domains.agent_runs._text import _compact_text, _ordered_unique
+from app.domains.agent_runs._text import compact_text, ordered_unique
 
 SNAPSHOT_VERSION = 1
 SELECTED_FILE_TEXT_LIMIT = 12000
@@ -110,11 +110,11 @@ def build_llm_context_snapshot(
         "version": SNAPSHOT_VERSION,
         "intent": _string_or_default(intent, "unknown"),
         "run": _run_state(run_state),
-        "user_goal": _compact_text(user_message, limit=2000),
+        "user_goal": compact_text(user_message, limit=2000),
         "selected_file": {
             "file_path": _string_or_default(file_path, "unknown"),
             "content_chars": len(content) if isinstance(content, str) else 0,
-            "content_excerpt": _compact_text(content, limit=SELECTED_FILE_TEXT_LIMIT),
+            "content_excerpt": compact_text(content, limit=SELECTED_FILE_TEXT_LIMIT),
         },
         "role_hints": _string_list(role_hints),
         "role_mentions": _string_list(role_mentions),
@@ -202,7 +202,7 @@ def _prompt_context_file(item: Mapping[str, Any]) -> dict[str, str]:
         "relative_path": relative_path,
         "kind": kind,
         "title": title,
-        "excerpt": _compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
+        "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
     }
 
 
@@ -251,7 +251,7 @@ def _synthetic_prompt_file(*, relative_path: str, kind: str, title: str, excerpt
         "relative_path": relative_path,
         "kind": kind,
         "title": title,
-        "excerpt": _compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
+        "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
     }
 
 
@@ -266,7 +266,7 @@ def _run_state(run_state: object | None) -> dict[str, Any]:
     if isinstance(public_id, str) and public_id.strip():
         result["run_id"] = public_id.strip()
     if isinstance(goal, str) and goal.strip():
-        result["goal"] = _compact_text(goal, limit=2000)
+        result["goal"] = compact_text(goal, limit=2000)
     if isinstance(status, str) and status.strip():
         result["status"] = status.strip()
     if isinstance(current_step, str) and current_step.strip():
@@ -341,7 +341,7 @@ def _context_files(
             "title": title or relative_path or path or "untitled",
         }
         if excerpt:
-            context_file["excerpt"] = _compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
+            context_file["excerpt"] = compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
             context_file["excerpt_chars"] = len(excerpt)
         result.append(context_file)
     return result, warnings, unsafe_count
@@ -354,7 +354,7 @@ def _review_report_summary(report: object | None) -> dict[str, Any] | None:
     safe_issues = [_review_issue_summary(item) for item in issues[:MAX_REVIEW_ISSUES] if isinstance(item, Mapping)] if isinstance(issues, list) else []
     suggested_actions = report.get("suggested_actions")
     safe_actions = [
-        _compact_text(item, limit=REVIEW_TEXT_LIMIT)
+        compact_text(item, limit=REVIEW_TEXT_LIMIT)
         for item in suggested_actions[:MAX_REVIEW_ISSUES]
         if isinstance(item, str) and item.strip()
     ] if isinstance(suggested_actions, list) else []
@@ -382,7 +382,7 @@ def _review_issue_summary(issue: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("message", "evidence", "suggested_action"):
         value = _first_string(issue, key)
         if value is not None:
-            result[key] = _compact_text(value, limit=REVIEW_TEXT_LIMIT)
+            result[key] = compact_text(value, limit=REVIEW_TEXT_LIMIT)
     return result
 
 
@@ -435,7 +435,7 @@ def _memory_item_summary(item: Mapping[str, Any]) -> dict[str, Any]:
             result[output_key] = value
     text = _first_string(item, "fact", "content", "text", "summary")
     if text is not None:
-        result["text"] = _compact_text(text, limit=MEMORY_TEXT_LIMIT)
+        result["text"] = compact_text(text, limit=MEMORY_TEXT_LIMIT)
     for key in ("source_chapter_id", "valid_from_chapter", "valid_to_chapter"):
         value = item.get(key)
         if isinstance(value, int):
@@ -465,7 +465,7 @@ def _chapter_context_summary(bundle: Mapping[str, Any] | None) -> dict[str, Any]
 
 def _safe_context_value(value: object) -> object | None:
     if isinstance(value, str):
-        return _compact_text(value, limit=CHAPTER_TEXT_LIMIT)
+        return compact_text(value, limit=CHAPTER_TEXT_LIMIT)
     if isinstance(value, bool | int | float):
         return value
     if isinstance(value, list):
@@ -594,7 +594,7 @@ def _first_string(source: Mapping[str, Any], *keys: str) -> str | None:
 def _string_list(values: Iterable[str] | None) -> list[str]:
     if values is None:
         return []
-    return _ordered_unique([value.strip() for value in values if isinstance(value, str) and value.strip()])
+    return ordered_unique([value.strip() for value in values if isinstance(value, str) and value.strip()])
 
 
 def _string_or_default(value: object, default: str) -> str:

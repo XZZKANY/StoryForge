@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.agent_runs._text import _optional_string, _ordered_unique, _string_arg_list
+from app.domains.agent_runs._text import optional_string as _optional_string
+from app.domains.agent_runs._text import ordered_unique as _ordered_unique
+from app.domains.agent_runs._text import string_arg_list as _string_arg_list
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.role_catalog import get_agent_role, resolve_agent_role_alias
 
@@ -100,3 +102,10 @@ def _has_reviewer_role_hint(args: dict[str, Any]) -> bool:
 def _has_positive_int(args: dict[str, Any], key: str) -> bool:
     value = args.get(key)
     return isinstance(value, int) and value > 0
+
+
+detect_intent = _detect_intent
+message_text = _message_text
+message_args = _message_args
+role_hints = _role_hints
+role_mentions = _role_mentions

@@ -212,7 +212,7 @@ frozen
 | 波次 | 状态 | 证据 |
 | --- | --- | --- |
 | S0 护栏 | 已完成（2026-07-13） | AST 私有依赖 256 点精确冻结；18 个超限文件只减不增；`test_source_code_standards.py`；`agent_runs/STRUCTURE.md` 8 文件读序 |
-| S1 公共面 | 未开始 | |
+| S1 公共面 | 已完成（2026-07-14） | 六公共面可 import；`runtime.py` 265 行；agent_runs 私有跨模块依赖 78→0；旧 37 方法 + 33 helper AST 等价；142 项定向测试通过 |
 | S2 tooling | 未开始 | |
 | S3 typed seam | 未开始 | |
 | S4 双轨 adapter | 未开始 | |

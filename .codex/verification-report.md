@@ -102,3 +102,36 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出，无契约 drift 面。
 - Desktop typecheck/vitest：未改 Desktop 源码。
 - `pnpm verify`：按计划留到 S8 专窗总验收；S0 已跑本波相关最小集与行为护栏。
+
+---
+
+# 验证报告：源码标准专窗 S1
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S1 结果
+
+- 建立 `loop`、`tools`、`fs`、`events`、`permission`、`patches` 六个公共 package face。
+- `runtime.py` 从 2677 行降至 265 行，仅保留 facade、总入口、兼容 monkeypatch seam 与临时 re-export。
+- agent_runs 跨模块私有依赖从 78 降至 0，并新增恒零护栏与公共面存在性测试。
+- 旧 `AgentRuntime` 37 个方法与 33 个模块 helper 在新位置 AST 结构等价；本波无意图行为变更。
+- publish/fanqie 路径零改动；未触碰 route、DTO、schema 或 OpenAPI 输出。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv --cache-dir ... run ruff check app/domains/agent_runs tests/test_source_code_standards.py` | 通过 |
+| `uv --cache-dir ... run pytest -p no:cacheprovider tests/test_source_code_standards.py tests/test_agent_runs.py tests/test_agent_loop_runtime.py tests/test_ide_agent_orchestrator.py tests/test_ide_agent_transport.py tests/test_runtime_tools.py -q` | 142/142 通过 |
+| AST 方法/helper 等价脚本 | 37/37 方法、33/33 helper；无 drift |
+| 私有依赖扫描 | agent_runs = 0 |
+| 行数护栏 | `runtime.py` 265；新增 live 模块全部 ≤500；冻结文件无增长 |
+| `git diff --check` | 通过 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出。
+- Desktop typecheck/vitest：S1 未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收。

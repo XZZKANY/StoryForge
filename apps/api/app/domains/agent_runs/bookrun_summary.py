@@ -49,3 +49,9 @@ def _bookrun_risk_summary(command_args: dict[str, Any]) -> list[str]:
         risks.append("time_budget_sec 较长，运行会停留在后台")
     risks.append("写作任务以 managed 模式运行，不会写入当前 Desktop 草稿或 pending patch")
     return risks
+
+
+bookrun_chapter_plan_summary = _bookrun_chapter_plan_summary
+bookrun_budget_summary = _bookrun_budget_summary
+bookrun_budget_details = _bookrun_budget_details
+bookrun_risk_summary = _bookrun_risk_summary

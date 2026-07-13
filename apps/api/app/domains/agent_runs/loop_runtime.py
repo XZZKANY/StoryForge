@@ -16,9 +16,10 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 # W3：live 工具循环直接吃 common 单一出网通道，不再寄生于已降级的 book_runs 私有函数。
-from app.common.llm_client import LLMConfigError, LLMError, _call_llm_messages
+from app.common.llm_client import LLMConfigError, LLMError
+from app.common.llm_client import call_llm_messages as _call_llm_messages
 from app.domains.agent_runs.canon_context import build_scene_constraint_block
-from app.domains.agent_runs.fs_tools import FsToolError, _resolve_root
+from app.domains.agent_runs.fs_tools import FsToolError, resolve_project_root
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
     build_loop_tool_schemas,
@@ -31,7 +32,6 @@ from app.domains.assistant.schemas import AssistantToolCallCreate, AssistantTool
 
 # Preflight（配置缺失 LLMConfigError）与运行失败（LLMError）平级、都不是彼此子类，循环里要一起接住。
 _LLM_ERRORS = (LLMError, LLMConfigError)
-
 LOOP_MAX_ROUNDS = 8
 LOOP_TOOL_OUTPUT_BUDGET_CHARS = 60_000
 _TOOL_RESULT_MAX_CHARS = 24_000
@@ -95,7 +95,7 @@ def _read_author_instructions(project_path: str) -> str | None:
     路径由 project_path 后端硬拼、不接受任何外部传入，无遍历风险。
     """
     try:
-        root = _resolve_root(project_path)
+        root = resolve_project_root(project_path)
     except FsToolError:
         return None
     target = root / _AUTHOR_INSTRUCTIONS_DIRNAME / _AUTHOR_INSTRUCTIONS_FILENAME

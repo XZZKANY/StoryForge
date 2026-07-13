@@ -510,3 +510,6 @@ def _required_env(source: Mapping[str, str | None], name: str) -> str:
     if not value:
         raise LLMConfigError(f"缺少真实 LLM 生成环境变量：{name}。")
     return value
+
+
+call_llm_messages = _call_llm_messages

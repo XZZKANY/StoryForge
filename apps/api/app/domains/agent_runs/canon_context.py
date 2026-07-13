@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from app.domains.agent_runs.canon_rebuild import _chapter_ordinals
+from app.domains.agent_runs.canon_rebuild import chapter_ordinals as _chapter_ordinals
 from app.domains.agent_runs.canon_store import read_canon, read_hooks
 from app.domains.agent_runs.fs_tools import FsToolError
 

@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.domains.agent_runs.consistency_scan import consistency_scan
-from app.domains.agent_runs.fs_tools import _iter_project_files, _resolve_root
+from app.domains.agent_runs.fs_tools import iter_project_files as _iter_project_files
+from app.domains.agent_runs.fs_tools import resolve_project_root as _resolve_root
 
 
 def _chapter_ordinals(project_root: str, glob: str) -> dict[str, int]:
@@ -112,3 +113,7 @@ def rebuild_presence(
         "scanned_files": scan["scanned_files"] if scan is not None else 0,
         "terms_truncated": bool(scan["terms_truncated"]) if scan is not None else False,
     }
+
+
+chapter_ordinals = _chapter_ordinals
+entity_surface_forms = _entity_surface_forms
