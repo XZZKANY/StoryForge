@@ -382,3 +382,37 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - 独立 `npm run typecheck` 的 30 条错误全部位于未改的 `src/features/publish/**`，是该隔离分支缺少主线 Phase2 配套类型/导出的既有缺口。
 - API 全量唯一失败为 README 缺少 Phase9 事实源句子；同一测试在当前主线 `master` 可复现。项目约定不为无关门禁改 README。
 - 因上述外部基线问题，不能宣称 `pnpm verify` 全绿；S8 任务内代码、边界、行为、导航与相关门禁已完成，Trellis 任务保持 active，等待基线修复后重跑总门禁。
+
+---
+
+# 验证报告：源码标准专窗 — 最终集成验收
+
+时间：2026-07-14
+分支：`refactor/source-code-standards`（S0-S8 九提交重放至当前主线 `0ef69495` + Phase9 事实源修复）
+任务：`07-13-source-code-standards`
+
+## 集成动作
+
+- S0-S8 九个提交从 `refactor/source-code-standards-s0`（基点 `baf57933`，旧主线）重放到当前主线 `0ef69495`（含 publish Phase2 PR #138 与 prettier sweep PR #139）。仅首次两份文档冲突已解，代码/App 自动合并，publish/fanqie 路径 diff 为 0。
+- S8 遗留的两处外部基线阻断在新主线上自然消解：
+  - `apps/desktop/frontend/src/features/publish/model/similarity.ts` 的 `no-useless-escape` 已被 PR #139 prettier sweep 修掉 → root lint 0 error。
+  - 独立 `npm run typecheck` 30 条 publish 类型缺口在新主线上补齐（Phase2 的 `cookieText`/`PlatformApiEndpoint`/`apiEndpoints` 等已存在）→ typecheck 全绿。
+- Phase9 事实源门禁（`test_phase9_document_fact_source_roles_are_converged`）在 `master` 基线即红（README 缺「当前阶段状态与未完成验收项见 …current-phase.md」入口句），补一句零行为文档修复（提交 `da03cfab`），未碰 publish/fanqie。
+
+## 全量门禁（final 分支，逐项实跑）
+
+| 门禁 | 结果 |
+| --- | --- |
+| `tests/test_source_code_standards.py` | 16/16 通过 |
+| 前端 `npm run typecheck`（tsc -p tsconfig.json） | 通过（原 publish 30 错已消解） |
+| 前端 `npm run test`（vitest） | 41 files，216/216 通过 |
+| `pnpm --filter @storyforge/shared test`（tsc） | 通过 |
+| root `pnpm.cmd lint`（eslint + prettier --check） | 0 error（仅 Editor.tsx 1 既有 exhaustive-deps warning）；Prettier all matched files OK |
+| API 全量 `uv run pytest` | 1025 passed, 3 skipped（含此前红的 Phase9 事实源现已绿） |
+| API `uv run ruff check .` | All checks passed |
+| Workflow `uv run pytest` | 323/323 通过 |
+| Workflow `uv run ruff check .` | All checks passed |
+| `node scripts/sidecar-smoke.mjs`（daily 档） | 全绿：health/ready 4762ms、assistant 往返、Agent SSE 2 帧、control 往返、alembic managed、分层 prompt 已打包 |
+| `node scripts/check-openapi-drift.mjs` | OpenAPI / Agent 帧契约 / generated types 无漂移 |
+
+结论：源码标准专窗 S0-S8 全部硬门禁在最终集成分支实跑通过，`pnpm verify` 各组成部分逐项复核为绿，可合并主线。
