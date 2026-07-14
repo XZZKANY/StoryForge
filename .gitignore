@@ -33,6 +33,23 @@ redis-data/
 .cache/
 .codex/*
 !.codex/verification-report.md
+# 以下 .codex 文件是 pytest 事实源门禁读取的 fixture，必须保持被跟踪；
+# 其余 .codex 产物（长跑证据、上下文摘要、完成报告等）一律本地脚手架、不入库。
+# 门禁来源：tests/test_phase9_fact_sources.py、test_real_llm_*、test_book_generation_parallel_wrapper.py
+!.codex/remote-e2e-rerun-readiness.md
+!.codex/real-llm-smoke-gate.md
+!.codex/run-real-llm-connectivity-probe.ps1
+!.codex/run-real-llm-10ch-current-env.ps1
+!.codex/run-real-llm-acceptance-interactive.ps1
+!.codex/validate-real-llm-long-evidence.ps1
+!.codex/run-real-llm-parallel.py
+!.codex/real-llm-1ch-20260603-142925/
+.codex/real-llm-1ch-20260603-142925/*
+!.codex/real-llm-1ch-20260603-142925/manual-readthrough-completion.md
+!.codex/real-llm-10ch-20260604-110831/
+.codex/real-llm-10ch-20260604-110831/*
+!.codex/real-llm-10ch-20260604-110831/summary.json
+!.codex/real-llm-10ch-20260604-110831/manual-readthrough-completion.md
 # 本机 agent 脚手架（Trellis / Codex / .agents），常驻未跟踪，禁止提交
 .agents/
 .trellis/
