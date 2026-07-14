@@ -32,14 +32,35 @@ LIVE_BOOK_RUNS_CONSUMER_ROOTS = (
     AGENT_RUNS_ROOT,
     API_ROOT / "app" / "domains" / "ide",
 )
+LIVE_DOMAIN_ROOTS = (
+    API_ROOT / "app" / "domains" / "health",
+    API_ROOT / "app" / "domains" / "assistant",
+    AGENT_RUNS_ROOT,
+    API_ROOT / "app" / "domains" / "ide",
+)
 BOOK_RUNS_PUBLIC_MODULES = {
     "app.domains.book_runs.book_generation",
     "app.domains.book_runs.models",
     "app.domains.book_runs.service",
 }
+FROZEN_MODULE_PREFIXES = (
+    "app.domains.assets",
+    "app.domains.collaboration",
+    "app.domains.commercial",
+    "app.domains.evaluations",
+    "app.domains.jobs",
+    "app.domains.prompt_packs",
+    "app.domains.series",
+    "app.domains.workspaces",
+    "app.domains.books.lineage_service",
+)
+LIVE_TO_FROZEN_IMPORT_ALLOWLIST = {
+    ("app/domains/ide/command_registry.py", "app.domains.workspaces.models", "Workspace"),
+}
 HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/agent_runs/runtime.py": 400,
     "apps/api/app/domains/agent_runs/tooling.py": 500,
+    "apps/api/app/domains/agent_runs/service.py": 500,
     "apps/api/app/domains/agent_runs/loop_runtime.py": 500,
     "apps/api/app/domains/agent_runs/llm_context.py": 500,
     "apps/api/app/domains/agent_runs/save_points.py": 500,
@@ -288,6 +309,54 @@ def test_live_consumers_use_book_runs_public_modules() -> None:
                             violations.append(f"{owner}: imports internal book_runs module {alias.name}")
 
     assert not violations, "Live consumers must use the BookRun public API:\n" + "\n".join(violations)
+
+
+def _is_frozen_module(module: str) -> bool:
+    return any(module == prefix or module.startswith(f"{prefix}.") for prefix in FROZEN_MODULE_PREFIXES)
+
+
+def test_frozen_module_prefixes_resolve_to_source_paths() -> None:
+    missing: list[str] = []
+    for module in FROZEN_MODULE_PREFIXES:
+        source_path = API_ROOT.joinpath(*module.split("."))
+        if not source_path.with_suffix(".py").is_file() and not (source_path / "__init__.py").is_file():
+            missing.append(module)
+
+    assert not missing, "Frozen module prefixes must resolve to real source paths:\n" + "\n".join(missing)
+
+
+def test_live_domains_do_not_add_frozen_imports() -> None:
+    violations: list[str] = []
+    seen_edges: set[tuple[str, str, str]] = set()
+    for root in LIVE_DOMAIN_ROOTS:
+        for path in sorted(root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            current_module, is_package = _module_name(path)
+            owner = path.relative_to(API_ROOT).as_posix()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    module = _resolve_import_from(node, current_module=current_module, is_package=is_package)
+                    if not _is_frozen_module(module):
+                        continue
+                    for alias in node.names:
+                        edge = (owner, module, alias.name)
+                        seen_edges.add(edge)
+                        if edge not in LIVE_TO_FROZEN_IMPORT_ALLOWLIST:
+                            violations.append(f"{owner}: imports frozen {module}.{alias.name}")
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if not _is_frozen_module(alias.name):
+                            continue
+                        edge = (owner, alias.name, "*")
+                        seen_edges.add(edge)
+                        if edge not in LIVE_TO_FROZEN_IMPORT_ALLOWLIST:
+                            violations.append(f"{owner}: imports frozen {alias.name}")
+
+    assert not violations, "Live domains must not add frozen-domain imports:\n" + "\n".join(violations)
+    stale_allowlist = sorted(LIVE_TO_FROZEN_IMPORT_ALLOWLIST - seen_edges)
+    assert not stale_allowlist, "Frozen import allowlist contains stale edges:\n" + "\n".join(
+        ".".join(edge) for edge in stale_allowlist
+    )
 
 
 def test_agent_runs_public_faces_exist() -> None:

@@ -172,7 +172,7 @@ frozen
 | **T1 已删** | 其它 grep/AST 确认零 live import 的 legacy helper | S0 删除 `book_generation_parallel._chapter_request` 与无用 `NovelLoopRequest` 绑定 | 全仓唯一命中为定义；无 decorator/注册/反射/测试依赖；并发生成定向测试兜底 |
 | **T2 小迁移后删** | 专窗自产的 facade re-export | 调用方迁完后，保留一个合并周期即删 | §6.3；不留长期兼容壳 |
 | **T3 卡产品决定** | `apps/workflow` 物理删 + 第 7 LLM 客户端 + workflow/api prompt 双存 | **本专窗不删**，只记阻塞与解锁条件 | 阻塞：`book_generation_parallel.py` 用 `importlib` 按路径加载 workflow 跑 managed 生成，受质量轨红线保护。解锁：D1 翻案或 n=1 稳定后 |
-| **T3 卡产品决定** | frozen models-only 7 域（assets / collaboration / commercial / evaluations / jobs / prompt_packs / series / workspaces + books.lineage） | **本专窗不删表**，只加「frozen 不被 live 新引用」护栏 | 阻塞：`models.py` 经 `create_all` 建表，删表需 alembic drop 迁移 + 确认无存量数据；物理删表另任务 |
+| **T3 卡产品决定** | frozen models-only 8 域（assets / collaboration / commercial / evaluations / jobs / prompt_packs / series / workspaces）+ `books/lineage_service.py` 历史行为模块 | **本专窗不删表/模块**，只加「frozen 不被 live 新引用」护栏 | 阻塞：`models.py` 经 `create_all` 建表，删表需 alembic drop 迁移 + 确认无存量数据；lineage 行为退役需单独核对历史导出/数据，物理删除另任务 |
 
 **明确不是删除目标（防误伤）**：`ide/orchestrator.py` 仍被 `runtime.py:92` import，是 **S1 吸收进 6 面 / adapter** 的对象，不是死码。凡「仍有 live import」的一律走搬运轨，不进删除轨。
 
@@ -218,8 +218,8 @@ frozen
 | S4 双轨 adapter | 已完成（2026-07-14） | fixed pipeline 三组 mixin 移出 loop；typed intent dispatcher；BookRun 四命令经 managed adapter；静态 import 护栏；271 项相关测试通过 |
 | S5 book_runs | 已完成（2026-07-14） | 私有跨模块依赖 178→0；live assistant/agent_runs/ide 只经 `book_generation`/`service`/`models` 公共模块；`book_generation.py` 485、judge 488、parallel 464、context facade 25 行；223 项相关测试通过 |
 | S6 Desktop | 已完成（2026-07-14） | `ChatWindow.tsx` 1492→72、`App.tsx` 848→176；session/run/control/submission 与 tabs/project/preferences 分责；Desktop `STRUCTURE.md` 8 文件读序；206 项 Vitest、严格定向 tsc、ESLint、13 项源码门禁通过；全量 typecheck 仅受隔离分支缺失的 publish Phase2 类型改动阻断 |
-| S7 测试拆分 | 已完成（2026-07-14） | 六个 live 祖传测试文件全部≤800 行：agent_runs 346、book_generation 557、loop_runtime 416、canon 257、book_runs 635、ide_orchestrator 661；拆分后顶层定义集合与 HEAD 完全一致；256 项 S7 定向测试、Ruff、14 项源码门禁、`git diff --check` 通过 |
-| S8 验收 | 未开始 | |
+| S7 测试拆分 | 已完成（2026-07-14） | `splitlines()` 硬门禁口径：agent_runs 431、book_generation 640、loop_runtime 486、canon 338、book_runs 749、ide_orchestrator 765，全部≤800；拆分后顶层定义集合与 HEAD 完全一致；256 项 S7 定向测试、Ruff、14 项源码门禁、`git diff --check` 通过 |
+| S8 验收 | 任务内完成；仓库总门禁待基线修复（2026-07-14） | `service.py` 292 行、5 个 owner 最大 278；live→frozen 真实路径/陈旧白名单硬护栏；143 项 service 行为 + 16 项 transport + 16 项源码门禁、API/Workflow Ruff、Desktop 206 项、Workflow 323 项、Shared typecheck、sidecar、OpenAPI drift 均绿。`pnpm verify` 已执行但被未改的 publish lint/type 缺口阻断；API 全量另有主线可复现的 Phase9 README 事实源断言失败，详见 verification-report |
 | 删除轨 T1（WS 遗留 + legacy helper） | 已审计 | WS 编码器为 SSE/REST live 依赖，转 T2；零引用 `_chapter_request` 已删 |
 | 删除轨 T3（workflow / frozen 表，记录不删） | 记录在案 | 阻塞见 §5.5；解锁待 D1/n=1 |
 

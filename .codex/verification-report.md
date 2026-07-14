@@ -316,8 +316,8 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 
 ## S7 结果
 
-- 六个 live 祖传测试文件全部拆至 ≤800 行：`test_agent_runs.py` 346、`test_book_generation.py` 557、`test_agent_loop_runtime.py` 416、`test_agent_canon.py` 257、`test_book_runs.py` 635、`test_ide_agent_orchestrator.py` 661。
-- 新增行为面测试文件均 ≤800 行，最大 `test_agent_run_resume.py` 692 行；共享 support/fixtures 文件均为薄辅助。
+- 六个 live 祖传测试文件全部拆至 ≤800 行（`splitlines()` 硬门禁口径）：`test_agent_runs.py` 431、`test_book_generation.py` 640、`test_agent_loop_runtime.py` 486、`test_agent_canon.py` 338、`test_book_runs.py` 749、`test_ide_agent_orchestrator.py` 765。
+- 新增行为面测试文件均 ≤800 行，最大 `test_agent_run_resume.py` 783 行；共享 support/fixtures 文件均为薄辅助。
 - 拆分后六组顶层 test/helper/class 定义集合与 HEAD 完全一致：agent_runs 67、book_generation 55、agent_loop_runtime 31、agent_canon 64、book_runs 27、ide_agent_orchestrator 34，missing/added 均为 0。
 - `tests/test_source_code_standards.py` 新增六个已完成波次 live 测试文件的硬行数门禁，源码标准测试数从 13 增至 14。
 - 未改 route、DTO、schema、OpenAPI、生产代码、Desktop 或 publish/fanqie 路径。
@@ -337,3 +337,48 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出。
 - Desktop typecheck/vitest：S7 未改 Desktop 源码。
 - `pnpm verify`：按计划留到 S8 专窗总验收。
+
+---
+
+# 验证报告：源码标准专窗 S8
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S8 结果
+
+- `agent_runs/service.py` 从 964 行收敛为 292 行稳定 facade；生命周期、存储/事件、控制/恢复、BookRun bridge、类型分别落入 5 个 owner，最大 278 行。
+- 旧 service 的全部公开顶层定义仍由 facade 暴露；`execute_agent_user_message_run` 保留在 facade，并在调用时解析 `service.AgentRuntime`，原 monkeypatch seam 不变。控制 owner 通过注入 executor 解环。
+- frozen 护栏覆盖 live `health` / `assistant` / `agent_runs` / `ide`，锁定 8 个 models-only 域与真实 `books.lineage_service` 模块，只保留既有 Workspace ORM 审计边。
+- 新增护栏保证每个 frozen 前缀解析到真实源码路径、白名单边确实存在，防止概念名拼错后门禁静默失效。
+- 六个核心源码硬上限全部达标：runtime 257、tooling 59、service 292、loop_runtime 329、ChatWindow 72、App 176；live 测试最大 783≤800。
+- `DOMAINS.md`、AgentRun `STRUCTURE.md`、源码标准计划与 Trellis quality guideline 已同步；publish/fanqie 路径 diff 为 0。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_agent_runs.py tests/test_agent_run_resume.py tests/test_agent_run_save_points.py tests/test_agent_run_roles.py tests/test_agent_loop_runtime.py tests/test_agent_loop_runtime_lifecycle.py tests/test_ide_agent_orchestrator.py tests/test_ide_agent_intents.py tests/test_book_runs.py tests/test_book_run_controls.py tests/test_source_code_standards.py -q` | 143/143 通过 |
+| `uv run pytest tests/test_agent_run_transport.py tests/test_ide_agent_transport.py -q` | 16/16 通过 |
+| `uv run pytest tests/test_source_code_standards.py -q` | 16/16 通过 |
+| 旧/新 service AST 顶层定义与绑定审计 | 旧公开定义 missing=0；纯移动函数保持等价，控制函数仅增加 executor 注入与公共 helper 引用 |
+| `uv run ruff check app/domains/agent_runs tests/test_source_code_standards.py` | 通过 |
+| API 全量 `uv run pytest` | 收集 1027；1023 passed、3 skipped、1 个 Phase9 README 基线断言失败；pytest 已打印总结，命令包装器随后在 300 秒超时 |
+| 主线定向 `uv run pytest tests/test_phase9_fact_sources.py::test_phase9_document_fact_source_roles_are_converged -q` | 同一 README 断言失败，证明非本分支引入 |
+| `npm run test`（Desktop frontend） | 39 files，206/206 通过 |
+| `pnpm --filter @storyforge/shared test` | Shared TypeScript typecheck 通过 |
+| `uv run pytest`（Workflow） | 323/323 通过 |
+| API / Workflow `uv run ruff check .` | 均通过 |
+| `node scripts/sidecar-smoke.mjs` | daily sidecar、health、assistant、Agent SSE/control、Alembic 全绿 |
+| `node scripts/check-openapi-drift.mjs` | OpenAPI / Agent WS / generated types 无漂移 |
+| S6 全部 17 个改动 TS/TSX 定向 ESLint + Prettier | 通过 |
+| `git diff --check`；publish/fanqie path diff | 通过；0 文件 |
+
+## 仓库总门禁基线阻断
+
+- `pnpm verify` 已实际执行。第一次仅因专用 worktree 缺 `node_modules` 未进入代码检查；使用 `pnpm install --frozen-lockfile --offline` 建立被忽略的依赖目录后重跑。
+- 第二次在第一阶段 root lint 被未改的 `apps/desktop/frontend/src/features/publish/model/similarity.ts:7` 既有 `no-useless-escape` 阻断；本任务不修改 publish/fanqie。
+- 独立 `npm run typecheck` 的 30 条错误全部位于未改的 `src/features/publish/**`，是该隔离分支缺少主线 Phase2 配套类型/导出的既有缺口。
+- API 全量唯一失败为 README 缺少 Phase9 事实源句子；同一测试在当前主线 `master` 可复现。项目约定不为无关门禁改 README。
+- 因上述外部基线问题，不能宣称 `pnpm verify` 全绿；S8 任务内代码、边界、行为、导航与相关门禁已完成，Trellis 任务保持 active，等待基线修复后重跑总门禁。

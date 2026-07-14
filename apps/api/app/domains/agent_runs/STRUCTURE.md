@@ -38,6 +38,20 @@ Cross-face callers may import public names only. S0 freezes every existing leadi
 
 `runtime.py` owns only construction, the top-level user-message switch, the monkeypatch-compatible `_file_review` seam, and temporary helper re-exports. Behavior methods live in responsibility-scoped mixins under the six faces; every new runtime module remains below 500 lines.
 
+## Service Facade
+
+`service.py` is the stable import surface for routers, the SSE author-chat path, startup reaping, event sinks, and BookRun snapshots. It keeps `execute_agent_user_message_run` next to the imported `AgentRuntime` so tests and callers that monkeypatch `service.AgentRuntime` still replace the runtime used at execution time. Control helpers receive that executor as a dependency instead of importing the facade back and creating a cycle.
+
+Open the focused service modules only for the responsibility being changed:
+
+- `service_types.py` owns lifecycle result records, errors, and terminal-status constants.
+- `service_lifecycle.py` owns AgentRun creation/resume and the initial started/plan events.
+- `service_store.py` owns persistence, ordered events, artifacts, terminal transitions, reaping, and save-point queries.
+- `service_control.py` owns durable control events and pending-call resume diagnostics.
+- `service_bookrun_bridge.py` owns BookRun snapshots and managed control translation.
+
+These modules are internal owners; external callers keep importing from `service.py`. The facade and every focused service module stay below 500 lines.
+
 ## Tooling Layout
 
 - `tools/spec_models.py` owns immutable ToolSpec/schema types and permission derivation.
@@ -67,6 +81,10 @@ Prompt/author instructions live in `loop/prompt_context.py`; history, budget, fe
 - AgentRuntime BookRun tools enter `adapters/bookrun_managed_run_adapter.py`, which preserves IDE command audit/evidence behavior and reaches the current managed WritingRun seam.
 - The managed BookRun command tuple must equal the declared `bookrun.*` ToolSpec tuple.
 - A proposed patch is an artifact only. The backend never writes a user's manuscript file directly.
+
+## Frozen Import Boundary
+
+Live `health`, `assistant`, `agent_runs`, and `ide` modules do not add dependencies on frozen domains. `test_live_domains_do_not_add_frozen_imports` enforces the concrete frozen module list and allows only the existing `ide/command_registry.py -> workspaces.models.Workspace` ORM audit edge. Conceptual names in plans must resolve to the real Python module path; for example, the legacy `books.lineage` area is implemented by `books/lineage_service.py`.
 
 ## S0 Audit Notes
 
