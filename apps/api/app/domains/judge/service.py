@@ -141,3 +141,11 @@ def _validate_scene_packet(session: Session, scene_id: int, scene_packet_id: int
     scene_packet = session.get(ScenePacket, scene_packet_id)
     if scene_packet is None or scene_packet.scene_id != scene_id:
         raise JudgeInputError("Scene Packet 不存在或不属于指定场景，无法执行结构化评审。")
+
+
+detect_character_alias_conflicts = _detect_character_alias_conflicts
+detect_character_bible_violations = _detect_character_bible_violations
+detect_style_fingerprint_drift = _detect_style_fingerprint_drift
+detect_timeline_conflicts = _detect_timeline_conflicts
+forbidden_trait_phrases = _forbidden_trait_phrases
+style_fingerprint = _style_fingerprint

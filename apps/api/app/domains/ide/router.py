@@ -19,8 +19,11 @@ from app.domains.agent_runs.service import (
     websocket_control_event,
     websocket_stream_events_from_agent_event,
 )
-from app.domains.book_runs.book_generation import BookGenerationError
-from app.domains.book_runs.book_generation_preflight import missing_book_generation_env, resolved_llm_env
+from app.domains.book_runs.book_generation import (
+    BookGenerationError,
+    missing_book_generation_env,
+    resolved_llm_env,
+)
 from app.domains.book_runs.service import get_book_run
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 from app.domains.ide.schemas import (

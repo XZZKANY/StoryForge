@@ -30,7 +30,7 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401  (注册所有表)
 from app.db.base import Base
 from app.domains.agent_runs.service import run_agent_user_message
-from app.domains.book_runs.book_generation_preflight import missing_book_generation_env, resolved_llm_env
+from app.domains.book_runs.book_generation import missing_book_generation_env, resolved_llm_env
 from app.domains.ide.cross_chapter_consistency import check_cross_chapter_consistency
 
 DOC_EXT = (".md", ".txt")

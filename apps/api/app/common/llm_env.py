@@ -112,3 +112,6 @@ def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str
         source["STORYFORGE_LLM_API_BASE_URL"] = env_value(source, "STORYFORGE_LLM_BASE_URL")
 
     return source
+
+
+apply_llm_config_file = _apply_llm_config_file

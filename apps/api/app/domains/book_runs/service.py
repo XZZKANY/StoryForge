@@ -10,60 +10,32 @@ from app.common.exceptions import InputError, NotFoundError
 from app.db.session import SessionLocal
 from app.domains.blueprints.models import BookBlueprint
 from app.domains.book_runs._coerce import (  # noqa: F401  facade re-export
-    _bounded_ratio,
-    _compact_text,
-    _compact_text_list,
-    _nested_progress_int,
-    _non_negative_float,
-    _non_negative_int,
-    _positive_int,
-    _string_list,
+    bounded_ratio as _bounded_ratio,
 )
 from app.domains.book_runs.dispatch import (  # noqa: F401  facade re-export
     DEFAULT_ENTITY_BUDGET,
     DEFAULT_PHASE_POLICY,
-    _beat_sheet_gate,
-    _chapter_beats_summary,
-    _chapter_goal,
-    _chapter_planning_refs,
-    _default_entity_budget,
-    _default_major_reversals,
-    _default_phase_policy,
-    _dispatch_start_chapter_index,
-    _generated_default_narrative_plan,
-    _major_reversals_summary,
-    _metadata_narrative_plan_summary,
-    _volume_plan_from_blueprint,
-    _workflow_narrative_plan,
     build_book_run_workflow_dispatch,
 )
 from app.domains.book_runs.gate import (  # noqa: F401  facade re-export
-    _even_volume_plan,
-    _explicit_volume_plan,
-    _require_longform_context_ready,
-    _single_volume_plan,
+    even_volume_plan as _even_volume_plan,
 )
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.progression import (  # noqa: F401  facade re-export
     CONTROLLED_PROGRESS_KEYS,
     STICKY_PROGRESS_KEYS,
-    _apply_volume_progress,
-    _budget_exceeded,
-    _budget_from_progress,
-    _checkpoint_from_progress,
-    _latency_from_progress,
-    _latest_checkpoint_index,
-    _progress_with_controlled_summaries,
-    _provider_resolution_progress_summary,
     apply_book_run_progress,
     pause_book_run,
     resume_book_run,
     retry_book_run_from_checkpoint,
     stop_book_run,
 )
+from app.domains.book_runs.progression import (
+    provider_resolution_progress_summary as _provider_resolution_progress_summary,
+)
 from app.domains.book_runs.schemas import BookRunCreate
 from app.domains.book_runs.timeline import (  # noqa: F401  facade re-export
-    _sync_completed_chapter_timeline_events,
+    sync_completed_chapter_timeline_events as _sync_completed_chapter_timeline_events,
 )
 from app.domains.books.models import Book
 from app.domains.provider_gateway.service import resolve_provider

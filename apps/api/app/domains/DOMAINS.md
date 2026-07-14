@@ -31,6 +31,8 @@
 
 **2026-07-10 死码物理清理**：所有冻结域的 **HTTP 层（`router.py` / `service.py` / `schemas.py`）已物理删除**。`analytics` / `batch_refinery` / `worldbuilding`（无 models）**整目录删除**；`assets` / `collaboration` / `commercial` / `evaluations` / `prompt_packs` / `series` / `workspaces` **只剩 `models.py` + `__init__.py`**（`app/models.py` 聚合建表依赖，红线保留）。连带删 3 个 `*_service_acceptance` 死测、conftest `_reset_domain_caches` fixture（worldbuilding cache 已死）、`test_source_pruning` 的 worldbuilding/batch_refinery __init__ 卫生测；`test_redis_cache_strategy` 摘掉 3 个 worldbuilding/asset 缓存测、保留 artifacts + redis-util live 测。**OpenAPI 零变更**（router 早已卸载、schema 早已不在契约）。下方各 batch 记录为历史卸载过程。
 
+**2026-07-14 frozen 残留对齐**：`jobs` 同样是 models-only residual（`JobRun` 仍被 backing ORM / quality 代码引用），与上述 7 域合计 8 个 models-only 域；`books/lineage_service.py` 是零 app 调用方的历史批准回写模块，按 frozen 行为模块保留。`test_live_domains_do_not_add_frozen_imports` 禁止 live 四域新增这些依赖，只白名单保留 `ide/command_registry.py -> workspaces.models.Workspace` 这条既有 ORM 审计边。
+
 **router 已卸载（W4 batch-1，2026-07-04）**：`analytics`、`batch_refinery`、`collaboration`、`commercial`。
 - 零前端调用、零 backing 域 import 其 service；`collaboration`/`commercial` 的 `models.py` 仍在 `app/models.py` 聚合建表，故保留目录。
 - 护栏：`tests/test_api_surface.py::test_frozen_domain_routers_stay_unmounted`（重新 include_router 即红）。回滚 = `main.py` 加回一行 `include_router`。
@@ -55,3 +57,10 @@
 
 - 冻结 = 卸 router；**`models.py` 永不删**（打碎 `app/models.py` 聚合建表会连累 live）。冻结域的 router/service/schemas 已于 2026-07-10 物理删除（见本节顶部）；models-only 域只剩 `models.py` + `__init__.py`，三个无 models 域（analytics/batch_refinery/worldbuilding）整目录已删。
 - 质量轨资产（book_runs / judge / story_memory / 长程生成链）一行不删，直到真实长程重跑验收完成（见 `docs/internal/arch-review-blueprint-2026-07-03.md` §9）。
+
+## 源码公共面与双轨入口
+
+- `agent_runs` 主链只经 `loop` / `tools` / `fs` / `events` / `permission` / `patches` 六公共面；读序与 service 子边界见 [`agent_runs/STRUCTURE.md`](agent_runs/STRUCTURE.md)。
+- 自由文本走 live loop；显式旧 intent 只经 `adapters/intent_fixed_pipeline_adapter.py`；managed BookRun 命令只经 `adapters/bookrun_managed_run_adapter.py`。
+- live `assistant` / `agent_runs` / `ide` 只经 BookRun 的 `book_generation` / `service` / `models` 公共模块；不得 import 生成内部 helper。
+- `tests/test_source_code_standards.py` 同时硬门禁跨模块私有依赖、双轨 import、BookRun 公共入口、体积上限与 live→frozen 依赖。

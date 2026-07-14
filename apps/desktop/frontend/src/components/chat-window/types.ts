@@ -48,6 +48,11 @@ export type RetryRequest = {
   intent?: 'file.revise';
 };
 
+export type PendingRepairCommand = {
+  command_id: string;
+  args: Record<string, unknown>;
+};
+
 export type WritingRunProjection = {
   writingRunId: number;
   status: string;

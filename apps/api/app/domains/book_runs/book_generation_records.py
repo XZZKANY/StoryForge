@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from sqlalchemy.orm import Session
 
 from app.domains.book_runs.book_generation_judge import REPAIR_THRESHOLD
-from app.domains.book_runs.book_generation_llm import _required_env
+from app.domains.book_runs.book_generation_llm import required_env as _required_env
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
@@ -151,3 +151,10 @@ def _record_scene_packet(
     session.commit()
     session.refresh(packet)
     return packet
+
+
+finalize_scene_decision = _finalize_scene_decision
+model_run_summary_text = _model_run_summary_text
+persist_draft_scene = _persist_draft_scene
+record_model_run = _record_model_run
+record_scene_packet = _record_scene_packet

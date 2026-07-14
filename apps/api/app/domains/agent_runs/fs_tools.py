@@ -208,3 +208,9 @@ def fs_search(
         if len(matches) >= max_matches and truncated:
             break
     return {"matches": matches, "truncated": truncated, "scanned_files": scanned_files}
+
+
+resolve_project_root = _resolve_root
+resolve_scoped_path = _resolve_scoped
+iter_project_files = _iter_project_files
+read_text_file = _read_text

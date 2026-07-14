@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from app.domains.agent_runs._text import _compact_text
+from app.domains.agent_runs._text import compact_text as _compact_text
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.ide import review_reasoning
@@ -278,3 +278,9 @@ def _degraded_review_agents(findings: dict[str, Any]) -> list[str]:
         if isinstance(item, dict) and item.get("mode") == "heuristic" and item.get("degraded_reason"):
             degraded.append(str(item.get("agent") or key))
     return degraded
+
+
+build_multi_agent_review_report_with_executor = _build_multi_agent_review_report_with_executor
+review_subagent_handler = _review_subagent_handler
+continuity_subagent_handler = _continuity_subagent_handler
+review_report_summary = _review_report_summary

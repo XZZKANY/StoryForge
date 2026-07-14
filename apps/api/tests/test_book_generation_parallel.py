@@ -309,9 +309,9 @@ def test_book_generation_parallel_runner_uses_workflow_metrics_and_exports_audit
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation.generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.book_generation._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation.judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
@@ -401,9 +401,9 @@ def test_book_generation_parallel_runner_defaults_to_precommit_revision_dependen
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation.generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.book_generation._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation.judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
@@ -482,9 +482,9 @@ def test_book_generation_parallel_runner_prefetches_then_revises_before_commit(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation.generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.book_generation._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation.judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
@@ -548,9 +548,9 @@ def test_book_generation_parallel_runner_extracts_and_recalls_story_memory(
             "quality_issues": [],
         }
 
-    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation.generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.book_generation._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation.judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 
@@ -639,9 +639,9 @@ def test_book_generation_parallel_runner_enables_arc_barrier_from_blueprint(
         }
 
     monkeypatch.setattr("app.domains.book_runs.book_generation._default_planning_arcs", fake_planning_arcs)
-    monkeypatch.setattr("app.domains.book_runs.book_generation._generate_chapter", fake_generate)
+    monkeypatch.setattr("app.domains.book_runs.book_generation.generate_chapter", fake_generate)
     monkeypatch.setattr(
-        "app.domains.book_runs.book_generation._judge_and_repair_loop",
+        "app.domains.book_runs.book_generation.judge_and_repair_loop",
         fake_judge_and_repair_loop,
     )
 

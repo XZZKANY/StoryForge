@@ -73,3 +73,9 @@ def _chapter_generation_time_p50(completed_chapters: list[dict[str, object]]) ->
         if isinstance(elapsed, int | float):
             seconds.append(max(0.0, float(elapsed)))
     return round(float(median(seconds)), 3) if seconds else 0.0
+
+
+arc_completion_rate = _arc_completion_rate
+chapter_generation_time_p50 = _chapter_generation_time_p50
+direct_memory_recall_budget_used = _direct_memory_recall_budget_used
+serial_integration_metrics = _serial_integration_metrics

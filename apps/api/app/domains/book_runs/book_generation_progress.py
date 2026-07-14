@@ -79,3 +79,8 @@ def _pause_by_budget(
             },
         ),
     )
+
+
+pause_by_budget = _pause_by_budget
+pause_by_failure = _pause_by_failure
+pause_by_interrupt = _pause_by_interrupt

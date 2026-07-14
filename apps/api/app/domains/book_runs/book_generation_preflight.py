@@ -4,10 +4,9 @@ from collections.abc import Mapping
 
 from app.common.llm_env import (  # noqa: F401  facade re-export（覆盖链已下沉 app/common/llm_env.py）
     LLM_SETTINGS_ENV_KEYS,
-    _apply_llm_config_file,
     resolved_llm_env,
 )
-from app.domains.book_runs.book_generation_llm import _env_value
+from app.domains.book_runs.book_generation_llm import env_value as _env_value
 from app.domains.book_runs.errors import BookGenerationPreflightError
 
 REQUIRED_REAL_LLM_ENV = (
@@ -51,3 +50,6 @@ def _assert_preflight(
         raise BookGenerationPreflightError("真实 LLM 生成章节字数上下限必须为正数。")
     if chapter_word_count_min > chapter_word_count_max:
         raise BookGenerationPreflightError("真实 LLM 生成章节最小字数不能大于最大字数。")
+
+
+assert_preflight = _assert_preflight

@@ -7,7 +7,15 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domains.book_runs._coerce import _nested_progress_int, _positive_int, _string_list
+from app.domains.book_runs._coerce import (
+    nested_progress_int as _nested_progress_int,
+)
+from app.domains.book_runs._coerce import (
+    positive_int as _positive_int,
+)
+from app.domains.book_runs._coerce import (
+    string_list as _string_list,
+)
 from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Chapter
 from app.domains.timeline.models import TimelineEventRecord
@@ -247,3 +255,6 @@ def _timeline_evidence_refs(book_run_id: int, chapter_id: int, completed_chapter
             refs.append(f"{prefix}:{value}")
     refs.extend(f"memory:{memory_id}" for memory_id in _string_list(completed_chapter.get("memory_atom_ids")))
     return refs
+
+
+sync_completed_chapter_timeline_events = _sync_completed_chapter_timeline_events

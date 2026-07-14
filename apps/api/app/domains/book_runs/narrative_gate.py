@@ -167,3 +167,7 @@ def _contract_evidence(
             for chapter_number, fact in (chapter_facts or {}).items()
         },
     }
+
+
+auto_gate_results_from_book_export = _auto_gate_results_from_book_export
+parse_markdown_chapters = _parse_markdown_chapters

@@ -9,7 +9,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.domains.agent_runs._text import _optional_string, _ordered_unique, _string_arg_list
+from app.domains.agent_runs._text import optional_string as _optional_string
+from app.domains.agent_runs._text import ordered_unique as _ordered_unique
+from app.domains.agent_runs._text import string_arg_list as _string_arg_list
 from app.domains.ide import review_reasoning
 from app.domains.ide.review_skills import REVIEW_SKILLS
 
@@ -283,3 +285,11 @@ def _review_report_actions(review_report: dict[str, Any] | None) -> list[str]:
         return []
     actions = review_report.get("suggested_actions")
     return [item for item in actions if isinstance(item, str) and item.strip()] if isinstance(actions, list) else []
+
+
+scoped_revise_instruction = _scoped_revise_instruction
+resolve_revise_scope = _resolve_revise_scope
+public_revise_scope = _public_revise_scope
+scope_warning = _scope_warning
+scope_issues = _scope_issues
+revise_summary_with_scope = _revise_summary_with_scope

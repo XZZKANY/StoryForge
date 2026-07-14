@@ -101,7 +101,7 @@ def _surface_index(canon_entities: list[dict[str, Any]]) -> dict[str, set[str]]:
         entity_id = entity.get("id")
         if not isinstance(entity_id, str) or not entity_id.strip():
             continue
-        for surface in canon_rebuild._entity_surface_forms(entity):
+        for surface in canon_rebuild.entity_surface_forms(entity):
             index.setdefault(surface, set()).add(entity_id.strip())
     return index
 

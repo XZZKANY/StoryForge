@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.domains.book_runs.prompts._render import _clean, _section
+from app.domains.book_runs.prompts._render import clean as _clean
+from app.domains.book_runs.prompts._render import section as _section
 from app.domains.book_runs.prompts.models import (
     CharacterConstraint,
     NarrativeContext,
@@ -213,3 +214,18 @@ def _pacing_section(pacing: PacingDirective) -> str:
     if pacing.hook_required:
         lines.append("段末必须留下推动下一段的钩子，不要收束或提前完结。")
     return _section("节奏控制", lines)
+
+
+CRAFT_EXAMPLE_BAD = _CRAFT_EXAMPLE_BAD
+CRAFT_EXAMPLE_GOOD = _CRAFT_EXAMPLE_GOOD
+beat_value = _beat_value
+chapter_beat_section = _chapter_beat_section
+character_section = _character_section
+continuity_section = _continuity_section
+craft_section = _craft_section
+pacing_section = _pacing_section
+position_section = _position_section
+previous_section = _previous_section
+scene_quality_section = _scene_quality_section
+strategy_section = _strategy_section
+style_section = _style_section

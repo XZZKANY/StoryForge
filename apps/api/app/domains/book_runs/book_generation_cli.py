@@ -8,9 +8,10 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import TextIO
 
-from app.domains.book_runs.book_generation_llm import _optional_int
-from app.domains.book_runs.book_generation_metrics import _evidence_summary, _result_summary
-from app.domains.book_runs.book_generation_preflight import _assert_preflight
+from app.domains.book_runs.book_generation_llm import optional_int as _optional_int
+from app.domains.book_runs.book_generation_metrics import evidence_summary as _evidence_summary
+from app.domains.book_runs.book_generation_metrics import result_summary as _result_summary
+from app.domains.book_runs.book_generation_preflight import assert_preflight as _assert_preflight
 from app.domains.book_runs.errors import BookGenerationPreflightError
 
 DEFAULT_CLI_MAX_CHAPTER_COUNT = 30

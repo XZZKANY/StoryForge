@@ -152,3 +152,8 @@ def _scope_string_list(scope: dict[str, Any] | None, key: str) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str) and item.strip()]
+
+
+AGENT_SKILL_DEFINITIONS = _AGENT_SKILL_DEFINITIONS
+skill_by_name = _skill_by_name
+agent_plan_payload = _agent_plan_payload

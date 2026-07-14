@@ -135,3 +135,9 @@ def _single_volume_plan(total_chapters: int) -> list[BookRunVolumePlanItem]:
             chapter_range=BookRunChapterRange(start=1, end=total_chapters),
         )
     ]
+
+
+even_volume_plan = _even_volume_plan
+explicit_volume_plan = _explicit_volume_plan
+require_longform_context_ready = _require_longform_context_ready
+single_volume_plan = _single_volume_plan

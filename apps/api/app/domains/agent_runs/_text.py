@@ -30,3 +30,9 @@ def _compact_text(value: object, *, limit: int) -> str:
         return ""
     text = " ".join(value.split())
     return text if len(text) <= limit else f"{text[:limit].rstrip()}..."
+
+
+optional_string = _optional_string
+string_arg_list = _string_arg_list
+ordered_unique = _ordered_unique
+compact_text = _compact_text

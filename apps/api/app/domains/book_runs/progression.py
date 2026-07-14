@@ -6,10 +6,20 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.domains.book_runs._coerce import _non_negative_float, _non_negative_int, _string_list
+from app.domains.book_runs._coerce import (
+    non_negative_float as _non_negative_float,
+)
+from app.domains.book_runs._coerce import (
+    non_negative_int as _non_negative_int,
+)
+from app.domains.book_runs._coerce import (
+    string_list as _string_list,
+)
 from app.domains.book_runs.models import BookRun
 from app.domains.book_runs.schemas import BookRunProgressUpdate, BookRunVolumeProgress
-from app.domains.book_runs.timeline import _sync_completed_chapter_timeline_events
+from app.domains.book_runs.timeline import (
+    sync_completed_chapter_timeline_events as _sync_completed_chapter_timeline_events,
+)
 from app.domains.provider_gateway.schemas import ProviderResolutionRead
 
 CONTROLLED_PROGRESS_KEYS = frozenset(
@@ -276,3 +286,13 @@ def _latest_checkpoint_index(checkpoint: list) -> int:
     indexes = [item.get("chapter_index") for item in checkpoint if isinstance(item, dict)]
     numeric_indexes = [value for value in indexes if isinstance(value, int)]
     return max(numeric_indexes, default=0)
+
+
+apply_volume_progress = _apply_volume_progress
+budget_exceeded = _budget_exceeded
+budget_from_progress = _budget_from_progress
+checkpoint_from_progress = _checkpoint_from_progress
+latency_from_progress = _latency_from_progress
+latest_checkpoint_index = _latest_checkpoint_index
+progress_with_controlled_summaries = _progress_with_controlled_summaries
+provider_resolution_progress_summary = _provider_resolution_progress_summary

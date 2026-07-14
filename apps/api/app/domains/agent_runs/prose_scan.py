@@ -25,9 +25,15 @@ from typing import Any
 
 from app.domains.agent_runs.fs_tools import (
     FsToolError,
-    _read_text,
-    _resolve_root,
-    _resolve_scoped,
+)
+from app.domains.agent_runs.fs_tools import (
+    read_text_file as _read_text,
+)
+from app.domains.agent_runs.fs_tools import (
+    resolve_project_root as _resolve_root,
+)
+from app.domains.agent_runs.fs_tools import (
+    resolve_scoped_path as _resolve_scoped,
 )
 
 _MAX_FILE_BYTES = 512_000

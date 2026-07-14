@@ -666,7 +666,7 @@ test('ChatWindow 根容器锁定高度，消息流不能把右栏状态栏挤走
 });
 
 test('ChatWindow sends current-file content only after editor flush, before building context bundle', () => {
-  const source = readFileSync('src/components/ChatWindow.tsx', 'utf8');
+  const source = readFileSync('src/components/chat-window/useRunAuthorAgent.ts', 'utf8');
   const contextBuildIndex = source.indexOf('await buildContextBundle({');
   const flushBeforeContextIndex = source.lastIndexOf(
     'await flushActiveEditorToDisk(file);',
@@ -677,7 +677,7 @@ test('ChatWindow sends current-file content only after editor flush, before buil
 });
 
 test('ChatWindow resolves explicit @context through project containment before reading files', () => {
-  const source = readFileSync('src/components/ChatWindow.tsx', 'utf8');
+  const source = readFileSync('src/components/chat-window/context-files.ts', 'utf8');
   assert.ok(source.includes('resolveProjectRelativePath(projectPath, trimmed)'));
   assert.equal(source.includes('looksAbsolutePath(trimmed) ? trimmed'), false);
   assert.ok(source.includes('TauriFileSystem.readProjectFile(projectPath, path)'));

@@ -180,3 +180,20 @@ def _book_run_snapshot_payload(book_run: BookRun, *, source: str) -> dict[str, A
         if isinstance(chapter_index, int) and chapter_index > 0:
             payload["retry_checkpoint_chapter_index"] = chapter_index
     return payload
+
+
+message_text = _message_text
+message_input_summary = _message_input_summary
+scope_summary = _scope_summary
+has_scope_key = _has_scope_key
+scope_string_list = _scope_string_list
+budget_summary = _budget_summary
+current_plan_step = _current_plan_step
+optional_string = _optional_string
+optional_positive_int = _optional_positive_int
+has_event = _has_event
+control_event_type = _control_event_type
+control_event_message = _control_event_message
+book_run_id_from_result = _book_run_id_from_result
+book_run_budget = _book_run_budget
+book_run_snapshot_payload = _book_run_snapshot_payload

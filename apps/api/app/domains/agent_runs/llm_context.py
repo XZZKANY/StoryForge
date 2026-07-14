@@ -5,61 +5,59 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.domains.agent_runs._text import _compact_text, _ordered_unique
+from app.domains.agent_runs._text import compact_text
+from app.domains.agent_runs.loop.context_values import (
+    CHAPTER_CONTEXT_KEYS as _CHAPTER_CONTEXT_KEYS,
+)
+from app.domains.agent_runs.loop.context_values import (
+    UNSAFE_FILE_KINDS as _UNSAFE_FILE_KINDS,
+)
+from app.domains.agent_runs.loop.context_values import (
+    artifact_kind as _artifact_kind,
+)
+from app.domains.agent_runs.loop.context_values import (
+    artifact_payload as _artifact_payload,
+)
+from app.domains.agent_runs.loop.context_values import (
+    first_string as _first_string,
+)
+from app.domains.agent_runs.loop.context_values import (
+    included_sections as _included_sections,
+)
+from app.domains.agent_runs.loop.context_values import (
+    looks_like_harness_payload as _looks_like_harness_payload,
+)
+from app.domains.agent_runs.loop.context_values import (
+    matches_selected_file as _matches_selected_file,
+)
+from app.domains.agent_runs.loop.context_values import (
+    omitted_summary as _omitted_summary,
+)
+from app.domains.agent_runs.loop.context_values import (
+    safe_context_value as _safe_context_value,
+)
+from app.domains.agent_runs.loop.context_values import (
+    story_memory_count as _story_memory_count,
+)
+from app.domains.agent_runs.loop.context_values import (
+    string_list as _string_list,
+)
+from app.domains.agent_runs.loop.context_values import (
+    string_or_default as _string_or_default,
+)
+from app.domains.agent_runs.loop.context_values import (
+    value as _value,
+)
 
 SNAPSHOT_VERSION = 1
 SELECTED_FILE_TEXT_LIMIT = 12000
 CONTEXT_FILE_TEXT_LIMIT = 2000
 MEMORY_TEXT_LIMIT = 800
-CHAPTER_TEXT_LIMIT = 1200
 REVIEW_TEXT_LIMIT = 600
 MAX_CONTEXT_FILES = 8
 MAX_REVIEW_ISSUES = 12
 MAX_STORY_MEMORY_ITEMS = 8
 
-_UNSAFE_CONTEXT_KEYS = frozenset(
-    {
-        "agent_events",
-        "debug",
-        "debug_json",
-        "events",
-        "event_log",
-        "patch",
-        "patch_metadata",
-        "permission",
-        "permission_payload",
-        "permissions",
-        "proposed_patch",
-        "timeline",
-        "timeline_events",
-        "tool_trace",
-        "ui_debug",
-        "ui_debug_json",
-    }
-)
-_UNSAFE_FILE_KINDS = frozenset({"artifact", "debug", "event", "export", "patch", "permission", "quality"})
-_CHAPTER_CONTEXT_KEYS = (
-    "book_id",
-    "chapter_id",
-    "chapter",
-    "chapter_number",
-    "ordinal",
-    "chapter_title",
-    "title",
-    "scene_id",
-    "scene_title",
-    "summary",
-    "previous_summary",
-    "next_summary",
-    "goal",
-    "pov",
-    "setting",
-    "beat",
-    "beats",
-    "outline",
-    "chapter_outline",
-    "current_scene",
-)
 
 
 def build_llm_context_snapshot(
@@ -110,11 +108,11 @@ def build_llm_context_snapshot(
         "version": SNAPSHOT_VERSION,
         "intent": _string_or_default(intent, "unknown"),
         "run": _run_state(run_state),
-        "user_goal": _compact_text(user_message, limit=2000),
+        "user_goal": compact_text(user_message, limit=2000),
         "selected_file": {
             "file_path": _string_or_default(file_path, "unknown"),
             "content_chars": len(content) if isinstance(content, str) else 0,
-            "content_excerpt": _compact_text(content, limit=SELECTED_FILE_TEXT_LIMIT),
+            "content_excerpt": compact_text(content, limit=SELECTED_FILE_TEXT_LIMIT),
         },
         "role_hints": _string_list(role_hints),
         "role_mentions": _string_list(role_mentions),
@@ -202,7 +200,7 @@ def _prompt_context_file(item: Mapping[str, Any]) -> dict[str, str]:
         "relative_path": relative_path,
         "kind": kind,
         "title": title,
-        "excerpt": _compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
+        "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
     }
 
 
@@ -251,7 +249,7 @@ def _synthetic_prompt_file(*, relative_path: str, kind: str, title: str, excerpt
         "relative_path": relative_path,
         "kind": kind,
         "title": title,
-        "excerpt": _compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
+        "excerpt": compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT) or "无摘录。",
     }
 
 
@@ -266,7 +264,7 @@ def _run_state(run_state: object | None) -> dict[str, Any]:
     if isinstance(public_id, str) and public_id.strip():
         result["run_id"] = public_id.strip()
     if isinstance(goal, str) and goal.strip():
-        result["goal"] = _compact_text(goal, limit=2000)
+        result["goal"] = compact_text(goal, limit=2000)
     if isinstance(status, str) and status.strip():
         result["status"] = status.strip()
     if isinstance(current_step, str) and current_step.strip():
@@ -341,7 +339,7 @@ def _context_files(
             "title": title or relative_path or path or "untitled",
         }
         if excerpt:
-            context_file["excerpt"] = _compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
+            context_file["excerpt"] = compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
             context_file["excerpt_chars"] = len(excerpt)
         result.append(context_file)
     return result, warnings, unsafe_count
@@ -354,7 +352,7 @@ def _review_report_summary(report: object | None) -> dict[str, Any] | None:
     safe_issues = [_review_issue_summary(item) for item in issues[:MAX_REVIEW_ISSUES] if isinstance(item, Mapping)] if isinstance(issues, list) else []
     suggested_actions = report.get("suggested_actions")
     safe_actions = [
-        _compact_text(item, limit=REVIEW_TEXT_LIMIT)
+        compact_text(item, limit=REVIEW_TEXT_LIMIT)
         for item in suggested_actions[:MAX_REVIEW_ISSUES]
         if isinstance(item, str) and item.strip()
     ] if isinstance(suggested_actions, list) else []
@@ -382,7 +380,7 @@ def _review_issue_summary(issue: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("message", "evidence", "suggested_action"):
         value = _first_string(issue, key)
         if value is not None:
-            result[key] = _compact_text(value, limit=REVIEW_TEXT_LIMIT)
+            result[key] = compact_text(value, limit=REVIEW_TEXT_LIMIT)
     return result
 
 
@@ -435,7 +433,7 @@ def _memory_item_summary(item: Mapping[str, Any]) -> dict[str, Any]:
             result[output_key] = value
     text = _first_string(item, "fact", "content", "text", "summary")
     if text is not None:
-        result["text"] = _compact_text(text, limit=MEMORY_TEXT_LIMIT)
+        result["text"] = compact_text(text, limit=MEMORY_TEXT_LIMIT)
     for key in ("source_chapter_id", "valid_from_chapter", "valid_to_chapter"):
         value = item.get(key)
         if isinstance(value, int):
@@ -461,141 +459,3 @@ def _chapter_context_summary(bundle: Mapping[str, Any] | None) -> dict[str, Any]
         if safe is not None:
             result[key] = safe
     return result
-
-
-def _safe_context_value(value: object) -> object | None:
-    if isinstance(value, str):
-        return _compact_text(value, limit=CHAPTER_TEXT_LIMIT)
-    if isinstance(value, bool | int | float):
-        return value
-    if isinstance(value, list):
-        safe_list = [_safe_context_value(item) for item in value[:12]]
-        return [item for item in safe_list if item is not None]
-    return None
-
-
-def _omitted_summary(
-    bundle: Mapping[str, Any] | None,
-    *,
-    event_history: Iterable[object] | None,
-    artifacts: Iterable[object] | None,
-    unsafe_file_count: int,
-) -> dict[str, int]:
-    raw_event_count = sum(1 for _ in event_history) if event_history is not None else 0
-    unsafe_context_key_count = 0
-    if bundle is not None:
-        unsafe_context_key_count = sum(1 for key in bundle if str(key) in _UNSAFE_CONTEXT_KEYS)
-    artifact_payload_count = 0
-    if artifacts is not None:
-        artifact_payload_count = sum(1 for artifact in artifacts if _artifact_kind(artifact) != "review_report")
-    return {
-        "raw_event_count": raw_event_count,
-        "unsafe_context_key_count": unsafe_context_key_count,
-        "unsafe_context_file_count": unsafe_file_count,
-        "artifact_payload_count": artifact_payload_count,
-    }
-
-
-def _included_sections(
-    *,
-    project: Mapping[str, Any],
-    context_files: list[dict[str, Any]],
-    review_report: Mapping[str, Any] | None,
-    story_memory: Mapping[str, Any],
-    chapter_context: Mapping[str, Any],
-) -> list[str]:
-    sections = ["run", "selected_file"]
-    if project:
-        sections.append("project")
-    if context_files:
-        sections.append("context_files")
-    if isinstance(review_report, Mapping) and review_report:
-        sections.append("review_report")
-    if _story_memory_count(story_memory):
-        sections.append("story_memory")
-    if chapter_context:
-        sections.append("chapter_context")
-    return sections
-
-
-def _story_memory_count(story_memory: object) -> int:
-    if not isinstance(story_memory, Mapping):
-        return 0
-    items = story_memory.get("items")
-    return len(items) if isinstance(items, list) else 0
-
-
-def _looks_like_harness_payload(text: str) -> bool:
-    stripped = text.strip()
-    if not stripped or stripped[0] not in "[{":
-        return False
-    try:
-        parsed = json.loads(stripped)
-    except json.JSONDecodeError:
-        return False
-    return _contains_unsafe_key(parsed)
-
-
-def _contains_unsafe_key(value: object) -> bool:
-    if isinstance(value, Mapping):
-        if any(str(key) in _UNSAFE_CONTEXT_KEYS for key in value):
-            return True
-        return any(_contains_unsafe_key(item) for item in value.values())
-    if isinstance(value, list):
-        return any(_contains_unsafe_key(item) for item in value)
-    return False
-
-
-def _matches_selected_file(path: str | None, selected_refs: list[str]) -> bool:
-    if path is None:
-        return False
-    normalized = _normalize_path(path)
-    if not normalized:
-        return False
-    for selected in selected_refs:
-        selected_normalized = _normalize_path(selected)
-        if not selected_normalized:
-            continue
-        if normalized == selected_normalized:
-            return True
-        if selected_normalized.endswith(f"/{normalized}") or normalized.endswith(f"/{selected_normalized}"):
-            return True
-    return False
-
-
-def _normalize_path(path: str) -> str:
-    return path.replace("\\", "/").strip().strip("/").lower()
-
-
-def _artifact_kind(artifact: object) -> str | None:
-    value = _value(artifact, "kind")
-    return value.strip() if isinstance(value, str) and value.strip() else None
-
-
-def _artifact_payload(artifact: object) -> Mapping[str, Any] | None:
-    value = _value(artifact, "payload")
-    return value if isinstance(value, Mapping) else None
-
-
-def _value(source: object, key: str) -> object | None:
-    if isinstance(source, Mapping):
-        return source.get(key)
-    return getattr(source, key, None)
-
-
-def _first_string(source: Mapping[str, Any], *keys: str) -> str | None:
-    for key in keys:
-        value = source.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def _string_list(values: Iterable[str] | None) -> list[str]:
-    if values is None:
-        return []
-    return _ordered_unique([value.strip() for value in values if isinstance(value, str) and value.strip()])
-
-
-def _string_or_default(value: object, default: str) -> str:
-    return value.strip() if isinstance(value, str) and value.strip() else default
