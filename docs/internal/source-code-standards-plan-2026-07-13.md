@@ -218,7 +218,7 @@ frozen
 | S4 双轨 adapter | 已完成（2026-07-14） | fixed pipeline 三组 mixin 移出 loop；typed intent dispatcher；BookRun 四命令经 managed adapter；静态 import 护栏；271 项相关测试通过 |
 | S5 book_runs | 已完成（2026-07-14） | 私有跨模块依赖 178→0；live assistant/agent_runs/ide 只经 `book_generation`/`service`/`models` 公共模块；`book_generation.py` 485、judge 488、parallel 464、context facade 25 行；223 项相关测试通过 |
 | S6 Desktop | 已完成（2026-07-14） | `ChatWindow.tsx` 1492→72、`App.tsx` 848→176；session/run/control/submission 与 tabs/project/preferences 分责；Desktop `STRUCTURE.md` 8 文件读序；206 项 Vitest、严格定向 tsc、ESLint、13 项源码门禁通过；全量 typecheck 仅受隔离分支缺失的 publish Phase2 类型改动阻断 |
-| S7 测试拆分 | 未开始 | |
+| S7 测试拆分 | 已完成（2026-07-14） | 六个 live 祖传测试文件全部≤800 行：agent_runs 346、book_generation 557、loop_runtime 416、canon 257、book_runs 635、ide_orchestrator 661；拆分后顶层定义集合与 HEAD 完全一致；256 项 S7 定向测试、Ruff、14 项源码门禁、`git diff --check` 通过 |
 | S8 验收 | 未开始 | |
 | 删除轨 T1（WS 遗留 + legacy helper） | 已审计 | WS 编码器为 SSE/REST live 依赖，转 T2；零引用 `_chapter_request` 已删 |
 | 删除轨 T3（workflow / frozen 表，记录不删） | 记录在案 | 阻塞见 §5.5；解锁待 D1/n=1 |

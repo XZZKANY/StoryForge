@@ -64,6 +64,14 @@ HARD_SOURCE_LINE_LIMITS = {
     "apps/desktop/frontend/src/components/chat-window/useChatWindowState.ts": 500,
     "apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts": 500,
 }
+HARD_LIVE_TEST_LINE_LIMITS = {
+    "apps/api/tests/test_agent_canon.py": 800,
+    "apps/api/tests/test_agent_loop_runtime.py": 800,
+    "apps/api/tests/test_agent_runs.py": 800,
+    "apps/api/tests/test_book_generation.py": 800,
+    "apps/api/tests/test_book_runs.py": 800,
+    "apps/api/tests/test_ide_agent_orchestrator.py": 800,
+}
 RUNTIME_COMPATIBILITY_HELPERS = (
     "_trim_prose_instruction",
     "_safe_summary",
@@ -292,6 +300,12 @@ def test_completed_wave_source_files_meet_hard_line_limits() -> None:
     for relative_path, limit in HARD_SOURCE_LINE_LIMITS.items():
         current = _line_count(REPO_ROOT / relative_path)
         assert current <= limit, f"{relative_path}: {current} lines > hard limit {limit}"
+
+
+def test_completed_wave_live_tests_meet_hard_line_limits() -> None:
+    for relative_path, limit in HARD_LIVE_TEST_LINE_LIMITS.items():
+        current = _line_count(REPO_ROOT / relative_path)
+        assert current <= limit, f"{relative_path}: {current} lines > hard test limit {limit}"
 
 
 def test_runtime_compatibility_helpers_remain_exported() -> None:

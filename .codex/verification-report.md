@@ -305,3 +305,35 @@ npm --prefix apps/desktop/frontend run test -- tests/publish-*.test.ts  # 22 pas
 - `npm run typecheck`：未通过；错误全部位于隔离分支已有的 `src/features/publish/**`，缺少 Phase2 的 `cookieText`、`PlatformApiEndpoint`、`apiEndpoints`、状态组件等配套类型/导出。本任务按红线不修改 publish/fanqie；S6 自有 hooks 严格定向 tsc 已通过。
 - `pnpm openapi`：未改 route、DTO、Pydantic wire model 或 OpenAPI 输出。
 - `pnpm verify`：按计划在 S8 集成验收；若 publish Phase2 仍未进入专窗基线，将如实保留同一外部阻断，不以跨范围修复换取假绿。
+
+---
+
+# 验证报告：源码标准专窗 S7
+
+时间：2026-07-14
+分支：`refactor/source-code-standards-s0`
+任务：`.trellis/tasks/07-13-source-code-standards/`
+
+## S7 结果
+
+- 六个 live 祖传测试文件全部拆至 ≤800 行：`test_agent_runs.py` 346、`test_book_generation.py` 557、`test_agent_loop_runtime.py` 416、`test_agent_canon.py` 257、`test_book_runs.py` 635、`test_ide_agent_orchestrator.py` 661。
+- 新增行为面测试文件均 ≤800 行，最大 `test_agent_run_resume.py` 692 行；共享 support/fixtures 文件均为薄辅助。
+- 拆分后六组顶层 test/helper/class 定义集合与 HEAD 完全一致：agent_runs 67、book_generation 55、agent_loop_runtime 31、agent_canon 64、book_runs 27、ide_agent_orchestrator 34，missing/added 均为 0。
+- `tests/test_source_code_standards.py` 新增六个已完成波次 live 测试文件的硬行数门禁，源码标准测试数从 13 增至 14。
+- 未改 route、DTO、schema、OpenAPI、生产代码、Desktop 或 publish/fanqie 路径。
+
+## 已执行
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_agent_runs.py tests/test_agent_run_save_points.py tests/test_agent_run_resume.py tests/test_agent_run_transport.py tests/test_agent_run_roles.py tests/test_book_generation.py tests/test_book_generation_judge_guards.py tests/test_book_generation_resume_cli.py tests/test_agent_loop_runtime.py tests/test_agent_loop_runtime_tools.py tests/test_agent_loop_runtime_lifecycle.py tests/test_agent_canon.py tests/test_agent_canon_context.py tests/test_agent_canon_hooks.py tests/test_book_runs.py tests/test_book_run_controls.py tests/test_ide_agent_orchestrator.py tests/test_ide_agent_intents.py -q` | 256/256 通过 |
+| 拆分定义集合等价脚本 | 六组 HEAD→当前 missing=0、added=0 |
+| `uv run ruff check ...S7 touched tests...` | 通过 |
+| `uv run pytest tests/test_source_code_standards.py -q` | 14/14 通过 |
+| `git diff --check` | 通过 |
+
+## 未执行
+
+- `pnpm openapi`：未改 route、DTO、schema 或 OpenAPI 输出。
+- Desktop typecheck/vitest：S7 未改 Desktop 源码。
+- `pnpm verify`：按计划留到 S8 专窗总验收。
