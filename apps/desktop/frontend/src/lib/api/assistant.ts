@@ -71,6 +71,71 @@ export async function listAgentRoles(): Promise<AgentRoleRead[]> {
   return (await response.json()) as AgentRoleRead[];
 }
 
+export type AssistantReviseResult = {
+  before: string;
+  after: string;
+  summary: string;
+  model: string;
+  latencyMs: number;
+  completionTokens: number | null;
+  assistantSessionId: number;
+};
+
+type ApiAssistantReviseResponse = {
+  before: string;
+  after: string;
+  summary: string;
+  model: string;
+  latency_ms: number;
+  completion_tokens: number | null;
+  assistant_session_id: number;
+};
+
+/**
+ * 单发 /assistant/revise：整文件全文 + 指令进，真实 LLM 修订后全文出（同步、非流式）。
+ * 行间对话（Ctrl+K）走这条通道换取「跟手」，不经 agent WS 循环。LLM 未配置 422、调用失败 502，
+ * 错误明细原样透出，绝不伪造兜底。
+ */
+export async function reviseFileContent(payload: {
+  filePath: string;
+  content: string;
+  instruction: string;
+  projectName?: string | null;
+  assistantSessionId?: number | null;
+}): Promise<AssistantReviseResult> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/revise`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-StoryForge-API-Key': apiKey,
+    },
+    body: JSON.stringify({
+      file_path: payload.filePath,
+      content: payload.content,
+      instruction: payload.instruction,
+      project_name: payload.projectName ?? null,
+      assistant_session_id: payload.assistantSessionId ?? null,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+
+  const data = (await response.json()) as ApiAssistantReviseResponse;
+  return {
+    before: data.before,
+    after: data.after,
+    summary: data.summary,
+    model: data.model,
+    latencyMs: data.latency_ms,
+    completionTokens: data.completion_tokens,
+    assistantSessionId: data.assistant_session_id,
+  };
+}
+
 export async function probeProviderHealth(): Promise<ProviderHealth> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/provider-health`, {

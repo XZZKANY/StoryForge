@@ -20,7 +20,9 @@ export {
   listAgentRoles,
   listAssistantSessions,
   probeProviderHealth,
+  reviseFileContent,
 } from './api/assistant';
+export type { AssistantReviseResult } from './api/assistant';
 export { requestCrossChapterConsistency } from './api/cross-chapter';
 export { executeIdeCommand } from './api/ide-commands';
 export { toAssistantContextBundlePayload } from './api/codecs';
