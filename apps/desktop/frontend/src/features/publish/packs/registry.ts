@@ -31,7 +31,9 @@ export function resolvePlatformPack(
   return fanqiePack;
 }
 
-export function resolvePackFromSettings(settings: Pick<PublishSettings, 'defaultPlatform'>): PlatformPack {
+export function resolvePackFromSettings(
+  settings: Pick<PublishSettings, 'defaultPlatform'>,
+): PlatformPack {
   return resolvePlatformPack(settings.defaultPlatform);
 }
 

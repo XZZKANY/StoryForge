@@ -132,7 +132,8 @@ export function buildBookFromProject(input: {
 export function normalizeBook(raw: PublishBook): PublishBook {
   return {
     ...raw,
-    isPlaceholder: Boolean(raw.isPlaceholder) || String(raw.path || '').startsWith('placeholder://'),
+    isPlaceholder:
+      Boolean(raw.isPlaceholder) || String(raw.path || '').startsWith('placeholder://'),
     blurb: raw.blurb ?? '',
     onlineBookId: raw.onlineBookId ?? null,
     onlineSnapshot: raw.onlineSnapshot ?? null,

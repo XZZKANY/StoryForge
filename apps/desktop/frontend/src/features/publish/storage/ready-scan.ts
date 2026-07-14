@@ -1,16 +1,14 @@
-import { computeReadyScore, type PublishBook, type PublishSettings, type ReadySignals } from '../model';
+import {
+  computeReadyScore,
+  type PublishBook,
+  type PublishSettings,
+  type ReadySignals,
+} from '../model';
 import { TauriFileSystem } from '../../../lib/tauri-fs';
 import { loadProjectPublish } from './project-publish';
 
 const TEXT_EXT = new Set(['md', 'txt', 'markdown']);
-const SKIP_DIR = new Set([
-  '.git',
-  'node_modules',
-  '.storyforge',
-  'dist',
-  'build',
-  '.trellis',
-]);
+const SKIP_DIR = new Set(['.git', 'node_modules', '.storyforge', 'dist', 'build', '.trellis']);
 
 export type ReadyScanResult = {
   signals: ReadySignals;
@@ -31,9 +29,7 @@ export async function scanProjectReady(
 ): Promise<ReadyScanResult> {
   const projectFile = await loadProjectPublish(projectPath).catch(() => null);
   const checklist = projectFile?.checklist;
-  const checklistComplete = checklist
-    ? Object.values(checklist).every(Boolean)
-    : false;
+  const checklistComplete = checklist ? Object.values(checklist).every(Boolean) : false;
   const hasBlurbAndTags = Boolean(
     projectFile?.meta?.blurb?.trim() && (projectFile.meta.tags?.length ?? 0) > 0,
   );
@@ -77,8 +73,7 @@ export async function scanProjectReady(
   }
 
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-  const editedInLast7Days =
-    latestMtime > 0 && Date.now() - latestMtime * 1000 < sevenDaysMs;
+  const editedInLast7Days = latestMtime > 0 && Date.now() - latestMtime * 1000 < sevenDaysMs;
 
   const signals: ReadySignals = {
     hasTitle: Boolean(book.title?.trim() || projectFile?.title?.trim()),

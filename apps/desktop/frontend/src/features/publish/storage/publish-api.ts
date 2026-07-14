@@ -303,7 +303,11 @@ export async function publishChapterOnce(
       settled = true;
       window.clearTimeout(timer);
       off();
-      resolve({ ok: false, msg: `发布启动失败: ${e instanceof Error ? e.message : String(e)}`, step: 'start' });
+      resolve({
+        ok: false,
+        msg: `发布启动失败: ${e instanceof Error ? e.message : String(e)}`,
+        step: 'start',
+      });
     });
   });
 }
@@ -385,10 +389,7 @@ export async function fetchChapterList(
       return { ok: false, message: json.message ?? `code ${json.code}`, titles: [] };
     }
     const data = json.data ?? {};
-    const rawList = (data['chapter_list'] ??
-      data['item_list'] ??
-      data['list'] ??
-      []) as unknown;
+    const rawList = (data['chapter_list'] ?? data['item_list'] ?? data['list'] ?? []) as unknown;
     const titles = Array.isArray(rawList)
       ? rawList
           .map((it) => {

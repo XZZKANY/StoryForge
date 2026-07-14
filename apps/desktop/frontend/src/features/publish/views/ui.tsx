@@ -9,15 +9,7 @@ import {
   type PipelineStatus,
 } from '../model';
 
-export function Stat({
-  label,
-  value,
-  warn,
-}: {
-  label: string;
-  value: string;
-  warn?: boolean;
-}) {
+export function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="rounded-md border border-border bg-surface/40 px-2 py-1.5">
       <div className="text-[10px] text-subtle">{label}</div>
@@ -237,7 +229,11 @@ function GhostBtn({
   );
 }
 
-function MoreMenu({ items }: { items: { label: string; onClick: () => void; danger?: boolean }[] }) {
+function MoreMenu({
+  items,
+}: {
+  items: { label: string; onClick: () => void; danger?: boolean }[];
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -437,13 +433,7 @@ export function classifyFlash(message: string): FlashTone {
   return 'info';
 }
 
-export function FlashBar({
-  message,
-  onDismiss,
-}: {
-  message: string;
-  onDismiss?: () => void;
-}) {
+export function FlashBar({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
   const tone = classifyFlash(message);
   const toneClass =
     tone === 'err'

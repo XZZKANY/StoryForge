@@ -10,10 +10,7 @@ export function isAccountCold(
 }
 
 /** 有效月开上限：冷号用 coldMaxOpensPerMonth */
-export function effectiveMonthlyOpenLimit(
-  account: PublishAccount,
-  asOfDate: string,
-): number {
+export function effectiveMonthlyOpenLimit(account: PublishAccount, asOfDate: string): number {
   if (isAccountCold(account, asOfDate)) {
     return Math.min(account.monthlyOpenLimit, account.coldMaxOpensPerMonth);
   }
@@ -144,9 +141,7 @@ export function reservationsFromBooks(books: PublishBook[]): MonthQuota['reserva
   return books
     .filter(
       (b) =>
-        (b.status === 'scheduled' || b.status === 'ready') &&
-        b.assignedAccountId &&
-        !b.openedAt,
+        (b.status === 'scheduled' || b.status === 'ready') && b.assignedAccountId && !b.openedAt,
     )
     .filter((b) => b.status === 'scheduled')
     .map((b) => ({

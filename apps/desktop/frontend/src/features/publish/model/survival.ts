@@ -1,9 +1,7 @@
 import type { PublishAccount, PublishBook, PublishSettings } from './types';
 import { spareCapacity, theoryCapacity } from './quota';
 
-export type DayOpenCheck =
-  | { ok: true }
-  | { ok: false; reason: string };
+export type DayOpenCheck = { ok: true } | { ok: false; reason: string };
 
 export function countOpensOnDate(
   books: Pick<PublishBook, 'planOpenDate' | 'status' | 'openedAt'>[],
@@ -11,7 +9,11 @@ export function countOpensOnDate(
   excludeProjectKey?: string,
 ): number {
   return books.filter((b) => {
-    if (excludeProjectKey && 'projectKey' in b && (b as PublishBook).projectKey === excludeProjectKey) {
+    if (
+      excludeProjectKey &&
+      'projectKey' in b &&
+      (b as PublishBook).projectKey === excludeProjectKey
+    ) {
       return false;
     }
     if (b.planOpenDate !== date) return false;
@@ -61,9 +63,7 @@ export function isAccountAssignable(account: PublishAccount): boolean {
   return account.active && account.riskStatus !== 'blocked';
 }
 
-export type ScheduleReadyWarn =
-  | { warn: false }
-  | { warn: true; reason: string };
+export type ScheduleReadyWarn = { warn: false } | { warn: true; reason: string };
 
 /** 低 Ready 进 scheduled 软门（可强制） */
 export function scheduleReadyWarning(

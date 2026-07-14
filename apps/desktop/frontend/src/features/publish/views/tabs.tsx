@@ -276,9 +276,7 @@ function ReconcilePanel({ api }: { api: PublishCockpitApi }) {
     );
   }
   const { result, ledger, penName } = reconcile;
-  const bindTargets = books.filter(
-    (b) => !b.onlineBookId && !b.path.startsWith('online://'),
-  );
+  const bindTargets = books.filter((b) => !b.onlineBookId && !b.path.startsWith('online://'));
   return (
     <div className="space-y-1.5 rounded-md border border-border bg-surface/30 p-2 text-[10.5px]">
       <div className="font-semibold text-subtle">对账 · {penName}</div>
@@ -392,7 +390,9 @@ function BatchPublishPanel({ api }: { api: PublishCockpitApi }) {
           </ToolbarBtn>
         )}
       </div>
-      <div className="text-subtle">自动跳过已在线/不足1000字；两章间隔按设置节流防频控（-3009）。</div>
+      <div className="text-subtle">
+        自动跳过已在线/不足1000字；两章间隔按设置节流防频控（-3009）。
+      </div>
       {batch && (
         <div className="space-y-0.5 rounded border border-border bg-background/40 p-1.5">
           <div className="text-subtle">
