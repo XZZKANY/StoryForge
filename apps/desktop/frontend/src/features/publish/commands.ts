@@ -29,9 +29,7 @@ export function emitPublishCommand(type: PublishCommandType): void {
   );
 }
 
-export function onPublishCommand(
-  handler: (type: PublishCommandType) => void,
-): () => void {
+export function onPublishCommand(handler: (type: PublishCommandType) => void): () => void {
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<PublishCommandDetail>).detail;
     if (detail?.type) handler(detail.type);

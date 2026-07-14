@@ -68,10 +68,7 @@ export function bookToProjectPublish(
   };
 }
 
-export function mergeProjectIntoBook(
-  book: PublishBook,
-  project: ProjectPublishFile,
-): PublishBook {
+export function mergeProjectIntoBook(book: PublishBook, project: ProjectPublishFile): PublishBook {
   const projectTime = Date.parse(project.updatedAt || '') || 0;
   const bookTime = Date.parse(book.updatedAt || '') || 0;
   // 项目文件为书侧真相：更新或不旧于 library 时覆盖关键字段
@@ -97,9 +94,7 @@ export function mergeProjectIntoBook(
   };
 }
 
-export async function loadProjectPublish(
-  projectPath: string,
-): Promise<ProjectPublishFile | null> {
+export async function loadProjectPublish(projectPath: string): Promise<ProjectPublishFile | null> {
   const path = projectPublishJsonPath(projectPath);
   try {
     const exists = await TauriFileSystem.pathExists(path);

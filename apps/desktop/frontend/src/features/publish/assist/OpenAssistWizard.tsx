@@ -3,12 +3,7 @@ import type { PublishAccount, PublishBook } from '../model';
 import { copyText } from '../storage/open-pack';
 import { resolvePlatformPack } from '../packs';
 import { openExternalUrl } from './open-external';
-import {
-  OPEN_ASSIST_STEPS,
-  fieldText,
-  nextStepIndex,
-  prevStepIndex,
-} from './wizard-steps';
+import { OPEN_ASSIST_STEPS, fieldText, nextStepIndex, prevStepIndex } from './wizard-steps';
 
 export type OpenAssistWizardProps = {
   book: PublishBook;
@@ -31,8 +26,7 @@ export function OpenAssistWizard({
 }: OpenAssistWizardProps) {
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
-  const pen =
-    accounts.find((a) => a.id === book.assignedAccountId)?.penName ?? '未指派';
+  const pen = accounts.find((a) => a.id === book.assignedAccountId)?.penName ?? '未指派';
   const tags = ''; // Phase1 作业包 tags 在项目文件；库侧 blurb 优先
   const current = OPEN_ASSIST_STEPS[step];
   const text = useMemo(
@@ -112,7 +106,9 @@ export function OpenAssistWizard({
         <div className="space-y-3 p-3 text-sm">
           <div className="rounded border border-border bg-elevated/30 px-2 py-1.5 text-xs">
             <div className="font-medium">{book.title}</div>
-            <div className="text-subtle">笔名 {pen} · 步骤 {step + 1}/{OPEN_ASSIST_STEPS.length}</div>
+            <div className="text-subtle">
+              笔名 {pen} · 步骤 {step + 1}/{OPEN_ASSIST_STEPS.length}
+            </div>
           </div>
 
           <ol className="flex flex-wrap gap-1 text-[10px]">

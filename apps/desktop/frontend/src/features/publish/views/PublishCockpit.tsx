@@ -2,12 +2,7 @@ import { useEffect, useState } from 'react';
 import { OpenAssistWizard } from '../assist/OpenAssistWizard';
 import { usePublishCockpit } from '../hooks/usePublishCockpit';
 import { PUBLISH_TABS } from './types';
-import {
-  CapacitySummary,
-  FlashBar,
-  OnboardingGuide,
-  ToolbarBtn,
-} from './ui';
+import { CapacitySummary, FlashBar, OnboardingGuide, ToolbarBtn } from './ui';
 import {
   AccountsTab,
   AssignTab,
@@ -31,11 +26,7 @@ const STATS_TABS = new Set(['daily', 'pipeline', 'assign', 'review']);
  * 发行驾驶舱壳：状态与动作在 usePublishCockpit，Tab UI 在 views/tabs。
  * 壳层只负责布局与入口按钮。
  */
-export function PublishCockpit({
-  projectPath,
-  variant = 'sidebar',
-  onClose,
-}: PublishCockpitProps) {
+export function PublishCockpit({ projectPath, variant = 'sidebar', onClose }: PublishCockpitProps) {
   const api = usePublishCockpit(projectPath);
   const compact = variant === 'sidebar';
   const [statsExpanded, setStatsExpanded] = useState(false);
@@ -86,15 +77,10 @@ export function PublishCockpit({
           入库
         </ToolbarBtn>
         <ToolbarBtn onClick={() => void api.handleCreateSlot()}>占坑</ToolbarBtn>
-        <ToolbarBtn
-          onClick={() => void api.refreshReadyScores()}
-          title="扫描可开分（Ready）"
-        >
+        <ToolbarBtn onClick={() => void api.refreshReadyScores()} title="扫描可开分（Ready）">
           可开分
         </ToolbarBtn>
-        {onClose && variant === 'page' && (
-          <ToolbarBtn onClick={onClose}>关闭</ToolbarBtn>
-        )}
+        {onClose && variant === 'page' && <ToolbarBtn onClick={onClose}>关闭</ToolbarBtn>}
       </header>
 
       <div
@@ -122,9 +108,7 @@ export function PublishCockpit({
         ))}
       </div>
 
-      {api.message && (
-        <FlashBar message={api.message} onDismiss={api.dismissFlash} />
-      )}
+      {api.message && <FlashBar message={api.message} onDismiss={api.dismissFlash} />}
 
       <div className={`min-h-0 flex-1 overflow-auto ${compact ? 'p-2' : 'p-3'}`}>
         <OnboardingGuide

@@ -1,8 +1,6 @@
 import type { PipelineStatus, PublishBook } from './types';
 
-export type TransitionResult =
-  | { ok: true; next: PipelineStatus }
-  | { ok: false; reason: string };
+export type TransitionResult = { ok: true; next: PipelineStatus } | { ok: false; reason: string };
 
 const FORWARD: Partial<Record<PipelineStatus, PipelineStatus>> = {
   idea: 'writing',
