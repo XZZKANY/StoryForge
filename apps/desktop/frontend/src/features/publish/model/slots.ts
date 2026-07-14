@@ -26,6 +26,8 @@ export function createPlaceholderBook(input: {
     updatedAt: now,
     isPlaceholder: true,
     blurb: '',
+    onlineBookId: null,
+    onlineSnapshot: null,
   };
 }
 

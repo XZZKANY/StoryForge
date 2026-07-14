@@ -267,6 +267,47 @@ export function onChapterPublished(handler: (r: FanqiePublishResult) => void): (
   };
 }
 
+/**
+ * 单章发布 + 等回执（Promise 化 startPublishChapter）。
+ * 复用现有 Rust `publish_fanqie_chapter` 命令，供批量发章顺序驱动。
+ * 一次性监听 publish:chapter-result；超时（默认 120s，webview 无回执）按失败收敛。
+ */
+export async function publishChapterOnce(
+  input: {
+    bookId: string;
+    volumeId: string;
+    volumeName: string;
+    title: string;
+    contentHtml: string;
+  },
+  timeoutMs = 120000,
+): Promise<FanqiePublishResult> {
+  return new Promise<FanqiePublishResult>((resolve) => {
+    let settled = false;
+    let off = () => {};
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      off();
+      resolve({ ok: false, msg: '发布超时（webview 无回执）', step: 'timeout' });
+    }, timeoutMs);
+    off = onChapterPublished((r) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      off();
+      resolve(r);
+    });
+    startPublishChapter(input).catch((e) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      off();
+      resolve({ ok: false, msg: `发布启动失败: ${e instanceof Error ? e.message : String(e)}`, step: 'start' });
+    });
+  });
+}
+
 /** 卷（volume_list 投影） */
 export type FanqieVolume = { volumeId: string; volumeName: string };
 
@@ -308,6 +349,60 @@ export async function fetchVolumes(
       ok: false,
       message: `请求失败: ${e instanceof Error ? e.message : String(e)}`,
       volumes: [],
+    };
+  }
+}
+
+/**
+ * 拉某书线上章节标题（批量发章去重用）。
+ * chapter_list 字段随平台版本浮动，这里尽力投影 title；拿不到就返回空（不去重，非致命）。
+ */
+export async function fetchChapterList(
+  pack: PlatformPack,
+  cookieText: string,
+  bookId: string,
+): Promise<{ ok: boolean; message: string; titles: string[] }> {
+  const endpoint = pack.apiEndpoints['getChapterList'];
+  if (!endpoint) {
+    return { ok: false, message: `${pack.label} 未配置章节列表接口`, titles: [] };
+  }
+  try {
+    const result = await callPlatformApi({
+      endpoint,
+      baseUrl: pack.apiBaseUrl,
+      extraHeaders: { Cookie: cookieText.trim() },
+      vars: { bookId },
+    });
+    if (result.status !== 200) {
+      return { ok: false, message: `HTTP ${result.status}`, titles: [] };
+    }
+    const json = JSON.parse(result.body) as {
+      code?: number;
+      message?: string;
+      data?: Record<string, unknown>;
+    };
+    if (json.code !== 0) {
+      return { ok: false, message: json.message ?? `code ${json.code}`, titles: [] };
+    }
+    const data = json.data ?? {};
+    const rawList = (data['chapter_list'] ??
+      data['item_list'] ??
+      data['list'] ??
+      []) as unknown;
+    const titles = Array.isArray(rawList)
+      ? rawList
+          .map((it) => {
+            const o = (it ?? {}) as Record<string, unknown>;
+            return String(o.title ?? o.chapter_title ?? o.name ?? '');
+          })
+          .filter((t) => t.length > 0)
+      : [];
+    return { ok: true, message: `${titles.length} 章`, titles };
+  } catch (e) {
+    return {
+      ok: false,
+      message: `请求失败: ${e instanceof Error ? e.message : String(e)}`,
+      titles: [],
     };
   }
 }

@@ -20,10 +20,20 @@ import {
   scheduleReadyWarning,
   targetGap,
   upsertReservation,
+  applyOnlineSnapshots,
+  buildBookFromOnline,
+  compareLedgerToOnline,
+  effectiveOpened,
+  planBatchPublish,
+  reconcileOnlineBooks,
+  type BatchChapterInput,
+  type BatchPlanItem,
   type MonthQuota,
   type PublishAccount,
   type PublishBook,
   type PublishSettings,
+  type QuotaLedgerCompare,
+  type ReconcileResult,
 } from '../model';
 import {
   buildBookFromProject,
@@ -49,7 +59,9 @@ import {
   testCookie,
   fetchAuthorBooks,
   fetchVolumes,
+  fetchChapterList,
   startPublishChapter,
+  publishChapterOnce,
   onChapterPublished,
   apiPublishBook as callApiPublishBook,
   openLoginWebview,
@@ -67,6 +79,35 @@ function normalizeKey(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
+export type BatchItemProgress = BatchPlanItem & {
+  status: 'pending' | 'skip' | 'publishing' | 'ok' | 'fail';
+  code?: number | null;
+  resultMsg?: string;
+};
+
+export type BatchState = {
+  bookId: string;
+  accountId: string;
+  penName: string;
+  items: BatchItemProgress[];
+  running: boolean;
+  stopRequested: boolean;
+  publishCount: number;
+};
+
+export type ReconcileState = {
+  accountId: string;
+  penName: string;
+  result: ReconcileResult;
+  ledger: QuotaLedgerCompare;
+};
+
+const BATCH_STEP_TIMEOUT_MS = 150000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function usePublishCockpit(projectPath: string | null) {
   const [tab, setTab] = useState<PublishTabId>('daily');
   const [settings, setSettings] = useState<PublishSettings>(DEFAULT_PUBLISH_SETTINGS);
@@ -80,9 +121,24 @@ export function usePublishCockpit(projectPath: string | null) {
   const [slotTitle, setSlotTitle] = useState('');
   const [slotDate, setSlotDate] = useState('');
   const [assistBookKey, setAssistBookKey] = useState<string | null>(null);
-  const [onlineBooks, setOnlineBooks] = useState<FanqieOnlineBook[]>([]);
+  const [onlineBooksByAccount, setOnlineBooksByAccount] = useState<
+    Record<string, FanqieOnlineBook[]>
+  >({});
   const [projectChapters, setProjectChapters] = useState<ProjectChapter[]>([]);
+  const [reconcile, setReconcile] = useState<ReconcileState | null>(null);
+  const [batch, setBatch] = useState<BatchState | null>(null);
   const flashTimerRef = useRef<number | null>(null);
+  const batchRunningRef = useRef(false);
+  const batchStopRef = useRef(false);
+
+  // 各账号线上书扁平去重（保留最后拉取的），供发布下拉与旧 UI 复用
+  const onlineBooks = useMemo(() => {
+    const byId = new Map<string, FanqieOnlineBook>();
+    for (const list of Object.values(onlineBooksByAccount)) {
+      for (const b of list) byId.set(b.bookId, b);
+    }
+    return Array.from(byId.values());
+  }, [onlineBooksByAccount]);
 
   const accountsRef = useRef(accounts);
 
@@ -638,10 +694,111 @@ export function usePublishCockpit(projectPath: string | null) {
         flash(`拉取失败：${res.message}`);
         return;
       }
-      setOnlineBooks(res.books);
+      setOnlineBooksByAccount((prev) => ({ ...prev, [accountId]: res.books }));
       flash(`${check.authorName ?? '作者'}：线上 ${res.books.length} 本`);
     },
     [accounts, flash, settings.defaultPlatform],
+  );
+
+  /** 对账：拉某号线上书 → 匹配 library → 写线上快照 → 暴露差异（不自动改月账）。 */
+  const reconcileAccount = useCallback(
+    async (accountId: string) => {
+      if (!isTauriRuntime()) {
+        flash('对账仅支持桌面端（需 Rust 后端代理请求）');
+        return;
+      }
+      const acc = accounts.find((a) => a.id === accountId);
+      if (!acc?.cookieText?.trim()) {
+        flash('请先填入该账号 Cookie');
+        return;
+      }
+      flash('正在对账线上作品…');
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      const check = await testCookie(pack, acc.cookieText);
+      if (!check.ok) {
+        flash(`Cookie 无效：${check.message}`);
+        return;
+      }
+      const res = await fetchAuthorBooks(pack, acc.cookieText);
+      if (!res.ok) {
+        flash(`拉取失败：${res.message}`);
+        return;
+      }
+      setOnlineBooksByAccount((prev) => ({ ...prev, [accountId]: res.books }));
+      const result = reconcileOnlineBooks({ books, online: res.books, accountId });
+      if (result.matched.length > 0) {
+        const now = new Date().toISOString();
+        const next = applyOnlineSnapshots(books, result.matched, now);
+        await saveLibrary(next);
+        setBooks(next);
+      }
+      const ledger = compareLedgerToOnline({
+        ledgerOpened: effectiveOpened(quota, accountId),
+        result,
+      });
+      setReconcile({ accountId, penName: acc.penName, result, ledger });
+      flash(
+        `对账完成：匹配 ${result.matched.length} · 线上多出 ${result.onlineOnly.length} · 本地查无 ${result.localMissing.length}`,
+      );
+    },
+    [accounts, books, flash, quota, settings.defaultPlatform],
+  );
+
+  /** 手动把某本 library 书绑定到线上 book_id（对账未自动匹配时用）。 */
+  const bindOnlineBook = useCallback(
+    async (projectKey: string, onlineBookId: string) => {
+      if (!onlineBookId) return;
+      const now = new Date().toISOString();
+      const online = onlineBooks.find((b) => b.bookId === onlineBookId);
+      const next = books.map((b) => {
+        if (b.projectKey !== projectKey) return b;
+        return {
+          ...b,
+          onlineBookId,
+          onlineSnapshot: online
+            ? {
+                chapterCount: online.chapterNumber,
+                wordCount: online.wordNumber,
+                statusTag: online.statusTag,
+                statusMsg: online.statusMsg,
+                syncedAt: now,
+              }
+            : b.onlineSnapshot,
+          updatedAt: now,
+        };
+      });
+      await saveLibrary(next);
+      setBooks(next);
+      flash('已绑定线上作品');
+    },
+    [books, flash, onlineBooks],
+  );
+
+  /** 线上多出的书「纳入台账」：建一条 online:// 追踪书。 */
+  const importOnlineBook = useCallback(
+    async (accountId: string, onlineBookId: string) => {
+      const online = onlineBooks.find((b) => b.bookId === onlineBookId);
+      if (!online) {
+        flash('未找到该线上作品');
+        return;
+      }
+      if (books.some((b) => b.onlineBookId === onlineBookId)) {
+        flash('该线上作品已在台账');
+        return;
+      }
+      const now = new Date().toISOString();
+      const newBook = buildBookFromOnline({
+        online,
+        accountId,
+        now,
+        platform: settings.defaultPlatform,
+      });
+      const next = [...books, newBook];
+      await saveLibrary(next);
+      setBooks(next);
+      flash(`已纳入台账：${newBook.title}`);
+    },
+    [books, flash, onlineBooks, settings.defaultPlatform],
   );
 
   const loadProjectChapters = useCallback(async () => {
@@ -715,8 +872,159 @@ export function usePublishCockpit(projectPath: string | null) {
     [accounts, flash, settings.defaultPlatform],
   );
 
+  /** 批量发章：复用单章流程顺序驱动，按线上已发去重 + 字数下限跳过 + 间隔节流。 */
+  const startBatchPublish = useCallback(
+    async (input: { accountId: string; onlineBookId: string; chapterPaths?: string[] }) => {
+      if (!isTauriRuntime()) {
+        flash('批量发布仅支持桌面端');
+        return;
+      }
+      if (batchRunningRef.current) {
+        flash('已有批量任务在跑，请先停止');
+        return;
+      }
+      const acc = accounts.find((a) => a.id === input.accountId);
+      if (!acc?.cookieText?.trim()) {
+        flash('请先填入该账号 Cookie');
+        return;
+      }
+      if (!input.onlineBookId) {
+        flash('请选择线上作品');
+        return;
+      }
+      const sourcePaths = input.chapterPaths?.length
+        ? input.chapterPaths
+        : projectChapters.map((c) => c.path);
+      if (sourcePaths.length === 0) {
+        flash('无章节文件，请先「刷新章节」');
+        return;
+      }
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      flash('批量发布：取卷中…');
+      const vol = await fetchVolumes(pack, acc.cookieText, input.onlineBookId);
+      if (!vol.ok || vol.volumes.length === 0) {
+        flash(`取卷失败：${vol.message}`);
+        return;
+      }
+      const v = vol.volumes[0];
+      const online = await fetchChapterList(pack, acc.cookieText, input.onlineBookId);
+
+      const htmlByPath = new Map<string, string>();
+      const inputs: BatchChapterInput[] = [];
+      for (const path of sourcePaths) {
+        const name = path.split(/[\\/]/).pop() ?? path;
+        const fallback = name.replace(/\.(md|txt|markdown)$/i, '');
+        try {
+          const ch = await readChapterForPublish(path, fallback);
+          htmlByPath.set(path, ch.contentHtml);
+          inputs.push({ path, name, title: ch.title, charCount: ch.charCount });
+        } catch {
+          htmlByPath.set(path, '');
+          inputs.push({ path, name, title: fallback, charCount: 0 });
+        }
+      }
+
+      const plan = planBatchPublish({
+        chapters: inputs,
+        onlineTitles: online.titles,
+        minChars: 1000,
+      });
+      const items: BatchItemProgress[] = plan.items.map((it) => ({
+        ...it,
+        status: it.skip ? 'skip' : 'pending',
+      }));
+      batchRunningRef.current = true;
+      batchStopRef.current = false;
+      setBatch({
+        bookId: input.onlineBookId,
+        accountId: input.accountId,
+        penName: acc.penName,
+        items,
+        running: true,
+        stopRequested: false,
+        publishCount: plan.publishCount,
+      });
+
+      if (plan.publishCount === 0) {
+        batchRunningRef.current = false;
+        setBatch((prev) => (prev ? { ...prev, running: false } : prev));
+        flash(`无可发章节（已在线 ${plan.skipOnlineCount} · 不足字数 ${plan.skipShortCount}）`);
+        return;
+      }
+
+      const intervalMs = Math.max(0, (settings.batchPublishIntervalSec ?? 45) * 1000);
+      const publishable = items.filter((it) => !it.skip);
+      let ok = 0;
+      let fail = 0;
+      for (let i = 0; i < publishable.length; i += 1) {
+        if (batchStopRef.current) break;
+        const item = publishable[i];
+        setBatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((x) =>
+                  x.path === item.path ? { ...x, status: 'publishing' } : x,
+                ),
+              }
+            : prev,
+        );
+        const r = await publishChapterOnce(
+          {
+            bookId: input.onlineBookId,
+            volumeId: v.volumeId,
+            volumeName: v.volumeName,
+            title: item.title,
+            contentHtml: htmlByPath.get(item.path) ?? '',
+          },
+          BATCH_STEP_TIMEOUT_MS,
+        );
+        if (r.ok) ok += 1;
+        else fail += 1;
+        setBatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((x) =>
+                  x.path === item.path
+                    ? {
+                        ...x,
+                        status: r.ok ? 'ok' : 'fail',
+                        code: r.code ?? null,
+                        resultMsg: r.ok ? (r.item_id ?? '') : r.msg,
+                      }
+                    : x,
+                ),
+              }
+            : prev,
+        );
+        const isLast = i === publishable.length - 1;
+        if (!isLast && !batchStopRef.current && intervalMs > 0) {
+          await sleep(intervalMs);
+        }
+      }
+      batchRunningRef.current = false;
+      setBatch((prev) => (prev ? { ...prev, running: false } : prev));
+      const stopped = batchStopRef.current;
+      flash(
+        `${stopped ? '已停止' : '批量完成'}：成功 ${ok} · 失败 ${fail} · 跳过 ${
+          plan.skipOnlineCount + plan.skipShortCount
+        }`,
+      );
+    },
+    [accounts, flash, projectChapters, settings.batchPublishIntervalSec, settings.defaultPlatform],
+  );
+
+  const stopBatch = useCallback(() => {
+    if (!batchRunningRef.current) return;
+    batchStopRef.current = true;
+    setBatch((prev) => (prev ? { ...prev, stopRequested: true } : prev));
+    flash('已请求停止（当前章发完即停）');
+  }, [flash]);
+
   useEffect(() => {
     return onChapterPublished((r) => {
+      if (batchRunningRef.current) return; // 批量任务自带进度，避免双提示
       if (r.ok) flash(`发布成功（章节 ${r.item_id ?? ''}）`);
       else flash(`发布失败：${r.msg}${r.code ? ` (${r.code})` : ''}`);
     });
@@ -1055,11 +1363,19 @@ export function usePublishCockpit(projectPath: string | null) {
     testAccountCookie,
     syncOnlineStatus,
     onlineBooks,
+    onlineBooksByAccount,
     projectChapters,
     loadProjectChapters,
     publishProjectChapter,
     apiPublishForBook,
     loginViaWebView,
+    reconcile,
+    reconcileAccount,
+    bindOnlineBook,
+    importOnlineBook,
+    batch,
+    startBatchPublish,
+    stopBatch,
   };
 }
 

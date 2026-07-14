@@ -14,6 +14,16 @@ export type RiskStatus = 'normal' | 'watch' | 'blocked';
 
 export type DropReason = 'data_poor' | 'cant_write' | 'policy_risk' | 'strategic' | 'other';
 
+/** 线上作品快照（对账时机械投影，非手稿真值） */
+export type OnlineSnapshot = {
+  chapterCount: number;
+  wordCount: number;
+  statusTag: string;
+  statusMsg: string;
+  /** 上次对账时间 ISO */
+  syncedAt: string;
+};
+
 /**
  * 平台会话态（经营镜像，非浏览器 Cookie / OAuth token）。
  * 番茄不向第三方桌面端下发可回调 token，故采用：跳转登录 → 用户确认已登录。
@@ -64,6 +74,10 @@ export type PublishBook = {
   /** 空位占坑：尚无真实项目目录 */
   isPlaceholder: boolean;
   blurb: string;
+  /** 绑定的番茄线上 book_id（对账后写入） */
+  onlineBookId: string | null;
+  /** 线上快照（对账时写入，只读镜像） */
+  onlineSnapshot: OnlineSnapshot | null;
 };
 
 export type PublishSettings = {
@@ -84,6 +98,8 @@ export type PublishSettings = {
   defaultColdMaxOpensPerMonth: number;
   /** 简介相似度告警阈值 0–1 */
   blurbSimilarityWarnAt: number;
+  /** 批量发章两次发布最小间隔（秒），防番茄 -3009 提交频繁 */
+  batchPublishIntervalSec: number;
 };
 
 export type QuotaReservation = {
@@ -153,6 +169,7 @@ export const DEFAULT_PUBLISH_SETTINGS: PublishSettings = {
   spareWarnIfBelow: 3,
   defaultColdMaxOpensPerMonth: 1,
   blurbSimilarityWarnAt: 0.72,
+  batchPublishIntervalSec: 45,
 };
 
 export const PIPELINE_STATUSES: PipelineStatus[] = [

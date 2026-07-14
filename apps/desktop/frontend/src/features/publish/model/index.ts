@@ -8,3 +8,5 @@ export * from './slots';
 export * from './similarity';
 export * from './session';
 export * from './labels';
+export * from './reconcile';
+export * from './batch-publish';

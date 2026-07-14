@@ -22,7 +22,12 @@ export type LibraryFile = { version: 1; books: PublishBook[] };
 
 export async function loadPublishSettings(): Promise<PublishSettings> {
   const root = await getPublishDataDir();
-  return readJsonFile(publishSettingsPath(root), FANQIE_DEFAULT_SETTINGS);
+  const stored = await readJsonFile<Partial<PublishSettings>>(
+    publishSettingsPath(root),
+    FANQIE_DEFAULT_SETTINGS,
+  );
+  // 合并默认值：旧 settings 文件缺新字段（如 batchPublishIntervalSec）时回退默认
+  return { ...FANQIE_DEFAULT_SETTINGS, ...stored };
 }
 
 export async function savePublishSettings(settings: PublishSettings): Promise<void> {
@@ -118,6 +123,8 @@ export function buildBookFromProject(input: {
     updatedAt: now,
     isPlaceholder: false,
     blurb: '',
+    onlineBookId: null,
+    onlineSnapshot: null,
   };
 }
 
@@ -127,6 +134,8 @@ export function normalizeBook(raw: PublishBook): PublishBook {
     ...raw,
     isPlaceholder: Boolean(raw.isPlaceholder) || String(raw.path || '').startsWith('placeholder://'),
     blurb: raw.blurb ?? '',
+    onlineBookId: raw.onlineBookId ?? null,
+    onlineSnapshot: raw.onlineSnapshot ?? null,
   };
 }
 
