@@ -132,7 +132,10 @@ function ExplorerView({
 
   return (
     <>
-      <div className="relative flex h-10 flex-shrink-0 items-center gap-1 border-b border-border px-2 pr-1.5">
+      <div
+        className="relative flex h-shell-row flex-shrink-0 items-center gap-1 border-b border-border px-2 pr-1.5"
+        data-testid="side-panel-header"
+      >
         <button
           className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] font-semibold hover:bg-elevated"
           onClick={() => setMenuOpen((open) => !open)}
@@ -152,7 +155,7 @@ function ExplorerView({
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-            <div className="absolute left-2 right-2 top-10 z-40 rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+            <div className="absolute left-2 right-2 top-shell-row z-40 rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
               {projects.slice(0, 8).map((project) => (
                 <div
                   key={project}
