@@ -1,6 +1,8 @@
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Listener, Manager, WebviewUrl};
 
@@ -28,6 +30,13 @@ pub struct PublishCookieCapturePayload {
     pub account_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishCsrfCapturePayload {
+    pub token: String,
+    pub url: String,
+    pub account_id: Option<String>,
+}
+
 fn default_timeout_secs() -> u64 {
     15
 }
@@ -35,9 +44,7 @@ fn default_timeout_secs() -> u64 {
 /// 代理 HTTP 请求到发布平台 API（Rust reqwest -> 绕过 CORS）
 /// Cookie 由前端填入 headers（用户手动粘贴，不存服务端）
 #[tauri::command]
-pub fn publish_api_request(
-    request: PublishApiRequest,
-) -> Result<PublishApiResponse, String> {
+pub fn publish_api_request(request: PublishApiRequest) -> Result<PublishApiResponse, String> {
     let client = Client::builder()
         .timeout(Duration::from_secs(request.timeout_secs))
         .danger_accept_invalid_certs(false)
@@ -75,7 +82,9 @@ pub fn publish_api_request(
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
         .collect();
-    let body = response.text().map_err(|e| format!("读取响应体失败: {}", e))?;
+    let body = response
+        .text()
+        .map_err(|e| format!("读取响应体失败: {}", e))?;
 
     Ok(PublishApiResponse {
         status,
@@ -84,8 +93,71 @@ pub fn publish_api_request(
     })
 }
 
-/// 打开内置 WebView 窗口跳转平台登录页，用户登录后自动提取 Cookie。
-/// 通过 Tauri event `publish:cookie-captured` 回传前端。
+/// 登录后跳转的作者工作台页：muye 应用会带 x-secsdk-csrf-token 发接口，供 csrf 钩子捕获。
+const FANQIE_WORKBENCH_URL: &str = "https://fanqienovel.com/main/writer/book-manage";
+
+/// 登录窗初始化脚本：每次页面加载都注入（含导航后），
+/// (a) 轮询 document.cookie 回传登录 Cookie；
+/// (b) 钩住 fetch/XHR 捕获页面自身请求携带的 x-secsdk-csrf-token（写侧直连用）。
+/// 均经 window.__TAURI__.event.emit 回传，由 Rust 侧去重后转发前端。
+const LOGIN_CAPTURE_INIT_JS: &str = r#"
+(function() {
+  if (window.__sfPublishCaptureHooked) return;
+  window.__sfPublishCaptureHooked = true;
+  function emit(name, payload) {
+    try { window.__TAURI__.event.emit(name, payload); } catch (e) {}
+  }
+  // —— Cookie 轮询 ——
+  var tries = 0;
+  var maxTries = 180;
+  var check = setInterval(function() {
+    tries++;
+    var c = document.cookie;
+    if (c.length > 50 && window.__TAURI__) {
+      clearInterval(check);
+      emit('publish:cookie-captured', { cookies: c, url: window.location.href });
+    }
+    if (tries >= maxTries) clearInterval(check);
+  }, 2000);
+  // —— csrf token 钩子（secsdk 会给页面请求补 x-secsdk-csrf-token）——
+  var csrfSent = false;
+  function report(v) {
+    if (!v || csrfSent) return;
+    csrfSent = true;
+    emit('publish:csrf-captured', { token: String(v), url: window.location.href });
+  }
+  function scanHeaders(h) {
+    if (!h) return;
+    try {
+      if (typeof h.get === 'function') { report(h.get('x-secsdk-csrf-token')); return; }
+      if (Array.isArray(h)) {
+        for (var i = 0; i < h.length; i++) {
+          if (String(h[i][0]).toLowerCase() === 'x-secsdk-csrf-token') report(h[i][1]);
+        }
+        return;
+      }
+      for (var k in h) { if (String(k).toLowerCase() === 'x-secsdk-csrf-token') report(h[k]); }
+    } catch (e) {}
+  }
+  var origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    try {
+      scanHeaders(init && init.headers);
+      if (input && typeof input === 'object' && input.headers) scanHeaders(input.headers);
+    } catch (e) {}
+    return origFetch.apply(this, arguments);
+  };
+  var origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+    try { if (String(name).toLowerCase() === 'x-secsdk-csrf-token') report(value); } catch (e) {}
+    return origSetHeader.apply(this, arguments);
+  };
+})();
+"#;
+
+/// 打开内置 WebView 窗口跳转平台登录页，用户登录后自动提取 Cookie 与 csrf token。
+/// Cookie 经 `publish:cookie-captured`、csrf 经 `publish:csrf-captured` 回传前端。
+/// Cookie 到手后导航到作者工作台等 csrf（最多 60s），csrf 到手即关窗。
 #[tauri::command]
 pub fn publish_open_login_webview(
     app: AppHandle,
@@ -101,66 +173,87 @@ pub fn publish_open_login_webview(
         .parse::<tauri::Url>()
         .map_err(|e| format!("URL 解析失败: {}", e))?;
 
-    let webview = tauri::WebviewWindowBuilder::new(
-        &app,
-        "publish-login",
-        WebviewUrl::External(parsed_url),
-    )
-    .title("平台登录 — 登录后 Cookie 自动提取")
-    .inner_size(1024.0, 720.0)
-    .build()
-    .map_err(|e| format!("创建登录窗口失败: {}", e))?;
+    let webview =
+        tauri::WebviewWindowBuilder::new(&app, "publish-login", WebviewUrl::External(parsed_url))
+            .title("平台登录 — 登录后 Cookie/令牌自动提取")
+            .inner_size(1024.0, 720.0)
+            .initialization_script(LOGIN_CAPTURE_INIT_JS)
+            .build()
+            .map_err(|e| format!("创建登录窗口失败: {}", e))?;
 
-    let handle = app.clone();
-    let aid = account_id.clone();
+    let cookie_done = Arc::new(AtomicBool::new(false));
+    let csrf_done = Arc::new(AtomicBool::new(false));
 
-    webview.listen("publish:cookie-captured", move |event: tauri::Event| {
-        let payload: PublishCookieCapturePayload = match serde_json::from_str(event.payload()) {
-            Ok(p) => p,
-            Err(_) => return,
-        };
-        let mut p = payload;
-        p.account_id = aid.clone();
-        let _ = handle.emit("publish:cookie-captured", p);
-        // 关闭登录窗口
-        if let Some(w) = handle.get_webview_window("publish-login") {
-            let _ = w.close();
-        }
-    });
-
-    // 注入 JS：每 2 秒轮询，检测 Cookie 出现后回传
-    let js = r#"
-    (function() {
-      var tries = 0;
-      var maxTries = 180;
-      var check = setInterval(function() {
-        tries++;
-        var c = document.cookie;
-        var hasCookie = c.length > 50;
-        if (hasCookie && window.__TAURI__) {
-          clearInterval(check);
-          try {
-            window.__TAURI__.event.emit('publish:cookie-captured', {
-              cookies: c,
-              url: window.location.href
+    {
+        let handle = app.clone();
+        let aid = account_id.clone();
+        let cookie_done = cookie_done.clone();
+        let csrf_done = csrf_done.clone();
+        webview.listen("publish:cookie-captured", move |event: tauri::Event| {
+            // 初始化脚本每页都跑，导航后会重复上报——只转发第一次
+            if cookie_done.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let payload: PublishCookieCapturePayload = match serde_json::from_str(event.payload()) {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+            let mut p = payload;
+            p.account_id = aid.clone();
+            let _ = handle.emit("publish:cookie-captured", p);
+            if csrf_done.load(Ordering::SeqCst) {
+                if let Some(w) = handle.get_webview_window("publish-login") {
+                    let _ = w.close();
+                }
+                return;
+            }
+            // 导航到作者工作台，让 muye 页发接口以捕获 csrf；60s 拿不到就关窗（Cookie 已到手）
+            if let Some(w) = handle.get_webview_window("publish-login") {
+                let _ = w.eval(&format!(
+                    "window.location.href = '{}';",
+                    FANQIE_WORKBENCH_URL
+                ));
+            }
+            let close_handle = handle.clone();
+            let csrf_flag = csrf_done.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(60));
+                if !csrf_flag.load(Ordering::SeqCst) {
+                    if let Some(w) = close_handle.get_webview_window("publish-login") {
+                        let _ = w.close();
+                    }
+                }
             });
-          } catch(e) {
-            console.error('Cookie capture failed:', e);
-          }
-        }
-        if (tries >= maxTries) {
-          clearInterval(check);
-          console.warn('Login cookie capture timed out');
-        }
-      }, 2000);
-    })();
-    "#;
+        });
+    }
 
-    webview.eval(js).map_err(|e| format!("注入 Cookie 采集脚本失败: {}", e))?;
+    {
+        let handle = app.clone();
+        let aid = account_id;
+        let cookie_done = cookie_done.clone();
+        let csrf_done = csrf_done.clone();
+        webview.listen("publish:csrf-captured", move |event: tauri::Event| {
+            if csrf_done.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let payload: PublishCsrfCapturePayload = match serde_json::from_str(event.payload()) {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+            let mut p = payload;
+            p.account_id = aid.clone();
+            let _ = handle.emit("publish:csrf-captured", p);
+            // Cookie 已到手才关窗；csrf 先到（罕见）则留窗等 Cookie
+            if cookie_done.load(Ordering::SeqCst) {
+                if let Some(w) = handle.get_webview_window("publish-login") {
+                    let _ = w.close();
+                }
+            }
+        });
+    }
 
     Ok(())
 }
-
 
 /// 番茄 API 发布：起隐藏 webview 加载 muye 页，用页面自身 fetch（secsdk 自动补 x-secsdk-csrf-token）
 /// 依次 new_article -> cover_article -> publish_article，结果经 `publish:chapter-result` 事件回传前端。
@@ -182,12 +275,13 @@ pub fn publish_fanqie_chapter(
         .parse::<tauri::Url>()
         .map_err(|e| format!("URL 解析失败: {}", e))?;
 
-    let webview = tauri::WebviewWindowBuilder::new(&app, "publish-worker", WebviewUrl::External(url))
-        .title("番茄发布中…")
-        .inner_size(960.0, 720.0)
-        .visible(false)
-        .build()
-        .map_err(|e| format!("创建发布 webview 失败: {}", e))?;
+    let webview =
+        tauri::WebviewWindowBuilder::new(&app, "publish-worker", WebviewUrl::External(url))
+            .title("番茄发布中…")
+            .inner_size(960.0, 720.0)
+            .visible(false)
+            .build()
+            .map_err(|e| format!("创建发布 webview 失败: {}", e))?;
 
     let handle = app.clone();
     webview.listen("publish:chapter-result", move |event: tauri::Event| {

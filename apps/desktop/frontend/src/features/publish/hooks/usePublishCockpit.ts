@@ -4,10 +4,12 @@ import {
   autoAssignReadyBooks,
   bindPlaceholderToProject,
   calibrateOpened,
+  canPublishDirect,
   canScheduleOnDate,
   canTransition,
   capacitySnapshot,
   createPlaceholderBook,
+  markCsrfCaptured,
   emptyMonthQuota,
   findNearBlurbs,
   isPlaceholderBook,
@@ -65,10 +67,12 @@ import {
   fetchChapterList,
   startPublishChapter,
   publishChapterOnce,
+  publishChapterViaApi,
   onChapterPublished,
   apiPublishBook as callApiPublishBook,
   openLoginWebview,
   onCookieCaptured,
+  onCsrfCaptured,
   type FanqieOnlineBook,
 } from '../storage/publish-api';
 import {
@@ -349,6 +353,8 @@ export function usePublishCockpit(projectPath: string | null) {
       sessionConfirmedAt: null,
       sessionNote: '',
       cookieText: '',
+      csrfToken: '',
+      csrfCapturedAt: null,
     };
     const next = [...accounts, acc];
     await saveAccounts(next);
@@ -965,17 +971,30 @@ export function usePublishCockpit(projectPath: string | null) {
       ) {
         return;
       }
-      flash('正在发布（隐藏 webview）…');
-      singlePublishRef.current = { bookId: input.onlineBookId, title };
-      await startPublishChapter({
+      const params = {
         bookId: input.onlineBookId,
         volumeId: v.volumeId,
         volumeName: v.volumeName,
         title,
         contentHtml: ch.contentHtml,
-      });
+      };
+      // 有 csrf 令牌走写侧直连（按号隔离，不占 webview）；否则回落隐藏 webview
+      if (canPublishDirect(acc)) {
+        flash(`正在发布（${acc.penName} 直连）…`);
+        const r = await publishChapterViaApi(pack, acc.cookieText, acc.csrfToken as string, params);
+        if (r.ok) {
+          flash(`发布成功（章节 ${r.item_id ?? ''}）`);
+          await stampPublished(input.onlineBookId, title);
+        } else {
+          flash(`发布失败：${r.msg}${r.code ? ` (${r.code})` : ''}（令牌失效可重新 WebView 登录）`);
+        }
+        return;
+      }
+      flash('正在发布（隐藏 webview）…');
+      singlePublishRef.current = { bookId: input.onlineBookId, title };
+      await startPublishChapter(params);
     },
-    [accounts, flash, settings.defaultPlatform],
+    [accounts, flash, settings.defaultPlatform, stampPublished],
   );
 
   /** 批量发章：复用单章流程顺序驱动，按线上已发去重 + 字数下限跳过 + 间隔节流。 */
@@ -1060,6 +1079,7 @@ export function usePublishCockpit(projectPath: string | null) {
 
       const intervalMs = Math.max(0, (settings.batchPublishIntervalSec ?? 45) * 1000);
       const publishable = items.filter((it) => !it.skip);
+      const direct = canPublishDirect(acc);
       let ok = 0;
       let fail = 0;
       let lastOkTitle = '';
@@ -1076,16 +1096,17 @@ export function usePublishCockpit(projectPath: string | null) {
               }
             : prev,
         );
-        const r = await publishChapterOnce(
-          {
-            bookId: input.onlineBookId,
-            volumeId: v.volumeId,
-            volumeName: v.volumeName,
-            title: item.title,
-            contentHtml: htmlByPath.get(item.path) ?? '',
-          },
-          BATCH_STEP_TIMEOUT_MS,
-        );
+        const params = {
+          bookId: input.onlineBookId,
+          volumeId: v.volumeId,
+          volumeName: v.volumeName,
+          title: item.title,
+          contentHtml: htmlByPath.get(item.path) ?? '',
+        };
+        // 有 csrf 令牌走写侧直连（按号隔离，多号可各自批量）；否则回落隐藏 webview
+        const r = direct
+          ? await publishChapterViaApi(pack, acc.cookieText, acc.csrfToken as string, params)
+          : await publishChapterOnce(params, BATCH_STEP_TIMEOUT_MS);
         if (r.ok) {
           ok += 1;
           lastOkTitle = item.title;
@@ -1437,6 +1458,28 @@ export function usePublishCockpit(projectPath: string | null) {
         .then(() => {
           setAccounts(next);
           flash('Cookie 已自动提取并保存，会话标记为已登录');
+        })
+        .catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return onCsrfCaptured((payload) => {
+      const token = payload.token;
+      if (!token) return;
+      const targetId = payload.account_id;
+      const current = accountsRef.current;
+      const next = current.map((a) => {
+        if (targetId && a.id !== targetId) return a;
+        if (!targetId && a !== current[0]) return a;
+        return markCsrfCaptured(a, token);
+      });
+      if (next === current) return;
+      saveAccounts(next)
+        .then(() => {
+          setAccounts(next);
+          flash('写侧令牌已捕获，该号可直连发章（不必让 webview 登着它）');
         })
         .catch(() => {});
     });

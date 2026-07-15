@@ -1,4 +1,6 @@
 import {
+  canPublishDirect,
+  isCsrfStale,
   isPlaceholderBook,
   isSessionStale,
   pipelineStatusLabel,
@@ -486,7 +488,9 @@ export function AccountsTab({ api }: { api: PublishCockpitApi }) {
   return (
     <section className="space-y-3">
       <p className="text-[10.5px] leading-relaxed text-subtle">
-        番茄无第三方 OAuth：优先 WebView 登录自动取 Cookie；也可浏览器登录后手动粘贴。
+        番茄无第三方 OAuth：优先 WebView 登录自动取 Cookie +
+        写侧令牌（取到即「直连就绪」，多号可各自发章， 不必让 webview
+        登着某个号）；也可浏览器登录后手动粘贴 Cookie（无令牌则发章回落隐藏 webview）。
       </p>
       <div className="flex flex-wrap gap-1">
         <ToolbarBtn onClick={() => void api.loginViaWebView()}>WebView 登录</ToolbarBtn>
@@ -540,6 +544,21 @@ export function AccountsTab({ api }: { api: PublishCockpitApi }) {
               <span className="text-[12px] font-medium">{a.penName}</span>
               <span className={`text-[10.5px] ${sessionClass}`}>会话 {sessionLabel}</span>
               <span className={`text-[10.5px] ${riskClass}`}>{riskStatusLabel(a.riskStatus)}</span>
+              {canPublishDirect(a) ? (
+                <span
+                  className={`text-[10.5px] ${isCsrfStale(a) ? 'text-warning' : 'text-success'}`}
+                  title="有 Cookie + 写侧令牌，可直连发章，不必让 webview 登着本号"
+                >
+                  直连就绪{isCsrfStale(a) ? '（令牌偏旧）' : ''}
+                </span>
+              ) : (
+                <span
+                  className="text-[10.5px] text-subtle"
+                  title="缺写侧令牌，发章回落隐藏 webview"
+                >
+                  webview 发章
+                </span>
+              )}
               {a.coldUntil && a.coldUntil >= today && (
                 <span className="text-[10.5px] text-warning">冷号→{a.coldUntil}</span>
               )}

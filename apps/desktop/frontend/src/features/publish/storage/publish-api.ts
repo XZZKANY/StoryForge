@@ -2,6 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { assertTauriRuntime } from '../../../lib/tauri-env';
 import type { PlatformApiEndpoint, PlatformPack } from '../packs/types';
 import { listen } from '@tauri-apps/api/event';
+import {
+  buildCoverArticleBody,
+  buildNewArticleBody,
+  buildPublishArticleBody,
+  parseDraftListItemId,
+  parseNewArticleItemId,
+  parseStepResult,
+  type FanqiePublishParams,
+} from '../packs/fanqie/publish-flow';
 
 export type PublishApiResponse = {
   status: number;
@@ -16,10 +25,18 @@ export type PublishApiCallInput = {
   extraHeaders: Record<string, string>;
   /** $key -> value 路径与请求体占位替换 */
   vars?: Record<string, string>;
+  /** 直传请求体（已编码的 form/json 串）；与 bodyTemplate 互斥，优先生效 */
+  rawBody?: string;
 };
 
 export type PublishCookieCapturedPayload = {
   cookies: string;
+  url: string;
+  account_id?: string | null;
+};
+
+export type PublishCsrfCapturedPayload = {
+  token: string;
   url: string;
   account_id?: string | null;
 };
@@ -53,6 +70,16 @@ export function onCookieCaptured(
   };
 }
 
+/** 监听登录窗捕获的 x-secsdk-csrf-token（写侧直连令牌）。 */
+export function onCsrfCaptured(handler: (payload: PublishCsrfCapturedPayload) => void): () => void {
+  const unlisten = listen<PublishCsrfCapturedPayload>('publish:csrf-captured', (event) => {
+    handler(event.payload);
+  });
+  return () => {
+    unlisten.then((fn) => fn());
+  };
+}
+
 /**
  * 通过 Rust 后端代理发 HTTP 请求到平台 API（绕过 CORS / CSP）。
  */
@@ -71,8 +98,8 @@ export async function callPlatformApi(input: PublishApiCallInput): Promise<Publi
     headers['content-type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
   }
 
-  let body: string | null = null;
-  if (input.endpoint.bodyTemplate && input.vars) {
+  let body: string | null = input.rawBody ?? null;
+  if (body == null && input.endpoint.bodyTemplate && input.vars) {
     body = input.endpoint.bodyTemplate.replace(
       /\$(\w+)/g,
       (_, key) => input.vars?.[key] ?? `$${key}`,
@@ -310,6 +337,93 @@ export async function publishChapterOnce(
       });
     });
   });
+}
+
+/**
+ * 写侧直连发章（不经 webview）：Rust 代理带「账号 Cookie + 登录时捕获的 x-secsdk-csrf-token」
+ * 走 new_article → cover_article → publish_article。多号并存的关键：会话按账号显式传入，
+ * 不依赖 webview jar 当前登着哪个号。csrf 失效表现为写步骤失败，需重新 WebView 登录刷新令牌。
+ */
+export async function publishChapterViaApi(
+  pack: PlatformPack,
+  cookieText: string,
+  csrfToken: string,
+  input: FanqiePublishParams,
+): Promise<FanqiePublishResult> {
+  const newArticle = pack.apiEndpoints['newArticle'];
+  const coverArticle = pack.apiEndpoints['coverArticle'];
+  const publishArticle = pack.apiEndpoints['publishArticle'];
+  if (!newArticle || !coverArticle || !publishArticle) {
+    return { ok: false, msg: `${pack.label} 未配置写侧端点`, step: 'config' };
+  }
+  const headers: Record<string, string> = {
+    Cookie: cookieText.trim(),
+    'x-secsdk-csrf-token': csrfToken.trim(),
+    // 对齐浏览器请求形状（写端点在浏览器上下文实测；Rust 代理默认 UA/无 referer 未实测）
+    Origin: pack.apiBaseUrl,
+    Referer: `${pack.apiBaseUrl}/main/writer/book-manage`,
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  };
+  const call = (endpoint: PlatformApiEndpoint, rawBody?: string, vars?: Record<string, string>) =>
+    callPlatformApi({ endpoint, baseUrl: pack.apiBaseUrl, extraHeaders: headers, rawBody, vars });
+
+  try {
+    // 1. 建空章节草稿
+    const na = await call(newArticle, buildNewArticleBody(input.bookId));
+    const naResult = parseStepResult(na.status, na.body);
+    if (!naResult.ok) {
+      return {
+        ok: false,
+        code: naResult.code ?? undefined,
+        msg: `建章失败：${naResult.message}`,
+        step: 'new_article',
+        status: na.status,
+      };
+    }
+    let itemId = parseNewArticleItemId(na.body);
+    if (!itemId) {
+      const draftList = pack.apiEndpoints['getDraftList'];
+      if (draftList) {
+        const dl = await call(draftList, undefined, { bookId: input.bookId });
+        itemId = parseDraftListItemId(dl.body);
+      }
+    }
+    if (!itemId) {
+      return { ok: false, msg: '拿不到 item_id', step: 'new_article' };
+    }
+
+    // 2. 存正文
+    const ca = await call(coverArticle, buildCoverArticleBody(input, itemId));
+    const caResult = parseStepResult(ca.status, ca.body);
+    if (!caResult.ok) {
+      return {
+        ok: false,
+        code: caResult.code ?? undefined,
+        msg: `存正文失败：${caResult.message}`,
+        step: 'cover_article',
+        status: ca.status,
+      };
+    }
+
+    // 3. 发布（进审核）
+    const pa = await call(publishArticle, buildPublishArticleBody(input, itemId));
+    const paResult = parseStepResult(pa.status, pa.body);
+    return {
+      ok: paResult.ok,
+      code: paResult.code ?? undefined,
+      msg: paResult.message,
+      item_id: itemId,
+      step: paResult.ok ? undefined : 'publish_article',
+      status: pa.status,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      msg: `直连请求失败: ${e instanceof Error ? e.message : String(e)}`,
+      step: 'transport',
+    };
+  }
 }
 
 /** 卷（volume_list 投影） */

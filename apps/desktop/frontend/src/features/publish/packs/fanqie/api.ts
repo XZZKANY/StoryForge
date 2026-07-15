@@ -38,6 +38,11 @@ export const FANQIE_API_ENDPOINTS: Record<string, PlatformApiEndpoint> = {
     method: 'GET',
     path: `/api/author/book/book_detail/v0/?${FANQIE_COMMON_QUERY}&book_id=$bookId`,
   },
+  /** 草稿列表（new_article 未直接回 item_id 时兜底取最新草稿） */
+  getDraftList: {
+    method: 'GET',
+    path: `/api/author/chapter/draft_list/v1?${FANQIE_COMMON_QUERY}&book_id=$bookId`,
+  },
 
   // —— 写（需 csrf token + form body）——
   /** 建空章节草稿：body aid&app_name&book_id&need_reuse=1 */
@@ -46,10 +51,10 @@ export const FANQIE_API_ENDPOINTS: Record<string, PlatformApiEndpoint> = {
     path: `/api/author/article/new_article/v0/?${FANQIE_COMMON_QUERY}`,
     contentType: 'form',
   },
-  /** 存章节正文（草稿）*/
-  editArticle: {
+  /** 存章节正文（实测真路径 cover_article；edit_article 是 GET 加载草稿，勿用于写） */
+  coverArticle: {
     method: 'POST',
-    path: `/api/author/edit_article/v0/?${FANQIE_COMMON_QUERY}`,
+    path: `/api/author/article/cover_article/v0/?${FANQIE_COMMON_QUERY}`,
     contentType: 'form',
   },
   /** 发布章节（进审核）*/

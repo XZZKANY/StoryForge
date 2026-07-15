@@ -51,3 +51,31 @@ export function isSessionStale(
   if (Number.isNaN(t)) return false;
   return nowMs - t > staleAfterDays * 24 * 60 * 60 * 1000;
 }
+
+/** 记录登录窗捕获的 csrf 令牌 */
+export function markCsrfCaptured(
+  account: PublishAccount,
+  token: string,
+  atIso: string = new Date().toISOString(),
+): PublishAccount {
+  return { ...account, csrfToken: token, csrfCapturedAt: atIso };
+}
+
+/** 该号能否走写侧直连（不依赖 webview 当前登着谁）：有 Cookie + csrf 令牌。 */
+export function canPublishDirect(
+  account: Pick<PublishAccount, 'cookieText' | 'csrfToken'>,
+): boolean {
+  return Boolean(account.cookieText?.trim()) && Boolean(account.csrfToken?.trim());
+}
+
+/** csrf 令牌捕获超过 N 天视为可能过期（默认 3 天，仅提醒，失效以写请求报错为准）。 */
+export function isCsrfStale(
+  account: Pick<PublishAccount, 'csrfToken' | 'csrfCapturedAt'>,
+  nowMs: number = Date.now(),
+  staleAfterDays = 3,
+): boolean {
+  if (!account.csrfToken?.trim() || !account.csrfCapturedAt) return false;
+  const t = Date.parse(account.csrfCapturedAt);
+  if (Number.isNaN(t)) return false;
+  return nowMs - t > staleAfterDays * 24 * 60 * 60 * 1000;
+}
