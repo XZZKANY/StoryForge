@@ -243,7 +243,8 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         name="project.prose_check",
         description=(
             "文笔气味静态检查：对单个稿件做确定性坏味道扫描（陈词套话 / 说明腔 / 情绪直述 / "
-            "解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏），产出 advisory issue（无 LLM，不写盘）。"
+            "解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏 / 机械过渡 / 公式化设问 / "
+            "二元对比 / 空泛总结），产出 advisory issue（无 LLM，不写盘）。"
         ),
         domain="project",
         input_schema={},
@@ -259,7 +260,8 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
             description=(
                 "文笔气味静态检查（确定性，无需 LLM、不烧 token）：对项目内单个稿件扫描常见坏味道——"
                 "陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、"
-                "缺少行动 beat 的静态节奏，返回带维度 / 严重度的 issue 列表。比 file_review 便宜得多，"
+                "缺少行动 beat 的静态节奏，以及机械过渡、公式化设问、二元对比和空泛总结，返回带维度 / "
+                "严重度的 issue 列表。比 file_review 便宜得多，"
                 "适合修订前先快速定位文笔问题；结果是参考信号，结合原文判断后再决定是否修改。"
             ),
             parameters={
