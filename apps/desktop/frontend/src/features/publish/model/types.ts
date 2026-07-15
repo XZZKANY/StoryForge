@@ -57,6 +57,13 @@ export type PublishAccount = {
   sessionNote: string;
   /** 用户手动粘贴的 Cookie 字符串（浏览器 DevTools → Application → Cookies 复制） */
   cookieText: string;
+  /**
+   * 登录时捕获的 x-secsdk-csrf-token（写侧直连令牌，按号隔离）。
+   * 有此令牌 + Cookie 即可直连发章，不必让 webview 登着该号。失效需重新 WebView 登录刷新。
+   */
+  csrfToken?: string;
+  /** csrf 令牌捕获时间 ISO（用于「令牌可能过期」提示） */
+  csrfCapturedAt?: string | null;
 };
 
 export type PublishBook = {
