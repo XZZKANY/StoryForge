@@ -25,6 +25,12 @@ export default {
         prose: 'var(--font-prose)',
         mono: 'var(--font-mono)',
       },
+      spacing: {
+        // 壳子三栏头部行行高单一事实源（左栏顶行 / 中栏页签行 / 右栏对话头共用，
+        // h-shell-row / top-shell-row）；改行高只改这里，组件禁止再写死 h-9/h-10，
+        // 指纹护栏见 tests/shell-row-height.test.ts。
+        'shell-row': '2.5rem',
+      },
       keyframes: {
         'fade-in': {
           from: { opacity: '0' },

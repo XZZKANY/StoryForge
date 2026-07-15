@@ -1,5 +1,5 @@
 /**
- * 中栏编辑器页签行（36px）：设置 / 文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
+ * 中栏编辑器页签行（h-shell-row，与左右两栏头部行同高对齐）：设置 / 文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
  * 预览页签为斜体，单击别的文件会覆盖它；双击预览页签固定（对齐原型 pane-preview 语义）。
  * 激活页签向下压 1px，用 --background 底线冲掉容器底边，与编辑区无缝一体。
  * Q3a：导出/历史/保存/关闭其他/关闭全部收进「…」溢出菜单（删掉 Editor 自己的第二条工具行，
@@ -124,7 +124,7 @@ export function EditorTabs({
 
   return (
     <div
-      className="relative flex h-9 flex-shrink-0 items-stretch border-b border-border bg-panel"
+      className="relative flex h-shell-row flex-shrink-0 items-stretch border-b border-border bg-panel"
       data-testid="editor-tabs"
     >
       {settingsOpen && (

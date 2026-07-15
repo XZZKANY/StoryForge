@@ -42,7 +42,10 @@ export function ConversationHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const sessionList = sessions ?? [];
   return (
-    <header className="relative flex h-10 flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2">
+    <header
+      className="relative flex h-shell-row flex-shrink-0 items-center gap-2 border-b border-border bg-panel px-3 pr-2"
+      data-testid="conversation-header"
+    >
       <button
         type="button"
         className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-elevated"
@@ -104,7 +107,7 @@ export function ConversationHeader({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-2 right-2 top-10 z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
             <div className="px-2 py-1 text-[10.5px] uppercase tracking-[0.08em] text-subtle">
               本项目的会话
             </div>
