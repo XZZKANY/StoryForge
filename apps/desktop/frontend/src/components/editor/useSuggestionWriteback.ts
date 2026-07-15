@@ -338,5 +338,7 @@ export function useSuggestionWriteback({
     resetSuggestionWriteback,
     setSuggestionStatus,
     suggestionStatus,
+    // 行间对话（Ctrl+K）接受时复用同一套快照 + 写盘 + 闭环记录 + 分支头，避免另起一套写回。
+    writeAcceptedSuggestion,
   };
 }

@@ -27,6 +27,7 @@ import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor
 import { resolveEditorFontFamily, type EditorFontMode } from './editor/options';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
+import { useInlineChat } from './editor/useInlineChat';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 import type { AppDialogApi } from './app/AppDialog';
 import { performGuardedWriteback } from '../lib/writeback';
@@ -142,6 +143,7 @@ export function Editor({
     resetSuggestionWriteback,
     setSuggestionStatus,
     suggestionStatus,
+    writeAcceptedSuggestion,
   } = useSuggestionWriteback({
     editorRef,
     originalContentRef,
@@ -290,6 +292,18 @@ export function Editor({
     loadedIsDirty,
     modelCacheRef,
     retainedFilePaths,
+  });
+
+  // 行间对话（Ctrl+K）：编辑聚焦下就地改稿，接受收敛到同一套守卫写回。
+  useInlineChat({
+    editorRef,
+    editorReady,
+    filePath,
+    filePathRef,
+    projectPathRef,
+    projectName: null,
+    writeAcceptedSuggestion,
+    setSuggestionStatus,
   });
 
   // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。

@@ -348,3 +348,131 @@ body {
 .sf-issue-glyph-low::after {
   background: #60a5fa;
 }
+
+/* ===== 行间对话（Ctrl+K）：Monaco view zone / decoration 的内联 diff 皮肤 ===== */
+.sf-inline-chat {
+  box-sizing: border-box;
+  /* 有界固定宽 + 左锚定：不拉到编辑器右缘，right border 就不会被 view zone 父容器 overflow 裁掉；
+     窄屏用 max-width 兜底（边界碰撞）。margin-right 只在窄屏兜底时生效。 */
+  width: 520px;
+  max-width: calc(100% - 64px);
+  margin: 4px 12px 6px 52px;
+  border: 1px solid rgb(var(--agent) / 0.55);
+  border-radius: 10px;
+  background: rgb(var(--surface));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+.sf-inline-chat--loading {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: rgb(var(--agent));
+  font-size: 12px;
+}
+.sf-inline-chat__head {
+  padding: 7px 12px 0;
+  color: rgb(var(--agent));
+  font-size: 11px;
+  font-weight: 600;
+}
+.sf-inline-chat__textarea {
+  width: 100%;
+  min-height: 34px;
+  max-height: 120px;
+  display: block;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: 6px 12px;
+  background: transparent;
+  color: rgb(var(--foreground));
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 22px;
+}
+.sf-inline-chat__hint {
+  padding: 0 12px 8px;
+  color: rgb(var(--subtle));
+  font-size: 11px;
+}
+
+/* 旧行红标：整行淡红底 + 左描边 */
+.sf-inline-diff-old {
+  background: rgb(var(--error) / 0.12);
+  box-shadow: inset 3px 0 0 rgb(var(--error) / 0.7);
+}
+
+/* 绿色新增块：贴着旧行下方展示建议新文本 */
+.sf-inline-diff-zone {
+  margin-left: 0;
+  padding: 2px 0;
+  background: rgb(var(--success) / 0.1);
+  border-left: 3px solid rgb(var(--success) / 0.7);
+  font-family: var(--font-mono);
+}
+.sf-inline-diff-line {
+  padding: 0 12px 0 16px;
+  color: rgb(var(--foreground));
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.sf-inline-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 6px 16px;
+}
+.sf-inline-btn-accept {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 0;
+  background: rgb(var(--agent));
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sf-inline-btn-accept:hover {
+  filter: brightness(1.08);
+}
+.sf-inline-btn-reject {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--border-strong));
+  background: transparent;
+  color: rgb(var(--muted));
+  font-size: 12px;
+  cursor: pointer;
+}
+.sf-inline-btn-reject:hover {
+  background: rgb(var(--elevated));
+  color: rgb(var(--foreground));
+}
+.sf-inline-diff-note {
+  color: rgb(var(--subtle));
+  font-size: 11px;
+}
+
+/* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */
+.sf-inline-toast {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  z-index: 30;
+  max-width: 60%;
+  padding: 7px 12px;
+  border: 1px solid rgb(var(--border));
+  border-radius: 999px;
+  background: rgb(var(--panel) / 0.96);
+  color: rgb(var(--muted));
+  font-size: 11.5px;
+  line-height: 1.5;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  pointer-events: none;
+}
