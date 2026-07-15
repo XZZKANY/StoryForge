@@ -113,6 +113,75 @@ export function summarizeInlineDiff(before: string, after: string): InlineDiffSu
   return { hunks, addedLines, removedLines, isNoop: hunks.length === 0 };
 }
 
+export type InlineAnchorRange = {
+  /** 1-based 起始行（含）。 */
+  startLine: number;
+  /** 1-based 结束行（含）。 */
+  endLine: number;
+};
+
+function lineHunkOverlapsAnchor(hunk: LineDiffHunk, anchor: InlineAnchorRange): boolean {
+  if (hunk.removedStartLine !== null && hunk.removedEndLine !== null) {
+    return hunk.removedStartLine <= anchor.endLine && hunk.removedEndLine >= anchor.startLine;
+  }
+  // 纯新增插在 afterLineNumber（0=顶部）之后：落在锚定范围内或紧贴上沿都算锚定处。
+  return hunk.afterLineNumber >= anchor.startLine - 1 && hunk.afterLineNumber <= anchor.endLine;
+}
+
+export type AnchoredInlineDiff = {
+  /** 仅与锚定行相交的 hunk（供渲染红/绿）。 */
+  hunks: LineDiffHunk[];
+  /** 只应用锚定处 hunk 后的整文，供接受写回——模型 drift 到别处的改动被丢弃。 */
+  clampedAfter: string;
+  addedLines: number;
+  removedLines: number;
+  /** 被丢弃的锚定处之外的 hunk 数（>0 时提示作者）。 */
+  droppedOffAnchor: number;
+  /** true=锚定处没有任何改动（模型只改了别处，或整体无改动）。 */
+  isNoop: boolean;
+};
+
+/**
+ * 把整文件修订「夹」到锚定行：只保留与锚定范围相交的改动，模型跑到别处的改动一律丢弃，
+ * 兑现「只改这附近，不整段重写」。返回夹紧后的整文供接受写回，以及供渲染的锚定处 diff。
+ */
+export function planAnchoredInlineDiff(
+  before: string,
+  after: string,
+  anchor: InlineAnchorRange,
+): AnchoredInlineDiff {
+  const normBefore = before.replace(/\r\n/g, '\n');
+  const normAfter = after.replace(/\r\n/g, '\n');
+  const allHunks = hunksToLineDiff(normBefore, normAfter);
+  const onAnchor = allHunks.filter((hunk) => lineHunkOverlapsAnchor(hunk, anchor));
+  const droppedOffAnchor = allHunks.length - onAnchor.length;
+
+  // 自底向上 splice，保持未处理 hunk 的行号有效。
+  const lines = normBefore.split('\n');
+  for (const hunk of [...onAnchor].sort((a, b) => b.afterLineNumber - a.afterLineNumber)) {
+    if (hunk.removedStartLine !== null && hunk.removedEndLine !== null) {
+      lines.splice(
+        hunk.removedStartLine - 1,
+        hunk.removedEndLine - hunk.removedStartLine + 1,
+        ...hunk.newLines,
+      );
+    } else {
+      lines.splice(hunk.afterLineNumber, 0, ...hunk.newLines);
+    }
+  }
+
+  const addedLines = onAnchor.reduce((total, hunk) => total + hunk.addedLineCount, 0);
+  const removedLines = onAnchor.reduce((total, hunk) => total + hunk.removedLineCount, 0);
+  return {
+    hunks: onAnchor,
+    clampedAfter: lines.join('\n'),
+    addedLines,
+    removedLines,
+    droppedOffAnchor,
+    isNoop: onAnchor.length === 0,
+  };
+}
+
 /**
  * 发起修订到接受之间，作者可能又改了文件——此时旧补丁（基于捕获时的 before）不能直接整体写回。
  * 按 LF 归一比较，避免仅换行差异误判。

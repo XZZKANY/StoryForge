@@ -6,6 +6,7 @@ import {
   buildInlineReviseInstruction,
   hunksToLineDiff,
   isInlineEditStale,
+  planAnchoredInlineDiff,
   summarizeInlineDiff,
 } from '../src/lib/inline-chat';
 
@@ -94,6 +95,29 @@ test('summarizeInlineDiff 汇总增删行并识别 noop', () => {
   assert.equal(summary.isNoop, false);
   assert.equal(summary.addedLines, 1);
   assert.equal(summary.removedLines, 1);
+});
+
+test('planAnchoredInlineDiff 夹到锚定行：丢弃别处 drift、接受只写锚定处', () => {
+  const before = ['甲。', '乙。', '丙。', '丁。', ''].join('\n');
+  // 模型改了锚定的第 2 行，也顺手改了第 4 行（drift）。
+  const after = ['甲。', '乙改。', '丙。', '丁改。', ''].join('\n');
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 2, endLine: 2 });
+  assert.equal(plan.isNoop, false);
+  assert.equal(plan.droppedOffAnchor, 1);
+  assert.equal(plan.hunks.length, 1);
+  assert.equal(plan.hunks[0].removedStartLine, 2);
+  // clampedAfter 只应用第 2 行，第 4 行被还原。
+  assert.equal(plan.clampedAfter, ['甲。', '乙改。', '丙。', '丁。', ''].join('\n'));
+});
+
+test('planAnchoredInlineDiff 模型只改了锚定处之外 → noop 且不动原文', () => {
+  const before = ['甲。', '乙。', '丙。', '丁。', ''].join('\n');
+  const after = ['甲。', '乙改。', '丙。', '丁改。', ''].join('\n');
+  // 锚定第 3 行没被改，第 2、4 行的 drift 全丢。
+  const plan = planAnchoredInlineDiff(before, after, { startLine: 3, endLine: 3 });
+  assert.equal(plan.isNoop, true);
+  assert.equal(plan.droppedOffAnchor, 2);
+  assert.equal(plan.clampedAfter, before);
 });
 
 test('isInlineEditStale 忽略换行风格差异、只认真实内容变化', () => {

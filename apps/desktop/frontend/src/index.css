@@ -351,6 +351,11 @@ body {
 
 /* ===== 行间对话（Ctrl+K）：Monaco view zone / decoration 的内联 diff 皮肤 ===== */
 .sf-inline-chat {
+  box-sizing: border-box;
+  /* 有界固定宽 + 左锚定：不拉到编辑器右缘，right border 就不会被 view zone 父容器 overflow 裁掉；
+     窄屏用 max-width 兜底（边界碰撞）。margin-right 只在窄屏兜底时生效。 */
+  width: 520px;
+  max-width: calc(100% - 64px);
   margin: 4px 12px 6px 52px;
   border: 1px solid rgb(var(--agent) / 0.55);
   border-radius: 10px;
@@ -452,4 +457,22 @@ body {
 .sf-inline-diff-note {
   color: rgb(var(--subtle));
   font-size: 11px;
+}
+
+/* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */
+.sf-inline-toast {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  z-index: 30;
+  max-width: 60%;
+  padding: 7px 12px;
+  border: 1px solid rgb(var(--border));
+  border-radius: 999px;
+  background: rgb(var(--panel) / 0.96);
+  color: rgb(var(--muted));
+  font-size: 11.5px;
+  line-height: 1.5;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  pointer-events: none;
 }

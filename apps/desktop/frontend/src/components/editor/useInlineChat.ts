@@ -20,11 +20,19 @@ import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility
 import {
   buildInlineReviseInstruction,
   isInlineEditStale,
-  summarizeInlineDiff,
+  planAnchoredInlineDiff,
   type InlineAnchor,
   type LineDiffHunk,
 } from '../../lib/inline-chat';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
+
+// diff 动作条要展示的汇总（锚定处增删行 + 被丢弃的别处改动数）。
+type InlineDiffActions = {
+  addedLines: number;
+  removedLines: number;
+  hunkCount: number;
+  droppedOffAnchor: number;
+};
 
 type WriteAcceptedSuggestion = (
   suggestion: AssistantFileSuggestion,
@@ -53,7 +61,6 @@ type InlineSession = {
   zoneIds: string[];
   decorations: monaco.editor.IEditorDecorationsCollection | null;
   keydownHandler: ((event: KeyboardEvent) => void) | null;
-  keydownTarget: HTMLElement | null;
   capturedBefore: string;
   resultAfter: string;
   userInstruction: string;
@@ -89,8 +96,8 @@ export function useInlineChat({
     const editor = editorRef.current;
     const session = sessionRef.current;
     if (!session) return;
-    if (session.keydownHandler && session.keydownTarget) {
-      session.keydownTarget.removeEventListener('keydown', session.keydownHandler, true);
+    if (session.keydownHandler) {
+      document.removeEventListener('keydown', session.keydownHandler, true);
     }
     session.decorations?.clear();
     if (editor && session.zoneIds.length > 0 && typeof editor.changeViewZones === 'function') {
@@ -101,6 +108,41 @@ export function useInlineChat({
     sessionRef.current = null;
   }, [editorRef]);
 
+  // 行间的状态是「转瞬即逝的操作反馈」，不该像面板那样赖在编辑器顶栏（丑）。
+  // 改成编辑器右下角的小 toast，几秒自动消失。拿不到宿主时退回顶栏状态。
+  const statusTimerRef = useRef<number | null>(null);
+  const toastRef = useRef<HTMLDivElement | null>(null);
+  const clearToast = useCallback(() => {
+    if (statusTimerRef.current !== null) {
+      window.clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = null;
+    }
+    toastRef.current?.remove();
+  }, []);
+  const flashStatus = useCallback(
+    (message: string) => {
+      const host = editorRef.current?.getContainerDomNode?.()?.parentElement ?? null;
+      if (!host) {
+        setSuggestionStatus(message);
+        return;
+      }
+      // 每次建一个新元素（避免 mutate 从 ref 取出的旧节点）。
+      toastRef.current?.remove();
+      const toast = document.createElement('div');
+      toast.className = 'sf-inline-toast';
+      toast.textContent = message;
+      host.appendChild(toast);
+      toastRef.current = toast;
+      if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current);
+      statusTimerRef.current = window.setTimeout(() => {
+        toast.remove();
+        if (toastRef.current === toast) toastRef.current = null;
+        statusTimerRef.current = null;
+      }, 3200);
+    },
+    [editorRef, setSuggestionStatus],
+  );
+
   const applyAccepted = useCallback(async () => {
     const editor = editorRef.current;
     const session = sessionRef.current;
@@ -109,7 +151,7 @@ export function useInlineChat({
 
     if (isInlineEditStale(session.capturedBefore, editor.getValue())) {
       teardown();
-      setSuggestionStatus('文件已变化，行间修订已取消，请重新发起 Ctrl+K');
+      flashStatus('文件已变化，行间修订已取消，请重新发起 Ctrl+K');
       return;
     }
 
@@ -124,15 +166,22 @@ export function useInlineChat({
     });
     const previous = session.capturedBefore;
     const next = session.resultAfter;
+    const anchorLine = session.anchor.startLine;
     teardown();
 
     try {
       await writeAcceptedSuggestion(suggestion, path, previous, next);
-      setSuggestionStatus('行间修订已写回当前文件');
+      // writeAcceptedSuggestion 内部 setValue 会把光标重置到第 1 行；停回刚改的地方，
+      // 免得下一次 Ctrl+K 又锚到开头。
+      editor.setPosition({ lineNumber: anchorLine, column: 1 });
+      if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
+        editor.revealLineInCenterIfOutsideViewport(anchorLine);
+      }
+      flashStatus('行间修订已写回当前文件');
     } catch (error) {
-      setSuggestionStatus(`接受失败：${error instanceof Error ? error.message : String(error)}`);
+      flashStatus(`接受失败：${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [editorRef, filePathRef, setSuggestionStatus, teardown, writeAcceptedSuggestion]);
+  }, [editorRef, filePathRef, flashStatus, teardown, writeAcceptedSuggestion]);
 
   const renderDiff = useCallback(
     (before: string, after: string) => {
@@ -141,10 +190,17 @@ export function useInlineChat({
       const model = editor?.getModel();
       if (!editor || !session || !model) return;
 
-      const summary = summarizeInlineDiff(before, after);
-      if (summary.isNoop) {
+      const plan = planAnchoredInlineDiff(before, after, {
+        startLine: session.anchor.startLine,
+        endLine: session.anchor.endLine,
+      });
+      if (plan.isNoop) {
         teardown();
-        setSuggestionStatus('行间对话：AI 没有提出改动');
+        flashStatus(
+          plan.droppedOffAnchor > 0
+            ? 'AI 的改动落在选定处之外，已忽略；换个更具体的说法再试 Ctrl+K'
+            : '行间对话：AI 没有提出改动',
+        );
         return;
       }
 
@@ -157,11 +213,19 @@ export function useInlineChat({
       }
       session.phase = 'diff';
       session.capturedBefore = before;
-      session.resultAfter = after;
+      // 接受只写夹到锚定处的改动，模型 drift 到别处的一律不带上。
+      session.resultAfter = plan.clampedAfter;
+
+      const actions: InlineDiffActions = {
+        addedLines: plan.addedLines,
+        removedLines: plan.removedLines,
+        hunkCount: plan.hunks.length,
+        droppedOffAnchor: plan.droppedOffAnchor,
+      };
 
       // 旧行红标：整行背景。
       const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-      for (const hunk of summary.hunks) {
+      for (const hunk of plan.hunks) {
         if (hunk.removedStartLine === null || hunk.removedEndLine === null) continue;
         decorations.push({
           range: new monaco.Range(hunk.removedStartLine, 1, hunk.removedEndLine, 1),
@@ -172,54 +236,70 @@ export function useInlineChat({
 
       // 绿色新增块 + 动作条（挂在最后一个 hunk 的 zone 上，落在 diff 底部）。
       const lineHeight = editorLineHeight(editor);
-      const hostIndex = summary.hunks.length - 1;
+      const hostIndex = plan.hunks.length - 1;
+      const diffZones: Array<{ id: string; zone: monaco.editor.IViewZone; dom: HTMLElement }> = [];
       editor.changeViewZones((accessor) => {
-        summary.hunks.forEach((hunk, index) => {
+        plan.hunks.forEach((hunk, index) => {
           const isHost = index === hostIndex;
           if (hunk.newLines.length === 0 && !isHost) return;
-          const dom = buildDiffZoneDom(hunk, isHost ? summary : null, {
+          const dom = buildDiffZoneDom(hunk, isHost ? actions : null, {
             onAccept: () => void applyAccepted(),
             onReject: () => {
               teardown();
-              setSuggestionStatus('已弃用行间修订');
+              flashStatus('已弃用行间修订');
             },
           });
+          // 初值估算；长行折行 / 动作条换行都会撑高，随后按真实高度重排，避免裁掉。
           const heightInPx =
             Math.max(hunk.newLines.length, hunk.newLines.length === 0 ? 0 : 1) * lineHeight +
             (isHost ? 44 : 10);
-          const id = accessor.addZone({
+          const zone: monaco.editor.IViewZone = {
             afterLineNumber: hunk.afterLineNumber,
             heightInPx: Math.max(heightInPx, isHost ? 52 : lineHeight),
             domNode: dom,
-          });
+          };
+          const id = accessor.addZone(zone);
           session.zoneIds.push(id);
+          diffZones.push({ id, zone, dom });
+        });
+      });
+      // 布局后量真实高度撑满各 zone，绿块/动作条不被裁。
+      window.requestAnimationFrame(() => {
+        if (sessionRef.current !== session || !editorRef.current) return;
+        editorRef.current.changeViewZones((accessor) => {
+          for (const { id, zone, dom } of diffZones) {
+            const measured = dom.offsetHeight;
+            if (measured > 0 && measured + 8 !== zone.heightInPx) {
+              zone.heightInPx = measured + 8;
+              accessor.layoutZone(id);
+            }
+          }
         });
       });
 
-      // 键盘：Alt+Enter 接受、Esc 弃用（挂编辑器容器，捕获期）。
-      const target = editor.getContainerDomNode?.() ?? null;
-      if (target) {
-        const handler = (event: KeyboardEvent) => {
-          if (event.isComposing) return;
-          if (event.key === 'Enter' && event.altKey) {
-            event.preventDefault();
-            event.stopPropagation();
-            void applyAccepted();
-          } else if (event.key === 'Escape') {
-            event.preventDefault();
-            event.stopPropagation();
-            teardown();
-            setSuggestionStatus('已弃用行间修订');
-          }
-        };
-        target.addEventListener('keydown', handler, true);
-        session.keydownHandler = handler;
-        session.keydownTarget = target;
-      }
+      // 键盘：Alt+Enter 接受、Esc 弃用。挂 document（捕获期）而非编辑器容器——
+      // 输入框撤掉后焦点已不在编辑器里，挂容器会收不到事件。
+      const handler = (event: KeyboardEvent) => {
+        if (event.isComposing) return;
+        if (event.key === 'Enter' && event.altKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          void applyAccepted();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          teardown();
+          flashStatus('已弃用行间修订');
+        }
+      };
+      document.addEventListener('keydown', handler, true);
+      session.keydownHandler = handler;
 
-      setSuggestionStatus(`行间修订建议已就绪：+${summary.addedLines} / -${summary.removedLines}`);
+      const droppedNote =
+        plan.droppedOffAnchor > 0 ? `（已忽略别处 ${plan.droppedOffAnchor} 处改动）` : '';
+      flashStatus(`行间修订建议已就绪：+${plan.addedLines} / -${plan.removedLines}${droppedNote}`);
     },
-    [applyAccepted, editorRef, setSuggestionStatus, teardown],
+    [applyAccepted, editorRef, flashStatus, teardown],
   );
 
   const send = useCallback(
@@ -256,12 +336,10 @@ export function useInlineChat({
       } catch (error) {
         if (sessionRef.current !== session) return;
         teardown();
-        setSuggestionStatus(
-          `AI 修订失败：${error instanceof Error ? error.message : String(error)}`,
-        );
+        flashStatus(`AI 修订失败：${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    [editorRef, filePathRef, projectName, renderDiff, setSuggestionStatus, teardown],
+    [editorRef, filePathRef, flashStatus, projectName, renderDiff, teardown],
   );
 
   const open = useCallback(() => {
@@ -270,11 +348,11 @@ export function useInlineChat({
     const project = projectPathRef.current;
     const path = filePathRef.current;
     if (!project || !path) {
-      setSuggestionStatus('先在右侧打开一个文件，再用 Ctrl+K 行间对话');
+      flashStatus('先在右侧打开一个文件，再用 Ctrl+K 行间对话');
       return;
     }
     if (isReadOnlyDerivedProjectPath(path)) {
-      setSuggestionStatus('派生缓存为只读，不能行间修订');
+      flashStatus('派生缓存为只读，不能行间修订');
       return;
     }
     const model = editor.getModel();
@@ -304,7 +382,6 @@ export function useInlineChat({
       zoneIds: [],
       decorations: null,
       keydownHandler: null,
-      keydownTarget: null,
       capturedBefore: '',
       resultAfter: '',
       userInstruction: '',
@@ -318,17 +395,36 @@ export function useInlineChat({
         teardown();
       },
     });
+    // 先给一个够用的初值，随后按真实高度重排——写死高度会把气泡底边裁掉（「不是完整的气泡」）。
+    const inputZone: monaco.editor.IViewZone = {
+      afterLineNumber: anchor.endLine,
+      heightInPx: 120,
+      domNode: dom.container,
+    };
+    let inputZoneId = '';
     editor.changeViewZones((accessor) => {
-      const id = accessor.addZone({
-        afterLineNumber: anchor.endLine,
-        heightInPx: 104,
-        domNode: dom.container,
-      });
-      session.zoneIds.push(id);
+      inputZoneId = accessor.addZone(inputZone);
+      session.zoneIds.push(inputZoneId);
     });
-    // Monaco 把 zone DOM 挂上后再聚焦输入框。
-    window.setTimeout(() => dom.textarea.focus(), 0);
-  }, [editorRef, filePathRef, projectPathRef, send, setSuggestionStatus, teardown]);
+    // 把锚定行滚进视野：接受后 setValue 会把光标重置到第 1 行，若作者已滚到别处，
+    // 输入泡会锚在光标（第 1 行）弹到「别处」——这里确保它总在眼前。
+    if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
+      editor.revealLineInCenterIfOutsideViewport(anchor.startLine);
+    }
+    // Monaco 把 zone DOM 挂上、布局后：①量真实高度撑满 zone，不裁气泡；②聚焦输入框
+    //（rAF 二次兜底，布局期 Monaco 有时会把焦点抢回编辑器，单次 setTimeout 会「打不了字」）。
+    const focusInput = () => dom.textarea.focus({ preventScroll: true });
+    window.requestAnimationFrame(() => {
+      const measured = dom.container.offsetHeight;
+      if (measured > 0 && editorRef.current && sessionRef.current === session) {
+        // offsetHeight 不含外边距，补上 margin(4+6) 再留一点余量。
+        inputZone.heightInPx = measured + 14;
+        editorRef.current.changeViewZones((accessor) => accessor.layoutZone(inputZoneId));
+      }
+      focusInput();
+      window.requestAnimationFrame(focusInput);
+    });
+  }, [editorRef, filePathRef, flashStatus, projectPathRef, send, teardown]);
 
   useEffect(() => {
     openRef.current = open;
@@ -342,10 +438,30 @@ export function useInlineChat({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => openRef.current());
   }, [editorReady, editorRef]);
 
+  // 输入阶段：光标移出锚定行即拆除（点到别的行就是「不改这儿了」）。仅限 input 阶段——
+  // diff 阶段点「接受/弃用」按钮会顺带移光标，若此时拆除会话，点击就落空（接受只能用快捷键）。
+  // diff 阶段的收尾交给按钮 / Esc / 切文件。
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editorReady || !editor || typeof editor.onDidChangeCursorPosition !== 'function') return;
+    const disposable = editor.onDidChangeCursorPosition((event) => {
+      const session = sessionRef.current;
+      if (!session || session.phase !== 'input') return;
+      const line = event.position.lineNumber;
+      if (line < session.anchor.startLine || line > session.anchor.endLine) teardown();
+    });
+    return () => disposable.dispose();
+  }, [editorReady, editorRef, teardown]);
+
   // 换文件时拆掉进行中的行间会话，避免 zone/decoration 残留到新文件。
   useEffect(() => {
     return () => teardown();
   }, [filePath, teardown]);
+
+  // 卸载时清掉 toast 与其计时器。
+  useEffect(() => {
+    return () => clearToast();
+  }, [clearToast]);
 }
 
 // ---- 命令式 DOM 构造（仅在 Ctrl+K 流程中运行，测试不触达） ----
@@ -356,6 +472,8 @@ function buildInputZoneDom(
 ): { container: HTMLElement; textarea: HTMLTextAreaElement } {
   const container = document.createElement('div');
   container.className = 'sf-inline-chat';
+  // 拦掉冒泡，别让 Monaco 把 view zone 里的点击当成移动光标而把焦点从输入框抢走。
+  container.addEventListener('mousedown', (event) => event.stopPropagation());
 
   const head = document.createElement('div');
   head.className = 'sf-inline-chat__head';
@@ -419,11 +537,13 @@ function swapZoneToLoading(
 
 function buildDiffZoneDom(
   hunk: LineDiffHunk,
-  summaryForActions: ReturnType<typeof summarizeInlineDiff> | null,
+  summaryForActions: InlineDiffActions | null,
   handlers: { onAccept: () => void; onReject: () => void },
 ): HTMLElement {
   const container = document.createElement('div');
   container.className = 'sf-inline-diff-zone';
+  // 同输入框：拦掉 mousedown，避免点接受/弃用时 Monaco 抢焦点。
+  container.addEventListener('mousedown', (event) => event.stopPropagation());
 
   for (const line of hunk.newLines) {
     const row = document.createElement('div');
@@ -436,11 +556,14 @@ function buildDiffZoneDom(
     const actions = document.createElement('div');
     actions.className = 'sf-inline-diff-actions';
 
+    // 走 mousedown + preventDefault：抢在 Monaco 的鼠标处理（移光标/夺焦点）之前触发，
+    // 否则点击会先被编辑器吞掉，表现为「接受只能用快捷键、点不动」。
     const accept = document.createElement('button');
     accept.type = 'button';
     accept.className = 'sf-inline-btn-accept';
     accept.textContent = '接受 (Alt+Enter)';
-    accept.addEventListener('click', (event) => {
+    accept.addEventListener('mousedown', (event) => {
+      event.preventDefault();
       event.stopPropagation();
       handlers.onAccept();
     });
@@ -449,17 +572,20 @@ function buildDiffZoneDom(
     reject.type = 'button';
     reject.className = 'sf-inline-btn-reject';
     reject.textContent = '弃用 (Esc)';
-    reject.addEventListener('click', (event) => {
+    reject.addEventListener('mousedown', (event) => {
+      event.preventDefault();
       event.stopPropagation();
       handlers.onReject();
     });
 
     const note = document.createElement('span');
     note.className = 'sf-inline-diff-note';
-    note.textContent =
-      summaryForActions.hunks.length > 1
-        ? `+${summaryForActions.addedLines} / -${summaryForActions.removedLines} · 共 ${summaryForActions.hunks.length} 处，接受将整体应用`
-        : `+${summaryForActions.addedLines} / -${summaryForActions.removedLines}`;
+    const noteParts = [`+${summaryForActions.addedLines} / -${summaryForActions.removedLines}`];
+    if (summaryForActions.hunkCount > 1) noteParts.push(`共 ${summaryForActions.hunkCount} 处`);
+    if (summaryForActions.droppedOffAnchor > 0) {
+      noteParts.push(`已忽略别处 ${summaryForActions.droppedOffAnchor} 处`);
+    }
+    note.textContent = noteParts.join(' · ');
 
     actions.append(accept, reject, note);
     container.append(actions);
