@@ -251,6 +251,22 @@
   {
     "type": "function",
     "function": {
+      "name": "project_promise_check",
+      "description": "伏笔承诺记账（确定性，无需 LLM、纯只读）：读取 .storyforge/canon/canon.json 中作者声明的 invariants.promises，检查 resolved / 埋设 / 截止章的结构矛盾、重复 id，以及超窗未兑现、开放窗口长期停滞和 recurring cadence 断供。只返回 blocking 与 advisory 证据，绝不修改 canon.json、派生缓存或手稿；advisory 仍需结合原文核实。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "stale_after_chapters": {
+            "type": "integer",
+            "description": "开放窗口 planted 承诺的停滞章数阈值，默认 30。"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "project_prose_check",
       "description": "文笔气味静态检查（确定性，无需 LLM、不烧 token）：对项目内单个稿件扫描常见坏味道——陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、缺少行动 beat 的静态节奏，返回带维度 / 严重度的 issue 列表。比 file_review 便宜得多，适合修订前先快速定位文笔问题；结果是参考信号，结合原文判断后再决定是否修改。",
       "parameters": {
