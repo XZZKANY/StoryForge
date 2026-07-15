@@ -358,17 +358,17 @@ export async function fetchVolumes(
 }
 
 /**
- * 拉某书线上章节标题（批量发章去重用）。
+ * 拉某书线上章节列表：titles 供批量发章去重；items 为原始条目（连载巡检从中提时间字段）。
  * chapter_list 字段随平台版本浮动，这里尽力投影 title；拿不到就返回空（不去重，非致命）。
  */
 export async function fetchChapterList(
   pack: PlatformPack,
   cookieText: string,
   bookId: string,
-): Promise<{ ok: boolean; message: string; titles: string[] }> {
+): Promise<{ ok: boolean; message: string; titles: string[]; items: unknown[] }> {
   const endpoint = pack.apiEndpoints['getChapterList'];
   if (!endpoint) {
-    return { ok: false, message: `${pack.label} 未配置章节列表接口`, titles: [] };
+    return { ok: false, message: `${pack.label} 未配置章节列表接口`, titles: [], items: [] };
   }
   try {
     const result = await callPlatformApi({
@@ -378,7 +378,7 @@ export async function fetchChapterList(
       vars: { bookId },
     });
     if (result.status !== 200) {
-      return { ok: false, message: `HTTP ${result.status}`, titles: [] };
+      return { ok: false, message: `HTTP ${result.status}`, titles: [], items: [] };
     }
     const json = JSON.parse(result.body) as {
       code?: number;
@@ -386,24 +386,24 @@ export async function fetchChapterList(
       data?: Record<string, unknown>;
     };
     if (json.code !== 0) {
-      return { ok: false, message: json.message ?? `code ${json.code}`, titles: [] };
+      return { ok: false, message: json.message ?? `code ${json.code}`, titles: [], items: [] };
     }
     const data = json.data ?? {};
     const rawList = (data['chapter_list'] ?? data['item_list'] ?? data['list'] ?? []) as unknown;
-    const titles = Array.isArray(rawList)
-      ? rawList
-          .map((it) => {
-            const o = (it ?? {}) as Record<string, unknown>;
-            return String(o.title ?? o.chapter_title ?? o.name ?? '');
-          })
-          .filter((t) => t.length > 0)
-      : [];
-    return { ok: true, message: `${titles.length} 章`, titles };
+    const items = Array.isArray(rawList) ? rawList : [];
+    const titles = items
+      .map((it) => {
+        const o = (it ?? {}) as Record<string, unknown>;
+        return String(o.title ?? o.chapter_title ?? o.name ?? '');
+      })
+      .filter((t) => t.length > 0);
+    return { ok: true, message: `${titles.length} 章`, titles, items };
   } catch (e) {
     return {
       ok: false,
       message: `请求失败: ${e instanceof Error ? e.message : String(e)}`,
       titles: [],
+      items: [],
     };
   }
 }

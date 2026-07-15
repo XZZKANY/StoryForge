@@ -10,3 +10,4 @@ export * from './session';
 export * from './labels';
 export * from './reconcile';
 export * from './batch-publish';
+export * from './serial-health';

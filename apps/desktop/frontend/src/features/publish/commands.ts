@@ -11,6 +11,7 @@ export type PublishCommandType =
   | 'mark-dropped'
   | 'monthly-review'
   | 'refresh-ready'
+  | 'serial-health'
   | 'reschedule-focus'
   | 'open-assist'
   | 'platform-login'
@@ -49,6 +50,7 @@ export const PUBLISH_COMMAND_TITLES: { type: PublishCommandType; title: string; 
     { type: 'mark-dropped', title: 'Publish: 标记止损' },
     { type: 'monthly-review', title: 'Publish: 月度复盘' },
     { type: 'refresh-ready', title: 'Publish: 刷新 Ready 扫描' },
+    { type: 'serial-health', title: 'Publish: 连载健康巡检（断更）' },
     { type: 'open-assist', title: 'Publish: 开书辅助向导（L2）' },
     { type: 'platform-login', title: 'Publish: 跳转平台登录' },
     { type: 'open-author-home', title: 'Publish: 打开作者后台' },

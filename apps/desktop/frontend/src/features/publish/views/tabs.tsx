@@ -6,6 +6,7 @@ import {
   riskStatusLabel,
   sessionStatusLabel,
   type PublishBook,
+  type SerialHealthEntry,
   PIPELINE_STATUSES,
 } from '../model';
 import { listPlatformPacks, resolvePlatformPack } from '../packs';
@@ -13,10 +14,68 @@ import type { BatchItemProgress, PublishCockpitApi } from '../hooks/usePublishCo
 import { useState } from 'react';
 import { Block, BookRow, Empty, StatusBadge, ToolbarBtn } from './ui';
 
+function serialHealthLabel(e: SerialHealthEntry): { text: string; cls: string } {
+  switch (e.kind) {
+    case 'overdue':
+      return { text: `断更 ${e.daysSince} 天`, cls: 'text-error' };
+    case 'due':
+      return { text: '今天该更', cls: 'text-warning' };
+    case 'ok':
+      return { text: '今日已更', cls: 'text-success' };
+    default:
+      return { text: '未知', cls: 'text-subtle' };
+  }
+}
+
+/** 连载更新纪律：断更/该更/已更清单（数据来自快照+本地发布盖章，线上刷新按需拉）。 */
+function SerialHealthBlock({ api }: { api: PublishCockpitApi }) {
+  const { serialHealth, serialSweeping } = api;
+  const overdueCount = serialHealth.filter((e) => e.kind === 'overdue').length;
+  const dueCount = serialHealth.filter((e) => e.kind === 'due').length;
+  return (
+    <Block title="连载更新">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10.5px] text-subtle">
+        <span>
+          断更 <span className={overdueCount > 0 ? 'text-error' : ''}>{overdueCount}</span> · 该更{' '}
+          <span className={dueCount > 0 ? 'text-warning' : ''}>{dueCount}</span> · 共{' '}
+          {serialHealth.length} 本
+        </span>
+        <ToolbarBtn onClick={() => void api.refreshSerialHealth()}>
+          {serialSweeping ? '巡检中…' : '线上巡检'}
+        </ToolbarBtn>
+      </div>
+      {serialHealth.length === 0 ? (
+        <Empty>无连载中的书（状态为「已开」或「连载」的书会出现在这里）。</Empty>
+      ) : (
+        serialHealth.map((e) => {
+          const label = serialHealthLabel(e);
+          return (
+            <div key={e.projectKey} className="flex flex-wrap items-center gap-x-2 text-[11px]">
+              <span className={`${label.cls} shrink-0 tabular-nums`}>{label.text}</span>
+              <span className="min-w-0 flex-1 truncate font-medium text-foreground">{e.title}</span>
+              {e.penName && <span className="text-subtle">{e.penName}</span>}
+              {e.latestChapterTitle && (
+                <span className="max-w-[10rem] truncate text-subtle">
+                  最近「{e.latestChapterTitle}」
+                </span>
+              )}
+              {e.lastUpdateAt && (
+                <span className="text-subtle tabular-nums">{e.lastUpdateAt.slice(0, 10)}</span>
+              )}
+              {e.note && <span className="text-subtle">{e.note}</span>}
+            </div>
+          );
+        })
+      )}
+    </Block>
+  );
+}
+
 export function DailyTab({ api }: { api: PublishCockpitApi }) {
   const { todayBooks, overdueBooks, books, accounts, quota, today } = api;
   return (
     <section className="space-y-3">
+      <SerialHealthBlock api={api} />
       <Block title="今日应开">
         {todayBooks.length === 0 ? (
           <Empty>今日无排期。可在「日历」改计划日，或「智能指派」生成建议。</Empty>
