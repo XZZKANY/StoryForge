@@ -22,10 +22,13 @@ import {
   upsertReservation,
   applyOnlineSnapshots,
   buildBookFromOnline,
+  buildSerialHealth,
   compareLedgerToOnline,
   effectiveOpened,
+  extractLatestChapter,
   planBatchPublish,
   reconcileOnlineBooks,
+  stampBooksPublished,
   type BatchChapterInput,
   type BatchPlanItem,
   type MonthQuota,
@@ -127,9 +130,11 @@ export function usePublishCockpit(projectPath: string | null) {
   const [projectChapters, setProjectChapters] = useState<ProjectChapter[]>([]);
   const [reconcile, setReconcile] = useState<ReconcileState | null>(null);
   const [batch, setBatch] = useState<BatchState | null>(null);
+  const [serialSweeping, setSerialSweeping] = useState(false);
   const flashTimerRef = useRef<number | null>(null);
   const batchRunningRef = useRef(false);
   const batchStopRef = useRef(false);
+  const singlePublishRef = useRef<{ bookId: string; title: string } | null>(null);
 
   // 各账号线上书扁平去重（保留最后拉取的），供发布下拉与旧 UI 复用
   const onlineBooks = useMemo(() => {
@@ -145,6 +150,12 @@ export function usePublishCockpit(projectPath: string | null) {
   useEffect(() => {
     accountsRef.current = accounts;
   }, [accounts]);
+
+  const booksRef = useRef(books);
+
+  useEffect(() => {
+    booksRef.current = books;
+  }, [books]);
 
   const dismissFlash = useCallback(() => {
     if (flashTimerRef.current != null) {
@@ -212,6 +223,18 @@ export function usePublishCockpit(projectPath: string | null) {
   const assistBook = assistBookKey
     ? (books.find((b) => b.projectKey === assistBookKey) ?? null)
     : null;
+
+  /** 连载健康清单：从已持久化数据（快照+本地盖章）即时推导；线上刷新走 refreshSerialHealth。 */
+  const serialHealth = useMemo(
+    () =>
+      buildSerialHealth({
+        books,
+        accounts,
+        today,
+        staleDays: settings.staleSerializingDays,
+      }),
+    [accounts, books, settings.staleSerializingDays, today],
+  );
 
   const handleAddCurrentProject = useCallback(async () => {
     if (!projectPath) {
@@ -801,6 +824,88 @@ export function usePublishCockpit(projectPath: string | null) {
     [books, flash, onlineBooks, settings.defaultPlatform],
   );
 
+  /** 发布成功本地盖章（lastPublishedAt + 快照最近章），供断更监控在线上无时间字段时兜底。 */
+  const stampPublished = useCallback(async (onlineBookId: string, chapterTitle: string) => {
+    const now = new Date().toISOString();
+    const next = stampBooksPublished(booksRef.current, { onlineBookId, chapterTitle, at: now });
+    if (next === booksRef.current) return;
+    await saveLibrary(next);
+    setBooks(next);
+  }, []);
+
+  /** 连载巡检：逐本拉已绑定书的线上章节列表，写回最近章时间/标题（拿不到时间不猜）。 */
+  const refreshSerialHealth = useCallback(async () => {
+    if (!isTauriRuntime()) {
+      flash('连载巡检仅支持桌面端（需 Rust 后端代理请求）');
+      return;
+    }
+    if (serialSweeping) return;
+    const targets = books.filter(
+      (b) =>
+        (b.status === 'opened' || b.status === 'serializing') && !b.isPlaceholder && b.onlineBookId,
+    );
+    if (targets.length === 0) {
+      flash('无已绑定线上作品的连载书（先在账号行「对账」绑定）');
+      return;
+    }
+    setSerialSweeping(true);
+    try {
+      const pack = resolvePlatformPack(settings.defaultPlatform);
+      const now = new Date().toISOString();
+      let nextBooks = books;
+      let checked = 0;
+      let skippedNoCookie = 0;
+      let failed = 0;
+      for (const b of targets) {
+        const acc = accounts.find((a) => a.id === b.assignedAccountId);
+        if (!acc?.cookieText?.trim()) {
+          skippedNoCookie += 1;
+          continue;
+        }
+        const res = await fetchChapterList(pack, acc.cookieText, b.onlineBookId as string);
+        if (!res.ok) {
+          failed += 1;
+          continue;
+        }
+        const latest = extractLatestChapter(res.items);
+        nextBooks = nextBooks.map((x) => {
+          if (x.projectKey !== b.projectKey) return x;
+          const base = x.onlineSnapshot ?? {
+            chapterCount: 0,
+            wordCount: 0,
+            statusTag: '',
+            statusMsg: '',
+            syncedAt: now,
+          };
+          return {
+            ...x,
+            onlineSnapshot: {
+              ...base,
+              chapterCount: res.items.length,
+              latestChapterTitle: latest?.title ?? base.latestChapterTitle ?? null,
+              latestChapterAt: latest?.publishedAt ?? base.latestChapterAt ?? null,
+              syncedAt: now,
+            },
+            updatedAt: now,
+          };
+        });
+        checked += 1;
+        // 读端点轻节流，避免连拍
+        await sleep(300);
+      }
+      if (checked > 0) {
+        await saveLibrary(nextBooks);
+        setBooks(nextBooks);
+      }
+      const parts = [`已巡检 ${checked}/${targets.length} 本`];
+      if (skippedNoCookie > 0) parts.push(`无 Cookie 跳过 ${skippedNoCookie}`);
+      if (failed > 0) parts.push(`拉取失败 ${failed}`);
+      flash(`连载巡检完成：${parts.join(' · ')}`);
+    } finally {
+      setSerialSweeping(false);
+    }
+  }, [accounts, books, flash, serialSweeping, settings.defaultPlatform]);
+
   const loadProjectChapters = useCallback(async () => {
     if (!projectPath) {
       flash('请先打开项目');
@@ -861,6 +966,7 @@ export function usePublishCockpit(projectPath: string | null) {
         return;
       }
       flash('正在发布（隐藏 webview）…');
+      singlePublishRef.current = { bookId: input.onlineBookId, title };
       await startPublishChapter({
         bookId: input.onlineBookId,
         volumeId: v.volumeId,
@@ -956,6 +1062,7 @@ export function usePublishCockpit(projectPath: string | null) {
       const publishable = items.filter((it) => !it.skip);
       let ok = 0;
       let fail = 0;
+      let lastOkTitle = '';
       for (let i = 0; i < publishable.length; i += 1) {
         if (batchStopRef.current) break;
         const item = publishable[i];
@@ -979,8 +1086,12 @@ export function usePublishCockpit(projectPath: string | null) {
           },
           BATCH_STEP_TIMEOUT_MS,
         );
-        if (r.ok) ok += 1;
-        else fail += 1;
+        if (r.ok) {
+          ok += 1;
+          lastOkTitle = item.title;
+        } else {
+          fail += 1;
+        }
         setBatch((prev) =>
           prev
             ? {
@@ -1005,6 +1116,9 @@ export function usePublishCockpit(projectPath: string | null) {
       }
       batchRunningRef.current = false;
       setBatch((prev) => (prev ? { ...prev, running: false } : prev));
+      if (ok > 0) {
+        await stampPublished(input.onlineBookId, lastOkTitle);
+      }
       const stopped = batchStopRef.current;
       flash(
         `${stopped ? '已停止' : '批量完成'}：成功 ${ok} · 失败 ${fail} · 跳过 ${
@@ -1012,7 +1126,14 @@ export function usePublishCockpit(projectPath: string | null) {
         }`,
       );
     },
-    [accounts, flash, projectChapters, settings.batchPublishIntervalSec, settings.defaultPlatform],
+    [
+      accounts,
+      flash,
+      projectChapters,
+      settings.batchPublishIntervalSec,
+      settings.defaultPlatform,
+      stampPublished,
+    ],
   );
 
   const stopBatch = useCallback(() => {
@@ -1025,10 +1146,17 @@ export function usePublishCockpit(projectPath: string | null) {
   useEffect(() => {
     return onChapterPublished((r) => {
       if (batchRunningRef.current) return; // 批量任务自带进度，避免双提示
-      if (r.ok) flash(`发布成功（章节 ${r.item_id ?? ''}）`);
-      else flash(`发布失败：${r.msg}${r.code ? ` (${r.code})` : ''}`);
+      if (r.ok) {
+        flash(`发布成功（章节 ${r.item_id ?? ''}）`);
+        const pending = singlePublishRef.current;
+        singlePublishRef.current = null;
+        if (pending) void stampPublished(pending.bookId, pending.title);
+      } else {
+        singlePublishRef.current = null;
+        flash(`发布失败：${r.msg}${r.code ? ` (${r.code})` : ''}`);
+      }
     });
-  }, [flash]);
+  }, [flash, stampPublished]);
 
   const apiPublishForBook = useCallback(
     async (projectKey: string) => {
@@ -1248,6 +1376,10 @@ export function usePublishCockpit(projectPath: string | null) {
         case 'refresh-ready':
           void refreshReadyScores();
           break;
+        case 'serial-health':
+          setTab('daily');
+          void refreshSerialHealth();
+          break;
         case 'reschedule-focus':
           setTab('calendar');
           flash('请在日历中改 planOpenDate');
@@ -1285,6 +1417,7 @@ export function usePublishCockpit(projectPath: string | null) {
     markOpenedTodayBatch,
     overdueBooks,
     refreshReadyScores,
+    refreshSerialHealth,
     todayBooks,
   ]);
 
@@ -1376,6 +1509,9 @@ export function usePublishCockpit(projectPath: string | null) {
     batch,
     startBatchPublish,
     stopBatch,
+    serialHealth,
+    serialSweeping,
+    refreshSerialHealth,
   };
 }
 

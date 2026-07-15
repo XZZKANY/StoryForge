@@ -22,6 +22,10 @@ export type OnlineSnapshot = {
   statusMsg: string;
   /** 上次对账时间 ISO */
   syncedAt: string;
+  /** 最近一章标题（连载巡检/发布盖章写入；拿不到为 null） */
+  latestChapterTitle?: string | null;
+  /** 最近一章时间 ISO（接口无时间字段时为 null，不猜） */
+  latestChapterAt?: string | null;
 };
 
 /**
@@ -78,6 +82,8 @@ export type PublishBook = {
   onlineBookId: string | null;
   /** 线上快照（对账时写入，只读镜像） */
   onlineSnapshot: OnlineSnapshot | null;
+  /** 本面板最近一次发布成功时间 ISO（本地动作盖章，独立于线上时间字段可用性） */
+  lastPublishedAt?: string | null;
 };
 
 export type PublishSettings = {
