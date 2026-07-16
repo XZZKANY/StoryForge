@@ -9,6 +9,7 @@ from app.common.exceptions import InputError, NotFoundError
 from app.common.redaction import redact_sensitive
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
+from app.domains.agent_runs.observatory import run_observatory_scan
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
@@ -60,6 +61,8 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
         # canon.refresh 只写派生缓存（.storyforge/canon/derived/），不落 DB，故 writes=False 免审计工作区副作用。
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
+        # observatory.scan 同为确定性派生缓存写入（observations.json），无 LLM 无 DB。
+        IdeCommandDefinition(id="observatory.scan", title="重扫世界线观测镜", category="Canon", writes=False),
     ]
 }
 
@@ -94,6 +97,8 @@ def execute_ide_command_by_id(
         result = _execute_bookrun_command(command, normalized_args, None, session)
     elif command.id == "canon.refresh":
         result = _execute_canon_refresh_command(command, normalized_args, None)
+    elif command.id == "observatory.scan":
+        result = _execute_observatory_scan_command(command, normalized_args, None)
     else:
         result = _accepted_command_result(command, normalized_args, None)
 
@@ -288,6 +293,25 @@ def _execute_canon_refresh_command(
     except FsToolError as exc:
         raise IdeCommandExecutionError(str(exc)) from exc
     return _accepted_command_result(command, args, audit_event_id, {"canon": output})
+
+
+def _execute_observatory_scan_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+) -> IdeCommandResult:
+    """确定性重扫观测镜：canon 闸 + 伏笔账 + 文笔气味，归一化观测落派生缓存（无 LLM，无 key）。"""
+
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("observatory.scan 需要 project_root。")
+    glob_arg = args.get("glob")
+    glob = glob_arg.strip() if isinstance(glob_arg, str) and glob_arg.strip() else "*.md"
+    try:
+        output = run_observatory_scan(project_root.strip(), glob=glob)
+    except FsToolError as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+    return _accepted_command_result(command, args, audit_event_id, {"observatory": output})
 
 
 def _required_book_run_id(args: dict[str, object]) -> int:
