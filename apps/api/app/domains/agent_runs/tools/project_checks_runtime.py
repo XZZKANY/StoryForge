@@ -8,6 +8,7 @@ from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
 from app.domains.agent_runs.entity_budget_scan import entity_budget_scan
+from app.domains.agent_runs.promise_scan import DEFAULT_STALE_AFTER_CHAPTERS, promise_check
 from app.domains.agent_runs.prose_scan import prose_static_scan
 from app.domains.agent_runs.tools.execution import ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
@@ -21,6 +22,7 @@ class ProjectChecksRuntimeMixin:
             "project.prose_check": self._project_prose_check,
             "project.collapse_check": self._project_collapse_check,
             "project.entity_budget_check": self._project_entity_budget_check,
+            "project.promise_check": self._project_promise_check,
             "project.deep_consistency": self._project_deep_consistency,
         }
 
@@ -176,6 +178,33 @@ class ProjectChecksRuntimeMixin:
                     "chapter": output["chapter"],
                     "verdict": verdict["status"],
                     "issue_count": len(verdict["issues"]),
+                },
+            ),
+        )
+
+    def _project_promise_check(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        stale_after_chapters = payload.get("stale_after_chapters", DEFAULT_STALE_AFTER_CHAPTERS)
+        if (
+            not isinstance(stale_after_chapters, int)
+            or isinstance(stale_after_chapters, bool)
+            or stale_after_chapters < 1
+        ):
+            raise fs_tools.FsToolError("stale_after_chapters 必须是正整数。")
+
+        output = promise_check(project_root, stale_after_chapters=stale_after_chapters)
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.promise_check",
+                status="completed",
+                input_summary={"stale_after_chapters": stale_after_chapters},
+                output_summary={
+                    "current_chapter": output["current_chapter"],
+                    "promise_count": output["promise_count"],
+                    "conflict_count": output["conflict_count"],
+                    "advisory_count": output["advisory_count"],
                 },
             ),
         )

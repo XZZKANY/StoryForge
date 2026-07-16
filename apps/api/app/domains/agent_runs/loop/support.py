@@ -118,6 +118,13 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "verdict": verdict.get("status"),
             "issue_count": len(verdict.get("issues") or []),
         }
+    if registry_name == "project.promise_check":
+        return {
+            "current_chapter": output.get("current_chapter"),
+            "promise_count": output.get("promise_count"),
+            "conflict_count": output.get("conflict_count"),
+            "advisory_count": output.get("advisory_count"),
+        }
     if registry_name == "project.deep_consistency":
         return {
             "path": output.get("path"),

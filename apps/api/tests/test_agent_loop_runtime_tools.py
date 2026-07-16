@@ -380,6 +380,92 @@ def test_chat_loop_entity_budget_check_feeds_summary_only(
     assert "project.entity_budget_check" in [item["tool_name"] for item in tool_calls]
 
 
+def test_chat_loop_promise_check_feeds_summary_only_without_writing_canon(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """循环内 promise_check：完整 issues 留证据，模型只收 summary，作者 canon 不变。"""
+
+    _enable_loop_env(monkeypatch)
+    canon_dir = novel_project / ".storyforge" / "canon"
+    canon_dir.mkdir(parents=True)
+    canon_file = canon_dir / "canon.json"
+    canon_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "entities": [],
+                "invariants": {
+                    "promises": [
+                        {
+                            "id": "signal-lamp",
+                            "title": "信号灯伏笔",
+                            "kind": "foreshadow",
+                            "planted_chapter": 1,
+                            "due_chapter": 1,
+                            "status": "planted",
+                        }
+                    ]
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    before = canon_file.read_bytes()
+    calls = _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "project_promise_check",
+                            "arguments": json.dumps({"stale_after_chapters": 30}),
+                        },
+                    }
+                ],
+                "completion_tokens": 3,
+            },
+            {"content": "信号灯承诺已经超窗，请核实是否需要推进。", "tool_calls": [], "completion_tokens": 5},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-promise-check",
+        project_path=str(novel_project),
+        message="检查项目里的伏笔承诺账本",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    trace = result["tool_trace"][0]
+    assert trace["tool_name"] == "project.promise_check"
+    assert trace["output_summary"] == {
+        "current_chapter": 2,
+        "promise_count": 1,
+        "conflict_count": 0,
+        "advisory_count": 1,
+    }
+
+    tool_messages = [item for item in calls[1]["messages"] if item.get("role") == "tool"]
+    feedback = str(tool_messages[0]["content"])
+    assert '"summary"' in feedback
+    assert '"conflicts"' not in feedback
+    assert '"advisories"' not in feedback
+    assert canon_file.read_bytes() == before
+    assert not (canon_dir / "derived").exists()
+
+    tool_calls = client.get(f"/api/assistant/sessions/{result['assistant_session_id']}/tool-calls").json()
+    assert "project.promise_check" in [item["tool_name"] for item in tool_calls]
+
+
 def test_chat_loop_canon_delta_feeds_summary_only(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

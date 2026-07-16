@@ -206,10 +206,45 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.promise_check",
+        description=(
+            "伏笔承诺记账：只读 canon.json 的作者 promises 声明，确定性检查声明矛盾、超窗未兑现、"
+            "长期停滞与 recurring 断供；无 LLM、不写 canon、缓存或手稿。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent", "context_explorer"),
+        risk_level="read",
+        retry_safe=True,
+        idempotent=True,
+        execution_mode="sync",
+        evidence_fields=("current_chapter", "promise_count", "conflict_count", "advisory_count"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_promise_check",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "伏笔承诺记账（确定性，无需 LLM、纯只读）：读取 .storyforge/canon/canon.json 中作者声明的 "
+                "invariants.promises，检查 resolved / 埋设 / 截止章的结构矛盾、重复 id，以及超窗未兑现、"
+                "开放窗口长期停滞和 recurring cadence 断供。只返回 blocking 与 advisory 证据，绝不修改 "
+                "canon.json、派生缓存或手稿；advisory 仍需结合原文核实。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "stale_after_chapters": {
+                        "type": "integer",
+                        "description": "开放窗口 planted 承诺的停滞章数阈值，默认 30。",
+                    },
+                },
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="project.prose_check",
         description=(
             "文笔气味静态检查：对单个稿件做确定性坏味道扫描（陈词套话 / 说明腔 / 情绪直述 / "
-            "解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏），产出 advisory issue（无 LLM，不写盘）。"
+            "解释性旁白 / 对白密度 / 句长 / 重复表达 / 静态节奏 / 机械过渡 / 公式化设问 / "
+            "二元对比 / 空泛总结），产出 advisory issue（无 LLM，不写盘）。"
         ),
         domain="project",
         input_schema={},
@@ -225,7 +260,8 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
             description=(
                 "文笔气味静态检查（确定性，无需 LLM、不烧 token）：对项目内单个稿件扫描常见坏味道——"
                 "陈词套话、直述情绪的说明腔、解释性旁白、对白密度失衡、超长句 / 短句堆叠、短窗口重复、"
-                "缺少行动 beat 的静态节奏，返回带维度 / 严重度的 issue 列表。比 file_review 便宜得多，"
+                "缺少行动 beat 的静态节奏，以及机械过渡、公式化设问、二元对比和空泛总结，返回带维度 / "
+                "严重度的 issue 列表。比 file_review 便宜得多，"
                 "适合修订前先快速定位文笔问题；结果是参考信号，结合原文判断后再决定是否修改。"
             ),
             parameters={

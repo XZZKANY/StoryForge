@@ -72,6 +72,7 @@ class LoopToolFeedback:
         if registry_name in {
             "project.collapse_check",
             "project.entity_budget_check",
+            "project.promise_check",
             "project.canon_delta",
             "project.hooks_delta",
         }:

@@ -4,6 +4,7 @@
 见 docs/internal/workflow-capability-migration-ledger.md §2b）。project.consistency 只做
 机械计数、project.deep_consistency 是语义 judge（烧 token）；本模块补「丰富文笔气味检测」
 这条缺口——陈词套话、说明腔、情绪直述、解释性旁白、对白密度、句长、重复表达、静态节奏，
+以及机械过渡、公式化设问、二元对比、空泛总结，
 全为确定性规则，不依赖模型或 key。
 
 产出是 advisory 观察信号：是否采纳由循环 LLM 结合原文判断，修改仍走待确认补丁红线。
@@ -20,7 +21,6 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from app.domains.agent_runs.fs_tools import (
@@ -35,31 +35,13 @@ from app.domains.agent_runs.fs_tools import (
 from app.domains.agent_runs.fs_tools import (
     resolve_scoped_path as _resolve_scoped,
 )
+from app.domains.agent_runs.prose_pattern_rules import (
+    StaticProseIssue,
+    check_paragraph_patterns,
+)
 
 _MAX_FILE_BYTES = 512_000
 _CONTENT_CHAR_BUDGET = 24_000
-
-
-@dataclass(frozen=True)
-class StaticProseIssue:
-    """静态质量问题，字段与 NovelLoop 修订报告保持可序列化。"""
-
-    dimension: str
-    severity: str
-    snippet: str
-    message: str
-    suggestion: str
-    revision_strategy: str = "line_edit"
-
-    def as_report_item(self) -> dict[str, str]:
-        return {
-            "dimension": self.dimension,
-            "severity": self.severity,
-            "snippet": self.snippet,
-            "message": self.message,
-            "suggestion": self.suggestion,
-            "revision_strategy": self.revision_strategy,
-        }
 
 
 _CLICHE_PHRASES = (
@@ -115,6 +97,7 @@ def check_prose_static_quality(
     issues.extend(_check_character_consistency(prose, character_constraints or ()))
     issues.extend(_check_continuity(prose, continuity_facts or (), required_facts or ()))
     issues.extend(_check_progression(prose, scene_beats or (), ending_hook))
+    issues.extend(check_paragraph_patterns(prose))
     return _dedupe(issues)
 
 
