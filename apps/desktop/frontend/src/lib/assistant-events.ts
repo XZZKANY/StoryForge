@@ -29,6 +29,21 @@ export function emitEditorCommand(command: EditorCommand): void {
   }
 }
 
+// 观测面板点行定位原文：App 打开目标文件后广播，Editor 等模型加载完成再消费（行号 / snippet 锚）。
+export const LOCATE_IN_EDITOR_EVENT = 'storyforge:locate-in-editor';
+
+export type LocateInEditorDetail = {
+  filePath: string;
+  line?: number;
+  snippet?: string;
+};
+
+export function emitLocateInEditor(detail: LocateInEditorDetail): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<LocateInEditorDetail>(LOCATE_IN_EDITOR_EVENT, { detail }));
+  }
+}
+
 export type SaveActiveFileStatus = 'saved' | 'skipped' | 'error';
 
 export type SaveActiveFileDoneDetail = {
