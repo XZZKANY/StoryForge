@@ -20,9 +20,82 @@ export type ObservatoryChecker = {
   status: string;
 } & Record<string, unknown>;
 
+/** payload v2 结构化台账（观测镜富 view）：字段形状对齐后端 observatory.py。 */
+export type ObservatoryEntity = {
+  id: string;
+  canonicalName: string;
+  kind: string | null;
+  aliases: string[];
+  appearanceMissing: boolean;
+  firstChapter: number | null;
+  lastChapter: number | null;
+  totalCount: number;
+  holdings: { item: string; fromChapter: number | null; toChapter: number | null }[];
+  lifespan: { exitsAfterChapter: number; reason: string | null } | null;
+  provenance: {
+    path: string;
+    chapter: number | null;
+    firstLine: number | null;
+    count: number | null;
+  }[];
+  provenanceTruncated: boolean;
+  relatedObservationIds: string[];
+};
+
+export type ObservatoryPromiseIssue = {
+  id: string | null;
+  category: string;
+  severity: string | null;
+  message: string;
+};
+
+export type ObservatoryPromise = {
+  id: string;
+  title: string;
+  status: string | null;
+  kind: string | null;
+  plantedChapter: number | null;
+  dueChapter: number | null;
+  resolvedChapter: number | null;
+  lastTouchChapter: number | null;
+  issues: ObservatoryPromiseIssue[];
+};
+
+export type ObservatoryPromises = {
+  currentChapter: number | null;
+  ledger: ObservatoryPromise[];
+};
+
+export type ObservatoryProposalClaim = {
+  invariant: string;
+  entry: Record<string, unknown>;
+};
+
+export type ObservatoryProposals = {
+  available: boolean;
+  newEntities: { id: string; canonicalName: string; aliases: string[] }[];
+  newClaims: ObservatoryProposalClaim[];
+  pendingCount: number;
+};
+
+export const EMPTY_OBSERVATORY_PROMISES: ObservatoryPromises = {
+  currentChapter: null,
+  ledger: [],
+};
+
+export const EMPTY_OBSERVATORY_PROPOSALS: ObservatoryProposals = {
+  available: false,
+  newEntities: [],
+  newClaims: [],
+  pendingCount: 0,
+};
+
 export type ObservatoryData = {
   observations: Observation[];
   checkers: ObservatoryChecker[];
+  entities: ObservatoryEntity[];
+  promises: ObservatoryPromises;
+  proposals: ObservatoryProposals;
   generatedAt: string | null;
 };
 
@@ -57,6 +130,137 @@ function readAnchor(value: unknown): ObservationAnchor | null {
 
 export function formatAnchorLabel(anchor: ObservationAnchor): string {
   return anchor.line != null ? `${anchor.path}:${anchor.line}` : anchor.path;
+}
+
+function readChapter(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function readStringList(value: unknown): string[] {
+  return asArray(value).filter((item): item is string => typeof item === 'string' && item !== '');
+}
+
+function mapEntities(raw: unknown): ObservatoryEntity[] {
+  const entities: ObservatoryEntity[] = [];
+  for (const item of asArray(raw)) {
+    const entry = asRecord(item);
+    const id = readNonEmptyString(entry?.id);
+    if (!entry || !id) continue;
+    const appearance = asRecord(entry.appearance);
+    const lifespanRecord = asRecord(entry.lifespan);
+    const exitsAfter = readChapter(lifespanRecord?.exits_after_chapter);
+    const holdings: ObservatoryEntity['holdings'] = [];
+    for (const holding of asArray(entry.holdings)) {
+      const record = asRecord(holding);
+      const holdingItem = readNonEmptyString(record?.item);
+      if (!holdingItem) continue;
+      holdings.push({
+        item: holdingItem,
+        fromChapter: readChapter(record?.from_chapter),
+        toChapter: readChapter(record?.to_chapter),
+      });
+    }
+    const provenance: ObservatoryEntity['provenance'] = [];
+    for (const occurrence of asArray(entry.provenance)) {
+      const record = asRecord(occurrence);
+      const path = readNonEmptyString(record?.path);
+      if (!path) continue;
+      provenance.push({
+        path,
+        chapter: readChapter(record?.chapter),
+        firstLine: readChapter(record?.first_line),
+        count: readChapter(record?.count),
+      });
+    }
+    entities.push({
+      id,
+      canonicalName: readNonEmptyString(entry.canonical_name) ?? id,
+      kind: readNonEmptyString(entry.kind) ?? null,
+      aliases: readStringList(entry.aliases),
+      appearanceMissing: appearance?.missing !== false,
+      firstChapter: readChapter(appearance?.first_chapter),
+      lastChapter: readChapter(appearance?.last_chapter),
+      totalCount: readChapter(appearance?.total_count) ?? 0,
+      holdings,
+      lifespan:
+        exitsAfter != null
+          ? {
+              exitsAfterChapter: exitsAfter,
+              reason: readNonEmptyString(lifespanRecord?.reason) ?? null,
+            }
+          : null,
+      provenance,
+      provenanceTruncated: entry.provenance_truncated === true,
+      relatedObservationIds: readStringList(entry.related_observation_ids),
+    });
+  }
+  return entities;
+}
+
+function mapPromises(raw: unknown): ObservatoryPromises {
+  const record = asRecord(raw);
+  if (!record) return EMPTY_OBSERVATORY_PROMISES;
+  const ledger: ObservatoryPromise[] = [];
+  for (const item of asArray(record.ledger)) {
+    const entry = asRecord(item);
+    const id = readNonEmptyString(entry?.id);
+    if (!entry || !id) continue;
+    const issues: ObservatoryPromiseIssue[] = [];
+    for (const issue of asArray(entry.issues)) {
+      const issueRecord = asRecord(issue);
+      const category = readNonEmptyString(issueRecord?.category);
+      if (!category) continue;
+      issues.push({
+        id: readNonEmptyString(issueRecord?.id) ?? null,
+        category,
+        severity: readNonEmptyString(issueRecord?.severity) ?? null,
+        message: readNonEmptyString(issueRecord?.message) ?? '',
+      });
+    }
+    ledger.push({
+      id,
+      title: readNonEmptyString(entry.title) ?? id,
+      status: readNonEmptyString(entry.status) ?? null,
+      kind: readNonEmptyString(entry.kind) ?? null,
+      plantedChapter: readChapter(entry.planted_chapter),
+      dueChapter: readChapter(entry.due_chapter),
+      resolvedChapter: readChapter(entry.resolved_chapter),
+      lastTouchChapter: readChapter(entry.last_touch_chapter),
+      issues,
+    });
+  }
+  return { currentChapter: readChapter(record.current_chapter), ledger };
+}
+
+function mapProposals(raw: unknown): ObservatoryProposals {
+  const record = asRecord(raw);
+  if (!record || record.available !== true) return EMPTY_OBSERVATORY_PROPOSALS;
+  const newEntities: ObservatoryProposals['newEntities'] = [];
+  for (const item of asArray(record.new_entities)) {
+    const entry = asRecord(item);
+    const id = readNonEmptyString(entry?.id);
+    if (!entry || !id) continue;
+    newEntities.push({
+      id,
+      canonicalName: readNonEmptyString(entry.canonical_name) ?? id,
+      aliases: readStringList(entry.aliases),
+    });
+  }
+  const newClaims: ObservatoryProposalClaim[] = [];
+  const invariants = asRecord(record.new_invariants);
+  for (const invariant of Object.keys(invariants ?? {})) {
+    for (const claim of asArray(invariants?.[invariant])) {
+      const entry = asRecord(claim);
+      if (!entry) continue;
+      newClaims.push({ invariant, entry });
+    }
+  }
+  return {
+    available: true,
+    newEntities,
+    newClaims,
+    pendingCount: readChapter(record.pending_count) ?? newEntities.length + newClaims.length,
+  };
 }
 
 /** 后端 observatory payload → ObsPanel 观测列表；resolvedIds 保留跨扫描的已处理态。 */
@@ -96,6 +300,9 @@ export function mapObservatoryPayload(
   return {
     observations,
     checkers,
+    entities: mapEntities(record?.entities),
+    promises: mapPromises(record?.promises),
+    proposals: mapProposals(record?.proposals),
     generatedAt: readNonEmptyString(record?.generated_at) ?? null,
   };
 }

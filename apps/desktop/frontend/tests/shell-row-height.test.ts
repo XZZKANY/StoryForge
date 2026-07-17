@@ -13,6 +13,7 @@ const HEADER_ELEMENTS = [
   { file: '../src/components/shell/SidePanel.tsx', testid: 'side-panel-header' },
   { file: '../src/components/shell/EditorTabs.tsx', testid: 'editor-tabs' },
   { file: '../src/components/chat-window/panels.tsx', testid: 'conversation-header' },
+  { file: '../src/components/shell/ObservatoryView.tsx', testid: 'observatory-header' },
 ];
 
 function openingTag(source: string, testid: string): string {

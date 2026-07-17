@@ -17,6 +17,8 @@ export type ChatWindowProps = {
   // Q4 布局三态：对话头就地切换编辑/平衡/对话聚焦（右栏挂载时才需要）。
   layoutMode?: LayoutMode;
   onSetLayoutMode?: (mode: LayoutMode) => void;
+  // 观测镜：对话头雷达图标切到右栏第二视图（Ctrl+4 同义）。
+  onOpenObservatory?: () => void;
 };
 
 export type Message = {

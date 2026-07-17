@@ -4,12 +4,15 @@
  * - sidebarHidden：侧面板整体折叠（Ctrl+B 或点当前激活图标）
  * - layoutMode（Q4 布局三态）：editor 编辑聚焦（右栏隐藏，编辑占满）/ balanced 平衡（编辑 + 384 右栏）
  *   / chat 对话聚焦（编辑隐藏，右栏占满中右）。Ctrl+1/2/3 与对话头就地控件切换。
+ * - rightView：右栏当前视图（chat 对话 / observatory 世界线观测镜，Ctrl+4 或头部图标切换）。
+ *   两视图 CSS 互斥不卸载（对话在途 run 状态不能因切视图丢失）。
  * rightCollapsed 由 layoutMode 派生（= editor），供顶栏收起键与右栏挂载判定复用。
  */
 import { useCallback, useState } from 'react';
 
 export type SidePanelView = 'explorer' | 'search' | 'publish';
 export type LayoutMode = 'editor' | 'balanced' | 'chat';
+export type RightPanelView = 'chat' | 'observatory';
 
 export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'search', 'publish'];
 
@@ -17,6 +20,7 @@ export function useShellState() {
   const [view, setView] = useState<SidePanelView>('explorer');
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('balanced');
+  const [rightView, setRightView] = useState<RightPanelView>('chat');
 
   // 点活动栏图标：切到该视图；若点的正是当前视图且面板可见，则收起（VS Code 行为）。
   const switchView = useCallback(
@@ -46,16 +50,31 @@ export function useShellState() {
     [],
   );
 
+  // Ctrl+4 / 头部雷达图标：右栏隐藏时先展开并直落观测镜；可见时在对话↔观测镜间切换。
+  const toggleObservatory = useCallback(() => {
+    if (layoutMode === 'editor') {
+      setLayoutMode('balanced');
+      setRightView('observatory');
+      return;
+    }
+    setRightView((current) => (current === 'observatory' ? 'chat' : 'observatory'));
+  }, [layoutMode]);
+
+  const showChatView = useCallback(() => setRightView('chat'), []);
+
   return {
     view,
     sidebarHidden,
     layoutMode,
     rightCollapsed,
+    rightView,
     switchView,
     toggleSidebar,
     showSidebar,
     setLayoutMode,
     toggleRight,
     showRight,
+    toggleObservatory,
+    showChatView,
   };
 }

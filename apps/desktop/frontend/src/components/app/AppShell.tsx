@@ -7,12 +7,8 @@ import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
-import {
-  ObsPanel,
-  obsCounts,
-  type Observation,
-  type ObservationAvailability,
-} from '../shell/ObsPanel';
+import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
+import { ObservatoryView } from '../shell/ObservatoryView';
 import { SidePanel } from '../shell/SidePanel';
 import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
@@ -23,11 +19,13 @@ import {
   flushActiveEditorToDisk,
 } from '../../lib/assistant-events';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
+import type { ObservationAnchor } from '../../lib/observations';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
 import { WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
+import type { useObservatory } from './useObservatory';
 import type { ProjectCommands } from './useProjectCommands';
 
 type WorkspaceProps = {
@@ -48,6 +46,12 @@ type RuntimeProps = {
   smokeApiReady: boolean;
 };
 
+/** 观测句柄：useObservatory 全量数据 + App 级定位回调（观测行 / 台账锚点两种入口）。 */
+export type ObservatoryHandle = ReturnType<typeof useObservatory> & {
+  locateObservation: (observation: Observation) => void;
+  locateAnchor: (anchor: ObservationAnchor) => void;
+};
+
 type AppShellProps = {
   workspace: WorkspaceProps;
   tabs: EditorWorkspaceTabs;
@@ -62,10 +66,7 @@ type AppShellProps = {
   setPalette: Dispatch<SetStateAction<PaletteMode | null>>;
   obsPanelOpen: boolean;
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
-  observations: Observation[];
-  observationAvailability: ObservationAvailability;
-  resolveObservation: (id: string) => void;
-  locateObservation: (observation: Observation) => void;
+  observatory: ObservatoryHandle;
   openSettings: () => Promise<void>;
   openPublishSide: () => void;
   handlePublishCommand: (type: string) => void;
@@ -85,10 +86,7 @@ export function AppShell({
   setPalette,
   obsPanelOpen,
   setObsPanelOpen,
-  observations,
-  observationAvailability,
-  resolveObservation,
-  locateObservation,
+  observatory,
   openSettings,
   openPublishSide,
   handlePublishCommand,
@@ -96,7 +94,7 @@ export function AppShell({
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
-  const obs = obsCounts(observations);
+  const obs = obsCounts(observatory.observations);
   const centerHasTabs = settingsVisible || projectOpen;
   const activeCenterTab: CenterTab | null = settingsVisible
     ? 'settings'
@@ -213,11 +211,11 @@ export function AppShell({
               </div>
               {obsPanelOpen && projectOpen && (
                 <ObsPanel
-                  observations={observations}
-                  availability={observationAvailability}
+                  observations={observatory.observations}
+                  availability={observatory.availability}
                   onClose={() => setObsPanelOpen(false)}
-                  onResolve={resolveObservation}
-                  onLocate={locateObservation}
+                  onResolve={observatory.resolveObservation}
+                  onLocate={observatory.locateObservation}
                 />
               )}
             </>
@@ -243,18 +241,45 @@ export function AppShell({
 
         {projectOpen && (
           <AssistantPanelFrame visible={rightPanelVisible} wide={shell.layoutMode === 'chat'}>
-            <ChatWindow
-              projectPath={activeProject}
-              currentFile={currentFile}
-              assistantSessionId={
-                activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
-              }
-              pendingInitialPrompt={commands.pendingWelcomePrompt}
-              onPendingInitialPromptConsumed={commands.handlePendingWelcomePromptConsumed}
-              onAssistantSessionChange={workspace.setActiveProjectAssistantSession}
-              layoutMode={shell.layoutMode}
-              onSetLayoutMode={shell.setLayoutMode}
-            />
+            {/* 两视图 CSS 互斥不卸载：对话在途 run 状态不能因切观测镜丢失（S14 纪律）。 */}
+            <div
+              className={`${shell.rightView === 'chat' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col overflow-hidden`}
+              data-testid="right-chat-pane"
+              hidden={shell.rightView !== 'chat'}
+            >
+              <ChatWindow
+                projectPath={activeProject}
+                currentFile={currentFile}
+                assistantSessionId={
+                  activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
+                }
+                pendingInitialPrompt={commands.pendingWelcomePrompt}
+                onPendingInitialPromptConsumed={commands.handlePendingWelcomePromptConsumed}
+                onAssistantSessionChange={workspace.setActiveProjectAssistantSession}
+                layoutMode={shell.layoutMode}
+                onSetLayoutMode={shell.setLayoutMode}
+                onOpenObservatory={shell.toggleObservatory}
+              />
+            </div>
+            <div
+              className={`${shell.rightView === 'observatory' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col overflow-hidden`}
+              data-testid="right-observatory-pane"
+              hidden={shell.rightView !== 'observatory'}
+            >
+              <ObservatoryView
+                availability={observatory.availability}
+                observations={observatory.observations}
+                checkers={observatory.checkers}
+                entities={observatory.entities}
+                promises={observatory.promises}
+                proposals={observatory.proposals}
+                generatedAt={observatory.generatedAt}
+                onRescan={() => void observatory.runScan()}
+                onBackToChat={shell.showChatView}
+                onLocateObservation={observatory.locateObservation}
+                onLocateAnchor={observatory.locateAnchor}
+              />
+            </div>
           </AssistantPanelFrame>
         )}
       </div>
@@ -265,7 +290,7 @@ export function AppShell({
         projectOpen={projectOpen}
         fontMode={preferences.settings.editorFontMode}
         obs={obs}
-        observationAvailability={observationAvailability}
+        observationAvailability={observatory.availability}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
         onToggleFont={preferences.toggleFontMode}
         onToggleTheme={preferences.toggleTheme}
