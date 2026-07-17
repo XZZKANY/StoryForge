@@ -1,68 +1,55 @@
-# 验证报告 · dogfood 止血波1：刷新护栏 / 索引跳 .git / Monaco 对色 / 状态栏字数
+# 验证报告 · dogfood 波2：预览页签可关 / 最大化可拖 / Monaco 滚条统一
 
 时间：2026-07-18
-分支：`fix/dogfood-wave1-20260718`
-背景：2026-07-16 真机 dogfood 15 条问题清单（D:\记事本\todo.md）分析后拍板四波推进，
-本刀是波1「止血包」——全部落在「安全可日更」主路径上。
+分支：`fix/dogfood-wave2-20260718`
+前置：波1 止血包已合并（PR #151）。本刀是 15 条清单四波推进的第二波。
 
 ## 问题与变更
 
-### #10 装机 F5/Ctrl+R 整页刷新丢稿 + 壳子右键弹浏览器菜单（数据丢失隐患）
+### #5/#11 「只能单开一个文件」「双击了才能删」——preview 页签语义可发现性
 
-- 新增 `lib/browser-guards.ts`：capture 层拦 F5 / Ctrl+R / Ctrl+Shift+R 默认行为；
-  window 层 `contextmenu` preventDefault（input/textarea/contenteditable 放行，
-  Monaco 自带菜单自行 preventDefault 不受影响）。
-- `main.tsx` 仅 `import.meta.env.PROD` 安装——dev 保留刷新与 devtools 工作流。
-- Rust 侧 `AreBrowserAcceleratorKeysEnabled(false)` 更彻底的一刀（需引 webview2-com）
-  未做，JS 层已覆盖数据丢失主通道。
+- 根因不是缺多页签：单击 = 预览页签（覆盖式）、双击 = 固定页签本就是 VS Code 语义，
+  但**预览页签没有关闭按钮**（必须先双击固定才关得掉），且 × 只在 hover 时可见。
+- 修：`useEditorWorkspaceTabs` 增 `closePreview`（预览一旦变脏即自动固定，
+  走到关闭时必是干净预览，直接丢弃无需确认）；预览 Tab 接 `onClosePreview`；
+  激活页签的 × 常显（对齐 VS Code），非激活仍 hover 显。
 
-### #1/#4 文件树「加载中」卡死 / 打开项目慢（连载工作区会随 .git 增长越来越卡）
+### #2 「无法整体移动窗口」——最大化态拖拽静默无效
 
-- 根因：`fs.rs::list_dir` 递归 WalkDir 不跳任何目录，`.git` 对象库（连载工作区
-  30 分钟一次自动 commit，只增不减）全树遍历后才返回；前端各调用方的 SKIP_DIR
-  是拿到结果后的事后过滤，省不掉遍历开销。
-- 修：`filter_entry` 截断 `.git` / `node_modules` 子树（`HEAVY_DIR_SKIP`，depth>0
-  守卫防项目根本身被过滤）。**其余 dot 目录（.storyforge 等）保留**——S3 硬规矩下
-  连载工作区的作者内容都在 dot 目录里。非递归分支保持原始列举语义不动。
+- Titlebar 拖拽实现本就存在（`startDragging()`），但 Windows 不允许拖动最大化
+  窗口，`startDragging` 静默无效——真机常开最大化，感知就是「拖不动」。
+- 修：drag 动作先 `isMaximized()` → `unmaximize()` 再 `startDragging()`，对齐
+  原生/VS Code 手感；`tauri.conf.json` main-capability 补
+  `core:window:allow-unmaximize` / `core:window:allow-is-maximized`。
 
-### #9 编辑区背景与壳子色差（Monaco 内置 vs-dark #1e1e1e ≠ --background #1c1c1f）
+### #7 「滚动条和左边不一样」「这小块是啥」——Monaco 滚条与 overview ruler
 
-- `lib/theme.ts` 新增 `ensureMonacoThemes`：defineTheme `storyforge-dark/light`
-  （base vs-dark/vs），editor.background/foreground、行号、scrollbarSlider 对齐
-  index.css token（hex 双处同步有注释红线）；vitest monaco stub 无 defineTheme，
-  typeof 守卫静默跳过。`monacoThemeFor` / `currentMonacoTheme` 返回新主题名，
-  `applyTheme` 懒加载路径先 ensure 再 setTheme。
-
-### #6 行号对正文无用，缺字数统计
-
-- `editor/options.ts::lineNumbersFor`：`.md/.markdown` 关行号（canon.json 等数据
-  文件保留），创建与 updateOptions 两处接线。
-- 新增 `lib/text-metrics.ts::countProseChars`（非空白字符、按码点计，网文口径）+
-  事件桥 `EDITOR_TEXT_METRICS_EVENT`；Editor 在内容/选区/换模型时去抖 200ms 广播；
-  StatusBar 监听显示「N 字 / 已选 M / N 字」。
-- **stub 坑**：vitest 的 FakeEditor `onDidChangeModelContent` 是单监听槽，字数
-  effect 守卫必须要求 onDidChangeCursorSelection/onDidChangeModel 整组存在才订阅，
-  否则会把脏跟踪监听顶掉（代码内有注释）。
+- Monaco 滚条是自绘（CSS 管不到），宽度默认 14px 与壳子 11px 细滚条不一致；
+  thumb 颜色已由波1 storyforge 主题接管。修：verticalScrollbarSize /
+  horizontalScrollbarSize = 11。
+- 「这啥」小灰块定性：minimap 已关的正文场景，overview ruler 只剩一条竖线 +
+  光标灰块，被误认成多余滚动条。修：`overviewRulerLanes: 0` +
+  `overviewRulerBorder: false` + `hideCursorInOverviewRuler: true`；审稿 issue
+  定位不受影响（靠 gutter 圆点与词级下划线）。
 
 ## 验证
 
-- Rust：`cargo test fs::` 18 passed（新增 `recursive_list_dir_skips_heavy_dirs_but_keeps_dot_content`，
-  断言 .git/node_modules 剔除、.storyforge 保留、非递归列举不隐藏）。
-- 前端：vitest 全量 `54 files / 286 passed`（新增 browser-guards 5 例、
-  text-metrics 2 例、status-word-count 1 例、editor-options lineNumbersFor 1 例）。
-- typecheck 绿；`pnpm lint` 0 errors（仅 Editor.tsx 既有 exhaustive-deps warning，
-  master 基线已存在）+ prettier 绿。
+- 前端 vitest 全量 `55 files / 288 passed`（新增：预览页签关闭按钮点击行为 1 例、
+  标题栏最大化先还原再拖 + 非最大化直拖 1 例）。
+- typecheck 绿；`pnpm lint` 0 errors + prettier 绿（仅 Editor.tsx 既有
+  exhaustive-deps warning）。
+- `cargo test fs::` 重编译通过（tauri.conf.json 新增两条 core:window 权限经
+  tauri-build ACL 校验）。
 - `pnpm verify` 全量门禁见 PR。
 
 ## 红线审计
 
-- 后端零改动、OpenAPI 零漂移；写回红线不碰（只读索引路径与纯前端呈现）。
-- 递归跳目录只收窄索引范围，不新增任何写路径；`.storyforge` 可见性保持。
+- 后端零改动、OpenAPI 零漂移；无新写路径。
+- closePreview 不弹放弃确认的前提有代码注释钉死（脏预览即时固定，预览必干净）。
 - 暂存全部使用显式路径。
 
 ## 未验证项
 
-- 真机观感归下次真机波：装机 exe 里 F5/Ctrl+R 实拦、右键菜单实抑、连载工作区
-  文件树加载速度、编辑区与壳子同色观感、字数统计跟手感。
-- 浏览器快捷键 Rust 侧一刀（AreBrowserAcceleratorKeysEnabled）与 Alt+←/→ 未拦，
-  留待真机确认是否需要。
+- 真机观感归下次真机波：最大化拖拽还原跟手感、预览页签 × 观感、Monaco 滚条
+  与壳子滚条并排一致性、overview ruler 移除后小灰块确认消失（若真机仍见灰块，
+  则来源另查——候选是面板分隔条 hover 手柄）。
