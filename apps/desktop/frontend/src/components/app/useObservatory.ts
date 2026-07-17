@@ -10,11 +10,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Observation, ObservationAvailability } from '../shell/ObsPanel';
 import { executeIdeCommand } from '../../lib/api/ide-commands';
+import { EDITOR_CURSOR_LINE_EVENT, type EditorCursorLineDetail } from '../../lib/assistant-events';
 import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
 import {
   EMPTY_OBSERVATORY_PROMISES,
   EMPTY_OBSERVATORY_PROPOSALS,
   mapObservatoryPayload,
+  matchEntityIdsInLine,
   type ObservatoryChecker,
   type ObservatoryEntity,
   type ObservatoryPromises,
@@ -46,6 +48,7 @@ const EMPTY_STATE: ObservatoryState = {
 
 export function useObservatory({ activeProject }: { activeProject: string | null }) {
   const [state, setState] = useState<ObservatoryState>(EMPTY_STATE);
+  const [litEntityIds, setLitEntityIds] = useState<string[]>([]);
   const resolvedIdsRef = useRef<Set<string>>(new Set());
   const scanSeqRef = useRef(0);
 
@@ -92,8 +95,27 @@ export function useObservatory({ activeProject }: { activeProject: string | null
       ...EMPTY_STATE,
       availability: activeProject ? 'loading' : 'unavailable',
     });
+    setLitEntityIds([]);
     if (activeProject) void runScan();
   }, [activeProject, runScan]);
+
+  // 光标行实体联动：编辑器广播行文本，按实体表面形匹配（纯确定性注意力提示，不下结论）。
+  const entities = state.entities;
+  useEffect(() => {
+    if (!activeProject || entities.length === 0) return;
+    const onCursorLine = (event: Event) => {
+      const detail = (event as CustomEvent<EditorCursorLineDetail>).detail;
+      if (!detail) return;
+      setLitEntityIds((previous) => {
+        const next = matchEntityIdsInLine(entities, detail.lineText ?? '');
+        const unchanged =
+          previous.length === next.length && previous.every((id, index) => id === next[index]);
+        return unchanged ? previous : next;
+      });
+    };
+    window.addEventListener(EDITOR_CURSOR_LINE_EVENT, onCursorLine);
+    return () => window.removeEventListener(EDITOR_CURSOR_LINE_EVENT, onCursorLine);
+  }, [activeProject, entities]);
 
   // 写盘后重扫：FS_MUTATION_EVENT 由 TauriFileSystem 各写操作 finally 广播（保存/补丁写回/新建等）。
   useEffect(() => {
@@ -128,6 +150,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     proposals: state.proposals,
     generatedAt: state.generatedAt,
     availability: state.availability,
+    litEntityIds,
     resolveObservation,
     runScan,
   };

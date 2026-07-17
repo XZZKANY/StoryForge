@@ -30,6 +30,7 @@ export function ConversationHeader({
   layoutMode,
   onSetLayoutMode,
   onOpenObservatory,
+  observatoryAttention = false,
 }: {
   title: string;
   sessions?: AssistantSessionRecord[];
@@ -39,6 +40,7 @@ export function ConversationHeader({
   layoutMode?: LayoutMode;
   onSetLayoutMode?: (mode: LayoutMode) => void;
   onOpenObservatory?: () => void;
+  observatoryAttention?: boolean;
 }) {
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
   // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
@@ -76,12 +78,18 @@ export function ConversationHeader({
       {onOpenObservatory && (
         <button
           type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          className="relative grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
           title="世界线观测镜 · Ctrl+4"
           onClick={onOpenObservatory}
           data-testid="conversation-open-observatory"
         >
           <Radar size={14} strokeWidth={1.6} />
+          {observatoryAttention && (
+            <span
+              className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-agent"
+              data-testid="observatory-attention-dot"
+            />
+          )}
         </button>
       )}
       {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}

@@ -193,11 +193,13 @@ function PromiseCard({ promise }: { promise: ObservatoryPromise }) {
 
 function EntityCard({
   entity,
+  lit,
   observationById,
   onLocateObservation,
   onLocateAnchor,
 }: {
   entity: ObservatoryEntity;
+  lit: boolean;
   observationById: Map<string, Observation>;
   onLocateObservation?: (observation: Observation) => void;
   onLocateAnchor?: (anchor: ObservationAnchor) => void;
@@ -209,17 +211,21 @@ function EntityCard({
       Boolean(observation && !observation.resolved),
     );
   const hasBlocking = related.some((observation) => observation.severity === 'error');
+  // 描边优先级：blocking 红 > advisory 黄 > 光标联动紫（联动只是注意力提示，让位于真信号）。
   const borderClass = hasBlocking
     ? 'border-error/60'
     : related.length > 0
       ? 'border-warning/50'
-      : 'border-border';
+      : lit
+        ? 'border-agent/70'
+        : 'border-border';
   return (
     <div
       className={`rounded-md border bg-surface px-2.5 py-2 ${borderClass}`}
       data-testid="entity-card"
       data-entity-id={entity.id}
       data-conflict={hasBlocking ? 'true' : 'false'}
+      data-lit={lit ? 'true' : 'false'}
     >
       <div className="flex items-baseline gap-2 text-[12px]">
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">
@@ -347,6 +353,7 @@ export function ObservatoryView({
   promises,
   proposals,
   generatedAt,
+  litEntityIds = [],
   onRescan,
   onBackToChat,
   onLocateObservation,
@@ -359,6 +366,7 @@ export function ObservatoryView({
   promises: ObservatoryPromises;
   proposals: ObservatoryProposals;
   generatedAt: string | null;
+  litEntityIds?: string[];
   onRescan: () => void;
   onBackToChat: () => void;
   onLocateObservation?: (observation: Observation) => void;
@@ -453,6 +461,7 @@ export function ObservatoryView({
                   <EntityCard
                     key={entity.id}
                     entity={entity}
+                    lit={litEntityIds.includes(entity.id)}
                     observationById={observationById}
                     onLocateObservation={onLocateObservation}
                     onLocateAnchor={onLocateAnchor}
