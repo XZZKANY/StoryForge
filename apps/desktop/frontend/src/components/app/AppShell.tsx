@@ -171,6 +171,7 @@ export function AppShell({
                 onPinPreview={tabs.pinPreview}
                 onFocusSettings={() => void openSettings()}
                 onCloseFile={(path) => void tabs.handleFileClose(path)}
+                onClosePreview={tabs.closePreview}
                 onCloseSettings={() => setSettingsVisible(false)}
                 onSaveActive={() => {
                   if (tabs.displayedFile) {

@@ -67,7 +67,9 @@ function Tab({
             />
           )}
           <X
-            className={dirty ? 'hidden group-hover:block' : 'opacity-0 group-hover:opacity-100'}
+            className={
+              dirty ? 'hidden group-hover:block' : active ? '' : 'opacity-0 group-hover:opacity-100'
+            }
             size={11}
             strokeWidth={1.7}
           />
@@ -90,6 +92,7 @@ export function EditorTabs({
   onPinPreview,
   onFocusSettings,
   onCloseFile,
+  onClosePreview,
   onCloseSettings,
   onSaveActive,
   onToggleHistory,
@@ -110,6 +113,7 @@ export function EditorTabs({
   onPinPreview: () => void;
   onFocusSettings: () => void;
   onCloseFile: (path: string) => void;
+  onClosePreview?: () => void;
   onCloseSettings: () => void;
   // Q3a 文件操作（收进「…」菜单，作用于当前活动文件页签）。
   onSaveActive?: () => void;
@@ -155,6 +159,7 @@ export function EditorTabs({
           title={`预览：单击别的文件会覆盖它；双击固定 · ${previewFile}`}
           onActivate={onFocusPreview}
           onDoubleClick={onPinPreview}
+          onClose={onClosePreview}
         />
       )}
       <div className="flex-1" />
