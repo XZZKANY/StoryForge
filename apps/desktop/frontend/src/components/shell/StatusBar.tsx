@@ -4,6 +4,10 @@
  */
 import { useEffect, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
+import {
+  EDITOR_TEXT_METRICS_EVENT,
+  type EditorTextMetricsDetail,
+} from '../../lib/assistant-events';
 import type { ApiRuntimeHealth } from '../../lib/api/types';
 import type { ThemeMode } from '../../lib/user-settings';
 import type { EditorFontMode } from '../editor/options';
@@ -37,6 +41,15 @@ export function StatusBar({
   onToggleTheme: () => void;
 }) {
   const [healthProbe, setHealthProbe] = useState<HealthProbeState>({ kind: 'pending' });
+  const [textMetrics, setTextMetrics] = useState<EditorTextMetricsDetail | null>(null);
+
+  useEffect(() => {
+    const onMetrics = (event: Event) => {
+      setTextMetrics((event as CustomEvent<EditorTextMetricsDetail>).detail ?? null);
+    };
+    window.addEventListener(EDITOR_TEXT_METRICS_EVENT, onMetrics);
+    return () => window.removeEventListener(EDITOR_TEXT_METRICS_EVENT, onMetrics);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +99,17 @@ export function StatusBar({
       </span>
       {modelLabel && <span className="font-mono text-[10.5px]">{modelLabel}</span>}
       <span className="flex-1" />
+      {projectOpen && textMetrics?.filePath && (
+        <span
+          className="tabular-nums"
+          title="正文字数（不含空白字符）"
+          data-testid="status-word-count"
+        >
+          {textMetrics.selectionCharCount > 0
+            ? `已选 ${textMetrics.selectionCharCount.toLocaleString('zh-CN')} / ${textMetrics.charCount.toLocaleString('zh-CN')} 字`
+            : `${textMetrics.charCount.toLocaleString('zh-CN')} 字`}
+        </span>
+      )}
       {projectOpen && (
         <button
           className="flex items-center gap-2 rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"

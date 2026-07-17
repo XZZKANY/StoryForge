@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
+  lineNumbersFor,
   resolveEditorFontFamily,
   STORYFORGE_EDITOR_FONT_GRID,
   STORYFORGE_EDITOR_FONT_PROSE,
@@ -20,6 +21,14 @@ test('Q9 editor grid font stack leads with a CJK monospace face and falls back t
   assert.match(STORYFORGE_EDITOR_FONT_GRID, /monospace$/);
   // 霞鹜文楷等宽是可分发（OFL）的中文回退候选，别在整理字体栈时被顺手删掉。
   assert.ok(STORYFORGE_EDITOR_FONT_GRID.includes('霞鹜文楷等宽'));
+});
+
+test('小说正文（Markdown）不显示行号，数据/代码类文件保留行号', () => {
+  assert.equal(lineNumbersFor('D:\\连载\\正文\\第001章.md'), 'off');
+  assert.equal(lineNumbersFor('/project/大纲/总纲.MD'), 'off');
+  assert.equal(lineNumbersFor('/project/notes.markdown'), 'off');
+  assert.equal(lineNumbersFor('/project/.storyforge/canon/canon.json'), 'on');
+  assert.equal(lineNumbersFor(null), 'off');
 });
 
 test('Q9 双轨散文字体是比例字体（sans-serif 收口），resolveEditorFontFamily 按模式选栈', () => {

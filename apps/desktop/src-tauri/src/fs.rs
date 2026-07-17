@@ -14,6 +14,22 @@ use walkdir::WalkDir;
 /// 原子写临时文件序号：进程内单调递增，保证同目标并发写不撞临时名。
 static ATOMIC_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// 递归索引跳过的重型目录：`.git` 对象库（连载工作区半小时一次自动 commit，只增不减）
+/// 和依赖目录会把整树遍历拖到秒级，且它们从不属于书稿。其余 dot 目录（如 .storyforge）
+/// 是作者内容，必须保留。前端各调用方的 SKIP_DIR 是拿到结果后的事后过滤，省不掉遍历开销，
+/// 只有在这里截断子树才真正止血。
+const HEAVY_DIR_SKIP: [&str; 2] = [".git", "node_modules"];
+
+fn is_heavy_dir(entry: &walkdir::DirEntry) -> bool {
+    entry.depth() > 0
+        && entry.file_type().is_dir()
+        && entry
+            .file_name()
+            .to_str()
+            .map(|name| HEAVY_DIR_SKIP.contains(&name))
+            .unwrap_or(false)
+}
+
 /// 文件条目信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -182,6 +198,7 @@ pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String>
         for entry in WalkDir::new(path)
             .follow_links(false)
             .into_iter()
+            .filter_entry(|e| !is_heavy_dir(e))
             .filter_map(|e| e.ok())
         {
             if let Ok(file_entry) = create_file_entry(entry.path()) {
@@ -576,6 +593,43 @@ mod tests {
             .expect("recursive list_dir should succeed");
 
         assert!(entries.iter().any(|entry| entry.name == "chapter-002.md"));
+    }
+
+    #[test]
+    fn recursive_list_dir_skips_heavy_dirs_but_keeps_dot_content() {
+        let temp = TempDir::new("skip-heavy");
+        write_file(temp.root(), temp.join(".git/objects/aa/blob"), "x".to_string())
+            .expect(".git file should be written");
+        write_file(
+            temp.root(),
+            temp.join("node_modules/pkg/index.js"),
+            "x".to_string(),
+        )
+        .expect("node_modules file should be written");
+        write_file(
+            temp.root(),
+            temp.join(".storyforge/canon/canon.json"),
+            "{}".to_string(),
+        )
+        .expect("canon file should be written");
+        write_file(temp.root(), temp.join("drafts/chapter.md"), "正文".to_string())
+            .expect("chapter should be written");
+
+        let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
+            .expect("recursive list should succeed");
+        let names: Vec<&str> = entries.iter().map(|entry| entry.name.as_str()).collect();
+
+        assert!(names.contains(&"chapter.md"));
+        assert!(names.contains(&"canon.json"), "普通 dot 目录内容必须保留");
+        assert!(!names.contains(&".git"), "递归索引不得进入 .git");
+        assert!(!names.contains(&"blob"));
+        assert!(!names.contains(&"node_modules"));
+        assert!(!names.contains(&"index.js"));
+
+        // 非递归是原始目录列举原语，不做隐藏——跳过只属于递归索引语义。
+        let top = list_dir(temp.path.to_string_lossy().to_string(), false)
+            .expect("flat list should succeed");
+        assert!(top.iter().any(|entry| entry.name == ".git"));
     }
 
     #[test]

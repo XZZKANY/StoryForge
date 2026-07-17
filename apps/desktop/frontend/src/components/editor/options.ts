@@ -24,3 +24,11 @@ export type EditorFontMode = 'grid' | 'prose';
 export function resolveEditorFontFamily(mode: EditorFontMode): string {
   return mode === 'prose' ? STORYFORGE_EDITOR_FONT_PROSE : STORYFORGE_EDITOR_FONT_GRID;
 }
+
+// 行号只留给数据/代码类文件（canon.json 等）；小说正文（Markdown）行号对作者没有
+// 意义，位置感知交给状态栏字数与滚动，观测定位不依赖行号列的显示。
+export function lineNumbersFor(filePath: string | null): 'on' | 'off' {
+  if (!filePath) return 'off';
+  const lower = filePath.toLowerCase();
+  return lower.endsWith('.md') || lower.endsWith('.markdown') ? 'off' : 'on';
+}
