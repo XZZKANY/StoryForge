@@ -45,6 +45,23 @@ export function emitEditorCursorLine(detail: EditorCursorLineDetail): void {
   }
 }
 
+// 状态栏字数：编辑器内容 / 选区变化去抖广播非空白字符数（网文计字口径）。
+export const EDITOR_TEXT_METRICS_EVENT = 'storyforge:editor-text-metrics';
+
+export type EditorTextMetricsDetail = {
+  filePath: string | null;
+  charCount: number;
+  selectionCharCount: number;
+};
+
+export function emitEditorTextMetrics(detail: EditorTextMetricsDetail): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<EditorTextMetricsDetail>(EDITOR_TEXT_METRICS_EVENT, { detail }),
+    );
+  }
+}
+
 // 观测面板点行定位原文：App 打开目标文件后广播，Editor 等模型加载完成再消费（行号 / snippet 锚）。
 export const LOCATE_IN_EDITOR_EVENT = 'storyforge:locate-in-editor';
 

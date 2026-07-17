@@ -13,12 +13,14 @@ import {
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
   emitEditorCursorLine,
+  emitEditorTextMetrics,
   type EditorCommand,
   type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
+import { countProseChars } from '../lib/text-metrics';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { readVersion, snapshotBeforeWrite } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
@@ -352,6 +354,59 @@ export function Editor({
     return () => {
       if (timer) window.clearTimeout(timer);
       subscription.dispose();
+    };
+  }, [editorReady]);
+
+  // 状态栏字数：内容 / 选区 / 换模型去抖广播非空白字符数。守卫必须整组齐全再订阅：
+  // vitest 的 monaco stub 是单监听槽，缺守卫会把脏跟踪的 onDidChangeModelContent 顶掉。
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (
+      !editorReady ||
+      !editor ||
+      typeof editor.onDidChangeModelContent !== 'function' ||
+      typeof editor.onDidChangeCursorSelection !== 'function' ||
+      typeof editor.onDidChangeModel !== 'function'
+    ) {
+      return;
+    }
+    let timer: number | null = null;
+    const broadcast = () => {
+      const model = editor.getModel();
+      if (!model || typeof model.getValue !== 'function') {
+        emitEditorTextMetrics({
+          filePath: filePathRef.current,
+          charCount: 0,
+          selectionCharCount: 0,
+        });
+        return;
+      }
+      let selectionCharCount = 0;
+      const selections = typeof editor.getSelections === 'function' ? editor.getSelections() : null;
+      if (selections && typeof model.getValueInRange === 'function') {
+        for (const selection of selections) {
+          selectionCharCount += countProseChars(model.getValueInRange(selection));
+        }
+      }
+      emitEditorTextMetrics({
+        filePath: filePathRef.current,
+        charCount: countProseChars(model.getValue()),
+        selectionCharCount,
+      });
+    };
+    const schedule = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(broadcast, 200);
+    };
+    broadcast();
+    const subscriptions = [
+      editor.onDidChangeModelContent(schedule),
+      editor.onDidChangeCursorSelection(schedule),
+      editor.onDidChangeModel(schedule),
+    ];
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      for (const subscription of subscriptions) subscription.dispose();
     };
   }, [editorReady]);
 
