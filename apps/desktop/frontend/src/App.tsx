@@ -14,6 +14,7 @@ import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import type { Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
 import { emitLocateInEditor } from './lib/assistant-events';
+import type { ObservationAnchor } from './lib/observations';
 import { emitPublishCommand, type PublishCommandType } from './features/publish';
 
 export function App() {
@@ -127,6 +128,10 @@ export function App() {
         if (!workspace.activeProject) return;
         event.preventDefault();
         shell.setLayoutMode(key === '1' ? 'editor' : key === '2' ? 'balanced' : 'chat');
+      } else if (key === '4') {
+        if (!workspace.activeProject) return;
+        event.preventDefault();
+        shell.toggleObservatory();
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -146,13 +151,12 @@ export function App() {
   // 观测接线：打开项目即首扫，写盘后防抖重扫（确定性无 LLM）。
   const observatory = useObservatory({ activeProject: workspace.activeProject });
 
-  // 点观测行定位原文：拼项目内绝对路径（沿用项目串的分隔符风格，保证与页签路径可比），
-  // 非当前文件先打开，再广播定位事件由 Editor 在模型就绪后消费。
-  const locateObservation = useCallback(
-    (observation: Observation) => {
-      const anchor = observation.anchor;
+  // 点观测行 / 台账锚点定位原文：拼项目内绝对路径（沿用项目串的分隔符风格，保证与
+  // 页签路径可比），非当前文件先打开，再广播定位事件由 Editor 在模型就绪后消费。
+  const locateAnchor = useCallback(
+    (anchor: ObservationAnchor) => {
       const project = workspace.activeProject;
-      if (!anchor || !project) return;
+      if (!project) return;
       const separator = project.includes('\\') ? '\\' : '/';
       const relativePath = anchor.path.split('/').join(separator);
       const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath}`;
@@ -160,6 +164,13 @@ export function App() {
       emitLocateInEditor({ filePath: absolutePath, line: anchor.line, snippet: anchor.snippet });
     },
     [tabs, workspace.activeProject],
+  );
+
+  const locateObservation = useCallback(
+    (observation: Observation) => {
+      if (observation.anchor) locateAnchor(observation.anchor);
+    },
+    [locateAnchor],
   );
 
   return (
@@ -177,10 +188,7 @@ export function App() {
       setPalette={setPalette}
       obsPanelOpen={obsPanelOpen}
       setObsPanelOpen={setObsPanelOpen}
-      observations={observatory.observations}
-      observationAvailability={observatory.availability}
-      resolveObservation={observatory.resolveObservation}
-      locateObservation={locateObservation}
+      observatory={{ ...observatory, locateObservation, locateAnchor }}
       openSettings={openSettings}
       openPublishSide={openPublishSide}
       handlePublishCommand={handlePublishCommand}

@@ -11,7 +11,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Observation, ObservationAvailability } from '../shell/ObsPanel';
 import { executeIdeCommand } from '../../lib/api/ide-commands';
 import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
-import { mapObservatoryPayload, type ObservatoryChecker } from '../../lib/observations';
+import {
+  EMPTY_OBSERVATORY_PROMISES,
+  EMPTY_OBSERVATORY_PROPOSALS,
+  mapObservatoryPayload,
+  type ObservatoryChecker,
+  type ObservatoryEntity,
+  type ObservatoryPromises,
+  type ObservatoryProposals,
+} from '../../lib/observations';
 
 // 写盘密集时合并重扫：autoSave 防抖 900ms，再叠 1200ms 让连续小写只触发一次。
 const RESCAN_DEBOUNCE_MS = 1200;
@@ -19,12 +27,20 @@ const RESCAN_DEBOUNCE_MS = 1200;
 type ObservatoryState = {
   observations: Observation[];
   checkers: ObservatoryChecker[];
+  entities: ObservatoryEntity[];
+  promises: ObservatoryPromises;
+  proposals: ObservatoryProposals;
+  generatedAt: string | null;
   availability: ObservationAvailability;
 };
 
 const EMPTY_STATE: ObservatoryState = {
   observations: [],
   checkers: [],
+  entities: [],
+  promises: EMPTY_OBSERVATORY_PROMISES,
+  proposals: EMPTY_OBSERVATORY_PROPOSALS,
+  generatedAt: null,
   availability: 'unavailable',
 };
 
@@ -49,6 +65,10 @@ export function useObservatory({ activeProject }: { activeProject: string | null
       setState({
         observations: mapped.observations,
         checkers: mapped.checkers,
+        entities: mapped.entities,
+        promises: mapped.promises,
+        proposals: mapped.proposals,
+        generatedAt: mapped.generatedAt,
         availability: 'available',
       });
     } catch (error) {
@@ -69,8 +89,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     // 换项目重置观测态是外部 prop 驱动的本地清态（同 Editor 视图恢复的既有豁免）。
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({
-      observations: [],
-      checkers: [],
+      ...EMPTY_STATE,
       availability: activeProject ? 'loading' : 'unavailable',
     });
     if (activeProject) void runScan();
@@ -104,6 +123,10 @@ export function useObservatory({ activeProject }: { activeProject: string | null
   return {
     observations: state.observations,
     checkers: state.checkers,
+    entities: state.entities,
+    promises: state.promises,
+    proposals: state.proposals,
+    generatedAt: state.generatedAt,
     availability: state.availability,
     resolveObservation,
     runScan,

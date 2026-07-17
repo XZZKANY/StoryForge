@@ -81,6 +81,99 @@ test('mapObservatoryPayload 过滤缺字段的 checker 并容忍非法输入', (
   assert.deepEqual(mapObservatoryPayload({ observations: 'nope' }, new Set()).observations, []);
 });
 
+const STRUCTURED_PAYLOAD = {
+  ...PAYLOAD,
+  version: 2,
+  entities: [
+    {
+      id: 'item_lamp',
+      canonical_name: '铜灯',
+      kind: 'item',
+      aliases: ['提灯'],
+      appearance: { missing: false, total_count: 6, first_chapter: 1, last_chapter: 3 },
+      holdings: [{ item: '铜灯', from_chapter: 1, to_chapter: null }],
+      lifespan: null,
+      provenance: [{ path: '正文/第03章.md', chapter: 3, first_line: 7, count: 2 }],
+      provenance_truncated: false,
+      related_observation_ids: ['canon_abc123'],
+    },
+    { canonical_name: '缺 id 应被跳过' },
+  ],
+  promises: {
+    current_chapter: 3,
+    ledger: [
+      {
+        id: 'p1',
+        title: '第七封来信',
+        status: 'planted',
+        kind: 'foreshadow',
+        planted_chapter: 1,
+        due_chapter: 2,
+        resolved_chapter: null,
+        last_touch_chapter: 1,
+        issues: [
+          { id: 'promise_x', category: 'overdue', severity: 'medium', message: '已超截止窗口' },
+        ],
+      },
+      { title: '缺 id 应被跳过' },
+    ],
+  },
+  proposals: {
+    available: true,
+    new_entities: [{ id: 'ent_ab12cd34', canonical_name: '旧电台', aliases: ['电台'] }],
+    new_invariants: { lifespan: [{ entity: 'char_b', exits_after_chapter: 9 }] },
+    pending_count: 2,
+  },
+};
+
+test('mapObservatoryPayload 映射 v2 结构化台账（实体 / 伏笔 / 提案）', () => {
+  const data = mapObservatoryPayload(STRUCTURED_PAYLOAD, new Set());
+
+  assert.equal(data.entities.length, 1);
+  const entity = data.entities[0];
+  assert.equal(entity.id, 'item_lamp');
+  assert.equal(entity.canonicalName, '铜灯');
+  assert.equal(entity.appearanceMissing, false);
+  assert.equal(entity.totalCount, 6);
+  assert.deepEqual(entity.holdings, [{ item: '铜灯', fromChapter: 1, toChapter: null }]);
+  assert.deepEqual(entity.provenance, [
+    { path: '正文/第03章.md', chapter: 3, firstLine: 7, count: 2 },
+  ]);
+  assert.deepEqual(entity.relatedObservationIds, ['canon_abc123']);
+
+  assert.equal(data.promises.currentChapter, 3);
+  assert.equal(data.promises.ledger.length, 1);
+  const promise = data.promises.ledger[0];
+  assert.equal(promise.title, '第七封来信');
+  assert.equal(promise.status, 'planted');
+  assert.equal(promise.dueChapter, 2);
+  assert.deepEqual(promise.issues, [
+    { id: 'promise_x', category: 'overdue', severity: 'medium', message: '已超截止窗口' },
+  ]);
+
+  assert.equal(data.proposals.available, true);
+  assert.equal(data.proposals.pendingCount, 2);
+  assert.deepEqual(data.proposals.newEntities, [
+    { id: 'ent_ab12cd34', canonicalName: '旧电台', aliases: ['电台'] },
+  ]);
+  assert.deepEqual(data.proposals.newClaims, [
+    { invariant: 'lifespan', entry: { entity: 'char_b', exits_after_chapter: 9 } },
+  ]);
+});
+
+test('mapObservatoryPayload 对 v1 payload（无结构化段）落诚实空台账', () => {
+  const data = mapObservatoryPayload(PAYLOAD, new Set());
+
+  assert.deepEqual(data.entities, []);
+  assert.deepEqual(data.promises, { currentChapter: null, ledger: [] });
+  assert.deepEqual(data.proposals, {
+    available: false,
+    newEntities: [],
+    newClaims: [],
+    pendingCount: 0,
+  });
+});
+
 const CONTENT = ['# 第02章', '', '夜雪压在檐角。', '他不禁停下脚步，心中五味杂陈。', '完。'].join(
   '\n',
 );

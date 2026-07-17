@@ -260,6 +260,63 @@ def check_promises(
     }
 
 
+def build_promise_ledger(
+    canon: dict[str, Any],
+    promise_output: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """把作者 promises 声明投影成台账并挂上关联 issue（观测镜富 view 数据源）。
+
+    只做字段校验与归并，不重算规则：issue 一律来自 check_promises 的输出，
+    台账不自造状态结论。坏类型字段落 None，如实呈现而非补造默认值。
+    """
+
+    invariants = canon.get("invariants")
+    raw_promises = invariants.get("promises") if isinstance(invariants, dict) else None
+    promises = [
+        entry
+        for entry in raw_promises
+        if isinstance(entry, dict) and _promise_id(entry) is not None
+    ] if isinstance(raw_promises, list) else []
+
+    issues_by_promise: dict[str, list[dict[str, Any]]] = {}
+    for layer in ("conflicts", "advisories"):
+        for issue in promise_output.get(layer) or []:
+            promise_id = issue.get("promise_id")
+            if not isinstance(promise_id, str):
+                continue
+            issues_by_promise.setdefault(promise_id, []).append(
+                {
+                    "id": issue.get("id"),
+                    "category": issue.get("category"),
+                    "severity": issue.get("severity"),
+                    "message": issue.get("message"),
+                }
+            )
+
+    ledger: list[dict[str, Any]] = []
+    for entry in promises:
+        promise_id = _promise_id(entry)
+        if promise_id is None:
+            continue
+        planted = _chapter(entry.get("planted_chapter"))
+        status = entry.get("status")
+        kind = entry.get("kind")
+        ledger.append(
+            {
+                "id": promise_id,
+                "title": _title(entry),
+                "status": status if isinstance(status, str) else None,
+                "kind": kind if isinstance(kind, str) else None,
+                "planted_chapter": planted,
+                "due_chapter": _chapter(entry.get("due_chapter")),
+                "resolved_chapter": _chapter(entry.get("resolved_chapter")),
+                "last_touch_chapter": _last_touch(entry, planted) if planted is not None else None,
+                "issues": issues_by_promise.get(promise_id, []),
+            }
+        )
+    return ledger
+
+
 def promise_check(
     project_root: str,
     *,
