@@ -96,6 +96,12 @@ pub fn publish_api_request(request: PublishApiRequest) -> Result<PublishApiRespo
 /// 登录后跳转的作者工作台页：muye 应用会带 x-secsdk-csrf-token 发接口，供 csrf 钩子捕获。
 const FANQIE_WORKBENCH_URL: &str = "https://fanqienovel.com/main/writer/book-manage";
 
+/// 发布 webview 的 UA：WebView2 默认 UA 尾部带 "Edg/… WebView2" 类标记，字节 secsdk
+/// 风控对非常规浏览器可能直接返回空白页（真机登录窗黑屏的头号嫌疑）。统一伪装成
+/// 常规 Edge；版本号无需追新，风控只认形状。
+const PUBLISH_WEBVIEW_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+     AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
+
 /// 登录窗初始化脚本：每次页面加载都注入（含导航后），
 /// (a) 轮询 document.cookie 回传登录 Cookie；
 /// (b) 钩住 fetch/XHR 捕获页面自身请求携带的 x-secsdk-csrf-token（写侧直连用）。
@@ -177,6 +183,7 @@ pub fn publish_open_login_webview(
         tauri::WebviewWindowBuilder::new(&app, "publish-login", WebviewUrl::External(parsed_url))
             .title("平台登录 — 登录后 Cookie/令牌自动提取")
             .inner_size(1024.0, 720.0)
+            .user_agent(PUBLISH_WEBVIEW_USER_AGENT)
             .initialization_script(LOGIN_CAPTURE_INIT_JS)
             .build()
             .map_err(|e| format!("创建登录窗口失败: {}", e))?;
@@ -280,6 +287,7 @@ pub fn publish_fanqie_chapter(
             .title("番茄发布中…")
             .inner_size(960.0, 720.0)
             .visible(false)
+            .user_agent(PUBLISH_WEBVIEW_USER_AGENT)
             .build()
             .map_err(|e| format!("创建发布 webview 失败: {}", e))?;
 
