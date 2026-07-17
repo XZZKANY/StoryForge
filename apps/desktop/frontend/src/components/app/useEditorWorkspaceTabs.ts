@@ -176,6 +176,12 @@ export function useEditorWorkspaceTabs({
     if (previewFile) void openFile(previewFile);
   }, [openFile, previewFile]);
 
+  // 预览页签一旦变脏会立即固定为普通页签（handleEditorDirtyChange），
+  // 走到这里必是干净预览，直接丢弃即可，不需要放弃确认。
+  const closePreview = useCallback(() => {
+    setPreviewFile(null);
+  }, []);
+
   return {
     previewFile,
     openFiles,
@@ -195,6 +201,7 @@ export function useEditorWorkspaceTabs({
     focusFile,
     focusPreview: onShowEditor,
     pinPreview,
+    closePreview,
   };
 }
 
