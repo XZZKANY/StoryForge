@@ -10,6 +10,13 @@ import { Check, X } from '../icons/shell-icons';
 export type ObsSeverity = 'error' | 'warning' | 'advisory';
 export type ObservationAvailability = 'unavailable' | 'loading' | 'available' | 'error';
 
+/** 结构化定位锚：line 为 1-based 行号；prose 类信号无行号只有 snippet（可能是命中词拼接）。 */
+export type ObservationAnchor = {
+  path: string;
+  line?: number;
+  snippet?: string;
+};
+
 export type Observation = {
   id: string;
   severity: ObsSeverity;
@@ -17,6 +24,7 @@ export type Observation = {
   detail?: string;
   location?: string;
   source?: string;
+  anchor?: ObservationAnchor;
   resolved?: boolean;
 };
 
@@ -41,11 +49,13 @@ export function ObsPanel({
   availability = 'unavailable',
   onClose,
   onResolve,
+  onLocate,
 }: {
   observations: Observation[];
   availability?: ObservationAvailability;
   onClose: () => void;
   onResolve: (id: string) => void;
+  onLocate?: (observation: Observation) => void;
 }) {
   const counts = obsCounts(observations);
   const statusLabel =
@@ -101,7 +111,11 @@ export function ObsPanel({
               <span
                 className={`mt-[5px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${SEVERITY_DOT[obs.severity]}`}
               />
-              <span className="min-w-0 flex-1">
+              <span
+                className={`min-w-0 flex-1 ${obs.anchor && onLocate ? 'cursor-pointer' : ''}`}
+                data-testid="obs-row-body"
+                onClick={obs.anchor && onLocate ? () => onLocate(obs) : undefined}
+              >
                 <span className="flex items-baseline gap-2 text-[12px]">
                   <span className={obs.resolved ? 'line-through' : ''}>{obs.title}</span>
                   {obs.location && (

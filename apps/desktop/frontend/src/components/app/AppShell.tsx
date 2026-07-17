@@ -7,7 +7,12 @@ import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
-import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
+import {
+  ObsPanel,
+  obsCounts,
+  type Observation,
+  type ObservationAvailability,
+} from '../shell/ObsPanel';
 import { SidePanel } from '../shell/SidePanel';
 import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
@@ -58,7 +63,9 @@ type AppShellProps = {
   obsPanelOpen: boolean;
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
   observations: Observation[];
+  observationAvailability: ObservationAvailability;
   resolveObservation: (id: string) => void;
+  locateObservation: (observation: Observation) => void;
   openSettings: () => Promise<void>;
   openPublishSide: () => void;
   handlePublishCommand: (type: string) => void;
@@ -79,7 +86,9 @@ export function AppShell({
   obsPanelOpen,
   setObsPanelOpen,
   observations,
+  observationAvailability,
   resolveObservation,
+  locateObservation,
   openSettings,
   openPublishSide,
   handlePublishCommand,
@@ -205,8 +214,10 @@ export function AppShell({
               {obsPanelOpen && projectOpen && (
                 <ObsPanel
                   observations={observations}
+                  availability={observationAvailability}
                   onClose={() => setObsPanelOpen(false)}
                   onResolve={resolveObservation}
+                  onLocate={locateObservation}
                 />
               )}
             </>
@@ -254,6 +265,7 @@ export function AppShell({
         projectOpen={projectOpen}
         fontMode={preferences.settings.editorFontMode}
         obs={obs}
+        observationAvailability={observationAvailability}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
         onToggleFont={preferences.toggleFontMode}
         onToggleTheme={preferences.toggleTheme}

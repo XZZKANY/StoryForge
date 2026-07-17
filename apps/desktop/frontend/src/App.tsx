@@ -7,19 +7,19 @@ import { AppShell } from './components/app/AppShell';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
+import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import type { Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
+import { emitLocateInEditor } from './lib/assistant-events';
 import { emitPublishCommand, type PublishCommandType } from './features/publish';
 
 export function App() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [palette, setPalette] = useState<PaletteMode | null>(null);
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
-  // 真实 advisory / 一致性信号仍在 Agent run 内；未接线前保持诚实空态。
-  const [observations, setObservations] = useState<Observation[]>([]);
   const appDialog = useAppDialog();
   const shell = useShellState();
   const preferences = useAppPreferences(appDialog);
@@ -143,13 +143,24 @@ export function App() {
     },
   });
 
-  const resolveObservation = useCallback((id: string) => {
-    setObservations((current) =>
-      current.map((observation) =>
-        observation.id === id ? { ...observation, resolved: true } : observation,
-      ),
-    );
-  }, []);
+  // 观测接线：打开项目即首扫，写盘后防抖重扫（确定性无 LLM）。
+  const observatory = useObservatory({ activeProject: workspace.activeProject });
+
+  // 点观测行定位原文：拼项目内绝对路径（沿用项目串的分隔符风格，保证与页签路径可比），
+  // 非当前文件先打开，再广播定位事件由 Editor 在模型就绪后消费。
+  const locateObservation = useCallback(
+    (observation: Observation) => {
+      const anchor = observation.anchor;
+      const project = workspace.activeProject;
+      if (!anchor || !project) return;
+      const separator = project.includes('\\') ? '\\' : '/';
+      const relativePath = anchor.path.split('/').join(separator);
+      const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath}`;
+      if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '定位观测');
+      emitLocateInEditor({ filePath: absolutePath, line: anchor.line, snippet: anchor.snippet });
+    },
+    [tabs, workspace.activeProject],
+  );
 
   return (
     <AppShell
@@ -166,8 +177,10 @@ export function App() {
       setPalette={setPalette}
       obsPanelOpen={obsPanelOpen}
       setObsPanelOpen={setObsPanelOpen}
-      observations={observations}
-      resolveObservation={resolveObservation}
+      observations={observatory.observations}
+      observationAvailability={observatory.availability}
+      resolveObservation={observatory.resolveObservation}
+      locateObservation={locateObservation}
       openSettings={openSettings}
       openPublishSide={openPublishSide}
       handlePublishCommand={handlePublishCommand}

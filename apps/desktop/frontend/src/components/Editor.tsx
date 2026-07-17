@@ -7,14 +7,17 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import * as monaco from 'monaco-editor';
 import {
   EXPORT_CURRENT_FILE_EVENT,
+  LOCATE_IN_EDITOR_EVENT,
   REQUEST_EDITOR_COMMAND_EVENT,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
   type EditorCommand,
+  type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
+import { resolveAnchorLine } from '../lib/observations';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { readVersion, snapshotBeforeWrite } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
@@ -317,6 +320,51 @@ export function Editor({
     window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
     return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
   }, [applyIssueDecorations]);
+
+  // 观测面板点行定位：目标文件已就绪立即跳；否则挂起等 loader 完成（打开文件是异步的）。
+  const pendingLocateRef = useRef<LocateInEditorDetail | null>(null);
+  const applyLocate = useCallback(
+    (detail: LocateInEditorDetail): boolean => {
+      const editor = editorRef.current;
+      const model = editor?.getModel();
+      if (!editor || !model) return false;
+      const line = resolveAnchorLine(model.getValue(), {
+        line: detail.line,
+        snippet: detail.snippet,
+      });
+      if (line == null) {
+        // snippet 锚（prose 类无行号）在原文改动后会失效：明确提示，不静默落空。
+        setSuggestionStatus('观测锚点失效：原文可能已改动，请按观测详情手动核对');
+        return true;
+      }
+      if (typeof editor.setPosition === 'function') {
+        editor.setPosition({ lineNumber: line, column: 1 });
+      }
+      if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
+        editor.revealLineInCenterIfOutsideViewport(line);
+      }
+      if (typeof editor.focus === 'function') editor.focus();
+      return true;
+    },
+    [setSuggestionStatus],
+  );
+
+  useEffect(() => {
+    const onLocate = (event: Event) => {
+      const detail = (event as CustomEvent<LocateInEditorDetail>).detail;
+      if (!detail?.filePath) return;
+      if (detail.filePath === filePathRef.current && applyLocate(detail)) return;
+      pendingLocateRef.current = detail;
+    };
+    window.addEventListener(LOCATE_IN_EDITOR_EVENT, onLocate);
+    return () => window.removeEventListener(LOCATE_IN_EDITOR_EVENT, onLocate);
+  }, [applyLocate]);
+
+  useEffect(() => {
+    const pending = pendingLocateRef.current;
+    if (!pending || loadedFilePath !== pending.filePath) return;
+    if (applyLocate(pending)) pendingLocateRef.current = null;
+  }, [loadedFilePath, applyLocate]);
 
   // 审稿/修订读盘前，外部请活动编辑器先落盘，避免后端读到未保存的旧内容。
   useEffect(() => {
