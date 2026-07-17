@@ -27,6 +27,7 @@ export function useMonacoEditor({
   loadedContent,
   editorFontSize,
   editorFontFamily = STORYFORGE_EDITOR_FONT_GRID,
+  editorLineNumbers = 'auto',
   filePathRef,
   isDirtyRef,
   autoSaveRef,
@@ -48,6 +49,7 @@ export function useMonacoEditor({
   loadedContent: string;
   editorFontSize: number;
   editorFontFamily?: string;
+  editorLineNumbers?: 'auto' | 'on' | 'off';
   filePathRef: MutableRefObject<string | null>;
   isDirtyRef: MutableRefObject<boolean>;
   autoSaveRef: MutableRefObject<boolean>;
@@ -92,7 +94,7 @@ export function useMonacoEditor({
           theme: currentMonacoTheme(),
           fontSize: editorFontSize,
           fontFamily: editorFontFamily,
-          lineNumbers: lineNumbersFor(filePath),
+          lineNumbers: lineNumbersFor(filePath, editorLineNumbers),
           glyphMargin: true,
           // Q9 七轮反馈：小说正文没有代码缩略图需求，minimap 删。
           minimap: { enabled: false },
@@ -217,9 +219,17 @@ export function useMonacoEditor({
       fontSize: editorFontSize,
       fontFamily: editorFontFamily,
       readOnly: readOnly || loadPending,
-      lineNumbers: lineNumbersFor(filePath),
+      lineNumbers: lineNumbersFor(filePath, editorLineNumbers),
     });
-  }, [editorFontSize, editorFontFamily, editorRef, filePath, loadPending, readOnly]);
+  }, [
+    editorFontSize,
+    editorFontFamily,
+    editorLineNumbers,
+    editorRef,
+    filePath,
+    loadPending,
+    readOnly,
+  ]);
 
   useEffect(() => {
     const retained = new Set(retainedFilePaths);

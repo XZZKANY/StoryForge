@@ -20,9 +20,13 @@ export type ProviderSettings = {
 
 export type ThemeMode = 'dark' | 'light';
 
+/** auto = 正文（Markdown）关行号、数据/代码文件开；on/off = 一刀切覆盖。 */
+export type EditorLineNumbersMode = 'auto' | 'on' | 'off';
+
 export type AppSettings = {
   editorFontSize: number;
   editorFontMode: EditorFontMode;
+  editorLineNumbers: EditorLineNumbersMode;
   autoSave: boolean;
   theme: ThemeMode;
   provider: ProviderSettings;
@@ -33,6 +37,7 @@ export const APP_SETTINGS_KEY = 'storyforge-app-settings';
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorFontSize: 14,
   editorFontMode: 'grid',
+  editorLineNumbers: 'auto',
   autoSave: false,
   theme: 'dark',
   provider: {
@@ -85,6 +90,10 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
   return {
     editorFontSize,
     editorFontMode: candidate.editorFontMode === 'prose' ? 'prose' : 'grid',
+    editorLineNumbers:
+      candidate.editorLineNumbers === 'on' || candidate.editorLineNumbers === 'off'
+        ? candidate.editorLineNumbers
+        : 'auto',
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
     theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
