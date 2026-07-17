@@ -99,8 +99,20 @@ export function useMonacoEditor({
           wordWrap: 'on',
           automaticLayout: true,
           scrollBeyondLastLine: false,
-          // Q2：滚动条按需出现、去掉投影阴影，和 DOM 侧的 hover-only 细滚条观感一致。
-          scrollbar: { vertical: 'auto', horizontal: 'auto', useShadows: false },
+          // Q2：滚动条按需出现、去掉投影阴影，宽度与 DOM 侧 11px 细滚条对齐（thumb 颜色
+          // 由 storyforge 主题的 scrollbarSlider token 控制）。
+          scrollbar: {
+            vertical: 'auto',
+            horizontal: 'auto',
+            useShadows: false,
+            verticalScrollbarSize: 11,
+            horizontalScrollbarSize: 11,
+          },
+          // minimap 已关的正文场景，overview ruler 只剩一条竖线 + 光标灰块，真机被误认成
+          // 「多余的滚动条」；整体关掉，审稿 issue 定位靠 gutter 圆点与词级下划线。
+          overviewRulerLanes: 0,
+          overviewRulerBorder: false,
+          hideCursorInOverviewRuler: true,
           unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
           readOnly: readOnly || loadPending,
         });
