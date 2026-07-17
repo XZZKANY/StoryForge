@@ -29,6 +29,22 @@ export function emitEditorCommand(command: EditorCommand): void {
   }
 }
 
+// 观测镜实体联动：编辑器光标行变化（去抖）广播行文本，观测侧按实体表面形匹配亮卡。
+export const EDITOR_CURSOR_LINE_EVENT = 'storyforge:editor-cursor-line';
+
+export type EditorCursorLineDetail = {
+  filePath: string | null;
+  lineText: string;
+};
+
+export function emitEditorCursorLine(detail: EditorCursorLineDetail): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<EditorCursorLineDetail>(EDITOR_CURSOR_LINE_EVENT, { detail }),
+    );
+  }
+}
+
 // 观测面板点行定位原文：App 打开目标文件后广播，Editor 等模型加载完成再消费（行号 / snippet 锚）。
 export const LOCATE_IN_EDITOR_EVENT = 'storyforge:locate-in-editor';
 

@@ -308,6 +308,20 @@ export function mapObservatoryPayload(
 }
 
 /**
+ * 光标行实体联动：按实体表面形（canonical_name + aliases）做包含匹配，返回命中实体 id。
+ * 单字符表面形跳过（中文单字包含匹配噪声过大）；纯注意力提示，不是业务结论。
+ */
+export function matchEntityIdsInLine(entities: ObservatoryEntity[], lineText: string): string[] {
+  if (!lineText) return [];
+  const matched: string[] = [];
+  for (const entity of entities) {
+    const surfaces = [entity.canonicalName, ...entity.aliases].filter((form) => form.length >= 2);
+    if (surfaces.some((form) => lineText.includes(form))) matched.push(entity.id);
+  }
+  return matched;
+}
+
+/**
  * 把锚点解析成 1-based 行号：行号在界内直接用；否则 snippet 整串匹配；
  * 套话类 snippet 是命中词拼接（如「不禁、五味杂陈」）而非原文子串，按分隔符拆词降级；
  * 全部失败返回 null（原文已改动，锚点失效——调用方给出明确提示，不静默）。

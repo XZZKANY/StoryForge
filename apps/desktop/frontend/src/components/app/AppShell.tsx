@@ -259,6 +259,7 @@ export function AppShell({
                 layoutMode={shell.layoutMode}
                 onSetLayoutMode={shell.setLayoutMode}
                 onOpenObservatory={shell.toggleObservatory}
+                observatoryAttention={observatory.litEntityIds.length > 0}
               />
             </div>
             <div
@@ -274,6 +275,7 @@ export function AppShell({
                 promises={observatory.promises}
                 proposals={observatory.proposals}
                 generatedAt={observatory.generatedAt}
+                litEntityIds={observatory.litEntityIds}
                 onRescan={() => void observatory.runScan()}
                 onBackToChat={shell.showChatView}
                 onLocateObservation={observatory.locateObservation}

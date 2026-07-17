@@ -57,6 +57,7 @@ export function ChatWindow(props: ChatWindowProps) {
       layoutMode={props.layoutMode}
       onSetLayoutMode={props.onSetLayoutMode}
       onOpenObservatory={props.onOpenObservatory}
+      observatoryAttention={props.observatoryAttention}
       handleSelectSession={session.handleSelectSession}
       handleNewSession={session.handleNewSession}
       retryAssistantSessionLoad={session.retryAssistantSessionLoad}

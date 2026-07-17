@@ -12,6 +12,7 @@ import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
+  emitEditorCursorLine,
   type EditorCommand,
   type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
@@ -320,6 +321,39 @@ export function Editor({
     window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
     return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
   }, [applyIssueDecorations]);
+
+  // 观测镜实体联动：光标行变化去抖后广播行文本，观测侧按实体表面形匹配亮卡
+  //（monaco stub 无光标 API，均 typeof 守卫）。
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editorReady || !editor || typeof editor.onDidChangeCursorPosition !== 'function') return;
+    let timer: number | null = null;
+    const subscription = editor.onDidChangeCursorPosition((event) => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const model = editor.getModel();
+        const lineNumber = event.position?.lineNumber;
+        if (
+          !model ||
+          typeof model.getLineContent !== 'function' ||
+          typeof model.getLineCount !== 'function' ||
+          typeof lineNumber !== 'number' ||
+          lineNumber < 1 ||
+          lineNumber > model.getLineCount()
+        ) {
+          return;
+        }
+        emitEditorCursorLine({
+          filePath: filePathRef.current,
+          lineText: model.getLineContent(lineNumber),
+        });
+      }, 180);
+    });
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      subscription.dispose();
+    };
+  }, [editorReady]);
 
   // 观测面板点行定位：目标文件已就绪立即跳；否则挂起等 loader 完成（打开文件是异步的）。
   const pendingLocateRef = useRef<LocateInEditorDetail | null>(null);

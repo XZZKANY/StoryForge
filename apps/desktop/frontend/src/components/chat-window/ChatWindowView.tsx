@@ -11,6 +11,7 @@ type Props = {
   layoutMode: ChatWindowProps['layoutMode'];
   onSetLayoutMode: ChatWindowProps['onSetLayoutMode'];
   onOpenObservatory: ChatWindowProps['onOpenObservatory'];
+  observatoryAttention: ChatWindowProps['observatoryAttention'];
   handleSelectSession: (id: number) => void;
   handleNewSession: () => void;
   retryAssistantSessionLoad: () => void;
@@ -31,6 +32,7 @@ export function ChatWindowView({
   layoutMode,
   onSetLayoutMode,
   onOpenObservatory,
+  observatoryAttention,
   handleSelectSession,
   handleNewSession,
   retryAssistantSessionLoad,
@@ -55,6 +57,7 @@ export function ChatWindowView({
         layoutMode={layoutMode}
         onSetLayoutMode={onSetLayoutMode}
         onOpenObservatory={onOpenObservatory}
+        observatoryAttention={observatoryAttention}
       />
 
       {state.sessionLoadError && (
