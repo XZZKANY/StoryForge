@@ -215,6 +215,52 @@ def _summary(
     )
 
 
+def read_pending_proposals(project_root: str) -> dict[str, Any]:
+    """把 proposals.json 草稿与作者 canon 差读出仍待确认的提议（确定性只读，零写盘）。
+
+    proposals.json 存的是合并后 canon 草稿：作者已并入或已删除的条目自然从差集消失，
+    差读自愈不会重复出现。缓存缺失/损坏按可弃缓存语义如实返回 available=False，
+    不伪造空提案误导前端。
+    """
+
+    draft = canon_store.read_derived(project_root, "proposals.json")
+    if draft is None:
+        return {"available": False, "new_entities": [], "new_invariants": {}, "pending_count": 0}
+
+    canon = canon_store.read_canon(project_root)
+    known_ids = {
+        entity.get("id")
+        for entity in canon.get("entities") or []
+        if isinstance(entity, dict)
+    }
+    draft_entities = draft.get("entities")
+    new_entities = [
+        entity
+        for entity in (draft_entities if isinstance(draft_entities, list) else [])
+        if isinstance(entity, dict) and entity.get("id") not in known_ids
+    ]
+
+    canon_invariants = canon.get("invariants") if isinstance(canon.get("invariants"), dict) else {}
+    draft_invariants = draft.get("invariants") if isinstance(draft.get("invariants"), dict) else {}
+    new_invariants: dict[str, list[dict[str, Any]]] = {}
+    for key in ("single_holder", "lifespan", "timeline_order"):
+        existing_raw = canon_invariants.get(key)
+        drafted_raw = draft_invariants.get(key)
+        existing = [e for e in (existing_raw if isinstance(existing_raw, list) else []) if isinstance(e, dict)]
+        drafted = [e for e in (drafted_raw if isinstance(drafted_raw, list) else []) if isinstance(e, dict)]
+        pending = [entry for entry in drafted if entry not in existing]
+        if pending:
+            new_invariants[key] = pending
+
+    pending_count = len(new_entities) + sum(len(items) for items in new_invariants.values())
+    return {
+        "available": True,
+        "new_entities": new_entities,
+        "new_invariants": new_invariants,
+        "pending_count": pending_count,
+    }
+
+
 def canon_delta(
     project_root: str,
     *,

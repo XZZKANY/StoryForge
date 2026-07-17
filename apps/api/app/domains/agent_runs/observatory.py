@@ -6,6 +6,10 @@ issue 归一化成前端 ObsPanel 可直接消费的 Observation 形状，写进
 提供场景语义参数、deep_consistency 走 LLM，聚合扫描不裸跑，只在 checkers 元数据
 里如实标注 on_demand。
 
+payload v2 追加观测镜富 view 的结构化台账（纯 additive）：entities（dossier 事实
+投影 + 关联观测 id）、promises（作者声明台账 + 关联 issue）、proposals（canon_delta
+草稿与 canon 的待确认差集）。
+
 红线不变：只写派生缓存，绝不碰手稿或 canon.json；输出是参考信号，不是质量判定。
 """
 
@@ -15,10 +19,14 @@ import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
-from app.domains.agent_runs import canon_store
+from app.domains.agent_runs import canon_delta, canon_dossier, canon_store
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError, resolve_project_root
-from app.domains.agent_runs.promise_scan import DEFAULT_STALE_AFTER_CHAPTERS, promise_check
+from app.domains.agent_runs.promise_scan import (
+    DEFAULT_STALE_AFTER_CHAPTERS,
+    build_promise_ledger,
+    promise_check,
+)
 from app.domains.agent_runs.prose_scan import prose_static_scan
 
 OBSERVATIONS_DERIVED_NAME = "observations.json"
@@ -191,6 +199,30 @@ def _prose_observations(project_root: str) -> tuple[list[dict[str, Any]], dict[s
     return observations, meta
 
 
+def _entity_dossiers(
+    canon: dict[str, Any],
+    presence: dict[str, Any],
+    canon_output: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """实体台账：dossier 事实投影 + 关联观测 id（single_holder 按 holders、lifespan 按 entity）。"""
+
+    related: dict[str, list[str]] = {}
+    for conflict in canon_output.get("conflicts") or []:
+        if conflict.get("category") != "single_holder":
+            continue
+        for holder in conflict.get("holders") or []:
+            related.setdefault(str(holder), []).append(str(conflict.get("id")))
+    for advisory in canon_output.get("advisories") or []:
+        entity_id = advisory.get("entity")
+        if isinstance(entity_id, str):
+            related.setdefault(entity_id, []).append(str(advisory.get("id")))
+
+    dossiers = canon_dossier.build_dossiers(canon, presence)
+    for dossier in dossiers:
+        dossier["related_observation_ids"] = related.get(dossier["id"], [])
+    return dossiers
+
+
 def run_observatory_scan(
     project_root: str,
     *,
@@ -258,12 +290,21 @@ def run_observatory_scan(
             "reason": "语义评审走 LLM，永远按需触发，不进保存重扫。",
         },
     ]
+    # 结构化台账（观测镜富 view 数据源）：复用本次扫描刚重建的 canon 与 presence 缓存。
+    canon = canon_store.read_canon(project_root)
+    presence = canon_store.read_derived(project_root, "presence.json") or {"entities": []}
     payload = {
-        "version": 1,
+        "version": 2,
         "generated_at": datetime.now(UTC).isoformat(),
         "observations": observations,
         "counts": counts,
         "checkers": checkers,
+        "entities": _entity_dossiers(canon, presence, canon_output),
+        "promises": {
+            "current_chapter": promise_output.get("current_chapter"),
+            "ledger": build_promise_ledger(canon, promise_output),
+        },
+        "proposals": canon_delta.read_pending_proposals(project_root),
         "note": "确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。",
     }
     canon_store.write_derived(project_root, OBSERVATIONS_DERIVED_NAME, payload)

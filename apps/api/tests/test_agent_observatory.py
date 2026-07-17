@@ -157,7 +157,91 @@ def test_prose_file_cap_marks_truncated(project: Path, monkeypatch: pytest.Monke
     assert prose_checker["files_scanned"] == 1
 
 
-# --- 4. IDE 命令入口（与 canon.refresh 同模式：writes=False，确定性无 LLM） ---
+# --- 4. 结构化台账（payload v2：观测镜富 view 数据源——实体 / 伏笔 / 提案） ---
+
+
+def test_entities_section_projects_dossier_with_related_observations(project: Path) -> None:
+    payload = run_observatory_scan(str(project))
+
+    assert payload["version"] == 2
+    entities = {entry["id"]: entry for entry in payload["entities"]}
+    assert set(entities) == {"char_a", "char_b"}
+    conflict_id = next(
+        obs["id"] for obs in payload["observations"] if obs["source"] == "canon·single_holder"
+    )
+    assert entities["char_a"]["related_observation_ids"] == [conflict_id]
+    assert entities["char_b"]["related_observation_ids"] == [conflict_id]
+    assert entities["char_a"]["canonical_name"] == "青岩"
+    assert entities["char_a"]["holdings"] == [
+        {"item": "断魂刀", "from_chapter": 1, "to_chapter": 10}
+    ]
+    # 正文未出现声明实体的表面形 → appearance 如实 missing，不伪造出场。
+    assert entities["char_a"]["appearance"]["missing"] is True
+
+
+def test_promises_section_builds_ledger_with_issues(project: Path) -> None:
+    payload = run_observatory_scan(str(project))
+
+    promises = payload["promises"]
+    assert promises["current_chapter"] == 2
+    ledger = {entry["id"]: entry for entry in promises["ledger"]}
+    assert set(ledger) == {"p1"}
+    entry = ledger["p1"]
+    assert entry["title"] == "旧钟"
+    assert entry["status"] == "planted"
+    assert entry["planted_chapter"] == 1
+    assert entry["due_chapter"] == 1
+    assert [issue["category"] for issue in entry["issues"]] == ["overdue"]
+    assert entry["issues"][0]["id"].startswith("promise_")
+
+
+def test_proposals_section_absent_cache_reports_unavailable(project: Path) -> None:
+    payload = run_observatory_scan(str(project))
+
+    assert payload["proposals"] == {
+        "available": False,
+        "new_entities": [],
+        "new_invariants": {},
+        "pending_count": 0,
+    }
+
+
+def test_proposals_section_diffs_draft_against_canon(project: Path) -> None:
+    canon = canon_store.read_canon(str(project))
+    draft = json.loads(json.dumps(canon))
+    draft["entities"].append(
+        {"id": "item_lamp", "canonical_name": "铜灯", "aliases": ["提灯"]}
+    )
+    draft["invariants"].setdefault("lifespan", []).append(
+        {"entity": "char_b", "exits_after_chapter": 9}
+    )
+    canon_store.write_derived(str(project), "proposals.json", draft)
+
+    payload = run_observatory_scan(str(project))
+
+    proposals = payload["proposals"]
+    assert proposals["available"] is True
+    assert [entity["id"] for entity in proposals["new_entities"]] == ["item_lamp"]
+    assert proposals["new_invariants"] == {
+        "lifespan": [{"entity": "char_b", "exits_after_chapter": 9}]
+    }
+    assert proposals["pending_count"] == 2
+
+
+def test_proposals_already_merged_disappear_from_pending(project: Path) -> None:
+    # 作者把草稿并入 canon 后差集自愈清空，提案不会重复出现。
+    canon = canon_store.read_canon(str(project))
+    canon_store.write_derived(str(project), "proposals.json", canon)
+
+    payload = run_observatory_scan(str(project))
+
+    assert payload["proposals"]["available"] is True
+    assert payload["proposals"]["pending_count"] == 0
+    assert payload["proposals"]["new_entities"] == []
+    assert payload["proposals"]["new_invariants"] == {}
+
+
+# --- 5. IDE 命令入口（与 canon.refresh 同模式：writes=False，确定性无 LLM） ---
 
 
 def test_ide_command_observatory_scan_roundtrip(project: Path) -> None:
