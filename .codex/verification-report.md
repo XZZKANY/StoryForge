@@ -1,67 +1,68 @@
-# 验证报告 · 世界线观测镜刀2：前端接线（保存即重扫 + ObsPanel 接真）
+# 验证报告 · 世界线观测镜刀3a：结构化台账出口（payload v2）
 
 时间：2026-07-17
-分支：`feat/observatory-frontend-20260717`
-前置：刀1 信号出口已合并（PR #147，observatory.scan IDE 命令 + observations.json 派生缓存）。
+分支：`feat/observatory-structured-20260717`
+前置：刀1 信号出口（PR #147）+ 刀2 前端接线（PR #148）已合并。
 
 ## 问题
 
-`ObsPanel.tsx` / `StatusBar` 的观测外壳与 availability 三态早已建好，但 `App.tsx` 数据源
-硬编码空数组、availability 恒为 unavailable（「观测未接线」）。刀1 的信号出口就绪后，
-本刀把数据接进来并补上「点击行定位原文」的既有承诺文案。
+观测镜右栏视图（刀3b：实体卡 / 伏笔账 / 提案卡）需要的结构化数据没有出口：
+observations.json 只有扁平观测清单 + 检查器计数；dossier 事实投影只渲染成
+人可读 markdown 不进 payload；伏笔台账只在 canon.json 作者声明里（promise_check
+只出 issue 不出台账）；proposals.json 存的是**合并后 canon 草稿**而非提案清单，
+待确认项需要与 canon 差读才能还原。
 
 ## 变更
 
-### 纯逻辑（新增 `src/lib/observations.ts`）
+### `promise_scan.py` 新增公开 `build_promise_ledger(canon, promise_output)`
 
-- `mapObservatoryPayload(raw, resolvedIds)`：后端 observatory payload → ObsPanel
-  Observation[]（防御性解析：缺 id / severity 未归一化的条目跳过；checkers 同滤）；
-  已处理态按稳定 id 跨扫描保留。
-- `resolveAnchorLine(content, anchor)`：行号界内直用 → snippet 整串匹配 → **拆词降级**
-  （套话类 snippet 是命中词拼接如「不禁、五味杂陈」，非原文子串，按「、,;/空白」拆）→
-  全失败返回 null（调用方明示锚点失效，不静默落空）。
+- 作者 promises 声明 → 台账投影（id/title/status/kind/planted/due/resolved/
+  last_touch_chapter），并按 promise_id 挂上 check_promises 输出的关联 issue
+  （id/category/severity/message）。
+- 只做字段校验与归并，不重算规则、不自造状态结论；坏类型字段落 None 如实呈现。
+- 放在 promise_scan 内是为复用其私有校验 helper——跨模块私有访问是源码标准红线。
 
-### 重扫触发（新增 `src/components/app/useObservatory.ts`）
+### `canon_delta.py` 新增公开 `read_pending_proposals(project_root)`
 
-- 打开项目即首扫；`FS_MUTATION_EVENT`（TauriFileSystem 各写操作 finally 广播）后 1200ms
-  防抖重扫——确定性纯函数无 LLM，保存即刷新零成本。
-- availability 诚实语义：首扫 loading / 首扫失败 error；已有数据后刷新失败**保持 available**
-  （旧观测仍真实，不藏）；切项目清空观测与已处理记忆并使在途响应过期（scanSeq 守卫，
-  同 F26 会话切换纪律）。
+- proposals.json 草稿 vs 作者 canon 差读：新实体按 id 差集、新增不变量声明
+  （single_holder/lifespan/timeline_order）按结构相等差集。
+- 作者已并入或删除的条目自然从差集消失（差读自愈，不会重复出现）；缓存缺失 /
+  损坏按可弃缓存语义返回 `available=False`，不伪造空提案。确定性只读，零写盘。
 
-### 接线与定位
+### `observatory.py` payload v1 → v2（纯 additive）
 
-- `App.tsx`：useObservatory 替换硬编码空态；`locateObservation` 拼项目内绝对路径（沿用项目
-  串分隔符风格保证与页签路径可比）、非当前文件先 openFile、广播 `LOCATE_IN_EDITOR_EVENT`。
-- `Editor.tsx`：监听定位事件——目标文件已就绪立即 `setPosition`+`revealLineInCenter`（monaco
-  stub 无此 API，均 typeof 守卫）；未就绪挂起，`loadedFilePath` 到位后消费；锚点失效走
-  suggestionStatus 提示条。
-- `ObsPanel.tsx`：Observation 加结构化 `anchor` 字段（location 仍是显示串，渲染零改动）；
-  行主体带 anchor 且有 onLocate 时可点击。
-- `AppShell.tsx`：补传 availability 给 ObsPanel/StatusBar（此前漏传导致恒 unavailable）+
-  透传 onLocate。
+- 复用本次扫描刚重建的 canon + presence 缓存，追加三段：
+  - `entities`：`canon_dossier.build_dossiers` 结构化投影 + `related_observation_ids`
+    （single_holder 冲突按 holders、lifespan advisory 按 entity 关联到实体卡）；
+  - `promises`：`{current_chapter, ledger}`；
+  - `proposals`：`read_pending_proposals` 差读结果。
+- 既有 observations/counts/checkers 键零变更；observations.json 派生缓存随
+  payload 整体升 v2（可弃缓存，无迁移问题）。
 
 ## 验证
 
-- vitest 全量 `48 files / 259 passed`（新增 13 例）：
-  - `observations.test.ts`（7）：映射/非法条目跳过/resolved 保留/checker 过滤/行号/snippet/
-    拆词降级/失效 null；
-  - `observatory-rescan.test.tsx`（5）：打开项目即首扫、fs-mutation 防抖合并、首扫失败 error
-    /刷新失败保持 available、resolved 跨扫描保留、切项目清空；
-  - `obs-locate.test.tsx`（1）：带 anchor 行点击回调、无 anchor 行不可点。
-- typecheck 绿；`pnpm lint` 0 errors（仅 Editor.tsx 既有 exhaustive-deps warning）+
-  prettier 绿。
-- react-hooks 新规则收编：hook 状态合一（observations/checkers/availability 单 state 原子
-  更新）消 set-state-in-effect 级联；runScan 闭包捕获 activeProject 消渲染期写 ref。
+- `uv run pytest tests/test_agent_observatory.py -q` -> `13 passed`（8 既有零回归 +
+  5 新增：实体台账关联冲突 id + missing 如实、伏笔台账 overdue issue 挂账、
+  提案缓存缺失 available=False、草稿差读出新实体+新声明计数、已并入差集自愈清零）。
+- `uv run pytest tests/test_source_code_standards.py tests/test_agent_canon.py
+  tests/test_agent_promise_scan.py tests/test_ide_commands.py -q` -> `70 passed`。
+- `uv run pytest tests/test_agent_canon_delta.py tests/test_agent_canon_context.py
+  tests/test_agent_canon_hooks.py -q` -> `48 passed`。
+- `uv run ruff check`（3 源文件 + 测试）-> 绿。
+- `pnpm.cmd run check:drift` -> `OpenAPI 契约无漂移`（payload 走 IDE 命令通道，零路由变更）。
+- `pnpm.cmd run e2e` -> 契约 `20 pass / 0 fail`。
 
 ## 红线审计
 
-- 前端不写任何项目文件：重扫走后端 IDE 命令（只写派生缓存）；本刀纯读+UI。
-- 观测是参考信号：ObsPanel 文案与 availability 三态不夸大（未接线/加载中/失败/空态分明）。
-- 暂存全部使用显式路径（10 文件 + 本报告）。
+- 三段台账全部确定性、无 LLM、零新增写盘（proposals 差读只读；entities/promises
+  复用扫描已写的缓存）；canon.json 与手稿零触碰。
+- 台账不下结论：实体只挂关联观测 id（结论在观测本身）、伏笔 issue 全部来自
+  check_promises、提案只做差集不判优先级。
+- 暂存全部使用显式路径（4 文件 + 本报告）。
 
 ## 未验证项
 
-- 真机观感（底部面板升起、定位跳转手感、状态栏芯片）照旧归 E2E-1；happy-dom 测不到
-  Monaco 真实 reveal 行为。
-- 观测镜右栏视图（实体卡/伏笔卡/提案卡/检查器）是刀3（PR-C）。
+- 前端消费（右栏观测镜视图：提案卡 / 伏笔卡 / 实体卡 / 检查器）是刀3b；
+  光标行实体联动是刀4；真机观感照旧归 E2E-1。
+- 提案卡「并入 canon」写回 canon.json 的前端确认流不在本刀（后续刀，红线内
+  作者所有文件由前端确认写回）。
