@@ -15,6 +15,8 @@ import type { Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
 import { emitLocateInEditor } from './lib/assistant-events';
 import type { ObservationAnchor } from './lib/observations';
+import { emitToast } from './lib/toast';
+import { checkForUpdate, currentAppVersion } from './lib/update-check';
 import { emitPublishCommand, type PublishCommandType } from './features/publish';
 
 export function App() {
@@ -74,6 +76,25 @@ export function App() {
     },
     [openPublishSide],
   );
+
+  // 启动更新自检：仅装机构建，延迟起跑不抢启动带宽；网络失败静默降级
+  // （GitHub 在本机依赖代理，不可用是常态，只有查到新版才打扰）。
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const version = await currentAppVersion();
+        if (!version) return;
+        const result = await checkForUpdate(version);
+        if (result.kind === 'update-available') {
+          emitToast(`检查到新版本 ${result.latest}（当前 ${result.current}）`, {
+            durationMs: 10000,
+          });
+        }
+      })();
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // 滚动容器短暂显示 scrollbar thumb，便于长稿定位。
   useEffect(() => {
