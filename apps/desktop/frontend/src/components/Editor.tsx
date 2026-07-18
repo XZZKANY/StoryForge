@@ -21,6 +21,8 @@ import {
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
 import { countProseChars } from '../lib/text-metrics';
+import { emitToast } from '../lib/toast';
+import type { EditorLineNumbersMode } from '../lib/user-settings';
 import { TauriFileSystem } from '../lib/tauri-fs';
 import { readVersion, snapshotBeforeWrite } from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
@@ -63,6 +65,7 @@ type EditorProps = {
   filePath: string | null;
   editorFontSize?: number;
   editorFontMode?: EditorFontMode;
+  editorLineNumbers?: EditorLineNumbersMode;
   autoSave?: boolean;
   retainedFilePaths?: string[];
   sidebarVisible?: boolean;
@@ -100,6 +103,7 @@ export function Editor({
   filePath,
   editorFontSize = 14,
   editorFontMode = 'grid',
+  editorLineNumbers = 'auto',
   autoSave = false,
   retainedFilePaths = [],
   sidebarVisible,
@@ -285,6 +289,7 @@ export function Editor({
     loadedContent,
     editorFontSize,
     editorFontFamily: resolveEditorFontFamily(editorFontMode),
+    editorLineNumbers,
     filePathRef,
     isDirtyRef,
     autoSaveRef,
@@ -503,6 +508,7 @@ export function Editor({
         content: editorRef.current.getValue(),
       });
       setSuggestionStatus(`已导出到 ${result.exportPath}`);
+      emitToast(`已导出到 ${result.exportPath}`, { tone: 'success' });
       emitAuthorLoopResult({
         filePath: path,
         status: 'completed',
@@ -513,6 +519,7 @@ export function Editor({
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setSuggestionStatus(`导出失败: ${message}`);
+      emitToast(`导出失败：${message}`, { tone: 'error' });
       emitAuthorLoopResult({
         filePath: path,
         status: 'error',

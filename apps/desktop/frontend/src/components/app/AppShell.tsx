@@ -12,6 +12,7 @@ import { ObservatoryView } from '../shell/ObservatoryView';
 import { SidePanel } from '../shell/SidePanel';
 import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
+import { ToastHost } from '../shell/ToastHost';
 import type { useShellState } from '../shell/useShellState';
 import {
   emitEditorCommand,
@@ -202,6 +203,7 @@ export function AppShell({
                     filePath={tabs.displayedFile}
                     editorFontSize={preferences.settings.editorFontSize}
                     editorFontMode={preferences.settings.editorFontMode}
+                    editorLineNumbers={preferences.settings.editorLineNumbers}
                     autoSave={preferences.settings.autoSave}
                     retainedFilePaths={tabs.retainedEditorFiles}
                     onDirtyChange={tabs.handleEditorDirtyChange}
@@ -328,6 +330,7 @@ export function AppShell({
         onClose={dialogs.closeDialog}
         onPromptValueChange={dialogs.updatePromptValue}
       />
+      <ToastHost />
     </div>
   );
 }

@@ -27,7 +27,9 @@ export function resolveEditorFontFamily(mode: EditorFontMode): string {
 
 // 行号只留给数据/代码类文件（canon.json 等）；小说正文（Markdown）行号对作者没有
 // 意义，位置感知交给状态栏字数与滚动，观测定位不依赖行号列的显示。
-export function lineNumbersFor(filePath: string | null): 'on' | 'off' {
+// mode（设置「行号」）可一刀切覆盖：auto = 上述按文件类型判定。
+export function lineNumbersFor(filePath: string | null, mode: 'auto' | 'on' | 'off' = 'auto') {
+  if (mode !== 'auto') return mode;
   if (!filePath) return 'off';
   const lower = filePath.toLowerCase();
   return lower.endsWith('.md') || lower.endsWith('.markdown') ? 'off' : 'on';
