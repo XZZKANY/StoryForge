@@ -69,8 +69,6 @@ type AppShellProps = {
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
   observatory: ObservatoryHandle;
   openSettings: () => Promise<void>;
-  openPublishSide: () => void;
-  handlePublishCommand: (type: string) => void;
 };
 
 export function AppShell({
@@ -89,8 +87,6 @@ export function AppShell({
   setObsPanelOpen,
   observatory,
   openSettings,
-  openPublishSide,
-  handlePublishCommand,
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
@@ -315,8 +311,6 @@ export function AppShell({
           onToggleAssistant={shell.toggleRight}
           onToggleWorkspace={shell.toggleSidebar}
           onOpenSettings={openSettings}
-          onOpenPublish={openPublishSide}
-          onPublishCommand={handlePublishCommand}
           onFocusAssistantOnly={() => shell.showRight()}
           onFocusWorkspaceOnly={() => shell.showSidebar()}
           onRestoreLayout={() => {

@@ -6,7 +6,7 @@
 
 Read the live Desktop path in this order. The list stays within eight files.
 
-1. `App.tsx` - application wiring, shortcuts, and the publish-side callback seam.
+1. `App.tsx` - application wiring and shortcuts.
 2. `components/app/AppShell.tsx` - fixed shell layout and component composition.
 3. `components/app/useEditorWorkspaceTabs.ts` - preview/open/dirty editor-tab state and destructive-boundary confirmation.
 4. `components/app/useProjectCommands.ts` - project/file commands, Canon refresh, smoke loaders, and project-tree invalidation.
@@ -32,7 +32,6 @@ Open `components/app/useAppPreferences.ts`, the remaining `components/chat-windo
 - Agent reads flush the active editor before building context.
 - Agent write tools produce proposed artifacts only; accepted write-back remains a frontend confirmation flow.
 - Session changes and layout collapse must not strand an active run or leak events into another conversation.
-- Publish/Fanqie behavior remains owned by `features/publish`; the shell only opens that side panel or emits an existing command.
 
 ## Size Gates
 

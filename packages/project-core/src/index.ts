@@ -1,3 +1,4 @@
+export type { FileEntry, ProjectFileSystem } from './filesystem';
 export {
   isPathInsideProject,
   joinProjectPath,
@@ -8,4 +9,4 @@ export {
   relativePathInsideProject,
   relativeToProject,
   resolveProjectRelativePath,
-} from '@storyforge/project-core';
+} from './path';

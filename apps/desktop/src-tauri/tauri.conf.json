@@ -46,15 +46,6 @@
       "csp": null,
       "capabilities": [
         {
-          "identifier": "publish-webview-capability",
-          "description": "发布用 webview（登录捕获/发布 worker）：允许番茄远程页 emit 事件回传 Cookie/csrf/发布回执",
-          "windows": ["publish-login", "publish-worker"],
-          "remote": {
-            "urls": ["https://fanqienovel.com", "https://*.fanqienovel.com"]
-          },
-          "permissions": ["core:event:allow-emit"]
-        },
-        {
           "identifier": "main-capability",
           "description": "Main window capabilities",
           "windows": ["main"],

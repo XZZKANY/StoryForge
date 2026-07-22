@@ -17,7 +17,6 @@ import { emitLocateInEditor } from './lib/assistant-events';
 import type { ObservationAnchor } from './lib/observations';
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
-import { emitPublishCommand, type PublishCommandType } from './features/publish';
 
 export function App() {
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -59,23 +58,6 @@ export function App() {
   const openSettings = useCallback(async () => {
     setSettingsVisible(true);
   }, []);
-
-  /** 发行 = 左栏功能块，不再占中栏整页。 */
-  const openPublishSide = useCallback(() => {
-    setSettingsVisible(false);
-    shell.switchView('publish');
-    shell.showSidebar();
-  }, [shell]);
-
-  const handlePublishCommand = useCallback(
-    (type: string) => {
-      openPublishSide();
-      window.setTimeout(() => {
-        emitPublishCommand(type as PublishCommandType);
-      }, 0);
-    },
-    [openPublishSide],
-  );
 
   // 启动更新自检：仅装机构建，延迟起跑不抢启动带宽；网络失败静默降级
   // （GitHub 在本机依赖代理，不可用是常态，只有查到新版才打扰）。
@@ -211,8 +193,6 @@ export function App() {
       setObsPanelOpen={setObsPanelOpen}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       openSettings={openSettings}
-      openPublishSide={openPublishSide}
-      handlePublishCommand={handlePublishCommand}
     />
   );
 }

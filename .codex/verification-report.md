@@ -50,3 +50,33 @@
   检查两种结果——归下次真机波。
 - 全套静默 updater（签名 + feed + 自动下载安装）明确不在本刀；若未来发行流程
   改为发 GitHub Releases 附 NSIS 制品，再评估 tauri-plugin-updater。
+
+---
+
+# 验证报告 · 发行车队独立迁移
+
+时间：2026-07-20
+
+## 迁移结果
+
+- 发行车队已迁至独立 Git 仓 `D:\StoryForge-Publish`。
+- StoryForge 已移除 `features/publish`、8 个发行专属前端测试、publish Tauri 命令/能力和
+  `docs/internal/publish-fleet`；源码残留扫描计数为 0。
+- 新增 `packages/project-core` 作为小说项目路径与文件系统契约的唯一源码；Desktop IDE 以
+  `file:../../../packages/project-core` 消费，独立 Publish 仓使用对应版本的 vendor tarball。
+- 新 Publish 应用首次访问数据目录时只在新目录为空的情况下复制旧
+  `com.storyforge.ide/publish` 数据，不删除旧数据。
+
+## 验证
+
+- `D:\StoryForge-Publish`: `pnpm typecheck`、`pnpm test`（8 files / 46 tests）、
+  `pnpm build`、`cargo check` 均通过。
+- StoryForge: `packages/project-core` typecheck + 2 tests、Desktop frontend typecheck +
+  50 files / 251 tests、`apps/desktop/src-tauri` `cargo check`、`git diff --check` 均通过。
+- `pnpm verify` 全量通过：API 1075 passed / 3 skipped、workflow 323 passed、sidecar daily
+  冒烟通过、OpenAPI 无 drift。Lint 仅保留既有 `Editor.tsx` Hook 依赖 warning。
+
+## 未验证项
+
+- 未运行真机 Tauri GUI 登录、旧 app config 数据首次复制和发布动作；这些需要实际平台账号与
+  手动确认，不应由自动测试伪造通过。
