@@ -1,11 +1,11 @@
 /**
  * 活动栏：48px 图标 rail。
- * 上排：文件 / 搜索 / 发行；底部：设置。
+ * 上排：文件 / 搜索；底部：设置。
  * 会话在右栏，质检在状态栏；命令面板 Ctrl+P。
- * 激活指示条贴 rail 左缘；未打开项目时「搜索」变暗（发行全局可用）。
+ * 激活指示条贴 rail 左缘；未打开项目时「搜索」变暗。
  */
 import type { SidePanelView } from './useShellState';
-import { FileText, Search, Settings, Flag } from '../icons/shell-icons';
+import { FileText, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 
 type ViewEntry = {
@@ -18,7 +18,6 @@ type ViewEntry = {
 const VIEW_ENTRIES: ViewEntry[] = [
   { view: 'explorer', icon: FileText, title: '故事文件 · Ctrl+Shift+E' },
   { view: 'search', icon: Search, title: '搜索 · Ctrl+Shift+F', projectOnly: true },
-  { view: 'publish', icon: Flag, title: '发行 · Ctrl+Shift+P 后选 Publish' },
 ];
 
 export function ActivityBar({

@@ -1,420 +1,336 @@
 /**
- * 欢迎区与 Agent 工作台占位组件。
+ * 欢迎页（v3 原型：启动 / 上手 / 最近 两栏）+ 关闭后的空起始态。
  * 从 App.tsx 抽出。
  */
-import { useState } from 'react';
-import { ChatWindow } from '../ChatWindow';
+import { useState, type ReactNode } from 'react';
 import { basename } from './helpers';
-import { PanelIcon } from './icons';
-import { PROVIDER_OPTIONS, PROVIDER_PRESETS } from '../../lib/provider-config';
-import type { ProviderKind } from '../../lib/user-settings';
+import {
+  ArrowUp,
+  BookOpen,
+  Command,
+  FilePlus,
+  FolderOpen,
+  Info,
+  Keyboard,
+  Sparkles,
+  X,
+} from '../icons/shell-icons';
 
-export function AgentWorkspace({
-  projectPath,
-  currentFile,
-  assistantSessionId,
-  pendingInitialPrompt,
-  onPendingInitialPromptConsumed,
-  exposeWorkspaceToggle,
-  onAssistantSessionChange,
-  onRestoreLayout,
-  onOpenProject,
-  onInitializeProject,
-}: {
-  projectPath: string | null;
-  currentFile: string | null;
-  assistantSessionId: number | null;
-  pendingInitialPrompt?: string | null;
-  onPendingInitialPromptConsumed?: () => void;
-  exposeWorkspaceToggle: boolean;
-  onAssistantSessionChange: (assistantSessionId: number | null) => void;
-  onRestoreLayout: () => void;
-  onOpenProject: () => void;
-  onInitializeProject: (projectPath?: string) => void;
-}) {
-  return (
-    <div className="flex h-full min-w-0 flex-col">
-      {!projectPath && (
-        <TopRightTools exposeExpandTestId={exposeWorkspaceToggle} onToggle={onRestoreLayout} />
-      )}
-      <div className="min-h-0 flex-1">
-        {projectPath ? (
-          <ChatWindow
-            projectPath={projectPath}
-            currentFile={currentFile}
-            assistantSessionId={assistantSessionId}
-            pendingInitialPrompt={pendingInitialPrompt}
-            onPendingInitialPromptConsumed={onPendingInitialPromptConsumed}
-            onAssistantSessionChange={onAssistantSessionChange}
-          />
-        ) : (
-          <AgentComposerHome
-            activeProject={projectPath}
-            compact
-            onBrowseFiles={onRestoreLayout}
-            onOpenProject={onOpenProject}
-            onInitializeProject={onInitializeProject}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TopRightTools({
-  exposeExpandTestId = false,
-  onToggle,
-}: {
-  exposeExpandTestId?: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="flex h-9 flex-shrink-0 items-center justify-end px-3">
-      <button
-        data-testid={exposeExpandTestId ? 'expand-file-tree' : undefined}
-        className="sf-icon-button icon-button"
-        onClick={onToggle}
-        title="显示/隐藏侧边栏"
-      >
-        <PanelIcon />
-      </button>
-    </div>
-  );
-}
-
+// v3 原型欢迎页：VS Code 式「启动 / 上手」两栏 tab，保留一句话开新书 composer。
+// 复用现成 handler（开项目 / 新建 / 命令面板 / 样例项目 / 设置 / 发送即开书），
+// 只新做欢迎页签开关、两栏布局、引导卡与最近内联。
 export function WelcomeWorkspace({
-  activeProject,
   onOpenProject,
-  onInitializeProject,
+  onNewFile,
+  onOpenPalette,
   onCreateSampleProject,
   onOpenSettings,
-  onBrowseFiles,
-  onShowWorkbench,
-  providerModel,
-  onApplyModel,
-  providerKind,
-  onApplyProvider,
+  onShowShortcuts,
+  onShowAbout,
+  onClose,
+  recentProjects,
+  onSelectRecent,
+  showOnStartup,
+  onToggleShowOnStartup,
   composerValue,
   onComposerChange,
   onComposerSend,
 }: {
-  activeProject: string | null;
   onOpenProject: () => void;
-  onInitializeProject: (projectPath?: string) => void;
+  onNewFile: () => void;
+  onOpenPalette: () => void;
   onCreateSampleProject: () => void;
   onOpenSettings: () => void;
-  onBrowseFiles: () => void;
-  onShowWorkbench: () => void;
-  providerModel: string;
-  onApplyModel: (model: string) => void;
-  providerKind: ProviderKind;
-  onApplyProvider: (kind: ProviderKind) => void;
+  onShowShortcuts: () => void;
+  onShowAbout: () => void;
+  onClose: () => void;
+  recentProjects: string[];
+  onSelectRecent: (projectPath: string) => void;
+  showOnStartup: boolean;
+  onToggleShowOnStartup: (value: boolean) => void;
   composerValue: string;
   onComposerChange: (value: string) => void;
   onComposerSend: () => void;
 }) {
+  const RECENT_CAP = 5;
+  const [recentExpanded, setRecentExpanded] = useState(false);
+  const shownRecents = recentExpanded ? recentProjects : recentProjects.slice(0, RECENT_CAP);
+  const canSend = composerValue.trim().length > 0;
+
   return (
     <section
       className="flex h-full min-w-0 flex-col overflow-hidden bg-background"
       data-testid="welcome-workspace"
     >
-      <div className="flex h-9 flex-shrink-0 items-center justify-end px-3">
-        <button
-          className="sf-icon-button icon-button"
-          onClick={onShowWorkbench}
-          title="显示/隐藏侧边栏"
-          data-testid="welcome-show-workbench"
-        >
-          <PanelIcon />
-        </button>
+      {/* 可关的「欢迎」页签（关了露出空 workbench，命令面板「显示欢迎页」可重开）。 */}
+      <div className="flex h-9 flex-none items-stretch border-b border-border bg-panel">
+        <div className="relative -mb-px flex items-center gap-2 border-b border-r border-b-background border-r-border/50 bg-background pl-3.5 pr-3 text-xs font-semibold text-foreground shadow-[inset_0_2px_0_rgb(var(--agent))]">
+          <Sparkles size={13} strokeWidth={1.7} aria-hidden="true" className="text-agent" />
+          <span>欢迎</span>
+          <button
+            type="button"
+            className="icon-button grid h-[18px] w-[18px] place-items-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+            onClick={onClose}
+            title="关闭欢迎页"
+            data-testid="welcome-close"
+          >
+            <X size={11} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      <AgentComposerHome
-        activeProject={activeProject}
-        onBrowseFiles={onBrowseFiles}
-        onOpenProject={onOpenProject}
-        onInitializeProject={onInitializeProject}
-        onCreateSampleProject={onCreateSampleProject}
-        onOpenSettings={onOpenSettings}
-        providerModel={providerModel}
-        onApplyModel={onApplyModel}
-        providerKind={providerKind}
-        onApplyProvider={onApplyProvider}
-        composerValue={composerValue}
-        onComposerChange={onComposerChange}
-        onComposerSend={onComposerSend}
-      />
+      <div className="min-h-0 flex-1 overflow-auto px-5 pb-12 pt-8 md:px-14 md:pb-5 md:pt-11">
+        <div className="mx-auto grid w-[min(920px,100%)] grid-cols-1 gap-x-14 gap-y-2 md:grid-cols-2">
+          <div className="col-span-full mb-[22px] flex items-center gap-3.5">
+            <span className="relative grid h-11 w-11 flex-none place-items-center overflow-hidden rounded-[10px] bg-elevated text-base font-bold text-foreground">
+              S
+              <img
+                src="/brand-logo.jpg"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                }}
+              />
+            </span>
+            <div>
+              <h1 className="text-[26px] font-medium leading-tight tracking-[0.01em] text-foreground">
+                StoryForge
+              </h1>
+              <p className="mt-[3px] text-[12.5px] text-subtle">
+                可验证的长篇创作流水线 · 一句话就能开新书
+              </p>
+            </div>
+          </div>
+
+          {/* 启动 */}
+          <div className="min-w-0">
+            <h2 className="mb-3 text-[15px] font-medium text-foreground">启动</h2>
+            <div className="mb-2.5 flex items-center gap-1.5 rounded-[10px] border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
+              <input
+                className="h-[30px] min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-subtle"
+                placeholder="一句话开新书：写下念头，回车即建项目骨架..."
+                aria-label="一句话开新书"
+                data-testid="welcome-composer-input"
+                value={composerValue}
+                onChange={(event) => onComposerChange(event.target.value)}
+                onKeyDown={(event) => {
+                  // IME 组字期间不发送：拼音选字上屏的 Enter 不应误触发送。
+                  if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                  if (event.key === 'Enter' && !event.shiftKey && canSend) {
+                    event.preventDefault();
+                    onComposerSend();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-elevated text-muted transition-colors hover:bg-agent hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                title="发送即开书"
+                data-testid="welcome-composer-send"
+                disabled={!canSend}
+                onClick={() => {
+                  if (canSend) onComposerSend();
+                }}
+              >
+                <ArrowUp size={15} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+
+            <WAction
+              icon={<FolderOpen size={16} strokeWidth={1.6} aria-hidden="true" />}
+              label="打开项目..."
+              kbd="Ctrl O"
+              onClick={onOpenProject}
+              testId="welcome-primary-action"
+            />
+            <WAction
+              icon={<FilePlus size={16} strokeWidth={1.6} aria-hidden="true" />}
+              label="新建文件..."
+              onClick={onNewFile}
+            />
+            <WAction
+              icon={<Command size={16} strokeWidth={1.6} aria-hidden="true" />}
+              label="命令面板..."
+              kbd="Ctrl P"
+              onClick={onOpenPalette}
+            />
+
+            <h2 className="mb-3 mt-[26px] text-[15px] font-medium text-foreground">最近</h2>
+            {recentProjects.length === 0 ? (
+              <p className="px-2 text-[12px] text-subtle">
+                还没有最近项目 · 打开项目后会出现在这里
+              </p>
+            ) : (
+              <>
+                {shownRecents.map((projectPath) => (
+                  <button
+                    key={projectPath}
+                    type="button"
+                    className="flex w-full items-baseline gap-2.5 rounded-[7px] px-2 py-1.5 text-left hover:bg-elevated"
+                    onClick={() => onSelectRecent(projectPath)}
+                    title={projectPath}
+                  >
+                    <span className="flex-none text-[13px] text-agent">
+                      {basename(projectPath)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-subtle">
+                      {projectPath}
+                    </span>
+                  </button>
+                ))}
+                {!recentExpanded && recentProjects.length > RECENT_CAP && (
+                  <button
+                    type="button"
+                    className="ml-2 mt-0.5 px-1 py-1.5 text-[12px] text-agent hover:underline"
+                    onClick={() => setRecentExpanded(true)}
+                  >
+                    更多...
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 上手 */}
+          <div className="min-w-0">
+            <h2 className="mb-3 text-[15px] font-medium text-foreground">上手</h2>
+            <WGuide
+              icon={<Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />}
+              iconAgent
+              title="配置模型服务，连接真实 LLM"
+              desc="BYO-key，llm-provider.json 写盘换模型即生效"
+              onClick={onOpenSettings}
+            />
+            <WGuide
+              icon={<BookOpen size={20} strokeWidth={1.6} aria-hidden="true" />}
+              title="打开样例项目「雪夜斩」"
+              desc="看一个已有 canon / 章节 / 观测的完整项目长什么样"
+              onClick={onCreateSampleProject}
+            />
+            <WGuide
+              icon={<Keyboard size={20} strokeWidth={1.6} aria-hidden="true" />}
+              title="快捷键速查"
+              desc="全部沿袭 VS Code，Ctrl+C/A/V 不拦截"
+              onClick={onShowShortcuts}
+            />
+            <WGuide
+              icon={<Info size={20} strokeWidth={1.6} aria-hidden="true" />}
+              title="了解 StoryForge"
+              desc="先做诊断控制台，再做生成器：读证据 → 评审 → 修复 → 批准"
+              onClick={onShowAbout}
+            />
+          </div>
+        </div>
+
+        <label className="mx-auto mt-[26px] flex w-[min(920px,100%)] cursor-pointer items-center gap-2 text-[12px] text-muted">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 accent-agent"
+            data-testid="welcome-startup-toggle"
+            checked={showOnStartup}
+            onChange={(event) => onToggleShowOnStartup(event.target.checked)}
+          />
+          <span>启动时显示欢迎页</span>
+        </label>
+      </div>
     </section>
   );
 }
 
-function AgentComposerHome({
-  activeProject,
-  compact = false,
-  onBrowseFiles,
-  onOpenProject,
-  onInitializeProject,
-  onOpenSettings,
-  providerModel,
-  onApplyModel,
-  providerKind,
-  onApplyProvider,
-  composerValue,
-  onComposerChange,
-  onComposerSend,
+function WAction({
+  icon,
+  label,
+  kbd,
+  onClick,
+  testId,
 }: {
-  activeProject: string | null;
-  compact?: boolean;
-  onBrowseFiles: () => void;
-  onOpenProject: () => void;
-  onInitializeProject: (projectPath?: string) => void;
-  onCreateSampleProject?: () => void;
-  onOpenSettings?: () => void;
-  providerModel?: string;
-  onApplyModel?: (model: string) => void;
-  providerKind?: ProviderKind;
-  onApplyProvider?: (kind: ProviderKind) => void;
-  composerValue?: string;
-  onComposerChange?: (value: string) => void;
-  onComposerSend?: () => void;
+  icon: ReactNode;
+  label: string;
+  kbd?: string;
+  onClick: () => void;
+  testId?: string;
 }) {
-  const primaryAction = activeProject ? onBrowseFiles : onOpenProject;
-  const projectLabel = activeProject ? basename(activeProject) : 'StoryForge';
-  const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [modelDraft, setModelDraft] = useState(providerModel ?? '');
-  const [providerPickerOpen, setProviderPickerOpen] = useState(false);
-  const currentModel = providerModel?.trim() ? providerModel : '选择模型';
-  const providerLabel = providerKind ? PROVIDER_PRESETS[providerKind].label : '本地模式';
-  const applyModel = () => {
-    onApplyModel?.(modelDraft.trim());
-    setModelPickerOpen(false);
-  };
-  const composerInteractive = onComposerChange !== undefined && onComposerSend !== undefined;
-  const canSend = composerInteractive && (composerValue ?? '').trim().length > 0;
-
   return (
-    <div className="flex h-full items-center justify-center bg-background px-4 py-10">
-      <div
-        className={`flex w-full ${compact ? 'max-w-xl' : 'max-w-[760px]'} translate-y-[-4vh] flex-col items-stretch`}
-      >
-        {!compact && !activeProject && (
-          <div className="mb-8 flex flex-col items-center text-center">
-            <div className="mb-3.5 font-mono text-[11px] tracking-[0.22em] text-subtle">
-              STORYFORGE
-            </div>
-            <h1 className="font-prose text-[26px] font-normal leading-snug text-foreground">
-              今晚写点什么？
-            </h1>
-          </div>
-        )}
-        {!compact && activeProject && (
-          <h1 className="mb-8 text-center text-[27px] font-semibold leading-snug text-foreground">
-            我们应该在 {projectLabel} 中构建什么？
-          </h1>
-        )}
+    <button
+      type="button"
+      className="flex h-[34px] w-full items-center gap-2.5 rounded-[7px] px-2 text-left text-[13px] text-agent hover:bg-elevated"
+      onClick={onClick}
+      data-testid={testId}
+    >
+      <span className="flex-none text-muted">{icon}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {kbd && (
+        <kbd className="flex-none rounded border border-border px-1.5 font-mono text-[10px] text-subtle">
+          {kbd}
+        </kbd>
+      )}
+    </button>
+  );
+}
 
-        <div
-          className={`w-full ${compact ? 'min-h-[116px]' : 'min-h-[126px]'} rounded-2xl border border-border bg-surface`}
+function WGuide({
+  icon,
+  iconAgent = false,
+  title,
+  desc,
+  onClick,
+}: {
+  icon: ReactNode;
+  iconAgent?: boolean;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="mb-2 flex w-full items-start gap-3 rounded-[10px] border border-border bg-panel px-3.5 py-3 text-left transition-colors hover:border-border-strong/70 hover:bg-elevated"
+      onClick={onClick}
+    >
+      <span className={`mt-px flex-none ${iconAgent ? 'text-agent' : 'text-muted'}`}>{icon}</span>
+      <span className="min-w-0">
+        <b className="block text-[13px] font-medium text-foreground">{title}</b>
+        <small className="mt-[3px] block text-[11.5px] leading-relaxed text-subtle">{desc}</small>
+      </span>
+    </button>
+  );
+}
+
+/** 欢迎页已关闭时的空起始态（VS Code 式：命令面板可再开欢迎页）。 */
+export function WelcomeDismissed({
+  onReopenWelcome,
+  onOpenProject,
+}: {
+  onReopenWelcome: () => void;
+  onOpenProject: () => void;
+}) {
+  return (
+    <section
+      className="flex h-full min-w-0 flex-col items-center justify-center gap-4 bg-background px-6 text-center"
+      data-testid="welcome-dismissed"
+    >
+      <p className="max-w-sm text-sm leading-relaxed text-subtle">
+        欢迎页已关闭。命令面板（
+        <kbd className="rounded border border-border px-1 font-mono text-[11px]">Ctrl Shift P</kbd>
+        ）里「显示欢迎页」可重新打开。
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-elevated"
+          onClick={onReopenWelcome}
         >
-          <textarea
-            className={`${compact ? 'h-[66px] text-[15px]' : 'h-[72px] text-[17px]'} w-full resize-none bg-transparent px-4 py-3 leading-6 text-foreground outline-none placeholder:text-subtle`}
-            placeholder={composerInteractive ? '随心输入，回车打开项目开始对话' : '随心输入'}
-            aria-label="Agent 输入"
-            value={composerValue ?? ''}
-            onChange={(event) => onComposerChange?.(event.target.value)}
-            readOnly={!composerInteractive}
-            data-testid="welcome-composer-input"
-            onKeyDown={(event) => {
-              // IME 组字期间不发送：拼音选字上屏的 Enter 不应误触发送。
-              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-              if (event.key === 'Enter' && !event.shiftKey && canSend) {
-                event.preventDefault();
-                onComposerSend?.();
-              }
-            }}
-          />
-          <div className={`${compact ? 'h-[50px]' : 'h-[54px]'} flex items-center gap-2 px-3`}>
-            <button
-              className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-elevated text-xl leading-none text-muted transition-colors hover:bg-border-strong hover:text-foreground"
-              onClick={onBrowseFiles}
-              title="添加上下文"
-            >
-              +
-            </button>
-            {onApplyProvider && (
-              <div className="relative flex-shrink-0">
-                <button
-                  className="flex h-8 max-w-[160px] items-center gap-1 rounded-full px-2 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
-                  onClick={() => setProviderPickerOpen((open) => !open)}
-                  title="切换模型服务商"
-                  aria-expanded={providerPickerOpen}
-                >
-                  <span className="text-subtle">◍</span>
-                  <span className="min-w-0 truncate">{providerLabel}</span>
-                  <span className="text-subtle">⌄</span>
-                </button>
-                {providerPickerOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setProviderPickerOpen(false)}
-                    />
-                    <div className="absolute bottom-10 left-0 z-20 w-52 overflow-hidden rounded-md border border-border bg-panel py-1 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
-                      {PROVIDER_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            onApplyProvider(option.value);
-                            setProviderPickerOpen(false);
-                          }}
-                          className={`flex w-full items-center px-3 py-2 text-left text-sm transition-colors hover:bg-elevated hover:text-foreground ${
-                            option.value === providerKind ? 'text-foreground' : 'text-muted'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            <span className="min-w-0 flex-1" />
-            {onApplyModel && (
-              <div className="relative flex-shrink-0">
-                <button
-                  className="flex h-8 max-w-[180px] items-center gap-1 rounded-full px-2 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
-                  onClick={() => {
-                    setModelDraft(providerModel ?? '');
-                    setModelPickerOpen((open) => !open);
-                  }}
-                  title="切换默认模型"
-                  aria-expanded={modelPickerOpen}
-                >
-                  <span className="min-w-0 truncate">{currentModel}</span>
-                  <span className="text-subtle">⌄</span>
-                </button>
-                {modelPickerOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setModelPickerOpen(false)} />
-                    <div className="absolute bottom-10 right-0 z-20 w-64 rounded-md border border-border bg-panel p-2 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
-                      <div className="mb-1 px-1 text-xs text-subtle">
-                        切换默认模型（写盘即生效，无需重启）
-                      </div>
-                      <input
-                        autoFocus
-                        value={modelDraft}
-                        onChange={(event) => setModelDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') applyModel();
-                          if (event.key === 'Escape') setModelPickerOpen(false);
-                        }}
-                        placeholder="例如 gpt-4.1、deepseek-chat"
-                        className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-accent"
-                      />
-                      <div className="mt-2 flex items-center justify-between">
-                        {onOpenSettings && (
-                          <button
-                            className="text-xs text-subtle transition-colors hover:text-foreground"
-                            onClick={onOpenSettings}
-                          >
-                            更多设置
-                          </button>
-                        )}
-                        <button
-                          className="ml-auto h-7 rounded-md bg-accent px-3 text-xs text-accent-foreground transition-colors hover:opacity-90"
-                          onClick={applyModel}
-                        >
-                          应用
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            <button
-              className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-lg leading-none text-accent-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-              title="发送"
-              data-testid="welcome-composer-send"
-              disabled={!canSend}
-              onClick={() => {
-                if (canSend) onComposerSend?.();
-              }}
-            >
-              ↑
-            </button>
-          </div>
-        </div>
-
-        {!compact && (
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-subtle">
-            <span>
-              命令面板{' '}
-              <kbd className="ml-0.5 rounded border border-border px-1 font-mono">Ctrl P</kbd>
-            </span>
-            <span>
-              打开项目{' '}
-              <kbd className="ml-0.5 rounded border border-border px-1 font-mono">Ctrl O</kbd>
-            </span>
-            <span>
-              设置 <kbd className="ml-0.5 rounded border border-border px-1 font-mono">Ctrl ,</kbd>
-            </span>
-          </div>
-        )}
-
-        {!compact && (
-          <div className="mt-2 flex items-center gap-3 px-1 text-xs text-muted">
-            <span className="flex min-w-0 items-center gap-1">
-              <span className="text-subtle">▤</span>
-              <span className="min-w-0 truncate text-foreground/80">{projectLabel}</span>
-            </span>
-            <button
-              className="flex items-center gap-1 transition-colors hover:text-foreground"
-              onClick={onBrowseFiles}
-              title="浏览项目文件"
-            >
-              <span className="text-subtle">▱</span>
-              本地
-              <span className="text-subtle">⌄</span>
-            </button>
-          </div>
-        )}
-
-        {!compact && (
-          <div className="mt-4 flex flex-col">
-            <button
-              className="flex items-center gap-2 border-t border-border py-3 text-left text-sm text-muted transition-colors hover:text-foreground"
-              onClick={primaryAction}
-              data-testid="welcome-primary-action"
-            >
-              <span className="text-subtle">⌾</span>
-              {activeProject ? '浏览项目文件' : '打开项目开始写作'}
-            </button>
-            {activeProject ? (
-              <button
-                className="flex items-center gap-2 border-t border-border py-3 text-left text-sm text-muted transition-colors hover:text-foreground"
-                onClick={() => onInitializeProject(activeProject)}
-                data-testid="welcome-initialize-project"
-              >
-                <span className="text-subtle">⌾</span>
-                初始化项目结构
-              </button>
-            ) : (
-              onOpenSettings && (
-                <button
-                  className="flex items-center gap-2 border-t border-border py-3 text-left text-sm text-muted transition-colors hover:text-foreground"
-                  onClick={onOpenSettings}
-                >
-                  <span className="text-subtle">⌾</span>
-                  配置模型服务，连接真实 LLM
-                </button>
-              )
-            )}
-          </div>
-        )}
+          显示欢迎页
+        </button>
+        <button
+          type="button"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm text-accent-foreground transition-colors hover:opacity-90"
+          onClick={onOpenProject}
+        >
+          打开项目
+        </button>
       </div>
-    </div>
+    </section>
   );
 }

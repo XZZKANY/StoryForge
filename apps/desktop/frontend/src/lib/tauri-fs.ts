@@ -4,16 +4,10 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import type { FileEntry } from '@storyforge/project-core';
 import { assertTauriRuntime } from './tauri-env';
 
-export interface FileEntry {
-  name: string;
-  path: string;
-  isDir: boolean;
-  size: number;
-  modified: number;
-  extension?: string;
-}
+export type { FileEntry } from '@storyforge/project-core';
 
 export interface FileChangeEvent {
   kind: 'created' | 'modified' | 'removed' | 'unknown';

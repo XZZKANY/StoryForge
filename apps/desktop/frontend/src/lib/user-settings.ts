@@ -30,6 +30,7 @@ export type AppSettings = {
   autoSave: boolean;
   theme: ThemeMode;
   provider: ProviderSettings;
+  showWelcomeOnStartup: boolean;
 };
 
 export const APP_SETTINGS_KEY = 'storyforge-app-settings';
@@ -46,6 +47,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     model: '',
     apiKeyRef: '',
   },
+  showWelcomeOnStartup: true,
 };
 
 function sanitizeProviderSettings(value: unknown): ProviderSettings {
@@ -98,6 +100,10 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
     theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
     provider: sanitizeProviderSettings(candidate.provider),
+    showWelcomeOnStartup:
+      typeof candidate.showWelcomeOnStartup === 'boolean'
+        ? candidate.showWelcomeOnStartup
+        : DEFAULT_APP_SETTINGS.showWelcomeOnStartup,
   };
 }
 

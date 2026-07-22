@@ -1,14 +1,12 @@
 /**
- * 侧面板：默认 236px；发行视图加宽以容纳经营面板。
+ * 侧面板：默认 236px。
  * - explorer：项目 + 文件树
  * - search：搜索占位
- * - publish：发行管理（全局，不依赖当前项目）
  */
 import { useState } from 'react';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import type { SidePanelView } from './useShellState';
-import { PublishCockpit } from '../../features/publish';
 import { ChevronDown, FilePlus, FileText, FolderOpen, Sparkles, X } from '../icons/shell-icons';
 
 type SidePanelProps = {
@@ -28,20 +26,14 @@ type SidePanelProps = {
 };
 
 export function SidePanel(props: SidePanelProps) {
-  const wide = props.view === 'publish';
   return (
     <div
-      className={`flex flex-shrink-0 flex-col border-r border-border bg-panel ${wide ? 'w-[360px]' : 'w-[236px]'}`}
+      className="flex w-[236px] flex-shrink-0 flex-col border-r border-border bg-panel"
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
       {props.view === 'explorer' && <ExplorerView {...props} />}
       {props.view === 'search' && <SearchView />}
-      {props.view === 'publish' && (
-        <div className="flex min-h-0 flex-1 flex-col" data-testid="side-publish">
-          <PublishCockpit projectPath={props.activeProject} variant="sidebar" />
-        </div>
-      )}
     </div>
   );
 }

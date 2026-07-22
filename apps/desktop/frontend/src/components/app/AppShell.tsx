@@ -23,7 +23,7 @@ import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility
 import type { ObservationAnchor } from '../../lib/observations';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
-import { WelcomeWorkspace } from './WelcomeWorkspace';
+import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
 import type { useObservatory } from './useObservatory';
@@ -69,8 +69,9 @@ type AppShellProps = {
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
   observatory: ObservatoryHandle;
   openSettings: () => Promise<void>;
-  openPublishSide: () => void;
-  handlePublishCommand: (type: string) => void;
+  welcomeDismissed: boolean;
+  onCloseWelcome: () => void;
+  onReopenWelcome: () => void;
 };
 
 export function AppShell({
@@ -89,8 +90,9 @@ export function AppShell({
   setObsPanelOpen,
   observatory,
   openSettings,
-  openPublishSide,
-  handlePublishCommand,
+  welcomeDismissed,
+  onCloseWelcome,
+  onReopenWelcome,
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
@@ -104,6 +106,36 @@ export function AppShell({
       : currentFile
         ? 'file'
         : null;
+
+  const showShortcuts = () =>
+    void dialogs.alert({
+      title: '快捷键速查',
+      message: [
+        'Ctrl P            打开文件（命令面板 · 文件）',
+        'Ctrl Shift P      命令面板（全部命令）',
+        'Ctrl O            打开项目',
+        'Ctrl B            显示 / 隐藏文件工作区',
+        'Ctrl ,            打开设置',
+        'Ctrl 1 / 2 / 3    编辑 / 平衡 / 对话 布局',
+        'Ctrl 4            观测镜',
+        '',
+        '编辑 · 全选 · 复制 · 粘贴（Ctrl C / A / V）全部沿袭系统，不拦截。',
+      ].join('\n'),
+    });
+
+  const showAbout = () =>
+    void dialogs.alert({
+      title: '了解 StoryForge',
+      message: [
+        'StoryForge — 可验证的长篇创作流水线。',
+        '',
+        '设计立场：先做诊断控制台，再做生成器。任何生成路径都先有',
+        '读证据 → 评审 → 修复 → 批准的闭环，再考虑接真实模型。',
+        '',
+        '桌面 IDE 是主体验：本地项目、Monaco 编辑、对话式 Agent、',
+        'canon 事实卡与观测镜，BYO-key 接真实 LLM。',
+      ].join('\n'),
+    });
 
   return (
     <div
@@ -222,19 +254,27 @@ export function AppShell({
                 />
               )}
             </>
+          ) : welcomeDismissed ? (
+            <WelcomeDismissed
+              onReopenWelcome={onReopenWelcome}
+              onOpenProject={commands.handleOpenProject}
+            />
           ) : (
             <WelcomeWorkspace
-              activeProject={activeProject}
               onOpenProject={commands.handleOpenProject}
-              onInitializeProject={commands.handleInitializeStoryProject}
+              onNewFile={() => void commands.handleNewFile()}
+              onOpenPalette={() => setPalette('files')}
               onCreateSampleProject={commands.handleCreateSampleProject}
               onOpenSettings={openSettings}
-              onBrowseFiles={() => setPalette('files')}
-              onShowWorkbench={shell.showSidebar}
-              providerModel={preferences.settings.provider.model}
-              onApplyModel={preferences.handleQuickModelChange}
-              providerKind={preferences.settings.provider.kind}
-              onApplyProvider={preferences.handleQuickProviderChange}
+              onShowShortcuts={showShortcuts}
+              onShowAbout={showAbout}
+              onClose={onCloseWelcome}
+              recentProjects={projects}
+              onSelectRecent={(path) => void tabs.selectProjectSafely(path)}
+              showOnStartup={preferences.settings.showWelcomeOnStartup}
+              onToggleShowOnStartup={(value) =>
+                preferences.setSettings((prev) => ({ ...prev, showWelcomeOnStartup: value }))
+              }
               composerValue={commands.welcomeDraft}
               onComposerChange={commands.setWelcomeDraft}
               onComposerSend={commands.handleWelcomeSend}
@@ -311,12 +351,11 @@ export function AppShell({
           onOpenProject={commands.handleOpenProject}
           onInitializeProject={commands.handleInitializeStoryProject}
           onRefreshCanon={commands.handleRefreshCanon}
+          onReopenWelcome={onReopenWelcome}
           onExportCurrent={() => emitExportCurrentFile()}
           onToggleAssistant={shell.toggleRight}
           onToggleWorkspace={shell.toggleSidebar}
           onOpenSettings={openSettings}
-          onOpenPublish={openPublishSide}
-          onPublishCommand={handlePublishCommand}
           onFocusAssistantOnly={() => shell.showRight()}
           onFocusWorkspaceOnly={() => shell.showSidebar()}
           onRestoreLayout={() => {

@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { projectBasename, relativePathInsideProject } from '../lib/project-context';
 import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
-import { buildPublishPaletteCommands } from '../features/publish';
 
 export type PaletteMode = 'files' | 'commands';
 
@@ -29,14 +28,13 @@ type CommandPaletteProps = {
   onClose: () => void;
   onOpenFile: (path: string) => void;
   onOpenProject: () => void;
+  onReopenWelcome: () => void;
   onInitializeProject: () => void;
   onRefreshCanon: () => void;
   onExportCurrent: () => void;
   onToggleAssistant: () => void;
   onToggleWorkspace: () => void;
   onOpenSettings: () => void;
-  onOpenPublish?: () => void;
-  onPublishCommand?: (type: string) => void;
   onFocusAssistantOnly: () => void;
   onFocusWorkspaceOnly: () => void;
   onRestoreLayout: () => void;
@@ -59,14 +57,13 @@ export function CommandPalette({
   onClose,
   onOpenFile,
   onOpenProject,
+  onReopenWelcome,
   onInitializeProject,
   onRefreshCanon,
   onExportCurrent,
   onToggleAssistant,
   onToggleWorkspace,
   onOpenSettings,
-  onOpenPublish,
-  onPublishCommand,
   onFocusAssistantOnly,
   onFocusWorkspaceOnly,
   onRestoreLayout,
@@ -132,6 +129,9 @@ export function CommandPalette({
     const list: Command[] = [
       { id: 'open-project', title: '打开项目…', hint: 'Ctrl+O', run: onOpenProject },
     ];
+    if (!projectPath) {
+      list.push({ id: 'show-welcome', title: '显示欢迎页', run: onReopenWelcome });
+    }
     if (projectPath) {
       list.push({
         id: 'initialize-story-project',
@@ -159,7 +159,6 @@ export function CommandPalette({
       { id: 'toggle-workspace', title: '切换：文件工作区', run: onToggleWorkspace },
       { id: 'open-settings', title: '打开：设置', run: onOpenSettings },
     );
-    list.push(...buildPublishPaletteCommands({ onOpenPublish, onPublishCommand }));
     list.push(
       { id: 'focus-assistant-only', title: '只保留：AI 交互区', run: onFocusAssistantOnly },
       { id: 'focus-workspace-only', title: '只保留：文件工作区', run: onFocusWorkspaceOnly },
@@ -170,14 +169,13 @@ export function CommandPalette({
     currentFile,
     projectPath,
     onOpenProject,
+    onReopenWelcome,
     onInitializeProject,
     onRefreshCanon,
     onExportCurrent,
     onToggleAssistant,
     onToggleWorkspace,
     onOpenSettings,
-    onOpenPublish,
-    onPublishCommand,
     onFocusAssistantOnly,
     onFocusWorkspaceOnly,
     onRestoreLayout,
