@@ -13,6 +13,7 @@
 import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
   ArrowUp,
+  BookOpen,
   Check,
   ChevronDown,
   ChevronRight,
@@ -25,6 +26,8 @@ import {
   Folder,
   FolderOpen,
   GitBranch,
+  Info,
+  Keyboard,
   Maximize2,
   MessageSquarePlus,
   Minus,
@@ -51,6 +54,7 @@ export const SHELL_ICON_DEFAULTS = {
 
 export {
   ArrowUp,
+  BookOpen,
   Check,
   ChevronDown,
   ChevronRight,
@@ -63,6 +67,8 @@ export {
   Folder,
   FolderOpen,
   GitBranch,
+  Info,
+  Keyboard,
   Maximize2,
   MessageSquarePlus,
   Minus,

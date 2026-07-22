@@ -24,7 +24,12 @@ export function App() {
   const [obsPanelOpen, setObsPanelOpen] = useState(false);
   const appDialog = useAppDialog();
   const shell = useShellState();
-  const preferences = useAppPreferences(appDialog);
+  const preferences = useAppPreferences();
+  // 欢迎页可关（会话级）：起始态由「启动时显示欢迎页」偏好决定；关了露出空 workbench，
+  // 命令面板「显示欢迎页」可重开。
+  const [welcomeDismissed, setWelcomeDismissed] = useState(
+    () => !preferences.settings.showWelcomeOnStartup,
+  );
 
   const showEditor = useCallback(() => setSettingsVisible(false), []);
   const workspace = useProjectWorkspace({
@@ -193,6 +198,9 @@ export function App() {
       setObsPanelOpen={setObsPanelOpen}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       openSettings={openSettings}
+      welcomeDismissed={welcomeDismissed}
+      onCloseWelcome={() => setWelcomeDismissed(true)}
+      onReopenWelcome={() => setWelcomeDismissed(false)}
     />
   );
 }

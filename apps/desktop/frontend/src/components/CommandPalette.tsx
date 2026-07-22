@@ -28,6 +28,7 @@ type CommandPaletteProps = {
   onClose: () => void;
   onOpenFile: (path: string) => void;
   onOpenProject: () => void;
+  onReopenWelcome: () => void;
   onInitializeProject: () => void;
   onRefreshCanon: () => void;
   onExportCurrent: () => void;
@@ -56,6 +57,7 @@ export function CommandPalette({
   onClose,
   onOpenFile,
   onOpenProject,
+  onReopenWelcome,
   onInitializeProject,
   onRefreshCanon,
   onExportCurrent,
@@ -127,6 +129,9 @@ export function CommandPalette({
     const list: Command[] = [
       { id: 'open-project', title: '打开项目…', hint: 'Ctrl+O', run: onOpenProject },
     ];
+    if (!projectPath) {
+      list.push({ id: 'show-welcome', title: '显示欢迎页', run: onReopenWelcome });
+    }
     if (projectPath) {
       list.push({
         id: 'initialize-story-project',
@@ -164,6 +169,7 @@ export function CommandPalette({
     currentFile,
     projectPath,
     onOpenProject,
+    onReopenWelcome,
     onInitializeProject,
     onRefreshCanon,
     onExportCurrent,
