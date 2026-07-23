@@ -24,6 +24,14 @@ const gates = [
     cwd: root,
   },
   {
+    // project-core 是全产品路径围栏（isPathInsideProject 等）的单一事实源；其自带
+    // 围栏测试必须在门禁跑到，否则是断门禁的假安全信号。
+    name: 'project-core 契约测试',
+    command: 'pnpm',
+    args: ['--filter', '@storyforge/project-core', 'test'],
+    cwd: root,
+  },
+  {
     name: 'Desktop frontend 单元测试',
     command: 'npm',
     args: ['--prefix', 'apps/desktop/frontend', 'run', 'test'],

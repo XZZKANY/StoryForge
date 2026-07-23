@@ -200,7 +200,12 @@ export function App() {
       openSettings={openSettings}
       welcomeDismissed={welcomeDismissed}
       onCloseWelcome={() => setWelcomeDismissed(true)}
-      onReopenWelcome={() => setWelcomeDismissed(false)}
+      onReopenWelcome={() => {
+        // 无项目时设置页占据中栏（centerHasTabs），只翻 welcomeDismissed 不清设置页 =
+        // 「显示欢迎页」命令静默无效；一并收起设置页才能从任意无项目态稳定露出欢迎页。
+        setSettingsVisible(false);
+        setWelcomeDismissed(false);
+      }}
     />
   );
 }
