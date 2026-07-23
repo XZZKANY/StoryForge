@@ -25,7 +25,11 @@ from app.domains.agent_runs.runtime_recovery import (
     build_runtime_pending_call_summary,
 )
 from app.domains.agent_runs.service_bookrun_bridge import apply_book_run_control_if_needed
-from app.domains.agent_runs.service_store import get_agent_run, record_agent_event
+from app.domains.agent_runs.service_store import (
+    assert_run_session_ownership,
+    get_agent_run,
+    record_agent_event,
+)
 from app.domains.agent_runs.service_types import AGENT_RUN_TERMINAL_STATUSES, AgentControlResult
 
 AgentRunExecutor = Callable[..., dict[str, Any]]
@@ -42,6 +46,7 @@ def record_agent_control_event(
     """记录 Agent 控制消息，避免权限与暂停指令停留在瞬时通道里。"""
 
     run = get_agent_run(session, public_id)
+    assert_run_session_ownership(run, session_id)
     writing_run_control_payload = apply_book_run_control_if_needed(
         session,
         run=run,
@@ -172,6 +177,7 @@ def _resume_agent_run_if_pending_with_diagnostic(
     execute_run: AgentRunExecutor,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     run = get_agent_run(session, public_id)
+    assert_run_session_ownership(run, agent_session_id)
     pending = _latest_runtime_pending_call_artifact(session, run)
     if pending is None:
         return None, None
