@@ -176,8 +176,9 @@ def run_book_run_generation_blocking(
     """后台任务体：用独立 Session 驱动顺序生成（复用 Phase 9B 串行编排）。
 
     请求级 Session 在后台任务运行时已关闭，故此处自行开 SessionLocal。
-    生成失败时 resume_book_generation 已记录失败证据并翻转状态，
-    这里仅记录日志并吞掉异常，避免后台任务崩溃 worker。
+    resume_book_generation 对每章的 BookGenerationError 已 pause_by_failure 落失败证据并翻 failed；
+    其它逃逸异常由 except 里的 _fail_book_run_if_non_terminal 兜底把仍非终态的 run 翻 failed，
+    杜绝僵尸 running。两者都记日志并吞异常，避免后台任务崩溃 worker（D1-001）。
     """
 
     # 延迟导入：phase9b 模块在导入期依赖本模块，顶层导入会形成循环。
@@ -195,5 +196,32 @@ def run_book_run_generation_blocking(
         )
     except Exception:  # noqa: BLE001 - 失败证据已落库，避免后台任务向上抛
         _logger.exception("BookRun %s 后台生成失败", book_run_id)
+        _fail_book_run_if_non_terminal(session, book_run_id)
     finally:
         session.close()
+
+
+def _fail_book_run_if_non_terminal(session: Session, book_run_id: int) -> None:
+    """后台生成抛出未被 resume 内部按章捕获的异常时的兜底：把仍停在非终态的 BookRun 翻 failed，
+    杜绝僵尸 running（D1-001）。BookGenerationError 已在 resume 每章 pause_by_failure，
+    paused_by_* 是合法的可续跑态，两者均不动，只收尸 running。"""
+
+    try:
+        session.rollback()
+        book_run = session.get(BookRun, book_run_id)
+        if book_run is None or book_run.status in {
+            "completed",
+            "failed",
+            "stopped",
+            "paused_by_user",
+            "paused_by_budget",
+        }:
+            return
+        book_run.status = "failed"
+        progress = dict(book_run.progress or {})
+        progress.setdefault("failure", {"error": "后台生成异常退出，已收尸为 failed。"})
+        book_run.progress = progress
+        session.commit()
+    except Exception:  # noqa: BLE001 - 兜底翻状态失败不再向上抛，避免遮蔽原始异常
+        _logger.exception("BookRun %s 兜底翻 failed 失败", book_run_id)
+        session.rollback()

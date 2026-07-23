@@ -88,6 +88,12 @@ _CATEGORY_DIMENSION = {
     "judge_system_failure": "system_reliability",
 }
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+# 语义 Judge 的硬一致性冲突类（设定/时间线/跨章状态）：high 严重性必须阻断、不得被 fast-judge 快路径降级 advisory（D3-001）。
+_SEMANTIC_BLOCKING_CONFLICT_CATEGORIES = frozenset(
+    {"setting_conflict", "timeline_conflict", "story_state_conflict", "cross_chapter_state_conflict"}
+)
+
+
 @dataclass(frozen=True)
 class _JudgeRunResult:
     """单轮 Judge 结果，供 _judge_and_repair_loop 聚合。"""
@@ -269,22 +275,28 @@ def _run_real_judge(
     # 旁路诚实性：本地门禁只有在「确实有可校验的本地规则」时才算数。
     # required_facts 与 style_rules 都为空 → 本地门禁等于没查，score=100 是假象，必须走语义 Judge。
     local_coverage = bool(payload.required_facts) or bool(payload.style_rules)
-    if _fast_judge_enabled(source) and local_coverage and not local_issues:
-        advisory = semantic_judge_with_status(payload, character_voice_constraints=character_voice_constraints)
+    fast_path_candidate = _fast_judge_enabled(source) and local_coverage and not local_issues
+
+    # 语义 Judge 只调一次，快路径与全量路径共用结果（此前两分支各调一次，现上提去重）；直接调
+    # semantic_judge_with_status 而非 create_judge_issues 是为了传入含 forbidden_traits 的约束。
+    outcome = semantic_judge_with_status(payload, character_voice_constraints=character_voice_constraints)
+
+    # 快路径仅在语义 Judge 也无 high 阻断性冲突时才返回 100：local_coverage 只证明「有 required_fact
+    # 存在」、不证明「确定性检测器真校验过它」；语义已付费调用，其识别到的 high 设定/时间线/跨章状态
+    # 冲突不能降级 advisory、章节照评 100（漏放，D3-001），须落回全量流程真正记录并扣分。
+    has_blocking_conflict = any(
+        issue.severity == "high" and issue.category in _SEMANTIC_BLOCKING_CONFLICT_CATEGORIES
+        for issue in outcome.issues
+    )
+    if fast_path_candidate and not has_blocking_conflict:
         return _JudgeRunResult(
             issues=[],
             quality_score=100,
             quality_issues=[],
             fast_path_reason="local_gate_passed_semantic_advisory",
-            semantic_advisory=_semantic_advisory_payload(advisory),
+            semantic_advisory=_semantic_advisory_payload(outcome),
         )
 
-    # 传递 character_voice_constraints 给 create_judge_issues
-    # 注意：create_judge_issues 内部会调用 semantic_judge_with_status，
-    # 但它用的是 _load_voice_constraints 读 voice_traits，不读 forbidden_traits。
-    # 我们需要直接调用 semantic_judge_with_status 并传入 character_voice_constraints。
-    # 手动执行 Judge 流程（复制 create_judge_issues 的逻辑，但传入 character_voice_constraints）
-    outcome = semantic_judge_with_status(payload, character_voice_constraints=character_voice_constraints)
     detected = outcome.issues or deterministic_issues
     detected = [
         *detected,

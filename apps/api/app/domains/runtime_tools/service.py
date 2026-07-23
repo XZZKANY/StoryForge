@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import logging
 import sys
 from collections.abc import Mapping, Sequence, Set
 from functools import lru_cache
@@ -10,6 +11,8 @@ from typing import Any
 
 from app.domains.agent_runs.tools import list_agent_runtime_tool_specs
 from app.domains.runtime_tools.schemas import RuntimeToolRead, RuntimeToolReferencesRead
+
+_logger = logging.getLogger(__name__)
 
 _MCP_READONLY_TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
@@ -106,9 +109,22 @@ def _load_registry_module() -> ModuleType:
 
 
 def _load_creative_tools():
-    """延迟读取 workflow registry，避免 API 复制工具清单。"""
+    """延迟读取 workflow registry，避免 API 复制工具清单。
 
-    return _load_registry_module().list_creative_tools()
+    冻结 sidecar 内 apps/workflow 未随 exe 打包（spec 只 collect_submodules('app') + alembic），
+    registry.py 文件不存在 → importlib 加载抛错。此处降级为空列表 + 告警，而非让只读端点
+    GET /api/runtime-tools 直接 500（D6-001；根治随 workflow 收编，见 workflow 迁移 ledger）。
+    只捕加载类异常，不吞 registry 内部真 bug。"""
+
+    try:
+        return _load_registry_module().list_creative_tools()
+    except (RuntimeError, OSError, ImportError):
+        _logger.warning(
+            "CreativeToolRegistry 不可用（apps/workflow 未随冻结 exe 打包？），"
+            "运行时工具清单降级为 agent_runtime + MCP，不含 internal creative 工具。",
+            exc_info=True,
+        )
+        return ()
 
 
 def _to_jsonable(value: object) -> Any:

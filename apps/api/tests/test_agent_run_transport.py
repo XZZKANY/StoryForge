@@ -307,7 +307,9 @@ def test_agent_run_sse_stream_replays_event_store(
 
 
 def test_control_messages_are_persisted_as_agent_run_events(client: TestClient) -> None:
-    """权限确认和暂停控制消息必须进入 AgentRunEvent Store。"""
+    """权限确认和暂停控制消息必须进入 AgentRunEvent Store；且守卫式 status 写保证迟到的
+    控制消息不能复活已终态的 run——chat.explain 同步跑完即 completed，随后到达的
+    pause/resume/stop 只作为事件留痕，不把 completed 拖回 paused/running/stopped（B1-001）。"""
 
     stream_agent_message(
         client,
@@ -334,9 +336,10 @@ def test_control_messages_are_persisted_as_agent_run_events(client: TestClient) 
     assert "pause_run" in event_types
     assert "resume_run" in event_types
     assert "stop_run" in event_types
+    # 守卫式 status 写：run 在收到这些控制消息前已 completed，迟到的控制只留事件、不改终态。
     run = client.get("/api/agent-runs/run-agent-control").json()
-    assert run["status"] == "stopped"
-    assert run["current_step"] == "stopped"
+    assert run["status"] == "completed"
+    assert run["current_step"] == "completed"
 
 
 def test_book_run_progress_is_projected_to_agent_run_event_store(

@@ -26,6 +26,12 @@ CONTROLLED_PROGRESS_KEYS = frozenset(
     {"provider_resolution", "volume", "current_volume", "chapter_range", "volume_checkpoint"}
 )
 
+# BookRun 生命周期终态：进入后不得被 resume/stop/pause 拖回运行态。
+# retry_from_checkpoint 是有意的例外——其语义就是从 failed/stopped 的 checkpoint 重试，故它只挡 completed。
+_TERMINAL_BOOK_RUN_STATUSES = frozenset({"completed", "failed", "stopped"})
+# 作者经控制通道拥有的状态：workflow 在飞轮次的进度回填不得把它拖回 running（B1-001 家族/D1-002）。
+_PROGRESS_PROTECTED_STATUSES = _TERMINAL_BOOK_RUN_STATUSES | {"paused_by_user"}
+
 # 人工盲评门禁：本批 patch 提供则更新，未提供则保留旧值，避免后续进度回填把验收记录冲掉。
 STICKY_PROGRESS_KEYS = frozenset({"manual_read_gate", "manual_read_review"})
 
@@ -38,11 +44,15 @@ def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRun
     book_run = get_book_run(session, book_run_id)
     if payload.current_chapter_index > book_run.total_chapters:
         raise BookRunError("当前章节不能超过 BookRun 总章节数。")
+    # 守卫式 status 写：作者经控制通道置 paused_by_user/stopped、或 run 已终态时，workflow
+    # 在飞轮次的回填只记录进度/预算证据，不得复活或改写其生命周期 status（B1-001 家族/D1-002）。
+    status_protected = book_run.status in _PROGRESS_PROTECTED_STATUSES
     incoming_progress = dict(payload.progress)
     if payload.manual_read_review is not None:
         incoming_progress["manual_read_review"] = payload.manual_read_review.model_dump()
     progress = _progress_with_controlled_summaries(book_run.progress, incoming_progress, payload.volume_progress)
-    book_run.status = payload.status
+    if not status_protected:
+        book_run.status = payload.status
     book_run.current_chapter_index = payload.current_chapter_index
     book_run.progress = progress
     book_run.checkpoint = _checkpoint_from_progress(progress)
@@ -59,7 +69,7 @@ def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRun
         book_run.cost_summary["token_budget"] = book_run.token_budget
         book_run.cost_summary["tokens_remaining"] = max(0, book_run.token_budget - book_run.tokens_used)
     budget_exceeded = _budget_exceeded(book_run, budget, payload.current_chapter_index)
-    if payload.status != "completed" and budget_exceeded is not None:
+    if not status_protected and payload.status != "completed" and budget_exceeded is not None:
         progress["pause_reason"] = budget_exceeded["reason"]
         progress["budget_exceeded"] = budget_exceeded["details"]
         book_run.status = "paused_by_budget"
@@ -76,10 +86,8 @@ def pause_book_run(session: Session, book_run_id: int, reason: str | None = None
     from app.domains.book_runs.service import BookRunBlockedError, get_book_run
 
     book_run = get_book_run(session, book_run_id)
-    if book_run.status == "completed":
-        raise BookRunBlockedError("已完成的 BookRun 不能暂停。")
-    if book_run.status == "stopped":
-        raise BookRunBlockedError("已停止的 BookRun 不能暂停。")
+    if book_run.status in _TERMINAL_BOOK_RUN_STATUSES:
+        raise BookRunBlockedError("已结束的 BookRun 不能暂停。")
     progress = dict(book_run.progress or {})
     progress["pause_reason"] = reason or "用户暂停"
     progress["paused_at_chapter_index"] = book_run.current_chapter_index
@@ -96,8 +104,8 @@ def stop_book_run(session: Session, book_run_id: int, reason: str | None = None)
     from app.domains.book_runs.service import BookRunBlockedError, get_book_run
 
     book_run = get_book_run(session, book_run_id)
-    if book_run.status == "completed":
-        raise BookRunBlockedError("已完成的 BookRun 不能停止。")
+    if book_run.status in _TERMINAL_BOOK_RUN_STATUSES:
+        raise BookRunBlockedError("已结束的 BookRun 不能停止。")
     progress = dict(book_run.progress or {})
     progress["stop_reason"] = reason or "用户停止"
     progress["stopped_at_chapter_index"] = book_run.current_chapter_index
@@ -114,6 +122,8 @@ def retry_book_run_from_checkpoint(session: Session, book_run_id: int) -> BookRu
     from app.domains.book_runs.service import BookRunBlockedError, get_book_run
 
     book_run = get_book_run(session, book_run_id)
+    # 有意只挡 completed：retry 的语义就是从 failed/stopped 留下的 checkpoint 重试，
+    # 不能像 resume/stop/pause 那样挡全终态，否则失败重试路径被废（区别于 D1-002 的 resume 修复）。
     if book_run.status == "completed":
         raise BookRunBlockedError("已完成的 BookRun 不能从 checkpoint 重试。")
     checkpoint = list(book_run.checkpoint or [])
@@ -143,8 +153,10 @@ def resume_book_run(session: Session, book_run_id: int) -> BookRun:
     from app.domains.book_runs.service import BookRunBlockedError, get_book_run
 
     book_run = get_book_run(session, book_run_id)
-    if book_run.status == "completed":
-        raise BookRunBlockedError("已完成的 BookRun 不能 resume。")
+    # resume 只续 paused 态；终态 run（含 failed/stopped）不得被 resume 复活成 running
+    # （D1-002/B3-002：停掉/失败的 run 误点或重放 resume 会终态复活）。失败请走 retry_from_checkpoint。
+    if book_run.status in _TERMINAL_BOOK_RUN_STATUSES:
+        raise BookRunBlockedError("已结束的 BookRun 不能 resume；失败请从 checkpoint 重试。")
     completed_chapters = list(book_run.progress.get("completed_chapters", []))
     latest_index = _latest_checkpoint_index(book_run.checkpoint or completed_chapters)
     next_index = min(book_run.total_chapters, latest_index + 1) if latest_index else book_run.current_chapter_index

@@ -144,6 +144,12 @@ def complete_agent_run(
     *,
     result: dict[str, Any],
 ) -> AgentRun:
+    # 守卫式终态写：另一连接的控制通道可能在 worker 收尾窗口把 run 置为 stopped/paused。
+    # 先 refresh 取最新 status，只有仍在 running 时才落 completed，否则尊重控制通道的中断
+    # 决定、不盲写覆盖（B1-001b，同时覆盖 chat loop 与固定管线 B3-001；亦挡重复 complete）。
+    session.refresh(run)
+    if run.status != "running":
+        return run
     agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
     run.status = "completed"
     run.assistant_session_id = optional_positive_int(result.get("assistant_session_id"))
@@ -180,6 +186,11 @@ def fail_agent_run(
     message: str,
     payload: dict[str, Any] | None = None,
 ) -> AgentRun:
+    # 守卫式终态写：与 complete 对称。控制通道已把 run 置为 stopped/paused 时尊重其中断决定、
+    # 不盲写 failed；亦挡重复 fail 事件。reap 与运行时错误路径调用时 run 恒为 running，守卫放行。
+    session.refresh(run)
+    if run.status != "running":
+        return run
     run.status = "failed"
     run.current_step = "failed"
     session.add(run)

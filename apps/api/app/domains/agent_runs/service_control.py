@@ -26,7 +26,7 @@ from app.domains.agent_runs.runtime_recovery import (
 )
 from app.domains.agent_runs.service_bookrun_bridge import apply_book_run_control_if_needed
 from app.domains.agent_runs.service_store import get_agent_run, record_agent_event
-from app.domains.agent_runs.service_types import AgentControlResult
+from app.domains.agent_runs.service_types import AGENT_RUN_TERMINAL_STATUSES, AgentControlResult
 
 AgentRunExecutor = Callable[..., dict[str, Any]]
 
@@ -65,13 +65,16 @@ def record_agent_control_event(
         message=run_payloads.control_event_message(control_type),
         payload=event_payload,
     )
-    if control_type == PAUSE_RUN:
+    # 守卫式 status 写：控制通道与运行时 worker 分处两条连接、彼此无协调，无条件写会「最后写入者胜」。
+    # 终态 run 不得被迟到的 pause/stop 拖回非终态（否则 reap 不收 + 无线程驱动 + approve 门锁死
+    # → 不可恢复僵尸，B1-001a）；resume 只从 paused 生效，终态 run 收到 resume 不复活（B1-001/D1-002）。
+    if control_type == PAUSE_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
         run.status = "paused"
         run.current_step = "paused"
-    elif control_type == RESUME_RUN:
+    elif control_type == RESUME_RUN and run.status == "paused":
         run.status = "running"
         run.current_step = "resumed"
-    elif control_type == STOP_RUN:
+    elif control_type == STOP_RUN and run.status not in AGENT_RUN_TERMINAL_STATUSES:
         run.status = "stopped"
         run.current_step = "stopped"
     elif control_type == APPROVE_PERMISSION_COMMAND and run.status == "paused":

@@ -21,7 +21,7 @@ from app.domains.book_runs.book_generation_memory import (
     memory_recall_chars_for_chapter,
 )
 from app.domains.book_runs.book_generation_preflight import assert_preflight
-from app.domains.book_runs.book_generation_progress import pause_by_budget, pause_by_interrupt
+from app.domains.book_runs.book_generation_progress import pause_by_budget, pause_by_failure, pause_by_interrupt
 from app.domains.book_runs.book_generation_records import (
     finalize_scene_decision,
     persist_draft_scene,
@@ -100,40 +100,49 @@ def resume_book_generation(
         chapter_started_at = time.monotonic()
         chapter = chapter_for_generation(session, book_run.book_id, chapter_index)
         memory_recall_chars = memory_recall_chars_for_chapter(session, book_run.book_id, chapter.ordinal)
+        # 整章体纳入 try 并补 except BookGenerationError（镜像初始 run_book_generation）：
+        # generate_chapter / judge_and_repair_loop 的 LLM 调用抖动都抛 BookGenerationError，
+        # 此前 resume 只捕 KeyboardInterrupt/SystemExit → 该异常裸冒泡到后台 wrapper 被吞，
+        # BookRun 永远卡 running（僵尸，D1-001）。现在与初始循环一致：落失败证据 + 翻 failed + 重抛。
         try:
             generated = generate_chapter(session, source, chapter_index, chapter, book_run_id=book_run.id)
+            tokens_used += int(generated["token_usage"])
+            scene = persist_draft_scene(session, chapter, str(generated["content"]))
+            model_run = record_model_run(session, book_run, scene, source, generated)
+            scene_packet = record_scene_packet(
+                session,
+                book_run,
+                scene,
+                story_state_changes=list(generated.get("story_state_changes") or []),
+                story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
+            )
+            outcome = judge_and_repair_loop(session, source, book_run, scene, scene_packet)
+            observe_book_generation_chapter(
+                judge_call_count=int(outcome.get("judge_call_count") or 0),
+                repair_patch_count=len(outcome.get("repair_patch_ids") or []),
+                cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
+            )
+            approved = finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
+            memory_atom_ids = (
+                extract_memory_atoms_for_chapter(
+                    session,
+                    book_id=book_run.book_id,
+                    chapter_id=chapter.id,
+                    chapter_ordinal=chapter.ordinal,
+                    approved_scene_id=int(scene.id),
+                    content=scene.content or str(generated["content"]),
+                )
+                if approved
+                else []
+            )
+        except BookGenerationError as exc:
+            pause_by_failure(session, book_run.id, chapter_index, completed_chapters, tokens_used, str(exc))
+            raise BookGenerationError(
+                f"真实 LLM 断点续跑在第 {chapter_index} 章失败，已保住前 {len(completed_chapters)} 章证据：{exc}"
+            ) from exc
         except (KeyboardInterrupt, SystemExit):
             pause_by_interrupt(session, book_run.id, chapter_index, completed_chapters, tokens_used)
             raise
-        tokens_used += int(generated["token_usage"])
-        scene = persist_draft_scene(session, chapter, str(generated["content"]))
-        model_run = record_model_run(session, book_run, scene, source, generated)
-        scene_packet = record_scene_packet(
-            session,
-            book_run,
-            scene,
-            story_state_changes=list(generated.get("story_state_changes") or []),
-            story_state_changes_source=str(generated.get("story_state_changes_source") or ""),
-        )
-        outcome = judge_and_repair_loop(session, source, book_run, scene, scene_packet)
-        observe_book_generation_chapter(
-            judge_call_count=int(outcome.get("judge_call_count") or 0),
-            repair_patch_count=len(outcome.get("repair_patch_ids") or []),
-            cost_cny_estimated=float(generated.get("cost_cny_estimated") or 0.0),
-        )
-        approved = finalize_scene_decision(session, chapter, scene, int(outcome["quality_score"]))
-        memory_atom_ids = (
-            extract_memory_atoms_for_chapter(
-                session,
-                book_id=book_run.book_id,
-                chapter_id=chapter.id,
-                chapter_ordinal=chapter.ordinal,
-                approved_scene_id=int(scene.id),
-                content=scene.content or str(generated["content"]),
-            )
-            if approved
-            else []
-        )
         completed_chapters.append(
             {
                 "chapter_index": chapter_index,
