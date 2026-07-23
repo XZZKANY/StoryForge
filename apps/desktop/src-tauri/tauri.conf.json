@@ -61,8 +61,6 @@
             "core:window:allow-is-fullscreen",
             "core:event:allow-listen",
             "core:event:allow-emit",
-            "shell:allow-execute",
-            "shell:allow-open",
             "dialog:allow-open",
             "dialog:allow-save",
             "dialog:allow-message",

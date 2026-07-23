@@ -237,7 +237,13 @@ class BookContext:
                 )
             )
         except (ValidationError, ValueError):
-            # required（最近章原文）单块即超预算 → 回退裸截断，热路径不崩
+            # 请求/块构造期的校验错 → 回退裸截断，热路径不崩
+            return self.compile_for_chapter(ordinal, full_chapters=full_chapters, max_chars=token_budget * 6)
+
+        # required（最近章原文）被预算裁掉时 compile_context 只是静默 drop、不 raise，上面的 except
+        # 接不到 → 显式检查 dropped_blocks 是否含 required：命中即回退裸截断，否则 recap 会丢掉最近
+        # 整章原文、只剩早章梗概，长章书（最近章 >~7200 字）续写连续性无声退化（D4-001）。
+        if any(block.priority == "required" for block in compiled.dropped_blocks):
             return self.compile_for_chapter(ordinal, full_chapters=full_chapters, max_chars=token_budget * 6)
 
         ordered = sorted(compiled.injected_blocks, key=lambda block: block.order)
