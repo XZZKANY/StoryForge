@@ -342,6 +342,45 @@ def test_control_messages_are_persisted_as_agent_run_events(client: TestClient) 
     assert run["current_step"] == "completed"
 
 
+def test_control_from_foreign_session_is_rejected_without_leaking_existence(client: TestClient) -> None:
+    """归属校验（B1-002）：普通 chat run 只能被其所属 session 控制。另一会话拿到 run_id
+    也不能 stop/pause/inspect 它，错误与「run 不存在」无法区分（不泄漏存在性）；归属会话仍正常。"""
+
+    stream_agent_message(
+        client,
+        "session-owner",
+        run_id="run-owned-by-a",
+        user_message="解释这一段",
+        intent="chat.explain",
+        args={"context": "林岚走进港口。"},
+    )
+
+    foreign = control_agent(
+        client,
+        "session-intruder",
+        control_type="stop_run",
+        run_id="run-owned-by-a",
+        payload={},
+    )
+    assert foreign["type"] == "error"
+    assert "不存在" in foreign["detail"]
+
+    # 跨会话 stop 未生效：run 仍是归属会话 A 跑完的 completed，session_id 未被 re-home。
+    run = client.get("/api/agent-runs/run-owned-by-a").json()
+    assert run["status"] == "completed"
+    assert run["session_id"] == "session-owner"
+
+    # 对照：归属会话 A 的控制被正常受理（证明拒绝是归属校验而非普遍失败）。
+    ack = control_agent(
+        client,
+        "session-owner",
+        control_type="stop_run",
+        run_id="run-owned-by-a",
+        payload={},
+    )
+    assert ack["status"] == "recorded"
+
+
 def test_book_run_progress_is_projected_to_agent_run_event_store(
     client: TestClient,
     session_factory: sessionmaker[Session],

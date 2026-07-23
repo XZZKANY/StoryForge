@@ -41,6 +41,18 @@ def get_agent_run(session: Session, public_id: str) -> AgentRun:
     return run
 
 
+def assert_run_session_ownership(run: AgentRun, session_id: str) -> None:
+    """归属校验：控制 / 续跑 / 复用只能作用于「属于该 session 的 run」。
+
+    普通 chat run 的 session_id 由前端按 run 自己的会话配对（useAgentRunControls 用 run.sessionId），
+    故必须严格匹配——否则调用方拿另一会话的 run_id 就能 pause/stop/approve/inspect 甚至 re-home 它
+    （B1-002）。managed 镜像 run（book_run_id 非空）走 book_run_id 路由、session_id 是合成的
+    bookrun:{id}，控制可能来自不同 session，故豁免。不符按「不存在」报错、不泄漏 run 存在性。"""
+
+    if run.book_run_id is None and run.session_id != session_id:
+        raise AgentRunNotFoundError("AgentRun 不存在。")
+
+
 def record_agent_event(
     session: Session,
     run: AgentRun,

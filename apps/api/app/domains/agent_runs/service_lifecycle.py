@@ -11,7 +11,7 @@ from app.domains.agent_runs import run_payloads, skill_catalog
 from app.domains.agent_runs.event_types import AGENT_PLAN_CREATED, AGENT_RUN_STARTED
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.role_catalog import DEFAULT_PERMISSION_PROFILE, normalize_agent_role_inputs
-from app.domains.agent_runs.service_store import record_agent_event
+from app.domains.agent_runs.service_store import assert_run_session_ownership, record_agent_event
 from app.domains.agent_runs.service_types import AGENT_RUN_TERMINAL_STATUSES, AgentRunStartResult
 
 if TYPE_CHECKING:
@@ -47,6 +47,10 @@ def create_or_resume_agent_run(
         )
         session.add(run)
     else:
+        # 归属守卫：不允许把属于另一会话的普通 chat run 静默 re-home 到入参会话（B1-002）。
+        # managed 镜像 run（book_run_id 非空）session_id 恒为合成 bookrun:{id}、由 create_or_resume_bookrun
+        # 复用，天然豁免；不符按「不存在」报错。
+        assert_run_session_ownership(run, session_id)
         run.session_id = session_id
         run.goal = redact_sensitive_text(goal)
         run.scope = redact_sensitive(scope or run.scope or {})
