@@ -9,7 +9,7 @@ import { AgentStepsPanel } from '../AgentStepsPanel';
 import {
   ChevronDown,
   Maximize2,
-  PanelRight,
+  PanelLeft,
   PanelRightClose,
   Plus,
   Radar,
@@ -109,7 +109,7 @@ export function ConversationHeader({
             onClick={() => onSetLayoutMode('balanced')}
             data-testid="conversation-back-to-balanced"
           >
-            <PanelRight size={15} strokeWidth={1.6} />
+            <PanelLeft size={15} strokeWidth={1.6} />
           </button>
         ) : (
           <>

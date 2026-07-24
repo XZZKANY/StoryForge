@@ -203,7 +203,7 @@ export function useAgentRunRecovery(
       const display = displayFromResumeDiagnostic(diagnostic);
       const resumeStep: AgentStep = {
         id: 'resume',
-        title: '恢复 AgentRun',
+        title: '恢复本轮',
         tool: 'agent.runtime.resume',
         status: display.status === 'failed' ? 'failed' : 'waiting',
         detail: display.message,

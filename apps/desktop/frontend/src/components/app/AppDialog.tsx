@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 type DialogBase = {
   title: string;
   message: string;
+  // mono=true 时正文用等宽字体：给快捷键速查这类靠空格对齐的两列内容排版（比例字体下会错位）。
+  mono?: boolean;
 };
 
 type AlertDialog = DialogBase & {
@@ -39,12 +41,13 @@ export function useAppDialog() {
   }, [dialog]);
 
   const alert = useCallback(
-    (options: { title: string; message: string; confirmLabel?: string }) =>
+    (options: { title: string; message: string; confirmLabel?: string; mono?: boolean }) =>
       new Promise<void>((resolve) => {
         setDialog({
           kind: 'alert',
           title: options.title,
           message: options.message,
+          mono: options.mono,
           confirmLabel: options.confirmLabel ?? '知道了',
           resolve,
         });
@@ -198,7 +201,9 @@ export function AppDialogHost({
           {dialog.title}
         </h2>
         <p
-          className="mt-2 min-h-0 overflow-y-auto break-words whitespace-pre-wrap text-sm leading-6 text-muted"
+          className={`mt-2 min-h-0 overflow-y-auto break-words whitespace-pre-wrap text-sm leading-6 text-muted ${
+            dialog.mono ? 'font-mono' : ''
+          }`}
           data-testid="app-dialog-message"
         >
           {dialog.message}

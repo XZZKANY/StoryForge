@@ -411,7 +411,7 @@ test('resumed agent result preserves waiting status for confirmation results', (
 
   assert.equal(statusFromAgentResult(response), 'waiting');
   const steps = stepsFromResumedAgentResult(response);
-  assert.equal(steps[0].detail, 'resume_run 已返回 file.revise');
+  assert.equal(steps[0].detail, '已从暂停处恢复继续');
   assert.equal(steps.at(-1)?.status, 'waiting');
   assert.match(steps.at(-1)?.detail ?? '', /编辑器里确认 diff/);
 });
@@ -437,7 +437,7 @@ test('resume diagnostic display keeps run waiting when resume command is prematu
   });
 
   assert.equal(display.status, 'waiting');
-  assert.match(display.message, /尚未进入 resumed 状态/);
+  assert.match(display.message, /还没能恢复/);
   assert.match(display.message, /file\.review/);
 });
 
