@@ -1,26 +1,32 @@
-# 验证报告 · UI/UX 审计版本记录列表预览对比（N-version）
+# 验证报告 · UI/UX 审计 Ctrl+K 行间 diff 句内高亮（E22）
 
 时间：2026-07-24
-分支：`feat/uiux-version-preview-20260724`
+分支：`feat/uiux-inline-char-diff-20260724`
 
-审计「导航 · 观测 · 设置」主题里的 P3 功能项：版本记录「列表」模式只能盲恢复、恢复前看不到差异。
+审计「编辑器与改稿反馈」主题里最后一条（P3-L）：Ctrl+K 行间 diff 只做整行红/绿，改一个词也整行标记。
 
 ## 变更（全前端）
 
-- **N-version 列表模式恢复前可「对比当前」**：
-  - `VersionHistory` 新增 `getCurrentContent?: () => string` prop（`Editor` 透传 `editorRef.current.getValue()` 实时正文）；
-  - 每个版本项加「对比当前」toggle：读该快照 → `buildPatchHunks(当前正文, 此版)` → 出 `+X / -Y` 概要 + 逐 hunk
-    「第 N 行附近」红旧/绿新块（max-h 滚动、mono），再点收起；
-  - 复用已有 `buildPatchHunks`（BranchCanvas 也用），diff 方向 before=当前→after=此版（即恢复会怎样改），
-    无差异显式「与当前无差异」；恢复按钮不变，只是不再盲选。
+- **E22 单行替换的句内高亮**：
+  - `lib/inline-chat.ts` 加纯函数 `intraLineChangeRange(oldLine, newLine)`——掐掉公共前缀/后缀，只留真正改动的中段（1-based 列、endCol 独占，纯插入/删除时该侧零宽）；
+  - `useInlineChat.renderDiff`：对**单行替换**（一旧行→一新行）的 hunk，在整行淡红底之上叠一层句内红高亮 `sf-inline-diff-old-seg`（Monaco 字符级 decoration）；
+  - `buildDiffZoneDom`：绿新行把改动中段包成 `sf-inline-diff-new-seg` span、前后逐字保留；
+  - `index.css` 加两个 seg 高亮类；多行 hunk / 纯增删 graceful 回退整行铺色（不做句内高亮）。
+  - 有界实现：不改 hunk→行级 diff 管线（`hunksToLineDiff` 的整行塌陷/去重不动），句内区间在 renderDiff 就地按旧/新行文本算，
+    避免重构核心 Ctrl+K 流的高风险。
 
 ## 验证
 
 ```bash
 npm --prefix apps/desktop/frontend run typecheck   # PASS
-npm --prefix apps/desktop/frontend run test        # 52 files / 274 passed（editor.test 加 2 条源文本护栏：对比入口 + buildPatchHunks 对比）
-npx eslint <2 touched>                             # 0 problems
-npx prettier --check <2 touched>                   # 通过
+npm --prefix apps/desktop/frontend run test        # 52 files / 275 passed（+1 新：intraLineChangeRange 纯函数，含中文改词 / 纯插入 / 全改）
+npm --prefix apps/desktop/frontend run build       # 构建成功
+npx eslint <3 touched>                             # 0 problems
+npx prettier --check <touched incl. index.css>     # 通过
 ```
 
-预览是交互 + 异步 readVersion，SSR 测不到明细 → 用源文本护栏锁入口；真机对比/恢复观感归 E2E-1 未验。
+句内高亮渲染是 Monaco decoration + view-zone DOM，SSR 测不到；纯区间函数已单测，真机观感归 E2E-1 未验。
+
+---
+
+至此 2026-07-24 UI/UX 审计 80 条已全部逐桶 branch→PR→merge 收口（PR #159-176）。
