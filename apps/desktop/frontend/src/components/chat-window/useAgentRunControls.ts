@@ -18,13 +18,13 @@ import {
 import { relativePath } from './path-utils';
 import { shouldApplyAgentControlAck } from './agent-result';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
-import type { AgentRunControlHandlers, AgentStep } from './types';
+import type { AgentRunControlHandlers, AgentRunStatus, AgentStep } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { RunAuthorAgent } from './useRunAuthorAgent';
 
 type RecoveryHandlers = {
   updateAgentStep: (stepId: string, patch: Partial<AgentStep>) => void;
-  updateAgentStatus: (status: 'running' | 'waiting' | 'completed' | 'failed') => void;
+  updateAgentStatus: (status: AgentRunStatus) => void;
   refreshAgentRunRecovery: (runId: string) => Promise<void>;
   applyResumedAgentResult: (response: AgentResultMessage) => void;
   applyResumeDiagnostic: (diagnostic: Record<string, unknown>) => void;
@@ -130,11 +130,11 @@ export function useAgentRunControls(
           });
           updateAgentStatus('failed');
         } else if (type === 'pause_run') {
-          updateAgentStatus('waiting');
+          updateAgentStatus('paused');
         } else if (type === 'resume_run') {
           updateAgentStatus('running');
         } else if (type === 'stop_run') {
-          updateAgentStatus('failed');
+          updateAgentStatus('stopped');
         }
       } catch (error) {
         if (agentRunIdRef.current !== run.id) return;

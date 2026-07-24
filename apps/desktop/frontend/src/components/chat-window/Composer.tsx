@@ -186,7 +186,8 @@ export function ComposerSurface({
           historyIndexRef.current = null; // 手动改动即退出历史回溯，回到实时草稿
           onChange(event.target.value);
         }}
-        disabled={disabled || busy}
+        // 流式运行期间保持可编辑，作者能边等边预写下一轮；只禁「发送」（Enter 守卫 + 底排改暂停键）。
+        disabled={disabled}
         rows={2}
         className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-[13px] leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
@@ -200,6 +201,7 @@ export function ComposerSurface({
             if (event.shiftKey) return; // Shift+Enter 换行
             // Enter 或 Ctrl/Cmd+Enter 均发送。
             event.preventDefault();
+            if (disabled || busy) return; // 流式期间可继续预写，但 Enter 此刻不发送
             historyIndexRef.current = null;
             onSubmit?.();
             return;

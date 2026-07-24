@@ -37,6 +37,9 @@ export function runStatusText(run: AgentRun | null): string | null {
       : '等待确认：需要你在 diff 或导出动作里确认。';
   }
   if (run.status === 'completed') return '本轮已完成。';
+  if (run.status === 'paused') return '已暂停 · 点“恢复”继续本轮。';
+  // 作者主动停止是中性收尾，不套用「遇到问题…详情在回复里」的失败措辞（此刻没有失败回复）。
+  if (run.status === 'stopped') return '已由你停止本轮。';
   if (run.status === 'failed') return '本轮遇到问题，详情在回复里。';
 
   const active =

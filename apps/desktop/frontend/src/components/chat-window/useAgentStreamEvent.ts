@@ -70,14 +70,18 @@ export function useAgentStreamEvent(
         return;
       }
       if (isAgentControlAckMessage(message)) {
+        // 作者主动 停止/暂停 是控制态而非失败：stop→stopped(中性收尾)、pause→paused(留恢复入口)；
+        // permission_denied 才是真失败。
         const nextStatus: AgentRun['status'] =
-          message.type === 'stop_run' || message.type === 'permission_denied'
+          message.type === 'permission_denied'
             ? 'failed'
-            : message.type === 'pause_run'
-              ? 'waiting'
-              : message.type === 'resume_run'
-                ? 'running'
-                : 'completed';
+            : message.type === 'stop_run'
+              ? 'stopped'
+              : message.type === 'pause_run'
+                ? 'paused'
+                : message.type === 'resume_run'
+                  ? 'running'
+                  : 'completed';
         setAgentRun((run) => (run ? { ...run, status: nextStatus } : run));
         setAgentBusy(nextStatus === 'running');
         void refreshAgentRunRecovery(message.run_id);

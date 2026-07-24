@@ -23,6 +23,7 @@ export function useChatSubmission(
 ) {
   const {
     agentBusy,
+    setAgentBusy,
     setMessages,
     projectPathRef,
     input,
@@ -42,6 +43,8 @@ export function useChatSubmission(
         return;
       }
       const names = refs.map((item) => item.name);
+      // 跨章检查也置忙：禁用 composer + 让上面的 agentBusy 守卫真正拦住并发再提交（此前只提示不置忙）。
+      setAgentBusy(true);
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: `跨章一致性检查中…(${names.join(' / ')})` },
@@ -71,9 +74,11 @@ export function useChatSubmission(
             content: `跨章检查失败：${error instanceof Error ? error.message : String(error)}`,
           },
         ]);
+      } finally {
+        setAgentBusy(false);
       }
     },
-    [agentBusy, projectPathRef, setMessages],
+    [agentBusy, projectPathRef, setAgentBusy, setMessages],
   );
 
   const handleSubmit = useCallback(async () => {

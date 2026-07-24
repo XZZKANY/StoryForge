@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
 import { AssistantMarkdown } from '../src/components/chat-window/AssistantMarkdown';
+import { runStatusText } from '../src/components/chat-window/display-utils';
 import {
   ContextSummaryPanel,
   MessageItem,
@@ -169,4 +170,38 @@ test('run action bar drops destructive stop while awaiting patch confirm', () =>
   assert.match(html, /在编辑器里确认修订/);
   assert.doesNotMatch(html, /data-testid="run-stop"/);
   assert.doesNotMatch(html, /data-testid="run-approve-permission"/);
+});
+
+test('run action bar offers resume (not a dead end) when paused', () => {
+  const run: AgentRun = {
+    id: 'run-88',
+    sessionId: 's1',
+    goal: 'revise',
+    status: 'paused',
+    steps: [{ id: 's1', title: '思考', tool: 'think', status: 'running', detail: '' }],
+  };
+  const html = renderToStaticMarkup(
+    <RunActionBar
+      run={run}
+      controls={{
+        onApprovePermission: () => undefined,
+        onDenyPermission: () => undefined,
+        onPauseRun: () => undefined,
+        onResumeRun: () => undefined,
+        onStopRun: () => undefined,
+      }}
+    />,
+  );
+  assert.match(html, /已暂停/);
+  assert.match(html, /data-testid="run-resume"/);
+  // 暂停不是死胡同：既能恢复，也保留停止。
+  assert.match(html, /data-testid="run-stop"/);
+});
+
+test('runStatusText renders author stop as neutral, not a failure', () => {
+  const stopped: AgentRun = { id: 'r', sessionId: 's', goal: 'g', status: 'stopped', steps: [] };
+  const paused: AgentRun = { ...stopped, status: 'paused' };
+  assert.equal(runStatusText(stopped), '已由你停止本轮。');
+  assert.doesNotMatch(runStatusText(stopped) ?? '', /遇到问题/);
+  assert.match(runStatusText(paused) ?? '', /已暂停/);
 });

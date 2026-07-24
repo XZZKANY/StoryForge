@@ -44,7 +44,7 @@ import {
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import { applyWritingRunEventProjection, writingRunIdFromResult } from './writing-run';
 import { stepsFromAgentResult } from './agent-step-mapping';
-import type { ChatWindowProps } from './types';
+import type { AgentRunStatus, ChatWindowProps } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 
 export type RunAuthorAgent = (
@@ -56,7 +56,7 @@ export type RunAuthorAgent = (
 export function useRunAuthorAgent(
   state: ChatWindowState,
   applyAgentStreamEvent: (message: AgentSocketMessage) => void,
-  updateAgentStatus: (status: 'running' | 'waiting' | 'completed' | 'failed') => void,
+  updateAgentStatus: (status: AgentRunStatus) => void,
   refreshAgentRunRecovery: (runId: string) => Promise<void>,
   onAssistantSessionChange: ChatWindowProps['onAssistantSessionChange'],
 ): RunAuthorAgent {
