@@ -362,6 +362,7 @@ function CheckerRow({ checker }: { checker: ObservatoryChecker }) {
 
 export function ObservatoryView({
   availability,
+  scanning = false,
   observations,
   checkers,
   entities,
@@ -375,6 +376,7 @@ export function ObservatoryView({
   onLocateAnchor,
 }: {
   availability: ObservationAvailability;
+  scanning?: boolean;
   observations: Observation[];
   checkers: ObservatoryChecker[];
   entities: ObservatoryEntity[];
@@ -388,14 +390,15 @@ export function ObservatoryView({
   onLocateAnchor?: (anchor: ObservationAnchor) => void;
 }) {
   const observationById = new Map(observations.map((observation) => [observation.id, observation]));
-  const statusLabel =
-    availability === 'loading'
-      ? '扫描中…'
-      : availability === 'error'
-        ? '扫描失败'
-        : availability === 'available' && generatedAt
-          ? `上次扫描 ${formatScanTime(generatedAt)}`
-          : '';
+  // busy 合并首扫 loading 与「已有数据时的重扫」：后者 availability 停在 available，靠 scanning 反馈。
+  const busy = scanning || availability === 'loading';
+  const statusLabel = busy
+    ? '扫描中…'
+    : availability === 'error'
+      ? '扫描失败'
+      : availability === 'available' && generatedAt
+        ? `上次扫描 ${formatScanTime(generatedAt)}`
+        : '';
   return (
     <div
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
@@ -419,11 +422,7 @@ export function ObservatoryView({
           onClick={onRescan}
           data-testid="observatory-rescan"
         >
-          <RefreshCw
-            size={14}
-            strokeWidth={1.6}
-            className={availability === 'loading' ? 'animate-spin' : ''}
-          />
+          <RefreshCw size={14} strokeWidth={1.6} className={busy ? 'animate-spin' : ''} />
         </button>
         <button
           type="button"

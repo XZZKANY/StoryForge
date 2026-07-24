@@ -49,12 +49,16 @@ const EMPTY_STATE: ObservatoryState = {
 export function useObservatory({ activeProject }: { activeProject: string | null }) {
   const [state, setState] = useState<ObservatoryState>(EMPTY_STATE);
   const [litEntityIds, setLitEntityIds] = useState<string[]>([]);
+  // scanning 独立于 availability：已有数据时重扫仍静默保留旧观测（availability 停 available），
+  // 但按钮要转圈给反馈——此前 spinner 绑 availability='loading' 故有数据时点重扫毫无反应。
+  const [scanning, setScanning] = useState(false);
   const resolvedIdsRef = useRef<Set<string>>(new Set());
   const scanSeqRef = useRef(0);
 
   const runScan = useCallback(async () => {
     if (!activeProject) return;
     const seq = ++scanSeqRef.current;
+    setScanning(true);
     // 已有数据时静默刷新（保持旧观测可见），首扫才显示 loading。
     setState((previous) => ({
       ...previous,
@@ -82,6 +86,9 @@ export function useObservatory({ activeProject }: { activeProject: string | null
         ...previous,
         availability: previous.availability === 'available' ? 'available' : 'error',
       }));
+    } finally {
+      // 只有最新一次扫描负责熄灭 spinner：被后发扫描顶替的旧扫描不抢关。
+      if (seq === scanSeqRef.current) setScanning(false);
     }
   }, [activeProject]);
 
@@ -96,6 +103,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
       availability: activeProject ? 'loading' : 'unavailable',
     });
     setLitEntityIds([]);
+    setScanning(false);
     if (activeProject) void runScan();
   }, [activeProject, runScan]);
 
@@ -150,6 +158,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     proposals: state.proposals,
     generatedAt: state.generatedAt,
     availability: state.availability,
+    scanning,
     litEntityIds,
     resolveObservation,
     runScan,

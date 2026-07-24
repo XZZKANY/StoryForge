@@ -1,11 +1,11 @@
 /**
  * 活动栏：48px 图标 rail。
- * 上排：文件 / 搜索；底部：设置。
- * 会话在右栏，质检在状态栏；命令面板 Ctrl+P。
- * 激活指示条贴 rail 左缘；未打开项目时「搜索」变暗。
+ * 上排：文件；底部：设置。
+ * 会话在右栏，质检在状态栏；文件搜索走顶栏命令面板 Ctrl+P（左栏搜索死占位已删，删左留中）。
+ * 激活指示条贴 rail 左缘。
  */
 import type { SidePanelView } from './useShellState';
-import { FileText, Search, Settings } from '../icons/shell-icons';
+import { FileText, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 
 type ViewEntry = {
@@ -16,8 +16,7 @@ type ViewEntry = {
 };
 
 const VIEW_ENTRIES: ViewEntry[] = [
-  { view: 'explorer', icon: FileText, title: '故事文件 · Ctrl+Shift+E' },
-  { view: 'search', icon: Search, title: '搜索 · Ctrl+Shift+F', projectOnly: true },
+  { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl+Shift+E' },
 ];
 
 export function ActivityBar({
