@@ -102,11 +102,13 @@ export async function reviseFileContent(payload: {
   instruction: string;
   projectName?: string | null;
   assistantSessionId?: number | null;
+  signal?: AbortSignal;
 }): Promise<AssistantReviseResult> {
   const { baseUrl, apiKey } = await getApiConfig();
   const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/revise`, {
     method: 'POST',
     cache: 'no-store',
+    signal: payload.signal,
     headers: {
       'Content-Type': 'application/json',
       'X-StoryForge-API-Key': apiKey,

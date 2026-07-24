@@ -154,7 +154,6 @@ export function Editor({
     rejectPendingSuggestion,
     resetSuggestionWriteback,
     setSuggestionStatus,
-    suggestionStatus,
     writeAcceptedSuggestion,
   } = useSuggestionWriteback({
     editorRef,
@@ -532,7 +531,6 @@ export function Editor({
         filePath: path,
         content: editorRef.current.getValue(),
       });
-      setSuggestionStatus(`已导出到 ${result.exportPath}`, 'success');
       emitToast(`已导出到 ${result.exportPath}`, { tone: 'success' });
       emitAuthorLoopResult({
         filePath: path,
@@ -543,7 +541,6 @@ export function Editor({
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setSuggestionStatus(`导出失败: ${message}`, 'error');
       emitToast(`导出失败：${message}`, { tone: 'error' });
       emitAuthorLoopResult({
         filePath: path,
@@ -574,7 +571,9 @@ export function Editor({
         setRightView((current) => {
           const next = current === 'branch' ? 'files' : 'branch';
           try {
-            localStorage.setItem(rightViewStorageKey, next);
+            // 分支视图不持久化：避免重开项目时那堵占位墙压在手稿上「像编辑器坏了」；只记正文态。
+            if (next === 'branch') localStorage.removeItem(rightViewStorageKey);
+            else localStorage.setItem(rightViewStorageKey, next);
           } catch {
             // localStorage 不可用时忽略持久化
           }
@@ -661,10 +660,20 @@ export function Editor({
 
       {rightView === 'branch' && (
         <div
-          className="absolute inset-x-0 top-0 bottom-0 z-20 flex items-center justify-center bg-background px-6 text-center text-sm leading-relaxed text-subtle"
+          className="absolute inset-x-0 top-0 bottom-0 z-20 flex flex-col items-center justify-center gap-4 bg-background px-6 text-center"
           data-testid="branch-canvas-placeholder"
         >
-          剧情分支画布即将接入：保存修改后会记录版本，可在此开分支、对比平行写法。
+          <p className="max-w-md text-sm leading-relaxed text-subtle">
+            剧情分支画布仍在开发中。现在的分支图与版本对比可在「…」菜单的「版本历史」里查看。
+          </p>
+          <button
+            type="button"
+            className="h-8 rounded-md border border-border-strong px-3 text-sm text-foreground hover:bg-elevated"
+            onClick={() => setRightView('files')}
+            data-testid="branch-canvas-back"
+          >
+            返回正文
+          </button>
         </div>
       )}
 
@@ -683,21 +692,6 @@ export function Editor({
         >
           <span className="inline-block w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           正在请求 AI 修订…
-        </div>
-      )}
-
-      {suggestionStatus && (
-        <div
-          className={`px-3 py-2 border-b border-border bg-panel text-xs animate-fade-in flex-shrink-0 ${
-            suggestionStatus.tone === 'error'
-              ? 'text-error'
-              : suggestionStatus.tone === 'success'
-                ? 'text-success'
-                : 'text-muted'
-          }`}
-          data-testid="suggestion-status"
-        >
-          {suggestionStatus.text}
         </div>
       )}
 

@@ -17,10 +17,9 @@ import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import { performGuardedWriteback } from '../../lib/writeback';
+import { emitToast } from '../../lib/toast';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
-/** 编辑器顶部状态条文本 + 语义色调；null = 无状态。按 tone 判色，不再前缀匹配。 */
-export type SuggestionStatus = { text: string; tone: SuggestionStatusTone } | null;
 
 type UseSuggestionWritebackParams = {
   editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
@@ -52,9 +51,10 @@ export function useSuggestionWriteback({
   emitAuthorLoopResult,
 }: UseSuggestionWritebackParams) {
   const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
-  const [suggestionStatus, setSuggestionStatusState] = useState<SuggestionStatus>(null);
+  // E15：接受/拒绝/旁注/导出/锚点失效等一次性结果统一走自动消退 toast，不再赖在编辑器顶栏；
+  // 顶栏只保留真正持续的态（isReviseLoading）。沿用 setSuggestionStatus 名以少动调用点。
   const setSuggestionStatus = useCallback((text: string, tone: SuggestionStatusTone = 'info') => {
-    setSuggestionStatusState(text ? { text, tone } : null);
+    if (text) emitToast(text, { tone });
   }, []);
   const [isReviseLoading, setIsReviseLoading] = useState(false);
   const assistantSessionIdRef = useRef<number | null>(null);
@@ -69,7 +69,6 @@ export function useSuggestionWriteback({
     const pending = pendingSuggestionRef.current;
     if (pending) bufferPendingFileSuggestion(pending);
     setPendingSuggestion(null);
-    setSuggestionStatusState(null);
     setIsReviseLoading(false);
   }, []);
 
@@ -80,7 +79,6 @@ export function useSuggestionWriteback({
       // 目标文件已打开：直接消费缓冲，避免切换文件后被重复领取。
       takePendingFileSuggestion(suggestion.filePath);
       setPendingSuggestion(suggestion);
-      setSuggestionStatusState(null);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => {
@@ -93,7 +91,6 @@ export function useSuggestionWriteback({
     const pending = takePendingFileSuggestion(path);
     if (pending) {
       setPendingSuggestion(pending);
-      setSuggestionStatusState(null);
     }
   }, []);
 
@@ -279,9 +276,7 @@ export function useSuggestionWriteback({
       const path = filePathRef.current;
       if (!result || !path || result.filePath !== path) return;
       setIsReviseLoading(false);
-      if (result.status === 'ready') {
-        setSuggestionStatusState(null);
-      } else {
+      if (result.status !== 'ready') {
         setSuggestionStatus(`AI 修订失败：${result.message}`, 'error');
       }
       if (result.assistantSessionId) {
@@ -369,7 +364,6 @@ export function useSuggestionWriteback({
     rejectPendingSuggestion,
     resetSuggestionWriteback,
     setSuggestionStatus,
-    suggestionStatus,
     // 行间对话（Ctrl+K）接受时复用同一套快照 + 写盘 + 闭环记录 + 分支头，避免另起一套写回。
     writeAcceptedSuggestion,
   };
