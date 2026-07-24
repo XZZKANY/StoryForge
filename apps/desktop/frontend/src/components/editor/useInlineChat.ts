@@ -61,6 +61,8 @@ type InlineSession = {
   zoneIds: string[];
   decorations: monaco.editor.IEditorDecorationsCollection | null;
   keydownHandler: ((event: KeyboardEvent) => void) | null;
+  // loading 阶段的 revise 请求控制器：Esc / 取消键 abort 掉在途请求（E16）。
+  abortController: AbortController | null;
   capturedBefore: string;
   resultAfter: string;
   userInstruction: string;
@@ -304,6 +306,15 @@ export function useInlineChat({
     [applyAccepted, editorRef, flashStatus, teardown],
   );
 
+  // E16：loading 期间取消——abort 在途 revise 请求 + 收场 + 提示；Esc 与 loading 区「取消」键都走这里。
+  const cancelLoading = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session || session.phase !== 'loading') return;
+    session.abortController?.abort();
+    teardown();
+    flashStatus('已取消行间修订');
+  }, [flashStatus, teardown]);
+
   const send = useCallback(
     async (userInstruction: string) => {
       const editor = editorRef.current;
@@ -316,7 +327,18 @@ export function useInlineChat({
       const before = editor.getValue();
       session.phase = 'loading';
       session.userInstruction = instruction;
-      swapZoneToLoading(editor, session);
+      const controller = new AbortController();
+      session.abortController = controller;
+      // loading 阶段挂 Esc → 取消（teardown 摘掉；成功进 diff 前也主动摘，让 renderDiff 装自己的）。
+      const onLoadingEsc = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancelLoading();
+      };
+      session.keydownHandler = onLoadingEsc;
+      document.addEventListener('keydown', onLoadingEsc, true);
+      swapZoneToLoading(editor, session, cancelLoading);
 
       try {
         const result = await reviseFileContent({
@@ -329,19 +351,26 @@ export function useInlineChat({
           }),
           projectName,
           assistantSessionId: sessionIdRef.current,
+          signal: controller.signal,
         });
         // 用户可能在等待期间关了会话/切了文件。
         if (sessionRef.current !== session || filePathRef.current !== path) return;
+        // 进 diff 前摘掉 loading 的 Esc 处理，避免与 renderDiff 装的重复。
+        if (session.keydownHandler === onLoadingEsc) {
+          document.removeEventListener('keydown', onLoadingEsc, true);
+          session.keydownHandler = null;
+        }
         sessionIdRef.current = result.assistantSessionId;
         session.model = result.model;
         renderDiff(before, result.after);
       } catch (error) {
+        // 已取消（abort→teardown 已跑，sessionRef 清空）或切走：不再报失败。
         if (sessionRef.current !== session) return;
         teardown();
         flashStatus(`AI 修订失败：${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    [editorRef, filePathRef, flashStatus, projectName, renderDiff, teardown],
+    [cancelLoading, editorRef, filePathRef, flashStatus, projectName, renderDiff, teardown],
   );
 
   const open = useCallback(() => {
@@ -390,6 +419,7 @@ export function useInlineChat({
       zoneIds: [],
       decorations: null,
       keydownHandler: null,
+      abortController: null,
       capturedBefore: '',
       resultAfter: '',
       userInstruction: '',
@@ -525,15 +555,28 @@ function buildInputZoneDom(
 function swapZoneToLoading(
   editor: monaco.editor.IStandaloneCodeEditor,
   session: InlineSession,
+  onCancel: () => void,
 ): void {
   const zoneId = session.zoneIds[0];
   if (!zoneId) return;
-  // 简化处理：重建 zone 内容为 loading 行（保留同一 afterLineNumber）。
+  // 简化处理：重建 zone 内容为 loading 行（保留同一 afterLineNumber）+ 取消键，长请求不再干等。
   editor.changeViewZones((accessor) => {
     accessor.removeZone(zoneId);
     const dom = document.createElement('div');
     dom.className = 'sf-inline-chat sf-inline-chat--loading';
-    dom.textContent = '正在请求 AI 修订…';
+    const label = document.createElement('span');
+    label.style.flex = '1';
+    label.textContent = '正在请求 AI 修订…';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'sf-inline-btn-reject';
+    cancel.textContent = '取消 (Esc)';
+    cancel.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onCancel();
+    });
+    dom.append(label, cancel);
     const id = accessor.addZone({
       afterLineNumber: session.anchor.endLine,
       heightInPx: 40,

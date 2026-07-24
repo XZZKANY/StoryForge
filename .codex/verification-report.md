@@ -1,20 +1,24 @@
-# 验证报告 · UI/UX 审计编辑器反馈打磨（diff 字体 · issue 自清 · pin ✕）
+# 验证报告 · UI/UX 审计编辑器改稿交互（分支画布 · Ctrl+K 取消 · 结果 toast 化）
 
 时间：2026-07-24
-分支：`feat/uiux-editor-feedback-20260724`
+分支：`feat/uiux-editor-interaction-20260724`
 
-审计「编辑器与改稿反馈」主题里三条打磨（E14 分支画布 / E16 Ctrl+K 取消 / E15 结果 toast 化另拆交互刀）。
+审计「编辑器与改稿反馈」主题里三条交互项（承 #173 反馈刀）。
 
 ## 变更（全前端）
 
-- **E17 Ctrl+K 行间 diff 绿新行用拉丁等宽、与红旧行 CJK 正文错位 → 跟随编辑器字体**：
-  `renderDiff` 读 `editor.getOption(fontInfo).fontFamily`（编辑器实际解析出的 CJK 2:1 栈）传入 `buildDiffZoneDom`，
-  内联设到 `.sf-inline-diff-zone`，覆盖 CSS 的 `var(--font-mono)`；绿新行与红旧行同字体栈，比对「改了哪个字」不再错位。
-- **E18 审稿 issue 标记改掉问题文字后仍残留（直到重审 / 切文件）→ 内容变化去抖自清**：
-  留存当前 issue 到 `reviewIssuesRef`，编辑器 `onDidChangeModelContent` 去抖 400ms 重跑 `applyIssueDecorations`——
-  `locateEvidence` 失配（问题文字已改）的 issue 被跳过即消失，命中的重锚；切文件清留存避免误标进新文件。
-- **E21 Composer 常驻 pin 的「✕」只 hover 才现、标签本体不可点，与摘要面板不一致 → 常显**：
-  取消固定「✕」从 `hidden group-hover/pin:inline-flex` 改常显 `inline-flex`（焦点/键盘也可达），不必精确悬停。
+- **E15 补丁接受/拒绝/旁注/导出结果长期赖在编辑器顶栏 → 统一走自动消退 toast**：
+  `setSuggestionStatus` 从写顶栏状态 state 改为 `emitToast`（一次性结果几秒自散，与行间 toast 一致）；
+  删掉 `suggestionStatus` state + 顶栏渲染块 + `SuggestionStatus` 类型；顶栏只留真正持续的 `isReviseLoading`；
+  导出去掉重复的显式 emitToast（setSuggestionStatus 已 toast）。
+- **E16 Ctrl+K 请求期间无法取消、无 Esc、无 AbortController → 可取消**：
+  `reviseFileContent` 加 `signal`，`send` 建 `AbortController` 挂到 session；loading 区加「取消 (Esc)」键 +
+  loading 阶段挂 document Esc → `cancelLoading`（abort 在途请求 + teardown + 提示「已取消行间修订」）；
+  成功进 diff 前主动摘 loading 的 Esc 处理，避免与 renderDiff 装的重复；取消后 catch 因 sessionRef 清空而静默不报失败。
+- **E14 剧情分支画布「即将接入」占位墙覆盖全编辑器、按项目持久化、无退出 → 可退出且不持久化**：
+  占位面板加「返回正文」按钮（切回 files 视图）+ 文案指向「版本历史」里已实现的分支图/对比；`toggle-branch-view`
+  不再把 branch 写 localStorage（重开项目不再恢复那堵墙「像编辑器坏了」）。未直接内联渲染 BranchCanvas——它依赖
+  VersionHistory 内部的 buildGraph + 异步版本加载，独立渲染=重复其逻辑且高风险，且真分支图已在版本历史里可达。
 
 ## 验证
 
@@ -22,8 +26,8 @@
 npm --prefix apps/desktop/frontend run typecheck   # PASS
 npm --prefix apps/desktop/frontend run test        # 52 files / 273 passed（零回归）
 npm --prefix apps/desktop/frontend run build       # 构建成功
-npx eslint <3 touched>                             # 0 error（仅既有 Editor.tsx handleExport warning）
-npx prettier --check <touched incl. index.css>     # 通过
+npx eslint <4 touched>                             # 0 problems
+npx prettier --check <4 touched>                   # 通过
 ```
 
-真机 Ctrl+K diff 字体 / 改字后标记消退 / pin ✕ 观感归 E2E-1 未验。
+Ctrl+K 取消 / 分支视图退出是 view-zone / 真编辑器 DOM 交互，SSR 测不到 → 真机归 E2E-1；结果 toast 化沿用既有 ToastHost。
