@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { buildGraph, type BranchManifest, type GraphNode } from '../../lib/branches';
+import { buildPatchHunks, type PatchHunk } from '../../lib/patch-hunks';
 import { listVersions, readVersion, type VersionEntry } from '../../lib/versions';
 import { BranchCanvas } from '../BranchCanvas';
 
@@ -19,6 +20,7 @@ export function VersionHistory({
   onBranchFromNode,
   onSelectBranch,
   onClose,
+  getCurrentContent,
 }: {
   projectPath: string | null;
   filePath: string;
@@ -28,6 +30,8 @@ export function VersionHistory({
   onBranchFromNode: (node: GraphNode) => void;
   onSelectBranch: (branchId: string) => void;
   onClose: () => void;
+  // 列表模式「对比当前」用：返回编辑器实时正文，与选中快照 diff 出 +/- 概要，恢复前不再盲选。
+  getCurrentContent?: () => string;
 }) {
   const [versions, setVersions] = useState<VersionEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +39,30 @@ export function VersionHistory({
   const [sourceFilter, setSourceFilter] = useState<'all' | 'Editor' | 'Agent'>('all');
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [preview, setPreview] = useState<{
+    path: string;
+    hunks: PatchHunk[];
+    added: number;
+    removed: number;
+  } | null>(null);
+
+  // 「对比当前」：读该快照，与编辑器实时正文 diff（before=当前 → after=此版，即恢复会怎样改）。再点收起。
+  const togglePreview = async (snapshotPath: string) => {
+    if (preview?.path === snapshotPath) {
+      setPreview(null);
+      return;
+    }
+    if (!getCurrentContent) return;
+    try {
+      const versionContent = await readVersion(snapshotPath);
+      const hunks = buildPatchHunks(getCurrentContent(), versionContent);
+      const added = hunks.reduce((sum, hunk) => sum + hunk.addedLines, 0);
+      const removed = hunks.reduce((sum, hunk) => sum + hunk.removedLines, 0);
+      setPreview({ path: snapshotPath, hunks, added, removed });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '读取版本失败');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -161,13 +189,24 @@ export function VersionHistory({
                     >
                       {formatTimestamp(v.timestamp)}
                     </span>
-                    <button
-                      disabled={busy}
-                      onClick={() => restore(v.path)}
-                      className="text-xs px-2.5 py-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:opacity-100 disabled:opacity-40 flex-shrink-0 transition-opacity"
-                    >
-                      恢复
-                    </button>
+                    <div className="flex flex-shrink-0 items-center gap-1.5">
+                      {getCurrentContent && (
+                        <button
+                          onClick={() => void togglePreview(v.path)}
+                          className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
+                          data-testid="version-preview-toggle"
+                        >
+                          {preview?.path === v.path ? '收起' : '对比当前'}
+                        </button>
+                      )}
+                      <button
+                        disabled={busy}
+                        onClick={() => restore(v.path)}
+                        className="rounded-md bg-accent px-2.5 py-1 text-xs text-accent-foreground transition-opacity hover:opacity-90 active:opacity-100 disabled:opacity-40"
+                      >
+                        恢复
+                      </button>
+                    </div>
                   </div>
                   <div
                     className="mt-1 truncate text-[11px] text-muted"
@@ -184,6 +223,36 @@ export function VersionHistory({
                       {v.patchId ? `patch ${v.patchId}` : ''}
                       {v.assistantSessionId ? ` · session ${v.assistantSessionId}` : ''}
                       {v.issueIds?.length ? ` · ${v.issueIds.join(', ')}` : ''}
+                    </div>
+                  )}
+                  {preview?.path === v.path && (
+                    <div className="mt-2 border-t border-border pt-2" data-testid="version-preview">
+                      <div className="text-[11px] text-muted">
+                        {preview.hunks.length === 0
+                          ? '与当前无差异'
+                          : `恢复到此版：+${preview.added} / -${preview.removed} 行`}
+                      </div>
+                      {preview.hunks.length > 0 && (
+                        <div className="mt-1 max-h-52 overflow-y-auto rounded border border-border bg-background p-1 font-mono text-[11px] leading-5">
+                          {preview.hunks.map((hunk) => (
+                            <div key={hunk.id} className="mb-1.5">
+                              <div className="text-subtle">
+                                第 {hunk.originalStartIndex + 1} 行附近
+                              </div>
+                              {hunk.beforeText && (
+                                <div className="whitespace-pre-wrap break-words text-error">
+                                  {hunk.beforeText}
+                                </div>
+                              )}
+                              {hunk.afterText && (
+                                <div className="whitespace-pre-wrap break-words text-success">
+                                  {hunk.afterText}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
