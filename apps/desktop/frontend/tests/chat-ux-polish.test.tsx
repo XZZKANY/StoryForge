@@ -80,7 +80,7 @@ test('compact context summary collapses pin list until expanded', () => {
   assert.match(collapsed, /data-compact="true"/);
   assert.match(collapsed, /data-expanded="false"/);
   assert.doesNotMatch(collapsed, /data-testid="pinned-context-list"/);
-  assert.match(collapsed, /pin 1/);
+  assert.match(collapsed, /固定 1/);
 });
 
 test('run action bar uses author copy and exposes stop control', () => {

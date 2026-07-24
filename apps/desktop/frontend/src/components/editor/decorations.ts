@@ -30,12 +30,14 @@ export function locateEvidence(
   return null;
 }
 
+const SEVERITY_LABEL: Record<string, string> = { high: '高', medium: '中', low: '低' };
+
 export function issueDecorationOptions(
   issue: ReviewIssueMarker,
 ): monaco.editor.IModelDecorationOptions {
   const severity = normalizeIssueSeverity(issue.severity);
   const hover = {
-    value: `**[${issue.id}] ${issue.severity}** ${issue.message}\n\n建议：${issue.suggestedAction}`,
+    value: `**[${issue.id}] ${SEVERITY_LABEL[severity] ?? issue.severity}** ${issue.message}\n\n建议：${issue.suggestedAction}`,
   };
   return {
     className: `sf-issue-underline sf-issue-${severity}`,

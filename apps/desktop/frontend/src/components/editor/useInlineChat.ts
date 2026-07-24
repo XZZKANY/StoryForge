@@ -376,6 +376,12 @@ export function useInlineChat({
             isSelection: false,
           };
 
+    // 段落间空行（网文极常见）没选中就按 Ctrl+K，锚定取整行 = 空串 → 模型多半 no-op、白等一趟。
+    if (!anchor.isSelection && anchor.text.trim() === '') {
+      flashStatus('先选中要改的文字，再用 Ctrl+K 行间对话');
+      return;
+    }
+
     const session: InlineSession = {
       phase: 'input',
       anchor,

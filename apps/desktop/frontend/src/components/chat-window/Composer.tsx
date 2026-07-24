@@ -224,7 +224,7 @@ export function ComposerSurface({
         <button
           type="button"
           className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded text-subtle transition-colors hover:bg-elevated hover:text-foreground"
-          title="挂载文件为常驻上下文"
+          title="固定当前文件为参考"
           onClick={onAddContext}
         >
           <Plus size={14} strokeWidth={1.7} />
@@ -233,12 +233,12 @@ export function ComposerSurface({
           <button
             type="button"
             className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 rounded px-1.5 py-0.5 text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            title={`${currentFileLabel} · 点击钉为常驻上下文`}
+            title={`${currentFileLabel} · 点击固定为参考`}
             onClick={() => onTogglePinnedContext?.(currentFileLabel as string)}
           >
             <span className="font-semibold text-agent">@</span>
             <span className="max-w-[120px] truncate">{basename(currentFileLabel as string)}</span>
-            <span className="hidden text-[10px] text-subtle group-hover/focus:inline">钉住</span>
+            <span className="hidden text-[10px] text-subtle group-hover/focus:inline">固定</span>
           </button>
         ) : (
           <span
@@ -262,7 +262,7 @@ export function ComposerSurface({
               <button
                 type="button"
                 className="hidden flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground group-hover/pin:inline-flex"
-                title="移除该常驻上下文"
+                title="取消固定"
                 onClick={() => onTogglePinnedContext(path)}
               >
                 ✕

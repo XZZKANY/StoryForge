@@ -173,13 +173,13 @@ export function CommandPalette({
       });
     }
     list.push(
-      { id: 'toggle-assistant', title: '切换：AI 交互区', run: onToggleAssistant },
-      { id: 'toggle-workspace', title: '切换：文件工作区', run: onToggleWorkspace },
+      { id: 'toggle-assistant', title: '切换：对话栏', run: onToggleAssistant },
+      { id: 'toggle-workspace', title: '切换：资源管理器', run: onToggleWorkspace },
       { id: 'open-settings', title: '打开：设置', run: onOpenSettings },
     );
     list.push(
-      { id: 'focus-assistant-only', title: '只保留：AI 交互区', run: onFocusAssistantOnly },
-      { id: 'focus-workspace-only', title: '只保留：文件工作区', run: onFocusWorkspaceOnly },
+      { id: 'focus-assistant-only', title: '只保留：对话栏', run: onFocusAssistantOnly },
+      { id: 'focus-workspace-only', title: '只保留：资源管理器', run: onFocusWorkspaceOnly },
       { id: 'restore-layout', title: '恢复：完整布局', run: onRestoreLayout },
     );
     return list;

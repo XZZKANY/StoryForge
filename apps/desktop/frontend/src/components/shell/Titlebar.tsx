@@ -64,7 +64,7 @@ export function Titlebar({
         title="命令面板 · Ctrl+P"
       >
         <Search size={13} strokeWidth={1.6} />
-        <span>搜索文件或命令</span>
+        <span>搜索文件…</span>
         <kbd className="rounded border border-border px-1 font-mono text-[10px] text-subtle">
           Ctrl P
         </kbd>
