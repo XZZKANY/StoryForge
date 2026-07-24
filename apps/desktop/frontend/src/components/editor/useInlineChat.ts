@@ -19,6 +19,7 @@ import type { RevisionLoopResult } from '../../lib/author-loop';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import {
   buildInlineReviseInstruction,
+  intraLineChangeRange,
   isInlineEditStale,
   planAnchoredInlineDiff,
   type InlineAnchor,
@@ -225,7 +226,7 @@ export function useInlineChat({
         droppedOffAnchor: plan.droppedOffAnchor,
       };
 
-      // 旧行红标：整行背景。
+      // 旧行红标：整行淡背景作上下文；单行替换再叠一层句内高亮，只标真正改动的字（E22）。
       const decorations: monaco.editor.IModelDeltaDecoration[] = [];
       for (const hunk of plan.hunks) {
         if (hunk.removedStartLine === null || hunk.removedEndLine === null) continue;
@@ -233,6 +234,18 @@ export function useInlineChat({
           range: new monaco.Range(hunk.removedStartLine, 1, hunk.removedEndLine, 1),
           options: { isWholeLine: true, className: 'sf-inline-diff-old' },
         });
+        const seg = intraLineHunkSeg(model, hunk);
+        if (seg && seg.oldEndCol > seg.oldStartCol) {
+          decorations.push({
+            range: new monaco.Range(
+              hunk.removedStartLine,
+              seg.oldStartCol,
+              hunk.removedStartLine,
+              seg.oldEndCol,
+            ),
+            options: { className: 'sf-inline-diff-old-seg' },
+          });
+        }
       }
       session.decorations = editor.createDecorationsCollection(decorations);
 
@@ -246,13 +259,19 @@ export function useInlineChat({
         plan.hunks.forEach((hunk, index) => {
           const isHost = index === hostIndex;
           if (hunk.newLines.length === 0 && !isHost) return;
-          const dom = buildDiffZoneDom(hunk, isHost ? actions : null, editorFontFamily, {
-            onAccept: () => void applyAccepted(),
-            onReject: () => {
-              teardown();
-              flashStatus('已弃用行间修订');
+          const dom = buildDiffZoneDom(
+            hunk,
+            isHost ? actions : null,
+            editorFontFamily,
+            intraLineHunkSeg(model, hunk),
+            {
+              onAccept: () => void applyAccepted(),
+              onReject: () => {
+                teardown();
+                flashStatus('已弃用行间修订');
+              },
             },
-          });
+          );
           // 初值估算；长行折行 / 动作条换行都会撑高，随后按真实高度重排，避免裁掉。
           const heightInPx =
             Math.max(hunk.newLines.length, hunk.newLines.length === 0 ? 0 : 1) * lineHeight +
@@ -586,10 +605,28 @@ function swapZoneToLoading(
   });
 }
 
+type IntraLineSeg = ReturnType<typeof intraLineChangeRange>;
+
+// 单行替换（一旧行→一新行）才做句内高亮；多行 hunk / 纯增删回退整行铺色。
+function intraLineHunkSeg(
+  model: monaco.editor.ITextModel,
+  hunk: LineDiffHunk,
+): IntraLineSeg | null {
+  if (
+    hunk.removedStartLine === null ||
+    hunk.removedStartLine !== hunk.removedEndLine ||
+    hunk.newLines.length !== 1
+  ) {
+    return null;
+  }
+  return intraLineChangeRange(model.getLineContent(hunk.removedStartLine), hunk.newLines[0]);
+}
+
 function buildDiffZoneDom(
   hunk: LineDiffHunk,
   summaryForActions: InlineDiffActions | null,
   fontFamily: string,
+  seg: IntraLineSeg | null,
   handlers: { onAccept: () => void; onReject: () => void },
 ): HTMLElement {
   const container = document.createElement('div');
@@ -599,9 +636,24 @@ function buildDiffZoneDom(
   // 同输入框：拦掉 mousedown，避免点接受/弃用时 Monaco 抢焦点。
   container.addEventListener('mousedown', (event) => event.stopPropagation());
 
+  const highlightNew =
+    seg !== null && hunk.newLines.length === 1 && seg.newEndCol > seg.newStartCol;
   for (const line of hunk.newLines) {
     const row = document.createElement('div');
     row.className = 'sf-inline-diff-line';
+    if (highlightNew && seg && line.length > 0) {
+      // 只把真正改动的中段包成高亮 span，前后逐字保留（对齐红旧行的句内高亮，E22）。
+      const start = seg.newStartCol - 1;
+      const end = seg.newEndCol - 1;
+      if (start > 0) row.append(document.createTextNode(line.slice(0, start)));
+      const hi = document.createElement('span');
+      hi.className = 'sf-inline-diff-new-seg';
+      hi.textContent = line.slice(start, end);
+      row.append(hi);
+      if (end < line.length) row.append(document.createTextNode(line.slice(end)));
+      container.append(row);
+      continue;
+    }
     row.textContent = line.length > 0 ? line : ' ';
     container.append(row);
   }

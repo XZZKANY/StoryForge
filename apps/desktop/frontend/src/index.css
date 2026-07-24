@@ -404,6 +404,16 @@ body {
   box-shadow: inset 3px 0 0 rgb(var(--error) / 0.7);
 }
 
+/* 句内高亮：单行替换时在红旧行 / 绿新行里只标真正改动的字（E22），比整行铺色更精确 */
+.sf-inline-diff-old-seg {
+  background: rgb(var(--error) / 0.3);
+  border-radius: 2px;
+}
+.sf-inline-diff-new-seg {
+  background: rgb(var(--success) / 0.32);
+  border-radius: 2px;
+}
+
 /* 绿色新增块：贴着旧行下方展示建议新文本 */
 .sf-inline-diff-zone {
   margin-left: 0;

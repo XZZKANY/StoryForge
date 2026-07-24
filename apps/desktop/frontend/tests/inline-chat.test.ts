@@ -5,10 +5,28 @@ import {
   INLINE_MINIMAL_EDIT_CONTRACT,
   buildInlineReviseInstruction,
   hunksToLineDiff,
+  intraLineChangeRange,
   isInlineEditStale,
   planAnchoredInlineDiff,
   summarizeInlineDiff,
 } from '../src/lib/inline-chat';
+
+test('intraLineChangeRange 掐掉公共前后缀只留改动中段（1-based 列，endCol 独占）', () => {
+  // 「铜灯只亮了一半」→「铜灯只剩一半」：改「亮了」为「剩」。公共前缀「铜灯只」(3)、后缀「一半」(2)。
+  const r = intraLineChangeRange('铜灯只亮了一半', '铜灯只剩一半');
+  assert.equal(r.oldStartCol, 4); // 第 4 字「亮」起
+  assert.equal(r.oldEndCol, 6); // 到「了」后（覆盖「亮了」两字）
+  assert.equal(r.newStartCol, 4);
+  assert.equal(r.newEndCol, 5); // 新侧只「剩」一字
+  // 纯插入：旧侧零宽（start===end），新侧覆盖插入段
+  const ins = intraLineChangeRange('铜灯一半', '铜灯只剩一半');
+  assert.equal(ins.oldStartCol, ins.oldEndCol);
+  assert.ok(ins.newEndCol > ins.newStartCol);
+  // 完全不同：整行都是改动区间
+  const all = intraLineChangeRange('abc', 'xyz');
+  assert.equal(all.oldStartCol, 1);
+  assert.equal(all.oldEndCol, 4);
+});
 
 test('buildInlineReviseInstruction 带上用户意图、最小改动契约与锚定块', () => {
   const instruction = buildInlineReviseInstruction({

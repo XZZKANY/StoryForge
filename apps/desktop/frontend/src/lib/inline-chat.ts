@@ -98,6 +98,33 @@ export function hunksToLineDiff(before: string, after: string): LineDiffHunk[] {
   return result;
 }
 
+/**
+ * 单行替换的句内变动区间：掐掉相同的公共前缀/后缀，只留真正改动的中段（1-based 列，endCol 独占）。
+ * 供 Ctrl+K 行间 diff 在红旧行 / 绿新行里高亮「改了哪几个字」，而非整行铺色。
+ * 无变动或纯前/后缀差异时，start===end 表示该侧无高亮区间（纯插入/纯删除）。
+ */
+export function intraLineChangeRange(
+  oldLine: string,
+  newLine: string,
+): { oldStartCol: number; oldEndCol: number; newStartCol: number; newEndCol: number } {
+  const oldLen = oldLine.length;
+  const newLen = newLine.length;
+  let prefix = 0;
+  const maxPrefix = Math.min(oldLen, newLen);
+  while (prefix < maxPrefix && oldLine[prefix] === newLine[prefix]) prefix += 1;
+  let suffix = 0;
+  const maxSuffix = Math.min(oldLen - prefix, newLen - prefix);
+  while (suffix < maxSuffix && oldLine[oldLen - 1 - suffix] === newLine[newLen - 1 - suffix]) {
+    suffix += 1;
+  }
+  return {
+    oldStartCol: prefix + 1,
+    oldEndCol: oldLen - suffix + 1,
+    newStartCol: prefix + 1,
+    newEndCol: newLen - suffix + 1,
+  };
+}
+
 export type InlineDiffSummary = {
   hunks: LineDiffHunk[];
   addedLines: number;
