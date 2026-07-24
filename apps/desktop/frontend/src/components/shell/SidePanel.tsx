@@ -3,10 +3,11 @@
  * - explorer：项目 + 文件树
  * - search：搜索占位
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import type { SidePanelView } from './useShellState';
+import { useDismissableMenu } from './useDismissableMenu';
 import { ChevronDown, FilePlus, FileText, FolderOpen, Sparkles, X } from '../icons/shell-icons';
 
 type SidePanelProps = {
@@ -63,6 +64,8 @@ function ExplorerView({
   onStartNewBook,
 }: SidePanelProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  useDismissableMenu(menuOpen, () => setMenuOpen(false), menuTriggerRef);
 
   if (!activeProject) {
     return (
@@ -129,8 +132,11 @@ function ExplorerView({
         data-testid="side-panel-header"
       >
         <button
+          ref={menuTriggerRef}
           className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] font-semibold hover:bg-elevated"
           onClick={() => setMenuOpen((open) => !open)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           data-testid="toggle-project-library"
         >
           <span className="min-w-0 flex-1 truncate text-left">{basename(activeProject)}</span>

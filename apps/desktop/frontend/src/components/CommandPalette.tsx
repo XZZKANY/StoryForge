@@ -77,10 +77,28 @@ export function CommandPalette({
   const [fileLoadRequest, setFileLoadRequest] = useState(0);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // 方向键选中项滚入视口，长列表往下选不出屏。
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+
+  // Esc 挂 window：焦点落在列表项上时也能关，不只在输入框内生效。
+  useEffect(() => {
+    const onWindowKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onWindowKey);
+    return () => window.removeEventListener('keydown', onWindowKey);
+  }, [onClose]);
 
   useEffect(() => {
     if (mode !== 'files' || !projectPath) return;
@@ -221,9 +239,10 @@ export function CommandPalette({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Tab') {
+      // 焦点陷阱：面板靠 ↑↓ 导航，Tab 不外逃到背景，收回输入框。
       e.preventDefault();
-      onClose();
+      inputRef.current?.focus();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActive((i) => (itemCount === 0 ? 0 : (i + 1) % itemCount));
@@ -244,13 +263,16 @@ export function CommandPalette({
     >
       <div
         className="flex max-h-[calc(100vh-2rem)] w-[34rem] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-panel shadow-2xl animate-slide-up-fade"
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === 'files' ? '打开文件' : '命令面板'}
         onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
       >
         <input
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
           placeholder={mode === 'files' ? '按名称打开文件…' : '输入命令…'}
           className="w-full px-4 py-3 bg-background text-sm text-foreground outline-none border-b border-border placeholder:text-muted"
         />
@@ -277,6 +299,7 @@ export function CommandPalette({
             fileItems.map((item, index) => (
               <button
                 key={item.path}
+                ref={index === active ? activeItemRef : undefined}
                 data-testid="palette-item"
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}
@@ -293,6 +316,7 @@ export function CommandPalette({
             commandItems.map((item, index) => (
               <button
                 key={item.id}
+                ref={index === active ? activeItemRef : undefined}
                 data-testid="palette-item"
                 onMouseEnter={() => setActive(index)}
                 onClick={() => choose(index)}

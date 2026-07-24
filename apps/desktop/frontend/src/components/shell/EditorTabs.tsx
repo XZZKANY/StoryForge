@@ -5,9 +5,10 @@
  * Q3a：导出/历史/保存/关闭其他/关闭全部收进「…」溢出菜单（删掉 Editor 自己的第二条工具行，
  * 文件名不再出现两次）；保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE、历史/分支走编辑器命令事件。
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { basename } from '../app/helpers';
 import { MoreHorizontal, Settings, X } from '../icons/shell-icons';
+import { useDismissableMenu } from './useDismissableMenu';
 
 export type CenterTab = 'settings' | 'file' | 'preview';
 
@@ -36,9 +37,16 @@ function Tab({
     <div
       role="tab"
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       title={title}
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onActivate();
+        }
+      }}
       className={`group flex cursor-pointer select-none items-center gap-2 px-3.5 text-[12px] ${
         preview ? 'italic' : ''
       } ${
@@ -130,6 +138,29 @@ export function EditorTabs({
     <div
       className="relative flex h-shell-row flex-shrink-0 items-stretch border-b border-border bg-panel"
       data-testid="editor-tabs"
+      role="tablist"
+      aria-label="打开的文件页签"
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          const tabEls = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]'),
+          );
+          const idx = tabEls.indexOf(document.activeElement as HTMLElement);
+          if (idx === -1) return;
+          event.preventDefault();
+          const next =
+            event.key === 'ArrowRight'
+              ? (idx + 1) % tabEls.length
+              : (idx - 1 + tabEls.length) % tabEls.length;
+          tabEls[next]?.focus();
+          tabEls[next]?.click(); // roving：移动焦点同时激活该页签
+        } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'w') {
+          if (activeTab === 'file' && activeFile) {
+            event.preventDefault();
+            onCloseFile(activeFile);
+          }
+        }
+      }}
     >
       {settingsOpen && (
         <Tab
@@ -216,6 +247,8 @@ function EditorActionsMenu({
   onCloseAll?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useDismissableMenu(open, () => setOpen(false), triggerRef);
   const run = (handler?: () => void) => () => {
     setOpen(false);
     handler?.();
@@ -223,10 +256,12 @@ function EditorActionsMenu({
   return (
     <div className="relative flex items-center">
       <button
+        ref={triggerRef}
         type="button"
         data-testid="editor-more-btn"
         className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
         title="文件操作：保存 / 历史 / 导出 …"
+        aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
