@@ -5,6 +5,7 @@ import {
   closeEditorFile,
   nextEditorFileAfterClose,
   openEditorFile,
+  reorderEditorFiles,
   updateDirtyEditorFiles,
 } from './editor-tabs-state';
 
@@ -182,12 +183,17 @@ export function useEditorWorkspaceTabs({
     setPreviewFile(null);
   }, []);
 
+  const reorderOpenFiles = useCallback((from: string, to: string) => {
+    setOpenFiles((current) => reorderEditorFiles(current, from, to));
+  }, []);
+
   return {
     previewFile,
     openFiles,
     dirtyFiles,
     displayedFile,
     retainedEditorFiles,
+    reorderOpenFiles,
     handleEditorDirtyChange,
     confirmDiscardFiles,
     openFile,

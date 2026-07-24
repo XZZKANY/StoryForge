@@ -207,6 +207,7 @@ export function AppShell({
                   tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
                 }
                 onFocusFile={tabs.focusFile}
+                onReorderFiles={tabs.reorderOpenFiles}
                 onFocusPreview={tabs.focusPreview}
                 onPinPreview={tabs.pinPreview}
                 onFocusSettings={() => void openSettings()}

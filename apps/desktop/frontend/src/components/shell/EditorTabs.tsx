@@ -22,6 +22,8 @@ function Tab({
   onActivate,
   onDoubleClick,
   onClose,
+  dragId,
+  onReorder,
 }: {
   active: boolean;
   preview?: boolean;
@@ -32,13 +34,43 @@ function Tab({
   onActivate: () => void;
   onDoubleClick?: () => void;
   onClose?: () => void;
+  // 文件页签可拖拽重排：dragId=该文件路径，onReorder(from,to) 搬动 openFiles 次序。
+  dragId?: string;
+  onReorder?: (from: string, to: string) => void;
 }) {
+  const draggable = Boolean(dragId && onReorder);
   return (
     <div
       role="tab"
       aria-selected={active}
       tabIndex={active ? 0 : -1}
       title={title}
+      draggable={draggable}
+      onDragStart={
+        draggable
+          ? (event) => {
+              event.dataTransfer.setData('text/plain', dragId as string);
+              event.dataTransfer.effectAllowed = 'move';
+            }
+          : undefined
+      }
+      onDragOver={
+        draggable
+          ? (event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }
+          : undefined
+      }
+      onDrop={
+        draggable
+          ? (event) => {
+              event.preventDefault();
+              const from = event.dataTransfer.getData('text/plain');
+              if (from && from !== dragId) onReorder?.(from, dragId as string);
+            }
+          : undefined
+      }
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
       onKeyDown={(event) => {
@@ -96,6 +128,7 @@ export function EditorTabs({
   activeTab,
   activeReadOnly = false,
   onFocusFile,
+  onReorderFiles,
   onFocusPreview,
   onPinPreview,
   onFocusSettings,
@@ -117,6 +150,7 @@ export function EditorTabs({
   activeTab: CenterTab | null;
   activeReadOnly?: boolean;
   onFocusFile: (path: string) => void;
+  onReorderFiles?: (from: string, to: string) => void;
   onFocusPreview: () => void;
   onPinPreview: () => void;
   onFocusSettings: () => void;
@@ -185,6 +219,8 @@ export function EditorTabs({
             dirty={dirtyFiles.has(path)}
             onActivate={() => onFocusFile(path)}
             onClose={() => onCloseFile(path)}
+            dragId={path}
+            onReorder={onReorderFiles}
           />
         ))}
         {showPreview && previewFile && (
