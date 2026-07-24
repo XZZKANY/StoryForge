@@ -725,6 +725,7 @@ export function Editor({
             onBranchFromNode={handleBranchFromNode}
             onSelectBranch={selectBranch}
             onClose={() => setShowHistory(false)}
+            getCurrentContent={() => editorRef.current?.getValue() ?? ''}
           />
         ) : null)}
     </div>
