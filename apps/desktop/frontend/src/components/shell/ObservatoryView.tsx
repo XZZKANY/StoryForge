@@ -328,10 +328,18 @@ function CheckerRow({ checker }: { checker: ObservatoryChecker }) {
   const ran = checker.status === 'ran';
   const isLLM = checker.key === 'deep_consistency';
   const counts = ran
-    ? ['conflict_count', 'advisory_count', 'issue_count']
-        .map((field) => (typeof checker[field] === 'number' ? `${checker[field]}` : null))
+    ? (
+        [
+          ['conflict_count', '冲突'],
+          ['advisory_count', 'advisory'],
+          ['issue_count', '问题'],
+        ] as const
+      )
+        .map(([field, label]) =>
+          typeof checker[field] === 'number' ? `${label} ${checker[field]}` : null,
+        )
         .filter((value): value is string => value !== null)
-        .join(' / ')
+        .join(' · ')
     : '';
   return (
     <div

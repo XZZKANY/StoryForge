@@ -360,7 +360,7 @@ export function RunActionBar({
           <>
             <button
               type="button"
-              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent"
+              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
               onClick={controls.onApprovePermission}
               title="批准权限请求"
               data-testid="run-approve-permission"
@@ -498,7 +498,7 @@ export function ContextSummaryPanel({
               {!detailsOpen && (
                 <span className="mt-0.5 block truncate text-xs text-subtle">
                   当前：{currentFileLabel ?? '未选择文件'}
-                  {explicitContextPaths.length > 0 ? ` · pin ${explicitContextPaths.length}` : ''}
+                  {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
                 </span>
               )}
             </span>
@@ -543,10 +543,10 @@ export function ContextSummaryPanel({
                   key={path}
                   type="button"
                   className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground hover:bg-accent"
-                  title="取消 pin"
+                  title="取消固定"
                   onClick={() => onTogglePinnedContext(path)}
                 >
-                  pin {path}
+                  已固定 {path}
                 </button>
               ))}
             </div>
@@ -609,7 +609,9 @@ export function ContextSummaryPanel({
                         {semanticKindLabel(file.kind)}
                       </span>
                       <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
-                      <span className="flex-shrink-0 text-subtle">{pinned ? 'pinned' : 'pin'}</span>
+                      <span className="flex-shrink-0 text-subtle">
+                        {pinned ? '已固定' : '固定'}
+                      </span>
                     </button>
                   );
                 })
