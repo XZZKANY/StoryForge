@@ -144,12 +144,15 @@ export function useProjectCommands({
       const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
       if (!suggestion?.filePath || !activeProject) return;
       if (relativePathInsideProject(activeProject, suggestion.filePath) === null) return;
+      // P1：补丁到达即确保中栏可见（对话聚焦 Ctrl+3 态隐藏中栏，补丁面板挂在里面看不见）；
+      // 须在「已是当前文件」早返回之前调用，覆盖补丁指向当前打开文件的情形。
+      onShowEditor();
       if (currentFile && normalize(currentFile) === normalize(suggestion.filePath)) return;
       void openFile(suggestion.filePath);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => window.removeEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
-  }, [activeProject, currentFile, openFile]);
+  }, [activeProject, currentFile, onShowEditor, openFile]);
 
   const handleNewFile = useCallback(
     async (projectOverride?: string) => {

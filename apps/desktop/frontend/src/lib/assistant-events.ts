@@ -137,6 +137,14 @@ export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
   }
 }
 
+/**
+ * 切走当前文件时把未确认补丁回填缓冲（只置槽、不再派发事件），切回同一文件可由
+ * takePendingFileSuggestion / adoptPendingSuggestion 重新领取，避免翻别章核对时补丁被静默丢弃。
+ */
+export function bufferPendingFileSuggestion(suggestion: AssistantFileSuggestion): void {
+  pendingFileSuggestion = suggestion;
+}
+
 /** 编辑器就绪后领取指向该文件的待处理补丁建议（一次性，领取即清空）。 */
 export function takePendingFileSuggestion(filePath: string | null): AssistantFileSuggestion | null {
   if (!filePath || !pendingFileSuggestion || pendingFileSuggestion.filePath !== filePath) {

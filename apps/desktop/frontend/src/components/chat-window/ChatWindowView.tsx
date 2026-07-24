@@ -1,3 +1,4 @@
+import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { runStatusText } from './display-utils';
 import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
@@ -46,6 +47,16 @@ export function ChatWindowView({
   agentRunControls,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
+  // 待确认（补丁 / 权限）期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
+  // 故拦一道：提示先处理待确认的修订，不静默 supersede（放弃走编辑器里拒绝补丁 / 拒绝权限）。
+  const awaitingConfirm = state.agentRun?.status === 'waiting';
+  const submitGuarded = async () => {
+    if (awaitingConfirm) {
+      emitToast('先在编辑器里处理待确认的修订（接受或拒绝），再发下一条', { tone: 'info' });
+      return;
+    }
+    await handleSubmit();
+  };
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <ConversationHeader
@@ -121,7 +132,7 @@ export function ChatWindowView({
           onAddContext={addExplicitContext}
           onTogglePinnedContext={togglePinnedContext}
           onChange={state.setInput}
-          onSubmit={handleSubmit}
+          onSubmit={submitGuarded}
           onPauseRun={agentRunControls.onPauseRun}
         />
       )}
