@@ -236,13 +236,15 @@ export function useInlineChat({
 
       // 绿色新增块 + 动作条（挂在最后一个 hunk 的 zone 上，落在 diff 底部）。
       const lineHeight = editorLineHeight(editor);
+      // 绿色新增块的字体跟随编辑器实际解析出的字体（CJK 2:1 栈），与红色旧行同栈，改字比对不再错位。
+      const editorFontFamily = editor.getOption(monaco.editor.EditorOption.fontInfo).fontFamily;
       const hostIndex = plan.hunks.length - 1;
       const diffZones: Array<{ id: string; zone: monaco.editor.IViewZone; dom: HTMLElement }> = [];
       editor.changeViewZones((accessor) => {
         plan.hunks.forEach((hunk, index) => {
           const isHost = index === hostIndex;
           if (hunk.newLines.length === 0 && !isHost) return;
-          const dom = buildDiffZoneDom(hunk, isHost ? actions : null, {
+          const dom = buildDiffZoneDom(hunk, isHost ? actions : null, editorFontFamily, {
             onAccept: () => void applyAccepted(),
             onReject: () => {
               teardown();
@@ -544,10 +546,13 @@ function swapZoneToLoading(
 function buildDiffZoneDom(
   hunk: LineDiffHunk,
   summaryForActions: InlineDiffActions | null,
+  fontFamily: string,
   handlers: { onAccept: () => void; onReject: () => void },
 ): HTMLElement {
   const container = document.createElement('div');
   container.className = 'sf-inline-diff-zone';
+  // 内联覆盖 CSS 的 mono 栈：贴编辑器正文字体，绿新行与红旧行字形/字宽一致。
+  container.style.fontFamily = fontFamily;
   // 同输入框：拦掉 mousedown，避免点接受/弃用时 Monaco 抢焦点。
   container.addEventListener('mousedown', (event) => event.stopPropagation());
 
