@@ -278,9 +278,9 @@ test('agent run recovery display summarizes pending permission and proposed patc
 
   assert.ok(recovery);
   assert.equal(recovery.tone, 'waiting');
-  assert.equal(recovery.resumeText, '恢复：等待权限确认');
+  assert.equal(recovery.resumeText, '恢复：等待你确认');
   assert.match(recovery.pendingText ?? '', /等待权限：file\.revise/);
-  assert.match(recovery.pendingText ?? '', /待确认补丁 #12/);
+  assert.match(recovery.pendingText ?? '', /有待你确认的补丁（#12）/);
 
   const html = renderToStaticMarkup(React.createElement(AgentRunRecoveryPanel, { recovery }));
   assert.match(html, /data-testid="agent-run-recovery"/);
@@ -323,9 +323,9 @@ test('agent run recovery display surfaces checkpoint and latest retry control', 
   assert.ok(recovery);
   assert.equal(recovery.canRetryFromCheckpoint, true);
   assert.equal(recovery.tone, 'ok');
-  assert.equal(recovery.resumeText, '恢复：可从 BookRun checkpoint 继续');
-  assert.equal(recovery.latestControlText, '最近控制：从 checkpoint 重试 · running');
-  assert.equal(recovery.checkpointText, 'checkpoint #77 · 第 4 章 · 3/8');
+  assert.equal(recovery.resumeText, '恢复：可从检查点继续');
+  assert.equal(recovery.latestControlText, '最近操作：从检查点重试 · 运行中');
+  assert.equal(recovery.checkpointText, '检查点 · #77 · 第 4 章 · 3/8');
 });
 
 test('agent run recovery display keeps failed run without checkpoint conservative', () => {

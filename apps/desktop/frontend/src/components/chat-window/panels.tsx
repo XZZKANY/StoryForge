@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
+import { AssistantMarkdown } from './AssistantMarkdown';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
 import type { AgentRunRecoveryDisplay } from './recovery';
@@ -205,7 +206,6 @@ export function MessageList({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
-  agentRunControls,
 }: {
   messages: Message[];
   projectName: string | null;
@@ -225,7 +225,8 @@ export function MessageList({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
-  agentRunControls: AgentRunControlHandlers;
+  /** @deprecated 控件已迁到 Composer 上方 RunActionBar */
+  agentRunControls?: AgentRunControlHandlers;
 }) {
   if (messages.length === 0) {
     return (
@@ -259,7 +260,6 @@ export function MessageList({
 
         {agentRun && agentRun.steps.length > 0 && (
           <div className="animate-slide-up-fade space-y-2">
-            <AgentRunControlBar run={agentRun} controls={agentRunControls} />
             <AgentStepsPanel run={agentRun} />
             <AgentRunRecoveryPanel recovery={agentRunRecovery} />
           </div>
@@ -268,6 +268,7 @@ export function MessageList({
         {writingRunProjection && <WritingRunProgressPanel projection={writingRunProjection} />}
 
         <ContextSummaryPanel
+          compact
           currentFileLabel={currentFileLabel}
           explicitContextPaths={explicitContextPaths}
           contextCandidates={contextCandidates}
@@ -315,7 +316,8 @@ function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
   return 'border-border bg-panel';
 }
 
-export function AgentRunControlBar({
+/** Composer 上方固定操作条：停止 + 权限批准/拒绝（中流不再放主 CTA）。 */
+export function RunActionBar({
   run,
   controls,
 }: {
@@ -326,41 +328,60 @@ export function AgentRunControlBar({
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
   const canStop = run.status === 'running' || run.status === 'waiting';
+  if (!canStop && !waitingForPermission) return null;
+
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-panel px-3 py-2">
-      <div className="min-w-0 flex-1 text-xs text-muted">AgentRun #{run.id}</div>
-      {waitingForPermission && (
-        <>
-          <button
-            type="button"
-            className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent"
-            onClick={controls.onApprovePermission}
-            title="批准权限请求"
-          >
-            批准
-          </button>
-          <button
-            type="button"
-            className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
-            onClick={controls.onDenyPermission}
-            title="拒绝权限请求"
-          >
-            拒绝
-          </button>
-        </>
-      )}
-      <button
-        type="button"
-        className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-40"
-        onClick={controls.onStopRun}
-        disabled={!canStop}
-        title="停止 AgentRun"
-      >
-        停止
-      </button>
+    <div
+      className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-border bg-panel px-4 py-2"
+      data-testid="run-action-bar"
+    >
+      <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
+        <div
+          className="min-w-0 flex-1 text-xs text-muted"
+          title={`运行 ${run.id}`}
+          data-testid="run-action-status"
+        >
+          {waitingForPermission ? '等待你确认' : run.status === 'waiting' ? '等待确认' : '正在处理'}
+        </div>
+        {waitingForPermission && (
+          <>
+            <button
+              type="button"
+              className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent"
+              onClick={controls.onApprovePermission}
+              title="批准权限请求"
+              data-testid="run-approve-permission"
+            >
+              批准
+            </button>
+            <button
+              type="button"
+              className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
+              onClick={controls.onDenyPermission}
+              title="拒绝权限请求"
+              data-testid="run-deny-permission"
+            >
+              拒绝
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={controls.onStopRun}
+          disabled={!canStop}
+          title="停止本轮"
+          data-testid="run-stop"
+        >
+          停止
+        </button>
+      </div>
     </div>
   );
 }
+
+/** @deprecated 中流控制已迁到 RunActionBar；保留别名避免外部引用断裂。 */
+export const AgentRunControlBar = RunActionBar;
 
 export function WritingRunProgressPanel({ projection }: { projection: WritingRunProjection }) {
   const chapters = projection.totalChapters
@@ -385,8 +406,8 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
               : ''}
           </div>
         </div>
-        <span className="rounded-md border border-accent px-2 py-1 text-xs text-accent">
-          managed
+        <span className="rounded-md border border-border px-2 py-1 text-xs text-subtle">
+          写作任务
         </span>
       </div>
       {projection.failureReason && (
@@ -399,6 +420,7 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
 }
 
 export function ContextSummaryPanel({
+  compact = false,
   currentFileLabel,
   explicitContextPaths,
   contextCandidates,
@@ -411,6 +433,7 @@ export function ContextSummaryPanel({
   onTogglePinnedContext,
   onRetryContextCandidates,
 }: {
+  compact?: boolean;
   currentFileLabel: string | null;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
@@ -423,109 +446,168 @@ export function ContextSummaryPanel({
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
 }) {
+  const [expanded, setExpanded] = useState(!compact);
+
   const visibleCandidates = contextCandidates
     .filter((file) => file.relativePath !== currentFileLabel)
     .slice(0, 24);
+  // picker 由 Composer「+」打开时派生展开，避免操作落空；不再用 effect 同步 state。
+  const detailsOpen = !compact || expanded || contextPickerOpen;
+
   return (
     <section
       className="animate-slide-up-fade rounded-md border border-border bg-panel px-3 py-2"
       data-testid="context-summary"
+      data-compact={compact ? 'true' : 'false'}
+      data-expanded={detailsOpen ? 'true' : 'false'}
     >
       <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold text-foreground">
-            {contextBudgetText(lastContextBundle)}
+        {compact ? (
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            onClick={() => setExpanded((value) => !value)}
+            data-testid="context-summary-toggle"
+            aria-expanded={detailsOpen}
+          >
+            <span
+              className={`flex-shrink-0 text-[9px] text-subtle transition-transform ${
+                detailsOpen ? '' : '-rotate-90'
+              }`}
+            >
+              ▾
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-foreground">
+                {contextBudgetText(lastContextBundle)}
+              </span>
+              {!detailsOpen && (
+                <span className="mt-0.5 block truncate text-xs text-subtle">
+                  当前：{currentFileLabel ?? '未选择文件'}
+                  {explicitContextPaths.length > 0 ? ` · pin ${explicitContextPaths.length}` : ''}
+                </span>
+              )}
+            </span>
+          </button>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-semibold text-foreground">
+              {contextBudgetText(lastContextBundle)}
+            </div>
+            <div className="mt-1 truncate text-xs text-subtle">
+              当前：{currentFileLabel ?? '未选择文件'}；已选：
+              {selectedContextPreview(lastContextBundle)}
+            </div>
           </div>
-          <div className="mt-1 truncate text-xs text-subtle">
-            当前：{currentFileLabel ?? '未选择文件'}；已选：
-            {selectedContextPreview(lastContextBundle)}
-          </div>
-        </div>
+        )}
         <button
           type="button"
           className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
-          onClick={onAddContext}
+          onClick={() => {
+            if (compact) setExpanded(true);
+            onAddContext();
+          }}
           data-testid="context-picker-toggle"
         >
           添加上下文
         </button>
       </div>
 
-      {explicitContextPaths.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5" data-testid="pinned-context-list">
-          {explicitContextPaths.map((path) => (
-            <button
-              key={path}
-              type="button"
-              className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground hover:bg-accent"
-              title="取消 pin"
-              onClick={() => onTogglePinnedContext(path)}
+      {detailsOpen && (
+        <>
+          {compact && (
+            <div className="mt-1 truncate pl-5 text-xs text-subtle">
+              当前：{currentFileLabel ?? '未选择文件'}；已选：
+              {selectedContextPreview(lastContextBundle)}
+            </div>
+          )}
+
+          {explicitContextPaths.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="pinned-context-list">
+              {explicitContextPaths.map((path) => (
+                <button
+                  key={path}
+                  type="button"
+                  className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground hover:bg-accent"
+                  title="取消 pin"
+                  onClick={() => onTogglePinnedContext(path)}
+                >
+                  pin {path}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {missingContextPaths.length > 0 && (
+            <div className="mt-2 text-xs text-warning" data-testid="missing-context-warning">
+              未读到：{missingContextPaths.join('、')}
+            </div>
+          )}
+
+          {contextPickerOpen && (
+            <div
+              className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-border pt-2"
+              data-testid="context-picker"
             >
-              pin {path}
-            </button>
-          ))}
-        </div>
+              {contextCandidatesLoading ? (
+                <div
+                  className="px-2 py-1 text-xs text-subtle"
+                  data-testid="context-candidates-loading"
+                >
+                  正在读取项目上下文…
+                </div>
+              ) : contextCandidatesError ? (
+                <div
+                  className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
+                  data-testid="context-candidates-error"
+                >
+                  <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
+                  <button
+                    type="button"
+                    className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 hover:bg-elevated"
+                    onClick={onRetryContextCandidates}
+                    data-testid="context-candidates-retry"
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : visibleCandidates.length === 0 ? (
+                <div className="px-2 py-1 text-xs text-subtle">
+                  当前项目还没有可选的 Markdown 上下文。
+                </div>
+              ) : (
+                visibleCandidates.map((file) => {
+                  const pinned =
+                    explicitContextPaths.includes(file.relativePath) ||
+                    explicitContextPaths.includes(file.path);
+                  return (
+                    <button
+                      key={file.path}
+                      type="button"
+                      className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${
+                        pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'
+                      }`}
+                      onClick={() => onTogglePinnedContext(file.relativePath)}
+                      data-testid="context-candidate"
+                      data-context-path={file.relativePath}
+                    >
+                      <span className="w-10 flex-shrink-0 text-subtle">
+                        {semanticKindLabel(file.kind)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
+                      <span className="flex-shrink-0 text-subtle">{pinned ? 'pinned' : 'pin'}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {missingContextPaths.length > 0 && (
+      {!detailsOpen && missingContextPaths.length > 0 && (
         <div className="mt-2 text-xs text-warning" data-testid="missing-context-warning">
           未读到：{missingContextPaths.join('、')}
-        </div>
-      )}
-
-      {contextPickerOpen && (
-        <div
-          className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto border-t border-border pt-2"
-          data-testid="context-picker"
-        >
-          {contextCandidatesLoading ? (
-            <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
-              正在读取项目上下文…
-            </div>
-          ) : contextCandidatesError ? (
-            <div
-              className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
-              data-testid="context-candidates-error"
-            >
-              <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
-              <button
-                type="button"
-                className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 hover:bg-elevated"
-                onClick={onRetryContextCandidates}
-                data-testid="context-candidates-retry"
-              >
-                重试
-              </button>
-            </div>
-          ) : visibleCandidates.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-subtle">
-              当前项目还没有可选的 Markdown 上下文。
-            </div>
-          ) : (
-            visibleCandidates.map((file) => {
-              const pinned =
-                explicitContextPaths.includes(file.relativePath) ||
-                explicitContextPaths.includes(file.path);
-              return (
-                <button
-                  key={file.path}
-                  type="button"
-                  className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${
-                    pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'
-                  }`}
-                  onClick={() => onTogglePinnedContext(file.relativePath)}
-                  data-testid="context-candidate"
-                  data-context-path={file.relativePath}
-                >
-                  <span className="w-10 flex-shrink-0 text-subtle">
-                    {semanticKindLabel(file.kind)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
-                  <span className="flex-shrink-0 text-subtle">{pinned ? 'pinned' : 'pin'}</span>
-                </button>
-              );
-            })
-          )}
         </div>
       )}
     </section>
@@ -535,7 +617,7 @@ export function ContextSummaryPanel({
 export function MessageItem({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
-      <div className="flex animate-slide-up-fade justify-end">
+      <div className="flex animate-slide-up-fade justify-end" data-testid="user-message">
         <div className="max-w-[85%] rounded-[12px_12px_2px_12px] bg-elevated px-3 py-2 text-sm leading-6 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
@@ -544,8 +626,11 @@ export function MessageItem({ message }: { message: Message }) {
   }
 
   return (
-    <article className="max-w-[760px] animate-slide-up-fade text-sm leading-7 text-foreground">
-      <p className="whitespace-pre-wrap break-words">{message.content}</p>
+    <article
+      className="max-w-[760px] animate-slide-up-fade text-sm leading-7 text-foreground"
+      data-testid="assistant-message"
+    >
+      <AssistantMarkdown content={message.content} />
     </article>
   );
 }

@@ -1,6 +1,6 @@
 import { ComposerBox } from './Composer';
 import { runStatusText } from './display-utils';
-import { ConversationHeader, LightweightStatus, MessageList } from './panels';
+import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 
@@ -96,7 +96,6 @@ export function ChatWindowView({
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
         onRetryContextCandidates={retryContextCandidates}
-        agentRunControls={agentRunControls}
       />
 
       {statusText && (
@@ -108,6 +107,8 @@ export function ChatWindowView({
           onRetry={retryLastFailedRun}
         />
       )}
+
+      {state.agentRun && <RunActionBar run={state.agentRun} controls={agentRunControls} />}
 
       {state.messages.length > 0 && (
         <ComposerBox
