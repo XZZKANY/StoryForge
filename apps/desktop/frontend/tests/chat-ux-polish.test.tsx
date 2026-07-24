@@ -26,6 +26,22 @@ test('assistant message renders markdown structure, not raw markers', () => {
   assert.doesNotMatch(html, /\*\*加粗\*\*/);
 });
 
+test('assistant markdown renders GFM tables and strikethrough (remark-gfm)', () => {
+  const html = renderToStaticMarkup(
+    <MessageItem
+      message={{
+        role: 'assistant',
+        content: '| 章节 | 状态 |\n| --- | --- |\n| 第1章 | ~~草稿~~ |',
+      }}
+    />,
+  );
+  assert.match(html, /<table>/);
+  assert.match(html, /<td>/);
+  assert.match(html, /<del>/);
+  // GFM 生效后表格/删除线不再渲染成裸符号
+  assert.doesNotMatch(html, /\| 章节 \|/);
+});
+
 test('user message stays plain text bubble even with markdown-looking content', () => {
   const html = renderToStaticMarkup(
     <MessageItem message={{ role: 'user', content: '# 标题\n*星号*' }} />,

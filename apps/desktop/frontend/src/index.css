@@ -551,3 +551,29 @@ body {
   border: 0;
   border-top: 1px solid rgb(var(--border));
 }
+/* GFM：表格 / 删除线 / 任务列表（remark-gfm）。宽表横向滚动，不撑破对话区。 */
+.assistant-md table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0.65em 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.assistant-md th,
+.assistant-md td {
+  padding: 0.3em 0.6em;
+  border: 1px solid rgb(var(--border));
+  text-align: left;
+}
+.assistant-md th {
+  background: rgb(var(--elevated));
+  font-weight: 600;
+}
+.assistant-md del {
+  color: rgb(var(--subtle));
+}
+.assistant-md li > input[type='checkbox'] {
+  margin-right: 0.4em;
+}
