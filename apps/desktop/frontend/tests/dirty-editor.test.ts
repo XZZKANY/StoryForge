@@ -6,6 +6,7 @@ import {
   closeEditorFile,
   nextEditorFileAfterClose,
   openEditorFile,
+  reorderEditorFiles,
   updateDirtyEditorFiles,
   isRetainedEditorModel,
 } from '../src/components/app/editor-tabs-state';
@@ -37,6 +38,18 @@ test('关闭标签选择右侧优先、否则左侧相邻标签', () => {
   assert.equal(nextEditorFileAfterClose(files, 'b.md'), 'c.md');
   assert.equal(nextEditorFileAfterClose(files, 'c.md'), 'b.md');
   assert.deepEqual(closeEditorFile(files, 'b.md'), ['a.md', 'c.md']);
+});
+
+test('页签拖拽重排：把 from 搬到 to 的位置，越界/同位/未打开原样返回', () => {
+  const files = ['a.md', 'b.md', 'c.md'];
+  // c 拖到 a 前
+  assert.deepEqual(reorderEditorFiles(files, 'c.md', 'a.md'), ['c.md', 'a.md', 'b.md']);
+  // a 拖到 c 处（后移）
+  assert.deepEqual(reorderEditorFiles(files, 'a.md', 'c.md'), ['b.md', 'c.md', 'a.md']);
+  // 同位不动、原数组引用返回
+  assert.equal(reorderEditorFiles(files, 'b.md', 'b.md'), files);
+  // 未打开的路径不动
+  assert.equal(reorderEditorFiles(files, 'x.md', 'a.md'), files);
 });
 
 test('dirty 状态按文件独立记录与清除', () => {
