@@ -18,6 +18,21 @@ type DiffStats = {
   removedLines: number;
 };
 
+/** 工程追溯字段仅进 title/tooltip，主行不展示。 */
+export function buildPatchReviewTraceTitle(suggestion: AssistantFileSuggestion): string {
+  const parts = [`补丁 ${suggestion.id}`];
+  if (suggestion.assistantSessionId != null) {
+    parts.push(`会话 ${suggestion.assistantSessionId}`);
+  }
+  if (suggestion.model) {
+    parts.push(suggestion.model);
+  }
+  if (suggestion.issueIds?.length) {
+    parts.push(suggestion.issueIds.join(', '));
+  }
+  return parts.join(' · ');
+}
+
 function diffStats(before: string, after: string): DiffStats {
   const beforeLines = before.split('\n');
   const afterLines = after.split('\n');
@@ -60,6 +75,7 @@ export function PatchReviewPanel({
     () => buildPatchHunks(suggestion.before, suggestion.after),
     [suggestion.before, suggestion.after],
   );
+  const traceTitle = useMemo(() => buildPatchReviewTraceTitle(suggestion), [suggestion]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -121,7 +137,7 @@ export function PatchReviewPanel({
       data-testid="patch-review"
     >
       <div className="px-3 py-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0" title={traceTitle} data-testid="patch-trace">
           <p className="text-xs font-semibold text-warning">{suggestion.title}</p>
           <p className="mt-1 text-xs text-muted">{suggestion.summary}</p>
           {suggestion.scopeWarning && (
@@ -129,15 +145,14 @@ export function PatchReviewPanel({
               ⚠ {suggestion.scopeWarning}
             </p>
           )}
-          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted">
-            <span data-testid="patch-id">Patch {suggestion.id}</span>
-            <span>{suggestion.filePath}</span>
-            <span>
+          <div
+            className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted"
+            data-testid="patch-meta"
+          >
+            <span data-testid="patch-file">{suggestion.filePath}</span>
+            <span data-testid="patch-stats">
               +{stats.addedLines} / -{stats.removedLines}
             </span>
-            {suggestion.model && <span>{suggestion.model}</span>}
-            {suggestion.assistantSessionId && <span>Session {suggestion.assistantSessionId}</span>}
-            {suggestion.issueIds?.length ? <span>{suggestion.issueIds.join(', ')}</span> : null}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
