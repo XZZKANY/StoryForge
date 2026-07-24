@@ -2,11 +2,21 @@ import * as monaco from 'monaco-editor';
 
 import type { ReviewIssueMarker } from '../../lib/assistant-events';
 
-const ISSUE_SEVERITY_COLOR: Record<'high' | 'medium' | 'low', string> = {
-  high: '#f87171',
-  medium: '#fbbf24',
-  low: '#60a5fa',
+// overviewRuler 需要一个具体色值：与 index.css 同取 --issue-* 单一事实源（getComputedStyle 读当前主题的
+// 三元 RGB），失活时回退到与深色 token 一致的字面量。这样 css 下划线/圆点与 Monaco 标尺不再各写一份。
+const ISSUE_SEVERITY_FALLBACK: Record<'high' | 'medium' | 'low', string> = {
+  high: 'rgb(229 91 91)',
+  medium: 'rgb(235 201 126)',
+  low: 'rgb(146 153 234)',
 };
+
+function issueSeverityColor(severity: 'high' | 'medium' | 'low'): string {
+  if (typeof document === 'undefined') return ISSUE_SEVERITY_FALLBACK[severity];
+  const triple = getComputedStyle(document.documentElement)
+    .getPropertyValue(`--issue-${severity}`)
+    .trim();
+  return triple ? `rgb(${triple})` : ISSUE_SEVERITY_FALLBACK[severity];
+}
 
 function normalizeIssueSeverity(severity: string): 'high' | 'medium' | 'low' {
   return severity === 'high' || severity === 'low' ? severity : 'medium';
@@ -45,7 +55,7 @@ export function issueDecorationOptions(
     glyphMarginHoverMessage: hover,
     hoverMessage: hover,
     overviewRuler: {
-      color: ISSUE_SEVERITY_COLOR[severity],
+      color: issueSeverityColor(severity),
       position: monaco.editor.OverviewRulerLane.Right,
     },
   };

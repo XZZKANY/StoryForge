@@ -173,7 +173,7 @@ export function AppDialogHost({
         aria-modal="true"
         role="dialog"
         aria-labelledby="app-dialog-title"
-        className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-md border border-border bg-panel p-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-md border border-border bg-panel p-4 shadow-[var(--shadow-dialog)]"
         data-testid="app-dialog"
         data-dialog-kind={dialog.kind}
         onKeyDown={(event) => {

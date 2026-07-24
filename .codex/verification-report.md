@@ -1,30 +1,36 @@
-# 验证报告 · UI/UX 审计补丁审阅面板（PA23-PA26）
+# 验证报告 · UI/UX 审计设计 token 一致性
 
 时间：2026-07-24
-分支：`feat/uiux-patch-review-20260724`
+分支：`feat/uiux-tokens-20260724`
 
-审计「补丁审阅面板」主题 4 条。
+审计「设计 token 一致性」主题 6 条（速查表 grid 归文案 PR 一并做）。
 
 ## 变更（全前端）
 
-- **PA23 diff 字号写死 12 且无 CJK → 跟随编辑器**：`PatchReviewPanel` 新增 `editorFontSize` / `editorFontFamily`
-  两 props（`Editor.tsx` 从已在作用域的 `editorFontSize` + `resolveEditorFontFamily(editorFontMode)` 透传）；
-  diff 选项 `fontSize` 用 prop 值、补 `fontFamily`（CJK 2:1 栈修中英错位）；挂载期一次性创建，值变化由新 `updateOptions` effect 追平。
-- **PA24 多块「接受块 N」不透明 → 带行号**：按钮可见文案从 `接受块 N` 改 `接受第 N 处 · 第 X 行`
-  （`hunk.originalStartIndex + 1`），不再只靠 hover title 猜位置。
-- **PA25 术语「修订/补丁/建议/块」四名 → 收敛「修订」**：面板标题默认 `AI 修订建议`→`AI 修订`（`assistant-suggestions.ts`）；
-  `已拒绝建议补丁`→`已拒绝修订`、`已生成待确认补丁`→`已生成待确认修订`、恢复面板 `有待你确认的补丁`→`有待你确认的修订`；
-  「补丁 {id}」仅留 diff 追溯 tooltip（内部字段）不动。
-- **PA26 hover 底两种写法 → 统一实心**：`PatchReviewPanel` 的 `hover:bg-foreground/10`（半透明）4 处改 `hover:bg-elevated`（与 Composer 一致）。
+- **T39 审稿 issue 严重度硬编码三份 → 单一事实源**：新增 `--issue-high/-medium/-low`（两主题，对齐语义色板：
+  高=error / 中=warning / 低=agent-iris，退掉 token 里不存在的孤立天蓝）；`index.css` 下划线/圆点与
+  `decorations.ts` overviewRuler 同取（后者 `getComputedStyle` 读当前主题三元 RGB + 深色字面量兜底），
+  不再各写一份 hex。
+- **T-agent-foreground 缺 token → 补齐**：新增 `--agent-foreground`（两主题近白）+ Tailwind `agent-foreground`；
+  发送键 / 暂停键 / 欢迎页发送 / Ctrl+K 接受键的硬写 `text-white`·`#fff` 全改引用，与 accent-foreground 对称。
+- **T-shadow 投影硬编码纯黑、弹窗层自分裂 → 两档 token**：新增 `--shadow-dropdown` / `--shadow-dialog`
+  （浅色降 alpha 到 0.14/0.22，不再照搬深色纯黑）；下拉/卡片（会话/侧栏/页签溢出/ToastHost/@浮层/Ctrl+K 面板）
+  统一 `--shadow-dropdown`，弹窗（AppDialog/命令面板/版本记录，此前 shadow-2xl 与 0.55 黑三套）统一 `--shadow-dialog`。
+- **T-toast 两套 toast 皮 → 收敛**：`.sf-inline-toast`（Ctrl+K 胶囊 999px/panel 底）改 surface 底 + rounded-lg + 下拉档投影，
+  与全站 ToastHost 卡片同视觉基。
+- **T-mention @提及浮层偏离下拉配方 → 对齐**：`bg-panel`/`rounded-md`/一次性投影 改 `bg-surface`/`rounded-lg`/`--shadow-dropdown`。
+- **T-control-height 架空死 token → 删除**：`--sf-control-height` 仅 2 个 css 类消费、零 TSX、70+ 处各写死高度；
+  按审计「删死码」路径内联 28px 进 `.sf-toolbar-button`/`.sf-icon-button` 并删 token，去掉「有系统实则没有」的假象
+  （控件高度全站走 Tailwind h-* 工具类；不做 70 处盲扫，避免无 GUI 可验的高风险 churn）。
 
 ## 验证
 
 ```bash
 npm --prefix apps/desktop/frontend run typecheck   # PASS
-npm --prefix apps/desktop/frontend run test        # 52 files / 272 passed（+1 新：多块行号标签、无「接受块」）
-npx eslint <8 touched files>                       # 0 error（仅既有 Editor.tsx:539 warning）
-npx prettier --check <touched>                     # 通过（2 文件已 --write）
+npm --prefix apps/desktop/frontend run test        # 52 files / 272 passed（零回归）
+npm --prefix apps/desktop/frontend run build       # 构建成功（验证 Tailwind arbitrary shadow-var + agent-foreground 编译）
+npx eslint <11 touched>                            # 0 problems
+npx prettier --check <touched incl. index.css>     # 通过
 ```
 
-同批更新测试断言：`patch-review-panel.test.tsx`（标题→AI 修订、补 font props、加多块行号断言）、
-`chat-window.test.ts`（恢复面板 pendingText → 有待你确认的修订）。真机 diff 字号/字体观感归 E2E-1。
+真机明暗双主题下的投影轻重 / issue 色 / 紫底前景观感归 E2E-1 未验。

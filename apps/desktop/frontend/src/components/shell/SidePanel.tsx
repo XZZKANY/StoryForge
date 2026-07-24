@@ -153,7 +153,7 @@ function ExplorerView({
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-            <div className="absolute left-2 right-2 top-shell-row z-40 rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+            <div className="absolute left-2 right-2 top-shell-row z-40 rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]">
               {projects.slice(0, 8).map((project) => (
                 <div
                   key={project}

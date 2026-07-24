@@ -128,7 +128,7 @@ export function WelcomeWorkspace({
               />
               <button
                 type="button"
-                className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-elevated text-muted transition-colors hover:bg-agent hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="grid h-[30px] w-[30px] flex-none place-items-center rounded-lg bg-elevated text-muted transition-colors hover:bg-agent hover:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-40"
                 title="发送即开书"
                 data-testid="welcome-composer-send"
                 disabled={!canSend}

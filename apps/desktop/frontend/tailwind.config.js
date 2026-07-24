@@ -19,6 +19,7 @@ export default {
         warning: 'rgb(var(--warning) / <alpha-value>)',
         success: 'rgb(var(--success) / <alpha-value>)',
         agent: 'rgb(var(--agent) / <alpha-value>)',
+        'agent-foreground': 'rgb(var(--agent-foreground) / <alpha-value>)',
       },
       fontFamily: {
         ui: 'var(--font-ui)',

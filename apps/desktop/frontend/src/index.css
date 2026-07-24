@@ -22,14 +22,22 @@
   --warning: 235 201 126;
   --success: 115 202 128;
   --agent: 146 153 234; /* 鸢尾紫：只用于 agent 相关（召唤/思考/advisory/发送键聚焦态），当金子省着用 */
+  --agent-foreground: 250 250 250; /* 紫底按钮前景：两主题都近白，与 accent-foreground 对称 */
+  /* 审稿 issue 严重度：单一事实源，css 下划线/圆点与 decorations.ts overviewRuler 同取，对齐语义色板 */
+  --issue-high: 229 91 91; /* = --error */
+  --issue-medium: 235 201 126; /* = --warning */
+  --issue-low: 146 153 234; /* = --agent：低=advisory，归入 iris 语义，不引入孤立天蓝 */
 
   --sf-bar-height: 36px;
   --sf-status-height: 26px;
   --sf-row-height: 30px;
   --sf-tree-row-height: 26px;
-  --sf-control-height: 28px;
   --sf-panel-x: 12px;
   --sf-item-gap: 8px;
+
+  /* 抬升投影分档：下拉/卡片一档、弹窗一档；浅色降 alpha，避免照搬深色纯黑投影偏重。 */
+  --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.35);
+  --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.55);
 
   --font-ui: -apple-system, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
   --font-prose: Georgia, 'Source Han Serif SC', 'Noto Serif SC', 'SimSun', serif;
@@ -53,6 +61,12 @@
   --warning: 176 122 17;
   --success: 42 140 84;
   --agent: 79 86 196; /* 浅色主题鸢尾紫（更深，保证白底对比度） */
+  --agent-foreground: 250 250 250;
+  --issue-high: 200 56 56;
+  --issue-medium: 176 122 17;
+  --issue-low: 79 86 196;
+  --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.14);
+  --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.22);
 }
 
 body {
@@ -122,7 +136,7 @@ body {
 
 .sf-toolbar-button {
   display: inline-flex;
-  height: var(--sf-control-height);
+  height: 28px;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
@@ -146,8 +160,8 @@ body {
 
 .sf-icon-button {
   display: inline-flex;
-  height: var(--sf-control-height);
-  width: var(--sf-control-height);
+  height: 28px;
+  width: 28px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -299,13 +313,13 @@ body {
   text-underline-offset: 3px;
 }
 .sf-issue-high {
-  text-decoration-color: rgb(248 113 113 / 0.9);
+  text-decoration-color: rgb(var(--issue-high) / 0.9);
 }
 .sf-issue-medium {
-  text-decoration-color: rgb(251 191 36 / 0.9);
+  text-decoration-color: rgb(var(--issue-medium) / 0.9);
 }
 .sf-issue-low {
-  text-decoration-color: rgb(96 165 250 / 0.9);
+  text-decoration-color: rgb(var(--issue-low) / 0.9);
 }
 .sf-issue-glyph {
   cursor: pointer;
@@ -319,13 +333,13 @@ body {
   border-radius: 9999px;
 }
 .sf-issue-glyph-high::after {
-  background: #f87171;
+  background: rgb(var(--issue-high));
 }
 .sf-issue-glyph-medium::after {
-  background: #fbbf24;
+  background: rgb(var(--issue-medium));
 }
 .sf-issue-glyph-low::after {
-  background: #60a5fa;
+  background: rgb(var(--issue-low));
 }
 
 /* ===== 行间对话（Ctrl+K）：Monaco view zone / decoration 的内联 diff 皮肤 ===== */
@@ -339,7 +353,7 @@ body {
   border: 1px solid rgb(var(--agent) / 0.55);
   border-radius: 10px;
   background: rgb(var(--surface));
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  box-shadow: var(--shadow-dropdown);
   overflow: hidden;
   font-family: var(--font-ui);
 }
@@ -418,7 +432,7 @@ body {
   border-radius: 6px;
   border: 0;
   background: rgb(var(--agent));
-  color: #fff;
+  color: rgb(var(--agent-foreground));
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -454,12 +468,13 @@ body {
   max-width: 60%;
   padding: 7px 12px;
   border: 1px solid rgb(var(--border));
-  border-radius: 999px;
-  background: rgb(var(--panel) / 0.96);
+  /* 与全站 ToastHost 卡片同底：surface + rounded-lg 圆角 + 下拉档投影，收敛两套 toast 皮。 */
+  border-radius: 8px;
+  background: rgb(var(--surface));
   color: rgb(var(--muted));
   font-size: 11.5px;
   line-height: 1.5;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  box-shadow: var(--shadow-dropdown);
   pointer-events: none;
 }
 
