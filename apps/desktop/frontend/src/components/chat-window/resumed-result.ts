@@ -16,10 +16,10 @@ export function stepsFromResumedAgentResult(response: AgentResultMessage): Agent
   return [
     {
       id: 'resume',
-      title: '恢复 AgentRun',
+      title: '恢复本轮',
       tool: 'agent.runtime.resume',
       status: 'completed',
-      detail: `resume_run 已返回 ${response.intent}`,
+      detail: '已从暂停处恢复继续',
     },
     ...stepsFromAgentResult(response),
     {
@@ -51,11 +51,11 @@ export function displayFromResumeDiagnostic(
 }
 
 function diagnosticReasonLabel(reason: string | null): string {
-  if (reason === 'run_not_resumed') return 'AgentRun 尚未进入 resumed 状态';
-  if (reason === 'missing_resume_message') return '缺少恢复消息';
-  if (reason === 'unsupported_pending_call_intent') return '当前 pending intent 暂不支持自动恢复';
-  if (reason === 'invalid_pending_call') return 'pending call 记录无效';
-  if (reason === 'pending_call_ready') return 'pending call 已就绪';
+  if (reason === 'run_not_resumed') return '本轮还没能恢复继续';
+  if (reason === 'missing_resume_message') return '缺少可恢复的现场';
+  if (reason === 'unsupported_pending_call_intent') return '这一步暂不支持自动恢复';
+  if (reason === 'invalid_pending_call') return '待恢复的现场记录已失效';
+  if (reason === 'pending_call_ready') return '待恢复的现场已就绪';
   return reason ?? '原因未明';
 }
 

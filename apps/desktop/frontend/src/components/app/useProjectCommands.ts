@@ -258,11 +258,6 @@ export function useProjectCommands({
     }
   }, [activeProject, currentFile, dialogs, dirtyFiles, handleOpenProject]);
 
-  const handleStartNewBook = useCallback(() => {
-    onShowEditor();
-    void handleOpenProject();
-  }, [handleOpenProject, onShowEditor]);
-
   return {
     projectRefreshVersion,
     welcomeDraft,
@@ -275,7 +270,6 @@ export function useProjectCommands({
     handleNewFile,
     handleInitializeStoryProject,
     handleRefreshCanon,
-    handleStartNewBook,
   };
 }
 

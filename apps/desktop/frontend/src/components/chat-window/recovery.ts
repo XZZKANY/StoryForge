@@ -132,7 +132,7 @@ function boundarySummary({
   latestInterruption: Record<string, unknown> | null;
 }): string | null {
   if (latestResolution) {
-    const pendingTool = stringField(latestResolution, 'pending_tool') ?? 'pending call';
+    const pendingTool = stringField(latestResolution, 'pending_tool') ?? '待恢复的步骤';
     const resultStatus = stringField(latestResolution, 'result_status');
     return resultStatus ? `已恢复：${pendingTool} · ${resultStatus}` : `已恢复：${pendingTool}`;
   }

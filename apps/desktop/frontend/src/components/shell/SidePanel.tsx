@@ -8,7 +8,7 @@ import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import type { SidePanelView } from './useShellState';
 import { useDismissableMenu } from './useDismissableMenu';
-import { ChevronDown, FilePlus, FileText, FolderOpen, Sparkles, X } from '../icons/shell-icons';
+import { ChevronDown, FilePlus, FileText, FolderOpen, X } from '../icons/shell-icons';
 
 type SidePanelProps = {
   view: SidePanelView;
@@ -23,7 +23,6 @@ type SidePanelProps = {
   onNewFile: (projectPath?: string) => void;
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
-  onStartNewBook: () => void;
 };
 
 export function SidePanel(props: SidePanelProps) {
@@ -61,7 +60,6 @@ function ExplorerView({
   onNewFile,
   onFileSelect,
   onFilePreview,
-  onStartNewBook,
 }: SidePanelProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -71,7 +69,7 @@ function ExplorerView({
     return (
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3" data-testid="explorer-empty">
         <p className="mb-2 text-[11.5px] leading-relaxed text-subtle">
-          还没有打开项目。打开一个本地文件夹，或直接说一句话开新书。
+          还没有打开项目。打开一个本地文件夹，开始你的创作。
         </p>
         <button
           className="flex h-[34px] items-center gap-2.5 rounded-md bg-elevated px-3 text-[12.5px] font-medium text-foreground hover:bg-surface hover:shadow-[inset_0_0_0_1px_rgb(var(--border-strong))]"
@@ -80,13 +78,6 @@ function ExplorerView({
         >
           <FileText size={15} strokeWidth={1.6} className="text-subtle" />
           打开项目…
-        </button>
-        <button
-          className="flex h-[34px] items-center gap-2.5 rounded-md px-3 text-[12.5px] text-muted hover:bg-elevated hover:text-foreground"
-          onClick={onStartNewBook}
-        >
-          <Sparkles size={15} strokeWidth={1.6} className="text-agent" />
-          新的开始
         </button>
         {projects.length > 0 && (
           <>
