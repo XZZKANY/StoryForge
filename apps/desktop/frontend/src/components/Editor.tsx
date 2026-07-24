@@ -679,6 +679,8 @@ export function Editor({
       {pendingSuggestion && (
         <PatchReviewPanel
           suggestion={pendingSuggestion}
+          editorFontSize={editorFontSize}
+          editorFontFamily={resolveEditorFontFamily(editorFontMode)}
           onAccept={handleAcceptSuggestion}
           onAcceptHunk={handleAcceptHunk}
           onReject={rejectPendingSuggestion}

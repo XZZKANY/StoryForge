@@ -109,7 +109,7 @@ function pendingSummary({
 
   const proposedPatchId = numberField(pending, 'proposed_patch_artifact_id');
   if (proposedPatchId !== null && status !== 'completed') {
-    parts.push(`有待你确认的补丁（#${proposedPatchId}）`);
+    parts.push(`有待你确认的修订（#${proposedPatchId}）`);
   }
 
   if (latestDiagnostic && booleanField(latestDiagnostic, 'requires_manual_restart') === true) {

@@ -1,35 +1,30 @@
-# 验证报告 · UI/UX 审计运行状态机（R7-R12）
+# 验证报告 · UI/UX 审计补丁审阅面板（PA23-PA26）
 
 时间：2026-07-24
-分支：`feat/uiux-runstate-20260724`
+分支：`feat/uiux-patch-review-20260724`
 
-承 UI/UX 审计其余 P3/P2 收尾波，本刀收口「运行状态机：暂停 / 停止 / 等待」主题 6 条（1 组近重复合并）。
+审计「补丁审阅面板」主题 4 条。
 
-## 变更（全前端，后端零改）
+## 变更（全前端）
 
-- **R8 暂停死胡同 →「暂停」有恢复出口**：新增 `AgentRunStatus` 加 `'paused'` 态。
-  `pause_run` 控制回执从落 `'waiting'` 改落 `'paused'`（`useAgentRunControls.ts` + `useAgentStreamEvent.ts` 两处派发点同步）；
-  `RunActionBar` 暂停态渲染「恢复」主 CTA（`run-resume` → `onResumeRun`）并保留「停止」。
-- **R9 作者停止被当失败 → 中性收尾**：新增 `'stopped'` 态；`stop_run` 从落 `'failed'` 改落 `'stopped'`
-  （两处派发点），`runStatusText` 出「已由你停止本轮。」（不再套用「遇到问题…详情在回复里」的失败措辞、也不给重试）。
-  `permission_denied` 仍是真失败，保持 `'failed'`。
-- **R7 + R11 三层同义进度信号 → 状态条互斥**：`ChatWindowView` 计算 `actionBarVisible`（running/waiting/paused），
-  RunActionBar 可见时隐藏 `LightweightStatus`（RunActionBar 已自带状态文案）；`completed` 的「本轮已完成。」不再长驻
-  （完成已在回复里），只 `failed`/`stopped` 保留轻状态条收尾。
-- **R10 跨章检查不置忙 / 可并发**：`useChatSubmission.runCrossChapterConsistency` 起手 `setAgentBusy(true)`、
-  `finally` 复位，禁用 composer 并让既有 `agentBusy` 守卫真正拦住并发再提交。
-- **R12 流式期禁编辑 → 可预写**：Composer textarea `disabled` 去掉 `|| busy`（保持可编辑边等边预写），
-  Enter 守卫加 `if (disabled || busy) return`（流式期 Enter 不发送、底排仍是暂停键）。
-
-类型 union 从 4 处内联字面量收敛到 `types.ts` 的 `AgentRunStatus`（`useAgentRunControls` / `useRunAuthorAgent` 签名引用）。
+- **PA23 diff 字号写死 12 且无 CJK → 跟随编辑器**：`PatchReviewPanel` 新增 `editorFontSize` / `editorFontFamily`
+  两 props（`Editor.tsx` 从已在作用域的 `editorFontSize` + `resolveEditorFontFamily(editorFontMode)` 透传）；
+  diff 选项 `fontSize` 用 prop 值、补 `fontFamily`（CJK 2:1 栈修中英错位）；挂载期一次性创建，值变化由新 `updateOptions` effect 追平。
+- **PA24 多块「接受块 N」不透明 → 带行号**：按钮可见文案从 `接受块 N` 改 `接受第 N 处 · 第 X 行`
+  （`hunk.originalStartIndex + 1`），不再只靠 hover title 猜位置。
+- **PA25 术语「修订/补丁/建议/块」四名 → 收敛「修订」**：面板标题默认 `AI 修订建议`→`AI 修订`（`assistant-suggestions.ts`）；
+  `已拒绝建议补丁`→`已拒绝修订`、`已生成待确认补丁`→`已生成待确认修订`、恢复面板 `有待你确认的补丁`→`有待你确认的修订`；
+  「补丁 {id}」仅留 diff 追溯 tooltip（内部字段）不动。
+- **PA26 hover 底两种写法 → 统一实心**：`PatchReviewPanel` 的 `hover:bg-foreground/10`（半透明）4 处改 `hover:bg-elevated`（与 Composer 一致）。
 
 ## 验证
 
 ```bash
-npm --prefix apps/desktop/frontend run typecheck   # PASS（union 传播零报错）
-npm --prefix apps/desktop/frontend run test        # 52 files / 271 passed（+2 新：暂停恢复 / 停止中性文案）
-npx eslint <10 touched files>                      # 0 problems（含 warning）
-npx prettier --check <touched>                     # 通过（ChatWindowView 已 --write）
+npm --prefix apps/desktop/frontend run typecheck   # PASS
+npm --prefix apps/desktop/frontend run test        # 52 files / 272 passed（+1 新：多块行号标签、无「接受块」）
+npx eslint <8 touched files>                       # 0 error（仅既有 Editor.tsx:539 warning）
+npx prettier --check <touched>                     # 通过（2 文件已 --write）
 ```
 
-真机桌面观感（点暂停出恢复键、点停止中性收尾、流式期预写、跨章置忙）归 E2E-1 未验。
+同批更新测试断言：`patch-review-panel.test.tsx`（标题→AI 修订、补 font props、加多块行号断言）、
+`chat-window.test.ts`（恢复面板 pendingText → 有待你确认的修订）。真机 diff 字号/字体观感归 E2E-1。
