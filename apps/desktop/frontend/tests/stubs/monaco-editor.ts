@@ -86,6 +86,13 @@ export const editor = {
     lastEditor = new FakeEditor();
     return lastEditor;
   },
+  createDiffEditor() {
+    return {
+      setModel() {},
+      layout() {},
+      dispose() {},
+    };
+  },
   createModel(value: string) {
     const model = new FakeModel(value);
     models.push(model);
