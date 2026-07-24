@@ -263,7 +263,7 @@ export function ComposerSurface({
             {onTogglePinnedContext && (
               <button
                 type="button"
-                className="hidden flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground group-hover/pin:inline-flex"
+                className="inline-flex flex-shrink-0 leading-none text-subtle transition-colors hover:text-foreground"
                 title="取消固定"
                 onClick={() => onTogglePinnedContext(path)}
               >

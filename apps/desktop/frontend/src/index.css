@@ -410,7 +410,7 @@ body {
   padding: 2px 0;
   background: rgb(var(--success) / 0.1);
   border-left: 3px solid rgb(var(--success) / 0.7);
-  font-family: var(--font-mono);
+  /* font-family 由 buildDiffZoneDom 内联设为编辑器实际字体（CJK 2:1 栈），与红旧行同栈不错位 */
 }
 .sf-inline-diff-line {
   padding: 0 12px 0 16px;

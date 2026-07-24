@@ -128,6 +128,8 @@ export function Editor({
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
+  // 留存当前审稿 issue，供内容变化后按 evidence 重新校验、移除已改好的标记（E18）。
+  const reviewIssuesRef = useRef<ReviewIssueMarker[]>([]);
   const autoSaveTimerRef = useRef<number | null>(null);
   const autoSaveRef = useRef(autoSave);
   // 用 ref 持有最新值，避免 Monaco 命令/回调闭包读到旧状态。
@@ -323,11 +325,34 @@ export function Editor({
       const detail = (event as CustomEvent<{ filePath: string; issues: ReviewIssueMarker[] }>)
         .detail;
       if (!detail || detail.filePath !== filePathRef.current) return;
+      reviewIssuesRef.current = detail.issues;
       applyIssueDecorations(detail.issues);
     };
     window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
     return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
   }, [applyIssueDecorations]);
+
+  // 切文件清留存 issue：避免内容变化重校验把旧文件的 issue 误标进新文件（decorations 由加载器清）。
+  useEffect(() => {
+    reviewIssuesRef.current = [];
+  }, [loadedFilePath]);
+
+  // E18：作者改掉问题文字后，去抖重跑 locateEvidence——失配的 issue 在 applyIssueDecorations 里被跳过即消失，
+  // 不必等重审 / 切文件。stub 无 onDidChangeModelContent，typeof 守卫。
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editorReady || !editor || typeof editor.onDidChangeModelContent !== 'function') return;
+    let timer: number | null = null;
+    const subscription = editor.onDidChangeModelContent(() => {
+      if (reviewIssuesRef.current.length === 0) return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => applyIssueDecorations(reviewIssuesRef.current), 400);
+    });
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      subscription.dispose();
+    };
+  }, [editorReady, applyIssueDecorations]);
 
   // 观测镜实体联动：光标行变化去抖后广播行文本，观测侧按实体表面形匹配亮卡
   //（monaco stub 无光标 API，均 typeof 守卫）。
