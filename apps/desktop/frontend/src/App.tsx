@@ -31,7 +31,11 @@ export function App() {
     () => !preferences.settings.showWelcomeOnStartup,
   );
 
-  const showEditor = useCallback(() => setSettingsVisible(false), []);
+  // 关设置页 + 确保中栏可见（对话聚焦 Ctrl+3 态会隐藏中栏，补丁 / 正文才不至于落在看不见的中栏）。
+  const showEditor = useCallback(() => {
+    setSettingsVisible(false);
+    shell.showCenter();
+  }, [shell.showCenter]);
   const workspace = useProjectWorkspace({
     onProjectSelected: showEditor,
     onFileSelected: showEditor,
@@ -165,13 +169,15 @@ export function App() {
     (anchor: ObservationAnchor) => {
       const project = workspace.activeProject;
       if (!project) return;
+      // 定位原文要落在中栏编辑器；对话聚焦态隐藏中栏时先落回 balanced，否则定位落空。
+      shell.showCenter();
       const separator = project.includes('\\') ? '\\' : '/';
       const relativePath = anchor.path.split('/').join(separator);
       const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath}`;
       if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '定位观测');
       emitLocateInEditor({ filePath: absolutePath, line: anchor.line, snippet: anchor.snippet });
     },
-    [tabs, workspace.activeProject],
+    [shell.showCenter, tabs, workspace.activeProject],
   );
 
   const locateObservation = useCallback(

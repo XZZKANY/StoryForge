@@ -141,3 +141,32 @@ test('run action bar shows permission CTAs when waiting', () => {
   assert.match(html, /data-testid="run-approve-permission"/);
   assert.match(html, /data-testid="run-deny-permission"/);
 });
+
+test('run action bar drops destructive stop while awaiting patch confirm', () => {
+  // status==='waiting' 且非权限 = 等你在编辑器确认 diff：run 已出结果，「停止」会误标 failed
+  // 却不清补丁，故这里只给去向提示、不渲染停止键。
+  const run: AgentRun = {
+    id: 'run-77',
+    sessionId: 's1',
+    goal: 'revise',
+    status: 'waiting',
+    steps: [
+      { id: 'file-revision', title: '修订', tool: 'file.revise', status: 'waiting', detail: '' },
+    ],
+  };
+  const html = renderToStaticMarkup(
+    <RunActionBar
+      run={run}
+      controls={{
+        onApprovePermission: () => undefined,
+        onDenyPermission: () => undefined,
+        onPauseRun: () => undefined,
+        onResumeRun: () => undefined,
+        onStopRun: () => undefined,
+      }}
+    />,
+  );
+  assert.match(html, /在编辑器里确认修订/);
+  assert.doesNotMatch(html, /data-testid="run-stop"/);
+  assert.doesNotMatch(html, /data-testid="run-approve-permission"/);
+});

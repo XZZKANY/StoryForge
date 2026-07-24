@@ -5,6 +5,7 @@ import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
   APPLY_FILE_SUGGESTION_EVENT,
   SUGGESTION_RESULT_EVENT,
+  bufferPendingFileSuggestion,
   takePendingFileSuggestion,
   type AuthorLoopResult,
   type SuggestionResult,
@@ -64,6 +65,9 @@ export function useSuggestionWriteback({
   });
 
   const resetSuggestionWriteback = useCallback(() => {
+    // P2c：切走当前文件前把未确认补丁回填缓冲，切回同一文件可重新领取，不静默丢弃。
+    const pending = pendingSuggestionRef.current;
+    if (pending) bufferPendingFileSuggestion(pending);
     setPendingSuggestion(null);
     setSuggestionStatusState(null);
     setIsReviseLoading(false);
@@ -196,7 +200,9 @@ export function useSuggestionWriteback({
       );
       setPendingSuggestion(null);
       setSuggestionStatus(
-        loopRecord.recordPath ? `已接受并写入当前文件，闭环记录已保存` : '已接受并写入当前文件',
+        loopRecord.recordPath
+          ? '已写入当前文件 · 已留写前快照与闭环记录，可在「…」菜单的版本历史撤销'
+          : '已写入当前文件 · 已留写前快照，可在「…」菜单的版本历史撤销',
         'success',
       );
       emitAuthorLoopResult({

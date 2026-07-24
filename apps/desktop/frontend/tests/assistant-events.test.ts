@@ -3,6 +3,7 @@ import { test } from 'vitest';
 
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
+  bufferPendingFileSuggestion,
   emitAcceptCurrentFileSuggestion,
   emitFileSuggestion,
   takePendingFileSuggestion,
@@ -15,10 +16,10 @@ test('accept current file suggestion event is emitted for chat writeback confirm
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
-    dispatchEvent(event: Event) {
-      events.push(event.type);
-      return true;
-    },
+      dispatchEvent(event: Event) {
+        events.push(event.type);
+        return true;
+      },
     },
   });
 
@@ -52,4 +53,25 @@ test('pending file suggestion is buffered for the target file and taken exactly 
   assert.equal(takePendingFileSuggestion(null), null);
   assert.equal(takePendingFileSuggestion('D:/项目/正文/第03章.md'), suggestion);
   assert.equal(takePendingFileSuggestion('D:/项目/正文/第03章.md'), null);
+});
+
+test('re-buffered pending suggestion is takeable again after switching back (P2c)', () => {
+  const suggestion = createRemoteFileSuggestion({
+    filePath: 'D:/项目/正文/第05章.md',
+    before: '旧',
+    after: '新',
+    summary: '改第五章',
+    model: 'test-model',
+    userIntent: '改第五章',
+  });
+
+  emitFileSuggestion(suggestion);
+  // 补丁到达即被编辑器领走（缓冲清空）
+  assert.equal(takePendingFileSuggestion('D:/项目/正文/第05章.md'), suggestion);
+  assert.equal(takePendingFileSuggestion('D:/项目/正文/第05章.md'), null);
+  // 切走时 resetSuggestionWriteback 把未确认补丁回填缓冲
+  bufferPendingFileSuggestion(suggestion);
+  // 切回同一文件可重新领取，不静默丢弃
+  assert.equal(takePendingFileSuggestion('D:/项目/正文/第05章.md'), suggestion);
+  assert.equal(takePendingFileSuggestion('D:/项目/正文/第05章.md'), null);
 });

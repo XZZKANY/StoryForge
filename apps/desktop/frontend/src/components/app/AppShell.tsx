@@ -292,7 +292,7 @@ export function AppShell({
             >
               <ChatWindow
                 projectPath={activeProject}
-                currentFile={currentFile}
+                currentFile={tabs.displayedFile ?? currentFile}
                 assistantSessionId={
                   activeProject ? (projectAssistantSessions[activeProject] ?? null) : null
                 }

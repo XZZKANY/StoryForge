@@ -49,6 +49,11 @@ export function useShellState() {
     () => setLayoutMode((mode) => (mode === 'editor' ? 'balanced' : mode)),
     [],
   );
+  // 「确保中栏（编辑 / 补丁面板）可见」：chat 聚焦态隐藏中栏 → 落回 balanced；editor/balanced 保持。
+  const showCenter = useCallback(
+    () => setLayoutMode((mode) => (mode === 'chat' ? 'balanced' : mode)),
+    [],
+  );
 
   // Ctrl+4 / 头部雷达图标：右栏隐藏时先展开并直落观测镜；可见时在对话↔观测镜间切换。
   const toggleObservatory = useCallback(() => {
@@ -74,6 +79,7 @@ export function useShellState() {
     setLayoutMode,
     toggleRight,
     showRight,
+    showCenter,
     toggleObservatory,
     showChatView,
   };

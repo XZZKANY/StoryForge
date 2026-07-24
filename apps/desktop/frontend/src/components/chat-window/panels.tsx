@@ -327,8 +327,11 @@ export function RunActionBar({
   const waitingForPermission = run.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
-  const canStop = run.status === 'running' || run.status === 'waiting';
-  if (!canStop && !waitingForPermission) return null;
+  // status==='waiting' 且非权限 = run 已产出、等你在编辑器确认 diff/导出。此时「停止」会把 run
+  // 误标 failed 却不清掉待确认补丁（放弃应走编辑器里拒绝），故这里只给去向提示、不给破坏性停止。
+  const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
+  const canStop = run.status === 'running' || waitingForPermission;
+  if (!canStop && !awaitingConfirm) return null;
 
   return (
     <div
@@ -341,7 +344,11 @@ export function RunActionBar({
           title={`运行 ${run.id}`}
           data-testid="run-action-status"
         >
-          {waitingForPermission ? '等待你确认' : run.status === 'waiting' ? '等待确认' : '正在处理'}
+          {waitingForPermission
+            ? '等待你确认'
+            : awaitingConfirm
+              ? '在编辑器里确认修订'
+              : '正在处理'}
         </div>
         {waitingForPermission && (
           <>
@@ -365,16 +372,17 @@ export function RunActionBar({
             </button>
           </>
         )}
-        <button
-          type="button"
-          className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={controls.onStopRun}
-          disabled={!canStop}
-          title="停止本轮"
-          data-testid="run-stop"
-        >
-          停止
-        </button>
+        {canStop && (
+          <button
+            type="button"
+            className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
+            onClick={controls.onStopRun}
+            title="停止本轮"
+            data-testid="run-stop"
+          >
+            停止
+          </button>
+        )}
       </div>
     </div>
   );
