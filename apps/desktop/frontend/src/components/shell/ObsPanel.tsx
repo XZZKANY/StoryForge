@@ -60,7 +60,7 @@ export function ObsPanel({
   const counts = obsCounts(observations);
   const statusLabel =
     availability === 'unavailable'
-      ? '观测未接线'
+      ? '观测尚未启用'
       : availability === 'loading'
         ? '观测加载中'
         : availability === 'error'
@@ -94,7 +94,7 @@ export function ObsPanel({
               ? '正在加载观测数据。'
               : availability === 'error'
                 ? '观测数据加载失败，请稍后重试。'
-                : '观测尚未接线，当前没有可用于判断项目状态的数据。'}
+                : '观测尚未启用，当前没有可用于判断项目状态的数据。'}
           </p>
         ) : observations.length === 0 ? (
           <p className="px-4 py-4 text-[11px] leading-relaxed text-subtle">暂无观测项。</p>

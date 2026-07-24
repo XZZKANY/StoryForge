@@ -63,7 +63,10 @@ export function WelcomeWorkspace({
       data-testid="welcome-workspace"
     >
       {/* 可关的「欢迎」页签（关了露出空 workbench，命令面板「显示欢迎页」可重开）。 */}
-      <div className="flex h-9 flex-none items-stretch border-b border-border bg-panel">
+      <div
+        className="flex h-shell-row flex-none items-stretch border-b border-border bg-panel"
+        data-testid="welcome-tabbar"
+      >
         <div className="relative -mb-px flex items-center gap-2 border-b border-r border-b-background border-r-border/50 bg-background pl-3.5 pr-3 text-xs font-semibold text-foreground shadow-[inset_0_2px_0_rgb(var(--agent))]">
           <Sparkles size={13} strokeWidth={1.7} aria-hidden="true" className="text-agent" />
           <span>欢迎</span>
@@ -109,7 +112,7 @@ export function WelcomeWorkspace({
             <div className="mb-2.5 flex items-center gap-1.5 rounded-[10px] border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
               <input
                 className="h-[30px] min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-subtle"
-                placeholder="一句话开新书：写下念头，回车即建项目骨架..."
+                placeholder="一句话开新书：写下念头，回车即建项目骨架…"
                 aria-label="一句话开新书"
                 data-testid="welcome-composer-input"
                 value={composerValue}
@@ -139,19 +142,19 @@ export function WelcomeWorkspace({
 
             <WAction
               icon={<FolderOpen size={16} strokeWidth={1.6} aria-hidden="true" />}
-              label="打开项目..."
+              label="打开项目…"
               kbd="Ctrl O"
               onClick={onOpenProject}
               testId="welcome-primary-action"
             />
             <WAction
               icon={<FilePlus size={16} strokeWidth={1.6} aria-hidden="true" />}
-              label="新建文件..."
+              label="新建文件…"
               onClick={onNewFile}
             />
             <WAction
               icon={<Command size={16} strokeWidth={1.6} aria-hidden="true" />}
-              label="命令面板..."
+              label="命令面板…"
               kbd="Ctrl P"
               onClick={onOpenPalette}
             />
@@ -185,7 +188,7 @@ export function WelcomeWorkspace({
                     className="ml-2 mt-0.5 px-1 py-1.5 text-[12px] text-agent hover:underline"
                     onClick={() => setRecentExpanded(true)}
                   >
-                    更多...
+                    更多…
                   </button>
                 )}
               </>

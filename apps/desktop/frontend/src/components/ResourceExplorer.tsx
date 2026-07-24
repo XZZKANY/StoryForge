@@ -87,7 +87,7 @@ export function ResourceExplorer({
           <span className="text-xs font-medium text-muted">资源管理器</span>
           <button
             onClick={handleCollapse}
-            className="sf-icon-button text-muted hover:bg-elevated"
+            className="sf-icon-button text-muted"
             title={collapsed ? '展开' : '折叠'}
           >
             <svg

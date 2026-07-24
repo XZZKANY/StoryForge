@@ -130,8 +130,8 @@ export function useRunAuthorAgent(
             role: 'assistant',
             content:
               writebackOnly || intent === 'file.revise'
-                ? '当前没有可写回或可定向修订的稿件。要改某一章，先在右侧打开那份正文；如果只是讨论项目，直接问我就行。'
-                : '导出需要先在右侧打开一份当前稿。',
+                ? '当前没有可写回或可定向修订的稿件。要改某一章，先在编辑器里打开那份正文；如果只是讨论项目，直接问我就行。'
+                : '导出需要先在编辑器里打开一份当前稿。',
           },
         ]);
         return;
@@ -331,7 +331,7 @@ export function useRunAuthorAgent(
                           title: '等待作者确认',
                           tool: 'author.approval',
                           status: 'waiting' as const,
-                          detail: '等待作者在右侧 diff 面板确认',
+                          detail: '等待作者在编辑器里确认 diff',
                         },
                       ]
                     : []),

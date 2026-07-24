@@ -76,17 +76,17 @@ export function StatusBar({
     healthProbe.kind === 'pending' ? 'bg-warning' : reachable ? 'bg-success' : 'bg-error';
   const connLabel =
     healthProbe.kind === 'pending'
-      ? 'sidecar · 探测中'
+      ? '本地服务 · 探测中'
       : reachable
-        ? 'sidecar · 已连接'
-        : 'sidecar · 连接中断';
+        ? '本地服务 · 已连接'
+        : '本地服务 · 连接中断';
 
   const unavailableObservationLabel =
     observationAvailability === 'loading'
       ? '观测加载中'
       : observationAvailability === 'error'
         ? '观测加载失败'
-        : '观测未接线';
+        : '观测尚未启用';
 
   return (
     <footer

@@ -428,7 +428,7 @@ export function Editor({
       });
       if (line == null) {
         // snippet 锚（prose 类无行号）在原文改动后会失效：明确提示，不静默落空。
-        setSuggestionStatus('观测锚点失效：原文可能已改动，请按观测详情手动核对');
+        setSuggestionStatus('观测锚点失效：原文可能已改动，请按观测详情手动核对', 'error');
         return true;
       }
       if (typeof editor.setPosition === 'function') {
@@ -507,7 +507,7 @@ export function Editor({
         filePath: path,
         content: editorRef.current.getValue(),
       });
-      setSuggestionStatus(`已导出到 ${result.exportPath}`);
+      setSuggestionStatus(`已导出到 ${result.exportPath}`, 'success');
       emitToast(`已导出到 ${result.exportPath}`, { tone: 'success' });
       emitAuthorLoopResult({
         filePath: path,
@@ -518,7 +518,7 @@ export function Editor({
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setSuggestionStatus(`导出失败: ${message}`);
+      setSuggestionStatus(`导出失败: ${message}`, 'error');
       emitToast(`导出失败：${message}`, { tone: 'error' });
       emitAuthorLoopResult({
         filePath: path,
@@ -663,10 +663,16 @@ export function Editor({
 
       {suggestionStatus && (
         <div
-          className={`px-3 py-2 border-b border-border bg-panel text-xs animate-fade-in flex-shrink-0 ${suggestionStatus.startsWith('AI 修订失败') ? 'text-error' : 'text-success'}`}
+          className={`px-3 py-2 border-b border-border bg-panel text-xs animate-fade-in flex-shrink-0 ${
+            suggestionStatus.tone === 'error'
+              ? 'text-error'
+              : suggestionStatus.tone === 'success'
+                ? 'text-success'
+                : 'text-muted'
+          }`}
           data-testid="suggestion-status"
         >
-          {suggestionStatus}
+          {suggestionStatus.text}
         </div>
       )}
 

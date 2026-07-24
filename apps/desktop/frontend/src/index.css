@@ -139,8 +139,8 @@ body {
 }
 
 .sf-toolbar-button:hover {
-  border-color: rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.055);
+  border-color: rgb(var(--border));
+  background: rgb(var(--elevated));
   color: rgb(var(--foreground));
 }
 
@@ -162,8 +162,8 @@ body {
 }
 
 .sf-icon-button:hover {
-  border-color: rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.055);
+  border-color: rgb(var(--border));
+  background: rgb(var(--elevated));
   color: rgb(var(--foreground));
 }
 
@@ -264,27 +264,6 @@ body {
 
 .animate-pulse {
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* 步骤状态颜色 */
-.step-pending {
-  color: #8a8a90;
-}
-
-.step-running {
-  color: #4a9eff;
-}
-
-.step-waiting {
-  color: #ffa726;
-}
-
-.step-completed {
-  color: #66bb6a;
-}
-
-.step-failed {
-  color: #ef5350;
 }
 
 /* 文本截断 */
@@ -396,6 +375,13 @@ body {
   padding: 0 12px 8px;
   color: rgb(var(--subtle));
   font-size: 11px;
+}
+
+/* 可达性：全站键盘焦点可见（:focus-visible 仅键盘/AT 触发，鼠标点击不显示）。
+   位于 @tailwind utilities 与裸 outline:none 输入之后 → 覆盖二者，补上键盘焦点环。 */
+:focus-visible {
+  outline: 2px solid rgb(var(--agent));
+  outline-offset: 2px;
 }
 
 /* 旧行红标：整行淡红底 + 左描边 */

@@ -183,12 +183,12 @@ export function useAgentRunControls(
       const ref = result.filePath ? relativePath(projectPathRef.current, result.filePath) : null;
       const content =
         result.status === 'ready'
-          ? `已生成对 \`${ref ?? result.filePath}\` 的 AI 修订，请在右侧查看 diff，可接受、拒绝或保存旁注。`
+          ? `已生成对 \`${ref ?? result.filePath}\` 的 AI 修订，请在编辑器里查看 diff，可接受、拒绝或保存旁注。`
           : `AI 修订失败：${result.message}`;
       if (agentRunIdRef.current) {
         updateAgentStep('approval', {
           status: result.status === 'ready' ? 'waiting' : 'failed',
-          detail: result.status === 'ready' ? '等待作者在右侧 diff 面板确认' : result.message,
+          detail: result.status === 'ready' ? '等待作者在编辑器里确认 diff' : result.message,
         });
         updateAgentStatus(result.status === 'ready' ? 'waiting' : 'failed');
       }

@@ -225,9 +225,7 @@ function SearchView() {
           data-testid="side-search-input"
         />
       </div>
-      <p className="px-4 text-[11.5px] leading-relaxed text-subtle">
-        输入关键词检索项目文件（即将接线）。
-      </p>
+      <p className="px-4 text-[11.5px] leading-relaxed text-subtle">搜索功能开发中，暂未开放。</p>
     </>
   );
 }

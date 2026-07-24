@@ -207,7 +207,7 @@ function StoryIndexView({
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-subtle">加载故事索引...</div>;
+    return <div className="p-8 text-center text-sm text-subtle">加载故事索引…</div>;
   }
 
   if (error) {
@@ -283,9 +283,9 @@ function StoryGroup({
               title={file.relativePath}
               className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left transition-colors ${
                 active
-                  ? 'bg-accent text-accent-foreground'
+                  ? 'bg-elevated text-foreground'
                   : preview
-                    ? 'italic text-foreground outline-dashed outline-1 -outline-offset-1 outline-border-strong'
+                    ? 'bg-elevated/60 italic text-foreground outline-dashed outline-1 -outline-offset-1 outline-border-strong'
                     : 'text-muted hover:bg-elevated hover:text-foreground'
               }`}
               data-testid="story-file"
