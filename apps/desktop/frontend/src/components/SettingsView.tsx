@@ -470,6 +470,7 @@ function ToggleRow({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={title}
         onClick={() => onChange(!checked)}
         className={`relative h-[22px] w-[38px] rounded-full transition-colors ${
           checked ? 'bg-accent' : 'bg-border-strong'

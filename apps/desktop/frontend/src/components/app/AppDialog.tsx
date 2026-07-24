@@ -133,6 +133,9 @@ export function AppDialogHost({
   onClose: (result?: boolean | string | null) => void;
   onPromptValueChange: (value: string) => void;
 }) {
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     if (!dialog) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -145,6 +148,11 @@ export function AppDialogHost({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dialog, onClose]);
+
+  // 打开时把焦点送进弹窗（prompt 聚焦输入框，其余聚焦主按钮 → 原生 Enter/Space 即确认）。
+  useEffect(() => {
+    if (dialog && dialog.kind !== 'prompt') primaryRef.current?.focus();
+  }, [dialog]);
 
   if (!dialog) return null;
   const isPrompt = dialog.kind === 'prompt';
@@ -161,12 +169,30 @@ export function AppDialogHost({
       data-testid="app-dialog-backdrop"
     >
       <section
+        ref={sectionRef}
         aria-modal="true"
         role="dialog"
         aria-labelledby="app-dialog-title"
         className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-md border border-border bg-panel p-4 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
         data-testid="app-dialog"
         data-dialog-kind={dialog.kind}
+        onKeyDown={(event) => {
+          if (event.key !== 'Tab') return;
+          // 焦点陷阱：Tab 在弹窗内环绕，不外逃到背景。
+          const focusables = sectionRef.current?.querySelectorAll<HTMLElement>(
+            'button, input, [tabindex]:not([tabindex="-1"])',
+          );
+          if (!focusables || focusables.length === 0) return;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
       >
         <h2 id="app-dialog-title" className="text-sm font-semibold text-foreground">
           {dialog.title}
@@ -200,6 +226,7 @@ export function AppDialogHost({
             </button>
           )}
           <button
+            ref={primaryRef}
             type="button"
             className={`h-8 rounded-md px-3 text-xs ${primaryClass}`}
             onClick={() => onClose(isPrompt ? dialog.value : true)}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   semanticKindLabel,
   type ContextBundle,
@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
+import { useDismissableMenu } from '../shell/useDismissableMenu';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
@@ -46,6 +47,8 @@ export function ConversationHeader({
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
   // 下拉走内联 absolute（不 portal），token 在 :root/#app 内，避免 portal 出主题作用域翻车。
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  useDismissableMenu(menuOpen, () => setMenuOpen(false), menuTriggerRef);
   const sessionList = sessions ?? [];
   return (
     <header
@@ -53,9 +56,12 @@ export function ConversationHeader({
       data-testid="conversation-header"
     >
       <button
+        ref={menuTriggerRef}
         type="button"
         className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-elevated"
         onClick={() => setMenuOpen((open) => !open)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
         data-testid="conversation-session-switch"
         title="本项目的会话（会话按项目划分，不再放全局左栏）"
       >

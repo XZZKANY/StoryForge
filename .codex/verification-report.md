@@ -1,46 +1,44 @@
-# 验证报告 · UI/UX 审计主链修复（写 → 改 → 审 → 收 闭环漏水）
+# 验证报告 · UI/UX 审计可达性（键盘 / 读屏欠账）
 
 时间：2026-07-24
-依据：UI/UX 审计「主链闭环」主题（1 P1 + 4 P2 + 1 P3）
-分支：`feat/uiux-mainchain-20260724`
+依据：UI/UX 审计「可达性 · 键盘」主题
+分支：`feat/uiux-a11y-20260724`
 
-本刀 = 修最伤日更的一条主链——对话里让 agent 改稿 → 产出补丁 → 审阅 → 接受写回，
-在布局 / 状态 / 反馈三处同时漏水。纯前端展示 / 交互层，无后端 / OpenAPI / schema 改动。
+本刀 = 补键盘 / 读屏欠账。纯前端展示 / 交互层，无后端 / OpenAPI / schema 改动。
+（全局 `:focus-visible` 描边已随速赢包 PR #161 落地，本刀不重复。）
 
 ## 变更（对应审计条目）
 
-- **P1 · 对话聚焦态补丁面板不可见**（AppShell / useShellState / App / useProjectCommands）：
-  `chat` 布局隐藏中栏，补丁面板挂在里面看不见。useShellState 新增 `showCenter`（chat→balanced）；
-  补丁到达（`onSuggestion`，在「已是当前文件」早返回**之前**）、定位观测原文（`locateAnchor`）、
-  选中文件（`showEditor`）都确保中栏可见。
-- **P2 · 补丁待确认时对话侧仍显示破坏性「停止」**（panels.tsx RunActionBar）：`status==='waiting'`
-  且非权限 = run 已产出、等你在编辑器确认 diff；此时「停止」会误标 failed 却不清补丁。改为只给
-  「在编辑器里确认修订」提示、不渲染停止键（放弃走编辑器里拒绝）；停止键仅循环进行中 / 等权限时给。
-- **P2 · 预览文件时 agent 目标脱钩**（AppShell）：ChatWindow 的 `currentFile` 从固定文件改吃
-  `tabs.displayedFile`（预览感知），agent 改「这段」落在屏幕上那份而非上一份固定文件。
-- **P2 · 审补丁切文件补丁被静默清除**（assistant-events / useSuggestionWriteback）：新增
-  `bufferPendingFileSuggestion`（只回填单槽不派发）；`resetSuggestionWriteback` 切走时把未确认补丁
-  回填缓冲，切回同一文件由既有 `adoptPendingSuggestion` 重新领取，不再翻别章核对就丢补丁。
-- **P2 · 待确认期间发新消息静默顶掉待确认轮**（ChatWindowView）：补丁 / 权限待确认时 agentBusy 已置
-  false、输入框可用；`submitGuarded` 在 `status==='waiting'` 时提示「先处理待确认的修订」并不发送。
-- **P3 · 写回快照安全网不可见**（useSuggestionWriteback）：接受成功文案点出「已留写前快照，可在
-  『…』菜单的版本历史撤销」，让作者知道安全网存在与撤销去处。
+- **确认 / 提示弹窗键盘可用**（AppDialog）：打开时把焦点送进弹窗（prompt 聚焦输入框、其余聚焦
+  主按钮 → 原生 Enter/Space 即确认）；`<section>` 加 Tab 焦点陷阱（在弹窗内环绕，不外逃背景）。
+  Esc 关闭本已挂 window。
+- **命令面板成真对话框**（CommandPalette）：inner 容器加 `role="dialog" aria-modal aria-label`；
+  Esc 提到 window keydown（焦点落在列表项也能关）；Tab 焦点陷阱（收回输入框，不穿到背景编辑器）；
+  方向键选中项 `scrollIntoView({block:'nearest'})`（长列表往下选不出屏）。
+- **编辑器页签键盘可选可关**（EditorTabs）：外层 `role="tablist"`；页签 roving `tabIndex`（激活项 0、
+  其余 -1）+ `onKeyDown`（Enter/Space 激活、←/→ 切换并激活）；补 Ctrl+W 关活动文件页签（页签聚焦时）。
+- **观测面板点行定位键盘够得到**（ObsPanel）：可定位行主体从裸 `<span onClick>` 加
+  `role="button" tabIndex onKeyDown`（Enter/Space 定位）+ 行级 hover 反馈；hover 才实体化的「标记已处理」
+  钮补 `focus-visible:opacity-100`（键盘聚焦时可见）。
+- **自定义下拉可关且被读屏识别**（panels / SidePanel / EditorTabs）：抽 `useDismissableMenu`——
+  打开挂 window Esc → 关闭并把焦点还给触发钮；三处触发钮补 `aria-haspopup="menu"` / `aria-expanded`。
+- **设置开关有可访问名称**（SettingsView）：ToggleRow 按钮补 `aria-label={title}`（此前读屏只报「按钮，已按下」）。
+- **瞬时反馈进 live region**（ToastHost）：容器 `role="status" aria-live="polite"`，error 项 `role="alert"`
+  （断言播报），报错 / 「已写回」/「等待确认」不再对读屏全程静默。
 
 ## 验证
 
 ```bash
 npm --prefix apps/desktop/frontend run typecheck   # PASS
-npm --prefix apps/desktop/frontend run test        # 52 files / 269 passed
-npx eslint <changed>                                # 0 errors（仅 Editor.tsx 既有 handleExport warning）
+npm --prefix apps/desktop/frontend run test        # 52 files / 269 passed（零回归）
+npx eslint <changed>                                # 0 errors
 npx prettier --check <changed>                      # 全过
 ```
 
-新增可证伪测试：
-- RunActionBar 待确认态（waiting 无权限步）→ 「在编辑器里确认修订」、无 `run-stop`（P2）。
-- `bufferPendingFileSuggestion` 回填后同一文件可重新领取（P2c）。
-
 ## 边界 / 未验证
 
-- P3 只补了文案（安全网可见）；就近「撤销」动作按钮留后续（现走「…」菜单版本历史）。
-- 真机 Tauri 下补丁自动露出、预览改稿落点、切文件补丁保留、待确认拦发送、快照撤销 —— 归 E2E-1 真机波。
-- P2c 单槽缓冲 = 一次一份未确认补丁（与「一次对话最多一个待确认补丁」一致）。
+- a11y 的**结构属性**（role/aria-*/tabIndex）由 typecheck + lint + 零回归护住；**行为**
+  （实际键盘焦点走向、Esc/Tab 陷阱、读屏播报、scrollIntoView）本质需真浏览器 / AT 验证 → 归 E2E-1 真机波。
+- CommandPalette / AppDialog Tab 陷阱为简化实现（面板靠 ↑↓ 导航，Tab 收回主控件 / 环绕），非完整
+  WAI-ARIA aria-activedescendant 方案。
+- EditorTabs Ctrl+W 限页签聚焦时生效（焦点在 Monaco 内不触发，避免与全局 / Tauri 窗口关闭冲突）。

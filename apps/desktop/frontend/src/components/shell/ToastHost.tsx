@@ -53,6 +53,9 @@ export function ToastHost() {
     <div
       className="pointer-events-none fixed bottom-9 right-3 z-50 flex w-[320px] flex-col gap-2"
       data-testid="toast-host"
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
     >
       {items.map((item) => (
         <div
@@ -60,6 +63,7 @@ export function ToastHost() {
           className="pointer-events-auto flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
           data-testid="toast-item"
           data-tone={item.tone}
+          role={item.tone === 'error' ? 'alert' : undefined}
         >
           <span className={`w-[3px] self-stretch rounded-full ${TONE_BAR[item.tone]}`} />
           <span className="min-w-0 flex-1 whitespace-pre-wrap break-words pt-px leading-5">

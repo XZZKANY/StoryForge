@@ -112,9 +112,24 @@ export function ObsPanel({
                 className={`mt-[5px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${SEVERITY_DOT[obs.severity]}`}
               />
               <span
-                className={`min-w-0 flex-1 ${obs.anchor && onLocate ? 'cursor-pointer' : ''}`}
+                className={`block min-w-0 flex-1 rounded ${
+                  obs.anchor && onLocate ? 'cursor-pointer hover:bg-elevated' : ''
+                }`}
                 data-testid="obs-row-body"
+                role={obs.anchor && onLocate ? 'button' : undefined}
+                tabIndex={obs.anchor && onLocate ? 0 : undefined}
+                title={obs.anchor && onLocate ? '定位到原文' : undefined}
                 onClick={obs.anchor && onLocate ? () => onLocate(obs) : undefined}
+                onKeyDown={
+                  obs.anchor && onLocate
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onLocate(obs);
+                        }
+                      }
+                    : undefined
+                }
               >
                 <span className="flex items-baseline gap-2 text-[12px]">
                   <span className={obs.resolved ? 'line-through' : ''}>{obs.title}</span>
@@ -139,7 +154,7 @@ export function ObsPanel({
                 className={`mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border text-[11px] transition-opacity ${
                   obs.resolved
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
-                    : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success group-hover:opacity-100'
+                    : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success focus-visible:opacity-100 group-hover:opacity-100'
                 }`}
                 title="标记已处理"
                 onClick={() => onResolve(obs.id)}
