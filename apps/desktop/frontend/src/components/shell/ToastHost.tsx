@@ -60,7 +60,7 @@ export function ToastHost() {
       {items.map((item) => (
         <div
           key={item.id}
-          className="pointer-events-auto flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
+          className="pointer-events-auto flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[var(--shadow-dropdown)]"
           data-testid="toast-item"
           data-tone={item.tone}
           role={item.tone === 'error' ? 'alert' : undefined}

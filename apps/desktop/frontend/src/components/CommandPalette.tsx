@@ -262,7 +262,7 @@ export function CommandPalette({
       onMouseDown={onClose}
     >
       <div
-        className="flex max-h-[calc(100vh-2rem)] w-[34rem] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-panel shadow-2xl animate-slide-up-fade"
+        className="flex max-h-[calc(100vh-2rem)] w-[34rem] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-panel shadow-[var(--shadow-dialog)] animate-slide-up-fade"
         role="dialog"
         aria-modal="true"
         aria-label={mode === 'files' ? '打开文件' : '命令面板'}

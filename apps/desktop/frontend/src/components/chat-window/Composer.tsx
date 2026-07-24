@@ -162,7 +162,7 @@ export function ComposerSurface({
     <div className="group relative flex flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-[0_4px_16px_rgba(0,0,0,0.15)] transition-shadow focus-within:border-agent/60 focus-within:shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
-          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-md border border-border bg-panel px-2 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.28)]"
+          className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-[var(--shadow-dropdown)]"
           data-testid="agent-role-suggestions"
         >
           {roleSuggestions.map((item) => (
@@ -283,7 +283,7 @@ export function ComposerSurface({
         {busy && onPauseRun ? (
           <button
             type="button"
-            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-foreground transition-colors hover:bg-agent hover:text-white"
+            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-foreground transition-colors hover:bg-agent hover:text-agent-foreground"
             title="暂停本轮"
             onClick={onPauseRun}
             data-testid="composer-pause-run"
@@ -293,7 +293,7 @@ export function ComposerSurface({
         ) : (
           <button
             type={onSubmit ? 'button' : 'submit'}
-            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-40"
             title="发送"
             disabled={!canSubmit}
             onClick={onSubmit}

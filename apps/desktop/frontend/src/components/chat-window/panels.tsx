@@ -136,7 +136,7 @@ export function ConversationHeader({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+          <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]">
             <div className="px-2 py-1 text-[10.5px] uppercase tracking-[0.08em] text-subtle">
               本项目的会话
             </div>

@@ -69,7 +69,7 @@ export function VersionHistory({
 
   return (
     <div
-      className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-2xl z-30 animate-slide-up-fade"
+      className="absolute top-[var(--sf-bar-height)] right-0 bottom-0 w-80 bg-panel border-l border-border flex flex-col shadow-[var(--shadow-dialog)] z-30 animate-slide-up-fade"
       data-testid="version-history"
     >
       <div className="sf-panel-header border-border">

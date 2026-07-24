@@ -271,7 +271,7 @@ function EditorActionsMenu({
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-9 z-40 w-56 rounded-lg border border-border bg-surface p-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
+            className="absolute right-0 top-9 z-40 w-56 rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]"
             data-testid="editor-more-menu"
           >
             <MenuRow label="保存" kbd="Ctrl S" onClick={run(onSaveActive)} />
