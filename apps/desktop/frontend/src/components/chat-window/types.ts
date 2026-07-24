@@ -38,11 +38,15 @@ export type AgentStep = {
   detail: string;
 };
 
+// paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。
+// 与 running/waiting/completed/failed 一起构成运行状态机的全集。
+export type AgentRunStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'paused' | 'stopped';
+
 export type AgentRun = {
   id: string;
   sessionId: string;
   goal: string;
-  status: 'running' | 'waiting' | 'completed' | 'failed';
+  status: AgentRunStatus;
   steps: AgentStep[];
 };
 

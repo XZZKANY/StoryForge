@@ -336,7 +336,9 @@ export function RunActionBar({
   // status==='waiting' 且非权限 = run 已产出、等你在编辑器确认 diff/导出。此时「停止」会把 run
   // 误标 failed 却不清掉待确认补丁（放弃应走编辑器里拒绝），故这里只给去向提示、不给破坏性停止。
   const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
-  const canStop = run.status === 'running' || waitingForPermission;
+  // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
+  const isPaused = run.status === 'paused';
+  const canStop = run.status === 'running' || waitingForPermission || isPaused;
   if (!canStop && !awaitingConfirm) return null;
 
   return (
@@ -354,8 +356,21 @@ export function RunActionBar({
             ? '等待你确认'
             : awaitingConfirm
               ? '在编辑器里确认修订'
-              : '正在处理'}
+              : isPaused
+                ? '已暂停'
+                : '正在处理'}
         </div>
+        {isPaused && (
+          <button
+            type="button"
+            className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+            onClick={controls.onResumeRun}
+            title="恢复本轮"
+            data-testid="run-resume"
+          >
+            恢复
+          </button>
+        )}
         {waitingForPermission && (
           <>
             <button

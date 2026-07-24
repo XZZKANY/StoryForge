@@ -50,6 +50,13 @@ export function ChatWindowView({
   // 待确认（补丁 / 权限）期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
   // 故拦一道：提示先处理待确认的修订，不静默 supersede（放弃走编辑器里拒绝补丁 / 拒绝权限）。
   const awaitingConfirm = state.agentRun?.status === 'waiting';
+  // RunActionBar 在 运行 / 待确认 / 暂停 三态渲染并自带状态文案；此三态下轻状态条重复，故互斥隐藏。
+  // completed 的「本轮已完成。」也不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
+  const runStatus = state.agentRun?.status;
+  const actionBarVisible =
+    runStatus === 'running' || runStatus === 'waiting' || runStatus === 'paused';
+  const showLightweightStatus =
+    Boolean(statusText) && !actionBarVisible && runStatus !== 'completed';
   const submitGuarded = async () => {
     if (awaitingConfirm) {
       emitToast('先在编辑器里处理待确认的修订（接受或拒绝），再发下一条', { tone: 'info' });
@@ -109,7 +116,7 @@ export function ChatWindowView({
         onRetryContextCandidates={retryContextCandidates}
       />
 
-      {statusText && (
+      {showLightweightStatus && statusText && (
         <LightweightStatus
           text={statusText}
           retryVisible={
