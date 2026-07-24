@@ -280,7 +280,7 @@ test('agent run recovery display summarizes pending permission and proposed patc
   assert.equal(recovery.tone, 'waiting');
   assert.equal(recovery.resumeText, '恢复：等待你确认');
   assert.match(recovery.pendingText ?? '', /等待权限：file\.revise/);
-  assert.match(recovery.pendingText ?? '', /有待你确认的补丁（#12）/);
+  assert.match(recovery.pendingText ?? '', /有待你确认的修订（#12）/);
 
   const html = renderToStaticMarkup(React.createElement(AgentRunRecoveryPanel, { recovery }));
   assert.match(html, /data-testid="agent-run-recovery"/);

@@ -59,7 +59,7 @@ export function createRemoteFileSuggestion(params: {
   return {
     id: id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     filePath,
-    title: 'AI 修订建议',
+    title: 'AI 修订',
     summary,
     before,
     after,

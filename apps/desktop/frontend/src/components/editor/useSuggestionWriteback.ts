@@ -356,7 +356,7 @@ export function useSuggestionWriteback({
 
   const rejectPendingSuggestion = useCallback(() => {
     setPendingSuggestion(null);
-    setSuggestionStatus('已拒绝建议补丁');
+    setSuggestionStatus('已拒绝修订');
   }, [setSuggestionStatus]);
 
   return {

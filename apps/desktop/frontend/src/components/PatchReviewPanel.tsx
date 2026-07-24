@@ -7,6 +7,9 @@ import { STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
+  // 接受/拒绝这块 diff 是要逐字核对的决策界面：字号跟随编辑器设置、字体用 CJK 2:1 栈避免中英错位。
+  editorFontSize: number;
+  editorFontFamily: string;
   onAccept: () => void;
   onAcceptHunk: (hunk: PatchHunk) => void;
   onReject: () => void;
@@ -61,6 +64,8 @@ function diffStats(before: string, after: string): DiffStats {
 
 export function PatchReviewPanel({
   suggestion,
+  editorFontSize,
+  editorFontFamily,
   onAccept,
   onAcceptHunk,
   onReject,
@@ -96,7 +101,8 @@ export function PatchReviewPanel({
       renderOverviewRuler: false,
       lineNumbers: 'off',
       folding: false,
-      fontSize: 12,
+      fontSize: editorFontSize,
+      fontFamily: editorFontFamily,
       unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
     });
     const original = monaco.editor.createModel(suggestion.before, 'markdown');
@@ -131,6 +137,14 @@ export function PatchReviewPanel({
     diffEditorRef.current?.layout();
   }, [expanded]);
 
+  // diff 编辑器挂载期一次性创建（保留滚动位置），字号/字体设置变化时 updateOptions 追平。
+  useEffect(() => {
+    diffEditorRef.current?.updateOptions({
+      fontSize: editorFontSize,
+      fontFamily: editorFontFamily,
+    });
+  }, [editorFontSize, editorFontFamily]);
+
   return (
     <div
       className="border-b border-border bg-surface animate-slide-up-fade flex-shrink-0"
@@ -159,7 +173,7 @@ export function PatchReviewPanel({
           <button
             onClick={() => setExpanded((value) => !value)}
             data-testid="patch-expand"
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-foreground/10 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors"
           >
             {expanded ? '收起' : '展开'}
           </button>
@@ -173,14 +187,14 @@ export function PatchReviewPanel({
           <button
             onClick={onSaveNote}
             data-testid="suggestion-note"
-            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-foreground/10 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-elevated transition-colors"
           >
             保存旁注
           </button>
           <button
             onClick={onReject}
             data-testid="suggestion-reject"
-            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-foreground/10 transition-colors"
+            className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-elevated transition-colors"
           >
             拒绝
           </button>
@@ -194,10 +208,10 @@ export function PatchReviewPanel({
               type="button"
               onClick={() => onAcceptHunk(hunk)}
               data-testid="suggestion-accept-hunk"
-              className="rounded-md border border-border px-2 py-1 text-foreground transition-colors hover:bg-foreground/10"
+              className="rounded-md border border-border px-2 py-1 text-foreground transition-colors hover:bg-elevated"
               title={`第 ${hunk.originalStartIndex + 1} 行附近，+${hunk.addedLines} / -${hunk.removedLines}`}
             >
-              接受块 {index + 1}
+              接受第 {index + 1} 处 · 第 {hunk.originalStartIndex + 1} 行
             </button>
           ))}
         </div>

@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import {
-  buildPatchReviewTraceTitle,
-  PatchReviewPanel,
-} from '../src/components/PatchReviewPanel';
+import { buildPatchReviewTraceTitle, PatchReviewPanel } from '../src/components/PatchReviewPanel';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
 
 function sampleSuggestion(
@@ -14,7 +11,7 @@ function sampleSuggestion(
   return {
     id: 'patch-42',
     filePath: '正文/第01章.md',
-    title: 'AI 修订建议',
+    title: 'AI 修订',
     summary: '收紧开篇节奏',
     before: '第一行\n第二行\n',
     after: '第一行改\n第二行\n第三行\n',
@@ -42,6 +39,8 @@ test('patch panel main text is author-facing without Patch/Session labels', () =
   const html = renderToStaticMarkup(
     <PatchReviewPanel
       suggestion={suggestion}
+      editorFontSize={14}
+      editorFontFamily="test-font"
       onAccept={() => undefined}
       onAcceptHunk={() => undefined}
       onReject={() => undefined}
@@ -50,7 +49,7 @@ test('patch panel main text is author-facing without Patch/Session labels', () =
   );
 
   assert.match(html, /data-testid="patch-review"/);
-  assert.match(html, /AI 修订建议/);
+  assert.match(html, /AI 修订/);
   assert.match(html, /收紧开篇节奏/);
   assert.match(html, /正文\/第01章\.md/);
   assert.match(html, /data-testid="patch-stats"/);
@@ -72,6 +71,27 @@ test('patch panel main text is author-facing without Patch/Session labels', () =
   assert.match(html, /data-testid="suggestion-accept"/);
   assert.match(html, /保存旁注/);
   assert.match(html, /拒绝/);
+});
+
+test('multi-hunk accept buttons carry a line-number label, not opaque 块 N', () => {
+  const suggestion = sampleSuggestion({
+    before: '甲\n乙\n丙\n丁\n戊\n',
+    after: '甲改\n乙\n丙\n丁改\n戊\n',
+  });
+  const html = renderToStaticMarkup(
+    <PatchReviewPanel
+      suggestion={suggestion}
+      editorFontSize={14}
+      editorFontFamily="test-font"
+      onAccept={() => undefined}
+      onAcceptHunk={() => undefined}
+      onReject={() => undefined}
+      onSaveNote={() => undefined}
+    />,
+  );
+  assert.match(html, /data-testid="suggestion-accept-hunk"/);
+  assert.match(html, /第 \d+ 处 · 第 \d+ 行/);
+  assert.doesNotMatch(html, /接受块/);
 });
 
 test('trace title omits missing optional fields', () => {

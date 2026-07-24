@@ -58,7 +58,7 @@ export function useAgentStreamEvent(
           tool: 'permission-gate',
           status: 'waiting',
           detail: message.proposed_patch
-            ? '已生成待确认补丁，写回前需要作者批准。'
+            ? '已生成待确认修订，写回前需要作者批准。'
             : '该步骤需要作者批准后才能继续。',
         };
         setAgentRun((run) => {
