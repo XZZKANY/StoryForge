@@ -478,6 +478,25 @@ body {
   pointer-events: none;
 }
 
+/* 设置搜索过滤：卡片内所有行 null 渲染即 :empty → 整卡片 + 所在分组（含标题）隐藏；
+   全无匹配（列表里没有非空卡片）才露出「未找到」。纯 CSS，与 RowShell 逐行过滤联动、无 JS 计数。 */
+.sf-settings-card:empty {
+  display: none;
+}
+.sf-settings-group:has(> .sf-settings-card:empty) {
+  display: none;
+}
+.sf-settings-empty {
+  display: none;
+  padding: 32px 0;
+  text-align: center;
+  color: rgb(var(--subtle));
+  font-size: 13px;
+}
+.sf-settings-list:not(:has(.sf-settings-card:not(:empty))) .sf-settings-empty {
+  display: block;
+}
+
 /* 助手消息 Markdown：贴近对话密度，不走 marketing prose */
 .assistant-md {
   font-size: 0.875rem;
