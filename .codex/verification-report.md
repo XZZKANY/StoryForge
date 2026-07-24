@@ -1,56 +1,36 @@
-# 验证报告 · UI/UX 审计速赢包（第一刀 · S 级零/低风险）
+# 验证报告 · AssistantMarkdown 挂 remark-gfm（补速赢包表格/删除线真 BUG）
 
 时间：2026-07-24
-依据：`D:\记事本\StoryForge-UIUX审计报告-2026-07-24.html`「建议第一刀 · 速赢包」
-分支：`feat/uiux-speed-wins-20260724`
+分支：`feat/assistant-markdown-gfm-20260724`
 
-本刀 = 审计速赢包 10 项里的 9 项（remark-gfm 因当前 npm 镜像不可达延后，折进 chat-ux-polish
-的 AssistantMarkdown 一并落地），纯前端展示层，无后端 / OpenAPI / schema 改动。
+本刀 = 速赢包最后一项真 BUG（此前因 npm 镜像不可达延后）：审稿 / 一致性 / 对比类回答自然会用
+表格或删除线，但 react-markdown v10 默认只吃 CommonMark，表格渲染成一堆裸管道符、`~~删除线~~`
+渲染成裸符号，破坏「审阅 agent 输出」的可读性。
 
-## 变更（对应审计条目）
+## 变更
 
-1. **真 BUG · 失败提示渲染成成功绿**（`Editor.tsx:666`）：`suggestionStatus` 从字符串前缀匹配
-   （只认 `AI 修订失败`）改为带语义 `tone`（success/error/info）的对象；`useSuggestionWriteback`
-   各出口按语义传 tone（接受/分块/存旁注/导出/定位/旧补丁拒写回 = error，写入/导出成功 = success）。
-2. **真 BUG · 观测「上次扫描」显示 UTC**（`ObservatoryView.tsx`）：`generatedAt.slice(11,16)`（切 ISO 串取
-   UTC，差 8 小时）改 `formatScanTime` 按本地时区 `toLocaleTimeString`，非法值兜底原串。
-3. **真 BUG · 浅色主题图标按钮 hover 纯白叠白不可见**（`index.css`）：`.sf-toolbar-button:hover` /
-   `.sf-icon-button:hover` 的 `rgb(255 255 255 / .0x)` 改 `--elevated` / `--border` token（两主题都翻）；
-   删 `VersionHistory` / `ResourceExplorer` 两处绕过基类的 inline hover override。
-4. **全局 `:focus-visible` 描边**（`index.css`）：加一条 `outline: 2px solid rgb(var(--agent))`，位于
-   `@tailwind utilities` 与裸 `outline:none` 输入之后 → 覆盖二者，补上键盘焦点可见性。
-5. **删死代码 `.step-*` 状态色**（`index.css`）：5 条硬编码 hex，全仓零消费者，与 live 的
-   AgentStepsPanel token 相互矛盾，整段删除。
-6. **「右侧」→「编辑器里」**（`useAgentRunControls` / `useRunAuthorAgent` / `resumed-result` /
-   `useInlineChat`）：三栏改版后编辑器在中栏，方向指反的提示改为布局无关话术。
-7. **文案清理小包**：`sidecar`→「本地服务」（StatusBar）、「接线」→「开发中 / 尚未启用」（SidePanel 搜索占位、
-   ObsPanel / ObservatoryView / StatusBar 观测态）、`Desktop env`→「桌面注入」（SettingsView）、
-   `Issue Scope`→「问题范围」（assistant-suggestions）、ASCII `...`→全角 `…`（欢迎页 / Composer /
-   StoryNavigator）、删 Composer 常驻死标签「编辑模式」（`ml-auto` 移到 pause/send 保持右对齐）、
-   顺带「暂停 AgentRun」tooltip→「暂停本轮」。
-8. **欢迎页签 `h-9`→`h-shell-row`**（`WelcomeWorkspace`）：补 4px 断层 + `data-testid="welcome-tabbar"`
-   追加进 `shell-row-height` 指纹护栏防回归。
-9. **未保存圆点 / 选中高亮**：EditorTabs dirty dot `bg-current`（灰）→ `bg-foreground`（高对比）；
-   StoryNavigator 故事页选中 `bg-accent text-accent-foreground` → 对齐资源管理器 `bg-elevated
-   text-foreground`（预览态一并对齐 `bg-elevated/60`）。
+- `AssistantMarkdown`：`remarkPlugins={[remarkGfm]}`（依赖 `remark-gfm@^4`，与 react-markdown v10 匹配）。
+- `.assistant-md` 补最小 GFM 样式：table（`display:block; overflow-x:auto` → 宽表横向滚动不撑破
+  对话区）+ th/td 描边 + th 背景、`del` 弱化色、任务列表 checkbox 间距，全走 design token。
+- 新增测试：GFM 表格 + `~~删除线~~` 渲染出 `<table>`/`<td>`/`<del>`、不再是裸管道符（可证伪）。
+
+## 依赖与 lockfile
+
+- `remark-gfm` 经 npmmirror 直连安装（当前网络下 registry.npmjs.org 经代理不可达）；
+  **package-lock.json 的 18 条 `resolved` URL 已从 npmmirror 回写 registry.npmjs.org**——
+  integrity 为 tarball 内容哈希、npmmirror 与 npmjs 同源，回写后 `npm ci` 校验一致，lockfile
+  保持 npmjs 单一来源。
 
 ## 验证
 
 ```bash
 npm --prefix apps/desktop/frontend run typecheck   # PASS
-npm --prefix apps/desktop/frontend run test        # 51 files / 260 passed
-npx eslint <changed>                                # 0 errors（仅 Editor.tsx 既有 handleExport warning）
-npx prettier --check <changed>                      # 全过
+npm --prefix apps/desktop/frontend run test        # 52 files / 267 passed
+npx eslint <changed> && npx prettier --check <changed>   # 0 error / 全过
+node -e "JSON.parse(fs.readFileSync('package-lock.json'))"  # lockfile 有效 JSON
 ```
 
-- 随文案改动更新测试断言：`status-observation.test.tsx`（观测未接线→尚未启用）、
-  `chat-window.test.ts`（右侧 diff 面板→编辑器里确认 diff）。
-- `shell-row-height.test.ts` 新增 welcome-tabbar 一例，欢迎页签行高回归可证伪。
+## 边界
 
-## 未验证 / 边界
-
-- **remark-gfm（真 BUG · 表格/删除线渲染成裸符号）本刀未做**：当前网络下 npm 镜像
-  （npmjs / npmmirror）经代理不可达，装不了依赖；已规划折进 `chat-ux-polish` 的 AssistantMarkdown
-  一并落地（网络恢复后 npmjs 一致装）。
-- 真机 Tauri 观感（浅色 hover / 键盘焦点环 / UTC 时间 / 未保存圆点 / 选中高亮）归 E2E-1 真机波。
-- tone 判色仅覆盖 `useSuggestionWriteback` / `Editor` 出口；行间对话 flashStatus 走独立 toast，未纳入。
+- 真机 Tauri 下 markdown 表格 / 删除线实际观感归 E2E-1 真机波。
+- 仅助手消息路径启用 GFM；用户消息仍纯文本气泡。
