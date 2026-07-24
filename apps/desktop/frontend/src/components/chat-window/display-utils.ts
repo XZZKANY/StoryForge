@@ -28,7 +28,14 @@ export function selectedContextPreview(bundle: ContextBundle | null): string {
 
 export function runStatusText(run: AgentRun | null): string | null {
   if (!run) return null;
-  if (run.status === 'waiting') return '等待确认：需要你在右侧 diff 或导出动作里确认。';
+  if (run.status === 'waiting') {
+    const permission = run.steps.some(
+      (step) => step.id === 'permission-required' && step.status === 'waiting',
+    );
+    return permission
+      ? '等待你确认：批准权限或在 diff 里确认写回。'
+      : '等待确认：需要你在 diff 或导出动作里确认。';
+  }
   if (run.status === 'completed') return '本轮已完成。';
   if (run.status === 'failed') return '本轮遇到问题，详情在回复里。';
 
@@ -36,7 +43,7 @@ export function runStatusText(run: AgentRun | null): string | null {
     run.steps.find((step) => step.status === 'running') ??
     run.steps.find((step) => step.status === 'waiting') ??
     run.steps.find((step) => step.status === 'pending');
-  if (!active) return '正在整理这一轮回复。';
+  if (!active) return '正在处理…';
   return active.detail || active.title;
 }
 

@@ -109,7 +109,7 @@ function pendingSummary({
 
   const proposedPatchId = numberField(pending, 'proposed_patch_artifact_id');
   if (proposedPatchId !== null && status !== 'completed') {
-    parts.push(`待确认补丁 #${proposedPatchId}`);
+    parts.push(`有待你确认的补丁（#${proposedPatchId}）`);
   }
 
   if (latestDiagnostic && booleanField(latestDiagnostic, 'requires_manual_restart') === true) {
@@ -168,7 +168,7 @@ function checkpointSummary(
     numberField(summary, 'current_chapter_index');
   const completedCount = numberField(summary, 'completed_count');
   const totalChapters = numberField(summary, 'total_chapters');
-  const parts = [`checkpoint #${artifactId ?? '?'}`];
+  const parts = [artifactId !== null ? `检查点 · #${artifactId}` : '检查点'];
   if (chapterIndex !== null) parts.push(`第 ${chapterIndex} 章`);
   if (completedCount !== null && totalChapters !== null) {
     parts.push(`${completedCount}/${totalChapters}`);
@@ -187,12 +187,12 @@ function resumeStrategyText({
 }): string {
   if (manualRestartRequired) return '恢复：需要手动重启本轮';
   if (canRetryFromCheckpoint || strategy === 'bookrun_checkpoint') {
-    return '恢复：可从 BookRun checkpoint 继续';
+    return '恢复：可从检查点继续';
   }
-  if (strategy === 'await_permission_decision') return '恢复：等待权限确认';
-  if (strategy === 'stopped_by_user') return '恢复：已由用户停止';
+  if (strategy === 'await_permission_decision') return '恢复：等待你确认';
+  if (strategy === 'stopped_by_user') return '恢复：已由你停止';
   if (strategy && strategy !== 'none') return `恢复：${strategy}`;
-  return '恢复：暂无待处理边界';
+  return '恢复：暂无待处理事项';
 }
 
 function controlText(control: Record<string, unknown> | null): string | null {
@@ -202,8 +202,8 @@ function controlText(control: Record<string, unknown> | null): string | null {
   const status =
     stringField(control, 'book_run_status') ?? stringField(control, 'writing_run_status');
   return status
-    ? `最近控制：${controlLabel(eventType)} · ${status}`
-    : `最近控制：${controlLabel(eventType)}`;
+    ? `最近操作：${controlLabel(eventType)} · ${statusLabel(status)}`
+    : `最近操作：${controlLabel(eventType)}`;
 }
 
 function toneFor({
@@ -236,9 +236,9 @@ function controlLabel(eventType: string): string {
   if (eventType === 'pause_run') return '暂停';
   if (eventType === 'resume_run') return '恢复';
   if (eventType === 'stop_run') return '停止';
-  if (eventType === 'retry_from_checkpoint') return '从 checkpoint 重试';
-  if (eventType === 'permission_approved') return '权限已批准';
-  if (eventType === 'permission_denied') return '权限已拒绝';
+  if (eventType === 'retry_from_checkpoint') return '从检查点重试';
+  if (eventType === 'permission_approved') return '已批准';
+  if (eventType === 'permission_denied') return '已拒绝';
   return eventType;
 }
 
