@@ -110,6 +110,13 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 保存成功反馈数秒后自清（回 idle）：不让「已保存」永久停留在操作行。
+  useEffect(() => {
+    if (saveState !== 'saved') return;
+    const timer = window.setTimeout(() => setSaveState('idle'), 2500);
+    return () => window.clearTimeout(timer);
+  }, [saveState]);
+
   const saveProviderConfig = async () => {
     setSaveState('loading');
     setSaveError('');
@@ -215,141 +222,158 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
               data-testid="settings-search"
             />
 
-            <SettingGroup id="provider" title="模型服务">
-              <SettingCard>
-                <SelectRow
-                  title="服务类型"
-                  description="保存后由桌面主进程注入后端 STORYFORGE_LLM_PROVIDER。"
-                  value={safeSettings.provider.kind}
-                  onChange={(value) => {
-                    const nextKind = toProviderKind(value);
-                    update(
-                      'provider',
-                      applyProviderPreset(safeSettings.provider, nextKind, { preserveModel: true }),
-                    );
-                  }}
-                  options={PROVIDER_OPTIONS}
-                  testId="provider-kind"
-                />
-                <TextRow
-                  title="服务地址"
-                  description="OpenAI-compatible 服务通常填写到 /v1；保存后注入 STORYFORGE_LLM_BASE_URL。"
-                  value={safeSettings.provider.baseUrl}
-                  placeholder="https://api.openai.com"
-                  onChange={(value) =>
-                    update('provider', { ...safeSettings.provider, baseUrl: value })
-                  }
-                  testId="provider-base-url"
-                />
-                <TextRow
-                  title="默认模型"
-                  description="保存后注入 STORYFORGE_LLM_MODEL。"
-                  value={safeSettings.provider.model}
-                  placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
-                  onChange={(value) =>
-                    update('provider', { ...safeSettings.provider, model: value })
-                  }
-                  testId="provider-model"
-                />
-                <TextRow
-                  title="API Key"
-                  description={
-                    storedConfig?.hasApiKey
-                      ? '已保存在本机配置文件；输入新 key 可覆盖。'
-                      : '保存后由桌面主进程注入 STORYFORGE_LLM_API_KEY，不写入 localStorage。'
-                  }
-                  value={secretInput}
-                  placeholder={
-                    storedConfig?.hasApiKey ? '已保存，留空保持不变' : '粘贴 provider API key'
-                  }
-                  onChange={setSecretInput}
-                  testId="provider-api-key"
-                  type="password"
-                />
-                <ProviderRuntimeEnvNotice saveState={saveState} error={saveError} />
-                <ActionRow
-                  title="应用到本机后端"
-                  description="保存到本机即写入 llm-provider.json，后端下次调用即读取生效，无需重启。"
-                  actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
-                  onAction={saveProviderConfig}
-                  disabled={saveState === 'loading'}
-                />
-                {storedConfig?.hasApiKey && (
-                  <ActionRow
-                    title="移除已保存密钥"
-                    description="删除本机保存的 provider API key，并保留服务地址与模型。"
-                    actionLabel="移除密钥"
-                    onAction={clearProviderSecret}
-                    disabled={saveState === 'loading'}
+            <div className="sf-settings-list">
+              <SettingGroup id="provider" title="模型服务">
+                <SettingCard>
+                  <SelectRow
+                    title="服务类型"
+                    description="保存后由桌面主进程注入后端 STORYFORGE_LLM_PROVIDER。"
+                    value={safeSettings.provider.kind}
+                    onChange={(value) => {
+                      const nextKind = toProviderKind(value);
+                      update(
+                        'provider',
+                        applyProviderPreset(safeSettings.provider, nextKind, {
+                          preserveModel: true,
+                        }),
+                      );
+                    }}
+                    options={PROVIDER_OPTIONS}
+                    testId="provider-kind"
                   />
-                )}
-                <ProbeRow state={probe} onProbe={runProbe} />
-              </SettingCard>
-            </SettingGroup>
+                  <TextRow
+                    title="服务地址"
+                    description="OpenAI-compatible 服务通常填写到 /v1；保存后注入 STORYFORGE_LLM_BASE_URL。"
+                    value={safeSettings.provider.baseUrl}
+                    placeholder="https://api.openai.com"
+                    onChange={(value) =>
+                      update('provider', { ...safeSettings.provider, baseUrl: value })
+                    }
+                    testId="provider-base-url"
+                  />
+                  <TextRow
+                    title="默认模型"
+                    description="保存后注入 STORYFORGE_LLM_MODEL。"
+                    value={safeSettings.provider.model}
+                    placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
+                    onChange={(value) =>
+                      update('provider', { ...safeSettings.provider, model: value })
+                    }
+                    testId="provider-model"
+                  />
+                  <TextRow
+                    title="API Key"
+                    description={
+                      storedConfig?.hasApiKey
+                        ? '已保存在本机配置文件；输入新 key 可覆盖。'
+                        : '保存后由桌面主进程注入 STORYFORGE_LLM_API_KEY，不写入 localStorage。'
+                    }
+                    value={secretInput}
+                    placeholder={
+                      storedConfig?.hasApiKey ? '已保存，留空保持不变' : '粘贴 provider API key'
+                    }
+                    onChange={setSecretInput}
+                    testId="provider-api-key"
+                    type="password"
+                  />
+                  <ProviderRuntimeEnvNotice />
+                  <ActionRow
+                    title="应用到本机后端"
+                    description="保存到本机即写入 llm-provider.json，后端下次调用即读取生效，无需重启。"
+                    actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
+                    onAction={saveProviderConfig}
+                    disabled={saveState === 'loading'}
+                    status={
+                      saveState === 'saved'
+                        ? { text: '已保存并应用', tone: 'ok' }
+                        : saveState === 'error'
+                          ? { text: `保存失败：${saveError || '未知错误'}`, tone: 'error' }
+                          : null
+                    }
+                  />
+                  {storedConfig?.hasApiKey && (
+                    <ActionRow
+                      title="移除已保存密钥"
+                      description="删除本机保存的 provider API key，并保留服务地址与模型。"
+                      actionLabel="移除密钥"
+                      onAction={clearProviderSecret}
+                      disabled={saveState === 'loading'}
+                    />
+                  )}
+                  <ProbeRow state={probe} onProbe={runProbe} />
+                </SettingCard>
+              </SettingGroup>
 
-            <SettingGroup id="appearance" title="外观">
-              <SettingCard>
-                <SelectRow
-                  title="主题"
-                  description="切换深色 / 浅色界面；编辑器主题随之联动。"
-                  value={safeSettings.theme}
-                  onChange={(value) => update('theme', value === 'light' ? 'light' : 'dark')}
-                  options={THEME_OPTIONS}
-                  testId="appearance-theme"
-                />
-              </SettingCard>
-            </SettingGroup>
+              <SettingGroup id="appearance" title="外观">
+                <SettingCard>
+                  <SelectRow
+                    title="主题"
+                    description="切换深色 / 浅色界面；编辑器主题随之联动。"
+                    value={safeSettings.theme}
+                    onChange={(value) => update('theme', value === 'light' ? 'light' : 'dark')}
+                    options={THEME_OPTIONS}
+                    testId="appearance-theme"
+                  />
+                </SettingCard>
+              </SettingGroup>
 
-            <SettingGroup id="editor" title="编辑器">
-              <SettingCard>
-                <RangeRow
-                  title="字号"
-                  description="调整 Markdown 编辑器默认字号。"
-                  value={safeSettings.editorFontSize}
-                  min={12}
-                  max={20}
-                  onChange={(value) => update('editorFontSize', value)}
-                />
-                <SelectRow
-                  title="字体模式"
-                  description="格子 = CJK 2:1 等宽中英对齐；散文 = 比例字体长文舒适。状态栏可快捷切换。"
-                  value={safeSettings.editorFontMode}
-                  onChange={(value) =>
-                    update('editorFontMode', value === 'prose' ? 'prose' : 'grid')
-                  }
-                  options={FONT_MODE_OPTIONS}
-                  testId="editor-font-mode"
-                />
-                <SelectRow
-                  title="行号"
-                  description="智能 = 小说正文（Markdown）隐藏行号、canon.json 等数据文件保留。"
-                  value={safeSettings.editorLineNumbers}
-                  onChange={(value) =>
-                    update('editorLineNumbers', value === 'on' || value === 'off' ? value : 'auto')
-                  }
-                  options={LINE_NUMBER_OPTIONS}
-                  testId="editor-line-numbers"
-                />
-                <ToggleRow
-                  title="自动保存"
-                  description="停止输入后自动写回当前文件。"
-                  checked={safeSettings.autoSave}
-                  onChange={(checked) => update('autoSave', checked)}
-                />
-                <ActionRow
-                  title="恢复默认设置"
-                  description="重置本机 StoryForge 桌面偏好。"
-                  actionLabel="恢复默认"
-                  onAction={() => onChange(DEFAULT_APP_SETTINGS)}
-                />
-              </SettingCard>
-            </SettingGroup>
+              <SettingGroup id="editor" title="编辑器">
+                <SettingCard>
+                  <RangeRow
+                    title="字号"
+                    description="调整 Markdown 编辑器默认字号。"
+                    value={safeSettings.editorFontSize}
+                    min={12}
+                    max={20}
+                    onChange={(value) => update('editorFontSize', value)}
+                  />
+                  <SelectRow
+                    title="字体模式"
+                    description="格子 = CJK 2:1 等宽中英对齐；散文 = 比例字体长文舒适。状态栏可快捷切换。"
+                    value={safeSettings.editorFontMode}
+                    onChange={(value) =>
+                      update('editorFontMode', value === 'prose' ? 'prose' : 'grid')
+                    }
+                    options={FONT_MODE_OPTIONS}
+                    testId="editor-font-mode"
+                  />
+                  <SelectRow
+                    title="行号"
+                    description="智能 = 小说正文（Markdown）隐藏行号、canon.json 等数据文件保留。"
+                    value={safeSettings.editorLineNumbers}
+                    onChange={(value) =>
+                      update(
+                        'editorLineNumbers',
+                        value === 'on' || value === 'off' ? value : 'auto',
+                      )
+                    }
+                    options={LINE_NUMBER_OPTIONS}
+                    testId="editor-line-numbers"
+                  />
+                  <ToggleRow
+                    title="自动保存"
+                    description="停止输入后自动写回当前文件。"
+                    checked={safeSettings.autoSave}
+                    onChange={(checked) => update('autoSave', checked)}
+                  />
+                  <ActionRow
+                    title="恢复默认设置"
+                    description="重置本机 StoryForge 桌面偏好。"
+                    actionLabel="恢复默认"
+                    onAction={() => onChange(DEFAULT_APP_SETTINGS)}
+                  />
+                </SettingCard>
+              </SettingGroup>
 
-            <SettingGroup id="about" title="关于">
-              <SettingCard>
-                <AboutRows />
-              </SettingCard>
-            </SettingGroup>
+              <SettingGroup id="about" title="关于">
+                <SettingCard>
+                  <AboutRows />
+                </SettingCard>
+              </SettingGroup>
+              <p className="sf-settings-empty" data-testid="settings-no-results">
+                未找到匹配的设置
+              </p>
+            </div>
           </div>
         </SettingsSearchContext.Provider>
       </main>
@@ -395,13 +419,9 @@ function ProbeRow({ state, onProbe }: { state: ProbeState; onProbe: () => void }
   );
 }
 
-function ProviderRuntimeEnvNotice({ saveState, error }: { saveState: SaveState; error: string }) {
-  const label =
-    saveState === 'saved'
-      ? '已保存'
-      : saveState === 'error'
-        ? `保存失败：${error || '未知错误'}`
-        : '桌面注入';
+function ProviderRuntimeEnvNotice() {
+  // 真相源 badge 恒显 env 源；保存成功/失败反馈移到下方「应用到本机后端」ActionRow，且数秒后自清，
+  // 不再劫持本行标签永久停在「已保存」。
   return (
     <RowShell
       title="运行时真相源"
@@ -411,15 +431,17 @@ function ProviderRuntimeEnvNotice({ saveState, error }: { saveState: SaveState; 
         className="inline-flex h-7 items-center rounded-md border border-border bg-surface px-2 text-xs text-muted"
         data-testid="provider-runtime-env-source"
       >
-        {label}
+        桌面注入
       </span>
     </RowShell>
   );
 }
 
 function SettingGroup({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  // sf-settings-group + sf-settings-card：搜索过滤后若卡片内全部行 null 渲染 → 卡片 :empty，
+  // 整组（含标题）随之 CSS 隐藏，不再留空标题/空卡壳（见 index.css）。
   return (
-    <section id={id} className="mb-8 scroll-mt-6">
+    <section id={id} className="sf-settings-group mb-8 scroll-mt-6">
       <h2 className="mb-3 text-sm font-medium text-foreground">{title}</h2>
       {children}
     </section>
@@ -428,7 +450,9 @@ function SettingGroup({ id, title, children }: { id: string; title: string; chil
 
 function SettingCard({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-surface">{children}</div>
+    <div className="sf-settings-card overflow-hidden rounded-xl border border-border bg-surface">
+      {children}
+    </div>
   );
 }
 
@@ -594,22 +618,36 @@ function ActionRow({
   actionLabel,
   onAction,
   disabled = false,
+  status = null,
 }: {
   title: string;
   description: string;
   actionLabel: string;
   onAction: () => void;
   disabled?: boolean;
+  status?: { text: string; tone: 'ok' | 'error' } | null;
 }) {
   return (
     <RowShell title={title} description={description}>
-      <button
-        className="h-8 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
-        onClick={onAction}
-        disabled={disabled}
-      >
-        {actionLabel}
-      </button>
+      <div className="flex items-center gap-2.5">
+        {status && (
+          <span
+            className={`max-w-[220px] truncate text-xs ${
+              status.tone === 'error' ? 'text-error' : 'text-success'
+            }`}
+            data-testid="action-row-status"
+          >
+            {status.text}
+          </span>
+        )}
+        <button
+          className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+          onClick={onAction}
+          disabled={disabled}
+        >
+          {actionLabel}
+        </button>
+      </div>
     </RowShell>
   );
 }
