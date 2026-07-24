@@ -413,7 +413,7 @@ test('resumed agent result preserves waiting status for confirmation results', (
   const steps = stepsFromResumedAgentResult(response);
   assert.equal(steps[0].detail, 'resume_run 已返回 file.revise');
   assert.equal(steps.at(-1)?.status, 'waiting');
-  assert.match(steps.at(-1)?.detail ?? '', /diff 面板/);
+  assert.match(steps.at(-1)?.detail ?? '', /编辑器里确认 diff/);
 });
 
 test('resume diagnostic display marks unsupported pending call as manual restart', () => {

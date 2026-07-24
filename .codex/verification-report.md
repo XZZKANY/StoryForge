@@ -1,46 +1,56 @@
-# 验证报告 · Chat/Agent 对话作者可读性与运行控制（chat-ux-polish）
+# 验证报告 · UI/UX 审计速赢包（第一刀 · S 级零/低风险）
 
 时间：2026-07-24
-任务：`.trellis/tasks/07-24-chat-ux-polish`
+依据：`D:\记事本\StoryForge-UIUX审计报告-2026-07-24.html`「建议第一刀 · 速赢包」
+分支：`feat/uiux-speed-wins-20260724`
 
-本刀 = Desktop 右栏 Chat/Agent 对话的作者可读性与操作可达性收敛，纯前端展示层，
-不动 agent 协议 / OpenAPI / 写回逻辑。
+本刀 = 审计速赢包 10 项里的 9 项（remark-gfm 因当前 npm 镜像不可达延后，折进 chat-ux-polish
+的 AssistantMarkdown 一并落地），纯前端展示层，无后端 / OpenAPI / schema 改动。
 
-## 变更摘要
+## 变更（对应审计条目）
 
-1. **助手消息 Markdown**：新增 `chat-window/AssistantMarkdown.tsx`（`react-markdown` + `skipHtml`），
-   助手回复渲染为标题 / 列表 / 加粗 / 行内代码 / 代码块 / 链接；用户消息仍是纯文本气泡。
-   `.assistant-md` 样式贴对话密度，全走 design token（`--foreground` / `--elevated` / `--agent` / mono）。
-2. **上下文入口收敛**：`ContextSummaryPanel` 加 `compact` —— 有消息时默认折叠为一行摘要
-   （预算 + 当前文件 + pin 数），展开或 Composer「+」打开 picker 时以**派生** `detailsOpen`
-   自动露出（不用 effect 同步 state）；空会话保留完整面板；索引失败 / 加载态与重试契约不变。
-3. **运行态作者文案**：`runStatusText` / `RunActionBar` / `recovery.ts` 统一话术——
-   `AgentRun #id` → 「正在处理 / 等待你确认」（id 进 `title`）、`BookRun checkpoint` → 「检查点」、
-   `待确认补丁 #` → 「有待你确认的补丁」、`用户` → 「你」、`managed` badge → 「写作任务」。
-4. **运行控制贴近 Composer**：抽 `RunActionBar` 固定在 Composer 上方（run 活跃 / 等待权限时可见），
-   停止 + 权限批准 / 拒绝集中于此；中流 `AgentRunControlBar` 主 CTA 下线（保留别名防外部引用断裂）、
-   仅留 `AgentStepsPanel` 思考折叠。
+1. **真 BUG · 失败提示渲染成成功绿**（`Editor.tsx:666`）：`suggestionStatus` 从字符串前缀匹配
+   （只认 `AI 修订失败`）改为带语义 `tone`（success/error/info）的对象；`useSuggestionWriteback`
+   各出口按语义传 tone（接受/分块/存旁注/导出/定位/旧补丁拒写回 = error，写入/导出成功 = success）。
+2. **真 BUG · 观测「上次扫描」显示 UTC**（`ObservatoryView.tsx`）：`generatedAt.slice(11,16)`（切 ISO 串取
+   UTC，差 8 小时）改 `formatScanTime` 按本地时区 `toLocaleTimeString`，非法值兜底原串。
+3. **真 BUG · 浅色主题图标按钮 hover 纯白叠白不可见**（`index.css`）：`.sf-toolbar-button:hover` /
+   `.sf-icon-button:hover` 的 `rgb(255 255 255 / .0x)` 改 `--elevated` / `--border` token（两主题都翻）；
+   删 `VersionHistory` / `ResourceExplorer` 两处绕过基类的 inline hover override。
+4. **全局 `:focus-visible` 描边**（`index.css`）：加一条 `outline: 2px solid rgb(var(--agent))`，位于
+   `@tailwind utilities` 与裸 `outline:none` 输入之后 → 覆盖二者，补上键盘焦点可见性。
+5. **删死代码 `.step-*` 状态色**（`index.css`）：5 条硬编码 hex，全仓零消费者，与 live 的
+   AgentStepsPanel token 相互矛盾，整段删除。
+6. **「右侧」→「编辑器里」**（`useAgentRunControls` / `useRunAuthorAgent` / `resumed-result` /
+   `useInlineChat`）：三栏改版后编辑器在中栏，方向指反的提示改为布局无关话术。
+7. **文案清理小包**：`sidecar`→「本地服务」（StatusBar）、「接线」→「开发中 / 尚未启用」（SidePanel 搜索占位、
+   ObsPanel / ObservatoryView / StatusBar 观测态）、`Desktop env`→「桌面注入」（SettingsView）、
+   `Issue Scope`→「问题范围」（assistant-suggestions）、ASCII `...`→全角 `…`（欢迎页 / Composer /
+   StoryNavigator）、删 Composer 常驻死标签「编辑模式」（`ml-auto` 移到 pause/send 保持右对齐）、
+   顺带「暂停 AgentRun」tooltip→「暂停本轮」。
+8. **欢迎页签 `h-9`→`h-shell-row`**（`WelcomeWorkspace`）：补 4px 断层 + `data-testid="welcome-tabbar"`
+   追加进 `shell-row-height` 指纹护栏防回归。
+9. **未保存圆点 / 选中高亮**：EditorTabs dirty dot `bg-current`（灰）→ `bg-foreground`（高对比）；
+   StoryNavigator 故事页选中 `bg-accent text-accent-foreground` → 对齐资源管理器 `bg-elevated
+   text-foreground`（预览态一并对齐 `bg-elevated/60`）。
 
 ## 验证
 
 ```bash
 npm --prefix apps/desktop/frontend run typecheck   # PASS
-npm --prefix apps/desktop/frontend run test        # 52 files / 265 passed
-npx eslint <changed> && npx prettier --check <changed>   # 0 error / 全过
+npm --prefix apps/desktop/frontend run test        # 51 files / 260 passed
+npx eslint <changed>                                # 0 errors（仅 Editor.tsx 既有 handleExport warning）
+npx prettier --check <changed>                      # 全过
 ```
 
-- 新增 `tests/chat-ux-polish.test.tsx`：markdown 结构渲染、用户消息纯文本、compact 折叠、
-  RunActionBar 作者文案 + 停止控件。
-- `tests/chat-window.test.ts` recovery 文案断言随作者话术更新。
-- monaco stub 无关本刀（已随 `07-24-editor-patch-ux` / PR #159 入库）。
-
-## 红线审计
-
-- 后端零改动、OpenAPI 零漂移、schema 零变更；纯前端展示层。
-- 写回仍走 proposed patch 确认；未碰 agent WS/HTTP 协议、ToolSpec、diff 确认逻辑。
-- 依赖新增 `react-markdown`（lockfile 随之更新，npmmirror 镜像 URL 装机后可回改）。
+- 随文案改动更新测试断言：`status-observation.test.tsx`（观测未接线→尚未启用）、
+  `chat-window.test.ts`（右侧 diff 面板→编辑器里确认 diff）。
+- `shell-row-height.test.ts` 新增 welcome-tabbar 一例，欢迎页签行高回归可证伪。
 
 ## 未验证 / 边界
 
-- 真机 Tauri 多轮渲染、markdown 实际观感、固定操作条点停止 / 批准桌面手感 —— 归 E2E-1 真机波。
-- **完整 GFM 表格 / 删除线** 本刀不引入（PRD Out of Scope）；审计「remark-gfm」项由后续速赢包单独处理。
+- **remark-gfm（真 BUG · 表格/删除线渲染成裸符号）本刀未做**：当前网络下 npm 镜像
+  （npmjs / npmmirror）经代理不可达，装不了依赖；已规划折进 `chat-ux-polish` 的 AssistantMarkdown
+  一并落地（网络恢复后 npmjs 一致装）。
+- 真机 Tauri 观感（浅色 hover / 键盘焦点环 / UTC 时间 / 未保存圆点 / 选中高亮）归 E2E-1 真机波。
+- tone 判色仅覆盖 `useSuggestionWriteback` / `Editor` 出口；行间对话 flashStatus 走独立 toast，未纳入。

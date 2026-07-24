@@ -66,7 +66,7 @@ export function createRemoteFileSuggestion(params: {
     note: [
       `用户意图：${userIntent.trim() || '审查并改进当前文件'}`,
       `模型：${model || '未知'}`,
-      issueIds.length ? `Issue Scope：${issueIds.join(', ')}` : '',
+      issueIds.length ? `问题范围：${issueIds.join(', ')}` : '',
       contextFiles.length ? `上下文：${contextFiles.join(', ')}` : '',
       scopeWarning ? `⚠ 范围提醒：${scopeWarning}` : '',
       '接受会写入当前文件；拒绝则丢弃；保存旁注会写入 .storyforge/notes。',

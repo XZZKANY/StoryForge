@@ -53,7 +53,7 @@ test('sidecar 探测 Promise 失败后显示连接中断，不停留在探测中
   }
 });
 
-test('观测未接线时不把空数组表达成零问题或全部处理完', () => {
+test('观测尚未启用时不把空数组表达成零问题或全部处理完', () => {
   const statusHtml = renderToStaticMarkup(
     <StatusBar
       modelLabel=""
@@ -70,12 +70,12 @@ test('观测未接线时不把空数组表达成零问题或全部处理完', ()
     <ObsPanel observations={[]} onClose={() => undefined} onResolve={() => undefined} />,
   );
 
-  assert.match(statusHtml, /观测未接线/);
+  assert.match(statusHtml, /观测尚未启用/);
   assert.doesNotMatch(statusHtml, /无观测项/);
   // Q9：打开项目时状态栏出现「字体 · 格子/散文」双轨切换芯片。
   assert.match(statusHtml, /data-testid="status-font-toggle"/);
   assert.match(statusHtml, /字体 · 格子/);
-  assert.match(panelHtml, /观测未接线/);
+  assert.match(panelHtml, /观测尚未启用/);
   assert.doesNotMatch(panelHtml, /全部处理完/);
   assert.doesNotMatch(panelHtml, /机械观测.*常驻扫描/);
 });

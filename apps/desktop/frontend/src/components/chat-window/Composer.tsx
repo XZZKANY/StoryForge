@@ -190,7 +190,7 @@ export function ComposerSurface({
         rows={2}
         className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-[13px] leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
-          disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色...'
+          disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色…'
         }
         aria-label="给 StoryForge 发送消息"
         onKeyDown={(event) => {
@@ -278,12 +278,11 @@ export function ComposerSurface({
             +{overflowPins.length}
           </span>
         )}
-        <span className="ml-auto min-w-0 flex-shrink truncate text-subtle">编辑模式</span>
         {busy && onPauseRun ? (
           <button
             type="button"
-            className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-foreground transition-colors hover:bg-agent hover:text-white"
-            title="暂停 AgentRun"
+            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-foreground transition-colors hover:bg-agent hover:text-white"
+            title="暂停本轮"
             onClick={onPauseRun}
             data-testid="composer-pause-run"
           >
@@ -292,7 +291,7 @@ export function ComposerSurface({
         ) : (
           <button
             type={onSubmit ? 'button' : 'submit'}
-            className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-white disabled:cursor-not-allowed disabled:opacity-40"
             title="发送"
             disabled={!canSubmit}
             onClick={onSubmit}

@@ -29,6 +29,13 @@ const CHECKER_LABELS: Record<string, string> = {
   deep_consistency: '深度一致性',
 };
 
+/** 观测扫描时间按作者本地时区显示（此前直接切 ISO 串取 UTC，差 8 小时）；非法值兜底原串。 */
+function formatScanTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 const CLAIM_INVARIANT_LABELS: Record<string, string> = {
   single_holder: '唯一持有',
   lifespan: '生命期',
@@ -379,7 +386,7 @@ export function ObservatoryView({
       : availability === 'error'
         ? '扫描失败'
         : availability === 'available' && generatedAt
-          ? `上次扫描 ${generatedAt.slice(11, 16)}`
+          ? `上次扫描 ${formatScanTime(generatedAt)}`
           : '';
   return (
     <div
@@ -427,7 +434,7 @@ export function ObservatoryView({
               ? '正在扫描项目观测数据。'
               : availability === 'error'
                 ? '观测数据加载失败，请点击重新扫描。'
-                : '观测尚未接线，当前没有可用于判断项目状态的数据。'}
+                : '观测尚未启用，当前没有可用于判断项目状态的数据。'}
           </p>
         ) : (
           <>

@@ -62,7 +62,7 @@ function Tab({
         >
           {dirty && (
             <span
-              className="h-2 w-2 rounded-full bg-current group-hover:hidden"
+              className="h-2 w-2 rounded-full bg-foreground group-hover:hidden"
               data-testid="editor-tab-dirty"
             />
           )}

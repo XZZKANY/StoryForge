@@ -17,6 +17,10 @@ import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import { performGuardedWriteback } from '../../lib/writeback';
 
+export type SuggestionStatusTone = 'success' | 'error' | 'info';
+/** 编辑器顶部状态条文本 + 语义色调；null = 无状态。按 tone 判色，不再前缀匹配。 */
+export type SuggestionStatus = { text: string; tone: SuggestionStatusTone } | null;
+
 type UseSuggestionWritebackParams = {
   editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   originalContentRef: MutableRefObject<string>;
@@ -47,7 +51,10 @@ export function useSuggestionWriteback({
   emitAuthorLoopResult,
 }: UseSuggestionWritebackParams) {
   const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
-  const [suggestionStatus, setSuggestionStatus] = useState('');
+  const [suggestionStatus, setSuggestionStatusState] = useState<SuggestionStatus>(null);
+  const setSuggestionStatus = useCallback((text: string, tone: SuggestionStatusTone = 'info') => {
+    setSuggestionStatusState(text ? { text, tone } : null);
+  }, []);
   const [isReviseLoading, setIsReviseLoading] = useState(false);
   const assistantSessionIdRef = useRef<number | null>(null);
   const pendingSuggestionRef = useRef<AssistantFileSuggestion | null>(null);
@@ -58,7 +65,7 @@ export function useSuggestionWriteback({
 
   const resetSuggestionWriteback = useCallback(() => {
     setPendingSuggestion(null);
-    setSuggestionStatus('');
+    setSuggestionStatusState(null);
     setIsReviseLoading(false);
   }, []);
 
@@ -69,7 +76,7 @@ export function useSuggestionWriteback({
       // 目标文件已打开：直接消费缓冲，避免切换文件后被重复领取。
       takePendingFileSuggestion(suggestion.filePath);
       setPendingSuggestion(suggestion);
-      setSuggestionStatus('');
+      setSuggestionStatusState(null);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
     return () => {
@@ -82,7 +89,7 @@ export function useSuggestionWriteback({
     const pending = takePendingFileSuggestion(path);
     if (pending) {
       setPendingSuggestion(pending);
-      setSuggestionStatus('');
+      setSuggestionStatusState(null);
     }
   }, []);
 
@@ -171,7 +178,7 @@ export function useSuggestionWriteback({
       const currentContent = editorRef.current.getValue();
       if (isWholeFileDrifted(currentContent, suggestion.before, normalizeEol)) {
         const message = '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。';
-        setSuggestionStatus(message);
+        setSuggestionStatus(message, 'error');
         emitAuthorLoopResult({
           filePath: path,
           status: 'error',
@@ -190,6 +197,7 @@ export function useSuggestionWriteback({
       setPendingSuggestion(null);
       setSuggestionStatus(
         loopRecord.recordPath ? `已接受并写入当前文件，闭环记录已保存` : '已接受并写入当前文件',
+        'success',
       );
       emitAuthorLoopResult({
         filePath: path,
@@ -199,7 +207,7 @@ export function useSuggestionWriteback({
         recordPath: loopRecord.recordPath ?? undefined,
       });
     } catch (err) {
-      setSuggestionStatus(`接受失败: ${err instanceof Error ? err.message : String(err)}`);
+      setSuggestionStatus(`接受失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
       emitAuthorLoopResult({
         filePath: path,
         status: 'error',
@@ -207,7 +215,14 @@ export function useSuggestionWriteback({
         message: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [editorRef, emitAuthorLoopResult, filePathRef, normalizeEol, writeAcceptedSuggestion]);
+  }, [
+    editorRef,
+    emitAuthorLoopResult,
+    filePathRef,
+    normalizeEol,
+    setSuggestionStatus,
+    writeAcceptedSuggestion,
+  ]);
 
   const handleAcceptHunk = useCallback(
     async (hunk: PatchHunk) => {
@@ -240,12 +255,16 @@ export function useSuggestionWriteback({
           loopRecord.recordPath
             ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
             : '已接受该修改块并写入当前文件',
+          'success',
         );
       } catch (err) {
-        setSuggestionStatus(`接受分块失败: ${err instanceof Error ? err.message : String(err)}`);
+        setSuggestionStatus(
+          `接受分块失败: ${err instanceof Error ? err.message : String(err)}`,
+          'error',
+        );
       }
     },
-    [editorRef, filePathRef, normalizeEol, writeAcceptedSuggestion],
+    [editorRef, filePathRef, normalizeEol, setSuggestionStatus, writeAcceptedSuggestion],
   );
 
   useEffect(() => {
@@ -254,14 +273,18 @@ export function useSuggestionWriteback({
       const path = filePathRef.current;
       if (!result || !path || result.filePath !== path) return;
       setIsReviseLoading(false);
-      setSuggestionStatus(result.status === 'ready' ? '' : `AI 修订失败：${result.message}`);
+      if (result.status === 'ready') {
+        setSuggestionStatusState(null);
+      } else {
+        setSuggestionStatus(`AI 修订失败：${result.message}`, 'error');
+      }
       if (result.assistantSessionId) {
         assistantSessionIdRef.current = result.assistantSessionId;
       }
     };
     window.addEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
     return () => window.removeEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
-  }, [filePathRef]);
+  }, [filePathRef, setSuggestionStatus]);
 
   useEffect(() => {
     const onAcceptCurrentSuggestion = () => {
@@ -316,16 +339,19 @@ export function useSuggestionWriteback({
       ].join('\n');
       await TauriFileSystem.writeFile(project, notePath, note);
       setPendingSuggestion(null);
-      setSuggestionStatus(`已保存旁注: ${notePath}`);
+      setSuggestionStatus(`已保存旁注: ${notePath}`, 'success');
     } catch (err) {
-      setSuggestionStatus(`保存旁注失败: ${err instanceof Error ? err.message : String(err)}`);
+      setSuggestionStatus(
+        `保存旁注失败: ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+      );
     }
-  }, [pendingSuggestion, projectPathRef]);
+  }, [pendingSuggestion, projectPathRef, setSuggestionStatus]);
 
   const rejectPendingSuggestion = useCallback(() => {
     setPendingSuggestion(null);
     setSuggestionStatus('已拒绝建议补丁');
-  }, []);
+  }, [setSuggestionStatus]);
 
   return {
     adoptPendingSuggestion,

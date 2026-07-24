@@ -348,7 +348,7 @@ export function useInlineChat({
     const project = projectPathRef.current;
     const path = filePathRef.current;
     if (!project || !path) {
-      flashStatus('先在右侧打开一个文件，再用 Ctrl+K 行间对话');
+      flashStatus('先在编辑器里打开一个文件，再用 Ctrl+K 行间对话');
       return;
     }
     if (isReadOnlyDerivedProjectPath(path)) {

@@ -27,7 +27,7 @@ export function stepsFromResumedAgentResult(response: AgentResultMessage): Agent
       title: '等待作者确认并收口',
       tool: 'author.approval',
       status: needsConfirmation ? 'waiting' : 'completed',
-      detail: needsConfirmation ? '等待作者在右侧 diff 面板确认' : '无需写回确认',
+      detail: needsConfirmation ? '等待作者在编辑器里确认 diff' : '无需写回确认',
     },
   ];
 }

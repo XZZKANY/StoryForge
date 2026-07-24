@@ -401,7 +401,7 @@ function ProviderRuntimeEnvNotice({ saveState, error }: { saveState: SaveState; 
       ? '已保存'
       : saveState === 'error'
         ? `保存失败：${error || '未知错误'}`
-        : 'Desktop env';
+        : '桌面注入';
   return (
     <RowShell
       title="运行时真相源"

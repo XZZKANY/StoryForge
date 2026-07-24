@@ -90,7 +90,7 @@ export function VersionHistory({
         <button
           onClick={onClose}
           title="关闭"
-          className="sf-icon-button text-muted transition-colors hover:bg-foreground/10 hover:text-foreground"
+          className="sf-icon-button text-muted transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
