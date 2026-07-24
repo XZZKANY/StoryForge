@@ -113,9 +113,9 @@ export function App() {
       if (!mod) return;
       const key = event.key.toLowerCase();
       if (event.shiftKey) {
+        // 左栏搜索已删（删左留中）：只留 Ctrl+Shift+E → 资源管理器；Ctrl+Shift+F 不再映射。
         const viewMap: Record<string, SidePanelView> = {
           e: 'explorer',
-          f: 'search',
         };
         const view = viewMap[key];
         if (view) {

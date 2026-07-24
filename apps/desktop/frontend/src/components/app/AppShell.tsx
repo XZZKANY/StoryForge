@@ -319,6 +319,7 @@ export function AppShell({
             >
               <ObservatoryView
                 availability={observatory.availability}
+                scanning={observatory.scanning}
                 observations={observatory.observations}
                 checkers={observatory.checkers}
                 entities={observatory.entities}

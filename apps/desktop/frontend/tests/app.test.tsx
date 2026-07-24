@@ -61,12 +61,12 @@ test('App 无项目时侧面板资源管理器暴露空态与打开项目按钮'
   assert.match(html, /data-testid="add-project-btn"/);
 });
 
-test('App 活动栏 Q8 精简为 文件/搜索/设置，会话与质检图标已撤走', () => {
+test('App 活动栏精简为 文件/设置，左栏搜索删左留中', () => {
   const html = renderApp();
   assert.match(html, /data-testid="activity-explorer"/);
-  assert.match(html, /data-testid="activity-search"/);
   assert.match(html, /data-testid="activity-settings"/);
-  // 会话移入右栏对话头（Q5）、质检收到状态栏观测芯片，二者不再是活动栏图标。
+  // 左栏搜索为未接线死占位、与顶栏命令面板重复，删左留中；会话入右栏对话头、质检收状态栏。
+  assert.doesNotMatch(html, /data-testid="activity-search"/);
   assert.doesNotMatch(html, /data-testid="activity-sessions"/);
   assert.doesNotMatch(html, /data-testid="activity-qa"/);
 });

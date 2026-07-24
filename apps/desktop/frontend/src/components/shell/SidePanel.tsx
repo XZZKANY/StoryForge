@@ -1,7 +1,6 @@
 /**
  * 侧面板：默认 236px。
- * - explorer：项目 + 文件树
- * - search：搜索占位
+ * - explorer：项目 + 文件树（左栏只此一视图；文件搜索走顶栏命令面板 Ctrl+P）
  */
 import { useRef, useState } from 'react';
 import { StoryNavigator } from '../StoryNavigator';
@@ -33,17 +32,6 @@ export function SidePanel(props: SidePanelProps) {
       data-side-view={props.view}
     >
       {props.view === 'explorer' && <ExplorerView {...props} />}
-      {props.view === 'search' && <SearchView />}
-    </div>
-  );
-}
-
-function ViewHead({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="flex h-[34px] flex-shrink-0 items-center gap-1.5 pl-3.5 pr-2 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-subtle">
-      <span>{title}</span>
-      <span className="flex-1" />
-      {children}
     </div>
   );
 }
@@ -207,22 +195,6 @@ function ExplorerView({
           onFilePreview={onFilePreview}
         />
       </div>
-    </>
-  );
-}
-
-function SearchView() {
-  return (
-    <>
-      <ViewHead title="搜索" />
-      <div className="mx-3 mb-2">
-        <input
-          className="h-[30px] w-full rounded-md border border-border bg-surface px-2.5 text-[12px] text-foreground outline-none focus:border-border-strong"
-          placeholder="在项目中搜索…"
-          data-testid="side-search-input"
-        />
-      </div>
-      <p className="px-4 text-[11.5px] leading-relaxed text-subtle">搜索功能开发中，暂未开放。</p>
     </>
   );
 }

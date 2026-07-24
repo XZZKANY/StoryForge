@@ -47,7 +47,7 @@ function Tab({
           onActivate();
         }
       }}
-      className={`group flex cursor-pointer select-none items-center gap-2 px-3.5 text-[12px] ${
+      className={`group flex flex-shrink-0 cursor-pointer select-none items-center gap-2 px-3.5 text-[12px] ${
         preview ? 'italic' : ''
       } ${
         active
@@ -162,40 +162,45 @@ export function EditorTabs({
         }
       }}
     >
-      {settingsOpen && (
-        <Tab
-          active={activeTab === 'settings'}
-          label="设置"
-          icon={<Settings size={13} strokeWidth={1.6} />}
-          onActivate={onFocusSettings}
-          onClose={onCloseSettings}
-        />
-      )}
-      {openFiles.map((path) => (
-        <Tab
-          key={path}
-          active={activeTab === 'file' && path === activeFile}
-          label={basename(path)}
-          title={path}
-          dirty={dirtyFiles.has(path)}
-          onActivate={() => onFocusFile(path)}
-          onClose={() => onCloseFile(path)}
-        />
-      ))}
-      {showPreview && previewFile && (
-        <Tab
-          active={activeTab === 'preview'}
-          preview
-          label={basename(previewFile)}
-          title={`预览：单击别的文件会覆盖它；双击固定 · ${previewFile}`}
-          onActivate={onFocusPreview}
-          onDoubleClick={onPinPreview}
-          onClose={onClosePreview}
-        />
-      )}
-      <div className="flex-1" />
+      {/* 页签列表单独包横向滚动容器：多开/长章节名不再把右端徽标 + …菜单挤出屏外。 */}
+      <div
+        className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
+        data-testid="editor-tab-scroll"
+      >
+        {settingsOpen && (
+          <Tab
+            active={activeTab === 'settings'}
+            label="设置"
+            icon={<Settings size={13} strokeWidth={1.6} />}
+            onActivate={onFocusSettings}
+            onClose={onCloseSettings}
+          />
+        )}
+        {openFiles.map((path) => (
+          <Tab
+            key={path}
+            active={activeTab === 'file' && path === activeFile}
+            label={basename(path)}
+            title={path}
+            dirty={dirtyFiles.has(path)}
+            onActivate={() => onFocusFile(path)}
+            onClose={() => onCloseFile(path)}
+          />
+        ))}
+        {showPreview && previewFile && (
+          <Tab
+            active={activeTab === 'preview'}
+            preview
+            label={basename(previewFile)}
+            title={`预览：单击别的文件会覆盖它；双击固定 · ${previewFile}`}
+            onActivate={onFocusPreview}
+            onDoubleClick={onPinPreview}
+            onClose={onClosePreview}
+          />
+        )}
+      </div>
       {hasFileActions && (
-        <div className="flex flex-shrink-0 items-center gap-1.5 pr-1.5">
+        <div className="flex flex-shrink-0 items-center gap-1.5 border-l border-border pl-1.5 pr-1.5">
           {activeReadOnly && (
             <span
               className="flex items-center whitespace-nowrap rounded-full border border-warning/50 px-2 text-[10.5px] text-warning"
