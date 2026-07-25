@@ -123,6 +123,7 @@ export type ProviderHealth = {
   model: string | null;
   latencyMs: number | null;
   modelCount: number | null;
+  models: string[];
   detail: string | null;
   missingEnv: string[];
 };

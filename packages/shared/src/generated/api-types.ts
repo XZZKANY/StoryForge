@@ -3644,6 +3644,8 @@ export interface components {
             model?: string | null;
             /** Model Count */
             model_count?: number | null;
+            /** Models */
+            models?: string[];
             /** Reachable */
             reachable: boolean;
             /**

@@ -429,6 +429,7 @@ test('probeProviderHealth maps health response and falls back for non-json error
             model: 'writer-model',
             latency_ms: 321,
             model_count: 2,
+            models: ['writer-model', 'aux-model'],
             detail: null,
             missing_env: [],
           }),
@@ -447,6 +448,7 @@ test('probeProviderHealth maps health response and falls back for non-json error
       model: 'writer-model',
       latencyMs: 321,
       modelCount: 2,
+      models: ['writer-model', 'aux-model'],
       detail: null,
       missingEnv: [],
     });

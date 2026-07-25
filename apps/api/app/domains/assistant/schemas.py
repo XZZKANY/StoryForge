@@ -187,6 +187,7 @@ class ProviderHealthResponse(BaseModel):
     model: str | None = None
     latency_ms: int | None = None
     model_count: int | None = None
+    models: list[str] = Field(default_factory=list)
     detail: str | None = None
     missing_env: list[str] = Field(default_factory=list)
 

@@ -4985,6 +4985,13 @@
             ],
             "title": "Model Count"
           },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
           "reachable": {
             "title": "Reachable",
             "type": "boolean"

@@ -161,6 +161,7 @@ export async function probeProviderHealth(): Promise<ProviderHealth> {
     model: data.model ?? null,
     latencyMs: data.latency_ms ?? null,
     modelCount: data.model_count ?? null,
+    models: data.models ?? [],
     detail: data.detail ?? null,
     missingEnv: data.missing_env ?? [],
   };
