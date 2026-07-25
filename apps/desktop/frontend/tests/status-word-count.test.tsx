@@ -23,13 +23,9 @@ function renderStatusBar(projectOpen: boolean) {
     root.render(
       <StatusBar
         modelLabel=""
-        theme="dark"
         projectOpen={projectOpen}
         obs={{ error: 0, warning: 0, advisory: 0, total: 0 }}
-        fontMode="grid"
         onToggleObs={() => undefined}
-        onToggleFont={() => undefined}
-        onToggleTheme={() => undefined}
       />,
     );
   });

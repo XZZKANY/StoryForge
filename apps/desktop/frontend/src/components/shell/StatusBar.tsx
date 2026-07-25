@@ -1,6 +1,7 @@
 /**
- * 状态栏：26px 全局条。sidecar 连接态（轮询 /health/ready）+ 模型 + 主题 + 面板切换。
+ * 状态栏：26px 全局条。sidecar 连接态（轮询 /health/ready）+ 模型 + 字数 + 观测。
  * 观测未接线时必须保留 unavailable 状态，不能把无数据表达成零问题。
+ * 字体 / 主题切换已移入设置（外观 / 编辑器），状态栏不再放这两个开关（#14）。
  */
 import { useEffect, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api/runtime-health';
@@ -9,8 +10,6 @@ import {
   type EditorTextMetricsDetail,
 } from '../../lib/assistant-events';
 import type { ApiRuntimeHealth } from '../../lib/api/types';
-import type { ThemeMode } from '../../lib/user-settings';
-import type { EditorFontMode } from '../editor/options';
 import { Check } from '../icons/shell-icons';
 import type { ObservationAvailability } from './ObsPanel';
 
@@ -21,24 +20,16 @@ type HealthProbeState =
 
 export function StatusBar({
   modelLabel,
-  theme,
   projectOpen,
-  fontMode,
   obs,
   observationAvailability = 'unavailable',
   onToggleObs,
-  onToggleFont,
-  onToggleTheme,
 }: {
   modelLabel: string;
-  theme: ThemeMode;
   projectOpen: boolean;
-  fontMode: EditorFontMode;
   obs: { error: number; warning: number; advisory: number; total: number };
   observationAvailability?: ObservationAvailability;
   onToggleObs: () => void;
-  onToggleFont: () => void;
-  onToggleTheme: () => void;
 }) {
   const [healthProbe, setHealthProbe] = useState<HealthProbeState>({ kind: 'pending' });
   const [textMetrics, setTextMetrics] = useState<EditorTextMetricsDetail | null>(null);
@@ -138,23 +129,6 @@ export function StatusBar({
           )}
         </button>
       )}
-      {projectOpen && (
-        <button
-          className="rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
-          onClick={onToggleFont}
-          title="编辑器字体：格子 = CJK 2:1 等宽（中英对齐，需装内置更纱/文楷等宽）；散文 = 比例字体（长文舒适）"
-          data-testid="status-font-toggle"
-        >
-          字体 · {fontMode === 'prose' ? '散文' : '格子'}
-        </button>
-      )}
-      <button
-        className="rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
-        onClick={onToggleTheme}
-        title="切换明暗主题"
-      >
-        {theme === 'dark' ? '深色' : '浅色'}
-      </button>
     </footer>
   );
 }
