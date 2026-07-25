@@ -38,7 +38,7 @@ import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { useInlineChat } from './editor/useInlineChat';
 import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 import type { AppDialogApi } from './app/AppDialog';
-import { performGuardedWriteback } from '../lib/writeback';
+import { createWritebackQueue, performGuardedWriteback } from '../lib/writeback';
 import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
 import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
 
@@ -127,6 +127,8 @@ export function Editor({
 
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
+  // 落盘串行队列：autosave 与 Ctrl+S 并发时按调用顺序依次写盘，防旧内容后落覆盖新内容。
+  const saveQueueRef = useRef(createWritebackQueue());
   const issueDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   // 留存当前审稿 issue，供内容变化后按 evidence 重新校验、移除已改好的标记（E18）。
   const reviewIssuesRef = useRef<ReviewIssueMarker[]>([]);
@@ -161,6 +163,7 @@ export function Editor({
     cleanVersionIdRef,
     filePathRef,
     projectPathRef,
+    modelCacheRef,
     setLoadedContentPreview,
     setIsDirty,
     normalizeEol,
@@ -216,54 +219,61 @@ export function Editor({
   }, []);
 
   // 保存文件：先快照旧内容，再写入新内容。内部函数向上抛错，供 Agent 预读握手阻断读盘。
-  const saveCurrentFile = useCallback(async () => {
-    const path = filePathRef.current;
-    const projectRoot = projectPathRef.current;
-    if (!projectRoot || !path || !editorRef.current || isReadOnlyDerivedProjectPath(path)) return;
+  // autosave 与 Ctrl+S 可同时发起，故整个「取内容 → 快照 → 写盘 → 结算」串进写回队列，
+  // 避免两次写盘乱序完成时旧内容盖掉新内容（内容在任务真正执行时才取，落盘的总是最新稿）。
+  const saveCurrentFile = useCallback(
+    () =>
+      saveQueueRef.current(async () => {
+        const path = filePathRef.current;
+        const projectRoot = projectPathRef.current;
+        if (!projectRoot || !path || !editorRef.current || isReadOnlyDerivedProjectPath(path))
+          return;
 
-    const savedModel = editorRef.current.getModel();
-    if (!savedModel) return;
-    const content = savedModel.getValue();
-    const previous = originalContentRef.current;
-    const contentChanged = previous !== '' && normalizeEol(previous) !== normalizeEol(content);
-    const branch = contentChanged ? getActiveBranchSnapshot() : null;
+        const savedModel = editorRef.current.getModel();
+        if (!savedModel) return;
+        const content = savedModel.getValue();
+        const previous = originalContentRef.current;
+        const contentChanged = previous !== '' && normalizeEol(previous) !== normalizeEol(content);
+        const branch = contentChanged ? getActiveBranchSnapshot() : null;
 
-    await performGuardedWriteback(contentChanged, {
-      snapshot: async () =>
-        snapshotBeforeWrite(projectRoot, path, previous, {
-          source: 'Editor',
-          summary: '手动保存前快照',
-          branchId: branch?.id,
-          branchLabel: branch?.label,
-          parentId: branch?.headNodeId,
-        }),
-      advanceBranchHead: async (timestamp) => {
-        await advanceBranchHead(timestamp);
-      },
-      write: async () => {
-        await TauriFileSystem.writeFile(projectRoot, path, content);
-      },
-      record: async () => undefined,
-    });
+        await performGuardedWriteback(contentChanged, {
+          snapshot: async () =>
+            snapshotBeforeWrite(projectRoot, path, previous, {
+              source: 'Editor',
+              summary: '手动保存前快照',
+              branchId: branch?.id,
+              branchLabel: branch?.label,
+              parentId: branch?.headNodeId,
+            }),
+          advanceBranchHead: async (timestamp) => {
+            await advanceBranchHead(timestamp);
+          },
+          write: async () => {
+            await TauriFileSystem.writeFile(projectRoot, path, content);
+          },
+          record: async () => undefined,
+        });
 
-    const savedState = modelCacheRef.current.get(path);
-    if (!savedState || !isRetainedEditorModel(savedModel, savedState.model)) return;
-    savedState.originalContent = content;
-    const remainsDirty = savedModel.getValue() !== content;
-    onDirtyChange?.(path, remainsDirty);
-    if (
-      canCommitEditorSave(
-        path,
-        savedModel,
-        filePathRef.current,
-        editorRef.current?.getModel() ?? null,
-      )
-    ) {
-      originalContentRef.current = content;
-      cleanVersionIdRef.current = remainsDirty ? null : savedModel.getAlternativeVersionId();
-      setIsDirty(remainsDirty);
-    }
-  }, [advanceBranchHead, getActiveBranchSnapshot, onDirtyChange]);
+        const savedState = modelCacheRef.current.get(path);
+        if (!savedState || !isRetainedEditorModel(savedModel, savedState.model)) return;
+        savedState.originalContent = content;
+        const remainsDirty = savedModel.getValue() !== content;
+        onDirtyChange?.(path, remainsDirty);
+        if (
+          canCommitEditorSave(
+            path,
+            savedModel,
+            filePathRef.current,
+            editorRef.current?.getModel() ?? null,
+          )
+        ) {
+          originalContentRef.current = content;
+          cleanVersionIdRef.current = remainsDirty ? null : savedModel.getAlternativeVersionId();
+          setIsDirty(remainsDirty);
+        }
+      }),
+    [advanceBranchHead, getActiveBranchSnapshot, onDirtyChange],
+  );
   const saveCurrentFileRef = useRef(saveCurrentFile);
 
   useEffect(() => {

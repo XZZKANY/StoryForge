@@ -31,3 +31,36 @@ export async function performGuardedWriteback<TRecord>(
   await effects.write();
   return effects.record();
 }
+
+/**
+ * 写回落盘后往哪结算。
+ * - 补丁目标文件的缓冲永远同步（切回来看到的就是已写回的内容，不会以旧 originalContent 误判脏）；
+ * - 活动编辑器的 UI 态只在「目标仍是当前前台 model」时才动。
+ *
+ * WHY：写回是异步的，await 期间作者可能切走页签。按活动 model 无条件结算，
+ * 会把 A 文件的内容灌进 B 文件缓冲，随后 autosave 把它落盘——保存红线被一次性击穿。
+ */
+export function shouldSettleActiveEditor(
+  targetPath: string,
+  targetModel: object | null,
+  activePath: string | null,
+  activeModel: object | null,
+): boolean {
+  return !!targetModel && targetPath === activePath && targetModel === activeModel;
+}
+
+/**
+ * 落盘任务串行队列：同一编辑器上的保存必须按调用顺序依次完成。
+ *
+ * WHY：autosave（防抖 900ms）与 Ctrl+S 可各自触发一次保存；两次写盘并发时完成次序不可控，
+ * 先取到的旧内容可能在新内容之后落盘，造成静默回退。model 身份守卫只保护 UI 结算，不防写盘乱序。
+ * 前一个任务无论成败都放行下一个，否则一次保存失败会永久堵死保存链。
+ */
+export function createWritebackQueue(): <T>(task: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const run = tail.then(task, task);
+    tail = run.catch(() => undefined);
+    return run;
+  };
+}

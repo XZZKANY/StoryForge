@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { isWholeFileDrifted } from '../../src/lib/patch-hunks';
-import { performGuardedWriteback } from '../../src/lib/writeback';
+import {
+  createWritebackQueue,
+  performGuardedWriteback,
+  shouldSettleActiveEditor,
+} from '../../src/lib/writeback';
 
 const normalizeEol = (text: string) => text.replace(/\r\n/g, '\n');
 
@@ -77,5 +81,80 @@ describe('F27 写回红线②：快照→写盘→记录时序与快照失败阻
       },
     });
     expect(calls).toEqual(['write', 'record']);
+  });
+});
+
+// 红线③：补丁写回结算只认「目标文件仍在前台」。写回是异步的，await 期间作者可能切走页签；
+// 无条件按活动 model 结算会把 A 文件内容灌进 B 缓冲，随后 autosave 落盘。
+describe('写回红线③：结算目标不是「当前活动编辑器」而是「补丁目标文件」', () => {
+  const modelA = { id: 'A' };
+  const modelB = { id: 'B' };
+
+  it('目标仍在前台：允许结算活动编辑器 UI 态', () => {
+    expect(shouldSettleActiveEditor('第003章.md', modelA, '第003章.md', modelA)).toBe(true);
+  });
+
+  it('写回期间切走页签：拒绝结算（否则 A 的内容进 B 缓冲）', () => {
+    expect(shouldSettleActiveEditor('第003章.md', modelA, '第004章.md', modelB)).toBe(false);
+  });
+
+  it('路径同名但 model 已被重建：拒绝结算', () => {
+    expect(shouldSettleActiveEditor('第003章.md', modelA, '第003章.md', modelB)).toBe(false);
+  });
+
+  it('目标缓冲已被回收（无 model）：拒绝结算', () => {
+    expect(shouldSettleActiveEditor('第003章.md', null, '第003章.md', modelA)).toBe(false);
+  });
+});
+
+// 红线④：autosave 与 Ctrl+S 并发时写盘必须按调用顺序完成，否则旧内容可后落覆盖新内容。
+describe('写回红线④：落盘串行队列', () => {
+  it('后发起的保存必须等前一个写完：写盘不重叠，落盘顺序 = 调用顺序', async () => {
+    const queue = createWritebackQueue();
+    const disk: string[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    const write = async (content: string, delay: number) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      disk.push(content);
+      inFlight -= 1;
+    };
+
+    // 先发起的写很慢（模拟 autosave 已在落盘），后发起的很快（模拟 Ctrl+S）。
+    // 无串行化时快的先落盘、慢的随后用旧内容覆盖它。
+    const first = queue(() => write('旧内容', 30));
+    const second = queue(() => write('新内容', 0));
+    await Promise.all([first, second]);
+
+    expect(maxInFlight).toBe(1);
+    expect(disk).toEqual(['旧内容', '新内容']);
+  });
+
+  it('一次保存失败不堵死队列：后续保存仍会执行', async () => {
+    const queue = createWritebackQueue();
+    const done: string[] = [];
+
+    const failing = queue(async () => {
+      throw new Error('磁盘写入失败');
+    });
+    const next = queue(async () => {
+      done.push('第二次');
+    });
+
+    await expect(failing).rejects.toThrow('磁盘写入失败');
+    await next;
+    expect(done).toEqual(['第二次']);
+  });
+
+  it('把失败向上抛给调用方（Agent 预读握手靠它阻断读盘）', async () => {
+    const queue = createWritebackQueue();
+    await expect(
+      queue(async () => {
+        throw new Error('快照写盘失败');
+      }),
+    ).rejects.toThrow('快照写盘失败');
   });
 });

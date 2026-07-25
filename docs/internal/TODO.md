@@ -1,6 +1,6 @@
 # StoryForge 待办清单
 
-生成时间：2026-07-11 12:00:00 +08:00
+生成时间：2026-07-26 01:30:00 +08:00
 
 ## 当前执行入口
 
@@ -9,6 +9,8 @@ StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段。�
 真实 LLM 1/3/10 章 smoke 已通过记录，其中 10 章 smoke 已完成人工通读；一次 30 章真实长程已跑完并导出制品，但人工通读结论为“退回重跑”；2026-06-30 Q9 16 章真实跑修复门禁丢章四根因并抢救为完整 16 章、人工通读通过。2026-07-01 已合并：UI 单色改版（PR #42）、私测 Alpha 单机 sidecar + BYO-key + NSIS（PR #43/#44）、对话式 Agent + `chat.explain` 接真·LLM（PR #46）。2026-07-02 已合并：事实源刷新（PR #47）；左栏会话历史列表接真后端 + 欢迎页输入框接真发送（PR #48）；Agent loop 三步落地——path-scoped 只读 fs 工具、chat 自由文本 LLM 工具循环、前端流程树全事件驱动（PR #49/#50/#51）。
 
 2026-07-03 起按架构审计蓝图完成 W0-W7 全波结构收口；2026-07-05 桌面壳子 redesign P0-P4 合并（PR #81-#85）；2026-07-07 E2E-1 真机验收首轮门禁 G.1 全 PASS；2026-07-08 canon 防漂移 slice1/2（PR #114/#115）；2026-07-10/11 两轮过夜重构（PR #124/#125）收口 LLM 出网单通道、前端 vitest 单跑与新 agent 工具。**2026-07-11 拍板路线**：先把编辑器做到「安全可日更」（装机前两小刀 → 重建 0.1.2 → AI 装机预验 → 真机第二轮观感波 → 修复锁版），再在编辑器上接续 n=1 连载写作；08-31 盛夏寻章征文不当锚；愿景 = 写 → 发 → 收集信号 → 喂 → 进化编辑器 → 写出更有风格的作品。
+
+2026-07-12 至 07-25 已合并（约 100 个非 merge 提交，PR #126-#193）：Phase A A7 锁版与 `v0.1.2`；UIUX 九问速赢 / 去重 / 布局三态 / 发送即开书 / 双轨字体；行间对话 Ctrl+K 内联改稿（PR #141，真机 dogfood 通过）；源码标准专窗 S0-S8（PR #140，窄核心 + 硬门禁 16 项）；世界线观测镜四刀（PR #147-#150，`observatory.scan` 信号出口 → 前端接线 → payload v2 台账 → 光标实体联动）；`v0.1.3` bump + NSIS 重建；agent 工具 `project.promise_check` / `project.trim_prose` / `project.hooks_delta`；作者自定义指令 `agent-instructions.md` 进 system prompt；发行车队 Phase1-2 建成后于 07-23 整体迁出独立仓 `D:\StoryForge-Publish`（抽出 `packages/project-core`）；v3 欢迎页（PR #155）；全项目 code review 修复 pass（PR #157/#158）；UIUX 审计 80 条全收口（PR #159-#177）；ultracode 二轮对抗核查 21 confirmed；真机 dogfood 九问六批（PR #186-#193，含文件树右键 / 启动不阻塞首帧 / 设置改弹出式 / 探测可用模型 / 观测镜迁左栏）。**2026-07-26 拍板：写作优先。** 上述两周工作的功能提名来源是审计 / code review / dogfood 轮次，而非真实写作摩擦；同期 n=1 连载正文只增 1 章（`正文/` 共 2 章）。据此停止主动打磨模式，功能提名权交回真实写作摩擦（宪法 §08，每周至多一刀）。
 
 ## 当前事实边界
 
@@ -28,12 +30,14 @@ StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段。�
 
 ## 下一步优先级
 
-（2026-07-11 拍板重排：08-31 盛夏寻章不当锚，编辑器优先；原「窗口倒排」序列作废。详版计划——步骤事实依据 / DoD / 归属 / 阶段门——见 `docs/internal/editor-first-plan-2026-07-11.md`。）
+（2026-07-26 拍板：**写作优先**。编辑器不再开主动打磨波；功能提名权交回真实写作摩擦。上位纪律见仓库外《编辑器自由化-长期产品宪法 v3》§08「n=1 短期决策门」：真实摩擦可以提名功能，不能直接指定答案；短期只允许真实连载证据推动**每周至多一刀 QoL**。2026-07-11 的编辑器优先序列已于 07-12 完成 Phase A 并封板，其后 07-14 至 07-25 的两周编辑器工作由审计 / code review / dogfood 提名，不符合宪法 §08 的提名口径，已停止该模式。）
 
-1. 在编辑器上写作品（Phase B）：先做 S3 手稿保险（连载目录仓库外 git init + 计划任务自动 commit）→ 接续 n=1 连载（创作资产存档见「当前事实边界」末条；canon.json 首刷吃末世系统数字状态）；写作即 dogfood，摩擦日志驱动每周至多一刀 QoL。
-2. Phase A 已封板：A1-A7 与两轮真机验收完成，`v0.1.2` 指向锁版提交；除阻断级回归外不再插入编辑器重构。
-3. 质量轨已换锚（D1，后台）：「重跑真实 3-5 万字长程 + 人工盲评」不再排期，待 n=1 连载稳定后重评；BookRun 维持后台工具定位；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 project.consistency / deep_consistency / canon / prose_check / collapse_check / entity_budget_check / canon_delta）。
-4. 小刀池（顺手不专排）：S12 runtime_tools 残桥、S16 F15 pnpm dev 默认 sqlite、M4 非空表时间列。
+1. **在编辑器上写作品（Phase B，唯一主线）**：接续 n=1 连载（创作资产存档见「当前事实边界」末条；canon.json 首刷吃末世系统数字状态）。S3 手稿保险已于 2026-07-16 建成（连载工作区 `D:\连载\末世吞噬\` 仓库外 git 仓 + 30 分钟计划任务自动 commit，已验证），无需重做。写作即 dogfood：按宪法 §08 记录摩擦（目标 / 受阻步骤 / 绕法 / 实际损耗 / 期望增加的创作选择），满足「一次阻断安全写作或保存或发布」「同一摩擦在 3 个独立写作时段重复且已有手工绕法」「一周累计损耗超 30 分钟或一次实质返工」任一项才进入候选。
+2. **不排期但已登记的能力洞**（等真实摩擦提名，勿主动开工）：canon 提案无并入通道（`canon_store.write_hooks` 零 app 调用方、观测镜提案区只读）；启动不恢复现场（无 auto-reopen 项目 / 文件，页签与光标不跨重启，观测「已处理」标记内存态重启即丢）；无全文内容搜索（Ctrl+Shift+F 未绑定）；审稿 issue 与观测锚点按文本就近匹配、改稿即静默丢失。
+3. **写作时刻 06/07/08 结构性为零**（准备发布 / 解释信号 / 下一轮选择）：发行车队已于 2026-07-23 迁出独立仓 `D:\StoryForge-Publish`，编辑器内无发布安全灯与发布基线账本，读者信号无输入通道。飞轮第 2-4 格待 n=1 有可发章量后再评，本期不排期。
+4. 质量轨已换锚（D1，后台）：「重跑真实 3-5 万字长程 + 人工盲评」不再排期，待 n=1 连载稳定后重评；BookRun 维持后台工具定位（现状：managed 启动三重不可达，无 loop_schema / 前端不发 book_id+blueprint_id / IDE 命令零前端调用）；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 project.consistency / deep_consistency / canon / canon_delta / promise_check / prose_check / collapse_check / entity_budget_check / hooks_delta / trim_prose）。
+5. 已登记未修债务（2026-07-25 code review，非阻断写作，勿顺手开工）：`fs_tools.py` 的 `fs.list` / `fs.search` 未对每个结果重做 containment（支持 symlink 的平台可越界）且 `rglob` 全量枚举无成本上限；`apps/workflow/storyforge_workflow/runtime/provider_fallback.py` 对全部 `ProviderError` 降级（含 AUTH / CONTENT_FILTER，非 live 路径）；`app/author_chat.py` 终端 MVP 确认写回不比对 before 且非原子写（零 importer 的独立脚本）。
+6. 小刀池（顺手不专排）：S12 runtime_tools 残桥（唯一 live 挂载的 `apps/workflow` 桥，端点零前端调用）、S16 F15 pnpm dev 默认 sqlite、M4 非空表时间列、发布版原生菜单栏缺失导致 `useTauriMenuBridge` 五个监听永不触发。
 
 ## 本地验证入口
 
