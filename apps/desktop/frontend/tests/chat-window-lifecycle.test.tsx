@@ -5,9 +5,10 @@ import { afterEach, test, vi } from 'vitest';
 
 import type { AgentSocketMessage } from '../src/lib/api-client';
 import { AUTHOR_LOOP_RESULT_EVENT, SUGGESTION_RESULT_EVENT } from '../src/lib/assistant-events';
-import type { AgentRun } from '../src/components/chat-window/types';
+import type { AgentRun, Message } from '../src/components/chat-window/types';
 import { useAgentRunControls } from '../src/components/chat-window/useAgentRunControls';
 import { useAgentStreamEvent } from '../src/components/chat-window/useAgentStreamEvent';
+import { useChatSessionContext } from '../src/components/chat-window/useChatSessionContext';
 import { useChatSubmission } from '../src/components/chat-window/useChatSubmission';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import type { RunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
@@ -159,6 +160,54 @@ test('会话切换后旧 stream 事件不能写入当前 run 投影', () => {
     const projection = container.querySelector('[data-testid="steps"]')?.textContent ?? '';
     assert.match(projection, /old-session-first-step/);
     assert.doesNotMatch(projection, /stale-step-after-switch/);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+let newSessionApi: {
+  handleNewSession: () => void;
+  state: ReturnType<typeof useChatWindowState>;
+} | null = null;
+
+function NewSessionHarness() {
+  const state = useChatWindowState({
+    projectPath: null,
+    currentFile: null,
+    assistantSessionId: null,
+  });
+  const { handleNewSession } = useChatSessionContext(state, {
+    projectPath: null,
+    currentFile: null,
+    assistantSessionId: null,
+    onAssistantSessionChange: () => undefined,
+  });
+  newSessionApi = { handleNewSession, state };
+  return (
+    <output data-testid="messages">
+      {state.messages.map((message) => message.content).join('|')}
+    </output>
+  );
+}
+
+test('UF-10：草稿态点新建会话清空残留的本地消息', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  newSessionApi = null;
+  try {
+    act(() => root.render(<NewSessionHarness />));
+    assert.ok(newSessionApi);
+    // 播种一条旧草稿消息（模拟未持久化的失败对话残留）。
+    act(() =>
+      newSessionApi?.state.setMessages([{ role: 'user', content: '旧草稿消息' }] as Message[]),
+    );
+    assert.equal(container.querySelector('[data-testid="messages"]')?.textContent, '旧草稿消息');
+    // 点「新建会话」：draft→draft 时 assistantSessionId 恒 null、reset effect 不重跑。
+    act(() => newSessionApi?.handleNewSession());
+    // 修复前：handleNewSession 不清消息 → 旧消息残留到新 draft 之下。
+    assert.equal(container.querySelector('[data-testid="messages"]')?.textContent, '');
   } finally {
     act(() => root.unmount());
     container.remove();

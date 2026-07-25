@@ -77,9 +77,11 @@ export function useProjectCommands({
     if (!prompt) return;
     void (async () => {
       if (!(await confirmDiscardFiles(openFiles, '开新书'))) return;
-      setPendingWelcomePrompt(prompt);
       try {
         const { projectPath, seedFilePath } = await createNewBookProject(prompt);
+        // pendingWelcomePrompt 必须在项目创建成功后才置位：否则 createNewBookProject 抛错（Win11/OneDrive
+        // Documents 重定向等）时 stale prompt 泄漏，下一个打开的项目 ChatWindow 首挂载会自动发一次真·LLM run（UF-11）。
+        setPendingWelcomePrompt(prompt);
         resetEditorFiles();
         onShowEditor();
         selectProject(projectPath);
