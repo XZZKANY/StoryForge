@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import type { SidePanelView } from './useShellState';
-import { FileText, Settings } from '../icons/shell-icons';
+import { FileText, Radar, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
@@ -19,6 +19,7 @@ type ViewEntry = {
 
 const VIEW_ENTRIES: ViewEntry[] = [
   { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl+Shift+E' },
+  { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl+4', projectOnly: true },
 ];
 
 export function ActivityBar({
@@ -28,6 +29,7 @@ export function ActivityBar({
   onSwitchView,
   onOpenSettings,
   settingsMenu,
+  observatoryAttention = false,
 }: {
   view: SidePanelView;
   sidebarHidden: boolean;
@@ -36,6 +38,8 @@ export function ActivityBar({
   onOpenSettings: () => void;
   // 齿轮小菜单项；不传则齿轮直接开设置（回退）。
   settingsMenu?: ContextMenuItem[];
+  // 光标行提到 canon 实体时观测镜图标亮小紫点。
+  observatoryAttention?: boolean;
 }) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -66,6 +70,12 @@ export function ActivityBar({
               <span className="absolute -left-1 bottom-2 top-2 w-0.5 rounded-r bg-foreground" />
             )}
             <Icon size={19} strokeWidth={1.6} />
+            {entry.view === 'observatory' && observatoryAttention && !dimmed && (
+              <span
+                className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-agent"
+                data-testid="activity-observatory-attention"
+              />
+            )}
           </button>
         );
       })}

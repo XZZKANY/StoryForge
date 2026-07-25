@@ -1,26 +1,23 @@
 /**
- * 壳子布局状态：取代旧 useShellLayout 的 5 个耦合 focus 模式，改为正交状态。
- * - view：活动栏当前视图（explorer 单视图；会话在右栏，质检在状态栏，文件搜索走命令面板）
+ * 壳子布局状态：正交状态，不用耦合 focus 模式。
+ * - view：活动栏当前视图（explorer 资源管理器 / observatory 世界线观测镜，#13 观测镜改左侧视图）
  * - sidebarHidden：侧面板整体折叠（Ctrl+B 或点当前激活图标）
  * - layoutMode（Q4 布局三态）：editor 编辑聚焦（右栏隐藏，编辑占满）/ balanced 平衡（编辑 + 384 右栏）
  *   / chat 对话聚焦（编辑隐藏，右栏占满中右）。Ctrl+1/2/3 与对话头就地控件切换。
- * - rightView：右栏当前视图（chat 对话 / observatory 世界线观测镜，Ctrl+4 或头部图标切换）。
- *   两视图 CSS 互斥不卸载（对话在途 run 状态不能因切视图丢失）。
+ * 右栏现在只有对话（观测镜已迁左栏），故不再有 rightView。
  * rightCollapsed 由 layoutMode 派生（= editor），供顶栏收起键与右栏挂载判定复用。
  */
 import { useCallback, useState } from 'react';
 
-export type SidePanelView = 'explorer';
+export type SidePanelView = 'explorer' | 'observatory';
 export type LayoutMode = 'editor' | 'balanced' | 'chat';
-export type RightPanelView = 'chat' | 'observatory';
 
-export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer'];
+export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'observatory'];
 
 export function useShellState() {
   const [view, setView] = useState<SidePanelView>('explorer');
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('balanced');
-  const [rightView, setRightView] = useState<RightPanelView>('chat');
 
   // 点活动栏图标：切到该视图；若点的正是当前视图且面板可见，则收起（VS Code 行为）。
   const switchView = useCallback(
@@ -55,24 +52,23 @@ export function useShellState() {
     [],
   );
 
-  // Ctrl+4 / 头部雷达图标：右栏隐藏时先展开并直落观测镜；可见时在对话↔观测镜间切换。
+  // Ctrl+4 / 对话头雷达图标：切左栏观测镜视图。左栏折叠时先展开并直落观测镜；
+  // 已在观测镜且面板可见则收起（与 switchView 同一 VS Code 语义）。
   const toggleObservatory = useCallback(() => {
-    if (layoutMode === 'editor') {
-      setLayoutMode('balanced');
-      setRightView('observatory');
-      return;
-    }
-    setRightView((current) => (current === 'observatory' ? 'chat' : 'observatory'));
-  }, [layoutMode]);
+    switchView('observatory');
+  }, [switchView]);
 
-  const showChatView = useCallback(() => setRightView('chat'), []);
+  // 从观测镜回资源管理器（观测镜头部「回到文件」）。
+  const showExplorerView = useCallback(() => {
+    setSidebarHidden(false);
+    setView('explorer');
+  }, []);
 
   return {
     view,
     sidebarHidden,
     layoutMode,
     rightCollapsed,
-    rightView,
     switchView,
     toggleSidebar,
     showSidebar,
@@ -81,6 +77,6 @@ export function useShellState() {
     showRight,
     showCenter,
     toggleObservatory,
-    showChatView,
+    showExplorerView,
   };
 }

@@ -194,6 +194,7 @@ export function AppShell({
             onSwitchView={shell.switchView}
             onOpenSettings={() => void openSettings()}
             settingsMenu={settingsMenu}
+            observatoryAttention={observatory.litEntityIds.length > 0}
           />
           {!shell.sidebarHidden && (
             <SidePanel
@@ -210,6 +211,29 @@ export function AppShell({
               onFileSelect={tabs.openFile}
               onFilePreview={tabs.previewFileOpen}
               fileActions={fileActions}
+              observatory={
+                projectOpen ? (
+                  <ObservatoryView
+                    availability={observatory.availability}
+                    scanning={observatory.scanning}
+                    observations={observatory.observations}
+                    checkers={observatory.checkers}
+                    entities={observatory.entities}
+                    promises={observatory.promises}
+                    proposals={observatory.proposals}
+                    generatedAt={observatory.generatedAt}
+                    litEntityIds={observatory.litEntityIds}
+                    onRescan={() => void observatory.runScan()}
+                    onBackToChat={shell.showExplorerView}
+                    onLocateObservation={observatory.locateObservation}
+                    onLocateAnchor={observatory.locateAnchor}
+                  />
+                ) : (
+                  <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+                    打开项目后可查看世界线观测镜。
+                  </p>
+                )
+              }
             />
           )}
         </div>
@@ -308,11 +332,9 @@ export function AppShell({
 
         {projectOpen && (
           <AssistantPanelFrame visible={rightPanelVisible} wide={shell.layoutMode === 'chat'}>
-            {/* 两视图 CSS 互斥不卸载：对话在途 run 状态不能因切观测镜丢失（S14 纪律）。 */}
             <div
-              className={`${shell.rightView === 'chat' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col overflow-hidden`}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
               data-testid="right-chat-pane"
-              hidden={shell.rightView !== 'chat'}
             >
               <ChatWindow
                 projectPath={activeProject}
@@ -327,27 +349,6 @@ export function AppShell({
                 onSetLayoutMode={shell.setLayoutMode}
                 onOpenObservatory={shell.toggleObservatory}
                 observatoryAttention={observatory.litEntityIds.length > 0}
-              />
-            </div>
-            <div
-              className={`${shell.rightView === 'observatory' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col overflow-hidden`}
-              data-testid="right-observatory-pane"
-              hidden={shell.rightView !== 'observatory'}
-            >
-              <ObservatoryView
-                availability={observatory.availability}
-                scanning={observatory.scanning}
-                observations={observatory.observations}
-                checkers={observatory.checkers}
-                entities={observatory.entities}
-                promises={observatory.promises}
-                proposals={observatory.proposals}
-                generatedAt={observatory.generatedAt}
-                litEntityIds={observatory.litEntityIds}
-                onRescan={() => void observatory.runScan()}
-                onBackToChat={shell.showChatView}
-                onLocateObservation={observatory.locateObservation}
-                onLocateAnchor={observatory.locateAnchor}
               />
             </div>
           </AssistantPanelFrame>

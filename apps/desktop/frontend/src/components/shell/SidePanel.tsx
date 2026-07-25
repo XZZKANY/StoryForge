@@ -1,8 +1,10 @@
 /**
- * 侧面板：默认 236px。
- * - explorer：项目 + 文件树（左栏只此一视图；文件搜索走顶栏命令面板 Ctrl+P）
+ * 侧面板：explorer 默认 236px；observatory（世界线观测镜，#13 从右栏迁来）用 300px，
+ * 台账信息密度高，236px 太挤。
+ * - explorer：项目 + 文件树（文件搜索走顶栏命令面板 Ctrl+P）
+ * - observatory：世界线观测镜（Ctrl+4 / 活动栏雷达图标）
  */
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import type { FileTreeActions } from '../app/useFileTreeActions';
@@ -24,16 +26,32 @@ type SidePanelProps = {
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
   fileActions?: FileTreeActions;
+  // 观测镜视图内容由 AppShell 注入（数据在 useObservatory，面板只管容器）。
+  observatory?: ReactNode;
 };
 
 export function SidePanel(props: SidePanelProps) {
+  const wide = props.view === 'observatory';
   return (
     <div
-      className="flex w-[236px] flex-shrink-0 flex-col border-r border-border bg-panel"
+      className={`flex ${wide ? 'w-[300px]' : 'w-[236px]'} flex-shrink-0 flex-col border-r border-border bg-panel`}
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
-      {props.view === 'explorer' && <ExplorerView {...props} />}
+      {/* 两视图 CSS 互斥不卸载：观测镜折叠态与滚动位置不因切视图丢失。 */}
+      <div
+        className={`${props.view === 'explorer' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
+        hidden={props.view !== 'explorer'}
+      >
+        <ExplorerView {...props} />
+      </div>
+      <div
+        className={`${props.view === 'observatory' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
+        data-testid="side-observatory-pane"
+        hidden={props.view !== 'observatory'}
+      >
+        {props.observatory}
+      </div>
     </div>
   );
 }

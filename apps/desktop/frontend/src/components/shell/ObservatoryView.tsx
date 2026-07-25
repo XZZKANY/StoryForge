@@ -1,5 +1,5 @@
 /**
- * 世界线观测镜：右栏第二视图（与对话 CSS 互斥，不卸载 ChatWindow）。
+ * 世界线观测镜：左栏第二视图（#13 从右栏迁来；与资源管理器 CSS 互斥不卸载）。
  * 四个可折叠分区——待确认提案 / 伏笔账 / 实体 / 检查器，数据全部来自
  * observatory.scan payload v2 的结构化台账（确定性、无 LLM）。
  *
@@ -8,7 +8,7 @@
  */
 import { useState, type ReactNode } from 'react';
 
-import { Check, ChevronDown, ChevronRight, Radar, RefreshCw, Sparkles } from '../icons/shell-icons';
+import { Check, ChevronDown, ChevronRight, FileText, Radar, RefreshCw } from '../icons/shell-icons';
 import type {
   ObservationAnchor,
   ObservatoryChecker,
@@ -427,11 +427,11 @@ export function ObservatoryView({
         <button
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到对话 · Ctrl+4"
+          title="回到资源管理器 · Ctrl+Shift+E"
           onClick={onBackToChat}
           data-testid="observatory-back-to-chat"
         >
-          <Sparkles size={14} strokeWidth={1.6} />
+          <FileText size={14} strokeWidth={1.6} />
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
