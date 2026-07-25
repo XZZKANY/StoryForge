@@ -20,7 +20,8 @@ import {
   type ReviewIssueMarker,
 } from '../lib/assistant-events';
 import { resolveAnchorLine } from '../lib/observations';
-import { countProseChars } from '../lib/text-metrics';
+import { countParagraphs, countProseChars } from '../lib/text-metrics';
+import { recordDailyProgress, writebackDelta } from '../lib/daily-progress';
 import { emitToast } from '../lib/toast';
 import type { EditorLineNumbersMode } from '../lib/user-settings';
 import { TauriFileSystem } from '../lib/tauri-fs';
@@ -265,6 +266,9 @@ export function Editor({
           record: async () => undefined,
         });
 
+        // 日更账本记的是**已落盘**的净增量，故必须在写回成功之后、任何提前 return 之前累加。
+        recordDailyProgress(projectRoot, writebackDelta(previous, content));
+
         const savedState = modelCacheRef.current.get(path);
         if (!savedState || !isRetainedEditorModel(savedModel, savedState.model)) return;
         savedState.originalContent = content;
@@ -428,6 +432,7 @@ export function Editor({
           filePath: filePathRef.current,
           charCount: 0,
           selectionCharCount: 0,
+          paragraphCount: 0,
         });
         return;
       }
@@ -438,10 +443,12 @@ export function Editor({
           selectionCharCount += countProseChars(model.getValueInRange(selection));
         }
       }
+      const text = model.getValue();
       emitEditorTextMetrics({
         filePath: filePathRef.current,
-        charCount: countProseChars(model.getValue()),
+        charCount: countProseChars(text),
         selectionCharCount,
+        paragraphCount: countParagraphs(text),
       });
     };
     const schedule = () => {

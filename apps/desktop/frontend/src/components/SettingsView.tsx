@@ -364,6 +364,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       value={safeSettings.editorFontSize}
                       min={12}
                       max={20}
+                      testId="editor-font-size"
                       onChange={(value) => update('editorFontSize', value)}
                     />
                     <SelectRow
@@ -403,6 +404,17 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       }
                       options={LINE_NUMBER_OPTIONS}
                       testId="editor-line-numbers"
+                    />
+                    <RangeRow
+                      title="日更目标"
+                      description="状态栏稿件卡按此显示今日进度；拖到 0 表示不设目标，不显示进度条。"
+                      value={safeSettings.dailyWordGoal}
+                      min={0}
+                      max={10000}
+                      step={500}
+                      testId="daily-word-goal"
+                      formatValue={(value) => (value === 0 ? '不设' : `${value} 字`)}
+                      onChange={(value) => update('dailyWordGoal', value)}
                     />
                     <ToggleRow
                       title="自动保存"
@@ -648,6 +660,10 @@ function RangeRow({
   value,
   min,
   max,
+  step,
+  unit = 'px',
+  formatValue,
+  testId,
   onChange,
 }: {
   title: string;
@@ -655,6 +671,10 @@ function RangeRow({
   value: number;
   min: number;
   max: number;
+  step?: number;
+  unit?: string;
+  formatValue?: (value: number) => string;
+  testId: string;
   onChange: (value: number) => void;
 }) {
   return (
@@ -664,12 +684,15 @@ function RangeRow({
           type="range"
           min={min}
           max={max}
+          step={step}
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           className="w-40 accent-accent"
-          data-testid="editor-font-size"
+          data-testid={testId}
         />
-        <span className="w-10 text-sm tabular-nums text-foreground">{value}px</span>
+        <span className="w-14 text-right text-sm tabular-nums text-foreground">
+          {formatValue ? formatValue(value) : `${value}${unit}`}
+        </span>
       </div>
     </RowShell>
   );

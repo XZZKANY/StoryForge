@@ -1,5 +1,6 @@
 import { TauriFileSystem } from './tauri-fs';
 import { relativeToProject } from './project-context';
+import { countCjkChars, countParagraphs } from './text-metrics';
 
 export type RevisionLoopRecord = {
   projectPath: string | null;
@@ -50,17 +51,6 @@ function timestampSlug(date = new Date()): string {
     pad(date.getMinutes()),
     pad(date.getSeconds()),
   ].join('');
-}
-
-function countCjkChars(content: string): number {
-  return Array.from(content).filter((char) => /[\u4e00-\u9fff]/u.test(char)).length;
-}
-
-function countParagraphs(content: string): number {
-  return content
-    .split(/\n\s*\n/)
-    .map((item) => item.trim())
-    .filter(Boolean).length;
 }
 
 function projectChildPath(projectPath: string, segments: string[]): string {

@@ -28,6 +28,8 @@ export type AppSettings = {
   editorFontMode: EditorFontMode;
   editorProseMeasure: ProseMeasure;
   editorLineNumbers: EditorLineNumbersMode;
+  /** 日更目标字数；0 = 不设目标，稿件卡不显示进度条。 */
+  dailyWordGoal: number;
   autoSave: boolean;
   theme: ThemeMode;
   provider: ProviderSettings;
@@ -41,6 +43,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorFontMode: 'grid',
   editorProseMeasure: 'medium',
   editorLineNumbers: 'auto',
+  dailyWordGoal: 3000,
   autoSave: false,
   theme: 'dark',
   provider: {
@@ -105,6 +108,10 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       candidate.editorLineNumbers === 'on' || candidate.editorLineNumbers === 'off'
         ? candidate.editorLineNumbers
         : 'auto',
+    dailyWordGoal:
+      typeof candidate.dailyWordGoal === 'number' && Number.isFinite(candidate.dailyWordGoal)
+        ? Math.min(Math.max(Math.round(candidate.dailyWordGoal), 0), 50000)
+        : DEFAULT_APP_SETTINGS.dailyWordGoal,
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
     theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
