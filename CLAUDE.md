@@ -146,7 +146,7 @@ npm --prefix apps/desktop/frontend run test
 - **结构化日志：** Python 侧用 `structlog`，开发模式彩色终端、生产模式 JSON。
 - **Request ID：** 每个请求注入 UUID，响应头返回 `X-Request-Id`，日志全链路携带。
 - **Sentry：** `SENTRY_DSN` 配置即启用；API、Web、Workflow 三侧统一。
-- **指标：** `/metrics` 端点暴露 Prometheus 格式，含 `judge_calls_total`、`repair_patches_total`、`batch_refinery_jobs_total` 等业务计数器。
+- **指标：** `/metrics` 端点暴露 Prometheus 格式，含 `judge_calls_total`、`repair_patches_total` 等业务计数器。
 - **健康检查：** `/health/live`（仅进程） + `/health/ready`（DB + Redis + 核心表）。
 
 ## 8. 当前能做与不能做

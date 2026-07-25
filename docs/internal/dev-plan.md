@@ -171,7 +171,7 @@
 - [x] **Step 2-4: 添加 Prometheus 格式指标端点**
   - 安装 `prometheus-fastapi-instrumentator`。
   - 自动采集：请求延迟、状态码分布、活跃连接数。
-  - 自定义计数器：`judge_calls_total`, `repair_patches_total`, `batch_refinery_jobs_total`。
+  - 自定义计数器：`judge_calls_total`, `repair_patches_total`。
   - 暴露 `/metrics` 端点。
   - 验证：`curl http://localhost:8000/metrics` 返回 Prometheus 格式数据。
 

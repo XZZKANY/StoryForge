@@ -21,7 +21,6 @@ def test_metrics_endpoint_returns_prometheus_format() -> None:
     assert "http_request_duration_seconds" in body or "http_requests" in body
     assert "judge_calls_total" in body
     assert "repair_patches_total" in body
-    assert "batch_refinery_jobs_total" in body
     assert "continuity_conflicts_total" in body
     assert "book_generation_failure_count_total" in body
     assert "book_generation_cost_cny_total" in body
