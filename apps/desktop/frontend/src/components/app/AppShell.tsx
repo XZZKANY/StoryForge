@@ -24,6 +24,7 @@ import type { ObservationAnchor } from '../../lib/observations';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
+import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
@@ -99,6 +100,12 @@ export function AppShell({
   const projectOpen = Boolean(activeProject);
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
   const obs = obsCounts(observatory.observations);
+  const fileActions = useFileTreeActions({
+    activeProject,
+    dialogs,
+    openFile: tabs.openFile,
+    dropOpenFilePath: tabs.dropOpenFilePath,
+  });
   const centerHasTabs = settingsVisible || projectOpen;
   const activeCenterTab: CenterTab | null = resolveActiveCenterTab(
     settingsVisible,
@@ -185,6 +192,7 @@ export function AppShell({
               onNewFile={commands.handleNewFile}
               onFileSelect={tabs.openFile}
               onFilePreview={tabs.previewFileOpen}
+              fileActions={fileActions}
             />
           )}
         </div>

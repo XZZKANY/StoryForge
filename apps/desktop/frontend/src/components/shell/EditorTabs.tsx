@@ -8,6 +8,7 @@
 import { useRef, useState } from 'react';
 import { basename } from '../app/helpers';
 import { MoreHorizontal, Settings, X } from '../icons/shell-icons';
+import { ContextMenu } from './ContextMenu';
 import { useDismissableMenu } from './useDismissableMenu';
 
 export type CenterTab = 'settings' | 'file' | 'preview';
@@ -22,6 +23,7 @@ function Tab({
   onActivate,
   onDoubleClick,
   onClose,
+  onContextMenu,
   dragId,
   onReorder,
 }: {
@@ -34,6 +36,7 @@ function Tab({
   onActivate: () => void;
   onDoubleClick?: () => void;
   onClose?: () => void;
+  onContextMenu?: (event: React.MouseEvent) => void;
   // 文件页签可拖拽重排：dragId=该文件路径，onReorder(from,to) 搬动 openFiles 次序。
   dragId?: string;
   onReorder?: (from: string, to: string) => void;
@@ -73,6 +76,7 @@ function Tab({
       }
       onClick={onActivate}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -167,6 +171,11 @@ export function EditorTabs({
 }) {
   const showPreview = Boolean(previewFile) && !openFiles.includes(previewFile as string);
   const hasFileActions = activeTab === 'file' || activeTab === 'preview';
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; path: string } | null>(null);
+  const openTabMenu = (event: React.MouseEvent, path: string) => {
+    event.preventDefault();
+    setTabMenu({ x: event.clientX, y: event.clientY, path });
+  };
 
   return (
     <div
@@ -219,6 +228,7 @@ export function EditorTabs({
             dirty={dirtyFiles.has(path)}
             onActivate={() => onFocusFile(path)}
             onClose={() => onCloseFile(path)}
+            onContextMenu={(event) => openTabMenu(event, path)}
             dragId={path}
             onReorder={onReorderFiles}
           />
@@ -254,6 +264,18 @@ export function EditorTabs({
             onCloseAll={onCloseAll}
           />
         </div>
+      )}
+      {tabMenu && (
+        <ContextMenu
+          x={tabMenu.x}
+          y={tabMenu.y}
+          items={[
+            { label: '关闭', onSelect: () => onCloseFile(tabMenu.path) },
+            { label: '关闭其他', onSelect: () => onCloseOthers?.(), disabled: !onCloseOthers },
+            { label: '关闭全部', onSelect: () => onCloseAll?.(), disabled: !onCloseAll },
+          ]}
+          onClose={() => setTabMenu(null)}
+        />
       )}
     </div>
   );

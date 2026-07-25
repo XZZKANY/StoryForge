@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
+import type { FileTreeActions } from '../app/useFileTreeActions';
 import type { SidePanelView } from './useShellState';
 import { useDismissableMenu } from './useDismissableMenu';
 import { ChevronDown, FilePlus, FileText, FolderOpen, X } from '../icons/shell-icons';
@@ -22,6 +23,7 @@ type SidePanelProps = {
   onNewFile: (projectPath?: string) => void;
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
+  fileActions?: FileTreeActions;
 };
 
 export function SidePanel(props: SidePanelProps) {
@@ -48,6 +50,7 @@ function ExplorerView({
   onNewFile,
   onFileSelect,
   onFilePreview,
+  fileActions,
 }: SidePanelProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -193,6 +196,7 @@ function ExplorerView({
           refreshVersion={projectRefreshVersion}
           onFileSelect={onFileSelect}
           onFilePreview={onFilePreview}
+          fileActions={fileActions}
         />
       </div>
     </>

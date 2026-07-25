@@ -1,13 +1,26 @@
 /**
  * 资源管理器
- * 展示项目文件树，支持文件夹层级递归
+ * 展示项目文件树，支持文件夹层级递归 + 右键菜单（新建 / 重命名 / 删除，#10/#17）。
  */
 
-import { useEffect, useState, useMemo, memo, useCallback } from 'react';
+import {
+  useEffect,
+  useState,
+  useMemo,
+  memo,
+  useCallback,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
 import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
+import { parentDir } from '../lib/fs-path-ops';
 import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
+import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
+import type { FileTreeActions } from './app/useFileTreeActions';
+
+type ContextTarget = { path: string; isDir: boolean };
+type NodeContextMenuHandler = (event: ReactMouseEvent, target: ContextTarget) => void;
 
 type ResourceExplorerProps = {
   projectPath: string | null;
@@ -18,6 +31,8 @@ type ResourceExplorerProps = {
   onFileSelect: (filePath: string) => void;
   // 单击预览（可覆盖的斜体页签），双击固定；不传则单击直接固定（旧行为）。
   onFilePreview?: (filePath: string) => void;
+  // 右键文件操作（新建 / 重命名 / 删除）；不传则无右键菜单。
+  fileActions?: FileTreeActions;
 };
 
 export function ResourceExplorer({
@@ -28,11 +43,13 @@ export function ResourceExplorer({
   showHeader = true,
   onFileSelect,
   onFilePreview,
+  fileActions,
 }: ResourceExplorerProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   useEffect(() => {
     if (!projectPath) {
@@ -79,6 +96,40 @@ export function ResourceExplorer({
     setCollapsed((prev) => !prev);
   }, []);
 
+  const buildMenuItems = useCallback(
+    (target: ContextTarget | null): ContextMenuItem[] => {
+      if (!fileActions || !projectPath) return [];
+      const dir = target ? (target.isDir ? target.path : parentDir(target.path)) : projectPath;
+      const items: ContextMenuItem[] = [
+        { label: '新建文件', onSelect: () => void fileActions.onNewFile(dir) },
+        { label: '新建文件夹', onSelect: () => void fileActions.onNewFolder(dir) },
+      ];
+      if (target) {
+        items.push(
+          { type: 'separator' },
+          { label: '重命名', onSelect: () => void fileActions.onRename(target.path, target.isDir) },
+          {
+            label: target.isDir ? '删除文件夹' : '删除文件',
+            danger: true,
+            onSelect: () => void fileActions.onDelete(target.path, target.isDir),
+          },
+        );
+      }
+      return items;
+    },
+    [fileActions, projectPath],
+  );
+
+  const openMenu = useCallback(
+    (event: ReactMouseEvent, target: ContextTarget | null) => {
+      if (!fileActions || !projectPath) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMenu({ x: event.clientX, y: event.clientY, items: buildMenuItems(target) });
+    },
+    [buildMenuItems, fileActions, projectPath],
+  );
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* 标题栏 */}
@@ -107,6 +158,7 @@ export function ResourceExplorer({
           className="flex-1 overflow-y-auto py-2"
           data-testid="file-list"
           data-project-path={projectPath ?? ''}
+          onContextMenu={(event) => openMenu(event, null)}
         >
           {!projectPath ? (
             <div className="mt-8 mx-4 text-center">
@@ -132,12 +184,17 @@ export function ResourceExplorer({
                     previewFile={previewFile}
                     onFileSelect={onFileSelect}
                     onFilePreview={onFilePreview}
+                    onNodeContextMenu={fileActions ? openMenu : undefined}
                   />
                 ))}
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
       )}
     </div>
   );
@@ -150,6 +207,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   previewFile,
   onFileSelect,
   onFilePreview,
+  onNodeContextMenu,
 }: {
   node: ProjectTreeNode;
   level: number;
@@ -157,6 +215,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   previewFile: string | null;
   onFileSelect: (filePath: string) => void;
   onFilePreview?: (filePath: string) => void;
+  onNodeContextMenu?: NodeContextMenuHandler;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const isActive = node.path === currentFile;
@@ -184,6 +243,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <div className="flex flex-col">
         <button
           onClick={handleToggle}
+          onContextMenu={(event) => onNodeContextMenu?.(event, { path: node.path, isDir: true })}
           className="sf-tree-row text-muted transition-colors hover:bg-elevated group cursor-pointer"
         >
           <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
@@ -216,6 +276,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
                 previewFile={previewFile}
                 onFileSelect={onFileSelect}
                 onFilePreview={onFilePreview}
+                onNodeContextMenu={onNodeContextMenu}
               />
             ))}
           </div>
@@ -228,6 +289,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
     <button
       onClick={handleSelect}
       onDoubleClick={handlePin}
+      onContextMenu={(event) => onNodeContextMenu?.(event, { path: node.path, isDir: false })}
       data-testid="file-item"
       data-file-name={node.name}
       data-file-path={node.path}

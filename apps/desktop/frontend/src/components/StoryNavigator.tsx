@@ -13,6 +13,7 @@ import {
 } from '../lib/project-context';
 import { ResourceExplorer } from './ResourceExplorer';
 import { MarkdownFileIcon } from './StoryIcons';
+import type { FileTreeActions } from './app/useFileTreeActions';
 
 type StoryNavigatorProps = {
   projectPath: string | null;
@@ -21,6 +22,7 @@ type StoryNavigatorProps = {
   refreshVersion?: number;
   onFileSelect: (filePath: string) => void;
   onFilePreview?: (filePath: string) => void;
+  fileActions?: FileTreeActions;
 };
 
 type NavigatorTab = 'files' | 'story';
@@ -64,6 +66,7 @@ export function StoryNavigator({
   refreshVersion = 0,
   onFileSelect,
   onFilePreview,
+  fileActions,
 }: StoryNavigatorProps) {
   const [activeTab, setActiveTab] = useState<NavigatorTab>('files');
   const [index, setIndex] = useState<ProjectIndex | null>(null);
@@ -137,6 +140,7 @@ export function StoryNavigator({
             showHeader={false}
             onFileSelect={onFileSelect}
             onFilePreview={onFilePreview}
+            fileActions={fileActions}
           />
         ) : (
           <StoryIndexView
