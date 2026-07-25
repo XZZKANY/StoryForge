@@ -13,11 +13,6 @@ repair_patches_total = Counter(
     "Total repair patch creation calls",
 )
 
-batch_refinery_jobs_total = Counter(
-    "batch_refinery_jobs_total",
-    "Total batch refinery job submissions",
-)
-
 continuity_conflicts_total = Counter(
     "continuity_conflicts_total",
     "Total continuity edge constraint conflicts detected",
