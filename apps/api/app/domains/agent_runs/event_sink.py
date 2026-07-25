@@ -163,6 +163,15 @@ class _AgentRunEventSink:
     def record_permission_required(self, run: AgentRun, result: dict[str, Any], *, reason: str) -> None:
         from app.domains.agent_runs.service import record_agent_event
 
+        # 守卫式 status 写：与 complete_agent_run/fail_agent_run 对称（B1-001 家族第 4 个汇流点，UF-01）。
+        # 这条 sink 在末轮产补丁的 post-loop 窗口执行，其间控制通道可能已从另一连接把 run 落成
+        # stopped/failed；worker 用 expire_on_commit=False 下的 stale run（内存恒 running）无条件写
+        # paused 会覆盖控制通道决定（last-writer-wins），把作者的停止复活成 reap 免疫 + 可 approve 的
+        # paused。先 refresh 取最新 status，仅在仍 running 时才落 paused，否则尊重控制通道的终态/中断
+        # 决定、静默跳过（不发 PERMISSION_REQUIRED）。
+        self._session.refresh(run)
+        if run.status != "running":
+            return
         agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
         proposed_patch = result.get("proposed_patch") if isinstance(result.get("proposed_patch"), dict) else None
         run.status = "paused"
