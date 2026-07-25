@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { flushActiveEditorToDisk } from '../../lib/assistant-events';
+import { projectBasename } from '../../lib/project-context';
 import type { AppDialogApi } from './AppDialog';
 import {
   closeEditorFile,
@@ -58,15 +60,47 @@ export function useEditorWorkspaceTabs({
     async (paths: string[], actionLabel: string) => {
       const dirtyPaths = paths.filter((path) => dirtyFiles.has(path));
       if (dirtyPaths.length === 0) return true;
-      return dialogs.confirm({
-        title: '放弃未保存修改？',
-        message: `${dirtyPaths.length} 个文件有未保存修改，${actionLabel}会放弃这些修改。`,
-        confirmLabel: '放弃修改',
+
+      // 「保存并…」只在唯一脏文件恰好是当前显示的文件时给：保存走 REQUEST_SAVE_ACTIVE_FILE，
+      // 非活动文件会被编辑器判为 skipped 直接放行，给了这个选项却什么都没存 = 静默丢稿。
+      const savablePath =
+        dirtyPaths.length === 1 && dirtyPaths[0] === displayedFile ? dirtyPaths[0] : null;
+
+      if (!savablePath) {
+        return dialogs.confirm({
+          title: '放弃未保存修改？',
+          message: `${dirtyPaths.length} 个文件有未保存修改，${actionLabel}会放弃这些修改。`,
+          confirmLabel: '放弃修改',
+          cancelLabel: '继续编辑',
+          tone: 'danger',
+        });
+      }
+
+      const choice = await dialogs.choose({
+        title: '有未保存修改',
+        message: `${projectBasename(savablePath)} 有未保存修改。`,
+        choices: [
+          { id: 'save', label: `保存并${actionLabel}` },
+          { id: 'discard', label: '放弃修改', tone: 'danger' },
+        ],
         cancelLabel: '继续编辑',
-        tone: 'danger',
       });
+      if (choice === 'discard') return true;
+      if (choice !== 'save') return false;
+
+      try {
+        await flushActiveEditorToDisk(savablePath);
+        return true;
+      } catch (error) {
+        // 保存失败就别关：关了这份稿就没了。
+        await dialogs.alert({
+          title: '保存失败，已取消关闭',
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return false;
+      }
     },
-    [dialogs, dirtyFiles],
+    [dialogs, dirtyFiles, displayedFile],
   );
 
   const openFile = useCallback(

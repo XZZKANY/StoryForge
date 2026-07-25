@@ -89,3 +89,64 @@ test('Prompt 按 Escape 时只关闭一次并返回 null', () => {
     rendered.cleanup();
   }
 });
+
+test('Choice 渲染每个选项，点击 resolve 成对应 id；首个选项拿主按钮位（打开即聚焦→Enter 确认）', () => {
+  const results: Array<boolean | string | null | undefined> = [];
+  const rendered = renderDialog(
+    {
+      kind: 'choice',
+      title: '有未保存修改',
+      message: '第001章.md 有未保存修改。',
+      cancelLabel: '继续编辑',
+      choices: [
+        { id: 'save', label: '保存并关闭文件' },
+        { id: 'discard', label: '放弃修改', tone: 'danger' },
+      ],
+      resolve: () => {},
+    },
+    (result) => results.push(result),
+  );
+
+  try {
+    const primary = document.querySelector<HTMLButtonElement>('[data-testid="app-dialog-primary"]');
+    assert.equal(primary?.textContent, '保存并关闭文件');
+
+    const discard = document.querySelector<HTMLButtonElement>(
+      '[data-testid="app-dialog-choice-discard"]',
+    );
+    assert.equal(discard?.textContent, '放弃修改');
+
+    act(() => discard?.click());
+    assert.deepEqual(results, ['discard']);
+
+    act(() => primary?.click());
+    assert.deepEqual(results, ['discard', 'save']);
+  } finally {
+    rendered.cleanup();
+  }
+});
+
+test('Choice 按 Escape 等价于取消（resolve null），不落到任何一个选项上', () => {
+  const results: Array<boolean | string | null | undefined> = [];
+  const rendered = renderDialog(
+    {
+      kind: 'choice',
+      title: '有未保存修改',
+      message: '第001章.md 有未保存修改。',
+      cancelLabel: '继续编辑',
+      choices: [
+        { id: 'save', label: '保存并关闭文件' },
+        { id: 'discard', label: '放弃修改', tone: 'danger' },
+      ],
+      resolve: () => {},
+    },
+    (result) => results.push(result),
+  );
+
+  try {
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    assert.deepEqual(results, [null]);
+  } finally {
+    rendered.cleanup();
+  }
+});
