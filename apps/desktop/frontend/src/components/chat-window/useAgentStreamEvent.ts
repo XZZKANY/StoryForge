@@ -19,6 +19,7 @@ export function useAgentStreamEvent(
 ) {
   const {
     assistantSessionIdRef,
+    projectPathRef,
     draftNonceRef,
     runStartConversationKeyRef,
     setAgentRun,
@@ -29,7 +30,11 @@ export function useAgentStreamEvent(
     (message: AgentSocketMessage) => {
       if (
         !isRunResultForActiveSession(
-          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
           runStartConversationKeyRef.current,
         )
       ) {
@@ -90,6 +95,7 @@ export function useAgentStreamEvent(
     [
       assistantSessionIdRef,
       draftNonceRef,
+      projectPathRef,
       refreshAgentRunRecovery,
       runStartConversationKeyRef,
       setAgentBusy,

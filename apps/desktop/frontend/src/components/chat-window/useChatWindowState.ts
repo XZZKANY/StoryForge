@@ -66,7 +66,7 @@ export function useChatWindowState({
   const [initialDraftNonce] = useState(nextDraftNonce);
   const draftNonceRef = useRef(initialDraftNonce);
   const runStartConversationKeyRef = useRef(
-    conversationKey(assistantSessionId ?? null, initialDraftNonce),
+    conversationKey(projectPath, assistantSessionId ?? null, initialDraftNonce),
   );
   const unsubscribeWritingRunRef = useRef<(() => void) | null>(null);
 
