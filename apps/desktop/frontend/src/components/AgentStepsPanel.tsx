@@ -1,7 +1,7 @@
 /**
- * Agent 执行步骤：thinking 流动折叠。
- * 收起为一行「思考中 / 已思考 · N 步 · K 次工具调用」摘要，展开为轻量时间线
- * （细左边线 + 6px 状态圆点 + 工具名 mono + 简短观测）。
+ * Agent 执行步骤：thinking 流动折叠，对齐 Claude Code / Codex 的简洁 log 观感（#6c）。
+ * 收起为一行「思考中 / 已思考 · N 步 · K 工具」摘要，展开为等宽单色 log
+ * （前导状态字形 + 工具名 mono + 简短观测），不再用左边线 + 彩色圆点的「时间线」皮肤。
  * 运行 / 等待中默认展开、完成 / 失败后自动收起；作者手动切换后以手动为准。
  */
 
@@ -29,7 +29,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
       >
         <span className="text-[12px] text-agent">✦</span>
         <span>
-          {thinkingLabel} · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 次工具调用` : ''}
+          {thinkingLabel} · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
         </span>
         <span className={`text-[9px] transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
       </button>
@@ -41,7 +41,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="ml-[5px] mt-1.5 flex flex-col gap-[7px] border-l border-border py-0.5 pl-3.5">
+          <div className="ml-[18px] mt-1 flex flex-col py-0.5">
             {run.steps.map((step) => (
               <StepRow key={step.id} step={step} />
             ))}
@@ -58,46 +58,44 @@ function StepRow({ step }: { step: AgentStep }) {
   const hasDetail = step.detail.trim().length > 0;
 
   return (
-    <div className="relative">
-      <span
-        className={`absolute -left-[17.5px] top-[6px] h-1.5 w-1.5 rounded-full ${dotClass(step.status)}`}
-        style={
-          step.status === 'running' ? { boxShadow: '0 0 0 3px rgb(var(--agent) / 0.2)' } : undefined
-        }
-      />
-      <button
-        type="button"
-        onClick={() => hasDetail && setDetailOpen((value) => !value)}
-        disabled={!hasDetail}
-        className={`flex w-full items-baseline gap-2 text-left text-[11.5px] text-muted ${
-          hasDetail ? 'cursor-pointer' : 'cursor-default'
-        }`}
-      >
+    <button
+      type="button"
+      onClick={() => hasDetail && setDetailOpen((value) => !value)}
+      disabled={!hasDetail}
+      className={`flex w-full items-baseline gap-2 rounded px-1 py-px text-left font-mono text-[11px] leading-5 ${
+        hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
+      }`}
+    >
+      <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
+        {statusGlyph(step.status)}
+      </span>
+      <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
+        {step.title}
+      </span>
+      {hasDetail && (
         <span
-          className={`flex-shrink-0 ${
-            isToolStep ? 'font-mono text-[11px] text-foreground' : 'text-foreground'
+          className={`min-w-0 flex-1 text-subtle ${
+            detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
           }`}
         >
-          {step.title}
+          {step.detail}
         </span>
-        {hasDetail && (
-          <span
-            className={`min-w-0 flex-1 text-subtle ${
-              detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
-            }`}
-          >
-            {step.detail}
-          </span>
-        )}
-      </button>
-    </div>
+      )}
+    </button>
   );
 }
 
-function dotClass(status: AgentStepStatus): string {
-  if (status === 'completed') return 'bg-success';
-  if (status === 'running') return 'bg-agent';
-  if (status === 'waiting') return 'bg-warning';
-  if (status === 'failed') return 'bg-error';
-  return 'bg-subtle';
+function statusGlyph(status: AgentStepStatus): string {
+  if (status === 'completed') return '✓';
+  if (status === 'failed') return '✗';
+  if (status === 'running') return '▸';
+  return '·';
+}
+
+function glyphClass(status: AgentStepStatus): string {
+  if (status === 'completed') return 'text-success';
+  if (status === 'failed') return 'text-error';
+  if (status === 'running') return 'text-agent';
+  if (status === 'waiting') return 'text-warning';
+  return 'text-subtle';
 }

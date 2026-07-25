@@ -596,7 +596,8 @@ test('ChatWindow 主外壳渲染 ConversationHeader 并展示「新的创作会�
     }),
   );
   assert.match(html, /新的创作会话/);
-  assert.match(html, /雾港回声 · 正文\\第01章\.md/);
+  // #9：会话身份是项目级指挥区，不再把「当前文件」并进标题（当前文件在下方上下文条里体现）。
+  assert.match(html, /雾港回声 · 项目级创作会话/);
   assert.match(html, /上下文尚未生成/);
   assert.match(html, /data-testid="context-summary"/);
 });

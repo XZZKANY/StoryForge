@@ -50,7 +50,8 @@ export function ChatWindowView({
   // 待确认（补丁 / 权限）期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
   // 故拦一道：提示先处理待确认的修订，不静默 supersede（放弃走编辑器里拒绝补丁 / 拒绝权限）。
   const awaitingConfirm = state.agentRun?.status === 'waiting';
-  // RunActionBar 在 运行 / 待确认 / 暂停 三态渲染并自带状态文案；此三态下轻状态条重复，故互斥隐藏。
+  // 待确认 / 暂停 两态由 RunActionBar 自带状态文案与操作；纯运行态操作条不再渲染（#6b，交给
+  // composer 暂停 + 思考树），但运行态仍算 actionBarVisible，好让轻状态条保持隐藏、不再冒「正在处理…」。
   // completed 的「本轮已完成。」也不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
   const actionBarVisible =

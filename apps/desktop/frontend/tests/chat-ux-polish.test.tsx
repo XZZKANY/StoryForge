@@ -84,7 +84,7 @@ test('compact context summary collapses pin list until expanded', () => {
   assert.match(collapsed, /固定 1/);
 });
 
-test('run action bar uses author copy and exposes stop control', () => {
+test('run action bar stays hidden while purely running (composer pause owns it)', () => {
   const run: AgentRun = {
     id: 'run-42',
     sessionId: 's1',
@@ -104,10 +104,11 @@ test('run action bar uses author copy and exposes stop control', () => {
       }}
     />,
   );
-  assert.match(html, /data-testid="run-action-bar"/);
-  assert.match(html, /正在处理/);
-  assert.doesNotMatch(html, /AgentRun #/);
-  assert.match(html, /data-testid="run-stop"/);
+  // #6b：纯运行态不再渲染「正在处理 + 停止」条（与 composer 底排「暂停」重复）；
+  // 停止仍可达：composer 暂停后由「已暂停」条给「恢复 / 停止」。
+  assert.doesNotMatch(html, /data-testid="run-action-bar"/);
+  assert.doesNotMatch(html, /data-testid="run-stop"/);
+  assert.doesNotMatch(html, /正在处理/);
 });
 
 test('run action bar shows permission CTAs when waiting', () => {

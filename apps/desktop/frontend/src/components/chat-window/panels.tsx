@@ -17,6 +17,7 @@ import {
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
 import { useDismissableMenu } from '../shell/useDismissableMenu';
+import { basename } from '../app/helpers';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
@@ -340,7 +341,9 @@ export function RunActionBar({
   const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
-  const canStop = run.status === 'running' || waitingForPermission || isPaused;
+  // #6b：纯运行态不再显示「正在处理 + 停止」条——与 composer 底排「暂停」重复。停止仍可达：
+  // composer 暂停后由「已暂停」条给「恢复 / 停止」。故 canStop 不含纯运行态。
+  const canStop = waitingForPermission || isPaused;
   if (!canStop && !awaitingConfirm) return null;
 
   return (
@@ -508,16 +511,9 @@ export function ContextSummaryPanel({
             >
               ▾
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-foreground">
-                {contextBudgetText(lastContextBundle)}
-              </span>
-              {!detailsOpen && (
-                <span className="mt-0.5 block truncate text-xs text-subtle">
-                  当前：{currentFileLabel ?? '未选择文件'}
-                  {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
-                </span>
-              )}
+            <span className="min-w-0 flex-1 truncate text-xs text-subtle">
+              上下文 · {currentFileLabel ? basename(currentFileLabel) : '未选择文件'}
+              {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
             </span>
           </button>
         ) : (
@@ -547,9 +543,12 @@ export function ContextSummaryPanel({
       {detailsOpen && (
         <>
           {compact && (
-            <div className="mt-1 truncate pl-5 text-xs text-subtle">
-              当前：{currentFileLabel ?? '未选择文件'}；已选：
-              {selectedContextPreview(lastContextBundle)}
+            <div className="mt-1 pl-5 text-xs text-subtle">
+              <div className="truncate">{contextBudgetText(lastContextBundle)}</div>
+              <div className="mt-0.5 truncate">
+                当前：{currentFileLabel ?? '未选择文件'}；已选：
+                {selectedContextPreview(lastContextBundle)}
+              </div>
             </div>
           )}
 
@@ -714,9 +713,7 @@ export function EmptyConversation({
         <div className="mb-4 px-1">
           <div className="text-[13px] font-medium text-foreground">StoryForge</div>
           <div className="mt-1 truncate text-xs text-subtle">
-            {projectName
-              ? `${projectName}${currentFileLabel ? ` · ${currentFileLabel}` : ''}`
-              : '打开项目后即可开始创作会话'}
+            {projectName ? `${projectName} · 项目级创作会话` : '打开项目后即可开始创作会话'}
           </div>
         </div>
 
