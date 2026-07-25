@@ -4,6 +4,7 @@ import { flushActiveEditorToDisk } from '../../lib/assistant-events';
 import { requestCrossChapterConsistency } from '../../lib/api-client';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { formatCrossChapterFindings, resolveChapterRefs, type ChapterRef } from './cross-chapter';
+import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import { deriveConversationTitle } from './conversation-utils';
 import type { ChatWindowProps, Message } from './types';
 import type { ChatWindowState } from './useChatWindowState';
@@ -26,6 +27,8 @@ export function useChatSubmission(
     setAgentBusy,
     setMessages,
     projectPathRef,
+    assistantSessionIdRef,
+    draftNonceRef,
     input,
     setInput,
     messages,
@@ -45,6 +48,21 @@ export function useChatSubmission(
       const names = refs.map((item) => item.name);
       // 跨章检查也置忙：禁用 composer + 让上面的 agentBusy 守卫真正拦住并发再提交（此前只提示不置忙）。
       setAgentBusy(true);
+      // 跨章检查数十秒且无 AbortController，捕获起跑会话身份；期间作者切会话则结果不写回当前会话（UF-09）。
+      const runStartConversationKey = conversationKey(
+        projectPathRef.current,
+        assistantSessionIdRef.current,
+        draftNonceRef.current,
+      );
+      const isForActiveSession = () =>
+        isRunResultForActiveSession(
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
+          runStartConversationKey,
+        );
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: `跨章一致性检查中…(${names.join(' / ')})` },
@@ -59,6 +77,7 @@ export function useChatSubmission(
           chapters.push({ name: ref.name, content });
         }
         const result = await requestCrossChapterConsistency({ chapters, focus: instruction });
+        if (!isForActiveSession()) return; // 切会话：不写回当前会话；finally 仍释放 agentBusy
         setMessages((prev) => [
           ...prev,
           {
@@ -67,6 +86,7 @@ export function useChatSubmission(
           },
         ]);
       } catch (error) {
+        if (!isForActiveSession()) return; // 切会话：不写回当前会话；finally 仍释放 agentBusy
         setMessages((prev) => [
           ...prev,
           {
@@ -78,7 +98,7 @@ export function useChatSubmission(
         setAgentBusy(false);
       }
     },
-    [agentBusy, projectPathRef, setAgentBusy, setMessages],
+    [agentBusy, assistantSessionIdRef, draftNonceRef, projectPathRef, setAgentBusy, setMessages],
   );
 
   const handleSubmit = useCallback(async () => {
