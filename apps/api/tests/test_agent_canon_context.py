@@ -180,6 +180,28 @@ def test_scene_constraint_block_lifespan_display_uses_canonical_name(project: Pa
     assert "青岩" not in block
 
 
+def test_scene_constraint_block_single_holder_display_uses_canonical_name(project: Path) -> None:
+    """UF-12: single_holder.holder 是 entity_id 时映射成 canonical_name 再推给模型，不裸打 id。"""
+    _write_canon(
+        project,
+        {
+            "version": 1,
+            "entities": [_QINGYAN],
+            "invariants": {
+                "single_holder": [
+                    {"item": "断魂刀", "holder": "char_qingyan", "from_chapter": 1, "to_chapter": None}
+                ]
+            },
+        },
+    )
+    current_file = str(project / "正文" / "第02章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    assert block is not None
+    # 修复前：唯一持有者 = char_qingyan（裸 id）。
+    assert "唯一持有者 = 青岩" in block
+    assert "char_qingyan" not in block
+
+
 # --- 12. 伏笔 hooks push（确定性，无 LLM）---
 
 
@@ -475,6 +497,33 @@ def test_hook_agenda_missing_hooks_json_returns_clean(project: Path) -> None:
     current_file = str(project / "正文" / "第01章.md")
     block = canon_context.build_scene_constraint_block(str(project), current_file)
     assert block is None or "本章伏笔计划" not in block
+
+
+def test_hook_agenda_survives_without_active_hooks_or_invariants(project: Path) -> None:
+    """UF-13: 无 canon 硬约束 + 无活跃钩子（钩子已 resolved）但本章 agenda 有编排时，
+    「本章伏笔计划」块不得被 return-None 守卫连同 agenda 一起丢弃。"""
+    _write_canon(project, {"version": 1, "entities": [], "invariants": {}})
+    _write_hooks(
+        project,
+        [{"id": "h_coin", "description": "积分达 10 万触发不可逆事件", "status": "resolved",
+          "planted_at": {"chapter": 2}, "category": "threshold"}],
+    )
+    hooks_data = canon_store.read_hooks(str(project))
+    hooks_data["agenda"] = {"5": {"advance": [], "resolve": ["h_coin"]}}
+    canon_store.write_hooks(str(project), hooks_data)
+
+    body = project / "正文"
+    for i in range(1, 7):
+        (body / f"第{i:02d}章.md").write_text(f"第{i}章\n", encoding="utf-8")
+
+    current_file = str(body / "第05章.md")
+    block = canon_context.build_scene_constraint_block(str(project), current_file)
+    # 修复前：lines=[] 且 hooks_block=None（钩子 resolved）→ return None，agenda 块被吞。
+    assert block is not None
+    assert "本章伏笔计划" in block
+    assert "应回收" in block
+    assert "积分达 10 万" in block
+    assert "活跃伏笔" not in block  # 钩子已 resolved，无活跃块
 
 
 # --- 16. 增强陈旧检测：last_advanced_at ---

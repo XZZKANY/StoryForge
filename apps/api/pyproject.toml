@@ -27,6 +27,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
   "integration: 需要真实外部服务（如 MinIO）的测试，默认 skip，设 STORYFORGE_S3_INTEGRATION=1 启用。",
+  "timing_sensitive: 已知计时敏感 / 团队已知 flaky（线程屏障 timeout + 运行时重叠率阈值），CI 偶发红先重跑再判定；无 rerun 插件，此标注作文档与 `-m 'not timing_sensitive'` 过滤锚点（UF-14）。",
 ]
 
 [tool.ruff]

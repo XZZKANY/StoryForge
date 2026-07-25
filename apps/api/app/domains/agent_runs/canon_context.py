@@ -81,7 +81,10 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
             continue
         if not item.strip() or not holder.strip():
             continue
-        lines.append(f"·「{item}」唯一持有者 = {holder}；本章不得出现第二持有者。")
+        # holder 约定为 entity_id（同 dossier/canon_gate）；与 lifespan.entity 一样映射成
+        # canonical_name 再推给模型，避免硬约束头出现裸 id（UF-12）。无映射回落原值。
+        display_holder = name_by_id.get(holder, holder)
+        lines.append(f"·「{item}」唯一持有者 = {display_holder}；本章不得出现第二持有者。")
 
     # ② 已退场：退场章 < 本章（无锚则列出各自退场章）
     for e in invariants.get("lifespan") or []:
@@ -107,7 +110,9 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
     hooks_block = _build_active_hooks_block(project_root, cur)
     agenda_block = _build_hook_agenda_block(project_root, cur)
 
-    if not lines and hooks_block is None:
+    # agenda_block 也须纳入空判：无 canon 硬约束 + 无活跃钩子、但本章 agenda 有编排时，
+    # 不得连同已算好的「本章伏笔计划」一起丢弃（UF-13）。
+    if not lines and hooks_block is None and agenda_block is None:
         return None
 
     parts: list[str] = []
