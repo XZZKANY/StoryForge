@@ -34,6 +34,37 @@ export function updateDirtyEditorFiles(
   return next;
 }
 
+export type EditorTabPane = 'file' | 'preview';
+
+/**
+ * 编辑器展示哪个文件：
+ * - 预览页签被激活且预览槽有值 → 展示预览；
+ * - 否则展示固定的当前文件；当前文件为空时回落到预览（例如只单击开了一个预览）。
+ * 关键点（修 #5）：切到固定页签只改激活面（activePane='file'），不再清空预览槽，
+ * 预览页签因而不会在切换时消失。
+ */
+export function resolveDisplayedEditorFile(
+  activePane: EditorTabPane,
+  previewFile: string | null,
+  currentFile: string | null,
+): string | null {
+  if (activePane === 'preview' && previewFile) return previewFile;
+  return currentFile ?? previewFile;
+}
+
+/**
+ * 中栏活动页签高亮：设置面板优先；展示的正是预览文件则预览页签高亮，否则固定页签高亮。
+ */
+export function resolveActiveCenterTab(
+  settingsVisible: boolean,
+  displayedFile: string | null,
+  previewFile: string | null,
+): 'settings' | 'file' | 'preview' | null {
+  if (settingsVisible) return 'settings';
+  if (!displayedFile) return null;
+  return displayedFile === previewFile ? 'preview' : 'file';
+}
+
 export function canCommitEditorSave(
   savedPath: string,
   savedModel: object,

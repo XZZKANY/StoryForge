@@ -23,6 +23,7 @@ import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility
 import type { ObservationAnchor } from '../../lib/observations';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
+import { resolveActiveCenterTab } from './editor-tabs-state';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
@@ -99,13 +100,11 @@ export function AppShell({
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
   const obs = obsCounts(observatory.observations);
   const centerHasTabs = settingsVisible || projectOpen;
-  const activeCenterTab: CenterTab | null = settingsVisible
-    ? 'settings'
-    : tabs.previewFile && tabs.previewFile !== currentFile
-      ? 'preview'
-      : currentFile
-        ? 'file'
-        : null;
+  const activeCenterTab: CenterTab | null = resolveActiveCenterTab(
+    settingsVisible,
+    tabs.displayedFile,
+    tabs.previewFile,
+  );
 
   const showShortcuts = () => {
     // 键名列走等宽对齐（mono:true）：比例字体下空格填充会参差；补活动栏承诺的 Ctrl Shift E，

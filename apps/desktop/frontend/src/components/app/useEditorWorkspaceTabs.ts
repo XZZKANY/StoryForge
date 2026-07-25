@@ -6,7 +6,9 @@ import {
   nextEditorFileAfterClose,
   openEditorFile,
   reorderEditorFiles,
+  resolveDisplayedEditorFile,
   updateDirtyEditorFiles,
+  type EditorTabPane,
 } from './editor-tabs-state';
 
 type UseEditorWorkspaceTabsOptions = {
@@ -34,7 +36,9 @@ export function useEditorWorkspaceTabs({
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(() => new Set());
-  const displayedFile = previewFile ?? currentFile;
+  // 当前激活的是预览页签还是固定页签；切到固定页签不再清空预览槽（修 #5：预览页签消失）。
+  const [activePane, setActivePane] = useState<EditorTabPane>('file');
+  const displayedFile = resolveDisplayedEditorFile(activePane, previewFile, currentFile);
 
   const handleEditorDirtyChange = useCallback(
     (filePath: string | null, dirty: boolean) => {
@@ -43,6 +47,7 @@ export function useEditorWorkspaceTabs({
       if (dirty && previewFile === filePath) {
         setOpenFiles((current) => openEditorFile(current, filePath));
         setPreviewFile(null);
+        setActivePane('file');
         selectFile(filePath);
       }
     },
@@ -67,7 +72,9 @@ export function useEditorWorkspaceTabs({
   const openFile = useCallback(
     async (path: string, _actionLabel = '打开其他文件') => {
       setOpenFiles((current) => openEditorFile(current, path));
-      setPreviewFile(null);
+      // 只有固定的正是当前预览时才清预览槽（= 固定预览页签）；打开其他文件应保留已有预览页签。
+      setPreviewFile((current) => (current === path ? null : current));
+      setActivePane('file');
       onShowEditor();
       selectFile(path);
     },
@@ -78,10 +85,12 @@ export function useEditorWorkspaceTabs({
     async (path: string) => {
       onShowEditor();
       if (openFiles.includes(path)) {
-        setPreviewFile(null);
+        // 单击已固定的文件：激活它的固定页签，不动预览槽（不再误清无关预览）。
+        setActivePane('file');
         selectFile(path);
       } else {
         setPreviewFile(path);
+        setActivePane('preview');
       }
     },
     [onShowEditor, openFiles, selectFile],
@@ -96,12 +105,14 @@ export function useEditorWorkspaceTabs({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 项目切换时重置预览态，React18 合法模式
     setPreviewFile(null);
+    setActivePane('file');
   }, [activeProject]);
 
   const resetEditorFiles = useCallback(() => {
     setOpenFiles([]);
     setDirtyFiles(new Set());
     setPreviewFile(null);
+    setActivePane('file');
   }, []);
 
   const selectProjectSafely = useCallback(
@@ -134,10 +145,14 @@ export function useEditorWorkspaceTabs({
       setDirtyFiles((current) => updateDirtyEditorFiles(current, path, false));
       if (currentFile === path) {
         if (nextFile) selectFile(nextFile);
-        else closeFile();
+        else {
+          closeFile();
+          // 固定文件全关但仍有预览时，落到预览页签，别让编辑区空掉。
+          setActivePane(previewFile ? 'preview' : 'file');
+        }
       }
     },
-    [closeFile, confirmDiscardFiles, currentFile, openFiles, selectFile],
+    [closeFile, confirmDiscardFiles, currentFile, openFiles, previewFile, selectFile],
   );
 
   const handleCloseAll = useCallback(async () => {
@@ -161,17 +176,24 @@ export function useEditorWorkspaceTabs({
     });
     setOpenFiles([keep]);
     setPreviewFile(null);
+    setActivePane('file');
     selectFile(keep);
   }, [confirmDiscardFiles, displayedFile, openFiles, previewFile, selectFile]);
 
   const focusFile = useCallback(
     (path: string) => {
       onShowEditor();
-      setPreviewFile(null);
+      // 修 #5：只激活固定页签，不再清空预览槽——预览页签不会因切走而消失。
+      setActivePane('file');
       selectFile(path);
     },
     [onShowEditor, selectFile],
   );
+
+  const focusPreview = useCallback(() => {
+    onShowEditor();
+    setActivePane('preview');
+  }, [onShowEditor]);
 
   const pinPreview = useCallback(() => {
     if (previewFile) void openFile(previewFile);
@@ -181,6 +203,7 @@ export function useEditorWorkspaceTabs({
   // 走到这里必是干净预览，直接丢弃即可，不需要放弃确认。
   const closePreview = useCallback(() => {
     setPreviewFile(null);
+    setActivePane('file');
   }, []);
 
   const reorderOpenFiles = useCallback((from: string, to: string) => {
@@ -205,7 +228,7 @@ export function useEditorWorkspaceTabs({
     handleCloseAll,
     handleCloseOthers,
     focusFile,
-    focusPreview: onShowEditor,
+    focusPreview,
     pinPreview,
     closePreview,
   };
