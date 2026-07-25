@@ -20,7 +20,7 @@ import { useDismissableMenu } from '../shell/useDismissableMenu';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
-import type { AgentRunRecoveryDisplay } from './recovery';
+import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
 
 export function ConversationHeader({
@@ -267,7 +267,9 @@ export function MessageList({
         {agentRun && agentRun.steps.length > 0 && (
           <div className="animate-slide-up-fade space-y-2">
             <AgentStepsPanel run={agentRun} />
-            <AgentRunRecoveryPanel recovery={agentRunRecovery} />
+            {shouldShowAgentRunRecovery(agentRun.status, agentRunRecovery) && (
+              <AgentRunRecoveryPanel recovery={agentRunRecovery} />
+            )}
           </div>
         )}
 

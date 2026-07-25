@@ -1,4 +1,5 @@
 import type { AgentRunSavePoint, AgentRunSavePointProjection } from '../../lib/api-client';
+import type { AgentRunStatus } from './types';
 
 export type AgentRunRecoveryTone = 'neutral' | 'ok' | 'waiting' | 'error';
 
@@ -13,6 +14,20 @@ export type AgentRunRecoveryDisplay = {
   canRetryFromCheckpoint: boolean;
   manualRestartRequired: boolean;
 };
+
+/**
+ * 是否展示「暂停 / 等待权限 / 最近边界」恢复卡片。
+ * 终态里 completed（已完成 / 修订已接受）与 stopped（已停止）没有恢复决策可做，
+ * 此时旧快照是过期噪声（#11：AI 修订接受后卡片常驻）；failed / paused / waiting / running
+ * 仍需展示（给恢复 / 确认 / 进度信息）。快照本身为空时也不展示。
+ */
+export function shouldShowAgentRunRecovery(
+  status: AgentRunStatus,
+  recovery: AgentRunRecoveryDisplay | null,
+): boolean {
+  if (!recovery) return false;
+  return status !== 'completed' && status !== 'stopped';
+}
 
 export function buildAgentRunRecoveryDisplay(
   projection: AgentRunSavePointProjection | null | undefined,
