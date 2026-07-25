@@ -98,30 +98,7 @@ services:
       retries: 5
       start_period: 20s
 
-  workflow:
-    build:
-      context: ./apps/workflow
-      dockerfile: Dockerfile
-    image: storyforge-workflow:local
-    container_name: storyforge-workflow
-    environment:
-      STORYFORGE_ENV: ${STORYFORGE_ENV:-development}
-      DATABASE_URL: postgresql+psycopg://storyforge:storyforge@postgres:5432/storyforge
-      REDIS_URL: redis://redis:6379/0
-      WORKFLOW_RUNTIME_MODE: ${WORKFLOW_RUNTIME_MODE:-local}
-      WORKFLOW_CHECKPOINT_BACKEND: ${WORKFLOW_CHECKPOINT_BACKEND:-sqlite}
-      STORYFORGE_LLM_PROVIDER: ${STORYFORGE_LLM_PROVIDER:-deterministic}
-      STORYFORGE_LLM_API_KEY: ${STORYFORGE_LLM_API_KEY:-}
-    volumes:
-      - storyforge-workflow-runtime:/app/.runtime
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
 volumes:
   storyforge-postgres-data:
   storyforge-redis-data:
   storyforge-minio-data:
-  storyforge-workflow-runtime:

@@ -10,5 +10,4 @@ pnpm-lock.yaml
 __pycache__
 .codex
 apps/api
-apps/workflow
 docs

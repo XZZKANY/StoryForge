@@ -196,20 +196,18 @@ def test_api_main_does_not_keep_slowapi_limiter_shell() -> None:
 
 
 def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
-    """JobRun runtime 读写契约应由 model_runs 与 workflow adapter 承担，不保留旧 helper。"""
+    """JobRun runtime 读写契约应由 model_runs 承担，不保留旧 helper。
+
+    2026-07-26 `apps/workflow` 退役：原先对 workflow 侧 `model_run_sink` / `checkpoints`
+    两个文件内容的断言随之删除（被断言的文件已不存在）；API 侧读写链路断言原样保留。"""
 
     jobs_service = API_ROOT / "app" / "domains" / "jobs" / "service.py"
     jobs_model = API_ROOT / "app" / "domains" / "jobs" / "models.py"
     model_runs_service = API_ROOT / "app" / "domains" / "model_runs" / "service.py"
-    workflow_runtime = API_ROOT.parents[1] / "apps" / "workflow" / "storyforge_workflow" / "runtime"
-    workflow_checkpoints = workflow_runtime / "checkpoints.py"
-    workflow_model_run_sink = workflow_runtime / "model_run_sink.py"
 
     jobs_service_source = jobs_service.read_text(encoding="utf-8") if jobs_service.exists() else ""
     jobs_model_source = jobs_model.read_text(encoding="utf-8")
     model_runs_service_source = model_runs_service.read_text(encoding="utf-8")
-    workflow_checkpoints_source = workflow_checkpoints.read_text(encoding="utf-8")
-    workflow_model_run_sink_source = workflow_model_run_sink.read_text(encoding="utf-8")
 
     for required in (
         "class JobRun",
@@ -223,9 +221,6 @@ def test_jobs_runtime_bridge_helper_stays_pruned() -> None:
         "def record_workflow_model_run_payload(",
     ):
         assert required in model_runs_service_source, f"model_runs 真实读写链路必须保留：{required}"
-
-    assert "class ApiModelRunAdapter" in workflow_model_run_sink_source, "workflow 到 API ModelRun 真表 adapter 必须保留。"
-    assert "ApiModelRunAdapter" in workflow_checkpoints_source, "checkpoints facade 必须继续 re-export ApiModelRunAdapter。"
 
     for forbidden in (
         "JobRuntimeBridgeError",

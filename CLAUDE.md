@@ -52,7 +52,6 @@ apps/
       main.py    FastAPI 应用装配 + 全局中间件
     alembic/     数据库迁移
   desktop/      Tauri 桌面 IDE（当前主产品体验）
-  workflow/      LangGraph 编排器（generation_graph、provider_adapter、creative_tool_registry）
 packages/
   shared/        TS 共享契约 + 类型，src/contracts/storyforge.openapi.json 为后端契约快照
 deploy/          Nginx、部署相关配置
@@ -96,12 +95,11 @@ npm --prefix apps/desktop/frontend run test
 pnpm.cmd --filter @storyforge/shared test
 pnpm.cmd test
 cd apps/api && uv run pytest
-cd apps/workflow && uv run pytest
 cd apps/api && uv run pytest tests/test_phase9_fact_sources.py -q
 cd apps/api && uv run ruff check tests/test_phase9_fact_sources.py
 ```
 
-非 Windows 环境：直接跑 `node scripts/verify-local.mjs`、`node scripts/run-e2e.mjs`、`npm --prefix apps/desktop/frontend run test`、`cd apps/api && uv run pytest`、`cd apps/workflow && uv run pytest`。
+非 Windows 环境：直接跑 `node scripts/verify-local.mjs`、`node scripts/run-e2e.mjs`、`npm --prefix apps/desktop/frontend run test`、`cd apps/api && uv run pytest`。
 
 ### 代码风格
 
@@ -115,7 +113,6 @@ cd apps/api && uv run ruff check .     # Python 侧 ruff
 
 ```bash
 cd apps/api && uv run pytest tests/test_artifacts.py -q
-cd apps/workflow && uv run pytest tests/test_generation_graph.py -q
 npm --prefix apps/desktop/frontend run test
 ```
 
@@ -125,7 +122,7 @@ npm --prefix apps/desktop/frontend run test
 - **Desktop IDE 是主体验。** 新的用户工作流默认落在 `apps/desktop`；Tauri 主进程负责本地文件系统、服务启动和 API 配置注入。
 - **Web 已退场。** 不新增 `apps/web` 代码、脚本、容器或测试；需要前端能力时优先落在 `apps/desktop`。
 - **域分档看 `apps/api/app/domains/DOMAINS.md`（新会话第一入口）。** live 产品面很小；大量域是 web / 多租户 / 自动整书遗产，已 **frozen**（router 卸载或可卸载）。判断某域是否值得读、能否改先查该清单。2026-07-04 W4 已卸载 `analytics` / `batch_refinery` / `collaboration` / `commercial` 四个 frozen router（护栏 `tests/test_api_surface.py`，回滚 = 加回一行 `include_router`）；冻结只卸 router 不删 `models.py`（打碎 `app/models.py` 建表会连累 live）。
-- **Workflow 负责长任务边界。** 真实模型调用、checkpoint、ModelRun 记录都在 workflow，确保 API 始终保持事务边界清晰。
+- **`apps/workflow` 已退役（2026-07-26）。** LangGraph 批量整书编排器整包删除；长任务边界、真实模型调用与 ModelRun 记录留在 `apps/api`（出网唯一通道 `app/common/llm_client.py`）。`creative_tool_registry` 已迁进程内 `app/domains/runtime_tools/creative_registry.py`。需要旧实现（`narrative/` 确定性闸、`extract/` 抽取 slice）时从 git 历史取。
 - **OpenAPI 是后端对客户端的硬契约。** 任何路由签名变化都必须 `pnpm openapi` 刷新快照，并解释 diff 来源。
 
 ## 6. 协作约定

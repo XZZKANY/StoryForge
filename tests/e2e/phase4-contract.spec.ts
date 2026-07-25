@@ -93,18 +93,13 @@ response = client.get("/api/runtime-tools")
 response.raise_for_status()
 print(json.dumps(response.json(), ensure_ascii=False, sort_keys=True))
 `);
+  // 2026-07-26 apps/workflow 退役：registry 从相邻目录的 importlib 文件桥改为进程内模块，
+  // 这里也改成直接 import，交叉校验的语义不变（端点输出 vs 注册表事实源）。
   const registryTools = runApiPythonJson(`
-import importlib.util
 import json
-import sys
 from collections.abc import Mapping, Sequence, Set
-from pathlib import Path
 
-registry_path = Path.cwd().parent / "workflow" / "storyforge_workflow" / "tools" / "registry.py"
-spec = importlib.util.spec_from_file_location("storyforge_phase4_registry", registry_path)
-module = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = module
-spec.loader.exec_module(module)
+from app.domains.runtime_tools import creative_registry as module
 
 def to_jsonable(value):
     if isinstance(value, Mapping):

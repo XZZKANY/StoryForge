@@ -50,7 +50,7 @@ Web 不再承接运行时职责。历史 Next.js 页面、源码契约和 Docker
 API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
 
 - `apps/api` 负责业务 API、OpenAPI、数据模型、运行记录和制品。
-- `apps/workflow` 负责生成编排、checkpoint、provider adapter 和质量门禁。
+- ~~`apps/workflow` 负责生成编排、checkpoint、provider adapter 和质量门禁。~~ 2026-07-26 整包退役，能力留在 `apps/api`；历史实现见 git 历史。
 - Desktop IDE、Agent orchestration 和 Writing Run 工具通过稳定契约访问这些能力。
 
 ## 迁移原则

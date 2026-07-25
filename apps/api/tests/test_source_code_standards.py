@@ -67,7 +67,6 @@ HARD_SOURCE_LINE_LIMITS = {
     "apps/api/app/domains/book_runs/book_context.py": 500,
     "apps/api/app/domains/book_runs/book_generation.py": 500,
     "apps/api/app/domains/book_runs/book_generation_judge.py": 500,
-    "apps/api/app/domains/book_runs/book_generation_parallel.py": 500,
     "apps/desktop/frontend/src/App.tsx": 400,
     "apps/desktop/frontend/src/components/ChatWindow.tsx": 500,
     "apps/desktop/frontend/src/components/app/AppShell.tsx": 500,

@@ -37,7 +37,9 @@ StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段。�
 3. **写作时刻 06/07/08 结构性为零**（准备发布 / 解释信号 / 下一轮选择）：发行车队已于 2026-07-23 迁出独立仓 `D:\StoryForge-Publish`，编辑器内无发布安全灯与发布基线账本，读者信号无输入通道。飞轮第 2-4 格待 n=1 有可发章量后再评，本期不排期。
 4. 质量轨已换锚（D1，后台）：「重跑真实 3-5 万字长程 + 人工盲评」不再排期，待 n=1 连载稳定后重评；BookRun 维持后台工具定位（现状：managed 启动三重不可达，无 loop_schema / 前端不发 book_id+blueprint_id / IDE 命令零前端调用）；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 project.consistency / deep_consistency / canon / canon_delta / promise_check / prose_check / collapse_check / entity_budget_check / hooks_delta / trim_prose）。
 5. 已登记未修债务（2026-07-25 code review，非阻断写作，勿顺手开工）：`fs_tools.py` 的 `fs.list` / `fs.search` 未对每个结果重做 containment（支持 symlink 的平台可越界）且 `rglob` 全量枚举无成本上限；`apps/workflow/storyforge_workflow/runtime/provider_fallback.py` 对全部 `ProviderError` 降级（含 AUTH / CONTENT_FILTER，非 live 路径）；`app/author_chat.py` 终端 MVP 确认写回不比对 before 且非原子写（零 importer 的独立脚本）。
-6. 小刀池（顺手不专排）：S12 runtime_tools 残桥（唯一 live 挂载的 `apps/workflow` 桥，端点零前端调用）、S16 F15 pnpm dev 默认 sqlite、M4 非空表时间列、发布版原生菜单栏缺失导致 `useTauriMenuBridge` 五个监听永不触发。
+6. 小刀池（顺手不专排）：~~S12 runtime_tools 残桥~~（2026-07-26 随 `apps/workflow` 退役收口，registry 已迁进程内）、S16 F15 pnpm dev 默认 sqlite、M4 非空表时间列、发布版原生菜单栏缺失导致 `useTauriMenuBridge` 五个监听永不触发。
+
+**2026-07-26 `apps/workflow` 已整包退役**（PR #195）：18.7k 行 LangGraph 批量整书编排器 + `book_generation_parallel.py` + `.codex/run-real-llm-parallel.py` 全删；`tools/registry.py` 迁进程内 `app/domains/runtime_tools/creative_registry.py`，`/api/runtime-tools` 契约不变。`pnpm test` / `pnpm verify` 不再跑 workflow 的 323 个测试与 ruff。**尚未搬的确定性闸只剩 git 历史一份**（`extract/` canon 抽取 slice、`beat_sheet`、`name_registry`、`repetition_ledger`、`timeline_ledger`、`arc_consistency` + 地基 `verdict.py`/`plan.py`），打捞方法见 `docs/internal/workflow-capability-migration-ledger.md` 顶部。managed BookRun 的并发整书路径随之消失（此前已三重不可达）。
 
 ## 本地验证入口
 

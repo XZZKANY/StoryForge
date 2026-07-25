@@ -20,7 +20,6 @@ export default tseslint.config(
       '**/.worktrees/',
       'apps/desktop/generate-icons.*',
       'apps/api/',
-      'apps/workflow/',
       'docs/',
     ],
   },
