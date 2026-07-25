@@ -349,11 +349,13 @@ body {
      窄屏用 max-width 兜底（边界碰撞）。margin-right 只在窄屏兜底时生效。 */
   width: 520px;
   max-width: calc(100% - 64px);
-  margin: 4px 12px 6px 52px;
-  border: 1px solid rgb(var(--agent) / 0.55);
-  border-radius: 10px;
+  margin: 3px 12px 5px 52px;
+  /* #8：去掉 dropdown 大阴影 + 满框强调描边（原先像悬浮卡片「凸」在正文上方），
+     改成贴行的细描边 + 2px 强调左缘，读作属于这一行的内联控件。 */
+  border: 1px solid rgb(var(--border-strong));
+  border-left: 2px solid rgb(var(--agent) / 0.6);
+  border-radius: 8px;
   background: rgb(var(--surface));
-  box-shadow: var(--shadow-dropdown);
   overflow: hidden;
   font-family: var(--font-ui);
 }

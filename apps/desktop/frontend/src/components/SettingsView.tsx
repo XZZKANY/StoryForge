@@ -16,7 +16,6 @@ import {
 } from '../lib/desktop-llm-config';
 import {
   applyProviderPreset,
-  describeProviderConnection,
   describeProviderHealth,
   isProviderKind,
   PROVIDER_OPTIONS,
@@ -56,7 +55,6 @@ const SettingsSearchContext = createContext('');
 
 export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
   const safeSettings = sanitizeAppSettings(settings);
-  const providerConnection = describeProviderConnection(safeSettings.provider);
   const [secretInput, setSecretInput] = useState('');
   const [storedConfig, setStoredConfig] = useState<DesktopLlmConfig | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -191,21 +189,6 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
             </a>
           ))}
         </nav>
-
-        <div className="mt-auto">
-          <div className="flex items-center gap-2 rounded-md bg-surface px-2 py-2">
-            <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
-              SF
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm text-foreground">本地创作环境</div>
-              <div className="truncate text-xs text-subtle">{providerConnection.label}</div>
-            </div>
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-elevated text-muted">
-              <SettingsGlyph />
-            </span>
-          </div>
-        </div>
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
@@ -749,19 +732,5 @@ function AboutRows() {
         </div>
       </RowShell>
     </>
-  );
-}
-
-function SettingsGlyph() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M6.55 2.1h2.9l.35 1.55c.33.12.64.3.92.53l1.48-.48 1.45 2.5-1.15 1.08a4.4 4.4 0 0 1 0 1.44l1.15 1.08-1.45 2.5-1.48-.48c-.28.23-.59.41-.92.53l-.35 1.55h-2.9l-.35-1.55a4.1 4.1 0 0 1-.92-.53l-1.48.48-1.45-2.5 1.15-1.08a4.4 4.4 0 0 1 0-1.44L2.35 6.2 3.8 3.7l1.48.48c.28-.23.59-.41.92-.53l.35-1.55Z"
-        stroke="currentColor"
-        strokeWidth="1.15"
-        strokeLinejoin="round"
-      />
-      <circle cx="8" cy="8" r="1.75" stroke="currentColor" strokeWidth="1.15" />
-    </svg>
   );
 }

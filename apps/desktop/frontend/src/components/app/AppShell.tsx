@@ -339,14 +339,10 @@ export function AppShell({
 
       <StatusBar
         modelLabel={preferences.modelLabel}
-        theme={preferences.settings.theme}
         projectOpen={projectOpen}
-        fontMode={preferences.settings.editorFontMode}
         obs={obs}
         observationAvailability={observatory.availability}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
-        onToggleFont={preferences.toggleFontMode}
-        onToggleTheme={preferences.toggleTheme}
       />
 
       {palette && (

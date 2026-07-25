@@ -695,6 +695,14 @@ export function Editor({
         </div>
       )}
 
+      {/* Monaco Editor */}
+      <div
+        ref={containerRef}
+        className="min-h-0 flex-1 overflow-hidden"
+        data-testid="editor-container"
+      />
+
+      {/* AI 修订确认面板：贴在正文下方（原先在编辑器上方，观感割裂，#7）。 */}
       {pendingSuggestion && (
         <PatchReviewPanel
           suggestion={pendingSuggestion}
@@ -706,13 +714,6 @@ export function Editor({
           onSaveNote={handleSaveSuggestionNote}
         />
       )}
-
-      {/* Monaco Editor */}
-      <div
-        ref={containerRef}
-        className="min-h-0 flex-1 overflow-hidden"
-        data-testid="editor-container"
-      />
 
       {showHistory &&
         (filePath ? (

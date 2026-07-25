@@ -147,7 +147,7 @@ export function PatchReviewPanel({
 
   return (
     <div
-      className="border-b border-border bg-surface animate-slide-up-fade flex-shrink-0"
+      className="border-t border-border bg-panel animate-slide-up-fade flex-shrink-0"
       data-testid="patch-review"
     >
       <div className="px-3 py-2 flex items-start justify-between gap-3">
