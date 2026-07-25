@@ -31,6 +31,7 @@ def test_provider_health_ok_lists_models(client: TestClient, monkeypatch: pytest
     assert data["reachable"] is True
     assert data["model"] == "deepseek-v4-flash"
     assert data["model_count"] == 2
+    assert data["models"] == ["deepseek-v4-flash", "deepseek-v4-pro"]
     assert data["base_url"] == "https://provider.test/v1"
     assert isinstance(data["latency_ms"], int)
     assert data["missing_env"] == []

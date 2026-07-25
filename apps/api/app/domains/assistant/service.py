@@ -629,8 +629,17 @@ def probe_provider_health() -> ProviderHealthResponse:
         return ProviderHealthResponse(status="misconfigured", reachable=False, detail=str(exc))
 
     elapsed_ms = max(0, int((time.monotonic() - started_at) * 1000))
-    model_count = (
-        len(data["data"]) if isinstance(data, dict) and isinstance(data.get("data"), list) else None
+    entries = data["data"] if isinstance(data, dict) and isinstance(data.get("data"), list) else None
+    model_count = len(entries) if entries is not None else None
+    # 提取模型 id 供桌面「探测模型」下拉选择；封顶 200 避免超大 provider 列表撑爆响应。
+    models = (
+        [
+            str(item["id"])
+            for item in entries
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        ][:200]
+        if entries is not None
+        else []
     )
     return ProviderHealthResponse(
         status="ok",
@@ -639,4 +648,5 @@ def probe_provider_health() -> ProviderHealthResponse:
         model=model,
         latency_ms=elapsed_ms,
         model_count=model_count,
+        models=models,
     )

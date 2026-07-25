@@ -65,6 +65,9 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
 
   const [probe, setProbe] = useState<ProbeState>('idle');
   const [searchQuery, setSearchQuery] = useState('');
+  const [detectState, setDetectState] = useState<'idle' | 'loading' | 'error' | 'ok'>('idle');
+  const [detectedModels, setDetectedModels] = useState<string[]>([]);
+  const [detectError, setDetectError] = useState('');
   const runProbe = async () => {
     setProbe('loading');
     try {
@@ -77,9 +80,36 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
         model: null,
         latencyMs: null,
         modelCount: null,
+        models: [],
         detail: err instanceof Error ? err.message : String(err),
         missingEnv: [],
       });
+    }
+  };
+
+  // #16：按当前 provider / URL / API Key 探测可用模型（先落盘再拉 /models），供下方点选填入默认模型。
+  const detectModels = async () => {
+    setDetectState('loading');
+    setDetectError('');
+    try {
+      const next = await saveDesktopLlmConfig({
+        provider: safeSettings.provider.kind,
+        baseUrl: safeSettings.provider.baseUrl,
+        model: safeSettings.provider.model,
+        apiKey: secretInput,
+      });
+      if (next) setStoredConfig(next);
+      const health = await probeProviderHealth();
+      setDetectedModels(health.models);
+      if (health.status === 'ok' && health.models.length > 0) {
+        setDetectState('ok');
+      } else {
+        setDetectState('error');
+        setDetectError(describeProviderHealth(health).label);
+      }
+    } catch (error) {
+      setDetectState('error');
+      setDetectError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -258,6 +288,14 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       }
                       testId="provider-model"
                     />
+                    <ModelDetectRow
+                      current={safeSettings.provider.model}
+                      state={detectState}
+                      models={detectedModels}
+                      error={detectError}
+                      onDetect={detectModels}
+                      onPick={(model) => update('provider', { ...safeSettings.provider, model })}
+                    />
                     <TextRow
                       title="API Key"
                       description={
@@ -376,6 +414,83 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
         </main>
       </section>
     </div>
+  );
+}
+
+function ModelDetectRow({
+  current,
+  state,
+  models,
+  error,
+  onDetect,
+  onPick,
+}: {
+  current: string;
+  state: 'idle' | 'loading' | 'error' | 'ok';
+  models: string[];
+  error: string;
+  onDetect: () => void;
+  onPick: (model: string) => void;
+}) {
+  const status =
+    state === 'loading'
+      ? '探测中…'
+      : state === 'ok'
+        ? `${models.length} 个可用模型，点选即填入默认模型`
+        : state === 'error'
+          ? error
+          : null;
+  return (
+    <>
+      <RowShell
+        title="探测可用模型"
+        description="按当前服务地址 + API Key 拉取模型列表（会先保存当前配置）。"
+      >
+        <div className="flex items-center gap-3">
+          {status && (
+            <span
+              className={`max-w-[280px] truncate text-xs ${
+                state === 'error' ? 'text-error' : 'text-subtle'
+              }`}
+              data-testid="provider-detect-status"
+            >
+              {status}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onDetect}
+            disabled={state === 'loading'}
+            className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-3 text-sm text-foreground hover:bg-elevated disabled:opacity-50"
+            data-testid="provider-detect-models"
+          >
+            探测模型
+          </button>
+        </div>
+      </RowShell>
+      {models.length > 0 && (
+        <div
+          className="flex flex-wrap gap-1.5 border-b border-border px-4 py-3 last:border-b-0"
+          data-testid="provider-model-options"
+        >
+          {models.map((model) => (
+            <button
+              key={model}
+              type="button"
+              onClick={() => onPick(model)}
+              className={`max-w-full truncate rounded-md border px-2 py-1 text-xs transition-colors ${
+                model === current
+                  ? 'border-accent bg-accent text-accent-foreground'
+                  : 'border-border text-muted hover:bg-elevated hover:text-foreground'
+              }`}
+              title={model}
+            >
+              {model}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
