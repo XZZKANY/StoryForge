@@ -7,6 +7,7 @@ import {
   type ProviderKind,
   type ThemeMode,
 } from '../lib/user-settings';
+import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
 import { probeProviderHealth } from '../lib/api-client';
 import {
@@ -47,8 +48,11 @@ const LINE_NUMBER_OPTIONS: ReadonlyArray<{ value: EditorLineNumbersMode; label: 
 
 const FONT_MODE_OPTIONS: ReadonlyArray<{ value: 'grid' | 'prose'; label: string }> = [
   { value: 'grid', label: '格子（CJK 等宽对齐）' },
-  { value: 'prose', label: '散文（比例字体）' },
+  { value: 'prose', label: '书稿（衬线比例字体）' },
 ];
+
+const PROSE_MEASURE_OPTIONS: ReadonlyArray<{ value: ProseMeasure; label: string }> =
+  PROSE_MEASURE_ORDER.map((value) => ({ value, label: PROSE_MEASURE_LABELS[value] }));
 
 // 设置搜索：RowShell 按标题+描述自过滤，空查询显示全部。
 const SettingsSearchContext = createContext('');
@@ -364,13 +368,28 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                     />
                     <SelectRow
                       title="字体模式"
-                      description="格子 = CJK 2:1 等宽中英对齐；散文 = 比例字体长文舒适。状态栏可快捷切换。"
+                      description="格子 = CJK 2:1 等宽中英对齐；书稿 = 衬线比例字体，长文更像书。"
                       value={safeSettings.editorFontMode}
                       onChange={(value) =>
                         update('editorFontMode', value === 'prose' ? 'prose' : 'grid')
                       }
                       options={FONT_MODE_OPTIONS}
                       testId="editor-font-mode"
+                    />
+                    <SelectRow
+                      title="正文行宽"
+                      description="限制正文每行字数并居中，宽屏下眼睛不用横扫一整屏；只作用于 Markdown 正文。"
+                      value={safeSettings.editorProseMeasure}
+                      onChange={(value) =>
+                        update(
+                          'editorProseMeasure',
+                          PROSE_MEASURE_OPTIONS.some((option) => option.value === value)
+                            ? (value as ProseMeasure)
+                            : 'medium',
+                        )
+                      }
+                      options={PROSE_MEASURE_OPTIONS}
+                      testId="editor-prose-measure"
                     />
                     <SelectRow
                       title="行号"

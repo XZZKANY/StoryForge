@@ -5,11 +5,10 @@ import * as monaco from 'monaco-editor';
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme, ensureMonacoThemes } from '../../lib/theme';
 import {
-  lineNumbersFor,
-  STORYFORGE_EDITOR_FONT_GRID,
+  editorTypographyOptions,
   STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
+  type EditorFontMode,
 } from './options';
-// editorFontFamily 缺省用格子栈；散文栈由 Editor 依 editorFontMode 解析后传入。
 
 export type EditorModelState = {
   model: monaco.editor.ITextModel;
@@ -26,7 +25,7 @@ export function useMonacoEditor({
   loadedFilePath,
   loadedContent,
   editorFontSize,
-  editorFontFamily = STORYFORGE_EDITOR_FONT_GRID,
+  editorFontMode = 'grid',
   editorLineNumbers = 'auto',
   filePathRef,
   isDirtyRef,
@@ -48,7 +47,7 @@ export function useMonacoEditor({
   loadedFilePath: string | null;
   loadedContent: string;
   editorFontSize: number;
-  editorFontFamily?: string;
+  editorFontMode?: EditorFontMode;
   editorLineNumbers?: 'auto' | 'on' | 'off';
   filePathRef: MutableRefObject<string | null>;
   isDirtyRef: MutableRefObject<boolean>;
@@ -92,9 +91,12 @@ export function useMonacoEditor({
         editor = monaco.editor.create(containerRef.current, {
           model: null,
           theme: currentMonacoTheme(),
-          fontSize: editorFontSize,
-          fontFamily: editorFontFamily,
-          lineNumbers: lineNumbersFor(filePath, editorLineNumbers),
+          ...editorTypographyOptions({
+            filePath,
+            fontSize: editorFontSize,
+            fontMode: editorFontMode,
+            lineNumbers: editorLineNumbers,
+          }),
           glyphMargin: true,
           // Q9 七轮反馈：小说正文没有代码缩略图需求，minimap 删。
           minimap: { enabled: false },
@@ -216,14 +218,17 @@ export function useMonacoEditor({
 
   useEffect(() => {
     editorRef.current?.updateOptions({
-      fontSize: editorFontSize,
-      fontFamily: editorFontFamily,
+      ...editorTypographyOptions({
+        filePath,
+        fontSize: editorFontSize,
+        fontMode: editorFontMode,
+        lineNumbers: editorLineNumbers,
+      }),
       readOnly: readOnly || loadPending,
-      lineNumbers: lineNumbersFor(filePath, editorLineNumbers),
     });
   }, [
     editorFontSize,
-    editorFontFamily,
+    editorFontMode,
     editorLineNumbers,
     editorRef,
     filePath,

@@ -57,7 +57,19 @@ test('空状态渲染 editor-root 容器与未选择文件提示', () => {
 test('Monaco 容器被锁在编辑器 flex 区域内，不随长文本撑开外层布局', () => {
   const html = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
   assert.match(html, /data-testid="editor-container"/);
-  assert.match(html, /min-h-0 flex-1 overflow-hidden/);
+  // 限宽外层承接 flex 约束，Monaco 宿主自身 h-full/w-full 贴合，两层都不许溢出。
+  assert.match(html, /min-h-0 flex-1 justify-center overflow-hidden/);
+  assert.match(html, /class="h-full w-full overflow-hidden"[^>]*data-testid="editor-container"/);
+});
+
+test('正文限行宽并居中；数据文件（canon.json）仍铺满编辑区', () => {
+  const prose = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
+  assert.match(prose, /data-prose-measure="652"/);
+  assert.match(prose, /style="max-width:652px"/);
+
+  const data = renderEditor({ filePath: 'D:\\Books\\雾港回声\\.storyforge\\canon\\canon.json' });
+  assert.match(data, /data-prose-measure="full"/);
+  assert.doesNotMatch(data, /max-width/);
 });
 
 test('外部 flush 事件读取最新保存闭包，不沿用首个标签的分支状态', () => {

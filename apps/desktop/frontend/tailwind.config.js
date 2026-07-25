@@ -23,7 +23,6 @@ export default {
       },
       fontFamily: {
         ui: 'var(--font-ui)',
-        prose: 'var(--font-prose)',
         mono: 'var(--font-mono)',
       },
       spacing: {

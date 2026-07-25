@@ -32,7 +32,13 @@ import { type GraphNode } from '../lib/branches';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
 import { useEditorFileLoader } from './editor/useEditorFileLoader';
 import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor';
-import { resolveEditorFontFamily, type EditorFontMode } from './editor/options';
+import {
+  isProseFile,
+  resolveEditorFontFamily,
+  resolveProseMeasurePx,
+  type EditorFontMode,
+  type ProseMeasure,
+} from './editor/options';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { useInlineChat } from './editor/useInlineChat';
@@ -65,6 +71,7 @@ type EditorProps = {
   filePath: string | null;
   editorFontSize?: number;
   editorFontMode?: EditorFontMode;
+  editorProseMeasure?: ProseMeasure;
   editorLineNumbers?: EditorLineNumbersMode;
   autoSave?: boolean;
   retainedFilePaths?: string[];
@@ -103,6 +110,7 @@ export function Editor({
   filePath,
   editorFontSize = 14,
   editorFontMode = 'grid',
+  editorProseMeasure = 'medium',
   editorLineNumbers = 'auto',
   autoSave = false,
   retainedFilePaths = [],
@@ -118,6 +126,9 @@ export function Editor({
   const rightViewStorageKey = `storyforge:right-view:${projectPath ?? '__global__'}`;
   const [rightView, setRightView] = useState<RightViewId>(() => readRightView(rightViewStorageKey));
   const readOnly = isReadOnlyDerivedProjectPath(filePath);
+  const proseMeasurePx = isProseFile(filePath)
+    ? resolveProseMeasurePx(editorProseMeasure, editorFontSize)
+    : null;
 
   useEffect(() => {
     // 按项目记住上次的右侧视图选择：换项目时恢复，不再要求重新选择。
@@ -299,7 +310,7 @@ export function Editor({
     loadedFilePath,
     loadedContent,
     editorFontSize,
-    editorFontFamily: resolveEditorFontFamily(editorFontMode),
+    editorFontMode,
     editorLineNumbers,
     filePathRef,
     isDirtyRef,
@@ -705,12 +716,16 @@ export function Editor({
         </div>
       )}
 
-      {/* Monaco Editor */}
-      <div
-        ref={containerRef}
-        className="min-h-0 flex-1 overflow-hidden"
-        data-testid="editor-container"
-      />
+      {/* Monaco Editor：正文限行宽并居中（稿纸感），数据文件仍铺满 */}
+      <div className="flex min-h-0 flex-1 justify-center overflow-hidden">
+        <div
+          ref={containerRef}
+          className="h-full w-full overflow-hidden"
+          style={proseMeasurePx ? { maxWidth: `${proseMeasurePx}px` } : undefined}
+          data-testid="editor-container"
+          data-prose-measure={proseMeasurePx ?? 'full'}
+        />
+      </div>
 
       {/* AI 修订确认面板：贴在正文下方（原先在编辑器上方，观感割裂，#7）。 */}
       {pendingSuggestion && (
