@@ -56,7 +56,11 @@ def rebuild_presence(
             if form not in all_forms:
                 all_forms.append(form)
 
-    scan = consistency_scan(project_root, all_forms, glob=glob) if all_forms else None
+    # max_terms=None：presence 缓存必须覆盖全部声明实体的表面形，绝不能被 live 工具的 30 上限
+    # 截断（否则第 31+ 个表面形的实体被误标 missing=True「未登场」，写错 presence.json/dossier，UF-03）。
+    # max_terms=None：presence 缓存必须覆盖全部声明实体的表面形，绝不能被 live 工具的 30 上限
+    # 截断（否则第 31+ 个表面形的实体被误标 missing=True「未登场」，写错 presence.json/dossier，UF-03）。
+    scan = consistency_scan(project_root, all_forms, glob=glob, max_terms=None) if all_forms else None
     term_index: dict[str, dict[str, Any]] = {}
     if scan is not None:
         term_index = {occ["term"]: occ for occ in scan["term_occurrences"]}

@@ -53,7 +53,7 @@ _TIME_MARKER_PATTERN = re.compile(
 _CLAUSE_SPLIT_PATTERN = re.compile(r"[，。！？；：、\n\s“”「」『』…—]+")
 
 
-def _normalized_terms(terms: list[str] | None) -> tuple[list[str], bool]:
+def _normalized_terms(terms: list[str] | None, max_terms: int | None = _MAX_TERMS) -> tuple[list[str], bool]:
     if not terms:
         return [], False
     seen: list[str] = []
@@ -63,7 +63,9 @@ def _normalized_terms(terms: list[str] | None) -> tuple[list[str], bool]:
         cleaned = term.strip()
         if cleaned and cleaned not in seen:
             seen.append(cleaned)
-    return seen[:_MAX_TERMS], len(seen) > _MAX_TERMS
+    if max_terms is None:  # 内部消费方（如 canon rebuild_presence）需覆盖全部实体表面形，不截断。
+        return seen, False
+    return seen[:max_terms], len(seen) > max_terms
 
 
 def consistency_scan(
@@ -72,15 +74,20 @@ def consistency_scan(
     *,
     subpath: str | None = None,
     glob: str = "*.md",
+    max_terms: int | None = _MAX_TERMS,
 ) -> dict[str, Any]:
-    """按阅读顺序（路径序）扫描项目文本，返回一致性观察信号。"""
+    """按阅读顺序（路径序）扫描项目文本，返回一致性观察信号。
+
+    ``max_terms`` 默认 30 上限，是 live ``project.consistency`` 工具给 LLM 的观察信号封顶；
+    内部消费方（canon rebuild_presence）传 ``None`` 表示不截断、覆盖全部实体表面形（UF-03）。
+    """
 
     root = _resolve_root(project_root)
     scope = _resolve_scoped(root, subpath)
     if not scope.is_dir():
         raise FsToolError(f"不是目录：{subpath}")
 
-    tracked_terms, terms_truncated = _normalized_terms(terms)
+    tracked_terms, terms_truncated = _normalized_terms(terms, max_terms)
 
     files: list[tuple[str, str]] = []
     files_truncated = False
