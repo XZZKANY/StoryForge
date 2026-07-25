@@ -164,4 +164,9 @@ def _int_env(name: str) -> int | None:
     value = _optional_env(name)
     if value is None:
         return None
-    return int(value)
+    try:
+        return int(value)
+    except ValueError:
+        # 畸形数值配置（如 STORYFORGE_LLM_TIMEOUT_SECONDS=60.0/30s）回退 None→用默认，
+        # 不冒泡成 GET /api/provider-gateway/resolve 的 500（UF-07，对齐守卫惯例）。
+        return None

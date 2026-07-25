@@ -226,3 +226,25 @@ def test_provider_resolution_uses_redis_cache_and_invalidates_on_provider_create
 
     assert deleted_patterns
     assert cache_store == {}
+
+
+def test_provider_gateway_tolerates_non_int_timeout_env(
+    session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UF-07: STORYFORGE_LLM_TIMEOUT_SECONDS 为浮点串/畸形值时 _int_env 不得抛裸 ValueError
+    （否则逃出 DomainError 包装 → GET /provider-gateway/resolve 500）；回退 None、resolve 照常返回。"""
+
+    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "gpt-5.5")
+    monkeypatch.setenv("STORYFORGE_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("STORYFORGE_LLM_TIMEOUT_SECONDS", "60.0")  # 浮点串，int() 会抛
+    monkeypatch.setenv("STORYFORGE_LLM_MAX_RETRIES", "abc")  # 纯畸形
+
+    with session_factory() as session:
+        resolution = resolve_provider(session, "llm")
+
+    assert resolution.provider_name == "openai"
+    assert resolution.resolution_source == "environment"
+    # 畸形数值回退 None → 不进 model_aliases，而非崩溃。
+    assert "timeout_seconds" not in resolution.model_aliases
+    assert "max_retries" not in resolution.model_aliases
