@@ -101,6 +101,26 @@ def test_rebuild_presence_marks_missing_entity(project: Path) -> None:
     assert entry["occurrences"] == []
 
 
+def test_rebuild_presence_covers_entity_beyond_live_term_cap(project: Path) -> None:
+    """UF-03: 声明实体数超 consistency_scan 的 30 表面形上限时，排在 31+ 的实体即便正文频繁
+    出现也不得被误标 missing（rebuild_presence 传 max_terms=None，不受 live 工具封顶截断）。"""
+
+    # 30 个正文里不出现的占位实体，把真实出场的 _QINGYAN（青岩/剑主）挤到第 31+ 个表面形。
+    fillers = [
+        {"id": f"char_filler_{index:02d}", "canonical_name": f"占位实体{index:02d}", "aliases": []}
+        for index in range(30)
+    ]
+    presence = canon_rebuild.rebuild_presence(str(project), [*fillers, _QINGYAN])
+
+    by_id = {entry["id"]: entry for entry in presence["entities"]}
+    qingyan = by_id["char_qingyan"]
+    # 修复前：青岩/剑主 落在 30 上限之外 → term_index 命不中 → missing=True、total_count=0。
+    assert qingyan["missing"] is False
+    assert qingyan["total_count"] == 3
+    assert presence["terms_truncated"] is False  # 覆盖全部表面形、未截断
+    assert by_id["char_filler_00"]["missing"] is True  # 占位实体确实缺席（正常 missing）
+
+
 # --- 4. 硬矛盾 ---
 
 
