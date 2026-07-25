@@ -11,5 +11,4 @@
 **/coverage
 **/.pytest_cache
 apps/api
-apps/workflow
 deploy

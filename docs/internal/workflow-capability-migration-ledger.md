@@ -1,5 +1,17 @@
 # Workflow → IDE-agent 能力迁移 ledger
 
+> ## ⛔ 2026-07-26：`apps/workflow` 已整包退役，本 ledger 转为**打捞索引**
+>
+> app 已 `git rm`（18.7k 行），随之退役的还有 `book_generation_parallel.py`（managed 并发整书 runner，`app/` 内零 import）与 `.codex/run-real-llm-parallel.py`。**已搬进 agent 的 4 个闸不受影响**：`prose_static_check`→`project.prose_check`、`collapse_judge`→`project.collapse_check`、`entity_budget`→`project.entity_budget_check`、伏笔→`project.promise_check`。`tools/registry.py` 已迁进程内 `app/domains/runtime_tools/creative_registry.py`（原文件零 workflow 依赖、内容全是 apps/api 自身端点的静态描述）。
+>
+> **下表 tier-1/2 里尚未搬的能力只剩 git 历史一份**：`extract/{prompt,parser,facts}`（canon 抽取 slice）、`beat_sheet`、`name_registry`、`repetition_ledger`、`timeline_ledger`、`arc_consistency`，以及地基 `narrative/verdict.py`、`narrative/plan.py`。
+>
+> **打捞方法**：`git log --diff-filter=D --oneline -- 'apps/workflow/**'` 找到删除提交，`git show <删除提交>^:apps/workflow/storyforge_workflow/narrative/extract/prompt.py` 取原文；或 `git checkout <删除提交>^ -- <路径>` 落盘。删除提交见 PR #195。
+>
+> **不要为「资产会丢」而重建 app**：按 2026-07-26「写作优先」拍板，未被真实写作摩擦提名的能力不排期（见 `docs/internal/TODO.md`）。
+>
+> 以下原文保留为分析留档，其中「删不动 / 三重阻塞」等时机判断**已作废**（实证：`book_generation_parallel` 零 app import、`/api/runtime-tools` 零桌面调用方）。
+
 > **定位**：决定 `apps/workflow`（standalone LangGraph 批量整书编排器）哪些能力值得搬进 live IDE agent（`apps/api/app/domains/agent_runs`）成为 agent 工具、哪些随 managed-BookRun 一并退役。
 > **背景**：pivot 方向 = 编辑器原生连载（作者即 oracle），批量自动整书已降级。「workflow 应该是 IDE 的一种能力」的精确落法 = 把 workflow 的**有用部分**做成 agent 工具，standalone app 随之退场——app 本身永不成为 IDE 能力，它的好部分成为。
 > **状态**：分析留档，**非执行计划**；时机受质量轨红线约束（见 §4）。

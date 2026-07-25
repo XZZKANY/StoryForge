@@ -8,7 +8,11 @@ from app.domains.agent_runs.tooling import (
     derive_requires_confirmation,
     list_agent_runtime_tool_specs,
 )
+from app.domains.runtime_tools.creative_registry import list_creative_tools
 from app.main import app
+
+# CreativeToolRegistry 之外还有 2 个 MCP 只读工具（见 service._MCP_READONLY_TOOL_DEFINITIONS）。
+_MCP_READONLY_TOOL_COUNT = 2
 
 
 def test_runtime_tools_endpoint_exposes_registry_tools(client: TestClient) -> None:
@@ -18,7 +22,10 @@ def test_runtime_tools_endpoint_exposes_registry_tools(client: TestClient) -> No
 
     assert response.status_code == 200, response.text
     tools = response.json()
-    assert len(tools) == len(list_agent_runtime_tool_specs()) + 9
+    # 数量从三个事实源派生，不写死；registry 增删工具时此断言随之移动而非误红。
+    assert len(tools) == (
+        len(list_agent_runtime_tool_specs()) + len(list_creative_tools()) + _MCP_READONLY_TOOL_COUNT
+    )
 
     retrieval = next(tool for tool in tools if tool["name"] == "retrieval.search")
     assert retrieval["domain"] == "retrieval"

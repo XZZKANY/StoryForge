@@ -10,7 +10,7 @@ The project keeps a verifiable long-form generation pipeline, but that pipeline 
 
 - **Desktop IDE** is the main product experience under `apps/desktop`.
 - **API** is the business truth source under `apps/api`.
-- **Workflow** owns long-running generation, provider calls, checkpoints, and quality gates under `apps/workflow`.
+- **Workflow app retired (2026-07-26).** The standalone LangGraph orchestrator under `apps/workflow` was deleted; long-running generation, provider calls, and ModelRun records live in `apps/api` (single egress: `app/common/llm_client.py`).
 - **BookRun** is the auditable whole-book generation run. It can generate, judge, repair, write memory, and export artifacts.
 - **Desktop IDE Agent** is the local project assistant path: open file, review, targeted revision, proposed patch, diff confirmation, real write-back, version record.
 - **OpenAPI contract** is the hard seam from API to clients. Backend route changes must refresh `packages/shared/src/contracts/storyforge.openapi.json`.

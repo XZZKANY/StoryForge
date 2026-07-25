@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-import importlib.util
-import logging
-import sys
 from collections.abc import Mapping, Sequence, Set
-from functools import lru_cache
-from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 from app.domains.agent_runs.tools import list_agent_runtime_tool_specs
+from app.domains.runtime_tools.creative_registry import CreativeToolSpec, list_creative_tools
 from app.domains.runtime_tools.schemas import RuntimeToolRead, RuntimeToolReferencesRead
-
-_logger = logging.getLogger(__name__)
 
 _MCP_READONLY_TOOL_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
@@ -86,45 +79,14 @@ _INTERNAL_WRITE_OR_HIGH_COST_TOOLS = frozenset(
 )
 
 
-def _registry_file_path() -> Path:
-    """定位相邻 workflow registry 文件，避免导入 workflow 顶层运行时依赖。"""
+def _load_creative_tools() -> tuple[CreativeToolSpec, ...]:
+    """读取进程内创作工具注册表。
 
-    apps_dir = Path(__file__).resolve().parents[4]
-    return apps_dir / "workflow" / "storyforge_workflow" / "tools" / "registry.py"
+    2026-07-26 `apps/workflow` 退役时，registry 从相邻目录的 importlib 文件桥改为进程内模块
+    `creative_registry.py`（原文件零 workflow 依赖、内容全是 apps/api 自身端点的静态描述）。
+    随 `collect_submodules('app')` 进冻结 exe，故不再需要「文件缺失降级空列表」的兜底路径。"""
 
-
-@lru_cache(maxsize=1)
-def _load_registry_module() -> ModuleType:
-    """从真实 registry.py 加载工具事实源，不触发 workflow 包顶层导入。"""
-
-    registry_path = _registry_file_path()
-    spec = importlib.util.spec_from_file_location("storyforge_runtime_tools_registry", registry_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"无法加载 CreativeToolRegistry：{registry_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys_modules_name = spec.name
-    sys.modules[sys_modules_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-def _load_creative_tools():
-    """延迟读取 workflow registry，避免 API 复制工具清单。
-
-    冻结 sidecar 内 apps/workflow 未随 exe 打包（spec 只 collect_submodules('app') + alembic），
-    registry.py 文件不存在 → importlib 加载抛错。此处降级为空列表 + 告警，而非让只读端点
-    GET /api/runtime-tools 直接 500（D6-001；根治随 workflow 收编，见 workflow 迁移 ledger）。
-    只捕加载类异常，不吞 registry 内部真 bug。"""
-
-    try:
-        return _load_registry_module().list_creative_tools()
-    except (RuntimeError, OSError, ImportError):
-        _logger.warning(
-            "CreativeToolRegistry 不可用（apps/workflow 未随冻结 exe 打包？），"
-            "运行时工具清单降级为 agent_runtime + MCP，不含 internal creative 工具。",
-            exc_info=True,
-        )
-        return ()
+    return list_creative_tools()
 
 
 def _to_jsonable(value: object) -> Any:

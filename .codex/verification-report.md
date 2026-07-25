@@ -121,3 +121,50 @@ uv run pytest tests/test_api_middleware.py -q         19 passed
 - 限流键改动只在本地 MemoryStorage 下验证，未在真 Redis 部署上复验 keyspace 实际形状。
 - 未执行真实 provider 出网与 packaged sidecar smoke。
 - 上一节 7 条 confirmed 中 4 条按拍板登记不修：`fs_tools.py` 枚举结果未重做 containment + `rglob` 无成本上限；`provider_fallback.py` 对全部 `ProviderError` 降级（非 live 路径）；`app/author_chat.py` 终端 MVP 非原子写且不比对 before（零 importer 独立脚本）。已写入 `docs/internal/TODO.md` 与 `current-phase.md`。
+
+---
+
+# apps/workflow 整包退役
+
+时间：2026-07-26
+分支：`chore/retire-apps-workflow`（自 `master` 96a3d928）
+
+## 为什么现在能删（旧「删不动」结论已作废）
+
+迁移 ledger 与多份内部文档记录的阻塞是「`book_generation_parallel.py` 用 importlib 加载 workflow 跑 managed 整书，受质量轨红线保护」。逐引用实证否决了这条：
+
+- `run_book_generation_parallel` / `run_book_loop_with_thread_sessions` 在 `app/` 内**零 import**，调用方只有 `tests/test_book_generation_parallel.py`、`tests/test_book_generation_parallel_wrapper.py` 和 `.codex/run-real-llm-parallel.py` → 不在 live 路径上。
+- 另一座桥 `runtime_tools/service.py` 虽在 live 挂载（`GET /api/runtime-tools`），但它加载的 `tools/registry.py` 是**零 workflow 依赖的纯 stdlib 文件，内容全是 apps/api 自身端点的静态描述**（retrieval / scene_packets / judge / repair / artifacts / evaluations / provider_gateway）→ 该搬不该删。
+- managed BookRun 启动此前已三重不可达（无 `loop_schema`、前端不发 `book_id`+`blueprint_id`、IDE 命令零前端调用）。
+
+## 做了什么
+
+1. `git mv apps/workflow/storyforge_workflow/tools/registry.py` → `apps/api/app/domains/runtime_tools/creative_registry.py`；`runtime_tools/service.py` 改直接 import，删掉 importlib 机器（`spec_from_file_location` / `sys.modules` 注入 / `lru_cache`）与「文件缺失降级空列表 + 告警」兜底（进程内模块随 `collect_submodules('app')` 进冻结 exe，兜底不再有意义）。**`/api/runtime-tools` 响应与 OpenAPI 零变更。**
+2. `git rm -r apps/workflow`（18.7k 行）。磁盘上仅余 gitignored 的 `.pytest-tmp` 空目录——它的 ACL 拒绝当前账户访问（`takeown`/`icacls` 均 Access denied，疑为某 workflow 测试造的权限错误用例残留），需管理员权限清理，与仓库/门禁无关。
+3. 同批删除已成死码的：`book_runs/book_generation_parallel.py`、`tests/test_book_generation_parallel.py`（12 例）、`tests/test_book_generation_parallel_wrapper.py`（2 例）、`.codex/run-real-llm-parallel.py`（唯一 import 是已删 runner）。
+4. 断言重指而非删除：`tests/e2e/phase4-contract.spec.ts` 的 registry 交叉校验从「按路径 importlib 相邻 workflow 文件」改为直接 import 进程内模块，交叉校验语义不变；`tests/test_runtime_tools.py` 的 `+9` magic number 改为从 `list_creative_tools()` + MCP 常量派生（registry 增删工具时断言随之移动而非误红）；`tests/test_source_pruning.py` 删掉对 workflow 侧 `model_run_sink.py` / `checkpoints.py` 两个文件内容的断言（被断言文件已不存在），API 侧读写链路断言原样保留。
+5. 基线同步：`tests/fixtures/source_code_standards_baseline.json` 的 `line_limits` 与 `test_source_code_standards.py` 的硬上限表各摘除 `book_generation_parallel.py` 条目（否则 `Frozen source baseline path disappeared` 必红）。
+6. 构建/部署面清理：`package.json` 删 `test:workflow` 及 `test` 链引用；`scripts/verify-local.mjs` 删「Workflow 单元测试 / Workflow Ruff 检查」两步；`docker-compose.yml` 删 `workflow` service + `storyforge-workflow-runtime` volume，`docker-compose.prod.yml` 删同名 service；`.env.example` 删 3 个 `WORKFLOW_*` 变量；`.gitignore` / `.prettierignore` / `.dockerignore` / `eslint.config.mjs` 各删 1 条 workflow 路径。
+7. 文档：`CLAUDE.md`（§3 布局、§4 命令 ×3、§5 新增退役条目）、`CONTEXT.md`、`docs/architecture/ide-first-product-direction.md`、`DOMAINS.md`、`current-phase.md`、`TODO.md`；迁移 ledger 顶部改为**打捞索引**（列出只剩 git 历史的能力 + `git show <删除提交>^:<路径>` 打捞命令，并标注原文里「删不动 / 三重阻塞」判断已作废）。
+
+## 代价（登记）
+
+`extract/{prompt,parser,facts}`（canon 抽取 slice，补 canon「只校验声明不从正文抽取」的缺口）、`beat_sheet`、`name_registry`、`repetition_ledger`、`timeline_ledger`、`arc_consistency`，及地基 `narrative/verdict.py` / `plan.py` —— **只剩 git 历史一份**。已搬进 agent 的 4 个（`project.prose_check` / `collapse_check` / `entity_budget_check` / `promise_check`）不受影响。managed BookRun 的并发整书路径退场，只余串行 `book_generation`。
+
+## 验证
+
+```text
+pnpm.cmd verify                          PASS（全绿；门禁不再跑 workflow 的 323 测试与 ruff）
+  API pytest                             1075 passed / 3 skipped
+    （= 前基线 1089 − 14，恰为删除的 12 + 2 个用例，无附带损失）
+  Desktop frontend vitest                55 files / 299 passed
+  lint（eslint + prettier）/ typecheck / ruff   PASS
+  daily sidecar / OpenAPI 漂移           PASS（零漂移，契约未变）
+pnpm.cmd e2e                             20/20 PASS（含改写后的 phase4 registry 交叉校验）
+```
+
+## 未验证项
+
+- packaged 冻结 exe smoke 未跑：`creative_registry.py` 在 `app.domains.*` 下，理应随 `collect_submodules('app')` 进 exe，但本次未实测；`/api/runtime-tools` 在装机形态下的返回未复验。
+- docker 栈未起：`docker-compose` 两档删掉 workflow service 后未做 `up` 复验（本机开发走 sidecar，不经 compose）。
+- 真机 GUI 无关（本刀不碰桌面代码）。

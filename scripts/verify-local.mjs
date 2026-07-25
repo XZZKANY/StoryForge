@@ -56,18 +56,6 @@ const gates = [
     cwd: root,
   },
   {
-    name: 'Workflow 单元测试',
-    command: 'uv',
-    args: ['run', 'pytest'],
-    cwd: resolve(root, 'apps/workflow'),
-  },
-  {
-    name: 'Workflow Ruff 检查',
-    command: 'uv',
-    args: ['run', 'ruff', 'check', '.'],
-    cwd: resolve(root, 'apps/workflow'),
-  },
-  {
     // drift 校验单实现：scripts/check-openapi-drift.mjs（刷新 + 漂移检查）
     name: 'OpenAPI 契约刷新与漂移检查',
     command: 'node',

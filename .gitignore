@@ -16,7 +16,6 @@ apps/web/out/
 __pycache__/
 .pytest_cache/
 .pytest-tmp/
-apps/workflow/.runtime/
 *.pyc
 .env
 .env.local
