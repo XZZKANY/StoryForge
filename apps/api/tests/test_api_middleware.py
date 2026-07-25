@@ -142,13 +142,14 @@ def test_tiered_rate_limiting_applies_per_api_key() -> None:
 def test_rate_limit_returns_429_when_exceeded() -> None:
     """超出限额后必须返回 429。"""
 
-    from app.main import _BATCH_LIMIT, _rate_store, _rate_strategy
+    from app.main import _BATCH_LIMIT, _rate_limit_bucket, _rate_store, _rate_strategy
 
     _rate_store.reset()
     _ensure_test_routes()
 
+    bucket = _rate_limit_bucket("local-dev-key", None)
     for _ in range(_BATCH_LIMIT.amount):
-        _rate_strategy.hit(_BATCH_LIMIT, "rate", "local-dev-key")
+        _rate_strategy.hit(_BATCH_LIMIT, "rate", bucket)
 
     with TestClient(app) as client:
         resp = client.post(
@@ -157,6 +158,24 @@ def test_rate_limit_returns_429_when_exceeded() -> None:
         )
 
     assert resp.status_code == 429
+
+
+def test_rate_limit_bucket_never_contains_plaintext_api_key() -> None:
+    """限流桶标识进 Redis keyspace，绝不能带明文 API Key（凭据不顺带外发红线）。"""
+
+    from app.main import _rate_limit_bucket
+
+    secret = "super-secret-key"
+    bucket = _rate_limit_bucket(secret, "10.0.0.7")
+
+    assert secret not in bucket
+    # 同 key 必须落同一桶，否则分层限流失效。
+    assert bucket == _rate_limit_bucket(secret, "10.0.0.8")
+    # 不同 key 必须分桶，否则互相挤占额度。
+    assert bucket != _rate_limit_bucket("another-key", "10.0.0.7")
+    # 缺凭据时回退到来源地址，且与凭据桶不同命名空间。
+    assert _rate_limit_bucket(None, "10.0.0.7") == "addr:10.0.0.7"
+    assert _rate_limit_bucket(None, None) == "addr:unknown"
 
 
 def test_rate_limit_storage_uses_redis_in_production(monkeypatch) -> None:

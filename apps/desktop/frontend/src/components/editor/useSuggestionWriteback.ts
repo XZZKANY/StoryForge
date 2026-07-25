@@ -13,10 +13,11 @@ import {
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
+import type { EditorModelCache } from './useMonacoEditor';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
-import { performGuardedWriteback } from '../../lib/writeback';
+import { performGuardedWriteback, shouldSettleActiveEditor } from '../../lib/writeback';
 import { emitToast } from '../../lib/toast';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
@@ -27,6 +28,7 @@ type UseSuggestionWritebackParams = {
   cleanVersionIdRef: MutableRefObject<number | null>;
   filePathRef: MutableRefObject<string | null>;
   projectPathRef: MutableRefObject<string | null>;
+  modelCacheRef: MutableRefObject<EditorModelCache>;
   setLoadedContentPreview: (preview: string) => void;
   setIsDirty: (dirty: boolean) => void;
   normalizeEol: (text: string) => string;
@@ -42,6 +44,7 @@ export function useSuggestionWriteback({
   cleanVersionIdRef,
   filePathRef,
   projectPathRef,
+  modelCacheRef,
   setLoadedContentPreview,
   setIsDirty,
   normalizeEol,
@@ -141,18 +144,37 @@ export function useSuggestionWriteback({
             contextFiles: suggestion.contextFiles,
           }),
       });
-      editorRef.current?.setValue(nextContent);
-      originalContentRef.current = nextContent;
-      cleanVersionIdRef.current = editorRef.current?.getModel()?.getAlternativeVersionId() ?? null;
-      setLoadedContentPreview(nextContent.slice(0, 120));
-      setIsDirty(false);
+      // 红线：写回期间作者可能切走页签，绝不能把本文件内容灌进当前活动缓冲
+      // （旧代码无条件 editorRef.setValue，A 文件内容会落进 B 缓冲并被 autosave 写盘）。
+      // 盘上已落，故按「目标 model」结算而非「当前活动 model」结算：
+      // 目标缓冲永远同步（切回来看到的就是已写回的内容），活动编辑器 UI 态只在目标仍在前台时动。
+      const targetState = modelCacheRef.current.get(path) ?? null;
+      if (targetState) {
+        targetState.originalContent = nextContent;
+        if (targetState.model.getValue() !== nextContent) targetState.model.setValue(nextContent);
+      }
+      const targetStillActive = shouldSettleActiveEditor(
+        path,
+        targetState?.model ?? null,
+        filePathRef.current,
+        editorRef.current?.getModel() ?? null,
+      );
+      if (targetStillActive) {
+        originalContentRef.current = nextContent;
+        cleanVersionIdRef.current =
+          editorRef.current?.getModel()?.getAlternativeVersionId() ?? null;
+        setLoadedContentPreview(nextContent.slice(0, 120));
+        setIsDirty(false);
+      }
       return loopRecord;
     },
     [
       advanceBranchHead,
       cleanVersionIdRef,
       editorRef,
+      filePathRef,
       getActiveBranchSnapshot,
+      modelCacheRef,
       normalizeEol,
       originalContentRef,
       projectPathRef,

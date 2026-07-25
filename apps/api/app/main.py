@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -150,10 +151,26 @@ def _cors_origins() -> list[str]:
     return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
 
 
+def _rate_limit_bucket(api_key: str | None, client_host: str | None) -> str:
+    """把凭据 / 来源折成限流桶标识。
+
+    WHY 取摘要而非原值：桶标识会落进 limits 存储的 keyspace（生产为 Redis），
+    明文 API Key 会随之进入运维可见面。摘要保持「同 key 同桶」的聚合语义，
+    又不让凭据离开请求头。
+    """
+
+    if api_key:
+        return "key:" + hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    return "addr:" + (client_host or "unknown")
+
+
 def _rate_limit_key(request: Request) -> str:
     """优先按 API Key 聚合限流，缺少时回退到客户端地址。"""
 
-    return request.headers.get(_API_KEY_HEADER) or (request.client.host if request.client else "unknown")
+    return _rate_limit_bucket(
+        request.headers.get(_API_KEY_HEADER),
+        request.client.host if request.client else None,
+    )
 
 
 def _request_timeout_seconds() -> float:

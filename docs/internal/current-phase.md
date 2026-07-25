@@ -1,6 +1,6 @@
 # StoryForge 当前阶段事实源
 
-生成时间：2026-07-11 12:00:00 +08:00
+生成时间：2026-07-26 01:30:00 +08:00
 
 ## 事实源职责矩阵
 
@@ -28,6 +28,30 @@ StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段（�
 2026-07-05 至 2026-07-11 已合并的收口：桌面壳子 redesign P0-P4（PR #81-#85，三栏「编辑器中枢」、新壳层在 `components/shell/`）+ Agent 壳子接线契约钉死后端→前端接缝（PR #80）；**E2E-1 真机验收首轮门禁 G.1 于 2026-07-07 全 PASS**（Part1-4 含 UI 闭环，共逮 6 真 bug 均修：PR #87 崩服 F01 残孔 / #88 重开项目 / #89 同版本孤儿闪退 / #95 恢复僵尸 / #96 旧构建 bump 0.1.1 / #109 资源树不刷新；4.2 拍板 Path A 暂停即停止，PR #97/#98）；查缺补漏审计修复（PR #90-#94，三 HIGH + llm_client 重试收敛 + 会话切换写回守卫 + fs.rs 残渣清理 + APP_VERSION 对齐护栏）；W6 WS 契约化 slices1-3（PR #105/#106/#107，WS 帧 Pydantic 单点 + schema 进 shared + 工具 schema 从 spec 单点派生）+ F25 权限四轨收敛（PR #111/#112）——slice4 跳过 / slice5 保留 facade 已拍板封档；canon 防漂移 slice1/2（PR #114/#115，`.storyforge/canon/` 骨架 + 薄不变量闸 + dossier 富 view，确定性无 LLM）；Desktop/API 边界加固由 Codex 收官（PR #118，redaction / WS 子协议凭据 / fs.rs 读侧 containment=F28）；W4 batch-2 六域 router 全卸（PR #119/#120）+ 冻结域死码物理清理（PR #121）；workflow 能力迁移 ledger（PR #122）+ 三刀 agent 工具（project.prose_check PR #123、project.collapse_check PR #124、project.entity_budget_check PR #125）+ project.canon_delta 确定性提案工具（PR #125）；两轮过夜重构（PR #124/#125）另收口：LLM 出网传输全收敛 `app/common/llm_client.py`（judge/story_state/retrieval，生产 httpx 归零 + ruff 禁 httpx 出网）、前端测试 vitest 单跑（verify-unit 已删）、会话守卫 draft nonce 复合 key、切会话清 run 面板、连通性探针去 flaky、usage 三 sink 对齐。全量门禁（2026-07-11）：API pytest 939 passed、前端 vitest 148 passed、`pnpm verify` / `pnpm e2e` 绿、OpenAPI 零漂移。
 
 2026-07-12 编辑器优先 Phase A 已完成 A1-A7：Rust 写侧 containment、单实例、Agent 面板常驻、0.1.2 构建/安装预验、两轮真机 GUI 验收、Canon dossier/权限四轨以及小缺陷修复波均已闭合。A6 总判定 PASS、无未修 blocker；A7 重打包和安装态复测通过，轻量 tag `v0.1.2` 指向锁版提交，Gate A→B 通过。
+
+## 2026-07-26 事实刷新（本节以代码盘点为准，取代文档旧宣称）
+
+2026-07-12 至 07-25 已合并约 100 个非 merge 提交（PR #126-#193）：Ctrl+K 行间内联改稿（PR #141，真机 dogfood 通过）、源码标准专窗 S0-S8（PR #140）、世界线观测镜四刀（PR #147-#150）、`v0.1.3` bump + NSIS 重建、agent 工具 `project.promise_check` / `project.trim_prose` / `project.hooks_delta`、作者自定义指令 `agent-instructions.md` 进 system prompt、v3 欢迎页（PR #155）、发行车队建成后于 07-23 整体迁出独立仓 `D:\StoryForge-Publish`（抽出 `packages/project-core`）、全项目 code review 修复 pass（PR #157/#158）、UIUX 审计 80 条全收口（PR #159-#177）、真机 dogfood 九问六批（PR #186-#193）。
+
+**live 面实际尺度**（对照文档旧宣称必须以此为准）：
+
+- `app/main.py` 挂载 22 个 router，桌面前端真实调用的只有 4 组——`/api/agent-runs`、`/api/assistant`、`/api/ide`、`/health`；其余 18 个已挂载 router 零桌面调用方。frozen 域 10 个前缀已卸载且无 `router.py`（护栏 `tests/test_api_surface.py`）。
+- IDE 命令目录注册 11 条，前端主动调用 2 条：`canon.refresh`、`observatory.scan`（外加动态 `pendingRepairCommand`）。
+- Agent 工具 spec 共 23 条，其中带 `loop_schema`、对 chat 循环 LLM 可见的 16 条（golden `tests/fixtures/loop_tool_schemas_golden.json` 逐字节对齐）。产出待确认补丁的只有 `file.revise` / `file.create` / `project.trim_prose`，由 `risk_level == "write_pending"` 单点派生，一次对话最多一个补丁。
+- 固定 intent 管线支持 5 条，前端只显式发 `file.revise`，其余 4 条无入口。managed BookRun 启动三重不可达（无 loop_schema、前端不发 `book_id`+`blueprint_id`、IDE 命令零前端调用）。
+- 桌面左侧活动栏实际只有 2 个视图（资源管理器 / 世界线观测镜）；右栏只挂对话面板。文档与 `components/icons/shell-icons.tsx` 注释里的「故事 / 搜索 / 会话 / 质检 / 命令 / 设置」六项已不成立。
+
+**canon 防漂移链路全链确定性、零 LLM、零 token**：`canon_rebuild`（正文重建在场）→ `canon_gate`（single_holder 章窗交叠 / timeline 成环为 blocking，lifespan 退场后出场为 advisory）→ `canon_dossier`（人可读事实投影带 provenance 行号）→ `canon_delta`（差集，只报本提案新引入的冲突，写 `derived/proposals.json`，绝不写 `canon.json`）→ `promise_scan`（伏笔逾期 / 停滞 / cadence 断供，纯只读零写盘）→ `observatory.run_observatory_scan`（聚合 canon 投影 + promise + 逐文件 prose 静态扫描，payload v2 追加实体 / 伏笔 / 提案三段）→ `canon_context.build_scene_constraint_block`（每轮对话注入的硬约束头）。全部无 key 可跑、离线可用。整链唯一烧 token 的一致性手段是 `project.deep_consistency` 与 `file.review`。
+
+**canon 写回闭环两端同时断开（已登记，不排期）**：`canon_store.write_hooks` 与 `scaffold_hooks_if_missing` 零 app 调用方、只有测试在用，而 `project.hooks_delta` 的返回摘要与 spec 描述都在指示「确认后使用 `canon_store.write_hooks` 写入 hooks.json」——该工具 / IDE 命令 / 路由均不存在；前端观测镜「待确认提案」区只读，无并入 / 忽略动作（`ObservatoryView.tsx` 自陈）。作者只能手改 `canon.json` / `hooks.json`。红线「派生认知不覆盖真值」因此守住，代价是真值层无写入通道。
+
+**按《编辑器自由化-长期产品宪法 v3》§06 八个写作时刻的服务现状**：01 恢复现场——半个（启动不自动回到上次项目 / 文件，页签集合与光标不跨重启，观测「已处理」标记为内存态重启即丢；持久化的只有最近项目 / 最近文件 / 应用设置 / 每项目会话 id / 右栏视图态）；02 构思或开写、03 连续起草、05 修订比较——是（05 最强：Ctrl+K 行间 diff 含句内词级高亮与 drift 丢弃、PatchReviewPanel 多 hunk 逐块接受、版本历史与分支画布对比父版本，写回三入口全收口到 `performGuardedWriteback`）；04 章末检查——半个（观测镜四分区与 7 个 checker 为真数据，但提案只读、issue 与观测锚点按 evidence 文本就近匹配、改稿即静默丢失）；**06 准备发布 / 07 解释信号 / 08 下一轮选择——零**，其中 06 的唯一实现（发行驾驶舱、平台直连发章、线上对账、断更监控）已于 2026-07-23 迁出独立仓，读者信号因此无输入通道，飞轮第 2-4 格结构性缺位。
+
+**2026-07-26 已修的三条安全红线**（见 `.codex/verification-report.md` 同日记录）：`_rate_limit_key` 明文 API Key 进 limits/Redis keyspace 改为 sha256 摘要桶（凭据不顺带外发红线）；补丁写回落盘后按「目标 model」结算而非「当前活动 model」（旧代码无条件 `setValue`，写回期间切页签会把 A 文件内容灌进 B 缓冲并被 autosave 落盘）；autosave 与 Ctrl+S 并发保存串进写回队列（旧代码两次写盘乱序完成时旧内容可覆盖新内容）。三条各配可证伪回归测试。
+
+**仍未修的已登记债务**（2026-07-25 code review，均非阻断写作）：`fs_tools.py` 的 `fs.list` / `fs.search` 未对每个枚举结果重做 containment（支持 symlink 的平台可越界），且 `rglob("*")` 全量枚举无成本上限；`apps/workflow/.../provider_fallback.py` 对全部 `ProviderError` 降级（含 AUTH / CONTENT_FILTER，非 live 路径）；`app/author_chat.py` 终端 MVP 确认写回不比对 before 且非原子写（零 importer 的独立脚本）。`apps/workflow` 仍在盘上且仍进 `pnpm test`，其唯一 live 挂载桥是 `runtime_tools` router，而该端点零桌面调用方；`book_generation_parallel` 的调用方只有测试。
+
+**2026-07-26 路线拍板：写作优先。** 编辑器不再开主动打磨波，功能提名权交回真实写作摩擦（宪法 §08：每周至多一刀，需满足「一次阻断安全写作 / 保存 / 发布」或「同一摩擦在 3 个独立写作时段重复且已有手工绕法」或「一周累计损耗超 30 分钟或一次实质返工」）。依据：07-14 至 07-25 的功能提名来源是审计 / code review / dogfood 轮次而非写作摩擦，同期 n=1 连载正文只增 1 章（`D:\连载\末世吞噬\正文\` 共 2 章）。
 
 自主连载 pivot 拍板链：2026-07-07 拍板方向（网文中位以上自主连载，读者行为信号=品味预言机）并完成番茄平台政策与数据面 deep-research 侦察（政策门开着但逐月收窄、全押番茄、AIGC 声明为法定义务、「声明 AI 是否限流」用户判定不限流为承重假设）；2026-07-10 收窄（近期=在自己编辑器里连载、作者即 oracle，品味机/车队学习环 deferred）；**2026-07-11 拍板：08-31 盛夏寻章征文不当锚，编辑器优先**——先把编辑器做到「安全可日更」（装机前两小刀 → 重建 0.1.2 → AI 装机预验 → 真机第二轮观感波 → 修复锁版），再在编辑器上接续 n=1 连载；愿景 = 写 → 发 → 收集信号 → 喂 → 进化编辑器 → 写出更有风格的作品。n=1 创作已于 2026-07-07 启动（黄金三章 spec、Ch1 定稿过 Gate-0、Ch2 待审、playbook v0、预注册跟读率预测表），资产存档于仓库外 `D:\记事本\StoryForge-n1连载-末世吞噬-创作资产存档-20260707.md`。
 
@@ -97,6 +121,9 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 - Agent loop 收口（余项）：真机 GUI 多轮渲染、自动打开新文件与补丁确认观感随桌面端到端复验（审稿 / 修订 / 起草 / 一致性观察 / 深度一致性的工具循环内 headless 实跑均已通过，见真实 LLM 证据）。深度一致性已于 2026-07-02 落地（`resolved_llm_env` 下沉 + 语义 judge 吃 `llm-provider.json` + `project.deep_consistency` 挂循环）；chapter.review / bookrun.* 维持固定管线与后台定位不进循环（如需可再议）。
 - 质量轨（后台，2026-07-10 D1 换锚）：「重跑真实 3-5 万字长程 + 人工盲评」不再排期，待 n=1 连载稳定后重评（重跑 DoD 见下，保留为档案判据）；BookRun 维持后台工具定位；Q1-Q8 一致性能力逐步做成 agent 工具挂进循环（已落 project.consistency / deep_consistency / canon / prose_check / collapse_check / entity_budget_check / canon_delta）。
 - 视需要补齐生产级对象存储签名下载、多租户认证、真实 provider 长会话探针和 Desktop 内更长会话交互打磨。
+- 2026-07-26 三条安全红线修复的真机 GUI 复验未做（写回期间切页签不串写、autosave 与 Ctrl+S 并发不回退），归 E2E-1；限流键改动未在真 Redis 部署上复验（本地为 MemoryStorage）。
+- 写作时刻 06 准备发布 / 07 解释信号 / 08 下一轮选择在编辑器内无实现（见「2026-07-26 事实刷新」）；不得把独立发行仓的能力描述为 StoryForge 编辑器能力。
+- canon 写回闭环两端断开（`canon_store.write_hooks` 零调用方、观测镜提案区只读），`project.hooks_delta` 与 `project.canon_delta` 的提案只能由作者手改 `canon.json` / `hooks.json` 落地；不得宣称 canon 提案已可一键并入。
 
 ## 禁止宣称范围
 
@@ -111,7 +138,7 @@ uv run python -m app.domains.book_runs.book_generation --chapter-count 3 --token
 
 ## 下一步计划与重跑 DoD（2026-06-29 锚点，2026-07-11 更新）
 
-2026-07-11 起当前路线以 `docs/internal/TODO.md` 的两段序列为准（编辑器「安全可日更」→ 在编辑器上写作品）；本节重跑 DoD 保留为质量轨档案判据，不再排期（D1 换锚，n=1 稳定后重评）。历史路线图见 `docs/internal/next-step-plan.md`（2026-07-02 起产品轨顺序改为：对话体验收口 -> Agent loop -> 真机安装包端到端；质量轨保持后台）。30 章退回的结构化诊断见 `.codex/real-llm-30ch-mimo25pro-20260611-192356/readthrough-findings.md`。
+2026-07-26 起当前路线以 `docs/internal/TODO.md` 的「写作优先」为准（编辑器不开主动打磨波，功能由真实写作摩擦提名，每周至多一刀）；2026-07-11 的两段序列（编辑器「安全可日更」→ 在编辑器上写作品）第一段已于 07-12 完成并封板。本节重跑 DoD 保留为质量轨档案判据，不再排期（D1 换锚，n=1 稳定后重评）。历史路线图见 `docs/internal/next-step-plan.md`（2026-07-02 起产品轨顺序改为：对话体验收口 -> Agent loop -> 真机安装包端到端；质量轨保持后台）。30 章退回的结构化诊断见 `.codex/real-llm-30ch-mimo25pro-20260611-192356/readthrough-findings.md`。
 
 下一轮真实长程**重跑验收 DoD**（固化判据，避免再次只做链路演示）：
 
