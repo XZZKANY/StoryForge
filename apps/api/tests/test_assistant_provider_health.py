@@ -119,3 +119,30 @@ def test_provider_health_never_leaks_credential(
     assert response.status_code == 200, response.text
     assert "super-secret-credential" not in response.text
     assert response.json()["status"] == "unreachable"
+
+
+def test_provider_health_tolerates_non_numeric_timeout_env(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UF-06/C2-001: STORYFORGE_LLM_TIMEOUT_SECONDS 非数值时不得 500——optional_float 回退默认、
+    探测照常发起，always-200 结构化契约不破。"""
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    monkeypatch.setattr(
+        assistant_service,
+        "resolved_llm_env",
+        lambda: {**_PROVIDER_SOURCE, "STORYFORGE_LLM_TIMEOUT_SECONDS": "30s"},
+    )
+    captured: dict[str, float] = {}
+
+    def capture_timeout(source, *, timeout):  # noqa: ANN001 - 测试桩：记录回退后的超时值
+        captured["timeout"] = timeout
+        return {"data": [{"id": "deepseek-v4-flash"}]}
+
+    monkeypatch.setattr(assistant_service, "_fetch_provider_models", capture_timeout)
+
+    response = client.get("/api/assistant/provider-health")
+    # 修复前：_optional_float("30s") 抛 ValueError（parse 在 try 外）→ 未捕获 500。
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "ok"
+    assert isinstance(captured["timeout"], float) and captured["timeout"] > 0

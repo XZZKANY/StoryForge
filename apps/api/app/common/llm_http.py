@@ -42,12 +42,24 @@ def env_value(source: Mapping[str, str | None], name: str) -> str:
 
 def optional_int(source: Mapping[str, str | None], name: str, default: int) -> int:
     value = env_value(source, name)
-    return int(value) if value else default
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        # 畸形数值配置（如 STORYFORGE_LLM_TIMEOUT_SECONDS=30s）回退默认值，不冒泡成不脱敏 500
+        # （C2-001；对齐 db/session._get_int_env、auth._jwt_expiry_seconds 守卫惯例）。
+        return default
 
 
 def optional_float(source: Mapping[str, str | None], name: str, default: float) -> float:
     value = env_value(source, name)
-    return float(value) if value else default
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
 
 
 def openai_compatible_headers(*, credential: str, auth_header: str) -> dict[str, str]:
