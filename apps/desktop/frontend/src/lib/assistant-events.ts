@@ -52,6 +52,7 @@ export type EditorTextMetricsDetail = {
   filePath: string | null;
   charCount: number;
   selectionCharCount: number;
+  paragraphCount: number;
 };
 
 export function emitEditorTextMetrics(detail: EditorTextMetricsDetail): void {

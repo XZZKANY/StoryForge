@@ -360,6 +360,8 @@ export function AppShell({
       <StatusBar
         modelLabel={preferences.modelLabel}
         projectOpen={projectOpen}
+        projectPath={activeProject}
+        dailyWordGoal={preferences.settings.dailyWordGoal}
         obs={obs}
         observationAvailability={observatory.availability}
         onToggleObs={() => setObsPanelOpen((open) => !open)}
