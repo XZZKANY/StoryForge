@@ -3,6 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { getProviderPreset } from '../../lib/provider-config';
 import { applyTheme } from '../../lib/theme';
 import { loadAppSettings, saveAppSettings } from '../../lib/user-settings';
+import { PROSE_MEASURE_ORDER, type ProseMeasure } from '../editor/options';
+
+function nextProseMeasure(current: ProseMeasure): ProseMeasure {
+  const index = PROSE_MEASURE_ORDER.indexOf(current);
+  return PROSE_MEASURE_ORDER[(index + 1) % PROSE_MEASURE_ORDER.length];
+}
 
 export function useAppPreferences() {
   const [settings, setSettings] = useState(() => loadAppSettings());
@@ -19,11 +25,19 @@ export function useAppPreferences() {
     setSettings((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
   }, []);
 
-  // Q9 双轨字体：格子（CJK 2:1 等宽，中英对齐）↔ 散文（比例字体，长文舒适）。
+  // Q9 双轨字体：格子（CJK 2:1 等宽，中英对齐）↔ 书稿（衬线比例字体，长文像书）。
   const toggleFontMode = useCallback(() => {
     setSettings((prev) => ({
       ...prev,
       editorFontMode: prev.editorFontMode === 'prose' ? 'grid' : 'prose',
+    }));
+  }, []);
+
+  // 行宽要边写边试才知道合不合眼，别每次都开设置弹窗。
+  const cycleProseMeasure = useCallback(() => {
+    setSettings((prev) => ({
+      ...prev,
+      editorProseMeasure: nextProseMeasure(prev.editorProseMeasure),
     }));
   }, []);
 
@@ -35,6 +49,7 @@ export function useAppPreferences() {
     setSettings,
     toggleTheme,
     toggleFontMode,
+    cycleProseMeasure,
     modelLabel,
   };
 }

@@ -2,8 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import {
+  editorTypographyOptions,
+  isProseFile,
   lineNumbersFor,
+  PROSE_MEASURE_COLUMNS,
+  PROSE_MEASURE_LABELS,
+  PROSE_MEASURE_ORDER,
   resolveEditorFontFamily,
+  resolveEditorLineHeight,
+  resolveProseMeasurePx,
   STORYFORGE_EDITOR_FONT_GRID,
   STORYFORGE_EDITOR_FONT_PROSE,
   STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
@@ -37,9 +44,76 @@ test('设置「行号」on/off 一刀切覆盖智能判定', () => {
   assert.equal(lineNumbersFor('D:\\连载\\正文\\第001章.md', 'auto'), 'off');
 });
 
-test('Q9 双轨散文字体是比例字体（sans-serif 收口），resolveEditorFontFamily 按模式选栈', () => {
-  assert.match(STORYFORGE_EDITOR_FONT_PROSE, /sans-serif$/);
+test('「书稿」字体轨是衬线比例字体（此前是无衬线黑体，与模式名不符）', () => {
+  assert.match(STORYFORGE_EDITOR_FONT_PROSE, /serif$/);
+  assert.doesNotMatch(STORYFORGE_EDITOR_FONT_PROSE, /sans-serif/);
   assert.doesNotMatch(STORYFORGE_EDITOR_FONT_PROSE, /monospace/);
   assert.equal(resolveEditorFontFamily('prose'), STORYFORGE_EDITOR_FONT_PROSE);
   assert.equal(resolveEditorFontFamily('grid'), STORYFORGE_EDITOR_FONT_GRID);
+});
+
+test('正文判定只认 Markdown，数据文件不走书稿排版', () => {
+  assert.equal(isProseFile('D:\\连载\\正文\\第001章.md'), true);
+  assert.equal(isProseFile('/project/大纲/总纲.MARKDOWN'), true);
+  assert.equal(isProseFile('/project/.storyforge/canon/canon.json'), false);
+  assert.equal(isProseFile(null), false);
+});
+
+test('正文行宽按字号换算并居中；不限档返回 null（铺满编辑区）', () => {
+  // 42 字 × 14px + 64px gutter 占位
+  assert.equal(resolveProseMeasurePx('medium', 14), 652);
+  assert.equal(resolveProseMeasurePx('narrow', 14), 512);
+  assert.equal(resolveProseMeasurePx('wide', 14), 848);
+  assert.equal(resolveProseMeasurePx('full', 14), null);
+  // 放大字号时行宽跟着长，"每行几个字"才是恒定的那一维
+  assert.ok(resolveProseMeasurePx('medium', 20)! > resolveProseMeasurePx('medium', 14)!);
+});
+
+test('行宽档位顺序覆盖全部档且文案齐备——命令面板循环切换不会漏档或显示 undefined', () => {
+  assert.deepEqual([...PROSE_MEASURE_ORDER].sort(), ['full', 'medium', 'narrow', 'wide']);
+  assert.equal(new Set(PROSE_MEASURE_ORDER).size, PROSE_MEASURE_ORDER.length);
+  for (const measure of PROSE_MEASURE_ORDER) {
+    assert.ok(PROSE_MEASURE_LABELS[measure], `${measure} 缺档位文案`);
+  }
+  // 文案里的字数从列数派生，改列数不会留下对不上的旧数字。
+  assert.ok(PROSE_MEASURE_LABELS.medium.includes(String(PROSE_MEASURE_COLUMNS.medium)));
+});
+
+test('中文正文行距明显松于数据文件（Monaco 默认 ≈1.35× 对 CJK 太挤）', () => {
+  assert.equal(resolveEditorLineHeight(14, true), 27);
+  assert.equal(resolveEditorLineHeight(14, false), 21);
+  assert.ok(resolveEditorLineHeight(14, true) > Math.round(14 * 1.35));
+});
+
+test('正文关掉代码编辑器噪音（折叠/括号/词联想/缩进线/当前行方框），数据文件保留', () => {
+  const prose = editorTypographyOptions({
+    filePath: 'D:\\连载\\正文\\第001章.md',
+    fontSize: 14,
+    fontMode: 'prose',
+  });
+  assert.equal(prose.folding, false);
+  assert.equal(prose.matchBrackets, 'never');
+  assert.equal(prose.quickSuggestions, false);
+  assert.equal(prose.wordBasedSuggestions, 'off');
+  assert.equal(prose.guides?.indentation, false);
+  assert.equal(prose.renderLineHighlight, 'none');
+  assert.equal(prose.padding?.bottom, 160);
+
+  const data = editorTypographyOptions({
+    filePath: '/project/.storyforge/canon/canon.json',
+    fontSize: 14,
+    fontMode: 'prose',
+  });
+  assert.equal(data.folding, true);
+  assert.equal(data.matchBrackets, 'always');
+  assert.equal(data.quickSuggestions, true);
+  assert.equal(data.guides?.indentation, true);
+});
+
+test('字距只加在书稿轨——格子轨靠等宽换 2:1 对齐，加字距等于放弃那个卖点', () => {
+  const book = editorTypographyOptions({ filePath: 'a.md', fontSize: 14, fontMode: 'prose' });
+  const grid = editorTypographyOptions({ filePath: 'a.md', fontSize: 14, fontMode: 'grid' });
+  assert.ok((book.letterSpacing ?? 0) > 0);
+  assert.equal(grid.letterSpacing, 0);
+  assert.equal(grid.fontFamily, STORYFORGE_EDITOR_FONT_GRID);
 });

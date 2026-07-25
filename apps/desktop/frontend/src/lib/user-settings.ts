@@ -1,4 +1,4 @@
-import type { EditorFontMode } from '../components/editor/options';
+import type { EditorFontMode, ProseMeasure } from '../components/editor/options';
 import { isProviderKind } from './provider-config';
 
 export type ProviderKind =
@@ -26,6 +26,7 @@ export type EditorLineNumbersMode = 'auto' | 'on' | 'off';
 export type AppSettings = {
   editorFontSize: number;
   editorFontMode: EditorFontMode;
+  editorProseMeasure: ProseMeasure;
   editorLineNumbers: EditorLineNumbersMode;
   autoSave: boolean;
   theme: ThemeMode;
@@ -38,6 +39,7 @@ export const APP_SETTINGS_KEY = 'storyforge-app-settings';
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorFontSize: 14,
   editorFontMode: 'grid',
+  editorProseMeasure: 'medium',
   editorLineNumbers: 'auto',
   autoSave: false,
   theme: 'dark',
@@ -80,6 +82,10 @@ function sanitizeApiKeyReference(value: string): string {
   return '';
 }
 
+function isProseMeasure(value: unknown): value is ProseMeasure {
+  return value === 'narrow' || value === 'medium' || value === 'wide' || value === 'full';
+}
+
 export function sanitizeAppSettings(value: unknown): AppSettings {
   if (!value || typeof value !== 'object') return DEFAULT_APP_SETTINGS;
 
@@ -92,6 +98,9 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
   return {
     editorFontSize,
     editorFontMode: candidate.editorFontMode === 'prose' ? 'prose' : 'grid',
+    editorProseMeasure: isProseMeasure(candidate.editorProseMeasure)
+      ? candidate.editorProseMeasure
+      : DEFAULT_APP_SETTINGS.editorProseMeasure,
     editorLineNumbers:
       candidate.editorLineNumbers === 'on' || candidate.editorLineNumbers === 'off'
         ? candidate.editorLineNumbers

@@ -38,6 +38,10 @@ type CommandPaletteProps = {
   onFocusAssistantOnly: () => void;
   onFocusWorkspaceOnly: () => void;
   onRestoreLayout: () => void;
+  onToggleFontMode: () => void;
+  onCycleProseMeasure: () => void;
+  fontModeLabel: string;
+  proseMeasureLabel: string;
 };
 
 function basename(path: string): string {
@@ -67,6 +71,10 @@ export function CommandPalette({
   onFocusAssistantOnly,
   onFocusWorkspaceOnly,
   onRestoreLayout,
+  onToggleFontMode,
+  onCycleProseMeasure,
+  fontModeLabel,
+  proseMeasureLabel,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [fileLoadState, setFileLoadState] = useState<FileLoadState>({
@@ -182,10 +190,28 @@ export function CommandPalette({
       { id: 'focus-workspace-only', title: '只保留：资源管理器', run: onFocusWorkspaceOnly },
       { id: 'restore-layout', title: '恢复：完整布局', run: onRestoreLayout },
     );
+    list.push(
+      {
+        id: 'toggle-font-mode',
+        title: '正文：切换字体模式（格子 / 书稿）',
+        hint: fontModeLabel,
+        run: onToggleFontMode,
+      },
+      {
+        id: 'cycle-prose-measure',
+        title: '正文：切换行宽',
+        hint: proseMeasureLabel,
+        run: onCycleProseMeasure,
+      },
+    );
     return list;
   }, [
     currentFile,
     projectPath,
+    fontModeLabel,
+    proseMeasureLabel,
+    onToggleFontMode,
+    onCycleProseMeasure,
     onOpenProject,
     onReopenWelcome,
     onInitializeProject,

@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 
 import { ChatWindow } from '../ChatWindow';
 import { CommandPalette, type PaletteMode } from '../CommandPalette';
+import { PROSE_MEASURE_LABELS } from '../editor/options';
 import { Editor } from '../Editor';
 import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
@@ -283,6 +284,7 @@ export function AppShell({
                     filePath={tabs.displayedFile}
                     editorFontSize={preferences.settings.editorFontSize}
                     editorFontMode={preferences.settings.editorFontMode}
+                    editorProseMeasure={preferences.settings.editorProseMeasure}
                     editorLineNumbers={preferences.settings.editorLineNumbers}
                     autoSave={preferences.settings.autoSave}
                     retainedFilePaths={tabs.retainedEditorFiles}
@@ -384,6 +386,12 @@ export function AppShell({
             shell.showSidebar();
             shell.showRight();
           }}
+          onToggleFontMode={preferences.toggleFontMode}
+          onCycleProseMeasure={preferences.cycleProseMeasure}
+          fontModeLabel={
+            preferences.settings.editorFontMode === 'prose' ? '当前：书稿' : '当前：格子'
+          }
+          proseMeasureLabel={`当前：${PROSE_MEASURE_LABELS[preferences.settings.editorProseMeasure]}`}
         />
       )}
       {settingsVisible && (
