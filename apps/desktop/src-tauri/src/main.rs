@@ -176,7 +176,8 @@ fn is_api_ready(base_url: &str) -> bool {
 
 /// 读 /health/ready 的 app_version：用于覆盖安装后判断在跑的是不是旧孤儿 sidecar（W1）。
 fn fetch_api_version(base_url: &str) -> Option<String> {
-    let resp = reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/'))).ok()?;
+    let resp =
+        reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/'))).ok()?;
     if !resp.status().is_success() {
         return None;
     }
@@ -257,9 +258,15 @@ fn backend_env(
         ),
     ];
     if local_mode {
-        env.push(("STORYFORGE_DESKTOP_SKIP_SERVICES".to_string(), "1".to_string()));
+        env.push((
+            "STORYFORGE_DESKTOP_SKIP_SERVICES".to_string(),
+            "1".to_string(),
+        ));
         env.push(("STORYFORGE_ENV".to_string(), "local".to_string()));
-        env.push(("DATABASE_URL".to_string(), llm_config::sqlite_database_url(app)?));
+        env.push((
+            "DATABASE_URL".to_string(),
+            llm_config::sqlite_database_url(app)?,
+        ));
     }
     env.extend(llm_config::llm_env_for_backend(app)?);
     Ok(env)
@@ -333,11 +340,13 @@ fn spawn_dev_api_server(
     Ok(())
 }
 
-/// 启动 FastAPI 服务
+/// 启动 FastAPI 服务：拉起 sidecar / dev 进程（快）。wait_ready=true 时同步等待就绪；
+/// 正常启动传 false，就绪由调用方在后台线程等待，避免阻塞窗口首帧（#3 启动慢）。
 fn start_api_server(
     app: &tauri::AppHandle,
     project_root: Option<&str>,
     manager: &Arc<Mutex<ServiceManager>>,
+    wait_ready: bool,
 ) -> Result<()> {
     let api_base_url = desktop_api_base_url();
     let local_mode = should_skip_services() || should_use_api_sidecar();
@@ -360,7 +369,9 @@ fn start_api_server(
             return Ok(());
         }
         if version_matches {
-            println!("本地模式检测到端口上已有同版本 API，判定为残留孤儿 sidecar，强杀后启动自带后端。");
+            println!(
+                "本地模式检测到端口上已有同版本 API，判定为残留孤儿 sidecar，强杀后启动自带后端。"
+            );
         } else {
             println!(
                 "检测到端口上运行的 API 版本为 {:?}，与当前应用 {} 不符，强杀旧 sidecar 后重启。",
@@ -381,19 +392,27 @@ fn start_api_server(
         spawn_dev_api_server(app, project_root, &api_base_url, manager)?;
     }
 
+    if !wait_ready {
+        return Ok(());
+    }
+    wait_api_ready(&api_base_url)
+}
+
+/// 轮询 /health/ready 直到就绪或超时。先查后睡、250ms 粒度：原先固定先 sleep(2s) 再查，
+/// 即使 sidecar 秒起也白等 ≥2s（#3）。
+fn wait_api_ready(api_base_url: &str) -> Result<()> {
     println!("等待 API 服务就绪 ({}/health/ready)...", api_base_url);
-    for i in 0..30 {
-        thread::sleep(Duration::from_secs(2));
-        if is_api_ready(&api_base_url) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        if is_api_ready(api_base_url) {
             println!("✓ FastAPI 已就绪");
             return Ok(());
         }
-        if i % 5 == 4 {
-            println!("等待中... ({}/30)", i + 1);
+        if std::time::Instant::now() >= deadline {
+            anyhow::bail!("API 服务未在 60 秒内就绪");
         }
+        thread::sleep(Duration::from_millis(250));
     }
-
-    anyhow::bail!("API 服务未在 60 秒内就绪")
 }
 
 /// 获取项目根目录（从当前可执行文件向上查找）
@@ -490,7 +509,8 @@ fn restart_api_server(
     let manager = manager.inner().clone();
     manager.lock().unwrap().shutdown();
     let project_root = project_root_for_api_start().map_err(|error| error.to_string())?;
-    start_api_server(&app, project_root.as_deref(), &manager).map_err(|error| error.to_string())
+    start_api_server(&app, project_root.as_deref(), &manager, true)
+        .map_err(|error| error.to_string())
 }
 
 fn eval_window_json<R: tauri::Runtime>(
@@ -1470,21 +1490,46 @@ fn main() {
             watcher::stop_watching,
         ])
         .setup(move |app| {
-            if let Err(error) =
-                start_api_server(app.handle(), project_root.as_deref(), &manager_for_setup)
-            {
-                eprintln!("API 服务启动失败: {}", error);
-                manager_for_setup.lock().unwrap().shutdown();
-                std::process::exit(1);
-            }
-
             if is_smoke_mode() {
+                // smoke：同步等后端就绪后再跑探针，保持既有时序与断言不变。
                 println!("Desktop Tauri smoke mode enabled");
+                if let Err(error) = start_api_server(
+                    app.handle(),
+                    project_root.as_deref(),
+                    &manager_for_setup,
+                    true,
+                ) {
+                    eprintln!("API 服务启动失败: {}", error);
+                    manager_for_setup.lock().unwrap().shutdown();
+                    std::process::exit(1);
+                }
                 let Some(window) = app.get_webview_window("main") else {
                     eprintln!("Smoke 失败: 未找到 main 窗口");
                     std::process::exit(1);
                 };
                 run_smoke_probe(window, app.handle().clone(), Arc::clone(&manager_for_setup));
+            } else {
+                // 正常启动（#3）：只 spawn 进程（快）即返回，让窗口立刻出帧；就绪在后台线程等。
+                // 失败只记日志——窗口已在，StatusBar 会显示「连接中断」，用户可在设置里保存并应用
+                // 重试，不再在窗口出现后强杀整个 app。
+                if let Err(error) = start_api_server(
+                    app.handle(),
+                    project_root.as_deref(),
+                    &manager_for_setup,
+                    false,
+                ) {
+                    eprintln!(
+                        "API sidecar 拉起失败（窗口已就绪，可在设置里重试）: {}",
+                        error
+                    );
+                } else {
+                    let base_url = desktop_api_base_url();
+                    thread::spawn(move || {
+                        if let Err(error) = wait_api_ready(&base_url) {
+                            eprintln!("API 服务未就绪（可在设置里重试）: {}", error);
+                        }
+                    });
+                }
             }
 
             Ok(())
