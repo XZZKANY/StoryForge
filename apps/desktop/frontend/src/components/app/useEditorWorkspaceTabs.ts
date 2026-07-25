@@ -210,6 +210,27 @@ export function useEditorWorkspaceTabs({
     setOpenFiles((current) => reorderEditorFiles(current, from, to));
   }, []);
 
+  // 删除 / 改名后把某文件从打开页签里摘掉：文件已不在，不走脏检查确认（与 handleFileClose 区别）。
+  const dropOpenFilePath = useCallback(
+    (path: string) => {
+      const nextFile = nextEditorFileAfterClose(openFiles, path);
+      setOpenFiles((current) => closeEditorFile(current, path));
+      setDirtyFiles((current) => updateDirtyEditorFiles(current, path, false));
+      if (previewFile === path) {
+        setPreviewFile(null);
+        setActivePane('file');
+      }
+      if (currentFile === path) {
+        if (nextFile) selectFile(nextFile);
+        else {
+          closeFile();
+          setActivePane(previewFile && previewFile !== path ? 'preview' : 'file');
+        }
+      }
+    },
+    [closeFile, currentFile, openFiles, previewFile, selectFile],
+  );
+
   return {
     previewFile,
     openFiles,
@@ -231,6 +252,7 @@ export function useEditorWorkspaceTabs({
     focusPreview,
     pinPreview,
     closePreview,
+    dropOpenFilePath,
   };
 }
 
