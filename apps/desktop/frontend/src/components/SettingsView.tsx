@@ -115,6 +115,15 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
     return () => window.clearTimeout(timer);
   }, [saveState]);
 
+  // #15：设置由页面式改弹出式，Esc 关闭。
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const saveProviderConfig = async () => {
     setSaveState('loading');
     setSaveError('');
@@ -163,204 +172,210 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
   };
 
   return (
-    <section
-      className="flex h-full min-w-0 bg-background text-foreground"
-      data-testid="settings-view"
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+      onMouseDown={onClose}
     >
-      <aside className="flex w-[278px] flex-shrink-0 flex-col border-r border-border bg-panel px-3 py-3">
-        <button
-          className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-muted hover:bg-elevated hover:text-foreground"
-          onClick={onClose}
-          data-testid="settings-close"
-        >
-          <span className="text-lg leading-none">‹</span>
-          <span>返回</span>
-        </button>
+      <section
+        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-[var(--shadow-dropdown)]"
+        data-testid="settings-view"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <aside className="flex w-[240px] flex-shrink-0 flex-col border-r border-border bg-panel px-3 py-3">
+          <button
+            className="mb-5 flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-muted hover:bg-elevated hover:text-foreground"
+            onClick={onClose}
+            data-testid="settings-close"
+          >
+            <span className="text-lg leading-none">‹</span>
+            <span>返回</span>
+          </button>
 
-        <nav className="space-y-1">
-          {settingsNav.slice(1).map((item) => (
-            <a
-              key={item}
-              href={`#${navAnchor(item)}`}
-              className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted no-underline hover:bg-elevated hover:text-foreground"
-            >
-              <span className="grid h-5 w-5 place-items-center text-subtle">{navIcon(item)}</span>
-              <span className="truncate">{item}</span>
-            </a>
-          ))}
-        </nav>
-      </aside>
+          <nav className="space-y-1">
+            {settingsNav.slice(1).map((item) => (
+              <a
+                key={item}
+                href={`#${navAnchor(item)}`}
+                className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted no-underline hover:bg-elevated hover:text-foreground"
+              >
+                <span className="grid h-5 w-5 place-items-center text-subtle">{navIcon(item)}</span>
+                <span className="truncate">{item}</span>
+              </a>
+            ))}
+          </nav>
+        </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <SettingsSearchContext.Provider value={searchQuery}>
-          <div className="mx-auto w-full max-w-[850px] px-8 py-8">
-            <h1 className="mb-4 text-xl font-semibold text-foreground">设置</h1>
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          <SettingsSearchContext.Provider value={searchQuery}>
+            <div className="mx-auto w-full max-w-[850px] px-8 py-8">
+              <h1 className="mb-4 text-xl font-semibold text-foreground">设置</h1>
 
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="搜索设置…"
-              className="mb-6 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
-              data-testid="settings-search"
-            />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="搜索设置…"
+                className="mb-6 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
+                data-testid="settings-search"
+              />
 
-            <div className="sf-settings-list">
-              <SettingGroup id="provider" title="模型服务">
-                <SettingCard>
-                  <SelectRow
-                    title="服务类型"
-                    description="保存后由桌面主进程注入后端 STORYFORGE_LLM_PROVIDER。"
-                    value={safeSettings.provider.kind}
-                    onChange={(value) => {
-                      const nextKind = toProviderKind(value);
-                      update(
-                        'provider',
-                        applyProviderPreset(safeSettings.provider, nextKind, {
-                          preserveModel: true,
-                        }),
-                      );
-                    }}
-                    options={PROVIDER_OPTIONS}
-                    testId="provider-kind"
-                  />
-                  <TextRow
-                    title="服务地址"
-                    description="OpenAI-compatible 服务通常填写到 /v1；保存后注入 STORYFORGE_LLM_BASE_URL。"
-                    value={safeSettings.provider.baseUrl}
-                    placeholder="https://api.openai.com"
-                    onChange={(value) =>
-                      update('provider', { ...safeSettings.provider, baseUrl: value })
-                    }
-                    testId="provider-base-url"
-                  />
-                  <TextRow
-                    title="默认模型"
-                    description="保存后注入 STORYFORGE_LLM_MODEL。"
-                    value={safeSettings.provider.model}
-                    placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
-                    onChange={(value) =>
-                      update('provider', { ...safeSettings.provider, model: value })
-                    }
-                    testId="provider-model"
-                  />
-                  <TextRow
-                    title="API Key"
-                    description={
-                      storedConfig?.hasApiKey
-                        ? '已保存在本机配置文件；输入新 key 可覆盖。'
-                        : '保存后由桌面主进程注入 STORYFORGE_LLM_API_KEY，不写入 localStorage。'
-                    }
-                    value={secretInput}
-                    placeholder={
-                      storedConfig?.hasApiKey ? '已保存，留空保持不变' : '粘贴 provider API key'
-                    }
-                    onChange={setSecretInput}
-                    testId="provider-api-key"
-                    type="password"
-                  />
-                  <ProviderRuntimeEnvNotice />
-                  <ActionRow
-                    title="应用到本机后端"
-                    description="保存到本机即写入 llm-provider.json，后端下次调用即读取生效，无需重启。"
-                    actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
-                    onAction={saveProviderConfig}
-                    disabled={saveState === 'loading'}
-                    status={
-                      saveState === 'saved'
-                        ? { text: '已保存并应用', tone: 'ok' }
-                        : saveState === 'error'
-                          ? { text: `保存失败：${saveError || '未知错误'}`, tone: 'error' }
-                          : null
-                    }
-                  />
-                  {storedConfig?.hasApiKey && (
-                    <ActionRow
-                      title="移除已保存密钥"
-                      description="删除本机保存的 provider API key，并保留服务地址与模型。"
-                      actionLabel="移除密钥"
-                      onAction={clearProviderSecret}
-                      disabled={saveState === 'loading'}
+              <div className="sf-settings-list">
+                <SettingGroup id="provider" title="模型服务">
+                  <SettingCard>
+                    <SelectRow
+                      title="服务类型"
+                      description="保存后由桌面主进程注入后端 STORYFORGE_LLM_PROVIDER。"
+                      value={safeSettings.provider.kind}
+                      onChange={(value) => {
+                        const nextKind = toProviderKind(value);
+                        update(
+                          'provider',
+                          applyProviderPreset(safeSettings.provider, nextKind, {
+                            preserveModel: true,
+                          }),
+                        );
+                      }}
+                      options={PROVIDER_OPTIONS}
+                      testId="provider-kind"
                     />
-                  )}
-                  <ProbeRow state={probe} onProbe={runProbe} />
-                </SettingCard>
-              </SettingGroup>
+                    <TextRow
+                      title="服务地址"
+                      description="OpenAI-compatible 服务通常填写到 /v1；保存后注入 STORYFORGE_LLM_BASE_URL。"
+                      value={safeSettings.provider.baseUrl}
+                      placeholder="https://api.openai.com"
+                      onChange={(value) =>
+                        update('provider', { ...safeSettings.provider, baseUrl: value })
+                      }
+                      testId="provider-base-url"
+                    />
+                    <TextRow
+                      title="默认模型"
+                      description="保存后注入 STORYFORGE_LLM_MODEL。"
+                      value={safeSettings.provider.model}
+                      placeholder="例如 gpt-4.1、deepseek-chat 或本地模型名"
+                      onChange={(value) =>
+                        update('provider', { ...safeSettings.provider, model: value })
+                      }
+                      testId="provider-model"
+                    />
+                    <TextRow
+                      title="API Key"
+                      description={
+                        storedConfig?.hasApiKey
+                          ? '已保存在本机配置文件；输入新 key 可覆盖。'
+                          : '保存后由桌面主进程注入 STORYFORGE_LLM_API_KEY，不写入 localStorage。'
+                      }
+                      value={secretInput}
+                      placeholder={
+                        storedConfig?.hasApiKey ? '已保存，留空保持不变' : '粘贴 provider API key'
+                      }
+                      onChange={setSecretInput}
+                      testId="provider-api-key"
+                      type="password"
+                    />
+                    <ProviderRuntimeEnvNotice />
+                    <ActionRow
+                      title="应用到本机后端"
+                      description="保存到本机即写入 llm-provider.json，后端下次调用即读取生效，无需重启。"
+                      actionLabel={saveState === 'loading' ? '保存中' : '保存并应用'}
+                      onAction={saveProviderConfig}
+                      disabled={saveState === 'loading'}
+                      status={
+                        saveState === 'saved'
+                          ? { text: '已保存并应用', tone: 'ok' }
+                          : saveState === 'error'
+                            ? { text: `保存失败：${saveError || '未知错误'}`, tone: 'error' }
+                            : null
+                      }
+                    />
+                    {storedConfig?.hasApiKey && (
+                      <ActionRow
+                        title="移除已保存密钥"
+                        description="删除本机保存的 provider API key，并保留服务地址与模型。"
+                        actionLabel="移除密钥"
+                        onAction={clearProviderSecret}
+                        disabled={saveState === 'loading'}
+                      />
+                    )}
+                    <ProbeRow state={probe} onProbe={runProbe} />
+                  </SettingCard>
+                </SettingGroup>
 
-              <SettingGroup id="appearance" title="外观">
-                <SettingCard>
-                  <SelectRow
-                    title="主题"
-                    description="切换深色 / 浅色界面；编辑器主题随之联动。"
-                    value={safeSettings.theme}
-                    onChange={(value) => update('theme', value === 'light' ? 'light' : 'dark')}
-                    options={THEME_OPTIONS}
-                    testId="appearance-theme"
-                  />
-                </SettingCard>
-              </SettingGroup>
+                <SettingGroup id="appearance" title="外观">
+                  <SettingCard>
+                    <SelectRow
+                      title="主题"
+                      description="切换深色 / 浅色界面；编辑器主题随之联动。"
+                      value={safeSettings.theme}
+                      onChange={(value) => update('theme', value === 'light' ? 'light' : 'dark')}
+                      options={THEME_OPTIONS}
+                      testId="appearance-theme"
+                    />
+                  </SettingCard>
+                </SettingGroup>
 
-              <SettingGroup id="editor" title="编辑器">
-                <SettingCard>
-                  <RangeRow
-                    title="字号"
-                    description="调整 Markdown 编辑器默认字号。"
-                    value={safeSettings.editorFontSize}
-                    min={12}
-                    max={20}
-                    onChange={(value) => update('editorFontSize', value)}
-                  />
-                  <SelectRow
-                    title="字体模式"
-                    description="格子 = CJK 2:1 等宽中英对齐；散文 = 比例字体长文舒适。状态栏可快捷切换。"
-                    value={safeSettings.editorFontMode}
-                    onChange={(value) =>
-                      update('editorFontMode', value === 'prose' ? 'prose' : 'grid')
-                    }
-                    options={FONT_MODE_OPTIONS}
-                    testId="editor-font-mode"
-                  />
-                  <SelectRow
-                    title="行号"
-                    description="智能 = 小说正文（Markdown）隐藏行号、canon.json 等数据文件保留。"
-                    value={safeSettings.editorLineNumbers}
-                    onChange={(value) =>
-                      update(
-                        'editorLineNumbers',
-                        value === 'on' || value === 'off' ? value : 'auto',
-                      )
-                    }
-                    options={LINE_NUMBER_OPTIONS}
-                    testId="editor-line-numbers"
-                  />
-                  <ToggleRow
-                    title="自动保存"
-                    description="停止输入后自动写回当前文件。"
-                    checked={safeSettings.autoSave}
-                    onChange={(checked) => update('autoSave', checked)}
-                  />
-                  <ActionRow
-                    title="恢复默认设置"
-                    description="重置本机 StoryForge 桌面偏好。"
-                    actionLabel="恢复默认"
-                    onAction={() => onChange(DEFAULT_APP_SETTINGS)}
-                  />
-                </SettingCard>
-              </SettingGroup>
+                <SettingGroup id="editor" title="编辑器">
+                  <SettingCard>
+                    <RangeRow
+                      title="字号"
+                      description="调整 Markdown 编辑器默认字号。"
+                      value={safeSettings.editorFontSize}
+                      min={12}
+                      max={20}
+                      onChange={(value) => update('editorFontSize', value)}
+                    />
+                    <SelectRow
+                      title="字体模式"
+                      description="格子 = CJK 2:1 等宽中英对齐；散文 = 比例字体长文舒适。状态栏可快捷切换。"
+                      value={safeSettings.editorFontMode}
+                      onChange={(value) =>
+                        update('editorFontMode', value === 'prose' ? 'prose' : 'grid')
+                      }
+                      options={FONT_MODE_OPTIONS}
+                      testId="editor-font-mode"
+                    />
+                    <SelectRow
+                      title="行号"
+                      description="智能 = 小说正文（Markdown）隐藏行号、canon.json 等数据文件保留。"
+                      value={safeSettings.editorLineNumbers}
+                      onChange={(value) =>
+                        update(
+                          'editorLineNumbers',
+                          value === 'on' || value === 'off' ? value : 'auto',
+                        )
+                      }
+                      options={LINE_NUMBER_OPTIONS}
+                      testId="editor-line-numbers"
+                    />
+                    <ToggleRow
+                      title="自动保存"
+                      description="停止输入后自动写回当前文件。"
+                      checked={safeSettings.autoSave}
+                      onChange={(checked) => update('autoSave', checked)}
+                    />
+                    <ActionRow
+                      title="恢复默认设置"
+                      description="重置本机 StoryForge 桌面偏好。"
+                      actionLabel="恢复默认"
+                      onAction={() => onChange(DEFAULT_APP_SETTINGS)}
+                    />
+                  </SettingCard>
+                </SettingGroup>
 
-              <SettingGroup id="about" title="关于">
-                <SettingCard>
-                  <AboutRows />
-                </SettingCard>
-              </SettingGroup>
-              <p className="sf-settings-empty" data-testid="settings-no-results">
-                未找到匹配的设置
-              </p>
+                <SettingGroup id="about" title="关于">
+                  <SettingCard>
+                    <AboutRows />
+                  </SettingCard>
+                </SettingGroup>
+                <p className="sf-settings-empty" data-testid="settings-no-results">
+                  未找到匹配的设置
+                </p>
+              </div>
             </div>
-          </div>
-        </SettingsSearchContext.Provider>
-      </main>
-    </section>
+          </SettingsSearchContext.Provider>
+        </main>
+      </section>
+    </div>
   );
 }
 

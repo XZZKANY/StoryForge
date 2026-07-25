@@ -169,32 +169,17 @@ test('拨掉「启动时显示欢迎页」开关 → 偏好写盘为 false', asy
   assert.equal(persisted.showWelcomeOnStartup, false);
 });
 
-test('设置页开着时点「显示欢迎页」也能稳定露出欢迎页（回归 onReopenWelcome 不清设置页的静默失效）', async () => {
+test('设置改为弹出式覆盖层，不再遮住中栏欢迎页（#15）', async () => {
   const container = mountApp();
+  assert.ok(byTestId(container, 'welcome-workspace'), '起始应显示欢迎页');
 
-  // Ctrl+, 打开设置页：无项目时设置页占据中栏，欢迎页此刻不在。
+  // Ctrl+, 打开设置：设置是弹出式覆盖层（不再占中栏），中栏欢迎页此刻仍在。
   await act(async () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true }));
     await Promise.resolve();
   });
-  assert.equal(byTestId(container, 'welcome-workspace'), null, '设置页开着时欢迎页应被挡住');
-
-  // Ctrl+Shift+P 打开命令面板，点「显示欢迎页」。
-  await act(async () => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, shiftKey: true }));
-    await Promise.resolve();
-  });
-  const showWelcome = Array.from(
-    container.querySelectorAll('[data-testid="palette-item"]'),
-  ).find((item) => item.textContent?.includes('显示欢迎页'));
-  assert.ok(showWelcome, '无项目时命令面板应暴露「显示欢迎页」');
-
-  await act(async () => {
-    clickElement(showWelcome!);
-  });
-  // 修复后 onReopenWelcome 一并收起设置页 → 欢迎页从设置页态稳定露出。
   assert.ok(
     byTestId(container, 'welcome-workspace'),
-    '「显示欢迎页」应从设置页态稳定露出欢迎页',
+    '设置弹出式覆盖，欢迎页仍应留在中栏（不再被设置页顶掉）',
   );
 });
