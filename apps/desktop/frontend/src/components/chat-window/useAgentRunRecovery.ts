@@ -92,14 +92,22 @@ export function useAgentRunRecovery(
     (response: AgentResultMessage) => {
       if (
         !isRunResultForActiveSession(
-          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
-          conversationKey(response.assistant_session_id, ''),
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
+          conversationKey(projectPathRef.current, response.assistant_session_id, ''),
         )
       ) {
         return;
       }
       assistantSessionIdRef.current = response.assistant_session_id;
-      runStartConversationKeyRef.current = conversationKey(response.assistant_session_id, '');
+      runStartConversationKeyRef.current = conversationKey(
+        projectPathRef.current,
+        response.assistant_session_id,
+        '',
+      );
       onAssistantSessionChange?.(response.assistant_session_id);
       const systemTitle = titleFromSystemJobs(response);
       if (systemTitle) setConversationTitle(systemTitle);

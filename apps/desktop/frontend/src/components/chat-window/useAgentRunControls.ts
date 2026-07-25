@@ -174,7 +174,11 @@ export function useAgentRunControls(
       if (!result) return;
       if (
         !isRunResultForActiveSession(
-          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
           runStartConversationKeyRef.current,
         )
       ) {
@@ -213,7 +217,11 @@ export function useAgentRunControls(
       if (!result) return;
       if (
         !isRunResultForActiveSession(
-          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
           runStartConversationKeyRef.current,
         )
       ) {

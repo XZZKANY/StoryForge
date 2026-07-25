@@ -160,6 +160,7 @@ export function useRunAuthorAgent(
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       agentRunIdRef.current = runId;
       const runStartConversationKey = conversationKey(
+        projectPathRef.current,
         assistantSessionIdRef.current,
         draftNonceRef.current,
       );
@@ -235,7 +236,11 @@ export function useRunAuthorAgent(
 
         const runSuperseded = agentRunIdRef.current !== runId;
         const sessionSwitched = !isRunResultForActiveSession(
-          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
           runStartConversationKey,
         );
         if (runSuperseded || sessionSwitched) {
@@ -265,7 +270,11 @@ export function useRunAuthorAgent(
 
         const persistedDraftSession = assistantSessionIdRef.current === null;
         assistantSessionIdRef.current = response.assistant_session_id;
-        runStartConversationKeyRef.current = conversationKey(response.assistant_session_id, '');
+        runStartConversationKeyRef.current = conversationKey(
+          projectPathRef.current,
+          response.assistant_session_id,
+          '',
+        );
         if (persistedDraftSession) {
           selfPersistedSessionIdRef.current = response.assistant_session_id;
         }
@@ -415,7 +424,11 @@ export function useRunAuthorAgent(
       } catch (error) {
         const runSuperseded = agentRunIdRef.current !== runId;
         const sessionSwitched = !isRunResultForActiveSession(
-          conversationKey(assistantSessionIdRef.current, draftNonceRef.current),
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
           runStartConversationKey,
         );
         if (runSuperseded || sessionSwitched) {
