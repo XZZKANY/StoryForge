@@ -8,7 +8,7 @@ import { basename } from '../app/helpers';
 import type { FileTreeActions } from '../app/useFileTreeActions';
 import type { SidePanelView } from './useShellState';
 import { useDismissableMenu } from './useDismissableMenu';
-import { ChevronDown, FilePlus, FileText, FolderOpen, X } from '../icons/shell-icons';
+import { ChevronDown, FilePlus, FolderOpen, X } from '../icons/shell-icons';
 
 type SidePanelProps = {
   view: SidePanelView;
@@ -57,54 +57,8 @@ function ExplorerView({
   useDismissableMenu(menuOpen, () => setMenuOpen(false), menuTriggerRef);
 
   if (!activeProject) {
-    return (
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3" data-testid="explorer-empty">
-        <p className="mb-2 text-[11.5px] leading-relaxed text-subtle">
-          还没有打开项目。打开一个本地文件夹，开始你的创作。
-        </p>
-        <button
-          className="flex h-[34px] items-center gap-2.5 rounded-md bg-elevated px-3 text-[12.5px] font-medium text-foreground hover:bg-surface hover:shadow-[inset_0_0_0_1px_rgb(var(--border-strong))]"
-          onClick={onOpenProject}
-          data-testid="add-project-btn"
-        >
-          <FileText size={15} strokeWidth={1.6} className="text-subtle" />
-          打开项目…
-        </button>
-        {projects.length > 0 && (
-          <>
-            <h4 className="mb-1 mt-3 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-subtle">
-              最近打开
-            </h4>
-            <div data-testid="project-library-list">
-              {projects.slice(0, 5).map((project) => (
-                <div
-                  key={project}
-                  className="group flex w-full items-center rounded-md hover:bg-elevated"
-                >
-                  <button
-                    className="flex min-w-0 flex-1 items-center px-2 py-1.5 text-left"
-                    onClick={() => onSelectProject(project)}
-                    title={project}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                      {basename(project)}
-                    </span>
-                  </button>
-                  <button
-                    className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-subtle opacity-0 hover:bg-surface hover:text-foreground group-hover:opacity-100"
-                    onClick={() => onRemoveProject(project)}
-                    title="从最近打开移除"
-                    aria-label={`从最近打开移除 ${basename(project)}`}
-                  >
-                    <X size={13} strokeWidth={1.6} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    );
+    // #4：左栏空态删除——打开项目 / 最近打开只留在中栏欢迎页，避免两个欢迎面重复。
+    return <div className="flex-1" data-testid="explorer-empty" />;
   }
 
   return (

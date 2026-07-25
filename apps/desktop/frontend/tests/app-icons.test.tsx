@@ -11,7 +11,6 @@ test('desktop shell renders framed chrome with icon buttons', () => {
   assert.ok(html.includes('data-testid="desktop-shell"'));
   assert.ok(html.includes('data-testid="shell-activity-bar"'));
   assert.ok(html.includes('data-testid="shell-status-bar"'));
-  assert.ok(html.includes('data-testid="add-project-btn"'));
   assert.ok(html.includes('data-testid="welcome-primary-action"'));
   assert.ok(html.includes('data-testid="welcome-composer-input"'));
   // 图标按钮与无障碍隐藏标记（WelcomeWorkspace 头部 + Lucide 壳层图标）。

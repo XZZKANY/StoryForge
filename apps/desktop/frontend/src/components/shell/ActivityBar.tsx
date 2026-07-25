@@ -1,12 +1,14 @@
 /**
  * 活动栏：48px 图标 rail。
- * 上排：文件；底部：设置。
- * 会话在右栏，质检在状态栏；文件搜索走顶栏命令面板 Ctrl+P（左栏搜索死占位已删，删左留中）。
+ * 上排：视图图标（文件 …）；底部：设置齿轮——点开小菜单（命令面板 / 设置 / 快捷键 / 主题 / 关于，#15）。
+ * 会话在右栏，质检在状态栏；文件搜索走顶栏命令面板 Ctrl+P。
  * 激活指示条贴 rail 左缘。
  */
+import { useState } from 'react';
 import type { SidePanelView } from './useShellState';
 import { FileText, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
 type ViewEntry = {
   view: SidePanelView;
@@ -25,13 +27,18 @@ export function ActivityBar({
   noProject,
   onSwitchView,
   onOpenSettings,
+  settingsMenu,
 }: {
   view: SidePanelView;
   sidebarHidden: boolean;
   noProject: boolean;
   onSwitchView: (view: SidePanelView) => void;
   onOpenSettings: () => void;
+  // 齿轮小菜单项；不传则齿轮直接开设置（回退）。
+  settingsMenu?: ContextMenuItem[];
 }) {
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+
   return (
     <nav
       className="flex w-12 flex-shrink-0 flex-col items-center gap-0.5 border-r border-border bg-background py-1.5"
@@ -69,10 +76,27 @@ export function ActivityBar({
         data-testid="activity-settings"
         className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-elevated hover:text-foreground"
         title="设置 · Ctrl+,"
-        onClick={onOpenSettings}
+        aria-haspopup="menu"
+        onClick={(event) => {
+          if (settingsMenu && settingsMenu.length > 0) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setMenuPos({ x: rect.right + 6, y: rect.top });
+          } else {
+            onOpenSettings();
+          }
+        }}
       >
         <Settings size={18} strokeWidth={1.6} />
       </button>
+
+      {menuPos && settingsMenu && (
+        <ContextMenu
+          x={menuPos.x}
+          y={menuPos.y}
+          items={settingsMenu}
+          onClose={() => setMenuPos(null)}
+        />
+      )}
     </nav>
   );
 }

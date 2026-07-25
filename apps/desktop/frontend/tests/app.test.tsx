@@ -55,10 +55,12 @@ test('App 无项目时中栏渲染 WelcomeWorkspace 与打开项目入口，右�
   assert.equal(html.includes('data-testid="editor-panel"'), false);
 });
 
-test('App 无项目时侧面板资源管理器暴露空态与打开项目按钮', () => {
+test('App 无项目时左栏资源管理器为空，打开项目入口只留中栏欢迎页（#4）', () => {
   const html = renderApp();
   assert.match(html, /data-testid="explorer-empty"/);
-  assert.match(html, /data-testid="add-project-btn"/);
+  // #4：左栏空态删除，不再有打开项目按钮 / 最近打开列表（避免与欢迎页重复）。
+  assert.doesNotMatch(html, /data-testid="add-project-btn"/);
+  assert.doesNotMatch(html, /data-testid="project-library-list"/);
 });
 
 test('App 活动栏精简为 文件/设置，左栏搜索删左留中', () => {
@@ -91,7 +93,6 @@ test('源文本保留三栏壳层结构符号（中/右对调后的编辑器中�
 test('App 中栏和右栏锁定滚动边界，长稿不能把状态栏或 Agent 栏顶走', () => {
   const requiredLayoutGuards = [
     'className="min-h-0 flex-1 overflow-hidden"',
-    "settingsVisible ? 'hidden' : 'h-full'",
     'min-h-0 overflow-hidden bg-background',
     // Q4 布局三态后 Agent 栏宽度按 wide 条件化，但平衡宽 + 溢出护栏仍在（长稿不能顶走状态栏）。
     'w-[384px] flex-shrink-0',
@@ -112,13 +113,14 @@ test('App 切换文件保留多标签 buffer，仅关闭或离开项目时确认
   assert.doesNotMatch(appSource, /confirmDiscardDirtyEditor/);
 });
 
-test('打开设置只隐藏 Editor，不卸载多文件 buffer cache', () => {
-  assert.match(appShellSource, /hidden=\{settingsVisible\}/);
-  assert.match(
-    appShellSource,
-    /\{settingsVisible && \([\s\S]{0,500}<SettingsView[\s\S]{0,900}<Editor/,
-  );
-  assert.doesNotMatch(appShellSource, /settingsVisible \? \([\s\S]{0,500}<SettingsView/);
+test('设置改为弹出式覆盖层，不再隐藏 Editor / 不占中栏页签（#15）', () => {
+  // 顶层渲染 SettingsView 覆盖层（与命令面板 / 对话框同级），不再内嵌在中栏。
+  assert.match(appShellSource, /\{settingsVisible && \(\s*<SettingsView/);
+  // Editor 不再被 settingsVisible 隐藏。
+  assert.doesNotMatch(appShellSource, /hidden=\{settingsVisible\}/);
+  assert.doesNotMatch(appShellSource, /settingsVisible \? 'hidden' : 'h-full'/);
+  // 多文件 buffer 仍保留（切设置不卸载）。
+  assert.match(appShellSource, /retainedFilePaths=\{tabs\.retainedEditorFiles\}/);
 });
 
 test('App.tsx 不残留旧布局引擎与 Web legacy 路由入口', () => {

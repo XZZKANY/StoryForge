@@ -5,6 +5,7 @@ import { CommandPalette, type PaletteMode } from '../CommandPalette';
 import { Editor } from '../Editor';
 import { SettingsView } from '../SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
+import type { ContextMenuItem } from '../shell/ContextMenu';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
@@ -106,9 +107,10 @@ export function AppShell({
     openFile: tabs.openFile,
     dropOpenFilePath: tabs.dropOpenFilePath,
   });
-  const centerHasTabs = settingsVisible || projectOpen;
+  // 设置改为弹出式（#15），不再占中栏页签：centerHasTabs 只看是否开了项目。
+  const centerHasTabs = projectOpen;
   const activeCenterTab: CenterTab | null = resolveActiveCenterTab(
-    settingsVisible,
+    false,
     tabs.displayedFile,
     tabs.previewFile,
   );
@@ -151,6 +153,20 @@ export function AppShell({
       ].join('\n'),
     });
 
+  // 齿轮小菜单（#15）：命令面板 / 设置 / 快捷键 / 主题 / 关于。
+  const settingsMenu: ContextMenuItem[] = [
+    { label: '命令面板', onSelect: () => setPalette('commands') },
+    { label: '设置', onSelect: () => void openSettings() },
+    { type: 'separator' },
+    { label: '快捷键速查', onSelect: showShortcuts },
+    {
+      label: preferences.settings.theme === 'dark' ? '切换到浅色' : '切换到深色',
+      onSelect: preferences.toggleTheme,
+    },
+    { type: 'separator' },
+    { label: '了解 StoryForge', onSelect: showAbout },
+  ];
+
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
@@ -177,6 +193,7 @@ export function AppShell({
             noProject={!projectOpen}
             onSwitchView={shell.switchView}
             onOpenSettings={() => void openSettings()}
+            settingsMenu={settingsMenu}
           />
           {!shell.sidebarHidden && (
             <SidePanel
@@ -208,7 +225,7 @@ export function AppShell({
                 activeFile={currentFile}
                 previewFile={tabs.previewFile}
                 dirtyFiles={tabs.dirtyFiles}
-                settingsOpen={settingsVisible}
+                settingsOpen={false}
                 activeTab={activeCenterTab}
                 activeReadOnly={
                   tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
@@ -233,17 +250,9 @@ export function AppShell({
                 onCloseAll={() => void tabs.handleCloseAll()}
               />
               <div className="min-h-0 flex-1 overflow-hidden">
-                {settingsVisible && (
-                  <SettingsView
-                    settings={preferences.settings}
-                    onChange={preferences.setSettings}
-                    onClose={() => setSettingsVisible(false)}
-                  />
-                )}
                 <section
-                  className={`${settingsVisible ? 'hidden' : 'h-full'} min-h-0 overflow-hidden bg-background`}
+                  className="h-full min-h-0 overflow-hidden bg-background"
                   data-testid="editor-panel"
-                  hidden={settingsVisible}
                 >
                   <Editor
                     projectPath={activeProject}
@@ -374,6 +383,13 @@ export function AppShell({
             shell.showSidebar();
             shell.showRight();
           }}
+        />
+      )}
+      {settingsVisible && (
+        <SettingsView
+          settings={preferences.settings}
+          onChange={preferences.setSettings}
+          onClose={() => setSettingsVisible(false)}
         />
       )}
       <AppDialogHost
