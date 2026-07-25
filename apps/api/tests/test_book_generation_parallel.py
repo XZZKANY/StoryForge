@@ -4,6 +4,8 @@ import threading
 import time
 from collections.abc import Mapping
 
+import pytest
+
 from app.domains.book_runs.book_generation import BookGenerationPreflightError
 from app.domains.book_runs.book_generation_parallel import (
     NovelLoopResult,
@@ -35,6 +37,7 @@ class _TrackedSession:
         self._events.append(("exit", self.name))
 
 
+@pytest.mark.timing_sensitive  # 线程屏障 timeout + utilization 阈值，已知计时敏感（UF-14）；CI 偶发红先重跑再判定
 def test_parallel_book_loop_opens_independent_session_per_chapter() -> None:
     """并发章节执行必须为每章创建独立 session，并保留 BookLoop 并发事实指标。"""
 
@@ -424,6 +427,7 @@ def test_book_generation_parallel_runner_defaults_to_precommit_revision_dependen
     assert metrics["chapter_correction_count"] == 3
 
 
+@pytest.mark.timing_sensitive  # 线程屏障 timeout + utilization 阈值，已知计时敏感（UF-14）；CI 偶发红先重跑再判定
 def test_book_generation_parallel_runner_prefetches_then_revises_before_commit(
     session,
     session_factory,
