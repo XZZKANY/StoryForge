@@ -51,9 +51,15 @@ def _apply_llm_config_file(source: dict[str, str | None], path: str) -> None:
         "apiKey": "STORYFORGE_LLM_API_KEY",
     }
     for file_key, env_key in file_to_env.items():
+        if file_key not in data:
+            continue  # 文件未含该字段 → 不覆盖，保留 env/settings 覆盖链。
         value = data.get(file_key)
-        if isinstance(value, str) and value.strip():
-            source[env_key] = value.strip()
+        if not isinstance(value, str):
+            continue
+        # 桌面端 llm-provider.json 是实时真相：字段存在即以文件为准。present-but-empty 表示作者
+        # 已清空该字段（如清除 API key），必须清掉起服 spawn 注入的 stale env 值，而非仅在非空时
+        # 覆盖——否则清空 key 后 resolved_llm_env 仍读到旧 key、后端继续发送，直到重启（UF-02）。
+        source[env_key] = value.strip()
 
 
 def resolved_llm_env(env: Mapping[str, str | None] | None = None) -> Mapping[str, str | None]:
