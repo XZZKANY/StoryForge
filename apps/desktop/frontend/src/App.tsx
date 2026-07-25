@@ -13,7 +13,7 @@ import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import type { Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
-import { emitLocateInEditor } from './lib/assistant-events';
+import { emitLocateInEditor, flushActiveEditorToDisk } from './lib/assistant-events';
 import type { ObservationAnchor } from './lib/observations';
 import { emitToast } from './lib/toast';
 import { checkForUpdate, currentAppVersion } from './lib/update-check';
@@ -130,7 +130,15 @@ export function App() {
         }
         return;
       }
-      if (key === 'p') {
+      if (key === 's') {
+        // Ctrl+S 此前只是 Monaco 内部命令：焦点在文件树 / 对话栏时是死键，作者以为存了其实没存。
+        // 编辑器聚焦时 Monaco 先吃掉这个键并阻断冒泡，这里不会重复触发。
+        if (!tabs.displayedFile) return;
+        event.preventDefault();
+        void flushActiveEditorToDisk(tabs.displayedFile).catch(() => {
+          // 保存失败由 Editor 自己弹窗告知，这里只防未处理 rejection。
+        });
+      } else if (key === 'p') {
         event.preventDefault();
         setPalette('files');
       } else if (key === 'b') {
@@ -151,7 +159,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openSettings, shell, workspace.activeProject]);
+  }, [openSettings, shell, tabs.displayedFile, workspace.activeProject]);
 
   const runtime = useTauriMenuBridge({
     onOpenProject: commands.handleOpenProject,
