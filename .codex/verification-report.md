@@ -1,283 +1,142 @@
-# 验证报告 · 小说编辑器观感三刀（排版 / 稿件感 / 少打断）
+# 验证报告 · 桌面端 UIUX 五刀（破承诺 / 死码 / 恢复现场 / 全文搜索 / 错误态）
 
 时间：2026-07-26
-分支：`feat/prose-typography-polish`（PR #196）、`feat/manuscript-progress-card`（PR #197）、`feat/save-flow-less-interruption`（PR #198），均已合并 master
+分支（均已合并 master，最终 `76292413`）：
 
-> **提名口径说明**：本波不是真实写作摩擦提名，是作者在 2026-07-26「写作优先」拍板**当日明知冲突仍要求开的主动打磨波**。
-> 如实记一笔，不冒充宪法 §08 的每周一刀。
+| PR | 分支 | 主题 |
+| --- | --- | --- |
+| #200 | `fix/desktop-broken-promises` | 界面印出来的承诺必须兑现 |
+| #201 | `chore/desktop-dead-code` | 清死码 |
+| #202 | `feat/restore-workspace-session` | 写作时刻 01「恢复现场」 |
+| #203 | `feat/project-fulltext-search` | 正文全文搜索 Ctrl+Shift+F |
+| #204 | `fix/panel-error-states` | 错误态说人话 |
 
-## 刀 1 · 正文排版按小说稿收口（PR #196）
+> **提名口径说明**：本波同样不是真实写作摩擦提名，是作者在「写作优先」拍板后要求的主动
+> UIUX 优化波（作者原话：优化整个桌面端的 uiux）。如实记一笔，不冒充宪法 §08 的每周一刀。
+> 与前一波（#196-#199）的区别：本波的选题不是观感偏好，而是先做了一次全量 UI 面盘点，
+> 只取「UI 声明了但做不到」「宪法 §06 写作时刻结构性为零」两类。
 
-修三处「Monaco 默认值直接拿来写小说」：
+## 盘点结论（决定为什么是这五刀）
 
-- **正文无行长限制**（1920 屏一行拉到 1252px）→ 按档位限宽并居中（窄 32 / 适中 42 / 宽 56 中文字 / 不限），
-  只作用于 Markdown，`canon.json` 等数据文件仍铺满；新设置项 `editorProseMeasure`，默认「适中」。
-- **「散文模式」不是书感**——该轨是无衬线黑体，真衬线栈 `--font-prose` 定义在 index.css 却全仓零引用（死代码）
-  → 换成真衬线/楷体栈并更名「书稿」，删掉误导性死 token 与 tailwind `font-prose`。
-- **代码编辑器默认行为原样作用在正文**（折叠 / 括号配对 / 词联想 / 缩进参考线 / 当前行方框）→ 正文侧一律关，数据文件保留。
-- 补齐从未设置的 `lineHeight`（CJK 1.9×）、`padding`、书稿轨字距、smoothScrolling、平滑光标。
-- 排版 options 收敛成纯函数 `editorTypographyOptions()`，create 与 updateOptions 共用一份。
-- 顺带重接 `useAppPreferences.toggleFontMode`（状态栏开关移除后零调用方，而设置描述仍写「状态栏可快捷切换」）
-  → 改接命令面板两条命令并订正文案。
+前三波（UIUX 审计 80 条 #159-#177、dogfood 九问六批 #186-#193、观感三刀 #196-#199）
+已把观感层挖得很薄；`index.css` 的语义 token、明暗双主题、`:focus-visible`、
+`prefers-reduced-motion`、统一滚动条也早已到位。再做一次「找粗糙边」性价比很低。
 
-## 刀 2 · 稿件卡（PR #197）
+改按宪法 §06 八个写作时刻对齐，剩下的洞不是装饰性的：**01 恢复现场结构性为零**、
+**全局搜索（B 轴能力 + §07 离线底线明列）未绑定**、以及一批「界面说了但做不到」。
 
-状态栏字数改按钮，点开三段进度：本章（字/段/选中）、今日（已存净增量 + 日更目标进度条）、全书（章数/总字数）。
+## 刀 1 · 破的承诺（PR #200）
 
-三个刻意的口径决定：
+六处 UI 主动声明了能力、但那条路根本走不通：
 
-- 今日 = **已落盘净增量**（写回成功后累加），不扫全书求差 → 跨重启不把昨天存量算成今天产出；未保存草稿不计入，文案如实写明。
-- 删稿负增量**如实相减不夹 0**（夹了就把「今天净删 2000 字」显示成 0）。
-- 全书总字数**逐个读盘数字，不用 `FileEntry.size` 估算**（UTF-8 一个汉字 3 字节，按字节推会虚高约 3 倍）；读失败文件单独计数报出。
+- **Ctrl+O 死键**。速查表与欢迎页两处都印着「Ctrl O 打开项目」，`App.tsx` 的 keydown 里没有
+  `o` 分支。挖出根因：`main.rs` 的 `mod menu;` 是 **`#[cfg(test)]` 门控**的 —— `menu.rs`
+  只进测试构建，装机 exe 里根本不存在；且 `create_menu` / `set_menu` 从未被调用，
+  `decorations:false` 下 Windows 没有窗口框可挂菜单栏。三重不可达。
+- **状态栏「观测清单」在对话聚焦布局（Ctrl+3）下点了没反应** —— ObsPanel 挂在中栏内，
+  而该布局给中栏加了 `hidden`。改为开面板前先落回可见布局。
+- **「…」菜单「剧情分支画布」通向一堵「仍在开发中」占位墙**，占位文案自己都在让用户改去
+  「版本历史」。删菜单项与占位墙，连带 `rightView` 状态机、`toggle-branch-view` 一起收掉。
+  真正的分支图仍在 版本历史 → 分支图，未受影响。
+- **原生菜单死链**：删 `src-tauri/src/menu.rs`（178 行），`useTauriMenuBridge` 五个 `menu:*`
+  监听永不触发，其中两个还去点 Q3a 已删除的 `#editor-save-btn` / `#editor-close-btn`。
+  保留 `smoke:reset-panels` 一条 `listen` 往返，装机冒烟断言的 `data-tauri-menu-ready`
+  语义由此维持（`main.rs:728/782/934` 固化了该属性名，故不改名）。
+- **版本历史抽屉 36px 残留偏移**：`top` 取 `--sf-bar-height`，但其定位祖先已在页签行之下，
+  该偏移原是为让开 Q3a 已删的编辑区工具行。
+- **设置左栏 ◈ ◐ ▤ ⓘ 四个 Unicode 字形换 Lucide**（与全站唯一图标源割裂，而那个模块的存在
+  理由正是「取代旧的 Unicode/字形图标」）。
 
-顺带收口 `author-loop.ts` 私有的 `countCjkChars` / `countParagraphs` 与 `text-metrics.ts` 的重复实现，
-三者同住 `text-metrics.ts` 并注明「严格汉字口径」与「网文口径」本就不该相等。
+**防复发**：速查表提取为单一事实源 `components/app/shortcuts.ts`，每行必须标注在哪儿被接管
+（不填 `needs`/`scope` = 全局无条件），护栏 `tests/shortcuts.test.tsx` 对每条全局键**真按一遍**
+断言 `preventDefault`。补齐此前漏印的 Ctrl+Shift+O / Ctrl+S / Ctrl+K / Ctrl+W。
 
-## 刀 3 · 少打断的保存流（PR #198）
+> **自伤记录**：删 `mod menu;` 时留下的 `#[cfg(test)]` 属性下移去门控了 `mod watcher;`，
+> 把实时文件监听变成测试专属。`cargo check` 逮到，已修。
 
-- **Ctrl+S 此前只在编辑器聚焦时生效**（只是 Monaco 内部命令，全局 keydown 无 `s` 分支）→ App.tsx 全局挂一条走 `flushActiveEditorToDisk`。
-- **关闭脏页签只有「放弃 / 继续编辑」** → 补「保存并关闭」三选一（AppDialog 新增 `choice` 类型）。
-  出现条件刻意收窄为「唯一脏文件恰好是当前显示文件」：保存走 `REQUEST_SAVE_ACTIVE_FILE`，
-  编辑器对非激活文件回 `skipped` 直接放行，那种情况下给保存按钮 = 静默丢稿。保存失败则取消关闭。
+## 刀 2 · 清死码（PR #201）
 
-## 验证
+净 **−629 行**，零用户可见变化。逐项验证零引用后删：
 
-```bash
-pnpm verify        # PASS（lint + typecheck + 各栈测试 + sidecar-smoke daily 档 + OpenAPI 零漂移）
+- 三个孤儿组件 `HistoryPanel.tsx` / `ProjectPanel.tsx` / `app/icons.tsx`。
+- `recentFiles` **纯写不读**：`HistoryPanel` 是唯一消费者，面板下线后仍在维护状态、
+  写 `RECENT_FILES_KEY`、启动时校验磁盘存在性 —— 全部喂给没有人。
+- 不可达分支：EditorTabs 设置页签（`settingsOpen` 被 AppShell 写死 `false`）、
+  ResourceExplorer `showHeader`/`collapsed`（唯一调用方传 `false`）。
+- 13 条死 CSS（`index.css` −1974 字节）。
+- **一个空转的断言**：`WelcomeWorkspace` 用了 `class="icon-button"`，该类在 `index.css` 和
+  `tailwind.config.js` 里都没有定义；而 `tests/app-icons.test.tsx` 一直在断言这个字符串。
+  断言一个无定义类名等于什么都没测，且会阻止任何人删掉它。改断言真实存在的 `welcome-close`。
+- 两处 `@deprecated`、`helpers.ts` 三个零引用导出、图标桶六个零引用再导出 + 过期命名对照表。
+
+## 刀 3 · 恢复现场（PR #202，宪法 §06.01）
+
+此前只持久化「最近项目 / 最近文件」两个列表 —— 那是入口不是现场。现恢复：
+活动项目、页签集合、活动页签、每文件光标位置（滚到视野中央）；观测「已处理」勾选按项目落盘。
+
+三个不显然处：
+
+1. **恢复落地之前不许回写**。启动瞬间 `openFiles` 还是空的，此刻落盘等于抹平现场，
+   且原始存档已被自己覆盖、无从找回。用 `idle → restoring → done` 三段 phase 挡住。
+2. **页签恢复 effect 必须声明在「项目切换清预览态」之后** —— 同依赖下 effect 按声明序执行。
+3. **磁盘校验在恢复之前**；校验本身出错时保守保留（瞬时 IO 失败不该吃掉现场）。
+
+新增设置「启动时恢复上次现场」（默认开）。
+
+## 刀 4 · 正文全文搜索（PR #203，宪法 B 轴 + §07 离线底线）
+
+`Ctrl+Shift+F` 此前未绑定。与命令面板分工：命令面板搜**文件名**，此处搜**正文内容**。
+PR #171 删掉的那个左栏搜索是未接线死占位且与命令面板重复，本刀不是把它加回来；
+`app.test.tsx` 断言相应改为「搜索图标必须对应一个真实渲染的搜索面板」。
+
+走前端 + `readProjectFile`（Rust 侧带 containment 校验，PR #118），不加 Rust 命令、不需重打包。
+限并发 8、边搜边出、seq 取消、单文件封顶 40 / 全局封顶 400 且**明说**已达上限（不静默截断）。
+
+**本领域特有的坑**：小说 `.md` 的一行往往是一整个自然段（几百上千字），故结果是
+命中处附近的**窗口片段**，高亮 `start`/`end` 相对片段而非原行 —— 该偏移算错时在短文本
+用例里根本测不出来，专门用 600 字长段落用例钉死。
+
+> **自伤记录**：`SearchView` 最初用 `autoFocus`，但左栏三视图是 CSS 互斥、**常驻挂载**的，
+> `autoFocus` 只在初次挂载触发 → 实际效果是「应用一启动就把焦点从编辑器抢走」。改为按
+> `active` 变化落焦。
+
+## 刀 5 · 错误态说人话（PR #204）
+
+文件树 / 故事索引 / 版本历史三处把原始 error 整条铺出来当标题，且都没有重试路径；
+编辑器构建失败更是只写 `data-editor-init-error` 属性、界面全空白。
+
+新增 `shell/PanelError`：**人话标题 + 明确下一步（有重试就给按钮）+ 原始报错降级为细节**。
+原始报错不隐藏（排障唯一线索），但不占标题位。读版本失败 / 编辑器起不来两处措辞刻意先回答
+「稿子还在不在」。护栏 `tests/panel-error.test.tsx` 按 `indexOf` 比较标题与细节的先后位置。
+
+## 可证伪性实测
+
+新增的三个护栏都做了「摘掉修复 → 断言必须变红」的实测，不是只看绿：
+
+| 护栏 | 摘掉什么 | 实测结果 |
+| --- | --- | --- |
+| `tests/shortcuts.test.tsx` | `App.tsx` 的 Ctrl+O 分支 | 变红：`速查表印着「Ctrl O 打开项目」，但按下去 App 没有接管（未 preventDefault）` |
+| `tests/workspace-session.test.tsx` | `useSessionRestore` 的 `if (phase !== 'done') return;` | 变红：`恢复尚未落地时回写必须被挡住，存档不能被空现场覆盖` |
+| `tests/project-search.test.ts` | —（用 600 字长段落用例覆盖短文本测不出的偏移错误） | 见上文说明 |
+
+## 门禁（最终 master `76292413`）
+
+```
+npm --prefix apps/desktop/frontend run typecheck   绿
+npm --prefix apps/desktop/frontend run test        62 文件 / 354 通过（基线 58 / 331，+4 文件 +23 用例）
+pnpm.cmd lint                                      绿
+pnpm e2e                                           20/20 通过（含 OpenAPI 快照一致）
+cd apps/api && uv run pytest tests/test_source_code_standards.py tests/test_api_surface.py   19 通过
+cd apps/desktop/src-tauri && cargo check           绿
+cd apps/desktop/src-tauri && cargo test            18 通过
 ```
 
-- 前端 vitest：306（刀 1）→ 322（刀 2）→ **330 passed / 58 files**（刀 3）
-- 新增可证伪用例：行宽换算与不限档、CJK 行距、正文/数据文件 option 分流、字距只加书稿轨、档位顺序与文案派生；
-  日更账本跨天归零 / 负增量 / 项目隔离 / 坏存档兜底 / 本地时区日期键；全书统计非正文不计 + 读失败如实报数；
-  稿件卡开卡 / 无目标不画条 / 超额封顶；关闭脏页签五条分支 + Ctrl+S 全局分支指纹；choice 弹窗渲染与 Esc
-- sidecar 冒烟绿、OpenAPI 零漂移（本波纯前端，后端零改动）
-
-## 未联通 / 未验
-
-- **真机观感全部未验，归 E2E-1**：衬线字体本机未装时的回退表现、限宽后行间对话 view zone 与补丁面板观感、
-  稿件卡在 26px 状态栏上方的定位与遮挡、装机 exe 下 Ctrl+S 在各焦点位置的实际行为、三选一弹窗观感。
-- **段首缩进本波不做**：Monaco 无法在不打乱光标水平定位的前提下做 per-paragraph text-indent，属实现不了而非漏做。
-- **autosave 默认值仍关**：翻开会让每次自动保存都触发 `snapshotBeforeWrite`，而每文件只留 20 份快照，
-  几分钟写作就冲干净版本历史；要先改快照节流策略。
-- **全书统计是同步串行读盘**，几百章规模有可感延迟，当前只在打开卡片时跑一次，未做缓存或并发。
-- Ctrl+S 那条是源码指纹护栏而非渲染断言（真渲染 App 需整套 Tauri / sidecar 桩）。
-
----
-
-# 验证报告 · UI/UX 审计 Ctrl+K 行间 diff 句内高亮（E22）
-
-时间：2026-07-24
-分支：`feat/uiux-inline-char-diff-20260724`
-
-审计「编辑器与改稿反馈」主题里最后一条（P3-L）：Ctrl+K 行间 diff 只做整行红/绿，改一个词也整行标记。
-
-## 变更（全前端）
-
-- **E22 单行替换的句内高亮**：
-  - `lib/inline-chat.ts` 加纯函数 `intraLineChangeRange(oldLine, newLine)`——掐掉公共前缀/后缀，只留真正改动的中段（1-based 列、endCol 独占，纯插入/删除时该侧零宽）；
-  - `useInlineChat.renderDiff`：对**单行替换**（一旧行→一新行）的 hunk，在整行淡红底之上叠一层句内红高亮 `sf-inline-diff-old-seg`（Monaco 字符级 decoration）；
-  - `buildDiffZoneDom`：绿新行把改动中段包成 `sf-inline-diff-new-seg` span、前后逐字保留；
-  - `index.css` 加两个 seg 高亮类；多行 hunk / 纯增删 graceful 回退整行铺色（不做句内高亮）。
-  - 有界实现：不改 hunk→行级 diff 管线（`hunksToLineDiff` 的整行塌陷/去重不动），句内区间在 renderDiff 就地按旧/新行文本算，
-    避免重构核心 Ctrl+K 流的高风险。
-
-## 验证
-
-```bash
-npm --prefix apps/desktop/frontend run typecheck   # PASS
-npm --prefix apps/desktop/frontend run test        # 52 files / 275 passed（+1 新：intraLineChangeRange 纯函数，含中文改词 / 纯插入 / 全改）
-npm --prefix apps/desktop/frontend run build       # 构建成功
-npx eslint <3 touched>                             # 0 problems
-npx prettier --check <touched incl. index.css>     # 通过
-```
-
-句内高亮渲染是 Monaco decoration + view-zone DOM，SSR 测不到；纯区间函数已单测，真机观感归 E2E-1 未验。
-
----
-
-至此 2026-07-24 UI/UX 审计 80 条已全部逐桶 branch→PR→merge 收口（PR #159-176）。
-
----
-
-# 全项目 Code Review 验证记录
-
-时间：2026-07-25
-分支：`master`（审查开始时与 `origin/master` 对齐，工作树干净）
-
-## 覆盖范围
-
-- Desktop frontend / Tauri：多标签编辑、自动保存、补丁确认、版本快照、项目路径和 Rust 文件系统边界。
-- API：认证/限流/脱敏、Agent runtime 工具与项目文件边界、SQLite/Alembic 启动收口、OpenAPI 契约。
-- Workflow：provider adapter/fallback，runtime/checkpoint，BookLoop 降级门禁与测试覆盖。
-- Shared / project-core / scripts / delivery：路径契约、生成类型、sidecar/E2E 脚本、Docker 与本地 hook。
-
-## 已确认问题
-
-1. `useSuggestionWriteback.ts:112-148`：接受建议的异步写回完成后，未校验当前文件/model 仍是发起写回的目标，直接对 `editorRef.current` 调用 `setValue`。写回期间切标签可把 A 文件内容灌入 B 文件缓冲，随后自动保存可进一步落盘。
-2. `fs_tools.py:50-67`：`fs.list/fs.search` 枚举后直接 stat/read，未像 `fs.read` 那样对每个结果 `resolve()` 后重做 containment。支持 symlink 的平台上，项目内指向外部文件的链接可被搜索/摘录。
-3. `fs_tools.py:50-57`：所谓跳过 `.git/node_modules` 是 `rglob("*")` 完整遍历后才过滤，且先构造全量 list；`max_entries/_SEARCH_MAX_FILES` 无法限制枚举成本。大仓库会在 Agent `fs.list/fs.search` 进入工具限制前就长时间阻塞与占用内存。
-4. `provider_fallback.py:45-60`：文档约定只对可重试错误降级，实际捕获所有 `ProviderError`；401/403 `AUTH`、`CONTENT_FILTER` 和上下文超限也会转备用 provider。这会遮蔽配置错误，并可绕过主 provider 的内容策略拒绝。
-5. `main.py:153-156,223-234`：生产 Redis 限流键直接嵌入完整 `X-StoryForge-API-Key`。最小复现的 `limits` 存储键为 `LIMITER/rate/super-secret-key/1/1/minute`，使服务密钥进入 Redis keyspace。
-6. `Editor.tsx:219-247` + `useMonacoEditor.ts:147-159`：自动保存与 Ctrl+S 都可并发调用无串行化的 `saveCurrentFile`。两次写入若完成乱序，旧内容可在新内容之后落盘；现有 model 身份守卫只保护 UI 结算，不防止写盘乱序。
-7. `author_chat.py:205-213`：终端 MVP 在用户确认时未比对盘上内容与 patch `before`，且用非原子 `Path.write_text`覆盖；等待确认时的外部修改会被静默丢失。
-
-## 验证
-
-```text
-pnpm.cmd verify                                      PASS
-  Desktop frontend                                  52 files / 275 passed
-  API pytest                                         1076 passed / 3 skipped
-  Workflow pytest                                    323 passed
-  lint / typecheck / ruff / shared / project-core   PASS
-  daily sidecar / OpenAPI drift                     PASS
-pnpm.cmd e2e                                         20/20 PASS
-cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-                                                       20/20 PASS
-pnpm.cmd audit --prod --audit-level=high             No known vulnerabilities
-```
-
-## 未验证项
-
-- 未执行真实 provider 出网、真机 GUI 竞态操作或 packaged sidecar smoke；本次不用模拟/契约结果替代这些证据。
-- Windows 当前账户无创建 symlink 特权，本机无法运行 symlink 越界动态复现；结论来自可达代码路径与跨平台 `Path` 语义，需在 Linux/macOS 补回归测试。
-
----
-
-# 三条安全红线修复 + 事实源刷新
-
-时间：2026-07-26
-分支：`fix/redline-secret-key-writeback-save`（自 `master` 4c80a232）
-
-## 背景
-
-对 07-12 至 07-25 两周工作做代码盘点后拍板「写作优先」：编辑器不再开主动打磨波，功能提名权交回真实写作摩擦（宪法 §08）。开写前先清掉上一节 7 条 confirmed 里踩安全红线的 3 条，其余登记不修。
-
-## 修了什么
-
-1. **明文 API Key 进限流 keyspace**（上节第 5 条）。`app/main.py` 抽出纯函数 `_rate_limit_bucket(api_key, client_host)`：有凭据时返回 `key:<sha256>`，否则 `addr:<host>`（缺失回退 `addr:unknown`）。`_rate_limit_key(request)` 改为调它。保持「同 key 同桶 / 不同 key 分桶」的分层限流语义，凭据不再离开请求头。
-2. **补丁写回结算错对象**（上节第 1 条）。`lib/writeback.ts` 新增纯函数 `shouldSettleActiveEditor(targetPath, targetModel, activePath, activeModel)`；`useSuggestionWriteback` 落盘后改为：目标文件缓冲**永远**同步（`originalContent` + 必要时 `model.setValue`），活动编辑器 UI 态（`originalContentRef` / clean 版本 id / 预览 / 脏标）只在目标仍是前台 model 时才动。旧代码在 `await` 之后无条件 `editorRef.current?.setValue(nextContent)`，写回期间切页签会把 A 文件内容灌进 B 缓冲，随后 autosave 落盘。顺带修掉「接受补丁后 `cache.originalContent` 未更新 → 切走再切回误报脏」。为此 `Editor.tsx` 向该 hook 传入 `modelCacheRef`。
-3. **autosave 与 Ctrl+S 并发写盘乱序**（上节第 6 条）。`lib/writeback.ts` 新增 `createWritebackQueue()`（前一任务无论成败都放行下一个，失败仍向上抛给调用方以保留 Agent 预读握手的阻断能力）；`Editor.tsx` 的 `saveCurrentFile` 整体串进该队列，内容在任务真正执行时才取，落盘的总是最新稿。原先两次写盘并发完成时旧内容可覆盖新内容，既有 model 身份守卫只保护 UI 结算、不防写盘乱序。
-
-## 可证伪回归测试
-
-- `apps/api/tests/test_api_middleware.py::test_rate_limit_bucket_never_contains_plaintext_api_key`：断言桶标识不含明文、同 key 同桶、不同 key 分桶、无凭据回退 `addr:` 命名空间。旧实现直接返回明文，此测试必红。
-- 同文件 `test_rate_limit_returns_429_when_exceeded` 改为经 `_rate_limit_bucket` 预热桶，不再复写哈希公式。
-- `tests/behavior/writeback-guard.vitest.ts` 新增红线③（4 例）与红线④（3 例）：切页签 / model 重建 / 目标缓冲被回收时拒绝结算；写盘不重叠（`maxInFlight === 1`）且落盘顺序 = 调用顺序；一次失败不堵死队列；失败向上抛。
-
-## 事实源刷新
-
-`docs/internal/current-phase.md` 与 `docs/internal/TODO.md` 原停在 2026-07-11、不覆盖其后两周。本次按代码盘点新增/重写：07-12 至 07-25 已合并内容；live 面实际尺度（22 router 挂载 / 桌面只调 4 组、11 IDE 命令只调 2 条、23 工具 spec 中 16 条对 LLM 可见、固定 intent 5 条只 1 条有入口、managed BookRun 三重不可达、左栏实际 2 视图）；canon 链全确定性零 token；canon 写回闭环两端断开；宪法 §06 八个写作时刻服务现状（06/07/08 为零，06 唯一实现已于 07-23 迁出独立仓）；三条红线修复结论；未修债务登记；写作优先拍板与 §08 提名口径。
-
-## 验证
-
-```text
-pnpm.cmd verify                                      PASS（全绿，含 daily sidecar 与 OpenAPI 零漂移）
-  API pytest                                         1089 passed / 3 skipped
-  Desktop frontend vitest                            55 files / 299 passed
-  lint（eslint + prettier）/ typecheck / ruff        PASS
-pnpm.cmd e2e                                         20/20 PASS
-uv run pytest tests/test_api_middleware.py -q         19 passed
-```
-
-`pnpm verify` 首跑红在 `test_book_generation_parallel.py::test_book_generation_parallel_runner_prefetches_then_revises_before_commit`（`sqlalchemy.exc.InvalidRequestError: Could not refresh instance '<Scene>'`）。该用例已于 2026-07-25 标注 `@pytest.mark.timing_sensitive`（线程屏障 timeout + utilization 阈值，记录协议为「CI 偶发红先重跑再判定」）；单跑该文件 12/12 绿、API 全量重跑 1089 绿、`pnpm verify` 重跑全绿，据协议判定为已知计时敏感 flaky，非本次回归。本次改动未触及 `book_generation_parallel`（该模块 `app/` 内零 import，仅测试调用）。
-
-## 未验证项
-
-- 三条修复的真机 GUI 复验未做：写回期间切页签不串写、autosave 与 Ctrl+S 并发不回退，归 E2E-1。
-- 限流键改动只在本地 MemoryStorage 下验证，未在真 Redis 部署上复验 keyspace 实际形状。
-- 未执行真实 provider 出网与 packaged sidecar smoke。
-- 上一节 7 条 confirmed 中 4 条按拍板登记不修：`fs_tools.py` 枚举结果未重做 containment + `rglob` 无成本上限；`provider_fallback.py` 对全部 `ProviderError` 降级（非 live 路径）；`app/author_chat.py` 终端 MVP 非原子写且不比对 before（零 importer 独立脚本）。已写入 `docs/internal/TODO.md` 与 `current-phase.md`。
-
----
-
-# apps/workflow 整包退役
-
-时间：2026-07-26
-分支：`chore/retire-apps-workflow`（自 `master` 96a3d928）
-
-## 为什么现在能删（旧「删不动」结论已作废）
-
-迁移 ledger 与多份内部文档记录的阻塞是「`book_generation_parallel.py` 用 importlib 加载 workflow 跑 managed 整书，受质量轨红线保护」。逐引用实证否决了这条：
-
-- `run_book_generation_parallel` / `run_book_loop_with_thread_sessions` 在 `app/` 内**零 import**，调用方只有 `tests/test_book_generation_parallel.py`、`tests/test_book_generation_parallel_wrapper.py` 和 `.codex/run-real-llm-parallel.py` → 不在 live 路径上。
-- 另一座桥 `runtime_tools/service.py` 虽在 live 挂载（`GET /api/runtime-tools`），但它加载的 `tools/registry.py` 是**零 workflow 依赖的纯 stdlib 文件，内容全是 apps/api 自身端点的静态描述**（retrieval / scene_packets / judge / repair / artifacts / evaluations / provider_gateway）→ 该搬不该删。
-- managed BookRun 启动此前已三重不可达（无 `loop_schema`、前端不发 `book_id`+`blueprint_id`、IDE 命令零前端调用）。
-
-## 做了什么
-
-1. `git mv apps/workflow/storyforge_workflow/tools/registry.py` → `apps/api/app/domains/runtime_tools/creative_registry.py`；`runtime_tools/service.py` 改直接 import，删掉 importlib 机器（`spec_from_file_location` / `sys.modules` 注入 / `lru_cache`）与「文件缺失降级空列表 + 告警」兜底（进程内模块随 `collect_submodules('app')` 进冻结 exe，兜底不再有意义）。**`/api/runtime-tools` 响应与 OpenAPI 零变更。**
-2. `git rm -r apps/workflow`（18.7k 行）。磁盘上仅余 gitignored 的 `.pytest-tmp` 空目录——它的 ACL 拒绝当前账户访问（`takeown`/`icacls` 均 Access denied，疑为某 workflow 测试造的权限错误用例残留），需管理员权限清理，与仓库/门禁无关。
-3. 同批删除已成死码的：`book_runs/book_generation_parallel.py`、`tests/test_book_generation_parallel.py`（12 例）、`tests/test_book_generation_parallel_wrapper.py`（2 例）、`.codex/run-real-llm-parallel.py`（唯一 import 是已删 runner）。
-4. 断言重指而非删除：`tests/e2e/phase4-contract.spec.ts` 的 registry 交叉校验从「按路径 importlib 相邻 workflow 文件」改为直接 import 进程内模块，交叉校验语义不变；`tests/test_runtime_tools.py` 的 `+9` magic number 改为从 `list_creative_tools()` + MCP 常量派生（registry 增删工具时断言随之移动而非误红）；`tests/test_source_pruning.py` 删掉对 workflow 侧 `model_run_sink.py` / `checkpoints.py` 两个文件内容的断言（被断言文件已不存在），API 侧读写链路断言原样保留。
-5. 基线同步：`tests/fixtures/source_code_standards_baseline.json` 的 `line_limits` 与 `test_source_code_standards.py` 的硬上限表各摘除 `book_generation_parallel.py` 条目（否则 `Frozen source baseline path disappeared` 必红）。
-6. 构建/部署面清理：`package.json` 删 `test:workflow` 及 `test` 链引用；`scripts/verify-local.mjs` 删「Workflow 单元测试 / Workflow Ruff 检查」两步；`docker-compose.yml` 删 `workflow` service + `storyforge-workflow-runtime` volume，`docker-compose.prod.yml` 删同名 service；`.env.example` 删 3 个 `WORKFLOW_*` 变量；`.gitignore` / `.prettierignore` / `.dockerignore` / `eslint.config.mjs` 各删 1 条 workflow 路径。
-7. 文档：`CLAUDE.md`（§3 布局、§4 命令 ×3、§5 新增退役条目）、`CONTEXT.md`、`docs/architecture/ide-first-product-direction.md`、`DOMAINS.md`、`current-phase.md`、`TODO.md`；迁移 ledger 顶部改为**打捞索引**（列出只剩 git 历史的能力 + `git show <删除提交>^:<路径>` 打捞命令，并标注原文里「删不动 / 三重阻塞」判断已作废）。
-
-## 代价（登记）
-
-`extract/{prompt,parser,facts}`（canon 抽取 slice，补 canon「只校验声明不从正文抽取」的缺口）、`beat_sheet`、`name_registry`、`repetition_ledger`、`timeline_ledger`、`arc_consistency`，及地基 `narrative/verdict.py` / `plan.py` —— **只剩 git 历史一份**。已搬进 agent 的 4 个（`project.prose_check` / `collapse_check` / `entity_budget_check` / `promise_check`）不受影响。managed BookRun 的并发整书路径退场，只余串行 `book_generation`。
-
-## 验证
-
-```text
-pnpm.cmd verify                          PASS（全绿；门禁不再跑 workflow 的 323 测试与 ruff）
-  API pytest                             1075 passed / 3 skipped
-    （= 前基线 1089 − 14，恰为删除的 12 + 2 个用例，无附带损失）
-  Desktop frontend vitest                55 files / 299 passed
-  lint（eslint + prettier）/ typecheck / ruff   PASS
-  daily sidecar / OpenAPI 漂移           PASS（零漂移，契约未变）
-pnpm.cmd e2e                             20/20 PASS（含改写后的 phase4 registry 交叉校验）
-```
-
-## 未验证项
-
-- packaged 冻结 exe smoke 未跑：`creative_registry.py` 在 `app.domains.*` 下，理应随 `collect_submodules('app')` 进 exe，但本次未实测；`/api/runtime-tools` 在装机形态下的返回未复验。
-- docker 栈未起：`docker-compose` 两档删掉 workflow service 后未做 `up` 复验（本机开发走 sidecar，不经 compose）。
-- 真机 GUI 无关（本刀不碰桌面代码）。
-
-# 正文排版回退居中：行长改走 Monaco bounded 换行
-
-## 背景
-
-上一刀（PR #196）给正文加行长控制时，实现是「把 Monaco 容器 `max-width` 限住 + flex 居中」。
-真机写作反馈：**很别扭**。原因是限宽居中动的是编辑器本身而不是文字——
-文字缩成屏幕中间一栏，两侧是点不动的死区（点了不进编辑器）、竖滚动条浮在屏幕中间，
-且与 2026-07-05 壳子定稿的「正文 VS Code 式左对齐铺满」直接冲突。
-
-## 做了什么
-
-行长控制的手段换成 Monaco 自己的 `wordWrap: 'bounded'` + `wordWrapColumn`：编辑区照旧铺满整块
-（背景连续、哪儿都能点、滚动条贴窗口右缘），只把折行点提前到目标字数，文字靠左。
-
-1. `editor/options.ts`：删 `resolveProseMeasurePx`（容器像素宽 + 64px chrome 估算），
-   换 `resolveProseWordWrap(measure, prose)`；中文字按 2 个半角列换算（Monaco 的
-   `wordWrapColumn` 以半角列计），42 字档 = 84 列。非正文文件与「不限」档一律 `wordWrap: 'on'`。
-   `wordWrap` 从 `useMonacoEditor` 的硬编码常量并入 `editorTypographyOptions`，
-   create 与 updateOptions 仍共用同一份（改行宽档立即生效，不用重开文件）。
-2. `Editor.tsx`：删掉 `justify-center` 外层与 `max-width` 内联样式，Monaco 宿主回到
-   单层 `min-h-0 flex-1 overflow-hidden`（= PR #196 之前的形状）；`data-prose-measure`
-   保留但改为档位名，供真机查 DOM。
-3. 档位文案与设置说明订正（「约 42 字」→「约 42 字换行」；描述里的「并居中」删除）。
-   档位本身（窄 32 / 适中 42 / 宽 56 / 不限）与默认值 medium 不变。
-
-## 可证伪回归测试
-
-- `tests/editor-options.test.ts`：bounded 列数换算（84/64/112）；**不限档与数据文件必须是
-  `wordWrap: 'on'` 而不是回落成不换行**（否则正文会出横向滚动条）。
-- `tests/editor.test.tsx`：Monaco 宿主渲染出的类名必须是单层 `min-h-0 flex-1 overflow-hidden`，
-  且 markup 里不许再出现 `max-width` / 「居中容器直接包着 editor-container」——居中形状回来即红。
-
-## 验证
-
-```text
-npm --prefix apps/desktop/frontend run typecheck    PASS
-npx vitest run（frontend 全量）                      58 files / 331 passed
-pnpm.cmd lint                                       PASS
-```
-
-## 未验证项
-
-- 真机观感未验（归 E2E-1）：bounded 换行在**比例字体**（书稿轨衬线栈）下由 Monaco 按
-  `typicalHalfwidthCharacterWidth` 估算折行宽度，实际每行字数与标称档位会有出入，
-  「约 42 字」是软目标不是精确值；宽屏下文字靠左、右侧留白是否顺眼也待真机确认。
-- 未动后端，无契约变更，未跑 pytest / e2e。
+## 未联通 / 归 E2E-1 真机
+
+- 本波全部真机观感未验：恢复现场（重启后页签与光标是否真回到位）、全文搜索在几百章项目上的
+  手感与耗时、`PanelError` 各态在真实失败下的措辞是否够用、Ctrl+O / Ctrl+Shift+F 在装机 exe 上
+  的实际键位、版本历史抽屉贴顶后的观感。
+- `menu.rs` 删除后装机 exe 的冒烟需重跑 `pnpm smoke:sidecar:packaged` 确认
+  `data-tauri-menu-ready` 仍为 true（本机未重打包，仅 `cargo check` / `cargo test` 绿）。
+- 全文搜索未做索引缓存：每次查询重读全部 `.md`。当前项目规模下可接受，长篇累积后需重评。
+- 恢复现场不恢复预览页签（预览态按设计是临时的），也不恢复滚动像素位置（只恢复光标行并居中）。
