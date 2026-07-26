@@ -210,6 +210,62 @@ export function planAnchoredInlineDiff(
 }
 
 /**
+ * 光标处续写的插入计划：不走 LCS 猜插入点——续写的落点是已知的，直接构造纯新增 hunk。
+ *
+ * 刻意不复用 planAnchoredInlineDiff：那条路会把新段跟上文做 diff，而 buildPatchHunks 会把
+ * 段间空行当可匹配单元吃进公共前缀，导致纯新增的 afterLineNumber 落到锚定容忍窗口之外被
+ * 当成 drift 静默丢弃——而「光标停在段末空行按键」正是续写最典型的起手式。
+ *
+ * @param insertAfterLine 1-based：在此行之后插入；0 = 文件顶部。越界自动夹取。
+ */
+export function planCursorInsertion(
+  before: string,
+  insertAfterLine: number,
+  insertedText: string,
+): AnchoredInlineDiff {
+  const normBefore = before.replace(/\r\n/g, '\n');
+  const lines = normBefore.split('\n');
+  const anchor = Math.max(0, Math.min(Math.trunc(insertAfterLine), lines.length));
+  const body = insertedText.replace(/\r\n/g, '\n').trim();
+
+  if (!body) {
+    return {
+      hunks: [],
+      clampedAfter: normBefore,
+      addedLines: 0,
+      removedLines: 0,
+      droppedOffAnchor: 0,
+      isNoop: true,
+    };
+  }
+
+  // 续写一律另起段落，锚定行非空时补一个空行分隔：既不改动作者已写下的任何一个字，
+  // 也让绿块边界与接受后的落点完全一致。要接着上一句往下写用 Ctrl+K，不走这条路。
+  const needsBlankLine = anchor > 0 && (lines[anchor - 1] ?? '').trim() !== '';
+  const newLines = needsBlankLine ? ['', ...body.split('\n')] : body.split('\n');
+  const nextLines = [...lines];
+  nextLines.splice(anchor, 0, ...newLines);
+
+  return {
+    hunks: [
+      {
+        removedStartLine: null,
+        removedEndLine: null,
+        afterLineNumber: anchor,
+        newLines,
+        removedLineCount: 0,
+        addedLineCount: newLines.length,
+      },
+    ],
+    clampedAfter: nextLines.join('\n'),
+    addedLines: newLines.length,
+    removedLines: 0,
+    droppedOffAnchor: 0,
+    isNoop: false,
+  };
+}
+
+/**
  * 发起修订到接受之间，作者可能又改了文件——此时旧补丁（基于捕获时的 before）不能直接整体写回。
  * 按 LF 归一比较，避免仅换行差异误判。
  */

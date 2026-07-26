@@ -63,6 +63,12 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     scope: 'editor',
   },
   {
+    keys: 'Ctrl Shift K',
+    label: '光标处续写（接着往下写一段）',
+    chords: [{ ctrl: true, shift: true, key: 'k' }],
+    scope: 'editor',
+  },
+  {
     keys: 'Ctrl W',
     label: '关闭当前页签（焦点在页签行时）',
     chords: [{ ctrl: true, key: 'w' }],

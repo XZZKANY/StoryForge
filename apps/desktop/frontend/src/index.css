@@ -306,6 +306,11 @@ body {
   border-left: 3px solid rgb(var(--success) / 0.7);
   /* font-family 由 buildDiffZoneDom 内联设为编辑器实际字体（CJK 2:1 栈），与红旧行同栈不错位 */
 }
+/* 续写流式区：与绿块同一形状，但用 agent 色示意「还在写」，落定后才转成成品绿块 */
+.sf-inline-diff-zone--streaming {
+  background: rgb(var(--agent) / 0.08);
+  border-left-color: rgb(var(--agent) / 0.7);
+}
 .sf-inline-diff-line {
   padding: 0 12px 0 16px;
   color: rgb(var(--foreground));
