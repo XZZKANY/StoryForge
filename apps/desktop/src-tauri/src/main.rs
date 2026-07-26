@@ -3,8 +3,6 @@
 
 mod fs;
 mod llm_config;
-#[cfg(test)]
-mod menu;
 mod watcher;
 
 use anyhow::{Context, Result};

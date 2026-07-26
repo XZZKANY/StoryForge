@@ -7,6 +7,7 @@ import {
   type ProviderKind,
   type ThemeMode,
 } from '../lib/user-settings';
+import { Info, Palette, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
 import { checkForUpdate, currentAppVersion, type UpdateCheckResult } from '../lib/update-check';
 import { probeProviderHealth } from '../lib/api-client';
@@ -232,7 +233,9 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                 href={`#${navAnchor(item)}`}
                 className="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted no-underline hover:bg-elevated hover:text-foreground"
               >
-                <span className="grid h-5 w-5 place-items-center text-subtle">{navIcon(item)}</span>
+                <span className="grid h-5 w-5 place-items-center text-subtle">
+                  <NavIcon label={item} />
+                </span>
                 <span className="truncate">{item}</span>
               </a>
             ))}
@@ -815,12 +818,12 @@ function navAnchor(label: string): string {
   return 'provider';
 }
 
-function navIcon(label: string): string {
-  if (label === '模型服务') return '◈';
-  if (label === '外观') return '◐';
-  if (label === '编辑器') return '▤';
-  if (label === '关于') return 'ⓘ';
-  return '◈';
+/** 设置左栏图标走 Lucide（此前是 ◈ ◐ ▤ ⓘ 四个 Unicode 字形，Win11 下会被字体替换成异形，
+ *  且与全站唯一图标源 shell-icons 割裂 —— 那个模块的存在理由就是「取代旧的 Unicode/字形图标」）。 */
+function NavIcon({ label }: { label: string }) {
+  const Icon =
+    label === '模型服务' ? Sparkles : label === '外观' ? Palette : label === '编辑器' ? Type : Info;
+  return <Icon size={15} strokeWidth={1.6} />;
 }
 
 type UpdateProbeState = 'idle' | 'loading' | UpdateCheckResult;

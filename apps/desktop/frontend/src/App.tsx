@@ -141,6 +141,11 @@ export function App() {
       } else if (key === 'p') {
         event.preventDefault();
         setPalette('files');
+      } else if (key === 'o') {
+        // 速查表与欢迎页都印着 Ctrl O；原生菜单从未安装（decorations:false + create_menu never called），
+        // 这个键此前一直是死的。承诺写在界面上就得由前端自己兑现。
+        event.preventDefault();
+        void commands.handleOpenProject();
       } else if (key === 'b') {
         event.preventDefault();
         shell.toggleSidebar();
@@ -159,12 +164,16 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [openSettings, shell, tabs.displayedFile, workspace.activeProject]);
+  }, [commands, openSettings, shell, tabs.displayedFile, workspace.activeProject]);
+
+  // 观测面板挂在中栏底部，而对话聚焦态（Ctrl+3）整条隐藏中栏：直接翻 open 会「点了没反应」。
+  // 开面板前先落回可见布局，关面板则不动布局。
+  const toggleObsPanel = useCallback(() => {
+    if (!obsPanelOpen) showCenter();
+    setObsPanelOpen((open) => !open);
+  }, [obsPanelOpen, showCenter]);
 
   const runtime = useTauriMenuBridge({
-    onOpenProject: commands.handleOpenProject,
-    onNewFile: commands.handleNewFile,
-    onToggleSidebar: shell.toggleSidebar,
     onRestoreFullLayout: () => {
       shell.showSidebar();
       shell.showRight();
@@ -213,6 +222,7 @@ export function App() {
       setPalette={setPalette}
       obsPanelOpen={obsPanelOpen}
       setObsPanelOpen={setObsPanelOpen}
+      toggleObsPanel={toggleObsPanel}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       openSettings={openSettings}
       welcomeDismissed={welcomeDismissed}

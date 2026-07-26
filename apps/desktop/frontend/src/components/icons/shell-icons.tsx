@@ -35,6 +35,7 @@ import {
   PanelLeft,
   PanelRight,
   PanelRightClose,
+  Palette,
   Plus,
   Radar,
   RefreshCw,
@@ -42,6 +43,7 @@ import {
   Settings,
   Sparkles,
   Square,
+  Type,
   X,
 } from 'lucide-react';
 
@@ -77,6 +79,7 @@ export {
   PanelLeft,
   PanelRight,
   PanelRightClose,
+  Palette,
   Plus,
   Radar,
   RefreshCw,
@@ -84,5 +87,6 @@ export {
   Settings,
   Sparkles,
   Square,
+  Type,
   X,
 };
