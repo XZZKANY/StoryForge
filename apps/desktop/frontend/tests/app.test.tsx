@@ -63,12 +63,16 @@ test('App 无项目时左栏资源管理器为空，打开项目入口只留中�
   assert.doesNotMatch(html, /data-testid="project-library-list"/);
 });
 
-test('App 活动栏精简为 文件/设置，左栏搜索删左留中', () => {
+test('App 活动栏 = 文件 / 搜索 / 观测镜 / 设置；会话与质检仍不在左栏', () => {
   const html = renderApp();
   assert.match(html, /data-testid="activity-explorer"/);
   assert.match(html, /data-testid="activity-settings"/);
-  // 左栏搜索为未接线死占位、与顶栏命令面板重复，删左留中；会话入右栏对话头、质检收状态栏。
-  assert.doesNotMatch(html, /data-testid="activity-search"/);
+  // PR #171 删掉的那个左栏搜索是「未接线死占位、且与命令面板搜文件名重复」。
+  // 现在这个搜索接的是**正文内容**全文搜索（Ctrl+Shift+F），与命令面板职责不同，故重新在场。
+  // 若哪天它又退化成不接线的占位，应当再次删掉，而不是留在栏上骗人。
+  assert.match(html, /data-testid="activity-search"/);
+  assert.match(html, /data-testid="search-panel"/, '搜索图标必须对应一个真实渲染的搜索面板');
+  // 会话入右栏对话头、质检收状态栏——这两条未变。
   assert.doesNotMatch(html, /data-testid="activity-sessions"/);
   assert.doesNotMatch(html, /data-testid="activity-qa"/);
 });

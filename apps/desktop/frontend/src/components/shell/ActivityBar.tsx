@@ -1,12 +1,12 @@
 /**
  * 活动栏：48px 图标 rail。
  * 上排：视图图标（文件 …）；底部：设置齿轮——点开小菜单（命令面板 / 设置 / 快捷键 / 主题 / 关于，#15）。
- * 会话在右栏，质检在状态栏；文件搜索走顶栏命令面板 Ctrl+P。
+ * 会话在右栏，质检在状态栏；文件名搜索走顶栏命令面板 Ctrl+P，正文内容搜索走这里的搜索视图。
  * 激活指示条贴 rail 左缘。
  */
 import { useState } from 'react';
 import type { SidePanelView } from './useShellState';
-import { FileText, Radar, Settings } from '../icons/shell-icons';
+import { FileText, Radar, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
@@ -19,6 +19,7 @@ type ViewEntry = {
 
 const VIEW_ENTRIES: ViewEntry[] = [
   { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl+Shift+E' },
+  { view: 'search', icon: Search, title: '在正文中搜索 · Ctrl+Shift+F', projectOnly: true },
   { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl+4', projectOnly: true },
 ];
 

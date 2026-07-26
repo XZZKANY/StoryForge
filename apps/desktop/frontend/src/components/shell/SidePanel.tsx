@@ -26,8 +26,9 @@ type SidePanelProps = {
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
   fileActions?: FileTreeActions;
-  // 观测镜视图内容由 AppShell 注入（数据在 useObservatory，面板只管容器）。
+  // 观测镜 / 搜索视图内容由 AppShell 注入（数据在各自 hook，面板只管容器）。
   observatory?: ReactNode;
+  search?: ReactNode;
 };
 
 export function SidePanel(props: SidePanelProps) {
@@ -38,12 +39,19 @@ export function SidePanel(props: SidePanelProps) {
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
-      {/* 两视图 CSS 互斥不卸载：观测镜折叠态与滚动位置不因切视图丢失。 */}
+      {/* 三视图 CSS 互斥不卸载：观测镜折叠态、搜索结果与滚动位置不因切视图丢失。 */}
       <div
         className={`${props.view === 'explorer' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
         hidden={props.view !== 'explorer'}
       >
         <ExplorerView {...props} />
+      </div>
+      <div
+        className={`${props.view === 'search' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
+        data-testid="side-search-pane"
+        hidden={props.view !== 'search'}
+      >
+        {props.search}
       </div>
       <div
         className={`${props.view === 'observatory' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
