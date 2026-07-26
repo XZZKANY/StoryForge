@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, status
+from fastapi.responses import StreamingResponse
 
 from app.db.deps import SessionDependency
 from app.domains.assistant.schemas import (
+    AssistantContinueRequest,
     AssistantMessageCreate,
     AssistantMessageRead,
     AssistantReviseRequest,
@@ -24,6 +26,7 @@ from app.domains.assistant.service import (
     list_recent_assistant_sessions,
     probe_provider_health,
     revise_file_content,
+    stream_continue_prose,
     update_assistant_tool_call,
 )
 
@@ -135,6 +138,22 @@ def revise_file_content_endpoint(
     LLM 未配置返回 422，调用失败返回 502，错误原样透出，不伪造兜底。"""
 
     return revise_file_content(session, payload)
+
+
+@router.post("/continue", summary="在光标处续写正文（SSE 流）")
+def continue_prose_endpoint(
+    payload: AssistantContinueRequest,
+    session: SessionDependency,
+) -> StreamingResponse:
+    """桌面行间续写调用：吃全文 + 光标行，逐块吐出续写正文。
+
+    帧：`start`（会话/模型）、`delta`（原始增量，仅供即时观感）、`done`（`text` 为经确定性
+    后处理的权威结果，前端须以它覆盖累积缓冲）、`error`。LLM 未配置在建流前返回 422。"""
+
+    return StreamingResponse(
+        stream_continue_prose(session, payload),
+        media_type="text/event-stream",
+    )
 
 
 @router.get(

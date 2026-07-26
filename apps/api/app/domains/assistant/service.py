@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from typing import Any
 from urllib import error, request
 
@@ -10,9 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.exceptions import DomainError, NotFoundError
+from app.common.llm_client import LLMError, build_chat_payload, stream_chat_completions
 from app.common.redaction import redact_sensitive, redact_sensitive_text
+from app.domains.assistant import continuation
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.assistant.schemas import (
+    AssistantContinueRequest,
     AssistantDraftRequest,
     AssistantDraftResponse,
     AssistantMessageCreate,
@@ -326,6 +329,180 @@ def chat_reply(
         "completion_tokens": result.get("completion_tokens"),
         "latency_ms": int(result.get("latency_ms", 0) or 0),
     }
+
+
+def _sse(event: str, data: dict[str, Any]) -> str:
+    """SSE 帧编码。本地实现而非引 ide.run_events，避免新增 assistant → ide 域边。"""
+
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _continue_scene_constraints(payload: AssistantContinueRequest) -> str | None:
+    if not payload.project_root:
+        return None
+    # 延迟导入：agent_runs 在模块顶层 import 本模块（file.create 走 draft_file_content），
+    # 顶层反向引用会成环。
+    from app.domains.agent_runs import canon_context
+
+    try:
+        return canon_context.build_scene_constraint_block(payload.project_root, payload.file_path)
+    except Exception:  # noqa: BLE001 - canon 缺失或损坏绝不能挡住作者继续写
+        return None
+
+
+def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -> Iterator[str]:
+    """光标处续写：同步做前置校验与证据链落库，返回逐块吐字的 SSE 生成器。
+
+    外层刻意不是生成器——LLM 未配置必须在 StreamingResponse 建立之前抛成 422，否则错误
+    只能裹在流里以 200 送出，前端拿不到状态码。
+    """
+
+    llm_env = resolved_llm_env()
+    missing = missing_book_generation_env()
+    if missing:
+        raise AssistantLlmNotConfiguredError(missing)
+
+    tail = continuation.manuscript_tail(payload.content, payload.cursor_line)
+    target_chars = payload.target_chars or continuation.DEFAULT_TARGET_CHARS
+    scene_constraints = _continue_scene_constraints(payload)
+    instruction_label = payload.instruction or f"续写 {payload.file_path}"
+
+    if payload.assistant_session_id is not None:
+        assistant_session = get_assistant_session(session, payload.assistant_session_id)
+        append_assistant_message(
+            session,
+            assistant_session.id,
+            AssistantMessageCreate(role="user", content=instruction_label),
+        )
+    else:
+        assistant_session = create_assistant_session(
+            session,
+            AssistantSessionCreate(
+                title=f"续写 {payload.file_path}"[:160],
+                task_type="desktop_continue",
+                messages=[AssistantMessageCreate(role="user", content=instruction_label)],
+            ),
+        )
+
+    tool_call = create_assistant_tool_call(
+        session,
+        assistant_session.id,
+        AssistantToolCallCreate(
+            tool_name="assistant.continue",
+            status="running",
+            input_summary={
+                "file_path": payload.file_path,
+                "cursor_line": payload.cursor_line,
+                "tail_chars": len(tail),
+                "target_chars": target_chars,
+                "has_instruction": payload.instruction is not None,
+                "has_scene_constraints": scene_constraints is not None,
+            },
+        ),
+    )
+
+    request_payload = build_chat_payload(
+        llm_env,
+        messages=[
+            {"role": "system", "content": continuation.CONTINUE_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": continuation.build_continue_prompt(
+                    tail=tail,
+                    file_path=payload.file_path,
+                    instruction=payload.instruction,
+                    scene_constraints=scene_constraints,
+                    target_chars=target_chars,
+                ),
+            },
+        ],
+        tools=None,
+        tool_choice=None,
+        stream=True,
+        # 中文按字符给足配额，宁可被 max_tokens 截断后由 trim_to_sentence_end 收口，
+        # 也不让模型无上限写成整章。
+        max_completion_tokens=max(256, target_chars * 3),
+    )
+    model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
+
+    def _generate() -> Iterator[str]:
+        yield _sse(
+            "start",
+            {
+                "assistant_session_id": assistant_session.id,
+                "tool_call_id": tool_call.id,
+                "model": model,
+                "target_chars": target_chars,
+            },
+        )
+        raw_parts: list[str] = []
+        try:
+            for frame in stream_chat_completions(llm_env, request_payload):
+                if frame.get("type") == "delta":
+                    text = str(frame.get("text") or "")
+                    raw_parts.append(text)
+                    yield _sse("delta", {"text": text})
+                    continue
+
+                final_text = continuation.finalize_continuation(tail, "".join(raw_parts))
+                if not final_text:
+                    message = "模型这一轮没有写出新内容（可能只是复述了上文）。"
+                    update_assistant_tool_call(
+                        session,
+                        tool_call.id,
+                        AssistantToolCallUpdate(status="failed", error_message=message),
+                    )
+                    yield _sse("error", {"message": message})
+                    return
+
+                output_summary: dict[str, Any] = {
+                    "final_chars": len(final_text),
+                    "raw_chars": len("".join(raw_parts)),
+                    "prompt_tokens": frame.get("prompt_tokens"),
+                    "completion_tokens": frame.get("completion_tokens"),
+                    "token_usage": frame.get("token_usage"),
+                    "cost_cny_estimated": frame.get("cost_cny_estimated"),
+                    "cost_breakdown": frame.get("cost_breakdown"),
+                    "token_usage_source": frame.get("token_usage_source"),
+                    "latency_ms": frame.get("latency_ms"),
+                }
+                if frame.get("reasoning_leak_stripped"):
+                    output_summary["reasoning_leak_stripped"] = True
+                update_assistant_tool_call(
+                    session,
+                    tool_call.id,
+                    AssistantToolCallUpdate(status="completed", output_summary=output_summary),
+                )
+                append_assistant_message(
+                    session,
+                    assistant_session.id,
+                    AssistantMessageCreate(
+                        role="assistant",
+                        content=f"已在 {payload.file_path} 光标处续写约 {len(final_text)} 字，待作者确认。",
+                    ),
+                )
+                # text 是权威结果：流里吐的是原始增量，确定性后处理（掐重复开头、裁到
+                # 完整句末）只能在收尾做，前端须以这一帧覆盖累积缓冲。
+                yield _sse(
+                    "done",
+                    {
+                        "text": final_text,
+                        "model": model,
+                        "completion_tokens": frame.get("completion_tokens"),
+                        "latency_ms": frame.get("latency_ms"),
+                        "assistant_session_id": assistant_session.id,
+                    },
+                )
+                return
+        except LLMError as exc:
+            update_assistant_tool_call(
+                session,
+                tool_call.id,
+                AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+            )
+            yield _sse("error", {"message": str(exc)})
+
+    return _generate()
 
 
 def revise_file_content(session: Session, payload: AssistantReviseRequest) -> AssistantReviseResponse:

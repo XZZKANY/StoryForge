@@ -35,6 +35,64 @@ def strip_reasoning_leak(content: str) -> str:
     return cleaned
 
 
+_THINK_OPEN_TEXT = "<think>"
+
+
+class StreamingReasoningFilter:
+    """`strip_reasoning_leak` 的增量等价物，供流式续写逐块放行正文。
+
+    整段版可以回看全文再决定切哪里，流式不能：已经吐给前端的字收不回来。故只覆盖真实
+    泄漏形状——模型在正文前先吐 `<think>…</think>`：在能判定开头不是 think 块之前一律
+    缓冲，见到闭合标签就丢弃其前全部。流末残留缓冲再跑一次整段版兜底（覆盖 think 块未
+    闭合就截断的情况）。
+    """
+
+    def __init__(self) -> None:
+        self._buffer = ""
+        self._passthrough = False
+        self._stripped = False
+
+    @property
+    def stripped(self) -> bool:
+        return self._stripped
+
+    def feed(self, chunk: str) -> str:
+        if not chunk:
+            return ""
+        if self._passthrough:
+            return chunk
+        self._buffer += chunk
+        last_close = None
+        for match in THINK_CLOSE_RE.finditer(self._buffer):
+            last_close = match
+        if last_close is not None:
+            remainder = self._buffer[last_close.end() :]
+            self._buffer = ""
+            self._passthrough = True
+            self._stripped = True
+            return remainder.lstrip()
+        leading = self._buffer.lstrip().lower()
+        if leading.startswith(_THINK_OPEN_TEXT):
+            return ""
+        if _THINK_OPEN_TEXT.startswith(leading):
+            # 还不足以判定（可能只收到 "<th"），继续缓冲而不是猜。
+            return ""
+        emitted = self._buffer
+        self._buffer = ""
+        self._passthrough = True
+        return emitted
+
+    def flush(self) -> str:
+        if not self._buffer:
+            return ""
+        remaining = self._buffer
+        self._buffer = ""
+        cleaned = strip_reasoning_leak(remaining)
+        if cleaned != remaining:
+            self._stripped = True
+        return cleaned
+
+
 def env_value(source: Mapping[str, str | None], name: str) -> str:
     value = source.get(name)
     return value.strip() if value and value.strip() else ""

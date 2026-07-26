@@ -145,6 +145,7 @@ from app.domains.book_runs.errors import (  # noqa: F401  facade re-export
     BookGenerationPreflightError,
 )
 from app.domains.book_runs.models import BookRun  # noqa: F401  facade re-export
+from app.domains.book_runs.prompts import CRAFT_GUIDELINES  # noqa: F401  facade re-export（续写共用创作准则）
 from app.domains.book_runs.schemas import BookRunCreate, BookRunProgressUpdate
 from app.domains.book_runs.service import apply_book_run_progress, create_book_run
 from app.domains.books.models import Book, Chapter  # noqa: F401  facade re-export

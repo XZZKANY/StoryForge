@@ -43,6 +43,11 @@ _CRAFT_EXAMPLE_BAD = "反例（说明腔，禁止）：直接用情绪形容词�
 _CRAFT_EXAMPLE_GOOD = "正例（画面化，模仿）：他把茶杯按在桌上，瓷底磕出一声脆响，指节泛白，半天没松开。"
 
 
+# 经 book_generation 门面转出给续写用：整书管线与光标处续写共用同一份"什么是好文笔"，
+# 避免两处各留一份陈词表后各自漂移。
+CRAFT_GUIDELINES = _CRAFT_GUIDELINES
+
+
 def _strategy_section(ctx: NarrativeContext) -> str:
     lines = []
     if _clean(ctx.strategy_title):
