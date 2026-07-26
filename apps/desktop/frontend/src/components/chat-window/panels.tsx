@@ -232,8 +232,6 @@ export function MessageList({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
-  /** @deprecated 控件已迁到 Composer 上方 RunActionBar */
-  agentRunControls?: AgentRunControlHandlers;
 }) {
   if (messages.length === 0) {
     return (
@@ -413,9 +411,6 @@ export function RunActionBar({
     </div>
   );
 }
-
-/** @deprecated 中流控制已迁到 RunActionBar；保留别名避免外部引用断裂。 */
-export const AgentRunControlBar = RunActionBar;
 
 export function WritingRunProgressPanel({ projection }: { projection: WritingRunProjection }) {
   const chapters = projection.totalChapters

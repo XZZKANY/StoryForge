@@ -1,5 +1,5 @@
 /**
- * 中栏编辑器页签行（h-shell-row，与左右两栏头部行同高对齐）：设置 / 文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
+ * 中栏编辑器页签行（h-shell-row，与左右两栏头部行同高对齐）：文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
  * 预览页签为斜体，单击别的文件会覆盖它；双击预览页签固定（对齐原型 pane-preview 语义）。
  * 激活页签向下压 1px，用 --background 底线冲掉容器底边，与编辑区无缝一体。
  * Q3a：导出/历史/保存/关闭其他/关闭全部收进「…」溢出菜单（删掉 Editor 自己的第二条工具行，
@@ -7,11 +7,11 @@
  */
 import { useRef, useState } from 'react';
 import { basename } from '../app/helpers';
-import { MoreHorizontal, Settings, X } from '../icons/shell-icons';
+import { MoreHorizontal, X } from '../icons/shell-icons';
 import { ContextMenu } from './ContextMenu';
 import { useDismissableMenu } from './useDismissableMenu';
 
-export type CenterTab = 'settings' | 'file' | 'preview';
+export type CenterTab = 'file' | 'preview';
 
 function Tab({
   active,
@@ -128,17 +128,14 @@ export function EditorTabs({
   activeFile,
   previewFile,
   dirtyFiles,
-  settingsOpen,
   activeTab,
   activeReadOnly = false,
   onFocusFile,
   onReorderFiles,
   onFocusPreview,
   onPinPreview,
-  onFocusSettings,
   onCloseFile,
   onClosePreview,
-  onCloseSettings,
   onSaveActive,
   onToggleHistory,
   onExportActive,
@@ -149,17 +146,14 @@ export function EditorTabs({
   activeFile: string | null;
   previewFile: string | null;
   dirtyFiles: ReadonlySet<string>;
-  settingsOpen: boolean;
   activeTab: CenterTab | null;
   activeReadOnly?: boolean;
   onFocusFile: (path: string) => void;
   onReorderFiles?: (from: string, to: string) => void;
   onFocusPreview: () => void;
   onPinPreview: () => void;
-  onFocusSettings: () => void;
   onCloseFile: (path: string) => void;
   onClosePreview?: () => void;
-  onCloseSettings: () => void;
   // Q3a 文件操作（收进「…」菜单，作用于当前活动文件页签）。
   onSaveActive?: () => void;
   onToggleHistory?: () => void;
@@ -208,15 +202,6 @@ export function EditorTabs({
         className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
         data-testid="editor-tab-scroll"
       >
-        {settingsOpen && (
-          <Tab
-            active={activeTab === 'settings'}
-            label="设置"
-            icon={<Settings size={13} strokeWidth={1.6} />}
-            onActivate={onFocusSettings}
-            onClose={onCloseSettings}
-          />
-        )}
         {openFiles.map((path) => (
           <Tab
             key={path}

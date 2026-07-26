@@ -114,7 +114,6 @@ export function AppShell({
   // 设置改为弹出式（#15），不再占中栏页签：centerHasTabs 只看是否开了项目。
   const centerHasTabs = projectOpen;
   const activeCenterTab: CenterTab | null = resolveActiveCenterTab(
-    false,
     tabs.displayedFile,
     tabs.previewFile,
   );
@@ -237,7 +236,6 @@ export function AppShell({
                 activeFile={currentFile}
                 previewFile={tabs.previewFile}
                 dirtyFiles={tabs.dirtyFiles}
-                settingsOpen={false}
                 activeTab={activeCenterTab}
                 activeReadOnly={
                   tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
@@ -246,10 +244,8 @@ export function AppShell({
                 onReorderFiles={tabs.reorderOpenFiles}
                 onFocusPreview={tabs.focusPreview}
                 onPinPreview={tabs.pinPreview}
-                onFocusSettings={() => void openSettings()}
                 onCloseFile={(path) => void tabs.handleFileClose(path)}
                 onClosePreview={tabs.closePreview}
-                onCloseSettings={() => setSettingsVisible(false)}
                 onSaveActive={() => {
                   if (tabs.displayedFile) {
                     void flushActiveEditorToDisk(tabs.displayedFile).catch(() => undefined);

@@ -53,14 +53,13 @@ export function resolveDisplayedEditorFile(
 }
 
 /**
- * 中栏活动页签高亮：设置面板优先；展示的正是预览文件则预览页签高亮，否则固定页签高亮。
+ * 中栏活动页签高亮：展示的正是预览文件则预览页签高亮，否则固定页签高亮。
+ * （#15 起设置改弹出式覆盖层，不再占中栏页签，故此处不再有 settings 分支。）
  */
 export function resolveActiveCenterTab(
-  settingsVisible: boolean,
   displayedFile: string | null,
   previewFile: string | null,
-): 'settings' | 'file' | 'preview' | null {
-  if (settingsVisible) return 'settings';
+): 'file' | 'preview' | null {
   if (!displayedFile) return null;
   return displayedFile === previewFile ? 'preview' : 'file';
 }

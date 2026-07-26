@@ -26,10 +26,9 @@ describe('#5 编辑器页签展示派生', () => {
     expect(resolveDisplayedEditorFile('file', null, null)).toBeNull();
   });
 
-  it('活动页签：展示的是预览文件则预览高亮，否则固定高亮，设置优先', () => {
-    expect(resolveActiveCenterTab(false, 'C', 'C')).toBe('preview');
-    expect(resolveActiveCenterTab(false, 'B', 'C')).toBe('file');
-    expect(resolveActiveCenterTab(false, null, 'C')).toBeNull();
-    expect(resolveActiveCenterTab(true, 'B', 'C')).toBe('settings');
+  it('活动页签：展示的是预览文件则预览高亮，否则固定高亮', () => {
+    expect(resolveActiveCenterTab('C', 'C')).toBe('preview');
+    expect(resolveActiveCenterTab('B', 'C')).toBe('file');
+    expect(resolveActiveCenterTab(null, 'C')).toBeNull();
   });
 });

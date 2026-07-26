@@ -27,7 +27,6 @@ type ResourceExplorerProps = {
   currentFile: string | null;
   previewFile?: string | null;
   refreshVersion?: number;
-  showHeader?: boolean;
   onFileSelect: (filePath: string) => void;
   // 单击预览（可覆盖的斜体页签），双击固定；不传则单击直接固定（旧行为）。
   onFilePreview?: (filePath: string) => void;
@@ -40,7 +39,6 @@ export function ResourceExplorer({
   currentFile,
   previewFile = null,
   refreshVersion = 0,
-  showHeader = true,
   onFileSelect,
   onFilePreview,
   fileActions,
@@ -48,7 +46,6 @@ export function ResourceExplorer({
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   useEffect(() => {
@@ -92,10 +89,6 @@ export function ResourceExplorer({
     return buildProjectTree(files, projectPath);
   }, [files, projectPath]);
 
-  const handleCollapse = useCallback(() => {
-    setCollapsed((prev) => !prev);
-  }, []);
-
   const buildMenuItems = useCallback(
     (target: ContextTarget | null): ContextMenuItem[] => {
       if (!fileActions || !projectPath) return [];
@@ -132,66 +125,44 @@ export function ResourceExplorer({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* 标题栏 */}
-      {showHeader && (
-        <div className="sf-panel-header border-border">
-          <span className="text-xs font-medium text-muted">资源管理器</span>
-          <button
-            onClick={handleCollapse}
-            className="sf-icon-button text-muted"
-            title={collapsed ? '展开' : '折叠'}
-          >
-            <svg
-              className={`w-3.5 h-3.5 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M4 6l4 4 4-4H4z" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       {/* 文件树 */}
-      {!collapsed && (
-        <div
-          className="flex-1 overflow-y-auto py-2"
-          data-testid="file-list"
-          data-project-path={projectPath ?? ''}
-          onContextMenu={(event) => openMenu(event, null)}
-        >
-          {!projectPath ? (
-            <div className="mt-8 mx-4 text-center">
-              <p className="text-sm text-subtle">尚未打开项目</p>
+      <div
+        className="flex-1 overflow-y-auto py-2"
+        data-testid="file-list"
+        data-project-path={projectPath ?? ''}
+        onContextMenu={(event) => openMenu(event, null)}
+      >
+        {!projectPath ? (
+          <div className="mt-8 mx-4 text-center">
+            <p className="text-sm text-subtle">尚未打开项目</p>
+          </div>
+        ) : loading ? (
+          <div className="p-8 text-center text-sm text-subtle">加载中...</div>
+        ) : error ? (
+          <div className="mx-2 p-2 rounded bg-error/10 text-error text-xs">{error}</div>
+        ) : tree.length === 0 ? (
+          <div className="mt-8 mx-4 text-center">
+            <p className="text-sm text-subtle">空空如也</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            <div className="pl-2">
+              {tree.map((node) => (
+                <TreeNodeItem
+                  key={node.path}
+                  node={node}
+                  level={0}
+                  currentFile={currentFile}
+                  previewFile={previewFile}
+                  onFileSelect={onFileSelect}
+                  onFilePreview={onFilePreview}
+                  onNodeContextMenu={fileActions ? openMenu : undefined}
+                />
+              ))}
             </div>
-          ) : loading ? (
-            <div className="p-8 text-center text-sm text-subtle">加载中...</div>
-          ) : error ? (
-            <div className="mx-2 p-2 rounded bg-error/10 text-error text-xs">{error}</div>
-          ) : tree.length === 0 ? (
-            <div className="mt-8 mx-4 text-center">
-              <p className="text-sm text-subtle">空空如也</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              <div className="pl-2">
-                {tree.map((node) => (
-                  <TreeNodeItem
-                    key={node.path}
-                    node={node}
-                    level={0}
-                    currentFile={currentFile}
-                    previewFile={previewFile}
-                    onFileSelect={onFileSelect}
-                    onFilePreview={onFilePreview}
-                    onNodeContextMenu={fileActions ? openMenu : undefined}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />

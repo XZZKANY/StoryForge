@@ -3,23 +3,11 @@
  * 从 App.tsx 抽出，供 App 及其子组件单向引用。
  */
 
-export type LayoutMode = 'normal' | 'custom' | 'assistant-only' | 'workspace-only';
-
 export const RECENT_PROJECTS_KEY = 'recent-projects';
-export const RECENT_FILES_KEY = 'recent-files';
 export const PROJECT_ASSISTANT_SESSIONS_KEY = 'project-assistant-sessions';
 
 export function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
-}
-
-export function activeProjectLabel(path: string | null): string {
-  return path ? basename(path) : 'storyforge';
-}
-
-export function joinPath(root: string, child: string): string {
-  const separator = root.includes('\\') ? '\\' : '/';
-  return `${root.replace(/[/\\]+$/, '')}${separator}${child.replace(/^[/\\]+/, '')}`;
 }
 
 export function normalizeMarkdownFileName(input: string): string {
