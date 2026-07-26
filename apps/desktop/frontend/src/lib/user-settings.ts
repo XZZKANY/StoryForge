@@ -34,6 +34,8 @@ export type AppSettings = {
   theme: ThemeMode;
   provider: ProviderSettings;
   showWelcomeOnStartup: boolean;
+  /** 启动时恢复上次的项目、页签与光标位置（写作时刻 01「恢复现场」）。 */
+  restoreLastSession: boolean;
 };
 
 export const APP_SETTINGS_KEY = 'storyforge-app-settings';
@@ -53,6 +55,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     apiKeyRef: '',
   },
   showWelcomeOnStartup: true,
+  restoreLastSession: true,
 };
 
 function sanitizeProviderSettings(value: unknown): ProviderSettings {
@@ -120,6 +123,10 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       typeof candidate.showWelcomeOnStartup === 'boolean'
         ? candidate.showWelcomeOnStartup
         : DEFAULT_APP_SETTINGS.showWelcomeOnStartup,
+    restoreLastSession:
+      typeof candidate.restoreLastSession === 'boolean'
+        ? candidate.restoreLastSession
+        : DEFAULT_APP_SETTINGS.restoreLastSession,
   };
 }
 

@@ -425,6 +425,12 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       checked={safeSettings.autoSave}
                       onChange={(checked) => update('autoSave', checked)}
                     />
+                    <ToggleRow
+                      title="启动时恢复上次现场"
+                      description="重开后自动打开上次的项目、页签与停笔位置。关闭则每次从欢迎页开始。"
+                      checked={safeSettings.restoreLastSession}
+                      onChange={(checked) => update('restoreLastSession', checked)}
+                    />
                     <ActionRow
                       title="恢复默认设置"
                       description="重置本机 StoryForge 桌面偏好。"

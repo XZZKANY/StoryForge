@@ -348,3 +348,34 @@ export function resolveAnchorLine(
   }
   return null;
 }
+
+/**
+ * 已处理观测标记的按项目持久化（写作时刻 01「恢复现场」）。
+ * 此前只活在内存里的一个 Set，重启后作者上次逐条勾掉的「这条我看过了」会全部复活。
+ * 只存稳定 id，不存观测内容——内容由每次扫描重新产出，标记只是作者的判断。
+ */
+const RESOLVED_OBSERVATIONS_PREFIX = 'storyforge:resolved-observations:';
+
+export function loadResolvedObservationIds(project: string | null): Set<string> {
+  if (!project) return new Set();
+  try {
+    const raw = localStorage.getItem(`${RESOLVED_OBSERVATIONS_PREFIX}${project}`);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === 'string' && id.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveResolvedObservationIds(project: string | null, ids: ReadonlySet<string>): void {
+  if (!project) return;
+  try {
+    localStorage.setItem(
+      `${RESOLVED_OBSERVATIONS_PREFIX}${project}`,
+      JSON.stringify([...ids].slice(-500)),
+    );
+  } catch {
+    // localStorage 不可用时放弃持久化，不影响本次会话内的勾选。
+  }
+}

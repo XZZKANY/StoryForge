@@ -10,6 +10,7 @@ import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs'
 import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
+import { useSessionRestore } from './components/app/useSessionRestore';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
 import type { Observation } from './components/shell/ObsPanel';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
@@ -42,6 +43,10 @@ export function App() {
     onProjectSelected: showEditor,
     onFileSelected: showEditor,
   });
+  const session = useSessionRestore({
+    enabled: preferences.settings.restoreLastSession,
+    selectProject: workspace.selectProject,
+  });
   const tabs = useEditorWorkspaceTabs({
     activeProject: workspace.activeProject,
     currentFile: workspace.currentFile,
@@ -51,6 +56,8 @@ export function App() {
     removeProject: workspace.removeProject,
     dialogs: appDialog,
     onShowEditor: showEditor,
+    pendingRestore: session.pendingRestore,
+    onRestoreApplied: session.handleRestoreApplied,
   });
   const commands = useProjectCommands({
     activeProject: workspace.activeProject,
@@ -69,6 +76,12 @@ export function App() {
   const openSettings = useCallback(async () => {
     setSettingsVisible(true);
   }, []);
+
+  // 现场随页签 / 活动文件变化回写；光标位置由 Editor 去抖后经 recordCursor 记进同一份会话。
+  const { persistSession } = session;
+  useEffect(() => {
+    persistSession(workspace.activeProject, tabs.openFiles, workspace.currentFile);
+  }, [persistSession, tabs.openFiles, workspace.activeProject, workspace.currentFile]);
 
   // 启动更新自检：仅装机构建，延迟起跑不抢启动带宽；网络失败静默降级
   // （GitHub 在本机依赖代理，不可用是常态，只有查到新版才打扰）。
@@ -225,7 +238,9 @@ export function App() {
       toggleObsPanel={toggleObsPanel}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       openSettings={openSettings}
-      welcomeDismissed={welcomeDismissed}
+      initialCursors={session.initialCursors}
+      onCursorPersist={session.recordCursor}
+      welcomeDismissed={welcomeDismissed || session.restoredWorkspace}
       onCloseWelcome={() => setWelcomeDismissed(true)}
       onReopenWelcome={() => {
         // 无项目时设置页占据中栏（centerHasTabs），只翻 welcomeDismissed 不清设置页 =
