@@ -11,6 +11,7 @@ import {
   type SemanticFile,
   type SemanticKind,
 } from '../lib/project-context';
+import { PanelError } from './shell/PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
 import { MarkdownFileIcon } from './StoryIcons';
 import type { FileTreeActions } from './app/useFileTreeActions';
@@ -72,6 +73,8 @@ export function StoryNavigator({
   const [index, setIndex] = useState<ProjectIndex | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 索引装载失败后的本地重试计数；与 refreshVersion 并列驱动同一个 effect。
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!projectPath || activeTab !== 'story') {
@@ -100,7 +103,7 @@ export function StoryNavigator({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, projectPath, refreshVersion]);
+  }, [activeTab, projectPath, refreshVersion, retryNonce]);
 
   const storyGroups = useMemo(() => buildStoryNavigationGroups(index?.files ?? []), [index]);
 
@@ -148,6 +151,7 @@ export function StoryNavigator({
             previewFile={previewFile}
             loading={loading}
             error={error}
+            onRetry={() => setRetryNonce((value) => value + 1)}
             storyGroups={storyGroups}
             onFileSelect={onFileSelect}
             onFilePreview={onFilePreview}
@@ -188,6 +192,7 @@ function StoryIndexView({
   previewFile,
   loading,
   error,
+  onRetry,
   storyGroups,
   onFileSelect,
   onFilePreview,
@@ -197,6 +202,7 @@ function StoryIndexView({
   previewFile: string | null;
   loading: boolean;
   error: string | null;
+  onRetry: () => void;
   storyGroups: ReturnType<typeof buildStoryNavigationGroups>;
   onFileSelect: (filePath: string) => void;
   onFilePreview?: (filePath: string) => void;
@@ -214,7 +220,15 @@ function StoryIndexView({
   }
 
   if (error) {
-    return <div className="mx-2 mt-2 rounded bg-error/10 p-2 text-xs text-error">{error}</div>;
+    return (
+      <PanelError
+        compact
+        title="加载故事索引失败"
+        hint="项目结构可能已变动；重试仍失败可先用「文件」页浏览。"
+        detail={error}
+        onRetry={onRetry}
+      />
+    );
   }
 
   if (storyGroups.length === 0) {

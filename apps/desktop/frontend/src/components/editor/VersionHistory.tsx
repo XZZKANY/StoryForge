@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildGraph, type BranchManifest, type GraphNode } from '../../lib/branches';
 import { buildPatchHunks, type PatchHunk } from '../../lib/patch-hunks';
 import { listVersions, readVersion, type VersionEntry } from '../../lib/versions';
+import { PanelError } from '../shell/PanelError';
 import { BranchCanvas } from '../BranchCanvas';
 
 export function formatTimestamp(ms: number): string {
@@ -36,6 +37,8 @@ export function VersionHistory({
   const [versions, setVersions] = useState<VersionEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 读版本目录失败后的本地重试计数。
+  const [retryNonce, setRetryNonce] = useState(0);
   const [sourceFilter, setSourceFilter] = useState<'all' | 'Editor' | 'Agent'>('all');
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
@@ -69,7 +72,10 @@ export function VersionHistory({
     void (async () => {
       try {
         const list = await listVersions(projectPath, filePath);
-        if (!cancelled) setVersions(list);
+        if (!cancelled) {
+          setVersions(list);
+          setError(null);
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : '读取版本失败');
       }
@@ -77,7 +83,13 @@ export function VersionHistory({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, filePath]);
+  }, [projectPath, filePath, retryNonce]);
+
+  const retryLoad = () => {
+    setError(null);
+    setVersions(null);
+    setRetryNonce((value) => value + 1);
+  };
 
   const restore = async (snapshotPath: string) => {
     setBusy(true);
@@ -133,7 +145,12 @@ export function VersionHistory({
       {viewMode === 'graph' ? (
         <div className="min-h-0 flex-1">
           {error ? (
-            <p className="p-2 text-sm text-error">{error}</p>
+            <PanelError
+              title="读取版本历史失败"
+              hint="快照目录 .storyforge/versions 可能不可读；正文本身不受影响。"
+              detail={error}
+              onRetry={retryLoad}
+            />
           ) : versions === null ? (
             <p className="p-2 text-sm text-muted">加载中...</p>
           ) : (
@@ -169,7 +186,12 @@ export function VersionHistory({
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {error ? (
-              <p className="text-sm text-error p-2">{error}</p>
+              <PanelError
+                title="读取版本历史失败"
+                hint="快照目录 .storyforge/versions 可能不可读；正文本身不受影响。"
+                detail={error}
+                onRetry={retryLoad}
+              />
             ) : versions === null ? (
               <p className="text-sm text-muted p-2">加载中...</p>
             ) : visibleVersions?.length === 0 ? (

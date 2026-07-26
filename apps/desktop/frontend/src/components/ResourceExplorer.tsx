@@ -17,6 +17,7 @@ import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
 import { parentDir } from '../lib/fs-path-ops';
 import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
 import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
+import { PanelError } from './shell/PanelError';
 import type { FileTreeActions } from './app/useFileTreeActions';
 
 type ContextTarget = { path: string; isDir: boolean };
@@ -47,6 +48,8 @@ export function ResourceExplorer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  // 读盘失败后的本地重试计数：与外部 refreshVersion 并列驱动同一个装载 effect。
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!projectPath) {
@@ -82,7 +85,7 @@ export function ResourceExplorer({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, refreshVersion]);
+  }, [projectPath, refreshVersion, retryNonce]);
 
   const tree = useMemo(() => {
     if (!projectPath) return [];
@@ -139,7 +142,13 @@ export function ResourceExplorer({
         ) : loading ? (
           <div className="p-8 text-center text-sm text-subtle">加载中...</div>
         ) : error ? (
-          <div className="mx-2 p-2 rounded bg-error/10 text-error text-xs">{error}</div>
+          <PanelError
+            compact
+            title="读取项目文件失败"
+            hint="项目目录可能已被移动、重命名或正被其他程序占用。"
+            detail={error}
+            onRetry={() => setRetryNonce((value) => value + 1)}
+          />
         ) : tree.length === 0 ? (
           <div className="mt-8 mx-4 text-center">
             <p className="text-sm text-subtle">空空如也</p>

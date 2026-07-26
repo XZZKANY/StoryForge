@@ -677,6 +677,33 @@ export function Editor({
         </div>
       )}
 
+      {/* 编辑器构建失败此前只写进 data-editor-init-error 属性、界面上什么都不显示：
+          作者看到的是一整块空白中栏，不知道出了什么事，也不知道能做什么。 */}
+      {editorInitError && (
+        <div
+          className="absolute inset-x-0 top-0 bottom-0 z-30 flex items-center justify-center bg-background px-6"
+          data-testid="editor-init-error"
+          role="alert"
+        >
+          <div className="max-w-md text-center">
+            <p className="text-[14px] text-error">编辑器未能启动</p>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted">
+              正文没有丢失，磁盘上的文件未被改动。重新载入界面通常可以恢复。
+            </p>
+            <p className="mt-2 break-words text-[11px] leading-relaxed text-subtle">
+              {editorInitError}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 h-8 rounded-md border border-border-strong px-3 text-[12px] text-foreground hover:bg-elevated"
+            >
+              重新载入界面
+            </button>
+          </div>
+        </div>
+      )}
+
       <EditorLoadStatus filePath={filePath} loadedFilePath={loadedFilePath} loadError={loadError} />
 
       {isReviseLoading && (
