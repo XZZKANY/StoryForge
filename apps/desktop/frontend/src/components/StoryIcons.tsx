@@ -1,30 +1,5 @@
 const DEFAULT_ICON_CLASS = 'h-3.5 w-3.5';
 
-export function ProjectIcon({ className = DEFAULT_ICON_CLASS }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-      data-icon-kind="project"
-    >
-      <path
-        d="M2.25 4.25c0-.83.67-1.5 1.5-1.5h3.35c.38 0 .74.14 1.01.4l1.07 1.02c.18.17.42.27.67.27h2.4c.83 0 1.5.67 1.5 1.5v5.81c0 .83-.67 1.5-1.5 1.5h-8.5c-.83 0-1.5-.67-1.5-1.5v-7.5Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5 7.15h6M5 9.3h4.6"
-        stroke="currentColor"
-        strokeWidth="1.15"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 export function FolderIcon({ className = DEFAULT_ICON_CLASS }: { className?: string }) {
   return (
     <svg
@@ -70,32 +45,6 @@ export function MarkdownFileIcon({ className = DEFAULT_ICON_CLASS }: { className
         stroke="currentColor"
         strokeWidth="1.05"
         strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function HomeStoryIcon({ className = DEFAULT_ICON_CLASS }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-      data-icon-kind="home"
-    >
-      <path
-        d="M2 7.5 8 2l6 5.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M4.5 6.75V14h7V6.75"
-        stroke="currentColor"
-        strokeWidth="1.3"
         strokeLinejoin="round"
       />
     </svg>

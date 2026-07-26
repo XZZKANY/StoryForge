@@ -72,7 +72,7 @@ export function WelcomeWorkspace({
           <span>欢迎</span>
           <button
             type="button"
-            className="icon-button grid h-[18px] w-[18px] place-items-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+            className="grid h-[18px] w-[18px] place-items-center rounded text-subtle hover:bg-elevated hover:text-foreground"
             onClick={onClose}
             title="关闭欢迎页"
             data-testid="welcome-close"

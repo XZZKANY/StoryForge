@@ -137,7 +137,6 @@ export function StoryNavigator({
             currentFile={currentFile}
             previewFile={previewFile}
             refreshVersion={refreshVersion}
-            showHeader={false}
             onFileSelect={onFileSelect}
             onFilePreview={onFilePreview}
             fileActions={fileActions}

@@ -78,29 +78,6 @@ body {
   overflow: hidden;
 }
 
-/* 性能优化：减少重绘和回流 */
-.panel-container {
-  contain: layout style;
-}
-
-.file-tree-item,
-.project-item,
-.history-item {
-  contain: layout;
-}
-
-/* 滚动容器优化 */
-.scroll-container {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-.vertical-rl {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-}
-
 .sf-panel-header {
   display: flex;
   height: var(--sf-bar-height);
@@ -112,17 +89,6 @@ body {
   padding: 0 var(--sf-panel-x);
 }
 
-.sf-sidebar-row {
-  display: flex;
-  height: var(--sf-row-height);
-  width: 100%;
-  align-items: center;
-  gap: var(--sf-item-gap);
-  border-radius: 6px;
-  padding: 0 var(--sf-panel-x);
-  text-align: left;
-}
-
 .sf-tree-row {
   display: flex;
   height: var(--sf-tree-row-height);
@@ -131,30 +97,6 @@ body {
   overflow: hidden;
   padding-right: var(--sf-panel-x);
   text-align: left;
-}
-
-.sf-toolbar-button {
-  display: inline-flex;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.025);
-  padding: 0 10px;
-  font-size: 12px;
-  line-height: 1;
-  color: rgb(var(--muted));
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
-}
-
-.sf-toolbar-button:hover {
-  border-color: rgb(var(--border));
-  background: rgb(var(--elevated));
-  color: rgb(var(--foreground));
 }
 
 .sf-icon-button {
@@ -178,36 +120,6 @@ body {
   border-color: rgb(var(--border));
   background: rgb(var(--elevated));
   color: rgb(var(--foreground));
-}
-
-.sf-topbar-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
-  color: rgb(var(--muted));
-}
-
-.sf-topbar-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 12px;
-  color: rgb(var(--muted));
-  font-size: 12px;
-}
-
-.sf-window-tools {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 /* Q2 统一细滚条：平时 thumb 收起（透明），hover 容器或滚动中（.scrolling，App 侧 700ms 衰减）
@@ -261,37 +173,8 @@ body {
   }
 }
 
-@keyframes pulse-glow {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
 .animate-slide-up-fade {
   animation: slide-up-fade 0.3s ease-out;
-}
-
-.animate-pulse {
-  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* 文本截断 */
-.line-clamp-1 {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* 降低动效偏好下关闭过场动画 */

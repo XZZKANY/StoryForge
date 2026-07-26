@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   loadProjectAssistantSessions,
-  RECENT_FILES_KEY,
   RECENT_PROJECTS_KEY,
   saveProjectAssistantSessions,
 } from './helpers';
@@ -42,41 +41,31 @@ export function useProjectWorkspace({
   const [projects, setProjects] = useState<string[]>([]);
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [currentFile, setCurrentFile] = useState<string | null>(null);
-  const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [projectAssistantSessions, setProjectAssistantSessions] = useState<Record<string, number>>(
     () => loadProjectAssistantSessions(),
   );
 
   useEffect(() => {
     const projectList = parseStringList(localStorage.getItem(RECENT_PROJECTS_KEY));
-    const fileList = parseStringList(localStorage.getItem(RECENT_FILES_KEY));
 
     // 非 Tauri 运行时（浏览器/测试）无真实文件系统可校验，按旧行为直接恢复。
     if (!isTauriRuntime()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 启动时从 localStorage 恢复，React18 合法模式
       setProjects(projectList);
       // 不自动打开最近项目：启动落到 pane-start 空起始态，最近项目留侧栏供一键重开。
-      setRecentFiles(fileList);
       return;
     }
 
-    // Tauri 桌面端：剔除磁盘上已不存在的最近项目/文件（如被清理的 smoke 临时项目），
+    // Tauri 桌面端：剔除磁盘上已不存在的最近项目（如被清理的 smoke 临时项目），
     // 避免死链堆在项目库里，并防止启动时自动打开一个不存在的项目。
     let cancelled = false;
     void (async () => {
-      const [existingProjects, existingFiles] = await Promise.all([
-        filterExistingPaths(projectList),
-        filterExistingPaths(fileList),
-      ]);
+      const existingProjects = await filterExistingPaths(projectList);
       if (cancelled) return;
-      setProjects(existingProjects);
       // 不自动打开最近项目：启动落到 pane-start 空起始态，最近项目留侧栏供一键重开。
-      setRecentFiles(existingFiles);
+      setProjects(existingProjects);
       if (existingProjects.length !== projectList.length) {
         localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(existingProjects));
-      }
-      if (existingFiles.length !== fileList.length) {
-        localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(existingFiles));
       }
     })();
     return () => {
@@ -102,11 +91,6 @@ export function useProjectWorkspace({
     (filePath: string) => {
       setCurrentFile(filePath);
       onFileSelected();
-      setRecentFiles((prev) => {
-        const next = [filePath, ...prev.filter((item) => item !== filePath)].slice(0, 20);
-        localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next));
-        return next;
-      });
     },
     [onFileSelected],
   );
@@ -149,7 +133,6 @@ export function useProjectWorkspace({
     projects,
     activeProject,
     currentFile,
-    recentFiles,
     projectAssistantSessions,
     selectProject,
     selectFile,
