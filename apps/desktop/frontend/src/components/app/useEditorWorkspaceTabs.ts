@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { flushActiveEditorToDisk } from '../../lib/assistant-events';
 import { projectBasename } from '../../lib/project-context';
+import type { WorkspaceSession } from '../../lib/workspace-session';
 import type { AppDialogApi } from './AppDialog';
 import {
   closeEditorFile,
@@ -22,6 +23,9 @@ type UseEditorWorkspaceTabsOptions = {
   removeProject: (path: string) => void;
   dialogs: AppDialogApi;
   onShowEditor: () => void;
+  /** 启动恢复现场：项目已切到 pendingRestore.project 后，把页签集合与活动文件一次性铺回来。 */
+  pendingRestore?: WorkspaceSession | null;
+  onRestoreApplied?: () => void;
 };
 
 export function useEditorWorkspaceTabs({
@@ -33,6 +37,8 @@ export function useEditorWorkspaceTabs({
   removeProject,
   dialogs,
   onShowEditor,
+  pendingRestore = null,
+  onRestoreApplied,
 }: UseEditorWorkspaceTabsOptions) {
   // 单击树里的文件先进预览（斜体、可被覆盖），双击/编辑后固定为普通页签。
   const [previewFile, setPreviewFile] = useState<string | null>(null);
@@ -141,6 +147,18 @@ export function useEditorWorkspaceTabs({
     setPreviewFile(null);
     setActivePane('file');
   }, [activeProject]);
+
+  // 恢复现场（写作时刻 01）：必须排在上面那个 reset 之后声明 —— 同一 activeProject 依赖下
+  // effect 按声明序执行，先 reset 再铺页签，否则刚恢复的页签会被 reset 抹掉。
+  useEffect(() => {
+    if (!pendingRestore || pendingRestore.project !== activeProject) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- 启动恢复一次性铺回页签，React18 合法模式 */
+    setOpenFiles(pendingRestore.openFiles);
+    setActivePane('file');
+    /* eslint-enable react-hooks/set-state-in-effect */
+    if (pendingRestore.activeFile) selectFile(pendingRestore.activeFile);
+    onRestoreApplied?.();
+  }, [activeProject, onRestoreApplied, pendingRestore, selectFile]);
 
   const resetEditorFiles = useCallback(() => {
     setOpenFiles([]);

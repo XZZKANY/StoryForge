@@ -23,6 +23,7 @@ import {
 } from '../../lib/assistant-events';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import type { ObservationAnchor } from '../../lib/observations';
+import type { FileCursor } from '../../lib/workspace-session';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
@@ -78,6 +79,9 @@ type AppShellProps = {
   welcomeDismissed: boolean;
   onCloseWelcome: () => void;
   onReopenWelcome: () => void;
+  /** 恢复现场：上次的光标位置 + 光标回写口子（写作时刻 01）。 */
+  initialCursors: Record<string, FileCursor> | null;
+  onCursorPersist: (filePath: string, cursor: FileCursor) => void;
 };
 
 export function AppShell({
@@ -100,6 +104,8 @@ export function AppShell({
   welcomeDismissed,
   onCloseWelcome,
   onReopenWelcome,
+  initialCursors,
+  onCursorPersist,
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
@@ -271,6 +277,8 @@ export function AppShell({
                     autoSave={preferences.settings.autoSave}
                     retainedFilePaths={tabs.retainedEditorFiles}
                     onDirtyChange={tabs.handleEditorDirtyChange}
+                    initialCursors={initialCursors}
+                    onCursorPersist={onCursorPersist}
                     sidebarVisible={!shell.sidebarHidden}
                     dialogs={dialogs}
                   />

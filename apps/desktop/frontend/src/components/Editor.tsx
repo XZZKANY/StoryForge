@@ -41,6 +41,7 @@ import { formatTimestamp, VersionHistory } from './editor/VersionHistory';
 import type { AppDialogApi } from './app/AppDialog';
 import { createWritebackQueue, performGuardedWriteback } from '../lib/writeback';
 import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
+import type { FileCursor } from '../lib/workspace-session';
 import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
@@ -61,6 +62,9 @@ type EditorProps = {
   sidebarVisible?: boolean;
   onDirtyChange?: (filePath: string | null, dirty: boolean) => void;
   dialogs: AppDialogApi;
+  /** 恢复现场：启动时按文件路径带回的光标位置，只在该文件首次装载时应用一次。 */
+  initialCursors?: Record<string, FileCursor> | null;
+  onCursorPersist?: (filePath: string, cursor: FileCursor) => void;
 };
 
 export function EditorLoadStatus({
@@ -100,6 +104,8 @@ export function Editor({
   sidebarVisible,
   onDirtyChange,
   dialogs,
+  initialCursors = null,
+  onCursorPersist,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -375,13 +381,38 @@ export function Editor({
           filePath: filePathRef.current,
           lineText: model.getLineContent(lineNumber),
         });
+        // 恢复现场：光标位置搭同一趟去抖记账，不再单开一个监听。
+        const path = filePathRef.current;
+        if (path) {
+          onCursorPersist?.(path, { line: lineNumber, column: event.position?.column ?? 1 });
+        }
       }, 180);
     });
     return () => {
       if (timer) window.clearTimeout(timer);
       subscription.dispose();
     };
-  }, [editorReady]);
+  }, [editorReady, onCursorPersist]);
+
+  // 恢复现场：某文件首次装载完成时，把上次停笔的光标放回去并滚到视野中央。
+  // 每个路径只应用一次（appliedInitialCursorRef），否则来回切页签会把作者刚移动的光标拽回去。
+  const appliedInitialCursorRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const editor = editorRef.current;
+    const cursor = filePath ? initialCursors?.[filePath] : null;
+    if (!editorReady || !editor || !filePath || !cursor) return;
+    if (loadedFilePath !== filePath) return;
+    if (appliedInitialCursorRef.current.has(filePath)) return;
+    // monaco stub（vitest）没有这些 API，逐个 typeof 守卫。
+    if (typeof editor.setPosition !== 'function' || typeof editor.getModel !== 'function') return;
+    const model = editor.getModel();
+    if (!model || typeof model.getLineCount !== 'function') return;
+    appliedInitialCursorRef.current.add(filePath);
+    // 文件在上次退出后被外部改短是常态（Agent 写回、手动编辑），行号必须夹到当前行数内。
+    const line = Math.min(Math.max(cursor.line, 1), model.getLineCount());
+    editor.setPosition({ lineNumber: line, column: Math.max(cursor.column, 1) });
+    if (typeof editor.revealLineInCenter === 'function') editor.revealLineInCenter(line);
+  }, [editorReady, filePath, initialCursors, loadedFilePath]);
 
   // 状态栏字数：内容 / 选区 / 换模型去抖广播非空白字符数。守卫必须整组齐全再订阅：
   // vitest 的 monaco stub 是单监听槽，缺守卫会把脏跟踪的 onDidChangeModelContent 顶掉。
