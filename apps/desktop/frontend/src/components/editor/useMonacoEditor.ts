@@ -8,6 +8,7 @@ import {
   editorTypographyOptions,
   STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
   type EditorFontMode,
+  type ProseMeasure,
 } from './options';
 
 export type EditorModelState = {
@@ -27,6 +28,7 @@ export function useMonacoEditor({
   editorFontSize,
   editorFontMode = 'grid',
   editorLineNumbers = 'auto',
+  editorProseMeasure = 'medium',
   filePathRef,
   isDirtyRef,
   autoSaveRef,
@@ -49,6 +51,7 @@ export function useMonacoEditor({
   editorFontSize: number;
   editorFontMode?: EditorFontMode;
   editorLineNumbers?: 'auto' | 'on' | 'off';
+  editorProseMeasure?: ProseMeasure;
   filePathRef: MutableRefObject<string | null>;
   isDirtyRef: MutableRefObject<boolean>;
   autoSaveRef: MutableRefObject<boolean>;
@@ -96,11 +99,11 @@ export function useMonacoEditor({
             fontSize: editorFontSize,
             fontMode: editorFontMode,
             lineNumbers: editorLineNumbers,
+            proseMeasure: editorProseMeasure,
           }),
           glyphMargin: true,
           // Q9 七轮反馈：小说正文没有代码缩略图需求，minimap 删。
           minimap: { enabled: false },
-          wordWrap: 'on',
           automaticLayout: true,
           scrollBeyondLastLine: false,
           // Q2：滚动条按需出现、去掉投影阴影，宽度与 DOM 侧 11px 细滚条对齐（thumb 颜色
@@ -223,6 +226,7 @@ export function useMonacoEditor({
         fontSize: editorFontSize,
         fontMode: editorFontMode,
         lineNumbers: editorLineNumbers,
+        proseMeasure: editorProseMeasure,
       }),
       readOnly: readOnly || loadPending,
     });
@@ -230,6 +234,7 @@ export function useMonacoEditor({
     editorFontSize,
     editorFontMode,
     editorLineNumbers,
+    editorProseMeasure,
     editorRef,
     filePath,
     loadPending,

@@ -57,19 +57,18 @@ test('空状态渲染 editor-root 容器与未选择文件提示', () => {
 test('Monaco 容器被锁在编辑器 flex 区域内，不随长文本撑开外层布局', () => {
   const html = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
   assert.match(html, /data-testid="editor-container"/);
-  // 限宽外层承接 flex 约束，Monaco 宿主自身 h-full/w-full 贴合，两层都不许溢出。
-  assert.match(html, /min-h-0 flex-1 justify-center overflow-hidden/);
-  assert.match(html, /class="h-full w-full overflow-hidden"[^>]*data-testid="editor-container"/);
+  assert.match(html, /class="min-h-0 flex-1 overflow-hidden"[^>]*data-testid="editor-container"/);
 });
 
-test('正文限行宽并居中；数据文件（canon.json）仍铺满编辑区', () => {
-  const prose = renderEditor({ filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md' });
-  assert.match(prose, /data-prose-measure="652"/);
-  assert.match(prose, /style="max-width:652px"/);
-
-  const data = renderEditor({ filePath: 'D:\\Books\\雾港回声\\.storyforge\\canon\\canon.json' });
-  assert.match(data, /data-prose-measure="full"/);
-  assert.doesNotMatch(data, /max-width/);
+test('正文编辑区始终铺满：限行宽不许再变成限宽居中的中间一栏（PR #196 观感回退）', () => {
+  const prose = renderEditor({
+    filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md',
+    editorProseMeasure: 'narrow',
+  });
+  assert.match(prose, /data-prose-measure="narrow"/);
+  // 限宽（max-width）+ 居中容器是被回退掉的形状，别再出现在 Monaco 宿主这条链上。
+  assert.doesNotMatch(prose, /max-width/);
+  assert.doesNotMatch(prose, /justify-center[^>]*>\s*<div[^>]*data-testid="editor-container"/);
 });
 
 test('外部 flush 事件读取最新保存闭包，不沿用首个标签的分支状态', () => {

@@ -234,3 +234,50 @@ pnpm.cmd e2e                             20/20 PASS（含改写后的 phase4 reg
 - packaged 冻结 exe smoke 未跑：`creative_registry.py` 在 `app.domains.*` 下，理应随 `collect_submodules('app')` 进 exe，但本次未实测；`/api/runtime-tools` 在装机形态下的返回未复验。
 - docker 栈未起：`docker-compose` 两档删掉 workflow service 后未做 `up` 复验（本机开发走 sidecar，不经 compose）。
 - 真机 GUI 无关（本刀不碰桌面代码）。
+
+# 正文排版回退居中：行长改走 Monaco bounded 换行
+
+## 背景
+
+上一刀（PR #196）给正文加行长控制时，实现是「把 Monaco 容器 `max-width` 限住 + flex 居中」。
+真机写作反馈：**很别扭**。原因是限宽居中动的是编辑器本身而不是文字——
+文字缩成屏幕中间一栏，两侧是点不动的死区（点了不进编辑器）、竖滚动条浮在屏幕中间，
+且与 2026-07-05 壳子定稿的「正文 VS Code 式左对齐铺满」直接冲突。
+
+## 做了什么
+
+行长控制的手段换成 Monaco 自己的 `wordWrap: 'bounded'` + `wordWrapColumn`：编辑区照旧铺满整块
+（背景连续、哪儿都能点、滚动条贴窗口右缘），只把折行点提前到目标字数，文字靠左。
+
+1. `editor/options.ts`：删 `resolveProseMeasurePx`（容器像素宽 + 64px chrome 估算），
+   换 `resolveProseWordWrap(measure, prose)`；中文字按 2 个半角列换算（Monaco 的
+   `wordWrapColumn` 以半角列计），42 字档 = 84 列。非正文文件与「不限」档一律 `wordWrap: 'on'`。
+   `wordWrap` 从 `useMonacoEditor` 的硬编码常量并入 `editorTypographyOptions`，
+   create 与 updateOptions 仍共用同一份（改行宽档立即生效，不用重开文件）。
+2. `Editor.tsx`：删掉 `justify-center` 外层与 `max-width` 内联样式，Monaco 宿主回到
+   单层 `min-h-0 flex-1 overflow-hidden`（= PR #196 之前的形状）；`data-prose-measure`
+   保留但改为档位名，供真机查 DOM。
+3. 档位文案与设置说明订正（「约 42 字」→「约 42 字换行」；描述里的「并居中」删除）。
+   档位本身（窄 32 / 适中 42 / 宽 56 / 不限）与默认值 medium 不变。
+
+## 可证伪回归测试
+
+- `tests/editor-options.test.ts`：bounded 列数换算（84/64/112）；**不限档与数据文件必须是
+  `wordWrap: 'on'` 而不是回落成不换行**（否则正文会出横向滚动条）。
+- `tests/editor.test.tsx`：Monaco 宿主渲染出的类名必须是单层 `min-h-0 flex-1 overflow-hidden`，
+  且 markup 里不许再出现 `max-width` / 「居中容器直接包着 editor-container」——居中形状回来即红。
+
+## 验证
+
+```text
+npm --prefix apps/desktop/frontend run typecheck    PASS
+npx vitest run（frontend 全量）                      58 files / 331 passed
+pnpm.cmd lint                                       PASS
+```
+
+## 未验证项
+
+- 真机观感未验（归 E2E-1）：bounded 换行在**比例字体**（书稿轨衬线栈）下由 Monaco 按
+  `typicalHalfwidthCharacterWidth` 估算折行宽度，实际每行字数与标称档位会有出入，
+  「约 42 字」是软目标不是精确值；宽屏下文字靠左、右侧留白是否顺眼也待真机确认。
+- 未动后端，无契约变更，未跑 pytest / e2e。

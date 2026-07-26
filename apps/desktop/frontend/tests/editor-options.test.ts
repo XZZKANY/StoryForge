@@ -10,7 +10,7 @@ import {
   PROSE_MEASURE_ORDER,
   resolveEditorFontFamily,
   resolveEditorLineHeight,
-  resolveProseMeasurePx,
+  resolveProseWordWrap,
   STORYFORGE_EDITOR_FONT_GRID,
   STORYFORGE_EDITOR_FONT_PROSE,
   STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
@@ -59,14 +59,41 @@ test('正文判定只认 Markdown，数据文件不走书稿排版', () => {
   assert.equal(isProseFile(null), false);
 });
 
-test('正文行宽按字号换算并居中；不限档返回 null（铺满编辑区）', () => {
-  // 42 字 × 14px + 64px gutter 占位
-  assert.equal(resolveProseMeasurePx('medium', 14), 652);
-  assert.equal(resolveProseMeasurePx('narrow', 14), 512);
-  assert.equal(resolveProseMeasurePx('wide', 14), 848);
-  assert.equal(resolveProseMeasurePx('full', 14), null);
-  // 放大字号时行宽跟着长，"每行几个字"才是恒定的那一维
-  assert.ok(resolveProseMeasurePx('medium', 20)! > resolveProseMeasurePx('medium', 14)!);
+test('行长走 Monaco bounded 换行（不是容器限宽居中）——中文字按 2 半角列换算', () => {
+  assert.deepEqual(resolveProseWordWrap('medium', true), {
+    wordWrap: 'bounded',
+    wordWrapColumn: 84,
+  });
+  assert.deepEqual(resolveProseWordWrap('narrow', true), {
+    wordWrap: 'bounded',
+    wordWrapColumn: 64,
+  });
+  assert.deepEqual(resolveProseWordWrap('wide', true), {
+    wordWrap: 'bounded',
+    wordWrapColumn: 112,
+  });
+  // 不限档与数据文件都跟着窗口宽度换行，绝不能回落成不换行（横向滚动条）。
+  assert.deepEqual(resolveProseWordWrap('full', true), { wordWrap: 'on' });
+  assert.deepEqual(resolveProseWordWrap('medium', false), { wordWrap: 'on' });
+});
+
+test('限行宽只改折行点，不把编辑区缩成中间一栏（PR #196 的居中已回退）', () => {
+  const prose = editorTypographyOptions({
+    filePath: 'D:\\连载\\正文\\第001章.md',
+    fontSize: 14,
+    fontMode: 'prose',
+    proseMeasure: 'narrow',
+  });
+  assert.equal(prose.wordWrap, 'bounded');
+  assert.equal(prose.wordWrapColumn, 64);
+
+  const data = editorTypographyOptions({
+    filePath: '/project/.storyforge/canon/canon.json',
+    fontSize: 14,
+    fontMode: 'prose',
+    proseMeasure: 'narrow',
+  });
+  assert.equal(data.wordWrap, 'on');
 });
 
 test('行宽档位顺序覆盖全部档且文案齐备——命令面板循环切换不会漏档或显示 undefined', () => {
