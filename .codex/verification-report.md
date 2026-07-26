@@ -1,142 +1,151 @@
-# 验证报告 · 桌面端 UIUX 五刀（破承诺 / 死码 / 恢复现场 / 全文搜索 / 错误态）
+# 验证报告 · 光标处续写（写作时刻 03 首次有 agent 参与）
 
-时间：2026-07-26
-分支（均已合并 master，最终 `76292413`）：
+时间：2026-07-27
+分支（均已合并 master，最终 `a7fe4319`）：
 
 | PR | 分支 | 主题 |
 | --- | --- | --- |
-| #200 | `fix/desktop-broken-promises` | 界面印出来的承诺必须兑现 |
-| #201 | `chore/desktop-dead-code` | 清死码 |
-| #202 | `feat/restore-workspace-session` | 写作时刻 01「恢复现场」 |
-| #203 | `feat/project-fulltext-search` | 正文全文搜索 Ctrl+Shift+F |
-| #204 | `fix/panel-error-states` | 错误态说人话 |
+| #206 | `feat/prose-continue-backend` | 流式出网通道 + `/assistant/continue` |
+| #207 | `feat/prose-continue-frontend` | Ctrl+Shift+K 续写、流式绿块、确认写回 |
 
-> **提名口径说明**：本波同样不是真实写作摩擦提名，是作者在「写作优先」拍板后要求的主动
-> UIUX 优化波（作者原话：优化整个桌面端的 uiux）。如实记一笔，不冒充宪法 §08 的每周一刀。
-> 与前一波（#196-#199）的区别：本波的选题不是观感偏好，而是先做了一次全量 UI 面盘点，
-> 只取「UI 声明了但做不到」「宪法 §06 写作时刻结构性为零」两类。
+> **提名口径说明**：本刀是**真实作者提名**——作者原话「肯定要能续写」，回应的是「agent
+> 是否适配小说编辑器」的诊断结论。符合宪法 §08 由真实写作需求提名的口径，不是主动打磨波。
 
-## 盘点结论（决定为什么是这五刀）
+## 诊断（决定为什么做这一刀）
 
-前三波（UIUX 审计 80 条 #159-#177、dogfood 九问六批 #186-#193、观感三刀 #196-#199）
-已把观感层挖得很薄；`index.css` 的语义 token、明暗双主题、`:focus-visible`、
-`prefers-reduced-motion`、统一滚动条也早已到位。再做一次「找粗糙边」性价比很低。
+问「agent 是否适配小说编辑器」，摸完三块事实（宪法 §06 原文、后端循环真实形状、桌面端
+交互面）后的结论：**词汇层和工具层高度适配，工作形状层还是「代码 agent 的骨架套小说的皮」**。
 
-改按宪法 §06 八个写作时刻对齐，剩下的洞不是装饰性的：**01 恢复现场结构性为零**、
-**全局搜索（B 轴能力 + §07 离线底线明列）未绑定**、以及一批「界面说了但做不到」。
+三条结构性缺口，本刀只解决第一条：
 
-## 刀 1 · 破的承诺（PR #200）
+1. **它是审校 agent 不是写作 agent**。16 个循环工具只有 3 个产字（`file.revise` /
+   `file.create` / `project.trim_prose`），全是「改已有」或「起草新文件」，没有「在光标处
+   接着往下写」；前端零个「写」的按钮；Ctrl+K 的契约明文禁止扩写。
+   → agent 只服务写作时刻 04 章末检查与 05 修订比较，**03 连续起草完全缺席**。
+2. **上下文注入是代码 agent 的形状**。每轮只注入文件路径不注入内容；选区进不了循环
+   （`request-payload.ts:22-24` 把整篇正文塞进 `content`/`context`/`selection` 三个同值键，
+   后端 `conversation_runtime.py:141,207` 只读 `project_path` 和 `file_path`，三个全丢）。
+3. **记忆等于零**。历史只留最后 12 条 × 4000 字，无跨会话记忆，摘要不回灌。唯一持久记忆
+   是 canon.json / hooks.json，但写回闭环两端断开——**agent 能读自己的记忆，不能写**。
 
-六处 UI 主动声明了能力、但那条路根本走不通：
+注：§06.03 的定义原文是「编辑器保持安静，后台能力不抢焦点」，所以**起草时 agent 不主动
+插嘴是宪法立场不是缺陷**。缺的是「按需续写」——按需触发不抢焦点，与 §03 不冲突。
 
-- **Ctrl+O 死键**。速查表与欢迎页两处都印着「Ctrl O 打开项目」，`App.tsx` 的 keydown 里没有
-  `o` 分支。挖出根因：`main.rs` 的 `mod menu;` 是 **`#[cfg(test)]` 门控**的 —— `menu.rs`
-  只进测试构建，装机 exe 里根本不存在；且 `create_menu` / `set_menu` 从未被调用，
-  `decorations:false` 下 Windows 没有窗口框可挂菜单栏。三重不可达。
-- **状态栏「观测清单」在对话聚焦布局（Ctrl+3）下点了没反应** —— ObsPanel 挂在中栏内，
-  而该布局给中栏加了 `hidden`。改为开面板前先落回可见布局。
-- **「…」菜单「剧情分支画布」通向一堵「仍在开发中」占位墙**，占位文案自己都在让用户改去
-  「版本历史」。删菜单项与占位墙，连带 `rightView` 状态机、`toggle-branch-view` 一起收掉。
-  真正的分支图仍在 版本历史 → 分支图，未受影响。
-- **原生菜单死链**：删 `src-tauri/src/menu.rs`（178 行），`useTauriMenuBridge` 五个 `menu:*`
-  监听永不触发，其中两个还去点 Q3a 已删除的 `#editor-save-btn` / `#editor-close-btn`。
-  保留 `smoke:reset-panels` 一条 `listen` 往返，装机冒烟断言的 `data-tauri-menu-ready`
-  语义由此维持（`main.rs:728/782/934` 固化了该属性名，故不改名）。
-- **版本历史抽屉 36px 残留偏移**：`top` 取 `--sf-bar-height`，但其定位祖先已在页签行之下，
-  该偏移原是为让开 Q3a 已删的编辑区工具行。
-- **设置左栏 ◈ ◐ ▤ ⓘ 四个 Unicode 字形换 Lucide**（与全站唯一图标源割裂，而那个模块的存在
-  理由正是「取代旧的 Unicode/字形图标」）。
+## 三项拍板（作者选定）
 
-**防复发**：速查表提取为单一事实源 `components/app/shortcuts.ts`，每行必须标注在哪儿被接管
-（不填 `needs`/`scope` = 全局无条件），护栏 `tests/shortcuts.test.tsx` 对每条全局键**真按一遍**
-断言 `preventDefault`。补齐此前漏印的 Ctrl+Shift+O / Ctrl+S / Ctrl+K / Ctrl+W。
-
-> **自伤记录**：删 `mod menu;` 时留下的 `#[cfg(test)]` 属性下移去门控了 `mod watcher;`，
-> 把实时文件监听变成测试专属。`cargo check` 逮到，已修。
-
-## 刀 2 · 清死码（PR #201）
-
-净 **−629 行**，零用户可见变化。逐项验证零引用后删：
-
-- 三个孤儿组件 `HistoryPanel.tsx` / `ProjectPanel.tsx` / `app/icons.tsx`。
-- `recentFiles` **纯写不读**：`HistoryPanel` 是唯一消费者，面板下线后仍在维护状态、
-  写 `RECENT_FILES_KEY`、启动时校验磁盘存在性 —— 全部喂给没有人。
-- 不可达分支：EditorTabs 设置页签（`settingsOpen` 被 AppShell 写死 `false`）、
-  ResourceExplorer `showHeader`/`collapsed`（唯一调用方传 `false`）。
-- 13 条死 CSS（`index.css` −1974 字节）。
-- **一个空转的断言**：`WelcomeWorkspace` 用了 `class="icon-button"`，该类在 `index.css` 和
-  `tailwind.config.js` 里都没有定义；而 `tests/app-icons.test.tsx` 一直在断言这个字符串。
-  断言一个无定义类名等于什么都没测，且会阻止任何人删掉它。改断言真实存在的 `welcome-close`。
-- 两处 `@deprecated`、`helpers.ts` 三个零引用导出、图标桶六个零引用再导出 + 过期命名对照表。
-
-## 刀 3 · 恢复现场（PR #202，宪法 §06.01）
-
-此前只持久化「最近项目 / 最近文件」两个列表 —— 那是入口不是现场。现恢复：
-活动项目、页签集合、活动页签、每文件光标位置（滚到视野中央）；观测「已处理」勾选按项目落盘。
-
-三个不显然处：
-
-1. **恢复落地之前不许回写**。启动瞬间 `openFiles` 还是空的，此刻落盘等于抹平现场，
-   且原始存档已被自己覆盖、无从找回。用 `idle → restoring → done` 三段 phase 挡住。
-2. **页签恢复 effect 必须声明在「项目切换清预览态」之后** —— 同依赖下 effect 按声明序执行。
-3. **磁盘校验在恢复之前**；校验本身出错时保守保留（瞬时 IO 失败不该吃掉现场）。
-
-新增设置「启动时恢复上次现场」（默认开）。
-
-## 刀 4 · 正文全文搜索（PR #203，宪法 B 轴 + §07 离线底线）
-
-`Ctrl+Shift+F` 此前未绑定。与命令面板分工：命令面板搜**文件名**，此处搜**正文内容**。
-PR #171 删掉的那个左栏搜索是未接线死占位且与命令面板重复，本刀不是把它加回来；
-`app.test.tsx` 断言相应改为「搜索图标必须对应一个真实渲染的搜索面板」。
-
-走前端 + `readProjectFile`（Rust 侧带 containment 校验，PR #118），不加 Rust 命令、不需重打包。
-限并发 8、边搜边出、seq 取消、单文件封顶 40 / 全局封顶 400 且**明说**已达上限（不静默截断）。
-
-**本领域特有的坑**：小说 `.md` 的一行往往是一整个自然段（几百上千字），故结果是
-命中处附近的**窗口片段**，高亮 `start`/`end` 相对片段而非原行 —— 该偏移算错时在短文本
-用例里根本测不出来，专门用 600 字长段落用例钉死。
-
-> **自伤记录**：`SearchView` 最初用 `autoFocus`，但左栏三视图是 CSS 互斥、**常驻挂载**的，
-> `autoFocus` 只在初次挂载触发 → 实际效果是「应用一启动就把焦点从编辑器抢走」。改为按
-> `active` 变化落焦。
-
-## 刀 5 · 错误态说人话（PR #204）
-
-文件树 / 故事索引 / 版本历史三处把原始 error 整条铺出来当标题，且都没有重试路径；
-编辑器构建失败更是只写 `data-editor-init-error` 属性、界面全空白。
-
-新增 `shell/PanelError`：**人话标题 + 明确下一步（有重试就给按钮）+ 原始报错降级为细节**。
-原始报错不隐藏（排障唯一线索），但不占标题位。读版本失败 / 编辑器起不来两处措辞刻意先回答
-「稿子还在不在」。护栏 `tests/panel-error.test.tsx` 按 `indexOf` 比较标题与细节的先后位置。
-
-## 可证伪性实测
-
-新增的三个护栏都做了「摘掉修复 → 断言必须变红」的实测，不是只看绿：
-
-| 护栏 | 摘掉什么 | 实测结果 |
+| 决策 | 选定 | 说明 |
 | --- | --- | --- |
-| `tests/shortcuts.test.tsx` | `App.tsx` 的 Ctrl+O 分支 | 变红：`速查表印着「Ctrl O 打开项目」，但按下去 App 没有接管（未 preventDefault）` |
-| `tests/workspace-session.test.tsx` | `useSessionRestore` 的 `if (phase !== 'done') return;` | 变红：`恢复尚未落地时回写必须被挡住，存档不能被空现场覆盖` |
-| `tests/project-search.test.ts` | —（用 600 字长段落用例覆盖短文本测不出的偏移错误） | 见上文说明 |
+| 触发方式 | 按需快捷键 | 不做 ghost text：符合 §06.03，也不在思考停顿时偷烧 BYO-key |
+| 续写长度 | 一段（约 300 字） | 生成快、好判断、不合意重来不心疼 |
+| 是否流式 | 逐字流式 | 作者选了更难的一条；代价是要在唯一出网通道里新开流式旁路 |
 
-## 门禁（最终 master `76292413`）
+## 续写工艺的来源与法律边界
 
-```
-npm --prefix apps/desktop/frontend run typecheck   绿
-npm --prefix apps/desktop/frontend run test        62 文件 / 354 通过（基线 58 / 331，+4 文件 +23 用例）
-pnpm.cmd lint                                      绿
-pnpm e2e                                           20/20 通过（含 OpenAPI 快照一致）
-cd apps/api && uv run pytest tests/test_source_code_standards.py tests/test_api_surface.py   19 通过
-cd apps/desktop/src-tauri && cargo check           绿
-cd apps/desktop/src-tauri && cargo test            18 通过
-```
+调研了同类长篇写作工具的公开做法。**整条 lorebook / Author's-Note-at-depth 血脉的实现
+（SillyTavern、KoboldAI 全系、mikupad、textgen）全部是 AGPL-3.0，一律没读**——读了再写
+属于污染路径。只从非 copyleft 来源取技术：
 
-## 未联通 / 归 E2E-1 真机
+- Character Card V3 规范（**MIT**）：把 `scan_depth` / `token_budget` / `insertion_order` /
+  `@@depth` 写成了文字规范，可实现可自选许可。
+- Kobold 的**公开 wiki 文档**（非代码）：预算顺序 memory → world info → author's note →
+  prompt → history，生成配额先扣。
+- AgentWrite / LongWriter（**Apache-2.0**）：`prompts/write.txt` 的续写语义。
+- Re3 / DOC（**MIT**）：每步重建 prompt、只取相关切片。
 
-- 本波全部真机观感未验：恢复现场（重启后页签与光标是否真回到位）、全文搜索在几百章项目上的
-  手感与耗时、`PanelError` 各态在真实失败下的措辞是否够用、Ctrl+O / Ctrl+Shift+F 在装机 exe 上
-  的实际键位、版本历史抽屉贴顶后的观感。
-- `menu.rs` 删除后装机 exe 的冒烟需重跑 `pnpm smoke:sidecar:packaged` 确认
-  `data-tauri-menu-ready` 仍为 true（本机未重打包，仅 `cargo check` / `cargo test` 绿）。
-- 全文搜索未做索引缓存：每次查询重读全部 `.md`。当前项目规模下可接受，长篇累积后需重评。
-- 恢复现场不恢复预览页签（预览态按设计是临时的），也不恢复滚动像素位置（只恢复光标行并居中）。
+落到实现的三条：
+
+1. **操舵指令贴近尾部**。canon 硬约束（唯一持有 / 已退场 / 活跃伏笔 / 本章伏笔计划）与
+   本次要求排在**上文之后、prompt 最末**，不塞进 system——近因位置对下一段的影响远大于
+   开头。测试 `test_steering_sits_after_the_manuscript` 钉死这个顺序。
+2. **显式禁止收尾**。分段续写的头号病是每段都想写个总结或悬念钩子式收束。
+3. **防重复靠 prompt + 确定性后处理，不碰采样惩罚**。作者在用的兼容端点文档明写
+   `frequency_penalty` / `presence_penalty` 已移除、传了也不生效；另有生产复盘实测调参对
+   重复「零到负效果」。故用 `strip_repeated_prefix`（掐掉模型重抄的那截上文，`min_overlap`
+   防「他」这类短串误伤）+ `trim_to_sentence_end`（裁到完整句末，丢弃过半时放弃裁剪）。
+
+## 刀 1 · 后端（PR #206）
+
+**`llm_client` 加流式旁路 `stream_chat_completions`**，不动 `call_llm` / `call_llm_messages`：
+
+- **重试只包住建连**。一旦开始吐字就不再重连——重连会让作者眼前重复出现半段正文，比直接
+  失败更糟。读流中途故障直接 `LLMError` 并带上已输出字数。
+- **`stream_options` 自愈**：兼容端点回 400 时摘掉该字段重发（不消耗重试次数），usage 回落
+  既有字符估算。既拿得到精确 usage，又不会因一个可选字段在首次真用时炸给作者。
+- 三个 per-call 覆盖（`stream` / `temperature` / `max_completion_tokens`）均 keyword-only
+  带默认值；有一条测试钉死**不传时请求体与现状逐字节一致**。
+
+**`llm_http` 加 `StreamingReasoningFilter`**：`strip_reasoning_leak` 的增量等价物。流式不能
+回看全文再决定切哪里，故在判定开头不是 think 块之前一律缓冲；标签被切成半截送达
+（`"<th"` / `"ink>"`）是流式常态，不能因一次 feed 看不全就误放行。
+
+**`POST /api/assistant/continue`（SSE）**：帧 `start` → `delta`（原始增量，仅供观感）→
+`done`（`text` 是经确定性后处理的权威结果）/ `error`。LLM 未配置在建流前抛 422，不裹进流里
+以 200 送出。
+
+**创作准则不复制**：经 `book_generation` 门面共用整书管线那一份，避免两处陈词表各自漂移。
+
+### 过程中撞红两次源码标准门禁，均改自己未放宽门禁
+
+1. `test_live_consumers_use_book_runs_public_modules` — 我从 `book_runs.prompts._sections`
+   （私有模块）导入。
+2. `test_book_runs_private_cross_module_access_is_zero` — 改成 `book_generation.py` 引
+   `_sections` 后，**book_runs 内部私有跨模块访问也必须为零**。
+
+最终走 `prompts/__init__.py` 公开 `CRAFT_GUIDELINES` → `book_generation` 门面转出 → 续写引
+门面。三段都无下划线，门禁绿。
+
+## 刀 2 · 前端（PR #207）
+
+**`planCursorInsertion`（新纯函数）**：续写落点已知，不走 LCS 猜。**刻意不复用
+`planAnchoredInlineDiff`**——那条路会把新段跟上文做 diff，而 `buildPatchHunks` 会把段间空行
+当可匹配单元吃进公共前缀，纯新增的 `afterLineNumber` 落到 `lineHunkOverlapsAnchor` 的容忍
+窗口（**只有 0 行余量**）之外就被当 drift 静默丢弃。而「光标停在段末空行按键」正是续写最
+典型的起手式，走老路 = 整段续写凭空消失。返回类型沿用 `AnchoredInlineDiff`，绿块渲染层
+零改动。（丢弃行为在侦察阶段真跑 6 组数据实测过，测试里也钉了一条。）
+
+**`useInlineChat` 加 continue 模式**，与 revise 共用整套 view zone / 接受写回：
+
+- 拆出 `renderPlan`，`renderDiff` 退化为「先夹到锚定行再交给它」。
+- 不设空行闸（revise 那道闸只对 revise 生效）；指令可留空 = 就接着写。
+- 落点往上跳过连续空行：作者写完一段习惯连敲两下回车再停手。
+- 接受后光标停在新段末尾而非锚定行。
+- 流式区高度重排按帧节流：每 token 都 `layoutZone` 会让编辑器整页抖动。
+- 新段一律另起段落（锚定行非空时补空行分隔），不改动作者已写下的任何一个字。
+
+**前端不把 delta 拼起来当结果**：delta 只供观感，权威结果是 `done.text`。
+
+`Ctrl+Shift+K` 已登记 `shortcuts.ts`（`scope: 'editor'`），否则快捷键护栏会真去按它而报红。
+
+## 红线不变
+
+后端不写盘。接受走既有 `writeAcceptedSuggestion` → `performGuardedWriteback`（快照 → 分支
+推进 → 原子写 → 版本记录），与 Ctrl+K、补丁面板同一条路径。发起到接受之间作者改了文件的
+话，`isInlineEditStale` 拦下整块写回。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `cd apps/api && uv run pytest` | **1104 passed / 3 skipped / 0 failed**（新增 29 条） |
+| `cd apps/api && uv run ruff check .` | All checks passed |
+| `npm --prefix apps/desktop/frontend run test` | **371 passed / 63 files**（新增 17 条） |
+| `npm --prefix apps/desktop/frontend run typecheck` | 绿 |
+| `pnpm.cmd lint` | 绿（`useInlineChat.ts` 走过一次 `prettier --write`） |
+| `pnpm.cmd verify` | **全绿**，含 daily 档 sidecar 冒烟 + OpenAPI 零漂移 |
+| `pnpm.cmd openapi` | 快照**纯新增 130 行，零删除** |
+
+新增测试覆盖：增量剥离 6 种分块形状、上文取窗夹取与预算截断、掐重复开头、裁完整句、
+**流式吐字后不得重连**、`stream_options` 400 自愈、SSE 端点证据链落库、422 在建流前、
+模型只复述时报错而非回空补丁；前端插入计划 7 / 落点推导 4 / SSE 帧解析 6。
+
+## 未联通 / 未验证的能力
+
+- **真机观感全部未验，归 E2E-1**：流式跟手度、流式区（agent 色）到成品绿块（success 色）
+  的视觉切换、绿块与红标的 CJK 同栈对齐、IME 输入法下回车发送、接受后光标落点。
+- **真实 provider 的 SSE 帧格式未验**：测试用的是构造的 OpenAI 兼容帧。真实端点若有心跳帧
+  或非标准分块，解析层的容错（跳过坏 JSON 而不打断流）尚未在真 key 下跑过。
+- **`stream_options` 自愈路径未在真端点触发过**：不知道作者当前 provider 认不认这个字段。
+- **续写质量未评估**：prompt 工艺来自公开工艺的移植，没有在真实稿件上做过质量对照。
+  这一条只能靠作者 dogfood 提名下一刀。
+- 诊断里的另两条结构性缺口（选区进不了循环、canon 记忆只读不可写）**本刀未动**，
+  等真实写作摩擦提名。
