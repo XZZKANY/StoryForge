@@ -26,6 +26,7 @@ import type { ObservationAnchor } from '../../lib/observations';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
+import { formatShortcutSheet } from './shortcuts';
 import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
@@ -71,6 +72,7 @@ type AppShellProps = {
   setPalette: Dispatch<SetStateAction<PaletteMode | null>>;
   obsPanelOpen: boolean;
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
+  toggleObsPanel: () => void;
   observatory: ObservatoryHandle;
   openSettings: () => Promise<void>;
   welcomeDismissed: boolean;
@@ -92,6 +94,7 @@ export function AppShell({
   setPalette,
   obsPanelOpen,
   setObsPanelOpen,
+  toggleObsPanel,
   observatory,
   openSettings,
   welcomeDismissed,
@@ -117,26 +120,10 @@ export function AppShell({
   );
 
   const showShortcuts = () => {
-    // 键名列走等宽对齐（mono:true）：比例字体下空格填充会参差；补活动栏承诺的 Ctrl Shift E，
-    // 面板名统一「资源管理器」（与命令面板/活动栏一致）。
-    const rows: [string, string][] = [
-      ['Ctrl P', '打开文件（命令面板 · 文件）'],
-      ['Ctrl Shift P', '命令面板（全部命令）'],
-      ['Ctrl Shift E', '资源管理器'],
-      ['Ctrl O', '打开项目'],
-      ['Ctrl B', '显示 / 隐藏资源管理器'],
-      ['Ctrl ,', '打开设置'],
-      ['Ctrl 1 / 2 / 3', '编辑 / 平衡 / 对话 布局'],
-      ['Ctrl 4', '观测镜'],
-    ];
     void dialogs.alert({
       title: '快捷键速查',
       mono: true,
-      message: [
-        ...rows.map(([key, label]) => `${key.padEnd(16)}${label}`),
-        '',
-        '编辑 · 全选 · 复制 · 粘贴（Ctrl C / A / V）全部沿袭系统，不拦截。',
-      ].join('\n'),
+      message: formatShortcutSheet(),
     });
   };
 
@@ -270,7 +257,6 @@ export function AppShell({
                 }}
                 onToggleHistory={() => emitEditorCommand('toggle-history')}
                 onExportActive={() => emitExportCurrentFile()}
-                onToggleBranchView={() => emitEditorCommand('toggle-branch-view')}
                 onCloseOthers={() => void tabs.handleCloseOthers()}
                 onCloseAll={() => void tabs.handleCloseAll()}
               />
@@ -364,7 +350,7 @@ export function AppShell({
         dailyWordGoal={preferences.settings.dailyWordGoal}
         obs={obs}
         observationAvailability={observatory.availability}
-        onToggleObs={() => setObsPanelOpen((open) => !open)}
+        onToggleObs={toggleObsPanel}
       />
 
       {palette && (

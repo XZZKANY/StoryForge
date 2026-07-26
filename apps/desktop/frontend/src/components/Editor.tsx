@@ -49,18 +49,6 @@ function normalizeEol(text: string): string {
   return text.replace(/\r\n/g, '\n');
 }
 
-// Q3a：右侧视图（正文 / 剧情分支画布占位）的切换从编辑区工具行的下拉挪到 EditorTabs「…」菜单，
-// 经编辑器命令事件驱动；这里只保留视图 id 类型与按项目持久化。
-type RightViewId = 'files' | 'branch';
-
-function readRightView(key: string): RightViewId {
-  try {
-    return localStorage.getItem(key) === 'branch' ? 'branch' : 'files';
-  } catch {
-    return 'files';
-  }
-}
-
 type EditorProps = {
   projectPath: string | null;
   filePath: string | null;
@@ -118,15 +106,7 @@ export function Editor({
   const [isDirty, setIsDirty] = useState(false);
   const [loadedContentPreview, setLoadedContentPreview] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  const rightViewStorageKey = `storyforge:right-view:${projectPath ?? '__global__'}`;
-  const [rightView, setRightView] = useState<RightViewId>(() => readRightView(rightViewStorageKey));
   const readOnly = isReadOnlyDerivedProjectPath(filePath);
-
-  useEffect(() => {
-    // 按项目记住上次的右侧视图选择：换项目时恢复，不再要求重新选择。
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRightView(readRightView(rightViewStorageKey));
-  }, [rightViewStorageKey]);
 
   const cleanVersionIdRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
@@ -580,30 +560,18 @@ export function Editor({
     return () => window.removeEventListener(EXPORT_CURRENT_FILE_EVENT, onExportCurrent);
   }, []);
 
-  // Q3a：编辑区工具行已收进 EditorTabs「…」菜单，历史/分支视图切换改由命令事件驱动
+  // Q3a：编辑区工具行已收进 EditorTabs「…」菜单，历史视图切换改由命令事件驱动
   // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，均沿用既有事件通道）。
   useEffect(() => {
     const onEditorCommand = (event: Event) => {
       const command = (event as CustomEvent<{ command: EditorCommand }>).detail?.command;
       if (command === 'toggle-history') {
         setShowHistory((visible) => !visible);
-      } else if (command === 'toggle-branch-view') {
-        setRightView((current) => {
-          const next = current === 'branch' ? 'files' : 'branch';
-          try {
-            // 分支视图不持久化：避免重开项目时那堵占位墙压在手稿上「像编辑器坏了」；只记正文态。
-            if (next === 'branch') localStorage.removeItem(rightViewStorageKey);
-            else localStorage.setItem(rightViewStorageKey, next);
-          } catch {
-            // localStorage 不可用时忽略持久化
-          }
-          return next;
-        });
       }
     };
     window.addEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
     return () => window.removeEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
-  }, [rightViewStorageKey]);
+  }, []);
 
   // 恢复某个历史版本到编辑器（不立即写盘，标记为脏，由用户确认保存）
   const handleRestore = (content: string) => {
@@ -659,7 +627,7 @@ export function Editor({
       data-content-preview={loadedContentPreview}
       data-read-only={readOnly ? 'true' : 'false'}
     >
-      {rightView === 'files' && !filePath && (
+      {!filePath && (
         <div
           className="absolute inset-x-0 top-0 bottom-0 z-20 flex items-center justify-center bg-background text-muted"
           data-testid="editor-empty"
@@ -678,32 +646,7 @@ export function Editor({
         </div>
       )}
 
-      {rightView === 'branch' && (
-        <div
-          className="absolute inset-x-0 top-0 bottom-0 z-20 flex flex-col items-center justify-center gap-4 bg-background px-6 text-center"
-          data-testid="branch-canvas-placeholder"
-        >
-          <p className="max-w-md text-sm leading-relaxed text-subtle">
-            剧情分支画布仍在开发中。现在的分支图与版本对比可在「…」菜单的「版本历史」里查看。
-          </p>
-          <button
-            type="button"
-            className="h-8 rounded-md border border-border-strong px-3 text-sm text-foreground hover:bg-elevated"
-            onClick={() => setRightView('files')}
-            data-testid="branch-canvas-back"
-          >
-            返回正文
-          </button>
-        </div>
-      )}
-
-      {rightView === 'files' && (
-        <EditorLoadStatus
-          filePath={filePath}
-          loadedFilePath={loadedFilePath}
-          loadError={loadError}
-        />
-      )}
+      <EditorLoadStatus filePath={filePath} loadedFilePath={loadedFilePath} loadError={loadError} />
 
       {isReviseLoading && (
         <div

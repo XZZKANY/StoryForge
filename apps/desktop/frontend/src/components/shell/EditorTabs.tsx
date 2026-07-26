@@ -3,7 +3,7 @@
  * 预览页签为斜体，单击别的文件会覆盖它；双击预览页签固定（对齐原型 pane-preview 语义）。
  * 激活页签向下压 1px，用 --background 底线冲掉容器底边，与编辑区无缝一体。
  * Q3a：导出/历史/保存/关闭其他/关闭全部收进「…」溢出菜单（删掉 Editor 自己的第二条工具行，
- * 文件名不再出现两次）；保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE、历史/分支走编辑器命令事件。
+ * 文件名不再出现两次）；保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE、历史走编辑器命令事件。
  */
 import { useRef, useState } from 'react';
 import { basename } from '../app/helpers';
@@ -142,7 +142,6 @@ export function EditorTabs({
   onSaveActive,
   onToggleHistory,
   onExportActive,
-  onToggleBranchView,
   onCloseOthers,
   onCloseAll,
 }: {
@@ -165,7 +164,6 @@ export function EditorTabs({
   onSaveActive?: () => void;
   onToggleHistory?: () => void;
   onExportActive?: () => void;
-  onToggleBranchView?: () => void;
   onCloseOthers?: () => void;
   onCloseAll?: () => void;
 }) {
@@ -259,7 +257,6 @@ export function EditorTabs({
             onSaveActive={onSaveActive}
             onToggleHistory={onToggleHistory}
             onExportActive={onExportActive}
-            onToggleBranchView={onToggleBranchView}
             onCloseOthers={onCloseOthers}
             onCloseAll={onCloseAll}
           />
@@ -298,14 +295,12 @@ function EditorActionsMenu({
   onSaveActive,
   onToggleHistory,
   onExportActive,
-  onToggleBranchView,
   onCloseOthers,
   onCloseAll,
 }: {
   onSaveActive?: () => void;
   onToggleHistory?: () => void;
   onExportActive?: () => void;
-  onToggleBranchView?: () => void;
   onCloseOthers?: () => void;
   onCloseAll?: () => void;
 }) {
@@ -341,7 +336,6 @@ function EditorActionsMenu({
             <MenuRow label="版本历史" onClick={run(onToggleHistory)} />
             <div className="mx-1.5 my-1 h-px bg-border" />
             <MenuRow label="导出当前稿" onClick={run(onExportActive)} />
-            <MenuRow label="剧情分支画布" onClick={run(onToggleBranchView)} />
             <div className="mx-1.5 my-1 h-px bg-border" />
             <MenuRow label="关闭其他页签" onClick={run(onCloseOthers)} />
             <MenuRow label="关闭全部页签" onClick={run(onCloseAll)} />

@@ -2,35 +2,27 @@ import { useEffect, useRef, useState } from 'react';
 import { probeApiRuntimeHealth } from '../../lib/api-client';
 import { isTauriRuntime } from '../../lib/tauri-env';
 
-export function useTauriMenuBridge({
-  onOpenProject,
-  onNewFile,
-  onToggleSidebar,
-  onRestoreFullLayout,
-}: {
-  onOpenProject: () => void;
-  onNewFile: () => void;
-  onToggleSidebar: () => void;
-  onRestoreFullLayout: () => void;
-}) {
+/**
+ * Tauri 事件通道就绪探针 + 冒烟复位钩子。
+ *
+ * 曾经这里挂着 6 个 `menu:*` 监听，但原生菜单从未装上（`main.rs` 只写了 `mod menu;`，
+ * 既没调 `create_menu` 也没调 `set_menu`，且 `tauri.conf.json` 是 `decorations:false`，
+ * Windows 下没有窗口框也就没有菜单栏）。那些监听永远等不到事件，其中两个还去点
+ * `#editor-save-btn` / `#editor-close-btn` —— 这两个 id 在 Q3a 删掉编辑区工具行后就不存在了。
+ * 本波连同 `src-tauri/src/menu.rs` 一起删除，键盘快捷键统一由 `App.tsx` 的 keydown 兑现。
+ *
+ * `tauriMenuReady` 这个名字被装机冒烟固化（`main.rs` 断言 `data-tauri-menu-ready`），
+ * 故保留原名；它现在的含义是「Tauri 事件通道已跑通一次 listen 往返」。
+ */
+export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayout: () => void }) {
   const [isDesktopRuntime, setIsDesktopRuntime] = useState(false);
   const [tauriMenuReady, setTauriMenuReady] = useState(false);
   const [tauriMenuError, setTauriMenuError] = useState('');
   const [smokeApiReady, setSmokeApiReady] = useState(false);
-  const callbacksRef = useRef({
-    onOpenProject,
-    onNewFile,
-    onToggleSidebar,
-    onRestoreFullLayout,
-  });
+  const callbacksRef = useRef({ onRestoreFullLayout });
 
   useEffect(() => {
-    callbacksRef.current = {
-      onOpenProject,
-      onNewFile,
-      onToggleSidebar,
-      onRestoreFullLayout,
-    };
+    callbacksRef.current = { onRestoreFullLayout };
   });
 
   useEffect(() => {
@@ -74,23 +66,6 @@ export function useTauriMenuBridge({
 
       try {
         unlistenFns.push(
-          await listen('menu:open-project', () => void callbacksRef.current.onOpenProject()),
-        );
-        unlistenFns.push(
-          await listen('menu:new-file', () => void callbacksRef.current.onNewFile()),
-        );
-        unlistenFns.push(
-          await listen('menu:save', () => document.getElementById('editor-save-btn')?.click()),
-        );
-        unlistenFns.push(
-          await listen('menu:close', () => document.getElementById('editor-close-btn')?.click()),
-        );
-        unlistenFns.push(
-          await listen('menu:toggle-sidebar', () => {
-            callbacksRef.current.onToggleSidebar();
-          }),
-        );
-        unlistenFns.push(
           await listen('smoke:reset-panels', () => callbacksRef.current.onRestoreFullLayout()),
         );
 
@@ -98,7 +73,7 @@ export function useTauriMenuBridge({
         setTauriMenuReady(true);
       } catch (error) {
         setTauriMenuError(
-          error instanceof Error ? error.message : 'Failed to register Tauri menu listeners',
+          error instanceof Error ? error.message : 'Failed to register Tauri event listeners',
         );
       }
     };
