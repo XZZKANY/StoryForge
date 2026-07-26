@@ -1,4 +1,5 @@
 import type { AgentRoleRead } from '../agent-roles';
+import { parseContinueSseFrame } from '../inline-continue';
 import type { ProviderHealth } from '../provider-config';
 import { getApiConfig, trimApiBaseUrl } from './config';
 import type { ApiProviderHealthResponse } from './contracts';
@@ -136,6 +137,91 @@ export async function reviseFileContent(payload: {
     completionTokens: data.completion_tokens,
     assistantSessionId: data.assistant_session_id,
   };
+}
+
+export type ContinueProseResult = {
+  /** 权威结果：已由后端做过确定性后处理，不是 delta 的拼接。 */
+  text: string;
+  model: string;
+  assistantSessionId: number;
+};
+
+/**
+ * 流式 /assistant/continue：在光标处续写一段，逐块回调 onDelta 供即时观感。
+ *
+ * onDelta 只用于「让作者看到笔在动」；最终写回一律用 resolve 出来的 text。
+ */
+export async function streamContinueProse(payload: {
+  filePath: string;
+  content: string;
+  cursorLine: number;
+  instruction?: string | null;
+  projectRoot?: string | null;
+  assistantSessionId?: number | null;
+  targetChars?: number | null;
+  signal?: AbortSignal;
+  onDelta?: (text: string) => void;
+}): Promise<ContinueProseResult> {
+  const { baseUrl, apiKey } = await getApiConfig();
+  const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/assistant/continue`, {
+    method: 'POST',
+    cache: 'no-store',
+    signal: payload.signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'X-StoryForge-API-Key': apiKey,
+    },
+    body: JSON.stringify({
+      file_path: payload.filePath,
+      content: payload.content,
+      cursor_line: payload.cursorLine,
+      instruction: payload.instruction ?? null,
+      project_root: payload.projectRoot ?? null,
+      assistant_session_id: payload.assistantSessionId ?? null,
+      target_chars: payload.targetChars ?? null,
+    }),
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(await readErrorDetail(response));
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: ContinueProseResult | null = null;
+  let failure: string | null = null;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let separator = buffer.search(/\r?\n\r?\n/);
+      while (separator !== -1) {
+        const match = buffer.slice(separator).match(/^\r?\n\r?\n/);
+        const rawFrame = buffer.slice(0, separator);
+        buffer = buffer.slice(separator + (match ? match[0].length : 2));
+        const frame = parseContinueSseFrame(rawFrame);
+        if (frame?.kind === 'delta') payload.onDelta?.(frame.text);
+        else if (frame?.kind === 'done') {
+          result = {
+            text: frame.text,
+            model: frame.model,
+            assistantSessionId: frame.assistantSessionId,
+          };
+        } else if (frame?.kind === 'error') failure = frame.message;
+        separator = buffer.search(/\r?\n\r?\n/);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (failure) throw new Error(failure);
+  if (!result) throw new Error('续写流在返回结果前结束。');
+  return result;
 }
 
 export async function probeProviderHealth(): Promise<ProviderHealth> {

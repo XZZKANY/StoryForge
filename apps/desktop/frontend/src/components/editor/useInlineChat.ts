@@ -1,12 +1,17 @@
 /**
- * 行间对话（Ctrl+K）：编辑聚焦下在光标/选区处就地改稿的 Cursor Cmd+K 式交互。
+ * 编辑器内的两种就地 AI 交互，共用同一套 view zone / 接受写回机制：
  *
- * 流程：Ctrl+K → 光标行下方 view zone 里输入一句指令 → 单发 /assistant/revise（整文件进出）
- * → 把返回的 before/after 画成「旧行红标 + 新行绿块」内联 diff + 接受/弃用动作条
- * → 接受收敛到 useSuggestionWriteback 的 writeAcceptedSuggestion（同一套快照 + 写盘 + 闭环 + 分支）。
+ * - **Ctrl+K 行间对话**（revise）：改锚定文本。单发 /assistant/revise（整文件进出），
+ *   把 before/after 夹到锚定行画成「旧行红标 + 新行绿块」。指令必填。
+ * - **Ctrl+Shift+K 光标处续写**（continue）：在光标处接着往下写一段。走 SSE
+ *   /assistant/continue 逐块吐字，落定后按 planCursorInsertion 画成纯新增绿块。
+ *   指令可留空（＝就接着写）；不设「空行拒绝」闸，因为光标停在段末空行正是续写的起手式。
  *
- * 纯逻辑（指令构造、hunk→行级 diff 映射、陈旧判定）在 lib/inline-chat.ts 已单测；这里只做 Monaco
- * view zone / decoration 的命令式生命周期。红线不破：后端只出建议，落盘仍走作者确认后的守卫写回。
+ * 两者都收敛到 useSuggestionWriteback 的 writeAcceptedSuggestion（同一套快照 + 写盘 +
+ * 闭环 + 分支）。纯逻辑在 lib/inline-chat.ts 与 lib/inline-continue.ts 已单测；这里只做
+ * Monaco view zone / decoration 的命令式生命周期。
+ *
+ * 红线不破：后端只出建议、不写盘，落盘仍走作者确认后的守卫写回。
  */
 
 import { useCallback, useEffect, useRef } from 'react';
@@ -14,6 +19,7 @@ import type { MutableRefObject } from 'react';
 import * as monaco from 'monaco-editor';
 
 import { reviseFileContent } from '../../lib/api-client';
+import { streamContinueProse } from '../../lib/api/assistant';
 import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopResult } from '../../lib/author-loop';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
@@ -22,9 +28,12 @@ import {
   intraLineChangeRange,
   isInlineEditStale,
   planAnchoredInlineDiff,
+  planCursorInsertion,
+  type AnchoredInlineDiff,
   type InlineAnchor,
   type LineDiffHunk,
 } from '../../lib/inline-chat';
+import { resolveContinueAnchorLine } from '../../lib/inline-continue';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 
 // diff 动作条要展示的汇总（锚定处增删行 + 被丢弃的别处改动数）。
@@ -55,8 +64,11 @@ type UseInlineChatParams = {
 };
 
 type InlinePhase = 'input' | 'loading' | 'diff';
+/** revise=改锚定文本（Ctrl+K）；continue=在光标处往下续写（Ctrl+Shift+K）。 */
+type InlineMode = 'revise' | 'continue';
 
 type InlineSession = {
+  mode: InlineMode;
   phase: InlinePhase;
   anchor: InlineAnchor;
   zoneIds: string[];
@@ -68,6 +80,8 @@ type InlineSession = {
   resultAfter: string;
   userInstruction: string;
   model: string;
+  /** 接受后光标停靠的 1-based 行；续写要停在新段末尾而非锚定行。 */
+  caretLineAfterAccept: number;
 };
 
 function editorLineHeight(editor: monaco.editor.IStandaloneCodeEditor): number {
@@ -92,8 +106,8 @@ export function useInlineChat({
   const sessionRef = useRef<InlineSession | null>(null);
   const sessionIdRef = useRef<number | null>(null);
   const registeredRef = useRef(false);
-  // Ctrl+K 命令只注册一次；用 ref 持有最新的 open 闭包，命令回调始终调到当前实现。
-  const openRef = useRef<() => void>(() => {});
+  // 快捷键命令只注册一次；用 ref 持有最新的 open 闭包，命令回调始终调到当前实现。
+  const openRef = useRef<(mode?: InlineMode) => void>(() => {});
 
   const teardown = useCallback(() => {
     const editor = editorRef.current;
@@ -152,9 +166,14 @@ export function useInlineChat({
     const path = filePathRef.current;
     if (!editor || !session || session.phase !== 'diff' || !path) return;
 
+    const isContinue = session.mode === 'continue';
     if (isInlineEditStale(session.capturedBefore, editor.getValue())) {
       teardown();
-      flashStatus('文件已变化，行间修订已取消，请重新发起 Ctrl+K');
+      flashStatus(
+        isContinue
+          ? '文件已变化，续写已取消，请重新发起 Ctrl+Shift+K'
+          : '文件已变化，行间修订已取消，请重新发起 Ctrl+K',
+      );
       return;
     }
 
@@ -162,14 +181,16 @@ export function useInlineChat({
       filePath: path,
       before: session.capturedBefore,
       after: session.resultAfter,
-      summary: `行间修订：${session.userInstruction || '按指令润色锚定文本'}`,
+      summary: isContinue
+        ? `光标处续写：${session.userInstruction || '接着往下写'}`
+        : `行间修订：${session.userInstruction || '按指令润色锚定文本'}`,
       model: session.model,
-      userIntent: session.userInstruction || '行间对话修订',
+      userIntent: session.userInstruction || (isContinue ? '光标处续写' : '行间对话修订'),
       assistantSessionId: sessionIdRef.current,
     });
     const previous = session.capturedBefore;
     const next = session.resultAfter;
-    const anchorLine = session.anchor.startLine;
+    const anchorLine = session.caretLineAfterAccept;
     teardown();
 
     try {
@@ -180,32 +201,20 @@ export function useInlineChat({
       if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
         editor.revealLineInCenterIfOutsideViewport(anchorLine);
       }
-      flashStatus('行间修订已写回当前文件');
+      flashStatus(isContinue ? '续写已写回当前文件' : '行间修订已写回当前文件');
     } catch (error) {
       flashStatus(`接受失败：${error instanceof Error ? error.message : String(error)}`);
     }
   }, [editorRef, filePathRef, flashStatus, teardown, writeAcceptedSuggestion]);
 
-  const renderDiff = useCallback(
-    (before: string, after: string) => {
+  // 把已算好的插入 / 修订计划画成红标 + 绿块 + 动作条。revise 与 continue 共用这一段，
+  // 差别只在计划怎么来：前者把整文件修订夹到锚定行，后者直接构造纯新增。
+  const renderPlan = useCallback(
+    (before: string, plan: AnchoredInlineDiff) => {
       const editor = editorRef.current;
       const session = sessionRef.current;
       const model = editor?.getModel();
       if (!editor || !session || !model) return;
-
-      const plan = planAnchoredInlineDiff(before, after, {
-        startLine: session.anchor.startLine,
-        endLine: session.anchor.endLine,
-      });
-      if (plan.isNoop) {
-        teardown();
-        flashStatus(
-          plan.droppedOffAnchor > 0
-            ? 'AI 的改动落在选定处之外，已忽略；换个更具体的说法再试 Ctrl+K'
-            : '行间对话：AI 没有提出改动',
-        );
-        return;
-      }
 
       // 先撤输入 zone，再画 diff。
       if (session.zoneIds.length > 0) {
@@ -218,6 +227,12 @@ export function useInlineChat({
       session.capturedBefore = before;
       // 接受只写夹到锚定处的改动，模型 drift 到别处的一律不带上。
       session.resultAfter = plan.clampedAfter;
+      // 续写接受后光标停在新段末尾（接着往下打字），修订则停回锚定行。
+      const lastHunk = plan.hunks[plan.hunks.length - 1];
+      session.caretLineAfterAccept =
+        session.mode === 'continue' && lastHunk
+          ? lastHunk.afterLineNumber + lastHunk.newLines.length
+          : session.anchor.startLine;
 
       const actions: InlineDiffActions = {
         addedLines: plan.addedLines,
@@ -267,8 +282,9 @@ export function useInlineChat({
             {
               onAccept: () => void applyAccepted(),
               onReject: () => {
+                const wasContinue = sessionRef.current?.mode === 'continue';
                 teardown();
-                flashStatus('已弃用行间修订');
+                flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
               },
             },
           );
@@ -311,13 +327,20 @@ export function useInlineChat({
         } else if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
+          const wasContinue = sessionRef.current?.mode === 'continue';
           teardown();
-          flashStatus('已弃用行间修订');
+          flashStatus(wasContinue ? '已弃用这段续写' : '已弃用行间修订');
         }
       };
       document.addEventListener('keydown', handler, true);
       session.keydownHandler = handler;
 
+      if (session.mode === 'continue') {
+        flashStatus(
+          `续写建议已就绪：约 ${plan.clampedAfter.length - before.length} 字，Alt+Enter 接受`,
+        );
+        return;
+      }
       const droppedNote =
         plan.droppedOffAnchor > 0 ? `（已忽略别处 ${plan.droppedOffAnchor} 处改动）` : '';
       flashStatus(`行间修订建议已就绪：+${plan.addedLines} / -${plan.removedLines}${droppedNote}`);
@@ -325,13 +348,36 @@ export function useInlineChat({
     [applyAccepted, editorRef, flashStatus, teardown],
   );
 
-  // E16：loading 期间取消——abort 在途 revise 请求 + 收场 + 提示；Esc 与 loading 区「取消」键都走这里。
+  const renderDiff = useCallback(
+    (before: string, after: string) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const plan = planAnchoredInlineDiff(before, after, {
+        startLine: session.anchor.startLine,
+        endLine: session.anchor.endLine,
+      });
+      if (plan.isNoop) {
+        teardown();
+        flashStatus(
+          plan.droppedOffAnchor > 0
+            ? 'AI 的改动落在选定处之外，已忽略；换个更具体的说法再试 Ctrl+K'
+            : '行间对话：AI 没有提出改动',
+        );
+        return;
+      }
+      renderPlan(before, plan);
+    },
+    [flashStatus, renderPlan, teardown],
+  );
+
+  // E16：loading 期间取消——abort 在途请求 + 收场 + 提示；Esc 与 loading 区「取消」键都走这里。
   const cancelLoading = useCallback(() => {
     const session = sessionRef.current;
     if (!session || session.phase !== 'loading') return;
+    const wasContinue = session.mode === 'continue';
     session.abortController?.abort();
     teardown();
-    flashStatus('已取消行间修订');
+    flashStatus(wasContinue ? '已取消续写' : '已取消行间修订');
   }, [flashStatus, teardown]);
 
   const send = useCallback(
@@ -341,7 +387,8 @@ export function useInlineChat({
       const path = filePathRef.current;
       if (!editor || !session || session.phase !== 'input' || !path) return;
       const instruction = userInstruction.trim();
-      if (!instruction) return;
+      // 续写允许空指令（留空 = 就接着写）；修订必须说清改什么。
+      if (!instruction && session.mode !== 'continue') return;
 
       const before = editor.getValue();
       session.phase = 'loading';
@@ -357,6 +404,51 @@ export function useInlineChat({
       };
       session.keydownHandler = onLoadingEsc;
       document.addEventListener('keydown', onLoadingEsc, true);
+
+      const detachLoadingEsc = () => {
+        if (session.keydownHandler === onLoadingEsc) {
+          document.removeEventListener('keydown', onLoadingEsc, true);
+          session.keydownHandler = null;
+        }
+      };
+
+      if (session.mode === 'continue') {
+        const anchorLine = resolveContinueAnchorLine(before, session.anchor.startLine);
+        const stream = swapZoneToStreaming(editor, session, anchorLine, cancelLoading);
+        try {
+          const result = await streamContinueProse({
+            filePath: path,
+            content: before,
+            cursorLine: anchorLine,
+            instruction: instruction || null,
+            projectRoot: projectPathRef.current,
+            assistantSessionId: sessionIdRef.current,
+            signal: controller.signal,
+            onDelta: (text) => {
+              if (sessionRef.current !== session) return;
+              stream.append(text);
+            },
+          });
+          if (sessionRef.current !== session || filePathRef.current !== path) return;
+          detachLoadingEsc();
+          sessionIdRef.current = result.assistantSessionId;
+          session.model = result.model;
+          // 权威结果是 done.text（后端已掐掉重抄的上文、裁到完整句末），不是 delta 的拼接。
+          const plan = planCursorInsertion(before, anchorLine, result.text);
+          if (plan.isNoop) {
+            teardown();
+            flashStatus('这一轮没有写出新内容，换个说法再试 Ctrl+Shift+K');
+            return;
+          }
+          renderPlan(before, plan);
+        } catch (error) {
+          if (sessionRef.current !== session) return;
+          teardown();
+          flashStatus(`续写失败：${error instanceof Error ? error.message : String(error)}`);
+        }
+        return;
+      }
+
       swapZoneToLoading(editor, session, cancelLoading);
 
       try {
@@ -375,10 +467,7 @@ export function useInlineChat({
         // 用户可能在等待期间关了会话/切了文件。
         if (sessionRef.current !== session || filePathRef.current !== path) return;
         // 进 diff 前摘掉 loading 的 Esc 处理，避免与 renderDiff 装的重复。
-        if (session.keydownHandler === onLoadingEsc) {
-          document.removeEventListener('keydown', onLoadingEsc, true);
-          session.keydownHandler = null;
-        }
+        detachLoadingEsc();
         sessionIdRef.current = result.assistantSessionId;
         session.model = result.model;
         renderDiff(before, result.after);
@@ -389,110 +478,135 @@ export function useInlineChat({
         flashStatus(`AI 修订失败：${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    [cancelLoading, editorRef, filePathRef, flashStatus, projectName, renderDiff, teardown],
+    [
+      cancelLoading,
+      editorRef,
+      filePathRef,
+      flashStatus,
+      projectName,
+      projectPathRef,
+      renderDiff,
+      renderPlan,
+      teardown,
+    ],
   );
 
-  const open = useCallback(() => {
-    const editor = editorRef.current;
-    if (!editor || typeof editor.changeViewZones !== 'function') return;
-    const project = projectPathRef.current;
-    const path = filePathRef.current;
-    if (!project || !path) {
-      flashStatus('先在编辑器里打开一个文件，再用 Ctrl+K 行间对话');
-      return;
-    }
-    if (isReadOnlyDerivedProjectPath(path)) {
-      flashStatus('派生缓存为只读，不能行间修订');
-      return;
-    }
-    const model = editor.getModel();
-    if (!model) return;
-
-    teardown();
-
-    const selection = editor.getSelection();
-    const anchor: InlineAnchor =
-      selection && !selection.isEmpty()
-        ? {
-            startLine: selection.startLineNumber,
-            endLine: selection.endLineNumber,
-            text: model.getValueInRange(selection),
-            isSelection: true,
-          }
-        : {
-            startLine: selection?.startLineNumber ?? 1,
-            endLine: selection?.startLineNumber ?? 1,
-            text: model.getLineContent(selection?.startLineNumber ?? 1),
-            isSelection: false,
-          };
-
-    // 段落间空行（网文极常见）没选中就按 Ctrl+K，锚定取整行 = 空串 → 模型多半 no-op、白等一趟。
-    if (!anchor.isSelection && anchor.text.trim() === '') {
-      flashStatus('先选中要改的文字，再用 Ctrl+K 行间对话');
-      return;
-    }
-
-    const session: InlineSession = {
-      phase: 'input',
-      anchor,
-      zoneIds: [],
-      decorations: null,
-      keydownHandler: null,
-      abortController: null,
-      capturedBefore: '',
-      resultAfter: '',
-      userInstruction: '',
-      model: '',
-    };
-    sessionRef.current = session;
-
-    const dom = buildInputZoneDom(anchor, {
-      onSend: (value) => void send(value),
-      onCancel: () => {
-        teardown();
-      },
-    });
-    // 先给一个够用的初值，随后按真实高度重排——写死高度会把气泡底边裁掉（「不是完整的气泡」）。
-    const inputZone: monaco.editor.IViewZone = {
-      afterLineNumber: anchor.endLine,
-      heightInPx: 120,
-      domNode: dom.container,
-    };
-    let inputZoneId = '';
-    editor.changeViewZones((accessor) => {
-      inputZoneId = accessor.addZone(inputZone);
-      session.zoneIds.push(inputZoneId);
-    });
-    // 把锚定行滚进视野：接受后 setValue 会把光标重置到第 1 行，若作者已滚到别处，
-    // 输入泡会锚在光标（第 1 行）弹到「别处」——这里确保它总在眼前。
-    if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
-      editor.revealLineInCenterIfOutsideViewport(anchor.startLine);
-    }
-    // Monaco 把 zone DOM 挂上、布局后：①量真实高度撑满 zone，不裁气泡；②聚焦输入框
-    //（rAF 二次兜底，布局期 Monaco 有时会把焦点抢回编辑器，单次 setTimeout 会「打不了字」）。
-    const focusInput = () => dom.textarea.focus({ preventScroll: true });
-    window.requestAnimationFrame(() => {
-      const measured = dom.container.offsetHeight;
-      if (measured > 0 && editorRef.current && sessionRef.current === session) {
-        // offsetHeight 不含外边距，补上 margin(4+6) 再留一点余量。
-        inputZone.heightInPx = measured + 14;
-        editorRef.current.changeViewZones((accessor) => accessor.layoutZone(inputZoneId));
+  const open = useCallback(
+    (mode: InlineMode = 'revise') => {
+      const editor = editorRef.current;
+      if (!editor || typeof editor.changeViewZones !== 'function') return;
+      const project = projectPathRef.current;
+      const path = filePathRef.current;
+      if (!project || !path) {
+        flashStatus(
+          mode === 'continue'
+            ? '先在编辑器里打开一份稿件，再用 Ctrl+Shift+K 续写'
+            : '先在编辑器里打开一个文件，再用 Ctrl+K 行间对话',
+        );
+        return;
       }
-      focusInput();
-      window.requestAnimationFrame(focusInput);
-    });
-  }, [editorRef, filePathRef, flashStatus, projectPathRef, send, teardown]);
+      if (isReadOnlyDerivedProjectPath(path)) {
+        flashStatus(
+          mode === 'continue' ? '派生缓存为只读，不能续写' : '派生缓存为只读，不能行间修订',
+        );
+        return;
+      }
+      const model = editor.getModel();
+      if (!model) return;
+
+      teardown();
+
+      const selection = editor.getSelection();
+      const anchor: InlineAnchor =
+        selection && !selection.isEmpty()
+          ? {
+              startLine: selection.startLineNumber,
+              endLine: selection.endLineNumber,
+              text: model.getValueInRange(selection),
+              isSelection: true,
+            }
+          : {
+              startLine: selection?.startLineNumber ?? 1,
+              endLine: selection?.startLineNumber ?? 1,
+              text: model.getLineContent(selection?.startLineNumber ?? 1),
+              isSelection: false,
+            };
+
+      // 段落间空行（网文极常见）没选中就按 Ctrl+K，锚定取整行 = 空串 → 模型多半 no-op、白等一趟。
+      // 续写不设这道闸：光标停在段末空行按键，正是续写最典型的起手式。
+      if (mode !== 'continue' && !anchor.isSelection && anchor.text.trim() === '') {
+        flashStatus('先选中要改的文字，再用 Ctrl+K 行间对话');
+        return;
+      }
+
+      const session: InlineSession = {
+        mode,
+        phase: 'input',
+        anchor,
+        zoneIds: [],
+        decorations: null,
+        keydownHandler: null,
+        abortController: null,
+        capturedBefore: '',
+        resultAfter: '',
+        userInstruction: '',
+        model: '',
+        caretLineAfterAccept: anchor.startLine,
+      };
+      sessionRef.current = session;
+
+      const dom = buildInputZoneDom(anchor, mode, {
+        onSend: (value) => void send(value),
+        onCancel: () => {
+          teardown();
+        },
+      });
+      // 先给一个够用的初值，随后按真实高度重排——写死高度会把气泡底边裁掉（「不是完整的气泡」）。
+      const inputZone: monaco.editor.IViewZone = {
+        afterLineNumber: anchor.endLine,
+        heightInPx: 120,
+        domNode: dom.container,
+      };
+      let inputZoneId = '';
+      editor.changeViewZones((accessor) => {
+        inputZoneId = accessor.addZone(inputZone);
+        session.zoneIds.push(inputZoneId);
+      });
+      // 把锚定行滚进视野：接受后 setValue 会把光标重置到第 1 行，若作者已滚到别处，
+      // 输入泡会锚在光标（第 1 行）弹到「别处」——这里确保它总在眼前。
+      if (typeof editor.revealLineInCenterIfOutsideViewport === 'function') {
+        editor.revealLineInCenterIfOutsideViewport(anchor.startLine);
+      }
+      // Monaco 把 zone DOM 挂上、布局后：①量真实高度撑满 zone，不裁气泡；②聚焦输入框
+      //（rAF 二次兜底，布局期 Monaco 有时会把焦点抢回编辑器，单次 setTimeout 会「打不了字」）。
+      const focusInput = () => dom.textarea.focus({ preventScroll: true });
+      window.requestAnimationFrame(() => {
+        const measured = dom.container.offsetHeight;
+        if (measured > 0 && editorRef.current && sessionRef.current === session) {
+          // offsetHeight 不含外边距，补上 margin(4+6) 再留一点余量。
+          inputZone.heightInPx = measured + 14;
+          editorRef.current.changeViewZones((accessor) => accessor.layoutZone(inputZoneId));
+        }
+        focusInput();
+        window.requestAnimationFrame(focusInput);
+      });
+    },
+    [editorRef, filePathRef, flashStatus, projectPathRef, send, teardown],
+  );
 
   useEffect(() => {
     openRef.current = open;
   }, [open]);
 
-  // Ctrl+K 命令注册一次（editor 生命周期内只建一次实例）。
+  // Ctrl+K（改锚定文本）/ Ctrl+Shift+K（光标处续写）各注册一次。
   useEffect(() => {
     const editor = editorRef.current;
     if (!editorReady || !editor || registeredRef.current) return;
     registeredRef.current = true;
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => openRef.current());
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => openRef.current('revise'));
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyK, () =>
+      openRef.current('continue'),
+    );
   }, [editorReady, editorRef]);
 
   // 输入阶段：光标移出锚定行即拆除（点到别的行就是「不改这儿了」）。仅限 input 阶段——
@@ -525,6 +639,7 @@ export function useInlineChat({
 
 function buildInputZoneDom(
   anchor: InlineAnchor,
+  mode: InlineMode,
   handlers: { onSend: (value: string) => void; onCancel: () => void },
 ): { container: HTMLElement; textarea: HTMLTextAreaElement } {
   const container = document.createElement('div');
@@ -538,12 +653,18 @@ function buildInputZoneDom(
     anchor.startLine === anchor.endLine
       ? `第 ${anchor.startLine} 行`
       : `第 ${anchor.startLine}–${anchor.endLine} 行`;
-  head.textContent = `行间对话 · ${lineLabel} · 只改这附近，不整段重写`;
+  head.textContent =
+    mode === 'continue'
+      ? `续写 · ${lineLabel} 之后 · 接着往下写一段`
+      : `行间对话 · ${lineLabel} · 只改这附近，不整段重写`;
 
   const textarea = document.createElement('textarea');
   textarea.className = 'sf-inline-chat__textarea';
   textarea.rows = 1;
-  textarea.placeholder = '对这段说点什么：收紧节奏 / 换个意象 / 口吻更冷…';
+  textarea.placeholder =
+    mode === 'continue'
+      ? '直接回车＝就接着写；也可给个方向：转到冲突 / 慢下来 / 换个视角…'
+      : '对这段说点什么：收紧节奏 / 换个意象 / 口吻更冷…';
 
   let composing = false;
   textarea.addEventListener('compositionstart', () => {
@@ -565,10 +686,83 @@ function buildInputZoneDom(
 
   const hint = document.createElement('div');
   hint.className = 'sf-inline-chat__hint';
-  hint.textContent = 'Enter 发送 · Shift+Enter 换行 · Esc 关闭';
+  hint.textContent =
+    mode === 'continue'
+      ? 'Enter 开始写 · Shift+Enter 换行 · Esc 关闭'
+      : 'Enter 发送 · Shift+Enter 换行 · Esc 关闭';
 
   container.append(head, textarea, hint);
   return { container, textarea };
+}
+
+/**
+ * 续写的流式区：把逐块到达的正文即时画在落点下方，让作者看到笔在动。
+ *
+ * 这里显示的是**原始增量**，仅供观感——最终以 done.text 重新算插入计划再渲染成绿块。
+ * 高度重排按帧节流：每个 token 都 layoutZone 会让编辑器整页抖动。
+ */
+function swapZoneToStreaming(
+  editor: monaco.editor.IStandaloneCodeEditor,
+  session: InlineSession,
+  anchorLine: number,
+  onCancel: () => void,
+): { append: (text: string) => void } {
+  const dom = document.createElement('div');
+  dom.className = 'sf-inline-diff-zone sf-inline-diff-zone--streaming';
+  try {
+    dom.style.fontFamily = editor.getOption(monaco.editor.EditorOption.fontInfo).fontFamily;
+  } catch {
+    /* 字体拿不到就用继承值，不值得为此中断续写。 */
+  }
+
+  const body = document.createElement('div');
+  body.className = 'sf-inline-diff-line';
+  const bar = document.createElement('div');
+  bar.className = 'sf-inline-diff-actions';
+  const label = document.createElement('span');
+  label.className = 'sf-inline-diff-note';
+  label.textContent = '正在续写…';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'sf-inline-btn-reject';
+  cancel.textContent = '取消 (Esc)';
+  cancel.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onCancel();
+  });
+  bar.append(label, cancel);
+  dom.append(body, bar);
+
+  let zoneId = '';
+  const zone: monaco.editor.IViewZone = {
+    afterLineNumber: anchorLine,
+    heightInPx: 60,
+    domNode: dom,
+  };
+  editor.changeViewZones((accessor) => {
+    for (const id of session.zoneIds) accessor.removeZone(id);
+    zoneId = accessor.addZone(zone);
+    session.zoneIds = [zoneId];
+  });
+
+  let pending = false;
+  const relayout = () => {
+    pending = false;
+    const measured = dom.offsetHeight;
+    if (measured <= 0 || measured + 8 === zone.heightInPx) return;
+    zone.heightInPx = measured + 8;
+    editor.changeViewZones((accessor) => accessor.layoutZone(zoneId));
+  };
+
+  return {
+    append: (text: string) => {
+      body.textContent = `${body.textContent ?? ''}${text}`;
+      if (pending) return;
+      pending = true;
+      window.requestAnimationFrame(relayout);
+    },
+  };
 }
 
 function swapZoneToLoading(
