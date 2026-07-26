@@ -33,13 +33,7 @@ import { type GraphNode } from '../lib/branches';
 import { issueDecorationOptions, locateEvidence } from './editor/decorations';
 import { useEditorFileLoader } from './editor/useEditorFileLoader';
 import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor';
-import {
-  isProseFile,
-  resolveEditorFontFamily,
-  resolveProseMeasurePx,
-  type EditorFontMode,
-  type ProseMeasure,
-} from './editor/options';
+import { resolveEditorFontFamily, type EditorFontMode, type ProseMeasure } from './editor/options';
 import { useBranchManifest } from './editor/useBranchManifest';
 import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
 import { useInlineChat } from './editor/useInlineChat';
@@ -127,9 +121,6 @@ export function Editor({
   const rightViewStorageKey = `storyforge:right-view:${projectPath ?? '__global__'}`;
   const [rightView, setRightView] = useState<RightViewId>(() => readRightView(rightViewStorageKey));
   const readOnly = isReadOnlyDerivedProjectPath(filePath);
-  const proseMeasurePx = isProseFile(filePath)
-    ? resolveProseMeasurePx(editorProseMeasure, editorFontSize)
-    : null;
 
   useEffect(() => {
     // 按项目记住上次的右侧视图选择：换项目时恢复，不再要求重新选择。
@@ -316,6 +307,7 @@ export function Editor({
     editorFontSize,
     editorFontMode,
     editorLineNumbers,
+    editorProseMeasure,
     filePathRef,
     isDirtyRef,
     autoSaveRef,
@@ -723,16 +715,13 @@ export function Editor({
         </div>
       )}
 
-      {/* Monaco Editor：正文限行宽并居中（稿纸感），数据文件仍铺满 */}
-      <div className="flex min-h-0 flex-1 justify-center overflow-hidden">
-        <div
-          ref={containerRef}
-          className="h-full w-full overflow-hidden"
-          style={proseMeasurePx ? { maxWidth: `${proseMeasurePx}px` } : undefined}
-          data-testid="editor-container"
-          data-prose-measure={proseMeasurePx ?? 'full'}
-        />
-      </div>
+      {/* Monaco Editor：编辑区始终铺满；行长由 Monaco bounded 换行控制，不限宽居中 */}
+      <div
+        ref={containerRef}
+        className="min-h-0 flex-1 overflow-hidden"
+        data-testid="editor-container"
+        data-prose-measure={editorProseMeasure}
+      />
 
       {/* AI 修订确认面板：贴在正文下方（原先在编辑器上方，观感割裂，#7）。 */}
       {pendingSuggestion && (

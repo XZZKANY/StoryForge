@@ -43,13 +43,13 @@ export function lineNumbersFor(filePath: string | null, mode: 'auto' | 'on' | 'o
   return isProseFile(filePath) ? 'off' : 'on';
 }
 
-/** 正文行宽档位；'full' = 不限宽，铺满编辑区（旧行为）。 */
+/** 正文行宽档位；'full' = 不限，跟着窗口宽度换行。 */
 export type ProseMeasure = 'narrow' | 'medium' | 'wide' | 'full';
 
 /** 命令面板循环切换的档位顺序（窄 → 适中 → 宽 → 不限）。 */
 export const PROSE_MEASURE_ORDER: readonly ProseMeasure[] = ['narrow', 'medium', 'wide', 'full'];
 
-/** 每档目标行长，单位是中文字（CJK 字宽 ≈ 1em，故可直接乘字号估算）。 */
+/** 每档目标行长，单位是中文字。 */
 export const PROSE_MEASURE_COLUMNS: Record<Exclude<ProseMeasure, 'full'>, number> = {
   narrow: 32,
   medium: 42,
@@ -58,22 +58,30 @@ export const PROSE_MEASURE_COLUMNS: Record<Exclude<ProseMeasure, 'full'>, number
 
 /** 档位文案从列数派生，设置弹窗与命令面板共用一份，改列数不必改两处文案。 */
 export const PROSE_MEASURE_LABELS: Record<ProseMeasure, string> = {
-  narrow: `窄（约 ${PROSE_MEASURE_COLUMNS.narrow} 字）`,
-  medium: `适中（约 ${PROSE_MEASURE_COLUMNS.medium} 字）`,
-  wide: `宽（约 ${PROSE_MEASURE_COLUMNS.wide} 字）`,
-  full: '不限（铺满编辑区）',
+  narrow: `窄（约 ${PROSE_MEASURE_COLUMNS.narrow} 字换行）`,
+  medium: `适中（约 ${PROSE_MEASURE_COLUMNS.medium} 字换行）`,
+  wide: `宽（约 ${PROSE_MEASURE_COLUMNS.wide} 字换行）`,
+  full: '不限（跟着窗口宽度换行）',
 };
 
-// glyphMargin（审稿圆点）+ 装饰列 + 细滚动条的固定占位，不该算进「每行几个字」。
-const MEASURE_CHROME_PX = 64;
+// Monaco 的 wordWrapColumn 按半角列计，一个中文字占 2 列。
+const HALFWIDTH_COLUMNS_PER_CJK = 2;
 
 /**
- * 正文容器的最大宽度（px）；null = 不限宽。
- * 不限宽时 1920 屏一行能拉到 1200px+，眼睛回不到行首——这是正文读感的第一杀手。
+ * 行长控制走 Monaco 自身的 bounded 换行，而不是把编辑器容器限宽居中。
+ * 限宽居中试过一版（PR #196）：文字缩成屏幕中间一栏，两侧是点不动的死区、
+ * 滚动条浮在屏幕中间，写起来很别扭。bounded 让编辑区照旧铺满（背景连续、
+ * 哪儿都能点、滚动条贴窗口右缘），只把折行点提前到目标字数。
  */
-export function resolveProseMeasurePx(measure: ProseMeasure, fontSize: number): number | null {
-  if (measure === 'full') return null;
-  return Math.round(PROSE_MEASURE_COLUMNS[measure] * fontSize + MEASURE_CHROME_PX);
+export function resolveProseWordWrap(
+  measure: ProseMeasure,
+  prose: boolean,
+): Pick<monaco.editor.IEditorOptions, 'wordWrap' | 'wordWrapColumn'> {
+  if (!prose || measure === 'full') return { wordWrap: 'on' };
+  return {
+    wordWrap: 'bounded',
+    wordWrapColumn: PROSE_MEASURE_COLUMNS[measure] * HALFWIDTH_COLUMNS_PER_CJK,
+  };
 }
 
 /** 中文正文行距 1.9×（Monaco 默认 ≈1.35× 对 CJK 太挤）；数据文件保持紧凑。 */
@@ -90,14 +98,17 @@ export function editorTypographyOptions({
   fontSize,
   fontMode,
   lineNumbers = 'auto',
+  proseMeasure = 'medium',
 }: {
   filePath: string | null;
   fontSize: number;
   fontMode: EditorFontMode;
   lineNumbers?: 'auto' | 'on' | 'off';
+  proseMeasure?: ProseMeasure;
 }): monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions {
   const prose = isProseFile(filePath);
   return {
+    ...resolveProseWordWrap(proseMeasure, prose),
     fontSize,
     fontFamily: resolveEditorFontFamily(fontMode),
     lineHeight: resolveEditorLineHeight(fontSize, prose),

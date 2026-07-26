@@ -379,7 +379,7 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                     />
                     <SelectRow
                       title="正文行宽"
-                      description="限制正文每行字数并居中，宽屏下眼睛不用横扫一整屏；只作用于 Markdown 正文。"
+                      description="正文提前折行，宽屏下眼睛不用横扫一整屏；编辑区照旧铺满，文字靠左。只作用于 Markdown 正文。"
                       value={safeSettings.editorProseMeasure}
                       onChange={(value) =>
                         update(
