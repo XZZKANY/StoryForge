@@ -11,6 +11,7 @@ import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
 import { ObservatoryView } from '../shell/ObservatoryView';
+import { SearchView } from '../shell/SearchView';
 import { SidePanel } from '../shell/SidePanel';
 import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
@@ -34,6 +35,7 @@ import type { AppPreferences } from './useAppPreferences';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
 import type { useObservatory } from './useObservatory';
 import type { ProjectCommands } from './useProjectCommands';
+import type { useProjectSearch } from './useProjectSearch';
 
 type WorkspaceProps = {
   projects: string[];
@@ -82,6 +84,8 @@ type AppShellProps = {
   /** 恢复现场：上次的光标位置 + 光标回写口子（写作时刻 01）。 */
   initialCursors: Record<string, FileCursor> | null;
   onCursorPersist: (filePath: string, cursor: FileCursor) => void;
+  search: ReturnType<typeof useProjectSearch>;
+  onOpenSearchHit: (path: string, line: number) => void;
 };
 
 export function AppShell({
@@ -106,6 +110,8 @@ export function AppShell({
   onReopenWelcome,
   initialCursors,
   onCursorPersist,
+  search,
+  onOpenSearchHit,
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
@@ -204,6 +210,14 @@ export function AppShell({
               onFileSelect={tabs.openFile}
               onFilePreview={tabs.previewFileOpen}
               fileActions={fileActions}
+              search={
+                <SearchView
+                  search={search}
+                  projectOpen={projectOpen}
+                  active={shell.view === 'search'}
+                  onOpenHit={onOpenSearchHit}
+                />
+              }
               observatory={
                 projectOpen ? (
                   <ObservatoryView

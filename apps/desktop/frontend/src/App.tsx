@@ -9,6 +9,7 @@ import { useAppPreferences } from './components/app/useAppPreferences';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
 import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
+import { useProjectSearch } from './components/app/useProjectSearch';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useSessionRestore } from './components/app/useSessionRestore';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
@@ -126,9 +127,10 @@ export function App() {
       if (!mod) return;
       const key = event.key.toLowerCase();
       if (event.shiftKey) {
-        // 左栏搜索已删（删左留中）：Ctrl+Shift+E → 资源管理器；Ctrl+Shift+O → 观测镜。
+        // Ctrl+Shift+E 资源管理器 / Ctrl+Shift+F 正文全文搜索 / Ctrl+Shift+O 观测镜。
         const viewMap: Record<string, SidePanelView> = {
           e: 'explorer',
+          f: 'search',
           o: 'observatory',
         };
         const view = viewMap[key];
@@ -196,6 +198,17 @@ export function App() {
   // 观测接线：打开项目即首扫，写盘后防抖重扫（确定性无 LLM）。
   const observatory = useObservatory({ activeProject: workspace.activeProject });
 
+  // 全文搜索（Ctrl+Shift+F）：点结果 → 打开该文件并跳到那一行，复用观测定位的同一条事件通道。
+  const search = useProjectSearch(workspace.activeProject);
+  const openSearchHit = useCallback(
+    (path: string, line: number) => {
+      showCenter();
+      if (tabs.displayedFile !== path) void tabs.openFile(path, '打开搜索结果');
+      emitLocateInEditor({ filePath: path, line });
+    },
+    [showCenter, tabs],
+  );
+
   // 点观测行 / 台账锚点定位原文：拼项目内绝对路径（沿用项目串的分隔符风格，保证与
   // 页签路径可比），非当前文件先打开，再广播定位事件由 Editor 在模型就绪后消费。
   const locateAnchor = useCallback(
@@ -238,6 +251,8 @@ export function App() {
       toggleObsPanel={toggleObsPanel}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       openSettings={openSettings}
+      search={search}
+      onOpenSearchHit={openSearchHit}
       initialCursors={session.initialCursors}
       onCursorPersist={session.recordCursor}
       welcomeDismissed={welcomeDismissed || session.restoredWorkspace}

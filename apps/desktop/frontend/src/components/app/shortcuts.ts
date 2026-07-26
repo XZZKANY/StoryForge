@@ -32,6 +32,11 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
   },
   { keys: 'Ctrl Shift E', label: '资源管理器', chords: [{ ctrl: true, shift: true, key: 'e' }] },
   {
+    keys: 'Ctrl Shift F',
+    label: '在正文中搜索',
+    chords: [{ ctrl: true, shift: true, key: 'f' }],
+  },
+  {
     keys: 'Ctrl Shift O',
     label: '世界线观测镜',
     chords: [{ ctrl: true, shift: true, key: 'o' }],
