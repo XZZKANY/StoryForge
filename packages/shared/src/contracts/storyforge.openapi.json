@@ -841,6 +841,96 @@
         "title": "AssistantContextBundleFile",
         "type": "object"
       },
+      "AssistantContinueRequest": {
+        "additionalProperties": false,
+        "description": "光标处续写请求；响应是 SSE 流，故无对应 Response 模型。",
+        "properties": {
+          "assistant_session_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Session Id"
+          },
+          "content": {
+            "maxLength": 120000,
+            "title": "Content",
+            "type": "string"
+          },
+          "cursor_line": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Cursor Line",
+            "type": "integer"
+          },
+          "file_path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "File Path",
+            "type": "string"
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "project_root": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Root"
+          },
+          "target_chars": {
+            "anyOf": [
+              {
+                "maximum": 1200.0,
+                "minimum": 80.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Chars"
+          }
+        },
+        "required": [
+          "file_path",
+          "content"
+        ],
+        "title": "AssistantContinueRequest",
+        "type": "object"
+      },
       "AssistantMessageCreate": {
         "additionalProperties": false,
         "properties": {
@@ -8575,6 +8665,46 @@
         "summary": "读取制品下载摘要",
         "tags": [
           "制品中心"
+        ]
+      }
+    },
+    "/api/assistant/continue": {
+      "post": {
+        "description": "桌面行间续写调用：吃全文 + 光标行，逐块吐出续写正文。\n\n帧：`start`（会话/模型）、`delta`（原始增量，仅供即时观感）、`done`（`text` 为经确定性\n后处理的权威结果，前端须以它覆盖累积缓冲）、`error`。LLM 未配置在建流前返回 422。",
+        "operationId": "continue_prose_endpoint_api_assistant_continue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantContinueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "在光标处续写正文（SSE 流）",
+        "tags": [
+          "Assistant 会话"
         ]
       }
     },

@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from app.domains.book_runs.prompts._sections import CRAFT_GUIDELINES
 from app.domains.book_runs.prompts.builder import (
     build_chapter_plan_prompt,
     build_continuity_edges_prompt,
@@ -38,6 +39,7 @@ def build_draft_prompt_from_state(
 
 
 __all__ = [
+    "CRAFT_GUIDELINES",
     "build_strategy_prompt",
     "build_chapter_plan_prompt",
     "build_scene_beats_prompt",

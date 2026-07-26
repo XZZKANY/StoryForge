@@ -248,6 +248,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assistant/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 在光标处续写正文（SSE 流）
+         * @description 桌面行间续写调用：吃全文 + 光标行，逐块吐出续写正文。
+         *
+         *     帧：`start`（会话/模型）、`delta`（原始增量，仅供即时观感）、`done`（`text` 为经确定性
+         *     后处理的权威结果，前端须以它覆盖累积缓冲）、`error`。LLM 未配置在建流前返回 422。
+         */
+        post: operations["continue_prose_endpoint_api_assistant_continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/assistant/provider-health": {
         parameters: {
             query?: never;
@@ -2123,6 +2146,31 @@ export interface components {
             relative_path: string;
             /** Title */
             title: string;
+        };
+        /**
+         * AssistantContinueRequest
+         * @description 光标处续写请求；响应是 SSE 流，故无对应 Response 模型。
+         */
+        AssistantContinueRequest: {
+            /** Assistant Session Id */
+            assistant_session_id?: number | null;
+            /** Content */
+            content: string;
+            /**
+             * Cursor Line
+             * @default 0
+             */
+            cursor_line: number;
+            /** File Path */
+            file_path: string;
+            /** Instruction */
+            instruction?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Project Root */
+            project_root?: string | null;
+            /** Target Chars */
+            target_chars?: number | null;
         };
         /** AssistantMessageCreate */
         AssistantMessageCreate: {
@@ -5154,6 +5202,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArtifactDownloadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    continue_prose_endpoint_api_assistant_continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantContinueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

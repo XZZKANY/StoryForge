@@ -16,7 +16,7 @@ import http.client
 import json
 import logging
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from random import random
 from urllib import error, request
 
@@ -171,15 +171,28 @@ def _build_chat_payload(
     messages: list[dict[str, object]],
     tools: list[dict[str, object]] | None,
     tool_choice: str | dict[str, object] | None,
+    stream: bool = False,
+    temperature: float | None = None,
+    max_completion_tokens: int | None = None,
 ) -> dict[str, object]:
+    """组 chat/completions 请求体；三个 per-call 覆盖不传时输出与既有调用方逐字节一致。"""
+
     payload: dict[str, object] = {
         "model": _required_env(source, "STORYFORGE_LLM_MODEL"),
         "messages": messages,
-        "temperature": _optional_float(source, "STORYFORGE_LLM_TEMPERATURE", 0.7),
+        "temperature": (
+            temperature
+            if temperature is not None
+            else _optional_float(source, "STORYFORGE_LLM_TEMPERATURE", 0.7)
+        ),
     }
-    max_completion_tokens = _optional_int(source, "STORYFORGE_LLM_MAX_COMPLETION_TOKENS", 0)
-    if max_completion_tokens > 0:
-        payload["max_completion_tokens"] = max_completion_tokens
+    resolved_max_tokens = (
+        max_completion_tokens
+        if max_completion_tokens is not None
+        else _optional_int(source, "STORYFORGE_LLM_MAX_COMPLETION_TOKENS", 0)
+    )
+    if resolved_max_tokens > 0:
+        payload["max_completion_tokens"] = resolved_max_tokens
     reasoning_effort = _env_value(source, "STORYFORGE_LLM_REASONING_EFFORT")
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
@@ -187,6 +200,11 @@ def _build_chat_payload(
         payload["tools"] = tools
         if tool_choice is not None:
             payload["tool_choice"] = tool_choice
+    if stream:
+        payload["stream"] = True
+        # 要 usage 必须显式开；部分兼容端点不认这个字段，_stream_chat_completions 收到
+        # 400 会摘掉它重试一次，届时 usage 回落既有字符估算。
+        payload["stream_options"] = {"include_usage": True}
     return payload
 
 
@@ -277,6 +295,166 @@ def _request_chat_completions(
     if data is None:  # 理论不可达：循环要么 break 要么 raise；兜底避免 None 解引用
         raise LLMError("真实 LLM 重试后仍无响应数据。")
     return data, started_at
+
+
+def _stream_delta_text(chunk: Mapping[str, object]) -> str:
+    choices = chunk.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        return ""
+    delta = first_choice.get("delta")
+    if not isinstance(delta, dict):
+        return ""
+    content = delta.get("content")
+    return content if isinstance(content, str) else ""
+
+
+def _stream_chat_completions(
+    source: Mapping[str, str | None],
+    payload: dict[str, object],
+    *,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
+) -> Iterator[dict[str, object]]:
+    """流式 POST /chat/completions：逐块产出 `delta`，收尾产出一条含记账的 `done`。
+
+    与 `_request_chat_completions` 的重试语义有意不同：**一旦开始吐字就不再重试**——
+    重连会让作者眼前重复出现半段正文，比直接失败更糟。故重试只包住建连阶段，读流阶段
+    的故障直接以 LLMError 终止并带上已输出字数便于归因。
+    """
+
+    url = f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/chat/completions"
+    headers = _llm_request_headers(source)
+    secrets = _credential_header_values(headers)
+    timeout = (
+        timeout_seconds
+        if timeout_seconds is not None
+        else _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
+    )
+    attempt_limit = max(
+        1,
+        max_attempts
+        if max_attempts is not None
+        else _optional_int(source, "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3),
+    )
+    base_delay = max(0.0, _optional_float(source, "STORYFORGE_LLM_RETRY_BASE_DELAY_SECONDS", 0.5))
+    jitter = max(0.0, _optional_float(source, "STORYFORGE_LLM_RETRY_JITTER_SECONDS", 0.25))
+    started_at = time.monotonic()
+
+    active_payload = dict(payload)
+    dropped_stream_options = False
+    attempt = 1
+    response = None
+    while response is None:
+        body = json.dumps(active_payload, ensure_ascii=False).encode("utf-8")
+        http_request = request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            response = request.urlopen(http_request, timeout=timeout)  # noqa: S310 - 固定 https 配置端点
+        except error.HTTPError as exc:
+            if exc.code == 400 and not dropped_stream_options and "stream_options" in active_payload:
+                # 兼容端点不认 stream_options：摘掉重发（不消耗重试次数），usage 回落字符估算。
+                active_payload.pop("stream_options", None)
+                dropped_stream_options = True
+                continue
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if _is_retryable_status(exc.code) and attempt < attempt_limit:
+                _sleep_before_retry(
+                    attempt=attempt,
+                    base_delay=base_delay,
+                    jitter=jitter,
+                    retry_after=_retry_after_seconds(exc),
+                )
+                attempt += 1
+                continue
+            try:
+                error_body = exc.read().decode("utf-8", errors="replace")[:2000]
+            except Exception:  # noqa: BLE001 - 诊断失败不能掩盖原始 HTTP 错误
+                error_body = "<无法读取响应体>"
+            raise LLMError(
+                redact_secrets(
+                    f"真实 LLM 流式返回 HTTP {exc.code}（耗时 {elapsed_ms}ms，"
+                    f"尝试 {attempt}/{attempt_limit}）：{error_body}",
+                    secrets,
+                )
+            ) from exc
+        except (error.URLError, TimeoutError) as exc:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if attempt < attempt_limit:
+                _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
+                attempt += 1
+                continue
+            raise LLMError(
+                redact_secrets(
+                    f"真实 LLM 流式建连超时或失败（耗时 {elapsed_ms}ms，timeout={timeout}s，"
+                    f"尝试 {attempt}/{attempt_limit}）：{getattr(exc, 'reason', exc)}",
+                    secrets,
+                )
+            ) from exc
+
+    leak_filter = llm_http.StreamingReasoningFilter()
+    emitted: list[str] = []
+    usage_payload: dict[str, object] | None = None
+    try:
+        for raw_line in response:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line or not line.startswith("data:"):
+                continue
+            chunk_text = line[5:].strip()
+            if chunk_text == "[DONE]":
+                break
+            try:
+                chunk = json.loads(chunk_text)
+            except json.JSONDecodeError:
+                # 心跳/注释帧：跳过而不是打断作者正在看的流。
+                continue
+            if not isinstance(chunk, dict):
+                continue
+            chunk_usage = chunk.get("usage")
+            if isinstance(chunk_usage, dict):
+                usage_payload = chunk_usage
+            delta_text = _stream_delta_text(chunk)
+            if not delta_text:
+                continue
+            visible = leak_filter.feed(delta_text)
+            if visible:
+                emitted.append(visible)
+                yield {"type": "delta", "text": visible}
+    except _RESPONSE_READ_ERRORS as exc:
+        raise LLMError(
+            f"真实 LLM 流式读取中断（已输出 {len(''.join(emitted))} 字）：{type(exc).__name__}"
+        ) from exc
+    finally:
+        response.close()
+
+    tail = leak_filter.flush()
+    if tail:
+        emitted.append(tail)
+        yield {"type": "delta", "text": tail}
+
+    content = "".join(emitted).strip()
+    if not content:
+        raise LLMError("真实 LLM 流式返回内容为空。")
+    messages = payload.get("messages")
+    prompt_text = (
+        "\n".join(str(item.get("content") or "") for item in messages if isinstance(item, dict))
+        if isinstance(messages, list)
+        else ""
+    )
+    usage = _token_usage({"usage": usage_payload} if usage_payload else None, prompt_text, content)
+    cost = _cost_breakdown(source, usage)
+    done: dict[str, object] = {
+        "type": "done",
+        "content": content,
+        **usage,
+        "cost_cny_estimated": cost["total_cny"],
+        "cost_breakdown": cost,
+        "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
+    }
+    if leak_filter.stripped:
+        done["reasoning_leak_stripped"] = True
+    yield done
 
 
 def _call_llm(
@@ -527,5 +705,7 @@ request_chat_completions = _request_chat_completions
 required_env = _required_env
 retry_after_seconds = _retry_after_seconds
 sleep_before_retry = _sleep_before_retry
+stream_chat_completions = _stream_chat_completions
+stream_delta_text = _stream_delta_text
 strip_reasoning_leak = _strip_reasoning_leak
 token_usage = _token_usage

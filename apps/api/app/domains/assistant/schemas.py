@@ -159,6 +159,23 @@ class AssistantReviseResponse(BaseModel):
     assistant_session_id: int
 
 
+class AssistantContinueRequest(BaseModel):
+    """光标处续写请求；响应是 SSE 流，故无对应 Response 模型。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_path: str = Field(min_length=1, max_length=1024)
+    content: str = Field(max_length=120000)
+    # 1-based；0 表示从文件开头写起。越界由服务端夹取，不因未保存的编辑差一行就报错。
+    cursor_line: int = Field(default=0, ge=0)
+    instruction: str | None = Field(default=None, max_length=4000)
+    # canon 硬约束与活跃伏笔需要项目根才能定位 .storyforge/canon/；缺省则跳过该块。
+    project_root: str | None = Field(default=None, max_length=1024)
+    project_name: str | None = Field(default=None, max_length=255)
+    assistant_session_id: int | None = Field(default=None, gt=0)
+    target_chars: int | None = Field(default=None, ge=80, le=1200)
+
+
 class AssistantDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
