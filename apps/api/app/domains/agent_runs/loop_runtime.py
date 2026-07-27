@@ -61,6 +61,26 @@ _LLM_ERRORS = (LLMError, LLMConfigError)
 LOOP_MAX_ROUNDS = 8
 LOOP_TOOL_OUTPUT_BUDGET_CHARS = 60_000
 
+# 摘掉工具时必须同时告诉模型，否则它继续按工具调用格式作答，标记会漏成正文。
+_TOOLS_WITHDRAWN_NOTICE = "工具已不再可用，请直接用自然语言回答作者，不要再输出任何工具调用格式。"
+_BUDGET_EXHAUSTED_NOTICE = f"工具输出预算已用完。{_TOOLS_WITHDRAWN_NOTICE}"
+_FINAL_ROUND_NOTICE = f"已到本轮对话的工具调用上限。{_TOOLS_WITHDRAWN_NOTICE}"
+
+# 模型偶发把原生工具调用标记当正文吐出（DeepSeek DSML 等）：这类"答案"其实什么都没执行。
+_TOOL_MARKUP_MARKERS = ("DSML", "<tool_call", "invoke name=", "<function_call")
+_UNEXECUTED_TOOL_MARKUP_NOTICE = (
+    "（这轮模型把工具调用写成了正文、并没有真正执行，所以文件没有任何改动。"
+    "下面是它原样吐出的内容，供你判断；要落盘请再说一次目标文件和要求。）\n\n"
+)
+
+
+def _annotate_unexecuted_tool_markup(content: str) -> str:
+    """工具标记漏成正文时如实说明，不把一坨标记当正常答案交付。"""
+
+    if content and any(marker in content for marker in _TOOL_MARKUP_MARKERS):
+        return _UNEXECUTED_TOOL_MARKUP_NOTICE + content
+    return content
+
 # OpenAI function name 不允许点号，对 LLM 暴露下划线名、内部映射回 registry 名（从 spec 单点派生）。
 _TOOL_NAME_MAP = build_loop_tool_name_map()
 
@@ -162,9 +182,12 @@ def run_chat_loop(
         final_round = round_number == LOOP_MAX_ROUNDS
         # 末轮或预算耗尽时不再给工具，强制模型基于已有信息作答。
         offer_tools = not (final_round or budget_exhausted)
-        if budget_exhausted:
+        if not offer_tools:
             messages.append(
-                {"role": "system", "content": "工具输出预算已用完，请基于已获得的信息直接回答作者。"}
+                {
+                    "role": "system",
+                    "content": _BUDGET_EXHAUSTED_NOTICE if budget_exhausted else _FINAL_ROUND_NOTICE,
+                }
             )
         try:
             result_payload = _call_llm_messages(
@@ -204,7 +227,7 @@ def run_chat_loop(
         tool_calls = round_result.tool_calls
 
         if not tool_calls:
-            outcome.answer = content
+            outcome.answer = _annotate_unexecuted_tool_markup(content)
             return outcome
 
         messages.append(

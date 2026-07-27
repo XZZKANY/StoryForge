@@ -20,6 +20,8 @@ _SEARCH_MAX_MATCHES_DEFAULT = 50
 _SEARCH_MAX_FILE_BYTES = 512_000
 _SEARCH_MAX_FILES = 2_000
 _EXCERPT_MAX_CHARS = 200
+# 超过这个体积就不必再读内容判空白：真稿一定不是占位文件。
+_BLANK_PLACEHOLDER_MAX_BYTES = 4_096
 
 
 class FsToolError(RuntimeError):
@@ -79,8 +81,19 @@ def resolve_project_file(project_root: str, path: str) -> str:
     return str(target)
 
 
+def _is_blank_placeholder(path: Path) -> bool:
+    """空文件或只有空白字符——作者先建占位再让 Agent 写，起草可直接落进去。"""
+
+    try:
+        if path.stat().st_size > _BLANK_PLACEHOLDER_MAX_BYTES:
+            return False
+        return not path.read_bytes().strip()
+    except OSError:
+        return False
+
+
 def resolve_new_project_file(project_root: str, path: str) -> str:
-    """把「尚不存在的项目内相对路径」解析为绝对路径（越界拒绝），供新文件起草补丁使用。"""
+    """把「尚不存在（或空占位）的项目内相对路径」解析为绝对路径（越界拒绝），供新文件起草补丁使用。"""
 
     if not isinstance(path, str) or not path.strip():
         raise FsToolError("path 不能为空。")
@@ -88,7 +101,8 @@ def resolve_new_project_file(project_root: str, path: str) -> str:
     target = _resolve_scoped(root, path)
     if target == root or target.is_dir():
         raise FsToolError(f"不是可创建的文件路径：{path}")
-    if target.exists():
+    # 空占位不算「已存在」：否则与 file_revise 的「content 不能为空」互相推诿，空章节文件谁也写不进去。
+    if target.exists() and not _is_blank_placeholder(target):
         raise FsToolError(f"文件已存在：{path}，请改用 file_revise 修订既有文件。")
     return str(target)
 

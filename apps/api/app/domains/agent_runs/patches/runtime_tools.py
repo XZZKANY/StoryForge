@@ -19,6 +19,7 @@ from app.domains.agent_runs.tools.runtime_arguments import (
     proposed_patch_from_repair_patch as _proposed_patch_from_repair_patch,
 )
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
+from app.domains.agent_runs.tools.runtime_arguments import required_text as _required_text
 from app.domains.agent_runs.tools.runtime_arguments import safe_summary as _safe_summary
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
@@ -45,7 +46,8 @@ class PatchRuntimeToolsMixin:
 
     def _file_revise(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
-        content = _required_string(payload, "content")
+        # 空文件也要能修订：作者建好空章节文件后直接说「写这章」，走的就是这条路。
+        content = _required_text(payload, "content")
         instruction = _optional_string(payload.get("instruction")) or context.user_message
         review_report = payload.get("review_report") if isinstance(payload.get("review_report"), dict) else None
         prompt_context_bundle = (

@@ -140,6 +140,131 @@ def test_chat_loop_file_create_rejects_existing_path(
     assert "文件已存在" in str(tool_messages[0]["content"])
 
 
+def test_chat_loop_file_create_fills_author_placeholder_file(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """作者先建空章节文件再说「写这章」：空占位不算已存在，file_create 照样起草补丁。
+
+    真机日更 2026-07-27 踩到的死锁：file_create 报「文件已存在」推给 file_revise，
+    file_revise 又因 content 为空报「缺少参数」推回来，空章节谁也写不进去。
+    """
+
+    from app.domains.assistant import service as assistant_service
+
+    placeholder = novel_project / "正文" / "第03章.md"
+    placeholder.write_text("\n\n", encoding="utf-8")
+
+    _enable_loop_env(monkeypatch)
+    monkeypatch.setattr(
+        assistant_service,
+        "_call_llm",
+        lambda source, *, system_prompt, user_prompt: {
+            "content": "第三章 回声\n\n林岚听见了灯塔的回声。",
+            "completion_tokens": 9,
+            "latency_ms": 5,
+        },
+    )
+    _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "file_create",
+                            "arguments": json.dumps({"path": "正文/第03章.md", "instruction": "写第三章"}),
+                        },
+                    }
+                ],
+                "completion_tokens": 4,
+            },
+            {"content": "第三章初稿已起草，等你确认。", "tool_calls": [], "completion_tokens": 4},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-create-placeholder",
+        project_path=str(novel_project),
+        message="写第三章",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert [trace["status"] for trace in result["tool_trace"]] == ["completed"]
+    patch = result["proposed_patch"]
+    assert patch["created_by_tool"] == "file.create"
+    assert patch["before"] == ""
+    assert "回声" in patch["after"]
+    assert patch["file_path"] == str(placeholder.resolve())
+
+    # 写回红线不变：确认前占位文件仍是原样，后端不写盘
+    assert placeholder.read_text(encoding="utf-8") == "\n\n"
+
+
+def test_chat_loop_file_revise_accepts_empty_file(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """空文件也能走 file_revise：正文本来就是空的，不该被当成缺参数。"""
+
+    from app.domains.assistant import service as assistant_service
+
+    empty_chapter = novel_project / "正文" / "第04章.md"
+    empty_chapter.write_text("", encoding="utf-8")
+
+    _enable_loop_env(monkeypatch)
+    monkeypatch.setattr(
+        assistant_service,
+        "_call_llm",
+        lambda source, *, system_prompt, user_prompt: {
+            "content": "第四章 落潮\n\n潮水退去时，灯塔露出了底座。",
+            "completion_tokens": 9,
+            "latency_ms": 5,
+        },
+    )
+    _fake_llm_script(
+        monkeypatch,
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "file_revise",
+                            "arguments": json.dumps({"path": "正文/第04章.md", "instruction": "写第四章"}),
+                        },
+                    }
+                ],
+                "completion_tokens": 4,
+            },
+            {"content": "第四章已写好，等你确认。", "tool_calls": [], "completion_tokens": 4},
+        ],
+    )
+
+    received = _send_chat_message(
+        client,
+        run_id="run-chat-loop-revise-empty",
+        project_path=str(novel_project),
+        message="写第四章",
+    )
+
+    result = received[-1]
+    assert result["type"] == "agent_result", result
+    assert [trace["status"] for trace in result["tool_trace"]] == ["completed"]
+    patch = result["proposed_patch"]
+    assert patch["before"] == ""
+    assert "落潮" in patch["after"]
+
+
 def test_chat_loop_project_consistency_feeds_observations(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

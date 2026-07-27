@@ -1,151 +1,91 @@
-# 验证报告 · 光标处续写（写作时刻 03 首次有 agent 参与）
+# 验证报告 · 日更摩擦两刀（空文件死锁 / 文件树落点）
 
 时间：2026-07-27
-分支（均已合并 master，最终 `a7fe4319`）：
 
-| PR | 分支 | 主题 |
+> **提名口径说明**：本刀是**真实写作摩擦提名**——作者当日日更时踩到两件事：①「新建文件没有
+> 在对应文件夹下，需要在文件夹右侧加添加文件夹/文件，不能全看右键」；②「agent 有问题，
+> 你读写第三章这个 agent 对话」。符合宪法 §08 由真实写作需求提名的口径，不是主动打磨波。
+
+## 诊断（装机版真机证据，非推测）
+
+作者跑的是 NSIS 装机版（`deepseek-v4-flash`）。从 `%LOCALAPPDATA%\com.storyforge.ide\storyforge.sqlite3`
+取到 `assistant_sessions` id=14「写第三章」（run 50）的完整证据链：
+
+| seq | 工具 | 结果 |
 | --- | --- | --- |
-| #206 | `feat/prose-continue-backend` | 流式出网通道 + `/assistant/continue` |
-| #207 | `feat/prose-continue-frontend` | Ctrl+Shift+K 续写、流式绿块、确认写回 |
+| 3 | `fs.list .` | completed（3 个条目） |
+| 4-5 | `fs.read` 第001/002章 | completed |
+| 6 | **`file.create` 正文/第003章.md** | **failed —「文件已存在：正文/第003章.md，请改用 file_revise 修订既有文件。」** |
+| 7 | `fs.read` 第003章.md | completed，`returned_chars: 0` |
+| 8-10 | **`file.revise` ×3** | **全部 failed** |
+| 14 | `agent_run_completed` | 正文是一坨 `<｜｜DSML｜｜tool_calls>` 原始标记 |
 
-> **提名口径说明**：本刀是**真实作者提名**——作者原话「肯定要能续写」，回应的是「agent
-> 是否适配小说编辑器」的诊断结论。符合宪法 §08 由真实写作需求提名的口径，不是主动打磨波。
+盘上实测：`D:\连载\末世吞噬\正文\第003章.md` = **0 字节**，创建时间正好在作者发问前 2 秒。
 
-## 诊断（决定为什么做这一刀）
+### 根因一：0 字节文件的双向死锁（这是主因）
 
-问「agent 是否适配小说编辑器」，摸完三块事实（宪法 §06 原文、后端循环真实形状、桌面端
-交互面）后的结论：**词汇层和工具层高度适配，工作形状层还是「代码 agent 的骨架套小说的皮」**。
+作者的日更动作是「先建好空的章节文件，再让 agent 写这章」。这条最自然的路径被两条互相
+指向对方的错误堵死：
 
-三条结构性缺口，本刀只解决第一条：
+- `fs_tools.resolve_new_project_file` 用裸 `Path.exists()` 判定，**0 字节文件同样算「已存在」**，
+  报错文案还指引模型「改用 file_revise」；
+- `_file_revise` 用 `_required_string(payload, "content")` 取正文，**空串不过 `value.strip()`**，
+  抛「Agent intent 缺少参数：content」。
 
-1. **它是审校 agent 不是写作 agent**。16 个循环工具只有 3 个产字（`file.revise` /
-   `file.create` / `project.trim_prose`），全是「改已有」或「起草新文件」，没有「在光标处
-   接着往下写」；前端零个「写」的按钮；Ctrl+K 的契约明文禁止扩写。
-   → agent 只服务写作时刻 04 章末检查与 05 修订比较，**03 连续起草完全缺席**。
-2. **上下文注入是代码 agent 的形状**。每轮只注入文件路径不注入内容；选区进不了循环
-   （`request-payload.ts:22-24` 把整篇正文塞进 `content`/`context`/`selection` 三个同值键，
-   后端 `conversation_runtime.py:141,207` 只读 `project_path` 和 `file_path`，三个全丢）。
-3. **记忆等于零**。历史只留最后 12 条 × 4000 字，无跨会话记忆，摘要不回灌。唯一持久记忆
-   是 canon.json / hooks.json，但写回闭环两端断开——**agent 能读自己的记忆，不能写**。
+于是 agent 在第 5/6/7 轮反复重试，一个字也写不进去。**这不是模型不行，是工具契约有环。**
 
-注：§06.03 的定义原文是「编辑器保持安静，后台能力不抢焦点」，所以**起草时 agent 不主动
-插嘴是宪法立场不是缺陷**。缺的是「按需续写」——按需触发不抢焦点，与 §03 不冲突。
+### 根因二：末轮摘工具不通知模型 → 原生工具标记漏成正文
 
-## 三项拍板（作者选定）
+`loop_runtime` 在末轮（第 8 轮）与工具预算耗尽时都会摘掉 `tools`，但**只有预算耗尽那条分支
+追加了 system 说明**，末轮是静默摘除。模型这轮仍想调 `file_revise`，手里没有工具调用通道，
+就把 DeepSeek 原生的 `<｜｜DSML｜｜tool_calls>` 标记当正文吐了出来。
 
-| 决策 | 选定 | 说明 |
-| --- | --- | --- |
-| 触发方式 | 按需快捷键 | 不做 ghost text：符合 §06.03，也不在思考停顿时偷烧 BYO-key |
-| 续写长度 | 一段（约 300 字） | 生成快、好判断、不合意重来不心疼 |
-| 是否流式 | 逐字流式 | 作者选了更难的一条；代价是要在唯一出网通道里新开流式旁路 |
+后果是双重的：作者看到一坨乱码；而模型**真的写好了的第三章全文**，被困在那个从未被解析、
+更未被执行的工具参数里。`loop_runtime` 对这种 content 没有任何检测，直接当最终答案交付。
 
-## 续写工艺的来源与法律边界
+## 改了什么
 
-调研了同类长篇写作工具的公开做法。**整条 lorebook / Author's-Note-at-depth 血脉的实现
-（SillyTavern、KoboldAI 全系、mikupad、textgen）全部是 AGPL-3.0，一律没读**——读了再写
-属于污染路径。只从非 copyleft 来源取技术：
+| 文件 | 改动 |
+| --- | --- |
+| `agent_runs/fs_tools.py` | `resolve_new_project_file` 新增 `_is_blank_placeholder`：空文件 / 纯空白（≤4KB）不算「已存在」，起草可落进去。非空文件仍按原样拒绝。 |
+| `agent_runs/tools/runtime_arguments.py` | 新增 `required_text`：要求参数存在且是字符串，但**允许空串**。`required_string` 语义不动。 |
+| `agent_runs/patches/runtime_tools.py` | `_file_revise` 的 `content` 改吃 `required_text` —— 空文件的正文本来就是空的，不该被当成缺参数。 |
+| `agent_runs/loop_runtime.py` | ①摘工具的两条分支合并，**末轮也追加 system 通知**「工具已不再可用，请直接用自然语言回答」；②新增 `_annotate_unexecuted_tool_markup`，工具标记漏成正文时前置一句如实说明，原文保留供作者判断。 |
+| `agent_runs/tools/specs/patch_specs.py` | `file.create` 的 LLM 面描述改为「尚不存在的新文件、**或作者预先建好的空文件**……目标文件**已有正文时**才会失败」，与新行为对齐。 |
+| `tests/fixtures/loop_tool_schemas_golden.json` | 随 spec 描述重生（仅该行变化）。 |
 
-- Character Card V3 规范（**MIT**）：把 `scan_depth` / `token_budget` / `insertion_order` /
-  `@@depth` 写成了文字规范，可实现可自选许可。
-- Kobold 的**公开 wiki 文档**（非代码）：预算顺序 memory → world info → author's note →
-  prompt → history，生成配额先扣。
-- AgentWrite / LongWriter（**Apache-2.0**）：`prompts/write.txt` 的续写语义。
-- Re3 / DOC（**MIT**）：每步重建 prompt、只取相关切片。
-
-落到实现的三条：
-
-1. **操舵指令贴近尾部**。canon 硬约束（唯一持有 / 已退场 / 活跃伏笔 / 本章伏笔计划）与
-   本次要求排在**上文之后、prompt 最末**，不塞进 system——近因位置对下一段的影响远大于
-   开头。测试 `test_steering_sits_after_the_manuscript` 钉死这个顺序。
-2. **显式禁止收尾**。分段续写的头号病是每段都想写个总结或悬念钩子式收束。
-3. **防重复靠 prompt + 确定性后处理，不碰采样惩罚**。作者在用的兼容端点文档明写
-   `frequency_penalty` / `presence_penalty` 已移除、传了也不生效；另有生产复盘实测调参对
-   重复「零到负效果」。故用 `strip_repeated_prefix`（掐掉模型重抄的那截上文，`min_overlap`
-   防「他」这类短串误伤）+ `trim_to_sentence_end`（裁到完整句末，丢弃过半时放弃裁剪）。
-
-## 刀 1 · 后端（PR #206）
-
-**`llm_client` 加流式旁路 `stream_chat_completions`**，不动 `call_llm` / `call_llm_messages`：
-
-- **重试只包住建连**。一旦开始吐字就不再重连——重连会让作者眼前重复出现半段正文，比直接
-  失败更糟。读流中途故障直接 `LLMError` 并带上已输出字数。
-- **`stream_options` 自愈**：兼容端点回 400 时摘掉该字段重发（不消耗重试次数），usage 回落
-  既有字符估算。既拿得到精确 usage，又不会因一个可选字段在首次真用时炸给作者。
-- 三个 per-call 覆盖（`stream` / `temperature` / `max_completion_tokens`）均 keyword-only
-  带默认值；有一条测试钉死**不传时请求体与现状逐字节一致**。
-
-**`llm_http` 加 `StreamingReasoningFilter`**：`strip_reasoning_leak` 的增量等价物。流式不能
-回看全文再决定切哪里，故在判定开头不是 think 块之前一律缓冲；标签被切成半截送达
-（`"<th"` / `"ink>"`）是流式常态，不能因一次 feed 看不全就误放行。
-
-**`POST /api/assistant/continue`（SSE）**：帧 `start` → `delta`（原始增量，仅供观感）→
-`done`（`text` 是经确定性后处理的权威结果）/ `error`。LLM 未配置在建流前抛 422，不裹进流里
-以 200 送出。
-
-**创作准则不复制**：经 `book_generation` 门面共用整书管线那一份，避免两处陈词表各自漂移。
-
-### 过程中撞红两次源码标准门禁，均改自己未放宽门禁
-
-1. `test_live_consumers_use_book_runs_public_modules` — 我从 `book_runs.prompts._sections`
-   （私有模块）导入。
-2. `test_book_runs_private_cross_module_access_is_zero` — 改成 `book_generation.py` 引
-   `_sections` 后，**book_runs 内部私有跨模块访问也必须为零**。
-
-最终走 `prompts/__init__.py` 公开 `CRAFT_GUIDELINES` → `book_generation` 门面转出 → 续写引
-门面。三段都无下划线，门禁绿。
-
-## 刀 2 · 前端（PR #207）
-
-**`planCursorInsertion`（新纯函数）**：续写落点已知，不走 LCS 猜。**刻意不复用
-`planAnchoredInlineDiff`**——那条路会把新段跟上文做 diff，而 `buildPatchHunks` 会把段间空行
-当可匹配单元吃进公共前缀，纯新增的 `afterLineNumber` 落到 `lineHunkOverlapsAnchor` 的容忍
-窗口（**只有 0 行余量**）之外就被当 drift 静默丢弃。而「光标停在段末空行按键」正是续写最
-典型的起手式，走老路 = 整段续写凭空消失。返回类型沿用 `AnchoredInlineDiff`，绿块渲染层
-零改动。（丢弃行为在侦察阶段真跑 6 组数据实测过，测试里也钉了一条。）
-
-**`useInlineChat` 加 continue 模式**，与 revise 共用整套 view zone / 接受写回：
-
-- 拆出 `renderPlan`，`renderDiff` 退化为「先夹到锚定行再交给它」。
-- 不设空行闸（revise 那道闸只对 revise 生效）；指令可留空 = 就接着写。
-- 落点往上跳过连续空行：作者写完一段习惯连敲两下回车再停手。
-- 接受后光标停在新段末尾而非锚定行。
-- 流式区高度重排按帧节流：每 token 都 `layoutZone` 会让编辑器整页抖动。
-- 新段一律另起段落（锚定行非空时补空行分隔），不改动作者已写下的任何一个字。
-
-**前端不把 delta 拼起来当结果**：delta 只供观感，权威结果是 `done.text`。
-
-`Ctrl+Shift+K` 已登记 `shortcuts.ts`（`scope: 'editor'`），否则快捷键护栏会真去按它而报红。
-
-## 红线不变
-
-后端不写盘。接受走既有 `writeAcceptedSuggestion` → `performGuardedWriteback`（快照 → 分支
-推进 → 原子写 → 版本记录），与 Ctrl+K、补丁面板同一条路径。发起到接受之间作者改了文件的
-话，`isInlineEditStale` 拦下整块写回。
+**写回红线不变**：后端仍不写项目文件，`file.create` 落进空占位走的还是 proposed patch +
+前端确认；新增测试显式断言确认前占位文件字节不变。
 
 ## 验证命令与结果
 
 | 命令 | 结果 |
 | --- | --- |
-| `cd apps/api && uv run pytest` | **1104 passed / 3 skipped / 0 failed**（新增 29 条） |
+| `cd apps/api && uv run pytest` | **1109 passed / 3 skipped / 0 failed**（新增 5 条） |
 | `cd apps/api && uv run ruff check .` | All checks passed |
-| `npm --prefix apps/desktop/frontend run test` | **371 passed / 63 files**（新增 17 条） |
-| `npm --prefix apps/desktop/frontend run typecheck` | 绿 |
-| `pnpm.cmd lint` | 绿（`useInlineChat.ts` 走过一次 `prettier --write`） |
-| `pnpm.cmd verify` | **全绿**，含 daily 档 sidecar 冒烟 + OpenAPI 零漂移 |
-| `pnpm.cmd openapi` | 快照**纯新增 130 行，零删除** |
 
-新增测试覆盖：增量剥离 6 种分块形状、上文取窗夹取与预算截断、掐重复开头、裁完整句、
-**流式吐字后不得重连**、`stream_options` 400 自愈、SSE 端点证据链落库、422 在建流前、
-模型只复述时报错而非回空补丁；前端插入计划 7 / 落点推导 4 / SSE 帧解析 6。
+**可证伪性实证**：把 `fs_tools.py` + `patches/runtime_tools.py` 两处修复 `git stash` 掉后重跑，
+两条新的场景测试立刻红（`AssertionError: assert ['failed'] == ['completed']`），
+证明它们钉的是真实缺陷而不是同义反复。
+
+新增测试：
+- `test_chat_loop_file_create_fills_author_placeholder_file` —— 复现作者现场：空占位文件存在时
+  `file_create` 照样起草补丁，且确认前不写盘；
+- `test_chat_loop_file_revise_accepts_empty_file` —— 空文件走 `file_revise` 出补丁而非报缺参数；
+- `test_chat_loop_final_round_tells_model_tools_are_withdrawn` —— 末轮 `tools is None` 且 system
+  消息含撤下通知，倒数第二轮工具仍在；
+- `_annotate_unexecuted_tool_markup` 的命中 / 不命中两条纯函数测试（正常回话不加噪）。
 
 ## 未联通 / 未验证的能力
 
-- **真机观感全部未验，归 E2E-1**：流式跟手度、流式区（agent 色）到成品绿块（success 色）
-  的视觉切换、绿块与红标的 CJK 同栈对齐、IME 输入法下回车发送、接受后光标落点。
-- **真实 provider 的 SSE 帧格式未验**：测试用的是构造的 OpenAI 兼容帧。真实端点若有心跳帧
-  或非标准分块，解析层的容错（跳过坏 JSON 而不打断流）尚未在真 key 下跑过。
-- **`stream_options` 自愈路径未在真端点触发过**：不知道作者当前 provider 认不认这个字段。
-- **续写质量未评估**：prompt 工艺来自公开工艺的移植，没有在真实稿件上做过质量对照。
-  这一条只能靠作者 dogfood 提名下一刀。
-- 诊断里的另两条结构性缺口（选区进不了循环、canon 记忆只读不可写）**本刀未动**，
-  等真实写作摩擦提名。
+- **真机未验，归 E2E-1**：本刀改的是 sidecar 后端，作者手上的 0.1.4 装机包里跑的仍是旧
+  逻辑。要在真机看到效果，必须**重建 NSIS 装机包**（PyInstaller sidecar 重打）后再试一次
+  「建空章节文件 → 写这章」。在那之前，作者的临时绕法是：**别预先建空文件**，直接让 agent
+  写，或者往空文件里先敲一个字再让它改。
+- **DSML 标记泄漏的兜底只覆盖「已知标记」**：`_TOOL_MARKUP_MARKERS` 是按实际观测到的
+  DeepSeek DSML 加上几种常见形态列的白名单，换 provider 后若出现新形态仍会漏。根治靠的是
+  末轮通知，兜底只是让失败可见。
+- **`llm_client` 仍不读 `finish_reason`**：服务商侧截断与正常完成无法区分。本刀没动这条，
+  它是独立缺陷，等有真实证据再说。
+- **第三章正文没有被抢救**：那段被困在标记里的初稿属于作者的创作资产，本刀只修管道，
+  不代作者决定要不要用它。

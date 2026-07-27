@@ -50,6 +50,59 @@ def test_read_author_instructions_bad_project_returns_none(tmp_path: Path) -> No
     assert loop_runtime._read_author_instructions(str(tmp_path / "nonexistent")) is None
 
 
+def test_annotate_unexecuted_tool_markup_flags_leaked_markup() -> None:
+    """模型把原生工具调用标记当正文吐出时如实说明，原文保留供作者判断。"""
+
+    leaked = '<｜｜DSML｜｜tool_calls>\n<｜｜DSML｜｜invoke name="file_revise">正文/第003章.md'
+    annotated = loop_runtime._annotate_unexecuted_tool_markup(leaked)
+    assert annotated.startswith(loop_runtime._UNEXECUTED_TOOL_MARKUP_NOTICE)
+    assert leaked in annotated
+
+
+def test_annotate_unexecuted_tool_markup_leaves_prose_untouched() -> None:
+    """正常回话原样返回，不给作者的正文加噪。"""
+
+    prose = "第三章我读过了，主角退场那段收得利落，可以往下写。"
+    assert loop_runtime._annotate_unexecuted_tool_markup(prose) == prose
+
+
+def test_chat_loop_final_round_tells_model_tools_are_withdrawn(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    novel_project: Path,
+) -> None:
+    """末轮摘工具时必须同时通知模型，否则它继续按工具格式作答、标记漏成正文。"""
+
+    _enable_loop_env(monkeypatch)
+    read_call = {
+        "content": "",
+        "tool_calls": [
+            {
+                "id": "c1",
+                "type": "function",
+                "function": {"name": "fs_read", "arguments": json.dumps({"path": "正文/第01章.md"})},
+            }
+        ],
+        "completion_tokens": 3,
+    }
+    calls = _fake_llm_script(monkeypatch, [read_call])
+
+    _send_chat_message(
+        client,
+        run_id="run-chat-loop-final-round",
+        project_path=str(novel_project),
+        message="一直读文件",
+    )
+
+    assert len(calls) == loop_runtime.LOOP_MAX_ROUNDS
+    final_call = calls[-1]
+    assert final_call["tools"] is None
+    system_messages = [str(item.get("content")) for item in final_call["messages"] if item.get("role") == "system"]
+    assert any(loop_runtime._TOOLS_WITHDRAWN_NOTICE in item for item in system_messages)
+    # 倒数第二轮工具仍在，通知只在摘工具那一轮追加
+    assert calls[-2]["tools"] is not None
+
+
 def test_chat_loop_appends_author_instructions_to_system(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
