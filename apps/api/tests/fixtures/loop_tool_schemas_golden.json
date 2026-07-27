@@ -484,7 +484,7 @@
     "type": "function",
     "function": {
       "name": "file_create",
-      "description": "为项目内尚不存在的新文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。目标文件已存在时会失败（改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。",
+      "description": "为项目内尚不存在的新文件、或作者预先建好的空文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。目标文件已有正文时才会失败（那种情况改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。",
       "parameters": {
         "type": "object",
         "properties": {

@@ -55,6 +55,14 @@ def _required_string(args: dict[str, Any], key: str) -> str:
     raise AgentOrchestrationError(f"Agent intent 缺少参数：{key}。")
 
 
+def _required_text(args: dict[str, Any], key: str) -> str:
+    """要求参数存在且是字符串，但允许空串——空文件的正文本来就是空的。"""
+    value = args.get(key)
+    if isinstance(value, str):
+        return value
+    raise AgentOrchestrationError(f"Agent intent 缺少参数：{key}。")
+
+
 def _required_int(args: dict[str, Any], key: str) -> int:
     value = args.get(key)
     if isinstance(value, int) and value > 0:
@@ -217,6 +225,7 @@ def _proposed_patch_from_repair_patch(patch: dict[str, Any] | None) -> dict[str,
 fs_int_arg = _fs_int_arg
 chat_context_block = _chat_context_block
 required_string = _required_string
+required_text = _required_text
 required_int = _required_int
 optional_positive_int = _optional_positive_int
 optional_int = _optional_int
