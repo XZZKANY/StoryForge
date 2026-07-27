@@ -57,24 +57,61 @@
 **写回红线不变**：后端仍不写项目文件，`file.create` 落进空占位走的还是 proposed patch +
 前端确认；新增测试显式断言确认前占位文件字节不变。
 
+## 第二刀：文件树落点（文件夹行内新建按钮）
+
+作者原话：「新建文件没有在对应文件夹下，需要在文件夹右侧加添加文件夹/文件，不能全看右键。」
+
+### 诊断
+
+新建入口此前是**分裂**的，且**唯一认目录的那条藏在右键里**：
+
+| 入口 | 落点 | 实现 |
+| --- | --- | --- |
+| 侧栏头部 FilePlus 按钮 | **永远是项目根** | `useProjectCommands.handleNewFile` |
+| 欢迎页「新建文件…」 | **永远是项目根** | 同上 |
+| 文件树右键菜单 | 右键命中的目录 | `useFileTreeActions.onNewFile/onNewFolder` |
+
+树里既没有「当前选中文件夹」这个状态，也没有任何 hover 行内动作 —— 作者要把文件建进
+`正文/`，只有右键一条路，而右键是需要先知道它存在才会去点的交互。
+
+### 改了什么
+
+- `ResourceExplorer`：文件夹行从「整行一个 `<button>`」拆成「行容器 `div` + 展开按钮 + 行内
+  动作区」（button 不能嵌套 button），右侧加 hover / focus-within 才显形的
+  **「新建文件」「新建文件夹」** 两个图标按钮，直接复用右键菜单同一套 `fileActions`。
+  点了自动展开该文件夹 —— 新建的东西必须看得见。
+- `SidePanel` 头部：FilePlus 旁补一个 FolderPlus（根目录新建文件夹），并把 FilePlus 的
+  title 改成「在项目根目录新建文件」，让「根 vs 当前文件夹」的落点在 UI 上自解释。
+- `shell-icons`：新增 `FolderPlus` 导出（lucide-react 仍只在这一处 import）。
+
+**刻意没做**：不动 `handleNewFile` 的根目录语义（头部按钮就该建在根），也不引入
+「当前选中文件夹」状态——那会让落点变成隐式的、比现在更难预测。
+
 ## 验证命令与结果
 
 | 命令 | 结果 |
 | --- | --- |
 | `cd apps/api && uv run pytest` | **1109 passed / 3 skipped / 0 failed**（新增 5 条） |
 | `cd apps/api && uv run ruff check .` | All checks passed |
+| `npm --prefix apps/desktop/frontend run test` | **376 passed / 64 files**（新增 5 条） |
+| `npm --prefix apps/desktop/frontend run typecheck` | 绿 |
+| `pnpm.cmd lint` | 绿 |
 
 **可证伪性实证**：把 `fs_tools.py` + `patches/runtime_tools.py` 两处修复 `git stash` 掉后重跑，
 两条新的场景测试立刻红（`AssertionError: assert ['failed'] == ['completed']`），
 证明它们钉的是真实缺陷而不是同义反复。
 
-新增测试：
+后端新增测试：
 - `test_chat_loop_file_create_fills_author_placeholder_file` —— 复现作者现场：空占位文件存在时
   `file_create` 照样起草补丁，且确认前不写盘；
 - `test_chat_loop_file_revise_accepts_empty_file` —— 空文件走 `file_revise` 出补丁而非报缺参数；
 - `test_chat_loop_final_round_tells_model_tools_are_withdrawn` —— 末轮 `tools is None` 且 system
   消息含撤下通知，倒数第二轮工具仍在；
 - `_annotate_unexecuted_tool_markup` 的命中 / 不命中两条纯函数测试（正常回话不加噪）。
+
+前端新增测试（`tests/resource-explorer-new-entry.test.tsx`，真 DOM 挂载 + 点击）：
+落点是所在文件夹而非项目根、两个按钮各自对应 `onNewFile` / `onNewFolder`、多个文件夹行
+互不串目录、点按钮不触发折叠、无 `fileActions` 时不渲染按钮。
 
 ## 未联通 / 未验证的能力
 
@@ -89,3 +126,7 @@
   它是独立缺陷，等有真实证据再说。
 - **第三章正文没有被抢救**：那段被困在标记里的初稿属于作者的创作资产，本刀只修管道，
   不代作者决定要不要用它。
+- **文件树按钮的真机观感未验**（26px 行高里塞两个 20px 按钮的挤压感、hover 出现的时机、
+  长文件夹名截断后按钮是否还够点）：happy-dom 只能证明行为对，证明不了手感。归 E2E-1。
+- **触屏 / 纯键盘路径未验**：按钮靠 hover 与 focus-within 显形，触屏设备上没有 hover。
+  桌面 IDE 场景下不是当前优先级，但记一笔。

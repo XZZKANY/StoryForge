@@ -16,12 +16,14 @@ import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
 import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
 import { parentDir } from '../lib/fs-path-ops';
 import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
+import { FilePlus, FolderPlus } from './icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
 import { PanelError } from './shell/PanelError';
 import type { FileTreeActions } from './app/useFileTreeActions';
 
 type ContextTarget = { path: string; isDir: boolean };
 type NodeContextMenuHandler = (event: ReactMouseEvent, target: ContextTarget) => void;
+type NodeNewEntryHandler = (kind: 'file' | 'folder', dir: string) => void;
 
 type ResourceExplorerProps = {
   projectPath: string | null;
@@ -126,6 +128,15 @@ export function ResourceExplorer({
     [buildMenuItems, fileActions, projectPath],
   );
 
+  // 文件夹行 hover 出的新建按钮：与右键菜单同一套动作，只是不必先记住有右键这回事。
+  const newEntryInDir = useCallback<NodeNewEntryHandler>(
+    (kind, dir) => {
+      if (!fileActions) return;
+      void (kind === 'file' ? fileActions.onNewFile(dir) : fileActions.onNewFolder(dir));
+    },
+    [fileActions],
+  );
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* 文件树 */}
@@ -166,6 +177,7 @@ export function ResourceExplorer({
                   onFileSelect={onFileSelect}
                   onFilePreview={onFilePreview}
                   onNodeContextMenu={fileActions ? openMenu : undefined}
+                  onNodeNewEntry={fileActions ? newEntryInDir : undefined}
                 />
               ))}
             </div>
@@ -188,6 +200,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onFileSelect,
   onFilePreview,
   onNodeContextMenu,
+  onNodeNewEntry,
 }: {
   node: ProjectTreeNode;
   level: number;
@@ -196,6 +209,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   onFileSelect: (filePath: string) => void;
   onFilePreview?: (filePath: string) => void;
   onNodeContextMenu?: NodeContextMenuHandler;
+  onNodeNewEntry?: NodeNewEntryHandler;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const isActive = node.path === currentFile;
@@ -221,30 +235,70 @@ const TreeNodeItem = memo(function TreeNodeItem({
   if (node.isDir) {
     return (
       <div className="flex flex-col">
-        <button
-          onClick={handleToggle}
+        {/* 行容器是 div 而非 button：右侧要挂新建按钮，button 不能嵌套 button。 */}
+        <div
           onContextMenu={(event) => onNodeContextMenu?.(event, { path: node.path, isDir: true })}
           className="sf-tree-row text-muted transition-colors hover:bg-elevated group cursor-pointer"
+          data-testid="tree-folder-row"
+          data-folder-path={node.path}
         >
-          <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
-
-          <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-            <svg
-              className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
-              viewBox="0 0 16 16"
-              fill="currentColor"
-            >
-              <path d="M6 4l4 4-4 4V4z" />
-            </svg>
-          </div>
-          <span
-            className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-foreground' : 'text-muted group-hover:text-foreground'}`}
+          <button
+            onClick={handleToggle}
+            className="flex h-full min-w-0 flex-1 items-center text-left"
+            aria-expanded={isOpen}
           >
-            <FolderIcon className="h-3.5 w-3.5" />
-          </span>
+            <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
-          <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
-        </button>
+            <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
+              <svg
+                className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path d="M6 4l4 4-4 4V4z" />
+              </svg>
+            </div>
+            <span
+              className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-foreground' : 'text-muted group-hover:text-foreground'}`}
+            >
+              <FolderIcon className="h-3.5 w-3.5" />
+            </span>
+
+            <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
+          </button>
+
+          {onNodeNewEntry && (
+            <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+              <button
+                className="flex h-5 w-5 items-center justify-center rounded text-subtle hover:bg-surface hover:text-foreground"
+                title={`在「${node.name}」下新建文件`}
+                aria-label={`在 ${node.name} 下新建文件`}
+                data-testid="tree-folder-new-file"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  // 新建的东西要看得见：折叠着的文件夹先展开再建。
+                  setIsOpen(true);
+                  onNodeNewEntry('file', node.path);
+                }}
+              >
+                <FilePlus size={13} strokeWidth={1.6} />
+              </button>
+              <button
+                className="flex h-5 w-5 items-center justify-center rounded text-subtle hover:bg-surface hover:text-foreground"
+                title={`在「${node.name}」下新建文件夹`}
+                aria-label={`在 ${node.name} 下新建文件夹`}
+                data-testid="tree-folder-new-folder"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsOpen(true);
+                  onNodeNewEntry('folder', node.path);
+                }}
+              >
+                <FolderPlus size={13} strokeWidth={1.6} />
+              </button>
+            </span>
+          )}
+        </div>
         {isOpen && (
           <div className="flex flex-col">
             {node.children.map((child) => (
@@ -257,6 +311,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
                 onFileSelect={onFileSelect}
                 onFilePreview={onFilePreview}
                 onNodeContextMenu={onNodeContextMenu}
+                onNodeNewEntry={onNodeNewEntry}
               />
             ))}
           </div>

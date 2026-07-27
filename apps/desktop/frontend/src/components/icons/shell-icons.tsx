@@ -7,7 +7,7 @@
  *   顶栏：命令面板触发=Search / 窗控=Minus·Square·X
  *   中栏页签：版本=Clock / 面板=PanelRight
  *   右栏 composer：发送=ArrowUp / 挂载上下文=Plus
- *   树/会话：ChevronRight·ChevronDown / Folder·FolderOpen·File / 新建文件=FilePlus / 新建会话=MessageSquarePlus / 分支=GitBranch
+ *   树/会话：ChevronRight·ChevronDown / Folder·FolderOpen·File / 新建文件=FilePlus / 新建文件夹=FolderPlus / 新建会话=MessageSquarePlus / 分支=GitBranch
  *   观测/补丁：勾选=Check
  */
 import type { LucideIcon, LucideProps } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
   FilePlus,
   FileText,
   FolderOpen,
+  FolderPlus,
   Info,
   Keyboard,
   Maximize2,
@@ -59,6 +60,7 @@ export {
   FilePlus,
   FileText,
   FolderOpen,
+  FolderPlus,
   Info,
   Keyboard,
   Maximize2,
