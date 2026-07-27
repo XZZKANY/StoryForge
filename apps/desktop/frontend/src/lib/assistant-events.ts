@@ -45,6 +45,28 @@ export function emitEditorCursorLine(detail: EditorCursorLineDetail): void {
   }
 }
 
+// 作者当前视图：光标位置与选区随内容 / 选区变化去抖广播，供对话请求逐轮携带。
+// 散文里作者的指代是「这一段」「我刚写的这句」，靠 fs_search 捞是错工具，得直接给。
+export const EDITOR_AUTHOR_VIEW_EVENT = 'storyforge:editor-author-view';
+
+// 选区在广播前就截断：作者整章全选时不把整章当「这一段」发进每一轮。
+export const AUTHOR_VIEW_SELECTION_MAX_CHARS = 4000;
+
+export type EditorAuthorViewDetail = {
+  filePath: string | null;
+  cursorLine: number;
+  cursorColumn: number;
+  selectionText: string;
+};
+
+export function emitEditorAuthorView(detail: EditorAuthorViewDetail): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<EditorAuthorViewDetail>(EDITOR_AUTHOR_VIEW_EVENT, { detail }),
+    );
+  }
+}
+
 // 状态栏字数：编辑器内容 / 选区变化去抖广播非空白字符数（网文计字口径）。
 export const EDITOR_TEXT_METRICS_EVENT = 'storyforge:editor-text-metrics';
 

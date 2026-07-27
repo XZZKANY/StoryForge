@@ -12,6 +12,7 @@ from app.domains.agent_runs.events.runtime_support import plan_step as _plan_ste
 from app.domains.agent_runs.events.runtime_support import runtime_interrupted_response as _runtime_interrupted_response
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
+from app.domains.agent_runs.loop.author_view import AuthorView
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.runtime_recovery import build_runtime_interruption_payload
 from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
@@ -208,6 +209,8 @@ class ConversationRuntimeMixin:
                 execute_fs_tool=execute_fs_tool,
                 on_trace=on_trace,
                 should_interrupt=lambda boundary: self._runtime_interruption(run, boundary=boundary),
+                author_view=AuthorView.from_payload(args),
+                pinned_context=_chat_context_block(args),
             )
         except loop_runtime.ChatLoopUnavailableError:
             return None

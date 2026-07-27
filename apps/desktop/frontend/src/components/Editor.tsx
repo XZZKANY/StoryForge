@@ -12,6 +12,8 @@ import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
+  AUTHOR_VIEW_SELECTION_MAX_CHARS,
+  emitEditorAuthorView,
   emitEditorCursorLine,
   emitEditorTextMetrics,
   type EditorCommand,
@@ -414,8 +416,9 @@ export function Editor({
     if (typeof editor.revealLineInCenter === 'function') editor.revealLineInCenter(line);
   }, [editorReady, filePath, initialCursors, loadedFilePath]);
 
-  // 状态栏字数：内容 / 选区 / 换模型去抖广播非空白字符数。守卫必须整组齐全再订阅：
-  // vitest 的 monaco stub 是单监听槽，缺守卫会把脏跟踪的 onDidChangeModelContent 顶掉。
+  // 状态栏字数 + 作者当前视图：内容 / 选区 / 换模型去抖后一趟广播两条事件。
+  // 作者视图刻意搭这趟车而不另挂监听——守卫必须整组齐全再订阅：vitest 的 monaco stub
+  // 是单监听槽，多挂会把脏跟踪的 onDidChangeModelContent 顶掉。
   useEffect(() => {
     const editor = editorRef.current;
     if (
@@ -440,10 +443,13 @@ export function Editor({
         return;
       }
       let selectionCharCount = 0;
+      let selectionText = '';
       const selections = typeof editor.getSelections === 'function' ? editor.getSelections() : null;
       if (selections && typeof model.getValueInRange === 'function') {
         for (const selection of selections) {
-          selectionCharCount += countProseChars(model.getValueInRange(selection));
+          const selected = model.getValueInRange(selection);
+          selectionCharCount += countProseChars(selected);
+          selectionText += selected;
         }
       }
       const text = model.getValue();
@@ -452,6 +458,13 @@ export function Editor({
         charCount: countProseChars(text),
         selectionCharCount,
         paragraphCount: countParagraphs(text),
+      });
+      const position = typeof editor.getPosition === 'function' ? editor.getPosition() : null;
+      emitEditorAuthorView({
+        filePath: filePathRef.current,
+        cursorLine: position?.lineNumber ?? 0,
+        cursorColumn: position?.column ?? 0,
+        selectionText: selectionText.slice(0, AUTHOR_VIEW_SELECTION_MAX_CHARS),
       });
     };
     const schedule = () => {
