@@ -157,8 +157,14 @@ test('mapObservatoryPayload 映射 v2 结构化台账（实体 / 伏笔 / 提案
 
   assert.equal(data.proposals.available, true);
   assert.equal(data.proposals.pendingCount, 2);
+  // raw 是后端原样声明：并入 canon.json 要写全字段，只写卡片展示的三个会丢 kind 等。
   assert.deepEqual(data.proposals.newEntities, [
-    { id: 'ent_ab12cd34', canonicalName: '旧电台', aliases: ['电台'] },
+    {
+      id: 'ent_ab12cd34',
+      canonicalName: '旧电台',
+      aliases: ['电台'],
+      raw: { id: 'ent_ab12cd34', canonical_name: '旧电台', aliases: ['电台'] },
+    },
   ]);
   assert.deepEqual(data.proposals.newClaims, [
     { invariant: 'lifespan', entry: { entity: 'char_b', exits_after_chapter: 9 } },

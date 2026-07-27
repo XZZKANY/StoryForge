@@ -9,6 +9,7 @@ from app.domains.agent_runs import canon_hooks_delta
 from app.domains.agent_runs.tooling import (
     build_loop_tool_name_map,
     build_loop_tool_schemas,
+    list_loop_tool_specs,
     llm_tool_name,
     loop_patch_tool_specs,
 )
@@ -148,6 +149,28 @@ def test_evaluate_hook_admission_rejects_resolved_hook_duplicate(project: Path) 
     )
     assert result["admitted"] is False
     assert "重叠" in (result["reason"] or "")
+
+
+def test_hooks_delta_does_not_promise_a_nonexistent_write_channel(project: Path) -> None:
+    """summary 与 spec 描述都不得指示模型去调 canon_store.write_hooks——那不是它能调的工具。
+
+    此前两处都写着「确认后使用 canon_store.write_hooks 写入 hooks.json」，而该工具 /
+    IDE 命令 / 路由均不存在：模型每次调这把工具都被告知一个不存在的下一步，于是要么
+    假装已写回（对作者说谎），要么绕开这把工具。伏笔账是最差异化的能力，不能挂着谎。
+    """
+
+    _write_hooks(project, [])
+    result = canon_hooks_delta.hooks_delta(
+        str(project),
+        observed_hooks=[{"description": "青岩欠陆沉一把刀的情"}],
+    )
+    assert "write_hooks" not in result["summary"]
+    assert "hooks.json 未改动" in result["summary"]
+
+    hooks_spec = next(spec for spec in list_loop_tool_specs() if spec.name == "project.hooks_delta")
+    assert hooks_spec.loop_schema is not None
+    assert "write_hooks" not in hooks_spec.loop_schema.description
+    assert "write_hooks" not in hooks_spec.description
 
 
 # --- 18. trim_prose 工具注册与 schema ---

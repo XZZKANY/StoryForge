@@ -73,7 +73,13 @@ export type ObservatoryProposalClaim = {
 
 export type ObservatoryProposals = {
   available: boolean;
-  newEntities: { id: string; canonicalName: string; aliases: string[] }[];
+  // raw 是后端原样的实体声明：并入 canon.json 要写全字段，只写卡片展示的三个会丢 kind 等。
+  newEntities: {
+    id: string;
+    canonicalName: string;
+    aliases: string[];
+    raw: Record<string, unknown>;
+  }[];
   newClaims: ObservatoryProposalClaim[];
   pendingCount: number;
 };
@@ -244,6 +250,7 @@ function mapProposals(raw: unknown): ObservatoryProposals {
       id,
       canonicalName: readNonEmptyString(entry.canonical_name) ?? id,
       aliases: readStringList(entry.aliases),
+      raw: entry,
     });
   }
   const newClaims: ObservatoryProposalClaim[] = [];
