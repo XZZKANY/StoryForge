@@ -10,7 +10,7 @@ import { basename } from '../app/helpers';
 import type { FileTreeActions } from '../app/useFileTreeActions';
 import type { SidePanelView } from './useShellState';
 import { useDismissableMenu } from './useDismissableMenu';
-import { ChevronDown, FilePlus, FolderOpen, X } from '../icons/shell-icons';
+import { ChevronDown, FilePlus, FolderOpen, FolderPlus, X } from '../icons/shell-icons';
 
 type SidePanelProps = {
   view: SidePanelView;
@@ -106,12 +106,22 @@ function ExplorerView({
         </button>
         <button
           className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-subtle hover:bg-elevated hover:text-foreground"
-          title="新建文件"
+          title="在项目根目录新建文件"
           onClick={() => onNewFile(activeProject)}
           data-testid="side-new-file"
         >
           <FilePlus size={14} strokeWidth={1.6} />
         </button>
+        {fileActions && (
+          <button
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-subtle hover:bg-elevated hover:text-foreground"
+            title="在项目根目录新建文件夹"
+            onClick={() => void fileActions.onNewFolder(activeProject)}
+            data-testid="side-new-folder"
+          >
+            <FolderPlus size={14} strokeWidth={1.6} />
+          </button>
+        )}
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
