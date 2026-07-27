@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.common.craft import craft_prompt_clause
 from app.domains.agent_runs.fs_tools import FsToolError, resolve_project_root
 
 _SYSTEM_PROMPT = (
@@ -32,7 +33,10 @@ _SYSTEM_PROMPT = (
     "不要改用 file_revise（那会重写整篇）。落点缺省就是作者光标，通常不必自己指定；"
     "一次只写一个自然段到一个小节拍，不收尾、不总结、不甩悬念收束句。"
     "补丁不会直接写盘，必须由作者在界面确认；一次对话最多生成一个待确认补丁，不要假设修订或新文件已生效。"
-    "回答作者问题前，先用工具把需要的事实查清楚再作答，不要编造项目里不存在的内容；"
+    + craft_prompt_clause()
+    + "这份准则同样是你评判作者稿件的尺子：审读、给意见、判断某段是否该改时依它判断，"
+    "不要另立一套标准。"
+    + "回答作者问题前，先用工具把需要的事实查清楚再作答，不要编造项目里不存在的内容；"
     "项目里查不到时直说查不到。工具结果可能被截断（truncated=true），"
     "需要更多内容就调整 offset 或缩小范围继续读。"
     "最终回答用简洁自然的中文，直接说事；引用文件时给出相对路径。"

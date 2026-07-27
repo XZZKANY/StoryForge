@@ -9,6 +9,7 @@ from urllib import error, request
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.common.craft import craft_prompt_clause
 from app.common.exceptions import DomainError, NotFoundError
 from app.common.llm_client import LLMError, build_chat_payload, stream_chat_completions
 from app.common.redaction import redact_sensitive, redact_sensitive_text
@@ -204,7 +205,10 @@ _REVISE_SYSTEM_PROMPT = (
     "用户会给你一份正在编辑的文件全文与一条修订指令。"
     "请严格按指令修订，保持原有结构、人物与设定的连贯性。"
     "默认只改动指令直接涉及的部分，未点名的段落、句子与标题尽量逐字保留，不要无谓改写或扩大改动范围。"
-    "只输出修订后的完整正文，不要输出解释、前后缀或代码块标记。"
+    + craft_prompt_clause()
+    + "创作准则约束的是你这次落笔改写的那些句子；它不构成扩大改动范围的理由，"
+    "未点名段落即便不合准则也保持原样，由作者另行提出。"
+    + "只输出修订后的完整正文，不要输出解释、前后缀或代码块标记。"
 )
 
 
@@ -721,7 +725,8 @@ _DRAFT_SYSTEM_PROMPT = (
     "你是 StoryForge 的中文长篇小说作者。"
     "用户会给你一个新文件的路径与写作指令，请为这个文件起草完整初稿。"
     "严格贴合指令与随附的项目上下文，保持既有人物、设定与大纲的连贯性，不要引入项目里不存在的设定。"
-    "只输出正文内容，不要输出解释、前后缀或代码块标记。"
+    + craft_prompt_clause(with_examples=True)
+    + "只输出正文内容，不要输出解释、前后缀或代码块标记。"
 )
 
 

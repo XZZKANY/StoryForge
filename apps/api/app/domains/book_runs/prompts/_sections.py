@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from app.common.craft import CRAFT_EXAMPLE_BAD as _CRAFT_EXAMPLE_BAD
+from app.common.craft import CRAFT_EXAMPLE_GOOD as _CRAFT_EXAMPLE_GOOD
+from app.common.craft import CRAFT_GUIDELINES as _CRAFT_GUIDELINES
 from app.domains.book_runs.prompts._render import clean as _clean
 from app.domains.book_runs.prompts._render import section as _section
 from app.domains.book_runs.prompts.models import (
@@ -12,39 +15,8 @@ from app.domains.book_runs.prompts.models import (
     StyleDirective,
 )
 
-# 软禁用套话：与 StyleDirective.forbidden_phrases（硬禁用）分开，这里是高频陈词，
-# 措辞为"避免滥用"而非"绝不出现"，否则会误伤正常用词。
-_CLICHE_PHRASES = (
-    "忽然",
-    "仿佛",
-    "不禁",
-    "情不自禁",
-    "无法言喻",
-    "五味杂陈",
-    "心中一震",
-    "莫名",
-    "缓缓",
-    "深深地",
-)
-
-# 创作准则：把"什么是好文笔"显式写进 prompt，配好坏对照锚定模型。
-_CRAFT_GUIDELINES = (
-    "用具体的动作、对话和感官细节呈现，而非直接说明或概括（show, don't tell）。",
-    "不要用情绪词直接收尾（如“他很愤怒”“她感到害怕”）；用身体反应、动作或语言让情绪自然显形。",
-    "每个场景至少落地两种具体感官细节（视觉之外的声音、触感、气味、温度等）。",
-    "对白与叙述大致按 4:6 配比推进信息，避免大段内心独白与解释性旁白。",
-    "优先具体名词与有力动词，避免抽象形容词与副词堆叠。",
-    "避免滥用陈词套话：" + "、".join(_CLICHE_PHRASES) + " 等，确有必要才用。",
-)
-
-# 好坏对照锚点：正例画面化、可直接模仿；反例只描述"说明腔"反模式，
-# 不复述任何被禁词条（避免在 prompt 里既禁止又示范同一串，给模型混淆信号）。
-_CRAFT_EXAMPLE_BAD = "反例（说明腔，禁止）：直接用情绪形容词概括人物状态、堆叠抽象副词、用旁白解释心理，而不落到动作与感官。"
-_CRAFT_EXAMPLE_GOOD = "正例（画面化，模仿）：他把茶杯按在桌上，瓷底磕出一声脆响，指节泛白，半天没松开。"
-
-
-# 经 book_generation 门面转出给续写用：整书管线与光标处续写共用同一份"什么是好文笔"，
-# 避免两处各留一份陈词表后各自漂移。
+# 经 book_generation 门面转出：整书管线与对话侧四条产字路径共用 app.common.craft
+# 那一份"什么是好文笔"，避免各处各留一份陈词表后彼此漂移。
 CRAFT_GUIDELINES = _CRAFT_GUIDELINES
 
 
