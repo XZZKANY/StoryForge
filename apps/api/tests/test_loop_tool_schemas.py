@@ -61,7 +61,7 @@ def test_only_write_pending_loop_tools_are_patch_tools() -> None:
     """补丁工具集从 risk_level 派生。"""
 
     assert tuple(spec.name for spec in loop_patch_tool_specs()) == (
-        "project.trim_prose", "file.revise", "file.create",
+        "project.trim_prose", "file.revise", "file.create", "prose.continue",
     )
 
 

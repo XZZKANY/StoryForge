@@ -131,6 +131,50 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="prose.continue",
+        description="在作者光标处接着往下写一段，生成待确认的插入补丁（不改动既有正文）。",
+        domain="prose",
+        input_schema={},
+        output_schema={},
+        allowed_roles=_WRITE_ALLOWED_ROLES,
+        risk_level="write_pending",
+        retry_safe=False,
+        idempotent=False,
+        execution_mode="sync",
+        artifact_kinds=("proposed_patch",),
+        required_capabilities=("llm",),
+        evidence_fields=("proposed_patch", "inserted_chars", "anchor_line"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.prose_continue",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "在作者光标处接着往下写一段正文，生成待作者确认的插入补丁；既有正文一字不改，"
+                "也不会直接写盘。作者说「接着写」「往下写一段」「继续」时用这把工具，"
+                "不要用 file_revise（那会重写整篇）。落点缺省用作者当前光标位置——"
+                "系统已把作者的光标与选区注入本轮对话，通常无需自己指定 anchor_line。"
+                "一次只写一个自然段到一个小节拍，不收尾、不总结、不甩悬念收束句。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的稿件路径。"},
+                    "instruction": {
+                        "type": "string",
+                        "description": "对这一段的额外要求（可省略，省略即「就接着写」）。",
+                    },
+                    "target_chars": {
+                        "type": "integer",
+                        "description": "这一段的目标中文字符数，80–1200，缺省 300。",
+                    },
+                    "anchor_line": {
+                        "type": "integer",
+                        "description": "1-based 落点行（在该行之后插入）；缺省用作者当前光标行。",
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="judge.run",
         description="对生成内容执行轻量检查。",
         domain="judge",

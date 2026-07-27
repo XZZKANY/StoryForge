@@ -48,6 +48,8 @@ def _optional_text(value: object) -> str | None:
 def _default_tool_name(kind: str) -> str:
     if kind == "prose_trim":
         return "project.trim_prose"
+    if kind == "prose_continue":
+        return "prose.continue"
     if kind == "repair_patch":
         return "judge.repair"
     return "file.revise"

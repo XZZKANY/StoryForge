@@ -168,6 +168,13 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "target_percent": output.get("trim_audit", {}).get("target_percent"),
             "model": output.get("model"),
         }
+    if registry_name == "prose.continue":
+        return {
+            "file_path": output.get("file_path"),
+            "anchor_line": output.get("anchor_line"),
+            "inserted_chars": output.get("inserted_chars"),
+            "model": output.get("model"),
+        }
     if registry_name in _PATCH_TOOLS:
         patch = output.get("proposed_patch") if isinstance(output.get("proposed_patch"), dict) else {}
         return {
