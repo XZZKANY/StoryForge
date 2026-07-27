@@ -133,6 +133,7 @@ class ProjectCanonRuntimeMixin:
                     content=content,
                     instruction=instruction,
                     project_name=_optional_string(payload.get("project_name")),
+                    project_root=_optional_string(payload.get("project_root")),
                     assistant_session_id=context.assistant_session_id,
                     context_bundle=payload.get("llm_prompt_context_bundle") or payload.get("context_bundle"),
                 ),

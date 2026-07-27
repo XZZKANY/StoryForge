@@ -461,6 +461,7 @@ export function useInlineChat({
             userInstruction: instruction,
           }),
           projectName,
+          projectRoot: projectPathRef.current,
           assistantSessionId: sessionIdRef.current,
           signal: controller.signal,
         });

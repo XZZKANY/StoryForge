@@ -9,6 +9,7 @@ from urllib import error, request
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.common.author_voice import append_author_instructions_to_system_prompt
 from app.common.craft import craft_prompt_clause
 from app.common.exceptions import DomainError, NotFoundError
 from app.common.llm_client import LLMError, build_chat_payload, stream_chat_completions
@@ -408,7 +409,12 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
     request_payload = build_chat_payload(
         llm_env,
         messages=[
-            {"role": "system", "content": continuation.CONTINUE_SYSTEM_PROMPT},
+            {
+                "role": "system",
+                "content": append_author_instructions_to_system_prompt(
+                    continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root
+                ),
+            },
             {
                 "role": "user",
                 "content": continuation.build_continue_prompt(
@@ -565,7 +571,9 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
     try:
         result = _call_llm(
             llm_env,
-            system_prompt=continuation.CONTINUE_SYSTEM_PROMPT,
+            system_prompt=append_author_instructions_to_system_prompt(
+                continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root
+            ),
             user_prompt=continuation.build_continue_prompt(
                 tail=tail,
                 file_path=payload.file_path,
@@ -667,7 +675,9 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     try:
         result = _call_llm(
             llm_env,
-            system_prompt=_REVISE_SYSTEM_PROMPT,
+            system_prompt=append_author_instructions_to_system_prompt(
+                _REVISE_SYSTEM_PROMPT, payload.project_root
+            ),
             user_prompt=_build_revise_prompt(payload),
         )
     except BookGenerationError as exc:
@@ -799,7 +809,9 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     try:
         result = _call_llm(
             llm_env,
-            system_prompt=_DRAFT_SYSTEM_PROMPT,
+            system_prompt=append_author_instructions_to_system_prompt(
+                _DRAFT_SYSTEM_PROMPT, payload.project_root
+            ),
             user_prompt=_build_draft_prompt(payload),
         )
     except BookGenerationError as exc:

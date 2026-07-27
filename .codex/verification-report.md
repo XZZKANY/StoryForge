@@ -200,3 +200,83 @@ canon.json 缺失或损坏按空骨架起头；写盘触发重扫后该条从后
   其后续保存仍会以缓冲覆盖。与既有补丁写回对已打开文件的行为一致，属已知边界。
 - **`hooks_delta` 的提案仍不落盘**：修谎后模型会如实把清单报给作者，但作者要记进伏笔账
   仍需手改 `hooks.json`。这是上面「刻意不做」的直接代价。
+
+# 2026-07-28 触达三刀：让产字路径真的拿到「作者是谁、什么算好句子」（PR #217 / #218 / …）
+
+> **提名口径**：作者问「我怎么感觉现在的小说 ide 名不副实」。诊断结论不是功能缺失，是
+> **触达缺失**——四条真正产出文字的路径（`file.revise` / `file.create` / `prose.continue` /
+> chat 循环）各自带着自己的 system prompt，创作准则只进了其中一条、作者自定义指令一条都没进。
+> 功能看着像生效、结构上不可能生效。本波三刀只修触达，不新增能力。
+
+## 诊断台账（改前实测，非推测）
+
+| 产字路径 | 创作准则 | 作者声明的文风 |
+| --- | --- | --- |
+| `prose.continue` / Ctrl+Shift+K | ✅ 全量 `CRAFT_GUIDELINES` | ❌ |
+| `file.revise`（`service.py:202`） | ❌ | ❌ |
+| `file.create`（`service.py:720`） | ❌ | ❌ |
+| chat 循环（`prompt_context.py`） | ❌ | ✅ 仅此一条 |
+
+创作准则触达 **1/4**，且是前一天刚建的那条。作者指令触达 **0/4**：它落在 chat 循环上，
+而循环自己不产字——循环产字靠调上面那三条工具，每条都用自己的 system prompt 且不带指令。
+`read_author_instructions` 改前只有一个调用者。
+
+`_REVISE_SYSTEM_PROMPT` 全文是「严格按指令修订、未点名的段落逐字保留、不要扩大改动范围」——
+一段标准的**最小 diff 重构提示词**。对代码是对的，对正文意味着作者最常按的那个工具被要求
+保留一切没被点名的东西，却从未被告知什么是好句子。「代码 agent 骨架套小说皮」这句诊断，
+最硬的证据就在这一段里。
+
+## 第一刀（PR #217）：创作准则进四条路径
+
+`CRAFT_GUIDELINES` 下沉 `app/common/craft.py` 作单一事实源（下沉 common 而非留 book_runs
+是触达边界所迫：源码标准硬门禁禁止 `agent_runs/loop/*.py` import `domains.book_runs`）。
+`craft_prompt_clause()` 出扁平子句形态供三条对话侧单段式 prompt 复用，整书管线仍用多行
+section，两种形态共用同一份文本。`file.revise` 额外加界：准则只约束本次落笔改写的句子，
+不构成扩大改动范围的理由——否则最小改动会退化成整篇重写、毁掉补丁可审性。
+
+护栏 `tests/test_craft_guidelines_reach.py`（11 项）：四条 prompt 逐条含全部准则与陈词条目、
+必须含 `craft_prompt_clause()` 原文（手抄改词即红）、book_runs 与 common 同一对象。
+改前 8 red / 3 passed，改后 11 passed；全量 1142 passed / 3 skipped；ruff 绿。
+
+## 第二刀（PR #218）：作者自定义指令进三条生成调用
+
+新增 `app/common/author_voice.py`（同样的无 domains 依赖叶子；`assistant` 不得顶层 import
+`agent_runs`，会成环）。`prompt_context.py` 原实现整体下沉、原处留薄转发，既有 patch 该
+符号的测试与调用点零改动。
+
+- **措辞刻意分两档**：对话路径沿用「尽量遵循」，产字路径改「逐条遵循，与通用创作准则冲突时
+  以作者本人的要求为准」。生成时作者指令是硬约束（「这个人物不说某个词」必须照办），沿用
+  对话档的「尽量」会让模型把作者的硬要求当可选偏好。
+- **注入位置在 system prompt 末尾**：近因位置对生成影响最强，排在通用准则之后。
+- `AssistantReviseRequest` / `AssistantDraftRequest` 加 `project_root`；三个循环内调用点
+  （`patches/runtime_tools.py` ×2、`tools/project_canon_runtime.py` ×1）与前端 Ctrl+K
+  直连路径（`useInlineChat.ts`）逐一接线。
+
+**顺带逮到一个真 bug**：`conversation_runtime.py` 为防注入丢弃 LLM 传入的 `project_root`，
+再按分支回填——而 `prose.continue` 落在「设 file_path / content」那条分支里，**从不回填**。
+于是循环内续写静默丢掉 canon 硬约束与作者指令，而 Ctrl+Shift+K 直连路径反而两者都有：
+同一个功能走对话进去和走快捷键进去，喂给模型的东西不一样。已改为 `setdefault` 兜底。
+
+护栏 `tests/test_author_instructions_reach.py`（13 项）+ `test_agent_loop_prose_continue.py`
+新增 1 项。可证伪性实测：`git stash` 掉 `conversation_runtime.py` 与 `service.py` 两个改动后，
+新增断言转红（`test_author_instructions_reach.py:113` AssertionError）。
+
+## 验证命令与结果（第二刀）
+
+- `uv run pytest -q` → **1156 passed / 3 skipped**（第一刀基线 1142，+14 即本刀新增）
+- `uv run ruff check .` → All checks passed
+- `pnpm openapi` → 两个 schema 各 +1 字段，`api-types.ts` 同步；drift 绿
+- `npm --prefix apps/desktop/frontend run typecheck` → 无错；`run test` → **384 passed / 65 files**
+- 行尾：`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件一致（混合 CRLF 的两个
+  文件改用字节级写入规避 Edit 归一）
+
+## 未联通 / 未验证的能力（第二刀）
+
+- **真机观感未验，归 E2E-1**：改的是 sidecar 后端与前端源码；作者手上 0.1.5 装机包跑旧逻辑，
+  要真机看到效果必须重建 NSIS（PyInstaller sidecar 重打）。
+- **注入生效 ≠ 模型照办**：测试只能证明作者指令进了 system prompt，证明不了模型逐条遵守。
+  「写出来是否像作者的手笔」只能靠 dogfood。
+- **`project_root` 现在是客户端传入值**：读取面被硬钉死在 `<root>/.storyforge/agent-instructions.md`
+  这一个相对路径上（不接受任何外部拼接），但目录本身来自请求体。单机 sidecar 单客户端下
+  可接受，多租户部署下需要改回服务端解析。
+- **无缓存**：每次生成重读该文件（写盘即生效是刻意选择），高频调用下是重复 IO。

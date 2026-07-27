@@ -2213,6 +2213,8 @@ export interface components {
             instruction: string;
             /** Project Name */
             project_name?: string | null;
+            /** Project Root */
+            project_root?: string | null;
         };
         /** AssistantReviseResponse */
         AssistantReviseResponse: {

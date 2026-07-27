@@ -145,6 +145,8 @@ class AssistantReviseRequest(BaseModel):
     content: str = Field(max_length=120000)
     instruction: str = Field(min_length=1, max_length=4000)
     project_name: str | None = Field(default=None, max_length=255)
+    # 作者自定义指令 .storyforge/agent-instructions.md 需要项目根才能定位；缺省则不注入。
+    project_root: str | None = Field(default=None, max_length=1024)
     assistant_session_id: int | None = Field(default=None, gt=0)
     context_bundle: AssistantContextBundle | None = None
 
@@ -182,6 +184,8 @@ class AssistantDraftRequest(BaseModel):
     file_path: str = Field(min_length=1, max_length=1024)
     instruction: str = Field(min_length=1, max_length=4000)
     project_name: str | None = Field(default=None, max_length=255)
+    # 作者自定义指令 .storyforge/agent-instructions.md 需要项目根才能定位；缺省则不注入。
+    project_root: str | None = Field(default=None, max_length=1024)
     assistant_session_id: int | None = Field(default=None, gt=0)
     context_bundle: AssistantContextBundle | None = None
 

@@ -196,6 +196,10 @@ class ConversationRuntimeMixin:
                 payload["file_path"] = fs_tools.resolve_new_project_file(project_path, rel_path)
             else:
                 payload["project_root"] = project_path
+            # 作者自定义指令与 canon 约束都要项目根定位。产字工具走上面的分支设 file_path /
+            # content，此前从不回填 project_root，导致 prose.continue 在循环内静默丢掉
+            # canon 硬约束（Ctrl+Shift+K 直连路径反而有），作者指令也进不去。
+            payload.setdefault("project_root", project_path)
             return self._execute_tool(registry_name, context, payload).output
 
         try:
