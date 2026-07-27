@@ -505,6 +505,119 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
     return _generate()
 
 
+def draft_continuation(session: Session, payload: AssistantContinueRequest) -> AssistantDraftResponse:
+    """非流式光标处续写，供 agent 工具循环调用（流式 /assistant/continue 供编辑器快捷键）。
+
+    与 stream_continue_prose 共用同一套纯函数（取窗 / prompt / 确定性后处理），只换传输：
+    工具循环本身不流式，也不该为了一次工具调用把 SSE 生成器塞进循环。
+
+    返回的 content 只是「要插入的那一段」，不含落点计算——插入由调用方用
+    continuation.insert_at_anchor 完成，后端绝不写盘。"""
+
+    llm_env = resolved_llm_env()
+    missing = missing_book_generation_env()
+    if missing:
+        raise AssistantLlmNotConfiguredError(missing)
+
+    tail = continuation.manuscript_tail(payload.content, payload.cursor_line)
+    target_chars = payload.target_chars or continuation.DEFAULT_TARGET_CHARS
+    scene_constraints = _continue_scene_constraints(payload)
+
+    if payload.assistant_session_id is not None:
+        assistant_session = get_assistant_session(session, payload.assistant_session_id)
+    else:
+        assistant_session = create_assistant_session(
+            session,
+            AssistantSessionCreate(
+                title=f"续写 {payload.file_path}"[:160],
+                task_type="desktop_continue",
+                messages=[
+                    AssistantMessageCreate(
+                        role="user",
+                        content=payload.instruction or f"续写 {payload.file_path}",
+                    )
+                ],
+            ),
+        )
+
+    tool_call = create_assistant_tool_call(
+        session,
+        assistant_session.id,
+        AssistantToolCallCreate(
+            tool_name="assistant.continue",
+            status="running",
+            input_summary={
+                "file_path": payload.file_path,
+                "cursor_line": payload.cursor_line,
+                "tail_chars": len(tail),
+                "target_chars": target_chars,
+                "has_instruction": payload.instruction is not None,
+                "has_scene_constraints": scene_constraints is not None,
+                "transport": "tool_loop",
+            },
+        ),
+    )
+
+    try:
+        result = _call_llm(
+            llm_env,
+            system_prompt=continuation.CONTINUE_SYSTEM_PROMPT,
+            user_prompt=continuation.build_continue_prompt(
+                tail=tail,
+                file_path=payload.file_path,
+                instruction=payload.instruction,
+                scene_constraints=scene_constraints,
+                target_chars=target_chars,
+            ),
+        )
+    except BookGenerationError as exc:
+        update_assistant_tool_call(
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(status="failed", error_message=str(exc)[:4000]),
+        )
+        raise AssistantReviseError(str(exc)) from exc
+
+    final_text = continuation.finalize_continuation(tail, str(result["content"]))
+    if not final_text:
+        message = "模型这一轮没有写出新内容（可能只是复述了上文）。"
+        update_assistant_tool_call(
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(status="failed", error_message=message),
+        )
+        raise AssistantReviseError(message)
+
+    completion_tokens = result.get("completion_tokens")
+    latency_ms = int(result.get("latency_ms", 0) or 0)
+    output_summary: dict[str, Any] = {
+        "final_chars": len(final_text),
+        "prompt_tokens": result.get("prompt_tokens"),
+        "completion_tokens": completion_tokens,
+        "token_usage": result.get("token_usage"),
+        "cost_cny_estimated": result.get("cost_cny_estimated"),
+        "cost_breakdown": result.get("cost_breakdown"),
+        "token_usage_source": result.get("token_usage_source"),
+        "latency_ms": latency_ms,
+    }
+    if result.get("reasoning_leak_stripped"):
+        output_summary["reasoning_leak_stripped"] = True
+    update_assistant_tool_call(
+        session,
+        tool_call.id,
+        AssistantToolCallUpdate(status="completed", output_summary=output_summary),
+    )
+
+    return AssistantDraftResponse(
+        content=final_text,
+        summary=f"已在 {payload.file_path} 光标处续写约 {len(final_text)} 字，待作者确认。",
+        model=str(llm_env.get("STORYFORGE_LLM_MODEL") or ""),
+        latency_ms=latency_ms,
+        completion_tokens=completion_tokens if isinstance(completion_tokens, int) else None,
+        assistant_session_id=assistant_session.id,
+    )
+
+
 def revise_file_content(session: Session, payload: AssistantReviseRequest) -> AssistantReviseResponse:
     """对当前文件全文按用户指令做一次真实 LLM 修订，落会话与工具调用证据链。
 

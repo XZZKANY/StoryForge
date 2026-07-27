@@ -122,3 +122,39 @@ def finalize_continuation(tail: str, generated: str) -> str:
     """生成后的确定性收口：先掐重复开头，再裁到完整句末。"""
 
     return trim_to_sentence_end(strip_repeated_prefix(tail, generated.strip()))
+
+
+def resolve_anchor_line(content: str, cursor_line: int) -> int:
+    """从光标行推导落点：往上跳过连续空行，让新段紧贴上一段而不是掉进一片空白里。
+
+    作者写完一段习惯连敲两下回车再停手，此时光标在第二个空行上。若原样把落点定在
+    光标行，续写会与上文之间隔出多余空行。与前端 lib/inline-continue.ts 的
+    resolveContinueAnchorLine 同语义（两侧各自实现，行为由测试对齐）。
+
+    返回 1-based：在此行之后插入；0 = 文件顶部。
+    """
+
+    lines = content.replace("\r\n", "\n").split("\n")
+    anchor = max(0, min(int(cursor_line), len(lines)))
+    while anchor > 0 and not lines[anchor - 1].strip():
+        anchor -= 1
+    return anchor
+
+
+def insert_at_anchor(content: str, anchor_line: int, text: str) -> str:
+    """在 anchor_line 之后插入续写段，前后各留一个空行（段落边界）。
+
+    纯函数：不判断 text 是否为空，调用方负责（空续写在上游已按失败处理）。
+    """
+
+    normalized = content.replace("\r\n", "\n")
+    lines = normalized.split("\n")
+    anchor = max(0, min(int(anchor_line), len(lines)))
+    head = lines[:anchor]
+    tail = lines[anchor:]
+    block = text.strip("\n")
+    merged = [*head, "", block] if head else [block]
+    # 落点后原本就有正文时补一个空行，避免新段与下文黏成一段。
+    if any(line.strip() for line in tail):
+        merged.append("")
+    return "\n".join([*merged, *tail])

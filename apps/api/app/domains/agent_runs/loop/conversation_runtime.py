@@ -180,7 +180,7 @@ class ConversationRuntimeMixin:
                 for key, value in arguments.items()
                 if key not in ("project_root", "content", "file_path")
             }
-            if registry_name in ("file.review", "file.revise", "project.trim_prose"):
+            if registry_name in ("file.review", "file.revise", "project.trim_prose", "prose.continue"):
                 rel_path = _optional_string(payload.pop("path", None)) or _optional_string(arguments.get("file_path"))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")

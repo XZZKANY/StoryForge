@@ -43,6 +43,7 @@ from app.domains.agent_runs.tools import (
 from app.domains.agent_runs.tools.execution_runtime import ToolExecutionRuntimeMixin
 from app.domains.agent_runs.tools.project_canon_runtime import ProjectCanonRuntimeMixin
 from app.domains.agent_runs.tools.project_checks_runtime import ProjectChecksRuntimeMixin
+from app.domains.agent_runs.tools.prose_continue_runtime import ProseContinueRuntimeMixin
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.ide.orchestrator import orchestrate_agent_message  # noqa: F401
 
@@ -118,6 +119,7 @@ class AgentRuntime(
     FsRuntimeToolsMixin,
     ProjectChecksRuntimeMixin,
     ProjectCanonRuntimeMixin,
+    ProseContinueRuntimeMixin,
     PatchRuntimeToolsMixin,
 ):
     """Root Agent runtime facade: skill plan -> tool registry -> permission gate -> event store."""
