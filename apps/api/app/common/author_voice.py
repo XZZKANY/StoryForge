@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.common.style_baseline import append_style_baseline_to_system_prompt
+
 _DIRNAME = ".storyforge"
 _FILENAME = "agent-instructions.md"
 
@@ -71,3 +73,17 @@ def append_author_instructions_to_system_prompt(
     if instructions is None:
         return system_prompt
     return system_prompt + "\n\n" + GENERATION_PREFIX + instructions
+
+
+def build_generation_system_prompt(base_prompt: str, project_path: str | None) -> str:
+    """三条产字路径的 system prompt 唯一组装点。
+
+    分层顺序即优先级，越靠后越强：通用创作准则（base_prompt 自带）→ 量自正文的文风基线
+    → 作者声明的指令。**声明高于测量**——作者说「这段要短句」就该压过历史平均句长；
+    顺序写在这一个函数里而不是散在四个调用点，是为了不让某处把层序拼反。
+    """
+
+    return append_author_instructions_to_system_prompt(
+        append_style_baseline_to_system_prompt(base_prompt, project_path),
+        project_path,
+    )

@@ -95,7 +95,7 @@ def test_append_puts_instructions_last(project_with_instructions: Path) -> None:
 
 
 def test_three_generation_paths_call_the_injector() -> None:
-    """revise / create / continue 三条都必须经 append_author_instructions_to_system_prompt。
+    """revise / create / continue 三条都必须经 build_generation_system_prompt。
 
     直接传裸 `_REVISE_SYSTEM_PROMPT` / `_DRAFT_SYSTEM_PROMPT` /
     `continuation.CONTINUE_SYSTEM_PROMPT` 即红——那正是改前的形状。
@@ -111,7 +111,7 @@ def test_three_generation_paths_call_the_injector() -> None:
         '{"role": "system", "content": continuation.CONTINUE_SYSTEM_PROMPT}',
     ):
         assert bare not in source, f"生成路径仍在传裸 system prompt，作者指令进不去：{bare}"
-    assert source.count("append_author_instructions_to_system_prompt(") >= 4
+    assert source.count("build_generation_system_prompt(") >= 4
 
 
 def test_generation_requests_accept_project_root() -> None:
