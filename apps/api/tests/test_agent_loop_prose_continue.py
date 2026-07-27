@@ -153,3 +153,54 @@ class _FakeDraft:
         self.latency_ms = 1
         self.completion_tokens = 7
         self.assistant_session_id = 1
+
+
+def test_loop_continue_forwards_project_root_to_generation(
+    client: TestClient,
+    novel_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """循环内续写必须把 project_root 传到生成层。
+
+    2026-07-28 逮到的真 bug：conversation_runtime 为防注入丢弃 LLM 传入的 project_root，
+    而 prose.continue 落在「设 file_path / content」那条分支里，从不回填——于是循环内
+    续写静默丢掉 canon 硬约束与作者自定义指令（Ctrl+Shift+K 直连路径反而都有）。
+    """
+
+    chapter = novel_project / "正文" / "第01章.md"
+    chapter.write_text("灯塔第三十三次错误闪光。\n\n", encoding="utf-8")
+    _enable_loop_env(monkeypatch)
+
+    seen: dict[str, object] = {}
+
+    def _capture(session: object, payload: object) -> _FakeDraft:
+        seen["project_root"] = getattr(payload, "project_root", None)
+        return _FakeDraft("林岚合上审计簿，往塔顶去。")
+
+    monkeypatch.setattr(
+        "app.domains.agent_runs.tools.prose_continue_runtime.assistant_service.draft_continuation",
+        _capture,
+    )
+    _fake_llm_script(
+        monkeypatch,
+        [
+            _tool_call_round('{"path": "正文/第01章.md"}'),
+            {"content": "写好了。", "tool_calls": []},
+        ],
+    )
+
+    stream_agent_message(
+        client,
+        "session-continue-root",
+        run_id="run-continue-root",
+        user_message="接着往下写一段",
+        args={
+            "project_path": str(novel_project),
+            "context_bundle": {"files": []},
+            "file_path": "正文/第01章.md",
+        },
+    )
+
+    assert seen["project_root"] == str(novel_project), (
+        "project_root 未传到生成层：canon 约束与作者指令会静默失活"
+    )

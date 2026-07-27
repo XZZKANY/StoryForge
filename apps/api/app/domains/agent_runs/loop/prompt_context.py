@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from app.common import author_voice
 from app.common.craft import craft_prompt_clause
-from app.domains.agent_runs.fs_tools import FsToolError, resolve_project_root
 
 _SYSTEM_PROMPT = (
     "你是 StoryForge 的中文长篇小说创作 agent，工作在作者的本地小说项目上。"
@@ -43,44 +43,21 @@ _SYSTEM_PROMPT = (
 )
 
 
-_AUTHOR_INSTRUCTIONS_DIRNAME = ".storyforge"
+_AUTHOR_INSTRUCTIONS_MAX_CHARS = author_voice.MAX_CHARS
 
 
-_AUTHOR_INSTRUCTIONS_FILENAME = "agent-instructions.md"
-
-
-_AUTHOR_INSTRUCTIONS_MAX_CHARS = 4_000
-
-
-_AUTHOR_INSTRUCTIONS_PREFIX = (
-    "以下是作者对你的额外偏好与要求，请在不违反上述工具纪律与写回红线"
-    "（补丁必须经作者在界面确认、后端绝不写盘）的前提下尽量遵循：\n"
-)
+_AUTHOR_INSTRUCTIONS_PREFIX = author_voice.CONVERSATION_PREFIX
 
 
 def _read_author_instructions(project_path: str) -> str | None:
-    """读作者自定义指令 .storyforge/agent-instructions.md，供 run_chat_loop 追加进 system prompt。
+    """读作者自定义指令，供 run_chat_loop 追加进 system prompt。
 
-    写盘即生效（每次起循环重读）；文件不存在 / 读失败 / 空内容 → None（静默跳过，
-    这是加分项、绝不拖垮聊天循环）。超长按 _AUTHOR_INSTRUCTIONS_MAX_CHARS 截断。
-    路径由 project_path 后端硬拼、不接受任何外部传入，无遍历风险。
+    实现已下沉 `app/common/author_voice.py`：三条产字路径（revise / create / continue）
+    要读同一个文件，而 assistant 不能顶层 import agent_runs（会成环）。此处保留薄转发，
+    使既有 patch 该符号的测试与调用点零改动。
     """
-    try:
-        root = resolve_project_root(project_path)
-    except FsToolError:
-        return None
-    target = root / _AUTHOR_INSTRUCTIONS_DIRNAME / _AUTHOR_INSTRUCTIONS_FILENAME
-    if not target.is_file():
-        return None
-    try:
-        text = target.read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    if not text:
-        return None
-    if len(text) > _AUTHOR_INSTRUCTIONS_MAX_CHARS:
-        text = text[:_AUTHOR_INSTRUCTIONS_MAX_CHARS] + "\n…[作者指令过长已截断]"
-    return text
+
+    return author_voice.read_author_instructions(project_path)
 
 
 SYSTEM_PROMPT = _SYSTEM_PROMPT

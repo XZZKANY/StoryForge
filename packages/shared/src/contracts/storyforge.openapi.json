@@ -1046,6 +1046,18 @@
               }
             ],
             "title": "Project Name"
+          },
+          "project_root": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Root"
           }
         },
         "required": [

@@ -102,6 +102,7 @@ export async function reviseFileContent(payload: {
   content: string;
   instruction: string;
   projectName?: string | null;
+  projectRoot?: string | null;
   assistantSessionId?: number | null;
   signal?: AbortSignal;
 }): Promise<AssistantReviseResult> {
@@ -119,6 +120,7 @@ export async function reviseFileContent(payload: {
       content: payload.content,
       instruction: payload.instruction,
       project_name: payload.projectName ?? null,
+      project_root: payload.projectRoot ?? null,
       assistant_session_id: payload.assistantSessionId ?? null,
     }),
   });
