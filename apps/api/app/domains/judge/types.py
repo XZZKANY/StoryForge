@@ -8,6 +8,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from app.common.exceptions import InputError
+from app.common.style_fingerprint import (  # noqa: F401  别名再导出：既有 judge 调用点零改动
+    STYLE_DRIFT_PHRASES,
+    STYLE_FINGERPRINT_DRIFT_PHRASES,
+    STYLE_RESTRAINT_MARKERS,
+    StyleFingerprint,
+)
 
 
 class JudgeInputError(InputError):
@@ -49,16 +55,8 @@ class SemanticJudgeOutcome:
     configured: bool = True
 
 
-# 确定性文风漂移检测短语
-STYLE_DRIFT_PHRASES = ("作者直接解释", "设定说明", "旁白解释", "直接说明设定", "作者在这里解释")
-STYLE_FINGERPRINT_DRIFT_PHRASES = (
-    *STYLE_DRIFT_PHRASES,
-    "这说明",
-    "意味着",
-    "读者立刻明白",
-    "宏大轮盘",
-)
-STYLE_RESTRAINT_MARKERS = ("克制", "沉默", "低声", "按住", "没有解释", "只把")
+# 确定性文风漂移检测短语与 StyleFingerprint 已下沉 app/common/style_fingerprint.py
+# （桌面产字路径要前馈同一组特征，两处各写一份就会检查器与生成器互不相认）。
 STYLE_FINGERPRINT_THRESHOLD = 0.62
 FORBIDDEN_DRAFT_TERMS = (
     "Phase",
@@ -76,23 +74,3 @@ FORBIDDEN_DRAFT_TERMS = (
 
 # Judge Provider 类型别名（callable signature for LLM provider）
 JudgeProvider = Callable[..., Sequence[dict[str, object] | DetectedIssue]]
-
-
-@dataclass(frozen=True)
-class StyleFingerprint:
-    """用少量可解释特征描述已批准章节的文风基线。"""
-
-    average_sentence_length: float
-    exposition_density: float
-    restraint_density: float
-    dialogue_ratio: float
-    sentence_count: int
-
-    def as_payload(self) -> dict[str, float | int]:
-        return {
-            "average_sentence_length": self.average_sentence_length,
-            "exposition_density": self.exposition_density,
-            "restraint_density": self.restraint_density,
-            "dialogue_ratio": self.dialogue_ratio,
-            "sentence_count": self.sentence_count,
-        }

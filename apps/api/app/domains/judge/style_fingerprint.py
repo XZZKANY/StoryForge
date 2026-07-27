@@ -7,12 +7,15 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domains.books.models import Chapter, Scene
-from app.domains.judge.types import (
+from app.common.style_fingerprint import (  # noqa: F401  judge.service 把这几个当 facade 再导出
     STYLE_FINGERPRINT_DRIFT_PHRASES,
     STYLE_RESTRAINT_MARKERS,
     StyleFingerprint,
 )
+from app.common.style_fingerprint import marker_count as _marker_count  # noqa: F401
+from app.common.style_fingerprint import split_sentences as _style_sentences
+from app.common.style_fingerprint import style_fingerprint as _style_fingerprint
+from app.domains.books.models import Chapter, Scene
 
 
 def compute_book_style_baseline(
@@ -43,46 +46,6 @@ def compute_book_style_baseline(
     if not contents:
         return None
     return _style_fingerprint("\n".join(contents)).as_payload()
-
-
-def _style_fingerprint(content: str) -> StyleFingerprint:
-    """提取可解释的轻量文风特征，避免测试依赖外部 NLP 服务。"""
-
-    sentences = _style_sentences(content)
-    sentence_count = len(sentences)
-    total_chars = sum(len(sentence) for sentence in sentences) or 1
-    average_sentence_length = round(total_chars / max(sentence_count, 1), 3)
-    exposition_density = round(_marker_count(content, STYLE_FINGERPRINT_DRIFT_PHRASES) / max(sentence_count, 1), 3)
-    restraint_density = round(_marker_count(content, STYLE_RESTRAINT_MARKERS) / max(sentence_count, 1), 3)
-    dialogue_ratio = round((content.count("「") + content.count("」")) / max(len(content), 1), 3)
-    return StyleFingerprint(
-        average_sentence_length=average_sentence_length,
-        exposition_density=exposition_density,
-        restraint_density=restraint_density,
-        dialogue_ratio=dialogue_ratio,
-        sentence_count=sentence_count,
-    )
-
-
-def _style_sentences(content: str) -> list[str]:
-    separators = "。！？!?\n\r"
-    sentences: list[str] = []
-    start = 0
-    for index, char in enumerate(content):
-        if char not in separators:
-            continue
-        sentence = content[start:index].strip()
-        if sentence:
-            sentences.append(sentence)
-        start = index + 1
-    tail = content[start:].strip()
-    if tail:
-        sentences.append(tail)
-    return sentences or [content.strip()] if content.strip() else []
-
-
-def _marker_count(content: str, markers: tuple[str, ...]) -> int:
-    return sum(content.count(marker) for marker in markers)
 
 
 def _style_similarity_score(baseline: StyleFingerprint, current: StyleFingerprint) -> float:
