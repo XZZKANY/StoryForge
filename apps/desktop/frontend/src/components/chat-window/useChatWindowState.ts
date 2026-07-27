@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { AssistantSessionRecord } from '../../lib/api-client';
+import { EDITOR_AUTHOR_VIEW_EVENT, type EditorAuthorViewDetail } from '../../lib/assistant-events';
 import type { ContextBundle, SemanticFile } from '../../lib/project-context';
 import type { AgentRunRecoveryDisplay } from './recovery';
 import { conversationKey } from './session-guard';
@@ -58,6 +59,9 @@ export function useChatWindowState({
   const contextRef = currentFile ? relativePath(projectPath, currentFile) : null;
   const contextRefRef = useRef<string | null>(contextRef);
   const currentFileRef = useRef<string | null>(currentFile);
+  // 编辑器广播的作者当前视图（光标 + 选区）。用 ref 而非 state：它每 200ms 可能变一次，
+  // 进 state 会让整个对话面板跟着作者移动光标重渲染。
+  const authorViewRef = useRef<EditorAuthorViewDetail | null>(null);
   const projectPathRef = useRef<string | null>(projectPath);
   const agentRunIdRef = useRef<string | null>(null);
   const assistantSessionIdRef = useRef<number | null>(assistantSessionId ?? null);
@@ -76,6 +80,15 @@ export function useChatWindowState({
     projectPathRef.current = projectPath;
     assistantSessionIdRef.current = assistantSessionId ?? null;
   });
+
+  useEffect(() => {
+    const onAuthorView = (event: Event) => {
+      const detail = (event as CustomEvent<EditorAuthorViewDetail>).detail;
+      if (detail) authorViewRef.current = detail;
+    };
+    window.addEventListener(EDITOR_AUTHOR_VIEW_EVENT, onAuthorView);
+    return () => window.removeEventListener(EDITOR_AUTHOR_VIEW_EVENT, onAuthorView);
+  }, []);
 
   useEffect(
     () => () => {
@@ -134,6 +147,7 @@ export function useChatWindowState({
     contextRef,
     contextRefRef,
     currentFileRef,
+    authorViewRef,
     projectPathRef,
     agentRunIdRef,
     assistantSessionIdRef,

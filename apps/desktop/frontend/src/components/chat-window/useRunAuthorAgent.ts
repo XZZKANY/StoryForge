@@ -66,6 +66,7 @@ export function useRunAuthorAgent(
     projectPathRef,
     currentFileRef,
     contextRefRef,
+    authorViewRef,
     agentRunIdRef,
     assistantSessionIdRef,
     draftNonceRef,
@@ -218,6 +219,7 @@ export function useRunAuthorAgent(
           assistantSessionId: assistantSessionIdRef.current,
           contextBundle,
           reviewReport: lastReviewReport,
+          authorView: authorViewRef.current,
         });
         const agentRoleMentions = extractAgentRoleMentions(goal);
         const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
@@ -446,6 +448,7 @@ export function useRunAuthorAgent(
       agentRunIdRef,
       applyAgentStreamEvent,
       assistantSessionIdRef,
+      authorViewRef,
       contextRefRef,
       currentFileRef,
       draftNonceRef,

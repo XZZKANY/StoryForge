@@ -95,14 +95,21 @@ export type ContextAppendResult = {
   missingPaths: string[];
 };
 
+/** 作者此刻的编辑器视图，逐轮随对话请求发给后端（后端解码见 loop/author_view.py）。 */
+export type AuthorViewPayload = {
+  file_path: string;
+  cursor_line: number;
+  cursor_column: number;
+  selection_text: string;
+};
+
 export type StableAgentRequestPayload = {
   project_path: string;
   current_file?: string;
   file_path?: string;
   content?: string;
   instruction: string;
-  context?: string;
-  selection?: string;
+  author_view?: AuthorViewPayload;
   project_name: string | null;
   assistant_session_id: number | null;
   context_bundle: ReturnType<typeof import('../../lib/api-client').toAssistantContextBundlePayload>;

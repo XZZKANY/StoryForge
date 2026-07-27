@@ -27,6 +27,28 @@ import { reviewIssueForCurrentFile } from '../src/components/chat-window/review'
 import { ConversationHeader } from '../src/components/chat-window/panels';
 import type { AgentRunSavePointProjection } from '../src/lib/api-client';
 
+function emptyContextBundle(projectRoot: string) {
+  return {
+    projectRoot,
+    currentFile: null,
+    summary: {
+      hasStoryStructure: true,
+      counts: {
+        outline: 1,
+        character: 1,
+        setting: 0,
+        timeline: 0,
+        foreshadowing: 0,
+        draft: 1,
+        quality: 0,
+        export: 0,
+        other: 0,
+      },
+    },
+    files: [],
+  };
+}
+
 const reviewReport = {
   kind: 'review_report',
   issues: [
@@ -98,7 +120,7 @@ test('revise issue lookup only accepts ids from the active review file', () => {
   assert.equal(reviewIssueForCurrentFile(reviewReport, 'plot-1', reportFile, null), null);
 });
 
-test('stable agent request payload carries project, file, content, selection, session and context', () => {
+test('stable agent request payload carries project, file, content, author view, session and context', () => {
   const payload = buildStableAgentRequestPayload({
     projectPath: 'D:\\Books\\雾港回声',
     currentFile: 'D:\\Books\\雾港回声\\正文\\第01章.md',
@@ -107,6 +129,12 @@ test('stable agent request payload carries project, file, content, selection, se
     projectName: '雾港回声',
     assistantSessionId: 42,
     reviewReport,
+    authorView: {
+      filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md',
+      cursorLine: 7,
+      cursorColumn: 3,
+      selectionText: '林岚合上审计簿。',
+    },
     contextBundle: {
       projectRoot: 'D:\\Books\\雾港回声',
       currentFile: 'D:\\Books\\雾港回声\\正文\\第01章.md',
@@ -139,10 +167,36 @@ test('stable agent request payload carries project, file, content, selection, se
   assert.equal(payload.project_path, 'D:\\Books\\雾港回声');
   assert.equal(payload.current_file, 'D:\\Books\\雾港回声\\正文\\第01章.md');
   assert.equal(payload.content, '当前正文');
-  assert.equal(payload.selection, '当前正文');
   assert.equal(payload.assistant_session_id, 42);
   assert.deepEqual(payload.selected_issue_ids, ['character-1']);
   assert.equal(payload.context_bundle?.files[0].relative_path, '人物\\林岚.md');
+  // 真选区走 author_view；此前 selection 键发的是整篇正文，名字骗人且后端从不读。
+  assert.equal(payload.author_view?.selection_text, '林岚合上审计簿。');
+  assert.equal(payload.author_view?.cursor_line, 7);
+  assert.equal('selection' in payload, false);
+  assert.equal('context' in payload, false);
+});
+
+test('author view is dropped when it belongs to a different file than the current one', () => {
+  const payload = buildStableAgentRequestPayload({
+    projectPath: 'D:\\Books\\雾港回声',
+    currentFile: 'D:\\Books\\雾港回声\\正文\\第02章.md',
+    content: '第二章正文',
+    instruction: '这一段怎么改',
+    projectName: '雾港回声',
+    assistantSessionId: 42,
+    reviewReport: null,
+    // 编辑器还没为新文件广播视图：宁可不发，也不要把上一份稿件的选区当成这一份的。
+    authorView: {
+      filePath: 'D:\\Books\\雾港回声\\正文\\第01章.md',
+      cursorLine: 7,
+      cursorColumn: 3,
+      selectionText: '第一章的句子',
+    },
+    contextBundle: emptyContextBundle('D:\\Books\\雾港回声'),
+  });
+
+  assert.equal(payload.author_view, undefined);
 });
 
 test('stable agent request payload omits file content when project-only chat is used', () => {
@@ -154,32 +208,14 @@ test('stable agent request payload omits file content when project-only chat is 
     projectName: '雾港回声',
     assistantSessionId: null,
     reviewReport: null,
-    contextBundle: {
-      projectRoot: 'D:\\Books\\雾港回声',
-      currentFile: null,
-      summary: {
-        hasStoryStructure: true,
-        counts: {
-          outline: 1,
-          character: 1,
-          setting: 0,
-          timeline: 0,
-          foreshadowing: 0,
-          draft: 1,
-          quality: 0,
-          export: 0,
-          other: 0,
-        },
-      },
-      files: [],
-    },
+    authorView: null,
+    contextBundle: emptyContextBundle('D:\\Books\\雾港回声'),
   });
 
   assert.equal(payload.current_file, undefined);
   assert.equal(payload.file_path, undefined);
   assert.equal(payload.content, undefined);
-  assert.equal(payload.context, undefined);
-  assert.equal(payload.selection, undefined);
+  assert.equal(payload.author_view, undefined);
   assert.equal(payload.context_bundle?.current_file, undefined);
 });
 

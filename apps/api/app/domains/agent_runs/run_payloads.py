@@ -11,6 +11,7 @@ from app.domains.agent_runs.event_types import (
     STOP_RUN,
     event_type_for_control_message,
 )
+from app.domains.agent_runs.loop.author_view import AuthorView, author_view_summary
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.role_catalog import normalize_agent_role_inputs
 from app.domains.book_runs.models import BookRun
@@ -39,6 +40,9 @@ def _message_input_summary(message: dict[str, Any]) -> dict[str, Any]:
     content = args.get("content")
     if isinstance(content, str):
         summary["content_chars"] = len(content)
+    if isinstance(args.get("author_view"), dict):
+        # 只落形状与量：选区 / 光标窗正文不进事件表（事件表会被导出与展示）。
+        summary["author_view"] = author_view_summary(AuthorView.from_payload(args))
     return summary
 
 

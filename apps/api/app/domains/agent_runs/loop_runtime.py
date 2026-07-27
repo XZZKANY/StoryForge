@@ -19,6 +19,11 @@ from app.common.llm_client import LLMConfigError, LLMError
 from app.common.llm_client import call_llm_messages as _call_llm_messages
 from app.domains.agent_runs.canon_context import build_scene_constraint_block
 from app.domains.agent_runs.loop import prompt_context as loop_prompt_context
+from app.domains.agent_runs.loop.author_view import (
+    AuthorView,
+    build_author_view_block,
+    build_pinned_context_block,
+)
 from app.domains.agent_runs.loop.support import (
     history_messages as _history_messages,
 )
@@ -136,6 +141,8 @@ def run_chat_loop(
     execute_fs_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
     on_trace: Callable[[AgentToolTrace], None],
     should_interrupt: Callable[[str], dict[str, Any] | None] | None = None,
+    author_view: AuthorView | None = None,
+    pinned_context: str | None = None,
 ) -> ChatLoopOutcome:
     """LLM 工具循环主体。execute_fs_tool 抛出的异常消息会作为工具错误反馈给模型。
 
@@ -143,12 +150,17 @@ def run_chat_loop(
     后续轮失败则以错误说明收尾，不吞掉部分进展。
 
     should_interrupt 在每轮开头调用（入参为 boundary 字符串）：返回非 None 的运行时中断
-    payload 时，循环立即收尾（run 已被 pause/stop），不再发起新一轮模型调用。"""
+    payload 时，循环立即收尾（run 已被 pause/stop），不再发起新一轮模型调用。
+
+    author_view / pinned_context 由调用方解码后传入（见 loop/author_view.py）：作者选区、
+    光标窗与 @ 钉文件摘录排在最靠近本轮提问处，近因位置对模型的影响最强。"""
 
     history = _history_messages(session, assistant_session_id)
     current_file_hint = f"当前打开文件：{current_file}" if current_file else "当前没有打开文件"
     scene_block = build_scene_constraint_block(project_path, current_file)
     author_instructions = _read_author_instructions(project_path)
+    view_block = build_author_view_block(author_view) if author_view is not None else None
+    pinned_block = build_pinned_context_block(pinned_context)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         *(
@@ -158,6 +170,8 @@ def run_chat_loop(
         ),
         *history,
         *([{"role": "system", "content": scene_block}] if scene_block else []),
+        *([{"role": "system", "content": pinned_block}] if pinned_block else []),
+        *([{"role": "system", "content": view_block}] if view_block else []),
         {
             "role": "user",
             "content": f"[项目已挂载，只读工具可用。{current_file_hint}]\n作者：{user_message}",
