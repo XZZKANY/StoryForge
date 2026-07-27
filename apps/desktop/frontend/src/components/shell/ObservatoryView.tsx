@@ -3,12 +3,14 @@
  * 四个可折叠分区——待确认提案 / 伏笔账 / 实体 / 检查器，数据全部来自
  * observatory.scan payload v2 的结构化台账（确定性、无 LLM）。
  *
- * 诚实边界：观测是参考信号不是质量判定；提案区本刀只读（并入 / 忽略是后续刀）；
- * 实体卡红描边只反映后端已判定的 blocking 观测，前端不自算结论。
+ * 诚实边界：观测是参考信号不是质量判定；实体卡红描边只反映后端已判定的 blocking 观测，
+ * 前端不自算结论。提案「并入」由作者点下后前端写 canon.json（后端绝不写作者项目文件）；
+ * 不要的提案留着不动即可，未做忽略态持久化。
  */
 import { useState, type ReactNode } from 'react';
 
 import { Check, ChevronDown, ChevronRight, FileText, Radar, RefreshCw } from '../icons/shell-icons';
+import type { CanonMergeTarget } from '../../lib/canon-merge';
 import type {
   ObservationAnchor,
   ObservatoryChecker,
@@ -100,7 +102,30 @@ function EmptyLine({ children }: { children: ReactNode }) {
   return <p className="text-[11px] leading-relaxed text-subtle">{children}</p>;
 }
 
-function ProposalsSection({ proposals }: { proposals: ObservatoryProposals }) {
+function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean }) {
+  if (!onMerge) return null;
+  return (
+    <button
+      type="button"
+      onClick={onMerge}
+      disabled={busy}
+      className="flex-shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
+      data-testid="proposal-merge"
+    >
+      并入
+    </button>
+  );
+}
+
+function ProposalsSection({
+  proposals,
+  onMergeProposal,
+  merging = false,
+}: {
+  proposals: ObservatoryProposals;
+  onMergeProposal?: (target: CanonMergeTarget) => void;
+  merging?: boolean;
+}) {
   return (
     <Section
       title="待确认提案"
@@ -120,8 +145,17 @@ function ProposalsSection({ proposals }: { proposals: ObservatoryProposals }) {
               data-testid="proposal-card"
             >
               <div className="flex items-baseline gap-2 text-[12px]">
-                <span className="font-medium text-foreground">{entity.canonicalName}</span>
-                <span className="font-mono text-[10px] text-subtle">新实体</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                  {entity.canonicalName}
+                </span>
+                <span className="flex-shrink-0 font-mono text-[10px] text-subtle">新实体</span>
+                <MergeButton
+                  busy={merging}
+                  onMerge={
+                    onMergeProposal &&
+                    (() => onMergeProposal({ kind: 'entity', entity: entity.raw }))
+                  }
+                />
               </div>
               {entity.aliases.length > 0 && (
                 <div className="mt-1 text-[11px] text-muted">别名：{entity.aliases.join('、')}</div>
@@ -141,10 +175,22 @@ function ProposalsSection({ proposals }: { proposals: ObservatoryProposals }) {
                 <span className="flex-shrink-0 font-mono text-[10px] text-subtle">
                   {CLAIM_INVARIANT_LABELS[claim.invariant] ?? claim.invariant}声明
                 </span>
+                <MergeButton
+                  busy={merging}
+                  onMerge={
+                    onMergeProposal &&
+                    (() =>
+                      onMergeProposal({
+                        kind: 'claim',
+                        invariant: claim.invariant,
+                        entry: claim.entry,
+                      }))
+                  }
+                />
               </div>
             </div>
           ))}
-          <EmptyLine>并入 / 忽略操作后续接入；提案只是草稿，canon.json 未被改动。</EmptyLine>
+          <EmptyLine>点「并入」把这条写进 canon.json；不要的条目留着不动即可。</EmptyLine>
         </>
       )}
     </Section>
@@ -370,10 +416,12 @@ export function ObservatoryView({
   proposals,
   generatedAt,
   litEntityIds = [],
+  merging = false,
   onRescan,
   onBackToChat,
   onLocateObservation,
   onLocateAnchor,
+  onMergeProposal,
 }: {
   availability: ObservationAvailability;
   scanning?: boolean;
@@ -384,10 +432,12 @@ export function ObservatoryView({
   proposals: ObservatoryProposals;
   generatedAt: string | null;
   litEntityIds?: string[];
+  merging?: boolean;
   onRescan: () => void;
   onBackToChat: () => void;
   onLocateObservation?: (observation: Observation) => void;
   onLocateAnchor?: (anchor: ObservationAnchor) => void;
+  onMergeProposal?: (target: CanonMergeTarget) => void;
 }) {
   const observationById = new Map(observations.map((observation) => [observation.id, observation]));
   // busy 合并首扫 loading 与「已有数据时的重扫」：后者 availability 停在 available，靠 scanning 反馈。
@@ -445,7 +495,11 @@ export function ObservatoryView({
           </p>
         ) : (
           <>
-            <ProposalsSection proposals={proposals} />
+            <ProposalsSection
+              proposals={proposals}
+              onMergeProposal={onMergeProposal}
+              merging={merging}
+            />
             <Section title="伏笔账" count={promises.ledger.length} testid="promises">
               {promises.ledger.length === 0 ? (
                 <EmptyLine>

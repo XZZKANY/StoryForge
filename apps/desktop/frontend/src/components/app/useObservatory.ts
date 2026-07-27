@@ -11,6 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Observation, ObservationAvailability } from '../shell/ObsPanel';
 import { executeIdeCommand } from '../../lib/api/ide-commands';
 import { EDITOR_CURSOR_LINE_EVENT, type EditorCursorLineDetail } from '../../lib/assistant-events';
+import { mergeProposalIntoCanon, type CanonMergeTarget } from '../../lib/canon-merge';
+import { emitToast } from '../../lib/toast';
 import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
 import {
   EMPTY_OBSERVATORY_PROMISES,
@@ -54,6 +56,7 @@ export function useObservatory({ activeProject }: { activeProject: string | null
   // scanning 独立于 availability：已有数据时重扫仍静默保留旧观测（availability 停 available），
   // 但按钮要转圈给反馈——此前 spinner 绑 availability='loading' 故有数据时点重扫毫无反应。
   const [scanning, setScanning] = useState(false);
+  const [merging, setMerging] = useState(false);
   const resolvedIdsRef = useRef<Set<string>>(new Set());
   const scanSeqRef = useRef(0);
 
@@ -158,6 +161,26 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     [activeProject],
   );
 
+  // 并入提案：读盘 → 追加 → 写回 canon.json。写盘会触发 FS_MUTATION_EVENT，
+  // 防抖重扫后该条从后端差集里自然消失（自愈），故这里不必手改本地提案态。
+  const mergeProposal = useCallback(
+    async (target: CanonMergeTarget) => {
+      if (!activeProject) return;
+      setMerging(true);
+      try {
+        await mergeProposalIntoCanon(activeProject, target);
+      } catch (error) {
+        console.error('并入 canon 提案失败', error);
+        emitToast(`并入失败：${error instanceof Error ? error.message : String(error)}`, {
+          tone: 'error',
+        });
+      } finally {
+        setMerging(false);
+      }
+    },
+    [activeProject],
+  );
+
   return {
     observations: state.observations,
     checkers: state.checkers,
@@ -168,7 +191,9 @@ export function useObservatory({ activeProject }: { activeProject: string | null
     availability: state.availability,
     scanning,
     litEntityIds,
+    merging,
     resolveObservation,
+    mergeProposal,
     runScan,
   };
 }

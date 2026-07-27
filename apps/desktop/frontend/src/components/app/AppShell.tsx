@@ -230,10 +230,12 @@ export function AppShell({
                     proposals={observatory.proposals}
                     generatedAt={observatory.generatedAt}
                     litEntityIds={observatory.litEntityIds}
+                    merging={observatory.merging}
                     onRescan={() => void observatory.runScan()}
                     onBackToChat={shell.showExplorerView}
                     onLocateObservation={observatory.locateObservation}
                     onLocateAnchor={observatory.locateAnchor}
+                    onMergeProposal={(target) => void observatory.mergeProposal(target)}
                   />
                 ) : (
                   <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">

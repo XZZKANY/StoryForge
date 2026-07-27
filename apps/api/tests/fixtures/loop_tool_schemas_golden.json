@@ -539,7 +539,7 @@
     "type": "function",
     "function": {
       "name": "project_hooks_delta",
-      "description": "叙事承诺钩子差量提案（确定性去重 + 正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。工具只归并去重、不写 hooks.json；新钩子列表需作者确认后再调用 canon_store.write_hooks 写入。",
+      "description": "叙事承诺钩子差量提案（确定性去重 + 正则辅助，无额外 LLM）：读完章节后，把观察到的叙事承诺钩子作为 observed_hooks 传入。可同时传入 evidence_text 正文片段，工具会在其上跑正则模式检测作为辅助信号。工具只归并去重、不写 hooks.json，你也没有写入 hooks.json 的工具——把新钩子清单如实报给作者，由作者决定要不要记进伏笔账。",
       "parameters": {
         "type": "object",
         "properties": {

@@ -209,5 +209,5 @@ def hooks_delta(
         "new_hooks": new_hooks,
         "duplicates": duplicates,
         "pattern_hits": pattern_hits,
-        "summary": "；".join(summary_parts) + "；确认后使用 canon_store.write_hooks 写入 hooks.json。",
+        "summary": "；".join(summary_parts) + "；这些只是提案，hooks.json 未改动——要记进伏笔账需作者自己确认。",
     }
