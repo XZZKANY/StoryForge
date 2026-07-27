@@ -130,3 +130,73 @@
   长文件夹名截断后按钮是否还够点）：happy-dom 只能证明行为对，证明不了手感。归 E2E-1。
 - **触屏 / 纯键盘路径未验**：按钮靠 hover 与 focus-within 显形，触屏设备上没有 hover。
   桌面 IDE 场景下不是当前优先级，但记一笔。
+
+---
+
+# 2026-07-28 按宪法 §06 八个写作时刻修 agent 三条不适配（PR #214 / #215 / #216）
+
+诊断起点：agent 的词汇层与工具层已高度适配小说，但**工作形状层仍是「代码 agent 的骨架套
+小说的皮」**，对照 §06 八个写作时刻只真正服务 04（章末检查）与 05（修订比较）。
+
+## 第一刀（PR #214）：每轮注入作者当前视图
+
+此前循环每轮只注入文件路径不注入内容，选区根本进不了循环——前端把整篇正文塞进
+`content` / `context` / `selection` 三个同值键，后端只读 `project_path` 与 `file_path`。
+
+- 新增 `loop/author_view.py`（纯函数、无 IO）：`AuthorView.from_payload` 走 typed 契约
+  （`run_chat_loop` 体内禁裸 `.get()` 是源码标准硬门禁），行号越界夹取不抛错；选区优先，
+  无选区取光标前 1500 / 后 600 字窗口并按段落边界收口；内容取自前端已发 `content` 不额外读盘。
+- 作者 @ 钉的 `context_bundle` 摘录一并进循环（此前只有回落单轮对话在用）。
+- 事件表摘要只落形状与量，选区 / 窗口正文不进事件表。删掉 `context` / `selection` 两个同值键。
+
+命令与结果：`uv run pytest -q` → **1121 passed / 3 skipped**（新增 12）；
+`npm run test` → **377 passed**（新增 2、修正 2 条陈旧断言）；ruff / lint / typecheck 全绿。
+
+## 第二刀（PR #215）：prose.continue 循环工具
+
+此前 16 个循环工具只有 3 个产字，全是「改已有」或「起草新文件」；作者说「接着写」，
+模型只能拿 `file_revise` 重写整篇。
+
+- 新增 spec `prose.continue`（`write_pending`）+ `tools/prose_continue_runtime.py` 作为第 5 张
+  handler map。自动落进 `_PATCH_TOOLS`，单补丁闸零改动。
+- 落点优先级 显式 `anchor_line` > 作者光标（来自第一刀）> 文件末尾，并跳过作者停笔时连敲的空行。
+- 新增非流式 `draft_continuation`，与流式 `/assistant/continue` 共用同一套纯函数，只换传输。
+- 插入是纯新增；后端只出 `proposed_patch`，落盘仍走作者确认。
+- 顺带补 system prompt 里从未提及的 `project_promise_check` / `project_hooks_delta`。
+
+命令与结果：`uv run pytest -q` → **1130 passed / 3 skipped**（新增 9、修正 2 条工具集枚举）；
+ruff 绿；OpenAPI 无漂移；golden fixture 从 spec 重生 **+31 行 / 零删除**。
+
+## 第三刀（PR #216）：修一句谎 + 最小并入
+
+`hooks_delta` 的 summary 与 spec 描述都指示模型「确认后使用 `canon_store.write_hooks` 写入」，
+而该工具 / IDE 命令 / 路由**均不存在**——模型每次被告知一个不存在的下一步。已改为如实说明。
+
+新增 `lib/canon-merge.ts` + 提案卡「并入」按钮：读盘 → 追加 → 原子写回，作者点击触发，
+后端红线不动。并入写后端原样全字段（mapper 追加 `raw` 透传）；同 id / 同内容不重复追加；
+canon.json 缺失或损坏按空骨架起头；写盘触发重扫后该条从后端差集自然消失（自愈）。
+
+命令与结果：`uv run pytest -q` → **1131 passed / 3 skipped**（新增 1）；
+`npm run test` → **384 passed**（新增 7、修正 1 条 mapper 形状断言）；lint / typecheck / drift 全绿。
+
+## 刻意不做（收窄记录）
+
+第三刀原计划含整套 canon/hooks IO 层、稳定 key 派生、localStorage 忽略态、hooks 提案落盘与
+并入，约三百余行。中途拍板撤掉：那是**为省作者一次手改 JSON 而堆基础设施**，不产字，
+不属于「改变模型看到什么 / 能做什么」这一类。不要的提案留着不动即可；若真实连载被这一步
+卡住，按宪法 §08 由写作摩擦再提名。
+
+单补丁闸未放宽；跨会话长期记忆与摘要回灌未动（`system_jobs` 刻意不回灌是另一条决定）；
+`chapter.review` / `bookrun.*` 仍不进循环（已记录的决定）。
+
+## 未联通 / 未验证的能力
+
+- **全部三刀的真机观感未验，归 E2E-1**：改的是 sidecar 后端与前端源码，作者手上的 0.1.5
+  装机包跑的仍是旧逻辑。要在真机看到效果必须**重建 NSIS 装机包**（PyInstaller sidecar 重打）。
+- **续写质量未做真实稿件对照**：`prose.continue` 只验证了管道正确（落点、纯新增、不写盘），
+  没有验证「模型续出来的那一段是否像作者的手笔」。这要靠 dogfood，不是测试能证明的。
+- **注入的窗口尺寸未经真实语料校准**：前 1500 / 后 600 字是估的，不是量出来的。
+- **提案「并入」与编辑器脏缓冲的竞争未设闸**：作者若正在编辑器里手改 canon.json 且未保存，
+  其后续保存仍会以缓冲覆盖。与既有补丁写回对已打开文件的行为一致，属已知边界。
+- **`hooks_delta` 的提案仍不落盘**：修谎后模型会如实把清单报给作者，但作者要记进伏笔账
+  仍需手改 `hooks.json`。这是上面「刻意不做」的直接代价。
