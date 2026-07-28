@@ -346,3 +346,103 @@ t 分布 95% 置信区间半宽超过容差的维度直接不注入（句长 ±2
 - **共用 fingerprint 后 judge 行为零变化已由既有测试守住**，但 judge 的漂移检出本身仍只在
   BookRun 后台链上跑，桌面路径不经过它。
 - **真机观感未验，归 E2E-1**：同前两刀，需重建 NSIS 装机包才能在作者机上生效。
+
+# 2026-07-28 场景纪律：给 Writer 装内部结构（PR #220）
+
+> **提名口径**：作者诊断提名。作者给出「小说 IDE 名不副实」四条——①缺乏创作知识
+> ②缺乏记忆机制 ③比例倒置（注意力全给检查不给生产）④基于文件的对象模型（自评为下游
+> 症状）。三路并行盘点后作者拍板走 ①③ 的合流处：**给 Writer 装内部结构**。
+
+## 诊断台账（改前实测，非推测）
+
+三路盘点（创作知识素材 / 工具生产-检查比例 / 跨会话记忆）的可复算结论：
+
+| 面 | 检查侧 | 产字侧 | 倍数 |
+| --- | --- | --- | --- |
+| 循环工具数 | 13 | 4 | 3.3× |
+| 工具 spec 字数 | 7,163 | 1,501 | 4.8× |
+| 单次调用的 LLM 深度 | `file.review` = 4 个 reviewer 子代理 | 四条全是 1 次直出 | 4× |
+| 每轮固定 prompt：工具纪律 vs 创作指导 | 10,190 | 310 | **33×** |
+
+**全系统创作技艺知识去重后 = 335 字**（`CRAFT_GUIDELINES` 6 条 + 2 个例句，实测
+`sum(len(g)) + len(BAD) + len(GOOD) == 335`），在四条产字路径里逐字复制四份。覆盖的实质
+只有一个母题（show don't tell）+ 两个数字配额（两种感官、对白 4:6）+ 一张 10 词陈词黑名单。
+**结构层为零**：场景开场、对白潜台词、信息释放节律、章节钩子结构、节奏调度——五项全无。
+
+于是最常见的坏产出不是句子难看，而是「这一场删掉也不影响主线」——而判定这件事的判据
+**仓库里本来就有**：`book_runs/prompts/_sections.py:155-159`「生成前先在内部确认：误判、
+主动阻碍、代价、旧线索重释和不可逆变化都已成立」，以及 `builder.py:316-328` 含
+`narrative_collapse` 的 10 维评稿 rubric。该批 7 个构建器**全仓零生产调用方**
+（`build_critique_prompt` / `build_revision_prompt` / `build_chapter_plan_prompt` …），
+唯一活着的 `build_draft_prompt_from_state` 只通向桌面从不创建的 BookRun。PR #217 从这座岛上
+只搬走了 `CRAFT_GUIDELINES` 一个常量，同文件里的结构知识原地留下。
+
+**结论：#1 不是「缺」，是「搬了一个常量就收工」。** 知识在仓库里，只是在一条桌面永远走
+不到的路上。
+
+## 改了什么
+
+- `app/common/craft.py` 新增 `SCENE_DISCIPLINE_ITEMS`（视角 / 目标与阻力 / 代价与不可逆 /
+  落差，名与释分开存）+ `SCENE_COLLAPSE_TEST`（承重判据）+ 两个措辞函数。去重原文 187 字，
+  产字路径的技艺知识总量 335 → 522。
+- `scene_discipline_clause()`（350 字）→ `_DRAFT_SYSTEM_PROMPT`(481→825)、
+  `CONTINUE_SYSTEM_PROMPT`(395→739)。
+- `scene_discipline_guard_clause()`（94 字）→ `_REVISE_SYSTEM_PROMPT`(473→567)。
+- 新增护栏 `tests/test_scene_discipline_reach.py`（10 条）。
+
+**零额外 LLM 调用**：这一刀只改 system prompt 内容，不加规划轮次、不加工具、不动契约。
+
+## 为什么分两种措辞（本刀最容易做坏的地方）
+
+`project.trim_prose` 没有自己的 system prompt——它按百分比压缩，复用的正是
+`revise_file_content` / `_REVISE_SYSTEM_PROMPT`（`project_canon_runtime.py:127-129`）。
+若图省事把 compose 版灌进 `build_generation_system_prompt` 一次通吃，就等于命令压缩工具
+「落笔前先把四项定死、全部成立再动笔」——它会为补齐结构反向加字，**压缩工具越压越长**。
+
+故改写侧只用 guard 版：四项是既有稿件的**承重结构，不得抽掉**，并明说「删字、并句、砍
+副词都可以…宁可多留几个字」，与 `_REVISE_SYSTEM_PROMPT` 既有的最小改动纪律同向。
+两版共用同一份 `SCENE_DISCIPLINE_ITEMS`，护栏断言同源（避免写与改各按各的尺子说话）。
+
+## 一条刻意的类型适配
+
+第 4 项「落差」措辞是**方向中立**的：「收场时的处境相比开场必须变了（变好变坏都算）」。
+照搬西方剧作的 *things get worse* 会在本项目 n=1 的类型（末世 / 系统 / 进化流）里稳定判错，
+把正常的升级场当过场毙掉。同理第 3 项「不可逆」显式容纳「得到某样再也退不回去的东西」。
+护栏 `test_value_shift_is_direction_neutral` 断言 `"更糟" not in compose`。
+
+## 刻意不做（收窄记录）
+
+- **聊天循环不注入**：循环自己不产字（靠调工具产字），其 system prompt 已有 1574 字工具
+  纪律，注入只会稀释。与文风基线同一条判据。护栏 `test_chat_loop_deliberately_stays_out`
+  把这条钉成显式决定而非遗漏。
+- **不加规划轮次**：没有把「先出场景卡 → 再写正文」做成两次 LLM 调用。本刀先验证
+  prompt 层的内部规划够不够；不够再谈加轮次。
+- **不打捞 10 维 rubric 与三档修订策略**：`builder.py:316-328` / `:369-373` 仍在坟里。
+  它们是**评稿**知识，属于检查侧，与本刀（生产侧）不同向。
+- **`_CHAT_SYSTEM_PROMPT` 不动**：全仓唯一一条既无准则也无作者指令也无基线的裸调用
+  （`service.py:251-256`），但它不产字。
+
+## 验证命令与结果
+
+- `cd apps/api && uv run pytest -q` → **1180 passed / 3 skipped**（第三刀基线 1170，+10 即本刀新增）
+- `uv run pytest tests/test_scene_discipline_reach.py tests/test_style_baseline_reach.py tests/test_author_instructions_reach.py -q` → 37 passed
+- `uv run ruff check .` → All checks passed
+- `pnpm verify` → 所有本地核心门禁通过（含 sidecar-smoke daily 档：`sqlite schema managed=true`、
+  `分层 prompt 构建器已随 exe 打包`；`check-openapi-drift` → 无漂移）
+- 行尾：`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件一致（三个改动文件全 CRLF）
+- 契约零变更：本刀不动路由与工具 spec，OpenAPI 与 `loop_tool_schemas_golden.json` 均不受影响
+
+## 未联通 / 未验证的能力
+
+- **产出质量未验**：这是 prompt 内容改动，「加了场景纪律之后产出是否真的变了」需要真实
+  LLM 对照实跑才能说，本刀只证明了触达。**不得把护栏绿当作质量结论。**
+- **四项内容未经真实语料校准**：视角 / 目标与阻力 / 代价与不可逆 / 落差是打捞 + 类型适配
+  推出来的，不是从作者已写的三章里量出来的。连载跑起来后应回看哪一项在真实稿件上最常失守。
+- **`prose.continue` 的适配是措辞级的**：续写一次只产 ~300 字（一个节拍），不是一整场。
+  compose 版靠「上文若已在一场戏中间，就从上文读出前两项」和「只写其中一段时也必须朝
+  第 3、4 项推进一格」两句兜住，**但模型是否真能从 3000 字上文窗读准这一场的目标与阻力，
+  未验**。
+- **产品仍不知道「我在章内哪个位置」**：故章末钩子结构依然无法注入——`continuation.py:78`
+  还在无条件禁止收束句（对段中续写正确，对章末错误）。这是作者诊断 ④「文件对象模型」的
+  实证，本刀不解决。
+- **真机观感未验，归 E2E-1**：需重建 NSIS 装机包才能在作者机上生效。

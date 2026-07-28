@@ -10,7 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.common.author_voice import build_generation_system_prompt
-from app.common.craft import craft_prompt_clause
+from app.common.craft import (
+    craft_prompt_clause,
+    scene_discipline_clause,
+    scene_discipline_guard_clause,
+)
 from app.common.exceptions import DomainError, NotFoundError
 from app.common.llm_client import LLMError, build_chat_payload, stream_chat_completions
 from app.common.redaction import redact_sensitive, redact_sensitive_text
@@ -209,6 +213,7 @@ _REVISE_SYSTEM_PROMPT = (
     + craft_prompt_clause()
     + "创作准则约束的是你这次落笔改写的那些句子；它不构成扩大改动范围的理由，"
     "未点名段落即便不合准则也保持原样，由作者另行提出。"
+    + scene_discipline_guard_clause()
     + "只输出修订后的完整正文，不要输出解释、前后缀或代码块标记。"
 )
 
@@ -736,6 +741,7 @@ _DRAFT_SYSTEM_PROMPT = (
     "用户会给你一个新文件的路径与写作指令，请为这个文件起草完整初稿。"
     "严格贴合指令与随附的项目上下文，保持既有人物、设定与大纲的连贯性，不要引入项目里不存在的设定。"
     + craft_prompt_clause(with_examples=True)
+    + scene_discipline_clause()
     + "只输出正文内容，不要输出解释、前后缀或代码块标记。"
 )
 
