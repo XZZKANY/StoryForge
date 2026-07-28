@@ -3,6 +3,26 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.common.craft import CLICHE_PHRASES
+
+
+def _absence_markers(*markers: str) -> tuple[str, ...]:
+    """构造「缺席即问题」的探测词表，剔掉与软禁用套话相交的词。
+
+    真 bug（2026-07-28 修）：写侧 `CRAFT_GUIDELINES` 让作者避开「忽然」这类套话，审侧却把
+    「忽然」当成冲突与钩子的存在证据。于是一段全是套话、毫无真实阻碍的文字只要写了「忽然」
+    就能骗过冲突检查——判据被套话污染成假阴性。在构造期剔交集，往词表加词也不会踩回去。
+
+    只约束「缺席即问题」的词表；`telling_markers` 那种「命中即问题」的与套话表同向，无需处理。
+    """
+
+    return tuple(marker for marker in markers if marker not in CLICHE_PHRASES)
+
+
+CONFLICT_MARKERS = _absence_markers("但", "却", "然而", "忽然", "突然", "逼", "拦", "威胁", "冲突", "质问")
+ENDING_HOOK_MARKERS = _absence_markers("？", "?", "却", "忽然", "门外", "电话", "消息", "血", "真相", "秘密")
+MOTIVATION_MARKERS = _absence_markers("因为", "为了", "想", "决定", "害怕", "不敢", "必须", "答应", "拒绝")
+
 
 @dataclass(frozen=True)
 class ReviewIssue:
@@ -71,8 +91,7 @@ def plot_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, str
                 evidence="正文少于 240 字。",
             )
         )
-    conflict_markers = ("但", "却", "然而", "忽然", "突然", "逼", "拦", "威胁", "冲突", "质问")
-    if not any(marker in content for marker in conflict_markers):
+    if not any(marker in content for marker in CONFLICT_MARKERS):
         issues.append(
             ReviewIssue(
                 agent=REVIEW_SKILLS["plot"].agent,
@@ -83,8 +102,7 @@ def plot_agent_issues(content: str, paragraphs: list[str]) -> list[dict[str, str
             )
         )
     ending = paragraphs[-1] if paragraphs else content[-120:]
-    hook_markers = ("？", "?", "却", "忽然", "门外", "电话", "消息", "血", "真相", "秘密")
-    if ending and not any(marker in ending for marker in hook_markers):
+    if ending and not any(marker in ending for marker in ENDING_HOOK_MARKERS):
         issues.append(
             ReviewIssue(
                 agent=REVIEW_SKILLS["plot"].agent,
@@ -110,8 +128,7 @@ def character_agent_issues(content: str, context_bundle: dict[str, Any] | None) 
                 evidence="context_bundle 中没有 character 类型文件。",
             )
         )
-    motivation_markers = ("因为", "为了", "想", "决定", "害怕", "不敢", "必须", "答应", "拒绝")
-    if len(content.strip()) >= 240 and not any(marker in content for marker in motivation_markers):
+    if len(content.strip()) >= 240 and not any(marker in content for marker in MOTIVATION_MARKERS):
         issues.append(
             ReviewIssue(
                 agent=REVIEW_SKILLS["character"].agent,

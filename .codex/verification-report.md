@@ -446,3 +446,101 @@ t 分布 95% 置信区间半宽超过容差的维度直接不注入（句长 ±2
   还在无条件禁止收束句（对段中续写正确，对章末错误）。这是作者诊断 ④「文件对象模型」的
   实证，本刀不解决。
 - **真机观感未验，归 E2E-1**：需重建 NSIS 装机包才能在作者机上生效。
+
+# 2026-07-28 审稿判据：给检查侧装判断标准（PR #221）
+
+## 提名口径
+
+承 PR #220（场景纪律进产字路径）之后的第五刀，作者拍板「继续做乙丙丁」中的乙：
+**打捞退役批量管线里的 10 维评稿 rubric，装进真正跑的三个 LLM 审稿子代理**。
+
+## 诊断台账（本刀落地前的实测）
+
+| 项 | 实测 | 位置 |
+| --- | --- | --- |
+| 三个 LLM 审稿子代理的**全部**判断标准 | `ReviewSkill.focus` 一句，合计 **37 字** | `ide/review_skills.py:32-34` |
+| 同期产字侧创作知识（PR #220 后） | 522 字 | `common/craft.py` |
+| 10 维评分表（含 `narrative_collapse`）实际调用方 | **零** | `book_runs/prompts/builder.py:316-328` |
+| 三档修订策略实际调用方 | **零** | `book_runs/prompts/builder.py:369-373` |
+
+即：检查侧此前是**流程重、判据空**——13 个检查类工具、7163 字工具纪律，但「什么算好、什么
+算坏」只有 37 字。子代理没有判据可依，只能凭通用语感报「感觉平淡」。
+
+## 改了什么
+
+### 一、打捞判据（10 维 → live 三视角）
+
+`app/common/craft.py` 新增 `REVIEW_RUBRICS` + `review_rubric_clause(key)`。判据**放 craft.py
+而不是 review_skills.py**，是为了让写与审物理同源：
+
+- plot 组的承重条由 `SCENE_DISCIPLINE_ITEMS` **派生**（不是抄一份），末条**就是**
+  `SCENE_COLLAPSE_TEST` —— 写侧被要求满足的那把尺子，审侧用同一把验。
+- prose 组的套话表直接拼 `CLICHE_PHRASES`，审侧点名的词就是写侧禁的词。
+
+| 视角 | focus | + 判据 | system prompt |
+| --- | --- | --- | --- |
+| plot | 14 字 | 192 字 | 91 → 283 字 |
+| character | 13 字 | 135 字 | 95 → 230 字 |
+| prose | 10 字 | 218 字 | 88 → 306 字 |
+| **合计判断标准** | **37 字** | | **→ 582 字** |
+
+### 二、修一个真 bug：套话被当成「有冲突」的证据
+
+`ide/review_skills.py` 的两张「缺席即问题」词表都含 `忽然`，而 `忽然` 同时在
+`CRAFT_GUIDELINES` 的软禁用套话表里：
+
+- 写侧告诉作者：避免滥用陈词套话——忽然、仿佛、不禁……
+- 审侧：`忽然` ∈ `conflict_markers` ∧ `忽然` ∈ `hook_markers`
+
+后果是**假阴性**：一段全是套话、毫无真实阻碍与悬念的文字，只要写了「忽然」，
+`plot.conflict_signal_missing`（high）与 `plot.ending_hook_weak` 两条检查同时被骗过去，
+稿件"干净通过"。
+
+修法不是手工删词，而是构造期过滤 `_absence_markers()`：字面量保留历史词条，运行期剔掉与
+`CLICHE_PHRASES` 的交集。**过滤器承重**——删掉它测试即红，手工删词做不到这点。三张
+「缺席即问题」词表（conflict / ending_hook / motivation）统一走这条。
+`telling_markers` 那种「命中即问题」的与套话表同向，刻意不处理。
+
+## 一条刻意的类型适配
+
+原 `narrative_collapse` 维的原文是「是否落入到新地点、问询、取得物证、收好、转向下一处的
+**默认调查模板**」——那是推理小说的形状。本项目 n=1 是末世 / 系统 / 进化流，照搬会
+把正常的战斗与升级场按「不是调查流程」放过、把赶路场按模板误伤。故改写成不认题材的判据
+（场景推进 / 承重结构 / 钩子强度 / 承重判据），并以
+`test_plot_rubric_carries_no_genre_specific_template` 钉死「物证 / 问询 / 调查」不得出现。
+
+与 PR #220 的「落差不写更糟」同一条取舍：**打捞的是判据结构，不是原管线的题材假设。**
+
+## 刻意不做
+
+- **continuity 视角不装判据**：它是纯启发式关键词扫描（`review_report.py:148-161`），不走
+  LLM，给它 prompt 判据没有落点。
+- **`chapter.review` / BookRun 侧不动**：`build_multi_agent_review_report_with_executor` 是
+  共用入口，走它的路径自动吃到；不另开分支。
+- **不动 10 维里的三档修订策略**（`line_edit` / `scene_patch` / `regenerate`）：那是修订侧
+  契约，与本刀的评审侧不同向，要打捞得另开一刀。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_review_rubric_reach.py -q` | **11 passed** |
+| `uv run pytest -q` | **1191 passed / 3 skipped**（基线 1180，+11 为本刀护栏） |
+| `uv run ruff check .` | All checks passed |
+| `git diff --numstat` vs `--ignore-all-space --numstat` | 逐行相同，无行尾噪音 |
+
+真 bug 的**非空洞性实证**：对测试用例文本 `"他忽然站了起来，忽然又坐下。" * 20`，
+按修复前的词表 `any(marker in prose)` 对 conflict 与 hook 均为真 → 两条检查都不报；
+修复后两条都报。护栏 `test_cliche_alone_no_longer_passes_as_conflict_or_hook_evidence`
+在修复前必红。
+
+## 未联通 / 未验证
+
+- **质量未验**：本刀是 prompt 内容与词表改动，护栏只证明**触达**与**词表不自相矛盾**。
+  「装了判据之后审稿报得更准」需真实 LLM 对照实跑才能说，未跑，不得当作质量结论。
+- **判据本身未经真实语料校准**：四组判据是从退役管线打捞 + 按类型适配推出来的，不是从作者
+  已写稿件上量出来的。连载跑起来后应回看哪一条最常误报。
+- **`plot.ending_hook_weak` 的「章尾」定义仍是「文件最后一个段落」**
+  （`review_skills.py:85`）——产品不知道章边界在哪，一章分两个文件即失效。属诊断 ④ 范畴，
+  本刀不解决。
+- **真机观感未验，归 E2E-1**：需重建 NSIS 装机包才能在作者机上生效。
