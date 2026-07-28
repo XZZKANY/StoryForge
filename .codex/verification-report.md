@@ -544,3 +544,108 @@ t 分布 95% 置信区间半宽超过容差的维度直接不注入（句长 ±2
   （`review_skills.py:85`）——产品不知道章边界在哪，一章分两个文件即失效。属诊断 ④ 范畴，
   本刀不解决。
 - **真机观感未验，归 E2E-1**：需重建 NSIS 装机包才能在作者机上生效。
+
+# 2026-07-28 章序判据：非正文文件不再占章号（PR #222）
+
+## 提名口径
+
+作者拍板「继续做乙丙丁」中的**丁**（继续诊断诊断 ④「文件对象模型」）。诊断过程逮到一个
+live 真 bug，本刀先修 bug，诊断结论另行汇报。
+
+## 真 bug：产品自带示例项目的第 1 章被算成第 3 章
+
+后端此前对「哪些 `.md` 是正文」**没有任何概念**。章序直接取
+`fs_tools.iter_project_files` 的路径序，`canon_rebuild._chapter_ordinals` 的 `glob="*.md"`
+拦不住任何东西——`Path.match("*.md")` 只比对**文件名**，不看目录。
+
+产品「新建项目」实际落盘三个文件（`initialize.ts:43/56/66`）：
+
+```
+大纲/总纲.md      人物/主角.md      正文/第01章.md
+```
+
+按 `as_posix()` 码点序排：人物(U+4EBA) < 大纲(U+5927) < 正文(U+6B63)。
+
+实测（修复前，临时项目跑真代码）：
+
+```
+第 1 章  <-  人物/主角.md
+第 2 章  <-  大纲/总纲.md
+第 3 章  <-  正文/第01章.md
+promise_check 当前进度 = 3      # 作者只写了 1 章
+```
+
+修复后同一项目：
+
+```
+第 1 章  <-  正文/第01章.md
+promise_check 当前进度 = 1
+```
+
+**下游伤害面**（全部吃这个数）：`canon_context` 注入产字 prompt 的「本文件 = 第 N 章」锚点、
+`canon_gate` 的 lifespan 退场闸（`occ["chapter"] > exits_after`）、`promise_scan` 的伏笔到期
+判定、`entity_budget_scan` 的第 20 / 25 / 30 章硬阈值。即：**确定性 canon 链——产品宣称的
+差异化资产——从新项目第一天起就按虚高两章的坐标跑。**
+
+## 改了什么
+
+新增无依赖叶子 `app/common/manuscript.py`：`NON_MANUSCRIPT_DIRS` + `is_manuscript_path()`。
+
+**目录约定不是本刀发明的**——前端 `lib/project/semantics.ts` 的 `DIR_KIND` 早就声明了同一套
+（正文 / draft / manuscript / chapters → 正文；大纲 / 人物 / 设定 / 时间线 / 伏笔 / 质量 /
+导出 → 非正文）。此前只有前端认、后端不认，本刀是把后端接上同一套。放 `app/common` 是因为
+`style_baseline` 在 common、不得 import domains。
+
+三个落点：
+
+| 位置 | 此前 | 现在 |
+| --- | --- | --- |
+| `canon_rebuild._chapter_ordinals` | `Path.match("*.md")`，全项目 .md 都算章 | 另判 `is_manuscript_path` |
+| `entity_budget_scan._chapter_ordinal` | `_iter_project_files(root).index()` —— **零过滤**，图片和 json 都占章号 | 同一判据，且非正文 target 明确抛 `FsToolError` |
+| `style_baseline._iter_manuscript_files` | 非 dot 目录下全部 `.md` | 排非正文目录 |
+
+第三处是独立的第二个真 bug：文风基线此前把 `大纲/`、`人物/`、`设定/` 的条目式文本当语料，
+量出的句长与对白密度会被无对白的条目列表拉偏——**而这套数字是要写进产字 prompt 当
+「作者文风」的**。
+
+## 取黑名单而非白名单
+
+不是「只认 `正文/`」。章节直接放项目根的布局仍然可用，作者不必先重组目录才能让 canon 算对
+章号。代价是根目录下的杂项 `.md` 仍占章号——由作者的目录习惯兜住。护栏
+`test_root_level_chapters_still_count` 钉死这条取舍。
+
+## 一条跨栈防漂移闸
+
+`test_backend_and_frontend_share_one_directory_convention` 直接读
+`apps/desktop/frontend/src/lib/project/semantics.ts`，正则解出 `DIR_KIND`，断言其中**非
+draft** 的条目集合与 `NON_MANUSCRIPT_DIRS` 逐项相等。前端加一个非正文目录而后端没跟上，
+本闸即红——否则作者在文件树里看到的分类会与 canon 算的章号再次错开。
+
+（闸自带非空转断言：解析不出条目即 fail，不会因正则失效而静默放行。）
+
+## 一个测试在编码这个 bug（已修正，不是回归）
+
+`test_chat_loop_promise_check_feeds_summary_only_without_writing_canon` 此前断言
+`current_chapter == 2`，而 `novel_project` fixture 只有**一个**正文文件
+（`正文/第01章.md` + `设定/人物.md`）——那个 2 正是 `设定/人物.md` 被误计为第 2 章得来的，
+`due_chapter=1` 的伏笔也因此才显得「超窗」。已补一章真正文让超窗名副其实，用例覆盖面不变。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_manuscript_chapter_ordinals.py -q` | **8 passed** |
+| `uv run pytest -q` | **1199 passed / 3 skipped**（本刀前 1191，+8） |
+| `uv run ruff check .` | All checks passed |
+| `git diff --numstat` vs `--ignore-all-space --numstat` | 逐行相同，无行尾噪音 |
+
+## 未联通 / 未验证
+
+- **只修了「正文 vs 非正文」，没有建立章节对象**。产品仍不知道「这是第几章」的**真值**——
+  章序依然是路径序推断，不解析 `第NNN章` 文件名。故仍脆在：补零位数不一致即错序
+  （产品示例项目自己用的是**两位** `第01章.md`，作者约定是三位）、`正文/` 下的非章文件仍占
+  章号、前端 `localeCompare` 与后端码点序在中文 locale 下可能给出不同顺序。
+- **章内位置仍然不存在**：`continuation.py` 依旧无条件禁止收束句。诊断 ④ 的核心未解决。
+- **存量项目需重跑 canon**：`presence.json` 等派生缓存是按旧章序算的，下次 rebuild 自愈
+  （canon 链本就设计成可弃缓存），但未在真机验证过存量项目的这次自愈。
+- **真机观感未验，归 E2E-1**。

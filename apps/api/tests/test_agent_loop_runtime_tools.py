@@ -513,6 +513,9 @@ def test_chat_loop_promise_check_feeds_summary_only_without_writing_canon(
     """循环内 promise_check：完整 issues 留证据，模型只收 summary，作者 canon 不变。"""
 
     _enable_loop_env(monkeypatch)
+    # 补一章真正文让「第 1 章的伏笔已超窗」名副其实。此前靠 fixture 里的 `设定/人物.md`
+    # 被误计为第 2 章凑出这个 advisory——那是章序污染 bug，不是本用例要覆盖的东西。
+    (novel_project / "正文" / "第02章.md").write_text("灯塔熄了。\n", encoding="utf-8")
     canon_dir = novel_project / ".storyforge" / "canon"
     canon_dir.mkdir(parents=True)
     canon_file = canon_dir / "canon.json"

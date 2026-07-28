@@ -12,8 +12,9 @@
 95% 置信区间半宽超过容差的维度直接不注入。样本说不准的事，就不说。
 
 与 craft / author_voice 同规矩：无 domains 依赖叶子。语料枚举沿用 canon 侧同一套约定
-（非 dot 目录下的 `*.md`、路径序即阅读序，见 `agent_runs/canon_rebuild.py`），但因
-common 不得 import domains，此处自持一份最小遍历——约定若要变，两处须同改。
+（非 dot 目录下的正文 `*.md`、路径序即阅读序，见 `agent_runs/canon_rebuild.py`），但因
+common 不得 import domains，此处自持一份最小遍历——「哪些算正文」这一判据已下沉
+`app/common/manuscript.py`，两侧共用，不会再各判各的。
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.common.manuscript import is_manuscript_path
 from app.common.style_fingerprint import split_sentences, style_fingerprint
 
 # 只取最近若干个正文文件：文风还在成形时，近作比首章更能代表「现在的作者」，
@@ -87,12 +89,18 @@ class StyleBaseline:
 
 
 def _iter_manuscript_files(root: Path) -> list[Path]:
-    """非 dot 目录下的 `*.md`，按路径序（= 阅读序）返回。"""
+    """非 dot 目录下的正文 `*.md`，按路径序（= 阅读序）返回。
+
+    必须排非正文目录：大纲与人物设定是条目式文本，没有对白也几乎没有完整句，混进语料会把
+    对白密度压低、句长测偏——而这套数字是要写进产字 prompt 当"作者文风"的。
+    """
 
     files = [
         path
         for path in root.rglob("*.md")
-        if path.is_file() and not any(part.startswith(".") for part in path.relative_to(root).parts)
+        if path.is_file()
+        and not any(part.startswith(".") for part in path.relative_to(root).parts)
+        and is_manuscript_path(path.relative_to(root).as_posix())
     ]
     files.sort(key=lambda path: path.relative_to(root).as_posix())
     return files

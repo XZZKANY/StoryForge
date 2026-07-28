@@ -10,13 +10,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.common.manuscript import is_manuscript_path as _is_manuscript
 from app.domains.agent_runs.consistency_scan import consistency_scan
 from app.domains.agent_runs.fs_tools import iter_project_files as _iter_project_files
 from app.domains.agent_runs.fs_tools import resolve_project_root as _resolve_root
 
 
 def _chapter_ordinals(project_root: str, glob: str) -> dict[str, int]:
-    """按 _iter_project_files 的路径序给每个匹配正文文件编 1-based 章序（阅读序）。"""
+    """按 _iter_project_files 的路径序给每个正文文件编 1-based 章序（阅读序）。
+
+    `Path.match("*.md")` 只比对文件名，所以 glob 拦不住 `大纲/总纲.md`、`人物/主角.md`——
+    非正文目录必须另判（`is_manuscript_path`），否则作者的第 1 章会被算成第 3 章。
+    """
 
     root = _resolve_root(project_root)
     ordinals: dict[str, int] = {}
@@ -24,8 +29,11 @@ def _chapter_ordinals(project_root: str, glob: str) -> dict[str, int]:
     for path in _iter_project_files(root):
         if not path.match(glob):
             continue
+        relative = path.relative_to(root).as_posix()
+        if not _is_manuscript(relative):
+            continue
         index += 1
-        ordinals[path.relative_to(root).as_posix()] = index
+        ordinals[relative] = index
     return ordinals
 
 
