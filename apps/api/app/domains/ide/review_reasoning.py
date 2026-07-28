@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.common.craft import review_rubric_clause
 from app.domains.book_runs.book_generation import (
     BookGenerationError,
 )
@@ -129,10 +130,17 @@ def _heuristic_result(
 
 
 def _review_system_prompt(key: str) -> str:
+    """单视角审稿 system prompt：身份 + 判断标准 + 输出契约。
+
+    判据来自 `app.common.craft`，与产字侧同源——写侧被要求满足的承重结构，审侧用同一条验。
+    此前这里只有 focus 一句（三视角合计 36 字），子代理没有判据可依，只能凭通用语感报问题。
+    """
+
     skill = REVIEW_SKILLS[key]
     return (
         f"你是 StoryForge 的 {skill.agent} 审稿代理，只评估：{skill.focus}。"
-        "你必须只输出 JSON 数组，不要解释，不要 Markdown，不要代码块标记。"
+        + review_rubric_clause(key)
+        + "你必须只输出 JSON 数组，不要解释，不要 Markdown，不要代码块标记。"
     )
 
 
