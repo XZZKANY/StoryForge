@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.common.manuscript import is_manuscript_path as _is_manuscript
 from app.domains.agent_runs.fs_tools import (
     FsToolError,
 )
@@ -41,10 +42,20 @@ def _issue(rule: str, detail: str, *, snippet: str = "") -> dict[str, str]:
 
 
 def _chapter_ordinal(root: Path, target: Path, path: str) -> int:
-    try:
-        return _iter_project_files(root).index(target) + 1
-    except ValueError as exc:
-        raise FsToolError(f"文件不在项目阅读序中，无法推断章节序号：{path}") from exc
+    """按正文阅读序给出 1-based 章序，判据与 `canon_rebuild._chapter_ordinals` 相同。
+
+    此前是对**全部**文件取 `.index()`，连图片和 json 都占章号；而这个数字直接驱动第
+    20 / 25 / 30 章的硬阈值，项目里多放几个笔记就能把第 18 章推成第 25 章并触发误报。
+    """
+
+    index = 0
+    for candidate in _iter_project_files(root):
+        if not _is_manuscript(candidate.relative_to(root).as_posix()):
+            continue
+        index += 1
+        if candidate == target:
+            return index
+    raise FsToolError(f"文件不在项目正文阅读序中，无法推断章节序号：{path}")
 
 
 def _summary(chapter: int, issues: list[dict[str, str]]) -> str:
