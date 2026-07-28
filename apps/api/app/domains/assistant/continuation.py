@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from app.common.craft import craft_prompt_clause
+from app.common.craft import craft_prompt_clause, scene_discipline_clause
 
 # 上文取窗上限：够模型接住语感与当前场景，又不至于把整章塞进每一次续写。
 TAIL_MAX_CHARS = 3000
@@ -26,6 +26,7 @@ CONTINUE_SYSTEM_PROMPT = (
     "你写出的文字会直接插进作者的正文里，因此必须与上文保持同一叙事人称、同一语感、"
     "同一场景时空，读起来像同一个人一口气写下来的。"
     + craft_prompt_clause()
+    + scene_discipline_clause()
     + "只输出续写的正文本身，不要输出解释、标题、前后缀或代码块标记。"
 )
 
