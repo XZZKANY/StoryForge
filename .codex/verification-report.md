@@ -722,3 +722,60 @@ draft** 的条目集合与 `NON_MANUSCRIPT_DIRS` 逐项相等。前端加一个�
   「Agent 已生成修订建议。」——续写时若后端没给 summary 会显示得不准。属边缘情况，未改。
 - **`continue_audit` / `trim_audit` 未被前端使用**。后端带了锚点行号、插入字数、压缩百分比，
   前端目前一概不显示。要不要在卡片上露出这些，等真机 dogfood 提名。
+
+# 2026-07-29 发版记录：0.1.6 装机包重建（送达 PR #214-#222 与 #224）
+
+时间：2026-07-29
+
+## 为什么这次发版是必要的，而不是例行
+
+诊断发现作者机器上跑的是 **0.1.4**（`storyforge-desktop.exe` FileVersion=0.1.4，构建于 07-27
+12:23），而 master 早已到 0.1.5 + 19 个提交。也就是说下面这十项创作能力**写完测完合并完、
+一次也没服务过唯一的真实作者**：
+
+PR #211（空章节文件写入死锁）、#214（作者视图注入）、#215（prose.continue 循环工具）、
+#216（canon 提案并入）、#217（创作准则触达四条产字路径）、#218（作者指令触达三条生成调用）、
+#219（文风指纹复活）、#220（场景纪律）、#221（评稿 rubric）、#222（章序判据）。
+
+更要命的是：**0.1.5 的 NSIS 早在 07-27 15:01 就打好躺在 `bundle/nsis/`**，只是从没被安装。
+所以「后端修完 → 打了包 → 作者能用」这条链上，断的是**最后一环**。
+
+结论沉淀：**打了包 ≠ 装了包，是两件独立的事，都要查**。此后诊断「某能力有没有生效」，
+第一步是查装机版本而不是查代码：
+
+```powershell
+Get-ChildItem "$env:LOCALAPPDATA\StoryForge IDE" -Recurse -Include *.exe |
+  ForEach-Object { $_.VersionInfo.FileVersion }
+```
+
+## 产物
+
+| 项 | 值 |
+| --- | --- |
+| 路径 | `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.6_x64-setup.exe` |
+| 大小 | 49.79 MB |
+| SHA256 | `D2E0B13B8BED61D3F1DE2BB1966319013148F6CBC0BEFCDDD2A50EBC057FECE2` |
+| 构建时刻 | 2026-07-29 22:19:24 |
+| 内含 | master `9c142693`（PR #223 bump + PR #224 补丁蒸发修复 + 此前全部已合并工作） |
+
+用 `pnpm desktop:build` 而非 `tauri build`——后者会静默把 `src-tauri/binaries/` 里的旧 exe
+打进包。**出包后已核对 sidecar 时间戳：22:16:00，与本次构建同批，不是复用旧产物。**
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_version_alignment.py` | 2 passed |
+| `pnpm verify` | 全绿：API **1199 passed / 3 skipped**、前端 384、shared / project-core 通过、sidecar daily 冒烟 OK、**OpenAPI 零漂移** |
+| `pnpm desktop:build` | exit 0，产物见上表 |
+| `node scripts/sidecar-smoke.mjs --packaged --skip-build` | **packaged(冻结 exe) 冒烟全绿**：`/health/ready` 就绪 7316ms、assistant 会话往返、Agent SSE 2 帧、control REST 往返、alembic managed=true、分层 prompt 已随 exe 打包 |
+| 定向断言：起冻结 exe 读 `/health/ready` | **`app_version = 0.1.6`、`status = ready`** —— 冻结 exe 自报版本与 bump 一致 |
+
+## 未联通 / 未验证
+
+- **作者尚未安装**。本记录只证明产物已构建并通过冻结 exe 冒烟；覆盖安装、以及安装后
+  「十项能力是否真的在真机生效」全部未验，归 E2E-1。
+- **PR #224 的完整链路真机未点穿**：对话说「接着往下写一段」→ 编辑器弹出绿块 diff →
+  接受后正文多出那段 → `versions/` 有写前快照。vitest 只证明了补丁能被接住。
+- 版本五处中 `Cargo.toml` 与 OpenAPI `info.version` 仍无护栏，靠人记得跑 `pnpm openapi`。
+  本次没漏，但护栏缺口未修。
