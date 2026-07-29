@@ -17,6 +17,7 @@ from app.common.craft import (
 )
 from app.common.exceptions import DomainError, NotFoundError
 from app.common.llm_client import LLMError, build_chat_payload, stream_chat_completions
+from app.common.manuscript import previous_chapter_tail
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant import continuation
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
@@ -360,6 +361,12 @@ def _continue_scene_constraints(payload: AssistantContinueRequest) -> str | None
         return None
 
 
+def _continue_previous_chapter(payload: AssistantContinueRequest) -> tuple[str, str] | None:
+    if not payload.project_root:
+        return None
+    return previous_chapter_tail(payload.project_root, payload.file_path)
+
+
 def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -> Iterator[str]:
     """光标处续写：同步做前置校验与证据链落库，返回逐块吐字的 SSE 生成器。
 
@@ -375,6 +382,7 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
     tail = continuation.manuscript_tail(payload.content, payload.cursor_line)
     target_chars = payload.target_chars or continuation.DEFAULT_TARGET_CHARS
     scene_constraints = _continue_scene_constraints(payload)
+    previous_chapter = _continue_previous_chapter(payload)
     instruction_label = payload.instruction or f"续写 {payload.file_path}"
 
     if payload.assistant_session_id is not None:
@@ -407,6 +415,7 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
                 "target_chars": target_chars,
                 "has_instruction": payload.instruction is not None,
                 "has_scene_constraints": scene_constraints is not None,
+                "previous_chapter": previous_chapter[0] if previous_chapter else None,
             },
         ),
     )
@@ -427,6 +436,7 @@ def stream_continue_prose(session: Session, payload: AssistantContinueRequest) -
                     file_path=payload.file_path,
                     instruction=payload.instruction,
                     scene_constraints=scene_constraints,
+                    previous_chapter=previous_chapter,
                     target_chars=target_chars,
                 ),
             },
@@ -537,6 +547,7 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
     tail = continuation.manuscript_tail(payload.content, payload.cursor_line)
     target_chars = payload.target_chars or continuation.DEFAULT_TARGET_CHARS
     scene_constraints = _continue_scene_constraints(payload)
+    previous_chapter = _continue_previous_chapter(payload)
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
@@ -568,6 +579,7 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
                 "target_chars": target_chars,
                 "has_instruction": payload.instruction is not None,
                 "has_scene_constraints": scene_constraints is not None,
+                "previous_chapter": previous_chapter[0] if previous_chapter else None,
                 "transport": "tool_loop",
             },
         ),
@@ -584,6 +596,7 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
                 file_path=payload.file_path,
                 instruction=payload.instruction,
                 scene_constraints=scene_constraints,
+                previous_chapter=previous_chapter,
                 target_chars=target_chars,
             ),
         )

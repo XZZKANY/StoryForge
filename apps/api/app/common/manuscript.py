@@ -21,6 +21,8 @@ canon 的退场闸、伏笔到期判定与实体预算阈值全部按虚高的�
 
 from __future__ import annotations
 
+from pathlib import Path
+
 # 与前端 semantics.ts 的 DIR_KIND 同源，取其中**非** draft 的那些首段目录名。
 # 两处若要改，须同改——判据分裂会让「作者看到的第几章」与「canon 算的第几章」再次错开。
 NON_MANUSCRIPT_DIRS = frozenset(
@@ -74,3 +76,78 @@ def is_manuscript_path(relative_path: str) -> bool:
     if len(parts) < 2:
         return bool(parts)
     return parts[0].lower() not in NON_MANUSCRIPT_DIRS
+
+
+# 上一章尾巴的取窗上限。比当前文件的 TAIL_MAX_CHARS(3000) 小：接笔只需要上一章怎么收的
+# 场，给多了会把预算从「当前章上文」那头挤掉，而那头才是近因最强的位置。
+PREVIOUS_TAIL_MAX_CHARS = 1200
+
+
+def iter_manuscript_files(root: Path) -> list[Path]:
+    """非 dot 目录下的正文 `*.md`，按路径序（= 阅读序）返回。
+
+    路径序即阅读序是全仓统一口径（`canon_rebuild.chapter_ordinals` 同款），依赖作者按
+    `第NNN章.md` 补零命名；`style_baseline` 与本模块的「上一章」都建在这个口径上。
+    """
+
+    files = [
+        path
+        for path in root.rglob("*.md")
+        if path.is_file()
+        and not any(part.startswith(".") for part in path.relative_to(root).parts)
+        and is_manuscript_path(path.relative_to(root).as_posix())
+    ]
+    files.sort(key=lambda path: path.relative_to(root).as_posix())
+    return files
+
+
+def _tail_of(text: str, max_chars: int) -> str:
+    """取尾部 max_chars，并从段落边界起头——上文以半句开头会误导模型的语感判断。"""
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+    if len(normalized) <= max_chars:
+        return normalized.strip()
+    window = normalized[-max_chars:]
+    boundary = window.find("\n\n")
+    if boundary != -1 and boundary < max_chars // 2:
+        window = window[boundary + 2 :]
+    return window.strip()
+
+
+def previous_chapter_tail(
+    project_root: str,
+    current_file: str | None,
+    *,
+    max_chars: int = PREVIOUS_TAIL_MAX_CHARS,
+) -> tuple[str, str] | None:
+    """阅读序上一章的结尾正文，返回 `(相对路径, 尾巴)`；无上一章或读不到则 None。
+
+    作者新建 `第005章.md` 说「接着往下写」时，第 004 章一个字都进不了模型上下文——续写
+    因此接不上笔。本函数是后端补这一口的单一入口：sidecar 与项目文件同机，直接读盘比让
+    前端把上一章塞进 bundle 更短更准（前端 bundle 还隔着一层 30 秒缓存）。
+
+    任何异常一律吞掉返回 None：拿不到上一章是「少一块加分上下文」，绝不能挡住作者继续写。
+    """
+
+    if not current_file:
+        return None
+    try:
+        root = Path(project_root).resolve()
+        current = Path(current_file).resolve()
+        rel = current.relative_to(root).as_posix()
+        if not is_manuscript_path(rel):
+            return None
+        ordered = iter_manuscript_files(root)
+        index = next(
+            (i for i, path in enumerate(ordered) if path.relative_to(root).as_posix() == rel),
+            None,
+        )
+        if index is None or index == 0:
+            return None
+        previous = ordered[index - 1]
+        tail = _tail_of(previous.read_text(encoding="utf-8", errors="replace"), max_chars)
+        if not tail:
+            return None
+        return previous.relative_to(root).as_posix(), tail
+    except (OSError, ValueError):
+        return None

@@ -21,7 +21,11 @@ from pathlib import Path
 
 import pytest
 
-from app.common.manuscript import NON_MANUSCRIPT_DIRS, is_manuscript_path
+from app.common.manuscript import (
+    NON_MANUSCRIPT_DIRS,
+    is_manuscript_path,
+    previous_chapter_tail,
+)
 from app.common.style_baseline import _iter_manuscript_files
 from app.domains.agent_runs.canon_rebuild import _chapter_ordinals
 from app.domains.agent_runs.entity_budget_scan import _chapter_ordinal
@@ -165,3 +169,73 @@ def test_backend_and_frontend_share_one_directory_convention() -> None:
 
     frontend_non_draft = {name.lower() for name, kind in pairs if kind != "draft"}
     assert frontend_non_draft == set(NON_MANUSCRIPT_DIRS)
+
+
+def test_previous_chapter_tail_feeds_the_ending_not_the_opening(tmp_path: Path) -> None:
+    """作者新建空的下一章说「接着往下写」时，上一章的**结尾**必须进得来。
+
+    诊断（2026-07-29）：全仓上下没有任何一处把「上一章正文」放进过模型上下文，
+    而空章续写的 prompt 里还字面写着「你要写的是开头」——不是缺上下文，是主动
+    给了模型一个错误前提，它会另起炉灶重开一个场。
+    """
+
+    manuscript = tmp_path / "正文"
+    manuscript.mkdir()
+    (manuscript / "第001章.md").write_text("第一章开场。\n\n" + "铺垫。" * 200, encoding="utf-8")
+    (manuscript / "第002章.md").write_text(
+        "第二章开场白。\n\n" + "中段。" * 800 + "\n\n他把刀插回鞘里，转身走进雨里。",
+        encoding="utf-8",
+    )
+    (manuscript / "第003章.md").write_text("", encoding="utf-8")
+    # 非正文文件不得被当成「上一章」。
+    (tmp_path / "大纲").mkdir()
+    (tmp_path / "大纲" / "总纲.md").write_text("全书三幕。", encoding="utf-8")
+
+    found = previous_chapter_tail(str(tmp_path), str(manuscript / "第003章.md"))
+
+    assert found is not None
+    relative, tail = found
+    assert relative == "正文/第002章.md"
+    assert tail.endswith("他把刀插回鞘里，转身走进雨里。")
+    assert "第二章开场白" not in tail, "取的必须是结尾，不是开头"
+    assert "第一章开场" not in tail, "只取紧邻的上一章"
+
+
+def test_previous_chapter_tail_has_no_previous_for_the_first_chapter(tmp_path: Path) -> None:
+    manuscript = tmp_path / "正文"
+    manuscript.mkdir()
+    (manuscript / "第001章.md").write_text("开篇。", encoding="utf-8")
+    (tmp_path / "人物").mkdir()
+    (tmp_path / "人物" / "主角.md").write_text("陈默，二十七岁。", encoding="utf-8")
+
+    assert previous_chapter_tail(str(tmp_path), str(manuscript / "第001章.md")) is None
+    # 当前文件不是正文时也没有「上一章」可言。
+    assert previous_chapter_tail(str(tmp_path), str(tmp_path / "人物" / "主角.md")) is None
+    assert previous_chapter_tail(str(tmp_path), None) is None
+    assert previous_chapter_tail(str(tmp_path), str(tmp_path / "不存在.md")) is None
+
+
+def test_continue_prompt_never_calls_an_empty_chapter_the_book_opening(tmp_path: Path) -> None:
+    """有上一章时，空章 prompt 必须改口——「写的是开头」这句会让模型另起炉灶。"""
+
+    from app.domains.assistant import continuation
+
+    with_previous = continuation.build_continue_prompt(
+        tail="",
+        file_path="正文/第003章.md",
+        previous_chapter=("正文/第002章.md", "他把刀插回鞘里，转身走进雨里。"),
+    )
+    assert "他把刀插回鞘里" in with_previous
+    assert "正文/第002章.md" in with_previous
+    assert "你要写的是开头。" not in with_previous
+    # 本章上文必须离落笔处更近：上一章尾排在它之前。
+    both = continuation.build_continue_prompt(
+        tail="本章已有的上文。",
+        file_path="正文/第003章.md",
+        previous_chapter=("正文/第002章.md", "上一章结尾。"),
+    )
+    assert both.index("上一章结尾。") < both.index("本章已有的上文。")
+
+    # 真·全书第一章仍应说「你要写的是开头」。
+    first = continuation.build_continue_prompt(tail="", file_path="正文/第001章.md")
+    assert "这份稿件当前还是空的，你要写的是开头。" in first

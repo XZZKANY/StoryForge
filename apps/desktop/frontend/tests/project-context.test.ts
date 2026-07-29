@@ -6,6 +6,7 @@ import {
   buildSampleStoryProjectFiles,
   buildStoryProjectInitializationPlan,
   classifyRelativePath,
+  excerptForContext,
   isPathInsideProject,
   relativePathInsideProject,
   resolveProjectRelativePath,
@@ -153,6 +154,103 @@ test('context bundle selection prioritizes pinned files and reports truncation/m
   assert.deepEqual(selection.missingPinnedFiles, ['不存在.md']);
   assert.equal(selection.files.some((file) => file.relativePath.startsWith('导出')), false);
   assert.equal(selection.files.some((file) => file.relativePath.startsWith('质量')), false);
+});
+
+function serialProjectIndex(projectPath: string, chapterCount: number) {
+  const entries = [
+    ['总纲.md', '大纲\\总纲.md'],
+    ['林岚.md', '人物\\林岚.md'],
+    ['陈默.md', '人物\\陈默.md'],
+    ['世界.md', '设定\\世界.md'],
+    ['规则.md', '设定\\规则.md'],
+    ['年表.md', '时间线\\年表.md'],
+    ['埋线.md', '伏笔\\埋线.md'],
+  ];
+  for (let n = 1; n <= chapterCount; n += 1) {
+    const name = `第${String(n).padStart(3, '0')}章.md`;
+    entries.push([name, `正文\\${name}`]);
+  }
+  return buildProjectIndexFromEntries(
+    projectPath,
+    entries.map(([name, relative], index) => ({
+      name,
+      path: `${projectPath}\\${relative}`,
+      isDir: false,
+      size: 100 + index,
+      modified: index,
+      extension: 'md',
+    })),
+  );
+}
+
+test('auto context follows the serial frontier instead of always feeding chapters 1-8', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const index = serialProjectIndex(projectPath, 30);
+
+  const selection = selectContextBundleFiles({
+    index,
+    currentFile: `${projectPath}\\正文\\第030章.md`,
+    maxFiles: 8,
+  });
+  const drafts = selection.files
+    .filter((file) => file.kind === 'draft')
+    .map((file) => file.relativePath);
+
+  // 写第 30 章时喂开篇几章是纯浪费；接得上的是紧邻的前几章。
+  assert.ok(drafts.length > 0, '正文必须有席位');
+  assert.deepEqual(drafts, ['正文\\第029章.md', '正文\\第028章.md'].slice(0, drafts.length));
+  assert.equal(
+    drafts.some((path) => path === '正文\\第001章.md'),
+    false,
+  );
+});
+
+test('the immediately preceding chapter outranks character and setting files', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const index = serialProjectIndex(projectPath, 30);
+
+  const selection = selectContextBundleFiles({
+    index,
+    currentFile: `${projectPath}\\正文\\第030章.md`,
+    maxFiles: 2,
+  });
+
+  // 只剩两个席位时，上一章必须挤得进来（仅次于大纲），否则续写永远接不上笔。
+  assert.deepEqual(
+    selection.files.map((file) => file.relativePath),
+    ['大纲\\总纲.md', '正文\\第029章.md'],
+  );
+});
+
+test('drafts fall back to the newest chapters when the open file is not a chapter', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const index = serialProjectIndex(projectPath, 30);
+
+  const selection = selectContextBundleFiles({
+    index,
+    currentFile: `${projectPath}\\人物\\林岚.md`,
+    maxFiles: 9,
+  });
+  const drafts = selection.files
+    .filter((file) => file.kind === 'draft')
+    .map((file) => file.relativePath);
+
+  assert.ok(drafts.length > 0, '正文必须有席位');
+  assert.equal(drafts[0], '正文\\第030章.md');
+});
+
+test('draft excerpts keep the ending, other kinds keep the opening', () => {
+  const chapter = `${'开'.repeat(50)}${'中'.repeat(50)}${'尾'.repeat(50)}`;
+
+  const draft = excerptForContext(chapter, 'draft', 50);
+  assert.ok(draft.endsWith('尾'.repeat(50)), '正文摘录必须保住结尾');
+  assert.equal(draft.includes('开'), false, '正文摘录不该再喂开头');
+  assert.ok(draft.startsWith('……（本章前文略）'), '截断要对模型显式说明');
+
+  const outline = excerptForContext(chapter, 'outline', 50);
+  assert.equal(outline, '开'.repeat(50), '结构化文档的纲要在头部');
+
+  assert.equal(excerptForContext('  短文  ', 'draft', 50), '短文', '不超预算时原样给出');
 });
 
 test('assistant context payload exposes budget in backend snake case', () => {

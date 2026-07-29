@@ -61,13 +61,26 @@ def build_continue_prompt(
     file_path: str,
     instruction: str | None = None,
     scene_constraints: str | None = None,
+    previous_chapter: tuple[str, str] | None = None,
     target_chars: int = DEFAULT_TARGET_CHARS,
 ) -> str:
-    """组续写 user prompt：定位 → 上文 → canon 约束 → 本次要求（最末，近因最强）。"""
+    """组续写 user prompt：定位 → 上一章尾 → 本章上文 → canon 约束 → 本次要求（最末，近因最强）。
+
+    上一章尾排在本章上文**之前**：本章上文离落笔处更近，必须占住近因最强的位置。
+    """
 
     blocks: list[str] = [f"文件：{file_path}"]
+    if previous_chapter:
+        previous_path, previous_tail = previous_chapter
+        blocks.append(
+            f"上一章（{previous_path}）的结尾：\n<<<PREVIOUS\n" + previous_tail + "\nPREVIOUS>>>"
+        )
     if tail:
         blocks.append("以下是这份稿件到光标为止的上文：\n<<<MANUSCRIPT\n" + tail + "\nMANUSCRIPT>>>")
+    elif previous_chapter:
+        # 本章尚空但有上一章时绝不能说"你要写的是开头"——那是给模型一个错误前提，
+        # 它会另起炉灶重开一个场，而作者要的是接着上一章往下写。
+        blocks.append("本章还是空的：你要写的是本章开头，接的是上面那段上一章结尾。")
     else:
         blocks.append("这份稿件当前还是空的，你要写的是开头。")
     if scene_constraints:

@@ -1,4 +1,8 @@
-export { buildContextBundle, selectContextBundleFiles } from './project/context-bundle';
+export {
+  buildContextBundle,
+  excerptForContext,
+  selectContextBundleFiles,
+} from './project/context-bundle';
 export { buildProjectIndex, buildProjectIndexFromEntries } from './project/index';
 export {
   SAMPLE_STORY_PROJECT_NAME,
