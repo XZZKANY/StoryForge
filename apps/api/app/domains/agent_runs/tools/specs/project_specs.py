@@ -77,6 +77,50 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="project.cross_chapter_check",
+        description=(
+            "跨章一致性审校：把若干完整章节一起交给语义模型，找章与章之间的硬冲突"
+            "（时间线、称谓漂移、设定不一、已退场角色再出场、伏笔未回收）；不写盘、不落 DB。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent",),
+        risk_level="analyze",
+        # 与 deep_consistency 同款：真实烧 token 且输出非确定，禁自动重试，
+        # 瞬时失败作为工具错误反馈进循环，由模型 / 作者决定是否再试。
+        retry_safe=False,
+        idempotent=False,
+        execution_mode="sync",
+        required_capabilities=("llm",),
+        evidence_fields=("chapter_count", "finding_count", "model"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_cross_chapter_check",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "跨章一致性审校（语义，烧 token）：一次给 2-6 个章节路径，模型同时读这几章的完整正文，"
+                "只找它们**之间**的硬冲突——时间线矛盾、人物称谓漂移、设定或世界规则前后不一致、"
+                "已退场角色再次出场、前文埋的伏笔后文未回收。这是 project_deep_consistency 结构上抓不到"
+                "的那一类（那把只看单章）。章会按阅读序自动排好，不必自己排；每章按预算截断，"
+                "truncated=true 表示模型没读全那一章。finding 是参考信号，回给作者前按 path 抽读核实。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "paths": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要比对的章节路径（相对项目根），2-6 个。",
+                    },
+                    "focus": {
+                        "type": "string",
+                        "description": "可选：作者特别关注的点，如「玄铁令到底在谁手上」。",
+                    },
+                },
+                "required": ["paths"],
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="project.canon",
         description=(
             "项目 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json "

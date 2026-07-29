@@ -1016,3 +1016,76 @@ dossier 指针是补「发现不了」而不是补「读不到」：`fs_list` / 
 - **token 成本未实测**：底座每回合约 1–3k 字符，长书下的实际 prompt_tokens 增量未在真跑中量过。
 - 前端 `context-bundle.ts` 的 8 文件配额未动——邻章仍可能挤占人设名额，这条留作后续。
 - 作者机器仍停在 0.1.4，本刀与此前所有刀一样**未送达**，需重建 NSIS 才能生效。
+
+# 2026-07-30 跨章一致性接进循环：agent 终于能对整本书动手（PR 待编号）
+
+## 提名与诊断
+
+与上一刀同源（作者：「不应该 agent 统御这整个作品吗」）。上一刀补的是**知道**，这一刀补的是**能做**。
+
+`app/domains/ide/cross_chapter_consistency.py` 早就实现了跨章审校——多章**完整正文**同时入
+prompt，找时间线矛盾、人物称谓漂移、设定 / 世界规则前后不一致、已退场角色再出场、伏笔未回收。
+但它的出口只有 REST 端点（`ide/router.py:201`）和 CLI（`author_chat.py:90`），**没有 ToolSpec，
+对话循环调不到**。与此同时 system prompt 一直在教模型用 `project_deep_consistency`——而那把
+只看单章（`project_specs.py:75`，参数 `required: ["path"]`）：
+
+> 结构上，一个只读得了单章的检查器，永远抓不到「第 3 章说左臂受伤、第 11 章用左手拔剑」。
+
+## 本刀做了什么
+
+新增适配层 `app/domains/agent_runs/cross_chapter.py` + ToolSpec `project.cross_chapter_check`：
+
+| 改动点 | 内容 |
+| --- | --- |
+| `cross_chapter.py` | 路径边界复用 `fs_tools`、**按阅读序排章**、调既有检查器、整成 advisory 输出 |
+| `specs/project_specs.py` | 新 spec（`analyze` 级、`retry_safe=False`、`required_capabilities=("llm",)`），带 `loop_schema` 即对 LLM 可见 |
+| `project_checks_runtime.py` | handler 注册 + 实现 |
+| `loop/support.py` | `tool_output_summary` 分支（证据链摘要） |
+| `loop/prompt_context.py` | system prompt 交代它与 `deep_consistency` 的分工 |
+| `role_catalog.py` | root_agent 的 `allowed_tools` 补齐（否则角色目录对外撒谎） |
+| `fixtures/loop_tool_schemas_golden.json` | 冻结 golden 同步（17 → 18 把工具，纯新增 26 行） |
+
+两条刻意的设计：
+
+1. **章按阅读序自动排好**（`canon_rebuild.chapter_ordinals` 同口径），不信模型给的顺序——
+   下游 prompt 第一句就是「以下是同一部小说的若干章节(按顺序)」，顺序错了「时间线先后」
+   这一类冲突会被判反。非正文文件（大纲 / 设定）没有章序，排在正文之后而不是当第 0 章插到最前。
+2. **失败显式报错**（`LLMConfigError` / `LLMError` 各自转成可读的 `FsToolError`），与
+   `deep_consistency` 同红线——静默返回空 findings 等于告诉作者「查过了，没问题」。
+
+一次 2-6 章：上限不是性能考量而是信噪比，章数过多模型会退回泛泛而谈，且每章预算被压到读不出上下文。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_agent_cross_chapter.py -q` | **15 passed** |
+| `uv run pytest -q`（全量） | **1244 passed / 3 skipped**（= 上一刀 1229 + 本刀 15，零回归） |
+| `uv run ruff check .` | All checks passed |
+| `pnpm e2e` | 契约门禁 **20/20 PASSED，OpenAPI 零漂移** |
+
+**变异验证（三条都打在接线上）**：
+
+| 变异 | 结果 |
+| --- | --- |
+| 摘掉 handler 注册（spec 还在，模型一调报未知工具） | **红** — 端到端用例逮住 |
+| 不再按阅读序排章 | **红** — `test_chapters_are_sorted_into_reading_order` 逮住 |
+| 摘掉 `loop_schema`（工具退回后台，模型看不见） | **红** — `test_tool_is_exposed_to_the_llm_loop` 逮住 |
+
+端到端那条是关键：只断言「schema 里有这把工具」会假绿——spec 加了但 handler 没注册，
+作者那头看到的还是「agent 查不了跨章」。
+
+## 明确没做（不是遗漏，是取舍）
+
+- **`observatory.scan` 没接进循环**：它聚合 canon + promise + prose 三项，而这三项**本来就
+  各自是循环工具**。接进来只省一次调用、不新增能力，surface 却要多一把工具。判为不划算。
+- **`style_baseline` 没进对话循环**：它现在只进产字 prompt（revise / create / continue），
+  对话循环拿它没有明确用途；等真实摩擦提名再说。
+- **`file.revise` 仍不带上一章尾巴**：属产字路径的问题，不在本刀范围。
+
+## 未联通 / 未验证
+
+- **真实 LLM 下的跨章召回率未验**：本刀所有断言都 stub 掉了真实模型调用，只证明「接线通了、
+  章序对了、失败不装没事」。跨章冲突到底抓不抓得准，须真 key headless 实跑，归真跑轨。
+- 真机桌面端点穿归 E2E-1。
+- 作者机器仍停在 0.1.4，本刀与上一刀均未送达，需重建 NSIS 才能生效。
