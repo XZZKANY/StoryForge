@@ -144,10 +144,15 @@ def test_chat_loop_without_author_instructions_injects_no_extra_system(
         message="给点建议",
     )
 
-    # novel_project 无 canon.json，scene_block 为 None，system 仅基础提示一条
+    # 断言「没有作者指令块」本身，不再拿 system 总条数当代理——作品底座等其他确定性块
+    # 也会合法地占 system 位，用总数把关会把无关的新增一并判红。
     system_messages = [item for item in calls[0]["messages"] if item.get("role") == "system"]
-    assert len(system_messages) == 1
     assert system_messages[0]["content"] == loop_runtime._SYSTEM_PROMPT
+    assert not [
+        item
+        for item in system_messages
+        if str(item.get("content", "")).startswith(loop_runtime._AUTHOR_INSTRUCTIONS_PREFIX)
+    ]
 
 
 def test_chat_loop_executes_fs_tools_and_answers(
