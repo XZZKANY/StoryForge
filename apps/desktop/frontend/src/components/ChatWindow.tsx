@@ -17,6 +17,7 @@ export {
   repairPatchApproval,
   resolveProposedPatchFilePath,
   shouldApplyAgentControlAck,
+  writableFilePatch,
 } from './chat-window/agent-result';
 export { buildStableAgentRequestPayload } from './chat-window/request-payload';
 export { buildAgentRunRecoveryDisplay } from './chat-window/recovery';

@@ -2,27 +2,37 @@ import type { AgentResultMessage } from '../../lib/api-client';
 import { relativePathInsideProject, resolveProjectRelativePath } from '../../lib/project-context';
 import { reviewReportFromMessage } from './review';
 
-export function fileRevisionPatch(message: AgentResultMessage): {
+/**
+ * 按**结构**而不是 kind 白名单判定「这个补丁能不能写回正文」。
+ *
+ * 后端有三个工具产出可写回的补丁，payload 同形（file_path + before + after），只有
+ * audit 字段不同：`file_revision`（file.revise / file.create）、`prose_trim`
+ * （project.trim_prose）、`prose_continue`（prose.continue）。此前这里只认
+ * `file_revision`，于是后两者的正文在前端被静默丢弃——而对话里已经跟作者说了
+ * 「等你确认后才会写盘」、流程树也亮着等确认，作者去编辑器却找不到那个 diff。
+ *
+ * 用白名单的话，后端每加一个产字工具就会重演一次这个静默丢弃；用结构判定则新工具
+ * 只要 payload 同形就自动接得住。`repair_patch` 不会被误收：它顶层没有这三个字段，
+ * 走 repairPatchApproval。
+ */
+export function writableFilePatch(message: AgentResultMessage): {
   id?: string;
   file_path: string;
   before: string;
   after: string;
 } | null {
-  const patch = message.proposed_patch;
-  if (!patch || patch.kind !== 'file_revision') return null;
-  if (
-    typeof patch.file_path === 'string' &&
-    typeof patch.before === 'string' &&
-    typeof patch.after === 'string'
-  ) {
-    return {
-      id: typeof patch.id === 'string' ? patch.id : undefined,
-      file_path: patch.file_path,
-      before: patch.before,
-      after: patch.after,
-    };
+  const patch = message.proposed_patch as Record<string, unknown> | null | undefined;
+  if (!patch || typeof patch !== 'object') return null;
+  const { file_path: filePath, before, after, id } = patch;
+  if (typeof filePath !== 'string' || typeof before !== 'string' || typeof after !== 'string') {
+    return null;
   }
-  return null;
+  return {
+    id: typeof id === 'string' ? id : undefined,
+    file_path: filePath,
+    before,
+    after,
+  };
 }
 
 export function resolveProposedPatchFilePath(
@@ -75,7 +85,7 @@ export function repairPatchApproval(message: AgentResultMessage): {
 }
 
 export function filePathFromAgentResult(message: AgentResultMessage): string | null {
-  const patch = fileRevisionPatch(message);
+  const patch = writableFilePatch(message);
   if (patch) return patch.file_path;
   const report = reviewReportFromMessage(message);
   const filePath = report?.file_path;

@@ -100,9 +100,11 @@ export type AgentToolTrace = {
 };
 
 export type AgentProposedPatch =
+  // 三个产字工具的补丁同形，只有 audit 字段不同：file.revise / file.create 出
+  // file_revision，project.trim_prose 出 prose_trim，prose.continue 出 prose_continue。
   | {
       id?: string;
-      kind: 'file_revision';
+      kind: 'file_revision' | 'prose_trim' | 'prose_continue';
       file_path: string;
       before: string;
       after: string;
