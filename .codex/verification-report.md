@@ -779,3 +779,121 @@ Get-ChildItem "$env:LOCALAPPDATA\StoryForge IDE" -Recurse -Include *.exe |
   接受后正文多出那段 → `versions/` 有写前快照。vitest 只证明了补丁能被接住。
 - 版本五处中 `Cargo.toml` 与 OpenAPI `info.version` 仍无护栏，靠人记得跑 `pnpm openapi`。
   本次没漏，但护栏缺口未修。
+
+# 2026-07-29 七刀一轮做完：诊断里等提名的缺口全部实装（PR #226-#230）
+
+时间：2026-07-29 / 07-30
+
+作者下「将剩下的刀都干了，再打包」。指的是 07-28 ultracode 诊断里通过双透镜核查、
+按宪法 §08 一直等提名的 7 条。本轮一次做完并合并，随后 bump 0.1.7 重建装机包。
+
+## 动手前的复核：两条与原诊断不符
+
+旧诊断动手前先验（上一轮踩过 stale memory 的坑）。四路只读复核的结论里有两条要改方向：
+
+- **「别名进不了 canon」基本不成立**。aliases 在 canon 里本就是一等字段（presence 重建、
+  退场闸、dossier、前端光标联动全吃它），并入时也原样透传。真正的漏点是另外两处：
+  硬约束头只推 `canonical_name`、`project.consistency` 的 terms 完全靠模型自己列。
+- **「Ctrl+K 改一句整章重写」的重伤已被修掉**。commit `f2ab7113` 引入的
+  `planAnchoredInlineDiff` 把写回夹到锚定行，整章不会落盘。剩下的是 token 成本与
+  drift 被静默丢弃。
+
+照原诊断硬做会做错方向，这两条按修正后的形状实装。
+
+## 七刀
+
+| PR | 内容 |
+| --- | --- |
+| #226 | 上下文跟着连载走：前端按章序取 + 正文取**结尾**；后端 `previous_chapter_tail` 进续写 prompt |
+| #227 | canon 硬约束进整章产字（此前只有 300 字续写有） |
+| #228 | 跨会话记忆落地：`agent-instructions.md` 对作者和 agent 同时可见 |
+| #229 | canon 提案不被下次调用抹掉 + 伏笔账写入口 + 别名推得到模型 |
+| #230 | Ctrl+K 只送锚点附近的窗口 |
+
+### PR #226 上下文触达
+
+全仓上下从前端请求体到后端十条 prompt 组装点，**没有任何一处把「上一章正文」放进过模型
+上下文**。作者新建空的 `第005章.md` 说「接着往下写」时，续写 prompt 里还字面写着
+「这份稿件当前还是空的，你要写的是开头」——不是缺上下文，是主动给了错误前提。
+
+`app/common/manuscript.py` 从布尔判据扩成正文阅读序的单一真源（`iter_manuscript_files`
+从 `style_baseline` 上移，避免两份阅读序；`previous_chapter_tail` 取上一章尾 1200 字）。
+章序 = 路径序，与 `canon_rebuild.chapter_ordinals` 同口径，不解析文件名数字。
+
+前端 `context-bundle.ts` 此前正文一律字典序取前 8 个、每个取**开头** 1200 字——连载写到
+第 30 章喂的永远是第 1-8 章开头。改为按与当前章的距离排序、上一章提到仅次于大纲、
+正文摘录取结尾。
+
+### PR #227 canon 进整章产字
+
+`build_scene_constraint_block` 全仓只有两个调用点：`prose.continue` 和不产字的 chat 循环。
+`file.revise` / `project.trim_prose` / `file.create` 一个都没接——**越需要设定约束的地方
+越没有**。结构性根因：`app/common` 不得 import domains、assistant 不得顶层 import
+agent_runs（`file.create` 反向依赖会成环），canon 进不了 `build_generation_system_prompt`
+那个统一组装点，只能每条路径各自延迟导入。提成共用的 `_scene_constraints`。
+
+### PR #228 跨会话记忆
+
+上下文严格等于「本会话最后 12 条消息」，换个会话偏好归零。而唯一每轮无条件重读、与
+session id 无关的载体一直就在那儿：`.storyforge/agent-instructions.md`。它进不了作用是
+因为三处同时把它藏了起来——`fs_tools._is_skipped`（agent 看不见）、前端
+`entry-visibility.ts` 白名单（作者看不见，且建了就从树上消失）、system prompt 只字未提。
+三处一起补，路径常量下沉 `author_voice.RELATIVE_PATH`。system prompt 给**双向**判据：
+长期偏好才提议追加，一次性要求不许写。写回红线不变（后端不写盘，走确认补丁）。
+
+### PR #229 canon 写回三件
+
+提案接回上一轮未并入的条目（此前第二次调用永久抹掉，且因提案由模型按本轮章节传入而
+**不会自愈**）；`promise_claims` 复用既有提案 → 并入通道给伏笔账开写入口（不新建写路径）；
+硬约束头改推「陈默（又称 老陈 / 默哥）」、consistency terms 自动并入 canon 表面形。
+
+### PR #230 Ctrl+K 切窗
+
+切窗 → LLM → 拼回整文 → 交给原来的 `planAnchoredInlineDiff`，**整文件 diff 契约不变**，
+夹紧/陈旧判定/写盘一字未动。短文件整篇送出，风险只落在长章节。后端
+`_build_revise_prompt` 里「以下是文件的当前全文」同步改口，否则与节选说明打架。
+
+## 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/` | **1217 passed / 3 skipped** |
+| `npm run test`（前端全量） | **397 passed / 65 files** |
+| `npm run typecheck` | 绿 |
+| `uv run ruff check app/` / `prettier` | 绿 |
+
+新增护栏四份：`test_canon_reach.py`(4)、`test_author_memory_reach.py`(4)、
+`test_canon_writeback_reach.py`(7)、以及 `test_manuscript_chapter_ordinals.py` /
+`project-context.test.ts` / `inline-chat.test.ts` / `resource-explorer.test.ts` 各补数条。
+
+**可证伪逐条实证**（变异实现 → 对应用例变红 → 恢复即绿）：canon 块条件改 `if False`、
+`_is_skipped` 豁免改 `if False`、提案接回改 `if False`、显示名改回只推本名、
+terms 展开改 `pass`、切窗条件改恒真。
+
+## 两次假绿，记一笔
+
+1. **变异根本没匹配上**：heredoc 里的 `\\n` 转义被吃掉，`replace` 命中 0 次，测试照绿。
+   我差点把「没跑」当成「验过」。此后变异必须先打印 count 并 grep 确认落进文件。
+2. **变异了实现、测试仍绿**：consistency terms 那条只测了纯函数、没测它被接进 handler。
+   补一条走真实 handler 的用例才红。本轮反复在抓的正是「写好了但没接线」，测试自己
+   踩进去一次。
+
+## 老坑复现
+
+- **混合行尾**：`tools/` 三个文件在 HEAD 是 CRLF+LF 混合，Edit 全量归一造出约 110 行
+  空白噪音。用 difflib 对 `equal` 块拷回 HEAD 的行尾修复，最终 `--numstat` 与
+  `--ignore-all-space --numstat` 一致。
+- **改 spec 描述必刷 golden**：`tests/fixtures/loop_tool_schemas_golden.json`（CRLF，
+  `json.dumps(indent=2)`，无尾换行）。首次全量跑因此红过一次。
+
+## 未联通 / 未验证
+
+七刀**全部未经真机点穿**，一律归 E2E-1：
+
+- 新建空章说「接着往下写」→ 续出来的字真的接得上上一章结尾；
+- canon.json 声明的退场 / 唯一持有约束，在起草整章时真的被模型遵守；
+- 对话里说一句长期偏好 → agent 提议改 `agent-instructions.md` → 确认 → **新建会话**后仍生效；
+- agent 读完一章 → 提出伏笔 → 观测镜「并入」→ `promise_check` 记得上账；
+- 长章节里选一句按 Ctrl+K → 绿块只出现在那一句上 → 接受后其余段落逐字未动。
+
+`project.deep_consistency` 与各 advisory 工具的结论口径不变：参考信号，不是质量判定。
