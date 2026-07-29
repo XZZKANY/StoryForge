@@ -15,6 +15,32 @@ from app.domains.agent_runs.tools.runtime_arguments import required_string as _r
 from app.domains.agent_runs.trace import AgentToolTrace
 
 
+def _with_canon_surface_forms(project_root: str, terms: list[str]) -> list[str]:
+    """把 canon 实体的本名与别名补进检索词。
+
+    称谓一致性正是这把工具最该抓的东西，而别名只存在于 canon.json 里——模型不主动把
+    「老陈」「默哥」列进 terms 就永远查不到，等于把「查不查得到别名」押在模型的记性上。
+    作者传入的词序在前（`consistency_scan` 有 30 词上限，先来先得），canon 补在后面。
+    """
+
+    from app.domains.agent_runs import canon_rebuild, canon_store
+
+    try:
+        canon = canon_store.read_canon(project_root)
+    except fs_tools.FsToolError:
+        return terms
+    merged = list(terms)
+    seen = {term.strip() for term in terms}
+    for entity in canon.get("entities") or []:
+        if not isinstance(entity, dict):
+            continue
+        for surface in canon_rebuild.entity_surface_forms(entity):
+            if surface and surface not in seen:
+                seen.add(surface)
+                merged.append(surface)
+    return merged
+
+
 class ProjectChecksRuntimeMixin:
     def _project_check_tool_handlers(self) -> dict[str, ToolHandler]:
         return {
@@ -34,6 +60,7 @@ class ProjectChecksRuntimeMixin:
             if isinstance(terms_raw, list)
             else []
         )
+        terms = _with_canon_surface_forms(project_root, terms)
         subpath = _optional_string(payload.get("subpath"))
         glob = _optional_string(payload.get("glob")) or "*.md"
         output = consistency_scan(project_root, terms, subpath=subpath, glob=glob)

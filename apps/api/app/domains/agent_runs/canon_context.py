@@ -35,6 +35,31 @@ def _window_covers(entry: dict[str, Any], cur: int) -> bool:
     return lo <= cur <= to_ch
 
 
+# 硬约束头里每个实体最多带几个别名：别名是为了让模型认出「老陈」就是「陈默」，
+# 全量铺开会把约束头撑成人物表，反而稀释「勿违背」那几条。
+_MAX_DISPLAY_ALIASES = 3
+
+
+def _display_name(entity: dict[str, Any], canonical_name: str) -> str:
+    """本名（别名 / 别名）。
+
+    此前只推本名，于是作者手稿里管陈默叫「老陈」时，模型根本不知道约束说的是同一个人——
+    「「玄铁令」唯一持有者 = 陈默」这条对一段全程称「老陈」的正文毫无约束力。aliases 在
+    canon 里是一等字段（presence 重建、退场闸、dossier、前端联动都吃它），唯独推给模型
+    的这一处把它丢了。
+    """
+
+    raw = entity.get("aliases")
+    aliases = [
+        alias.strip()
+        for alias in (raw if isinstance(raw, list) else [])
+        if isinstance(alias, str) and alias.strip() and alias.strip() != canonical_name
+    ]
+    if not aliases:
+        return canonical_name
+    return f"{canonical_name}（又称 {' / '.join(aliases[:_MAX_DISPLAY_ALIASES])}）"
+
+
 def build_scene_constraint_block(project_root: str, current_file: str | None) -> str | None:
     """确定性拼接「当前场景硬约束头」；只读 canon.json + 章序，不扫正文。
 
@@ -47,14 +72,14 @@ def build_scene_constraint_block(project_root: str, current_file: str | None) ->
 
     invariants = canon.get("invariants") or {}
 
-    # 实体 id → canonical_name 映射（lifespan 用 id 引用实体，显示时用人名）
+    # 实体 id → 显示名（lifespan 用 id 引用实体，显示时用人名）
     entities = canon.get("entities") or []
     name_by_id: dict[str, str] = {}
     for e in entities:
         eid = e.get("id")
         cname = e.get("canonical_name")
         if isinstance(eid, str) and isinstance(cname, str):
-            name_by_id[eid] = cname
+            name_by_id[eid] = _display_name(e, cname)
 
     # 当前文件的章序（阅读序）；非章节文件 / 越界 / 扫描失败 → None，退化为「全书硬约束 digest」
     cur: int | None = None

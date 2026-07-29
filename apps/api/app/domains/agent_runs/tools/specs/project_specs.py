@@ -118,8 +118,8 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     AgentRuntimeToolSpec(
         name="project.canon_delta",
         description=(
-            "确定性 canon 提案：把模型从正文观察到的实体、持有、退场和时间线声明与既有 canon 做归并、"
-            "别名冲突与不变量差量检查，草稿只写派生 proposals.json；不写 canon.json 或手稿。"
+            "确定性 canon 提案：把模型从正文观察到的实体、持有、退场、时间线与伏笔声明与既有 canon "
+            "做归并、别名冲突与不变量差量检查，草稿只写派生 proposals.json；不写 canon.json 或手稿。"
         ),
         domain="project",
         input_schema={},
@@ -139,10 +139,13 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_canon_delta",)),
         loop_schema=LoopToolSchema(
             description=(
-                "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场和"
-                "时间线先后作为结构化参数传入。字段未传表示该类不提议；全空会诚实返回无提议。工具会归并"
+                "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、"
+                "时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新"
+                "伏笔写进账本的通道，project_promise_check 只读不写。"
+                "字段未传表示该类不提议；全空会诚实返回无提议。工具会归并"
                 "既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 "
-                "proposals.json，绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。"
+                "proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），"
+                "绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。"
             ),
             parameters={
                 "type": "object",
@@ -200,6 +203,31 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
                             "required": ["before", "after"],
                         },
                         "description": "本章观察到的时间线先后声明。",
+                    },
+                    "promise_claims": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string"},
+                                "planted_chapter": {"type": "integer"},
+                                "due_chapter": {"type": ["integer", "null"]},
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["planted", "advancing", "resolved"],
+                                },
+                                "kind": {"type": "string"},
+                                "resolved_chapter": {"type": "integer"},
+                                "cadence_chapters": {"type": "integer"},
+                            },
+                            "required": ["title", "planted_chapter"],
+                        },
+                        "description": (
+                            "本章观察到的叙事承诺（伏笔 / 倒计时 / 誓约 / 悬念 / 禁忌）。"
+                            "due_chapter 传 null 表示开放窗口、不设到期；不确定第几章兑现就传 null，"
+                            "不要瞎猜一个章号——那会让 promise_check 报假逾期。"
+                            "id 会按标题确定性派生，重复观察同一条不会攒出多份。"
+                        ),
                     },
                 },
             },

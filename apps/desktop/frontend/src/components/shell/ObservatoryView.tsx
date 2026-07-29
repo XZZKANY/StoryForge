@@ -42,6 +42,7 @@ const CLAIM_INVARIANT_LABELS: Record<string, string> = {
   single_holder: '唯一持有',
   lifespan: '生命期',
   timeline_order: '时间线',
+  promises: '伏笔',
 };
 
 function chapterSpan(entity: ObservatoryEntity): string {
@@ -59,6 +60,10 @@ function claimSummary(invariant: string, entry: Record<string, unknown>): string
   }
   if (invariant === 'timeline_order') {
     return `${String(entry.before ?? '?')} 早于 ${String(entry.after ?? '?')}`;
+  }
+  if (invariant === 'promises') {
+    const due = entry.due_chapter == null ? '开放窗口' : `第 ${String(entry.due_chapter)} 章前兑现`;
+    return `${String(entry.title ?? '?')}（第 ${String(entry.planted_chapter ?? '?')} 章埋下 · ${due}）`;
   }
   return JSON.stringify(entry);
 }
