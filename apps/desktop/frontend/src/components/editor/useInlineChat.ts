@@ -29,6 +29,8 @@ import {
   isInlineEditStale,
   planAnchoredInlineDiff,
   planCursorInsertion,
+  planInlineReviseWindow,
+  spliceInlineReviseWindow,
   type AnchoredInlineDiff,
   type InlineAnchor,
   type LineDiffHunk,
@@ -451,14 +453,18 @@ export function useInlineChat({
 
       swapZoneToLoading(editor, session, cancelLoading);
 
+      // 长章节只送锚点附近的窗口：整章发出去既按整章计费，也正是模型 drift 的来源。
+      const window = planInlineReviseWindow(before, session.anchor);
+
       try {
         const result = await reviseFileContent({
           filePath: path,
-          content: before,
+          content: window.text,
           instruction: buildInlineReviseInstruction({
             anchorText: session.anchor.text,
             isSelection: session.anchor.isSelection,
             userInstruction: instruction,
+            isExcerpt: !window.isWholeDocument,
           }),
           projectName,
           projectRoot: projectPathRef.current,
@@ -471,7 +477,8 @@ export function useInlineChat({
         detachLoadingEsc();
         sessionIdRef.current = result.assistantSessionId;
         session.model = result.model;
-        renderDiff(before, result.after);
+        // 拼回整文再交给 renderDiff：夹紧、陈旧判定与写回一律仍以整文件为单位。
+        renderDiff(before, spliceInlineReviseWindow(before, window, result.after));
       } catch (error) {
         // 已取消（abort→teardown 已跑，sessionRef 清空）或切走：不再报失败。
         if (sessionRef.current !== session) return;

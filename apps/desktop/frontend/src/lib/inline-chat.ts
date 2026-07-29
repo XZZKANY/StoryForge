@@ -2,15 +2,16 @@
  * 行间对话（Ctrl+K）的纯逻辑：指令构造、hunk→编辑器行级 diff 映射、diff 概要与陈旧判定。
  * 全部与 Monaco 无关，便于单测；壳层（useInlineChat）只负责把这些结果画成 view zone / decoration。
  *
- * 边界说明：单发 /assistant/revise 端点是「整文件进、整文件出」，且不跑 agent-loop 的 revise_scope
- * 最小改动契约。所以「只改锚定文本」的约束由这里拼进 instruction，其余段落逐字保留全靠提示词。
+ * 边界说明：单发 /assistant/revise 端点不跑 agent-loop 的 revise_scope 最小改动契约，
+ * 所以「只改锚定文本」的约束由这里拼进 instruction，其余段落逐字保留全靠提示词。
+ * 长文件只送锚点附近的窗口（见 planInlineReviseWindow），返回后拼回整文再走同一条夹紧路径。
  */
 
 import { buildPatchHunks } from './patch-hunks';
 
 // instruction 上限对齐后端 AssistantReviseRequest.instruction（max_length=4000）。
 const INLINE_INSTRUCTION_MAX = 4000;
-// 锚定文本只是「指哪打哪」的指针（全文另在 content 里），过长的选区在指令里截断即可。
+// 锚定文本只是「指哪打哪」的指针（正文另在 content 里），过长的选区在指令里截断即可。
 const INLINE_ANCHOR_MAX = 1500;
 
 export const INLINE_MINIMAL_EDIT_CONTRACT = [
@@ -19,6 +20,10 @@ export const INLINE_MINIMAL_EDIT_CONTRACT = [
   '2. 不要改动文件开头的标题或导出元信息。',
   '3. 仍输出修订后的完整正文，但未点名处必须与原文逐字一致。',
 ].join('\n');
+
+export const INLINE_EXCERPT_NOTE =
+  '注意：给你的正文是这一章的一段节选，不是全文。请只返回这段节选修订后的完整文本，' +
+  '不要补写节选之外的内容，也不要试图给这段加开头或结尾。';
 
 export type InlineAnchor = {
   /** 1-based 起始行（锚定范围首行）。 */
@@ -35,6 +40,7 @@ export function buildInlineReviseInstruction(params: {
   anchorText: string;
   isSelection: boolean;
   userInstruction: string;
+  isExcerpt?: boolean;
 }): string {
   const anchor = params.anchorText.trim().slice(0, INLINE_ANCHOR_MAX);
   const user = params.userInstruction.trim();
@@ -42,9 +48,92 @@ export function buildInlineReviseInstruction(params: {
   const blocks = [
     user || '按下面的意图润色锚定文本。',
     INLINE_MINIMAL_EDIT_CONTRACT,
+    ...(params.isExcerpt ? [INLINE_EXCERPT_NOTE] : []),
     `锚定文本（${anchorLabel}）：\n<<<ANCHOR\n${anchor}\nANCHOR>>>`,
   ];
   return blocks.join('\n\n').slice(0, INLINE_INSTRUCTION_MAX);
+}
+
+// 锚点上下各留多少字。上文给得多一点：改一句话时，读者刚读过的那几段决定语感；
+// 下文只要够模型知道这段之后接什么、别把过渡写死。
+const INLINE_WINDOW_BEFORE_CHARS = 2000;
+const INLINE_WINDOW_AFTER_CHARS = 1000;
+
+export type InlineReviseWindow = {
+  /** 送给模型的正文（LF 归一）。 */
+  text: string;
+  /** 1-based 起始行（含）。 */
+  startLine: number;
+  /** 1-based 结束行（含）。 */
+  endLine: number;
+  /** true = 窗口就是整篇——短文件不切窗，行为与切窗前逐字一致。 */
+  isWholeDocument: boolean;
+};
+
+/**
+ * 只把锚点附近的窗口送给模型，而不是整章。
+ *
+ * 改一句话却把整章发出去有两笔代价：BYO-key 作者每次 Ctrl+K 都为整章付费；模型被要求
+ * 逐字重抄几千字，drift 正是从那里来的——而 drift 到锚点之外的改动会被
+ * `planAnchoredInlineDiff` 静默丢弃，作者只看到一句「有改动被丢弃」。
+ *
+ * 短文件（整篇装得下预算）一律整篇送出：这一刀的风险因此被限制在长章节上，而收益也只在那里。
+ */
+export function planInlineReviseWindow(
+  content: string,
+  anchor: InlineAnchorRange,
+): InlineReviseWindow {
+  const normalized = content.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  const budget = INLINE_WINDOW_BEFORE_CHARS + INLINE_WINDOW_AFTER_CHARS;
+  const anchorStart = Math.max(1, Math.min(anchor.startLine, lines.length));
+  const anchorEnd = Math.max(anchorStart, Math.min(anchor.endLine, lines.length));
+
+  if (normalized.length <= budget) {
+    return {
+      text: normalized,
+      startLine: 1,
+      endLine: lines.length,
+      isWholeDocument: true,
+    };
+  }
+
+  let startLine = anchorStart;
+  let spent = 0;
+  while (startLine > 1) {
+    const cost = (lines[startLine - 2] ?? '').length + 1;
+    if (spent + cost > INLINE_WINDOW_BEFORE_CHARS) break;
+    spent += cost;
+    startLine -= 1;
+  }
+  let endLine = anchorEnd;
+  spent = 0;
+  while (endLine < lines.length) {
+    const cost = (lines[endLine] ?? '').length + 1;
+    if (spent + cost > INLINE_WINDOW_AFTER_CHARS) break;
+    spent += cost;
+    endLine += 1;
+  }
+
+  return {
+    text: lines.slice(startLine - 1, endLine).join('\n'),
+    startLine,
+    endLine,
+    isWholeDocument: startLine === 1 && endLine === lines.length,
+  };
+}
+
+/** 把模型改过的窗口拼回整文，得到「整文件 after」——下游的夹紧与写回契约因此完全不变。 */
+export function spliceInlineReviseWindow(
+  content: string,
+  window: InlineReviseWindow,
+  revisedWindowText: string,
+): string {
+  if (window.isWholeDocument) return revisedWindowText.replace(/\r\n/g, '\n');
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const revised = revisedWindowText.replace(/\r\n/g, '\n').split('\n');
+  lines.splice(window.startLine - 1, window.endLine - window.startLine + 1, ...revised);
+  return lines.join('\n');
 }
 
 export type LineDiffHunk = {
