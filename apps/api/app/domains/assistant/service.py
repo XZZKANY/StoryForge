@@ -219,7 +219,7 @@ _REVISE_SYSTEM_PROMPT = (
 )
 
 
-def _build_revise_prompt(payload: AssistantReviseRequest) -> str:
+def _build_revise_prompt(payload: AssistantReviseRequest, scene_constraints: str | None) -> str:
     project_line = f"项目：{payload.project_name}\n" if payload.project_name else ""
     context_block = ""
     if payload.context_bundle and payload.context_bundle.files:
@@ -242,11 +242,13 @@ def _build_revise_prompt(payload: AssistantReviseRequest) -> str:
             + "\n\n".join(context_entries)
             + "\n"
         )
+    constraint_block = f"\n{scene_constraints}\n" if scene_constraints else ""
     return (
         f"{project_line}"
         f"文件：{payload.file_path}\n"
         f"修订指令：{payload.instruction}\n\n"
         f"{context_block}"
+        f"{constraint_block}"
         "以下是文件的当前全文，请按指令修订后整体返回：\n"
         "<<<FILE\n"
         f"{payload.content}\n"
@@ -348,17 +350,26 @@ def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def _continue_scene_constraints(payload: AssistantContinueRequest) -> str | None:
-    if not payload.project_root:
+def _scene_constraints(project_root: str | None, file_path: str | None) -> str | None:
+    """canon 硬约束 + 活跃伏笔 + 本章伏笔计划；四条产字路径共用。
+
+    canon 住在 `domains/agent_runs`，而 `app/common` 不得 import domains、assistant 也不得
+    顶层 import agent_runs（file.create 反向依赖本模块会成环），所以 canon 进不了
+    `build_generation_system_prompt` 那个统一组装点——只能每条产字路径各自延迟导入一次。
+    """
+
+    if not project_root:
         return None
-    # 延迟导入：agent_runs 在模块顶层 import 本模块（file.create 走 draft_file_content），
-    # 顶层反向引用会成环。
     from app.domains.agent_runs import canon_context
 
     try:
-        return canon_context.build_scene_constraint_block(payload.project_root, payload.file_path)
+        return canon_context.build_scene_constraint_block(project_root, file_path)
     except Exception:  # noqa: BLE001 - canon 缺失或损坏绝不能挡住作者继续写
         return None
+
+
+def _continue_scene_constraints(payload: AssistantContinueRequest) -> str | None:
+    return _scene_constraints(payload.project_root, payload.file_path)
 
 
 def _continue_previous_chapter(payload: AssistantContinueRequest) -> tuple[str, str] | None:
@@ -658,6 +669,8 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
 
+    scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
+
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
         append_assistant_message(
@@ -686,6 +699,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
                 "instruction": payload.instruction[:500],
                 "content_chars": len(payload.content),
                 "context_file_count": len(payload.context_bundle.files) if payload.context_bundle else 0,
+                "has_scene_constraints": scene_constraints is not None,
             },
         ),
     )
@@ -696,7 +710,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
             system_prompt=build_generation_system_prompt(
                 _REVISE_SYSTEM_PROMPT, payload.project_root
             ),
-            user_prompt=_build_revise_prompt(payload),
+            user_prompt=_build_revise_prompt(payload, scene_constraints),
         )
     except BookGenerationError as exc:
         update_assistant_tool_call(
@@ -759,7 +773,11 @@ _DRAFT_SYSTEM_PROMPT = (
 )
 
 
-def _build_draft_prompt(payload: AssistantDraftRequest) -> str:
+def _build_draft_prompt(
+    payload: AssistantDraftRequest,
+    scene_constraints: str | None,
+    previous_chapter: tuple[str, str] | None,
+) -> str:
     project_line = f"项目：{payload.project_name}\n" if payload.project_name else ""
     context_block = ""
     if payload.context_bundle and payload.context_bundle.files:
@@ -781,9 +799,17 @@ def _build_draft_prompt(payload: AssistantDraftRequest) -> str:
             + "\n\n".join(context_entries)
             + "\n"
         )
+    constraint_block = f"\n{scene_constraints}\n" if scene_constraints else ""
+    previous_block = (
+        f"\n上一章（{previous_chapter[0]}）的结尾：\n<<<PREVIOUS\n{previous_chapter[1]}\nPREVIOUS>>>\n"
+        if previous_chapter
+        else ""
+    )
     return (
         f"{project_line}新文件路径：{payload.file_path}\n"
         f"{context_block}"
+        f"{previous_block}"
+        f"{constraint_block}"
         f"写作指令：{payload.instruction}\n"
         "请输出该文件的完整初稿正文。"
     )
@@ -798,6 +824,9 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     missing = missing_book_generation_env()
     if missing:
         raise AssistantLlmNotConfiguredError(missing)
+
+    scene_constraints = _scene_constraints(payload.project_root, payload.file_path)
+    previous_chapter = previous_chapter_tail(payload.project_root, payload.file_path)
 
     if payload.assistant_session_id is not None:
         assistant_session = get_assistant_session(session, payload.assistant_session_id)
@@ -821,6 +850,8 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
                 "file_path": payload.file_path,
                 "instruction": payload.instruction[:500],
                 "context_file_count": len(payload.context_bundle.files) if payload.context_bundle else 0,
+                "has_scene_constraints": scene_constraints is not None,
+                "previous_chapter": previous_chapter[0] if previous_chapter else None,
             },
         ),
     )
@@ -831,7 +862,7 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
             system_prompt=build_generation_system_prompt(
                 _DRAFT_SYSTEM_PROMPT, payload.project_root
             ),
-            user_prompt=_build_draft_prompt(payload),
+            user_prompt=_build_draft_prompt(payload, scene_constraints, previous_chapter),
         )
     except BookGenerationError as exc:
         update_assistant_tool_call(
