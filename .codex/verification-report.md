@@ -940,3 +940,79 @@ terms 展开改 `pass`、切窗条件改恒真。
   连 0.1.6 也从没装过。**这是「打了包 ≠ 装了包」第二次复现**：本轮七刀 + 上轮十刀，
   作者机器上一条都没生效过。
 - 七刀的真机点穿全部未做，归 E2E-1（清单见上一节「未联通 / 未验证」）。
+
+# 2026-07-30 作品底座：让对话 agent 知道自己在管一本书（PR 待编号）
+
+## 提名与诊断
+
+作者原话：「怎么是选择一文件 对应改 agent 参考 不应该 agent 统御这整个作品吗」。
+
+先排除误会：**会话确实是项目级的**——`chat-window/session-guard.ts` 的会话身份 key 里没有
+file 维度，切文件的 effect（`useChatSessionContext.ts`）只清参考包、不动 `setMessages`。
+不存在「一个文件一个 agent」。
+
+「选文件改参考」确实存在但只是表层：`lib/project/context-bundle.ts` 把当前文件剔出参考包
+（它已作为全文单发）、把**上一章提权到优先级 0.5 排在人物(1)/设定(2) 之前**、再按
+`maxFiles = 8` 硬截断——于是邻章会挤占人设名额。
+
+**真正的病在后端**：`loop_runtime.run_chat_loop` 每回合拼进 system 的只有静态创作准则、
+作者自定义指令、最近 12 条历史、canon 硬约束头、作者手钉文件、光标窗。唯一的全书事实源是
+canon 硬约束头，**而作者没在 `canon.json` 声明 invariants 时它整块返回 `None`
+（`canon_context.py:140-141`），一个字都不注入**。文件树、人物设定、章节摘要、
+canon dossier 正文、全书章数字数、上一章结尾、文风基线全部不在 prompt 里，全靠模型
+自己想起来调工具去捞。
+
+一句话：它不是「被一个文件绑住了」，是**「从来没被交代过这是一本书」**——一个空降的
+通用 agent，手里恰好攥着一份文件。
+
+## 本刀做了什么
+
+新增 `app/domains/agent_runs/book_context.py`（确定性、无 LLM、无 key），每个用户回合往
+system 里注入一块「作品底座」，并在 `loop_runtime` 接线（净 3 行）：
+
+| 段 | 内容 | 取数方式 |
+| --- | --- | --- |
+| 阅读序坐标 | 全书 N 章 · 约 X 万字 · 平均每章 · 当前是第 k 章 | `canon_rebuild.chapter_ordinals`（**与 canon 硬约束头同口径**）+ `stat` 估算 |
+| 骨架索引 | 大纲 / 人物 / 设定 / 时间线 / 伏笔的路径 + 体量 | `iter_project_files` + `is_manuscript_path` 取反 |
+| 实体台账 | 本名（又称 别名）· 第 a–b 章在场 | `canon.json` + **已落盘**的 `presence.json` 缓存 |
+| dossier 指针 | `.storyforge/canon/derived/dossier.md` 可直接 `fs_read` | 文件存在才给 |
+| 上一章结尾 | 阅读序上一章尾 600 字 | `manuscript.previous_chapter_tail` |
+
+三条刻意的取舍：
+
+1. **章序复用 canon 的同一口径**。底座若自己扫一遍，会出现底座说「第 12 章」、硬约束头说
+   「第 13 章」——两个打架的数字比没有数字更糟。
+2. **字数按字节估算、不逐篇读盘**，一律带「约」字交付；逐篇读要 O(全书正文) 的 IO，每轮
+   对话都做不划算。
+3. **台账不触发重扫**：`presence.json` 缓存没落盘时只给名字与别名，绝不在对话路径上调
+   `rebuild_presence`（那要扫全书正文）。
+
+dossier 指针是补「发现不了」而不是补「读不到」：`fs_list` / `fs_search` 跳过 `.storyforge/`
+（`fs_tools.py:16,58`），但 `fs_read` 并不过滤该目录，知道路径就能读。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_agent_book_context.py -q` | **12 passed** |
+| `uv run pytest -q`（全量） | **1229 passed / 3 skipped**（= 上一波 1217 + 本刀 12，零回归） |
+| `uv run ruff check`（新增 + 改动文件） | All checks passed |
+
+**变异验证（打在接线上，不是只测纯函数）**：
+
+| 变异 | 结果 |
+| --- | --- |
+| 从 `run_chat_loop` 的 messages 里摘掉底座块 | **红** — `test_book_context_block_reaches_the_llm_messages` 逮住 |
+| 底座章号 +1（与 canon 硬约束头错开） | **红** — `test_chapter_ordinal_matches_canon_constraint_header` 逮住 |
+
+改了一条既有断言：`test_chat_loop_without_author_instructions_injects_no_extra_system` 原先拿
+「system 总条数 == 1」当「没有作者指令块」的代理，作品底座合法占位后该代理失效。改为直接断言
+「没有以 `_AUTHOR_INSTRUCTIONS_PREFIX` 开头的 system 块」——测的是原本的意图，且更难假绿。
+
+## 未联通 / 未验证
+
+- **真机未验**：底座在真实 provider 下的实际观感（模型是否真的据此改变回答口径）归 E2E-1；
+  本刀只有 headless 断言证明「块确实发出去了」，没有证据证明「模型因此答得更像总编」。
+- **token 成本未实测**：底座每回合约 1–3k 字符，长书下的实际 prompt_tokens 增量未在真跑中量过。
+- 前端 `context-bundle.ts` 的 8 文件配额未动——邻章仍可能挤占人设名额，这条留作后续。
+- 作者机器仍停在 0.1.4，本刀与此前所有刀一样**未送达**，需重建 NSIS 才能生效。

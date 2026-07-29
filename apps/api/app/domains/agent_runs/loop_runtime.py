@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 # W3：live 工具循环直接吃 common 单一出网通道，不再寄生于已降级的 book_runs 私有函数。
 from app.common.llm_client import LLMConfigError, LLMError
 from app.common.llm_client import call_llm_messages as _call_llm_messages
+from app.domains.agent_runs.book_context import build_book_context_block
 from app.domains.agent_runs.canon_context import build_scene_constraint_block
 from app.domains.agent_runs.loop import prompt_context as loop_prompt_context
 from app.domains.agent_runs.loop.author_view import (
@@ -157,6 +158,7 @@ def run_chat_loop(
 
     history = _history_messages(session, assistant_session_id)
     current_file_hint = f"当前打开文件：{current_file}" if current_file else "当前没有打开文件"
+    book_block = build_book_context_block(project_path, current_file)
     scene_block = build_scene_constraint_block(project_path, current_file)
     author_instructions = _read_author_instructions(project_path)
     view_block = build_author_view_block(author_view) if author_view is not None else None
@@ -169,6 +171,7 @@ def run_chat_loop(
             else []
         ),
         *history,
+        *([{"role": "system", "content": book_block}] if book_block else []),
         *([{"role": "system", "content": scene_block}] if scene_block else []),
         *([{"role": "system", "content": pinned_block}] if pinned_block else []),
         *([{"role": "system", "content": view_block}] if view_block else []),
