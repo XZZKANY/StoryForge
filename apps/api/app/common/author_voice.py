@@ -19,6 +19,10 @@ from app.common.style_baseline import append_style_baseline_to_system_prompt
 _DIRNAME = ".storyforge"
 _FILENAME = "agent-instructions.md"
 
+# 项目内相对路径（posix）。前端可见性白名单与后端 fs 工具的定点豁免都以它为准，
+# 三处各自硬编码一次字符串必然漂移。
+RELATIVE_PATH = f"{_DIRNAME}/{_FILENAME}"
+
 MAX_CHARS = 4_000
 
 # 措辞刻意分两档：对话路径（循环）沿用"尽量遵循"，产字路径用"逐条遵循"。

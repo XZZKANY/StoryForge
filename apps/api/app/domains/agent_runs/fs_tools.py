@@ -10,8 +10,15 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from app.common.author_voice import RELATIVE_PATH as _AUTHOR_INSTRUCTIONS_PATH
+
 # 对小说项目无意义且可能巨大的目录，列表/检索时跳过。
 _SKIPPED_DIR_NAMES = frozenset({".git", ".storyforge", ".codex", "node_modules", "__pycache__"})
+
+# 定点豁免：作者自定义指令是**作者写给 agent 的长期偏好**，agent 看不见它就无法在作者
+# 说出长期偏好时提议写进去，跨会话记忆也就无从谈起。只放行这一个文件而不是整个
+# `.storyforge/`——canon 的 derived 缓存会把上下文预算涌满。
+_VISIBLE_DOT_FILES = frozenset({_AUTHOR_INSTRUCTIONS_PATH})
 
 _READ_LIMIT_DEFAULT = 20_000
 _READ_LIMIT_MAX = 200_000
@@ -46,6 +53,8 @@ def _resolve_scoped(root: Path, subpath: str | None) -> Path:
 
 
 def _is_skipped(relative: Path) -> bool:
+    if relative.as_posix() in _VISIBLE_DOT_FILES:
+        return False
     return any(part in _SKIPPED_DIR_NAMES or part.startswith(".") for part in relative.parts)
 
 
