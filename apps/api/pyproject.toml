@@ -1,6 +1,6 @@
 [project]
 name = "storyforge-api"
-version = "0.1.6"
+version = "0.1.7"
 description = "StoryForge 应用 API 服务"
 requires-python = ">=3.11"
 dependencies = [
