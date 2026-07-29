@@ -20,6 +20,7 @@ import {
   scopeWarningFromAgentResult,
   statusFromAgentResult,
   stepsFromResumedAgentResult,
+  writableFilePatch,
   WritingRunProgressPanel,
   writingRunIdFromResult,
 } from '../src/components/ChatWindow';
@@ -524,6 +525,67 @@ test('agent result file path prefers review report or proposed patch path', () =
       },
     }),
     '正文/第10章.md',
+  );
+});
+
+function agentResultWithPatch(proposed_patch: Record<string, unknown>) {
+  return {
+    type: 'agent_result' as const,
+    session_id: 'agent-session',
+    assistant_session_id: 1,
+    intent: 'chat.explain',
+    user_message: '接着往下写一段',
+    plan: [],
+    agent_result: { summary: '完成', requires_user_confirmation: true },
+    tool_trace: [],
+    proposed_patch,
+  };
+}
+
+// prose.continue 与 project.trim_prose 的补丁此前被 `kind !== 'file_revision'` 静默丢弃：
+// 后端已经产出正文、对话里也说了「等你确认后才会写盘」，作者却在编辑器里找不到 diff。
+test('writable patch accepts every prose-producing tool, not just file_revision', () => {
+  for (const kind of ['file_revision', 'prose_trim', 'prose_continue']) {
+    const patch = writableFilePatch(
+      agentResultWithPatch({
+        id: `${kind}-1`,
+        kind,
+        file_path: '正文/第120章.md',
+        before: '旧正文',
+        after: '旧正文\n\n新续写的一段。',
+        requires_confirmation: true,
+        approval_action: 'desktop.confirm_file_writeback',
+      }),
+    );
+    assert.ok(patch, `${kind} 的补丁必须能进待确认面板`);
+    assert.equal(patch.id, `${kind}-1`);
+    assert.equal(patch.file_path, '正文/第120章.md');
+    assert.equal(patch.after, '旧正文\n\n新续写的一段。');
+  }
+});
+
+test('writable patch rejects payloads that cannot be written back to a file', () => {
+  // repair_patch 顶层没有 file_path/before/after，走 repairPatchApproval，不能被结构判定误收。
+  assert.equal(
+    writableFilePatch(
+      agentResultWithPatch({
+        kind: 'repair_patch',
+        repair_patch: { target_span: '旧句', replacement_text: '新句' },
+        requires_confirmation: true,
+      }),
+    ),
+    null,
+  );
+  // 缺 after 的残缺补丁同样拒收，避免拿 undefined 去覆盖作者正文。
+  assert.equal(
+    writableFilePatch(
+      agentResultWithPatch({
+        kind: 'prose_continue',
+        file_path: '正文/第120章.md',
+        before: '旧正文',
+      }),
+    ),
+    null,
   );
 });
 

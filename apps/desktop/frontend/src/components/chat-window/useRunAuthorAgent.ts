@@ -25,7 +25,7 @@ import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
   filePathFromAgentResult,
-  fileRevisionPatch,
+  writableFilePatch,
   issueIdsFromAgentResult,
   modelFromToolTrace,
   repairPatchApproval,
@@ -352,7 +352,7 @@ export function useRunAuthorAgent(
         );
         setAgentBusy(false);
 
-        const proposed = fileRevisionPatch(response);
+        const proposed = writableFilePatch(response);
         if (proposed) {
           const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
           if (!filePath) {

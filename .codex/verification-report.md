@@ -649,3 +649,76 @@ draft** 的条目集合与 `NON_MANUSCRIPT_DIRS` 逐项相等。前端加一个�
 - **存量项目需重跑 canon**：`presence.json` 等派生缓存是按旧章序算的，下次 rebuild 自愈
   （canon 链本就设计成可弃缓存），但未在真机验证过存量项目的这次自愈。
 - **真机观感未验，归 E2E-1**。
+
+# 2026-07-29 补丁蒸发：agent 主动产字的落地率从 0 修到 1（PR #224）
+
+时间：2026-07-29
+
+> **提名口径说明**：本刀由 ultracode 多路诊断提名、作者拍板。40 条候选经「代码事实 + 写作价值」
+> 双透镜对抗核查后 22 条被驳回，本条是幸存的 10 条之一（双透镜均判 high）。
+
+## 诊断
+
+后端有三个工具会产出**可写回正文**的补丁，payload 完全同形（`file_path` + `before` + `after`
++ `approval_action: desktop.confirm_file_writeback`），只有 audit 字段不同：
+
+| kind | 产出者 | 位置 |
+| --- | --- | --- |
+| `file_revision` | `file.revise` / `file.create` | `patches/runtime_tools.py:87,:172` |
+| `prose_trim` | `project.trim_prose` | `tools/project_canon_runtime.py:160` |
+| `prose_continue` | `prose.continue` | `tools/prose_continue_runtime.py:76` |
+
+前端 `agent-result.ts:12` 一句 `patch.kind !== 'file_revision'` 把后两种**静默丢弃**。
+
+伤害不止是「功能没生效」，而是**产品在骗作者**：`prose_continue_runtime.py:89` 的 summary 写死
+
+```
+已在第 {anchor_line} 行之后续写约 {inserted_chars} 字，等你确认后才会写盘。
+```
+
+对话里这么说、流程树也亮着「等待作者在编辑器里确认 diff」，作者去编辑器找那个 diff——不存在。
+那段正文只活在一次性的 SSE 事件里，刷新即永久丢失，重来要再付一次 token。
+
+这是全部四条通道里**唯一「agent 主动产字」**的能力，落地率 0。
+
+后端其实早就预备好了：`patches/types.py:48-55` 的 `_default_tool_name` 给 `prose_trim` /
+`prose_continue` 都写了工具名映射——typed 模型预期这两种 kind，只有前端在门口挡掉。
+
+## 改了什么
+
+把判定从 **kind 白名单**换成**结构判定**：带 `file_path` + `before` + `after` 三个字符串字段的
+补丁一律可写回。函数随之更名 `fileRevisionPatch` → `writableFilePatch`（旧名字正是这个 bug
+能活下来的原因之一）。
+
+选结构判定而不是把两种 kind 加进白名单，是因为**白名单漏一种就重演一次静默丢弃**——后端每加
+一个产字工具都要记得回来改这里。结构判定下新工具只要 payload 同形就自动接得住。
+
+`repair_patch` 不会被误收：它顶层没有这三个字段（`runtime_arguments.py:209-222`），走
+`repairPatchApproval` 自己的通道。
+
+两个消费点（live 的 `useRunAuthorAgent` 与断线重连的 `useAgentRunRecovery`）共用这一个函数，
+改一处两条路径同时通；下游 `emitFileSuggestion` 只吃 `{id, file_path, before, after}`，零改动。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run test -- tests/chat-window.test.ts` | **29 passed**（+2 新增） |
+| `npm run test`（前端全量） | **386 passed / 65 files**（本刀前 384，+2） |
+| `npm run typecheck` | 通过 |
+| `pnpm lint` | eslint + prettier 全绿 |
+| **可证伪验证** | 临时把判定改回 `kind !== 'file_revision'` 后重跑，新增用例**如期挂掉**；恢复后转绿 |
+
+新增两条用例：①三种 kind 都必须能进待确认面板（旧逻辑下必挂）；②`repair_patch` 与缺 `after`
+的残缺补丁必须拒收（防止结构放宽把不该收的收进来、拿 undefined 覆盖作者正文）。
+
+## 未联通 / 未验证
+
+- **真机未验**。本刀只在 vitest 里证明补丁能被接住，「作者在对话里说『接着往下写一段』→ 编辑器
+  真的弹出绿块 diff → 接受后正文多出那段 → `versions/` 有写前快照」这条完整链路需重建装机包后
+  在真机点穿，归 E2E-1。
+- **卡片文案未分档**。三种 kind 现在共用同一套卡片文案，续写与压缩显示的都是后端给的 summary
+  （backend 各自的 summary 已经描述准确），但 `useRunAuthorAgent.ts:376` 的兜底文案仍写死
+  「Agent 已生成修订建议。」——续写时若后端没给 summary 会显示得不准。属边缘情况，未改。
+- **`continue_audit` / `trim_audit` 未被前端使用**。后端带了锚点行号、插入字数、压缩百分比，
+  前端目前一概不显示。要不要在卡片上露出这些，等真机 dogfood 提名。

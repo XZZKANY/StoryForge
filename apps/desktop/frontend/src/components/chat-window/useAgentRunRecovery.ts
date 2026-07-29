@@ -10,7 +10,7 @@ import { getAgentRunSavePoints, type AgentResultMessage } from '../../lib/api-cl
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import {
   filePathFromAgentResult,
-  fileRevisionPatch,
+  writableFilePatch,
   issueIdsFromAgentResult,
   modelFromToolTrace,
   resolveProposedPatchFilePath,
@@ -124,7 +124,7 @@ export function useAgentRunRecovery(
       );
       setAgentBusy(false);
 
-      const proposed = fileRevisionPatch(response);
+      const proposed = writableFilePatch(response);
       if (proposed) {
         const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
         if (!filePath) {
