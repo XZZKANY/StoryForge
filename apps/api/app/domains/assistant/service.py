@@ -249,7 +249,9 @@ def _build_revise_prompt(payload: AssistantReviseRequest, scene_constraints: str
         f"修订指令：{payload.instruction}\n\n"
         f"{context_block}"
         f"{constraint_block}"
-        "以下是文件的当前全文，请按指令修订后整体返回：\n"
+        # 不说「全文」：行间 Ctrl+K 对长章节只送锚点附近的窗口，说全文会与指令里的
+        # 节选说明打架，也会诱导模型给一段节选补开头结尾。
+        "以下是待修订的正文，请按指令修订后整体返回，只返回你收到的这段：\n"
         "<<<FILE\n"
         f"{payload.content}\n"
         "FILE>>>"
