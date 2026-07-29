@@ -115,7 +115,7 @@ def _tail_of(text: str, max_chars: int) -> str:
 
 
 def previous_chapter_tail(
-    project_root: str,
+    project_root: str | None,
     current_file: str | None,
     *,
     max_chars: int = PREVIOUS_TAIL_MAX_CHARS,
@@ -129,7 +129,7 @@ def previous_chapter_tail(
     任何异常一律吞掉返回 None：拿不到上一章是「少一块加分上下文」，绝不能挡住作者继续写。
     """
 
-    if not current_file:
+    if not current_file or not project_root:
         return None
     try:
         root = Path(project_root).resolve()
