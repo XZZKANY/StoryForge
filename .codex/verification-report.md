@@ -897,3 +897,46 @@ terms 展开改 `pass`、切窗条件改恒真。
 - 长章节里选一句按 Ctrl+K → 绿块只出现在那一句上 → 接受后其余段落逐字未动。
 
 `project.deep_consistency` 与各 advisory 工具的结论口径不变：参考信号，不是质量判定。
+
+# 2026-07-30 发版记录：0.1.7 装机包重建（送达 PR #226-#230 七刀）
+
+时间：2026-07-30
+
+## 产物
+
+| 项 | 值 |
+| --- | --- |
+| 路径 | `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.7_x64-setup.exe` |
+| 大小 | 49.80 MB |
+| SHA256 | `6451E555C035EEEE191A3ADA34BD416709251A090931EF8B8FB6021E90F6364F` |
+| 构建时刻 | 2026-07-30 00:39:32 |
+| 内含 | master `9e56dde1`（七刀 PR #226-#230 + bump #231） |
+
+用 `pnpm desktop:build` 而非 `tauri build`。sidecar 时间戳 16:35 与本次构建同批，
+体积 48,249,419 字节（0.1.6 那版是 48,241,049），已核对不是复用旧产物。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm verify` | 全绿：API **1217 passed / 3 skipped**、前端 **397 passed / 65 files**、shared 与 project-core 契约通过、lint + prettier + typecheck 绿、sidecar daily 冒烟 OK、**OpenAPI 零漂移** |
+| `pnpm desktop:build` | exit 0，产物见上表 |
+| `node scripts/sidecar-smoke.mjs --packaged --skip-build` | **packaged(冻结 exe) 冒烟全绿**：`/health/ready` 就绪 7336ms、assistant 会话往返、Agent SSE 2 帧、control REST 往返、alembic managed=true、分层 prompt 已随 exe 打包 |
+| 定向断言：起冻结 exe 读 `/health/ready` | **`app_version = 0.1.7`、`status = ready`** |
+
+## 构建期两处插曲
+
+1. **首次 `pnpm desktop:build` 失败在 `EBUSY`**：一个残留的孤儿 sidecar 进程锁着
+   `binaries/storyforge-api-x86_64-pc-windows-msvc.exe`，PyInstaller 编译成功但复制失败。
+   杀掉孤儿进程后重建通过。注意该进程路径在**仓库构建产物**下，不是装机版。
+2. **`pnpm verify` 曾红一次**：`test_acceptance_wrapper_probe_only_passes_with_local_provider`
+   缺 `chat_probe: ok` 行（而 `connectivity_probe_exit_code: 0`、`gate: pass_probe_only`
+   说明探针本身通过）。单独复跑 4 次全绿；该用例有去 flaky 前科（commit `20ae68f4`），
+   且本轮七刀完全没碰探针 / 验收链。判为满载下的既有 flaky，已重跑整条门禁取得干净绿。
+
+## 未联通 / 未验证
+
+- **作者尚未安装，且当前装的仍是 0.1.4**（`storyforge-desktop.exe` FileVersion=0.1.4）——
+  连 0.1.6 也从没装过。**这是「打了包 ≠ 装了包」第二次复现**：本轮七刀 + 上轮十刀，
+  作者机器上一条都没生效过。
+- 七刀的真机点穿全部未做，归 E2E-1（清单见上一节「未联通 / 未验证」）。
