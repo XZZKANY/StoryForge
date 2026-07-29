@@ -132,6 +132,32 @@
   {
     "type": "function",
     "function": {
+      "name": "project_cross_chapter_check",
+      "description": "跨章一致性审校（语义，烧 token）：一次给 2-6 个章节路径，模型同时读这几章的完整正文，只找它们**之间**的硬冲突——时间线矛盾、人物称谓漂移、设定或世界规则前后不一致、已退场角色再次出场、前文埋的伏笔后文未回收。这是 project_deep_consistency 结构上抓不到的那一类（那把只看单章）。章会按阅读序自动排好，不必自己排；每章按预算截断，truncated=true 表示模型没读全那一章。finding 是参考信号，回给作者前按 path 抽读核实。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "要比对的章节路径（相对项目根），2-6 个。"
+          },
+          "focus": {
+            "type": "string",
+            "description": "可选：作者特别关注的点，如「玄铁令到底在谁手上」。"
+          }
+        },
+        "required": [
+          "paths"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "project_canon",
       "description": "项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、退场一致性（声明退场后不应再出场）。返回硬矛盾（blocking，声明内部结构冲突）与 advisory （退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。它随书累积、比无状态深查更能抓跨章累积漂移。同时把每实体事实（身份 / 别名 / 出场跨度 / 绑定声明 / provenance）投影成人可读 dossier.md 缓存。调用会更新 .storyforge/canon/ 下的派生缓存（不改手稿）。作者尚未在 canon.json 声明不变量时，会建立空格式骨架并如实说明无可校验项。",
       "parameters": {

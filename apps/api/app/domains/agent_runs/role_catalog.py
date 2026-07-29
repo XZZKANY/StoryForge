@@ -26,6 +26,7 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "project.prose_check",
             "project.collapse_check",
             "project.entity_budget_check",
+            "project.cross_chapter_check",
             "project.deep_consistency",
             "project.canon",
             "project.canon_delta",

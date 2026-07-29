@@ -125,6 +125,12 @@ def _tool_output_summary(registry_name: str, output: dict[str, Any]) -> dict[str
             "conflict_count": output.get("conflict_count"),
             "advisory_count": output.get("advisory_count"),
         }
+    if registry_name == "project.cross_chapter_check":
+        return {
+            "chapter_count": output.get("chapter_count"),
+            "finding_count": output.get("finding_count"),
+            "model": output.get("model"),
+        }
     if registry_name == "project.deep_consistency":
         return {
             "path": output.get("path"),

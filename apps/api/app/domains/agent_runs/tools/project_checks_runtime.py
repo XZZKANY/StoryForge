@@ -6,6 +6,7 @@ from app.domains.agent_runs import fs_tools
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
+from app.domains.agent_runs.cross_chapter import cross_chapter_review
 from app.domains.agent_runs.deep_consistency import deep_consistency_review
 from app.domains.agent_runs.entity_budget_scan import entity_budget_scan
 from app.domains.agent_runs.promise_scan import DEFAULT_STALE_AFTER_CHAPTERS, promise_check
@@ -49,6 +50,7 @@ class ProjectChecksRuntimeMixin:
             "project.collapse_check": self._project_collapse_check,
             "project.entity_budget_check": self._project_entity_budget_check,
             "project.promise_check": self._project_promise_check,
+            "project.cross_chapter_check": self._project_cross_chapter_check,
             "project.deep_consistency": self._project_deep_consistency,
         }
 
@@ -263,6 +265,33 @@ class ProjectChecksRuntimeMixin:
                     "path": output["path"],
                     "issue_count": output["issue_count"],
                     "bible_file_count": len(output["bible_files"]),
+                },
+            ),
+        )
+
+    def _project_cross_chapter_check(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        paths_raw = payload.get("paths")
+        if not isinstance(paths_raw, list):
+            raise fs_tools.FsToolError("paths 必须是字符串数组（至少两个章节路径）。")
+        paths = [item for item in paths_raw if isinstance(item, str) and item.strip()]
+        focus = _optional_string(payload.get("focus"))
+
+        output = cross_chapter_review(project_root, paths, focus=focus)
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.cross_chapter_check",
+                status="completed",
+                input_summary={
+                    "paths": [item["path"] for item in output["chapters"]],
+                    "focus": focus,
+                },
+                output_summary={
+                    "chapter_count": output["chapter_count"],
+                    "finding_count": output["finding_count"],
+                    "model": output["model"],
                 },
             ),
         )
