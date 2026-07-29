@@ -23,7 +23,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.common.manuscript import is_manuscript_path
+from app.common.manuscript import iter_manuscript_files
 from app.common.style_fingerprint import split_sentences, style_fingerprint
 
 # 只取最近若干个正文文件：文风还在成形时，近作比首章更能代表「现在的作者」，
@@ -95,15 +95,7 @@ def _iter_manuscript_files(root: Path) -> list[Path]:
     对白密度压低、句长测偏——而这套数字是要写进产字 prompt 当"作者文风"的。
     """
 
-    files = [
-        path
-        for path in root.rglob("*.md")
-        if path.is_file()
-        and not any(part.startswith(".") for part in path.relative_to(root).parts)
-        and is_manuscript_path(path.relative_to(root).as_posix())
-    ]
-    files.sort(key=lambda path: path.relative_to(root).as_posix())
-    return files
+    return iter_manuscript_files(root)
 
 
 def _read_chunk(path: Path) -> str | None:

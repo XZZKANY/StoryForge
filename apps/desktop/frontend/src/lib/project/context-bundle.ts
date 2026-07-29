@@ -18,20 +18,79 @@ type ContextBundleCacheEntry = {
 
 const contextBundleCache = new Map<string, ContextBundleCacheEntry>();
 
-function contextPriority(file: SemanticFile, currentFile: string | null): number {
+const KIND_PRIORITY: Record<SemanticKind, number> = {
+  outline: 0,
+  character: 1,
+  setting: 2,
+  timeline: 3,
+  foreshadowing: 4,
+  quality: 5,
+  draft: 6,
+  export: 7,
+  other: 8,
+};
+
+// 上一章仅次于大纲：续写要接的是它，排在人物 / 设定之后就会被挤出 maxFiles。
+const PREVIOUS_CHAPTER_PRIORITY = 0.5;
+
+type DraftOrder = {
+  /** 正文 path → 阅读序下标。路径序即阅读序，与后端 `app/common/manuscript.py` 同判据。 */
+  positionByPath: Map<string, number>;
+  total: number;
+  /** 当前文件在阅读序中的位置；当前文件不是正文（比如在改人物卡）时为 null。 */
+  currentPosition: number | null;
+};
+
+function buildDraftOrder(files: SemanticFile[], currentFile: string | null): DraftOrder {
+  const positionByPath = new Map<string, number>();
+  files
+    .filter((file) => file.kind === 'draft')
+    .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+    .forEach((file, position) => positionByPath.set(file.path, position));
+  const currentPosition = currentFile ? (positionByPath.get(currentFile) ?? null) : null;
+  return { positionByPath, total: positionByPath.size, currentPosition };
+}
+
+/** 越小越该进上下文。前序章一律排在后续章之前——后续章通常还没写，且接不上笔。 */
+function draftDistance(order: DraftOrder, file: SemanticFile): number {
+  const position = order.positionByPath.get(file.path);
+  if (position === undefined) return Number.MAX_SAFE_INTEGER;
+  if (order.currentPosition === null) {
+    // 当前文件不是正文时没有「上一章」可言：连载最前沿比开篇更能反映故事现状。
+    return order.total - position;
+  }
+  const delta = position - order.currentPosition;
+  return delta < 0 ? -delta : order.total + delta;
+}
+
+function isPreviousChapter(order: DraftOrder, file: SemanticFile): boolean {
+  if (order.currentPosition === null) return false;
+  return order.positionByPath.get(file.path) === order.currentPosition - 1;
+}
+
+function contextPriority(
+  file: SemanticFile,
+  currentFile: string | null,
+  draftOrder: DraftOrder,
+): number {
   if (currentFile && file.path === currentFile) return 99;
-  const kindPriority: Record<SemanticKind, number> = {
-    outline: 0,
-    character: 1,
-    setting: 2,
-    timeline: 3,
-    foreshadowing: 4,
-    quality: 5,
-    draft: 6,
-    export: 7,
-    other: 8,
-  };
-  return kindPriority[file.kind];
+  if (file.kind === 'draft' && isPreviousChapter(draftOrder, file)) {
+    return PREVIOUS_CHAPTER_PRIORITY;
+  }
+  return KIND_PRIORITY[file.kind];
+}
+
+/**
+ * 正文取**结尾**、其余取开头。
+ *
+ * 连载写到第 30 章时，第 1 章的开头 1200 字对接笔毫无用处；真正接得上的是紧邻前一章
+ * 怎么收的场。大纲 / 人物 / 设定是结构化文档，头部才是纲要，保持取开头。
+ */
+export function excerptForContext(content: string, kind: SemanticKind, maxChars: number): string {
+  const trimmed = content.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  if (kind !== 'draft') return trimmed.slice(0, maxChars);
+  return `……（本章前文略）\n${trimmed.slice(trimmed.length - maxChars)}`;
 }
 
 function pinnedIndexByPath(file: SemanticFile, projectPath: string, pinnedFiles: string[]): number {
@@ -63,6 +122,7 @@ export function selectContextBundleFiles(params: {
   missingPinnedFiles: string[];
 } {
   const { index, currentFile, maxFiles, pinnedFiles = [] } = params;
+  const draftOrder = buildDraftOrder(index.files, currentFile);
   const eligible = index.files
     .filter((file) => !currentFile || file.path !== currentFile)
     .filter((file) => file.kind !== 'export' && file.kind !== 'quality');
@@ -93,8 +153,14 @@ export function selectContextBundleFiles(params: {
   const automatic = eligible
     .filter((file) => !pinnedPaths.has(file.path) && file.kind !== 'other')
     .sort((a, b) => {
-      const priority = contextPriority(a, currentFile) - contextPriority(b, currentFile);
-      return priority !== 0 ? priority : a.relativePath.localeCompare(b.relativePath);
+      const priority =
+        contextPriority(a, currentFile, draftOrder) - contextPriority(b, currentFile, draftOrder);
+      if (priority !== 0) return priority;
+      if (a.kind === 'draft' && b.kind === 'draft') {
+        const distance = draftDistance(draftOrder, a) - draftDistance(draftOrder, b);
+        if (distance !== 0) return distance;
+      }
+      return a.relativePath.localeCompare(b.relativePath);
     });
   const candidates = [...pinned, ...automatic];
   return {
@@ -137,7 +203,7 @@ export async function buildContextBundle(params: {
   for (const file of selection.files) {
     try {
       const content = await TauriFileSystem.readProjectFile(projectPath, file.path);
-      const excerpt = content.trim().slice(0, maxExcerptChars);
+      const excerpt = excerptForContext(content, file.kind, maxExcerptChars);
       if (excerpt) {
         files.push({
           path: file.path,
