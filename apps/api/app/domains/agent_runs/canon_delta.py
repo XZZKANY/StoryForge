@@ -85,6 +85,63 @@ def _normalize_exit_claims(entries: list[dict[str, Any]] | None) -> list[dict[st
     return normalized
 
 
+_PROMISE_STATUSES = frozenset({"planted", "advancing", "resolved"})
+
+
+def _promise_id(title: str) -> str:
+    """从标题派生稳定 id：模型每章重复观察同一条伏笔时，靠它去重而不是攒出一堆同义条目。"""
+
+    return f"promise_{sha1(title.encode('utf-8')).hexdigest()[:8]}"
+
+
+def _normalize_promise_claims(entries: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """伏笔（叙事承诺）声明 → `invariants.promises` 条目，字段与 promise_scan 消费侧对齐。"""
+
+    normalized: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries or []):
+        label = f"promise_claims[{index}]"
+        title = _required_text(entry.get("title"), f"{label}.title")
+        planted = _optional_int(entry, "planted_chapter", f"{label}.planted_chapter")
+        if planted is None:
+            raise FsToolError(f"{label}.planted_chapter 必填：不知道埋在第几章就算不了逾期。")
+        if planted < 1:
+            raise FsToolError(f"{label}.planted_chapter 必须 ≥ 1。")
+        claim: dict[str, Any] = {
+            "id": _optional_text(entry.get("id"), f"{label}.id") or _promise_id(title),
+            "title": title,
+            "planted_chapter": planted,
+            "status": "planted",
+        }
+        status = _optional_text(entry.get("status"), f"{label}.status")
+        if status:
+            if status not in _PROMISE_STATUSES:
+                raise FsToolError(
+                    f"{label}.status 只能是 planted / advancing / resolved，收到 {status}。"
+                )
+            claim["status"] = status
+        # due_chapter 显式传 null 表示开放窗口（不设到期），与省略不同——省略同样不设，
+        # 但显式 null 是作者/模型表达「这条就是开放的」，保留它以免下次又被问一遍。
+        if "due_chapter" in entry:
+            due = entry["due_chapter"]
+            if due is not None:
+                if not isinstance(due, int) or isinstance(due, bool):
+                    raise FsToolError(f"{label}.due_chapter 必须是整数或 null。")
+                if due < planted:
+                    raise FsToolError(f"{label}.due_chapter 不能早于 planted_chapter。")
+            claim["due_chapter"] = due
+        for key in ("resolved_chapter", "cadence_chapters"):
+            value = _optional_int(entry, key, f"{label}.{key}")
+            if value is not None:
+                if value < 1:
+                    raise FsToolError(f"{label}.{key} 必须 ≥ 1。")
+                claim[key] = value
+        kind = _optional_text(entry.get("kind"), f"{label}.kind")
+        if kind:
+            claim["kind"] = kind
+        normalized.append(claim)
+    return normalized
+
+
 def _normalize_timeline_claims(entries: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     return [
         {
@@ -160,26 +217,73 @@ def _classify_entities(
     return list(new_by_id.values()), known, conflicts
 
 
+INVARIANT_KEYS = ("single_holder", "lifespan", "timeline_order", "promises")
+
+
 def _append_invariant_claims(
     merged: dict[str, Any],
-    holder_claims: list[dict[str, Any]],
-    exit_claims: list[dict[str, Any]],
-    timeline_claims: list[dict[str, Any]],
+    claims_by_key: dict[str, list[dict[str, Any]]],
 ) -> None:
     invariants = merged.setdefault("invariants", {})
     if not isinstance(invariants, dict):
         raise FsToolError("canon.json invariants 必须是 JSON 对象。")
-    for key, claims in (
-        ("single_holder", holder_claims),
-        ("lifespan", exit_claims),
-        ("timeline_order", timeline_claims),
-    ):
+    for key in INVARIANT_KEYS:
+        claims = claims_by_key.get(key) or []
         if not claims:
             continue
         existing = invariants.setdefault(key, [])
         if not isinstance(existing, list):
             raise FsToolError(f"canon.json invariants.{key} 必须是数组。")
-        existing.extend(deepcopy(claims))
+        # 逐条去重：同一条伏笔 / 持有声明被模型每章重复观察一次时，草稿不该越攒越长。
+        for claim in claims:
+            if claim not in existing:
+                existing.append(deepcopy(claim))
+
+
+def _carry_over_pending(
+    merged: dict[str, Any],
+    canon: dict[str, Any],
+    previous_draft: dict[str, Any],
+) -> None:
+    """把上一轮草稿里作者还没并入的提案接回本轮草稿。
+
+    proposals.json 是整文件覆盖写。此前 `merged_canon` 只从 canon.json 起头，于是第二次
+    调用会把第一次留下的、作者还没点「并入」的提案**整体抹掉**。提案不是从正文确定性
+    重扫出来的（实体与声明由模型按本轮读到的章节传入），所以抹掉就是永久丢失，不会自愈。
+
+    已被作者并入 canon 的条目会在这里因重复而跳过，也会被 `read_pending_proposals` 的
+    差集滤掉，故不需要额外的「已处理」标记。
+    """
+
+    canon_entity_ids = {
+        entity.get("id")
+        for entity in canon.get("entities") or []
+        if isinstance(entity, dict)
+    }
+    merged_entities = merged.setdefault("entities", [])
+    if not isinstance(merged_entities, list):
+        raise FsToolError("canon.json entities 必须是数组。")
+    merged_ids = {
+        entity.get("id") for entity in merged_entities if isinstance(entity, dict)
+    }
+    draft_entities = previous_draft.get("entities")
+    for entity in draft_entities if isinstance(draft_entities, list) else []:
+        if not isinstance(entity, dict):
+            continue
+        entity_id = entity.get("id")
+        if entity_id in canon_entity_ids or entity_id in merged_ids:
+            continue
+        merged_entities.append(deepcopy(entity))
+        merged_ids.add(entity_id)
+
+    draft_invariants = previous_draft.get("invariants")
+    if not isinstance(draft_invariants, dict):
+        return
+    pending: dict[str, list[dict[str, Any]]] = {}
+    for key in INVARIANT_KEYS:
+        drafted = draft_invariants.get(key)
+        pending[key] = [entry for entry in drafted if isinstance(entry, dict)] if isinstance(drafted, list) else []
+    _append_invariant_claims(merged, pending)
 
 
 def _new_gate_issues(
@@ -243,7 +347,7 @@ def read_pending_proposals(project_root: str) -> dict[str, Any]:
     canon_invariants = canon.get("invariants") if isinstance(canon.get("invariants"), dict) else {}
     draft_invariants = draft.get("invariants") if isinstance(draft.get("invariants"), dict) else {}
     new_invariants: dict[str, list[dict[str, Any]]] = {}
-    for key in ("single_holder", "lifespan", "timeline_order"):
+    for key in INVARIANT_KEYS:
         existing_raw = canon_invariants.get(key)
         drafted_raw = draft_invariants.get(key)
         existing = [e for e in (existing_raw if isinstance(existing_raw, list) else []) if isinstance(e, dict)]
@@ -268,6 +372,7 @@ def canon_delta(
     holder_claims: list[dict[str, Any]] | None = None,
     exit_claims: list[dict[str, Any]] | None = None,
     timeline_claims: list[dict[str, Any]] | None = None,
+    promise_claims: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """把结构化正文观察值合并成可审阅 canon 草稿，不写回作者 canon。"""
 
@@ -275,6 +380,7 @@ def canon_delta(
     normalized_holders = _normalize_holder_claims(holder_claims)
     normalized_exits = _normalize_exit_claims(exit_claims)
     normalized_timeline = _normalize_timeline_claims(timeline_claims)
+    normalized_promises = _normalize_promise_claims(promise_claims)
 
     canon_store.scaffold_canon_if_missing(project_root)
     canon = canon_store.read_canon(project_root)
@@ -297,19 +403,31 @@ def canon_delta(
         "holder_claims": normalized_holders,
         "exit_claims": normalized_exits,
         "timeline_claims": normalized_timeline,
+        "promise_claims": normalized_promises,
     }
 
     baseline_gate = canon_gate.check(canon, presence)
     merged_canon = deepcopy(canon)
+    previous_draft = canon_store.read_derived(project_root, "proposals.json")
+    if isinstance(previous_draft, dict):
+        _carry_over_pending(merged_canon, canon, previous_draft)
     merged_entities = merged_canon.setdefault("entities", [])
     if not isinstance(merged_entities, list):
         raise FsToolError("canon.json entities 必须是数组。")
-    merged_entities.extend(deepcopy(new_entities))
+    carried_ids = {
+        entity.get("id") for entity in merged_entities if isinstance(entity, dict)
+    }
+    merged_entities.extend(
+        deepcopy(entity) for entity in new_entities if entity["id"] not in carried_ids
+    )
     _append_invariant_claims(
         merged_canon,
-        normalized_holders,
-        normalized_exits,
-        normalized_timeline,
+        {
+            "single_holder": normalized_holders,
+            "lifespan": normalized_exits,
+            "timeline_order": normalized_timeline,
+            "promises": normalized_promises,
+        },
     )
     merged_gate = canon_gate.check(merged_canon, presence)
     new_conflicts = _new_gate_issues(baseline_gate, merged_gate, "conflicts")

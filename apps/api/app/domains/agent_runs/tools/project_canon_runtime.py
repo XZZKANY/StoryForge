@@ -52,7 +52,13 @@ class ProjectCanonRuntimeMixin:
     def _project_canon_delta(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         project_root = _required_string(payload, "project_root")
         delta_args: dict[str, Any] = {}
-        for key in ("entities", "holder_claims", "exit_claims", "timeline_claims"):
+        for key in (
+            "entities",
+            "holder_claims",
+            "exit_claims",
+            "timeline_claims",
+            "promise_claims",
+        ):
             if key not in payload:
                 continue
             value = payload[key]
@@ -72,7 +78,12 @@ class ProjectCanonRuntimeMixin:
                     "entity_count": len(delta_args.get("entities") or []),
                     "claim_count": sum(
                         len(delta_args.get(key) or [])
-                        for key in ("holder_claims", "exit_claims", "timeline_claims")
+                        for key in (
+                            "holder_claims",
+                            "exit_claims",
+                            "timeline_claims",
+                            "promise_claims",
+                        )
                     ),
                 },
                 output_summary={
