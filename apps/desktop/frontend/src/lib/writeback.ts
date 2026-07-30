@@ -50,6 +50,24 @@ export function shouldSettleActiveEditor(
 }
 
 /**
+ * 撤销刚写回的补丁是否还安全。
+ *
+ * 「可撤销胜过先确认」的前提是撤销本身不能造成新的破坏：写回后到点「撤销」之间，
+ * 作者可能已经接着往下写、autosave（900ms 防抖）也可能已落了新盘。此时把旧内容盖回去
+ * 会吃掉这段新输入——所以撤销前必须确认当前内容仍然就是刚写进去的那份。
+ *
+ * 载荷用内存里的 previous 而不是 .storyforge/versions 快照：快照每文件只留 20 份，
+ * 高频 autosave 下会被挤掉，不能当唯一兜底。
+ */
+export function canUndoWriteback(
+  currentContent: string,
+  writtenContent: string,
+  normalizeEol: (value: string) => string,
+): boolean {
+  return normalizeEol(currentContent) === normalizeEol(writtenContent);
+}
+
+/**
  * 落盘任务串行队列：同一编辑器上的保存必须按调用顺序依次完成。
  *
  * WHY：autosave（防抖 900ms）与 Ctrl+S 可各自触发一次保存；两次写盘并发时完成次序不可控，
