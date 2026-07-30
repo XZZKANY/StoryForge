@@ -1,6 +1,7 @@
 /**
- * 侧面板：explorer / search 默认 236px；book（作品）、manuscript（手稿）与 observatory
- * （世界线观测镜，#13 从右栏迁来）用 300px——封面行、章节行、台账行信息密度高，236px 太挤。
+ * 侧面板：宽度可拖（右缘把手，双击复位），按视图各记一份，档位默认见 lib/side-panel-width.ts。
+ * 改前是两档写死（explorer/search 236px，其余 300px），作者反馈「作品栏占的位置太少了」——
+ * 密度高的视图到底要多宽该由作者拖，不该由我猜。
  *
  * 视图顺序即写作顺序（见 useShellState 的 SIDE_PANEL_VIEWS）：
  * - book：封面 / 书名 / 简介 / 题材 + 全书与今日进度 + 大纲跳转 + 灵感速记（Ctrl+Shift+B）
@@ -9,7 +10,12 @@
  * - search：正文全文搜索（Ctrl+Shift+F）
  * - observatory：世界线观测镜（Ctrl+4 / 活动栏雷达图标）
  */
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import {
+  defaultSidePanelWidth,
+  draggedSidePanelWidth,
+  resolveSidePanelWidth,
+} from '../../lib/side-panel-width';
 import { StoryNavigator } from '../StoryNavigator';
 import { basename } from '../app/helpers';
 import type { FileTreeActions } from '../app/useFileTreeActions';
@@ -36,18 +42,48 @@ type SidePanelProps = {
   observatory?: ReactNode;
   search?: ReactNode;
   manuscript?: ReactNode;
+  widths: Record<string, number>;
+  onWidthChange: (view: SidePanelView, width: number) => void;
 };
 
-const WIDE_VIEWS: ReadonlySet<SidePanelView> = new Set(['book', 'manuscript', 'observatory']);
-
 export function SidePanel(props: SidePanelProps) {
-  const wide = WIDE_VIEWS.has(props.view);
+  const savedWidth = resolveSidePanelWidth(props.view, props.widths);
+  // 拖拽中的宽度只放本地：每帧写进设置会把 localStorage 刷爆，松手才落。
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const view = props.view;
+    const onMove = (move: PointerEvent) => {
+      setDragWidth(draggedSidePanelWidth(savedWidth, move.clientX - startX));
+    };
+    const onUp = (up: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setDragWidth(null);
+      props.onWidthChange(view, draggedSidePanelWidth(savedWidth, up.clientX - startX));
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   return (
     <div
-      className={`flex ${wide ? 'w-[300px]' : 'w-[236px]'} flex-shrink-0 flex-col border-r border-border bg-panel`}
+      className="relative flex flex-shrink-0 flex-col border-r border-border bg-panel"
+      style={{ width: `${dragWidth ?? savedWidth}px` }}
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
+      {/* 右缘拖拽把手：命中区 5px（1px 描边点不准），hover/拖拽时才显强调色。
+          双击复位到该视图的档位默认。 */}
+      <div
+        className="absolute inset-y-0 -right-0.5 z-20 w-[5px] cursor-col-resize hover:bg-agent/40"
+        data-testid="side-panel-resize"
+        title="拖动改宽度 · 双击复位"
+        onPointerDown={startResize}
+        onDoubleClick={() => props.onWidthChange(props.view, defaultSidePanelWidth(props.view))}
+      />
       {/* 五视图 CSS 互斥不卸载：观测镜折叠态、搜索结果、章节滚动位置、简介里没提交的
           编辑，都不因切视图丢失。 */}
       <div

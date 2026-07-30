@@ -41,6 +41,14 @@ export function useAppPreferences() {
     }));
   }, []);
 
+  // 侧面板宽度按视图各记一份：作品要宽、资源管理器要窄，一个全局宽度两边都别扭。
+  const setSidePanelWidth = useCallback((view: string, width: number) => {
+    setSettings((prev) => ({
+      ...prev,
+      sidePanelWidths: { ...prev.sidePanelWidths, [view]: width },
+    }));
+  }, []);
+
   const modelLabel =
     settings.provider.model.trim() || getProviderPreset(settings.provider.kind).label;
 
@@ -50,6 +58,7 @@ export function useAppPreferences() {
     toggleTheme,
     toggleFontMode,
     cycleProseMeasure,
+    setSidePanelWidth,
     modelLabel,
   };
 }

@@ -1,5 +1,6 @@
 import type { EditorFontMode, ProseMeasure } from '../components/editor/options';
 import { isProviderKind } from './provider-config';
+import { clampSidePanelWidth } from './side-panel-width';
 
 export type ProviderKind =
   | 'openai'
@@ -36,6 +37,8 @@ export type AppSettings = {
   showWelcomeOnStartup: boolean;
   /** 启动时恢复上次的项目、页签与光标位置（写作时刻 01「恢复现场」）。 */
   restoreLastSession: boolean;
+  /** 作者拖过的侧面板宽度，按视图各记一份；没拖过的视图吃档位默认（见 side-panel-width.ts）。 */
+  sidePanelWidths: Record<string, number>;
 };
 
 export const APP_SETTINGS_KEY = 'storyforge-app-settings';
@@ -56,7 +59,18 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   showWelcomeOnStartup: true,
   restoreLastSession: true,
+  sidePanelWidths: {},
 };
+
+/** 逐项夹限并丢掉非数字：手改过的 localStorage 不该把面板撑成 0 或 5000。 */
+function sanitizeSidePanelWidths(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object') return {};
+  const result: Record<string, number> = {};
+  for (const [view, px] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof px === 'number' && Number.isFinite(px)) result[view] = clampSidePanelWidth(px);
+  }
+  return result;
+}
 
 function sanitizeProviderSettings(value: unknown): ProviderSettings {
   const fallback = DEFAULT_APP_SETTINGS.provider;
@@ -127,6 +141,7 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
       typeof candidate.restoreLastSession === 'boolean'
         ? candidate.restoreLastSession
         : DEFAULT_APP_SETTINGS.restoreLastSession,
+    sidePanelWidths: sanitizeSidePanelWidths(candidate.sidePanelWidths),
   };
 }
 
