@@ -88,6 +88,12 @@ type InlineSession = {
   model: string;
   /** 接受后光标停靠的 1-based 行；续写要停在新段末尾而非锚定行。 */
   caretLineAfterAccept: number;
+  /**
+   * 已进入接受流程。落位动效把 teardown 推到 await 之后，这段时间里 zone 还挂着、
+   * sessionRef 还在，接受键与 Alt+Enter 都还能再次触发——没有这道闸就会写两次盘。
+   * （改前 teardown 是同步先跑的，第二次触发天然被 sessionRef 为空挡住。）
+   */
+  accepting: boolean;
 };
 
 function editorLineHeight(editor: monaco.editor.IStandaloneCodeEditor): number {
@@ -187,6 +193,8 @@ export function useInlineChat({
     const session = sessionRef.current;
     const path = filePathRef.current;
     if (!editor || !session || session.phase !== 'diff' || !path) return;
+    if (session.accepting) return;
+    session.accepting = true;
 
     const isContinue = session.mode === 'continue';
     const bailIfStale = () => {
@@ -590,6 +598,7 @@ export function useInlineChat({
         userInstruction: '',
         model: '',
         caretLineAfterAccept: anchor.startLine,
+        accepting: false,
       };
       sessionRef.current = session;
 
