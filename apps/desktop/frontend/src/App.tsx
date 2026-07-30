@@ -7,6 +7,7 @@ import { AppShell } from './components/app/AppShell';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
 import { useBookContext } from './components/app/useBookContext';
+import { useBookProfile } from './components/app/useBookProfile';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
 import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
@@ -128,8 +129,9 @@ export function App() {
       if (!mod) return;
       const key = event.key.toLowerCase();
       if (event.shiftKey) {
-        // Ctrl+Shift+E 资源管理器 / F 正文全文搜索 / M 手稿 / O 观测镜。
+        // Ctrl+Shift+B 作品 / E 资源管理器 / F 正文全文搜索 / M 手稿 / O 观测镜。
         const viewMap: Record<string, SidePanelView> = {
+          b: 'book',
           e: 'explorer',
           f: 'search',
           m: 'manuscript',
@@ -206,6 +208,23 @@ export function App() {
     currentFile: workspace.currentFile,
   });
 
+  // 作品视图：档案（book.json）+ 现算的进度 / 大纲 / 速记。只在视图激活时读盘——
+  // 全书字数是几百次读盘，不能每开一个项目就白扫一遍。
+  const bookProfile = useBookProfile({
+    activeProject: workspace.activeProject,
+    active: shell.view === 'book' && !shell.sidebarHidden,
+  });
+
+  // 点大纲标题跳到那一行：与搜索命中同一条定位通道，路径已是绝对路径不必再拼。
+  const openOutlineHeading = useCallback(
+    (path: string, line: number) => {
+      showCenter();
+      if (tabs.displayedFile !== path) void tabs.openFile(path, '打开大纲');
+      emitLocateInEditor({ filePath: path, line });
+    },
+    [showCenter, tabs],
+  );
+
   // 全文搜索（Ctrl+Shift+F）：点结果 → 打开该文件并跳到那一行，复用观测定位的同一条事件通道。
   const search = useProjectSearch(workspace.activeProject);
   const openSearchHit = useCallback(
@@ -276,6 +295,8 @@ export function App() {
       observatory={{ ...observatory, locateObservation, locateAnchor }}
       bookContext={bookContext}
       onOpenManuscriptChapter={openManuscriptChapter}
+      bookProfile={bookProfile}
+      onOpenOutlineHeading={openOutlineHeading}
       openSettings={openSettings}
       search={search}
       onOpenSearchHit={openSearchHit}

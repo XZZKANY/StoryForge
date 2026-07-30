@@ -14,6 +14,8 @@ const HEADER_ELEMENTS = [
   { file: '../src/components/shell/EditorTabs.tsx', testid: 'editor-tabs' },
   { file: '../src/components/chat-window/panels.tsx', testid: 'conversation-header' },
   { file: '../src/components/shell/ObservatoryView.tsx', testid: 'observatory-header' },
+  { file: '../src/components/shell/ManuscriptView.tsx', testid: 'manuscript-header' },
+  { file: '../src/components/shell/BookProfileView.tsx', testid: 'book-profile-header' },
   { file: '../src/components/app/WelcomeWorkspace.tsx', testid: 'welcome-tabbar' },
 ];
 

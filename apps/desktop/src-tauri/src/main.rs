@@ -1479,6 +1479,8 @@ fn main() {
             fs::rename_path,
             fs::path_exists,
             fs::get_file_info,
+            fs::copy_into_project,
+            fs::read_project_file_base64,
             get_api_config,
             restart_api_server,
             llm_config::get_llm_config,

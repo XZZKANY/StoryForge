@@ -10,6 +10,7 @@ import type { ContextMenuItem } from '../shell/ContextMenu';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
+import { BookProfileView } from '../shell/BookProfileView';
 import { ManuscriptView } from '../shell/ManuscriptView';
 import { ObservatoryView } from '../shell/ObservatoryView';
 import { SearchView } from '../shell/SearchView';
@@ -34,6 +35,7 @@ import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
 import type { BookContextHandle } from './useBookContext';
+import type { BookProfileHandle } from './useBookProfile';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
 import type { useObservatory } from './useObservatory';
 import type { ProjectCommands } from './useProjectCommands';
@@ -82,6 +84,9 @@ type AppShellProps = {
   /** 手稿视图：作品底座只读投影 + 点章节行打开该章。 */
   bookContext: BookContextHandle;
   onOpenManuscriptChapter: (relativePath: string) => void;
+  /** 作品视图：档案（book.json）+ 现算的进度 / 大纲 / 速记。 */
+  bookProfile: BookProfileHandle;
+  onOpenOutlineHeading: (path: string, line: number) => void;
   openSettings: () => Promise<void>;
   welcomeDismissed: boolean;
   onCloseWelcome: () => void;
@@ -111,6 +116,8 @@ export function AppShell({
   observatory,
   bookContext,
   onOpenManuscriptChapter,
+  bookProfile,
+  onOpenOutlineHeading,
   openSettings,
   welcomeDismissed,
   onCloseWelcome,
@@ -217,6 +224,21 @@ export function AppShell({
               onFileSelect={tabs.openFile}
               onFilePreview={tabs.previewFileOpen}
               fileActions={fileActions}
+              book={
+                activeProject ? (
+                  <BookProfileView
+                    projectPath={activeProject}
+                    handle={bookProfile}
+                    dailyWordGoal={preferences.settings.dailyWordGoal}
+                    onOpenOutline={onOpenOutlineHeading}
+                    onBackToExplorer={shell.showExplorerView}
+                  />
+                ) : (
+                  <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+                    打开项目后可填写封面、简介与字数目标。
+                  </p>
+                )
+              }
               search={
                 <SearchView
                   search={search}

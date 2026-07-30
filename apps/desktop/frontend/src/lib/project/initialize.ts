@@ -1,3 +1,4 @@
+import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
 import { TauriFileSystem } from '../tauri-fs';
 import { normalizeRoot } from './path';
 import type { StoryProjectInitializationPlan } from './types';
@@ -148,5 +149,20 @@ export async function createNewBookProject(
   await initializeStoryProject(projectPath);
   const seedFilePath = `${projectPath}${separator}灵感.md`;
   await writeIfMissing(projectPath, seedFilePath, ['# 灵感', '', prompt.trim(), ''].join('\n'));
+  await writeBookProfileSeed(projectPath, prompt);
   return { projectPath, seedFilePath };
+}
+
+/**
+ * 开书那一句同时落进作品档案的简介：作者点开左栏「作品」时不该是一张全空的表，
+ * 他刚刚才说过这本书是什么。书名留空——空即回落到目录名，作者改目录名它自己会跟上。
+ */
+async function writeBookProfileSeed(projectPath: string, prompt: string): Promise<void> {
+  const separator = projectPath.includes('\\') ? '\\' : '/';
+  await TauriFileSystem.createDir(projectPath, `${projectPath}${separator}.storyforge`, true);
+  await writeIfMissing(
+    projectPath,
+    bookProfilePath(projectPath),
+    serializeBookProfile({ ...emptyBookProfile(), synopsis: prompt.trim() }),
+  );
 }
