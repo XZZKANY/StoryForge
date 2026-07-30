@@ -269,3 +269,18 @@ test('落位时长在 JS 与 CSS 两处一致，且降低动效偏好下归零',
     assert.equal(ms, INLINE_SETTLE_MS, `CSS 过渡 ${ms}ms 与 INLINE_SETTLE_MS 不一致`);
   }
 });
+
+test('接受的重入闸必须在第一个 await 之前合上', () => {
+  // 落位动效把 teardown 推到 await 之后，zone 还挂着、sessionRef 还在，
+  // 接受键与 Alt+Enter 在那 170ms 里都还能再次触发。闸若晚于任一 await 才合上，
+  // 两次点击就会各写一次盘。（改前 teardown 同步先跑，第二次触发天然被挡住。）
+  const hookPath = '../src/components/editor/useInlineChat.ts';
+  const source = readFileSync(fileURLToPath(new URL(hookPath, import.meta.url)), 'utf8');
+  const body = source.match(/const applyAccepted = useCallback\(async \(\) => \{[\s\S]*?\n {2}\}, \[/)?.[0];
+  assert.ok(body, '找不到 applyAccepted');
+  const latch = body.indexOf('session.accepting = true');
+  const firstAwait = body.indexOf('await ');
+  assert.ok(latch > -1, 'applyAccepted 里没有重入闸');
+  assert.ok(firstAwait > -1, 'applyAccepted 里没有 await，落位动效是不是被删了？');
+  assert.ok(latch < firstAwait, '重入闸必须同步合上，不能晚于第一个 await');
+});
