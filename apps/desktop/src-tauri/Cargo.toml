@@ -23,11 +23,6 @@ notify = "6.1"
 walkdir = "2.5"
 chrono = "0.4"
 base64 = "0.22"
-# Windows 11 Mica 材质。tauri 的 windowEffects 配置路径会把 apply 的 Result 丢掉
-# （src/vibrancy/windows.rs 里每个分支的返回值都被 let _ = 吃掉），拿不到成败；
-# 直接调这个 crate 才能知道材质到底有没有生效。它本来就在 tauri 的依赖树里，
-# 版本已被 Cargo.lock 锁为 0.6.0，提为直接依赖不引入新的版本解析。
-window-vibrancy = "0.6"
 
 [features]
 default = ["custom-protocol"]
