@@ -212,6 +212,33 @@ body {
   }
 }
 
+/* 壳子退场：中栏正文里连续敲字时，左右两栏后退一步（内容是主角，chrome 是配角）。
+   停笔 1.6s 自动回来；鼠标移进任一栏立刻回来——这一条靠 :hover 纯 CSS 兜住，不必 JS。
+   只动 opacity 与描边：右栏靠 hidden 保住会话状态、左栏五视图靠 CSS 互斥不卸载，
+   碰 display/mount 会打爆那两条护栏。降低动效偏好下 useDeference 直接不启用。 */
+[data-shell-deferred] [data-testid='shell-activity-bar'],
+[data-shell-deferred] [data-testid='shell-side-panel'],
+[data-shell-deferred] [data-testid='assistant-panel'] {
+  transition:
+    opacity 420ms ease-out,
+    border-color 420ms ease-out;
+}
+[data-shell-deferred='true'] [data-testid='shell-activity-bar'],
+[data-shell-deferred='true'] [data-testid='shell-side-panel'],
+[data-shell-deferred='true'] [data-testid='assistant-panel'] {
+  opacity: 0.42;
+  border-color: rgb(var(--border) / 0.4);
+}
+[data-shell-deferred='true'] [data-testid='shell-activity-bar']:hover,
+[data-shell-deferred='true'] [data-testid='shell-side-panel']:hover,
+[data-shell-deferred='true'] [data-testid='assistant-panel']:hover {
+  opacity: 1;
+  border-color: rgb(var(--border));
+  transition:
+    opacity 120ms ease-out,
+    border-color 120ms ease-out;
+}
+
 /* 审稿 issue 内联标记（B2：gutter 圆点 + 词级下划线 + overview ruler） */
 .sf-issue-underline {
   text-decoration: underline wavy;
@@ -380,6 +407,38 @@ body {
 .sf-inline-diff-note {
   color: rgb(var(--subtle));
   font-size: var(--text-2xs);
+}
+
+/* 接受建议的落位：旧行褪去、绿块卸掉「待定」的绿并轻微下沉，随后才写回。
+   改前是硬切换（teardown 拆掉红标绿块 → 整篇 setValue），改动在作者眼里凭空发生。
+   过渡时长必须与 lib/inline-chat.ts 的 INLINE_SETTLE_MS 一致，有护栏比对两处。
+   降低动效偏好下：CSS 侧被全局规则压到 0.01ms，JS 侧时长走 inlineSettleDurationMs → 0。 */
+.sf-inline-diff-zone--settling {
+  background: transparent;
+  border-left-color: transparent;
+  opacity: 0.55;
+  transform: translateY(2px);
+  transition:
+    background-color 170ms ease-out,
+    border-left-color 170ms ease-out,
+    opacity 170ms ease-out,
+    transform 170ms ease-out;
+}
+.sf-inline-diff-zone--settling .sf-inline-diff-actions {
+  opacity: 0;
+  transition: opacity 110ms ease-out;
+}
+.sf-inline-accepting .sf-inline-diff-old {
+  background: transparent;
+  box-shadow: inset 3px 0 0 transparent;
+  transition:
+    background-color 170ms ease-out,
+    box-shadow 170ms ease-out;
+}
+.sf-inline-accepting .sf-inline-diff-old-seg,
+.sf-inline-accepting .sf-inline-diff-new-seg {
+  background: transparent;
+  transition: background-color 170ms ease-out;
 }
 
 /* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */
