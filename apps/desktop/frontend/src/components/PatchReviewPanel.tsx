@@ -3,7 +3,7 @@ import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { buildPatchHunks, type PatchHunk } from '../lib/patch-hunks';
 import { currentMonacoTheme } from '../lib/theme';
-import { STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
+import { proseReadingTypography, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
@@ -101,8 +101,7 @@ export function PatchReviewPanel({
       renderOverviewRuler: false,
       lineNumbers: 'off',
       folding: false,
-      fontSize: editorFontSize,
-      fontFamily: editorFontFamily,
+      ...proseReadingTypography(editorFontSize, editorFontFamily),
       unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
     });
     const original = monaco.editor.createModel(suggestion.before, 'markdown');
@@ -139,10 +138,7 @@ export function PatchReviewPanel({
 
   // diff 编辑器挂载期一次性创建（保留滚动位置），字号/字体设置变化时 updateOptions 追平。
   useEffect(() => {
-    diffEditorRef.current?.updateOptions({
-      fontSize: editorFontSize,
-      fontFamily: editorFontFamily,
-    });
+    diffEditorRef.current?.updateOptions(proseReadingTypography(editorFontSize, editorFontFamily));
   }, [editorFontSize, editorFontFamily]);
 
   return (
@@ -159,10 +155,7 @@ export function PatchReviewPanel({
               ⚠ {suggestion.scopeWarning}
             </p>
           )}
-          <div
-            className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted"
-            data-testid="patch-meta"
-          >
+          <div className="mt-1 flex flex-wrap gap-2 text-2xs text-muted" data-testid="patch-meta">
             <span data-testid="patch-file">{suggestion.filePath}</span>
             <span data-testid="patch-stats">
               +{stats.addedLines} / -{stats.removedLines}
@@ -201,7 +194,7 @@ export function PatchReviewPanel({
         </div>
       </div>
       {hunks.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-2xs text-muted">
           {hunks.map((hunk, index) => (
             <button
               key={hunk.id}

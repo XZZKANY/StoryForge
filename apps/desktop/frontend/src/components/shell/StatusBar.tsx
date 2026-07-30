@@ -89,20 +89,20 @@ export function StatusBar({
 
   return (
     <footer
-      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-[11px] text-subtle"
+      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-2xs text-subtle"
       data-testid="shell-status-bar"
     >
       <span className="flex items-center gap-1.5" data-testid="status-sidecar">
         <span className={`h-[7px] w-[7px] rounded-full ${dotClass}`} />
         <span>{connLabel}</span>
       </span>
-      {modelLabel && <span className="font-mono text-[10.5px]">{modelLabel}</span>}
+      {modelLabel && <span className="font-mono text-3xs">{modelLabel}</span>}
       <span className="flex-1" />
       {projectOpen && textMetrics?.filePath && (
         <button
           ref={wordCountRef}
           type="button"
-          className="rounded px-1.5 py-px tabular-nums hover:bg-elevated hover:text-foreground"
+          className="rounded-sm px-1.5 py-px tabular-nums hover:bg-elevated hover:text-foreground"
           title="正文字数（不含空白字符）· 点击查看稿件进度"
           aria-haspopup="dialog"
           aria-expanded={cardOpen}
@@ -128,7 +128,7 @@ export function StatusBar({
       )}
       {projectOpen && (
         <button
-          className="flex items-center gap-2 rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
+          className="flex items-center gap-2 rounded-sm px-1.5 py-px hover:bg-elevated hover:text-foreground"
           onClick={onToggleObs}
           title="观测清单"
           data-testid="status-obs"

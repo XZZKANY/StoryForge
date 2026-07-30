@@ -31,15 +31,15 @@ export function PanelError({
 }) {
   return (
     <div
-      className={`${compact ? 'mx-2 mt-2 rounded bg-error/10 p-2' : 'px-3 py-4'}`}
+      className={`${compact ? 'mx-2 mt-2 rounded-sm bg-error/10 p-2' : 'px-3 py-4'}`}
       role="alert"
       data-testid="panel-error"
     >
-      <p className={`${compact ? 'text-[12px]' : 'text-[13px]'} text-error`}>{title}</p>
-      {hint && <p className="mt-1 text-[11px] leading-relaxed text-muted">{hint}</p>}
+      <p className={`${compact ? 'text-xs' : 'text-sm'} text-error`}>{title}</p>
+      {hint && <p className="mt-1 text-2xs leading-relaxed text-muted">{hint}</p>}
       {detail && (
         <p
-          className="mt-1 break-words text-[11px] leading-relaxed text-subtle"
+          className="mt-1 break-words text-2xs leading-relaxed text-subtle"
           data-testid="panel-error-detail"
         >
           {detail}
@@ -50,7 +50,7 @@ export function PanelError({
           type="button"
           onClick={onRetry}
           data-testid="panel-error-retry"
-          className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-[12px] text-foreground hover:bg-elevated"
+          className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
         >
           {retryLabel}
         </button>

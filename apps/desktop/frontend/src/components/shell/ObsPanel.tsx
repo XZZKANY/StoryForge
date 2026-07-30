@@ -74,13 +74,13 @@ export function ObsPanel({
       className="flex h-[212px] flex-shrink-0 flex-col border-t border-border bg-panel"
       data-testid="obs-panel"
     >
-      <div className="flex h-[30px] flex-shrink-0 items-center gap-3 border-b border-border px-3 text-[11px] text-subtle">
+      <div className="flex h-[30px] flex-shrink-0 items-center gap-3 border-b border-border px-3 text-2xs text-subtle">
         <span className="font-semibold tracking-[0.06em]">观测</span>
         <span>改完一条勾一条 · 点击行定位原文</span>
         <span className="flex-1" />
         <span className="font-mono">{statusLabel}</span>
         <button
-          className="flex h-6 w-6 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+          className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
           onClick={onClose}
           title="关闭观测面板"
         >
@@ -89,7 +89,7 @@ export function ObsPanel({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' ? (
-          <p className="px-4 py-4 text-[11px] leading-relaxed text-subtle">
+          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
             {availability === 'loading'
               ? '正在加载观测数据。'
               : availability === 'error'
@@ -97,7 +97,7 @@ export function ObsPanel({
                 : '观测尚未启用，当前没有可用于判断项目状态的数据。'}
           </p>
         ) : observations.length === 0 ? (
-          <p className="px-4 py-4 text-[11px] leading-relaxed text-subtle">暂无观测项。</p>
+          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">暂无观测项。</p>
         ) : (
           observations.map((obs) => (
             <div
@@ -112,7 +112,7 @@ export function ObsPanel({
                 className={`mt-[5px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${SEVERITY_DOT[obs.severity]}`}
               />
               <span
-                className={`block min-w-0 flex-1 rounded ${
+                className={`block min-w-0 flex-1 rounded-sm ${
                   obs.anchor && onLocate ? 'cursor-pointer hover:bg-elevated' : ''
                 }`}
                 data-testid="obs-row-body"
@@ -131,27 +131,25 @@ export function ObsPanel({
                     : undefined
                 }
               >
-                <span className="flex items-baseline gap-2 text-[12px]">
+                <span className="flex items-baseline gap-2 text-xs">
                   <span className={obs.resolved ? 'line-through' : ''}>{obs.title}</span>
                   {obs.location && (
-                    <span className="ml-auto flex-shrink-0 font-mono text-[10px] text-subtle">
+                    <span className="ml-auto flex-shrink-0 font-mono text-3xs text-subtle">
                       {obs.location}
                     </span>
                   )}
                 </span>
                 {obs.detail && (
-                  <span className="mt-0.5 block text-[11.5px] leading-relaxed text-muted">
+                  <span className="mt-0.5 block text-2xs leading-relaxed text-muted">
                     {obs.detail}
                   </span>
                 )}
                 {obs.source && (
-                  <span className="mt-0.5 block font-mono text-[10px] text-subtle">
-                    {obs.source}
-                  </span>
+                  <span className="mt-0.5 block font-mono text-3xs text-subtle">{obs.source}</span>
                 )}
               </span>
               <button
-                className={`mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border text-[11px] transition-opacity ${
+                className={`mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border text-2xs transition-opacity ${
                   obs.resolved
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
                     : 'border-border text-subtle opacity-0 hover:border-success/50 hover:bg-success/15 hover:text-success focus-visible:opacity-100 group-hover:opacity-100'

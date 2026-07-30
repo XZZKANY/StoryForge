@@ -169,9 +169,9 @@ function BranchNodeRow({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs text-foreground">
             {formatTimestamp(node.timestamp)}
-            <span className="ml-2 text-[11px] text-muted">{branchLabel}</span>
+            <span className="ml-2 text-2xs text-muted">{branchLabel}</span>
           </span>
-          <span className="block truncate text-[11px] text-muted">
+          <span className="block truncate text-2xs text-muted">
             {node.source ? `${node.source} · ` : ''}
             {node.summary ?? '版本快照'}
             {node.patchId ? ` · patch ${node.patchId}` : ''}
@@ -184,7 +184,7 @@ function BranchNodeRow({
           <button
             type="button"
             onClick={onCheckout}
-            className="rounded-md bg-accent px-2 py-1 text-[11px] text-accent-foreground hover:opacity-90"
+            className="rounded-md bg-accent px-2 py-1 text-2xs text-accent-foreground hover:opacity-90"
             data-testid="branch-node-checkout"
           >
             恢复到编辑器
@@ -192,7 +192,7 @@ function BranchNodeRow({
           <button
             type="button"
             onClick={onBranchFrom}
-            className="rounded-md border border-border px-2 py-1 text-[11px] text-foreground hover:bg-foreground/10"
+            className="rounded-md border border-border px-2 py-1 text-2xs text-foreground hover:bg-foreground/10"
             data-testid="branch-node-fork"
           >
             从此开分支
@@ -201,16 +201,16 @@ function BranchNodeRow({
             <button
               type="button"
               onClick={compareWithParent}
-              className="rounded-md border border-border px-2 py-1 text-[11px] text-muted hover:bg-foreground/10"
+              className="rounded-md border border-border px-2 py-1 text-2xs text-muted hover:bg-foreground/10"
               data-testid="branch-node-compare"
             >
               对比父版本
             </button>
           )}
-          {diff === 'loading' && <span className="text-[11px] text-muted">对比中…</span>}
-          {diff === 'error' && <span className="text-[11px] text-error">对比失败</span>}
+          {diff === 'loading' && <span className="text-2xs text-muted">对比中…</span>}
+          {diff === 'error' && <span className="text-2xs text-error">对比失败</span>}
           {diff && diff !== 'loading' && diff !== 'error' && (
-            <span className="text-[11px] text-muted" data-testid="branch-node-diff-summary">
+            <span className="text-2xs text-muted" data-testid="branch-node-diff-summary">
               {diff.hunks === 0
                 ? '与父版本无差异'
                 : `${diff.hunks} 处改动 · +${diff.added} / -${diff.removed} 行`}

@@ -264,13 +264,13 @@ const TreeNodeItem = memo(function TreeNodeItem({
               <FolderIcon className="h-3.5 w-3.5" />
             </span>
 
-            <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
+            <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
           </button>
 
           {onNodeNewEntry && (
             <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
               <button
-                className="flex h-5 w-5 items-center justify-center rounded text-subtle hover:bg-surface hover:text-foreground"
+                className="flex h-5 w-5 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
                 title={`在「${node.name}」下新建文件`}
                 aria-label={`在 ${node.name} 下新建文件`}
                 data-testid="tree-folder-new-file"
@@ -284,7 +284,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
                 <FilePlus size={13} strokeWidth={1.6} />
               </button>
               <button
-                className="flex h-5 w-5 items-center justify-center rounded text-subtle hover:bg-surface hover:text-foreground"
+                className="flex h-5 w-5 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
                 title={`在「${node.name}」下新建文件夹`}
                 aria-label={`在 ${node.name} 下新建文件夹`}
                 data-testid="tree-folder-new-folder"
@@ -348,7 +348,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
         />
       </div>
 
-      <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
     </button>
   );
 });

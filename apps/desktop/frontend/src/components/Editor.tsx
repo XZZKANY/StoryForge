@@ -699,17 +699,17 @@ export function Editor({
           role="alert"
         >
           <div className="max-w-md text-center">
-            <p className="text-[14px] text-error">编辑器未能启动</p>
-            <p className="mt-2 text-[12px] leading-relaxed text-muted">
+            <p className="text-sm text-error">编辑器未能启动</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
               正文没有丢失，磁盘上的文件未被改动。重新载入界面通常可以恢复。
             </p>
-            <p className="mt-2 break-words text-[11px] leading-relaxed text-subtle">
+            <p className="mt-2 break-words text-2xs leading-relaxed text-subtle">
               {editorInitError}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-3 h-8 rounded-md border border-border-strong px-3 text-[12px] text-foreground hover:bg-elevated"
+              className="mt-3 h-8 rounded-md border border-border-strong px-3 text-xs text-foreground hover:bg-elevated"
             >
               重新载入界面
             </button>

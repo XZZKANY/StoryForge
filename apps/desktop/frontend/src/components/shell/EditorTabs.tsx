@@ -83,7 +83,7 @@ function Tab({
           onActivate();
         }
       }}
-      className={`group flex flex-shrink-0 cursor-pointer select-none items-center gap-2 px-3.5 text-[12px] ${
+      className={`group flex flex-shrink-0 cursor-pointer select-none items-center gap-2 px-3.5 text-xs ${
         preview ? 'italic' : ''
       } ${
         active
@@ -232,7 +232,7 @@ export function EditorTabs({
         <div className="flex flex-shrink-0 items-center gap-1.5 border-l border-border pl-1.5 pr-1.5">
           {activeReadOnly && (
             <span
-              className="flex items-center whitespace-nowrap rounded-full border border-warning/50 px-2 text-[10.5px] text-warning"
+              className="flex items-center whitespace-nowrap rounded-full border border-warning/50 px-2 text-3xs text-warning"
               title="canon 派生缓存由 canon_rebuild 从正文重建，手改无效"
             >
               只读派生文件
@@ -267,11 +267,11 @@ function MenuRow({ label, kbd, onClick }: { label: string; kbd?: string; onClick
   return (
     <button
       type="button"
-      className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+      className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
       onClick={onClick}
     >
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      {kbd && <span className="flex-shrink-0 font-mono text-[10px] text-subtle">{kbd}</span>}
+      {kbd && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{kbd}</span>}
     </button>
   );
 }

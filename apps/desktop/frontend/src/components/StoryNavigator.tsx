@@ -127,7 +127,7 @@ export function StoryNavigator({
           />
         </div>
         {index && activeTab === 'story' && (
-          <span className="text-[11px] text-subtle" data-testid="story-file-count">
+          <span className="text-2xs text-subtle" data-testid="story-file-count">
             {index.files.length} 个文件
           </span>
         )}
@@ -176,7 +176,7 @@ function NavigatorTabButton({
       type="button"
       role="tab"
       aria-selected={active}
-      className={`h-5 rounded px-2 text-[11px] font-medium transition-colors ${
+      className={`h-5 rounded-sm px-2 text-2xs font-medium transition-colors ${
         active ? 'bg-elevated text-foreground' : 'text-muted hover:bg-surface hover:text-foreground'
       }`}
       onClick={onClick}
@@ -284,9 +284,9 @@ function StoryGroup({
           <h3 className="truncate text-xs font-semibold text-foreground">
             {semanticKindLabel(kind)}
           </h3>
-          <p className="truncate text-[11px] text-subtle">{description}</p>
+          <p className="truncate text-2xs text-subtle">{description}</p>
         </div>
-        <span className="flex-shrink-0 text-[11px] text-subtle">{files.length}</span>
+        <span className="flex-shrink-0 text-2xs text-subtle">{files.length}</span>
       </div>
 
       <div className="flex flex-col gap-0.5">
@@ -313,7 +313,7 @@ function StoryGroup({
               <span className={active ? 'text-accent-foreground' : 'text-muted'}>
                 <MarkdownFileIcon />
               </span>
-              <span className="min-w-0 flex-1 truncate text-[13px]">{file.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
             </button>
           );
         })}

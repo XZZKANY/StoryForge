@@ -38,7 +38,7 @@ function DroppedNote({ total, shown, unit }: { total: number; shown: number; uni
   if (dropped === 0) return null;
   return (
     <p
-      className="px-3 pt-1 text-[10.5px] leading-relaxed text-subtle"
+      className="px-3 pt-1 text-3xs leading-relaxed text-subtle"
       data-testid="manuscript-dropped-note"
     >
       模型只拿到前 {shown} {unit}，另有 <span className="text-foreground">{dropped}</span> {unit}
@@ -77,12 +77,10 @@ export function ManuscriptView({
         data-testid="manuscript-header"
       >
         <BookOpen size={14} strokeWidth={1.7} className="flex-shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-          手稿
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">手稿</span>
         {scale && (
           <span
-            className="flex-shrink-0 font-mono text-[10px] text-subtle"
+            className="flex-shrink-0 font-mono text-3xs text-subtle"
             data-testid="manuscript-scale"
           >
             {scale}
@@ -110,7 +108,7 @@ export function ManuscriptView({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' || !snapshot ? (
-          <p className="px-4 py-4 text-[11px] leading-relaxed text-subtle">
+          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
             {availability === 'loading'
               ? '正在读取手稿结构。'
               : availability === 'error'
@@ -120,7 +118,7 @@ export function ManuscriptView({
         ) : (
           <>
             {snapshot.chapters.length === 0 ? (
-              <p className="px-4 py-4 text-[11px] leading-relaxed text-subtle">
+              <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
                 还没有正文章节。正文放在「正文 / draft / chapters」一类目录下才计入阅读序。
               </p>
             ) : (
@@ -131,7 +129,7 @@ export function ManuscriptView({
                     <li key={chapter.relativePath}>
                       <button
                         type="button"
-                        className={`flex h-7 w-full items-center gap-2 px-2 text-left text-[12px] hover:bg-elevated ${
+                        className={`flex h-7 w-full items-center gap-2 px-2 text-left text-xs hover:bg-elevated ${
                           current
                             ? 'bg-elevated text-foreground'
                             : 'text-muted hover:text-foreground'
@@ -141,11 +139,11 @@ export function ManuscriptView({
                         data-testid="manuscript-chapter-row"
                         data-current={current}
                       >
-                        <span className="w-6 flex-shrink-0 text-right font-mono text-[10px] text-subtle">
+                        <span className="w-6 flex-shrink-0 text-right font-mono text-3xs text-subtle">
                           {chapter.ordinal}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{chapter.name}</span>
-                        <span className="flex-shrink-0 font-mono text-[10px] text-subtle">
+                        <span className="flex-shrink-0 font-mono text-3xs text-subtle">
                           {formatEstimatedChars(chapter.estimatedChars)}
                         </span>
                       </button>
@@ -161,7 +159,7 @@ export function ManuscriptView({
               testid="skeleton"
             >
               {snapshot.skeleton.length === 0 ? (
-                <p className="px-3 text-[10.5px] leading-relaxed text-subtle">
+                <p className="px-3 text-3xs leading-relaxed text-subtle">
                   没有大纲 / 人物 / 设定一类的非正文文档。
                 </p>
               ) : (
@@ -169,12 +167,12 @@ export function ManuscriptView({
                   {snapshot.skeleton.map((entry) => (
                     <li
                       key={entry.relativePath}
-                      className="flex h-6 items-center gap-2 px-3 text-[11px] text-muted"
+                      className="flex h-6 items-center gap-2 px-3 text-2xs text-muted"
                     >
                       <span className="min-w-0 flex-1 truncate" title={entry.relativePath}>
                         {entry.relativePath}
                       </span>
-                      <span className="flex-shrink-0 font-mono text-[10px] text-subtle">
+                      <span className="flex-shrink-0 font-mono text-3xs text-subtle">
                         {formatEstimatedChars(entry.estimatedChars)}
                       </span>
                     </li>
@@ -194,25 +192,25 @@ export function ManuscriptView({
               testid="roster"
             >
               {snapshot.roster.length === 0 ? (
-                <p className="px-3 text-[10.5px] leading-relaxed text-subtle">
+                <p className="px-3 text-3xs leading-relaxed text-subtle">
                   canon.json
                   尚未声明实体。观测镜里的实体信号是另一回事——这里只反映底座这一轮带了谁。
                 </p>
               ) : (
                 <ul>
                   {snapshot.roster.map((entry) => (
-                    <li key={entry.canonicalName} className="px-3 py-0.5 text-[11px]">
+                    <li key={entry.canonicalName} className="px-3 py-0.5 text-2xs">
                       <div className="flex items-baseline gap-1.5">
                         <span className="min-w-0 truncate text-foreground">
                           {entry.canonicalName}
                         </span>
                         {entry.aliases.length > 0 && (
-                          <span className="min-w-0 truncate text-[10px] text-subtle">
+                          <span className="min-w-0 truncate text-3xs text-subtle">
                             又称 {entry.aliases.join(' / ')}
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] text-subtle">{rosterSpanLabel(entry)}</div>
+                      <div className="text-3xs text-subtle">{rosterSpanLabel(entry)}</div>
                     </li>
                   ))}
                 </ul>
@@ -231,23 +229,23 @@ export function ManuscriptView({
             >
               {snapshot.promptBlock ? (
                 <pre
-                  className="mx-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-panel p-2 text-[10.5px] leading-relaxed text-muted"
+                  className="mx-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border bg-panel p-2 text-3xs leading-relaxed text-muted"
                   data-testid="manuscript-prompt-block"
                 >
                   {snapshot.promptBlock}
                 </pre>
               ) : (
-                <p className="px-3 text-[10.5px] leading-relaxed text-subtle">
+                <p className="px-3 text-3xs leading-relaxed text-subtle">
                   这一轮没有可报的全书事实，底座不占 system 位。
                 </p>
               )}
               {snapshot.previousChapter && (
-                <p className="px-3 pt-1.5 text-[10.5px] leading-relaxed text-subtle">
+                <p className="px-3 pt-1.5 text-3xs leading-relaxed text-subtle">
                   含上一章结尾 · {snapshot.previousChapter.relativePath}
                 </p>
               )}
               {snapshot.dossierRelativePath && (
-                <p className="px-3 pt-1 text-[10.5px] leading-relaxed text-subtle">
+                <p className="px-3 pt-1 text-3xs leading-relaxed text-subtle">
                   已指向事实卡 · {snapshot.dossierRelativePath}
                 </p>
               )}

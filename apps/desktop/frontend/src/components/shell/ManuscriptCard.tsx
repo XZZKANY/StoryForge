@@ -88,7 +88,7 @@ export function ManuscriptCard({
       ref={cardRef}
       role="dialog"
       aria-label="稿件进度"
-      className="absolute bottom-[30px] right-3 z-30 w-[268px] rounded-lg border border-border bg-surface p-3 text-[11px] text-muted shadow-[var(--shadow-dropdown)]"
+      className="absolute bottom-[30px] right-3 z-30 w-[268px] rounded-lg border border-border bg-surface p-3 text-2xs text-muted shadow-[var(--shadow-dropdown)]"
       data-testid="manuscript-card"
     >
       <Section title={chapterLabel || '本章'}>
@@ -116,7 +116,7 @@ export function ManuscriptCard({
             </div>
           </>
         )}
-        <p className="mt-1.5 text-[10px] leading-relaxed text-subtle">
+        <p className="mt-1.5 text-3xs leading-relaxed text-subtle">
           只算已保存的净增量，未保存的草稿不计入。
         </p>
       </Section>
@@ -160,7 +160,7 @@ function Section({
 }) {
   return (
     <section className={last ? '' : 'mb-2.5 border-b border-border pb-2.5'}>
-      <h3 className="mb-1 truncate text-[10px] font-medium uppercase tracking-wide text-subtle">
+      <h3 className="mb-1 truncate text-3xs font-medium uppercase tracking-wide text-subtle">
         {title}
       </h3>
       {children}

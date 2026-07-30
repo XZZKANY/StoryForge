@@ -189,7 +189,7 @@ export function ComposerSurface({
         // 流式运行期间保持可编辑，作者能边等边预写下一轮；只禁「发送」（Enter 守卫 + 底排改暂停键）。
         disabled={disabled}
         rows={2}
-        className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-[13px] leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+        className="max-h-40 min-h-[44px] w-full resize-none bg-transparent px-3 pb-1.5 pt-2.5 text-sm leading-6 text-foreground outline-none placeholder:text-subtle disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
           disabled ? '打开项目后即可使用 StoryForge' : '输入想法、问题，或 @剧情 @人物 点名角色…'
         }
@@ -222,10 +222,10 @@ export function ComposerSurface({
         }}
       />
       {/* 单层悬浮舱工具条：上下文（＋挂载 / @焦点软引用 / 硬引用标签）在左，发送在右，柔虚线分隔 */}
-      <div className="flex items-center gap-1.5 border-t border-dashed border-border/50 px-2.5 py-1.5 text-[11px] text-subtle">
+      <div className="flex items-center gap-1.5 border-t border-dashed border-border/50 px-2.5 py-1.5 text-2xs text-subtle">
         <button
           type="button"
-          className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded text-subtle transition-colors hover:bg-elevated hover:text-foreground"
+          className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-elevated hover:text-foreground"
           title="固定当前文件为参考"
           onClick={onAddContext}
         >
@@ -234,17 +234,17 @@ export function ComposerSurface({
         {focusPinnable ? (
           <button
             type="button"
-            className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 rounded px-1.5 py-0.5 text-muted transition-colors hover:bg-elevated hover:text-foreground"
+            className="group/focus inline-flex min-w-0 flex-shrink items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted transition-colors hover:bg-elevated hover:text-foreground"
             title={`${currentFileLabel} · 点击固定为参考`}
             onClick={() => onTogglePinnedContext?.(currentFileLabel as string)}
           >
             <span className="font-semibold text-agent">@</span>
             <span className="max-w-[120px] truncate">{basename(currentFileLabel as string)}</span>
-            <span className="hidden text-[10px] text-subtle group-hover/focus:inline">固定</span>
+            <span className="hidden text-3xs text-subtle group-hover/focus:inline">固定</span>
           </button>
         ) : (
           <span
-            className="inline-flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-muted"
+            className="inline-flex min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted"
             title="当前编辑焦点（随聚焦页签漂移）"
           >
             <span className="font-semibold text-agent">@</span>
@@ -256,7 +256,7 @@ export function ComposerSurface({
         {visiblePins.map((path) => (
           <span
             key={path}
-            className="group/pin inline-flex max-w-[120px] flex-shrink-0 items-center gap-1 rounded bg-elevated px-1.5 py-0.5 text-muted"
+            className="group/pin inline-flex max-w-[120px] flex-shrink-0 items-center gap-1 rounded-sm bg-elevated px-1.5 py-0.5 text-muted"
             title={path}
           >
             <span className="truncate">{basename(path)}</span>
@@ -274,7 +274,7 @@ export function ComposerSurface({
         ))}
         {overflowPins.length > 0 && (
           <span
-            className="flex-shrink-0 rounded bg-elevated px-1.5 py-0.5 text-subtle"
+            className="flex-shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-subtle"
             title={overflowPins.map(basename).join('、')}
           >
             +{overflowPins.length}

@@ -90,6 +90,23 @@ export function resolveEditorLineHeight(fontSize: number, prose: boolean): numbe
 }
 
 /**
+ * 只读 diff / 预览类视图里的正文排版。同一段稿子在编辑器里是 1.9× 行距 + 书稿字距，
+ * 在补丁面板里却吃 Monaco 默认的 ≈1.35× 且无字距——逐字核对时两种呼吸节奏对不上。
+ * 这里让两处共用同一份推导，字体栈由调用方传入（已由 resolveEditorFontFamily 解析过）。
+ */
+export function proseReadingTypography(
+  fontSize: number,
+  fontFamily: string,
+): Pick<monaco.editor.IEditorOptions, 'fontSize' | 'fontFamily' | 'lineHeight' | 'letterSpacing'> {
+  return {
+    fontSize,
+    fontFamily,
+    lineHeight: resolveEditorLineHeight(fontSize, true),
+    letterSpacing: fontFamily === STORYFORGE_EDITOR_FONT_PROSE ? 0.3 : 0,
+  };
+}
+
+/**
  * 按当前文件类型解析全部排版类 options，create 与 updateOptions 共用同一份，
  * 避免「初始化一套、切文件后另一套」的漂移。
  */

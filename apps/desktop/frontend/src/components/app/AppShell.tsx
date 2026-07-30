@@ -234,7 +234,7 @@ export function AppShell({
                     onBackToExplorer={shell.showExplorerView}
                   />
                 ) : (
-                  <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+                  <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
                     打开项目后可填写封面、简介与字数目标。
                   </p>
                 )
@@ -258,7 +258,7 @@ export function AppShell({
                     onBackToExplorer={shell.showExplorerView}
                   />
                 ) : (
-                  <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+                  <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
                     打开项目后可查看按阅读序排列的章节。
                   </p>
                 )
@@ -283,7 +283,7 @@ export function AppShell({
                     onMergeProposal={(target) => void observatory.mergeProposal(target)}
                   />
                 ) : (
-                  <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+                  <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
                     打开项目后可查看世界线观测镜。
                   </p>
                 )

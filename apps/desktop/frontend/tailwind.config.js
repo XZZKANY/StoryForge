@@ -25,6 +25,29 @@ export default {
         ui: 'var(--font-ui)',
         mono: 'var(--font-mono)',
       },
+      // 字号阶梯单一事实源：值只在 index.css 的 --text-*，这里转发并给每档配好字距。
+      // 字距跟着字号档走（小字微放、大字微收，近似光学字号），逐处手写 tracking 的
+      // 时代结束；xs / sm 显式复述 Tailwind 默认行高，保证既有 107 处具名用法零变化。
+      fontSize: {
+        '3xs': ['var(--text-3xs)', { letterSpacing: '0.012em' }],
+        '2xs': ['var(--text-2xs)', { letterSpacing: '0.008em' }],
+        xs: ['var(--text-xs)', { lineHeight: '1rem' }],
+        sm: ['var(--text-sm)', { lineHeight: '1.25rem' }],
+        base: ['var(--text-base)', { lineHeight: '1.5rem', letterSpacing: '-0.005em' }],
+        lg: ['var(--text-lg)', { lineHeight: '1.75rem', letterSpacing: '-0.008em' }],
+        xl: ['var(--text-xl)', { lineHeight: '1.75rem', letterSpacing: '-0.012em' }],
+        display: ['var(--text-display)', { lineHeight: '1.15', letterSpacing: '-0.02em' }],
+      },
+      // 圆角阶梯单一事实源：值只在 index.css 的 --radius-* 里，这里只做转发，
+      // 使 Tailwind 的 rounded-* 与裸 CSS 的 border-radius 永远同一把尺。
+      // 阶梯之外（任意值 / 2xl / 3xl）由 tests/radius-scale.test.ts 挡住。
+      borderRadius: {
+        xs: 'var(--radius-xs)',
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+      },
       spacing: {
         // 壳子三栏头部行行高单一事实源（左栏顶行 / 中栏页签行 / 右栏对话头共用，
         // h-shell-row / top-shell-row）；改行高只改这里，组件禁止再写死 h-9/h-10，

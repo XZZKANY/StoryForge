@@ -70,7 +70,7 @@ export function ToastHost() {
             {item.message}
           </span>
           <button
-            className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+            className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
             title="关闭通知"
             onClick={() => {
               const timer = timersRef.current.get(item.id);

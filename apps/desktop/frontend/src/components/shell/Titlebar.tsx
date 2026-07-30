@@ -55,17 +55,17 @@ export function Titlebar({
             draggable={false}
           />
         </span>
-        <span className="text-[11px] text-subtle">StoryForge</span>
+        <span className="text-2xs text-subtle">StoryForge</span>
       </div>
 
       <button
-        className="mx-auto flex h-6 w-[340px] max-w-[38vw] items-center justify-center gap-2 rounded-md border border-border/70 bg-surface text-[11.5px] text-subtle shadow-[0_1px_2px_rgba(0,0,0,0.12)] hover:border-border-strong/60 hover:bg-elevated"
+        className="mx-auto flex h-6 w-[340px] max-w-[38vw] items-center justify-center gap-2 rounded-md border border-border/70 bg-surface text-2xs text-subtle shadow-[0_1px_2px_rgba(0,0,0,0.12)] hover:border-border-strong/60 hover:bg-elevated"
         onClick={onOpenPalette}
         title="命令面板 · Ctrl+P"
       >
         <Search size={13} strokeWidth={1.6} />
         <span>搜索文件…</span>
-        <kbd className="rounded border border-border px-1 font-mono text-[10px] text-subtle">
+        <kbd className="rounded-sm border border-border px-1 font-mono text-3xs text-subtle">
           Ctrl P
         </kbd>
       </button>
