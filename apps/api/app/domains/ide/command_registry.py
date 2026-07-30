@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
 from app.common.redaction import redact_sensitive
+from app.domains.agent_runs import book_context
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.observatory import run_observatory_scan
@@ -63,6 +64,8 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
         # observatory.scan 同为确定性派生缓存写入（observations.json），无 LLM 无 DB。
         IdeCommandDefinition(id="observatory.scan", title="重扫世界线观测镜", category="Canon", writes=False),
+        # book.context 是纯只读投影：连派生缓存都不写，只 stat + 读 canon.json / presence 缓存。
+        IdeCommandDefinition(id="book.context", title="读取作品底座", category="Manuscript", writes=False),
     ]
 }
 
@@ -99,6 +102,8 @@ def execute_ide_command_by_id(
         result = _execute_canon_refresh_command(command, normalized_args, None)
     elif command.id == "observatory.scan":
         result = _execute_observatory_scan_command(command, normalized_args, None)
+    elif command.id == "book.context":
+        result = _execute_book_context_command(command, normalized_args, None)
     else:
         result = _accepted_command_result(command, normalized_args, None)
 
@@ -312,6 +317,34 @@ def _execute_observatory_scan_command(
     except FsToolError as exc:
         raise IdeCommandExecutionError(str(exc)) from exc
     return _accepted_command_result(command, args, audit_event_id, {"observatory": output})
+
+
+def _execute_book_context_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+) -> IdeCommandResult:
+    """只读投影作品底座：桌面端左栏据此显示「模型这轮拿到了什么」（无 LLM，无 key，不写盘）。
+
+    与 `canon.refresh` / `observatory.scan` 的区别是它连派生缓存都不写——所以可以随光标
+    移动高频调用。失败时显式报错而不是回空对象：静默的空底座会让作者以为「书里什么都没有」。
+    """
+
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("book.context 需要 project_root。")
+    current_file_arg = args.get("current_file")
+    current_file = (
+        current_file_arg.strip()
+        if isinstance(current_file_arg, str) and current_file_arg.strip()
+        else None
+    )
+    context = book_context.build_book_context(project_root.strip(), current_file)
+    if context is None:
+        raise IdeCommandExecutionError(f"读不到项目：{project_root.strip()}")
+    return _accepted_command_result(
+        command, args, audit_event_id, {"book_context": book_context.to_payload(context)}
+    )
 
 
 def _required_book_run_id(args: dict[str, object]) -> int:
