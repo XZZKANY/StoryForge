@@ -103,5 +103,34 @@ OpenAPI 漂移                                        -> 无漂移（后端零�
   整个 diff 渲染路径在测试里不执行；落位与重入闸都只有结构不变量作证，要真机点穿。
 - **① 48 处站点的行高变化需眼看**：从任意值迁到 `text-xs`/`text-sm` 的站点会拿到档位自带的
   行高（此前继承父级），13/15px 并入 14px。
-- **未重建 NSIS**：作者机器上的装机版仍是 0.1.9，本波六刀一条都看不到。要送达须 bump 到
-  0.1.10 + `pnpm desktop:build`（不能用 `tauri build`，后者静默打旧 sidecar）。
+## 收尾：⑥ 真机验收不通过并回退，改做作者当场提名的两条
+
+⑥ Mica 在真机 dev 窗口里肉眼验收：Rust 侧起服自检打出 `window_material applied=mica`
+（`apply_mica` 返回 Ok、DWM 属性已设上），但**作者报「没有透出桌面的模糊感」，观感与改前完全
+一致**。卡在后半段——要么前端 invoke 没拿到状态，要么 `transparent: true` 让 tao 额外做的那次
+`DwmEnableBlurBehindWindow` 与 `apply_mica` 的 `DWMWA_SYSTEMBACKDROP_TYPE` 打架（调研时就标为
+「必须真机验证」那一条）。**已完整回退（PR #247）**：它是六刀里唯一零收益又带 `transparent: true`
+风险的一条，装机包马上要重建，不留一个验不动的图形栈问题进去。
+
+同一次真机验收里作者提名两条（其实是一条）：「作品栏占的位置太少了」+「点了左边图标后展开的
+区域应可以拉伸」。**PR #248**：侧面板右缘可拖（5px 命中区、双击复位），宽度按视图各记一份，
+宽档默认 300→340，夹在 200-720，拖拽中不写盘、松手才落。变异验证：删掉 `pointermove` 的
+`removeEventListener` 即红。
+
+## 出包：0.1.10 已送达
+
+```
+版本五处全部 bump（app/common/version.py / pyproject.toml / uv.lock /
+  src-tauri/Cargo.toml / tauri.conf.json）+ pnpm openapi 刷新快照 info.version
+pnpm desktop:build            -> NSIS + MSI 双 bundle（不能用 tauri build，后者静默打旧 sidecar）
+pnpm smoke:sidecar:packaged   -> 冻结 exe 冒烟全绿（就绪 6.8s / assistant 往返 / SSE 2 帧 /
+                                 control REST / alembic 纳管 / 分层 prompt 已打包）
+```
+
+**定向断言（不只核 app_version）**：本轮六刀改动全在前端，后端零业务变更，所以「现造小书调新
+命令」不适用；改为断言装机 exe 里嵌的前端产物确实是这一轮的——`side-panel-resize`、
+`sf-inline-diff-zone--settling`、`data-shell-deferred`、`toast-action`、`radius-lg` 五个标记
+逐一在 `dist/assets` 的 js/css 里命中。三件产物（desktop exe / NSIS / sidecar exe）时间戳同批、
+FileVersion=0.1.10。
+
+产物：`apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.10_x64-setup.exe`（49.8 MB）
