@@ -17,7 +17,11 @@ import type { EditorModelCache } from './useMonacoEditor';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
-import { performGuardedWriteback, shouldSettleActiveEditor } from '../../lib/writeback';
+import {
+  canUndoWriteback,
+  performGuardedWriteback,
+  shouldSettleActiveEditor,
+} from '../../lib/writeback';
 import { emitToast } from '../../lib/toast';
 
 export type SuggestionStatusTone = 'success' | 'error' | 'info';
@@ -184,6 +188,53 @@ export function useSuggestionWriteback({
     ],
   );
 
+  /**
+   * 写回成功后弹一条带「撤销」的通知：撤销就是把 previous 再走一遍同一条守卫写回
+   * （快照 → 推进分支头 → 写盘 → 记录），所以撤销本身也留安全网、也能再被撤销。
+   *
+   * 不动「未确认不写盘」这条红线——补丁仍要作者点接受才落盘；这里降的是**接受之后**
+   * 反悔的成本：从「翻版本历史找到那份快照 → 恢复进缓冲 → 再手动保存一次」变成一次点击。
+   */
+  const offerUndo = useCallback(
+    (suggestion: AssistantFileSuggestion, path: string, restoreTo: string, wrote: string) => {
+      emitToast('修订已写回，已留写前快照', {
+        tone: 'success',
+        action: {
+          label: '撤销',
+          run: async () => {
+            const current = editorRef.current?.getValue() ?? null;
+            if (current === null || !canUndoWriteback(current, wrote, normalizeEol)) {
+              emitToast('文件在此期间又变了，撤销已取消——请到版本历史挑要恢复的那一份', {
+                tone: 'error',
+              });
+              return;
+            }
+            try {
+              await writeAcceptedSuggestion(
+                {
+                  ...suggestion,
+                  id: `${suggestion.id}-undo`,
+                  before: wrote,
+                  after: restoreTo,
+                },
+                path,
+                wrote,
+                restoreTo,
+                { summary: `撤销：${suggestion.summary}`, note: '用户意图：撤销刚写回的修订' },
+              );
+              emitToast('已撤销，文件回到写回前', { tone: 'success' });
+            } catch (err) {
+              emitToast(`撤销失败：${err instanceof Error ? err.message : String(err)}`, {
+                tone: 'error',
+              });
+            }
+          },
+        },
+      });
+    },
+    [editorRef, normalizeEol, writeAcceptedSuggestion],
+  );
+
   const handleAcceptSuggestion = useCallback(async () => {
     const suggestion = pendingSuggestionRef.current;
     const path = filePathRef.current;
@@ -218,10 +269,11 @@ export function useSuggestionWriteback({
         suggestion.after,
       );
       setPendingSuggestion(null);
+      offerUndo(suggestion, path, currentContent, suggestion.after);
       setSuggestionStatus(
         loopRecord.recordPath
-          ? '已写入当前文件 · 已留写前快照与闭环记录，可在「…」菜单的版本历史撤销'
-          : '已写入当前文件 · 已留写前快照，可在「…」菜单的版本历史撤销',
+          ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
+          : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退',
         'success',
       );
       emitAuthorLoopResult({
@@ -245,6 +297,7 @@ export function useSuggestionWriteback({
     emitAuthorLoopResult,
     filePathRef,
     normalizeEol,
+    offerUndo,
     setSuggestionStatus,
     writeAcceptedSuggestion,
   ]);
@@ -276,6 +329,7 @@ export function useSuggestionWriteback({
         } else {
           setPendingSuggestion({ ...suggestion, before: nextContent });
         }
+        offerUndo(suggestion, path, currentContent, nextContent);
         setSuggestionStatus(
           loopRecord.recordPath
             ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
@@ -289,7 +343,7 @@ export function useSuggestionWriteback({
         );
       }
     },
-    [editorRef, filePathRef, normalizeEol, setSuggestionStatus, writeAcceptedSuggestion],
+    [editorRef, filePathRef, normalizeEol, offerUndo, setSuggestionStatus, writeAcceptedSuggestion],
   );
 
   useEffect(() => {

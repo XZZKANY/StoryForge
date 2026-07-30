@@ -2,7 +2,7 @@
  * 右下角通知栈：监听 TOAST_EVENT，逐条上叠、到时自动消失、可手动关闭。
  * 固定在状态栏上方，pointer-events 只落在卡片上不挡编辑器。
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { TOAST_EVENT, type ToastDetail, type ToastTone } from '../../lib/toast';
 import { X } from '../icons/shell-icons';
 
@@ -21,14 +21,16 @@ export function ToastHost() {
   const nextIdRef = useRef(1);
   const timersRef = useRef(new Map<number, number>());
 
+  const dismiss = useCallback((id: number) => {
+    const timers = timersRef.current;
+    const timer = timers.get(id);
+    if (timer) window.clearTimeout(timer);
+    timers.delete(id);
+    setItems((current) => current.filter((item) => item.id !== id));
+  }, []);
+
   useEffect(() => {
     const timers = timersRef.current;
-    const dismiss = (id: number) => {
-      const timer = timers.get(id);
-      if (timer) window.clearTimeout(timer);
-      timers.delete(id);
-      setItems((current) => current.filter((item) => item.id !== id));
-    };
     const onToast = (event: Event) => {
       const detail = (event as CustomEvent<ToastDetail>).detail;
       if (!detail?.message) return;
@@ -45,7 +47,7 @@ export function ToastHost() {
       for (const timer of timers.values()) window.clearTimeout(timer);
       timers.clear();
     };
-  }, []);
+  }, [dismiss]);
 
   if (items.length === 0) return null;
 
@@ -69,15 +71,23 @@ export function ToastHost() {
           <span className="min-w-0 flex-1 whitespace-pre-wrap break-words pt-px leading-5">
             {item.message}
           </span>
+          {item.action && (
+            <button
+              className="flex-shrink-0 rounded-sm px-1.5 py-0.5 font-medium text-agent hover:bg-elevated"
+              data-testid="toast-action"
+              onClick={() => {
+                void item.action?.run();
+                dismiss(item.id);
+              }}
+            >
+              {item.action.label}
+            </button>
+          )}
           <button
             className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
             title="关闭通知"
-            onClick={() => {
-              const timer = timersRef.current.get(item.id);
-              if (timer) window.clearTimeout(timer);
-              timersRef.current.delete(item.id);
-              setItems((current) => current.filter((entry) => entry.id !== item.id));
-            }}
+            data-testid="toast-close"
+            onClick={() => dismiss(item.id)}
           >
             <X size={11} strokeWidth={1.7} />
           </button>
