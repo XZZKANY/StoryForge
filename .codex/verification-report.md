@@ -1143,3 +1143,67 @@ setting 2 / timeline 3 / foreshadowing 4 / draft 6，上一章提权 0.5）。
   时间线 / 伏笔后写得更好。须真 key 实跑，归真跑轨。
 - **8 这个数字没有校准**：`maxFiles = 8` 与 `maxExcerptChars = 1200` 都是拍脑袋值，本刀不动。
 - 作者机器仍停在 0.1.4，本刀与此前所有刀一样**未送达**，需重建 NSIS 才能生效。
+
+# 2026-07-30 装机包 0.1.8 重建：三刀送达作者机器（PR 待编号）
+
+## 为什么 bump 而不是原地重打 0.1.7
+
+0.1.7 已经出过包（PR #231/#232）。此后合入 **#233 作品底座 / #234 跨章一致性 / #235 上下文席位轮转**
+三刀。若原地重打一个同样叫 0.1.7 的 NSIS，作者机器上就**无法分辨装的是哪一个**——而
+「打了包 ≠ 装了包」已连续踩两次（0.1.5、0.1.6 都躺在 `bundle/nsis/` 没被安装），版本号是
+目前唯一能证伪「到底装没装」的凭据。故 bump 到 0.1.8。
+
+## 版本五处 + 两个 lock
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/api/app/common/version.py` | `APP_VERSION` 0.1.7 → 0.1.8 |
+| `apps/api/pyproject.toml` | `version` 同 |
+| `apps/desktop/src-tauri/tauri.conf.json` | `version` 同 |
+| `apps/desktop/src-tauri/Cargo.toml` | `version` 同（**无护栏**，`test_version_alignment.py` 只钉前三处） |
+| `packages/shared/src/contracts/storyforge.openapi.json` | `info.version` 由 `pnpm openapi` 派生重生成（**漏跑则 drift 门禁在 master 上直接红**） |
+| `apps/api/uv.lock` / `apps/desktop/src-tauri/Cargo.lock` | 各随之 1 行 |
+
+干净的 bump = **7 文件 × 1 行**（`git diff --numstat` 实测逐行核对通过）。
+
+## 验证序列与结果
+
+| 步骤 | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `uv run pytest tests/test_version_alignment.py` | **2 passed** |
+| 2 | `pnpm.cmd verify` | pytest **1244 passed / 3 skipped**、ruff 全绿、daily 档冒烟全绿、**OpenAPI 零漂移** |
+| 3 | `pnpm.cmd desktop:build` | exit 0，出 NSIS + msi 两件套 |
+| 4 | `node scripts/sidecar-smoke.mjs --packaged --skip-build` | 冻结 exe 冒烟**全绿**（就绪 7861ms / 预算 90000ms，alembic 纳管 managed=true，分层 prompt 已打包） |
+| 5 | 定向断言（起冻结 exe 读 `/health/ready`） | `app_version = 0.1.8` ✅；role catalog 10 角色 / **27 把工具**，含 `project.cross_chapter_check` ✅ |
+
+第 5 步的第二条是本次新加的：`app_version` 只证明 Rust 壳与 Python 版本号对上了，
+**证明不了 sidecar 里的业务码是新的**。断言 #234 新增的循环工具真在冻结 exe 的 role catalog 里，
+才排除「PyInstaller 复用旧产物」这条静默失败路径。27 > 0 也说明该断言非空转。
+
+## sidecar 确实重打了（不是静默复用旧 exe）
+
+`pnpm desktop:build` 而非 `tauri build`——后者会把 `src-tauri/binaries/` 里的旧 exe 静默打进包。
+出包后核时间戳与字节数：
+
+| | 字节数 | 时间戳 |
+| --- | --- | --- |
+| 0.1.7 那次 | 48,249,419 | 07-30 00:35:29 |
+| 本次 | **48,263,117** | **07-30 15:42:04** |
+
+字节数不同 → 确实重新编译，带上了 #233/#234 的后端改动。
+
+## 产物
+
+- `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.8_x64-setup.exe`
+- **49.81 MB**，SHA256 `71BAE49E0175575597C7250AE045E55CB48B448BA8F6C10E3AE1B4B5AC0445F8`
+- 构建耗时约 6 分钟（PyInstaller + vite 34s + Rust release 2m01s + NSIS）
+
+## 未联通 / 未验证
+
+- **⚠️ 装机是作者手动的一步，本刀没有也无法代做。** 不双击安装 = #233/#234/#235 三刀对作者等于零。
+  安装前后可自查：
+  `Get-ChildItem "$env:LOCALAPPDATA\StoryForge IDE" -Recurse -Include *.exe | % { $_.VersionInfo.FileVersion }`
+- **真机 GUI 观感未验**：以上全部是 headless 断言，桌面端多轮渲染 / 补丁确认归 E2E-1。
+- **三刀的真实效果仍未验**：作品底座对模型口径的影响、跨章召回率、席位轮转对成稿质量的影响，
+  都需要真 key 实跑 + 人工通读，归真跑轨。
+- 未打 tag：0.1.6 / 0.1.7 也都没打（tag 停在 v0.1.5），本次保持一致。
