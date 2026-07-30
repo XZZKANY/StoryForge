@@ -1346,3 +1346,59 @@ prompt 会悄悄少几个字，所以 `ChapterEntry` 保留原始 `size_bytes`�
   各有测试钉住阈值，但没有一条测试能同时验两侧——改一侧忘了另一侧，只会在面板与 prompt
   报出两个字数时才被发现。
 - 装机包未重建，0.1.8 里没有本刀与 #237。
+
+# 2026-07-30 装机包 0.1.9 重建：手稿视图送达（PR 待编号）
+
+## 为什么紧接着 0.1.8 又出一版
+
+0.1.8（PR #236）打包时间早于 #237 / #238——**手稿视图不在那个包里**。作者要的就是「能在左边
+看见」，功能不进包等于没做，故立即续打 0.1.9。**0.1.8 就此作废，不必安装。**
+
+收进：#237 作品底座只读出口、#238 左栏手稿视图。
+
+## 验证序列与结果
+
+| 步骤 | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `uv run pytest tests/test_version_alignment.py` | **2 passed** |
+| 2 | `pnpm.cmd verify` | 全量绿、daily 冒烟绿、**OpenAPI 零漂移** |
+| 3 | `pnpm.cmd desktop:build` | exit 0（构建前已确认无孤儿 sidecar 进程，避开 EBUSY） |
+| 4 | `sidecar-smoke --packaged --skip-build` | 冻结 exe **全绿**（就绪 7264ms / 预算 90000ms） |
+| 5 | 定向断言 | 见下 |
+
+**第 5 步这次做实了**：不再只核 `app_version`，而是在冻结 exe 里**现造一本三章的书**，
+真调 `book.context` 验它算不算得出阅读序：
+
+```
+[assert] /health/ready app_version = 0.1.9
+[assert] book.context 章节 [1,2,3]，当前第 2 章，骨架 1/1 份
+[assert] role catalog 10 角色 / 27 把工具
+[assert] 定向断言全绿
+```
+
+`prompt_block` 非空且含「作品底座」也一并断言了——否则面板拿不到模型口径原文，
+#238 的核心红线在装机版上就是空的。`project.cross_chapter_check` 作为 #234 的回归护栏保留。
+
+## 两处产物都确认是新的（不是静默复用）
+
+| | 字节数 / 大小 | 时间戳 |
+| --- | --- | --- |
+| sidecar 0.1.8 | 48,263,117 | 07-30 15:42 |
+| sidecar 0.1.9 | **48,266,087** | **07-30 16:51** |
+| 前端 bundle 0.1.8 | index-Db8KALV2.js 483.30 kB | — |
+| 前端 bundle 0.1.9 | **index-DguJEPOO.js 494.06 kB** | — |
+
+前端 bundle 涨 10.76 kB = 手稿视图确实编进去了；sidecar 字节数变化 = PyInstaller 真重打。
+
+## 产物
+
+- `apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.9_x64-setup.exe`
+- **49.81 MB**，SHA256 `D3A1B6FD9E4DCCE61E70F8D22DE7D2489566FD80499D77521D91FB01E7910C93`
+
+## 未联通 / 未验证
+
+- **⚠️ 装机仍是作者手动一步。** 作者机器上一次实测是 0.1.7（07-30 02:10 装的）；
+  0.1.8 已作废，**要装的是 0.1.9**。
+- **真机 GUI 观感未验**：手稿视图的真实渲染、点章节跳转、Ctrl+Shift+M 手感全部归 E2E-1。
+  以上只证明「后端算得对、命令通、包是新的」。
+- 长书性能（章节列表无虚拟滚动）未量。
