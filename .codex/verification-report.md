@@ -1207,3 +1207,70 @@ setting 2 / timeline 3 / foreshadowing 4 / draft 6，上一章提权 0.5）。
 - **三刀的真实效果仍未验**：作品底座对模型口径的影响、跨章召回率、席位轮转对成稿质量的影响，
   都需要真 key 实跑 + 人工通读，归真跑轨。
 - 未打 tag：0.1.6 / 0.1.7 也都没打（tag 停在 v0.1.5），本次保持一致。
+
+# 2026-07-30 作品底座开只读出口：一份投影，两种渲染（PR 待编号）
+
+## 提名与诊断
+
+作者提名：「有些东西能展现在左边吗」。追问后选定**作品底座 / canon 台账**与**章节导航**。
+
+调查发现两件事：
+
+1. **观测镜已经在左栏**，已展示 canon 实体 + 伏笔欠账 + 观测信号。所以「canon 台账」不是全空——
+   真正没有出口的是**阅读序坐标 / 骨架索引 / 模型这轮拿到的实体名单**。
+2. `build_book_context_block`（#233）返回的是**一段拼好的 prompt 字符串**，不是结构化事实，
+   且**没有任何 REST 出口**（`agent_runs/router.py` 9 个端点全是 run 作用域）。
+
+第 2 条决定了本刀的形状：前端若自己另算一遍，左栏显示的就可能**与模型实际拿到的不一致**——
+那比不显示更糟。所以先把底座拆成「一份投影，两种渲染」。
+
+## 本刀做了什么
+
+| 改动点 | 内容 |
+| --- | --- |
+| `book_context.py` | 抽出 `BookContext` / `ChapterEntry` / `SkeletonFile` / `RosterEntity` 四个 frozen dataclass；`build_book_context` 出事实，`render_book_context_block` 出 prompt 文本，`to_payload` 出 UI payload |
+| 同上 | `build_book_context_block` 保留为 `render(build(...))` 的薄壳，**调用方零改动** |
+| `ide/command_registry.py` | 新命令 `book.context`（`writes=False`，category `Manuscript`），走既有 `POST /api/ide/commands/{id}` 通道 |
+
+三条刻意的设计：
+
+1. **章节明细只进 payload、不进 prompt**：模型有 `fs_list`，每轮背一份目录只会把坐标挤掉。
+2. **截断必须可数**：payload 给 `skeleton_total` / `roster_declared_total` / `*_limit` 四个数字，
+   而不是一个「已截断」布尔——#235 的教训就是「整类被丢了而作者不知道」。
+3. **`prompt_block` 原文一并交付**：作者看见的必须就是模型看见的那一份。这是本刀的核心红线。
+
+`total_chars` 有个坑：它是 `sum(bytes)//3` 而**不是** `sum(bytes//3)`。拆投影时若按每章估算值累加，
+prompt 会悄悄少几个字，所以 `ChapterEntry` 保留原始 `size_bytes`，总数仍从字节和算。
+
+`book.context` 比 `canon.refresh` / `observatory.scan` 更轻——**连派生缓存都不写**，
+只 stat + 读 canon.json / presence 缓存，因此敢随光标高频调用。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `uv run pytest tests/test_ide_book_context_command.py tests/test_agent_book_context.py -q` | **25 passed**（新增 13） |
+| `uv run pytest -q`（全量） | **1257 passed / 3 skipped**（= 上一刀 1244 + 13，零回归） |
+| `uv run ruff check .` | All checks passed |
+| `pnpm e2e` | 契约门禁 **20/20 PASSED，OpenAPI 零漂移**（payload 走无结构 dict，不入契约） |
+
+**prompt 逐字节对拍**（本刀最要紧的一条）：造一份踩满所有分支的 fixture——骨架溢出(15>12)、
+台账溢出(23>20)、别名截断(5>3)、presence 跨度 / 单章 / 未登场三态、dossier 存在、上一章尾巴、
+当前文件在阅读序内 / 不在 / 未打开三种——分别喂新旧两版代码 dump prompt 块：
+
+```
+✅ 逐字节一致 (5269 字节)
+```
+
+**变异验证（三条都打在接线上）**：
+
+| 变异 | 结果 |
+| --- | --- |
+| 摘掉 `book.context` dispatch 分支（命令注册了但没接线） | **红** — 4 条 REST 用例逮住；**9 条纯函数用例照样绿**，正是「只测纯函数会假绿」的现场 |
+| `to_payload` 的 `prompt_block` 换成面板自拼的另一份 | **红** — 3 条逮住（含别名截断那条） |
+| 把章节目录塞进 prompt | **红** — `test_chapter_list_stays_out_of_the_prompt` 逮住 |
+
+## 未联通 / 未验证
+
+- **左栏还没有东西**：本刀只开后端出口，桌面端视图是下一刀。作者现在**看不到任何变化**。
+- 装机包未重建，0.1.8 里没有本刀。
