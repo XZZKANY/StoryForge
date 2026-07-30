@@ -111,6 +111,45 @@ function pinnedIndexByPath(file: SemanticFile, projectPath: string, pinnedFiles:
   });
 }
 
+/**
+ * 席位按优先级**轮转**分配：每个类目先各得一席，再回头填第二席。
+ *
+ * 此前是严格按优先级自上而下铺满。人物卡攒到十张（长篇的常态）时，8 席会被
+ * 大纲 2 + 上一章 1 + 人物 5 吃干净——模型写第 30 章时手里一条世界规则、一条时间线、
+ * 一条伏笔都没有，而且 truncated 只是个布尔，作者永远不知道整类被丢了。
+ *
+ * 类目之间是互补的：大纲答「往哪去」、人物答「谁」、设定答「什么能做」。少一整类比
+ * 某一类少一篇伤得多，所以广度优先于深度。
+ *
+ * `ordered` 只需保证**车道内**次序（邻章距离、路径序）；车道之间的先后由本函数按
+ * priority 排定——优先级只在这一处生效，调用方再排一遍就没人能证伪它了。
+ */
+function allocateSeatsByPriority(
+  ordered: SemanticFile[],
+  seats: number,
+  priorityOf: (file: SemanticFile) => number,
+): SemanticFile[] {
+  if (seats <= 0) return [];
+  const lanes = new Map<number, SemanticFile[]>();
+  for (const file of ordered) {
+    const lane = lanes.get(priorityOf(file));
+    if (lane) lane.push(file);
+    else lanes.set(priorityOf(file), [file]);
+  }
+  const byPriority = [...lanes.entries()].sort(([a], [b]) => a - b).map(([, files]) => files);
+  const deepest = Math.max(0, ...byPriority.map((lane) => lane.length));
+
+  const picked: SemanticFile[] = [];
+  for (let round = 0; round < deepest && picked.length < seats; round += 1) {
+    for (const lane of byPriority) {
+      if (round >= lane.length) continue;
+      picked.push(lane[round]);
+      if (picked.length >= seats) break;
+    }
+  }
+  return picked;
+}
+
 export function selectContextBundleFiles(params: {
   index: ProjectIndex;
   currentFile: string | null;
@@ -150,22 +189,26 @@ export function selectContextBundleFiles(params: {
     return !pinnedMatches.has(normalized) && !pinnedMatches.has(normalizedRelative);
   });
   const pinnedPaths = new Set(pinned.map((file) => file.path));
+  // 只排车道**内**的次序；类目之间谁先谁后交给 allocateSeatsByPriority 单点裁决。
   const automatic = eligible
     .filter((file) => !pinnedPaths.has(file.path) && file.kind !== 'other')
     .sort((a, b) => {
-      const priority =
-        contextPriority(a, currentFile, draftOrder) - contextPriority(b, currentFile, draftOrder);
-      if (priority !== 0) return priority;
       if (a.kind === 'draft' && b.kind === 'draft') {
         const distance = draftDistance(draftOrder, a) - draftDistance(draftOrder, b);
         if (distance !== 0) return distance;
       }
       return a.relativePath.localeCompare(b.relativePath);
     });
-  const candidates = [...pinned, ...automatic];
+  // 作者显式 pin 的文件是命令不是建议，先占席；剩下的席位才交给轮转分配。
+  const files = [
+    ...pinned.slice(0, maxFiles),
+    ...allocateSeatsByPriority(automatic, maxFiles - pinned.length, (file) =>
+      contextPriority(file, currentFile, draftOrder),
+    ),
+  ];
   return {
-    files: candidates.slice(0, maxFiles),
-    truncated: candidates.length > maxFiles,
+    files,
+    truncated: pinned.length + automatic.length > maxFiles,
     missingPinnedFiles,
   };
 }

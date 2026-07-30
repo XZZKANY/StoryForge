@@ -222,6 +222,80 @@ test('the immediately preceding chapter outranks character and setting files', (
   );
 });
 
+function crowdedSerialProjectIndex(projectPath: string) {
+  const entries = [
+    ['总纲.md', '大纲\\总纲.md'],
+    ['第二卷纲.md', '大纲\\第二卷纲.md'],
+    ['世界.md', '设定\\世界.md'],
+    ['规则.md', '设定\\规则.md'],
+    ['年表.md', '时间线\\年表.md'],
+    ['埋线.md', '伏笔\\埋线.md'],
+  ];
+  // 长篇写到三十章，人物卡攒到十张是常态，不是极端构造。
+  for (let n = 1; n <= 10; n += 1) {
+    entries.push([`人物${n}.md`, `人物\\人物${n}.md`]);
+  }
+  for (let n = 1; n <= 30; n += 1) {
+    const name = `第${String(n).padStart(3, '0')}章.md`;
+    entries.push([name, `正文\\${name}`]);
+  }
+  return buildProjectIndexFromEntries(
+    projectPath,
+    entries.map(([name, relative], index) => ({
+      name,
+      path: `${projectPath}\\${relative}`,
+      isDir: false,
+      size: 100 + index,
+      modified: index,
+      extension: 'md',
+    })),
+  );
+}
+
+test('a crowded character folder no longer starves setting / timeline / foreshadowing', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const selection = selectContextBundleFiles({
+    index: crowdedSerialProjectIndex(projectPath),
+    currentFile: `${projectPath}\\正文\\第030章.md`,
+    maxFiles: 8,
+  });
+
+  // 严格按优先级铺满时，8 席被大纲 2 + 上一章 1 + 人物 5 吃干净：模型写第 30 章
+  // 手里一条世界规则、一条时间线、一条伏笔都没有。类目之间是互补的，少一整类
+  // 比某一类少一篇伤得多。
+  const kinds = new Set(selection.files.map((file) => file.kind));
+  for (const kind of ['outline', 'character', 'setting', 'timeline', 'foreshadowing', 'draft']) {
+    assert.ok(kinds.has(kind as never), `${kind} 必须有席位`);
+  }
+  assert.equal(selection.files.length, 8);
+});
+
+test('context seats rotate across kinds by priority instead of filling top-down', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const selection = selectContextBundleFiles({
+    index: crowdedSerialProjectIndex(projectPath),
+    currentFile: `${projectPath}\\正文\\第030章.md`,
+    maxFiles: 8,
+  });
+
+  // 第一轮每个类目各拿一席（大纲 → 上一章 → 人物 → 设定 → 时间线 → 伏笔 → 邻章），
+  // 第二轮才回头填大纲的第二篇。
+  assert.deepEqual(
+    selection.files.map((file) => file.kind),
+    [
+      'outline',
+      'draft',
+      'character',
+      'setting',
+      'timeline',
+      'foreshadowing',
+      'draft',
+      'outline',
+    ],
+  );
+  assert.equal(selection.files[1].relativePath, '正文\\第029章.md', '上一章仍紧随大纲');
+});
+
 test('drafts fall back to the newest chapters when the open file is not a chapter', () => {
   const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
   const index = serialProjectIndex(projectPath, 30);

@@ -1089,3 +1089,57 @@ prompt，找时间线矛盾、人物称谓漂移、设定 / 世界规则前后�
   章序对了、失败不装没事」。跨章冲突到底抓不抓得准，须真 key headless 实跑，归真跑轨。
 - 真机桌面端点穿归 E2E-1。
 - 作者机器仍停在 0.1.4，本刀与上一刀均未送达，需重建 NSIS 才能生效。
+
+# 2026-07-30 上下文席位轮转：人物卡攒多了不再饿死设定 / 时间线 / 伏笔（PR 待编号）
+
+## 提名与诊断
+
+上一刀（PR #234）收尾时记下的真缺口：前端 `context-bundle.ts` 的 `maxFiles = 8` 配额
+按优先级**自上而下铺满**，而 `KIND_PRIORITY` 是一张严格全序表（outline 0 / character 1 /
+setting 2 / timeline 3 / foreshadowing 4 / draft 6，上一章提权 0.5）。
+
+长篇写到三十章，人物卡攒到十张是常态。此时 8 席被 **大纲 2 + 上一章 1 + 人物 5** 吃干净：
+模型写第 30 章时，手里一条世界规则、一条时间线、一条伏笔都没有。更糟的是 `truncated` 只是个
+布尔——作者看到「上下文被截断」，但永远不知道**整整三个类目**被丢了。
+
+类目之间是互补而非可替代的：大纲答「往哪去」、人物答「谁」、设定答「什么能做」、伏笔答
+「欠了什么债」。**少一整类比某一类少一篇伤得多**，所以席位分配该广度优先，不该深度优先。
+
+## 本刀做了什么
+
+| 改动点 | 内容 |
+| --- | --- |
+| `allocateSeatsByPriority`（新纯函数） | 按 priority 分车道，**轮转**取：每道先各得一席，再回头填第二席 |
+| `selectContextBundleFiles` | 自动席位改走轮转；pin 的文件仍先占席（作者显式 pin 是命令不是建议） |
+| `automatic` 的排序 | 删掉 priority 比较，只保留**车道内**次序（邻章距离、路径序） |
+
+第三条是关键的结构收口：优先级此前在「排序」和「截断」两处各生效一次，改完只在
+`allocateSeatsByPriority` 一处裁决——两处都排优先级时，任何一处写错都测不出来。
+
+`truncated` 语义不变（`pinned + automatic > maxFiles`），本刀不扩成分类目报告。
+
+## 验证命令与结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm --prefix apps/desktop/frontend run test` | **399 passed / 65 files**（= 上一刀 397 + 本刀 2，零回归） |
+| `npm --prefix apps/desktop/frontend run typecheck` | 通过 |
+| `pnpm.cmd lint` | eslint 通过 + prettier All matched files |
+| `pnpm.cmd e2e` | 契约门禁 **20/20 PASSED，OpenAPI 零漂移** |
+| `git diff --numstat` vs `--ignore-all-space --numstat` | 两者一致（49/6 + 74/0），无行尾噪音 |
+
+**变异验证（两条都打在接线上）**：
+
+| 变异 | 结果 |
+| --- | --- |
+| 轮转退回深度优先铺满 | **红** — 实际取到 `outline, outline, draft, character×5`，正是要修的病灶 |
+| `PREVIOUS_CHAPTER_PRIORITY` 0.5 → 1.5（降到人物之后） | **红** — maxFiles=2 那条与新排序断言同时逮住 |
+
+第一条不只是变红，失败输出本身就把「大纲 2 + 上一章 1 + 人物 5」这个饿死现场打印了出来。
+
+## 未联通 / 未验证
+
+- **对模型口径的实际影响未验**：本刀只证明「八个席位分给了六个类目」，没证明模型拿到设定 /
+  时间线 / 伏笔后写得更好。须真 key 实跑，归真跑轨。
+- **8 这个数字没有校准**：`maxFiles = 8` 与 `maxExcerptChars = 1200` 都是拍脑袋值，本刀不动。
+- 作者机器仍停在 0.1.4，本刀与此前所有刀一样**未送达**，需重建 NSIS 才能生效。
