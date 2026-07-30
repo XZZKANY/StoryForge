@@ -67,9 +67,7 @@ export function ConversationHeader({
         title="本项目的会话（会话按项目划分，不再放全局左栏）"
       >
         <Sparkles size={13} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-          {title}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
         <ChevronDown size={13} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
       </button>
       {onNewSession && (
@@ -138,11 +136,11 @@ export function ConversationHeader({
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
           <div className="absolute left-2 right-2 top-shell-row z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]">
-            <div className="px-2 py-1 text-[10.5px] uppercase tracking-[0.08em] text-subtle">
+            <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">
               本项目的会话
             </div>
             {sessionList.length === 0 ? (
-              <div className="px-2 py-1.5 text-[12px] text-subtle">暂无历史会话</div>
+              <div className="px-2 py-1.5 text-xs text-subtle">暂无历史会话</div>
             ) : (
               sessionList.map((session) => {
                 const active = session.id === activeSessionId;
@@ -150,7 +148,7 @@ export function ConversationHeader({
                   <button
                     key={session.id}
                     type="button"
-                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] hover:bg-elevated ${
+                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-elevated ${
                       active ? 'text-foreground' : 'text-muted hover:text-foreground'
                     }`}
                     onClick={() => {
@@ -164,9 +162,7 @@ export function ConversationHeader({
                       {active ? '✓ ' : ''}
                       {session.title.replace(/^IDE Agent:\s*/, '') || `会话 #${session.id}`}
                     </span>
-                    <span className="flex-shrink-0 text-[10.5px] text-subtle">
-                      {session.updated_at}
-                    </span>
+                    <span className="flex-shrink-0 text-3xs text-subtle">{session.updated_at}</span>
                   </button>
                 );
               })
@@ -176,7 +172,7 @@ export function ConversationHeader({
                 <div className="mx-1.5 my-1 h-px bg-border" />
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
                   onClick={() => {
                     setMenuOpen(false);
                     onNewSession();
@@ -500,7 +496,7 @@ export function ContextSummaryPanel({
             aria-expanded={detailsOpen}
           >
             <span
-              className={`flex-shrink-0 text-[9px] text-subtle transition-transform ${
+              className={`flex-shrink-0 text-3xs text-subtle transition-transform ${
                 detailsOpen ? '' : '-rotate-90'
               }`}
             >
@@ -706,7 +702,7 @@ export function EmptyConversation({
     <div className="flex h-full items-center justify-center px-4 py-10">
       <div className="w-full max-w-[680px] translate-y-[-3vh]">
         <div className="mb-4 px-1">
-          <div className="text-[13px] font-medium text-foreground">StoryForge</div>
+          <div className="text-sm font-medium text-foreground">StoryForge</div>
           <div className="mt-1 truncate text-xs text-subtle">
             {projectName ? `${projectName} · 项目级创作会话` : '打开项目后即可开始创作会话'}
           </div>

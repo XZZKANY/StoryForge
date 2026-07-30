@@ -84,7 +84,7 @@ function Section({
     <section className="border-b border-border" data-testid={`obs-section-${testid}`}>
       <button
         type="button"
-        className="flex h-8 w-full items-center gap-1.5 px-3 text-[11px] font-semibold tracking-[0.06em] text-subtle hover:bg-elevated hover:text-foreground"
+        className="flex h-8 w-full items-center gap-1.5 px-3 text-2xs font-semibold tracking-[0.06em] text-subtle hover:bg-elevated hover:text-foreground"
         onClick={() => setOpen((value) => !value)}
         data-testid={`obs-section-toggle-${testid}`}
       >
@@ -95,7 +95,7 @@ function Section({
         )}
         <span>{title}</span>
         {count != null && (
-          <span className="rounded-full bg-elevated px-1.5 font-mono text-[10px]">{count}</span>
+          <span className="rounded-full bg-elevated px-1.5 font-mono text-3xs">{count}</span>
         )}
       </button>
       {open && <div className="flex flex-col gap-2 px-3 pb-3">{children}</div>}
@@ -104,7 +104,7 @@ function Section({
 }
 
 function EmptyLine({ children }: { children: ReactNode }) {
-  return <p className="text-[11px] leading-relaxed text-subtle">{children}</p>;
+  return <p className="text-2xs leading-relaxed text-subtle">{children}</p>;
 }
 
 function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean }) {
@@ -114,7 +114,7 @@ function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean })
       type="button"
       onClick={onMerge}
       disabled={busy}
-      className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
+      className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-3xs text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
       data-testid="proposal-merge"
     >
       并入
@@ -149,11 +149,11 @@ function ProposalsSection({
               className="rounded-md border border-border bg-surface px-2.5 py-2"
               data-testid="proposal-card"
             >
-              <div className="flex items-baseline gap-2 text-[12px]">
+              <div className="flex items-baseline gap-2 text-xs">
                 <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                   {entity.canonicalName}
                 </span>
-                <span className="flex-shrink-0 font-mono text-[10px] text-subtle">新实体</span>
+                <span className="flex-shrink-0 font-mono text-3xs text-subtle">新实体</span>
                 <MergeButton
                   busy={merging}
                   onMerge={
@@ -163,7 +163,7 @@ function ProposalsSection({
                 />
               </div>
               {entity.aliases.length > 0 && (
-                <div className="mt-1 text-[11px] text-muted">别名：{entity.aliases.join('、')}</div>
+                <div className="mt-1 text-2xs text-muted">别名：{entity.aliases.join('、')}</div>
               )}
             </div>
           ))}
@@ -173,11 +173,11 @@ function ProposalsSection({
               className="rounded-md border border-border bg-surface px-2.5 py-2"
               data-testid="proposal-card"
             >
-              <div className="flex items-baseline gap-2 text-[12px]">
+              <div className="flex items-baseline gap-2 text-xs">
                 <span className="min-w-0 flex-1 truncate text-foreground">
                   {claimSummary(claim.invariant, claim.entry)}
                 </span>
-                <span className="flex-shrink-0 font-mono text-[10px] text-subtle">
+                <span className="flex-shrink-0 font-mono text-3xs text-subtle">
                   {CLAIM_INVARIANT_LABELS[claim.invariant] ?? claim.invariant}声明
                 </span>
                 <MergeButton
@@ -219,7 +219,7 @@ function PromiseCard({ promise }: { promise: ObservatoryPromise }) {
       data-status={promise.status ?? 'unknown'}
       data-overdue={overdue ? 'true' : 'false'}
     >
-      <div className="flex items-center gap-2 text-[12px]">
+      <div className="flex items-center gap-2 text-xs">
         {resolved ? (
           <Check size={12} strokeWidth={2} className="flex-shrink-0 text-success" />
         ) : (
@@ -228,9 +228,9 @@ function PromiseCard({ promise }: { promise: ObservatoryPromise }) {
           />
         )}
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{promise.title}</span>
-        <span className="flex-shrink-0 font-mono text-[10px] text-subtle">{statusLabel}</span>
+        <span className="flex-shrink-0 font-mono text-3xs text-subtle">{statusLabel}</span>
       </div>
-      <div className="mt-1 text-[11px] text-muted">
+      <div className="mt-1 text-2xs text-muted">
         {promise.plantedChapter != null && `埋设 第 ${promise.plantedChapter} 章`}
         {promise.dueChapter != null && ` · 截止 第 ${promise.dueChapter} 章`}
         {!resolved &&
@@ -240,7 +240,7 @@ function PromiseCard({ promise }: { promise: ObservatoryPromise }) {
       {promise.issues.map((issue, index) => (
         <div
           key={issue.id ?? index}
-          className={`mt-1 text-[11px] leading-relaxed ${issue.severity === 'blocking' ? 'text-error' : 'text-warning'}`}
+          className={`mt-1 text-2xs leading-relaxed ${issue.severity === 'blocking' ? 'text-error' : 'text-warning'}`}
         >
           {issue.message}
         </div>
@@ -285,27 +285,25 @@ function EntityCard({
       data-conflict={hasBlocking ? 'true' : 'false'}
       data-lit={lit ? 'true' : 'false'}
     >
-      <div className="flex items-baseline gap-2 text-[12px]">
+      <div className="flex items-baseline gap-2 text-xs">
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">
           {entity.canonicalName}
           {entity.kind && <span className="ml-1 font-normal text-subtle">（{entity.kind}）</span>}
         </span>
-        <span className="flex-shrink-0 font-mono text-[10px] text-subtle">
-          {chapterSpan(entity)}
-        </span>
+        <span className="flex-shrink-0 font-mono text-3xs text-subtle">{chapterSpan(entity)}</span>
       </div>
       {entity.aliases.length > 0 && (
-        <div className="mt-1 text-[11px] text-muted">别名：{entity.aliases.join('、')}</div>
+        <div className="mt-1 text-2xs text-muted">别名：{entity.aliases.join('、')}</div>
       )}
       {entity.holdings.map((holding) => (
-        <div key={holding.item} className="mt-1 text-[11px] text-muted">
+        <div key={holding.item} className="mt-1 text-2xs text-muted">
           持有：{holding.item}
           {holding.fromChapter != null &&
             `（第 ${holding.fromChapter} 章起${holding.toChapter != null ? `至第 ${holding.toChapter} 章` : ''}）`}
         </div>
       ))}
       {entity.lifespan && (
-        <div className="mt-1 text-[11px] text-muted">
+        <div className="mt-1 text-2xs text-muted">
           生命期：第 {entity.lifespan.exitsAfterChapter} 章后退场
           {entity.lifespan.reason ? `（${entity.lifespan.reason}）` : ''}
         </div>
@@ -314,7 +312,7 @@ function EntityCard({
         <button
           key={observation.id}
           type="button"
-          className={`mt-1.5 block w-full rounded-sm border px-2 py-1 text-left text-[11px] leading-relaxed ${
+          className={`mt-1.5 block w-full rounded-sm border px-2 py-1 text-left text-2xs leading-relaxed ${
             observation.severity === 'error'
               ? 'border-error/40 bg-error/10 text-error'
               : 'border-warning/40 bg-warning/10 text-warning'
@@ -332,7 +330,7 @@ function EntityCard({
       {entity.provenance.length > 0 && (
         <button
           type="button"
-          className="mt-1.5 flex items-center gap-1 text-[10.5px] text-subtle hover:text-foreground"
+          className="mt-1.5 flex items-center gap-1 text-3xs text-subtle hover:text-foreground"
           onClick={() => setProvenanceOpen((value) => !value)}
           data-testid="entity-provenance-toggle"
         >
@@ -349,7 +347,7 @@ function EntityCard({
           <button
             key={`${occurrence.path}-${occurrence.firstLine ?? 0}`}
             type="button"
-            className="mt-0.5 block w-full truncate text-left font-mono text-[10px] text-subtle hover:text-foreground"
+            className="mt-0.5 block w-full truncate text-left font-mono text-3xs text-subtle hover:text-foreground"
             onClick={
               onLocateAnchor
                 ? () =>
@@ -368,7 +366,7 @@ function EntityCard({
           </button>
         ))}
       {provenanceOpen && entity.provenanceTruncated && (
-        <div className="mt-0.5 text-[10px] text-subtle">…仅列前 20 处</div>
+        <div className="mt-0.5 text-3xs text-subtle">…仅列前 20 处</div>
       )}
     </div>
   );
@@ -394,7 +392,7 @@ function CheckerRow({ checker }: { checker: ObservatoryChecker }) {
     : '';
   return (
     <div
-      className="flex items-center gap-2 py-1 text-[11px]"
+      className="flex items-center gap-2 py-1 text-2xs"
       data-testid="checker-row"
       data-checker={checker.key}
       title={typeof checker.reason === 'string' ? checker.reason : checker.tool}
@@ -403,8 +401,8 @@ function CheckerRow({ checker }: { checker: ObservatoryChecker }) {
         className={`h-[6px] w-[6px] flex-shrink-0 rounded-full ${ran ? 'bg-success' : 'bg-border-strong'}`}
       />
       <span className="min-w-0 flex-1 truncate text-foreground">{label}</span>
-      {counts && <span className="flex-shrink-0 font-mono text-[10px] text-subtle">{counts}</span>}
-      <span className="flex-shrink-0 font-mono text-[10px] text-subtle">
+      {counts && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{counts}</span>}
+      <span className="flex-shrink-0 font-mono text-3xs text-subtle">
         {ran ? '确定性 · 保存时' : isLLM ? 'LLM · 按需' : '按需'}
       </span>
     </div>
@@ -464,11 +462,11 @@ export function ObservatoryView({
         data-testid="observatory-header"
       >
         <Radar size={14} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
           世界线观测镜
         </span>
         {statusLabel && (
-          <span className="flex-shrink-0 font-mono text-[10px] text-subtle">{statusLabel}</span>
+          <span className="flex-shrink-0 font-mono text-3xs text-subtle">{statusLabel}</span>
         )}
         <button
           type="button"
@@ -491,7 +489,7 @@ export function ObservatoryView({
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' ? (
-          <p className="px-4 py-4 text-[11px] leading-relaxed text-subtle">
+          <p className="px-4 py-4 text-2xs leading-relaxed text-subtle">
             {availability === 'loading'
               ? '正在扫描项目观测数据。'
               : availability === 'error'
@@ -516,7 +514,7 @@ export function ObservatoryView({
               ) : (
                 <>
                   {promises.currentChapter != null && (
-                    <div className="text-[10.5px] text-subtle">
+                    <div className="text-3xs text-subtle">
                       正文已写到第 {promises.currentChapter} 章
                     </div>
                   )}
@@ -553,7 +551,7 @@ export function ObservatoryView({
                 </div>
               )}
             </Section>
-            <p className="px-3 py-3 text-[10.5px] leading-relaxed text-subtle">
+            <p className="px-3 py-3 text-3xs leading-relaxed text-subtle">
               确定性参考信号（无 LLM）：advisory 需结合原文核实，不是质量判定。
             </p>
           </>

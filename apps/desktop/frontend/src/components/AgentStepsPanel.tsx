@@ -23,15 +23,15 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
       <button
         type="button"
         onClick={() => setManualOpen(!open)}
-        className="flex h-[22px] w-full items-center gap-2 text-[11.5px] text-subtle transition-colors hover:text-muted"
+        className="flex h-[22px] w-full items-center gap-2 text-2xs text-subtle transition-colors hover:text-muted"
         data-testid="thinking-fold-toggle"
         aria-expanded={open}
       >
-        <span className="text-[12px] text-agent">✦</span>
+        <span className="text-xs text-agent">✦</span>
         <span>
           {thinkingLabel} · {stepCount} 步{toolCount > 0 ? ` · ${toolCount} 工具` : ''}
         </span>
-        <span className={`text-[9px] transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
+        <span className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
       </button>
 
       {/* 流动折叠：grid 0fr→1fr，长内容不截断、短内容不空跑 */}
@@ -62,7 +62,7 @@ function StepRow({ step }: { step: AgentStep }) {
       type="button"
       onClick={() => hasDetail && setDetailOpen((value) => !value)}
       disabled={!hasDetail}
-      className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-[11px] leading-5 ${
+      className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5 ${
         hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
       }`}
     >

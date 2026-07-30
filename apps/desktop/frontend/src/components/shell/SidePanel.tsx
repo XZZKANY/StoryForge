@@ -119,7 +119,7 @@ function ExplorerView({
       >
         <button
           ref={menuTriggerRef}
-          className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] font-semibold hover:bg-elevated"
+          className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-xs font-semibold hover:bg-elevated"
           onClick={() => setMenuOpen((open) => !open)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
@@ -153,7 +153,7 @@ function ExplorerView({
               {projects.slice(0, 8).map((project) => (
                 <div
                   key={project}
-                  className={`group flex h-[30px] w-full items-center rounded-sm text-[12px] hover:bg-elevated ${
+                  className={`group flex h-[30px] w-full items-center rounded-sm text-xs hover:bg-elevated ${
                     project === activeProject
                       ? 'text-foreground'
                       : 'text-muted hover:text-foreground'
@@ -189,7 +189,7 @@ function ExplorerView({
               ))}
               <div className="my-1 mx-1.5 h-px bg-border" />
               <button
-                className="flex h-[30px] w-full items-center gap-2 rounded-sm px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+                className="flex h-[30px] w-full items-center gap-2 rounded-sm px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
                 onClick={() => {
                   setMenuOpen(false);
                   onOpenProject();

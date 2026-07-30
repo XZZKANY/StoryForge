@@ -89,14 +89,14 @@ export function StatusBar({
 
   return (
     <footer
-      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-[11px] text-subtle"
+      className="relative flex h-[26px] flex-shrink-0 items-center gap-4 border-t border-border bg-panel px-3 text-2xs text-subtle"
       data-testid="shell-status-bar"
     >
       <span className="flex items-center gap-1.5" data-testid="status-sidecar">
         <span className={`h-[7px] w-[7px] rounded-full ${dotClass}`} />
         <span>{connLabel}</span>
       </span>
-      {modelLabel && <span className="font-mono text-[10.5px]">{modelLabel}</span>}
+      {modelLabel && <span className="font-mono text-3xs">{modelLabel}</span>}
       <span className="flex-1" />
       {projectOpen && textMetrics?.filePath && (
         <button

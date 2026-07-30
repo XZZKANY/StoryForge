@@ -54,7 +54,7 @@ function GoalBar({ progress, testid }: { progress: number; testid: string }) {
 
 function StatRow({ label, value, testid }: { label: string; value: string; testid?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-2 py-px text-[11px] text-muted">
+    <div className="flex items-baseline justify-between gap-2 py-px text-2xs text-muted">
       <span>{label}</span>
       <span className="truncate tabular-nums text-foreground" data-testid={testid}>
         {value}
@@ -154,9 +154,7 @@ export function BookProfileView({
         data-testid="book-profile-header"
       >
         <Library size={14} strokeWidth={1.7} className="flex-shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-          作品
-        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">作品</span>
         <button
           type="button"
           className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
@@ -206,7 +204,7 @@ export function BookProfileView({
             ) : (
               <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-subtle group-hover:text-muted">
                 <ImagePlus size={16} strokeWidth={1.6} />
-                <span className="text-[10px]">封面</span>
+                <span className="text-3xs">封面</span>
               </span>
             )}
           </button>
@@ -218,14 +216,14 @@ export function BookProfileView({
               onChange={(event) => setDraft({ ...draft, title: event.target.value })}
               onBlur={() => commit()}
               placeholder={displayBookTitle(profile, projectPath)}
-              className="w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[14px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted hover:border-border focus:border-accent"
+              className="w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted hover:border-border focus:border-accent"
               data-testid="book-title-input"
             />
             <div className="flex flex-wrap gap-1">
               {profile.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="group inline-flex items-center gap-0.5 rounded-sm bg-elevated px-1.5 py-0.5 text-[10.5px] text-muted"
+                  className="group inline-flex items-center gap-0.5 rounded-sm bg-elevated px-1.5 py-0.5 text-3xs text-muted"
                   data-testid="book-tag"
                 >
                   {tag}
@@ -255,7 +253,7 @@ export function BookProfileView({
                       }
                     }}
                     placeholder="题材"
-                    className="w-12 rounded-sm border border-transparent bg-transparent text-[10.5px] text-foreground outline-none placeholder:text-subtle hover:border-border focus:w-16 focus:border-accent"
+                    className="w-12 rounded-sm border border-transparent bg-transparent text-3xs text-foreground outline-none placeholder:text-subtle hover:border-border focus:w-16 focus:border-accent"
                     data-testid="book-tag-input"
                   />
                 </span>
@@ -272,7 +270,7 @@ export function BookProfileView({
             onBlur={() => commit()}
             rows={4}
             placeholder="这本书讲什么？写给未来的自己，也写给每次都要重新读懂它的模型。"
-            className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-[11.5px] leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"
+            className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-2xs leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"
             data-testid="book-synopsis-input"
           />
         </Section>
@@ -280,11 +278,9 @@ export function BookProfileView({
         <Section title="进度" testid="progress" defaultOpen>
           <div className="px-3">
             {handle.totalsError ? (
-              <p className="text-[10.5px] leading-relaxed text-error">
-                统计失败：{handle.totalsError}
-              </p>
+              <p className="text-3xs leading-relaxed text-error">统计失败：{handle.totalsError}</p>
             ) : totalChars === null ? (
-              <p className="text-[10.5px] text-subtle">正在统计全书字数…</p>
+              <p className="text-3xs text-subtle">正在统计全书字数…</p>
             ) : (
               <>
                 <StatRow
@@ -293,14 +289,14 @@ export function BookProfileView({
                   testid="book-total-chars"
                 />
                 {handle.totals && handle.totals.unreadable > 0 && (
-                  <p className="text-[10px] text-error">
+                  <p className="text-3xs text-error">
                     {handle.totals.unreadable} 个文件读取失败，未计入总和。
                   </p>
                 )}
               </>
             )}
 
-            <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[11px] text-muted">
+            <div className="mt-1.5 flex items-baseline justify-between gap-2 text-2xs text-muted">
               <span>全书目标</span>
               <input
                 value={draft.wordGoal}
@@ -309,7 +305,7 @@ export function BookProfileView({
                 onBlur={() => commit()}
                 inputMode="numeric"
                 placeholder="未设"
-                className="w-20 rounded-sm border border-transparent bg-transparent px-1 text-right text-[11px] tabular-nums text-foreground outline-none placeholder:text-subtle hover:border-border focus:border-accent"
+                className="w-20 rounded-sm border border-transparent bg-transparent px-1 text-right text-2xs tabular-nums text-foreground outline-none placeholder:text-subtle hover:border-border focus:border-accent"
                 data-testid="book-word-goal-input"
               />
             </div>
@@ -327,7 +323,7 @@ export function BookProfileView({
                   <GoalBar progress={dailyProgress} testid="book-daily-goal-bar" />
                 </>
               )}
-              <p className="mt-1 text-[10px] leading-relaxed text-subtle">
+              <p className="mt-1 text-3xs leading-relaxed text-subtle">
                 只算已保存的净增量，未保存的草稿不计入。
               </p>
             </div>
@@ -341,7 +337,7 @@ export function BookProfileView({
           defaultOpen
         >
           {outlineGroups.length === 0 ? (
-            <p className="px-3 text-[10.5px] leading-relaxed text-subtle">
+            <p className="px-3 text-3xs leading-relaxed text-subtle">
               「大纲」目录下还没有带标题的文档。写下 `## 第三幕` 一类的标题，这里就能一键跳过去。
             </p>
           ) : (
@@ -350,7 +346,7 @@ export function BookProfileView({
                 <div key={group.relativePath} className="pb-1">
                   <button
                     type="button"
-                    className="flex h-6 w-full items-center px-3 text-left text-[10px] text-subtle hover:text-foreground"
+                    className="flex h-6 w-full items-center px-3 text-left text-3xs text-subtle hover:text-foreground"
                     onClick={() => onOpenOutline(group.path, 0)}
                     title={group.relativePath}
                   >
@@ -361,7 +357,7 @@ export function BookProfileView({
                       <li key={`${item.relativePath}:${item.line}`}>
                         <button
                           type="button"
-                          className="flex h-6 w-full items-center text-left text-[11px] text-muted hover:bg-elevated hover:text-foreground"
+                          className="flex h-6 w-full items-center text-left text-2xs text-muted hover:bg-elevated hover:text-foreground"
                           style={{ paddingLeft: `${12 + (item.level - 1) * 10}px` }}
                           onClick={() => onOpenOutline(item.path, item.line)}
                           title={`${item.relativePath} · 第 ${item.line + 1} 行`}
@@ -375,7 +371,7 @@ export function BookProfileView({
                 </div>
               ))}
               {handle.outlineDropped > 0 && (
-                <p className="px-3 pt-1 text-[10.5px] leading-relaxed text-subtle">
+                <p className="px-3 pt-1 text-3xs leading-relaxed text-subtle">
                   另有 <span className="text-foreground">{handle.outlineDropped}</span>{' '}
                   条标题没列出来。
                 </p>
@@ -401,7 +397,7 @@ export function BookProfileView({
                 }
               }}
               placeholder="记一条，回车存进 灵感.md"
-              className="w-full rounded-sm border border-border bg-panel px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-subtle focus:border-accent"
+              className="w-full rounded-sm border border-border bg-panel px-2 py-1 text-2xs text-foreground outline-none placeholder:text-subtle focus:border-accent"
               data-testid="book-note-input"
             />
           </div>
@@ -426,7 +422,7 @@ export function BookProfileView({
                     <Check size={9} strokeWidth={3} />
                   </button>
                   <span
-                    className={`min-w-0 flex-1 break-words text-[11px] leading-snug ${
+                    className={`min-w-0 flex-1 break-words text-2xs leading-snug ${
                       note.done ? 'text-subtle line-through' : 'text-muted'
                     }`}
                   >

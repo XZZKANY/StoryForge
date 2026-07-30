@@ -264,7 +264,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
               <FolderIcon className="h-3.5 w-3.5" />
             </span>
 
-            <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
+            <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
           </button>
 
           {onNodeNewEntry && (
@@ -348,7 +348,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
         />
       </div>
 
-      <span className="min-w-0 flex-1 truncate text-[13px]">{node.name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
     </button>
   );
 });

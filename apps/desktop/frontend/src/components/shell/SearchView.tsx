@@ -15,10 +15,10 @@ function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
       type="button"
       onClick={onSelect}
       data-testid="search-hit"
-      className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+      className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
       title={`第 ${hit.line} 行`}
     >
-      <span className="w-9 flex-shrink-0 text-right text-[11px] tabular-nums text-subtle">
+      <span className="w-9 flex-shrink-0 text-right text-2xs tabular-nums text-subtle">
         {hit.line}
       </span>
       <span className="min-w-0 flex-1 truncate">
@@ -64,7 +64,7 @@ export function SearchView({
     <div className="flex h-full flex-col bg-background" data-testid="search-panel">
       <div className="sf-panel-header border-border">
         <span className="text-xs font-medium text-muted">搜索</span>
-        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-subtle">
+        <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-subtle">
           <input
             type="checkbox"
             checked={search.caseSensitive}
@@ -84,7 +84,7 @@ export function SearchView({
             disabled={!projectOpen}
             data-testid="search-input"
             ref={inputRef}
-            className="h-8 w-full rounded-md border border-border bg-surface pl-2.5 pr-7 text-[13px] text-foreground outline-none placeholder:text-subtle focus:border-border-strong disabled:opacity-50"
+            className="h-8 w-full rounded-md border border-border bg-surface pl-2.5 pr-7 text-sm text-foreground outline-none placeholder:text-subtle focus:border-border-strong disabled:opacity-50"
           />
           {search.query && (
             <button
@@ -102,36 +102,36 @@ export function SearchView({
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
         {!projectOpen ? (
-          <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+          <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
             打开项目后可搜索正文内容。
           </p>
         ) : trimmed.length > 0 && trimmed.length < SEARCH_MIN_QUERY ? (
-          <p className="px-3 py-4 text-[11px] text-subtle">
+          <p className="px-3 py-4 text-2xs text-subtle">
             再输入 {SEARCH_MIN_QUERY - trimmed.length} 个字符开始搜索。
           </p>
         ) : search.status === 'error' ? (
           <div className="px-3 py-4">
-            <p className="text-[12px] text-error">搜索失败</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-subtle">{search.error}</p>
+            <p className="text-xs text-error">搜索失败</p>
+            <p className="mt-1 text-2xs leading-relaxed text-subtle">{search.error}</p>
             <button
               type="button"
               onClick={search.rerun}
-              className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-[12px] text-foreground hover:bg-elevated"
+              className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
             >
               重试
             </button>
           </div>
         ) : trimmed.length < SEARCH_MIN_QUERY ? (
-          <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+          <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
             搜索正文内容；文件名请用命令面板（Ctrl P）。
           </p>
         ) : search.results.length === 0 ? (
-          <p className="px-3 py-4 text-[11px] text-subtle" data-testid="search-empty">
+          <p className="px-3 py-4 text-2xs text-subtle" data-testid="search-empty">
             {search.status === 'searching' ? '搜索中…' : '没有匹配的内容。'}
           </p>
         ) : (
           <>
-            <p className="px-3 pb-1 text-[11px] text-subtle" data-testid="search-summary">
+            <p className="px-3 pb-1 text-2xs text-subtle" data-testid="search-summary">
               {search.totalHits} 处 · {search.results.length} 个文件
               {search.status === 'searching' ? ' · 搜索中…' : ''}
               {search.capped ? ` · 已达上限，仅显示前 ${search.totalHits} 处` : ''}
@@ -143,7 +143,7 @@ export function SearchView({
                   <button
                     type="button"
                     onClick={() => toggle(file.path)}
-                    className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-[12px] text-foreground hover:bg-elevated"
+                    className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-xs text-foreground hover:bg-elevated"
                     title={file.path}
                   >
                     {isCollapsed ? (
@@ -152,7 +152,7 @@ export function SearchView({
                       <ChevronDown size={13} strokeWidth={1.7} aria-hidden="true" />
                     )}
                     <span className="min-w-0 flex-1 truncate">{basename(file.path)}</span>
-                    <span className="flex-shrink-0 text-[11px] tabular-nums text-subtle">
+                    <span className="flex-shrink-0 text-2xs tabular-nums text-subtle">
                       {file.hits.length}
                       {file.truncated ? '+' : ''}
                     </span>

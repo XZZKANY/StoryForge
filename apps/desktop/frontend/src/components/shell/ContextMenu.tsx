@@ -79,7 +79,7 @@ export function ContextMenu({
             type="button"
             role="menuitem"
             disabled={item.disabled}
-            className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               item.danger
                 ? 'text-error hover:bg-error/10'
                 : 'text-muted hover:bg-elevated hover:text-foreground'

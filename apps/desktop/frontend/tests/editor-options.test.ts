@@ -8,6 +8,7 @@ import {
   PROSE_MEASURE_COLUMNS,
   PROSE_MEASURE_LABELS,
   PROSE_MEASURE_ORDER,
+  proseReadingTypography,
   resolveEditorFontFamily,
   resolveEditorLineHeight,
   resolveProseWordWrap,
@@ -143,4 +144,13 @@ test('字距只加在书稿轨——格子轨靠等宽换 2:1 对齐，加字距
   assert.ok((book.letterSpacing ?? 0) > 0);
   assert.equal(grid.letterSpacing, 0);
   assert.equal(grid.fontFamily, STORYFORGE_EDITOR_FONT_GRID);
+});
+
+test('补丁面板的只读 diff 与主编辑器同一份正文排版（此前只同步了字号/字体）', () => {
+  const editor = editorTypographyOptions({ filePath: 'a.md', fontSize: 14, fontMode: 'prose' });
+  const review = proseReadingTypography(14, STORYFORGE_EDITOR_FONT_PROSE);
+  assert.equal(review.lineHeight, editor.lineHeight);
+  assert.equal(review.letterSpacing, editor.letterSpacing);
+  // 格子轨同样不加字距，与主编辑器保持同一条规则
+  assert.equal(proseReadingTypography(14, STORYFORGE_EDITOR_FONT_GRID).letterSpacing, 0);
 });

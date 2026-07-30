@@ -231,7 +231,7 @@ export function VersionHistory({
                     </div>
                   </div>
                   <div
-                    className="mt-1 truncate text-[11px] text-muted"
+                    className="mt-1 truncate text-2xs text-muted"
                     title={v.summary ?? v.file ?? ''}
                   >
                     {v.source ? `${v.source} · ` : ''}
@@ -239,7 +239,7 @@ export function VersionHistory({
                   </div>
                   {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
                     <div
-                      className="mt-1 truncate text-[11px] text-muted"
+                      className="mt-1 truncate text-2xs text-muted"
                       data-testid="version-agent-meta"
                     >
                       {v.patchId ? `patch ${v.patchId}` : ''}
@@ -249,13 +249,13 @@ export function VersionHistory({
                   )}
                   {preview?.path === v.path && (
                     <div className="mt-2 border-t border-border pt-2" data-testid="version-preview">
-                      <div className="text-[11px] text-muted">
+                      <div className="text-2xs text-muted">
                         {preview.hunks.length === 0
                           ? '与当前无差异'
                           : `恢复到此版：+${preview.added} / -${preview.removed} 行`}
                       </div>
                       {preview.hunks.length > 0 && (
-                        <div className="mt-1 max-h-52 overflow-y-auto rounded-sm border border-border bg-background p-1 font-mono text-[11px] leading-5">
+                        <div className="mt-1 max-h-52 overflow-y-auto rounded-sm border border-border bg-background p-1 font-mono text-2xs leading-5">
                           {preview.hunks.map((hunk) => (
                             <div key={hunk.id} className="mb-1.5">
                               <div className="text-subtle">

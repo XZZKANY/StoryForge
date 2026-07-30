@@ -48,8 +48,24 @@
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.35);
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.55);
 
-  --font-ui: -apple-system, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+  /* UI 字体：优先各平台自己设计的界面字面（Win11 的 Segoe UI Variable Text 有光学字号，
+     比 Segoe UI 在小字上更清晰），再落 CJK。body 必须引用本 token 而不是另写一条栈。 */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI',
+    'PingFang SC', 'Hiragino Sans GB', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /* 字号阶梯：改前 14 档绝对字号里有 8 档挤在 9-13px，10/10.5、11/11.5、12/12.5
+     三对纯属漂移。收成 8 档，小字微放、大字微收（字距写在 tailwind 的档位里，
+     跟着字号走，不必逐处手加）。越界字号由 tests/type-scale.test.ts 挡住。 */
+  --text-3xs: 10px; /* 角标 / 计数 / 时间戳 */
+  --text-2xs: 11px; /* 次级标签 / 分区标题 */
+  --text-xs: 12px; /* 密集正文（全站主力） */
+  --text-sm: 14px; /* 常规正文 / 控件 */
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-display: 26px; /* 欢迎页大标题 */
 }
 
 /* 浅色主题：与深色共用同一组语义 token，仅翻转色值；单色强调改为近黑。 */
@@ -80,8 +96,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-ui);
   background: rgb(var(--background));
   color: rgb(var(--foreground));
   overflow: hidden;
@@ -255,12 +270,12 @@ body {
   align-items: center;
   padding: 0 12px;
   color: rgb(var(--agent));
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .sf-inline-chat__head {
   padding: 7px 12px 0;
   color: rgb(var(--agent));
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-weight: 600;
 }
 .sf-inline-chat__textarea {
@@ -275,13 +290,13 @@ body {
   background: transparent;
   color: rgb(var(--foreground));
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 22px;
 }
 .sf-inline-chat__hint {
   padding: 0 12px 8px;
   color: rgb(var(--subtle));
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 
 /* 可达性：全站键盘焦点可见（:focus-visible 仅键盘/AT 触发，鼠标点击不显示）。
@@ -323,7 +338,7 @@ body {
 .sf-inline-diff-line {
   padding: 0 12px 0 16px;
   color: rgb(var(--foreground));
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -341,7 +356,7 @@ body {
   border: 0;
   background: rgb(var(--agent));
   color: rgb(var(--agent-foreground));
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
 }
@@ -355,7 +370,7 @@ body {
   border: 1px solid rgb(var(--border-strong));
   background: transparent;
   color: rgb(var(--muted));
-  font-size: 12px;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 .sf-inline-btn-reject:hover {
@@ -364,7 +379,7 @@ body {
 }
 .sf-inline-diff-note {
   color: rgb(var(--subtle));
-  font-size: 11px;
+  font-size: var(--text-2xs);
 }
 
 /* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */
@@ -380,7 +395,7 @@ body {
   border-radius: var(--radius-lg);
   background: rgb(var(--surface));
   color: rgb(var(--muted));
-  font-size: 11.5px;
+  font-size: var(--text-2xs);
   line-height: 1.5;
   box-shadow: var(--shadow-dropdown);
   pointer-events: none;
@@ -399,7 +414,7 @@ body {
   padding: 32px 0;
   text-align: center;
   color: rgb(var(--subtle));
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .sf-settings-list:not(:has(.sf-settings-card:not(:empty))) .sf-settings-empty {
   display: block;
@@ -413,7 +428,7 @@ body {
 
 /* 助手消息 Markdown：贴近对话密度，不走 marketing prose */
 .assistant-md {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   line-height: 1.75;
   color: rgb(var(--foreground));
   word-break: break-word;

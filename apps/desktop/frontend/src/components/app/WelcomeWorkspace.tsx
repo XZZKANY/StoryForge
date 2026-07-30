@@ -97,10 +97,10 @@ export function WelcomeWorkspace({
               />
             </span>
             <div>
-              <h1 className="text-[26px] font-medium leading-tight tracking-[0.01em] text-foreground">
+              <h1 className="text-display font-medium leading-tight tracking-[0.01em] text-foreground">
                 StoryForge
               </h1>
-              <p className="mt-[3px] text-[12.5px] text-subtle">
+              <p className="mt-[3px] text-xs text-subtle">
                 可验证的长篇创作流水线 · 一句话就能开新书
               </p>
             </div>
@@ -108,10 +108,10 @@ export function WelcomeWorkspace({
 
           {/* 启动 */}
           <div className="min-w-0">
-            <h2 className="mb-3 text-[15px] font-medium text-foreground">启动</h2>
+            <h2 className="mb-3 text-sm font-medium text-foreground">启动</h2>
             <div className="mb-2.5 flex items-center gap-1.5 rounded-lg border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
               <input
-                className="h-[30px] min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-subtle"
+                className="h-[30px] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
                 placeholder="一句话开新书：写下念头，回车即建项目骨架…"
                 aria-label="一句话开新书"
                 data-testid="welcome-composer-input"
@@ -159,11 +159,9 @@ export function WelcomeWorkspace({
               onClick={onOpenPalette}
             />
 
-            <h2 className="mb-3 mt-[26px] text-[15px] font-medium text-foreground">最近</h2>
+            <h2 className="mb-3 mt-[26px] text-sm font-medium text-foreground">最近</h2>
             {recentProjects.length === 0 ? (
-              <p className="px-2 text-[12px] text-subtle">
-                还没有最近项目 · 打开项目后会出现在这里
-              </p>
+              <p className="px-2 text-xs text-subtle">还没有最近项目 · 打开项目后会出现在这里</p>
             ) : (
               <>
                 {shownRecents.map((projectPath) => (
@@ -174,10 +172,8 @@ export function WelcomeWorkspace({
                     onClick={() => onSelectRecent(projectPath)}
                     title={projectPath}
                   >
-                    <span className="flex-none text-[13px] text-agent">
-                      {basename(projectPath)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-subtle">
+                    <span className="flex-none text-sm text-agent">{basename(projectPath)}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-2xs text-subtle">
                       {projectPath}
                     </span>
                   </button>
@@ -185,7 +181,7 @@ export function WelcomeWorkspace({
                 {!recentExpanded && recentProjects.length > RECENT_CAP && (
                   <button
                     type="button"
-                    className="ml-2 mt-0.5 px-1 py-1.5 text-[12px] text-agent hover:underline"
+                    className="ml-2 mt-0.5 px-1 py-1.5 text-xs text-agent hover:underline"
                     onClick={() => setRecentExpanded(true)}
                   >
                     更多…
@@ -197,7 +193,7 @@ export function WelcomeWorkspace({
 
           {/* 上手 */}
           <div className="min-w-0">
-            <h2 className="mb-3 text-[15px] font-medium text-foreground">上手</h2>
+            <h2 className="mb-3 text-sm font-medium text-foreground">上手</h2>
             <WGuide
               icon={<Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />}
               iconAgent
@@ -226,7 +222,7 @@ export function WelcomeWorkspace({
           </div>
         </div>
 
-        <label className="mx-auto mt-[26px] flex w-[min(920px,100%)] cursor-pointer items-center gap-2 text-[12px] text-muted">
+        <label className="mx-auto mt-[26px] flex w-[min(920px,100%)] cursor-pointer items-center gap-2 text-xs text-muted">
           <input
             type="checkbox"
             className="h-3.5 w-3.5 accent-agent"
@@ -257,14 +253,14 @@ function WAction({
   return (
     <button
       type="button"
-      className="flex h-[34px] w-full items-center gap-2.5 rounded-md px-2 text-left text-[13px] text-agent hover:bg-elevated"
+      className="flex h-[34px] w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-agent hover:bg-elevated"
       onClick={onClick}
       data-testid={testId}
     >
       <span className="flex-none text-muted">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {kbd && (
-        <kbd className="flex-none rounded-sm border border-border px-1.5 font-mono text-[10px] text-subtle">
+        <kbd className="flex-none rounded-sm border border-border px-1.5 font-mono text-3xs text-subtle">
           {kbd}
         </kbd>
       )}
@@ -293,8 +289,8 @@ function WGuide({
     >
       <span className={`mt-px flex-none ${iconAgent ? 'text-agent' : 'text-muted'}`}>{icon}</span>
       <span className="min-w-0">
-        <b className="block text-[13px] font-medium text-foreground">{title}</b>
-        <small className="mt-[3px] block text-[11.5px] leading-relaxed text-subtle">{desc}</small>
+        <b className="block text-sm font-medium text-foreground">{title}</b>
+        <small className="mt-[3px] block text-2xs leading-relaxed text-subtle">{desc}</small>
       </span>
     </button>
   );
@@ -315,9 +311,7 @@ export function WelcomeDismissed({
     >
       <p className="max-w-sm text-sm leading-relaxed text-subtle">
         欢迎页已关闭。命令面板（
-        <kbd className="rounded-sm border border-border px-1 font-mono text-[11px]">
-          Ctrl Shift P
-        </kbd>
+        <kbd className="rounded-sm border border-border px-1 font-mono text-2xs">Ctrl Shift P</kbd>
         ）里「显示欢迎页」可重新打开。
       </p>
       <div className="flex items-center gap-2">
