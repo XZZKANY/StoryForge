@@ -150,7 +150,7 @@ export function ConversationHeader({
                   <button
                     key={session.id}
                     type="button"
-                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] hover:bg-elevated ${
+                    className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] hover:bg-elevated ${
                       active ? 'text-foreground' : 'text-muted hover:text-foreground'
                     }`}
                     onClick={() => {
@@ -176,7 +176,7 @@ export function ConversationHeader({
                 <div className="mx-1.5 my-1 h-px bg-border" />
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
                   onClick={() => {
                     setMenuOpen(false);
                     onNewSession();
@@ -645,7 +645,7 @@ export function MessageItem({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
       <div className="flex animate-slide-up-fade justify-end" data-testid="user-message">
-        <div className="max-w-[85%] rounded-[12px_12px_2px_12px] bg-elevated px-3 py-2 text-sm leading-6 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
+        <div className="sf-bubble-user max-w-[85%] bg-elevated px-3 py-2 text-sm leading-6 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]">
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
       </div>

@@ -72,7 +72,7 @@ export function WelcomeWorkspace({
           <span>欢迎</span>
           <button
             type="button"
-            className="grid h-[18px] w-[18px] place-items-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+            className="grid h-[18px] w-[18px] place-items-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
             onClick={onClose}
             title="关闭欢迎页"
             data-testid="welcome-close"
@@ -85,7 +85,7 @@ export function WelcomeWorkspace({
       <div className="min-h-0 flex-1 overflow-auto px-5 pb-12 pt-8 md:px-14 md:pb-5 md:pt-11">
         <div className="mx-auto grid w-[min(920px,100%)] grid-cols-1 gap-x-14 gap-y-2 md:grid-cols-2">
           <div className="col-span-full mb-[22px] flex items-center gap-3.5">
-            <span className="relative grid h-11 w-11 flex-none place-items-center overflow-hidden rounded-[10px] bg-elevated text-base font-bold text-foreground">
+            <span className="relative grid h-11 w-11 flex-none place-items-center overflow-hidden rounded-lg bg-elevated text-base font-bold text-foreground">
               S
               <img
                 src="/brand-logo.jpg"
@@ -109,7 +109,7 @@ export function WelcomeWorkspace({
           {/* 启动 */}
           <div className="min-w-0">
             <h2 className="mb-3 text-[15px] font-medium text-foreground">启动</h2>
-            <div className="mb-2.5 flex items-center gap-1.5 rounded-[10px] border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
+            <div className="mb-2.5 flex items-center gap-1.5 rounded-lg border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
               <input
                 className="h-[30px] min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-subtle"
                 placeholder="一句话开新书：写下念头，回车即建项目骨架…"
@@ -170,7 +170,7 @@ export function WelcomeWorkspace({
                   <button
                     key={projectPath}
                     type="button"
-                    className="flex w-full items-baseline gap-2.5 rounded-[7px] px-2 py-1.5 text-left hover:bg-elevated"
+                    className="flex w-full items-baseline gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-elevated"
                     onClick={() => onSelectRecent(projectPath)}
                     title={projectPath}
                   >
@@ -257,14 +257,14 @@ function WAction({
   return (
     <button
       type="button"
-      className="flex h-[34px] w-full items-center gap-2.5 rounded-[7px] px-2 text-left text-[13px] text-agent hover:bg-elevated"
+      className="flex h-[34px] w-full items-center gap-2.5 rounded-md px-2 text-left text-[13px] text-agent hover:bg-elevated"
       onClick={onClick}
       data-testid={testId}
     >
       <span className="flex-none text-muted">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {kbd && (
-        <kbd className="flex-none rounded border border-border px-1.5 font-mono text-[10px] text-subtle">
+        <kbd className="flex-none rounded-sm border border-border px-1.5 font-mono text-[10px] text-subtle">
           {kbd}
         </kbd>
       )}
@@ -288,7 +288,7 @@ function WGuide({
   return (
     <button
       type="button"
-      className="mb-2 flex w-full items-start gap-3 rounded-[10px] border border-border bg-panel px-3.5 py-3 text-left transition-colors hover:border-border-strong/70 hover:bg-elevated"
+      className="mb-2 flex w-full items-start gap-3 rounded-lg border border-border bg-panel px-3.5 py-3 text-left transition-colors hover:border-border-strong/70 hover:bg-elevated"
       onClick={onClick}
     >
       <span className={`mt-px flex-none ${iconAgent ? 'text-agent' : 'text-muted'}`}>{icon}</span>
@@ -315,7 +315,9 @@ export function WelcomeDismissed({
     >
       <p className="max-w-sm text-sm leading-relaxed text-subtle">
         欢迎页已关闭。命令面板（
-        <kbd className="rounded border border-border px-1 font-mono text-[11px]">Ctrl Shift P</kbd>
+        <kbd className="rounded-sm border border-border px-1 font-mono text-[11px]">
+          Ctrl Shift P
+        </kbd>
         ）里「显示欢迎页」可重新打开。
       </p>
       <div className="flex items-center gap-2">

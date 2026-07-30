@@ -114,7 +114,7 @@ function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean })
       type="button"
       onClick={onMerge}
       disabled={busy}
-      className="flex-shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
+      className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[10px] text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
       data-testid="proposal-merge"
     >
       并入
@@ -314,7 +314,7 @@ function EntityCard({
         <button
           key={observation.id}
           type="button"
-          className={`mt-1.5 block w-full rounded border px-2 py-1 text-left text-[11px] leading-relaxed ${
+          className={`mt-1.5 block w-full rounded-sm border px-2 py-1 text-left text-[11px] leading-relaxed ${
             observation.severity === 'error'
               ? 'border-error/40 bg-error/10 text-error'
               : 'border-warning/40 bg-warning/10 text-warning'

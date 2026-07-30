@@ -80,7 +80,7 @@ export function ObsPanel({
         <span className="flex-1" />
         <span className="font-mono">{statusLabel}</span>
         <button
-          className="flex h-6 w-6 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+          className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
           onClick={onClose}
           title="关闭观测面板"
         >
@@ -112,7 +112,7 @@ export function ObsPanel({
                 className={`mt-[5px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${SEVERITY_DOT[obs.severity]}`}
               />
               <span
-                className={`block min-w-0 flex-1 rounded ${
+                className={`block min-w-0 flex-1 rounded-sm ${
                   obs.anchor && onLocate ? 'cursor-pointer hover:bg-elevated' : ''
                 }`}
                 data-testid="obs-row-body"

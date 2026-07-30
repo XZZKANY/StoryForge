@@ -255,7 +255,7 @@ export function VersionHistory({
                           : `恢复到此版：+${preview.added} / -${preview.removed} 行`}
                       </div>
                       {preview.hunks.length > 0 && (
-                        <div className="mt-1 max-h-52 overflow-y-auto rounded border border-border bg-background p-1 font-mono text-[11px] leading-5">
+                        <div className="mt-1 max-h-52 overflow-y-auto rounded-sm border border-border bg-background p-1 font-mono text-[11px] leading-5">
                           {preview.hunks.map((hunk) => (
                             <div key={hunk.id} className="mb-1.5">
                               <div className="text-subtle">

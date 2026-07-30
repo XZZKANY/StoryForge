@@ -15,7 +15,7 @@ function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
       type="button"
       onClick={onSelect}
       data-testid="search-hit"
-      className="flex w-full items-baseline gap-2 rounded px-2 py-1 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+      className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
       title={`第 ${hit.line} 行`}
     >
       <span className="w-9 flex-shrink-0 text-right text-[11px] tabular-nums text-subtle">
@@ -23,7 +23,7 @@ function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
       </span>
       <span className="min-w-0 flex-1 truncate">
         {hit.text.slice(0, hit.start)}
-        <mark className="rounded-sm bg-agent/30 px-0.5 text-foreground">
+        <mark className="rounded-xs bg-agent/30 px-0.5 text-foreground">
           {hit.text.slice(hit.start, hit.end)}
         </mark>
         {hit.text.slice(hit.end)}
@@ -92,7 +92,7 @@ export function SearchView({
               onClick={() => search.setQuery('')}
               title="清空"
               data-testid="search-clear"
-              className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-subtle hover:bg-elevated hover:text-foreground"
+              className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
             >
               <X size={11} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -143,7 +143,7 @@ export function SearchView({
                   <button
                     type="button"
                     onClick={() => toggle(file.path)}
-                    className="flex w-full items-center gap-1 rounded px-2 py-1 text-left text-[12px] text-foreground hover:bg-elevated"
+                    className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-[12px] text-foreground hover:bg-elevated"
                     title={file.path}
                   >
                     {isCollapsed ? (

@@ -35,6 +35,15 @@
   --sf-panel-x: 12px;
   --sf-item-gap: 8px;
 
+  /* 圆角阶梯（同心）：相邻两档之差 = 该层常用内边距，故嵌套时「内圆角 = 外圆角 − 内边距」
+     天然成立，不必逐处手调。越界的任意值圆角由 tests/radius-scale.test.ts 挡住。
+     xs 文字级标记 / sm 内嵌小件 / md 控件 / lg 容器 / xl 浮层；纯圆用 rounded-full。 */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
   /* 抬升投影分档：下拉/卡片一档、弹窗一档；浅色降 alpha，避免照搬深色纯黑投影偏重。 */
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.35);
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.55);
@@ -107,7 +116,7 @@ body {
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: rgb(var(--muted));
   line-height: 1;
   transition:
@@ -236,7 +245,7 @@ body {
      改成贴行的细描边 + 2px 强调左缘，读作属于这一行的内联控件。 */
   border: 1px solid rgb(var(--border-strong));
   border-left: 2px solid rgb(var(--agent) / 0.6);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: rgb(var(--surface));
   overflow: hidden;
   font-family: var(--font-ui);
@@ -291,11 +300,11 @@ body {
 /* 句内高亮：单行替换时在红旧行 / 绿新行里只标真正改动的字（E22），比整行铺色更精确 */
 .sf-inline-diff-old-seg {
   background: rgb(var(--error) / 0.3);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .sf-inline-diff-new-seg {
   background: rgb(var(--success) / 0.32);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 /* 绿色新增块：贴着旧行下方展示建议新文本 */
@@ -328,7 +337,7 @@ body {
 .sf-inline-btn-accept {
   height: 26px;
   padding: 0 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 0;
   background: rgb(var(--agent));
   color: rgb(var(--agent-foreground));
@@ -342,7 +351,7 @@ body {
 .sf-inline-btn-reject {
   height: 26px;
   padding: 0 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid rgb(var(--border-strong));
   background: transparent;
   color: rgb(var(--muted));
@@ -368,7 +377,7 @@ body {
   padding: 7px 12px;
   border: 1px solid rgb(var(--border));
   /* 与全站 ToastHost 卡片同底：surface + rounded-lg 圆角 + 下拉档投影，收敛两套 toast 皮。 */
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: rgb(var(--surface));
   color: rgb(var(--muted));
   font-size: 11.5px;
@@ -394,6 +403,12 @@ body {
 }
 .sf-settings-list:not(:has(.sf-settings-card:not(:empty))) .sf-settings-empty {
   display: block;
+}
+
+/* 作者消息气泡：三角是「形状」不是「尺寸档」，右下收成 xs 指向发送者一侧，
+   四角写死会绕开圆角阶梯，故收在这里由 token 拼出。 */
+.sf-bubble-user {
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-xs) var(--radius-lg);
 }
 
 /* 助手消息 Markdown：贴近对话密度，不走 marketing prose */
@@ -455,7 +470,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.9em;
   padding: 0.1em 0.35em;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: rgb(var(--elevated));
   color: rgb(var(--foreground));
 }
@@ -464,7 +479,7 @@ body {
   padding: 0.7em 0.85em;
   overflow-x: auto;
   border: 1px solid rgb(var(--border));
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: rgb(var(--panel));
 }
 .assistant-md pre code {

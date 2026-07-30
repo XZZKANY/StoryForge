@@ -153,7 +153,7 @@ function ExplorerView({
               {projects.slice(0, 8).map((project) => (
                 <div
                   key={project}
-                  className={`group flex h-[30px] w-full items-center rounded text-[12px] hover:bg-elevated ${
+                  className={`group flex h-[30px] w-full items-center rounded-sm text-[12px] hover:bg-elevated ${
                     project === activeProject
                       ? 'text-foreground'
                       : 'text-muted hover:text-foreground'
@@ -174,7 +174,7 @@ function ExplorerView({
                   </button>
                   {project !== activeProject && (
                     <button
-                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-subtle opacity-0 hover:bg-surface hover:text-foreground group-hover:opacity-100"
+                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-subtle opacity-0 hover:bg-surface hover:text-foreground group-hover:opacity-100"
                       onClick={(e) => {
                         e.stopPropagation();
                         onRemoveProject(project);
@@ -189,7 +189,7 @@ function ExplorerView({
               ))}
               <div className="my-1 mx-1.5 h-px bg-border" />
               <button
-                className="flex h-[30px] w-full items-center gap-2 rounded px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+                className="flex h-[30px] w-full items-center gap-2 rounded-sm px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground"
                 onClick={() => {
                   setMenuOpen(false);
                   onOpenProject();

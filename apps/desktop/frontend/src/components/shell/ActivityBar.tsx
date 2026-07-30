@@ -81,7 +81,7 @@ export function ActivityBar({
             }}
           >
             {active && (
-              <span className="absolute -left-1 bottom-2 top-2 w-0.5 rounded-r bg-foreground" />
+              <span className="absolute -left-1 bottom-2 top-2 w-0.5 rounded-r-sm bg-foreground" />
             )}
             <Icon size={19} strokeWidth={1.6} />
             {entry.view === 'observatory' && observatoryAttention && !dimmed && (

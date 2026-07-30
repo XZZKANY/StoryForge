@@ -25,6 +25,16 @@ export default {
         ui: 'var(--font-ui)',
         mono: 'var(--font-mono)',
       },
+      // 圆角阶梯单一事实源：值只在 index.css 的 --radius-* 里，这里只做转发，
+      // 使 Tailwind 的 rounded-* 与裸 CSS 的 border-radius 永远同一把尺。
+      // 阶梯之外（任意值 / 2xl / 3xl）由 tests/radius-scale.test.ts 挡住。
+      borderRadius: {
+        xs: 'var(--radius-xs)',
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+      },
       spacing: {
         // 壳子三栏头部行行高单一事实源（左栏顶行 / 中栏页签行 / 右栏对话头共用，
         // h-shell-row / top-shell-row）；改行高只改这里，组件禁止再写死 h-9/h-10，

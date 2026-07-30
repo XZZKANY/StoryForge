@@ -102,7 +102,7 @@ export function StatusBar({
         <button
           ref={wordCountRef}
           type="button"
-          className="rounded px-1.5 py-px tabular-nums hover:bg-elevated hover:text-foreground"
+          className="rounded-sm px-1.5 py-px tabular-nums hover:bg-elevated hover:text-foreground"
           title="正文字数（不含空白字符）· 点击查看稿件进度"
           aria-haspopup="dialog"
           aria-expanded={cardOpen}
@@ -128,7 +128,7 @@ export function StatusBar({
       )}
       {projectOpen && (
         <button
-          className="flex items-center gap-2 rounded px-1.5 py-px hover:bg-elevated hover:text-foreground"
+          className="flex items-center gap-2 rounded-sm px-1.5 py-px hover:bg-elevated hover:text-foreground"
           onClick={onToggleObs}
           title="观测清单"
           data-testid="status-obs"

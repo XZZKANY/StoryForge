@@ -176,7 +176,7 @@ function NavigatorTabButton({
       type="button"
       role="tab"
       aria-selected={active}
-      className={`h-5 rounded px-2 text-[11px] font-medium transition-colors ${
+      className={`h-5 rounded-sm px-2 text-[11px] font-medium transition-colors ${
         active ? 'bg-elevated text-foreground' : 'text-muted hover:bg-surface hover:text-foreground'
       }`}
       onClick={onClick}

@@ -186,7 +186,7 @@ export function BookProfileView({
           <button
             type="button"
             disabled={handle.loading}
-            className="group relative h-24 w-[72px] flex-shrink-0 overflow-hidden rounded border border-border bg-panel transition-colors hover:border-muted disabled:opacity-60"
+            className="group relative h-24 w-[72px] flex-shrink-0 overflow-hidden rounded-sm border border-border bg-panel transition-colors hover:border-muted disabled:opacity-60"
             title={profile.cover ? '更换封面' : '添加封面'}
             onClick={() => {
               // 先提交再选图：作者若在文件对话框里按了取消，没提交的编辑也已经保住。
@@ -218,14 +218,14 @@ export function BookProfileView({
               onChange={(event) => setDraft({ ...draft, title: event.target.value })}
               onBlur={() => commit()}
               placeholder={displayBookTitle(profile, projectPath)}
-              className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[14px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted hover:border-border focus:border-accent"
+              className="w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[14px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted hover:border-border focus:border-accent"
               data-testid="book-title-input"
             />
             <div className="flex flex-wrap gap-1">
               {profile.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="group inline-flex items-center gap-0.5 rounded bg-elevated px-1.5 py-0.5 text-[10.5px] text-muted"
+                  className="group inline-flex items-center gap-0.5 rounded-sm bg-elevated px-1.5 py-0.5 text-[10.5px] text-muted"
                   data-testid="book-tag"
                 >
                   {tag}
@@ -255,7 +255,7 @@ export function BookProfileView({
                       }
                     }}
                     placeholder="题材"
-                    className="w-12 rounded border border-transparent bg-transparent text-[10.5px] text-foreground outline-none placeholder:text-subtle hover:border-border focus:w-16 focus:border-accent"
+                    className="w-12 rounded-sm border border-transparent bg-transparent text-[10.5px] text-foreground outline-none placeholder:text-subtle hover:border-border focus:w-16 focus:border-accent"
                     data-testid="book-tag-input"
                   />
                 </span>
@@ -272,7 +272,7 @@ export function BookProfileView({
             onBlur={() => commit()}
             rows={4}
             placeholder="这本书讲什么？写给未来的自己，也写给每次都要重新读懂它的模型。"
-            className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded border border-border bg-panel px-2 py-1.5 text-[11.5px] leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"
+            className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-[11.5px] leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"
             data-testid="book-synopsis-input"
           />
         </Section>
@@ -309,7 +309,7 @@ export function BookProfileView({
                 onBlur={() => commit()}
                 inputMode="numeric"
                 placeholder="未设"
-                className="w-20 rounded border border-transparent bg-transparent px-1 text-right text-[11px] tabular-nums text-foreground outline-none placeholder:text-subtle hover:border-border focus:border-accent"
+                className="w-20 rounded-sm border border-transparent bg-transparent px-1 text-right text-[11px] tabular-nums text-foreground outline-none placeholder:text-subtle hover:border-border focus:border-accent"
                 data-testid="book-word-goal-input"
               />
             </div>
@@ -401,7 +401,7 @@ export function BookProfileView({
                 }
               }}
               placeholder="记一条，回车存进 灵感.md"
-              className="w-full rounded border border-border bg-panel px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-subtle focus:border-accent"
+              className="w-full rounded-sm border border-border bg-panel px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-subtle focus:border-accent"
               data-testid="book-note-input"
             />
           </div>
@@ -416,7 +416,7 @@ export function BookProfileView({
                 >
                   <button
                     type="button"
-                    className={`mt-[3px] grid h-3 w-3 flex-shrink-0 place-items-center rounded-sm border ${
+                    className={`mt-[3px] grid h-3 w-3 flex-shrink-0 place-items-center rounded-xs border ${
                       note.done ? 'border-muted text-muted' : 'border-border text-transparent'
                     } hover:border-muted`}
                     title={note.done ? '标记为未完成' : '标记为已完成'}

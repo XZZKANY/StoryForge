@@ -31,7 +31,7 @@ export function PanelError({
 }) {
   return (
     <div
-      className={`${compact ? 'mx-2 mt-2 rounded bg-error/10 p-2' : 'px-3 py-4'}`}
+      className={`${compact ? 'mx-2 mt-2 rounded-sm bg-error/10 p-2' : 'px-3 py-4'}`}
       role="alert"
       data-testid="panel-error"
     >

@@ -267,7 +267,7 @@ function MenuRow({ label, kbd, onClick }: { label: string; kbd?: string; onClick
   return (
     <button
       type="button"
-      className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
+      className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-elevated hover:text-foreground"
       onClick={onClick}
     >
       <span className="min-w-0 flex-1 truncate">{label}</span>

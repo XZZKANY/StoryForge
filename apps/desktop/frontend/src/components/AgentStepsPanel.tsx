@@ -62,7 +62,7 @@ function StepRow({ step }: { step: AgentStep }) {
       type="button"
       onClick={() => hasDetail && setDetailOpen((value) => !value)}
       disabled={!hasDetail}
-      className={`flex w-full items-baseline gap-2 rounded px-1 py-px text-left font-mono text-[11px] leading-5 ${
+      className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-[11px] leading-5 ${
         hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
       }`}
     >

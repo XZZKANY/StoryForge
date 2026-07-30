@@ -231,7 +231,7 @@ export function ManuscriptView({
             >
               {snapshot.promptBlock ? (
                 <pre
-                  className="mx-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-panel p-2 text-[10.5px] leading-relaxed text-muted"
+                  className="mx-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border bg-panel p-2 text-[10.5px] leading-relaxed text-muted"
                   data-testid="manuscript-prompt-block"
                 >
                   {snapshot.promptBlock}
