@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 
 import {
   INLINE_MINIMAL_EDIT_CONTRACT,
+  INLINE_SETTLE_MS,
+  inlineSettleDurationMs,
   buildInlineReviseInstruction,
   hunksToLineDiff,
   intraLineChangeRange,
@@ -247,4 +251,21 @@ test('切窗时指令必须告诉模型这是节选，否则它会给节选补�
     userInstruction: '写紧一点',
   });
   assert.equal(whole.includes('节选'), false);
+});
+
+test('落位时长在 JS 与 CSS 两处一致，且降低动效偏好下归零', () => {
+  // 硬切换改成「旧行褪去 + 绿块落位」后，JS 的等待时长与 CSS 的过渡时长必须同步，
+  // 否则要么动画被 teardown 截断（看不全），要么写回白等一截（看着卡）。
+  assert.equal(inlineSettleDurationMs(false), INLINE_SETTLE_MS);
+  assert.equal(inlineSettleDurationMs(true), 0);
+
+  const cssPath = '../src/index.css';
+  const css = readFileSync(fileURLToPath(new URL(cssPath, import.meta.url)), 'utf8');
+  const settling = css.match(/\.sf-inline-diff-zone--settling \{[^}]*\}/)?.[0];
+  assert.ok(settling, '找不到 .sf-inline-diff-zone--settling 规则');
+  const durations = [...settling.matchAll(/(\d+)ms/g)].map((m) => Number(m[1]));
+  assert.ok(durations.length > 0, '落位规则里没有过渡时长');
+  for (const ms of durations) {
+    assert.equal(ms, INLINE_SETTLE_MS, `CSS 过渡 ${ms}ms 与 INLINE_SETTLE_MS 不一致`);
+  }
 });

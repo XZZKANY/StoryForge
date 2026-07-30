@@ -18,6 +18,7 @@ import { SidePanel } from '../shell/SidePanel';
 import { StatusBar } from '../shell/StatusBar';
 import { Titlebar } from '../shell/Titlebar';
 import { ToastHost } from '../shell/ToastHost';
+import { useDeference } from '../shell/useDeference';
 import type { useShellState } from '../shell/useShellState';
 import {
   emitEditorCommand,
@@ -180,12 +181,15 @@ export function AppShell({
     { label: '了解 StoryForge', onSelect: showAbout },
   ];
 
+  const deferred = useDeference();
+
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-background text-foreground"
       data-testid="desktop-shell"
       data-layout-mode={shell.view}
       data-layout-focus={shell.layoutMode}
+      data-shell-deferred={deferred ? 'true' : 'false'}
       data-tauri-runtime={runtime.isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={runtime.tauriMenuReady ? 'true' : 'false'}
       data-smoke-api-ready={runtime.smokeApiReady ? 'true' : 'false'}

@@ -25,6 +25,7 @@ import type { RevisionLoopResult } from '../../lib/author-loop';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import {
   buildInlineReviseInstruction,
+  inlineSettleDurationMs,
   intraLineChangeRange,
   isInlineEditStale,
   planAnchoredInlineDiff,
@@ -35,6 +36,7 @@ import {
   type InlineAnchor,
   type LineDiffHunk,
 } from '../../lib/inline-chat';
+import { prefersReducedMotion } from '../../lib/motion';
 import { resolveContinueAnchorLine } from '../../lib/inline-continue';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 
@@ -74,6 +76,8 @@ type InlineSession = {
   phase: InlinePhase;
   anchor: InlineAnchor;
   zoneIds: string[];
+  /** 落位动效要给绿块加 class，故除 id 外还留一份 DOM 引用。 */
+  zoneDoms: HTMLElement[];
   decorations: monaco.editor.IEditorDecorationsCollection | null;
   keydownHandler: ((event: KeyboardEvent) => void) | null;
   // loading 阶段的 revise 请求控制器：Esc / 取消键 abort 掉在途请求（E16）。
@@ -118,6 +122,7 @@ export function useInlineChat({
     if (session.keydownHandler) {
       document.removeEventListener('keydown', session.keydownHandler, true);
     }
+    editor?.getContainerDomNode?.()?.classList.remove('sf-inline-accepting');
     session.decorations?.clear();
     if (editor && session.zoneIds.length > 0 && typeof editor.changeViewZones === 'function') {
       editor.changeViewZones((accessor) => {
@@ -162,6 +167,21 @@ export function useInlineChat({
     [editorRef, setSuggestionStatus],
   );
 
+  // 接受不该是硬切换：先让红旧行褪去、绿块卸掉「待定」的绿并轻微下沉，作者才看得见
+  // 改动落在哪一行，随后才 teardown + 写回。降低动效偏好下时长为 0，直接落地。
+  const playAcceptSettle = useCallback(
+    async (session: InlineSession) => {
+      const container = editorRef.current?.getContainerDomNode?.() ?? null;
+      container?.classList.add('sf-inline-accepting');
+      for (const dom of session.zoneDoms) dom.classList.add('sf-inline-diff-zone--settling');
+      const duration = inlineSettleDurationMs(prefersReducedMotion());
+      if (duration > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, duration));
+      }
+    },
+    [editorRef],
+  );
+
   const applyAccepted = useCallback(async () => {
     const editor = editorRef.current;
     const session = sessionRef.current;
@@ -169,15 +189,17 @@ export function useInlineChat({
     if (!editor || !session || session.phase !== 'diff' || !path) return;
 
     const isContinue = session.mode === 'continue';
-    if (isInlineEditStale(session.capturedBefore, editor.getValue())) {
+    const bailIfStale = () => {
+      if (!isInlineEditStale(session.capturedBefore, editor.getValue())) return false;
       teardown();
       flashStatus(
         isContinue
           ? '文件已变化，续写已取消，请重新发起 Ctrl+Shift+K'
           : '文件已变化，行间修订已取消，请重新发起 Ctrl+K',
       );
-      return;
-    }
+      return true;
+    };
+    if (bailIfStale()) return;
 
     const suggestion = createRemoteFileSuggestion({
       filePath: path,
@@ -193,6 +215,12 @@ export function useInlineChat({
     const previous = session.capturedBefore;
     const next = session.resultAfter;
     const anchorLine = session.caretLineAfterAccept;
+
+    await playAcceptSettle(session);
+    // 落位这段时间里 Esc / 切文件可能已经把会话收掉，作者也可能又敲了字——
+    // 所以写回前把两件事都再验一遍（比改前只在入口验一次更严）。
+    if (sessionRef.current !== session) return;
+    if (bailIfStale()) return;
     teardown();
 
     try {
@@ -207,7 +235,7 @@ export function useInlineChat({
     } catch (error) {
       flashStatus(`接受失败：${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [editorRef, filePathRef, flashStatus, teardown, writeAcceptedSuggestion]);
+  }, [editorRef, filePathRef, flashStatus, playAcceptSettle, teardown, writeAcceptedSuggestion]);
 
   // 把已算好的插入 / 修订计划画成红标 + 绿块 + 动作条。revise 与 continue 共用这一段，
   // 差别只在计划怎么来：前者把整文件修订夹到锚定行，后者直接构造纯新增。
@@ -301,6 +329,7 @@ export function useInlineChat({
           };
           const id = accessor.addZone(zone);
           session.zoneIds.push(id);
+          session.zoneDoms.push(dom);
           diffZones.push({ id, zone, dom });
         });
       });
@@ -552,6 +581,7 @@ export function useInlineChat({
         phase: 'input',
         anchor,
         zoneIds: [],
+        zoneDoms: [],
         decorations: null,
         keydownHandler: null,
         abortController: null,

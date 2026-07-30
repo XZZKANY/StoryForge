@@ -361,3 +361,15 @@ export function planCursorInsertion(
 export function isInlineEditStale(capturedBefore: string, currentContent: string): boolean {
   return capturedBefore.replace(/\r\n/g, '\n') !== currentContent.replace(/\r\n/g, '\n');
 }
+
+/**
+ * 接受建议时的「落位」时长。改前是硬切换：先 teardown 拆掉红标绿块，再整篇 setValue，
+ * 作者眼里改动凭空发生，看不见落在哪一行。现在先播一段旧行褪去 / 绿块落位再写回。
+ * 必须与 index.css 里 .sf-inline-diff-zone--settling 的过渡时长一致（有护栏比对两处）。
+ */
+export const INLINE_SETTLE_MS = 170;
+
+/** 降低动效偏好下不补间——直接落地，别让无障碍设置变成「多等一会儿」。 */
+export function inlineSettleDurationMs(reducedMotion: boolean): number {
+  return reducedMotion ? 0 : INLINE_SETTLE_MS;
+}
