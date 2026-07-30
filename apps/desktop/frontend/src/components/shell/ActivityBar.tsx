@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import type { SidePanelView } from './useShellState';
-import { FileText, Radar, Search, Settings } from '../icons/shell-icons';
+import { BookOpen, FileText, Radar, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
@@ -20,6 +20,12 @@ type ViewEntry = {
 const VIEW_ENTRIES: ViewEntry[] = [
   { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl+Shift+E' },
   { view: 'search', icon: Search, title: '在正文中搜索 · Ctrl+Shift+F', projectOnly: true },
+  {
+    view: 'manuscript',
+    icon: BookOpen,
+    title: '手稿（阅读序 / 作品底座）· Ctrl+Shift+M',
+    projectOnly: true,
+  },
   { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl+4', projectOnly: true },
 ];
 

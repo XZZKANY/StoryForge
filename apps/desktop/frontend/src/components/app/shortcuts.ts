@@ -37,6 +37,11 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     chords: [{ ctrl: true, shift: true, key: 'f' }],
   },
   {
+    keys: 'Ctrl Shift M',
+    label: '手稿（阅读序 / 作品底座）',
+    chords: [{ ctrl: true, shift: true, key: 'm' }],
+  },
+  {
     keys: 'Ctrl Shift O',
     label: '世界线观测镜',
     chords: [{ ctrl: true, shift: true, key: 'o' }],

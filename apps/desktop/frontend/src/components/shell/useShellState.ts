@@ -1,6 +1,6 @@
 /**
  * 壳子布局状态：正交状态，不用耦合 focus 模式。
- * - view：活动栏当前视图（explorer 资源管理器 / search 全文搜索 / observatory 世界线观测镜）
+ * - view：活动栏当前视图（explorer 资源管理器 / search 全文搜索 / manuscript 手稿 / observatory 世界线观测镜）
  * - sidebarHidden：侧面板整体折叠（Ctrl+B 或点当前激活图标）
  * - layoutMode（Q4 布局三态）：editor 编辑聚焦（右栏隐藏，编辑占满）/ balanced 平衡（编辑 + 384 右栏）
  *   / chat 对话聚焦（编辑隐藏，右栏占满中右）。Ctrl+1/2/3 与对话头就地控件切换。
@@ -9,10 +9,15 @@
  */
 import { useCallback, useState } from 'react';
 
-export type SidePanelView = 'explorer' | 'search' | 'observatory';
+export type SidePanelView = 'explorer' | 'search' | 'manuscript' | 'observatory';
 export type LayoutMode = 'editor' | 'balanced' | 'chat';
 
-export const SIDE_PANEL_VIEWS: SidePanelView[] = ['explorer', 'search', 'observatory'];
+export const SIDE_PANEL_VIEWS: SidePanelView[] = [
+  'explorer',
+  'search',
+  'manuscript',
+  'observatory',
+];
 
 export function useShellState() {
   const [view, setView] = useState<SidePanelView>('explorer');

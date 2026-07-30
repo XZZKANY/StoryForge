@@ -1,7 +1,8 @@
 /**
- * 侧面板：explorer 默认 236px；observatory（世界线观测镜，#13 从右栏迁来）用 300px，
- * 台账信息密度高，236px 太挤。
+ * 侧面板：explorer 默认 236px；observatory（世界线观测镜，#13 从右栏迁来）与 manuscript
+ * （手稿）用 300px，台账 / 章节行信息密度高，236px 太挤。
  * - explorer：项目 + 文件树（文件搜索走顶栏命令面板 Ctrl+P）
+ * - manuscript：按阅读序的章节列表 + 模型这轮拿到的作品底座（Ctrl+Shift+M）
  * - observatory：世界线观测镜（Ctrl+4 / 活动栏雷达图标）
  */
 import { useRef, useState, type ReactNode } from 'react';
@@ -26,20 +27,21 @@ type SidePanelProps = {
   onFileSelect: (filePath: string) => void;
   onFilePreview: (filePath: string) => void;
   fileActions?: FileTreeActions;
-  // 观测镜 / 搜索视图内容由 AppShell 注入（数据在各自 hook，面板只管容器）。
+  // 观测镜 / 搜索 / 手稿视图内容由 AppShell 注入（数据在各自 hook，面板只管容器）。
   observatory?: ReactNode;
   search?: ReactNode;
+  manuscript?: ReactNode;
 };
 
 export function SidePanel(props: SidePanelProps) {
-  const wide = props.view === 'observatory';
+  const wide = props.view === 'observatory' || props.view === 'manuscript';
   return (
     <div
       className={`flex ${wide ? 'w-[300px]' : 'w-[236px]'} flex-shrink-0 flex-col border-r border-border bg-panel`}
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >
-      {/* 三视图 CSS 互斥不卸载：观测镜折叠态、搜索结果与滚动位置不因切视图丢失。 */}
+      {/* 四视图 CSS 互斥不卸载：观测镜折叠态、搜索结果、章节滚动位置不因切视图丢失。 */}
       <div
         className={`${props.view === 'explorer' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
         hidden={props.view !== 'explorer'}
@@ -52,6 +54,13 @@ export function SidePanel(props: SidePanelProps) {
         hidden={props.view !== 'search'}
       >
         {props.search}
+      </div>
+      <div
+        className={`${props.view === 'manuscript' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
+        data-testid="side-manuscript-pane"
+        hidden={props.view !== 'manuscript'}
+      >
+        {props.manuscript}
       </div>
       <div
         className={`${props.view === 'observatory' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
