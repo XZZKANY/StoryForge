@@ -10,6 +10,7 @@ import type { ContextMenuItem } from '../shell/ContextMenu';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
+import { ManuscriptView } from '../shell/ManuscriptView';
 import { ObservatoryView } from '../shell/ObservatoryView';
 import { SearchView } from '../shell/SearchView';
 import { SidePanel } from '../shell/SidePanel';
@@ -32,6 +33,7 @@ import { formatShortcutSheet } from './shortcuts';
 import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
+import type { BookContextHandle } from './useBookContext';
 import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
 import type { useObservatory } from './useObservatory';
 import type { ProjectCommands } from './useProjectCommands';
@@ -77,6 +79,9 @@ type AppShellProps = {
   setObsPanelOpen: Dispatch<SetStateAction<boolean>>;
   toggleObsPanel: () => void;
   observatory: ObservatoryHandle;
+  /** 手稿视图：作品底座只读投影 + 点章节行打开该章。 */
+  bookContext: BookContextHandle;
+  onOpenManuscriptChapter: (relativePath: string) => void;
   openSettings: () => Promise<void>;
   welcomeDismissed: boolean;
   onCloseWelcome: () => void;
@@ -104,6 +109,8 @@ export function AppShell({
   setObsPanelOpen,
   toggleObsPanel,
   observatory,
+  bookContext,
+  onOpenManuscriptChapter,
   openSettings,
   welcomeDismissed,
   onCloseWelcome,
@@ -217,6 +224,22 @@ export function AppShell({
                   active={shell.view === 'search'}
                   onOpenHit={onOpenSearchHit}
                 />
+              }
+              manuscript={
+                projectOpen ? (
+                  <ManuscriptView
+                    snapshot={bookContext.snapshot}
+                    availability={bookContext.availability}
+                    refreshing={bookContext.refreshing}
+                    onRefresh={bookContext.refresh}
+                    onOpenChapter={onOpenManuscriptChapter}
+                    onBackToExplorer={shell.showExplorerView}
+                  />
+                ) : (
+                  <p className="px-3 py-4 text-[11px] leading-relaxed text-subtle">
+                    打开项目后可查看按阅读序排列的章节。
+                  </p>
+                )
               }
               observatory={
                 projectOpen ? (

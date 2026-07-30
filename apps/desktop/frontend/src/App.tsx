@@ -6,6 +6,7 @@ import type { PaletteMode } from './components/CommandPalette';
 import { AppShell } from './components/app/AppShell';
 import { useAppDialog } from './components/app/AppDialog';
 import { useAppPreferences } from './components/app/useAppPreferences';
+import { useBookContext } from './components/app/useBookContext';
 import { useEditorWorkspaceTabs } from './components/app/useEditorWorkspaceTabs';
 import { useObservatory } from './components/app/useObservatory';
 import { useProjectCommands } from './components/app/useProjectCommands';
@@ -127,10 +128,11 @@ export function App() {
       if (!mod) return;
       const key = event.key.toLowerCase();
       if (event.shiftKey) {
-        // Ctrl+Shift+E 资源管理器 / Ctrl+Shift+F 正文全文搜索 / Ctrl+Shift+O 观测镜。
+        // Ctrl+Shift+E 资源管理器 / F 正文全文搜索 / M 手稿 / O 观测镜。
         const viewMap: Record<string, SidePanelView> = {
           e: 'explorer',
           f: 'search',
+          m: 'manuscript',
           o: 'observatory',
         };
         const view = viewMap[key];
@@ -198,6 +200,12 @@ export function App() {
   // 观测接线：打开项目即首扫，写盘后防抖重扫（确定性无 LLM）。
   const observatory = useObservatory({ activeProject: workspace.activeProject });
 
+  // 手稿视图：阅读序章节 + 模型这轮拿到的作品底座。跟着当前文件走，章号才不会长期显示错的。
+  const bookContext = useBookContext({
+    activeProject: workspace.activeProject,
+    currentFile: workspace.currentFile,
+  });
+
   // 全文搜索（Ctrl+Shift+F）：点结果 → 打开该文件并跳到那一行，复用观测定位的同一条事件通道。
   const search = useProjectSearch(workspace.activeProject);
   const openSearchHit = useCallback(
@@ -233,6 +241,22 @@ export function App() {
     [locateAnchor],
   );
 
+  // 点手稿章节行打开该章：底座给的是 posix 相对路径，拼绝对路径沿用项目串的分隔符风格
+  // （与 locateAnchor 同一判据），否则 Windows 下拼出的路径与页签路径不可比、会重复开页签。
+  const openManuscriptChapter = useCallback(
+    (relativePath: string) => {
+      const project = workspace.activeProject;
+      if (!project) return;
+      showCenter();
+      const separator = project.includes('\\') ? '\\' : '/';
+      const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath
+        .split('/')
+        .join(separator)}`;
+      if (tabs.displayedFile !== absolutePath) void tabs.openFile(absolutePath, '打开章节');
+    },
+    [showCenter, tabs, workspace.activeProject],
+  );
+
   return (
     <AppShell
       workspace={workspace}
@@ -250,6 +274,8 @@ export function App() {
       setObsPanelOpen={setObsPanelOpen}
       toggleObsPanel={toggleObsPanel}
       observatory={{ ...observatory, locateObservation, locateAnchor }}
+      bookContext={bookContext}
+      onOpenManuscriptChapter={openManuscriptChapter}
       openSettings={openSettings}
       search={search}
       onOpenSearchHit={openSearchHit}
