@@ -480,6 +480,56 @@ fn get_api_config() -> ApiConfig {
     }
 }
 
+/// 窗口材质的实际结果。Mica 只在 Windows 11 上存在，Win10 / 其他平台会失败——
+/// 前端据此决定要不要把画布让给材质，失败时保持原来的不透明底，逐像素与改前一致。
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowEffectStatus {
+    /// "mica" = 已生效；"none" = 未生效（原因见 reason）
+    effect: String,
+    reason: String,
+}
+
+#[tauri::command]
+fn get_window_effect_status(status: tauri::State<'_, WindowEffectStatus>) -> WindowEffectStatus {
+    status.inner().clone()
+}
+
+/// 试着给主窗口挂 Windows 11 Mica。**不走 tauri.conf.json 的 windowEffects**：
+/// 那条路在 tauri 内部把 apply 的 Result 整个丢掉，成败无从得知，而这里必须知道——
+/// 前端的透明画布只有在材质真的挂上时才允许启用。
+fn apply_window_material(app: &tauri::AppHandle) -> WindowEffectStatus {
+    let Some(window) = app.get_webview_window("main") else {
+        return WindowEffectStatus {
+            effect: "none".to_string(),
+            reason: "未找到 main 窗口".to_string(),
+        };
+    };
+    #[cfg(target_os = "windows")]
+    {
+        // dark=None：跟随系统深浅，不去覆盖 DWMWA_USE_IMMERSIVE_DARK_MODE，
+        // 免得与应用自己的明暗主题打架。
+        match window_vibrancy::apply_mica(&window, None) {
+            Ok(()) => WindowEffectStatus {
+                effect: "mica".to_string(),
+                reason: String::new(),
+            },
+            Err(error) => WindowEffectStatus {
+                effect: "none".to_string(),
+                reason: error.to_string(),
+            },
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window;
+        WindowEffectStatus {
+            effect: "none".to_string(),
+            reason: "Mica 仅 Windows 11 提供".to_string(),
+        }
+    }
+}
+
 fn project_root_for_api_start() -> Result<Option<String>> {
     if cfg!(debug_assertions) || !should_use_api_sidecar() {
         match find_project_root() {
@@ -1482,6 +1532,7 @@ fn main() {
             fs::copy_into_project,
             fs::read_project_file_base64,
             get_api_config,
+            get_window_effect_status,
             restart_api_server,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
@@ -1490,6 +1541,8 @@ fn main() {
             watcher::stop_watching,
         ])
         .setup(move |app| {
+            // 材质要在两条分支之前挂：smoke 也要能读到 data-window-effect。
+            app.manage(apply_window_material(app.handle()));
             if is_smoke_mode() {
                 // smoke：同步等后端就绪后再跑探针，保持既有时序与断言不变。
                 println!("Desktop Tauri smoke mode enabled");
