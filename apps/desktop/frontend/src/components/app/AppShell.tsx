@@ -216,6 +216,8 @@ export function AppShell({
           {!shell.sidebarHidden && (
             <SidePanel
               view={shell.view}
+              widths={preferences.settings.sidePanelWidths}
+              onWidthChange={preferences.setSidePanelWidth}
               projects={projects}
               activeProject={activeProject}
               currentFile={currentFile}
