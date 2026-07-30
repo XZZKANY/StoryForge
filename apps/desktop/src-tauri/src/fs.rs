@@ -178,6 +178,77 @@ fn stage_atomic_write(target: &Path, content: &[u8]) -> std::io::Result<PathBuf>
     Ok(tmp)
 }
 
+/// 导入资产（当前只有书封）的尺寸上限。base64 后体积膨胀 4/3，超过这个数走 IPC 会肉眼可见地卡；
+/// 而一张书封根本用不到 8MB。超限如实报错，不静默压缩——作者得知道他选的图没被原样收下。
+const MAX_IMPORTED_ASSET_BYTES: u64 = 8 * 1024 * 1024;
+
+fn ensure_parent_inside_project(root: &Path, target: &Path) -> Result<(), String> {
+    let Some(parent) = target.parent() else {
+        return Ok(());
+    };
+    if parent.as_os_str().is_empty() {
+        return Ok(());
+    }
+    fs::create_dir_all(parent).map_err(|e| format!("无法创建目录 {}: {}", parent.display(), e))?;
+    let canonical_parent = fs::canonicalize(parent)
+        .map_err(|e| format!("无法解析项目目录 {}: {}", parent.display(), e))?;
+    ensure_canonical_path_inside_project(root, &canonical_parent, parent, true)
+}
+
+/// 把项目**外**的一份文件复制进项目内（书封）。源只读不动，目标走与 write_file 同一套
+/// containment 校验和原子替换：中途失败不会在项目里留下半张图。
+#[tauri::command]
+pub fn copy_into_project(project_root: String, source: String, dest: String) -> Result<(), String> {
+    let source_path = Path::new(&source);
+    let metadata =
+        fs::metadata(source_path).map_err(|e| format!("无法读取源文件 {}: {}", source, e))?;
+    if !metadata.is_file() {
+        return Err(format!("源路径不是文件: {}", source));
+    }
+    if metadata.len() > MAX_IMPORTED_ASSET_BYTES {
+        return Err(format!(
+            "文件过大（{} MB），上限 {} MB",
+            metadata.len() / (1024 * 1024),
+            MAX_IMPORTED_ASSET_BYTES / (1024 * 1024)
+        ));
+    }
+
+    let target = Path::new(&dest);
+    let root = validate_pending_mutation_path(&project_root, target)?;
+    ensure_parent_inside_project(&root, target)?;
+
+    let bytes = fs::read(source_path).map_err(|e| format!("无法读取源文件 {}: {}", source, e))?;
+    let staged = stage_atomic_write(target, &bytes)
+        .map_err(|e| format!("无法写入临时文件 {}: {}", dest, e))?;
+    if let Err(e) = fs::rename(&staged, target) {
+        let _ = fs::remove_file(&staged);
+        return Err(format!("无法写入文件 {}: {}", dest, e));
+    }
+    Ok(())
+}
+
+/// 读项目内文件并 base64 编码（书封显示）。走 read_project_file 同一套真实路径校验，
+/// 受同一个尺寸上限约束，故项目内 symlink 指向外部大文件也拿不出来。
+#[tauri::command]
+pub fn read_project_file_base64(project_root: String, path: String) -> Result<String, String> {
+    use base64::Engine as _;
+
+    let root = canonical_project_root(&project_root)?;
+    let candidate =
+        fs::canonicalize(&path).map_err(|e| format!("无法解析项目文件 {}: {}", path, e))?;
+    ensure_canonical_path_inside_project(&root, &candidate, Path::new(&path), false)?;
+    if !candidate.is_file() {
+        return Err(format!("路径不是项目文件: {}", path));
+    }
+    let metadata =
+        fs::metadata(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))?;
+    if metadata.len() > MAX_IMPORTED_ASSET_BYTES {
+        return Err(format!("文件过大: {}", path));
+    }
+    let bytes = fs::read(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
 /// 列出目录内容
 #[tauri::command]
 pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String> {
@@ -731,5 +802,72 @@ mod tests {
             entries.iter().all(|entry| entry.name != "linked-secret.md"),
             "project index must not expose symlink targets"
         );
+    }
+
+    #[test]
+    fn copy_into_project_imports_external_file_and_creates_parent() {
+        let project = TempDir::new("cover-import-root");
+        let outside = TempDir::new("cover-import-source");
+        let source = outside.path.join("cover.jpg");
+        fs::write(&source, [0xFFu8, 0xD8, 0xFF, 0xE0]).expect("source image should be written");
+        let dest = project.join(".storyforge/cover.jpg");
+
+        copy_into_project(
+            project.root(),
+            source.to_string_lossy().to_string(),
+            dest.clone(),
+        )
+        .expect("import should succeed");
+
+        assert_eq!(
+            fs::read(&dest).expect("imported file should be readable"),
+            vec![0xFFu8, 0xD8, 0xFF, 0xE0]
+        );
+        // 原子替换的临时文件不得留在目标目录。
+        let residue = fs::read_dir(project.path.join(".storyforge"))
+            .expect("dir should exist")
+            .filter_map(|entry| entry.ok())
+            .any(|entry| entry.file_name().to_string_lossy().contains(".tmp-"));
+        assert!(!residue, "atomic write must leave no temp residue");
+    }
+
+    #[test]
+    fn copy_into_project_rejects_destination_outside_project() {
+        let project = TempDir::new("cover-escape-root");
+        let outside = TempDir::new("cover-escape-outside");
+        let source = outside.path.join("cover.jpg");
+        fs::write(&source, [0u8; 4]).expect("source image should be written");
+        let dest = outside.join("stolen.jpg");
+
+        let error = copy_into_project(
+            project.root(),
+            source.to_string_lossy().to_string(),
+            dest.clone(),
+        )
+        .expect_err("external destination must be rejected");
+
+        assert!(error.contains("路径不在当前项目内"));
+        assert!(!Path::new(&dest).exists());
+    }
+
+    #[test]
+    fn read_project_file_base64_encodes_bytes_and_rejects_external_paths() {
+        let project = TempDir::new("cover-read-root");
+        let outside = TempDir::new("cover-read-outside");
+        let inside = project.join("cover.png");
+        fs::write(&inside, b"hi").expect("inside file should be written");
+        let outside_file = outside.path.join("secret.png");
+        fs::write(&outside_file, b"secret").expect("outside file should be written");
+
+        let encoded =
+            read_project_file_base64(project.root(), inside).expect("inside read should succeed");
+        assert_eq!(encoded, "aGk=");
+
+        let error = read_project_file_base64(
+            project.root(),
+            outside_file.to_string_lossy().to_string(),
+        )
+        .expect_err("external read must be rejected");
+        assert!(error.contains("路径不在当前项目内"));
     }
 }

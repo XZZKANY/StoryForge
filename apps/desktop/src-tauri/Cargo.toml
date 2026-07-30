@@ -22,6 +22,7 @@ ctrlc = "3.4"
 notify = "6.1"
 walkdir = "2.5"
 chrono = "0.4"
+base64 = "0.22"
 
 [features]
 default = ["custom-protocol"]

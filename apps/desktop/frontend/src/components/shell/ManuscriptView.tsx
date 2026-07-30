@@ -9,9 +9,7 @@
  * 视图是纯展示：数据全部来自 `useBookContext`，字数一律是后端估算值（带「约」字，
  * 与 prompt 同源），精确字数在状态栏。
  */
-import { useState } from 'react';
-
-import { BookOpen, ChevronDown, ChevronRight, FileText, RefreshCw } from '../icons/shell-icons';
+import { BookOpen, FileText, RefreshCw } from '../icons/shell-icons';
 import {
   droppedCount,
   formatEstimatedChars,
@@ -19,6 +17,7 @@ import {
   type RosterEntry,
 } from '../../lib/book-context';
 import type { BookContextAvailability } from '../app/useBookContext';
+import { PanelSection } from './PanelSection';
 
 function rosterSpanLabel(entry: RosterEntry): string {
   if (entry.missing) return '正文中尚未登场';
@@ -28,37 +27,9 @@ function rosterSpanLabel(entry: RosterEntry): string {
     : `第 ${entry.firstChapter}–${entry.lastChapter} 章在场`;
 }
 
-function Section({
-  title,
-  meta,
-  testid,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  meta?: string;
-  testid: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const Chevron = open ? ChevronDown : ChevronRight;
-  return (
-    <div className="border-t border-border" data-testid={`manuscript-section-${testid}`}>
-      <button
-        type="button"
-        className="flex h-8 w-full items-center gap-1 px-2 text-left text-[11px] font-medium text-muted hover:bg-elevated hover:text-foreground"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        data-testid={`manuscript-toggle-${testid}`}
-      >
-        <Chevron size={12} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />
-        <span className="min-w-0 flex-1 truncate">{title}</span>
-        {meta && <span className="flex-shrink-0 font-mono text-[10px] text-subtle">{meta}</span>}
-      </button>
-      {open && <div className="pb-2">{children}</div>}
-    </div>
-  );
+/** 手稿视图的分区一律 `manuscript-` 前缀，testid 与抽出公共组件前保持一致。 */
+function Section(props: Omit<Parameters<typeof PanelSection>[0], 'prefix'>) {
+  return <PanelSection {...props} prefix="manuscript" />;
 }
 
 /** 被截断时把丢掉的条数说清楚；没截断就不占版面。 */

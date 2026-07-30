@@ -30,6 +30,11 @@ export const SHORTCUT_ROWS: ShortcutRow[] = [
     label: '命令面板（全部命令）',
     chords: [{ ctrl: true, shift: true, key: 'p' }],
   },
+  {
+    keys: 'Ctrl Shift B',
+    label: '作品（封面 / 简介 / 进度）',
+    chords: [{ ctrl: true, shift: true, key: 'b' }],
+  },
   { keys: 'Ctrl Shift E', label: '资源管理器', chords: [{ ctrl: true, shift: true, key: 'e' }] },
   {
     keys: 'Ctrl Shift F',

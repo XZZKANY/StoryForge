@@ -1,14 +1,18 @@
 /**
- * useShellState 左栏双视图语义（#13 观测镜从右栏迁到左栏）：
+ * useShellState 左栏视图语义（#13 观测镜从右栏迁到左栏）：
  * toggleObservatory 切到左栏观测镜视图（折叠时先展开）；再点观测镜图标收起；
  * showExplorerView 回资源管理器。右栏只有对话，不再有 rightView。
+ *
+ * 另有一条顺序护栏：左栏图标顺序 = 写作顺序（立项 → 写 → 翻 → 查 → 校）。
+ * 这个顺序是产品承诺，活动栏与 SIDE_PANEL_VIEWS 两处一旦漂移就等于承诺作废。
  */
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { test } from 'vitest';
 
-import { useShellState } from '../src/components/shell/useShellState';
+import { VIEW_ENTRIES } from '../src/components/shell/ActivityBar';
+import { SIDE_PANEL_VIEWS, useShellState } from '../src/components/shell/useShellState';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,6 +41,15 @@ async function withShell(run: () => Promise<void>) {
     latest = null;
   }
 }
+
+test('左栏图标顺序 = 写作顺序：立项 → 写哪一章 → 翻文件 → 回头查 → 校事实', async () => {
+  assert.deepEqual(SIDE_PANEL_VIEWS, ['book', 'manuscript', 'explorer', 'search', 'observatory']);
+  assert.deepEqual(
+    VIEW_ENTRIES.map((entry) => entry.view),
+    SIDE_PANEL_VIEWS,
+    '活动栏图标顺序必须与 SIDE_PANEL_VIEWS 逐项一致',
+  );
+});
 
 test('起始为资源管理器视图；toggleObservatory 切到左栏观测镜', async () => {
   await withShell(async () => {
