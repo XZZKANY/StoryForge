@@ -58,6 +58,7 @@ type RuntimeProps = {
   tauriMenuReady: boolean;
   tauriMenuError: string;
   smokeApiReady: boolean;
+  windowEffect: 'mica' | 'none';
 };
 
 /** 观测句柄：useObservatory 全量数据 + App 级定位回调（观测行 / 台账锚点两种入口）。 */
@@ -190,6 +191,7 @@ export function AppShell({
       data-layout-mode={shell.view}
       data-layout-focus={shell.layoutMode}
       data-shell-deferred={deferred ? 'true' : 'false'}
+      data-window-effect={runtime.windowEffect}
       data-tauri-runtime={runtime.isDesktopRuntime ? 'true' : 'false'}
       data-tauri-menu-ready={runtime.tauriMenuReady ? 'true' : 'false'}
       data-smoke-api-ready={runtime.smokeApiReady ? 'true' : 'false'}

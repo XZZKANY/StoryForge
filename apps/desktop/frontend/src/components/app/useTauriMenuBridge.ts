@@ -19,6 +19,10 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
   const [tauriMenuReady, setTauriMenuReady] = useState(false);
   const [tauriMenuError, setTauriMenuError] = useState('');
   const [smokeApiReady, setSmokeApiReady] = useState(false);
+  // 窗口材质的实际结果由 Rust 侧 apply_mica 的真 Result 决定（见 main.rs
+  // apply_window_material）。非桌面运行时 / Win10 / apply 失败都停在 none，
+  // 此时 CSS 的透明画布整块不启用，观感与改前逐像素一致。
+  const [windowEffect, setWindowEffect] = useState<'mica' | 'none'>('none');
   const callbacksRef = useRef({ onRestoreFullLayout });
 
   useEffect(() => {
@@ -64,6 +68,16 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
 
       setIsDesktopRuntime(true);
 
+      // 材质在 setup 里就挂好了，用 command 读结果而不是 listen 事件：
+      // setup 早于前端挂监听，emit 会丢（smoke:reset-panels 就是这个坑的活体标本）。
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const status = await invoke<{ effect: string }>('get_window_effect_status');
+        if (!isCancelled && status?.effect === 'mica') setWindowEffect('mica');
+      } catch {
+        // 拿不到就当没生效——保持不透明底，不影响任何既有行为
+      }
+
       try {
         unlistenFns.push(
           await listen('smoke:reset-panels', () => callbacksRef.current.onRestoreFullLayout()),
@@ -85,6 +99,7 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
       setIsDesktopRuntime(false);
       setTauriMenuReady(false);
       setSmokeApiReady(false);
+      setWindowEffect('none');
       setTauriMenuError('');
       setSmokeReadyAttribute(false);
       unlistenFns.forEach((fn) => fn());
@@ -96,5 +111,6 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     tauriMenuReady,
     tauriMenuError,
     smokeApiReady,
+    windowEffect,
   };
 }

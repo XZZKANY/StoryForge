@@ -212,6 +212,28 @@ body {
   }
 }
 
+/* 窗口材质（Windows 11 Mica）：让「窗口是一层材质」而不是「一块色板」。
+   全部规则都锁在 data-window-effect='mica' 下——该属性只有 Rust 侧 apply_mica 真的
+   返回 Ok 时才是 mica（Win10 / 非桌面运行时 / apply 失败都停在 none），所以材质挂不上时
+   这一整块不匹配，背景仍是不透明色，与改前逐像素一致。
+
+   只让边栏透出材质，正文区与欢迎页保持不透明：正文可读性优先；顺带也躲开装机 smoke 的
+   visualTone 断言（main.rs 采样 welcome-workspace / composer 的 backgroundColor 要求
+   每通道 ≥24 / ≥36，把它们改透明会读出 rgba(0,0,0,0) 直接挂）。 */
+body:has([data-window-effect='mica']),
+[data-window-effect='mica'] {
+  background: transparent;
+}
+[data-window-effect='mica'] [data-testid='shell-activity-bar'] {
+  background: rgb(var(--background) / 0.4);
+}
+[data-window-effect='mica'] [data-testid='shell-side-panel'],
+[data-window-effect='mica'] [data-testid='assistant-panel'],
+[data-window-effect='mica'] [data-testid='shell-titlebar'],
+[data-window-effect='mica'] [data-testid='shell-status-bar'] {
+  background: rgb(var(--panel) / 0.62);
+}
+
 /* 壳子退场：中栏正文里连续敲字时，左右两栏后退一步（内容是主角，chrome 是配角）。
    停笔 1.6s 自动回来；鼠标移进任一栏立刻回来——这一条靠 :hover 纯 CSS 兜住，不必 JS。
    只动 opacity 与描边：右栏靠 hidden 保住会话状态、左栏五视图靠 CSS 互斥不卸载，

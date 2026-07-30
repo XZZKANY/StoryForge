@@ -3645,6 +3645,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tokio",
  "walkdir",
+ "window-vibrancy",
 ]
 
 [[package]]
