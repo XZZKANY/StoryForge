@@ -572,3 +572,73 @@ uv run ruff check app/common/llm_http.py tests/test_llm_http_env_parsing.py -> A
 
 - 只在一个 Cloudflare 前置端点上实证；其他 WAF 形态（JS challenge、mTLS）不在覆盖内。
 - 冻结 exe / 真机桌面未复验（纯 header 改动，sidecar 走同一函数）。
+
+# 2026-08-01 wave4：live 链删例实测（补上一刀的外推缺口）
+
+## 换端点
+
+作者换 key 两次。第一个（自称 grok-4.5）**判定为不可用作实验基底**：在我们的消息前注入约
+4544 token 的编码 agent 系统提示词（1 字符输入 → prompt_tokens 4545；100 字符 → 4625，
+增量 80 ≈ 我们那 100 字），发 `"1"` 回「Workspace exploration starting now」、自报
+「Codex，基于 GPT-5」。变体差异会被这段隐藏前缀淹没，任何结论都不成立。
+第二个 key 干净（1 字符 → 5 tokens），模型册为 Claude 系 6 个，作者选 `claude-sonnet-5`。
+
+网关可靠性实测：短请求（~100 token 输出）6.4s；400 字格 64s；800–1200 字格 **280s 未完成**，
+另有两次 `ConnectionReset`。故 wave4 缩到只跑 400 字的短格。
+**顺带风险**：`file.create` / `file.revise` 是非流式，作者在桌面起草整章大概率撞上此超时；
+`prose.continue` 走流式不受影响。
+
+## 新增 live 链变体（补 2026-08-01 记档的「外推未实测」）
+
+`registry.py` 新增 kind `live-draft`：`live-baseline`（`_DRAFT_SYSTEM_PROMPT` 恒等引用，
+现生产=无例）vs `live-with-examples`（同源替换把锚点挂回）。两版实证**只差那 91 字符锚点**
+（740 → 831，`w.replace(BAD+GOOD,"") == b` 成立）。system prompt 经生产唯一组装点
+`build_generation_system_prompt(..., None)` 出；user 消息经生产 `_build_draft_prompt` 渲染，
+不手写。`runner` 的 `_SYSTEM_PROMPT_KINDS` 收口「变体出 system prompt」这类 kind。
+
+## wave4 结果（live-opening，2 变体 × 3 重复 = 6 格，全绿）
+
+确定性指标：
+
+```text
+                     字数均值        密钥  左臂  无雾失真  老周   陈词
+live-baseline(无例)   523 (+31%)     3/3   3/3   3/3     3/3   无
+live-with-examples    505 (+26%)     3/3   3/3   3/3     3/3   无
+```
+
+（「密钥」按任意形态计；显式说出「密钥」一词的：无例 0/3、挂例 1/3。）
+
+**判读：keep-baseline —— 未发现挂回锚点带来收益。** 两组必含事实全命中、零陈词、篇幅同样
+超目标 26–31%（差异在噪声内）。文笔亮点反而集中在无例组：「那根烟是直的，没被捏扁」
+（用物证反推老周不紧张）、「春天。她左臂受伤之前。」（把必含事实转成时间线线索）、
+用「你那臂膀好些了没有」岔开话题（比直说「我只知道一点」高级）。挂例组亮点较少，
+A1 结尾「知道一点……但不是我干的」偏直白交代。
+
+结论方向与上一刀的外推一致、无反证，故 `file.create` 保持无例，**不做任何生产改动**。
+
+## 本波修的三个工具缺陷（均变异验证）
+
+1. **docstring 写了不存在的 `--blind`**，照抄即 argparse 报错，且该假用法已被抄进 CLAUDE.md。
+   修两处 + 护栏 `test_runner_docstring_examples_use_real_flags`（正则抓 docstring 全部
+   `--flag` 反查 parser）。
+2. **`--out` 跟 cwd 跑偏**：从 `apps/api` 跑 `--out .codex/...` 落进 `apps/api/.codex/`，
+   而 `.gitignore` 的 `.codex/*` 锚在仓根覆盖不到，证据目录变未跟踪文件。改为相对路径锚仓根
+   （绝对路径原样）+ 护栏。
+3. **盲评版根本不盲**：`blind.md` 保留 `prompt字符` 列，831/740 直接点名两个变体——本波判读
+   因此不是真盲评。盲评版删该列（输出侧指标保留）+ 护栏。
+
+## 验证
+
+```text
+uv run pytest tests/test_prompt_lab.py -q                    -> 21 passed
+uv run ruff check scripts/prompt_lab/ tests/test_prompt_lab.py -> All checks passed
+wave4 真跑 6/6 成功，证据 .codex/prompt-lab/wave4/（gitignored）
+```
+
+## 仍未联通
+
+- **样本极弱**：n=3/组、单模型（sonnet-5）、单任务形态（400 字开篇）。长格（完整章）因网关
+  跑不动未测——而删例的原始争议点恰恰出在长格（wave1 的丢事实）。
+- 本波判读由单人完成，无对抗验证（前两波用的三轮 workflow 本会话未获授权）。
+- 判读时盲评已被 prompt 字符数泄露；修复后的盲评版未用于本波。
+- `critique` / `revision` / 长格 live 变体均未跑。

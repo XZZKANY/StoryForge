@@ -122,12 +122,14 @@ def render_report(run_data: dict[str, Any], *, dry_run: bool, blind_seed: int | 
                 f"## 任务 {task_id}",
                 f"> 输入：{task[_TASK_DESCRIPTION]}",
                 "",
-                "| 编号 | prompt字符 | 输出字符 | token入/出 | 耗时ms | 成本CNY |",
-                "|---|---|---|---|---|---|",
+                # prompt 字符数是**配置**属性，变体间必然不同，留着等于指纹（实证：wave4 的
+                # 831/740 直接把 with-examples/baseline 点名）。盲评只留输出侧指标。
+                "| 编号 | 输出字符 | token入/出 | 耗时ms | 成本CNY |",
+                "|---|---|---|---|---|",
             ]
             for index, entry in enumerate(shuffled, start=1):
                 parts.append(
-                    f"| {chr(64 + index)} | {_fmt_int(entry['prompt_chars'])} | {_fmt_int(entry['output_chars'])} | "
+                    f"| {chr(64 + index)} | {_fmt_int(entry['output_chars'])} | "
                     f"{_fmt_int(entry['prompt_tokens'])}/{_fmt_int(entry['completion_tokens'])} | "
                     f"{_fmt_int(entry['latency_ms'])} | {_fmt_cost(entry['cost_cny_estimated'])} |"
                 )

@@ -13,6 +13,7 @@ import pytest
 from app.common.craft import craft_prompt_clause
 from app.domains.agent_runs.loop import prompt_context
 from app.domains.book_runs.prompts import builder
+from scripts.prompt_lab import runner as runner_module
 from scripts.prompt_lab.agent_registry import AGENT_VARIANTS
 from scripts.prompt_lab.fixtures import MANUAL_DRAFT, OPENING_CTX, TASKS, TRANSITION_CTX
 from scripts.prompt_lab.registry import BOOK_VARIANTS
@@ -238,3 +239,72 @@ def test_runner_merge_replaces_only_selected_cells(monkeypatch: pytest.MonkeyPat
     assert set(by_id) == {"baseline", "no-craft"}
     assert by_id["baseline"]["output"] == "新输出"
     assert by_id["no-craft"]["output"] == "旧输出"
+
+
+def test_runner_docstring_examples_use_real_flags() -> None:
+    """docstring 用法示例里的每个 --flag 都必须真存在于 parser。
+
+    实证（2026-08-01）：docstring 示例写了不存在的 `--blind`，照抄去跑直接 argparse 报错，
+    而且这条假用法已被抄进 CLAUDE.md。文档撒谎比没文档更贵，故钉成断言。
+    """
+
+    import re
+
+    from scripts.prompt_lab.runner import build_parser
+
+    known = {
+        option
+        for action in build_parser()._actions
+        for option in action.option_strings
+    }
+    used = set(re.findall(r"(?<![\w-])--[a-z][a-z-]*", runner_module.__doc__ or ""))
+    unknown = sorted(used - known)
+    assert not unknown, f"docstring 用法示例引用了不存在的参数：{unknown}（parser 只有 {sorted(known)}）"
+
+
+def test_relative_out_dir_anchors_at_repo_root(tmp_path: Path) -> None:
+    """相对 --out 锚仓根，不跟 cwd 跑偏。
+
+    实证（2026-08-01）：从 `apps/api` 跑 `--out .codex/prompt-lab/wave4`，产物落进
+    `apps/api/.codex/`——`.gitignore` 的 `.codex/*` 锚在仓根、覆盖不到那里，证据目录
+    就变成未跟踪文件冒进 git status。而 CLAUDE.md 记的正是这条命令。
+    """
+
+    from scripts.prompt_lab.runner import _REPO_ROOT, anchor_at_repo_root
+
+    anchored = anchor_at_repo_root(Path(".codex/prompt-lab/waveN"))
+    assert anchored == _REPO_ROOT / ".codex" / "prompt-lab" / "waveN"
+    assert anchor_at_repo_root(tmp_path) == tmp_path, "绝对路径必须原样放行"
+    assert anchor_at_repo_root(None) is None
+
+
+def test_blind_report_hides_prompt_chars_fingerprint() -> None:
+    """盲评版不得泄露 prompt 字符数——那是配置属性，变体间必然不同即等于点名。
+
+    实证（2026-08-01 wave4）：blind.md 的 831 / 740 两行直接对上
+    live-with-examples / live-baseline，判读者根本没在盲评。
+    """
+
+    run_data = {
+        "model": "m",
+        "temperature": "0.2",
+        "variants": {
+            "t1": {
+                "task_description": "d",
+                "variants": [
+                    {"id": "a", "label": "A", "description": "", "prompt": "x", "prompt_chars": 831,
+                     "output": "甲", "output_chars": 1, "prompt_tokens": None, "completion_tokens": None,
+                     "latency_ms": 1, "cost_cny_estimated": 0.0, "repeats": None},
+                    {"id": "b", "label": "B", "description": "", "prompt": "y", "prompt_chars": 740,
+                     "output": "乙", "output_chars": 1, "prompt_tokens": None, "completion_tokens": None,
+                     "latency_ms": 1, "cost_cny_estimated": 0.0, "repeats": None},
+                ],
+            }
+        },
+    }
+    blind = render_report(run_data, dry_run=False, blind_seed=42)
+    assert "831" not in blind and "740" not in blind, "盲评版泄露了 prompt 字符数指纹"
+    assert "prompt字符" not in blind
+    # 明标版仍须保留该列，否则对照分析没得看
+    plain = render_report(run_data, dry_run=False)
+    assert "831" in plain and "prompt字符" in plain
