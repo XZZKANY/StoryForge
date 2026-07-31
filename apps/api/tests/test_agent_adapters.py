@@ -56,11 +56,15 @@ def test_fixed_intent_adapter_routes_every_explicit_pipeline() -> None:
     runtime = _RecordingFixedRuntime()
     request = _request("file.review")
 
-    for intent in ("file.review", "file.revise", "bookrun.start", "chapter.review", "chapter.repair"):
+    # bookrun.start 已于 2026-08-01 摘除入口（作者拍板退役批量整书）。
+    for intent in ("file.review", "file.revise", "chapter.review", "chapter.repair"):
         result = run_fixed_intent_pipeline(runtime, replace(request, intent=intent))
         assert result == {"handler": intent}
 
-    assert runtime.calls == ["file.review", "file.revise", "bookrun.start", "chapter.review", "chapter.repair"]
+    assert runtime.calls == ["file.review", "file.revise", "chapter.review", "chapter.repair"]
+
+    with pytest.raises(AgentOrchestrationError, match="暂不支持的 Agent intent"):
+        run_fixed_intent_pipeline(runtime, replace(request, intent="bookrun.start"))
 
 
 def test_fixed_intent_adapter_rejects_unknown_intent() -> None:
@@ -68,7 +72,14 @@ def test_fixed_intent_adapter_rejects_unknown_intent() -> None:
         run_fixed_intent_pipeline(_RecordingFixedRuntime(), _request("unknown.intent"))
 
 
-def test_managed_bookrun_adapter_covers_declared_bookrun_tools() -> None:
+def test_bookrun_tools_stay_unregistered() -> None:
+    """bookrun.* 桌面入口已摘除（2026-08-01 作者拍板退役批量整书）。
+
+    只摘登记不删实现：MANAGED_BOOKRUN_COMMAND_IDS 与 adapter、book_runs service/REST 全留着，
+    回滚 = 恢复 catalog 的 *BOOKRUN_TOOL_SPECS 与 runtime_tools 的 handlers.update。
+    """
+
     declared = tuple(spec.name for spec in list_agent_runtime_tool_specs() if spec.name.startswith("bookrun."))
 
-    assert declared == MANAGED_BOOKRUN_COMMAND_IDS
+    assert declared == (), f"bookrun 工具又被登记回来了：{declared}"
+    assert MANAGED_BOOKRUN_COMMAND_IDS, "adapter 实现应保留（只摘入口不删码）"

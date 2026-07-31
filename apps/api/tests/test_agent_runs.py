@@ -177,7 +177,7 @@ def test_agent_runtime_supported_intents_are_registered() -> None:
         "file.revise",
         "chapter.review",
         "chapter.repair",
-        "bookrun.start",
+        # bookrun.start 已于 2026-08-01 摘除（作者拍板退役批量整书）。
     } == RUNTIME_SUPPORTED_INTENTS
 
 

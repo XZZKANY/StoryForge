@@ -36,7 +36,7 @@ def run_fixed_intent_pipeline(runtime: FixedPipelineRuntime, request: FixedPipel
     handlers = {
         "file.review": runtime.run_file_review_pipeline,
         "file.revise": runtime.run_chapter_polish_pipeline,
-        "bookrun.start": runtime.run_bookrun_generation_pipeline,
+        # bookrun.start 已摘除入口（2026-08-01）；run_bookrun_generation_pipeline 保留，回滚 = 加回本行。
         "chapter.review": runtime.run_chapter_review_pipeline,
         "chapter.repair": runtime.run_chapter_repair_pipeline,
     }

@@ -21,9 +21,28 @@ from app.common.llm_client import (
     build_chat_payload,
     stream_chat_completions,
 )
+
+# LLM 传输 / 配置一律直连 app.common 真身：经 book_generation 拿只是 facade 转发，
+# 会让 live 的 assistant 看起来依赖 backing 的 book_runs（实际不依赖）。
+from app.common.llm_client import (
+    call_llm as _call_llm,
+)
 from app.common.llm_client import (
     call_llm_streamed as _call_llm_streamed,
 )
+from app.common.llm_client import (
+    env_value as _env_value,
+)
+from app.common.llm_client import (
+    llm_request_headers as _llm_request_headers,
+)
+from app.common.llm_client import (
+    optional_float as _optional_float,
+)
+from app.common.llm_client import (
+    required_env as _required_env,
+)
+from app.common.llm_env import resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant import continuation
@@ -44,22 +63,6 @@ from app.domains.book_runs.book_generation import (
     BookGenerationError,
     BookGenerationPreflightError,
     missing_book_generation_env,
-    resolved_llm_env,
-)
-from app.domains.book_runs.book_generation import (
-    call_llm as _call_llm,
-)
-from app.domains.book_runs.book_generation import (
-    env_value as _env_value,
-)
-from app.domains.book_runs.book_generation import (
-    llm_request_headers as _llm_request_headers,
-)
-from app.domains.book_runs.book_generation import (
-    optional_float as _optional_float,
-)
-from app.domains.book_runs.book_generation import (
-    required_env as _required_env,
 )
 
 

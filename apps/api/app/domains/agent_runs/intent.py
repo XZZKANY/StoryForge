@@ -15,7 +15,7 @@ SUPPORTED_INTENTS = frozenset(
         "file.revise",
         "chapter.review",
         "chapter.repair",
-        "bookrun.start",
+        # bookrun.start 已于 2026-08-01 摘除（作者拍板退役批量整书）；回滚 = 加回本行。
     }
 )
 
@@ -30,8 +30,6 @@ def _detect_intent(user_message: str, args: dict[str, Any], explicit_intent: obj
     # 中文关键词表已下线（F11）：自由文本一律落 chat.explain 工具循环，
     # 由循环内工具（含 file.review / project.consistency 等）自主决定，
     # 不再被「审查/检查/一致性」等词劫离循环、也不再抢跑固定管线。
-    if _has_positive_int(args, "book_id") and _has_positive_int(args, "blueprint_id"):
-        return "bookrun.start"
     if _has_positive_int(args, "issue_id"):
         return "chapter.repair"
     if has_file_context and _has_reviewer_role_hint(args):

@@ -54,11 +54,9 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="judge.run", title="运行 Judge", category="Judge"),
         IdeCommandDefinition(id="judge.repair", title="生成定向修复", category="Judge"),
         IdeCommandDefinition(id="judge.approve", title="批准修复写回", category="Judge"),
-        IdeCommandDefinition(id="bookrun.start", title="启动写作任务", category="Writing Run"),
-        IdeCommandDefinition(id="bookrun.pause", title="暂停写作任务", category="Writing Run"),
-        IdeCommandDefinition(id="bookrun.resume", title="恢复写作任务", category="Writing Run"),
-        IdeCommandDefinition(id="bookrun.stop", title="停止写作任务", category="Writing Run"),
-        IdeCommandDefinition(id="bookrun.retry_from_checkpoint", title="从 checkpoint 重试写作任务", category="Writing Run"),
+        # bookrun.* 已于 2026-08-01 摘除桌面入口（作者拍板退役批量整书）：定义不再注册，
+        # 但 _execute_bookrun_command 与分派分支、book_runs service 全部保留。
+        # 回滚 = 把这 5 行 IdeCommandDefinition 加回来（同 W4 冻结域手法）。
         IdeCommandDefinition(id="audit.open", title="打开审计记录", category="Audit", writes=False),
         # canon.refresh 只写派生缓存（.storyforge/canon/derived/），不落 DB，故 writes=False 免审计工作区副作用。
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),

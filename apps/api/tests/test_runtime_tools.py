@@ -70,9 +70,9 @@ def test_runtime_tools_endpoint_includes_executable_agent_runtime_tools(client: 
     assert by_name["file.revise"]["execution_mode"] == "sync"
     assert by_name["file.revise"]["artifact_kinds"] == ["proposed_patch"]
     assert by_name["file.revise"]["allowed_roles"] == ["root_agent", "repair_agent"]
-    assert by_name["bookrun.pause"]["requires_confirmation"] is False
-    assert by_name["bookrun.pause"]["read_only"] is False
-    assert by_name["bookrun.start"]["execution_mode"] == "long_running"
+    # bookrun.* 已于 2026-08-01 摘除桌面入口，不再登记为循环工具。
+    assert "bookrun.start" not in by_name
+    assert "bookrun.pause" not in by_name
     assert by_name["file.revise"]["references"]["workflow_nodes"] == ["agent_runtime.file_revise"]
 
 
@@ -119,7 +119,6 @@ def test_permission_fields_derive_from_risk_and_execution_mode() -> None:
             "project.trim_prose",
             "prose.continue",
             "judge.repair",
-            "bookrun.start",
         }
     )
 
