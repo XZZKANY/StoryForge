@@ -67,6 +67,8 @@ type EditorProps = {
   /** 恢复现场：启动时按文件路径带回的光标位置，只在该文件首次装载时应用一次。 */
   initialCursors?: Record<string, FileCursor> | null;
   onCursorPersist?: (filePath: string, cursor: FileCursor) => void;
+  /** 撤销一次「新建」删掉文件后，把该路径从页签里摘掉（同文件树删除那条路）。 */
+  dropOpenFilePath?: (path: string) => void;
 };
 
 export function EditorLoadStatus({
@@ -108,6 +110,7 @@ export function Editor({
   dialogs,
   initialCursors = null,
   onCursorPersist,
+  dropOpenFilePath,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -162,6 +165,8 @@ export function Editor({
     advanceBranchHead,
     recordRevisionLoop,
     emitAuthorLoopResult,
+    dropOpenFilePath,
+    onRequestVersionHistory: () => setShowHistory(true),
   });
 
   // 每次渲染后同步最新值到 ref（见上注释），供 Monaco 命令/回调闭包读取最新状态。

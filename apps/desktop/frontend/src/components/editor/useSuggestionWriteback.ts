@@ -42,6 +42,10 @@ type UseSuggestionWritebackParams = {
   advanceBranchHead: (timestamp: number) => Promise<void>;
   recordRevisionLoop: (record: RevisionLoopRecord) => Promise<RevisionLoopResult>;
   emitAuthorLoopResult: (result: AuthorLoopResult) => void;
+  /** 撤销一次「新建」要连页签一起摘掉，否则 autosave 会把刚删的文件原样写回来。 */
+  dropOpenFilePath?: (path: string) => void;
+  /** 一键撤销失效时把作者送到版本历史，而不是丢一句错误了事。 */
+  onRequestVersionHistory?: () => void;
 };
 
 export function useSuggestionWriteback({
@@ -58,6 +62,8 @@ export function useSuggestionWriteback({
   advanceBranchHead,
   recordRevisionLoop,
   emitAuthorLoopResult,
+  dropOpenFilePath,
+  onRequestVersionHistory,
 }: UseSuggestionWritebackParams) {
   const [pendingSuggestion, setPendingSuggestion] = useState<AssistantFileSuggestion | null>(null);
   // E15：接受/拒绝/旁注/导出/锚点失效等一次性结果统一走自动消退 toast，不再赖在编辑器顶栏；
@@ -121,12 +127,15 @@ export function useSuggestionWriteback({
       const summary = overrides.summary ?? suggestion.summary;
       const note = overrides.note ?? suggestion.note;
       const contentChanged = normalizeEol(previous) !== normalizeEol(nextContent);
+      // 这次写入是不是「凭空建出这个文件」。撤销一次新建要删文件而不是写回空串，
+      // 否则盘上会留一个空文件，看着像回退了其实没有。
+      let createdFile = false;
       // F27：快照失败必须阻断写回。snapshot 抛错时 performGuardedWriteback 直接向上传播，
       // writeFile 不执行——绝不在没有版本安全网时落盘。
       const loopRecord = await performGuardedWriteback(contentChanged, {
-        snapshot: () => {
+        snapshot: async () => {
           const branch = getActiveBranchSnapshot();
-          return snapshotBeforeWrite(projectPathRef.current, path, previous, {
+          const result = await snapshotBeforeWrite(projectPathRef.current, path, previous, {
             source: 'Agent',
             summary,
             patchId: suggestion.id,
@@ -136,7 +145,13 @@ export function useSuggestionWriteback({
             branchId: branch.id,
             branchLabel: branch.label,
             parentId: branch.headNodeId,
+            runId: suggestion.runId,
+            // AI 写回一律进 checkpoints/：自动档下这是作者事后唯一想回的那个点，
+            // 不能和 autosave 挤同一个配额被冲掉。
+            checkpoint: true,
           });
+          createdFile = result?.created ?? false;
+          return result;
         },
         advanceBranchHead,
         write: () => TauriFileSystem.writeFile(projectRoot, path, nextContent),
@@ -177,7 +192,7 @@ export function useSuggestionWriteback({
         setLoadedContentPreview(nextContent.slice(0, 120));
         setIsDirty(false);
       }
-      return loopRecord;
+      return { ...loopRecord, createdFile };
     },
     [
       advanceBranchHead,
@@ -199,24 +214,46 @@ export function useSuggestionWriteback({
    * 写回成功后弹一条带「撤销」的通知：撤销就是把 previous 再走一遍同一条守卫写回
    * （快照 → 推进分支头 → 写盘 → 记录），所以撤销本身也留安全网、也能再被撤销。
    *
-   * 不动「未确认不写盘」这条红线——补丁仍要作者点接受才落盘；这里降的是**接受之后**
-   * 反悔的成本：从「翻版本历史找到那份快照 → 恢复进缓冲 → 再手动保存一次」变成一次点击。
+   * 三种情况分开处理，都不留死路：
+   *  - 这次写入**创建**了文件 → 撤销是删掉它，不是写回一份空内容（空文件不等于没有这个文件）。
+   *  - 文件之后又变了 → 一键撤销确实不能用了（会吃掉新输入），但检查点还躺在
+   *    `.storyforge/versions/<file>/checkpoints/` 里，把版本历史开过去即可，不是错误终点。
+   *  - 其余 → 原路写回。
    */
   const offerUndo = useCallback(
-    (suggestion: AssistantFileSuggestion, path: string, restoreTo: string, wrote: string) => {
-      emitToast('修订已写回，已留写前快照', {
+    (
+      suggestion: AssistantFileSuggestion,
+      path: string,
+      restoreTo: string,
+      wrote: string,
+      createdFile: boolean,
+    ) => {
+      emitToast(createdFile ? '新文件已写入，已留检查点' : '修订已写回，已留检查点', {
         tone: 'success',
         action: {
-          label: '撤销',
+          label: createdFile ? '撤销（删除该文件）' : '撤销',
           run: async () => {
             const current = editorRef.current?.getValue() ?? null;
             if (current === null || !canUndoWriteback(current, wrote, normalizeEol)) {
-              emitToast('文件在此期间又变了，撤销已取消——请到版本历史挑要恢复的那一份', {
-                tone: 'error',
+              emitToast('文件在此期间又变了，一键撤销会吃掉新内容——检查点仍在版本历史里', {
+                tone: 'info',
+                action: onRequestVersionHistory
+                  ? { label: '打开版本历史', run: () => onRequestVersionHistory() }
+                  : undefined,
               });
               return;
             }
             try {
+              if (createdFile) {
+                const projectRoot = projectPathRef.current;
+                if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
+                await TauriFileSystem.deletePath(projectRoot, path);
+                setPendingSuggestion(null);
+                // 页签留着的话，开着 autosave 时下一次防抖就会把文件原样写回来。
+                dropOpenFilePath?.(path);
+                emitToast('已撤销，该文件回到「不存在」', { tone: 'success' });
+                return;
+              }
               await writeAcceptedSuggestion(
                 {
                   ...suggestion,
@@ -239,7 +276,14 @@ export function useSuggestionWriteback({
         },
       });
     },
-    [editorRef, normalizeEol, writeAcceptedSuggestion],
+    [
+      dropOpenFilePath,
+      editorRef,
+      normalizeEol,
+      onRequestVersionHistory,
+      projectPathRef,
+      writeAcceptedSuggestion,
+    ],
   );
 
   const handleAcceptSuggestion = useCallback(async () => {
@@ -276,7 +320,7 @@ export function useSuggestionWriteback({
         suggestion.after,
       );
       setPendingSuggestion(null);
-      offerUndo(suggestion, path, currentContent, suggestion.after);
+      offerUndo(suggestion, path, currentContent, suggestion.after, loopRecord.createdFile);
       setSuggestionStatus(
         loopRecord.recordPath
           ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
@@ -353,7 +397,7 @@ export function useSuggestionWriteback({
         } else {
           setPendingSuggestion({ ...suggestion, before: nextContent });
         }
-        offerUndo(suggestion, path, currentContent, nextContent);
+        offerUndo(suggestion, path, currentContent, nextContent, loopRecord.createdFile);
         setSuggestionStatus(
           loopRecord.recordPath
             ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'

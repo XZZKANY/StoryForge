@@ -14,6 +14,8 @@ export type AssistantFileSuggestion = {
   scopeWarning?: string;
   /** 缺省即 true：只有后端按项目权限档位明确判定不必确认时才是 false。 */
   requiresConfirmation?: boolean;
+  /** 发起这次写回的 AgentRun；写进快照 meta，用来认出「同一轮的改动」。 */
+  runId?: string;
 };
 
 function appendSuggestionBlock(content: string, userIntent: string): string {
@@ -45,6 +47,7 @@ export function createRemoteFileSuggestion(params: {
   contextFiles?: string[];
   scopeWarning?: string;
   requiresConfirmation?: boolean;
+  runId?: string;
 }): AssistantFileSuggestion {
   const {
     id,
@@ -59,6 +62,7 @@ export function createRemoteFileSuggestion(params: {
     contextFiles = [],
     scopeWarning,
     requiresConfirmation = true,
+    runId,
   } = params;
   return {
     id: id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -86,6 +90,7 @@ export function createRemoteFileSuggestion(params: {
     contextFiles,
     scopeWarning,
     requiresConfirmation,
+    runId,
   };
 }
 
