@@ -18,6 +18,7 @@ from app.domains.agent_runs.event_types import (
     TOOL_TRACE,
 )
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
+from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.run_payloads import (
     book_run_id_from_result as _book_run_id_from_result,
 )
@@ -187,7 +188,7 @@ class _AgentRunEventSink:
                 actor="permission-gate",
                 message="该步骤需要作者确认后才能继续。",
                 payload={
-                    "permission_profile": run.permission_profile,
+                    "permission_profile": canonical_permission_profile(run.permission_profile),
                     "intent": result.get("intent"),
                     # 断线/超时后前端拉事件表重建终态（F10）时，permission_required 也是终态之一，
                     # 而 reconstructAgentResultFromEvents 把 assistant_session_id 当重建必要字段，
@@ -263,7 +264,10 @@ class _AgentRunEventSink:
             self._session,
             run,
             kind=RUNTIME_PENDING_CALL_ARTIFACT_KIND,
-            payload=payload,
+            payload={
+                **payload,
+                "permission_profile": canonical_permission_profile(run.permission_profile),
+            },
             requires_confirmation=False,
         )
         self._emit_latest_event(run, AGENT_ARTIFACT)

@@ -56,3 +56,4 @@ test('sanitize：行号设置只认 auto/on/off，坏值落回 auto；旧存档�
   const legacy = { editorFontSize: 16 } as unknown;
   assert.equal(sanitizeAppSettings(legacy).editorLineNumbers, 'auto');
 });
+

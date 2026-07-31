@@ -4,6 +4,7 @@
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
+import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../lib/agent-permission';
 import { useAgentRunControls } from './chat-window/useAgentRunControls';
 import { useAgentRunRecovery } from './chat-window/useAgentRunRecovery';
 import { useAgentStreamEvent } from './chat-window/useAgentStreamEvent';
@@ -36,6 +37,8 @@ export { applyWritingRunEventProjection, writingRunIdFromResult } from './chat-w
 export type { StableAgentRequestPayload } from './chat-window/types';
 
 export function ChatWindow(props: ChatWindowProps) {
+  const agentPermissionProfile = props.agentPermissionProfile ?? DEFAULT_AGENT_PERMISSION_PROFILE;
+  const onAgentPermissionProfileChange = props.onAgentPermissionProfileChange ?? (() => undefined);
   const state = useChatWindowState(props);
   const session = useChatSessionContext(state, props);
   const recovery = useAgentRunRecovery(state, props.onAssistantSessionChange);
@@ -46,6 +49,7 @@ export function ChatWindow(props: ChatWindowProps) {
     recovery.updateAgentStatus,
     recovery.refreshAgentRunRecovery,
     props.onAssistantSessionChange,
+    agentPermissionProfile,
   );
   const controls = useAgentRunControls(state, runAuthorAgent, applyAgentStreamEvent, recovery);
   const submission = useChatSubmission(state, runAuthorAgent, props);
@@ -59,6 +63,8 @@ export function ChatWindow(props: ChatWindowProps) {
       onSetLayoutMode={props.onSetLayoutMode}
       onOpenObservatory={props.onOpenObservatory}
       observatoryAttention={props.observatoryAttention}
+      agentPermissionProfile={agentPermissionProfile}
+      onAgentPermissionProfileChange={onAgentPermissionProfileChange}
       handleSelectSession={session.handleSelectSession}
       handleNewSession={session.handleNewSession}
       retryAssistantSessionLoad={session.retryAssistantSessionLoad}

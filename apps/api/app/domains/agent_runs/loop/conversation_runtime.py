@@ -12,12 +12,22 @@ from app.domains.agent_runs.events.runtime_support import plan_step as _plan_ste
 from app.domains.agent_runs.events.runtime_support import runtime_interrupted_response as _runtime_interrupted_response
 from app.domains.agent_runs.intent import role_hints as _role_hints
 from app.domains.agent_runs.intent import role_mentions as _role_mentions
+from app.domains.agent_runs.llm_context import (
+    build_llm_context_snapshot,
+    llm_context_snapshot_to_prompt_context_bundle,
+)
 from app.domains.agent_runs.loop.author_view import AuthorView
 from app.domains.agent_runs.models import AgentRun
 from app.domains.agent_runs.runtime_recovery import build_runtime_interruption_payload
 from app.domains.agent_runs.system_jobs import build_conversation_system_jobs
-from app.domains.agent_runs.tools import ToolExecutionContext
-from app.domains.agent_runs.tools.runtime_arguments import chat_context_block as _chat_context_block
+from app.domains.agent_runs.tools import ToolExecutionContext, ToolResult
+from app.domains.agent_runs.tools.runtime_arguments import (
+    TRUSTED_WRITING_CONTEXT_TOOL_NAMES,
+    sanitize_loop_tool_arguments,
+)
+from app.domains.agent_runs.tools.runtime_arguments import (
+    chat_context_block as _chat_context_block,
+)
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import AssistantMessageCreate, AssistantToolCallCreate
@@ -173,15 +183,11 @@ class ConversationRuntimeMixin:
 
         context = ToolExecutionContext(session, run, agent_session_id, assistant_session_id, user_message, args)
 
-        def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-            # project_root / content / file_path 只由后端生成，LLM 传入的一律丢弃，防止越界或注入伪造正文。
-            payload = {
-                key: value
-                for key, value in arguments.items()
-                if key not in ("project_root", "content", "file_path")
-            }
+        def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> ToolResult:
+            # 路径、正文与内层上下文都由后端生成；模型只能提交 ToolSpec 声明的业务参数。
+            payload = sanitize_loop_tool_arguments(arguments)
             if registry_name in ("file.review", "file.revise", "project.trim_prose", "prose.continue"):
-                rel_path = _optional_string(payload.pop("path", None)) or _optional_string(arguments.get("file_path"))
+                rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
                 read = fs_tools.fs_read(project_path, rel_path, offset=0, limit=200_000)
@@ -189,18 +195,43 @@ class ConversationRuntimeMixin:
                     raise fs_tools.FsToolError("文件超过单次处理上限，请缩小范围（分章 / 拆文件）后再审稿或修订。")
                 payload["file_path"] = fs_tools.resolve_project_file(project_path, rel_path)
                 payload["content"] = read["content"]
+                payload["_trace_file_path"] = read["path"]
             elif registry_name == "file.create":
-                rel_path = _optional_string(payload.pop("path", None)) or _optional_string(arguments.get("file_path"))
+                rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")
                 payload["file_path"] = fs_tools.resolve_new_project_file(project_path, rel_path)
+                payload["_trace_file_path"] = (
+                    fs_tools.resolve_project_root(project_path)
+                    .joinpath(rel_path)
+                    .resolve()
+                    .relative_to(fs_tools.resolve_project_root(project_path))
+                    .as_posix()
+                )
             else:
                 payload["project_root"] = project_path
             # 作者自定义指令与 canon 约束都要项目根定位。产字工具走上面的分支设 file_path /
             # content，此前从不回填 project_root，导致 prose.continue 在循环内静默丢掉
             # canon 硬约束（Ctrl+Shift+K 直连路径反而有），作者指令也进不去。
             payload.setdefault("project_root", project_path)
-            return self._execute_tool(registry_name, context, payload).output
+            if registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES:
+                snapshot = build_llm_context_snapshot(
+                    run_state=context.run,
+                    intent=registry_name,
+                    user_message=context.user_message,
+                    file_path=str(payload["_trace_file_path"]),
+                    content=str(payload.get("content") or ""),
+                    context_bundle=context.args.get("context_bundle"),
+                    role_hints=_role_hints(context.args),
+                    role_mentions=_role_mentions(context.args),
+                    event_history=context.run.events,
+                    artifacts=context.run.artifacts,
+                )
+                payload["llm_context_snapshot"] = snapshot
+                payload["llm_prompt_context_bundle"] = (
+                    llm_context_snapshot_to_prompt_context_bundle(snapshot)
+                )
+            return self._execute_tool(registry_name, context, payload)
 
         try:
             outcome = loop_runtime.run_chat_loop(
@@ -276,14 +307,18 @@ class ConversationRuntimeMixin:
                 "completed",
             )
         ]
+        # 自动档下补丁自己带着「不必等点击」，run 就不该再挂在 permission.confirm 上。
+        awaits_confirmation = outcome.patch_proposal is not None and outcome.patch_proposal.requires_confirmation
         agent_result: dict[str, Any] = {
             "summary": answer,
-            "requires_user_confirmation": outcome.proposed_patch is not None,
+            "requires_user_confirmation": awaits_confirmation,
         }
         if outcome.review_report is not None:
             agent_result["review_report"] = outcome.review_report
-        if outcome.proposed_patch is not None:
+        if awaits_confirmation:
             plan.append(_plan_step("permission.confirm", "文件写回前等待作者确认。", "needs_approval"))
+        elif outcome.proposed_patch is not None:
+            plan.append(_plan_step("writeback.auto", "按本项目的自动档直接写盘（写前存快照）。", "completed"))
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,

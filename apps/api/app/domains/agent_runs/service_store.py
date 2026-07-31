@@ -15,6 +15,7 @@ from app.domains.agent_runs.event_types import (
 )
 from app.domains.agent_runs.events.contracts import CompletedEventPayload, FailedEventPayload
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
+from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.run_payloads import optional_positive_int
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
@@ -175,7 +176,10 @@ def complete_agent_run(
         event_type=AGENT_RUN_COMPLETED,
         actor="root-agent",
         message=str(agent_result.get("summary") or "AgentRun 已完成。"),
-        payload=_completed_event_payload(result, agent_result),
+        payload={
+            **_completed_event_payload(result, agent_result),
+            "permission_profile": canonical_permission_profile(run.permission_profile),
+        },
     )
     return run
 
@@ -214,7 +218,10 @@ def fail_agent_run(
         event_type=AGENT_RUN_FAILED,
         actor="root-agent",
         message=message,
-        payload=FailedEventPayload.from_payload(payload or {}).to_payload(),
+        payload={
+            **FailedEventPayload.from_payload(payload or {}).to_payload(),
+            "permission_profile": canonical_permission_profile(run.permission_profile),
+        },
     )
     return run
 

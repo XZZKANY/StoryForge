@@ -151,7 +151,7 @@ def test_permission_required_frame_carries_proposed_patch() -> None:
     assert isinstance(frame["run_id"], str) and frame["run_id"]
     assert frame["proposed_patch"] == patch
     assert frame["confirmation_action"]["args"]["confirmed"] is True
-    assert frame["permission_profile"] == "proposed_patch"
+    assert frame["permission_profile"] == "ask"
     assert frame["reason"] == "requires_user_confirmation"
 
 
@@ -229,6 +229,7 @@ def test_started_frame_is_byte_identical_to_golden() -> None:
         "run_id": "run-pub-1",
         "user_message": "给第二章加紧张感",
         "event_id": 101,
+        "permission_profile": "ask",
         "agent_role_hints": ["editor"],
         "agent_role_mentions": ["@editor"],
     }
@@ -303,7 +304,7 @@ def test_permission_required_frame_is_byte_identical_to_golden() -> None:
         "approval_action": "apply_patch",
     }
     payload = {
-        "permission_profile": "proposed_patch",
+        "permission_profile": "ask",
         "reason": "requires_user_confirmation",
         "proposed_patch": patch,
         "confirmation_action": "apply_patch",
@@ -317,7 +318,7 @@ def test_permission_required_frame_is_byte_identical_to_golden() -> None:
         "assistant_session_id": 7,
         "event_id": 101,
         "sequence": 3,
-        "permission_profile": "proposed_patch",
+        "permission_profile": "ask",
         "reason": "requires_user_confirmation",
         "proposed_patch": patch,
         "confirmation_action": "apply_patch",
@@ -333,7 +334,7 @@ def test_permission_required_frame_keeps_null_keys() -> None:
     assert frame["proposed_patch"] is None
     assert frame["confirmation_action"] is None
     assert frame["blocked_tool"] is None
-    assert frame["permission_profile"] == "proposed_patch"  # 回落 run.permission_profile
+    assert frame["permission_profile"] == "ask"  # 非 canonical 旧值安全回落默认档
 
 
 def test_terminal_frames_are_byte_identical_to_golden() -> None:

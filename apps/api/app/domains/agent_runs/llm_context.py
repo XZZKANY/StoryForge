@@ -130,6 +130,7 @@ def build_llm_context_snapshot(
 
 def llm_context_snapshot_trace_summary(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     context_files = snapshot.get("context_files")
+    context_file_items = context_files if isinstance(context_files, list) else []
     story_memory = snapshot.get("story_memory")
     chapter_context = snapshot.get("chapter_context")
     review_report = snapshot.get("review_report")
@@ -138,7 +139,13 @@ def llm_context_snapshot_trace_summary(snapshot: Mapping[str, Any]) -> dict[str,
     return {
         "snapshot_id": snapshot.get("snapshot_id"),
         "section_count": len(included_sections) if isinstance(included_sections, list) else 0,
-        "context_file_count": len(context_files) if isinstance(context_files, list) else 0,
+        "context_file_count": len(context_file_items),
+        "context_files": [
+            path
+            for item in context_file_items
+            if isinstance(item, Mapping)
+            if (path := _first_string(item, "relative_path")) is not None
+        ],
         "story_memory_count": _story_memory_count(story_memory),
         "has_chapter_context": bool(chapter_context),
         "has_review_report": isinstance(review_report, Mapping) and bool(review_report),
@@ -328,21 +335,42 @@ def _context_files(
         if kind in _UNSAFE_FILE_KINDS or _looks_like_harness_payload(excerpt):
             unsafe_count += 1
             continue
-        relative_path = _first_string(item, "relative_path", "relativePath", "path")
+        relative_path = _normalized_relative_context_path(
+            _first_string(item, "relative_path", "relativePath", "path")
+        )
         path = _first_string(item, "path")
         if _matches_selected_file(relative_path, selected_refs) or _matches_selected_file(path, selected_refs):
             continue
+        if relative_path is None:
+            warnings.append("context_bundle.files item ignored because its relative path was unsafe")
+            continue
         title = _first_string(item, "title", "name")
         context_file: dict[str, Any] = {
-            "relative_path": relative_path or path or "unknown",
+            "relative_path": relative_path,
             "kind": kind,
-            "title": title or relative_path or path or "untitled",
+            "title": title or relative_path,
         }
         if excerpt:
             context_file["excerpt"] = compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
             context_file["excerpt_chars"] = len(excerpt)
         result.append(context_file)
     return result, warnings, unsafe_count
+
+
+def _normalized_relative_context_path(path: str | None) -> str | None:
+    if path is None:
+        return None
+    normalized = path.replace("\\", "/").strip()
+    if not normalized or normalized.startswith("/") or (len(normalized) > 1 and normalized[1] == ":"):
+        return None
+    parts: list[str] = []
+    for part in normalized.split("/"):
+        if not part or part == ".":
+            continue
+        if part == "..":
+            return None
+        parts.append(part)
+    return "/".join(parts) or None
 
 
 def _review_report_summary(report: object | None) -> dict[str, Any] | None:

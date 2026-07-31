@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+from app.domains.agent_runs.permission import PermissionDecision, PermissionGate
 from app.domains.agent_runs.tools.catalog import (
     confirming_tool_names,
     list_agent_runtime_tool_specs,
 )
 from app.domains.agent_runs.tools.execution import (
-    PermissionDecision,
-    PermissionGate,
     SubagentDefinition,
     SubagentExecutor,
     ToolArtifact,

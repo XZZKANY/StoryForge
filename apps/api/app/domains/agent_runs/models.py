@@ -6,6 +6,7 @@ from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
+from app.domains.agent_runs.permission import DEFAULT_PERMISSION_PROFILE
 
 if TYPE_CHECKING:
     from app.domains.assistant.models import AssistantSession
@@ -25,7 +26,7 @@ class AgentRun(IdMixin, TimestampMixin, Base):
     book_run_id: Mapped[int | None] = mapped_column(ForeignKey("book_runs.id", ondelete="SET NULL"), index=True)
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     scope: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    permission_profile: Mapped[str] = mapped_column(String(40), nullable=False, default="risk_confirm")
+    permission_profile: Mapped[str] = mapped_column(String(40), nullable=False, default=DEFAULT_PERMISSION_PROFILE)
     budget: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="running", index=True)
     root_plan: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

@@ -14,6 +14,7 @@ from app.domains.agent_runs.event_types import (
     TOOL_TRACE,
 )
 from app.domains.agent_runs.models import AgentRun
+from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.service_lifecycle import create_or_resume_bookrun_agent_run
 from app.domains.agent_runs.service_store import fail_agent_run, record_agent_artifact, record_agent_event
 from app.domains.agent_runs.service_types import AgentRuntimeError
@@ -37,7 +38,10 @@ def record_book_run_snapshot(
     """把 BookRun 状态快照写入对应 long-running AgentRun。"""
 
     run = create_or_resume_bookrun_agent_run(session, book_run=book_run, event_source=source)
-    payload = run_payloads.book_run_snapshot_payload(book_run, source=source)
+    payload = {
+        **run_payloads.book_run_snapshot_payload(book_run, source=source),
+        "permission_profile": canonical_permission_profile(run.permission_profile),
+    }
     record_agent_event(
         session,
         run,

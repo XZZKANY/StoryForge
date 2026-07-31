@@ -23,7 +23,9 @@ import {
 } from '../../lib/local-conversation-action';
 import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import {
+  contextFilesFromAgentResult,
   filePathFromAgentResult,
   writableFilePatch,
   issueIdsFromAgentResult,
@@ -59,6 +61,7 @@ export function useRunAuthorAgent(
   updateAgentStatus: (status: AgentRunStatus) => void,
   refreshAgentRunRecovery: (runId: string) => Promise<void>,
   onAssistantSessionChange: ChatWindowProps['onAssistantSessionChange'],
+  agentPermissionProfile: AgentPermissionProfile,
 ): RunAuthorAgent {
   const {
     agentBusy,
@@ -176,6 +179,7 @@ export function useRunAuthorAgent(
         goal,
         status: 'running',
         steps: [],
+        permissionProfile: agentPermissionProfile,
       });
 
       try {
@@ -230,6 +234,7 @@ export function useRunAuthorAgent(
           assistantSessionId: assistantSessionIdRef.current,
           userMessage: goal,
           intent,
+          permissionProfile: agentPermissionProfile,
           args: payload,
           agentRoleHints,
           agentRoleMentions,
@@ -378,8 +383,12 @@ export function useRunAuthorAgent(
               userIntent: goal,
               assistantSessionId: response.assistant_session_id,
               issueIds: issueIdsFromAgentResult(response),
-              contextFiles: contextBundle.files.map((file) => file.relativePath),
+              contextFiles: contextFilesFromAgentResult(
+                response,
+                contextBundle.files.map((file) => file.relativePath),
+              ),
               scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
+              requiresConfirmation: proposed.requires_confirmation,
             }),
           );
           emitSuggestionResult({
@@ -445,6 +454,7 @@ export function useRunAuthorAgent(
     },
     [
       agentBusy,
+      agentPermissionProfile,
       agentRunIdRef,
       applyAgentStreamEvent,
       assistantSessionIdRef,

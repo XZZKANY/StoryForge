@@ -269,6 +269,7 @@ def test_llm_context_snapshot_trace_summary_is_lightweight() -> None:
         "snapshot_id": snapshot["snapshot_id"],
         "section_count": 7,
         "context_file_count": 2,
+        "context_files": ["人物/周眠.md", "大纲/第02章节点.md"],
         "story_memory_count": 1,
         "has_chapter_context": True,
         "has_review_report": True,
@@ -302,6 +303,48 @@ def test_llm_context_snapshot_to_prompt_context_bundle_is_sanitized() -> None:
     assert "RAW_UI_DEBUG_JSON" not in encoded
     assert "RAW_TIMELINE_JSON" not in encoded
     assert "RAW_PATCH_METADATA" not in encoded
+
+
+def test_llm_context_snapshot_filters_unsafe_context_file_paths_with_warnings() -> None:
+    snapshot = build_llm_context_snapshot(
+        run_state=None,
+        intent="file.create",
+        user_message="写第三章",
+        file_path="正文/第03章.md",
+        content="",
+        context_bundle={
+            "files": [
+                {
+                    "path": "D:/outside/spec.md",
+                    "relative_path": "D:/outside/spec.md",
+                    "kind": "other",
+                    "title": "outside",
+                    "excerpt": "outside",
+                },
+                {
+                    "path": "../outside.md",
+                    "relative_path": "../outside.md",
+                    "kind": "other",
+                    "title": "traversal",
+                    "excerpt": "traversal",
+                },
+                {
+                    "path": ".资料\\黄金三章spec.md",
+                    "relative_path": ".资料\\黄金三章spec.md",
+                    "kind": "other",
+                    "title": "黄金三章spec",
+                    "excerpt": "可信规格",
+                },
+            ]
+        },
+    )
+
+    assert [item["relative_path"] for item in snapshot["context_files"]] == [
+        ".资料/黄金三章spec.md"
+    ]
+    assert len(snapshot["warnings"]) == 2
+    assert llm_context_snapshot_trace_summary(snapshot)["context_file_count"] == 1
+    assert llm_context_snapshot_trace_summary(snapshot)["warning_count"] == 2
 
 
 def test_file_review_runtime_records_llm_context_snapshot_summary(

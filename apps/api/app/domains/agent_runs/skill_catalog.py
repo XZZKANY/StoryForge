@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.agent_runs.role_catalog import DEFAULT_PERMISSION_PROFILE
+from app.domains.agent_runs.permission import DEFAULT_PERMISSION_PROFILE
 from app.domains.agent_runs.schemas import AgentSkillRead
 
 _AGENT_SKILL_DEFINITIONS: tuple[dict[str, Any], ...] = (

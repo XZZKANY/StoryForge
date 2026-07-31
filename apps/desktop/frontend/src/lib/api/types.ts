@@ -1,4 +1,5 @@
 import type { ApiAssistantContextBundle } from './contracts';
+import type { AgentPermissionProfile } from '../agent-permission';
 import type {
   AgentRunStartedFrame,
   AgentStepFrame,
@@ -239,6 +240,7 @@ export type AgentUserMessageRequest = {
   userMessage: string;
   assistantSessionId?: number | null;
   intent?: string;
+  permissionProfile?: AgentPermissionProfile;
   args?: Record<string, unknown>;
   agentRoleHints?: string[];
   agentRoleMentions?: string[];

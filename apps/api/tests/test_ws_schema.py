@@ -68,4 +68,10 @@ def test_started_frame_required_fields_match_model() -> None:
 
     schema = build_agent_ws_schema()
     started = schema["$defs"]["AgentRunStartedFrame"]
-    assert set(started["required"]) == {"session_id", "run_id", "user_message", "event_id"}
+    assert set(started["required"]) == {
+        "session_id",
+        "run_id",
+        "user_message",
+        "event_id",
+        "permission_profile",
+    }

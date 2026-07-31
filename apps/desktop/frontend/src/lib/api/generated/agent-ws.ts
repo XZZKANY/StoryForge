@@ -7,6 +7,7 @@ export interface AgentRunStartedFrame {
   agent_role_hints: string[];
   agent_role_mentions: string[];
   event_id: number;
+  permission_profile: string;
   run_id: string;
   session_id: string;
   type: "agent_run_started";

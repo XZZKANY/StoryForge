@@ -3,6 +3,7 @@ import type {
   AgentResultMessage,
   AgentToolTrace,
 } from '../../lib/api-client';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { LocalConversationAction } from '../../lib/local-conversation-action';
 import type { ContextBundle, SemanticFile } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';
@@ -21,6 +22,8 @@ export type ChatWindowProps = {
   // observatoryAttention 为 true 时雷达图标亮小紫点（光标行提到 canon 实体）。
   onOpenObservatory?: () => void;
   observatoryAttention?: boolean;
+  agentPermissionProfile?: AgentPermissionProfile;
+  onAgentPermissionProfileChange?: (profile: AgentPermissionProfile) => void;
 };
 
 export type Message = {
@@ -48,6 +51,7 @@ export type AgentRun = {
   goal: string;
   status: AgentRunStatus;
   steps: AgentStep[];
+  permissionProfile?: AgentPermissionProfile;
 };
 
 export type RetryRequest = {

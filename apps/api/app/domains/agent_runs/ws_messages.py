@@ -29,6 +29,7 @@ class AgentRunStartedFrame(WsFrame):
     run_id: str
     user_message: str
     event_id: int
+    permission_profile: str
     agent_role_hints: list[str] = Field(default_factory=list)
     agent_role_mentions: list[str] = Field(default_factory=list)
 

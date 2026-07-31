@@ -37,6 +37,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
 
     assert started["type"] == "agent_run_started"
     assert started["run_id"] == "run-agent-review"
+    assert started["permission_profile"] == "ask"
     assert received[-1]["run_id"] == "run-agent-review"
     assert received[-1]["system_jobs"]["title"]["job_name"] == "conversation.title.generate"
     assert received[-1]["system_jobs"]["title"]["hidden"] is True
@@ -49,7 +50,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert run["public_id"] == "run-agent-review"
     assert run["session_id"] == "session-agent-run-review"
     assert run["status"] == "completed"
-    assert run["permission_profile"] == "risk_confirm"
+    assert run["permission_profile"] == "ask"
     assert run["root_plan"]
 
     events_response = client.get("/api/agent-runs/run-agent-review/events")
@@ -88,6 +89,21 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert session_response.json()["title"] == "审查当前章节审稿"
     # 桌面端会话历史按项目过滤依赖 agent 建会话时落 project_path
     assert session_response.json()["project_path"] == "D:/novels/demo"
+
+
+def test_agent_stream_rejects_unknown_permission_profile_before_starting_a_run(client: TestClient) -> None:
+    response = client.post(
+        "/api/ide/agent/sessions/session-agent-invalid-permission/stream",
+        json={
+            "run_id": "run-agent-invalid-permission",
+            "user_message": "不要静默放行未知权限",
+            "permission_profile": "unknown-profile",
+            "args": {},
+        },
+    )
+
+    assert response.status_code == 422
+    assert "不支持的 Agent 权限档位" in response.text
 
 
 def test_agent_run_records_permission_required_for_proposed_patch(
@@ -131,7 +147,7 @@ def test_agent_run_records_permission_required_for_proposed_patch(
     assert "permission_required" in event_types
     permission_event = next(event for event in events if event["event_type"] == "permission_required")
     assert permission_event["actor"] == "permission-gate"
-    assert permission_event["payload"]["permission_profile"] == "risk_confirm"
+    assert permission_event["payload"]["permission_profile"] == "ask"
     assert permission_event["payload"]["proposed_patch"]["kind"] == "file_revision"
     assert permission_event["payload"]["blocked_tool"] == "file.revise"
     # F10：permission_required 也是终态之一，payload 必须带 assistant_session_id，

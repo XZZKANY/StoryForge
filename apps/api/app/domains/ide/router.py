@@ -6,11 +6,12 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import sessionmaker
 
 from app.db.deps import SessionDependency
 from app.domains.agent_runs.event_types import CONTROL_MESSAGE_TYPES
+from app.domains.agent_runs.permission import PermissionProfileError, normalize_permission_profile
 from app.domains.agent_runs.service import (
     AgentRuntimeError,
     AgentRuntimeUserMessageError,
@@ -273,6 +274,15 @@ class AgentUserMessageStreamRequest(BaseModel):
     intent: str | None = None
     permission_profile: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("permission_profile")
+    @classmethod
+    def validate_permission_profile(cls, value: str | None) -> str | None:
+        try:
+            normalize_permission_profile(value)
+        except PermissionProfileError as exc:
+            raise ValueError(str(exc)) from exc
+        return value
 
 
 class AgentControlRequest(BaseModel):

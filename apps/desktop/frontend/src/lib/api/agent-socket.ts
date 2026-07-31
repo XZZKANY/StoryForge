@@ -64,6 +64,7 @@ export async function sendAgentUserMessage(
     run_id: request.runId,
     assistant_session_id: request.assistantSessionId ?? undefined,
     intent: request.intent,
+    permission_profile: request.permissionProfile,
     args,
   });
   const effectiveTimeoutMs = request.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS;

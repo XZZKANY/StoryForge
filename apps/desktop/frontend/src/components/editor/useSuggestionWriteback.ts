@@ -15,6 +15,8 @@ import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-lo
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
+import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
+import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import {
@@ -111,6 +113,11 @@ export function useSuggestionWriteback({
     ) => {
       const projectRoot = projectPathRef.current;
       if (!projectRoot) throw new Error('未打开项目，不能写入修订结果');
+      // 派生缓存由后端重建，写进去下次扫描即被覆盖。saveCurrentFile 一直有这道闸，
+      // AI 写回这条路以前漏了；自动档下补丁不再经人眼，漏了就会静默写坏。
+      if (isReadOnlyDerivedProjectPath(path)) {
+        throw new Error('canon 派生缓存是只读的，不能写入修订结果');
+      }
       const summary = overrides.summary ?? suggestion.summary;
       const note = overrides.note ?? suggestion.note;
       const contentChanged = normalizeEol(previous) !== normalizeEol(nextContent);
@@ -301,6 +308,23 @@ export function useSuggestionWriteback({
     setSuggestionStatus,
     writeAcceptedSuggestion,
   ]);
+
+  /**
+   * 自动档：补丁自己带着「不必等点击」就直接走同一条接受路径。
+   *
+   * 放宽的只有「作者点一下」这一层——快照 → 写盘 → 版本记录、漂移拒写、派生目录只读、
+   * 项目边界全都照旧执行，撤销 toast 也照旧弹。任何一条守卫拦下来，补丁就留在
+   * PatchReviewPanel 里退回手动确认，绝不静默丢弃。
+   */
+  const autoAcceptingRef = useRef(false);
+  useEffect(() => {
+    if (!pendingSuggestion || !shouldAutoAcceptSuggestion(pendingSuggestion)) return;
+    if (autoAcceptingRef.current) return;
+    autoAcceptingRef.current = true;
+    void handleAcceptSuggestion().finally(() => {
+      autoAcceptingRef.current = false;
+    });
+  }, [pendingSuggestion, handleAcceptSuggestion]);
 
   const handleAcceptHunk = useCallback(
     async (hunk: PatchHunk) => {

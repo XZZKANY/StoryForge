@@ -13,6 +13,7 @@ from app.domains.agent_runs.event_types import (
     TOOL_TRACE,
 )
 from app.domains.agent_runs.models import AgentRun, AgentRunEvent
+from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.ws_messages import (
     AgentRunStartedFrame,
     AgentStepFrame,
@@ -44,6 +45,7 @@ def websocket_started_event(run: AgentRun, event: AgentRunEvent) -> dict[str, An
         run_id=run.public_id,
         user_message=redact_sensitive_text(run.goal),
         event_id=event.id,
+        permission_profile=canonical_permission_profile(run.permission_profile),
         agent_role_hints=_scope_string_list(scope, "agent_role_hints"),
         agent_role_mentions=_scope_string_list(scope, "agent_role_mentions"),
     ).to_wire()
@@ -139,7 +141,10 @@ def _websocket_permission_required_event(run: AgentRun, event: AgentRunEvent) ->
         assistant_session_id=run.assistant_session_id,
         event_id=event.id,
         sequence=event.sequence,
-        permission_profile=payload.get("permission_profile") or run.permission_profile,
+        permission_profile=canonical_permission_profile(
+            payload.get("permission_profile"),
+            fallback=run.permission_profile,
+        ),
         reason=redact_sensitive_text(str(payload.get("reason") or "requires_user_confirmation")),
         proposed_patch=redact_sensitive(payload.get("proposed_patch")) if isinstance(payload.get("proposed_patch"), dict) else None,
         confirmation_action=redact_sensitive(payload.get("confirmation_action")),

@@ -21,6 +21,10 @@
           "title": "Event Id",
           "type": "integer"
         },
+        "permission_profile": {
+          "title": "Permission Profile",
+          "type": "string"
+        },
         "run_id": {
           "title": "Run Id",
           "type": "string"
@@ -44,7 +48,8 @@
         "session_id",
         "run_id",
         "user_message",
-        "event_id"
+        "event_id",
+        "permission_profile"
       ],
       "title": "AgentRunStartedFrame",
       "type": "object"
