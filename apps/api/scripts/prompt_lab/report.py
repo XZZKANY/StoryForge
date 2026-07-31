@@ -43,7 +43,10 @@ def _diff_blocks(baseline_prompt: str, variant_prompt: str) -> list[str]:
 
 
 def _render_metrics_table(entries: Sequence[dict[str, Any]], baseline_prompt: str) -> str:
-    """每任务的指标表：编号 / 变体 / 差异说明 / prompt 字符 / 输出字符 / token / 耗时 / 成本。"""
+    """每任务的指标表：编号 / 变体 / 差异说明 / prompt 字符 / 输出字符 / token / 耗时 / 成本。
+
+    repeat>1 时输出字符/耗时列记首样本值，正文区逐样本渲染。
+    """
 
     lines = ["| 编号 | 变体 | 差异说明 | prompt字符 | 输出字符 | token入/出 | 耗时ms | 成本CNY |", "|---|---|---|---|---|---|---|---|"]
     for index, entry in enumerate(entries, start=1):
@@ -58,9 +61,19 @@ def _render_metrics_table(entries: Sequence[dict[str, Any]], baseline_prompt: st
     return "\n".join(lines)
 
 
-def _render_output_block(letter: str, label: str, output: str | None, dry_run: bool) -> str:
+def _render_output_block(letter: str, label: str, entry: dict[str, Any], dry_run: bool) -> str:
+    repeats = entry.get("repeats")
     if dry_run:
         return f"#### {letter}. {label}\n\n（dry-run：未调用 LLM）\n"
+    if repeats:
+        parts = [f"#### {letter}. {label}"]
+        for index, sample in enumerate(repeats, start=1):
+            if "error" in sample:
+                parts.append(f"\n**第 {index} 次：失败（{sample['error'][:120]}）**\n")
+                continue
+            parts.append(f"\n**第 {index} 次**\n\n```\n{sample['output'] if sample['output'] else '（空输出）'}\n```")
+        return "\n".join(parts) + "\n"
+    output = entry.get("output")
     if output is None:
         return f"#### {letter}. {label}\n\n（失败：无输出）\n"
     return f"#### {letter}. {label}\n\n```\n{output if output else '（空输出）'}\n```\n"
@@ -69,7 +82,7 @@ def _render_output_block(letter: str, label: str, output: str | None, dry_run: b
 def _render_task_section(task_id: str, description: str, entries: Sequence[dict[str, Any]], dry_run: bool) -> str:
     parts = [f"## 任务 {task_id}", f"> 输入：{description}", "", _render_metrics_table(entries, entries[0]["prompt"]), ""]
     for index, entry in enumerate(entries, start=1):
-        parts.append(_render_output_block(chr(64 + index), entry["label"], entry.get("output"), dry_run))
+        parts.append(_render_output_block(chr(64 + index), entry["label"], entry, dry_run))
     baseline_prompt = entries[0]["prompt"]
     for index, entry in enumerate(entries[1:], start=2):
         diff_lines = _diff_blocks(baseline_prompt, entry["prompt"])
@@ -120,7 +133,7 @@ def render_report(run_data: dict[str, Any], *, dry_run: bool, blind_seed: int | 
                 )
             parts.append("")
             for index, entry in enumerate(shuffled, start=1):
-                parts.append(_render_output_block(chr(64 + index), "输出", entry.get("output"), dry_run))
+                parts.append(_render_output_block(chr(64 + index), "输出", entry, dry_run))
             parts.extend(["- [ ] 哪版更好？理由（先盲评，后揭晓配置名）：", ""])
             sections.append("\n".join(parts))
         else:

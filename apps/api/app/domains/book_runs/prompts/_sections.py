@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.common.craft import CRAFT_EXAMPLE_BAD as _CRAFT_EXAMPLE_BAD
-from app.common.craft import CRAFT_EXAMPLE_GOOD as _CRAFT_EXAMPLE_GOOD
 from app.common.craft import CRAFT_GUIDELINES as _CRAFT_GUIDELINES
 from app.domains.book_runs.prompts._render import clean as _clean
 from app.domains.book_runs.prompts._render import section as _section
@@ -41,18 +39,13 @@ def _character_section(characters: Iterable[CharacterConstraint]) -> str:
 
 
 def _craft_section() -> str:
-    """固定创作准则段：把好文笔的判定标准显式注入，配好坏对照锚定模型。
+    """固定创作准则段：把好文笔的判定标准显式注入。
 
-    好坏对照锚点从 ``builder`` facade 读取，使诊断脚本可通过 patch
-    ``builder._CRAFT_EXAMPLE_BAD/_GOOD`` 做 A/B 开关（缺省回落到本模块常量）。
+    好坏对照锚点已删（wave2 实验验证：删例对必含事实锚定零损害、预览任务一致更优，
+    正反例是冗余风格信号——风格已由准则 6 条 + 文风段示例句承载）。
     """
 
-    from app.domains.book_runs.prompts import builder as _builder
-
-    example_bad = getattr(_builder, "_CRAFT_EXAMPLE_BAD", _CRAFT_EXAMPLE_BAD)
-    example_good = getattr(_builder, "_CRAFT_EXAMPLE_GOOD", _CRAFT_EXAMPLE_GOOD)
-    lines = [*_CRAFT_GUIDELINES, example_bad, example_good]
-    return _section("创作准则（高于个人发挥，逐条遵守）", lines)
+    return _section("创作准则（高于个人发挥，逐条遵守）", [*_CRAFT_GUIDELINES])
 
 
 def _style_section(style: StyleDirective) -> str:
@@ -193,8 +186,6 @@ def _pacing_section(pacing: PacingDirective) -> str:
     return _section("节奏控制", lines)
 
 
-CRAFT_EXAMPLE_BAD = _CRAFT_EXAMPLE_BAD
-CRAFT_EXAMPLE_GOOD = _CRAFT_EXAMPLE_GOOD
 beat_value = _beat_value
 chapter_beat_section = _chapter_beat_section
 character_section = _character_section

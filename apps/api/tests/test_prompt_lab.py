@@ -95,20 +95,6 @@ def test_no_style_removes_style_section() -> None:
     assert "【创作准则" in prompt
 
 
-def test_no_examples_removes_anchors_and_restores_globals() -> None:
-    saved_bad = getattr(builder, "_CRAFT_EXAMPLE_BAD", "")
-    saved_good = getattr(builder, "_CRAFT_EXAMPLE_GOOD", "")
-    try:
-        prompt = BOOK_VARIANTS["draft"]["no-examples"].build(OPENING_CTX, preview_chars=120)
-        assert "正例（画面化" not in prompt
-        assert "反例（说明腔" not in prompt
-        baseline = BOOK_VARIANTS["draft"]["baseline"].build(OPENING_CTX, preview_chars=120)
-        assert "正例（画面化" in baseline
-    finally:
-        assert getattr(builder, "_CRAFT_EXAMPLE_BAD", "") == saved_bad
-        assert getattr(builder, "_CRAFT_EXAMPLE_GOOD", "") == saved_good
-
-
 def test_task_rewrite_replaces_task_line() -> None:
     prompt = BOOK_VARIANTS["draft"]["task-rewrite"].build(OPENING_CTX, preview_chars=120)
     assert "要么推进情节、要么加深人物、要么制造氛围" in prompt

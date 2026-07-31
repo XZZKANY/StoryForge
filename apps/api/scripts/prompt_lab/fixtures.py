@@ -171,11 +171,80 @@ class Task:
     user_prompt: str = ""
 
 
+CLIMAX_CTX = NarrativeContext(
+    premise="林岚在雾港追查失真的灯塔信号。",
+    user_intent="写本章的高潮对峙段落。",
+    strategy_title="灯塔余烬",
+    central_question="失真的灯塔信号究竟在向谁传递什么？",
+    reader_promise="克制悬疑：信息一点一点漏，读者跟着林岚一起猜。",
+    chapter_title="第九章 灯塔顶端",
+    chapter_goal="林岚与守塔人在灯塔顶端对峙，真相揭开一半。",
+    conflict_axis="林岚的追查 vs 守塔人的最后隐瞒",
+    scene_goal="林岚手持旧港灯塔密钥登上塔顶，与守塔人摊牌。",
+    scene_beats=("登上塔顶", "对峙摊牌", "守塔人松口一半真相"),
+    previous_summary="林岚查到守塔人在无雾之夜伪造信号记录，灯塔密钥证实旧港失窃案与他有关。",
+    characters=(
+        CharacterConstraint(
+            name="林岚",
+            aliases=("雾港调查员",),
+            voice_traits=("克制", "短句", "少解释"),
+            forbidden_traits=("突然健谈", "歇斯底里"),
+            role="灯塔信号调查员",
+        ),
+        CharacterConstraint(
+            name="守塔人",
+            aliases=("老周",),
+            voice_traits=("寡言", "只回答问到的", "隐忍"),
+            forbidden_traits=("主动吐露全部真相",),
+            role="灯塔守塔人",
+        ),
+    ),
+    style=StyleDirective(
+        tone="克制悬疑，张力拉满但字面冷静",
+        pov="第三人称贴身",
+        rules=("多用动作与画面", "对白短促"),
+        forbidden_phrases=("不禁", "情不自禁", "忽然"),
+        example_sentences=("她把手按在栏杆上，指节发白。",),
+        restraint=True,
+        target_avg_sentence_length=10.0,
+        target_dialogue_ratio=0.55,
+    ),
+    pacing=PacingDirective(
+        intensity="高",
+        target_chars=900,
+        beat_density="密集",
+        hook_required=True,
+        notes=("高潮场景，对白交锋为主，动作间隔点缀。",),
+    ),
+    continuity=(
+        ContinuityFact(statement="灯塔信号在无雾之夜也会失真", must_appear=True),
+        ContinuityFact(statement="林岚左臂受伤未愈", must_appear=True),
+        ContinuityFact(statement="旧港灯塔密钥是林岚从失窃案现场找回的", must_appear=True),
+        ContinuityFact(statement="守塔人老周在伪造信号记录", must_appear=True),
+    ),
+    required_facts=("守塔人没有直接认罪，只吐露一半真相",),
+    scene_quality_plan=SceneQualityPlan(
+        emotional_shift="从压抑质问到半真半假的坦白",
+        conflict_turn="守塔人承认伪造记录，但否认与失窃案有关",
+        sensory_anchors=("塔顶的风", "黄铜钥匙的凉意", "远处海面的闪光"),
+        dialogue_purpose="守塔人用半句真话试探林岚知道多少",
+        reveal_or_payoff="信号灯背后的电闸上有一截不属于雾港的电缆",
+        ending_hook="守塔人问林岚：你确定你查的是对的灯吗？",
+    ),
+    current_chapter_beat={
+        "primary_scene_mode": "confrontation",
+        "protagonist_mistake": "在塔顶背对楼梯，被守塔人挡住退路",
+        "irreversible_consequence": "林岚摔碎了旧港灯塔密钥，线索断一半",
+    },
+    target_word_count_min=800,
+    target_word_count_max=1200,
+)
+
 TASKS: dict[str, Task] = {
     "opening-preview": Task(
         id="opening-preview",
         kind="draft",
-        description="雾港开场，林岚夜巡灯塔核对信号节拍（120 字预览）",
+        description="雾港开场，林岚夜巡灯塔核对信号节拍（约 400 字预览）",
         ctx=OPENING_CTX,
         preview_chars=120,
     ),
@@ -203,6 +272,13 @@ TASKS: dict[str, Task] = {
             "prose_quality｜medium｜她不禁想起昨夜灯塔的异响｜情绪直述 + 陈词｜scene_patch｜保留事实｜删除“不禁、心中五味杂陈”｜用身体反应显形情绪",
             "narrative_collapse｜hard_fail｜她把通行证收进口袋，转身离开｜默认调查模板收尾，无不可逆后果｜convert_process_to_scene｜保留老陈沉默事实｜删除“走得很慢”的收束腔｜让离开这一动作产生后果",
         ),
+    ),
+    "climax-full": Task(
+        id="climax-full",
+        kind="draft",
+        description="高潮对峙：林岚登塔顶与守塔人摊牌（800–1200 字）",
+        ctx=CLIMAX_CTX,
+        full_chapter=True,
     ),
     "agent-chat": Task(
         id="agent-chat",

@@ -418,3 +418,60 @@ API pytest                                        -> 1296 passed, 3 skipped
 - 检查点上限是 20，同一文件连续 20 轮以上 agent 写回后，最早那轮的锚点仍会被淘汰。
 - 版本历史里恢复一条「新建前」快照仍然只是把内容清空，不会删文件（已在 UI 上如实标注）；
   真正的删除入口仍在文件树。
+
+---
+
+# 验证报告 · prompt 对比实验台 + 三波实验 + 删例合入
+
+时间：2026-08-01
+
+## 建了什么
+
+`apps/api/scripts/prompt_lab/`：固定输入 × 变体配置 × 真 LLM 输出 → 并排报告的 A/B 实验跑道。
+
+- 变体注册表：baseline 恒等引用生产 builder；变体从 baseline 渲染结果做 section 级删除/替换（零文案双源漂移）。
+- runner CLI：`--dry-run` 零成本预验、`--jobs` 线程池并发调 LLM（渲染串行防 patch 钩子互踩）、
+  `--repeat N` 统计性重复（结果进 repeats 数组）、`--merge` 格子级补跑合并、`--seed` 盲评重排、
+  **实时落盘**（每格完成立即写 outputs 文件，key 中断不丢已完成格）。
+- report：指标表 + 分节正文 + difflib 差异块 + 结论占位（人工判定）；blind.md 盲评版 seed 可复现。
+- fixtures：雾港种子手写 NarrativeContext×3（开篇/过渡章/高潮对峙）+ 埋雷 MANUAL_DRAFT + 6 任务。
+
+## 三波实验
+
+| 波次 | 内容 | 结果 |
+| --- | --- | --- |
+| wave1 | 5 任务 × 变体全量（22 格，含 agent 组装链/评稿/修订） | 零 adopt，baseline 全线保留；no-examples → retest |
+| wave2 | 2 任务 × 4 变体 × 3 重复（21/24 有效） | **no-examples → adopt**；half-examples → 不采用；task-rewrite → retest |
+| wave3 | 高潮对峙新任务 × 4 变体单次（实时落盘） | 进行中（task-rewrite 已落盘） |
+
+判定方式：workflow 三轮（任务级评审 → 对抗验证 → 综合定论），对抗验证全部 refuted=false，
+引文逐字核验。证据目录 `.codex/prompt-lab/wave1/2/3/`（gitignored 不入库）。
+
+## wave2 关键裁决
+
+- **no-examples（删创作准则段的正反例锚点）→ adopt**：wave1 触发 retest 的「完整章丢必含事实
+  （密钥/守塔人 0 命中）」在 wave2 未复现——两任务 6 次重复零丢失，且删例方向锚定观测更强
+  （baseline 12 采样密钥点名 1/3 vs no-examples 12/12）。「必含事实与正反例行无耦合」成立。
+- half-examples → 不采用（样本不足 + 无独立优势）；task-rewrite → retest（预览 3/3 better 出现反例，
+  完整章样本不足，待无例生产基线上重测）。
+- 附带合入：critique 评稿 prompt 显式写死评分方向（高分=好，含 narrative_collapse/ai_artifact_penalty）。
+
+## 合入生产（删例）
+
+`app/domains/book_runs/prompts/_sections.py::_craft_section` 删除好坏对照锚点渲染（保留 6 条准则）；
+连带清理 `_sections.py`/`builder.py` 的 `CRAFT_EXAMPLE_*` re-export、registry 的 no-examples/half-examples
+变体与对应测试。`app/common/craft.py` 常量与 `craft_prompt_clause(with_examples=True)` 保留
+（assistant/service.py 的 file.create 路径仍用，不在实验覆盖内）。
+
+### 验证
+
+```text
+uv run pytest tests/test_prompt_lab.py tests/test_prompt_assembly.py  -> 28 passed
+uv run ruff check app/domains/book_runs/prompts/ scripts/prompt_lab/ tests/test_prompt_lab.py -> passed
+```
+
+### 仍未联通
+
+- task-rewrite 在无例生产基线上的完整章稳定性未测（key 额度所限，留 retest）。
+- wave3 高潮场景 4 变体输出已落盘但未评审。
+- 真机桌面端未参与本波（纯 API/脚本层实验）。

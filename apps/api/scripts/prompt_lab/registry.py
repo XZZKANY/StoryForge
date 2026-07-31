@@ -65,26 +65,6 @@ def _build_draft_no_style(
     return prompt.replace(block, "")
 
 
-def _build_draft_no_examples(
-    ctx: NarrativeContext, *, preview_chars: int = 120, full_chapter: bool = False
-) -> str:
-    # _craft_section 预留了 patch 钩子（getattr builder._CRAFT_EXAMPLE_*，缺省回落模块常量）：
-    # 渲染期间清空好坏对照锚点，渲染后还原。GOOD 原本不存在于 builder 命名空间，统一 setattr。
-    saved_bad = getattr(builder, "_CRAFT_EXAMPLE_BAD", "")
-    saved_good = getattr(builder, "_CRAFT_EXAMPLE_GOOD", "")
-    try:
-        builder._CRAFT_EXAMPLE_BAD = ""
-        builder._CRAFT_EXAMPLE_GOOD = ""
-        return builder.build_draft_prompt(ctx, preview_chars=preview_chars, full_chapter=full_chapter)
-    finally:
-        builder._CRAFT_EXAMPLE_BAD = saved_bad
-        # GOOD 原本不存在于 builder 命名空间：直接删除，让 _craft_section 的 getattr 回落模块常量
-        if saved_good == "":
-            delattr(builder, "_CRAFT_EXAMPLE_GOOD")
-        else:
-            builder._CRAFT_EXAMPLE_GOOD = saved_good
-
-
 def _build_draft_task_rewrite(
     ctx: NarrativeContext, *, preview_chars: int = 120, full_chapter: bool = False
 ) -> str:
@@ -113,8 +93,9 @@ DRAFT_VARIANTS: dict[str, BookVariant] = {
     "baseline": BookVariant("baseline", "原样", "build_draft_prompt 恒等引用", _build_draft_baseline),
     "no-craft": BookVariant("no-craft", "去创作准则段", "量化创作准则（show don't tell 等）对成稿的贡献", _build_draft_no_craft),
     "no-style": BookVariant("no-style", "去文风要求段", "量化风格包注入（禁用词/示例句/克制）对成稿的贡献", _build_draft_no_style),
-    "no-examples": BookVariant("no-examples", "准则无好坏对照锚点", "量化 few-shot 正反例锚点对文笔的贡献", _build_draft_no_examples),
     "task-rewrite": BookVariant("task-rewrite", "任务行措辞改写", "「每句三检（推进/加深/氛围）」式任务行 vs 现任务行", _build_draft_task_rewrite),
+    # wave2 已合入删例（no-examples → adopt）：生产 craft section 现为无例形态，
+    # no-examples / half-examples 变体退役（patch 钩子已删，渲染与 baseline 相同）。
 }
 
 CRITIQUE_VARIANTS: dict[str, BookVariant] = {

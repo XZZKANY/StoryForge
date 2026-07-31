@@ -26,9 +26,6 @@ from app.domains.book_runs.prompts._render import (
 from app.domains.book_runs.prompts._render import (
     section as _section,
 )
-from app.domains.book_runs.prompts._sections import (  # noqa: F401  private compatibility re-export
-    CRAFT_EXAMPLE_BAD as _CRAFT_EXAMPLE_BAD,
-)
 from app.domains.book_runs.prompts._sections import (
     chapter_beat_section as _chapter_beat_section,
 )
@@ -325,6 +322,7 @@ def build_critique_prompt(ctx: NarrativeContext, draft: str) -> str:
                 "beat_fulfillment：正文是否兑现 ChapterBeat 中的冲突、误判、代价、关系变化、旧线索解释与不可逆后果。",
                 "narrative_collapse：是否落入到新地点、问询、取得物证、收好、转向下一处的默认调查模板，或删掉本章也不影响主线。",
                 "ai_artifact_penalty：说明腔、大纲腔、模板腔和机械重复惩罚。",
+                "所有 SCORE 维度一律 0-100，分数越高代表该项质量越好（narrative_collapse / ai_artifact_penalty 同为高分=越没有模板腔与AI痕迹）。",
             ],
         ),
         _section(
