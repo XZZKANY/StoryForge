@@ -166,11 +166,13 @@ def test_chat_usage_fields_are_consistent_across_all_sinks(
         "resolved_llm_env",
         lambda: {"STORYFORGE_LLM_MODEL": "usage-test-model"},
     )
-    monkeypatch.setattr(
-        assistant_service,
-        "_call_llm",
-        lambda *args, **kwargs: _usage_result("单轮结果"),
-    )
+    # 两个传输符号一起打桩：产字三条路径走流式聚合，chat_reply 仍走非流式。
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(
+            assistant_service,
+            _seam,
+            lambda *args, **kwargs: _usage_result("单轮结果"),
+        )
     project_path = tmp_path / "novel"
     project_path.mkdir()
 

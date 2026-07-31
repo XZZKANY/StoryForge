@@ -16,7 +16,14 @@ from app.common.craft import (
     scene_discipline_guard_clause,
 )
 from app.common.exceptions import DomainError, NotFoundError
-from app.common.llm_client import LLMError, build_chat_payload, stream_chat_completions
+from app.common.llm_client import (
+    LLMError,
+    build_chat_payload,
+    stream_chat_completions,
+)
+from app.common.llm_client import (
+    call_llm_streamed as _call_llm_streamed,
+)
 from app.common.manuscript import previous_chapter_tail
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant import continuation
@@ -599,7 +606,7 @@ def draft_continuation(session: Session, payload: AssistantContinueRequest) -> A
     )
 
     try:
-        result = _call_llm(
+        result = _call_llm_streamed(
             llm_env,
             system_prompt=build_generation_system_prompt(
                 continuation.CONTINUE_SYSTEM_PROMPT, payload.project_root
@@ -707,7 +714,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     )
 
     try:
-        result = _call_llm(
+        result = _call_llm_streamed(
             llm_env,
             system_prompt=build_generation_system_prompt(
                 _REVISE_SYSTEM_PROMPT, payload.project_root
@@ -859,7 +866,7 @@ def draft_file_content(session: Session, payload: AssistantDraftRequest) -> Assi
     )
 
     try:
-        result = _call_llm(
+        result = _call_llm_streamed(
             llm_env,
             system_prompt=build_generation_system_prompt(
                 _DRAFT_SYSTEM_PROMPT, payload.project_root

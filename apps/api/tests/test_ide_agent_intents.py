@@ -298,7 +298,8 @@ def test_narrow_revise_flags_scope_warning_when_drift_large(
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         return {"content": after, "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,
@@ -331,7 +332,8 @@ def test_broad_revise_does_not_flag_scope_warning(
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         return {"content": after, "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,

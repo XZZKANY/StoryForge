@@ -42,6 +42,8 @@ def test_chat_loop_patch_confirmation_follows_the_project_permission_profile(
             "latency_ms": 5,
         },
     )
+    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
     _fake_llm_script(
         monkeypatch,
         [

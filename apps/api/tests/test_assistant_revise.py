@@ -24,7 +24,8 @@ def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypat
             "latency_ms": 123,
         }
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
     monkeypatch.setenv("STORYFORGE_LLM_MODEL", "mimo-v2.5-pro")
 
     response = client.post(
@@ -69,7 +70,8 @@ def test_revise_marks_reasoning_leak_in_tool_call_evidence(
             "reasoning_leak_stripped": True,
         }
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     response = client.post(
         "/api/assistant/revise",
@@ -94,7 +96,8 @@ def test_revise_includes_desktop_context_bundle_in_prompt(
         captured["user_prompt"] = user_prompt
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     response = client.post(
         "/api/assistant/revise",
@@ -151,7 +154,8 @@ def test_revise_accepts_context_bundle_budget_metadata(
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     response = client.post(
         "/api/assistant/revise",
@@ -213,7 +217,8 @@ def test_revise_uses_settings_llm_config_when_env_not_exported(
         assert source["STORYFORGE_LLM_MODEL"] == "settings-model"
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     response = client.post(
         "/api/assistant/revise",
@@ -268,7 +273,8 @@ def test_revise_returns_502_and_marks_tool_call_failed(client: TestClient, monke
     def boom(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
         raise BookGenerationError("真实 LLM 返回 HTTP 500（耗时 1200ms）：upstream error")
 
-    monkeypatch.setattr(assistant_service, "_call_llm", boom)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, boom)
 
     response = client.post(
         "/api/assistant/revise",

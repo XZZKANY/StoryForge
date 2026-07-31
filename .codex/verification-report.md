@@ -642,3 +642,76 @@ wave4 真跑 6/6 成功，证据 .codex/prompt-lab/wave4/（gitignored）
 - 本波判读由单人完成，无对抗验证（前两波用的三轮 workflow 本会话未获授权）。
 - 判读时盲评已被 prompt 字符数泄露；修复后的盲评版未用于本波。
 - `critique` / `revision` / 长格 live 变体均未跑。
+
+# 2026-08-01 产字路径改流式传输（修中转站掐断长文）
+
+## 起因
+
+wave4/5 实测：同一 climax prompt（800–1200 字），非流式 **280s 未返回 + ConnectionReset**，
+流式 **72.4s 出 1347 字**。产字路径全是非流式，作者在桌面起草整章会撞上同一堵墙。
+
+## 做法：服务端聚合的流式，HTTP 契约零改动
+
+`llm_client` 新增 `call_llm_streamed()`——与 `call_llm()` 同签名、同返回 dict，差别只在
+传输走流式后由服务端聚合（流式终帧与非流式返回本就逐键同构，都由 `_token_usage` +
+`_cost_breakdown` 组，故只需摘掉 `type`）。切换三条长文路径：
+
+- `draft_file_content`（file.create）
+- `revise_file_content`（file.revise）
+- `draft_continuation`（非 SSE 续写）
+
+`chat_reply` 刻意不改：短问答没有被掐断的体量。前端零改动、OpenAPI 零漂移。
+**注意这不是端到端 SSE**（作者看不到逐字冒出），那是另一刀。
+
+两个刻意的边界：
+- **终帧缺失必须抛错**——上游提前关流时静默返回空正文会把缺文当成功写进补丁。
+- **空 system 段不落进 messages**——实验台的单条 user prompt 形态若被硬塞空 system，
+  与 wave1-3 就不是同一个输入，破坏波次可比性。
+
+## wave5：长格首次跑通（此前 0/1，现 5/6）
+
+`live-climax`（800–1200 字）× 2 变体 × 3 重复，按 metadata 真实成功数统计：
+
+```text
+                     n   字数            越界(800-1200)  必含事实  不可逆后果  陈词
+live-baseline(无例)   2   1350,1208       2/2            4/4      2/2       无
+live-with-examples   3   1077,1412,1174  1/3            4/4      3/3       无
+```
+
+**wave1 判 retest 的理由是「删例后完整章丢必含事实（密钥/守塔人 0 命中）」——本波在长格上
+未复现**：无例组两次全部命中密钥 / 左臂 / 无雾失真 / 守塔人 + 摔碎密钥的不可逆后果。
+篇幅两组都偏长，挂例组略好但 n=2 vs 3，不构成判据。生产零改动。
+
+## 顺带修的真 bug：重复写盘虚增样本
+
+实时落盘按「已成功数」编号、`_write_artifacts` 按「repeats 位次」编号，两套口径不一致 →
+wave5 的 2 次成功落出 3 个文件、r1 与 r2 逐字节相同。**按 `outputs/*.txt` 数样本（评审 agent
+与人工判读都这么读）会把 n=2 当 n=3**，第一版 baseline 统计表即被此污染。统一为位次口径
+（失败留编号空档），护栏断言「文件编号 ↔ repeats 位次」一一对应。
+
+## 测试桩失配（27 红，非产品回归）
+
+既有用例 patch 的是 `assistant_service._call_llm`，调用点换成 `_call_llm_streamed` 后 patch
+失效、真去联网（`LLMConfigError: 缺少 STORYFORGE_LLM_BASE_URL`）。涉及 11 个文件。
+修法：这些用例的本意是拦住出网、不是断言用哪种传输，故一律两个符号一起打桩
+（单行形态 16 处改双 seam 循环，多行形态 9 处补 `_call_llm_streamed = _call_llm` 别名）。
+
+## 验证
+
+```text
+uv run pytest -q                     -> 1330 passed, 3 skipped（基线 1314 + 本刀 16 新测试，零失败）
+uv run ruff check tests/ scripts/ app/common/llm_client.py -> All checks passed
+真跑：climax prompt 非流式 280s 超时 vs 流式 72.4s/1347 字
+```
+
+变异验证（三条，均先红后绿）：
+- 把 `draft_file_content` 退回 `_call_llm(` → `test_prose_paths_use_streamed_transport[draft_file_content]` FAILED
+- 实时落盘退回「已成功数」口径 → `test_realtime_and_final_output_files_agree` FAILED
+- 盲评版塞回 `prompt字符` 列 → `test_blind_report_hides_prompt_chars_fingerprint` FAILED
+
+## 仍未联通
+
+- **不是端到端流式**：作者看不到逐字冒出；要做需改 router + 前端 + 契约。
+- 只在一个 Cloudflare 前置中转站上实证掐断与修复；其他网关未验。
+- 真机桌面未验（纯 API 层传输改动，归 E2E-1）。
+- wave5 样本仍弱（n=2/3、单模型、单任务）；baseline 有 1 格「流式返回内容为空」未复跑。

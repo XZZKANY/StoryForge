@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.common.llm_client import LLMConfigError, LLMError, call_llm_messages
+from app.common.llm_client import LLMConfigError, LLMError, call_llm_streamed
 from app.common.llm_env import resolved_llm_env
 from scripts.prompt_lab import report
 from scripts.prompt_lab.agent_registry import AGENT_VARIANTS
@@ -67,11 +67,19 @@ def _build_prompt(task: Any, variant: Any) -> str:
 
 
 def _call_once(prompt: str, task: Any) -> dict[str, Any]:
+    """走流式聚合调用：完整章格（600–1600 字）非流式会被中转站掐断。
+
+    实证（2026-08-01，同一 climax prompt）：非流式 280s 未完成 + ConnectionReset，
+    流式 72.4s 出 1347 字。与生产三条产字路径同一条传输。
+    """
+
     if task.kind in _SYSTEM_PROMPT_KINDS:
-        messages = [{"role": "system", "content": prompt}, {"role": "user", "content": task.user_prompt}]
+        system_prompt, user_prompt = prompt, task.user_prompt
     else:
-        messages = [{"role": "user", "content": prompt}]
-    result = call_llm_messages(resolved_llm_env(), messages=messages)
+        system_prompt, user_prompt = "", prompt
+    result = call_llm_streamed(
+        resolved_llm_env(), system_prompt=system_prompt, user_prompt=user_prompt
+    )
     return {"output": result["content"], "cost_cny_estimated": result["cost_cny_estimated"], "latency_ms": result["latency_ms"]}
 
 
@@ -151,7 +159,11 @@ def _run_grid(tasks: dict[str, Any], variants: dict[str, dict[str, Any]], *, dry
                     out_dir.mkdir(parents=True, exist_ok=True)
                     outputs_dir = out_dir / "outputs"
                     outputs_dir.mkdir(exist_ok=True)
-                    index = len([r for r in entry["repeats"] if "error" not in r])
+                    # 编号必须与 _write_artifacts 同口径（repeats 里的位次，失败也占位），
+                    # 否则收尾写产物会把同一段正文再落一个别的编号：实测 wave5 的
+                    # 2 次成功产出 3 个文件、r1 与 r2 逐字节相同，按 outputs/*.txt
+                    # 统计样本数直接虚增。失败留编号空档是有意的——空档即「这一次失败了」。
+                    index = len(entry["repeats"])
                     (outputs_dir / f"{task_id}--{variant_id}--r{index}.txt").write_text(sample["output"], encoding="utf-8")
             print(f"  [{done}/{len(futures)}] {task_id}--{variant_id} 完成"
                   f"（{'失败' if 'error' in entry['repeats'][-1] else entry['repeats'][-1]['output_chars']} 字）", flush=True)

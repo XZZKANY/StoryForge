@@ -94,7 +94,8 @@ def test_chat_loop_file_create_injects_trusted_request_context_into_inner_draft(
         }
 
     _enable_loop_env(monkeypatch)
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_inner_call)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_inner_call)
     _fake_llm_script(
         monkeypatch,
         [
@@ -170,7 +171,8 @@ def test_chat_loop_file_revise_overrides_model_supplied_context_with_request_con
         ],
     }
     _enable_loop_env(monkeypatch)
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_inner_call)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_inner_call)
     _fake_llm_script(
         monkeypatch,
         [
