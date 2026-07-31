@@ -10,7 +10,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.common.craft import CLICHE_PHRASES, CRAFT_GUIDELINES, craft_prompt_clause
+from app.common.craft import (
+    CLICHE_PHRASES,
+    CRAFT_EXAMPLE_BAD,
+    CRAFT_EXAMPLE_GOOD,
+    CRAFT_GUIDELINES,
+    craft_prompt_clause,
+)
 from app.domains.agent_runs.loop.prompt_context import SYSTEM_PROMPT as CHAT_LOOP_SYSTEM_PROMPT
 from app.domains.assistant.continuation import CONTINUE_SYSTEM_PROMPT
 from app.domains.assistant.service import _DRAFT_SYSTEM_PROMPT, _REVISE_SYSTEM_PROMPT
@@ -71,3 +77,16 @@ def test_book_runs_prompts_reuse_shared_craft_source() -> None:
     from app.domains.book_runs.prompts import CRAFT_GUIDELINES as book_runs_guidelines
 
     assert book_runs_guidelines is CRAFT_GUIDELINES
+
+
+@pytest.mark.parametrize("label", sorted(_PROSE_PRODUCING_PROMPTS))
+def test_no_prose_path_carries_example_anchors(label: str) -> None:
+    """产字 prompt 一律不带好坏对照锚点（prompt_lab 三波实验裁定，2026-08-01）。
+
+    常量仍留在 app.common.craft 供实验台做同源对比，故"生产没挂回来"必须由断言守住：
+    只要有人把 craft_prompt_clause(with_examples=True) 挂回任一条产字路径就红。
+    """
+
+    prompt = _PROSE_PRODUCING_PROMPTS[label]
+    assert CRAFT_EXAMPLE_BAD not in prompt, f"{label} 挂回了反例锚点"
+    assert CRAFT_EXAMPLE_GOOD not in prompt, f"{label} 挂回了正例锚点"

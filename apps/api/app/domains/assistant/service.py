@@ -769,7 +769,7 @@ _DRAFT_SYSTEM_PROMPT = (
     "你是 StoryForge 的中文长篇小说作者。"
     "用户会给你一个新文件的路径与写作指令，请为这个文件起草完整初稿。"
     "严格贴合指令与随附的项目上下文，保持既有人物、设定与大纲的连贯性，不要引入项目里不存在的设定。"
-    + craft_prompt_clause(with_examples=True)
+    + craft_prompt_clause()
     + scene_discipline_clause()
     + "只输出正文内容，不要输出解释、前后缀或代码块标记。"
 )
