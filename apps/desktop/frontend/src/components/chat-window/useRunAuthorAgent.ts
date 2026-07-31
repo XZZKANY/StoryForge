@@ -389,6 +389,7 @@ export function useRunAuthorAgent(
               ),
               scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
               requiresConfirmation: proposed.requires_confirmation,
+              runId: response.run_id ?? runId,
             }),
           );
           emitSuggestionResult({

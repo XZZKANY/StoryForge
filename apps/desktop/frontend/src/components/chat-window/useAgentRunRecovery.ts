@@ -157,6 +157,7 @@ export function useAgentRunRecovery(
             ),
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
             requiresConfirmation: proposed.requires_confirmation,
+            runId: response.run_id ?? undefined,
           }),
         );
         emitSuggestionResult({

@@ -203,13 +203,32 @@ export function VersionHistory({
                   className="rounded-md border border-border bg-surface p-2"
                   data-testid="version-entry"
                   data-version-source={v.source ?? ''}
+                  data-version-checkpoint={v.checkpoint ? 'true' : 'false'}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className="text-xs text-foreground truncate"
+                      className="flex min-w-0 items-center gap-1.5 text-xs text-foreground"
                       title={formatTimestamp(v.timestamp)}
                     >
-                      {formatTimestamp(v.timestamp)}
+                      <span className="truncate">{formatTimestamp(v.timestamp)}</span>
+                      {v.checkpoint && (
+                        <span
+                          className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
+                          title="Agent 动手前的检查点，不会被日常保存挤掉"
+                          data-testid="version-checkpoint-badge"
+                        >
+                          检查点
+                        </span>
+                      )}
+                      {v.created && (
+                        <span
+                          className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
+                          title="此版本之前该文件并不存在；恢复只会把内容清空，删除请用文件树"
+                          data-testid="version-created-badge"
+                        >
+                          新建前
+                        </span>
+                      )}
                     </span>
                     <div className="flex flex-shrink-0 items-center gap-1.5">
                       {getCurrentContent && (

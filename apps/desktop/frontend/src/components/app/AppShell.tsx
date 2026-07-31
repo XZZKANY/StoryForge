@@ -348,6 +348,7 @@ export function AppShell({
                     onDirtyChange={tabs.handleEditorDirtyChange}
                     initialCursors={initialCursors}
                     onCursorPersist={onCursorPersist}
+                    dropOpenFilePath={tabs.dropOpenFilePath}
                     sidebarVisible={!shell.sidebarHidden}
                     dialogs={dialogs}
                   />

@@ -14,6 +14,14 @@ const SNAPSHOT_SUFFIX = '.snapshot.md';
 const META_SUFFIX = '.meta.json';
 /** 每个文件保留的快照上限:autoSave 900ms 防抖下无上限会把用户盘写爆。 */
 const MAX_SNAPSHOTS_PER_FILE = 20;
+/**
+ * 检查点子目录：Agent 每次动手前那一份存这里，与普通快照**各算各的配额**。
+ *
+ * WHY：自动档下补丁免点击落盘，作者事后想回的是「agent 这一轮动手之前」。这份快照如果和
+ * autosave 挤同一个 20 份池子，写一会儿就被冲掉了——恰恰是最该留的那份先没。
+ */
+const CHECKPOINT_DIR = 'checkpoints';
+const MAX_CHECKPOINTS_PER_FILE = 20;
 
 export type VersionEntry = {
   /** 快照文件完整路径 */
@@ -36,6 +44,12 @@ export type VersionEntry = {
   branchId?: string;
   /** 分支展示名。 */
   branchLabel?: string;
+  /** 发起这次写回的 AgentRun；用于把同一轮的改动认出来。 */
+  runId?: string;
+  /** 这次写回**创建**了该文件——即此版本之前文件并不存在（内容为空不等于不存在）。 */
+  created?: boolean;
+  /** 落在 checkpoints/ 子目录：Agent 动手前的锚点，不与 autosave 抢配额。 */
+  checkpoint?: boolean;
 };
 
 export type VersionSnapshotMetadata = {
@@ -49,6 +63,11 @@ export type VersionSnapshotMetadata = {
   parentId?: number | null;
   branchId?: string;
   branchLabel?: string;
+  runId?: string;
+  /** true 时快照落进 checkpoints/，走独立配额。 */
+  checkpoint?: boolean;
+  /** 由 snapshotBeforeWrite 探测后写入，调用方不必传。 */
+  created?: boolean;
 };
 
 function sep(projectPath: string): string {
@@ -69,22 +88,41 @@ export function versionDirFor(projectPath: string, filePath: string): string | n
 }
 
 /**
- * 在覆盖写入前，把当前磁盘内容存为一份快照。
- * 若文件尚不存在（首次创建）则跳过。返回快照路径与节点时间戳，或 null。
+ * 探测目标文件在写入之前是否已存在。
+ *
+ * 探测失败一律当「已存在」：这个布尔值最终决定撤销是删文件还是写回内容，
+ * 拿不准时宁可写回一份空内容，也绝不误删作者的文件。
+ */
+async function targetFileExists(filePath: string): Promise<boolean> {
+  try {
+    return await TauriFileSystem.pathExists(filePath);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 在覆盖写入前，把当前磁盘内容存为一份快照。返回快照路径、节点时间戳，以及这次写入是否**创建**了该文件。
+ *
+ * 文件尚不存在时仍然记一份（内容为空）：靠 meta 里的 `created` 把「这之前文件不存在」和
+ * 「这之前文件是空的」区分开——否则撤销一次新建只会留下一个空文件，而不是回到没有这个文件。
  */
 export async function snapshotBeforeWrite(
   projectPath: string | null,
   filePath: string,
   previousContent: string,
   metadata: VersionSnapshotMetadata = {},
-): Promise<{ path: string; timestamp: number } | null> {
+): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   if (!projectPath) return null;
   const dir = versionDirFor(projectPath, filePath);
   if (!dir) return null;
 
   const s = sep(projectPath);
+  const created = !(await targetFileExists(filePath));
+  const checkpoint = metadata.checkpoint === true;
+  const targetDir = checkpoint ? `${dir}${s}${CHECKPOINT_DIR}` : dir;
   const timestamp = Date.now();
-  const snapshotPath = `${dir}${s}${timestamp}${SNAPSHOT_SUFFIX}`;
+  const snapshotPath = `${targetDir}${s}${timestamp}${SNAPSHOT_SUFFIX}`;
   // write_file 会自动创建父目录。
   await TauriFileSystem.writeFile(projectPath, snapshotPath, previousContent);
   const meta = {
@@ -98,18 +136,30 @@ export async function snapshotBeforeWrite(
     parentId: metadata.parentId,
     branchId: metadata.branchId,
     branchLabel: metadata.branchLabel,
+    runId: metadata.runId,
+    created,
   };
   await TauriFileSystem.writeFile(
     projectPath,
-    `${dir}${s}${timestamp}${META_SUFFIX}`,
+    `${targetDir}${s}${timestamp}${META_SUFFIX}`,
     `${JSON.stringify(meta, null, 2)}\n`,
   );
-  await pruneSnapshots(projectPath, dir, s);
-  return { path: snapshotPath, timestamp };
+  await pruneSnapshots(
+    projectPath,
+    targetDir,
+    s,
+    checkpoint ? MAX_CHECKPOINTS_PER_FILE : MAX_SNAPSHOTS_PER_FILE,
+  );
+  return { path: snapshotPath, timestamp, created };
 }
 
-/** 按时间倒序保留最近 MAX_SNAPSHOTS_PER_FILE 份,超出的连同 meta 一起删;清理失败只告警,绝不阻断写回主路径。 */
-async function pruneSnapshots(projectPath: string, dir: string, s: string): Promise<void> {
+/** 按时间倒序保留最近 limit 份,超出的连同 meta 一起删;清理失败只告警,绝不阻断写回主路径。 */
+async function pruneSnapshots(
+  projectPath: string,
+  dir: string,
+  s: string,
+  limit: number,
+): Promise<void> {
   try {
     const entries = await TauriFileSystem.listDir(dir, false);
     const stamps = entries
@@ -117,7 +167,7 @@ async function pruneSnapshots(projectPath: string, dir: string, s: string): Prom
       .map((entry: FileEntry) => Number(entry.name.slice(0, -SNAPSHOT_SUFFIX.length)))
       .filter((stamp: number) => Number.isFinite(stamp))
       .sort((a: number, b: number) => b - a);
-    for (const stamp of stamps.slice(MAX_SNAPSHOTS_PER_FILE)) {
+    for (const stamp of stamps.slice(limit)) {
       try {
         await TauriFileSystem.deletePath(projectPath, `${dir}${s}${stamp}${SNAPSHOT_SUFFIX}`);
         await TauriFileSystem.deletePath(projectPath, `${dir}${s}${stamp}${META_SUFFIX}`);
@@ -130,7 +180,7 @@ async function pruneSnapshots(projectPath: string, dir: string, s: string): Prom
   }
 }
 
-/** 列出某文件的历史版本，按时间倒序。 */
+/** 列出某文件的历史版本，按时间倒序；普通快照与 checkpoints/ 合并成一条时间线。 */
 export async function listVersions(
   projectPath: string | null,
   filePath: string,
@@ -138,7 +188,16 @@ export async function listVersions(
   if (!projectPath) return [];
   const dir = versionDirFor(projectPath, filePath);
   if (!dir) return [];
+  const s = sep(projectPath);
 
+  const [plain, checkpoints] = await Promise.all([
+    readVersionDir(dir, false),
+    readVersionDir(`${dir}${s}${CHECKPOINT_DIR}`, true),
+  ]);
+  return [...plain, ...checkpoints].sort((a, b) => b.timestamp - a.timestamp);
+}
+
+async function readVersionDir(dir: string, checkpoint: boolean): Promise<VersionEntry[]> {
   let entries: FileEntry[];
   try {
     entries = await TauriFileSystem.listDir(dir, false);
@@ -186,6 +245,9 @@ export async function listVersions(
         parentId: metadata.parentId,
         branchId: metadata.branchId,
         branchLabel: metadata.branchLabel,
+        runId: metadata.runId,
+        created: metadata.created,
+        checkpoint,
       });
       return list;
     }, Promise.resolve([]));
