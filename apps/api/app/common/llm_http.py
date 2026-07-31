@@ -4,6 +4,13 @@ import re
 from collections.abc import Mapping
 
 from app.common.logging_config import get_logger
+from app.common.version import APP_VERSION
+
+# 出网必须自报身份：urllib 缺省 UA 是 "Python-urllib/3.x"，Cloudflare 默认 WAF 规则直接
+# 403（error code 1010，"banned based on browser signature"）。BYO-key 作者接任意
+# OpenAI 兼容中转站时，这条会表现为「key 明明有效却全线 403」且报错不说原因。
+# 实测（2026-08-01，api.yunsuisui.lol）：缺省 UA 403，任何显式 UA 均 200。
+USER_AGENT = f"StoryForge/{APP_VERSION}"
 
 THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 THINK_OPEN_RE = re.compile(r"<think>", re.IGNORECASE)
@@ -121,7 +128,7 @@ def optional_float(source: Mapping[str, str | None], name: str, default: float) 
 
 
 def openai_compatible_headers(*, credential: str, auth_header: str) -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
     if auth_header == "api-key":
         headers["api-key"] = credential
         return headers

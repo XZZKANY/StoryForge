@@ -522,3 +522,53 @@ uv run ruff check app/common/craft.py app/domains/assistant/service.py \
   （模型答「先读项目文件」即停——实验未挂 tools），agent 侧对比数据为空。
 - task-rewrite 在无例基线上的重测未做（key 额度所限，沿用上波记档）。
 - 真机桌面端未参与（纯 API 层改动）。
+
+# 2026-08-01 出网自报 User-Agent（Cloudflare 1010 真 bug）
+
+## 触发
+
+接入作者新给的 OpenAI 兼容中转站时，`llm_client` 全线 403。抓原始响应为
+`error code: 1010`（Cloudflare「banned based on browser signature」）——根因是
+`openai_compatible_headers` 不设 UA，urllib 缺省自报 `Python-urllib/3.x`，被默认 WAF 规则拦。
+
+UA 逐项实测（同 key 同端点 `/v1/models`）：
+
+```text
+缺省 Python-urllib                       -> 403 error code 1010
+StoryForge/0.1.10                        -> 200
+StoryForge/0.1.10 (+github 链接)          -> 200
+curl/8.4.0                               -> 200
+Mozilla/5.0 ... Chrome/126.0             -> 200
+```
+
+只有缺省 UA 被拦，任何显式 UA 均通——故取自报身份 `StoryForge/{APP_VERSION}`，不伪装浏览器。
+
+## 影响面
+
+BYO-key 是产品形态（作者自带 key 接任意中转站），Cloudflare 前置的中转站相当常见。
+命中时表现为「key 明明有效却全线 403、报错不说原因」，作者无从自查。
+
+## 改动
+
+- `app/common/llm_http.py`：新增 `USER_AGENT = f"StoryForge/{APP_VERSION}"`，
+  `openai_compatible_headers` 两条鉴权分支（bearer / api-key）共用同一 headers 起点故同时覆盖。
+  `version.py` 是纯叶子，不破 llm_http 的无依赖约束。
+- `tests/test_llm_http_env_parsing.py::test_headers_carry_self_identifying_user_agent`：
+  两条鉴权分支逐条断言 UA 以 `StoryForge/` 开头、不含 urllib、且跟随 `APP_VERSION` 单点。
+
+## 验证
+
+```text
+uv run pytest tests/test_llm_http_env_parsing.py tests/test_llm_client_channel.py \
+              tests/test_assistant_continue.py -q      -> 53 passed
+uv run ruff check app/common/llm_http.py tests/test_llm_http_env_parsing.py -> All checks passed
+真跑：resolved_llm_env + call_llm_messages 打新端点 -> 200，content/token_usage 正常回填
+```
+
+变异验证：摘掉 headers 里的 `"User-Agent": USER_AGENT` →
+`test_headers_carry_self_identifying_user_agent` FAILED（1 failed, 2 passed），还原后 3 passed。
+
+## 仍未联通
+
+- 只在一个 Cloudflare 前置端点上实证；其他 WAF 形态（JS challenge、mTLS）不在覆盖内。
+- 冻结 exe / 真机桌面未复验（纯 header 改动，sidecar 走同一函数）。
