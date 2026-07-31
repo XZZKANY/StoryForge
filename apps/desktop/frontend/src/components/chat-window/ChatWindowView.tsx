@@ -3,6 +3,7 @@ import { ComposerBox } from './Composer';
 import { runStatusText } from './display-utils';
 import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
+import type { AgentPermissionProfile } from '../../lib/user-settings';
 import type { ChatWindowState } from './useChatWindowState';
 
 type Props = {
@@ -13,6 +14,8 @@ type Props = {
   onSetLayoutMode: ChatWindowProps['onSetLayoutMode'];
   onOpenObservatory: ChatWindowProps['onOpenObservatory'];
   observatoryAttention: ChatWindowProps['observatoryAttention'];
+  agentPermissionProfile: AgentPermissionProfile;
+  onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
   handleSelectSession: (id: number) => void;
   handleNewSession: () => void;
   retryAssistantSessionLoad: () => void;
@@ -34,6 +37,8 @@ export function ChatWindowView({
   onSetLayoutMode,
   onOpenObservatory,
   observatoryAttention,
+  agentPermissionProfile,
+  onAgentPermissionProfileChange,
   handleSelectSession,
   handleNewSession,
   retryAssistantSessionLoad,
@@ -58,6 +63,9 @@ export function ChatWindowView({
     runStatus === 'running' || runStatus === 'waiting' || runStatus === 'paused';
   const showLightweightStatus =
     Boolean(statusText) && !actionBarVisible && runStatus !== 'completed';
+  const composerPermissionProfile = state.agentBusy
+    ? (state.agentRun?.permissionProfile ?? agentPermissionProfile)
+    : agentPermissionProfile;
   const submitGuarded = async () => {
     if (awaitingConfirm) {
       emitToast('先在编辑器里处理待确认的修订（接受或拒绝），再发下一条', { tone: 'info' });
@@ -115,6 +123,8 @@ export function ChatWindowView({
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
         onRetryContextCandidates={retryContextCandidates}
+        agentPermissionProfile={composerPermissionProfile}
+        onAgentPermissionProfileChange={onAgentPermissionProfileChange}
       />
 
       {showLightweightStatus && statusText && (
@@ -142,6 +152,8 @@ export function ChatWindowView({
           onChange={state.setInput}
           onSubmit={submitGuarded}
           onPauseRun={agentRunControls.onPauseRun}
+          permissionProfile={composerPermissionProfile}
+          onPermissionProfileChange={onAgentPermissionProfileChange}
         />
       )}
     </div>

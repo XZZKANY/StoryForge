@@ -82,6 +82,7 @@ test('agent SSE stream forwards events and resolves with the final result', asyn
       sessionId: 'agent-session',
       runId: 'run-1',
       userMessage: '审一下',
+      permissionProfile: 'autonomous',
       args: { file_path: '正文/第01章.md' },
       onEvent: (event) => seenEvents.push(event.type),
     });
@@ -106,6 +107,7 @@ test('agent SSE stream forwards events and resolves with the final result', asyn
     const sent = JSON.parse(String(fetchCalls[0].init?.body)) as Record<string, unknown>;
     assert.equal(sent.run_id, 'run-1');
     assert.equal(sent.user_message, '审一下');
+    assert.equal(sent.permission_profile, 'autonomous');
     assert.deepEqual(sent.args, { file_path: '正文/第01章.md' });
   } finally {
     if (previousFetch) {

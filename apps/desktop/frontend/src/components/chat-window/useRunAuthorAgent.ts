@@ -23,6 +23,7 @@ import {
 } from '../../lib/local-conversation-action';
 import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
+import type { AgentPermissionProfile } from '../../lib/user-settings';
 import {
   contextFilesFromAgentResult,
   filePathFromAgentResult,
@@ -60,6 +61,7 @@ export function useRunAuthorAgent(
   updateAgentStatus: (status: AgentRunStatus) => void,
   refreshAgentRunRecovery: (runId: string) => Promise<void>,
   onAssistantSessionChange: ChatWindowProps['onAssistantSessionChange'],
+  agentPermissionProfile: AgentPermissionProfile,
 ): RunAuthorAgent {
   const {
     agentBusy,
@@ -177,6 +179,7 @@ export function useRunAuthorAgent(
         goal,
         status: 'running',
         steps: [],
+        permissionProfile: agentPermissionProfile,
       });
 
       try {
@@ -231,6 +234,7 @@ export function useRunAuthorAgent(
           assistantSessionId: assistantSessionIdRef.current,
           userMessage: goal,
           intent,
+          permissionProfile: agentPermissionProfile,
           args: payload,
           agentRoleHints,
           agentRoleMentions,
@@ -449,6 +453,7 @@ export function useRunAuthorAgent(
     },
     [
       agentBusy,
+      agentPermissionProfile,
       agentRunIdRef,
       applyAgentStreamEvent,
       assistantSessionIdRef,

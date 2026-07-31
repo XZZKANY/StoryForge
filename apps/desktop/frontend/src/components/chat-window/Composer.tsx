@@ -1,5 +1,9 @@
 import { useRef } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
+import {
+  AGENT_PERMISSION_PROFILE_OPTIONS,
+  type AgentPermissionProfile,
+} from '../../lib/user-settings';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus } from '../icons/shell-icons';
 import { roleMentionQuery } from './display-utils';
@@ -25,6 +29,8 @@ export function ComposerBox({
   onAddContext,
   onTogglePinnedContext,
   onPauseRun,
+  permissionProfile,
+  onPermissionProfileChange,
 }: {
   value: string;
   disabled: boolean;
@@ -37,6 +43,8 @@ export function ComposerBox({
   onChange: (value: string) => void;
   onSubmit: () => void;
   onPauseRun?: () => void;
+  permissionProfile: AgentPermissionProfile;
+  onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
   return (
     <div className="flex-shrink-0 border-t border-border bg-background px-4 py-3">
@@ -59,6 +67,8 @@ export function ComposerBox({
             onChange={onChange}
             onSubmit={onSubmit}
             onPauseRun={onPauseRun}
+            permissionProfile={permissionProfile}
+            onPermissionProfileChange={onPermissionProfileChange}
           />
         </form>
       </div>
@@ -78,6 +88,8 @@ export function ComposerSurface({
   onAddContext,
   onTogglePinnedContext,
   onPauseRun,
+  permissionProfile,
+  onPermissionProfileChange,
 }: {
   value: string;
   disabled: boolean;
@@ -90,6 +102,8 @@ export function ComposerSurface({
   onChange: (value: string) => void;
   onSubmit?: () => void;
   onPauseRun?: () => void;
+  permissionProfile: AgentPermissionProfile;
+  onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
   const canSubmit = value.trim() && !disabled && !busy;
   // 方向键回溯已发送消息：游标为 null 表示在编辑当前草稿，
@@ -231,6 +245,23 @@ export function ComposerSurface({
         >
           <Plus size={14} strokeWidth={1.7} />
         </button>
+        <select
+          value={permissionProfile}
+          onChange={(event) =>
+            onPermissionProfileChange(event.target.value as AgentPermissionProfile)
+          }
+          disabled={disabled || busy}
+          title={busy ? '本轮正在按启动时的权限档位执行' : '下一次发送的 Agent 权限档位'}
+          aria-label="Agent 权限档位"
+          className="h-[22px] max-w-[88px] flex-shrink-0 rounded-sm border border-border bg-background px-1 text-2xs text-muted outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid="composer-permission-profile"
+        >
+          {AGENT_PERMISSION_PROFILE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         {focusPinnable ? (
           <button
             type="button"

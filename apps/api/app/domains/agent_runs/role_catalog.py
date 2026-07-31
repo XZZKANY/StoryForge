@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.domains.agent_runs.permission import DEFAULT_PERMISSION_PROFILE
 from app.domains.agent_runs.schemas import AgentRoleRead
 
-DEFAULT_PERMISSION_PROFILE = "risk_confirm"
 READ_ONLY_ROLE_FORBIDDEN_TOOLS = frozenset({"file.revise", "judge.repair", "bookrun.start"})
 
 _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (

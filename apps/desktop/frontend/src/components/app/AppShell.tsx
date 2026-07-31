@@ -408,6 +408,10 @@ export function AppShell({
                 onSetLayoutMode={shell.setLayoutMode}
                 onOpenObservatory={shell.toggleObservatory}
                 observatoryAttention={observatory.litEntityIds.length > 0}
+                agentPermissionProfile={preferences.settings.agentPermissionProfile}
+                onAgentPermissionProfileChange={(agentPermissionProfile) =>
+                  preferences.setSettings((current) => ({ ...current, agentPermissionProfile }))
+                }
               />
             </div>
           </AssistantPanelFrame>

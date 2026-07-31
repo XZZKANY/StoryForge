@@ -17,10 +17,17 @@ from app.domains.agent_runs.tools.execution import (
 class ToolExecutionRuntimeMixin:
     def _execute_tool(self, tool_name: str, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         tool = self._tool_registry.get(tool_name)
-        decision = self._permission_gate.decide(context.run, tool)
-        # 需确认的工具（requires_confirmation，从 risk+mode 单点派生）先执行去产出待确认补丁，真正的
-        # 写回确认在 proposed_patch 工件层由前端完成；其余被 gate 拦下的工具才在此中止。
-        if decision.status == "require_approval" and not tool.requires_confirmation:
+        # fixed pipeline 的 `bookrun.start` 会从实际 command args 移除确认标记，避免把它传给
+        # WritingRun DTO；gate 仍需看见已完成的 preflight 确认，故仅在策略输入中补回该事实。
+        permission_payload = dict(payload)
+        if context.args.get("confirmed") is True or context.args.get("user_confirmed") is True:
+            permission_payload["confirmed"] = True
+        decision = self._permission_gate.decide(context.run, tool, payload=permission_payload)
+        if decision.status == "deny":
+            raise AgentOrchestrationError(f"权限策略阻止工具 {tool_name}：{decision.reason}")
+        # 只有 risk_confirm / autonomous 的 write_pending 工具可以先产出 proposed patch。其他
+        # require_approval 决策必须在 handler 前停止，避免 read/step_confirm 或长任务绕过策略。
+        if decision.status == "require_approval" and not decision.allows_pending_artifact:
             raise AgentOrchestrationError(f"工具 {tool_name} 需要先获得权限确认：{decision.reason}")
         return tool.handler(context, payload)
 

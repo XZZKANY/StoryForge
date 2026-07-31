@@ -8,6 +8,7 @@ import {
   isAgentToolTraceEventMessage,
   type AgentSocketMessage,
 } from '../../lib/api-client';
+import { isAgentPermissionProfile } from '../../lib/user-settings';
 import { stepFromAgentPlanEvent, stepFromToolTraceEvent } from './agent-step-mapping';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import type { AgentRun, AgentStep } from './types';
@@ -40,7 +41,15 @@ export function useAgentStreamEvent(
       ) {
         return;
       }
-      if (isAgentRunStartedMessage(message)) return;
+      if (isAgentRunStartedMessage(message)) {
+        const permissionProfile = message.permission_profile;
+        if (isAgentPermissionProfile(permissionProfile)) {
+          setAgentRun((run) =>
+            run && run.id === message.run_id ? { ...run, permissionProfile } : run,
+          );
+        }
+        return;
+      }
       if (isAgentStepEventMessage(message)) {
         const nextStep = stepFromAgentPlanEvent(
           message.index,

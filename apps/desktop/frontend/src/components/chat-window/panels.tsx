@@ -5,6 +5,7 @@ import {
   type SemanticFile,
 } from '../../lib/project-context';
 import type { AssistantSessionRecord } from '../../lib/api-client';
+import type { AgentPermissionProfile } from '../../lib/user-settings';
 import { AgentStepsPanel } from '../AgentStepsPanel';
 import {
   ChevronDown,
@@ -209,6 +210,8 @@ export function MessageList({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
+  agentPermissionProfile,
+  onAgentPermissionProfileChange,
 }: {
   messages: Message[];
   projectName: string | null;
@@ -228,6 +231,8 @@ export function MessageList({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
+  agentPermissionProfile: AgentPermissionProfile;
+  onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
   if (messages.length === 0) {
     return (
@@ -247,6 +252,8 @@ export function MessageList({
           onAddContext={onAddContext}
           onTogglePinnedContext={onTogglePinnedContext}
           onRetryContextCandidates={onRetryContextCandidates}
+          agentPermissionProfile={agentPermissionProfile}
+          onAgentPermissionProfileChange={onAgentPermissionProfileChange}
         />
       </div>
     );
@@ -673,6 +680,8 @@ export function EmptyConversation({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
+  agentPermissionProfile,
+  onAgentPermissionProfileChange,
 }: {
   projectName: string | null;
   currentFileLabel: string | null;
@@ -688,6 +697,8 @@ export function EmptyConversation({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
+  agentPermissionProfile: AgentPermissionProfile;
+  onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
   const [value, setValue] = useState('');
 
@@ -718,6 +729,8 @@ export function EmptyConversation({
           onTogglePinnedContext={onTogglePinnedContext}
           onChange={setValue}
           onSubmit={submit}
+          permissionProfile={agentPermissionProfile}
+          onPermissionProfileChange={onAgentPermissionProfileChange}
         />
         <div className="mt-3">
           <ContextSummaryPanel

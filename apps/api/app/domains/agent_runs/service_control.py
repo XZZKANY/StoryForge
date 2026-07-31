@@ -18,6 +18,7 @@ from app.domains.agent_runs.event_types import (
     STOP_RUN,
 )
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent
+from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
     RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
@@ -102,6 +103,7 @@ def record_agent_control_event(
                 "run_id": public_id,
                 "control_type": control_type,
                 "assistant_session_id": run.assistant_session_id,
+                "permission_profile": canonical_permission_profile(run.permission_profile),
             },
         )
     elif control_type == DENY_PERMISSION_COMMAND and run.status == "failed":
@@ -116,6 +118,7 @@ def record_agent_control_event(
                 "run_id": public_id,
                 "control_type": control_type,
                 "assistant_session_id": run.assistant_session_id,
+                "permission_profile": canonical_permission_profile(run.permission_profile),
             },
         )
     return event

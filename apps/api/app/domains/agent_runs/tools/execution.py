@@ -86,12 +86,6 @@ class ToolExecutionContext:
 
 
 @dataclass(frozen=True)
-class PermissionDecision:
-    status: str
-    reason: str
-
-
-@dataclass(frozen=True)
 class SubagentDefinition:
     role: str
     input_schema: dict[str, Any]
@@ -114,27 +108,6 @@ class ToolRegistry:
 
     def all(self) -> tuple[ToolDefinition, ...]:
         return tuple(self._tools.values())
-
-
-class PermissionGate:
-    """Runtime 工具执行 gate。
-
-    live 入口 run.permission_profile 恒为默认 risk_confirm（前端只读回传、从不发送），此前的
-    full_allow / autonomous_approval / step_confirm 三分支不可达，已删。read / 未知 profile 走末尾
-    fallthrough 放行。对可达 profile（risk_confirm）gate 只判 allow / require_approval；真正的写回
-    确认发生在 proposed_patch 工件层由前端完成（require_approval 对 requires_confirmation 工具会被
-    runtime._execute_tool 放行去产出补丁，见该处）。
-    """
-
-    _RISKY_LEVELS = frozenset({"propose_patch", "write_pending", "long_running", "network", "high_cost"})
-
-    def decide(self, run: AgentRun, tool: ToolDefinition) -> PermissionDecision:
-        profile = run.permission_profile or "risk_confirm"
-        if profile == "risk_confirm" and tool.risk_level not in self._RISKY_LEVELS and not tool.requires_confirmation:
-            return PermissionDecision("allow", "risk_confirm_safe_tool")
-        if tool.requires_confirmation or tool.risk_level in self._RISKY_LEVELS:
-            return PermissionDecision("require_approval", f"{profile}:{tool.risk_level}")
-        return PermissionDecision("allow", profile)
 
 
 class SubagentExecutor:
