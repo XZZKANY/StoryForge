@@ -4,7 +4,7 @@
 
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
-import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../lib/user-settings';
+import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../lib/agent-permission';
 import { useAgentRunControls } from './chat-window/useAgentRunControls';
 import { useAgentRunRecovery } from './chat-window/useAgentRunRecovery';
 import { useAgentStreamEvent } from './chat-window/useAgentStreamEvent';

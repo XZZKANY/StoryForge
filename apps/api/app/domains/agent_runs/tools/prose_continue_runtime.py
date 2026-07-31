@@ -5,7 +5,8 @@ project.trim_prose），全是「改已有」或「起草新文件」——agent
 agent。这把工具补的是「按需续写」：作者开口才写，不抢焦点（宪法 §06.03 的立场是起草时
 编辑器保持安静，那约束的是主动插嘴，不是按需生成）。
 
-红线不变：只产出 proposed_patch，写盘由作者在界面确认后走前端守卫写回。
+红线不变：后端只产出 proposed_patch，永不写项目文件；写盘一律由前端守卫（快照 → 写盘 → 版本
+记录）执行。补丁要不要作者先点一次「接受」，由项目权限档位派生（见 permission/policy.py）。
 落点计算与插入都是确定性纯函数（assistant/continuation.py），LLM 只负责那一段文字。
 """
 
@@ -19,6 +20,7 @@ from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.loop.author_view import AuthorView
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.tools.execution import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import optional_int as _optional_int
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
@@ -71,6 +73,7 @@ class ProseContinueRuntimeMixin:
 
         after = continuation.insert_at_anchor(content, anchor_line, response.content)
         inserted_chars = len(response.content)
+        requires_confirm = patch_requires_confirmation(context.run.permission_profile)
         proposed_patch = {
             "id": f"prose-continue-{uuid.uuid4().hex}",
             "kind": "prose_continue",
@@ -82,11 +85,13 @@ class ProseContinueRuntimeMixin:
                 "cursor_line": cursor_line,
                 "inserted_chars": inserted_chars,
             },
-            "requires_confirmation": True,
+            "requires_confirmation": requires_confirm,
             "approval_action": "desktop.confirm_file_writeback",
         }
 
-        summary = f"已在第 {anchor_line} 行之后续写约 {inserted_chars} 字，等你确认后才会写盘。"
+        # 摘要是给作者看的，不能在自动档还说「等你确认」。
+        writeback_note = "等你确认后才会写盘。" if requires_confirm else "已按本项目的自动档直接写盘（写前已存快照）。"
+        summary = f"已在第 {anchor_line} 行之后续写约 {inserted_chars} 字，{writeback_note}"
         output = {
             "file_path": file_path,
             "before": content,
@@ -105,7 +110,9 @@ class ProseContinueRuntimeMixin:
             output=output,
             summary=summary,
             payload={"proposed_patch": proposed_patch},
-            artifacts=(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True),),
+            artifacts=(
+                ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirm),
+            ),
             metrics={
                 "inserted_chars": inserted_chars,
                 "completion_tokens": response.completion_tokens,

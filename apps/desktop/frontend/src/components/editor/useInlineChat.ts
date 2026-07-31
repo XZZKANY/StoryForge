@@ -22,6 +22,7 @@ import { reviseFileContent } from '../../lib/api-client';
 import { streamContinueProse } from '../../lib/api/assistant';
 import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopResult } from '../../lib/author-loop';
+import { allowsAuthoringActions, readAgentPermissionProfile } from '../../lib/agent-permission';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
 import {
   buildInlineReviseInstruction,
@@ -553,6 +554,17 @@ export function useInlineChat({
       if (isReadOnlyDerivedProjectPath(path)) {
         flashStatus(
           mode === 'continue' ? '派生缓存为只读，不能续写' : '派生缓存为只读，不能行间修订',
+        );
+        return;
+      }
+      // 这两条走 /api/assistant/*，不经 AgentRun 的权限 gate；「只读」档要名副其实，
+      // 就必须在这里挡住发起。读的是 localStorage 现值而不是缓存 prop：这是授权判定，
+      // 要用作者此刻的选择，不是上一次渲染时的。
+      if (!allowsAuthoringActions(readAgentPermissionProfile(project))) {
+        flashStatus(
+          mode === 'continue'
+            ? '本项目是只读档，Agent 不产生改动；要续写请先在对话框把档位调开'
+            : '本项目是只读档，Agent 不产生改动；要改稿请先在对话框把档位调开',
         );
         return;
       }

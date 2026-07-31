@@ -2,7 +2,8 @@
 
 工具面：只读 fs 工具（fs.list / fs.read / fs.search）+ 一致性（project.consistency 机械观察 /
 project.deep_consistency 语义评审）+ 审稿 / 修订 / 起草（file.review / file.revise / file.create）。
-写回红线不变：file.revise 只生成待作者确认的 proposed patch，后端绝不写盘。
+写回红线：file.revise 只生成 proposed patch，后端在任何权限档位下都绝不写盘。补丁要不要作者
+先点一次「接受」，由项目权限档位派生到补丁的 requires_confirmation 上（见 permission/policy.py）。
 显式 intent（审稿 / 修订 / 写作任务按钮）继续走旧管线，本模块只服务 chat.explain。
 """
 

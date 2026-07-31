@@ -1,9 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
   DEFAULT_APP_SETTINGS,
-  AGENT_PERMISSION_PROFILE_OPTIONS,
-  DEFAULT_AGENT_PERMISSION_PROFILE,
-  isAgentPermissionProfile,
   sanitizeAppSettings,
   type AppSettings,
   type EditorLineNumbersMode,
@@ -37,7 +34,7 @@ type SettingsViewProps = {
 type ProbeState = 'idle' | 'loading' | ProviderHealth;
 type SaveState = 'idle' | 'loading' | 'saved' | 'error';
 
-const settingsNav = ['返回', '模型服务', 'Agent', '外观', '编辑器', '关于'] as const;
+const settingsNav = ['返回', '模型服务', '外观', '编辑器', '关于'] as const;
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeMode; label: string }> = [
   { value: 'dark', label: '深色' },
@@ -346,26 +343,6 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       />
                     )}
                     <ProbeRow state={probe} onProbe={runProbe} />
-                  </SettingCard>
-                </SettingGroup>
-
-                <SettingGroup id="agent" title="Agent">
-                  <SettingCard>
-                    <SelectRow
-                      title="权限档位"
-                      description="只影响下一次发送；逐步确认会在 Chapter Writing 的 brief 后启用，当前对话写类工具保持阻断。所有档位仍须在 diff 中确认写回。"
-                      value={safeSettings.agentPermissionProfile}
-                      onChange={(value) =>
-                        update(
-                          'agentPermissionProfile',
-                          isAgentPermissionProfile(value)
-                            ? value
-                            : DEFAULT_AGENT_PERMISSION_PROFILE,
-                        )
-                      }
-                      options={AGENT_PERMISSION_PROFILE_OPTIONS}
-                      testId="agent-permission-profile"
-                    />
                   </SettingCard>
                 </SettingGroup>
 
@@ -841,7 +818,6 @@ function ActionRow({
 
 function navAnchor(label: string): string {
   if (label === '模型服务') return 'provider';
-  if (label === 'Agent') return 'agent';
   if (label === '外观') return 'appearance';
   if (label === '编辑器') return 'editor';
   if (label === '关于') return 'about';
@@ -852,13 +828,7 @@ function navAnchor(label: string): string {
  *  且与全站唯一图标源 shell-icons 割裂 —— 那个模块的存在理由就是「取代旧的 Unicode/字形图标」）。 */
 function NavIcon({ label }: { label: string }) {
   const Icon =
-    label === '模型服务' || label === 'Agent'
-      ? Sparkles
-      : label === '外观'
-        ? Palette
-        : label === '编辑器'
-          ? Type
-          : Info;
+    label === '模型服务' ? Sparkles : label === '外观' ? Palette : label === '编辑器' ? Type : Info;
   return <Icon size={15} strokeWidth={1.6} />;
 }
 

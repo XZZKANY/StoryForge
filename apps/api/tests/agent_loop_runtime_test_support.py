@@ -36,12 +36,14 @@ def _send_chat_message(
     project_path: str,
     message: str,
     context_bundle: dict[str, object] | None = None,
+    permission_profile: str | None = None,
 ) -> list[dict]:
     return stream_agent_message(
         client,
         f"session-{run_id}",
         run_id=run_id,
         user_message=message,
+        permission_profile=permission_profile,
         args={
             "project_path": project_path,
             "context_bundle": context_bundle if context_bundle is not None else {"files": []},

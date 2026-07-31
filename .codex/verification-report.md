@@ -234,7 +234,130 @@ OpenAPI + Agent frame drift gate      -> no drift
 Wire 判断：只在既有 `AgentToolTrace.input_summary` generic object 内增加安全字段，没有新增/修改路由、
 DTO、SSE 顶层字段或 generated schema；总门禁仍执行了 OpenAPI/Agent frame 刷新并确认无漂移。
 
-真实 provider 复核未通过：隔离临时项目显式选择黄金三章 spec 后尝试真实 live loop，provider 返回
-HTTP 401（当前 key 无效），因此没有形成真实 `file.create` / inner draft evidence，不能宣称真实章节命中、
-安装态 author-loop 或人工通读通过。沙箱内外结果一致；未输出凭据，未触碰 `D:\连载`，临时项目/SQLite
-与探针脚本均已清理。
+真实 provider 首次复核未通过：隔离临时项目显式选择黄金三章 spec 后尝试真实 live loop，源码环境旧配置
+返回 HTTP 401。作者随后要求改用装机版配置；隔离进程直接读取装机版 `llm-provider.json`，provider health
+于 292ms 返回 `ok`，可见 `deepseek-v4-flash` / `deepseek-v4-pro`，全程没有复制、输出或持久化 key。
+
+使用该装机配置重跑真实 live loop：outer Agent 读项目文件后调用 `file.create`，inner
+`assistant.draft` 收到 2 个显式选择文件；writing trace provenance 为
+`.资料/黄金三章-spec.md`、`.资料/写作-playbook.md`，source=`request_bundle`、warning=0，snapshot id
+与 sibling summary 一致。trace/event 不含 context excerpt 或绝对项目根，durable evidence 不含 API key。
+最终 `proposed_patch` 指向 `正文/第04章.md`，before=0、after=1614 字、`requires_confirmation=true`，
+且确认前临时项目中目标文件不存在。证据见当前 Trellis 任务的 `real-provider-summary.json` 与
+`real-provider-draft.md`；内存 SQLite 和系统临时小说目录已清理，未触碰 `D:\连载`。
+
+人工通读不判章节质量通过：6 条硬任务中，开场冲突、天枢架位、观澜身份红线、长度 4 项命中；
+“为救知情人而失去物证”的主动取舍没有成立，“阿梧”没有落在章末，结尾“天枢，从来不是架位”还
+削弱了本章刚兑现的线索；库房仍在延烧时人物停下验钉和问话，也有现场逻辑问题。真实 provider 已证明
+可信上下文和补丁红线接通，但不能据此宣称写章质量稳定或真机 Desktop author-loop / diff 点击确认通过。
+
+## 2026-07-31 Agent Permission Policy
+
+范围：`.trellis/tasks/07-31-agent-permission-policy`。Desktop 的四档权限选择现已成为下一次
+AgentRun 的持久设置，并以顶层 SSE `permission_profile` 进入 API；run 创建时快照，恢复没有新值时
+保留已持久化的 canonical profile。
+
+实现与复核：
+
+- API `permission` public face 集中 canonical 值、legacy alias、严格请求校验、历史 evidence 安全投影、
+  stage policy 与 ToolSpec 风险 gate。未知显式值为 422；`read` 在 handler 前阻断写类和长任务。
+- `risk_confirm` / `autonomous` 仅可生成待确认 patch，始终不能绕过 Desktop diff confirmation、
+  snapshot-before-write 或 guarded writeback。`step_confirm` 已提供阶段决策，但通用 live loop 尚无 durable
+  brief replay，因此当前写类工具诚实地在 handler 前阻断。
+- `agent_run_started` frame、permission、terminal、pending recovery 与 BookRun snapshot 都投影 canonical
+  profile。由 Agent 启动的 managed BookRun 镜像仅在首次创建时继承来源 run 的 profile；独立后台 run 保持
+  `risk_confirm`，后续来源设置变化不改写镜像快照。
+- 已新增 `.trellis/spec/storyforge-api/backend/agent-permission-policy.md`，把跨 Desktop/API/ToolSpec/evidence
+  的可执行契约和错误矩阵固化下来。
+
+验证：
+
+```text
+uv run pytest tests/test_agent_permission_policy.py -q  -> 18 passed
+uv run ruff check <permission policy affected paths>    -> passed
+git diff --check                                        -> passed
+pnpm.cmd verify                                         -> passed
+  root ESLint + Prettier                                -> passed
+  Desktop typecheck                                     -> passed
+  project-core                                          -> 7 passed
+  Desktop Vitest                                        -> 77 files / 486 passed
+  API pytest                                            -> 1279 passed, 3 skipped
+  API Ruff                                              -> passed
+  sidecar daily smoke                                   -> passed
+  OpenAPI + Agent frame drift gate                      -> no drift
+```
+
+未验证：尚未在真机 Tauri 中完整点穿“Settings/Composer 改档 -> 新对话 -> evidence -> 重启持久化 -> diff
+确认写回”链路；`step_confirm` 的真实 brief checkpoint 要等 Chapter Writing Module 提供 durable stage
+replay 后再启用。本任务未触碰 `D:\连载`，也未纳入既有 `apps/desktop/src-tauri/Cargo.lock` 改动。
+
+## 2026-07-31 按项目的 Agent 权限（Codex Desktop 式四档 + 自动落盘）
+
+作者拍板：做成「Codex Desktop 对项目的权限」。四个方向性取舍先问后做，均由作者选定——
+①「自动」档真自动落盘（越界才问）②档位表 read / ask / auto / full ③按项目存本机
+④ Ctrl+K / Ctrl+Shift+K 只被只读档管住。本波同时收口上一刀 review 出的三条。
+
+### 改了什么
+
+- **档位词表**收敛为 `read` / `ask` / `auto` / `full`，DEFAULT=`ask`。**所有历史档位
+  （risk_confirm / step_confirm / autonomous / full_allow / autonomous_approval）一律迁到 `ask`**：
+  迁移绝不把任何既有 run 或既有作者设置升级成免点击落盘，`auto` / `full` 只能按项目显式选一次。
+  这条是本波唯一不可回退的安全性质，已用参数化测试钉死。
+- 上一刀的四档里，`autonomous` 与 `risk_confirm` 逐格决策完全相同（实测矩阵）、`step_confirm`
+  对 5 个 write_pending 工具全阻断且循环内无审批出口——两者都已消失：`autonomous` 并入 `ask`，
+  新的 `auto` 才有真实差异，`full` 的差异是长任务免二次确认。
+- **写回红线改写**（作者显式授权）。没变的部分：后端在任何档位都不写项目文件，只出
+  proposed patch；落盘一律经 `performGuardedWriteback`（写前快照 → 原子写 → 版本记录）。
+  变的部分：「作者必须逐次点接受」不再是全局不变量，而由
+  `PermissionPolicy.decide_stage(profile, "writeback")` 单点派生到
+  `proposed_patch.requires_confirmation`（read/ask=True，auto/full=False）。Desktop 只读这一位，
+  不按档位字符串自推（业务结论留在 API 侧）。5 处补丁构造点与 `judge.repair` 的 artifact 全部改为派生。
+- 自动档不放宽的守卫：漂移拒写、`.storyforge/canon/derived/` 只读、项目边界、写前快照、撤销 toast。
+  任一守卫拦下即退回 PatchReviewPanel 手动确认，绝不静默丢弃。顺带补上
+  `writeAcceptedSuggestion` 此前**缺失**的派生目录闸（`saveCurrentFile` 一直有，AI 写回这条漏了；
+  自动档下补丁不再经人眼，漏了会静默写坏派生缓存）。
+- **按项目存本机**：`storyforge:agent-permission:<projectPath>`（照 daily-progress 模式）。刻意
+  不写进 `.storyforge/`——把「自动落盘」授权随 git 传播给克隆的人是安全倒退。SettingsView 的全局
+  Agent 分区已撤除（per-project 设置放全局设置页是范畴错误），入口收在 Composer 下拉。换项目在
+  渲染期同步换档而非 useEffect，避免「切项目后第一帧按上一个项目的授权发出去」。
+- Ctrl+K / Ctrl+Shift+K 走 `/api/assistant/*`、不经 AgentRun gate，只在只读档挡住发起；判定读
+  localStorage 现值而非缓存 prop（授权判定要用作者此刻的选择）。
+- 上一刀 review 的三条：`confirmed` / `user_confirmed` 进 `PROTECTED_LOOP_TOOL_ARGUMENT_KEYS`
+  （唯一能把模型参数变成权限授予的键）；`create_or_resume_agent_run` 续接改吃
+  `canonical_permission_profile` 容脏历史（此前严格校验会把整次续跑打成 500）；file.revise 的 loop
+  `output_summary` 补回 `file_path` / `patch_id`（覆盖 `_tool_output_summary` 时丢了）。
+
+### 验证
+
+```text
+pnpm.cmd verify                                   -> 全绿
+  root ESLint + Prettier                          -> passed
+  Desktop typecheck                               -> passed
+  Desktop Vitest                                  -> 79 files / 494 passed
+  API pytest                                      -> 1296 passed, 3 skipped (272s)
+  API Ruff                                        -> All checks passed
+  sidecar daily smoke                             -> 全绿
+  OpenAPI + Agent frame drift gate                -> no drift
+```
+
+护栏打在接线上，且经变异验证：
+
+- API `test_agent_loop_permission_writeback.py`：真跑 chat 工具循环，`ask` vs `auto` 下
+  `proposed_patch.requires_confirmation` 与 `agent_result.requires_user_confirmation` 同步翻转，
+  **两档下磁盘都不动**（后端红线未放宽的实证）。
+- Desktop `tests/behavior/auto-writeback.test.tsx`：挂载真 `useSuggestionWriteback`，钉死四条——
+  自动档无点击即落盘且顺序仍是先快照后写盘、询问档不落盘、确认位缺失失败关闭、快照失败阻断写盘
+  且不记闭环。**变异验证**：把自动接受接线短路后，只有第一条断言变红，其余三条仍绿（说明它们各测各的）。
+- Desktop `tests/agent-permission.test.tsx`：两项目各记一份互不串档、存档里的旧值读出来是 `ask`
+  不是 `auto`、只读档挡住发起、自动落盘判定表、补丁确认位失败关闭。
+
+### 未联通 / 不能宣称
+
+- **真机未验**：「改档 → agent 直接落盘 → 撤销 → 重启后档位仍在」没有在装机版点穿，归 E2E-1。
+  自动档也尚未在真实写作里连用过。
+- **撤销网仍薄，自动档会放大**：版本快照每文件上限 20 份（连发自动落盘更容易挤掉中间态）、撤销
+  toast 只在内存里且要求内容未再变、**新建文件自动落盘没有回滚点**（快照 previous 为空，撤销只会
+  写回空串而不是删除文件）。作者选 `auto` 前应知道这一条；本波没有加深安全网。
+- `full` 档只在长任务上与 `auto` 有差异；BookRun 是后台工具，该差异未在真实长任务上跑过。
+- 本任务未触碰 `D:\连载`。`.trellis/spec/.../agent-permission-policy.md`（gitignored 本地规格）已随之
+  重写，否则下一轮会照着上一版错的契约写。

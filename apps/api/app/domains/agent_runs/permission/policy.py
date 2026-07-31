@@ -8,20 +8,25 @@ if TYPE_CHECKING:
     from app.domains.agent_runs.tools.execution import ToolDefinition
 
 
-PermissionProfile = Literal["read", "step_confirm", "risk_confirm", "autonomous"]
+PermissionProfile = Literal["read", "ask", "auto", "full"]
 PermissionStage = Literal["explore", "brief", "draft", "proposed_patch", "writeback"]
 PermissionDecisionStatus = Literal["allow", "require_approval", "deny"]
 
 CANONICAL_PERMISSION_PROFILES: tuple[PermissionProfile, ...] = (
     "read",
-    "step_confirm",
-    "risk_confirm",
-    "autonomous",
+    "ask",
+    "auto",
+    "full",
 )
-DEFAULT_PERMISSION_PROFILE: PermissionProfile = "risk_confirm"
+DEFAULT_PERMISSION_PROFILE: PermissionProfile = "ask"
+# 所有历史档位一律迁到 ask：迁移绝不把既有 run 或既有作者设置升级成「自动落盘」，
+# auto / full 只能由作者在某个具体项目上显式选一次。
 LEGACY_PERMISSION_PROFILE_ALIASES: dict[str, PermissionProfile] = {
-    "full_allow": "autonomous",
-    "autonomous_approval": "autonomous",
+    "risk_confirm": "ask",
+    "step_confirm": "ask",
+    "autonomous": "ask",
+    "full_allow": "ask",
+    "autonomous_approval": "ask",
 }
 _PERMISSION_STAGES = frozenset({"explore", "brief", "draft", "proposed_patch", "writeback"})
 
@@ -94,8 +99,30 @@ def canonical_permission_profile(
     return DEFAULT_PERMISSION_PROFILE
 
 
+def patch_requires_confirmation(profile: object) -> bool:
+    """补丁落盘前要不要作者点一次「接受」——由档位单点派生，handler 不再硬编码。
+
+    这是 Desktop 自动落盘的唯一开关：Desktop 只读 `proposed_patch.requires_confirmation`，
+    不自己按 profile 字符串分支判断（业务结论留在 API 侧）。后端本身在任何档位都不写项目文件。
+    """
+
+    canonical = canonical_permission_profile(profile)
+    return PermissionPolicy().decide_stage(canonical, "writeback").status != "allow"
+
+
 class PermissionPolicy:
-    """权限档位到阶段/工具裁决的唯一业务事实源。"""
+    """权限档位到阶段/工具裁决的唯一业务事实源。
+
+    四档语义（对齐 Codex Desktop 的按项目授权，作者按项目各选一份）：
+
+    - ``read`` 只读：只能读和分析，连补丁都不产。
+    - ``ask`` 询问：产补丁，但每次落盘都要作者在 diff 里点接受（默认档，也是所有历史档位的迁移目标）。
+    - ``auto`` 自动：项目内补丁免点击直接落盘，仍逐次走快照 → 写盘 → 版本记录；长任务仍要确认。
+    - ``full`` 完全放行：在 ``auto`` 之上，连烧 key 的长任务（BookRun）也不再二次确认。
+
+    ``auto`` / ``full`` 放宽的只有「作者点击」这一层闸；项目目录边界、派生只读目录与写前快照
+    在任何档位都不放宽。
+    """
 
     def decide_stage(
         self,
@@ -115,17 +142,11 @@ class PermissionPolicy:
                 return PermissionDecision("allow", "read_observation_stage")
             return PermissionDecision("deny", "read_profile_blocks_non_observation_stage")
 
-        if canonical_profile == "step_confirm":
-            if canonical_stage == "explore":
-                return PermissionDecision("allow", "step_confirm_explore")
-            if canonical_stage == "brief":
-                return PermissionDecision("require_approval", "step_confirm_brief")
-            if canonical_stage == "draft":
-                return PermissionDecision("require_approval", "step_confirm_requires_stage_grant")
-            return PermissionDecision("require_approval", "final_diff_confirmation")
-
-        if canonical_stage in {"explore", "brief", "draft"}:
+        if canonical_stage in {"explore", "brief", "draft", "proposed_patch"}:
             return PermissionDecision("allow", f"{canonical_profile}_{canonical_stage}")
+        if canonical_profile in {"auto", "full"}:
+            # 免作者点击的只是这一层闸；写前快照、版本记录、项目目录边界仍由 Desktop 逐次执行。
+            return PermissionDecision("allow", f"{canonical_profile}_workspace_writeback")
         return PermissionDecision("require_approval", "final_diff_confirmation")
 
     def decide_tool(
@@ -151,17 +172,19 @@ class PermissionPolicy:
             return PermissionDecision(
                 "require_approval",
                 stage_decision.reason,
-                allows_pending_artifact=canonical_profile in {"risk_confirm", "autonomous"},
+                allows_pending_artifact=True,
             )
 
         if risk_level == "long_running":
             if tool.execution_mode == "control":
                 return PermissionDecision("allow", f"{canonical_profile}_managed_run_control")
+            if canonical_profile == "full":
+                return PermissionDecision("allow", "full_profile_allows_long_running")
             if isinstance(payload, dict) and payload.get("confirmed") is True:
                 return PermissionDecision("allow", f"{canonical_profile}_confirmed_long_running")
             return PermissionDecision("require_approval", f"{canonical_profile}:{risk_level}")
 
-        # 长任务启动和所有非白名单的风险类别没有 Desktop diff seam，不能因自治档位而静默执行。
+        # 未知风险类别没有 Desktop diff seam，不能因为档位放宽就静默执行。
         return PermissionDecision("require_approval", f"{canonical_profile}:{risk_level}")
 
 

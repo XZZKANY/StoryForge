@@ -17,6 +17,10 @@ PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
     {
         "_agent_intent",
         "_trace_file_path",
+        # `confirmed` 是唯一能把模型参数变成权限授予的键（见 execution_runtime 的长任务分支），
+        # 必须只来自作者确认回执，绝不能由模型自己填。
+        "confirmed",
+        "user_confirmed",
         "content",
         "context_bundle",
         "context_provenance",

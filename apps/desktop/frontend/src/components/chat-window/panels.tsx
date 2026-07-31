@@ -5,7 +5,7 @@ import {
   type SemanticFile,
 } from '../../lib/project-context';
 import type { AssistantSessionRecord } from '../../lib/api-client';
-import type { AgentPermissionProfile } from '../../lib/user-settings';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { AgentStepsPanel } from '../AgentStepsPanel';
 import {
   ChevronDown,

@@ -3,7 +3,7 @@ import { ComposerBox } from './Composer';
 import { runStatusText } from './display-utils';
 import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
-import type { AgentPermissionProfile } from '../../lib/user-settings';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ChatWindowState } from './useChatWindowState';
 
 type Props = {

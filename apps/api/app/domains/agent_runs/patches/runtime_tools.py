@@ -7,6 +7,7 @@ from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.adapters.bookrun_managed_run_adapter import managed_bookrun_handlers
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.revise_scope import public_revise_scope as _public_revise_scope
 from app.domains.agent_runs.revise_scope import resolve_revise_scope as _resolve_revise_scope
 from app.domains.agent_runs.revise_scope import revise_summary_with_scope as _revise_summary_with_scope
@@ -83,13 +84,14 @@ class PatchRuntimeToolsMixin:
         scope_warning = _scope_warning(scope, response.before, response.after)
         if scope_warning is not None:
             summary = f"{summary} {scope_warning['message']}"
+        requires_confirm = patch_requires_confirmation(context.run.permission_profile)
         proposed_patch = {
             "id": f"file-revision-{uuid.uuid4().hex}",
             "kind": "file_revision",
             "file_path": file_path,
             "before": response.before,
             "after": response.after,
-            "requires_confirmation": True,
+            "requires_confirmation": requires_confirm,
             "approval_action": "desktop.confirm_file_writeback",
         }
         patch_proposal = PatchProposal.from_payload(proposed_patch)
@@ -106,6 +108,8 @@ class PatchRuntimeToolsMixin:
             "proposed_patch": proposed_patch,
         }
         revise_output_summary: dict[str, Any] = {
+            "file_path": trace_file_path,
+            "patch_id": proposed_patch["id"],
             "after_chars": len(response.after),
             "model": response.model,
             "latency_ms": response.latency_ms,
@@ -120,7 +124,9 @@ class PatchRuntimeToolsMixin:
             output=output,
             summary=summary,
             payload={"proposed_patch": proposed_patch},
-            artifacts=(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True),),
+            artifacts=(
+                ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirm),
+            ),
             metrics={
                 "after_chars": len(response.after),
                 "completion_tokens": response.completion_tokens,
@@ -169,6 +175,7 @@ class PatchRuntimeToolsMixin:
         ) as exc:
             raise AgentOrchestrationError(str(exc)) from exc
 
+        requires_confirm = patch_requires_confirmation(context.run.permission_profile)
         proposed_patch = {
             "id": f"file-creation-{uuid.uuid4().hex}",
             "kind": "file_revision",
@@ -176,7 +183,7 @@ class PatchRuntimeToolsMixin:
             "file_path": file_path,
             "before": "",
             "after": response.content,
-            "requires_confirmation": True,
+            "requires_confirmation": requires_confirm,
             "approval_action": "desktop.confirm_file_writeback",
         }
         patch_proposal = PatchProposal.from_payload(proposed_patch)
@@ -196,7 +203,9 @@ class PatchRuntimeToolsMixin:
             output=output,
             summary=response.summary,
             payload={"proposed_patch": proposed_patch},
-            artifacts=(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True),),
+            artifacts=(
+                ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirm),
+            ),
             metrics={
                 "content_chars": len(response.content),
                 "completion_tokens": response.completion_tokens,
@@ -263,9 +272,11 @@ class PatchRuntimeToolsMixin:
                 patch_payload = result.payload.get("patch") if isinstance(result.payload.get("patch"), dict) else None
                 proposed_patch = _proposed_patch_from_repair_patch(patch_payload) if patch_payload else None
                 if proposed_patch is not None:
+                    repair_confirm = patch_requires_confirmation(context.run.permission_profile)
+                    proposed_patch["requires_confirmation"] = repair_confirm
                     patch_proposal = PatchProposal.from_payload(proposed_patch)
                     tool_artifacts.append(
-                        ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True)
+                        ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=repair_confirm)
                     )
             assistant_service.update_assistant_tool_call(
                 context.session,

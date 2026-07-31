@@ -9,6 +9,7 @@ from app.domains.agent_runs.canon_delta import canon_delta
 from app.domains.agent_runs.canon_hooks_delta import hooks_delta
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.tools.execution import ToolArtifact, ToolExecutionContext, ToolHandler, ToolResult
 from app.domains.agent_runs.tools.runtime_arguments import optional_int as _optional_int
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
@@ -166,6 +167,7 @@ class ProjectCanonRuntimeMixin:
             "actual_percent": actual_percent,
         }
 
+        requires_confirm = patch_requires_confirmation(context.run.permission_profile)
         proposed_patch = {
             "id": f"prose-trim-{uuid.uuid4().hex}",
             "kind": "prose_trim",
@@ -173,7 +175,7 @@ class ProjectCanonRuntimeMixin:
             "before": response.before,
             "after": response.after,
             "trim_audit": trim_audit,
-            "requires_confirmation": True,
+            "requires_confirmation": requires_confirm,
             "approval_action": "desktop.confirm_file_writeback",
         }
         patch_proposal = PatchProposal.from_payload(proposed_patch)
@@ -196,7 +198,9 @@ class ProjectCanonRuntimeMixin:
             output=output,
             summary=summary,
             payload={"proposed_patch": proposed_patch},
-            artifacts=(ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=True),),
+            artifacts=(
+                ToolArtifact(kind="proposed_patch", payload=proposed_patch, requires_confirmation=requires_confirm),
+            ),
             metrics={
                 "after_chars": compressed_chars,
                 "completion_tokens": response.completion_tokens,

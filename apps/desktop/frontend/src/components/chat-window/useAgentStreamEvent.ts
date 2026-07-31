@@ -8,7 +8,7 @@ import {
   isAgentToolTraceEventMessage,
   type AgentSocketMessage,
 } from '../../lib/api-client';
-import { isAgentPermissionProfile } from '../../lib/user-settings';
+import { isAgentPermissionProfile } from '../../lib/agent-permission';
 import { stepFromAgentPlanEvent, stepFromToolTraceEvent } from './agent-step-mapping';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import type { AgentRun, AgentStep } from './types';

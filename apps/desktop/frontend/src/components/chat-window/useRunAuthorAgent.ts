@@ -23,7 +23,7 @@ import {
 } from '../../lib/local-conversation-action';
 import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
-import type { AgentPermissionProfile } from '../../lib/user-settings';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import {
   contextFilesFromAgentResult,
   filePathFromAgentResult,
@@ -388,6 +388,7 @@ export function useRunAuthorAgent(
                 contextBundle.files.map((file) => file.relativePath),
               ),
               scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
+              requiresConfirmation: proposed.requires_confirmation,
             }),
           );
           emitSuggestionResult({

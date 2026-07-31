@@ -17,7 +17,7 @@ StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段。�
 - 30 章真实长程证据目录：`.codex/real-llm-30ch-mimo25pro-20260611-192356`；运行链路、Markdown、EPUB 和审计报告导出完成，但人工通读退回重跑。
 - 30 章退回阻塞：测试痕迹残留、章节结构模板化、重复表达、人物称谓混乱、17/18 章时间线冲突、线索膨胀和结尾收束不足。
 - 后续工程修复已覆盖 recap 膨胀、计数失真、collapse_judge 误报、S3 bucket 缺失和 reasoning token 泄漏；Q9 16 章真实跑又修复了门禁丢章四根因（字数容差、judge 误标、grounding 部分提交、缺章护栏）；这些修复需要通过新一轮长程运行与人工通读验证。
-- Desktop IDE Agent 已支持后端意图源收口、真实文件修订、多视角审稿、稳定 issue id、修订范围控制、proposed patch、确认写回防重复生成；Tauri 写回护栏已有脚本级 smoke 与两轮真机 GUI 验收证据，写回红线保持确认制。
+- Desktop IDE Agent 已支持后端意图源收口、真实文件修订、多视角审稿、稳定 issue id、修订范围控制、proposed patch、确认写回防重复生成；Tauri 写回护栏已有脚本级 smoke 与两轮真机 GUI 验收证据；写回红线＝后端不写盘 + 落盘必经前端守卫，逐次确认与否按项目权限档位（默认询问档即确认制）。
 - 对话式 Agent 现状（2026-07-02 至 07-12）：`chat.explain` 已接真·LLM，对话为项目级会话、切换文件不丢；左栏会话历史列表与欢迎页输入框已接真；chat 自由文本走 LLM 工具循环（path-scoped 只读 `fs.list` / `fs.read` / `fs.search`，最多 8 轮，首轮失败回落单轮），前端流程树全事件驱动、预制骨架步骤已删。边界：工具循环入口是 chat 自由文本，审稿 / 修订 / 新文件起草 / 一致性观察已作为循环内工具并入（`file.review` / `file.revise` / `file.create` / `project.consistency`，一次对话最多一个待确认补丁，一致性工具只报机械观察不下结论），显式按钮路径仍走固定管线；chapter.review / bookrun.* 绑定 DB 实体且 BookRun 定位后台工具，不并入循环（已记为决定）；真·LLM tool-calling headless 与真机 GUI 工具循环均已通过，写回仍走 proposed patch 前端确认。
 - 私测 Alpha（2026-07-01，PR #43/#44）：sidecar exe 独立起服、`llm-provider.json` 写盘换模型即生效、NSIS 安装包内嵌 sidecar 均已本机验证；真机 GUI 双击装机端到端未验。
 - W2「sqlite schema 单一事实源」（2026-07-04 合并）：sidecar 起服跑 alembic 收口（存量库备份 + quick_check + stamp head 纳管、已纳管库 upgrade head），alembic 脚本打进冻结 exe，daily/packaged 两档 smoke 断言 managed=true；**schema 冻结已解除**，此后 ORM 列变更写 batch 安全迁移（约定见 `CLAUDE.md` §6）。这解锁了 Q1-Q8 一致性工具化（可再加列）。真机「旧版存量库换新 exe 起服 + 会话史完整」归 E2E-1 未验。

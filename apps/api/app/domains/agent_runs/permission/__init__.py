@@ -11,6 +11,7 @@ from app.domains.agent_runs.permission.policy import (
     PermissionStage,
     canonical_permission_profile,
     normalize_permission_profile,
+    patch_requires_confirmation,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "PermissionStage",
     "canonical_permission_profile",
     "normalize_permission_profile",
+    "patch_requires_confirmation",
 ]

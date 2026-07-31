@@ -1,5 +1,5 @@
 import type { ApiAssistantContextBundle } from './contracts';
-import type { AgentPermissionProfile } from '../user-settings';
+import type { AgentPermissionProfile } from '../agent-permission';
 import type {
   AgentRunStartedFrame,
   AgentStepFrame,

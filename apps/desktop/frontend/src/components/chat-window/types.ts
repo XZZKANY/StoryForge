@@ -3,7 +3,7 @@ import type {
   AgentResultMessage,
   AgentToolTrace,
 } from '../../lib/api-client';
-import type { AgentPermissionProfile } from '../../lib/user-settings';
+import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { LocalConversationAction } from '../../lib/local-conversation-action';
 import type { ContextBundle, SemanticFile } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';

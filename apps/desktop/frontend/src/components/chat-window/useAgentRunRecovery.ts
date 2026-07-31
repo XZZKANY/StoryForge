@@ -156,6 +156,7 @@ export function useAgentRunRecovery(
               lastContextBundle?.files.map((file) => file.relativePath) ?? [],
             ),
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
+            requiresConfirmation: proposed.requires_confirmation,
           }),
         );
         emitSuggestionResult({

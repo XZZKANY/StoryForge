@@ -60,9 +60,11 @@ def create_or_resume_agent_run(
         run.goal = redact_sensitive_text(goal)
         run.scope = redact_sensitive(scope or run.scope or {})
         run.book_run_id = run_payloads.optional_positive_int((scope or {}).get("book_run_id")) or run.book_run_id
-        stored_profile = normalize_permission_profile(run.permission_profile, allow_missing=False)
+        # 续接读的是历史行，脏值不能把整次续跑打断——收敛到 canonical 即可（新值仍走严格校验）。
         run.permission_profile = (
-            requested_profile.profile if permission_profile is not None else stored_profile.profile
+            requested_profile.profile
+            if permission_profile is not None
+            else canonical_permission_profile(run.permission_profile)
         )
         run.budget = redact_sensitive(budget or run.budget or {})
         if run.status in AGENT_RUN_TERMINAL_STATUSES:

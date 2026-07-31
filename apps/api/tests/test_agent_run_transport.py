@@ -37,7 +37,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
 
     assert started["type"] == "agent_run_started"
     assert started["run_id"] == "run-agent-review"
-    assert started["permission_profile"] == "risk_confirm"
+    assert started["permission_profile"] == "ask"
     assert received[-1]["run_id"] == "run-agent-review"
     assert received[-1]["system_jobs"]["title"]["job_name"] == "conversation.title.generate"
     assert received[-1]["system_jobs"]["title"]["hidden"] is True
@@ -50,7 +50,7 @@ def test_websocket_user_message_persists_agent_run_events_and_artifacts(
     assert run["public_id"] == "run-agent-review"
     assert run["session_id"] == "session-agent-run-review"
     assert run["status"] == "completed"
-    assert run["permission_profile"] == "risk_confirm"
+    assert run["permission_profile"] == "ask"
     assert run["root_plan"]
 
     events_response = client.get("/api/agent-runs/run-agent-review/events")
@@ -147,7 +147,7 @@ def test_agent_run_records_permission_required_for_proposed_patch(
     assert "permission_required" in event_types
     permission_event = next(event for event in events if event["event_type"] == "permission_required")
     assert permission_event["actor"] == "permission-gate"
-    assert permission_event["payload"]["permission_profile"] == "risk_confirm"
+    assert permission_event["payload"]["permission_profile"] == "ask"
     assert permission_event["payload"]["proposed_patch"]["kind"] == "file_revision"
     assert permission_event["payload"]["blocked_tool"] == "file.revise"
     # F10：permission_required 也是终态之一，payload 必须带 assistant_session_id，

@@ -1104,7 +1104,9 @@ fn run_smoke_probe<R: tauri::Runtime>(
         let disk_before_accept = std_fs::read_to_string(&smoke_file).unwrap_or_default();
         if disk_before_accept != before_revision {
             eprintln!(
-                "Smoke 失败: proposed patch 未确认前不应写盘，实际内容: {}",
+                // 该 smoke 跑在默认的「询问」档：此档下补丁未点接受前盘上必须原样。
+                // 「自动」档是作者按项目显式选的另一条路，不走这里。
+                "Smoke 失败: 询问档下 proposed patch 未确认前不应写盘，实际内容: {}",
                 disk_before_accept
             );
             std::process::exit(1);

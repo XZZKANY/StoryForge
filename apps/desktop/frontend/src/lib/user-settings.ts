@@ -21,27 +21,6 @@ export type ProviderSettings = {
 
 export type ThemeMode = 'dark' | 'light';
 
-export const AGENT_PERMISSION_PROFILES = [
-  'read',
-  'step_confirm',
-  'risk_confirm',
-  'autonomous',
-] as const;
-
-export type AgentPermissionProfile = (typeof AGENT_PERMISSION_PROFILES)[number];
-
-export const DEFAULT_AGENT_PERMISSION_PROFILE: AgentPermissionProfile = 'risk_confirm';
-
-export const AGENT_PERMISSION_PROFILE_OPTIONS: ReadonlyArray<{
-  value: AgentPermissionProfile;
-  label: string;
-}> = [
-  { value: 'read', label: '只读' },
-  { value: 'step_confirm', label: '逐步确认' },
-  { value: 'risk_confirm', label: '风险确认' },
-  { value: 'autonomous', label: '自治' },
-];
-
 /** auto = 正文（Markdown）关行号、数据/代码文件开；on/off = 一刀切覆盖。 */
 export type EditorLineNumbersMode = 'auto' | 'on' | 'off';
 
@@ -53,8 +32,6 @@ export type AppSettings = {
   /** 日更目标字数；0 = 不设目标，稿件卡不显示进度条。 */
   dailyWordGoal: number;
   autoSave: boolean;
-  /** 下一次 AgentRun 的权限快照；运行中的 run 永远按其启动时 profile 执行。 */
-  agentPermissionProfile: AgentPermissionProfile;
   theme: ThemeMode;
   provider: ProviderSettings;
   showWelcomeOnStartup: boolean;
@@ -73,7 +50,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   editorLineNumbers: 'auto',
   dailyWordGoal: 3000,
   autoSave: false,
-  agentPermissionProfile: DEFAULT_AGENT_PERMISSION_PROFILE,
   theme: 'dark',
   provider: {
     kind: 'openai',
@@ -130,12 +106,6 @@ function isProseMeasure(value: unknown): value is ProseMeasure {
   return value === 'narrow' || value === 'medium' || value === 'wide' || value === 'full';
 }
 
-export function isAgentPermissionProfile(value: unknown): value is AgentPermissionProfile {
-  return (
-    typeof value === 'string' && AGENT_PERMISSION_PROFILES.includes(value as AgentPermissionProfile)
-  );
-}
-
 export function sanitizeAppSettings(value: unknown): AppSettings {
   if (!value || typeof value !== 'object') return DEFAULT_APP_SETTINGS;
 
@@ -161,9 +131,6 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
         : DEFAULT_APP_SETTINGS.dailyWordGoal,
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
-    agentPermissionProfile: isAgentPermissionProfile(candidate.agentPermissionProfile)
-      ? candidate.agentPermissionProfile
-      : DEFAULT_AGENT_PERMISSION_PROFILE,
     theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
     provider: sanitizeProviderSettings(candidate.provider),
     showWelcomeOnStartup:

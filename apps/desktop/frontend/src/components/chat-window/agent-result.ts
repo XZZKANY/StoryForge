@@ -24,6 +24,7 @@ export function writableFilePatch(message: AgentResultMessage): {
   file_path: string;
   before: string;
   after: string;
+  requires_confirmation: boolean;
 } | null {
   const patch = message.proposed_patch as Record<string, unknown> | null | undefined;
   if (!patch || typeof patch !== 'object') return null;
@@ -36,6 +37,9 @@ export function writableFilePatch(message: AgentResultMessage): {
     file_path: filePath,
     before,
     after,
+    // 失败关闭：字段缺失、类型不对、老后端一律按「要作者点接受」。免点击落盘只在
+    // 后端明确判定 false 时发生（判定源是 API 的权限档位，前端不自己按档位推）。
+    requires_confirmation: patch.requires_confirmation !== false,
   };
 }
 

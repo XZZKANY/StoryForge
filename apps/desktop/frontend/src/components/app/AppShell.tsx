@@ -32,6 +32,7 @@ import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
 import { resolveActiveCenterTab } from './editor-tabs-state';
 import { formatShortcutSheet } from './shortcuts';
+import { useAgentPermission } from './useAgentPermission';
 import { useFileTreeActions } from './useFileTreeActions';
 import { WelcomeDismissed, WelcomeWorkspace } from './WelcomeWorkspace';
 import type { AppPreferences } from './useAppPreferences';
@@ -130,6 +131,7 @@ export function AppShell({
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
+  const agentPermission = useAgentPermission(activeProject);
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
   const obs = obsCounts(observatory.observations);
   const fileActions = useFileTreeActions({
@@ -408,10 +410,8 @@ export function AppShell({
                 onSetLayoutMode={shell.setLayoutMode}
                 onOpenObservatory={shell.toggleObservatory}
                 observatoryAttention={observatory.litEntityIds.length > 0}
-                agentPermissionProfile={preferences.settings.agentPermissionProfile}
-                onAgentPermissionProfileChange={(agentPermissionProfile) =>
-                  preferences.setSettings((current) => ({ ...current, agentPermissionProfile }))
-                }
+                agentPermissionProfile={agentPermission.profile}
+                onAgentPermissionProfileChange={agentPermission.changeProfile}
               />
             </div>
           </AssistantPanelFrame>

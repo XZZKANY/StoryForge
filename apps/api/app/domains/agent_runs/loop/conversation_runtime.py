@@ -307,14 +307,18 @@ class ConversationRuntimeMixin:
                 "completed",
             )
         ]
+        # 自动档下补丁自己带着「不必等点击」，run 就不该再挂在 permission.confirm 上。
+        awaits_confirmation = outcome.patch_proposal is not None and outcome.patch_proposal.requires_confirmation
         agent_result: dict[str, Any] = {
             "summary": answer,
-            "requires_user_confirmation": outcome.proposed_patch is not None,
+            "requires_user_confirmation": awaits_confirmation,
         }
         if outcome.review_report is not None:
             agent_result["review_report"] = outcome.review_report
-        if outcome.proposed_patch is not None:
+        if awaits_confirmation:
             plan.append(_plan_step("permission.confirm", "文件写回前等待作者确认。", "needs_approval"))
+        elif outcome.proposed_patch is not None:
+            plan.append(_plan_step("writeback.auto", "按本项目的自动档直接写盘（写前存快照）。", "completed"))
         result = _base_response(
             agent_session_id=agent_session_id,
             assistant_session_id=assistant_session_id,
