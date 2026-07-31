@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.domains.agent_runs.tools.spec_models import AgentRuntimeToolSpec
-from app.domains.agent_runs.tools.specs.bookrun_specs import BOOKRUN_TOOL_SPECS
 from app.domains.agent_runs.tools.specs.context_fs_specs import CONTEXT_FS_TOOL_SPECS
 from app.domains.agent_runs.tools.specs.hook_specs import HOOK_TOOL_SPECS
 from app.domains.agent_runs.tools.specs.patch_specs import PATCH_TOOL_SPECS
@@ -13,7 +12,8 @@ _AGENT_RUNTIME_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     *CONTEXT_FS_TOOL_SPECS,
     *PROJECT_TOOL_SPECS,
     *PATCH_TOOL_SPECS,
-    *BOOKRUN_TOOL_SPECS,
+    # bookrun.* 规格已随桌面入口摘除（2026-08-01 退役批量整书）；
+    # specs/bookrun_specs.py 保留，回滚 = 恢复 import 与这行 *BOOKRUN_TOOL_SPECS。
     *HOOK_TOOL_SPECS,
 )
 

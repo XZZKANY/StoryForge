@@ -4,7 +4,6 @@ import uuid
 from typing import Any
 
 from app.domains.agent_runs._text import optional_string as _optional_string
-from app.domains.agent_runs.adapters.bookrun_managed_run_adapter import managed_bookrun_handlers
 from app.domains.agent_runs.errors import AgentOrchestrationError
 from app.domains.agent_runs.patches.types import PatchProposal
 from app.domains.agent_runs.permission import patch_requires_confirmation
@@ -42,7 +41,8 @@ class PatchRuntimeToolsMixin:
             "judge.run": self._judge_run,
         }
         handlers["judge.repair"] = self._ide_command_tool("judge.repair")
-        handlers.update(managed_bookrun_handlers())
+        # managed bookrun 工具已随桌面入口一并摘除（2026-08-01 退役批量整书）；
+        # 回滚 = 恢复这一行 handlers.update(managed_bookrun_handlers())。
         return handlers
 
     def _file_revise(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:

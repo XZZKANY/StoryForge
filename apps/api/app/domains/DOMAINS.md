@@ -21,7 +21,7 @@
 
 ## backing（进程内被 live 依赖，谨慎改）
 
-`book_runs`（managed BookRun + agent-loop prompt 装配）、`judge`、`retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`exports`、`model_runs`、`provider_gateway`、`events`、`quality`、`repair`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`。
+`book_runs`（managed BookRun；**`prompts/` 只服务 BookRun 产字，agent 循环不用它** —— 循环的产字 prompt 走 `app/common/craft.py::craft_prompt_clause`，`agent_runs` 从本域只导入 `BookRun` 模型与 2 个异常类。改 `book_runs/prompts/` 不会影响桌面日常写作）、`judge`、`retrieval`、`character_bible`、`story_state`、`blueprints`、`artifacts`、`exports`、`model_runs`、`provider_gateway`、`events`、`quality`、`repair`、`runtime_tools`、`scene_packets`、`continuity`、`timeline`。
 
 **router 可冻结但 service/models 是 live 依赖（不可删目录）**：
 - `studio` —— `studio.service.approve_studio_writeback` / `schemas` 被 **live `ide`** 用（`ide/command_registry.py:22-23,220`，经 `judge.approve` REST 命令 + agent loop 工具可达）。

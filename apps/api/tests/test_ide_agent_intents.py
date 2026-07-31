@@ -4,7 +4,6 @@ import pytest
 from agent_transport import agent_result
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
-from test_book_runs import seed_locked_blueprint
 from test_ide_agent_orchestrator import _seed_chapter_review_context
 
 from app.domains.agent_runs.revise_scope import (
@@ -162,81 +161,26 @@ def test_agent_user_message_chapter_review_stops_after_first_repair_patch(
         assert touched_issues[0].id == patches[0].judge_issue_id
 
 
-def test_agent_user_message_bookrun_start_preflight_requires_confirmation(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-) -> None:
-    scope = seed_locked_blueprint(session_factory)
+def test_bookrun_start_intent_no_longer_routes() -> None:
+    """bookrun.start 显式 intent 已摘除（2026-08-01 作者拍板退役批量整书）。
 
-    message = agent_result(
-        client,
-        "session-bookrun-preflight",
-        user_message="启动这本书的生成流程",
-        args={
-            "book_id": scope["book_id"],
-            "blueprint_id": scope["blueprint_id"],
-            "token_budget": 900,
-            "chapter_budget": 8,
-        },
-    )
+    原先两条端到端用例（preflight 需确认 / 确认后复用命令表）随入口一并下线；
+    BookRun 本身的行为覆盖仍在 test_book_run_*.py 的 REST 层，本刀没削掉那份保证。
+    回滚 = 把 "bookrun.start" 加回 intent.SUPPORTED_INTENTS 与固定管线分派表。
+    """
 
-    assert message["type"] == "agent_result"
-    assert message["intent"] == "bookrun.start"
-    assert message["agent_result"]["requires_user_confirmation"] is True
-    assert message["agent_result"]["confirmation_required"] is True
-    assert "book_run" not in message["agent_result"]
-    assert message["agent_result"]["confirmation_action"]["args"]["confirmed"] is True
-    assert message["agent_result"]["bookrun_plan"]["budget_details"]["token_budget"] == 900
-    assert message["agent_result"]["bookrun_plan"]["budget_details"]["chapter_budget"] == 8
-    assert message["agent_result"]["bookrun_plan"]["risk_summary"]
-    assert message["tool_trace"][0]["status"] == "needs_confirmation"
+    from app.domains.agent_runs.intent import SUPPORTED_INTENTS
+
+    assert "bookrun.start" not in SUPPORTED_INTENTS
 
 
-def test_agent_user_message_bookrun_start_confirmed_reuses_command_registry(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from app.domains.provider_gateway import service as provider_service
-    from app.domains.provider_gateway.runtime_config import load_runtime_provider_config
+def test_book_id_blueprint_id_args_no_longer_hijack_into_bookrun() -> None:
+    """带 book_id + blueprint_id 的结构化参数不再抢跑 bookrun.start，落回 chat.explain 循环。"""
 
-    monkeypatch.setenv("STORYFORGE_LLM_PROVIDER", "deterministic")
-    monkeypatch.setenv("STORYFORGE_LLM_MODEL", "storyforge-deterministic-writer")
-    monkeypatch.delenv("STORYFORGE_LLM_API_KEY", raising=False)
-    load_runtime_provider_config.cache_clear()
-    provider_service.cache_delete_pattern("storyforge:provider-resolution:*")
+    from app.domains.agent_runs.intent import _detect_intent
 
-    scope = seed_locked_blueprint(session_factory)
-
-    message = agent_result(
-        client,
-        "session-bookrun-start",
-        user_message="启动这本书的生成流程",
-        args={
-            "book_id": scope["book_id"],
-            "blueprint_id": scope["blueprint_id"],
-            "token_budget": 900,
-            "confirmed": True,
-        },
-    )
-
-    assert message["type"] == "agent_result"
-    assert message["intent"] == "bookrun.start"
-    assert message["agent_result"]["writing_run"]["scope"] == "full_book"
-    assert message["agent_result"]["writing_run"]["mode"] == "managed"
-    assert message["agent_result"]["writing_run"]["status"] == "running"
-    assert message["agent_result"]["writing_run_id"] == message["agent_result"]["book_run_id"]
-    assert message["agent_result"]["book_run"]["status"] == "running"
-    assert message["agent_result"]["book_run_id"] == message["agent_result"]["book_run"]["id"]
-    assert message["agent_result"]["writing_run"]["book_run_id"] == message["agent_result"]["book_run"]["id"]
-    assert message["agent_result"]["events_url"] == f"/api/ide/runs/{message['agent_result']['book_run_id']}/events"
-    assert message["agent_result"]["requires_user_confirmation"] is False
-    assert message["agent_result"]["bookrun_plan"]["chapters"] == "按锁定蓝图继续生成下一批章节"
-    assert message["agent_result"]["bookrun_plan"]["budget"] == "900 tokens"
-    assert message["agent_result"]["bookrun_plan"]["budget_details"]["token_budget"] == 900
-    assert "managed 模式" in message["agent_result"]["summary"]
-    assert message["tool_trace"][0]["tool_name"] == "bookrun.start"
-    assert message["tool_trace"][0]["audit_event_id"].startswith("ide-command-event:")
+    intent = _detect_intent("随便写点什么", {"book_id": 1, "blueprint_id": 2}, None)
+    assert intent != "bookrun.start"
 
 
 def test_resolve_revise_scope_marks_freeform_targeted_instruction_narrow() -> None:

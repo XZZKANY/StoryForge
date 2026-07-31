@@ -715,3 +715,72 @@ uv run ruff check tests/ scripts/ app/common/llm_client.py -> All checks passed
 - 只在一个 Cloudflare 前置中转站上实证掐断与修复；其他网关未验。
 - 真机桌面未验（纯 API 层传输改动，归 E2E-1）。
 - wave5 样本仍弱（n=2/3、单模型、单任务）；baseline 有 1 格「流式返回内容为空」未复跑。
+
+# 2026-08-01 BookRun 摘除桌面入口（退役，代码留着）
+
+## 背景更正
+
+作者问「bookrun 不是退役了吗」。查证：**退役的是 `apps/workflow`（LangGraph 批量整书编排器，
+2026-07-26 整包删除），`app/domains/book_runs` 没有** —— 它在 DOMAINS.md 是 backing 档，
+且有明文红线「质量轨资产一行不删，直到真实长程重跑验收完成」。作者据此拍板：**摘入口、留代码**。
+
+顺带修正 DOMAINS.md 的一句错话：原文写 `book_runs`（managed BookRun + **agent-loop prompt 装配**），
+但实测 `agent_runs` 从本域只导入 `BookRun` 模型与 2 个异常类，**根本不用它的 prompt 构建器**
+（循环产字走 `app/common/craft.py::craft_prompt_clause`）。这句话正是「改 book_runs prompts
+= 改 agent 循环」这个误解的来源。
+
+## 先做的解耦（无论退不退役都该做）
+
+`assistant/service.py` 原先 7 个 import 块从 `book_runs.book_generation` 取 LLM 传输 / 配置，
+但 `call_llm` / `env_value` / `llm_request_headers` / `optional_float` / `required_env` 的真身在
+`app/common/llm_client.py`、`resolved_llm_env` 在 `app/common/llm_env.py`，book_generation 只是
+facade 转发。改为直连真身后，**live 的 assistant 对 backing 的 book_runs 依赖从 7 降到 1**
+（只剩 2 个异常类 + `missing_book_generation_env`，加 models 里的外键类型）。
+
+## 摘掉的三个入口（只摘登记，实现全留，逐条可回滚）
+
+| 入口 | 摘除点 | 回滚 |
+|---|---|---|
+| IDE 命令面板 | `command_registry._BUILTIN_COMMANDS` 的 5 条 `bookrun.*` | 加回 5 行 `IdeCommandDefinition` |
+| agent 循环工具 | `catalog` 的 `*BOOKRUN_TOOL_SPECS` + `runtime_tools` 的 `handlers.update` | 恢复 import 与这两行 |
+| 显式 intent 固定管线 | `intent.SUPPORTED_INTENTS`、`book_id+blueprint_id` 参数抢跑、固定管线分派表 | 加回三处 |
+
+`_execute_bookrun_command` / `managed_bookrun_handlers` / `run_bookrun_generation_pipeline` /
+`specs/bookrun_specs.py` / book_runs service + models + REST 全部保留。
+**至此桌面完全没有起 BookRun 的入口**（不是变隐蔽，是没有）。
+
+## 刻意没做的两件
+
+- **没卸 REST router**：实测卸载会让 **37 个 BookRun REST 测试**红（`test_book_runs` /
+  `book_run_start` / `budget` / `controls` / `resume` / `workflow_dispatch` / 两个导出），
+  那批正是「质量轨资产」，删它与作者选的「代码留着」和红线都相反。前端**零调用**
+  `/api/book-runs`，卸它对产品体验零改变。已回退，契约仍 86 条、零漂移。
+- **没删前端 `agent-step-mapping.ts` 的 `'bookrun.start': '启动写作任务'`**：那是流程树标签，
+  作者本机 sqlite 里的历史 run 仍存着该步骤，删了旧记录会渲染成裸 id。
+
+## 测试改动（3 个端到端用例 → 4 个可证伪守卫）
+
+删除的是**命令层 / 入口层**覆盖，不是 BookRun 行为覆盖——「控制必须真更新状态」仍由
+`test_book_run_controls.py::test_book_run_control_endpoints_pause_stop_and_retry`（REST 层）保证。
+
+- `test_ide_commands.py`：3 个 bookrun 命令用例 → `test_bookrun_commands_stay_unregistered`
+- `test_agent_adapters.py`：覆盖测试 → `test_bookrun_tools_stay_unregistered`；路由测试改为断言
+  `bookrun.start` 现在被固定管线**拒绝**
+- `test_ide_agent_intents.py`：2 个端到端用例 → intent 未注册 + 结构化参数不再抢跑 两个守卫
+
+## 验证
+
+```text
+uv run pytest -q            -> 1328 passed, 3 skipped（零失败）
+uv run ruff check tests/ app/ -> All checks passed
+node scripts/check-openapi-drift.mjs -> OpenAPI 契约无漂移
+```
+
+变异验证：把 `bookrun.start` 的 `IdeCommandDefinition` 加回命令表 →
+`test_bookrun_commands_stay_unregistered` FAILED，移除后复绿。
+
+## 仍未联通
+
+- BookRun REST 面（12 条契约路径）仍挂着，只是无人调用；真要收窄需另行决定如何处置那 37 个测试。
+- 真机未验：装机版里「命令面板搜不到写作任务」「agent 不再提议 bookrun.start」归 E2E-1。
+- `writing_runs` seam 与前端 `writing-run.ts` 的 `book_run_id` 解析仍在（防御性读取，现无来源）。

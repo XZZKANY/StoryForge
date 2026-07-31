@@ -4,10 +4,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.testclient import TestClient
-from test_book_runs import seed_locked_blueprint
 
 import app.models  # noqa: F401
-from app.domains.book_runs.models import BookRun
 from app.domains.books.models import Book, Chapter, Scene
 from app.domains.continuity.models import ContinuityRecord, ScenePacket
 from app.domains.judge.models import JudgeIssue, RepairPatch
@@ -141,129 +139,15 @@ def test_ide_judge_repair_approve_commands_execute_real_writeback(
     assert [record.record_type for record in continuity_records] == ["chapter_approval"]
 
 
-def test_bookrun_control_ide_commands_update_real_status(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-) -> None:
-    """BookRun IDE 控制命令必须更新真实状态，不能只返回 accepted 薄壳。"""
+def test_bookrun_commands_stay_unregistered() -> None:
+    """bookrun.* 桌面入口已摘除（2026-08-01 作者拍板退役批量整书）。
 
-    scope = seed_locked_blueprint(session_factory)
-    start_response = client.post(
-        "/api/ide/commands/bookrun.start",
-        json={"args": {"book_id": scope["book_id"], "blueprint_id": scope["blueprint_id"], "token_budget": 900}},
-    )
+    只摘注册、不删实现：`_execute_bookrun_command` 与 book_runs service / REST 全留着，
+    回滚 = 把 5 行 IdeCommandDefinition 加回 command_registry。底层「控制必须真更新状态」
+    的覆盖仍在 test_book_run_controls.py（REST 层），本刀没有削掉那份保证。
+    """
 
-    assert start_response.status_code == 200, start_response.text
-    started = start_response.json()
-    assert started["command_id"] == "bookrun.start"
-    assert started["audit_event_id"].startswith("ide-command-event:")
-    assert started["payload"]["writing_run"]["scope"] == "full_book"
-    assert started["payload"]["writing_run"]["mode"] == "managed"
-    assert started["payload"]["writing_run"]["status"] == "running"
-    assert started["payload"]["writing_run_id"] == started["payload"]["book_run_id"]
-    book_run_id = started["payload"]["book_run"]["id"]
-    assert started["payload"]["book_run_id"] == book_run_id
-    assert started["payload"]["writing_run"]["book_run_id"] == book_run_id
-    assert started["payload"]["book_run"]["status"] == "running"
-    assert started["payload"]["book_run"]["token_budget"] == 900
+    from app.domains.ide.command_registry import _BUILTIN_COMMANDS
 
-    pause_response = client.post(
-        "/api/ide/commands/bookrun.pause",
-        json={"args": {"book_run_id": book_run_id, "reason": "人工暂停"}},
-    )
-
-    assert pause_response.status_code == 200, pause_response.text
-    paused = pause_response.json()
-    assert paused["audit_event_id"].startswith("ide-command-event:")
-    assert paused["payload"]["writing_run"]["status"] == "paused_by_user"
-    assert paused["payload"]["writing_run_id"] == book_run_id
-    assert paused["payload"]["book_run"]["status"] == "paused_by_user"
-    assert paused["payload"]["book_run"]["progress"]["pause_reason"] == "人工暂停"
-
-    resume_response = client.post(
-        "/api/ide/commands/bookrun.resume",
-        json={"args": {"book_run_id": book_run_id}},
-    )
-
-    assert resume_response.status_code == 200, resume_response.text
-    resumed = resume_response.json()
-    assert resumed["payload"]["writing_run"]["status"] == "running"
-    assert resumed["payload"]["book_run"]["status"] == "running"
-    assert resumed["payload"]["book_run"]["progress"]["resume_from_chapter_index"] == 1
-
-    stop_response = client.post(
-        "/api/ide/commands/bookrun.stop",
-        json={"args": {"book_run_id": book_run_id, "reason": "人工停止"}},
-    )
-
-    assert stop_response.status_code == 200, stop_response.text
-    stopped = stop_response.json()
-    assert stopped["audit_event_id"].startswith("ide-command-event:")
-    assert stopped["payload"]["writing_run"]["status"] == "stopped"
-    assert stopped["payload"]["book_run"]["status"] == "stopped"
-    assert stopped["payload"]["book_run"]["progress"]["stop_reason"] == "人工停止"
-
-    with session_factory() as session:
-        stored = session.get(BookRun, book_run_id)
-    assert stored is not None
-    assert stored.status == "stopped"
-
-
-def test_bookrun_retry_from_checkpoint_command_resumes_next_chapter(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-) -> None:
-    """从 checkpoint 重试命令必须恢复到最近 checkpoint 的下一章。"""
-
-    scope = seed_locked_blueprint(session_factory)
-    created = client.post("/api/book-runs", json=scope).json()
-    client.patch(
-        f"/api/book-runs/{created['id']}/progress",
-        json={
-            "status": "paused_by_budget",
-            "current_chapter_index": 2,
-            "progress": {
-                "completed_chapters": [
-                    {"chapter_index": 1, "model_run_id": 11, "judge_report_id": 12, "approved_scene_id": 13},
-                    {"chapter_index": 2, "model_run_id": 21, "judge_report_id": 22, "approved_scene_id": 23},
-                ],
-                "budget": {"tokens_used": 840, "estimated_cost": 0.42},
-            },
-        },
-    )
-
-    response = client.post(
-        "/api/ide/commands/bookrun.retry_from_checkpoint",
-        json={"args": {"book_run_id": created["id"]}},
-    )
-
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["command_id"] == "bookrun.retry_from_checkpoint"
-    assert body["audit_event_id"].startswith("ide-command-event:")
-    assert body["payload"]["writing_run"]["status"] == "running"
-    assert body["payload"]["writing_run"]["scope"] == "full_book"
-    assert body["payload"]["writing_run"]["mode"] == "managed"
-    book_run = body["payload"]["book_run"]
-    assert body["payload"]["writing_run_id"] == book_run["id"]
-    assert book_run["status"] == "running"
-    assert book_run["current_chapter_index"] == 3
-    assert book_run["progress"]["retry_from_checkpoint"]["chapter_index"] == 2
-    assert book_run["progress"]["retry_from_chapter_index"] == 3
-
-
-def test_bookrun_control_ide_commands_reject_invalid_state(client: TestClient) -> None:
-    """BookRun 控制命令必须拒绝缺失参数和不存在的运行记录。"""
-
-    missing_response = client.post("/api/ide/commands/bookrun.pause", json={"args": {}})
-
-    assert missing_response.status_code == 400
-    assert missing_response.json() == {"detail": "BookRun 命令缺少 book_run_id。"}
-
-    retry_response = client.post(
-        "/api/ide/commands/bookrun.retry_from_checkpoint",
-        json={"args": {"book_run_id": 999999}},
-    )
-
-    assert retry_response.status_code == 400
-    assert retry_response.json() == {"detail": "BookRun 不存在。"}
+    leaked = sorted(cid for cid in _BUILTIN_COMMANDS if cid.startswith("bookrun."))
+    assert not leaked, f"bookrun 命令又被注册回来了：{leaked}"
