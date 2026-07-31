@@ -6,7 +6,7 @@
     uv run python -m scripts.prompt_lab.runner --task opening-preview,critique-draft --variants baseline,no-craft --dry-run
     # 真跑（人工实验；Windows 需先挂本机配置；--jobs 控制 LLM 调用并行度）
     $env:STORYFORGE_LLM_CONFIG_FILE = "$env:APPDATA\\com.storyforge.ide\\llm-provider.json"
-    uv run python -m scripts.prompt_lab.runner --all --out .codex/prompt-lab/wave1 --blind --seed 42 --jobs 8
+    uv run python -m scripts.prompt_lab.runner --all --out .codex/prompt-lab/wave1 --seed 42 --jobs 8
     # 补跑失败的格子并合并回既有 run（其余格子保留，blind seed 沿用）
     uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/wave1 --task transition-full --variants baseline,task-rewrite --jobs 2
 
@@ -49,9 +49,13 @@ def _select_variants(kind: str, names: list[str] | None) -> dict[str, Any]:
     return registry
 
 
+# 变体产出的是 system prompt、任务自带 user 消息的两类 kind（其余 kind 是单条 user prompt）。
+_SYSTEM_PROMPT_KINDS = frozenset({"agent", "live-draft"})
+
+
 def _build_prompt(task: Any, variant: Any) -> str:
     kind = task.kind
-    if kind == "agent":
+    if kind in _SYSTEM_PROMPT_KINDS:
         return variant.build()
     if kind == "draft":
         return variant.build(task.ctx, preview_chars=task.preview_chars, full_chapter=task.full_chapter)
@@ -63,7 +67,7 @@ def _build_prompt(task: Any, variant: Any) -> str:
 
 
 def _call_once(prompt: str, task: Any) -> dict[str, Any]:
-    if task.kind == "agent":
+    if task.kind in _SYSTEM_PROMPT_KINDS:
         messages = [{"role": "system", "content": prompt}, {"role": "user", "content": task.user_prompt}]
     else:
         messages = [{"role": "user", "content": prompt}]
@@ -189,7 +193,9 @@ def _write_artifacts(out_dir: Path, run_data: dict[str, Any], *, dry_run: bool, 
         )
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """独立成函数供 docstring 用法示例的护栏测试反查（本模块 docstring 曾写过不存在的 --blind）。"""
+
     parser = argparse.ArgumentParser(description="prompt 对比实验台：固定输入 × 变体配置 → 并排报告")
     parser.add_argument("--task", help="逗号分隔的任务 id；缺省 = 全部")
     parser.add_argument("--all", action="store_true", help="跑全部任务（缺省行为）")
@@ -200,7 +206,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--jobs", type=int, default=4, help="LLM 调用并行度（线程池；默认 4）")
     parser.add_argument("--repeat", type=int, default=1, help="每格重复调用次数（统计性判定用；结果进 repeats 数组）")
     parser.add_argument("--merge", type=Path, default=None, help="补跑并合并进既有 run 目录（读其 run-metadata.json，只替换本次格子）")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def anchor_at_repo_root(path: Path | None) -> Path | None:
+    """相对路径一律锚在仓库根，绝对路径原样。
+
+    缺省输出目录本就是 `_REPO_ROOT/.codex/prompt-lab/<ts>`，而显式 `--out .codex/...`
+    若按 cwd 解析，从 `apps/api` 跑就会落进 `apps/api/.codex/`——那里不被 `.gitignore`
+    的 `.codex/*` 覆盖（该模式锚在仓根），证据目录会变成未跟踪文件冒到 git status 里。
+    """
+
+    if path is None or path.is_absolute():
+        return path
+    return _REPO_ROOT / path
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    args.out = anchor_at_repo_root(args.out)
+    args.merge = anchor_at_repo_root(args.merge)
 
     if args.merge:
         if args.dry_run:

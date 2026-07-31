@@ -12,6 +12,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from app.common.author_voice import build_generation_system_prompt
+from app.common.craft import craft_prompt_clause
+from app.domains.assistant import service
 from app.domains.book_runs.prompts import builder
 from app.domains.book_runs.prompts._sections import craft_section, style_section
 from app.domains.book_runs.prompts.models import NarrativeContext
@@ -73,6 +76,30 @@ def _build_draft_task_rewrite(
     return prompt.replace(_TASK_LINE, _TASK_LINE_NEW)
 
 
+def _assemble_live(base_prompt: str) -> str:
+    """经生产的唯一组装点出 system prompt；project_path=None 即「作者无自定义指令」这一档。"""
+
+    return build_generation_system_prompt(base_prompt, None)
+
+
+def _build_live_draft_baseline() -> str:
+    """live 链 file.create 的生产 system prompt 恒等引用（现为无例形态）。"""
+
+    return _assemble_live(service._DRAFT_SYSTEM_PROMPT)
+
+
+def _build_live_draft_with_examples() -> str:
+    """把好坏对照锚点挂回 live 链——同源替换，不手抄文案。
+
+    `craft_prompt_clause(with_examples=True)` 的返回就是「无例子句 + BAD + GOOD」，
+    故整段替换等价于「只加锚点、其余逐字不变」，与 book_runs 侧删例互为镜像操作。
+    """
+
+    prompt = service._DRAFT_SYSTEM_PROMPT
+    _assert_single_block(prompt, craft_prompt_clause())
+    return _assemble_live(prompt.replace(craft_prompt_clause(), craft_prompt_clause(with_examples=True)))
+
+
 def _build_critique_baseline(ctx: NarrativeContext, draft: str) -> str:
     return builder.build_critique_prompt(ctx, draft)
 
@@ -107,8 +134,17 @@ REVISION_VARIANTS: dict[str, BookVariant] = {
     "baseline": BookVariant("baseline", "原样", "build_revision_prompt 恒等引用", _build_revision_baseline),
 }
 
+# live 链（桌面 file.create）。与 DRAFT_VARIANTS 是两条独立 prompt 链：本组量的是扁平
+# 子句形态，DRAFT_VARIANTS 量的是 book_runs 的多行 section 形态。wave1-3 只跑过后者，
+# 「删例更好」迁到 live 链此前是外推（见 2026-08-01 verification-report），本组补实测。
+LIVE_DRAFT_VARIANTS: dict[str, BookVariant] = {
+    "live-baseline": BookVariant("live-baseline", "现生产（无例）", "_DRAFT_SYSTEM_PROMPT 恒等引用", _build_live_draft_baseline),
+    "live-with-examples": BookVariant("live-with-examples", "挂回正反例锚点", "同源替换加回 BAD/GOOD 锚点，验删例结论在 live 链是否成立", _build_live_draft_with_examples),
+}
+
 BOOK_VARIANTS: dict[str, dict[str, BookVariant]] = {
     "draft": DRAFT_VARIANTS,
     "critique": CRITIQUE_VARIANTS,
     "revision": REVISION_VARIANTS,
+    "live-draft": LIVE_DRAFT_VARIANTS,
 }

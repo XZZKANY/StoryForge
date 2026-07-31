@@ -125,7 +125,7 @@ npm --prefix apps/desktop/frontend run test
 cd apps/api
 uv run python -m scripts.prompt_lab.runner --all --dry-run          # 零成本，先验装配与报告
 $env:STORYFORGE_LLM_CONFIG_FILE = "$env:APPDATA\com.storyforge.ide\llm-provider.json"
-uv run python -m scripts.prompt_lab.runner --all --out .codex/prompt-lab/waveN --blind --seed 42 --jobs 8 --repeat 3
+uv run python -m scripts.prompt_lab.runner --all --out .codex/prompt-lab/waveN --seed 42 --jobs 8 --repeat 3   # --seed 即出 blind.md
 uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --task X --variants Y   # 格子级补跑
 ```
 
