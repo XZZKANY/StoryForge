@@ -134,3 +134,107 @@ pnpm smoke:sidecar:packaged   -> 冻结 exe 冒烟全绿（就绪 6.8s / assista
 FileVersion=0.1.10。
 
 产物：`apps/desktop/src-tauri/target/release/bundle/nsis/StoryForge IDE_0.1.10_x64-setup.exe`（49.8 MB）
+
+## 2026-07-30 Agent 架构诊断与规划更新
+
+范围：只读核查真实写章链路，并更新
+`.trellis/tasks/07-30-project-optimization-review/` 下的 PRD、design、implement 与
+`diagnosis-agent-architecture.md`；未修改生产代码。
+
+验证：
+
+```text
+python ./.trellis/scripts/get_context.py                  -> 当前任务 planning；仅既有 Cargo.lock 未提交
+python ./.trellis/scripts/get_context.py --mode phase     -> 回到 Phase 1.1 需求探索
+uv run python -c "...list_loop_tool_specs..."             -> live loop 共 18 个工具
+Select-String / Get-Content 精确追踪                       -> context_bundle 在 live-loop 写作工具处断链
+git status --short（写报告前）                            -> 仍只有 apps/desktop/src-tauri/Cargo.lock
+git status --short（写报告后）                            -> 本报告 + 既有 Cargo.lock
+```
+
+三路只读审查分别核对 skill 执行、上下文传递、role/ToolSpec deletion test，结论一致：
+`skill_catalog` 是 plan telemetry，普通写章仍走通用工具循环；role catalog 多数是展示/审计语义；
+ToolSpec 派生、领域检查和 proposed patch 写回保护是应保留的真实执行能力。
+
+未验证：未改生产行为，因此未运行 pytest、前端测试、OpenAPI 或构建；双轨与 brief 权限策略
+均已确认，首刀子任务已完成 PRD convergence pass，仍需作者 review 后才能启动实施。
+
+### 规划决策补充
+
+作者已确认采用双轨：开放问答保留通用 Conversation Module，写章/重写章进入可执行
+Chapter Writing Module。该决策已同步到 parent PRD、design 与 implement；任务仍为 `planning`，
+尚未运行 `task.py start`，生产代码未变。
+
+### 权限设置事实核对
+
+作者决定章节 brief 按既有权限设置推进。代码与历史核对确认：API 仍接受 `permission_profile`，
+但 Desktop `AppSettings`、`AgentUserMessageRequest` 和 SSE body 均未携带该字段，因此当前 live run
+恒为 `risk_confirm`；界面的批准/拒绝只是逐次 event 控制。2026-07-07 的“权限四轨收敛”提交也明确
+记录旧三档因前端从不发送而删除。规划已改为恢复端到端 Permission Policy，且任何档位都不得绕过
+最终 proposed patch 的 diff confirmation。
+
+### 首刀子任务规划
+
+已创建 parent child `.trellis/tasks/07-31-trusted-writing-context`，状态 `planning`。PRD、design、
+implement 将范围限制为 live-loop create/revise 的可信 context 注入、安全 provenance 与
+author-loop 投影；`.资料` 发现、Permission Policy 和 Chapter Writing Module 均明确排除。
+placeholder 检查为空，parent-child 链接正确，Phase 1.4 已加载；尚未执行 `task.py start`。
+
+## 2026-07-31 可信写作上下文传递
+
+范围：`.trellis/tasks/07-31-trusted-writing-context`。只修复自由文本 live loop 中
+`file.create` / `file.revise` 到内层 `assistant.draft` / `assistant.revise` 的可信 context 断链，
+以及对应安全 provenance 和 Desktop author-loop 投影；未实现 `.资料` 自动发现、Permission Policy、
+章节 brief/质量门或完整 Chapter Writing Module。
+
+实现结果：
+
+- provider 生成的 `project_root`、`file_path`、`content`、三类 context 内部字段与 provenance 字段
+  在 loop 边界统一剥离；目标路径/正文继续由项目边界解析。
+- `ToolExecutionContext.args.context_bundle` 经既有 `build_llm_context_snapshot` 净化、预算与去重后，
+  转为 inner prompt bundle；create/revise 的 `ToolResult` trace 留下 snapshot id、实际相对路径、count、
+  source 与 warning count，不落 excerpt、正文或绝对项目根。
+- Desktop 正常结算与 F10 恢复都通过同一个 decoder 优先读取 backend provenance；新后端明确返回空列表时
+  不伪造本地路径，只有旧响应缺 provenance 才回退本轮本地 bundle。该数组继续同时进入版本 snapshot
+  与 author-loop 记录。
+
+红绿与回归：
+
+```text
+uv run pytest tests/test_agent_loop_writing_context.py -q
+  -> RED: create 内层 prompt 无 GOLDEN_SPEC_SENTINEL；revise 采用 MODEL_FAKE_CONTEXT_SENTINEL
+  -> GREEN: 2 passed
+npm --prefix apps/desktop/frontend run test -- --run tests/agent-result-context.test.ts
+  -> RED: contextFilesFromAgentResult 不存在（3 failed）
+  -> GREEN: 3 passed
+API 定向组合（含 context/live-loop/source/BookRun CLI 回归） -> 57 passed
+API SSE/golden/save-point 扩展组合                         -> 79 passed
+Desktop 全量 Vitest                                      -> 77 files / 484 passed
+npm --prefix apps/desktop/frontend run typecheck          -> passed
+uv run ruff check app/domains/agent_runs ...              -> passed
+git diff --check                                          -> passed
+```
+
+仓库总门禁：第一次 `pnpm verify` 的 1263 项 API 中有 1 项红，定位为
+`tools/__init__.py` 聚合导出 runtime helper 引入 BookRun CLI 循环依赖；改为从公开子模块
+`tools.runtime_arguments` 直接导入后，独立回归转绿。第二次完整 `pnpm verify` 通过：
+
+```text
+root ESLint + Prettier                 -> passed
+Desktop typecheck                     -> passed
+shared type contract                  -> passed
+project-core                          -> 7 passed
+Desktop Vitest                        -> 484 passed
+API pytest                            -> 1260 passed, 3 skipped
+API Ruff                              -> passed
+sidecar daily smoke                   -> passed（SSE 2 帧、control、alembic、prompt bundled）
+OpenAPI + Agent frame drift gate      -> no drift
+```
+
+Wire 判断：只在既有 `AgentToolTrace.input_summary` generic object 内增加安全字段，没有新增/修改路由、
+DTO、SSE 顶层字段或 generated schema；总门禁仍执行了 OpenAPI/Agent frame 刷新并确认无漂移。
+
+真实 provider 复核未通过：隔离临时项目显式选择黄金三章 spec 后尝试真实 live loop，provider 返回
+HTTP 401（当前 key 无效），因此没有形成真实 `file.create` / inner draft evidence，不能宣称真实章节命中、
+安装态 author-loop 或人工通读通过。沙箱内外结果一致；未输出凭据，未触碰 `D:\连载`，临时项目/SQLite
+与探针脚本均已清理。

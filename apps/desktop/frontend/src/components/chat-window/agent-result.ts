@@ -1,5 +1,9 @@
 import type { AgentResultMessage } from '../../lib/api-client';
-import { relativePathInsideProject, resolveProjectRelativePath } from '../../lib/project-context';
+import {
+  looksAbsolutePath,
+  relativePathInsideProject,
+  resolveProjectRelativePath,
+} from '../../lib/project-context';
 import { reviewReportFromMessage } from './review';
 
 /**
@@ -106,6 +110,53 @@ export function modelFromToolTrace(message: AgentResultMessage): string {
     if (typeof model === 'string' && model.trim()) return model;
   }
   return 'StoryForge Agent';
+}
+
+function sanitizedRelativeContextFiles(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const normalized = item.trim().replace(/\\/g, '/');
+    if (!normalized || looksAbsolutePath(normalized)) continue;
+    const parts = normalized.split('/').filter((part) => part && part !== '.');
+    if (!parts.length || parts.some((part) => part === '..') || parts[0].includes(':')) continue;
+    const relativePath = parts.join('/');
+    const key = relativePath.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(relativePath);
+  }
+  return result;
+}
+
+function backendContextFiles(message: AgentResultMessage): string[] | null {
+  for (let index = message.tool_trace.length - 1; index >= 0; index -= 1) {
+    const trace = message.tool_trace[index];
+    if (trace.tool_name !== 'file.create' && trace.tool_name !== 'file.revise') continue;
+    const raw = trace.input_summary.context_provenance;
+    if (!raw || typeof raw !== 'object') continue;
+    const provenance = raw as Record<string, unknown>;
+    if (
+      provenance.context_source !== 'request_bundle' ||
+      typeof provenance.snapshot_id !== 'string' ||
+      trace.input_summary.llm_context_snapshot_id !== provenance.snapshot_id ||
+      !Array.isArray(provenance.context_files) ||
+      provenance.context_file_count !== provenance.context_files.length
+    ) {
+      continue;
+    }
+    return sanitizedRelativeContextFiles(provenance.context_files);
+  }
+  return null;
+}
+
+export function contextFilesFromAgentResult(
+  message: AgentResultMessage,
+  fallback: string[] = [],
+): string[] {
+  return backendContextFiles(message) ?? sanitizedRelativeContextFiles(fallback);
 }
 
 export function issueIdsFromAgentResult(message: AgentResultMessage): string[] {

@@ -46,6 +46,7 @@ class PatchRuntimeToolsMixin:
 
     def _file_revise(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
+        trace_file_path = _optional_string(payload.get("_trace_file_path")) or file_path
         # 空文件也要能修订：作者建好空章节文件后直接说「写这章」，走的就是这条路。
         content = _required_text(payload, "content")
         instruction = _optional_string(payload.get("instruction")) or context.user_message
@@ -130,7 +131,7 @@ class PatchRuntimeToolsMixin:
                 tool_name="file.revise",
                 status="completed",
                 input_summary={
-                    "file_path": file_path,
+                    "file_path": trace_file_path,
                     "content_chars": len(content),
                     "review_issue_count": len(_scope_issues(scope)),
                     "applied_scope": public_scope,
@@ -142,6 +143,7 @@ class PatchRuntimeToolsMixin:
 
     def _file_create(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
+        trace_file_path = _optional_string(payload.get("_trace_file_path")) or file_path
         instruction = _optional_string(payload.get("instruction")) or context.user_message
         prompt_context_bundle = (
             payload.get("llm_prompt_context_bundle")
@@ -204,9 +206,13 @@ class PatchRuntimeToolsMixin:
             trace=AgentToolTrace(
                 tool_name="file.create",
                 status="completed",
-                input_summary={"file_path": file_path, "instruction": instruction[:200]},
+                input_summary={
+                    "file_path": trace_file_path,
+                    "instruction": instruction[:200],
+                    **_llm_context_input_summary(payload.get("llm_context_snapshot")),
+                },
                 output_summary={
-                    "file_path": file_path,
+                    "file_path": trace_file_path,
                     "content_chars": len(response.content),
                     "model": response.model,
                     "patch_id": proposed_patch["id"],

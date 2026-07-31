@@ -9,8 +9,30 @@ from app.common.redaction import REDACTED, is_sensitive_key, redact_sensitive_te
 from app.domains.agent_runs._text import compact_text as _compact_text
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
+from app.domains.agent_runs.llm_context import llm_context_snapshot_trace_summary
 from app.domains.books.models import Chapter, Scene
 from app.domains.continuity.models import ScenePacket
+
+PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
+    {
+        "_agent_intent",
+        "_trace_file_path",
+        "content",
+        "context_bundle",
+        "context_provenance",
+        "file_path",
+        "llm_context_snapshot",
+        "llm_prompt_context_bundle",
+        "project_root",
+    }
+)
+TRUSTED_WRITING_CONTEXT_TOOL_NAMES = frozenset({"file.create", "file.revise"})
+
+
+def _sanitize_loop_tool_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Drop backend-owned fields before model arguments reach execution or evidence."""
+
+    return {key: value for key, value in arguments.items() if key not in PROTECTED_LOOP_TOOL_ARGUMENT_KEYS}
 
 
 def _fs_int_arg(payload: dict[str, Any], key: str, default: int) -> int:
@@ -123,7 +145,18 @@ def _llm_context_input_summary(snapshot: object) -> dict[str, Any]:
     snapshot_id = snapshot.get("snapshot_id")
     if not isinstance(snapshot_id, str) or not snapshot_id:
         return {}
-    return {"llm_context_snapshot_id": snapshot_id}
+    summary = llm_context_snapshot_trace_summary(snapshot)
+    context_files = summary.get("context_files")
+    return {
+        "llm_context_snapshot_id": snapshot_id,
+        "context_provenance": {
+            "snapshot_id": snapshot_id,
+            "context_file_count": summary["context_file_count"],
+            "context_files": context_files if isinstance(context_files, list) else [],
+            "context_source": "request_bundle",
+            "warning_count": summary["warning_count"],
+        },
+    }
 
 
 def _judge_run_args_from_scene_packet(session: Session, scene_packet_id: int) -> dict[str, Any]:
@@ -224,6 +257,7 @@ def _proposed_patch_from_repair_patch(patch: dict[str, Any] | None) -> dict[str,
 
 fs_int_arg = _fs_int_arg
 chat_context_block = _chat_context_block
+sanitize_loop_tool_arguments = _sanitize_loop_tool_arguments
 required_string = _required_string
 required_text = _required_text
 required_int = _required_int

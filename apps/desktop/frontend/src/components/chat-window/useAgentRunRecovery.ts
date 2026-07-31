@@ -9,6 +9,7 @@ import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import { getAgentRunSavePoints, type AgentResultMessage } from '../../lib/api-client';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import {
+  contextFilesFromAgentResult,
   filePathFromAgentResult,
   writableFilePatch,
   issueIdsFromAgentResult,
@@ -150,7 +151,10 @@ export function useAgentRunRecovery(
             userIntent: response.user_message,
             assistantSessionId: response.assistant_session_id,
             issueIds: issueIdsFromAgentResult(response),
-            contextFiles: lastContextBundle?.files.map((file) => file.relativePath) ?? [],
+            contextFiles: contextFilesFromAgentResult(
+              response,
+              lastContextBundle?.files.map((file) => file.relativePath) ?? [],
+            ),
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
           }),
         );

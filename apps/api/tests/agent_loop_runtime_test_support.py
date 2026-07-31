@@ -29,7 +29,14 @@ def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -
     return calls
 
 
-def _send_chat_message(client: TestClient, *, run_id: str, project_path: str, message: str) -> list[dict]:
+def _send_chat_message(
+    client: TestClient,
+    *,
+    run_id: str,
+    project_path: str,
+    message: str,
+    context_bundle: dict[str, object] | None = None,
+) -> list[dict]:
     return stream_agent_message(
         client,
         f"session-{run_id}",
@@ -37,7 +44,7 @@ def _send_chat_message(client: TestClient, *, run_id: str, project_path: str, me
         user_message=message,
         args={
             "project_path": project_path,
-            "context_bundle": {"files": []},
+            "context_bundle": context_bundle if context_bundle is not None else {"files": []},
         },
     )
 
@@ -46,4 +53,3 @@ def _write_author_instructions(project_root: Path, text: str) -> None:
     storyforge = project_root / ".storyforge"
     storyforge.mkdir(exist_ok=True)
     (storyforge / "agent-instructions.md").write_text(text, encoding="utf-8")
-

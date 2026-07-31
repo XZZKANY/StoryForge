@@ -48,10 +48,15 @@ from app.domains.agent_runs.loop.support import (
 )
 from app.domains.agent_runs.loop.types import ChatLoopOutcome, LoopRoundResult, LoopToolCall, LoopToolFeedback
 from app.domains.agent_runs.tools import (
+    ToolResult,
     build_loop_tool_name_map,
     build_loop_tool_schemas,
     llm_tool_name,
     loop_patch_tool_specs,
+)
+from app.domains.agent_runs.tools.runtime_arguments import (
+    TRUSTED_WRITING_CONTEXT_TOOL_NAMES,
+    sanitize_loop_tool_arguments,
 )
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
@@ -139,7 +144,7 @@ def run_chat_loop(
     user_message: str,
     project_path: str,
     current_file: str | None,
-    execute_fs_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
+    execute_fs_tool: Callable[[str, dict[str, Any]], ToolResult],
     on_trace: Callable[[AgentToolTrace], None],
     should_interrupt: Callable[[str], dict[str, Any] | None] | None = None,
     author_view: AuthorView | None = None,
@@ -283,6 +288,8 @@ def run_chat_loop(
             else:
                 failure = None
 
+            safe_arguments = sanitize_loop_tool_arguments(arguments or {})
+
             if failure is None and registry_name in _PATCH_TOOLS and outcome.proposed_patch is not None:
                 failure = "一次对话最多生成一个待确认补丁：请先等作者处理当前补丁，再发起新的修订或起草。"
 
@@ -292,21 +299,21 @@ def run_chat_loop(
                 AssistantToolCallCreate(
                     tool_name=registry_name,
                     status="running",
-                    input_summary={key: value for key, value in (arguments or {}).items() if key != "content"},
+                    input_summary=safe_arguments,
                 ),
             )
 
             if failure is None:
                 assert arguments is not None
                 try:
-                    output = execute_fs_tool(registry_name, arguments)
+                    tool_result = execute_fs_tool(registry_name, arguments)
                 except Exception as exc:  # noqa: BLE001 - 工具失败要作为观测反馈给模型，不中断循环
                     failure = str(exc)[:500]
-                    output = None
+                    tool_result = None
             else:
-                output = None
+                tool_result = None
 
-            if failure is not None or output is None:
+            if failure is not None or tool_result is None:
                 error_text = failure or "工具执行失败。"
                 assistant_service.update_assistant_tool_call(
                     session,
@@ -316,7 +323,7 @@ def run_chat_loop(
                 trace = AgentToolTrace(
                     tool_name=registry_name,
                     status="failed",
-                    input_summary=dict(arguments or {}),
+                    input_summary=safe_arguments,
                     error_message=error_text,
                     assistant_tool_call_id=evidence.id,
                 )
@@ -332,6 +339,7 @@ def run_chat_loop(
                 )
                 continue
 
+            output = tool_result.output
             feedback = LoopToolFeedback.from_output(
                 registry_name,
                 output,
@@ -346,16 +354,31 @@ def run_chat_loop(
             serialized = _serialize_tool_output(feedback.content)
             tool_output_chars += len(serialized)
             output_summary = _tool_output_summary(registry_name, output)
+            if (
+                registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES
+                and tool_result.trace.output_summary is not None
+            ):
+                output_summary = tool_result.trace.output_summary
             assistant_service.update_assistant_tool_call(
                 session,
                 evidence.id,
                 AssistantToolCallUpdate(status="completed", output_summary=output_summary),
             )
+            input_summary = (
+                tool_result.trace.input_summary
+                if registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES
+                else safe_arguments
+            )
             trace = AgentToolTrace(
                 tool_name=registry_name,
                 status="completed",
-                input_summary=dict(arguments or {}),
+                input_summary=input_summary,
                 output_summary=output_summary,
+                audit_event_id=(
+                    tool_result.trace.audit_event_id
+                    if registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES
+                    else None
+                ),
                 assistant_tool_call_id=evidence.id,
             )
             outcome.traces.append(trace)

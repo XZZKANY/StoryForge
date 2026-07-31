@@ -24,6 +24,7 @@ import {
 import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
+  contextFilesFromAgentResult,
   filePathFromAgentResult,
   writableFilePatch,
   issueIdsFromAgentResult,
@@ -378,7 +379,10 @@ export function useRunAuthorAgent(
               userIntent: goal,
               assistantSessionId: response.assistant_session_id,
               issueIds: issueIdsFromAgentResult(response),
-              contextFiles: contextBundle.files.map((file) => file.relativePath),
+              contextFiles: contextFilesFromAgentResult(
+                response,
+                contextBundle.files.map((file) => file.relativePath),
+              ),
               scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
             }),
           );
