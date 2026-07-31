@@ -124,6 +124,8 @@ def test_agent_run_records_permission_required_for_proposed_patch(
             "latency_ms": 10,
         },
     )
+    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
 
     message = agent_result(
         client,
@@ -268,6 +270,8 @@ def test_permission_approval_completes_paused_agent_run(
             "latency_ms": 10,
         },
     )
+    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
 
     stream_agent_message(
         client,

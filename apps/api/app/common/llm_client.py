@@ -502,6 +502,49 @@ def _call_llm(
     return result
 
 
+def _call_llm_streamed(
+    source: Mapping[str, str | None],
+    *,
+    system_prompt: str,
+    user_prompt: str,
+) -> dict[str, object]:
+    """与 `_call_llm` 同签名、同返回，差别只在传输走流式后由服务端聚合。
+
+    为什么需要：非流式长请求在 CDN / 中转站前置下会被当成空闲连接掐掉——实测某
+    Cloudflare 前置网关跑 800–1200 字正文 280s 未返回，另有 ConnectionReset；同一
+    prompt 走流式则持续有字节流动，不触发空闲超时。产字三条路径（file.create /
+    file.revise / draft_continuation）的正文动辄上千字，正是被掐的那一档。
+
+    对调用方透明：返回同一个 dict，HTTP 契约与前端零改动。终帧字段与 `_call_llm`
+    逐键同构（都由 `_token_usage` + `_cost_breakdown` 组），故只需摘掉流式的 `type`。
+    不收 tools/tool_choice：工具调用不走这条路（`_call_llm_messages` 才是循环入口）。
+    """
+
+    messages: list[dict[str, object]] = []
+    if system_prompt.strip():
+        # 空 system 段不落进 messages：部分端点对空 system 消息行为不一致，而实验台的
+        # 单条 user prompt 形态若被硬塞一条空 system，与既有波次就不是同一个输入了。
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
+    payload = _build_chat_payload(
+        source,
+        messages=messages,
+        tools=None,
+        tool_choice=None,
+        stream=True,
+    )
+    final: dict[str, object] | None = None
+    for frame in _stream_chat_completions(source, payload):
+        if frame.get("type") == "done":
+            final = frame
+    if final is None:
+        # 流正常读完却没有终帧 = 上游提前关流；静默返回空正文会让缺文当成功写进补丁。
+        raise LLMError("真实 LLM 流式结束但未返回终帧，无法取得完整正文。")
+    result = dict(final)
+    result.pop("type", None)
+    return result
+
+
 def _call_llm_messages(
     source: Mapping[str, str | None],
     *,
@@ -694,6 +737,7 @@ assistant_message = _assistant_message
 build_chat_payload = _build_chat_payload
 call_llm = _call_llm
 call_llm_messages = _call_llm_messages
+call_llm_streamed = _call_llm_streamed
 cost_breakdown = _cost_breakdown
 env_value = _env_value
 is_retryable_status = _is_retryable_status

@@ -389,3 +389,101 @@ class TestContinueEndpoint:
         frames = _parse_sse(response.text)
         assert frames[-1][0] == "error"
         assert "没有写出新内容" in frames[-1][1]["message"]
+
+
+class TestCallLlmStreamed:
+    """服务端聚合的流式调用：对调用方与 `call_llm` 同构，但传输必须是流式。
+
+    背景（2026-08-01 实测）：非流式长请求在 CDN 前置的中转站会被当空闲连接掐断
+    （800–1200 字正文 280s 未返回 + ConnectionReset），流式则持续有字节流动。
+    产字三条路径（file.create / file.revise / draft_continuation）正文动辄上千字。
+    """
+
+    def test_returns_same_shape_as_non_streamed(self, monkeypatch: pytest.MonkeyPatch, _llm_stream_env: None) -> None:
+        import os
+
+        monkeypatch.setattr(
+            llm_client.request,
+            "urlopen",
+            lambda *a, **k: _FakeStream(_sse_lines(["他推开", "门。"], usage={"prompt_tokens": 100, "completion_tokens": 8})),
+        )
+        result = llm_client.call_llm_streamed(
+            os.environ, system_prompt="你是作者。", user_prompt="写下去"
+        )
+
+        assert result["content"] == "他推开门。"
+        assert result["prompt_tokens"] == 100
+        assert result["completion_tokens"] == 8
+        assert "type" not in result, "流式内部帧类型不得泄漏给调用方"
+        # 与非流式返回逐键同构，否则调用方读 result[...] 会在切换后 KeyError
+        for key in ("content", "token_usage", "cost_cny_estimated", "cost_breakdown", "latency_ms"):
+            assert key in result, f"缺键 {key}"
+
+    def test_requests_stream_true(self, monkeypatch: pytest.MonkeyPatch, _llm_stream_env: None) -> None:
+        """传输必须真是流式——这是本函数存在的唯一理由，退回非流式即失去防掐断能力。"""
+
+        import os
+
+        seen: list[dict[str, object]] = []
+
+        def capture(request_obj, *a, **k):
+            seen.append(json.loads(request_obj.data.decode("utf-8")))
+            return _FakeStream(_sse_lines(["正文"]))
+
+        monkeypatch.setattr(llm_client.request, "urlopen", capture)
+        llm_client.call_llm_streamed(os.environ, system_prompt="s", user_prompt="u")
+
+        assert seen and seen[0].get("stream") is True
+
+    def test_missing_done_frame_raises(self, monkeypatch: pytest.MonkeyPatch, _llm_stream_env: None) -> None:
+        """上游提前关流时必须炸——静默返回空正文会把缺文当成功写进补丁。"""
+
+        import os
+
+        monkeypatch.setattr(
+            llm_client, "_stream_chat_completions", lambda *a, **k: iter([{"type": "delta", "text": "半句"}])
+        )
+        with pytest.raises(llm_client.LLMError):
+            llm_client.call_llm_streamed(os.environ, system_prompt="s", user_prompt="u")
+
+
+@pytest.mark.parametrize(
+    "func_name",
+    ["draft_file_content", "revise_file_content", "draft_continuation"],
+)
+def test_prose_paths_use_streamed_transport(func_name: str) -> None:
+    """三条产字路径必须走流式聚合调用；退回 `_call_llm(` 即红。
+
+    这三条的正文动辄上千字，非流式在 CDN 前置的中转站会被掐断（实测 280s 未返回）。
+    短问答 `chat_reply` 刻意不在此列——它没有被掐断的体量，不必改传输。
+    """
+
+    import inspect
+
+    from app.domains.assistant import service
+
+    source = inspect.getsource(getattr(service, func_name))
+    assert "_call_llm_streamed(" in source, f"{func_name} 没走流式聚合调用"
+    assert "result = _call_llm(" not in source, f"{func_name} 退回了非流式调用"
+
+
+def test_streamed_call_omits_blank_system_message(monkeypatch: pytest.MonkeyPatch, _llm_stream_env: None) -> None:
+    """system_prompt 为空时不落进 messages。
+
+    实验台的 draft/critique/revision 形态本就是单条 user prompt；硬塞一条空 system
+    会让新波次与 wave1-3 不是同一个输入，破坏波次间可比性。
+    """
+
+    import os
+
+    seen: list[dict[str, object]] = []
+
+    def capture(request_obj, *a, **k):
+        seen.append(json.loads(request_obj.data.decode("utf-8")))
+        return _FakeStream(_sse_lines(["正文"]))
+
+    monkeypatch.setattr(llm_client.request, "urlopen", capture)
+    llm_client.call_llm_streamed(os.environ, system_prompt="   ", user_prompt="只有这一条")
+
+    roles = [m["role"] for m in seen[0]["messages"]]
+    assert roles == ["user"], f"空 system 被塞进了 messages：{roles}"

@@ -179,7 +179,7 @@ def test_runner_dry_run_never_calls_llm(monkeypatch: pytest.MonkeyPatch, tmp_pat
         calls.append((args, kwargs))
         return {"content": "不应发生", "cost_cny_estimated": 0.0, "latency_ms": 0}
 
-    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_messages", fake_call)
+    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
     from scripts.prompt_lab.runner import main
 
     code = main(["--task", "opening-preview", "--variants", "baseline,no-craft", "--dry-run", "--out", str(tmp_path)])
@@ -195,7 +195,7 @@ def test_runner_failure_isolation(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     def fake_call(*args: object, **kwargs: object) -> dict[str, object]:
         raise LLMError("模拟失败")
 
-    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_messages", fake_call)
+    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
     from scripts.prompt_lab.runner import main
 
     code = main(["--task", "opening-preview", "--variants", "baseline,no-craft", "--out", str(tmp_path)])
@@ -222,7 +222,7 @@ def test_runner_merge_replaces_only_selected_cells(monkeypatch: pytest.MonkeyPat
         tag = "新输出" if calls["n"] > 2 else "旧输出"
         return {"content": tag, "cost_cny_estimated": 0.0002, "latency_ms": 55}
 
-    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_messages", fake_call)
+    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
 
     # 第一次跑：baseline + no-craft（全成功，no-craft 输出"旧输出"）
     code = main(["--task", "opening-preview", "--variants", "baseline,no-craft", "--out", str(tmp_path)])
@@ -308,3 +308,40 @@ def test_blind_report_hides_prompt_chars_fingerprint() -> None:
     # 明标版仍须保留该列，否则对照分析没得看
     plain = render_report(run_data, dry_run=False)
     assert "831" in plain and "prompt字符" in plain
+
+
+def test_realtime_and_final_output_files_agree(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """实时落盘与收尾写产物必须同一套编号，失败格留空档而不是让成功格改名重写。
+
+    实证（2026-08-01 wave5）：两处口径不一致——实时按「已成功数」、收尾按「repeats 位次」，
+    于是 2 次成功落出 3 个文件、r1 与 r2 逐字节相同。判读若按 outputs/*.txt 数样本
+    （评审 agent 与我都是这么读的）就会把 n=2 当成 n=3。
+    """
+
+    import json
+
+    from app.common.llm_client import LLMError
+    from scripts.prompt_lab.runner import main
+
+    calls = {"n": 0}
+
+    def fake_call(*args: object, **kwargs: object) -> dict[str, object]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise LLMError("第一次失败")
+        return {"content": f"正文{calls['n']}", "cost_cny_estimated": 0.0, "latency_ms": 1}
+
+    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
+    main(["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--out", str(tmp_path)])
+
+    files = sorted((tmp_path / "outputs").glob("*.txt"))
+    bodies = [f.read_text(encoding="utf-8") for f in files]
+    assert len(files) == 2, f"2 次成功却落了 {len(files)} 个文件：{[f.name for f in files]}"
+    assert len(set(bodies)) == 2, f"落盘出现重复正文：{bodies}"
+    # 编号口径的真不变量：rN 必须对应 repeats 里第 N 位的那次（并发下哪一次失败不固定，
+    # 但「文件编号 ↔ repeats 位次」必须恒成立），失败位次留空档。
+    meta = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    repeats = meta["variants"]["opening-preview"]["variants"][0]["repeats"]
+    for f in files:
+        position = int(f.name.rsplit('--r', 1)[1].removesuffix('.txt'))
+        assert repeats[position - 1]["output"] == f.read_text(encoding="utf-8"), f"{f.name} 与 repeats 位次对不上"

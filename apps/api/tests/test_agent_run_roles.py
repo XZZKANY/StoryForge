@@ -429,6 +429,8 @@ def test_writing_run_role_hint_does_not_bypass_permission_gate(
             "latency_ms": 10,
         },
     )
+    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
 
     result = agent_result(
         client,

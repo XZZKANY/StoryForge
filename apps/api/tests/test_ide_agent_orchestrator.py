@@ -524,7 +524,8 @@ def test_agent_user_message_file_revise_returns_proposed_patch(
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,
@@ -569,7 +570,8 @@ def test_agent_file_revise_can_use_previous_review_report(
         captured["user_prompt"] = user_prompt
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,
@@ -614,7 +616,8 @@ def test_revise_scope_selected_ids_only_lists_those(
         captured["user_prompt"] = user_prompt
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,
@@ -675,7 +678,8 @@ def test_revise_constraints_reach_prompt(
         captured["user_prompt"] = user_prompt
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,
@@ -729,7 +733,8 @@ def test_revise_unknown_issue_id_is_reported(
     def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - test stub
         return {"content": "修订后正文", "completion_tokens": 8, "latency_ms": 10}
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,

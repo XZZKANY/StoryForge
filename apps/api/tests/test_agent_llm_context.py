@@ -444,7 +444,8 @@ def test_file_revise_runtime_links_revise_trace_to_llm_context_snapshot(
             "latency_ms": 10,
         }
 
-    monkeypatch.setattr(assistant_service, "_call_llm", fake_call_llm)
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
 
     message = agent_result(
         client,

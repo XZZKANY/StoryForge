@@ -371,6 +371,8 @@ def test_chat_loop_file_revise_produces_confirmable_patch_and_pauses(
             "latency_ms": 5,
         },
     )
+    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
     calls = _fake_llm_script(
         monkeypatch,
         [
@@ -454,6 +456,8 @@ def test_chat_loop_second_revise_in_same_run_is_rejected(
             "latency_ms": 5,
         },
     )
+    # 产字三条路径走流式聚合传输：同一个假函数同时挡住两个符号。
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", assistant_service._call_llm)
     calls = _fake_llm_script(
         monkeypatch,
         [
