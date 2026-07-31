@@ -117,6 +117,22 @@ cd apps/api && uv run pytest tests/test_artifacts.py -q
 npm --prefix apps/desktop/frontend run test
 ```
 
+### prompt 对比实验台（`apps/api/scripts/prompt_lab/`）
+
+改产字 / 评稿 prompt 前先用它量一遍：固定输入 × 变体配置 × 真 LLM 输出 → 并排报告（指标表 + 正文 + diff + 盲评版）。不进门禁、不进冻结 exe，判定靠人工读 `report.md`，工具不下结论。
+
+```bash
+cd apps/api
+uv run python -m scripts.prompt_lab.runner --all --dry-run          # 零成本，先验装配与报告
+$env:STORYFORGE_LLM_CONFIG_FILE = "$env:APPDATA\com.storyforge.ide\llm-provider.json"
+uv run python -m scripts.prompt_lab.runner --all --out .codex/prompt-lab/waveN --blind --seed 42 --jobs 8 --repeat 3
+uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --task X --variants Y   # 格子级补跑
+```
+
+- **变体纪律：** baseline 恒等引用真实构建器；变体一律「从 baseline 渲染结果做 section 级删除 / 替换」+ 删前断言目标块恰好出现一次，**不手抄 prompt 文案**（否则双源漂移）。
+- **两条 prompt 链是分开的**，别把一条的结论当另一条的：批量路径 `book_runs/prompts/`（多行 section 形态，BookRun 后台工具）、live 产字路径 `app/common/craft.py::craft_prompt_clause()`（扁平子句形态，chat 循环 / file.revise / file.create / prose.continue 四条）。共用 `CRAFT_GUIDELINES` 文本，其余各存各的。
+- **已裁定（2026-07-31~08-01，三波实验 + 三轮 workflow 评判）：** 删创作准则的好坏对照锚点 → adopt，两条链均已删（`test_craft_guidelines_reach` 钉死不许挂回）；`half-examples` 不采用；`task-rewrite` 待在无例基线上重测。证据 `.codex/prompt-lab/wave1-3/`（gitignored）。
+
 ## 5. 架构事实源
 
 - **API 是业务真相源。** 任何流程的判定都在 FastAPI 路由 + service 层完成；前端不允许私自计算业务结论。

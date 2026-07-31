@@ -475,3 +475,50 @@ uv run ruff check app/domains/book_runs/prompts/ scripts/prompt_lab/ tests/test_
 - task-rewrite 在无例生产基线上的完整章稳定性未测（key 额度所限，留 retest）。
 - wave3 高潮场景 4 变体输出已落盘但未评审。
 - 真机桌面端未参与本波（纯 API/脚本层实验）。
+
+# 2026-08-01 file.create 对齐删例 + 实验台指路
+
+## 背景：吸收面复核
+
+复核上波「删例」的吸收面，追调用链发现结论只落在一条链上：`_craft_section()` 仅被
+`book_runs/prompts/builder.py` 的 4 个构建器消费 → `build_draft_prompt_from_state` →
+`book_generation_draft.py`，即 **BookRun 后台工具**路径。桌面 live 的四条产字路径走的是
+另一份形态 `app/common/craft.py::craft_prompt_clause()`，两者共用 `CRAFT_GUIDELINES` 文本、
+锚点各存各的。live 四条里三条默认无例（结论对其空转），唯一带例的是 `file.create`
+（`assistant/service.py::_DRAFT_SYSTEM_PROMPT`，`with_examples=True`）——上波已记为
+「不在实验覆盖内」，本波按作者决定对齐。
+
+## 改动
+
+- `assistant/service.py::_DRAFT_SYSTEM_PROMPT`：`craft_prompt_clause(with_examples=True)`
+  → `craft_prompt_clause()`。至此生产两条链均无锚点。
+- `app/common/craft.py`：`CRAFT_EXAMPLE_BAD/GOOD` 与 `with_examples` 形参**刻意保留**（生产零调用方）。
+  理由：prompt_lab 的变体纪律是「从生产常量做同源增删、不手抄文案」，留着才能在 live 链上重跑
+  with/without 对比；删掉则未来只能从 git 历史抄回文案，正是该纪律要防的双源漂移。
+- 新护栏 `tests/test_craft_guidelines_reach.py::test_no_prose_path_carries_example_anchors`：
+  四条 live 产字 prompt 逐条断言不含锚点原文——常量既然留着，「生产没挂回来」必须由断言守住。
+- `CLAUDE.md` §4 新增「prompt 对比实验台」小节：CLI 用法、变体纪律、**两条 prompt 链分开**的提醒、
+  已裁定结论。此前仓内零指路（`docs/` + `CLAUDE.md` grep `prompt_lab` 无命中），下轮会话发现不了。
+
+## 验证
+
+```text
+uv run pytest -q                                          -> 1314 passed, 3 skipped (263.77s)   # 上波删例合入零回归（作者曾叫停，本波补跑）
+uv run pytest tests/test_craft_guidelines_reach.py tests/test_prompt_lab.py \
+              tests/test_prompt_assembly.py tests/test_scene_discipline_reach.py -q -> 53 passed
+uv run ruff check app/common/craft.py app/domains/assistant/service.py \
+              tests/test_craft_guidelines_reach.py        -> All checks passed
+```
+
+变异验证（护栏可证伪）：把 `_DRAFT_SYSTEM_PROMPT` 定点改回 `with_examples=True` →
+`test_no_prose_path_carries_example_anchors[file.create（assistant.service）]` FAILED（1 failed, 14 passed），
+还原后 15 passed，`git diff --numstat` 确认 1 增 1 删无空白噪音。
+
+## 仍未联通
+
+- **file.create 的对齐是外推，不是实测**：三波实验只覆盖 `book_runs` 的多行 section 形态，
+  扁平子句形态（live 四条）一次都没进过实验矩阵。若要实测需在 live 链上跑 with/without 对比。
+- live 链的实验形态尚未跑通：`agent_registry.py` 的 `agent-baseline` 在 wave1 只出 26 字符
+  （模型答「先读项目文件」即停——实验未挂 tools），agent 侧对比数据为空。
+- task-rewrite 在无例基线上的重测未做（key 额度所限，沿用上波记档）。
+- 真机桌面端未参与（纯 API 层改动）。
