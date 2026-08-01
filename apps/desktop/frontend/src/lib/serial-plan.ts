@@ -24,16 +24,38 @@ export async function markChapterWrittenInPlan(
   projectPath: string | null,
   filePath: string,
 ): Promise<PlanMarkOutcome | null> {
+  return runPlanCommand('plan.mark_written', projectPath, filePath, '连载计划标记已写入失败');
+}
+
+/**
+ * 作者撤销一次「新建」、正文被删之后，把对应章从 done 退回 pending。
+ *
+ * 只用于删文件那一支：修订的撤销走反向写回，文件还在、那章依然是写完的，退回去就错了。
+ * 后端另有一道以正文为准的闸（文件还在就拒绝），这里的克制是不让它白跑一趟。
+ */
+export async function unmarkChapterWrittenInPlan(
+  projectPath: string | null,
+  filePath: string,
+): Promise<PlanMarkOutcome | null> {
+  return runPlanCommand('plan.unmark_written', projectPath, filePath, '连载计划撤销标记失败');
+}
+
+async function runPlanCommand(
+  commandId: string,
+  projectPath: string | null,
+  filePath: string,
+  failureLabel: string,
+): Promise<PlanMarkOutcome | null> {
   if (!projectPath || !filePath) return null;
   try {
-    const result = await executeIdeCommand('plan.mark_written', {
+    const result = await executeIdeCommand(commandId, {
       project_root: projectPath,
       file_path: filePath,
     });
     const plan = (result as { payload?: { plan?: PlanMarkOutcome } }).payload?.plan;
     return plan ?? null;
   } catch (error) {
-    console.error('连载计划标记已写入失败', error);
+    console.error(failureLabel, error);
     return null;
   }
 }

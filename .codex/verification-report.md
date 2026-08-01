@@ -1101,3 +1101,72 @@ node scripts/run-e2e.mjs                    -> 20/20 PASSED（含 OpenAPI 零漂
   会被 drift 如实报出来，且 `next_chapter` 只看正文所以行为仍正确，但声明是陈旧的。
   没做反向回调，属已知缺口而非疏漏。
 - 单 provider 单模型、闭环各环节各跑 1 次，非稳定性证据。
+
+---
+
+# 撤销后反向取消 done + 修掉「章序前移认错章」（2026-08-01）
+
+## 顺手挖到的真问题（比反向回调本身更要紧）
+
+动手前查了一件事：撤销一次「新建」要**删文件**，而章序是
+`canon_rebuild._chapter_ordinals` 按**路径序第几个**编的、**不是从文件名解析**的。
+删掉 `第02章.md` 会让 `第03章.md` 的章序从 3 变成 2——反向回调正好落在这个雷上。
+
+进一步查证发现这不止影响撤销：**正文一旦出现空缺，`build_plan` 就会判错**。
+只有 `第01章.md` 与 `第03章.md` 存在时，`第03章.md` 的章序是 2，于是计划第 2 章被当成已落盘、
+第 3 章被当成还没写——两处都反了。这是 #259 就带进来的隐患，happy path（顺序写、无空缺）
+碰不到，所以此前三轮真跑都没暴露。
+
+## 修法：按路径认章
+
+- `PlannedChapter.declared_path`：标 done 时后端把正文相对路径记进计划条目（`path` 字段）。
+  **后端算，不接受模型传**——模型猜错一个路径，后面按路径认章就全认到别处去了。
+  两条标 done 的路径都记：`apply_plan_update`（`_with_stamped_paths`）与 `mark_chapter_written`。
+- `build_plan`：记过路径的按路径判在不在；没记过的（还没落盘 / 作者手写）才回退章序，
+  **且不认已被别的条目按路径认领的文件**——否则计划第 2 章会拿第 3 章的文件当自己的在场证据。
+- `unmark_chapter_written` + IDE 命令 `plan.unmark_written`：**只按记下的路径认章**。
+  认不出（计划里没记过这个路径，比如 done 是本次改动之前标的）就如实返回
+  `chapter_not_identifiable`，**不按章序猜**。
+
+## 前端
+
+`unmarkChapterWrittenInPlan` 只挂在**新建撤销**那一支（`TauriFileSystem.deletePath` 之后）。
+修订的撤销走反向写回、文件还在，那章依然是写完的，退回 pending 就错了——后端另有一道
+以正文为准的闸（`manuscript_still_exists`），前端这层克制是不让它白跑。
+
+## 验证
+
+```text
+cd apps/api && uv run pytest -q            -> 1370 passed, 3 skipped（+7 条）
+cd apps/api && uv run ruff check .         -> All checks passed
+npm --prefix apps/desktop/frontend run test -> 509 passed（+2 条）
+pnpm.cmd lint / frontend typecheck          -> 全绿
+node scripts/run-e2e.mjs                    -> 20/20（含 OpenAPI 零漂移）
+git diff --numstat == --ignore-all-space --numstat -> 逐文件相等
+```
+
+**真 LLM 反向闭环实跑**（deepseek-v4-flash，四条判定全 True）：
+
+| 步 | 实测 |
+|---|---|
+| 轮 1「继续写下一章」 | 补丁=`第02章.md` ✓ |
+| 轮 2 接受 | `{"updated":true,"ordinal":2,"path":"正文/第02章.md","next_ordinal":3}`，计划记下路径 ✓ |
+| 轮 2b 撤销（删文件+unmark） | `{"updated":true,"ordinal":2,"next_ordinal":2}`，状态退回 pending、path 抹掉 ✓ |
+| 轮 3「继续写下一章」 | 补丁=`第02章.md`——**又回到被撤销的那一章** ✓ |
+
+变异验证（两处，均先红后绿）：
+- 后端把反向回调改成「按顺序取第一条」而非按路径认章 →
+  `..._identifies_chapter_by_path_not_by_shifted_ordinal` 与 `..._does_not_guess_when_path_was_never_recorded`
+  转红，其余 8 条不受影响
+- 前端摘掉 `await unmarkChapterWrittenInPlan(...)` → `撤销一次新建后回调把该章退回 pending` 转红，
+  其余 12 条不动
+
+## 仍未联通
+
+- **真机没点过**：headless 无 UI，接受 / 撤销都用后端等价动作模拟。前端接线有 vitest + 变异验证兜底，
+  真机点穿归 E2E-1。
+- **没记过路径的旧计划退不了标记**：`chapter_not_identifiable` 如实返回、不猜。属设计选择。
+- **章序回退仍是启发式**：没记路径的条目仍按「路径序第几个」判，排除已认领文件后更准，
+  但正文有空缺且相关章都没记过路径时仍会判错。彻底解法是给每章都记路径（要么作者手填、
+  要么解析文件名），两者都与仓库现有「章序=路径序、别解析文件名」口径冲突，未做。
+- 单 provider 单模型、各环节各跑 1 次，非稳定性证据。

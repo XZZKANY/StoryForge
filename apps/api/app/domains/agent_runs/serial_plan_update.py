@@ -72,9 +72,10 @@ def merge_plan_payload(
         else:
             target = dict(target)
             updated += 1
-        for key in ("title", "goal", "note"):
+        for key in ("title", "goal", "note", "path"):
             if key in item:
-                value = clean_text(item.get(key), limit=80 if key == "title" else MAX_GOAL_CHARS)
+                limit = 80 if key == "title" else (400 if key == "path" else MAX_GOAL_CHARS)
+                value = clean_text(item.get(key), limit=limit)
                 if value is None:
                     target.pop(key, None)
                 else:
@@ -129,6 +130,32 @@ def reject_premature_done(
         and ordinal not in written
     )
 
+def _with_stamped_paths(updates: dict[str, Any], project_root: str) -> dict[str, Any]:
+    """给要标 done 的章补盖正文相对路径（后端算，不接受模型传）。
+
+    路径是后来「按路径认章」的唯一凭据（见 `PlannedChapter.declared_path`）：章序会因正文
+    空缺整体前移，撤销一次新建正好制造这种空缺。模型不该有机会往计划里写路径——它猜错一个，
+    后面按路径认章就全认到别处去了。
+    """
+
+    chapters = updates.get("chapters")
+    if not chapters:
+        return updates
+    _, path_by_ordinal = written_ordinals(project_root)
+    stamped: list[dict[str, Any]] = []
+    for item in chapters:
+        if not isinstance(item, dict):
+            stamped.append(item)
+            continue
+        ordinal = positive_int(item.get("ordinal"))
+        relative = path_by_ordinal.get(ordinal) if ordinal is not None else None
+        if item.get("status") == STATUS_DONE and relative:
+            stamped.append({**item, "path": relative})
+        else:
+            stamped.append(item)
+    return {**updates, "chapters": stamped}
+
+
 def apply_plan_update(
     project_root: str,
     **updates: Any,
@@ -150,7 +177,7 @@ def apply_plan_update(
         )
 
     existing = read_plan(project_root)
-    merged, counts = merge_plan_payload(existing, **updates)
+    merged, counts = merge_plan_payload(existing, **_with_stamped_paths(updates, project_root))
     plan_path = write_plan(project_root, merged)
 
     plan = build_plan(project_root)
@@ -225,8 +252,9 @@ def mark_chapter_written(project_root: str, file_path: str) -> dict[str, Any]:
     if target.get("status") == STATUS_DONE:
         return {"updated": False, "reason": "already_done", "ordinal": ordinal}
 
+    # 同时记下路径：撤销一次新建会删文件、把后面的章序整体前移，届时只有路径认得出是哪一章。
     merged, _counts = merge_plan_payload(
-        existing, chapters=[{"ordinal": ordinal, "status": STATUS_DONE}]
+        existing, chapters=[{"ordinal": ordinal, "status": STATUS_DONE, "path": relative}]
     )
     write_plan(project_root, merged)
     plan = build_plan(project_root)
@@ -241,9 +269,68 @@ def mark_chapter_written(project_root: str, file_path: str) -> dict[str, Any]:
     }
 
 
+def unmark_chapter_written(project_root: str, file_path: str) -> dict[str, Any]:
+    """作者撤销一次「新建」、正文被删之后，把对应章从 done 退回 pending。
+
+    **只按记下的路径认章，不按章序**：章序是「路径序第几个」，删掉一个文件会让后面的章
+    整体前移——正是撤销制造的那种空缺。按章序找会退错章，而且越靠后错得越离谱。
+
+    仍然以正文为准：文件还在就什么都不做（修订的撤销走反向写回，那章依然是写完的）。
+    认不出是哪一章（计划里没记过这个路径，比如 done 是本次改动之前标的）就如实说，不猜。
+
+    与正向同样不抛异常：撤销已经成功了，收尾失败不该把它报成撤销失败。
+    """
+
+    relative = _relative_manuscript_path(project_root, file_path)
+    if relative is None:
+        return {"updated": False, "reason": "path_outside_project"}
+
+    try:
+        ordinals = canon_rebuild.chapter_ordinals(project_root, "*.md")
+    except (FsToolError, OSError):
+        return {"updated": False, "reason": "project_unreadable"}
+    if relative in ordinals:
+        # 正文还在（修订撤销 / 删除没成功）——那章仍然是写完的，不能退回 pending。
+        return {"updated": False, "reason": "manuscript_still_exists", "path": relative}
+
+    try:
+        existing = read_plan(project_root)
+    except FsToolError:
+        return {"updated": False, "reason": "plan_unreadable"}
+    chapters = existing.get("chapters") or []
+    target = next(
+        (
+            item
+            for item in chapters
+            if isinstance(item, dict) and clean_text(item.get("path"), limit=400) == relative
+        ),
+        None,
+    )
+    if target is None:
+        return {"updated": False, "reason": "chapter_not_identifiable", "path": relative}
+    if target.get("status") != STATUS_DONE:
+        return {"updated": False, "reason": "not_done", "path": relative}
+
+    ordinal = positive_int(target.get("ordinal"))
+    merged, _counts = merge_plan_payload(
+        existing, chapters=[{"ordinal": ordinal, "status": STATUS_PENDING, "path": None}]
+    )
+    write_plan(project_root, merged)
+    plan = build_plan(project_root)
+    next_chapter = plan.next_chapter if plan is not None else None
+    return {
+        "updated": True,
+        "ordinal": ordinal,
+        "path": relative,
+        "next_ordinal": next_chapter.ordinal if next_chapter is not None else None,
+        "plan_path": PLAN_RELATIVE_PATH,
+    }
+
+
 __all__ = [
     "apply_plan_update",
     "mark_chapter_written",
     "merge_plan_payload",
     "reject_premature_done",
+    "unmark_chapter_written",
 ]

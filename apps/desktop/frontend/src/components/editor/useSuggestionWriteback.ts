@@ -17,7 +17,7 @@ import type { EditorModelCache } from './useMonacoEditor';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
-import { markChapterWrittenInPlan } from '../../lib/serial-plan';
+import { markChapterWrittenInPlan, unmarkChapterWrittenInPlan } from '../../lib/serial-plan';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import {
@@ -249,6 +249,9 @@ export function useSuggestionWriteback({
                 const projectRoot = projectPathRef.current;
                 if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
                 await TauriFileSystem.deletePath(projectRoot, path);
+                // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
+                // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
+                await unmarkChapterWrittenInPlan(projectRoot, path);
                 setPendingSuggestion(null);
                 // 页签留着的话，开着 autosave 时下一次防抖就会把文件原样写回来。
                 dropOpenFilePath?.(path);

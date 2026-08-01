@@ -216,6 +216,53 @@ test('标 done 失败不能伪造成「接受失败」——正文其实已经�
   );
 });
 
+test('撤销一次新建后回调把该章退回 pending，且发生在删文件之后', async () => {
+  snapshotCreated = true;
+
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+  editorContent = AFTER;
+  planMarkArgs.length = 0;
+  calls.length = 0;
+
+  await act(async () => {
+    await lastActionableToast().run();
+  });
+
+  assert.deepEqual(deletes, [FILE], '撤销新建应当删文件');
+  assert.deepEqual(
+    planMarkArgs,
+    [{ project_root: PROJECT, file_path: FILE }],
+    '正文没了，必须回调一次 plan.unmark_written',
+  );
+  assert.equal(
+    calls.indexOf('delete') < calls.indexOf('command:plan.unmark_written'),
+    true,
+    `退标记必须在删文件之后，实际顺序：${calls.join(' → ')}`,
+  );
+});
+
+test('撤销一次普通修订不退标记——文件还在，那章依然是写完的', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+  editorContent = AFTER;
+  planMarkArgs.length = 0;
+  calls.length = 0;
+
+  await act(async () => {
+    await lastActionableToast().run();
+  });
+
+  assert.deepEqual(deletes, [], '普通修订的撤销是反向写回，不删文件');
+  assert.deepEqual(
+    calls.filter((call) => call.startsWith('command:')),
+    [],
+    '文件还在，不该去退标记（正向回调也只挂在接受整个补丁那一层）',
+  );
+});
+
 test('自动档：补丁不必点接受就落盘，且顺序仍是先快照后写盘', async () => {
   await act(async () => {
     emitFileSuggestion(suggestion({ requiresConfirmation: false }));
