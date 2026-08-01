@@ -1028,3 +1028,76 @@ git diff --numstat == --ignore-all-space --numstat  -> 逐文件相等
 - **真机未验**：装机版观感、以及「接受补丁 → 下一轮说继续 → 标 done → 前移」的完整闭环，
   仍只有 headless 证据。归 E2E-1。
 - 作者接受补丁后**由谁**触发标 done 仍未定：现在靠作者下一轮开口，无自动回调。
+
+---
+
+# 接受补丁后回调标 done：闭环合上（2026-08-01）
+
+## 背景
+
+#260 的收尾里留了一条：「作者接受补丁后**由谁**触发标 done 仍未定，现在靠作者下一轮开口，
+无自动回调」。作者拍板做掉。
+
+## 改了什么
+
+**后端**：`serial_plan_update.mark_chapter_written(project_root, file_path)` + IDE 命令
+`plan.mark_written`（`writes=False`：只写 `.storyforge/serial-plan.json`，不落 DB、不碰手稿）。
+章序由后端按正文阅读序算（`canon_rebuild.chapter_ordinals`，与作品底座 / canon 闸同一把尺），
+**前端不猜章序**。
+
+**刻意保守的三条**（回调在每次接受补丁时都会响，不能替作者无中生有）：
+- 计划文件不存在 → **不建计划**。没在用连载计划的项目不该因为接受了一个补丁就被塞一份。
+- 该章不在计划里 → **不追加条目**。写了计划外的一章是作者要知道的事，悄悄补进去等于抹平它。
+- 正文实际不存在 → **不标**。与 `reject_premature_done` 同一条真值源纪律。
+
+一律不抛异常：这是写盘**成功之后**的收尾动作，失败不该回头污染已经成功的写回。
+
+**前端**：`lib/serial-plan.ts::markChapterWrittenInPlan`，挂在
+`useSuggestionWriteback.handleAcceptSuggestion` 里 `writeAcceptedSuggestion` 返回之后。
+**刻意只挂这一层**——手动点接受与自动档走的是同一个函数（自动档只是程序化调它），
+而分块接受与行间对话 Ctrl+K 是段落级微调，接受一次不等于这章写完了；撤销走反向写回，
+届时正文没了，后端自会拒绝。
+
+## 验证
+
+```text
+cd apps/api && uv run pytest -q            -> 1363 passed, 3 skipped（+10 条 mark_written 测试）
+cd apps/api && uv run ruff check .         -> All checks passed
+npm --prefix apps/desktop/frontend run test -> 507 passed（80 文件，+4 条回调行为测试）
+pnpm.cmd lint / frontend typecheck          -> 全绿
+node scripts/run-e2e.mjs                    -> 20/20 PASSED（含 OpenAPI 零漂移）
+```
+
+**真 LLM 闭环实跑**（deepseek-v4-flash，三轮，四条判定全 True）：
+
+| 轮 | 期望 | 实测 |
+|---|---|---|
+| 1「继续写下一章」 | 起草第 2 章、**不**标 done | 补丁=第02章.md，工具序列无 `plan.mark_written` ✓ |
+| 2 模拟作者接受 | 写盘 + 回调 → 第 2 章 done | `{"updated":true,"ordinal":2,"next_ordinal":3}` ✓ |
+| 3「继续写下一章」 | 这次写**第 3 章** | 补丁=第03章.md ✓ |
+
+轮 3 的回话还回收了第 2 章里埋的伏笔（桌腿裂缝），旁证新接受的那章真的进了上下文。
+
+变异验证（前端，先红后绿）：摘掉 `await markChapterWrittenInPlan(...)` 这一行 →
+`接受补丁后回调连载计划标 done，且发生在版本记录之后` 转红，**其余 10 条不受影响**
+（说明用例打在接线上、有针对性）。既有的 `calls` 断言是 `indexOf`/`includes` 式的松断言，
+加不加回调都绿——所以必须另写这条显式用例，否则是假绿。
+
+## 顺带修掉一个我自己种的缺陷
+
+`serial_plan_update.py` 在 #260 里被拆出来时，脚本对**已含 `\r\n`** 的内容又做了一次
+`replace('\n', '\r\n')`，产生 **139 处 `\r\r\n`**。Python 通用换行模式两者都当断行，所以
+测试全绿、没人发现，但文件是坏的（每条语句间多一个幽灵空行，且此后每次 diff 都会一团糟）。
+本刀已归一为干净 CRLF；`git grep -lIP '\r\r\n' HEAD` 确认全仓仅此一例。
+
+**教训**：按字节读（`read_bytes().decode()`）不做通用换行翻译，此时再 `replace('\n', EOL)`
+必然翻倍。要么先归一到 `\n` 再转，要么用 `read_text()`（它会翻译）。
+
+## 仍未联通
+
+- **前端那一步在真跑里是模拟的**：headless 无 UI，轮 2 用「写盘 + 直调 `plan.mark_written`」
+  等价替代作者点接受。前端接线本身由 vitest 行为测试 + 变异验证覆盖，但**真机点一次接受**没验，归 E2E-1。
+- **撤销之后不会反向取消 done**：撤销一次已标 done 的章，正文没了、计划仍写 done →
+  会被 drift 如实报出来，且 `next_chapter` 只看正文所以行为仍正确，但声明是陈旧的。
+  没做反向回调，属已知缺口而非疏漏。
+- 单 provider 单模型、闭环各环节各跑 1 次，非稳定性证据。

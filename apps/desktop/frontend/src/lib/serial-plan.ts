@@ -1,0 +1,39 @@
+import { executeIdeCommand } from './api/ide-commands';
+
+export type PlanMarkOutcome = {
+  updated: boolean;
+  reason?: string;
+  ordinal?: number;
+  next_ordinal?: number | null;
+  next_goal?: string | null;
+};
+
+/**
+ * 作者接受补丁、正文真的落盘之后，把对应章在连载计划里标 done。
+ *
+ * 补的是那个真实缺口：此前「接受之后谁标 done」没人负责，得等作者下一轮开口跟 agent 说话，
+ * 中间计划一直显示 pending、每轮 prompt 都白带一段「计划与正文对不上」。
+ *
+ * **best-effort，绝不抛**：这是写回**成功之后**的收尾动作，抛出去会被 handleAcceptSuggestion
+ * 的 catch 翻译成「接受失败」toast，凭空伪造一次假失败——而正文其实已经写进去了。
+ *
+ * 「没改」同样不是失败：非正文文件、该章不在计划里、项目根本没在用连载计划，后端都如实带
+ * reason 返回 updated=false。判断哪一章、要不要改，全在后端按正文算，前端不猜章序。
+ */
+export async function markChapterWrittenInPlan(
+  projectPath: string | null,
+  filePath: string,
+): Promise<PlanMarkOutcome | null> {
+  if (!projectPath || !filePath) return null;
+  try {
+    const result = await executeIdeCommand('plan.mark_written', {
+      project_root: projectPath,
+      file_path: filePath,
+    });
+    const plan = (result as { payload?: { plan?: PlanMarkOutcome } }).payload?.plan;
+    return plan ?? null;
+  } catch (error) {
+    console.error('连载计划标记已写入失败', error);
+    return null;
+  }
+}

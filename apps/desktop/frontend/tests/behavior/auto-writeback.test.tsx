@@ -40,6 +40,18 @@ vi.mock('../../src/lib/versions', () => ({
   },
 }));
 
+/** 接受补丁后会回调后端标连载计划；不 mock 就会打真 fetch。 */
+const planMarkArgs: Array<Record<string, unknown>> = [];
+let planMarkFails = false;
+vi.mock('../../src/lib/api/ide-commands', () => ({
+  executeIdeCommand: async (commandId: string, args: Record<string, unknown>) => {
+    calls.push(`command:${commandId}`);
+    planMarkArgs.push(args);
+    if (planMarkFails) throw new Error('计划标记失败');
+    return { payload: { plan: { updated: true, ordinal: 1, next_ordinal: 2 } } };
+  },
+}));
+
 import { emitFileSuggestion } from '../../src/lib/assistant-events';
 import { TOAST_EVENT, type ToastAction, type ToastDetail } from '../../src/lib/toast';
 import { useSuggestionWriteback } from '../../src/components/editor/useSuggestionWriteback';
@@ -132,6 +144,8 @@ beforeEach(() => {
   toasts.length = 0;
   snapshotFails = false;
   snapshotCreated = false;
+  planMarkArgs.length = 0;
+  planMarkFails = false;
   versionHistoryOpened = 0;
   editorContent = BEFORE;
   window.addEventListener(TOAST_EVENT, onToast);
@@ -149,6 +163,57 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+});
+
+test('接受补丁后回调连载计划标 done，且发生在版本记录之后', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+
+  assert.deepEqual(
+    planMarkArgs,
+    [{ project_root: PROJECT, file_path: FILE }],
+    '正文落盘后必须回调一次 plan.mark_written，且把项目根与目标文件如实带上',
+  );
+  assert.equal(
+    calls.indexOf('record') < calls.indexOf('command:plan.mark_written'),
+    true,
+    `标 done 必须在版本记录之后，实际顺序：${calls.join(' → ')}`,
+  );
+});
+
+test('询问档补丁还没被接受时，绝不回调标 done', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion());
+  });
+
+  assert.deepEqual(planMarkArgs, [], '补丁还挂着等作者，正文没落盘，不能去标 done');
+});
+
+test('快照失败阻断写盘时，也不回调标 done', async () => {
+  snapshotFails = true;
+
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+
+  assert.deepEqual(planMarkArgs, [], '写盘被阻断就没有「写完一章」这回事');
+});
+
+test('标 done 失败不能伪造成「接受失败」——正文其实已经写进去了', async () => {
+  planMarkFails = true;
+
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: false }));
+  });
+
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }], '写回本身必须照常成功');
+  const failed = toasts.filter((toast) => toast.tone === 'error');
+  assert.deepEqual(
+    failed,
+    [],
+    `回调失败只能吞掉，不该弹错误通知，实际：${failed.map((t) => t.message).join(' | ')}`,
+  );
 });
 
 test('自动档：补丁不必点接受就落盘，且顺序仍是先快照后写盘', async () => {
