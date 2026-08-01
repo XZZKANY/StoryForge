@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from app.domains.assistant import service as assistant_service
 from app.domains.book_runs.book_generation import BookGenerationError
 
+NL = chr(10)
+
 
 def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """正常修订：返回 before/after，并把会话 + assistant.revise(completed) 落库。"""
@@ -53,6 +55,42 @@ def test_revise_returns_diff_and_records_tool_call(client: TestClient, monkeypat
     # F32：BYO-key 成本与 prompt_tokens 进 assistant.revise 证据 output_summary。
     assert tool_calls[0]["output_summary"]["prompt_tokens"] == 310
     assert tool_calls[0]["output_summary"]["cost_cny_estimated"] == pytest.approx(0.031)
+
+
+def test_revise_reverts_incidental_punctuation_drift(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """接线闸：模型顺手美化的标点不得随响应写回，真实改动照旧透出。
+
+    钉的是 service.revise_file_content 里 after 的落地那一行——纯函数单测覆盖不到
+    这条接缝，拆掉接线后单测仍会全绿。
+    """
+
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+
+    original = NL.join(["　　林岚走进港口。", "", "她停住了——很久很久……", "", "　　雾散了。"])
+    # 模型只被要求改第一段，却顺手把全篇标点换成了 ASCII 形态。
+    drifted = NL.join(["  林岚快步走进港口。", "", "她停住了—很久很久...", "", "  雾散了。"])
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        return {"content": drifted, "completion_tokens": 12, "latency_ms": 9}
+
+    for _seam in ("_call_llm", "_call_llm_streamed"):
+        monkeypatch.setattr(assistant_service, _seam, fake_call_llm)
+
+    response = client.post(
+        "/api/assistant/revise",
+        json={"file_path": "draft.md", "content": original, "instruction": "让开场更急促"},
+    )
+    assert response.status_code == 200, response.text
+    after = response.json()["after"]
+
+    lines = after.split(NL)
+    assert "快步走进港口" in lines[0], "真实改动被闸吃掉了"
+    # 未点名的行必须逐字回到作者原样——这是这道闸的全部意义。
+    assert lines[2] == "她停住了——很久很久……", "未点名行的标点漂移没还原"
+    assert lines[4] == "　　雾散了。", "未点名行的全角缩进没还原"
+    assert after != drifted
 
 
 def test_revise_marks_reasoning_leak_in_tool_call_evidence(
