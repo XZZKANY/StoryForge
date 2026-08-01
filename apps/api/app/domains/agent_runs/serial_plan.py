@@ -152,7 +152,7 @@ def plan_exists(project_root: str) -> bool:
         return False
 
 
-def _clean_text(value: object, *, limit: int = MAX_GOAL_CHARS) -> str | None:
+def clean_text(value: object, *, limit: int = MAX_GOAL_CHARS) -> str | None:
     if not isinstance(value, str):
         return None
     text = value.strip()
@@ -161,13 +161,13 @@ def _clean_text(value: object, *, limit: int = MAX_GOAL_CHARS) -> str | None:
     return text[:limit]
 
 
-def _positive_int(value: object) -> int | None:
+def positive_int(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value if value > 0 else None
 
 
-def _written_ordinals(project_root: str) -> tuple[frozenset[int], dict[int, str]]:
+def written_ordinals(project_root: str) -> tuple[frozenset[int], dict[int, str]]:
     """正文实际落盘的章序集合。章序口径复用 canon_rebuild，与作品底座 / canon 闸同一把尺。"""
 
     try:
@@ -186,23 +186,23 @@ def build_plan(project_root: str) -> SerialPlan | None:
     except FsToolError:
         return None
 
-    written, path_by_ordinal = _written_ordinals(project_root)
+    written, path_by_ordinal = written_ordinals(project_root)
 
     chapters: list[PlannedChapter] = []
     for item in raw.get("chapters") or []:
         if not isinstance(item, dict):
             continue
-        ordinal = _positive_int(item.get("ordinal"))
+        ordinal = positive_int(item.get("ordinal"))
         if ordinal is None:
             continue
         status = item.get("status")
         chapters.append(
             PlannedChapter(
                 ordinal=ordinal,
-                title=_clean_text(item.get("title"), limit=80),
-                goal=_clean_text(item.get("goal")),
+                title=clean_text(item.get("title"), limit=80),
+                goal=clean_text(item.get("goal")),
                 status=status if status in ALLOWED_STATUSES else STATUS_PENDING,
-                note=_clean_text(item.get("note")),
+                note=clean_text(item.get("note")),
                 written=ordinal in written,
                 written_path=path_by_ordinal.get(ordinal),
             )
@@ -212,9 +212,9 @@ def build_plan(project_root: str) -> SerialPlan | None:
     chapters.sort(key=lambda chapter: chapter.ordinal)
 
     return SerialPlan(
-        premise=_clean_text(raw.get("premise"), limit=300),
-        chapter_word_count_min=_positive_int(raw.get("chapter_word_count_min")),
-        chapter_word_count_max=_positive_int(raw.get("chapter_word_count_max")),
+        premise=clean_text(raw.get("premise"), limit=300),
+        chapter_word_count_min=positive_int(raw.get("chapter_word_count_min")),
+        chapter_word_count_max=positive_int(raw.get("chapter_word_count_max")),
         chapters=chapters,
         arcs=[arc for arc in (raw.get("arcs") or []) if isinstance(arc, dict)],
         written_ordinals=written,
@@ -234,11 +234,11 @@ def _arc_lines(plan: SerialPlan, next_ordinal: int) -> list[str]:
 
     lines: list[str] = []
     for arc in plan.arcs:
-        title = _clean_text(arc.get("title"), limit=60)
+        title = clean_text(arc.get("title"), limit=60)
         if not title:
             continue
         targets = [t for t in (arc.get("target_chapters") or []) if isinstance(t, int)]
-        payoff = _positive_int(arc.get("payoff_chapter"))
+        payoff = positive_int(arc.get("payoff_chapter"))
         if next_ordinal in targets:
             lines.append(f"· 「{title}」本章是推进点" + (f"，兑现在第 {payoff} 章" if payoff else ""))
         elif payoff == next_ordinal:
@@ -321,112 +321,6 @@ def build_plan_block(project_root: str) -> str | None:
     return render_plan_block(plan)
 
 
-def merge_plan_payload(
-    existing: dict[str, Any],
-    *,
-    chapters: list[dict[str, Any]] | None = None,
-    premise: str | None = None,
-    chapter_word_count_min: int | None = None,
-    chapter_word_count_max: int | None = None,
-    arcs: list[dict[str, Any]] | None = None,
-    remove_ordinals: list[int] | None = None,
-) -> tuple[dict[str, Any], dict[str, int]]:
-    """把一批章节更新并入既有计划，返回 `(新计划, 计数证据)`。纯函数：不读盘不写盘。
-
-    按 `ordinal` upsert 并**逐字段合并**——未传的字段保留原值。否则 agent 只想标一句
-    「第 12 章写完了」，就会把作者手写的 title / goal / note 一起清空。
-    """
-
-    merged = json.loads(json.dumps(existing)) if existing else json.loads(json.dumps(_EMPTY_PLAN))
-    merged.setdefault("version", 1)
-    by_ordinal: dict[int, dict[str, Any]] = {}
-    for item in merged.get("chapters") or []:
-        ordinal = _positive_int(item.get("ordinal")) if isinstance(item, dict) else None
-        if ordinal is not None:
-            by_ordinal[ordinal] = dict(item)
-
-    created = updated = removed = skipped = 0
-    for item in chapters or []:
-        if not isinstance(item, dict):
-            skipped += 1
-            continue
-        ordinal = _positive_int(item.get("ordinal"))
-        if ordinal is None:
-            skipped += 1
-            continue
-        target = by_ordinal.get(ordinal)
-        if target is None:
-            target = {"ordinal": ordinal, "status": STATUS_PENDING}
-            created += 1
-        else:
-            target = dict(target)
-            updated += 1
-        for key in ("title", "goal", "note"):
-            if key in item:
-                value = _clean_text(item.get(key), limit=80 if key == "title" else MAX_GOAL_CHARS)
-                if value is None:
-                    target.pop(key, None)
-                else:
-                    target[key] = value
-        status = item.get("status")
-        if isinstance(status, str) and status in ALLOWED_STATUSES:
-            target["status"] = status
-        by_ordinal[ordinal] = target
-
-    for ordinal in remove_ordinals or []:
-        if _positive_int(ordinal) is not None and by_ordinal.pop(ordinal, None) is not None:
-            removed += 1
-
-    merged["chapters"] = [by_ordinal[key] for key in sorted(by_ordinal)]
-
-    if premise is not None:
-        cleaned = _clean_text(premise, limit=300)
-        if cleaned is None:
-            merged.pop("premise", None)
-        else:
-            merged["premise"] = cleaned
-    for key, value in (
-        ("chapter_word_count_min", chapter_word_count_min),
-        ("chapter_word_count_max", chapter_word_count_max),
-    ):
-        if value is not None and _positive_int(value) is not None:
-            merged[key] = value
-    if arcs is not None:
-        merged["arcs"] = [arc for arc in arcs if isinstance(arc, dict)]
-    merged.setdefault("arcs", [])
-
-    counts = {
-        "created_count": created,
-        "updated_count": updated,
-        "removed_count": removed,
-        "skipped_count": skipped,
-    }
-    return merged, counts
-
-
-def apply_plan_update(
-    project_root: str,
-    **updates: Any,
-) -> dict[str, Any]:
-    """读 → 合并 → 原子写，返回工具证据。缺计划文件时按空骨架起步（首次调用即建计划）。"""
-
-    existing = read_plan(project_root)
-    merged, counts = merge_plan_payload(existing, **updates)
-    plan_path = write_plan(project_root, merged)
-
-    plan = build_plan(project_root)
-    next_chapter = plan.next_chapter if plan is not None else None
-    return {
-        "plan_path": PLAN_RELATIVE_PATH,
-        "planned_total": plan.planned_total if plan is not None else 0,
-        "next_ordinal": next_chapter.ordinal if next_chapter is not None else None,
-        "next_goal": next_chapter.goal if next_chapter is not None else None,
-        "drifted_count": len(plan.drifted_chapters) if plan is not None else 0,
-        "written_path": plan_path,
-        **counts,
-    }
-
-
 def to_payload(plan: SerialPlan) -> dict[str, Any]:
     """交给桌面端的只读投影。作者看见的必须就是模型看见的那一份。"""
 
@@ -463,10 +357,8 @@ __all__ = [
     "STATUS_PENDING",
     "PlannedChapter",
     "SerialPlan",
-    "apply_plan_update",
     "build_plan",
     "build_plan_block",
-    "merge_plan_payload",
     "plan_exists",
     "read_plan",
     "render_plan_block",

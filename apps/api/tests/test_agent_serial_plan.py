@@ -14,7 +14,7 @@ import pytest
 from agent_loop_runtime_test_support import _enable_loop_env, _fake_llm_script, _send_chat_message
 from fastapi.testclient import TestClient
 
-from app.domains.agent_runs import serial_plan
+from app.domains.agent_runs import serial_plan, serial_plan_update
 from app.domains.agent_runs.fs_tools import FsToolError
 
 pytest_plugins = ("agent_loop_runtime_test_fixtures",)
@@ -164,7 +164,7 @@ def test_merge_keeps_untouched_fields_when_only_status_is_sent() -> None:
         "chapters": [{"ordinal": 2, "title": "回声", "goal": "发现规律", "status": "pending"}],
     }
 
-    merged, counts = serial_plan.merge_plan_payload(
+    merged, counts = serial_plan_update.merge_plan_payload(
         existing, chapters=[{"ordinal": 2, "status": "done"}]
     )
 
@@ -175,7 +175,7 @@ def test_merge_keeps_untouched_fields_when_only_status_is_sent() -> None:
 
 
 def test_merge_creates_sorts_and_removes() -> None:
-    merged, counts = serial_plan.merge_plan_payload(
+    merged, counts = serial_plan_update.merge_plan_payload(
         {"version": 1, "chapters": [{"ordinal": 5, "status": "pending"}]},
         chapters=[{"ordinal": 2, "title": "回声"}, {"ordinal": 1, "title": "错误闪光"}],
         remove_ordinals=[5],
@@ -189,7 +189,7 @@ def test_merge_creates_sorts_and_removes() -> None:
 
 
 def test_merge_rejects_unknown_status_and_bad_ordinal() -> None:
-    merged, counts = serial_plan.merge_plan_payload(
+    merged, counts = serial_plan_update.merge_plan_payload(
         {"version": 1, "chapters": []},
         chapters=[
             {"ordinal": 1, "status": "完成了"},
@@ -207,7 +207,7 @@ def test_merge_rejects_unknown_status_and_bad_ordinal() -> None:
 def test_merge_does_not_mutate_input() -> None:
     existing = {"version": 1, "chapters": [{"ordinal": 1, "status": "pending"}]}
 
-    serial_plan.merge_plan_payload(existing, chapters=[{"ordinal": 1, "status": "done"}])
+    serial_plan_update.merge_plan_payload(existing, chapters=[{"ordinal": 1, "status": "done"}])
 
     assert existing["chapters"] == [{"ordinal": 1, "status": "pending"}]
 
@@ -221,7 +221,7 @@ def test_apply_update_creates_plan_and_never_touches_manuscript(novel_project: P
     chapter_one = novel_project / "正文" / "第01章.md"
     before = chapter_one.read_bytes()
 
-    output = serial_plan.apply_plan_update(
+    output = serial_plan_update.apply_plan_update(
         str(novel_project),
         chapters=[{"ordinal": 1, "status": "done"}, {"ordinal": 2, "goal": "潮位对不上"}],
     )
@@ -238,11 +238,55 @@ def test_apply_update_creates_plan_and_never_touches_manuscript(novel_project: P
     assert [p.name for p in (novel_project / "正文").iterdir()] == ["第01章.md"]
 
 
+def test_apply_update_rejects_done_for_unwritten_chapter(novel_project: Path) -> None:
+    """真跑逮到的行为 bug：模型起草完补丁就把该章标 done，可补丁还没被作者接受、正文不存在。
+
+    必须整调用报错而非默默降级——降级会留下模型已经对作者说出口的那句「已标记完成」。
+    """
+
+    with pytest.raises(FsToolError) as excinfo:
+        serial_plan_update.apply_plan_update(
+            str(novel_project), chapters=[{"ordinal": 2, "status": "done"}]
+        )
+
+    assert "第 2 章" in str(excinfo.value)
+    assert "补丁" in str(excinfo.value)
+    # 报错即整调用不落盘：计划文件不能被建出来。
+    assert not (novel_project / ".storyforge" / "serial-plan.json").exists()
+
+
+def test_apply_update_allows_done_once_manuscript_exists(novel_project: Path) -> None:
+    """变异守卫：正文存在时 done 必须放行，否则上一条闸是「一律拒绝」而非「按正文判」。"""
+
+    output = serial_plan_update.apply_plan_update(
+        str(novel_project), chapters=[{"ordinal": 1, "status": "done"}]
+    )
+
+    assert output["updated_count"] + output["created_count"] == 1
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert plan.chapters[0].status == "done"
+    assert plan.drifted_chapters == []
+
+
+def test_reject_premature_done_only_flags_unwritten_done() -> None:
+    written = frozenset({1, 3})
+    chapters = [
+        {"ordinal": 1, "status": "done"},      # 正文在 → 放行
+        {"ordinal": 2, "status": "done"},      # 正文不在 → 拦
+        {"ordinal": 3, "status": "pending"},   # 不是 done → 不管
+        {"ordinal": 4, "status": "blocked"},   # 不是 done → 不管
+        {"ordinal": 5, "goal": "只改目标"},     # 没传 status → 不管
+    ]
+
+    assert serial_plan_update.reject_premature_done(chapters, written) == [2]
+
+
 def test_apply_update_is_idempotent(novel_project: Path) -> None:
-    serial_plan.apply_plan_update(str(novel_project), chapters=[{"ordinal": 2, "goal": "潮位"}])
+    serial_plan_update.apply_plan_update(str(novel_project), chapters=[{"ordinal": 2, "goal": "潮位"}])
     first = (novel_project / ".storyforge" / "serial-plan.json").read_bytes()
 
-    output = serial_plan.apply_plan_update(str(novel_project), chapters=[{"ordinal": 2, "goal": "潮位"}])
+    output = serial_plan_update.apply_plan_update(str(novel_project), chapters=[{"ordinal": 2, "goal": "潮位"}])
 
     assert (novel_project / ".storyforge" / "serial-plan.json").read_bytes() == first
     assert output["created_count"] == 0
