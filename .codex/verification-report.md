@@ -1170,3 +1170,83 @@ git diff --numstat == --ignore-all-space --numstat -> 逐文件相等
   但正文有空缺且相关章都没记过路径时仍会判错。彻底解法是给每章都记路径（要么作者手填、
   要么解析文件名），两者都与仓库现有「章序=路径序、别解析文件名」口径冲突，未做。
 - 单 provider 单模型、各环节各跑 1 次，非稳定性证据。
+
+---
+
+# 标点漂移闸：模型顺手美化的标点不再写进正文 / 不再污染越界警告（2026-08-01）
+
+起因是通读 opencode（`D:\opencode`，MIT）的 `apply_patch` 定位链，看到它在第四级
+comparator 里把智能引号 / em-dash / 省略号 / 不换行空格归一后再比对。原打算照抄它的
+「模糊匹配熔断 + 匹配前归一化」两条闸，**复核后发现原形不适用**，记在这里免得重开：
+
+- StoryForge 的补丁是整文件 `before`/`after`（`patches/types.py:15-16`），diff 走 LCS
+  （`patch-hunks.ts:233`），**没有「模型给 oldString 去文件里模糊定位」这一步**。
+- 逐 hunk 接受时的定位（`patch-hunks.ts:456-478`）只做精确子串 `indexOf` + prefix/suffix
+  context 打分消歧，多处命中直接抛错。匹配到的 span 长度恒等于 `beforeText.length`，
+  **物理上不存在「糊到更大一段」**，`isDisproportionateMatch` 那道熔断没有对应漏洞。
+- `beforeText` 切自 `before` 本身而非模型抄写，所以「模型美化标点导致找不到」也不成立。
+
+但根因确实在，只是换了张脸：三处 prompt（`revise_scope.py:22`、`inline-chat.ts:19`、
+`assistant/service.py:223`）都写了「不得调整标点」——**这是被咬过才会写的句子**——而全仓
+零确定性兜底。实测（golden `novel_baseline/book.md` 前 20000 字）：
+
+```
+[纯标点漂移·零真实改动] _revise_drift_ratio 判 737/758 行 = 97.2%   ← 触发 scope_warning
+[真·只改一行·标点不动]                        1/758 行 =  0.1%   ← 不触发
+```
+
+即：模型一个字没改、只把引号换成 ASCII，作者会收到「改动了约 97% 的原文，请逐块核对」，
+噪音把真正的越界重写淹掉；接受后全篇标点被改写进正文。
+
+## 落了两处（新增 `app/common/punctuation.py`，59 行纯函数）
+
+| 处 | 改动 | 管什么 |
+|---|---|---|
+| `assistant/service.py` after 落地那一行 | 过 `restore_incidental_punctuation(before, after)` | 顺手漂移不写进正文 |
+| `revise_scope.py::_revise_drift_ratio` | 比较前先 `canonical_punctuation` | 漂移不污染越界警告 |
+
+两条修订链（agent loop `file.revise` / Ctrl+K 的 `/api/assistant/revise`）在 LLM 层汇合于
+`assistant.service.revise_file_content`，故单点接线即全覆盖，且天然早于 `scope_warning`。
+
+设计要点：
+- 折叠**只收同一标点的不同 Unicode 形态**，刻意不收中英文标点互换（，↔, 。↔.）——那在
+  中文正文里是该被作者看见的质量问题。
+- 逐字符折叠不够：`……`/`——` 成对出现而模型常写成长度不同的 ASCII（`...` / `—` / `--`），
+  故折叠后再把连续重复的 `.` `-` 空格 归并成一个。
+- 对齐在**折叠后的行序列**上求 `SequenceMatcher` opcodes：`equal` 块取 before（还原），
+  其余取 after（真实改动连同其标点原样保留）。`autojunk=False`——中文正文空行极多。
+- 全文除标点外无改动时**不干预**（作者可能就是要统一引号形态）；此时 drift ratio 已折叠，
+  不会误报，作者在 diff 面板自行判断。
+- **粒度是行**：同一行既有真实改动又有漂移时整行取 after（漂移随改动一起可见）。闸保护的是
+  未点名的行——「改一段却全篇标点被换」正是问题主体。
+
+## 验证
+
+```
+cd apps/api && uv run pytest                -> 1384 passed, 3 skipped（零回归）
+cd apps/api && uv run ruff check .          -> All checks passed
+pnpm.cmd e2e                                -> 20/20（含 OpenAPI 零漂移）
+git diff --numstat == --ignore-all-space --numstat -> 逐文件相等（纯 LF，无行尾噪音）
+```
+
+变异验证五点（★ 是关键的接线变异）：
+
+| 变异 | 纯函数测试 | 接线测试 |
+|---|---|---|
+| M1 `equal` 块取 after 而非 before | 1 failed | 1 failed |
+| M2 drift ratio 不折叠 | 2 failed | 9 passed（不涉及） |
+| M3 折叠表清空 | 5 failed | 1 failed |
+| M4 去掉重复归并 | 6 failed | 1 failed |
+| **M5 拆掉 service.py 接线** ★ | **13 passed** | **1 failed** |
+
+M5 正是「只测纯函数两次假绿」那个坑：拆掉接线后 13 条纯函数测试**全绿**，只有
+`test_revise_reverts_incidental_punctuation_drift` 逮住。接线测试因此是必需的，别删。
+
+## 仍未联通
+
+- **真机没点过**：headless 用 monkeypatch 桩模拟模型输出，真机 Ctrl+K / file.revise 观感归 E2E-1。
+- **没有真 LLM 实跑**：漂移形态取自对模型行为的推断 + golden 语料构造，不是抓到的真实输出样本。
+  若真实漂移有表外形态（如中英标点互换、全角逗号），当前闸放行——这是刻意的保守边界。
+- **同一行内混合漂移不还原**：见上「粒度是行」，属设计选择。
+- opencode 那边真正值得抄的大件（System Context baseline 冻结 + mid-conversation delta、
+  影子 git 仓快照、拒绝带意图通道、skill 渐进披露）本刀都没做，另记。

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.common.punctuation import canonical_punctuation
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs._text import ordered_unique as _ordered_unique
 from app.domains.agent_runs._text import string_arg_list as _string_arg_list
@@ -128,10 +129,13 @@ def _public_revise_scope(scope: dict[str, Any]) -> dict[str, Any]:
 def _revise_drift_ratio(before: str, after: str) -> tuple[int, int, float]:
     """按行裁掉公共前后缀，返回（原文被改动行数, 原文总行数, 改动比例）。
 
-    与前端 diff 面板同口径，用于判断 narrow 修订是否越界改了大半原文。"""
+    用于判断 narrow 修订是否越界改了大半原文。比较前先折叠易漂移的标点形态：
+    模型顺手把中文引号换成直引号这类改动会让每一行都算「改动行」——实测一次零真实
+    改动的纯标点漂移能把比例顶到 97%，越界警告因此沦为噪音。折叠后此处衡量的是实质
+    改动比例，故不再与前端 diff 面板逐字同口径（后者要显示真实差异）。"""
 
-    before_lines = before.split("\n")
-    after_lines = after.split("\n")
+    before_lines = canonical_punctuation(before).split("\n")
+    after_lines = canonical_punctuation(after).split("\n")
     prefix = 0
     while prefix < len(before_lines) and prefix < len(after_lines) and before_lines[prefix] == after_lines[prefix]:
         prefix += 1

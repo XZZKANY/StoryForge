@@ -44,6 +44,7 @@ from app.common.llm_client import (
 )
 from app.common.llm_env import resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
+from app.common.punctuation import restore_incidental_punctuation
 from app.common.redaction import redact_sensitive, redact_sensitive_text
 from app.domains.assistant import continuation
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
@@ -732,7 +733,7 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         )
         raise AssistantReviseError(str(exc)) from exc
 
-    after = str(result["content"])
+    after = restore_incidental_punctuation(payload.content, str(result["content"]))
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
     completion_tokens = result.get("completion_tokens")
     latency_ms = int(result.get("latency_ms", 0) or 0)
