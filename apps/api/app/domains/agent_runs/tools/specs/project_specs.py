@@ -1,316 +1,14 @@
+"""静态质量闸 + 连载计划；一致性与 canon 两组见同目录兄弟文件，拼接顺序即目录顺序。"""
+
 from __future__ import annotations
 
 from app.domains.agent_runs.tools.spec_models import AgentRuntimeToolSpec, LoopToolSchema, ToolCatalogReferences
+from app.domains.agent_runs.tools.specs.project_canon_specs import PROJECT_CANON_TOOL_SPECS
+from app.domains.agent_runs.tools.specs.project_consistency_specs import (
+    PROJECT_CONSISTENCY_TOOL_SPECS,
+)
 
-PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
-    AgentRuntimeToolSpec(
-        name="project.consistency",
-        description="项目级一致性观察扫描：词条出现分布、时间标记、跨文件重复子句（path-scoped 只读，不下结论）。",
-        domain="project",
-        input_schema={},
-        output_schema={},
-        allowed_roles=("root_agent", "context_explorer"),
-        risk_level="read",
-        retry_safe=True,
-        idempotent=True,
-        execution_mode="sync",
-        evidence_fields=("scanned_files", "term_count", "time_marker_count", "repeated_clause_count"),
-        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_consistency",)),
-        loop_schema=LoopToolSchema(
-            description=(
-                "项目级一致性观察扫描：给定人物名 / 称谓 / 设定词条，返回各文件出现分布（含从未出现的缺席词条）、"
-                "全书时间标记罗列和跨文件重复子句。只报机械观察不下结论，用于称谓 / 时间线 / 重复表达检查。"
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "terms": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "要追踪的人物名 / 称谓 / 设定词条，最多 30 个；可先读设定文件再决定。",
-                    },
-                    "subpath": {"type": "string", "description": "限定扫描的子目录，相对项目根。"},
-                    "glob": {"type": "string", "description": "文件名过滤，默认 *.md。"},
-                },
-            },
-        ),
-    ),
-    AgentRuntimeToolSpec(
-        name="project.deep_consistency",
-        description="深度一致性评审：语义 judge 对照本地人物 / 设定文件检查单个稿件，产出 advisory issue 信号（不写盘、不落 DB）。",
-        domain="project",
-        input_schema={},
-        output_schema={},
-        allowed_roles=("root_agent",),
-        risk_level="analyze",
-        # 虽是纯读无副作用，但每次调用真实烧 LLM token 且输出非严格确定：
-        # 有意禁自动重试——瞬时失败作为工具错误反馈进循环，由模型/作者决定是否再试。
-        retry_safe=False,
-        idempotent=False,
-        execution_mode="sync",
-        required_capabilities=("llm",),
-        evidence_fields=("path", "issue_count", "bible_file_count"),
-        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_deep_consistency",)),
-        loop_schema=LoopToolSchema(
-            description=(
-                "深度一致性评审（语义）：把单个稿件对照项目内人物 / 设定文件交给语义评审模型，"
-                "返回结构化 issue（类别 / 严重度 / 行号 / 摘要）。比 project_consistency 更贵更慢，"
-                "适合先用机械观察或检索定位疑点、再对目标章节深查；结果是参考信号，须抽读原文核实。"
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "相对项目根的稿件路径（要评审的正文）。"},
-                    "bible_paths": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "作为约束的人物 / 设定文件路径；省略则自动取 人物/ 与 设定/ 下的 md 文件。",
-                    },
-                    "facts": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "已核实的必含事实（如「左臂受伤」「地点：灯塔港」），正文与之矛盾会被标出；最多 40 条。",
-                    },
-                },
-                "required": ["path"],
-            },
-        ),
-    ),
-    AgentRuntimeToolSpec(
-        name="project.cross_chapter_check",
-        description=(
-            "跨章一致性审校：把若干完整章节一起交给语义模型，找章与章之间的硬冲突"
-            "（时间线、称谓漂移、设定不一、已退场角色再出场、伏笔未回收）；不写盘、不落 DB。"
-        ),
-        domain="project",
-        input_schema={},
-        output_schema={},
-        allowed_roles=("root_agent",),
-        risk_level="analyze",
-        # 与 deep_consistency 同款：真实烧 token 且输出非确定，禁自动重试，
-        # 瞬时失败作为工具错误反馈进循环，由模型 / 作者决定是否再试。
-        retry_safe=False,
-        idempotent=False,
-        execution_mode="sync",
-        required_capabilities=("llm",),
-        evidence_fields=("chapter_count", "finding_count", "model"),
-        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_cross_chapter_check",)),
-        loop_schema=LoopToolSchema(
-            description=(
-                "跨章一致性审校（语义，烧 token）：一次给 2-6 个章节路径，模型同时读这几章的完整正文，"
-                "只找它们**之间**的硬冲突——时间线矛盾、人物称谓漂移、设定或世界规则前后不一致、"
-                "已退场角色再次出场、前文埋的伏笔后文未回收。这是 project_deep_consistency 结构上抓不到"
-                "的那一类（那把只看单章）。章会按阅读序自动排好，不必自己排；每章按预算截断，"
-                "truncated=true 表示模型没读全那一章。finding 是参考信号，回给作者前按 path 抽读核实。"
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "paths": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "要比对的章节路径（相对项目根），2-6 个。",
-                    },
-                    "focus": {
-                        "type": "string",
-                        "description": "可选：作者特别关注的点，如「玄铁令到底在谁手上」。",
-                    },
-                },
-                "required": ["paths"],
-            },
-        ),
-    ),
-    AgentRuntimeToolSpec(
-        name="project.canon",
-        description=(
-            "项目 canon 闸：从正文重建实体在场缓存 + 校验作者在 .storyforge/canon/canon.json "
-            "声明的薄不变量（唯一持有 / 时间线先后 / 退场一致性），产出硬矛盾与 advisory 信号。"
-            "会更新 .storyforge/canon/ 派生缓存（非手稿正文），不落 DB。"
-        ),
-        domain="project",
-        input_schema={},
-        output_schema={},
-        allowed_roles=("root_agent", "context_explorer"),
-        risk_level="read",
-        retry_safe=True,
-        idempotent=True,
-        execution_mode="sync",
-        evidence_fields=("entity_count", "checked_invariants", "conflict_count", "advisory_count"),
-        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_canon",)),
-        loop_schema=LoopToolSchema(
-            description=(
-                "项目 canon 闸（确定性，无需 LLM）：从正文重建实体在场分布缓存，再校验作者声明的薄不变量——"
-                "唯一持有（同一物件章节窗口内只能一个持有者）、时间线先后（声明不能成环）、"
-                "退场一致性（声明退场后不应再出场）。返回硬矛盾（blocking，声明内部结构冲突）与 advisory "
-                "（退场后仍出场，可能是回忆 / 提及 / 同名，须抽读核实）。它随书累积、比无状态深查更能抓跨章累积漂移。"
-                "同时把每实体事实（身份 / 别名 / 出场跨度 / 绑定声明 / provenance）投影成人可读 dossier.md 缓存。"
-                "调用会更新 .storyforge/canon/ 下的派生缓存（不改手稿）。作者尚未在 canon.json 声明不变量时，"
-                "会建立空格式骨架并如实说明无可校验项。"
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "refresh": {
-                        "type": "boolean",
-                        "description": "是否强制从正文重建在场缓存，默认 true。",
-                    },
-                    "glob": {"type": "string", "description": "正文文件名过滤，默认 *.md。"},
-                },
-            },
-        ),
-    ),
-    AgentRuntimeToolSpec(
-        name="project.canon_delta",
-        description=(
-            "确定性 canon 提案：把模型从正文观察到的实体、持有、退场、时间线与伏笔声明与既有 canon "
-            "做归并、别名冲突与不变量差量检查，草稿只写派生 proposals.json；不写 canon.json 或手稿。"
-        ),
-        domain="project",
-        input_schema={},
-        output_schema={},
-        allowed_roles=("root_agent", "context_explorer"),
-        risk_level="read",
-        retry_safe=True,
-        idempotent=True,
-        execution_mode="sync",
-        evidence_fields=(
-            "new_entity_count",
-            "known_entity_count",
-            "alias_conflict_count",
-            "new_conflict_count",
-            "new_advisory_count",
-        ),
-        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_canon_delta",)),
-        loop_schema=LoopToolSchema(
-            description=(
-                "canon 事实差量提案（确定性，无额外 LLM）：读完章节后，把观察到的实体、唯一持有、退场、"
-                "时间线先后与新埋的伏笔作为结构化参数传入。伏笔走 promise_claims——它是**唯一**能把新"
-                "伏笔写进账本的通道，project_promise_check 只读不写。"
-                "字段未传表示该类不提议；全空会诚实返回无提议。工具会归并"
-                "既有实体、提示同名 / 别名身份冲突，并只报告提案新增的 canon 闸问题。合并草稿写入派生缓存 "
-                "proposals.json（上一轮作者还没并入的提案会一并留着，不会被本轮覆盖），"
-                "绝不修改 canon.json 或正文；作者审阅后再决定是否走待确认补丁。"
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "entities": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "aliases": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                },
-                            },
-                            "required": ["name"],
-                        },
-                        "description": "本章观察到的实体；name 为主表面形，aliases 为可选别名。",
-                    },
-                    "holder_claims": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "item": {"type": "string"},
-                                "holder": {"type": "string"},
-                                "from_chapter": {"type": "integer"},
-                                "to_chapter": {"type": "integer"},
-                            },
-                            "required": ["item", "holder"],
-                        },
-                        "description": "本章观察到的唯一持有声明。",
-                    },
-                    "exit_claims": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "entity": {"type": "string"},
-                                "exits_after_chapter": {"type": "integer"},
-                                "reason": {"type": "string"},
-                            },
-                            "required": ["entity", "exits_after_chapter"],
-                        },
-                        "description": "本章观察到的实体退场声明。",
-                    },
-                    "timeline_claims": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "before": {"type": "string"},
-                                "after": {"type": "string"},
-                            },
-                            "required": ["before", "after"],
-                        },
-                        "description": "本章观察到的时间线先后声明。",
-                    },
-                    "promise_claims": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "title": {"type": "string"},
-                                "planted_chapter": {"type": "integer"},
-                                "due_chapter": {"type": ["integer", "null"]},
-                                "status": {
-                                    "type": "string",
-                                    "enum": ["planted", "advancing", "resolved"],
-                                },
-                                "kind": {"type": "string"},
-                                "resolved_chapter": {"type": "integer"},
-                                "cadence_chapters": {"type": "integer"},
-                            },
-                            "required": ["title", "planted_chapter"],
-                        },
-                        "description": (
-                            "本章观察到的叙事承诺（伏笔 / 倒计时 / 誓约 / 悬念 / 禁忌）。"
-                            "due_chapter 传 null 表示开放窗口、不设到期；不确定第几章兑现就传 null，"
-                            "不要瞎猜一个章号——那会让 promise_check 报假逾期。"
-                            "id 会按标题确定性派生，重复观察同一条不会攒出多份。"
-                        ),
-                    },
-                },
-            },
-        ),
-    ),
-    AgentRuntimeToolSpec(
-        name="project.promise_check",
-        description=(
-            "伏笔承诺记账：只读 canon.json 的作者 promises 声明，确定性检查声明矛盾、超窗未兑现、"
-            "长期停滞与 recurring 断供；无 LLM、不写 canon、缓存或手稿。"
-        ),
-        domain="project",
-        input_schema={},
-        output_schema={},
-        allowed_roles=("root_agent", "context_explorer"),
-        risk_level="read",
-        retry_safe=True,
-        idempotent=True,
-        execution_mode="sync",
-        evidence_fields=("current_chapter", "promise_count", "conflict_count", "advisory_count"),
-        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_promise_check",)),
-        loop_schema=LoopToolSchema(
-            description=(
-                "伏笔承诺记账（确定性，无需 LLM、纯只读）：读取 .storyforge/canon/canon.json 中作者声明的 "
-                "invariants.promises，检查 resolved / 埋设 / 截止章的结构矛盾、重复 id，以及超窗未兑现、"
-                "开放窗口长期停滞和 recurring cadence 断供。只返回 blocking 与 advisory 证据，绝不修改 "
-                "canon.json、派生缓存或手稿；advisory 仍需结合原文核实。"
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "stale_after_chapters": {
-                        "type": "integer",
-                        "description": "开放窗口 planted 承诺的停滞章数阈值，默认 30。",
-                    },
-                },
-            },
-        ),
-    ),
+_QUALITY_AND_PLAN_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
     AgentRuntimeToolSpec(
         name="project.prose_check",
         description=(
@@ -489,4 +187,91 @@ PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
             },
         ),
     ),
+    AgentRuntimeToolSpec(
+        name="project.plan_update",
+        description=(
+            "连载计划推进：按章序 upsert 章节计划（标题 / 目标 / 状态 / 备注）与全书主线、字数区间、"
+            "弧线，原子写 .storyforge/serial-plan.json。绝不碰手稿正文，不落 DB。"
+        ),
+        domain="project",
+        input_schema={},
+        output_schema={},
+        allowed_roles=("root_agent",),
+        # 只写 .storyforge/ 计划文件、不碰正文，故与 project.canon（写派生缓存）同档不需确认——
+        # 每推进一章都要作者点一次确认，会把「一轮一章」的流打断成两步。
+        risk_level="read",
+        retry_safe=True,
+        idempotent=True,
+        execution_mode="sync",
+        evidence_fields=("planned_total", "next_ordinal", "created_count", "updated_count"),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.project_plan_update",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "连载计划推进（确定性，无需 LLM）：维护 .storyforge/serial-plan.json——每轮对话开头你看到的"
+                "「连载计划」块就是它的投影。按 ordinal upsert：已存在的章**逐字段合并**，只传 status 不会"
+                "清掉作者写的 title / goal。典型用法有两种：①刚写完一章 → 传 {ordinal, status:'done'} 把它"
+                "标掉，下一章才会正确前移；②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。"
+                "写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。"
+                "**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认补丁。"
+                "注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，"
+                "以正文为准把状态改对，不要照计划重写已有正文。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "chapters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "ordinal": {"type": "integer", "description": "章序，正整数，作为合并主键。"},
+                                "title": {"type": "string", "description": "章节标题。"},
+                                "goal": {
+                                    "type": "string",
+                                    "description": "一句话本章目标（这一章要把故事推到哪儿）。",
+                                },
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["pending", "done", "blocked"],
+                                    "description": "待写 / 已完成 / 卡住；未传保留原状态。",
+                                },
+                                "note": {"type": "string", "description": "备注，如卡住的原因。"},
+                            },
+                            "required": ["ordinal"],
+                        },
+                        "description": "要新增或更新的章节；未传的字段保留原值。",
+                    },
+                    "premise": {"type": "string", "description": "全书主线一句话，写进计划头。"},
+                    "chapter_word_count_min": {"type": "integer", "description": "每章目标字数下限。"},
+                    "chapter_word_count_max": {"type": "integer", "description": "每章目标字数上限。"},
+                    "arcs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "arc_id": {"type": "string"},
+                                "title": {"type": "string"},
+                                "target_chapters": {"type": "array", "items": {"type": "integer"}},
+                                "payoff_chapter": {"type": "integer"},
+                            },
+                            "required": ["title"],
+                        },
+                        "description": "弧线清单（推进章 + 兑现章）；传入即整体替换，不合并。",
+                    },
+                    "remove_ordinals": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "description": "要从计划里删除的章序（作者砍掉的计划章）。",
+                    },
+                },
+            },
+        ),
+    ),
+)
+
+# 顺序即 catalog 顺序即 golden fixture 顺序——重排会让 golden 整体漂移。
+PROJECT_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
+    *PROJECT_CONSISTENCY_TOOL_SPECS,
+    *PROJECT_CANON_TOOL_SPECS,
+    *_QUALITY_AND_PLAN_TOOL_SPECS,
 )

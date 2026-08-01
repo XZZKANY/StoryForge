@@ -48,6 +48,7 @@ from app.domains.agent_runs.loop.support import (
     tool_output_summary as _tool_output_summary,
 )
 from app.domains.agent_runs.loop.types import ChatLoopOutcome, LoopRoundResult, LoopToolCall, LoopToolFeedback
+from app.domains.agent_runs.serial_plan import build_plan_block
 from app.domains.agent_runs.tools import (
     ToolResult,
     build_loop_tool_name_map,
@@ -165,6 +166,7 @@ def run_chat_loop(
     history = _history_messages(session, assistant_session_id)
     current_file_hint = f"当前打开文件：{current_file}" if current_file else "当前没有打开文件"
     book_block = build_book_context_block(project_path, current_file)
+    plan_block = build_plan_block(project_path)
     scene_block = build_scene_constraint_block(project_path, current_file)
     author_instructions = _read_author_instructions(project_path)
     view_block = build_author_view_block(author_view) if author_view is not None else None
@@ -178,6 +180,9 @@ def run_chat_loop(
         ),
         *history,
         *([{"role": "system", "content": book_block}] if book_block else []),
+        # 计划块紧跟作品底座：底座说「写到第几章」，计划说「下一章写什么」，两句合起来
+        # 才是坐标。放在 scene_block 之前——本章硬约束是对目标的细化，不是替代。
+        *([{"role": "system", "content": plan_block}] if plan_block else []),
         *([{"role": "system", "content": scene_block}] if scene_block else []),
         *([{"role": "system", "content": pinned_block}] if pinned_block else []),
         *([{"role": "system", "content": view_block}] if view_block else []),

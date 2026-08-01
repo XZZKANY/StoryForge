@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.agent_runs import fs_tools
+from app.domains.agent_runs import fs_tools, serial_plan
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
@@ -52,6 +52,7 @@ class ProjectChecksRuntimeMixin:
             "project.promise_check": self._project_promise_check,
             "project.cross_chapter_check": self._project_cross_chapter_check,
             "project.deep_consistency": self._project_deep_consistency,
+            "project.plan_update": self._project_plan_update,
         }
 
     def _project_consistency(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
@@ -234,6 +235,50 @@ class ProjectChecksRuntimeMixin:
                     "promise_count": output["promise_count"],
                     "conflict_count": output["conflict_count"],
                     "advisory_count": output["advisory_count"],
+                },
+            ),
+        )
+
+    def _project_plan_update(self, _context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        project_root = _required_string(payload, "project_root")
+        chapters_raw = payload.get("chapters")
+        if chapters_raw is not None and not isinstance(chapters_raw, list):
+            raise fs_tools.FsToolError("chapters 必须是数组。")
+        arcs_raw = payload.get("arcs")
+        if arcs_raw is not None and not isinstance(arcs_raw, list):
+            raise fs_tools.FsToolError("arcs 必须是数组。")
+        remove_raw = payload.get("remove_ordinals")
+        if remove_raw is not None and not isinstance(remove_raw, list):
+            raise fs_tools.FsToolError("remove_ordinals 必须是数组。")
+        if not chapters_raw and not remove_raw and arcs_raw is None and not any(
+            key in payload for key in ("premise", "chapter_word_count_min", "chapter_word_count_max")
+        ):
+            raise fs_tools.FsToolError("没有任何要更新的内容：至少传 chapters、arcs、remove_ordinals 或计划头字段之一。")
+
+        output = serial_plan.apply_plan_update(
+            project_root,
+            chapters=[item for item in (chapters_raw or []) if isinstance(item, dict)],
+            premise=_optional_string(payload.get("premise")),
+            chapter_word_count_min=payload.get("chapter_word_count_min"),
+            chapter_word_count_max=payload.get("chapter_word_count_max"),
+            arcs=[item for item in arcs_raw if isinstance(item, dict)] if arcs_raw is not None else None,
+            remove_ordinals=[item for item in (remove_raw or []) if isinstance(item, int)],
+        )
+        return ToolResult(
+            status="completed",
+            output=output,
+            trace=AgentToolTrace(
+                tool_name="project.plan_update",
+                status="completed",
+                input_summary={
+                    "chapter_count": len(chapters_raw or []),
+                    "remove_count": len(remove_raw or []),
+                },
+                output_summary={
+                    "planned_total": output["planned_total"],
+                    "next_ordinal": output["next_ordinal"],
+                    "created_count": output["created_count"],
+                    "updated_count": output["updated_count"],
                 },
             ),
         )

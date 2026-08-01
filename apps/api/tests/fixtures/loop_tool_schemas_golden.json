@@ -485,6 +485,101 @@
   {
     "type": "function",
     "function": {
+      "name": "project_plan_update",
+      "description": "连载计划推进（确定性，无需 LLM）：维护 .storyforge/serial-plan.json——每轮对话开头你看到的「连载计划」块就是它的投影。按 ordinal upsert：已存在的章**逐字段合并**，只传 status 不会清掉作者写的 title / goal。典型用法有两种：①刚写完一章 → 传 {ordinal, status:'done'} 把它标掉，下一章才会正确前移；②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认补丁。注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，以正文为准把状态改对，不要照计划重写已有正文。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "chapters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ordinal": {
+                  "type": "integer",
+                  "description": "章序，正整数，作为合并主键。"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "章节标题。"
+                },
+                "goal": {
+                  "type": "string",
+                  "description": "一句话本章目标（这一章要把故事推到哪儿）。"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "done",
+                    "blocked"
+                  ],
+                  "description": "待写 / 已完成 / 卡住；未传保留原状态。"
+                },
+                "note": {
+                  "type": "string",
+                  "description": "备注，如卡住的原因。"
+                }
+              },
+              "required": [
+                "ordinal"
+              ]
+            },
+            "description": "要新增或更新的章节；未传的字段保留原值。"
+          },
+          "premise": {
+            "type": "string",
+            "description": "全书主线一句话，写进计划头。"
+          },
+          "chapter_word_count_min": {
+            "type": "integer",
+            "description": "每章目标字数下限。"
+          },
+          "chapter_word_count_max": {
+            "type": "integer",
+            "description": "每章目标字数上限。"
+          },
+          "arcs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "arc_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "target_chapters": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "payoff_chapter": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "title"
+              ]
+            },
+            "description": "弧线清单（推进章 + 兑现章）；传入即整体替换，不合并。"
+          },
+          "remove_ordinals": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "要从计划里删除的章序（作者砍掉的计划章）。"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "project_trim_prose",
       "description": "按目标压缩率压缩项目内单个稿件，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。保留所有剧情信息、情感高潮、关键动作和对话。调用前建议先 fs_read 确认内容。每条调用生成待确认补丁，一次对话最多一个补丁。",
       "parameters": {

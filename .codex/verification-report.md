@@ -894,3 +894,71 @@ uv run ruff check app/common/llm_client.py scripts/prompt_lab/ tests/ -> All che
 - 盲评版 `blind.md` 已生成（零变体名泄露）但**作者尚未读**——上述判读是我的读法，不是终裁。
 - 真机未验：截断闸与重置重试都是 API 层传输改动，装机版行为归 E2E-1。
 - 只在一个 Cloudflare 前置中转站上实证；其他网关的收尾标记行为未测。
+
+---
+
+# 连载计划：把编排权从 BookRun 移进 agent（2026-08-01）
+
+## 背景与取舍
+
+作者提「bookrun 融到 agent 里更好吧，让 agent 来编排」。查证后**同意方向、否掉做法**：
+
+- 支持编排权归 agent 的真实理由：BookRun 的编排从没通过质量验收（30 章人工退回重跑至今未重跑），
+  而 agent 侧那套闸（`prose_check` / `collapse_check` / `entity_budget_check` / `promise_check` / `canon`）
+  是后来才建的，BookRun 一条吃不到。留 BookRun 当编排器 = 留一个失败过的编排器 + 一套旧闸。
+- 但**整体「融」会把三堵墙一起搬进来**（`loop_runtime.py`）：`LOOP_MAX_ROUNDS = 8`、
+  `LOOP_TOOL_OUTPUT_BUDGET_CHARS = 60_000`、「一补丁即撤下全部补丁工具」（`_offered_schemas`，
+  硬执行不是 prompt 劝导）。BookRun 绕开它们靠自带的 DB run 实体 + checkpoint 状态机；
+  把壳搬进循环 = 拿 BookRun 换掉 agent 循环。
+
+采用形状（作者拍板）：**编排跨轮、不在轮内**。计划落项目文件而非 DB run，三堵墙不再是墙——
+它们本来就是「一轮一章」的尺寸。作者说「继续」即调度器。
+
+## 本刀做了什么
+
+- 新增 `app/domains/agent_runs/serial_plan.py`：`.storyforge/serial-plan.json` 的读 / 原子写 /
+  确定性投影（下一章派生、prompt 块渲染、桌面端 payload）。原子写复用 `canon_store`（新增公共
+  `atomic_write_json`），不各写各的 mkstemp+fsync+replace。
+- 计划块注入 chat 循环 system prompt（紧跟作品底座、在 scene 硬约束之前）。
+- 新增循环工具 `project.plan_update`：按 ordinal upsert 章节计划、推进状态、建计划骨架。
+- `project_specs.py` 572 行撑破 500 行标准闸 → 按语义拆三份（一致性 / canon / 质量+计划），
+  **拼接顺序即 catalog 顺序即 golden 顺序**，golden 因此逐字节只增不改。
+
+**真值源纪律（本刀最要紧的设计）**：手稿正文是真值源，计划里的 `status` 只是声明。正文已存在的章
+不当「下一章待写」，哪怕计划仍标 pending——否则作者忘了让 agent 标 done 时，agent 会重写已写完的章。
+两者不一致时如实报「计划与正文对不上」并要求以正文为准。
+
+**写回红线不变**：`plan_update` 只写 `.storyforge/serial-plan.json`，正文仍须走 `file.create` /
+`file.revise` 的待确认补丁。`risk_level="read"`（同 `project.canon` 写派生缓存那档）——
+每推进一章都要作者点确认会把「一轮一章」的流打断成两步。
+
+## 验证
+
+```text
+cd apps/api && uv run pytest -q            -> 1350 passed, 3 skipped（#258 基线 1333 + 本刀 17 条新测试）
+cd apps/api && uv run ruff check .         -> All checks passed
+node scripts/run-e2e.mjs                   -> 20/20 PASSED（含 OpenAPI 零漂移）
+git diff --numstat == --ignore-all-space --numstat  -> 逐文件相等，行尾噪音归零
+```
+
+变异验证（两条，均先红后绿，还原用带 `assert count==1` 的定点替换）：
+- `next_chapter` 改成按 `status` 挑而非按正文挑 → `test_written_chapter_is_never_the_next_chapter_even_when_plan_says_pending`
+  FAILED（返回第 1 章，written=True），其余 14 条不受影响 = 用例有针对性不是笼统断言
+- 摘掉 `project.plan_update` 的 handler 注册（spec 仍在）→ 两条 e2e 全红
+  （`execution_runtime._register_tools` 起服自检抛「工具缺少 handler」）
+
+行尾坑复现并已处理：`test_agent_loop_runtime_tools.py` 在 HEAD 是**纯 LF**，Python `write_text`
+把它整成 CRLF → 122 行的删除报成 790/790。按 HEAD 逐行还原未改动行的原始行尾后归零。
+判据是 HEAD 主流 EOL，不是「文件是否混合行尾」。
+
+## 仍未联通
+
+- **真机未验**：计划块渲染、`plan_update` 在装机版的实际观感、以及「作者说继续 → agent 写下一章 →
+  标 done → 下一章前移」这条完整流，都只在 headless 假 LLM 下验过。归 E2E-1。
+- **真 LLM 未跑**：模型会不会**主动**在写完一章后调 `plan_update`，只有 prompt 引导句作保证，
+  没有实测。若实跑发现它忘记调，正文真值源那条纪律是兜底（下一章仍会正确前移），但计划里的
+  status 会长期漂移、每轮 prompt 都带一段「计划与正文对不上」。
+- **未做且刻意不做**：自动连续推进（无 outer driver，作者说「继续」才走下一章）、前端计划面板
+  （`to_payload` 已备好投影但无消费方）、从 BookRun 打捞 10 维评稿 rubric（`book_runs/prompts/builder.py`，
+  仍未打捞）。
+- 计划文件与 canon `promises` 有概念重叠（弧线 vs 伏笔账），本刀未统一，两者各管各的。
