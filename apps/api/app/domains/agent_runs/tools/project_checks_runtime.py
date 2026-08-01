@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.agent_runs import fs_tools, serial_plan
+from app.domains.agent_runs import fs_tools, serial_plan_update
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.collapse_scan import collapse_scan
 from app.domains.agent_runs.consistency_scan import consistency_scan
@@ -255,7 +255,7 @@ class ProjectChecksRuntimeMixin:
         ):
             raise fs_tools.FsToolError("没有任何要更新的内容：至少传 chapters、arcs、remove_ordinals 或计划头字段之一。")
 
-        output = serial_plan.apply_plan_update(
+        output = serial_plan_update.apply_plan_update(
             project_root,
             chapters=[item for item in (chapters_raw or []) if isinstance(item, dict)],
             premise=_optional_string(payload.get("premise")),

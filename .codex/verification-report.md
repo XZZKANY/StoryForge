@@ -962,3 +962,69 @@ git diff --numstat == --ignore-all-space --numstat  -> 逐文件相等，行尾�
   （`to_payload` 已备好投影但无消费方）、从 BookRun 打捞 10 维评稿 rubric（`book_runs/prompts/builder.py`，
   仍未打捞）。
 - 计划文件与 canon `promises` 有概念重叠（弧线 vs 伏笔账），本刀未统一，两者各管各的。
+
+---
+
+# 连载计划真 LLM 实跑：逮到「补丁未确认就标 done」（2026-08-01）
+
+## 探针
+
+作者提供真 key（deepseek-v4-flash，`https://api.deepseek.com`）跑 headless。探针建临时项目
+（第 1 章正文 + 三章计划 + 人物设定），走 `stream_agent_message` 真 SSE 路径，只说「继续写下一章」。
+key 与探针脚本只落 session scratchpad，不入库；项目建在 tmp、跑完删除。
+
+## 三条验证通过
+
+1. **模型主动调 `plan_update`**，无需作者提醒（两个场景都调了）。
+2. **真值源纪律真的到达模型行为**（决定性）。场景 B 让第 2 章正文已存在、计划却仍标 pending：
+   模型读完第 02 章后**先** `plan_update` 把第 2 章修正为 done、**再**写第 3 章，没有照计划重写。
+   回话原文：「第 2 章《回声》计划状态已修正为 done（正文为准，不再照计划重写）」。
+   工具序列：`fs.list → fs.read×3 → project.plan_update{ordinal:2,status:done} → file.create(第03章)`。
+3. **计划的 goal 与 arc 被转述进产字指令**，印证「不动产字组装点、让模型转述」的设计判断。
+   实测 instruction 含：「本章目标：潮汐表被人改过，林岚找到被撕掉的一页；作为「灯塔真相」弧的推进点」。
+
+## 逮到的行为 bug 与修复
+
+**场景 A（第 2 章未写）**：模型起草完第 2 章的**待确认补丁**后，同一轮就把该章标 done——
+可补丁要作者点接受才落盘，此刻正文并不存在。跑完计划是 `第2章: done`、正文目录只有 `第01章.md`，
+且模型据此对作者说「连载计划已把第 2 章标 done」。
+
+真值源纪律兜住了后果（`next_chapter` 只看正文，下一章仍是第 2 章，作者拒绝补丁也不跳章），
+但计划在作者决定之前就开始说谎。**同一次实测里模型在场景 B 又说「确认后我把第 3 章标 done」——
+它知道规矩、只是记不牢，这种不一致不能只靠 prompt 多写一句兜。**
+
+修法（两层）：
+- **确定性闸**：`serial_plan_update.reject_premature_done` + `apply_plan_update` 前置校验，
+  正文不存在的章标 done 一律 `FsToolError`，整调用不落盘。**刻意报错而非默默降级**——
+  降级会留下模型已经对作者说出口的那句「已标记完成」。
+- prompt 与 ToolSpec 描述同步改口径：「作者接受补丁、正文真的落盘之后」才标 done。
+
+## 复跑验证（同一真 key）
+
+场景 A 重跑：工具序列 `fs.list → fs.read×3 → file.create`，**没再调 `plan_update`**，
+计划保持 `第2章: pending`。模型回话改口为「补丁确认落盘后，我再把计划里第 2 章标成 done」。
+
+**诚实区分：这次是 prompt 引导句改变了行为，硬闸并未被触发**（模型压根没尝试）。
+闸的报错路径只有单测覆盖，没在真模型上打中过。
+
+## 验证
+
+```text
+cd apps/api && uv run pytest -q     -> 1353 passed, 3 skipped（+3 条闸测试）
+cd apps/api && uv run ruff check .  -> All checks passed
+node scripts/run-e2e.mjs            -> 20/20 PASSED（含 OpenAPI 零漂移）
+真跑：deepseek-v4-flash 三轮（场景 A 修前 / 场景 B / 场景 A 修后），均拿到 agent_result
+git diff --numstat == --ignore-all-space --numstat  -> 逐文件相等
+```
+
+`serial_plan.py` 加闸后 512 行撑破 500 行标准闸 → 按**读侧（载体+投影+渲染，对齐 `book_context`
+的「一份投影两种渲染」）/ 写侧（合并与推进闸）**拆成 `serial_plan.py` 367 行 +
+`serial_plan_update.py` 176 行；`clean_text` / `positive_int` / `written_ordinals` 随之转公共名。
+
+## 仍未联通
+
+- **闸的真模型触发未验**：修完模型就不再尝试premature done，所以 `FsToolError` 那条路径没被真模型打中。
+- **单 provider 单模型 n=3**：只在 deepseek-v4-flash 上跑过，且每场景各一次，非稳定性证据。
+- **真机未验**：装机版观感、以及「接受补丁 → 下一轮说继续 → 标 done → 前移」的完整闭环，
+  仍只有 headless 证据。归 E2E-1。
+- 作者接受补丁后**由谁**触发标 done 仍未定：现在靠作者下一轮开口，无自动回调。

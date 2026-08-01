@@ -209,8 +209,10 @@ _QUALITY_AND_PLAN_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
             description=(
                 "连载计划推进（确定性，无需 LLM）：维护 .storyforge/serial-plan.json——每轮对话开头你看到的"
                 "「连载计划」块就是它的投影。按 ordinal upsert：已存在的章**逐字段合并**，只传 status 不会"
-                "清掉作者写的 title / goal。典型用法有两种：①刚写完一章 → 传 {ordinal, status:'done'} 把它"
-                "标掉，下一章才会正确前移；②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。"
+                "清掉作者写的 title / goal。典型用法有两种：①某章正文确已落盘 → 传 {ordinal, status:'done'} "
+                "把它标掉，下一章才会正确前移；②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。"
+                "**正文不存在的章标 done 会被拒绝**：起草出待确认补丁不等于写完，补丁要作者点接受才落盘，"
+                "此时标 done 等于让计划替作者做决定。等接受之后再标。"
                 "写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。"
                 "**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认补丁。"
                 "注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，"
