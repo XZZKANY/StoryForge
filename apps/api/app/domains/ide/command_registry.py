@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.common.exceptions import InputError, NotFoundError
 from app.common.redaction import redact_sensitive
-from app.domains.agent_runs import book_context
+from app.domains.agent_runs import book_context, serial_plan_update
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.observatory import run_observatory_scan
@@ -64,6 +64,10 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="observatory.scan", title="重扫世界线观测镜", category="Canon", writes=False),
         # book.context 是纯只读投影：连派生缓存都不写，只 stat + 读 canon.json / presence 缓存。
         IdeCommandDefinition(id="book.context", title="读取作品底座", category="Manuscript", writes=False),
+        # plan.mark_written 只写 .storyforge/serial-plan.json（非手稿、非 DB），故 writes=False。
+        IdeCommandDefinition(
+            id="plan.mark_written", title="标记章节已写入连载计划", category="Manuscript", writes=False
+        ),
     ]
 }
 
@@ -102,6 +106,8 @@ def execute_ide_command_by_id(
         result = _execute_observatory_scan_command(command, normalized_args, None)
     elif command.id == "book.context":
         result = _execute_book_context_command(command, normalized_args, None)
+    elif command.id == "plan.mark_written":
+        result = _execute_plan_mark_written_command(command, normalized_args, None)
     else:
         result = _accepted_command_result(command, normalized_args, None)
 
@@ -343,6 +349,27 @@ def _execute_book_context_command(
     return _accepted_command_result(
         command, args, audit_event_id, {"book_context": book_context.to_payload(context)}
     )
+
+
+def _execute_plan_mark_written_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+) -> IdeCommandResult:
+    """作者接受补丁、正文落盘后把对应章在连载计划里标 done（确定性，无 LLM，不碰手稿）。
+
+    参数缺失才报错；「没改」不是错误——非正文、章不在计划、计划不存在都是正常结果，
+    如实带 reason 返回。桌面端据此决定要不要提示，而不是把一次无害的 no-op 弹成失败。
+    """
+
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("plan.mark_written 需要 project_root。")
+    file_path = args.get("file_path")
+    if not isinstance(file_path, str) or not file_path.strip():
+        raise IdeCommandExecutionError("plan.mark_written 需要 file_path。")
+    outcome = serial_plan_update.mark_chapter_written(project_root.strip(), file_path.strip())
+    return _accepted_command_result(command, args, audit_event_id, {"plan": outcome})
 
 
 def _required_book_run_id(args: dict[str, object]) -> int:

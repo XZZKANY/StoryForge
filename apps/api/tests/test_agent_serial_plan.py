@@ -306,6 +306,134 @@ def test_corrupt_plan_raises_rather_than_silently_resetting(novel_project: Path)
     assert serial_plan.build_plan(str(novel_project)) is None
 
 
+# --- 接受补丁后回调标 done -------------------------------------------------
+
+
+def test_mark_written_marks_the_accepted_chapter_done(novel_project: Path) -> None:
+    """正文已落盘 + 该章在计划里 → 标 done 并把下一章前移。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"), (2, "pending"))})
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome["updated"] is True
+    assert outcome["ordinal"] == 1
+    assert outcome["next_ordinal"] == 2
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert plan.chapters[0].status == "done"
+    assert plan.drifted_chapters == []
+
+
+def test_mark_written_accepts_absolute_path(novel_project: Path) -> None:
+    """桌面端补丁里的 file_path 是绝对路径，必须能归一。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+    absolute = str((novel_project / "正文" / "第01章.md").resolve())
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), absolute)
+
+    assert outcome["updated"] is True
+    assert outcome["path"] == "正文/第01章.md"
+
+
+def test_mark_written_does_not_create_a_plan(novel_project: Path) -> None:
+    """没在用连载计划的项目，不能因为接受了一个补丁就被塞一份计划。"""
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome == {"updated": False, "reason": "no_plan", "ordinal": 1}
+    assert not (novel_project / ".storyforge" / "serial-plan.json").exists()
+
+
+def test_mark_written_does_not_append_unplanned_chapter(novel_project: Path) -> None:
+    """写了计划外的一章是作者要知道的事，悄悄补进计划等于把它抹平。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((5, "pending"))})
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome["updated"] is False
+    assert outcome["reason"] == "chapter_not_in_plan"
+    plan_raw = json.loads((novel_project / ".storyforge" / "serial-plan.json").read_text(encoding="utf-8"))
+    assert [c["ordinal"] for c in plan_raw["chapters"]] == [5]
+
+
+def test_mark_written_ignores_non_manuscript_file(novel_project: Path) -> None:
+    """接受的是设定 / 人物这类补丁时，不是「写完一章」。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), "设定/人物.md")
+
+    assert outcome["updated"] is False
+    assert outcome["reason"] == "not_a_manuscript_chapter"
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert plan.chapters[0].status == "pending"
+
+
+def test_mark_written_refuses_when_manuscript_missing(novel_project: Path) -> None:
+    """写盘失败或路径对不上时宁可什么都不做——同 reject_premature_done 的真值源纪律。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((2, "pending"))})
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), "正文/第02章.md")
+
+    assert outcome["updated"] is False
+    assert outcome["reason"] == "not_a_manuscript_chapter"
+
+
+def test_mark_written_is_idempotent(novel_project: Path) -> None:
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+    before = (novel_project / ".storyforge" / "serial-plan.json").read_bytes()
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome == {"updated": False, "reason": "already_done", "ordinal": 1}
+    assert (novel_project / ".storyforge" / "serial-plan.json").read_bytes() == before
+
+
+def test_mark_written_rejects_path_outside_project(novel_project: Path) -> None:
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+    # novel_project 就是 tmp_path 本身，真正的「项目外」得往上一层放。
+    outsider = novel_project.parent / "别处.md"
+    outsider.write_text("x", encoding="utf-8")
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), str(outsider))
+
+    assert outcome == {"updated": False, "reason": "path_outside_project"}
+
+
+def test_mark_written_accepts_forward_slash_absolute_path(novel_project: Path) -> None:
+    """桌面端在 Windows 上给的是 `D:/连载/…` 这种正斜杠绝对路径，别只按反斜杠算。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+    forward = str((novel_project / "正文" / "第01章.md").resolve()).replace("\\", "/")
+
+    outcome = serial_plan_update.mark_chapter_written(str(novel_project), forward)
+
+    assert outcome["updated"] is True
+    assert outcome["path"] == "正文/第01章.md"
+
+
+def test_mark_written_command_is_reachable(novel_project: Path) -> None:
+    """走 IDE 命令注册表这一路（桌面端实际调的入口），不只是直调函数。"""
+
+    from app.domains.ide.command_registry import execute_ide_command_by_id
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"), (2, "pending"))})
+
+    result = execute_ide_command_by_id(
+        "plan.mark_written",
+        {"project_root": str(novel_project), "file_path": "正文/第01章.md"},
+    )
+
+    assert result.payload["plan"]["updated"] is True
+    assert result.payload["plan"]["next_ordinal"] == 2
+
+
 # --- 接进对话循环 ---------------------------------------------------------
 
 

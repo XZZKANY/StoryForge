@@ -17,6 +17,7 @@ import type { EditorModelCache } from './useMonacoEditor';
 import { applyPatchHunkToCurrent, isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
+import { markChapterWrittenInPlan } from '../../lib/serial-plan';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import {
@@ -319,6 +320,10 @@ export function useSuggestionWriteback({
         currentContent,
         suggestion.after,
       );
+      // 正文已落盘，这才轮到连载计划把该章标 done（补丁未确认时后端会拒绝标记）。
+      // 刻意只挂在「接受整个补丁」这一层：分块接受与行间对话 Ctrl+K 是段落级微调，
+      // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
+      await markChapterWrittenInPlan(projectPathRef.current, path);
       setPendingSuggestion(null);
       offerUndo(suggestion, path, currentContent, suggestion.after, loopRecord.createdFile);
       setSuggestionStatus(
@@ -349,6 +354,7 @@ export function useSuggestionWriteback({
     filePathRef,
     normalizeEol,
     offerUndo,
+    projectPathRef,
     setSuggestionStatus,
     writeAcceptedSuggestion,
   ]);
