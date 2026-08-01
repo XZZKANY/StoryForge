@@ -64,9 +64,12 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="observatory.scan", title="重扫世界线观测镜", category="Canon", writes=False),
         # book.context 是纯只读投影：连派生缓存都不写，只 stat + 读 canon.json / presence 缓存。
         IdeCommandDefinition(id="book.context", title="读取作品底座", category="Manuscript", writes=False),
-        # plan.mark_written 只写 .storyforge/serial-plan.json（非手稿、非 DB），故 writes=False。
+        # plan.mark_written / plan.unmark_written 只写 .storyforge/serial-plan.json（非手稿、非 DB），故 writes=False。
         IdeCommandDefinition(
             id="plan.mark_written", title="标记章节已写入连载计划", category="Manuscript", writes=False
+        ),
+        IdeCommandDefinition(
+            id="plan.unmark_written", title="撤销章节的连载计划标记", category="Manuscript", writes=False
         ),
     ]
 }
@@ -106,7 +109,7 @@ def execute_ide_command_by_id(
         result = _execute_observatory_scan_command(command, normalized_args, None)
     elif command.id == "book.context":
         result = _execute_book_context_command(command, normalized_args, None)
-    elif command.id == "plan.mark_written":
+    elif command.id in {"plan.mark_written", "plan.unmark_written"}:
         result = _execute_plan_mark_written_command(command, normalized_args, None)
     else:
         result = _accepted_command_result(command, normalized_args, None)
@@ -356,19 +359,25 @@ def _execute_plan_mark_written_command(
     args: dict[str, object],
     audit_event_id: str | None,
 ) -> IdeCommandResult:
-    """作者接受补丁、正文落盘后把对应章在连载计划里标 done（确定性，无 LLM，不碰手稿）。
+    """在连载计划里把对应章标 done（接受补丁后）或退回 pending（撤销新建后）。
 
-    参数缺失才报错；「没改」不是错误——非正文、章不在计划、计划不存在都是正常结果，
-    如实带 reason 返回。桌面端据此决定要不要提示，而不是把一次无害的 no-op 弹成失败。
+    确定性，无 LLM，不碰手稿。参数缺失才报错；「没改」不是错误——非正文、章不在计划、
+    计划不存在、正文还在都是正常结果，如实带 reason 返回。桌面端据此决定要不要提示，
+    而不是把一次无害的 no-op 弹成失败。
     """
 
     project_root = args.get("project_root")
     if not isinstance(project_root, str) or not project_root.strip():
-        raise IdeCommandExecutionError("plan.mark_written 需要 project_root。")
+        raise IdeCommandExecutionError(f"{command.id} 需要 project_root。")
     file_path = args.get("file_path")
     if not isinstance(file_path, str) or not file_path.strip():
-        raise IdeCommandExecutionError("plan.mark_written 需要 file_path。")
-    outcome = serial_plan_update.mark_chapter_written(project_root.strip(), file_path.strip())
+        raise IdeCommandExecutionError(f"{command.id} 需要 file_path。")
+    run = (
+        serial_plan_update.unmark_chapter_written
+        if command.id == "plan.unmark_written"
+        else serial_plan_update.mark_chapter_written
+    )
+    outcome = run(project_root.strip(), file_path.strip())
     return _accepted_command_result(command, args, audit_event_id, {"plan": outcome})
 
 

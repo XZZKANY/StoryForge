@@ -434,6 +434,135 @@ def test_mark_written_command_is_reachable(novel_project: Path) -> None:
     assert result.payload["plan"]["next_ordinal"] == 2
 
 
+# --- 撤销新建后的反向回调 ---------------------------------------------------
+
+
+def test_mark_written_records_the_manuscript_path(novel_project: Path) -> None:
+    """标 done 时必须把路径记进计划——后来撤销时只有它认得出是哪一章。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    raw = json.loads((novel_project / ".storyforge" / "serial-plan.json").read_text(encoding="utf-8"))
+    assert raw["chapters"][0]["path"] == "正文/第01章.md"
+
+
+def test_unmark_reverts_done_after_the_manuscript_is_deleted(novel_project: Path) -> None:
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"), (2, "pending"))})
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+    (novel_project / "正文" / "第01章.md").unlink()
+
+    outcome = serial_plan_update.unmark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome["updated"] is True
+    assert outcome["ordinal"] == 1
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert plan.chapters[0].status == "pending"
+    assert plan.chapters[0].written is False
+    # 路径一并抹掉：这章又变回「还没落盘」，留着旧路径会让下次撤销认到一个不存在的东西。
+    raw = json.loads((novel_project / ".storyforge" / "serial-plan.json").read_text(encoding="utf-8"))
+    assert "path" not in raw["chapters"][0]
+
+
+def test_unmark_refuses_while_manuscript_still_exists(novel_project: Path) -> None:
+    """修订的撤销走反向写回，文件还在——那章依然是写完的，退回 pending 就错了。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    outcome = serial_plan_update.unmark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome["updated"] is False
+    assert outcome["reason"] == "manuscript_still_exists"
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert plan.chapters[0].status == "done"
+
+
+def test_unmark_identifies_chapter_by_path_not_by_shifted_ordinal(novel_project: Path) -> None:
+    """核心：章序是「路径序第几个」，删一个文件会让后面的章整体前移。
+
+    这里第 1、2 章都已落盘并标 done；删掉第 1 章后，第 2 章的**文件**变成了路径序第 1 个。
+    按章序认会把第 1 章退成 pending（错，它本来就该退）……更糟的是若按章序退「第 1 个」，
+    实际退的是第 2 章的条目。只有按记下的路径才认得对。
+    """
+
+    (novel_project / "正文" / "第02章.md").write_text("第二章。\n", encoding="utf-8")
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"), (2, "pending"))})
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第02章.md")
+    # 删掉第 2 章的正文：此后 第01章.md 仍是路径序第 1 个，没有任何文件占据序号 2。
+    (novel_project / "正文" / "第02章.md").unlink()
+
+    outcome = serial_plan_update.unmark_chapter_written(str(novel_project), "正文/第02章.md")
+
+    assert outcome["updated"] is True
+    assert outcome["ordinal"] == 2, "退的必须是第 2 章，不能因为章序前移退错章"
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert [c.status for c in plan.chapters] == ["done", "pending"]
+    assert [c.written for c in plan.chapters] == [True, False]
+
+
+def test_written_is_judged_by_recorded_path_when_ordinals_shift(novel_project: Path) -> None:
+    """正文出现空缺时，记过路径的章不能被前移的章序判错在场。
+
+    只有 第01章.md 与 第03章.md 存在时，第03章.md 的**章序是 2**。若仍按章序判，
+    计划第 2 章会被当成已落盘、第 3 章被当成没写——两处都反了。
+    """
+
+    (novel_project / "正文" / "第03章.md").write_text("第三章。\n", encoding="utf-8")
+    _write_plan(
+        novel_project,
+        {
+            "version": 1,
+            "chapters": [
+                {"ordinal": 1, "status": "done", "path": "正文/第01章.md"},
+                {"ordinal": 2, "status": "pending"},
+                {"ordinal": 3, "status": "done", "path": "正文/第03章.md"},
+            ],
+        },
+    )
+
+    plan = serial_plan.build_plan(str(novel_project))
+    assert plan is not None
+    assert [c.written for c in plan.chapters] == [True, False, True]
+    assert plan.next_chapter is not None
+    assert plan.next_chapter.ordinal == 2, "没写的是第 2 章"
+    assert plan.drifted_chapters == []
+
+
+def test_unmark_does_not_guess_when_path_was_never_recorded(novel_project: Path) -> None:
+    """计划里没记过这个路径（done 是本次改动之前标的）就如实说认不出，不按章序猜。"""
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "done"))})
+    (novel_project / "正文" / "第01章.md").unlink()
+
+    outcome = serial_plan_update.unmark_chapter_written(str(novel_project), "正文/第01章.md")
+
+    assert outcome["updated"] is False
+    assert outcome["reason"] == "chapter_not_identifiable"
+    plan_raw = json.loads((novel_project / ".storyforge" / "serial-plan.json").read_text(encoding="utf-8"))
+    assert plan_raw["chapters"][0]["status"] == "done"
+
+
+def test_unmark_command_is_reachable(novel_project: Path) -> None:
+    from app.domains.ide.command_registry import execute_ide_command_by_id
+
+    _write_plan(novel_project, {"version": 1, "chapters": _chapters((1, "pending"))})
+    serial_plan_update.mark_chapter_written(str(novel_project), "正文/第01章.md")
+    (novel_project / "正文" / "第01章.md").unlink()
+
+    result = execute_ide_command_by_id(
+        "plan.unmark_written",
+        {"project_root": str(novel_project), "file_path": "正文/第01章.md"},
+    )
+
+    assert result.payload["plan"]["updated"] is True
+
+
 # --- 接进对话循环 ---------------------------------------------------------
 
 

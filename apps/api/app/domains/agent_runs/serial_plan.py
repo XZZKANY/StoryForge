@@ -51,13 +51,20 @@ MAX_GOAL_CHARS = 200
 
 @dataclass(frozen=True)
 class PlannedChapter:
-    """计划里的一章。`written` 来自正文实际存在与否，不是计划自己说的。"""
+    """计划里的一章。`written` 来自正文实际存在与否，不是计划自己说的。
+
+    `declared_path` 是这一章落盘时后端记下的相对路径（作者不用手写）。它存在的理由是
+    **章序是「路径序第几个」而不是从文件名解析的**（`canon_rebuild._chapter_ordinals`）：
+    正文出现空缺时后面的章会整体前移，第 3 章的文件会被算成第 2 章。按路径认章不受这个影响，
+    所以只要记过路径就以路径为准，没记过才回退到章序（那是尚未落盘的章唯一能用的判据）。
+    """
 
     ordinal: int
     title: str | None = None
     goal: str | None = None
     status: str = STATUS_PENDING
     note: str | None = None
+    declared_path: str | None = None
     written: bool = False
     written_path: str | None = None
 
@@ -186,16 +193,33 @@ def build_plan(project_root: str) -> SerialPlan | None:
     except FsToolError:
         return None
 
-    written, path_by_ordinal = written_ordinals(project_root)
+    written_set, path_by_ordinal = written_ordinals(project_root)
+    manuscript_paths = set(path_by_ordinal.values())
+    raw_chapters = [item for item in (raw.get("chapters") or []) if isinstance(item, dict)]
+    # 已被别的条目按路径认领的正文：章序回退时必须跳过它们。正文出现空缺时
+    # 第 3 章的文件会被算成章序 2，若不排除，计划第 2 章会拿别人的文件当自己的在场证据。
+    claimed_paths = {
+        path
+        for path in (clean_text(item.get("path"), limit=400) for item in raw_chapters)
+        if path
+    }
 
     chapters: list[PlannedChapter] = []
-    for item in raw.get("chapters") or []:
-        if not isinstance(item, dict):
-            continue
+    for item in raw_chapters:
         ordinal = positive_int(item.get("ordinal"))
         if ordinal is None:
             continue
         status = item.get("status")
+        declared_path = clean_text(item.get("path"), limit=400)
+        if declared_path:
+            # 记过路径就按路径判在不在——章序会因正文空缺整体前移，路径不会。
+            is_written = declared_path in manuscript_paths
+            resolved_path = declared_path if is_written else None
+        else:
+            # 没记过路径的（还没落盘、或作者手写的）只能回退章序，但不认别人已认领的文件。
+            candidate = path_by_ordinal.get(ordinal)
+            is_written = candidate is not None and candidate not in claimed_paths
+            resolved_path = candidate if is_written else None
         chapters.append(
             PlannedChapter(
                 ordinal=ordinal,
@@ -203,8 +227,9 @@ def build_plan(project_root: str) -> SerialPlan | None:
                 goal=clean_text(item.get("goal")),
                 status=status if status in ALLOWED_STATUSES else STATUS_PENDING,
                 note=clean_text(item.get("note")),
-                written=ordinal in written,
-                written_path=path_by_ordinal.get(ordinal),
+                declared_path=declared_path,
+                written=is_written,
+                written_path=resolved_path,
             )
         )
     if not chapters:
@@ -217,7 +242,7 @@ def build_plan(project_root: str) -> SerialPlan | None:
         chapter_word_count_max=positive_int(raw.get("chapter_word_count_max")),
         chapters=chapters,
         arcs=[arc for arc in (raw.get("arcs") or []) if isinstance(arc, dict)],
-        written_ordinals=written,
+        written_ordinals=written_set,
     )
 
 
