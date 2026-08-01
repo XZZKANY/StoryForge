@@ -178,12 +178,16 @@ def run_chat_loop(
             if author_instructions
             else []
         ),
-        *history,
+        # 排序即缓存策略：provider 的 prompt 前缀缓存按逐字节最长公共前缀命中，某个块一变，
+        # 排在它后面的一切都要重新计费。作品底座 / 连载计划 / 场景约束跨消息基本不动，而
+        # 对话历史每问一句必增长——底座若排在历史之后，作者每说一句就把这几个大块整体推位，
+        # 于是它们每条消息都按未命中入账。稳定块前置、易变块后置。
         *([{"role": "system", "content": book_block}] if book_block else []),
         # 计划块紧跟作品底座：底座说「写到第几章」，计划说「下一章写什么」，两句合起来
         # 才是坐标。放在 scene_block 之前——本章硬约束是对目标的细化，不是替代。
         *([{"role": "system", "content": plan_block}] if plan_block else []),
         *([{"role": "system", "content": scene_block}] if scene_block else []),
+        *history,
         *([{"role": "system", "content": pinned_block}] if pinned_block else []),
         *([{"role": "system", "content": view_block}] if view_block else []),
         {
