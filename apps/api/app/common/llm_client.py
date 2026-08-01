@@ -716,9 +716,32 @@ def _llm_request_headers(source: Mapping[str, str | None]) -> dict[str, str]:
         raise LLMConfigError("STORYFORGE_LLM_AUTH_HEADER 只支持 api-key 或 bearer。") from exc
 
 
-def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str]:
+def _provider_cache_hit_tokens(usage: Mapping[str, object]) -> int | None:
+    """读 provider 回报的「prompt 前缀缓存命中」token 数；这家没报就返回 None。
+
+    三态是刻意的：None（字段不存在，我们不知道命中情况）与 0（provider 报了、本次
+    确实全未命中）不是一回事。把「不知道」当成 0 会让成本账把可能已经命中的部分按
+    全价记，也让命中率这个指标永远没法从 0 起步——读不到证据不等于证据为零。
+
+    两种 wire 形态：DeepSeek 一类在 usage 顶层给 prompt_cache_hit_tokens；OpenAI 一类
+    在 usage.prompt_tokens_details.cached_tokens。都读不到才算这家没报。
+    """
+
+    direct = usage.get("prompt_cache_hit_tokens")
+    if isinstance(direct, int) and not isinstance(direct, bool):
+        return max(0, direct)
+    details = usage.get("prompt_tokens_details")
+    if isinstance(details, Mapping):
+        nested = details.get("cached_tokens")
+        if isinstance(nested, int) and not isinstance(nested, bool):
+            return max(0, nested)
+    return None
+
+
+def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str | None]:
     usage = data.get("usage") if isinstance(data, dict) else None
     if isinstance(usage, dict):
+        cache_hit_tokens = _provider_cache_hit_tokens(usage)
         total = usage.get("total_tokens")
         prompt_tokens = usage.get("prompt_tokens")
         completion_tokens = usage.get("completion_tokens")
@@ -728,6 +751,7 @@ def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str
                 "token_usage": max(1, resolved_total),
                 "prompt_tokens": max(0, prompt_tokens),
                 "completion_tokens": max(0, completion_tokens),
+                "cache_hit_tokens": cache_hit_tokens,
                 "token_usage_source": "provider_usage",
             }
         if isinstance(total, int) and total > 0:
@@ -737,6 +761,7 @@ def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str
                 "token_usage": total,
                 "prompt_tokens": estimated_prompt,
                 "completion_tokens": estimated_completion,
+                "cache_hit_tokens": cache_hit_tokens,
                 "token_usage_source": "estimated_split",
             }
     prompt_tokens = max(1, len(prompt) // 4)
@@ -745,22 +770,45 @@ def _token_usage(data: object, prompt: str, content: str) -> dict[str, int | str
         "token_usage": prompt_tokens + completion_tokens,
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
+        "cache_hit_tokens": None,
         "token_usage_source": "estimated_split",
     }
 
 
-def _cost_breakdown(source: Mapping[str, str | None], usage: dict[str, int | str]) -> dict[str, float | str]:
+def _cost_breakdown(
+    source: Mapping[str, str | None], usage: dict[str, int | str | None]
+) -> dict[str, float | str | None]:
+    """按「命中 / 未命中」分段计 input 成本。
+
+    STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS 此前只被原样回显、从不参与计算，
+    于是命中部分一律按全价入账（多数 provider 的命中价是全价的 1/10）。provider 没报
+    命中数时 billed_hit 为 0，算出来与改动前逐位相同。
+    """
+
     prompt_tokens = int(usage.get("prompt_tokens") or 0)
     completion_tokens = int(usage.get("completion_tokens") or 0)
     input_rate = _optional_float(source, "STORYFORGE_LLM_INPUT_CNY_PER_M_TOKENS", 0.0)
     output_rate = _optional_float(source, "STORYFORGE_LLM_OUTPUT_CNY_PER_M_TOKENS", 0.0)
     cache_hit_rate = _optional_float(source, "STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS", 0.0)
-    input_cny = (prompt_tokens / 1_000_000) * input_rate
+    raw_cache_hit = usage.get("cache_hit_tokens")
+    cache_hit_tokens = (
+        min(prompt_tokens, max(0, int(raw_cache_hit)))
+        if isinstance(raw_cache_hit, int) and not isinstance(raw_cache_hit, bool)
+        else None
+    )
+    billed_hit = cache_hit_tokens or 0
+    billed_miss = prompt_tokens - billed_hit
+    # 没配命中价（或配成非正数）就按全价计：宁可与改动前的账一致，也不要把命中部分
+    # 当成免费而低估——低估的成本账比高估更难被发现。
+    effective_hit_rate = cache_hit_rate if cache_hit_rate > 0 else input_rate
+    input_cny = (billed_miss / 1_000_000) * input_rate + (billed_hit / 1_000_000) * effective_hit_rate
     output_cny = (completion_tokens / 1_000_000) * output_rate
     return {
         "currency": "CNY",
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
+        "cache_hit_tokens": cache_hit_tokens,
+        "cache_miss_tokens": billed_miss if cache_hit_tokens is not None else None,
         "input_cny": input_cny,
         "output_cny": output_cny,
         "total_cny": input_cny + output_cny,

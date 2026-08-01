@@ -1250,3 +1250,87 @@ M5 正是「只测纯函数两次假绿」那个坑：拆掉接线后 13 条纯�
 - **同一行内混合漂移不还原**：见上「粒度是行」，属设计选择。
 - opencode 那边真正值得抄的大件（System Context baseline 冻结 + mid-conversation delta、
   影子 git 仓快照、拒绝带意图通道、skill 渐进披露）本刀都没做，另记。
+
+## 2026-08-01 前缀缓存两刀（opencode 大件清单 #1 System Context / Context Epoch）
+
+借的是 opencode V2 `core/src/system-context/index.ts` 的两条立场：①每个上下文片段按
+「变动频率」独立分层，稳定的逐字冻结在前；②片段状态是三态，`unavailable`（读不到）
+与「读到空」不是一回事。落到本仓是两个可证伪的真缺陷。
+
+### 先否掉一个诊断
+
+此前记的「`system prompt` 每轮重拼，canon 一变就击穿 prompt cache」在 live 代码里
+**不成立**。`loop_runtime.py:166-193` 的全部片段构建都在 `for` 循环（`:199`）之前，
+循环体内对 `messages` 只有 5 次尾部 append（`:214/:261/:280/:339/:393`），零重写、
+零截断、零重排；`_SYSTEM_PROMPT` 是模块级常量（`loop/prompt_context.py:19-66`），
+无时间戳、无轮数、无 token 计数。**一次 run 内第 N 轮请求是第 N+1 轮的 100% 逐字节前缀。**
+真正的漏在别处，即下面两条。
+
+### 缺陷 1：provider 报的缓存命中从来没进过账
+
+- `_token_usage`（`llm_client.py`）只读 `total/prompt/completion_tokens`，不读
+  `prompt_cache_hit_tokens`（DeepSeek 一类）或 `prompt_tokens_details.cached_tokens`
+  （OpenAI 一类）。
+- `_cost_breakdown` 读了 `STORYFORGE_LLM_CACHE_HIT_INPUT_CNY_PER_M_TOKENS` 并原样回显，
+  **却从不拿它算钱**——`input_cny` 只用 `input_rate`。
+- 后果：命中部分按全价入账（多数 provider 命中价是全价的 1/10），且**没有任何观测手段
+  能看出缓存是否命中**——「击穿」这个诊断在改动前根本没有度量支撑。
+
+修法：新增 `_provider_cache_hit_tokens`（三态：`None`=这家没报 / `0`=报了且全未命中 /
+`>0`=命中数），`_token_usage` 带出 `cache_hit_tokens`，`_cost_breakdown` 分段计
+`input_cny = miss×input_rate + hit×cache_hit_rate`。两处刻意的保守取值：命中价未配置
+（或配成非正数）时回退 `input_rate`；provider 没报时 `billed_hit=0`，算出的账与改动前
+**逐位相同**。`_token_usage`/`_cost_breakdown` 是单点（三处调用全在 `llm_client.py` 内，
+BookRun 侧 `book_generation_llm.py` 是 re-export 同一对象），改这两个函数即全覆盖。
+
+### 缺陷 2：稳定大块排在对话历史之后，跨消息前缀缓存一次都覆盖不到
+
+改动前 `messages` 顺序为 `[_SYSTEM_PROMPT, 作者指令, *history, book, plan, scene, pinned, view, user]`。
+`history` 每条作者消息必增长（`loop/support.py:74-81` 滑窗末 12 条），于是作品底座 /
+连载计划 / 场景约束这三个大块**每条消息都被整体推位**；两条消息的公共前缀止于
+`history` 之前，只剩 `_SYSTEM_PROMPT`（实测 6056 UTF-8 字节）+ 作者指令块。
+
+修法：把 book/plan/scene 提到 `*history` 之前。`pinned_block`/`view_block` 仍留在最靠近
+提问处——那条近因理由（原 docstring）成立，未动。
+
+### 门禁
+
+```
+uv run pytest        -> 1397 passed, 3 skipped（基线 1384，+13 为本刀新增，零回归）
+uv run ruff check .  -> All checks passed
+pnpm.cmd e2e         -> 20/20（含 OpenAPI 零漂移）
+git diff --numstat == --ignore-all-space --numstat -> 逐文件相等（无行尾噪音）
+```
+
+`llm_client.py` 纯 LF、`loop_runtime.py` 纯 CRLF，两文件行尾各自保持不变（改动经脚本
+按文件行尾施加，未用会归一行尾的编辑路径）。
+
+### 变异验证（4 点，全部逮住）
+
+| 变异 | 还原的行为 | 结果 |
+|---|---|---|
+| M1 | `*history` 排回 `book_block` 之前 | 转红 |
+| M2 | `input_cny` 改回只用 `input_rate` | 转红 |
+| M3 | `_provider_cache_hit_tokens` 读不到时返回 `0` 而非 `None`（三态塌陷） | 转红 |
+| M4 | `_token_usage` 不再带出 `cache_hit_tokens`（拆接线） | 转红 |
+
+M1 证明 `test_second_message_keeps_book_context_cacheable` 打在接线上：它比对两次真实
+请求的 `messages` 公共前缀，顺序一错即失效。M3 单独列出是因为「读不到当成 0」正是
+opencode 那条三态立场要防的塌陷，纯计价断言逮不住它。
+
+### 仍未联通
+
+- **没有真 LLM 实跑**：缓存命中字段的 wire 形态取自两家 provider 的公开文档形状，
+  未在真 key 下抓过实际响应。若某家用了第三种字段名，当前按「没报」处理（降级安全，
+  账与改动前一致），但会静默看不见命中。
+- **省了多少钱未测量**：本刀能证明的是「公共前缀里含作品底座」这个确定性事实，
+  不能宣称任何具体的成本下降幅度——那要真跑对比才算数。
+- **`tools` 数组在 run 内变形仍会从最开头击穿缓存**：产出补丁后
+  `_offered_schemas`（`loop_runtime.py:115-118`）剔除 4 个补丁工具（实测 tools JSON
+  20560 → 17423 字节），末轮 / 预算耗尽时 `tools=None` 整段消失。这属于 opencode 清单
+  第 7 条（一套 ruleset 同时驱动可见性与授权、阈值不对称：保留工具、调用时才拒）的范畴，
+  本刀未做。
+- **`book_block` 内部仍含跨消息易变内容**（当前打开第几章、上一章结尾 600 字），
+  作者切文件即整块失效。按 opencode 的 Source 分片思想该再拆一层稳定 / 易变，未做。
+- BookRun 侧 `book_generation_serial_metrics.py:20` 的 `context_cache_hit_rate` 是
+  `(n-1)/n` 算出来的**自造指标**，与 provider 前缀缓存无关，本刀未动也未采信。
