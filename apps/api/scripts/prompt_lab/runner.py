@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.common.llm_client import LLMConfigError, LLMError, call_llm_streamed
+from app.common.llm_client import call_llm_streamed
 from app.common.llm_env import resolved_llm_env
 from scripts.prompt_lab import report
 from scripts.prompt_lab.agent_registry import AGENT_VARIANTS
@@ -149,7 +149,10 @@ def _run_grid(tasks: dict[str, Any], variants: dict[str, dict[str, Any]], *, dry
                     "cost_cny_estimated": result["cost_cny_estimated"],
                 }
                 entry.setdefault("repeats", []).append(single)
-            except (LLMError, LLMConfigError) as exc:
+            except Exception as exc:  # noqa: BLE001 单格失败隔离
+                # 只捕 LLMError/LLMConfigError 不够：传输层裸异常（中转站重置）会逃逸出
+                # as_completed 循环打崩整跑，把已完成格连同实时落盘一起丢掉——那正是实时
+                # 落盘要防的故障。实测 wave6 首跑即因 ConnectionResetError 全盘归零。
                 failed += 1
                 entry.setdefault("repeats", []).append({"error": f"{type(exc).__name__}: {exc}"})
             # 实时落盘：每格完成立即写 outputs 文件，避免 key 中断丢已完成格

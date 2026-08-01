@@ -311,6 +311,21 @@ def _stream_delta_text(chunk: Mapping[str, object]) -> str:
     return content if isinstance(content, str) else ""
 
 
+def _stream_finish_reason(chunk: Mapping[str, object]) -> str:
+    """取本帧的 finish_reason；非终止帧该字段为 null，取不到就返回空串。"""
+
+    choices = chunk.get("choices")
+    if not isinstance(choices, list):
+        return ""
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        reason = choice.get("finish_reason")
+        if isinstance(reason, str) and reason:
+            return reason
+    return ""
+
+
 def _stream_chat_completions(
     source: Mapping[str, str | None],
     payload: dict[str, object],
@@ -392,10 +407,28 @@ def _stream_chat_completions(
                     secrets,
                 )
             ) from exc
+        except _RESPONSE_READ_ERRORS as exc:
+            # urllib 的 do_open 只把 request() 的 OSError 包成 URLError，getresponse() 阶段的
+            # 连接重置（含 RemoteDisconnected）裸抛。非流式 call_llm 早有这条分支，#255 把三条
+            # 产字路径搬到流式时没带过来 → 中转站重置既不重试也不包 LLMError，上层只 catch
+            # LLMError 于是整轮判失败。此处尚未消费任何流帧，重发不会重复正文。
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            if attempt < attempt_limit:
+                _sleep_before_retry(attempt=attempt, base_delay=base_delay, jitter=jitter, retry_after=None)
+                attempt += 1
+                continue
+            raise LLMError(
+                redact_secrets(
+                    f"真实 LLM 流式建连被重置（耗时 {elapsed_ms}ms，"
+                    f"尝试 {attempt}/{attempt_limit}）：{type(exc).__name__}",
+                    secrets,
+                )
+            ) from exc
 
     leak_filter = llm_http.StreamingReasoningFilter()
     emitted: list[str] = []
     usage_payload: dict[str, object] | None = None
+    saw_terminal = False
     try:
         for raw_line in response:
             line = raw_line.decode("utf-8", errors="replace").strip()
@@ -403,6 +436,7 @@ def _stream_chat_completions(
                 continue
             chunk_text = line[5:].strip()
             if chunk_text == "[DONE]":
+                saw_terminal = True
                 break
             try:
                 chunk = json.loads(chunk_text)
@@ -411,6 +445,10 @@ def _stream_chat_completions(
                 continue
             if not isinstance(chunk, dict):
                 continue
+            if _stream_finish_reason(chunk):
+                # 两种终止标记都认：多数兼容端点两者都发（实测本机中转站发 finish_reason
+                # "stop" + [DONE]），但只发其一的端点不该被误判成截断。
+                saw_terminal = True
             chunk_usage = chunk.get("usage")
             if isinstance(chunk_usage, dict):
                 usage_payload = chunk_usage
@@ -436,6 +474,13 @@ def _stream_chat_completions(
     content = "".join(emitted).strip()
     if not content:
         raise LLMError("真实 LLM 流式返回内容为空。")
+    if not saw_terminal:
+        # 上游在收尾标记之前关流：此前这里照常产出 done 帧，半截正文被当成稿——实测
+        # wave6 落出一篇 804 字、断在「从柜台下面摸出一」的样本。自动档下这种半截章节
+        # 不经作者点击就会写进文件，故宁可失败也不交半成品。
+        raise LLMError(
+            f"真实 LLM 流式在收到终止标记前中断（已输出 {len(content)} 字），不能把半截正文当成稿。"
+        )
     messages = payload.get("messages")
     prompt_text = (
         "\n".join(str(item.get("content") or "") for item in messages if isinstance(item, dict))

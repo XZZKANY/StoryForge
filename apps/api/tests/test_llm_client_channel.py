@@ -19,6 +19,7 @@ from app.common.llm_client import (
     _call_llm,
     _call_llm_messages,
     _request_chat_completions,
+    call_llm_streamed,
     post_json_with_retry,
     redact_secrets,
 )
@@ -36,6 +37,10 @@ class _ChatHandler(BaseHTTPRequestHandler):
     error_body: dict[str, object] | None = None
     retry_after_header = "0"
     serve_non_json = False
+    abort_times = 0
+    serve_stream = False
+    stream_truncated = False
+    stream_finish_only = False
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("content-length", "0"))
@@ -43,6 +48,36 @@ class _ChatHandler(BaseHTTPRequestHandler):
         cls = self.__class__
         cls.last_headers = {key.lower(): value for key, value in self.headers.items()}
         cls.attempts += 1
+        if cls.attempts <= cls.abort_times:
+            # 中转站在响应开始前掐断连接：urllib 的 do_open 只把 request() 的 OSError 包成
+            # URLError，getresponse() 阶段裸抛（RemoteDisconnected 是 ConnectionResetError
+            # 子类），复现生产 traceback。
+            self.close_connection = True
+            self.connection.close()
+            return
+        if cls.serve_stream:
+            self.send_response(200)
+            self.send_header("content-type", "text/event-stream")
+            self.end_headers()
+
+            def emit(frame: dict[str, object]) -> None:
+                self.wfile.write(
+                    b"data: " + json.dumps(frame, ensure_ascii=False).encode("utf-8") + b"\n\n"
+                )
+
+            emit({"choices": [{"delta": {"content": "林岚核对"}}]})
+            emit({"choices": [{"delta": {"content": "线索。"}}]})
+            if cls.stream_truncated:
+                # 上游在任何终止标记之前关流：正文只出了一半。
+                return
+            usage = {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+            if cls.stream_finish_only:
+                # 只发 finish_reason、不发 [DONE] 的端点，不该被判成截断。
+                emit({"choices": [{"delta": {}, "finish_reason": "stop"}], "usage": usage})
+                return
+            emit({"choices": [{"delta": {}}], "usage": usage})
+            self.wfile.write(b"data: [DONE]\n\n")
+            return
         if cls.attempts <= cls.fail_times:
             body = json.dumps(cls.error_body or {"error": {"message": "transient"}}).encode("utf-8")
             self.send_response(cls.status_code)
@@ -86,6 +121,10 @@ def _serve() -> HTTPServer:
     _ChatHandler.error_body = None
     _ChatHandler.retry_after_header = "0"
     _ChatHandler.serve_non_json = False
+    _ChatHandler.abort_times = 0
+    _ChatHandler.serve_stream = False
+    _ChatHandler.stream_truncated = False
+    _ChatHandler.stream_finish_only = False
     server = HTTPServer(("127.0.0.1", 0), _ChatHandler)
     Thread(target=server.serve_forever, daemon=True).start()
     return server
@@ -539,3 +578,82 @@ def test_story_state_grounding_failure_redacts_key(monkeypatch, caplog) -> None:
         server.shutdown()
     assert advisories[1].semantic_reason == "semantic_grounding_failed"
     assert _API_KEY not in caplog.text
+
+
+def test_streamed_channel_retries_connection_reset_then_succeeds() -> None:
+    """建连阶段被掐断 → 重试一次即成功，恰好尝试 2 次。
+
+    #255 把三条产字路径搬到流式传输，但流式的 urlopen 只挡 HTTPError / URLError，
+    getresponse() 阶段的裸 ConnectionResetError 既不重试也不包 LLMError，上层只
+    catch LLMError 于是整轮判失败。非流式 call_llm 早有这条分支，此处补齐。
+    """
+
+    _ChatHandler.fail_times = 0
+    server = _serve()  # _serve() 会重置开关，故只在其后设置
+    _ChatHandler.abort_times = 1
+    _ChatHandler.serve_stream = True
+    try:
+        result = call_llm_streamed(
+            _source(server.server_address[1]), system_prompt="s", user_prompt="u"
+        )
+    finally:
+        server.shutdown()
+    assert _ChatHandler.attempts == 2  # 首次被重置后重发，而非首崩即抛
+    assert result["content"] == "林岚核对线索。"
+
+
+def test_streamed_channel_reset_past_retry_limit_raises_llm_error() -> None:
+    """重置到重试上限：必须是 LLMError，不能让裸 ConnectionResetError 逃逸到上层。"""
+
+    _ChatHandler.fail_times = 0
+    server = _serve()
+    _ChatHandler.abort_times = 99
+    _ChatHandler.serve_stream = True
+    try:
+        with pytest.raises(LLMError) as excinfo:
+            call_llm_streamed(
+                _source(server.server_address[1]), system_prompt="s", user_prompt="u"
+            )
+    finally:
+        server.shutdown()
+    assert _ChatHandler.attempts == 3  # 重试到 max_attempts
+    assert _API_KEY not in str(excinfo.value)
+
+
+def test_streamed_channel_rejects_stream_cut_before_terminal_marker() -> None:
+    """流在任何终止标记前被关掉：必须失败，不能把半截正文当成稿。
+
+    实证（2026-08-01 wave6）：落出一篇 804 字、断在「从柜台下面摸出一」的样本。此前
+    收尾只挡「内容为空」，而内容非空就一定会产出 done 帧 → 半截正文一路当成功返回；
+    自动档下这种半截章节不经作者点击就写进文件。
+    """
+
+    _ChatHandler.fail_times = 0
+    server = _serve()
+    _ChatHandler.serve_stream = True
+    _ChatHandler.stream_truncated = True
+    try:
+        with pytest.raises(LLMError) as excinfo:
+            call_llm_streamed(
+                _source(server.server_address[1]), system_prompt="s", user_prompt="u"
+            )
+    finally:
+        server.shutdown()
+    assert "终止标记" in str(excinfo.value)
+    assert "7 字" in str(excinfo.value)  # 已输出字数带进消息，便于归因
+
+
+def test_streamed_channel_accepts_finish_reason_without_done_sentinel() -> None:
+    """只发 finish_reason、不发 [DONE] 的端点不该被误判成截断（闸不能过紧）。"""
+
+    _ChatHandler.fail_times = 0
+    server = _serve()
+    _ChatHandler.serve_stream = True
+    _ChatHandler.stream_finish_only = True
+    try:
+        result = call_llm_streamed(
+            _source(server.server_address[1]), system_prompt="s", user_prompt="u"
+        )
+    finally:
+        server.shutdown()
+    assert result["content"] == "林岚核对线索。"

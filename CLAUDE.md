@@ -131,7 +131,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 
 - **变体纪律：** baseline 恒等引用真实构建器；变体一律「从 baseline 渲染结果做 section 级删除 / 替换」+ 删前断言目标块恰好出现一次，**不手抄 prompt 文案**（否则双源漂移）。
 - **两条 prompt 链是分开的**，别把一条的结论当另一条的：批量路径 `book_runs/prompts/`（多行 section 形态，BookRun 后台工具）、live 产字路径 `app/common/craft.py::craft_prompt_clause()`（扁平子句形态，chat 循环 / file.revise / file.create / prose.continue 四条）。共用 `CRAFT_GUIDELINES` 文本，其余各存各的。
-- **已裁定（2026-07-31~08-01，五波实验 + 三轮 workflow 评判）：** 删创作准则的好坏对照锚点 → adopt，两条链均已删（`test_craft_guidelines_reach` 钉死不许挂回）；wave4/5 在 live 链的开篇短格与高潮长格上补测，未复现「删例后丢必含事实」，此前的跨链外推转为实测；`half-examples` 不采用；**`task-rewrite` 仍欠在无例基线上的重测**（变体还挂在 `registry.py`）。原始输出目录 `.codex/prompt-lab/` 已于 2026-08-01 清理，结论与逐字核验引文记档在 `.codex/verification-report.md`（搜 `prompt_lab` / `wave`）。
+- **已裁定（2026-07-31~08-01，五波实验 + 三轮 workflow 评判）：** 删创作准则的好坏对照锚点 → adopt，两条链均已删（`test_craft_guidelines_reach` 钉死不许挂回）；wave4/5 在 live 链的开篇短格与高潮长格上补测，未复现「删例后丢必含事实」，此前的跨链外推转为实测；`half-examples` 不采用；**`task-rewrite` 已于 wave6 在无例基线上重测（完整章格 × 3 重复）：两组必含事实同为 3/3、情节要素与陈词无差异，未见优势，不 adopt**，变体保留在 `registry.py` 供后续更大样本复测。wave1-5 原始输出已于 2026-08-01 清理，结论与逐字核验引文记档在 `.codex/verification-report.md`（搜 `prompt_lab` / `wave`）。
 
 ## 5. 架构事实源
 

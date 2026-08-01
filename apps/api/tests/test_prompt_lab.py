@@ -345,3 +345,39 @@ def test_realtime_and_final_output_files_agree(monkeypatch: pytest.MonkeyPatch, 
     for f in files:
         position = int(f.name.rsplit('--r', 1)[1].removesuffix('.txt'))
         assert repeats[position - 1]["output"] == f.read_text(encoding="utf-8"), f"{f.name} 与 repeats 位次对不上"
+
+
+def test_transport_level_exception_does_not_discard_completed_cells(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """传输层裸异常只判该格失败，不打崩整跑。
+
+    实证（2026-08-01 wave6 首跑）：中转站 ConnectionResetError 不是 LLMError，从
+    as_completed 循环逃逸出去杀掉进程，已完成格与实时落盘一起归零——那正是实时落盘
+    要防的故障。这里断言的是「已成功格必须活下来」，不只是「有 error 字段」。
+    """
+
+    import json
+
+    from scripts.prompt_lab.runner import main
+
+    calls = {"n": 0}
+
+    def fake_call(*args: object, **kwargs: object) -> dict[str, object]:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise ConnectionResetError(10054, "远程主机强迫关闭了一个现有的连接")
+        return {"content": f"正文{calls['n']}", "cost_cny_estimated": 0.0, "latency_ms": 1}
+
+    monkeypatch.setattr("scripts.prompt_lab.runner.call_llm_streamed", fake_call)
+    code = main(
+        ["--task", "opening-preview", "--variants", "baseline", "--repeat", "3", "--out", str(tmp_path)]
+    )
+
+    assert code == 1  # 有失败格，退出码非 0
+    meta = json.loads((tmp_path / "run-metadata.json").read_text(encoding="utf-8"))
+    repeats = meta["variants"]["opening-preview"]["variants"][0]["repeats"]
+    assert len(repeats) == 3, "整跑被打断，没跑满 repeats"
+    assert sum(1 for r in repeats if "error" not in r) == 2, "已完成格被连坐丢弃"
+    assert any("ConnectionResetError" in str(r.get("error", "")) for r in repeats)
+    assert len(sorted((tmp_path / "outputs").glob("*.txt"))) == 2
