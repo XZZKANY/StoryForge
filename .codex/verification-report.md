@@ -784,3 +784,34 @@ node scripts/check-openapi-drift.mjs -> OpenAPI 契约无漂移
 - BookRun REST 面（12 条契约路径）仍挂着，只是无人调用；真要收窄需另行决定如何处置那 37 个测试。
 - 真机未验：装机版里「命令面板搜不到写作任务」「agent 不再提议 bookrun.start」归 E2E-1。
 - `writing_runs` seam 与前端 `writing-run.ts` 的 `book_run_id` 解析仍在（防御性读取，现无来源）。
+
+# 2026-08-01 prompt_lab 实验证据清理（结论已全部落码）
+
+## 盘点：五波实验的精华已在 master
+
+作者问「实验精华合进项目了吗」。逐条核对，全部已合并、工作区干净：
+
+| 结论 | 落点 |
+|---|---|
+| 删创作准则的正反例锚点（wave1-3 裁定 no-examples → adopt） | 批量链 `book_runs/prompts/` 已删；live 链 `file.create` 随 #252 对齐。`craft_prompt_clause(with_examples=False)` 为默认，**生产零调用方传 True**（全仓 grep 只剩实验台与护栏），`test_craft_guidelines_reach.py` 钉死 |
+| wave4/5 补外推缺口 | live-opening（400 字）与 live-climax（800–1200 字）实测均未复现「删例丢必含事实」，判定在 live 链成立，**生产零改动** |
+| 实验副产品：中转站掐断长文 | #255 产字三条路径改流式（非流式 280s 超时 → 流式 72.4s/1347 字） |
+| 实验台三处缺陷 + 重复写盘虚增样本真 bug | #254 / #255 |
+
+`CRAFT_EXAMPLE_BAD` / `CRAFT_EXAMPLE_GOOD` 常量仍在 `app/common/craft.py` 是**刻意保留**（变体
+纪律要求同源增删、不手抄文案），不是漏删；生产不许挂回由护栏钉死。
+
+## 清理
+
+删除 `.codex/prompt-lab/`（9 个目录、115 份输出样本、11 份报告，1.5MB，gitignored 未入库）。
+作者拍板「只删证据目录，留实验台」——`apps/api/scripts/prompt_lab/` 跑道与
+`tests/test_prompt_lab.py` 全部保留，因为 `task-rewrite` 还欠一次重测，且以后改 prompt 仍要用。
+
+同步改 `CLAUDE.md` §4 的裁定段：原文写「三波实验……证据 `.codex/prompt-lab/wave1-3/`」，
+删目录后该指路即失效，改为指向本报告，并补上 wave4/5 把跨链外推转为实测这一事实。
+
+## 仍未联通
+
+- **`task-rewrite` 在无例基线上的重测仍未做**（key 额度所限），变体仍挂在 `registry.py`。
+- 原始输出已不可恢复：此后复核只能读本报告的逐字核验引文，或重跑烧 key。
+- wave5 baseline 有 1 格「流式返回内容为空」未复跑（样本 n=2 vs 3）。
