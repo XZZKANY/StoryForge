@@ -37,7 +37,7 @@ StoryForge 当前处于 Desktop 对话式 Agent 与私测 Alpha 收口阶段（�
 
 - `app/main.py` 挂载 22 个 router，桌面前端真实调用的只有 4 组——`/api/agent-runs`、`/api/assistant`、`/api/ide`、`/health`；其余 18 个已挂载 router 零桌面调用方。frozen 域 10 个前缀已卸载且无 `router.py`（护栏 `tests/test_api_surface.py`）。
 - IDE 命令目录注册 11 条，前端主动调用 2 条：`canon.refresh`、`observatory.scan`（外加动态 `pendingRepairCommand`）。
-- Agent 工具 spec 共 23 条，其中带 `loop_schema`、对 chat 循环 LLM 可见的 16 条（golden `tests/fixtures/loop_tool_schemas_golden.json` 逐字节对齐）。产出待确认补丁的只有 `file.revise` / `file.create` / `project.trim_prose`，由 `risk_level == "write_pending"` 单点派生，一次对话最多一个补丁。
+- Agent 工具 spec 共 22 条，其中带 `loop_schema`、对 chat 循环 LLM 可见的 19 条（golden `tests/fixtures/loop_tool_schemas_golden.json` 逐字节对齐）。产出待确认补丁的只有 `file.revise` / `file.create` / `project.trim_prose` / `prose.continue`，由 `risk_level == "write_pending"` 单点派生，一次对话最多一个补丁。
 - 固定 intent 管线支持 5 条，前端只显式发 `file.revise`，其余 4 条无入口。managed BookRun 启动三重不可达（无 loop_schema、前端不发 `book_id`+`blueprint_id`、IDE 命令零前端调用）。
 - 桌面左侧活动栏实际只有 2 个视图（资源管理器 / 世界线观测镜）；右栏只挂对话面板。文档与 `components/icons/shell-icons.tsx` 注释里的「故事 / 搜索 / 会话 / 质检 / 命令 / 设置」六项已不成立。
 

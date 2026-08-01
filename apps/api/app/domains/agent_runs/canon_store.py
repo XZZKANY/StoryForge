@@ -71,6 +71,11 @@ def _atomic_write_json(target: Path, payload: dict[str, Any]) -> None:
     _atomic_write_text(target, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+# 红线例外的原子写能力由本模块单点持有；`.storyforge/` 下的同级载体（serial_plan 等）
+# 复用这一份，不各自再写一遍 mkstemp+fsync+replace。
+atomic_write_json = _atomic_write_json
+
+
 def read_canon(project_root: str) -> dict[str, Any]:
     """读作者的 canon.json；不存在或不合法时明确返回空骨架（不伪造数据，明确空态）。"""
 
