@@ -6,6 +6,7 @@ import {
   APPLY_FILE_SUGGESTION_EVENT,
   SUGGESTION_RESULT_EVENT,
   bufferPendingFileSuggestion,
+  emitPatchRejected,
   takePendingFileSuggestion,
   type AuthorLoopResult,
   type SuggestionResult,
@@ -502,10 +503,29 @@ export function useSuggestionWriteback({
     }
   }, [pendingSuggestion, projectPathRef, setSuggestionStatus]);
 
-  const rejectPendingSuggestion = useCallback(() => {
-    setPendingSuggestion(null);
-    setSuggestionStatus('已拒绝修订');
-  }, [setSuggestionStatus]);
+  /**
+   * 拒绝不是二元否决：作者往往知道该怎么改，只是这版没改对。
+   *
+   * direction 非空时由 ChatWindow 侧接住，当作一句真实的作者发言发出去——落进会话、
+   * 自动进下一轮 prompt、顺带重做一版；留空则维持轻量否决，不烧新一轮 BYO-key。
+   * 无论哪条路径，这里都只清面板，写盘一步都不做。
+   */
+  const rejectPendingSuggestion = useCallback(
+    (direction = '') => {
+      const suggestion = pendingSuggestionRef.current;
+      const trimmed = direction.trim();
+      setPendingSuggestion(null);
+      setSuggestionStatus(trimmed ? '已否掉这版，正按你的说法重来' : '已拒绝修订');
+      if (suggestion) {
+        emitPatchRejected({
+          filePath: filePathRef.current ?? suggestion.filePath,
+          patchId: suggestion.id,
+          direction: trimmed,
+        });
+      }
+    },
+    [filePathRef, pendingSuggestionRef, setSuggestionStatus],
+  );
 
   return {
     adoptPendingSuggestion,

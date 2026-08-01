@@ -1334,3 +1334,83 @@ opencode 那条三态立场要防的塌陷，纯计价断言逮不住它。
   作者切文件即整块失效。按 opencode 的 Source 分片思想该再拆一层稳定 / 易变，未做。
 - BookRun 侧 `book_generation_serial_metrics.py:20` 的 `context_cache_hit_rate` 是
   `(n-1)/n` 算出来的**自造指标**，与 provider 前缀缓存无关，本刀未动也未采信。
+
+## 2026-08-01 拒绝 = 带意图的通道（opencode 大件清单 #2）
+
+借的立场：拒绝框问的是「该怎么改」而不是「为什么拒绝」——前者朝向下一版，后者只是归档；
+以及「人不该手动挑 hunk，人该说清楚哪儿不对」。
+
+### 改动前的实际状态（三条，都可证伪）
+
+1. `rejectPendingSuggestion`（`useSuggestionWriteback.ts`）只做两件事：清面板、弹 toast。
+   **不发请求、不广播事件、不写任何记录。**
+2. 后端对「作者拒绝」**零感知**。全仓 `apps/api/app/domains/{agent_runs,assistant,ide}` 下
+   唯一含 reject 的符号是 `serial_plan_update.py` 的 `reject_premature_done`（与作者拒绝
+   无关）。接受有回调（`plan.mark_written`，PR#261/#262），拒绝没有对应物。
+3. 后果：run 的 approval 步**永远停在 waiting**——既不 completed 也不 failed，流程树上一直
+   转着；作者「哪儿不对」的判断一个字都没留下，下一轮 prompt 里也没有任何痕迹。
+4. 它还是全仓**唯一没有行为测试**的分支：`tests/patch-review-panel.test.tsx` 旧断言只有
+   `assert.match(html, /拒绝/)`，改动前后都绿。
+
+### 改后
+
+- 点「拒绝」不再立即否掉，而是展开一个输入框问「说说该怎么改（回车发出，留空则只否掉这版）」。
+- 方向非空 → 经 `PATCH_REJECTED_EVENT` 广播 → `useChatSubmission` 接住，用
+  `buildRejectionPrompt` 拼成一句作者会说的话（**只给文件锚点 + 作者原话，不塞 before/after**——
+  正文动辄数千字，塞进去会挤爆 12 条 × 4000 字符的历史窗口，而模型上一轮刚生成过它），
+  走既有的 `handleComposerSubmit`。
+- 复用而非新建：`handleComposerSubmit` 既进 UI 消息列表，也由后端
+  `conversation_runtime.py:99-103` 落进 `assistant_messages`，于是自动进下一轮
+  `_history_messages`（`loop/support.py:74-81`）。**后端一行代码都没改。**
+- 方向留空 → 只广播、不发起新一轮：拒绝不该变得昂贵，也不该每次都烧一轮 BYO-key 去读
+  一句「我没要」。
+- `useAgentRunControls` 收尾那个永远挂 waiting 的 approval 步。**标 completed 而不是 failed**：
+  这一步叫「等待作者确认」，作者给了答复它就完成了，哪怕答复是「不要」；agent 没出错。
+- 拒绝这条路径仍然**一个字节都不写盘**（不快照、不写文件、不回调标 done），有专门断言钉死。
+
+### 顺带修的两个真问题
+
+- **`submitRejection` 抽出**：原实现发出后不清 `rejectDraft`，同一面板实例换下一个补丁时
+  会留着上一条草稿。改为发出即收起。
+- **monaco stub 缺 `updateOptions`**（`tests/stubs/monaco-editor.ts`）：`createDiffEditor()`
+  返回的对象没有这个方法，而 `PatchReviewPanel` 挂载后会调它追平字号/字体。此前没有任何
+  测试真正挂载过这个面板（都走 `renderToStaticMarkup`），所以一直没暴露。表现是 React root
+  被打坏、整组交互用例报 `Should not already be working`。
+
+### 门禁
+
+```
+npm run typecheck    -> 通过
+npm run test         -> 522 passed（基线 509，+13 为本刀新增，零回归）
+pnpm.cmd lint        -> eslint + prettier 全绿
+pnpm.cmd e2e         -> 20/20（后端未改，OpenAPI 零漂移）
+git diff --numstat ≈ --ignore-all-space --numstat（仅 useSuggestionWriteback 差 1 行，
+  来自 useCallback 由单行改多行的真实缩进变化，非行尾噪音）
+九个改动文件 CR 计数全为 0（源文件均为纯 LF，改动经脚本施加）
+```
+
+### 变异验证（6 点，全部逮住）
+
+| 变异 | 还原的行为 | 结果 |
+|---|---|---|
+| M1 | 拒绝不再广播事件（拆接线） | 转红 |
+| M2 | 空方向也发起新一轮 | 转红 |
+| M3 | 点拒绝立即否掉，不问怎么改 | 转红 |
+| M4 | 拆掉 approval 收尾监听 | 转红 |
+| M5 | 拆掉会话守卫 | 转红 |
+| M6 | 发出后不收起草稿 | 转红 |
+
+M5 单列是因为 [[F26]] 那条教训：run 起跑会话 ≠ 当前活动会话时纯 `runId` 守卫不足，
+切会话不改 runId。新监听器照抄了 `isRunResultForActiveSession` 守卫，M5 证明它是承重的。
+
+### 仍未联通
+
+- **真机未点穿**：整刀是前端交互 + 事件桥，没有在装机版里点过。「否掉 → 输入框 → 回车 →
+  agent 真的按新说法重来」归 E2E-1。
+- **拒绝仍不留后端审计痕迹**：`patch_id` 已经广播出去了，但没有 `patch.rejected` 命令把它
+  写进事件表。后端持有同一 id（`events/contracts.py:9-27`），将来要对账是现成的。刻意不做：
+  这一刀的价值在「意图进下一轮」，审计是另一件事。
+- **per-hunk 仍只有接受、没有拒绝**：这是刻意保留的——上游的立场正是「人不该手动挑 hunk，
+  人该说清楚哪儿不对」，作者可以在方向里直接说「第二处那段对话太生硬」。
+- **作者的方向不带被否正文**：见上，是刻意的取舍。若实际使用中发现模型认不出「刚才那版」
+  指的是什么，再考虑带上 hunk 级摘要。

@@ -2,8 +2,10 @@ import { useCallback, useEffect } from 'react';
 
 import {
   AUTHOR_LOOP_RESULT_EVENT,
+  PATCH_REJECTED_EVENT,
   SUGGESTION_RESULT_EVENT,
   type AuthorLoopResult,
+  type PatchRejection,
   type SuggestionResult,
 } from '../../lib/assistant-events';
 import {
@@ -207,6 +209,46 @@ export function useAgentRunControls(
     projectPathRef,
     runStartConversationKeyRef,
     setMessages,
+    updateAgentStatus,
+    updateAgentStep,
+  ]);
+
+  /**
+   * 作者否掉一版后，run 此前会永远停在 approval: waiting——既不 completed 也不 failed。
+   *
+   * 这一步叫「等待作者确认」，作者给了答复它就完成了，哪怕答复是「不要」。所以标
+   * completed 而不是 failed：agent 没出错，是这版没被采纳，detail 里写清楚即可。
+   */
+  useEffect(() => {
+    const onPatchRejected = (event: Event) => {
+      const rejection = (event as CustomEvent<PatchRejection>).detail;
+      if (!rejection || !agentRunIdRef.current) return;
+      if (
+        !isRunResultForActiveSession(
+          conversationKey(
+            projectPathRef.current,
+            assistantSessionIdRef.current,
+            draftNonceRef.current,
+          ),
+          runStartConversationKeyRef.current,
+        )
+      ) {
+        return;
+      }
+      updateAgentStep('approval', {
+        status: 'completed',
+        detail: rejection.direction ? '作者否掉了这版，已按新说法重来' : '作者否掉了这版',
+      });
+      updateAgentStatus('completed');
+    };
+    window.addEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
+    return () => window.removeEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
+  }, [
+    agentRunIdRef,
+    assistantSessionIdRef,
+    draftNonceRef,
+    projectPathRef,
+    runStartConversationKeyRef,
     updateAgentStatus,
     updateAgentStep,
   ]);
