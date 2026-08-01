@@ -815,3 +815,82 @@ node scripts/check-openapi-drift.mjs -> OpenAPI 契约无漂移
 - **`task-rewrite` 在无例基线上的重测仍未做**（key 额度所限），变体仍挂在 `registry.py`。
 - 原始输出已不可恢复：此后复核只能读本报告的逐字核验引文，或重跑烧 key。
 - wave5 baseline 有 1 格「流式返回内容为空」未复跑（样本 n=2 vs 3）。
+
+# 2026-08-01 task-rewrite 无例基线重测（wave6）+ 修跑出来的两个传输洞
+
+## 起因
+
+作者点名跑 wave2 记档、wave4/5 因 key 额度未做的那次 retest：`task-rewrite`（「每句三检
+（推进/加深/氛围）」式任务行）在**无例**生产基线上的完整章稳定性。
+
+## 首跑即撞真 bug（两个，均已修 + 变异验证）
+
+### 1. 生产回归：流式建连的重置逃逸（#255 引入）
+
+首跑以裸 `ConnectionResetError` 打崩，traceback 落在 `urllib do_open → getresponse()`。
+urllib 只把 `request()` 的 OSError 包成 `URLError`，`getresponse()` 阶段裸抛。而
+`_stream_chat_completions` 的 urlopen 只挡 `HTTPError` 与 `(URLError, TimeoutError)`——
+非流式 `call_llm` 一直有第三条 `_RESPONSE_READ_ERRORS`（含 `ConnectionError`）分支，
+**#255 把三条产字路径搬上流式时没带过来**。后果：中转站一重置就不重试、不包 `LLMError`，
+上层只 catch `LLMError` 于是整轮判失败。已补齐同形态分支（此时尚未消费任何流帧，重发
+不会重复正文）。
+
+### 2. 生产 bug：静默截断被当成稿
+
+重跑落出一篇 804 字、断在「从柜台下面摸出一」的样本。查证机制：读帧循环在流 EOF 时自然
+结束，`content` 非空即照常产出 `done` 帧；`call_llm_streamed` 的「终帧缺失必须抛错」闸只在
+`final is None` 时触发，而内容非空就一定有终帧 —— **它挡得住全空，挡不住半截**。这条路径
+正是 file.create / file.revise / prose.continue，自动档下半截章节不经点击直接落盘。
+
+修法：读帧时记 `saw_terminal`，`[DONE]` 与 `finish_reason` **两种标记都认**（先拿真中转站
+探过：实测同时发 `finish_reason:"stop"` 与 `data: [DONE]`，闸不会误杀），收尾无标记即抛
+`LLMError` 并带上已输出字数。两个消费方都已稳妥承接：`call_llm_streamed` 直接抛，SSE 续写
+`except LLMError` 标记工具调用失败并发 `error` 帧。
+
+### 3. 实验台：单格失败隔离漏传输层裸异常
+
+`runner.py` 只捕 `(LLMError, LLMConfigError)`，裸传输异常从 `as_completed` 逃逸打崩整跑，
+**把已完成格连同实时落盘一起丢掉**——正是实时落盘要防的故障。改为按格捕获 `Exception`。
+
+## wave6 结果（transition-full 完整章格 × 2 变体 × 3 重复 = 6 格，全绿）
+
+长格首次一次跑满（此前 0/1、5/6）。
+
+```text
+                    字数              必含事实  情节要素  陈词  均句长  对白处数
+baseline(现任务行)   865,853,965      3/3 ×3    全中      0     11.6    16,13,18
+task-rewrite        965,804*,894     3/3 ×3    全中      0     13.2    15,7*,12
+                    * 该篇被上游截断（即上文第 2 条 bug 的样本）
+```
+
+**判读：两组未拉开差距，不构成 adopt 依据。** 唯一名义差别是均句长（fixture 目标 13.0，
+task-rewrite 更贴），但属弱代理指标；对白密度反而略低。变体保留在 `registry.py` 供后续
+更大样本复测，`CLAUDE.md` 的裁定段已同步。
+
+**方法教训：机械打分脚本给出过假阴性**——它报 task-rewrite「丢了结尾钩子 / 伪造揭示」，
+而原文写的是「取出一部手机…按了一个号码」「压痕浅了将近一半，像是换了一只笔」，只是没用
+关键词表里的字面。逐篇读过才纠正。仓里「工具不下结论、判定靠人工读」这条纪律有实证价值。
+
+## 验证
+
+```text
+uv run pytest -q  -> 1333 passed, 3 skipped（#256 基线 1328 + 本刀 5 条新测试，零失败）
+uv run ruff check app/common/llm_client.py scripts/prompt_lab/ tests/ -> All checks passed
+真跑：wave6 6/6 成功；真中转站探针确认同时发 finish_reason 与 [DONE]
+```
+
+变异验证（四条，均先红后绿）：
+- 摘掉流式建连的 `_RESPONSE_READ_ERRORS` 分支 → 两条重置用例以生产同款 `RemoteDisconnected` FAILED
+- 截断闸改 `if False and not saw_terminal` → `..._rejects_stream_cut_before_terminal_marker` DID NOT RAISE
+- 闸收紧成只认 `[DONE]` → `..._accepts_finish_reason_without_done_sentinel` 被误杀 FAILED
+- 实验台单格捕获退回 `except ValueError` → `..._does_not_discard_completed_cells` 崩在 stdout 已印出
+  `[1/3] 完成` 之后，实证「已完成格被连坐丢弃」
+
+## 仍未联通
+
+- **截断成因未定**：wave6 那篇是上游关流还是模型自停，产物证明不了——实验台不记 `finish_reason`。
+  闸落地后这类格子会直接判失败，等于把成因暴露到下一次，但本次样本无法回溯。
+- wave6 样本仍弱：n=3、单模型（sonnet-5）、单任务形态；判读由单人完成，无对抗验证。
+- 盲评版 `blind.md` 已生成（零变体名泄露）但**作者尚未读**——上述判读是我的读法，不是终裁。
+- 真机未验：截断闸与重置重试都是 API 层传输改动，装机版行为归 E2E-1。
+- 只在一个 Cloudflare 前置中转站上实证；其他网关的收尾标记行为未测。
