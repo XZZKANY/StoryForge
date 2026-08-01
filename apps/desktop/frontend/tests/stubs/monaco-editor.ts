@@ -91,6 +91,9 @@ export const editor = {
       setModel() {},
       layout() {},
       dispose() {},
+      // 面板挂载后会按字号/字体设置追平一次；缺这个方法会在 effect 里抛错，
+      // 表现为 React root 被打坏、整组交互用例莫名其妙地 'Should not already be working'。
+      updateOptions() {},
     };
   },
   createModel(value: string) {

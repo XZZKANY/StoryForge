@@ -12,7 +12,7 @@ type PatchReviewPanelProps = {
   editorFontFamily: string;
   onAccept: () => void;
   onAcceptHunk: (hunk: PatchHunk) => void;
-  onReject: () => void;
+  onReject: (direction: string) => void;
   onSaveNote: () => void;
 };
 
@@ -72,6 +72,8 @@ export function PatchReviewPanel({
   onSaveNote,
 }: PatchReviewPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  // null = 没在否；'' = 展开了输入框但还没写字。
+  const [rejectDraft, setRejectDraft] = useState<string | null>(null);
   const stats = useMemo(
     () => diffStats(suggestion.before, suggestion.after),
     [suggestion.before, suggestion.after],
@@ -81,6 +83,14 @@ export function PatchReviewPanel({
     [suggestion.before, suggestion.after],
   );
   const traceTitle = useMemo(() => buildPatchReviewTraceTitle(suggestion), [suggestion]);
+
+  // 发出即收起：面板通常随补丁一起消失，但同一实例换下一个补丁时不该还留着上一条草稿。
+  const submitRejection = () => {
+    if (rejectDraft === null) return;
+    const direction = rejectDraft;
+    setRejectDraft(null);
+    onReject(direction);
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -185,7 +195,7 @@ export function PatchReviewPanel({
             保存旁注
           </button>
           <button
-            onClick={onReject}
+            onClick={() => setRejectDraft((value) => (value === null ? '' : null))}
             data-testid="suggestion-reject"
             className="text-xs px-2.5 py-1 rounded-md text-muted hover:text-foreground hover:bg-elevated transition-colors"
           >
@@ -193,6 +203,39 @@ export function PatchReviewPanel({
           </button>
         </div>
       </div>
+      {rejectDraft !== null && (
+        <div
+          className="flex items-center gap-2 border-t border-border px-3 py-2"
+          data-testid="patch-reject-form"
+        >
+          <input
+            autoFocus
+            value={rejectDraft}
+            onChange={(event) => setRejectDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                submitRejection();
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                setRejectDraft(null);
+              }
+            }}
+            data-testid="patch-reject-input"
+            // 问的是「该怎么改」而不是「为什么拒绝」：前者朝向下一版，后者只是归档。
+            placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
+            className="min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground transition-colors placeholder:text-muted focus:border-accent focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={submitRejection}
+            data-testid="patch-reject-confirm"
+            className="flex-shrink-0 rounded-md border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-elevated"
+          >
+            {rejectDraft.trim() ? '否掉并重来' : '否掉'}
+          </button>
+        </div>
+      )}
       {hunks.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2 text-2xs text-muted">
           {hunks.map((hunk, index) => (

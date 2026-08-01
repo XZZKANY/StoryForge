@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import { flushActiveEditorToDisk } from '../../lib/assistant-events';
+import {
+  PATCH_REJECTED_EVENT,
+  flushActiveEditorToDisk,
+  type PatchRejection,
+} from '../../lib/assistant-events';
 import { requestCrossChapterConsistency } from '../../lib/api-client';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { formatCrossChapterFindings, resolveChapterRefs, type ChapterRef } from './cross-chapter';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
-import { deriveConversationTitle } from './conversation-utils';
+import { buildRejectionPrompt, deriveConversationTitle } from './conversation-utils';
 import type { ChatWindowProps, Message } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { RunAuthorAgent } from './useRunAuthorAgent';
@@ -149,6 +153,23 @@ export function useChatSubmission(
       setMessages,
     ],
   );
+
+  /**
+   * 作者否掉一版并说了「该怎么改」时，把这句话当成一次真实的作者发言发出去。
+   *
+   * 走 handleComposerSubmit 而不是另起传输：它既进 UI 消息列表，也由后端落进
+   * assistant_messages，于是自动进下一轮 prompt 的历史窗口——一行后端代码都不用改。
+   * 没给方向就不发，否则每次拒绝都要烧一轮 BYO-key 去读一句「我没要」。
+   */
+  useEffect(() => {
+    const onPatchRejected = (event: Event) => {
+      const rejection = (event as CustomEvent<PatchRejection>).detail;
+      if (!rejection?.direction.trim()) return;
+      void handleComposerSubmit(buildRejectionPrompt(rejection));
+    };
+    window.addEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
+    return () => window.removeEventListener(PATCH_REJECTED_EVENT, onPatchRejected);
+  }, [handleComposerSubmit]);
 
   const userMessageHistory = useMemo(
     () => messages.filter((message) => message.role === 'user').map((message) => message.content),

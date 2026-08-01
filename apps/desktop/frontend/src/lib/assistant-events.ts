@@ -10,6 +10,7 @@ export const APPLY_FILE_SUGGESTION_EVENT = 'storyforge:apply-file-suggestion';
 export const ACCEPT_CURRENT_FILE_SUGGESTION_EVENT = 'storyforge:accept-current-file-suggestion';
 export const SUGGESTION_RESULT_EVENT = 'storyforge:suggestion-result';
 export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
+export const PATCH_REJECTED_EVENT = 'storyforge:patch-rejected';
 export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-file';
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
@@ -199,6 +200,27 @@ export function emitAuthorLoopResult(result: AuthorLoopResult): void {
     window.dispatchEvent(
       new CustomEvent<AuthorLoopResult>(AUTHOR_LOOP_RESULT_EVENT, {
         detail: result,
+      }),
+    );
+  }
+}
+
+/**
+ * 作者否掉一版补丁时，连同「该怎么改」一起发出。
+ *
+ * direction 为空表示只是否掉、没给方向——那条路径刻意保持轻量，不触发新一轮模型调用。
+ */
+export type PatchRejection = {
+  filePath: string;
+  patchId: string;
+  direction: string;
+};
+
+export function emitPatchRejected(rejection: PatchRejection): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<PatchRejection>(PATCH_REJECTED_EVENT, {
+        detail: rejection,
       }),
     );
   }
