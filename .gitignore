@@ -11,6 +11,8 @@ apps/desktop/src-tauri/binaries/
 apps/desktop/.tauri-target-smoke/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/target-smoke/
+apps/desktop/src-tauri/resources/mingit/runtime/*
+!apps/desktop/src-tauri/resources/mingit/runtime/.gitkeep
 apps/web/out/
 .venv/
 __pycache__/

@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import type { BranchGraph, GraphNode } from '../lib/branches';
 import { buildPatchHunks } from '../lib/patch-hunks';
+import type { VersionState } from '../lib/versions';
 
 type BranchCanvasProps = {
   graph: BranchGraph;
@@ -16,7 +17,7 @@ type BranchCanvasProps = {
   onSelectBranch: (branchId: string) => void;
   onCheckout: (node: GraphNode) => void;
   onBranchFrom: (node: GraphNode) => void;
-  readNodeContent: (path: string) => Promise<string>;
+  readNodeState: (node: GraphNode) => Promise<VersionState>;
 };
 
 function formatTimestamp(ms: number): string {
@@ -33,7 +34,7 @@ export function BranchCanvas({
   onSelectBranch,
   onCheckout,
   onBranchFrom,
-  readNodeContent,
+  readNodeState,
 }: BranchCanvasProps) {
   // 与编辑器历史列表一致：最新在上。
   const nodes = [...graph.nodes].sort((a, b) => b.timestamp - a.timestamp);
@@ -93,7 +94,7 @@ export function BranchCanvas({
             onSelect={() => onSelectNode(node.id)}
             onCheckout={() => onCheckout(node)}
             onBranchFrom={() => onBranchFrom(node)}
-            readNodeContent={readNodeContent}
+            readNodeState={readNodeState}
           />
         ))}
       </div>
@@ -113,7 +114,7 @@ function BranchNodeRow({
   onSelect,
   onCheckout,
   onBranchFrom,
-  readNodeContent,
+  readNodeState,
 }: {
   node: GraphNode;
   laneCount: number;
@@ -124,7 +125,7 @@ function BranchNodeRow({
   onSelect: () => void;
   onCheckout: () => void;
   onBranchFrom: () => void;
-  readNodeContent: (path: string) => Promise<string>;
+  readNodeState: (node: GraphNode) => Promise<VersionState>;
 }) {
   const [diff, setDiff] = useState<DiffState>(null);
 
@@ -132,10 +133,12 @@ function BranchNodeRow({
     if (!parent) return;
     setDiff('loading');
     try {
-      const [before, after] = await Promise.all([
-        readNodeContent(parent.path),
-        readNodeContent(node.path),
+      const [beforeState, afterState] = await Promise.all([
+        readNodeState(parent),
+        readNodeState(node),
       ]);
+      const before = beforeState.exists ? beforeState.content : '';
+      const after = afterState.exists ? afterState.content : '';
       const hunks = buildPatchHunks(before, after);
       setDiff({
         hunks: hunks.length,
@@ -184,6 +187,7 @@ function BranchNodeRow({
           <button
             type="button"
             onClick={onCheckout}
+            disabled={!!node.version.unavailableReason}
             className="rounded-md bg-accent px-2 py-1 text-2xs text-accent-foreground hover:opacity-90"
             data-testid="branch-node-checkout"
           >
@@ -192,6 +196,7 @@ function BranchNodeRow({
           <button
             type="button"
             onClick={onBranchFrom}
+            disabled={!!node.version.unavailableReason}
             className="rounded-md border border-border px-2 py-1 text-2xs text-foreground hover:bg-foreground/10"
             data-testid="branch-node-fork"
           >
@@ -206,6 +211,9 @@ function BranchNodeRow({
             >
               对比父版本
             </button>
+          )}
+          {node.version.unavailableReason && (
+            <span className="text-2xs text-error">{node.version.unavailableReason}</span>
           )}
           {diff === 'loading' && <span className="text-2xs text-muted">对比中…</span>}
           {diff === 'error' && <span className="text-2xs text-error">对比失败</span>}

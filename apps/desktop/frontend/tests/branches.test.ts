@@ -10,6 +10,7 @@ import {
   loadBranchManifest,
   MAIN_BRANCH_ID,
   normalizeManifest,
+  reconcileManifestWithVersions,
   saveBranchManifest,
   setActiveBranch,
   setBranchHead,
@@ -36,7 +37,8 @@ function withMockFs(
 }
 
 function version(timestamp: number, extra: Partial<VersionEntry> = {}): VersionEntry {
-  return { path: `snap/${timestamp}.snapshot.md`, timestamp, ...extra };
+  const path = `snap/${timestamp}.snapshot.md`;
+  return { path, contentRef: { kind: 'legacy-file', path }, timestamp, ...extra };
 }
 
 test('createBranch forks from a node, activates it, and keeps ids unique', () => {
@@ -71,13 +73,19 @@ test('setBranchHead advances only the target branch tip', () => {
 test('normalizeManifest guarantees main and a valid active branch', () => {
   const fromBroken = normalizeManifest({ activeBranchId: '幽灵', branches: [] });
   assert.equal(fromBroken.activeBranchId, MAIN_BRANCH_ID);
-  assert.equal(fromBroken.branches.some((b) => b.id === MAIN_BRANCH_ID), true);
+  assert.equal(
+    fromBroken.branches.some((b) => b.id === MAIN_BRANCH_ID),
+    true,
+  );
 
   const missingMain = normalizeManifest({
     activeBranchId: 'x',
     branches: [{ id: 'x', label: 'X' }],
   });
-  assert.equal(missingMain.branches.some((b) => b.id === MAIN_BRANCH_ID), true);
+  assert.equal(
+    missingMain.branches.some((b) => b.id === MAIN_BRANCH_ID),
+    true,
+  );
   assert.equal(missingMain.activeBranchId, 'x');
 });
 
@@ -89,8 +97,14 @@ test('buildGraph keeps legacy flat snapshots as a linear main line', () => {
   assert.equal(byId.get(100)?.parentId, null); // 首节点为根
   assert.equal(byId.get(200)?.parentId, 100);
   assert.equal(byId.get(300)?.parentId, 200);
-  assert.equal(graph.nodes.every((node) => node.branchId === MAIN_BRANCH_ID), true);
-  assert.equal(graph.nodes.every((node) => node.lane === 0), true);
+  assert.equal(
+    graph.nodes.every((node) => node.branchId === MAIN_BRANCH_ID),
+    true,
+  );
+  assert.equal(
+    graph.nodes.every((node) => node.lane === 0),
+    true,
+  );
 });
 
 test('buildGraph honours explicit lineage and assigns lanes per branch', () => {
@@ -107,6 +121,45 @@ test('buildGraph honours explicit lineage and assigns lanes per branch', () => {
   assert.equal(byId.get(120)?.lane, 0);
 });
 
+test('buildGraph falls back when an explicit parent no longer has a live version', () => {
+  const versions = [
+    version(100, { branchId: MAIN_BRANCH_ID }),
+    version(200, { branchId: MAIN_BRANCH_ID, parentId: 999 }),
+  ];
+  const graph = buildGraph(versions, emptyManifest());
+  assert.equal(graph.nodes.find((node) => node.id === 200)?.parentId, 100);
+});
+
+test('reconcileManifestWithVersions replaces stale heads with the latest live branch node', () => {
+  const manifest = setBranchHead(createBranch(emptyManifest(), 100, '支线'), 'b100', 999);
+  const reconciled = reconcileManifestWithVersions(manifest, [
+    version(100, { branchId: MAIN_BRANCH_ID }),
+    version(150, { branchId: 'b100', parentId: 100 }),
+  ]);
+  const branch = reconciled.branches.find((entry) => entry.id === 'b100');
+  assert.equal(branch?.headNodeId, 150);
+});
+
+test('unavailable versions stay visible but cannot remain a graph parent or branch head', () => {
+  const manifest = setBranchHead(emptyManifest(), MAIN_BRANCH_ID, 150);
+  const graph = buildGraph(
+    [
+      version(100, { branchId: MAIN_BRANCH_ID }),
+      version(150, {
+        branchId: MAIN_BRANCH_ID,
+        parentId: 100,
+        unavailableReason: 'tree missing',
+      }),
+      version(200, { branchId: MAIN_BRANCH_ID, parentId: 150 }),
+    ],
+    manifest,
+  );
+
+  assert.equal(graph.nodes.length, 3, '失效记录仍应留在时间线');
+  assert.equal(graph.nodes.find((node) => node.id === 200)?.parentId, 100);
+  assert.equal(graph.branches.find((branch) => branch.id === MAIN_BRANCH_ID)?.headNodeId, 200);
+});
+
 test('loadBranchManifest falls back to main when manifest is absent', async () => {
   await withMockFs(
     {
@@ -119,6 +172,16 @@ test('loadBranchManifest falls back to main when manifest is absent', async () =
       assert.deepEqual(manifest, emptyManifest());
     },
   );
+});
+
+test('a branch with no restorable branch node falls back to its live fork point', () => {
+  const manifest = setBranchHead(createBranch(emptyManifest(), 100, '支线'), 'b100', 150);
+  const reconciled = reconcileManifestWithVersions(manifest, [
+    version(100, { branchId: MAIN_BRANCH_ID }),
+    version(150, { branchId: 'b100', parentId: 100, unavailableReason: 'tree missing' }),
+  ]);
+
+  assert.equal(reconciled.branches.find((branch) => branch.id === 'b100')?.headNodeId, 100);
 });
 
 test('saveBranchManifest writes JSON beside the file version dir and round-trips', async () => {

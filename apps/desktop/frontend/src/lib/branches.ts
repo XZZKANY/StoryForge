@@ -1,10 +1,11 @@
 /**
  * 剧情分支画布（Source Control Graph for Fiction）— 单章版本分支。
  *
- * 复用 .storyforge/versions 下的快照作为节点内容仓库，仅额外维护一份
+ * 复用 .storyforge/versions 下的版本元数据作为节点时间线，正文由 VersionContentRef
+ * 指向 legacy 文件或 app-local 影子 Git tree；另维护一份
  * 每文件的分支清单 .storyforge/versions/<相对文件>/branches.json，
  * 记录分支、活动分支与各分支 tip。血缘（parentId/branchId）写在每个
- * 快照的 .meta.json 里（见 versions.ts）。全部走真实文件系统，不伪造数据。
+ * 版本 .meta.json 里（见 versions.ts）。全部走真实文件系统，不伪造数据。
  */
 
 import { TauriFileSystem } from './tauri-fs';
@@ -32,8 +33,8 @@ export type BranchManifest = {
 export type GraphNode = {
   /** = 快照时间戳，文件版本目录内唯一。 */
   id: number;
-  /** 快照文件完整路径，用于读取正文。 */
-  path: string;
+  /** 中心版本 locator；画布不得把节点退化成裸 snapshot path。 */
+  version: VersionEntry;
   parentId: number | null;
   branchId: string;
   /** 渲染泳道列序。 */
@@ -186,20 +187,24 @@ export function setBranchHead(
  * 兼容旧线性快照：无 branchId 归 main，无 parentId 则取同分支上一个节点（main 首节点为根）。
  */
 export function buildGraph(versions: VersionEntry[], manifest: BranchManifest): BranchGraph {
+  const liveManifest = reconcileManifestWithVersions(manifest, versions);
   const laneOf: Record<string, number> = {};
-  manifest.branches.forEach((branch, index) => {
+  liveManifest.branches.forEach((branch, index) => {
     laneOf[branch.id] = index;
   });
   if (laneOf[MAIN_BRANCH_ID] === undefined) laneOf[MAIN_BRANCH_ID] = 0;
 
   const ascending = [...versions].sort((a, b) => a.timestamp - b.timestamp);
+  const liveNodeIds = new Set(
+    ascending.filter((entry) => !entry.unavailableReason).map((entry) => entry.timestamp),
+  );
   const lastByBranch: Record<string, number> = {};
   let lastMainId: number | null = null;
 
   const nodes: GraphNode[] = ascending.map((entry) => {
     const branchId = entry.branchId ?? MAIN_BRANCH_ID;
     let parentId: number | null;
-    if (typeof entry.parentId === 'number') {
+    if (typeof entry.parentId === 'number' && liveNodeIds.has(entry.parentId)) {
       parentId = entry.parentId;
     } else if (lastByBranch[branchId] !== undefined) {
       parentId = lastByBranch[branchId];
@@ -207,11 +212,13 @@ export function buildGraph(versions: VersionEntry[], manifest: BranchManifest): 
       parentId = branchId === MAIN_BRANCH_ID ? null : lastMainId;
     }
     const lane = laneOf[branchId] ?? 0;
-    lastByBranch[branchId] = entry.timestamp;
-    if (branchId === MAIN_BRANCH_ID) lastMainId = entry.timestamp;
+    if (!entry.unavailableReason) {
+      lastByBranch[branchId] = entry.timestamp;
+      if (branchId === MAIN_BRANCH_ID) lastMainId = entry.timestamp;
+    }
     return {
       id: entry.timestamp,
-      path: entry.path,
+      version: entry,
       parentId,
       branchId,
       lane,
@@ -222,5 +229,33 @@ export function buildGraph(versions: VersionEntry[], manifest: BranchManifest): 
     };
   });
 
-  return { nodes, branches: manifest.branches, laneOf };
+  return { nodes, branches: liveManifest.branches, laneOf };
+}
+
+/** 版本对象/ref 失效后，把悬空 branch head/base 收敛到该分支最近仍可见的节点。 */
+export function reconcileManifestWithVersions(
+  manifest: BranchManifest,
+  versions: VersionEntry[],
+): BranchManifest {
+  const restorableVersions = versions.filter((entry) => !entry.unavailableReason);
+  const liveIds = new Set(restorableVersions.map((entry) => entry.timestamp));
+  const latestByBranch = new Map<string, number>();
+  for (const entry of [...restorableVersions].sort((a, b) => a.timestamp - b.timestamp)) {
+    latestByBranch.set(entry.branchId ?? MAIN_BRANCH_ID, entry.timestamp);
+  }
+  return {
+    ...manifest,
+    branches: manifest.branches.map((branch) => {
+      const baseNodeId =
+        branch.baseNodeId === null || liveIds.has(branch.baseNodeId) ? branch.baseNodeId : null;
+      return {
+        ...branch,
+        baseNodeId,
+        headNodeId:
+          branch.headNodeId !== null && liveIds.has(branch.headNodeId)
+            ? branch.headNodeId
+            : (latestByBranch.get(branch.id) ?? baseNodeId),
+      };
+    }),
+  };
 }

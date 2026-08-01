@@ -56,8 +56,8 @@ export function shouldSettleActiveEditor(
  * 作者可能已经接着往下写、autosave（900ms 防抖）也可能已落了新盘。此时把旧内容盖回去
  * 会吃掉这段新输入——所以撤销前必须确认当前内容仍然就是刚写进去的那份。
  *
- * 载荷用内存里的 previous 而不是 .storyforge/versions 快照：快照每文件只留 20 份，
- * 高频 autosave 下会被挤掉，不能当唯一兜底。
+ * 快捷撤销用内存里的 previous，是为了先验证“当前内容仍等于刚写入内容”，避免一次额外
+ * tree 读取；长期兜底仍是由专用 ref 保活的 .storyforge/versions 版本记录。
  */
 export function canUndoWriteback(
   currentContent: string,

@@ -185,6 +185,31 @@ test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位',
   );
 });
 
+test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退计划→摘页签执行', () => {
+  const restoreBlock = editorSource.match(
+    /const handleRestore = async[\s\S]*?\/\/ 分支画布：把某节点正文恢复到编辑器/,
+  )?.[0];
+  assert.ok(restoreBlock, '找不到 handleRestore 不存在态恢复块');
+  const saveAt = restoreBlock.indexOf('saveCurrentFileRef.current()');
+  const snapshotAt = restoreBlock.indexOf('snapshotBeforeWrite(');
+  const deleteAt = restoreBlock.indexOf('TauriFileSystem.deletePath(');
+  const unmarkAt = restoreBlock.indexOf('unmarkChapterWrittenInPlan(');
+  const dropAt = restoreBlock.indexOf('dropOpenFilePath(path)');
+  assert.ok(saveAt >= 0 && saveAt < snapshotAt, '脏缓冲必须先保存，才能进入删除快照');
+  assert.ok(snapshotAt < deleteAt, '影子快照失败必须阻断真删除');
+  assert.ok(deleteAt < unmarkAt, '文件真删除后才能回退连载计划');
+  assert.ok(unmarkAt < dropAt, '删除链完成前不得先摘页签');
+  assert.doesNotMatch(restoreBlock, /writeFile\([^)]*,\s*['"]{2}/, '不存在态不得写空串');
+});
+
+test('空文件写入正文也必须先取版本 tree，不得被旧空串短路', () => {
+  assert.match(
+    editorSource,
+    /const contentChanged = normalizeEol\(previous\) !== normalizeEol\(content\)/,
+  );
+  assert.doesNotMatch(editorSource, /contentChanged = previous !== ['"]{2}/);
+});
+
 test('设置页明确 Provider 运行时真相源来自后端环境变量', () => {
   assert.ok(
     settingsViewSource.includes('真实模型调用读取后端环境变量'),

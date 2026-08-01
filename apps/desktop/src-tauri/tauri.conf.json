@@ -20,6 +20,11 @@
     "active": true,
     "targets": "all",
     "externalBin": ["binaries/storyforge-api"],
+    "resources": [
+      "resources/mingit/manifest.json",
+      "resources/mingit/THIRD_PARTY_NOTICES.md",
+      "resources/mingit/runtime/**/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

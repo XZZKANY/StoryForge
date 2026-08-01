@@ -1,16 +1,20 @@
-/**
- * 版本安全网：检查点独立配额 + 「新建」与「内容为空」的区分。
- *
- * 自动档下补丁免点击落盘，作者事后想回的是「Agent 动手之前」。这一份如果和 autosave
- * 挤同一个 20 份池子，写一会儿就先被冲掉；新建文件如果只记一份空内容快照，撤销就只能
- * 得到一个空文件而不是「没有这个文件」。这两条都在这里钉死。
- */
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 type MemFile = { content: string };
 const disk = new Map<string, MemFile>();
 let existsThrows = false;
+const events: string[] = [];
+
+const shadow = vi.hoisted(() => ({
+  createError: null as Error | null,
+  retainError: null as Error | null,
+  filterError: null as Error | null,
+  nextTreeHash: 'a'.repeat(40),
+  retainedHashes: new Set<string>(),
+  releasedRecordIds: [] as string[],
+  treeFiles: new Map<string, Map<string, { exists: boolean; content: string }>>(),
+}));
 
 function normalize(path: string): string {
   return path.replace(/\\/g, '/');
@@ -19,6 +23,7 @@ function normalize(path: string): string {
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: async (_root: string, path: string, content: string) => {
+      events.push(path.endsWith('.meta.json') ? 'write-meta' : 'write-file');
       disk.set(normalize(path), { content });
     },
     readFile: async (path: string) => {
@@ -44,12 +49,36 @@ vi.mock('../src/lib/tauri-fs', () => ({
       return disk.has(normalize(path));
     },
     deletePath: async (_root: string, path: string) => {
+      events.push('delete-meta');
       disk.delete(normalize(path));
     },
   },
 }));
 
-import { listVersions, snapshotBeforeWrite } from '../src/lib/versions';
+vi.mock('../src/lib/shadow-git', () => ({
+  createShadowSnapshot: async () => {
+    events.push('create-tree');
+    if (shadow.createError) throw shadow.createError;
+    return { treeHash: shadow.nextTreeHash, gitVersion: 'git version 2.55.0.windows.3' };
+  },
+  retainShadowSnapshot: async (_project: string, treeHash: string) => {
+    events.push('retain-ref');
+    if (shadow.retainError) throw shadow.retainError;
+    shadow.retainedHashes.add(treeHash);
+  },
+  releaseShadowSnapshot: async (_project: string, recordId: string) => {
+    events.push('release-ref');
+    shadow.releasedRecordIds.push(recordId);
+  },
+  filterShadowSnapshotHashes: async (_project: string, hashes: string[]) => {
+    if (shadow.filterError) throw shadow.filterError;
+    return hashes.filter((hash) => shadow.retainedHashes.has(hash));
+  },
+  readShadowSnapshotFile: async (_project: string, treeHash: string, file: string) =>
+    shadow.treeFiles.get(treeHash)?.get(normalize(file)) ?? { exists: false, content: '' },
+}));
+
+import { listVersions, readVersionState, snapshotBeforeWrite } from '../src/lib/versions';
 
 const PROJECT = 'D:/连载/末世吞噬';
 const FILE = 'D:/连载/末世吞噬/正文/第01章.md';
@@ -59,9 +88,16 @@ let clock = 1_700_000_000_000;
 
 beforeEach(() => {
   disk.clear();
+  events.length = 0;
   existsThrows = false;
-  clock = 1_700_000_000_000;
-  // 快照文件名就是时间戳，同毫秒会互相覆盖；逐次推进才能测出淘汰行为。
+  shadow.createError = null;
+  shadow.retainError = null;
+  shadow.filterError = null;
+  shadow.nextTreeHash = 'a'.repeat(40);
+  shadow.retainedHashes.clear();
+  shadow.releasedRecordIds.length = 0;
+  shadow.treeFiles.clear();
+  clock += 100_000;
   vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1000));
 });
 
@@ -69,80 +105,175 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** 只数该目录的直接子项——主目录前缀同时也是 checkpoints/ 的前缀，不排掉会把它一起算进来。 */
-function snapshotPaths(sub = ''): string[] {
+function directMetaPaths(sub = ''): string[] {
   const prefix = `${VERSION_DIR}${sub}/`;
   return [...disk.keys()].filter(
     (key) =>
       key.startsWith(prefix) &&
-      key.endsWith('.snapshot.md') &&
+      key.endsWith('.meta.json') &&
       !key.slice(prefix.length).includes('/'),
   );
 }
 
-test('检查点落在 checkpoints/，普通快照落在主目录', async () => {
+test('new snapshots write only v2 metadata and retain the tree before returning', async () => {
   disk.set(normalize(FILE), { content: '旧' });
-
-  await snapshotBeforeWrite(PROJECT, FILE, '手存前', { source: 'Editor' });
-  await snapshotBeforeWrite(PROJECT, FILE, 'agent 动手前', { source: 'Agent', checkpoint: true });
-
-  assert.equal(snapshotPaths().length, 1, '主目录应只有那份手存快照');
-  assert.equal(snapshotPaths('/checkpoints').length, 1, '检查点应落进 checkpoints/');
-});
-
-test('autosave 洪水冲不掉检查点：两个池子各算各的 20 份', async () => {
-  disk.set(normalize(FILE), { content: '旧' });
-  await snapshotBeforeWrite(PROJECT, FILE, 'agent 动手前', { source: 'Agent', checkpoint: true });
-
-  for (let i = 0; i < 40; i += 1) {
-    await snapshotBeforeWrite(PROJECT, FILE, `第 ${i} 次自动保存前`, { source: 'Editor' });
-  }
-
-  assert.equal(snapshotPaths().length, 20, '普通快照仍受 20 份上限约束');
-  assert.equal(
-    snapshotPaths('/checkpoints').length,
-    1,
-    '40 次 autosave 之后，Agent 动手前那份检查点必须还在',
-  );
-});
-
-test('检查点自己也有上限，不会无限涨', async () => {
-  disk.set(normalize(FILE), { content: '旧' });
-  for (let i = 0; i < 30; i += 1) {
-    await snapshotBeforeWrite(PROJECT, FILE, `第 ${i} 轮前`, { source: 'Agent', checkpoint: true });
-  }
-  assert.equal(snapshotPaths('/checkpoints').length, 20);
-});
-
-test('区分「新建」与「内容为空」', async () => {
-  const created = await snapshotBeforeWrite(PROJECT, FILE, '', { source: 'Agent' });
-  assert.equal(created?.created, true, '文件此前不存在时必须标 created');
-
-  disk.set(normalize(FILE), { content: '' });
-  const emptyButExisting = await snapshotBeforeWrite(PROJECT, FILE, '', { source: 'Agent' });
-  assert.equal(emptyButExisting?.created, false, '空文件已存在时不能当作新建（撤销会误删）');
-});
-
-test('探测失败按「文件已存在」处理——宁可写回空内容也不误删', async () => {
-  existsThrows = true;
-  const result = await snapshotBeforeWrite(PROJECT, FILE, '', { source: 'Agent' });
-  assert.equal(result?.created, false);
-});
-
-test('版本历史把两个目录合成一条倒序时间线并标出检查点', async () => {
-  disk.set(normalize(FILE), { content: '旧' });
-  await snapshotBeforeWrite(PROJECT, FILE, '手存前', { source: 'Editor' });
-  await snapshotBeforeWrite(PROJECT, FILE, 'agent 动手前', {
+  const result = await snapshotBeforeWrite(PROJECT, FILE, '旧', {
     source: 'Agent',
     checkpoint: true,
     runId: 'run-7',
   });
 
+  assert.deepEqual(events, ['create-tree', 'write-meta', 'retain-ref']);
+  assert.equal(directMetaPaths('/checkpoints').length, 1);
+  assert.equal(
+    [...disk.keys()].some((path) => path.endsWith('.snapshot.md')),
+    false,
+  );
+  const stored = JSON.parse(disk.get(normalize(result!.path))!.content) as Record<string, unknown>;
+  assert.equal(stored.schemaVersion, 2);
+  assert.equal(stored.storage, 'shadow-git');
+  assert.equal(stored.treeHash, 'a'.repeat(40));
+  assert.equal(stored.file, '正文/第01章.md');
+  assert.equal(stored.runId, 'run-7');
+  assert.equal(typeof stored.recordId, 'string');
+});
+
+test('new lightweight records are not truncated after twenty versions', async () => {
+  disk.set(normalize(FILE), { content: '旧' });
+  for (let index = 0; index < 25; index += 1) {
+    shadow.nextTreeHash = index.toString(16).padStart(40, '0');
+    await snapshotBeforeWrite(PROJECT, FILE, `第 ${index} 版`, { source: 'Editor' });
+  }
+  assert.equal(directMetaPaths().length, 25);
+  assert.equal((await listVersions(PROJECT, FILE)).length, 25);
+});
+
+test('created metadata still distinguishes a missing file from an existing empty file', async () => {
+  const created = await snapshotBeforeWrite(PROJECT, FILE, '', { source: 'Agent' });
+  assert.equal(created?.created, true);
+
+  disk.set(normalize(FILE), { content: '' });
+  const existing = await snapshotBeforeWrite(PROJECT, FILE, '', { source: 'Agent' });
+  assert.equal(existing?.created, false);
+});
+
+test('existence probe failure remains conservative and never marks the file for deletion', async () => {
+  existsThrows = true;
+  const result = await snapshotBeforeWrite(PROJECT, FILE, '', { source: 'Agent' });
+  assert.equal(result?.created, false);
+});
+
+test('tree or retain failures reject and remove half-written metadata', async () => {
+  shadow.createError = new Error('missing bundled Git');
+  await assert.rejects(snapshotBeforeWrite(PROJECT, FILE, '旧'), /missing bundled Git/);
+  assert.equal(directMetaPaths().length, 0);
+  assert.deepEqual(events, ['create-tree']);
+
+  events.length = 0;
+  shadow.createError = null;
+  shadow.retainError = new Error('update-ref failed');
+  await assert.rejects(snapshotBeforeWrite(PROJECT, FILE, '旧'), /update-ref failed/);
+  assert.equal(directMetaPaths().length, 0);
+  assert.equal(events[0], 'create-tree');
+  assert.equal(events[1], 'write-meta');
+  assert.equal(events[2], 'retain-ref');
+  assert.equal(events.includes('delete-meta'), true);
+  assert.equal(events.includes('release-ref'), true);
+});
+
+test('legacy and v2 entries share one timeline and one structured reader', async () => {
+  const legacyStamp = clock + 1;
+  const treeStamp = clock + 2;
+  const treeHash = 'b'.repeat(40);
+  const legacyPath = `${VERSION_DIR}/${legacyStamp}.snapshot.md`;
+  disk.set(legacyPath, { content: '旧式正文' });
+  disk.set(`${VERSION_DIR}/${legacyStamp}.meta.json`, {
+    content: JSON.stringify({ source: 'Editor', file: '正文/第01章.md' }),
+  });
+  disk.set(`${VERSION_DIR}/checkpoints/${treeStamp}.meta.json`, {
+    content: JSON.stringify({
+      schemaVersion: 2,
+      storage: 'shadow-git',
+      treeHash,
+      recordId: 'record_002',
+      source: 'Agent',
+      file: '正文/第01章.md',
+      runId: 'run-2',
+    }),
+  });
+  shadow.retainedHashes.add(treeHash);
+  shadow.treeFiles.set(
+    treeHash,
+    new Map([['正文/第01章.md', { exists: true, content: 'tree 正文' }]]),
+  );
+
+  const versions = await listVersions(PROJECT, FILE);
+  assert.equal(versions.length, 2);
+  assert.equal(versions[0].contentRef.kind, 'shadow-tree');
+  assert.equal(versions[0].checkpoint, true);
+  assert.equal(versions[0].runId, 'run-2');
+  assert.equal(versions[1].contentRef.kind, 'legacy-file');
+  assert.deepEqual(await readVersionState(PROJECT, versions[0]), {
+    exists: true,
+    content: 'tree 正文',
+  });
+  assert.deepEqual(await readVersionState(PROJECT, versions[1]), {
+    exists: true,
+    content: '旧式正文',
+  });
+});
+
+test('legacy created snapshots restore as missing instead of an empty file', async () => {
+  const stamp = clock + 1;
+  disk.set(`${VERSION_DIR}/${stamp}.snapshot.md`, { content: '' });
+  disk.set(`${VERSION_DIR}/${stamp}.meta.json`, {
+    content: JSON.stringify({ created: true, file: '正文/第01章.md' }),
+  });
+  const [entry] = await listVersions(PROJECT, FILE);
+  assert.deepEqual(await readVersionState(PROJECT, entry), { exists: false, content: '' });
+});
+
+test('v2 metadata with a missing ref remains visible but cannot be restored', async () => {
+  const stamp = clock + 1;
+  const treeHash = 'c'.repeat(40);
+  disk.set(`${VERSION_DIR}/${stamp}.meta.json`, {
+    content: JSON.stringify({
+      schemaVersion: 2,
+      storage: 'shadow-git',
+      treeHash,
+      recordId: 'record_003',
+      file: '正文/第01章.md',
+    }),
+  });
+  const [entry] = await listVersions(PROJECT, FILE);
+  assert.match(entry.unavailableReason ?? '', /保活 ref/);
+  await assert.rejects(readVersionState(PROJECT, entry), /保活 ref/);
+});
+
+test('shadow repository failure keeps metadata visible and leaves legacy versions readable', async () => {
+  const legacyStamp = clock + 1;
+  const treeStamp = clock + 2;
+  disk.set(`${VERSION_DIR}/${legacyStamp}.snapshot.md`, { content: '旧式正文' });
+  disk.set(`${VERSION_DIR}/${treeStamp}.meta.json`, {
+    content: JSON.stringify({
+      schemaVersion: 2,
+      storage: 'shadow-git',
+      treeHash: 'd'.repeat(40),
+      recordId: 'record_004',
+      file: '正文/第01章.md',
+    }),
+  });
+  shadow.filterError = new Error('shadow repository missing');
+
   const versions = await listVersions(PROJECT, FILE);
 
   assert.equal(versions.length, 2);
-  assert.equal(versions[0].timestamp > versions[1].timestamp, true, '必须按时间倒序');
-  assert.equal(versions[0].checkpoint, true);
-  assert.equal(versions[0].runId, 'run-7');
-  assert.equal(versions[1].checkpoint, false);
+  const treeEntry = versions.find((entry) => entry.contentRef.kind === 'shadow-tree');
+  const legacyEntry = versions.find((entry) => entry.contentRef.kind === 'legacy-file');
+  assert.match(treeEntry?.unavailableReason ?? '', /shadow repository missing/);
+  assert.equal(legacyEntry?.unavailableReason, undefined);
+  assert.deepEqual(await readVersionState(PROJECT, legacyEntry!), {
+    exists: true,
+    content: '旧式正文',
+  });
 });

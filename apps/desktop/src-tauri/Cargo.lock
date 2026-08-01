@@ -3638,11 +3638,13 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
+ "tempfile",
  "tokio",
  "walkdir",
 ]

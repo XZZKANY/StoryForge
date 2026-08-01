@@ -1,55 +1,55 @@
 /**
- * 文件版本记录
- * 在项目目录下的 .storyforge/versions/ 镜像保存被覆盖前的内容快照，
- * 提供历史列表查看与恢复。全部走真实文件系统，不伪造数据。
+ * 作品版本记录。
  *
- * 布局：<project>/.storyforge/versions/<相对路径>/<unix毫秒>.snapshot.md
+ * 新版本只在 .storyforge/versions 下保存轻量 schema-v2 元数据，正文与作品状态由
+ * app-local 影子 Git tree 内容寻址保存。旧 .snapshot.md 继续读取，不做破坏性迁移。
  */
 
-import { TauriFileSystem, FileEntry } from './tauri-fs';
+import type { FileEntry } from './tauri-fs';
+import { TauriFileSystem } from './tauri-fs';
 import { relativePathInsideProject } from './project/path';
+import {
+  createShadowSnapshot,
+  filterShadowSnapshotHashes,
+  readShadowSnapshotFile,
+  releaseShadowSnapshot,
+  retainShadowSnapshot,
+} from './shadow-git';
 
 const VERSION_ROOT = '.storyforge/versions';
 const SNAPSHOT_SUFFIX = '.snapshot.md';
 const META_SUFFIX = '.meta.json';
-/** 每个文件保留的快照上限:autoSave 900ms 防抖下无上限会把用户盘写爆。 */
-const MAX_SNAPSHOTS_PER_FILE = 20;
-/**
- * 检查点子目录：Agent 每次动手前那一份存这里，与普通快照**各算各的配额**。
- *
- * WHY：自动档下补丁免点击落盘，作者事后想回的是「agent 这一轮动手之前」。这份快照如果和
- * autosave 挤同一个 20 份池子，写一会儿就被冲掉了——恰恰是最该留的那份先没。
- */
 const CHECKPOINT_DIR = 'checkpoints';
-const MAX_CHECKPOINTS_PER_FILE = 20;
+const TREE_HASH_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
+
+export type VersionContentRef =
+  | { kind: 'legacy-file'; path: string }
+  | { kind: 'shadow-tree'; treeHash: string; file: string };
+
+export type VersionState = { exists: boolean; content: string };
 
 export type VersionEntry = {
-  /** 快照文件完整路径 */
+  /** 唯一 UI key：legacy 为 snapshot 路径，v2 为 meta 路径。 */
   path: string;
-  /** 保存时间（unix 毫秒）。同时作为该文件版本目录内唯一的节点 id。 */
+  contentRef: VersionContentRef;
+  /** 保存时间（unix 毫秒）。同时作为该文件版本目录内的剧情节点 id。 */
   timestamp: number;
-  /** 写回来源，如 Agent 或 Editor */
   source?: string;
-  /** 本次写回摘要 */
   summary?: string;
-  /** 被写回文件的项目相对路径 */
   file?: string;
   patchId?: string;
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
-  /** 剧情分支画布血缘：父节点 timestamp；null/缺省表示分支起点或旧线性快照。 */
   parentId?: number | null;
-  /** 所属分支 id；缺省按 main 处理。 */
   branchId?: string;
-  /** 分支展示名。 */
   branchLabel?: string;
-  /** 发起这次写回的 AgentRun；用于把同一轮的改动认出来。 */
   runId?: string;
-  /** 这次写回**创建**了该文件——即此版本之前文件并不存在（内容为空不等于不存在）。 */
   created?: boolean;
-  /** 落在 checkpoints/ 子目录：Agent 动手前的锚点，不与 autosave 抢配额。 */
   checkpoint?: boolean;
+  recordId?: string;
+  /** 元数据仍展示，但内容对象/ref 已丢失时明确禁用恢复。 */
+  unavailableReason?: string;
 };
 
 export type VersionSnapshotMetadata = {
@@ -64,10 +64,15 @@ export type VersionSnapshotMetadata = {
   branchId?: string;
   branchLabel?: string;
   runId?: string;
-  /** true 时快照落进 checkpoints/，走独立配额。 */
   checkpoint?: boolean;
-  /** 由 snapshotBeforeWrite 探测后写入，调用方不必传。 */
   created?: boolean;
+};
+
+type StoredVersionMetadata = VersionSnapshotMetadata & {
+  schemaVersion?: number;
+  storage?: string;
+  treeHash?: string;
+  recordId?: string;
 };
 
 function sep(projectPath: string): string {
@@ -87,48 +92,61 @@ export function versionDirFor(projectPath: string, filePath: string): string | n
   return [normalizeRoot(projectPath), ...VERSION_ROOT.split('/'), safeRelative].join(s);
 }
 
-/**
- * 探测目标文件在写入之前是否已存在。
- *
- * 探测失败一律当「已存在」：这个布尔值最终决定撤销是删文件还是写回内容，
- * 拿不准时宁可写回一份空内容，也绝不误删作者的文件。
- */
 async function targetFileExists(filePath: string): Promise<boolean> {
   try {
     return await TauriFileSystem.pathExists(filePath);
   } catch {
+    // 是否存在决定恢复时会不会删除，探测失败时保守地视为已存在。
     return true;
   }
 }
 
+let lastTimestamp = 0;
+let fallbackRecordSequence = 0;
+
+function nextTimestamp(): number {
+  const now = Date.now();
+  lastTimestamp = Math.max(now, lastTimestamp + 1);
+  return lastTimestamp;
+}
+
+function nextRecordId(timestamp: number): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `${timestamp}_${uuid}`;
+  fallbackRecordSequence += 1;
+  return `${timestamp}_${fallbackRecordSequence}`;
+}
+
 /**
- * 在覆盖写入前，把当前磁盘内容存为一份快照。返回快照路径、节点时间戳，以及这次写入是否**创建**了该文件。
- *
- * 文件尚不存在时仍然记一份（内容为空）：靠 meta 里的 `created` 把「这之前文件不存在」和
- * 「这之前文件是空的」区分开——否则撤销一次新建只会留下一个空文件，而不是回到没有这个文件。
+ * 写回前记录整个作品工作树。tree、meta、长期 ref 任一步失败都会 reject，调用方不得继续写盘。
  */
 export async function snapshotBeforeWrite(
   projectPath: string | null,
   filePath: string,
-  previousContent: string,
+  _previousContent: string,
   metadata: VersionSnapshotMetadata = {},
 ): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   if (!projectPath) return null;
   const dir = versionDirFor(projectPath, filePath);
-  if (!dir) return null;
+  const relativeFile = relativePathInsideProject(projectPath, filePath);
+  if (!dir || !relativeFile) return null;
 
-  const s = sep(projectPath);
   const created = !(await targetFileExists(filePath));
   const checkpoint = metadata.checkpoint === true;
+  const s = sep(projectPath);
   const targetDir = checkpoint ? `${dir}${s}${CHECKPOINT_DIR}` : dir;
-  const timestamp = Date.now();
-  const snapshotPath = `${targetDir}${s}${timestamp}${SNAPSHOT_SUFFIX}`;
-  // write_file 会自动创建父目录。
-  await TauriFileSystem.writeFile(projectPath, snapshotPath, previousContent);
-  const meta = {
+  const timestamp = nextTimestamp();
+  const recordId = nextRecordId(timestamp);
+  const metaPath = `${targetDir}${s}${timestamp}${META_SUFFIX}`;
+  const snapshot = await createShadowSnapshot(projectPath);
+  const stored: StoredVersionMetadata = {
+    schemaVersion: 2,
+    storage: 'shadow-git',
+    treeHash: snapshot.treeHash,
+    recordId,
     source: metadata.source ?? 'Editor',
     summary: metadata.summary ?? '手动保存前快照',
-    file: metadata.file ?? relativePathInsideProject(projectPath, filePath) ?? filePath,
+    file: metadata.file ?? relativeFile,
     patchId: metadata.patchId,
     assistantSessionId: metadata.assistantSessionId,
     issueIds: metadata.issueIds,
@@ -139,121 +157,253 @@ export async function snapshotBeforeWrite(
     runId: metadata.runId,
     created,
   };
-  await TauriFileSystem.writeFile(
-    projectPath,
-    `${targetDir}${s}${timestamp}${META_SUFFIX}`,
-    `${JSON.stringify(meta, null, 2)}\n`,
-  );
-  await pruneSnapshots(
-    projectPath,
-    targetDir,
-    s,
-    checkpoint ? MAX_CHECKPOINTS_PER_FILE : MAX_SNAPSHOTS_PER_FILE,
-  );
-  return { path: snapshotPath, timestamp, created };
-}
 
-/** 按时间倒序保留最近 limit 份,超出的连同 meta 一起删;清理失败只告警,绝不阻断写回主路径。 */
-async function pruneSnapshots(
-  projectPath: string,
-  dir: string,
-  s: string,
-  limit: number,
-): Promise<void> {
   try {
-    const entries = await TauriFileSystem.listDir(dir, false);
-    const stamps = entries
-      .filter((entry: FileEntry) => !entry.isDir && entry.name.endsWith(SNAPSHOT_SUFFIX))
-      .map((entry: FileEntry) => Number(entry.name.slice(0, -SNAPSHOT_SUFFIX.length)))
-      .filter((stamp: number) => Number.isFinite(stamp))
-      .sort((a: number, b: number) => b - a);
-    for (const stamp of stamps.slice(limit)) {
-      try {
-        await TauriFileSystem.deletePath(projectPath, `${dir}${s}${stamp}${SNAPSHOT_SUFFIX}`);
-        await TauriFileSystem.deletePath(projectPath, `${dir}${s}${stamp}${META_SUFFIX}`);
-      } catch (error) {
-        console.warn('[versions] 过期快照清理失败(跳过):', stamp, error);
-      }
-    }
+    await TauriFileSystem.writeFile(projectPath, metaPath, `${JSON.stringify(stored, null, 2)}\n`);
+    await retainShadowSnapshot(projectPath, snapshot.treeHash, recordId);
   } catch (error) {
-    console.warn('[versions] 快照保留清理失败(不影响写入):', error);
+    await Promise.allSettled([
+      releaseShadowSnapshot(projectPath, recordId),
+      TauriFileSystem.deletePath(projectPath, metaPath),
+    ]);
+    throw error;
   }
+  return { path: metaPath, timestamp, created };
 }
 
-/** 列出某文件的历史版本，按时间倒序；普通快照与 checkpoints/ 合并成一条时间线。 */
+/** 列出某文件的历史版本，普通版本与 Agent checkpoints 合并后按时间倒序。 */
 export async function listVersions(
   projectPath: string | null,
   filePath: string,
 ): Promise<VersionEntry[]> {
   if (!projectPath) return [];
   const dir = versionDirFor(projectPath, filePath);
-  if (!dir) return [];
+  const relativeFile = relativePathInsideProject(projectPath, filePath);
+  if (!dir || !relativeFile) return [];
   const s = sep(projectPath);
-
   const [plain, checkpoints] = await Promise.all([
-    readVersionDir(dir, false),
-    readVersionDir(`${dir}${s}${CHECKPOINT_DIR}`, true),
+    readVersionDir(dir, relativeFile, false),
+    readVersionDir(`${dir}${s}${CHECKPOINT_DIR}`, relativeFile, true),
   ]);
-  return [...plain, ...checkpoints].sort((a, b) => b.timestamp - a.timestamp);
+  const versions = [...plain, ...checkpoints].sort((a, b) => b.timestamp - a.timestamp);
+  const hashes = [
+    ...new Set(
+      versions.flatMap((entry) =>
+        entry.contentRef.kind === 'shadow-tree' && TREE_HASH_PATTERN.test(entry.contentRef.treeHash)
+          ? [entry.contentRef.treeHash]
+          : [],
+      ),
+    ),
+  ];
+  if (hashes.length > 0) {
+    try {
+      const valid = new Set(await filterShadowSnapshotHashes(projectPath, hashes));
+      for (const entry of versions) {
+        if (
+          entry.contentRef.kind === 'shadow-tree' &&
+          !entry.unavailableReason &&
+          !valid.has(entry.contentRef.treeHash)
+        ) {
+          entry.unavailableReason = '影子 Git tree 或作品版本保活 ref 已丢失';
+        }
+      }
+    } catch (error) {
+      const detail = error instanceof Error && error.message ? `：${error.message}` : '';
+      for (const entry of versions) {
+        if (entry.contentRef.kind === 'shadow-tree' && !entry.unavailableReason) {
+          entry.unavailableReason = `影子 Git 版本存储当前不可用${detail}`;
+        }
+      }
+    }
+  }
+  return versions;
 }
 
-async function readVersionDir(dir: string, checkpoint: boolean): Promise<VersionEntry[]> {
+async function readVersionDir(
+  dir: string,
+  expectedFile: string,
+  checkpoint: boolean,
+): Promise<VersionEntry[]> {
   let entries: FileEntry[];
   try {
     entries = await TauriFileSystem.listDir(dir, false);
   } catch {
-    // 目录不存在 = 尚无历史
     return [];
   }
 
-  return entries
-    .filter((e) => !e.isDir && e.name.endsWith(SNAPSHOT_SUFFIX))
-    .map((e) => {
-      const timestamp = Number.parseInt(
-        e.name.slice(0, e.name.length - SNAPSHOT_SUFFIX.length),
-        10,
-      );
-      const metaPath = e.path.slice(0, e.path.length - SNAPSHOT_SUFFIX.length) + META_SUFFIX;
-      return {
-        path: e.path,
-        timestamp,
-        metaPath,
-      };
-    })
-    .filter((e) => Number.isFinite(e.timestamp))
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .reduce<Promise<VersionEntry[]>>(async (promise, entry) => {
-      const list = await promise;
-      let metadata: VersionSnapshotMetadata = {};
-      try {
-        metadata = JSON.parse(
-          await TauriFileSystem.readFile(entry.metaPath),
-        ) as VersionSnapshotMetadata;
-      } catch {
-        // 旧快照没有 meta sidecar 时仍可展示时间与恢复按钮。
-      }
-      list.push({
-        path: entry.path,
-        timestamp: entry.timestamp,
-        source: metadata.source,
-        summary: metadata.summary,
-        file: metadata.file,
-        patchId: metadata.patchId,
-        assistantSessionId: metadata.assistantSessionId,
-        issueIds: metadata.issueIds,
-        contextFiles: metadata.contextFiles,
-        parentId: metadata.parentId,
-        branchId: metadata.branchId,
-        branchLabel: metadata.branchLabel,
-        runId: metadata.runId,
-        created: metadata.created,
-        checkpoint,
-      });
-      return list;
-    }, Promise.resolve([]));
+  const files = entries.filter((entry) => !entry.isDir);
+  const names = new Set(files.map((entry) => entry.name));
+  const legacy = await Promise.all(
+    files
+      .filter((entry) => entry.name.endsWith(SNAPSHOT_SUFFIX))
+      .map((entry) => readLegacyEntry(entry, checkpoint)),
+  );
+  const treeBacked = await Promise.all(
+    files
+      .filter(
+        (entry) =>
+          entry.name.endsWith(META_SUFFIX) &&
+          !names.has(entry.name.slice(0, -META_SUFFIX.length) + SNAPSHOT_SUFFIX),
+      )
+      .map((entry) => readTreeEntry(entry, expectedFile, checkpoint)),
+  );
+  return [...legacy, ...treeBacked].filter((entry): entry is VersionEntry => entry !== null);
 }
 
-/** 读取某个版本快照内容。 */
-export async function readVersion(snapshotPath: string): Promise<string> {
-  return TauriFileSystem.readFile(snapshotPath);
+async function readLegacyEntry(
+  entry: FileEntry,
+  checkpoint: boolean,
+): Promise<VersionEntry | null> {
+  const timestamp = timestampFromName(entry.name, SNAPSHOT_SUFFIX);
+  if (timestamp === null) return null;
+  const metaPath = entry.path.slice(0, -SNAPSHOT_SUFFIX.length) + META_SUFFIX;
+  const metadata = await readMetadata(metaPath);
+  return entryFromMetadata(
+    entry.path,
+    { kind: 'legacy-file', path: entry.path },
+    timestamp,
+    metadata,
+    checkpoint,
+  );
+}
+
+async function readTreeEntry(
+  entry: FileEntry,
+  expectedFile: string,
+  checkpoint: boolean,
+): Promise<VersionEntry | null> {
+  const timestamp = timestampFromName(entry.name, META_SUFFIX);
+  if (timestamp === null) return null;
+  const metadata = await readMetadata(entry.path);
+  const treeHash = metadata.treeHash ?? '';
+  const storedFile = metadata.file ?? expectedFile;
+  let unavailableReason: string | undefined;
+  if (metadata.schemaVersion !== 2 || metadata.storage !== 'shadow-git') {
+    unavailableReason = '版本元数据 schema/storage 无效';
+  } else if (!TREE_HASH_PATTERN.test(treeHash)) {
+    unavailableReason = '版本元数据缺少有效 tree hash';
+  } else if (normalizeRelative(storedFile) !== normalizeRelative(expectedFile)) {
+    unavailableReason = '版本元数据指向了其他项目文件';
+  } else if (!metadata.recordId) {
+    unavailableReason = '版本元数据缺少保活 record id';
+  }
+  return {
+    ...entryFromMetadata(
+      entry.path,
+      { kind: 'shadow-tree', treeHash, file: expectedFile },
+      timestamp,
+      metadata,
+      checkpoint,
+    ),
+    recordId: metadata.recordId,
+    unavailableReason,
+  };
+}
+
+function entryFromMetadata(
+  path: string,
+  contentRef: VersionContentRef,
+  timestamp: number,
+  metadata: StoredVersionMetadata,
+  checkpoint: boolean,
+): VersionEntry {
+  return {
+    path,
+    contentRef,
+    timestamp,
+    source: metadata.source,
+    summary: metadata.summary,
+    file: metadata.file,
+    patchId: metadata.patchId,
+    assistantSessionId: metadata.assistantSessionId,
+    issueIds: metadata.issueIds,
+    contextFiles: metadata.contextFiles,
+    parentId: metadata.parentId,
+    branchId: metadata.branchId,
+    branchLabel: metadata.branchLabel,
+    runId: metadata.runId,
+    created: metadata.created,
+    checkpoint,
+  };
+}
+
+function timestampFromName(name: string, suffix: string): number | null {
+  const timestamp = Number.parseInt(name.slice(0, -suffix.length), 10);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function normalizeRelative(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+}
+
+async function readMetadata(path: string): Promise<StoredVersionMetadata> {
+  try {
+    return decodeMetadata(JSON.parse(await TauriFileSystem.readFile(path)));
+  } catch {
+    return {};
+  }
+}
+
+function decodeMetadata(value: unknown): StoredVersionMetadata {
+  const raw = asRecord(value);
+  return {
+    schemaVersion: numberField(raw.schemaVersion),
+    storage: stringField(raw.storage),
+    treeHash: stringField(raw.treeHash),
+    recordId: stringField(raw.recordId),
+    source: stringField(raw.source),
+    summary: stringField(raw.summary),
+    file: stringField(raw.file),
+    patchId: stringField(raw.patchId),
+    assistantSessionId:
+      raw.assistantSessionId === null ? null : numberField(raw.assistantSessionId),
+    issueIds: stringArrayField(raw.issueIds),
+    contextFiles: stringArrayField(raw.contextFiles),
+    parentId: raw.parentId === null ? null : numberField(raw.parentId),
+    branchId: stringField(raw.branchId),
+    branchLabel: stringField(raw.branchLabel),
+    runId: stringField(raw.runId),
+    created: booleanField(raw.created),
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function numberField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function booleanField(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function stringArrayField(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+    ? value
+    : undefined;
+}
+
+/** 读取 legacy 或 tree-backed 版本的文件存在态与正文。 */
+export async function readVersionState(
+  projectPath: string,
+  entry: VersionEntry,
+): Promise<VersionState> {
+  if (entry.unavailableReason) throw new Error(entry.unavailableReason);
+  if (entry.contentRef.kind === 'legacy-file') {
+    if (entry.created === true) return { exists: false, content: '' };
+    return { exists: true, content: await TauriFileSystem.readFile(entry.contentRef.path) };
+  }
+  return await readShadowSnapshotFile(
+    projectPath,
+    entry.contentRef.treeHash,
+    entry.contentRef.file,
+  );
 }

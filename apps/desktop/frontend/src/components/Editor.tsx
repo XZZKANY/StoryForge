@@ -27,8 +27,14 @@ import { recordDailyProgress, writebackDelta } from '../lib/daily-progress';
 import { emitToast } from '../lib/toast';
 import type { EditorLineNumbersMode } from '../lib/user-settings';
 import { TauriFileSystem } from '../lib/tauri-fs';
-import { readVersion, snapshotBeforeWrite } from '../lib/versions';
+import {
+  readVersionState,
+  snapshotBeforeWrite,
+  type VersionEntry,
+  type VersionState,
+} from '../lib/versions';
 import { exportCurrentFile, recordRevisionLoop } from '../lib/author-loop';
+import { unmarkChapterWrittenInPlan } from '../lib/serial-plan';
 import { emitAuthorLoopResult } from '../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
 import { type GraphNode } from '../lib/branches';
@@ -229,7 +235,7 @@ export function Editor({
         if (!savedModel) return;
         const content = savedModel.getValue();
         const previous = originalContentRef.current;
-        const contentChanged = previous !== '' && normalizeEol(previous) !== normalizeEol(content);
+        const contentChanged = normalizeEol(previous) !== normalizeEol(content);
         const branch = contentChanged ? getActiveBranchSnapshot() : null;
 
         await performGuardedWriteback(contentChanged, {
@@ -622,19 +628,60 @@ export function Editor({
     return () => window.removeEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
   }, []);
 
-  // 恢复某个历史版本到编辑器（不立即写盘，标记为脏，由用户确认保存）
-  const handleRestore = (content: string) => {
-    if (!editorRef.current) return;
-    editorRef.current.setValue(content);
-    setIsDirty(content !== originalContentRef.current);
+  // 存在态进 Monaco 脏缓冲；不存在态无法用空字符串表达，确认后走受保护真删除。
+  const handleRestore = async (state: VersionState, _entry: VersionEntry) => {
+    if (state.exists) {
+      if (!editorRef.current) return;
+      editorRef.current.setValue(state.content);
+      setIsDirty(state.content !== originalContentRef.current);
+      setShowHistory(false);
+      return;
+    }
+
+    const project = projectPathRef.current;
+    const path = filePathRef.current;
+    if (!project || !path || !editorRef.current) return;
+    if (!dropOpenFilePath) throw new Error('当前编辑器无法安全摘除已删除文件的页签');
+    const confirmed = await dialogs.confirm({
+      title: '恢复到文件不存在的版本？',
+      message: '将先保存当前编辑内容并记录完整作品版本，然后删除该文件。之后仍可从版本记录恢复。',
+      confirmLabel: '删除并恢复',
+      cancelLabel: '取消',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    if (isDirtyRef.current) await saveCurrentFileRef.current();
+    if (projectPathRef.current !== project || filePathRef.current !== path || !editorRef.current) {
+      throw new Error('确认期间活动文件已变化，已取消恢复');
+    }
+    const currentContent = editorRef.current.getValue();
+    const branch = getActiveBranchSnapshot();
+    await performGuardedWriteback(true, {
+      snapshot: async () =>
+        snapshotBeforeWrite(project, path, currentContent, {
+          source: 'Editor',
+          summary: '恢复“文件不存在”版本前快照',
+          branchId: branch.id,
+          branchLabel: branch.label,
+          parentId: branch.headNodeId,
+        }),
+      advanceBranchHead,
+      write: async () => TauriFileSystem.deletePath(project, path),
+      record: async () => unmarkChapterWrittenInPlan(project, path),
+    });
+    dropOpenFilePath(path);
     setShowHistory(false);
+    emitToast('已恢复到“文件不存在”，删除前作品版本已保留', { tone: 'success' });
   };
 
   // 分支画布：把某节点正文恢复到编辑器（checkout）。
   const handleCheckoutNode = async (node: GraphNode) => {
     try {
-      const content = await readVersion(node.path);
-      handleRestore(content);
+      const project = projectPathRef.current;
+      if (!project) return;
+      const state = await readVersionState(project, node.version);
+      await handleRestore(state, node.version);
     } catch (err) {
       console.error('读取版本快照失败:', err);
     }

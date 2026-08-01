@@ -148,8 +148,8 @@ export function useSuggestionWriteback({
             branchLabel: branch.label,
             parentId: branch.headNodeId,
             runId: suggestion.runId,
-            // AI 写回一律进 checkpoints/：自动档下这是作者事后唯一想回的那个点，
-            // 不能和 autosave 挤同一个配额被冲掉。
+            // AI 写回仍归入 checkpoints/，用于版本 UI 区分“Agent 动手前”节点；
+            // 长期保留由影子 Git 专用 ref 负责，不再与 autosave 竞争 20 条配额。
             checkpoint: true,
           });
           createdFile = result?.created ?? false;

@@ -1414,3 +1414,82 @@ M5 单列是因为 [[F26]] 那条教训：run 起跑会话 ≠ 当前活动会�
   人该说清楚哪儿不对」，作者可以在方向里直接说「第二处那段对话太生硬」。
 - **作者的方向不带被否正文**：见上，是刻意的取舍。若实际使用中发现模型认不出「刚才那版」
   指的是什么，再考虑带上 hunk 级摘要。
+
+## 2026-08-02 影子 Git 内容寻址作品版本（自带 MinGit）
+
+### 落地边界
+
+- Windows x64 包固定捆绑 `MinGit-2.55.0.3-64-bit.zip`，SHA-256 为
+  `f48e2d2dc74a24454adc6d8fd0ac25bf9c2386f19cfb06202b9465aaad4f9f05`；构建脚本校验
+  manifest、摘要、版本、架构、可执行文件和许可证，不搜索系统 `PATH`。
+- Tauri 在 app-local data 中按 canonical project path SHA-256 建独立 `--git-dir`，作者项目仅作
+  `--work-tree`；只执行 stage / `write-tree` / refs / read / gc，不执行 commit、checkout、reset。
+- 新版本写入顺序固定为 `tree -> schema-v2 meta -> refs/storyforge/versions/<recordId>`；新记录不再
+  复制正文，也不再截断 20 条。legacy `.snapshot.md` 与 tree-backed meta 双读。
+- tree 捕获正文、作品档案、canon 真值、版本 meta、`branches.json` 和 author-loop 证据；排除
+  `.git`、依赖、原子临时文件、`canon/derived` 与超过 2 MiB 的新增非作品文件。
+- “文件不存在”是 `{ exists:false }`，恢复时二次确认并按
+  `保存脏缓冲 -> shadow snapshot -> branch head -> deletePath -> plan.unmark -> drop tab` 执行，
+  不再写空字符串冒充删除。
+- 失效 tree/ref 的元数据仍留在时间线并禁用恢复。影子仓整体不可读时 legacy 版本仍可读；失效
+  节点仍展示，但不能继续充当分支 parent/head，空支线回退到仍存活的分叉点。
+
+### 本轮最终复验
+
+```text
+npm --prefix apps/desktop run test:git-bundle
+  -> 5 passed
+npm --prefix apps/desktop run verify:git-bundle
+  -> git version 2.55.0.windows.3，摘要/许可证/runtime 校验通过
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+  -> 28 passed
+npm --prefix apps/desktop/frontend run test
+  -> 82 files, 533 passed
+npm --prefix apps/desktop/frontend run typecheck
+  -> passed
+pnpm.cmd lint
+  -> ESLint + Prettier passed
+```
+
+最终增加的 3 条回归分别钉住：影子仓整体不可读仍保留时间线、失效版本不能成为 parent/head、
+支线无可恢复节点时回退到存活分叉点。相关定向测试为 2 files / 21 passed。
+
+### 实现阶段全仓与安装资源证据
+
+```text
+pnpm.cmd verify
+  -> passed；API 1397 passed / 3 skipped，Ruff、daily sidecar、OpenAPI drift 均通过
+pnpm.cmd e2e
+  -> 20/20 passed
+pnpm.cmd openapi
+  -> passed，无 shared contract drift
+pnpm.cmd smoke:sidecar:packaged
+  -> passed
+npm --prefix apps/desktop run verify:tauri-smoke
+  -> passed；应用进程清空 PATH 后使用 resource Git 创建/保活/读取写前 tree
+npm --prefix apps/desktop run verify:tauri-smoke:packaged
+  -> passed；直接运行 release exe，应用进程 PATH 为空
+npm --prefix apps/desktop run build
+  -> Windows x64 MSI + NSIS 构建成功
+```
+
+- release runtime：366 个文件，93,882,909 bytes，`git version 2.55.0.windows.3`。
+- NSIS：`StoryForge IDE_0.1.10_x64-setup.exe`，77,912,148 bytes。
+- MSI：`StoryForge IDE_0.1.10_x64_en-US.msi`，94,470,599 bytes。
+- 生成的 `installer.nsi` 明确安装并卸载
+  `resources/mingit/manifest.json`、`runtime/LICENSE.txt`、`runtime/cmd/git.exe`。
+- Rust 集成测试对作者 `.git` 做递归 byte digest，影子快照前后摘要一致；同时覆盖非 Git/已有
+  Git、alternates/index seed、seed 失败回退、中文路径、CRLF、并发锁、排除、refs 与 gc。
+- `rustfmt --check` 对 `shadow_git.rs`、`shadow_git/core.rs`、`shadow_git/tests.rs` 通过；全 crate
+  `cargo fmt --check` 仍报告未触碰的 `fs.rs` / `llm_config.rs` 既有格式基线，本任务未扩散改写。
+
+### 未验证与不能宣称
+
+- **未实际静默安装/卸载 NSIS**。当前安装证据是 release resource-layout 冒烟、安装包成功生成，
+  以及生成的 NSIS `File` / `Delete` 指令；不能写成真实安装目录和卸载残留已手工验收。
+- **未对真实 StoryForge 仓执行 shadow snapshot dogfood**。作者 `.git` 不变由隔离 Rust fixture
+  的 byte digest 测试证明；没有把测试 fixture 夸大为真实工程手工验收。
+- **没有交付整项目一键恢复 UI**。tree 已包含作品版本记录、分支选择和作品状态，可作为后续整
+  项目 diff/确认恢复的数据底座；本任务只接通现有按文件版本历史/分支画布。
+- **没有宣称真机 GUI 多轮补丁确认完全验收**。本次是 deterministic Tauri smoke 与 release exe
+  冒烟，不等同于人工点击装机版全链路。

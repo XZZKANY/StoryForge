@@ -3,10 +3,11 @@
 
 mod fs;
 mod llm_config;
+mod shadow_git;
 mod watcher;
 
 use anyhow::{Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs as std_fs;
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -700,12 +701,53 @@ fn contains_file_content_under(path: &std::path::Path, expected: &str) -> bool {
         })
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SmokeShadowVersionMeta {
+    schema_version: u32,
+    storage: String,
+    tree_hash: String,
+    record_id: String,
+    patch_id: Option<String>,
+}
+
+fn find_smoke_shadow_version_meta(
+    path: &std::path::Path,
+    patch_id: &str,
+) -> Option<SmokeShadowVersionMeta> {
+    if !path.exists() {
+        return None;
+    }
+    walkdir::WalkDir::new(path)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".meta.json"))
+        .filter_map(|entry| std_fs::read_to_string(entry.path()).ok())
+        .filter_map(|content| serde_json::from_str::<SmokeShadowVersionMeta>(&content).ok())
+        .find(|meta| {
+            meta.schema_version == 2
+                && meta.storage == "shadow-git"
+                && meta.patch_id.as_deref() == Some(patch_id)
+        })
+}
+
 fn run_smoke_probe<R: tauri::Runtime>(
     window: tauri::WebviewWindow<R>,
     app: tauri::AppHandle<R>,
     manager: SharedServiceManager,
 ) {
     thread::spawn(move || {
+        let original_path = if std::env::var("STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH")
+            .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+        {
+            let value = std::env::var_os("PATH");
+            std::env::set_var("PATH", "");
+            value
+        } else {
+            None
+        };
         cleanup_prior_smoke_projects();
         let smoke_project = match create_smoke_project() {
             Ok(path) => path,
@@ -1335,8 +1377,8 @@ fn run_smoke_probe<R: tauri::Runtime>(
         let versions_dir = smoke_project.join(".storyforge").join("versions");
         let author_loop_dir = smoke_project.join(".storyforge").join("author-loop");
         if count_files_under(&versions_dir) == 0
-            || !contains_file_content_under(&versions_dir, "Smoke content")
             || !contains_file_content_under(&versions_dir, "Agent")
+            || !contains_file_content_under(&versions_dir, "shadow-git")
             || !contains_file_content_under(&versions_dir, "Smoke Agent proposed patch")
             || !contains_file_content_under(&versions_dir, "smoke-file-revision")
             || !contains_file_content_under(&versions_dir, "4242")
@@ -1344,6 +1386,32 @@ fn run_smoke_probe<R: tauri::Runtime>(
             || !contains_file_content_under(&versions_dir, "人物/林岚.md")
         {
             eprintln!("Smoke 失败: 写回前版本快照或 Agent 元数据缺失");
+            std::process::exit(1);
+        }
+        let Some(shadow_meta) =
+            find_smoke_shadow_version_meta(&versions_dir, "smoke-file-revision")
+        else {
+            eprintln!("Smoke 失败: 未找到 schema-v2 影子 Git 版本元数据");
+            std::process::exit(1);
+        };
+        let shadow_evidence = match shadow_git::verify_smoke_snapshot(
+            &app,
+            &smoke_project_string,
+            &shadow_meta.tree_hash,
+            &shadow_meta.record_id,
+            "正文/chapter-001.md",
+        ) {
+            Ok(evidence) => evidence,
+            Err(error) => {
+                eprintln!("Smoke 失败: 影子 Git tree/ref 验证失败: {}", error);
+                std::process::exit(1);
+            }
+        };
+        if shadow_evidence.content != before_revision {
+            eprintln!(
+                "Smoke 失败: 影子 Git 写前正文不匹配，实际内容: {}",
+                shadow_evidence.content
+            );
             std::process::exit(1);
         }
         if count_files_under(&author_loop_dir) == 0
@@ -1358,7 +1426,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
         }
 
         println!(
-            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}",
+            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}, shadowGitVersion={}, shadowGitPath={}",
             file_list_state
                 .get("projectPath")
                 .and_then(|entry| entry.as_str())
@@ -1378,8 +1446,13 @@ fn run_smoke_probe<R: tauri::Runtime>(
             writeback_state
                 .get("editorPreview")
                 .and_then(|entry| entry.as_str())
-                .unwrap_or("")
+                .unwrap_or(""),
+            shadow_evidence.git_version,
+            shadow_evidence.executable_path,
         );
+        if let Some(path) = original_path {
+            std::env::set_var("PATH", path);
+        }
         let _ = std_fs::remove_dir_all(&smoke_project);
         manager.lock().unwrap().shutdown();
         let _ = app.exit(0);
@@ -1470,6 +1543,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&manager))
         .manage(watcher::WatcherManager::new())
+        .manage(shadow_git::ShadowGitState::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
             fs::read_file,
@@ -1487,6 +1561,13 @@ fn main() {
             restart_api_server,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
+            // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）
+            shadow_git::create_shadow_snapshot,
+            shadow_git::retain_shadow_snapshot,
+            shadow_git::release_shadow_snapshot,
+            shadow_git::read_shadow_snapshot_file,
+            shadow_git::filter_shadow_snapshot_hashes,
+            shadow_git::shadow_git_status,
             // 文件监听命令
             watcher::watch_file,
             watcher::stop_watching,

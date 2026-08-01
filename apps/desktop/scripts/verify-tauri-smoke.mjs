@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const root = new URL('..', import.meta.url).pathname.replace(/^\//, '').replace(/\//g, '\\');
 const frontendDir = `${root}\\frontend`;
 const tauriDir = `${root}`;
+const releaseMode = process.argv.includes('--release');
 
 function runProcess(command, args, options = {}) {
   const child = spawn(command, args, {
@@ -108,18 +109,25 @@ try {
 
   await waitForUrl('http://127.0.0.1:3007');
 
-  tauri = runProcess(
-    'cargo',
-    ['run', '--manifest-path', 'src-tauri/Cargo.toml', '--target-dir', '.tauri-target-smoke'],
-    {
-      cwd: tauriDir,
-      env: {
-        ...process.env,
-        STORYFORGE_DESKTOP_SKIP_SERVICES: '1',
-        STORYFORGE_DESKTOP_SMOKE: '1',
-      },
-    },
-  );
+  const smokeEnvironment = {
+    ...process.env,
+    STORYFORGE_DESKTOP_SKIP_SERVICES: '1',
+    STORYFORGE_DESKTOP_SMOKE: '1',
+    STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH: '1',
+  };
+  tauri = releaseMode
+    ? runProcess(`${root}\\src-tauri\\target\\release\\storyforge-desktop.exe`, [], {
+        cwd: tauriDir,
+        env: smokeEnvironment,
+      })
+    : runProcess(
+        'cargo',
+        ['run', '--manifest-path', 'src-tauri/Cargo.toml', '--target-dir', '.tauri-target-smoke'],
+        {
+          cwd: tauriDir,
+          env: smokeEnvironment,
+        },
+      );
 
   const exitCode = await waitForExit(tauri, 'Desktop Tauri smoke', 300000);
 
@@ -127,7 +135,7 @@ try {
     throw new Error(`Tauri smoke exited with code ${exitCode}`);
   }
 
-  console.log('Desktop Tauri smoke passed');
+  console.log(`Desktop Tauri ${releaseMode ? 'release ' : ''}smoke passed`);
 } finally {
   killProcessTree(tauri);
   killProcessTree(frontend);

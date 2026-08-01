@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { buildGraph, type BranchManifest, type GraphNode } from '../../lib/branches';
 import { buildPatchHunks, type PatchHunk } from '../../lib/patch-hunks';
-import { listVersions, readVersion, type VersionEntry } from '../../lib/versions';
+import {
+  listVersions,
+  readVersionState,
+  type VersionEntry,
+  type VersionState,
+} from '../../lib/versions';
 import { PanelError } from '../shell/PanelError';
 import { BranchCanvas } from '../BranchCanvas';
 
@@ -26,7 +31,7 @@ export function VersionHistory({
   projectPath: string | null;
   filePath: string;
   manifest: BranchManifest;
-  onRestore: (content: string) => void;
+  onRestore: (state: VersionState, entry: VersionEntry) => Promise<void> | void;
   onCheckoutNode: (node: GraphNode) => void;
   onBranchFromNode: (node: GraphNode) => void;
   onSelectBranch: (branchId: string) => void;
@@ -44,24 +49,31 @@ export function VersionHistory({
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [preview, setPreview] = useState<{
     path: string;
+    exists: boolean;
     hunks: PatchHunk[];
     added: number;
     removed: number;
   } | null>(null);
 
   // 「对比当前」：读该快照，与编辑器实时正文 diff（before=当前 → after=此版，即恢复会怎样改）。再点收起。
-  const togglePreview = async (snapshotPath: string) => {
-    if (preview?.path === snapshotPath) {
+  const readEntryState = async (entry: VersionEntry): Promise<VersionState> => {
+    if (!projectPath) throw new Error('未打开项目，无法读取版本');
+    return await readVersionState(projectPath, entry);
+  };
+
+  const togglePreview = async (entry: VersionEntry) => {
+    if (preview?.path === entry.path) {
       setPreview(null);
       return;
     }
     if (!getCurrentContent) return;
     try {
-      const versionContent = await readVersion(snapshotPath);
+      const state = await readEntryState(entry);
+      const versionContent = state.exists ? state.content : '';
       const hunks = buildPatchHunks(getCurrentContent(), versionContent);
       const added = hunks.reduce((sum, hunk) => sum + hunk.addedLines, 0);
       const removed = hunks.reduce((sum, hunk) => sum + hunk.removedLines, 0);
-      setPreview({ path: snapshotPath, hunks, added, removed });
+      setPreview({ path: entry.path, exists: state.exists, hunks, added, removed });
     } catch (err) {
       setError(err instanceof Error ? err.message : '读取版本失败');
     }
@@ -91,11 +103,11 @@ export function VersionHistory({
     setRetryNonce((value) => value + 1);
   };
 
-  const restore = async (snapshotPath: string) => {
+  const restore = async (entry: VersionEntry) => {
     setBusy(true);
     try {
-      const content = await readVersion(snapshotPath);
-      onRestore(content);
+      const state = await readEntryState(entry);
+      await onRestore(state, entry);
     } catch (err) {
       setError(err instanceof Error ? err.message : '恢复版本失败');
     } finally {
@@ -162,7 +174,7 @@ export function VersionHistory({
               onSelectBranch={onSelectBranch}
               onCheckout={onCheckoutNode}
               onBranchFrom={onBranchFromNode}
-              readNodeContent={readVersion}
+              readNodeState={(node) => readEntryState(node.version)}
             />
           )}
         </div>
@@ -223,7 +235,7 @@ export function VersionHistory({
                       {v.created && (
                         <span
                           className="flex-shrink-0 rounded-sm border border-border px-1 text-2xs text-muted"
-                          title="此版本之前该文件并不存在；恢复只会把内容清空，删除请用文件树"
+                          title="此版本之前该文件并不存在；恢复会在确认后删除当前文件"
                           data-testid="version-created-badge"
                         >
                           新建前
@@ -233,7 +245,8 @@ export function VersionHistory({
                     <div className="flex flex-shrink-0 items-center gap-1.5">
                       {getCurrentContent && (
                         <button
-                          onClick={() => void togglePreview(v.path)}
+                          disabled={!!v.unavailableReason}
+                          onClick={() => void togglePreview(v)}
                           className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
                           data-testid="version-preview-toggle"
                         >
@@ -241,11 +254,11 @@ export function VersionHistory({
                         </button>
                       )}
                       <button
-                        disabled={busy}
-                        onClick={() => restore(v.path)}
+                        disabled={busy || !!v.unavailableReason}
+                        onClick={() => void restore(v)}
                         className="rounded-md bg-accent px-2.5 py-1 text-xs text-accent-foreground transition-opacity hover:opacity-90 active:opacity-100 disabled:opacity-40"
                       >
-                        恢复
+                        {v.created ? '恢复为不存在' : '恢复'}
                       </button>
                     </div>
                   </div>
@@ -256,6 +269,11 @@ export function VersionHistory({
                     {v.source ? `${v.source} · ` : ''}
                     {v.summary ?? v.file ?? '版本快照'}
                   </div>
+                  {v.unavailableReason && (
+                    <div className="mt-1 text-2xs text-error" data-testid="version-unavailable">
+                      {v.unavailableReason}
+                    </div>
+                  )}
                   {(v.patchId || v.assistantSessionId || v.issueIds?.length) && (
                     <div
                       className="mt-1 truncate text-2xs text-muted"
@@ -269,9 +287,11 @@ export function VersionHistory({
                   {preview?.path === v.path && (
                     <div className="mt-2 border-t border-border pt-2" data-testid="version-preview">
                       <div className="text-2xs text-muted">
-                        {preview.hunks.length === 0
-                          ? '与当前无差异'
-                          : `恢复到此版：+${preview.added} / -${preview.removed} 行`}
+                        {!preview.exists
+                          ? '恢复到此版会删除当前文件'
+                          : preview.hunks.length === 0
+                            ? '与当前无差异'
+                            : `恢复到此版：+${preview.added} / -${preview.removed} 行`}
                       </div>
                       {preview.hunks.length > 0 && (
                         <div className="mt-1 max-h-52 overflow-y-auto rounded-sm border border-border bg-background p-1 font-mono text-2xs leading-5">
