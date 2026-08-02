@@ -109,7 +109,9 @@ def test_phase9_remote_ci_e2e_boundary_records_master_success() -> None:
     assert "Desktop IDE Agent" in current_phase
     assert "自然语言意图路由" in current_phase
     assert "多视角 file.review 推理缝" in current_phase
-    assert "确认写回防重复生成" in current_phase
+    assert "默认 `ask` 档逐次确认" in current_phase
+    assert "`auto` / `full` 只免点击" in current_phase
+    assert "guarded writeback" in current_phase
     assert "pnpm.cmd lint" in current_phase
     assert "apps/web` 已退场" in current_phase
     assert "Desktop frontend typecheck/unit/smoke" in current_phase

@@ -2,7 +2,7 @@
 
 ## Project
 
-StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. The product direction is an author-facing writing IDE: authors open a local novel project, ask an Agent to review or revise files, inspect a diff, confirm the write-back, and keep version history.
+StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. The product direction is an author-facing writing IDE: authors open a local novel project, ask an Agent to review or revise files, inspect a diff, and either confirm or explicitly authorize project-scoped automatic write-back while keeping version history.
 
 The project keeps a verifiable long-form generation pipeline, but that pipeline is a backend tool and heavy engine, not the primary product surface.
 
@@ -12,7 +12,7 @@ The project keeps a verifiable long-form generation pipeline, but that pipeline 
 - **API** is the business truth source under `apps/api`.
 - **Workflow app retired (2026-07-26).** The standalone LangGraph orchestrator under `apps/workflow` was deleted; long-running generation, provider calls, and ModelRun records live in `apps/api` (single egress: `app/common/llm_client.py`).
 - **BookRun** is the auditable whole-book generation run. It can generate, judge, repair, write memory, and export artifacts.
-- **Desktop IDE Agent** is the local project assistant path: open file, review, targeted revision, proposed patch, diff confirmation, real write-back, version record.
+- **Desktop IDE Agent** is the local project assistant path: open file, review, targeted revision, proposed patch, permission-aware confirmation, guarded write-back, version record.
 - **OpenAPI contract** is the hard seam from API to clients. Backend route changes must refresh `packages/shared/src/contracts/storyforge.openapi.json`.
 - **Web** has exited. Do not add or maintain `apps/web` as a product entry.
 
@@ -22,8 +22,8 @@ The project keeps a verifiable long-form generation pipeline, but that pipeline 
 - **Manuscript file**: a user-authored text file inside a novel project.
 - **Agent conversation**: the Desktop IDE interaction where the user asks for review, revision, or project assistance.
 - **Issue**: a stable review finding produced by the Agent, often targeted by later revision.
-- **Proposed patch**: an Agent-produced edit that must be inspected before write-back.
-- **Diff confirmation**: the user approval step before a proposed patch mutates a manuscript file.
+- **Proposed patch**: an Agent-produced edit; the backend never writes it directly to a manuscript file.
+- **Diff confirmation**: the per-patch user approval required by the default `ask` profile; explicitly selected project-scoped `auto` / `full` profiles may skip the click but not guarded write-back.
 - **Version record**: local evidence of a write-back so the author can audit changes.
 - **BookRun**: a long-running generation workflow for a whole book or chapter batch.
 - **ModelRun**: recorded evidence for a model invocation or model-backed step.
@@ -37,7 +37,7 @@ The project keeps a verifiable long-form generation pipeline, but that pipeline 
 ## Architecture Rules
 
 - API decisions belong in FastAPI routes, domain modules, and service logic; clients should not invent business conclusions.
-- Desktop owns local file UX and confirmation ergonomics; it should call API or Tauri commands for durable effects.
+- Desktop owns local file UX, permission-aware confirmation, and guarded write-back ergonomics; it should call API or Tauri commands for durable effects.
 - Workflow owns long tasks and model-provider uncertainty; API should keep transaction boundaries crisp.
 - Tests and callers should cross meaningful module interfaces, not private implementation details.
 - Missing data should surface as an explicit error, not a fake fallback object.
