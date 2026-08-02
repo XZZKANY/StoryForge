@@ -20,13 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopDir = resolve(scriptDir, '..');
 const repoRoot = resolve(desktopDir, '..', '..');
-const manifestPath = resolve(
-  desktopDir,
-  'src-tauri',
-  'resources',
-  'mingit',
-  'manifest.json',
-);
+const manifestPath = resolve(desktopDir, 'src-tauri', 'resources', 'mingit', 'manifest.json');
 const runtimeDir = resolve(desktopDir, 'src-tauri', 'resources', 'mingit', 'runtime');
 const cacheDir = resolve(repoRoot, '.cache', 'mingit');
 
@@ -79,11 +73,8 @@ export function validateManifest(value) {
   const licenseFiles = requireStringArray(value.licenseFiles, 'licenseFiles').map((entry, index) =>
     validateRelativeResourcePath(entry, `licenseFiles[${index}]`),
   );
-  const licenseDirectories = requireStringArray(
-    value.licenseDirectories,
-    'licenseDirectories',
-  ).map((entry, index) =>
-    validateRelativeResourcePath(entry, `licenseDirectories[${index}]`),
+  const licenseDirectories = requireStringArray(value.licenseDirectories, 'licenseDirectories').map(
+    (entry, index) => validateRelativeResourcePath(entry, `licenseDirectories[${index}]`),
   );
 
   let parsedUrl;
@@ -176,11 +167,7 @@ export async function downloadFile(url, destination, fetchImpl = fetch) {
   }
 }
 
-export async function ensureCachedArchive(
-  manifest,
-  targetCacheDir,
-  downloader = downloadFile,
-) {
+export async function ensureCachedArchive(manifest, targetCacheDir, downloader = downloadFile) {
   await mkdir(targetCacheDir, { recursive: true });
   const archivePath = resolve(targetCacheDir, manifest.asset);
   if (await exists(archivePath)) {
@@ -195,9 +182,7 @@ export async function ensureCachedArchive(
   const digest = await sha256File(archivePath);
   if (digest !== manifest.sha256) {
     await rm(archivePath, { force: true });
-    throw new Error(
-      `MinGit SHA-256 mismatch: expected ${manifest.sha256}, received ${digest}`,
-    );
+    throw new Error(`MinGit SHA-256 mismatch: expected ${manifest.sha256}, received ${digest}`);
   }
   return { archivePath, cacheHit: false };
 }
@@ -208,9 +193,7 @@ export async function verifyArchive(manifest, archivePath) {
   }
   const digest = await sha256File(archivePath);
   if (digest !== manifest.sha256) {
-    throw new Error(
-      `MinGit SHA-256 mismatch: expected ${manifest.sha256}, received ${digest}`,
-    );
+    throw new Error(`MinGit SHA-256 mismatch: expected ${manifest.sha256}, received ${digest}`);
   }
 }
 
@@ -347,10 +330,14 @@ export async function extractArchive(manifest, archivePath, targetRuntimeDir) {
   }
 }
 
-function assertSupportedHost(manifest) {
-  if (process.platform !== manifest.platform || process.arch !== manifest.architecture) {
+export function assertSupportedHost(
+  manifest,
+  platform = process.platform,
+  architecture = process.arch,
+) {
+  if (platform !== manifest.platform || architecture !== manifest.architecture) {
     throw new Error(
-      `MinGit ${manifest.version} targets ${manifest.platform}/${manifest.architecture}, current host is ${process.platform}/${process.arch}`,
+      `MinGit ${manifest.version} targets ${manifest.platform}/${manifest.architecture}, current host is ${platform}/${architecture}`,
     );
   }
 }

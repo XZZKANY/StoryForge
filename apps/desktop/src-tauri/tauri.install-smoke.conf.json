@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StoryForge Shadow Git Install Smoke",
+  "identifier": "com.storyforge.ide.shadow-git-install-smoke",
+  "bundle": {
+    "targets": ["nsis"]
+  }
+}

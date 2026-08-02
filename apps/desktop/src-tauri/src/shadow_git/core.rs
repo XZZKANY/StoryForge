@@ -26,6 +26,13 @@ pub(crate) struct SharedState {
     last_gc: Mutex<HashMap<String, Instant>>,
 }
 
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SeedFailurePoint {
+    AlternatesWrite,
+    IndexCopy,
+}
+
 impl SharedState {
     fn lock_for(&self, key: &str) -> Result<Arc<Mutex<()>>, String> {
         let mut locks = self
@@ -75,6 +82,8 @@ pub(crate) struct ShadowGitCore {
     data_root: PathBuf,
     expected_version: Option<String>,
     shared: Arc<SharedState>,
+    #[cfg(test)]
+    seed_failure: Option<SeedFailurePoint>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +121,8 @@ impl ShadowGitCore {
             data_root,
             expected_version,
             shared,
+            #[cfg(test)]
+            seed_failure: None,
         }
     }
 
@@ -149,6 +160,40 @@ impl ShadowGitCore {
 
     pub(crate) fn repository_path(&self, project_root: &str) -> Result<PathBuf, String> {
         Ok(self.repository_for(project_root)?.git_dir)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seed_source_repository_for_test(
+        &self,
+        project_root: &str,
+    ) -> Result<bool, String> {
+        let repo = self.repository_for(project_root)?;
+        self.ensure_repository(&repo)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_seed_at_for_test(&mut self, point: SeedFailurePoint) {
+        self.seed_failure = Some(point);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn stage_worktree_for_test(
+        &self,
+        project_root: &str,
+    ) -> Result<Vec<String>, String> {
+        let repo = self.repository_for(project_root)?;
+        self.ensure_repository(&repo)?;
+        self.stage_worktree(&repo)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn verify_worktree_stable_for_test(
+        &self,
+        project_root: &str,
+        large_untracked: &[String],
+    ) -> Result<(), String> {
+        let repo = self.repository_for(project_root)?;
+        self.verify_worktree_stable(&repo, large_untracked)
     }
 
     fn repository_for(&self, project_root: &str) -> Result<ShadowRepository, String> {
@@ -334,6 +379,10 @@ impl ShadowGitCore {
             fs::create_dir_all(parent)
                 .map_err(|error| format!("无法创建影子仓 alternates 目录: {error}"))?;
         }
+        #[cfg(test)]
+        if self.seed_failure == Some(SeedFailurePoint::AlternatesWrite) {
+            return Err("测试注入：无法写入影子仓 alternates".to_string());
+        }
         fs::write(&target, alternates_text)
             .map_err(|error| format!("无法写入影子仓 alternates: {error}"))?;
 
@@ -357,6 +406,10 @@ impl ShadowGitCore {
         if !source_index.is_file() {
             return Ok(false);
         }
+        #[cfg(test)]
+        if self.seed_failure == Some(SeedFailurePoint::IndexCopy) {
+            return Err("测试注入：无法复制作者 Git index 种子".to_string());
+        }
         fs::copy(source_index, repo.git_dir.join("index"))
             .map_err(|error| format!("无法复制作者 Git index 种子: {error}"))?;
         Ok(true)
@@ -379,6 +432,77 @@ impl ShadowGitCore {
             return Ok(false);
         };
         Ok(top_level == repo.project_root)
+    }
+
+    fn materialize_source_objects(
+        &self,
+        repo: &ShadowRepository,
+        tree_hash: &str,
+    ) -> Result<(), String> {
+        let alternates_path = repo.git_dir.join("objects").join("info").join("alternates");
+        let alternates = match fs::read(&alternates_path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(format!("无法读取影子 Git 作者对象依赖: {error}")),
+        };
+        let materializing_ref = "refs/storyforge/materializing/current";
+        let clear_materializing_ref = || -> Result<(), String> {
+            let args = [
+                OsString::from("update-ref"),
+                OsString::from("-d"),
+                OsString::from(materializing_ref),
+            ];
+            let output = self.run_in_repository(repo, &args, None)?;
+            self.require_success(output, "清理影子 Git 对象物化临时 ref")?;
+            Ok(())
+        };
+
+        let update = [
+            OsString::from("update-ref"),
+            OsString::from(materializing_ref),
+            OsString::from(tree_hash),
+        ];
+        let output = self.run_in_repository(repo, &update, None)?;
+        self.require_success(output, "建立影子 Git 对象物化临时 ref")?;
+
+        let repack = [
+            OsString::from("repack"),
+            OsString::from("-a"),
+            OsString::from("-d"),
+        ];
+        let repack_result = self
+            .run_in_repository(repo, &repack, None)
+            .and_then(|output| self.require_success(output, "物化作者 Git 借用对象"));
+        if let Err(error) = repack_result {
+            let _ = clear_materializing_ref();
+            return Err(error);
+        }
+
+        if let Err(error) = fs::remove_file(&alternates_path) {
+            let _ = clear_materializing_ref();
+            return Err(format!("无法移除影子 Git 作者对象依赖: {error}"));
+        }
+
+        let verify = [
+            OsString::from("fsck"),
+            OsString::from("--connectivity-only"),
+            OsString::from("--no-dangling"),
+            OsString::from(tree_hash),
+        ];
+        let verify_result = self
+            .run_in_repository(repo, &verify, None)
+            .and_then(|output| self.require_success(output, "校验影子 Git 自包含对象"));
+        if let Err(error) = verify_result {
+            let _ = clear_materializing_ref();
+            if let Err(restore_error) = fs::write(&alternates_path, alternates) {
+                return Err(format!(
+                    "{error}; 且无法恢复影子 Git 作者对象依赖: {restore_error}"
+                ));
+            }
+            return Err(error);
+        }
+
+        clear_materializing_ref()
     }
 
     fn run_in_source(
@@ -549,6 +673,7 @@ fn configure_bundled_git_paths(command: &mut Command, git_executable: &Path) {
         let Some(runtime) = git_executable.parent().and_then(Path::parent) else {
             return;
         };
+        let runtime = git_compatible_runtime_path(runtime);
         let path = std::env::join_paths([
             runtime.join("cmd"),
             runtime.join("mingw64").join("bin"),
@@ -570,6 +695,35 @@ fn configure_bundled_git_paths(command: &mut Command, git_executable: &Path) {
             command.env("GIT_TEMPLATE_DIR", templates);
         }
     }
+}
+
+#[cfg(windows)]
+fn git_compatible_runtime_path(path: &Path) -> PathBuf {
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+
+    const VERBATIM_PREFIX: &[u16] = &[b'\\' as u16, b'\\' as u16, b'?' as u16, b'\\' as u16];
+    const VERBATIM_UNC_PREFIX: &[u16] = &[
+        b'\\' as u16,
+        b'\\' as u16,
+        b'?' as u16,
+        b'\\' as u16,
+        b'U' as u16,
+        b'N' as u16,
+        b'C' as u16,
+        b'\\' as u16,
+    ];
+
+    let encoded = path.as_os_str().encode_wide().collect::<Vec<_>>();
+    let normalized = if encoded.starts_with(VERBATIM_UNC_PREFIX) {
+        let mut value = vec![b'\\' as u16, b'\\' as u16];
+        value.extend_from_slice(&encoded[VERBATIM_UNC_PREFIX.len()..]);
+        value
+    } else if encoded.starts_with(VERBATIM_PREFIX) {
+        encoded[VERBATIM_PREFIX.len()..].to_vec()
+    } else {
+        return path.to_path_buf();
+    };
+    PathBuf::from(OsString::from_wide(&normalized))
 }
 
 #[cfg(windows)]
@@ -637,24 +791,26 @@ impl ShadowGitCore {
             .map_err(|_| "影子 Git 项目锁已损坏".to_string())?;
         let seeded_index = self.ensure_repository(&repo)?;
 
-        if let Err(error) = self.stage_worktree(&repo) {
-            if !seeded_index {
-                return Err(error);
+        let large_untracked = match self.stage_worktree(&repo) {
+            Ok(paths) => paths,
+            Err(error) if seeded_index => {
+                eprintln!("影子 Git index 种子不兼容，将重建完整 index: {error}");
+                fs::remove_file(repo.git_dir.join("index")).map_err(|remove_error| {
+                    format!("无法移除不兼容的影子 Git index: {remove_error}")
+                })?;
+                self.stage_worktree(&repo)?
             }
-            eprintln!("影子 Git index 种子不兼容，将重建完整 index: {error}");
-            fs::remove_file(repo.git_dir.join("index")).map_err(|remove_error| {
-                format!("无法移除不兼容的影子 Git index: {remove_error}")
-            })?;
-            self.stage_worktree(&repo)?;
-        }
+            Err(error) => return Err(error),
+        };
 
-        self.verify_worktree_stable(&repo)?;
+        self.verify_worktree_stable(&repo, &large_untracked)?;
         let output = self.run_in_repository(&repo, &[OsString::from("write-tree")], None)?;
         let output = self.require_success(output, "创建影子 Git tree")?;
         let tree_hash = utf8_stdout(&output, "影子 Git tree hash")?
             .trim()
             .to_string();
         validate_tree_hash(&tree_hash)?;
+        self.materialize_source_objects(&repo, &tree_hash)?;
         self.write_marker(&repo)?;
         Ok(CoreSnapshot {
             tree_hash,
@@ -662,7 +818,7 @@ impl ShadowGitCore {
         })
     }
 
-    fn stage_worktree(&self, repo: &ShadowRepository) -> Result<(), String> {
+    fn stage_worktree(&self, repo: &ShadowRepository) -> Result<Vec<String>, String> {
         self.write_excludes(repo, &[])?;
         let large_untracked = self.find_large_untracked_files(repo)?;
         self.write_excludes(repo, &large_untracked)?;
@@ -691,8 +847,8 @@ impl ShadowGitCore {
             self.require_success(output, "索引作品级 .storyforge 状态")?;
         }
 
-        self.drop_ignored_cached_paths(repo)?;
-        Ok(())
+        self.drop_excluded_cached_paths(repo, &large_untracked)?;
+        Ok(large_untracked)
     }
 
     fn source_info_excludes(&self, repo: &ShadowRepository) -> String {
@@ -761,7 +917,7 @@ impl ShadowGitCore {
         let mut large = Vec::new();
         for path in nul_paths(&output.stdout, "未跟踪文件列表")? {
             let normalized = validate_relative_file_path(&path)?;
-            if normalized == ".storyforge" || normalized.starts_with(".storyforge/") {
+            if is_storyforge_project_path(&normalized) {
                 continue;
             }
             let candidate = repo.project_root.join(path_from_git(&normalized));
@@ -775,24 +931,51 @@ impl ShadowGitCore {
         Ok(large)
     }
 
-    fn drop_ignored_cached_paths(&self, repo: &ShadowRepository) -> Result<(), String> {
-        let args = [
+    fn drop_excluded_cached_paths(
+        &self,
+        repo: &ShadowRepository,
+        large_untracked: &[String],
+    ) -> Result<(), String> {
+        let cached_args = [
+            OsString::from("ls-files"),
+            OsString::from("--cached"),
+            OsString::from("-z"),
+        ];
+        let output = self.run_in_repository(repo, &cached_args, None)?;
+        let output = self.require_success(output, "枚举影子 Git 索引项")?;
+        let large_untracked = large_untracked
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        let mut paths = nul_paths(&output.stdout, "索引项列表")?
+            .into_iter()
+            .filter(|path| {
+                let normalized = path.replace('\\', "/");
+                is_managed_project_exclude(&normalized)
+                    || large_untracked.contains(normalized.as_str())
+            })
+            .collect::<HashSet<_>>();
+
+        let ignored_args = [
             OsString::from("ls-files"),
             OsString::from("--cached"),
             OsString::from("--ignored"),
             OsString::from("--exclude-standard"),
             OsString::from("-z"),
         ];
-        let output = self.run_in_repository(repo, &args, None)?;
+        let output = self.run_in_repository(repo, &ignored_args, None)?;
         let output = self.require_success(output, "枚举影子 Git 已忽略索引项")?;
-        let paths = nul_paths(&output.stdout, "已忽略索引项")?
-            .into_iter()
-            .filter(|path| {
-                let normalized = path.replace('\\', "/");
-                !normalized.starts_with(".storyforge/")
-                    || normalized.starts_with(".storyforge/canon/derived/")
-            })
-            .collect::<Vec<_>>();
+        paths.extend(
+            nul_paths(&output.stdout, "已忽略索引项")?
+                .into_iter()
+                .filter(|path| {
+                    let normalized = path.replace('\\', "/");
+                    !is_storyforge_project_path(&normalized)
+                        || is_managed_project_exclude(&normalized)
+                }),
+        );
+        let mut paths = paths.into_iter().collect::<Vec<_>>();
+        paths.sort();
         if paths.is_empty() {
             return Ok(());
         }
@@ -810,7 +993,11 @@ impl ShadowGitCore {
         Ok(())
     }
 
-    fn verify_worktree_stable(&self, repo: &ShadowRepository) -> Result<(), String> {
+    fn verify_worktree_stable(
+        &self,
+        repo: &ShadowRepository,
+        large_untracked: &[String],
+    ) -> Result<(), String> {
         let diff = [
             OsString::from("diff-files"),
             OsString::from("--quiet"),
@@ -833,8 +1020,36 @@ impl ShadowGitCore {
         ];
         let output = self.run_in_repository(repo, &untracked, None)?;
         let output = self.require_success(output, "校验影子 Git 新增文件")?;
-        let remaining = nul_paths(&output.stdout, "快照后新增文件列表")?;
+        let large_untracked = large_untracked
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        let remaining = nul_paths(&output.stdout, "快照后新增文件列表")?
+            .into_iter()
+            .filter(|path| {
+                let normalized = path.replace('\\', "/");
+                !is_managed_project_exclude(&normalized)
+                    && !large_untracked.contains(normalized.as_str())
+            })
+            .collect::<Vec<_>>();
         if !remaining.is_empty() {
+            return Err("创建快照期间项目新增了文件，请重试写回".to_string());
+        }
+
+        let storyforge_untracked = [
+            OsString::from("ls-files"),
+            OsString::from("--others"),
+            OsString::from("-z"),
+            OsString::from("--"),
+            OsString::from(".storyforge"),
+        ];
+        let output = self.run_in_repository(repo, &storyforge_untracked, None)?;
+        let output = self.require_success(output, "校验作品级 .storyforge 新增文件")?;
+        let remaining_storyforge = nul_paths(&output.stdout, "作品级快照后新增文件列表")?
+            .into_iter()
+            .filter(|path| !is_managed_project_exclude(&path.replace('\\', "/")))
+            .collect::<Vec<_>>();
+        if !remaining_storyforge.is_empty() {
             return Err("创建快照期间项目新增了文件，请重试写回".to_string());
         }
         Ok(())
@@ -1075,6 +1290,60 @@ fn literal_pathspec_input(paths: &[String]) -> Result<Vec<u8>, String> {
         result.push(0);
     }
     Ok(result)
+}
+
+fn policy_component_eq(component: &str, expected: &str) -> bool {
+    if cfg!(windows) {
+        component.eq_ignore_ascii_case(expected)
+    } else {
+        component == expected
+    }
+}
+
+fn is_storyforge_project_path(path: &str) -> bool {
+    path.split('/')
+        .next()
+        .map(|component| policy_component_eq(component, ".storyforge"))
+        .unwrap_or(false)
+}
+
+fn is_atomic_temp_component(component: &str) -> bool {
+    if !component.starts_with('.') {
+        return false;
+    }
+    if cfg!(windows) {
+        component[1..].to_ascii_lowercase().contains(".tmp-")
+    } else {
+        component[1..].contains(".tmp-")
+    }
+}
+
+fn is_managed_project_exclude(path: &str) -> bool {
+    let components = path.split('/').collect::<Vec<_>>();
+    if components
+        .first()
+        .map(|component| policy_component_eq(component, ".git"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    if components.len() >= 3
+        && policy_component_eq(components[0], ".storyforge")
+        && policy_component_eq(components[1], "canon")
+        && policy_component_eq(components[2], "derived")
+    {
+        return true;
+    }
+    components
+        .iter()
+        .take(components.len().saturating_sub(1))
+        .any(|component| {
+            policy_component_eq(component, "node_modules")
+                || policy_component_eq(component, ".pnpm-store")
+        })
+        || components
+            .iter()
+            .any(|component| is_atomic_temp_component(component))
 }
 
 fn escape_gitignore_literal(path: &str) -> Result<String, String> {

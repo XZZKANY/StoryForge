@@ -4,6 +4,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 type MemFile = { content: string };
 const disk = new Map<string, MemFile>();
 let existsThrows = false;
+let metaWriteError: Error | null = null;
 const events: string[] = [];
 
 const shadow = vi.hoisted(() => ({
@@ -24,6 +25,7 @@ vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: async (_root: string, path: string, content: string) => {
       events.push(path.endsWith('.meta.json') ? 'write-meta' : 'write-file');
+      if (path.endsWith('.meta.json') && metaWriteError) throw metaWriteError;
       disk.set(normalize(path), { content });
     },
     readFile: async (path: string) => {
@@ -90,6 +92,7 @@ beforeEach(() => {
   disk.clear();
   events.length = 0;
   existsThrows = false;
+  metaWriteError = null;
   shadow.createError = null;
   shadow.retainError = null;
   shadow.filterError = null;
@@ -119,6 +122,14 @@ test('new snapshots write only v2 metadata and retain the tree before returning'
   disk.set(normalize(FILE), { content: '旧' });
   const result = await snapshotBeforeWrite(PROJECT, FILE, '旧', {
     source: 'Agent',
+    summary: '修订第一章开场',
+    patchId: 'patch-7',
+    assistantSessionId: 42,
+    issueIds: ['issue-1', 'issue-2'],
+    contextFiles: ['正文/第02章.md'],
+    parentId: 1700000000000,
+    branchId: 'branch-rain',
+    branchLabel: '雨夜支线',
     checkpoint: true,
     runId: 'run-7',
   });
@@ -133,9 +144,20 @@ test('new snapshots write only v2 metadata and retain the tree before returning'
   assert.equal(stored.schemaVersion, 2);
   assert.equal(stored.storage, 'shadow-git');
   assert.equal(stored.treeHash, 'a'.repeat(40));
+  assert.equal(stored.source, 'Agent');
+  assert.equal(stored.summary, '修订第一章开场');
   assert.equal(stored.file, '正文/第01章.md');
+  assert.equal(stored.patchId, 'patch-7');
+  assert.equal(stored.assistantSessionId, 42);
+  assert.deepEqual(stored.issueIds, ['issue-1', 'issue-2']);
+  assert.deepEqual(stored.contextFiles, ['正文/第02章.md']);
+  assert.equal(stored.parentId, 1700000000000);
+  assert.equal(stored.branchId, 'branch-rain');
+  assert.equal(stored.branchLabel, '雨夜支线');
   assert.equal(stored.runId, 'run-7');
+  assert.equal(stored.created, false);
   assert.equal(typeof stored.recordId, 'string');
+  assert.equal('content' in stored, false, 'v2 metadata must not duplicate manuscript content');
 });
 
 test('new lightweight records are not truncated after twenty versions', async () => {
@@ -163,7 +185,7 @@ test('existence probe failure remains conservative and never marks the file for 
   assert.equal(result?.created, false);
 });
 
-test('tree or retain failures reject and remove half-written metadata', async () => {
+test('tree, metadata, or retain failures reject and remove half-written metadata', async () => {
   shadow.createError = new Error('missing bundled Git');
   await assert.rejects(snapshotBeforeWrite(PROJECT, FILE, '旧'), /missing bundled Git/);
   assert.equal(directMetaPaths().length, 0);
@@ -171,6 +193,14 @@ test('tree or retain failures reject and remove half-written metadata', async ()
 
   events.length = 0;
   shadow.createError = null;
+  metaWriteError = new Error('metadata disk full');
+  await assert.rejects(snapshotBeforeWrite(PROJECT, FILE, '旧'), /metadata disk full/);
+  assert.equal(directMetaPaths().length, 0);
+  assert.deepEqual(events, ['create-tree', 'write-meta', 'release-ref', 'delete-meta']);
+  assert.equal(events.includes('retain-ref'), false);
+
+  events.length = 0;
+  metaWriteError = null;
   shadow.retainError = new Error('update-ref failed');
   await assert.rejects(snapshotBeforeWrite(PROJECT, FILE, '旧'), /update-ref failed/);
   assert.equal(directMetaPaths().length, 0);

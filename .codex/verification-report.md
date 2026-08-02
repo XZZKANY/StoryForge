@@ -1493,3 +1493,178 @@ npm --prefix apps/desktop run build
   项目 diff/确认恢复的数据底座；本任务只接通现有按文件版本历史/分支画布。
 - **没有宣称真机 GUI 多轮补丁确认完全验收**。本次是 deterministic Tauri smoke 与 release exe
   冒烟，不等同于人工点击装机版全链路。
+
+## 2026-08-02 影子 Git 完成态审计：真安装、真实仓与 smoke 全身份隔离
+
+本节是对上一节两个未验证项的后续完成证据。上一节的「未实际安装/卸载 NSIS」和「未对真实
+StoryForge 仓 dogfood」在本节均已关闭；项目级一键恢复整个作品的 UI 仍保持原定 out of scope。
+
+### 审计中发现并修复的真实问题
+
+1. Tauri release 资源路径可能是 `\\?\D:\...`。MinGit 不接受
+   `GIT_TEMPLATE_DIR=\\?\...`，导致已安装 exe 的 `git init` exit 128。修复仅在 bundled Git
+   环境边界去除 verbatim 前缀，项目 canonical path 与分桶身份保持不变。
+2. 既有 Tauri smoke 与当前欢迎页、活动栏、补丁二次拒绝、toast 状态契约已经漂移。Rust smoke
+   和浏览器 smoke 已同步到当前 UI，并继续断言确认前不写盘、确认后 tree/ref/read 成立。
+3. 初版安装 harness 只按目录存在判断卸载保留数据，且 shortcut cleanup 可递归删除未预检的同名
+   目录。现改为完整 shadow tree digest 前后相等、Known Folder 桌面、配置目录预检、精确快捷方式
+   删除和仅空目录删除。
+4. 初版 smoke 继承 8000 端口和生产 identifier 数据面，可能终止既有 sidecar、写生产 SQLite/config、
+   shadow Git 与 WebView localStorage，或被 single-instance 正常退出 0 假绿。现使用临时 API 端口、
+   强制 local/config/WebView 隔离目录、smoke 禁止替换既有 API、smoke 禁用 single-instance，并要求
+   `storyforge-smoke-isolation-v1` 和真实 result marker。
+5. packaged smoke 过去可直接运行陈旧 release exe，安装态 `--executable` 也曾绕过协议预检。标准
+   packaged 命令现先执行 current release no-bundle build；release 与显式 installed executable 统一在
+   启动前扫描隔离协议，不具备能力的旧 exe 不会被执行。
+6. 已有 Git 的 alternates 有断言，但兼容 index 成功复制没有直接行为证据。新增测试 seam 在 staging
+   前比较 source/shadow index bytes，并再次比较作者 `.git` 完整摘要。
+7. 初版 existing-Git 快照把作者 objects 永久留在 `alternates`，作者删除/移动 `.git` 后记录版本会
+   丢 blob。现把 alternates 限定为初始化加速：tree 写出后以临时内部 ref + `repack -a -d` 物化全部
+   可达对象，移除 alternates 并做 connectivity 校验；回归会移走作者 `.git`、执行 prune=now 后再读。
+8. `.storyforge` 的 force-add 曾把内部 `.*.tmp-*`、嵌套 `node_modules` / `.pnpm-store` 重新带进
+   tree。现只覆盖作者 `.gitignore`，force-add 后重新应用 StoryForge 托管排除，并有内部路径红绿回归。
+9. release smoke 压力复跑曾出现一次接受事件丢失，失败出口又先 `process::exit`，遗留 sidecar 并锁住
+   SQLite。接受动作现点击真实 UI 按钮；所有 probe 失败统一恢复 PATH、停服务、删 exact owned 临时项目，Node 在
+   Windows 同步等待 taskkill。强制失败探针证明无 EBUSY/AggregateError/残留进程或目录，随后 10 次
+   current release 写回连续通过。
+10. 仅从 `ls-files --ignored` 删除托管垃圾仍会被作者 `.gitignore` 的 `!` negation 绕过，因为
+    `info/exclude` 优先级更低。现从完整 cached index 硬过滤依赖、atomic temp、derived 和本轮大文件；
+    行为回归显式反忽略全部路径，仍逐项证明不进入 tree。
+11. probe 内失败清理收口后，sidecar 已启动但 main window/setup 失败，以及临时项目创建一半失败，
+    仍在 cleanup 所有权之外。setup 现统一 shutdown；临时项目先以 `create_dir(root)` 独占所有权，
+    预存 root 不复用/不删除、无宽前缀清理，取得所有权后的半建失败自行回滚；Node 对
+    仍存活的进程树同步 `taskkill /T`、跳过可能已复用的退出 PID，并等待隔离 API 不可达。
+12. 对象物化增加了写回耗时，原 release smoke 的 6 秒终态等待可在真实 `plan.mark_written` 已发出时
+    抢先超时。现仅把真实接受后的终态预算扩至 20 秒，仍要求成功 toast 和写后正文；当前 release 与
+    installed smoke 均通过。
+13. `.storyforge` 被作者 ignore 时，普通 untracked 稳定性检查看不到 staging 后并发新增文件；Windows
+    托管排除又曾大小写敏感。现额外无 ignore 枚举 `.storyforge`，Windows 路径 ASCII case-fold，且
+    `node_modules` / `.pnpm-store` 只按目录组件排除；三条回归分别钉住并发新增、case variant 与普通同名文件。
+14. PyInstaller `--onefile` sidecar 是 bootloader + API 子进程树，`CommandChild::kill()` 只杀根进程；
+    随机端口实证中 API 子进程仍返回 200。Windows shutdown 现于根存活时先 `taskkill /T /F`，失败才
+    fallback 到句柄 kill；最新 setup/probe 强制失败均在 API 已就绪后收敛到 process/data/project=0。
+15. API stop 单次 fetch timeout 曾被误判为 unreachable，response body cancel 失败也会推翻已收到响应，
+    signal exit 则被 `code ?? 0` 当成功。现 timeout/abort 保守视为未知、body cancel 为 best-effort、signal
+    明确失败，只有总 stop wait 成功才删除 data root；Node 行为回归全部直接覆盖。
+16. 最终证据复审发现 canonical bucket、v2 meta 关联字段和 alternates/index 各阶段 fallback 的断言过宽。
+    新增精确 64-hex SHA-256 + alias 稳定性、全部 meta 关联字段 + 无正文副本、alternates 写入/index 复制
+    两处 fault injection；报告矩阵不再用间接 containment 或单一坏 index 代替这些要求。
+
+### 原任务 R1-R16 直接证据矩阵
+
+| Requirement | 直接证据 | 结果 |
+| --- | --- | --- |
+| R1 独立 git-dir 与 canonical SHA-256 分桶 | Rust `repository_path_uses_stable_canonical_sha256_bucket` 精确断言 canonical key 的 64 位 lowercase SHA-256 路径与 `.` alias 同桶；真实仓 dogfood/三档 marker 断言 repo 位于隔离 data root 且不在工作树 | 通过 |
+| R2 不修改作者 `.git` | `existing_git_repository_is_read_only_and_materializes_borrowed_objects`、`existing_git_repository_copies_source_index_seed_without_mutation`、seed/fallback fault tests；真实仓 dogfood 前后 digest | 通过，真实仓 digest `ec932093657b015f3909121d7b95635d8284f2545d94bc5bff3c2cdd22c01982` |
+| R3 完整工作树与排除矩阵 | `snapshots_non_git_worktree_and_preserves_story_state` 逐项读取作品状态并逐项拒绝 `.git`、内外 atomic temp、derived、内外 dependency、large file；`force_includes_storyforge_even_when_author_gitignore_excludes_it`；`managed_excludes_override_author_gitignore_negations` | 通过，作者 negation 不能覆盖托管硬排除 |
+| R4 existing Git alternates/index 与 fallback | `existing_git_repository_copies_source_index_seed_without_mutation` 直接比较 alternates/index；`alternates_or_index_seed_failures_fall_back_to_complete_snapshot` 分别注入 alternates write/index copy 失败；坏 seed 自动 fallback；对象物化测试移走作者 `.git` 后 GC/read | 通过 |
+| R5 快照失败阻断正文写回 | frontend `tree, metadata, or retain failures reject...`、`快照失败阻断写盘`、`自动档下快照失败仍然阻断写盘` | 通过 |
+| R6 tree hash 与版本元数据关联 | `new snapshots write only v2 metadata and retain the tree before returning` 逐项断言 tree/record/source/summary/file/patch/session/issues/context/parent/branch/run/created、写入/retain 顺序和无正文副本 | 通过 |
+| R7 存在/不存在/删除三态 | Rust snapshot/read；frontend `created metadata still distinguishes...`、`legacy created snapshots restore as missing...` | 通过 |
+| R8 恢复仍受确认、原子写与页签保护 | mounted writeback/restore tests，含「撤销新建是删文件并摘页签，不是写空文件」及失败保持页签/plan | 通过 |
+| R9 legacy 与 v2 双读 | `legacy and v2 entries share one timeline and one structured reader`；repository failure 仍保留 legacy | 通过 |
+| R10 refs 保活与 GC | Rust `retains_tree_through_gc_and_filters_only_live_refs` 对 retained tree 和 orphan tree 执行 `gc --prune=now`；source-Git 自包含回归移走作者对象库后再 GC/read | 通过 |
+| R11 Windows/中文/长路径/CRLF/空项目/两类 Git 项目 | Rust `snapshots_empty_worktree_and_reads_windows_long_paths`、中文路径和 CRLF read、non-Git/source-Git tests | 通过 |
+| R12 dev/installed 均只用受控 Git | dev/release/installed Tauri smoke 清空应用 PATH，marker 中 Git 均位于各自 resource 目录，版本固定 2.55.0 | 通过 |
+| R13 供应链与明确失败 | MinGit Node tests 覆盖 SHA/cache/exe/version/license/arch；Rust 覆盖 missing runtime、坏输入和 verbatim resource 回归 | 通过 |
+| R14 仅承诺 Windows x64 NSIS | manifest、host guard、overlay 和真安装探针都固定 win32/x64；未扩大其他平台声明 | 通过，范围限制保留 |
+| R15 作品级 `.storyforge` 状态 | Rust 直接读取 book/cover/instructions/canon/versions/branches/plan/notes/author-loop，拒绝 canon/derived 与 `.storyforge` 内 atomic temp/dependency cache | 通过 |
+| R16 meta/ref 任一步失败均阻断且无半记录 | frontend failure injection 覆盖 tree、meta disk full、update-ref；断言 release/delete meta、无 retain/writeback 成功 | 通过 |
+
+### 原任务 16 条 Acceptance Criteria
+
+| # | 验收项 | 直接证据与结论 |
+| --- | --- | --- |
+| AC1 | git-dir 在工作树外且作者 `.git` 不变 | fixture + 真实仓 dogfood 均通过 |
+| AC2 | 相同 tree 稳定、正文变化 tree 改变 | Rust non-Git snapshot test 通过 |
+| AC3 | existing Git 复用 alternates/index，失败 fallback | alternates/index bytes、alternates write fault、index copy fault、损坏 index staging fallback、借用对象物化并脱离作者 `.git` 均通过 |
+| AC4 | non-Git 项目可快照 | Rust non-Git/empty worktree 通过 |
+| AC5 | 快照失败阻断 write_file/F27 | frontend guarded writeback tests 通过 |
+| AC6 | 从 tree 读取指定文件并预览 | Rust read + frontend structured reader + Tauri retained pre-write read 通过 |
+| AC7 | 新建前恢复为删除，普通恢复为正文 | mounted auto-writeback/restore tests 通过 |
+| AC8 | legacy/v2 同时列出与恢复 | versions checkpoint dual-read test 通过 |
+| AC9 | tree 含 branches/meta/canon/book/author-loop，排除 derived | Rust 完整包含/排除矩阵通过，含 `.storyforge` 内托管 temp/dependency 排除 |
+| AC10 | ref tree 经 prune=now 存活，orphan 被清理 | Rust GC 回归通过 |
+| AC11 | 清 PATH 的安装态仍能创建/读取/恢复 | 真安装 exe 完成 proposed patch、tree/meta/ref/read；恢复语义由同一 frontend reader/writeback 测试覆盖 |
+| AC12 | Git 版本与 executable path 均为 bundled | 三档 Tauri marker 与安装 resource 校验通过 |
+| AC13 | 版本/arch/SHA/license 缺失失败 | `prepare-bundled-git.test.mjs` 7 项相关回归通过 |
+| AC14 | meta/ref 失败不写盘、不返回成功记录 | frontend failure matrix 通过 |
+| AC15 | 行为覆盖 create/modify/delete/中文/non-Git/existing Git/missing Git/seed failure/legacy | Rust + frontend 组合覆盖通过 |
+| AC16 | frontend、Rust、typecheck、lint、verify、e2e | 全部通过，命令汇总见下 |
+
+### 当前完成态任务验收
+
+| 当前任务要求 | 完成证据 |
+| --- | --- |
+| R1 逐条证据矩阵 | 上述 R1-R16 与 AC1-AC16 均指向行为测试或 runtime probe，无“脚本存在即通过”替代 |
+| R2 真实 StoryForge dogfood | tree `632e075387693c8e7a06b6c777c157fb08c81b43` 可读/保活/gc 后可读且对象已本地物化；`.git` digest `ec932093657b015f3909121d7b95635d8284f2545d94bc5bff3c2cdd22c01982` 前后相同；temp data 删除 |
+| R3 隔离 NSIS 真安装 | 独立 product/identifier 真安装，installed exe smoke，真卸载，local shadow 数据卸载前后 digest 相同，最终测试 identity 全清 |
+| R4 缺失边界回归 | 空项目、长路径、canonical bucket、完整状态、内部托管排除/case/并发新增、作者 negation、orphan GC、alternates/index fault、坏 seed、对象物化、完整 meta、半建/预存 smoke root、license/arch/verbatim resource 均有回归 |
+| R5 审计缺陷保持红线 | 修复只改 bundled Git/smoke/installer 边界；无系统 Git fallback，无作者 `.git` 写入或持久依赖，无确认前正文写盘；PyInstaller tree-kill、timeout/abort/body-cancel/signal 分支均 fail-closed，强制 smoke 失败无残留 |
+| R6 规范与报告 | `.trellis/spec/desktop/frontend/quality-guidelines.md` 与本报告已同步；整项目恢复 UI 继续 out of scope |
+
+### 最终命令与结果
+
+```text
+npm --prefix apps/desktop run test:nsis-install
+  -> 17 passed（含 runProcess signal-exit 与 settleSmokeCleanup stop-wait 失败编排回归）
+npm --prefix apps/desktop run test:git-bundle
+  -> 7 passed（含 license/arch）
+npm --prefix apps/desktop/frontend run test
+  -> 82 files / 533 passed
+npm --prefix apps/desktop/frontend run typecheck
+  -> passed
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -- --nocapture
+  -> 39 passed / 1 ignored（真实仓 probe 单独运行）
+cargo test ... dogfoods_real_storyforge... -- --ignored --nocapture
+  -> 1 passed
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+  -> passed
+pnpm.cmd verify
+  -> passed；API 1397 passed / 3 skipped；Desktop 533；project-core 7；Ruff/daily sidecar/OpenAPI drift passed
+pnpm.cmd e2e
+  -> 20/20 passed，OpenAPI 无漂移
+npm --prefix apps/desktop run verify:tauri-smoke
+  -> development smoke passed；临时 API/data/config/WebView；生产四份摘要前后相同
+npm --prefix apps/desktop run verify:tauri-smoke:packaged
+  -> current release no-bundle build + capability preflight + release smoke passed
+STORYFORGE_DESKTOP_SMOKE_FORCE_FAILURE=1 + current release verifier
+  -> expected exit 1；API 曾返回 200；新增 data/project root=0；新增 repo sidecar PID=0
+STORYFORGE_DESKTOP_SMOKE_FORCE_SETUP_FAILURE=1 + current release verifier
+  -> sidecar ready 后 expected exit 1；Windows tree-kill；API/process/temp root=0
+pnpm.cmd smoke:sidecar:packaged
+  -> passed；ready 7342ms，assistant/SSE/control/alembic/prompt bundled 全绿
+npm --prefix apps/desktop run verify:nsis-install
+  -> explicit executable capability preflight + isolated NSIS install/run/uninstall passed
+git diff --check
+  -> passed
+```
+
+### 真安装、生产保护与真实仓摘要
+
+- Installer：`apps/desktop/.tauri-target-install-smoke/release/bundle/nsis/StoryForge Shadow Git Install Smoke_0.1.10_x64-setup.exe`。
+- Installed Git：`git version 2.55.0.windows.3`；实际 executable 为安装资源目录下的 verbatim
+  Windows path，已成功完成 `git init`、snapshot、retain 和 read。
+- 卸载前后 shadow data digest：
+  `ecfc0dc068c56a81c7a416ad29d02b029e2a0174e0a0e3882cf2412321217c60`，逐字节 tree 摘要相同。
+- 卸载后：测试 install/local-data/config/registry/shortcut/process 全部为 0。
+- 生产安装 tree digest 前后均为
+  `a148760e043f37c9153d05f3f66a3e81c7bf4474cd20207fdb234f7ac4415fd2`。
+- 生产 installed exe 仍为 15,629,312 bytes，SHA-256
+  `2713983407B327457A7DD9697D480F8612D2E71D74D119260B1F28AA379FBFCE`，卸载键仍存在。
+- dev/release smoke 前后生产 SQLite SHA-256 均为
+  `CE5C274D797F1511293F03ADE7F4058AA0B5CC46E25358233E31AD1DE94FF12D`；生产 LLM config SHA-256
+  均为 `F2BF579D2796AF310B8BDCDE5C6CBE11C196D215B3FF07AFDC11B7E463C0B4E0`；生产 shadow Git
+  目录仍不存在；WebView tree digest 均为
+  `790d0848e1883afdf1a15abb504b783365e63d05b4bede9ae9cccf795df53841`。
+- 真实 `D:\StoryForge` dogfood：tree
+  `632e075387693c8e7a06b6c777c157fb08c81b43`，作者 `.git` digest 前后均为
+  `ec932093657b015f3909121d7b95635d8284f2545d94bc5bff3c2cdd22c01982`，临时 data root 已删除。
+
+### 仍然不能宣称
+
+- 没有交付「正文 + 版本记录 + 分支选择」的一键整项目恢复 UI。当前 tree 已完整保存这些作品状态，
+  现有 UI 仍是按文件版本历史和分支画布；项目级 diff/确认恢复入口属于后续任务。
+- 没有验收 macOS、Linux、Windows arm64 或 32 位 Git 包。
+- deterministic dev/release/installed Tauri smoke 真实运行了 WebView 和补丁确认链，但不等于作者人工
+  通读或真机多轮 GUI 体验验收；不能据此宣称生产级长篇闭环。

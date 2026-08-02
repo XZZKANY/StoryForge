@@ -3,6 +3,7 @@ mod core;
 #[cfg(test)]
 mod tests;
 
+use crate::runtime_paths;
 use core::{CoreSnapshot, ShadowGitCore, SharedState};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -112,9 +113,7 @@ fn core_for_app<R: tauri::Runtime>(
             git_executable.display()
         ));
     }
-    let data_root = app
-        .path()
-        .app_local_data_dir()
+    let data_root = runtime_paths::app_local_data_dir(app)
         .map_err(|error| format!("无法解析应用数据目录: {error}"))?;
     Ok(ShadowGitCore::new(
         git_executable,
@@ -127,6 +126,7 @@ fn core_for_app<R: tauri::Runtime>(
 pub(crate) struct ShadowGitSmokeEvidence {
     pub(crate) git_version: String,
     pub(crate) executable_path: String,
+    pub(crate) repository_path: String,
     pub(crate) content: String,
 }
 
@@ -154,6 +154,10 @@ pub(crate) fn verify_smoke_snapshot<R: tauri::Runtime>(
     Ok(ShadowGitSmokeEvidence {
         git_version,
         executable_path,
+        repository_path: core
+            .repository_path(project_root)?
+            .to_string_lossy()
+            .to_string(),
         content: state.content,
     })
 }

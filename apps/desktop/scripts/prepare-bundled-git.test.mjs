@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, test } from 'node:test';
 
 import {
+  assertSupportedHost,
   ensureCachedArchive,
   validateManifest,
   verifyRuntime,
@@ -46,6 +47,14 @@ function manifest(overrides = {}) {
 
 test('validateManifest rejects an invalid digest', () => {
   assert.throws(() => manifest({ sha256: 'not-a-digest' }), /sha256/);
+});
+
+test('assertSupportedHost rejects a different target architecture', () => {
+  assert.doesNotThrow(() => assertSupportedHost(manifest(), 'win32', 'x64'));
+  assert.throws(
+    () => assertSupportedHost(manifest(), 'win32', 'arm64'),
+    /targets win32\/x64, current host is win32\/arm64/,
+  );
 });
 
 test('ensureCachedArchive verifies a cache hit without downloading again', async () => {
@@ -99,4 +108,19 @@ test('verifyRuntime rejects a wrong Git version and requires licenses', async ()
     async () => 'git version 2.55.0.windows.3',
   );
   assert.equal(verified.reportedVersion, 'git version 2.55.0.windows.3');
+});
+
+test('verifyRuntime rejects missing license files and directories', async () => {
+  const runtime = await tempDir();
+  await mkdir(join(runtime, 'cmd'), { recursive: true });
+  await writeFile(join(runtime, 'cmd', 'git.exe'), 'fixture');
+  const runGit = async () => 'git version 2.55.0.windows.3';
+
+  await assert.rejects(verifyRuntime(manifest(), runtime, runGit), /license file is missing/);
+
+  await writeFile(join(runtime, 'LICENSE.txt'), 'GPL-2.0');
+  await assert.rejects(verifyRuntime(manifest(), runtime, runGit), /license directory is missing/);
+
+  await mkdir(join(runtime, 'share', 'licenses'), { recursive: true });
+  await assert.rejects(verifyRuntime(manifest(), runtime, runGit), /license directory is empty/);
 });

@@ -1,8 +1,9 @@
+use crate::runtime_paths;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,7 +38,7 @@ fn clean(value: &str) -> String {
 }
 
 fn config_dir(app: &AppHandle) -> Result<PathBuf> {
-    let dir = app.path().app_config_dir().context("无法获取应用配置目录")?;
+    let dir = runtime_paths::app_config_dir(app)?;
     fs::create_dir_all(&dir).context("无法创建应用配置目录")?;
     Ok(dir)
 }
@@ -47,10 +48,7 @@ fn config_path(app: &AppHandle) -> Result<PathBuf> {
 }
 
 pub fn sqlite_database_url(app: &AppHandle) -> Result<String> {
-    let data_dir = app
-        .path()
-        .app_local_data_dir()
-        .context("无法获取应用数据目录")?;
+    let data_dir = runtime_paths::app_local_data_dir(app)?;
     fs::create_dir_all(&data_dir).context("无法创建应用数据目录")?;
     let db_path = data_dir.join("storyforge.sqlite3");
     let path = db_path.to_string_lossy().replace('\\', "/");
@@ -108,7 +106,10 @@ pub fn llm_env_for_backend(app: &AppHandle) -> Result<Vec<(String, String)>> {
     ));
 
     if !config.provider.trim().is_empty() {
-        env.push(("STORYFORGE_LLM_PROVIDER".to_string(), clean(&config.provider)));
+        env.push((
+            "STORYFORGE_LLM_PROVIDER".to_string(),
+            clean(&config.provider),
+        ));
     }
     if !config.base_url.trim().is_empty() {
         let base_url = clean(&config.base_url);
@@ -133,7 +134,10 @@ pub fn get_llm_config(app: AppHandle) -> Result<LlmConfigResponse, String> {
 }
 
 #[tauri::command]
-pub fn save_llm_config(app: AppHandle, payload: SaveLlmConfigRequest) -> Result<LlmConfigResponse, String> {
+pub fn save_llm_config(
+    app: AppHandle,
+    payload: SaveLlmConfigRequest,
+) -> Result<LlmConfigResponse, String> {
     let mut next = read_stored_config(&app).map_err(|error| error.to_string())?;
     next.provider = clean(&payload.provider);
     next.base_url = clean(&payload.base_url);

@@ -3,16 +3,21 @@
 
 mod fs;
 mod llm_config;
+mod runtime_paths;
 mod shadow_git;
 mod watcher;
 
 use anyhow::{Context, Result};
+use runtime_paths::is_smoke_mode;
 use serde::{Deserialize, Serialize};
 use std::fs as std_fs;
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    mpsc, Arc, Mutex,
+};
 use std::thread;
 use std::time::Duration;
 use tauri::Manager;
@@ -20,11 +25,17 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 type SharedServiceManager = Arc<Mutex<ServiceManager>>;
+static SMOKE_PROJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// 全局状态：保存所有启动的子进程，用于退出时清理
 struct ServiceManager {
     children: Vec<Child>,
-    sidecars: Vec<CommandChild>,
+    sidecars: Vec<ManagedSidecar>,
+}
+
+struct ManagedSidecar {
+    child: CommandChild,
+    terminated: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -46,36 +57,70 @@ impl ServiceManager {
         self.children.push(child);
     }
 
-    fn add_sidecar(&mut self, child: CommandChild) {
-        self.sidecars.push(child);
+    fn add_sidecar(&mut self, child: CommandChild, terminated: Arc<AtomicBool>) {
+        self.sidecars.push(ManagedSidecar { child, terminated });
     }
 
     fn shutdown(&mut self) {
         println!("正在停止所有服务...");
         for mut child in self.children.drain(..) {
-            if cfg!(windows) {
-                let _ = Command::new("taskkill")
-                    .args(["/PID", &child.id().to_string(), "/T", "/F"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
-            } else if let Err(e) = child.kill() {
-                eprintln!("停止进程失败: {}", e);
+            match child.try_wait() {
+                Ok(Some(_)) => continue,
+                Ok(None) if cfg!(windows) => {
+                    if !kill_windows_process_tree(child.id()) {
+                        let _ = child.kill();
+                    }
+                }
+                Ok(None) => {
+                    if let Err(error) = child.kill() {
+                        eprintln!("停止进程失败: {error}");
+                    }
+                }
+                Err(error) => {
+                    eprintln!("读取受管进程状态失败，仍将通过进程句柄停止: {error}");
+                    let _ = child.kill();
+                }
             }
         }
-        for child in self.sidecars.drain(..) {
-            if cfg!(windows) {
-                let _ = Command::new("taskkill")
-                    .args(["/PID", &child.pid().to_string(), "/T", "/F"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
-            } else if let Err(e) = child.kill() {
-                eprintln!("停止 sidecar 失败: {}", e);
+        for managed in self.sidecars.drain(..) {
+            let child = managed.child;
+            if cfg!(windows)
+                && !managed.terminated.load(Ordering::Acquire)
+                && kill_windows_process_tree(child.pid())
+            {
+                continue;
+            }
+            if let Err(error) = child.kill() {
+                eprintln!("停止 sidecar 失败: {error}");
             }
         }
         println!("所有服务已停止");
     }
+}
+
+fn kill_windows_process_tree(pid: u32) -> bool {
+    if !cfg!(windows) {
+        return false;
+    }
+    matches!(
+        Command::new("taskkill.exe")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status(),
+        Ok(status) if status.success()
+    )
+}
+
+fn shutdown_managed_services(manager: &SharedServiceManager) {
+    let mut services = match manager.lock() {
+        Ok(services) => services,
+        Err(poisoned) => {
+            eprintln!("服务管理器锁已损坏，仍将尝试停止受管服务");
+            poisoned.into_inner()
+        }
+    };
+    services.shutdown();
 }
 
 /// 检测 TCP 端口是否可达
@@ -287,7 +332,11 @@ fn spawn_api_sidecar(
     }
 
     let (mut rx, child) = command.spawn().context("启动 API sidecar 失败")?;
-    manager.lock().unwrap().add_sidecar(child);
+    let terminated = Arc::new(AtomicBool::new(false));
+    manager
+        .lock()
+        .unwrap()
+        .add_sidecar(child, Arc::clone(&terminated));
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
@@ -301,6 +350,7 @@ fn spawn_api_sidecar(
                     eprintln!("[api-sidecar] error: {}", err);
                 }
                 CommandEvent::Terminated(payload) => {
+                    terminated.store(true, Ordering::Release);
                     println!("[api-sidecar] terminated: {:?}", payload.code);
                     break;
                 }
@@ -350,6 +400,12 @@ fn start_api_server(
     let api_base_url = desktop_api_base_url();
     let local_mode = should_skip_services() || should_use_api_sidecar();
     if is_api_ready(&api_base_url) {
+        if is_smoke_mode() {
+            anyhow::bail!(
+                "Smoke API 地址已被占用，拒绝复用或终止现有进程: {}",
+                api_base_url
+            );
+        }
         // 端口上已有 API：可能是覆盖安装遗留的旧版本孤儿，也可能是上次崩溃/被强杀未清理
         // 留下的**同版本**孤儿 sidecar（W1 握手，决策=taskkill+respawn）。
         let expected_version = app.package_info().version.to_string();
@@ -458,12 +514,6 @@ fn should_use_api_sidecar() -> bool {
         return true;
     }
     !cfg!(debug_assertions)
-}
-
-fn is_smoke_mode() -> bool {
-    std::env::var("STORYFORGE_DESKTOP_SMOKE")
-        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
 }
 
 fn desktop_api_key() -> String {
@@ -632,46 +682,113 @@ fn click_first_file_item<R: tauri::Runtime>(
 fn create_smoke_project() -> Result<PathBuf> {
     let mut root = std::env::temp_dir();
     root.push(format!(
-        "storyforge-desktop-smoke-{}",
-        chrono::Utc::now().timestamp_millis()
+        "storyforge-desktop-smoke-{}-{}-{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_millis(),
+        SMOKE_PROJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed),
     ));
 
-    let drafts = root.join("正文");
-    let outline = root.join("大纲");
-    let character = root.join("人物");
-    std_fs::create_dir_all(&drafts).context("创建 smoke 项目目录失败")?;
-    std_fs::create_dir_all(&outline).context("创建 smoke 大纲目录失败")?;
-    std_fs::create_dir_all(&character).context("创建 smoke 人物目录失败")?;
-    std_fs::write(
-        drafts.join("chapter-001.md"),
-        "# Chapter 1\n\nSmoke content\n",
-    )
-    .context("写入 chapter-001.md 失败")?;
-    std_fs::write(
-        drafts.join("chapter-002.markdown"),
-        "# Chapter 2\n\nNested smoke content\n",
-    )
-    .context("写入 chapter-002.markdown 失败")?;
-    std_fs::write(outline.join("总纲.md"), "Smoke outline\n").context("写入 总纲.md 失败")?;
-    std_fs::write(character.join("林岚.md"), "Smoke character\n").context("写入 林岚.md 失败")?;
-    std_fs::write(root.join("ignore.txt"), "ignore me").context("写入 ignore.txt 失败")?;
+    create_smoke_project_at(root)
+}
+
+fn create_smoke_project_at(root: PathBuf) -> Result<PathBuf> {
+    create_owned_smoke_project_at(root, |root| {
+        let drafts = root.join("正文");
+        let outline = root.join("大纲");
+        let character = root.join("人物");
+        std_fs::create_dir_all(&drafts).context("创建 smoke 项目目录失败")?;
+        std_fs::create_dir_all(&outline).context("创建 smoke 大纲目录失败")?;
+        std_fs::create_dir_all(&character).context("创建 smoke 人物目录失败")?;
+        std_fs::write(
+            drafts.join("chapter-001.md"),
+            "# Chapter 1\n\nSmoke content\n",
+        )
+        .context("写入 chapter-001.md 失败")?;
+        std_fs::write(
+            drafts.join("chapter-002.markdown"),
+            "# Chapter 2\n\nNested smoke content\n",
+        )
+        .context("写入 chapter-002.markdown 失败")?;
+        std_fs::write(outline.join("总纲.md"), "Smoke outline\n").context("写入 总纲.md 失败")?;
+        std_fs::write(character.join("林岚.md"), "Smoke character\n")
+            .context("写入 林岚.md 失败")?;
+        std_fs::write(root.join("ignore.txt"), "ignore me").context("写入 ignore.txt 失败")?;
+        Ok(())
+    })
+}
+
+fn create_owned_smoke_project_at(
+    root: PathBuf,
+    populate: impl FnOnce(&Path) -> Result<()>,
+) -> Result<PathBuf> {
+    std_fs::create_dir(&root).context("独占创建 smoke 项目根目录失败")?;
+
+    if let Err(error) = populate(&root) {
+        if let Err(cleanup_error) = remove_smoke_project(&root) {
+            return Err(error.context(format!("清理未完成的 smoke 项目失败: {cleanup_error}")));
+        }
+        return Err(error);
+    }
 
     Ok(root)
 }
 
-/// 清理历史遗留的 smoke 临时项目，避免在跑过测试的机器上堆积并污染最近项目列表。
-fn cleanup_prior_smoke_projects() {
-    let Ok(entries) = std_fs::read_dir(std::env::temp_dir()) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        if entry
-            .file_name()
-            .to_string_lossy()
-            .starts_with("storyforge-desktop-smoke-")
-        {
-            let _ = std_fs::remove_dir_all(entry.path());
-        }
+fn remove_smoke_project(path: &Path) -> Result<()> {
+    match std_fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error).context("删除 smoke 临时项目失败"),
+    }
+}
+
+fn cleanup_smoke_probe(
+    manager: &SharedServiceManager,
+    original_path: Option<&std::ffi::OsStr>,
+    smoke_project: Option<&Path>,
+) -> Result<()> {
+    if let Some(path) = original_path {
+        std::env::set_var("PATH", path);
+    }
+    shutdown_managed_services(manager);
+    if let Some(path) = smoke_project {
+        remove_smoke_project(path)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod smoke_project_tests {
+    use super::*;
+
+    #[test]
+    fn preexisting_smoke_project_root_is_not_owned_or_removed() {
+        let parent = tempfile::tempdir().expect("create smoke project test parent");
+        let root = parent.path().join("preexisting-project");
+        std_fs::create_dir_all(&root).expect("create preexisting root");
+        std_fs::write(root.join("sentinel.txt"), "must survive").expect("create sentinel");
+        std_fs::write(root.join("大纲"), "block directory creation").expect("create blocking file");
+
+        create_smoke_project_at(root.clone()).expect_err("preexisting root must not be acquired");
+
+        assert_eq!(
+            std_fs::read_to_string(root.join("sentinel.txt")).expect("sentinel must remain"),
+            "must survive"
+        );
+    }
+
+    #[test]
+    fn partial_owned_smoke_project_is_removed() {
+        let parent = tempfile::tempdir().expect("create smoke project test parent");
+        let root = parent.path().join("owned-partial-project");
+
+        let error = create_owned_smoke_project_at(root.clone(), |owned_root| {
+            std_fs::create_dir(owned_root.join("正文")).context("create first child")?;
+            anyhow::bail!("injected population failure");
+        })
+        .expect_err("injected population failure must propagate");
+
+        assert!(error.to_string().contains("injected population failure"));
+        assert!(!root.exists(), "owned partial root must be removed");
     }
 }
 
@@ -738,24 +855,39 @@ fn run_smoke_probe<R: tauri::Runtime>(
     manager: SharedServiceManager,
 ) {
     thread::spawn(move || {
-        let original_path = if std::env::var("STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH")
-            .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-            .unwrap_or(false)
-        {
-            let value = std::env::var_os("PATH");
-            std::env::set_var("PATH", "");
-            value
-        } else {
-            None
-        };
-        cleanup_prior_smoke_projects();
+        let original_path =
+            if runtime_paths::environment_flag("STORYFORGE_SHADOW_GIT_SMOKE_CLEAR_PATH") {
+                let value = std::env::var_os("PATH");
+                std::env::set_var("PATH", "");
+                value
+            } else {
+                None
+            };
+        let mut smoke_project_for_cleanup: Option<PathBuf> = None;
+        macro_rules! fail_smoke {
+            () => {{
+                if let Err(error) = cleanup_smoke_probe(
+                    &manager,
+                    original_path.as_deref(),
+                    smoke_project_for_cleanup.as_deref(),
+                ) {
+                    eprintln!("Smoke 失败: 无法完成失败态清理: {error}");
+                }
+                std::process::exit(1);
+            }};
+        }
         let smoke_project = match create_smoke_project() {
             Ok(path) => path,
             Err(error) => {
                 eprintln!("Smoke 失败: 无法创建临时项目: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
+        smoke_project_for_cleanup = Some(smoke_project.clone());
+        if runtime_paths::environment_flag("STORYFORGE_DESKTOP_SMOKE_FORCE_FAILURE") {
+            eprintln!("Smoke 失败: 已触发隔离清理回归探针");
+            fail_smoke!();
+        }
         let smoke_project_string = smoke_project.to_string_lossy().to_string();
 
         let snapshot_script = r#"
@@ -769,23 +901,26 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 smokeApiReady: shell?.getAttribute('data-smoke-api-ready') === 'true',
                 smokeHookReady: typeof window.__STORYFORGE_SMOKE__?.openProject === 'function',
                 title: document.title,
-                layoutMode: shell?.getAttribute('data-layout-mode') ?? '',
+                layoutView: shell?.getAttribute('data-layout-mode') ?? '',
+                layoutFocus: shell?.getAttribute('data-layout-focus') ?? '',
+                hasSidePanel: Boolean(document.querySelector('[data-testid="shell-side-panel"]')),
+                hasExplorerEmpty: Boolean(document.querySelector('[data-testid="explorer-empty"]')),
                 hasFilePanel: Boolean(document.querySelector('[data-testid="file-tree-panel"]')),
                 hasAssistantPanel: Boolean(document.querySelector('[data-testid="assistant-panel"]')),
                 hasEditorPanel: Boolean(document.querySelector('[data-testid="editor-panel"]')),
-                hasExpandFileTree: Boolean(document.querySelector('[data-testid="expand-file-tree"]')),
-                hasExpandAssistant: Boolean(document.querySelector('[data-testid="expand-assistant"]')),
-                hasFocusWorkspaceOnly: Boolean(document.querySelector('[data-testid="focus-workspace-only"]')),
-                hasFocusAssistantOnly: Boolean(document.querySelector('[data-testid="focus-assistant-only"]')),
-                hasRestoreLayout: Boolean(document.querySelector('[data-testid="restore-layout"]')),
+                hasActivityExplorer: Boolean(document.querySelector('[data-testid="activity-explorer"]')),
+                activityExplorerActive: document.querySelector('[data-testid="activity-explorer"]')?.getAttribute('data-active') === 'true',
                 hasWelcomeWorkspace: Boolean(document.querySelector('[data-testid="welcome-workspace"]')),
-                hasWelcomeShowWorkbench: Boolean(document.querySelector('[data-testid="welcome-show-workbench"]')),
+                hasWelcomeClose: Boolean(document.querySelector('[data-testid="welcome-close"]')),
+                hasWelcomeDismissed: Boolean(document.querySelector('[data-testid="welcome-dismissed"]')),
                 hasPatchReview: Boolean(document.querySelector('[data-testid="patch-review"]')),
+                hasPatchRejectConfirm: Boolean(document.querySelector('[data-testid="patch-reject-confirm"]')),
                 hasSuggestionReview: Boolean(document.querySelector('[data-testid="patch-review"], [data-testid="suggestion-review"]')),
-                suggestionStatus: document.querySelector('[data-testid="suggestion-status"]')?.textContent ?? '',
+                errorToastText: Array.from(document.querySelectorAll('[data-testid="toast-item"][data-tone="error"]')).map((item) => item.textContent ?? '').join('\n'),
+                successToastText: Array.from(document.querySelectorAll('[data-testid="toast-item"][data-tone="success"]')).map((item) => item.textContent ?? '').join('\n'),
                 visualTone: (() => {
                   const workspace = document.querySelector('[data-testid="welcome-workspace"]');
-                  const composer = document.querySelector('[data-testid="welcome-workspace"] textarea[aria-label="Agent 输入"]')?.closest('div');
+                  const composer = document.querySelector('[data-testid="welcome-composer-input"]')?.closest('div');
                   const rgb = (element) => {
                     if (!element) return null;
                     const match = getComputedStyle(element).backgroundColor.match(/\d+/g);
@@ -826,15 +961,15 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: Tauri 窗口未就绪: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
 
         if !has_bool(&shell, "hasWelcomeWorkspace", true)
-            || !has_bool(&shell, "hasWelcomeShowWorkbench", true)
+            || !has_bool(&shell, "hasWelcomeClose", true)
         {
             eprintln!("Smoke 失败: 初始欢迎工作区不可见: {}", shell);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let tone_is_readable = shell
@@ -859,12 +994,12 @@ fn run_smoke_probe<R: tauri::Runtime>(
             .unwrap_or(false);
         if !tone_is_readable {
             eprintln!("Smoke 失败: 初始欢迎工作区仍然接近黑屏: {}", shell);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
-        if let Err(error) = click_window_test_id(&window, "welcome-show-workbench") {
-            eprintln!("Smoke 失败: 无法打开文件树与编辑分栏: {}", error);
-            std::process::exit(1);
+        if let Err(error) = click_window_test_id(&window, "welcome-close") {
+            eprintln!("Smoke 失败: 无法关闭初始欢迎页: {}", error);
+            fail_smoke!();
         }
 
         let initial = match wait_for_window_state(
@@ -873,16 +1008,23 @@ fn run_smoke_probe<R: tauri::Runtime>(
             20,
             Duration::from_millis(150),
             |value| {
-                value.get("layoutMode").and_then(|entry| entry.as_str()) == Some("custom")
-                    && has_bool(value, "hasFilePanel", true)
-                    && has_bool(value, "hasAssistantPanel", true)
-                    && has_bool(value, "hasEditorPanel", true)
+                value.get("layoutView").and_then(|entry| entry.as_str()) == Some("explorer")
+                    && value.get("layoutFocus").and_then(|entry| entry.as_str()) == Some("balanced")
+                    && has_bool(value, "hasSidePanel", true)
+                    && has_bool(value, "hasExplorerEmpty", true)
+                    && has_bool(value, "hasFilePanel", false)
+                    && has_bool(value, "hasAssistantPanel", false)
+                    && has_bool(value, "hasEditorPanel", false)
+                    && has_bool(value, "hasActivityExplorer", true)
+                    && has_bool(value, "activityExplorerActive", true)
+                    && has_bool(value, "hasWelcomeWorkspace", false)
+                    && has_bool(value, "hasWelcomeDismissed", true)
             },
         ) {
             Ok(value) => value,
             Err(error) => {
-                eprintln!("Smoke 失败: 无法进入文件树与编辑分栏: {}", error);
-                std::process::exit(1);
+                eprintln!("Smoke 失败: 关闭欢迎页后壳层状态不正确: {}", error);
+                fail_smoke!();
             }
         };
 
@@ -918,7 +1060,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: 无法读取 API 配置: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
         if api_config.get("baseUrl").and_then(|entry| entry.as_str())
@@ -926,18 +1068,13 @@ fn run_smoke_probe<R: tauri::Runtime>(
             || !has_bool(&api_config, "apiKeyMatches", true)
         {
             eprintln!("Smoke 失败: API 配置不符合预期: {}", api_config);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
-        let file_tree_was_open = has_bool(&initial, "hasFilePanel", true);
-        let file_tree_toggle = if file_tree_was_open {
-            "collapse-file-tree"
-        } else {
-            "expand-file-tree"
-        };
-        if let Err(error) = click_window_test_id(&window, file_tree_toggle) {
+        let sidebar_was_open = has_bool(&initial, "hasSidePanel", true);
+        if let Err(error) = click_window_test_id(&window, "activity-explorer") {
             eprintln!("Smoke 失败: 无法触发文件树窗口交互: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
         thread::sleep(Duration::from_millis(400));
 
@@ -947,21 +1084,21 @@ fn run_smoke_probe<R: tauri::Runtime>(
             10,
             Duration::from_millis(150),
             |value| {
-                has_bool(value, "hasFilePanel", !file_tree_was_open)
-                    && has_bool(value, "hasExpandFileTree", file_tree_was_open)
+                has_bool(value, "hasSidePanel", !sidebar_was_open)
+                    && has_bool(value, "activityExplorerActive", !sidebar_was_open)
             },
         ) {
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: 切换侧边栏后探针失败: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
 
-        if file_tree_was_open {
-            if let Err(error) = click_window_test_id(&window, "expand-file-tree") {
+        if sidebar_was_open {
+            if let Err(error) = click_window_test_id(&window, "activity-explorer") {
                 eprintln!("Smoke 失败: 无法重新打开文件树面板: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         }
 
@@ -971,11 +1108,14 @@ fn run_smoke_probe<R: tauri::Runtime>(
             10,
             Duration::from_millis(150),
             |value| {
-                has_bool(value, "hasFilePanel", true) && has_bool(value, "tauriMenuReady", true)
+                has_bool(value, "hasSidePanel", true)
+                    && has_bool(value, "hasExplorerEmpty", true)
+                    && has_bool(value, "activityExplorerActive", true)
+                    && has_bool(value, "tauriMenuReady", true)
             },
         ) {
             eprintln!("Smoke 失败: 无法恢复文件树面板: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let _smoke_ready = match wait_for_window_state(
@@ -993,7 +1133,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: smoke hook 未就绪: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
 
@@ -1015,7 +1155,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 Ok(value) => value,
                 Err(error) => {
                     eprintln!("Smoke 失败: 无法调用 smoke 打开项目入口: {}", error);
-                    std::process::exit(1);
+                    fail_smoke!();
                 }
             };
         if !has_bool(&open_project_result, "opened", true) {
@@ -1023,22 +1163,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: smoke 打开项目入口不可用: {}",
                 open_project_result
             );
-            std::process::exit(1);
-        }
-
-        if let Err(error) = wait_for_window_state(
-            &window,
-            snapshot_script,
-            20,
-            Duration::from_millis(150),
-            |value| has_bool(value, "hasWelcomeShowWorkbench", true),
-        ) {
-            eprintln!("Smoke 失败: 打开项目后欢迎工作区未恢复: {}", error);
-            std::process::exit(1);
-        }
-        if let Err(error) = click_window_test_id(&window, "welcome-show-workbench") {
-            eprintln!("Smoke 失败: 打开项目后无法显示文件树与编辑分栏: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let file_list_state = match wait_for_window_state(
@@ -1050,18 +1175,22 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 value.get("projectPath").and_then(|entry| entry.as_str())
                     == Some(smoke_project.to_string_lossy().as_ref())
                     && value.get("fileItemCount").and_then(|entry| entry.as_u64()) == Some(4)
+                    && has_bool(value, "hasFilePanel", true)
+                    && has_bool(value, "hasAssistantPanel", true)
+                    && has_bool(value, "hasEditorPanel", true)
+                    && value.get("layoutFocus").and_then(|entry| entry.as_str()) == Some("balanced")
             },
         ) {
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: 文件列表未加载预期项目: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
 
         if let Err(error) = click_first_file_item(&window) {
             eprintln!("Smoke 失败: 无法点击文件条目: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let editor_state = match wait_for_window_state(
@@ -1087,7 +1216,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: 编辑器未加载文件: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
 
@@ -1124,12 +1253,12 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 Ok(value) => value,
                 Err(error) => {
                     eprintln!("Smoke 失败: 无法注入建议补丁: {}", error);
-                    std::process::exit(1);
+                    fail_smoke!();
                 }
             };
         if !has_bool(&propose_result, "proposed", true) {
             eprintln!("Smoke 失败: 建议补丁入口不可用: {}", propose_result);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         if let Err(error) = wait_for_window_state(
@@ -1140,7 +1269,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             |value| has_bool(value, "hasPatchReview", true),
         ) {
             eprintln!("Smoke 失败: proposed patch diff 未显示: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let disk_before_accept = std_fs::read_to_string(&smoke_file).unwrap_or_default();
@@ -1151,12 +1280,26 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 询问档下 proposed patch 未确认前不应写盘，实际内容: {}",
                 disk_before_accept
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         if let Err(error) = click_window_test_id(&window, "suggestion-reject") {
             eprintln!("Smoke 失败: 无法拒绝建议补丁: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
+        }
+        if let Err(error) = wait_for_window_state(
+            &window,
+            snapshot_script,
+            20,
+            Duration::from_millis(150),
+            |value| has_bool(value, "hasPatchRejectConfirm", true),
+        ) {
+            eprintln!("Smoke 失败: 拒绝补丁后未显示意图确认入口: {}", error);
+            fail_smoke!();
+        }
+        if let Err(error) = click_window_test_id(&window, "patch-reject-confirm") {
+            eprintln!("Smoke 失败: 无法确认留空拒绝补丁: {}", error);
+            fail_smoke!();
         }
         if let Err(error) = wait_for_window_state(
             &window,
@@ -1166,7 +1309,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             |value| has_bool(value, "hasPatchReview", false),
         ) {
             eprintln!("Smoke 失败: 拒绝补丁后审阅面板未关闭: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
         let disk_after_reject = std_fs::read_to_string(&smoke_file).unwrap_or_default();
         if disk_after_reject != before_revision {
@@ -1174,7 +1317,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 拒绝补丁不应写盘，实际内容: {}",
                 disk_after_reject
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let repropose_result =
@@ -1182,7 +1325,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 Ok(value) => value,
                 Err(error) => {
                     eprintln!("Smoke 失败: 无法重新注入建议补丁: {}", error);
-                    std::process::exit(1);
+                    fail_smoke!();
                 }
             };
         if !has_bool(&repropose_result, "proposed", true) {
@@ -1190,7 +1333,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 重新注入建议补丁入口不可用: {}",
                 repropose_result
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
         if let Err(error) = wait_for_window_state(
             &window,
@@ -1200,7 +1343,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             |value| has_bool(value, "hasPatchReview", true),
         ) {
             eprintln!("Smoke 失败: 重新注入 proposed patch diff 未显示: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let local_edit_revision = "# Chapter 1\n\nSmoke content locally edited\n";
@@ -1225,7 +1368,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 Ok(value) => value,
                 Err(error) => {
                     eprintln!("Smoke 失败: 无法模拟补丁后本地编辑: {}", error);
-                    std::process::exit(1);
+                    fail_smoke!();
                 }
             };
         if !has_bool(&local_edit_result, "changed", true) {
@@ -1233,33 +1376,12 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 编辑器 smoke 改稿入口不可用: {}",
                 local_edit_result
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
 
-        let accept_conflict_script = r#"
-            (() => {
-              const smoke = window.__STORYFORGE_SMOKE__;
-              if (!smoke || typeof smoke.acceptCurrentSuggestion !== 'function') {
-                return { accepted: false, reason: 'missing-accept-current-suggestion' };
-              }
-              smoke.acceptCurrentSuggestion();
-              return { accepted: true };
-            })()
-        "#;
-        let accept_conflict_result =
-            match eval_window_json(&window, accept_conflict_script, Duration::from_millis(1500)) {
-                Ok(value) => value,
-                Err(error) => {
-                    eprintln!("Smoke 失败: 无法触发冲突补丁写回: {}", error);
-                    std::process::exit(1);
-                }
-            };
-        if !has_bool(&accept_conflict_result, "accepted", true) {
-            eprintln!(
-                "Smoke 失败: 冲突补丁确认入口不可用: {}",
-                accept_conflict_result
-            );
-            std::process::exit(1);
+        if let Err(error) = click_window_test_id(&window, "suggestion-accept") {
+            eprintln!("Smoke 失败: 无法点击接受以触发补丁冲突: {}", error);
+            fail_smoke!();
         }
         if let Err(error) = wait_for_window_state(
             &window,
@@ -1268,14 +1390,15 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Duration::from_millis(150),
             |value| {
                 value
-                    .get("suggestionStatus")
+                    .get("errorToastText")
                     .and_then(|entry| entry.as_str())
                     .map(|status| status.contains("旧补丁不能直接写回"))
                     .unwrap_or(false)
+                    && has_bool(value, "hasPatchReview", true)
             },
         ) {
             eprintln!("Smoke 失败: 旧补丁冲突未被阻止: {}", error);
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let disk_after_conflict = std_fs::read_to_string(&smoke_file).unwrap_or_default();
@@ -1284,7 +1407,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 冲突补丁不应写盘，实际内容: {}",
                 disk_after_conflict
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         let reset_edit_script = format!(
@@ -1307,44 +1430,31 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 Ok(value) => value,
                 Err(error) => {
                     eprintln!("Smoke 失败: 无法恢复编辑器内容以继续写回验证: {}", error);
-                    std::process::exit(1);
+                    fail_smoke!();
                 }
             };
-        if !has_bool(&reset_edit_result, "changed", true) {
+        if !has_bool(&reset_edit_result, "changed", true)
+            || reset_edit_result
+                .get("content")
+                .and_then(|value| value.as_str())
+                != Some(before_revision)
+        {
             eprintln!(
                 "Smoke 失败: 编辑器内容恢复入口不可用: {}",
                 reset_edit_result
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
 
-        let accept_script = r#"
-            (() => {
-              const smoke = window.__STORYFORGE_SMOKE__;
-              if (!smoke || typeof smoke.acceptCurrentSuggestion !== 'function') {
-                return { accepted: false, reason: 'missing-accept-current-suggestion' };
-              }
-              smoke.acceptCurrentSuggestion();
-              return { accepted: true };
-            })()
-        "#;
-        let accept_result =
-            match eval_window_json(&window, accept_script, Duration::from_millis(1500)) {
-                Ok(value) => value,
-                Err(error) => {
-                    eprintln!("Smoke 失败: 无法确认写回建议补丁: {}", error);
-                    std::process::exit(1);
-                }
-            };
-        if !has_bool(&accept_result, "accepted", true) {
-            eprintln!("Smoke 失败: 确认写回入口不可用: {}", accept_result);
-            std::process::exit(1);
+        if let Err(error) = click_window_test_id(&window, "suggestion-accept") {
+            eprintln!("Smoke 失败: 无法点击接受以确认写回补丁: {}", error);
+            fail_smoke!();
         }
 
         let writeback_state = match wait_for_window_state(
             &window,
             snapshot_script,
-            30,
+            100,
             Duration::from_millis(200),
             |value| {
                 value
@@ -1353,16 +1463,16 @@ fn run_smoke_probe<R: tauri::Runtime>(
                     .map(|preview| preview.contains("revised by Agent"))
                     .unwrap_or(false)
                     && value
-                        .get("suggestionStatus")
+                        .get("successToastText")
                         .and_then(|entry| entry.as_str())
-                        .map(|status| status.contains("已接受并写入当前文件"))
+                        .map(|status| status.contains("已写入当前文件"))
                         .unwrap_or(false)
             },
         ) {
             Ok(value) => value,
             Err(error) => {
                 eprintln!("Smoke 失败: 确认写回后编辑器未刷新: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
 
@@ -1372,7 +1482,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 确认写回后磁盘内容未变化，实际内容: {}",
                 disk_after_accept
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
         let versions_dir = smoke_project.join(".storyforge").join("versions");
         let author_loop_dir = smoke_project.join(".storyforge").join("author-loop");
@@ -1386,13 +1496,13 @@ fn run_smoke_probe<R: tauri::Runtime>(
             || !contains_file_content_under(&versions_dir, "人物/林岚.md")
         {
             eprintln!("Smoke 失败: 写回前版本快照或 Agent 元数据缺失");
-            std::process::exit(1);
+            fail_smoke!();
         }
         let Some(shadow_meta) =
             find_smoke_shadow_version_meta(&versions_dir, "smoke-file-revision")
         else {
             eprintln!("Smoke 失败: 未找到 schema-v2 影子 Git 版本元数据");
-            std::process::exit(1);
+            fail_smoke!();
         };
         let shadow_evidence = match shadow_git::verify_smoke_snapshot(
             &app,
@@ -1404,7 +1514,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
             Ok(evidence) => evidence,
             Err(error) => {
                 eprintln!("Smoke 失败: 影子 Git tree/ref 验证失败: {}", error);
-                std::process::exit(1);
+                fail_smoke!();
             }
         };
         if shadow_evidence.content != before_revision {
@@ -1412,7 +1522,7 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 "Smoke 失败: 影子 Git 写前正文不匹配，实际内容: {}",
                 shadow_evidence.content
             );
-            std::process::exit(1);
+            fail_smoke!();
         }
         if count_files_under(&author_loop_dir) == 0
             || !contains_file_content_under(&author_loop_dir, "Smoke Agent proposed patch")
@@ -1422,11 +1532,11 @@ fn run_smoke_probe<R: tauri::Runtime>(
             || !contains_file_content_under(&author_loop_dir, "人物/林岚.md")
         {
             eprintln!("Smoke 失败: 作者闭环记录缺失或内容不正确");
-            std::process::exit(1);
+            fail_smoke!();
         }
 
         println!(
-            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}, shadowGitVersion={}, shadowGitPath={}",
+            "Desktop Tauri smoke result: project={}, files={}, currentFile={}, preview={}, writebackPreview={}, shadowGitVersion={}, shadowGitPath={}, shadowRepositoryPath={}",
             file_list_state
                 .get("projectPath")
                 .and_then(|entry| entry.as_str())
@@ -1449,12 +1559,14 @@ fn run_smoke_probe<R: tauri::Runtime>(
                 .unwrap_or(""),
             shadow_evidence.git_version,
             shadow_evidence.executable_path,
+            shadow_evidence.repository_path,
         );
-        if let Some(path) = original_path {
-            std::env::set_var("PATH", path);
+        if let Err(error) =
+            cleanup_smoke_probe(&manager, original_path.as_deref(), Some(&smoke_project))
+        {
+            eprintln!("Smoke 失败: 无法完成成功态清理: {error}");
+            std::process::exit(1);
         }
-        let _ = std_fs::remove_dir_all(&smoke_project);
-        manager.lock().unwrap().shutdown();
         let _ = app.exit(0);
         std::process::exit(0);
     });
@@ -1530,15 +1642,21 @@ fn main() {
     println!("\n=== 所有服务已就绪，正在打开桌面应用 ===\n");
 
     // 4. 启动 Tauri 应用
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    let builder = if is_smoke_mode() {
+        // Smoke 使用隔离 API/data/WebView profile，必须独立运行并产出真实 marker。
+        builder
+    } else {
         // 必须先注册：第二个进程只负责唤醒首个窗口，不得继续启动自己的 sidecar。
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.unminimize();
                 let _ = window.set_focus();
             }
         }))
+    };
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&manager))
@@ -1576,21 +1694,33 @@ fn main() {
             if is_smoke_mode() {
                 // smoke：同步等后端就绪后再跑探针，保持既有时序与断言不变。
                 println!("Desktop Tauri smoke mode enabled");
-                if let Err(error) = start_api_server(
-                    app.handle(),
-                    project_root.as_deref(),
-                    &manager_for_setup,
-                    true,
-                ) {
-                    eprintln!("API 服务启动失败: {}", error);
-                    manager_for_setup.lock().unwrap().shutdown();
+                println!(
+                    "Desktop Tauri smoke isolation: {}",
+                    runtime_paths::SMOKE_ISOLATION_PROTOCOL
+                );
+                let smoke_setup = (|| -> Result<()> {
+                    start_api_server(
+                        app.handle(),
+                        project_root.as_deref(),
+                        &manager_for_setup,
+                        true,
+                    )?;
+                    if runtime_paths::environment_flag(
+                        "STORYFORGE_DESKTOP_SMOKE_FORCE_SETUP_FAILURE",
+                    ) {
+                        anyhow::bail!("已触发 sidecar 启动后 smoke setup 清理回归探针");
+                    }
+                    let window = app
+                        .get_webview_window("main")
+                        .context("Smoke 失败: 未找到 main 窗口")?;
+                    run_smoke_probe(window, app.handle().clone(), Arc::clone(&manager_for_setup));
+                    Ok(())
+                })();
+                if let Err(error) = smoke_setup {
+                    eprintln!("Smoke setup 失败: {error}");
+                    shutdown_managed_services(&manager_for_setup);
                     std::process::exit(1);
                 }
-                let Some(window) = app.get_webview_window("main") else {
-                    eprintln!("Smoke 失败: 未找到 main 窗口");
-                    std::process::exit(1);
-                };
-                run_smoke_probe(window, app.handle().clone(), Arc::clone(&manager_for_setup));
             } else {
                 // 正常启动（#3）：只 spawn 进程（快）即返回，让窗口立刻出帧；就绪在后台线程等。
                 // 失败只记日志——窗口已在，StatusBar 会显示「连接中断」，用户可在设置里保存并应用
