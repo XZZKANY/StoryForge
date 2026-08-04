@@ -27,10 +27,10 @@ def test_chat_loop_skipped_without_project_path(
 
     _enable_loop_env(monkeypatch)
 
-    def _should_not_be_called(source, *, messages, tools=None, tool_choice=None):  # noqa: ANN001
+    def _should_not_be_called(source):  # noqa: ANN001, ANN202
         raise AssertionError("无 project_path 不应进入工具循环")
 
-    monkeypatch.setattr(loop_runtime, "_call_llm_messages", _should_not_be_called)
+    monkeypatch.setattr(loop_runtime, "build_llm_provider", _should_not_be_called)
     monkeypatch.setattr(
         assistant_service,
         "chat_reply",

@@ -236,6 +236,9 @@ class ConversationRuntimeMixin:
         try:
             outcome = loop_runtime.run_chat_loop(
                 session,
+                run=run,
+                permission_gate=self._permission_gate,
+                tool_definitions=self._tool_registry.all(),
                 llm_env=assistant_service.resolved_llm_env(),
                 assistant_session_id=assistant_session_id,
                 user_message=user_message,

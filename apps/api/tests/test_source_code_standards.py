@@ -392,9 +392,18 @@ def test_loop_main_path_reads_business_payloads_through_typed_contracts() -> Non
         for node in ast.walk(run_loop)
         if isinstance(node, ast.Call)
     }
-    assert "LoopRoundResult.from_payload" in calls
-    assert "LoopToolCall.from_payload" in calls
-    assert "LoopToolFeedback.from_output" in calls
+    assert "ToolCallingRuntime" in calls
+    assert "build_storyforge_tool_registry" in calls
+    assert "runtime.run" in calls
+
+    adapter_path = AGENT_RUNS_ROOT / "loop" / "sdk_adapters.py"
+    adapter_tree = ast.parse(adapter_path.read_text(encoding="utf-8"), filename=str(adapter_path))
+    adapter_calls = {
+        _dotted_name(node.func)
+        for node in ast.walk(adapter_tree)
+        if isinstance(node, ast.Call)
+    }
+    assert "LoopToolFeedback.from_output" in adapter_calls
 
     raw_gets = [
         node
@@ -402,7 +411,6 @@ def test_loop_main_path_reads_business_payloads_through_typed_contracts() -> Non
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "get"
-        and not (isinstance(node.func.value, ast.Name) and node.func.value.id == "_TOOL_NAME_MAP")
     ]
     assert not raw_gets, "run_chat_loop must decode raw business payloads before field access"
 

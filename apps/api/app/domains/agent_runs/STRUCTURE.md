@@ -10,7 +10,7 @@ Read the live path in this order. The list intentionally stays within eight file
 2. `service.py` - run lifecycle facade, control handling, and compatibility re-exports.
 3. `runtime.py` - thin `AgentRuntime` facade and compatibility exports.
 4. `loop/conversation_runtime.py` - free-text conversation orchestration.
-5. `loop_runtime.py` - LLM tool-calling rounds and budget enforcement.
+5. `loop_runtime.py` - StoryForge message assembly and the stable adapter over the internal SDK runtime.
 6. `tools/execution_runtime.py` - ToolSpec registration, permission gate, and dispatch.
 7. `fs/runtime_tools.py` - runtime handlers over project-scoped filesystem primitives.
 8. `events/runtime_support.py` - response, interruption, trace, and artifact projections.
@@ -58,6 +58,7 @@ These modules are internal owners; external callers keep importing from `service
 - `tools/specs/` groups the 22 declarations by domain while `tools/catalog.py` preserves one ordered catalog.
 - `tools/loop_schema.py` derives LLM schemas, names, and patch-tool sets from that catalog.
 - `tools/execution.py` owns execution result types, registry, permission gate, and subagent executor.
+- `loop/sdk_adapters.py` projects loop-visible ToolSpecs and StoryForge permission/evidence/artifact ports into the SDK; it is not a second tool catalog.
 - Domain runtime modules own both handler implementations and their local name-to-handler maps; `tools/execution_runtime.py` only merges maps and registers in catalog order.
 - `tooling.py` is a compatibility facade. Production modules import the `tools` or `permission` public face.
 
@@ -65,11 +66,13 @@ Adding a loop-visible tool means one ToolSpec entry with `loop_schema` plus its 
 
 ## Typed Loop Seams
 
-- `loop/types.py` owns `LoopRoundResult`, `LoopToolCall`, `LoopToolFeedback`, and `ChatLoopOutcome`.
+- `loop/types.py` keeps compatibility views and owns `LoopToolFeedback` plus `ChatLoopOutcome`.
 - `patches/types.py` owns the frozen `PatchProposal` view while preserving the existing wire dict exactly.
 - `events/contracts.py` owns frozen completed/failed terminal payload builders.
 - `tools/execution.py` keeps `ToolResult` generic over output shape and carries an optional typed patch proposal.
-- `loop_runtime.py` performs orchestration only; provider/tool payload decoding belongs to the typed boundary modules. Its main function may not add raw business-payload `.get()` reads.
+- `loop_runtime.py` assembles StoryForge context and maps the SDK terminal result; provider/tool payload decoding and generic rounds belong to `app.platform.ai_sdk`.
+- `loop/sdk_context.py` is the opaque application context. `loop/sdk_adapters.py` owns ToolSpec projection, PermissionGate mapping, usage/cost, trace/evidence, checkpoint, filtered feedback, and artifact projection.
+- SDK checkpoint state may be recursively immutable, but runtime handlers and feedback receive recursively thawed JSON dictionaries/lists. Frozen nested values must not reach domain handlers or durable JSON evidence.
 
 Prompt/author instructions live in `loop/prompt_context.py`; history, budget, feedback, and output summarization live in `loop/support.py`. LLM-context value filtering lives in `loop/context_values.py`. Save-point projection helpers live in `events/save_point_projection.py`.
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from app.platform.ai_sdk._immutability import freeze_mapping
+from app.platform.ai_sdk._immutability import freeze_mapping, thaw
 from app.platform.ai_sdk.contracts import ToolSpec
 
 
@@ -38,6 +38,9 @@ class RuntimeToolResult:
         object.__setattr__(self, "artifacts", tuple(self.artifacts))
         if self.status is ToolResultStatus.SUCCESS:
             object.__setattr__(self, "retryable", False)
+
+    def to_output(self) -> dict[str, Any]:
+        return thaw(self.output)
 
     @classmethod
     def success(

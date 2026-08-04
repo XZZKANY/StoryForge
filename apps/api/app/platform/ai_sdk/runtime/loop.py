@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
+from app.platform.ai_sdk._immutability import thaw
 from app.platform.ai_sdk.contracts import ChatMessage, ChatRequest, MessageRole, TokenUsage, ToolCall
 from app.platform.ai_sdk.errors import ProviderError
 from app.platform.ai_sdk.observability import (
@@ -15,7 +17,12 @@ from app.platform.ai_sdk.observability import (
 )
 from app.platform.ai_sdk.provider import LLMProvider
 from app.platform.ai_sdk.runtime.budget import should_withdraw_tools
-from app.platform.ai_sdk.runtime.feedback import append_tool_feedback, parse_tool_arguments
+from app.platform.ai_sdk.runtime.feedback import (
+    JsonToolFeedbackFormatter,
+    ToolFeedbackFormatter,
+    append_tool_feedback,
+    parse_tool_arguments,
+)
 from app.platform.ai_sdk.runtime.models import (
     PendingToolCall,
     ResumeAction,
@@ -63,6 +70,7 @@ class ToolCallingRuntime:
         usage_sink: UsageSink | None = None,
         checkpoints: CheckpointStore | None = None,
         interruption: InterruptionCheck | None = None,
+        feedback_formatter: ToolFeedbackFormatter | None = None,
         diagnostic_trace_best_effort: bool = True,
     ) -> None:
         self._llm = llm
@@ -73,6 +81,7 @@ class ToolCallingRuntime:
         self._usage_sink = usage_sink or NullUsageSink()
         self._checkpoints = checkpoints or InMemoryCheckpointStore()
         self._interruption = interruption
+        self._feedback_formatter = feedback_formatter or JsonToolFeedbackFormatter()
         self._diagnostic_trace_best_effort = diagnostic_trace_best_effort
 
     def run(
@@ -143,8 +152,15 @@ class ToolCallingRuntime:
             if command.action is ResumeAction.DENY:
                 append_tool_feedback(
                     state,
-                    state.pending.call_id,
+                    ToolCall(
+                        state.pending.call_id,
+                        state.pending.name,
+                        json.dumps(thaw(state.pending.arguments), ensure_ascii=False),
+                    ),
                     RuntimeToolResult.failure("approval_denied", "Tool execution was denied."),
+                    formatter=self._feedback_formatter,
+                    tool=tool,
+                    context=application_context,
                 )
                 state.pending = None
                 state.phase = RuntimePhase.AFTER_TOOL
@@ -237,28 +253,57 @@ class ToolCallingRuntime:
             tool = self._tools.get(call.name)
         except ToolRegistryError:
             result = RuntimeToolResult.failure("unknown_tool", f"Unknown runtime tool: {call.name}")
-            return self._reject_call(state, call, result)
+            return self._reject_call(
+                state,
+                call,
+                result,
+                application_context=application_context,
+            )
         if call.name not in selected_names:
             result = RuntimeToolResult.failure(
                 "tool_not_available", "Tool is not available in the current runtime selection."
             )
-            return self._reject_call(state, call, result)
+            return self._reject_call(
+                state,
+                call,
+                result,
+                tool=tool,
+                application_context=application_context,
+            )
         arguments, failure = parse_tool_arguments(call, tool)
         if failure is not None:
-            return self._reject_call(state, call, failure)
+            return self._reject_call(
+                state,
+                call,
+                failure,
+                tool=tool,
+                application_context=application_context,
+            )
         assert arguments is not None
         if should_withdraw_tools(state, limits):
             state.exhausted = True
             result = RuntimeToolResult.failure(
                 "runtime_budget", "Runtime budget is exhausted before tool execution."
             )
-            return self._reject_call(state, call, result)
+            return self._reject_call(
+                state,
+                call,
+                result,
+                tool=tool,
+                application_context=application_context,
+            )
         state.pending = PendingToolCall(call.id, call.name, arguments)
         decision = self._policy.decide_tool(tool, state.pending, application_context)
         if decision.kind is PolicyDecisionKind.DENY:
             result = RuntimeToolResult.failure("policy_denied", decision.reason or "Tool denied by policy.")
             state.pending = None
-            return self._reject_call(state, call, result)
+            return self._reject_call(
+                state,
+                call,
+                result,
+                tool=tool,
+                application_context=application_context,
+            )
         if decision.kind is PolicyDecisionKind.REQUIRE_APPROVAL:
             state.phase = RuntimePhase.APPROVAL_REQUIRED
             self._emit(
@@ -299,7 +344,7 @@ class ToolCallingRuntime:
             )
             self._save(state)
             try:
-                result = tool.handler(application_context, pending.arguments)
+                result = tool.handler(application_context, thaw(pending.arguments))
             except Exception:  # noqa: BLE001 - adapters normalize expected failures; runtime hides raw exceptions
                 result = RuntimeToolResult.failure(
                     "tool_exception", "Tool execution failed with an unhandled exception."
@@ -332,19 +377,48 @@ class ToolCallingRuntime:
                 {"tool": tool.spec.name, "tool_call_id": pending.call_id, "attempt": pending.attempt},
             )
         state.completed_tool_call_ids.append(pending.call_id)
-        append_tool_feedback(state, pending.call_id, result, limits=limits)
+        append_tool_feedback(
+            state,
+            ToolCall(
+                pending.call_id,
+                pending.name,
+                json.dumps(thaw(pending.arguments), ensure_ascii=False),
+            ),
+            result,
+            formatter=self._feedback_formatter,
+            tool=tool,
+            context=application_context,
+            limits=limits,
+        )
         state.pending = None
         state.phase = RuntimePhase.AFTER_TOOL
         self._save(state)
         return None
 
     def _reject_call(
-        self, state: RuntimeState, call: ToolCall, result: RuntimeToolResult
+        self,
+        state: RuntimeState,
+        call: ToolCall,
+        result: RuntimeToolResult,
+        *,
+        tool: RuntimeTool | None = None,
+        application_context: Any = None,
     ) -> RuntimeResult | None:
-        append_tool_feedback(state, call.id, result)
+        append_tool_feedback(
+            state,
+            call,
+            result,
+            formatter=self._feedback_formatter,
+            tool=tool,
+            context=application_context,
+        )
         state.completed_tool_call_ids.append(call.id)
         state.phase = RuntimePhase.AFTER_TOOL
-        self._emit(state, "tool_failed", {"tool": call.name, "code": result.error_code})
+        self._emit(
+            state,
+            "tool_failed",
+            {"tool": call.name, "tool_call_id": call.id, "code": result.error_code},
+        )
         self._save(state)
         return None
 

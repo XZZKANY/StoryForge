@@ -8,6 +8,14 @@ from fastapi.testclient import TestClient
 
 from app.domains.agent_runs import loop_runtime
 from app.domains.assistant import service as assistant_service
+from app.platform.ai_sdk import (
+    ChatResponse,
+    ProviderError,
+    ProviderErrorCategory,
+    ProviderErrorDetails,
+    TokenUsage,
+    ToolCall,
+)
 
 
 def _enable_loop_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -18,14 +26,42 @@ def _enable_loop_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def _fake_llm_script(monkeypatch: pytest.MonkeyPatch, responses: list[object]) -> list[dict[str, object]]:
     calls: list[dict[str, object]] = []
 
-    def fake_call(source, *, messages, tools=None, tool_choice=None):  # noqa: ANN001
-        calls.append({"messages": [dict(item) for item in messages], "tools": tools})
-        scripted = responses[min(len(calls) - 1, len(responses) - 1)]
-        if isinstance(scripted, Exception):
-            raise scripted
-        return dict(scripted)  # type: ignore[arg-type]
+    class ScriptedProvider:
+        def complete(self, request):  # noqa: ANN001, ANN201
+            calls.append(
+                {
+                    "messages": [message.to_openai() for message in request.messages],
+                    "tools": [tool.to_openai() for tool in request.tools] if request.tools else None,
+                }
+            )
+            scripted = responses[min(len(calls) - 1, len(responses) - 1)]
+            if isinstance(scripted, Exception):
+                raise ProviderError(
+                    ProviderErrorDetails(
+                        ProviderErrorCategory.INTERNAL,
+                        str(scripted),
+                    )
+                ) from scripted
+            payload = dict(scripted)  # type: ignore[arg-type]
+            raw_calls = payload.get("tool_calls")
+            tool_calls = tuple(
+                call
+                for item in raw_calls
+                if isinstance(item, dict) and (call := ToolCall.from_openai(item)) is not None
+            ) if isinstance(raw_calls, list) else ()
+            return ChatResponse(
+                content=str(payload.get("content") or ""),
+                tool_calls=tool_calls,
+                usage=TokenUsage.from_legacy(payload),
+                metadata={
+                    key: payload[key]
+                    for key in ("cost_cny_estimated", "cost_breakdown")
+                    if key in payload
+                },
+            )
 
-    monkeypatch.setattr(loop_runtime, "_call_llm_messages", fake_call)
+    provider = ScriptedProvider()
+    monkeypatch.setattr(loop_runtime, "build_llm_provider", lambda source: provider)
     return calls
 
 

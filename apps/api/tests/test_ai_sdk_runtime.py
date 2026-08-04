@@ -116,6 +116,57 @@ def test_runtime_executes_multi_round_tool_call_and_returns_artifacts() -> None:
     ]
 
 
+def test_runtime_thaws_nested_json_arguments_before_handler_and_feedback() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(application_context, arguments):
+        del application_context
+        seen.update(arguments)
+        return RuntimeToolResult.success({"items": arguments["items"]})
+
+    registry = ToolRegistry(
+        [
+            RuntimeTool(
+                ToolSpec(
+                    "nested",
+                    "Nested input",
+                    {
+                        "type": "object",
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {"name": {"type": "string"}},
+                                },
+                            }
+                        },
+                        "required": ["items"],
+                    },
+                ),
+                handler,
+            )
+        ]
+    )
+    provider = DeterministicProvider(
+        responses=[
+            ChatResponse(
+                "",
+                tool_calls=(ToolCall("nested-1", "nested", '{"items":[{"name":"x"}]}'),),
+            ),
+            ChatResponse("done"),
+        ]
+    )
+
+    result = ToolCallingRuntime(provider, registry).run(
+        _messages(), model="deterministic", run_id="run-nested"
+    )
+
+    assert result.status is RuntimeResultStatus.COMPLETED
+    assert seen == {"items": [{"name": "x"}]}
+    assert "mappingproxy" not in (provider.requests[1].messages[-1].content or "")
+
+
 def test_runtime_returns_unknown_and_invalid_arguments_to_model() -> None:
     provider = DeterministicProvider(
         responses=[

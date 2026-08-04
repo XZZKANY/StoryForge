@@ -1978,3 +1978,39 @@ git diff --check                                         -> passed
 未验证：未接线现有 StoryForge ToolSpec/PermissionGate/AgentRun trace/checkpoint，也未运行真实 provider 或真机
 Desktop。当前证据只证明无 live 调用方的内部 Runtime 核心与离线状态机，不支持宣称 Agent Runtime 迁移完成、
 任意指令级 exactly-once 或生产级自动写回闭环。
+
+### 2026-08-05 StoryForge Agent Runtime 迁移
+
+live free-text chat 已保留 `run_chat_loop` facade 与 StoryForge message/context assembly，内部切换为 typed provider +
+`ToolCallingRuntime`。新增 ToolSpec/handler、PermissionGate、selector、feedback、usage/cost、trace/evidence、checkpoint
+与 artifact adapters；SDK 不读取章节、canon、项目路径或 SQLAlchemy。`read/ask/auto/full`、protected arguments、
+单补丁、proposed patch、pause/stop、首轮 fallback、compaction 与 AgentRun/assistant evidence wire shape保持不变。
+
+第一次 API 全量门禁暴露了 SDK 不可变状态泄漏：嵌套参数在 checkpoint 内递归冻结后，以 tuple/`mappingproxy`
+进入 StoryForge handler 或 `json.dumps`，造成 13 个 nested-tool 用例失败。修复为 handler 调用与 feedback 构造前
+递归 thaw，并新增 nested array/object 回归；SDK checkpoint 内部仍保持不可变。
+
+验证：
+
+```text
+live lifecycle/permission/compaction/resume/transport       -> 55 passed
+SDK runtime/schema/source/WS focused regressions             -> 74 passed
+first full API pytest                                        -> 1496 passed, 13 failed, 4 skipped
+affected nested-tool regression after recursive thaw         -> 81 passed
+final API pytest                                             -> 1510 passed, 4 skipped
+API Ruff                                                     -> passed
+headless OpenAI-compatible local tool boundary/transcript    -> passed
+pnpm.cmd openapi                                             -> passed, no OpenAPI/Agent frame drift
+pnpm.cmd verify                                              -> passed
+  root ESLint/Prettier                                       -> passed
+  Desktop typecheck / Vitest                                 -> passed / 85 files, 549 passed
+  shared typecheck / project-core                            -> passed / 7 passed
+  API pytest / Ruff                                          -> 1510 passed, 4 skipped / passed
+  sidecar daily smoke                                        -> passed
+  OpenAPI / Agent frame drift                                -> no drift
+git diff --check                                             -> passed
+```
+
+未验证：本轮没有使用真实 Provider key，因此未执行外网 OpenAI-compatible/Anthropic/Gemini complete/stream/tool
+smoke；也未宣称真机 Tauri 的自动写回与撤销链已完成验收。现有证据覆盖后端只产 proposed patch、确认位派生与
+Desktop guarded writeback 自动化测试，不等同于真实 GUI 人工验收。

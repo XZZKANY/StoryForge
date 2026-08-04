@@ -17,6 +17,7 @@ from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, Pro
 from app.platform.ai_sdk.provider import LLMProvider, ProviderHealth, ProviderHealthStatus
 from app.platform.ai_sdk.runtime import (
     DefaultRuntimePolicy,
+    JsonToolFeedbackFormatter,
     ResumeAction,
     ResumeCommand,
     RuntimeCheckpoint,
@@ -25,6 +26,7 @@ from app.platform.ai_sdk.runtime import (
     RuntimeResult,
     RuntimeResultStatus,
     ToolCallingRuntime,
+    ToolFeedbackFormatter,
 )
 from app.platform.ai_sdk.tools import (
     RuntimeArtifact,
@@ -49,6 +51,7 @@ __all__ = [
     "ProviderHealth",
     "ProviderHealthStatus",
     "DefaultRuntimePolicy",
+    "JsonToolFeedbackFormatter",
     "ResumeAction",
     "ResumeCommand",
     "RuntimeArtifact",
@@ -64,6 +67,7 @@ __all__ = [
     "TokenUsage",
     "ToolCall",
     "ToolCallingRuntime",
+    "ToolFeedbackFormatter",
     "ToolRegistry",
     "ToolRegistryError",
     "ToolSpec",

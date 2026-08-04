@@ -1,13 +1,48 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Protocol
 
-from app.platform.ai_sdk._immutability import thaw
 from app.platform.ai_sdk.contracts import ChatMessage, MessageRole, ToolCall
 from app.platform.ai_sdk.runtime.models import RuntimeLimits
 from app.platform.ai_sdk.runtime.state import RuntimeState
 from app.platform.ai_sdk.tools import RuntimeTool, RuntimeToolResult, ToolResultStatus, validate_json_schema
+
+
+class ToolFeedbackFormatter(Protocol):
+    def format(
+        self,
+        result: RuntimeToolResult,
+        *,
+        call: ToolCall,
+        tool: RuntimeTool | None,
+        context: Any,
+    ) -> str: ...
+
+
+class JsonToolFeedbackFormatter:
+    def format(
+        self,
+        result: RuntimeToolResult,
+        *,
+        call: ToolCall,
+        tool: RuntimeTool | None,
+        context: Any,
+    ) -> str:
+        del call, tool, context
+        payload = (
+            {"ok": True, "output": result.to_output()}
+            if result.status is ToolResultStatus.SUCCESS
+            else {
+                "ok": False,
+                "error": {
+                    "code": result.error_code or "tool_failure",
+                    "message": result.error_message or "Tool execution failed.",
+                    "retryable": result.retryable,
+                },
+            }
+        )
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def parse_tool_arguments(
@@ -32,36 +67,27 @@ def parse_tool_arguments(
 
 def append_tool_feedback(
     state: RuntimeState,
-    call_id: str,
+    call: ToolCall,
     result: RuntimeToolResult,
     *,
+    formatter: ToolFeedbackFormatter,
+    tool: RuntimeTool | None = None,
+    context: Any = None,
     limits: RuntimeLimits | None = None,
 ) -> None:
-    payload = (
-        {"ok": True, "output": thaw(result.output)}
-        if result.status is ToolResultStatus.SUCCESS
-        else {
-            "ok": False,
-            "error": {
-                "code": result.error_code or "tool_failure",
-                "message": result.error_message or "Tool execution failed.",
-                "retryable": result.retryable,
-            },
-        }
-    )
-    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    serialized = formatter.format(result, call=call, tool=tool, context=context)
     if limits is not None:
         remaining = max(0, limits.max_tool_output_chars - state.tool_output_chars)
         if len(serialized) > remaining:
             state.exhausted = True
-            payload = {
-                "ok": False,
-                "error": {
-                    "code": "tool_output_budget",
-                    "message": "Tool output was omitted because the output budget is exhausted.",
-                    "retryable": False,
-                },
-            }
-            serialized = json.dumps(payload, separators=(",", ":"))
+            serialized = formatter.format(
+                RuntimeToolResult.failure(
+                    "tool_output_budget",
+                    "Tool output was omitted because the output budget is exhausted.",
+                ),
+                call=call,
+                tool=tool,
+                context=context,
+            )
         state.tool_output_chars += min(len(serialized), remaining)
-    state.messages.append(ChatMessage(MessageRole.TOOL, serialized, tool_call_id=call_id))
+    state.messages.append(ChatMessage(MessageRole.TOOL, serialized, tool_call_id=call.id))

@@ -17,19 +17,24 @@ import json
 import logging
 import time
 from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import replace
 from random import random
 from urllib import error, request
 
 from app.common import llm_http
 from app.common.exceptions import DomainError
 from app.common.redaction import redact_sensitive_text
+from app.platform.ai_sdk.capabilities import ProviderCapabilities
 from app.platform.ai_sdk.contracts import (
     ChatRequest,
+    ChatResponse,
+    StreamEvent,
     StreamEventKind,
     messages_from_openai,
     tools_from_openai,
 )
 from app.platform.ai_sdk.errors import ProviderError
+from app.platform.ai_sdk.provider import LLMProvider, ProviderHealth
 from app.platform.ai_sdk.providers.openai_compatible import OpenAICompatibleProvider
 
 logger = logging.getLogger(__name__)
@@ -563,6 +568,81 @@ def _sdk_provider(
     )
 
 
+class _ConfiguredLLMProvider:
+    """Apply StoryForge environment defaults behind the public provider protocol."""
+
+    def __init__(
+        self,
+        source: Mapping[str, str | None],
+        *,
+        stream_payload: dict[str, object] | None = None,
+        timeout_seconds: float | None = None,
+        max_attempts: int | None = None,
+    ) -> None:
+        self._source = dict(source)
+        self._provider = _sdk_provider(
+            self._source,
+            stream_payload=stream_payload,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+
+    def _configured_request(self, chat_request: ChatRequest) -> ChatRequest:
+        configured_max_tokens = _optional_int(
+            self._source, "STORYFORGE_LLM_MAX_COMPLETION_TOKENS", 0
+        )
+        return replace(
+            chat_request,
+            model=chat_request.model or _required_env(self._source, "STORYFORGE_LLM_MODEL"),
+            temperature=(
+                chat_request.temperature
+                if chat_request.temperature is not None
+                else _optional_float(self._source, "STORYFORGE_LLM_TEMPERATURE", 0.7)
+            ),
+            max_tokens=(
+                chat_request.max_tokens
+                if chat_request.max_tokens is not None
+                else configured_max_tokens if configured_max_tokens > 0 else None
+            ),
+            reasoning_effort=(
+                chat_request.reasoning_effort
+                or _env_value(self._source, "STORYFORGE_LLM_REASONING_EFFORT")
+                or None
+            ),
+        )
+
+    def complete(self, chat_request: ChatRequest) -> ChatResponse:
+        return self._provider.complete(self._configured_request(chat_request))
+
+    def stream(self, chat_request: ChatRequest) -> Iterator[StreamEvent]:
+        return self._provider.stream(self._configured_request(chat_request))
+
+    def health(self) -> ProviderHealth:
+        return self._provider.health()
+
+    def capabilities(self, model: str) -> ProviderCapabilities:
+        return self._provider.capabilities(model)
+
+
+def _build_llm_provider(
+    source: Mapping[str, str | None],
+    *,
+    stream_payload: dict[str, object] | None = None,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
+) -> LLMProvider:
+    return _ConfiguredLLMProvider(
+        source,
+        stream_payload=stream_payload,
+        timeout_seconds=timeout_seconds,
+        max_attempts=max_attempts,
+    )
+
+
+def _resolved_llm_model(source: Mapping[str, str | None]) -> str:
+    return _required_env(source, "STORYFORGE_LLM_MODEL")
+
+
 def _legacy_provider_error(exc: ProviderError) -> LLMError:
     messages = {
         "missing_choices": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。",
@@ -947,6 +1027,7 @@ def _required_env(source: Mapping[str, str | None], name: str) -> str:
 
 assistant_message = _assistant_message
 build_chat_payload = _build_chat_payload
+build_llm_provider = _build_llm_provider
 call_llm = _call_llm
 call_llm_messages = _call_llm_messages
 call_llm_streamed = _call_llm_streamed
@@ -958,6 +1039,7 @@ message_tool_calls = _message_tool_calls
 optional_float = _optional_float
 optional_int = _optional_int
 request_chat_completions = _request_chat_completions
+resolved_llm_model = _resolved_llm_model
 required_env = _required_env
 retry_after_seconds = _retry_after_seconds
 sleep_before_retry = _sleep_before_retry

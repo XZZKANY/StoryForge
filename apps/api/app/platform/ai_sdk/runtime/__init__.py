@@ -1,3 +1,4 @@
+from app.platform.ai_sdk.runtime.feedback import JsonToolFeedbackFormatter, ToolFeedbackFormatter
 from app.platform.ai_sdk.runtime.loop import RuntimeInfrastructureError, ToolCallingRuntime
 from app.platform.ai_sdk.runtime.models import (
     PendingToolCall,
@@ -27,6 +28,7 @@ __all__ = [
     "DefaultRuntimePolicy",
     "InMemoryCheckpointStore",
     "InterruptionCheck",
+    "JsonToolFeedbackFormatter",
     "PendingToolCall",
     "PolicyDecision",
     "PolicyDecisionKind",
@@ -40,5 +42,6 @@ __all__ = [
     "RuntimeResult",
     "RuntimeResultStatus",
     "ToolCallingRuntime",
+    "ToolFeedbackFormatter",
     "ToolSelector",
 ]

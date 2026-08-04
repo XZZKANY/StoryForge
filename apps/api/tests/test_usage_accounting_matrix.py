@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from agent_loop_runtime_test_support import _fake_llm_script
 from agent_transport import agent_result
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.domains.agent_runs import loop_runtime
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
     AssistantDraftRequest,
@@ -103,7 +103,7 @@ def _record_agent_loop_usage(
     monkeypatch: pytest.MonkeyPatch,
     project_path: Path,
 ) -> dict[str, object]:
-    monkeypatch.setattr(loop_runtime, "_call_llm_messages", lambda *args, **kwargs: _usage_result("完成"))
+    _fake_llm_script(monkeypatch, [_usage_result("完成")])
     response = agent_result(
         client,
         "session-usage-matrix",
