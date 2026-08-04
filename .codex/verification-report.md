@@ -1914,3 +1914,34 @@ git diff --check                                         -> passed
 
 未验证：未调用真实 provider；Anthropic、Gemini、完整 capability matrix、ToolCallingRuntime 和 live loop
 内核迁移属于后续子任务。本切片不支持据此宣称多 provider 已完成或 SDK 已具备独立发布稳定性。
+
+### 2026-08-05 多 Provider 与能力矩阵
+
+内部 SDK 新增 Anthropic/Gemini native adapter，统一 messages/parts、tool use/function call、流式事件、usage、
+finish reason 和安全错误分类。capability resolution 固定 `configured > probed > static > fallback`，未知模型能力
+保持 `None`。DeterministicProvider 支持脚本化 response/stream/fault 和显式耗尽错误。
+
+thinking 工具调用的原生签名通过不可变 `ProviderContinuation` 保存；Runtime 后续只需调用
+`ChatResponse.to_assistant_message()` 原样传递，不需要 Provider 分支，且 continuation 不进入持久化证据。
+真实 smoke 为独立显式 opt-in 脚本，默认不出网，输出不含正文、key、认证头或原始响应。
+
+验证：
+
+```text
+SDK focused contracts/wire/error/smoke tests             -> 38 passed
+LLM/provider/usage/source compatibility regression       -> 96 passed
+targeted Ruff                                            -> passed
+opt-in smoke default gate                                -> skipped as designed, zero network
+pnpm.cmd verify                                          -> passed
+  root ESLint/Prettier                                   -> passed
+  Desktop typecheck / Vitest                             -> passed / 85 files, 549 passed
+  shared typecheck / project-core                        -> passed / 7 passed
+  API pytest / Ruff                                      -> 1480 passed, 4 skipped / passed
+  sidecar daily smoke                                    -> passed
+  OpenAPI / Agent frame drift                            -> no drift
+git diff --check                                         -> passed
+```
+
+未验证：没有提供真实 Provider key，因此未执行 Anthropic/Gemini/OpenAI-compatible 的真实 complete/stream/tool
+smoke；本轮也未接线默认 provider resolution、StoryForge live loop 或 ToolCallingRuntime。上述证据不支持宣称
+真实多 Provider 联网已验收或 Agent Runtime 迁移已经完成。

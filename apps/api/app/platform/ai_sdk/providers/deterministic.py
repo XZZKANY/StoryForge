@@ -5,33 +5,50 @@ from collections.abc import Iterable, Iterator
 
 from app.platform.ai_sdk.capabilities import CapabilitySource, ProviderCapabilities
 from app.platform.ai_sdk.contracts import ChatRequest, ChatResponse, StreamEvent, StreamEventKind
+from app.platform.ai_sdk.errors import ProviderError, ProviderErrorCategory, ProviderErrorDetails
 from app.platform.ai_sdk.provider import ProviderHealth, ProviderHealthStatus
 
 
 class DeterministicProvider:
     def __init__(
         self,
-        responses: Iterable[ChatResponse] = (),
-        streams: Iterable[Iterable[StreamEvent]] = (),
+        responses: Iterable[ChatResponse | ProviderError] = (),
+        streams: Iterable[Iterable[StreamEvent] | ProviderError] = (),
     ) -> None:
         self._responses = deque(responses)
-        self._streams = deque(tuple(stream) for stream in streams)
+        self._streams = deque(
+            stream if isinstance(stream, ProviderError) else tuple(stream) for stream in streams
+        )
         self.requests: list[ChatRequest] = []
 
     def complete(self, request: ChatRequest) -> ChatResponse:
         self.requests.append(request)
-        if self._responses:
-            return self._responses.popleft()
-        return ChatResponse(content="")
+        if not self._responses:
+            raise self._exhausted("complete")
+        result = self._responses.popleft()
+        if isinstance(result, ProviderError):
+            raise result
+        return result
 
     def stream(self, request: ChatRequest) -> Iterator[StreamEvent]:
         self.requests.append(request)
         if self._streams:
-            yield from self._streams.popleft()
+            scripted = self._streams.popleft()
+            if isinstance(scripted, ProviderError):
+                raise scripted
+            yield from scripted
             return
-        response = self._responses.popleft() if self._responses else ChatResponse(content="")
+        if not self._responses:
+            raise self._exhausted("stream")
+        response = self._responses.popleft()
+        if isinstance(response, ProviderError):
+            raise response
         if response.content:
             yield StreamEvent(StreamEventKind.TEXT_DELTA, text=response.content)
+        for tool_call in response.tool_calls:
+            yield StreamEvent(StreamEventKind.TOOL_CALL_COMPLETED, tool_call=tool_call)
+        if response.usage.source != "unavailable" or response.usage.total_tokens:
+            yield StreamEvent(StreamEventKind.USAGE, usage=response.usage)
         yield StreamEvent(
             StreamEventKind.COMPLETED,
             response=response,
@@ -53,4 +70,14 @@ class DeterministicProvider:
             usage=True,
             json_response=True,
             source=CapabilitySource.STATIC,
+        )
+
+    @staticmethod
+    def _exhausted(operation: str) -> ProviderError:
+        return ProviderError(
+            ProviderErrorDetails(
+                ProviderErrorCategory.CONFIGURATION,
+                f"Deterministic provider has no scripted {operation} result.",
+                provider_code="script_exhausted",
+            )
         )

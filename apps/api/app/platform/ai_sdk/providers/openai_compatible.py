@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
-from app.platform.ai_sdk.capabilities import CapabilitySource, ProviderCapabilities
+from app.platform.ai_sdk.capabilities import ProviderCapabilities, resolve_capabilities
 from app.platform.ai_sdk.contracts import (
     ChatRequest,
     ChatResponse,
@@ -60,11 +60,15 @@ class OpenAICompatibleProvider:
         stream_transport: RawStreamTransport | None = None,
         content_filter: ContentFilter | None = None,
         usage_parser: UsageParser | None = None,
+        configured_capabilities: Mapping[str, ProviderCapabilities] | None = None,
+        verified_capabilities: Mapping[str, ProviderCapabilities] | None = None,
     ) -> None:
         self._complete_transport = complete_transport
         self._stream_transport = stream_transport
         self._content_filter = content_filter or (lambda content: content.strip())
         self._usage_parser = usage_parser or _default_usage
+        self._configured_capabilities = configured_capabilities
+        self._verified_capabilities = verified_capabilities
 
     def complete(self, request: ChatRequest) -> ChatResponse:
         payload = self.build_payload(request)
@@ -105,6 +109,7 @@ class OpenAICompatibleProvider:
                     "OpenAI-compatible provider does not have a streaming transport.",
                 )
             )
+        completed_calls: list[ToolCall] = []
         for frame in self._stream_transport(self.build_payload(request, stream=True)):
             frame_type = frame.get("type")
             if frame_type == "delta":
@@ -112,10 +117,48 @@ class OpenAICompatibleProvider:
                 if isinstance(text, str) and text:
                     yield StreamEvent(StreamEventKind.TEXT_DELTA, text=text)
                 continue
+            if frame_type in {"tool_call_delta", "tool_call_completed"}:
+                raw_call = frame.get("tool_call")
+                call = ToolCall.from_openai(raw_call) if isinstance(raw_call, Mapping) else None
+                if call is not None:
+                    kind = (
+                        StreamEventKind.TOOL_CALL_DELTA
+                        if frame_type == "tool_call_delta"
+                        else StreamEventKind.TOOL_CALL_COMPLETED
+                    )
+                    if kind is StreamEventKind.TOOL_CALL_COMPLETED:
+                        completed_calls.append(call)
+                    yield StreamEvent(kind, tool_call=call)
+                continue
+            if frame_type == "usage":
+                yield StreamEvent(StreamEventKind.USAGE, usage=TokenUsage.from_legacy(frame))
+                continue
+            if frame_type == "error":
+                category_value = str(frame.get("category") or ProviderErrorCategory.RESPONSE.value)
+                try:
+                    category = ProviderErrorCategory(category_value)
+                except ValueError:
+                    category = ProviderErrorCategory.RESPONSE
+                raise ProviderError(
+                    ProviderErrorDetails(
+                        category,
+                        "OpenAI-compatible streaming request failed.",
+                        retryable=bool(frame.get("retryable")),
+                        provider_code=str(frame.get("code")) if frame.get("code") is not None else None,
+                    )
+                )
             if frame_type != "done":
                 continue
             content = str(frame.get("content") or "")
             usage = TokenUsage.from_legacy(frame)
+            raw_calls = frame.get("tool_calls")
+            if isinstance(raw_calls, list):
+                completed_calls = [
+                    call
+                    for raw_call in raw_calls
+                    if isinstance(raw_call, Mapping)
+                    and (call := ToolCall.from_openai(raw_call)) is not None
+                ]
             metadata = {
                 key: value
                 for key, value in frame.items()
@@ -128,13 +171,29 @@ class OpenAICompatibleProvider:
                     "completion_tokens",
                     "cache_hit_tokens",
                     "token_usage_source",
+                    "tool_calls",
+                    "finish_reason",
+                    "response_id",
                 }
             }
-            response = ChatResponse(content=content, usage=usage, metadata=metadata)
+            finish_reason = (
+                str(frame.get("finish_reason")) if frame.get("finish_reason") is not None else None
+            )
+            response = ChatResponse(
+                content=content,
+                tool_calls=tuple(completed_calls),
+                usage=usage,
+                finish_reason=finish_reason,
+                response_id=(
+                    str(frame.get("response_id")) if frame.get("response_id") is not None else None
+                ),
+                metadata=metadata,
+            )
             yield StreamEvent(
                 StreamEventKind.COMPLETED,
                 response=response,
                 usage=usage,
+                finish_reason=finish_reason,
                 metadata=metadata,
             )
 
@@ -142,15 +201,19 @@ class OpenAICompatibleProvider:
         return ProviderHealth(ProviderHealthStatus.UNCHECKED)
 
     def capabilities(self, model: str) -> ProviderCapabilities:
-        del model
-        return ProviderCapabilities(
-            streaming=self._stream_transport is not None,
-            native_tools=True,
-            parallel_tool_calls=None,
-            tool_choice=True,
-            reasoning=None,
-            usage=None,
-            source=CapabilitySource.FALLBACK,
+        return resolve_capabilities(
+            model,
+            configured=self._configured_capabilities,
+            verified=self._verified_capabilities,
+            fallback=ProviderCapabilities(
+                streaming=self._stream_transport is not None,
+                native_tools=None,
+                parallel_tool_calls=None,
+                tool_choice=None,
+                reasoning=None,
+                usage=None,
+                reason="OpenAI-compatible endpoints vary; configure or verify model capabilities.",
+            ),
         )
 
     @staticmethod

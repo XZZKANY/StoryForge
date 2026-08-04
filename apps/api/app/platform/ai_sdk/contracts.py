@@ -12,11 +12,30 @@ def _immutable_mapping(value: Mapping[str, Any] | None = None) -> Mapping[str, A
     return MappingProxyType(dict(value or {}))
 
 
+def _immutable_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _immutable_value(item) for key, item in value.items()})
+    if isinstance(value, list | tuple):
+        return tuple(_immutable_value(item) for item in value)
+    return value
+
+
 class MessageRole(StrEnum):
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
     TOOL = "tool"
+
+
+@dataclass(frozen=True)
+class ProviderContinuation:
+    """Opaque provider state that runtimes pass through without interpreting."""
+
+    provider: str
+    state: Mapping[str, Any] = field(default_factory=_immutable_mapping)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "state", _immutable_value(self.state))
 
 
 @dataclass(frozen=True)
@@ -114,6 +133,7 @@ class ChatMessage:
     tool_call_id: str | None = None
     name: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=_immutable_mapping)
+    continuation: ProviderContinuation | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tool_calls", tuple(self.tool_calls))
@@ -209,10 +229,19 @@ class ChatResponse:
     finish_reason: str | None = None
     response_id: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=_immutable_mapping)
+    continuation: ProviderContinuation | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tool_calls", tuple(self.tool_calls))
         object.__setattr__(self, "metadata", _immutable_mapping(self.metadata))
+
+    def to_assistant_message(self) -> ChatMessage:
+        return ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=self.content or None,
+            tool_calls=self.tool_calls,
+            continuation=self.continuation,
+        )
 
 
 class StreamEventKind(StrEnum):

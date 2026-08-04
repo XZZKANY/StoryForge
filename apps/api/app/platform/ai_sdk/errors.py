@@ -26,6 +26,16 @@ class ProviderErrorDetails:
     provider_code: str | None = None
     request_id: str | None = None
 
+    def __post_init__(self) -> None:
+        if self.category in {
+            ProviderErrorCategory.CONFIGURATION,
+            ProviderErrorCategory.AUTHENTICATION,
+            ProviderErrorCategory.INVALID_REQUEST,
+            ProviderErrorCategory.CONTENT_FILTER,
+            ProviderErrorCategory.UNSUPPORTED,
+        }:
+            object.__setattr__(self, "retryable", False)
+
 
 class ProviderError(RuntimeError):
     def __init__(self, details: ProviderErrorDetails) -> None:

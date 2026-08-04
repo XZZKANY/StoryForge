@@ -10,6 +10,7 @@ from app.platform.ai_sdk import (
     ChatRequest,
     ChatResponse,
     MessageRole,
+    ProviderContinuation,
     StreamEvent,
     StreamEventKind,
     ToolCall,
@@ -71,6 +72,10 @@ def test_contract_collections_are_immutable_snapshots() -> None:
     assert len(request.messages) == 1
     with pytest.raises(TypeError):
         request.metadata["source"] = "changed"  # type: ignore[index]
+
+    continuation = ProviderContinuation("test", {"nested": {"signature": "fixed"}})
+    with pytest.raises(TypeError):
+        continuation.state["nested"]["signature"] = "changed"  # type: ignore[index]
 
 
 def test_tool_spec_round_trip_does_not_invent_optional_description() -> None:
