@@ -42,6 +42,7 @@ type SidePanelProps = {
   observatory?: ReactNode;
   search?: ReactNode;
   manuscript?: ReactNode;
+  knowledge?: ReactNode;
   widths: Record<string, number>;
   onWidthChange: (view: SidePanelView, width: number) => void;
 };
@@ -112,6 +113,13 @@ export function SidePanel(props: SidePanelProps) {
         hidden={props.view !== 'manuscript'}
       >
         {props.manuscript}
+      </div>
+      <div
+        className={`${props.view === 'knowledge' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}
+        data-testid="side-knowledge-pane"
+        hidden={props.view !== 'knowledge'}
+      >
+        {props.knowledge}
       </div>
       <div
         className={`${props.view === 'observatory' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}

@@ -12,6 +12,12 @@ AGENT_ARTIFACT: Final = "agent_artifact"
 AGENT_RUN_COMPLETED: Final = "agent_run_completed"
 AGENT_RUN_FAILED: Final = "agent_run_failed"
 SYSTEM_JOB: Final = "system_job"
+KNOWLEDGE_PROPOSAL_REVISED: Final = "knowledge_proposal_revised"
+KNOWLEDGE_PROPOSAL_MATERIALIZED: Final = "knowledge_proposal_materialized"
+KNOWLEDGE_PROPOSAL_INVALIDATED: Final = "knowledge_proposal_invalidated"
+KNOWLEDGE_PROPOSAL_ACCEPTED: Final = "knowledge_proposal_accepted"
+KNOWLEDGE_PROPOSAL_REJECTED: Final = "knowledge_proposal_rejected"
+KNOWLEDGE_EVIDENCE_STALE: Final = "knowledge_evidence_stale"
 
 PERMISSION_APPROVED: Final = "permission_approved"
 PERMISSION_DENIED: Final = "permission_denied"
@@ -35,6 +41,12 @@ AGENT_RUN_EVENT_TYPES: Final = frozenset(
         AGENT_RUN_COMPLETED,
         AGENT_RUN_FAILED,
         SYSTEM_JOB,
+        KNOWLEDGE_PROPOSAL_REVISED,
+        KNOWLEDGE_PROPOSAL_MATERIALIZED,
+        KNOWLEDGE_PROPOSAL_INVALIDATED,
+        KNOWLEDGE_PROPOSAL_ACCEPTED,
+        KNOWLEDGE_PROPOSAL_REJECTED,
+        KNOWLEDGE_EVIDENCE_STALE,
         PERMISSION_APPROVED,
         PERMISSION_DENIED,
         PAUSE_RUN,

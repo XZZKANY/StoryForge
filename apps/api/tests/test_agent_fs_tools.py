@@ -60,6 +60,23 @@ def test_fs_read_rejects_binary_and_missing_files(project_root: Path) -> None:
         fs_read(str(project_root), "正文/第99章.md")
 
 
+def test_fs_read_rejects_hidden_paths_except_author_instructions(project_root: Path) -> None:
+    hidden = project_root / ".secret" / "notes.md"
+    hidden.parent.mkdir()
+    hidden.write_text("不可见", encoding="utf-8")
+    internal = project_root / ".storyforge" / "config.json"
+    internal.parent.mkdir(exist_ok=True)
+    internal.write_text("{}", encoding="utf-8")
+    instructions = project_root / ".storyforge" / "agent-instructions.md"
+    instructions.write_text("保持克制", encoding="utf-8")
+
+    with pytest.raises(FsToolError):
+        fs_read(str(project_root), ".secret/notes.md")
+    with pytest.raises(FsToolError):
+        fs_read(str(project_root), ".storyforge/config.json")
+    assert fs_read(str(project_root), ".storyforge/agent-instructions.md")["content"] == "保持克制"
+
+
 def test_fs_search_returns_line_hits_with_glob_filter(project_root: Path) -> None:
     result = fs_search(str(project_root), "林岚")
 

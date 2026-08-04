@@ -8,7 +8,7 @@ from app.domains.agent_runs.trace import AgentToolTrace
 INTERRUPTIBLE_RUN_STATUSES = frozenset({"paused", "stopped"})
 RUNTIME_PENDING_CALL_ARTIFACT_KIND = "runtime_pending_call"
 RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND = "runtime_pending_call_resolution"
-SUPPORTED_RUNTIME_PENDING_CALL_INTENTS = frozenset({"chapter.review", "file.review"})
+SUPPORTED_RUNTIME_PENDING_CALL_INTENTS = frozenset({"chapter.review", "file.review", "chapter.write"})
 
 
 def build_tool_recovery_payload(
@@ -117,6 +117,8 @@ def build_runtime_pending_call_summary(
         summary["pending_tool"] = "file.review.postprocess" if boundary != "after_tool:context.load" else "file.review"
     elif intent == "chapter.review":
         summary["pending_tool"] = "chapter.review.postprocess"
+    elif intent == "chapter.write":
+        summary["pending_tool"] = "chapter.write.brief_confirm"
     next_trace_index = payload.get("next_trace_index")
     if isinstance(next_trace_index, int):
         summary["next_trace_index"] = next_trace_index
@@ -178,6 +180,11 @@ def build_runtime_pending_call_resume_diagnostic(
         judge_output = payload.get("judge_output") if isinstance(payload, dict) else None
         judge_trace = payload.get("judge_trace") if isinstance(payload, dict) else None
         if not isinstance(judge_output, dict) or not isinstance(judge_trace, dict):
+            diagnostic["reason"] = "missing_resume_payload"
+            return diagnostic
+    if intent == "chapter.write":
+        chapter_brief = payload.get("chapter_brief") if isinstance(payload, dict) else None
+        if not isinstance(chapter_brief, dict):
             diagnostic["reason"] = "missing_resume_payload"
             return diagnostic
 

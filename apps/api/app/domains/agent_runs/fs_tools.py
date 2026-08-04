@@ -8,7 +8,7 @@ Alpha 单机形态下 sidecar 后端与项目文件同机，Agent loop 的只读
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from app.common.author_voice import RELATIVE_PATH as _AUTHOR_INSTRUCTIONS_PATH
 
@@ -33,6 +33,20 @@ _BLANK_PLACEHOLDER_MAX_BYTES = 4_096
 
 class FsToolError(RuntimeError):
     """只读文件工具的输入或边界错误，消息可直接回给 LLM/用户。"""
+
+
+def normalize_project_relative_path(path: str) -> str:
+    """Normalize a model/user supplied path without resolving it outside a project root."""
+
+    if not isinstance(path, str) or not path.strip():
+        raise FsToolError("path 不能为空。")
+    raw = path.strip().replace("\\", "/")
+    candidate = PurePosixPath(raw)
+    if candidate.is_absolute() or ":" in candidate.parts[0] or any(
+        part in {"", ".", ".."} for part in candidate.parts
+    ):
+        raise FsToolError(f"只接受规范化项目相对路径：{path}")
+    return candidate.as_posix()
 
 
 def _resolve_root(project_root: str) -> Path:
@@ -162,6 +176,8 @@ def fs_read(
     target = _resolve_scoped(root, path)
     if not target.is_file():
         raise FsToolError(f"文件不存在：{path}")
+    if _is_skipped(target.relative_to(root)):
+        raise FsToolError(f"隐藏路径不可通过 fs.read 读取：{path}")
     if offset < 0:
         raise FsToolError("offset 不能为负数。")
     bounded_limit = min(max(limit, 1), _READ_LIMIT_MAX)

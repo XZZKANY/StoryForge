@@ -24,11 +24,19 @@ test('story navigator groups markdown files by fiction semantics', () => {
       extension: 'md',
     },
     {
+      name: '黄金三章spec.md',
+      path: `${projectPath}\\.资料\\黄金三章spec.md`,
+      isDir: false,
+      size: 180,
+      modified: 3,
+      extension: 'md',
+    },
+    {
       name: '验收.md',
       path: `${projectPath}\\质量\\验收.md`,
       isDir: false,
       size: 90,
-      modified: 3,
+      modified: 4,
       extension: 'md',
     },
   ]);
@@ -37,10 +45,15 @@ test('story navigator groups markdown files by fiction semantics', () => {
 
   assert.deepEqual(
     groups.map((group) => group.kind),
-    ['character', 'draft', 'quality'],
+    ['character', 'knowledge', 'draft', 'quality'],
   );
   assert.deepEqual(
     groups.map((group) => group.files.map((file) => file.relativePath)),
-    [['人物\\林岚.md'], ['正文\\第01章.md'], ['质量\\验收.md']],
+    [
+      ['人物\\林岚.md'],
+      ['.资料\\黄金三章spec.md'],
+      ['正文\\第01章.md'],
+      ['质量\\验收.md'],
+    ],
   );
 });

@@ -270,6 +270,7 @@ def test_llm_context_snapshot_trace_summary_is_lightweight() -> None:
         "section_count": 7,
         "context_file_count": 2,
         "context_files": ["人物/周眠.md", "大纲/第02章节点.md"],
+        "knowledge_entries": [],
         "story_memory_count": 1,
         "has_chapter_context": True,
         "has_review_report": True,
@@ -345,6 +346,31 @@ def test_llm_context_snapshot_filters_unsafe_context_file_paths_with_warnings() 
     assert len(snapshot["warnings"]) == 2
     assert llm_context_snapshot_trace_summary(snapshot)["context_file_count"] == 1
     assert llm_context_snapshot_trace_summary(snapshot)["warning_count"] == 2
+
+
+def test_llm_context_snapshot_redacts_selected_project_knowledge() -> None:
+    snapshot = build_llm_context_snapshot(
+        run_state=None,
+        intent="file.create",
+        user_message="写第三章",
+        file_path="正文/第03章.md",
+        content="",
+        context_bundle={
+            "files": [
+                {
+                    "relative_path": ".资料/黄金三章spec.md",
+                    "kind": "knowledge",
+                    "title": "黄金三章spec",
+                    "excerpt": "API_KEY=sk-projectknowledge-secret\n必须出现不可逆选择",
+                }
+            ]
+        },
+    )
+
+    assert snapshot["context_files"][0]["relative_path"] == ".资料/黄金三章spec.md"
+    assert "sk-projectknowledge-secret" not in snapshot["context_files"][0]["excerpt"]
+    assert "[REDACTED]" in snapshot["context_files"][0]["excerpt"]
+    assert snapshot["warnings"] == ["context_bundle file redacted: .资料/黄金三章spec.md"]
 
 
 def test_file_review_runtime_records_llm_context_snapshot_summary(

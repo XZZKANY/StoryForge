@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { contextFilesFromAgentResult } from '../src/components/chat-window/agent-result';
+import {
+  contextFilesFromAgentResult,
+  writingContextFromAgentResult,
+} from '../src/components/chat-window/agent-result';
 import type { AgentResultMessage } from '../src/lib/api-client';
 
 function agentResult(toolTrace: AgentResultMessage['tool_trace']): AgentResultMessage {
@@ -85,5 +88,56 @@ describe('contextFilesFromAgentResult', () => {
         '人物/林岚.md',
       ]),
     ).toEqual(['大纲/总纲.md', '人物/林岚.md']);
+  });
+
+  it('decodes safe entry-level knowledge provenance without content', () => {
+    const message = agentResult([
+      {
+        tool_name: 'file.revise',
+        status: 'completed',
+        input_summary: {
+          llm_context_snapshot_id: 'llmctx-knowledge',
+          context_provenance: {
+            snapshot_id: 'llmctx-knowledge',
+            context_file_count: 1,
+            context_files: ['设定/天枢.md'],
+            context_source: 'request_bundle',
+            knowledge_entry_count: 2,
+            knowledge_entries: [
+              {
+                knowledge_id: 'pk_550e8400-e29b-41d4-a716-446655440001',
+                relative_path: '设定/天枢.md',
+                selection_source: 'auto_retrieved',
+                evidence_state: 'stale',
+                warning_count: 1,
+                snapshot_id: 'llmctx-knowledge',
+                claim: '不应进入前端投影',
+              },
+              {
+                knowledge_id: 'bad-id',
+                relative_path: '../outside.md',
+                selection_source: 'author_pinned',
+                evidence_state: 'current',
+              },
+            ],
+            warning_count: 1,
+          },
+        },
+      },
+    ]);
+
+    expect(writingContextFromAgentResult(message)).toEqual({
+      contextFiles: ['设定/天枢.md'],
+      knowledgeEntries: [
+        {
+          knowledgeId: 'pk_550e8400-e29b-41d4-a716-446655440001',
+          relativePath: '设定/天枢.md',
+          selectionSource: 'auto_retrieved',
+          evidenceState: 'stale',
+          warningCount: 1,
+          snapshotId: 'llmctx-knowledge',
+        },
+      ],
+    });
   });
 });

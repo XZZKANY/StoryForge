@@ -1,7 +1,51 @@
 import { TauriFileSystem, type FileEntry } from '../tauri-fs';
 import { relativePathInsideProject } from './path';
-import { classifyRelativePath, emptyCounts } from './semantics';
+import { classifyRelativePath, emptyCounts, isProjectKnowledgeRelativePath } from './semantics';
 import type { ProjectIndex } from './types';
+
+const PROJECT_KNOWLEDGE_MAX_FILE_BYTES = 512 * 1024;
+const BLOCKED_KNOWLEDGE_DIRECTORIES = new Set([
+  'derived',
+  'version',
+  'versions',
+  'cache',
+  'caches',
+  'log',
+  'logs',
+  'database',
+  'databases',
+  'db',
+  'config',
+  'configs',
+]);
+const SENSITIVE_KNOWLEDGE_NAME =
+  /(?:^|[._-])(credential|credentials|secret|secrets|token|tokens|password|passwd|api[-_]?key|private[-_]?key)(?:[._-]|$)/i;
+
+function isIndexableProjectFile(
+  relativePath: string,
+  extension: string | undefined,
+  size: number,
+): boolean {
+  const normalized = relativePath.replace(/\\/g, '/');
+  if (isProjectKnowledgeRelativePath(normalized)) {
+    return size <= PROJECT_KNOWLEDGE_MAX_FILE_BYTES;
+  }
+  if (!['md', 'markdown'].includes(extension?.toLowerCase() ?? '')) return false;
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.some((part, index) => part.startsWith('.') && !(index === 0 && part === '.资料'))) {
+    return false;
+  }
+  if (classifyRelativePath(normalized) === 'knowledge') {
+    if (size > PROJECT_KNOWLEDGE_MAX_FILE_BYTES) return false;
+    if (parts.some((part) => BLOCKED_KNOWLEDGE_DIRECTORIES.has(part.toLocaleLowerCase()))) {
+      return false;
+    }
+    if (parts.some((part) => part === '.env' || SENSITIVE_KNOWLEDGE_NAME.test(part))) {
+      return false;
+    }
+  }
+  return true;
+}
 
 export function buildProjectIndexFromEntries(
   projectPath: string,
@@ -9,11 +53,12 @@ export function buildProjectIndexFromEntries(
 ): ProjectIndex {
   const files = entries
     .filter((entry) => !entry.isDir)
-    .filter((entry) => ['md', 'markdown'].includes(entry.extension?.toLowerCase() ?? ''))
-    .filter((entry) => !/[/\\]\.storyforge[/\\]/.test(entry.path))
     .map((entry) => ({ entry, relativePath: relativePathInsideProject(projectPath, entry.path) }))
     .filter(
       (item): item is { entry: FileEntry; relativePath: string } => item.relativePath !== null,
+    )
+    .filter((item) =>
+      isIndexableProjectFile(item.relativePath, item.entry.extension, item.entry.size),
     )
     .map((entry) => {
       return {
@@ -38,6 +83,7 @@ export function buildProjectIndexFromEntries(
       counts.setting +
       counts.timeline +
       counts.foreshadowing +
+      counts.knowledge +
       counts.draft >
     0;
   return { projectPath, files, summary: { hasStoryStructure, counts } };

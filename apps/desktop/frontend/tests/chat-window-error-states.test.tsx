@@ -7,7 +7,11 @@ import { afterEach, test, vi } from 'vitest';
 import { ChatWindow } from '../src/components/ChatWindow';
 import { ContextSummaryPanel } from '../src/components/chat-window/panels';
 import { getAssistantSession } from '../src/lib/api-client';
-import { buildProjectIndex } from '../src/lib/project-context';
+import {
+  buildProjectIndex,
+  readProjectKnowledgeSelection,
+  writeProjectKnowledgeSelection,
+} from '../src/lib/project-context';
 
 vi.mock('../src/lib/api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/lib/api-client')>();
@@ -26,6 +30,94 @@ const mockedBuildProjectIndex = vi.mocked(buildProjectIndex);
 afterEach(() => {
   mockedGetAssistantSession.mockReset();
   mockedBuildProjectIndex.mockReset();
+  window.localStorage.clear();
+});
+
+test('项目知识选择跨会话恢复并报告陈旧路径', async () => {
+  const projectPath = 'D:/Books/story';
+  writeProjectKnowledgeSelection(projectPath, ['.资料/规则.md', '.资料/已删除.md']);
+  mockedGetAssistantSession.mockImplementation(async (id) => ({
+    id,
+    title: `Session ${id}`,
+    messages: [],
+  })) as typeof mockedGetAssistantSession;
+  mockedBuildProjectIndex.mockResolvedValue({
+    projectPath,
+    files: [
+      {
+        name: '规则.md',
+        path: `${projectPath}/.资料/规则.md`,
+        relativePath: '.资料/规则.md',
+        kind: 'knowledge',
+        size: 100,
+        modified: 1,
+      },
+      {
+        name: '总纲.md',
+        path: `${projectPath}/大纲/总纲.md`,
+        relativePath: '大纲/总纲.md',
+        kind: 'outline',
+        size: 100,
+        modified: 1,
+      },
+    ],
+    summary: {
+      hasStoryStructure: false,
+      counts: {
+        outline: 0,
+        character: 0,
+        setting: 0,
+        timeline: 0,
+        foreshadowing: 0,
+        knowledge: 1,
+        draft: 0,
+        quality: 0,
+        export: 0,
+        other: 0,
+      },
+    },
+  });
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  try {
+    await act(async () => {
+      root.render(
+        <ChatWindow projectPath={projectPath} currentFile={null} assistantSessionId={41} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    assert.match(container.textContent ?? '', /.资料\/规则.md/);
+    assert.match(container.textContent ?? '', /未读到：.资料\/已删除.md/);
+
+    const pickerToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="context-picker-toggle"]',
+    );
+    assert.ok(pickerToggle);
+    act(() => pickerToggle.click());
+    const outlineToggle = container.querySelector<HTMLButtonElement>(
+      '[data-context-path="大纲/总纲.md"]',
+    );
+    assert.ok(outlineToggle);
+    act(() => outlineToggle.click());
+    assert.deepEqual(readProjectKnowledgeSelection(projectPath), ['.资料/规则.md']);
+
+    await act(async () => {
+      root.render(
+        <ChatWindow projectPath={projectPath} currentFile={null} assistantSessionId={42} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    assert.match(container.textContent ?? '', /.资料\/规则.md/);
+    assert.doesNotMatch(container.textContent ?? '', /未读到：.资料\/已删除.md/);
+    assert.equal(container.querySelector('span[title="大纲/总纲.md"]'), null);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
 });
 
 test('历史会话加载失败时保留选择并提供重试', async () => {

@@ -57,7 +57,7 @@ from app.domains.agent_runs.tools import (
     loop_patch_tool_specs,
 )
 from app.domains.agent_runs.tools.runtime_arguments import (
-    TRUSTED_WRITING_CONTEXT_TOOL_NAMES,
+    HANDLER_OWNED_TRACE_TOOL_NAMES,
     sanitize_loop_tool_arguments,
 )
 from app.domains.agent_runs.trace import AgentToolTrace
@@ -350,6 +350,7 @@ def run_chat_loop(
                 continue
 
             output = tool_result.output
+            outcome.artifacts.extend(tool_result.artifacts)
             feedback = LoopToolFeedback.from_output(
                 registry_name,
                 output,
@@ -365,7 +366,7 @@ def run_chat_loop(
             tool_output_chars += len(serialized)
             output_summary = _tool_output_summary(registry_name, output)
             if (
-                registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES
+                registry_name in HANDLER_OWNED_TRACE_TOOL_NAMES
                 and tool_result.trace.output_summary is not None
             ):
                 output_summary = tool_result.trace.output_summary
@@ -376,7 +377,7 @@ def run_chat_loop(
             )
             input_summary = (
                 tool_result.trace.input_summary
-                if registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES
+                if registry_name in HANDLER_OWNED_TRACE_TOOL_NAMES
                 else safe_arguments
             )
             trace = AgentToolTrace(
@@ -386,7 +387,7 @@ def run_chat_loop(
                 output_summary=output_summary,
                 audit_event_id=(
                     tool_result.trace.audit_event_id
-                    if registry_name in TRUSTED_WRITING_CONTEXT_TOOL_NAMES
+                    if registry_name in HANDLER_OWNED_TRACE_TOOL_NAMES
                     else None
                 ),
                 assistant_tool_call_id=evidence.id,

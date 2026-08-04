@@ -4231,6 +4231,635 @@
         "title": "JudgeIssueRead",
         "type": "object"
       },
+      "KnowledgeConflictEntryRead": {
+        "properties": {
+          "claim": {
+            "title": "Claim",
+            "type": "string"
+          },
+          "evidence_state": {
+            "title": "Evidence State",
+            "type": "string"
+          },
+          "knowledge_id": {
+            "title": "Knowledge Id",
+            "type": "string"
+          },
+          "relative_path": {
+            "title": "Relative Path",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeProposalSourceRead"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "knowledge_id",
+          "relative_path",
+          "title",
+          "claim",
+          "status",
+          "evidence_state",
+          "sources"
+        ],
+        "title": "KnowledgeConflictEntryRead",
+        "type": "object"
+      },
+      "KnowledgeProposalGroupRead": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "proposal_group_id": {
+            "title": "Proposal Group Id",
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeProposalItemRead"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_group_id",
+          "artifact_id",
+          "run_id",
+          "revision",
+          "state",
+          "created_at",
+          "proposals"
+        ],
+        "title": "KnowledgeProposalGroupRead",
+        "type": "object"
+      },
+      "KnowledgeProposalInboxRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeProposalGroupRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pending_count": {
+            "title": "Pending Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "pending_count"
+        ],
+        "title": "KnowledgeProposalInboxRead",
+        "type": "object"
+      },
+      "KnowledgeProposalItemEdit": {
+        "properties": {
+          "claim": {
+            "title": "Claim",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "related_knowledge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Related Knowledge Ids",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeProposalSourceEdit"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "target_path": {
+            "title": "Target Path",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_path",
+          "operation",
+          "title",
+          "claim",
+          "kind",
+          "confidence",
+          "sources",
+          "reason"
+        ],
+        "title": "KnowledgeProposalItemEdit",
+        "type": "object"
+      },
+      "KnowledgeProposalItemRead": {
+        "properties": {
+          "claim": {
+            "title": "Claim",
+            "type": "string"
+          },
+          "claim_fingerprint": {
+            "title": "Claim Fingerprint",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeConflictEntryRead"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "knowledge_id": {
+            "title": "Knowledge Id",
+            "type": "string"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "related_knowledge_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Related Knowledge Ids",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeProposalSourceRead"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "target_path": {
+            "title": "Target Path",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "knowledge_id",
+          "target_path",
+          "operation",
+          "title",
+          "claim",
+          "kind",
+          "confidence",
+          "sources",
+          "related_knowledge_ids",
+          "reason",
+          "claim_fingerprint",
+          "state"
+        ],
+        "title": "KnowledgeProposalItemRead",
+        "type": "object"
+      },
+      "KnowledgeProposalMaterializeRequest": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "integer"
+          },
+          "project_root": {
+            "title": "Project Root",
+            "type": "string"
+          },
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_root",
+          "artifact_id",
+          "revision",
+          "proposal_id"
+        ],
+        "title": "KnowledgeProposalMaterializeRequest",
+        "type": "object"
+      },
+      "KnowledgeProposalPatchRead": {
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "string"
+          },
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "integer"
+          },
+          "author_confirmation_event_id": {
+            "title": "Author Confirmation Event Id",
+            "type": "string"
+          },
+          "baseline_hash": {
+            "title": "Baseline Hash",
+            "type": "string"
+          },
+          "before": {
+            "title": "Before",
+            "type": "string"
+          },
+          "created_by_tool": {
+            "title": "Created By Tool",
+            "type": "string"
+          },
+          "file_path": {
+            "title": "File Path",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "knowledge_id": {
+            "title": "Knowledge Id",
+            "type": "string"
+          },
+          "patch_class": {
+            "title": "Patch Class",
+            "type": "string"
+          },
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "proposal_revision": {
+            "title": "Proposal Revision",
+            "type": "integer"
+          },
+          "relative_path": {
+            "title": "Relative Path",
+            "type": "string"
+          },
+          "requires_confirmation": {
+            "title": "Requires Confirmation",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "artifact_id",
+          "kind",
+          "patch_class",
+          "proposal_id",
+          "proposal_revision",
+          "knowledge_id",
+          "author_confirmation_event_id",
+          "file_path",
+          "relative_path",
+          "before",
+          "after",
+          "baseline_hash",
+          "requires_confirmation",
+          "created_by_tool"
+        ],
+        "title": "KnowledgeProposalPatchRead",
+        "type": "object"
+      },
+      "KnowledgeProposalQuery": {
+        "properties": {
+          "project_root": {
+            "title": "Project Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_root"
+        ],
+        "title": "KnowledgeProposalQuery",
+        "type": "object"
+      },
+      "KnowledgeProposalResolveRequest": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "integer"
+          },
+          "author_confirmation_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Confirmation Event Id"
+          },
+          "patch_identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch Identity"
+          },
+          "project_root": {
+            "title": "Project Root",
+            "type": "string"
+          },
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "resolution": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Resolution",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_root",
+          "artifact_id",
+          "revision",
+          "proposal_id",
+          "resolution"
+        ],
+        "title": "KnowledgeProposalResolveRequest",
+        "type": "object"
+      },
+      "KnowledgeProposalReviseRequest": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "integer"
+          },
+          "project_root": {
+            "title": "Project Root",
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeProposalItemEdit"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_root",
+          "artifact_id",
+          "revision",
+          "proposals"
+        ],
+        "title": "KnowledgeProposalReviseRequest",
+        "type": "object"
+      },
+      "KnowledgeProposalSourceEdit": {
+        "properties": {
+          "locator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "summary_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sha256"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "KnowledgeProposalSourceEdit",
+        "type": "object"
+      },
+      "KnowledgeProposalSourceRead": {
+        "properties": {
+          "accessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accessed At"
+          },
+          "agent_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Event Id"
+          },
+          "content_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Sha256"
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "summary_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sha256"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "KnowledgeProposalSourceRead",
+        "type": "object"
+      },
       "LivenessResponse": {
         "properties": {
           "status": {
@@ -8047,6 +8676,211 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/agent-runs/knowledge-proposals/materialize": {
+      "post": {
+        "operationId": "materialize_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_materialize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeProposalMaterializeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeProposalPatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "生成强制确认的 Project Knowledge patch",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/knowledge-proposals/query": {
+      "post": {
+        "operationId": "query_knowledge_proposals_endpoint_api_agent_runs_knowledge_proposals_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeProposalQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeProposalInboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "按项目读取 Knowledge Inbox",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/knowledge-proposals/refresh": {
+      "post": {
+        "operationId": "refresh_knowledge_proposals_endpoint_api_agent_runs_knowledge_proposals_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeProposalQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeProposalInboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "刷新 Knowledge Inbox 来源证据",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/knowledge-proposals/resolve": {
+      "post": {
+        "operationId": "resolve_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeProposalResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeProposalInboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "拒绝 Knowledge proposal",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
+    "/api/agent-runs/knowledge-proposals/revise": {
+      "post": {
+        "operationId": "revise_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_revise_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeProposalReviseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeProposalInboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "编辑并重建 Knowledge proposal revision",
+        "tags": [
+          "Agent Runtime"
+        ]
+      }
+    },
     "/api/agent-runs/roles": {
       "get": {
         "description": "列出 Primary Agent 与 Subagents 的只读角色目录。",

@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from app.domains.agent_runs.fs.knowledge_proposals import KNOWLEDGE_PROPOSAL_ARTIFACT_KIND
 from app.domains.agent_runs.runtime_recovery import (
     RUNTIME_PENDING_CALL_ARTIFACT_KIND,
     RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
@@ -22,12 +23,14 @@ HIDDEN_SYSTEM_ARTIFACT_KINDS = frozenset(
         SYSTEM_COMPACTION_ARTIFACT_KIND,
         RUNTIME_PENDING_CALL_ARTIFACT_KIND,
         RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
+        KNOWLEDGE_PROPOSAL_ARTIFACT_KIND,
     }
 )
 
 COMPACTION_MESSAGE_THRESHOLD = 12
 COMPACTION_CHAR_THRESHOLD = 8000
 COMPACTION_RETAINED_MESSAGE_COUNT = 4
+SYSTEM_COMPACTION_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -79,7 +82,7 @@ def _title_job(
     *,
     assistant_session_id: int,
     current_title: str,
-    records: list[dict[str, str]],
+    records: list[dict[str, Any]],
     result: dict[str, Any],
 ) -> SystemJobPlan:
     source_text = _first_user_message(records) or _string(result.get("user_message")) or current_title
@@ -109,7 +112,7 @@ def _title_job(
 def _summary_job(
     *,
     assistant_session_id: int,
-    records: list[dict[str, str]],
+    records: list[dict[str, Any]],
     result: dict[str, Any],
 ) -> SystemJobPlan:
     agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
@@ -157,7 +160,7 @@ def _summary_job(
 def _compaction_job(
     *,
     assistant_session_id: int,
-    records: list[dict[str, str]],
+    records: list[dict[str, Any]],
     result: dict[str, Any],
 ) -> SystemJobPlan | None:
     total_chars = sum(len(record["content"]) for record in records)
@@ -166,13 +169,26 @@ def _compaction_job(
 
     retained = records[-COMPACTION_RETAINED_MESSAGE_COUNT:]
     compacted = records[: max(0, len(records) - len(retained))]
+    covered_through_message_id = next(
+        (
+            record["id"]
+            for record in reversed(compacted)
+            if record["role"] == "assistant" and isinstance(record["id"], int)
+        ),
+        None,
+    )
+    if covered_through_message_id is None:
+        return None
     summary = _compaction_summary(compacted, result)
     payload = {
         "kind": SYSTEM_COMPACTION_ARTIFACT_KIND,
+        "schema_version": SYSTEM_COMPACTION_SCHEMA_VERSION,
         "job_name": COMPACTION_JOB_NAME,
         "hidden": True,
         "mode": "deterministic",
+        "status": "completed",
         "assistant_session_id": assistant_session_id,
+        "covered_through_message_id": covered_through_message_id,
         "message_count": len(records),
         "total_chars": total_chars,
         "compacted_message_count": len(compacted),
@@ -189,6 +205,7 @@ def _compaction_job(
         "mode": "deterministic",
         "status": "completed",
         "assistant_session_id": assistant_session_id,
+        "covered_through_message_id": covered_through_message_id,
         "message_count": len(records),
         "total_chars": total_chars,
         "compacted_message_count": len(compacted),
@@ -204,13 +221,20 @@ def _compaction_job(
     )
 
 
-def _message_records(messages: Sequence[object]) -> list[dict[str, str]]:
-    records: list[dict[str, str]] = []
+def _message_records(messages: Sequence[object]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
     for message in messages:
+        message_id = getattr(message, "id", None)
         role = getattr(message, "role", None)
         content = getattr(message, "content", None)
         if isinstance(role, str) and isinstance(content, str):
-            records.append({"role": role, "content": content})
+            records.append(
+                {
+                    "id": message_id if isinstance(message_id, int) and not isinstance(message_id, bool) else None,
+                    "role": role,
+                    "content": content,
+                }
+            )
     return records
 
 
@@ -244,21 +268,21 @@ def _should_update_title(title: str) -> bool:
     return stripped == "新的创作会话" or stripped.startswith("IDE Agent:")
 
 
-def _first_user_message(records: list[dict[str, str]]) -> str | None:
+def _first_user_message(records: list[dict[str, Any]]) -> str | None:
     for record in records:
         if record["role"] == "user" and record["content"].strip():
             return record["content"]
     return None
 
 
-def _last_role_message(records: list[dict[str, str]], role: str) -> str | None:
+def _last_role_message(records: list[dict[str, Any]], role: str) -> str | None:
     for record in reversed(records):
         if record["role"] == role and record["content"].strip():
             return _compact(record["content"], 600)
     return None
 
 
-def _compaction_summary(compacted: list[dict[str, str]], result: dict[str, Any]) -> str:
+def _compaction_summary(compacted: list[dict[str, Any]], result: dict[str, Any]) -> str:
     first_user = _first_user_message(compacted) or _string(result.get("user_message")) or "未记录首个目标"
     agent_result = result.get("agent_result") if isinstance(result.get("agent_result"), dict) else {}
     latest = _string(agent_result.get("summary")) or "最近一轮已完成"

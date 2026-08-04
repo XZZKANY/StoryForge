@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from app.domains.agent_runs.patches.types import PatchProposal
+from app.domains.agent_runs.tools.execution import ToolArtifact
 from app.domains.agent_runs.trace import AgentToolTrace
 
 
@@ -101,6 +102,7 @@ class ChatLoopOutcome:
     patch_proposal: PatchProposal | None = None
     interrupted: bool = False
     interruption: dict[str, Any] | None = None
+    artifacts: list[ToolArtifact] = field(default_factory=list)
 
     @property
     def proposed_patch(self) -> dict[str, Any] | None:

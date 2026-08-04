@@ -1,15 +1,28 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.db.deps import SessionDependency
+from app.domains.agent_runs.events import (
+    materialize_knowledge_proposal,
+    query_knowledge_proposal_inbox,
+    refresh_knowledge_evidence,
+    resolve_knowledge_proposal,
+    revise_knowledge_proposal_group,
+)
 from app.domains.agent_runs.schemas import (
     AgentArtifactRead,
     AgentRoleRead,
     AgentRunEventRead,
     AgentRunRead,
     AgentSkillRead,
+    KnowledgeProposalInboxRead,
+    KnowledgeProposalMaterializeRequest,
+    KnowledgeProposalPatchRead,
+    KnowledgeProposalQuery,
+    KnowledgeProposalResolveRequest,
+    KnowledgeProposalReviseRequest,
 )
 from app.domains.agent_runs.service import (
     encode_agent_run_sse_event,
@@ -24,6 +37,110 @@ from app.domains.agent_runs.service import (
 )
 
 router = APIRouter(prefix="/api/agent-runs", tags=["Agent Runtime"])
+
+
+@router.post(
+    "/knowledge-proposals/query",
+    response_model=KnowledgeProposalInboxRead,
+    response_model_exclude_none=True,
+    summary="按项目读取 Knowledge Inbox",
+)
+def query_knowledge_proposals_endpoint(
+    request: KnowledgeProposalQuery,
+    session: SessionDependency,
+) -> KnowledgeProposalInboxRead:
+    return KnowledgeProposalInboxRead.model_validate(
+        query_knowledge_proposal_inbox(session, request.project_root)
+    )
+
+
+@router.post(
+    "/knowledge-proposals/refresh",
+    response_model=KnowledgeProposalInboxRead,
+    response_model_exclude_none=True,
+    summary="刷新 Knowledge Inbox 来源证据",
+)
+def refresh_knowledge_proposals_endpoint(
+    request: KnowledgeProposalQuery,
+    session: SessionDependency,
+) -> KnowledgeProposalInboxRead:
+    return KnowledgeProposalInboxRead.model_validate(
+        refresh_knowledge_evidence(session, request.project_root)
+    )
+
+
+@router.post(
+    "/knowledge-proposals/materialize",
+    response_model=KnowledgeProposalPatchRead,
+    summary="生成强制确认的 Project Knowledge patch",
+)
+def materialize_knowledge_proposal_endpoint(
+    request: KnowledgeProposalMaterializeRequest,
+    session: SessionDependency,
+) -> KnowledgeProposalPatchRead:
+    try:
+        return KnowledgeProposalPatchRead.model_validate(
+            materialize_knowledge_proposal(
+                session,
+                project_root=request.project_root,
+                artifact_id=request.artifact_id,
+                revision=request.revision,
+                proposal_id=request.proposal_id,
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/knowledge-proposals/revise",
+    response_model=KnowledgeProposalInboxRead,
+    response_model_exclude_none=True,
+    summary="编辑并重建 Knowledge proposal revision",
+)
+def revise_knowledge_proposal_endpoint(
+    request: KnowledgeProposalReviseRequest,
+    session: SessionDependency,
+) -> KnowledgeProposalInboxRead:
+    try:
+        return KnowledgeProposalInboxRead.model_validate(
+            revise_knowledge_proposal_group(
+                session,
+                project_root=request.project_root,
+                artifact_id=request.artifact_id,
+                revision=request.revision,
+                proposals=[item.model_dump(exclude_none=True) for item in request.proposals],
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/knowledge-proposals/resolve",
+    response_model=KnowledgeProposalInboxRead,
+    response_model_exclude_none=True,
+    summary="拒绝 Knowledge proposal",
+)
+def resolve_knowledge_proposal_endpoint(
+    request: KnowledgeProposalResolveRequest,
+    session: SessionDependency,
+) -> KnowledgeProposalInboxRead:
+    try:
+        return KnowledgeProposalInboxRead.model_validate(
+            resolve_knowledge_proposal(
+                session,
+                project_root=request.project_root,
+                artifact_id=request.artifact_id,
+                revision=request.revision,
+                proposal_id=request.proposal_id,
+                resolution=request.resolution,
+                patch_identity=request.patch_identity,
+                author_confirmation_event_id=request.author_confirmation_event_id,
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/skills", response_model=list[AgentSkillRead], summary="读取 Agent skills v1 清单")

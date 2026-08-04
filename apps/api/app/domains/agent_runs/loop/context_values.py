@@ -162,6 +162,22 @@ def _normalize_path(path: str) -> str:
     return path.replace("\\", "/").strip().strip("/").lower()
 
 
+def _normalized_relative_context_path(path: str | None) -> str | None:
+    if path is None:
+        return None
+    normalized = path.replace("\\", "/").strip()
+    if not normalized or normalized.startswith("/") or (len(normalized) > 1 and normalized[1] == ":"):
+        return None
+    parts: list[str] = []
+    for part in normalized.split("/"):
+        if not part or part == ".":
+            continue
+        if part == "..":
+            return None
+        parts.append(part)
+    return "/".join(parts) or None
+
+
 def _artifact_kind(artifact: object) -> str | None:
     value = _value(artifact, "kind")
     return value.strip() if isinstance(value, str) and value.strip() else None
@@ -207,6 +223,7 @@ looks_like_harness_payload = _looks_like_harness_payload
 contains_unsafe_key = _contains_unsafe_key
 matches_selected_file = _matches_selected_file
 normalize_path = _normalize_path
+normalized_relative_context_path = _normalized_relative_context_path
 artifact_kind = _artifact_kind
 artifact_payload = _artifact_payload
 value = _value

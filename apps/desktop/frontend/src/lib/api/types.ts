@@ -53,11 +53,13 @@ export type ReviseRequest = {
       pinnedFileCount: number;
       missingPinnedFiles: string[];
     };
+    excludedKnowledgeIds?: string[];
   } | null;
 };
 
 export type AssistantContextBundlePayload = Omit<ApiAssistantContextBundle, 'current_file'> & {
   current_file?: string | null;
+  knowledge_exclusions?: { ids: string[] };
 };
 
 export type CrossChapterChapterInput = {

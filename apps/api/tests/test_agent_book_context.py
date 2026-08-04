@@ -152,15 +152,11 @@ def test_roster_uses_presence_cache_for_span_without_rescan(serial: Path) -> Non
     assert "第 1–2 章在场" in block
 
 
-def test_dossier_pointer_only_when_file_exists(serial: Path) -> None:
-    """dossier.md 落盘后才给路径指针。
-
-    `fs_list` / `fs_search` 跳过 `.storyforge/`，模型永远发现不了这份全书事实卡；
-    而 `fs_read` 不过滤该目录，所以缺的只是「知道它在那儿」这一句。
-    """
-
+def test_project_knowledge_index_includes_author_files_but_not_derived_cache(serial: Path) -> None:
     _write_canon(serial, {"version": 1, "entities": [{"id": "chen-mo", "canonical_name": "陈默"}]})
-    assert "dossier.md" not in (book_context.build_book_context_block(str(serial), None) or "")
+    materials = serial / ".资料"
+    materials.mkdir()
+    (materials / "黄金三章spec.md").write_text("开篇约束", encoding="utf-8")
 
     derived = serial / ".storyforge" / "canon" / "derived"
     derived.mkdir(parents=True, exist_ok=True)
@@ -168,8 +164,11 @@ def test_dossier_pointer_only_when_file_exists(serial: Path) -> None:
 
     block = book_context.build_book_context_block(str(serial), None)
     assert block is not None
-    assert ".storyforge/canon/derived/dossier.md" in block
-    assert "fs_read" in block
+    assert "Project Knowledge 索引" in block
+    assert ".资料/黄金三章spec.md" in block
+    assert ".storyforge/canon/canon.json" in block
+    assert ".storyforge/canon/derived/dossier.md" not in block
+    assert "project_knowledge read" in block
 
 
 # --- 上一章结尾 ---

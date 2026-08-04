@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+    "/api/agent-runs/knowledge-proposals/materialize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成强制确认的 Project Knowledge patch */
+        post: operations["materialize_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_materialize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/knowledge-proposals/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按项目读取 Knowledge Inbox */
+        post: operations["query_knowledge_proposals_endpoint_api_agent_runs_knowledge_proposals_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/knowledge-proposals/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 刷新 Knowledge Inbox 来源证据 */
+        post: operations["refresh_knowledge_proposals_endpoint_api_agent_runs_knowledge_proposals_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/knowledge-proposals/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 拒绝 Knowledge proposal */
+        post: operations["resolve_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/knowledge-proposals/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 编辑并重建 Knowledge proposal revision */
+        post: operations["revise_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_revise_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/agent-runs/roles": {
         parameters: {
             query?: never;
@@ -3414,6 +3499,213 @@ export interface components {
              */
             updated_at: string;
         };
+        /** KnowledgeConflictEntryRead */
+        KnowledgeConflictEntryRead: {
+            /** Claim */
+            claim: string;
+            /** Evidence State */
+            evidence_state: string;
+            /** Knowledge Id */
+            knowledge_id: string;
+            /** Relative Path */
+            relative_path: string;
+            /** Sources */
+            sources: components["schemas"]["KnowledgeProposalSourceRead"][];
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /** KnowledgeProposalGroupRead */
+        KnowledgeProposalGroupRead: {
+            /** Artifact Id */
+            artifact_id: number;
+            /** Created At */
+            created_at: string;
+            /** Proposal Group Id */
+            proposal_group_id: string;
+            /** Proposals */
+            proposals: components["schemas"]["KnowledgeProposalItemRead"][];
+            /** Revision */
+            revision: number;
+            /** Run Id */
+            run_id: string;
+            /** State */
+            state: string;
+        };
+        /** KnowledgeProposalInboxRead */
+        KnowledgeProposalInboxRead: {
+            /** Items */
+            items: components["schemas"]["KnowledgeProposalGroupRead"][];
+            /** Pending Count */
+            pending_count: number;
+        };
+        /** KnowledgeProposalItemEdit */
+        KnowledgeProposalItemEdit: {
+            /** Claim */
+            claim: string;
+            /** Confidence */
+            confidence: string;
+            /** Kind */
+            kind: string;
+            /** Operation */
+            operation: string;
+            /** Reason */
+            reason: string;
+            /** Related Knowledge Ids */
+            related_knowledge_ids?: string[];
+            /** Sources */
+            sources: components["schemas"]["KnowledgeProposalSourceEdit"][];
+            /** Target Path */
+            target_path: string;
+            /** Title */
+            title: string;
+        };
+        /** KnowledgeProposalItemRead */
+        KnowledgeProposalItemRead: {
+            /** Claim */
+            claim: string;
+            /** Claim Fingerprint */
+            claim_fingerprint: string;
+            /** Confidence */
+            confidence: string;
+            /** Conflicts */
+            conflicts?: components["schemas"]["KnowledgeConflictEntryRead"][];
+            /** Kind */
+            kind: string;
+            /** Knowledge Id */
+            knowledge_id: string;
+            /** Operation */
+            operation: string;
+            /** Proposal Id */
+            proposal_id: string;
+            /** Reason */
+            reason: string;
+            /** Related Knowledge Ids */
+            related_knowledge_ids: string[];
+            /** Sources */
+            sources: components["schemas"]["KnowledgeProposalSourceRead"][];
+            /** State */
+            state: string;
+            /** Target Path */
+            target_path: string;
+            /** Title */
+            title: string;
+        };
+        /** KnowledgeProposalMaterializeRequest */
+        KnowledgeProposalMaterializeRequest: {
+            /** Artifact Id */
+            artifact_id: number;
+            /** Project Root */
+            project_root: string;
+            /** Proposal Id */
+            proposal_id: string;
+            /** Revision */
+            revision: number;
+        };
+        /** KnowledgeProposalPatchRead */
+        KnowledgeProposalPatchRead: {
+            /** After */
+            after: string;
+            /** Artifact Id */
+            artifact_id: number;
+            /** Author Confirmation Event Id */
+            author_confirmation_event_id: string;
+            /** Baseline Hash */
+            baseline_hash: string;
+            /** Before */
+            before: string;
+            /** Created By Tool */
+            created_by_tool: string;
+            /** File Path */
+            file_path: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Knowledge Id */
+            knowledge_id: string;
+            /** Patch Class */
+            patch_class: string;
+            /** Proposal Id */
+            proposal_id: string;
+            /** Proposal Revision */
+            proposal_revision: number;
+            /** Relative Path */
+            relative_path: string;
+            /** Requires Confirmation */
+            requires_confirmation: boolean;
+        };
+        /** KnowledgeProposalQuery */
+        KnowledgeProposalQuery: {
+            /** Project Root */
+            project_root: string;
+        };
+        /** KnowledgeProposalResolveRequest */
+        KnowledgeProposalResolveRequest: {
+            /** Artifact Id */
+            artifact_id: number;
+            /** Author Confirmation Event Id */
+            author_confirmation_event_id?: string | null;
+            /** Patch Identity */
+            patch_identity?: string | null;
+            /** Project Root */
+            project_root: string;
+            /** Proposal Id */
+            proposal_id: string;
+            /**
+             * Resolution
+             * @enum {string}
+             */
+            resolution: "accepted" | "rejected";
+            /** Revision */
+            revision: number;
+        };
+        /** KnowledgeProposalReviseRequest */
+        KnowledgeProposalReviseRequest: {
+            /** Artifact Id */
+            artifact_id: number;
+            /** Project Root */
+            project_root: string;
+            /** Proposals */
+            proposals: components["schemas"]["KnowledgeProposalItemEdit"][];
+            /** Revision */
+            revision: number;
+        };
+        /** KnowledgeProposalSourceEdit */
+        KnowledgeProposalSourceEdit: {
+            /** Locator */
+            locator?: string | null;
+            /** Path */
+            path?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Summary Sha256 */
+            summary_sha256?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Type */
+            type: string;
+        };
+        /** KnowledgeProposalSourceRead */
+        KnowledgeProposalSourceRead: {
+            /** Accessed At */
+            accessed_at?: string | null;
+            /** Agent Event Id */
+            agent_event_id?: string | null;
+            /** Content Sha256 */
+            content_sha256?: string | null;
+            /** Locator */
+            locator?: string | null;
+            /** Path */
+            path?: string | null;
+            /** Summary Sha256 */
+            summary_sha256?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Type */
+            type: string;
+        };
         /** LivenessResponse */
         LivenessResponse: {
             /**
@@ -4825,6 +5117,171 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    materialize_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_materialize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeProposalMaterializeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeProposalPatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_knowledge_proposals_endpoint_api_agent_runs_knowledge_proposals_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeProposalQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeProposalInboxRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_knowledge_proposals_endpoint_api_agent_runs_knowledge_proposals_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeProposalQuery"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeProposalInboxRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeProposalResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeProposalInboxRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revise_knowledge_proposal_endpoint_api_agent_runs_knowledge_proposals_revise_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeProposalReviseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeProposalInboxRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_agent_roles_endpoint_api_agent_runs_roles_get: {
         parameters: {
             query?: never;

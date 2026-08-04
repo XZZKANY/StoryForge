@@ -5,6 +5,15 @@ export {
 } from './project/context-bundle';
 export { buildProjectIndex, buildProjectIndexFromEntries } from './project/index';
 export {
+  PROJECT_KNOWLEDGE_SELECTION_LIMIT,
+  normalizeProjectKnowledgePath,
+  parseProjectKnowledgeSelection,
+  projectKnowledgeStorageKey,
+  readProjectKnowledgeSelection,
+  reconcileProjectKnowledgeSelection,
+  writeProjectKnowledgeSelection,
+} from './project/knowledge-selection';
+export {
   SAMPLE_STORY_PROJECT_NAME,
   buildSampleStoryProjectFiles,
   buildStoryProjectInitializationPlan,
@@ -23,7 +32,11 @@ export {
   relativeToProject,
   resolveProjectRelativePath,
 } from './project/path';
-export { classifyRelativePath, semanticKindLabel } from './project/semantics';
+export {
+  classifyRelativePath,
+  isProjectKnowledgeRelativePath,
+  semanticKindLabel,
+} from './project/semantics';
 export type {
   ContextBundle,
   ContextBundleBudget,

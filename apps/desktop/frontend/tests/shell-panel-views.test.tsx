@@ -42,8 +42,15 @@ async function withShell(run: () => Promise<void>) {
   }
 }
 
-test('左栏图标顺序 = 写作顺序：立项 → 写哪一章 → 翻文件 → 回头查 → 校事实', async () => {
-  assert.deepEqual(SIDE_PANEL_VIEWS, ['book', 'manuscript', 'explorer', 'search', 'observatory']);
+test('左栏图标顺序 = 写作顺序：立项 → 写哪一章 → 翻文件 → 沉淀知识 → 回头查 → 校事实', async () => {
+  assert.deepEqual(SIDE_PANEL_VIEWS, [
+    'book',
+    'manuscript',
+    'explorer',
+    'knowledge',
+    'search',
+    'observatory',
+  ]);
   assert.deepEqual(
     VIEW_ENTRIES.map((entry) => entry.view),
     SIDE_PANEL_VIEWS,

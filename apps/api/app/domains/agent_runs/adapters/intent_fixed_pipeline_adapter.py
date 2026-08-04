@@ -21,6 +21,8 @@ class FixedPipelineRequest:
 
 
 class FixedPipelineRuntime(Protocol):
+    def run_chapter_writing_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]: ...
+
     def run_file_review_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]: ...
 
     def run_chapter_polish_pipeline(self, request: FixedPipelineRequest) -> dict[str, Any]: ...
@@ -40,6 +42,11 @@ def run_fixed_intent_pipeline(runtime: FixedPipelineRuntime, request: FixedPipel
         "chapter.review": runtime.run_chapter_review_pipeline,
         "chapter.repair": runtime.run_chapter_repair_pipeline,
     }
+    if request.intent == "chapter.write":
+        handler = getattr(runtime, "run_chapter_writing_pipeline", None)
+        if handler is None:
+            raise AgentOrchestrationError("暂不支持的 Agent intent：chapter.write")
+        return handler(request)
     handler = handlers.get(request.intent)
     if handler is None:
         raise AgentOrchestrationError(f"暂不支持的 Agent intent：{request.intent}")

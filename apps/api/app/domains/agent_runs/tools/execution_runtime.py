@@ -84,6 +84,7 @@ class ToolExecutionRuntimeMixin:
             self._fs_tool_handlers(),
             self._project_check_tool_handlers(),
             self._project_canon_tool_handlers(),
+            self._chapter_writing_tool_handlers(),
             self._prose_continue_tool_handlers(),
             self._fixed_pipeline_tool_handlers(),
         ):

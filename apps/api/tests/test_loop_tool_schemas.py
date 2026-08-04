@@ -57,6 +57,29 @@ def test_name_map_is_dotted_to_underscore_roundtrip() -> None:
         assert "." not in llm_name
 
 
+def test_project_knowledge_is_one_action_based_loop_tool() -> None:
+    schemas = build_loop_tool_schemas()
+    knowledge = next(item for item in schemas if item["function"]["name"] == "project_knowledge")
+
+    assert knowledge["function"]["parameters"]["properties"]["action"]["enum"] == [
+        "list",
+        "read",
+        "search",
+    ]
+    assert build_loop_tool_name_map()["project_knowledge"] == "project.knowledge"
+
+
+def test_knowledge_propose_is_a_non_patch_group_tool() -> None:
+    schemas = build_loop_tool_schemas()
+    proposal = next(item for item in schemas if item["function"]["name"] == "knowledge_propose")
+
+    proposals = proposal["function"]["parameters"]["properties"]["proposals"]
+    assert proposals["minItems"] == 1
+    assert proposals["maxItems"] == 5
+    assert build_loop_tool_name_map()["knowledge_propose"] == "knowledge.propose"
+    assert "knowledge.propose" not in {spec.name for spec in loop_patch_tool_specs()}
+
+
 def test_only_write_pending_loop_tools_are_patch_tools() -> None:
     """补丁工具集从 risk_level 派生。"""
 

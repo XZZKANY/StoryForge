@@ -24,10 +24,11 @@ const KIND_PRIORITY: Record<SemanticKind, number> = {
   setting: 2,
   timeline: 3,
   foreshadowing: 4,
-  quality: 5,
-  draft: 6,
-  export: 7,
-  other: 8,
+  knowledge: 5,
+  quality: 6,
+  draft: 7,
+  export: 8,
+  other: 9,
 };
 
 // 上一章仅次于大纲：续写要接的是它，排在人物 / 设定之后就会被挤出 maxFiles。
@@ -191,7 +192,9 @@ export function selectContextBundleFiles(params: {
   const pinnedPaths = new Set(pinned.map((file) => file.path));
   // 只排车道**内**的次序；类目之间谁先谁后交给 allocateSeatsByPriority 单点裁决。
   const automatic = eligible
-    .filter((file) => !pinnedPaths.has(file.path) && file.kind !== 'other')
+    .filter(
+      (file) => !pinnedPaths.has(file.path) && file.kind !== 'other' && file.kind !== 'knowledge',
+    )
     .sort((a, b) => {
       if (a.kind === 'draft' && b.kind === 'draft') {
         const distance = draftDistance(draftOrder, a) - draftDistance(draftOrder, b);

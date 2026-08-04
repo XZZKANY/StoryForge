@@ -199,6 +199,8 @@ class _AgentRunEventSink:
                     "reason": reason,
                     "proposed_patch": proposed_patch,
                     "confirmation_action": agent_result.get("confirmation_action"),
+                    "confirmation_kind": agent_result.get("confirmation_kind"),
+                    "chapter_brief": agent_result.get("chapter_brief"),
                     "blocked_tool": (
                         (proposed_patch.get("created_by_tool") or "file.revise")
                         if proposed_patch

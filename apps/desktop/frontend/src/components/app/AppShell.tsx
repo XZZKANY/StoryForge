@@ -12,6 +12,7 @@ import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel, obsCounts, type Observation } from '../shell/ObsPanel';
 import { BookProfileView } from '../shell/BookProfileView';
 import { ManuscriptView } from '../shell/ManuscriptView';
+import { KnowledgeInboxView } from '../shell/KnowledgeInboxView';
 import { ObservatoryView } from '../shell/ObservatoryView';
 import { SearchView } from '../shell/SearchView';
 import { SidePanel } from '../shell/SidePanel';
@@ -42,6 +43,7 @@ import type { EditorWorkspaceTabs } from './useEditorWorkspaceTabs';
 import type { useObservatory } from './useObservatory';
 import type { ProjectCommands } from './useProjectCommands';
 import type { useProjectSearch } from './useProjectSearch';
+import { useKnowledgeInbox } from './useKnowledgeInbox';
 
 type WorkspaceProps = {
   projects: string[];
@@ -132,6 +134,7 @@ export function AppShell({
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
   const agentPermission = useAgentPermission(activeProject);
+  const knowledgeInbox = useKnowledgeInbox(activeProject);
   const rightPanelVisible = projectOpen && !shell.rightCollapsed;
   const obs = obsCounts(observatory.observations);
   const fileActions = useFileTreeActions({
@@ -214,6 +217,7 @@ export function AppShell({
             onOpenSettings={() => void openSettings()}
             settingsMenu={settingsMenu}
             observatoryAttention={observatory.litEntityIds.length > 0}
+            knowledgePendingCount={knowledgeInbox.inbox.pending_count}
           />
           {!shell.sidebarHidden && (
             <SidePanel
@@ -271,6 +275,7 @@ export function AppShell({
                   </p>
                 )
               }
+              knowledge={<KnowledgeInboxView handle={knowledgeInbox} />}
               observatory={
                 projectOpen ? (
                   <ObservatoryView

@@ -14,6 +14,7 @@ type PatchReviewPanelProps = {
   onAcceptHunk: (hunk: PatchHunk) => void;
   onReject: (direction: string) => void;
   onSaveNote: () => void;
+  onRetryWithoutKnowledge: (knowledgeId: string, relativePath: string) => void;
 };
 
 type DiffStats = {
@@ -70,6 +71,7 @@ export function PatchReviewPanel({
   onAcceptHunk,
   onReject,
   onSaveNote,
+  onRetryWithoutKnowledge,
 }: PatchReviewPanelProps) {
   const [expanded, setExpanded] = useState(false);
   // null = 没在否；'' = 展开了输入框但还没写字。
@@ -171,6 +173,38 @@ export function PatchReviewPanel({
               +{stats.addedLines} / -{stats.removedLines}
             </span>
           </div>
+          {suggestion.knowledgeEntries && suggestion.knowledgeEntries.length > 0 && (
+            <div className="mt-2" data-testid="patch-knowledge-context">
+              <p className="text-2xs text-muted">本轮实际使用知识</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {suggestion.knowledgeEntries.map((entry) => (
+                  <span
+                    key={entry.knowledgeId}
+                    className="inline-flex max-w-full items-center gap-1 rounded-sm border border-border px-1.5 py-1 text-2xs text-foreground"
+                  >
+                    <span
+                      className="truncate"
+                      title={`${entry.relativePath} · ${entry.knowledgeId}`}
+                    >
+                      {entry.relativePath}
+                    </span>
+                    <span className="text-muted">
+                      {entry.selectionSource === 'author_pinned' ? '已固定' : '相关检索'}
+                      {entry.evidenceState === 'stale' ? ' · 来源待复核' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRetryWithoutKnowledge(entry.knowledgeId, entry.relativePath)}
+                      className="text-accent hover:underline"
+                      data-testid="patch-knowledge-retry"
+                    >
+                      移除并重试
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button

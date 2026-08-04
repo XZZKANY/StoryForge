@@ -8,10 +8,14 @@ import {
   classifyRelativePath,
   excerptForContext,
   isPathInsideProject,
+  parseProjectKnowledgeSelection,
+  readProjectKnowledgeSelection,
+  reconcileProjectKnowledgeSelection,
   relativePathInsideProject,
   resolveProjectRelativePath,
   sampleStoryProjectPath,
   selectContextBundleFiles,
+  writeProjectKnowledgeSelection,
 } from '../src/lib/project-context';
 import { toAssistantContextBundlePayload } from '../src/lib/api-client';
 
@@ -40,11 +44,14 @@ test('sample story project seeds an immediately usable local manuscript', () => 
   const files = buildSampleStoryProjectFiles(projectPath);
 
   assert.equal(projectPath, 'D:\\StoryForge\\Books\\StoryForge 示例项目');
-  assert.deepEqual(files.map((file) => file.path), [
-    'D:\\StoryForge\\Books\\StoryForge 示例项目\\大纲\\总纲.md',
-    'D:\\StoryForge\\Books\\StoryForge 示例项目\\人物\\主角.md',
-    'D:\\StoryForge\\Books\\StoryForge 示例项目\\正文\\第01章.md',
-  ]);
+  assert.deepEqual(
+    files.map((file) => file.path),
+    [
+      'D:\\StoryForge\\Books\\StoryForge 示例项目\\大纲\\总纲.md',
+      'D:\\StoryForge\\Books\\StoryForge 示例项目\\人物\\主角.md',
+      'D:\\StoryForge\\Books\\StoryForge 示例项目\\正文\\第01章.md',
+    ],
+  );
   assert.ok(files[0].content.includes('让对话 agent 帮忙审稿'));
   assert.ok(files[2].content.includes('# 第01章'));
 });
@@ -85,6 +92,121 @@ test('project index recognizes canonical fiction context folders', () => {
   assert.equal(index.summary.counts.foreshadowing, 1);
 });
 
+test('project index exposes only allowlisted project knowledge', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const entry = (relativePath: string, extension: string) => ({
+    name: relativePath.split('\\').at(-1) ?? relativePath,
+    path: `${projectPath}\\${relativePath}`,
+    isDir: false,
+    size: 100,
+    modified: 1,
+    extension,
+  });
+  const index = buildProjectIndexFromEntries(projectPath, [
+    entry('.资料\\黄金三章spec.md', 'md'),
+    entry('.storyforge\\book.json', 'json'),
+    entry('.storyforge\\agent-instructions.md', 'md'),
+    entry('.storyforge\\serial-plan.json', 'json'),
+    entry('.storyforge\\canon\\canon.json', 'json'),
+    entry('.storyforge\\canon\\hooks.json', 'json'),
+    entry('.storyforge\\config.json', 'json'),
+    entry('.storyforge\\canon\\derived\\dossier.md', 'md'),
+    entry('.secret\\notes.md', 'md'),
+    entry('.资料\\access-token.md', 'md'),
+    entry('.资料\\config\\internal.md', 'md'),
+    {
+      ...entry('.资料\\too-large.md', 'md'),
+      size: 512 * 1024 + 1,
+    },
+  ]);
+
+  assert.equal(classifyRelativePath('.资料/黄金三章spec.md'), 'knowledge');
+  assert.equal(index.summary.hasStoryStructure, true);
+  assert.deepEqual(
+    index.files.map((file) => [file.relativePath.replace(/\\/g, '/'), file.kind]),
+    [
+      ['.资料/黄金三章spec.md', 'knowledge'],
+      ['.storyforge/agent-instructions.md', 'knowledge'],
+      ['.storyforge/book.json', 'knowledge'],
+      ['.storyforge/canon/canon.json', 'knowledge'],
+      ['.storyforge/canon/hooks.json', 'knowledge'],
+      ['.storyforge/serial-plan.json', 'knowledge'],
+    ],
+  );
+});
+
+test('project knowledge is injected only when explicitly pinned', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const index = buildProjectIndexFromEntries(projectPath, [
+    {
+      name: '黄金三章spec.md',
+      path: `${projectPath}\\.资料\\黄金三章spec.md`,
+      isDir: false,
+      size: 100,
+      modified: 1,
+      extension: 'md',
+    },
+    {
+      name: '总纲.md',
+      path: `${projectPath}\\大纲\\总纲.md`,
+      isDir: false,
+      size: 100,
+      modified: 1,
+      extension: 'md',
+    },
+  ]);
+
+  assert.deepEqual(
+    selectContextBundleFiles({ index, currentFile: null, maxFiles: 8 }).files.map(
+      (file) => file.relativePath,
+    ),
+    ['大纲\\总纲.md'],
+  );
+  assert.deepEqual(
+    selectContextBundleFiles({
+      index,
+      currentFile: null,
+      maxFiles: 8,
+      pinnedFiles: ['.资料/黄金三章spec.md'],
+    }).files.map((file) => file.relativePath),
+    ['.资料\\黄金三章spec.md', '大纲\\总纲.md'],
+  );
+});
+
+test('project knowledge selection storage rejects unsafe values and reconciles stale paths', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+  };
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const saved = writeProjectKnowledgeSelection(
+    projectPath,
+    ['.资料\\规则.md', '../outside.md', 'D:\\outside.md', '.资料/规则.md', 'file://x'],
+    storage,
+  );
+
+  assert.deepEqual(saved, ['.资料/规则.md']);
+  assert.deepEqual(readProjectKnowledgeSelection(projectPath, storage), ['.资料/规则.md']);
+  assert.deepEqual(parseProjectKnowledgeSelection('{broken'), []);
+  assert.deepEqual(
+    reconcileProjectKnowledgeSelection(
+      ['.资料/规则.md', '.资料/已删除.md'],
+      [
+        {
+          name: '规则.md',
+          path: `${projectPath}\\.资料\\规则.md`,
+          relativePath: '.资料\\规则.md',
+          kind: 'knowledge',
+          size: 100,
+          modified: 1,
+        },
+      ],
+    ),
+    { selected: ['.资料\\规则.md'], missing: ['.资料/已删除.md'] },
+  );
+});
+
 test('project path containment rejects sibling prefixes, absolutes outside, and traversal', () => {
   const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
 
@@ -92,8 +214,14 @@ test('project path containment rejects sibling prefixes, absolutes outside, and 
     relativePathInsideProject(projectPath, 'D:\\StoryForge\\Books\\雾港回声\\正文\\第01章.md'),
     '正文\\第01章.md',
   );
-  assert.equal(isPathInsideProject(projectPath, 'D:\\StoryForge\\Books\\雾港回声2\\secret.md'), false);
-  assert.equal(resolveProjectRelativePath(projectPath, '正文\\第02章.md'), 'D:\\StoryForge\\Books\\雾港回声\\正文\\第02章.md');
+  assert.equal(
+    isPathInsideProject(projectPath, 'D:\\StoryForge\\Books\\雾港回声2\\secret.md'),
+    false,
+  );
+  assert.equal(
+    resolveProjectRelativePath(projectPath, '正文\\第02章.md'),
+    'D:\\StoryForge\\Books\\雾港回声\\正文\\第02章.md',
+  );
   assert.equal(resolveProjectRelativePath(projectPath, '..\\secret.md'), null);
   assert.equal(resolveProjectRelativePath(projectPath, 'D:\\StoryForge\\Books\\outside.md'), null);
 });
@@ -119,7 +247,10 @@ test('project index drops entries outside the active project boundary', () => {
     },
   ]);
 
-  assert.deepEqual(index.files.map((file) => file.relativePath), ['正文\\第01章.md']);
+  assert.deepEqual(
+    index.files.map((file) => file.relativePath),
+    ['正文\\第01章.md'],
+  );
 });
 
 test('context bundle selection prioritizes pinned files and reports truncation/missing pins', () => {
@@ -149,11 +280,20 @@ test('context bundle selection prioritizes pinned files and reports truncation/m
     pinnedFiles: ['人物\\林岚.md', '不存在.md'],
   });
 
-  assert.deepEqual(selection.files.map((file) => file.relativePath), ['人物\\林岚.md', '大纲\\总纲.md']);
+  assert.deepEqual(
+    selection.files.map((file) => file.relativePath),
+    ['人物\\林岚.md', '大纲\\总纲.md'],
+  );
   assert.equal(selection.truncated, true);
   assert.deepEqual(selection.missingPinnedFiles, ['不存在.md']);
-  assert.equal(selection.files.some((file) => file.relativePath.startsWith('导出')), false);
-  assert.equal(selection.files.some((file) => file.relativePath.startsWith('质量')), false);
+  assert.equal(
+    selection.files.some((file) => file.relativePath.startsWith('导出')),
+    false,
+  );
+  assert.equal(
+    selection.files.some((file) => file.relativePath.startsWith('质量')),
+    false,
+  );
 });
 
 function serialProjectIndex(projectPath: string, chapterCount: number) {
@@ -282,16 +422,7 @@ test('context seats rotate across kinds by priority instead of filling top-down'
   // 第二轮才回头填大纲的第二篇。
   assert.deepEqual(
     selection.files.map((file) => file.kind),
-    [
-      'outline',
-      'draft',
-      'character',
-      'setting',
-      'timeline',
-      'foreshadowing',
-      'draft',
-      'outline',
-    ],
+    ['outline', 'draft', 'character', 'setting', 'timeline', 'foreshadowing', 'draft', 'outline'],
   );
   assert.equal(selection.files[1].relativePath, '正文\\第029章.md', '上一章仍紧随大纲');
 });

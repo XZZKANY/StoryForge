@@ -16,6 +16,7 @@ import {
   emitEditorAuthorView,
   emitEditorCursorLine,
   emitEditorTextMetrics,
+  emitRetryWithoutKnowledge,
   type EditorCommand,
   type LocateInEditorDetail,
   type SaveActiveFileDoneDetail,
@@ -799,6 +800,13 @@ export function Editor({
           onAcceptHunk={handleAcceptHunk}
           onReject={rejectPendingSuggestion}
           onSaveNote={handleSaveSuggestionNote}
+          onRetryWithoutKnowledge={(knowledgeId, relativePath) =>
+            emitRetryWithoutKnowledge({
+              knowledgeId,
+              relativePath,
+              goal: pendingSuggestion.userIntent ?? '重新修订当前文件',
+            })
+          }
         />
       )}
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.adapters.chapter_generation_pipeline import ChapterGenerationRuntimeMixin
 from app.domains.agent_runs.adapters.chapter_review_pipeline import ChapterReviewRuntimeMixin
+from app.domains.agent_runs.adapters.chapter_writing_pipeline import ChapterWritingRuntimeMixin
 from app.domains.agent_runs.adapters.file_review_pipeline import FileReviewRuntimeMixin
 from app.domains.agent_runs.adapters.intent_fixed_pipeline_adapter import (
     FixedPipelineRequest,
@@ -115,6 +116,7 @@ class AgentRuntime(
     FileReviewRuntimeMixin,
     ChapterGenerationRuntimeMixin,
     ChapterReviewRuntimeMixin,
+    ChapterWritingRuntimeMixin,
     ToolExecutionRuntimeMixin,
     FsRuntimeToolsMixin,
     ProjectChecksRuntimeMixin,

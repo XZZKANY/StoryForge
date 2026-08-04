@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -120,3 +120,123 @@ class SubagentRunRead(BaseModel):
     @field_serializer("input", "output", return_type=dict[str, Any])
     def serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         return redact_sensitive(payload)
+
+
+class KnowledgeProposalQuery(BaseModel):
+    project_root: str
+
+
+class KnowledgeProposalSourceRead(BaseModel):
+    type: str
+    path: str | None = None
+    content_sha256: str | None = None
+    agent_event_id: str | None = None
+    locator: str | None = None
+    title: str | None = None
+    accessed_at: str | None = None
+    summary_sha256: str | None = None
+
+
+class KnowledgeConflictEntryRead(BaseModel):
+    knowledge_id: str
+    relative_path: str
+    title: str
+    claim: str
+    status: str
+    evidence_state: str
+    sources: list[KnowledgeProposalSourceRead]
+
+
+class KnowledgeProposalItemRead(BaseModel):
+    proposal_id: str
+    knowledge_id: str
+    target_path: str
+    operation: str
+    title: str
+    claim: str
+    kind: str
+    confidence: str
+    sources: list[KnowledgeProposalSourceRead]
+    related_knowledge_ids: list[str]
+    reason: str
+    claim_fingerprint: str
+    state: str
+    conflicts: list[KnowledgeConflictEntryRead] = Field(default_factory=list)
+
+
+class KnowledgeProposalGroupRead(BaseModel):
+    proposal_group_id: str
+    artifact_id: int
+    run_id: str
+    revision: int
+    state: str
+    created_at: str
+    proposals: list[KnowledgeProposalItemRead]
+
+
+class KnowledgeProposalInboxRead(BaseModel):
+    items: list[KnowledgeProposalGroupRead]
+    pending_count: int
+
+
+class KnowledgeProposalMaterializeRequest(BaseModel):
+    project_root: str
+    artifact_id: int
+    revision: int
+    proposal_id: str
+
+
+class KnowledgeProposalPatchRead(BaseModel):
+    id: str
+    artifact_id: int
+    kind: str
+    patch_class: str
+    proposal_id: str
+    proposal_revision: int
+    knowledge_id: str
+    author_confirmation_event_id: str
+    file_path: str
+    relative_path: str
+    before: str
+    after: str
+    baseline_hash: str
+    requires_confirmation: bool
+    created_by_tool: str
+
+
+class KnowledgeProposalSourceEdit(BaseModel):
+    type: str
+    path: str | None = None
+    locator: str | None = None
+    title: str | None = None
+    summary: str | None = None
+    summary_sha256: str | None = None
+
+
+class KnowledgeProposalItemEdit(BaseModel):
+    target_path: str
+    operation: str
+    title: str
+    claim: str
+    kind: str
+    confidence: str
+    sources: list[KnowledgeProposalSourceEdit]
+    related_knowledge_ids: list[str] = Field(default_factory=list)
+    reason: str
+
+
+class KnowledgeProposalReviseRequest(BaseModel):
+    project_root: str
+    artifact_id: int
+    revision: int
+    proposals: list[KnowledgeProposalItemEdit]
+
+
+class KnowledgeProposalResolveRequest(BaseModel):
+    project_root: str
+    artifact_id: int
+    revision: int
+    proposal_id: str
+    resolution: Literal["accepted", "rejected"]
+    patch_identity: str | None = None
+    author_confirmation_event_id: str | None = None

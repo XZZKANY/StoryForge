@@ -34,6 +34,7 @@ const STORY_GROUPS: Array<{ kind: SemanticKind; description: string }> = [
   { kind: 'setting', description: '世界观、地点、规则、术语' },
   { kind: 'timeline', description: '事件顺序、回忆、因果链' },
   { kind: 'foreshadowing', description: '埋线、回收、读者预期' },
+  { kind: 'knowledge', description: '写作规范、playbook、稳定事实' },
   { kind: 'draft', description: '章节正文、片段草稿' },
   { kind: 'quality', description: '审稿、修订、验收记录' },
   { kind: 'export', description: '导出稿与发布制品' },

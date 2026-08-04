@@ -330,6 +330,7 @@ class ConversationRuntimeMixin:
             proposed_patch=outcome.proposed_patch,
             role_hints=_role_hints(args),
             role_mentions=_role_mentions(args),
+            tool_artifacts=list(outcome.artifacts),
         )
         result["agent_result"]["chat_loop"] = {
             "rounds": outcome.rounds,

@@ -10,7 +10,13 @@
  */
 import { useCallback, useState } from 'react';
 
-export type SidePanelView = 'book' | 'manuscript' | 'explorer' | 'search' | 'observatory';
+export type SidePanelView =
+  | 'book'
+  | 'manuscript'
+  | 'explorer'
+  | 'knowledge'
+  | 'search'
+  | 'observatory';
 export type LayoutMode = 'editor' | 'balanced' | 'chat';
 
 /**
@@ -24,6 +30,7 @@ export const SIDE_PANEL_VIEWS: SidePanelView[] = [
   'book',
   'manuscript',
   'explorer',
+  'knowledge',
   'search',
   'observatory',
 ];

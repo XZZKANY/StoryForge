@@ -26,9 +26,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.common.manuscript import is_manuscript_path, previous_chapter_tail
+from app.common.manuscript import previous_chapter_tail
 from app.domains.agent_runs import canon_rebuild, canon_store
-from app.domains.agent_runs.fs_tools import FsToolError, iter_project_files, resolve_project_root
+from app.domains.agent_runs.fs import FsToolError, project_knowledge_candidates, resolve_project_root
 
 # 骨架索引只给路径 + 体量，让模型知道「有大纲可读」而不是把大纲塞进每一轮。
 MAX_SKELETON_FILES = 12
@@ -41,9 +41,6 @@ MAX_ROSTER_ALIASES = 3
 # UTF-8 下中文一字三字节。逐篇读盘算准字数要 O(全书正文) 的 IO，每轮对话都做不划算；
 # 估算值一律带「约」字交付，不冒充精确统计。
 _BYTES_PER_CJK_CHAR = 3
-
-DOSSIER_RELATIVE_PATH = ".storyforge/canon/derived/dossier.md"
-
 
 @dataclass(frozen=True)
 class ChapterEntry:
@@ -63,6 +60,7 @@ class ChapterEntry:
 class SkeletonFile:
     relative_path: str
     estimated_chars: int
+    source_type: str
 
 
 @dataclass(frozen=True)
@@ -135,17 +133,18 @@ def _scale_line(context: BookContext) -> str:
     return "· " + "；".join(parts) + "。"
 
 
-def _skeleton_files(root: Path) -> tuple[list[SkeletonFile], int]:
-    """大纲 / 人物 / 设定 / 时间线 / 伏笔等非正文 md 的索引（路径 + 体量，不含正文）。"""
+def _skeleton_files(project_root: str) -> tuple[list[SkeletonFile], int]:
+    """Project Knowledge 索引（路径 + 来源 + 体量，不注入正文）。"""
 
-    entries: list[SkeletonFile] = []
-    for path in iter_project_files(root):
-        if path.suffix.lower() != ".md":
-            continue
-        relative = path.relative_to(root).as_posix()
-        if is_manuscript_path(relative):
-            continue
-        entries.append(SkeletonFile(relative, _estimated_chars(_safe_size(path))))
+    candidates = project_knowledge_candidates(project_root, max_entries=10_000)
+    entries = [
+        SkeletonFile(
+            relative_path=item["path"],
+            estimated_chars=_estimated_chars(item["size_bytes"]),
+            source_type=item["source_type"],
+        )
+        for item in candidates
+    ]
     return entries[:MAX_SKELETON_FILES], len(entries)
 
 
@@ -210,17 +209,6 @@ def _roster_display(entity: RosterEntity) -> str:
     return display
 
 
-def _dossier_relative_path(project_root: str) -> str | None:
-    """已落盘的 dossier.md 指针。
-
-    `fs_list` / `fs_search` 跳过 `.storyforge/`，模型永远发现不了这份全书事实卡；而
-    `fs_read` 并不过滤该目录，知道路径就能读。缺的只是「知道它在那儿」这一句话。
-    """
-
-    dossier = Path(project_root) / ".storyforge" / "canon" / "derived" / "dossier.md"
-    return DOSSIER_RELATIVE_PATH if dossier.is_file() else None
-
-
 def build_book_context(project_root: str, current_file: str | None) -> BookContext | None:
     """确定性投影出作品底座事实；项目路径不可用时返回 None。"""
 
@@ -243,7 +231,7 @@ def build_book_context(project_root: str, current_file: str | None) -> BookConte
     ]
 
     try:
-        skeleton, skeleton_total = _skeleton_files(root)
+        skeleton, skeleton_total = _skeleton_files(project_root)
     except OSError:
         skeleton, skeleton_total = [], 0
 
@@ -257,7 +245,7 @@ def build_book_context(project_root: str, current_file: str | None) -> BookConte
         skeleton_total=skeleton_total,
         roster=roster,
         roster_declared_total=roster_declared_total,
-        dossier_relative_path=_dossier_relative_path(project_root),
+        dossier_relative_path=None,
         previous_chapter=previous_chapter_tail(
             project_root, current_file, max_chars=PREVIOUS_TAIL_MAX_CHARS
         ),
@@ -274,29 +262,22 @@ def render_book_context_block(context: BookContext) -> str | None:
 
     if context.skeleton:
         lines = [
-            f"· {entry.relative_path}（{_format_chars(entry.estimated_chars)}）"
+            f"· {entry.relative_path}（{entry.source_type} · {_format_chars(entry.estimated_chars)}）"
             for entry in context.skeleton
         ]
         if context.skeleton_total > MAX_SKELETON_FILES:
             lines.append(
-                f"· …另有 {context.skeleton_total - MAX_SKELETON_FILES} 份，用 fs_list 看全。"
+                f"· …另有 {context.skeleton_total - MAX_SKELETON_FILES} 份，用 project_knowledge list 看全。"
             )
-        sections.append("[大纲 / 人物 / 设定索引 · 需要时用 fs_read 展开]\n" + "\n".join(lines))
+        sections.append("[Project Knowledge 索引 · 需要时用 project_knowledge read 展开]\n" + "\n".join(lines))
 
     roster_lines = ["· " + _roster_display(entity) for entity in context.roster]
     if roster_lines and context.roster_declared_total > MAX_ROSTER_ENTITIES:
         roster_lines.append(
             f"· …另有 {context.roster_declared_total - MAX_ROSTER_ENTITIES} 位，见 canon.json。"
         )
-    pointer = (
-        "· 全书事实卡（每实体身份 / 别名 / 出场跨度 / 声明来源）："
-        f"{DOSSIER_RELATIVE_PATH} —— fs_list 看不到它，但 fs_read 可以直接读这个路径。"
-        if context.dossier_relative_path
-        else None
-    )
-    if roster_lines or pointer:
-        body = "\n".join([*roster_lines, *([pointer] if pointer else [])])
-        sections.append("[已声明的人物 / 实体台账]\n" + body)
+    if roster_lines:
+        sections.append("[已声明的人物 / 实体台账]\n" + "\n".join(roster_lines))
 
     if context.previous_chapter is not None:
         relative, tail = context.previous_chapter
@@ -325,7 +306,11 @@ def to_payload(context: BookContext) -> dict[str, object]:
             for chapter in context.chapters
         ],
         "skeleton": [
-            {"relative_path": entry.relative_path, "estimated_chars": entry.estimated_chars}
+            {
+                "relative_path": entry.relative_path,
+                "estimated_chars": entry.estimated_chars,
+                "source_type": entry.source_type,
+            }
             for entry in context.skeleton
         ],
         "skeleton_total": context.skeleton_total,

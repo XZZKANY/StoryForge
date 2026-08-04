@@ -1742,3 +1742,143 @@ drift 检查并确认零漂移。
   链已验收。
 - 未运行 `auto/full` 真机“改档 -> 自动落盘 -> 撤销 -> 重启后档位仍在”链路；现有证据是挂载行为测试、
   全量 Vitest、API policy/loop 测试与 guarded writeback 既有真机基线，不能替代该手工验收。
+
+---
+
+## 2026-08-03 受控 Project Knowledge 发现与追踪
+
+范围：`.trellis/tasks/08-03-project-knowledge`。新增受控 `project.knowledge` 单一 action 工具、
+Backend 资格策略与安全 trace；Desktop 新增 `knowledge` 语义、安全索引和按项目本机选择。未实现
+Chapter Writing Module、会话压缩、新 route/DB/manifest，也未改变 proposed patch 或 guarded
+writeback 边界。
+
+行为结论：
+
+- `.资料`、常规创作资料目录与五个作者所有 `.storyforge` 文件可发现；未知点目录、derived、
+  versions、config/cache/log/db、敏感文件名、二进制和 512 KiB 以上文件失败关闭。
+- 普通 `fs.list/search` 不放开隐藏目录；`fs.read` 仅保留既有 agent-instructions 豁免，其余隐藏
+  knowledge 只能走 `project.knowledge`。读取与搜索内容脱敏，trace 不含正文、excerpt、绝对根或 secret。
+- Book context 只给 Project Knowledge 路径/类型/体量，不再暴露 derived dossier 指针。
+- knowledge 不自动进入 context；作者显式选择后才复用可信 snapshot -> inner draft/revise ->
+  request-bundle provenance 链。存储路径必须先通过当前安全索引才恢复，陈旧项只显示 missing 并被清退；
+  普通临时 pin 不持久化。
+
+验证：
+
+```text
+API 定向 + source standards                    -> 99 passed, 1 skipped
+Desktop 定向                                  -> 5 files / 30 passed
+API 全量 pytest                               -> 1406 passed, 4 skipped
+Desktop 全量 Vitest                           -> 82 files / 537 passed
+Desktop typecheck                             -> passed
+API Ruff                                      -> passed
+pnpm.cmd openapi                              -> generated successfully; no tracked contract drift
+pnpm.cmd verify                               -> passed
+  root ESLint/Prettier                        -> passed
+  shared typecheck / project-core             -> passed / 7 passed
+  API pytest / Desktop Vitest                  -> 1406 passed, 4 skipped / 537 passed
+  sidecar daily smoke                         -> passed
+  OpenAPI + Agent frame drift                 -> no drift
+git diff --check                              -> passed
+```
+
+契约判断：ToolSpec loop schema golden 新增 `project_knowledge` 是预期 drift；HTTP OpenAPI、Agent frame
+schema 与 generated client types 均零 drift。`.trellis/spec/storyforge-api/backend/project-knowledge.md`
+已记录七段跨层可执行契约，并由 API/Desktop 两个 spec index 共同引用。
+
+未验证：未在真机 Tauri 中手动点穿“选择知识 -> 切会话/重启 -> 发起写章 -> 查看 diff”；未调用真实
+provider，也未做章节质量人工通读。因此不能宣称真机 GUI 写回链或生产级长篇质量验收通过。
+
+### 2026-08-04 渐进式 Project Knowledge 完整链路
+
+在基础发现面之上完成结构化 Markdown v1、`knowledge.propose` durable artifact/event、项目级 Inbox、
+强制确认单文件 patch、guarded writeback/reconciliation、冲突与四态生命周期、来源漂移、active retrieval
+以及 entry 级安全 provenance。作者编辑只替换未决 proposal；同组 accepted/rejected 历史不会重新变成
+pending。冲突 typed API 动态读取当前 Markdown 的旧 claim/source，通用 event/artifact/trace 不含 claim。
+
+最终验证：
+
+```text
+pnpm.cmd verify
+  -> passed
+  -> root ESLint/Prettier passed
+  -> Desktop typecheck passed; Vitest 84 files / 546 passed
+  -> shared typecheck passed; project-core 7 passed
+  -> API 1432 passed / 4 skipped; Ruff passed
+  -> sidecar daily smoke passed
+  -> OpenAPI / Agent frame regenerated; no drift
+git diff --check
+  -> passed
+focused knowledge/provenance/lifecycle checks
+  -> API 33 passed; Desktop Inbox 4 passed; provenance UI 15 passed
+Playwright browser visual check
+  -> 1280x800 and 390x844: Inbox tabs/badge/empty state fit
+  -> conflict old/new claims + sources, decision gate, inline editor fit without overlap
+```
+
+首次浏览器检查因普通 Vite 页面没有 Tauri `invoke`，样例项目创建按预期不可用；随后只使用仓库自带
+`__STORYFORGE_MOCK_FS__` 和浏览器层 typed Inbox response 做组件视觉检查。它不等同于真机 Tauri。
+
+仍未验证：真机 Desktop 的 proposal -> edit -> materialize -> explicit confirm -> snapshot -> guarded writeback
+-> restart recovery -> active retrieval 全链；严格并发 materialize 压测；真实 provider 与人工长篇质量通读。
+因此不能宣称真机 GUI 写回链、稳定生产级长篇闭环或人工质量验收通过。
+
+### 2026-08-04 Chapter Writing Module（brief → draft → check → proposed patch）
+
+本轮新增 Desktop 对话显式 `chapter.write`：Chapter Brief 卡片确认、可信上下文快照、一次 repair/recheck
+硬门禁、单一 proposed patch，以及 pending resume / F10 断流重建。后端只产补丁，未写项目正文；pending 与
+permission 事件不携带绝对项目根路径。
+
+验证：
+
+```text
+API chapter writing + resume + contract + runtime tool checks -> 41 passed
+API source standards / Ruff                              -> 16 passed / passed
+Desktop typecheck                                        -> passed
+Desktop Vitest                                           -> 85 files / 549 passed
+API full pytest                                          -> 1439 passed / 4 skipped
+pnpm verify                                              -> passed
+  root ESLint/Prettier                                   -> passed
+  shared typecheck / project-core                        -> passed / 7 passed
+  Desktop typecheck / Vitest                             -> passed / 85 files, 549 passed
+  API pytest / Ruff                                      -> 1439 passed, 4 skipped / passed
+  sidecar daily smoke                                    -> passed
+  OpenAPI / Agent frame drift                            -> no drift
+git diff --check                                          -> passed
+```
+
+根门禁首轮先发现两个局部收尾问题：Chapter Brief 文件未格式化，以及 `useRunAuthorAgent` callback
+遗漏 `setChapterBrief` 依赖；修复后又触发该文件 503 行超过 500 行硬限制。删除三处纯空行后，source
+standards 16 项与第二轮完整 `pnpm verify` 均通过。
+
+未验证：未调用真实 provider，未在真机 Tauri 手动点穿 Brief -> diff -> guarded writeback；未做章节人工通读或
+真实长程质量验收。会话压缩第一阶段尚未实现。上述证据不支持宣称真机 GUI 写回链或生产级长篇质量闭环。
+
+### 2026-08-04 会话压缩第一阶段（真实运行时回注）
+
+现有 deterministic `system_compaction` hidden artifact 已接入下一轮 live loop。artifact 记录 schema、完成状态
+和被压缩前缀的最后一条 assistant message ID；读取端只接受当前 assistant session 最新且边界可验证的
+artifact，注入一条历史摘要 system message 后再附未覆盖的 user/assistant 原始尾部。旧 schema、坏游标、
+跨会话 artifact、查询异常或超过尾部预算时均 fail-open 回退最近 12 条原始消息。
+
+验证：
+
+```text
+API compaction + transport + loop focused tests          -> 32 passed
+API source standards                                     -> 16 passed
+最终定向 compaction/transport/source 回归                 -> 20 passed
+API full pytest                                           -> 1442 passed, 4 skipped
+API Ruff                                                  -> passed
+git diff --check                                          -> passed
+pnpm.cmd verify                                           -> passed
+  root ESLint/Prettier                                    -> passed
+  Desktop typecheck / Vitest                              -> passed / 85 files, 549 passed
+  shared typecheck / project-core                         -> passed / 7 passed
+  API pytest / Ruff                                       -> 1442 passed, 4 skipped / passed
+  sidecar daily smoke                                     -> passed
+  OpenAPI / Agent frame drift                             -> no drift
+```
+
+未验证：未调用真实 provider，也未评估确定性摘要的事实召回质量。本轮没有引入结构化 provider 摘要、
+token/cost 归因、baseline/delta/baseline_seq 或完整 Context Epoch，因此不能宣称高质量长上下文压缩或
+生产级 Context Epoch 已完成。

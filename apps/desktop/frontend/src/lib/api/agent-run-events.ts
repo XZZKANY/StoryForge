@@ -104,6 +104,14 @@ export function reconstructAgentResultFromEvents(
     agent_result: {
       summary,
       requires_user_confirmation: requiresConfirmation,
+      ...(payload.confirmation_kind === 'chapter_brief' &&
+      payload.chapter_brief &&
+      typeof payload.chapter_brief === 'object'
+        ? {
+            confirmation_kind: 'chapter_brief',
+            chapter_brief: payload.chapter_brief,
+          }
+        : {}),
       ...(requiresConfirmation ? { writeback_blocked_until_user_confirms: true } : {}),
     },
     tool_trace: toolTraceFromEvents(events),

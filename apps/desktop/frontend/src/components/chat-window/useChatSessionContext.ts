@@ -1,7 +1,13 @@
 import { useCallback, useEffect } from 'react';
 
 import { getAssistantSession, listAssistantSessions } from '../../lib/api-client';
-import { buildProjectIndex } from '../../lib/project-context';
+import {
+  buildProjectIndex,
+  normalizeProjectKnowledgePath,
+  readProjectKnowledgeSelection,
+  reconcileProjectKnowledgeSelection,
+  writeProjectKnowledgeSelection,
+} from '../../lib/project-context';
 import { compactConversationMessages } from './conversation-utils';
 import { shouldResetRunPanels } from './session-switch';
 import type { ChatWindowProps } from './types';
@@ -24,18 +30,21 @@ export function useChatSessionContext(
     selfPersistedSessionIdRef,
     draftNonceRef,
     setAgentRun,
+    setChapterBrief,
     setWritingRunProjection,
     setRetryRequest,
     setMessages,
     setConversationTitle,
     setLastReviewReport,
     setLastReviewReportFile,
+    explicitContextPaths,
     setExplicitContextPaths,
     setAgentRunRecovery,
     setSessionLoadError,
     sessionLoadRetry,
     setAssistantSessions,
     setContextCandidates,
+    contextCandidates,
     setContextCandidatesLoading,
     setContextCandidatesError,
     contextCandidatesRetry,
@@ -52,6 +61,7 @@ export function useChatSessionContext(
     const preservesCurrentConversation = selfPersistedSessionIdRef.current === nextSessionId;
     if (shouldResetRunPanels(nextSessionId, selfPersistedSessionIdRef.current)) {
       setAgentRun(null);
+      setChapterBrief(null);
       setWritingRunProjection(null);
       setRetryRequest(null);
     } else {
@@ -67,7 +77,9 @@ export function useChatSessionContext(
       setLastReviewReport(null);
       setLastReviewReportFile(null);
       setExplicitContextPaths([]);
+      setMissingContextPaths([]);
       setAgentRunRecovery(null);
+      setChapterBrief(null);
       setSessionLoadError(null);
     } else if (!preservesCurrentConversation) {
       setMessages([]);
@@ -75,21 +87,26 @@ export function useChatSessionContext(
       setLastReviewReport(null);
       setLastReviewReportFile(null);
       setExplicitContextPaths([]);
+      setMissingContextPaths([]);
       setAgentRunRecovery(null);
+      setChapterBrief(null);
       setSessionLoadError(null);
     }
   }, [
     assistantSessionId,
     draftNonceRef,
     previousAssistantSessionIdRef,
+    projectPath,
     selfPersistedSessionIdRef,
     setAgentRun,
+    setChapterBrief,
     setAgentRunRecovery,
     setConversationTitle,
     setExplicitContextPaths,
     setLastReviewReport,
     setLastReviewReportFile,
     setMessages,
+    setMissingContextPaths,
     setRetryRequest,
     setSessionLoadError,
     setWritingRunProjection,
@@ -138,6 +155,7 @@ export function useChatSessionContext(
 
   useEffect(() => {
     if (!projectPath) {
+      setExplicitContextPaths([]);
       setContextCandidates([]);
       setContextCandidatesLoading(false);
       setContextCandidatesError(null);
@@ -153,9 +171,25 @@ export function useChatSessionContext(
     void buildProjectIndex(projectPath)
       .then((index) => {
         if (cancelled) return;
-        setContextCandidates(
-          index.files.filter((file) => file.kind !== 'export' && file.kind !== 'quality'),
+        const candidates = index.files.filter(
+          (file) => file.kind !== 'export' && file.kind !== 'quality',
         );
+        const storedKnowledge = readProjectKnowledgeSelection(projectPath);
+        const restoredKnowledge = reconcileProjectKnowledgeSelection(storedKnowledge, candidates);
+        writeProjectKnowledgeSelection(projectPath, restoredKnowledge.selected);
+        setContextCandidates(candidates);
+        setExplicitContextPaths((current) => {
+          const kindByPath = new Map(
+            candidates.map((file) => [file.relativePath.toLocaleLowerCase(), file.kind]),
+          );
+          const storedKeys = new Set(storedKnowledge.map((path) => path.toLocaleLowerCase()));
+          const temporary = current.filter((path) => {
+            const key = path.replace(/\\/g, '/').toLocaleLowerCase();
+            return kindByPath.get(key) !== 'knowledge' && !storedKeys.has(key);
+          });
+          return [...temporary, ...restoredKnowledge.selected].slice(-12);
+        });
+        setMissingContextPaths(restoredKnowledge.missing);
         setContextCandidatesLoading(false);
       })
       .catch((error) => {
@@ -169,10 +203,12 @@ export function useChatSessionContext(
     };
   }, [
     contextCandidatesRetry,
+    assistantSessionId,
     projectPath,
     setContextCandidates,
     setContextCandidatesError,
     setContextCandidatesLoading,
+    setExplicitContextPaths,
     setContextPickerOpen,
     setLastContextBundle,
     setMissingContextPaths,
@@ -212,19 +248,27 @@ export function useChatSessionContext(
     setConversationTitle('新的创作会话');
     setLastReviewReport(null);
     setLastReviewReportFile(null);
-    setExplicitContextPaths([]);
+    const restoredKnowledge = reconcileProjectKnowledgeSelection(
+      readProjectKnowledgeSelection(projectPath ?? ''),
+      contextCandidates,
+    );
+    setExplicitContextPaths(restoredKnowledge.selected);
+    setMissingContextPaths(restoredKnowledge.missing);
     setAgentRunRecovery(null);
     setSessionLoadError(null);
     onAssistantSessionChange?.(null);
   }, [
     draftNonceRef,
+    contextCandidates,
     onAssistantSessionChange,
+    projectPath,
     setAgentRunRecovery,
     setConversationTitle,
     setExplicitContextPaths,
     setLastReviewReport,
     setLastReviewReportFile,
     setMessages,
+    setMissingContextPaths,
     setSessionLoadError,
   ]);
 
@@ -242,11 +286,55 @@ export function useChatSessionContext(
 
   const togglePinnedContext = useCallback(
     (path: string) => {
-      setExplicitContextPaths((prev) =>
-        prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path].slice(-12),
+      const storedKnowledge = projectPath ? readProjectKnowledgeSelection(projectPath) : [];
+      const normalizedPath = normalizeProjectKnowledgePath(path)?.toLocaleLowerCase();
+      const wasStored = storedKnowledge.some(
+        (storedPath) => storedPath.toLocaleLowerCase() === normalizedPath,
       );
+      setExplicitContextPaths((prev) => {
+        const next = prev.includes(path)
+          ? prev.filter((item) => item !== path)
+          : [...prev, path].slice(-12);
+        const candidateKind = contextCandidates.find(
+          (file) => file.relativePath === path || file.path === path,
+        )?.kind;
+        if ((candidateKind === 'knowledge' || wasStored) && projectPath) {
+          const selectedKeys = new Set(
+            next
+              .map((selectedPath) =>
+                normalizeProjectKnowledgePath(selectedPath)?.toLocaleLowerCase(),
+              )
+              .filter((key): key is string => Boolean(key)),
+          );
+          const knowledgePaths = [
+            ...storedKnowledge.filter((storedPath) =>
+              selectedKeys.has(storedPath.toLocaleLowerCase()),
+            ),
+            ...next.filter((selectedPath) =>
+              contextCandidates.some(
+                (file) =>
+                  file.kind === 'knowledge' &&
+                  (file.relativePath === selectedPath || file.path === selectedPath),
+              ),
+            ),
+          ];
+          writeProjectKnowledgeSelection(projectPath, knowledgePaths);
+        }
+        return next;
+      });
+      if (wasStored && explicitContextPaths.includes(path)) {
+        setMissingContextPaths((missing) =>
+          missing.filter((item) => item.toLocaleLowerCase() !== normalizedPath),
+        );
+      }
     },
-    [setExplicitContextPaths],
+    [
+      contextCandidates,
+      explicitContextPaths,
+      projectPath,
+      setExplicitContextPaths,
+      setMissingContextPaths,
+    ],
   );
 
   return {

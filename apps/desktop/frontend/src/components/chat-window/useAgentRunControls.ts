@@ -20,7 +20,7 @@ import {
 import { relativePath } from './path-utils';
 import { shouldApplyAgentControlAck } from './agent-result';
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
-import type { AgentRunControlHandlers, AgentRunStatus, AgentStep } from './types';
+import type { AgentRunControlHandlers, AgentRunStatus, AgentStep, ChapterBrief } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 import type { RunAuthorAgent } from './useRunAuthorAgent';
 
@@ -45,6 +45,7 @@ export function useAgentRunControls(
     agentRun,
     pendingRepairCommand,
     setPendingRepairCommand,
+    setChapterBrief,
     agentRunIdRef,
     assistantSessionIdRef,
     draftNonceRef,
@@ -66,7 +67,7 @@ export function useAgentRunControls(
   }, [agentBusy, retryRequest, runAuthorAgent, setMessages]);
 
   const sendAgentRunControl = useCallback(
-    async (type: AgentControlMessageType) => {
+    async (type: AgentControlMessageType, payload: Record<string, unknown> = {}) => {
       const run = agentRun;
       if (!run) return;
       if (type === 'approve_permission' && pendingRepairCommand) {
@@ -90,7 +91,7 @@ export function useAgentRunControls(
           sessionId: run.sessionId,
           runId: run.id,
           type,
-          payload: { source: 'desktop.timeline' },
+          payload: { source: 'desktop.timeline', ...payload },
         });
         if (
           !shouldApplyAgentControlAck(
@@ -110,6 +111,7 @@ export function useAgentRunControls(
         }
         applyAgentStreamEvent(ack);
         if (ack.resumed_result && isAgentResultMessage(ack.resumed_result)) {
+          setChapterBrief(null);
           applyResumedAgentResult(ack.resumed_result);
           void refreshAgentRunRecovery(ack.run_id);
           return;
@@ -126,6 +128,7 @@ export function useAgentRunControls(
           });
           updateAgentStatus('completed');
         } else if (type === 'deny_permission') {
+          setChapterBrief(null);
           updateAgentStep('permission-required', {
             status: 'failed',
             detail: '作者已拒绝权限请求。',
@@ -157,6 +160,7 @@ export function useAgentRunControls(
       refreshAgentRunRecovery,
       setMessages,
       setPendingRepairCommand,
+      setChapterBrief,
       updateAgentStatus,
       updateAgentStep,
     ],
@@ -168,6 +172,22 @@ export function useAgentRunControls(
     onPauseRun: () => void sendAgentRunControl('pause_run'),
     onResumeRun: () => void sendAgentRunControl('resume_run'),
     onStopRun: () => void sendAgentRunControl('stop_run'),
+    onConfirmChapterBrief: (brief: ChapterBrief) =>
+      void sendAgentRunControl('resume_run', {
+        chapter_brief: {
+          brief_id: brief.briefId,
+          revision: brief.revision,
+          chapter_title: brief.chapterTitle,
+          goal: brief.goal,
+          pov: brief.pov,
+          setting: brief.setting,
+          required_beats: brief.requiredBeats,
+          forbidden_items: brief.forbiddenItems,
+          continuity_constraints: brief.continuityConstraints,
+          target_chars_min: brief.targetCharsMin,
+          target_chars_max: brief.targetCharsMax,
+        },
+      }),
   };
 
   useEffect(() => {

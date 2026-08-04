@@ -137,6 +137,23 @@ def test_style_baseline_corpus_excludes_settings_and_outlines(tmp_path: Path) ->
     assert corpus == {"正文/第01章.md", "正文/第02章.md"}
 
 
+def test_project_knowledge_directories_never_count_as_manuscript(tmp_path: Path) -> None:
+    root = _make_project(
+        tmp_path,
+        (
+            ("正文/第01章.md", "# 第一章"),
+            (".资料/黄金三章spec.md", "黄金三章规则"),
+            ("资料/playbook.md", "写作手册"),
+            ("materials/voice.md", "文风"),
+            ("knowledge/canon.md", "事实"),
+        ),
+    )
+
+    assert {path.relative_to(root).as_posix() for path in _iter_manuscript_files(root)} == {
+        "正文/第01章.md"
+    }
+
+
 def test_root_level_chapters_still_count(tmp_path: Path) -> None:
     """取黑名单而非白名单的理由：不强迫作者先重组目录才能让 canon 算对章号。"""
 
@@ -164,7 +181,12 @@ def test_backend_and_frontend_share_one_directory_convention() -> None:
     block = re.search(r"const DIR_KIND[^=]*=\s*\{(.*?)\n\};", source, re.S)
     assert block is not None, "semantics.ts 的 DIR_KIND 形状变了，本闸需同步"
 
-    pairs = re.findall(r"^\s*([^\s:,]+):\s*'(\w+)'", block.group(1), re.M)
+    raw_pairs = re.findall(
+        r"^\s*(?:'([^']+)'|([^\s:,]+)):\s*'(\w+)'",
+        block.group(1),
+        re.M,
+    )
+    pairs = [(quoted or bare, kind) for quoted, bare, kind in raw_pairs]
     assert pairs, "没解析出任何 DIR_KIND 条目，正则失效即等于护栏空转"
 
     frontend_non_draft = {name.lower() for name, kind in pairs if kind != "draft"}

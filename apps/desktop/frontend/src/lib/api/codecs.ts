@@ -15,6 +15,9 @@ export function toAssistantContextBundlePayload(
       excerpt: file.excerpt,
     })),
     summary: contextBundle.summary,
+    ...(contextBundle.excludedKnowledgeIds?.length
+      ? { knowledge_exclusions: { ids: contextBundle.excludedKnowledgeIds } }
+      : {}),
     budget: contextBundle.budget
       ? {
           file_count: contextBundle.budget.fileCount,

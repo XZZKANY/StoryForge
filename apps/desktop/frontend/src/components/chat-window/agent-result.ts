@@ -1,4 +1,5 @@
 import type { AgentResultMessage } from '../../lib/api-client';
+import type { KnowledgeContextEntry } from '../../lib/assistant-suggestions';
 import {
   looksAbsolutePath,
   relativePathInsideProject,
@@ -135,7 +136,45 @@ function sanitizedRelativeContextFiles(value: unknown): string[] {
   return result;
 }
 
-function backendContextFiles(message: AgentResultMessage): string[] | null {
+export type WritingContextProvenance = {
+  contextFiles: string[];
+  knowledgeEntries: KnowledgeContextEntry[];
+};
+
+function sanitizedKnowledgeEntries(value: unknown): KnowledgeContextEntry[] {
+  if (!Array.isArray(value)) return [];
+  const result: KnowledgeContextEntry[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const knowledgeId = typeof raw.knowledge_id === 'string' ? raw.knowledge_id.trim() : '';
+    const paths = sanitizedRelativeContextFiles([raw.relative_path]);
+    if (!/^pk_[0-9a-f-]{36}$/.test(knowledgeId) || paths.length !== 1) continue;
+    if (raw.selection_source !== 'author_pinned' && raw.selection_source !== 'auto_retrieved') {
+      continue;
+    }
+    if (raw.evidence_state !== 'current' && raw.evidence_state !== 'stale') continue;
+    if (typeof raw.snapshot_id !== 'string' || !raw.snapshot_id) continue;
+    const warningCount =
+      typeof raw.warning_count === 'number' && Number.isInteger(raw.warning_count)
+        ? Math.max(raw.warning_count, 0)
+        : 0;
+    if (seen.has(knowledgeId)) continue;
+    seen.add(knowledgeId);
+    result.push({
+      knowledgeId,
+      relativePath: paths[0],
+      selectionSource: raw.selection_source,
+      evidenceState: raw.evidence_state,
+      warningCount,
+      snapshotId: raw.snapshot_id,
+    });
+  }
+  return result;
+}
+
+function backendWritingContext(message: AgentResultMessage): WritingContextProvenance | null {
   for (let index = message.tool_trace.length - 1; index >= 0; index -= 1) {
     const trace = message.tool_trace[index];
     if (trace.tool_name !== 'file.create' && trace.tool_name !== 'file.revise') continue;
@@ -151,16 +190,44 @@ function backendContextFiles(message: AgentResultMessage): string[] | null {
     ) {
       continue;
     }
-    return sanitizedRelativeContextFiles(provenance.context_files);
+    const rawKnowledgeEntries = Array.isArray(provenance.knowledge_entries)
+      ? provenance.knowledge_entries
+      : [];
+    const knowledgeEntries = rawKnowledgeEntries.length
+      ? sanitizedKnowledgeEntries(rawKnowledgeEntries)
+      : [];
+    if (knowledgeEntries.some((entry) => entry.snapshotId !== provenance.snapshot_id)) continue;
+    if (
+      typeof provenance.knowledge_entry_count === 'number' &&
+      provenance.knowledge_entry_count !== rawKnowledgeEntries.length
+    ) {
+      continue;
+    }
+    return {
+      contextFiles: sanitizedRelativeContextFiles(provenance.context_files),
+      knowledgeEntries,
+    };
   }
   return null;
+}
+
+export function writingContextFromAgentResult(
+  message: AgentResultMessage,
+  fallback: string[] = [],
+): WritingContextProvenance {
+  return (
+    backendWritingContext(message) ?? {
+      contextFiles: sanitizedRelativeContextFiles(fallback),
+      knowledgeEntries: [],
+    }
+  );
 }
 
 export function contextFilesFromAgentResult(
   message: AgentResultMessage,
   fallback: string[] = [],
 ): string[] {
-  return backendContextFiles(message) ?? sanitizedRelativeContextFiles(fallback);
+  return writingContextFromAgentResult(message, fallback).contextFiles;
 }
 
 export function issueIdsFromAgentResult(message: AgentResultMessage): string[] {

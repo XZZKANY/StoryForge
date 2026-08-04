@@ -53,6 +53,11 @@ NON_MANUSCRIPT_DIRS = frozenset(
         "foreshadowing",
         "foreshadows",
         "seeds",
+        # project knowledge / author materials
+        ".资料",
+        "资料",
+        "materials",
+        "knowledge",
         # quality
         "质量",
         "quality",

@@ -11,6 +11,7 @@ from app.domains.agent_runs.role_catalog import get_agent_role, resolve_agent_ro
 SUPPORTED_INTENTS = frozenset(
     {
         "chat.explain",
+        "chapter.write",
         "file.review",
         "file.revise",
         "chapter.review",

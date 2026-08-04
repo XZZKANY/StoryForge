@@ -2,6 +2,8 @@
  * 对话窗口容器：组合 session/context、Agent stream、run control 与展示层。
  */
 
+import { useEffect } from 'react';
+
 import { ChatWindowView } from './chat-window/ChatWindowView';
 import type { ChatWindowProps } from './chat-window/types';
 import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../lib/agent-permission';
@@ -12,6 +14,7 @@ import { useChatSessionContext } from './chat-window/useChatSessionContext';
 import { useChatSubmission } from './chat-window/useChatSubmission';
 import { useChatWindowState } from './chat-window/useChatWindowState';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
+import { RETRY_WITHOUT_KNOWLEDGE_EVENT, type RetryWithoutKnowledge } from '../lib/assistant-events';
 
 export {
   filePathFromAgentResult,
@@ -53,6 +56,20 @@ export function ChatWindow(props: ChatWindowProps) {
   );
   const controls = useAgentRunControls(state, runAuthorAgent, applyAgentStreamEvent, recovery);
   const submission = useChatSubmission(state, runAuthorAgent, props);
+
+  useEffect(() => {
+    const onRetryWithoutKnowledge = (event: Event) => {
+      const detail = (event as CustomEvent<RetryWithoutKnowledge>).detail;
+      if (!detail?.knowledgeId || !detail.goal) return;
+      state.setMessages((current) => [
+        ...current,
+        { role: 'user', content: `移除知识 ${detail.relativePath} 后重试：${detail.goal}` },
+      ]);
+      void runAuthorAgent(detail.goal, undefined, undefined, [detail.knowledgeId]);
+    };
+    window.addEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
+    return () => window.removeEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
+  }, [runAuthorAgent, state]);
 
   return (
     <ChatWindowView

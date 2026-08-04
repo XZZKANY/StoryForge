@@ -1,5 +1,6 @@
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
+import { ChapterBriefCard } from './ChapterBriefCard';
 import { runStatusText } from './display-utils';
 import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
@@ -68,7 +69,12 @@ export function ChatWindowView({
     : agentPermissionProfile;
   const submitGuarded = async () => {
     if (awaitingConfirm) {
-      emitToast('先在编辑器里处理待确认的修订（接受或拒绝），再发下一条', { tone: 'info' });
+      emitToast(
+        state.chapterBrief
+          ? '先确认或取消 Chapter Brief，再发下一条'
+          : '先在编辑器里处理待确认的修订（接受或拒绝），再发下一条',
+        { tone: 'info' },
+      );
       return;
     }
     await handleSubmit();
@@ -127,6 +133,18 @@ export function ChatWindowView({
         onAgentPermissionProfileChange={onAgentPermissionProfileChange}
       />
 
+      {state.chapterBrief && (
+        <div className="flex-shrink-0 border-t border-border bg-background px-5 py-3">
+          <div className="mx-auto w-full max-w-[800px]">
+            <ChapterBriefCard
+              brief={state.chapterBrief}
+              onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
+              onCancel={agentRunControls.onDenyPermission}
+            />
+          </div>
+        </div>
+      )}
+
       {showLightweightStatus && statusText && (
         <LightweightStatus
           text={statusText}
@@ -137,7 +155,9 @@ export function ChatWindowView({
         />
       )}
 
-      {state.agentRun && <RunActionBar run={state.agentRun} controls={agentRunControls} />}
+      {state.agentRun && !state.chapterBrief && (
+        <RunActionBar run={state.agentRun} controls={agentRunControls} />
+      )}
 
       {state.messages.length > 0 && (
         <ComposerBox

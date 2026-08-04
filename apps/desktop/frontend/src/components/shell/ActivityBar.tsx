@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import type { SidePanelView } from './useShellState';
-import { BookOpen, FileText, Library, Radar, Search, Settings } from '../icons/shell-icons';
+import { BookOpen, FileText, Inbox, Library, Radar, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 
@@ -32,6 +32,7 @@ export const VIEW_ENTRIES: ViewEntry[] = [
     projectOnly: true,
   },
   { view: 'explorer', icon: FileText, title: '资源管理器 · Ctrl+Shift+E' },
+  { view: 'knowledge', icon: Inbox, title: 'Knowledge Inbox', projectOnly: true },
   { view: 'search', icon: Search, title: '在正文中搜索 · Ctrl+Shift+F', projectOnly: true },
   { view: 'observatory', icon: Radar, title: '世界线观测镜 · Ctrl+4', projectOnly: true },
 ];
@@ -44,6 +45,7 @@ export function ActivityBar({
   onOpenSettings,
   settingsMenu,
   observatoryAttention = false,
+  knowledgePendingCount = 0,
 }: {
   view: SidePanelView;
   sidebarHidden: boolean;
@@ -54,6 +56,7 @@ export function ActivityBar({
   settingsMenu?: ContextMenuItem[];
   // 光标行提到 canon 实体时观测镜图标亮小紫点。
   observatoryAttention?: boolean;
+  knowledgePendingCount?: number;
 }) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -89,6 +92,14 @@ export function ActivityBar({
                 className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-agent"
                 data-testid="activity-observatory-attention"
               />
+            )}
+            {entry.view === 'knowledge' && knowledgePendingCount > 0 && !dimmed && (
+              <span
+                className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-agent px-1 text-center font-mono text-3xs leading-4 text-white"
+                data-testid="activity-knowledge-badge"
+              >
+                {knowledgePendingCount > 99 ? '99+' : knowledgePendingCount}
+              </span>
             )}
           </button>
         );

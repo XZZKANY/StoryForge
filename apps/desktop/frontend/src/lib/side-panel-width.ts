@@ -11,7 +11,12 @@ export const SIDE_PANEL_WIDTH_MIN = 200;
 export const SIDE_PANEL_WIDTH_MAX = 720;
 
 /** 信息密度高的视图（封面行 / 章节行 / 台账行）默认给宽档。 */
-const WIDE_DEFAULT_VIEWS: ReadonlySet<string> = new Set(['book', 'manuscript', 'observatory']);
+const WIDE_DEFAULT_VIEWS: ReadonlySet<string> = new Set([
+  'book',
+  'manuscript',
+  'knowledge',
+  'observatory',
+]);
 const WIDE_DEFAULT_PX = 340;
 const NARROW_DEFAULT_PX = 236;
 

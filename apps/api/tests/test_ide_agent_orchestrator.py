@@ -47,8 +47,9 @@ def _seed_chapter_review_context(session_factory: sessionmaker[Session]) -> dict
 
 def test_supported_intents_are_registered() -> None:
     assert {
-        "chat.explain",
-        "file.review",
+            "chat.explain",
+            "chapter.write",
+            "file.review",
         "file.revise",
         "chapter.review",
         "chapter.repair",

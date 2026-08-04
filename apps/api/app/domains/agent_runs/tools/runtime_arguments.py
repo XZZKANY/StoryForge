@@ -31,6 +31,7 @@ PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
     }
 )
 TRUSTED_WRITING_CONTEXT_TOOL_NAMES = frozenset({"file.create", "file.revise"})
+HANDLER_OWNED_TRACE_TOOL_NAMES = TRUSTED_WRITING_CONTEXT_TOOL_NAMES | {"knowledge.propose"}
 
 
 def _sanitize_loop_tool_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -151,6 +152,7 @@ def _llm_context_input_summary(snapshot: object) -> dict[str, Any]:
         return {}
     summary = llm_context_snapshot_trace_summary(snapshot)
     context_files = summary.get("context_files")
+    knowledge_entries = summary.get("knowledge_entries")
     return {
         "llm_context_snapshot_id": snapshot_id,
         "context_provenance": {
@@ -158,6 +160,16 @@ def _llm_context_input_summary(snapshot: object) -> dict[str, Any]:
             "context_file_count": summary["context_file_count"],
             "context_files": context_files if isinstance(context_files, list) else [],
             "context_source": "request_bundle",
+            "knowledge_entry_count": len(knowledge_entries)
+            if isinstance(knowledge_entries, list)
+            else 0,
+            "knowledge_entries": [
+                {**item, "snapshot_id": snapshot_id}
+                for item in knowledge_entries
+                if isinstance(item, dict)
+            ]
+            if isinstance(knowledge_entries, list)
+            else [],
             "warning_count": summary["warning_count"],
         },
     }

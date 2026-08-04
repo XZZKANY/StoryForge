@@ -57,7 +57,7 @@ export type AgentRun = {
 export type RetryRequest = {
   goal: string;
   action: LocalConversationAction;
-  intent?: 'file.revise';
+  intent?: 'file.revise' | 'chapter.write';
 };
 
 export type PendingRepairCommand = {
@@ -81,6 +81,23 @@ export type AgentRunControlHandlers = {
   onPauseRun: () => void;
   onResumeRun: () => void;
   onStopRun: () => void;
+  onConfirmChapterBrief?: (brief: ChapterBrief) => void;
+};
+
+export type ChapterBrief = {
+  briefId: string;
+  revision: number;
+  targetPath: string;
+  chapterOrdinal: number | null;
+  chapterTitle: string | null;
+  goal: string;
+  pov: string | null;
+  setting: string | null;
+  requiredBeats: string[];
+  forbiddenItems: string[];
+  continuityConstraints: string[];
+  targetCharsMin: number;
+  targetCharsMax: number;
 };
 
 export type ReviewReport = Record<string, unknown>;

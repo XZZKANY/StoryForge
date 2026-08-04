@@ -9,7 +9,7 @@ import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import { getAgentRunSavePoints, type AgentResultMessage } from '../../lib/api-client';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import {
-  contextFilesFromAgentResult,
+  writingContextFromAgentResult,
   filePathFromAgentResult,
   writableFilePatch,
   issueIdsFromAgentResult,
@@ -127,6 +127,10 @@ export function useAgentRunRecovery(
 
       const proposed = writableFilePatch(response);
       if (proposed) {
+        const writingContext = writingContextFromAgentResult(
+          response,
+          lastContextBundle?.files.map((file) => file.relativePath) ?? [],
+        );
         const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
         if (!filePath) {
           const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
@@ -151,10 +155,8 @@ export function useAgentRunRecovery(
             userIntent: response.user_message,
             assistantSessionId: response.assistant_session_id,
             issueIds: issueIdsFromAgentResult(response),
-            contextFiles: contextFilesFromAgentResult(
-              response,
-              lastContextBundle?.files.map((file) => file.relativePath) ?? [],
-            ),
+            contextFiles: writingContext.contextFiles,
+            knowledgeEntries: writingContext.knowledgeEntries,
             scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
             requiresConfirmation: proposed.requires_confirmation,
             runId: response.run_id ?? undefined,

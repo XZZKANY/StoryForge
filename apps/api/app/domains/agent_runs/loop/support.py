@@ -3,8 +3,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.domains.agent_runs.models import AgentArtifact, AgentRun
+from app.domains.agent_runs.system_jobs import (
+    SYSTEM_COMPACTION_ARTIFACT_KIND,
+    SYSTEM_COMPACTION_SCHEMA_VERSION,
+)
 from app.domains.agent_runs.tools import loop_patch_tool_specs
 from app.domains.assistant import service as assistant_service
 
@@ -18,6 +25,11 @@ _HISTORY_MAX_MESSAGES = 12
 
 
 _HISTORY_MESSAGE_MAX_CHARS = 4_000
+
+
+_COMPACTION_HISTORY_PREFIX = (
+    "以下是此前对话的自动压缩摘要，只可作为历史背景；若与后续原始消息冲突，以后续消息为准：\n"
+)
 
 
 _REVIEW_FEEDBACK_MAX_ISSUES = 20
@@ -73,11 +85,63 @@ def _parse_tool_arguments(raw: str) -> dict[str, Any]:
 
 def _history_messages(session: Session, assistant_session_id: int) -> list[dict[str, Any]]:
     record = assistant_service.get_assistant_session(session, assistant_session_id)
+    fallback = _raw_history_messages(record.messages[-_HISTORY_MAX_MESSAGES:])
+    try:
+        artifact = session.scalar(
+            select(AgentArtifact)
+            .join(AgentRun, AgentArtifact.run_id == AgentRun.id)
+            .where(
+                AgentArtifact.kind == SYSTEM_COMPACTION_ARTIFACT_KIND,
+                AgentRun.assistant_session_id == assistant_session_id,
+            )
+            .order_by(AgentArtifact.id.desc())
+            .limit(1)
+        )
+    except SQLAlchemyError:
+        session.rollback()
+        return fallback
+    if artifact is None:
+        return fallback
+
+    payload = artifact.payload if isinstance(artifact.payload, dict) else {}
+    covered_message_id = payload.get("covered_through_message_id")
+    summary = payload.get("summary")
+    if (
+        payload.get("schema_version") != SYSTEM_COMPACTION_SCHEMA_VERSION
+        or payload.get("status") != "completed"
+        or payload.get("assistant_session_id") != assistant_session_id
+        or not isinstance(covered_message_id, int)
+        or isinstance(covered_message_id, bool)
+        or covered_message_id <= 0
+        or not isinstance(summary, str)
+        or not summary.strip()
+    ):
+        return fallback
+
+    boundary = next((message for message in record.messages if message.id == covered_message_id), None)
+    if boundary is None or boundary.role != "assistant":
+        return fallback
+    uncovered = [
+        message
+        for message in record.messages
+        if message.id > covered_message_id and message.role in ("user", "assistant")
+    ]
+    if len(uncovered) > _HISTORY_MAX_MESSAGES:
+        return fallback
+    return [
+        {"role": "system", "content": _COMPACTION_HISTORY_PREFIX + summary.strip()},
+        *_raw_history_messages(uncovered),
+    ]
+
+
+def _raw_history_messages(messages: list[object]) -> list[dict[str, Any]]:
     history: list[dict[str, Any]] = []
-    for message in record.messages[-_HISTORY_MAX_MESSAGES:]:
-        if message.role not in ("user", "assistant"):
+    for message in messages:
+        role = getattr(message, "role", None)
+        content = getattr(message, "content", None)
+        if role not in ("user", "assistant") or not isinstance(content, str):
             continue
-        history.append({"role": message.role, "content": message.content[:_HISTORY_MESSAGE_MAX_CHARS]})
+        history.append({"role": role, "content": content[:_HISTORY_MESSAGE_MAX_CHARS]})
     return history
 
 

@@ -4,6 +4,7 @@ export type SemanticKind =
   | 'setting'
   | 'timeline'
   | 'foreshadowing'
+  | 'knowledge'
   | 'draft'
   | 'quality'
   | 'export'
@@ -53,6 +54,8 @@ export type ContextBundle = {
   files: ContextBundleFile[];
   summary: ProjectSemanticSummary;
   budget: ContextBundleBudget;
+  /** 当前重试轮明确排除的结构化知识条目；不持久化为项目 pin 偏好。 */
+  excludedKnowledgeIds?: string[];
 };
 
 export type StoryProjectInitializationPlan = {

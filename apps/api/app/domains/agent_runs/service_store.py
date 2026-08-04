@@ -14,6 +14,7 @@ from app.domains.agent_runs.event_types import (
     AGENT_RUN_FAILED,
 )
 from app.domains.agent_runs.events.contracts import CompletedEventPayload, FailedEventPayload
+from app.domains.agent_runs.fs.knowledge_proposals import KNOWLEDGE_PROPOSAL_ARTIFACT_KIND
 from app.domains.agent_runs.models import AgentArtifact, AgentRun, AgentRunEvent, SubagentRun
 from app.domains.agent_runs.permission import canonical_permission_profile
 from app.domains.agent_runs.run_payloads import optional_positive_int
@@ -122,10 +123,27 @@ def record_agent_artifact(
             "artifact_id": artifact.id,
             "kind": artifact.kind,
             "requires_confirmation": artifact.requires_confirmation,
-            "payload": artifact.payload,
+            "payload": _artifact_event_payload(artifact),
         },
     )
     return artifact
+
+
+def _artifact_event_payload(artifact: AgentArtifact) -> dict[str, Any]:
+    if artifact.kind != KNOWLEDGE_PROPOSAL_ARTIFACT_KIND:
+        return artifact.payload
+    proposals = artifact.payload.get("proposals") if isinstance(artifact.payload, dict) else None
+    proposal_items = proposals if isinstance(proposals, list) else []
+    return {
+        "proposal_group_id": artifact.payload.get("proposal_group_id"),
+        "revision": artifact.payload.get("revision"),
+        "proposal_count": len(proposal_items),
+        "target_paths": [
+            item.get("target_path")
+            for item in proposal_items
+            if isinstance(item, dict) and isinstance(item.get("target_path"), str)
+        ],
+    }
 
 
 def record_subagent_run(

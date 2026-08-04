@@ -148,6 +148,7 @@ def handle_agent_control_message(
             public_id=public_id,
             agent_session_id=session_id,
             execute_run=execute_run,
+            control_payload=payload or {},
         )
         if resume_diagnostic is not None:
             _record_resume_diagnostic(session, event, resume_diagnostic)
@@ -168,6 +169,7 @@ def resume_agent_run_if_pending(
         public_id=public_id,
         agent_session_id=agent_session_id,
         execute_run=execute_run,
+        control_payload={},
     )
     return result
 
@@ -178,6 +180,7 @@ def _resume_agent_run_if_pending_with_diagnostic(
     public_id: str,
     agent_session_id: str,
     execute_run: AgentRunExecutor,
+    control_payload: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     run = get_agent_run(session, public_id)
     assert_run_session_ownership(run, agent_session_id)
@@ -197,12 +200,19 @@ def _resume_agent_run_if_pending_with_diagnostic(
     message = payload.get("resume_message") if isinstance(payload.get("resume_message"), dict) else None
     if message is None:
         return None, diagnostic
+    resume_message = dict(message)
+    if payload.get("intent") == "chapter.write":
+        candidate = (control_payload or {}).get("chapter_brief")
+        if isinstance(candidate, dict):
+            resume_args = dict(resume_message.get("args") or {})
+            resume_args["chapter_brief"] = redact_sensitive(candidate)
+            resume_message["args"] = resume_args
     result = execute_run(
         session,
         run=run,
         agent_session_id=agent_session_id,
         message={
-            **message,
+            **resume_message,
             "run_id": run.public_id,
             "intent": payload.get("intent") if isinstance(payload.get("intent"), str) else message.get("intent"),
         },

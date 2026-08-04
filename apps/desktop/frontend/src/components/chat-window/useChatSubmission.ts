@@ -117,7 +117,7 @@ export function useChatSubmission(
       await runCrossChapterConsistency(instruction, chapterRefs);
       return;
     }
-    await runAuthorAgent(instruction);
+    await runAuthorAgent(instruction, undefined, chapterWritingIntent(instruction));
   }, [
     contextCandidates,
     input,
@@ -141,7 +141,7 @@ export function useChatSubmission(
         await runCrossChapterConsistency(instruction, chapterRefs);
         return;
       }
-      await runAuthorAgent(instruction);
+      await runAuthorAgent(instruction, undefined, chapterWritingIntent(instruction));
     },
     [
       contextCandidates,
@@ -192,4 +192,13 @@ export function useChatSubmission(
   ]);
 
   return { handleSubmit, handleComposerSubmit, userMessageHistory };
+}
+
+function chapterWritingIntent(text: string): 'chapter.write' | undefined {
+  if (/重写|改写|修改|修订|润色/.test(text)) return undefined;
+  return /写一章|写第[一二三四五六七八九十百零〇两\d]+章|起草第[一二三四五六七八九十百零〇两\d]+章|生成第[一二三四五六七八九十百零〇两\d]+章/.test(
+    text,
+  )
+    ? 'chapter.write'
+    : undefined;
 }

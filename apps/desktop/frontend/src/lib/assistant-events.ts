@@ -11,6 +11,7 @@ export const ACCEPT_CURRENT_FILE_SUGGESTION_EVENT = 'storyforge:accept-current-f
 export const SUGGESTION_RESULT_EVENT = 'storyforge:suggestion-result';
 export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
 export const PATCH_REJECTED_EVENT = 'storyforge:patch-rejected';
+export const RETRY_WITHOUT_KNOWLEDGE_EVENT = 'storyforge:retry-without-knowledge';
 export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-file';
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
@@ -222,6 +223,20 @@ export function emitPatchRejected(rejection: PatchRejection): void {
       new CustomEvent<PatchRejection>(PATCH_REJECTED_EVENT, {
         detail: rejection,
       }),
+    );
+  }
+}
+
+export type RetryWithoutKnowledge = {
+  knowledgeId: string;
+  relativePath: string;
+  goal: string;
+};
+
+export function emitRetryWithoutKnowledge(detail: RetryWithoutKnowledge): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<RetryWithoutKnowledge>(RETRY_WITHOUT_KNOWLEDGE_EVENT, { detail }),
     );
   }
 }

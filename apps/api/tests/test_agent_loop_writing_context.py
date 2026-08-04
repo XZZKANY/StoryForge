@@ -25,7 +25,7 @@ def _trusted_context_bundle(novel_project: Path) -> dict[str, object]:
             {
                 "path": str(novel_project / ".资料" / "黄金三章spec.md"),
                 "relative_path": ".资料\\黄金三章spec.md",
-                "kind": "other",
+                "kind": "knowledge",
                 "title": "黄金三章spec.md",
                 "excerpt": f"第三章必须兑现刘哥冲突。{TRUSTED_CONTEXT_MARKER}",
             }

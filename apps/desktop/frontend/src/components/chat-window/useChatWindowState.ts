@@ -7,6 +7,7 @@ import type { AgentRunRecoveryDisplay } from './recovery';
 import { conversationKey } from './session-guard';
 import type {
   AgentRun,
+  ChapterBrief,
   ChatWindowProps,
   Message,
   PendingRepairCommand,
@@ -31,6 +32,7 @@ export function useChatWindowState({
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [agentRun, setAgentRun] = useState<AgentRun | null>(null);
+  const [chapterBrief, setChapterBrief] = useState<ChapterBrief | null>(null);
   const [agentRunRecovery, setAgentRunRecovery] = useState<AgentRunRecoveryDisplay | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
   const [retryRequest, setRetryRequest] = useState<RetryRequest | null>(null);
@@ -105,6 +107,8 @@ export function useChatWindowState({
     setMessages,
     agentRun,
     setAgentRun,
+    chapterBrief,
+    setChapterBrief,
     agentRunRecovery,
     setAgentRunRecovery,
     agentBusy,

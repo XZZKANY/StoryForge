@@ -1,3 +1,12 @@
+export type KnowledgeContextEntry = {
+  knowledgeId: string;
+  relativePath: string;
+  selectionSource: 'author_pinned' | 'auto_retrieved';
+  evidenceState: 'current' | 'stale';
+  warningCount: number;
+  snapshotId: string;
+};
+
 export type AssistantFileSuggestion = {
   id: string;
   filePath: string;
@@ -11,6 +20,8 @@ export type AssistantFileSuggestion = {
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
+  knowledgeEntries?: KnowledgeContextEntry[];
+  userIntent?: string;
   scopeWarning?: string;
   /** 缺省即 true：只有后端按项目权限档位明确判定不必确认时才是 false。 */
   requiresConfirmation?: boolean;
@@ -45,6 +56,7 @@ export function createRemoteFileSuggestion(params: {
   assistantSessionId?: number | null;
   issueIds?: string[];
   contextFiles?: string[];
+  knowledgeEntries?: KnowledgeContextEntry[];
   scopeWarning?: string;
   requiresConfirmation?: boolean;
   runId?: string;
@@ -60,6 +72,7 @@ export function createRemoteFileSuggestion(params: {
     assistantSessionId,
     issueIds = [],
     contextFiles = [],
+    knowledgeEntries = [],
     scopeWarning,
     requiresConfirmation = true,
     runId,
@@ -88,6 +101,8 @@ export function createRemoteFileSuggestion(params: {
     assistantSessionId: assistantSessionId ?? null,
     issueIds,
     contextFiles,
+    knowledgeEntries,
+    userIntent,
     scopeWarning,
     requiresConfirmation,
     runId,

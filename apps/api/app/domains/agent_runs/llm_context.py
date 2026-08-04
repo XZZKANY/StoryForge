@@ -5,7 +5,9 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from app.common.redaction import redact_sensitive_text
 from app.domains.agent_runs._text import compact_text
+from app.domains.agent_runs.knowledge_context import with_project_knowledge_entries
 from app.domains.agent_runs.loop.context_values import (
     CHAPTER_CONTEXT_KEYS as _CHAPTER_CONTEXT_KEYS,
 )
@@ -29,6 +31,9 @@ from app.domains.agent_runs.loop.context_values import (
 )
 from app.domains.agent_runs.loop.context_values import (
     matches_selected_file as _matches_selected_file,
+)
+from app.domains.agent_runs.loop.context_values import (
+    normalized_relative_context_path as _normalized_relative_context_path,
 )
 from app.domains.agent_runs.loop.context_values import (
     omitted_summary as _omitted_summary,
@@ -59,7 +64,6 @@ MAX_REVIEW_ISSUES = 12
 MAX_STORY_MEMORY_ITEMS = 8
 
 
-
 def build_llm_context_snapshot(
     *,
     run_state: object | None,
@@ -85,6 +89,14 @@ def build_llm_context_snapshot(
 
     context_files, file_warnings, unsafe_file_count = _context_files(bundle, file_path=file_path)
     warnings.extend(file_warnings)
+    context_files, knowledge_warnings = with_project_knowledge_entries(
+        bundle,
+        context_files=context_files,
+        query=f"{user_message}\n{file_path}",
+        max_context_files=MAX_CONTEXT_FILES,
+        context_file_text_limit=CONTEXT_FILE_TEXT_LIMIT,
+    )
+    warnings.extend(knowledge_warnings)
     review_summary = _review_report_summary(review_report) or _review_report_from_artifacts(artifact_items)
     story_memory = _story_memory_summary(bundle)
     chapter_context = _chapter_context_summary(bundle)
@@ -136,6 +148,17 @@ def llm_context_snapshot_trace_summary(snapshot: Mapping[str, Any]) -> dict[str,
     review_report = snapshot.get("review_report")
     included_sections = snapshot.get("included_sections")
     warnings = snapshot.get("warnings")
+    knowledge_entries = [
+        {
+            "knowledge_id": item.get("knowledge_id"),
+            "relative_path": item.get("relative_path"),
+            "selection_source": item.get("selection_source"),
+            "evidence_state": item.get("evidence_state"),
+            "warning_count": item.get("warning_count", 0),
+        }
+        for item in context_file_items
+        if isinstance(item, Mapping) and isinstance(item.get("knowledge_id"), str)
+    ]
     return {
         "snapshot_id": snapshot.get("snapshot_id"),
         "section_count": len(included_sections) if isinstance(included_sections, list) else 0,
@@ -146,6 +169,7 @@ def llm_context_snapshot_trace_summary(snapshot: Mapping[str, Any]) -> dict[str,
             if isinstance(item, Mapping)
             if (path := _first_string(item, "relative_path")) is not None
         ],
+        "knowledge_entries": knowledge_entries,
         "story_memory_count": _story_memory_count(story_memory),
         "has_chapter_context": bool(chapter_context),
         "has_review_report": isinstance(review_report, Mapping) and bool(review_report),
@@ -351,26 +375,13 @@ def _context_files(
             "title": title or relative_path,
         }
         if excerpt:
-            context_file["excerpt"] = compact_text(excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
-            context_file["excerpt_chars"] = len(excerpt)
+            redacted_excerpt = redact_sensitive_text(excerpt)
+            if redacted_excerpt != excerpt:
+                warnings.append(f"context_bundle file redacted: {relative_path}")
+            context_file["excerpt"] = compact_text(redacted_excerpt, limit=CONTEXT_FILE_TEXT_LIMIT)
+            context_file["excerpt_chars"] = len(redacted_excerpt)
         result.append(context_file)
     return result, warnings, unsafe_count
-
-
-def _normalized_relative_context_path(path: str | None) -> str | None:
-    if path is None:
-        return None
-    normalized = path.replace("\\", "/").strip()
-    if not normalized or normalized.startswith("/") or (len(normalized) > 1 and normalized[1] == ":"):
-        return None
-    parts: list[str] = []
-    for part in normalized.split("/"):
-        if not part or part == ".":
-            continue
-        if part == "..":
-            return None
-        parts.append(part)
-    return "/".join(parts) or None
 
 
 def _review_report_summary(report: object | None) -> dict[str, Any] | None:

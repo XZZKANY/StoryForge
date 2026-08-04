@@ -49,6 +49,7 @@ test('patch panel main text is author-facing without Patch/Session labels', () =
       onAcceptHunk={() => undefined}
       onReject={() => undefined}
       onSaveNote={() => undefined}
+      onRetryWithoutKnowledge={() => undefined}
     />,
   );
 
@@ -91,6 +92,7 @@ test('multi-hunk accept buttons carry a line-number label, not opaque 块 N', ()
       onAcceptHunk={() => undefined}
       onReject={() => undefined}
       onSaveNote={() => undefined}
+      onRetryWithoutKnowledge={() => undefined}
     />,
   );
   assert.match(html, /data-testid="suggestion-accept-hunk"/);
@@ -129,6 +131,7 @@ function mountPanel(overrides: Partial<AssistantFileSuggestion> = {}) {
         onAcceptHunk={() => undefined}
         onReject={(direction) => rejected.push(direction)}
         onSaveNote={() => undefined}
+        onRetryWithoutKnowledge={() => undefined}
       />,
     );
   });
@@ -234,4 +237,40 @@ test('留空直接确认也走得通——拒绝不该变得昂贵', () => {
   click('patch-reject-confirm');
 
   assert.deepEqual(rejected, ['']);
+});
+
+test('展示后端实际使用的知识，并允许按条目移除后重试', () => {
+  const retried: Array<[string, string]> = [];
+  act(() => {
+    root.render(
+      <PatchReviewPanel
+        suggestion={sampleSuggestion({
+          knowledgeEntries: [
+            {
+              knowledgeId: 'pk_550e8400-e29b-41d4-a716-446655440001',
+              relativePath: '设定/天枢.md',
+              selectionSource: 'auto_retrieved',
+              evidenceState: 'stale',
+              warningCount: 1,
+              snapshotId: 'llmctx-knowledge',
+            },
+          ],
+        })}
+        editorFontSize={14}
+        editorFontFamily="test-font"
+        onAccept={() => undefined}
+        onAcceptHunk={() => undefined}
+        onReject={() => undefined}
+        onSaveNote={() => undefined}
+        onRetryWithoutKnowledge={(id, path) => retried.push([id, path])}
+      />,
+    );
+  });
+
+  assert.match(byTestId('patch-knowledge-context')?.textContent ?? '', /设定\/天枢\.md/);
+  assert.match(byTestId('patch-knowledge-context')?.textContent ?? '', /来源待复核/);
+  click('patch-knowledge-retry');
+  assert.deepEqual(retried, [
+    ['pk_550e8400-e29b-41d4-a716-446655440001', '设定/天枢.md'],
+  ]);
 });

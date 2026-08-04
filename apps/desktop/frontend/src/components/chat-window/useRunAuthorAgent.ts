@@ -25,7 +25,7 @@ import { buildContextBundle } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import {
-  contextFilesFromAgentResult,
+  writingContextFromAgentResult,
   filePathFromAgentResult,
   writableFilePatch,
   issueIdsFromAgentResult,
@@ -46,13 +46,15 @@ import {
 import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import { applyWritingRunEventProjection, writingRunIdFromResult } from './writing-run';
 import { stepsFromAgentResult } from './agent-step-mapping';
+import { chapterBriefFromAgentResult } from './chapter-brief';
 import type { AgentRunStatus, ChatWindowProps } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 
 export type RunAuthorAgent = (
   goal: string,
   action?: LocalConversationAction,
-  intent?: 'file.revise',
+  intent?: 'file.revise' | 'chapter.write',
+  excludedKnowledgeIds?: string[],
 ) => Promise<void>;
 
 export function useRunAuthorAgent(
@@ -79,6 +81,7 @@ export function useRunAuthorAgent(
     setAgentRunRecovery,
     setPendingRepairCommand,
     setAgentRun,
+    setChapterBrief,
     explicitContextPaths,
     setLastContextBundle,
     setMissingContextPaths,
@@ -96,7 +99,8 @@ export function useRunAuthorAgent(
     async (
       goal: string,
       action: LocalConversationAction = detectLocalConversationAction(goal),
-      intent?: 'file.revise',
+      intent?: 'file.revise' | 'chapter.write',
+      excludedKnowledgeIds: string[] = [],
     ) => {
       if (agentBusy) {
         setMessages((prev) => [
@@ -140,7 +144,6 @@ export function useRunAuthorAgent(
         ]);
         return;
       }
-
       if (writebackOnly) {
         emitAcceptCurrentFileSuggestion();
         return;
@@ -160,7 +163,6 @@ export function useRunAuthorAgent(
         }
         return;
       }
-
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       agentRunIdRef.current = runId;
       const runStartConversationKey = conversationKey(
@@ -181,7 +183,7 @@ export function useRunAuthorAgent(
         steps: [],
         permissionProfile: agentPermissionProfile,
       });
-
+      setChapterBrief(null);
       try {
         let content: string | null = null;
         if (file && ref) {
@@ -202,6 +204,7 @@ export function useRunAuthorAgent(
           contextRefs,
         );
         const contextBundle = appendedContext.bundle;
+        contextBundle.excludedKnowledgeIds = excludedKnowledgeIds;
         setLastContextBundle(contextBundle);
         setMissingContextPaths(appendedContext.missingPaths);
         if (appendedContext.missingPaths.length > 0) {
@@ -332,6 +335,8 @@ export function useRunAuthorAgent(
         }
 
         const agentSteps = stepsFromAgentResult(response);
+        const responseChapterBrief = chapterBriefFromAgentResult(response);
+        setChapterBrief(responseChapterBrief);
         void refreshAgentRunRecovery(response.run_id ?? runId);
         setAgentRun((run) =>
           run
@@ -347,7 +352,9 @@ export function useRunAuthorAgent(
                           title: '等待作者确认',
                           tool: 'author.approval',
                           status: 'waiting' as const,
-                          detail: '等待作者在编辑器里确认 diff',
+                          detail: responseChapterBrief
+                            ? '等待作者确认 Chapter Brief'
+                            : '等待作者在编辑器里确认 diff',
                         },
                       ]
                     : []),
@@ -359,6 +366,10 @@ export function useRunAuthorAgent(
 
         const proposed = writableFilePatch(response);
         if (proposed) {
+          const writingContext = writingContextFromAgentResult(
+            response,
+            contextBundle.files.map((file) => file.relativePath),
+          );
           const filePath = resolveProposedPatchFilePath(projectPathRef.current, proposed.file_path);
           if (!filePath) {
             const message = 'Agent 返回的修订目标不在当前项目内，已阻止写回。';
@@ -383,10 +394,8 @@ export function useRunAuthorAgent(
               userIntent: goal,
               assistantSessionId: response.assistant_session_id,
               issueIds: issueIdsFromAgentResult(response),
-              contextFiles: contextFilesFromAgentResult(
-                response,
-                contextBundle.files.map((file) => file.relativePath),
-              ),
+              contextFiles: writingContext.contextFiles,
+              knowledgeEntries: writingContext.knowledgeEntries,
               scopeWarning: scopeWarningFromAgentResult(response) ?? undefined,
               requiresConfirmation: proposed.requires_confirmation,
               runId: response.run_id ?? runId,
@@ -474,6 +483,7 @@ export function useRunAuthorAgent(
       setAgentBusy,
       setAgentRun,
       setAgentRunRecovery,
+      setChapterBrief,
       setConversationTitle,
       setLastContextBundle,
       setLastReviewReport,

@@ -53,7 +53,13 @@ def test_agent_run_event_type_constants_preserve_existing_protocol_values() -> N
             "pause_run",
             "resume_run",
             "stop_run",
-            "retry_from_checkpoint",
+                "retry_from_checkpoint",
+                "knowledge_proposal_revised",
+                "knowledge_proposal_accepted",
+                "knowledge_proposal_rejected",
+                "knowledge_proposal_invalidated",
+                "knowledge_proposal_materialized",
+                "knowledge_evidence_stale",
         }
     ) == event_types.AGENT_RUN_EVENT_TYPES
     assert frozenset(
@@ -172,8 +178,9 @@ def test_sse_user_message_enters_through_runtime_facade() -> None:
 
 def test_agent_runtime_supported_intents_are_registered() -> None:
     assert {
-        "chat.explain",
-        "file.review",
+            "chat.explain",
+            "chapter.write",
+            "file.review",
         "file.revise",
         "chapter.review",
         "chapter.repair",
