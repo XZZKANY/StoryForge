@@ -1882,3 +1882,35 @@ pnpm.cmd verify                                           -> passed
 未验证：未调用真实 provider，也未评估确定性摘要的事实召回质量。本轮没有引入结构化 provider 摘要、
 token/cost 归因、baseline/delta/baseline_seq 或完整 Context Epoch，因此不能宣称高质量长上下文压缩或
 生产级 Context Epoch 已完成。
+
+### 2026-08-04 Provider SDK 基础
+
+新增内部 `app/platform/ai_sdk`：provider-neutral message/request/response/tool-call/stream/usage/error/
+health/capability contract、同步 `LLMProvider` protocol、deterministic provider 和 OpenAI-compatible typed
+adapter。`app/common/llm_client.py` 保留全部既有 facade/monkeypatch seam，将非流式与流式结果通过 typed
+adapter 往返投影；成本、latency、中文 `LLMError`、reasoning 清理和旧 dict shape 保持兼容。
+
+定向回归首次发现旧工具 schema 未带 `description` 时 typed round-trip 自动补空字符串；修复为记录字段
+是否原本存在，禁止 adapter 发明可选 wire 字段，并新增精确回归。SDK import-boundary 测试禁止生产模块
+依赖 FastAPI、SQLAlchemy、`app.domains`、Desktop/Tauri 或小说领域类型。
+
+验证：
+
+```text
+SDK contracts / OpenAI-compatible tests                 -> 10 passed
+LLM channel + assistant stream + retry compatibility    -> 66 passed
+BookRun/judge/usage representative callers              -> 35 passed
+source code standards                                   -> 16 passed
+targeted Ruff                                            -> passed
+pnpm.cmd verify                                          -> passed
+  root ESLint/Prettier                                   -> passed
+  Desktop typecheck / Vitest                             -> passed / 85 files, 549 passed
+  shared typecheck / project-core                        -> passed / 7 passed
+  API pytest / Ruff                                      -> 1452 passed, 4 skipped / passed
+  sidecar daily smoke                                    -> passed
+  OpenAPI / Agent frame drift                            -> no drift
+git diff --check                                         -> passed
+```
+
+未验证：未调用真实 provider；Anthropic、Gemini、完整 capability matrix、ToolCallingRuntime 和 live loop
+内核迁移属于后续子任务。本切片不支持据此宣称多 provider 已完成或 SDK 已具备独立发布稳定性。

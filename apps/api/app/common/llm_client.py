@@ -23,6 +23,14 @@ from urllib import error, request
 from app.common import llm_http
 from app.common.exceptions import DomainError
 from app.common.redaction import redact_sensitive_text
+from app.platform.ai_sdk.contracts import (
+    ChatRequest,
+    StreamEventKind,
+    messages_from_openai,
+    tools_from_openai,
+)
+from app.platform.ai_sdk.errors import ProviderError
+from app.platform.ai_sdk.providers.openai_compatible import OpenAICompatibleProvider
 
 logger = logging.getLogger(__name__)
 
@@ -326,7 +334,7 @@ def _stream_finish_reason(chunk: Mapping[str, object]) -> str:
     return ""
 
 
-def _stream_chat_completions(
+def _raw_stream_chat_completions(
     source: Mapping[str, str | None],
     payload: dict[str, object],
     *,
@@ -502,6 +510,115 @@ def _stream_chat_completions(
     yield done
 
 
+def _sdk_chat_request(
+    source: Mapping[str, str | None],
+    *,
+    messages: list[dict[str, object]],
+    tools: list[dict[str, object]] | None = None,
+    tool_choice: str | dict[str, object] | None = None,
+    temperature: float | None = None,
+    max_completion_tokens: int | None = None,
+) -> ChatRequest:
+    resolved_max_tokens = (
+        max_completion_tokens
+        if max_completion_tokens is not None
+        else _optional_int(source, "STORYFORGE_LLM_MAX_COMPLETION_TOKENS", 0)
+    )
+    return ChatRequest(
+        model=_required_env(source, "STORYFORGE_LLM_MODEL"),
+        messages=messages_from_openai(messages),
+        tools=tools_from_openai(tools),
+        temperature=(
+            temperature
+            if temperature is not None
+            else _optional_float(source, "STORYFORGE_LLM_TEMPERATURE", 0.7)
+        ),
+        max_tokens=resolved_max_tokens if resolved_max_tokens > 0 else None,
+        tool_choice=tool_choice,
+        reasoning_effort=_env_value(source, "STORYFORGE_LLM_REASONING_EFFORT") or None,
+    )
+
+
+def _sdk_provider(
+    source: Mapping[str, str | None],
+    *,
+    stream_payload: dict[str, object] | None = None,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
+) -> OpenAICompatibleProvider:
+    return OpenAICompatibleProvider(
+        complete_transport=lambda payload: _request_chat_completions(source, payload),
+        stream_transport=(
+            lambda _payload: _raw_stream_chat_completions(
+                source,
+                stream_payload,
+                timeout_seconds=timeout_seconds,
+                max_attempts=max_attempts,
+            )
+            if stream_payload is not None
+            else None
+        ),
+        content_filter=_strip_reasoning_leak,
+        usage_parser=_token_usage,
+    )
+
+
+def _legacy_provider_error(exc: ProviderError) -> LLMError:
+    messages = {
+        "missing_choices": "真实 LLM 响应缺少 choices，不能继续 BookRun 生成。",
+        "invalid_choice": "真实 LLM 响应 choices[0] 格式异常。",
+        "missing_message": "真实 LLM 响应缺少 message，不能继续 BookRun 生成。",
+    }
+    return LLMError(messages.get(exc.details.provider_code, str(exc)))
+
+
+def _stream_chat_completions(
+    source: Mapping[str, str | None],
+    payload: dict[str, object],
+    *,
+    timeout_seconds: float | None = None,
+    max_attempts: int | None = None,
+) -> Iterator[dict[str, object]]:
+    """Compatibility projection over the typed OpenAI-compatible provider stream."""
+
+    raw_messages = payload.get("messages")
+    messages = [item for item in raw_messages if isinstance(item, dict)] if isinstance(raw_messages, list) else []
+    raw_tools = payload.get("tools")
+    tools = [item for item in raw_tools if isinstance(item, dict)] if isinstance(raw_tools, list) else None
+    chat_request = _sdk_chat_request(
+        source,
+        messages=messages,
+        tools=tools,
+        tool_choice=payload.get("tool_choice") if isinstance(payload.get("tool_choice"), str | dict) else None,
+        temperature=payload.get("temperature") if isinstance(payload.get("temperature"), int | float) else None,
+        max_completion_tokens=(
+            payload.get("max_completion_tokens")
+            if isinstance(payload.get("max_completion_tokens"), int)
+            else None
+        ),
+    )
+    try:
+        for event in _sdk_provider(
+            source,
+            stream_payload=payload,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        ).stream(chat_request):
+            if event.kind is StreamEventKind.TEXT_DELTA and event.text:
+                yield {"type": "delta", "text": event.text}
+                continue
+            if event.kind is not StreamEventKind.COMPLETED or event.response is None:
+                continue
+            yield {
+                "type": "done",
+                "content": event.response.content,
+                **event.response.usage.to_legacy(),
+                **dict(event.response.metadata),
+            }
+    except ProviderError as exc:
+        raise _legacy_provider_error(exc) from exc
+
+
 def _call_llm(
     source: Mapping[str, str | None],
     *,
@@ -512,7 +629,7 @@ def _call_llm(
 ) -> dict[str, object]:
     """对真实 OpenAI 兼容端点发一次 chat/completions，返回正文与 token 使用。"""
 
-    payload = _build_chat_payload(
+    chat_request = _sdk_chat_request(
         source,
         messages=[
             {"role": "system", "content": system_prompt},
@@ -521,26 +638,26 @@ def _call_llm(
         tools=tools,
         tool_choice=tool_choice,
     )
-    data, started_at = _request_chat_completions(source, payload)
-    message = _assistant_message(data)
-    content = message.get("content")
-    if not isinstance(content, str) or not content.strip():
-        raise LLMError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
-    raw_content = content
-    content = _strip_reasoning_leak(content)
+    try:
+        response = _sdk_provider(source).complete(chat_request)
+    except ProviderError as exc:
+        raise _legacy_provider_error(exc) from exc
+    content = response.content
     if not content:
-        raise LLMError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
-    tool_calls = _message_tool_calls(message)
-    usage = _token_usage(data, user_prompt, content)
+        if response.metadata.get("reasoning_leak_stripped") is True:
+            raise LLMError("真实 LLM 返回仅含思维链、无正文，不能继续 BookRun 生成。")
+        raise LLMError("真实 LLM 返回内容为空，不能继续 BookRun 生成。")
+    tool_calls = [call.to_openai() for call in response.tool_calls]
+    usage = response.usage.to_legacy()
     cost_breakdown = _cost_breakdown(source, usage)
     result: dict[str, object] = {
         "content": content,
         **usage,
         "cost_cny_estimated": cost_breakdown["total_cny"],
         "cost_breakdown": cost_breakdown,
-        "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
+        "latency_ms": int(response.metadata.get("latency_ms") or 0),
     }
-    if content != raw_content.strip():
+    if response.metadata.get("reasoning_leak_stripped") is True:
         result["reasoning_leak_stripped"] = True
     if tool_calls:
         result["tool_calls"] = tool_calls
@@ -602,19 +719,21 @@ def _call_llm_messages(
     与 `_call_llm` 的差别：允许 assistant 只返回 tool_calls、content 为空——
     工具循环里这是合法中间态，不作为错误。"""
 
-    payload = _build_chat_payload(source, messages=messages, tools=tools, tool_choice=tool_choice)
-    data, started_at = _request_chat_completions(source, payload)
-    message = _assistant_message(data)
-    raw_content = message.get("content")
-    content = raw_content.strip() if isinstance(raw_content, str) else ""
-    stripped_raw = content
-    if content:
-        content = _strip_reasoning_leak(content)
-    tool_calls = _message_tool_calls(message)
+    chat_request = _sdk_chat_request(
+        source,
+        messages=messages,
+        tools=tools,
+        tool_choice=tool_choice,
+    )
+    try:
+        response = _sdk_provider(source).complete(chat_request)
+    except ProviderError as exc:
+        raise _legacy_provider_error(exc) from exc
+    content = response.content
+    tool_calls = [call.to_openai() for call in response.tool_calls]
     if not content and not tool_calls:
         raise LLMError("真实 LLM 返回既无正文也无工具调用，无法继续。")
-    prompt_text = "\n".join(str(item.get("content") or "") for item in messages)
-    usage = _token_usage(data, prompt_text, content)
+    usage = response.usage.to_legacy()
     cost_breakdown = _cost_breakdown(source, usage)
     result: dict[str, object] = {
         "content": content,
@@ -622,9 +741,9 @@ def _call_llm_messages(
         **usage,
         "cost_cny_estimated": cost_breakdown["total_cny"],
         "cost_breakdown": cost_breakdown,
-        "latency_ms": max(0, int((time.monotonic() - started_at) * 1000)),
+        "latency_ms": int(response.metadata.get("latency_ms") or 0),
     }
-    if content != stripped_raw:
+    if response.metadata.get("reasoning_leak_stripped") is True:
         result["reasoning_leak_stripped"] = True
     return result
 
