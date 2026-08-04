@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,7 @@ def test_tool_spec_round_trip_does_not_invent_optional_description() -> None:
     spec = ToolSpec.from_openai(payload)
     assert spec is not None
     assert spec.to_openai() == payload
+    json.dumps(spec.to_openai())
 
 
 def test_deterministic_provider_supports_complete_and_stream() -> None:

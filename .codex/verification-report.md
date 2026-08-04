@@ -1945,3 +1945,36 @@ git diff --check                                         -> passed
 未验证：没有提供真实 Provider key，因此未执行 Anthropic/Gemini/OpenAI-compatible 的真实 complete/stream/tool
 smoke；本轮也未接线默认 provider resolution、StoryForge live loop 或 ToolCallingRuntime。上述证据不支持宣称
 真实多 Provider 联网已验收或 Agent Runtime 迁移已经完成。
+
+### 2026-08-05 ToolCallingRuntime 核心
+
+新增内部通用同步工具调用 Runtime：RuntimeTool/Registry、受限 JSON Schema 校验、ToolSelector、RuntimePolicy、
+RunTracer、UsageSink、CheckpointStore、round/tool/output/token/cost 预算、多轮工具反馈、approval/interruption、
+JSON checkpoint、idempotent resume 与非幂等 reconciliation。核心只接收标准消息和 opaque application context，
+不依赖 StoryForge domain、FastAPI、SQLAlchemy、Desktop 或小说类型，尚未接线 live loop。
+
+首轮完整门禁发现递归不可变 helper 被误用于既有 `ToolSpec.input_schema`，嵌套 `mappingproxy` 无法被旧
+`llm_client` JSON 序列化，导致 7 个 BookRun/LLM 用例失败。修复为保持 Provider wire contract 的浅层不可变
+行为，只对 RuntimeTool/Result/Artifact/ProviderContinuation 使用递归冻结，并新增嵌套 schema 序列化回归。
+
+验证：
+
+```text
+Runtime registry/state/budget/recovery focused tests     -> 22 passed
+all AI SDK tests                                        -> 60 passed
+source code standards                                   -> 16 passed
+first pnpm.cmd verify                                    -> failed (7 nested schema serialization regressions)
+targeted original failures after fix                    -> 7 passed
+final pnpm.cmd verify                                    -> passed
+  root ESLint/Prettier                                   -> passed
+  Desktop typecheck / Vitest                             -> passed / 85 files, 549 passed
+  shared typecheck / project-core                        -> passed / 7 passed
+  API pytest / Ruff                                      -> 1502 passed, 4 skipped / passed
+  sidecar daily smoke                                    -> passed
+  OpenAPI / Agent frame drift                            -> no drift
+git diff --check                                         -> passed
+```
+
+未验证：未接线现有 StoryForge ToolSpec/PermissionGate/AgentRun trace/checkpoint，也未运行真实 provider 或真机
+Desktop。当前证据只证明无 live 调用方的内部 Runtime 核心与离线状态机，不支持宣称 Agent Runtime 迁移完成、
+任意指令级 exactly-once 或生产级自动写回闭环。

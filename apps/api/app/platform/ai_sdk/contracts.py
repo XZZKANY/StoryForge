@@ -7,17 +7,11 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
+from app.platform.ai_sdk._immutability import freeze
+
 
 def _immutable_mapping(value: Mapping[str, Any] | None = None) -> Mapping[str, Any]:
     return MappingProxyType(dict(value or {}))
-
-
-def _immutable_value(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return MappingProxyType({key: _immutable_value(item) for key, item in value.items()})
-    if isinstance(value, list | tuple):
-        return tuple(_immutable_value(item) for item in value)
-    return value
 
 
 class MessageRole(StrEnum):
@@ -35,7 +29,7 @@ class ProviderContinuation:
     state: Mapping[str, Any] = field(default_factory=_immutable_mapping)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "state", _immutable_value(self.state))
+        object.__setattr__(self, "state", freeze(self.state))
 
 
 @dataclass(frozen=True)
