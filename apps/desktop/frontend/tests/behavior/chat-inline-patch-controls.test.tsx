@@ -6,8 +6,8 @@
  *
  * 这里钉住核心不变量：
  * ①待确认补丁时 RunActionBar 必须渲染（awaitingConfirm 判定正确）；
- * ②接受按钮调 controls.onAcceptPatch，发 emitAcceptCurrentFileSuggestion 事件；
- * ③拒绝按钮调 controls.onRejectPatch，发 emitPatchRejected 事件。
+ * ②接受按钮调 controls.onAcceptPatch，请求编辑器接受同一 patchId；
+ * ③拒绝按钮调 controls.onRejectPatch，请求编辑器清理后再广播拒绝结果。
  */
 import assert from 'node:assert/strict';
 import { act } from 'react';
@@ -44,7 +44,13 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     startedAt: Date.now(),
     updatedAt: Date.now(),
     steps: [
-      { id: 'approval', status: 'waiting', detail: '等待作者确认', filePath: 'D:/work/ch01.md', patchId: 'patch-abc' },
+      {
+        id: 'approval',
+        status: 'waiting',
+        detail: '等待作者确认',
+        filePath: 'D:/work/ch01.md',
+        patchId: 'patch-abc',
+      },
     ],
     totalCount: null,
     completedCount: null,
@@ -143,7 +149,9 @@ test('点拒绝按钮调 controls.onRejectPatch', () => {
   assert.equal(rejectCalls.length, 0, '第一次点拒绝不该立即调 onRejectPatch');
 
   // 展开后顶部按钮文案变「取消」，真正的确认按钮在输入框里（「否掉」或「否掉并重来」）
-  const confirmButton = container.querySelector('[data-testid="run-reject-confirm"]') as HTMLButtonElement;
+  const confirmButton = container.querySelector(
+    '[data-testid="run-reject-confirm"]',
+  ) as HTMLButtonElement;
   assert.ok(confirmButton, '展开后找不到输入框里的确认按钮');
 
   act(() => {
@@ -154,12 +162,19 @@ test('点拒绝按钮调 controls.onRejectPatch', () => {
   assert.equal(rejectCalls[0].direction, '', '空方向应传空串');
 });
 
-test('run 已完成时 RunActionBar 不渲染；运行中显示暂停和停止', () => {
+test('run 已完成或停止时 RunActionBar 不渲染；运行中显示暂停和停止', () => {
   act(() => {
     root.render(<RunActionBar run={makeRun({ status: 'completed' })} controls={mockControls} />);
   });
 
   assert.equal(container.querySelectorAll('button').length, 0, 'completed 时不该渲染按钮');
+
+  act(() => {
+    root.render(<RunActionBar run={makeRun({ status: 'stopped' })} controls={mockControls} />);
+  });
+
+  assert.equal(container.querySelectorAll('button').length, 0, 'stopped 时不该渲染按钮');
+  assert.equal(container.querySelector('[data-testid="run-action-bar"]'), null);
 
   act(() => {
     root.render(<RunActionBar run={makeRun({ status: 'running' })} controls={mockControls} />);

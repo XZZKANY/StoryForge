@@ -1,5 +1,6 @@
 import type { AgentResultMessage } from '../../lib/api-client';
 import { stepsFromAgentResult } from './agent-step-mapping';
+import { writableFilePatch } from './agent-result';
 import type { AgentRun, AgentStep } from './types';
 
 export type ResumeDiagnosticDisplay = {
@@ -13,6 +14,7 @@ export function statusFromAgentResult(response: AgentResultMessage): AgentRun['s
 
 export function stepsFromResumedAgentResult(response: AgentResultMessage): AgentStep[] {
   const needsConfirmation = response.agent_result.requires_user_confirmation === true;
+  const proposed = writableFilePatch(response);
   return [
     {
       id: 'resume',
@@ -28,6 +30,8 @@ export function stepsFromResumedAgentResult(response: AgentResultMessage): Agent
       tool: 'author.approval',
       status: needsConfirmation ? 'waiting' : 'completed',
       detail: needsConfirmation ? '等待作者在编辑器里确认 diff' : '无需写回确认',
+      filePath: proposed?.file_path,
+      patchId: proposed?.id,
     },
   ];
 }

@@ -8,6 +8,7 @@ import type { AssistantFileSuggestion } from './assistant-suggestions';
 export const EXPORT_CURRENT_FILE_EVENT = 'storyforge:export-current-file';
 export const APPLY_FILE_SUGGESTION_EVENT = 'storyforge:apply-file-suggestion';
 export const ACCEPT_CURRENT_FILE_SUGGESTION_EVENT = 'storyforge:accept-current-file-suggestion';
+export const REJECT_CURRENT_FILE_SUGGESTION_EVENT = 'storyforge:reject-current-file-suggestion';
 export const SUGGESTION_RESULT_EVENT = 'storyforge:suggestion-result';
 export const AUTHOR_LOOP_RESULT_EVENT = 'storyforge:author-loop-result';
 export const PATCH_REJECTED_EVENT = 'storyforge:patch-rejected';
@@ -180,10 +181,19 @@ export function takePendingFileSuggestion(filePath: string | null): AssistantFil
   return suggestion;
 }
 
-export function emitAcceptCurrentFileSuggestion(): void {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT));
-  }
+export type FileSuggestionTarget = {
+  patchId: string;
+  filePath: string;
+};
+
+export function emitAcceptCurrentFileSuggestion(target?: FileSuggestionTarget): boolean {
+  if (typeof window === 'undefined') return false;
+  const event = new CustomEvent<FileSuggestionTarget | undefined>(
+    ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
+    { detail: target, cancelable: true },
+  );
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
 }
 
 export function emitSuggestionResult(result: SuggestionResult): void {
@@ -225,6 +235,16 @@ export function emitPatchRejected(rejection: PatchRejection): void {
       }),
     );
   }
+}
+
+export function requestRejectCurrentFileSuggestion(rejection: PatchRejection): boolean {
+  if (typeof window === 'undefined') return false;
+  const event = new CustomEvent<PatchRejection>(REJECT_CURRENT_FILE_SUGGESTION_EVENT, {
+    detail: rejection,
+    cancelable: true,
+  });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
 }
 
 export type RetryWithoutKnowledge = {

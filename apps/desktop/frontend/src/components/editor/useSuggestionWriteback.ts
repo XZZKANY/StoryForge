@@ -4,10 +4,13 @@ import type * as monaco from 'monaco-editor';
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
   APPLY_FILE_SUGGESTION_EVENT,
+  REJECT_CURRENT_FILE_SUGGESTION_EVENT,
   SUGGESTION_RESULT_EVENT,
   bufferPendingFileSuggestion,
   emitPatchRejected,
   takePendingFileSuggestion,
+  type FileSuggestionTarget,
+  type PatchRejection,
   type AuthorLoopResult,
   type SuggestionResult,
 } from '../../lib/assistant-events';
@@ -442,7 +445,11 @@ export function useSuggestionWriteback({
   }, [filePathRef, setSuggestionStatus]);
 
   useEffect(() => {
-    const onAcceptCurrentSuggestion = () => {
+    const onAcceptCurrentSuggestion = (event: Event) => {
+      const target = (event as CustomEvent<FileSuggestionTarget | undefined>).detail;
+      const suggestion = pendingSuggestionRef.current;
+      if (!suggestion || (target && suggestion.id !== target.patchId)) return;
+      event.preventDefault();
       void handleAcceptSuggestion();
     };
     window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
@@ -526,6 +533,19 @@ export function useSuggestionWriteback({
     },
     [filePathRef, pendingSuggestionRef, setSuggestionStatus],
   );
+
+  useEffect(() => {
+    const onRejectCurrentSuggestion = (event: Event) => {
+      const rejection = (event as CustomEvent<PatchRejection>).detail;
+      const suggestion = pendingSuggestionRef.current;
+      if (!rejection || !suggestion || suggestion.id !== rejection.patchId) return;
+      event.preventDefault();
+      rejectPendingSuggestion(rejection.direction);
+    };
+    window.addEventListener(REJECT_CURRENT_FILE_SUGGESTION_EVENT, onRejectCurrentSuggestion);
+    return () =>
+      window.removeEventListener(REJECT_CURRENT_FILE_SUGGESTION_EVENT, onRejectCurrentSuggestion);
+  }, [rejectPendingSuggestion]);
 
   return {
     adoptPendingSuggestion,

@@ -5,11 +5,12 @@ import {
   PATCH_REJECTED_EVENT,
   SUGGESTION_RESULT_EVENT,
   emitAcceptCurrentFileSuggestion,
-  emitPatchRejected,
+  requestRejectCurrentFileSuggestion,
   type AuthorLoopResult,
   type PatchRejection,
   type SuggestionResult,
 } from '../../lib/assistant-events';
+import { emitToast } from '../../lib/toast';
 import {
   executeIdeCommand,
   isAgentErrorMessage,
@@ -191,17 +192,25 @@ export function useAgentRunControls(
         },
       }),
     onAcceptPatch: () => {
-      emitAcceptCurrentFileSuggestion();
+      const approvalStep = agentRun?.steps.find((step) => step.id === 'approval');
+      if (!approvalStep?.patchId || !approvalStep.filePath) return;
+      const handled = emitAcceptCurrentFileSuggestion({
+        patchId: approvalStep.patchId,
+        filePath: approvalStep.filePath,
+      });
+      if (!handled) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
     },
     onRejectPatch: (direction: string) => {
       if (!agentRun) return;
       const approvalStep = agentRun.steps.find((s) => s.id === 'approval');
       if (!approvalStep?.filePath) return;
-      emitPatchRejected({
+      if (!approvalStep.patchId) return;
+      const handled = requestRejectCurrentFileSuggestion({
         filePath: approvalStep.filePath,
-        patchId: approvalStep.patchId ?? 'unknown',
+        patchId: approvalStep.patchId,
         direction,
       });
+      if (!handled) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
     },
   };
 

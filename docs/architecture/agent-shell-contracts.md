@@ -96,13 +96,14 @@ Desktop 不再建立 Agent WebSocket。两个入口都使用 HTTP `POST`，通�
 
 ## C. DOM CustomEvent 事件桥（编辑器 ↔ 对话协调）
 
-`src/lib/assistant-events.ts`，纯 DOM（`window.dispatchEvent`/`addEventListener`）。这是壳子内**编辑器区与对话区解耦通信**的总线。8 个事件名是字符串常量契约，改名即断开所有协调：
+`src/lib/assistant-events.ts`，纯 DOM（`window.dispatchEvent`/`addEventListener`）。这是壳子内**编辑器区与对话区解耦通信**的总线。9 个事件名是字符串常量契约，改名即断开所有协调：
 
 | 常量 | 事件名 | 方向 / detail |
 |---|---|---|
 | `EXPORT_CURRENT_FILE_EVENT` | `storyforge:export-current-file` | 对话 → 编辑器；无 detail |
 | `APPLY_FILE_SUGGESTION_EVENT` | `storyforge:apply-file-suggestion` | 对话 → 编辑器；detail = `AssistantFileSuggestion`（含缓冲，见下）|
-| `ACCEPT_CURRENT_FILE_SUGGESTION_EVENT` | `storyforge:accept-current-file-suggestion` | 对话 → 编辑器；无 detail |
+| `ACCEPT_CURRENT_FILE_SUGGESTION_EVENT` | `storyforge:accept-current-file-suggestion` | 对话 → 编辑器；可选 `{patchId,filePath}`，带目标时编辑器只接受匹配补丁 |
+| `REJECT_CURRENT_FILE_SUGGESTION_EVENT` | `storyforge:reject-current-file-suggestion` | 对话 → 编辑器；`{patchId,filePath,direction}`，编辑器清理匹配补丁后再广播拒绝结果 |
 | `SUGGESTION_RESULT_EVENT` | `storyforge:suggestion-result` | 对话 → 编辑器（对话产出补丁建议后通知编辑器同步建议态；对话自身也监听）；`{filePath, status:'ready'|'error', message, assistantSessionId?}` |
 | `AUTHOR_LOOP_RESULT_EVENT` | `storyforge:author-loop-result` | 编辑器 → 对话；`{filePath, status, action:'revision_accepted'|'exported', message, artifactPath?, recordPath?}` |
 | `REQUEST_SAVE_ACTIVE_FILE_EVENT` | `storyforge:request-save-active-file` | 读盘前请编辑器落盘（握手请求，见 C.2）|
@@ -132,6 +133,6 @@ Agent 补丁可能指向未打开甚至尚不存在的文件。`emitFileSuggesti
 - [ ] user_message SSE / control REST 按 A.1 路径、header 和请求体发送；控制回执按 A.3 映射后 type 等
 - [ ] 六类流帧按 A.2 判别式解码；`agent_result` 作 happy-path settle
 - [ ] 超时中止 SSE、不硬 reject，转 F10 轮询重建（B）
-- [ ] 8 个 DOM 事件名不改；补丁缓冲（C.1）与落盘握手（C.2）两端都在
+- [ ] 9 个 DOM 事件名不改；补丁缓冲（C.1）与落盘握手（C.2）两端都在
 - [ ] 写回走 `performGuardedWriteback` + 原子 `fs.rs`；会话守卫在两处（D）
 - [ ] 跑 `test_ws_contract_golden.py`（历史兼容名）+ `event-bus-contract.vitest.ts` + `writeback-guard` + `agent-session-guard` 全绿

@@ -157,7 +157,7 @@ export function ComposerSurface({
   };
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-border/80 bg-surface shadow-[var(--shadow-composer)] transition-shadow focus-within:border-agent/60 focus-within:shadow-[var(--shadow-composer-focus)]">
+    <div className="group relative flex flex-col overflow-visible rounded-xl border border-border/80 bg-surface shadow-[var(--shadow-composer)] transition-shadow focus-within:border-agent/60 focus-within:shadow-[var(--shadow-composer-focus)]">
       {roleSuggestions.length > 0 && !disabled && !busy && (
         <div
           className="absolute bottom-full left-2 z-10 mb-1.5 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5 rounded-lg border border-border bg-surface px-2 py-2 shadow-[var(--shadow-dropdown)]"

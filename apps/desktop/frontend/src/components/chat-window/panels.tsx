@@ -333,8 +333,9 @@ export function RunActionBar({
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
   const isRunning = run.status === 'running';
-  // 只在终态（completed/failed）时隐藏操作条
-  const isTerminal = run.status === 'completed' || run.status === 'failed';
+  // 终态只留轻状态/回复收尾，不再渲染没有动作的空操作条。
+  const isTerminal =
+    run.status === 'completed' || run.status === 'failed' || run.status === 'stopped';
   if (isTerminal) return null;
 
   const handleAcceptPatch = () => {

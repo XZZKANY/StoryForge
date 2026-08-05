@@ -6,6 +6,7 @@ import {
   AUTHOR_LOOP_RESULT_EVENT,
   EXPORT_CURRENT_FILE_EVENT,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
+  REJECT_CURRENT_FILE_SUGGESTION_EVENT,
   REVIEW_ISSUES_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
   SUGGESTION_RESULT_EVENT,
@@ -52,10 +53,11 @@ function makeSuggestion(filePath: string): AssistantFileSuggestion {
 }
 
 describe('DOM CustomEvent 桥事件名（壳子重连时的字符串常量契约）', () => {
-  it('八个事件名固定不变——改名即断开编辑器与对话的所有协调', () => {
+  it('九个事件名固定不变——改名即断开编辑器与对话的所有协调', () => {
     expect(EXPORT_CURRENT_FILE_EVENT).toBe('storyforge:export-current-file');
     expect(APPLY_FILE_SUGGESTION_EVENT).toBe('storyforge:apply-file-suggestion');
     expect(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT).toBe('storyforge:accept-current-file-suggestion');
+    expect(REJECT_CURRENT_FILE_SUGGESTION_EVENT).toBe('storyforge:reject-current-file-suggestion');
     expect(SUGGESTION_RESULT_EVENT).toBe('storyforge:suggestion-result');
     expect(AUTHOR_LOOP_RESULT_EVENT).toBe('storyforge:author-loop-result');
     expect(REQUEST_SAVE_ACTIVE_FILE_EVENT).toBe('storyforge:request-save-active-file');

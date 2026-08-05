@@ -453,6 +453,22 @@ test('resumed agent result preserves waiting status for confirmation results', (
   assert.match(steps.at(-1)?.detail ?? '', /编辑器里确认 diff/);
 });
 
+test('resumed file patch projects its target into the approval step', () => {
+  const response = {
+    ...agentResultWithPatch({
+      file_path: '正文/第12章.md',
+      before: '旧正文',
+      after: '新正文',
+      requires_confirmation: true,
+    }),
+    run_id: 'run-resumed-12',
+  };
+
+  const approval = stepsFromResumedAgentResult(response).at(-1);
+  assert.equal(approval?.filePath, '正文/第12章.md');
+  assert.equal(approval?.patchId, 'run-resumed-12:file-suggestion');
+});
+
 test('resume diagnostic display marks unsupported pending call as manual restart', () => {
   const display = displayFromResumeDiagnostic({
     reason: 'unsupported_pending_call_intent',
@@ -562,6 +578,17 @@ test('writable patch accepts every prose-producing tool, not just file_revision'
     assert.equal(patch.file_path, '正文/第120章.md');
     assert.equal(patch.after, '旧正文\n\n新续写的一段。');
   }
+});
+
+test('writable patch synthesizes a stable id when an older result omits it', () => {
+  const response = agentResultWithPatch({
+    file_path: '正文/第120章.md',
+    before: '旧正文',
+    after: '新正文',
+  });
+
+  assert.equal(writableFilePatch(response)?.id, 'agent-session:file-suggestion');
+  assert.equal(writableFilePatch(response)?.id, 'agent-session:file-suggestion');
 });
 
 test('writable patch rejects payloads that cannot be written back to a file', () => {

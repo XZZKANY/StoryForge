@@ -2034,3 +2034,30 @@ git diff --check                                             -> passed
 未验证：本轮没有使用真实 Provider key，因此未执行外网 OpenAI-compatible/Anthropic/Gemini complete/stream/tool
 smoke；也未宣称真机 Tauri 的自动写回与撤销链已完成验收。现有证据覆盖后端只产 proposed patch、确认位派生与
 Desktop guarded writeback 自动化测试，不等同于真实 GUI 人工验收。
+
+### 2026-08-05 最近 Desktop Agent UI 提交审查修复
+
+范围：修复最近 5 个 Desktop 提交中发现的四类回归。对话区补丁接受/拒绝现在携带稳定
+`patchId`，由编辑器校验匹配后复用既有 guarded writeback 或清理补丁；待确认 run 重新阻止新消息
+静默覆盖；`stopped` 不再渲染空操作条；Composer 不再裁切向上展开的权限菜单。恢复 run 同样把补丁
+目标投影到 approval step。DOM 事件契约已同步到 `docs/architecture/agent-shell-contracts.md`。
+
+验证：
+
+```text
+失败回归（修复前）                                      -> 5 failed / 15 passed
+目标回归（修复后）                                      -> 6 files / 67 passed
+Desktop 全量 Vitest                                     -> 88 files / 569 passed
+Desktop typecheck                                       -> passed
+root ESLint                                             -> passed
+本次改动文件 Prettier                                   -> passed
+git diff --check                                        -> passed
+API source standards                                    -> 14 passed / 2 failed
+  既有失败：useRunAuthorAgent.ts 502 lines > 500 hard limit
+pnpm.cmd lint                                           -> ESLint passed；Prettier 扫描被既有
+  apps/desktop/frontend/src/.pytest_cache 的 EPERM 阻断
+```
+
+未修改 API route、DTO、OpenAPI 或 Agent frame schema，不需要刷新 generated contract。未运行真机
+Tauri 点击链；补丁接受由跨组件行为测试证明走 `snapshot -> branch -> write -> record`，不能替代真机 GUI
+验收。源码上限和 `.pytest_cache` 权限问题均不在本次 diff，按任务边界未顺手修改或删除。

@@ -52,9 +52,9 @@ export function ChatWindowView({
   agentRunControls,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
-  // chapterBrief 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
-  // 故拦一道。补丁待确认已由下方 RunActionBar 就地处理，不再拦截作者发送。
-  const awaitingConfirm = Boolean(state.chapterBrief);
+  // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
+  // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
+  const awaitingConfirm = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
   // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;

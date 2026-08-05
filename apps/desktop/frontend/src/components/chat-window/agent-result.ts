@@ -21,7 +21,7 @@ import { reviewReportFromMessage } from './review';
  * 走 repairPatchApproval。
  */
 export function writableFilePatch(message: AgentResultMessage): {
-  id?: string;
+  id: string;
   file_path: string;
   before: string;
   after: string;
@@ -34,7 +34,10 @@ export function writableFilePatch(message: AgentResultMessage): {
     return null;
   }
   return {
-    id: typeof id === 'string' ? id : undefined,
+    id:
+      typeof id === 'string' && id.trim()
+        ? id
+        : `${message.run_id ?? message.session_id}:file-suggestion`,
     file_path: filePath,
     before,
     after,

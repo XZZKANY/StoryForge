@@ -57,6 +57,7 @@ import { conversationKey } from '../../src/components/chat-window/session-guard'
 import { useSuggestionWriteback } from '../../src/components/editor/useSuggestionWriteback';
 import { useAgentRunControls } from '../../src/components/chat-window/useAgentRunControls';
 import { useChatSubmission } from '../../src/components/chat-window/useChatSubmission';
+import type { AgentRunControlHandlers } from '../../src/components/chat-window/types';
 
 const PROJECT = 'D:/连载/末世吞噬';
 const FILE = 'D:/连载/末世吞噬/正文/第03章.md';
@@ -140,6 +141,8 @@ const stepPatches: Array<{ stepId: string; patch: Record<string, unknown> }> = [
 const runStatuses: string[] = [];
 /** 让会话守卫「认为」这个 run 属于当前会话；测越界场景时改掉它。 */
 let runStartKey: string | null = null;
+let controlPatchId = 'file-revision-abc123';
+let runControls: AgentRunControlHandlers | null = null;
 
 function ControlsHarness() {
   const agentRunIdRef = useRef<string | null>('run-1');
@@ -149,12 +152,28 @@ function ControlsHarness() {
   const runStartConversationKeyRef = useRef<string | null>(runStartKey);
   runStartConversationKeyRef.current = runStartKey;
 
-  useAgentRunControls(
+  const controls = useAgentRunControls(
     {
       retryRequest: null,
       agentBusy: false,
       setMessages: () => undefined,
-      agentRun: null,
+      agentRun: {
+        id: 'run-1',
+        sessionId: 'run-1',
+        goal: '改稿',
+        status: 'waiting',
+        steps: [
+          {
+            id: 'approval',
+            title: '等待作者确认',
+            tool: 'author.approval',
+            status: 'waiting',
+            detail: '等待作者确认补丁',
+            filePath: FILE,
+            patchId: controlPatchId,
+          },
+        ],
+      },
       pendingRepairCommand: null,
       setPendingRepairCommand: () => undefined,
       agentRunIdRef,
@@ -177,6 +196,7 @@ function ControlsHarness() {
       applyResumeDiagnostic: () => undefined,
     } as never,
   );
+  runControls = controls.agentRunControls;
   return null;
 }
 
@@ -206,6 +226,8 @@ beforeEach(() => {
   runStatuses.length = 0;
   panelHasPatch = false;
   runStartKey = conversationKey(PROJECT, 7, 0);
+  controlPatchId = 'file-revision-abc123';
+  runControls = null;
   window.addEventListener(PATCH_REJECTED_EVENT, onRejected);
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -256,11 +278,58 @@ test('拒绝这条路径一个字节都不写盘', async () => {
     reject('重写一版');
   });
 
-  assert.deepEqual(
-    calls,
-    [],
-    `拒绝不该触碰磁盘或后端，实际调用：${calls.join(' | ') || '(无)'}`,
-  );
+  assert.deepEqual(calls, [], `拒绝不该触碰磁盘或后端，实际调用：${calls.join(' | ') || '(无)'}`);
+});
+
+test('对话区拒绝由编辑器处理并清掉同一 patchId 的待确认补丁', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion());
+  });
+  assert.equal(panelHasPatch, true);
+
+  await act(async () => {
+    runControls?.onRejectPatch?.('把玄铁令的来历留到后面');
+  });
+
+  assert.equal(panelHasPatch, false, '对话区拒绝后编辑器仍保留旧补丁');
+  assert.equal(rejections.length, 1);
+  assert.equal(rejections[0].patchId, 'file-revision-abc123');
+});
+
+test('对话区接受不会误写 patchId 不匹配的编辑器补丁', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion());
+  });
+  controlPatchId = 'another-patch';
+  await act(async () => {
+    root.render(
+      <>
+        <WritebackHarness />
+        <SubmissionHarness />
+        <ControlsHarness />
+      </>,
+    );
+  });
+
+  await act(async () => {
+    runControls?.onAcceptPatch?.();
+  });
+
+  assert.equal(panelHasPatch, true, '错误 patchId 不应清掉编辑器补丁');
+  assert.deepEqual(calls, [], '错误 patchId 不应触发快照、写盘或记录');
+});
+
+test('对话区接受把同一 patchId 交给既有 guarded writeback', async () => {
+  await act(async () => {
+    emitFileSuggestion(suggestion());
+  });
+
+  await act(async () => {
+    runControls?.onAcceptPatch?.();
+  });
+
+  assert.equal(panelHasPatch, false, '接受后编辑器仍保留已写回补丁');
+  assert.deepEqual(calls.slice(0, 4), ['snapshot', 'branch', 'write', 'record']);
 });
 
 test('方向非空才转成一次真实的作者发言；留空只否掉、不烧新一轮', async () => {
