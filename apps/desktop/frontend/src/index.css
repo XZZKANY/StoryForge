@@ -47,6 +47,9 @@
   /* 抬升投影分档：下拉/卡片一档、弹窗一档；浅色降 alpha，避免照搬深色纯黑投影偏重。 */
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.35);
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.55);
+  /* Composer 输入卡片：静息一档、聚焦抬升一档，跟随主题降 alpha（原为裸 rgba）。 */
+  --shadow-composer: 0 4px 16px rgb(0 0 0 / 0.15);
+  --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.2);
 
   /* UI 字体：优先各平台自己设计的界面字面（Win11 的 Segoe UI Variable Text 有光学字号，
      比 Segoe UI 在小字上更清晰），再落 CJK。body 必须引用本 token 而不是另写一条栈。 */
@@ -91,6 +94,8 @@
   --issue-low: 79 86 196;
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.14);
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.22);
+  --shadow-composer: 0 4px 16px rgb(0 0 0 / 0.08);
+  --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.1);
 }
 
 body {

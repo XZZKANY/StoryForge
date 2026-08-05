@@ -17,7 +17,7 @@ export function ChapterBriefCard({
   };
   return (
     <section
-      className="rounded-md border border-agent/40 bg-panel px-3 py-3"
+      className="rounded-lg border border-agent/40 bg-panel px-3 py-3"
       data-testid="chapter-brief-card"
     >
       <div className="mb-3 flex items-start gap-3">
@@ -83,7 +83,7 @@ export function ChapterBriefCard({
         </button>
         <button
           type="button"
-          className="h-8 rounded-md bg-agent px-3 text-xs text-white hover:opacity-90"
+          className="h-8 rounded-md bg-agent px-3 text-xs text-agent-foreground hover:opacity-90"
           onClick={() => onConfirm(draft)}
           data-testid="chapter-brief-confirm"
         >

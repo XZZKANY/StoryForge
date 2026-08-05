@@ -1946,6 +1946,26 @@ git diff --check                                         -> passed
 smoke；本轮也未接线默认 provider resolution、StoryForge live loop 或 ToolCallingRuntime。上述证据不支持宣称
 真实多 Provider 联网已验收或 Agent Runtime 迁移已经完成。
 
+### 2026-08-05 小说质量诊断与根因优化闭环规划
+
+创建 Trellis 规划任务 `.trellis/tasks/08-05-novel-quality-diagnosis-loop/`，补充 `prd.md`、`design.md` 与
+`implement.md`。经用户澄清，本任务定位为 StoryForge 内部 `Novel Quality Lab`，用于失败样本诊断、生成链路
+根因归因、单变量 baseline/candidate 实验和项目优化决策，不是 Desktop 作者功能。方案复用 AI SDK、
+AgentRun/ModelRun evidence、既有质量检查器和真实生成入口；代码盘点确认 `apps/api/scripts/prompt_lab` 已有
+固定输入、生产 prompt 同源变体、repeat/merge、实时落盘与盲评地基，因此方案改为原地扩展 Prompt Lab，
+不新增平行 runner。首版采用文件制品，不新增数据库 migration、OpenAPI 或第二套 runtime，也不以自动
+总分替代人工通读。
+
+验证：
+
+```text
+规划文档人工回读                                      -> passed
+git diff --check -- .trellis/tasks/08-05-...           -> passed
+```
+
+未验证：本轮仅完成设计与执行计划，未修改运行时代码，未执行 pytest、真实 provider 或长篇人工盲评。
+首套 benchmark 范围、默认重复次数和人工评审协议仍待用户设计评审确认。
+
 ### 2026-08-05 ToolCallingRuntime 核心
 
 新增内部通用同步工具调用 Runtime：RuntimeTool/Registry、受限 JSON Schema 校验、ToolSelector、RuntimePolicy、

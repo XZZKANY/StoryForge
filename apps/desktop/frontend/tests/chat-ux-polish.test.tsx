@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
+import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
 import { AssistantMarkdown } from '../src/components/chat-window/AssistantMarkdown';
 import { runStatusText } from '../src/components/chat-window/display-utils';
 import {
   ContextSummaryPanel,
   MessageItem,
   RunActionBar,
+  WritingRunProgressPanel,
 } from '../src/components/chat-window/panels';
 import type { AgentRun } from '../src/components/chat-window/types';
 
@@ -205,4 +207,101 @@ test('runStatusText renders author stop as neutral, not a failure', () => {
   assert.equal(runStatusText(stopped), '已由你停止本轮。');
   assert.doesNotMatch(runStatusText(stopped) ?? '', /遇到问题/);
   assert.match(runStatusText(paused) ?? '', /已暂停/);
+});
+
+test('tool step metrics render as key-value chips, not one crammed 中文 string', () => {
+  const run: AgentRun = {
+    id: 'run-metrics',
+    sessionId: 's1',
+    goal: 'revise',
+    status: 'running',
+    steps: [
+      {
+        id: 'tool-0-file.review',
+        title: 'file.review',
+        tool: 'file.review',
+        status: 'completed',
+        detail: 'completed；模型 deepseek-v4；42ms；问题 3 个',
+        metrics: [
+          { label: '模型', value: 'deepseek-v4' },
+          { label: '延迟', value: '42ms' },
+          { label: '问题', value: '3 个' },
+        ],
+      },
+    ],
+  };
+  const html = renderToStaticMarkup(<AgentStepsPanel run={run} />);
+  assert.match(html, /data-testid="step-metrics"/);
+  const chipCount = html.match(/data-testid="step-metric-chip"/g)?.length ?? 0;
+  assert.equal(chipCount, 3);
+  assert.match(html, /延迟/);
+  assert.match(html, /42ms/);
+});
+
+test('compact context summary surfaces truncation on the fold header, not only when expanded', () => {
+  const bundle = {
+    files: [],
+    summary: { counts: {} },
+    budget: {
+      fileCount: 8,
+      charCount: 12000,
+      maxFiles: 8,
+      maxExcerptChars: 2000,
+      truncated: true,
+      pinnedFileCount: 0,
+      missingPinnedFiles: [],
+    },
+  } as unknown as Parameters<typeof ContextSummaryPanel>[0]['lastContextBundle'];
+  const html = renderToStaticMarkup(
+    <ContextSummaryPanel
+      compact
+      currentFileLabel="chapters/01.md"
+      explicitContextPaths={[]}
+      contextCandidates={[]}
+      contextCandidatesLoading={false}
+      contextCandidatesError={null}
+      contextPickerOpen={false}
+      lastContextBundle={bundle}
+      missingContextPaths={[]}
+      onAddContext={() => undefined}
+      onTogglePinnedContext={() => undefined}
+      onRetryContextCandidates={() => undefined}
+    />,
+  );
+  assert.match(html, /data-compact="true"/);
+  assert.match(html, /data-expanded="false"/);
+  assert.match(html, /data-testid="context-truncated-badge"/);
+});
+
+test('writing run progress draws a meter when total chapters is known', () => {
+  const html = renderToStaticMarkup(
+    <WritingRunProgressPanel
+      projection={{
+        writingRunId: 700,
+        status: 'running',
+        currentChapterIndex: 3,
+        totalChapters: 10,
+        completedCount: 4,
+        latestEvent: 'progress',
+      }}
+    />,
+  );
+  assert.match(html, /data-testid="writing-run-progress-meter"/);
+  assert.match(html, /aria-valuenow="40"/);
+});
+
+test('writing run progress omits the meter when total chapters is unknown', () => {
+  const html = renderToStaticMarkup(
+    <WritingRunProgressPanel
+      projection={{
+        writingRunId: 701,
+        status: 'running',
+        currentChapterIndex: null,
+        totalChapters: null,
+        completedCount: 2,
+        latestEvent: 'progress',
+      }}
+    />,
+  );
+  assert.doesNotMatch(html, /data-testid="writing-run-progress-meter"/);
 });

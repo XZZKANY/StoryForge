@@ -33,12 +33,17 @@ export type Message = {
 
 export type AgentStepStatus = 'pending' | 'running' | 'waiting' | 'completed' | 'failed';
 
+// 工具步骤的结构化指标：从 output_summary 抽出的 key-value，用小 chip 平铺，
+// 免得延迟 / 上下文数 / 问题数挤在一行中文长串里难扫读（detail 仍作纯文本回退）。
+export type AgentStepMetric = { label: string; value: string };
+
 export type AgentStep = {
   id: string;
   title: string;
   tool: string;
   status: AgentStepStatus;
   detail: string;
+  metrics?: AgentStepMetric[];
 };
 
 // paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。
