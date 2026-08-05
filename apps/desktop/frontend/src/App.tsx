@@ -172,11 +172,9 @@ export function App() {
         event.preventDefault();
         void openSettings();
       } else if (key === '1' || key === '2' || key === '3') {
-        if (!workspace.activeProject) return;
         event.preventDefault();
         shell.setLayoutMode(key === '1' ? 'editor' : key === '2' ? 'balanced' : 'chat');
       } else if (key === '4') {
-        if (!workspace.activeProject) return;
         event.preventDefault();
         shell.toggleObservatory();
       }

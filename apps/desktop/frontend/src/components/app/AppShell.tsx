@@ -212,7 +212,6 @@ export function AppShell({
           <ActivityBar
             view={shell.view}
             sidebarHidden={shell.sidebarHidden}
-            noProject={!projectOpen}
             onSwitchView={shell.switchView}
             onOpenSettings={() => void openSettings()}
             settingsMenu={settingsMenu}

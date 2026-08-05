@@ -40,7 +40,6 @@ export const VIEW_ENTRIES: ViewEntry[] = [
 export function ActivityBar({
   view,
   sidebarHidden,
-  noProject,
   onSwitchView,
   onOpenSettings,
   settingsMenu,
@@ -49,7 +48,6 @@ export function ActivityBar({
 }: {
   view: SidePanelView;
   sidebarHidden: boolean;
-  noProject: boolean;
   onSwitchView: (view: SidePanelView) => void;
   onOpenSettings: () => void;
   // 齿轮小菜单项；不传则齿轮直接开设置（回退）。
@@ -67,7 +65,6 @@ export function ActivityBar({
     >
       {VIEW_ENTRIES.map((entry) => {
         const active = view === entry.view && !sidebarHidden;
-        const dimmed = noProject && entry.projectOnly;
         const Icon = entry.icon;
         return (
           <button
@@ -76,10 +73,9 @@ export function ActivityBar({
             data-active={active}
             className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-elevated ${
               active ? 'text-foreground' : 'text-subtle hover:text-foreground'
-            } ${dimmed ? 'opacity-30' : ''}`}
+            }`}
             title={entry.title}
             onClick={() => {
-              if (dimmed) return;
               onSwitchView(entry.view);
             }}
           >
@@ -87,13 +83,13 @@ export function ActivityBar({
               <span className="absolute -left-1 bottom-2 top-2 w-0.5 rounded-r-sm bg-foreground" />
             )}
             <Icon size={19} strokeWidth={1.6} />
-            {entry.view === 'observatory' && observatoryAttention && !dimmed && (
+            {entry.view === 'observatory' && observatoryAttention && (
               <span
                 className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-agent"
                 data-testid="activity-observatory-attention"
               />
             )}
-            {entry.view === 'knowledge' && knowledgePendingCount > 0 && !dimmed && (
+            {entry.view === 'knowledge' && knowledgePendingCount > 0 && (
               <span
                 className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-agent px-1 text-center font-mono text-3xs leading-4 text-white"
                 data-testid="activity-knowledge-badge"
