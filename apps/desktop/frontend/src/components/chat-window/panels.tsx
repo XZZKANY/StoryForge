@@ -5,7 +5,6 @@ import {
   type SemanticFile,
 } from '../../lib/project-context';
 import type { AssistantSessionRecord } from '../../lib/api-client';
-import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { AgentStepsPanel } from '../AgentStepsPanel';
 import {
   ChevronDown,
@@ -20,7 +19,6 @@ import type { LayoutMode } from '../shell/useShellState';
 import { useDismissableMenu } from '../shell/useDismissableMenu';
 import { basename } from '../app/helpers';
 import { AssistantMarkdown } from './AssistantMarkdown';
-import { ComposerSurface } from './Composer';
 import { contextBudgetText, selectedContextPreview } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import type { AgentRun, AgentRunControlHandlers, Message, WritingRunProjection } from './types';
@@ -195,8 +193,6 @@ export function MessageList({
   messages,
   projectName,
   currentFileLabel,
-  disabled,
-  onSubmit,
   agentRun,
   agentRunRecovery,
   writingRunProjection,
@@ -210,14 +206,10 @@ export function MessageList({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
-  agentPermissionProfile,
-  onAgentPermissionProfileChange,
 }: {
   messages: Message[];
   projectName: string | null;
   currentFileLabel: string | null;
-  disabled: boolean;
-  onSubmit: (value: string) => void;
   agentRun: AgentRun | null;
   agentRunRecovery: AgentRunRecoveryDisplay | null;
   writingRunProjection: WritingRunProjection | null;
@@ -231,8 +223,6 @@ export function MessageList({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
-  agentPermissionProfile: AgentPermissionProfile;
-  onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
   if (messages.length === 0) {
     return (

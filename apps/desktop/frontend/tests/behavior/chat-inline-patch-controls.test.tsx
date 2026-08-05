@@ -100,7 +100,14 @@ test('权限等待时 RunActionBar 不显示接受/拒绝（那是权限操作�
   const acceptPatchButton = Array.from(buttons).find((btn) => btn.textContent?.includes('接受'));
   const rejectPatchButton = Array.from(buttons).find((btn) => btn.textContent?.includes('拒绝'));
   // 权限等待时应该显示「批准/拒绝权限」，不是「接受/拒绝补丁」
-  assert.ok(!acceptPatchButton || !btn.textContent?.includes('补丁'), '权限等待时不该有补丁接受按钮');
+  assert.ok(
+    !acceptPatchButton || !acceptPatchButton.textContent?.includes('补丁'),
+    '权限等待时不该有补丁接受按钮',
+  );
+  assert.ok(
+    !rejectPatchButton || !rejectPatchButton.textContent?.includes('补丁'),
+    '权限等待时不该有补丁拒绝按钮',
+  );
 });
 
 test('点接受按钮调 controls.onAcceptPatch', () => {

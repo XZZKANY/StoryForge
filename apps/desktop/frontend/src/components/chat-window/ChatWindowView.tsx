@@ -47,7 +47,6 @@ export function ChatWindowView({
   addExplicitContext,
   togglePinnedContext,
   handleSubmit,
-  handleComposerSubmit,
   userMessageHistory,
   retryLastFailedRun,
   agentRunControls,
@@ -114,8 +113,6 @@ export function ChatWindowView({
         messages={state.messages}
         projectName={state.projectName}
         currentFileLabel={state.contextRef}
-        disabled={!projectPath || state.agentBusy}
-        onSubmit={handleComposerSubmit}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
         writingRunProjection={state.writingRunProjection}
@@ -129,8 +126,6 @@ export function ChatWindowView({
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
         onRetryContextCandidates={retryContextCandidates}
-        agentPermissionProfile={composerPermissionProfile}
-        onAgentPermissionProfileChange={onAgentPermissionProfileChange}
       />
 
       {state.chapterBrief && (
