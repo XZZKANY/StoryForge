@@ -65,7 +65,7 @@ export function ContextMenu({
       ref={ref}
       role="menu"
       data-testid="context-menu"
-      className="fixed z-50 min-w-[172px] rounded-lg border border-border/60 bg-surface/92 p-1 shadow-[var(--shadow-dropdown)]"
+      className="fixed z-50 min-w-[172px] rounded-lg border border-border/60 bg-surface/[0.92] p-1 shadow-[var(--shadow-dropdown)]"
       style={{
         left: pos.x,
         top: pos.y,

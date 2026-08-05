@@ -267,7 +267,10 @@ export function BookProfileView({
             value={draft.synopsis}
             disabled={handle.loading}
             onChange={(event) => setDraft({ ...draft, synopsis: event.target.value })}
-            onBlur={() => commit()}
+            onBlur={(event) => {
+              event.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+              commit();
+            }}
             rows={4}
             placeholder="这本书讲什么？写给未来的自己，也写给每次都要重新读懂它的模型。"
             className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-2xs leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"

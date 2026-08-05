@@ -173,7 +173,9 @@ export function App() {
         void openSettings();
       } else if (key === '1' || key === '2' || key === '3') {
         event.preventDefault();
-        shell.setLayoutMode(key === '1' ? 'editor' : key === '2' ? 'balanced' : 'chat');
+        shell.setLayoutMode(
+          key === '1' ? 'editor' : key === '2' || !workspace.activeProject ? 'balanced' : 'chat',
+        );
       } else if (key === '4') {
         event.preventDefault();
         shell.toggleObservatory();

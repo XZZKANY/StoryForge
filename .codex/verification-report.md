@@ -2098,3 +2098,29 @@ pnpm.cmd lint                                           -> ESLint passed；Prett
 未修改 API route、DTO、OpenAPI 或 Agent frame schema，不需要刷新 generated contract。未运行真机
 Tauri 点击链；补丁接受由跨组件行为测试证明走 `snapshot -> branch -> write -> record`，不能替代真机 GUI
 验收。源码上限和 `.pytest_cache` 权限问题均不在本次 diff，按任务边界未顺手修改或删除。
+
+### 2026-08-05 Desktop 布局与视觉交互审查修复
+
+范围：修复最近 2 个 Desktop 提交审查发现的四项回归。无项目时 `Ctrl+3` 现在夹回均衡布局，避免隐藏
+欢迎中栏后只剩空窗口；右键菜单改用 Tailwind 可生成的 92% 任意透明度类；行间补丁落位动画拆出纯缓动
+token，避免复合 transition token 被解析成额外 120ms delay、导致 170ms teardown 截断动画；作品简介失焦
+恢复静息内凹阴影并继续提交草稿。四项均先补失败回归，再修复至通过。
+
+验证：
+
+```text
+目标回归（修复前）                                      -> 4 files / 4 failed, 35 passed
+目标回归（修复后）                                      -> 4 files / 39 passed
+Desktop 全量 Vitest                                     -> 89 files / 572 passed
+Desktop typecheck                                       -> passed
+Desktop production build                                -> passed（仅既有 chunk/dynamic-import 警告）
+目标文件 ESLint / Prettier                              -> passed / passed
+git diff --check                                        -> passed
+pnpm.cmd verify                                         -> 1508 API passed, 4 skipped, 2 failed
+  根 lint、Desktop、shared、project-core                 -> passed
+  既有失败：useRunAuthorAgent.ts 502 lines > 500 hard limit（两条断言）
+```
+
+未修改 API route、DTO、OpenAPI 或 Agent frame schema，不需要刷新 generated contract。未执行真机 Tauri
+人工点击验收；本轮证据覆盖组件行为、样式契约与生产 CSS 构建，不等同于真机 GUI 验收。源码行数门禁失败位于
+未改动文件，且在本轮开始前已存在，按任务边界未顺手拆分。

@@ -48,12 +48,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function mountApp(): void {
+function mountApp(): HTMLElement {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => root.render(<App />));
   mounted.push({ container, root });
+  return container;
 }
 
 /** 真按一次，回报 App 是否调用了 preventDefault。 */
@@ -97,6 +98,16 @@ test('需要前置态或由别处接管的键，必须显式标注而不是悄�
     if (row.scope) assert.ok(['editor', 'tabs'].includes(row.scope), `未知 scope：${row.keys}`);
     assert.ok(row.chords.length > 0, `${row.keys} 没有登记实际按键，护栏无从验证`);
   }
+});
+
+test('没有打开项目时 Ctrl+3 不会藏掉欢迎区留下空白窗口', () => {
+  const container = mountApp();
+
+  assert.equal(pressChord({ ctrl: true, key: '3' }), true);
+
+  const center = container.querySelector('[data-testid="shell-center"]');
+  assert.ok(center, '找不到承载欢迎区的中栏');
+  assert.equal(center.classList.contains('hidden'), false, '无项目时不得切到只有对话栏的布局');
 });
 
 test('速查表正文按显示键名等宽对齐，且每行都出现在正文里', () => {

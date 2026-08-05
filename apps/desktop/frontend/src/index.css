@@ -56,9 +56,10 @@
   --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.2);
 
   /* 过渡动效统一时长：所有交互用统一 timing curve，创造流畅一致的节奏。 */
-  --transition-fast: 120ms cubic-bezier(0.2, 0, 0.38, 0.9); /* 小件 hover / 色彩变化 */
-  --transition-base: 200ms cubic-bezier(0.2, 0, 0.38, 0.9); /* 常规展开/收起 */
-  --transition-slow: 320ms cubic-bezier(0.2, 0, 0.38, 0.9); /* 大面积布局 */
+  --transition-easing: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --transition-fast: 120ms var(--transition-easing); /* 小件 hover / 色彩变化 */
+  --transition-base: 200ms var(--transition-easing); /* 常规展开/收起 */
+  --transition-slow: 320ms var(--transition-easing); /* 大面积布局 */
 
   /* 分隔线：比 --border 更淡，桌面应用的分隔线应该极其克制。 */
   --divider: rgb(var(--border) / 0.6);
@@ -462,26 +463,26 @@ body {
   opacity: 0.55;
   transform: translateY(2px);
   transition:
-    background-color 170ms var(--transition-fast),
-    border-left-color 170ms var(--transition-fast),
-    opacity 170ms var(--transition-fast),
-    transform 170ms var(--transition-fast);
+    background-color 170ms var(--transition-easing),
+    border-left-color 170ms var(--transition-easing),
+    opacity 170ms var(--transition-easing),
+    transform 170ms var(--transition-easing);
 }
 .sf-inline-diff-zone--settling .sf-inline-diff-actions {
   opacity: 0;
-  transition: opacity 110ms var(--transition-fast);
+  transition: opacity 110ms var(--transition-easing);
 }
 .sf-inline-accepting .sf-inline-diff-old {
   background: transparent;
   box-shadow: inset 3px 0 0 transparent;
   transition:
-    background-color 170ms var(--transition-fast),
-    box-shadow 170ms var(--transition-fast);
+    background-color 170ms var(--transition-easing),
+    box-shadow 170ms var(--transition-easing);
 }
 .sf-inline-accepting .sf-inline-diff-old-seg,
 .sf-inline-accepting .sf-inline-diff-new-seg {
   background: transparent;
-  transition: background-color 170ms var(--transition-fast);
+  transition: background-color 170ms var(--transition-easing);
 }
 
 /* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */

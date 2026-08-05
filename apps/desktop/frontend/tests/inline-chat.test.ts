@@ -263,6 +263,15 @@ test('落位时长在 JS 与 CSS 两处一致，且降低动效偏好下归零',
   const css = readFileSync(fileURLToPath(new URL(cssPath, import.meta.url)), 'utf8');
   const settling = css.match(/\.sf-inline-diff-zone--settling \{[^}]*\}/)?.[0];
   assert.ok(settling, '找不到 .sf-inline-diff-zone--settling 规则');
+  assert.ok(
+    settling.includes('var(--transition-easing)'),
+    '固定时长的落位动画必须使用纯缓动 token',
+  );
+  assert.equal(
+    settling.includes('var(--transition-fast)'),
+    false,
+    '--transition-fast 自带 120ms 时长，在 transition 简写中会被解释成额外 delay',
+  );
   const durations = [...settling.matchAll(/(\d+)ms/g)].map((m) => Number(m[1]));
   assert.ok(durations.length > 0, '落位规则里没有过渡时长');
   for (const ms of durations) {
@@ -276,7 +285,9 @@ test('接受的重入闸必须在第一个 await 之前合上', () => {
   // 两次点击就会各写一次盘。（改前 teardown 同步先跑，第二次触发天然被挡住。）
   const hookPath = '../src/components/editor/useInlineChat.ts';
   const source = readFileSync(fileURLToPath(new URL(hookPath, import.meta.url)), 'utf8');
-  const body = source.match(/const applyAccepted = useCallback\(async \(\) => \{[\s\S]*?\n {2}\}, \[/)?.[0];
+  const body = source.match(
+    /const applyAccepted = useCallback\(async \(\) => \{[\s\S]*?\n {2}\}, \[/,
+  )?.[0];
   assert.ok(body, '找不到 applyAccepted');
   const latch = body.indexOf('session.accepting = true');
   const firstAwait = body.indexOf('await ');

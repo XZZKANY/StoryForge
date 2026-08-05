@@ -94,9 +94,7 @@ test('未设全书目标就不渲染进度条——不画一条永远 0% 的条'
 });
 
 test('设了目标才出现进度条，并按已写字数给出百分比', async () => {
-  await renderView(
-    makeHandle({ profile: { ...emptyBookProfile(), wordGoal: 1000000 } }),
-  );
+  await renderView(makeHandle({ profile: { ...emptyBookProfile(), wordGoal: 1000000 } }));
   assert.equal(byTestId('book-goal-bar')?.dataset.progress, '12');
 });
 
@@ -142,6 +140,19 @@ test('加题材同样带上未提交的简介', async () => {
   const saved = vi.mocked(handle.save).mock.calls.at(-1)?.[0];
   assert.deepEqual(saved?.tags, ['末世']);
   assert.equal(saved?.synopsis, '一场蓝色雨后。');
+});
+
+test('简介失焦后提交草稿并恢复静息内凹阴影', async () => {
+  const handle = makeHandle();
+  await renderView(handle);
+  const input = byTestId('book-synopsis-input') as HTMLTextAreaElement;
+
+  await act(async () => input.focus());
+  assert.match(input.style.boxShadow, /0 0 0 3px/);
+
+  await act(async () => input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+  assert.equal(input.style.boxShadow, 'var(--shadow-inset)');
+  assert.equal(vi.mocked(handle.save).mock.calls.length, 1);
 });
 
 test('字数目标输入里的逗号与「字」被剥掉，存成纯数字', async () => {
