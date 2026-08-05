@@ -35,6 +35,17 @@ export function ChapterBriefCard({
         本章目标
         <textarea
           className="mt-1 min-h-16 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-agent"
+          style={{
+            boxShadow: 'var(--shadow-inset)',
+            transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.boxShadow =
+              'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+          }}
           value={draft.goal}
           onChange={(event) => update('goal', event.target.value)}
           data-testid="chapter-brief-goal"
@@ -45,6 +56,17 @@ export function ChapterBriefCard({
           最少字数
           <input
             className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+            style={{
+              boxShadow: 'var(--shadow-inset)',
+              transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.boxShadow =
+                'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+            }}
             type="number"
             min={1}
             value={draft.targetCharsMin}
@@ -55,6 +77,17 @@ export function ChapterBriefCard({
           最多字数
           <input
             className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+            style={{
+              boxShadow: 'var(--shadow-inset)',
+              transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.boxShadow =
+                'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+            }}
             type="number"
             min={1}
             value={draft.targetCharsMax}

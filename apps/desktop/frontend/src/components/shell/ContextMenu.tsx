@@ -65,8 +65,13 @@ export function ContextMenu({
       ref={ref}
       role="menu"
       data-testid="context-menu"
-      className="fixed z-50 min-w-[172px] rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]"
-      style={{ left: pos.x, top: pos.y }}
+      className="fixed z-50 min-w-[172px] rounded-lg border border-border/60 bg-surface/92 p-1 shadow-[var(--shadow-dropdown)]"
+      style={{
+        left: pos.x,
+        top: pos.y,
+        backdropFilter: 'blur(40px) saturate(1.5)',
+        WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
+      }}
       onContextMenu={(event) => event.preventDefault()}
     >
       {items.map((item, index) => {
@@ -79,11 +84,14 @@ export function ContextMenu({
             type="button"
             role="menuitem"
             disabled={item.disabled}
-            className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
               item.danger
                 ? 'text-error hover:bg-error/10'
                 : 'text-muted hover:bg-elevated hover:text-foreground'
             }`}
+            style={{
+              transition: 'background-color var(--transition-fast), color var(--transition-fast)',
+            }}
             onClick={() => {
               onClose();
               item.onSelect();

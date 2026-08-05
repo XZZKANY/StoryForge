@@ -253,6 +253,18 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="搜索设置…"
                 className="mb-6 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
+                style={{
+                  boxShadow: 'var(--shadow-inset)',
+                  transition:
+                    'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+                }}
                 data-testid="settings-search"
               />
 
@@ -732,6 +744,17 @@ function TextRow({
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
         className="h-8 w-[260px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-subtle focus:border-accent"
+        style={{
+          boxShadow: 'var(--shadow-inset)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow =
+            'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+        }}
         data-testid={testId}
       />
     </RowShell>
@@ -759,6 +782,17 @@ function SelectRow({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-8 w-[180px] rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-accent"
+        style={{
+          boxShadow: 'var(--shadow-inset)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow =
+            'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+        }}
         data-testid={testId}
       >
         {options.map((option) => (

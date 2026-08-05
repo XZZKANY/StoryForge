@@ -72,7 +72,10 @@ export function SidePanel(props: SidePanelProps) {
   return (
     <div
       className="relative flex flex-shrink-0 flex-col border-r border-border bg-panel"
-      style={{ width: `${dragWidth ?? savedWidth}px` }}
+      style={{
+        width: `${dragWidth ?? savedWidth}px`,
+        boxShadow: 'var(--shadow-panel)',
+      }}
       data-testid="shell-side-panel"
       data-side-view={props.view}
     >

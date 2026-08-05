@@ -209,24 +209,68 @@ function ProposalEditor({
     <div className="space-y-2">
       <input
         className="h-8 w-full rounded-sm border border-border bg-background px-2 text-xs outline-none focus:border-agent"
+        style={{
+          boxShadow: 'var(--shadow-inset)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow =
+            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+        }}
         value={draft.title}
         onChange={(event) => onChange({ ...draft, title: event.target.value })}
         aria-label="知识标题"
       />
       <textarea
         className="min-h-20 w-full resize-y rounded-sm border border-border bg-background px-2 py-1.5 text-2xs leading-relaxed outline-none focus:border-agent"
+        style={{
+          boxShadow: 'var(--shadow-inset)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow =
+            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+        }}
         value={draft.claim}
         onChange={(event) => onChange({ ...draft, claim: event.target.value })}
         aria-label="知识内容"
       />
       <input
         className="h-8 w-full rounded-sm border border-border bg-background px-2 font-mono text-3xs outline-none focus:border-agent"
+        style={{
+          boxShadow: 'var(--shadow-inset)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow =
+            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+        }}
         value={draft.target_path}
         onChange={(event) => onChange({ ...draft, target_path: event.target.value })}
         aria-label="目标路径"
       />
       <select
         className="h-8 w-full rounded-sm border border-border bg-background px-2 text-2xs outline-none focus:border-agent"
+        style={{
+          boxShadow: 'var(--shadow-inset)',
+          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.boxShadow =
+            'var(--shadow-inset), 0 0 0 3px rgb(var(--agent) / 0.1)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.boxShadow = 'var(--shadow-inset)';
+        }}
         value={draft.operation}
         onChange={(event) => onChange({ ...draft, operation: event.target.value })}
         aria-label="处理方式"

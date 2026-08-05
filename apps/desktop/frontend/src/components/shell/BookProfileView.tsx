@@ -271,6 +271,14 @@ export function BookProfileView({
             rows={4}
             placeholder="这本书讲什么？写给未来的自己，也写给每次都要重新读懂它的模型。"
             className="mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-2xs leading-relaxed text-foreground outline-none placeholder:text-subtle focus:border-accent"
+            style={{
+              boxShadow: 'var(--shadow-inset)',
+              transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.boxShadow =
+                'var(--shadow-inset), 0 0 0 3px rgb(var(--accent) / 0.1)';
+            }}
             data-testid="book-synopsis-input"
           />
         </Section>

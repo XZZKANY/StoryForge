@@ -44,12 +44,24 @@
   --radius-lg: 10px;
   --radius-xl: 14px;
 
-  /* 抬升投影分档：下拉/卡片一档、弹窗一档；浅色降 alpha，避免照搬深色纯黑投影偏重。 */
+  /* 抬升投影分档：细腻的层次系统，从微抬升到浮层弹窗。 */
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.24); /* 卡片微抬升 */
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.15), 0 2px 4px rgb(0 0 0 / 0.1); /* 悬浮控件 */
+  --shadow-panel: 0 2px 8px rgb(0 0 0 / 0.08); /* 侧面板与主区域分离感 */
+  --shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.1); /* 输入框内凹 */
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.35);
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.55);
   /* Composer 输入卡片：静息一档、聚焦抬升一档，跟随主题降 alpha（原为裸 rgba）。 */
   --shadow-composer: 0 4px 16px rgb(0 0 0 / 0.15);
   --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.2);
+
+  /* 过渡动效统一时长：所有交互用统一 timing curve，创造流畅一致的节奏。 */
+  --transition-fast: 120ms cubic-bezier(0.2, 0, 0.38, 0.9); /* 小件 hover / 色彩变化 */
+  --transition-base: 200ms cubic-bezier(0.2, 0, 0.38, 0.9); /* 常规展开/收起 */
+  --transition-slow: 320ms cubic-bezier(0.2, 0, 0.38, 0.9); /* 大面积布局 */
+
+  /* 分隔线：比 --border 更淡，桌面应用的分隔线应该极其克制。 */
+  --divider: rgb(var(--border) / 0.6);
 
   /* UI 字体：优先各平台自己设计的界面字面（Win11 的 Segoe UI Variable Text 有光学字号，
      比 Segoe UI 在小字上更清晰），再落 CJK。body 必须引用本 token 而不是另写一条栈。 */
@@ -92,10 +104,15 @@
   --issue-high: 200 56 56;
   --issue-medium: 176 122 17;
   --issue-low: 79 86 196;
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.12);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.05);
+  --shadow-panel: 0 2px 8px rgb(0 0 0 / 0.04);
+  --shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.05);
   --shadow-dropdown: 0 8px 28px rgb(0 0 0 / 0.14);
   --shadow-dialog: 0 24px 80px rgb(0 0 0 / 0.22);
   --shadow-composer: 0 4px 16px rgb(0 0 0 / 0.08);
   --shadow-composer-focus: 0 4px 20px rgb(0 0 0 / 0.1);
+  --divider: rgb(var(--border) / 0.5);
 }
 
 body {
@@ -105,6 +122,10 @@ body {
   background: rgb(var(--background));
   color: rgb(var(--foreground));
   overflow: hidden;
+  /* 文字渲染优化：抗锯齿与清晰度 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .sf-panel-header {
@@ -114,7 +135,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--sf-item-gap);
-  border-bottom: 1px solid rgb(var(--border));
+  border-bottom: 1px solid var(--divider);
   padding: 0 var(--sf-panel-x);
 }
 
@@ -140,15 +161,17 @@ body {
   color: rgb(var(--muted));
   line-height: 1;
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .sf-icon-button:hover {
   border-color: rgb(var(--border));
   background: rgb(var(--elevated));
   color: rgb(var(--foreground));
+  transform: translateY(-1px);
 }
 
 /* Q2 统一细滚条：平时 thumb 收起（透明），hover 容器或滚动中（.scrolling，App 侧 700ms 衰减）
@@ -177,6 +200,7 @@ body {
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: padding-box;
+  transition: background-color var(--transition-base);
 }
 
 :hover::-webkit-scrollbar-thumb,
@@ -225,8 +249,8 @@ body {
 [data-shell-deferred] [data-testid='shell-side-panel'],
 [data-shell-deferred] [data-testid='assistant-panel'] {
   transition:
-    opacity 420ms ease-out,
-    border-color 420ms ease-out;
+    opacity var(--transition-slow),
+    border-color var(--transition-slow);
 }
 [data-shell-deferred='true'] [data-testid='shell-activity-bar'],
 [data-shell-deferred='true'] [data-testid='shell-side-panel'],
@@ -240,8 +264,8 @@ body {
   opacity: 1;
   border-color: rgb(var(--border));
   transition:
-    opacity 120ms ease-out,
-    border-color 120ms ease-out;
+    opacity var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 /* 审稿 issue 内联标记（B2：gutter 圆点 + 词级下划线 + overview ruler） */
@@ -391,9 +415,20 @@ body {
   font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 1px 3px rgb(var(--agent) / 0.3);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    filter var(--transition-fast);
 }
 .sf-inline-btn-accept:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(var(--agent) / 0.35);
   filter: brightness(1.08);
+}
+.sf-inline-btn-accept:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgb(var(--agent) / 0.3);
 }
 .sf-inline-btn-reject {
   height: 26px;
@@ -404,6 +439,9 @@ body {
   color: rgb(var(--muted));
   font-size: var(--text-xs);
   cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 .sf-inline-btn-reject:hover {
   background: rgb(var(--elevated));
@@ -424,26 +462,26 @@ body {
   opacity: 0.55;
   transform: translateY(2px);
   transition:
-    background-color 170ms ease-out,
-    border-left-color 170ms ease-out,
-    opacity 170ms ease-out,
-    transform 170ms ease-out;
+    background-color 170ms var(--transition-fast),
+    border-left-color 170ms var(--transition-fast),
+    opacity 170ms var(--transition-fast),
+    transform 170ms var(--transition-fast);
 }
 .sf-inline-diff-zone--settling .sf-inline-diff-actions {
   opacity: 0;
-  transition: opacity 110ms ease-out;
+  transition: opacity 110ms var(--transition-fast);
 }
 .sf-inline-accepting .sf-inline-diff-old {
   background: transparent;
   box-shadow: inset 3px 0 0 transparent;
   transition:
-    background-color 170ms ease-out,
-    box-shadow 170ms ease-out;
+    background-color 170ms var(--transition-fast),
+    box-shadow 170ms var(--transition-fast);
 }
 .sf-inline-accepting .sf-inline-diff-old-seg,
 .sf-inline-accepting .sf-inline-diff-new-seg {
   background: transparent;
-  transition: background-color 170ms ease-out;
+  transition: background-color 170ms var(--transition-fast);
 }
 
 /* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */
