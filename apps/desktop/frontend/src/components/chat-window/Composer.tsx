@@ -1,12 +1,10 @@
 import { useRef } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
-import {
-  AGENT_PERMISSION_PROFILE_OPTIONS,
-  type AgentPermissionProfile,
-} from '../../lib/agent-permission';
+import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus } from '../icons/shell-icons';
 import { roleMentionQuery } from './display-utils';
+import { PermissionProfileSelector } from './PermissionProfileSelector';
 
 function PauseGlyph() {
   return (
@@ -245,27 +243,12 @@ export function ComposerSurface({
         >
           <Plus size={14} strokeWidth={1.7} />
         </button>
-        <select
+        <PermissionProfileSelector
           value={permissionProfile}
-          onChange={(event) =>
-            onPermissionProfileChange(event.target.value as AgentPermissionProfile)
-          }
-          disabled={disabled || busy}
-          title={
-            busy
-              ? '本轮正在按启动时的权限档位执行'
-              : 'Agent 对本项目的权限（按项目记住，只影响下一次发送）'
-          }
-          aria-label="Agent 对本项目的权限档位"
-          className="h-[22px] max-w-[88px] flex-shrink-0 rounded-sm border border-border bg-background px-1 text-2xs text-muted outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-          data-testid="composer-permission-profile"
-        >
-          {AGENT_PERMISSION_PROFILE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value} title={option.hint}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          onChange={onPermissionProfileChange}
+          disabled={disabled}
+          busy={busy}
+        />
         {focusPinnable ? (
           <button
             type="button"
