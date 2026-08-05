@@ -101,14 +101,14 @@ export function WelcomeWorkspace({
                 StoryForge
               </h1>
               <p className="mt-[3px] text-xs text-subtle">
-                可验证的长篇创作流水线 · 一句话就能开新书
+                可验证的长篇创作流水线 · 一句话就能开新书 · 支持插件扩展
               </p>
             </div>
           </div>
 
           {/* 启动 */}
           <div className="min-w-0">
-            <h2 className="mb-3 text-sm font-medium text-foreground">启动</h2>
+            <h2 className="mb-3 text-sm font-medium text-foreground">🚀 快速开始</h2>
             <div className="mb-2.5 flex items-center gap-1.5 rounded-lg border border-border bg-surface py-1 pl-3 pr-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] focus-within:border-agent/60">
               <input
                 className="h-[30px] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-subtle"
