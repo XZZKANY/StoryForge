@@ -56,32 +56,55 @@ function StepRow({ step }: { step: AgentStep }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const isToolStep = step.id.startsWith('tool-');
   const hasDetail = step.detail.trim().length > 0;
+  const metrics = step.metrics ?? [];
+  const hasMetrics = metrics.length > 0;
 
   return (
-    <button
-      type="button"
-      onClick={() => hasDetail && setDetailOpen((value) => !value)}
-      disabled={!hasDetail}
-      className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5 ${
-        hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
-      }`}
-    >
-      <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
-        {statusGlyph(step.status)}
-      </span>
-      <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
-        {step.title}
-      </span>
-      {hasDetail && (
-        <span
-          className={`min-w-0 flex-1 text-subtle ${
-            detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
-          }`}
-        >
-          {step.detail}
+    <div className="flex flex-col">
+      <button
+        type="button"
+        onClick={() => hasDetail && setDetailOpen((value) => !value)}
+        disabled={!hasDetail}
+        className={`flex w-full items-baseline gap-2 rounded-sm px-1 py-px text-left font-mono text-2xs leading-5 ${
+          hasDetail ? 'cursor-pointer hover:bg-elevated' : 'cursor-default'
+        }`}
+      >
+        <span className={`flex-shrink-0 ${glyphClass(step.status)}`} aria-hidden="true">
+          {statusGlyph(step.status)}
         </span>
+        <span className={`flex-shrink-0 ${isToolStep ? 'text-foreground' : 'text-muted'}`}>
+          {step.title}
+        </span>
+        {/* 有结构化指标时首行让位给 chip 行；仅纯文本 detail（如 plan step）仍在首行内联。 */}
+        {hasDetail && !hasMetrics && (
+          <span
+            className={`min-w-0 flex-1 text-subtle ${
+              detailOpen ? 'whitespace-pre-wrap break-words' : 'truncate'
+            }`}
+          >
+            {step.detail}
+          </span>
+        )}
+      </button>
+
+      {hasMetrics && (
+        <div
+          className="ml-[18px] flex flex-wrap items-center gap-1 py-0.5"
+          data-testid="step-metrics"
+        >
+          {metrics.map((metric) => (
+            <span
+              key={metric.label}
+              className="inline-flex items-baseline gap-1 rounded-sm bg-elevated px-1.5 py-px font-mono text-3xs leading-4 text-subtle"
+              data-testid="step-metric-chip"
+            >
+              <span className="text-subtle">{metric.label}</span>
+              <span className="text-foreground">{metric.value}</span>
+            </span>
+          ))}
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 

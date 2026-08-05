@@ -301,7 +301,7 @@ export function AgentRunRecoveryPanel({ recovery }: { recovery: AgentRunRecovery
   const toneClass = recoveryToneClass(recovery.tone);
   return (
     <section
-      className={`rounded-md border px-3 py-2 ${toneClass}`}
+      className={`rounded-lg border px-3 py-2 ${toneClass}`}
       data-testid="agent-run-recovery"
     >
       <div className="flex min-w-0 flex-col gap-1">
@@ -421,9 +421,13 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
     : projection.completedCount !== null
       ? `${projection.completedCount} 已完成`
       : '等待章节进度';
+  // 总章数已知时画一条细 meter：长写作任务的进度不该只靠读「3/10」文字。
+  const totalChapters = projection.totalChapters ?? 0;
+  const completed = Math.min(projection.completedCount ?? 0, totalChapters);
+  const progressPercent = totalChapters > 0 ? Math.round((completed / totalChapters) * 100) : null;
   return (
     <section
-      className="animate-slide-up-fade rounded-md border border-border bg-panel px-3 py-2"
+      className="animate-slide-up-fade rounded-lg border border-border bg-panel px-3 py-2"
       data-testid="writing-run-progress"
     >
       <div className="flex items-center gap-3">
@@ -442,6 +446,21 @@ export function WritingRunProgressPanel({ projection }: { projection: WritingRun
           写作任务
         </span>
       </div>
+      {progressPercent !== null && (
+        <div
+          className="mt-2 h-1 overflow-hidden rounded-full bg-elevated"
+          role="progressbar"
+          aria-valuenow={progressPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          data-testid="writing-run-progress-meter"
+        >
+          <div
+            className="h-full rounded-full bg-agent transition-[width] duration-300 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
       {projection.failureReason && (
         <div className="mt-2 text-xs text-warning" data-testid="writing-run-failure-reason">
           {projection.failureReason}
@@ -488,7 +507,7 @@ export function ContextSummaryPanel({
 
   return (
     <section
-      className="animate-slide-up-fade rounded-md border border-border bg-panel px-3 py-2"
+      className="animate-slide-up-fade rounded-lg border border-border bg-panel px-3 py-2"
       data-testid="context-summary"
       data-compact={compact ? 'true' : 'false'}
       data-expanded={detailsOpen ? 'true' : 'false'}
@@ -513,6 +532,15 @@ export function ContextSummaryPanel({
               上下文 · {currentFileLabel ? basename(currentFileLabel) : '未选择文件'}
               {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
             </span>
+            {/* 截断是重要信号，不该只在展开后以灰字出现：折叠标题行就地亮一枚 warning chip。 */}
+            {lastContextBundle?.budget.truncated && (
+              <span
+                className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
+                data-testid="context-truncated-badge"
+              >
+                已截断
+              </span>
+            )}
           </button>
         ) : (
           <div className="min-w-0 flex-1">
