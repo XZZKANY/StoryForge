@@ -312,7 +312,10 @@ function recoveryToneClass(tone: AgentRunRecoveryDisplay['tone']): string {
   return 'border-border bg-panel';
 }
 
-/** Composer 上方固定操作条：停止 + 权限批准/拒绝（中流不再放主 CTA）。 */
+/**
+ * Composer 上方固定操作条：统一 run 控制单一来源。
+ * 包括暂停/恢复/停止 + 权限批准/拒绝 + 补丁接受/拒绝。
+ */
 export function RunActionBar({
   run,
   controls,
@@ -329,10 +332,10 @@ export function RunActionBar({
   const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
-  // #6b：纯运行态不再显示「正在处理 + 停止」条——与 composer 底排「暂停」重复。停止仍可达：
-  // composer 暂停后由「已暂停」条给「恢复 / 停止」。故 canStop 不含纯运行态。
-  const canStop = waitingForPermission || isPaused;
-  if (!canStop && !awaitingConfirm) return null;
+  const isRunning = run.status === 'running';
+  // 只在终态（completed/failed）时隐藏操作条
+  const isTerminal = run.status === 'completed' || run.status === 'failed';
+  if (isTerminal) return null;
 
   const handleAcceptPatch = () => {
     controls.onAcceptPatch?.();
@@ -366,8 +369,23 @@ export function RunActionBar({
                 ? 'AI 修订已生成，可接受或拒绝'
                 : isPaused
                   ? '已暂停'
-                  : '正在处理'}
+                  : isRunning
+                    ? '正在处理'
+                    : '准备中'}
           </div>
+          {/* 运行态：暂停按钮 */}
+          {isRunning && (
+            <button
+              type="button"
+              className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated"
+              onClick={controls.onPauseRun}
+              title="暂停本轮"
+              data-testid="run-pause"
+            >
+              暂停
+            </button>
+          )}
+          {/* 暂停态：恢复按钮 */}
           {isPaused && (
             <button
               type="button"
@@ -379,6 +397,7 @@ export function RunActionBar({
               恢复
             </button>
           )}
+          {/* 权限确认：批准/拒绝 */}
           {waitingForPermission && (
             <>
               <button
@@ -401,6 +420,7 @@ export function RunActionBar({
               </button>
             </>
           )}
+          {/* 补丁确认：接受/拒绝 */}
           {awaitingConfirm && (
             <>
               <button
@@ -423,7 +443,8 @@ export function RunActionBar({
               </button>
             </>
           )}
-          {canStop && (
+          {/* 停止按钮：在运行/暂停/等待权限时可用，补丁确认时不显示（避免误操作） */}
+          {(isRunning || isPaused || waitingForPermission) && (
             <button
               type="button"
               className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"

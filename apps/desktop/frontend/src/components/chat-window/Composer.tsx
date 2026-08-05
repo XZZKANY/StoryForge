@@ -6,15 +6,6 @@ import { ArrowUp, Plus } from '../icons/shell-icons';
 import { roleMentionQuery } from './display-utils';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 
-function PauseGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <rect x="2.5" y="2" width="2.5" height="8" rx="1" fill="currentColor" />
-      <rect x="7" y="2" width="2.5" height="8" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 export function ComposerBox({
   value,
   disabled,
@@ -26,7 +17,6 @@ export function ComposerBox({
   history,
   onAddContext,
   onTogglePinnedContext,
-  onPauseRun,
   permissionProfile,
   onPermissionProfileChange,
 }: {
@@ -40,7 +30,6 @@ export function ComposerBox({
   onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onPauseRun?: () => void;
   permissionProfile: AgentPermissionProfile;
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
@@ -64,7 +53,6 @@ export function ComposerBox({
             onTogglePinnedContext={onTogglePinnedContext}
             onChange={onChange}
             onSubmit={onSubmit}
-            onPauseRun={onPauseRun}
             permissionProfile={permissionProfile}
             onPermissionProfileChange={onPermissionProfileChange}
           />
@@ -85,7 +73,6 @@ export function ComposerSurface({
   history,
   onAddContext,
   onTogglePinnedContext,
-  onPauseRun,
   permissionProfile,
   onPermissionProfileChange,
 }: {
@@ -99,7 +86,6 @@ export function ComposerSurface({
   onTogglePinnedContext?: (path: string) => void;
   onChange: (value: string) => void;
   onSubmit?: () => void;
-  onPauseRun?: () => void;
   permissionProfile: AgentPermissionProfile;
   onPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
@@ -298,27 +284,16 @@ export function ComposerSurface({
             +{overflowPins.length}
           </span>
         )}
-        {busy && onPauseRun ? (
-          <button
-            type="button"
-            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-foreground transition-colors hover:bg-agent hover:text-agent-foreground"
-            title="暂停本轮"
-            onClick={onPauseRun}
-            data-testid="composer-pause-run"
-          >
-            <PauseGlyph />
-          </button>
-        ) : (
-          <button
-            type={onSubmit ? 'button' : 'submit'}
-            className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            title="发送"
-            disabled={!canSubmit}
-            onClick={onSubmit}
-          >
-            <ArrowUp size={14} strokeWidth={2} />
-          </button>
-        )}
+        <button
+          type={onSubmit ? 'button' : 'submit'}
+          className="ml-auto flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md bg-elevated text-muted transition-colors hover:text-foreground group-focus-within:bg-agent group-focus-within:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          title="发送"
+          disabled={!canSubmit}
+          onClick={onSubmit}
+          data-testid="composer-submit"
+        >
+          <ArrowUp size={14} strokeWidth={2} />
+        </button>
       </div>
     </div>
   );

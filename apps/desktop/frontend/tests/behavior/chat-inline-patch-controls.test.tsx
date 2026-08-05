@@ -154,7 +154,7 @@ test('点拒绝按钮调 controls.onRejectPatch', () => {
   assert.equal(rejectCalls[0].direction, '', '空方向应传空串');
 });
 
-test('run 已完成或运行中时 RunActionBar 不渲染（awaitingConfirm 判定正确）', () => {
+test('run 已完成时 RunActionBar 不渲染；运行中显示暂停和停止', () => {
   act(() => {
     root.render(<RunActionBar run={makeRun({ status: 'completed' })} controls={mockControls} />);
   });
@@ -165,5 +165,9 @@ test('run 已完成或运行中时 RunActionBar 不渲染（awaitingConfirm 判�
     root.render(<RunActionBar run={makeRun({ status: 'running' })} controls={mockControls} />);
   });
 
-  assert.equal(container.querySelectorAll('button').length, 0, 'running 时不该渲染按钮');
+  // 第14条：running 时显示暂停和停止按钮
+  const buttons = container.querySelectorAll('button');
+  assert.equal(buttons.length, 2, 'running 时应有 2 个按钮（暂停 + 停止）');
+  assert.ok(container.querySelector('[data-testid="run-pause"]'), '应有暂停按钮');
+  assert.ok(container.querySelector('[data-testid="run-stop"]'), '应有停止按钮');
 });
