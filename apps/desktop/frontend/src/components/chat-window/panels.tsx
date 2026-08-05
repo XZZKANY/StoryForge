@@ -240,8 +240,6 @@ export function MessageList({
         <EmptyConversation
           projectName={projectName}
           currentFileLabel={currentFileLabel}
-          disabled={disabled}
-          onSubmit={onSubmit}
           explicitContextPaths={explicitContextPaths}
           contextCandidates={contextCandidates}
           contextCandidatesLoading={contextCandidatesLoading}
@@ -252,8 +250,6 @@ export function MessageList({
           onAddContext={onAddContext}
           onTogglePinnedContext={onTogglePinnedContext}
           onRetryContextCandidates={onRetryContextCandidates}
-          agentPermissionProfile={agentPermissionProfile}
-          onAgentPermissionProfileChange={onAgentPermissionProfileChange}
         />
       </div>
     );
@@ -338,8 +334,8 @@ export function RunActionBar({
   const waitingForPermission = run.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
-  // status==='waiting' 且非权限 = run 已产出、等你在编辑器确认 diff/导出。此时「停止」会把 run
-  // 误标 failed 却不清掉待确认补丁（放弃应走编辑器里拒绝），故这里只给去向提示、不给破坏性停止。
+  // status==='waiting' 且非权限 = run 已产出补丁、等作者确认。此时「停止」会把 run 误标 failed
+  // 却不清掉待确认补丁（放弃应走下方或编辑器里拒绝），故这里只给操作入口、不给破坏性停止。
   const awaitingConfirm = run.status === 'waiting' && !waitingForPermission;
   // 暂停态给「恢复」出口（不再是死胡同），并保留「停止」；停止是终态、由轻状态条中性收尾。
   const isPaused = run.status === 'paused';
@@ -769,8 +765,6 @@ export function MessageItem({ message }: { message: Message }) {
 export function EmptyConversation({
   projectName,
   currentFileLabel,
-  disabled,
-  onSubmit,
   explicitContextPaths,
   contextCandidates,
   contextCandidatesLoading,
@@ -781,13 +775,9 @@ export function EmptyConversation({
   onAddContext,
   onTogglePinnedContext,
   onRetryContextCandidates,
-  agentPermissionProfile,
-  onAgentPermissionProfileChange,
 }: {
   projectName: string | null;
   currentFileLabel: string | null;
-  disabled: boolean;
-  onSubmit: (value: string) => void;
   explicitContextPaths: string[];
   contextCandidates: SemanticFile[];
   contextCandidatesLoading: boolean;
@@ -798,18 +788,7 @@ export function EmptyConversation({
   onAddContext: () => void;
   onTogglePinnedContext: (path: string) => void;
   onRetryContextCandidates: () => void;
-  agentPermissionProfile: AgentPermissionProfile;
-  onAgentPermissionProfileChange: (profile: AgentPermissionProfile) => void;
 }) {
-  const [value, setValue] = useState('');
-
-  const submit = () => {
-    const next = value.trim();
-    if (!next || disabled) return;
-    setValue('');
-    onSubmit(next);
-  };
-
   return (
     <div className="flex h-full items-center justify-center px-4 py-10">
       <div className="w-full max-w-[680px] translate-y-[-3vh]">
@@ -820,19 +799,12 @@ export function EmptyConversation({
           </div>
         </div>
 
-        <ComposerSurface
-          value={value}
-          disabled={disabled}
-          busy={false}
-          currentFileLabel={currentFileLabel}
-          explicitContextPaths={explicitContextPaths}
-          onAddContext={onAddContext}
-          onTogglePinnedContext={onTogglePinnedContext}
-          onChange={setValue}
-          onSubmit={submit}
-          permissionProfile={agentPermissionProfile}
-          onPermissionProfileChange={onAgentPermissionProfileChange}
-        />
+        <div className="rounded-lg border border-border bg-panel p-4">
+          <div className="text-center text-xs text-muted">
+            在下方输入框开始对话，Agent 会根据你的指令协助创作
+          </div>
+        </div>
+
         <div className="mt-3">
           <ContextSummaryPanel
             currentFileLabel={currentFileLabel}
