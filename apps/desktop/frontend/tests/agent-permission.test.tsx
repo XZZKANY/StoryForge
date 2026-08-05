@@ -111,7 +111,7 @@ test('Composer 带权限选择器，运行中锁定本轮启动时的档位', ()
     />,
   );
 
-  assert.match(html, /data-testid="composer-permission-profile"/);
-  assert.match(html, /value="auto"/);
-  assert.match(html, /<select[^>]*disabled=""[^>]*data-testid="composer-permission-profile"/);
+  assert.match(html, /data-testid="permission-profile-selector"/);
+  assert.match(html, /自动/); // 当前档位显示在按钮文案里
+  assert.match(html, /disabled=""/); // busy 时禁用
 });
