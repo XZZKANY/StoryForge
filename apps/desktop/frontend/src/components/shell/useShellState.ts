@@ -39,6 +39,8 @@ export function useShellState() {
   const [view, setView] = useState<SidePanelView>('explorer');
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('balanced');
+  // 项目仪表盘：打开项目时默认显示，点"开始写作"后隐藏进入编辑器。
+  const [dashboardVisible, setDashboardVisible] = useState(false);
 
   // 点活动栏图标：切到该视图；若点的正是当前视图且面板可见，则收起（VS Code 行为）。
   const switchView = useCallback(
@@ -85,11 +87,22 @@ export function useShellState() {
     setView('explorer');
   }, []);
 
+  // 显示项目仪表盘：打开项目时自动调用。
+  const showDashboard = useCallback(() => {
+    setDashboardVisible(true);
+  }, []);
+
+  // 隐藏仪表盘进入编辑器：点"开始写作"时调用。
+  const hideDashboard = useCallback(() => {
+    setDashboardVisible(false);
+  }, []);
+
   return {
     view,
     sidebarHidden,
     layoutMode,
     rightCollapsed,
+    dashboardVisible,
     switchView,
     toggleSidebar,
     showSidebar,
@@ -99,5 +112,7 @@ export function useShellState() {
     showCenter,
     toggleObservatory,
     showExplorerView,
+    showDashboard,
+    hideDashboard,
   };
 }

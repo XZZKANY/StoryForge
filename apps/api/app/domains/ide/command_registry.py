@@ -19,6 +19,7 @@ from app.domains.book_runs.service import (
 from app.domains.books.models import Book
 from app.domains.events.models import EventLog
 from app.domains.ide._coerce import _int_or_none
+from app.domains.ide.book_breakdown import BookBreakdownError, run_book_breakdown
 from app.domains.ide.schemas import IdeCommandResult
 from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
 from app.domains.judge.service import JudgeInputError, create_judge_issues
@@ -62,6 +63,8 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
         # observatory.scan 同为确定性派生缓存写入（observations.json），无 LLM 无 DB。
         IdeCommandDefinition(id="observatory.scan", title="重扫世界线观测镜", category="Canon", writes=False),
+        # book.breakdown 只写 .storyforge/analysis 派生报告，不碰手稿正文；运行审计进入 AgentArtifact。
+        IdeCommandDefinition(id="book.breakdown", title="生成结构化拆书报告", category="Analysis", writes=False),
         # book.context 是纯只读投影：连派生缓存都不写，只 stat + 读 canon.json / presence 缓存。
         IdeCommandDefinition(id="book.context", title="读取作品底座", category="Manuscript", writes=False),
         # plan.mark_written / plan.unmark_written 只写 .storyforge/serial-plan.json（非手稿、非 DB），故 writes=False。
@@ -107,6 +110,8 @@ def execute_ide_command_by_id(
         result = _execute_canon_refresh_command(command, normalized_args, None)
     elif command.id == "observatory.scan":
         result = _execute_observatory_scan_command(command, normalized_args, None)
+    elif command.id == "book.breakdown":
+        result = _execute_book_breakdown_command(command, normalized_args, None, session)
     elif command.id == "book.context":
         result = _execute_book_context_command(command, normalized_args, None)
     elif command.id in {"plan.mark_written", "plan.unmark_written"}:
@@ -324,6 +329,62 @@ def _execute_observatory_scan_command(
     except FsToolError as exc:
         raise IdeCommandExecutionError(str(exc)) from exc
     return _accepted_command_result(command, args, audit_event_id, {"observatory": output})
+
+
+def _execute_book_breakdown_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    session: Session | None,
+) -> IdeCommandResult:
+    """生成只读拆书底稿；项目报告与 AgentArtifact 分离保存。"""
+
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("book.breakdown 需要 project_root。")
+    target_count = args.get("target_count", 8)
+    if not isinstance(target_count, int) or not 3 <= target_count <= 12:
+        raise IdeCommandExecutionError("book.breakdown 的 target_count 必须在 3 到 12 之间。")
+    try:
+        output = run_book_breakdown(project_root.strip(), target_count=target_count)
+    except (BookBreakdownError, FsToolError, OSError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+
+    if session is not None:
+        from app.domains.agent_runs.service_lifecycle import create_or_resume_agent_run
+        from app.domains.agent_runs.service_store import complete_agent_run, record_agent_artifact
+
+        run = create_or_resume_agent_run(
+            session,
+            public_id=f"breakdown-{output['analysis_id']}",
+            session_id=f"breakdown:{output['analysis_id']}",
+            goal="生成结构化拆书报告",
+            scope={"analysis_id": output["analysis_id"], "input_sha256": output["input_sha256"]},
+        )
+        artifact = record_agent_artifact(
+            session,
+            run,
+            kind="book_breakdown_report",
+            payload={
+                "analysis_id": output["analysis_id"],
+                "input_sha256": output["input_sha256"],
+                "schema_version": output["schema_version"],
+                "selection_strategy_version": output["selection_strategy_version"],
+                "status": output["status"],
+                "paths": output["paths"],
+                "chapter_count": output["chapter_count"],
+                "selected_count": len(output["selected_chapters"]),
+                "provider": None,
+                "model": None,
+            },
+        )
+        complete_agent_run(
+            session,
+            run,
+            result={"agent_result": {"summary": "结构化拆书底稿已生成。"}},
+        )
+        output = {**output, "run_id": run.public_id, "artifact_id": artifact.id}
+    return _accepted_command_result(command, args, audit_event_id, {"breakdown": output})
 
 
 def _execute_book_context_command(
