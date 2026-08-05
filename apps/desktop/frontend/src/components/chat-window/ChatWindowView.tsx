@@ -55,9 +55,8 @@ export function ChatWindowView({
   // chapterBrief 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
   // 故拦一道。补丁待确认已由下方 RunActionBar 就地处理，不再拦截作者发送。
   const awaitingConfirm = Boolean(state.chapterBrief);
-  // 待确认 / 暂停 两态由 RunActionBar 自带状态文案与操作；纯运行态操作条不再渲染（#6b，交给
-  // composer 暂停 + 思考树），但运行态仍算 actionBarVisible，好让轻状态条保持隐藏、不再冒「正在处理…」。
-  // completed 的「本轮已完成。」也不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
+  // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
+  // 「本轮已完成。」不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
   const runStatus = state.agentRun?.status;
   const actionBarVisible =
     runStatus === 'running' || runStatus === 'waiting' || runStatus === 'paused';
@@ -165,7 +164,6 @@ export function ChatWindowView({
         onTogglePinnedContext={togglePinnedContext}
         onChange={state.setInput}
         onSubmit={submitGuarded}
-        onPauseRun={agentRunControls.onPauseRun}
         permissionProfile={composerPermissionProfile}
         onPermissionProfileChange={onAgentPermissionProfileChange}
       />
