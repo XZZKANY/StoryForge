@@ -47,15 +47,14 @@ export function ChatWindowView({
   addExplicitContext,
   togglePinnedContext,
   handleSubmit,
-  handleComposerSubmit,
   userMessageHistory,
   retryLastFailedRun,
   agentRunControls,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
-  // 待确认（补丁 / 权限）期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
-  // 故拦一道：提示先处理待确认的修订，不静默 supersede（放弃走编辑器里拒绝补丁 / 拒绝权限）。
-  const awaitingConfirm = state.agentRun?.status === 'waiting';
+  // chapterBrief 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉待确认轮，
+  // 故拦一道。补丁待确认已由下方 RunActionBar 就地处理，不再拦截作者发送。
+  const awaitingConfirm = Boolean(state.chapterBrief);
   // 待确认 / 暂停 两态由 RunActionBar 自带状态文案与操作；纯运行态操作条不再渲染（#6b，交给
   // composer 暂停 + 思考树），但运行态仍算 actionBarVisible，好让轻状态条保持隐藏、不再冒「正在处理…」。
   // completed 的「本轮已完成。」也不再长驻（完成已在回复里）；只有 failed / stopped 留轻状态条收尾。
@@ -72,7 +71,7 @@ export function ChatWindowView({
       emitToast(
         state.chapterBrief
           ? '先确认或取消 Chapter Brief，再发下一条'
-          : '先在编辑器里处理待确认的修订（接受或拒绝），再发下一条',
+          : '先处理下方待确认的修订（接受或拒绝），再发下一条',
         { tone: 'info' },
       );
       return;
@@ -114,8 +113,6 @@ export function ChatWindowView({
         messages={state.messages}
         projectName={state.projectName}
         currentFileLabel={state.contextRef}
-        disabled={!projectPath || state.agentBusy}
-        onSubmit={handleComposerSubmit}
         agentRun={state.agentRun}
         agentRunRecovery={state.agentRunRecovery}
         writingRunProjection={state.writingRunProjection}
@@ -129,8 +126,6 @@ export function ChatWindowView({
         onAddContext={addExplicitContext}
         onTogglePinnedContext={togglePinnedContext}
         onRetryContextCandidates={retryContextCandidates}
-        agentPermissionProfile={composerPermissionProfile}
-        onAgentPermissionProfileChange={onAgentPermissionProfileChange}
       />
 
       {state.chapterBrief && (
@@ -159,23 +154,21 @@ export function ChatWindowView({
         <RunActionBar run={state.agentRun} controls={agentRunControls} />
       )}
 
-      {state.messages.length > 0 && (
-        <ComposerBox
-          value={state.input}
-          disabled={!projectPath}
-          busy={state.agentBusy}
-          currentFileLabel={state.contextRef}
-          explicitContextPaths={state.explicitContextPaths}
-          history={userMessageHistory}
-          onAddContext={addExplicitContext}
-          onTogglePinnedContext={togglePinnedContext}
-          onChange={state.setInput}
-          onSubmit={submitGuarded}
-          onPauseRun={agentRunControls.onPauseRun}
-          permissionProfile={composerPermissionProfile}
-          onPermissionProfileChange={onAgentPermissionProfileChange}
-        />
-      )}
+      <ComposerBox
+        value={state.input}
+        disabled={!projectPath}
+        busy={state.agentBusy}
+        currentFileLabel={state.contextRef}
+        explicitContextPaths={state.explicitContextPaths}
+        history={userMessageHistory}
+        onAddContext={addExplicitContext}
+        onTogglePinnedContext={togglePinnedContext}
+        onChange={state.setInput}
+        onSubmit={submitGuarded}
+        onPauseRun={agentRunControls.onPauseRun}
+        permissionProfile={composerPermissionProfile}
+        onPermissionProfileChange={onAgentPermissionProfileChange}
+      />
     </div>
   );
 }

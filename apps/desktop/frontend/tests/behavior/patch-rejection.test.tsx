@@ -9,6 +9,9 @@
  * ①拒绝广播出去的事件带得动作者的方向与补丁 id；
  * ②拒绝这条路径**一个字节都不写盘**（不快照、不写文件、不回调标 done）；
  * ③方向非空才转成一次真实的作者发言发出去——空方向不许烧新一轮 BYO-key。
+ *
+ * 加第④条（第12条功能）：待确认补丁时对话区 RunActionBar 能就地接受/拒绝，
+ * 不必切到编辑器。
  */
 import assert from 'node:assert/strict';
 import { act, useRef } from 'react';
