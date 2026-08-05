@@ -2124,3 +2124,60 @@ pnpm.cmd verify                                         -> 1508 API passed, 4 sk
 未修改 API route、DTO、OpenAPI 或 Agent frame schema，不需要刷新 generated contract。未执行真机 Tauri
 人工点击验收；本轮证据覆盖组件行为、样式契约与生产 CSS 构建，不等同于真机 GUI 验收。源码行数门禁失败位于
 未改动文件，且在本轮开始前已存在，按任务边界未顺手拆分。
+
+### 2026-08-05 结构化拆书报告（本轮恢复与模型阶段）
+
+范围：重新加入本地参考文本解析、中文章序识别、确定性代表章选择、有限上下文、版本化结构化分析、主模型严格 JSON 重试、`.storyforge/analysis/` 报告文件、AgentArtifact 运行记录和 Desktop 作品栏触发按钮；未接入网页抓取、下游创意生成和专用报告导出页。
+
+验证：
+
+```text
+cd apps/api && uv run pytest tests/test_ide_book_breakdown.py tests/test_ide_commands.py -q -> 8 passed
+cd apps/api && uv run ruff check app/domains/ide/book_breakdown.py app/domains/ide/command_registry.py tests/test_ide_book_breakdown.py -> passed
+npm --prefix apps/desktop/frontend run test -- --run tests/book-profile-view.test.tsx -> 15 passed
+npm --prefix apps/desktop/frontend run typecheck -> passed
+```
+
+未验证：真实 provider、模型联网质量、取消/漂移恢复、报告专用预览/导出、网页来源和真机 Tauri 点击链。全量 source standards 仍受未改动的 `useRunAuthorAgent.ts` 502 行既有问题阻断。
+
+### 2026-08-05 结构化拆书报告（闭环补全）
+
+本轮补充报告 Markdown 投影、Desktop 侧栏字段预览与 JSON/Markdown 打开入口，以及
+`book.breakdown.status` 来源指纹检查。源文件变化时状态显示为 stale；模型 malformed JSON
+仍保留确定性底稿并记录错误。
+
+验证：
+
+```text
+npm.cmd --prefix apps/desktop/frontend run test -- --run -> 89 files / 574 passed
+npm.cmd --prefix apps/desktop/frontend run typecheck -> passed
+python -m py_compile <touched API modules/tests> -> passed
+uv run python -c <breakdown drift smoke> -> completed_deterministic；fresh/stale 与 Markdown 断言通过
+pnpm.cmd openapi -> passed, no contract drift
+git diff --check -> passed
+```
+
+API pytest 未能启动：当前 `apps/api/.venv` 缺少 `prometheus_fastapi_instrumentator`，未擅自安装依赖。
+真实 provider、网页来源和真机 Tauri 点击链仍未验证；source standards 的既有 502 行门禁问题保持不变。
+
+### 2026-08-06 结构化拆书报告（取消协议）
+
+补充 `analysis_id` 取消协议：后端登记进程内取消事件，新增 `book.breakdown.cancel`，
+在解析/选章/模型返回边界检查取消并落盘 `cancelled` 部分报告；Desktop 运行中显示取消按钮，
+取消请求不会被当作成功生成。
+
+验证：
+
+```text
+Python py_compile -> passed
+uv run cancellation smoke + IDE cancel command smoke -> passed
+uv run persistence failure smoke -> passed
+npm prettier -> passed
+npm --prefix apps/desktop/frontend run typecheck -> passed
+npm --prefix apps/desktop/frontend run test -- --run tests/book-profile-view.test.tsx -> 18 passed
+```
+
+完整 API pytest 仍受虚拟环境缺少 `prometheus_fastapi_instrumentator` 阻断。
+
+源码标准检查结果：新增 `book_breakdown.py`（500 行）与 `book_breakdown_control.py`（29 行）均在限制内；
+检查仍只剩既有 `apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts` 502 行超限。

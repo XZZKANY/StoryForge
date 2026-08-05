@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
 
 import type { BookProfileHandle } from '../src/components/app/useBookProfile';
+import type { BookBreakdownPreview } from '../src/components/app/useProjectCommands';
 import { BookProfileView } from '../src/components/shell/BookProfileView';
 import { emptyBookProfile } from '../src/lib/book-profile';
 
@@ -42,7 +43,15 @@ function makeHandle(overrides: Partial<BookProfileHandle> = {}): BookProfileHand
   };
 }
 
-async function renderView(handle: BookProfileHandle, onOpenOutline = vi.fn()) {
+async function renderView(
+  handle: BookProfileHandle,
+  onOpenOutline = vi.fn(),
+  onRunBreakdown = vi.fn(),
+  breakdown: BookBreakdownPreview | null = null,
+  onOpenBreakdown = vi.fn(),
+  breakdownRunning = false,
+  onCancelBreakdown = vi.fn(),
+) {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -54,6 +63,11 @@ async function renderView(handle: BookProfileHandle, onOpenOutline = vi.fn()) {
         dailyWordGoal={3000}
         onOpenOutline={onOpenOutline}
         onBackToExplorer={() => {}}
+        onRunBreakdown={onRunBreakdown}
+        breakdown={breakdown}
+        onOpenBreakdown={onOpenBreakdown}
+        breakdownRunning={breakdownRunning}
+        onCancelBreakdown={onCancelBreakdown}
       />,
     );
   });
@@ -251,4 +265,40 @@ test('大纲被截断时把丢掉的条数写成数字，不静默省略', async
 test('大纲为空时给出可照做的下一步，而不是一句「无数据」', async () => {
   await renderView(makeHandle());
   assert.match(container!.textContent ?? '', /还没有带标题的文档/);
+});
+
+test('拆书按钮交给项目命令层执行', async () => {
+  const onRunBreakdown = vi.fn();
+  await renderView(makeHandle(), vi.fn(), onRunBreakdown);
+  await act(async () => (byTestId('book-breakdown-run') as HTMLButtonElement).click());
+  assert.equal(onRunBreakdown.mock.calls.length, 1);
+});
+
+test('拆书报告显示字段并提供 Markdown/JSON 打开入口', async () => {
+  const onOpenBreakdown = vi.fn();
+  await renderView(
+    makeHandle(),
+    vi.fn(),
+    vi.fn(),
+    {
+      status: 'completed_deterministic',
+      chapter_count: 12,
+      analysis: { story_structure: { status: 'pending', summary: '待补充' } },
+    },
+    onOpenBreakdown,
+  );
+  assert.ok(byTestId('book-breakdown-preview'));
+  assert.match(container!.textContent ?? '', /待补充/);
+  await act(async () => (byTestId('book-breakdown-open') as HTMLButtonElement).click());
+  await act(async () => (byTestId('book-breakdown-open-json') as HTMLButtonElement).click());
+  assert.deepEqual(onOpenBreakdown.mock.calls, [['markdown'], ['json']]);
+});
+
+test('拆书运行中提供取消入口', async () => {
+  const onCancelBreakdown = vi.fn();
+  await renderView(makeHandle(), vi.fn(), vi.fn(), null, vi.fn(), true, onCancelBreakdown);
+  const cancel = byTestId('book-breakdown-cancel') as HTMLButtonElement;
+  assert.ok(cancel);
+  await act(async () => cancel.click());
+  assert.equal(onCancelBreakdown.mock.calls.length, 1);
 });

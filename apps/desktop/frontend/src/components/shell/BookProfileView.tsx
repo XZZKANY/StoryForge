@@ -11,6 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 
+import type { BookBreakdownPreview } from '../app/useProjectCommands';
 import type { BookProfileHandle } from '../app/useBookProfile';
 import {
   bookGoalProgress,
@@ -21,7 +22,16 @@ import {
 } from '../../lib/book-profile';
 import { readDailyProgress } from '../../lib/daily-progress';
 import type { OutlineEntry } from '../../lib/outline-index';
-import { Check, FileText, ImagePlus, Library, Plus, RefreshCw, X } from '../icons/shell-icons';
+import {
+  BookOpen,
+  Check,
+  FileText,
+  ImagePlus,
+  Library,
+  Plus,
+  RefreshCw,
+  X,
+} from '../icons/shell-icons';
 import { PanelSection } from './PanelSection';
 
 /** 文本字段留在本地 draft：每敲一个字就写盘既无必要，也会把 `.storyforge/` 刷成日志。 */
@@ -37,6 +47,22 @@ function toDraft(profile: BookProfile): Draft {
 
 function Section(props: Omit<Parameters<typeof PanelSection>[0], 'prefix'>) {
   return <PanelSection {...props} prefix="book" />;
+}
+
+const BREAKDOWN_FIELD_LABELS: Record<string, string> = {
+  story_structure: '故事结构',
+  characters_and_relations: '角色与关系',
+  conflict_and_rhythm: '冲突与节奏',
+  setting_and_world: '设定与世界观',
+  craft_methods: '写作技法',
+  transferable_insights: '可迁移洞察',
+};
+
+function breakdownStatusLabel(status?: string): string {
+  if (status === 'completed') return '模型分析完成';
+  if (status === 'completed_deterministic') return '确定性底稿';
+  if (status === 'stale') return '需要重新生成';
+  return status ?? '未知状态';
 }
 
 function GoalBar({ progress, testid }: { progress: number; testid: string }) {
@@ -69,12 +95,24 @@ export function BookProfileView({
   dailyWordGoal,
   onOpenOutline,
   onBackToExplorer,
+  onRunBreakdown,
+  breakdown,
+  breakdownRunning = false,
+  breakdownCancelling = false,
+  onCancelBreakdown = () => undefined,
+  onOpenBreakdown = () => undefined,
 }: {
   projectPath: string;
   handle: BookProfileHandle;
   dailyWordGoal: number;
   onOpenOutline: (path: string, line: number) => void;
   onBackToExplorer: () => void;
+  onRunBreakdown: () => void;
+  breakdown?: BookBreakdownPreview | null;
+  breakdownRunning?: boolean;
+  breakdownCancelling?: boolean;
+  onCancelBreakdown?: () => void;
+  onOpenBreakdown?: (format?: 'json' | 'markdown') => void;
 }) {
   // 档案还在读盘时 profile 仍是空档案：此刻放行编辑，读完会把作者刚敲的字覆盖掉；
   // 更糟的是点封面会拿这份空档案写回磁盘，把已有的书名简介清空。故读盘期间整个档案区停用。
@@ -338,6 +376,85 @@ export function BookProfileView({
                 只算已保存的净增量，未保存的草稿不计入。
               </p>
             </div>
+          </div>
+        </Section>
+
+        <Section title="拆书" testid="breakdown" defaultOpen>
+          <div className="px-3">
+            <p className="text-3xs leading-relaxed text-subtle">
+              从项目正文提取章节索引和代表章节，生成可追溯的结构化拆书底稿。
+            </p>
+            <div className="mt-2 flex gap-1.5">
+              <button
+                type="button"
+                onClick={onRunBreakdown}
+                disabled={handle.loading || breakdownRunning}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-2xs text-foreground hover:bg-elevated disabled:opacity-50"
+                data-testid="book-breakdown-run"
+              >
+                <BookOpen size={12} strokeWidth={1.7} aria-hidden="true" />
+                {breakdownRunning ? '生成中…' : '生成拆书报告'}
+              </button>
+              {breakdownRunning && (
+                <button
+                  type="button"
+                  onClick={onCancelBreakdown}
+                  disabled={breakdownCancelling}
+                  className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-2xs text-muted hover:bg-elevated disabled:opacity-50"
+                  data-testid="book-breakdown-cancel"
+                >
+                  <X size={12} strokeWidth={1.7} aria-hidden="true" />
+                  {breakdownCancelling ? '取消中…' : '取消'}
+                </button>
+              )}
+            </div>
+            {breakdown && (
+              <div
+                className="mt-2 border-t border-border pt-2"
+                data-testid="book-breakdown-preview"
+              >
+                <div className="flex items-center justify-between gap-2 text-3xs text-muted">
+                  <span>
+                    {breakdown.stale ? '报告已过期' : '报告可用'} · {breakdown.chapter_count ?? 0}{' '}
+                    章
+                  </span>
+                  <span className={breakdown.stale ? 'text-warning' : 'text-subtle'}>
+                    {breakdownStatusLabel(breakdown.status)}
+                  </span>
+                </div>
+                <ul className="mt-1 space-y-1" data-testid="book-breakdown-fields">
+                  {Object.entries(breakdown.analysis ?? {}).map(([key, value]) => (
+                    <li
+                      key={key}
+                      className="max-h-[3.75rem] overflow-hidden text-3xs leading-relaxed text-subtle"
+                    >
+                      <span className="text-muted">{BREAKDOWN_FIELD_LABELS[key] ?? key}</span>：
+                      {value.summary ?? '待补充'}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-2 flex gap-1.5">
+                  <button
+                    type="button"
+                    className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-3xs text-foreground hover:bg-elevated"
+                    onClick={() => onOpenBreakdown('markdown')}
+                    data-testid="book-breakdown-open"
+                  >
+                    <FileText size={11} strokeWidth={1.7} aria-hidden="true" />
+                    打开 Markdown
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-3xs text-foreground hover:bg-elevated"
+                    onClick={() => onOpenBreakdown('json')}
+                    data-testid="book-breakdown-open-json"
+                  >
+                    <BookOpen size={11} strokeWidth={1.7} aria-hidden="true" />
+                    查看 JSON
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </Section>
 

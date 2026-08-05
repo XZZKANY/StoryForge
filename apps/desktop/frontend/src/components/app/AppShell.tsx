@@ -243,6 +243,12 @@ export function AppShell({
                     dailyWordGoal={preferences.settings.dailyWordGoal}
                     onOpenOutline={onOpenOutlineHeading}
                     onBackToExplorer={shell.showExplorerView}
+                    onRunBreakdown={() => void commands.handleBookBreakdown()}
+                    breakdown={commands.bookBreakdown}
+                    breakdownRunning={commands.bookBreakdownRunning}
+                    breakdownCancelling={commands.bookBreakdownCancelling}
+                    onCancelBreakdown={() => void commands.handleCancelBookBreakdown()}
+                    onOpenBreakdown={(format) => void commands.handleOpenBookBreakdown(format)}
                   />
                 ) : (
                   <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">

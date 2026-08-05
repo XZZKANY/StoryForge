@@ -11,6 +11,7 @@ from app.domains.agent_runs import book_context, serial_plan_update
 from app.domains.agent_runs.canon_service import run_canon_projection
 from app.domains.agent_runs.fs_tools import FsToolError
 from app.domains.agent_runs.observatory import run_observatory_scan
+from app.domains.book_runs.book_generation import missing_book_generation_env, resolved_llm_env
 from app.domains.book_runs.service import (
     BookRunBlockedError,
     BookRunError,
@@ -19,6 +20,13 @@ from app.domains.book_runs.service import (
 from app.domains.books.models import Book
 from app.domains.events.models import EventLog
 from app.domains.ide._coerce import _int_or_none
+from app.domains.ide.book_breakdown import (
+    BookBreakdownError,
+    prepare_breakdown_cancellation,
+    request_breakdown_cancel,
+    read_book_breakdown_status,
+    run_book_breakdown,
+)
 from app.domains.ide.schemas import IdeCommandResult
 from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
 from app.domains.judge.service import JudgeInputError, create_judge_issues
@@ -62,6 +70,9 @@ _BUILTIN_COMMANDS: dict[str, IdeCommandDefinition] = {
         IdeCommandDefinition(id="canon.refresh", title="刷新 Canon 事实卡（dossier）", category="Canon", writes=False),
         # observatory.scan 同为确定性派生缓存写入（observations.json），无 LLM 无 DB。
         IdeCommandDefinition(id="observatory.scan", title="重扫世界线观测镜", category="Canon", writes=False),
+        IdeCommandDefinition(id="book.breakdown", title="生成结构化拆书报告", category="Analysis", writes=False),
+        IdeCommandDefinition(id="book.breakdown.cancel", title="取消结构化拆书", category="Analysis", writes=False),
+        IdeCommandDefinition(id="book.breakdown.status", title="检查拆书报告状态", category="Analysis", writes=False),
         # book.context 是纯只读投影：连派生缓存都不写，只 stat + 读 canon.json / presence 缓存。
         IdeCommandDefinition(id="book.context", title="读取作品底座", category="Manuscript", writes=False),
         # plan.mark_written / plan.unmark_written 只写 .storyforge/serial-plan.json（非手稿、非 DB），故 writes=False。
@@ -107,6 +118,12 @@ def execute_ide_command_by_id(
         result = _execute_canon_refresh_command(command, normalized_args, None)
     elif command.id == "observatory.scan":
         result = _execute_observatory_scan_command(command, normalized_args, None)
+    elif command.id == "book.breakdown":
+        result = _execute_book_breakdown_command(command, normalized_args, None, session)
+    elif command.id == "book.breakdown.cancel":
+        result = _execute_book_breakdown_cancel_command(command, normalized_args, None)
+    elif command.id == "book.breakdown.status":
+        result = _execute_book_breakdown_status_command(command, normalized_args, None)
     elif command.id == "book.context":
         result = _execute_book_context_command(command, normalized_args, None)
     elif command.id in {"plan.mark_written", "plan.unmark_written"}:
@@ -324,6 +341,107 @@ def _execute_observatory_scan_command(
     except FsToolError as exc:
         raise IdeCommandExecutionError(str(exc)) from exc
     return _accepted_command_result(command, args, audit_event_id, {"observatory": output})
+
+
+def _execute_book_breakdown_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+    session: Session | None,
+) -> IdeCommandResult:
+    """生成只读拆书底稿；项目报告与 AgentArtifact 分离保存。"""
+
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("book.breakdown 需要 project_root。")
+    target_count = args.get("target_count", 8)
+    if not isinstance(target_count, int) or not 3 <= target_count <= 12:
+        raise IdeCommandExecutionError("book.breakdown 的 target_count 必须在 3 到 12 之间。")
+    try:
+        llm_source = resolved_llm_env()
+        model_source = llm_source if not missing_book_generation_env(llm_source) else None
+        analysis_id_arg = args.get("analysis_id")
+        analysis_id = analysis_id_arg.strip() if isinstance(analysis_id_arg, str) and analysis_id_arg.strip() else None
+        cancel_event = prepare_breakdown_cancellation(analysis_id) if analysis_id else None
+        output = run_book_breakdown(
+            project_root.strip(),
+            target_count=target_count,
+            model_source=model_source,
+            analysis_id=analysis_id,
+            cancel_event=cancel_event,
+        )
+    except (BookBreakdownError, FsToolError, OSError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+
+    if session is not None:
+        from app.domains.agent_runs.service_lifecycle import create_or_resume_agent_run
+        from app.domains.agent_runs.service_store import complete_agent_run, record_agent_artifact
+
+        run = create_or_resume_agent_run(
+            session,
+            public_id=f"breakdown-{output['analysis_id']}",
+            session_id=f"breakdown:{output['analysis_id']}",
+            goal="生成结构化拆书报告",
+            scope={"analysis_id": output["analysis_id"], "input_sha256": output["input_sha256"]},
+        )
+        artifact = record_agent_artifact(
+            session,
+            run,
+            kind="book_breakdown_report",
+            payload={
+                "analysis_id": output["analysis_id"],
+                "input_sha256": output["input_sha256"],
+                "schema_version": output["schema_version"],
+                "selection_strategy_version": output["selection_strategy_version"],
+                "status": output["status"],
+                "paths": output["paths"],
+                "chapter_count": output["chapter_count"],
+                "selected_count": len(output["selected_chapters"]),
+                "provider": output.get("provider"),
+                "model": output.get("model"),
+                "retries": output.get("retries", 0),
+                "model_error": output.get("model_error"),
+            },
+        )
+        complete_agent_run(
+            session,
+            run,
+            result={"agent_result": {"summary": "结构化拆书底稿已生成。"}},
+        )
+        output = {**output, "run_id": run.public_id, "artifact_id": artifact.id}
+    return _accepted_command_result(command, args, audit_event_id, {"breakdown": output})
+
+
+def _execute_book_breakdown_cancel_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+) -> IdeCommandResult:
+    analysis_id = args.get("analysis_id")
+    if not isinstance(analysis_id, str) or not analysis_id.strip():
+        raise IdeCommandExecutionError("book.breakdown.cancel 需要 analysis_id。")
+    requested = request_breakdown_cancel(analysis_id.strip())
+    return _accepted_command_result(
+        command,
+        args,
+        audit_event_id,
+        {"breakdown": {"analysis_id": analysis_id.strip(), "cancellation_requested": requested}},
+    )
+
+
+def _execute_book_breakdown_status_command(
+    command: IdeCommandDefinition,
+    args: dict[str, object],
+    audit_event_id: str | None,
+) -> IdeCommandResult:
+    project_root = args.get("project_root")
+    if not isinstance(project_root, str) or not project_root.strip():
+        raise IdeCommandExecutionError("book.breakdown.status 需要 project_root。")
+    try:
+        output = read_book_breakdown_status(project_root.strip())
+    except (BookBreakdownError, FsToolError, OSError) as exc:
+        raise IdeCommandExecutionError(str(exc)) from exc
+    return _accepted_command_result(command, args, audit_event_id, {"breakdown": output})
 
 
 def _execute_book_context_command(

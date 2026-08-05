@@ -74,6 +74,7 @@ def _atomic_write_json(target: Path, payload: dict[str, Any]) -> None:
 # 红线例外的原子写能力由本模块单点持有；`.storyforge/` 下的同级载体（serial_plan 等）
 # 复用这一份，不各自再写一遍 mkstemp+fsync+replace。
 atomic_write_json = _atomic_write_json
+atomic_write_text = _atomic_write_text
 
 
 def read_canon(project_root: str) -> dict[str, Any]:
