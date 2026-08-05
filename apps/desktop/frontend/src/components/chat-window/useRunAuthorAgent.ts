@@ -336,6 +336,7 @@ export function useRunAuthorAgent(
 
         const agentSteps = stepsFromAgentResult(response);
         const responseChapterBrief = chapterBriefFromAgentResult(response);
+        const proposed = writableFilePatch(response);
         setChapterBrief(responseChapterBrief);
         void refreshAgentRunRecovery(response.run_id ?? runId);
         setAgentRun((run) =>
@@ -355,6 +356,8 @@ export function useRunAuthorAgent(
                           detail: responseChapterBrief
                             ? '等待作者确认 Chapter Brief'
                             : '等待作者在编辑器里确认 diff',
+                          filePath: proposed?.file_path,
+                          patchId: proposed?.id,
                         },
                       ]
                     : []),
@@ -364,7 +367,6 @@ export function useRunAuthorAgent(
         );
         setAgentBusy(false);
 
-        const proposed = writableFilePatch(response);
         if (proposed) {
           const writingContext = writingContextFromAgentResult(
             response,

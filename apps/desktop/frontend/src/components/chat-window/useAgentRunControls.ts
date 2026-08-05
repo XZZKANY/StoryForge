@@ -4,6 +4,8 @@ import {
   AUTHOR_LOOP_RESULT_EVENT,
   PATCH_REJECTED_EVENT,
   SUGGESTION_RESULT_EVENT,
+  emitAcceptCurrentFileSuggestion,
+  emitPatchRejected,
   type AuthorLoopResult,
   type PatchRejection,
   type SuggestionResult,
@@ -188,6 +190,19 @@ export function useAgentRunControls(
           target_chars_max: brief.targetCharsMax,
         },
       }),
+    onAcceptPatch: () => {
+      emitAcceptCurrentFileSuggestion();
+    },
+    onRejectPatch: (direction: string) => {
+      if (!agentRun) return;
+      const approvalStep = agentRun.steps.find((s) => s.id === 'approval');
+      if (!approvalStep?.filePath) return;
+      emitPatchRejected({
+        filePath: approvalStep.filePath,
+        patchId: approvalStep.patchId ?? 'unknown',
+        direction,
+      });
+    },
   };
 
   useEffect(() => {

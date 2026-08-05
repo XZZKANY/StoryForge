@@ -44,6 +44,8 @@ export type AgentStep = {
   status: AgentStepStatus;
   detail: string;
   metrics?: AgentStepMetric[];
+  filePath?: string;
+  patchId?: string;
 };
 
 // paused/stopped 是作者主动控制态：暂停留有恢复入口、停止是中性收尾（非失败）。
@@ -87,6 +89,8 @@ export type AgentRunControlHandlers = {
   onResumeRun: () => void;
   onStopRun: () => void;
   onConfirmChapterBrief?: (brief: ChapterBrief) => void;
+  onAcceptPatch?: () => void;
+  onRejectPatch?: (direction: string) => void;
 };
 
 export type ChapterBrief = {

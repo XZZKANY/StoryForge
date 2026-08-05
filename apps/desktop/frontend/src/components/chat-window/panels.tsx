@@ -334,6 +334,7 @@ export function RunActionBar({
   run: AgentRun;
   controls: AgentRunControlHandlers;
 }) {
+  const [rejectDraft, setRejectDraft] = useState<string | null>(null);
   const waitingForPermission = run.steps.some(
     (step) => step.id === 'permission-required' && step.status === 'waiting',
   );
@@ -347,70 +348,142 @@ export function RunActionBar({
   const canStop = waitingForPermission || isPaused;
   if (!canStop && !awaitingConfirm) return null;
 
+  const handleAcceptPatch = () => {
+    controls.onAcceptPatch?.();
+  };
+
+  const handleRejectPatch = () => {
+    if (rejectDraft === null) {
+      setRejectDraft('');
+      return;
+    }
+    const direction = rejectDraft.trim();
+    setRejectDraft(null);
+    controls.onRejectPatch?.(direction);
+  };
+
   return (
     <div
-      className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-border bg-panel px-4 py-2"
+      className="flex flex-shrink-0 flex-col border-t border-border bg-panel"
       data-testid="run-action-bar"
     >
-      <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
-        <div
-          className="min-w-0 flex-1 text-xs text-muted"
-          title={`运行 ${run.id}`}
-          data-testid="run-action-status"
-        >
-          {waitingForPermission
-            ? '等待你确认'
-            : awaitingConfirm
-              ? '在编辑器里确认修订'
-              : isPaused
-                ? '已暂停'
-                : '正在处理'}
-        </div>
-        {isPaused && (
-          <button
-            type="button"
-            className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
-            onClick={controls.onResumeRun}
-            title="恢复本轮"
-            data-testid="run-resume"
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+        <div className="mx-auto flex w-full max-w-[800px] flex-wrap items-center gap-2">
+          <div
+            className="min-w-0 flex-1 text-xs text-muted"
+            title={`运行 ${run.id}`}
+            data-testid="run-action-status"
           >
-            恢复
-          </button>
-        )}
-        {waitingForPermission && (
-          <>
+            {waitingForPermission
+              ? '等待你确认'
+              : awaitingConfirm
+                ? 'AI 修订已生成，可接受或拒绝'
+                : isPaused
+                  ? '已暂停'
+                  : '正在处理'}
+          </div>
+          {isPaused && (
             <button
               type="button"
               className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
-              onClick={controls.onApprovePermission}
-              title="批准权限请求"
-              data-testid="run-approve-permission"
+              onClick={controls.onResumeRun}
+              title="恢复本轮"
+              data-testid="run-resume"
             >
-              批准
+              恢复
             </button>
+          )}
+          {waitingForPermission && (
+            <>
+              <button
+                type="button"
+                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+                onClick={controls.onApprovePermission}
+                title="批准权限请求"
+                data-testid="run-approve-permission"
+              >
+                批准
+              </button>
+              <button
+                type="button"
+                className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
+                onClick={controls.onDenyPermission}
+                title="拒绝权限请求"
+                data-testid="run-deny-permission"
+              >
+                拒绝
+              </button>
+            </>
+          )}
+          {awaitingConfirm && (
+            <>
+              <button
+                type="button"
+                className="h-7 rounded-md bg-accent px-2.5 text-xs text-accent-foreground hover:bg-accent/90 active:bg-accent"
+                onClick={handleAcceptPatch}
+                title="接受这版修订并写回"
+                data-testid="run-accept-patch"
+              >
+                接受
+              </button>
+              <button
+                type="button"
+                className="h-7 rounded-md border border-border px-2.5 text-xs text-muted hover:text-foreground hover:bg-elevated"
+                onClick={handleRejectPatch}
+                title="拒绝这版修订"
+                data-testid="run-reject-patch"
+              >
+                {rejectDraft === null ? '拒绝' : '取消'}
+              </button>
+            </>
+          )}
+          {canStop && (
             <button
               type="button"
               className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
-              onClick={controls.onDenyPermission}
-              title="拒绝权限请求"
-              data-testid="run-deny-permission"
+              onClick={controls.onStopRun}
+              title="停止本轮"
+              data-testid="run-stop"
             >
-              拒绝
+              停止
             </button>
-          </>
-        )}
-        {canStop && (
-          <button
-            type="button"
-            className="h-7 rounded-md border border-error/40 px-2.5 text-xs text-error hover:bg-error/10"
-            onClick={controls.onStopRun}
-            title="停止本轮"
-            data-testid="run-stop"
-          >
-            停止
-          </button>
-        )}
+          )}
+        </div>
       </div>
+      {rejectDraft !== null && awaitingConfirm && (
+        <div
+          className="flex items-center gap-2 border-t border-border px-4 py-2"
+          data-testid="run-reject-form"
+        >
+          <div className="mx-auto flex w-full max-w-[800px] items-center gap-2">
+            <input
+              autoFocus
+              value={rejectDraft}
+              onChange={(e) => setRejectDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleRejectPatch();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setRejectDraft(null);
+                }
+              }}
+              placeholder="说说该怎么改（回车发出，留空则只否掉这版）"
+              className="min-w-0 flex-1 rounded-md border border-border bg-elevated px-2 py-1 text-xs text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
+              data-testid="run-reject-input"
+            />
+            <button
+              type="button"
+              onClick={handleRejectPatch}
+              className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground hover:bg-elevated"
+              data-testid="run-reject-confirm"
+            >
+              {rejectDraft.trim() ? '否掉并重来' : '否掉'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
