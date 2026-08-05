@@ -81,9 +81,6 @@ export function reconcileWorkspaceSession(
   if (!session || !projectExists) return null;
 
   const openFiles = session.openFiles.filter((path) => existingFiles.has(path));
-  // 项目在但没有可恢复的文件时，整个会话作废，避免恢复出空壳 + 误判 restoredWorkspace
-  if (openFiles.length === 0) return null;
-
   const activeFile =
     session.activeFile && existingFiles.has(session.activeFile)
       ? session.activeFile

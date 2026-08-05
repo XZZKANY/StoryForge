@@ -36,9 +36,9 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 
 - **API（后端事实源）：** FastAPI（Python 3.11+） + SQLAlchemy + Alembic + Pydantic v2，依赖管理走 `uv`。
 - **Desktop IDE（主产品入口）：** Tauri 2 + Vite + React 18 + Monaco Editor + 本地文件系统集成。
-- **数据库：** SQLite（单机模式），sidecar 自动管理迁移。
 - **Workflow（编排）：** LangGraph，承载长任务、checkpoint、真实模型调用边界。
 - **共享契约：** `packages/shared`（TypeScript 包），其中 `src/contracts/storyforge.openapi.json` 是后端 OpenAPI 快照，必须随后端变化同步刷新。
+- **基础设施：** PostgreSQL（+ pgvector） + Redis + MinIO（对象存储） + Sentry（错误追踪） + Prometheus 指标。
 - **包管理：** pnpm 9.x（workspace），Python 侧 `uv sync`。
 
 ## 3. 仓库布局
@@ -67,9 +67,11 @@ docs/            架构与工作台契约文档
 ### 一键开发环境
 
 ```bash
-pnpm dev               # 桌面 IDE 主体验（Tauri 自动启动 sidecar + sqlite）
+pnpm dev               # 桌面 IDE 主体验（含桌面 Vite、Docker、迁移、API、Tauri 窗口）
 pnpm desktop:dev       # 同上，显式桌面端入口
-pnpm dev:api           # 只启动 API（sqlite 模式，用于单独测试后端）
+pnpm dev:maintenance   # docker compose + alembic + API
+pnpm dev:api           # 只启基础服务 + API
+node scripts/dev-start.mjs --skip-docker --skip-migrate    # 已有服务时快速重启
 ```
 
 ### 验证门禁（2026-07-03 W0 收敛，依据 `docs/internal/arch-review-blueprint-2026-07-03.md`）
@@ -197,6 +199,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 - **OpenAPI 漂移：** 改了路由没跑 `pnpm openapi` → CI 立刻挂。
 - **API Key：** 默认 `local-dev-key`，生产环境如未配置 `STORYFORGE_API_KEY` 会触发 warn_default_credentials 日志告警。
 - **CORS：** 默认允许桌面 Vite `http://localhost:3007` / `http://127.0.0.1:3007`，自定义前端域名要改 `STORYFORGE_CORS_ORIGINS`。
+- **migration 锁：** docker entrypoint 自动获取 advisory lock，多实例并发部署时不要绕开。
 
 ## Agent skills
 

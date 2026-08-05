@@ -26,7 +26,6 @@ DESKTOP_LIVE_MODULE_ROOTS = (
 # Pre-S6 leaf view; it remains frozen debt and is not a precedent for new modules.
 DESKTOP_S0_LINE_EXCEPTIONS = {
     "apps/desktop/frontend/src/components/chat-window/panels.tsx",
-    "apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts",
 }
 LIVE_BOOK_RUNS_CONSUMER_ROOTS = (
     API_ROOT / "app" / "domains" / "assistant",
@@ -83,7 +82,7 @@ HARD_SOURCE_LINE_LIMITS = {
     "apps/desktop/frontend/src/components/chat-window/useChatSessionContext.ts": 500,
     "apps/desktop/frontend/src/components/chat-window/useChatSubmission.ts": 500,
     "apps/desktop/frontend/src/components/chat-window/useChatWindowState.ts": 500,
-    "apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts": 510,
+    "apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts": 500,
 }
 HARD_LIVE_TEST_LINE_LIMITS = {
     "apps/api/tests/test_agent_canon.py": 800,

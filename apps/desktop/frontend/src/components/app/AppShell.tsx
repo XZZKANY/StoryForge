@@ -31,7 +31,6 @@ import type { ObservationAnchor } from '../../lib/observations';
 import type { FileCursor } from '../../lib/workspace-session';
 import type { useAppDialog } from './AppDialog';
 import { AppDialogHost } from './AppDialog';
-import { ProjectDashboard } from './ProjectDashboard';
 import { resolveActiveCenterTab } from './editor-tabs-state';
 import { formatShortcutSheet } from './shortcuts';
 import { useAgentPermission } from './useAgentPermission';
@@ -101,8 +100,6 @@ type AppShellProps = {
   onCursorPersist: (filePath: string, cursor: FileCursor) => void;
   search: ReturnType<typeof useProjectSearch>;
   onOpenSearchHit: (path: string, line: number) => void;
-  /** 仪表盘"开始写作"回调：隐藏仪表盘进入编辑器。 */
-  onStartWriting: () => void;
 };
 
 export function AppShell({
@@ -133,7 +130,6 @@ export function AppShell({
   onCursorPersist,
   search,
   onOpenSearchHit,
-  onStartWriting,
 }: AppShellProps) {
   const { projects, activeProject, currentFile, projectAssistantSessions } = workspace;
   const projectOpen = Boolean(activeProject);
@@ -247,7 +243,6 @@ export function AppShell({
                     dailyWordGoal={preferences.settings.dailyWordGoal}
                     onOpenOutline={onOpenOutlineHeading}
                     onBackToExplorer={shell.showExplorerView}
-                    onRunBreakdown={() => void commands.handleBookBreakdown()}
                   />
                 ) : (
                   <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
@@ -313,81 +308,66 @@ export function AppShell({
           className={`${shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
         >
-          {/* 项目已打开 */}
           {centerHasTabs ? (
-            shell.dashboardVisible ? (
-              // 显示项目仪表盘（落地页）
-              <ProjectDashboard
-                projectPath={activeProject!}
-                bookProfile={bookProfile}
-                bookContext={bookContext}
-                onStartWriting={onStartWriting}
-                onViewSettings={() => {
-                  shell.switchView('observatory');
-                }}
-              />
-            ) : (
-              // 显示编辑器
-              <>
-                <EditorTabs
-                  openFiles={tabs.openFiles}
-                  activeFile={currentFile}
-                  previewFile={tabs.previewFile}
-                  dirtyFiles={tabs.dirtyFiles}
-                  activeTab={activeCenterTab}
-                  activeReadOnly={
-                    tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
+            <>
+              <EditorTabs
+                openFiles={tabs.openFiles}
+                activeFile={currentFile}
+                previewFile={tabs.previewFile}
+                dirtyFiles={tabs.dirtyFiles}
+                activeTab={activeCenterTab}
+                activeReadOnly={
+                  tabs.displayedFile ? isReadOnlyDerivedProjectPath(tabs.displayedFile) : false
+                }
+                onFocusFile={tabs.focusFile}
+                onReorderFiles={tabs.reorderOpenFiles}
+                onFocusPreview={tabs.focusPreview}
+                onPinPreview={tabs.pinPreview}
+                onCloseFile={(path) => void tabs.handleFileClose(path)}
+                onClosePreview={tabs.closePreview}
+                onSaveActive={() => {
+                  if (tabs.displayedFile) {
+                    void flushActiveEditorToDisk(tabs.displayedFile).catch(() => undefined);
                   }
-                  onFocusFile={tabs.focusFile}
-                  onReorderFiles={tabs.reorderOpenFiles}
-                  onFocusPreview={tabs.focusPreview}
-                  onPinPreview={tabs.pinPreview}
-                  onCloseFile={(path) => void tabs.handleFileClose(path)}
-                  onClosePreview={tabs.closePreview}
-                  onSaveActive={() => {
-                    if (tabs.displayedFile) {
-                      void flushActiveEditorToDisk(tabs.displayedFile).catch(() => undefined);
-                    }
-                  }}
-                  onToggleHistory={() => emitEditorCommand('toggle-history')}
-                  onExportActive={() => emitExportCurrentFile()}
-                  onCloseOthers={() => void tabs.handleCloseOthers()}
-                  onCloseAll={() => void tabs.handleCloseAll()}
-                />
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <section
-                    className="h-full min-h-0 overflow-hidden bg-background"
-                    data-testid="editor-panel"
-                  >
-                    <Editor
-                      projectPath={activeProject}
-                      filePath={tabs.displayedFile}
-                      editorFontSize={preferences.settings.editorFontSize}
-                      editorFontMode={preferences.settings.editorFontMode}
-                      editorProseMeasure={preferences.settings.editorProseMeasure}
-                      editorLineNumbers={preferences.settings.editorLineNumbers}
-                      autoSave={preferences.settings.autoSave}
-                      retainedFilePaths={tabs.retainedEditorFiles}
-                      onDirtyChange={tabs.handleEditorDirtyChange}
-                      initialCursors={initialCursors}
-                      onCursorPersist={onCursorPersist}
-                      dropOpenFilePath={tabs.dropOpenFilePath}
-                      sidebarVisible={!shell.sidebarHidden}
-                      dialogs={dialogs}
-                    />
-                  </section>
-                </div>
-                {obsPanelOpen && projectOpen && (
-                  <ObsPanel
-                    observations={observatory.observations}
-                    availability={observatory.availability}
-                    onClose={() => setObsPanelOpen(false)}
-                    onResolve={observatory.resolveObservation}
-                    onLocate={observatory.locateObservation}
+                }}
+                onToggleHistory={() => emitEditorCommand('toggle-history')}
+                onExportActive={() => emitExportCurrentFile()}
+                onCloseOthers={() => void tabs.handleCloseOthers()}
+                onCloseAll={() => void tabs.handleCloseAll()}
+              />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <section
+                  className="h-full min-h-0 overflow-hidden bg-background"
+                  data-testid="editor-panel"
+                >
+                  <Editor
+                    projectPath={activeProject}
+                    filePath={tabs.displayedFile}
+                    editorFontSize={preferences.settings.editorFontSize}
+                    editorFontMode={preferences.settings.editorFontMode}
+                    editorProseMeasure={preferences.settings.editorProseMeasure}
+                    editorLineNumbers={preferences.settings.editorLineNumbers}
+                    autoSave={preferences.settings.autoSave}
+                    retainedFilePaths={tabs.retainedEditorFiles}
+                    onDirtyChange={tabs.handleEditorDirtyChange}
+                    initialCursors={initialCursors}
+                    onCursorPersist={onCursorPersist}
+                    dropOpenFilePath={tabs.dropOpenFilePath}
+                    sidebarVisible={!shell.sidebarHidden}
+                    dialogs={dialogs}
                   />
-                )}
-              </>
-            )
+                </section>
+              </div>
+              {obsPanelOpen && projectOpen && (
+                <ObsPanel
+                  observations={observatory.observations}
+                  availability={observatory.availability}
+                  onClose={() => setObsPanelOpen(false)}
+                  onResolve={observatory.resolveObservation}
+                  onLocate={observatory.locateObservation}
+                />
+              )}
+            </>
           ) : welcomeDismissed ? (
             <WelcomeDismissed
               onReopenWelcome={onReopenWelcome}

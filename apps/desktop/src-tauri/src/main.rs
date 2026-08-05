@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use runtime_paths::is_smoke_mode;
 use serde::{Deserialize, Serialize};
 use std::fs as std_fs;
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{
@@ -50,6 +51,10 @@ impl ServiceManager {
             children: Vec::new(),
             sidecars: Vec::new(),
         }
+    }
+
+    fn add(&mut self, child: Child) {
+        self.children.push(child);
     }
 
     fn add_sidecar(&mut self, child: CommandChild, terminated: Arc<AtomicBool>) {
@@ -118,7 +123,95 @@ fn shutdown_managed_services(manager: &SharedServiceManager) {
     services.shutdown();
 }
 
+/// 检测 TCP 端口是否可达
+fn check_port(host: &str, port: u16, timeout_secs: u64) -> bool {
+    let addr = format!("{}:{}", host, port);
+    for _ in 0..(timeout_secs * 2) {
+        if TcpStream::connect(&addr).is_ok() {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    false
+}
+
+/// 检测命令是否存在
+fn command_exists(cmd: &str) -> bool {
+    let checker = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
+    Command::new(checker)
+        .arg(cmd)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 /// 启动并等待 Docker Compose 服务
+fn start_docker_services(project_root: &str) -> Result<()> {
+    if !command_exists("docker") {
+        anyhow::bail!("未找到 docker 命令，请安装 Docker Desktop");
+    }
+
+    println!("启动 Docker Compose 服务（postgres, redis, minio）...");
+
+    let status = Command::new("docker")
+        .args(&["compose", "up", "-d", "postgres", "redis", "minio"])
+        .current_dir(project_root)
+        .status()
+        .context("执行 docker compose up 失败")?;
+
+    if !status.success() {
+        anyhow::bail!("docker compose up 执行失败");
+    }
+
+    println!("等待 PostgreSQL (55432) 可达...");
+    if !check_port("127.0.0.1", 55432, 30) {
+        anyhow::bail!("PostgreSQL 未在 30 秒内启动");
+    }
+
+    println!("✓ PostgreSQL 已就绪");
+
+    println!("等待 Redis (6379) 可达...");
+    if !check_port("127.0.0.1", 6379, 30) {
+        anyhow::bail!("Redis 未在 30 秒内启动");
+    }
+
+    println!("✓ Redis 已就绪");
+    println!("✓ Docker 服务全部就绪");
+
+    Ok(())
+}
+
+/// 执行数据库迁移
+fn run_migrations(project_root: &str) -> Result<()> {
+    if !command_exists("uv") {
+        anyhow::bail!("未找到 uv 命令，请安装：https://github.com/astral-sh/uv");
+    }
+
+    println!("执行数据库迁移 (alembic upgrade head)...");
+
+    let api_dir = format!("{}/apps/api", project_root);
+    let status = Command::new("uv")
+        .args(&["run", "alembic", "upgrade", "head"])
+        .current_dir(&api_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .context("执行 alembic upgrade 失败")?;
+
+    if !status.success() {
+        anyhow::bail!("数据库迁移失败");
+    }
+
+    println!("✓ 数据库迁移完成");
+    Ok(())
+}
+
 fn is_api_ready(base_url: &str) -> bool {
     reqwest::blocking::get(format!("{}/health/ready", base_url.trim_end_matches('/')))
         .map(|resp| resp.status().is_success())
@@ -199,6 +292,7 @@ fn desktop_api_port(base_url: &str) -> u16 {
 fn backend_env(
     app: &tauri::AppHandle,
     api_base_url: &str,
+    local_mode: bool,
 ) -> Result<Vec<(String, String)>> {
     let mut env = vec![
         ("STORYFORGE_API_HOST".to_string(), "127.0.0.1".to_string()),
@@ -206,16 +300,18 @@ fn backend_env(
             "STORYFORGE_API_PORT".to_string(),
             desktop_api_port(api_base_url).to_string(),
         ),
-        (
+    ];
+    if local_mode {
+        env.push((
             "STORYFORGE_DESKTOP_SKIP_SERVICES".to_string(),
             "1".to_string(),
-        ),
-        ("STORYFORGE_ENV".to_string(), "local".to_string()),
-        (
+        ));
+        env.push(("STORYFORGE_ENV".to_string(), "local".to_string()));
+        env.push((
             "DATABASE_URL".to_string(),
             llm_config::sqlite_database_url(app)?,
-        ),
-    ];
+        ));
+    }
     env.extend(llm_config::llm_env_for_backend(app)?);
     Ok(env)
 }
@@ -231,7 +327,7 @@ fn spawn_api_sidecar(
         .sidecar(sidecar_name)
         .context("无法构建 API sidecar 命令")?;
 
-    for (key, value) in backend_env(app, api_base_url)? {
+    for (key, value) in backend_env(app, api_base_url, true)? {
         command = command.env(key, value);
     }
 
@@ -265,14 +361,44 @@ fn spawn_api_sidecar(
     Ok(())
 }
 
-/// 启动 FastAPI 服务：拉起 sidecar 进程（快）。wait_ready=true 时同步等待就绪；
+fn spawn_dev_api_server(
+    app: &tauri::AppHandle,
+    project_root: &str,
+    api_base_url: &str,
+    manager: &Arc<Mutex<ServiceManager>>,
+) -> Result<()> {
+    let api_dir = format!("{}/apps/api", project_root);
+    let venv_python = if cfg!(windows) {
+        format!("{}/.venv/Scripts/python.exe", api_dir)
+    } else {
+        format!("{}/.venv/bin/python", api_dir)
+    };
+
+    let mut command = Command::new(&venv_python);
+    command
+        .args(["run_windows.py"])
+        .current_dir(&api_dir)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    for (key, value) in backend_env(app, api_base_url, should_skip_services())? {
+        command.env(key, value);
+    }
+
+    let child = command.spawn().context("启动 uvicorn 失败")?;
+    manager.lock().unwrap().add(child);
+    Ok(())
+}
+
+/// 启动 FastAPI 服务：拉起 sidecar / dev 进程（快）。wait_ready=true 时同步等待就绪；
 /// 正常启动传 false，就绪由调用方在后台线程等待，避免阻塞窗口首帧（#3 启动慢）。
 fn start_api_server(
     app: &tauri::AppHandle,
+    project_root: Option<&str>,
     manager: &Arc<Mutex<ServiceManager>>,
     wait_ready: bool,
 ) -> Result<()> {
     let api_base_url = desktop_api_base_url();
+    let local_mode = should_skip_services() || should_use_api_sidecar();
     if is_api_ready(&api_base_url) {
         if is_smoke_mode() {
             anyhow::bail!(
@@ -288,17 +414,18 @@ fn start_api_server(
             .as_deref()
             .map(|value| value == expected_version)
             .unwrap_or(false);
-        // 桌面模式必须用自带 sidecar 注入 BYO-key LLM 配置，故不复用——此时无论版本是否
+        // 仅当「版本一致」且「非本地模式，或显式允许复用」时才复用现有服务。
+        // 本地桌面模式必须用自带 sidecar 注入 BYO-key LLM 配置，故不复用——此时无论版本是否
         // 相同都把端口上的孤儿强杀重启。旧逻辑对同版本孤儿走 bail，会让上次崩溃残留的 sidecar
         // 占着端口后**每次启动都闪退**（真机实证），故改为一律强杀。
-        let reuse_existing = version_matches && should_reuse_existing_api();
+        let reuse_existing = version_matches && (!local_mode || should_reuse_existing_api());
         if reuse_existing {
             println!("✓ 复用已有 FastAPI 服务 ({}/health/ready)", api_base_url);
             return Ok(());
         }
         if version_matches {
             println!(
-                "桌面模式检测到端口上已有同版本 API，判定为残留孤儿 sidecar，强杀后启动自带后端。"
+                "本地模式检测到端口上已有同版本 API，判定为残留孤儿 sidecar，强杀后启动自带后端。"
             );
         } else {
             println!(
@@ -313,7 +440,12 @@ fn start_api_server(
 
     println!("启动 FastAPI 服务 ({})...", api_base_url);
 
-    spawn_api_sidecar(app, &api_base_url, manager)?;
+    if should_use_api_sidecar() {
+        spawn_api_sidecar(app, &api_base_url, manager)?;
+    } else {
+        let project_root = project_root.context("开发态启动 API 需要 project_root")?;
+        spawn_dev_api_server(app, project_root, &api_base_url, manager)?;
+    }
 
     if !wait_ready {
         return Ok(());
@@ -339,10 +471,49 @@ fn wait_api_ready(api_base_url: &str) -> Result<()> {
 }
 
 /// 获取项目根目录（从当前可执行文件向上查找）
+fn find_project_root() -> Result<String> {
+    let mut current = std::env::current_exe().context("无法获取当前可执行文件路径")?;
+
+    // 开发模式：apps/desktop/src-tauri/target/debug/storyforge-desktop.exe
+    // 向上查找包含 package.json 和 docker-compose.yml 的目录
+    for _ in 0..10 {
+        current.pop();
+        let package_json = current.join("package.json");
+        let docker_compose = current.join("docker-compose.yml");
+
+        if package_json.exists() && docker_compose.exists() {
+            return Ok(current.to_string_lossy().to_string());
+        }
+    }
+
+    // 回退方案：使用环境变量
+    if let Ok(root) = std::env::var("STORYFORGE_ROOT") {
+        return Ok(root);
+    }
+
+    anyhow::bail!("无法找到项目根目录。请设置环境变量 STORYFORGE_ROOT 或从项目目录运行")
+}
+
+fn should_skip_services() -> bool {
+    std::env::var("STORYFORGE_DESKTOP_SKIP_SERVICES")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 fn should_reuse_existing_api() -> bool {
     std::env::var("STORYFORGE_DESKTOP_REUSE_API")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
+}
+
+fn should_use_api_sidecar() -> bool {
+    if std::env::var("STORYFORGE_DESKTOP_USE_API_SIDECAR")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    !cfg!(debug_assertions)
 }
 
 fn desktop_api_key() -> String {
@@ -360,6 +531,24 @@ fn get_api_config() -> ApiConfig {
     }
 }
 
+fn project_root_for_api_start() -> Result<Option<String>> {
+    if cfg!(debug_assertions) || !should_use_api_sidecar() {
+        match find_project_root() {
+            Ok(root) => Ok(Some(root)),
+            Err(error) => {
+                if should_use_api_sidecar() {
+                    println!("未找到项目根目录，将使用打包 API sidecar: {}", error);
+                    Ok(None)
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 #[tauri::command]
 fn restart_api_server(
     app: tauri::AppHandle,
@@ -368,7 +557,8 @@ fn restart_api_server(
     println!("正在重启本机 FastAPI 服务以应用 LLM 配置...");
     let manager = manager.inner().clone();
     manager.lock().unwrap().shutdown();
-    start_api_server(&app, &manager, true)
+    let project_root = project_root_for_api_start().map_err(|error| error.to_string())?;
+    start_api_server(&app, project_root.as_deref(), &manager, true)
         .map_err(|error| error.to_string())
 }
 
@@ -1396,9 +1586,46 @@ fn main() {
     })
     .expect("设置 Ctrl+C 处理器失败");
 
-    println!("本地桌面模式：使用 sidecar + sqlite，无需外部服务。");
+    let project_root = if cfg!(debug_assertions) || !should_use_api_sidecar() {
+        match find_project_root() {
+            Ok(root) => {
+                println!("项目根目录: {}\n", root);
+                Some(root)
+            }
+            Err(error) => {
+                if should_use_api_sidecar() {
+                    println!("未找到项目根目录，将使用打包 API sidecar: {}", error);
+                    None
+                } else {
+                    eprintln!("错误: {}", error);
+                    eprintln!("\n提示: 请从项目目录运行，或设置环境变量：");
+                    eprintln!("  export STORYFORGE_ROOT=/path/to/StoryForge");
+                    std::process::exit(1);
+                }
+            }
+        }
+    } else {
+        None
+    };
 
-    // 检查桌面前端是否已经在运行。
+    if should_skip_services() {
+        println!("本地桌面模式：跳过 Docker / Alembic 外部服务，后端将使用 sqlite。");
+    } else if let Some(root) = project_root.as_deref() {
+        // 1. 启动 Docker 服务
+        if let Err(e) = start_docker_services(root) {
+            eprintln!("Docker 服务启动失败: {}", e);
+            std::process::exit(1);
+        }
+
+        // 2. 执行数据库迁移
+        if let Err(e) = run_migrations(root) {
+            eprintln!("数据库迁移失败: {}", e);
+            manager.lock().unwrap().shutdown();
+            std::process::exit(1);
+        }
+    }
+
+    // 3. 检查桌面前端是否已经在运行。
     // Vite dev server 由独立终端或 Tauri devUrl 工作流提供。
     if cfg!(debug_assertions) {
         println!("检查前端服务 (http://localhost:3007)...");
@@ -1474,6 +1701,7 @@ fn main() {
                 let smoke_setup = (|| -> Result<()> {
                     start_api_server(
                         app.handle(),
+                        project_root.as_deref(),
                         &manager_for_setup,
                         true,
                     )?;
@@ -1499,6 +1727,7 @@ fn main() {
                 // 重试，不再在窗口出现后强杀整个 app。
                 if let Err(error) = start_api_server(
                     app.handle(),
+                    project_root.as_deref(),
                     &manager_for_setup,
                     false,
                 ) {

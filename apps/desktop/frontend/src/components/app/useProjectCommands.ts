@@ -260,39 +260,6 @@ export function useProjectCommands({
     }
   }, [activeProject, currentFile, dialogs, dirtyFiles, handleOpenProject]);
 
-  const handleBookBreakdown = useCallback(async () => {
-    if (!activeProject) {
-      await handleOpenProject();
-      return;
-    }
-    try {
-      if (currentFile && dirtyFiles.has(currentFile)) await flushActiveEditorToDisk(currentFile);
-      const result = await executeIdeCommand('book.breakdown', {
-        project_root: activeProject,
-        target_count: 8,
-      });
-      const payload = (result.payload ?? {}) as Record<string, unknown>;
-      const breakdown = (payload.breakdown ?? {}) as Record<string, unknown>;
-      invalidateFileSystemCache(activeProject);
-      setProjectRefreshVersion((version) => version + 1);
-      await dialogs.alert({
-        title: '结构化拆书报告已生成',
-        message: [
-          `章节：${breakdown.chapter_count ?? 0}`,
-          `代表章：${breakdown.selected_chapters instanceof Array ? breakdown.selected_chapters.length : (breakdown.selected_count ?? 0)}`,
-          `状态：${breakdown.status ?? '未知'}`,
-          '',
-          '报告已保存到 .storyforge/analysis/。当前为结构化底稿，分析字段待模型阶段补充。',
-        ].join('\n'),
-      });
-    } catch (error) {
-      await dialogs.alert({
-        title: '生成拆书报告失败',
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [activeProject, currentFile, dirtyFiles, dialogs, handleOpenProject]);
-
   return {
     projectRefreshVersion,
     welcomeDraft,
@@ -305,7 +272,6 @@ export function useProjectCommands({
     handleNewFile,
     handleInitializeStoryProject,
     handleRefreshCanon,
-    handleBookBreakdown,
   };
 }
 

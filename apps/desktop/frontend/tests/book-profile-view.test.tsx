@@ -42,11 +42,7 @@ function makeHandle(overrides: Partial<BookProfileHandle> = {}): BookProfileHand
   };
 }
 
-async function renderView(
-  handle: BookProfileHandle,
-  onOpenOutline = vi.fn(),
-  onRunBreakdown = vi.fn(),
-) {
+async function renderView(handle: BookProfileHandle, onOpenOutline = vi.fn()) {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -58,7 +54,6 @@ async function renderView(
         dailyWordGoal={3000}
         onOpenOutline={onOpenOutline}
         onBackToExplorer={() => {}}
-        onRunBreakdown={onRunBreakdown}
       />,
     );
   });
@@ -256,12 +251,4 @@ test('大纲被截断时把丢掉的条数写成数字，不静默省略', async
 test('大纲为空时给出可照做的下一步，而不是一句「无数据」', async () => {
   await renderView(makeHandle());
   assert.match(container!.textContent ?? '', /还没有带标题的文档/);
-});
-
-test('拆书按钮把任务交给项目命令层', async () => {
-  const onRunBreakdown = vi.fn();
-  await renderView(makeHandle(), vi.fn(), onRunBreakdown);
-
-  await act(async () => (byTestId('book-breakdown-run') as HTMLButtonElement).click());
-  assert.equal(onRunBreakdown.mock.calls.length, 1);
 });

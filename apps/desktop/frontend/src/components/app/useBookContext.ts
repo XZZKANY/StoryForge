@@ -24,8 +24,6 @@ export type BookContextHandle = {
   availability: BookContextAvailability;
   refreshing: boolean;
   refresh: () => void;
-  // 暴露 canon 实体列表，供项目仪表盘使用。
-  entities: Array<{ id: string; canonical_name: string; aliases: string[] }>;
 };
 
 export function useBookContext({
@@ -103,13 +101,5 @@ export function useBookContext({
 
   const refresh = useCallback(() => void load(), [load]);
 
-  // 从 snapshot.roster 重新构建实体列表（仪表盘需要展示前 10 条）
-  const entities =
-    snapshot?.roster.map((entry, index) => ({
-      id: `roster_${index}`,
-      canonical_name: entry.canonicalName,
-      aliases: entry.aliases,
-    })) ?? [];
-
-  return { snapshot, availability, refreshing, refresh, entities };
+  return { snapshot, availability, refreshing, refresh };
 }

@@ -42,23 +42,9 @@ export function App() {
     setSettingsVisible(false);
     showCenter();
   }, [showCenter]);
-
-  // 打开项目时显示仪表盘（新逻辑）。
-  const { showDashboard } = shell;
-  const onProjectSelected = useCallback(() => {
-    showDashboard();
-  }, [showDashboard]);
-
-  // 选中文件时隐藏仪表盘进入编辑器。
-  const { hideDashboard } = shell;
-  const onFileSelected = useCallback(() => {
-    hideDashboard();
-    showEditor();
-  }, [hideDashboard, showEditor]);
-
   const workspace = useProjectWorkspace({
-    onProjectSelected,
-    onFileSelected,
+    onProjectSelected: showEditor,
+    onFileSelected: showEditor,
   });
   const session = useSessionRestore({
     enabled: preferences.settings.restoreLastSession,
@@ -290,12 +276,6 @@ export function App() {
     [showCenter, tabs, workspace.activeProject],
   );
 
-  // 仪表盘"开始写作"：隐藏仪表盘进入编辑器。
-  const handleStartWriting = useCallback(() => {
-    shell.hideDashboard();
-    showCenter();
-  }, [shell, showCenter]);
-
   return (
     <AppShell
       workspace={workspace}
@@ -330,7 +310,6 @@ export function App() {
         setSettingsVisible(false);
         setWelcomeDismissed(false);
       }}
-      onStartWriting={handleStartWriting}
     />
   );
 }
