@@ -21,7 +21,16 @@ import {
 } from '../../lib/book-profile';
 import { readDailyProgress } from '../../lib/daily-progress';
 import type { OutlineEntry } from '../../lib/outline-index';
-import { Check, FileText, ImagePlus, Library, Plus, RefreshCw, X } from '../icons/shell-icons';
+import {
+  BookOpen,
+  Check,
+  FileText,
+  ImagePlus,
+  Library,
+  Plus,
+  RefreshCw,
+  X,
+} from '../icons/shell-icons';
 import { PanelSection } from './PanelSection';
 
 /** 文本字段留在本地 draft：每敲一个字就写盘既无必要，也会把 `.storyforge/` 刷成日志。 */
@@ -69,12 +78,14 @@ export function BookProfileView({
   dailyWordGoal,
   onOpenOutline,
   onBackToExplorer,
+  onRunBreakdown,
 }: {
   projectPath: string;
   handle: BookProfileHandle;
   dailyWordGoal: number;
   onOpenOutline: (path: string, line: number) => void;
   onBackToExplorer: () => void;
+  onRunBreakdown: () => void;
 }) {
   // 档案还在读盘时 profile 仍是空档案：此刻放行编辑，读完会把作者刚敲的字覆盖掉；
   // 更糟的是点封面会拿这份空档案写回磁盘，把已有的书名简介清空。故读盘期间整个档案区停用。
@@ -338,6 +349,24 @@ export function BookProfileView({
                 只算已保存的净增量，未保存的草稿不计入。
               </p>
             </div>
+          </div>
+        </Section>
+
+        <Section title="拆书" testid="breakdown" defaultOpen>
+          <div className="px-3">
+            <p className="text-3xs leading-relaxed text-subtle">
+              从项目正文提取章节索引和代表章节，生成可追溯的结构化拆书底稿。
+            </p>
+            <button
+              type="button"
+              onClick={onRunBreakdown}
+              disabled={handle.loading}
+              className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-2xs text-foreground hover:bg-elevated disabled:opacity-50"
+              data-testid="book-breakdown-run"
+            >
+              <BookOpen size={12} strokeWidth={1.7} aria-hidden="true" />
+              生成拆书报告
+            </button>
           </div>
         </Section>
 

@@ -70,8 +70,8 @@ StoryForge 的编辑器「安全可日更」阶段（Phase A）已封板：桌�
 - **Desktop IDE 主体验**：Tauri、Vite、React、Monaco Editor、本地文件系统集成
 - **Agent tool / 后台引擎**：BookRun、Judge、Repair、Story Memory、导出能力
 - **API**：FastAPI、Pydantic、SQLAlchemy、Alembic
+- **数据库**：SQLite（单机模式），sidecar 自动管理迁移
 - **Workflow**：LangGraph、本地兼容运行时、checkpoint、provider adapter
-- **基础设施**：PostgreSQL + pgvector、Redis、MinIO、Docker Compose
 - **共享契约**：OpenAPI、`@storyforge/shared`
 - **工具链**：pnpm、uv、pytest、Ruff、ESLint、Prettier、Playwright
 
@@ -101,7 +101,6 @@ StoryForge/
 - pnpm 9.15.4
 - Python 3.11+
 - uv
-- Docker / Docker Compose
 
 ### 启动本地环境
 
@@ -111,16 +110,14 @@ cd StoryForge
 Copy-Item .env.example .env
 pnpm install
 npm --prefix apps/desktop/frontend install
-docker compose up -d postgres redis minio
 pnpm dev
 ```
 
 默认入口：
 
-- Desktop IDE：`pnpm dev` 或 `pnpm desktop:dev`
+- Desktop IDE：`pnpm dev` 或 `pnpm desktop:dev`（Tauri 自动启动 sidecar + sqlite）
 - Desktop frontend devUrl：http://localhost:3007
-- API：http://localhost:8000
-- MinIO Console：http://localhost:9001
+- API：http://localhost:8000（sidecar 模式）
 
 StoryForge 当前采用 IDE-first 产品方向：`apps/desktop` 是唯一主体验，旧 Web 入口已经退场，BookRun 作为 Agent tool / 后台重型引擎保留。产品方向见 [`docs/architecture/ide-first-product-direction.md`](docs/architecture/ide-first-product-direction.md)。
 
@@ -135,11 +132,10 @@ pnpm.cmd dev
 ## 常用命令
 
 ```powershell
-pnpm dev            # 启动桌面 IDE 主体验
+pnpm dev            # 启动桌面 IDE 主体验（Tauri 自动启动 sidecar + sqlite）
 pnpm desktop:dev    # 同上，显式桌面端入口
 pnpm desktop:build  # 构建桌面安装包
-pnpm dev:maintenance # 启动基础服务和 API，并执行必要迁移
-pnpm dev:api        # 只启动 API
+pnpm dev:api        # 只启动 API（sqlite 模式，用于单独测试后端）
 pnpm verify         # 本地核心门禁
 pnpm test           # Desktop、Shared、API、Workflow 测试
 pnpm e2e            # OpenAPI 刷新 + 真实 HTTP / 契约测试
