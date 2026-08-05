@@ -170,7 +170,9 @@ test('run action bar drops destructive stop while awaiting patch confirm', () =>
       }}
     />,
   );
-  assert.match(html, /在编辑器里确认修订/);
+  assert.match(html, /AI 修订已生成，可接受或拒绝/);
+  assert.match(html, /data-testid="run-accept-patch"/);
+  assert.match(html, /data-testid="run-reject-patch"/);
   assert.doesNotMatch(html, /data-testid="run-stop"/);
   assert.doesNotMatch(html, /data-testid="run-approve-permission"/);
 });
