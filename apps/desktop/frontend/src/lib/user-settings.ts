@@ -4,6 +4,8 @@ import { clampSidePanelWidth } from './side-panel-width';
 
 export type ProviderKind =
   | 'openai'
+  | 'anthropic'
+  | 'gemini'
   | 'deepseek'
   | 'qwen'
   | 'kimi'
@@ -34,6 +36,7 @@ export type AppSettings = {
   autoSave: boolean;
   theme: ThemeMode;
   provider: ProviderSettings;
+  polishProvider: ProviderSettings;
   showWelcomeOnStartup: boolean;
   /** 启动时恢复上次的项目、页签与光标位置（写作时刻 01「恢复现场」）。 */
   restoreLastSession: boolean;
@@ -57,6 +60,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     model: '',
     apiKeyRef: '',
   },
+  polishProvider: {
+    kind: 'anthropic',
+    baseUrl: 'https://api.anthropic.com/v1',
+    model: '',
+    apiKeyRef: '',
+  },
   showWelcomeOnStartup: true,
   restoreLastSession: true,
   sidePanelWidths: {},
@@ -72,8 +81,7 @@ function sanitizeSidePanelWidths(value: unknown): Record<string, number> {
   return result;
 }
 
-function sanitizeProviderSettings(value: unknown): ProviderSettings {
-  const fallback = DEFAULT_APP_SETTINGS.provider;
+function sanitizeProviderSettings(value: unknown, fallback: ProviderSettings): ProviderSettings {
   if (!value || typeof value !== 'object') return fallback;
 
   const candidate = value as Partial<ProviderSettings>;
@@ -132,7 +140,11 @@ export function sanitizeAppSettings(value: unknown): AppSettings {
     autoSave:
       typeof candidate.autoSave === 'boolean' ? candidate.autoSave : DEFAULT_APP_SETTINGS.autoSave,
     theme: candidate.theme === 'light' ? 'light' : DEFAULT_APP_SETTINGS.theme,
-    provider: sanitizeProviderSettings(candidate.provider),
+    provider: sanitizeProviderSettings(candidate.provider, DEFAULT_APP_SETTINGS.provider),
+    polishProvider: sanitizeProviderSettings(
+      candidate.polishProvider,
+      DEFAULT_APP_SETTINGS.polishProvider,
+    ),
     showWelcomeOnStartup:
       typeof candidate.showWelcomeOnStartup === 'boolean'
         ? candidate.showWelcomeOnStartup

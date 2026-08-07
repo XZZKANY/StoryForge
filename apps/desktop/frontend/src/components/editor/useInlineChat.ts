@@ -507,6 +507,7 @@ export function useInlineChat({
           projectName,
           projectRoot: projectPathRef.current,
           assistantSessionId: sessionIdRef.current,
+          qualityGate: 'polish',
           signal: controller.signal,
         });
         // 用户可能在等待期间关了会话/切了文件。

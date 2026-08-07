@@ -104,6 +104,7 @@ export async function reviseFileContent(payload: {
   projectName?: string | null;
   projectRoot?: string | null;
   assistantSessionId?: number | null;
+  qualityGate?: 'polish';
   signal?: AbortSignal;
 }): Promise<AssistantReviseResult> {
   const { baseUrl, apiKey } = await getApiConfig();
@@ -122,6 +123,7 @@ export async function reviseFileContent(payload: {
       project_name: payload.projectName ?? null,
       project_root: payload.projectRoot ?? null,
       assistant_session_id: payload.assistantSessionId ?? null,
+      quality_gate: payload.qualityGate ?? null,
     }),
   });
 

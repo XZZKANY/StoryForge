@@ -100,6 +100,47 @@ PATCH_TOOL_SPECS: tuple[AgentRuntimeToolSpec, ...] = (
         ),
     ),
     AgentRuntimeToolSpec(
+        name="chapter.polish",
+        description="对既有小说正文执行受控润色，比较在线与本地候选并生成待确认补丁。",
+        domain="chapter",
+        input_schema={},
+        output_schema={},
+        allowed_roles=_WRITE_ALLOWED_ROLES,
+        risk_level="write_pending",
+        retry_safe=False,
+        idempotent=False,
+        execution_mode="sync",
+        artifact_kinds=("proposed_patch",),
+        required_capabilities=("llm",),
+        evidence_fields=(
+            "proposed_patch",
+            "provider",
+            "model",
+            "rule_version",
+            "gate_version",
+            "selected_source",
+            "degraded",
+        ),
+        references=ToolCatalogReferences(workflow_nodes=("agent_runtime.chapter_polish",)),
+        loop_schema=LoopToolSchema(
+            description=(
+                "保守润色项目内一章小说正文，保护 frontmatter、标题、围栏数据、事实、专名和人称，"
+                "通过相对原文质量门禁后才生成待审阅补丁。不会直接写盘。"
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "相对项目根的 Markdown 或 TXT 正文路径。"},
+                    "style_instruction": {
+                        "type": "string",
+                        "description": "本次附加风格要求，例如更口语化、更克制；可省略。",
+                    },
+                },
+                "required": ["path"],
+            },
+        ),
+    ),
+    AgentRuntimeToolSpec(
         name="file.create",
         description="为尚不存在的新文件起草初稿，生成待确认新建文件补丁。",
         domain="file",

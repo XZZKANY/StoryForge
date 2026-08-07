@@ -3,12 +3,30 @@ import { test } from 'vitest';
 
 import {
   ACCEPT_CURRENT_FILE_SUGGESTION_EVENT,
+  REQUEST_CHAPTER_POLISH_EVENT,
   bufferPendingFileSuggestion,
   emitAcceptCurrentFileSuggestion,
+  emitChapterPolishRequest,
   emitFileSuggestion,
   takePendingFileSuggestion,
 } from '../src/lib/assistant-events';
 import { createRemoteFileSuggestion } from '../src/lib/assistant-suggestions';
+
+test('chapter polish event preserves the explicit one-shot main model choice', () => {
+  const details: unknown[] = [];
+  const listener = (event: Event) => {
+    details.push((event as CustomEvent).detail);
+  };
+  window.addEventListener(REQUEST_CHAPTER_POLISH_EVENT, listener);
+  try {
+    emitChapterPolishRequest({ useMainModel: false });
+    emitChapterPolishRequest({ useMainModel: true });
+  } finally {
+    window.removeEventListener(REQUEST_CHAPTER_POLISH_EVENT, listener);
+  }
+
+  assert.deepEqual(details, [{ useMainModel: false }, { useMainModel: true }]);
+});
 
 test('accept current file suggestion event is emitted for chat writeback confirmation', () => {
   const events: string[] = [];

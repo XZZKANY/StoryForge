@@ -6,7 +6,9 @@ from typing import Any
 from app.domains.agent_runs.permission import DEFAULT_PERMISSION_PROFILE
 from app.domains.agent_runs.schemas import AgentRoleRead
 
-READ_ONLY_ROLE_FORBIDDEN_TOOLS = frozenset({"file.revise", "judge.repair", "bookrun.start"})
+READ_ONLY_ROLE_FORBIDDEN_TOOLS = frozenset(
+    {"file.revise", "chapter.polish", "judge.repair", "bookrun.start"}
+)
 
 _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
@@ -43,6 +45,7 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "prose.continue",
             "file.review",
             "file.revise",
+            "chapter.polish",
             "file.create",
             "judge.run",
             "judge.repair",
@@ -120,6 +123,7 @@ _AGENT_ROLE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "context.load",
             "file.review",
             "file.revise",
+            "chapter.polish",
             "project.trim_prose",
             "prose.continue",
             "judge.run",

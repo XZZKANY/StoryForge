@@ -66,7 +66,9 @@ export function useAgentRunControls(
   const retryLastFailedRun = useCallback(() => {
     if (!retryRequest || agentBusy) return;
     setMessages((prev) => [...prev, { role: 'user', content: `重试：${retryRequest.goal}` }]);
-    void runAuthorAgent(retryRequest.goal, retryRequest.action, retryRequest.intent);
+    void runAuthorAgent(retryRequest.goal, retryRequest.action, retryRequest.intent, [], {
+      useMainModel: retryRequest.useMainModel,
+    });
   }, [agentBusy, retryRequest, runAuthorAgent, setMessages]);
 
   const sendAgentRunControl = useCallback(

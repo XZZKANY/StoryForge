@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.adapters.chapter_generation_pipeline import ChapterGenerationRuntimeMixin
+from app.domains.agent_runs.adapters.chapter_polishing_pipeline import (
+    ControlledChapterPolishingRuntimeMixin,
+)
 from app.domains.agent_runs.adapters.chapter_review_pipeline import ChapterReviewRuntimeMixin
 from app.domains.agent_runs.adapters.chapter_writing_pipeline import ChapterWritingRuntimeMixin
 from app.domains.agent_runs.adapters.file_review_pipeline import FileReviewRuntimeMixin
@@ -115,6 +118,7 @@ class AgentRuntime(
     ConversationRuntimeMixin,
     FileReviewRuntimeMixin,
     ChapterGenerationRuntimeMixin,
+    ControlledChapterPolishingRuntimeMixin,
     ChapterReviewRuntimeMixin,
     ChapterWritingRuntimeMixin,
     ToolExecutionRuntimeMixin,
@@ -148,7 +152,7 @@ class AgentRuntime(
         # 避免 context.load 因缺文件而崩（P1「对话统领项目」）。
         # 只看 file_path：resume 重建的消息只回传 file_path（正文靠 pending call 续跑），
         # 若一并要求 content 会把 file.review 的 resume 误降级成 chat.explain。
-        if intent in ("file.review", "file.revise") and _optional_string(args.get("file_path")) is None:
+        if intent in ("file.review", "file.revise", "chapter.polish") and _optional_string(args.get("file_path")) is None:
             intent = "chat.explain"
         try:
             assistant_session = _resolve_assistant_session(session, user_message=user_message, message=message, args=args)

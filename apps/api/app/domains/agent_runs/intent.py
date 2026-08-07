@@ -14,6 +14,7 @@ SUPPORTED_INTENTS = frozenset(
         "chapter.write",
         "file.review",
         "file.revise",
+        "chapter.polish",
         "chapter.review",
         "chapter.repair",
         # bookrun.start 已于 2026-08-01 摘除（作者拍板退役批量整书）；回滚 = 加回本行。

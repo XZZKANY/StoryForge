@@ -23,6 +23,7 @@ import { useDeference } from '../shell/useDeference';
 import type { useShellState } from '../shell/useShellState';
 import {
   emitEditorCommand,
+  emitChapterPolishRequest,
   emitExportCurrentFile,
   flushActiveEditorToDisk,
 } from '../../lib/assistant-events';
@@ -338,6 +339,7 @@ export function AppShell({
                 }}
                 onToggleHistory={() => emitEditorCommand('toggle-history')}
                 onExportActive={() => emitExportCurrentFile()}
+                onPolishActive={(useMainModel) => emitChapterPolishRequest({ useMainModel })}
                 onCloseOthers={() => void tabs.handleCloseOthers()}
                 onCloseAll={() => void tabs.handleCloseAll()}
               />

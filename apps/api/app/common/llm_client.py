@@ -6,8 +6,8 @@ POST、429/5xx 退避 + Retry-After、双鉴权（bearer / api-key）、token �
 则各自裸 httpx 无重试——本模块把 chat 出网收敛到一处，errors 由本模块定义，
 `common` 不再反向依赖任何 domain。
 
-密钥红线：凭据只进请求头，不入 URL query、不进日志、不进异常消息；异常仅携带服务端
-响应体（≤2000 字符，不含本端凭据）与连接原因。`redact_secrets` 供上层日志兜底脱敏。
+密钥红线：凭据只进请求头，不入 URL query、不进日志、不进异常消息；原生 provider
+错误只携带固定安全摘要，旧兼容通道仍会截断并脱敏诊断文本。`redact_secrets` 供上层兜底。
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import replace
 from random import random
 from urllib import error, request
+from urllib.parse import quote
 
 from app.common import llm_http
 from app.common.exceptions import DomainError
@@ -35,7 +36,7 @@ from app.platform.ai_sdk.contracts import (
 )
 from app.platform.ai_sdk.errors import ProviderError
 from app.platform.ai_sdk.provider import LLMProvider, ProviderHealth
-from app.platform.ai_sdk.providers.openai_compatible import OpenAICompatibleProvider
+from app.platform.ai_sdk.providers import AnthropicProvider, GeminiProvider, OpenAICompatibleProvider
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def redact_secrets(text: str, secrets: Iterable[str | None]) -> str:
 def _credential_header_values(headers: Mapping[str, str]) -> list[str]:
     secrets: list[str] = []
     for name, value in headers.items():
-        if name.lower() not in ("authorization", "api-key"):
+        if name.lower() not in ("authorization", "api-key", "x-api-key", "x-goog-api-key"):
             continue
         secrets.append(value)
         if value.lower().startswith("bearer "):
@@ -550,7 +551,20 @@ def _sdk_provider(
     stream_payload: dict[str, object] | None = None,
     timeout_seconds: float | None = None,
     max_attempts: int | None = None,
-) -> OpenAICompatibleProvider:
+) -> LLMProvider:
+    provider_name = _env_value(source, "STORYFORGE_LLM_PROVIDER").lower()
+    if provider_name in {"anthropic", "claude"}:
+        return _anthropic_sdk_provider(
+            source,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+    if provider_name in {"gemini", "google"}:
+        return _gemini_sdk_provider(
+            source,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
     return OpenAICompatibleProvider(
         complete_transport=lambda payload: _request_chat_completions(source, payload),
         stream_transport=(
@@ -566,6 +580,186 @@ def _sdk_provider(
         content_filter=_strip_reasoning_leak,
         usage_parser=_token_usage,
     )
+
+
+def _anthropic_sdk_provider(
+    source: Mapping[str, str | None],
+    *,
+    timeout_seconds: float | None,
+    max_attempts: int | None,
+) -> AnthropicProvider:
+    url = _provider_url(source, "messages")
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": llm_http.USER_AGENT,
+        "x-api-key": _required_env(source, "STORYFORGE_LLM_API_KEY"),
+        "anthropic-version": "2023-06-01",
+    }
+
+    def complete(payload: dict[str, object]) -> tuple[dict[str, object], float]:
+        return _provider_complete_json(
+            source,
+            url=url,
+            headers=headers,
+            payload=payload,
+            service_label="Anthropic",
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+
+    return AnthropicProvider(
+        complete_transport=complete,
+        stream_transport=lambda payload: _provider_sse_json(
+            source,
+            url=url,
+            headers=headers,
+            payload=payload,
+            service_label="Anthropic",
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        ),
+    )
+
+
+def _gemini_sdk_provider(
+    source: Mapping[str, str | None],
+    *,
+    timeout_seconds: float | None,
+    max_attempts: int | None,
+) -> GeminiProvider:
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": llm_http.USER_AGENT,
+        "x-goog-api-key": _required_env(source, "STORYFORGE_LLM_API_KEY"),
+    }
+
+    def complete(model: str, payload: dict[str, object]) -> tuple[dict[str, object], float]:
+        return _provider_complete_json(
+            source,
+            url=_provider_url(source, f"models/{quote(model, safe='-._')}:generateContent"),
+            headers=headers,
+            payload=payload,
+            service_label="Gemini",
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+
+    def stream(model: str, payload: dict[str, object]) -> Iterator[Mapping[str, object]]:
+        return _provider_sse_json(
+            source,
+            url=_provider_url(source, f"models/{quote(model, safe='-._')}:streamGenerateContent?alt=sse"),
+            headers=headers,
+            payload=payload,
+            service_label="Gemini",
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+
+    return GeminiProvider(complete_transport=complete, stream_transport=stream)
+
+
+def _provider_url(source: Mapping[str, str | None], path: str) -> str:
+    return f"{_required_env(source, 'STORYFORGE_LLM_BASE_URL').rstrip('/')}/{path.lstrip('/')}"
+
+
+def _provider_complete_json(
+    source: Mapping[str, str | None],
+    *,
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, object],
+    service_label: str,
+    timeout_seconds: float | None,
+    max_attempts: int | None,
+) -> tuple[dict[str, object], float]:
+    started_at = time.monotonic()
+    data = post_json_with_retry(
+        url,
+        payload,
+        headers,
+        timeout_seconds=(
+            timeout_seconds
+            if timeout_seconds is not None
+            else _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
+        ),
+        max_attempts=(
+            max_attempts
+            if max_attempts is not None
+            else _optional_int(source, "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3)
+        ),
+        service_label=service_label,
+    )
+    return data, started_at
+
+
+def _provider_sse_json(
+    source: Mapping[str, str | None],
+    *,
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, object],
+    service_label: str,
+    timeout_seconds: float | None,
+    max_attempts: int | None,
+) -> Iterator[Mapping[str, object]]:
+    timeout = (
+        timeout_seconds
+        if timeout_seconds is not None
+        else _optional_float(source, "STORYFORGE_LLM_TIMEOUT_SECONDS", 300.0)
+    )
+    attempt_limit = max(
+        1,
+        max_attempts
+        if max_attempts is not None
+        else _optional_int(source, "STORYFORGE_LLM_RETRY_MAX_ATTEMPTS", 3),
+    )
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    secrets = _credential_header_values(headers)
+    response = None
+    for attempt in range(1, attempt_limit + 1):
+        try:
+            response = request.urlopen(  # noqa: S310 - 作者配置的 provider HTTPS 端点
+                request.Request(url, data=body, headers=headers, method="POST"),
+                timeout=timeout,
+            )
+            break
+        except error.HTTPError as exc:
+            if _is_retryable_status(exc.code) and attempt < attempt_limit:
+                _sleep_before_retry(
+                    attempt=attempt,
+                    base_delay=0.5,
+                    jitter=0.25,
+                    retry_after=_retry_after_seconds(exc),
+                )
+                continue
+            raise LLMError(f"{service_label} 流式返回 HTTP {exc.code}。") from exc
+        except (error.URLError, TimeoutError, *_RESPONSE_READ_ERRORS) as exc:
+            if attempt < attempt_limit:
+                _sleep_before_retry(attempt=attempt, base_delay=0.5, jitter=0.25, retry_after=None)
+                continue
+            raise LLMError(
+                redact_secrets(f"{service_label} 流式建连失败：{type(exc).__name__}", secrets)
+            ) from exc
+    if response is None:
+        raise LLMError(f"{service_label} 流式重试后仍无响应。")
+    try:
+        for raw_line in response:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line.startswith("data:"):
+                continue
+            data_text = line[5:].strip()
+            if not data_text or data_text == "[DONE]":
+                continue
+            try:
+                data = json.loads(data_text)
+            except json.JSONDecodeError as exc:
+                raise LLMError(f"{service_label} 流式事件不是合法 JSON。") from exc
+            if isinstance(data, dict):
+                yield data
+    except _RESPONSE_READ_ERRORS as exc:
+        raise LLMError(f"{service_label} 流式读取中断：{type(exc).__name__}") from exc
+    finally:
+        response.close()
 
 
 class _ConfiguredLLMProvider:

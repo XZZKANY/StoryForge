@@ -6,10 +6,47 @@ import {
   parseBookRunSseText,
   probeApiRuntimeHealth,
   probeProviderHealth,
+  reviseFileContent,
   sendAgentControlMessage,
   sendAgentUserMessage,
   subscribeWritingRunEvents,
 } from '../src/lib/api-client';
+
+test('inline revise serializes the controlled polishing gate', async () => {
+  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+  let requestBody: Record<string, unknown> | null = null;
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    value: async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          before: '原文',
+          after: '润色后',
+          summary: '完成',
+          model: 'writer-model',
+          latency_ms: 12,
+          completion_tokens: 4,
+          assistant_session_id: 9,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+
+  try {
+    await reviseFileContent({
+      filePath: '正文/第01章.md',
+      content: '原文',
+      instruction: '润色',
+      qualityGate: 'polish',
+    });
+    assert.equal(requestBody?.quality_gate, 'polish');
+  } finally {
+    if (previousFetch) Object.defineProperty(globalThis, 'fetch', previousFetch);
+    else Reflect.deleteProperty(globalThis, 'fetch');
+  }
+});
 
 function sseBodyFromFrames(frames: Array<Record<string, unknown>>): string {
   return frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('');

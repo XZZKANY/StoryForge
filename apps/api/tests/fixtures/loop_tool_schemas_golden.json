@@ -783,6 +783,29 @@
   {
     "type": "function",
     "function": {
+      "name": "chapter_polish",
+      "description": "保守润色项目内一章小说正文，保护 frontmatter、标题、围栏数据、事实、专名和人称，通过相对原文质量门禁后才生成待审阅补丁。不会直接写盘。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对项目根的 Markdown 或 TXT 正文路径。"
+          },
+          "style_instruction": {
+            "type": "string",
+            "description": "本次附加风格要求，例如更口语化、更克制；可省略。"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "file_create",
       "description": "为项目内尚不存在的新文件、或作者预先建好的空文件起草完整初稿，生成待作者确认的新建文件补丁；不会直接写盘。目标文件已有正文时才会失败（那种情况改用 file_revise）；起草前建议先读大纲 / 设定 / 相邻章节。",
       "parameters": {

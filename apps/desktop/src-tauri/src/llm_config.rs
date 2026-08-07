@@ -12,6 +12,17 @@ struct StoredLlmConfig {
     base_url: String,
     model: String,
     api_key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    polish: Option<StoredLlmSlot>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredLlmSlot {
+    provider: String,
+    base_url: String,
+    model: String,
+    api_key: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -22,11 +33,32 @@ pub struct SaveLlmConfigRequest {
     model: String,
     api_key: Option<String>,
     clear_api_key: Option<bool>,
+    polish: Option<SaveLlmSlotRequest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveLlmSlotRequest {
+    provider: String,
+    base_url: String,
+    model: String,
+    api_key: Option<String>,
+    clear_api_key: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmConfigResponse {
+    provider: String,
+    base_url: String,
+    model: String,
+    has_api_key: bool,
+    polish: Option<LlmSlotResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LlmSlotResponse {
     provider: String,
     base_url: String,
     model: String,
@@ -86,6 +118,18 @@ fn write_stored_config(app: &AppHandle, config: &StoredLlmConfig) -> Result<()> 
 
 impl From<StoredLlmConfig> for LlmConfigResponse {
     fn from(config: StoredLlmConfig) -> Self {
+        Self {
+            provider: config.provider,
+            base_url: config.base_url,
+            model: config.model,
+            has_api_key: !config.api_key.trim().is_empty(),
+            polish: config.polish.map(Into::into),
+        }
+    }
+}
+
+impl From<StoredLlmSlot> for LlmSlotResponse {
+    fn from(config: StoredLlmSlot) -> Self {
         Self {
             provider: config.provider,
             base_url: config.base_url,
@@ -152,6 +196,61 @@ pub fn save_llm_config(
         }
     }
 
+    if let Some(polish) = payload.polish {
+        let next_polish = next.polish.get_or_insert_with(StoredLlmSlot::default);
+        next_polish.provider = clean(&polish.provider);
+        next_polish.base_url = clean(&polish.base_url);
+        next_polish.model = clean(&polish.model);
+        if polish.clear_api_key.unwrap_or(false) {
+            next_polish.api_key.clear();
+        } else if let Some(api_key) = polish.api_key {
+            let cleaned = clean(&api_key);
+            if !cleaned.is_empty() {
+                next_polish.api_key = cleaned;
+            }
+        }
+    }
+
     write_stored_config(&app, &next).map_err(|error| error.to_string())?;
     Ok(next.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_config_without_polish_slot_stays_compatible() {
+        let stored: StoredLlmConfig = serde_json::from_str(
+            r#"{"provider":"deepseek","baseUrl":"https://example/v1","model":"m","apiKey":"k"}"#,
+        )
+        .expect("old config should parse");
+
+        assert!(stored.polish.is_none());
+        let response = LlmConfigResponse::from(stored);
+        assert!(response.polish.is_none());
+        assert!(response.has_api_key);
+    }
+
+    #[test]
+    fn response_never_serializes_slot_secrets() {
+        let response = LlmConfigResponse::from(StoredLlmConfig {
+            provider: "openai-compatible".into(),
+            base_url: "https://main.example/v1".into(),
+            model: "main".into(),
+            api_key: "main-secret".into(),
+            polish: Some(StoredLlmSlot {
+                provider: "anthropic".into(),
+                base_url: "https://polish.example/v1".into(),
+                model: "polish".into(),
+                api_key: "polish-secret".into(),
+            }),
+        });
+
+        let serialized = serde_json::to_string(&response).expect("response should serialize");
+        assert!(!serialized.contains("main-secret"));
+        assert!(!serialized.contains("polish-secret"));
+        assert!(serialized.contains("\"hasApiKey\":true"));
+        assert!(serialized.contains("\"polish\""));
+    }
 }

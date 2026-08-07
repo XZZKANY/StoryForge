@@ -47,15 +47,9 @@ import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import { applyWritingRunEventProjection, writingRunIdFromResult } from './writing-run';
 import { stepsFromAgentResult } from './agent-step-mapping';
 import { chapterBriefFromAgentResult } from './chapter-brief';
-import type { AgentRunStatus, ChatWindowProps } from './types';
+import type { AgentRunStatus, ChatWindowProps, RunAuthorAgent } from './types';
 import type { ChatWindowState } from './useChatWindowState';
-
-export type RunAuthorAgent = (
-  goal: string,
-  action?: LocalConversationAction,
-  intent?: 'file.revise' | 'chapter.write',
-  excludedKnowledgeIds?: string[],
-) => Promise<void>;
+export type { RunAuthorAgent } from './types';
 
 export function useRunAuthorAgent(
   state: ChatWindowState,
@@ -94,13 +88,13 @@ export function useRunAuthorAgent(
     setLastReviewReport,
     setLastReviewReportFile,
   } = state;
-
   return useCallback(
     async (
       goal: string,
       action: LocalConversationAction = detectLocalConversationAction(goal),
-      intent?: 'file.revise' | 'chapter.write',
+      intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
       excludedKnowledgeIds: string[] = [],
+      options: { useMainModel?: boolean } = {},
     ) => {
       if (agentBusy) {
         setMessages((prev) => [
@@ -112,13 +106,13 @@ export function useRunAuthorAgent(
         ]);
         return;
       }
-
       const writebackOnly = action === 'file.writeback';
       const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
       const file = currentFileRef.current;
       const ref = contextRefRef.current;
-      const requiresCurrentFile = writebackOnly || exportOnly || intent === 'file.revise';
+      const requiresCurrentFile =
+        writebackOnly || exportOnly || intent === 'file.revise' || intent === 'chapter.polish';
       if (!project) {
         setMessages((prev) => [
           ...prev,
@@ -137,7 +131,7 @@ export function useRunAuthorAgent(
           {
             role: 'assistant',
             content:
-              writebackOnly || intent === 'file.revise'
+              writebackOnly || intent === 'file.revise' || intent === 'chapter.polish'
                 ? '当前没有可写回或可定向修订的稿件。要改某一章，先在编辑器里打开那份正文；如果只是讨论项目，直接问我就行。'
                 : '导出需要先在编辑器里打开一份当前稿。',
           },
@@ -228,6 +222,10 @@ export function useRunAuthorAgent(
           reviewReport: lastReviewReport,
           authorView: authorViewRef.current,
         });
+        if (intent === 'chapter.polish') {
+          payload.style_instruction = goal;
+          payload.use_main_model = options.useMainModel === true;
+        }
         const agentRoleMentions = extractAgentRoleMentions(goal);
         const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
         const response = await sendAgentUserMessage({
@@ -260,7 +258,7 @@ export function useRunAuthorAgent(
 
         if (isAgentErrorMessage(response)) {
           updateAgentStatus('failed');
-          setRetryRequest({ goal, action, intent });
+          setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
           setMessages((prev) => [
             ...prev,
             { role: 'assistant', content: `这轮没跑通：${response.detail}` },
@@ -272,7 +270,7 @@ export function useRunAuthorAgent(
         if (!isAgentResultMessage(response)) {
           const detail = `Agent 返回了暂不支持的消息：${response.type}`;
           updateAgentStatus('failed');
-          setRetryRequest({ goal, action, intent });
+          setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
           setMessages((prev) => [...prev, { role: 'assistant', content: detail }]);
           void refreshAgentRunRecovery(runId);
           return;
@@ -460,7 +458,7 @@ export function useRunAuthorAgent(
         }
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
-        setRetryRequest({ goal, action, intent });
+        setRetryRequest({ goal, action, intent, useMainModel: options.useMainModel });
         setMessages((prev) => [...prev, { role: 'assistant', content: `这轮没跑通：${message}` }]);
       }
     },

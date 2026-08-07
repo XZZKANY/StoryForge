@@ -1058,6 +1058,18 @@
               }
             ],
             "title": "Project Root"
+          },
+          "quality_gate": {
+            "anyOf": [
+              {
+                "const": "polish",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Gate"
           }
         },
         "required": [

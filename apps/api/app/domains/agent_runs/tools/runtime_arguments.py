@@ -21,6 +21,12 @@ PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
         # 必须只来自作者确认回执，绝不能由模型自己填。
         "confirmed",
         "user_confirmed",
+        "use_main_model",
+        "online_enabled",
+        "protected_entities",
+        "character_constraints",
+        "continuity_facts",
+        "required_facts",
         "content",
         "context_bundle",
         "context_provenance",
@@ -30,7 +36,7 @@ PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = frozenset(
         "project_root",
     }
 )
-TRUSTED_WRITING_CONTEXT_TOOL_NAMES = frozenset({"file.create", "file.revise"})
+TRUSTED_WRITING_CONTEXT_TOOL_NAMES = frozenset({"file.create", "file.revise", "chapter.polish"})
 HANDLER_OWNED_TRACE_TOOL_NAMES = TRUSTED_WRITING_CONTEXT_TOOL_NAMES | {"knowledge.propose"}
 
 

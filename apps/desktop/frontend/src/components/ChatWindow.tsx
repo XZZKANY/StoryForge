@@ -14,7 +14,12 @@ import { useChatSessionContext } from './chat-window/useChatSessionContext';
 import { useChatSubmission } from './chat-window/useChatSubmission';
 import { useChatWindowState } from './chat-window/useChatWindowState';
 import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
-import { RETRY_WITHOUT_KNOWLEDGE_EVENT, type RetryWithoutKnowledge } from '../lib/assistant-events';
+import {
+  REQUEST_CHAPTER_POLISH_EVENT,
+  RETRY_WITHOUT_KNOWLEDGE_EVENT,
+  type ChapterPolishRequest,
+  type RetryWithoutKnowledge,
+} from '../lib/assistant-events';
 
 export {
   filePathFromAgentResult,
@@ -69,6 +74,18 @@ export function ChatWindow(props: ChatWindowProps) {
     };
     window.addEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
     return () => window.removeEventListener(RETRY_WITHOUT_KNOWLEDGE_EVENT, onRetryWithoutKnowledge);
+  }, [runAuthorAgent, state]);
+
+  useEffect(() => {
+    const onChapterPolish = (event: Event) => {
+      const detail = (event as CustomEvent<ChapterPolishRequest>).detail;
+      const useMainModel = detail?.useMainModel === true;
+      const goal = useMainModel ? '保守润色当前章，本次明确使用主模型' : '保守润色当前章';
+      state.setMessages((current) => [...current, { role: 'user', content: goal }]);
+      void runAuthorAgent(goal, undefined, 'chapter.polish', [], { useMainModel });
+    };
+    window.addEventListener(REQUEST_CHAPTER_POLISH_EVENT, onChapterPolish);
+    return () => window.removeEventListener(REQUEST_CHAPTER_POLISH_EVENT, onChapterPolish);
   }, [runAuthorAgent, state]);
 
   return (

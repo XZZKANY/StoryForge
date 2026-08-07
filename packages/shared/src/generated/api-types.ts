@@ -2300,6 +2300,8 @@ export interface components {
             project_name?: string | null;
             /** Project Root */
             project_root?: string | null;
+            /** Quality Gate */
+            quality_gate?: "polish" | null;
         };
         /** AssistantReviseResponse */
         AssistantReviseResponse: {

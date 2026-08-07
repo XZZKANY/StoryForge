@@ -1,19 +1,27 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isTauriRuntime } from './tauri-env';
 
-export type DesktopLlmConfig = {
+export type DesktopLlmSlotConfig = {
   provider: string;
   baseUrl: string;
   model: string;
   hasApiKey: boolean;
 };
 
-export type SaveDesktopLlmConfigRequest = {
+export type DesktopLlmConfig = DesktopLlmSlotConfig & {
+  polish: DesktopLlmSlotConfig | null;
+};
+
+export type SaveDesktopLlmSlotRequest = {
   provider: string;
   baseUrl: string;
   model: string;
   apiKey?: string;
   clearApiKey?: boolean;
+};
+
+export type SaveDesktopLlmConfigRequest = SaveDesktopLlmSlotRequest & {
+  polish?: SaveDesktopLlmSlotRequest;
 };
 
 export async function getDesktopLlmConfig(): Promise<DesktopLlmConfig | null> {

@@ -74,6 +74,9 @@ def test_runtime_tools_endpoint_includes_executable_agent_runtime_tools(client: 
     assert "bookrun.start" not in by_name
     assert "bookrun.pause" not in by_name
     assert by_name["file.revise"]["references"]["workflow_nodes"] == ["agent_runtime.file_revise"]
+    assert by_name["chapter.polish"]["risk_level"] == "write_pending"
+    assert by_name["chapter.polish"]["artifact_kinds"] == ["proposed_patch"]
+    assert by_name["chapter.polish"]["allowed_roles"] == ["root_agent", "repair_agent"]
 
 
 def test_agent_runtime_registers_exactly_declared_tool_specs() -> None:
@@ -115,6 +118,7 @@ def test_permission_fields_derive_from_risk_and_execution_mode() -> None:
     assert confirming_tool_names() == frozenset(
         {
             "file.revise",
+            "chapter.polish",
             "file.create",
             "project.trim_prose",
             "prose.continue",

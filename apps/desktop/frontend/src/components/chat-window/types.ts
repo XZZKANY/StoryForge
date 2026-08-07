@@ -64,8 +64,17 @@ export type AgentRun = {
 export type RetryRequest = {
   goal: string;
   action: LocalConversationAction;
-  intent?: 'file.revise' | 'chapter.write';
+  intent?: 'file.revise' | 'chapter.write' | 'chapter.polish';
+  useMainModel?: boolean;
 };
+
+export type RunAuthorAgent = (
+  goal: string,
+  action?: LocalConversationAction,
+  intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
+  excludedKnowledgeIds?: string[],
+  options?: { useMainModel?: boolean },
+) => Promise<void>;
 
 export type PendingRepairCommand = {
   command_id: string;
@@ -139,6 +148,8 @@ export type StableAgentRequestPayload = {
   file_path?: string;
   content?: string;
   instruction: string;
+  style_instruction?: string;
+  use_main_model?: boolean;
   author_view?: AuthorViewPayload;
   project_name: string | null;
   assistant_session_id: number | null;

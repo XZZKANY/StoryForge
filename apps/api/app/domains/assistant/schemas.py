@@ -149,6 +149,7 @@ class AssistantReviseRequest(BaseModel):
     project_root: str | None = Field(default=None, max_length=1024)
     assistant_session_id: int | None = Field(default=None, gt=0)
     context_bundle: AssistantContextBundle | None = None
+    quality_gate: Literal["polish"] | None = None
 
 
 class AssistantReviseResponse(BaseModel):

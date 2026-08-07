@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+from app.common.llm_env import PolishLlmNotConfiguredError, resolve_polish_llm
 from app.domains.book_runs.book_generation_preflight import resolved_llm_env
 
 
@@ -103,3 +106,81 @@ def test_llm_config_file_absent_field_preserves_env(tmp_path, monkeypatch) -> No
     source = resolved_llm_env()
 
     assert source["STORYFORGE_LLM_API_KEY"] == "sk-from-env"
+
+
+def test_polish_slot_is_resolved_without_changing_main_model(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "llm-provider.json"
+    config.write_text(
+        json.dumps(
+            {
+                "provider": "openai-compatible",
+                "baseUrl": "https://main.example/v1",
+                "model": "main-model",
+                "apiKey": "main-key",
+                "polish": {
+                    "provider": "anthropic",
+                    "baseUrl": "https://polish.example/v1",
+                    "model": "polish-model",
+                    "apiKey": "polish-key",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("STORYFORGE_LLM_CONFIG_FILE", str(config))
+
+    polish = resolve_polish_llm()
+    main = resolved_llm_env()
+
+    assert polish.resolution_source == "dedicated"
+    assert polish.provider == "anthropic"
+    assert polish.model == "polish-model"
+    assert polish.source["STORYFORGE_LLM_API_KEY"] == "polish-key"
+    assert main["STORYFORGE_LLM_MODEL"] == "main-model"
+    assert main["STORYFORGE_LLM_API_KEY"] == "main-key"
+
+
+def test_missing_polish_slot_never_silently_uses_main_model() -> None:
+    env = {
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+        "STORYFORGE_LLM_BASE_URL": "https://main.example/v1",
+        "STORYFORGE_LLM_MODEL": "main-model",
+        "STORYFORGE_LLM_API_KEY": "main-key",
+    }
+
+    with pytest.raises(PolishLlmNotConfiguredError, match="尚未配置专用润色模型"):
+        resolve_polish_llm(env)
+
+
+def test_main_model_requires_explicit_one_run_authorization() -> None:
+    env = {
+        "STORYFORGE_LLM_PROVIDER": "gemini",
+        "STORYFORGE_LLM_BASE_URL": "https://main.example/v1beta",
+        "STORYFORGE_LLM_MODEL": "main-model",
+        "STORYFORGE_LLM_API_KEY": "main-key",
+    }
+
+    polish = resolve_polish_llm(env, use_main_model=True)
+
+    assert polish.resolution_source == "explicit_main_model_override"
+    assert polish.provider == "gemini"
+    assert polish.model == "main-model"
+
+
+def test_explicit_polish_env_uses_dedicated_names_only() -> None:
+    env = {
+        "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+        "STORYFORGE_LLM_BASE_URL": "https://main.example/v1",
+        "STORYFORGE_LLM_MODEL": "main-model",
+        "STORYFORGE_LLM_API_KEY": "main-key",
+        "STORYFORGE_POLISH_LLM_PROVIDER": "gemini",
+        "STORYFORGE_POLISH_LLM_BASE_URL": "https://polish.example/v1beta",
+        "STORYFORGE_POLISH_LLM_MODEL": "polish-model",
+        "STORYFORGE_POLISH_LLM_API_KEY": "polish-key",
+    }
+
+    polish = resolve_polish_llm(env)
+
+    assert polish.provider == "gemini"
+    assert polish.model == "polish-model"
+    assert polish.source["STORYFORGE_LLM_BASE_URL"] == "https://polish.example/v1beta"

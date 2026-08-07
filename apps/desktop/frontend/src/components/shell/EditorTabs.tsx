@@ -7,7 +7,7 @@
  */
 import { useRef, useState } from 'react';
 import { basename } from '../app/helpers';
-import { MoreHorizontal, X } from '../icons/shell-icons';
+import { MoreHorizontal, Sparkles, X } from '../icons/shell-icons';
 import { ContextMenu } from './ContextMenu';
 import { useDismissableMenu } from './useDismissableMenu';
 
@@ -139,6 +139,7 @@ export function EditorTabs({
   onSaveActive,
   onToggleHistory,
   onExportActive,
+  onPolishActive,
   onCloseOthers,
   onCloseAll,
 }: {
@@ -158,6 +159,7 @@ export function EditorTabs({
   onSaveActive?: () => void;
   onToggleHistory?: () => void;
   onExportActive?: () => void;
+  onPolishActive?: (useMainModel: boolean) => void;
   onCloseOthers?: () => void;
   onCloseAll?: () => void;
 }) {
@@ -238,6 +240,9 @@ export function EditorTabs({
               只读派生文件
             </span>
           )}
+          {!activeReadOnly && onPolishActive && (
+            <PolishActionsMenu onPolishActive={onPolishActive} />
+          )}
           <EditorActionsMenu
             onSaveActive={onSaveActive}
             onToggleHistory={onToggleHistory}
@@ -258,6 +263,49 @@ export function EditorTabs({
           ]}
           onClose={() => setTabMenu(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function PolishActionsMenu({
+  onPolishActive,
+}: {
+  onPolishActive: (useMainModel: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useDismissableMenu(open, () => setOpen(false), triggerRef);
+  const run = (useMainModel: boolean) => {
+    setOpen(false);
+    onPolishActive(useMainModel);
+  };
+  return (
+    <div className="relative flex items-center">
+      <button
+        ref={triggerRef}
+        type="button"
+        data-testid="editor-polish-btn"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
+        title="润色当前章"
+        aria-label="润色当前章"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Sparkles size={15} strokeWidth={1.7} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-9 z-40 w-52 rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-dropdown)]"
+            data-testid="editor-polish-menu"
+          >
+            <MenuRow label="使用专用润色模型" onClick={() => run(false)} />
+            <MenuRow label="本次使用主模型" onClick={() => run(true)} />
+          </div>
+        </>
       )}
     </div>
   );

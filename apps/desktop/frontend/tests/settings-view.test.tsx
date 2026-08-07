@@ -24,6 +24,10 @@ test('设置页含搜索框、行号/字体模式选择与关于区（版本 + �
   assert.match(html, /data-testid="settings-search"/);
   assert.match(html, /data-testid="editor-line-numbers"/);
   assert.match(html, /data-testid="editor-font-mode"/);
+  assert.match(html, /data-testid="polish-provider-kind"/);
+  assert.match(html, /data-testid="polish-provider-model"/);
+  assert.match(html, /data-testid="polish-provider-api-key"/);
+  assert.match(html, /专用润色模型/);
   assert.match(html, /data-testid="about-version"/);
   assert.match(html, /data-testid="about-update-check"/);
 });
@@ -56,4 +60,3 @@ test('sanitize：行号设置只认 auto/on/off，坏值落回 auto；旧存档�
   const legacy = { editorFontSize: 16 } as unknown;
   assert.equal(sanitizeAppSettings(legacy).editorLineNumbers, 'auto');
 });
-

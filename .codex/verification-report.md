@@ -2181,3 +2181,37 @@ npm --prefix apps/desktop/frontend run test -- --run tests/book-profile-view.tes
 
 源码标准检查结果：新增 `book_breakdown.py`（500 行）与 `book_breakdown_control.py`（29 行）均在限制内；
 检查仍只剩既有 `apps/desktop/frontend/src/components/chat-window/useRunAuthorAgent.ts` 502 行超限。
+
+### 2026-08-07 受控小说润色流水线
+
+范围：`.trellis/tasks/08-05-controlled-novel-polishing`。新增独立润色 provider 槽位、章级
+`chapter.polish` ToolSpec/固定管线、确定性本地清理、原文相对质量门禁、Desktop 主动触发与设置 UI，
+并让 Ctrl+K 通过 `quality_gate="polish"` 复用同一候选门禁。后端始终只产出 proposed patch；本地降级
+候选始终需要人工确认，专用槽位缺失时不会静默回退主模型。
+
+质量审查补充了可信上下文约束投影：`context.load` 的已净化 snapshot 会把人物/设定文件名、人物备注、
+设定/时间线事实及显式 Story Memory/章级目标送入实体与事实门禁。固定管线回归证明在线候选删除人物名时
+被拒绝且不产生补丁。原生 provider 流式 HTTP 错误也改为固定安全摘要，不再复制上游响应正文。
+
+验证：
+
+```text
+API 润色/provider 定向回归                         -> 30 passed
+API Agent/provider/Ctrl+K/SDK/source standards     -> 150 passed
+API targeted Ruff                                  -> passed
+Desktop full Vitest                                 -> 89 files / 579 passed
+Desktop typecheck                                   -> passed
+Rust llm config tests / cargo check                 -> 2 passed / passed
+rustfmt --check src/llm_config.rs                   -> passed
+pnpm openapi                                        -> passed；仅 quality_gate DTO 预期 drift，Agent frame 无 drift
+git diff --check                                    -> passed
+```
+
+`cargo fmt --check` 全 crate 仍会报告未改动 `apps/desktop/src-tauri/src/fs.rs` 的既有格式漂移，未顺手重写。
+最终 `pnpm verify` 在根 lint 阶段被未改动
+`apps/desktop/frontend/src/components/app/useProjectCommands.ts:81` 的
+`react-hooks/set-state-in-effect` 阻断；该文件不在本任务 diff，后续总门禁阶段未在这次 invocation 中执行。
+
+未验证：没有调用真实 provider；没有执行打包后 Tauri 真机的设置、整章动作、diff 确认和 guarded writeback
+人工点击链；没有对真实小说样本做人工文学质量通读。因此不能宣称润色质量普遍提升、真实多 provider 联网
+稳定或真机端到端写回已完全验收。

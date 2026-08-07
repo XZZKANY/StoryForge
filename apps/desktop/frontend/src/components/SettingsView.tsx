@@ -61,9 +61,12 @@ const SettingsSearchContext = createContext('');
 export function SettingsView({ settings, onChange, onClose }: SettingsViewProps) {
   const safeSettings = sanitizeAppSettings(settings);
   const [secretInput, setSecretInput] = useState('');
+  const [polishSecretInput, setPolishSecretInput] = useState('');
   const [storedConfig, setStoredConfig] = useState<DesktopLlmConfig | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveError, setSaveError] = useState('');
+  const [polishSaveState, setPolishSaveState] = useState<SaveState>('idle');
+  const [polishSaveError, setPolishSaveError] = useState('');
   const update = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) => {
     onChange({ ...safeSettings, [key]: value });
   };
@@ -124,12 +127,25 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
       .then((config) => {
         if (cancelled || !config) return;
         setStoredConfig(config);
-        update('provider', {
-          ...safeSettings.provider,
-          kind: toProviderKind(config.provider),
-          baseUrl: config.baseUrl || safeSettings.provider.baseUrl,
-          model: config.model || safeSettings.provider.model,
-          apiKeyRef: config.hasApiKey ? 'stored://storyforge/llm-provider' : '',
+        const polish = config.polish;
+        onChange({
+          ...safeSettings,
+          provider: {
+            ...safeSettings.provider,
+            kind: toProviderKind(config.provider),
+            baseUrl: config.baseUrl || safeSettings.provider.baseUrl,
+            model: config.model || safeSettings.provider.model,
+            apiKeyRef: config.hasApiKey ? 'stored://storyforge/llm-provider' : '',
+          },
+          polishProvider: polish
+            ? {
+                ...safeSettings.polishProvider,
+                kind: toProviderKind(polish.provider),
+                baseUrl: polish.baseUrl || safeSettings.polishProvider.baseUrl,
+                model: polish.model || safeSettings.polishProvider.model,
+                apiKeyRef: polish.hasApiKey ? 'stored://storyforge/llm-provider/polish' : '',
+              }
+            : safeSettings.polishProvider,
         });
       })
       .catch((error) => {
@@ -149,6 +165,12 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
     const timer = window.setTimeout(() => setSaveState('idle'), 2500);
     return () => window.clearTimeout(timer);
   }, [saveState]);
+
+  useEffect(() => {
+    if (polishSaveState !== 'saved') return;
+    const timer = window.setTimeout(() => setPolishSaveState('idle'), 2500);
+    return () => window.clearTimeout(timer);
+  }, [polishSaveState]);
 
   // #15：设置由页面式改弹出式，Esc 关闭。
   useEffect(() => {
@@ -203,6 +225,63 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
     } catch (error) {
       setSaveState('error');
       setSaveError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const savePolishProviderConfig = async () => {
+    setPolishSaveState('loading');
+    setPolishSaveError('');
+    try {
+      const next = await saveDesktopLlmConfig({
+        provider: safeSettings.provider.kind,
+        baseUrl: safeSettings.provider.baseUrl,
+        model: safeSettings.provider.model,
+        polish: {
+          provider: safeSettings.polishProvider.kind,
+          baseUrl: safeSettings.polishProvider.baseUrl,
+          model: safeSettings.polishProvider.model,
+          apiKey: polishSecretInput,
+        },
+      });
+      if (next) {
+        setStoredConfig(next);
+        setPolishSecretInput('');
+        update('polishProvider', {
+          ...safeSettings.polishProvider,
+          apiKeyRef: next.polish?.hasApiKey ? 'stored://storyforge/llm-provider/polish' : '',
+        });
+      }
+      setPolishSaveState('saved');
+    } catch (error) {
+      setPolishSaveState('error');
+      setPolishSaveError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const clearPolishProviderSecret = async () => {
+    setPolishSaveState('loading');
+    setPolishSaveError('');
+    try {
+      const next = await saveDesktopLlmConfig({
+        provider: safeSettings.provider.kind,
+        baseUrl: safeSettings.provider.baseUrl,
+        model: safeSettings.provider.model,
+        polish: {
+          provider: safeSettings.polishProvider.kind,
+          baseUrl: safeSettings.polishProvider.baseUrl,
+          model: safeSettings.polishProvider.model,
+          clearApiKey: true,
+        },
+      });
+      if (next) {
+        setStoredConfig(next);
+        update('polishProvider', { ...safeSettings.polishProvider, apiKeyRef: '' });
+      }
+      setPolishSecretInput('');
+      setPolishSaveState('saved');
+    } catch (error) {
+      setPolishSaveState('error');
+      setPolishSaveError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -355,6 +434,93 @@ export function SettingsView({ settings, onChange, onClose }: SettingsViewProps)
                       />
                     )}
                     <ProbeRow state={probe} onProbe={runProbe} />
+                  </SettingCard>
+                </SettingGroup>
+
+                <SettingGroup id="polish-provider" title="专用润色模型">
+                  <SettingCard>
+                    <SelectRow
+                      title="服务类型"
+                      description="仅用于作者主动发起的润色，不改变主对话模型。"
+                      value={safeSettings.polishProvider.kind}
+                      onChange={(value) => {
+                        const nextKind = toProviderKind(value);
+                        update(
+                          'polishProvider',
+                          applyProviderPreset(safeSettings.polishProvider, nextKind, {
+                            preserveModel: true,
+                          }),
+                        );
+                      }}
+                      options={PROVIDER_OPTIONS}
+                      testId="polish-provider-kind"
+                    />
+                    <TextRow
+                      title="服务地址"
+                      description="Anthropic、Gemini 或兼容服务的 API 基础地址。"
+                      value={safeSettings.polishProvider.baseUrl}
+                      placeholder="https://api.anthropic.com/v1"
+                      onChange={(value) =>
+                        update('polishProvider', {
+                          ...safeSettings.polishProvider,
+                          baseUrl: value,
+                        })
+                      }
+                      testId="polish-provider-base-url"
+                    />
+                    <TextRow
+                      title="润色模型"
+                      description="整章润色默认只调用此模型；未配置完整时会明确停止。"
+                      value={safeSettings.polishProvider.model}
+                      placeholder="例如 claude-sonnet-4-5 或 gemini-2.5-pro"
+                      onChange={(value) =>
+                        update('polishProvider', { ...safeSettings.polishProvider, model: value })
+                      }
+                      testId="polish-provider-model"
+                    />
+                    <TextRow
+                      title="API Key"
+                      description={
+                        storedConfig?.polish?.hasApiKey
+                          ? '已保存在本机专用槽位；输入新 key 可覆盖。'
+                          : '仅写入本机配置文件，不写入 localStorage。'
+                      }
+                      value={polishSecretInput}
+                      placeholder={
+                        storedConfig?.polish?.hasApiKey
+                          ? '已保存，留空保持不变'
+                          : '粘贴润色模型 API key'
+                      }
+                      onChange={setPolishSecretInput}
+                      testId="polish-provider-api-key"
+                      type="password"
+                    />
+                    <ActionRow
+                      title="应用专用润色模型"
+                      description="保存到 llm-provider.json 的 polish 槽位，不覆盖主模型配置。"
+                      actionLabel={polishSaveState === 'loading' ? '保存中' : '保存并应用'}
+                      onAction={savePolishProviderConfig}
+                      disabled={polishSaveState === 'loading'}
+                      status={
+                        polishSaveState === 'saved'
+                          ? { text: '专用润色模型已保存', tone: 'ok' }
+                          : polishSaveState === 'error'
+                            ? {
+                                text: `保存失败：${polishSaveError || '未知错误'}`,
+                                tone: 'error',
+                              }
+                            : null
+                      }
+                    />
+                    {storedConfig?.polish?.hasApiKey && (
+                      <ActionRow
+                        title="移除润色模型密钥"
+                        description="清除专用槽位密钥；之后润色不会自动改用主模型。"
+                        actionLabel="移除密钥"
+                        onAction={clearPolishProviderSecret}
+                        disabled={polishSaveState === 'loading'}
+                      />
+                    )}
                   </SettingCard>
                 </SettingGroup>
 

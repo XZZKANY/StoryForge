@@ -13,7 +13,13 @@ import {
 import { sanitizeAppSettings } from '../src/lib/user-settings';
 
 test('provider configuration exposes stable presets for settings UI', () => {
-  assert.ok(PROVIDER_OPTIONS.some((option) => option.value === 'local' && option.label.includes('StoryForge')));
+  assert.ok(
+    PROVIDER_OPTIONS.some(
+      (option) => option.value === 'local' && option.label.includes('StoryForge'),
+    ),
+  );
+  assert.ok(PROVIDER_OPTIONS.some((option) => option.value === 'anthropic'));
+  assert.ok(PROVIDER_OPTIONS.some((option) => option.value === 'gemini'));
   assert.ok(isProviderKind('openai'));
   assert.equal(isProviderKind('missing-provider'), false);
 
@@ -113,6 +119,32 @@ test('app settings sanitizer keeps provider references but drops plaintext crede
     },
   });
   assert.equal(withPlaintext.provider.apiKeyRef, '');
+});
+
+test('app settings keeps an independent sanitized polishing provider slot', () => {
+  const settings = sanitizeAppSettings({
+    provider: {
+      kind: 'openai',
+      baseUrl: 'https://main.example/v1',
+      model: 'main-model',
+      apiKeyRef: 'stored://storyforge/llm-provider',
+    },
+    polishProvider: {
+      kind: 'gemini',
+      baseUrl: 'https://polish.example/v1beta',
+      model: 'polish-model',
+      apiKeyRef: 'raw-secret-must-not-persist',
+    },
+  });
+
+  assert.equal(settings.provider.model, 'main-model');
+  assert.deepEqual(settings.polishProvider, {
+    kind: 'gemini',
+    baseUrl: 'https://polish.example/v1beta',
+    model: 'polish-model',
+    apiKeyRef: '',
+  });
+  assert.equal(sanitizeAppSettings({}).polishProvider.kind, 'anthropic');
 });
 
 function health(overrides: Partial<ProviderHealth>): ProviderHealth {

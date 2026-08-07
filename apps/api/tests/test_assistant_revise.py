@@ -121,6 +121,73 @@ def test_revise_marks_reasoning_leak_in_tool_call_evidence(
     assert tool_calls[0]["output_summary"]["reasoning_leak_stripped"] is True
 
 
+def test_inline_revise_quality_gate_records_a_passing_candidate(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    original = "林岚走进港口，海风卷起衣角。他停在旧仓门前，抬手敲了三下。"
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        return {
+            "content": "林岚快步走进港口，海风掀起衣角。他停在旧仓门前，抬手敲了三下。",
+            "completion_tokens": 12,
+            "latency_ms": 9,
+        }
+
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", fake_call_llm)
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "file_path": "正文/第01章.md",
+            "content": original,
+            "instruction": "润色第一句",
+            "quality_gate": "polish",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    tool_calls = client.get(
+        f"/api/assistant/sessions/{response.json()['assistant_session_id']}/tool-calls"
+    ).json()
+    gate = tool_calls[0]["output_summary"]["quality_gate"]
+    assert gate["passed"] is True
+    assert gate["version"] == "polish-gates-v1"
+    assert "candidate_chars" in gate["metrics"]
+
+
+def test_inline_revise_quality_gate_rejects_narrative_person_drift(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(assistant_service, "missing_book_generation_env", lambda: [])
+    original = "他推开门。他看见灯。他没有出声。他转身离开。他走进雨里。"
+
+    def fake_call_llm(source, *, system_prompt, user_prompt):  # noqa: ANN001 - 测试桩
+        return {
+            "content": "我推开门。我看见灯。我没有出声。我转身离开。我走进雨里。",
+            "completion_tokens": 12,
+            "latency_ms": 9,
+        }
+
+    monkeypatch.setattr(assistant_service, "_call_llm_streamed", fake_call_llm)
+    response = client.post(
+        "/api/assistant/revise",
+        json={
+            "file_path": "正文/第01章.md",
+            "content": original,
+            "instruction": "润色这段",
+            "quality_gate": "polish",
+        },
+    )
+
+    assert response.status_code == 409, response.text
+    assert "narrative_person_changed" in response.json()["detail"]
+    recent = client.get("/api/assistant/sessions").json()
+    tool_calls = client.get(f"/api/assistant/sessions/{recent[0]['id']}/tool-calls").json()
+    assert tool_calls[-1]["status"] == "failed"
+    assert tool_calls[-1]["output_summary"]["quality_gate"]["passed"] is False
+    assert "narrative_person_changed" in tool_calls[-1]["output_summary"]["quality_gate"]["reasons"]
+
+
 def test_revise_includes_desktop_context_bundle_in_prompt(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

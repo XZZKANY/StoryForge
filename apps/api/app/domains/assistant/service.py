@@ -15,7 +15,7 @@ from app.common.craft import (
     scene_discipline_clause,
     scene_discipline_guard_clause,
 )
-from app.common.exceptions import DomainError, NotFoundError
+from app.common.exceptions import ConflictError, DomainError, NotFoundError
 from app.common.llm_client import (
     LLMError,
     build_chat_payload,
@@ -46,6 +46,7 @@ from app.common.llm_env import resolved_llm_env
 from app.common.manuscript import previous_chapter_tail
 from app.common.punctuation import restore_incidental_punctuation
 from app.common.redaction import redact_sensitive, redact_sensitive_text
+from app.domains.agent_runs.patches import evaluate_polish_candidate
 from app.domains.assistant import continuation
 from app.domains.assistant.models import AssistantMessage, AssistantSession, AssistantToolCall
 from app.domains.assistant.schemas import (
@@ -89,6 +90,14 @@ class AssistantReviseError(DomainError, RuntimeError):
     """真实 LLM 修订调用失败，原始报错原样透出。"""
 
     status_code = 502
+
+
+class AssistantReviseQualityGateError(ConflictError, RuntimeError):
+    """模型候选相对原文退步，不能进入行内 diff。"""
+
+    def __init__(self, reasons: tuple[str, ...]) -> None:
+        self.reasons = reasons
+        super().__init__("润色候选未通过质量门禁：" + ", ".join(reasons))
 
 
 def create_assistant_session(session: Session, payload: AssistantSessionCreate) -> AssistantSession:
@@ -734,6 +743,30 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
         raise AssistantReviseError(str(exc)) from exc
 
     after = restore_incidental_punctuation(payload.content, str(result["content"]))
+    quality_gate = (
+        evaluate_polish_candidate(payload.content, after)
+        if payload.quality_gate == "polish"
+        else None
+    )
+    if quality_gate is not None and not quality_gate.passed:
+        error = AssistantReviseQualityGateError(quality_gate.reasons)
+        update_assistant_tool_call(
+            session,
+            tool_call.id,
+            AssistantToolCallUpdate(
+                status="failed",
+                output_summary={
+                    "quality_gate": {
+                        "version": quality_gate.gate_version,
+                        "passed": False,
+                        "reasons": list(quality_gate.reasons),
+                        "metrics": dict(quality_gate.metrics),
+                    }
+                },
+                error_message=str(error),
+            ),
+        )
+        raise error
     model = str(llm_env.get("STORYFORGE_LLM_MODEL") or "")
     completion_tokens = result.get("completion_tokens")
     latency_ms = int(result.get("latency_ms", 0) or 0)
@@ -751,6 +784,13 @@ def revise_file_content(session: Session, payload: AssistantReviseRequest) -> As
     }
     if result.get("reasoning_leak_stripped"):
         revise_output_summary["reasoning_leak_stripped"] = True
+    if quality_gate is not None:
+        revise_output_summary["quality_gate"] = {
+            "version": quality_gate.gate_version,
+            "passed": True,
+            "reasons": [],
+            "metrics": dict(quality_gate.metrics),
+        }
     update_assistant_tool_call(
         session,
         tool_call.id,

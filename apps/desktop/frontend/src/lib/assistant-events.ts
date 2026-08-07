@@ -16,6 +16,7 @@ export const RETRY_WITHOUT_KNOWLEDGE_EVENT = 'storyforge:retry-without-knowledge
 export const REQUEST_SAVE_ACTIVE_FILE_EVENT = 'storyforge:request-save-active-file';
 export const SAVE_ACTIVE_FILE_DONE_EVENT = 'storyforge:save-active-file-done';
 export const REVIEW_ISSUES_EVENT = 'storyforge:review-issues';
+export const REQUEST_CHAPTER_POLISH_EVENT = 'storyforge:request-chapter-polish';
 // Q3a：编辑区工具行收进 EditorTabs「…」菜单后，历史视图这类编辑器内部态用命令事件驱动
 // （保存走 REQUEST_SAVE、导出走 EXPORT_CURRENT_FILE，无需新事件）。
 export const REQUEST_EDITOR_COMMAND_EVENT = 'storyforge:request-editor-command';
@@ -142,6 +143,18 @@ export type AuthorLoopResult = {
 export function emitExportCurrentFile(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(EXPORT_CURRENT_FILE_EVENT));
+  }
+}
+
+export type ChapterPolishRequest = {
+  useMainModel: boolean;
+};
+
+export function emitChapterPolishRequest(detail: ChapterPolishRequest): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<ChapterPolishRequest>(REQUEST_CHAPTER_POLISH_EVENT, { detail }),
+    );
   }
 }
 

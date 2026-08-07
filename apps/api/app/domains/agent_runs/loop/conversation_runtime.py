@@ -186,7 +186,13 @@ class ConversationRuntimeMixin:
         def execute_fs_tool(registry_name: str, arguments: dict[str, Any]) -> ToolResult:
             # 路径、正文与内层上下文都由后端生成；模型只能提交 ToolSpec 声明的业务参数。
             payload = sanitize_loop_tool_arguments(arguments)
-            if registry_name in ("file.review", "file.revise", "project.trim_prose", "prose.continue"):
+            if registry_name in (
+                "file.review",
+                "file.revise",
+                "chapter.polish",
+                "project.trim_prose",
+                "prose.continue",
+            ):
                 rel_path = _optional_string(payload.pop("path", None))
                 if not rel_path:
                     raise fs_tools.FsToolError("缺少 path：请提供项目内的相对文件路径。")

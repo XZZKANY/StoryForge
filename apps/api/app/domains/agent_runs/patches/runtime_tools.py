@@ -5,6 +5,14 @@ from typing import Any
 
 from app.domains.agent_runs._text import optional_string as _optional_string
 from app.domains.agent_runs.errors import AgentOrchestrationError
+from app.domains.agent_runs.patches.polish_context import (
+    polish_constraints_from_context_snapshot,
+)
+from app.domains.agent_runs.patches.polishing_service import (
+    ControlledPolishResult,
+    run_controlled_polish,
+    validate_polishable_path,
+)
 from app.domains.agent_runs.patches.types import PatchProposal
 from app.domains.agent_runs.permission import patch_requires_confirmation
 from app.domains.agent_runs.revise_scope import public_revise_scope as _public_revise_scope
@@ -21,6 +29,7 @@ from app.domains.agent_runs.tools.runtime_arguments import (
 from app.domains.agent_runs.tools.runtime_arguments import required_string as _required_string
 from app.domains.agent_runs.tools.runtime_arguments import required_text as _required_text
 from app.domains.agent_runs.tools.runtime_arguments import safe_summary as _safe_summary
+from app.domains.agent_runs.tools.runtime_arguments import string_list as _string_list
 from app.domains.agent_runs.trace import AgentToolTrace
 from app.domains.assistant import service as assistant_service
 from app.domains.assistant.schemas import (
@@ -37,6 +46,7 @@ class PatchRuntimeToolsMixin:
         handlers: dict[str, ToolHandler] = {
             "file.review": self._file_review,
             "file.revise": self._file_revise,
+            "chapter.polish": self._chapter_polish,
             "file.create": self._file_create,
             "judge.run": self._judge_run,
         }
@@ -44,6 +54,145 @@ class PatchRuntimeToolsMixin:
         # managed bookrun 工具已随桌面入口一并摘除（2026-08-01 退役批量整书）；
         # 回滚 = 恢复这一行 handlers.update(managed_bookrun_handlers())。
         return handlers
+
+    def _chapter_polish(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
+        file_path = _required_string(payload, "file_path")
+        trace_file_path = _optional_string(payload.get("_trace_file_path")) or file_path
+        try:
+            validate_polishable_path(trace_file_path)
+        except ValueError as exc:
+            raise AgentOrchestrationError(str(exc)) from exc
+        content = _required_text(payload, "content")
+        if not content.strip():
+            raise AgentOrchestrationError("正文为空，无法润色。")
+        style_instruction = _optional_string(payload.get("style_instruction")) or context.user_message
+        trusted_constraints = polish_constraints_from_context_snapshot(
+            payload.get("llm_context_snapshot")
+        )
+        protected_entities = list(
+            dict.fromkeys(
+                [
+                    *trusted_constraints["protected_entities"],
+                    *_string_list(payload.get("protected_entities")),
+                ]
+            )
+        )
+        character_constraints = [
+            *trusted_constraints["character_constraints"],
+            *_dict_items(payload.get("character_constraints")),
+        ]
+        continuity_facts = [
+            *trusted_constraints["continuity_facts"],
+            *_sequence_items(payload.get("continuity_facts")),
+        ]
+        required_facts = list(
+            dict.fromkeys(
+                [
+                    *trusted_constraints["required_facts"],
+                    *_string_list(payload.get("required_facts")),
+                ]
+            )
+        )
+        constraint_counts = {
+            "protected_entities": len(protected_entities),
+            "character_constraints": len(character_constraints),
+            "continuity_facts": len(continuity_facts),
+            "required_facts": len(required_facts),
+        }
+        result = run_controlled_polish(
+            content,
+            style_instruction=style_instruction,
+            protected_entities=protected_entities,
+            character_constraints=character_constraints,
+            continuity_facts=continuity_facts,
+            required_facts=required_facts,
+            use_main_model=payload.get("use_main_model") is True,
+            online_enabled=payload.get("online_enabled") is not False,
+        )
+        decision = result.decision
+        summary = _polish_summary(result)
+        output: dict[str, Any] = {
+            "file_path": file_path,
+            "before": content,
+            "after": decision.text,
+            "summary": summary,
+            "constraint_counts": constraint_counts,
+            **result.trace_summary(),
+        }
+        trace_summary = {
+            "file_path": trace_file_path,
+            "before_chars": len(content),
+            "after_chars": len(decision.text),
+            "constraint_counts": constraint_counts,
+            **result.trace_summary(),
+        }
+        if decision.selected_source == "original":
+            return ToolResult(
+                status="completed",
+                output=output,
+                summary=summary,
+                metrics={"before_chars": len(content), "after_chars": len(content)},
+                trace=AgentToolTrace(
+                    tool_name="chapter.polish",
+                    status=decision.status,
+                    input_summary={
+                        "file_path": trace_file_path,
+                        "content_chars": len(content),
+                        "style_instruction_present": bool(style_instruction.strip()),
+                        **_llm_context_input_summary(payload.get("llm_context_snapshot")),
+                    },
+                    output_summary=trace_summary,
+                ),
+            )
+
+        requires_confirm = decision.degraded or patch_requires_confirmation(context.run.permission_profile)
+        proposed_patch = {
+            "id": f"chapter-polish-{uuid.uuid4().hex}",
+            "kind": "file_revision",
+            "created_by_tool": "chapter.polish",
+            "file_path": file_path,
+            "before": content,
+            "after": decision.text,
+            "requires_confirmation": requires_confirm,
+            "approval_action": "desktop.confirm_file_writeback",
+            "polish_status": decision.status,
+            "candidate_source": decision.selected_source,
+            "degraded": decision.degraded,
+        }
+        patch_proposal = PatchProposal.from_payload(proposed_patch)
+        output["proposed_patch"] = proposed_patch
+        trace_summary["patch_id"] = proposed_patch["id"]
+        trace_summary["requires_confirmation"] = requires_confirm
+        return ToolResult(
+            status="completed",
+            output=output,
+            summary=summary,
+            payload={"proposed_patch": proposed_patch},
+            artifacts=(
+                ToolArtifact(
+                    kind="proposed_patch",
+                    payload=proposed_patch,
+                    requires_confirmation=requires_confirm,
+                ),
+            ),
+            metrics={
+                "before_chars": len(content),
+                "after_chars": len(decision.text),
+                "total_tokens": int(result.usage.get("total_tokens") or 0),
+            },
+            patch_proposal=patch_proposal,
+            trace=AgentToolTrace(
+                tool_name="chapter.polish",
+                status=decision.status,
+                input_summary={
+                    "file_path": trace_file_path,
+                    "content_chars": len(content),
+                    "style_instruction_present": bool(style_instruction.strip()),
+                    **_llm_context_input_summary(payload.get("llm_context_snapshot")),
+                },
+                output_summary=trace_summary,
+            ),
+        )
 
     def _file_revise(self, context: ToolExecutionContext, payload: dict[str, Any]) -> ToolResult:
         file_path = _required_string(payload, "file_path")
@@ -305,3 +454,24 @@ class PatchRuntimeToolsMixin:
             )
 
         return handler
+
+
+def _dict_items(value: object) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _sequence_items(value: object) -> list[Any]:
+    return list(value) if isinstance(value, list) else []
+
+
+def _polish_summary(result: ControlledPolishResult) -> str:
+    decision = result.decision
+    if decision.status == "accepted":
+        return "润色候选已通过相对原文质量门禁，已生成可审阅补丁。"
+    if decision.status == "degraded":
+        return "在线候选不可用或未通过门禁，已生成明确标注的本地降级补丁。"
+    if decision.status == "noop":
+        return "润色候选与原文一致，没有生成空补丁。"
+    if result.online_failure == "polish_model_not_configured":
+        return "专用润色模型尚未配置，且本地规则没有产生合格改动；原文保持不变。"
+    return "在线与本地候选均未通过质量门禁，原文保持不变。"

@@ -30,6 +30,9 @@ class _RecordingFixedRuntime:
     def run_chapter_polish_pipeline(self, _request: FixedPipelineRequest) -> dict[str, str]:
         return self._record("file.revise")
 
+    def run_controlled_chapter_polish_pipeline(self, _request: FixedPipelineRequest) -> dict[str, str]:
+        return self._record("chapter.polish")
+
     def run_bookrun_generation_pipeline(self, _request: FixedPipelineRequest) -> dict[str, str]:
         return self._record("bookrun.start")
 
@@ -57,11 +60,11 @@ def test_fixed_intent_adapter_routes_every_explicit_pipeline() -> None:
     request = _request("file.review")
 
     # bookrun.start 已于 2026-08-01 摘除入口（作者拍板退役批量整书）。
-    for intent in ("file.review", "file.revise", "chapter.review", "chapter.repair"):
+    for intent in ("file.review", "file.revise", "chapter.polish", "chapter.review", "chapter.repair"):
         result = run_fixed_intent_pipeline(runtime, replace(request, intent=intent))
         assert result == {"handler": intent}
 
-    assert runtime.calls == ["file.review", "file.revise", "chapter.review", "chapter.repair"]
+    assert runtime.calls == ["file.review", "file.revise", "chapter.polish", "chapter.review", "chapter.repair"]
 
     with pytest.raises(AgentOrchestrationError, match="暂不支持的 Agent intent"):
         run_fixed_intent_pipeline(runtime, replace(request, intent="bookrun.start"))

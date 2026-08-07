@@ -116,3 +116,48 @@ test('Q3a 只读派生文件的只读徽章落在页签行右端', () => {
   );
   assert.match(html, /只读派生文件/);
 });
+
+test('润色菜单区分专用模型与本次主模型授权', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const choices: boolean[] = [];
+  const renderTabs = () =>
+    root.render(
+      React.createElement(EditorTabs, {
+        openFiles: ['D:\\Book\\a.md'],
+        activeFile: 'D:\\Book\\a.md',
+        previewFile: null,
+        dirtyFiles: new Set<string>(),
+        activeTab: 'file',
+        onFocusFile: noop,
+        onFocusPreview: noop,
+        onPinPreview: noop,
+        onCloseFile: noop,
+        onPolishActive: (useMainModel: boolean) => choices.push(useMainModel),
+      }),
+    );
+
+  try {
+    act(renderTabs);
+    const trigger = container.querySelector<HTMLButtonElement>('[data-testid="editor-polish-btn"]');
+    assert.ok(trigger);
+    act(() => trigger.click());
+    const dedicated = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === '使用专用润色模型',
+    );
+    assert.ok(dedicated);
+    act(() => dedicated.click());
+
+    act(() => trigger.click());
+    const main = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === '本次使用主模型',
+    );
+    assert.ok(main);
+    act(() => main.click());
+    assert.deepEqual(choices, [false, true]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});

@@ -19,6 +19,20 @@ export const PROVIDER_PRESETS: Record<ProviderKind, ProviderPreset> = {
     apiKeyRef: 'OPENAI_API_KEY',
     defaultModel: '',
   },
+  anthropic: {
+    kind: 'anthropic',
+    label: 'Anthropic',
+    baseUrl: 'https://api.anthropic.com/v1',
+    apiKeyRef: 'ANTHROPIC_API_KEY',
+    defaultModel: '',
+  },
+  gemini: {
+    kind: 'gemini',
+    label: 'Google Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    apiKeyRef: 'GEMINI_API_KEY',
+    defaultModel: '',
+  },
   deepseek: {
     kind: 'deepseek',
     label: 'DeepSeek',
