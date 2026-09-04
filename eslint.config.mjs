@@ -18,7 +18,6 @@ export default tseslint.config(
       '**/__pycache__/',
       '**/.codex/',
       '**/.worktrees/',
-      'apps/desktop/generate-icons.*',
       'apps/api/',
       'docs/',
     ],

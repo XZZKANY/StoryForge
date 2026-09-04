@@ -88,13 +88,6 @@ export function reviewReportFromMessage(message: ChatWindowAgentResult): ReviewR
   return report && typeof report === 'object' ? (report as ReviewReport) : null;
 }
 
-export function reviewCategoryLabel(category: ReviewCategory): string {
-  if (category === 'plot') return '剧情';
-  if (category === 'character') return '人物';
-  if (category === 'continuity') return '连续性';
-  return '文风';
-}
-
 function isReviewCategory(value: unknown): value is ReviewCategory {
   return value === 'plot' || value === 'character' || value === 'prose' || value === 'continuity';
 }

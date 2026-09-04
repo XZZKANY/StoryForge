@@ -531,37 +531,6 @@ fn get_api_config() -> ApiConfig {
     }
 }
 
-fn project_root_for_api_start() -> Result<Option<String>> {
-    if cfg!(debug_assertions) || !should_use_api_sidecar() {
-        match find_project_root() {
-            Ok(root) => Ok(Some(root)),
-            Err(error) => {
-                if should_use_api_sidecar() {
-                    println!("未找到项目根目录，将使用打包 API sidecar: {}", error);
-                    Ok(None)
-                } else {
-                    Err(error)
-                }
-            }
-        }
-    } else {
-        Ok(None)
-    }
-}
-
-#[tauri::command]
-fn restart_api_server(
-    app: tauri::AppHandle,
-    manager: tauri::State<'_, SharedServiceManager>,
-) -> Result<(), String> {
-    println!("正在重启本机 FastAPI 服务以应用 LLM 配置...");
-    let manager = manager.inner().clone();
-    manager.lock().unwrap().shutdown();
-    let project_root = project_root_for_api_start().map_err(|error| error.to_string())?;
-    start_api_server(&app, project_root.as_deref(), &manager, true)
-        .map_err(|error| error.to_string())
-}
-
 fn eval_window_json<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
     script: &str,
@@ -1676,7 +1645,6 @@ fn main() {
             fs::copy_into_project,
             fs::read_project_file_base64,
             get_api_config,
-            restart_api_server,
             llm_config::get_llm_config,
             llm_config::save_llm_config,
             // 作品版本影子 Git 命令（固定 DTO，不暴露任意 Git 参数）

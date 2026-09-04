@@ -24,10 +24,6 @@ async function postKnowledgeApi<T>(action: string, body: object): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function queryKnowledgeProposals(projectRoot: string): Promise<ApiKnowledgeProposalInbox> {
-  return postKnowledgeApi('query', { project_root: projectRoot });
-}
-
 export function refreshKnowledgeProposals(projectRoot: string): Promise<ApiKnowledgeProposalInbox> {
   return postKnowledgeApi('refresh', { project_root: projectRoot });
 }

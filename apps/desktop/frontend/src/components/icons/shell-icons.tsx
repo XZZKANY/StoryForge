@@ -49,12 +49,6 @@ import {
 
 export type { LucideIcon, LucideProps };
 
-/** 统一默认：细一档描边贴合单色克制风格；调用处可覆盖 size / strokeWidth / className。 */
-export const SHELL_ICON_DEFAULTS = {
-  size: 16,
-  strokeWidth: 1.6,
-} as const satisfies Partial<LucideProps>;
-
 export {
   ArrowUp,
   BookOpen,

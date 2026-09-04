@@ -43,12 +43,6 @@ try {
           headers: { 'content-type': 'application/json' },
         });
       }
-      if (requestUrl.endsWith('/api/agent-runs/roles')) {
-        return new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
       if (requestUrl.endsWith('/api/ide/commands/observatory.scan')) {
         return new Response(JSON.stringify({ payload: { observatory: {} } }), {
           status: 200,

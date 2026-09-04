@@ -17,7 +17,6 @@ export {
 export { getAgentRunSavePoints } from './api/agent-runs';
 export {
   getAssistantSession,
-  listAgentRoles,
   listAssistantSessions,
   probeProviderHealth,
   reviseFileContent,

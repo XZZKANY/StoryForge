@@ -1,4 +1,3 @@
-import type { AgentRoleRead } from '../agent-roles';
 import { parseContinueSseFrame } from '../inline-continue';
 import type { ProviderHealth } from '../provider-config';
 import { getApiConfig, trimApiBaseUrl } from './config';
@@ -53,23 +52,6 @@ export async function getAssistantSession(
   }
 
   return (await response.json()) as AssistantSessionRecord;
-}
-
-export async function listAgentRoles(): Promise<AgentRoleRead[]> {
-  const { baseUrl, apiKey } = await getApiConfig();
-  const response = await fetch(`${trimApiBaseUrl(baseUrl)}/api/agent-runs/roles`, {
-    method: 'GET',
-    cache: 'no-store',
-    headers: {
-      'X-StoryForge-API-Key': apiKey,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
-  }
-
-  return (await response.json()) as AgentRoleRead[];
 }
 
 export type AssistantReviseResult = {

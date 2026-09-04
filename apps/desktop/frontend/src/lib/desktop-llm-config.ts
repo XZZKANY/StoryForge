@@ -35,9 +35,3 @@ export async function saveDesktopLlmConfig(
   if (!isTauriRuntime()) return null;
   return invoke<DesktopLlmConfig>('save_llm_config', { payload });
 }
-
-export async function restartDesktopApiServer(): Promise<boolean> {
-  if (!isTauriRuntime()) return false;
-  await invoke('restart_api_server');
-  return true;
-}
