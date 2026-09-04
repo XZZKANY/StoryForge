@@ -33,7 +33,7 @@ uv run pytest tests/test_alembic_heads.py -q
 - `uv run alembic upgrade head --sql` 必须退出码为 0。
 - 离线 SQL 输出必须包含 `20260604_0001`。
 
-该测试已经纳入本地 `pnpm e2e` 的 API verification，并已接入远端 `.github/workflows/e2e.yml` 的 `执行 Alembic 迁移预检` 步骤。
+该测试已经纳入本地 `pnpm e2e` 的 API verification；远端 `.github/workflows/e2e.yml` 的接入仅属于 2026-06 的历史记录，GitHub Actions workflow 已于 2026-06-30 退役。
 
 ### 3.2 离线 SQL 生成
 

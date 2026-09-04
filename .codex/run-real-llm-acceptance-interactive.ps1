@@ -1,6 +1,5 @@
-param(
+﻿param(
   [int]$ChapterCount = 6,
-  [int]$ChapterParallelism = 3,
   [int]$MaxChapterCount = 8,
   [int]$TargetWordCount = 7200,
   [int]$TokenBudget = 120000,
@@ -56,7 +55,8 @@ $requiredNames = @(
   "STORYFORGE_LLM_API_KEY",
   "STORYFORGE_LLM_BASE_URL",
   "STORYFORGE_LLM_MODEL",
-  "STORYFORGE_LLM_PROVIDER"
+  "STORYFORGE_LLM_PROVIDER",
+  "STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD"
 )
 
 $interactiveInjectedNames = [System.Collections.Generic.List[string]]::new()
@@ -78,6 +78,9 @@ if ($Interactive) {
   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("STORYFORGE_LLM_PROVIDER", "Process"))) {
     Set-InteractiveRuntimeEnv -Name "STORYFORGE_LLM_PROVIDER" -Value (Read-Host "请输入 provider 标识，通常为 openai-compatible")
   }
+  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD", "Process"))) {
+    Set-InteractiveRuntimeEnv -Name "STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD" -Value (Read-Host "请输入 1 确认本线程使用真实 LLM 运行时配置")
+  }
 }
 
 $missing = @()
@@ -87,10 +90,9 @@ foreach ($name in $requiredNames) {
   }
 }
 
-Write-Output "真实 LLM 并发验收包装"
+Write-Output "真实 LLM 长跑验收包装"
 Write-Output "env_scope: current_process"
 Write-Output "chapter_count: $ChapterCount"
-Write-Output "chapter_parallelism: $ChapterParallelism"
 Write-Output "max_chapter_count: $MaxChapterCount"
 Write-Output "target_word_count: $TargetWordCount"
 Write-Output "token_budget: $TokenBudget"
@@ -111,7 +113,7 @@ if ($missing.Count -gt 0) {
 try {
   $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
   $apiRoot = Join-Path $repoRoot "apps\api"
-  $runnerPath = Join-Path $repoRoot ".codex\run-real-llm-parallel.py"
+  $runnerPath = Join-Path $repoRoot ".codex\run-real-llm-long-direct.py"
   $connectivityProbePath = Join-Path $repoRoot ".codex\run-real-llm-connectivity-probe.ps1"
 
   Write-Output "connectivity_probe: start"
@@ -122,13 +124,13 @@ try {
 
   if ($probeExitCode -ne 0 -or -not (($probeOutput -join "`n") -match "gate:\s*pass_connectivity_probe")) {
     Write-Output "gate: fail_connectivity_probe"
-    Write-Output "note: Provider 连通性探针未通过，已停止真实并发验收。"
+    Write-Output "note: Provider 连通性探针未通过，已停止真实长跑验收。"
     exit $probeExitCode
   }
 
   if ($ProbeOnly) {
     Write-Output "gate: pass_probe_only"
-    Write-Output "note: Provider 连通性探针已通过，ProbeOnly 模式不会启动真实并发验收。"
+    Write-Output "note: Provider 连通性探针已通过，ProbeOnly 模式不会启动真实长跑验收。"
     exit 0
   }
 
@@ -137,7 +139,6 @@ try {
     $runnerArgs = @(
       $runnerPath,
       "--chapter-count", $ChapterCount,
-      "--chapter-parallelism", $ChapterParallelism,
       "--max-chapter-count", $MaxChapterCount,
       "--target-word-count", $TargetWordCount,
       "--token-budget", $TokenBudget,

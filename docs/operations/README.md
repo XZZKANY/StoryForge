@@ -4,7 +4,7 @@
 
 ## 1. 使用方式
 
-本目录收纳 StoryForge 本地启动、发布、故障排查和迁移验证相关文档。当前默认开发入口是 Desktop IDE；Web 只作为维护、调试、兼容和契约验证入口。后续代理接手发布治理时，应优先阅读本索引，再进入具体手册。
+本目录收纳 StoryForge 本地启动、发布、故障排查和迁移验证相关文档。当前默认开发入口是 Desktop IDE，API 作为本地 sidecar 和业务事实源；旧 Web 与独立 Workflow 入口均已退役。后续代理接手发布治理时，应优先阅读本索引，再进入具体手册。
 
 当前本地仓库路径为 `D:/StoryForge`。所有本地验证结论必须基于可重复命令，并写入 `.codex/verification-report.md`。
 
@@ -26,6 +26,8 @@
 
 ## 4. 当前已知限制
 
+> 以下 CI/E2E run 均为 2026-06 的历史证据；GitHub Actions 远端 workflow 已于 2026-06-30 退役，当前不再提供远端自动门禁。现在请以本地 `pnpm verify` / `pnpm e2e` 结果为准。
+
 - 远端 `CI` run `26857864662` 已成功，但只覆盖 `CI / Core verification` 子集，不等于远端 E2E 总门禁通过。
 - 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）曾失败于 Alembic `Multiple head revisions`。
 - 本地已新增 Alembic merge revision `20260604_0001`，并将 `tests/test_alembic_heads.py` 纳入本地 `pnpm e2e` 的 API verification 预检；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0；修复已合入远端 `master`，最新远端 `master` E2E run `26944063055`（2026-06-04T09:45:05Z）已通过。
@@ -33,7 +35,7 @@
 - 当前环境中 Docker 服务不可查询时，`pnpm verify` 会失败；本轮已启动 Docker Desktop 并完成在线 PostgreSQL 迁移复验，后续若 Docker Desktop 被关闭仍需重新启动后补跑。
 - `pnpm openapi` 会按 `uv`、`python3`、`python` 顺序选择可用运行时；三者都不可用时才会失败。
 - FastAPI HTTP pytest 和 API verification 是 `pnpm e2e` 的固定发布门禁；失败时必须修复，不得切换到服务层补偿验收。
-- `.env.example` 已包含 `STORYFORGE_API_KEY`、`STORYFORGE_API_BASE_URL`、`STORYFORGE_WORKFLOW_SQLITE_PATH`、`STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*`；缺少真实私有配置时只能验证回退路径，不能作为真实外部 AI/RAG 端到端已接入的发布依据。
+- `.env.example` 已包含 `STORYFORGE_API_KEY`、`STORYFORGE_API_BASE_URL`、`STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*` 和 `STORYFORGE_RAG_*`；缺少真实私有配置时只能验证回退路径，不能作为真实外部 AI/RAG 端到端已接入的发布依据。
 
 ## 5. 维护规则
 

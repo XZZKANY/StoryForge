@@ -36,7 +36,7 @@ StoryForge 是面向**长篇小说生产**的可验证创作流水线：
 
 - **API（后端事实源）：** FastAPI（Python 3.11+） + SQLAlchemy + Alembic + Pydantic v2，依赖管理走 `uv`。
 - **Desktop IDE（主产品入口）：** Tauri 2 + Vite + React 18 + Monaco Editor + 本地文件系统集成。
-- **Workflow（编排）：** LangGraph，承载长任务、checkpoint、真实模型调用边界。
+- **后台运行时：** 由 `apps/api` 内的 BookRun/Agent runtime 承载长任务、checkpoint、真实模型调用边界；独立 Workflow app 已于 2026-07-26 退役。
 - **共享契约：** `packages/shared`（TypeScript 包），其中 `src/contracts/storyforge.openapi.json` 是后端 OpenAPI 快照，必须随后端变化同步刷新。
 - **基础设施：** PostgreSQL（+ pgvector） + Redis + MinIO（对象存储） + Sentry（错误追踪） + Prometheus 指标。
 - **包管理：** pnpm 9.x（workspace），Python 侧 `uv sync`。
@@ -159,7 +159,7 @@ uv run python -m scripts.prompt_lab.runner --merge .codex/prompt-lab/waveN --tas
 
 - **结构化日志：** Python 侧用 `structlog`，开发模式彩色终端、生产模式 JSON。
 - **Request ID：** 每个请求注入 UUID，响应头返回 `X-Request-Id`，日志全链路携带。
-- **Sentry：** `SENTRY_DSN` 配置即启用；API、Web、Workflow 三侧统一。
+- **Sentry：** `SENTRY_DSN` 配置即启用；API 与 Desktop 相关服务统一。
 - **指标：** `/metrics` 端点暴露 Prometheus 格式，含 `judge_calls_total`、`repair_patches_total` 等业务计数器。
 - **健康检查：** `/health/live`（仅进程） + `/health/ready`（DB + Redis + 核心表）。
 

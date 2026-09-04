@@ -25,7 +25,7 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 - 包管理器：`pnpm@9.15.4`。
 - API：FastAPI、Pydantic、SQLAlchemy、Alembic、PostgreSQL/pgvector、Redis。
 - Desktop IDE：Tauri、Vite、React、Monaco Editor、本地文件系统集成。
-- Workflow：LangGraph 或本地兼容运行时，负责长任务、checkpoint、运行态记录和模型调用边界。
+- 后台运行时：由 `apps/api` 内的 BookRun/Agent runtime 负责长任务、checkpoint、运行态记录和模型调用边界；独立 Workflow app 已于 2026-07-26 退役。
 - 共享契约：`packages/shared/src/contracts/storyforge.openapi.json`。
 
 ## 4. 当前产品边界
@@ -35,7 +35,7 @@ StoryForge 是面向长篇小说生产的可验证创作流水线。它把生成
 | Desktop IDE | 本地项目、文件树、Monaco、版本记录、命令面板 | 桌面前端 typecheck/unit/smoke、Rust cargo check 记录 | 打开项目、编辑文件、保存快照、触发 Agent 对话 |
 | Desktop Agent | 当前文件、审稿报告、修订范围、proposed patch | `test_ide_agent_orchestrator.py`、`verify:agent-conversation` | 审稿、修订、解释、确认写回事件 |
 | BookRun | Blueprint、章节计划、长程生成、导出制品 | 1/3/10 章 smoke、30 章长程、golden 回测 | 生成、审稿、修复、导出、审计 |
-| API/Workflow | 业务真相源、模型调用、checkpoint、导出 | pytest、ruff、OpenAPI、golden | 持久化、验证、运行编排和制品输出 |
+| API / 后台运行时 | 业务真相源、模型调用、checkpoint、导出 | API pytest、ruff、OpenAPI、golden | 持久化、验证、运行编排和制品输出 |
 
 ## 5. 当前不能承诺的能力
 

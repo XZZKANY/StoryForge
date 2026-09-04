@@ -38,7 +38,7 @@ The project keeps a verifiable long-form generation pipeline, but that pipeline 
 
 - API decisions belong in FastAPI routes, domain modules, and service logic; clients should not invent business conclusions.
 - Desktop owns local file UX, permission-aware confirmation, and guarded write-back ergonomics; it should call API or Tauri commands for durable effects.
-- Workflow owns long tasks and model-provider uncertainty; API should keep transaction boundaries crisp.
+- API owns long tasks and model-provider uncertainty inside its BookRun/Agent runtime; keep transaction boundaries crisp.
 - Tests and callers should cross meaningful module interfaces, not private implementation details.
 - Missing data should surface as an explicit error, not a fake fallback object.
 - Real provider secrets must stay in local environment variables and never enter committed logs or docs.

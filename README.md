@@ -51,7 +51,7 @@ StoryForge 的编辑器「安全可日更」阶段（Phase A）已封板：桌�
 - 对话式 Agent 已落地：项目级会话、LLM 工具循环（只读 fs + 一致性 / canon / 文笔 advisory 工具）、多视角审稿、定向修订、新文件起草，均走待确认 proposed patch；真·LLM tool-calling headless 实跑通过。
 - 桌面端两轮真机验收（E2E-1 首轮 + 0.1.2 第二轮 A6）全 PASS，含壳子 UI、SSE / REST、中文 IME、canon dossier、权限四轨、单实例与运行控制。
 - 私测 Alpha 单机后端已本机验证：sidecar exe 独立起服、BYO-key、写盘换模型即生效、NSIS 内嵌 sidecar。
-- 本地 deterministic/mock provider 可跑通最小整书闭环；API / Desktop / Workflow / OpenAPI 契约 / Alembic 单 head 已纳入本地门禁。
+- 本地 deterministic/mock provider 可跑通最小整书闭环；API / Desktop / OpenAPI 契约 / Alembic 单 head 已纳入本地门禁。
 - 真实 LLM 1/3/10 章 smoke 有脱敏证据（10 章已人工通读）；一次 30 章真实长程跑通链路并导出 `book.md` / `book.epub` / 审计报告。
 
 当前不能宣称：
@@ -70,7 +70,7 @@ StoryForge 的编辑器「安全可日更」阶段（Phase A）已封板：桌�
 - **Desktop IDE 主体验**：Tauri、Vite、React、Monaco Editor、本地文件系统集成
 - **Agent tool / 后台引擎**：BookRun、Judge、Repair、Story Memory、导出能力
 - **API**：FastAPI、Pydantic、SQLAlchemy、Alembic
-- **Workflow**：LangGraph、本地兼容运行时、checkpoint、provider adapter
+- **后台运行时**：API 进程内承载 BookRun、provider 调用、checkpoint 和质量门禁
 - **基础设施**：PostgreSQL + pgvector、Redis、MinIO、Docker Compose
 - **共享契约**：OpenAPI、`@storyforge/shared`
 - **工具链**：pnpm、uv、pytest、Ruff、ESLint、Prettier、Playwright
@@ -81,8 +81,7 @@ StoryForge 的编辑器「安全可日更」阶段（Phase A）已封板：桌�
 StoryForge/
 ├── apps/
 │   ├── api/          # FastAPI 业务 API、领域模型、迁移和测试
-│   ├── desktop/      # Tauri 桌面 IDE，唯一主产品体验
-│   └── workflow/     # BookRun 后台重型引擎、技能节点、运行时和质量门禁
+│   └── desktop/      # Tauri 桌面 IDE，唯一主产品体验
 ├── packages/
 │   └── shared/       # OpenAPI 生成类型、共享契约和工具
 ├── docs/
@@ -141,7 +140,7 @@ pnpm desktop:build  # 构建桌面安装包
 pnpm dev:maintenance # 启动基础服务和 API，并执行必要迁移
 pnpm dev:api        # 只启动 API
 pnpm verify         # 本地核心门禁
-pnpm test           # Desktop、Shared、API、Workflow 测试
+pnpm test           # Desktop、Shared、project-core、API 测试
 pnpm e2e            # OpenAPI 刷新 + 真实 HTTP / 契约测试
 pnpm openapi        # 重新生成 OpenAPI 契约
 pnpm lint           # ESLint + Prettier 检查

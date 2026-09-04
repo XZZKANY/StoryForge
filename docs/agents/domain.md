@@ -26,7 +26,6 @@ This is a single-context repo:
 ├── apps/
 │   ├── api/
 │   ├── desktop/
-│   └── workflow/
 └── packages/
     └── shared/
 ```

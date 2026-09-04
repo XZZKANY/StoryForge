@@ -28,7 +28,7 @@ StoryForge = 作者辅助写作 IDE。主产品体验转为以 `apps/desktop` �
 - Assistant 对话、当前文件理解、章节审稿、定向修订和续写。
 - proposed patch / diff 预览、项目级权限确认、guarded writeback 和版本记录。
 - Writing Run 工具调用入口、轻量进度和 tool trace；不把 BookRun 控制台作为主界面。
-- 与本地 API、workflow、文件系统和未来离线能力的集成。
+- 与本地 API、进程内后台运行时、文件系统和未来离线能力的集成。
 
 第一阶段以默认 `ask` 档验收的链路为：本地文件审稿 -> 修订 -> diff 确认 -> 真实写回 -> 版本记录。当前四档权限契约允许作者对单个项目显式选择 `auto` / `full` 免除逐次点击，但不免除 proposed patch、前端写回守卫和版本记录。
 
@@ -38,26 +38,26 @@ Judge、Repair、Story Memory、Timeline Guard、Style Guard、导出能力，�
 
 - managed Writing Run 负责长程生成、checkpoint、预算暂停、审计和制品导出；当前 full-book 实现仍落在 BookRun 兼容模块。
 - Agent 可以解释将调用的工具、预算和风险，并把结果以 tool trace 或轻量面板反馈给 Desktop IDE。
-- API / Workflow 负责后台运行记录、质量门禁和制品索引；不直接写用户本地文件。
+- API 负责后台运行记录、质量门禁和制品索引；不直接写用户本地文件。
 - Tauri / Desktop 前端负责读取、按项目权限确认或自动执行的本地 guarded writeback 和版本记录。
 
 ### Web（已退场）
 
 Web 不再承接运行时职责。历史 Next.js 页面、源码契约和 Docker 镜像不再作为当前门禁；需要用户界面的能力默认进入 Desktop IDE，需要后端观察能力默认进入 API/OpenAPI/pytest 或桌面端调试视图。
 
-### API 和 Workflow
+### API 与后台运行时
 
-API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
+API 与其进程内后台运行时继续作为共享后端能力，不绑定具体前端形态：
 
 - `apps/api` 负责业务 API、OpenAPI、数据模型、运行记录和制品。
-- ~~`apps/workflow` 负责生成编排、checkpoint、provider adapter 和质量门禁。~~ 2026-07-26 整包退役，能力留在 `apps/api`；历史实现见 git 历史。
+- 2026-07-26 `apps/workflow` 整包退役；生成编排、checkpoint、provider adapter 和质量门禁能力留在 `apps/api` 的 BookRun/Agent runtime，历史实现见 git 历史。
 - Desktop IDE、Agent orchestration 和 Writing Run 工具通过稳定契约访问这些能力。
 
 ## 迁移原则
 
 1. 新功能默认落在 Desktop IDE。
 2. 每迁移一条链路，补一条 Desktop IDE 级健康检查或端到端验证。
-3. 后端契约由 API pytest、OpenAPI 快照、workflow pytest 和 shared 类型检查承接。
+3. 后端契约由 API pytest、OpenAPI 快照和 shared 类型检查承接。
 4. 文档以 `docs/architecture/ide-first-product-direction.md` 记录产品方向，以 `docs/internal/current-phase.md` 记录阶段事实。
 5. 不恢复 `apps/web` 作为临时前端；确需浏览器预览时使用 `apps/desktop/frontend` 的 Vite 入口。
 6. 不把 BookRun 页面化为第一优先级；长短篇输出统一表达为 Writing Run，BookRun 仅以 managed full-book 兼容实现接入 Desktop。
@@ -73,11 +73,11 @@ API 与 Workflow 继续作为共享后端能力，不绑定具体前端形态：
 - 持续保持 Desktop 文档统一为 Vite frontend `http://localhost:3007`，不再描述为加载 Web `/ide`。
 - 持续保持 README 标注 StoryForge = 作者辅助写作 IDE，`apps/desktop` 是唯一主体验，Web 已退场。
 - 持续守住写回边界：后端在所有档位只产出 proposed patch；默认 `ask` 档必须经过用户 diff 确认，作者对单个项目显式选择的 `auto` / `full` 可免逐次点击，但不得绕过前端 guarded writeback、漂移拒写、项目边界、写前快照和版本记录。
-- 修复当前 Desktop、API、Workflow 红灯门禁，避免架构转向时带着红灯继续堆功能。
+- 修复当前 Desktop/API 红灯门禁，避免架构转向时带着红灯继续堆功能。
 - 为 Desktop IDE 增加最小冒烟验证：页面非空、Tauri 命令可用、打开目录、读取文件、保存文件。
 
 ## 非目标
 
-- 本决策不改变 API/OpenAPI/workflow 的后端契约职责。
+- 本决策不改变 API/OpenAPI 与后台运行时的后端契约职责。
 - 本决策不宣称 Desktop IDE 已经具备旧 Web 全部历史页面；它确定后续迁移方向和投资重心。
 - 本决策不宣称 BookRun 控制台是主产品入口，也不宣称真实 3-5 万字长程质量验收已经通过。

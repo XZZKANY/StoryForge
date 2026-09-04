@@ -2215,3 +2215,66 @@ git diff --check                                    -> passed
 未验证：没有调用真实 provider；没有执行打包后 Tauri 真机的设置、整章动作、diff 确认和 guarded writeback
 人工点击链；没有对真实小说样本做人工文学质量通读。因此不能宣称润色质量普遍提升、真实多 provider 联网
 稳定或真机端到端写回已完全验收。
+### 2026-08-31 Desktop dead-export cleanup
+
+范围：移除未被当前源码、测试或文档引用的前端死导出/辅助函数；保留后端知识查询契约和实际图标导出。
+
+验证：
+```text
+npm.cmd --prefix apps/desktop/frontend run typecheck -> passed
+npm.cmd --prefix apps/desktop/frontend run test -> 89 files / 579 passed
+git diff --check -> passed
+pnpm.cmd lint -> blocked by existing useProjectCommands.ts:81 react-hooks/set-state-in-effect
+```
+
+未验证：Vite production build was blocked by EPERM while Tailwind scanned apps/desktop/frontend/src/.pytest_cache; no source compilation error was reported.
+
+### 2026-08-31 API/workflow boundary and dead-code cleanup
+
+范围：确认已退役的 `apps/workflow` 不再作为运行时入口；清理其在当前 API/Desktop 侧遗留的孤儿 helper、未引用导出和占位脚本。保留 `apps/api` 作为 Desktop sidecar 的业务事实源、Agent/IDE 路由和 OpenAPI 契约边界。
+
+验证：
+```text
+cd apps/api && uv run pytest tests/test_book_run_workflow_dispatch.py tests/test_source_pruning.py tests/test_ide_book_breakdown.py tests/test_source_code_standards.py -q -> 55 passed
+cd apps/api && uv run ruff check app --select F401,F841 -> passed
+cd apps/api && uv run ruff check app/domains/ide/book_breakdown.py app/domains/ide/command_registry.py run_real_smoke.py -> passed
+cd apps/api && uv run python -m compileall -q app -> passed
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml -> passed
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> 41 passed, 1 ignored
+npm.cmd --prefix apps/desktop/frontend run typecheck -> passed
+npm.cmd --prefix apps/desktop/frontend run test -> 89 files / 579 passed
+pnpm.cmd test:project-core -> 1 file / 7 passed
+$env:UV_CACHE_DIR=.codex/tmp/uv-cache; pnpm.cmd check:drift -> passed, no OpenAPI/Agent WS drift
+pnpm.cmd test:shared -> passed
+git diff --check -> passed
+```
+
+本轮还修复了拆书命令返回值的回归：`_persist_report()` 返回完整报告时，调用方不再把完整对象嵌套到 `paths` 字段。未通过项：Vite production build 仍被 `apps/desktop/frontend/src/.pytest_cache` 的 EPERM 阻断；根级 `pnpm.cmd lint` 仍被未改动的 `useProjectCommands.ts:81` `react-hooks/set-state-in-effect` 阻断。两项均未报告本轮修改文件的编译错误。
+补充收口：移除 `.env.production.example` 中无代码消费者的旧 Workflow runtime 变量，修正 README/运维手册/当前阶段 TODO 对已退役 `apps/workflow` 的活动入口描述，并删除 `.gitignore` 对已删除并发 smoke 脚本的例外。历史架构与迁移 ledger 文档保留不改，作为退役证据。
+根级 `pnpm.cmd verify` 已复跑，仍在 lint 阶段被未改动的 `apps/desktop/frontend/src/components/app/useProjectCommands.ts:81` `react-hooks/set-state-in-effect` 阻断；本轮涉及的 Desktop/API 文件未出现在该错误中。
+补充文档收口：更新 `CONTEXT.md`、`apps/desktop/README.md`、`docs/agents/domain.md` 与 `docs/operations/release-checklist.md` 中的退役入口描述；兼容 BookRun 调度路由仅改说明文字并执行 `pnpm.cmd openapi`，生成的 OpenAPI/TypeScript 差异仅为 description/summary，同步检查无漂移。
+补充删除清单：移除已无调用方的 `apps/desktop/src-tauri/icons/crop_icon.py`、旧图标生成脚本、`apps/desktop/dev.sh`、前端占位 `index.html`、性能配置残留、`restart_api_server` 及其前端包装；smoke 不再 mock 已删除的 `/api/agent-runs/roles`，`run_real_smoke.py` 删除无效脱敏函数。`.env.production.example` 同步移除无消费者的 `WEB_BASE_URL` 与旧 Workflow runtime 配置。
+最终复验（2026-09-02）：API 定向回归 55 passed，前端 89 files / 579 tests passed，Rust 41 passed / 1 ignored，project-core 7 passed，OpenAPI/Agent frame drift 无漂移，`git diff --check` 通过。根级 `pnpm.cmd lint` 与 Vite production build 仍分别受既有 `useProjectCommands.ts:81` 规则和 `src/.pytest_cache` EPERM 阻断。
+追加修复（2026-09-02）：发现 `.codex/run-real-llm-acceptance-interactive.ps1` 仍指向已删除的并发 runner，且传递已不存在的 `--chapter-parallelism` 参数；已将其收敛到现存 `run-real-llm-long-direct.py`，并更新包装回归。连通性/包装测试 `uv run pytest tests/test_real_llm_connectivity_probe_script.py -q -> 10 passed`，Ruff 通过。为兼容 Windows PowerShell 5，连通性、10 章和交互验收 3 个 UTF-8 脚本补齐 BOM；脚本解析检查均为 0 errors。
+追加回归复验：连通性包装、长跑包装、BookRun/IDE/source-pruning 和 source-standards 合计 `uv run pytest ... -q -> 81 passed`，API Ruff 通过，`git diff --check` 通过。
+交互验收 wrapper 同步要求 `STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD`，并在 `-Interactive` 下安全询问；与正式长跑 runner 的预检要求保持一致。
+
+### 2026-09-04 清理任务最终复核
+
+本轮登记任务：`.trellis/tasks/09-04-09-04-dead-code-cleanup/`。复核重点是删除项引用、退役 Workflow 边界、BookRun 兼容路由、拆书报告返回结构和跨层契约。
+
+验证命令与结果：
+
+```text
+cd apps/api && uv run pytest tests/test_book_run_workflow_dispatch.py tests/test_source_pruning.py tests/test_ide_book_breakdown.py tests/test_source_code_standards.py tests/test_real_llm_connectivity_probe_script.py -q -> 65 passed
+cd apps/api && uv run ruff check app/domains/agent_runs app/domains/book_runs app/domains/ide app/domains/runtime_tools app/common/llm_client.py run_real_smoke.py tests/test_real_llm_connectivity_probe_script.py -> passed
+npm.cmd --prefix apps/desktop/frontend run typecheck -> passed
+npm.cmd --prefix apps/desktop/frontend run test -> 89 files / 579 passed
+npm.cmd --prefix apps/desktop/frontend run build -> passed
+$env:UV_CACHE_DIR=D:\StoryForge\.codex\tmp\uv-cache; pnpm.cmd check:drift -> passed, OpenAPI 无漂移
+git diff --check -> passed
+```
+
+Rust 本次尝试因 Cargo 首次下载 `tempfile` 时用户缓存权限/网络受限而中止；未发现代码编译错误。此前同一清理批次已验证 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml -> 41 passed, 1 ignored`，本次不重复扩大环境权限范围。
+
+复核修正：`.codex/run-real-llm-acceptance-interactive.ps1` 仍被 API 测试读取，因此恢复 `.gitignore` 对该 wrapper 的跟踪例外；已删除并发 runner 的例外继续移除。删除 `apps/workflow` 相关代码不影响历史文档、迁移 ledger、`workflow-dispatch` 路由、`BookRunWorkflow*` schema 或 `workflow_nodes` 兼容字段。

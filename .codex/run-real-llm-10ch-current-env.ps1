@@ -1,4 +1,4 @@
-param(
+﻿param(
   [int]$ChapterCount = 10,
   [int]$MaxChapterCount = 30,
   [int]$TargetWordCount = 9000,

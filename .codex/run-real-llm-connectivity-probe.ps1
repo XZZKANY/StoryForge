@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Model = "",
   [int]$TimeoutSeconds = 20,
   [switch]$Interactive

@@ -33,9 +33,8 @@ Copy-Item .env.example .env
 - `REDIS_URL`：对应本地 Redis。
 - `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`：对应本地 MinIO。
 - `API_BASE_URL`、`STORYFORGE_API_BASE_URL`：对应本地 API 与 Desktop IDE。
-- `STORYFORGE_API_KEY`：本地默认值与 API、Desktop IDE 和 Web 默认访问密钥保持一致。
+- `STORYFORGE_API_KEY`：本地默认值与 API、Desktop IDE 默认访问密钥保持一致。
 - `STORYFORGE_CORS_ORIGINS`：默认允许本地 Desktop Vite `3007` 访问。
-- `WORKFLOW_RUNTIME_MODE`、`WORKFLOW_CHECKPOINT_BACKEND`、`STORYFORGE_WORKFLOW_SQLITE_PATH`：workflow 本地 runtime checkpoint。
 - `STORYFORGE_LLM_*`、`STORYFORGE_EMBEDDING_*`、`STORYFORGE_RERANKER_*`、`STORYFORGE_RAG_*`：真实模型、embedding、reranker 与 RAG 预算预留；缺少真实私有配置时不得宣称真实外部 provider 端到端完成。
 
 ## 4. 启动基础服务
@@ -84,7 +83,7 @@ pnpm dev:api
 
 ## 7. 私测 Alpha 单机桌面模式
 
-私测 alpha 可以不启动 Docker/PostgreSQL/Redis/MinIO。桌面主进程会用 sqlite 作为本机数据库，并把设置页保存的模型配置注入后端子进程：
+私测 alpha 可以不启动 Docker/PostgreSQL/Redis/MinIO。桌面主进程会用 sqlite 作为本机数据库；设置页保存的模型配置由 API 在下一次调用时读取：
 
 ```powershell
 cd D:/StoryForge
@@ -92,7 +91,7 @@ $env:STORYFORGE_DESKTOP_SKIP_SERVICES = "1"
 pnpm desktop:dev
 ```
 
-模型服务在桌面应用内配置：打开「设置 → 模型服务」，填写 provider、base URL、model 和 API key，点击「保存并应用」。API key 保存在本机应用配置目录，不写入 `localStorage`、仓库或日志。保存后桌面主进程会重启它托管的 API 子进程，让新的 `STORYFORGE_LLM_*` 立即生效；若你显式设置 `STORYFORGE_DESKTOP_REUSE_API=1` 复用外部 API，则需要自行重启那个外部 API 后再测试连接。
+模型服务在桌面应用内配置：打开「设置 → 模型服务」，填写 provider、base URL、model 和 API key，点击「保存并应用」。API key 保存在本机应用配置目录，不写入 `localStorage`、仓库或日志。API 会在下一次调用时重新读取 `llm-provider.json`，无需重启桌面主进程或它托管的 API 子进程；若你显式设置 `STORYFORGE_DESKTOP_REUSE_API=1` 复用外部 API，则需要自行重启那个外部 API 后再测试连接。
 
 首次运行可以在欢迎页点击「创建示例项目」，选择一个父目录后会生成 `StoryForge 示例项目`，包含 `正文/第01章.md`、`大纲/总纲.md` 和 `人物/主角.md`，用于快速验证打开项目、上下文索引、agent 建议和写回流程。
 
@@ -133,10 +132,10 @@ pnpm openapi
 
 验证说明：
 
-- `pnpm verify` 执行本地核心门禁；最近一次完整复验记录为 Web 209 passed、API 405 passed、Workflow 164 passed，Ruff 与 OpenAPI drift 检查通过，API pytest 仍有 7 个非阻塞 warning。
-- `pnpm e2e` 会刷新 OpenAPI，并执行 Node 端契约、API verification 和 workflow verification；最近一次完整复验记录为 Node 29 passed、API verification 61 passed、workflow verification 37 passed。
+- `pnpm verify` 执行当前 Desktop、shared、project-core 与 API 核心门禁；历史 Phase 9 记录为 `API 405 passed`，当前详细结果以 `.codex/verification-report.md` 的最近记录为准。
+- `pnpm e2e` 会刷新 OpenAPI，并执行 Node 端契约和 API verification；独立 Workflow verification 已随组件退役移除。
 - `pnpm e2e` 的 API verification 已纳入 `tests/test_alembic_heads.py`，会先验证 Alembic 单 head 与离线 SQL smoke；在线 PostgreSQL 迁移已在本轮复验，临时库 `storyforge_phase9_online_verify` 执行 `uv run alembic upgrade head` 与 `uv run alembic current --check-heads` 均退出码为 0。
-- `pnpm test` 用于补充执行 Desktop、shared、API、workflow 的测试集合。
+- `pnpm test` 用于补充执行 Desktop、shared、project-core 和 API 的测试集合。
 - `pnpm openapi` 用于刷新 `packages/shared/src/contracts/storyforge.openapi.json`；如果产生 diff，必须解释来源并补充测试证据。
 
 ## 10. 当前远端门禁边界
@@ -203,7 +202,7 @@ OpenAPI 生成失败时不得继续使用旧契约作为发布依据。
 
 ### 远端 E2E 失败
 
-现象：GitHub Actions `E2E` 最新 run 失败。
+现象（历史）：GitHub Actions `E2E` 曾有失败 run。该远端 workflow 已于 2026-06-30 退役，当前请直接运行本地 `pnpm e2e`。
 
 处理：
 

@@ -54,6 +54,8 @@ pnpm verify
 
 ## 4. Alembic 多 head 曾导致远端 E2E 失败
 
+> 本节只保留历史远端 run 作为迁移审计证据。GitHub Actions `E2E` workflow 已于 2026-06-30 退役，当前门禁以本地 `pnpm e2e` 为准；下方 `gh run` 命令仅适用于仍存在的外部历史副本。
+
 ### 现象
 
 - 历史远端 `E2E` run `26915457170`（2026-06-03T21:55:39Z）失败。
