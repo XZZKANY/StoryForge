@@ -11,10 +11,6 @@ from app.domains.book_runs.book_generation import run_book_generation
 OUT_DIR = Path(__file__).resolve().parents[2] / ".codex" / "real-llm-smoke"
 
 
-def _redact(value: str) -> str:
-    return value if value else value
-
-
 def main() -> int:
     chapter_count = int(os.environ.get("SMOKE_CHAPTER_COUNT", "1"))
     token_budget = int(os.environ.get("SMOKE_TOKEN_BUDGET", "60000"))

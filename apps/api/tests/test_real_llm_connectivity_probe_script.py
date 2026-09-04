@@ -289,30 +289,23 @@ def test_ten_chapter_wrapper_probe_only_passes_with_local_provider() -> None:
     assert _ProbeProviderHandler.requests == ["/v1/models", "/v1/chat/completions"]
 
 
-def test_acceptance_wrapper_supports_interactive_secure_runtime_input() -> None:
-    """真实验收包装必须支持安全交互注入，并先通过连通性探针。"""
+def test_interactive_acceptance_wrapper_targets_current_serial_runner() -> None:
+    """旧并发 runner 退役后，交互验收包装必须只调用当前长跑入口。"""
 
     script = ACCEPTANCE_WRAPPER_PATH.read_text(encoding="utf-8")
 
-    assert "[switch]$Interactive" in script
-    assert "[switch]$ProbeOnly" in script
-    assert "Read-Host" in script
-    assert "-AsSecureString" in script
-    assert "Convert-SecureStringToPlainText" in script
-    assert "Set-InteractiveRuntimeEnv" in script
     assert "run-real-llm-connectivity-probe.ps1" in script
-    assert "pass_connectivity_probe" in script
-    assert "run-real-llm-parallel.py" in script
-    assert "interactiveInjectedNames" in script
-    assert "finally" in script
-    assert "$env:STORYFORGE_LLM_API_KEY = $null" in script
-    assert "不要把凭据写入文件" in script
-    assert "外部令牌计划端点" not in script
-    assert "tp-" not in script
+    assert "run-real-llm-long-direct.py" in script
+    assert "run-real-llm-parallel.py" not in script
+    assert "chapter_parallelism" not in script
+    assert "--chapter-parallelism" not in script
+    assert "[switch]$Interactive" in script
+    assert "-AsSecureString" in script
+    assert "STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD" in script
 
 
-def test_acceptance_wrapper_fails_preflight_without_runtime_env() -> None:
-    """缺少运行时变量且非交互时，验收包装必须在外呼前停止。"""
+def test_interactive_acceptance_wrapper_fails_preflight_without_runtime_env() -> None:
+    """缺少运行时变量时，交互验收包装必须在外呼前停止。"""
 
     result = subprocess.run(
         [
@@ -333,13 +326,11 @@ def test_acceptance_wrapper_fails_preflight_without_runtime_env() -> None:
     assert "missing_env=" in result.stdout
     assert "models_probe: ok" not in result.stdout
     assert "chat_probe: ok" not in result.stdout
-    assert "run-real-llm-parallel.py" not in result.stdout
-    assert "外部令牌计划端点" not in result.stdout
-    assert "tp-" not in result.stdout
+    assert "test-local-credential" not in result.stdout
 
 
-def test_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
-    """验收 ProbeOnly 模式应只验证本地假 provider，不启动并发 runner。"""
+def test_interactive_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
+    """交互验收包装的 ProbeOnly 模式只验证本地 provider，不启动长跑。"""
 
     _ProbeProviderHandler.requests = []
     server = HTTPServer(("127.0.0.1", 0), _ProbeProviderHandler)
@@ -355,6 +346,7 @@ def test_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
                 "STORYFORGE_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
                 "STORYFORGE_LLM_MODEL": "local-probe-model",
                 "STORYFORGE_LLM_PROVIDER": "openai-compatible",
+                "STORYFORGE_LLM_CONFIG_CONFIRMED_THIS_THREAD": "1",
             }
         )
         result = subprocess.run(
@@ -384,6 +376,5 @@ def test_acceptance_wrapper_probe_only_passes_with_local_provider() -> None:
     assert "chat_probe: ok" in result.stdout
     assert "gate: pass_connectivity_probe" in result.stdout
     assert "gate: pass_probe_only" in result.stdout
-    assert "run-real-llm-parallel.py" not in result.stdout
     assert "test-local-credential" not in result.stdout
     assert _ProbeProviderHandler.requests == ["/v1/models", "/v1/chat/completions"]

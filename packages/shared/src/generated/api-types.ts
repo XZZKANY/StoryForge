@@ -541,7 +541,7 @@ export interface paths {
         };
         /**
          * 读取全书 Blueprint
-         * @description 读取 Blueprint 详情，供 Web 和 Workflow 判断规划输入。
+         * @description 读取 Blueprint 详情，供 Desktop 与 API 内后台运行时判断规划输入。
          */
         get: operations["get_book_blueprint_endpoint_api_blueprints__blueprint_id__get"];
         put?: never;
@@ -727,7 +727,7 @@ export interface paths {
         head?: never;
         /**
          * 回填 BookRun 进度
-         * @description 接收 workflow BookLoop 回填的状态、当前章节和进度证据。
+         * @description 接收兼容后台 worker 回填的状态、当前章节和进度证据。
          */
         patch: operations["update_book_run_progress_endpoint_api_book_runs__book_run_id__progress_patch"];
         trace?: never;
@@ -822,8 +822,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 读取 BookRun workflow 调度 payload
-         * @description 为外部 workflow worker 生成调度 payload；接口本身不执行 workflow。
+         * 读取 BookRun 兼容调度 payload
+         * @description 为兼容后台 worker 生成调度 payload；接口本身不执行生成运行。
          */
         get: operations["get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get"];
         put?: never;
@@ -1301,7 +1301,7 @@ export interface paths {
         put?: never;
         /**
          * 创建 JobRun 恢复任务
-         * @description 对失败的 JobRun 创建恢复任务（仅登记，不立即续跑 workflow）。
+         * @description 对失败的 JobRun 创建恢复任务（仅登记，不立即执行恢复）。
          */
         post: operations["retry_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__retry_post"];
         delete?: never;
@@ -2660,7 +2660,7 @@ export interface components {
         };
         /**
          * BookRunWorkflowChapter
-         * @description workflow dispatch 使用的章节映射，避免 worker 查询 API 数据库。
+         * @description 兼容调度使用的章节映射，避免后台 worker 查询 API 数据库。
          */
         BookRunWorkflowChapter: {
             /** Chapter Goal */
@@ -2673,7 +2673,7 @@ export interface components {
         };
         /**
          * BookRunWorkflowDispatch
-         * @description BookRun workflow worker 的稳定调度 payload。
+         * @description BookRun 历史兼容 worker 的稳定调度 payload。字段名保留以兼容既有客户端。
          */
         BookRunWorkflowDispatch: {
             /** Beat Sheet Gate */
@@ -2721,7 +2721,7 @@ export interface components {
         };
         /**
          * BookRunWorkflowPlanningRefs
-         * @description workflow 只需要轻量规划引用，不接收完整规划对象。
+         * @description 历史兼容调度只接收轻量规划引用，不接收完整规划对象。
          */
         BookRunWorkflowPlanningRefs: {
             /** Arc Completion Ratio */
@@ -4607,7 +4607,7 @@ export interface components {
         };
         /**
          * RuntimeToolReferencesRead
-         * @description 运行时工具在 Web、API 与 workflow 中的静态引用。
+         * @description 运行时工具的静态引用；`workflow_nodes` 字段保留为历史兼容节点标识。
          */
         RuntimeToolReferencesRead: {
             /** Api Paths */

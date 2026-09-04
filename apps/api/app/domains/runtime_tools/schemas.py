@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class RuntimeToolReferencesRead(BaseModel):
-    """运行时工具在 Web、API 与 workflow 中的静态引用。"""
+    """运行时工具的静态引用；`workflow_nodes` 字段保留为历史兼容节点标识。"""
 
     page_refs: list[str]
     api_paths: list[str]

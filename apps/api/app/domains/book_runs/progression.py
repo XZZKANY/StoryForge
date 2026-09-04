@@ -29,7 +29,7 @@ CONTROLLED_PROGRESS_KEYS = frozenset(
 # BookRun 生命周期终态：进入后不得被 resume/stop/pause 拖回运行态。
 # retry_from_checkpoint 是有意的例外——其语义就是从 failed/stopped 的 checkpoint 重试，故它只挡 completed。
 _TERMINAL_BOOK_RUN_STATUSES = frozenset({"completed", "failed", "stopped"})
-# 作者经控制通道拥有的状态：workflow 在飞轮次的进度回填不得把它拖回 running（B1-001 家族/D1-002）。
+# 作者经控制通道拥有的状态：后台运行时在飞轮次的进度回填不得把它拖回 running（B1-001 家族/D1-002）。
 _PROGRESS_PROTECTED_STATUSES = _TERMINAL_BOOK_RUN_STATUSES | {"paused_by_user"}
 
 # 人工盲评门禁：本批 patch 提供则更新，未提供则保留旧值，避免后续进度回填把验收记录冲掉。
@@ -37,14 +37,14 @@ STICKY_PROGRESS_KEYS = frozenset({"manual_read_gate", "manual_read_review"})
 
 
 def apply_book_run_progress(session: Session, book_run_id: int, payload: BookRunProgressUpdate) -> BookRun:
-    """应用 workflow BookLoop 回填的状态、预算和 checkpoint。"""
+    """应用后台运行时回填的状态、预算和 checkpoint。"""
 
     from app.domains.book_runs.service import BookRunError, get_book_run
 
     book_run = get_book_run(session, book_run_id)
     if payload.current_chapter_index > book_run.total_chapters:
         raise BookRunError("当前章节不能超过 BookRun 总章节数。")
-    # 守卫式 status 写：作者经控制通道置 paused_by_user/stopped、或 run 已终态时，workflow
+    # 守卫式 status 写：作者经控制通道置 paused_by_user/stopped、或 run 已终态时，后台运行时
     # 在飞轮次的回填只记录进度/预算证据，不得复活或改写其生命周期 status（B1-001 家族/D1-002）。
     status_protected = book_run.status in _PROGRESS_PROTECTED_STATUSES
     incoming_progress = dict(payload.progress)

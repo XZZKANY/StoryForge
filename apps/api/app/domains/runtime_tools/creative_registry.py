@@ -36,7 +36,7 @@ def _normalize_values(values: Sequence[str]) -> tuple[str, ...]:
 
 @dataclass(frozen=True)
 class CreativeToolReferences:
-    """创作工具与页面、API、workflow 节点之间的静态对应关系。"""
+    """创作工具与页面、API 及历史运行节点标识之间的静态对应关系。"""
 
     page_refs: Sequence[str] = field(default_factory=tuple)
     api_paths: Sequence[str] = field(default_factory=tuple)
@@ -50,7 +50,7 @@ class CreativeToolReferences:
 
 @dataclass(frozen=True)
 class CreativeToolSpec:
-    """workflow 内部统一创作工具能力说明。"""
+    """统一的运行时创作工具能力说明。"""
 
     name: str
     domain: str

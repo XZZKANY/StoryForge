@@ -91,7 +91,7 @@ def get_runs_job_run_endpoint(job_run_id: int, session: SessionDependency) -> Ru
     summary="创建 JobRun 恢复任务",
 )
 def retry_runs_job_run_endpoint(job_run_id: int, session: SessionDependency) -> RunsJobRunRetryRead:
-    """对失败的 JobRun 创建恢复任务（仅登记，不立即续跑 workflow）。"""
+    """对失败的 JobRun 创建恢复任务（仅登记，不立即执行恢复）。"""
 
     try:
         return retry_runs_job_run(session, job_run_id=job_run_id)

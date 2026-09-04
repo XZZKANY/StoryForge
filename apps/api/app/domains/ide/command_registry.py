@@ -23,10 +23,10 @@ from app.domains.ide._coerce import _int_or_none
 from app.domains.ide.book_breakdown import (
     BookBreakdownError,
     prepare_breakdown_cancellation,
-    request_breakdown_cancel,
     read_book_breakdown_status,
     run_book_breakdown,
 )
+from app.domains.ide.book_breakdown_control import request_breakdown_cancel
 from app.domains.ide.schemas import IdeCommandResult
 from app.domains.judge.schemas import JudgeIssueCreate, JudgeIssueRead
 from app.domains.judge.service import JudgeInputError, create_judge_issues

@@ -139,10 +139,10 @@ def retry_book_run_endpoint(book_run_id: int, session: SessionDependency) -> Boo
 @router.get(
     "/{book_run_id}/workflow-dispatch",
     response_model=BookRunWorkflowDispatch,
-    summary="读取 BookRun workflow 调度 payload",
+    summary="读取 BookRun 兼容调度 payload",
 )
 def get_book_run_workflow_dispatch_endpoint(book_run_id: int, session: SessionDependency) -> BookRunWorkflowDispatch:
-    """为外部 workflow worker 生成调度 payload；接口本身不执行 workflow。"""
+    """为兼容后台 worker 生成调度 payload；接口本身不执行生成运行。"""
 
     return build_book_run_workflow_dispatch(session, book_run_id)
 
@@ -153,7 +153,7 @@ def update_book_run_progress_endpoint(
     payload: BookRunProgressUpdate,
     session: SessionDependency,
 ) -> BookRunRead:
-    """接收 workflow BookLoop 回填的状态、当前章节和进度证据。"""
+    """接收兼容后台 worker 回填的状态、当前章节和进度证据。"""
 
     book_run = apply_book_run_progress(session, book_run_id, payload)
     record_book_run_snapshot(session, book_run=book_run, source="bookrun.progress")

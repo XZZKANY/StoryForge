@@ -23,7 +23,6 @@ from app.domains.book_runs.book_generation import call_llm as _call_llm
 from app.domains.ide.book_breakdown_control import (
     prepare_breakdown_cancellation,
     release_breakdown_cancellation,
-    request_breakdown_cancel,
 )
 
 ANALYSIS_SCHEMA_VERSION = "storyforge.breakdown.v1"
@@ -427,8 +426,7 @@ def run_book_breakdown(
         }
         if model_error:
             report["model_error"] = model_error
-        report["paths"] = _persist_report(root, report, sources, chapters, selected)
-        return report
+        return _persist_report(root, report, sources, chapters, selected)
     except BookBreakdownCancelled:
         input_hash = _sources_hash(sources)
         report = {
@@ -447,8 +445,7 @@ def run_book_breakdown(
             "limits": {"target_count": target_count, "model_context": "selected_chapters_only"},
             "notice": "本次拆书已取消，报告只包含取消前已生成的确定性底稿。",
         }
-        report["paths"] = _persist_report(root, report, sources, chapters, selected)
-        return report
+        return _persist_report(root, report, sources, chapters, selected)
     finally:
         release_breakdown_cancellation(analysis_id)
 

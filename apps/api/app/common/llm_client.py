@@ -1087,7 +1087,7 @@ def _retry_after_seconds(exc: error.HTTPError) -> float | None:
 
 
 def _sleep_before_retry(*, attempt: int, base_delay: float, jitter: float, retry_after: float | None) -> None:
-    """指数退避 + jitter；服务端给出 Retry-After 时优先尊重。镜像 workflow provider_client 的退避语义。"""
+    """指数退避 + jitter；服务端给出 Retry-After 时优先尊重历史 provider client 的语义。"""
 
     if retry_after is not None:
         delay = min(retry_after, _RETRY_DELAY_CEILING_SECONDS)

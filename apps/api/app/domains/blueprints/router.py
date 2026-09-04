@@ -50,7 +50,7 @@ def create_book_blueprint_endpoint(payload: BookBlueprintCreate, session: Sessio
     summary="读取全书 Blueprint",
 )
 def get_book_blueprint_endpoint(blueprint_id: int, session: SessionDependency) -> BookBlueprintRead:
-    """读取 Blueprint 详情，供 Web 和 Workflow 判断规划输入。"""
+    """读取 Blueprint 详情，供 Desktop 与 API 内后台运行时判断规划输入。"""
 
     try:
         return get_book_blueprint(session, blueprint_id)

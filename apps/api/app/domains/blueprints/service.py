@@ -124,7 +124,7 @@ def _get_or_create_chapter(session: Session, blueprint: BookBlueprint, chapter_i
 
 
 def _plan_blueprint_chapters(blueprint: BookBlueprint) -> list[dict]:
-    """API 侧保持与 workflow deterministic planner 等价的最小输出，避免 9A 引入跨服务运行依赖。"""
+    """API 侧保持与历史 deterministic planner 等价的最小输出，避免 9A 引入跨进程运行依赖。"""
 
     expected_word_count = min(
         max(blueprint.target_word_count // blueprint.target_chapter_count, blueprint.chapter_word_count_min),

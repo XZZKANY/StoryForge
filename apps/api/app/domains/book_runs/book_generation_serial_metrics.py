@@ -29,7 +29,7 @@ def _serial_integration_metrics(
         "metric_notes": {
             "context_cache_hit_rate": "按旧基线每章风格和前文各一次 Scene 查询、当前 BookContext 一次初始化查询投影。",
             "db_query_count_per_chapter": "沿用 Phase 1 Context 优化本地验收上限，真实查询计数由专门回归测试覆盖。",
-            "concurrent_chapter_utilization": "串行直跑为串行章节循环；PH5 并发门禁必须由 workflow BookLoop 并发 runner 证明。",
+            "concurrent_chapter_utilization": "当前仅运行串行章节循环，故记录为 0；并发能力已退役，若重新引入需另建独立基准与门禁。",
         },
     }
 

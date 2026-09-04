@@ -2160,7 +2160,7 @@
         "type": "object"
       },
       "BookRunWorkflowChapter": {
-        "description": "workflow dispatch 使用的章节映射，避免 worker 查询 API 数据库。",
+        "description": "兼容调度使用的章节映射，避免后台 worker 查询 API 数据库。",
         "properties": {
           "chapter_goal": {
             "minLength": 1,
@@ -2197,7 +2197,7 @@
         "type": "object"
       },
       "BookRunWorkflowDispatch": {
-        "description": "BookRun workflow worker 的稳定调度 payload。",
+        "description": "BookRun 历史兼容 worker 的稳定调度 payload。字段名保留以兼容既有客户端。",
         "properties": {
           "beat_sheet_gate": {
             "additionalProperties": true,
@@ -2326,7 +2326,7 @@
         "type": "object"
       },
       "BookRunWorkflowPlanningRefs": {
-        "description": "workflow 只需要轻量规划引用，不接收完整规划对象。",
+        "description": "历史兼容调度只接收轻量规划引用，不接收完整规划对象。",
         "properties": {
           "arc_completion_ratio": {
             "maximum": 1.0,
@@ -7439,7 +7439,7 @@
         "type": "object"
       },
       "RuntimeToolReferencesRead": {
-        "description": "运行时工具在 Web、API 与 workflow 中的静态引用。",
+        "description": "运行时工具的静态引用；`workflow_nodes` 字段保留为历史兼容节点标识。",
         "properties": {
           "api_paths": {
             "items": {
@@ -10049,7 +10049,7 @@
     },
     "/api/blueprints/{blueprint_id}": {
       "get": {
-        "description": "读取 Blueprint 详情，供 Web 和 Workflow 判断规划输入。",
+        "description": "读取 Blueprint 详情，供 Desktop 与 API 内后台运行时判断规划输入。",
         "operationId": "get_book_blueprint_endpoint_api_blueprints__blueprint_id__get",
         "parameters": [
           {
@@ -10475,7 +10475,7 @@
     },
     "/api/book-runs/{book_run_id}/progress": {
       "patch": {
-        "description": "接收 workflow BookLoop 回填的状态、当前章节和进度证据。",
+        "description": "接收兼容后台 worker 回填的状态、当前章节和进度证据。",
         "operationId": "update_book_run_progress_endpoint_api_book_runs__book_run_id__progress_patch",
         "parameters": [
           {
@@ -10720,7 +10720,7 @@
     },
     "/api/book-runs/{book_run_id}/workflow-dispatch": {
       "get": {
-        "description": "为外部 workflow worker 生成调度 payload；接口本身不执行 workflow。",
+        "description": "为兼容后台 worker 生成调度 payload；接口本身不执行生成运行。",
         "operationId": "get_book_run_workflow_dispatch_endpoint_api_book_runs__book_run_id__workflow_dispatch_get",
         "parameters": [
           {
@@ -10755,7 +10755,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "读取 BookRun workflow 调度 payload",
+        "summary": "读取 BookRun 兼容调度 payload",
         "tags": [
           "整书运行"
         ]
@@ -12019,7 +12019,7 @@
     },
     "/api/model-runs/job-runs/{job_run_id}/retry": {
       "post": {
-        "description": "对失败的 JobRun 创建恢复任务（仅登记，不立即续跑 workflow）。",
+        "description": "对失败的 JobRun 创建恢复任务（仅登记，不立即执行恢复）。",
         "operationId": "retry_runs_job_run_endpoint_api_model_runs_job_runs__job_run_id__retry_post",
         "parameters": [
           {

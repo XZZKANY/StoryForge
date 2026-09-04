@@ -94,4 +94,4 @@ Live `health`, `assistant`, `agent_runs`, and `ide` modules do not add dependenc
 - `websocket_stream_events_from_agent_event` is used by the live SSE pump.
 - `websocket_control_event` is used by the live REST control endpoint.
 - Their names are compatibility debt, not dead code. Rename them behind transport-neutral public functions before deleting the old names.
-- `_chapter_request` in `book_generation_parallel.py` had no caller, registration, reflection path, or test dependency and was removed as isolated dead code.
+- The former parallel BookRun support module had no live caller, registration, reflection path, or test dependency; it was removed with the retired parallel runner. Keep future cleanup notes tied to files that still exist.

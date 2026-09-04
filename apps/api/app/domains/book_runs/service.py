@@ -59,7 +59,7 @@ class BookRunNotFoundError(NotFoundError):
 
 
 def create_book_run(session: Session, payload: BookRunCreate) -> BookRun:
-    """启动 9A 最小 BookRun，等待 workflow 顺序驱动章节。"""
+    """启动 9A 最小 BookRun，等待 API 内后台运行时按序驱动章节。"""
 
     if session.get(Book, payload.book_id) is None:
         raise BookRunError("作品不存在，无法启动 BookRun。")

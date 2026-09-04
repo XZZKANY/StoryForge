@@ -1,6 +1,7 @@
-"""BookRun 域 Workflow Dispatch 构建。
+"""构建 BookRun 的历史兼容调度 payload。
 
-把锁定的 Blueprint 与已规划的 Chapter 装配为 workflow worker 可消费的调度 payload。
+把锁定的 Blueprint 与已规划的 Chapter 装配为后台 worker 可消费的稳定契约；本模块只构建数据，
+不启动独立的 Workflow 进程。
 """
 from __future__ import annotations
 
@@ -64,13 +65,13 @@ DEFAULT_PHASE_POLICY_RATIOS = (
 
 
 def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> BookRunWorkflowDispatch:
-    """生成 workflow worker 可消费的 BookRun 调度 payload，但不执行 workflow。"""
+    """生成历史兼容后台 worker 可消费的 BookRun 调度 payload，但不执行生成运行。"""
 
     from app.domains.book_runs.service import BookRunBlockedError, get_book_run
 
     book_run = get_book_run(session, book_run_id)
     if book_run.status != "running":
-        raise BookRunBlockedError("只有 running BookRun 可以生成 workflow dispatch。")
+        raise BookRunBlockedError("只有 running BookRun 可以生成兼容调度 payload。")
     blueprint = session.get(BookBlueprint, book_run.blueprint_id)
     if blueprint is None:
         raise BookRunBlockedError("BookRun 关联的 Blueprint 不存在。")
@@ -84,7 +85,7 @@ def build_book_run_workflow_dispatch(session: Session, book_run_id: int) -> Book
     required_indexes = range(start_chapter_index, book_run.total_chapters + 1)
     missing = [index for index in required_indexes if index not in chapters_by_index]
     if missing:
-        raise BookRunBlockedError("BookRun 缺少章节计划，无法生成 workflow dispatch。")
+        raise BookRunBlockedError("BookRun 缺少章节计划，无法生成兼容调度 payload。")
     volume_plan = _volume_plan_from_blueprint(blueprint, book_run.total_chapters)
     _require_longform_context_ready(session, book_run=book_run, blueprint=blueprint, volume_plan=volume_plan)
     narrative_plan = _workflow_narrative_plan(blueprint, chapters_by_index, book_run.total_chapters)
