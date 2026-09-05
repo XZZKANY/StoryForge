@@ -45,44 +45,54 @@ export function useProjectCommands({
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
-  const [bookBreakdown, setBookBreakdown] = useState<BookBreakdownPreview | null>(null);
+  const [loadedBookBreakdown, setLoadedBookBreakdown] = useState<{
+    projectPath: string;
+    report: BookBreakdownPreview | null;
+  } | null>(null);
+  const bookBreakdown =
+    loadedBookBreakdown?.projectPath === activeProject ? loadedBookBreakdown.report : null;
   const [bookBreakdownRunning, setBookBreakdownRunning] = useState(false);
   const [bookBreakdownCancelId, setBookBreakdownCancelId] = useState<string | null>(null);
   const [bookBreakdownCancelling, setBookBreakdownCancelling] = useState(false);
 
-  const loadBookBreakdown = useCallback(async (projectPath: string) => {
-    try {
-      const raw = await TauriFileSystem.readProjectFile(
-        projectPath,
-        '.storyforge/analysis/book-breakdown.json',
-      );
-      const report = JSON.parse(raw) as BookBreakdownPreview;
-      const statusResult = await executeIdeCommand('book.breakdown.status', {
-        project_root: projectPath,
-      });
-      const statusPayload = (statusResult.payload ?? {}) as Record<string, unknown>;
-      const status = (statusPayload.breakdown ?? {}) as Record<string, unknown>;
-      setBookBreakdown({
-        ...report,
-        stale: status.stale === true,
-        status: typeof status.status === 'string' ? status.status : report.status,
-        markdown_path:
-          typeof status.markdown_path === 'string'
-            ? status.markdown_path
-            : '.storyforge/analysis/book-breakdown.md',
-      });
-    } catch {
-      setBookBreakdown(null);
-    }
-  }, []);
-
   useEffect(() => {
-    if (!activeProject) {
-      setBookBreakdown(null);
-      return;
-    }
-    void loadBookBreakdown(activeProject);
-  }, [activeProject, loadBookBreakdown]);
+    if (!activeProject) return;
+    const projectPath = activeProject;
+    let cancelled = false;
+    const loadBookBreakdown = async () => {
+      try {
+        const raw = await TauriFileSystem.readProjectFile(
+          projectPath,
+          '.storyforge/analysis/book-breakdown.json',
+        );
+        const report = JSON.parse(raw) as BookBreakdownPreview;
+        const statusResult = await executeIdeCommand('book.breakdown.status', {
+          project_root: projectPath,
+        });
+        const statusPayload = (statusResult.payload ?? {}) as Record<string, unknown>;
+        const status = (statusPayload.breakdown ?? {}) as Record<string, unknown>;
+        if (cancelled) return;
+        setLoadedBookBreakdown({
+          projectPath,
+          report: {
+            ...report,
+            stale: status.stale === true,
+            status: typeof status.status === 'string' ? status.status : report.status,
+            markdown_path:
+              typeof status.markdown_path === 'string'
+                ? status.markdown_path
+                : '.storyforge/analysis/book-breakdown.md',
+          },
+        });
+      } catch {
+        if (!cancelled) setLoadedBookBreakdown({ projectPath, report: null });
+      }
+    };
+    void loadBookBreakdown();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject]);
 
   // 补丁写回、Agent 起草、新建/删除/改名后刷新资源树；短时间内多次写入合并一次重拉。
   useEffect(() => {
@@ -317,7 +327,10 @@ export function useProjectCommands({
       });
       const payload = (result.payload ?? {}) as Record<string, unknown>;
       const breakdown = (payload.breakdown ?? {}) as Record<string, unknown>;
-      setBookBreakdown(breakdown as BookBreakdownPreview);
+      setLoadedBookBreakdown({
+        projectPath: activeProject,
+        report: breakdown as BookBreakdownPreview,
+      });
       invalidateFileSystemCache(activeProject);
       setProjectRefreshVersion((version) => version + 1);
       await dialogs.alert({

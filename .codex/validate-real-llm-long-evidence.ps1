@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $true)]
   [string]$RunDirectory,
   [int]$ExpectedChapterCount = 10,
