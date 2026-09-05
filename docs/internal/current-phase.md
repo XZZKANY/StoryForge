@@ -29,7 +29,7 @@ StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench
 | 对话式 Agent | `agent_runs/loop_runtime.py`、`loop/sdk_adapters.py`、`app/platform/ai_sdk` | 自由文本工具循环，ToolSpec 派生能力；固定 intent 仍是独立入口。 |
 | 写章及受控润色 | `agent_runs/intent.py` 包含 `chapter.write`、`chapter.polish` | 已实现，不等于小说质量通过。 |
 | 结构化拆书 | `useProjectCommands.ts`、`ide/book_breakdown.py` | Desktop 调用已接入；报告加载按项目归属，切换/关闭项目和旧响应回流回归通过。 |
-| 文件边界与资源限制 | `agent_runs/fs_safety.py`、`fs_tools.py`、`fs/project_knowledge.py` | 9 月 5 日本地未提交修复；定向测试及冻结 exe 实际搜索通过，普通符号链接三项测试受权限限制跳过。 |
+| 文件边界与资源限制 | `agent_runs/fs_safety.py`、`fs_tools.py`、`fs/project_knowledge.py` | 修复已提交为 `fd7a7fa6`；定向测试及冻结 exe 实际搜索通过，Linux 已补齐普通符号链接验证，Windows junction 通过。 |
 | BookRun 历史兼容 | `tools/catalog.py` 已移除 `bookrun.*` 注册，`intent.py` 已移除 `bookrun.start` | 后台兼容仍存在，不再列为桌面 Agent 可启动的当前能力。 |
 
 默认 `ask` 档逐次确认；`auto` / `full` 只免点击，不免除 guarded writeback、漂移拒写、项目边界、写前快照与版本记录。后端仅产出 proposed patch，不直接修改手稿。一次对话的单补丁限制仍存在。
@@ -38,7 +38,7 @@ StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench
 
 ## 当前验证状态
 
-以下来自 2026-09-05 的本地实跑，包含未提交修复，不代表远端 CI 或已发布安装包。本次门禁修复后重新运行 `pnpm.cmd verify` 全部通过；文件工具定向和 packaged 验证保留同日上一项任务的结果。
+以下来自 2026-09-05 的本地实跑，不代表远端 CI 或已发布安装包。总门禁运行时包含未提交修复，随后本轮代码按确认分批提交；其他原有未提交工作仍保留。`pnpm.cmd verify` 全部通过；Linux 补验使用 `5eea3765` 的已提交源码及冻结依赖，文件工具定向和 packaged 验证保留同日上一项任务的结果。
 
 | 验证项 | 结果 | 边界 |
 | --- | --- | --- |
@@ -46,6 +46,7 @@ StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench
 | Desktop frontend | 90 files / 582 passed | lint、类型检查通过；包含 3 项新增拆书报告状态回归。 |
 | project-core / Shared | 7 passed / 契约类型检查通过 | 已纳入本地核心总门禁。 |
 | 文件工具定向与源码门禁 | 63 passed / 3 skipped | 普通符号链接创建受权限限制；Windows junction 真链接通过。 |
+| Linux 文件工具补验 | 56 passed / 1 skipped | 无网络容器运行原有 6 份测试；三个文件边界符号链接用例及 Project Knowledge 越界链接用例均通过，仅跳过 Windows junction。 |
 | 共享扫描调用方 | 244 passed / 1 skipped | 一致性、canon、知识、拆书等集合。 |
 | 工具失败反馈与跨章 | 16 passed | 预算错误反馈模型；章序遍历失败不被吞掉。 |
 | API 全量 Ruff | 通过 | `uv run ruff check .`。 |
@@ -63,7 +64,7 @@ StoryForge 是面向长篇小说作者的 Desktop IDE-first AI writing workbench
 
 ## 仍未完成的验收项
 
-1. 在支持符号链接的环境补齐三项文件边界测试；resolve 校验不是抵抗恶意本地并发路径替换的 OS 沙箱。
+1. Windows 原生符号链接仍受用户权限限制；通用链接规则已在 Linux 实际验证，Windows junction 已通过。拟发布版本可在具备权限的 Windows 环境补跑原生符号链接；resolve 校验不是抵抗恶意本地并发路径替换的 OS 沙箱。
 2. 对拟发布版本执行 GUI 保存、diff 确认及权限档位验收，不能仅依赖 headless 工具循环。
 3. 用固定写作任务比较时间、改稿保留率、返工和人工偏好。质量实验室 PRD 的 benchmark 和晋级门槛仍需收敛；没有新的真实长程质量通过结论。
 

@@ -10,11 +10,11 @@ StoryForge 是 Desktop IDE-first AI writing workbench，服务长篇小说作者
 
 ## 当前能力
 
-全文搜索、现场恢复、对话 Agent、写章、受控润色、结构化拆书已有代码接线。文件工具保护已在本地工作树修复并通过定向验证，尚未提交；不构成完整质量或发布验收。
+全文搜索、现场恢复、对话 Agent、写章、受控润色、结构化拆书已有代码接线。文件工具保护已提交为 `fd7a7fa6`，通过定向验证及 Linux 符号链接补验；不构成完整质量或发布验收。
 
 ## 验证摘要
 
-2026-09-05 修复已登记门禁失败后实跑：`pnpm.cmd verify` 全部通过；API 全量 **1581 passed / 7 skipped**，前端 **90 files / 582 passed**，project-core **7 passed**；lint、类型检查、API 全量 Ruff、daily sidecar 冒烟及 OpenAPI 漂移检查通过。同日文件工具任务的冻结 sidecar 重建、冒烟及实际搜索/正则超时探针通过。普通符号链接三项测试因本机权限跳过，junction 测试通过。结果包含本地未提交修复，不代表远端 CI 或已发布安装包。
+2026-09-05 修复已登记门禁失败后实跑：`pnpm.cmd verify` 全部通过；API 全量 **1581 passed / 7 skipped**，前端 **90 files / 582 passed**，project-core **7 passed**；lint、类型检查、API 全量 Ruff、daily sidecar 冒烟及 OpenAPI 漂移检查通过。同日文件工具任务的冻结 sidecar 重建、冒烟及实际搜索/正则超时探针通过。随后基于已提交源码的 Linux 补验 **56 passed / 1 skipped**：普通符号链接三项及 Project Knowledge 越界链接均通过，仅跳过 Windows 专属 junction；后者已在本机通过。Windows 原生符号链接仍受权限限制。总门禁运行时包含本地未提交修复，本轮代码随后已提交；结果不代表远端 CI 或已发布安装包。
 
 历史 10 章 smoke 已通过人工通读；30 章真实长程运行已完成，但人工通读结论为“退回重跑”。历史 G.1/A6/A7 GUI 验收不代表当前工作树全部权限档位的真机链路已验收。本轮未调用真实 LLM，未核对最新远端 CI。
 

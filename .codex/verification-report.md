@@ -1,3 +1,14 @@
+## 2026-09-05 提交收尾与 Linux 符号链接补验
+
+- 用户确认后完成三批本地提交：`fd7a7fa6` 文件工具边界与预算、`7e00aae0` API/lint 与拆书报告状态、`5eea3765` 状态文档与验证证据。仅提交本轮内容，其他清理代码及报告段落仍留在工作区，未推送。
+- 门禁任务已归档；文件工具 R1-R6 验收完成。Trellis 被仓库忽略，任务、规范及会话日志保留本地，不强制纳入版本库。
+- Windows 本机及沙箱外均运行 `uv run pytest tests/test_agent_fs_boundaries.py -q -rs`：18 passed / 3 skipped，普通符号链接均为 WinError 1314；Windows junction 实测通过。
+- 从提交 `5eea37650812dfabf4acfdfb2806adf66f5beaa7` 导出 API 源码、测试、pyproject.toml、uv.lock 及前端 semantics.ts，使用 Python 3.11.14 与 `uv sync --frozen --no-install-project` 构建 Linux 镜像。基础镜像摘要：`sha256:4f5d923c9dcea037f57bda425dd209f3ec643da2f0b74227f68d09dab0b3bb36`；最终镜像：`storyforge-fs-symlink-check:20260905`（manifest `sha256:4df0c5764b6ae9e872614acf568089fc12eac97fe9e39cc93de84e6b69d7ceb8`）。
+- 测试容器使用 `--rm --network none`，仅挂载证据输出目录，未挂载本地配置、密钥或私有小说。容器内执行 `uv run --no-sync pytest tests/test_agent_fs_boundaries.py tests/test_agent_fs_tools.py tests/test_agent_fs_budget_feedback.py tests/test_agent_project_knowledge.py tests/test_author_memory_reach.py tests/test_manuscript_chapter_ordinals.py -q -rs --junitxml=/evidence/linux-fs-tests.xml`：**56 passed / 1 skipped**，唯一跳过为 Windows junction。
+- 已解析 JUnit XML，确认三个边界链接用例及 `test_project_knowledge_rejects_oversize_and_symlink_escape` 均没有 skipped/failure/error。初次镜像遗漏前端 semantics.ts，目录约定测试失败；补入同提交源码后上述全组通过，未修改或放宽测试。
+- 本地复现资产：文件工具任务 `verification/` 下的 Dockerfile、source.tar、linux-fs-tests.xml；任务收尾后位于 `.trellis/tasks/archive/2026-09/09-05-fs-tool-boundaries/verification/`。用该目录执行 `docker build -t storyforge-fs-symlink-check:20260905 <verification目录>`，再 `docker run --rm --network none --mount type=bind,source=<verification绝对目录>,target=/evidence storyforge-fs-symlink-check:20260905`。
+- 本次未修改生产代码；此前总门禁结果保留为 API 1581 passed / 7 skipped、前端 582 passed。Linux 定向通过不改写 Windows 全量跳过数，不代表 Windows 原生符号链接、真机 GUI、真实 LLM 质量或远端 CI 已验收。
+
 ## 2026-09-05 已登记 API 与 lint 门禁修复
 
 - 任务：`.trellis/tasks/09-05-verification-gate-fixes/`；实现及验收完成，未自动提交，保留已有未提交工作。
