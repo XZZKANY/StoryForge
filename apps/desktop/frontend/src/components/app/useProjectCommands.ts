@@ -14,6 +14,9 @@ import { registerSmokeFileLoader, registerSmokeProjectLoader } from '../../lib/s
 import { FS_MUTATION_EVENT, invalidateFileSystemCache, TauriFileSystem } from '../../lib/tauri-fs';
 import type { AppDialogApi } from './AppDialog';
 import { normalizeMarkdownFileName } from './helpers';
+import { useBookBreakdown } from './useBookBreakdown';
+
+export type { BookBreakdownPreview } from './useBookBreakdown';
 
 type UseProjectCommandsOptions = {
   activeProject: string | null;
@@ -45,54 +48,6 @@ export function useProjectCommands({
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [pendingWelcomePrompt, setPendingWelcomePrompt] = useState<string | null>(null);
-  const [loadedBookBreakdown, setLoadedBookBreakdown] = useState<{
-    projectPath: string;
-    report: BookBreakdownPreview | null;
-  } | null>(null);
-  const bookBreakdown =
-    loadedBookBreakdown?.projectPath === activeProject ? loadedBookBreakdown.report : null;
-  const [bookBreakdownRunning, setBookBreakdownRunning] = useState(false);
-  const [bookBreakdownCancelId, setBookBreakdownCancelId] = useState<string | null>(null);
-  const [bookBreakdownCancelling, setBookBreakdownCancelling] = useState(false);
-
-  useEffect(() => {
-    if (!activeProject) return;
-    const projectPath = activeProject;
-    let cancelled = false;
-    const loadBookBreakdown = async () => {
-      try {
-        const raw = await TauriFileSystem.readProjectFile(
-          projectPath,
-          '.storyforge/analysis/book-breakdown.json',
-        );
-        const report = JSON.parse(raw) as BookBreakdownPreview;
-        const statusResult = await executeIdeCommand('book.breakdown.status', {
-          project_root: projectPath,
-        });
-        const statusPayload = (statusResult.payload ?? {}) as Record<string, unknown>;
-        const status = (statusPayload.breakdown ?? {}) as Record<string, unknown>;
-        if (cancelled) return;
-        setLoadedBookBreakdown({
-          projectPath,
-          report: {
-            ...report,
-            stale: status.stale === true,
-            status: typeof status.status === 'string' ? status.status : report.status,
-            markdown_path:
-              typeof status.markdown_path === 'string'
-                ? status.markdown_path
-                : '.storyforge/analysis/book-breakdown.md',
-          },
-        });
-      } catch {
-        if (!cancelled) setLoadedBookBreakdown({ projectPath, report: null });
-      }
-    };
-    void loadBookBreakdown();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProject]);
 
   // 补丁写回、Agent 起草、新建/删除/改名后刷新资源树；短时间内多次写入合并一次重拉。
   useEffect(() => {
@@ -308,110 +263,25 @@ export function useProjectCommands({
     }
   }, [activeProject, currentFile, dialogs, dirtyFiles, handleOpenProject]);
 
-  const handleBookBreakdown = useCallback(async () => {
-    if (!activeProject) {
-      await handleOpenProject();
-      return;
-    }
-    if (bookBreakdownRunning) return;
-    const analysisId = crypto.randomUUID();
-    setBookBreakdownCancelId(analysisId);
-    setBookBreakdownCancelling(false);
-    setBookBreakdownRunning(true);
-    try {
-      if (currentFile && dirtyFiles.has(currentFile)) await flushActiveEditorToDisk(currentFile);
-      const result = await executeIdeCommand('book.breakdown', {
-        project_root: activeProject,
-        target_count: 8,
-        analysis_id: analysisId,
-      });
-      const payload = (result.payload ?? {}) as Record<string, unknown>;
-      const breakdown = (payload.breakdown ?? {}) as Record<string, unknown>;
-      setLoadedBookBreakdown({
-        projectPath: activeProject,
-        report: breakdown as BookBreakdownPreview,
-      });
-      invalidateFileSystemCache(activeProject);
-      setProjectRefreshVersion((version) => version + 1);
-      await dialogs.alert({
-        title: breakdown.status === 'cancelled' ? '拆书已取消' : '结构化拆书报告已生成',
-        message: [
-          `章节：${breakdown.chapter_count ?? 0}`,
-          `代表章：${Array.isArray(breakdown.selected_chapters) ? breakdown.selected_chapters.length : (breakdown.selected_count ?? 0)}`,
-          `状态：${breakdown.status ?? '未知'}`,
-          typeof breakdown.model === 'string' && breakdown.model
-            ? `模型：${breakdown.model}`
-            : '模型：未配置，保留确定性拆书底稿',
-          '',
-          breakdown.status === 'cancelled'
-            ? '已保存取消前生成的部分底稿，可重新运行。'
-            : breakdown.status === 'completed'
-              ? '报告已保存到 .storyforge/analysis/，可在侧栏预览或打开 Markdown。'
-              : '报告已保存到 .storyforge/analysis/，当前为结构化底稿。',
-        ].join('\n'),
-      });
-      const reportPath = resolveProjectRelativePath(
-        activeProject,
-        '.storyforge/analysis/book-breakdown.md',
-      );
-      if (reportPath) await openFile(reportPath, '打开拆书报告');
-    } catch (error) {
-      await dialogs.alert({
-        title: '生成拆书报告失败',
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setBookBreakdownRunning(false);
-      setBookBreakdownCancelling(false);
-      setBookBreakdownCancelId(null);
-    }
-  }, [
-    activeProject,
+  const onReportGenerated = useCallback(() => {
+    setProjectRefreshVersion((version) => version + 1);
+  }, []);
+  const {
+    handleBookBreakdown,
+    handleOpenBookBreakdown,
+    bookBreakdown,
     bookBreakdownRunning,
+    bookBreakdownCancelling,
+    handleCancelBookBreakdown,
+  } = useBookBreakdown({
+    activeProject,
     currentFile,
     dirtyFiles,
     dialogs,
-    handleOpenProject,
+    openProject: handleOpenProject,
     openFile,
-  ]);
-
-  const handleCancelBookBreakdown = useCallback(async () => {
-    if (!bookBreakdownCancelId || bookBreakdownCancelling) return;
-    setBookBreakdownCancelling(true);
-    try {
-      const result = await executeIdeCommand('book.breakdown.cancel', {
-        analysis_id: bookBreakdownCancelId,
-      });
-      const payload = (result.payload ?? {}) as Record<string, unknown>;
-      const breakdown = (payload.breakdown ?? {}) as Record<string, unknown>;
-      if (breakdown.cancellation_requested !== true) {
-        setBookBreakdownCancelling(false);
-        await dialogs.alert({
-          title: '拆书无法取消',
-          message: '任务可能已经结束，请查看当前报告状态。',
-        });
-      }
-    } catch (error) {
-      setBookBreakdownCancelling(false);
-      await dialogs.alert({
-        title: '取消拆书失败',
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [bookBreakdownCancelId, bookBreakdownCancelling, dialogs]);
-
-  const handleOpenBookBreakdown = useCallback(
-    async (format: 'json' | 'markdown' = 'markdown') => {
-      if (!activeProject) return;
-      const relativePath =
-        format === 'json'
-          ? '.storyforge/analysis/book-breakdown.json'
-          : '.storyforge/analysis/book-breakdown.md';
-      const path = resolveProjectRelativePath(activeProject, relativePath);
-      if (path) await openFile(path, '打开拆书报告');
-    },
-    [activeProject, openFile],
-  );
+    onReportGenerated,
+  });
 
   return {
     projectRefreshVersion,
@@ -433,14 +303,5 @@ export function useProjectCommands({
     handleCancelBookBreakdown,
   };
 }
-
-export type BookBreakdownPreview = {
-  status?: string;
-  stale?: boolean;
-  chapter_count?: number;
-  selected_chapters?: Array<{ title?: string; reason?: string; global_index?: number }>;
-  analysis?: Record<string, { status?: string; summary?: string }>;
-  markdown_path?: string;
-};
 
 export type ProjectCommands = ReturnType<typeof useProjectCommands>;

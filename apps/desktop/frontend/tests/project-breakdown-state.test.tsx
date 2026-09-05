@@ -1,10 +1,10 @@
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { useProjectCommands, type ProjectCommands } from '../src/components/app/useProjectCommands';
 import { executeIdeCommand } from '../src/lib/api-client';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
 
 vi.mock('../src/lib/api-client', () => ({ executeIdeCommand: vi.fn() }));
 vi.mock('../src/lib/smoke', () => ({
@@ -28,14 +28,14 @@ const options = {
   dirtyFiles: new Set<string>(),
   openFiles: [],
   dialogs: {
-    alert: async () => {},
+    alert: vi.fn(async () => {}),
     confirm: async () => true,
     prompt: async () => null,
     choose: async () => null,
   },
   selectProject: () => {},
   selectProjectSafely: async () => true,
-  openFile: async () => {},
+  openFile: vi.fn(async () => {}),
   confirmDiscardFiles: async () => true,
   resetEditorFiles: () => {},
   onShowEditor: () => {},
@@ -104,3 +104,128 @@ test('closing a project keeps a late report invisible', async () => {
   await act(async () => finish('{"chapter_count":3}'));
   expect(latest.bookBreakdown).toBeNull();
 });
+
+test('a late generation cannot replace another project report or open its file', async () => {
+  let finish!: (value: Awaited<ReturnType<typeof executeIdeCommand>>) => void;
+  vi.mocked(executeIdeCommand).mockImplementation(async (command) => {
+    if (command === 'book.breakdown')
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    return { command_id: command, status: 'accepted', payload: { breakdown: { stale: false } } };
+  });
+  vi.mocked(TauriFileSystem.readProjectFile).mockResolvedValue('{"chapter_count":3}');
+  await render('D:/A');
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = latest.handleBookBreakdown();
+  });
+  vi.mocked(TauriFileSystem.readProjectFile).mockResolvedValue('{"chapter_count":7}');
+  await render('D:/B');
+  const refreshVersion = latest.projectRefreshVersion;
+  await act(async () => {
+    finish({
+      command_id: 'book.breakdown',
+      status: 'accepted',
+      payload: { breakdown: { chapter_count: 9 } },
+    });
+    await pending;
+  });
+  expect(latest.bookBreakdown?.chapter_count).toBe(7);
+  expect(options.dialogs.alert).not.toHaveBeenCalled();
+  expect(options.openFile).not.toHaveBeenCalled();
+  expect(invalidateFileSystemCache).not.toHaveBeenCalled();
+  expect(latest.projectRefreshVersion).toBe(refreshVersion);
+  expect(latest.bookBreakdownRunning).toBe(false);
+});
+
+test.each(['success', 'failure'])(
+  'an old report read %s cannot overwrite a generated report',
+  async (outcome) => {
+    let finish!: (value: string) => void;
+    let fail!: (error: Error) => void;
+    vi.mocked(TauriFileSystem.readProjectFile).mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        }),
+    );
+    vi.mocked(executeIdeCommand).mockImplementation(async (command) => ({
+      command_id: command,
+      status: 'accepted',
+      payload: {
+        breakdown: command === 'book.breakdown' ? { chapter_count: 9 } : { stale: false },
+      },
+    }));
+    await render('D:/A');
+    await act(async () => {
+      await latest.handleBookBreakdown();
+    });
+    expect(latest.bookBreakdown?.chapter_count).toBe(9);
+    await act(async () => {
+      if (outcome === 'success') finish('{"chapter_count":3}');
+      else fail(new Error('old read failed'));
+    });
+    expect(latest.bookBreakdown?.chapter_count).toBe(9);
+  },
+);
+
+test('StrictMode replay invalidates the first report load', async () => {
+  let finish!: (value: string) => void;
+  vi.mocked(TauriFileSystem.readProjectFile)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockResolvedValueOnce('{"chapter_count":7}');
+  await act(async () =>
+    root.render(
+      <StrictMode>
+        <Harness project="D:/A" />
+      </StrictMode>,
+    ),
+  );
+  expect(latest.bookBreakdown?.chapter_count).toBe(7);
+  await act(async () => finish('{"chapter_count":3}'));
+  expect(latest.bookBreakdown?.chapter_count).toBe(7);
+});
+
+test.each(['success', 'failure'])(
+  'a late status query %s cannot overwrite a generated report',
+  async (outcome) => {
+    let finish!: (value: Awaited<ReturnType<typeof executeIdeCommand>>) => void;
+    let fail!: (error: Error) => void;
+    vi.mocked(TauriFileSystem.readProjectFile).mockResolvedValue('{"chapter_count":3}');
+    vi.mocked(executeIdeCommand).mockImplementation(async (command) => {
+      if (command === 'book.breakdown.status')
+        return new Promise((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        });
+      return {
+        command_id: command,
+        status: 'accepted',
+        payload: { breakdown: { chapter_count: 9 } },
+      };
+    });
+    await render('D:/A');
+    await act(async () => {
+      await latest.handleBookBreakdown();
+    });
+    expect(latest.bookBreakdown?.chapter_count).toBe(9);
+    await act(async () => {
+      if (outcome === 'success')
+        finish({
+          command_id: 'book.breakdown.status',
+          status: 'accepted',
+          payload: { breakdown: { stale: true } },
+        });
+      else fail(new Error('old status query failed'));
+    });
+    expect(latest.bookBreakdown?.chapter_count).toBe(9);
+    expect(latest.bookBreakdown?.stale).not.toBe(true);
+  },
+);

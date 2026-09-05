@@ -1,3 +1,15 @@
+## 2026-09-05 B1 拆书命令项目隔离
+
+- 任务：`.trellis/tasks/09-05-breakdown-command-project-isolation/`。用户已批准实施及单独提交；只处理父任务 B1，B2/B3/B4 未启动。本段与 B1 代码单独提交，保留原有 API 清理等 9 个文件的其他未提交改动，不推送。
+- 修复：拆书报告加载、生成、取消内聚到 `apps/desktop/frontend/src/components/app/useBookBreakdown.ts`；按已提交项目生命周期、请求身份和报告 revision 隔离迟到回调。保留 `useProjectCommands` 公共返回接口及 `BookBreakdownPreview` 类型 re-export，不改 API/WS/DTO、报告格式或 guarded writeback。
+- 覆盖：切换/关闭/卸载、A→B→A、保存等待、完成提示等待、取消迟到清理、读/status 成功失败覆盖、StrictMode 重放、同 tick 重复点击和正常重跑。仍维持 single in-flight，切项目不自动取消原后台任务。
+- 首轮红测：`npm.cmd --prefix apps/desktop/frontend run test -- tests/project-breakdown-state.test.tsx` -> **3 failed / 3 passed**；新失败分别证明旧生成覆盖 B 报告、旧读取成功/失败覆盖新生成。修复后该首轮集合 6 passed。
+- 合并定向：`npm.cmd --prefix apps/desktop/frontend run test -- tests/project-breakdown-state.test.tsx tests/project-breakdown-lifecycle.test.tsx` -> **27 passed**。相对既有三项新增 24 项，不以旧三项或源码字符串断言代替新行为验证。
+- 独立 frontend typecheck、定向 ESLint 通过；`uv run pytest tests/test_source_code_standards.py -q` -> **16 passed**；`npm.cmd --prefix apps/desktop/frontend run build` -> passed（27.26 秒），既有 Monaco 大 chunk 和 Tauri event 混合导入 warning 保留，未提高阈值掩盖。
+- `pnpm.cmd verify` -> **exit 0，全部本地核心门禁通过**：根 lint/格式、Desktop/Shared 类型检查、project-core **7 passed**、Desktop **91 files / 606 passed**、API **1581 passed / 7 skipped / 6 warnings**、API Ruff、daily sidecar 冒烟（零 LLM/零外网）及 OpenAPI/Agent 帧刷新无漂移。该结果来自包含原有未提交清理的工作树，不等同于仅 B1 提交的隔离全量复测。API 跳过仍为本机符号链接/既有可选环境测试，不改写为全平台验收。
+- 独立只读代码审查无阻断，额外补齐 StrictMode 与 status 等待窗口测试；`git diff --check` 通过。更新项目异步状态规范及子任务复盘，避免仅修 effect 而漏掉命令回调。
+- 未验证：本轮未执行真机 Tauri GUI、冻结安装包、真实 provider 或文学质量验收，也未推进 Agent 末次回答取消修复。不能将单元测试或本地核心门禁外推成上述验收通过。
+
 ## 2026-09-05 提交收尾与 Linux 符号链接补验
 
 - 用户确认后完成三批本地提交：`fd7a7fa6` 文件工具边界与预算、`7e00aae0` API/lint 与拆书报告状态、`5eea3765` 状态文档与验证证据。仅提交本轮内容，其他清理代码及报告段落仍留在工作区，未推送。
