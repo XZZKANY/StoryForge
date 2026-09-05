@@ -1,3 +1,12 @@
+## 2026-09-05 B3 Desktop 生产前端性能诊断
+
+- 用户在 B2 提交后要求「做下一步」，本批只测量，不修改业务代码或推进 B4。报告：`D:/StoryForge/docs/internal/desktop-performance-baseline-2026-09-05.md`；本地原始证据：`D:/StoryForge/.trellis/tasks/archive/2026-09/09-05-desktop-performance-baseline/`（忽略目录，不随报告提交）。
+- 基于 `08377dc0` 的 production bundle，在隔离 loopback origin、1440×920 浏览器、内存文件/模拟SSE下，完成4组×5次=20个正式样本。新origin欢迎DOM中位236/max283.6 ms，双rAF代理257.1/max301.2；同origin再导航DOM58.4/max80.1，双rAF123.7/max139 ms。
+- 合成长文39,598 code units/99,598 bytes/7,199行、单处标点diff：结果入队→diff装饰双rAF中位82.6/max107.6 ms；160个真实ASCII insertText→下一rAF中位2.7/max9.1 ms。上述是前端代理，不是INP、实际paint、完整diff计算、真实IME或Tauri性能。
+- 运行发现：冷启动5次长任务91–124 ms（LoAF指向入口模块，不能细归因）；20/20次Monaco缺worker factory并回退主线程，告警在开文件后，不是启动卡顿归因。建议后续单变量worker对照，不据告警宣称优化收益。
+- 已通过：production build（23.36秒）；Desktop typecheck；最终`pnpm.cmd lint`；本地server12/12测试；20样本validity与99产物hash；独立只读重算。正式样本无请求/资源错误、hidden或阶段顺序问题。4个校准样本因fixture/资源路由问题保留排除；首次lint扫描临时build失败，产物移至既有标准dist并补诊断脚本环境声明后通过，无门禁规则变更。
+- 原有9个未提交文件保留，本段只追加、不覆盖旧报告。无产品/API/契约变化，未重跑本轮`pnpm.cmd verify`、API/Vitest全量或OpenAPI；未验收Tauri/packaged、真实provider、真实磁盘写回、长会话、中文IME或人工文学质量。用户已确认仅单独提交本报告和 B3 验证段，不推送。
+
 ## 2026-09-05 B2 Agent 最终回答取消一致性
 
 - 任务：`.trellis/tasks/09-05-agent-terminal-cancellation/`；用户明确批准 B2 及单独提交。基线为 `acf97697` 加原有 9 个文件的未提交改动；仅改领域最终投递边界及新增行为测试，本段与 B2 代码单独提交，原有清理内容保留，不推送。
