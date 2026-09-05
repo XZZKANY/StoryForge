@@ -89,10 +89,10 @@ def test_dev_plan_records_remote_e2e_master_success_boundary() -> None:
     assert "真实 3-5 万字长程" in dev_plan
 
 
-def test_phase9_remote_ci_e2e_boundary_records_master_success() -> None:
-    """阶段事实源必须区分当前长程整改边界与历史远端证据。"""
+def test_archived_phase9_records_historical_remote_and_quality_evidence() -> None:
+    """历史措辞只约束归档，不强迫当前事实源复述过期阶段。"""
 
-    current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
+    current_phase = (CURRENT_PHASE_PATH.parent / "current-phase-history-2026-07-26.md").read_text(encoding="utf-8")
 
     assert "2026-06-21" in current_phase
     assert "Desktop 对话式 Agent 与私测 Alpha 收口阶段" in current_phase
@@ -127,10 +127,10 @@ def test_phase9_remote_ci_e2e_boundary_records_master_success() -> None:
     assert "codex/phase9-e2e-alembic" not in current_phase
 
 
-def test_project_summary_records_current_phase9_boundaries() -> None:
-    """项目总结必须同步当前 Phase 9 事实，避免旧验证状态误导完成审计。"""
+def test_archived_project_summary_preserves_original_evidence() -> None:
+    """旧总结的测试数字与未验收记录留在历史归档。"""
 
-    project_summary = PROJECT_SUMMARY_PATH.read_text(encoding="utf-8")
+    project_summary = (PROJECT_SUMMARY_PATH.parent / "PROJECT_SUMMARY-history-2026-06-21.md").read_text(encoding="utf-8")
 
     assert "2026-06-21" in project_summary
     assert "本地 lint 门禁 | 通过" in project_summary
@@ -160,10 +160,10 @@ def test_project_summary_records_current_phase9_boundaries() -> None:
     assert "API 399 passed" not in project_summary
 
 
-def test_todo_records_current_phase9_next_actions() -> None:
-    """TODO 必须作为当前执行入口，记录 Phase 9 剩余门禁而非旧阶段。"""
+def test_archived_todo_preserves_historical_execution_context() -> None:
+    """原有写作方向、资产和验收来源保留供追溯。"""
 
-    todo = TODO_PATH.read_text(encoding="utf-8")
+    todo = (TODO_PATH.parent / "TODO-history-2026-07-26.md").read_text(encoding="utf-8")
     current_boundary = _section(todo, "## 当前事实边界", "## 下一步优先级")
     next_actions = _section(todo, "## 下一步优先级", "## 本地验证入口")
 
@@ -392,10 +392,10 @@ def test_phase9_document_fact_source_roles_are_converged() -> None:
     assert "不能把本计划中的历史验收文字单独作为最新状态来源" in dev_plan
 
 
-def test_current_phase_records_refactor_boundary_and_tauri_acceptance_result() -> None:
-    """当前事实源必须同时收敛重构边界和 Tauri 端到端验收结果。"""
+def test_archived_phase_preserves_refactor_and_tauri_acceptance_history() -> None:
+    """保留历史验收，不把它作为当前版本已验收的断言。"""
 
-    current_phase = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
+    current_phase = (CURRENT_PHASE_PATH.parent / "current-phase-history-2026-07-26.md").read_text(encoding="utf-8")
     current_stage = _section(current_phase, "## 当前阶段", "## 已完成的能力边界")
     remaining = _section(current_phase, "## 仍未完成的验收项", "## 禁止宣称范围")
 
@@ -405,6 +405,53 @@ def test_current_phase_records_refactor_boundary_and_tauri_acceptance_result() -
     assert "完整真实 Tauri 桌面端到端" in remaining
     assert "安全可日更" in remaining
     assert "已完成" in remaining
+
+
+def test_current_documents_do_not_reintroduce_retired_capability_claims() -> None:
+    for path in (CURRENT_PHASE_PATH, TODO_PATH, PROJECT_SUMMARY_PATH):
+        content = path.read_text(encoding="utf-8")
+        assert re.search(r"更新时间：\d{4}-\d{2}-\d{2}", content), path
+        assert "全文搜索" in content, path
+        assert "恢复" in content, path
+        for obsolete in ("无全文内容搜索", "启动不恢复现场", "本地 lint 门禁 | 通过", "真实 Tauri 写回端到端未跑"):
+            assert obsolete not in content, (path, obsolete)
+
+
+def test_current_phase_distinguishes_implementation_validation_and_history() -> None:
+    content = CURRENT_PHASE_PATH.read_text(encoding="utf-8")
+    validation = _section(content, "## 当前验证状态", "## 历史质量与 GUI 证据")
+    history = _section(content, "## 历史质量与 GUI 证据", "## 仍未完成的验收项")
+    remaining = _section(content, "## 仍未完成的验收项", "## 禁止宣称范围")
+    assert "未提交" in validation
+    assert "API 全量 pytest" in validation
+    assert "pnpm.cmd verify" in validation
+    assert "本轮未验证" in validation
+    assert "verification-report.md" in content
+    assert "人工通读退回重跑" in history
+    assert "本轮未重跑" in history
+    assert "符号链接" in remaining
+    assert "GUI" in remaining
+    assert "不能宣称真实 3-5 万字长程质量验收通过" in content
+    assert "不能把自动审计、golden gate 或模型自评等同于人工通读通过" in content
+    assert "不能把本地未提交修复描述成已经合并或已经发布" in content
+
+
+def test_current_todo_is_actionable_and_history_is_explicitly_archived() -> None:
+    todo = TODO_PATH.read_text(encoding="utf-8")
+    actions = _section(todo, "## 下一步优先级", "## 已实现与待核实")
+    assert "门禁" in actions
+    assert "写作" in actions
+    assert "真实 LLM" in todo
+    for name in ("current-phase-history-2026-07-26.md", "TODO-history-2026-07-26.md", "PROJECT_SUMMARY-history-2026-06-21.md"):
+        archived = (CURRENT_PHASE_PATH.parent / name).read_text(encoding="utf-8")
+        assert "历史归档" in archived.splitlines()[2]
+
+
+def test_current_document_relative_links_resolve() -> None:
+    for path in (CURRENT_PHASE_PATH, TODO_PATH, PROJECT_SUMMARY_PATH):
+        for target in re.findall(r"\]\(([^)]+)\)", path.read_text(encoding="utf-8")):
+            if "://" not in target:
+                assert (path.parent / target.split("#", 1)[0]).is_file(), (path, target)
 
 
 def _section(content: str, start: str, end: str) -> str:

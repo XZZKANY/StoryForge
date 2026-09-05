@@ -1,3 +1,47 @@
+## 2026-09-05 已登记 API 与 lint 门禁修复
+
+- 任务：`.trellis/tasks/09-05-verification-gate-fixes/`；实现及验收完成，未自动提交，保留已有未提交工作。
+- intent 测试补齐 `chapter.polish` 的精确集合期望；Windows PowerShell 5.1 将无 BOM 的中文脚本按旧编码解析，已给证据验证脚本补 UTF-8 BOM，未更改质量判定门槛。对照中 ParseFile 失败而显式 UTF-8 ParseInput 无错误。
+- 拆书报告状态记录所属项目；切换时按当前项目派生展示，effect 清理阻止旧加载响应写入。新增 3 项 hook 行为测试覆盖切换、旧响应覆盖和关闭项目，均先失败后通过；后台生成取消流程未重设计。
+- `uv run pytest tests/test_ide_agent_orchestrator.py tests/test_real_llm_long_evidence_validator.py -q` -> 30 passed，原 13 项失败均关闭。
+- `pnpm.cmd verify` -> exit 0，所有本地核心门禁通过：根 ESLint/Prettier、Desktop 与 Shared 类型检查、project-core 7 passed、前端 90 files / 582 passed、API 1581 passed / 7 skipped / 6 warnings、API 全量 Ruff、daily sidecar 冒烟、OpenAPI 刷新及无漂移。
+- 当前状态文档同步后：`uv run pytest tests/test_phase9_fact_sources.py -q` -> 18 passed；`uv run ruff check tests/test_ide_agent_orchestrator.py tests/test_phase9_fact_sources.py` -> passed；`git diff --check` -> passed。
+- 项目规范记录异步报告项目归属和 Windows PowerShell 中文脚本编码约束。current-phase、TODO、PROJECT_SUMMARY 已移除已解决阻断；下方旧结果为历史实跑，不能作为当前失败状态。
+- 未验证：普通符号链接三项文件边界测试仍受本机权限限制，未重做真机 GUI、真实 LLM 长程质量或远端 CI；本地总门禁通过不等于发布验收。冻结 sidecar 证据沿用同日文件工具任务，本次总门禁运行的是 daily 源码档。
+
+## 2026-09-05 项目状态校准
+
+- 任务：`.trellis/tasks/09-05-project-state-calibration/`；用户已授权继续，文档与测试同步完成，未自动提交。
+- 更新 current-phase、TODO、PROJECT_SUMMARY；旧文本完整保留在同目录三份 history 文件，仅加归档标记。当前文档区分代码已实现、未提交修复、最近一次验证和历史 GUI/LLM 证据。
+- 修正全文搜索/现场恢复的过时缺失描述，记录 BookRun Agent 工具退役及文件工具修复；保留上一项全仓失败与符号链接缺口。
+- `uv run pytest tests/test_phase9_fact_sources.py -q` -> 18 passed（含当前文档相对链接校验）。历史断言指向归档，不再强迫当前文档保留旧结论。
+- `uv run ruff check tests/test_phase9_fact_sources.py` -> passed；`git diff --check` -> passed。
+- 未重新跑 API 全量、GUI、真实 LLM 或远端 CI；文档中的全量数字明确来自前一项实跑。未修复无关 lint/测试错误，既有工作区改动保留。
+
+## 2026-09-05 文件工具边界与资源修复：实现验证
+
+- 任务：`.trellis/tasks/09-05-fs-tool-boundaries/`，已获实施授权，保留 in_progress（全仓门禁与符号链接验证缺口未关闭）。
+- 实现：逐文件目标及隐藏路径校验、目录链接/junction 不递归；20,000 目录项/64 深度；2 MiB 完整读取；16 MiB 搜索累计读取；UTF-8 前缀解码；regex 单次 50 ms/累计 2 秒。Project Knowledge 同步保护且不返回截断凭据片段；跨章审校不吞章序枚举错误。
+- 初始红测：`uv run pytest tests/test_agent_fs_boundaries.py -q` -> 8 failed / 3 skipped，确认无界读、乱码、漏报 truncated 与非法参数问题。
+- 定向：`uv run pytest tests/test_agent_fs_tools.py tests/test_agent_fs_boundaries.py tests/test_author_memory_reach.py tests/test_manuscript_chapter_ordinals.py tests/test_source_code_standards.py -q` -> 63 passed / 3 skipped。
+- 共享调用方：`uv run pytest -q -k 'project_knowledge or consistency or canon or entity_budget or prose_scan or collapse or cross_chapter or book_breakdown'` -> 244 passed / 1 skipped。
+- 失败反馈与跨章：`uv run pytest tests/test_agent_fs_budget_feedback.py tests/test_agent_cross_chapter.py -q` -> 16 passed。
+- `uv run ruff check app/domains/agent_runs app/domains/ide tests` -> passed；`pnpm.cmd check:drift` -> OpenAPI 零漂移；`git diff --check` -> passed。
+- `pnpm.cmd smoke:sidecar:packaged` -> 重建 exe 后通过，ready 7818 ms；PyInstaller 自动收集 hook-regex，无需更改构建配置。
+- `uv run python ../../.codex/fs-boundary-packaged-probe.py`（apps/api）-> PACKAGED SEARCH PASS。本地模拟 provider、临时库和隔离项目驱动真实冻结 exe 的 Agent SSE；普通正则返回 needle，高回溯正则返回超时错误。无真实 LLM 调用，探针服务已关闭。
+- 全量 `uv run pytest -q` -> 1564 passed / 13 failed / 7 skipped。失败：旧 `test_supported_intents_are_registered` 期望遗漏 chapter.polish；12 个 `test_real_llm_long_evidence_validator.py` 用例因既有 PowerShell 验证脚本 UnexpectedToken 无法执行。相关文件未由本任务修改。
+- `pnpm.cmd verify` -> 被既有 `apps/desktop/frontend/src/components/app/useProjectCommands.ts:81` 的 react-hooks/set-state-in-effect 阻断，未扩展范围修改前端。
+- 未验证：3 项普通符号链接用例因本机创建权限跳过；Windows junction 真链接测试通过。未宣称抵抗恶意本地进程并发路径替换或完成真机 GUI 验收。
+- uv lock、packaged smoke、OpenAPI 首次受缓存权限阻断，授权重试后通过。已有工作区改动保留，无自动提交。
+
+## 2026-09-05 文件工具安全修复：规划记录
+
+- 任务：`.trellis/tasks/09-05-fs-tool-boundaries/`，状态 planning。
+- 已完成：读取实现、测试和公共调用方；产出 prd.md、design.md、implement.md，并回读 PRD 检查需求收敛。
+- `git diff --check`：通过；任务目录文档已通过 Get-Content 回读确认存在。
+- 未验证：行为测试、Ruff、契约与冻结 sidecar。当前仅规划，生产代码尚未修改，不能宣称漏洞已修复。
+- 原有工作区改动保留，以下既有报告内容不变。
+
 # 验证报告 · 移除无项目态的功能阻挡
 
 时间：2026-08-05
