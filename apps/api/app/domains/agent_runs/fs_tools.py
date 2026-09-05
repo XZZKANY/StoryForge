@@ -7,10 +7,19 @@ Alpha 单机形态下 sidecar 后端与项目文件同机，Agent loop 的只读
 
 from __future__ import annotations
 
-import re
 from pathlib import Path, PurePosixPath
 
 from app.common.author_voice import RELATIVE_PATH as _AUTHOR_INSTRUCTIONS_PATH
+from app.domains.agent_runs.fs_safety import (
+    MAX_SEARCH_BYTES,
+    FsBinaryFileError,
+    FsToolError,
+    SearchMatcher,
+    positive_limit,
+    read_bounded_text,
+    scan_project_files,
+    scoped_target,
+)
 
 # 对小说项目无意义且可能巨大的目录，列表/检索时跳过。
 _SKIPPED_DIR_NAMES = frozenset({".git", ".storyforge", ".codex", "node_modules", "__pycache__"})
@@ -29,10 +38,6 @@ _SEARCH_MAX_FILES = 2_000
 _EXCERPT_MAX_CHARS = 200
 # 超过这个体积就不必再读内容判空白：真稿一定不是占位文件。
 _BLANK_PLACEHOLDER_MAX_BYTES = 4_096
-
-
-class FsToolError(RuntimeError):
-    """只读文件工具的输入或边界错误，消息可直接回给 LLM/用户。"""
 
 
 def normalize_project_relative_path(path: str) -> str:
@@ -72,24 +77,21 @@ def _is_skipped(relative: Path) -> bool:
     return any(part in _SKIPPED_DIR_NAMES or part.startswith(".") for part in relative.parts)
 
 
-def _iter_project_files(root: Path) -> list[Path]:
-    files = [
-        path
-        for path in root.rglob("*")
-        if path.is_file() and not _is_skipped(path.relative_to(root))
-    ]
-    files.sort(key=lambda path: path.relative_to(root).as_posix())
-    return files
+def _iter_project_files(root: Path, *, scope: Path | None = None) -> list[Path]:
+    return scan_project_files(
+        root, scope=scope, visible=lambda relative: not _is_skipped(relative), explicit_files=_VISIBLE_DOT_FILES
+    )
 
 
 def _read_text(path: Path, *, max_bytes: int | None = None) -> str:
-    raw = path.read_bytes()
-    if max_bytes is not None and len(raw) > max_bytes:
-        raw = raw[:max_bytes]
-    if b"\x00" in raw[:1024]:
-        raise FsToolError(f"不是文本文件，无法读取：{path.name}")
-    # 统一换行为 \n：offset/检索行号跨平台一致，也避免 CRLF 浪费上下文预算。
-    return raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+    return read_bounded_text(path, max_bytes=max_bytes).content
+
+
+def _visible_target(root: Path, path: Path) -> Path:
+    target = scoped_target(root, path)
+    if _is_skipped(path.relative_to(root)) or _is_skipped(target.relative_to(root)):
+        raise FsToolError("隐藏路径不可通过文件工具读取。")
+    return target
 
 
 def resolve_project_file(project_root: str, path: str) -> str:
@@ -110,7 +112,9 @@ def _is_blank_placeholder(path: Path) -> bool:
     try:
         if path.stat().st_size > _BLANK_PLACEHOLDER_MAX_BYTES:
             return False
-        return not path.read_bytes().strip()
+        with path.open("rb") as stream:
+            raw = stream.read(_BLANK_PLACEHOLDER_MAX_BYTES + 1)
+        return len(raw) <= _BLANK_PLACEHOLDER_MAX_BYTES and not raw.strip()
     except OSError:
         return False
 
@@ -139,19 +143,18 @@ def fs_list(
     """列出项目内文件（递归、相对路径、按路径排序），供 Agent 了解项目结构。"""
 
     root = _resolve_root(project_root)
+    max_entries = positive_limit(max_entries, "max_entries", _LIST_MAX_ENTRIES_DEFAULT)
     scope = _resolve_scoped(root, subpath)
     if not scope.is_dir():
         raise FsToolError(f"不是目录：{subpath}")
 
     entries: list[dict] = []
     truncated = False
-    for path in _iter_project_files(root):
-        if scope != root and scope not in path.parents:
-            continue
+    for path in _iter_project_files(root, scope=scope):
         if len(entries) >= max_entries:
             truncated = True
             break
-        stat = path.stat()
+        stat = _visible_target(root, path).stat()
         entries.append(
             {
                 "path": path.relative_to(root).as_posix(),
@@ -176,10 +179,11 @@ def fs_read(
     target = _resolve_scoped(root, path)
     if not target.is_file():
         raise FsToolError(f"文件不存在：{path}")
-    if _is_skipped(target.relative_to(root)):
-        raise FsToolError(f"隐藏路径不可通过 fs.read 读取：{path}")
-    if offset < 0:
+    target = _visible_target(root, root / path)
+    if type(offset) is not int or offset < 0:
         raise FsToolError("offset 不能为负数。")
+    if type(limit) is not int:
+        raise FsToolError("limit 必须是整数。")
     bounded_limit = min(max(limit, 1), _READ_LIMIT_MAX)
 
     content = _read_text(target)
@@ -204,34 +208,32 @@ def fs_search(
 ) -> dict:
     """在项目文本文件里跨文件检索，返回 path + 行号 + 摘录。"""
 
-    if not isinstance(query, str) or not query.strip():
-        raise FsToolError("query 不能为空。")
+    matcher = SearchMatcher(query, use_regex=use_regex)
+    max_matches = positive_limit(max_matches, "max_matches", _SEARCH_MAX_MATCHES_DEFAULT)
     root = _resolve_root(project_root)
-
-    if use_regex:
-        try:
-            pattern = re.compile(query)
-        except re.error as exc:
-            raise FsToolError(f"正则表达式无效：{exc}") from exc
-    else:
-        pattern = None
 
     matches: list[dict] = []
     truncated = False
     scanned_files = 0
+    remaining_bytes = MAX_SEARCH_BYTES
     for path in _iter_project_files(root):
         if not path.match(glob):
             continue
-        if scanned_files >= _SEARCH_MAX_FILES:
+        if scanned_files >= _SEARCH_MAX_FILES or remaining_bytes <= 1:
             truncated = True
             break
         scanned_files += 1
         try:
-            content = _read_text(path, max_bytes=_SEARCH_MAX_FILE_BYTES)
-        except FsToolError:
+            target = _visible_target(root, path)
+            read = read_bounded_text(target, max_bytes=min(_SEARCH_MAX_FILE_BYTES, remaining_bytes - 1))
+        except FsBinaryFileError:
+            # Even a non-text file consumes the bounded read budget.
+            remaining_bytes -= min(_SEARCH_MAX_FILE_BYTES + 1, remaining_bytes)
             continue
-        for line_number, line in enumerate(content.splitlines(), start=1):
-            hit = pattern.search(line) if pattern else (query in line)
+        remaining_bytes -= read.bytes_read
+        truncated = truncated or read.truncated
+        for line_number, line in enumerate(read.content.splitlines(), start=1):
+            hit = matcher.search(line)
             if not hit:
                 continue
             if len(matches) >= max_matches:

@@ -6,6 +6,13 @@ from pathlib import Path, PurePosixPath
 
 from app.common.redaction import redact_sensitive_text
 from app.domains.agent_runs.fs.knowledge_entries import KnowledgeEntry, parse_knowledge_markdown
+from app.domains.agent_runs.fs_safety import (
+    MAX_SEARCH_BYTES,
+    SearchMatcher,
+    positive_limit,
+    read_bounded_text,
+    scan_project_files,
+)
 from app.domains.agent_runs.fs_tools import (
     FsToolError,
     normalize_project_relative_path,
@@ -131,6 +138,13 @@ def _validate_eligible_file(root: Path, path: str) -> tuple[Path, str, str]:
     if any(_SENSITIVE_NAME.search(part) or part.lower() == ".env" for part in relative.parts):
         raise FsToolError(f"Project Knowledge 文件名疑似包含凭据：{path}")
     target = resolve_scoped_path(root, normalized)
+    resolved_relative = target.relative_to(root).as_posix()
+    if resolved_relative != normalized and (
+        project_knowledge_source_type(resolved_relative) is None
+        or any(_SENSITIVE_NAME.search(part) or part.lower() == ".env" for part in target.relative_to(root).parts)
+        or target.suffix.lower() not in _ALLOWED_EXTENSIONS
+    ):
+        raise FsToolError(f"Project Knowledge 链接目标不属于允许来源：{path}")
     if not target.is_file():
         raise FsToolError(f"Project Knowledge 文件不存在：{path}")
     if target.stat().st_size > PROJECT_KNOWLEDGE_MAX_FILE_BYTES:
@@ -156,11 +170,11 @@ def validate_project_knowledge_markdown_target(path: str) -> tuple[str, str]:
 def project_knowledge_candidates(project_root: str, *, max_entries: int = PROJECT_KNOWLEDGE_MAX_CANDIDATES) -> list[dict]:
     root = resolve_project_root(project_root)
     candidates: list[dict] = []
-    candidate_paths = [root / relative for relative in _STORYFORGE_FILES]
-    for child in root.iterdir():
-        source = _DIRECTORY_SOURCES.get(child.name.lower()) or _DIRECTORY_SOURCES.get(child.name)
-        if source is not None and child.is_dir():
-            candidate_paths.extend(child.rglob("*"))
+    candidate_paths = scan_project_files(
+        root,
+        visible=lambda relative: project_knowledge_source_type(relative.as_posix()) is not None,
+        explicit_files=_STORYFORGE_FILES,
+    )
 
     seen: set[str] = set()
     for path in candidate_paths:
@@ -260,32 +274,36 @@ def project_knowledge_search(
     use_regex: bool = False,
     max_matches: int = PROJECT_KNOWLEDGE_SEARCH_MAX_MATCHES,
 ) -> dict:
-    if not isinstance(query, str) or not query.strip():
-        raise FsToolError("query 不能为空。")
-    if use_regex:
-        try:
-            pattern = re.compile(query)
-        except re.error as exc:
-            raise FsToolError(f"正则表达式无效：{exc}") from exc
-    else:
-        pattern = None
+    matcher = SearchMatcher(query, use_regex=use_regex)
+    max_matches = positive_limit(max_matches, "max_matches", PROJECT_KNOWLEDGE_SEARCH_MAX_MATCHES)
     root = resolve_project_root(project_root)
     matches: list[dict] = []
     scanned_files = 0
-    truncated = False
+    candidates = project_knowledge_candidates(project_root, max_entries=PROJECT_KNOWLEDGE_SEARCH_MAX_FILES + 1)
+    truncated = len(candidates) > PROJECT_KNOWLEDGE_SEARCH_MAX_FILES
     redacted = False
     warnings: list[str] = []
-    for item in project_knowledge_candidates(project_root, max_entries=PROJECT_KNOWLEDGE_SEARCH_MAX_FILES):
+    remaining_bytes = MAX_SEARCH_BYTES
+    for item in candidates[:PROJECT_KNOWLEDGE_SEARCH_MAX_FILES]:
+        if remaining_bytes <= 1:
+            truncated = True
+            break
         scanned_files += 1
         target, normalized, _source_type = _validate_eligible_file(root, item["path"])
-        content = read_text_file(target)
-        redacted_content = redact_sensitive_text(content)
-        file_redacted = redacted_content != content
+        read = read_bounded_text(target, max_bytes=min(PROJECT_KNOWLEDGE_MAX_FILE_BYTES, remaining_bytes - 1))
+        remaining_bytes -= read.bytes_read
+        # Redaction must see the whole document; a cut credential could evade its pattern.
+        if read.truncated:
+            truncated = True
+            warnings.append(f"Project Knowledge 读取预算不足，未搜索：{normalized}")
+            break
+        redacted_content = redact_sensitive_text(read.content)
+        file_redacted = redacted_content != read.content
         redacted = redacted or file_redacted
         if file_redacted:
             warnings.append(f"Project Knowledge 已脱敏：{normalized}")
         for line_number, line in enumerate(redacted_content.splitlines(), start=1):
-            if not (pattern.search(line) if pattern else query in line):
+            if not matcher.search(line):
                 continue
             if len(matches) >= max_matches:
                 truncated = True
@@ -298,7 +316,8 @@ def project_knowledge_search(
                     "excerpt": line.strip()[:200],
                 }
             )
-        if truncated:
+        if len(matches) >= max_matches:
+            truncated = True
             break
     return {
         "matches": matches,

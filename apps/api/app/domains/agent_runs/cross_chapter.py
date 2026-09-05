@@ -45,10 +45,7 @@ def _ordered_chapters(project_root: str, paths: list[str]) -> list[dict[str, Any
     """
 
     root = _resolve_root(project_root)
-    try:
-        ordinals = _chapter_ordinals(project_root, "*.md")
-    except FsToolError:
-        ordinals = {}
+    ordinals = _chapter_ordinals(project_root, "*.md")
 
     seen: set[str] = set()
     chapters: list[dict[str, Any]] = []
