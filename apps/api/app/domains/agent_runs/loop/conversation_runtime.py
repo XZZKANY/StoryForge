@@ -260,7 +260,36 @@ class ConversationRuntimeMixin:
             return None
 
         ensure_plan_recorded()
-        if outcome.interrupted and outcome.interruption is not None:
+        interruption = outcome.interruption if outcome.interrupted else None
+        latest_interruption = self._runtime_interruption(run, boundary="before_finalize:assistant.chat_loop")
+        # SDK 只在轮次开始检查；末次 provider 返回与计划落库期间也可能收到控制消息。
+        # 已中断时保留原边界，但 paused 后又收到 stopped 必须以新的控制状态为准。
+        if latest_interruption is not None and (
+            interruption is None or latest_interruption["status"] != interruption["status"]
+        ):
+            interruption = latest_interruption
+        evidence_payload = AssistantToolCallCreate(
+            tool_name="assistant.chat_loop",
+            status=("paused" if interruption["status"] == "paused" else "failed") if interruption else "completed",
+            input_summary={"message": user_message[:500], "project_path": project_path},
+            output_summary={
+                "rounds": outcome.rounds,
+                "tool_call_count": outcome.tool_call_count,
+                "prompt_tokens": outcome.prompt_tokens,
+                "completion_tokens": outcome.completion_tokens,
+                "token_usage": outcome.token_usage,
+                "cost_cny_estimated": outcome.cost_cny_estimated,
+                "cost_breakdown": outcome.cost_breakdown,
+                "token_usage_source": outcome.token_usage_source,
+                "exhausted": outcome.exhausted,
+                "proposed_patch_id": (outcome.proposed_patch or {}).get("id"),
+                **({"runtime_interruption": interruption} if interruption is not None else {}),
+            },
+        )
+        if interruption is not None:
+            # 停止投递不等于调用未发生：保留累计用量与既有工具审计，不保存迟到回答。
+            if outcome.rounds > 0:
+                assistant_service.create_assistant_tool_call(session, assistant_session_id, evidence_payload)
             # 循环被 pause/stop 收尾：计划与已完成的 trace 已落库，不 append 消息、不 complete，
             # run.status 保持控制通道写入的 stopped/paused。顶层据 _runtime_interrupted 直接返回。
             interrupted_result = _base_response(
@@ -275,7 +304,7 @@ class ConversationRuntimeMixin:
                 role_mentions=_role_mentions(args),
             )
             return _runtime_interrupted_response(
-                interrupted_result, outcome.interruption, events_recorded=True
+                interrupted_result, interruption, events_recorded=True
             )
         answer = outcome.answer or "（模型这轮没返回内容，换个说法再问我一次？）"
         assistant_service.append_assistant_message(
@@ -291,23 +320,7 @@ class ConversationRuntimeMixin:
         loop_evidence = assistant_service.create_assistant_tool_call(
             session,
             assistant_session_id,
-            AssistantToolCallCreate(
-                tool_name="assistant.chat_loop",
-                status="completed",
-                input_summary={"message": user_message[:500], "project_path": project_path},
-                output_summary={
-                    "rounds": outcome.rounds,
-                    "tool_call_count": outcome.tool_call_count,
-                    "prompt_tokens": outcome.prompt_tokens,
-                    "completion_tokens": outcome.completion_tokens,
-                    "token_usage": outcome.token_usage,
-                    "cost_cny_estimated": outcome.cost_cny_estimated,
-                    "cost_breakdown": outcome.cost_breakdown,
-                    "token_usage_source": outcome.token_usage_source,
-                    "exhausted": outcome.exhausted,
-                    "proposed_patch_id": (outcome.proposed_patch or {}).get("id"),
-                },
-            ),
+            evidence_payload,
         )
         plan = [
             _plan_step(

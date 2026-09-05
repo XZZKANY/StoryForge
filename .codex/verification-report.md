@@ -1,3 +1,14 @@
+## 2026-09-05 B2 Agent 最终回答取消一致性
+
+- 任务：`.trellis/tasks/09-05-agent-terminal-cancellation/`；用户明确批准 B2 及单独提交。基线为 `acf97697` 加原有 9 个文件的未提交改动；仅改领域最终投递边界及新增行为测试，本段与 B2 代码单独提交，原有清理内容保留，不推送。
+- 复现：`uv run pytest tests/test_agent_terminal_cancellation.py -q`（`apps/api`）在旧生产代码上 **2 failed**：stop/pause 均由 provider stub 内独立 Session 经公开控制 service 落库，但仍返回 `late answer` 且没有 `runtime_interruption`。修复后首轮 **2 passed**，不将既有 DB 终态守卫误报为状态覆盖漏洞。
+- 修复：`apps/api/app/domains/agent_runs/loop/conversation_runtime.py` 在 loop 返回、计划记录后重新读取控制状态；复用中断返回，阻止迟到会话消息、正常完成证据和成功 system jobs。保留旧 before-round 边界，但最新 stopped 优先于旧 paused。
+- 证据：已发生模型调用保留 `assistant.chat_loop` 的累计 token/source/cost 及先前工具审计；暂停用既有 paused、停止用 failed，附 interruption，不保存迟到正文。首轮未调用模型不伪造消耗证据。SDK checkpoint、无 pending chat 恢复和 API/WS/DTO 词表不变。
+- 新增矩阵 **11 passed**：末次 stop/pause、正常成功、工具后末次中断与累计用量、首轮前零调用、第二轮前已发生用量、pause→resume 不重放、计划记录期间 paused→stopped。使用临时项目、隔离 SQLite 测试库与独立 Session，无真实网络、sleep 或私有 runtime 打桩。
+- 验证：相关 8 个 loop/lifecycle/tools/adapter/resume/permission/SDK recovery/source-standard 测试文件 **74 passed**；新矩阵 + SDK recovery + source-standard 合并 **34 passed**；定向 Ruff、`git diff --check` 通过。独立只读审查无阻断，规范已补最终投递与恢复边界；生产文件未改动行的原始行尾已保留。
+- 总门禁：`pnpm.cmd verify` -> **exit 0，全部本地核心门禁通过**：根 lint/格式、Desktop/Shared 类型检查、project-core **7 passed**、Desktop **91 files / 606 passed**、API **1592 passed / 7 skipped / 6 warnings**（229.18 秒）、API Ruff、daily sidecar（零 LLM/零外网）及 OpenAPI/Agent 帧刷新无漂移。原始日志保存在本地子任务 `verify.log`。该门禁针对包含既有清理的混合工作树，不等于隔离 B2 提交的全量复测；既有跳过/warning 未掩盖。
+- 未验证/范围：未执行真机 Tauri GUI、真实 provider、冻结安装包或文学质量验收；不宣称解决投递检查之后的所有事务竞争、单轮 fallback 取消、同轮工具强制取消，未修改 record_plan 的既有 current_step 规则；B3/B4 未启动。
+
 ## 2026-09-05 B1 拆书命令项目隔离
 
 - 任务：`.trellis/tasks/09-05-breakdown-command-project-isolation/`。用户已批准实施及单独提交；只处理父任务 B1，B2/B3/B4 未启动。本段与 B1 代码单独提交，保留原有 API 清理等 9 个文件的其他未提交改动，不推送。
