@@ -1,3 +1,12 @@
+## 2026-09-06 B3a Monaco Worker 单变量对照
+
+- 用户要求继续 B3 的下一步；只做候选实验，不改产品、不启动 B4、不自动提交。报告：`D:/StoryForge/docs/internal/monaco-worker-comparison-2026-09-06.md`；本地忽略证据：`D:/StoryForge/.trellis/tasks/archive/2026-09/09-05-monaco-worker-comparison/`。
+- 相同99个 production 产物、共同 globalAPI/公共diff/RPC观测，两组只差是否启用本地 editorWorkerService factory；5对新origin交错A/B，每组diff后另导航input，共20个正式样本，4个校准独立排除，无正式补跑/剔除。控制10/10 fallback，候选10/10初始化成功、5/5真实compute回复成功且公共diff行范围一致。
+- SSE→公共diff完成回调中位/max：control54.8/67.7、worker70.7/75.1 ms，配对worker−control中位+15.9；完成后双rAF75.2/94.2 vs77.6/82.1（配对+2.4），装饰双rAF79.1/99.3 vs80.5/87.2（配对+0.5）。每组160输入事件→nextRAF中位/max2.4/9.7 vs2.5/12.2 ms。回答双rAF配对5/5更早（中位−11.6 ms），但与diff完成延后并存，未证明整体交互提速，不将消除告警等同性能优化。
+- 新origin启动两组各5/5仍有长任务；本轮diff/input窗口无≥50ms长任务，不能据此算出CPU节省。公共observer单次最高7.6/整页累计最高14.6 ms；RPC不是CPU、DOM/rAF不是paint或INP；部分Worker资源duration为负，保留但不作下载耗时统计。
+- 已通过候选独立build、server14/14 tests、Desktop typecheck、`pnpm.cmd lint`、20样本/99原产物/冻结源码hash校验及独立复核。正式样本无error、hidden或资源失败；32键输入、dirty与可见文本均通过。仅editorWorkerService获验，不冒充其他语言Worker支持。
+- 已关闭诊断页、reset viewport、停止服务并确认12端口关闭；原有9个WIP保留，本段前置不覆盖旧报告。无产品/API/DTO变化，未重跑产品build、`pnpm.cmd verify`、API/Vitest全量或OpenAPI；未验收Tauri/packaged、IME、真实provider/磁盘/writeback、长会话、稠密diff或文学质量。用户在两文档提交提议后要求「做下一步」，按列明范围提交，不推送。
+
 ## 2026-09-05 B3 Desktop 生产前端性能诊断
 
 - 用户在 B2 提交后要求「做下一步」，本批只测量，不修改业务代码或推进 B4。报告：`D:/StoryForge/docs/internal/desktop-performance-baseline-2026-09-05.md`；本地原始证据：`D:/StoryForge/.trellis/tasks/archive/2026-09/09-05-desktop-performance-baseline/`（忽略目录，不随报告提交）。
